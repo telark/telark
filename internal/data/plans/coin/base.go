@@ -22,11 +22,11 @@ type PlanGlobalData struct {
 
 type PlanCustomData struct {
 	CoinControllerData CoinControllerData `json:"coinControllerData"`
-	CoinServiceData    CoinServiceData    `json:"CoinServiceData"`
+	CoinServiceData    []CoinServiceData  `json:"coinServiceData"`
 }
 
 type CoinControllerData struct {
-	Metadata                ControllerMetadata      `json:"controllerMetadata"`
+	Metadata                ControllerMetadata      `json:"metadata"`
 	Kind                    string                  `json:"kind"`
 	Strategy                string                  `json:"strategy"`
 	Instances               ControllerInstances     `json:"instances"`

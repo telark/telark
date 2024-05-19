@@ -71,8 +71,8 @@ type Crate struct {
 	Name      string        `json:"name"`
 	Order     int           `json:"order"`
 	SubType   CrateType     `json:"subType"`
-	Resources CrateResource `json:"containerResources"`
-	Image     CrateImage    `json:"containerImage"`
+	Resources CrateResource `json:"resources"`
+	Image     CrateImage    `json:"image"`
 	Ports     []int         `json:"ports"`
 }
 

@@ -14,7 +14,6 @@ type CoinPlan struct {
 
 type PlanGlobalData struct {
 	Name         string               `json:"name"`
-	Id           string               `json:"id"`
 	Pocket       string               `json:"pocket"`
 	CreationTime common.OperationTime `json:"creationTime"`
 	UpdateTime   common.OperationTime `json:"updateTime"`

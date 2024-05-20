@@ -13,11 +13,12 @@ type PlanGlobalData struct {
 }
 
 type PlanCustomData struct {
-	PlanType    string `json:"planType"`
-	Mode        string `json:"mode"`
-	Locked      bool   `json:"locked"`
-	Parallelism int    `json:"parallelism"`
-	Frequency   int    `json:"frequency"`
-	Batch       int    `json:"batch"`
-	Total       int    `json:"total"`
+	PlanType    string   `json:"planType"`
+	Attached    []string `json:"attached"`
+	Mode        string   `json:"mode"`
+	Locked      bool     `json:"locked"`
+	Parallelism int      `json:"parallelism"`
+	Frequency   int      `json:"frequency"`
+	Batch       int      `json:"batch"`
+	Total       int      `json:"total"`
 }

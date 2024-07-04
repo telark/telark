@@ -1,4 +1,4 @@
-package scopes
+package workload
 
 import (
 	"fmt"

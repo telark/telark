@@ -1,4 +1,4 @@
-# CRD Packages
+# Scopes Packages
 
 ## Description
 This repository hosts a set of Packages designed to be integrated within GO Core services. These modules provide a range of functionalities that are commonly required across different services(including generic structs, etc...), thereby promoting code reuse and simplifying the development process.

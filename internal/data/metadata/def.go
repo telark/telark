@@ -12,19 +12,17 @@ type Metadata struct {
 	Namespace string `json:"namespace"`
 }
 
+type Group string
+
+const (
+	Erpi Group = "erpi.plsyro"
+)
+
 type Version string
 
 const (
 	alpha1 Version = "v1alpha1"
 	alpha2 Version = "v1alpha2"
-	V1     Version = "v1"
-)
-
-type Group string
-
-const (
-	Plan     Group   = "plsyro.plan"
-	Insights Version = "plsyro.insights"
 )
 
 func (metadata *Metadata) GetApiVersion() string {

@@ -1,4 +1,4 @@
-module github.com/plsyro/crd-pkg
+module github.com/plsyro/scopes-pkg
 
 go 1.22.0
 

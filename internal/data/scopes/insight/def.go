@@ -1,10 +1,10 @@
-package environment
+package scopes
 
-type EnvironmentInsight struct {
-	InsightsGlobalData InsightsGlobalData `json:"insightsGlobalData"`
+type ResourceAsInsight struct {
+	Cacid Cacid `json:"cacid"`
 }
 
-type InsightsGlobalData struct {
+type Cacid struct {
 	Orchestrator Orchestrator `json:"orchestrator"`
 	Metrics      []Metrics    `json:"metrics"`
 }

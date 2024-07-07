@@ -1,4 +1,4 @@
-package workload
+package apps
 
 import (
 	allScopesCommon "github.com/plsyro/scopes-pkg/scopes/common"

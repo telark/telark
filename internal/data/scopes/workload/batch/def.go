@@ -1,4 +1,4 @@
-package workload
+package batch
 
 import (
 	workloadCommon "github.com/plsyro/scopes-pkg/scopes/workload/common"

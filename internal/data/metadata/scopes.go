@@ -10,11 +10,19 @@ var ResourceAsGrouperMetadata = Metadata{
 	Namespace: global.BaseNamespace,
 }
 
-var ResourceAsWorkloadMetadata = Metadata{
+var ResourceAsAppWorkloadMetadata = Metadata{
 	BaseGroup: string(Erpi),
-	Kind:      "ResourceAsWorkload",
+	Kind:      "ResourceAsAppWorkload",
 	Version:   string(alpha1),
-	Plural:    "resourcesasworkloads",
+	Plural:    "resourcesasappsworkloads",
+	Namespace: global.BaseNamespace,
+}
+
+var ResourceAsBatchWorkloadMetadata = Metadata{
+	BaseGroup: string(Erpi),
+	Kind:      "ResourceAsBatchWorkload",
+	Version:   string(alpha1),
+	Plural:    "resourcesasbatchesworkloads",
 	Namespace: global.BaseNamespace,
 }
 

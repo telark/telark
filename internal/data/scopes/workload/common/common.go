@@ -1,29 +1,8 @@
 package workload
 
-import (
-	"fmt"
-	"strings"
+import "github.com/plsyro/scopes-pkg/scopes/common"
 
-	"github.com/plsyro/scopes-pkg/scopes/common"
-)
-
-type ResourceAsWorkload struct {
-	Fasid common.Fasid `json:"fasid"`
-	Cacid Cacid        `json:"cacid"`
-}
-
-type Cacid struct {
-	Metadata               ControllerMetadata     `json:"metadata"`
-	Kind                   string                 `json:"kind"`
-	Strategy               string                 `json:"strategy"`
-	Instances              ControllerInstances    `json:"instances"`
-	Crates                 Crates                 `json:"crates"`
-	Registry               string                 `json:"registry"`
-	BridgeAttachmentPolicy BridgeAttachmentPolicy `json:"bridgeAttachmentPolicy,omitempty"`
-	Events                 []ControllerEvent      `json:"events"`
-}
-
-type ControllerMetadata struct {
+type Metadata struct {
 	Annotations []common.Unified `json:"annotations"`
 	Labels      ComposedLabels   `json:"labels"`
 }
@@ -33,8 +12,9 @@ type ComposedLabels struct {
 	Selector []common.Unified `json:"selector"`
 }
 
-type ControllerInstances struct {
+type Instances struct {
 	Total     int              `json:"total"`
+	Kind      string           `json:"kind"`
 	Available int              `json:"available"`
 	Names     []string         `json:"names"`
 	Labels    []common.Unified `json:"labels"`
@@ -74,10 +54,6 @@ type CrateImage struct {
 	IsCurrent  bool   `json:"isCurrent"`
 }
 
-type Protection struct {
-	IsSecConApplied bool `json:"isSecConApplied"`
-}
-
 type BridgeAttachmentPolicy string
 
 const (
@@ -86,41 +62,13 @@ const (
 	NoBridgeAssigned BridgeAttachmentPolicy = "No Bridge Assigned"
 )
 
-type ControllerEvent struct {
-	Instance string  `json:"instance"`
-	Events   []Event `json:"events"`
+type Events struct {
+	Instance string      `json:"instance"`
+	Events   []EventItem `json:"events"`
 }
 
-type Event struct {
+type EventItem struct {
 	Type    string `json:"type"`
 	Reason  string `json:"reason"`
 	Message string `json:"message"`
-}
-
-type Name struct {
-	Name string `json:"name"`
-}
-
-type CoinData struct {
-	Pocket     string
-	Controller string
-
-	Name string
-}
-
-func GenerateCoinData(pocket string, controller string) *CoinData {
-	coin := &CoinData{
-		Pocket:     pocket,
-		Controller: controller,
-	}
-
-	name := coin.CoinName()
-
-	coin.Name = name
-
-	return coin
-}
-
-func (c *CoinData) CoinName() string {
-	return fmt.Sprintf("%s-%s-coin", strings.ToLower(c.Pocket), strings.ToLower(c.Controller))
 }

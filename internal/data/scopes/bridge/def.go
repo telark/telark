@@ -15,12 +15,9 @@ type Cacid struct {
 }
 
 type Workload struct {
-	Name          int              `json:"name"`
-	Grouper       int              `json:"grouper"`
-	Kind          int              `json:"kind"`
-	IsSameGrouper int              `json:"isSameGrouper"`
-	IsPortMatched bool             `json:"isPortMatched"`
-	Hosts         []string         `json:"hosts"`
+	Name          string           `json:"name"`
+	Kind          string           `json:"kind"`
+	IsSameGrouper bool             `json:"isSameGrouper"`
 	MatchedLabels []common.Unified `json:"matchedLabels"`
 }
 

@@ -8,9 +8,10 @@ type ResourceAsBridge struct {
 }
 
 type Cacid struct {
-	Type      string     `json:"type"`
-	Ports     []Port     `json:"ports"`
-	Workloads []Workload `json:"workloads"`
+	Type      string           `json:"type"`
+	Ports     []Port           `json:"ports"`
+	Selectors []common.Unified `json:"selectors"`
+	Workloads []Workload       `json:"workloads"`
 }
 
 type Workload struct {

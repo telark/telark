@@ -17,6 +17,7 @@ type CacidApp struct {
 	Instances              workloadCommon.Instances              `json:"instances"`
 	Crates                 workloadCommon.Crates                 `json:"crates"`
 	Registry               string                                `json:"registry"`
+	Bridges                []string                              `json:"bridges,omitempty"`
 	BridgeAttachmentPolicy workloadCommon.BridgeAttachmentPolicy `json:"bridgeAttachmentPolicy,omitempty"`
 	Events                 []workloadCommon.Events               `json:"events"`
 }

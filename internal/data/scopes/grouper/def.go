@@ -8,8 +8,15 @@ type ResourceAsGrouper struct {
 }
 
 type Cacid struct {
-	Status    string   `json:"status"`
-	Workloads []string `json:"workloads"`
-	Bridges   []string `json:"bridges"`
-	Customs   []string `json:"customs"`
+	Status    string         `json:"status"`
+	History   []HistoryEvent `json:"history,omitempty"`
+	Workloads []string       `json:"workloads"`
+	Bridges   []string       `json:"bridges"`
+	Customs   []string       `json:"customs"`
+}
+
+type HistoryEvent struct {
+	Event        string `json:"event"`
+	Status       string `json:"status"`
+	CreationTime string `json:"creationTime"`
 }

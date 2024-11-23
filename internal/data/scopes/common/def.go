@@ -17,7 +17,7 @@ type Fasid struct {
 
 type Source struct {
 	Name           string `json:"name"`
-	Grouper        string `json:"grouper"`
+	Grouper        string `json:"grouper,omitempty"`
 	Kind           string `json:"kind"`
 	CreationTime   string `json:"creationTime"`
 	LastUpdateTime string `json:"lastUpdateTime"`

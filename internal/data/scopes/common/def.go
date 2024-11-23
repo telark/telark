@@ -27,3 +27,9 @@ type Unified struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
 }
+
+type HistoryEvent struct {
+	Event        string `json:"event"`
+	Status       string `json:"status"`
+	CreationTime string `json:"creationTime"`
+}

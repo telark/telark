@@ -11,6 +11,21 @@ var (
 	}
 )
 
+type Config struct {
+	History []HistoryEvent `json:"history,omitempty"`
+	Sync    Sync           `json:"sync"`
+}
+
+type Sync struct {
+	Mode     string   `json:"mode"`
+	Settings Settings `json:"settings,omitempty"`
+}
+
+type Settings struct {
+	Period   int    `json:"period"`
+	LastSync string `json:"lastSync"`
+}
+
 type Fasid struct {
 	Source Source `json:"source"`
 }

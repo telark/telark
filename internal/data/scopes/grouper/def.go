@@ -3,8 +3,9 @@ package grouper
 import "github.com/plsyro/scopes-pkg/scopes/common"
 
 type ResourceAsGrouper struct {
-	Fasid common.Fasid `json:"fasid"`
-	Cacid Cacid        `json:"cacid"`
+	Fasid  common.Fasid  `json:"fasid"`
+	Cacid  Cacid         `json:"cacid"`
+	Config common.Config `json:"config"`
 }
 
 type Cacid struct {

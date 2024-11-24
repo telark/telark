@@ -17,13 +17,8 @@ type Config struct {
 }
 
 type Sync struct {
-	Mode     string   `json:"mode"`
-	Settings Settings `json:"settings,omitempty"`
-}
-
-type Settings struct {
-	Period   int    `json:"period"`
-	LastSync string `json:"lastSync"`
+	Mode string `json:"mode"`
+	Last string `json:"last"`
 }
 
 type Fasid struct {

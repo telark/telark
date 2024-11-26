@@ -9,8 +9,15 @@ type ResourceAsGrouper struct {
 }
 
 type Cacid struct {
-	Status    string   `json:"status"`
-	Workloads []string `json:"workloads"`
-	Bridges   []string `json:"bridges"`
-	Customs   []string `json:"customs"`
+	Status    string            `json:"status"`
+	Workloads []ManagedResource `json:"workloads"`
+	Bridges   []ManagedResource `json:"bridges"`
+	Customs   []ManagedResource `json:"customs"`
+}
+
+type ManagedResource struct {
+	Name     string `json:"name"`
+	LastSync string `json:"lastSync"`
+	Kind     string `json:"kind"`
+	Status   string `json:"status"`
 }

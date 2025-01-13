@@ -12,13 +12,13 @@ type ResourceAsBatchWorkload struct {
 }
 
 type CacidBatch struct {
+	Status                 Status                                `json:"status"`
 	Metadata               workloadCommon.Metadata               `json:"metadata"`
 	Kind                   string                                `json:"kind"`
 	Parallelism            int                                   `json:"parallelism"`
 	Completions            int                                   `json:"completions"`
 	RestartPolicy          string                                `json:"restartPolicy"`
 	BackoffLimit           int                                   `json:"backoffLimit"`
-	Status                 Status                                `json:"status"`
 	Crates                 workloadCommon.Crates                 `json:"crates"`
 	Registry               string                                `json:"registry"`
 	BridgeAttachmentPolicy workloadCommon.BridgeAttachmentPolicy `json:"bridgeAttachmentPolicy,omitempty"`

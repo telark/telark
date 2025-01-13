@@ -8,6 +8,7 @@ type ResourceAsBridge struct {
 }
 
 type Cacid struct {
+	Status    string           `json:"status"`
 	Type      string           `json:"type"`
 	Ports     []Port           `json:"ports"`
 	Selectors []common.Unified `json:"selectors"`

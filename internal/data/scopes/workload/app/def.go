@@ -11,6 +11,7 @@ type ResourceAsAppWorkload struct {
 }
 
 type CacidApp struct {
+	Status                 string                                `json:"status"`
 	Metadata               workloadCommon.Metadata               `json:"metadata"`
 	Kind                   string                                `json:"kind"`
 	Strategy               string                                `json:"strategy,omitempty"`

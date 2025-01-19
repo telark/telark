@@ -39,7 +39,7 @@ var InsightAsResourceMetadata = Metadata{
 	BaseGroup: string(Erpi),
 	Kind:      "InsightAsResource",
 	Version:   string(alpha1),
-	Plural:    "resourcesasinsights",
+	Plural:    "insightsasresources",
 	Namespace: global.BaseNamespace,
 }
 

@@ -1,8 +1,8 @@
 package grouper
 
-import "github.com/plsyro/scopes-pkg/scopes/common"
+import "github.com/plsyro/scopes-pkg/scopes/resources/common"
 
-type ResourceAsGrouper struct {
+type GrouperAsResource struct {
 	Fasid  common.Fasid  `json:"fasid"`
 	Cacid  Cacid         `json:"cacid"`
 	Config common.Config `json:"config"`

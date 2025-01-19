@@ -1,11 +1,11 @@
 package app
 
 import (
-	allScopesCommon "github.com/plsyro/scopes-pkg/scopes/common"
-	workloadCommon "github.com/plsyro/scopes-pkg/scopes/workload/common"
+	allScopesCommon "github.com/plsyro/scopes-pkg/scopes/resources/common"
+	workloadCommon "github.com/plsyro/scopes-pkg/scopes/resources/workload/common"
 )
 
-type ResourceAsAppWorkload struct {
+type AppWorkloadAsResource struct {
 	Fasid allScopesCommon.Fasid `json:"fasid"`
 	Cacid CacidApp              `json:"cacid"`
 }

@@ -1,8 +1,8 @@
 package bridge
 
-import "github.com/plsyro/scopes-pkg/scopes/common"
+import "github.com/plsyro/scopes-pkg/scopes/resources/common"
 
-type ResourceAsBridge struct {
+type BridgeAsResource struct {
 	Fasid common.Fasid `json:"fasid"`
 	Cacid Cacid        `json:"cacid"`
 }

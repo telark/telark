@@ -2,42 +2,52 @@ package metadata
 
 import "github.com/plsyro/common-pkg/v2/data/global"
 
-var ResourceAsGrouperMetadata = Metadata{
+// Resources
+var GrouperAsResourceMetadata = Metadata{
 	BaseGroup: string(Erpi),
-	Kind:      "ResourceAsGrouper",
+	Kind:      "GrouperAsResource",
 	Version:   string(alpha1),
-	Plural:    "resourcesasgroupers",
+	Plural:    "groupersasresources",
 	Namespace: global.BaseNamespace,
 }
 
-var ResourceAsAppWorkloadMetadata = Metadata{
+var AppWorkloadAsResourceMetadata = Metadata{
 	BaseGroup: string(Erpi),
-	Kind:      "ResourceAsAppWorkload",
+	Kind:      "AppWorkloadAsResource",
 	Version:   string(alpha1),
-	Plural:    "resourcesasappsworkloads",
+	Plural:    "appworkloadsasresources",
 	Namespace: global.BaseNamespace,
 }
 
-var ResourceAsBatchWorkloadMetadata = Metadata{
+var BatchWorkloadAsResourceMetadata = Metadata{
 	BaseGroup: string(Erpi),
-	Kind:      "ResourceAsBatchWorkload",
+	Kind:      "BatchWorkloadAsResource",
 	Version:   string(alpha1),
-	Plural:    "resourcesasbatchesworkloads",
+	Plural:    "batchworkloadsasresources",
 	Namespace: global.BaseNamespace,
 }
 
-var ResourceAsBridgeMetadata = Metadata{
+var BridgeAsResourceMetadata = Metadata{
 	BaseGroup: string(Erpi),
-	Kind:      "ResourceAsBridge",
+	Kind:      "BridgeAsResource",
 	Version:   string(alpha1),
-	Plural:    "resourcesasbridges",
+	Plural:    "bridgesasresources",
 	Namespace: global.BaseNamespace,
 }
 
-var ResourceAsInsightMetadata = Metadata{
+var InsightAsResourceMetadata = Metadata{
 	BaseGroup: string(Erpi),
-	Kind:      "ResourceAsInsight",
+	Kind:      "InsightAsResource",
 	Version:   string(alpha1),
 	Plural:    "resourcesasinsights",
+	Namespace: global.BaseNamespace,
+}
+
+// Capabilities
+var MaintenanceAsCapabilityMetadata = Metadata{
+	BaseGroup: string(Caps),
+	Kind:      "MaintenanceAsCapability",
+	Version:   string(alpha1),
+	Plural:    "maintenancesascapabilities",
 	Namespace: global.BaseNamespace,
 }

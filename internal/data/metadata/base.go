@@ -16,6 +16,7 @@ type Group string
 
 const (
 	Erpi Group = "erpi.plsyro"
+	Caps Group = "caps.plsyro"
 )
 
 type Version string

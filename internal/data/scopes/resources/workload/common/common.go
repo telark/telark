@@ -1,6 +1,6 @@
 package common
 
-import "github.com/plsyro/scopes-pkg/scopes/common"
+import "github.com/plsyro/scopes-pkg/scopes/resources/common"
 
 type Metadata struct {
 	Annotations []common.Unified `json:"annotations"`

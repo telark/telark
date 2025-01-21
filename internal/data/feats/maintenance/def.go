@@ -23,7 +23,9 @@ type ManagedResource struct {
 }
 
 type Operation struct {
-	Status         string         `json:"status"`
-	StartedOn      string         `json:"startedOn"`
-	TargetResource TargetResource `json:"targetResource"`
+	Name         string `json:"name"`
+	Status       string `json:"status"`
+	StartedOn    string `json:"startedOn"`
+	ResourceName string `json:"resourceName"`
+	ResourceType string `json:"resourceType"`
 }

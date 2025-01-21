@@ -14,12 +14,11 @@ type Cacid struct {
 	Status    string            `json:"status"`
 	Workloads []ManagedResource `json:"workloads"`
 	Bridges   []ManagedResource `json:"bridges"`
-	Customs   []ManagedResource `json:"customs"`
 }
 
 type ManagedResource struct {
 	Name     string `json:"name"`
+	Type     string `json:"type"`
 	LastSync string `json:"lastSync"`
-	Kind     string `json:"kind"`
 	Status   string `json:"status"`
 }

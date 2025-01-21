@@ -1,7 +1,7 @@
-# Scopes Packages
+# Data Package
 
 ## Description
-This repository hosts a set of Packages designed to be integrated within GO Core services. These modules provide a range of functionalities that are commonly required across different services(including generic structs, etc...), thereby promoting code reuse and simplifying the development process.
+This repository hosts a Private Packages designed to be integrated within GO Core services. These modules provide a range of functionalities that are commonly required across different services(including generic structs, etc...), thereby promoting code reuse and simplifying the development process.
 
 ## Installation Instructions
 You can quickly add the module to the service by running the following command:

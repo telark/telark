@@ -1,12 +1,12 @@
 package batch
 
 import (
-	allScopesCommon "github.com/plsyro/scopes-pkg/scopes/resources/common"
-	workloadCommon "github.com/plsyro/scopes-pkg/scopes/resources/workload/common"
+	resourcesCommon "github.com/plsyro/data-pkg/resources/common"
+	workloadCommon "github.com/plsyro/data-pkg/resources/workload/common"
 )
 
 type BatchWorkloadAsResource struct {
-	Fasid allScopesCommon.Fasid `json:"fasid"`
+	Fasid resourcesCommon.Fasid `json:"fasid"`
 	Cacid CacidBatch            `json:"cacid"`
 }
 

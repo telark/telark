@@ -1,6 +1,6 @@
 package common
 
-import "github.com/plsyro/scopes-pkg/scopes/resources/common"
+import "github.com/plsyro/data-pkg/common"
 
 type Metadata struct {
 	Annotations []common.Unified `json:"annotations"`
@@ -57,9 +57,9 @@ type CrateImage struct {
 type BridgeAttachmentPolicy string
 
 const (
-	OneToMany        BridgeAttachmentPolicy = "OneToMany"
-	OneToOne         BridgeAttachmentPolicy = "OneToOne"
-	NoBridgeAssigned BridgeAttachmentPolicy = "No Bridge Assigned"
+	ONE_TO_MANY         BridgeAttachmentPolicy = "Many Bridges Assigned"
+	ONE_TO_ONE          BridgeAttachmentPolicy = "One Bridge Assigned"
+	NO_SERVICE_ASSIGNED BridgeAttachmentPolicy = "No Bridge Assigned"
 )
 
 type Events struct {

@@ -1,5 +1,5 @@
-module github.com/plsyro/scopes-pkg
+module github.com/plsyro/data-pkg
 
 go 1.23.4
 
-require github.com/plsyro/common-pkg/v2 v2.4.2
+require github.com/plsyro/common-pkg/v2 v2.6.0

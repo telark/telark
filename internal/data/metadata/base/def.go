@@ -1,4 +1,4 @@
-package metadata
+package base
 
 import (
 	"fmt"
@@ -13,17 +13,16 @@ type Metadata struct {
 }
 
 type Group string
-
-const (
-	Erpi Group = "erpi.plsyro"
-	Caps Group = "caps.plsyro"
-)
-
 type Version string
 
 const (
-	alpha1 Version = "v1alpha1"
-	alpha2 Version = "v1alpha2"
+	ERPI  Group = "erpi.plsyro"
+	FEATS Group = "feats.plsyro"
+)
+
+const (
+	ALPHA_1 Version = "v1alpha1"
+	ALPHA_2 Version = "v1alpha2"
 )
 
 func (metadata *Metadata) GetApiVersion() string {

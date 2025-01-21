@@ -1,11 +1,13 @@
 package grouper
 
-import "github.com/plsyro/scopes-pkg/scopes/resources/common"
+import (
+	resourcesCommon "github.com/plsyro/data-pkg/resources/common"
+)
 
 type GrouperAsResource struct {
-	Fasid  common.Fasid  `json:"fasid"`
-	Cacid  Cacid         `json:"cacid"`
-	Config common.Config `json:"config"`
+	Fasid  resourcesCommon.Fasid  `json:"fasid"`
+	Cacid  Cacid                  `json:"cacid"`
+	Config resourcesCommon.Config `json:"config"`
 }
 
 type Cacid struct {

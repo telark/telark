@@ -1,4 +1,4 @@
-package insights
+package insight
 
 type InsightAsResource struct {
 	Cacid Cacid `json:"cacid"`

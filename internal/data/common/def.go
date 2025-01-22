@@ -10,6 +10,14 @@ type Unified struct {
 	Value string `json:"value"`
 }
 
+type Status string
+
+const (
+	ACTIVE   Status = "Active"
+	ENABLED  Status = "Enabled"
+	DISABLED Status = "Disabled"
+)
+
 var (
 	ManagedFields = []string{
 		"apiVersion",

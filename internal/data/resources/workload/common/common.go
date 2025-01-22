@@ -35,10 +35,17 @@ type Crate struct {
 }
 
 type CrateType string
+type BridgeAttachmentPolicy string
 
 const (
-	Std CrateType = "Standard"
-	Sc  CrateType = "SideCar"
+	STANDARD CrateType = "Standard"
+	SIDE_CAR CrateType = "SideCar"
+)
+
+const (
+	ONE_TO_MANY         BridgeAttachmentPolicy = "Many Bridges Assigned"
+	ONE_TO_ONE          BridgeAttachmentPolicy = "One Bridge Assigned"
+	NO_SERVICE_ASSIGNED BridgeAttachmentPolicy = "No Bridge Assigned"
 )
 
 type CrateResource struct {
@@ -53,14 +60,6 @@ type CrateImage struct {
 	PullPolicy string `json:"pullPolicy"`
 	IsCurrent  bool   `json:"isCurrent"`
 }
-
-type BridgeAttachmentPolicy string
-
-const (
-	ONE_TO_MANY         BridgeAttachmentPolicy = "Many Bridges Assigned"
-	ONE_TO_ONE          BridgeAttachmentPolicy = "One Bridge Assigned"
-	NO_SERVICE_ASSIGNED BridgeAttachmentPolicy = "No Bridge Assigned"
-)
 
 type Events struct {
 	Instance string      `json:"instance"`

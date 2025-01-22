@@ -20,7 +20,7 @@ type Cacid struct {
 
 type Workload struct {
 	Name          string               `json:"name"`
-	Kind          string               `json:"kind"`
+	Type          string               `json:"type"`
 	IsSameGrouper bool                 `json:"isSameGrouper"`
 	MatchedLabels []baseCommon.Unified `json:"matchedLabels"`
 }

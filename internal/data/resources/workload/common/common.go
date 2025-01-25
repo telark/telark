@@ -14,7 +14,6 @@ type ComposedLabels struct {
 
 type Instances struct {
 	Total     int              `json:"total"`
-	Kind      string           `json:"kind"`
 	Available int              `json:"available"`
 	Names     []string         `json:"names"`
 	Labels    []common.Unified `json:"labels"`

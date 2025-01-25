@@ -2,7 +2,7 @@ package common
 
 type Fasid struct {
 	Name           string       `json:"name"`
-	Grouper        string       `json:"grouper,omitempty"`
+	Grouper        string       `json:"grouper"`
 	Type           Type         `json:"type"`
 	OriginalType   OriginalType `json:"originalType"`
 	CreationTime   string       `json:"creationTime"`

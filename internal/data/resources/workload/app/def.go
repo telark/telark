@@ -13,7 +13,6 @@ type AppWorkloadAsResource struct {
 type CacidApp struct {
 	Status                 string                                `json:"status"`
 	Metadata               workloadCommon.Metadata               `json:"metadata"`
-	Kind                   string                                `json:"kind"`
 	Strategy               string                                `json:"strategy,omitempty"`
 	Instances              workloadCommon.Instances              `json:"instances"`
 	Crates                 workloadCommon.Crates                 `json:"crates"`
@@ -25,6 +24,6 @@ type CacidApp struct {
 
 type Bridge struct {
 	Name          string `json:"name"`
-	Kind          string `json:"kind"`
+	Type          string `json:"type"`
 	IsSameGrouper bool   `json:"isSameGrouper"`
 }

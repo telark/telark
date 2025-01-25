@@ -13,7 +13,6 @@ type BatchWorkloadAsResource struct {
 type CacidBatch struct {
 	Status                 Status                                `json:"status"`
 	Metadata               workloadCommon.Metadata               `json:"metadata"`
-	Kind                   string                                `json:"kind"`
 	Parallelism            int                                   `json:"parallelism"`
 	Completions            int                                   `json:"completions"`
 	RestartPolicy          string                                `json:"restartPolicy"`

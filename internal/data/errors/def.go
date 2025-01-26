@@ -13,4 +13,5 @@ const (
 	ERROR_GET_RESOURCE                 Error = "Error On Fetching Resource"
 	ERROR_UPDATE_RESOURCE              Error = "Error On Updating Resource"
 	ERROR_UPDATE_RESOURCE_WITH_HISTORY Error = "Error On Updating Resource with History"
+	ERROR_RESOURCE_EXISTS              Error = "Resource Already Exists"
 )

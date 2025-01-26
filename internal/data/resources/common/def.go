@@ -30,8 +30,8 @@ const (
 )
 
 type Config struct {
-	History []HistoryEvent `json:"history,omitempty"`
-	Sync    Sync           `json:"sync"`
+	History []Record `json:"history"`
+	Sync    Sync     `json:"sync"`
 }
 
 type Sync struct {
@@ -39,8 +39,8 @@ type Sync struct {
 	LastUpdateTime string `json:"lastUpdateTime"`
 }
 
-type HistoryEvent struct {
-	Name         string `json:"event"`
+type Record struct {
+	Name         string `json:"name"`
 	Status       string `json:"status"`
 	CreationTime string `json:"creationTime"`
 }

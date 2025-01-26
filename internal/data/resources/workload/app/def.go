@@ -13,12 +13,12 @@ type AppWorkloadAsResource struct {
 type CacidApp struct {
 	Status                 string                                `json:"status"`
 	Metadata               workloadCommon.Metadata               `json:"metadata"`
-	Strategy               string                                `json:"strategy,omitempty"`
+	Strategy               string                                `json:"strategy"`
 	Instances              workloadCommon.Instances              `json:"instances"`
 	Crates                 workloadCommon.Crates                 `json:"crates"`
 	Registry               string                                `json:"registry"`
-	Bridges                []Bridge                              `json:"bridges,omitempty"`
-	BridgeAttachmentPolicy workloadCommon.BridgeAttachmentPolicy `json:"bridgeAttachmentPolicy,omitempty"`
+	Bridges                []Bridge                              `json:"bridges"`
+	BridgeAttachmentPolicy workloadCommon.BridgeAttachmentPolicy `json:"bridgeAttachmentPolicy"`
 	Events                 []workloadCommon.Events               `json:"events"`
 }
 

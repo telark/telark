@@ -1,5 +1,12 @@
 package maintenance
 
+import (
+	"fmt"
+	"regexp"
+	"strings"
+	"unicode"
+)
+
 type MaintenanceAsFeature struct {
 	Status         string         `json:"status"`
 	CreationTime   string         `json:"creationTime"`
@@ -28,4 +35,26 @@ type Operation struct {
 	StartedOn    string `json:"startedOn"`
 	ResourceName string `json:"resourceName"`
 	ResourceType string `json:"resourceType"`
+}
+
+func GenerateName(target TargetResource) string {
+	// Create Name
+	name := fmt.Sprintf("%s-%s-maintenance", target.Name, target.Type)
+
+	// Convert To Lowercase
+	name = strings.ToLower(name)
+
+	// Replace any non-alphanumeric characters (except hyphens) with a hyphen
+	re := regexp.MustCompile(`[^a-z0-9-]`)
+	name = re.ReplaceAllString(name, "-")
+
+	// Ensure Name Starts & ends with Alphanumeric Character
+	name = strings.TrimLeftFunc(name, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
+	name = strings.TrimRightFunc(name, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
+
+	return name
 }

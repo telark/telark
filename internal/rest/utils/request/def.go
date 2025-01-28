@@ -8,12 +8,14 @@ import (
 	"net/http"
 )
 
-func ParseRequestBody(r *http.Request) (map[string]interface{}, error) {
+func ParseRequestBody(r *http.Request, checkEmptyBody bool) (map[string]interface{}, error) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)) // 1 MB limit
 	if err != nil {
 		return nil, fmt.Errorf("failed to read request body: %w", err)
 	}
-	if len(body) == 0 {
+
+	// Optional empty body check
+	if checkEmptyBody && len(body) == 0 {
 		return nil, errors.New("request body is empty")
 	}
 

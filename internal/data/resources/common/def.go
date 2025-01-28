@@ -55,7 +55,7 @@ type Record struct {
 
 func GenerateName(fasid Fasid) string {
 	// Create Name
-	name := fmt.Sprintf("%s-%s", fasid.Name, fasid.Type)
+	name := fmt.Sprintf("%s-%s", fasid.SourceName, fasid.Type)
 
 	// Convert To Lowercase
 	name = strings.ToLower(name)

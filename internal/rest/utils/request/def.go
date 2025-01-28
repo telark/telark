@@ -9,8 +9,8 @@ import (
 )
 
 func ParseRequestBody(r *http.Request, action string, checkEmptyBody bool) (map[string]interface{}, error) {
-	// Check Action
-	if action != "create" {
+	// Skip body parsing for "get" and "list" actions
+	if action == "get" || action == "list" {
 		return nil, nil
 	}
 

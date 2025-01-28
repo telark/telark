@@ -19,7 +19,7 @@ func LogAndSendResponse(w http.ResponseWriter, status int, operation response.Op
 	sendResponse(w, status, operation, message, data)
 }
 
-func LogAndReturnResponse(w http.ResponseWriter, status int, operation response.OperationStatus, message string, data interface{}, err error) *response.GenericResponse {
+func LogAndReturnResponse(status int, operation response.OperationStatus, message string, data interface{}, err error) *response.GenericResponse {
 	logMessage(message, err)
 	return createGenericResponse(status, operation, message, data)
 }

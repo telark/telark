@@ -8,6 +8,7 @@ import (
 )
 
 type MaintenanceAsFeature struct {
+	Name           string         `json:"name"`
 	Status         string         `json:"status"`
 	CreationTime   string         `json:"creationTime"`
 	TargetResource TargetResource `json:"targetResource"`
@@ -56,5 +57,6 @@ func GenerateName(target TargetResource) string {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
 	})
 
+	// Return Generated Name
 	return name
 }

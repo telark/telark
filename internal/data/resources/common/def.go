@@ -8,16 +8,17 @@ import (
 )
 
 type Fasid struct {
-	Name           string       `json:"name"`
-	Grouper        string       `json:"grouper"`
-	Type           Type         `json:"type"`
-	OriginalType   OriginalType `json:"originalType"`
-	CreationTime   string       `json:"creationTime"`
-	LastUpdateTime string       `json:"lastUpdateTime"`
+	Name           string     `json:"name"`
+	SourceName     string     `json:"sourceName"`
+	Grouper        string     `json:"grouper"`
+	Type           Type       `json:"type"`
+	SourceType     SourceType `json:"sourceType"`
+	CreationTime   string     `json:"creationTime"`
+	LastUpdateTime string     `json:"lastUpdateTime"`
 }
 
 type Type string
-type OriginalType string
+type SourceType string
 
 const (
 	GROUPER        Type = "Grouper"
@@ -27,13 +28,13 @@ const (
 )
 
 const (
-	NAMESPACE    OriginalType = "Namespace"
-	DEPLOYMENT   OriginalType = "Deployment"
-	STATEFUL_SET OriginalType = "StatefulSet"
-	DAEMON_SET   OriginalType = "DaemonSet"
-	SERVICE      OriginalType = "Service"
-	JOB          OriginalType = "Job"
-	CRON_JOB     OriginalType = "CronJob"
+	NAMESPACE    SourceType = "Namespace"
+	DEPLOYMENT   SourceType = "Deployment"
+	STATEFUL_SET SourceType = "StatefulSet"
+	DAEMON_SET   SourceType = "DaemonSet"
+	SERVICE      SourceType = "Service"
+	JOB          SourceType = "Job"
+	CRON_JOB     SourceType = "CronJob"
 )
 
 type Config struct {
@@ -71,5 +72,6 @@ func GenerateName(fasid Fasid) string {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
 	})
 
+	// Return Generated Name
 	return name
 }

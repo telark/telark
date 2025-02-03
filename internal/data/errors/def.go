@@ -28,6 +28,10 @@ const (
 	ERROR_RESOURCE_EXISTS              Error = "Resource Already Exists"
 	ERROR_RESOURCE_NOT_FOUND           Error = "Resource Cannot Be Found"
 
+	// Admissions
+	ERROR_CREATE_VALIDATING_ADMISSION Error = "Error On Creating Validating Webhook Admission"
+	ERROR_CREATE_MUTATING_ADMISSION   Error = "Error On Creating Mutating Webhook Admission"
+
 	// Common
 	ERROR_INVALID_ACTION Error = "Invalid Action"
 	ERROR_UNKNOWN        Error = "Unknown Error"

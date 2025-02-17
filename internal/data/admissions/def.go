@@ -4,14 +4,13 @@ import v1 "k8s.io/api/admissionregistration/v1"
 
 type WebhookConfig struct {
 	Name          string       `json:"name"`
-	URL           string       `json:"url"`
 	Rules         []Rule       `json:"rules"`
 	Client        ClientConfig `json:"client"`
 	FailurePolicy EnforceType  `json:"FailurePolicy"`
 }
 
 type Rule struct {
-	Operations  []v1.OperationType `json:"pperations"`
+	Operations  []v1.OperationType `json:"operations"`
 	APIGroups   []string           `json:"apiGroups"`
 	APIVersions []string           `json:"apiVersions"`
 	Resources   []string           `json:"resources"`

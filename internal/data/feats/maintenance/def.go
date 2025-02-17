@@ -12,10 +12,18 @@ type MaintenanceAsFeature struct {
 	Status         string         `json:"status"`
 	CreationTime   string         `json:"creationTime"`
 	TargetResource TargetResource `json:"targetResource"`
-	WebhookType    string         `json:"webhookType"`
+	WebhookType    WebhookType    `json:"webhookType"`
 	AllowUpdate    bool           `json:"allowUpdate"`
+	AllowDelete    bool           `json:"allowDelete"`
 	Operations     []Operation    `json:"operations"`
 }
+
+type WebhookType string
+
+const (
+	VALIDATING WebhookType = "VALIDATING"
+	MUTATING   WebhookType = "MUTATING"
+)
 
 type TargetResource struct {
 	Name              string            `json:"name"`

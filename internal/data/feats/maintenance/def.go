@@ -10,14 +10,14 @@ import (
 )
 
 type MaintenanceAsFeature struct {
-	Name           string             `json:"name"`
-	Status         string             `json:"status"`
-	CreationTime   string             `json:"creationTime"`
-	TargetResource TargetResource     `json:"targetResource"`
-	WebhookName    common.WebhookType `json:"webhookType"`
-	AllowUpdate    common.Action      `json:"allowUpdate"`
-	AllowDelete    common.Action      `json:"allowDelete"`
-	Operations     []Operation        `json:"operations"`
+	Name           string         `json:"name"`
+	Status         string         `json:"status"`
+	CreationTime   string         `json:"creationTime"`
+	TargetResource TargetResource `json:"targetResource"`
+	WebhookName    string         `json:"webhookName"`
+	AllowUpdate    common.Action  `json:"allowUpdate"`
+	AllowDelete    common.Action  `json:"allowDelete"`
+	Operations     []Operation    `json:"operations"`
 }
 
 type TargetResource struct {

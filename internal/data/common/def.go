@@ -18,6 +18,20 @@ const (
 	DISABLED Status = "Disabled"
 )
 
+type WebhookType string
+
+const (
+	VALIDATING WebhookType = "VALIDATING"
+	MUTATING   WebhookType = "MUTATING"
+)
+
+type Action string
+
+const (
+	ALLOW Action = "allow"
+	DENY  Action = "deny"
+)
+
 var (
 	ManagedFields = []string{
 		"apiVersion",

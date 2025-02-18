@@ -5,25 +5,20 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+
+	"github.com/plsyro/data-pkg/common"
 )
 
 type MaintenanceAsFeature struct {
-	Name           string         `json:"name"`
-	Status         string         `json:"status"`
-	CreationTime   string         `json:"creationTime"`
-	TargetResource TargetResource `json:"targetResource"`
-	WebhookType    WebhookType    `json:"webhookType"`
-	AllowUpdate    bool           `json:"allowUpdate"`
-	AllowDelete    bool           `json:"allowDelete"`
-	Operations     []Operation    `json:"operations"`
+	Name           string             `json:"name"`
+	Status         string             `json:"status"`
+	CreationTime   string             `json:"creationTime"`
+	TargetResource TargetResource     `json:"targetResource"`
+	WebhookName    common.WebhookType `json:"webhookType"`
+	AllowUpdate    common.Action      `json:"allowUpdate"`
+	AllowDelete    common.Action      `json:"allowDelete"`
+	Operations     []Operation        `json:"operations"`
 }
-
-type WebhookType string
-
-const (
-	VALIDATING WebhookType = "VALIDATING"
-	MUTATING   WebhookType = "MUTATING"
-)
 
 type TargetResource struct {
 	Name              string            `json:"name"`

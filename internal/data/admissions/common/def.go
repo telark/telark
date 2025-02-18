@@ -1,13 +1,13 @@
-package admissions
+package common
 
-import v1 "k8s.io/api/admissionregistration/v1"
+import (
+	"fmt"
+	"strings"
 
-type WebhookConfig struct {
-	Name          string       `json:"name"`
-	Rules         []Rule       `json:"rules"`
-	Client        ClientConfig `json:"client"`
-	FailurePolicy EnforceType  `json:"FailurePolicy"`
-}
+	"github.com/plsyro/common-pkg/v2/global"
+	"github.com/plsyro/data-pkg/common"
+	v1 "k8s.io/api/admissionregistration/v1"
+)
 
 type Rule struct {
 	Operations  []v1.OperationType `json:"operations"`
@@ -29,9 +29,19 @@ type ServiceConfig struct {
 	Port      int32  `json:"port"`
 }
 
+var ALL_OPERATIONS_EXCEPT_CONNECT = []v1.OperationType{
+	v1.Create,
+	v1.Update,
+	v1.Delete,
+}
+
 type EnforceType string
 
 const (
 	IGNORED  EnforceType = "Ignore"
 	ENFORCED EnforceType = "Fail"
 )
+
+func GenerateName(prefix string, webhookType common.WebhookType) string {
+	return fmt.Sprintf("%s-%s-webhook.%s.io", prefix, strings.ToLower(string(webhookType)), global.BaseNamespace)
+}

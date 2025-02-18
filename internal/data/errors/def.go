@@ -29,8 +29,11 @@ const (
 	ERROR_RESOURCE_NOT_FOUND           Error = "Resource Cannot Be Found"
 
 	// Admissions
-	ERROR_CREATE_VALIDATING_ADMISSION Error = "Error On Creating Validating Webhook Admission"
-	ERROR_CREATE_MUTATING_ADMISSION   Error = "Error On Creating Mutating Webhook Admission"
+	ERROR_CREATE_VALIDATING_ADMISSION Error = "Error On Creating Admission Validating Webhook "
+	ERROR_CREATE_MUTATING_ADMISSION   Error = "Error On Creating Admission Mutating Webhook"
+	ERROR_GET_VALIDATING_ADMISSION    Error = "Error On Fetching Admission Validating Webhook"
+	ERROR_GET_MUTATING_ADMISSION      Error = "Error On Fetching Admission Mutating Webhook"
+	ERROR_FILTER_ADMISSION            Error = "Error On Filtering Admission Webhook"
 
 	// Common
 	ERROR_INVALID_ACTION Error = "Invalid Action"

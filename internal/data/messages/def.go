@@ -11,6 +11,8 @@ const (
 	SUCCESS_DELETED_RESOURCE Message = "Resource Deleted successfully"
 
 	// Admissions
-	SUCCESS_CREATE_VALIDATING_ADMISSION Message = "Validating Webhook Admission Created successfully"
-	SUCCESS_CREATE_MUTATING_ADMISSION   Message = "Mutating Webhook Admission Created successfully"
+	SUCCESS_CREATE_VALIDATING_ADMISSION Message = "Admission Validating Webhook Created successfully"
+	SUCCESS_CREATE_MUTATING_ADMISSION   Message = "Admission Mutating Webhook Created successfully"
+	SUCCESS_GET_VALIDATING_ADMISSION    Message = "Admission Validating Webhook Fetched successfully"
+	SUCCESS_GET_MUTATING_ADMISSION      Message = "Admission Mutating Webhook Fetched successfully"
 )

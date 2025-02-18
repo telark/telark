@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/plsyro/rest-pkg/base"
 )
 
 func ParseRequestBody(r *http.Request, action string, checkEmptyBody bool) (map[string]interface{}, error) {
@@ -29,4 +31,32 @@ func ParseRequestBody(r *http.Request, action string, checkEmptyBody bool) (map[
 		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
 	}
 	return spec, nil
+}
+
+func CreatePostRequest(service base.Service, apiVersion base.Version, endpoint base.Endpoint, payload []byte) base.API {
+	return base.API{
+		Host: base.Host{
+			Schema:  base.HTTP,
+			Service: service,
+			Port:    base.DEFAULT,
+		},
+		Version:     apiVersion,
+		Endpoint:    endpoint,
+		ContentType: base.JSON,
+		Payload:     payload,
+		Method:      base.POST,
+	}
+}
+
+func CreateGetRequest(service base.Service, apiVersion base.Version, endpoint base.Endpoint) base.API {
+	return base.API{
+		Host: base.Host{
+			Schema:  base.HTTP,
+			Service: service,
+			Port:    base.DEFAULT,
+		},
+		Version:  apiVersion,
+		Endpoint: endpoint,
+		Method:   base.GET,
+	}
 }

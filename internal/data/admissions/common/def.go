@@ -1,11 +1,6 @@
 package common
 
 import (
-	"fmt"
-	"strings"
-
-	"github.com/plsyro/common-pkg/v2/global"
-	"github.com/plsyro/data-pkg/common"
 	v1 "k8s.io/api/admissionregistration/v1"
 )
 
@@ -41,7 +36,3 @@ const (
 	IGNORED  EnforceType = "Ignore"
 	ENFORCED EnforceType = "Fail"
 )
-
-func GenerateName(prefix string, webhookType common.WebhookType) string {
-	return fmt.Sprintf("%s-%s-webhook.%s.io", prefix, strings.ToLower(string(webhookType)), global.BaseNamespace)
-}

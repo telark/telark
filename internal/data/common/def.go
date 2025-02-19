@@ -13,9 +13,10 @@ type Unified struct {
 type Status string
 
 const (
-	ACTIVE   Status = "Active"
-	ENABLED  Status = "Enabled"
-	DISABLED Status = "Disabled"
+	ACTIVE    Status = "Active"
+	SUSPENDED Status = "Suspended"
+	ENABLED   Status = "Enabled"
+	DISABLED  Status = "Disabled"
 )
 
 type WebhookType string

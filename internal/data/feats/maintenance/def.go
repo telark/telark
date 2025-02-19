@@ -6,8 +6,9 @@ import (
 
 type MaintenanceAsFeature struct {
 	Name           string         `json:"name"`
-	Status         string         `json:"status"`
+	Status         common.Status  `json:"status"`
 	CreationTime   string         `json:"creationTime"`
+	LastUpdateTime string         `json:"lastUpdateTime"`
 	TargetResource TargetResource `json:"targetResource"`
 	WebhookName    string         `json:"webhookName"`
 	AllowUpdate    common.Action  `json:"allowUpdate"`

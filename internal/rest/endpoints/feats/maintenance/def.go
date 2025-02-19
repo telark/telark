@@ -15,6 +15,9 @@ const (
 	// Create Endpoints
 	CREATE_MAINTENANCE base.Endpoint = "feats/maintenance/create"
 
+	// Get Endpoints
+	GET_MAINTENANCE base.Endpoint = "feats/maintenance/{name}/get"
+
 	// Patch Endpoints
 	PATCH_MAINTENANCE base.Endpoint = "feats/maintenance/{name}/patch"
 

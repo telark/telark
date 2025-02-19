@@ -11,7 +11,7 @@ import (
 
 func GenerateName(targetName string, targetType string, suffix suffixes.Suffix) string {
 	// Create Name
-	name := fmt.Sprintf("%s-%s-%s", targetName, targetType, string(suffix))
+	name := fmt.Sprintf("%s-%s%s", targetName, targetType, string(suffix))
 
 	// Convert To Lowercase
 	name = strings.ToLower(name)

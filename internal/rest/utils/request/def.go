@@ -33,6 +33,19 @@ func ParseRequestBody(r *http.Request, action string, checkEmptyBody bool) (map[
 	return spec, nil
 }
 
+func CreateGetRequest(service base.Service, apiVersion base.Version, endpoint base.Endpoint) base.API {
+	return base.API{
+		Host: base.Host{
+			Schema:  base.HTTP,
+			Service: service,
+			Port:    base.DEFAULT,
+		},
+		Version:  apiVersion,
+		Endpoint: endpoint,
+		Method:   base.GET,
+	}
+}
+
 func CreatePostRequest(service base.Service, apiVersion base.Version, endpoint base.Endpoint, payload []byte) base.API {
 	return base.API{
 		Host: base.Host{
@@ -48,15 +61,17 @@ func CreatePostRequest(service base.Service, apiVersion base.Version, endpoint b
 	}
 }
 
-func CreateGetRequest(service base.Service, apiVersion base.Version, endpoint base.Endpoint) base.API {
+func CreatePatchRequest(service base.Service, apiVersion base.Version, endpoint base.Endpoint, payload []byte) base.API {
 	return base.API{
 		Host: base.Host{
 			Schema:  base.HTTP,
 			Service: service,
 			Port:    base.DEFAULT,
 		},
-		Version:  apiVersion,
-		Endpoint: endpoint,
-		Method:   base.GET,
+		Version:     apiVersion,
+		Endpoint:    endpoint,
+		ContentType: base.JSON,
+		Payload:     payload,
+		Method:      base.PATCH,
 	}
 }

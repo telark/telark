@@ -59,6 +59,7 @@ const (
 	POST   Method = "POST"
 	UPDATE Method = "PUT"
 	DELETE Method = "DELETE"
+	PATCH  Method = "PATCH"
 )
 
 func (api *API) GenerateURL() (string, error) {

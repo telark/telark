@@ -36,3 +36,10 @@ const (
 	IGNORED  EnforceType = "Ignore"
 	ENFORCED EnforceType = "Fail"
 )
+
+type WebhookType string
+
+const (
+	ValidatingWebhook WebhookType = "validating"
+	MutatingWebhook   WebhookType = "mutating"
+)

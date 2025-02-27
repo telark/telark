@@ -3,11 +3,14 @@ package records
 type Record string
 
 const (
-	RECORD_RESOURCE_CREATED Record = "Resource Was Created With Success"
-	RECORD_FEATURE_ENBALED  Record = "Feature Was Enabled"
-	RECORD_FEATURE_DISABLED Record = "Feature Was Disabled"
+	// Resource-related Records
+	RECORD_UPDATE_RESOURCE_SYNC_MODE    Record = "Sync mode was changed to"
+	RECORD_UPDATE_RESOURCE_SYNC_PERIOD  Record = "Sync period was changed to"
+	RECORD_UPDATE_RESOURCE_GENERAL_INFO Record = "General informations was updated."
 
-	RECORD_RESOURCE_UPDATED_SYNC_MODE    Record = "Sync Mode Was Changed To"
-	RECORD_RESOURCE_UPDATED_SYNC_PERIOD  Record = "Sync Period Was Changed To"
-	RECORD_RESOURCE_UPDATED_GENERAL_INFO Record = "General Informations Was Updated with success"
+	// Feature-related Records
+	RECORD_ENABLE_MAINTENANCE_FEAT  Record = "Maintenance was Enabled"
+	RECORD_DISABLE_MAINTENANCE_FEAT Record = "Maintenance was Disabled"
+	RECORD_UPDATE_MAINTENANCE_FEAT  Record = "Maintenance was Updated"
+	RECORD_REMOVE_MAINTENANCE_FEAT  Record = "Maintenance was Removed"
 )

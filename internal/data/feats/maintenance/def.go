@@ -1,8 +1,6 @@
 package maintenance
 
-import (
-	"github.com/plsyro/data-pkg/common"
-)
+import "github.com/plsyro/data-pkg/common"
 
 type MaintenanceAsFeature struct {
 	Name           string         `json:"name"`

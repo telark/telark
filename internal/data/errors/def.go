@@ -4,14 +4,15 @@ type Error string
 
 const (
 	// REST-related Errors
-	ERROR_REST_MARSHALL_PAYLOAD     Error = "Error while marshaling JSON payload."
-	ERROR_REST_SEND_REQUEST         Error = "Error while sending request."
-	ERROR_REST_READ_RESPONSE_BODY   Error = "Error while reading response body."
-	ERROR_REST_READ_REQUEST_BODY    Error = "Error while reading request body."
-	ERROR_REST_MISSING_REQUEST_BODY Error = "Missing request body for the '{action}' action."
-	ERROR_REST_PARSE_REQUEST_BODY   Error = "Error while parsing request body."
-	ERROR_REST_DECODE_RESPONSE      Error = "Error while decoding response."
-	ERROR_REST_MISSING_PARAM        Error = "The '{param}' parameter is required in the URL path."
+	ERROR_REST_MARSHALL_PAYLOAD               Error = "Error while marshaling JSON payload."
+	ERROR_REST_UNMARSHALL_RESPONSE_TO_GENERIC Error = "Error while unmarshaling JSON Response to Generic Response."
+	ERROR_REST_SEND_REQUEST                   Error = "Error while sending request."
+	ERROR_REST_READ_RESPONSE_BODY             Error = "Error while reading response body."
+	ERROR_REST_READ_REQUEST_BODY              Error = "Error while reading request body."
+	ERROR_REST_MISSING_REQUEST_BODY           Error = "Missing request body for the '{action}' action."
+	ERROR_REST_PARSE_REQUEST_BODY             Error = "Error while parsing request body."
+	ERROR_REST_DECODE_RESPONSE                Error = "Error while decoding response."
+	ERROR_REST_MISSING_PARAM                  Error = "The '{param}' parameter is required in the URL path."
 
 	// Client-related Errors
 	ERROR_CLIENT_KUBE Error = "Failed to get Kubernetes client."

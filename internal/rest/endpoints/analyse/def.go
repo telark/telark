@@ -1,4 +1,4 @@
-package global
+package analyse
 
 import (
 	"github.com/plsyro/rest-pkg/base"

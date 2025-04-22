@@ -1,8 +1,6 @@
 package common
 
-import (
-	"reflect"
-)
+import "reflect"
 
 func MapToJsonPayload(input interface{}) map[string]interface{} {
 	result := make(map[string]interface{})

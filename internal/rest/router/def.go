@@ -16,7 +16,6 @@ type Route struct {
 }
 
 func NewRouter(Routes []Route) *mux.Router {
-
 	router := mux.NewRouter().StrictSlash(true)
 	for _, route := range Routes {
 		handler := route.HandleFunc
@@ -26,7 +25,6 @@ func NewRouter(Routes []Route) *mux.Router {
 			Name(route.Name).
 			Handler(handler)
 	}
-
 	return router
 }
 

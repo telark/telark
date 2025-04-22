@@ -11,7 +11,6 @@ import (
 )
 
 func ParseRequestBody(r *http.Request, action string, checkEmptyBody bool) (map[string]interface{}, error) {
-	// Skip body parsing for "get" and "list" actions
 	if action == "get" || action == "list" {
 		return nil, nil
 	}
@@ -21,7 +20,6 @@ func ParseRequestBody(r *http.Request, action string, checkEmptyBody bool) (map[
 		return nil, fmt.Errorf("failed to read request body: %w", err)
 	}
 
-	// Optional empty body check
 	if checkEmptyBody && len(body) == 0 {
 		return nil, errors.New("request body is empty")
 	}
@@ -33,7 +31,7 @@ func ParseRequestBody(r *http.Request, action string, checkEmptyBody bool) (map[
 	return spec, nil
 }
 
-func CreateGetRequest(service base.Service, apiVersion base.Version, endpoint base.Endpoint) base.API {
+func CreateGenericRequest(method base.Method, service base.Service, apiVersion base.Version, endpoint base.Endpoint) base.API {
 	return base.API{
 		Host: base.Host{
 			Schema:  base.HTTP,
@@ -42,11 +40,11 @@ func CreateGetRequest(service base.Service, apiVersion base.Version, endpoint ba
 		},
 		Version:  apiVersion,
 		Endpoint: endpoint,
-		Method:   base.GET,
+		Method:   method,
 	}
 }
 
-func CreatePostRequest(service base.Service, apiVersion base.Version, endpoint base.Endpoint, payload []byte) base.API {
+func CreateGenericRequestWithPayload(method base.Method, service base.Service, apiVersion base.Version, endpoint base.Endpoint, payload []byte) base.API {
 	return base.API{
 		Host: base.Host{
 			Schema:  base.HTTP,
@@ -58,20 +56,5 @@ func CreatePostRequest(service base.Service, apiVersion base.Version, endpoint b
 		ContentType: base.JSON,
 		Payload:     payload,
 		Method:      base.POST,
-	}
-}
-
-func CreatePatchRequest(service base.Service, apiVersion base.Version, endpoint base.Endpoint, payload []byte) base.API {
-	return base.API{
-		Host: base.Host{
-			Schema:  base.HTTP,
-			Service: service,
-			Port:    base.DEFAULT,
-		},
-		Version:     apiVersion,
-		Endpoint:    endpoint,
-		ContentType: base.JSON,
-		Payload:     payload,
-		Method:      base.PATCH,
 	}
 }

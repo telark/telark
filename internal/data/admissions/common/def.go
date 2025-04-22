@@ -40,6 +40,6 @@ const (
 type WebhookType string
 
 const (
-	ValidatingWebhook WebhookType = "validating"
-	MutatingWebhook   WebhookType = "mutating"
+	VALIDATING WebhookType = "validating"
+	MUTATING   WebhookType = "mutating"
 )

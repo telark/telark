@@ -9,8 +9,8 @@ type MaintenanceAsFeature struct {
 	LastUpdateTime string         `json:"lastUpdateTime"`
 	TargetResource TargetResource `json:"targetResource"`
 	WebhookName    string         `json:"webhookName"`
-	AllowUpdate    common.Action  `json:"allowUpdate"`
-	AllowDelete    common.Action  `json:"allowDelete"`
+	Update         common.Action  `json:"update"`
+	Delete         common.Action  `json:"delete"`
 	Operations     []Operation    `json:"operations"`
 }
 

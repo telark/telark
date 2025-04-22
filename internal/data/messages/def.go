@@ -24,7 +24,7 @@ const (
 
 	// General Status Messages
 	SUCCESS_OPERATION Message = "Operation completed successfully."
-	SUCCESS_CREATION  Message = "Creation operation completed successfully."
-	SUCCESS_DELETION  Message = "Deletion operation completed successfully."
-	SUCCESS_UPDATE    Message = "Update operation completed successfully."
+	SUCCESS_CREATION  Message = "Creation completed successfully."
+	SUCCESS_DELETION  Message = "Deletion completed successfully."
+	SUCCESS_UPDATE    Message = "Update completed successfully."
 )

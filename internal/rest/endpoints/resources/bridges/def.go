@@ -1,8 +1,6 @@
 package resources
 
-import (
-	"github.com/plsyro/rest-pkg/base"
-)
+import "github.com/plsyro/rest-pkg/base"
 
 const (
 	// Create Endpoints

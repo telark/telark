@@ -1,6 +1,6 @@
 module github.com/plsyro/rest-pkg
 
-go 1.23.6
+go 1.24.2
 
 require (
 	github.com/gorilla/mux v1.8.1

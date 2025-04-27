@@ -14,7 +14,7 @@ const (
 	ERROR_REST_DECODE_RESPONSE                Error = "Error while decoding response."
 	ERROR_REST_MISSING_PARAM                  Error = "The '{param}' parameter is required in the URL path."
 
-	// Client-related Errors
+	// K8s-related Errors
 	ERROR_CLIENT_KUBE Error = "Failed to get Kubernetes client."
 
 	// Resource-related Errors
@@ -45,6 +45,14 @@ const (
 	ERROR_ADMISSION_VALIDATING_EXISTS Error = "Admission validating webhook already exists."
 	ERROR_ADMISSION_MUTATING_EXISTS   Error = "Admission mutating webhook already exists."
 	ERROR_ADMISSION_NOT_FOUND         Error = "Admission webhook not found."
+
+	// NATS-related Errors
+	ERROR_NATS_CONNECTION      Error = "Failed to connect to NATS server."
+	ERROR_NATS_INVALID_URL     Error = "Invalid NATS server URL"
+	ERROR_NATS_TOPIC_NOT_FOUND Error = "topic '{topic}' was not found."
+	ERROR_NATS_TOPIC_PUBLISH   Error = "Failed to publish To topic"
+	ERROR_NATS_TOPIC_SUBSCRIBE Error = "Failed to subscribe To topic"
+	ERROR_NATS_DISCONNECT      Error = "Error while disconnecting from NATS server"
 
 	// General Status Errors
 	ERROR_INVALID_ACTION Error = "Invalid action."

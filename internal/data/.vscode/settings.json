@@ -2,5 +2,13 @@
     "cSpell.words": [
         "Cacid",
         "Fasid"
-    ]
+    ],
+    "[go]": {
+        "editor.defaultFormatter": "golang.go",
+        "editor.formatOnSave": true
+    },
+    "gopls": {
+        "formatting.gofumpt": true // optional: use 'gofumpt' (stricter)
+    }
 }
+  

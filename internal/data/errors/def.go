@@ -48,6 +48,7 @@ const (
 
 	// NATS-related Errors
 	ERROR_NATS_CONNECTION      Error = "Failed to connect to NATS server."
+	ERROR_NATS_AUTH            Error = "User and Password must be set for authentication."
 	ERROR_NATS_INVALID_URL     Error = "Invalid NATS server URL"
 	ERROR_NATS_TOPIC_NOT_FOUND Error = "topic '{topic}' was not found."
 	ERROR_NATS_TOPIC_PUBLISH   Error = "Failed to publish To topic"

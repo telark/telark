@@ -27,4 +27,10 @@ const (
 	SUCCESS_CREATION  Message = "Creation completed successfully."
 	SUCCESS_DELETION  Message = "Deletion completed successfully."
 	SUCCESS_UPDATE    Message = "Update completed successfully."
+
+	// NATS
+	SUCCESS_NATS_TOPIC_SUBSCRIBE       Message = "Successfully subscribed to topic"
+	SUCCESS_NATS_TOPIC_PUBLISH         Message = "Successfully published to topic"
+	SUCCESS_NATS_TOPIC_MESSAGE_RECEIVE Message = "Received message on topic"
+	SUCCESS_NATS_TOPIC_MESSAGE_SEND    Message = "Sending message on topic"
 )

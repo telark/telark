@@ -15,7 +15,8 @@ const (
 	ERROR_REST_MISSING_PARAM                  Error = "The '{param}' parameter is required in the URL path."
 
 	// K8s-related Errors
-	ERROR_CLIENT_KUBE Error = "Failed to get Kubernetes client."
+	ERROR_K8S_SET_CLIENT    Error = "Failed to set Kubernetes client."
+	ERROR_K8S_CREATE_CONFIG Error = "Failed to create Kubernetes in-cluster config."
 
 	// Resource-related Errors
 	ERROR_CREATE_RESOURCE              Error = "Error while creating resource."

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/plsyro/common-pkg/v2/global"
+	"github.com/plsyro/common-pkg/global"
 )
 
 type API struct {

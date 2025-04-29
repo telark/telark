@@ -4,5 +4,5 @@ go 1.24.2
 
 require (
 	github.com/gorilla/mux v1.8.1
-	github.com/plsyro/common-pkg/v2 v2.6.0
+	github.com/plsyro/common-pkg v0.0.1
 )

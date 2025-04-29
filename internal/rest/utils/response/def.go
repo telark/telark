@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/plsyro/common-pkg/v2/logging"
+	"github.com/plsyro/common-pkg/logging"
 	"github.com/plsyro/rest-pkg/response"
 )
 

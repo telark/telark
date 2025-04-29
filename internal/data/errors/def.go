@@ -13,6 +13,8 @@ const (
 	ERROR_REST_PARSE_REQUEST_BODY             Error = "Error while parsing request body."
 	ERROR_REST_DECODE_RESPONSE                Error = "Error while decoding response."
 	ERROR_REST_MISSING_PARAM                  Error = "The '{param}' parameter is required in the URL path."
+	ERROR_REST_GEN_URL                        Error = "failed to generate request URL"
+	ERROR_REST_SEND_REQ                       Error = "failed to send {method} request for"
 
 	// K8s-related Errors
 	ERROR_K8S_SET_CLIENT    Error = "Failed to set Kubernetes client."

@@ -10,8 +10,10 @@ type Fasid struct {
 	LastUpdateTime string     `json:"lastUpdateTime"`
 }
 
-type Type string
-type SourceType string
+type (
+	Type       string
+	SourceType string
+)
 
 const (
 	GROUPER        Type = "Grouper"
@@ -21,27 +23,22 @@ const (
 )
 
 const (
-	NAMESPACE    SourceType = "Namespace"
-	DEPLOYMENT   SourceType = "Deployment"
+	NS           SourceType = "Namespace"
+	DEPLOY       SourceType = "Deployment"
 	STATEFUL_SET SourceType = "StatefulSet"
 	DAEMON_SET   SourceType = "DaemonSet"
-	SERVICE      SourceType = "Service"
+	SVC          SourceType = "Service"
 	JOB          SourceType = "Job"
 	CRON_JOB     SourceType = "CronJob"
 )
-
-type Config struct {
-	History []Record `json:"history"`
-	Sync    Sync     `json:"sync"`
-}
-
-type Sync struct {
-	Mode           string `json:"mode"`
-	LastUpdateTime string `json:"lastUpdateTime"`
-}
 
 type Record struct {
 	Name         string `json:"name"`
 	Status       string `json:"status"`
 	CreationTime string `json:"creationTime"`
+}
+
+type Sync struct {
+	Mode           string `json:"mode"`
+	LastUpdateTime string `json:"lastUpdateTime"`
 }

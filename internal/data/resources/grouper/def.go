@@ -1,11 +1,11 @@
 package grouper
 
-import resourcesCommon "github.com/plsyro/data-pkg/resources/common"
+import "github.com/plsyro/data-pkg/resources/common"
 
 type GrouperAsResource struct {
-	Fasid  resourcesCommon.Fasid  `json:"fasid"`
-	Cacid  Cacid                  `json:"cacid"`
-	Config resourcesCommon.Config `json:"config"`
+	Fasid  common.Fasid `json:"fasid"`
+	Cacid  Cacid        `json:"cacid"`
+	Config Config       `json:"config"`
 }
 
 type Cacid struct {
@@ -21,4 +21,16 @@ type ManagedResource struct {
 	SourceType string `json:"sourceType"`
 	LastSync   string `json:"lastSync"`
 	Status     string `json:"status"`
+}
+
+type Config struct {
+	History     []common.Record `json:"history"`
+	Sync        common.Sync     `json:"sync"`
+	Maintenance Maintenance     `json:"maintenance"`
+}
+
+type Maintenance struct {
+	Status          string `json:"Status"`
+	Name            string `json:"Name"`
+	AttachedWebhook string `json:"attachedWebhook"`
 }

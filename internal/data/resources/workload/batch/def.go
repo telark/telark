@@ -18,7 +18,7 @@ type CacidBatch struct {
 	RestartPolicy          string                                `json:"restartPolicy"`
 	BackoffLimit           int                                   `json:"backoffLimit"`
 	Crates                 workloadCommon.Crates                 `json:"crates"`
-	Registry               string                                `json:"registry"`
+	Registry               workloadCommon.RegType                `json:"registry"`
 	BridgeAttachmentPolicy workloadCommon.BridgeAttachmentPolicy `json:"bridgeAttachmentPolicy"`
 	Events                 []workloadCommon.Events               `json:"events"`
 }

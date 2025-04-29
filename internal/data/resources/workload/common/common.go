@@ -33,20 +33,6 @@ type Crate struct {
 	Ports     []int         `json:"ports"`
 }
 
-type CrateType string
-type BridgeAttachmentPolicy string
-
-const (
-	STANDARD CrateType = "Standard"
-	SIDE_CAR CrateType = "SideCar"
-)
-
-const (
-	ONE_TO_MANY         BridgeAttachmentPolicy = "Many Bridges Assigned"
-	ONE_TO_ONE          BridgeAttachmentPolicy = "One Bridge Assigned"
-	NO_SERVICE_ASSIGNED BridgeAttachmentPolicy = "No Bridge Assigned"
-)
-
 type CrateResource struct {
 	Qos    string `json:"qos"`
 	Cpu    string `json:"cpu"`
@@ -70,3 +56,25 @@ type EventItem struct {
 	Reason  string `json:"reason"`
 	Message string `json:"message"`
 }
+
+type (
+	CrateType              string
+	BridgeAttachmentPolicy string
+	RegType                string
+)
+
+const (
+	STANDARD CrateType = "Standard"
+	SIDE_CAR CrateType = "SideCar"
+)
+
+const (
+	ONE_TO_MANY         BridgeAttachmentPolicy = "Many Bridges Assigned"
+	ONE_TO_ONE          BridgeAttachmentPolicy = "One Bridge Assigned"
+	NO_SERVICE_ASSIGNED BridgeAttachmentPolicy = "No Bridge Assigned"
+)
+
+const (
+	PRV RegType = "Private"
+	PUB RegType = "Public"
+)

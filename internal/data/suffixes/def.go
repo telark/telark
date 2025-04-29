@@ -3,7 +3,7 @@ package suffixes
 import (
 	"fmt"
 
-	"github.com/plsyro/common-pkg/v2/global"
+	"github.com/plsyro/common-pkg/global"
 )
 
 type Suffix string

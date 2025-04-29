@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/nats-io/nats.go"
-	"github.com/plsyro/common-pkg/v2/global"
+	"github.com/plsyro/common-pkg/global"
 	"github.com/plsyro/data-pkg/errors"
 )
 

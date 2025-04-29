@@ -3,7 +3,7 @@ package nats
 import (
 	"fmt"
 
-	"github.com/plsyro/common-pkg/v2/global"
+	"github.com/plsyro/common-pkg/global"
 )
 
 type Action string

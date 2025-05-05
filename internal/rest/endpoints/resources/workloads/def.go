@@ -18,4 +18,8 @@ const (
 	UPDATE_BATCH_WORKLOAD_SYNC        base.Endpoint = "resources/workloads/batches/{name}/update/sync"
 	UPDATE_APP_WORKLOAD_GLOBAL_DATA   base.Endpoint = "resources/workloads/apps/{name}/update/global"
 	UPDATE_BATCH_WORKLOAD_GLOBAL_DATA base.Endpoint = "resources/workloads/batches/{name}/update/global"
+
+	// Patch Endpoints
+	PATCH_APP_WORKLOAD 	 base.Endpoint = "resources/workloads/apps/{name}/patch"
+	PATCH_BATCH_WORKLOAD base.Endpoint = "resources/workloads/batches/{name}/patch"
 )

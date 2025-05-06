@@ -30,7 +30,7 @@ type Config struct {
 }
 
 type Maintenance struct {
-	Status          string `json:"Status"`
-	Name            string `json:"Name"`
+	Status          string `json:"status"`
+	Name            string `json:"name"`
 	AttachedWebhook string `json:"attachedWebhook"`
 }

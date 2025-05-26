@@ -31,16 +31,17 @@ func (c *NATSClient) PublishMessage(topic string, data []byte) error {
 	return err
 }
 
-func (c *NATSClient) SubscribeToTopic(topic string, handler nats.MsgHandler) (*nats.Subscription, error) {
-	return c.JetStream.Subscribe(topic, handler, nats.DeliverNew())
+func (c *NATSClient) SubscribeToTopicWithQueue(topic, queue string, handler nats.MsgHandler) (*nats.Subscription, error) {
+	// Use DeliverAll() for work queue streams
+	return c.JetStream.QueueSubscribe(topic, queue, handler, nats.DeliverAll())
 }
 
-func (c *NATSClient) SubscribeToTopicWithQueue(topic, queue string, handler nats.MsgHandler) (*nats.Subscription, error) {
-	return c.JetStream.QueueSubscribe(topic, queue, handler, nats.DeliverNew())
+func (c *NATSClient) SubscribeToTopic(topic string, handler nats.MsgHandler) (*nats.Subscription, error) {
+	return c.JetStream.Subscribe(topic, handler, nats.DeliverAll())
 }
 
 func (c *NATSClient) PullSubscribe(topic string) (*nats.Subscription, error) {
-	return c.JetStream.PullSubscribe(topic, "pull-sub", nats.DeliverNew())
+	return c.JetStream.PullSubscribe(topic, "pull-sub", nats.DeliverAll())
 }
 
 func (c *NATSClient) GetStreamInfo(streamName string) (*nats.StreamInfo, error) {

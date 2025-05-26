@@ -50,13 +50,18 @@ const (
 	ERROR_ADMISSION_NOT_FOUND         Error = "Admission webhook not found."
 
 	// NATS-related Errors
-	ERROR_NATS_CONNECTION      Error = "Failed to connect to NATS server."
-	ERROR_NATS_AUTH            Error = "User and Password must be set for authentication."
-	ERROR_NATS_INVALID_URL     Error = "Invalid NATS server URL"
-	ERROR_NATS_TOPIC_NOT_FOUND Error = "topic '{topic}' was not found."
-	ERROR_NATS_TOPIC_PUBLISH   Error = "Failed to publish To topic"
-	ERROR_NATS_TOPIC_SUBSCRIBE Error = "Failed to subscribe To topic"
-	ERROR_NATS_DISCONNECT      Error = "Error while disconnecting from NATS server"
+	ERROR_NATS_CONNECTION         Error = "Failed to connect to NATS server."
+	ERROR_NATS_AUTH               Error = "User and Password must be set for authentication."
+	ERROR_NATS_INVALID_URL        Error = "Invalid NATS server URL"
+	ERROR_NATS_TOPIC_NOT_FOUND    Error = "topic '{topic}' was not found."
+	ERROR_NATS_TOPIC_PUBLISH      Error = "Failed to publish To topic"
+	ERROR_NATS_TOPIC_SUBSCRIBE    Error = "Failed to subscribe To topic"
+	ERROR_NATS_DISCONNECT         Error = "Error while disconnecting from NATS server"
+	ERROR_NATS_SUBSCRIBER_MANAGER Error = "Failed to start subscriber manager"
+	ERROR_NATS_CLIENT_CLOSED      Error = "NATS client closed"
+	ERROR_NATS_ACK_MSG            Error = "Failed to acknowledge message"
+	ERROR_NATS_ACK_DUP_MSG        Error = "Failed to acknowledge duplicated message"
+	ERROR_NATS_HANDLE_MSG         Error = "Failed to handle '{msg}' message"
 
 	// General Status Errors
 	ERROR_INVALID_ACTION Error = "Invalid action."

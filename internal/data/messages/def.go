@@ -39,4 +39,5 @@ const (
 	// Common Messages
 	SUCCESS_RECEIVED_SHUTDOWN_SIG Message = "Received shutdown signal, cleaning up..."
 	SUCCESS_CONTEXT_CANCELED      Message = "Context canceled, cleaning up..."
+	SUCCESS_STARTING_SERVER       Message = "Starting server on port"
 )

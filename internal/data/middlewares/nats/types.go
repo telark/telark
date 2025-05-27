@@ -53,8 +53,8 @@ const (
 
 const (
 	GROUPER         Group = "groupers"
-	APP_WORKLOADS   Group = "workloads.apps"
-	BATCH_WORKLOADS Group = "workloads.batches"
+	APP_WORKLOADS   Group = "workloads_apps"
+	BATCH_WORKLOADS Group = "workloads_batches"
 	BRIDGES         Group = "bridges"
 )
 

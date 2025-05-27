@@ -8,12 +8,6 @@ import (
 	"github.com/plsyro/data-pkg/errors"
 )
 
-type NATSClient struct {
-	Conn          *nats.Conn
-	JetStream     nats.JetStreamContext
-	StreamManager *StreamManager
-}
-
 func NewNATSClient(NatsConfig NATSConfig) (*NATSClient, error) {
 	url := fmt.Sprintf("nats://%s-nats-service:%d", global.BaseNamespace, NatsConfig.Port)
 
@@ -30,13 +24,9 @@ func NewNATSClient(NatsConfig NATSConfig) (*NATSClient, error) {
 		return nil, fmt.Errorf("%s: %w", errors.ERROR_NATS_CONNECTION, err)
 	}
 
-	// Create StreamManager
-	streamManager := NewStreamManager(js)
-
 	return &NATSClient{
-		Conn:          nc,
-		JetStream:     js,
-		StreamManager: streamManager,
+		Conn:      nc,
+		JetStream: js,
 	}, nil
 }
 

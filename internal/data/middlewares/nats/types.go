@@ -9,8 +9,10 @@ import (
 	"github.com/plsyro/data-pkg/resources/common"
 )
 
-// MessageHandler defines the function type for handling NATS messages
-type MessageHandler func(*nats.Msg) error
+type NATSClient struct {
+	Conn      *nats.Conn
+	JetStream nats.JetStreamContext
+}
 
 type NATSConfig struct {
 	User     string
@@ -18,27 +20,24 @@ type NATSConfig struct {
 	Port     Port
 }
 
+// MessageHandler defines the function type for handling NATS messages
+type MessageHandler func(*nats.Msg) error
+
 // Message represents the common structure for all NATS messages
 type Message struct {
 	Topic        string      `json:"topic"`
 	ResourceName string      `json:"resourceName"`
 	ResourceType common.Type `json:"resourceType"`
-	Scope        string      `json:"string"`
+	Scope        string      `json:"scope"`
 	Data         interface{} `json:"data"`
 }
 
 // BaseSubscriber provides common functionality for NATS subscribers
 type BaseSubscriber struct {
-	ResourceType   common.Type
 	Group          Group
 	MaxRetries     int
 	RetryDelay     time.Duration
 	ProcessTimeout time.Duration
-}
-
-// StreamManager handles JetStream stream operations
-type StreamManager struct {
-	js nats.JetStreamContext
 }
 
 type (

@@ -9,16 +9,11 @@ import (
 	"github.com/plsyro/data-pkg/errors"
 )
 
-// NewStreamManager creates a new StreamManager instance
-func NewStreamManager(js nats.JetStreamContext) *StreamManager {
-	return &StreamManager{js: js}
-}
-
-// CreateStreams creates all necessary streams for the application
-func (sm *StreamManager) CreateStreams() error {
+// CreateStreams creates all necessary streams for the groups
+func (c *NATSClient) CreateStreams() error {
 	groups := []Group{GROUPER, APP_WORKLOADS, BATCH_WORKLOADS, BRIDGES}
 	for _, group := range groups {
-		if err := sm.createStream(group); err != nil {
+		if err := c.createStream(group); err != nil {
 			return err
 		}
 	}
@@ -26,9 +21,9 @@ func (sm *StreamManager) CreateStreams() error {
 }
 
 // createStream creates a single stream for a specific group
-func (sm *StreamManager) createStream(group Group) error {
+func (c *NATSClient) createStream(group Group) error {
 	streamName := fmt.Sprintf("%s_%s", global.BaseNamespace, group)
-	_, err := sm.js.AddStream(&nats.StreamConfig{
+	_, err := c.JetStream.AddStream(&nats.StreamConfig{
 		Name:      streamName,
 		Subjects:  []string{fmt.Sprintf("%s.%s.*", global.BaseNamespace, group)},
 		Storage:   nats.FileStorage,
@@ -42,13 +37,13 @@ func (sm *StreamManager) createStream(group Group) error {
 }
 
 // GetStreamInfo retrieves information about a stream
-func (sm *StreamManager) GetStreamInfo(group Group) (*nats.StreamInfo, error) {
+func (c *NATSClient) GetStreamInfo(group Group) (*nats.StreamInfo, error) {
 	streamName := fmt.Sprintf("%s_%s", global.BaseNamespace, group)
-	return sm.js.StreamInfo(streamName)
+	return c.JetStream.StreamInfo(streamName)
 }
 
 // DeleteStream deletes a stream for a specific group
-func (sm *StreamManager) DeleteStream(group Group) error {
+func (c *NATSClient) DeleteStream(group Group) error {
 	streamName := fmt.Sprintf("%s_%s", global.BaseNamespace, group)
-	return sm.js.DeleteStream(streamName)
+	return c.JetStream.DeleteStream(streamName)
 }

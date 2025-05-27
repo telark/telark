@@ -2,48 +2,53 @@ package nats
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/nats-io/nats.go"
 	"github.com/plsyro/common-pkg/global"
+	"github.com/plsyro/data-pkg/errors"
 )
 
-type Action string
-
-const (
-	CREATE Action = "create"
-	UPDATE Action = "update"
-	DELETE Action = "delete"
-)
-
-type Scope string
-
-const (
-	NAMESPACE  Scope = "namespaces"
-	DEPLOYMENT Scope = "deployments"
-)
-
-func GetTopic(scope Scope, action Action) string {
-	return fmt.Sprintf("%s.%s.%s", global.BaseNamespace, scope, action)
+// NewStreamManager creates a new StreamManager instance
+func NewStreamManager(js nats.JetStreamContext) *StreamManager {
+	return &StreamManager{js: js}
 }
 
-func (c *NATSClient) PublishMessage(topic string, data []byte) error {
-	_, err := c.JetStream.Publish(topic, data)
-	return err
+// CreateStreams creates all necessary streams for the application
+func (sm *StreamManager) CreateStreams() error {
+	groups := []Group{GROUPER, APP_WORKLOADS, BATCH_WORKLOADS, BRIDGES}
+	for _, group := range groups {
+		if err := sm.createStream(group); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func (c *NATSClient) SubscribeToTopicWithQueue(topic, queue string, handler nats.MsgHandler) (*nats.Subscription, error) {
-	// Use DeliverAll() for work queue streams
-	return c.JetStream.QueueSubscribe(topic, queue, handler, nats.DeliverAll())
+// createStream creates a single stream for a specific group
+func (sm *StreamManager) createStream(group Group) error {
+	streamName := fmt.Sprintf("%s_%s", global.BaseNamespace, group)
+	_, err := sm.js.AddStream(&nats.StreamConfig{
+		Name:      streamName,
+		Subjects:  []string{fmt.Sprintf("%s.%s.*", global.BaseNamespace, group)},
+		Storage:   nats.FileStorage,
+		Retention: nats.WorkQueuePolicy,
+		MaxAge:    24 * time.Hour,
+	})
+	if err != nil && err != nats.ErrStreamNameAlreadyInUse {
+		return fmt.Errorf("%s: %w", errors.ERROR_NATS_CREATE_STREAM, err)
+	}
+	return nil
 }
 
-func (c *NATSClient) SubscribeToTopic(topic string, handler nats.MsgHandler) (*nats.Subscription, error) {
-	return c.JetStream.Subscribe(topic, handler, nats.DeliverAll())
+// GetStreamInfo retrieves information about a stream
+func (sm *StreamManager) GetStreamInfo(group Group) (*nats.StreamInfo, error) {
+	streamName := fmt.Sprintf("%s_%s", global.BaseNamespace, group)
+	return sm.js.StreamInfo(streamName)
 }
 
-func (c *NATSClient) PullSubscribe(topic string) (*nats.Subscription, error) {
-	return c.JetStream.PullSubscribe(topic, "pull-sub", nats.DeliverAll())
-}
-
-func (c *NATSClient) GetStreamInfo(streamName string) (*nats.StreamInfo, error) {
-	return c.JetStream.StreamInfo(streamName)
+// DeleteStream deletes a stream for a specific group
+func (sm *StreamManager) DeleteStream(group Group) error {
+	streamName := fmt.Sprintf("%s_%s", global.BaseNamespace, group)
+	return sm.js.DeleteStream(streamName)
 }

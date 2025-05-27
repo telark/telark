@@ -65,8 +65,10 @@ const (
 	ERROR_NATS_INVALID_SUBJECT    Error = "Invalid subject format: %s"
 	ERROR_NATS_CONVERT_FASID      Error = "Failed to convert message data to Fasid"
 	ERROR_NATS_PATCH_GROUPER      Error = "Failed to patch grouper: %s"
+	ERROR_NATS_CREATE_STREAM      Error = "Failed to create stream"
 
 	// General Status Errors
-	ERROR_INVALID_ACTION Error = "Invalid action."
-	ERROR_UNKNOWN        Error = "Unknown error."
+	ERROR_INVALID_ACTION  Error = "Invalid action."
+	ERROR_UNKNOWN         Error = "Unknown error."
+	ERROR_INVALID_MESSAGE Error = "Invalid message: nil or empty"
 )

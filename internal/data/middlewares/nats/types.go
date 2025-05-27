@@ -23,7 +23,7 @@ type Message struct {
 	Topic        string      `json:"topic"`
 	ResourceName string      `json:"resourceName"`
 	ResourceType common.Type `json:"resourceType"`
-	Group        Group       `json:"group"`
+	Scope        string      `json:"string"`
 	Data         interface{} `json:"data"`
 }
 

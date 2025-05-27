@@ -31,8 +31,9 @@ func (c *NATSClient) createStream(group Group) error {
 		MaxAge:    24 * time.Hour,
 	})
 	if err != nil && err != nats.ErrStreamNameAlreadyInUse {
-		return fmt.Errorf("%s: %w", errors.ERROR_NATS_CREATE_STREAM, err)
+		return fmt.Errorf("%s: %s  -> %w", errors.ERROR_NATS_CREATE_STREAM, streamName, err)
 	}
+
 	return nil
 }
 

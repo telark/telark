@@ -1,12 +1,12 @@
 package base
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/plsyro/common-pkg/global"
 )
 
+// API represents the structure for building API requests.
 type API struct {
 	Host        Host
 	Version     Version
@@ -16,6 +16,7 @@ type API struct {
 	Method      Method
 }
 
+// Host represents the host configuration for an API.
 type Host struct {
 	Schema  Schema
 	Service Service
@@ -62,9 +63,10 @@ const (
 	PATCH  Method = "PATCH"
 )
 
+// GenerateURL constructs the full API URL for the given API struct.
 func (api *API) GenerateURL() (string, error) {
 	if err := api.Validate(); err != nil {
-		return "", err
+		return "", fmt.Errorf("validation failed: %w", err)
 	}
 
 	serviceName := GetServiceName(api.Host.Service)
@@ -75,22 +77,24 @@ func (api *API) GenerateURL() (string, error) {
 	return fmt.Sprintf("%s%s:%d/%s/%s", api.Host.Schema, serviceName, api.Host.Port, api.Version, api.Endpoint), nil
 }
 
+// Validate checks if the API struct has all required fields set.
 func (api *API) Validate() error {
 	if api.Host.Schema == "" {
-		return errors.New("schema is required")
+		return fmt.Errorf("schema is required")
 	}
 	if api.Host.Service == "" {
-		return errors.New("service is required")
+		return fmt.Errorf("service is required")
 	}
 	if api.Version == "" {
-		return errors.New("version is required")
+		return fmt.Errorf("version is required")
 	}
 	if api.Endpoint == "" {
-		return errors.New("endpoint is required")
+		return fmt.Errorf("endpoint is required")
 	}
 	return nil
 }
 
+// GetServiceName returns the full service name with namespace prefix.
 func GetServiceName(service Service) string {
 	prefix := global.BaseNamespace
 	if prefix == "" {

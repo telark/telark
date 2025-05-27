@@ -5,6 +5,7 @@ import (
 	"net/http"
 )
 
+// OperationStatus represents the status of an operation in a response.
 type OperationStatus string
 
 const (
@@ -18,6 +19,7 @@ const (
 	OPERATION_ERROR         OperationStatus = "Error"
 )
 
+// GenericResponse represents a standard API response structure.
 type GenericResponse struct {
 	Status    int         `json:"status"`
 	Operation string      `json:"operation,omitempty"`
@@ -25,6 +27,7 @@ type GenericResponse struct {
 	Data      interface{} `json:"data,omitempty"`
 }
 
+// NewGenericResponse creates a new GenericResponse instance.
 func NewGenericResponse(status int, operation OperationStatus, data interface{}, message string) *GenericResponse {
 	return &GenericResponse{
 		Status:    status,
@@ -34,6 +37,7 @@ func NewGenericResponse(status int, operation OperationStatus, data interface{},
 	}
 }
 
+// EncodeJSONResponse writes a single GenericResponse as JSON to the http.ResponseWriter.
 func EncodeJSONResponse(w http.ResponseWriter, status int, response *GenericResponse) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -49,6 +53,8 @@ func EncodeJSONResponse(w http.ResponseWriter, status int, response *GenericResp
 	}
 }
 
+// EncodeMultiJSONResponse writes multiple GenericResponses as a JSON array to the http.ResponseWriter.
+// Uses json.Encoder for efficient streaming.
 func EncodeMultiJSONResponse(w http.ResponseWriter, status int, responses []*GenericResponse) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -70,10 +76,12 @@ func EncodeMultiJSONResponse(w http.ResponseWriter, status int, responses []*Gen
 	}
 }
 
+// SendSingleResponse sends a single GenericResponse using EncodeJSONResponse.
 func SendSingleResponse(w http.ResponseWriter, response *GenericResponse) {
 	EncodeJSONResponse(w, response.Status, response)
 }
 
+// SendMultiResponses sends multiple GenericResponses using EncodeMultiJSONResponse.
 func SendMultiResponses(w http.ResponseWriter, status int, responses []*GenericResponse) {
 	EncodeMultiJSONResponse(w, status, responses)
 }

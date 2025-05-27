@@ -1,0 +1,54 @@
+package router
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/plsyro/rest-pkg/base"
+	"github.com/plsyro/rest-pkg/router"
+)
+
+func TestNewRouter(t *testing.T) {
+	routes := []router.Route{
+		router.CreateRoute(base.GET, "hello", func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte("Hello, World!"))
+		}),
+	}
+
+	router := router.NewRouter(routes)
+	req, err := http.NewRequest("GET", "/api/v1/hello", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+
+	expected := `Hello, World!`
+	if rr.Body.String() != expected {
+		t.Errorf("handler returned unexpected body: got %v want %v", rr.Body.String(), expected)
+	}
+
+	t.Log("TestNewRouter passed: Router correctly handled the request and returned the expected response.")
+}
+
+func TestCreateRoute(t *testing.T) {
+	route := router.CreateRoute(base.GET, "test", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Test Route"))
+	})
+
+	if route.Method != string(base.GET) {
+		t.Errorf("CreateRoute() method = %v, want %v", route.Method, base.GET)
+	}
+
+	if route.Pattern != "/api/v1/test" {
+		t.Errorf("CreateRoute() pattern = %v, want %v", route.Pattern, "/api/v1/test")
+	}
+
+	t.Log("TestCreateRoute passed: Route was created with the correct method and pattern.")
+} 

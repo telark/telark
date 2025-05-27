@@ -62,6 +62,9 @@ const (
 	ERROR_NATS_ACK_MSG            Error = "Failed to acknowledge message"
 	ERROR_NATS_ACK_DUP_MSG        Error = "Failed to acknowledge duplicated message"
 	ERROR_NATS_HANDLE_MSG         Error = "Failed to handle '{msg}' message"
+	ERROR_NATS_INVALID_SUBJECT    Error = "Invalid subject format: %s"
+	ERROR_NATS_CONVERT_FASID      Error = "Failed to convert message data to Fasid"
+	ERROR_NATS_PATCH_GROUPER      Error = "Failed to patch grouper: %s"
 
 	// General Status Errors
 	ERROR_INVALID_ACTION Error = "Invalid action."

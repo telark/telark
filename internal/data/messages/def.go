@@ -34,6 +34,7 @@ const (
 	SUCCESS_NATS_TOPIC_MESSAGE_RECEIVE   Message = "Received message on topic"
 	SUCCESS_NATS_TOPIC_MESSAGE_SEND      Message = "Sending message on topic"
 	SUCCESS_NATS_ALL_SUBSCRIBERS_STARTED Message = "All subscribers started successfully"
+	SUCCESS_NATS_PATCH_GROUPER           Message = "Successfully patched grouper %s"
 
 	// Common Messages
 	SUCCESS_RECEIVED_SHUTDOWN_SIG Message = "Received shutdown signal, cleaning up..."

@@ -6,8 +6,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/plsyro/common-pkg/logging"
 	"github.com/plsyro/data-pkg/errors"
+	"github.com/plsyro/data-pkg/logging"
 	"github.com/plsyro/rest-pkg/response"
 )
 

@@ -3,10 +3,9 @@ package base
 import (
 	"fmt"
 
-	"github.com/plsyro/common-pkg/global"
+	"github.com/plsyro/data-pkg/common"
 )
 
-// API represents the structure for building API requests.
 type API struct {
 	Host        Host
 	Version     Version
@@ -16,7 +15,6 @@ type API struct {
 	Method      Method
 }
 
-// Host represents the host configuration for an API.
 type Host struct {
 	Schema  Schema
 	Service Service
@@ -40,6 +38,8 @@ const (
 	CONFIGURATOR       Service = "configurator"
 	EXPORTER           Service = "exporter"
 	ADMISSION_OPERATOR Service = "admission-operator"
+	WATCHER            Service = "watcher"
+	NOTIFIER           Service = "notifier"
 )
 
 const (
@@ -96,10 +96,5 @@ func (api *API) Validate() error {
 
 // GetServiceName returns the full service name with namespace prefix.
 func GetServiceName(service Service) string {
-	prefix := global.BaseNamespace
-	if prefix == "" {
-		// Fallback to Default Namespace
-		prefix = "default"
-	}
-	return fmt.Sprintf("%s-%s-service", prefix, service)
+	return fmt.Sprintf("%s-%s-service", common.BaseNamespace, service)
 }

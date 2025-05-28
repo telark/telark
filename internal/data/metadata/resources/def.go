@@ -1,7 +1,7 @@
 package resources
 
 import (
-	"github.com/plsyro/common-pkg/global"
+	"github.com/plsyro/data-pkg/common"
 	"github.com/plsyro/data-pkg/metadata/base"
 )
 
@@ -10,7 +10,7 @@ var GrouperAsResourceMetadata = base.Metadata{
 	Kind:      "GrouperAsResource",
 	Version:   string(base.ALPHA_1),
 	Plural:    "groupersasresources",
-	Namespace: global.BaseNamespace,
+	Namespace: common.BaseNamespace,
 }
 
 var AppWorkloadAsResourceMetadata = base.Metadata{
@@ -18,7 +18,7 @@ var AppWorkloadAsResourceMetadata = base.Metadata{
 	Kind:      "AppWorkloadAsResource",
 	Version:   string(base.ALPHA_1),
 	Plural:    "appsworkloadsasresources",
-	Namespace: global.BaseNamespace,
+	Namespace: common.BaseNamespace,
 }
 
 var BatchWorkloadAsResourceMetadata = base.Metadata{
@@ -26,7 +26,7 @@ var BatchWorkloadAsResourceMetadata = base.Metadata{
 	Kind:      "BatchWorkloadAsResource",
 	Version:   string(base.ALPHA_1),
 	Plural:    "batchesworkloadsasresources",
-	Namespace: global.BaseNamespace,
+	Namespace: common.BaseNamespace,
 }
 
 var BridgeAsResourceMetadata = base.Metadata{
@@ -34,7 +34,7 @@ var BridgeAsResourceMetadata = base.Metadata{
 	Kind:      "BridgeAsResource",
 	Version:   string(base.ALPHA_1),
 	Plural:    "bridgesasresources",
-	Namespace: global.BaseNamespace,
+	Namespace: common.BaseNamespace,
 }
 
 var InsightAsResourceMetadata = base.Metadata{
@@ -42,5 +42,5 @@ var InsightAsResourceMetadata = base.Metadata{
 	Kind:      "InsightAsResource",
 	Version:   string(base.ALPHA_1),
 	Plural:    "insightsasresources",
-	Namespace: global.BaseNamespace,
+	Namespace: common.BaseNamespace,
 }

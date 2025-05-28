@@ -1,18 +1,13 @@
-package nats
+package core
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/nats-io/nats.go"
-	"github.com/plsyro/common-pkg/global"
 	"github.com/plsyro/data-pkg/errors"
 	"github.com/plsyro/data-pkg/resources/common"
 )
-
-func GenerateNATSClientUrl() string {
-	return fmt.Sprintf("nats://%s-nats-service:%d", global.BaseNamespace, CLIENT)
-}
 
 func (s *BaseSubscriber) ValidateMessage(m *nats.Msg) error {
 	if m == nil || len(m.Data) == 0 || m.Data == nil {

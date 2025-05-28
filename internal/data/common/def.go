@@ -1,5 +1,7 @@
 package common
 
+var BaseNamespace = "plsyro"
+
 type OperationTime struct {
 	OnFullDate string `json:"onFullDate"`
 	OnTimeAgo  string `json:"onTimeAgo"`
@@ -33,13 +35,21 @@ const (
 	DENY  Action = "deny"
 )
 
-var (
-	ManagedFields = []string{
-		"apiVersion",
-		"kind",
-		"metadata.generation",
-		"metadata.managedFields",
-		"metadata.resourceVersion",
-		"metadata.uid",
-	}
-)
+var ManagedFields = []string{
+	"apiVersion",
+	"kind",
+	"metadata.generation",
+	"metadata.managedFields",
+	"metadata.resourceVersion",
+	"metadata.uid",
+}
+
+var ExcludedNamespaces = map[string]bool{
+	"kube-system":     true,
+	"kube-public":     true,
+	"kube-node-lease": true,
+	"plsyro":          true,
+	"prometheus":      true,
+	"monitoring":      true,
+	"default":         true,
+}

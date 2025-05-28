@@ -1,11 +1,9 @@
-package nats
+package core
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/nats-io/nats.go"
-	"github.com/plsyro/common-pkg/global"
 	"github.com/plsyro/data-pkg/resources/common"
 )
 
@@ -64,17 +62,7 @@ const (
 	DELETE Action = "delete"
 )
 
-// GetTopicName generates a topic string for a given group and action
-func GetTopicName(group Group, action Action) string {
-	return fmt.Sprintf("%s.%s.%s", global.BaseNamespace, group, action)
-}
-
-// GetQueueName generates a queue name for a given group and action
-func GetQueueName(group Group, action Action) string {
-	return fmt.Sprintf("%s-%s-%s-queue", global.BaseNamespace, group, action)
-}
-
-// GetGroup returns the subscriber's group
-func (s *BaseSubscriber) GetGroup() Group {
-	return s.Group
-}
+const (
+	maxRetries = 5
+	retryDelay = 5 * time.Second
+)

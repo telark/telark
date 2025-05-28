@@ -1,7 +1,7 @@
 package feats
 
 import (
-	"github.com/plsyro/common-pkg/global"
+	"github.com/plsyro/data-pkg/common"
 	"github.com/plsyro/data-pkg/metadata/base"
 )
 
@@ -10,5 +10,5 @@ var MaintenanceAsFeatureMetadata = base.Metadata{
 	Kind:      "MaintenanceAsFeature",
 	Version:   string(base.ALPHA_1),
 	Plural:    "maintenanceasfeatures",
-	Namespace: global.BaseNamespace,
+	Namespace: common.BaseNamespace,
 }

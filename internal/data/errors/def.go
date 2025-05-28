@@ -68,6 +68,8 @@ const (
 	ERROR_NATS_DISCONNECT               Error = "Error while disconnecting from NATS server"
 	ERROR_NATS_CLIENT_NOT_CONNECTED     Error = "NATS client not connected"
 	ERROR_NATS_CREATE_JETSTREAM_CONTEXT Error = "Failed to create JetStream context"
+	ERROR_NATS_CONVERT_FASID            Error = "Error converting message to Fasid"
+	ERROR_NATS_PATCH_GROUPER            Error = "Error patching grouper: %s"
 
 	// General Errors
 	ERROR_INVALID_ACTION  Error = "Invalid action."

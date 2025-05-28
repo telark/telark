@@ -40,4 +40,9 @@ const (
 	SUCCESS_RECEIVED_SHUTDOWN_SIG Message = "Received shutdown signal, cleaning up..."
 	SUCCESS_CONTEXT_CANCELED      Message = "Context canceled, cleaning up..."
 	SUCCESS_STARTING_SERVER       Message = "Starting server on port"
+
+	// Info Messages
+	INFO_SKIPPING_ACK_MESSAGE     Message = "Skipping acknowledgment message: %s"
+	INFO_PROCESSING_MESSAGE       Message = "Processing message: %s"
+	INFO_SKIPPING_DUPLICATE       Message = "Skipping duplicate message (processed %v ago)"
 )

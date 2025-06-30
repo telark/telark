@@ -16,4 +16,7 @@ const (
 	// Update Endpoints
 	UPDATE_GROUPER_SYNC        base.Endpoint = "resources/groupers/{name}/update/sync"
 	UPDATE_GROUPER_GLOBAL_DATA base.Endpoint = "resources/groupers/{name}/update/global"
+
+	// Delete Endpoints
+	DELETE_GROUPER base.Endpoint = "resources/groupers/{name}/delete"
 )

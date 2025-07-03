@@ -5,7 +5,7 @@ import "github.com/plsyro/rest-pkg/base"
 const (
 	// Groupers
 	WATCH_ALL_GROUPERS base.Endpoint = "resources/groupers/watch"
-	WATCH__GROUPER      base.Endpoint = "resources/groupers/{name}/watch"
+	WATCH__GROUPER     base.Endpoint = "resources/groupers/{name}/watch"
 
 	// Workloads
 	WATCH_ALL_APPS_WORKLOADS    base.Endpoint = "resources/workloads/apps/watch"

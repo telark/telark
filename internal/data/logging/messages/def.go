@@ -36,13 +36,17 @@ const (
 	SUCCESS_NATS_ALL_SUBSCRIBERS_STARTED Message = "All subscribers started successfully"
 	SUCCESS_NATS_PATCH_GROUPER           Message = "Successfully patched grouper %s"
 
-	// Common Messages
+	// Common Server Messages
 	SUCCESS_RECEIVED_SHUTDOWN_SIG Message = "Received shutdown signal, cleaning up..."
 	SUCCESS_CONTEXT_CANCELED      Message = "Context canceled, cleaning up..."
 	SUCCESS_STARTING_SERVER       Message = "Starting server on port"
 
-	// Info Messages
-	INFO_SKIPPING_ACK_MESSAGE     Message = "Skipping acknowledgment message: %s"
-	INFO_PROCESSING_MESSAGE       Message = "Processing message: %s"
-	INFO_SKIPPING_DUPLICATE       Message = "Skipping duplicate message (processed %v ago)"
+	// Health Monitoring
+	SUCCESS_SERVICE_HEALTH_CHECK_PASSED Message = "Service health check passed"
+	SUCCESS_SERVICE_RESTARTING          Message = "Restarting service due to health check failure..."
+
+	// Nats Info Messages
+	INFO_SKIPPING_ACK_MESSAGE Message = "Skipping acknowledgment message: %s"
+	INFO_PROCESSING_MESSAGE   Message = "Processing message: %s"
+	INFO_SKIPPING_DUPLICATE   Message = "Skipping duplicate message (processed %v ago)"
 )

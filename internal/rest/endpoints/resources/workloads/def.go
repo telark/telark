@@ -22,4 +22,8 @@ const (
 	// Patch Endpoints
 	PATCH_APP_WORKLOAD 	 base.Endpoint = "resources/workloads/apps/{name}/patch"
 	PATCH_BATCH_WORKLOAD base.Endpoint = "resources/workloads/batches/{name}/patch"
+
+	// Delete Endpoints
+	DELETE_APP_WORKLOAD base.Endpoint = "resources/workloads/apps/{name}/delete"
+	DELETE_BATCH_WORKLOAD base.Endpoint = "resources/workloads/batches/{name}/delete"
 )

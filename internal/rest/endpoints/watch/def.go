@@ -12,4 +12,8 @@ const (
 	WATCH_ALL_BATCHES_WORKLOADS base.Endpoint = "resources/workloads/batches/watch"
 	WATCH_APP_WORKLOAD          base.Endpoint = "resources/workloads/apps/{name}/watch"
 	WATCH_BATCH_WORKLOAD        base.Endpoint = "resources/workloads/batches/{name}/watch"
+
+	// Bridges
+	WATCH_ALL_BRIDGES base.Endpoint = "resources/bridges/watch"
+	WATCH_BRIDGE     base.Endpoint = "resources/bridges/{name}/watch"
 )

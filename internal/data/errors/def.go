@@ -5,7 +5,9 @@ type Error string
 const (
 	// REST-related Errors
 	ERROR_REST_MARSHALL_PAYLOAD               Error = "Error while marshaling JSON payload."
+	ERROR_REST_MARSHALL_UNSTRUCTURED_TO_JSON  Error = "Error while marshaling unstructured to JSON"
 	ERROR_REST_UNMARSHALL_RESPONSE_TO_GENERIC Error = "Error while unmarshaling JSON Response to Generic Response."
+	ERROR_REST_UNMARSHALL_RESOURCE_TO_JSON    Error = "Error while unmarshaling resource to JSON"
 	ERROR_REST_SEND_REQUEST                   Error = "Error while sending request."
 	ERROR_REST_READ_RESPONSE_BODY             Error = "Error while reading response body."
 	ERROR_REST_READ_REQUEST_BODY              Error = "Error while reading request body."
@@ -34,6 +36,9 @@ const (
 	ERROR_RESOURCE_EXISTS              Error = "Resource already exists"
 	ERROR_RESOURCE_NOT_FOUND           Error = "Resource not found"
 	ERROR_PATCH_RESOURCE               Error = "Error while patching resource"
+	ERROR_CONVERT_RESOURCE             Error = "Error while converting resource to %s"
+	ERROR_RESOURCE_HAS_NO_FIELDS       Error = "%s has no %s"
+	ERROR_REMOVE_FIELDS_FROM_RESOURCE  Error = "Error while removing %s from %s"
 
 	// Admission-related Errors
 	ERROR_CREATE_VALIDATING_ADMISSION Error = "Error while creating admission validating webhook."

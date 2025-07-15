@@ -2,12 +2,14 @@ package bridge
 
 import (
 	baseCommon "github.com/plsyro/data-pkg/common"
+	"github.com/plsyro/data-pkg/resources/common"
 	resourcesCommon "github.com/plsyro/data-pkg/resources/common"
 )
 
 type BridgeAsResource struct {
-	Fasid resourcesCommon.Fasid `json:"fasid"`
-	Cacid Cacid                 `json:"cacid"`
+	Fasid  resourcesCommon.Fasid `json:"fasid"`
+	Cacid  Cacid                 `json:"cacid"`
+	Config common.Config         `json:"config"`
 }
 
 type Cacid struct {

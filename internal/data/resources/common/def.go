@@ -3,7 +3,7 @@ package common
 type Fasid struct {
 	Name           string     `json:"name"`
 	SourceName     string     `json:"sourceName"`
-	Grouper        string     `json:"grouper"`
+	Grouper        *string    `json:"grouper,omitempty"`
 	Type           Type       `json:"type"`
 	SourceType     SourceType `json:"sourceType"`
 	CreationTime   string     `json:"creationTime"`
@@ -13,6 +13,7 @@ type Fasid struct {
 type (
 	Type       string
 	SourceType string
+	Mode       string
 )
 
 const (
@@ -32,13 +33,30 @@ const (
 	CRON_JOB     SourceType = "CronJob"
 )
 
+const (
+	SYNC_MODE_MANUAL Mode = "manual"
+	SYNC_MODE_AUTO   Mode = "auto"
+)
+
 type Record struct {
 	Name         string `json:"name"`
 	Status       string `json:"status"`
 	CreationTime string `json:"creationTime"`
 }
 
+type Config struct {
+	History     []Record     `json:"history"`
+	Sync        Sync         `json:"sync"`
+	Maintenance *Maintenance `json:"maintenance,omitempty"`
+}
+
 type Sync struct {
-	Mode           string `json:"mode"`
+	Mode           Mode   `json:"mode"`
 	LastUpdateTime string `json:"lastUpdateTime"`
+}
+
+type Maintenance struct {
+	Status          string `json:"status"`
+	Name            string `json:"name"`
+	AttachedWebhook string `json:"attachedWebhook"`
 }

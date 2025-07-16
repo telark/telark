@@ -38,7 +38,7 @@ const (
 	CONFIGURATOR       Service = "configurator"
 	EXPORTER           Service = "exporter"
 	ADMISSION_OPERATOR Service = "admission-operator"
-	WATCHER            Service = "watcher"
+	SYNC_MANAGER       Service = "sync-manager"
 	NOTIFIER           Service = "notifier"
 )
 

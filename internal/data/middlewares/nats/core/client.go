@@ -34,10 +34,10 @@ func InitNatsClient(ctx context.Context, user, password string) (*NATSClient, er
 	expBackoff.MaxElapsedTime = 10 * time.Second // adjust as needed
 
 	err := backoff.RetryNotify(operation, backoff.WithContext(expBackoff, ctx), func(err error, d time.Duration) {
-		fmt.Printf("%s: %v. Retrying in %s...", errors.ERROR_NATS_CONNECTION_FAILED, err, d)
+		fmt.Printf(string(errors.ERROR_NATS_CONNECTION_FAILED), d, err)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", errors.ERROR_NATS_FAILED_CON, err)
+		return nil, fmt.Errorf(string(errors.ERROR_NATS_FAILED_CON), err)
 	}
 	return client, nil
 }
@@ -48,14 +48,14 @@ func newClient(NatsConfig NATSConfig) (*NATSClient, error) {
 	// Connect to NATS
 	nc, err := nats.Connect(url, nats.UserInfo(NatsConfig.User, NatsConfig.Password))
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", errors.ERROR_NATS_FAILED_CON, err)
+		return nil, fmt.Errorf(string(errors.ERROR_NATS_FAILED_CON), err)
 	}
 
 	// Create JetStream Context
 	js, err := nc.JetStream()
 	if err != nil {
 		nc.Close()
-		return nil, fmt.Errorf("%s: %w", errors.ERROR_NATS_CREATE_JETSTREAM_CONTEXT, err)
+		return nil, fmt.Errorf(string(errors.ERROR_NATS_CREATE_JETSTREAM_CONTEXT), err)
 	}
 
 	return &NATSClient{

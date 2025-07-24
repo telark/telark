@@ -75,7 +75,7 @@ const (
 
 	// NATS-related Errors
 	ERROR_NATS_AUTH                     Error = "User and Password must be set for authentication."
-	ERROR_NATS_CONNECTION_FAILED        Error = "NATS connection failed"
+	ERROR_NATS_CONNECTION_FAILED        Error = "NATS connection failed. Retrying in %s...: %v"
 	ERROR_NATS_INVALID_URL              Error = "Invalid NATS server URL"
 	ERROR_NATS_TOPIC_NOT_FOUND          Error = "topic '{topic}' was not found."
 	ERROR_NATS_TOPIC_PUBLISH            Error = "Failed to publish To"
@@ -88,10 +88,10 @@ const (
 	ERROR_NATS_INVALID_SUBJECT          Error = "Invalid subject format"
 	ERROR_NATS_CONVERT_MSG_DATA         Error = "Failed to convert message data to"
 	ERROR_NATS_CREATE_STREAM            Error = "Failed to create stream"
-	ERROR_NATS_FAILED_CON               Error = "Failed to connect to NATS server."
+	ERROR_NATS_FAILED_CON               Error = "Failed to connect to NATS server: %v"
 	ERROR_NATS_DISCONNECT               Error = "Error while disconnecting from NATS server"
 	ERROR_NATS_CLIENT_NOT_CONNECTED     Error = "NATS client not connected"
-	ERROR_NATS_CREATE_JETSTREAM_CONTEXT Error = "Failed to create JetStream context"
+	ERROR_NATS_CREATE_JETSTREAM_CONTEXT Error = "Failed to create JetStream context: %v"
 	ERROR_NATS_CONVERT_FASID            Error = "Error converting message to Fasid"
 	ERROR_NATS_PATCH_GROUPER            Error = "Error patching grouper: %s"
 

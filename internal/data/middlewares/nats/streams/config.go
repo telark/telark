@@ -24,11 +24,13 @@ func CreateStreams(c *core.NATSClient) error {
 func createStreamByGroup(c *core.NATSClient, group core.Group) error {
 	streamName := fmt.Sprintf("%s_%s", common.BaseNamespace, group)
 	_, err := c.JetStream.AddStream(&nats.StreamConfig{
-		Name:      streamName,
-		Subjects:  []string{fmt.Sprintf("%s.%s.*", common.BaseNamespace, group)},
-		Storage:   nats.FileStorage,
-		Retention: nats.WorkQueuePolicy,
-		MaxAge:    24 * time.Hour,
+		Name:        streamName,
+		Subjects:    []string{fmt.Sprintf("%s.%s.*", common.BaseNamespace, group)},
+		Storage:     nats.FileStorage,
+		Retention:   nats.WorkQueuePolicy,
+		MaxAge:      24 * time.Hour,
+		AllowRollup: false,
+		AllowDirect: false,
 	})
 	if err != nil && err != nats.ErrStreamNameAlreadyInUse {
 		return fmt.Errorf("%s: %s  -> %w", errors.ERROR_NATS_CREATE_STREAM, streamName, err)

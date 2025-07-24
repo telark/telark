@@ -1,5 +1,7 @@
 package common
 
+import "time"
+
 var BaseNamespace = "plsyro"
 
 type OperationTime struct {
@@ -53,3 +55,14 @@ var ExcludedNamespaces = map[string]bool{
 	"monitoring":      true,
 	"default":         true,
 }
+
+const (
+	DEFAULT_TIME_FORMAT = time.RFC3339
+	DEFAULT_NAMESPACE   = "default"
+	UNKNOWN_NAME        = "unknown"
+	DEFAULT_IMAGE_TAG   = "latest"
+	DEFAULT_QOS         = "BestEffort"
+	DEFAULT_CPU         = "N/A"
+	DEFAULT_MEMORY      = "N/A"
+	SIDECAR_PATH_KW     = "/opt,/log,/monitoring"
+)

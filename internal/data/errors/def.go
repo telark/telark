@@ -19,8 +19,14 @@ const (
 	ERROR_REST_SEND_REQ                       Error = "failed to send {method} request for"
 
 	// K8s-related Errors
-	ERROR_K8S_SET_CLIENT    Error = "Failed to set Kubernetes client."
-	ERROR_K8S_CREATE_CONFIG Error = "Failed to create Kubernetes in-cluster config."
+	ERROR_K8S_SET_CLIENT                       Error = "Failed to set Kubernetes client: %v"
+	ERROR_K8S_CREATE_CONFIG                    Error = "Failed to create Kubernetes in-cluster config."
+	ERROR_K8S_GET_SERVICE                      Error = "Error getting Service %s in Namespace %s: %v"
+	ERROR_K8S_EMPTY_NAMESPACE_OR_RESOURCE_NAME Error = "Namespace Or resourceName cannot be empty"
+	ERROR_K8S_EMPTY_NAMESPACE                  Error = "Namespace cannot be empty"
+	ERROR_K8S_FETCHING_SERVICES                Error = "Error fetching services in namespace %s: %v"
+	ERROR_K8S_FETCHING_DEPLOYMENTS             Error = "Error fetching deployments in namespace %s: %v"
+	ERROR_K8S_FETCHING_POD_EVENTS              Error = "Error fetching events for pod %s in namespace %s: %v"
 
 	// Resource-related Errors
 	ERROR_CREATE_RESOURCE              Error = "Error while creating resource"
@@ -39,6 +45,18 @@ const (
 	ERROR_CONVERT_RESOURCE             Error = "Error while converting resource to %s"
 	ERROR_RESOURCE_HAS_NO_FIELDS       Error = "%s has no %s"
 	ERROR_REMOVE_FIELDS_FROM_RESOURCE  Error = "Error while removing %s from %s"
+
+	// Build-related Errors
+	ERROR_GROUPER_CANNOT_BE_NIL           Error = "Grouper cannot be nil"
+	ERROR_GROUPER_CANNOT_BE_EMPTY         Error = "Grouper cannot be empty"
+	ERROR_SOURCE_NAME_CANNOT_BE_EMPTY     Error = "Source name cannot be empty"
+	ERROR_UNSUPPORTED_APP_WORKLOAD_TYPE   Error = "Unsupported App Workload Type: %v"
+	ERROR_UNSUPPORTED_BATCH_WORKLOAD_TYPE Error = "Unsupported Batch Workload Type: %v"
+
+	// Patch-related Errors
+	ERROR_UNKNOWN_WORKLOAD_TYPE_FOR_BRIDGE  Error = "Unknown workload type for Bridge %s"
+	ERROR_UNKNOWN_RESOURCE_TYPE_FOR_GROUPER Error = "Unknown resource type for Grouper %s"
+	ERROR_GROUPERS_RESOURCES_EMPTY_OR_NIL   Error = "Groupers Resources are empty or nil"
 
 	// Admission-related Errors
 	ERROR_CREATE_VALIDATING_ADMISSION Error = "Error while creating admission validating webhook."

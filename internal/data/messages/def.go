@@ -49,4 +49,9 @@ const (
 	INFO_SKIPPING_ACK_MESSAGE Message = "Skipping acknowledgment message: %s"
 	INFO_PROCESSING_MESSAGE   Message = "Processing message: %s"
 	INFO_SKIPPING_DUPLICATE   Message = "Skipping duplicate message (processed %v ago)"
+
+	// Patch-related Messages
+	INFO_BRIDGE_OR_WORKLOADS_ARE_EMPTY                      Message = "Bridge or Workloads are empty"
+	INFO_BATCH_WORKLOAD_PATCHING_NOT_SUPPORTED_YET          Message = "Batch Workload Patching Operation Not Supported Yet"
+	INFO_SKIPPING_PATCHING_EMPTY_APPS_OR_BRIDGES_COLLECTION Message = "Skipping patching: empty apps or bridges collection."
 )

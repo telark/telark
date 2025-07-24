@@ -1,10 +1,17 @@
 package streams
 
 import (
+	"fmt"
+
+	"github.com/nats-io/nats.go"
+	"github.com/plsyro/data-pkg/errors"
 	"github.com/plsyro/data-pkg/middlewares/nats/core"
 )
 
-func PublishMessage(c *core.NATSClient, topic string, data []byte) error {
-	_, err := c.JetStream.Publish(topic, data)
-	return err
+func PublishMessage(c *core.NATSClient, subj string, data []byte) (*nats.PubAck, error) {
+	if c == nil || c.JetStream == nil {
+		return nil, fmt.Errorf(string(errors.ERROR_NATS_JETSTREAM_NOT_INITIALIZED))
+	}
+	ack, err := c.JetStream.Publish(subj, data)
+	return ack, err
 }

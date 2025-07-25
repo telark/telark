@@ -2,7 +2,6 @@ package streams
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/nats-io/nats.go"
 	"github.com/plsyro/data-pkg/common"
@@ -20,17 +19,16 @@ func CreateStreams(c *core.NATSClient) error {
 	return nil
 }
 
-// createStream creates a single stream for a specific group
 func createStreamByGroup(c *core.NATSClient, group core.Group) error {
-	streamName := fmt.Sprintf("%s_%s", common.BaseNamespace, group)
+	streamName := core.GetStreamName(group)
 	_, err := c.JetStream.AddStream(&nats.StreamConfig{
 		Name:        streamName,
 		Subjects:    []string{fmt.Sprintf("%s.%s.*", common.BaseNamespace, group)},
-		Storage:     nats.FileStorage,
-		Retention:   nats.WorkQueuePolicy,
-		MaxAge:      24 * time.Hour,
-		AllowRollup: false,
-		AllowDirect: false,
+		Storage:     STREAM_STORAGE_TYPE,
+		Retention:   STREAM_RETENTION_POLICY,
+		MaxAge:      STREAM_MAX_AGE_RETENTION,
+		AllowRollup: STREAM_ALLOW_ROLLUP,
+		AllowDirect: STREAM_ALLOW_DIRECT,
 	})
 	if err != nil && err != nats.ErrStreamNameAlreadyInUse {
 		return fmt.Errorf(string(errors.ERROR_NATS_FAILED_CREATE_STREAM), streamName, err)
@@ -39,14 +37,12 @@ func createStreamByGroup(c *core.NATSClient, group core.Group) error {
 	return nil
 }
 
-// GetStreamInfo retrieves information about a stream
 func GetStreamInfo(c *core.NATSClient, group core.Group) (*nats.StreamInfo, error) {
-	streamName := fmt.Sprintf("%s_%s", common.BaseNamespace, group)
+	streamName := core.GetStreamName(group)
 	return c.JetStream.StreamInfo(streamName)
 }
 
-// DeleteStream deletes a stream for a specific group
 func DeleteStream(c *core.NATSClient, group core.Group) error {
-	streamName := fmt.Sprintf("%s_%s", common.BaseNamespace, group)
+	streamName := core.GetStreamName(group)
 	return c.JetStream.DeleteStream(streamName)
 }

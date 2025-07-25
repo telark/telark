@@ -14,5 +14,5 @@ func SubscribeToTopic(c *core.NATSClient, topic string, handler nats.MsgHandler)
 }
 
 func PullSubscribe(c *core.NATSClient, topic string) (*nats.Subscription, error) {
-	return c.JetStream.PullSubscribe(topic, "pull-sub", nats.DeliverAll())
+	return c.JetStream.PullSubscribe(topic, STREAM_PULL_SUB_DURABLE, nats.DeliverAll())
 }

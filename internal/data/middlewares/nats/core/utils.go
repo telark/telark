@@ -45,7 +45,7 @@ func GenerateDataHash(data []byte, subject string) string {
 }
 
 func GetParsedMessageHeader(m *nats.Msg) string {
-	return m.Header.Get("parsed_message")
+	return m.Header.Get(KEY_PARSED_MESSAGE)
 }
 
 func SetParsedMessageHeader(m *nats.Msg, prefix, value string) {
@@ -53,6 +53,12 @@ func SetParsedMessageHeader(m *nats.Msg, prefix, value string) {
 		key := fmt.Sprintf("%s_data", prefix)
 		m.Header.Set(key, value)
 	} else {
-		m.Header.Set("parsed_message", value)
+		m.Header.Set(KEY_PARSED_MESSAGE, value)
 	}
+}
+
+func GenerateMessageId(subject string, data []byte) string {
+	content := fmt.Sprintf("%s-%s-%d", subject, string(data), time.Now().UnixNano())
+	hash := sha256.Sum256([]byte(content))
+	return hex.EncodeToString(hash[:16])
 }

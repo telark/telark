@@ -4,7 +4,7 @@ go 1.24.2
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
-	github.com/nats-io/nats.go v1.42.0
+	github.com/nats-io/nats.go v1.43.0
 	k8s.io/api v0.33.1
 )
 

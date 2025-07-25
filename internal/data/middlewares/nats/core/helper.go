@@ -8,7 +8,7 @@ import (
 )
 
 func GetNATSClientUrl() string {
-	return fmt.Sprintf("nats://%s-nats-service:%d", common.BaseNamespace, CLIENT)
+	return fmt.Sprintf("nats://%s-%s:%d", common.BaseNamespace, NATS_SERVICE_NAME, CLIENT)
 }
 
 func GetTopicName(group Group, action Action) string {

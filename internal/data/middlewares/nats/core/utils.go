@@ -49,6 +49,10 @@ func GetParsedMessageHeader(m *nats.Msg) string {
 }
 
 func SetParsedMessageHeader(m *nats.Msg, prefix, value string) {
-	key := fmt.Sprintf("%s_data", prefix)
-	m.Header.Set(key, value)
+	if prefix != "" {
+		key := fmt.Sprintf("%s_data", prefix)
+		m.Header.Set(key, value)
+	} else {
+		m.Header.Set("parsed_message", value)
+	}
 }

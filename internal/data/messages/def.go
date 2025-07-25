@@ -37,13 +37,15 @@ const (
 	SUCCESS_NATS_TOPIC_MESSAGE_SEND             Message = "Sending message on topic %s"
 	SUCCESS_NATS_ALL_SUBSCRIBERS_STARTED        Message = "All subscribers started successfully"
 	SUCCESS_NATS_PATCH_GROUPER                  Message = "Successfully patched grouper %s"
-	SUCCESS_NATS_SKIPPING_ACK_MESSAGE           Message = "Skipping acknowledgment message: %s"
 	INFO_SKIPPING_ACK_MESSAGE                   Message = "Skipping acknowledgment message: %s"
 	INFO_PROCESSING_MESSAGE                     Message = "Processing message: %s"
 	INFO_SKIPPING_DUPLICATE                     Message = "Skipping duplicate message (processed %v ago)"
 	ACK_SENT_FOR_MESSAGE                        Message = "Ack sent for message: %s"
-	SUCCESS_NATS_DELETED_GROUPER                Message = "Successfully deleted grouper %s"
+	SUCCESS_NATS_DELETE_GROUPER                 Message = "Successfully deleted grouper %s"
+	SUCCESS_NATS_DELETE_BRIDGE                  Message = "Successfully deleted bridge %s"
+	SUCCESS_NATS_DELETE_WORKLOAD                Message = "Successfully deleted workload %s"
 	SUCCESS_NATS_PATCH_WORKLOAD                 Message = "Successfully patched workload %s"
+	SUCCESS_NATS_PATCH_BRIDGE                   Message = "Successfully patched bridge %s"
 
 	// Common Server Messages
 	SUCCESS_RECEIVED_SHUTDOWN_SIG Message = "Received shutdown signal, cleaning up..."

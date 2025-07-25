@@ -2,7 +2,10 @@ package core
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"time"
 
 	"github.com/nats-io/nats.go"
 	"github.com/plsyro/data-pkg/errors"
@@ -28,4 +31,24 @@ func NewMessage(topic, name, scope string, resourceType common.Type, data interf
 		Scope:        scope,
 		Data:         data,
 	}
+}
+
+func GenerateKey(resourceName, resourceType, scope string) string {
+	key := fmt.Sprintf("%s-%s-%s", resourceName, resourceType, scope)
+	timestamp := time.Now().Unix() / 10
+	return fmt.Sprintf("%s-%d", key, timestamp)
+}
+
+func GenerateDataHash(data []byte, subject string) string {
+	hash := sha256.Sum256(data)
+	return fmt.Sprintf("%s-%s", subject, hex.EncodeToString(hash[:]))
+}
+
+func GetParsedMessageHeader(m *nats.Msg) string {
+	return m.Header.Get("parsed_message")
+}
+
+func SetParsedMessageHeader(m *nats.Msg, prefix, value string) {
+	key := fmt.Sprintf("%s_data", prefix)
+	m.Header.Set(key, value)
 }

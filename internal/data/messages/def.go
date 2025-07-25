@@ -29,12 +29,21 @@ const (
 	SUCCESS_UPDATE    Message = "Update completed successfully."
 
 	// NATS
-	SUCCESS_NATS_TOPIC_SUBSCRIBE         Message = "Successfully subscribed to topic"
-	SUCCESS_NATS_TOPIC_PUBLISH           Message = "Successfully published to topic"
-	SUCCESS_NATS_TOPIC_MESSAGE_RECEIVE   Message = "Received message on topic"
-	SUCCESS_NATS_TOPIC_MESSAGE_SEND      Message = "Sending message on topic"
-	SUCCESS_NATS_ALL_SUBSCRIBERS_STARTED Message = "All subscribers started successfully"
-	SUCCESS_NATS_PATCH_GROUPER           Message = "Successfully patched grouper %s"
+	SUCCESS_NATS_CONNECTION_STATUS_CONNECTED    Message = "NATS connection status: CONNECTED"
+	SUCCESS_NATS_CONNECTION_STATUS_DISCONNECTED Message = "NATS connection status: DISCONNECTED"
+	SUCCESS_NATS_TOPIC_SUBSCRIBE                Message = "Successfully subscribed to topic %s"
+	SUCCESS_NATS_TOPIC_PUBLISH                  Message = "Successfully published to topic %s"
+	SUCCESS_NATS_TOPIC_MESSAGE_RECEIVE          Message = "Received message on topic %s"
+	SUCCESS_NATS_TOPIC_MESSAGE_SEND             Message = "Sending message on topic %s"
+	SUCCESS_NATS_ALL_SUBSCRIBERS_STARTED        Message = "All subscribers started successfully"
+	SUCCESS_NATS_PATCH_GROUPER                  Message = "Successfully patched grouper %s"
+	SUCCESS_NATS_SKIPPING_ACK_MESSAGE           Message = "Skipping acknowledgment message: %s"
+	INFO_SKIPPING_ACK_MESSAGE                   Message = "Skipping acknowledgment message: %s"
+	INFO_PROCESSING_MESSAGE                     Message = "Processing message: %s"
+	INFO_SKIPPING_DUPLICATE                     Message = "Skipping duplicate message (processed %v ago)"
+	ACK_SENT_FOR_MESSAGE                        Message = "Ack sent for message: %s"
+	SUCCESS_NATS_DELETED_GROUPER                Message = "Successfully deleted grouper %s"
+	SUCCESS_NATS_PATCH_WORKLOAD                 Message = "Successfully patched workload %s"
 
 	// Common Server Messages
 	SUCCESS_RECEIVED_SHUTDOWN_SIG Message = "Received shutdown signal, cleaning up..."
@@ -44,11 +53,6 @@ const (
 	// Health Monitoring
 	SUCCESS_SERVICE_HEALTH_CHECK_PASSED Message = "Service health check passed"
 	SUCCESS_SERVICE_RESTARTING          Message = "Restarting service due to health check failure..."
-
-	// Nats Info Messages
-	INFO_SKIPPING_ACK_MESSAGE Message = "Skipping acknowledgment message: %s"
-	INFO_PROCESSING_MESSAGE   Message = "Processing message: %s"
-	INFO_SKIPPING_DUPLICATE   Message = "Skipping duplicate message (processed %v ago)"
 
 	// Patch-related Messages
 	INFO_BRIDGE_OR_WORKLOADS_ARE_EMPTY                      Message = "Bridge or Workloads are empty"

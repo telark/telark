@@ -33,7 +33,7 @@ func createStreamByGroup(c *core.NATSClient, group core.Group) error {
 		AllowDirect: false,
 	})
 	if err != nil && err != nats.ErrStreamNameAlreadyInUse {
-		return fmt.Errorf("%s: %s  -> %w", errors.ERROR_NATS_CREATE_STREAM, streamName, err)
+		return fmt.Errorf(string(errors.ERROR_NATS_FAILED_CREATE_STREAM), streamName, err)
 	}
 
 	return nil

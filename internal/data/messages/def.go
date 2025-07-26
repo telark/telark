@@ -4,11 +4,16 @@ type Message string
 
 const (
 	// Custom Resource Management Messages
-	SUCCESS_LIST_RESOURCES  Message = "Custom Resources listed successfully."
-	SUCCESS_GET_RESOURCE    Message = "Custom Resource fetched successfully."
-	SUCCESS_CREATE_RESOURCE Message = "Custom Resource created successfully."
-	SUCCESS_UPDATE_RESOURCE Message = "Custom Resource updated successfully."
-	SUCCESS_DELETE_RESOURCE Message = "Custom Resource deleted successfully."
+	SUCCESS_LIST_RESOURCES                Message = "Resources listed successfully."
+	SUCCESS_GET_RESOURCE                  Message = "Resource %s of kind %s fetched successfully."
+	SUCCESS_CREATE_RESOURCE               Message = "Resource %s of kind %s created successfully."
+	SUCCESS_UPDATE_RESOURCE               Message = "Resource %s of kind %s updated successfully."
+	SUCCESS_PATCH_RESOURCE                Message = "Resource %s of kind %s patched successfully."
+	SUCCESS_DELETE_RESOURCE               Message = "Resource %s of kind %s deleted successfully."
+	INFO_RESOURCE_CREATE_WITH_OUT_HISTORY Message = "Resource %s of kind %s created without add in history."
+	INFO_RESOURCE_UPDATE_WITH_OUT_HISTORY Message = "Resource %s of kind %s updated without add in history."
+	INFO_RESOURCE_PATCH_WITH_OUT_HISTORY  Message = "Resource %s of kind %s patched without add in history."
+	INFO_RESOURCE_DELETE_WITH_OUT_HISTORY Message = "Resource %s of kind %s deleted without add in history."
 
 	// Validating Admission Webhook Messages
 	SUCCESS_CREATE_VALIDATING_ADMISSION Message = "Admission Validating Webhook created successfully."
@@ -60,4 +65,8 @@ const (
 	INFO_BRIDGE_OR_WORKLOADS_ARE_EMPTY                      Message = "Bridge or Workloads are empty"
 	INFO_BATCH_WORKLOAD_PATCHING_NOT_SUPPORTED_YET          Message = "Batch Workload Patching Operation Not Supported Yet"
 	INFO_SKIPPING_PATCHING_EMPTY_APPS_OR_BRIDGES_COLLECTION Message = "Skipping patching: empty apps or bridges collection."
+
+	// History Records
+	RECORD_RESOURCE_CREATED Message = "Resource created successfully"
+	RECORD_RESOURCE_UPDATED Message = "Resource updated successfully"
 )

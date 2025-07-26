@@ -50,6 +50,7 @@ const (
 	ERROR_GROUPER_CANNOT_BE_NIL           Error = "Grouper cannot be nil"
 	ERROR_GROUPER_CANNOT_BE_EMPTY         Error = "Grouper cannot be empty"
 	ERROR_SOURCE_NAME_CANNOT_BE_EMPTY     Error = "Source name cannot be empty"
+	ERROR_RESOURCE_NAME_CANNOT_BE_EMPTY   Error = "Resource name cannot be empty"
 	ERROR_UNSUPPORTED_APP_WORKLOAD_TYPE   Error = "Unsupported App Workload Type: %v"
 	ERROR_UNSUPPORTED_BATCH_WORKLOAD_TYPE Error = "Unsupported Batch Workload Type: %v"
 

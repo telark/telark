@@ -5,7 +5,7 @@ var Origins = []string{
 }
 
 var Methods = []string{
-	"GET", "POST", "PUT", "DELETE",
+	"GET", "POST", "PUT", "DELETE", "PATCH",
 }
 
 var Headers = []string{

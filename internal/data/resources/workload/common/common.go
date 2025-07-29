@@ -1,6 +1,8 @@
 package common
 
-import "github.com/plsyro/data-pkg/common"
+import (
+	"github.com/plsyro/data-pkg/common"
+)
 
 type Metadata struct {
 	Annotations []common.Unified `json:"annotations"`
@@ -25,16 +27,35 @@ type Crates struct {
 }
 
 type Crate struct {
-	Name      string        `json:"name"`
-	Order     int           `json:"order"`
-	SubType   CrateType     `json:"subType"`
-	Resources CrateResource `json:"resources"`
-	Image     CrateImage    `json:"image"`
-	Ports     []int         `json:"ports"`
+	Name    string     `json:"name"`
+	Order   int        `json:"order"`
+	SubType CrateType  `json:"subType"`
+	Image   CrateImage `json:"image"`
+	Ports   []int      `json:"ports"`
 }
 
-type CrateResource struct {
-	Qos    string `json:"qos"`
+type Usage struct {
+	Qos       string   `json:"qos"`
+	Resources Resource `json:"resources"`
+	Available bool     `json:"available"`
+	Timestamp string   `json:"timestamp"`
+}
+
+type Resource struct {
+	TotalCpu         string             `json:"totalCpu"`
+	TotalMemory      string             `json:"totalMemory"`
+	UsagePerInstance []UsagePerInstance `json:"usagePerInstance"`
+}
+
+type UsagePerInstance struct {
+	Name        string           `json:"name"`
+	Containers  []ContainerUsage `json:"containers"`
+	TotalCpu    string           `json:"totalCpu"`
+	TotalMemory string           `json:"totalMemory"`
+}
+
+type ContainerUsage struct {
+	Name   string `json:"name"`
 	Cpu    string `json:"cpu"`
 	Memory string `json:"memory"`
 }

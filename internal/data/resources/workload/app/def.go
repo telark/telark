@@ -22,6 +22,7 @@ type CacidApp struct {
 	Bridges                []Bridge                              `json:"bridges"`
 	BridgeAttachmentPolicy workloadCommon.BridgeAttachmentPolicy `json:"bridgeAttachmentPolicy"`
 	Events                 []workloadCommon.Events               `json:"events"`
+	Usage                  workloadCommon.Usage                  `json:"usage"`
 }
 
 type Bridge struct {

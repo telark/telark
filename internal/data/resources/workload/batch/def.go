@@ -23,6 +23,7 @@ type CacidBatch struct {
 	Registry               workloadCommon.RegType                `json:"registry"`
 	BridgeAttachmentPolicy workloadCommon.BridgeAttachmentPolicy `json:"bridgeAttachmentPolicy"`
 	Events                 []workloadCommon.Events               `json:"events"`
+	Usage                  workloadCommon.Usage
 }
 
 type Status struct {

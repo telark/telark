@@ -3,7 +3,7 @@ package core
 import (
 	"github.com/plsyro/kcore-pkg/constants"
 	"github.com/plsyro/kcore-pkg/resilience/timeout"
-	"github.com/plsyro/kcore-pkg/resources/client"
+	k8sClient "github.com/plsyro/kcore-pkg/resources/client"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -12,7 +12,7 @@ import (
 type NamespaceAdapter struct{}
 
 func (namespaceAdapter *NamespaceAdapter) GetAllNamespaces() ([]v1.Namespace, error) {
-	client, err := client.InitClient()
+	client, err := k8sClient.InitClient()
 	if err != nil {
 		return nil, err
 	}

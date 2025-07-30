@@ -18,11 +18,7 @@ const (
 	INFO_METRICS_API_AVAILABLE                messages.Message = "metrics API is available and ready to use"
 
 	// Logger prefixes
-	LOGGER_PREFIX_METRICS        = "Metrics: "
-	LOGGER_PREFIX_WORKLOAD_USAGE = "WorkloadUsage: "
-	LOGGER_PREFIX_SERVICE        = "ServiceAdapter:"
-	LOGGER_PREFIX_KUBE_CLIENT    = "KubeClient: "
-	LOGGER_PREFIX_WORKLOADS      = "WorkloadsAdapter:"
-	LOGGER_PREFIX_NAMESPACES     = "NamespacesAdapter:"
-	LOGGER_PREFIX_EVENT          = "EventAdapter:"
+	LOGGER_PREFIX_METRICS              = "Metrics: "
+	LOGGER_PREFIX_WORKLOAD_USAGE       = "WorkloadUsage: "
+	LOGGER_PREFIX_KUBERNETES_RESOURCES = "KubernetesResources: "
 )

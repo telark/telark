@@ -3,7 +3,7 @@ package batch
 import (
 	"github.com/plsyro/kcore-pkg/constants"
 	"github.com/plsyro/kcore-pkg/resilience/timeout"
-	"github.com/plsyro/kcore-pkg/resources/client"
+	k8sClient "github.com/plsyro/kcore-pkg/resources/client"
 
 	batch "k8s.io/api/batch/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -12,7 +12,7 @@ import (
 type JobAdapter struct{}
 
 func (jobAdapter *JobAdapter) GetJobsByNamespace(namespace string) ([]batch.Job, error) {
-	client, err := client.InitClient()
+	client, err := k8sClient.InitClient()
 	if err != nil {
 		return nil, err
 	}

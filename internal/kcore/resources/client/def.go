@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	logger = logging.NewCustomLogger(constants.LOGGER_PREFIX_KUBE_CLIENT)
+	logger = logging.NewCustomLogger(constants.LOGGER_PREFIX_KUBERNETES_RESOURCES)
 	client *kubernetes.Clientset
 	once   sync.Once
 	mu     sync.RWMutex
@@ -30,12 +30,15 @@ func InitClient() (*kubernetes.Clientset, error) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	// Double-check pattern
 	if client != nil {
 		return client, nil
 	}
 
 	return initClientOnce()
+}
+
+func GetLogger() *logging.CustomLogger {
+	return logger
 }
 
 func initClientOnce() (*kubernetes.Clientset, error) {
@@ -56,7 +59,6 @@ func createClient() (*kubernetes.Clientset, error) {
 		return nil, fmt.Errorf("%s: %w", string(errors.ERROR_K8S_CREATE_CONFIG), err)
 	}
 
-	// Create Kubernetes client
 	client, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf(string(errors.ERROR_K8S_SET_CLIENT), err)

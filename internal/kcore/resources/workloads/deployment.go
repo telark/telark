@@ -5,15 +5,13 @@ import (
 
 	"github.com/plsyro/kcore-pkg/constants"
 	"github.com/plsyro/kcore-pkg/resilience/timeout"
-	"github.com/plsyro/kcore-pkg/resources/client"
+	client "github.com/plsyro/kcore-pkg/resources/client"
+	k8sClient "github.com/plsyro/kcore-pkg/resources/client"
 
 	"github.com/plsyro/data-pkg/errors"
-	"github.com/plsyro/data-pkg/logging"
 	v1 "k8s.io/api/apps/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-var logger = logging.NewCustomLogger(constants.LOGGER_PREFIX_WORKLOADS)
 
 type DeploymentAdapter struct{}
 
@@ -28,7 +26,7 @@ func (deploymentAdapter *DeploymentAdapter) GetAllDeploymentsByNamespace(namespa
 
 	deployments, err := client.AppsV1().Deployments(namespace).List(ctx, meta.ListOptions{})
 	if err != nil {
-		logger.Error(fmt.Sprintf(string(errors.ERROR_K8S_FETCHING_DEPLOYMENTS), namespace, err))
+		k8sClient.GetLogger().Error(fmt.Sprintf(string(errors.ERROR_K8S_FETCHING_DEPLOYMENTS), namespace, err))
 		return nil, err
 	}
 	return deployments.Items, nil

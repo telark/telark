@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/plsyro/data-pkg/errors"
-	"github.com/plsyro/data-pkg/logging"
 	"github.com/plsyro/kcore-pkg/constants"
 	"github.com/plsyro/kcore-pkg/resilience/timeout"
 	k8sConfig "github.com/plsyro/kcore-pkg/resources/client"
@@ -12,8 +11,6 @@ import (
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-var logger = logging.NewCustomLogger(constants.LOGGER_PREFIX_SERVICE)
 
 type ServiceData struct {
 	Host      string
@@ -78,7 +75,7 @@ func (serviceAdapter *ServiceAdapter) GetServiceStatus(namespace string, service
 	return service.Spec.ClusterIP != "", nil
 }
 
-func (serviceAdapter *ServiceAdapter) FetchServicesByNamespace(namespace string) ([]core.Service, error) {
+func (serviceAdapter *ServiceAdapter) GetAllServicesByNamespace(namespace string) ([]core.Service, error) {
 	if namespace == "" {
 		return nil, fmt.Errorf(string(errors.ERROR_K8S_EMPTY_NAMESPACE_OR_RESOURCE_NAME))
 	}

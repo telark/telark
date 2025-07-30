@@ -5,22 +5,19 @@ import (
 
 	"github.com/plsyro/kcore-pkg/constants"
 	"github.com/plsyro/kcore-pkg/resilience/timeout"
-	"github.com/plsyro/kcore-pkg/resources/client"
+	k8sClient "github.com/plsyro/kcore-pkg/resources/client"
 
 	"github.com/plsyro/data-pkg/errors"
-	"github.com/plsyro/data-pkg/logging"
 	workload "github.com/plsyro/data-pkg/resources/workload/common"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var logger = logging.NewCustomLogger(constants.LOGGER_PREFIX_EVENT)
-
 type EventAdapter struct{}
 
-func (eventAdapter *EventAdapter) GetEventsByPod(pod string, namespace string, selectors map[string]string) []workload.EventItem {
-	client, err := client.InitClient()
+func (eventAdapter *EventAdapter) GetAllEventsByPod(pod string, namespace string, selectors map[string]string) ([]workload.EventItem, error) {
+	client, err := k8sClient.InitClient()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	eventsPerPod := make([]workload.EventItem, 0)
@@ -32,8 +29,8 @@ func (eventAdapter *EventAdapter) GetEventsByPod(pod string, namespace string, s
 		FieldSelector: fmt.Sprintf(constants.FIELD_SELECTOR_INVOLVED_OBJECT, pod),
 	})
 	if err != nil {
-		logger.Error(fmt.Sprintf(string(errors.ERROR_K8S_FETCHING_POD_EVENTS), pod, namespace, err))
-		return eventsPerPod
+		k8sClient.GetLogger().Error(fmt.Sprintf(string(errors.ERROR_K8S_FETCHING_POD_EVENTS), pod, namespace, err))
+		return eventsPerPod, err
 	}
 
 	for _, e := range events.Items {
@@ -44,5 +41,5 @@ func (eventAdapter *EventAdapter) GetEventsByPod(pod string, namespace string, s
 		}
 		eventsPerPod = append(eventsPerPod, eventPerPod)
 	}
-	return eventsPerPod
+	return eventsPerPod, nil
 }

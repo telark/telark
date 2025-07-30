@@ -1,0 +1,27 @@
+package batch
+
+import (
+	"github.com/plsyro/kcore-pkg/config/timeout"
+	"github.com/plsyro/kcore-pkg/resources/client"
+
+	batch "k8s.io/api/batch/v1"
+	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+type JobAdapter struct{}
+
+func (jobAdapter *JobAdapter) FetchJobsByNamespace(namespace string) ([]batch.Job, error) {
+	client, err := client.InitClient()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := timeout.ContextWithTimeout(timeout.WORKLOAD_LIST_TIMEOUT)
+	defer cancel()
+
+	jobs, err := client.BatchV1().Jobs(namespace).List(ctx, meta.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return jobs.Items, nil
+}

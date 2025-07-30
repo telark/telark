@@ -32,8 +32,19 @@ const (
 	ERROR_FAILED_TO_GET_POD_QOS        errors.Error = "failed to get QoS for pods in namespace %s: %v"
 	ERROR_FAILED_TO_GET_SERVER_VERSION errors.Error = "failed to get server version: %v"
 
+	// Informer Errors
+	ERROR_SERVICE_INFORMER_FAILED_TO_SYNC   errors.Error     = "Service informer failed to sync"
+	ERROR_WORKLOAD_INFORMER_FAILED_TO_SYNC  errors.Error     = "Workloads informer failed to sync"
+	ERROR_NAMESPACE_INFORMER_FAILED_TO_SYNC errors.Error     = "Namespace informer failed to sync"
+	INFO_NAMESPACE_INFORMER_SYNCED          messages.Message = "Namespace informer synced"
+	INFO_SERVICE_INFORMER_SYNCED            messages.Message = "Service informer synced"
+	INFO_WORKLOAD_INFORMER_SYNCED           messages.Message = "Workloads informer synced"
+	ERROR_KUBE_CLIENT_NIL                   errors.Error     = "kubeClient is nil"
+	ERROR_INFORMER_FACTORY_NIL              errors.Error     = "informer factory is nil"
+
 	// Logger prefixes
-	LOGGER_PREFIX_METRICS              = "Metrics: "
-	LOGGER_PREFIX_WORKLOAD_USAGE       = "WorkloadUsage: "
-	LOGGER_PREFIX_KUBERNETES_RESOURCES = "KubernetesResources: "
+	LOGGER_PREFIX_K8S_METRICS    = "KubernetesMetrics: "
+	LOGGER_PREFIX_K8S_RESOURCES  = "KubernetesResources: "
+	LOGGER_PREFIX_K8S_INFORMERS  = "KubernetesInformers: "
+	LOGGER_PREFIX_WORKLOAD_USAGE = "WorkloadUsage: "
 )

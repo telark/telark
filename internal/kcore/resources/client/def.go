@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	logger = logging.NewCustomLogger(constants.LOGGER_PREFIX_KUBERNETES_RESOURCES)
+	logger = logging.NewCustomLogger(constants.LOGGER_PREFIX_K8S_RESOURCES)
 	client *kubernetes.Clientset
 	once   sync.Once
 	mu     sync.RWMutex

@@ -2,7 +2,8 @@ package core
 
 import (
 	"github.com/plsyro/data-pkg/logging"
-	"github.com/plsyro/kcore-pkg/config/timeout"
+	"github.com/plsyro/kcore-pkg/constants"
+	"github.com/plsyro/kcore-pkg/resilience/timeout"
 	"github.com/plsyro/kcore-pkg/resources/client"
 
 	v1 "k8s.io/api/core/v1"
@@ -19,7 +20,7 @@ func (namespaceAdapter *NamespaceAdapter) FetchAllNamespaces() ([]v1.Namespace, 
 		return nil, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(timeout.NAMESPACE_LIST_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.NAMESPACE_LIST_TIMEOUT)
 	defer cancel()
 
 	namespaces, err := client.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})

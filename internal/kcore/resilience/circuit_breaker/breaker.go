@@ -3,6 +3,8 @@ package circuit_breaker
 import (
 	"sync"
 	"time"
+
+	"github.com/plsyro/kcore-pkg/constants"
 )
 
 type (
@@ -96,5 +98,5 @@ var ErrCircuitBreakerOpen = &CircuitBreakerError{}
 type CircuitBreakerError struct{}
 
 func (e *CircuitBreakerError) Error() string {
-	return CIRCUIT_BREAKER_IS_OPEN
+	return constants.CIRCUIT_BREAKER_IS_OPEN
 }

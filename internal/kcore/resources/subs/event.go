@@ -3,7 +3,8 @@ package subs
 import (
 	"fmt"
 
-	"github.com/plsyro/kcore-pkg/config/timeout"
+	"github.com/plsyro/kcore-pkg/constants"
+	"github.com/plsyro/kcore-pkg/resilience/timeout"
 	"github.com/plsyro/kcore-pkg/resources/client"
 
 	"github.com/plsyro/data-pkg/errors"
@@ -24,7 +25,7 @@ func (eventAdapter *EventAdapter) FetchEventsByPod(pod string, namespace string,
 
 	eventsPerPod := make([]workload.EventItem, 0)
 
-	ctx, cancel := timeout.ContextWithTimeout(timeout.EVENT_FETCH_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.EVENT_FETCH_TIMEOUT)
 	defer cancel()
 
 	events, err := client.CoreV1().Events(namespace).List(ctx, meta.ListOptions{

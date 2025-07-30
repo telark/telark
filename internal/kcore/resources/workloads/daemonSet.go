@@ -1,7 +1,8 @@
 package workloads
 
 import (
-	"github.com/plsyro/kcore-pkg/config/timeout"
+	"github.com/plsyro/kcore-pkg/constants"
+	"github.com/plsyro/kcore-pkg/resilience/timeout"
 	"github.com/plsyro/kcore-pkg/resources/client"
 
 	apps "k8s.io/api/apps/v1"
@@ -16,7 +17,7 @@ func (daemonSetAdapter *DaemonSetAdapter) FetchDaemonSetsByNamespace(namespace s
 		return nil, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(timeout.WORKLOAD_LIST_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.WORKLOAD_LIST_TIMEOUT)
 	defer cancel()
 
 	daemons, err := client.AppsV1().DaemonSets(namespace).List(ctx, meta.ListOptions{})

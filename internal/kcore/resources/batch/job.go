@@ -1,7 +1,8 @@
 package batch
 
 import (
-	"github.com/plsyro/kcore-pkg/config/timeout"
+	"github.com/plsyro/kcore-pkg/constants"
+	"github.com/plsyro/kcore-pkg/resilience/timeout"
 	"github.com/plsyro/kcore-pkg/resources/client"
 
 	batch "k8s.io/api/batch/v1"
@@ -16,7 +17,7 @@ func (jobAdapter *JobAdapter) FetchJobsByNamespace(namespace string) ([]batch.Jo
 		return nil, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(timeout.WORKLOAD_LIST_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.WORKLOAD_LIST_TIMEOUT)
 	defer cancel()
 
 	jobs, err := client.BatchV1().Jobs(namespace).List(ctx, meta.ListOptions{})

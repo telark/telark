@@ -2,6 +2,8 @@ package worker
 
 import (
 	"sync"
+
+	"github.com/plsyro/kcore-pkg/constants"
 )
 
 type WorkerPool struct {
@@ -12,7 +14,7 @@ type WorkerPool struct {
 
 func NewWorkerPool(workers int) *WorkerPool {
 	if workers <= 0 {
-		workers = DefaultWorkerPoolSize
+		workers = constants.DEFAULT_WORKER_POOL_SIZE
 	}
 	return &WorkerPool{
 		workers: workers,

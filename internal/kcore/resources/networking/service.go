@@ -6,7 +6,8 @@ import (
 
 	"github.com/plsyro/data-pkg/errors"
 	"github.com/plsyro/data-pkg/logging"
-	"github.com/plsyro/kcore-pkg/config/timeout"
+	"github.com/plsyro/kcore-pkg/constants"
+	"github.com/plsyro/kcore-pkg/resilience/timeout"
 	k8sConfig "github.com/plsyro/kcore-pkg/resources/client"
 
 	core "k8s.io/api/core/v1"
@@ -36,7 +37,7 @@ func (serviceAdapter *ServiceAdapter) GetService(namespace string, serviceName s
 		return "", 0, "", "", false
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(timeout.SERVICE_GET_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.SERVICE_GET_TIMEOUT)
 	defer cancel()
 
 	service, err := client.CoreV1().Services(namespace).Get(ctx, serviceName, metav1.GetOptions{})
@@ -100,7 +101,7 @@ func (serviceAdapter *ServiceAdapter) GetServiceStatus(namespace string, service
 		return false, fmt.Errorf(string(errors.ERROR_K8S_SET_CLIENT), err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(timeout.SERVICE_GET_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.SERVICE_GET_TIMEOUT)
 	defer cancel()
 
 	service, err := client.CoreV1().Services(namespace).Get(ctx, serviceName, metav1.GetOptions{})
@@ -121,7 +122,7 @@ func (serviceAdapter *ServiceAdapter) FetchServicesByNamespace(namespace string)
 		return nil, fmt.Errorf(string(errors.ERROR_K8S_SET_CLIENT), err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(timeout.SERVICE_LIST_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.SERVICE_LIST_TIMEOUT)
 	defer cancel()
 
 	services, err := client.CoreV1().Services(namespace).List(ctx, metav1.ListOptions{})

@@ -3,7 +3,8 @@ package workloads
 import (
 	"fmt"
 
-	"github.com/plsyro/kcore-pkg/config/timeout"
+	"github.com/plsyro/kcore-pkg/constants"
+	"github.com/plsyro/kcore-pkg/resilience/timeout"
 	"github.com/plsyro/kcore-pkg/resources/client"
 
 	"github.com/plsyro/data-pkg/errors"
@@ -14,9 +15,7 @@ import (
 
 var logger = logging.NewCustomLogger("WorkloadsAdapter:")
 
-const (
-	DEPLOYMENT_READY_REPLICAS = 1
-)
+// Constants moved to constants/metrics.go
 
 type DeploymentAdapter struct{}
 
@@ -26,7 +25,7 @@ func (deploymentAdapter *DeploymentAdapter) GetDeploymentStatus(namespace string
 		return false, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(timeout.WORKLOAD_GET_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.WORKLOAD_GET_TIMEOUT)
 	defer cancel()
 
 	deployment, err := client.AppsV1().Deployments(namespace).Get(ctx, serviceName, meta.GetOptions{})
@@ -34,7 +33,7 @@ func (deploymentAdapter *DeploymentAdapter) GetDeploymentStatus(namespace string
 		return false, err
 	}
 
-	if deployment.Status.AvailableReplicas == DEPLOYMENT_READY_REPLICAS {
+	if deployment.Status.AvailableReplicas == constants.DEPLOYMENT_READY_REPLICAS {
 		return true, nil
 	}
 	return false, nil
@@ -46,7 +45,7 @@ func (deploymentAdapter *DeploymentAdapter) FetchDeploymentsByNamespace(namespac
 		return nil, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(timeout.WORKLOAD_LIST_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.WORKLOAD_LIST_TIMEOUT)
 	defer cancel()
 
 	deployments, err := client.AppsV1().Deployments(namespace).List(ctx, meta.ListOptions{})

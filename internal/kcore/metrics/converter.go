@@ -3,6 +3,7 @@ package metrics
 import (
 	"fmt"
 
+	"github.com/plsyro/kcore-pkg/constants"
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 )
 
@@ -35,21 +36,21 @@ func convertToPodMetrics(pm *metricsv1beta1.PodMetrics) *PodMetrics {
 
 // FormatCPU formats CPU millicores to string representation
 func FormatCPU(milliValue int64) string {
-	if milliValue < CPU_MILLICORE_THRESHOLD {
+	if milliValue < constants.CPU_MILLICORE_THRESHOLD {
 		return fmt.Sprintf("%dm", milliValue)
 	}
-	return fmt.Sprintf("%.2f", float64(milliValue)/CPU_CORE_DIVISOR)
+	return fmt.Sprintf("%.2f", float64(milliValue)/constants.CPU_CORE_DIVISOR)
 }
 
 // FormatMemory formats memory bytes to string representation
 func FormatMemory(bytes int64) string {
 	switch {
-	case bytes >= GB:
-		return formatMemoryUnit(bytes, GB, "Gi")
-	case bytes >= MB:
-		return formatMemoryUnit(bytes, MB, "Mi")
-	case bytes >= KB:
-		return formatMemoryUnit(bytes, KB, "Ki")
+	case bytes >= constants.GB:
+		return formatMemoryUnit(bytes, constants.GB, "Gi")
+	case bytes >= constants.MB:
+		return formatMemoryUnit(bytes, constants.MB, "Mi")
+	case bytes >= constants.KB:
+		return formatMemoryUnit(bytes, constants.KB, "Ki")
 	default:
 		return formatMemoryUnit(bytes, 1, "B")
 	}

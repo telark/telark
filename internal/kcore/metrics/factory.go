@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/plsyro/data-pkg/errors"
-	"github.com/plsyro/kcore-pkg/config/circuit_breaker"
-	"github.com/plsyro/kcore-pkg/config/rate_limiting"
 	"github.com/plsyro/kcore-pkg/constants"
+	"github.com/plsyro/kcore-pkg/resilience/circuit_breaker"
+	"github.com/plsyro/kcore-pkg/resilience/rate_limiting"
 	"k8s.io/client-go/rest"
 	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 )
@@ -79,12 +79,12 @@ func createMetricsClientInstance() *MetricsClient {
 		client:        metricsClient,
 		isAvailable:   false,
 		lastCheck:     time.Time{},
-		checkInterval: AVAILABILITY_CHECK_INTERVAL,
-		rateLimiter:   rate_limiting.NewRateLimiter(rate_limiting.METRICS_API_RATE_LIMIT),
+		checkInterval: constants.AVAILABILITY_CHECK_INTERVAL,
+		rateLimiter:   rate_limiting.NewRateLimiter(constants.METRICS_API_RATE_LIMIT),
 		circuitBreaker: circuit_breaker.NewCircuitBreaker(
-			circuit_breaker.METRICS_CIRCUIT_BREAKER_MAX_FAILURES,
-			circuit_breaker.METRICS_CIRCUIT_BREAKER_TIMEOUT,
-			circuit_breaker.METRICS_CIRCUIT_BREAKER_RESET_TIMEOUT,
+			constants.METRICS_CIRCUIT_BREAKER_MAX_FAILURES,
+			constants.METRICS_CIRCUIT_BREAKER_TIMEOUT,
+			constants.METRICS_CIRCUIT_BREAKER_RESET_TIMEOUT,
 		),
 	}
 }

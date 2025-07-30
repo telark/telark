@@ -1,7 +1,8 @@
 package workloads
 
 import (
-	"github.com/plsyro/kcore-pkg/config/timeout"
+	"github.com/plsyro/kcore-pkg/constants"
+	"github.com/plsyro/kcore-pkg/resilience/timeout"
 	"github.com/plsyro/kcore-pkg/resources/client"
 
 	v1 "k8s.io/api/apps/v1"
@@ -16,7 +17,7 @@ func (statefulSetAdapter *StatefulSetAdapter) FetchSetsByNamespace(namespace str
 		return nil, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(timeout.WORKLOAD_LIST_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.WORKLOAD_LIST_TIMEOUT)
 	defer cancel()
 
 	sets, err := client.AppsV1().StatefulSets(namespace).List(ctx, meta.ListOptions{})

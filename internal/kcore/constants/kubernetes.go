@@ -1,8 +1,9 @@
-package timeout
+package constants
 
 import "time"
 
 const (
+	// Timeout constants for Kubernetes operations
 	METRICS_GET_TIMEOUT  = 10 * time.Second
 	METRICS_LIST_TIMEOUT = 15 * time.Second
 

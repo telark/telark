@@ -1,7 +1,8 @@
 package subs
 
 import (
-	"github.com/plsyro/kcore-pkg/config/timeout"
+	"github.com/plsyro/kcore-pkg/constants"
+	"github.com/plsyro/kcore-pkg/resilience/timeout"
 	"github.com/plsyro/kcore-pkg/resources/client"
 
 	v1 "k8s.io/api/core/v1"
@@ -20,7 +21,7 @@ func (podAdapter *PodAdapter) FetchPodsBySelectors(namespace string, selectors m
 		MatchLabels: selectors,
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(timeout.POD_LIST_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.POD_LIST_TIMEOUT)
 	defer cancel()
 
 	pods, err := client.CoreV1().Pods(namespace).List(ctx, meta.ListOptions{

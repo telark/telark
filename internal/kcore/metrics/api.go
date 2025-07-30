@@ -3,9 +3,9 @@ package metrics
 import (
 	"fmt"
 
-	"github.com/plsyro/kcore-pkg/config/circuit_breaker"
-	"github.com/plsyro/kcore-pkg/config/timeout"
 	"github.com/plsyro/kcore-pkg/constants"
+	"github.com/plsyro/kcore-pkg/resilience/circuit_breaker"
+	"github.com/plsyro/kcore-pkg/resilience/timeout"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 )
@@ -19,7 +19,7 @@ func (mc *MetricsClient) GetPodMetrics(namespace, podName string) (*PodMetrics, 
 
 	var podMetrics *metricsv1beta1.PodMetrics
 	err := mc.circuitBreaker.Call(func() error {
-		ctx, cancel := timeout.ContextWithTimeout(timeout.METRICS_GET_TIMEOUT)
+		ctx, cancel := timeout.ContextWithTimeout(constants.METRICS_GET_TIMEOUT)
 		defer cancel()
 
 		var apiErr error
@@ -63,7 +63,7 @@ func (mc *MetricsClient) ListPodMetrics(namespace string) ([]*PodMetrics, error)
 
 	var podMetricsList *metricsv1beta1.PodMetricsList
 	err := mc.circuitBreaker.Call(func() error {
-		ctx, cancel := timeout.ContextWithTimeout(timeout.METRICS_LIST_TIMEOUT)
+		ctx, cancel := timeout.ContextWithTimeout(constants.METRICS_LIST_TIMEOUT)
 		defer cancel()
 
 		var apiErr error

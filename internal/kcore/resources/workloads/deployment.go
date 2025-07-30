@@ -17,6 +17,23 @@ var logger = logging.NewCustomLogger(constants.LOGGER_PREFIX_WORKLOADS)
 
 type DeploymentAdapter struct{}
 
+func (deploymentAdapter *DeploymentAdapter) GetAllDeploymentsByNamespace(namespace string) ([]v1.Deployment, error) {
+	client, err := client.InitClient()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := timeout.ContextWithTimeout(constants.WORKLOAD_LIST_TIMEOUT)
+	defer cancel()
+
+	deployments, err := client.AppsV1().Deployments(namespace).List(ctx, meta.ListOptions{})
+	if err != nil {
+		logger.Error(fmt.Sprintf(string(errors.ERROR_K8S_FETCHING_DEPLOYMENTS), namespace, err))
+		return nil, err
+	}
+	return deployments.Items, nil
+}
+
 func (deploymentAdapter *DeploymentAdapter) GetDeploymentStatus(namespace string, serviceName string) (bool, error) {
 	client, err := client.InitClient()
 	if err != nil {
@@ -35,21 +52,4 @@ func (deploymentAdapter *DeploymentAdapter) GetDeploymentStatus(namespace string
 		return true, nil
 	}
 	return false, nil
-}
-
-func (deploymentAdapter *DeploymentAdapter) FetchDeploymentsByNamespace(namespace string) ([]v1.Deployment, error) {
-	client, err := client.InitClient()
-	if err != nil {
-		return nil, err
-	}
-
-	ctx, cancel := timeout.ContextWithTimeout(constants.WORKLOAD_LIST_TIMEOUT)
-	defer cancel()
-
-	deployments, err := client.AppsV1().Deployments(namespace).List(ctx, meta.ListOptions{})
-	if err != nil {
-		logger.Error(fmt.Sprintf(string(errors.ERROR_K8S_FETCHING_DEPLOYMENTS), namespace, err))
-		return nil, err
-	}
-	return deployments.Items, nil
 }

@@ -11,7 +11,7 @@ import (
 
 type NamespaceAdapter struct{}
 
-func (namespaceAdapter *NamespaceAdapter) FetchAllNamespaces() ([]v1.Namespace, error) {
+func (namespaceAdapter *NamespaceAdapter) GetAllNamespaces() ([]v1.Namespace, error) {
 	client, err := client.InitClient()
 	if err != nil {
 		return nil, err

@@ -13,14 +13,13 @@ import (
 
 var usageLogger = logging.NewCustomLogger(constants.LOGGER_PREFIX_WORKLOAD_USAGE)
 
-// GetWorkloadQoS gets the QoS class for a workload
 func GetWorkloadQoS(namespace string, selectors map[string]string) string {
 	if namespace == "" || selectors == nil {
 		return ""
 	}
 
 	podAdapter := &subsAdapter.PodAdapter{}
-	qos, err := podAdapter.GetFirstPodQoS(namespace, selectors)
+	qos, err := podAdapter.GetQualityOfService(namespace, selectors)
 	if err != nil {
 		return ""
 	}
@@ -28,7 +27,6 @@ func GetWorkloadQoS(namespace string, selectors map[string]string) string {
 	return qos
 }
 
-// BuildWorkloadUsage builds workload usage from metrics
 func BuildWorkloadUsage(namespace string, selectors map[string]string, qos string) *workloadCommon.Usage {
 	usage := &workloadCommon.Usage{
 		Qos:       qos,

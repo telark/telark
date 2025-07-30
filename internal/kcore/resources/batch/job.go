@@ -11,7 +11,7 @@ import (
 
 type JobAdapter struct{}
 
-func (jobAdapter *JobAdapter) FetchJobsByNamespace(namespace string) ([]batch.Job, error) {
+func (jobAdapter *JobAdapter) GetJobsByNamespace(namespace string) ([]batch.Job, error) {
 	client, err := client.InitClient()
 	if err != nil {
 		return nil, err

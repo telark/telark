@@ -11,7 +11,7 @@ import (
 
 type StatefulSetAdapter struct{}
 
-func (statefulSetAdapter *StatefulSetAdapter) FetchSetsByNamespace(namespace string) ([]v1.StatefulSet, error) {
+func (statefulSetAdapter *StatefulSetAdapter) GetAllStatefulSetsByNamespace(namespace string) ([]v1.StatefulSet, error) {
 	client, err := client.InitClient()
 	if err != nil {
 		return nil, err

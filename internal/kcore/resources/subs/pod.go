@@ -11,7 +11,20 @@ import (
 
 type PodAdapter struct{}
 
-func (podAdapter *PodAdapter) FetchPodsBySelectors(namespace string, selectors map[string]string) ([]v1.Pod, error) {
+func (podAdapter *PodAdapter) GetQualityOfService(namespace string, selectors map[string]string) (string, error) {
+	pods, err := podAdapter.GetAllPodsBySelectors(namespace, selectors)
+	if err != nil {
+		return "", err
+	}
+
+	if len(pods) == 0 {
+		return "", nil
+	}
+
+	return string(pods[0].Status.QOSClass), nil
+}
+
+func (podAdapter *PodAdapter) GetAllPodsBySelectors(namespace string, selectors map[string]string) ([]v1.Pod, error) {
 	client, err := client.InitClient()
 	if err != nil {
 		return nil, err
@@ -32,17 +45,4 @@ func (podAdapter *PodAdapter) FetchPodsBySelectors(namespace string, selectors m
 	}
 
 	return pods.Items, nil
-}
-
-func (podAdapter *PodAdapter) GetFirstPodQoS(namespace string, selectors map[string]string) (string, error) {
-	pods, err := podAdapter.FetchPodsBySelectors(namespace, selectors)
-	if err != nil {
-		return "", err
-	}
-
-	if len(pods) == 0 {
-		return "", nil
-	}
-
-	return string(pods[0].Status.QOSClass), nil
 }

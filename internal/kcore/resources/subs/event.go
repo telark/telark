@@ -17,7 +17,7 @@ var logger = logging.NewCustomLogger(constants.LOGGER_PREFIX_EVENT)
 
 type EventAdapter struct{}
 
-func (eventAdapter *EventAdapter) FetchEventsByPod(pod string, namespace string, selectors map[string]string) []workload.EventItem {
+func (eventAdapter *EventAdapter) GetEventsByPod(pod string, namespace string, selectors map[string]string) []workload.EventItem {
 	client, err := client.InitClient()
 	if err != nil {
 		return nil

@@ -11,7 +11,7 @@ import (
 
 type DaemonSetAdapter struct{}
 
-func (daemonSetAdapter *DaemonSetAdapter) FetchDaemonSetsByNamespace(namespace string) ([]apps.DaemonSet, error) {
+func (daemonSetAdapter *DaemonSetAdapter) GetAllDaemonSetsByNamespace(namespace string) ([]apps.DaemonSet, error) {
 	client, err := client.InitClient()
 	if err != nil {
 		return nil, err

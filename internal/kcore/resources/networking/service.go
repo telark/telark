@@ -1,7 +1,6 @@
 package networking
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/plsyro/data-pkg/errors"
@@ -16,7 +15,7 @@ import (
 
 var logger = logging.NewCustomLogger(constants.LOGGER_PREFIX_SERVICE)
 
-type ServiceInfo struct {
+type ServiceData struct {
 	Host      string
 	Port      int
 	ClusterIP string
@@ -26,39 +25,7 @@ type ServiceInfo struct {
 
 type ServiceAdapter struct{}
 
-func (serviceAdapter *ServiceAdapter) GetService(namespace string, serviceName string) (string, int, string, string, bool) {
-	if namespace == "" || serviceName == "" {
-		return "", 0, "", "", false
-	}
-
-	client, err := k8sConfig.InitClient()
-	if err != nil {
-		logger.Error(fmt.Sprintf("%s: %v", string(errors.ERROR_K8S_SET_CLIENT), err))
-		return "", 0, "", "", false
-	}
-
-	ctx, cancel := timeout.ContextWithTimeout(constants.SERVICE_GET_TIMEOUT)
-	defer cancel()
-
-	service, err := client.CoreV1().Services(namespace).Get(ctx, serviceName, metav1.GetOptions{})
-	if err != nil {
-		logger.Error(fmt.Sprintf(string(errors.ERROR_K8S_GET_SERVICE), serviceName, namespace, err))
-		return "", 0, "", "", false
-	}
-
-	if len(service.Spec.Ports) > 0 {
-		port := int(service.Spec.Ports[0].Port)
-		return buildServiceHost(serviceName, namespace, port),
-			port,
-			service.Spec.ClusterIP,
-			string(service.Spec.Type),
-			true
-	}
-
-	return "", 0, "", "", false
-}
-
-func (sa *ServiceAdapter) GetServiceWithContext(ctx context.Context, namespace, serviceName string) (*ServiceInfo, error) {
+func (sa *ServiceAdapter) GetService(namespace, serviceName string) (*ServiceData, error) {
 	if namespace == "" || serviceName == "" {
 		return nil, fmt.Errorf(string(errors.ERROR_K8S_EMPTY_NAMESPACE_OR_RESOURCE_NAME))
 	}
@@ -68,12 +35,15 @@ func (sa *ServiceAdapter) GetServiceWithContext(ctx context.Context, namespace, 
 		return nil, fmt.Errorf(string(errors.ERROR_K8S_SET_CLIENT), err)
 	}
 
+	ctx, cancel := timeout.ContextWithTimeout(constants.SERVICE_GET_TIMEOUT)
+	defer cancel()
+
 	service, err := client.CoreV1().Services(namespace).Get(ctx, serviceName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf(string(errors.ERROR_K8S_GET_SERVICE), serviceName, namespace, err)
 	}
 
-	info := &ServiceInfo{
+	info := &ServiceData{
 		ClusterIP: service.Spec.ClusterIP,
 		Type:      string(service.Spec.Type),
 		Exists:    true,
@@ -85,10 +55,6 @@ func (sa *ServiceAdapter) GetServiceWithContext(ctx context.Context, namespace, 
 	}
 
 	return info, nil
-}
-
-func buildServiceHost(service, namespace string, port int) string {
-	return fmt.Sprintf(constants.SERVICE_HOST_PATTERN, service, namespace, port)
 }
 
 func (serviceAdapter *ServiceAdapter) GetServiceStatus(namespace string, serviceName string) (bool, error) {
@@ -148,4 +114,8 @@ func (sa *ServiceAdapter) IsServiceActive(service *core.Service) bool {
 	default:
 		return false
 	}
+}
+
+func buildServiceHost(service, namespace string, port int) string {
+	return fmt.Sprintf(constants.SERVICE_HOST_PATTERN, service, namespace, port)
 }

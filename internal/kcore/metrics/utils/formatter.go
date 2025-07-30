@@ -1,38 +1,10 @@
-package metrics
+package utils
 
 import (
 	"fmt"
 
 	"github.com/plsyro/kcore-pkg/constants"
-	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 )
-
-func convertToPodMetrics(pm *metricsv1beta1.PodMetrics) *PodMetrics {
-	containers := make(map[string]ContainerMetrics, len(pm.Containers))
-	var totalCPU, totalMemory int64
-
-	for _, container := range pm.Containers {
-		cpu := container.Usage.Cpu().MilliValue()
-		memory := container.Usage.Memory().Value()
-
-		containers[container.Name] = ContainerMetrics{
-			CPU:    FormatCPU(cpu),
-			Memory: FormatMemory(memory),
-			Pod:    pm.Name,
-		}
-
-		totalCPU += cpu
-		totalMemory += memory
-	}
-
-	return &PodMetrics{
-		PodName:     pm.Name,
-		Namespace:   pm.Namespace,
-		Containers:  containers,
-		TotalCPU:    FormatCPU(totalCPU),
-		TotalMemory: FormatMemory(totalMemory),
-	}
-}
 
 func FormatCPU(milliValue int64) string {
 	if milliValue < constants.CPU_MILLICORE_THRESHOLD {

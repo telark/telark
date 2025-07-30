@@ -1,4 +1,4 @@
-package metrics
+package utils
 
 import (
 	"strconv"
@@ -7,7 +7,6 @@ import (
 	"github.com/plsyro/kcore-pkg/constants"
 )
 
-// ParseCPU parses CPU string to millicores
 func ParseCPU(cpuStr string) int64 {
 	if cpuStr == "" || cpuStr == constants.NA_VALUE {
 		return 0
@@ -26,7 +25,6 @@ func ParseCPU(cpuStr string) int64 {
 	return 0
 }
 
-// ParseMemory parses memory string to bytes
 func ParseMemory(memoryStr string) int64 {
 	if memoryStr == "" || memoryStr == constants.NA_VALUE {
 		return 0
@@ -60,7 +58,6 @@ func ParseMemory(memoryStr string) int64 {
 	return 0
 }
 
-// parseMemoryWithUnit parses memory with specific unit
 func parseMemoryWithUnit(memoryStr, unit string, multiplier int64) int64 {
 	if !strings.HasSuffix(memoryStr, unit) {
 		return 0

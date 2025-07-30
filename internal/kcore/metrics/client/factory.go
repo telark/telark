@@ -1,4 +1,4 @@
-package metrics
+package client
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/plsyro/data-pkg/errors"
 	"github.com/plsyro/kcore-pkg/constants"
+	types "github.com/plsyro/kcore-pkg/metrics/types"
 	"github.com/plsyro/kcore-pkg/resilience/circuit_breaker"
 	"github.com/plsyro/kcore-pkg/resilience/rate_limiting"
 	"k8s.io/client-go/rest"
@@ -20,7 +21,7 @@ var (
 	mu            sync.RWMutex
 )
 
-func InitMetricsClient() (*MetricsClient, error) {
+func InitMetricsClient() (*types.MetricsClient, error) {
 	mu.RLock()
 	if metricsClient != nil && initError == nil {
 		defer mu.RUnlock()
@@ -45,11 +46,11 @@ func InitMetricsClient() (*MetricsClient, error) {
 	return initMetricsClientOnce()
 }
 
-func initMetricsClientOnce() (*MetricsClient, error) {
+func initMetricsClientOnce() (*types.MetricsClient, error) {
 	once.Do(func() {
 		metricsClient, initError = createMetricsClient()
 		if initError != nil {
-			logger.Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_CREATE_METRICS_CLIENT), initError))
+			types.Logger.Warning(string(constants.INFO_METRICS_API_UNAVAILABLE))
 		}
 	})
 
@@ -74,14 +75,14 @@ func createMetricsClient() (*metricsclientset.Clientset, error) {
 	return metricsClient, nil
 }
 
-func createMetricsClientInstance() *MetricsClient {
-	return &MetricsClient{
-		client:        metricsClient,
-		isAvailable:   false,
-		lastCheck:     time.Time{},
-		checkInterval: constants.AVAILABILITY_CHECK_INTERVAL,
-		rateLimiter:   rate_limiting.NewRateLimiter(constants.METRICS_API_RATE_LIMIT),
-		circuitBreaker: circuit_breaker.NewCircuitBreaker(
+func createMetricsClientInstance() *types.MetricsClient {
+	return &types.MetricsClient{
+		Client:        metricsClient,
+		Available:     false,
+		LastCheck:     time.Time{},
+		CheckInterval: constants.AVAILABILITY_CHECK_INTERVAL,
+		RateLimiter:   rate_limiting.NewRateLimiter(constants.METRICS_API_RATE_LIMIT),
+		CircuitBreaker: circuit_breaker.NewCircuitBreaker(
 			constants.METRICS_CIRCUIT_BREAKER_MAX_FAILURES,
 			constants.METRICS_CIRCUIT_BREAKER_TIMEOUT,
 			constants.METRICS_CIRCUIT_BREAKER_RESET_TIMEOUT,

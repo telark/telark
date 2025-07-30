@@ -8,6 +8,9 @@ import (
 	"github.com/plsyro/data-pkg/logging"
 	workloadCommon "github.com/plsyro/data-pkg/resources/workload/common"
 	"github.com/plsyro/kcore-pkg/constants"
+	metricsClient "github.com/plsyro/kcore-pkg/metrics/client"
+	types "github.com/plsyro/kcore-pkg/metrics/types"
+	"github.com/plsyro/kcore-pkg/metrics/utils"
 	subsAdapter "github.com/plsyro/kcore-pkg/resources/subs"
 )
 
@@ -39,18 +42,18 @@ func BuildWorkloadUsage(namespace string, selectors map[string]string, qos strin
 		},
 	}
 
-	metricsAdapter, err := NewMetricsAdapter()
+	metricsAdapter, err := metricsClient.NewMetricsAdapter()
 	if err != nil {
 		usageLogger.Warning(fmt.Sprintf(string(constants.ERROR_FAILED_TO_INITIALIZE_METRICS_CLIENT), err))
 		return usage
 	}
 
-	if !metricsAdapter.IsMetricsAvailable() {
+	if !metricsClient.IsMetricsAvailable(metricsAdapter) {
 		usageLogger.Warning(string(constants.INFO_METRICS_API_UNAVAILABLE))
 		return usage
 	}
 
-	podMetrics, err := metricsAdapter.GetFirstPodMetrics(namespace, selectors)
+	podMetrics, err := metricsClient.GetFirstPodMetrics(metricsAdapter, namespace, selectors)
 	if err != nil {
 		usageLogger.Warning(fmt.Sprintf(string(constants.ERROR_FAILED_TO_GET_POD_METRICS), err))
 		return usage
@@ -67,7 +70,7 @@ func BuildWorkloadUsage(namespace string, selectors map[string]string, qos strin
 	return usage
 }
 
-func buildResourceFromPodMetrics(podMetrics *PodMetrics) workloadCommon.Resource {
+func buildResourceFromPodMetrics(podMetrics *types.PodMetrics) workloadCommon.Resource {
 	var instances []workloadCommon.UsagePerInstance
 
 	instance := workloadCommon.UsagePerInstance{
@@ -84,15 +87,15 @@ func buildResourceFromPodMetrics(podMetrics *PodMetrics) workloadCommon.Resource
 		}
 		instance.Containers = append(instance.Containers, containerUsage)
 
-		cpuValue := ParseCPU(containerMetrics.CPU)
-		memoryValue := ParseMemory(containerMetrics.Memory)
+		cpuValue := utils.ParseCPU(containerMetrics.CPU)
+		memoryValue := utils.ParseMemory(containerMetrics.Memory)
 
 		totalCpu += cpuValue
 		totalMemory += memoryValue
 	}
 
-	instance.TotalCpu = FormatCPU(totalCpu)
-	instance.TotalMemory = FormatMemory(totalMemory)
+	instance.TotalCpu = utils.FormatCPU(totalCpu)
+	instance.TotalMemory = utils.FormatMemory(totalMemory)
 
 	instances = append(instances, instance)
 

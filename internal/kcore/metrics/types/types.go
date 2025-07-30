@@ -1,4 +1,4 @@
-package metrics
+package types
 
 import (
 	"sync"
@@ -11,7 +11,7 @@ import (
 	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
-var logger = logging.NewCustomLogger(constants.LOGGER_PREFIX_METRICS)
+var Logger = logging.NewCustomLogger(constants.LOGGER_PREFIX_METRICS)
 
 type ContainerMetrics struct {
 	CPU    string `json:"cpu"`
@@ -28,17 +28,15 @@ type PodMetrics struct {
 }
 
 type MetricsClient struct {
-	client         *metricsclientset.Clientset
-	isAvailable    bool
-	lastCheck      time.Time
-	checkInterval  time.Duration
-	rateLimiter    *rate_limiting.RateLimiter
-	circuitBreaker *circuit_breaker.CircuitBreaker
-	mu             sync.RWMutex
+	Client         *metricsclientset.Clientset
+	Available      bool
+	LastCheck      time.Time
+	CheckInterval  time.Duration
+	RateLimiter    *rate_limiting.RateLimiter
+	CircuitBreaker *circuit_breaker.CircuitBreaker
+	Mu             sync.RWMutex
 }
 
 type MetricsAdapter struct {
-	client *MetricsClient
+	Client *MetricsClient
 }
-
-// Constants moved to constants/metrics.go

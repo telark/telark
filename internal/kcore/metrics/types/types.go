@@ -13,30 +13,32 @@ import (
 
 var Logger = logging.NewCustomLogger(constants.LOGGER_PREFIX_METRICS)
 
-type ContainerMetrics struct {
-	CPU    string `json:"cpu"`
-	Memory string `json:"memory"`
-	Pod    string `json:"pod"`
-}
+type (
+	ContainerMetrics struct {
+		CPU    string `json:"cpu"`
+		Memory string `json:"memory"`
+		Pod    string `json:"pod"`
+	}
 
-type PodMetrics struct {
-	PodName     string                      `json:"podName"`
-	Namespace   string                      `json:"namespace"`
-	Containers  map[string]ContainerMetrics `json:"containers"`
-	TotalCPU    string                      `json:"totalCpu"`
-	TotalMemory string                      `json:"totalMemory"`
-}
+	PodMetrics struct {
+		PodName     string                      `json:"podName"`
+		Namespace   string                      `json:"namespace"`
+		Containers  map[string]ContainerMetrics `json:"containers"`
+		TotalCPU    string                      `json:"totalCpu"`
+		TotalMemory string                      `json:"totalMemory"`
+	}
 
-type MetricsClient struct {
-	Client         *metricsclientset.Clientset
-	Available      bool
-	LastCheck      time.Time
-	CheckInterval  time.Duration
-	RateLimiter    *rate_limiting.RateLimiter
-	CircuitBreaker *circuit_breaker.CircuitBreaker
-	Mu             sync.RWMutex
-}
+	MetricsClient struct {
+		Client         *metricsclientset.Clientset
+		Available      bool
+		LastCheck      time.Time
+		CheckInterval  time.Duration
+		RateLimiter    *rate_limiting.RateLimiter
+		CircuitBreaker *circuit_breaker.CircuitBreaker
+		Mu             sync.RWMutex
+	}
 
-type MetricsAdapter struct {
-	Client *MetricsClient
-}
+	MetricsAdapter struct {
+		Client *MetricsClient
+	}
+)

@@ -14,6 +14,7 @@ const (
 const (
 	SERVICE_HOST_PATTERN           = "http://%s.%s.svc.cluster.local:%d"
 	FIELD_SELECTOR_INVOLVED_OBJECT = "involvedObject.name=%s"
+	METRICS_API_VERSION            = "metrics.k8s.io/v1beta1"
 )
 
 const (

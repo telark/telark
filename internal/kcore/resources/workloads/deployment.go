@@ -5,18 +5,15 @@ import (
 
 	"github.com/plsyro/kcore-pkg/constants"
 	"github.com/plsyro/kcore-pkg/resilience/timeout"
-	client "github.com/plsyro/kcore-pkg/resources/client"
 	k8sClient "github.com/plsyro/kcore-pkg/resources/client"
-
-	"github.com/plsyro/data-pkg/errors"
-	v1 "k8s.io/api/apps/v1"
+	apps "k8s.io/api/apps/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type DeploymentAdapter struct{}
 
-func (deploymentAdapter *DeploymentAdapter) GetAllDeploymentsByNamespace(namespace string) ([]v1.Deployment, error) {
-	client, err := client.InitClient()
+func (deploymentAdapter *DeploymentAdapter) GetAllDeploymentsByNamespace(namespace string) ([]apps.Deployment, error) {
+	client, err := k8sClient.InitClient()
 	if err != nil {
 		return nil, err
 	}
@@ -26,14 +23,14 @@ func (deploymentAdapter *DeploymentAdapter) GetAllDeploymentsByNamespace(namespa
 
 	deployments, err := client.AppsV1().Deployments(namespace).List(ctx, meta.ListOptions{})
 	if err != nil {
-		k8sClient.GetLogger().Error(fmt.Sprintf(string(errors.ERROR_K8S_FETCHING_DEPLOYMENTS), namespace, err))
+		k8sClient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_FETCH_DEPLOYMENTS), namespace, err))
 		return nil, err
 	}
 	return deployments.Items, nil
 }
 
 func (deploymentAdapter *DeploymentAdapter) GetDeploymentStatus(namespace string, serviceName string) (bool, error) {
-	client, err := client.InitClient()
+	client, err := k8sClient.InitClient()
 	if err != nil {
 		return false, err
 	}
@@ -43,6 +40,7 @@ func (deploymentAdapter *DeploymentAdapter) GetDeploymentStatus(namespace string
 
 	deployment, err := client.AppsV1().Deployments(namespace).Get(ctx, serviceName, meta.GetOptions{})
 	if err != nil {
+		k8sClient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_GET_DEPLOYMENT), serviceName, namespace, err))
 		return false, err
 	}
 

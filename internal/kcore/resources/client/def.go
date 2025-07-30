@@ -56,7 +56,7 @@ func initClientOnce() (*kubernetes.Clientset, error) {
 func createClient() (*kubernetes.Clientset, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", string(errors.ERROR_K8S_CREATE_CONFIG), err)
+		return nil, fmt.Errorf("%s: %v", string(errors.ERROR_K8S_CREATE_CONFIG), err)
 	}
 
 	client, err := kubernetes.NewForConfig(config)

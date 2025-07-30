@@ -37,6 +37,7 @@ func (sa *ServiceAdapter) GetService(namespace, serviceName string) (*ServiceDat
 
 	service, err := client.CoreV1().Services(namespace).Get(ctx, serviceName, metav1.GetOptions{})
 	if err != nil {
+		k8sConfig.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_GET_SERVICE), serviceName, namespace, err))
 		return nil, fmt.Errorf(string(errors.ERROR_K8S_GET_SERVICE), serviceName, namespace, err)
 	}
 
@@ -69,13 +70,14 @@ func (serviceAdapter *ServiceAdapter) GetServiceStatus(namespace string, service
 
 	service, err := client.CoreV1().Services(namespace).Get(ctx, serviceName, metav1.GetOptions{})
 	if err != nil {
+		k8sConfig.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_GET_SERVICE), serviceName, namespace, err))
 		return false, fmt.Errorf(string(errors.ERROR_K8S_GET_SERVICE), serviceName, namespace, err)
 	}
 
 	return service.Spec.ClusterIP != "", nil
 }
 
-func (serviceAdapter *ServiceAdapter) GetAllServicesByNamespace(namespace string) ([]core.Service, error) {
+func (serviceAdapter *ServiceAdapter) FetchServicesByNamespace(namespace string) ([]core.Service, error) {
 	if namespace == "" {
 		return nil, fmt.Errorf(string(errors.ERROR_K8S_EMPTY_NAMESPACE_OR_RESOURCE_NAME))
 	}
@@ -90,6 +92,7 @@ func (serviceAdapter *ServiceAdapter) GetAllServicesByNamespace(namespace string
 
 	services, err := client.CoreV1().Services(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
+		k8sConfig.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_FETCH_SERVICES), namespace, err))
 		return nil, fmt.Errorf(string(errors.ERROR_K8S_GET_SERVICE), "all", namespace, err)
 	}
 

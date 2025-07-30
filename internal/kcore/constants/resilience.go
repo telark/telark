@@ -3,16 +3,16 @@ package constants
 import "time"
 
 const (
-	// Circuit Breaker constants
+	// Circuit Breaker
 	METRICS_CIRCUIT_BREAKER_MAX_FAILURES  = 5
 	METRICS_CIRCUIT_BREAKER_TIMEOUT       = 30 * time.Second
 	METRICS_CIRCUIT_BREAKER_RESET_TIMEOUT = 60 * time.Second
 	CIRCUIT_BREAKER_IS_OPEN               = "circuit breaker is open"
 
-	// Rate Limiting constants
+	// Rate Limiting
 	METRICS_API_RATE_LIMIT = 1 * time.Second
 	K8S_API_RATE_LIMIT     = 500 * time.Millisecond
 
-	// Worker Pool constants
+	// Worker Pool
 	DEFAULT_WORKER_POOL_SIZE = 10
 )

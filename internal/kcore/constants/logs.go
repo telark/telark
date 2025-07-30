@@ -6,6 +6,7 @@ import (
 )
 
 const (
+	// Metrics Error Constants
 	ERROR_FAILED_TO_INITIALIZE_METRICS_CLIENT errors.Error     = "failed to initialize metrics client: %v"
 	ERROR_FAILED_TO_CREATE_METRICS_CLIENT     errors.Error     = "failed to create metrics client: %v"
 	ERROR_METRICS_API_CHECK_FAILED            errors.Error     = "metrics API check failed: %v"
@@ -16,6 +17,20 @@ const (
 	INFO_METRICS_API_UNAVAILABLE              messages.Message = "metrics API not available, using empty defaults"
 	INFO_FAILED_TO_LIST_POD_METRICS           messages.Message = "failed to list pod metrics: %v"
 	INFO_METRICS_API_AVAILABLE                messages.Message = "metrics API is available and ready to use"
+
+	// Kubernetes Resource Error Constants
+	ERROR_FAILED_TO_FETCH_DEPLOYMENTS  errors.Error = "failed to fetch deployments from namespace %s: %v"
+	ERROR_FAILED_TO_FETCH_STATEFULSETS errors.Error = "failed to fetch statefulsets from namespace %s: %v"
+	ERROR_FAILED_TO_FETCH_DAEMONSETS   errors.Error = "failed to fetch daemonsets from namespace %s: %v"
+	ERROR_FAILED_TO_FETCH_JOBS         errors.Error = "failed to fetch jobs from namespace %s: %v"
+	ERROR_FAILED_TO_FETCH_NAMESPACES   errors.Error = "failed to fetch namespaces: %v"
+	ERROR_FAILED_TO_FETCH_SERVICES     errors.Error = "failed to fetch services from namespace %s: %v"
+	ERROR_FAILED_TO_FETCH_PODS         errors.Error = "failed to fetch pods from namespace %s: %v"
+	ERROR_FAILED_TO_FETCH_POD_EVENTS   errors.Error = "failed to fetch events for pod %s in namespace %s: %v"
+	ERROR_FAILED_TO_GET_DEPLOYMENT     errors.Error = "failed to get deployment %s from namespace %s: %v"
+	ERROR_FAILED_TO_GET_SERVICE        errors.Error = "failed to get service %s from namespace %s: %v"
+	ERROR_FAILED_TO_GET_POD_QOS        errors.Error = "failed to get QoS for pods in namespace %s: %v"
+	ERROR_FAILED_TO_GET_SERVER_VERSION errors.Error = "failed to get server version: %v"
 
 	// Logger prefixes
 	LOGGER_PREFIX_METRICS              = "Metrics: "

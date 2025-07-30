@@ -3,12 +3,10 @@ package subs
 import (
 	"fmt"
 
+	workload "github.com/plsyro/data-pkg/resources/workload/common"
 	"github.com/plsyro/kcore-pkg/constants"
 	"github.com/plsyro/kcore-pkg/resilience/timeout"
 	k8sClient "github.com/plsyro/kcore-pkg/resources/client"
-
-	"github.com/plsyro/data-pkg/errors"
-	workload "github.com/plsyro/data-pkg/resources/workload/common"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -29,7 +27,7 @@ func (eventAdapter *EventAdapter) GetAllEventsByPod(pod string, namespace string
 		FieldSelector: fmt.Sprintf(constants.FIELD_SELECTOR_INVOLVED_OBJECT, pod),
 	})
 	if err != nil {
-		k8sClient.GetLogger().Error(fmt.Sprintf(string(errors.ERROR_K8S_FETCHING_POD_EVENTS), pod, namespace, err))
+		k8sClient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_FETCH_POD_EVENTS), pod, namespace, err))
 		return eventsPerPod, err
 	}
 

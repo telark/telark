@@ -5,12 +5,13 @@ import (
 	"time"
 
 	"github.com/plsyro/data-pkg/logging"
+	"github.com/plsyro/kcore-pkg/constants"
 	"github.com/plsyro/kcore-pkg/resilience/circuit_breaker"
 	"github.com/plsyro/kcore-pkg/resilience/rate_limiting"
 	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
-var logger = logging.NewCustomLogger("Metrics: ")
+var logger = logging.NewCustomLogger(constants.LOGGER_PREFIX_METRICS)
 
 type ContainerMetrics struct {
 	CPU    string `json:"cpu"`

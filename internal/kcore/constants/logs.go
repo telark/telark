@@ -16,4 +16,13 @@ const (
 	INFO_METRICS_API_UNAVAILABLE              messages.Message = "metrics API not available, using empty defaults"
 	INFO_FAILED_TO_LIST_POD_METRICS           messages.Message = "failed to list pod metrics: %v"
 	INFO_METRICS_API_AVAILABLE                messages.Message = "metrics API is available and ready to use"
+
+	// Logger prefixes
+	LOGGER_PREFIX_METRICS        = "Metrics: "
+	LOGGER_PREFIX_WORKLOAD_USAGE = "WorkloadUsage: "
+	LOGGER_PREFIX_SERVICE        = "ServiceAdapter:"
+	LOGGER_PREFIX_KUBE_CLIENT    = "KubeClient: "
+	LOGGER_PREFIX_WORKLOADS      = "WorkloadsAdapter:"
+	LOGGER_PREFIX_NAMESPACES     = "NamespacesAdapter:"
+	LOGGER_PREFIX_EVENT          = "EventAdapter:"
 )

@@ -13,7 +13,7 @@ import (
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var logger = logging.NewCustomLogger("EventAdapter:")
+var logger = logging.NewCustomLogger(constants.LOGGER_PREFIX_EVENT)
 
 type EventAdapter struct{}
 
@@ -29,7 +29,7 @@ func (eventAdapter *EventAdapter) FetchEventsByPod(pod string, namespace string,
 	defer cancel()
 
 	events, err := client.CoreV1().Events(namespace).List(ctx, meta.ListOptions{
-		FieldSelector: fmt.Sprintf("involvedObject.name=%s", pod),
+		FieldSelector: fmt.Sprintf(constants.FIELD_SELECTOR_INVOLVED_OBJECT, pod),
 	})
 	if err != nil {
 		logger.Error(fmt.Sprintf(string(errors.ERROR_K8S_FETCHING_POD_EVENTS), pod, namespace, err))

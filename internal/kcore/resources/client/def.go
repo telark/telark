@@ -6,13 +6,14 @@ import (
 
 	"github.com/plsyro/data-pkg/errors"
 	"github.com/plsyro/data-pkg/logging"
+	"github.com/plsyro/kcore-pkg/constants"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
 
 var (
-	logger = logging.NewCustomLogger("KubeClient: ")
+	logger = logging.NewCustomLogger(constants.LOGGER_PREFIX_KUBE_CLIENT)
 	client *kubernetes.Clientset
 	once   sync.Once
 	mu     sync.RWMutex

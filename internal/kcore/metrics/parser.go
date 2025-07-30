@@ -3,16 +3,18 @@ package metrics
 import (
 	"strconv"
 	"strings"
+
+	"github.com/plsyro/kcore-pkg/constants"
 )
 
 // ParseCPU parses CPU string to millicores
 func ParseCPU(cpuStr string) int64 {
-	if cpuStr == "" || cpuStr == "N/A" {
+	if cpuStr == "" || cpuStr == constants.NA_VALUE {
 		return 0
 	}
 
-	if strings.HasSuffix(cpuStr, "m") {
-		value := strings.TrimSuffix(cpuStr, "m")
+	if strings.HasSuffix(cpuStr, constants.CPU_UNIT_MILLICORE) {
+		value := strings.TrimSuffix(cpuStr, constants.CPU_UNIT_MILLICORE)
 		if val, err := strconv.ParseInt(value, 10, 64); err == nil {
 			return val
 		}
@@ -26,28 +28,28 @@ func ParseCPU(cpuStr string) int64 {
 
 // ParseMemory parses memory string to bytes
 func ParseMemory(memoryStr string) int64 {
-	if memoryStr == "" || memoryStr == "N/A" {
+	if memoryStr == "" || memoryStr == constants.NA_VALUE {
 		return 0
 	}
 
 	lowerStr := strings.ToLower(memoryStr)
 
-	if value := parseMemoryWithUnit(lowerStr, "ki", 1024); value > 0 {
+	if value := parseMemoryWithUnit(lowerStr, constants.MEMORY_UNIT_KB, 1024); value > 0 {
 		return value
 	}
-	if value := parseMemoryWithUnit(lowerStr, "mi", 1024*1024); value > 0 {
+	if value := parseMemoryWithUnit(lowerStr, constants.MEMORY_UNIT_MB, 1024*1024); value > 0 {
 		return value
 	}
-	if value := parseMemoryWithUnit(lowerStr, "gi", 1024*1024*1024); value > 0 {
+	if value := parseMemoryWithUnit(lowerStr, constants.MEMORY_UNIT_GB, 1024*1024*1024); value > 0 {
 		return value
 	}
-	if value := parseMemoryWithUnit(lowerStr, "kb", 1000); value > 0 {
+	if value := parseMemoryWithUnit(lowerStr, constants.MEMORY_UNIT_KB, 1000); value > 0 {
 		return value
 	}
-	if value := parseMemoryWithUnit(lowerStr, "mb", 1000*1000); value > 0 {
+	if value := parseMemoryWithUnit(lowerStr, constants.MEMORY_UNIT_MB, 1000*1000); value > 0 {
 		return value
 	}
-	if value := parseMemoryWithUnit(lowerStr, "gb", 1000*1000*1000); value > 0 {
+	if value := parseMemoryWithUnit(lowerStr, constants.MEMORY_UNIT_GB, 1000*1000*1000); value > 0 {
 		return value
 	}
 

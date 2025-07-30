@@ -1,7 +1,6 @@
 package core
 
 import (
-	"github.com/plsyro/data-pkg/logging"
 	"github.com/plsyro/kcore-pkg/constants"
 	"github.com/plsyro/kcore-pkg/resilience/timeout"
 	"github.com/plsyro/kcore-pkg/resources/client"
@@ -9,8 +8,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-var logger = logging.NewCustomLogger("NamespacesAdapter:")
 
 type NamespaceAdapter struct{}
 

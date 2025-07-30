@@ -14,7 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var logger = logging.NewCustomLogger("ServiceAdapter:")
+var logger = logging.NewCustomLogger(constants.LOGGER_PREFIX_SERVICE)
 
 type ServiceInfo struct {
 	Host      string
@@ -88,7 +88,7 @@ func (sa *ServiceAdapter) GetServiceWithContext(ctx context.Context, namespace, 
 }
 
 func buildServiceHost(service, namespace string, port int) string {
-	return fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", service, namespace, port)
+	return fmt.Sprintf(constants.SERVICE_HOST_PATTERN, service, namespace, port)
 }
 
 func (serviceAdapter *ServiceAdapter) GetServiceStatus(namespace string, serviceName string) (bool, error) {

@@ -13,9 +13,7 @@ import (
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var logger = logging.NewCustomLogger("WorkloadsAdapter:")
-
-// Constants moved to constants/metrics.go
+var logger = logging.NewCustomLogger(constants.LOGGER_PREFIX_WORKLOADS)
 
 type DeploymentAdapter struct{}
 

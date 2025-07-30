@@ -11,7 +11,7 @@ import (
 	subsAdapter "github.com/plsyro/kcore-pkg/resources/subs"
 )
 
-var usageLogger = logging.NewCustomLogger("WorkloadUsage: ")
+var usageLogger = logging.NewCustomLogger(constants.LOGGER_PREFIX_WORKLOAD_USAGE)
 
 // GetWorkloadQoS gets the QoS class for a workload
 func GetWorkloadQoS(namespace string, selectors map[string]string) string {

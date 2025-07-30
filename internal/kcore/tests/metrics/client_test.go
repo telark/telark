@@ -1,8 +1,9 @@
-package metrics_test
+package metrics
 
 import (
 	"testing"
 
+	"github.com/plsyro/kcore-pkg/constants"
 	"github.com/plsyro/kcore-pkg/metrics/client"
 )
 
@@ -10,7 +11,7 @@ func TestInitMetricsClient(t *testing.T) {
 	client.ResetClient()
 	_, err := client.InitMetricsClient()
 	if err != nil {
-		t.Logf("InitMetricsClient returned error: %v", err)
+		t.Logf(ExpectedInitMetricsClientReturnedError, err)
 	}
 }
 
@@ -21,27 +22,27 @@ func TestResetClient(t *testing.T) {
 func TestNewMetricsAdapter(t *testing.T) {
 	adapter, err := client.NewMetricsAdapter()
 	if err != nil && adapter != nil {
-		t.Errorf("Expected nil adapter on error, got: %v", adapter)
+		t.Errorf(ExpectedErrorForNilAdapter, adapter)
 	}
 }
 
 func TestGetWorkloadMetrics_NilAdapter(t *testing.T) {
-	_, err := client.GetWorkloadMetrics(nil, "ns", map[string]string{"app": "test"})
-	if err == nil {
-		t.Error("Expected error for nil adapter")
+	_, err := client.GetWorkloadMetrics(nil, TestNamespace, TestSelectors)
+	if err == nil || err.Error() != string(constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL) {
+		t.Errorf(ExpectedErrorForNilAdapterFormat, constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL, err)
 	}
 }
 
 func TestGetFirstPodMetrics_NilAdapter(t *testing.T) {
-	_, err := client.GetFirstPodMetrics(nil, "ns", map[string]string{"app": "test"})
-	if err == nil {
-		t.Error("Expected error for nil adapter")
+	_, err := client.GetFirstPodMetrics(nil, TestNamespace, TestSelectors)
+	if err == nil || err.Error() != string(constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL) {
+		t.Errorf(ExpectedErrorForNilAdapterFormat, constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL, err)
 	}
 }
 
 func TestAdapterGetContainerMetrics_NilAdapter(t *testing.T) {
-	_, err := client.AdapterGetContainerMetrics(nil, "ns", "pod", "container")
-	if err == nil {
-		t.Error("Expected error for nil adapter")
+	_, err := client.AdapterGetContainerMetrics(nil, TestNamespace, TestPodName, TestContainerName)
+	if err == nil || err.Error() != string(constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL) {
+		t.Errorf(ExpectedErrorForNilAdapterFormat, constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL, err)
 	}
 }

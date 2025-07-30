@@ -9,6 +9,9 @@ import (
 )
 
 func IsClientAvailable(mc *types.MetricsClient) bool {
+	if mc == nil {
+		return false
+	}
 	mc.Mu.RLock()
 	if time.Since(mc.LastCheck) <= mc.CheckInterval {
 		defer mc.Mu.RUnlock()

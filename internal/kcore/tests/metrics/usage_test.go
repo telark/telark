@@ -1,4 +1,4 @@
-package metrics_test
+package metrics
 
 import (
 	"testing"
@@ -7,15 +7,15 @@ import (
 )
 
 func TestGetWorkloadQoS_EmptyNamespace(t *testing.T) {
-	qos := metrics.GetWorkloadQoS("", nil)
-	if qos != "" {
-		t.Errorf("Expected empty string for empty namespace, got %q", qos)
+	qos := metrics.GetWorkloadQoS(TestEmptyString, nil)
+	if qos != TestEmptyString {
+		t.Errorf(ExpectedEmptyStringForEmptyNamespace, qos)
 	}
 }
 
 func TestBuildWorkloadUsage_EmptyNamespace(t *testing.T) {
-	usage := metrics.BuildWorkloadUsage("", nil, "")
+	usage := metrics.BuildWorkloadUsage(TestEmptyString, nil, TestEmptyString)
 	if usage != nil && usage.Available {
-		t.Error("Expected usage to be unavailable for empty namespace")
+		t.Error(ExpectedUsageToBeUnavailableForEmptyNamespace)
 	}
 }

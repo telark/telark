@@ -1,4 +1,4 @@
-package metrics_test
+package metrics
 
 import (
 	"testing"
@@ -7,15 +7,22 @@ import (
 )
 
 func TestContainerMetricsStruct(t *testing.T) {
-	cm := types.ContainerMetrics{CPU: "100m", Memory: "128Mi", Pod: "pod1"}
-	if cm.CPU != "100m" || cm.Memory != "128Mi" || cm.Pod != "pod1" {
-		t.Error("ContainerMetrics struct fields not set correctly")
+	cm := types.ContainerMetrics{CPU: TestCPUString, Memory: TestMemoryStringMi, Pod: TestPodName}
+	if cm.CPU != TestCPUString || cm.Memory != TestMemoryStringMi || cm.Pod != TestPodName {
+		t.Error(ExpectedContainerMetricsStructFieldsNotSet)
 	}
 }
 
 func TestPodMetricsStruct(t *testing.T) {
-	pm := types.PodMetrics{PodName: "pod1", Namespace: "ns", Containers: map[string]types.ContainerMetrics{}, TotalCPU: "100m", TotalMemory: "128Mi"}
-	if pm.PodName != "pod1" || pm.Namespace != "ns" {
+	pm := types.PodMetrics{
+		PodName:     TestPodName,
+		Namespace:   TestNamespace,
+		Containers:  map[string]types.ContainerMetrics{},
+		TotalCPU:    TestCPUString,
+		TotalMemory: TestMemoryStringMi,
+	}
+	if pm.PodName != TestPodName || pm.Namespace != TestNamespace ||
+		len(pm.Containers) != 0 || pm.TotalCPU != TestCPUString || pm.TotalMemory != TestMemoryStringMi {
 		t.Error("PodMetrics struct fields not set correctly")
 	}
 }
@@ -23,13 +30,13 @@ func TestPodMetricsStruct(t *testing.T) {
 func TestMetricsClientStruct(t *testing.T) {
 	mc := &types.MetricsClient{}
 	if mc == nil {
-		t.Error("MetricsClient struct not created")
+		t.Error(ExpectedMetricsClientStructNotCreated)
 	}
 }
 
 func TestMetricsAdapterStruct(t *testing.T) {
 	ma := &types.MetricsAdapter{}
 	if ma == nil {
-		t.Error("MetricsAdapter struct not created")
+		t.Error(ExpectedMetricsAdapterStructNotCreated)
 	}
 }

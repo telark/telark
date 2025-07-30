@@ -32,6 +32,16 @@ func ParseMemory(memoryStr string) int64 {
 
 	lowerStr := strings.ToLower(memoryStr)
 
+	if value := parseMemoryWithUnit(lowerStr, "gi", 1024*1024*1024); value > 0 {
+		return value
+	}
+	if value := parseMemoryWithUnit(lowerStr, "mi", 1024*1024); value > 0 {
+		return value
+	}
+	if value := parseMemoryWithUnit(lowerStr, "ki", 1024); value > 0 {
+		return value
+	}
+
 	if value := parseMemoryWithUnit(lowerStr, constants.MEMORY_UNIT_KB, 1024); value > 0 {
 		return value
 	}
@@ -39,15 +49,6 @@ func ParseMemory(memoryStr string) int64 {
 		return value
 	}
 	if value := parseMemoryWithUnit(lowerStr, constants.MEMORY_UNIT_GB, 1024*1024*1024); value > 0 {
-		return value
-	}
-	if value := parseMemoryWithUnit(lowerStr, constants.MEMORY_UNIT_KB, 1000); value > 0 {
-		return value
-	}
-	if value := parseMemoryWithUnit(lowerStr, constants.MEMORY_UNIT_MB, 1000*1000); value > 0 {
-		return value
-	}
-	if value := parseMemoryWithUnit(lowerStr, constants.MEMORY_UNIT_GB, 1000*1000*1000); value > 0 {
 		return value
 	}
 

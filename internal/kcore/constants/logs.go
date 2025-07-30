@@ -17,6 +17,7 @@ const (
 	INFO_METRICS_API_UNAVAILABLE              messages.Message = "metrics API not available, using empty defaults"
 	INFO_FAILED_TO_LIST_POD_METRICS           messages.Message = "failed to list pod metrics: %v"
 	INFO_METRICS_API_AVAILABLE                messages.Message = "metrics API is available and ready to use"
+	ERROR_METRICS_ADAPTER_OR_CLIENT_NIL       errors.Error     = "MetricsAdapter or its Client is nil"
 
 	// Kubernetes Resource Error Constants
 	ERROR_FAILED_TO_FETCH_DEPLOYMENTS  errors.Error = "failed to fetch deployments from namespace %s: %v"

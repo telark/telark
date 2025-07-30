@@ -21,6 +21,9 @@ func NewMetricsAdapter() (*types.MetricsAdapter, error) {
 }
 
 func GetWorkloadMetrics(ma *types.MetricsAdapter, namespace string, selectors map[string]string) (map[string]*types.ContainerMetrics, error) {
+	if ma == nil || ma.Client == nil {
+		return nil, fmt.Errorf(string(constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL))
+	}
 	if !shared.IsClientAvailable(ma.Client) {
 		return nil, fmt.Errorf(string(constants.INFO_METRICS_API_UNAVAILABLE))
 	}
@@ -43,6 +46,9 @@ func GetWorkloadMetrics(ma *types.MetricsAdapter, namespace string, selectors ma
 }
 
 func GetFirstPodMetrics(ma *types.MetricsAdapter, namespace string, selectors map[string]string) (*types.PodMetrics, error) {
+	if ma == nil || ma.Client == nil {
+		return nil, fmt.Errorf(string(constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL))
+	}
 	if !shared.IsClientAvailable(ma.Client) {
 		return nil, fmt.Errorf(string(constants.INFO_METRICS_API_UNAVAILABLE))
 	}
@@ -62,6 +68,9 @@ func GetFirstPodMetrics(ma *types.MetricsAdapter, namespace string, selectors ma
 }
 
 func AdapterGetContainerMetrics(ma *types.MetricsAdapter, namespace, podName, containerName string) (*types.ContainerMetrics, error) {
+	if ma == nil || ma.Client == nil {
+		return nil, fmt.Errorf(string(constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL))
+	}
 	if !shared.IsClientAvailable(ma.Client) {
 		return nil, fmt.Errorf(string(constants.INFO_METRICS_API_UNAVAILABLE))
 	}

@@ -28,7 +28,7 @@ func NewRouter(Routes []Route) *mux.Router {
 	return router
 }
 
-func CreateRoute(method base.Method, endpoint base.Endpoint, handlerFunc interface{}) Route {
+func CreateRoute(method base.Method, endpoint base.Endpoint, handlerFunc any) Route {
 	return Route{
 		Method:     string(method),
 		Pattern:    fmt.Sprintf("/%s/%s", base.V1, endpoint),

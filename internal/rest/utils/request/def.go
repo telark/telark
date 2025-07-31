@@ -12,7 +12,7 @@ import (
 
 var maxRequestBodySize int64 = 1 << 20 // 1 MB default
 
-func ParseRequestBody(r *http.Request, action string, checkEmptyBody bool) (map[string]interface{}, error) {
+func ParseRequestBody(r *http.Request, action string, checkEmptyBody bool) (map[string]any, error) {
 	if action == "get" || action == "list" {
 		return nil, nil
 	}
@@ -26,7 +26,7 @@ func ParseRequestBody(r *http.Request, action string, checkEmptyBody bool) (map[
 		return nil, fmt.Errorf(string(commonErrors.ERROR_REST_EMPTY_REQUEST_BODY))
 	}
 
-	var spec map[string]interface{}
+	var spec map[string]any
 	if err := json.Unmarshal(body, &spec); err != nil {
 		return nil, fmt.Errorf(string(commonErrors.ERROR_REST_UNMARSHALL_REQUEST_BODY_TO_JSON), err)
 	}
@@ -61,8 +61,8 @@ func CreateGenericRequestWithPayload(method base.Method, service base.Service, a
 	}
 }
 
-func BuildSpecPatchBody(data map[string]interface{}) map[string]interface{} {
-	return map[string]interface{}{
+func BuildSpecPatchBody(data map[string]any) map[string]any {
+	return map[string]any{
 		"spec": data,
 	}
 }

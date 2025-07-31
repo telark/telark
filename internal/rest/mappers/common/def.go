@@ -2,8 +2,8 @@ package common
 
 import "reflect"
 
-func MapToJsonPayload(input interface{}) map[string]interface{} {
-	result := make(map[string]interface{})
+func MapToJsonPayload(input any) map[string]any {
+	result := make(map[string]any)
 	value := reflect.ValueOf(input)
 	if value.Kind() == reflect.Ptr {
 		value = value.Elem()
@@ -28,7 +28,7 @@ func MapToJsonPayload(input interface{}) map[string]interface{} {
 			result[key] = MapToJsonPayload(field.Interface())
 		} else if field.Kind() == reflect.Slice {
 			// Handle slices
-			var slice []interface{}
+			var slice []any
 			for j := 0; j < field.Len(); j++ {
 				elem := field.Index(j)
 				if elem.Kind() == reflect.Struct {

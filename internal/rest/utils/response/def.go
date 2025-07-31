@@ -13,12 +13,12 @@ import (
 
 var logger = logging.NewCustomLogger("RestUtils: ")
 
-func LogAndSendResponse(w http.ResponseWriter, status int, operation response.OperationStatus, message string, data interface{}, err error) {
+func LogAndSendResponse(w http.ResponseWriter, status int, operation response.OperationStatus, message string, data any, err error) {
 	logMessage(message, err)
 	sendResponse(w, status, operation, message, data)
 }
 
-func LogAndReturnResponse(status int, operation response.OperationStatus, message string, data interface{}, err error) *response.GenericResponse {
+func LogAndReturnResponse(status int, operation response.OperationStatus, message string, data any, err error) *response.GenericResponse {
 	logMessage(message, err)
 	return createGenericResponse(status, operation, message, data)
 }
@@ -31,11 +31,11 @@ func logMessage(message string, err error) {
 	}
 }
 
-func sendResponse(w http.ResponseWriter, status int, operation response.OperationStatus, message string, data interface{}) {
+func sendResponse(w http.ResponseWriter, status int, operation response.OperationStatus, message string, data any) {
 	response.SendSingleResponse(w, createGenericResponse(status, operation, message, data))
 }
 
-func createGenericResponse(status int, operation response.OperationStatus, message string, data interface{}) *response.GenericResponse {
+func createGenericResponse(status int, operation response.OperationStatus, message string, data any) *response.GenericResponse {
 	return &response.GenericResponse{
 		Status:    status,
 		Operation: string(operation),

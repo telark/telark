@@ -23,13 +23,13 @@ const (
 )
 
 type GenericResponse struct {
-	Status    int         `json:"status"`
-	Operation string      `json:"operation,omitempty"`
-	Message   string      `json:"message,omitempty"`
-	Data      interface{} `json:"data,omitempty"`
+	Status    int    `json:"status"`
+	Operation string `json:"operation,omitempty"`
+	Message   string `json:"message,omitempty"`
+	Data      any    `json:"data,omitempty"`
 }
 
-func NewGenericResponse(status int, operation OperationStatus, data interface{}, message string) *GenericResponse {
+func NewGenericResponse(status int, operation OperationStatus, data any, message string) *GenericResponse {
 	return &GenericResponse{
 		Status:    status,
 		Operation: string(operation),

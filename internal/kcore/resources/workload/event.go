@@ -10,7 +10,7 @@ import (
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GetAllEventsByPod(pod, namespace string, selectors map[string]string) ([]workload.EventItem, error) {
+func GetEventsByPod(pod, namespace string, selectors map[string]string) ([]workload.EventItem, error) {
 	client, err := k8sclient.InitKubernetesClient()
 	if err != nil {
 		return nil, err

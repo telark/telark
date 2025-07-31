@@ -33,7 +33,7 @@ func GetServiceByName(namespace, name string) (*core.Service, error) {
 	return service, nil
 }
 
-func GetAllServicesByNamespace(namespace string) ([]core.Service, error) {
+func GetServicesByNamespace(namespace string) ([]core.Service, error) {
 	if namespace == "" {
 		return nil, fmt.Errorf(string(errors.ERROR_K8S_EMPTY_NAMESPACE_OR_RESOURCE_NAME))
 	}

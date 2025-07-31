@@ -10,7 +10,7 @@ import (
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GetAllJobsByNamespace(namespace string) ([]batch.Job, error) {
+func GetJobsByNamespace(namespace string) ([]batch.Job, error) {
 	client, err := k8sclient.InitKubernetesClient()
 	if err != nil {
 		return nil, err

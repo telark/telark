@@ -12,7 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func CreateCustomResource(metadata metadata.Metadata, template *unstructured.Unstructured) shared.KubernetesAPIData {
+func CreateCustomResource(template *unstructured.Unstructured, metadata metadata.Metadata) shared.KubernetesAPIData {
 	resourceClient, err := crdUtils.GetResourceClient(metadata)
 	if err != nil {
 		return shared.HandleClientError(err)

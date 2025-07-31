@@ -6,7 +6,7 @@ import (
 	"github.com/plsyro/kcore-pkg/metrics"
 )
 
-func TestGetWorkloadQoS_EmptyNamespace(t *testing.T) {
+func TestGetWorkloadQualityOfService_EmptyNamespace(t *testing.T) {
 	qos := metrics.GetWorkloadQualityOfService(TestEmptyString, nil)
 	if qos != TestEmptyString {
 		t.Errorf(ExpectedEmptyStringForEmptyNamespace, qos)

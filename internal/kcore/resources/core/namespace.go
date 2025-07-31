@@ -10,7 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GetAllNamespaces() ([]core.Namespace, error) {
+func GetNamespaces() ([]core.Namespace, error) {
 	client, err := k8sclient.InitKubernetesClient()
 	if err != nil {
 		return nil, err

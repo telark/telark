@@ -8,7 +8,7 @@ import (
 	kubeApiMeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func CheckCustomResourceExistence(metadata metadata.Metadata, name string) (bool, error) {
+func CheckCustomResourceExistsByName(name string, metadata metadata.Metadata) (bool, error) {
 	if err := crdUtils.ValidateResourceName(name); err != nil {
 		return false, err
 	}

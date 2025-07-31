@@ -14,7 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-func PatchCustomResource(metadata metadata.Metadata, name string, patchData map[string]any) shared.KubernetesAPIData {
+func PatchCustomResource(metadata metadata.Metadata, name string, payload map[string]any) shared.KubernetesAPIData {
 	if err := crdUtils.ValidateResourceName(name); err != nil {
 		return shared.CreateKubernetesAPIData(shared.StatusBadRequest, string(errors.ERROR_RESOURCE_NAME_CANNOT_BE_EMPTY), nil, err)
 	}
@@ -27,7 +27,7 @@ func PatchCustomResource(metadata metadata.Metadata, name string, patchData map[
 	ctx, cancel := timeout.ContextWithTimeout(constants.CRD_PATCH_TIMEOUT)
 	defer cancel()
 
-	patchBytes, err := json.Marshal(patchData)
+	patchBytes, err := json.Marshal(payload)
 	if err != nil {
 		return shared.CreateKubernetesAPIData(shared.StatusInternalServerError, string(errors.ERROR_REST_MARSHALL_PAYLOAD), nil, err)
 	}

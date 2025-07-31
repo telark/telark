@@ -24,7 +24,7 @@ type (
 		PodName     string                      `json:"podName"`
 		Namespace   string                      `json:"namespace"`
 		Containers  map[string]ContainerMetrics `json:"containers"`
-		TotalCPU    string                      `json:"totalCpu"`
+		TotalCPU    string                      `json:"totalCPU"`
 		TotalMemory string                      `json:"totalMemory"`
 	}
 

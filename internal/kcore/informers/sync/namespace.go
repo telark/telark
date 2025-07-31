@@ -4,13 +4,13 @@ import (
 	"context"
 	"time"
 
-	"github.com/plsyro/data-pkg/logging"
 	"github.com/plsyro/kcore-pkg/constants"
+	"github.com/plsyro/kcore-pkg/k8sclient"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 )
 
-var logger = logging.NewCustomLogger(constants.LOGGER_PREFIX_K8S_INFORMERS)
+var logger = k8sclient.GetLogger()
 
 func WaitForNamespaceCacheSync(ctx context.Context, informerFactory informers.SharedInformerFactory, timeout time.Duration) {
 	informerFactory.Start(ctx.Done())

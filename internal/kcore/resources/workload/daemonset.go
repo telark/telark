@@ -10,7 +10,7 @@ import (
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GetAllDaemonSetsByNamespace(namespace string) ([]apps.DaemonSet, error) {
+func GetDaemonSetsByNamespace(namespace string) ([]apps.DaemonSet, error) {
 	client, err := k8sclient.InitKubernetesClient()
 	if err != nil {
 		return nil, err

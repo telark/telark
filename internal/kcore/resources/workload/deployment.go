@@ -10,7 +10,7 @@ import (
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GetAllDeploymentsByNamespace(namespace string) ([]apps.Deployment, error) {
+func GetDeploymentsByNamespace(namespace string) ([]apps.Deployment, error) {
 	client, err := k8sclient.InitKubernetesClient()
 	if err != nil {
 		return nil, err

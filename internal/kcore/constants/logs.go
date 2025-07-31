@@ -48,6 +48,5 @@ const (
 	// Logger prefixes
 	LOGGER_PREFIX_K8S_METRICS    = "KubernetesMetrics: "
 	LOGGER_PREFIX_K8S_MANAGER    = "KubernetesManager: "
-	LOGGER_PREFIX_K8S_INFORMERS  = "KubernetesInformers: "
 	LOGGER_PREFIX_WORKLOAD_USAGE = "WorkloadUsage: "
 )

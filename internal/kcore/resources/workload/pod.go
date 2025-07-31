@@ -11,7 +11,7 @@ import (
 )
 
 func GetQualityOfService(namespace string, selectors map[string]string) (string, error) {
-	pods, err := GetAllPodsBySelectors(namespace, selectors)
+	pods, err := GetPodsBySelectors(namespace, selectors)
 	if err != nil {
 		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_GET_POD_QOS), namespace, err))
 		return "", err
@@ -24,7 +24,7 @@ func GetQualityOfService(namespace string, selectors map[string]string) (string,
 	return string(pods[0].Status.QOSClass), nil
 }
 
-func GetAllPodsBySelectors(namespace string, selectors map[string]string) ([]core.Pod, error) {
+func GetPodsBySelectors(namespace string, selectors map[string]string) ([]core.Pod, error) {
 	client, err := k8sclient.InitKubernetesClient()
 	if err != nil {
 		return nil, err

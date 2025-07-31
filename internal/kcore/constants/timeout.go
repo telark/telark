@@ -13,6 +13,10 @@ const (
 	NAMESPACE_LIST_TIMEOUT      = 30 * time.Second
 	WORKLOAD_GET_TIMEOUT        = 30 * time.Second
 	WORKLOAD_LIST_TIMEOUT       = 45 * time.Second
+	ADMISSION_GET_TIMEOUT       = 15 * time.Second
+	ADMISSION_PATCH_TIMEOUT     = 15 * time.Second
+	ADMISSION_DELETE_TIMEOUT    = 15 * time.Second
+	ADMISSION_CREATE_TIMEOUT    = 15 * time.Second
 	DEFAULT_TIMEOUT             = 30 * time.Second
 	SERVER_VERSION_TIMEOUT      = 30 * time.Second
 	AVAILABILITY_CHECK_INTERVAL = 5 * time.Minute

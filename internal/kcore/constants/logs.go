@@ -6,20 +6,20 @@ import (
 )
 
 const (
-	// Metrics Error Constants
+	// Metrics Constants
 	ERROR_FAILED_TO_INITIALIZE_METRICS_CLIENT errors.Error     = "failed to initialize metrics client: %v"
 	ERROR_FAILED_TO_CREATE_METRICS_CLIENT     errors.Error     = "failed to create metrics client: %v"
 	ERROR_METRICS_API_CHECK_FAILED            errors.Error     = "metrics API check failed: %v"
 	ERROR_FAILED_TO_GET_POD_METRICS           errors.Error     = "failed to get pod metrics: %v"
 	ERROR_NO_PODS_FOUND_MATCHING_SELECTORS    errors.Error     = "no pods found matching selectors"
 	ERROR_CONTAINER_NOT_FOUND_IN_POD          errors.Error     = "container %s not found in pod %s"
+	ERROR_METRICS_ADAPTER_OR_CLIENT_NIL       errors.Error     = "MetricsAdapter or its Client is nil"
 	INFO_METRICS_API_CIRCUIT_BREAKER_OPEN     messages.Message = "metrics API circuit breaker is open"
 	INFO_METRICS_API_UNAVAILABLE              messages.Message = "metrics API not available, using empty defaults"
 	INFO_FAILED_TO_LIST_POD_METRICS           messages.Message = "failed to list pod metrics: %v"
 	INFO_METRICS_API_AVAILABLE                messages.Message = "metrics API is available and ready to use"
-	ERROR_METRICS_ADAPTER_OR_CLIENT_NIL       errors.Error     = "MetricsAdapter or its Client is nil"
 
-	// Kubernetes Resource Error Constants
+	// Kubernetes Resource Constants
 	ERROR_FAILED_TO_FETCH_DEPLOYMENTS  errors.Error = "failed to fetch deployments from namespace %s: %v"
 	ERROR_FAILED_TO_FETCH_STATEFULSETS errors.Error = "failed to fetch statefulsets from namespace %s: %v"
 	ERROR_FAILED_TO_FETCH_DAEMONSETS   errors.Error = "failed to fetch daemonsets from namespace %s: %v"
@@ -33,16 +33,17 @@ const (
 	ERROR_FAILED_TO_GET_POD_QOS        errors.Error = "failed to get QoS for pods in namespace %s: %v"
 	ERROR_FAILED_TO_GET_SERVER_VERSION errors.Error = "failed to get server version: %v"
 
-	// Informer Errors
+	// Informer Constants
 	ERROR_SERVICE_INFORMER_FAILED_TO_SYNC   errors.Error     = "Service informer failed to sync"
 	ERROR_WORKLOAD_INFORMER_FAILED_TO_SYNC  errors.Error     = "Workloads informer failed to sync"
 	ERROR_NAMESPACE_INFORMER_FAILED_TO_SYNC errors.Error     = "Namespace informer failed to sync"
-	INFO_NAMESPACE_INFORMER_SYNCED          messages.Message = "Namespace informer synced"
-	INFO_SERVICE_INFORMER_SYNCED            messages.Message = "Service informer synced"
-	INFO_WORKLOAD_INFORMER_SYNCED           messages.Message = "Workloads informer synced"
 	ERROR_KUBE_CLIENT_NIL                   errors.Error     = "kubeClient is nil"
 	ERROR_INFORMER_FACTORY_NIL              errors.Error     = "informer factory is nil"
 	ERROR_INVALID_METADATA                  errors.Error     = "invalid metadata: %v"
+	ERROR_INVALID_WEBHOOK_TYPE              errors.Error     = "invalid webhook type"
+	INFO_NAMESPACE_INFORMER_SYNCED          messages.Message = "Namespace informer synced"
+	INFO_SERVICE_INFORMER_SYNCED            messages.Message = "Service informer synced"
+	INFO_WORKLOAD_INFORMER_SYNCED           messages.Message = "Workloads informer synced"
 
 	// Logger prefixes
 	LOGGER_PREFIX_K8S_METRICS    = "KubernetesMetrics: "

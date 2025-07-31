@@ -1,0 +1,40 @@
+package api
+
+import (
+	"fmt"
+
+	"github.com/plsyro/data-pkg/admissions/common"
+	"github.com/plsyro/kcore-pkg/client"
+	"github.com/plsyro/kcore-pkg/constants"
+	"github.com/plsyro/kcore-pkg/resilience/timeout"
+	kubeApiMeta "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+func CheckAdmissionWebhookExistsByName(name string, webhookType common.WebhookType) (bool, error) {
+	client, err := client.InitKubernetesClient()
+	if err != nil {
+		return false, err
+	}
+
+	ctx, cancel := timeout.ContextWithTimeout(constants.ADMISSION_GET_TIMEOUT)
+	defer cancel()
+
+	switch webhookType {
+	case common.VALIDATING:
+		_, err := client.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, name, kubeApiMeta.GetOptions{})
+		if err == nil {
+			return true, nil
+		}
+		return false, err
+
+	case common.MUTATING:
+		_, err := client.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(ctx, name, kubeApiMeta.GetOptions{})
+		if err == nil {
+			return true, nil
+		}
+		return false, err
+
+	default:
+		return false, fmt.Errorf(string(constants.ERROR_INVALID_WEBHOOK_TYPE))
+	}
+}

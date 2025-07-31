@@ -1,10 +1,10 @@
-package subs
+package workload
 
 import (
 	"fmt"
 
-	k8sClient "github.com/plsyro/kcore-pkg/client"
 	"github.com/plsyro/kcore-pkg/constants"
+	"github.com/plsyro/kcore-pkg/k8sclient"
 	"github.com/plsyro/kcore-pkg/resilience/timeout"
 	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -13,7 +13,7 @@ import (
 func GetQualityOfService(namespace string, selectors map[string]string) (string, error) {
 	pods, err := GetAllPodsBySelectors(namespace, selectors)
 	if err != nil {
-		k8sClient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_GET_POD_QOS), namespace, err))
+		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_GET_POD_QOS), namespace, err))
 		return "", err
 	}
 
@@ -25,7 +25,7 @@ func GetQualityOfService(namespace string, selectors map[string]string) (string,
 }
 
 func GetAllPodsBySelectors(namespace string, selectors map[string]string) ([]core.Pod, error) {
-	client, err := k8sClient.InitKubernetesClient()
+	client, err := k8sclient.InitKubernetesClient()
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +41,7 @@ func GetAllPodsBySelectors(namespace string, selectors map[string]string) ([]cor
 		LabelSelector: meta.FormatLabelSelector(&labelSelector),
 	})
 	if err != nil {
-		k8sClient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_FETCH_PODS), namespace, err))
+		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_FETCH_PODS), namespace, err))
 		return nil, err
 	}
 

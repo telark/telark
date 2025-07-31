@@ -5,7 +5,7 @@ import (
 
 	"github.com/plsyro/data-pkg/admissions/common"
 	"github.com/plsyro/data-pkg/errors"
-	"github.com/plsyro/kcore-pkg/client"
+	"github.com/plsyro/kcore-pkg/k8sclient"
 	"github.com/plsyro/kcore-pkg/shared"
 	"k8s.io/client-go/kubernetes"
 )
@@ -19,7 +19,7 @@ const (
 type WebhookOperation func() (interface{}, error)
 
 func GetClient() (*kubernetes.Clientset, error) {
-	return client.InitKubernetesClient()
+	return k8sclient.InitKubernetesClient()
 }
 
 func HandleInvalidWebhookType() shared.KubernetesAPIData {

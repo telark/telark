@@ -3,7 +3,7 @@ module github.com/plsyro/kcore-pkg
 go 1.24.4
 
 require (
-	github.com/plsyro/data-pkg v1.9.16
+	github.com/plsyro/data-pkg v1.9.18
 	k8s.io/api v0.33.1
 	k8s.io/apimachinery v0.33.1
 	k8s.io/client-go v0.33.1

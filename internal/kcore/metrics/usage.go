@@ -11,17 +11,17 @@ import (
 	metricsClient "github.com/plsyro/kcore-pkg/metrics/client"
 	types "github.com/plsyro/kcore-pkg/metrics/types"
 	"github.com/plsyro/kcore-pkg/metrics/utils"
-	subsAdapter "github.com/plsyro/kcore-pkg/resources/subs"
+	"github.com/plsyro/kcore-pkg/resources/workload"
 )
 
 var usageLogger = logging.NewCustomLogger(constants.LOGGER_PREFIX_WORKLOAD_USAGE)
 
-func GetWorkloadQoS(namespace string, selectors map[string]string) string {
+func GetWorkloadQualityOfService(namespace string, selectors map[string]string) string {
 	if namespace == "" || selectors == nil {
 		return ""
 	}
 
-	qos, err := subsAdapter.GetQualityOfService(namespace, selectors)
+	qos, err := workload.GetQualityOfService(namespace, selectors)
 	if err != nil {
 		return ""
 	}
@@ -31,11 +31,11 @@ func GetWorkloadQoS(namespace string, selectors map[string]string) string {
 
 func BuildWorkloadUsage(namespace string, selectors map[string]string, qos string) *workloadCommon.Usage {
 	usage := &workloadCommon.Usage{
-		Qos:       qos,
+		QoS:       qos,
 		Timestamp: time.Now().Format(time.RFC3339),
 		Available: false,
 		Resources: workloadCommon.Resource{
-			TotalCpu:         common.DEFAULT_CPU,
+			TotalCPU:         common.DEFAULT_CPU,
 			TotalMemory:      common.DEFAULT_MEMORY,
 			UsagePerInstance: []workloadCommon.UsagePerInstance{},
 		},
@@ -77,11 +77,11 @@ func buildResourceFromPodMetrics(podMetrics *types.PodMetrics) workloadCommon.Re
 		Containers: []workloadCommon.ContainerUsage{},
 	}
 
-	var totalCpu, totalMemory int64
+	var totalCPU, totalMemory int64
 	for containerName, containerMetrics := range podMetrics.Containers {
 		containerUsage := workloadCommon.ContainerUsage{
 			Name:   containerName,
-			Cpu:    containerMetrics.CPU,
+			CPU:    containerMetrics.CPU,
 			Memory: containerMetrics.Memory,
 		}
 		instance.Containers = append(instance.Containers, containerUsage)
@@ -89,17 +89,17 @@ func buildResourceFromPodMetrics(podMetrics *types.PodMetrics) workloadCommon.Re
 		cpuValue := utils.ParseCPU(containerMetrics.CPU)
 		memoryValue := utils.ParseMemory(containerMetrics.Memory)
 
-		totalCpu += cpuValue
+		totalCPU += cpuValue
 		totalMemory += memoryValue
 	}
 
-	instance.TotalCpu = utils.FormatCPU(totalCpu)
+	instance.TotalCPU = utils.FormatCPU(totalCPU)
 	instance.TotalMemory = utils.FormatMemory(totalMemory)
 
 	instances = append(instances, instance)
 
 	return workloadCommon.Resource{
-		TotalCpu:         instance.TotalCpu,
+		TotalCPU:         instance.TotalCPU,
 		TotalMemory:      instance.TotalMemory,
 		UsagePerInstance: instances,
 	}

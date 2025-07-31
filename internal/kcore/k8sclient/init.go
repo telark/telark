@@ -1,4 +1,4 @@
-package client
+package k8sclient
 
 import (
 	"fmt"
@@ -7,7 +7,6 @@ import (
 	"github.com/plsyro/data-pkg/errors"
 	"github.com/plsyro/data-pkg/logging"
 	"github.com/plsyro/kcore-pkg/constants"
-
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -27,7 +26,7 @@ func getConfig() (*rest.Config, error) {
 	configOnce.Do(func() {
 		config, err = rest.InClusterConfig()
 		if err != nil {
-			logger.Error(fmt.Sprintf("%s: %v", string(errors.ERROR_K8S_CREATE_CONFIG), err))
+			logger.Error(fmt.Sprintf(string(errors.ERROR_K8S_CREATE_CONFIG), err))
 		}
 	})
 	return config, err

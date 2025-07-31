@@ -3,15 +3,15 @@ package core
 import (
 	"fmt"
 
-	k8sClient "github.com/plsyro/kcore-pkg/client"
 	"github.com/plsyro/kcore-pkg/constants"
+	"github.com/plsyro/kcore-pkg/k8sclient"
 	"github.com/plsyro/kcore-pkg/resilience/timeout"
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func GetAllNamespaces() ([]core.Namespace, error) {
-	client, err := k8sClient.InitKubernetesClient()
+	client, err := k8sclient.InitKubernetesClient()
 	if err != nil {
 		return nil, err
 	}
@@ -21,7 +21,7 @@ func GetAllNamespaces() ([]core.Namespace, error) {
 
 	namespaces, err := client.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
 	if err != nil {
-		k8sClient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_FETCH_NAMESPACES), err))
+		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_FETCH_NAMESPACES), err))
 		return nil, err
 	}
 	return namespaces.Items, nil

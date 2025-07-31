@@ -7,7 +7,7 @@ import (
 )
 
 func TestGetWorkloadQoS_EmptyNamespace(t *testing.T) {
-	qos := metrics.GetWorkloadQoS(TestEmptyString, nil)
+	qos := metrics.GetWorkloadQualityOfService(TestEmptyString, nil)
 	if qos != TestEmptyString {
 		t.Errorf(ExpectedEmptyStringForEmptyNamespace, qos)
 	}

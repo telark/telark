@@ -4,14 +4,14 @@ import (
 	"fmt"
 
 	"github.com/plsyro/data-pkg/admissions/common"
-	"github.com/plsyro/kcore-pkg/client"
+	"github.com/plsyro/kcore-pkg/admissions/utils"
 	"github.com/plsyro/kcore-pkg/constants"
 	"github.com/plsyro/kcore-pkg/resilience/timeout"
 	kubeApiMeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func CheckAdmissionWebhookExistsByName(name string, webhookType common.WebhookType) (bool, error) {
-	client, err := client.InitKubernetesClient()
+	client, err := utils.GetClient()
 	if err != nil {
 		return false, err
 	}

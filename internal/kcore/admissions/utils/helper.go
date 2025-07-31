@@ -1,8 +1,6 @@
 package utils
 
-import (
-	"fmt"
-)
+import "fmt"
 
 func CreateMessage(name string, webhookType string, message string) string {
 	return fmt.Sprintf("%s:%s %s", name, webhookType, message)

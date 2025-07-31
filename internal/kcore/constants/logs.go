@@ -42,10 +42,11 @@ const (
 	INFO_WORKLOAD_INFORMER_SYNCED           messages.Message = "Workloads informer synced"
 	ERROR_KUBE_CLIENT_NIL                   errors.Error     = "kubeClient is nil"
 	ERROR_INFORMER_FACTORY_NIL              errors.Error     = "informer factory is nil"
+	ERROR_INVALID_METADATA                  errors.Error     = "invalid metadata: %v"
 
 	// Logger prefixes
 	LOGGER_PREFIX_K8S_METRICS    = "KubernetesMetrics: "
-	LOGGER_PREFIX_K8S_RESOURCES  = "KubernetesResources: "
+	LOGGER_PREFIX_K8S_MANAGER    = "KubernetesManager: "
 	LOGGER_PREFIX_K8S_INFORMERS  = "KubernetesInformers: "
 	LOGGER_PREFIX_WORKLOAD_USAGE = "WorkloadUsage: "
 )

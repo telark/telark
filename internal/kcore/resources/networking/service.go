@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"github.com/plsyro/data-pkg/errors"
+	k8sClient "github.com/plsyro/kcore-pkg/client"
 	"github.com/plsyro/kcore-pkg/constants"
 	"github.com/plsyro/kcore-pkg/resilience/timeout"
-	k8sConfig "github.com/plsyro/kcore-pkg/resources/client"
 
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,7 +27,7 @@ func (sa *ServiceAdapter) GetService(namespace, serviceName string) (*ServiceDat
 		return nil, fmt.Errorf(string(errors.ERROR_K8S_EMPTY_NAMESPACE_OR_RESOURCE_NAME))
 	}
 
-	client, err := k8sConfig.InitClient()
+	client, err := k8sClient.InitKubernetesClient()
 	if err != nil {
 		return nil, fmt.Errorf(string(errors.ERROR_K8S_SET_CLIENT), err)
 	}
@@ -37,7 +37,7 @@ func (sa *ServiceAdapter) GetService(namespace, serviceName string) (*ServiceDat
 
 	service, err := client.CoreV1().Services(namespace).Get(ctx, serviceName, metav1.GetOptions{})
 	if err != nil {
-		k8sConfig.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_GET_SERVICE), serviceName, namespace, err))
+		k8sClient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_GET_SERVICE), serviceName, namespace, err))
 		return nil, fmt.Errorf(string(errors.ERROR_K8S_GET_SERVICE), serviceName, namespace, err)
 	}
 
@@ -60,7 +60,7 @@ func (serviceAdapter *ServiceAdapter) GetServiceStatus(namespace string, service
 		return false, fmt.Errorf(string(errors.ERROR_K8S_EMPTY_NAMESPACE_OR_RESOURCE_NAME))
 	}
 
-	client, err := k8sConfig.InitClient()
+	client, err := k8sClient.InitKubernetesClient()
 	if err != nil {
 		return false, fmt.Errorf(string(errors.ERROR_K8S_SET_CLIENT), err)
 	}
@@ -70,7 +70,7 @@ func (serviceAdapter *ServiceAdapter) GetServiceStatus(namespace string, service
 
 	service, err := client.CoreV1().Services(namespace).Get(ctx, serviceName, metav1.GetOptions{})
 	if err != nil {
-		k8sConfig.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_GET_SERVICE), serviceName, namespace, err))
+		k8sClient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_GET_SERVICE), serviceName, namespace, err))
 		return false, fmt.Errorf(string(errors.ERROR_K8S_GET_SERVICE), serviceName, namespace, err)
 	}
 
@@ -82,7 +82,7 @@ func (serviceAdapter *ServiceAdapter) FetchServicesByNamespace(namespace string)
 		return nil, fmt.Errorf(string(errors.ERROR_K8S_EMPTY_NAMESPACE_OR_RESOURCE_NAME))
 	}
 
-	client, err := k8sConfig.InitClient()
+	client, err := k8sClient.InitKubernetesClient()
 	if err != nil {
 		return nil, fmt.Errorf(string(errors.ERROR_K8S_SET_CLIENT), err)
 	}
@@ -92,7 +92,7 @@ func (serviceAdapter *ServiceAdapter) FetchServicesByNamespace(namespace string)
 
 	services, err := client.CoreV1().Services(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		k8sConfig.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_FETCH_SERVICES), namespace, err))
+		k8sClient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_FETCH_SERVICES), namespace, err))
 		return nil, fmt.Errorf(string(errors.ERROR_K8S_GET_SERVICE), "all", namespace, err)
 	}
 

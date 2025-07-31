@@ -3,9 +3,9 @@ package workloads
 import (
 	"fmt"
 
+	k8sClient "github.com/plsyro/kcore-pkg/client"
 	"github.com/plsyro/kcore-pkg/constants"
 	"github.com/plsyro/kcore-pkg/resilience/timeout"
-	k8sClient "github.com/plsyro/kcore-pkg/resources/client"
 	apps "k8s.io/api/apps/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -13,7 +13,7 @@ import (
 type DaemonSetAdapter struct{}
 
 func (daemonSetAdapter *DaemonSetAdapter) GetAllDaemonSetsByNamespace(namespace string) ([]apps.DaemonSet, error) {
-	client, err := k8sClient.InitClient()
+	client, err := k8sClient.InitKubernetesClient()
 	if err != nil {
 		return nil, err
 	}

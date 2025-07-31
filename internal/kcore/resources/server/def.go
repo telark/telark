@@ -3,13 +3,13 @@ package server
 import (
 	"fmt"
 
+	k8sClient "github.com/plsyro/kcore-pkg/client"
 	"github.com/plsyro/kcore-pkg/constants"
-	k8sClient "github.com/plsyro/kcore-pkg/resources/client"
 	"k8s.io/apimachinery/pkg/version"
 )
 
 func GetServerVersion() (*version.Info, error) {
-	client, err := k8sClient.InitClient()
+	client, err := k8sClient.InitKubernetesClient()
 	if err != nil {
 		return nil, err
 	}

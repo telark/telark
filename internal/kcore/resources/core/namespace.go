@@ -3,9 +3,9 @@ package core
 import (
 	"fmt"
 
+	k8sClient "github.com/plsyro/kcore-pkg/client"
 	"github.com/plsyro/kcore-pkg/constants"
 	"github.com/plsyro/kcore-pkg/resilience/timeout"
-	k8sClient "github.com/plsyro/kcore-pkg/resources/client"
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -13,7 +13,7 @@ import (
 type NamespaceAdapter struct{}
 
 func (namespaceAdapter *NamespaceAdapter) GetAllNamespaces() ([]core.Namespace, error) {
-	client, err := k8sClient.InitClient()
+	client, err := k8sClient.InitKubernetesClient()
 	if err != nil {
 		return nil, err
 	}

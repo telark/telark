@@ -50,13 +50,13 @@ type Resource struct {
 type UsagePerInstance struct {
 	Name        string           `json:"name"`
 	Containers  []ContainerUsage `json:"containers"`
-	TotalCpu    string           `json:"totalCpu"`
+	TotalCPU    string           `json:"totalCpu"`
 	TotalMemory string           `json:"totalMemory"`
 }
 
 type ContainerUsage struct {
 	Name   string `json:"name"`
-	Cpu    string `json:"cpu"`
+	CPU    string `json:"cpu"`
 	Memory string `json:"memory"`
 }
 

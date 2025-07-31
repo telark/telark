@@ -16,21 +16,17 @@ import (
 	responseUtils "github.com/plsyro/rest-pkg/utils/response"
 )
 
-// APIResponse represents the standard API response structure
 type APIResponse struct {
 	Status int `json:"status"`
 	Data   any `json:"data"`
 }
 
-// Client provides a unified interface for making HTTP requests
 type Client struct{}
 
-// NewClient creates a new Client instance
 func NewClient() *Client {
 	return &Client{}
 }
 
-// DoRequest sends an HTTP request and unmarshals the response into the provided type T
 func DoRequest[T any](req *http.Request) (*T, error) {
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -53,7 +49,6 @@ func DoRequest[T any](req *http.Request) (*T, error) {
 		return nil, fmt.Errorf(string(constants.ERROR_FAILED_UNMARSHAL_RESPONSE), err)
 	}
 
-	// Unmarshal Data into T
 	dataBytes, err := json.Marshal(apiResp.Data)
 	if err != nil {
 		return nil, fmt.Errorf(string(constants.ERROR_FAILED_MARSHAL_DATA), err)
@@ -66,7 +61,6 @@ func DoRequest[T any](req *http.Request) (*T, error) {
 	return &result, nil
 }
 
-// DoRequestList handles list responses (where items are under a key in Data)
 func DoRequestList[T any](req *http.Request, itemsKey string) ([]T, error) {
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -107,7 +101,6 @@ func DoRequestList[T any](req *http.Request, itemsKey string) ([]T, error) {
 	return items, nil
 }
 
-// CreateResource creates a new resource using POST request
 func (c *Client) CreateResource(
 	service base.Service,
 	version base.Version,
@@ -115,7 +108,6 @@ func (c *Client) CreateResource(
 	resource any,
 	resourceName string,
 ) *response.GenericResponse {
-	// Prepare Payload
 	mappedResource := restMapper.MapToJsonPayload(resource)
 	payload, err := json.Marshal(mappedResource)
 	if err != nil {
@@ -123,10 +115,7 @@ func (c *Client) CreateResource(
 		return responseUtils.LogAndReturnResponse(constants.HTTP_STATUS_INTERNAL_SERVER_ERROR, response.OPERATION_ERROR, message, nil, err)
 	}
 
-	// Prepare Request
 	request := requestUtils.CreateGenericRequestWithPayload(base.POST, service, version, endpoint, payload)
-
-	// Send POST Request
 	url, err := request.GenerateURL()
 	if err != nil {
 		return responseUtils.LogAndReturnResponse(constants.HTTP_STATUS_INTERNAL_SERVER_ERROR, response.OPERATION_ERROR, string(constants.ERROR_FAILED_GENERATE_URL), nil, err)
@@ -137,33 +126,26 @@ func (c *Client) CreateResource(
 		return responseUtils.LogAndReturnResponse(constants.HTTP_STATUS_INTERNAL_SERVER_ERROR, response.OPERATION_ERROR, message, nil, err)
 	}
 
-	// Parse and return generic response
 	return responseUtils.ReadAndParseGenericResponse(resp)
 }
 
-// PatchResource updates a resource using PATCH request
 func (c *Client) PatchResource(
 	endpoint base.Endpoint,
 	name string,
 	body map[string]any,
 ) *response.GenericResponse {
-	// Prepare Payload
 	payload, err := json.Marshal(body)
 	if err != nil {
 		return responseUtils.LogAndReturnResponse(constants.HTTP_STATUS_INTERNAL_SERVER_ERROR, response.OPERATION_ERROR, string(constants.ERROR_FAILED_MARSHAL_PATCH_PAYLOAD), nil, err)
 	}
 
-	// Prepare Endpoint
 	apiEndpoint := strings.Replace(string(endpoint), constants.ENDPOINT_NAME_PLACEHOLDER, name, 1)
-
-	// Prepare Request
 	request := requestUtils.CreateGenericRequestWithPayload(base.PATCH, base.EXPORTER, base.V1, base.Endpoint(apiEndpoint), payload)
 	url, err := request.GenerateURL()
 	if err != nil {
 		return responseUtils.LogAndReturnResponse(constants.HTTP_STATUS_INTERNAL_SERVER_ERROR, response.OPERATION_ERROR, string(constants.ERROR_FAILED_GENERATE_URL), nil, err)
 	}
 
-	// Create PATCH Request
 	httpRequest, err := http.NewRequest(constants.HTTP_METHOD_PATCH, url, bytes.NewBuffer(request.Payload))
 	if err != nil {
 		return responseUtils.LogAndReturnResponse(constants.HTTP_STATUS_INTERNAL_SERVER_ERROR, response.OPERATION_ERROR, string(constants.ERROR_FAILED_CREATE_PATCH_REQUEST), nil, err)
@@ -179,21 +161,14 @@ func (c *Client) PatchResource(
 	return responseUtils.ReadAndParseGenericResponse(resp)
 }
 
-// DeleteResource deletes a resource using DELETE request
 func (c *Client) DeleteResource(endpoint base.Endpoint, name string) *response.GenericResponse {
-	// Prepare Endpoint
 	apiEndpoint := strings.Replace(string(endpoint), constants.ENDPOINT_NAME_PLACEHOLDER, name, 1)
-
-	// Prepare Request
 	request := requestUtils.CreateGenericRequest(base.DELETE, base.EXPORTER, base.V1, base.Endpoint(apiEndpoint))
-
-	// Send Delete Request
 	url, err := request.GenerateURL()
 	if err != nil {
 		return responseUtils.LogAndReturnResponse(constants.HTTP_STATUS_INTERNAL_SERVER_ERROR, response.OPERATION_ERROR, string(constants.ERROR_FAILED_GENERATE_URL), nil, err)
 	}
 
-	// Create DELETE request manually
 	httpRequest, err := http.NewRequest(constants.HTTP_METHOD_DELETE, url, nil)
 	if err != nil {
 		return responseUtils.LogAndReturnResponse(constants.HTTP_STATUS_INTERNAL_SERVER_ERROR, response.OPERATION_ERROR, string(constants.ERROR_FAILED_CREATE_DELETE_REQUEST), nil, err)
@@ -205,35 +180,27 @@ func (c *Client) DeleteResource(endpoint base.Endpoint, name string) *response.G
 		return responseUtils.LogAndReturnResponse(constants.HTTP_STATUS_INTERNAL_SERVER_ERROR, response.OPERATION_ERROR, string(constants.ERROR_FAILED_EXECUTE_DELETE_REQUEST), nil, err)
 	}
 
-	// Parse and return generic response
 	return responseUtils.ReadAndParseGenericResponse(resp)
 }
 
-// GetResourceByName retrieves a resource by name using GET request
 func (c *Client) GetResourceByName(
 	endpoint base.Endpoint,
 	name string,
 	resourceType string,
 ) (*response.GenericResponse, error) {
-	// Prepare Request
 	apiEndpoint := strings.Replace(string(endpoint), constants.ENDPOINT_NAME_PLACEHOLDER, name, 1)
 	request := requestUtils.CreateGenericRequest(base.GET, base.EXPORTER, base.V1, base.Endpoint(apiEndpoint))
-
-	// Generate Request URL
 	requestURL, err := request.GenerateURL()
 	if err != nil {
 		return nil, fmt.Errorf(string(constants.ERROR_FAILED_GENERATE_REQUEST_URL_FOR), resourceType, name, err)
 	}
 
-	// Send GET Request
 	response, err := http.Get(requestURL)
 	if err != nil {
 		return nil, fmt.Errorf(string(constants.ERROR_FAILED_SEND_GET_REQUEST), resourceType, name, err)
 	}
 
 	apiResponse := responseUtils.ReadAndParseGenericResponse(response)
-
-	// Validate API Response Status
 	if apiResponse.Status != constants.HTTP_STATUS_OK {
 		return nil, fmt.Errorf(string(constants.ERROR_NON_SUCCESS_STATUS_FOR), apiResponse.Status, resourceType, name)
 	}
@@ -241,7 +208,6 @@ func (c *Client) GetResourceByName(
 	return apiResponse, nil
 }
 
-// GetResourceByNameAndUnmarshal retrieves a resource by name and unmarshals it into the target type
 func GetResourceByNameAndUnmarshal[T any](
 	client *Client,
 	endpoint base.Endpoint,
@@ -263,7 +229,6 @@ func GetResourceByNameAndUnmarshal[T any](
 	return nil
 }
 
-// FormatEndpoint formats an endpoint template by replacing placeholders
 func (c *Client) FormatEndpoint(template, name string) string {
 	return strings.Replace(template, constants.ENDPOINT_NAME_PLACEHOLDER, name, 1)
 }

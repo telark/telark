@@ -13,19 +13,16 @@ import (
 	requestUtils "github.com/plsyro/rest-pkg/utils/request"
 )
 
-// Client provides a unified interface for grouper operations
 type Client struct {
 	sharedClient *shared.Client
 }
 
-// NewClient creates a new Client instance
 func NewClient() *Client {
 	return &Client{
 		sharedClient: shared.NewClient(),
 	}
 }
 
-// CreateGrouper creates a new grouper
 func (c *Client) CreateGrouper(grouperObj *grouper.GrouperAsResource) *response.GenericResponse {
 	return c.sharedClient.CreateResource(
 		base.EXPORTER,
@@ -36,7 +33,6 @@ func (c *Client) CreateGrouper(grouperObj *grouper.GrouperAsResource) *response.
 	)
 }
 
-// GetGrouperByName retrieves a grouper by name
 func (c *Client) GetGrouperByName(name string) (*grouper.GrouperAsResource, error) {
 	apiEndpoint := c.sharedClient.FormatEndpoint(string(grouperEndpoints.GET_GROUPER), name)
 	request := requestUtils.CreateGenericRequest(base.GET, base.EXPORTER, base.V1, base.Endpoint(apiEndpoint))
@@ -47,17 +43,16 @@ func (c *Client) GetGrouperByName(name string) (*grouper.GrouperAsResource, erro
 
 	req, err := http.NewRequest(constants.HTTP_METHOD_GET, requestURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request for grouper %s: %w", name, err)
+		return nil, fmt.Errorf(string(constants.ERROR_FAILED_CREATE_REQUEST), constants.RESOURCE_TYPE_GROUPER, name, err)
 	}
 
 	grouperObj, err := shared.DoRequest[grouper.GrouperAsResource](req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get grouper %s: %w", name, err)
+		return nil, fmt.Errorf(string(constants.ERROR_FAILED_GET_RESOURCE), constants.RESOURCE_TYPE_GROUPER, name, err)
 	}
 	return grouperObj, nil
 }
 
-// GetAllGroupers retrieves all groupers
 func (c *Client) GetAllGroupers() ([]*grouper.GrouperAsResource, error) {
 	request := requestUtils.CreateGenericRequest(base.GET, base.EXPORTER, base.V1, grouperEndpoints.GET_ALL_GROUPERS)
 	requestURL, err := request.GenerateURL()
@@ -67,17 +62,16 @@ func (c *Client) GetAllGroupers() ([]*grouper.GrouperAsResource, error) {
 
 	req, err := http.NewRequest(constants.HTTP_METHOD_GET, requestURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf(string(constants.ERROR_FAILED_CREATE_REQUEST_GENERIC), err)
 	}
 
 	groupers, err := shared.DoRequestList[*grouper.GrouperAsResource](req, constants.RESPONSE_ITEMS_KEY)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get groupers: %w", err)
+		return nil, fmt.Errorf(string(constants.ERROR_FAILED_GET_RESOURCES), constants.RESOURCE_TYPE_GROUPER, err)
 	}
 	return groupers, nil
 }
 
-// PatchGrouper updates a grouper
 func (c *Client) PatchGrouper(name string, body map[string]interface{}) *response.GenericResponse {
 	return c.sharedClient.PatchResource(
 		grouperEndpoints.PATCH_GROUPER,
@@ -86,7 +80,6 @@ func (c *Client) PatchGrouper(name string, body map[string]interface{}) *respons
 	)
 }
 
-// DeleteGrouper deletes a grouper
 func (c *Client) DeleteGrouper(name string) *response.GenericResponse {
 	return c.sharedClient.DeleteResource(
 		grouperEndpoints.DELETE_GROUPER,

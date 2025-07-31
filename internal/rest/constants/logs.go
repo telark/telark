@@ -22,7 +22,7 @@ const (
 	ERROR_ITEMS_FIELD_MISSING             errors.Error = "'items' field missing in response"
 	ERROR_UNEXPECTED_STATUS               errors.Error = "unexpected status: %d"
 
-	// New constants for client operations
+	// Client operation constants
 	ERROR_FAILED_EXECUTE_REQUEST            errors.Error = "failed to execute request: %w"
 	ERROR_FAILED_READ_RESPONSE_BODY_GENERIC errors.Error = "failed to read response body: %w"
 	ERROR_UNEXPECTED_STATUS_CODE            errors.Error = "unexpected status code: %d"
@@ -42,6 +42,10 @@ const (
 	ERROR_FAILED_SEND_GET_REQUEST           errors.Error = "failed to send GET request for %s %s: %w"
 	ERROR_FAILED_SERIALIZE_DATA             errors.Error = "failed to serialize data for %s %s: %w"
 	ERROR_FAILED_MAP_DATA_FIELD             errors.Error = "failed to map data field for %s %s: %w"
+	ERROR_FAILED_CREATE_REQUEST             errors.Error = "failed to create request for %s %s: %w"
+	ERROR_FAILED_GET_RESOURCE               errors.Error = "failed to get %s %s: %w"
+	ERROR_FAILED_GET_RESOURCES              errors.Error = "failed to get %s: %w"
+	ERROR_FAILED_CREATE_REQUEST_GENERIC     errors.Error = "failed to create request: %w"
 
 	// Resource type constants
 	RESOURCE_TYPE_APP_WORKLOAD      = "AppWorkload"

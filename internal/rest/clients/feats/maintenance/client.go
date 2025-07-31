@@ -12,19 +12,16 @@ import (
 	responseUtils "github.com/plsyro/rest-pkg/utils/response"
 )
 
-// Client provides a unified interface for maintenance operations
 type Client struct {
 	sharedClient *shared.Client
 }
 
-// NewClient creates a new Client instance
 func NewClient() *Client {
 	return &Client{
 		sharedClient: shared.NewClient(),
 	}
 }
 
-// EnableGrouperMaintenance enables maintenance for a grouper
 func (c *Client) EnableGrouperMaintenance(body map[string]interface{}) *response.GenericResponse {
 	return c.sharedClient.CreateResource(
 		base.CONFIGURATOR,
@@ -35,7 +32,6 @@ func (c *Client) EnableGrouperMaintenance(body map[string]interface{}) *response
 	)
 }
 
-// UpdateGrouperMaintenance updates maintenance for a grouper
 func (c *Client) UpdateGrouperMaintenance(body map[string]interface{}) *response.GenericResponse {
 	return c.sharedClient.CreateResource(
 		base.CONFIGURATOR,
@@ -46,7 +42,6 @@ func (c *Client) UpdateGrouperMaintenance(body map[string]interface{}) *response
 	)
 }
 
-// RemoveGrouperMaintenance removes maintenance for a grouper
 func (c *Client) RemoveGrouperMaintenance() *response.GenericResponse {
 	request := requestUtils.CreateGenericRequest(base.DELETE, base.CONFIGURATOR, base.V1, maintenanceEndpoints.REMOVE_GROUPER_MAINTENANCE_FEAT)
 	requestURL, err := request.GenerateURL()

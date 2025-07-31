@@ -1,16 +1,12 @@
 package bridges
 
 import (
-	"fmt"
-	"net/http"
-
 	bridgeResource "github.com/plsyro/data-pkg/resources/bridge"
 	"github.com/plsyro/rest-pkg/base"
 	"github.com/plsyro/rest-pkg/clients/shared"
 	"github.com/plsyro/rest-pkg/constants"
 	bridgeEndpoints "github.com/plsyro/rest-pkg/endpoints/resources/bridges"
 	response "github.com/plsyro/rest-pkg/response"
-	requestUtils "github.com/plsyro/rest-pkg/utils/request"
 )
 
 type Client struct {
@@ -28,42 +24,11 @@ func (c *Client) CreateBridge(bridge *bridgeResource.BridgeAsResource) *response
 }
 
 func (c *Client) GetBridgeByName(name string) (*bridgeResource.BridgeAsResource, error) {
-	apiEndpoint := c.FormatEndpoint(string(bridgeEndpoints.GET_BRIDGE), name)
-	request := requestUtils.CreateGenericRequest(base.GET, base.EXPORTER, base.V1, base.Endpoint(apiEndpoint))
-	requestURL, err := request.GenerateURL()
-	if err != nil {
-		return nil, fmt.Errorf(string(constants.ERROR_FAILED_GENERATE_REQUEST_URL_FOR), constants.RESOURCE_TYPE_BRIDGE, name, err)
-	}
-
-	req, err := http.NewRequest(constants.HTTP_METHOD_GET, requestURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf(string(constants.ERROR_FAILED_CREATE_REQUEST), constants.RESOURCE_TYPE_BRIDGE, name, err)
-	}
-
-	bridge, err := shared.DoRequest[bridgeResource.BridgeAsResource](req)
-	if err != nil {
-		return nil, fmt.Errorf(string(constants.ERROR_FAILED_GET_RESOURCE), constants.RESOURCE_TYPE_BRIDGE, name, err)
-	}
-	return bridge, nil
+	return shared.GetResourceByNameTyped[bridgeResource.BridgeAsResource](c.BaseResourceClient, bridgeEndpoints.GET_BRIDGE, name)
 }
 
 func (c *Client) GetAllBridges() ([]*bridgeResource.BridgeAsResource, error) {
-	request := requestUtils.CreateGenericRequest(base.GET, base.EXPORTER, base.V1, bridgeEndpoints.GET_ALL_BRIDGES)
-	requestURL, err := request.GenerateURL()
-	if err != nil {
-		return nil, fmt.Errorf(string(constants.ERROR_FAILED_GENERATE_REQUEST_URL), err)
-	}
-
-	req, err := http.NewRequest(constants.HTTP_METHOD_GET, requestURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf(string(constants.ERROR_FAILED_CREATE_REQUEST_GENERIC), err)
-	}
-
-	bridges, err := shared.DoRequestList[*bridgeResource.BridgeAsResource](req, constants.RESPONSE_ITEMS_KEY)
-	if err != nil {
-		return nil, fmt.Errorf(string(constants.ERROR_FAILED_GET_RESOURCES), constants.RESOURCE_TYPE_BRIDGE, err)
-	}
-	return bridges, nil
+	return shared.GetAllResourcesTyped[*bridgeResource.BridgeAsResource](c.BaseResourceClient, bridgeEndpoints.GET_ALL_BRIDGES)
 }
 
 func (c *Client) PatchBridge(name string, body map[string]interface{}) *response.GenericResponse {

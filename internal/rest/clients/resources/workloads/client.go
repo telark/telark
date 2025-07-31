@@ -1,9 +1,6 @@
 package workloads
 
 import (
-	"fmt"
-	"net/http"
-
 	appWorkload "github.com/plsyro/data-pkg/resources/workload/app"
 	batchWorkload "github.com/plsyro/data-pkg/resources/workload/batch"
 	"github.com/plsyro/rest-pkg/base"
@@ -11,7 +8,6 @@ import (
 	"github.com/plsyro/rest-pkg/constants"
 	workloadsEndpoints "github.com/plsyro/rest-pkg/endpoints/resources/workloads"
 	response "github.com/plsyro/rest-pkg/response"
-	requestUtils "github.com/plsyro/rest-pkg/utils/request"
 )
 
 type Client struct {
@@ -33,42 +29,11 @@ func (c *Client) CreateBatchWorkload(workload batchWorkload.BatchWorkloadAsResou
 }
 
 func (c *Client) GetAppWorkloadByName(name string) (*appWorkload.AppWorkloadAsResource, error) {
-	apiEndpoint := c.FormatEndpoint(string(workloadsEndpoints.GET_APP_WORKLOAD), name)
-	request := requestUtils.CreateGenericRequest(base.GET, base.EXPORTER, base.V1, base.Endpoint(apiEndpoint))
-	requestURL, err := request.GenerateURL()
-	if err != nil {
-		return nil, fmt.Errorf(string(constants.ERROR_FAILED_GENERATE_REQUEST_URL_FOR), constants.RESOURCE_TYPE_APP_WORKLOAD, name, err)
-	}
-
-	req, err := http.NewRequest(constants.HTTP_METHOD_GET, requestURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf(string(constants.ERROR_FAILED_CREATE_REQUEST), constants.RESOURCE_TYPE_APP_WORKLOAD, name, err)
-	}
-
-	appWorkload, err := shared.DoRequest[appWorkload.AppWorkloadAsResource](req)
-	if err != nil {
-		return nil, fmt.Errorf(string(constants.ERROR_FAILED_GET_RESOURCE), constants.RESOURCE_TYPE_APP_WORKLOAD, name, err)
-	}
-	return appWorkload, nil
+	return shared.GetResourceByNameTyped[appWorkload.AppWorkloadAsResource](c.BaseResourceClient, workloadsEndpoints.GET_APP_WORKLOAD, name)
 }
 
 func (c *Client) GetAllAppWorkloads() ([]*appWorkload.AppWorkloadAsResource, error) {
-	request := requestUtils.CreateGenericRequest(base.GET, base.EXPORTER, base.V1, workloadsEndpoints.GET_ALL_APPS_WORKLOADS)
-	requestURL, err := request.GenerateURL()
-	if err != nil {
-		return nil, fmt.Errorf(string(constants.ERROR_FAILED_GENERATE_REQUEST_URL), err)
-	}
-
-	req, err := http.NewRequest(constants.HTTP_METHOD_GET, requestURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf(string(constants.ERROR_FAILED_CREATE_REQUEST_GENERIC), err)
-	}
-
-	appWorkloads, err := shared.DoRequestList[*appWorkload.AppWorkloadAsResource](req, constants.RESPONSE_ITEMS_KEY)
-	if err != nil {
-		return nil, fmt.Errorf(string(constants.ERROR_FAILED_GET_RESOURCES), constants.RESOURCE_TYPE_APP_WORKLOAD, err)
-	}
-	return appWorkloads, nil
+	return shared.GetAllResourcesTyped[*appWorkload.AppWorkloadAsResource](c.BaseResourceClient, workloadsEndpoints.GET_ALL_APPS_WORKLOADS)
 }
 
 func (c *Client) PatchAppWorkload(name string, body map[string]interface{}) *response.GenericResponse {

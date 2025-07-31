@@ -20,10 +20,8 @@ type ServiceData struct {
 	Exists    bool
 }
 
-type ServiceAdapter struct{}
-
-func (sa *ServiceAdapter) GetService(namespace, serviceName string) (*ServiceData, error) {
-	if namespace == "" || serviceName == "" {
+func GetService(namespace, name string) (*ServiceData, error) {
+	if namespace == "" || name == "" {
 		return nil, fmt.Errorf(string(errors.ERROR_K8S_EMPTY_NAMESPACE_OR_RESOURCE_NAME))
 	}
 
@@ -35,10 +33,10 @@ func (sa *ServiceAdapter) GetService(namespace, serviceName string) (*ServiceDat
 	ctx, cancel := timeout.ContextWithTimeout(constants.SERVICE_GET_TIMEOUT)
 	defer cancel()
 
-	service, err := client.CoreV1().Services(namespace).Get(ctx, serviceName, metav1.GetOptions{})
+	service, err := client.CoreV1().Services(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
-		k8sClient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_GET_SERVICE), serviceName, namespace, err))
-		return nil, fmt.Errorf(string(errors.ERROR_K8S_GET_SERVICE), serviceName, namespace, err)
+		k8sClient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_GET_SERVICE), name, namespace, err))
+		return nil, fmt.Errorf(string(errors.ERROR_K8S_GET_SERVICE), name, namespace, err)
 	}
 
 	info := &ServiceData{
@@ -49,13 +47,13 @@ func (sa *ServiceAdapter) GetService(namespace, serviceName string) (*ServiceDat
 
 	if len(service.Spec.Ports) > 0 {
 		info.Port = int(service.Spec.Ports[0].Port)
-		info.Host = buildServiceHost(serviceName, namespace, info.Port)
+		info.Host = buildServiceHost(name, namespace, info.Port)
 	}
 
 	return info, nil
 }
 
-func (serviceAdapter *ServiceAdapter) GetServiceStatus(namespace string, serviceName string) (bool, error) {
+func GetServiceStatus(namespace string, serviceName string) (bool, error) {
 	if namespace == "" || serviceName == "" {
 		return false, fmt.Errorf(string(errors.ERROR_K8S_EMPTY_NAMESPACE_OR_RESOURCE_NAME))
 	}
@@ -77,7 +75,7 @@ func (serviceAdapter *ServiceAdapter) GetServiceStatus(namespace string, service
 	return service.Spec.ClusterIP != "", nil
 }
 
-func (serviceAdapter *ServiceAdapter) FetchServicesByNamespace(namespace string) ([]core.Service, error) {
+func GetAllServicesByNamespace(namespace string) ([]core.Service, error) {
 	if namespace == "" {
 		return nil, fmt.Errorf(string(errors.ERROR_K8S_EMPTY_NAMESPACE_OR_RESOURCE_NAME))
 	}
@@ -99,7 +97,7 @@ func (serviceAdapter *ServiceAdapter) FetchServicesByNamespace(namespace string)
 	return services.Items, nil
 }
 
-func (sa *ServiceAdapter) IsServiceActive(service *core.Service) bool {
+func IsServiceActive(service *core.Service) bool {
 	if service == nil {
 		return false
 	}

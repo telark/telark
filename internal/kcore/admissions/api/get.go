@@ -6,13 +6,14 @@ import (
 	"github.com/plsyro/kcore-pkg/admissions/utils"
 	"github.com/plsyro/kcore-pkg/constants"
 	"github.com/plsyro/kcore-pkg/resilience/timeout"
+	"github.com/plsyro/kcore-pkg/shared"
 	kubeApiMeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GetAdmissionWebhookByName(name string, webhookType common.WebhookType) utils.AdmissionWebhookData {
+func GetAdmissionWebhookByName(name string, webhookType common.WebhookType) shared.KubernetesAPIData {
 	client, err := utils.GetClient()
 	if err != nil {
-		return utils.HandleClientError(err)
+		return shared.HandleClientError(err)
 	}
 
 	ctx, cancel := timeout.ContextWithTimeout(constants.ADMISSION_GET_TIMEOUT)
@@ -31,7 +32,7 @@ func GetAdmissionWebhookByName(name string, webhookType common.WebhookType) util
 		if err != nil {
 			return nil, err
 		}
-		return utils.CreateAdmissionWebhookData(utils.StatusOK, string(messages.SUCCESS_GET_VALIDATING_ADMISSION), result, nil), nil
+		return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SUCCESS_GET_VALIDATING_ADMISSION), result, nil), nil
 	}
 
 	mutatingHandler := func() (interface{}, error) {
@@ -39,7 +40,7 @@ func GetAdmissionWebhookByName(name string, webhookType common.WebhookType) util
 		if err != nil {
 			return nil, err
 		}
-		return utils.CreateAdmissionWebhookData(utils.StatusOK, string(messages.SUCCESS_GET_MUTATING_ADMISSION), result, nil), nil
+		return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SUCCESS_GET_MUTATING_ADMISSION), result, nil), nil
 	}
 
 	return utils.HandleWebhookType(webhookType, validatingHandler, mutatingHandler)

@@ -10,10 +10,8 @@ import (
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type PodAdapter struct{}
-
-func (podAdapter *PodAdapter) GetQualityOfService(namespace string, selectors map[string]string) (string, error) {
-	pods, err := podAdapter.GetAllPodsBySelectors(namespace, selectors)
+func GetQualityOfService(namespace string, selectors map[string]string) (string, error) {
+	pods, err := GetAllPodsBySelectors(namespace, selectors)
 	if err != nil {
 		k8sClient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_GET_POD_QOS), namespace, err))
 		return "", err
@@ -26,7 +24,7 @@ func (podAdapter *PodAdapter) GetQualityOfService(namespace string, selectors ma
 	return string(pods[0].Status.QOSClass), nil
 }
 
-func (podAdapter *PodAdapter) GetAllPodsBySelectors(namespace string, selectors map[string]string) ([]core.Pod, error) {
+func GetAllPodsBySelectors(namespace string, selectors map[string]string) ([]core.Pod, error) {
 	client, err := k8sClient.InitKubernetesClient()
 	if err != nil {
 		return nil, err

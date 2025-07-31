@@ -20,4 +20,9 @@ const (
 	DEFAULT_TIMEOUT             = 30 * time.Second
 	SERVER_VERSION_TIMEOUT      = 30 * time.Second
 	AVAILABILITY_CHECK_INTERVAL = 5 * time.Minute
+	CRD_GET_TIMEOUT             = 15 * time.Second
+	CRD_LIST_TIMEOUT            = 30 * time.Second
+	CRD_PATCH_TIMEOUT           = 15 * time.Second
+	CRD_DELETE_TIMEOUT          = 15 * time.Second
+	CRD_CREATE_TIMEOUT          = 15 * time.Second
 )

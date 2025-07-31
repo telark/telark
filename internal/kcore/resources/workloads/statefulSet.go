@@ -10,9 +10,7 @@ import (
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type StatefulSetAdapter struct{}
-
-func (statefulSetAdapter *StatefulSetAdapter) GetAllStatefulSetsByNamespace(namespace string) ([]apps.StatefulSet, error) {
+func GetAllStatefulSetsByNamespace(namespace string) ([]apps.StatefulSet, error) {
 	client, err := k8sClient.InitKubernetesClient()
 	if err != nil {
 		return nil, err

@@ -21,8 +21,7 @@ func GetWorkloadQoS(namespace string, selectors map[string]string) string {
 		return ""
 	}
 
-	podAdapter := &subsAdapter.PodAdapter{}
-	qos, err := podAdapter.GetQualityOfService(namespace, selectors)
+	qos, err := subsAdapter.GetQualityOfService(namespace, selectors)
 	if err != nil {
 		return ""
 	}

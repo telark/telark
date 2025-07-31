@@ -9,20 +9,21 @@ import (
 	"github.com/plsyro/kcore-pkg/admissions/utils"
 	"github.com/plsyro/kcore-pkg/constants"
 	"github.com/plsyro/kcore-pkg/resilience/timeout"
+	"github.com/plsyro/kcore-pkg/shared"
 	kubeApiMeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
-func PatchAdmissionWebhookAnnotationsByName(name string, webhookType common.WebhookType, annotations map[string]string) utils.AdmissionWebhookData {
+func PatchAdmissionWebhookAnnotationsByName(name string, webhookType common.WebhookType, annotations map[string]string) shared.KubernetesAPIData {
 	client, err := utils.GetClient()
 	if err != nil {
-		return utils.HandleClientError(err)
+		return shared.HandleClientError(err)
 	}
 
 	payload := utils.CreateAnnotationsPayload(annotations)
 	patchBytes, err := json.Marshal(payload)
 	if err != nil {
-		return utils.CreateAdmissionWebhookData(utils.StatusInternalServerError, string(errors.ERROR_REST_MARSHALL_PAYLOAD), nil, err)
+		return shared.CreateKubernetesAPIData(shared.StatusInternalServerError, string(errors.ERROR_REST_MARSHALL_PAYLOAD), nil, err)
 	}
 
 	ctx, cancel := timeout.ContextWithTimeout(constants.ADMISSION_PATCH_TIMEOUT)
@@ -35,7 +36,7 @@ func PatchAdmissionWebhookAnnotationsByName(name string, webhookType common.Webh
 			return nil, err
 		}
 		message := utils.CreateMessage(patchedWebhook.GetName(), string(common.VALIDATING), string(messages.SUCCESS_UPDATE_RESOURCE))
-		return utils.CreateAdmissionWebhookData(utils.StatusOK, message, patchedWebhook, nil), nil
+		return shared.CreateKubernetesAPIData(shared.StatusOK, message, patchedWebhook, nil), nil
 	}
 
 	mutatingOperation := func() (interface{}, error) {
@@ -45,7 +46,7 @@ func PatchAdmissionWebhookAnnotationsByName(name string, webhookType common.Webh
 			return nil, err
 		}
 		message := utils.CreateMessage(patchedWebhook.GetName(), string(common.MUTATING), string(messages.SUCCESS_UPDATE_RESOURCE))
-		return utils.CreateAdmissionWebhookData(utils.StatusOK, message, patchedWebhook, nil), nil
+		return shared.CreateKubernetesAPIData(shared.StatusOK, message, patchedWebhook, nil), nil
 	}
 
 	return utils.HandleWebhookType(webhookType, validatingOperation, mutatingOperation)

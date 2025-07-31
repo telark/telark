@@ -6,14 +6,15 @@ import (
 	"github.com/plsyro/kcore-pkg/admissions/utils"
 	"github.com/plsyro/kcore-pkg/constants"
 	"github.com/plsyro/kcore-pkg/resilience/timeout"
+	"github.com/plsyro/kcore-pkg/shared"
 	kubeApiAdmissionv1 "k8s.io/api/admissionregistration/v1"
 	kubeApiMeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func CreateValidatingAdmissionByConfig(webhookConfig *kubeApiAdmissionv1.ValidatingWebhookConfiguration) utils.AdmissionWebhookData {
+func CreateValidatingAdmissionByConfig(webhookConfig *kubeApiAdmissionv1.ValidatingWebhookConfiguration) shared.KubernetesAPIData {
 	client, err := utils.GetClient()
 	if err != nil {
-		return utils.HandleClientError(err)
+		return shared.HandleClientError(err)
 	}
 
 	ctx, cancel := timeout.ContextWithTimeout(constants.ADMISSION_CREATE_TIMEOUT)
@@ -26,10 +27,10 @@ func CreateValidatingAdmissionByConfig(webhookConfig *kubeApiAdmissionv1.Validat
 	return utils.ExecuteWebhookOperation(operation, string(messages.SUCCESS_CREATE_VALIDATING_ADMISSION), string(errors.ERROR_CREATE_VALIDATING_ADMISSION))
 }
 
-func CreateMutatingAdmissionByConfig(webhookConfig *kubeApiAdmissionv1.MutatingWebhookConfiguration) utils.AdmissionWebhookData {
+func CreateMutatingAdmissionByConfig(webhookConfig *kubeApiAdmissionv1.MutatingWebhookConfiguration) shared.KubernetesAPIData {
 	client, err := utils.GetClient()
 	if err != nil {
-		return utils.HandleClientError(err)
+		return shared.HandleClientError(err)
 	}
 
 	ctx, cancel := timeout.ContextWithTimeout(constants.ADMISSION_CREATE_TIMEOUT)

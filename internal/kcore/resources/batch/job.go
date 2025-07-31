@@ -10,9 +10,7 @@ import (
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type JobAdapter struct{}
-
-func (jobAdapter *JobAdapter) GetJobsByNamespace(namespace string) ([]batch.Job, error) {
+func GetAllJobsByNamespace(namespace string) ([]batch.Job, error) {
 	client, err := k8sClient.InitKubernetesClient()
 	if err != nil {
 		return nil, err

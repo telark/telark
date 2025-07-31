@@ -10,9 +10,7 @@ import (
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type DeploymentAdapter struct{}
-
-func (deploymentAdapter *DeploymentAdapter) GetAllDeploymentsByNamespace(namespace string) ([]apps.Deployment, error) {
+func GetAllDeploymentsByNamespace(namespace string) ([]apps.Deployment, error) {
 	client, err := k8sClient.InitKubernetesClient()
 	if err != nil {
 		return nil, err
@@ -29,7 +27,7 @@ func (deploymentAdapter *DeploymentAdapter) GetAllDeploymentsByNamespace(namespa
 	return deployments.Items, nil
 }
 
-func (deploymentAdapter *DeploymentAdapter) GetDeploymentStatus(namespace string, serviceName string) (bool, error) {
+func GetDeploymentStatus(namespace, name string) (bool, error) {
 	client, err := k8sClient.InitKubernetesClient()
 	if err != nil {
 		return false, err
@@ -38,9 +36,9 @@ func (deploymentAdapter *DeploymentAdapter) GetDeploymentStatus(namespace string
 	ctx, cancel := timeout.ContextWithTimeout(constants.WORKLOAD_GET_TIMEOUT)
 	defer cancel()
 
-	deployment, err := client.AppsV1().Deployments(namespace).Get(ctx, serviceName, meta.GetOptions{})
+	deployment, err := client.AppsV1().Deployments(namespace).Get(ctx, name, meta.GetOptions{})
 	if err != nil {
-		k8sClient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_GET_DEPLOYMENT), serviceName, namespace, err))
+		k8sClient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_GET_DEPLOYMENT), name, namespace, err))
 		return false, err
 	}
 

@@ -14,27 +14,21 @@ import (
 )
 
 type Client struct {
-	sharedClient *shared.Client
+	*shared.BaseResourceClient
 }
 
 func NewClient() *Client {
 	return &Client{
-		sharedClient: shared.NewClient(),
+		BaseResourceClient: shared.NewBaseResourceClient(base.ADMISSION_OPERATOR, constants.RESOURCE_TYPE_ADMISSION_WEBHOOK),
 	}
 }
 
 func (c *Client) CreateAdmissionValidatingWebhook(webhook interface{}) *response.GenericResponse {
-	return c.sharedClient.CreateResource(
-		base.ADMISSION_OPERATOR,
-		base.V1,
-		admissionsEndpoints.CREATE_ADMISSION_VALIDATING_WEBHOOK,
-		webhook,
-		constants.RESOURCE_TYPE_ADMISSION_WEBHOOK,
-	)
+	return c.CreateResource(admissionsEndpoints.CREATE_ADMISSION_VALIDATING_WEBHOOK, webhook)
 }
 
 func (c *Client) GetAdmissionValidatingWebhook(name string) (*response.GenericResponse, error) {
-	apiEndpoint := c.sharedClient.FormatEndpoint(string(admissionsEndpoints.GET_ADMISSION_VALIDATING_WEBHOOK), name)
+	apiEndpoint := c.FormatEndpoint(string(admissionsEndpoints.GET_ADMISSION_VALIDATING_WEBHOOK), name)
 	request := requestUtils.CreateGenericRequest(base.GET, base.ADMISSION_OPERATOR, base.V1, base.Endpoint(apiEndpoint))
 	requestURL, err := request.GenerateURL()
 	if err != nil {
@@ -55,22 +49,15 @@ func (c *Client) GetAdmissionValidatingWebhook(name string) (*response.GenericRe
 }
 
 func (c *Client) PatchAdmissionValidatingWebhook(name string, body map[string]interface{}) *response.GenericResponse {
-	return c.sharedClient.PatchResource(
-		admissionsEndpoints.PATCH_ADMISSION_VALIDATING_WEBHOOK,
-		name,
-		body,
-	)
+	return c.PatchResource(admissionsEndpoints.PATCH_ADMISSION_VALIDATING_WEBHOOK, name, body)
 }
 
 func (c *Client) DeleteAdmissionValidatingWebhook(name string) *response.GenericResponse {
-	return c.sharedClient.DeleteResource(
-		admissionsEndpoints.DELETE_ADMISSION_VALIDATING_WEBHOOK,
-		name,
-	)
+	return c.DeleteResource(admissionsEndpoints.DELETE_ADMISSION_VALIDATING_WEBHOOK, name)
 }
 
 func (c *Client) ValidateGrouper(name string) (*response.GenericResponse, error) {
-	apiEndpoint := c.sharedClient.FormatEndpoint(string(admissionsEndpoints.VALIDATE_GROUPER), name)
+	apiEndpoint := c.FormatEndpoint(string(admissionsEndpoints.VALIDATE_GROUPER), name)
 	request := requestUtils.CreateGenericRequest(base.POST, base.ADMISSION_OPERATOR, base.V1, base.Endpoint(apiEndpoint))
 	requestURL, err := request.GenerateURL()
 	if err != nil {

@@ -14,27 +14,21 @@ import (
 )
 
 type Client struct {
-	sharedClient *shared.Client
+	*shared.BaseResourceClient
 }
 
 func NewClient() *Client {
 	return &Client{
-		sharedClient: shared.NewClient(),
+		BaseResourceClient: shared.NewBaseResourceClient(base.EXPORTER, constants.RESOURCE_TYPE_BRIDGE),
 	}
 }
 
 func (c *Client) CreateBridge(bridge *bridgeResource.BridgeAsResource) *response.GenericResponse {
-	return c.sharedClient.CreateResource(
-		base.EXPORTER,
-		base.V1,
-		bridgeEndpoints.CREATE_BRIDGE,
-		bridge,
-		constants.RESOURCE_TYPE_BRIDGE,
-	)
+	return c.CreateResource(bridgeEndpoints.CREATE_BRIDGE, bridge)
 }
 
 func (c *Client) GetBridgeByName(name string) (*bridgeResource.BridgeAsResource, error) {
-	apiEndpoint := c.sharedClient.FormatEndpoint(string(bridgeEndpoints.GET_BRIDGE), name)
+	apiEndpoint := c.FormatEndpoint(string(bridgeEndpoints.GET_BRIDGE), name)
 	request := requestUtils.CreateGenericRequest(base.GET, base.EXPORTER, base.V1, base.Endpoint(apiEndpoint))
 	requestURL, err := request.GenerateURL()
 	if err != nil {
@@ -73,16 +67,9 @@ func (c *Client) GetAllBridges() ([]*bridgeResource.BridgeAsResource, error) {
 }
 
 func (c *Client) PatchBridge(name string, body map[string]interface{}) *response.GenericResponse {
-	return c.sharedClient.PatchResource(
-		bridgeEndpoints.PATCH_BRIDGE,
-		name,
-		body,
-	)
+	return c.PatchResource(bridgeEndpoints.PATCH_BRIDGE, name, body)
 }
 
 func (c *Client) DeleteBridge(name string) *response.GenericResponse {
-	return c.sharedClient.DeleteResource(
-		bridgeEndpoints.DELETE_BRIDGE,
-		name,
-	)
+	return c.DeleteResource(bridgeEndpoints.DELETE_BRIDGE, name)
 }

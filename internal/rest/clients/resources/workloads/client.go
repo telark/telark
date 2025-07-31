@@ -15,37 +15,25 @@ import (
 )
 
 type Client struct {
-	sharedClient *shared.Client
+	*shared.BaseResourceClient
 }
 
 func NewClient() *Client {
 	return &Client{
-		sharedClient: shared.NewClient(),
+		BaseResourceClient: shared.NewBaseResourceClient(base.EXPORTER, constants.RESOURCE_TYPE_APP_WORKLOAD),
 	}
 }
 
 func (c *Client) CreateAppWorkload(workload *appWorkload.AppWorkloadAsResource) *response.GenericResponse {
-	return c.sharedClient.CreateResource(
-		base.EXPORTER,
-		base.V1,
-		workloadsEndpoints.CREATE_APP_WORKLOAD,
-		workload,
-		constants.RESOURCE_TYPE_APP_WORKLOAD,
-	)
+	return c.CreateResource(workloadsEndpoints.CREATE_APP_WORKLOAD, workload)
 }
 
 func (c *Client) CreateBatchWorkload(workload batchWorkload.BatchWorkloadAsResource) *response.GenericResponse {
-	return c.sharedClient.CreateResource(
-		base.EXPORTER,
-		base.V1,
-		workloadsEndpoints.CREATE_BATCH_WORKLOAD,
-		workload,
-		constants.RESOURCE_TYPE_BATCH_WORKLOAD,
-	)
+	return c.CreateResource(workloadsEndpoints.CREATE_BATCH_WORKLOAD, workload)
 }
 
 func (c *Client) GetAppWorkloadByName(name string) (*appWorkload.AppWorkloadAsResource, error) {
-	apiEndpoint := c.sharedClient.FormatEndpoint(string(workloadsEndpoints.GET_APP_WORKLOAD), name)
+	apiEndpoint := c.FormatEndpoint(string(workloadsEndpoints.GET_APP_WORKLOAD), name)
 	request := requestUtils.CreateGenericRequest(base.GET, base.EXPORTER, base.V1, base.Endpoint(apiEndpoint))
 	requestURL, err := request.GenerateURL()
 	if err != nil {
@@ -84,16 +72,9 @@ func (c *Client) GetAllAppWorkloads() ([]*appWorkload.AppWorkloadAsResource, err
 }
 
 func (c *Client) PatchAppWorkload(name string, body map[string]interface{}) *response.GenericResponse {
-	return c.sharedClient.PatchResource(
-		workloadsEndpoints.PATCH_APP_WORKLOAD,
-		name,
-		body,
-	)
+	return c.PatchResource(workloadsEndpoints.PATCH_APP_WORKLOAD, name, body)
 }
 
 func (c *Client) DeleteAppWorkload(name string) *response.GenericResponse {
-	return c.sharedClient.DeleteResource(
-		workloadsEndpoints.DELETE_APP_WORKLOAD,
-		name,
-	)
+	return c.DeleteResource(workloadsEndpoints.DELETE_APP_WORKLOAD, name)
 }

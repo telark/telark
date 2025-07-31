@@ -13,33 +13,21 @@ import (
 )
 
 type Client struct {
-	sharedClient *shared.Client
+	*shared.BaseResourceClient
 }
 
 func NewClient() *Client {
 	return &Client{
-		sharedClient: shared.NewClient(),
+		BaseResourceClient: shared.NewBaseResourceClient(base.CONFIGURATOR, constants.RESOURCE_TYPE_MAINTENANCE),
 	}
 }
 
 func (c *Client) EnableGrouperMaintenance(body map[string]interface{}) *response.GenericResponse {
-	return c.sharedClient.CreateResource(
-		base.CONFIGURATOR,
-		base.V1,
-		maintenanceEndpoints.ENABLE_GROUPER_MAINTENANCE_FEAT,
-		body,
-		constants.RESOURCE_TYPE_MAINTENANCE,
-	)
+	return c.CreateResource(maintenanceEndpoints.ENABLE_GROUPER_MAINTENANCE_FEAT, body)
 }
 
 func (c *Client) UpdateGrouperMaintenance(body map[string]interface{}) *response.GenericResponse {
-	return c.sharedClient.CreateResource(
-		base.CONFIGURATOR,
-		base.V1,
-		maintenanceEndpoints.UPDATE_GROUPER_MAINTENANCE_FEAT,
-		body,
-		constants.RESOURCE_TYPE_MAINTENANCE,
-	)
+	return c.CreateResource(maintenanceEndpoints.UPDATE_GROUPER_MAINTENANCE_FEAT, body)
 }
 
 func (c *Client) RemoveGrouperMaintenance() *response.GenericResponse {

@@ -14,27 +14,21 @@ import (
 )
 
 type Client struct {
-	sharedClient *shared.Client
+	*shared.BaseResourceClient
 }
 
 func NewClient() *Client {
 	return &Client{
-		sharedClient: shared.NewClient(),
+		BaseResourceClient: shared.NewBaseResourceClient(base.EXPORTER, constants.RESOURCE_TYPE_GROUPER),
 	}
 }
 
 func (c *Client) CreateGrouper(grouperObj *grouper.GrouperAsResource) *response.GenericResponse {
-	return c.sharedClient.CreateResource(
-		base.EXPORTER,
-		base.V1,
-		grouperEndpoints.CREATE_GROUPER,
-		grouperObj,
-		constants.RESOURCE_TYPE_GROUPER,
-	)
+	return c.CreateResource(grouperEndpoints.CREATE_GROUPER, grouperObj)
 }
 
 func (c *Client) GetGrouperByName(name string) (*grouper.GrouperAsResource, error) {
-	apiEndpoint := c.sharedClient.FormatEndpoint(string(grouperEndpoints.GET_GROUPER), name)
+	apiEndpoint := c.FormatEndpoint(string(grouperEndpoints.GET_GROUPER), name)
 	request := requestUtils.CreateGenericRequest(base.GET, base.EXPORTER, base.V1, base.Endpoint(apiEndpoint))
 	requestURL, err := request.GenerateURL()
 	if err != nil {
@@ -73,16 +67,9 @@ func (c *Client) GetAllGroupers() ([]*grouper.GrouperAsResource, error) {
 }
 
 func (c *Client) PatchGrouper(name string, body map[string]interface{}) *response.GenericResponse {
-	return c.sharedClient.PatchResource(
-		grouperEndpoints.PATCH_GROUPER,
-		name,
-		body,
-	)
+	return c.PatchResource(grouperEndpoints.PATCH_GROUPER, name, body)
 }
 
 func (c *Client) DeleteGrouper(name string) *response.GenericResponse {
-	return c.sharedClient.DeleteResource(
-		grouperEndpoints.DELETE_GROUPER,
-		name,
-	)
+	return c.DeleteResource(grouperEndpoints.DELETE_GROUPER, name)
 }

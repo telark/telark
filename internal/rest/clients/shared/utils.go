@@ -31,7 +31,7 @@ func buildRequestURL(client *Client, method base.Method, endpoint base.Endpoint,
 func executeHTTPRequest(client *Client, method base.Method, endpoint base.Endpoint, payload []byte) (*http.Response, error) {
 	url, err := buildRequestURL(client, method, endpoint, payload)
 	if err != nil {
-		return nil, wrapError(string(constants.ERROR_FAILED_BUILD_REQUEST_URL), err)
+		return nil, wrapError(string(constants.ERROR_FAILED_GENERATE_REQUEST_URL), err)
 	}
 
 	if payload != nil {
@@ -49,7 +49,7 @@ func executeHTTPRequest(client *Client, method base.Method, endpoint base.Endpoi
 func marshalToJSON(payload any) ([]byte, error) {
 	data, err := json.Marshal(payload)
 	if err != nil {
-		return nil, wrapError(string(constants.ERROR_FAILED_MARSHAL_DATA), err)
+		return nil, wrapError(string(errors.ERROR_REST_MARSHALL_PAYLOAD), err)
 	}
 	return data, nil
 }

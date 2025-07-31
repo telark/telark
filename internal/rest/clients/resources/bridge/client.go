@@ -1,4 +1,4 @@
-package bridges
+package bridge
 
 import (
 	bridgeResource "github.com/plsyro/data-pkg/resources/bridge"

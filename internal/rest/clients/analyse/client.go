@@ -7,15 +7,27 @@ import (
 	"net/http"
 
 	"github.com/plsyro/rest-pkg/base"
+	"github.com/plsyro/rest-pkg/clients/shared"
 	"github.com/plsyro/rest-pkg/constants"
 	analyseEndpoints "github.com/plsyro/rest-pkg/endpoints/analyse"
 	restResponse "github.com/plsyro/rest-pkg/response"
 	requestUtils "github.com/plsyro/rest-pkg/utils/request"
 )
 
-type Client struct{}
+// Client provides a unified interface for analyse operations
+type Client struct {
+	sharedClient *shared.Client
+}
 
-func (AnalyseClient *Client) StartAnalyse() error {
+// NewClient creates a new Client instance
+func NewClient() *Client {
+	return &Client{
+		sharedClient: shared.NewClient(),
+	}
+}
+
+// StartAnalyse starts the analysis process
+func (c *Client) StartAnalyse() error {
 	// Prepare Request
 	request := requestUtils.CreateGenericRequest(base.POST, base.CONFIGURATOR, base.V1, analyseEndpoints.START_ANALYSE)
 
@@ -26,7 +38,7 @@ func (AnalyseClient *Client) StartAnalyse() error {
 	}
 
 	// Send POST Request
-	response, err := http.Post(requestURL, string(request.ContentType), nil)
+	response, err := http.Post(requestURL, constants.CONTENT_TYPE_JSON, nil)
 	if err != nil {
 		return fmt.Errorf(string(constants.ERROR_FAILED_SEND_POST_REQUEST), err)
 	}
@@ -46,7 +58,7 @@ func (AnalyseClient *Client) StartAnalyse() error {
 
 	// Check that all responses have status 202
 	for i, resp := range apiResponses {
-		if resp.Status != http.StatusAccepted {
+		if resp.Status != constants.HTTP_STATUS_ACCEPTED {
 			return fmt.Errorf(string(constants.ERROR_RESPONSE_NOT_202_STATUS), i, resp.Status)
 		}
 	}

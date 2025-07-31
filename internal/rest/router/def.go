@@ -8,7 +8,6 @@ import (
 	"github.com/plsyro/rest-pkg/base"
 )
 
-// Route represents a single API route definition.
 type Route struct {
 	Name       string
 	Method     string
@@ -16,7 +15,6 @@ type Route struct {
 	HandleFunc http.HandlerFunc
 }
 
-// NewRouter creates a new mux.Router from a slice of Route definitions.
 func NewRouter(Routes []Route) *mux.Router {
 	router := mux.NewRouter().StrictSlash(true)
 	for _, route := range Routes {
@@ -30,7 +28,6 @@ func NewRouter(Routes []Route) *mux.Router {
 	return router
 }
 
-// CreateRoute creates a Route for the given method, endpoint, and handler function.
 func CreateRoute(method base.Method, endpoint base.Endpoint, handlerFunc interface{}) Route {
 	return Route{
 		Method:     string(method),

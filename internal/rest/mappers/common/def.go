@@ -2,7 +2,6 @@ package common
 
 import "reflect"
 
-// MapToJsonPayload converts a struct to a map[string]interface{} using reflection.
 func MapToJsonPayload(input interface{}) map[string]interface{} {
 	result := make(map[string]interface{})
 	value := reflect.ValueOf(input)
@@ -19,7 +18,6 @@ func MapToJsonPayload(input interface{}) map[string]interface{} {
 		fieldType := typeOfInput.Field(i)
 		jsonTag := fieldType.Tag.Get("json")
 
-		// Use the JSON tag if available, otherwise use the field name
 		key := fieldType.Name
 		if jsonTag != "" && jsonTag != "-" {
 			key = jsonTag
@@ -41,7 +39,6 @@ func MapToJsonPayload(input interface{}) map[string]interface{} {
 			}
 			result[key] = slice
 		} else {
-			// Add scalar values
 			result[key] = field.Interface()
 		}
 	}

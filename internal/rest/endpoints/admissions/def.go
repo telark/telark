@@ -3,18 +3,9 @@ package admissions
 import "github.com/plsyro/rest-pkg/base"
 
 const (
-	// Create Endpoints
 	CREATE_ADMISSION_VALIDATING_WEBHOOK base.Endpoint = "admissions/validation/create"
-
-	// Get Endpoints
-	GET_ADMISSION_VALIDATING_WEBHOOK base.Endpoint = "admissions/validation/{name}/get"
-
-	// Patch Endpoints
-	PATCH_ADMISSION_VALIDATING_WEBHOOK base.Endpoint = "admissions/validation/{name}/patch"
-
-	// Delete Endpoints
+	GET_ADMISSION_VALIDATING_WEBHOOK    base.Endpoint = "admissions/validation/{name}/get"
+	PATCH_ADMISSION_VALIDATING_WEBHOOK  base.Endpoint = "admissions/validation/{name}/patch"
 	DELETE_ADMISSION_VALIDATING_WEBHOOK base.Endpoint = "admissions/validation/{name}/delete"
-
-	// Validate Endpoints
-	VALIDATE_GROUPER base.Endpoint = "admissions/validation/groupers/{name}/validate"
+	VALIDATE_GROUPER                    base.Endpoint = "admissions/validation/groupers/{name}/validate"
 )

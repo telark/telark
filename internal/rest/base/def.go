@@ -4,30 +4,32 @@ import (
 	"fmt"
 
 	"github.com/plsyro/data-pkg/common"
+	"github.com/plsyro/data-pkg/logging"
+	"github.com/plsyro/rest-pkg/constants"
 )
 
-type API struct {
-	Host        Host
-	Version     Version
-	Endpoint    Endpoint
-	ContentType ContentType
-	Payload     []byte
-	Method      Method
-}
-
-type Host struct {
-	Schema  Schema
-	Service Service
-	Port    Port
-}
-
-type Version string
-type Endpoint string
-type Schema string
-type Service string
-type ContentType string
-type Port int
-type Method string
+type (
+	Version     string
+	Endpoint    string
+	Schema      string
+	Service     string
+	ContentType string
+	Port        int
+	Method      string
+	Host        struct {
+		Schema  Schema
+		Service Service
+		Port    Port
+	}
+	API struct {
+		Host        Host
+		Version     Version
+		Endpoint    Endpoint
+		ContentType ContentType
+		Payload     []byte
+		Method      Method
+	}
+)
 
 const (
 	HTTP  Schema = "http://"
@@ -35,38 +37,25 @@ const (
 )
 
 const (
-	CONFIGURATOR       Service = "configurator"
-	EXPORTER           Service = "exporter"
-	ADMISSION_OPERATOR Service = "admission-operator"
-	SYNC_MANAGER       Service = "sync-manager"
-	NOTIFIER           Service = "notifier"
+	CONFIGURATOR       Service     = "configurator"
+	EXPORTER           Service     = "exporter"
+	ADMISSION_OPERATOR Service     = "admission-operator"
+	SYNC_MANAGER       Service     = "sync-manager"
+	NOTIFIER           Service     = "notifier"
+	JSON               ContentType = "application/json"
+	DEFAULT            Port        = 8080
+	UI_PORT            Port        = 3000
+	V1                 Version     = "api/v1"
+	GET                Method      = "GET"
+	POST               Method      = "POST"
+	UPDATE             Method      = "PUT"
+	DELETE             Method      = "DELETE"
+	PATCH              Method      = "PATCH"
 )
 
-const (
-	JSON ContentType = "application/json"
-)
-
-const (
-	DEFAULT Port = 8080
-	UI_PORT Port = 3000
-)
-
-const (
-	V1 Version = "api/v1"
-)
-
-const (
-	GET    Method = "GET"
-	POST   Method = "POST"
-	UPDATE Method = "PUT"
-	DELETE Method = "DELETE"
-	PATCH  Method = "PATCH"
-)
-
-// GenerateURL constructs the full API URL for the given API struct.
 func (api *API) GenerateURL() (string, error) {
 	if err := api.Validate(); err != nil {
-		return "", fmt.Errorf("validation failed: %w", err)
+		return "", fmt.Errorf(constants.VALIDATION_FAILED, err)
 	}
 
 	serviceName := GetServiceName(api.Host.Service)
@@ -77,24 +66,26 @@ func (api *API) GenerateURL() (string, error) {
 	return fmt.Sprintf("%s%s:%d/%s/%s", api.Host.Schema, serviceName, api.Host.Port, api.Version, api.Endpoint), nil
 }
 
-// Validate checks if the API struct has all required fields set.
 func (api *API) Validate() error {
 	if api.Host.Schema == "" {
-		return fmt.Errorf("schema is required")
+		return fmt.Errorf(constants.SCHEMA_IS_REQUIRED)
 	}
 	if api.Host.Service == "" {
-		return fmt.Errorf("service is required")
+		return fmt.Errorf(constants.SERVICE_IS_REQUIRED)
 	}
 	if api.Version == "" {
-		return fmt.Errorf("version is required")
+		return fmt.Errorf(constants.VERSION_IS_REQUIRED)
 	}
 	if api.Endpoint == "" {
-		return fmt.Errorf("endpoint is required")
+		return fmt.Errorf(constants.ENDPOINT_IS_REQUIRED)
 	}
 	return nil
 }
 
-// GetServiceName returns the full service name with namespace prefix.
 func GetServiceName(service Service) string {
 	return fmt.Sprintf("%s-%s-service", common.BaseNamespace, service)
+}
+
+func GetLogger(service Service) *logging.CustomLogger {
+	return logging.NewCustomLogger("Rest: ")
 }

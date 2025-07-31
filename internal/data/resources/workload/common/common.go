@@ -35,14 +35,14 @@ type Crate struct {
 }
 
 type Usage struct {
-	Qos       string   `json:"qos"`
+	QoS       string   `json:"qos"`
 	Resources Resource `json:"resources"`
 	Available bool     `json:"available"`
 	Timestamp string   `json:"timestamp"`
 }
 
 type Resource struct {
-	TotalCpu         string             `json:"totalCpu"`
+	TotalCPU         string             `json:"totalCpu"`
 	TotalMemory      string             `json:"totalMemory"`
 	UsagePerInstance []UsagePerInstance `json:"usagePerInstance"`
 }
@@ -98,4 +98,10 @@ const (
 const (
 	PRV RegType = "Private"
 	PUB RegType = "Public"
+)
+
+const (
+	NONE_STRATEGY_TYPE       = "None"
+	READY_CONDITION_TYPE     = "Ready"
+	AVAILABLE_CONDITION_TYPE = "Available"
 )

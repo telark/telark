@@ -1,6 +1,9 @@
 package common
 
-import "time"
+import (
+	"net/http"
+	"time"
+)
 
 var BaseNamespace = "plsyro"
 
@@ -65,4 +68,11 @@ const (
 	DEFAULT_CPU         = "N/A"
 	DEFAULT_MEMORY      = "N/A"
 	SIDECAR_PATH_KW     = "/opt,/log,/monitoring"
+)
+
+const (
+	STATUS_OK                    = http.StatusOK
+	STATUS_BAD_REQUEST           = http.StatusBadRequest
+	STATUS_INTERNAL_SERVER_ERROR = http.StatusInternalServerError
+	NONE                         = "None"
 )

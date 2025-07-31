@@ -5,10 +5,6 @@ import (
 	response "github.com/plsyro/rest-pkg/response"
 )
 
-type BaseClient struct {
-	client *Client
-}
-
 func NewBaseClient(service base.Service) *BaseClient {
 	return &BaseClient{
 		client: New(service),

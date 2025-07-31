@@ -15,11 +15,6 @@ import (
 	responseUtils "github.com/plsyro/rest-pkg/utils/response"
 )
 
-type Client struct {
-	httpClient *http.Client
-	service    base.Service
-}
-
 func New(service base.Service) *Client {
 	return &Client{
 		httpClient: &http.Client{Timeout: 30 * time.Second},

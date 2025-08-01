@@ -4,6 +4,8 @@ type (
 	Type       string
 	SourceType string
 	Mode       string
+	Action     string
+	DataScope  string
 	SyncStatus string
 	Fasid      struct {
 		Name         string     `json:"name"`
@@ -55,4 +57,15 @@ const (
 	SYNC_MODE_AUTO      Mode       = "auto"
 	SYNC_STATUS_SUCCESS SyncStatus = "success"
 	SYNC_STATUS_FAILED  SyncStatus = "failed"
+	ACTION_SET          Action     = "set"
+	ACTION_ADD          Action     = "add"
+	ACTION_DELETE       Action     = "delete"
+	ACTION_UPDATE       Action     = "update"
+	EVENT_ADD           Action     = "ADD"
+	EVENT_UPDATE        Action     = "UPDATE"
+	EVENT_REMOVE        Action     = "REMOVE"
+	FASID_DATA_SCOPE    DataScope  = "fasid"
+	CACID_DATA_SCOPE    DataScope  = "cacid"
+	FULL_DATA_SCOPE     DataScope  = "full"
+	NONE_DATA_SCOPE     DataScope  = "none"
 )

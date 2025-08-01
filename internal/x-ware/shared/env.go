@@ -1,7 +1,7 @@
 package shared
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"strconv"
 )
@@ -17,7 +17,7 @@ func GetEnvString(config EnvConfig) (string, error) {
 	value := os.Getenv(config.Key)
 	if value == "" {
 		if config.Required {
-			return "", fmt.Errorf(config.ErrorMsg)
+			return "", errors.New(config.ErrorMsg)
 		}
 		return config.DefaultValue, nil
 	}
@@ -28,7 +28,7 @@ func GetEnvInt(config EnvConfig) (int, error) {
 	value := os.Getenv(config.Key)
 	if value == "" {
 		if config.Required {
-			return 0, fmt.Errorf(config.ErrorMsg)
+			return 0, errors.New(config.ErrorMsg)
 		}
 		if config.DefaultValue != "" {
 			return strconv.Atoi(config.DefaultValue)
@@ -42,7 +42,7 @@ func GetEnvBool(config EnvConfig) (bool, error) {
 	value := os.Getenv(config.Key)
 	if value == "" {
 		if config.Required {
-			return false, fmt.Errorf(config.ErrorMsg)
+			return false, errors.New(config.ErrorMsg)
 		}
 		if config.DefaultValue != "" {
 			return strconv.ParseBool(config.DefaultValue)

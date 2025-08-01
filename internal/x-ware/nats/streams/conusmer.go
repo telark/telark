@@ -1,0 +1,23 @@
+package streams
+
+import (
+	"github.com/nats-io/nats.go"
+	"github.com/plsyro/data-pkg/middlewares/nats/core"
+)
+
+func DefaultConsumerConfig() *nats.ConsumerConfig {
+	return &nats.ConsumerConfig{
+		DeliverPolicy: nats.DeliverAllPolicy,
+		AckPolicy:     nats.AckExplicitPolicy,
+		MaxDeliver:    STREAM_MAX_DELIVER_COUNT,
+	}
+}
+
+func CreateConsumer(c *core.NATSClient, streamName, consumerName, topic, queue string) (*nats.ConsumerInfo, error) {
+	cfg := DefaultConsumerConfig()
+	cfg.Name = consumerName
+	cfg.Durable = consumerName
+	cfg.FilterSubject = topic
+	cfg.DeliverGroup = queue
+	return c.JetStream.AddConsumer(streamName, cfg)
+}

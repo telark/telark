@@ -1,6 +1,8 @@
 package core
 
 import (
+	"context"
+	"sync"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -34,30 +36,11 @@ type (
 		RetryDelay     time.Duration
 		ProcessTimeout time.Duration
 	}
-)
-
-const (
-	// Self
-	CLIENT            Port = 4222
-	MONITORING        Port = 8222
-	NATS_SERVICE_NAME      = "nats-service"
-
-	// Resource Types
-	GROUPER         Group = "groupers"
-	APP_WORKLOADS   Group = "workloads_apps"
-	BATCH_WORKLOADS Group = "workloads_batches"
-	BRIDGES         Group = "bridges"
-
-	// Actions
-	CREATE Action = "create"
-	UPDATE Action = "update"
-	DELETE Action = "delete"
-
-	// Config
-	maxRetries = 5
-	retryDelay = 5 * time.Second
-
-	// Prefixes & Keys
-	PREFIX_ACK         = "$JS.ACK."
-	KEY_PARSED_MESSAGE = "parsed_message"
+	NatsManager struct {
+		client      *NATSClient
+		mu          sync.RWMutex
+		ctx         context.Context
+		cancel      context.CancelFunc
+		isConnected bool
+	}
 )

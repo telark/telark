@@ -10,12 +10,11 @@ import (
 	"github.com/plsyro/data-pkg/errors"
 )
 
-func InitNatsClient(ctx context.Context, user, password string) (*NATSClient, error) {
+func InitClient(ctx context.Context, user, password string) (*NATSClient, error) {
 	if user == "" || password == "" {
 		return nil, fmt.Errorf(string(errors.ERROR_NATS_AUTH))
 	}
 
-	// Set Config
 	config := NATSConfig{
 		User:     user,
 		Password: password,
@@ -26,12 +25,12 @@ func InitNatsClient(ctx context.Context, user, password string) (*NATSClient, er
 
 	operation := func() error {
 		var err error
-		client, err = newClient(config)
+		client, err = initJetStreamClient(config)
 		return err
 	}
 
 	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.MaxElapsedTime = 10 * time.Second // adjust as needed
+	expBackoff.MaxElapsedTime = time.Duration(DEFAULT_CONNECTION_TIMEOUT) * time.Second
 
 	err := backoff.RetryNotify(operation, backoff.WithContext(expBackoff, ctx), func(err error, d time.Duration) {
 		fmt.Printf(string(errors.ERROR_NATS_CONNECTION_FAILED), d, err)
@@ -42,16 +41,14 @@ func InitNatsClient(ctx context.Context, user, password string) (*NATSClient, er
 	return client, nil
 }
 
-func newClient(NatsConfig NATSConfig) (*NATSClient, error) {
+func initJetStreamClient(NatsConfig NATSConfig) (*NATSClient, error) {
 	url := GetNATSClientUrl()
 
-	// Connect to NATS
 	nc, err := nats.Connect(url, nats.UserInfo(NatsConfig.User, NatsConfig.Password))
 	if err != nil {
 		return nil, fmt.Errorf(string(errors.ERROR_NATS_FAILED_CON), err)
 	}
 
-	// Create JetStream Context
 	js, err := nc.JetStream()
 	if err != nil {
 		nc.Close()

@@ -21,4 +21,11 @@ type (
 		MessageValidator
 		MessageProcessor
 	}
+	NatsManagerInterface interface {
+		GetClient() (*NATSClient, error)
+		IsConnected() bool
+		Close() error
+		Reconnect() error
+		GetConnectionStatus() (bool, error)
+	}
 )

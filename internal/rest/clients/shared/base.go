@@ -2,7 +2,7 @@ package shared
 
 import (
 	"github.com/plsyro/rest-pkg/base"
-	response "github.com/plsyro/rest-pkg/response"
+	"github.com/plsyro/rest-pkg/response"
 )
 
 func NewBaseClient(service base.Service) *BaseClient {

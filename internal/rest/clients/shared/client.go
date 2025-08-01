@@ -23,7 +23,12 @@ func New(service base.Service) *Client {
 }
 
 func (c *Client) Create(endpoint base.Endpoint, resource any) *response.GenericResponse {
-	payload, err := marshalToJSON(restMapper.MapToJsonPayload(resource))
+	mappedPayload, err := restMapper.MapToJsonPayload(resource)
+	if err != nil {
+		return createErrorResponse(string(errors.ERROR_REST_MARSHALL_PAYLOAD), err)
+	}
+
+	payload, err := marshalToJSON(mappedPayload)
 	if err != nil {
 		return createErrorResponse(string(errors.ERROR_REST_MARSHALL_PAYLOAD), err)
 	}

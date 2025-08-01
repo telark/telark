@@ -3,34 +3,46 @@ package core
 import (
 	"context"
 	"fmt"
-	"os"
-	"strconv"
 
+	"github.com/plsyro/x-ware/shared"
 	"github.com/redis/go-redis/v9"
 )
 
 func InitClient(ctx context.Context) (*RedisClient, error) {
-	host := os.Getenv(ENV_REDIS_HOST)
-	if host == "" {
-		host = DEFAULT_HOST
+	host, err := shared.GetEnvString(shared.EnvConfig{
+		Key:          ENV_REDIS_HOST,
+		DefaultValue: DEFAULT_HOST,
+		Required:     false,
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	port := os.Getenv(ENV_REDIS_PORT)
-	if port == "" {
-		port = DEFAULT_PORT
+	port, err := shared.GetEnvString(shared.EnvConfig{
+		Key:          ENV_REDIS_PORT,
+		DefaultValue: DEFAULT_PORT,
+		Required:     false,
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	password := os.Getenv(ENV_REDIS_PASSWORD)
-	if password == "" {
-		password = DEFAULT_PASSWORD
+	password, err := shared.GetEnvString(shared.EnvConfig{
+		Key:          ENV_REDIS_PASSWORD,
+		DefaultValue: DEFAULT_PASSWORD,
+		Required:     false,
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	dbStr := os.Getenv(ENV_REDIS_DB)
-	db := DEFAULT_DB
-	if dbStr != "" {
-		if dbInt, err := strconv.Atoi(dbStr); err == nil {
-			db = dbInt
-		}
+	db, err := shared.GetEnvInt(shared.EnvConfig{
+		Key:          ENV_REDIS_DB,
+		DefaultValue: fmt.Sprintf("%d", DEFAULT_DB),
+		Required:     false,
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	client := redis.NewClient(&redis.Options{

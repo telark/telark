@@ -3,7 +3,8 @@ package core
 import (
 	"context"
 	"fmt"
-	"os"
+
+	"github.com/plsyro/x-ware/shared"
 )
 
 func NewNatsManager() NatsManagerInterface {
@@ -68,14 +69,22 @@ func (nm *NatsManager) Close() error {
 }
 
 func (nm *NatsManager) InitNatsClient() (*NATSClient, error) {
-	user := os.Getenv(ENV_NATS_USER)
-	password := os.Getenv(ENV_NATS_PASSWORD)
-
-	if user == "" {
-		return nil, fmt.Errorf(string(ERROR_NATS_USER_REQUIRED))
+	user, err := shared.GetEnvString(shared.EnvConfig{
+		Key:      ENV_NATS_USER,
+		Required: true,
+		ErrorMsg: string(ERROR_NATS_USER_REQUIRED),
+	})
+	if err != nil {
+		return nil, err
 	}
-	if password == "" {
-		return nil, fmt.Errorf(string(ERROR_NATS_PASSWORD_REQUIRED))
+
+	password, err := shared.GetEnvString(shared.EnvConfig{
+		Key:      ENV_NATS_PASSWORD,
+		Required: true,
+		ErrorMsg: string(ERROR_NATS_PASSWORD_REQUIRED),
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	client, err := InitClient(nm.ctx, user, password)

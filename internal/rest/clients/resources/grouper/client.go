@@ -9,12 +9,12 @@ import (
 )
 
 type Client struct {
-	*shared.BaseClient
+	*shared.Client
 }
 
 func NewClient() *Client {
 	return &Client{
-		BaseClient: shared.NewBaseClient(base.EXPORTER),
+		Client: shared.New(base.EXPORTER),
 	}
 }
 
@@ -23,11 +23,11 @@ func (c *Client) CreateGrouper(grouper *grouperResource.GrouperAsResource) *resp
 }
 
 func (c *Client) GetGrouperByName(name string) (*grouperResource.GrouperAsResource, error) {
-	return shared.GetTypedBase[grouperResource.GrouperAsResource](c.BaseClient, grouperEndpoints.GET_GROUPER, name)
+	return shared.GetTyped[grouperResource.GrouperAsResource](c.Client, grouperEndpoints.GET_GROUPER, name)
 }
 
 func (c *Client) GetAllGroupers() ([]*grouperResource.GrouperAsResource, error) {
-	return shared.GetListTypedBase[*grouperResource.GrouperAsResource](c.BaseClient, grouperEndpoints.GET_ALL_GROUPERS)
+	return shared.GetListTyped[*grouperResource.GrouperAsResource](c.Client, grouperEndpoints.GET_ALL_GROUPERS)
 }
 
 func (c *Client) PatchGrouper(name string, body map[string]interface{}) *response.GenericResponse {

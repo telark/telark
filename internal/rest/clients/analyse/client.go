@@ -17,12 +17,12 @@ import (
 )
 
 type Client struct {
-	*shared.BaseClient
+	*shared.Client
 }
 
 func NewClient() *Client {
 	return &Client{
-		BaseClient: shared.NewBaseClient(base.CONFIGURATOR),
+		Client: shared.New(base.CONFIGURATOR),
 	}
 }
 

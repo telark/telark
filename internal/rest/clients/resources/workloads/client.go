@@ -10,12 +10,12 @@ import (
 )
 
 type Client struct {
-	*shared.BaseClient
+	*shared.Client
 }
 
 func NewClient() *Client {
 	return &Client{
-		BaseClient: shared.NewBaseClient(base.EXPORTER),
+		Client: shared.New(base.EXPORTER),
 	}
 }
 
@@ -28,19 +28,19 @@ func (c *Client) CreateBatchWorkload(workload batchWorkload.BatchWorkloadAsResou
 }
 
 func (c *Client) GetAppWorkloadByName(name string) (*appWorkload.AppWorkloadAsResource, error) {
-	return shared.GetTypedBase[appWorkload.AppWorkloadAsResource](c.BaseClient, workloadsEndpoints.GET_APP_WORKLOAD, name)
+	return shared.GetTyped[appWorkload.AppWorkloadAsResource](c.Client, workloadsEndpoints.GET_APP_WORKLOAD, name)
 }
 
 func (c *Client) GetBatchWorkloadByName(name string) (*batchWorkload.BatchWorkloadAsResource, error) {
-	return shared.GetTypedBase[batchWorkload.BatchWorkloadAsResource](c.BaseClient, workloadsEndpoints.GET_BATCH_WORKLOAD, name)
+	return shared.GetTyped[batchWorkload.BatchWorkloadAsResource](c.Client, workloadsEndpoints.GET_BATCH_WORKLOAD, name)
 }
 
 func (c *Client) GetAllAppWorkloads() ([]*appWorkload.AppWorkloadAsResource, error) {
-	return shared.GetListTypedBase[*appWorkload.AppWorkloadAsResource](c.BaseClient, workloadsEndpoints.GET_ALL_APPS_WORKLOADS)
+	return shared.GetListTyped[*appWorkload.AppWorkloadAsResource](c.Client, workloadsEndpoints.GET_ALL_APPS_WORKLOADS)
 }
 
 func (c *Client) GetAllBatchWorkloads() ([]*batchWorkload.BatchWorkloadAsResource, error) {
-	return shared.GetListTypedBase[*batchWorkload.BatchWorkloadAsResource](c.BaseClient, workloadsEndpoints.GET_ALL_BATCHES_WORKLOADS)
+	return shared.GetListTyped[*batchWorkload.BatchWorkloadAsResource](c.Client, workloadsEndpoints.GET_ALL_BATCHES_WORKLOADS)
 }
 
 func (c *Client) PatchAppWorkload(name string, body map[string]interface{}) *response.GenericResponse {

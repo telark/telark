@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/plsyro/data-pkg/common"
 	"github.com/plsyro/data-pkg/errors"
@@ -16,24 +15,28 @@ import (
 )
 
 func New(service base.Service) *Client {
+	return NewWithConfig(service, DefaultClientConfig())
+}
+
+func NewWithConfig(service base.Service, config *ClientConfig) *Client {
 	return &Client{
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient: &http.Client{Timeout: config.Timeout},
 		service:    service,
+		config:     config,
 	}
 }
 
-func (c *Client) Create(endpoint base.Endpoint, resource any) *response.GenericResponse {
-	mappedPayload, err := restMapper.MapToJsonPayload(resource)
-	if err != nil {
-		return createErrorResponse(string(errors.ERROR_REST_MARSHALL_PAYLOAD), err)
+func (c *Client) executeRequest(method base.Method, endpoint base.Endpoint, payload any) *response.GenericResponse {
+	var jsonPayload []byte
+	var err error
+	if payload != nil {
+		jsonPayload, err = marshalToJSON(payload)
+		if err != nil {
+			return createErrorResponse(string(errors.ERROR_REST_MARSHALL_PAYLOAD), err)
+		}
 	}
 
-	payload, err := marshalToJSON(mappedPayload)
-	if err != nil {
-		return createErrorResponse(string(errors.ERROR_REST_MARSHALL_PAYLOAD), err)
-	}
-
-	resp, err := executeHTTPRequest(c, base.POST, endpoint, payload)
+	resp, err := executeHTTPRequest(c, method, endpoint, jsonPayload)
 	if err != nil {
 		return createErrorResponse(string(errors.ERROR_CREATE_RESOURCE), err)
 	}
@@ -41,32 +44,17 @@ func (c *Client) Create(endpoint base.Endpoint, resource any) *response.GenericR
 	return responseUtils.ReadAndParseGenericResponse(resp)
 }
 
-func (c *Client) Update(endpoint base.Endpoint, name string, body map[string]any) *response.GenericResponse {
-	payload, err := marshalToJSON(body)
-	if err != nil {
-		return createErrorResponse(string(errors.ERROR_REST_MARSHALL_PAYLOAD), err)
+func (c *Client) executeRequestWithError(method base.Method, endpoint base.Endpoint, payload any) (*response.GenericResponse, error) {
+	var jsonPayload []byte
+	var err error
+	if payload != nil {
+		jsonPayload, err = marshalToJSON(payload)
+		if err != nil {
+			return nil, fmt.Errorf(string(errors.ERROR_REST_MARSHALL_PAYLOAD), err)
+		}
 	}
 
-	resp, err := executeHTTPRequest(c, base.PATCH, substituteEndpointName(endpoint, name), payload)
-	if err != nil {
-		return createErrorResponse(string(errors.ERROR_UPDATE_RESOURCE), err)
-	}
-
-	return responseUtils.ReadAndParseGenericResponse(resp)
-}
-
-func (c *Client) Delete(endpoint base.Endpoint, name string) *response.GenericResponse {
-	resp, err := executeHTTPRequest(c, base.DELETE, substituteEndpointName(endpoint, name), nil)
-	if err != nil {
-		message := fmt.Sprintf(string(errors.ERROR_DELETE_RESOURCE), name, err)
-		return createErrorResponse(message, err)
-	}
-
-	return responseUtils.ReadAndParseGenericResponse(resp)
-}
-
-func (c *Client) Get(endpoint base.Endpoint, name string) (*response.GenericResponse, error) {
-	resp, err := executeHTTPRequest(c, base.GET, substituteEndpointName(endpoint, name), nil)
+	resp, err := executeHTTPRequest(c, method, endpoint, jsonPayload)
 	if err != nil {
 		return nil, err
 	}
@@ -79,6 +67,30 @@ func (c *Client) Get(endpoint base.Endpoint, name string) (*response.GenericResp
 	return apiResponse, nil
 }
 
+func (c *Client) Create(endpoint base.Endpoint, resource any) *response.GenericResponse {
+	mappedPayload, err := restMapper.MapToJsonPayload(resource)
+	if err != nil {
+		return createErrorResponse(string(errors.ERROR_REST_MARSHALL_PAYLOAD), err)
+	}
+
+	return c.executeRequest(base.POST, endpoint, mappedPayload)
+}
+
+func (c *Client) Update(endpoint base.Endpoint, name string, body map[string]any) *response.GenericResponse {
+	substitutedEndpoint := substituteEndpointName(endpoint, name)
+	return c.executeRequest(base.PATCH, substitutedEndpoint, body)
+}
+
+func (c *Client) Delete(endpoint base.Endpoint, name string) *response.GenericResponse {
+	substitutedEndpoint := substituteEndpointName(endpoint, name)
+	return c.executeRequest(base.DELETE, substitutedEndpoint, nil)
+}
+
+func (c *Client) Get(endpoint base.Endpoint, name string) (*response.GenericResponse, error) {
+	substitutedEndpoint := substituteEndpointName(endpoint, name)
+	return c.executeRequestWithError(base.GET, substitutedEndpoint, nil)
+}
+
 func (c *Client) GetList(endpoint base.Endpoint) ([]any, error) {
 	resp, err := executeHTTPRequest(c, base.GET, endpoint, nil)
 	if err != nil {
@@ -86,6 +98,14 @@ func (c *Client) GetList(endpoint base.Endpoint) ([]any, error) {
 	}
 
 	return parseListResponse[any](resp)
+}
+
+func (c *Client) Post(endpoint base.Endpoint) (*response.GenericResponse, error) {
+	return c.executeRequestWithError(base.POST, endpoint, nil)
+}
+
+func (c *Client) DeleteNoParams(endpoint base.Endpoint) *response.GenericResponse {
+	return c.executeRequest(base.DELETE, endpoint, nil)
 }
 
 func GetTyped[T any](client *Client, endpoint base.Endpoint, name string) (*T, error) {
@@ -106,25 +126,14 @@ func GetListTyped[T any](client *Client, endpoint base.Endpoint) ([]T, error) {
 	return parseListResponse[T](resp)
 }
 
-func (c *Client) Post(endpoint base.Endpoint) (*response.GenericResponse, error) {
-	resp, err := executeHTTPRequest(c, base.POST, endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return responseUtils.ReadAndParseGenericResponse(resp), nil
-}
-
-func (c *Client) DeleteNoParams(endpoint base.Endpoint) *response.GenericResponse {
-	resp, err := executeHTTPRequest(c, base.DELETE, endpoint, nil)
-	if err != nil {
-		message := fmt.Sprintf(string(errors.ERROR_DELETE_RESOURCE), "", err)
-		return createErrorResponse(message, err)
-	}
-
-	return responseUtils.ReadAndParseGenericResponse(resp)
-}
-
 func (c *Client) FormatEndpoint(template, name string) string {
 	return strings.Replace(template, constants.ENDPOINT_NAME_PLACEHOLDER, name, 1)
+}
+
+func (c *Client) GetService() base.Service {
+	return c.service
+}
+
+func (c *Client) GetHTTPClient() *http.Client {
+	return c.httpClient
 }

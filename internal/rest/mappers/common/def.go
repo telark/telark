@@ -14,7 +14,6 @@ func MapToJsonPayload(input any) (map[string]any, error) {
 	result := make(map[string]any)
 	value := reflect.ValueOf(input)
 
-	// Handle pointers
 	if value.Kind() == reflect.Ptr {
 		if value.IsNil() {
 			return nil, nil
@@ -22,7 +21,6 @@ func MapToJsonPayload(input any) (map[string]any, error) {
 		value = value.Elem()
 	}
 
-	// Only process structs
 	if value.Kind() != reflect.Struct {
 		return result, nil
 	}
@@ -32,18 +30,15 @@ func MapToJsonPayload(input any) (map[string]any, error) {
 		field := value.Field(i)
 		fieldType := typeOfInput.Field(i)
 
-		// Parse JSON tag with options
 		key, omitEmpty := parseJSONTag(fieldType.Tag.Get("json"))
 		if key == "-" {
-			continue // Skip ignored fields
+			continue
 		}
 
-		// Handle omitempty for zero values
 		if omitEmpty && isZeroValue(field) {
 			continue
 		}
 
-		// Process field value
 		fieldValue, err := processFieldValue(field)
 		if err != nil {
 			return nil, err
@@ -57,7 +52,6 @@ func MapToJsonPayload(input any) (map[string]any, error) {
 	return result, nil
 }
 
-// parseJSONTag extracts field name and options from JSON tag
 func parseJSONTag(tag string) (string, bool) {
 	if tag == "" {
 		return "", false
@@ -153,7 +147,6 @@ func processMapValue(field reflect.Value) (any, error) {
 		key := iter.Key()
 		value := iter.Value()
 
-		// Convert key to string
 		keyStr, ok := key.Interface().(string)
 		if !ok {
 			keyStr = fmt.Sprintf("%v", key.Interface())

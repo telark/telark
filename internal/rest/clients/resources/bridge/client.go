@@ -9,12 +9,12 @@ import (
 )
 
 type Client struct {
-	*shared.BaseClient
+	*shared.Client
 }
 
 func NewClient() *Client {
 	return &Client{
-		BaseClient: shared.NewBaseClient(base.EXPORTER),
+		Client: shared.New(base.EXPORTER),
 	}
 }
 
@@ -23,11 +23,11 @@ func (c *Client) CreateBridge(bridge *bridgeResource.BridgeAsResource) *response
 }
 
 func (c *Client) GetBridgeByName(name string) (*bridgeResource.BridgeAsResource, error) {
-	return shared.GetTypedBase[bridgeResource.BridgeAsResource](c.BaseClient, bridgeEndpoints.GET_BRIDGE, name)
+	return shared.GetTyped[bridgeResource.BridgeAsResource](c.Client, bridgeEndpoints.GET_BRIDGE, name)
 }
 
 func (c *Client) GetAllBridges() ([]*bridgeResource.BridgeAsResource, error) {
-	return shared.GetListTypedBase[*bridgeResource.BridgeAsResource](c.BaseClient, bridgeEndpoints.GET_ALL_BRIDGES)
+	return shared.GetListTyped[*bridgeResource.BridgeAsResource](c.Client, bridgeEndpoints.GET_ALL_BRIDGES)
 }
 
 func (c *Client) PatchBridge(name string, body map[string]interface{}) *response.GenericResponse {

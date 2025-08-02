@@ -86,6 +86,8 @@ func parseListResponse[T any](resp *http.Response) ([]T, error) {
 		return nil, err
 	}
 
+	fmt.Printf("List response body: %s\n", string(body))
+
 	var apiResp struct {
 		Data struct {
 			Items []T `json:"items"`

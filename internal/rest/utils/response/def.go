@@ -49,13 +49,17 @@ func ReadAndParseGenericResponse(resp *http.Response) *response.GenericResponse 
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		LogAndReturnResponse(http.StatusInternalServerError, response.OPERATION_ERROR, string(errors.ERROR_REST_READ_RESPONSE_BODY), nil, err)
+		logger.Error(fmt.Sprintf("Failed to read response body: %v", err))
+		return LogAndReturnResponse(http.StatusInternalServerError, response.OPERATION_ERROR, string(errors.ERROR_REST_READ_RESPONSE_BODY), nil, err)
 	}
+
+	logger.Info(fmt.Sprintf("Response body: %s", string(body)))
 
 	var genericResp response.GenericResponse
 	err = json.Unmarshal(body, &genericResp)
 	if err != nil {
-		LogAndReturnResponse(http.StatusUnprocessableEntity, response.OPERATION_ERROR, string(errors.ERROR_REST_UNMARSHALL_RESPONSE_TO_GENERIC), nil, err)
+		logger.Error(fmt.Sprintf("Failed to unmarshal JSON response: %v, Body: %s", err, string(body)))
+		return LogAndReturnResponse(http.StatusUnprocessableEntity, response.OPERATION_ERROR, fmt.Sprintf("Error while unmarshaling JSON Response to Generic Response: %v", err), nil, err)
 	}
 
 	return &genericResp

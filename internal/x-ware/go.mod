@@ -7,6 +7,7 @@ require (
 	github.com/nats-io/nats.go v1.44.0
 	github.com/plsyro/data-pkg v1.9.20
 	github.com/redis/go-redis/v9 v9.11.0
+	github.com/rs/cors v1.11.1
 )
 
 require (

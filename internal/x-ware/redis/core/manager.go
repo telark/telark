@@ -105,7 +105,9 @@ func (rm *RedisManager) Reconnect() error {
 	defer rm.mu.Unlock()
 
 	if rm.client != nil && rm.client.Client != nil {
-		rm.client.Client.Close()
+		if err := rm.client.Client.Close(); err != nil {
+			return fmt.Errorf(string(ERROR_FAILED_CLOSE_REDIS_CLIENT), err)
+		}
 		rm.client = nil
 		rm.isConnected = false
 	}

@@ -12,7 +12,7 @@ import (
 
 func InitClient(ctx context.Context, user, password string) (*NATSClient, error) {
 	if user == "" || password == "" {
-		return nil, fmt.Errorf(string(errors.ERROR_NATS_AUTH))
+		return nil, fmt.Errorf("%s", errors.ERROR_NATS_AUTH)
 	}
 
 	config := NATSConfig{

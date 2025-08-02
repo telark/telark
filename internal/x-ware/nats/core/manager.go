@@ -117,7 +117,7 @@ func (nm *NatsManager) Reconnect() error {
 
 func (nm *NatsManager) GetConnectionStatus() (bool, error) {
 	if !nm.IsConnected() {
-		return false, fmt.Errorf(string(ERROR_NATS_CLIENT_NOT_CONNECTED))
+		return false, fmt.Errorf("%s", ERROR_NATS_CLIENT_NOT_CONNECTED)
 	}
 	return true, nil
 }

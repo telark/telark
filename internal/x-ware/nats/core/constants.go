@@ -1,8 +1,6 @@
 package core
 
 import (
-	"time"
-
 	"github.com/plsyro/data-pkg/errors"
 )
 
@@ -37,9 +35,6 @@ const (
 	CREATE Action = "create"
 	UPDATE Action = "update"
 	DELETE Action = "delete"
-
-	maxRetries = 5
-	retryDelay = 5 * time.Second
 
 	PREFIX_ACK         = "$JS.ACK."
 	KEY_PARSED_MESSAGE = "parsed_message"

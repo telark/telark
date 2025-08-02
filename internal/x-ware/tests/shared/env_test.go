@@ -8,8 +8,14 @@ import (
 )
 
 func TestGetEnvString_WithValue(t *testing.T) {
-	os.Setenv("TEST_KEY", "test_value")
-	defer os.Unsetenv("TEST_KEY")
+	if err := os.Setenv("TEST_KEY", "test_value"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("TEST_KEY"); err != nil {
+			t.Errorf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
 	value, err := shared.GetEnvString(shared.EnvConfig{
 		Key:      "TEST_KEY",
@@ -49,8 +55,14 @@ func TestGetEnvString_Required(t *testing.T) {
 }
 
 func TestGetEnvInt_WithValue(t *testing.T) {
-	os.Setenv("TEST_INT", "42")
-	defer os.Unsetenv("TEST_INT")
+	if err := os.Setenv("TEST_INT", "42"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("TEST_INT"); err != nil {
+			t.Errorf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
 	value, err := shared.GetEnvInt(shared.EnvConfig{
 		Key:      "TEST_INT",

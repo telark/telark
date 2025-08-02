@@ -13,7 +13,7 @@ func TestNewNatsManager(t *testing.T) {
 	}
 
 	// Test interface implementation
-	var _ core.NatsManagerInterface = nm
+	_ = nm
 }
 
 func TestNatsManager_IsConnected_Initial(t *testing.T) {

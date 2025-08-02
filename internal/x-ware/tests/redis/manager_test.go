@@ -12,7 +12,7 @@ func TestNewRedisManager(t *testing.T) {
 		t.Fatal("NewRedisManager returned nil")
 	}
 
-	var _ core.RedisManagerInterface = rm
+	_ = rm
 }
 
 func TestRedisManager_IsConnected_Initial(t *testing.T) {

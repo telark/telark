@@ -29,14 +29,12 @@ func TestPodMetricsStruct(t *testing.T) {
 
 func TestMetricsClientStruct(t *testing.T) {
 	mc := &types.MetricsClient{}
-	if mc == nil {
-		t.Error(ExpectedMetricsClientStructNotCreated)
-	}
+	// Test that the struct can be created
+	_ = mc
 }
 
 func TestMetricsAdapterStruct(t *testing.T) {
 	ma := &types.MetricsAdapter{}
-	if ma == nil {
-		t.Error(ExpectedMetricsAdapterStructNotCreated)
-	}
+	// Test that the struct can be created
+	_ = ma
 }

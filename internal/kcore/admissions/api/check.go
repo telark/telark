@@ -35,6 +35,6 @@ func CheckAdmissionWebhookExistsByName(name string, webhookType common.WebhookTy
 		return false, err
 
 	default:
-		return false, fmt.Errorf(string(constants.ERROR_INVALID_WEBHOOK_TYPE))
+		return false, fmt.Errorf("%s", constants.ERROR_INVALID_WEBHOOK_TYPE)
 	}
 }

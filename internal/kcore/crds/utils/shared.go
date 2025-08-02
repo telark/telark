@@ -15,7 +15,7 @@ func GetResourceClient(metadata metadata.Metadata) (dynamic.ResourceInterface, e
 
 func ValidateResourceName(name string) error {
 	if name == "" {
-		return fmt.Errorf(string(errors.ERROR_RESOURCE_NAME_CANNOT_BE_EMPTY))
+		return fmt.Errorf("%s", errors.ERROR_RESOURCE_NAME_CANNOT_BE_EMPTY)
 	}
 	return nil
 }

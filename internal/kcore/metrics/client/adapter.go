@@ -22,10 +22,10 @@ func NewMetricsAdapter() (*types.MetricsAdapter, error) {
 
 func GetWorkloadMetrics(ma *types.MetricsAdapter, namespace string, selectors map[string]string) (map[string]*types.ContainerMetrics, error) {
 	if ma == nil || ma.Client == nil {
-		return nil, fmt.Errorf(string(constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL))
+		return nil, fmt.Errorf("%s", constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL)
 	}
 	if !shared.IsClientAvailable(ma.Client) {
-		return nil, fmt.Errorf(string(constants.INFO_METRICS_API_UNAVAILABLE))
+		return nil, fmt.Errorf("%s", constants.INFO_METRICS_API_UNAVAILABLE)
 	}
 
 	podMetrics, err := ListPodMetrics(ma.Client, namespace)
@@ -47,10 +47,10 @@ func GetWorkloadMetrics(ma *types.MetricsAdapter, namespace string, selectors ma
 
 func GetFirstPodMetrics(ma *types.MetricsAdapter, namespace string, selectors map[string]string) (*types.PodMetrics, error) {
 	if ma == nil || ma.Client == nil {
-		return nil, fmt.Errorf(string(constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL))
+		return nil, fmt.Errorf("%s", constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL)
 	}
 	if !shared.IsClientAvailable(ma.Client) {
-		return nil, fmt.Errorf(string(constants.INFO_METRICS_API_UNAVAILABLE))
+		return nil, fmt.Errorf("%s", constants.INFO_METRICS_API_UNAVAILABLE)
 	}
 
 	podMetrics, err := ListPodMetrics(ma.Client, namespace)
@@ -64,15 +64,15 @@ func GetFirstPodMetrics(ma *types.MetricsAdapter, namespace string, selectors ma
 		}
 	}
 
-	return nil, fmt.Errorf(string(constants.ERROR_NO_PODS_FOUND_MATCHING_SELECTORS))
+	return nil, fmt.Errorf("%s", constants.ERROR_NO_PODS_FOUND_MATCHING_SELECTORS)
 }
 
 func AdapterGetContainerMetrics(ma *types.MetricsAdapter, namespace, podName, containerName string) (*types.ContainerMetrics, error) {
 	if ma == nil || ma.Client == nil {
-		return nil, fmt.Errorf(string(constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL))
+		return nil, fmt.Errorf("%s", constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL)
 	}
 	if !shared.IsClientAvailable(ma.Client) {
-		return nil, fmt.Errorf(string(constants.INFO_METRICS_API_UNAVAILABLE))
+		return nil, fmt.Errorf("%s", constants.INFO_METRICS_API_UNAVAILABLE)
 	}
 
 	return GetContainerMetricsAPI(ma.Client, namespace, podName, containerName)

@@ -37,9 +37,5 @@ func checkMetricsAPIAvailability(client *metricsclientset.Clientset) bool {
 	}
 
 	_, err := client.Discovery().ServerResourcesForGroupVersion(constants.METRICS_API_VERSION)
-	if err != nil {
-		return false
-	}
-
-	return true
+	return err == nil
 }

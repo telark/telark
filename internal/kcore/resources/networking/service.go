@@ -35,7 +35,7 @@ func GetServiceByName(namespace, name string) (*core.Service, error) {
 
 func GetServicesByNamespace(namespace string) ([]core.Service, error) {
 	if namespace == "" {
-		return nil, fmt.Errorf(string(errors.ERROR_K8S_EMPTY_NAMESPACE_OR_RESOURCE_NAME))
+		return nil, fmt.Errorf("%s", errors.ERROR_K8S_EMPTY_NAMESPACE_OR_RESOURCE_NAME)
 	}
 
 	client, err := k8sclient.InitKubernetesClient()
@@ -96,7 +96,7 @@ func IsServiceActive(service *core.Service) bool {
 
 func validateInputs(namespace, name string) error {
 	if namespace == "" || name == "" {
-		return fmt.Errorf(string(errors.ERROR_K8S_EMPTY_NAMESPACE_OR_RESOURCE_NAME))
+		return fmt.Errorf("%s", errors.ERROR_K8S_EMPTY_NAMESPACE_OR_RESOURCE_NAME)
 	}
 	return nil
 }

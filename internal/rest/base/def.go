@@ -32,8 +32,9 @@ type (
 )
 
 const (
-	HTTP  Schema = "http://"
-	HTTPS Schema = "https://"
+	HTTP                  Schema = "http://"
+	HTTPS                 Schema = "https://"
+	MAX_REQUEST_BODY_SIZE int64  = 1 << 20 // 1 MB
 )
 
 const (
@@ -86,6 +87,6 @@ func GetServiceName(service Service) string {
 	return fmt.Sprintf("%s-%s-service", common.BaseNamespace, service)
 }
 
-func GetLogger(service Service) *logging.CustomLogger {
+func GetLogger() *logging.CustomLogger {
 	return logging.NewCustomLogger("Rest: ")
 }

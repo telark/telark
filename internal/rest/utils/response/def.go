@@ -7,11 +7,10 @@ import (
 	"net/http"
 
 	"github.com/plsyro/data-pkg/errors"
-	"github.com/plsyro/data-pkg/logging"
+	"github.com/plsyro/rest-pkg/base"
+	"github.com/plsyro/rest-pkg/constants"
 	"github.com/plsyro/rest-pkg/response"
 )
-
-var logger = logging.NewCustomLogger("RestUtils: ")
 
 func LogAndSendResponse(w http.ResponseWriter, status int, operation response.OperationStatus, message string, data any, err error) {
 	logMessage(message, err)
@@ -25,9 +24,9 @@ func LogAndReturnResponse(status int, operation response.OperationStatus, messag
 
 func logMessage(message string, err error) {
 	if err != nil {
-		logger.Error(fmt.Sprintf("%s: %v", message, err))
+		base.GetLogger().Error(fmt.Sprintf("%s: %v", message, err))
 	} else {
-		logger.Info(message)
+		base.GetLogger().Info(message)
 	}
 }
 
@@ -47,27 +46,29 @@ func createGenericResponse(status int, operation response.OperationStatus, messa
 func ReadAndParseGenericResponse(resp *http.Response) *response.GenericResponse {
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
-			// Log the error but don't fail the operation
-			// This is a common pattern when deferring Close() in HTTP operations
-			logger.Error(fmt.Sprintf("Warning: failed to close response body: %v", closeErr))
+			base.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_CLOSE_RESPONSE_BODY), closeErr))
 		}
 	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to read response body: %v", err))
-		return LogAndReturnResponse(http.StatusInternalServerError, response.OPERATION_ERROR, string(errors.ERROR_REST_READ_RESPONSE_BODY), nil, err)
+		message := fmt.Sprintf(string(errors.ERROR_REST_READ_RESPONSE_BODY), err)
+		base.GetLogger().Error(message)
+		return LogAndReturnResponse(http.StatusInternalServerError, response.OPERATION_ERROR, message, nil, err)
 	}
 
 	if resp.StatusCode >= 400 {
-		return LogAndReturnResponse(resp.StatusCode, response.OPERATION_ERROR, fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(body)), nil, fmt.Errorf("HTTP %d", resp.StatusCode))
+		message := fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(body))
+		base.GetLogger().Error(message)
+		return LogAndReturnResponse(resp.StatusCode, response.OPERATION_ERROR, message, nil, fmt.Errorf("HTTP %d", resp.StatusCode))
 	}
 
 	var genericResp response.GenericResponse
 	err = json.Unmarshal(body, &genericResp)
 	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to unmarshal JSON response: %v, Body: %s", err, string(body)))
-		return LogAndReturnResponse(http.StatusUnprocessableEntity, response.OPERATION_ERROR, fmt.Sprintf("Error while unmarshaling JSON Response to Generic Response: %v", err), nil, err)
+		message := fmt.Sprintf(string(errors.ERROR_REST_UNMARSHALL_RESPONSE_TO_GENERIC), err)
+		base.GetLogger().Error(message)
+		return LogAndReturnResponse(http.StatusUnprocessableEntity, response.OPERATION_ERROR, message, nil, err)
 	}
 
 	return &genericResp

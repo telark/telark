@@ -6,28 +6,27 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/plsyro/data-pkg/errors"
 	"github.com/plsyro/rest-pkg/base"
 )
-
-var maxRequestBodySize int64 = 1 << 20 // 1 MB default
 
 func ParseRequestBody(r *http.Request, action string, checkEmptyBody bool) (map[string]any, error) {
 	if action == "get" || action == "list" {
 		return nil, nil
 	}
 
-	body, err := io.ReadAll(io.LimitReader(r.Body, maxRequestBodySize))
+	body, err := io.ReadAll(io.LimitReader(r.Body, base.MAX_REQUEST_BODY_SIZE))
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse request body: %w", err)
+		return nil, fmt.Errorf(string(errors.ERROR_REST_PARSE_REQUEST_BODY), err)
 	}
 
 	if checkEmptyBody && len(body) == 0 {
-		return nil, fmt.Errorf("request body is empty")
+		return nil, fmt.Errorf("empty request body")
 	}
 
 	var spec map[string]any
 	if err := json.Unmarshal(body, &spec); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal request body to JSON: %w", err)
+		return nil, fmt.Errorf(string(errors.ERROR_REST_UNMARSHALL_REQUEST_BODY_TO_JSON), err)
 	}
 	return spec, nil
 }

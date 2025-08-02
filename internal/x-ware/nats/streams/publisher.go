@@ -5,7 +5,7 @@ import (
 
 	"github.com/nats-io/nats.go"
 	"github.com/plsyro/data-pkg/errors"
-	"github.com/plsyro/data-pkg/middlewares/nats/core"
+	"github.com/plsyro/x-ware/nats/core"
 )
 
 func PublishMessage(c *core.NATSClient, subj string, data []byte) (*nats.PubAck, error) {

@@ -12,12 +12,12 @@ const (
 const (
 	ERROR_REDIS_HOST_REQUIRED                     = "REDIS_HOST environment variable is required"
 	ERROR_REDIS_PORT_REQUIRED                     = "REDIS_PORT environment variable is required"
-	ERROR_REDIS_CLIENT_NOT_CONNECTED errors.Error = "Redis client is not connected"
+	ERROR_REDIS_CLIENT_NOT_CONNECTED errors.Error = "redis client is not connected"
 	ERROR_FAILED_INIT_REDIS_CLIENT   errors.Error = "failed to initialize Redis client: %v"
 	ERROR_FAILED_CLOSE_REDIS_CLIENT  errors.Error = "failed to close Redis client: %v"
-	ERROR_REDIS_EXISTS_ERROR         errors.Error = "Redis EXISTS error for deduplication: %v"
-	ERROR_REDIS_SET_ERROR            errors.Error = "Redis SET error for marking event as processed: %v"
-	ERROR_REDIS_PING_ERROR           errors.Error = "Redis ping failed: %v"
+	ERROR_REDIS_EXISTS_ERROR         errors.Error = "redis EXISTS error for deduplication: %v"
+	ERROR_REDIS_SET_ERROR            errors.Error = "redis SET error for marking event as processed: %v"
+	ERROR_REDIS_PING_ERROR           errors.Error = "redis ping failed: %v"
 )
 
 const (

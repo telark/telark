@@ -2,7 +2,7 @@ package streams
 
 import (
 	"github.com/nats-io/nats.go"
-	"github.com/plsyro/data-pkg/middlewares/nats/core"
+	"github.com/plsyro/x-ware/nats/core"
 )
 
 func DefaultConsumerConfig() *nats.ConsumerConfig {

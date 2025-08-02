@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 
-	commonErrors "github.com/plsyro/data-pkg/errors"
 	"github.com/plsyro/rest-pkg/base"
 )
 
@@ -19,16 +18,16 @@ func ParseRequestBody(r *http.Request, action string, checkEmptyBody bool) (map[
 
 	body, err := io.ReadAll(io.LimitReader(r.Body, maxRequestBodySize))
 	if err != nil {
-		return nil, fmt.Errorf(string(commonErrors.ERROR_REST_PARSE_REQUEST_BODY), err)
+		return nil, fmt.Errorf("failed to parse request body: %w", err)
 	}
 
 	if checkEmptyBody && len(body) == 0 {
-		return nil, fmt.Errorf(string(commonErrors.ERROR_REST_EMPTY_REQUEST_BODY))
+		return nil, fmt.Errorf("request body is empty")
 	}
 
 	var spec map[string]any
 	if err := json.Unmarshal(body, &spec); err != nil {
-		return nil, fmt.Errorf(string(commonErrors.ERROR_REST_UNMARSHALL_REQUEST_BODY_TO_JSON), err)
+		return nil, fmt.Errorf("failed to unmarshal request body to JSON: %w", err)
 	}
 	return spec, nil
 }

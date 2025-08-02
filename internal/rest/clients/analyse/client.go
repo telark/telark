@@ -37,7 +37,11 @@ func (c *Client) StartAnalyse() error {
 	if err != nil {
 		return fmt.Errorf(string(constants.ERROR_FAILED_SEND_POST_REQUEST), err)
 	}
-	defer response.Body.Close()
+	defer func() {
+		if closeErr := response.Body.Close(); closeErr != nil {
+			err = fmt.Errorf(string(constants.ERROR_FAILED_CLOSE_RESPONSE_BODY), closeErr)
+		}
+	}()
 
 	body, err := io.ReadAll(response.Body)
 	if err != nil {

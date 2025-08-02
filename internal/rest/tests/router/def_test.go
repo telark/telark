@@ -12,7 +12,9 @@ import (
 func TestNewRouter(t *testing.T) {
 	routes := []router.Route{
 		router.CreateRoute(base.GET, "hello", func(w http.ResponseWriter, r *http.Request) {
-			w.Write([]byte("Hello, World!"))
+			if _, err := w.Write([]byte("Hello, World!")); err != nil {
+				t.Errorf("failed to write response: %v", err)
+			}
 		}),
 	}
 
@@ -39,7 +41,9 @@ func TestNewRouter(t *testing.T) {
 
 func TestCreateRoute(t *testing.T) {
 	route := router.CreateRoute(base.GET, "test", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Test Route"))
+		if _, err := w.Write([]byte("Test Route")); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
 	})
 
 	if route.Method != string(base.GET) {
@@ -51,4 +55,4 @@ func TestCreateRoute(t *testing.T) {
 	}
 
 	t.Log("TestCreateRoute passed: Route was created with the correct method and pattern.")
-} 
+}

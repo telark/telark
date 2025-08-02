@@ -45,7 +45,13 @@ func createGenericResponse(status int, operation response.OperationStatus, messa
 }
 
 func ReadAndParseGenericResponse(resp *http.Response) *response.GenericResponse {
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			// Log the error but don't fail the operation
+			// This is a common pattern when deferring Close() in HTTP operations
+			logger.Error(fmt.Sprintf("Warning: failed to close response body: %v", closeErr))
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

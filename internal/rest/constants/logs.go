@@ -7,6 +7,7 @@ const (
 	ERROR_FAILED_SEND_POST_REQUEST    errors.Error = "failed to send POST request: %v"
 	ERROR_UNEXPECTED_STATUS           errors.Error = "unexpected status: %d: %s"
 	ERROR_FAILED_CREATE_HTTP_REQUEST  errors.Error = "create HTTP request"
+	ERROR_FAILED_CLOSE_RESPONSE_BODY  errors.Error = "failed to close response body: %v"
 	ENDPOINT_NAME_PLACEHOLDER                      = "{name}"
 	SCHEMA_IS_REQUIRED                             = "schema is required"
 	SERVICE_IS_REQUIRED                            = "service is required"

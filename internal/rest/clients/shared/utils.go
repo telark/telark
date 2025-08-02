@@ -55,7 +55,11 @@ func marshalToJSON(payload any) ([]byte, error) {
 }
 
 func readResponseBody(resp *http.Response) ([]byte, error) {
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			fmt.Printf(string(constants.ERROR_FAILED_CLOSE_RESPONSE_BODY), closeErr)
+		}
+	}()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, wrapError(string(errors.ERROR_REST_READ_RESPONSE_BODY), err)

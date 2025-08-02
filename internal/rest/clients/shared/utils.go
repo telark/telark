@@ -18,14 +18,14 @@ import (
 )
 
 func buildRequestURL(client *Client, method base.Method, endpoint base.Endpoint, payload []byte) (string, error) {
-	var req interface{}
+	var req base.API
 	if payload != nil {
 		req = requestUtils.CreateGenericRequestWithPayload(method, client.service, base.V1, endpoint, payload)
 	} else {
 		req = requestUtils.CreateGenericRequest(method, client.service, base.V1, endpoint)
 	}
 
-	return req.(interface{ GenerateURL() (string, error) }).GenerateURL()
+	return req.GenerateURL()
 }
 
 func executeHTTPRequest(client *Client, method base.Method, endpoint base.Endpoint, payload []byte) (*http.Response, error) {

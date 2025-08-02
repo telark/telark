@@ -1,15 +1,14 @@
 package app
 
 import (
-	"github.com/plsyro/data-pkg/resources/common"
 	resourcesCommon "github.com/plsyro/data-pkg/resources/common"
 	workloadCommon "github.com/plsyro/data-pkg/resources/workload/common"
 )
 
 type AppWorkloadAsResource struct {
-	Fasid  resourcesCommon.Fasid `json:"fasid"`
-	Cacid  CacidApp              `json:"cacid"`
-	Config common.Config         `json:"config"`
+	Fasid  resourcesCommon.Fasid  `json:"fasid"`
+	Cacid  CacidApp               `json:"cacid"`
+	Config resourcesCommon.Config `json:"config"`
 }
 
 type CacidApp struct {

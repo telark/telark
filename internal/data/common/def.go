@@ -35,11 +35,6 @@ const (
 
 type Action string
 
-const (
-	ALLOW Action = "allow"
-	DENY  Action = "deny"
-)
-
 var ManagedFields = []string{
 	"apiVersion",
 	"kind",
@@ -71,8 +66,14 @@ const (
 )
 
 const (
-	STATUS_OK                    = http.StatusOK
-	STATUS_BAD_REQUEST           = http.StatusBadRequest
-	STATUS_INTERNAL_SERVER_ERROR = http.StatusInternalServerError
-	NONE                         = "None"
+	STATUS_OK                           = http.StatusOK
+	STATUS_BAD_REQUEST                  = http.StatusBadRequest
+	STATUS_INTERNAL_SERVER_ERROR        = http.StatusInternalServerError
+	NONE                                = "None"
+	SET                          Action = "set"
+	ADD                          Action = "add"
+	DELETE                       Action = "delete"
+	UPDATE                       Action = "update"
+	ALLOW                        Action = "allow"
+	DENY                         Action = "deny"
 )

@@ -53,7 +53,9 @@ func ReadAndParseGenericResponse(resp *http.Response) *response.GenericResponse 
 		return LogAndReturnResponse(http.StatusInternalServerError, response.OPERATION_ERROR, string(errors.ERROR_REST_READ_RESPONSE_BODY), nil, err)
 	}
 
-	logger.Info(fmt.Sprintf("Response body: %s", string(body)))
+	if resp.StatusCode >= 400 {
+		return LogAndReturnResponse(resp.StatusCode, response.OPERATION_ERROR, fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(body)), nil, fmt.Errorf("HTTP %d", resp.StatusCode))
+	}
 
 	var genericResp response.GenericResponse
 	err = json.Unmarshal(body, &genericResp)

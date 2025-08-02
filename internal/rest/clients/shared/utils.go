@@ -34,16 +34,16 @@ func executeHTTPRequest(client *Client, method base.Method, endpoint base.Endpoi
 		return nil, wrapError(string(constants.ERROR_FAILED_GENERATE_REQUEST_URL), err)
 	}
 
-	if payload != nil {
-		req, err := http.NewRequest(string(method), url, bytes.NewBuffer(payload))
-		if err != nil {
-			return nil, wrapError(string(constants.ERROR_FAILED_CREATE_HTTP_REQUEST), err)
-		}
-		req.Header.Set("Content-Type", string(base.JSON))
-		return client.httpClient.Do(req)
+	req, err := http.NewRequest(string(method), url, bytes.NewBuffer(payload))
+	if err != nil {
+		return nil, wrapError(string(constants.ERROR_FAILED_CREATE_HTTP_REQUEST), err)
 	}
 
-	return http.Post(url, string(base.JSON), nil)
+	if payload != nil {
+		req.Header.Set("Content-Type", string(base.JSON))
+	}
+
+	return client.httpClient.Do(req)
 }
 
 func marshalToJSON(payload any) ([]byte, error) {
@@ -72,6 +72,11 @@ func unmarshalJSON[T any](data []byte) (*T, error) {
 }
 
 func parseSingleResponse[T any](resp *http.Response) (*T, error) {
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+	}
+
 	body, err := readResponseBody(resp)
 	if err != nil {
 		return nil, err
@@ -81,12 +86,15 @@ func parseSingleResponse[T any](resp *http.Response) (*T, error) {
 }
 
 func parseListResponse[T any](resp *http.Response) ([]T, error) {
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+	}
+
 	body, err := readResponseBody(resp)
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Printf("List response body: %s\n", string(body))
 
 	var apiResp struct {
 		Data struct {

@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/plsyro/x-ware/shared"
 	"github.com/redis/go-redis/v9"
@@ -38,7 +39,7 @@ func InitClient(ctx context.Context) (*RedisClient, error) {
 
 	db, err := shared.GetEnvInt(shared.EnvConfig{
 		Key:          ENV_REDIS_DB,
-		DefaultValue: fmt.Sprintf("%d", DEFAULT_DB),
+		DefaultValue: strconv.Itoa(DEFAULT_DB),
 		Required:     false,
 	})
 	if err != nil {

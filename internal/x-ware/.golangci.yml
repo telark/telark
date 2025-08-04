@@ -1,0 +1,32 @@
+version: 2
+linters:
+  enable:
+    - errcheck
+    - gocritic
+    - gosec
+    - gocyclo
+    - misspell
+    - unparam
+    - nakedret
+    - perfsprint
+    - prealloc
+    - nolintlint
+    - funlen
+    - dupl
+    - bodyclose
+    - containedctx
+    - goprintffuncname
+    - whitespace
+    - unconvert
+    #- revive #Temporarily ignore exported, package-comments due to configuration bug
+run:
+  timeout: 2m
+  tests: true
+linters-settings:
+  gocyclo:
+    min-complexity: 15
+  misspell:
+    locale: US
+  funlen:
+    lines: 60
+    statements: 40

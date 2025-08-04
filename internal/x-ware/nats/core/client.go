@@ -41,10 +41,10 @@ func InitClient(ctx context.Context, user, password string) (*NATSClient, error)
 	return client, nil
 }
 
-func initJetStreamClient(NatsConfig NATSConfig) (*NATSClient, error) {
+func initJetStreamClient(natsConfig NATSConfig) (*NATSClient, error) {
 	url := GetNATSClientUrl()
 
-	nc, err := nats.Connect(url, nats.UserInfo(NatsConfig.User, NatsConfig.Password))
+	nc, err := nats.Connect(url, nats.UserInfo(natsConfig.User, natsConfig.Password))
 	if err != nil {
 		return nil, fmt.Errorf(string(errors.ERROR_NATS_FAILED_CON), err)
 	}

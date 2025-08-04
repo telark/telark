@@ -18,7 +18,7 @@ func InitClient(ctx context.Context, user, password string) (*NATSClient, error)
 	config := NATSConfig{
 		User:     user,
 		Password: password,
-		Port:     CLIENT,
+		Port:     Client,
 	}
 
 	var client *NATSClient
@@ -30,7 +30,7 @@ func InitClient(ctx context.Context, user, password string) (*NATSClient, error)
 	}
 
 	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.MaxElapsedTime = time.Duration(DEFAULT_CONNECTION_TIMEOUT) * time.Second
+	expBackoff.MaxElapsedTime = time.Duration(DefaultConnectionTimeout) * time.Second
 
 	err := backoff.RetryNotify(operation, backoff.WithContext(expBackoff, ctx), func(err error, d time.Duration) {
 		fmt.Printf(string(errors.ERROR_NATS_CONNECTION_FAILED), d, err)
@@ -42,7 +42,7 @@ func InitClient(ctx context.Context, user, password string) (*NATSClient, error)
 }
 
 func initJetStreamClient(natsConfig NATSConfig) (*NATSClient, error) {
-	url := GetNATSClientUrl()
+	url := GetNATSClientURL()
 
 	nc, err := nats.Connect(url, nats.UserInfo(natsConfig.User, natsConfig.Password))
 	if err != nil {

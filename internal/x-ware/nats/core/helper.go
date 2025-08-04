@@ -7,8 +7,8 @@ import (
 	"github.com/plsyro/data-pkg/common"
 )
 
-func GetNATSClientUrl() string {
-	return fmt.Sprintf("nats://%s-%s:%d", common.BaseNamespace, NATS_SERVICE_NAME, CLIENT)
+func GetNATSClientURL() string {
+	return fmt.Sprintf("nats://%s-%s:%d", common.BaseNamespace, NatsServiceName, Client)
 }
 
 func GetTopicName(group Group, action Action) string {

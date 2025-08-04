@@ -58,7 +58,7 @@ func (rm *RedisManager) Close() error {
 
 	if rm.client != nil && rm.client.Client != nil {
 		if err := rm.client.Client.Close(); err != nil {
-			return fmt.Errorf(string(ERROR_FAILED_CLOSE_REDIS_CLIENT), err)
+			return fmt.Errorf(string(ErrFailedCloseRedisClient), err)
 		}
 		rm.client = nil
 		rm.isConnected = false
@@ -81,20 +81,20 @@ func (rm *RedisManager) InitRedisClient() (*RedisClient, error) {
 	expBackoff.MaxElapsedTime = time.Duration(DefaultTimeout) * time.Second
 
 	operation := func() error {
-		client, err = InitClient(rm.ctx)
+		client, err = InitClient()
 		if err != nil {
 			return err
 		}
 
 		if err := client.Client.Ping(rm.ctx).Err(); err != nil {
-			return fmt.Errorf(string(ERROR_REDIS_PING_ERROR), err)
+			return fmt.Errorf(string(ErrRedisPingError), err)
 		}
 
 		return nil
 	}
 
 	if err := backoff.Retry(operation, expBackoff); err != nil {
-		return nil, fmt.Errorf(string(ERROR_FAILED_INIT_REDIS_CLIENT), err)
+		return nil, fmt.Errorf(string(ErrFailedInitRedisClient), err)
 	}
 
 	return client, nil
@@ -106,7 +106,7 @@ func (rm *RedisManager) Reconnect() error {
 
 	if rm.client != nil && rm.client.Client != nil {
 		if err := rm.client.Client.Close(); err != nil {
-			return fmt.Errorf(string(ERROR_FAILED_CLOSE_REDIS_CLIENT), err)
+			return fmt.Errorf(string(ErrFailedCloseRedisClient), err)
 		}
 		rm.client = nil
 		rm.isConnected = false

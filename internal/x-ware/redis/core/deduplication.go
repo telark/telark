@@ -25,13 +25,13 @@ func CreateDeduplicationKey(key string, event any) string {
 
 func IsDuplicateEvent(ctx context.Context, client *RedisClient, key string, event any) (bool, error) {
 	if client == nil || client.Client == nil {
-		return false, fmt.Errorf("%s", ERROR_REDIS_CLIENT_NOT_CONNECTED)
+		return false, fmt.Errorf("%s", ErrRedisClientNotConnected)
 	}
 
 	dedupKey := CreateDeduplicationKey(key, event)
 	exists, err := client.Client.Exists(ctx, dedupKey).Result()
 	if err != nil {
-		return false, fmt.Errorf(string(ERROR_REDIS_EXISTS_ERROR), err)
+		return false, fmt.Errorf(string(ErrRedisExistsError), err)
 	}
 
 	return exists > 0, nil
@@ -39,13 +39,13 @@ func IsDuplicateEvent(ctx context.Context, client *RedisClient, key string, even
 
 func MarkEventAsProcessed(ctx context.Context, client *RedisClient, key string, event any, window time.Duration) error {
 	if client == nil || client.Client == nil {
-		return fmt.Errorf("%s", ERROR_REDIS_CLIENT_NOT_CONNECTED)
+		return fmt.Errorf("%s", ErrRedisClientNotConnected)
 	}
 
 	dedupKey := CreateDeduplicationKey(key, event)
 	err := client.Client.Set(ctx, dedupKey, DeduplicationValue, window).Err()
 	if err != nil {
-		return fmt.Errorf(string(ERROR_REDIS_SET_ERROR), err)
+		return fmt.Errorf(string(ErrRedisSetError), err)
 	}
 
 	return nil

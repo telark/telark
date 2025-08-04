@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -9,10 +8,10 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func InitClient(ctx context.Context) (*RedisClient, error) {
+func InitClient() (*RedisClient, error) {
 	host, err := shared.GetEnvString(shared.EnvConfig{
-		Key:          ENV_REDIS_HOST,
-		DefaultValue: DEFAULT_HOST,
+		Key:          EnvRedisHost,
+		DefaultValue: DefaultHost,
 		Required:     false,
 	})
 	if err != nil {
@@ -20,8 +19,8 @@ func InitClient(ctx context.Context) (*RedisClient, error) {
 	}
 
 	port, err := shared.GetEnvString(shared.EnvConfig{
-		Key:          ENV_REDIS_PORT,
-		DefaultValue: DEFAULT_PORT,
+		Key:          EnvRedisPort,
+		DefaultValue: DefaultPort,
 		Required:     false,
 	})
 	if err != nil {
@@ -29,8 +28,8 @@ func InitClient(ctx context.Context) (*RedisClient, error) {
 	}
 
 	password, err := shared.GetEnvString(shared.EnvConfig{
-		Key:          ENV_REDIS_PASSWORD,
-		DefaultValue: DEFAULT_PASSWORD,
+		Key:          EnvRedisPassword,
+		DefaultValue: DefaultPassword,
 		Required:     false,
 	})
 	if err != nil {
@@ -38,8 +37,8 @@ func InitClient(ctx context.Context) (*RedisClient, error) {
 	}
 
 	db, err := shared.GetEnvInt(shared.EnvConfig{
-		Key:          ENV_REDIS_DB,
-		DefaultValue: strconv.Itoa(DEFAULT_DB),
+		Key:          EnvRedisDB,
+		DefaultValue: strconv.Itoa(DefaultDB),
 		Required:     false,
 	})
 	if err != nil {

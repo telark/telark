@@ -28,7 +28,7 @@ type (
 		ResourceName string      `json:"resourceName"`
 		ResourceType common.Type `json:"resourceType"`
 		Scope        string      `json:"scope"`
-		Data         interface{} `json:"data"`
+		Data         any         `json:"data"`
 	}
 	BaseSubscriber struct {
 		Group          Group

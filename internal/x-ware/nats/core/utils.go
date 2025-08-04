@@ -1,13 +1,13 @@
 package core
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"time"
 
 	"github.com/nats-io/nats.go"
+	baseCommon "github.com/plsyro/data-pkg/common"
 	"github.com/plsyro/data-pkg/errors"
 	"github.com/plsyro/data-pkg/resources/common"
 )
@@ -19,11 +19,11 @@ func (s *BaseSubscriber) ValidateMessage(m *nats.Msg) error {
 	return nil
 }
 
-func (s *BaseSubscriber) AcknowledgeMessage(ctx context.Context, m *nats.Msg) error {
+func (s *BaseSubscriber) AcknowledgeMessage(m *nats.Msg) error {
 	return m.Ack()
 }
 
-func NewMessage(topic, name, scope string, resourceType common.Type, data interface{}) *Message {
+func NewMessage(topic, name, scope string, resourceType common.Type, data any) *Message {
 	return &Message{
 		Topic:        topic,
 		ResourceName: name,
@@ -45,7 +45,7 @@ func GenerateDataHash(data []byte, subject string) string {
 }
 
 func GetParsedMessageHeader(m *nats.Msg) string {
-	return m.Header.Get(KEY_PARSED_MESSAGE)
+	return m.Header.Get(KeyParsedMessage)
 }
 
 func SetParsedMessageHeader(m *nats.Msg, prefix, value string) {
@@ -53,12 +53,16 @@ func SetParsedMessageHeader(m *nats.Msg, prefix, value string) {
 		key := prefix + "_data"
 		m.Header.Set(key, value)
 	} else {
-		m.Header.Set(KEY_PARSED_MESSAGE, value)
+		m.Header.Set(KeyParsedMessage, value)
 	}
 }
 
-func GenerateMessageId(subject string, data []byte) string {
+func GenerateMessageID(subject string, data []byte) string {
 	content := fmt.Sprintf("%s-%s-%d", subject, string(data), time.Now().UnixNano())
 	hash := sha256.Sum256([]byte(content))
 	return hex.EncodeToString(hash[:16])
+}
+
+func GenerateSubjectName(group Group) string {
+	return fmt.Sprintf("%s.%s.*", baseCommon.BaseNamespace, group)
 }

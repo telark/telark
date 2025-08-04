@@ -9,7 +9,7 @@ func DefaultConsumerConfig() *nats.ConsumerConfig {
 	return &nats.ConsumerConfig{
 		DeliverPolicy: nats.DeliverAllPolicy,
 		AckPolicy:     nats.AckExplicitPolicy,
-		MaxDeliver:    STREAM_MAX_DELIVER_COUNT,
+		MaxDeliver:    StreamMaxDeliverCount,
 	}
 }
 

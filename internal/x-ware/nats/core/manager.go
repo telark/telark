@@ -70,18 +70,18 @@ func (nm *NatsManager) Close() error {
 
 func (nm *NatsManager) InitNatsClient() (*NATSClient, error) {
 	user, err := shared.GetEnvString(shared.EnvConfig{
-		Key:      ENV_NATS_USER,
+		Key:      EnvNatsUser,
 		Required: true,
-		ErrorMsg: string(ERROR_NATS_USER_REQUIRED),
+		ErrorMsg: string(ErrNatsUserRequired),
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	password, err := shared.GetEnvString(shared.EnvConfig{
-		Key:      ENV_NATS_PASSWORD,
+		Key:      EnvNatsPassword,
 		Required: true,
-		ErrorMsg: string(ERROR_NATS_PASSWORD_REQUIRED),
+		ErrorMsg: string(ErrNatsPasswordRequired),
 	})
 	if err != nil {
 		return nil, err
@@ -89,7 +89,7 @@ func (nm *NatsManager) InitNatsClient() (*NATSClient, error) {
 
 	client, err := InitClient(nm.ctx, user, password)
 	if err != nil {
-		return nil, fmt.Errorf(string(ERROR_FAILED_INIT_NATS_CLIENT), err)
+		return nil, fmt.Errorf(string(ErrFailedInitNatsClient), err)
 	}
 
 	return client, nil
@@ -117,7 +117,7 @@ func (nm *NatsManager) Reconnect() error {
 
 func (nm *NatsManager) GetConnectionStatus() (bool, error) {
 	if !nm.IsConnected() {
-		return false, fmt.Errorf("%s", ERROR_NATS_CLIENT_NOT_CONNECTED)
+		return false, fmt.Errorf("%s", ErrNatsClientNotConnected)
 	}
 	return true, nil
 }

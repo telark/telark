@@ -5,37 +5,37 @@ import (
 )
 
 const (
-	ENV_NATS_USER     = "NATS_USER"
-	ENV_NATS_PASSWORD = "NATS_PASSWORD"
+	EnvNatsUser     = "NATS_USER"
+	EnvNatsPassword = "NATS_PASSWORD"
 )
 
 const (
-	ERROR_NATS_USER_REQUIRED        errors.Error = "NATS_USER environment variable is required"
-	ERROR_NATS_PASSWORD_REQUIRED    errors.Error = "NATS_PASSWORD environment variable is required"
-	ERROR_NATS_CLIENT_NOT_CONNECTED errors.Error = "NATS client is not connected"
-	ERROR_FAILED_INIT_NATS_CLIENT   errors.Error = "failed to initialize NATS client: %w"
+	ErrNatsUserRequired       errors.Error = "NATS_USER environment variable is required"
+	ErrNatsPasswordRequired   errors.Error = "NATS_PASSWORD environment variable is required"
+	ErrNatsClientNotConnected errors.Error = "NATS client is not connected"
+	ErrFailedInitNatsClient   errors.Error = "failed to initialize NATS client: %w"
 )
 
 const (
-	DEFAULT_CONNECTION_TIMEOUT = 10
-	MAX_RECONNECT_ATTEMPTS     = 5
-	RECONNECT_DELAY            = 5
+	DefaultConnectionTimeout = 10
+	MaxReconnectAttempts     = 5
+	ReconnectDelay           = 5
 )
 
 const (
-	CLIENT            Port = 4222
-	MONITORING        Port = 8222
-	NATS_SERVICE_NAME      = "nats-service"
+	Client          Port = 4222
+	Monitoring      Port = 8222
+	NatsServiceName      = "nats-service"
 
-	GROUPER         Group = "groupers"
-	APP_WORKLOADS   Group = "workloads_apps"
-	BATCH_WORKLOADS Group = "workloads_batches"
-	BRIDGES         Group = "bridges"
+	Grouper        Group = "groupers"
+	AppWorkloads   Group = "workloads_apps"
+	BatchWorkloads Group = "workloads_batches"
+	Bridges        Group = "bridges"
 
-	CREATE Action = "create"
-	UPDATE Action = "update"
-	DELETE Action = "delete"
+	Create Action = "create"
+	Update Action = "update"
+	Delete Action = "delete"
 
-	PREFIX_ACK         = "$JS.ACK."
-	KEY_PARSED_MESSAGE = "parsed_message"
+	PrefixAck        = "$JS.ACK."
+	KeyParsedMessage = "parsed_message"
 )

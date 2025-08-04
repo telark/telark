@@ -12,14 +12,14 @@ import (
 type OperationStatus string
 
 const (
-	OPERATION_SUCCESS       OperationStatus = "Success"
-	OPERATION_ALREADY_EXIST OperationStatus = "Already Exists"
-	OPERATION_NOT_CREATED   OperationStatus = "Not Created"
-	OPERATION_NOT_UPDATED   OperationStatus = "Not Updated"
-	OPERATION_NOT_FOUND     OperationStatus = "Not Found"
-	OPERATION_DELETED       OperationStatus = "Deleted"
-	OPERATION_UNPROCESSED   OperationStatus = "Unprocessed"
-	OPERATION_ERROR         OperationStatus = "Error"
+	OperationSuccess       OperationStatus = "Success"
+	OperationAlreadyExists OperationStatus = "Already Exists"
+	OperationNotCreated    OperationStatus = "Not Created"
+	OperationNotUpdated    OperationStatus = "Not Updated"
+	OperationNotFound      OperationStatus = "Not Found"
+	OperationDeleted       OperationStatus = "Deleted"
+	OperationUnprocessed   OperationStatus = "Unprocessed"
+	OperationError         OperationStatus = "Error"
 )
 
 type GenericResponse struct {

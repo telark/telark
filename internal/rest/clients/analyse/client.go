@@ -23,12 +23,12 @@ type Client struct {
 
 func NewClient() *Client {
 	return &Client{
-		Client: shared.New(base.CONFIGURATOR),
+		Client: shared.New(base.Configurator),
 	}
 }
 
 func (c *Client) StartAnalyse() error {
-	request := requestUtils.CreateGenericRequest(base.POST, base.CONFIGURATOR, base.V1, analyseEndpoints.StartAnalyse)
+	request := requestUtils.CreateGenericRequest(base.Post, base.Configurator, base.V1, analyseEndpoints.StartAnalyse)
 	requestURL, err := request.GenerateURL()
 	if err != nil {
 		return fmt.Errorf(string(constants.ErrFailedToGenerateRequestURL), err)

@@ -33,26 +33,26 @@ type (
 )
 
 const (
-	HTTP                  Schema = "http://"
-	HTTPS                 Schema = "https://"
-	MAX_REQUEST_BODY_SIZE int64  = 1 << 20 // 1 MB
+	HTTP               Schema = "http://"
+	HTTPS              Schema = "https://"
+	MaxRequestBodySize int64  = 1 << 20 // 1 MB
 )
 
 const (
-	CONFIGURATOR       Service     = "configurator"
-	EXPORTER           Service     = "exporter"
-	ADMISSION_OPERATOR Service     = "admission-operator"
-	SYNC_MANAGER       Service     = "sync-manager"
-	NOTIFIER           Service     = "notifier"
-	JSON               ContentType = "application/json"
-	DEFAULT            Port        = 8080
-	UI_PORT            Port        = 3000
-	V1                 Version     = "api/v1"
-	GET                Method      = "GET"
-	POST               Method      = "POST"
-	UPDATE             Method      = "PUT"
-	DELETE             Method      = "DELETE"
-	PATCH              Method      = "PATCH"
+	Configurator      Service     = "configurator"
+	Exporter          Service     = "exporter"
+	AdmissionOperator Service     = "admission-operator"
+	SyncManager       Service     = "sync-manager"
+	Notifier          Service     = "notifier"
+	JSON              ContentType = "application/json"
+	Default           Port        = 8080
+	UIPort            Port        = 3000
+	V1                Version     = "api/v1"
+	Get               Method      = "GET"
+	Post              Method      = "POST"
+	Update            Method      = "PUT"
+	Delete            Method      = "DELETE"
+	Patch             Method      = "PATCH"
 )
 
 func (api *API) GenerateURL() (string, error) {

@@ -11,7 +11,7 @@ import (
 
 func TestNewRouter(t *testing.T) {
 	routes := []router.Route{
-		router.CreateRoute(base.GET, "hello", func(w http.ResponseWriter, r *http.Request) {
+		router.CreateRoute(base.Get, "hello", func(w http.ResponseWriter, r *http.Request) {
 			if _, err := w.Write([]byte("Hello, World!")); err != nil {
 				t.Errorf("failed to write response: %v", err)
 			}
@@ -40,14 +40,14 @@ func TestNewRouter(t *testing.T) {
 }
 
 func TestCreateRoute(t *testing.T) {
-	route := router.CreateRoute(base.GET, "test", func(w http.ResponseWriter, r *http.Request) {
+	route := router.CreateRoute(base.Get, "test", func(w http.ResponseWriter, r *http.Request) {
 		if _, err := w.Write([]byte("Test Route")); err != nil {
 			t.Errorf("failed to write response: %v", err)
 		}
 	})
 
-	if route.Method != string(base.GET) {
-		t.Errorf("CreateRoute() method = %v, want %v", route.Method, base.GET)
+	if route.Method != string(base.Get) {
+		t.Errorf("CreateRoute() method = %v, want %v", route.Method, base.Get)
 	}
 
 	if route.Pattern != "/api/v1/test" {

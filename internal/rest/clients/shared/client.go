@@ -75,27 +75,27 @@ func (c *Client) Create(endpoint base.Endpoint, resource any) *response.GenericR
 		return createErrorResponse(string(errors.ERROR_REST_MARSHALL_PAYLOAD), err)
 	}
 
-	return c.executeRequest(base.POST, endpoint, mappedPayload)
+	return c.executeRequest(base.Post, endpoint, mappedPayload)
 }
 
 func (c *Client) Update(endpoint base.Endpoint, name string, body map[string]any) *response.GenericResponse {
 	substitutedEndpoint := substituteEndpointName(endpoint, name)
-	return c.executeRequest(base.PATCH, substitutedEndpoint, body)
+	return c.executeRequest(base.Patch, substitutedEndpoint, body)
 }
 
 func (c *Client) Delete(endpoint base.Endpoint, name string) *response.GenericResponse {
 	substitutedEndpoint := substituteEndpointName(endpoint, name)
-	return c.executeRequest(base.DELETE, substitutedEndpoint, nil)
+	return c.executeRequest(base.Delete, substitutedEndpoint, nil)
 }
 
 func (c *Client) Get(endpoint base.Endpoint, name string) (*response.GenericResponse, error) {
 	substitutedEndpoint := substituteEndpointName(endpoint, name)
-	return c.executeRequestWithError(base.GET, substitutedEndpoint, nil)
+	return c.executeRequestWithError(base.Get, substitutedEndpoint, nil)
 }
 
 func (c *Client) GetList(endpoint base.Endpoint) ([]any, error) {
 	//nolint:bodyclose // defer responseUtils.CloseResponseBody handles closing
-	resp, err := executeHTTPRequest(c, base.GET, endpoint, nil)
+	resp, err := executeHTTPRequest(c, base.Get, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -105,16 +105,16 @@ func (c *Client) GetList(endpoint base.Endpoint) ([]any, error) {
 }
 
 func (c *Client) Post(endpoint base.Endpoint) (*response.GenericResponse, error) {
-	return c.executeRequestWithError(base.POST, endpoint, nil)
+	return c.executeRequestWithError(base.Post, endpoint, nil)
 }
 
 func (c *Client) DeleteNoParams(endpoint base.Endpoint) *response.GenericResponse {
-	return c.executeRequest(base.DELETE, endpoint, nil)
+	return c.executeRequest(base.Delete, endpoint, nil)
 }
 
 func GetTyped[T any](client *Client, endpoint base.Endpoint, name string) (*T, error) {
 	//nolint:bodyclose // defer responseUtils.CloseResponseBody handles closing
-	resp, err := executeHTTPRequest(client, base.GET, substituteEndpointName(endpoint, name), nil)
+	resp, err := executeHTTPRequest(client, base.Get, substituteEndpointName(endpoint, name), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +125,7 @@ func GetTyped[T any](client *Client, endpoint base.Endpoint, name string) (*T, e
 
 func GetListTyped[T any](client *Client, endpoint base.Endpoint) ([]T, error) {
 	//nolint:bodyclose // defer responseUtils.CloseResponseBody handles closing
-	resp, err := executeHTTPRequest(client, base.GET, endpoint, nil)
+	resp, err := executeHTTPRequest(client, base.Get, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}

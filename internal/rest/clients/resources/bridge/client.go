@@ -14,7 +14,7 @@ type Client struct {
 
 func NewClient() *Client {
 	return &Client{
-		Client: shared.New(base.EXPORTER),
+		Client: shared.New(base.Exporter),
 	}
 }
 

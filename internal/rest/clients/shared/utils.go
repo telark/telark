@@ -120,7 +120,7 @@ func wrapError(operation string, err error) error {
 func createErrorResponse(message string, err error) *response.GenericResponse {
 	return responseUtils.LogAndReturnResponse(
 		common.STATUS_INTERNAL_SERVER_ERROR,
-		response.OPERATION_ERROR,
+		response.OperationError,
 		message,
 		nil,
 		err,

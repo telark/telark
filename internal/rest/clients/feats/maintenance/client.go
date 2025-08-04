@@ -16,9 +16,9 @@ type Client struct {
 func NewClient(useExporter bool) *Client {
 	var service base.Service
 	if useExporter {
-		service = base.EXPORTER
+		service = base.Exporter
 	} else {
-		service = base.CONFIGURATOR
+		service = base.Configurator
 	}
 
 	return &Client{

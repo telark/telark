@@ -13,7 +13,7 @@ type Client struct {
 
 func NewClient() *Client {
 	return &Client{
-		Client: shared.New(base.ADMISSION_OPERATOR),
+		Client: shared.New(base.AdmissionOperator),
 	}
 }
 

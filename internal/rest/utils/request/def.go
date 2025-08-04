@@ -16,7 +16,7 @@ func ParseRequestBody(r *http.Request, action string, checkEmptyBody bool) (map[
 		return nil, nil
 	}
 
-	body, err := io.ReadAll(io.LimitReader(r.Body, base.MAX_REQUEST_BODY_SIZE))
+	body, err := io.ReadAll(io.LimitReader(r.Body, base.MaxRequestBodySize))
 	if err != nil {
 		return nil, fmt.Errorf(string(errors.ERROR_REST_PARSE_REQUEST_BODY), err)
 	}
@@ -37,7 +37,7 @@ func CreateGenericRequest(method base.Method, service base.Service, apiVersion b
 		Host: base.Host{
 			Schema:  base.HTTP,
 			Service: service,
-			Port:    base.DEFAULT,
+			Port:    base.Default,
 		},
 		Version:  apiVersion,
 		Endpoint: endpoint,
@@ -50,13 +50,13 @@ func CreateGenericRequestWithPayload(method base.Method, service base.Service, a
 		Host: base.Host{
 			Schema:  base.HTTP,
 			Service: service,
-			Port:    base.DEFAULT,
+			Port:    base.Default,
 		},
 		Version:     apiVersion,
 		Endpoint:    endpoint,
 		ContentType: base.JSON,
 		Payload:     payload,
-		Method:      base.POST,
+		Method:      base.Post,
 	}
 }
 

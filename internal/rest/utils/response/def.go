@@ -50,13 +50,13 @@ func ReadAndParseGenericResponse(resp *http.Response) *response.GenericResponse 
 	if err != nil {
 		message := fmt.Sprintf(string(errors.ERROR_REST_READ_RESPONSE_BODY), err)
 		base.GetLogger().Error(message)
-		return LogAndReturnResponse(http.StatusInternalServerError, response.OPERATION_ERROR, message, nil, err)
+		return LogAndReturnResponse(http.StatusInternalServerError, response.OperationError, message, nil, err)
 	}
 
 	if resp.StatusCode >= 400 {
 		message := fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(body))
 		base.GetLogger().Error(message)
-		return LogAndReturnResponse(resp.StatusCode, response.OPERATION_ERROR, message, nil, fmt.Errorf("HTTP %d", resp.StatusCode))
+		return LogAndReturnResponse(resp.StatusCode, response.OperationError, message, nil, fmt.Errorf("HTTP %d", resp.StatusCode))
 	}
 
 	var genericResp response.GenericResponse
@@ -64,7 +64,7 @@ func ReadAndParseGenericResponse(resp *http.Response) *response.GenericResponse 
 	if err != nil {
 		message := fmt.Sprintf(string(errors.ERROR_REST_UNMARSHALL_RESPONSE_TO_GENERIC), err)
 		base.GetLogger().Error(message)
-		return LogAndReturnResponse(http.StatusUnprocessableEntity, response.OPERATION_ERROR, message, nil, err)
+		return LogAndReturnResponse(http.StatusUnprocessableEntity, response.OperationError, message, nil, err)
 	}
 
 	return &genericResp

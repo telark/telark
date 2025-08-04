@@ -18,7 +18,7 @@ linters:
     - goprintffuncname
     - whitespace
     - unconvert
-    - revive
+    - revive #Temporarily ignore exported, package-comments due to configuration bug
 run:
   timeout: 2m
   tests: true

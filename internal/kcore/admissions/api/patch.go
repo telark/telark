@@ -6,7 +6,7 @@ import (
 	"github.com/plsyro/data-pkg/admissions/common"
 	"github.com/plsyro/data-pkg/errors"
 	"github.com/plsyro/data-pkg/messages"
-	webhookutils "github.com/plsyro/kcore-pkg/admissions/utils"
+	"github.com/plsyro/kcore-pkg/admissions/utils"
 	"github.com/plsyro/kcore-pkg/constants"
 	"github.com/plsyro/kcore-pkg/resilience/timeout"
 	"github.com/plsyro/kcore-pkg/shared"
@@ -15,12 +15,12 @@ import (
 )
 
 func PatchAdmissionWebhookAnnotationsByName(name string, webhookType common.WebhookType, annotations map[string]string) shared.KubernetesAPIData {
-	client, err := webhookutils.GetClient()
+	client, err := utils.GetClient()
 	if err != nil {
 		return shared.HandleClientError(err)
 	}
 
-	payload := webhookutils.CreateAnnotationsPayload(annotations)
+	payload := utils.CreateAnnotationsPayload(annotations)
 	patchBytes, err := json.Marshal(payload)
 	if err != nil {
 		return shared.CreateKubernetesAPIData(shared.StatusInternalServerError, string(errors.ERROR_REST_MARSHALL_PAYLOAD), nil, err)
@@ -35,7 +35,7 @@ func PatchAdmissionWebhookAnnotationsByName(name string, webhookType common.Webh
 		if err != nil {
 			return nil, err
 		}
-		message := webhookutils.CreateMessage(patchedWebhook.GetName(), string(common.VALIDATING), string(messages.SUCCESS_UPDATE_RESOURCE))
+		message := utils.CreateMessage(patchedWebhook.GetName(), string(common.VALIDATING), string(messages.SUCCESS_UPDATE_RESOURCE))
 		return shared.CreateKubernetesAPIData(shared.StatusOK, message, patchedWebhook, nil), nil
 	}
 
@@ -45,9 +45,9 @@ func PatchAdmissionWebhookAnnotationsByName(name string, webhookType common.Webh
 		if err != nil {
 			return nil, err
 		}
-		message := webhookutils.CreateMessage(patchedWebhook.GetName(), string(common.MUTATING), string(messages.SUCCESS_UPDATE_RESOURCE))
+		message := utils.CreateMessage(patchedWebhook.GetName(), string(common.MUTATING), string(messages.SUCCESS_UPDATE_RESOURCE))
 		return shared.CreateKubernetesAPIData(shared.StatusOK, message, patchedWebhook, nil), nil
 	}
 
-	return webhookutils.HandleWebhookType(webhookType, validatingOperation, mutatingOperation)
+	return utils.HandleWebhookType(webhookType, validatingOperation, mutatingOperation)
 }

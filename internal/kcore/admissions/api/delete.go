@@ -3,7 +3,7 @@ package api
 import (
 	"github.com/plsyro/data-pkg/admissions/common"
 	"github.com/plsyro/data-pkg/messages"
-	webhookutils "github.com/plsyro/kcore-pkg/admissions/utils"
+	"github.com/plsyro/kcore-pkg/admissions/utils"
 	"github.com/plsyro/kcore-pkg/constants"
 	"github.com/plsyro/kcore-pkg/resilience/timeout"
 	"github.com/plsyro/kcore-pkg/shared"
@@ -11,7 +11,7 @@ import (
 )
 
 func DeleteAdmissionWebhookByName(name string, webhookType common.WebhookType) shared.KubernetesAPIData {
-	client, err := webhookutils.GetClient()
+	client, err := utils.GetClient()
 	if err != nil {
 		return shared.HandleClientError(err)
 	}
@@ -35,5 +35,5 @@ func DeleteAdmissionWebhookByName(name string, webhookType common.WebhookType) s
 		return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SUCCESS_DELETE_MUTATING_ADMISSION), nil, nil), nil
 	}
 
-	return webhookutils.HandleWebhookType(webhookType, validatingOperation, mutatingOperation)
+	return utils.HandleWebhookType(webhookType, validatingOperation, mutatingOperation)
 }

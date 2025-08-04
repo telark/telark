@@ -3,7 +3,7 @@ package api
 import (
 	"github.com/plsyro/data-pkg/errors"
 	"github.com/plsyro/data-pkg/messages"
-	webhookutils "github.com/plsyro/kcore-pkg/admissions/utils"
+	"github.com/plsyro/kcore-pkg/admissions/utils"
 	"github.com/plsyro/kcore-pkg/constants"
 	"github.com/plsyro/kcore-pkg/resilience/timeout"
 	"github.com/plsyro/kcore-pkg/shared"
@@ -12,7 +12,7 @@ import (
 )
 
 func CreateValidatingAdmissionByConfig(webhookConfig *kubeApiAdmissionv1.ValidatingWebhookConfiguration) shared.KubernetesAPIData {
-	client, err := webhookutils.GetClient()
+	client, err := utils.GetClient()
 	if err != nil {
 		return shared.HandleClientError(err)
 	}
@@ -24,11 +24,11 @@ func CreateValidatingAdmissionByConfig(webhookConfig *kubeApiAdmissionv1.Validat
 		return client.AdmissionregistrationV1().ValidatingWebhookConfigurations().Create(ctx, webhookConfig, kubeApiMeta.CreateOptions{})
 	}
 
-	return webhookutils.ExecuteWebhookOperation(operation, string(messages.SUCCESS_CREATE_VALIDATING_ADMISSION), string(errors.ERROR_CREATE_VALIDATING_ADMISSION))
+	return utils.ExecuteWebhookOperation(operation, string(messages.SUCCESS_CREATE_VALIDATING_ADMISSION), string(errors.ERROR_CREATE_VALIDATING_ADMISSION))
 }
 
 func CreateMutatingAdmissionByConfig(webhookConfig *kubeApiAdmissionv1.MutatingWebhookConfiguration) shared.KubernetesAPIData {
-	client, err := webhookutils.GetClient()
+	client, err := utils.GetClient()
 	if err != nil {
 		return shared.HandleClientError(err)
 	}
@@ -40,5 +40,5 @@ func CreateMutatingAdmissionByConfig(webhookConfig *kubeApiAdmissionv1.MutatingW
 		return client.AdmissionregistrationV1().MutatingWebhookConfigurations().Create(ctx, webhookConfig, kubeApiMeta.CreateOptions{})
 	}
 
-	return webhookutils.ExecuteWebhookOperation(operation, string(messages.SUCCESS_CREATE_MUTATING_ADMISSION), string(errors.ERROR_CREATE_MUTATING_ADMISSION))
+	return utils.ExecuteWebhookOperation(operation, string(messages.SUCCESS_CREATE_MUTATING_ADMISSION), string(errors.ERROR_CREATE_MUTATING_ADMISSION))
 }

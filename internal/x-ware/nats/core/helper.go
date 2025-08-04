@@ -4,23 +4,23 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/plsyro/data-pkg/common"
+	globalShared "github.com/plsyro/data-pkg/shared"
 )
 
 func GetNATSClientURL() string {
-	return fmt.Sprintf("nats://%s-%s:%d", common.BaseNamespace, NatsServiceName, Client)
+	return fmt.Sprintf("nats://%s-%s:%d", globalShared.BaseNamespace, NatsServiceName, Client)
 }
 
 func GetTopicName(group Group, action Action) string {
-	return fmt.Sprintf("%s.%s.%s", common.BaseNamespace, group, action)
+	return fmt.Sprintf("%s.%s.%s", globalShared.BaseNamespace, group, action)
 }
 
 func GetQueueName(group Group, action Action) string {
-	return fmt.Sprintf("%s-%s-%s-queue", common.BaseNamespace, group, action)
+	return fmt.Sprintf("%s-%s-%s-queue", globalShared.BaseNamespace, group, action)
 }
 
 func GetStreamName(group Group) string {
-	return fmt.Sprintf("%s_%s", common.BaseNamespace, group)
+	return fmt.Sprintf("%s_%s", globalShared.BaseNamespace, group)
 }
 
 func GetConsumerName(group Group, queue, topic string) string {

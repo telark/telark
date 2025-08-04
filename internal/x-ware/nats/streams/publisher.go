@@ -10,7 +10,7 @@ import (
 
 func PublishMessage(c *core.NATSClient, subj string, data []byte) (*nats.PubAck, error) {
 	if c == nil || c.JetStream == nil {
-		return nil, fmt.Errorf("%s", errors.ERROR_NATS_JETSTREAM_NOT_INITIALIZED)
+		return nil, fmt.Errorf("%s", errors.ErrNatsJetstreamNotInitialized)
 	}
 
 	msgID := core.GenerateMessageID(subj, data)

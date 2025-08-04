@@ -7,14 +7,14 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
-	baseCommon "github.com/plsyro/data-pkg/common"
 	"github.com/plsyro/data-pkg/errors"
-	"github.com/plsyro/data-pkg/resources/common"
+	resourceShared "github.com/plsyro/data-pkg/resources/shared"
+	globalShared "github.com/plsyro/data-pkg/shared"
 )
 
 func (s *BaseSubscriber) ValidateMessage(m *nats.Msg) error {
 	if m == nil || len(m.Data) == 0 || m.Data == nil {
-		return fmt.Errorf("%s", errors.ERROR_INVALID_MESSAGE)
+		return fmt.Errorf("%s", errors.ErrNatsEmptyMsgData)
 	}
 	return nil
 }
@@ -23,7 +23,7 @@ func (s *BaseSubscriber) AcknowledgeMessage(m *nats.Msg) error {
 	return m.Ack()
 }
 
-func NewMessage(topic, name, scope string, resourceType common.Type, data any) *Message {
+func NewMessage(topic, name, scope string, resourceType resourceShared.Type, data any) *Message {
 	return &Message{
 		Topic:        topic,
 		ResourceName: name,
@@ -64,5 +64,5 @@ func GenerateMessageID(subject string, data []byte) string {
 }
 
 func GenerateSubjectName(group Group) string {
-	return fmt.Sprintf("%s.%s.*", baseCommon.BaseNamespace, group)
+	return fmt.Sprintf("%s.%s.*", globalShared.BaseNamespace, group)
 }

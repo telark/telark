@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/nats-io/nats.go"
-	"github.com/plsyro/data-pkg/resources/common"
+	resourceShared "github.com/plsyro/data-pkg/resources/shared"
 )
 
 type (
@@ -17,7 +17,7 @@ type (
 	ResourceSubscriber interface {
 		Subscribe(nc *NATSClient) error
 		HandleMessage(m *nats.Msg) error
-		GetResourceType() common.Type
+		GetResourceType() resourceShared.Type
 		MessageValidator
 		MessageProcessor
 	}

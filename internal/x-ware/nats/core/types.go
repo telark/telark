@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
-	"github.com/plsyro/data-pkg/resources/common"
+	resourceShared "github.com/plsyro/data-pkg/resources/shared"
 )
 
 type (
@@ -24,11 +24,11 @@ type (
 		Port     Port
 	}
 	Message struct {
-		Topic        string      `json:"topic"`
-		ResourceName string      `json:"resourceName"`
-		ResourceType common.Type `json:"resourceType"`
-		Scope        string      `json:"scope"`
-		Data         any         `json:"data"`
+		Topic        string              `json:"topic"`
+		ResourceName string              `json:"resourceName"`
+		ResourceType resourceShared.Type `json:"resourceType"`
+		Scope        string              `json:"scope"`
+		Data         any                 `json:"data"`
 	}
 	BaseSubscriber struct {
 		Group          Group

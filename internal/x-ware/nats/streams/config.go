@@ -19,9 +19,9 @@ func CreateStreams(c *core.NATSClient) error {
 }
 
 func createStreamByGroup(c *core.NATSClient, group core.Group) error {
-	streamName := core.GetStreamName(group)
+	stream := core.GetStreamName(group)
 	_, err := c.JetStream.AddStream(&nats.StreamConfig{
-		Name:        streamName,
+		Name:        stream,
 		Subjects:    []string{core.GenerateSubjectName(group)},
 		Storage:     StreamStorageType,
 		Retention:   StreamRetentionPolicy,
@@ -30,7 +30,7 @@ func createStreamByGroup(c *core.NATSClient, group core.Group) error {
 		AllowDirect: StreamAllowDirect,
 	})
 	if err != nil && err != nats.ErrStreamNameAlreadyInUse {
-		return fmt.Errorf(string(errors.ERROR_NATS_FAILED_CREATE_STREAM), streamName, err)
+		return fmt.Errorf(string(errors.ErrNatsFailedCreateStream), stream, err)
 	}
 
 	return nil

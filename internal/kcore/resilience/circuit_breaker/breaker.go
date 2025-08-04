@@ -98,5 +98,5 @@ var ErrCircuitBreakerOpen = &CircuitBreakerError{}
 type CircuitBreakerError struct{}
 
 func (e *CircuitBreakerError) Error() string {
-	return constants.CIRCUIT_BREAKER_IS_OPEN
+	return constants.CircuitBreakerIsOpen
 }

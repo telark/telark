@@ -13,7 +13,7 @@ import (
 func GetQualityOfService(namespace string, selectors map[string]string) (string, error) {
 	pods, err := GetPodsBySelectors(namespace, selectors)
 	if err != nil {
-		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_GET_POD_QOS), namespace, err))
+		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ErrFailedToGetPodQoS), namespace, err))
 		return "", err
 	}
 
@@ -34,14 +34,14 @@ func GetPodsBySelectors(namespace string, selectors map[string]string) ([]core.P
 		MatchLabels: selectors,
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.POD_LIST_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.PodListTimeout)
 	defer cancel()
 
 	pods, err := client.CoreV1().Pods(namespace).List(ctx, meta.ListOptions{
 		LabelSelector: meta.FormatLabelSelector(&labelSelector),
 	})
 	if err != nil {
-		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_FETCH_PODS), namespace, err))
+		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ErrFailedToFetchPods), namespace, err))
 		return nil, err
 	}
 

@@ -36,8 +36,8 @@ func WaitForWorkloadsCacheSync(workloads []*appWorkload.AppWorkloadAsResource, c
 	defer cancel()
 
 	if !cache.WaitForCacheSync(syncCtx.Done(), informersToSync...) {
-		logger.Error(string(constants.ERROR_WORKLOAD_INFORMER_FAILED_TO_SYNC))
+		logger.Error(string(constants.ErrWorkloadInformerFailedToSync))
 	} else {
-		logger.Info(string(constants.INFO_WORKLOAD_INFORMER_SYNCED))
+		logger.Info(string(constants.InfoWorkloadInformerSynced))
 	}
 }

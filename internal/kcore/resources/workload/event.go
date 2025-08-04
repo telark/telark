@@ -18,14 +18,14 @@ func GetEventsByPod(pod, namespace string, selectors map[string]string) ([]workl
 
 	eventsPerPod := make([]workload.EventItem, 0)
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.EVENT_FETCH_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.EventFetchTimeout)
 	defer cancel()
 
 	events, err := client.CoreV1().Events(namespace).List(ctx, meta.ListOptions{
-		FieldSelector: fmt.Sprintf(constants.FIELD_SELECTOR_INVOLVED_OBJECT, pod),
+		FieldSelector: fmt.Sprintf(constants.FieldSelectorInvolvedObject, pod),
 	})
 	if err != nil {
-		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_FETCH_POD_EVENTS), pod, namespace, err))
+		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ErrFailedToFetchPodEvents), pod, namespace, err))
 		return eventsPerPod, err
 	}
 

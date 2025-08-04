@@ -16,12 +16,12 @@ func GetDeploymentsByNamespace(namespace string) ([]apps.Deployment, error) {
 		return nil, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.WORKLOAD_LIST_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.WorkloadListTimeout)
 	defer cancel()
 
 	deployments, err := client.AppsV1().Deployments(namespace).List(ctx, meta.ListOptions{})
 	if err != nil {
-		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_FETCH_DEPLOYMENTS), namespace, err))
+		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ErrFailedToFetchDeployments), namespace, err))
 		return nil, err
 	}
 	return deployments.Items, nil
@@ -33,16 +33,16 @@ func GetDeploymentStatus(namespace, name string) (bool, error) {
 		return false, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.WORKLOAD_GET_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.WorkloadGetTimeout)
 	defer cancel()
 
 	deployment, err := client.AppsV1().Deployments(namespace).Get(ctx, name, meta.GetOptions{})
 	if err != nil {
-		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_GET_DEPLOYMENT), name, namespace, err))
+		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ErrFailedToGetDeployment), name, namespace, err))
 		return false, err
 	}
 
-	if deployment.Status.AvailableReplicas == constants.DEPLOYMENT_READY_REPLICAS {
+	if deployment.Status.AvailableReplicas == constants.DeploymentReadyReplicas {
 		return true, nil
 	}
 	return false, nil

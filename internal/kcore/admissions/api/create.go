@@ -17,7 +17,7 @@ func CreateValidatingAdmissionByConfig(webhookConfig *kubeApiAdmissionv1.Validat
 		return shared.HandleClientError(err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.ADMISSION_CREATE_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.AdmissionCreateTimeout)
 	defer cancel()
 
 	operation := func() (interface{}, error) {
@@ -33,7 +33,7 @@ func CreateMutatingAdmissionByConfig(webhookConfig *kubeApiAdmissionv1.MutatingW
 		return shared.HandleClientError(err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.ADMISSION_CREATE_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.AdmissionCreateTimeout)
 	defer cancel()
 
 	operation := func() (interface{}, error) {

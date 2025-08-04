@@ -16,12 +16,12 @@ func GetDaemonSetsByNamespace(namespace string) ([]apps.DaemonSet, error) {
 		return nil, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.WORKLOAD_LIST_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.WorkloadListTimeout)
 	defer cancel()
 
 	daemons, err := client.AppsV1().DaemonSets(namespace).List(ctx, meta.ListOptions{})
 	if err != nil {
-		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_FETCH_DAEMONSETS), namespace, err))
+		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ErrFailedToFetchDaemonsets), namespace, err))
 		return nil, err
 	}
 	return daemons.Items, nil

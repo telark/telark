@@ -16,12 +16,12 @@ func GetNamespaces() ([]core.Namespace, error) {
 		return nil, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.NAMESPACE_LIST_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.NamespaceListTimeout)
 	defer cancel()
 
 	namespaces, err := client.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
 	if err != nil {
-		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_FETCH_NAMESPACES), err))
+		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ErrFailedToFetchNamespaces), err))
 		return nil, err
 	}
 	return namespaces.Items, nil

@@ -16,7 +16,7 @@ func DeleteAdmissionWebhookByName(name string, webhookType common.WebhookType) s
 		return shared.HandleClientError(err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.ADMISSION_DELETE_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.AdmissionDeleteTimeout)
 	defer cancel()
 
 	validatingOperation := func() (interface{}, error) {

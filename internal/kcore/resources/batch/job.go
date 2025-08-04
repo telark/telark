@@ -16,12 +16,12 @@ func GetJobsByNamespace(namespace string) ([]batch.Job, error) {
 		return nil, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.WORKLOAD_LIST_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.WorkloadListTimeout)
 	defer cancel()
 
 	jobs, err := client.BatchV1().Jobs(namespace).List(ctx, meta.ListOptions{})
 	if err != nil {
-		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_FETCH_JOBS), namespace, err))
+		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ErrFailedToFetchJobs), namespace, err))
 		return nil, err
 	}
 	return jobs.Items, nil

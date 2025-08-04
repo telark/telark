@@ -24,7 +24,7 @@ func PatchCustomResource(metadata metadata.Metadata, name string, payload map[st
 		return shared.HandleClientError(err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.CRD_PATCH_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.CrdPatchTimeout)
 	defer cancel()
 
 	patchBytes, err := json.Marshal(payload)

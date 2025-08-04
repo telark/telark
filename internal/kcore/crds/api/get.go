@@ -24,7 +24,7 @@ func GetCustomResourceByName(name string, metadata metadata.Metadata) shared.Kub
 		return shared.HandleClientError(err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.CRD_GET_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.CrdGetTimeout)
 	defer cancel()
 
 	resource, err := resourceClient.Get(ctx, name, kubeApiMeta.GetOptions{})
@@ -41,7 +41,7 @@ func ListCustomResources(metadata metadata.Metadata) shared.KubernetesAPIData {
 		return shared.HandleClientError(err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.CRD_LIST_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.CrdListTimeout)
 	defer cancel()
 
 	resourceList, err := resourceClient.List(ctx, kubeApiMeta.ListOptions{})

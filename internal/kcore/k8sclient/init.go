@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	logger           = logging.NewCustomLogger(constants.LOGGER_PREFIX_K8S_MANAGER)
+	logger           = logging.NewCustomLogger(constants.LoggerPrefixK8sManager)
 	kubernetesClient *kubernetes.Clientset
 	dynamicClient    dynamic.Interface
 	config           *rest.Config

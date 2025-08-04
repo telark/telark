@@ -12,7 +12,7 @@ import (
 func NewMetricsAdapter() (*types.MetricsAdapter, error) {
 	client, err := InitMetricsClient()
 	if err != nil {
-		return nil, fmt.Errorf(string(constants.ERROR_FAILED_TO_INITIALIZE_METRICS_CLIENT), err)
+		return nil, fmt.Errorf(string(constants.ErrFailedToInitializeMetricsClient), err)
 	}
 
 	return &types.MetricsAdapter{
@@ -22,15 +22,15 @@ func NewMetricsAdapter() (*types.MetricsAdapter, error) {
 
 func GetWorkloadMetrics(ma *types.MetricsAdapter, namespace string, selectors map[string]string) (map[string]*types.ContainerMetrics, error) {
 	if ma == nil || ma.Client == nil {
-		return nil, fmt.Errorf("%s", constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL)
+		return nil, fmt.Errorf("%s", constants.ErrMetricsAdapterOrClientNil)
 	}
 	if !shared.IsClientAvailable(ma.Client) {
-		return nil, fmt.Errorf("%s", constants.INFO_METRICS_API_UNAVAILABLE)
+		return nil, fmt.Errorf("%s", constants.InfoMetricsAPIUnavailable)
 	}
 
 	podMetrics, err := ListPodMetrics(ma.Client, namespace)
 	if err != nil {
-		return nil, fmt.Errorf(string(constants.INFO_FAILED_TO_LIST_POD_METRICS), err)
+		return nil, fmt.Errorf(string(constants.InfoFailedToListPodMetrics), err)
 	}
 
 	workloadMetrics := make(map[string]*types.ContainerMetrics)
@@ -45,34 +45,39 @@ func GetWorkloadMetrics(ma *types.MetricsAdapter, namespace string, selectors ma
 	return workloadMetrics, nil
 }
 
-func GetFirstPodMetrics(ma *types.MetricsAdapter, namespace string, selectors map[string]string) (*types.PodMetrics, error) {
+func GetAllPodMetrics(ma *types.MetricsAdapter, namespace string, selectors map[string]string) ([]*types.PodMetrics, error) {
 	if ma == nil || ma.Client == nil {
-		return nil, fmt.Errorf("%s", constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL)
+		return nil, fmt.Errorf("%s", constants.ErrMetricsAdapterOrClientNil)
 	}
 	if !shared.IsClientAvailable(ma.Client) {
-		return nil, fmt.Errorf("%s", constants.INFO_METRICS_API_UNAVAILABLE)
+		return nil, fmt.Errorf("%s", constants.InfoMetricsAPIUnavailable)
 	}
 
 	podMetrics, err := ListPodMetrics(ma.Client, namespace)
 	if err != nil {
-		return nil, fmt.Errorf(string(constants.INFO_FAILED_TO_LIST_POD_METRICS), err)
+		return nil, fmt.Errorf(string(constants.InfoFailedToListPodMetrics), err)
 	}
 
+	var matchingPods []*types.PodMetrics
 	for _, pm := range podMetrics {
 		if matchesSelectors(pm.PodName, selectors) {
-			return pm, nil
+			matchingPods = append(matchingPods, pm)
 		}
 	}
 
-	return nil, fmt.Errorf("%s", constants.ERROR_NO_PODS_FOUND_MATCHING_SELECTORS)
+	if len(matchingPods) == 0 {
+		return nil, fmt.Errorf("%s", constants.ErrNoPodsFoundMatchingSelectors)
+	}
+
+	return matchingPods, nil
 }
 
 func AdapterGetContainerMetrics(ma *types.MetricsAdapter, namespace, podName, containerName string) (*types.ContainerMetrics, error) {
 	if ma == nil || ma.Client == nil {
-		return nil, fmt.Errorf("%s", constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL)
+		return nil, fmt.Errorf("%s", constants.ErrMetricsAdapterOrClientNil)
 	}
 	if !shared.IsClientAvailable(ma.Client) {
-		return nil, fmt.Errorf("%s", constants.INFO_METRICS_API_UNAVAILABLE)
+		return nil, fmt.Errorf("%s", constants.InfoMetricsAPIUnavailable)
 	}
 
 	return GetContainerMetricsAPI(ma.Client, namespace, podName, containerName)

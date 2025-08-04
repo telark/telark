@@ -8,12 +8,12 @@ import (
 )
 
 func ParseCPU(cpuStr string) int64 {
-	if cpuStr == "" || cpuStr == constants.NA_VALUE {
+	if cpuStr == "" || cpuStr == constants.NAValue {
 		return 0
 	}
 
-	if strings.HasSuffix(cpuStr, constants.CPU_UNIT_MILLICORE) {
-		value := strings.TrimSuffix(cpuStr, constants.CPU_UNIT_MILLICORE)
+	if strings.HasSuffix(cpuStr, constants.CPUUnitMillicore) {
+		value := strings.TrimSuffix(cpuStr, constants.CPUUnitMillicore)
 		if val, err := strconv.ParseInt(value, 10, 64); err == nil {
 			return val
 		}
@@ -26,7 +26,7 @@ func ParseCPU(cpuStr string) int64 {
 }
 
 func ParseMemory(memoryStr string) int64 {
-	if memoryStr == "" || memoryStr == constants.NA_VALUE {
+	if memoryStr == "" || memoryStr == constants.NAValue {
 		return 0
 	}
 
@@ -42,13 +42,13 @@ func ParseMemory(memoryStr string) int64 {
 		return value
 	}
 
-	if value := parseMemoryWithUnit(lowerStr, constants.MEMORY_UNIT_KB, 1024); value > 0 {
+	if value := parseMemoryWithUnit(lowerStr, constants.MemoryUnitKB, 1024); value > 0 {
 		return value
 	}
-	if value := parseMemoryWithUnit(lowerStr, constants.MEMORY_UNIT_MB, 1024*1024); value > 0 {
+	if value := parseMemoryWithUnit(lowerStr, constants.MemoryUnitMB, 1024*1024); value > 0 {
 		return value
 	}
-	if value := parseMemoryWithUnit(lowerStr, constants.MEMORY_UNIT_GB, 1024*1024*1024); value > 0 {
+	if value := parseMemoryWithUnit(lowerStr, constants.MemoryUnitGB, 1024*1024*1024); value > 0 {
 		return value
 	}
 

@@ -4,10 +4,10 @@ go 1.24.4
 
 require (
 	github.com/plsyro/data-pkg v1.9.23
-	k8s.io/api v0.33.1
-	k8s.io/apimachinery v0.33.1
-	k8s.io/client-go v0.33.1
-	k8s.io/metrics v0.33.1
+	k8s.io/api v0.33.3
+	k8s.io/apimachinery v0.33.3
+	k8s.io/client-go v0.33.3
+	k8s.io/metrics v0.33.3
 )
 
 require (

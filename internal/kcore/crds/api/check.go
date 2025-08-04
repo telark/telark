@@ -18,7 +18,7 @@ func CheckCustomResourceExistsByName(name string, metadata metadata.Metadata) (b
 		return false, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.CRD_GET_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.CrdGetTimeout)
 	defer cancel()
 
 	_, err = resourceClient.Get(ctx, name, kubeApiMeta.GetOptions{})

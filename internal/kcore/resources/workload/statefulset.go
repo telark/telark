@@ -16,12 +16,12 @@ func GetStatefulSetsByNamespace(namespace string) ([]apps.StatefulSet, error) {
 		return nil, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.WORKLOAD_LIST_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.WorkloadListTimeout)
 	defer cancel()
 
 	sets, err := client.AppsV1().StatefulSets(namespace).List(ctx, meta.ListOptions{})
 	if err != nil {
-		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_FETCH_STATEFULSETS), namespace, err))
+		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ErrFailedToFetchStatefulsets), namespace, err))
 		return nil, err
 	}
 	return sets.Items, nil

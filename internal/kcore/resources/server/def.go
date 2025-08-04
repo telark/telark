@@ -16,7 +16,7 @@ func GetServerVersion() (*version.Info, error) {
 
 	serverVersion, err := client.Discovery().ServerVersion()
 	if err != nil {
-		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_GET_SERVER_VERSION), err))
+		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ErrFailedToGetServerVersion), err))
 		return nil, err
 	}
 

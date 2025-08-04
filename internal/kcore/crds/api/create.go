@@ -18,7 +18,7 @@ func CreateCustomResource(template *unstructured.Unstructured, metadata metadata
 		return shared.HandleClientError(err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.CRD_CREATE_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.CrdCreateTimeout)
 	defer cancel()
 
 	resource, err := resourceClient.Create(ctx, template, kubeApiMeta.CreateOptions{})

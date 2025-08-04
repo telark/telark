@@ -17,8 +17,8 @@ func WaitForServiceCacheSync(ctx context.Context, informerFactory informers.Shar
 	if !cache.WaitForCacheSync(syncCtx.Done(),
 		informerFactory.Core().V1().Services().Informer().HasSynced,
 	) {
-		logger.Error(string(constants.ERROR_SERVICE_INFORMER_FAILED_TO_SYNC))
+		logger.Error(string(constants.ErrServiceInformerFailedToSync))
 	} else {
-		logger.Info(string(constants.INFO_SERVICE_INFORMER_SYNCED))
+		logger.Info(string(constants.InfoServiceInformerSynced))
 	}
 }

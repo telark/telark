@@ -11,7 +11,7 @@ import (
 	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
-var Logger = logging.NewCustomLogger(constants.LOGGER_PREFIX_K8S_METRICS)
+var Logger = logging.NewCustomLogger(constants.LoggerPrefixK8sMetrics)
 
 type (
 	ContainerMetrics struct {

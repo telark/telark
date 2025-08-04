@@ -14,7 +14,7 @@ import (
 	"github.com/plsyro/kcore-pkg/resources/workload"
 )
 
-var usageLogger = logging.NewCustomLogger(constants.LOGGER_PREFIX_WORKLOAD_USAGE)
+var usageLogger = logging.NewCustomLogger(constants.LoggerPrefixWorkloadUsage)
 
 func GetWorkloadQualityOfService(namespace string, selectors map[string]string) string {
 	if namespace == "" || selectors == nil {
@@ -43,64 +43,71 @@ func BuildWorkloadUsage(namespace string, selectors map[string]string, qos strin
 
 	metricsAdapter, err := metricsClient.NewMetricsAdapter()
 	if err != nil {
-		usageLogger.Warning(fmt.Sprintf(string(constants.ERROR_FAILED_TO_INITIALIZE_METRICS_CLIENT), err))
+		usageLogger.Warning(fmt.Sprintf(string(constants.ErrFailedToInitializeMetricsClient), err))
 		return usage
 	}
 
 	if !metricsClient.IsMetricsAvailable(metricsAdapter) {
-		usageLogger.Warning(string(constants.INFO_METRICS_API_UNAVAILABLE))
+		usageLogger.Warning(string(constants.InfoMetricsAPIUnavailable))
 		return usage
 	}
 
-	podMetrics, err := metricsClient.GetFirstPodMetrics(metricsAdapter, namespace, selectors)
+	podMetricsList, err := metricsClient.GetAllPodMetrics(metricsAdapter, namespace, selectors)
 	if err != nil {
-		usageLogger.Warning(fmt.Sprintf(string(constants.ERROR_FAILED_TO_GET_POD_METRICS), err))
+		usageLogger.Warning(fmt.Sprintf(string(constants.ErrFailedToGetPodMetrics), err))
 		return usage
 	}
 
-	if podMetrics == nil {
-		usageLogger.Warning(string(constants.ERROR_FAILED_TO_GET_POD_METRICS))
+	if len(podMetricsList) == 0 {
+		usageLogger.Warning(string(constants.ErrFailedToGetPodMetrics))
 		return usage
 	}
 
 	usage.Available = true
-	usage.Resources = buildResourceFromPodMetrics(podMetrics)
+	usage.Resources = buildResourceFromPodMetricsList(podMetricsList)
 
 	return usage
 }
 
-func buildResourceFromPodMetrics(podMetrics *types.PodMetrics) workloadCommon.Resource {
+func buildResourceFromPodMetricsList(podMetricsList []*types.PodMetrics) workloadCommon.Resource {
 	var instances []workloadCommon.UsagePerInstance
-
-	instance := workloadCommon.UsagePerInstance{
-		Name:       podMetrics.PodName,
-		Containers: []workloadCommon.ContainerUsage{},
-	}
-
 	var totalCPU, totalMemory int64
-	for containerName, containerMetrics := range podMetrics.Containers {
-		containerUsage := workloadCommon.ContainerUsage{
-			Name:   containerName,
-			CPU:    containerMetrics.CPU,
-			Memory: containerMetrics.Memory,
+
+	for _, podMetrics := range podMetricsList {
+		instance := workloadCommon.UsagePerInstance{
+			Name:       podMetrics.PodName,
+			Containers: []workloadCommon.ContainerUsage{},
 		}
-		instance.Containers = append(instance.Containers, containerUsage)
 
-		cpuValue := utils.ParseCPU(containerMetrics.CPU)
-		memoryValue := utils.ParseMemory(containerMetrics.Memory)
+		var instanceCPU, instanceMemory int64
+		for containerName, containerMetrics := range podMetrics.Containers {
+			containerUsage := workloadCommon.ContainerUsage{
+				Name:   containerName,
+				CPU:    containerMetrics.CPU,
+				Memory: containerMetrics.Memory,
+			}
+			instance.Containers = append(instance.Containers, containerUsage)
 
-		totalCPU += cpuValue
-		totalMemory += memoryValue
+			cpuValue := utils.ParseCPU(containerMetrics.CPU)
+			memoryValue := utils.ParseMemory(containerMetrics.Memory)
+
+			instanceCPU += cpuValue
+			instanceMemory += memoryValue
+		}
+
+		instance.TotalCPU = utils.FormatCPU(instanceCPU)
+		instance.TotalMemory = utils.FormatMemory(instanceMemory)
+
+		instances = append(instances, instance)
+
+		// Add to total resources
+		totalCPU += instanceCPU
+		totalMemory += instanceMemory
 	}
-
-	instance.TotalCPU = utils.FormatCPU(totalCPU)
-	instance.TotalMemory = utils.FormatMemory(totalMemory)
-
-	instances = append(instances, instance)
 
 	return workloadCommon.Resource{
-		TotalCPU:         instance.TotalCPU,
-		TotalMemory:      instance.TotalMemory,
+		TotalCPU:         utils.FormatCPU(totalCPU),
+		TotalMemory:      utils.FormatMemory(totalMemory),
 		UsagePerInstance: instances,
 	}
 }

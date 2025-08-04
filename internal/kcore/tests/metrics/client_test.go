@@ -28,21 +28,21 @@ func TestNewMetricsAdapter(t *testing.T) {
 
 func TestGetWorkloadMetrics_NilAdapter(t *testing.T) {
 	_, err := client.GetWorkloadMetrics(nil, TestNamespace, TestSelectors)
-	if err == nil || err.Error() != string(constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL) {
-		t.Errorf(ExpectedErrorForNilAdapterFormat, constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL, err)
+	if err == nil || err.Error() != string(constants.ErrMetricsAdapterOrClientNil) {
+		t.Errorf(ExpectedErrorForNilAdapterFormat, constants.ErrMetricsAdapterOrClientNil, err)
 	}
 }
 
-func TestGetFirstPodMetrics_NilAdapter(t *testing.T) {
-	_, err := client.GetFirstPodMetrics(nil, TestNamespace, TestSelectors)
-	if err == nil || err.Error() != string(constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL) {
-		t.Errorf(ExpectedErrorForNilAdapterFormat, constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL, err)
+func TestGetAllPodMetrics_NilAdapter(t *testing.T) {
+	_, err := client.GetAllPodMetrics(nil, TestNamespace, TestSelectors)
+	if err == nil || err.Error() != string(constants.ErrMetricsAdapterOrClientNil) {
+		t.Errorf(ExpectedErrorForNilAdapterFormat, constants.ErrMetricsAdapterOrClientNil, err)
 	}
 }
 
 func TestAdapterGetContainerMetrics_NilAdapter(t *testing.T) {
 	_, err := client.AdapterGetContainerMetrics(nil, TestNamespace, TestPodName, TestContainerName)
-	if err == nil || err.Error() != string(constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL) {
-		t.Errorf(ExpectedErrorForNilAdapterFormat, constants.ERROR_METRICS_ADAPTER_OR_CLIENT_NIL, err)
+	if err == nil || err.Error() != string(constants.ErrMetricsAdapterOrClientNil) {
+		t.Errorf(ExpectedErrorForNilAdapterFormat, constants.ErrMetricsAdapterOrClientNil, err)
 	}
 }

@@ -50,7 +50,7 @@ func initMetricsClientOnce() (*types.MetricsClient, error) {
 	once.Do(func() {
 		metricsClient, initError = createMetricsClient()
 		if initError != nil {
-			types.Logger.Warning(string(constants.INFO_METRICS_API_UNAVAILABLE))
+			types.Logger.Warning(string(constants.InfoMetricsAPIUnavailable))
 		}
 	})
 
@@ -69,7 +69,7 @@ func createMetricsClient() (*metricsclientset.Clientset, error) {
 
 	metricsClient, err := metricsclientset.NewForConfig(config)
 	if err != nil {
-		return nil, fmt.Errorf(string(constants.ERROR_FAILED_TO_CREATE_METRICS_CLIENT), err)
+		return nil, fmt.Errorf(string(constants.ErrFailedToCreateMetricsClient), err)
 	}
 
 	return metricsClient, nil
@@ -80,12 +80,12 @@ func createMetricsClientInstance() *types.MetricsClient {
 		Client:        metricsClient,
 		Available:     false,
 		LastCheck:     time.Time{},
-		CheckInterval: constants.AVAILABILITY_CHECK_INTERVAL,
-		RateLimiter:   rate_limiting.NewRateLimiter(constants.METRICS_API_RATE_LIMIT),
+		CheckInterval: constants.AvailabilityCheckInterval,
+		RateLimiter:   rate_limiting.NewRateLimiter(constants.MetricsAPIRateLimit),
 		CircuitBreaker: circuit_breaker.NewCircuitBreaker(
-			constants.METRICS_CIRCUIT_BREAKER_MAX_FAILURES,
-			constants.METRICS_CIRCUIT_BREAKER_TIMEOUT,
-			constants.METRICS_CIRCUIT_BREAKER_RESET_TIMEOUT,
+			constants.MetricsCircuitBreakerMaxFailures,
+			constants.MetricsCircuitBreakerTimeout,
+			constants.MetricsCircuitBreakerResetTimeout,
 		),
 	}
 }

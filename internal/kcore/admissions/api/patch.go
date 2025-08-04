@@ -26,7 +26,7 @@ func PatchAdmissionWebhookAnnotationsByName(name string, webhookType common.Webh
 		return shared.CreateKubernetesAPIData(shared.StatusInternalServerError, string(errors.ERROR_REST_MARSHALL_PAYLOAD), nil, err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.ADMISSION_PATCH_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.AdmissionPatchTimeout)
 	defer cancel()
 
 	validatingOperation := func() (interface{}, error) {

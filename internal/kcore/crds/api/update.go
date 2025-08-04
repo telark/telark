@@ -22,7 +22,7 @@ func UpdateCustomResource(name string, metadata metadata.Metadata, template *uns
 		return shared.HandleClientError(err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.CRD_PATCH_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.CrdPatchTimeout)
 	defer cancel()
 
 	resource, err := resourceClient.Update(ctx, template, kubeApiMeta.UpdateOptions{})

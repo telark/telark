@@ -15,14 +15,14 @@ import (
 
 func GetPodMetrics(mc *types.MetricsClient, namespace, podName string) (*types.PodMetrics, error) {
 	if !shared.IsClientAvailable(mc) {
-		return nil, fmt.Errorf("%s", constants.INFO_METRICS_API_UNAVAILABLE)
+		return nil, fmt.Errorf("%s", constants.InfoMetricsAPIUnavailable)
 	}
 
 	mc.RateLimiter.Wait()
 
 	var podMetrics *metricsv1beta1.PodMetrics
 	err := mc.CircuitBreaker.Call(func() error {
-		ctx, cancel := timeout.ContextWithTimeout(constants.METRICS_GET_TIMEOUT)
+		ctx, cancel := timeout.ContextWithTimeout(constants.MetricsGetTimeout)
 		defer cancel()
 
 		var apiErr error
@@ -31,9 +31,9 @@ func GetPodMetrics(mc *types.MetricsClient, namespace, podName string) (*types.P
 	})
 	if err != nil {
 		if err == circuit_breaker.ErrCircuitBreakerOpen {
-			return nil, fmt.Errorf("%s", constants.INFO_METRICS_API_CIRCUIT_BREAKER_OPEN)
+			return nil, fmt.Errorf("%s", constants.InfoMetricsAPICircuitBreakerOpen)
 		}
-		return nil, fmt.Errorf(string(constants.ERROR_FAILED_TO_GET_POD_METRICS), err)
+		return nil, fmt.Errorf(string(constants.ErrFailedToGetPodMetrics), err)
 	}
 
 	return utils.ConvertToPodMetrics(podMetrics), nil
@@ -41,7 +41,7 @@ func GetPodMetrics(mc *types.MetricsClient, namespace, podName string) (*types.P
 
 func GetContainerMetricsAPI(mc *types.MetricsClient, namespace, podName, containerName string) (*types.ContainerMetrics, error) {
 	if !shared.IsClientAvailable(mc) {
-		return nil, fmt.Errorf("%s", constants.INFO_METRICS_API_UNAVAILABLE)
+		return nil, fmt.Errorf("%s", constants.InfoMetricsAPIUnavailable)
 	}
 
 	podMetrics, err := GetPodMetrics(mc, namespace, podName)
@@ -51,7 +51,7 @@ func GetContainerMetricsAPI(mc *types.MetricsClient, namespace, podName, contain
 
 	containerMetrics, exists := podMetrics.Containers[containerName]
 	if !exists {
-		return nil, fmt.Errorf(string(constants.ERROR_CONTAINER_NOT_FOUND_IN_POD), containerName, podName)
+		return nil, fmt.Errorf(string(constants.ErrContainerNotFoundInPod), containerName, podName)
 	}
 
 	return &containerMetrics, nil
@@ -59,14 +59,14 @@ func GetContainerMetricsAPI(mc *types.MetricsClient, namespace, podName, contain
 
 func ListPodMetrics(mc *types.MetricsClient, namespace string) ([]*types.PodMetrics, error) {
 	if !shared.IsClientAvailable(mc) {
-		return nil, fmt.Errorf("%s", constants.INFO_METRICS_API_UNAVAILABLE)
+		return nil, fmt.Errorf("%s", constants.InfoMetricsAPIUnavailable)
 	}
 
 	mc.RateLimiter.Wait()
 
 	var podMetricsList *metricsv1beta1.PodMetricsList
 	err := mc.CircuitBreaker.Call(func() error {
-		ctx, cancel := timeout.ContextWithTimeout(constants.METRICS_LIST_TIMEOUT)
+		ctx, cancel := timeout.ContextWithTimeout(constants.MetricsListTimeout)
 		defer cancel()
 
 		var apiErr error
@@ -75,9 +75,9 @@ func ListPodMetrics(mc *types.MetricsClient, namespace string) ([]*types.PodMetr
 	})
 	if err != nil {
 		if err == circuit_breaker.ErrCircuitBreakerOpen {
-			return nil, fmt.Errorf("%s", constants.INFO_METRICS_API_CIRCUIT_BREAKER_OPEN)
+			return nil, fmt.Errorf("%s", constants.InfoMetricsAPICircuitBreakerOpen)
 		}
-		return nil, fmt.Errorf(string(constants.INFO_FAILED_TO_LIST_POD_METRICS), err)
+		return nil, fmt.Errorf(string(constants.InfoFailedToListPodMetrics), err)
 	}
 
 	var metricsList []*types.PodMetrics

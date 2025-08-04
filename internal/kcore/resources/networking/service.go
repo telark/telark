@@ -22,12 +22,12 @@ func GetServiceByName(namespace, name string) (*core.Service, error) {
 		return nil, fmt.Errorf(string(errors.ERROR_K8S_SET_CLIENT), err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.SERVICE_GET_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.ServiceGetTimeout)
 	defer cancel()
 
 	service, err := client.CoreV1().Services(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
-		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_GET_SERVICE), name, namespace, err))
+		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ErrFailedToGetService), name, namespace, err))
 		return nil, fmt.Errorf(string(errors.ERROR_K8S_GET_SERVICE), name, namespace, err)
 	}
 	return service, nil
@@ -43,12 +43,12 @@ func GetServicesByNamespace(namespace string) ([]core.Service, error) {
 		return nil, fmt.Errorf(string(errors.ERROR_K8S_SET_CLIENT), err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.SERVICE_LIST_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.ServiceListTimeout)
 	defer cancel()
 
 	services, err := client.CoreV1().Services(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_FETCH_SERVICES), namespace, err))
+		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ErrFailedToFetchServices), namespace, err))
 		return nil, fmt.Errorf(string(errors.ERROR_K8S_GET_SERVICE), "all", namespace, err)
 	}
 
@@ -65,12 +65,12 @@ func GetServiceStatus(namespace, name string) (bool, error) {
 		return false, fmt.Errorf(string(errors.ERROR_K8S_SET_CLIENT), err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.SERVICE_GET_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.ServiceGetTimeout)
 	defer cancel()
 
 	service, err := client.CoreV1().Services(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
-		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_TO_GET_SERVICE), name, namespace, err))
+		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ErrFailedToGetService), name, namespace, err))
 		return false, fmt.Errorf(string(errors.ERROR_K8S_GET_SERVICE), name, namespace, err)
 	}
 

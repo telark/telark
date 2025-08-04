@@ -20,8 +20,8 @@ func WaitForNamespaceCacheSync(ctx context.Context, informerFactory informers.Sh
 	if !cache.WaitForCacheSync(syncCtx.Done(),
 		informerFactory.Core().V1().Namespaces().Informer().HasSynced,
 	) {
-		logger.Error(string(constants.ERROR_NAMESPACE_INFORMER_FAILED_TO_SYNC))
+		logger.Error(string(constants.ErrNamespaceInformerFailedToSync))
 	} else {
-		logger.Info(string(constants.INFO_NAMESPACE_INFORMER_SYNCED))
+		logger.Info(string(constants.InfoNamespaceInformerSynced))
 	}
 }

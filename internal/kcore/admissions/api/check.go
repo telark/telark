@@ -16,7 +16,7 @@ func CheckAdmissionWebhookExistsByName(name string, webhookType common.WebhookTy
 		return false, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.ADMISSION_GET_TIMEOUT)
+	ctx, cancel := timeout.ContextWithTimeout(constants.AdmissionGetTimeout)
 	defer cancel()
 
 	switch webhookType {
@@ -35,6 +35,6 @@ func CheckAdmissionWebhookExistsByName(name string, webhookType common.WebhookTy
 		return false, err
 
 	default:
-		return false, fmt.Errorf("%s", constants.ERROR_INVALID_WEBHOOK_TYPE)
+		return false, fmt.Errorf("%s", constants.ErrInvalidWebhookType)
 	}
 }

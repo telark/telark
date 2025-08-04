@@ -1,26 +1,26 @@
 package constants
 
 const (
-	MEMORY_UNIT_KI     = "Ki"
-	MEMORY_UNIT_MI     = "Mi"
-	MEMORY_UNIT_GI     = "Gi"
-	MEMORY_UNIT_B      = "B"
-	MEMORY_UNIT_KB     = "kb"
-	MEMORY_UNIT_MB     = "mb"
-	MEMORY_UNIT_GB     = "gb"
-	CPU_UNIT_MILLICORE = "m"
+	MemoryUnitKi     = "Ki"
+	MemoryUnitMi     = "Mi"
+	MemoryUnitGi     = "Gi"
+	MemoryUnitB      = "B"
+	MemoryUnitKB     = "kb"
+	MemoryUnitMB     = "mb"
+	MemoryUnitGB     = "gb"
+	CPUUnitMillicore = "m"
 )
 
 const (
-	SERVICE_HOST_PATTERN           = "http://%s.%s.svc.cluster.local:%d"
-	FIELD_SELECTOR_INVOLVED_OBJECT = "involvedObject.name=%s"
-	METRICS_API_VERSION            = "metrics.k8s.io/v1beta1"
+	ServiceHostPattern          = "http://%s.%s.svc.cluster.local:%d"
+	FieldSelectorInvolvedObject = "involvedObject.name=%s"
+	MetricsAPIVersion           = "metrics.k8s.io/v1beta1"
 )
 
 const (
-	CPU_MILLICORE_FORMAT = "%dm"
-	CPU_CORE_FORMAT      = "%.2f"
-	MEMORY_BYTES_FORMAT  = "%dB"
-	MEMORY_UNIT_FORMAT   = "%.2f%s"
-	NA_VALUE             = "N/A"
+	CPUMillicoreFormat = "%dm"
+	CPUCoreFormat      = "%.2f"
+	MemoryBytesFormat  = "%dB"
+	MemoryUnitFormat   = "%.2f%s"
+	NAValue            = "N/A"
 )

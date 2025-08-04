@@ -14,7 +14,7 @@ type WorkerPool struct {
 
 func NewWorkerPool(workers int) *WorkerPool {
 	if workers <= 0 {
-		workers = constants.DEFAULT_WORKER_POOL_SIZE
+		workers = constants.DefaultWorkerPoolSize
 	}
 	return &WorkerPool{
 		workers: workers,

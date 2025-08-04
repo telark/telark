@@ -16,7 +16,7 @@ func CreateCustomResourceClient(metadata metadata.Metadata) (dynamic.ResourceInt
 	}
 
 	if metadata.BaseGroup == "" || metadata.Version == "" || metadata.Plural == "" || metadata.Namespace == "" {
-		return nil, fmt.Errorf(string(constants.ERROR_INVALID_METADATA), metadata)
+		return nil, fmt.Errorf(string(constants.ErrInvalidMetadata), metadata)
 	}
 
 	resourceClient := dynamicClient.Resource(schema.GroupVersionResource{

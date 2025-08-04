@@ -1,4 +1,4 @@
-package logging
+package logger
 
 import (
 	"log"
@@ -19,7 +19,7 @@ func (c *CustomLogger) Info(message string) {
 	c.logger.Printf("[INFO] %s", message)
 }
 
-func (c *CustomLogger) Warning(message string) {
+func (c *CustomLogger) Warn(message string) {
 	c.logger.Printf("[WARNING] %s", message)
 }
 

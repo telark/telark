@@ -1,8 +1,6 @@
 package base
 
-import (
-	"fmt"
-)
+import "fmt"
 
 type Metadata struct {
 	BaseGroup string `json:"baseGroup"`
@@ -12,17 +10,16 @@ type Metadata struct {
 	Namespace string `json:"namespace"`
 }
 
-type Group string
-type Version string
-
-const (
-	ERPI  Group = "erpi.plsyro"
-	FEATS Group = "feats.plsyro"
+type (
+	Group   string
+	Version string
 )
 
 const (
-	ALPHA_1 Version = "v1alpha1"
-	ALPHA_2 Version = "v1alpha2"
+	Erpi   Group   = "erpi.plsyro"
+	Feats  Group   = "feats.plsyro"
+	Alpha1 Version = "v1alpha1"
+	Alpha2 Version = "v1alpha2"
 )
 
 func (metadata *Metadata) GetApiVersion() string {

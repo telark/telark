@@ -3,13 +3,13 @@ package suffixes
 import (
 	"fmt"
 
-	"github.com/plsyro/data-pkg/common"
+	"github.com/plsyro/data-pkg/shared"
 )
 
 type Suffix string
 
 const (
-	MAIN_FEAT_NAME_SUFFIX Suffix = "-maintenance-feat"
+	MainFeatNameSuffix Suffix = "-maintenance-feat"
 )
 
-var ADMISSION_NAME_SUFFIX Suffix = Suffix(fmt.Sprintf(".%s.io", common.BaseNamespace))
+var AdmissionNameSuffix Suffix = Suffix(fmt.Sprintf(".%s.io", shared.BaseNamespace))

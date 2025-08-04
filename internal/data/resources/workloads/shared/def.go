@@ -1,24 +1,22 @@
-package common
+package shared
 
-import (
-	"github.com/plsyro/data-pkg/common"
-)
-
-type Metadata struct {
-	Annotations []common.Unified `json:"annotations"`
-	Labels      ComposedLabels   `json:"labels"`
-}
+import globalShared "github.com/plsyro/data-pkg/shared"
 
 type ComposedLabels struct {
-	Global   []common.Unified `json:"global"`
-	Selector []common.Unified `json:"selector"`
+	Global   []globalShared.Unified `json:"global"`
+	Selector []globalShared.Unified `json:"selector"`
+}
+
+type Metadata struct {
+	Annotations []globalShared.Unified `json:"annotations"`
+	Labels      ComposedLabels         `json:"labels"`
 }
 
 type Instances struct {
-	Total     int              `json:"total"`
-	Available int              `json:"available"`
-	Names     []string         `json:"names"`
-	Labels    []common.Unified `json:"labels"`
+	Total     int                    `json:"total"`
+	Available int                    `json:"available"`
+	Names     []string               `json:"names"`
+	Labels    []globalShared.Unified `json:"labels"`
 }
 
 type Crates struct {
@@ -85,23 +83,17 @@ type (
 )
 
 const (
-	STANDARD CrateType = "Standard"
-	SIDE_CAR CrateType = "SideCar"
+	Standard          CrateType              = "Standard"
+	SideCar           CrateType              = "SideCar"
+	OneToMany         BridgeAttachmentPolicy = "Many Bridges Assigned"
+	OneToOne          BridgeAttachmentPolicy = "One Bridge Assigned"
+	NoServiceAssigned BridgeAttachmentPolicy = "No Bridge Assigned"
+	Prv               RegType                = "Private"
+	Pub               RegType                = "Public"
 )
 
 const (
-	ONE_TO_MANY         BridgeAttachmentPolicy = "Many Bridges Assigned"
-	ONE_TO_ONE          BridgeAttachmentPolicy = "One Bridge Assigned"
-	NO_SERVICE_ASSIGNED BridgeAttachmentPolicy = "No Bridge Assigned"
-)
-
-const (
-	PRV RegType = "Private"
-	PUB RegType = "Public"
-)
-
-const (
-	NONE_STRATEGY_TYPE       = "None"
-	READY_CONDITION_TYPE     = "Ready"
-	AVAILABLE_CONDITION_TYPE = "Available"
+	NoneStrategyType       = "None"
+	ReadyConditionType     = "Ready"
+	AvailableConditionType = "Available"
 )

@@ -1,4 +1,4 @@
-package common
+package shared
 
 type (
 	Type       string
@@ -41,23 +41,23 @@ type (
 )
 
 const (
-	GROUPER             Type       = "Grouper"
-	APP_WORKLOAD        Type       = "AppWorkload"
-	BATCH_WORKLOAD      Type       = "BatchWorkload"
-	BRIDGE              Type       = "Bridge"
-	NS                  SourceType = "Namespace"
-	DEPLOY              SourceType = "Deployment"
-	STATEFUL_SET        SourceType = "StatefulSet"
-	DAEMON_SET          SourceType = "DaemonSet"
-	SVC                 SourceType = "Service"
-	JOB                 SourceType = "Job"
-	CRON_JOB            SourceType = "CronJob"
-	SYNC_MODE_MANUAL    Mode       = "manual"
-	SYNC_MODE_AUTO      Mode       = "auto"
-	SYNC_STATUS_SUCCESS SyncStatus = "success"
-	SYNC_STATUS_FAILED  SyncStatus = "failed"
-	FASID_DATA_SCOPE    DataScope  = "fasid"
-	CACID_DATA_SCOPE    DataScope  = "cacid"
-	FULL_DATA_SCOPE     DataScope  = "full"
-	NONE_DATA_SCOPE     DataScope  = "none"
+	Grouper           Type       = "Grouper"
+	AppWorkload       Type       = "AppWorkload"
+	BatchWorkload     Type       = "BatchWorkload"
+	Bridge            Type       = "Bridge"
+	Ns                SourceType = "Namespace"
+	Deploy            SourceType = "Deployment"
+	StatefulSet       SourceType = "StatefulSet"
+	DaemonSet         SourceType = "DaemonSet"
+	Svc               SourceType = "Service"
+	Job               SourceType = "Job"
+	CronJob           SourceType = "CronJob"
+	SyncModeManual    Mode       = "manual"
+	SyncModeAuto      Mode       = "auto"
+	SyncStatusSuccess SyncStatus = "success"
+	SyncStatusFailed  SyncStatus = "failed"
+	FasidDataScope    DataScope  = "fasid"
+	CacidDataScope    DataScope  = "cacid"
+	FullDataScope     DataScope  = "full"
+	NoneDataScope     DataScope  = "none"
 )

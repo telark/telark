@@ -1,17 +1,17 @@
 package maintenance
 
-import "github.com/plsyro/data-pkg/common"
+import globalShared "github.com/plsyro/data-pkg/shared"
 
 type MaintenanceAsFeature struct {
-	Name           string         `json:"name"`
-	Status         common.Status  `json:"status"`
-	CreationTime   string         `json:"creationTime"`
-	LastUpdateTime string         `json:"lastUpdateTime"`
-	TargetResource TargetResource `json:"targetResource"`
-	WebhookName    string         `json:"webhookName"`
-	Update         common.Action  `json:"update"`
-	Delete         common.Action  `json:"delete"`
-	Operations     []Operation    `json:"operations"`
+	Name           string              `json:"name"`
+	Status         globalShared.Status `json:"status"`
+	CreationTime   string              `json:"creationTime"`
+	LastUpdateTime string              `json:"lastUpdateTime"`
+	TargetResource TargetResource      `json:"targetResource"`
+	WebhookName    string              `json:"webhookName"`
+	Update         globalShared.Action `json:"update"`
+	Delete         globalShared.Action `json:"delete"`
+	Operations     []Operation         `json:"operations"`
 }
 
 type TargetResource struct {

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/plsyro/data-pkg/common"
+	globalShared "github.com/plsyro/data-pkg/shared"
 	"github.com/plsyro/data-pkg/suffixes"
 )
 
@@ -25,16 +25,16 @@ func formatName(name string) string {
 	return name
 }
 
-func GenerateName(prefix string, webhookType common.WebhookType, withSuffix bool) string {
+func GenerateName(prefix string, webhookType globalShared.WebhookType, withSuffix bool) string {
 	name := fmt.Sprintf("%s-%s-webhook", prefix, strings.ToLower(string(webhookType)))
 	if withSuffix {
-		name += string(suffixes.ADMISSION_NAME_SUFFIX)
+		name += string(suffixes.AdmissionNameSuffix)
 	}
 
 	return formatName(name)
 }
 
 func AddSuffixToWebhookName(webhookName string) string {
-	name := fmt.Sprintf("%s%s", webhookName, string(suffixes.ADMISSION_NAME_SUFFIX))
+	name := fmt.Sprintf("%s%s", webhookName, string(suffixes.AdmissionNameSuffix))
 	return formatName(name)
 }

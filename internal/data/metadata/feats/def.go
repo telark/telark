@@ -1,14 +1,14 @@
 package feats
 
 import (
-	"github.com/plsyro/data-pkg/common"
 	"github.com/plsyro/data-pkg/metadata/base"
+	globalShared "github.com/plsyro/data-pkg/shared"
 )
 
 var MaintenanceAsFeatureMetadata = base.Metadata{
-	BaseGroup: string(base.FEATS),
+	BaseGroup: string(base.Feats),
 	Kind:      "MaintenanceAsFeature",
-	Version:   string(base.ALPHA_1),
+	Version:   string(base.Alpha1),
 	Plural:    "maintenanceasfeatures",
-	Namespace: common.BaseNamespace,
+	Namespace: globalShared.BaseNamespace,
 }

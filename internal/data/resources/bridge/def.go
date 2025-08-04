@@ -1,29 +1,29 @@
 package bridge
 
 import (
-	baseCommon "github.com/plsyro/data-pkg/common"
-	resourcesCommon "github.com/plsyro/data-pkg/resources/common"
+	resourceShared "github.com/plsyro/data-pkg/resources/shared"
+	globalShared "github.com/plsyro/data-pkg/shared"
 )
 
 type BridgeAsResource struct {
-	Fasid  resourcesCommon.Fasid  `json:"fasid"`
-	Cacid  Cacid                  `json:"cacid"`
-	Config resourcesCommon.Config `json:"config"`
+	Fasid  resourceShared.Fasid  `json:"fasid"`
+	Cacid  Cacid                 `json:"cacid"`
+	Config resourceShared.Config `json:"config"`
 }
 
 type Cacid struct {
-	Status    string               `json:"status"`
-	Type      string               `json:"type"`
-	Ports     []Port               `json:"ports"`
-	Selectors []baseCommon.Unified `json:"selectors"`
-	Workloads []Workload           `json:"workloads"`
+	Status    string                 `json:"status"`
+	Type      string                 `json:"type"`
+	Ports     []Port                 `json:"ports"`
+	Selectors []globalShared.Unified `json:"selectors"`
+	Workloads []Workload             `json:"workloads"`
 }
 
 type Workload struct {
-	Name          string               `json:"name"`
-	Type          string               `json:"type"`
-	IsSameGrouper bool                 `json:"isSameGrouper"`
-	MatchedLabels []baseCommon.Unified `json:"matchedLabels"`
+	Name          string                 `json:"name"`
+	Type          string                 `json:"type"`
+	IsSameGrouper bool                   `json:"isSameGrouper"`
+	MatchedLabels []globalShared.Unified `json:"matchedLabels"`
 }
 
 type Port struct {

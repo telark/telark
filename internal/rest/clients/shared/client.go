@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/plsyro/data-pkg/common"
 	"github.com/plsyro/data-pkg/errors"
+	globalShared "github.com/plsyro/data-pkg/shared"
 	"github.com/plsyro/rest-pkg/base"
 	"github.com/plsyro/rest-pkg/constants"
 	restMapper "github.com/plsyro/rest-pkg/mappers/common"
@@ -32,14 +32,14 @@ func (c *Client) executeRequest(method base.Method, endpoint base.Endpoint, payl
 	if payload != nil {
 		jsonPayload, err = marshalToJSON(payload)
 		if err != nil {
-			return createErrorResponse(string(errors.ERROR_REST_MARSHALL_PAYLOAD), err)
+			return createErrorResponse(string(errors.ErrRestMarshalPayload), err)
 		}
 	}
 
 	//nolint:bodyclose // responseUtils.ReadAndParseGenericResponse handles closing
 	resp, err := executeHTTPRequest(c, method, endpoint, jsonPayload)
 	if err != nil {
-		return createErrorResponse(string(errors.ERROR_CREATE_RESOURCE), err)
+		return createErrorResponse(string(errors.ErrCreateResource), err)
 	}
 
 	return responseUtils.ReadAndParseGenericResponse(resp)
@@ -51,7 +51,7 @@ func (c *Client) executeRequestWithError(method base.Method, endpoint base.Endpo
 	if payload != nil {
 		jsonPayload, err = marshalToJSON(payload)
 		if err != nil {
-			return nil, fmt.Errorf(string(errors.ERROR_REST_MARSHALL_PAYLOAD), err)
+			return nil, fmt.Errorf(string(errors.ErrRestMarshalPayload), err)
 		}
 	}
 
@@ -62,7 +62,7 @@ func (c *Client) executeRequestWithError(method base.Method, endpoint base.Endpo
 	}
 
 	apiResponse := responseUtils.ReadAndParseGenericResponse(resp)
-	if apiResponse.Status != common.STATUS_OK {
+	if apiResponse.Status != globalShared.StatusOK {
 		return nil, fmt.Errorf(string(constants.ErrUnexpectedStatus), apiResponse.Status, apiResponse.Message)
 	}
 
@@ -72,7 +72,7 @@ func (c *Client) executeRequestWithError(method base.Method, endpoint base.Endpo
 func (c *Client) Create(endpoint base.Endpoint, resource any) *response.GenericResponse {
 	mappedPayload, err := restMapper.MapToJsonPayload(resource)
 	if err != nil {
-		return createErrorResponse(string(errors.ERROR_REST_MARSHALL_PAYLOAD), err)
+		return createErrorResponse(string(errors.ErrRestMarshalPayload), err)
 	}
 
 	return c.executeRequest(base.Post, endpoint, mappedPayload)

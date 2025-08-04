@@ -49,7 +49,7 @@ func EncodeJSONResponse(w http.ResponseWriter, status int, response *GenericResp
 
 	encoder := json.NewEncoder(w)
 	if err := encoder.Encode(response); err != nil {
-		http.Error(w, fmt.Sprintf(string(errors.ERROR_REST_ENCODE_RESPONSE), err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf(string(errors.ErrRestEncodeResponse), err), http.StatusInternalServerError)
 	}
 }
 
@@ -66,7 +66,7 @@ func EncodeMultiJSONResponse(w http.ResponseWriter, status int, responses []*Gen
 	copy(responsesToEncode, responses)
 	encoder := json.NewEncoder(w)
 	if err := encoder.Encode(responsesToEncode); err != nil {
-		http.Error(w, fmt.Sprintf(string(errors.ERROR_REST_ENCODE_RESPONSE), err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf(string(errors.ErrRestEncodeResponse), err), http.StatusInternalServerError)
 		return
 	}
 }

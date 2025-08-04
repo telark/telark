@@ -6,8 +6,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/plsyro/data-pkg/common"
 	"github.com/plsyro/data-pkg/errors"
+	globalShared "github.com/plsyro/data-pkg/shared"
 	"github.com/plsyro/rest-pkg/base"
 	"github.com/plsyro/rest-pkg/clients/shared"
 	"github.com/plsyro/rest-pkg/constants"
@@ -43,16 +43,16 @@ func (c *Client) StartAnalyse() error {
 
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
-		return fmt.Errorf(string(errors.ERROR_REST_READ_RESPONSE_BODY), err)
+		return fmt.Errorf(string(errors.ErrRestReadResponseBody), err)
 	}
 
 	var apiResponses []restResponse.GenericResponse
 	if err := json.Unmarshal(body, &apiResponses); err != nil {
-		return fmt.Errorf(string(errors.ERROR_REST_UNMARSHALL_RESPONSE_TO_GENERIC), err)
+		return fmt.Errorf(string(errors.ErrRestUnmarshalResponseToGeneric), err)
 	}
 
 	for _, resp := range apiResponses {
-		if resp.Status != common.STATUS_OK {
+		if resp.Status != globalShared.StatusOK {
 			return fmt.Errorf(string(constants.ErrUnexpectedStatus), resp.Status, resp.Message)
 		}
 	}

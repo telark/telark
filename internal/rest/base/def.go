@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/plsyro/data-pkg/common"
-	"github.com/plsyro/data-pkg/logging"
+	"github.com/plsyro/data-pkg/logger"
+	globalShared "github.com/plsyro/data-pkg/shared"
 	"github.com/plsyro/rest-pkg/constants"
 )
 
@@ -85,9 +85,9 @@ func (api *API) Validate() error {
 }
 
 func GetServiceName(service Service) string {
-	return fmt.Sprintf("%s-%s-service", common.BaseNamespace, service)
+	return fmt.Sprintf("%s-%s-service", globalShared.BaseNamespace, service)
 }
 
-func GetLogger() *logging.CustomLogger {
-	return logging.NewCustomLogger("Rest: ")
+func GetLogger() *logger.CustomLogger {
+	return logger.NewCustomLogger("Rest: ")
 }

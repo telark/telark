@@ -18,7 +18,7 @@ func ParseRequestBody(r *http.Request, action string, checkEmptyBody bool) (map[
 
 	body, err := io.ReadAll(io.LimitReader(r.Body, base.MaxRequestBodySize))
 	if err != nil {
-		return nil, fmt.Errorf(string(errors.ERROR_REST_PARSE_REQUEST_BODY), err)
+		return nil, fmt.Errorf(string(errors.ErrRestParseRequestBody), err)
 	}
 
 	if checkEmptyBody && len(body) == 0 {
@@ -27,7 +27,7 @@ func ParseRequestBody(r *http.Request, action string, checkEmptyBody bool) (map[
 
 	var spec map[string]any
 	if err := json.Unmarshal(body, &spec); err != nil {
-		return nil, fmt.Errorf(string(errors.ERROR_REST_UNMARSHALL_REQUEST_BODY_TO_JSON), err)
+		return nil, fmt.Errorf(string(errors.ErrRestUnmarshalRequestBodyToJSON), err)
 	}
 	return spec, nil
 }
@@ -45,7 +45,7 @@ func CreateGenericRequest(method base.Method, service base.Service, apiVersion b
 	}
 }
 
-func CreateGenericRequestWithPayload(method base.Method, service base.Service, apiVersion base.Version, endpoint base.Endpoint, payload []byte) base.API {
+func CreateGenericRequestWithPayload(_ base.Method, service base.Service, apiVersion base.Version, endpoint base.Endpoint, payload []byte) base.API {
 	return base.API{
 		Host: base.Host{
 			Schema:  base.HTTP,

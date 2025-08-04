@@ -1,8 +1,8 @@
 package workloads
 
 import (
-	appWorkload "github.com/plsyro/data-pkg/resources/workload/app"
-	batchWorkload "github.com/plsyro/data-pkg/resources/workload/batch"
+	appWorkload "github.com/plsyro/data-pkg/resources/workloads/app"
+	batchWorkload "github.com/plsyro/data-pkg/resources/workloads/batch"
 	"github.com/plsyro/rest-pkg/base"
 	"github.com/plsyro/rest-pkg/clients/shared"
 	workloadsEndpoints "github.com/plsyro/rest-pkg/endpoints/resources/workloads"

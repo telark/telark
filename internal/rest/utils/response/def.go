@@ -48,7 +48,7 @@ func ReadAndParseGenericResponse(resp *http.Response) *response.GenericResponse 
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		message := fmt.Sprintf(string(errors.ERROR_REST_READ_RESPONSE_BODY), err)
+		message := fmt.Sprintf(string(errors.ErrRestReadResponseBody), err)
 		base.GetLogger().Error(message)
 		return LogAndReturnResponse(http.StatusInternalServerError, response.OperationError, message, nil, err)
 	}
@@ -62,7 +62,7 @@ func ReadAndParseGenericResponse(resp *http.Response) *response.GenericResponse 
 	var genericResp response.GenericResponse
 	err = json.Unmarshal(body, &genericResp)
 	if err != nil {
-		message := fmt.Sprintf(string(errors.ERROR_REST_UNMARSHALL_RESPONSE_TO_GENERIC), err)
+		message := fmt.Sprintf(string(errors.ErrRestUnmarshalResponseToGeneric), err)
 		base.GetLogger().Error(message)
 		return LogAndReturnResponse(http.StatusUnprocessableEntity, response.OperationError, message, nil, err)
 	}

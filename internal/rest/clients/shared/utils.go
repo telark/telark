@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/plsyro/data-pkg/common"
 	"github.com/plsyro/data-pkg/errors"
+	globalShared "github.com/plsyro/data-pkg/shared"
 	"github.com/plsyro/rest-pkg/base"
 	"github.com/plsyro/rest-pkg/constants"
 	response "github.com/plsyro/rest-pkg/response"
@@ -49,7 +49,7 @@ func executeHTTPRequest(client *Client, method base.Method, endpoint base.Endpoi
 func marshalToJSON(payload any) ([]byte, error) {
 	data, err := json.Marshal(payload)
 	if err != nil {
-		return nil, wrapError(string(errors.ERROR_REST_MARSHALL_PAYLOAD), err)
+		return nil, wrapError(string(errors.ErrRestMarshalPayload), err)
 	}
 	return data, nil
 }
@@ -58,7 +58,7 @@ func readResponseBody(resp *http.Response) ([]byte, error) {
 	defer responseUtils.CloseResponseBody(resp)
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, wrapError(string(errors.ERROR_REST_READ_RESPONSE_BODY), err)
+		return nil, wrapError(string(errors.ErrRestReadResponseBody), err)
 	}
 	return body, nil
 }
@@ -66,7 +66,7 @@ func readResponseBody(resp *http.Response) ([]byte, error) {
 func unmarshalJSON[T any](data []byte) (*T, error) {
 	var result T
 	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, wrapError(string(errors.ERROR_REST_UNMARSHALL_RESPONSE_TO_GENERIC), err)
+		return nil, wrapError(string(errors.ErrRestUnmarshalResponseToGeneric), err)
 	}
 	return &result, nil
 }
@@ -103,7 +103,7 @@ func parseListResponse[T any](resp *http.Response) ([]T, error) {
 	}
 
 	if err := json.Unmarshal(body, &apiResp); err != nil {
-		return nil, wrapError(string(errors.ERROR_REST_UNMARSHALL_RESPONSE_TO_GENERIC), err)
+		return nil, wrapError(string(errors.ErrRestUnmarshalResponseToGeneric), err)
 	}
 
 	return apiResp.Data.Items, nil
@@ -119,7 +119,7 @@ func wrapError(operation string, err error) error {
 
 func createErrorResponse(message string, err error) *response.GenericResponse {
 	return responseUtils.LogAndReturnResponse(
-		common.STATUS_INTERNAL_SERVER_ERROR,
+		globalShared.StatusInternalServerError,
 		response.OperationError,
 		message,
 		nil,

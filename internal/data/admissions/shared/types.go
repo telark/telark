@@ -1,4 +1,4 @@
-package common
+package shared
 
 import v1 "k8s.io/api/admissionregistration/v1"
 

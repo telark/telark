@@ -46,7 +46,7 @@ func createGenericResponse(status int, operation response.OperationStatus, messa
 func ReadAndParseGenericResponse(resp *http.Response) *response.GenericResponse {
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
-			base.GetLogger().Error(fmt.Sprintf(string(constants.ERROR_FAILED_CLOSE_RESPONSE_BODY), closeErr))
+			base.GetLogger().Error(fmt.Sprintf(string(constants.ErrFailedToCloseResponseBody), closeErr))
 		}
 	}()
 

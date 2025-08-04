@@ -40,6 +40,11 @@ func (c *Client) executeRequest(method base.Method, endpoint base.Endpoint, payl
 	if err != nil {
 		return createErrorResponse(string(errors.ERROR_CREATE_RESOURCE), err)
 	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			fmt.Printf(string(constants.ErrFailedToCloseResponseBody), closeErr)
+		}
+	}()
 
 	return responseUtils.ReadAndParseGenericResponse(resp)
 }
@@ -58,10 +63,15 @@ func (c *Client) executeRequestWithError(method base.Method, endpoint base.Endpo
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			fmt.Printf(string(constants.ErrFailedToCloseResponseBody), closeErr)
+		}
+	}()
 
 	apiResponse := responseUtils.ReadAndParseGenericResponse(resp)
 	if apiResponse.Status != common.STATUS_OK {
-		return nil, fmt.Errorf(string(constants.ERROR_UNEXPECTED_STATUS), apiResponse.Status, apiResponse.Message)
+		return nil, fmt.Errorf(string(constants.ErrUnexpectedStatus), apiResponse.Status, apiResponse.Message)
 	}
 
 	return apiResponse, nil
@@ -96,6 +106,11 @@ func (c *Client) GetList(endpoint base.Endpoint) ([]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			fmt.Printf(string(constants.ErrFailedToCloseResponseBody), closeErr)
+		}
+	}()
 
 	return parseListResponse[any](resp)
 }
@@ -113,6 +128,11 @@ func GetTyped[T any](client *Client, endpoint base.Endpoint, name string) (*T, e
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			fmt.Printf(string(constants.ErrFailedToCloseResponseBody), closeErr)
+		}
+	}()
 
 	return parseSingleResponse[T](resp)
 }
@@ -122,12 +142,17 @@ func GetListTyped[T any](client *Client, endpoint base.Endpoint) ([]T, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			fmt.Printf(string(constants.ErrFailedToCloseResponseBody), closeErr)
+		}
+	}()
 
 	return parseListResponse[T](resp)
 }
 
 func (c *Client) FormatEndpoint(template, name string) string {
-	return strings.Replace(template, constants.ENDPOINT_NAME_PLACEHOLDER, name, 1)
+	return strings.Replace(template, string(constants.EndpointNamePlaceholder), name, 1)
 }
 
 func (c *Client) GetService() base.Service {

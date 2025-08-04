@@ -2,6 +2,7 @@ package request
 
 import (
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,7 +22,7 @@ func ParseRequestBody(r *http.Request, action string, checkEmptyBody bool) (map[
 	}
 
 	if checkEmptyBody && len(body) == 0 {
-		return nil, fmt.Errorf("empty request body")
+		return nil, stderrors.New("empty request body")
 	}
 
 	var spec map[string]any

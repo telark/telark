@@ -19,21 +19,21 @@ func NewClient() *Client {
 }
 
 func (c *Client) CreateGrouper(grouper *grouperResource.GrouperAsResource) *response.GenericResponse {
-	return c.Create(grouperEndpoints.CREATE_GROUPER, grouper)
+	return c.Create(grouperEndpoints.CreateGrouper, grouper)
 }
 
 func (c *Client) GetGrouperByName(name string) (*grouperResource.GrouperAsResource, error) {
-	return shared.GetTyped[grouperResource.GrouperAsResource](c.Client, grouperEndpoints.GET_GROUPER, name)
+	return shared.GetTyped[grouperResource.GrouperAsResource](c.Client, grouperEndpoints.GetGrouper, name)
 }
 
 func (c *Client) GetAllGroupers() ([]*grouperResource.GrouperAsResource, error) {
-	return shared.GetListTyped[*grouperResource.GrouperAsResource](c.Client, grouperEndpoints.GET_ALL_GROUPERS)
+	return shared.GetListTyped[*grouperResource.GrouperAsResource](c.Client, grouperEndpoints.GetAllGroupers)
 }
 
 func (c *Client) PatchGrouper(name string, body map[string]interface{}) *response.GenericResponse {
-	return c.Update(grouperEndpoints.PATCH_GROUPER, name, body)
+	return c.Update(grouperEndpoints.PatchGrouper, name, body)
 }
 
 func (c *Client) DeleteGrouper(name string) *response.GenericResponse {
-	return c.Delete(grouperEndpoints.DELETE_GROUPER, name)
+	return c.Delete(grouperEndpoints.DeleteGrouper, name)
 }

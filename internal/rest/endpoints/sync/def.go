@@ -3,12 +3,12 @@ package sync
 import "github.com/plsyro/rest-pkg/base"
 
 const (
-	SYNC_ALL_GROUPERS          base.Endpoint = "resources/groupers/sync"
-	SYNC_GROUPER               base.Endpoint = "resources/groupers/{name}/sync"
-	SYNC_ALL_APPS_WORKLOADS    base.Endpoint = "resources/workloads/apps/sync"
-	SYNC_APP_WORKLOAD          base.Endpoint = "resources/workloads/apps/{name}/sync"
-	SYNC_ALL_BATCHES_WORKLOADS base.Endpoint = "resources/workloads/batches/sync"
-	SYNC_BATCH_WORKLOAD        base.Endpoint = "resources/workloads/batches/{name}/sync"
-	SYNC_ALL_BRIDGES           base.Endpoint = "resources/bridges/sync"
-	SYNC_BRIDGE                base.Endpoint = "resources/bridges/{name}/sync"
+	SyncAllGroupers         base.Endpoint = "resources/groupers/sync"
+	SyncGrouper             base.Endpoint = "resources/groupers/{name}/sync"
+	SyncAllAppsWorkloads    base.Endpoint = "resources/workloads/apps/sync"
+	SyncAppWorkload         base.Endpoint = "resources/workloads/apps/{name}/sync"
+	SyncAllBatchesWorkloads base.Endpoint = "resources/workloads/batches/sync"
+	SyncBatchWorkload       base.Endpoint = "resources/workloads/batches/{name}/sync"
+	SyncAllBridges          base.Endpoint = "resources/bridges/sync"
+	SyncBridge              base.Endpoint = "resources/bridges/{name}/sync"
 )

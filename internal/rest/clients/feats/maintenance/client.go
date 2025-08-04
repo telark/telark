@@ -27,29 +27,29 @@ func NewClient(useExporter bool) *Client {
 }
 
 func (c *Client) CreateMaintenanceFeat(maintenance *maintenance.MaintenanceAsFeature) *response.GenericResponse {
-	return c.Create(maintenanceEndpoints.CREATE_MAINTENANCE_FEAT, maintenance)
+	return c.Create(maintenanceEndpoints.CreateMaintenanceFeat, maintenance)
 }
 
 func (c *Client) PatchMaintenanceFeat(name string, body map[string]any) *response.GenericResponse {
-	return c.Update(maintenanceEndpoints.PATCH_MAINTENANCE_FEAT, name, body)
+	return c.Update(maintenanceEndpoints.PatchMaintenanceFeat, name, body)
 }
 
 func (c *Client) GetMaintenanceFeatByName(name string) (*maintenance.MaintenanceAsFeature, error) {
-	return shared.GetTyped[maintenance.MaintenanceAsFeature](c.Client, maintenanceEndpoints.GET_MAINTENANCE_FEAT, name)
+	return shared.GetTyped[maintenance.MaintenanceAsFeature](c.Client, maintenanceEndpoints.GetMaintenanceFeat, name)
 }
 
 func (c *Client) DeleteMaintenanceFeat(name string) *response.GenericResponse {
-	return c.Delete(maintenanceEndpoints.DELETE_MAINTENANCE_FEAT, name)
+	return c.Delete(maintenanceEndpoints.DeleteMaintenanceFeat, name)
 }
 
 func (c *Client) EnableGrouperMaintenance(body map[string]interface{}) *response.GenericResponse {
-	return c.Create(grouperEndpoints.ENABLE_GROUPER_MAINTENANCE_FEAT, body)
+	return c.Create(grouperEndpoints.EnableGrouperMaintenanceFeat, body)
 }
 
 func (c *Client) UpdateGrouperMaintenance(body map[string]interface{}) *response.GenericResponse {
-	return c.Create(grouperEndpoints.UPDATE_GROUPER_MAINTENANCE_FEAT, body)
+	return c.Create(grouperEndpoints.UpdateGrouperMaintenanceFeat, body)
 }
 
 func (c *Client) RemoveGrouperMaintenance() *response.GenericResponse {
-	return c.DeleteNoParams(grouperEndpoints.REMOVE_GROUPER_MAINTENANCE_FEAT)
+	return c.DeleteNoParams(grouperEndpoints.RemoveGrouperMaintenanceFeat)
 }

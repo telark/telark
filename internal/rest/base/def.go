@@ -1,6 +1,7 @@
 package base
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/plsyro/data-pkg/common"
@@ -56,7 +57,7 @@ const (
 
 func (api *API) GenerateURL() (string, error) {
 	if err := api.Validate(); err != nil {
-		return "", fmt.Errorf(constants.VALIDATION_FAILED, err)
+		return "", fmt.Errorf(string(constants.ErrValidationFailed), err)
 	}
 
 	serviceName := GetServiceName(api.Host.Service)
@@ -69,16 +70,16 @@ func (api *API) GenerateURL() (string, error) {
 
 func (api *API) Validate() error {
 	if api.Host.Schema == "" {
-		return fmt.Errorf(constants.SCHEMA_IS_REQUIRED)
+		return errors.New(string(constants.ErrSchemaIsRequired))
 	}
 	if api.Host.Service == "" {
-		return fmt.Errorf(constants.SERVICE_IS_REQUIRED)
+		return errors.New(string(constants.ErrServiceIsRequired))
 	}
 	if api.Version == "" {
-		return fmt.Errorf(constants.VERSION_IS_REQUIRED)
+		return errors.New(string(constants.ErrVersionIsRequired))
 	}
 	if api.Endpoint == "" {
-		return fmt.Errorf(constants.ENDPOINT_IS_REQUIRED)
+		return errors.New(string(constants.ErrEndpointIsRequired))
 	}
 	return nil
 }

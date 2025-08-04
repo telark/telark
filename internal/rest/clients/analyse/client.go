@@ -27,19 +27,20 @@ func NewClient() *Client {
 }
 
 func (c *Client) StartAnalyse() error {
-	request := requestUtils.CreateGenericRequest(base.POST, base.CONFIGURATOR, base.V1, analyseEndpoints.START_ANALYSE)
+	request := requestUtils.CreateGenericRequest(base.POST, base.CONFIGURATOR, base.V1, analyseEndpoints.StartAnalyse)
 	requestURL, err := request.GenerateURL()
 	if err != nil {
-		return fmt.Errorf(string(constants.ERROR_FAILED_GENERATE_REQUEST_URL), err)
+		return fmt.Errorf(string(constants.ErrFailedToGenerateRequestURL), err)
 	}
 
+	//nolint:gosec // URL is generated from trusted request object
 	response, err := http.Post(requestURL, string(base.JSON), nil)
 	if err != nil {
-		return fmt.Errorf(string(constants.ERROR_FAILED_SEND_POST_REQUEST), err)
+		return fmt.Errorf(string(constants.ErrFailedToSendPostRequest), err)
 	}
 	defer func() {
 		if closeErr := response.Body.Close(); closeErr != nil {
-			err = fmt.Errorf(string(constants.ERROR_FAILED_CLOSE_RESPONSE_BODY), closeErr)
+			err = fmt.Errorf(string(constants.ErrFailedToCloseResponseBody), closeErr)
 		}
 	}()
 
@@ -55,7 +56,7 @@ func (c *Client) StartAnalyse() error {
 
 	for _, resp := range apiResponses {
 		if resp.Status != common.STATUS_OK {
-			return fmt.Errorf(string(constants.ERROR_UNEXPECTED_STATUS), resp.Status, resp.Message)
+			return fmt.Errorf(string(constants.ErrUnexpectedStatus), resp.Status, resp.Message)
 		}
 	}
 

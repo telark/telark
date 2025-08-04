@@ -31,12 +31,12 @@ func buildRequestURL(client *Client, method base.Method, endpoint base.Endpoint,
 func executeHTTPRequest(client *Client, method base.Method, endpoint base.Endpoint, payload []byte) (*http.Response, error) {
 	url, err := buildRequestURL(client, method, endpoint, payload)
 	if err != nil {
-		return nil, wrapError(string(constants.ERROR_FAILED_GENERATE_REQUEST_URL), err)
+		return nil, wrapError(string(constants.ErrFailedToGenerateRequestURL), err)
 	}
 
 	req, err := http.NewRequest(string(method), url, bytes.NewBuffer(payload))
 	if err != nil {
-		return nil, wrapError(string(constants.ERROR_FAILED_CREATE_HTTP_REQUEST), err)
+		return nil, wrapError(string(constants.ErrFailedToCreateHTTPRequest), err)
 	}
 
 	if payload != nil {
@@ -57,7 +57,7 @@ func marshalToJSON(payload any) ([]byte, error) {
 func readResponseBody(resp *http.Response) ([]byte, error) {
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
-			fmt.Printf("failed to close response body: %v", closeErr)
+			fmt.Printf(string(constants.ErrFailedToCloseResponseBody), closeErr)
 		}
 	}()
 	body, err := io.ReadAll(resp.Body)
@@ -114,7 +114,7 @@ func parseListResponse[T any](resp *http.Response) ([]T, error) {
 }
 
 func substituteEndpointName(endpoint base.Endpoint, name string) base.Endpoint {
-	return base.Endpoint(strings.Replace(string(endpoint), constants.ENDPOINT_NAME_PLACEHOLDER, name, 1))
+	return base.Endpoint(strings.Replace(string(endpoint), string(constants.EndpointNamePlaceholder), name, 1))
 }
 
 func wrapError(operation string, err error) error {

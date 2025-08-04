@@ -42,7 +42,7 @@ const (
 	Active                    Status      = "Active"
 	Suspended                 Status      = "Suspended"
 	Enabled                   Status      = "Enabled"
-	Disabled                  Status      = "Disabled" //nolint:gosec // This is a valid status
+	Disabled                  Status      = "Disabled"
 	Validating                WebhookType = "VALIDATING"
 	Mutating                  WebhookType = "MUTATING"
 	Set                       Action      = "set"

@@ -11,7 +11,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-func WaitForWorkloadsCacheSync(workloads []*appWorkload.AppWorkloadAsResource, ctx context.Context, informerFactory informers.SharedInformerFactory, timeout time.Duration) {
+func WaitForWorkloadsCacheSync(ctx context.Context, workloads []*appWorkload.AppWorkloadAsResource, informerFactory informers.SharedInformerFactory, timeout time.Duration) {
 	informerFactory.Start(ctx.Done())
 	workloadTypes := make(map[string]bool)
 	for _, workload := range workloads {

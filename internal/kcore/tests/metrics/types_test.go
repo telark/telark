@@ -3,21 +3,21 @@ package metrics
 import (
 	"testing"
 
-	"github.com/plsyro/kcore-pkg/metrics/types"
+	metricstypes "github.com/plsyro/kcore-pkg/metrics/types"
 )
 
 func TestContainerMetricsStruct(t *testing.T) {
-	cm := types.ContainerMetrics{CPU: TestCPUString, Memory: TestMemoryStringMi, Pod: TestPodName}
+	cm := metricstypes.ContainerMetrics{CPU: TestCPUString, Memory: TestMemoryStringMi, Pod: TestPodName}
 	if cm.CPU != TestCPUString || cm.Memory != TestMemoryStringMi || cm.Pod != TestPodName {
 		t.Error(ExpectedContainerMetricsStructFieldsNotSet)
 	}
 }
 
 func TestPodMetricsStruct(t *testing.T) {
-	pm := types.PodMetrics{
+	pm := metricstypes.PodMetrics{
 		PodName:     TestPodName,
 		Namespace:   TestNamespace,
-		Containers:  map[string]types.ContainerMetrics{},
+		Containers:  map[string]metricstypes.ContainerMetrics{},
 		TotalCPU:    TestCPUString,
 		TotalMemory: TestMemoryStringMi,
 	}
@@ -28,13 +28,13 @@ func TestPodMetricsStruct(t *testing.T) {
 }
 
 func TestMetricsClientStruct(t *testing.T) {
-	mc := &types.MetricsClient{}
+	mc := &metricstypes.MetricsClient{}
 	// Test that the struct can be created
 	_ = mc
 }
 
 func TestMetricsAdapterStruct(t *testing.T) {
-	ma := &types.MetricsAdapter{}
+	ma := &metricstypes.MetricsAdapter{}
 	// Test that the struct can be created
 	_ = ma
 }

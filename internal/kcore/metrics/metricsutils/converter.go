@@ -1,4 +1,4 @@
-package utils
+package metricsutils
 
 import (
 	types "github.com/plsyro/kcore-pkg/metrics/types"

@@ -18,6 +18,7 @@ linters:
     - goprintffuncname
     - whitespace
     - unconvert
+    - revive
 run:
   timeout: 2m
   tests: true

@@ -1,4 +1,4 @@
-package types
+package metricstypes
 
 import (
 	"sync"
@@ -6,8 +6,8 @@ import (
 
 	"github.com/plsyro/data-pkg/logging"
 	"github.com/plsyro/kcore-pkg/constants"
-	"github.com/plsyro/kcore-pkg/resilience/circuit_breaker"
-	"github.com/plsyro/kcore-pkg/resilience/rate_limiting"
+	"github.com/plsyro/kcore-pkg/resilience/circuitbreaker"
+	"github.com/plsyro/kcore-pkg/resilience/ratelimiting"
 	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
@@ -33,8 +33,8 @@ type (
 		Available      bool
 		LastCheck      time.Time
 		CheckInterval  time.Duration
-		RateLimiter    *rate_limiting.RateLimiter
-		CircuitBreaker *circuit_breaker.CircuitBreaker
+		RateLimiter    *ratelimiting.RateLimiter
+		CircuitBreaker *circuitbreaker.CircuitBreaker
 		Mu             sync.RWMutex
 	}
 

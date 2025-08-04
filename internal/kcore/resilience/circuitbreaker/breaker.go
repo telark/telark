@@ -1,4 +1,4 @@
-package circuit_breaker
+package circuitbreaker
 
 import (
 	"sync"
@@ -22,7 +22,7 @@ type (
 
 func NewCircuitBreaker(maxFailures int, timeout, resetTimeout time.Duration) *CircuitBreaker {
 	return &CircuitBreaker{
-		state:        CLOSED,
+		state:        Closed,
 		maxFailures:  maxFailures,
 		timeout:      timeout,
 		resetTimeout: resetTimeout,
@@ -44,19 +44,19 @@ func (cb *CircuitBreaker) canExecute() bool {
 	defer cb.mu.RUnlock()
 
 	switch cb.state {
-	case CLOSED:
+	case Closed:
 		return true
-	case OPEN:
+	case Open:
 		if time.Since(cb.lastFailureTime) > cb.resetTimeout {
 			cb.mu.RUnlock()
 			cb.mu.Lock()
-			cb.state = HALF_OPEN
+			cb.state = HalfOpen
 			cb.mu.Unlock()
 			cb.mu.RLock()
 			return true
 		}
 		return false
-	case HALF_OPEN:
+	case HalfOpen:
 		return true
 	default:
 		return false
@@ -72,11 +72,11 @@ func (cb *CircuitBreaker) recordResult(err error) {
 		cb.lastFailureTime = time.Now()
 
 		if cb.failureCount >= cb.maxFailures {
-			cb.state = OPEN
+			cb.state = Open
 		}
 	} else {
 		cb.failureCount = 0
-		cb.state = CLOSED
+		cb.state = Closed
 	}
 }
 
@@ -89,7 +89,7 @@ func (cb *CircuitBreaker) State() CircuitBreakerState {
 func (cb *CircuitBreaker) Reset() {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
-	cb.state = CLOSED
+	cb.state = Closed
 	cb.failureCount = 0
 }
 

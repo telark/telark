@@ -1,4 +1,4 @@
-package utils
+package webhookutils
 
 import (
 	"net/http"

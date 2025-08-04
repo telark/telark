@@ -4,16 +4,16 @@ import (
 	"fmt"
 
 	"github.com/plsyro/kcore-pkg/constants"
+	"github.com/plsyro/kcore-pkg/metrics/metricsutils"
 	shared "github.com/plsyro/kcore-pkg/metrics/shared"
-	types "github.com/plsyro/kcore-pkg/metrics/types"
-	utils "github.com/plsyro/kcore-pkg/metrics/utils"
-	"github.com/plsyro/kcore-pkg/resilience/circuit_breaker"
+	metricstypes "github.com/plsyro/kcore-pkg/metrics/types"
+	"github.com/plsyro/kcore-pkg/resilience/circuitbreaker"
 	"github.com/plsyro/kcore-pkg/resilience/timeout"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 )
 
-func GetPodMetrics(mc *types.MetricsClient, namespace, podName string) (*types.PodMetrics, error) {
+func GetPodMetrics(mc *metricstypes.MetricsClient, namespace, podName string) (*metricstypes.PodMetrics, error) {
 	if !shared.IsClientAvailable(mc) {
 		return nil, fmt.Errorf("%s", constants.InfoMetricsAPIUnavailable)
 	}
@@ -30,16 +30,16 @@ func GetPodMetrics(mc *types.MetricsClient, namespace, podName string) (*types.P
 		return apiErr
 	})
 	if err != nil {
-		if err == circuit_breaker.ErrCircuitBreakerOpen {
+		if err == circuitbreaker.ErrCircuitBreakerOpen {
 			return nil, fmt.Errorf("%s", constants.InfoMetricsAPICircuitBreakerOpen)
 		}
 		return nil, fmt.Errorf(string(constants.ErrFailedToGetPodMetrics), err)
 	}
 
-	return utils.ConvertToPodMetrics(podMetrics), nil
+	return metricsutils.ConvertToPodMetrics(podMetrics), nil
 }
 
-func GetContainerMetricsAPI(mc *types.MetricsClient, namespace, podName, containerName string) (*types.ContainerMetrics, error) {
+func GetContainerMetricsAPI(mc *metricstypes.MetricsClient, namespace, podName, containerName string) (*metricstypes.ContainerMetrics, error) {
 	if !shared.IsClientAvailable(mc) {
 		return nil, fmt.Errorf("%s", constants.InfoMetricsAPIUnavailable)
 	}
@@ -57,7 +57,7 @@ func GetContainerMetricsAPI(mc *types.MetricsClient, namespace, podName, contain
 	return &containerMetrics, nil
 }
 
-func ListPodMetrics(mc *types.MetricsClient, namespace string) ([]*types.PodMetrics, error) {
+func ListPodMetrics(mc *metricstypes.MetricsClient, namespace string) ([]*metricstypes.PodMetrics, error) {
 	if !shared.IsClientAvailable(mc) {
 		return nil, fmt.Errorf("%s", constants.InfoMetricsAPIUnavailable)
 	}
@@ -74,15 +74,15 @@ func ListPodMetrics(mc *types.MetricsClient, namespace string) ([]*types.PodMetr
 		return apiErr
 	})
 	if err != nil {
-		if err == circuit_breaker.ErrCircuitBreakerOpen {
+		if err == circuitbreaker.ErrCircuitBreakerOpen {
 			return nil, fmt.Errorf("%s", constants.InfoMetricsAPICircuitBreakerOpen)
 		}
 		return nil, fmt.Errorf(string(constants.InfoFailedToListPodMetrics), err)
 	}
 
-	var metricsList []*types.PodMetrics
+	metricsList := make([]*metricstypes.PodMetrics, 0, len(podMetricsList.Items))
 	for _, pm := range podMetricsList.Items {
-		metricsList = append(metricsList, utils.ConvertToPodMetrics(&pm))
+		metricsList = append(metricsList, metricsutils.ConvertToPodMetrics(&pm))
 	}
 
 	return metricsList, nil

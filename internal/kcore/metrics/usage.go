@@ -9,8 +9,8 @@ import (
 	workloadCommon "github.com/plsyro/data-pkg/resources/workload/common"
 	"github.com/plsyro/kcore-pkg/constants"
 	metricsClient "github.com/plsyro/kcore-pkg/metrics/client"
+	"github.com/plsyro/kcore-pkg/metrics/metricsutils"
 	types "github.com/plsyro/kcore-pkg/metrics/types"
-	"github.com/plsyro/kcore-pkg/metrics/utils"
 	"github.com/plsyro/kcore-pkg/resources/workload"
 )
 
@@ -70,7 +70,7 @@ func BuildWorkloadUsage(namespace string, selectors map[string]string, qos strin
 }
 
 func buildResourceFromPodMetricsList(podMetricsList []*types.PodMetrics) workloadCommon.Resource {
-	var instances []workloadCommon.UsagePerInstance
+	instances := make([]workloadCommon.UsagePerInstance, 0, len(podMetricsList))
 	var totalCPU, totalMemory int64
 
 	for _, podMetrics := range podMetricsList {
@@ -88,15 +88,15 @@ func buildResourceFromPodMetricsList(podMetricsList []*types.PodMetrics) workloa
 			}
 			instance.Containers = append(instance.Containers, containerUsage)
 
-			cpuValue := utils.ParseCPU(containerMetrics.CPU)
-			memoryValue := utils.ParseMemory(containerMetrics.Memory)
+			cpuValue := metricsutils.ParseCPU(containerMetrics.CPU)
+			memoryValue := metricsutils.ParseMemory(containerMetrics.Memory)
 
 			instanceCPU += cpuValue
 			instanceMemory += memoryValue
 		}
 
-		instance.TotalCPU = utils.FormatCPU(instanceCPU)
-		instance.TotalMemory = utils.FormatMemory(instanceMemory)
+		instance.TotalCPU = metricsutils.FormatCPU(instanceCPU)
+		instance.TotalMemory = metricsutils.FormatMemory(instanceMemory)
 
 		instances = append(instances, instance)
 
@@ -106,8 +106,8 @@ func buildResourceFromPodMetricsList(podMetricsList []*types.PodMetrics) workloa
 	}
 
 	return workloadCommon.Resource{
-		TotalCPU:         utils.FormatCPU(totalCPU),
-		TotalMemory:      utils.FormatMemory(totalMemory),
+		TotalCPU:         metricsutils.FormatCPU(totalCPU),
+		TotalMemory:      metricsutils.FormatMemory(totalMemory),
 		UsagePerInstance: instances,
 	}
 }

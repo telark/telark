@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/plsyro/data-pkg/errors"
-	"github.com/plsyro/data-pkg/logging"
+	globalLogger "github.com/plsyro/data-pkg/logger"
 	"github.com/plsyro/kcore-pkg/constants"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	logger           = logging.NewCustomLogger(constants.LoggerPrefixK8sManager)
+	logger           = globalLogger.NewCustomLogger(constants.LoggerPrefixK8sManager)
 	kubernetesClient *kubernetes.Clientset
 	dynamicClient    dynamic.Interface
 	config           *rest.Config
@@ -26,7 +26,7 @@ func getConfig() (*rest.Config, error) {
 	configOnce.Do(func() {
 		config, err = rest.InClusterConfig()
 		if err != nil {
-			logger.Error(fmt.Sprintf(string(errors.ERROR_K8S_CREATE_CONFIG), err))
+			logger.Error(fmt.Sprintf(string(errors.ErrK8sCreateConfig), err))
 		}
 	})
 	return config, err
@@ -54,7 +54,7 @@ func InitDynamicClient() (dynamic.Interface, error) {
 
 	dynamicClient, err = dynamic.NewForConfig(config)
 	if err != nil {
-		return nil, fmt.Errorf(string(errors.ERROR_K8S_SET_CLIENT), err)
+		return nil, fmt.Errorf(string(errors.ErrK8sSetClient), err)
 	}
 
 	return dynamicClient, nil
@@ -82,7 +82,7 @@ func InitKubernetesClient() (*kubernetes.Clientset, error) {
 
 	kubernetesClient, err = kubernetes.NewForConfig(config)
 	if err != nil {
-		return nil, fmt.Errorf(string(errors.ERROR_K8S_SET_CLIENT), err)
+		return nil, fmt.Errorf(string(errors.ErrK8sSetClient), err)
 	}
 
 	return kubernetesClient, nil
@@ -97,6 +97,6 @@ func ResetAllClients() {
 	configOnce = sync.Once{}
 }
 
-func GetLogger() *logging.CustomLogger {
+func GetLogger() *globalLogger.CustomLogger {
 	return logger
 }

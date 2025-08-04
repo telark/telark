@@ -50,7 +50,7 @@ func initMetricsClientOnce() (*types.MetricsClient, error) {
 	once.Do(func() {
 		metricsClient, initError = createMetricsClient()
 		if initError != nil {
-			types.Logger.Warning(string(constants.InfoMetricsAPIUnavailable))
+			types.Logger.Warn(string(constants.InfoMetricsAPIUnavailable))
 		}
 	})
 
@@ -64,7 +64,7 @@ func initMetricsClientOnce() (*types.MetricsClient, error) {
 func createMetricsClient() (*metricsclientset.Clientset, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		return nil, fmt.Errorf("%s %v", string(errors.ERROR_K8S_CREATE_CONFIG), err)
+		return nil, fmt.Errorf("%s %v", string(errors.ErrK8sCreateConfig), err)
 	}
 
 	metricsClient, err := metricsclientset.NewForConfig(config)

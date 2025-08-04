@@ -13,7 +13,7 @@ import (
 
 func DeleteCustomResourceByName(name string, metadata metadata.Metadata) shared.KubernetesAPIData {
 	if err := crdUtils.ValidateResourceName(name); err != nil {
-		return shared.CreateKubernetesAPIData(shared.StatusBadRequest, string(errors.ERROR_RESOURCE_NAME_CANNOT_BE_EMPTY), nil, err)
+		return shared.CreateKubernetesAPIData(shared.StatusBadRequest, string(errors.ErrResourceNameCannotBeEmpty), nil, err)
 	}
 
 	resourceClient, err := crdUtils.GetResourceClient(metadata)
@@ -26,8 +26,8 @@ func DeleteCustomResourceByName(name string, metadata metadata.Metadata) shared.
 
 	err = resourceClient.Delete(ctx, name, kubeApiMeta.DeleteOptions{})
 	if err != nil {
-		return shared.CreateKubernetesAPIData(shared.StatusInternalServerError, string(errors.ERROR_DELETE_RESOURCE), nil, err)
+		return shared.CreateKubernetesAPIData(shared.StatusInternalServerError, string(errors.ErrDeleteResource), nil, err)
 	}
 
-	return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SUCCESS_DELETE_RESOURCE), nil, nil)
+	return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessDeleteResource), nil, nil)
 }

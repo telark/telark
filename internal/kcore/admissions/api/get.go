@@ -1,7 +1,7 @@
 package api
 
 import (
-	"github.com/plsyro/data-pkg/admissions/common"
+	admissionShared "github.com/plsyro/data-pkg/admissions/shared"
 	"github.com/plsyro/data-pkg/messages"
 	"github.com/plsyro/kcore-pkg/admissions/utils"
 	"github.com/plsyro/kcore-pkg/constants"
@@ -10,7 +10,7 @@ import (
 	kubeApiMeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GetAdmissionWebhookByName(name string, webhookType common.WebhookType) shared.KubernetesAPIData {
+func GetAdmissionWebhookByName(name string, webhookType admissionShared.WebhookType) shared.KubernetesAPIData {
 	client, err := utils.GetClient()
 	if err != nil {
 		return shared.HandleClientError(err)
@@ -32,7 +32,7 @@ func GetAdmissionWebhookByName(name string, webhookType common.WebhookType) shar
 		if err != nil {
 			return nil, err
 		}
-		return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SUCCESS_GET_VALIDATING_ADMISSION), result, nil), nil
+		return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessGetValidatingAdmission), result, nil), nil
 	}
 
 	mutatingHandler := func() (interface{}, error) {
@@ -40,7 +40,7 @@ func GetAdmissionWebhookByName(name string, webhookType common.WebhookType) shar
 		if err != nil {
 			return nil, err
 		}
-		return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SUCCESS_GET_MUTATING_ADMISSION), result, nil), nil
+		return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessGetMutatingAdmission), result, nil), nil
 	}
 
 	return utils.HandleWebhookType(webhookType, validatingHandler, mutatingHandler)

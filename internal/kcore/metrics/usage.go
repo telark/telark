@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/plsyro/data-pkg/common"
-	"github.com/plsyro/data-pkg/logging"
-	workloadCommon "github.com/plsyro/data-pkg/resources/workload/common"
+	"github.com/plsyro/data-pkg/logger"
+	workloadCommon "github.com/plsyro/data-pkg/resources/workloads/shared"
+	globalShared "github.com/plsyro/data-pkg/shared"
 	"github.com/plsyro/kcore-pkg/constants"
 	metricsClient "github.com/plsyro/kcore-pkg/metrics/client"
 	"github.com/plsyro/kcore-pkg/metrics/metricsutils"
@@ -14,7 +14,7 @@ import (
 	"github.com/plsyro/kcore-pkg/resources/workload"
 )
 
-var usageLogger = logging.NewCustomLogger(constants.LoggerPrefixWorkloadUsage)
+var usageLogger = logger.NewCustomLogger(constants.LoggerPrefixWorkloadUsage)
 
 func GetWorkloadQualityOfService(namespace string, selectors map[string]string) string {
 	if namespace == "" || selectors == nil {
@@ -35,31 +35,31 @@ func BuildWorkloadUsage(namespace string, selectors map[string]string, qos strin
 		Timestamp: time.Now().Format(time.RFC3339),
 		Available: false,
 		Resources: workloadCommon.Resource{
-			TotalCPU:         common.DEFAULT_CPU,
-			TotalMemory:      common.DEFAULT_MEMORY,
+			TotalCPU:         globalShared.DefaultCPU,
+			TotalMemory:      globalShared.DefaultMemory,
 			UsagePerInstance: []workloadCommon.UsagePerInstance{},
 		},
 	}
 
 	metricsAdapter, err := metricsClient.NewMetricsAdapter()
 	if err != nil {
-		usageLogger.Warning(fmt.Sprintf(string(constants.ErrFailedToInitializeMetricsClient), err))
+		usageLogger.Error(fmt.Sprintf(string(constants.ErrFailedToInitializeMetricsClient), err))
 		return usage
 	}
 
 	if !metricsClient.IsMetricsAvailable(metricsAdapter) {
-		usageLogger.Warning(string(constants.InfoMetricsAPIUnavailable))
+		usageLogger.Warn(string(constants.InfoMetricsAPIUnavailable))
 		return usage
 	}
 
 	podMetricsList, err := metricsClient.GetAllPodMetrics(metricsAdapter, namespace, selectors)
 	if err != nil {
-		usageLogger.Warning(fmt.Sprintf(string(constants.ErrFailedToGetPodMetrics), err))
+		usageLogger.Error(fmt.Sprintf(string(constants.ErrFailedToGetPodMetrics), err))
 		return usage
 	}
 
 	if len(podMetricsList) == 0 {
-		usageLogger.Warning(string(constants.ErrFailedToGetPodMetrics))
+		usageLogger.Warn(string(constants.ErrFailedToGetPodMetrics))
 		return usage
 	}
 

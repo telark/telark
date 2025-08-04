@@ -5,14 +5,14 @@ import (
 )
 
 func HandleClientError(err error) KubernetesAPIData {
-	return CreateKubernetesAPIData(StatusInternalServerError, string(errors.ERROR_K8S_SET_CLIENT), nil, err)
+	return CreateKubernetesAPIData(StatusInternalServerError, string(errors.ErrK8sSetClient), nil, err)
 }
 
-func CreateKubernetesAPIData(status int, message string, data any, error error) KubernetesAPIData {
+func CreateKubernetesAPIData(status int, message string, data any, err error) KubernetesAPIData {
 	return KubernetesAPIData{
 		Status:  status,
 		Message: message,
 		Data:    data,
-		Error:   error,
+		Error:   err,
 	}
 }

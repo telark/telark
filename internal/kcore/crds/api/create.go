@@ -23,8 +23,8 @@ func CreateCustomResource(template *unstructured.Unstructured, metadata metadata
 
 	resource, err := resourceClient.Create(ctx, template, kubeApiMeta.CreateOptions{})
 	if err != nil {
-		return shared.CreateKubernetesAPIData(shared.StatusInternalServerError, string(errors.ERROR_CREATE_RESOURCE), nil, err)
+		return shared.CreateKubernetesAPIData(shared.StatusInternalServerError, string(errors.ErrCreateResource), nil, err)
 	}
 
-	return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SUCCESS_CREATE_RESOURCE), resource, nil)
+	return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessCreateResource), resource, nil)
 }

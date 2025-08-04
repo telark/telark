@@ -19,7 +19,7 @@ func GetServiceByName(namespace, name string) (*core.Service, error) {
 
 	client, err := k8sclient.InitKubernetesClient()
 	if err != nil {
-		return nil, fmt.Errorf(string(errors.ERROR_K8S_SET_CLIENT), err)
+		return nil, fmt.Errorf(string(errors.ErrK8sSetClient), err)
 	}
 
 	ctx, cancel := timeout.ContextWithTimeout(constants.ServiceGetTimeout)
@@ -28,19 +28,19 @@ func GetServiceByName(namespace, name string) (*core.Service, error) {
 	service, err := client.CoreV1().Services(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ErrFailedToGetService), name, namespace, err))
-		return nil, fmt.Errorf(string(errors.ERROR_K8S_GET_SERVICE), name, namespace, err)
+		return nil, fmt.Errorf(string(errors.ErrK8sGetService), name, namespace, err)
 	}
 	return service, nil
 }
 
 func GetServicesByNamespace(namespace string) ([]core.Service, error) {
 	if namespace == "" {
-		return nil, fmt.Errorf("%s", errors.ERROR_K8S_EMPTY_NAMESPACE_OR_RESOURCE_NAME)
+		return nil, fmt.Errorf("%s", errors.ErrK8sEmptyNamespaceOrResourceName)
 	}
 
 	client, err := k8sclient.InitKubernetesClient()
 	if err != nil {
-		return nil, fmt.Errorf(string(errors.ERROR_K8S_SET_CLIENT), err)
+		return nil, fmt.Errorf(string(errors.ErrK8sSetClient), err)
 	}
 
 	ctx, cancel := timeout.ContextWithTimeout(constants.ServiceListTimeout)
@@ -49,7 +49,7 @@ func GetServicesByNamespace(namespace string) ([]core.Service, error) {
 	services, err := client.CoreV1().Services(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ErrFailedToFetchServices), namespace, err))
-		return nil, fmt.Errorf(string(errors.ERROR_K8S_GET_SERVICE), "all", namespace, err)
+		return nil, fmt.Errorf(string(errors.ErrK8sGetService), "all", namespace, err)
 	}
 
 	return services.Items, nil
@@ -62,7 +62,7 @@ func GetServiceStatus(namespace, name string) (bool, error) {
 
 	client, err := k8sclient.InitKubernetesClient()
 	if err != nil {
-		return false, fmt.Errorf(string(errors.ERROR_K8S_SET_CLIENT), err)
+		return false, fmt.Errorf(string(errors.ErrK8sSetClient), err)
 	}
 
 	ctx, cancel := timeout.ContextWithTimeout(constants.ServiceGetTimeout)
@@ -71,7 +71,7 @@ func GetServiceStatus(namespace, name string) (bool, error) {
 	service, err := client.CoreV1().Services(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ErrFailedToGetService), name, namespace, err))
-		return false, fmt.Errorf(string(errors.ERROR_K8S_GET_SERVICE), name, namespace, err)
+		return false, fmt.Errorf(string(errors.ErrK8sGetService), name, namespace, err)
 	}
 
 	return service.Spec.ClusterIP != "", nil
@@ -96,7 +96,7 @@ func IsServiceActive(service *core.Service) bool {
 
 func validateInputs(namespace, name string) error {
 	if namespace == "" || name == "" {
-		return fmt.Errorf("%s", errors.ERROR_K8S_EMPTY_NAMESPACE_OR_RESOURCE_NAME)
+		return fmt.Errorf("%s", errors.ErrK8sEmptyNamespaceOrResourceName)
 	}
 	return nil
 }

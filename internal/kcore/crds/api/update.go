@@ -14,7 +14,7 @@ import (
 
 func UpdateCustomResource(name string, metadata metadata.Metadata, template *unstructured.Unstructured) shared.KubernetesAPIData {
 	if err := crdUtils.ValidateResourceName(name); err != nil {
-		return shared.CreateKubernetesAPIData(shared.StatusBadRequest, string(errors.ERROR_RESOURCE_NAME_CANNOT_BE_EMPTY), nil, err)
+		return shared.CreateKubernetesAPIData(shared.StatusBadRequest, string(errors.ErrResourceNameCannotBeEmpty), nil, err)
 	}
 
 	resourceClient, err := crdUtils.GetResourceClient(metadata)
@@ -27,8 +27,8 @@ func UpdateCustomResource(name string, metadata metadata.Metadata, template *uns
 
 	resource, err := resourceClient.Update(ctx, template, kubeApiMeta.UpdateOptions{})
 	if err != nil {
-		return shared.CreateKubernetesAPIData(shared.StatusInternalServerError, string(errors.ERROR_UPDATE_RESOURCE), nil, err)
+		return shared.CreateKubernetesAPIData(shared.StatusInternalServerError, string(errors.ErrUpdateResource), nil, err)
 	}
 
-	return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SUCCESS_UPDATE_RESOURCE), resource, nil)
+	return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessUpdateResource), resource, nil)
 }

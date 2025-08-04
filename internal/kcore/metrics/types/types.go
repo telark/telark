@@ -4,14 +4,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/plsyro/data-pkg/logging"
+	"github.com/plsyro/data-pkg/logger"
 	"github.com/plsyro/kcore-pkg/constants"
 	"github.com/plsyro/kcore-pkg/resilience/circuitbreaker"
 	"github.com/plsyro/kcore-pkg/resilience/ratelimiting"
 	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
-var Logger = logging.NewCustomLogger(constants.LoggerPrefixK8sMetrics)
+var Logger = logger.NewCustomLogger(constants.LoggerPrefixK8sMetrics)
 
 type (
 	ContainerMetrics struct {

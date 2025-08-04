@@ -24,7 +24,7 @@ func CreateValidatingAdmissionByConfig(webhookConfig *kubeApiAdmissionv1.Validat
 		return client.AdmissionregistrationV1().ValidatingWebhookConfigurations().Create(ctx, webhookConfig, kubeApiMeta.CreateOptions{})
 	}
 
-	return utils.ExecuteWebhookOperation(operation, string(messages.SUCCESS_CREATE_VALIDATING_ADMISSION), string(errors.ERROR_CREATE_VALIDATING_ADMISSION))
+	return utils.ExecuteWebhookOperation(operation, string(messages.SuccessCreateValidatingAdmission), string(errors.ErrCreateValidatingAdmission))
 }
 
 func CreateMutatingAdmissionByConfig(webhookConfig *kubeApiAdmissionv1.MutatingWebhookConfiguration) shared.KubernetesAPIData {
@@ -40,5 +40,5 @@ func CreateMutatingAdmissionByConfig(webhookConfig *kubeApiAdmissionv1.MutatingW
 		return client.AdmissionregistrationV1().MutatingWebhookConfigurations().Create(ctx, webhookConfig, kubeApiMeta.CreateOptions{})
 	}
 
-	return utils.ExecuteWebhookOperation(operation, string(messages.SUCCESS_CREATE_MUTATING_ADMISSION), string(errors.ERROR_CREATE_MUTATING_ADMISSION))
+	return utils.ExecuteWebhookOperation(operation, string(messages.SuccessCreateMutatingAdmission), string(errors.ErrCreateMutatingAdmission))
 }

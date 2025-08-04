@@ -1,7 +1,7 @@
 package api
 
 import (
-	"github.com/plsyro/data-pkg/admissions/common"
+	admissionShared "github.com/plsyro/data-pkg/admissions/shared"
 	"github.com/plsyro/data-pkg/messages"
 	"github.com/plsyro/kcore-pkg/admissions/utils"
 	"github.com/plsyro/kcore-pkg/constants"
@@ -10,7 +10,7 @@ import (
 	kubeApiMeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func DeleteAdmissionWebhookByName(name string, webhookType common.WebhookType) shared.KubernetesAPIData {
+func DeleteAdmissionWebhookByName(name string, webhookType admissionShared.WebhookType) shared.KubernetesAPIData {
 	client, err := utils.GetClient()
 	if err != nil {
 		return shared.HandleClientError(err)
@@ -24,7 +24,7 @@ func DeleteAdmissionWebhookByName(name string, webhookType common.WebhookType) s
 		if err != nil {
 			return nil, err
 		}
-		return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SUCCESS_DELETE_VALIDATING_ADMISSION), nil, nil), nil
+		return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessDeleteValidatingAdmission), nil, nil), nil
 	}
 
 	mutatingOperation := func() (interface{}, error) {
@@ -32,7 +32,7 @@ func DeleteAdmissionWebhookByName(name string, webhookType common.WebhookType) s
 		if err != nil {
 			return nil, err
 		}
-		return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SUCCESS_DELETE_MUTATING_ADMISSION), nil, nil), nil
+		return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessDeleteMutatingAdmission), nil, nil), nil
 	}
 
 	return utils.HandleWebhookType(webhookType, validatingOperation, mutatingOperation)

@@ -16,7 +16,7 @@ import (
 
 func GetCustomResourceByName(name string, metadata metadata.Metadata) shared.KubernetesAPIData {
 	if err := crdUtils.ValidateResourceName(name); err != nil {
-		return shared.CreateKubernetesAPIData(shared.StatusBadRequest, string(errors.ERROR_RESOURCE_NAME_CANNOT_BE_EMPTY), nil, err)
+		return shared.CreateKubernetesAPIData(shared.StatusBadRequest, string(errors.ErrResourceNameCannotBeEmpty), nil, err)
 	}
 
 	resourceClient, err := crdUtils.GetResourceClient(metadata)
@@ -29,10 +29,10 @@ func GetCustomResourceByName(name string, metadata metadata.Metadata) shared.Kub
 
 	resource, err := resourceClient.Get(ctx, name, kubeApiMeta.GetOptions{})
 	if err != nil {
-		return shared.CreateKubernetesAPIData(shared.StatusInternalServerError, string(errors.ERROR_GET_RESOURCE), nil, fmt.Errorf("%s %s :%v", string(errors.ERROR_GET_RESOURCE), name, err))
+		return shared.CreateKubernetesAPIData(shared.StatusInternalServerError, string(errors.ErrGetResource), nil, fmt.Errorf("%s %s :%v", string(errors.ErrGetResource), name, err))
 	}
 
-	return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SUCCESS_GET_RESOURCE), resource, nil)
+	return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessGetResource), resource, nil)
 }
 
 func ListCustomResources(metadata metadata.Metadata) shared.KubernetesAPIData {
@@ -46,8 +46,8 @@ func ListCustomResources(metadata metadata.Metadata) shared.KubernetesAPIData {
 
 	resourceList, err := resourceClient.List(ctx, kubeApiMeta.ListOptions{})
 	if err != nil {
-		return shared.CreateKubernetesAPIData(shared.StatusInternalServerError, string(errors.ERROR_GET_RESOURCE), nil, err)
+		return shared.CreateKubernetesAPIData(shared.StatusInternalServerError, string(errors.ErrGetResource), nil, err)
 	}
 
-	return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SUCCESS_LIST_RESOURCES), resourceList, nil)
+	return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessListResources), resourceList, nil)
 }

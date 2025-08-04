@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	resourcesCommon "github.com/plsyro/data-pkg/resources/common"
-	appWorkload "github.com/plsyro/data-pkg/resources/workload/app"
+	resourceShared "github.com/plsyro/data-pkg/resources/shared"
+	appWorkload "github.com/plsyro/data-pkg/resources/workloads/app"
 	"github.com/plsyro/kcore-pkg/constants"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
@@ -20,15 +20,15 @@ func WaitForWorkloadsCacheSync(ctx context.Context, workloads []*appWorkload.App
 
 	var informersToSync []cache.InformerSynced
 
-	if workloadTypes[string(resourcesCommon.DEPLOY)] {
+	if workloadTypes[string(resourceShared.Deploy)] {
 		informersToSync = append(informersToSync, informerFactory.Apps().V1().Deployments().Informer().HasSynced)
 	}
 
-	if workloadTypes[string(resourcesCommon.STATEFUL_SET)] {
+	if workloadTypes[string(resourceShared.StatefulSet)] {
 		informersToSync = append(informersToSync, informerFactory.Apps().V1().StatefulSets().Informer().HasSynced)
 	}
 
-	if workloadTypes[string(resourcesCommon.DAEMON_SET)] {
+	if workloadTypes[string(resourceShared.DaemonSet)] {
 		informersToSync = append(informersToSync, informerFactory.Apps().V1().DaemonSets().Informer().HasSynced)
 	}
 

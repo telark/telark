@@ -36,11 +36,11 @@ func (c *Client) executeRequest(method base.Method, endpoint base.Endpoint, payl
 		}
 	}
 
+	//nolint:bodyclose // responseUtils.ReadAndParseGenericResponse handles closing
 	resp, err := executeHTTPRequest(c, method, endpoint, jsonPayload)
 	if err != nil {
 		return createErrorResponse(string(errors.ERROR_CREATE_RESOURCE), err)
 	}
-	defer responseUtils.CloseResponseBody(resp)
 
 	return responseUtils.ReadAndParseGenericResponse(resp)
 }
@@ -55,11 +55,11 @@ func (c *Client) executeRequestWithError(method base.Method, endpoint base.Endpo
 		}
 	}
 
+	//nolint:bodyclose // responseUtils.ReadAndParseGenericResponse handles closing
 	resp, err := executeHTTPRequest(c, method, endpoint, jsonPayload)
 	if err != nil {
 		return nil, err
 	}
-	defer responseUtils.CloseResponseBody(resp)
 
 	apiResponse := responseUtils.ReadAndParseGenericResponse(resp)
 	if apiResponse.Status != common.STATUS_OK {
@@ -94,6 +94,7 @@ func (c *Client) Get(endpoint base.Endpoint, name string) (*response.GenericResp
 }
 
 func (c *Client) GetList(endpoint base.Endpoint) ([]any, error) {
+	//nolint:bodyclose // defer responseUtils.CloseResponseBody handles closing
 	resp, err := executeHTTPRequest(c, base.GET, endpoint, nil)
 	if err != nil {
 		return nil, err
@@ -112,6 +113,7 @@ func (c *Client) DeleteNoParams(endpoint base.Endpoint) *response.GenericRespons
 }
 
 func GetTyped[T any](client *Client, endpoint base.Endpoint, name string) (*T, error) {
+	//nolint:bodyclose // defer responseUtils.CloseResponseBody handles closing
 	resp, err := executeHTTPRequest(client, base.GET, substituteEndpointName(endpoint, name), nil)
 	if err != nil {
 		return nil, err
@@ -122,6 +124,7 @@ func GetTyped[T any](client *Client, endpoint base.Endpoint, name string) (*T, e
 }
 
 func GetListTyped[T any](client *Client, endpoint base.Endpoint) ([]T, error) {
+	//nolint:bodyclose // defer responseUtils.CloseResponseBody handles closing
 	resp, err := executeHTTPRequest(client, base.GET, endpoint, nil)
 	if err != nil {
 		return nil, err

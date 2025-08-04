@@ -35,7 +35,7 @@ func (c *Client) StartAnalyse() error {
 	}
 
 	//nolint:gosec // URL is generated from trusted request object
-	response, err := http.Post(requestURL, string(base.JSON), nil)
+	response, err := http.Post(requestURL, string(base.JSON), nil) //nolint:bodyclose // defer responseUtils.CloseResponseBody handles closing
 	if err != nil {
 		return fmt.Errorf(string(constants.ErrFailedToSendPostRequest), err)
 	}

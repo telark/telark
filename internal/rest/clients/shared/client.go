@@ -40,11 +40,7 @@ func (c *Client) executeRequest(method base.Method, endpoint base.Endpoint, payl
 	if err != nil {
 		return createErrorResponse(string(errors.ERROR_CREATE_RESOURCE), err)
 	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			fmt.Printf(string(constants.ErrFailedToCloseResponseBody), closeErr)
-		}
-	}()
+	defer responseUtils.CloseResponseBody(resp)
 
 	return responseUtils.ReadAndParseGenericResponse(resp)
 }
@@ -63,11 +59,7 @@ func (c *Client) executeRequestWithError(method base.Method, endpoint base.Endpo
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			fmt.Printf(string(constants.ErrFailedToCloseResponseBody), closeErr)
-		}
-	}()
+	defer responseUtils.CloseResponseBody(resp)
 
 	apiResponse := responseUtils.ReadAndParseGenericResponse(resp)
 	if apiResponse.Status != common.STATUS_OK {
@@ -106,11 +98,7 @@ func (c *Client) GetList(endpoint base.Endpoint) ([]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			fmt.Printf(string(constants.ErrFailedToCloseResponseBody), closeErr)
-		}
-	}()
+	defer responseUtils.CloseResponseBody(resp)
 
 	return parseListResponse[any](resp)
 }
@@ -128,11 +116,7 @@ func GetTyped[T any](client *Client, endpoint base.Endpoint, name string) (*T, e
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			fmt.Printf(string(constants.ErrFailedToCloseResponseBody), closeErr)
-		}
-	}()
+	defer responseUtils.CloseResponseBody(resp)
 
 	return parseSingleResponse[T](resp)
 }
@@ -142,11 +126,7 @@ func GetListTyped[T any](client *Client, endpoint base.Endpoint) ([]T, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			fmt.Printf(string(constants.ErrFailedToCloseResponseBody), closeErr)
-		}
-	}()
+	defer responseUtils.CloseResponseBody(resp)
 
 	return parseListResponse[T](resp)
 }

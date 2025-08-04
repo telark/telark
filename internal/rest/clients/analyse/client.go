@@ -14,6 +14,7 @@ import (
 	analyseEndpoints "github.com/plsyro/rest-pkg/endpoints/analyse"
 	restResponse "github.com/plsyro/rest-pkg/response"
 	requestUtils "github.com/plsyro/rest-pkg/utils/request"
+	responseUtils "github.com/plsyro/rest-pkg/utils/response"
 )
 
 type Client struct {
@@ -38,11 +39,7 @@ func (c *Client) StartAnalyse() error {
 	if err != nil {
 		return fmt.Errorf(string(constants.ErrFailedToSendPostRequest), err)
 	}
-	defer func() {
-		if closeErr := response.Body.Close(); closeErr != nil {
-			err = fmt.Errorf(string(constants.ErrFailedToCloseResponseBody), closeErr)
-		}
-	}()
+	defer responseUtils.CloseResponseBody(response)
 
 	body, err := io.ReadAll(response.Body)
 	if err != nil {

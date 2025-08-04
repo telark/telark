@@ -44,11 +44,7 @@ func createGenericResponse(status int, operation response.OperationStatus, messa
 }
 
 func ReadAndParseGenericResponse(resp *http.Response) *response.GenericResponse {
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			base.GetLogger().Error(fmt.Sprintf(string(constants.ErrFailedToCloseResponseBody), closeErr))
-		}
-	}()
+	defer CloseResponseBody(resp)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -72,4 +68,10 @@ func ReadAndParseGenericResponse(resp *http.Response) *response.GenericResponse 
 	}
 
 	return &genericResp
+}
+
+func CloseResponseBody(resp *http.Response) {
+	if closeErr := resp.Body.Close(); closeErr != nil {
+		fmt.Printf(string(constants.ErrFailedToCloseResponseBody), closeErr)
+	}
 }

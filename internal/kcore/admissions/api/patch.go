@@ -29,7 +29,7 @@ func PatchAdmissionWebhookAnnotationsByName(name string, webhookType admissionSh
 	ctx, cancel := timeout.ContextWithTimeout(constants.AdmissionPatchTimeout)
 	defer cancel()
 
-	validatingOperation := func() (interface{}, error) {
+	validatingOperation := func() (any, error) {
 		patchedWebhook, err := client.AdmissionregistrationV1().ValidatingWebhookConfigurations().
 			Patch(ctx, name, types.MergePatchType, patchBytes, kubeApiMeta.PatchOptions{})
 		if err != nil {
@@ -39,7 +39,7 @@ func PatchAdmissionWebhookAnnotationsByName(name string, webhookType admissionSh
 		return shared.CreateKubernetesAPIData(shared.StatusOK, message, patchedWebhook, nil), nil
 	}
 
-	mutatingOperation := func() (interface{}, error) {
+	mutatingOperation := func() (any, error) {
 		patchedWebhook, err := client.AdmissionregistrationV1().MutatingWebhookConfigurations().
 			Patch(ctx, name, types.MergePatchType, patchBytes, kubeApiMeta.PatchOptions{})
 		if err != nil {

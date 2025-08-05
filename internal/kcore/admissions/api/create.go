@@ -20,7 +20,7 @@ func CreateValidatingAdmissionByConfig(webhookConfig *kubeApiAdmissionv1.Validat
 	ctx, cancel := timeout.ContextWithTimeout(constants.AdmissionCreateTimeout)
 	defer cancel()
 
-	operation := func() (interface{}, error) {
+	operation := func() (any, error) {
 		return client.AdmissionregistrationV1().ValidatingWebhookConfigurations().Create(ctx, webhookConfig, kubeApiMeta.CreateOptions{})
 	}
 
@@ -36,7 +36,7 @@ func CreateMutatingAdmissionByConfig(webhookConfig *kubeApiAdmissionv1.MutatingW
 	ctx, cancel := timeout.ContextWithTimeout(constants.AdmissionCreateTimeout)
 	defer cancel()
 
-	operation := func() (interface{}, error) {
+	operation := func() (any, error) {
 		return client.AdmissionregistrationV1().MutatingWebhookConfigurations().Create(ctx, webhookConfig, kubeApiMeta.CreateOptions{})
 	}
 

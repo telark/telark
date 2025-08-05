@@ -19,15 +19,15 @@ func GetAdmissionWebhookByName(name string, webhookType admissionShared.WebhookT
 	ctx, cancel := timeout.ContextWithTimeout(constants.AdmissionGetTimeout)
 	defer cancel()
 
-	validatingOperation := func() (interface{}, error) {
+	validatingOperation := func() (any, error) {
 		return client.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, name, kubeApiMeta.GetOptions{})
 	}
 
-	mutatingOperation := func() (interface{}, error) {
+	mutatingOperation := func() (any, error) {
 		return client.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(ctx, name, kubeApiMeta.GetOptions{})
 	}
 
-	validatingHandler := func() (interface{}, error) {
+	validatingHandler := func() (any, error) {
 		result, err := validatingOperation()
 		if err != nil {
 			return nil, err
@@ -35,7 +35,7 @@ func GetAdmissionWebhookByName(name string, webhookType admissionShared.WebhookT
 		return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessGetValidatingAdmission), result, nil), nil
 	}
 
-	mutatingHandler := func() (interface{}, error) {
+	mutatingHandler := func() (any, error) {
 		result, err := mutatingOperation()
 		if err != nil {
 			return nil, err

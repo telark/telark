@@ -19,7 +19,7 @@ func DeleteAdmissionWebhookByName(name string, webhookType admissionShared.Webho
 	ctx, cancel := timeout.ContextWithTimeout(constants.AdmissionDeleteTimeout)
 	defer cancel()
 
-	validatingOperation := func() (interface{}, error) {
+	validatingOperation := func() (any, error) {
 		err := client.AdmissionregistrationV1().ValidatingWebhookConfigurations().Delete(ctx, name, kubeApiMeta.DeleteOptions{})
 		if err != nil {
 			return nil, err
@@ -27,7 +27,7 @@ func DeleteAdmissionWebhookByName(name string, webhookType admissionShared.Webho
 		return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessDeleteValidatingAdmission), nil, nil), nil
 	}
 
-	mutatingOperation := func() (interface{}, error) {
+	mutatingOperation := func() (any, error) {
 		err := client.AdmissionregistrationV1().MutatingWebhookConfigurations().Delete(ctx, name, kubeApiMeta.DeleteOptions{})
 		if err != nil {
 			return nil, err

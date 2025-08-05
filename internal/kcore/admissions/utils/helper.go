@@ -17,7 +17,7 @@ const (
 	StatusInternalServerError = http.StatusInternalServerError
 )
 
-type WebhookOperation func() (interface{}, error)
+type WebhookOperation func() (any, error)
 
 func GetClient() (*kubernetes.Clientset, error) {
 	return k8sclient.InitKubernetesClient()

@@ -6,7 +6,7 @@ import (
 
 	"github.com/plsyro/data/logger"
 	workloadCommon "github.com/plsyro/data/resources/workloads/shared"
-	globalShared "github.com/plsyro/data/shared"
+	globalshared "github.com/plsyro/data/shared"
 	"github.com/plsyro/kcore/constants"
 	metricsClient "github.com/plsyro/kcore/metrics/client"
 	"github.com/plsyro/kcore/metrics/metricsutils"
@@ -35,8 +35,8 @@ func BuildWorkloadUsage(namespace string, selectors map[string]string, qos strin
 		Timestamp: time.Now().Format(time.RFC3339),
 		Available: false,
 		Resources: workloadCommon.Resource{
-			TotalCPU:         globalShared.DefaultCPU,
-			TotalMemory:      globalShared.DefaultMemory,
+			TotalCPU:         globalshared.DefaultCPU,
+			TotalMemory:      globalshared.DefaultMemory,
 			UsagePerInstance: []workloadCommon.UsagePerInstance{},
 		},
 	}

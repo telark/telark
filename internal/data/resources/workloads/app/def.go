@@ -19,7 +19,7 @@ type CacidApp struct {
 	Crates                 workloadshared.Crates                 `json:"crates"`
 	Registry               workloadshared.RegType                `json:"registry"`
 	Bridges                []Bridge                              `json:"bridges"`
-	BridgeAttachmentPolicy workloadshared.BridgeAttachmentPolicy `json:"bridgeAttachmentPolicy"` //nolint:revive
+	BridgeAttachmentPolicy workloadshared.BridgeAttachmentPolicy `json:"bridgeAttachmentPolicy"`
 	Events                 []workloadshared.Events               `json:"events"`
 	Usage                  workloadshared.Usage                  `json:"usage"`
 }

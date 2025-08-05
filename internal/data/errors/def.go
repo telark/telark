@@ -120,8 +120,8 @@ const (
 	// NATS-related Errors
 	ErrNatsAuth                               Error = "user and password must be set for auth"
 	ErrNatsConnectionAttemptAlreadyInProgress Error = "connection attempt already in progress"
-	ErrNatsConnectionLost                     Error = "nats connection lost,triggering reconnection" //nolint:revive
-	ErrNatsConnectionFailedWithRetry          Error = "nats connection failed.retrying in %s...: %v" //nolint:revive
+	ErrNatsConnectionLost                     Error = "nats connection lost,triggering reconnection"
+	ErrNatsConnectionFailedWithRetry          Error = "nats connection failed.retrying in %s...: %v"
 	ErrNatsConnectionFailed                   Error = "nats connection failed: %v"
 	ErrNatsClientNotAvailable                 Error = "nats client not available"
 	ErrNatsInvalidURL                         Error = "invalid nats server URL"
@@ -130,8 +130,8 @@ const (
 	ErrNatsTopicSubscribe                     Error = "failed to subscribe to topic %s: %v"
 	ErrNatsSubscriberManager                  Error = "failed to start subscriber manager: %v"
 	ErrNatsClientClosed                       Error = "nats client closed"
-	ErrNatsAckMsg                             Error = "failed to acknowledge message on topic %s: %v" //nolint:revive
-	ErrNatsAckDupMsg                          Error = "failed to acknowledge duplicated message"      //nolint:revive
+	ErrNatsAckMsg                             Error = "failed to acknowledge message on topic %s: %v"
+	ErrNatsAckDupMsg                          Error = "failed to acknowledge duplicated message"
 	ErrNatsFailedToCreateConsumer             Error = "failed to create consumer %s: %v"
 	ErrNatsHandleMsg                          Error = "failed to handle message %v :%v"
 	ErrNatsInvalidSubject                     Error = "invalid subject format"
@@ -139,7 +139,7 @@ const (
 	ErrNatsFailedCreateStreams                Error = "failed to create streams: %v"
 	ErrNatsFailedCreateStream                 Error = "failed to create stream %s: %v"
 	ErrNatsFailedConnectToNatsServer          Error = "failed to connect to NATS server: %v"
-	ErrNatsDisconnect                         Error = "error while disconnecting from NATS server" //nolint:revive
+	ErrNatsDisconnect                         Error = "error while disconnecting from NATS server"
 	ErrNatsClientNotConnected                 Error = "nats client not connected"
 	ErrNatsJetstreamNotInitialized            Error = "nats jetstream client not initialized"
 	ErrNatsCreateJetstreamContext             Error = "failed to create jetstream context: %v"

@@ -1,4 +1,4 @@
-# kcore-pkg
+# kcore
 GO Package designed to handle custom k8s adapters, metrics, clients and informers
 
 This package provides reusable building blocks for Kubernetes-related modules. It includes:

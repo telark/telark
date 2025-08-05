@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"net/http"
 
-	admissionShared "github.com/plsyro/data-pkg/admissions/shared"
-	"github.com/plsyro/data-pkg/errors"
-	"github.com/plsyro/kcore-pkg/k8sclient"
-	"github.com/plsyro/kcore-pkg/shared"
+	admissionShared "github.com/plsyro/data/admissions/shared"
+	"github.com/plsyro/data/errors"
+	"github.com/plsyro/kcore/k8sclient"
+	"github.com/plsyro/kcore/shared"
 	"k8s.io/client-go/kubernetes"
 )
 

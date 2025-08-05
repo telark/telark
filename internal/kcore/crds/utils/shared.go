@@ -3,9 +3,9 @@ package shared
 import (
 	"fmt"
 
-	"github.com/plsyro/data-pkg/errors"
-	metadata "github.com/plsyro/data-pkg/metadata/base"
-	"github.com/plsyro/kcore-pkg/k8sclient"
+	metadata "github.com/plsyro/data/data/base"
+	"github.com/plsyro/data/errors"
+	"github.com/plsyro/kcore/k8sclient"
 	"k8s.io/client-go/dynamic"
 )
 

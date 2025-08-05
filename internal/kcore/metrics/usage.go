@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/plsyro/data-pkg/logger"
-	workloadCommon "github.com/plsyro/data-pkg/resources/workloads/shared"
-	globalShared "github.com/plsyro/data-pkg/shared"
-	"github.com/plsyro/kcore-pkg/constants"
-	metricsClient "github.com/plsyro/kcore-pkg/metrics/client"
-	"github.com/plsyro/kcore-pkg/metrics/metricsutils"
-	types "github.com/plsyro/kcore-pkg/metrics/types"
-	"github.com/plsyro/kcore-pkg/resources/workload"
+	globalShared "github.com/plsyro/data/ed"
+	"github.com/plsyro/data/logger"
+	workloadCommon "github.com/plsyro/data/urces/workloads/shared"
+	"github.com/plsyro/kcore/constants"
+	metricsClient "github.com/plsyro/kcore/metrics/client"
+	"github.com/plsyro/kcore/metrics/metricsutils"
+	types "github.com/plsyro/kcore/metrics/types"
+	"github.com/plsyro/kcore/resources/workload"
 )
 
 var usageLogger = logger.NewCustomLogger(constants.LoggerPrefixWorkloadUsage)

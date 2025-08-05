@@ -1,8 +1,8 @@
 package constants
 
 import (
-	"github.com/plsyro/data-pkg/errors"
-	"github.com/plsyro/data-pkg/messages"
+	"github.com/plsyro/data/errors"
+	"github.com/plsyro/data/messages"
 )
 
 const (

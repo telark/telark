@@ -3,13 +3,13 @@ package api
 import (
 	"encoding/json"
 
-	admissionShared "github.com/plsyro/data-pkg/admissions/shared"
-	"github.com/plsyro/data-pkg/errors"
-	"github.com/plsyro/data-pkg/messages"
-	"github.com/plsyro/kcore-pkg/admissions/utils"
-	"github.com/plsyro/kcore-pkg/constants"
-	"github.com/plsyro/kcore-pkg/resilience/timeout"
-	"github.com/plsyro/kcore-pkg/shared"
+	admissionShared "github.com/plsyro/data/admissions/shared"
+	"github.com/plsyro/data/errors"
+	"github.com/plsyro/data/messages"
+	"github.com/plsyro/kcore/admissions/utils"
+	"github.com/plsyro/kcore/constants"
+	"github.com/plsyro/kcore/resilience/timeout"
+	"github.com/plsyro/kcore/shared"
 	kubeApiMeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )

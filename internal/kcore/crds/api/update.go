@@ -1,13 +1,13 @@
 package api
 
 import (
-	"github.com/plsyro/data-pkg/errors"
-	"github.com/plsyro/data-pkg/messages"
-	metadata "github.com/plsyro/data-pkg/metadata/base"
-	"github.com/plsyro/kcore-pkg/constants"
-	crdUtils "github.com/plsyro/kcore-pkg/crds/utils"
-	"github.com/plsyro/kcore-pkg/resilience/timeout"
-	"github.com/plsyro/kcore-pkg/shared"
+	metadata "github.com/plsyro/data/data/base"
+	"github.com/plsyro/data/errors"
+	"github.com/plsyro/data/messages"
+	"github.com/plsyro/kcore/constants"
+	crdUtils "github.com/plsyro/kcore/crds/utils"
+	"github.com/plsyro/kcore/resilience/timeout"
+	"github.com/plsyro/kcore/shared"
 	kubeApiMeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )

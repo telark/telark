@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/plsyro/kcore-pkg/informers/factory"
+	"github.com/plsyro/kcore/informers/factory"
 )
 
 func TestCreateInformerFactory_NilClient(t *testing.T) {

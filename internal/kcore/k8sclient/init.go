@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/plsyro/data-pkg/errors"
-	globalLogger "github.com/plsyro/data-pkg/logger"
-	"github.com/plsyro/kcore-pkg/constants"
+	globalLogger "github.com/plsyro/data/er"
+	"github.com/plsyro/data/errors"
+	"github.com/plsyro/kcore/constants"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"

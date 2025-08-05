@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	resourceShared "github.com/plsyro/data-pkg/resources/shared"
-	appWorkload "github.com/plsyro/data-pkg/resources/workloads/app"
-	"github.com/plsyro/kcore-pkg/constants"
+	resourceShared "github.com/plsyro/data/resources/shared"
+	appWorkload "github.com/plsyro/data/urces/workloads/app"
+	"github.com/plsyro/kcore/constants"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 )

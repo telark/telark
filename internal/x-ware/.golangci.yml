@@ -21,12 +21,11 @@ linters:
     - revive
   settings:
     gocyclo:
-      min-complexity: 15
+      min-complexity: 12
     misspell:
       locale: US
     funlen:
       lines: 60
-      statements: 
     gosec:
       exclude:
         - G101
@@ -39,9 +38,11 @@ linters:
           disabled: true
         - name: cognitive-complexity
           disabled: true
+        - name: cyclomatic
+          disabled: true
         - name: line-length-limit
           arguments:
-            - 95
+            - 120
         - name: max-public-structs
           arguments:
             - 15

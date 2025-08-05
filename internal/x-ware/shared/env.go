@@ -6,6 +6,11 @@ import (
 	"strconv"
 )
 
+const (
+	emptyString = ""
+	defaultInt  = 0
+)
+
 type EnvConfig struct {
 	Key          string
 	DefaultValue string
@@ -15,9 +20,9 @@ type EnvConfig struct {
 
 func GetEnvString(config EnvConfig) (string, error) {
 	value := os.Getenv(config.Key)
-	if value == "" {
+	if value == emptyString {
 		if config.Required {
-			return "", errors.New(config.ErrorMsg)
+			return emptyString, errors.New(config.ErrorMsg)
 		}
 		return config.DefaultValue, nil
 	}
@@ -26,25 +31,25 @@ func GetEnvString(config EnvConfig) (string, error) {
 
 func GetEnvInt(config EnvConfig) (int, error) {
 	value := os.Getenv(config.Key)
-	if value == "" {
+	if value == emptyString {
 		if config.Required {
-			return 0, errors.New(config.ErrorMsg)
+			return defaultInt, errors.New(config.ErrorMsg)
 		}
-		if config.DefaultValue != "" {
+		if config.DefaultValue != emptyString {
 			return strconv.Atoi(config.DefaultValue)
 		}
-		return 0, nil
+		return defaultInt, nil
 	}
 	return strconv.Atoi(value)
 }
 
 func GetEnvBool(config EnvConfig) (bool, error) {
 	value := os.Getenv(config.Key)
-	if value == "" {
+	if value == emptyString {
 		if config.Required {
 			return false, errors.New(config.ErrorMsg)
 		}
-		if config.DefaultValue != "" {
+		if config.DefaultValue != emptyString {
 			return strconv.ParseBool(config.DefaultValue)
 		}
 		return false, nil

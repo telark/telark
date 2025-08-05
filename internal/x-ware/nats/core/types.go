@@ -6,27 +6,27 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
-	resourceShared "github.com/plsyro/data/resources/shared"
+	resourceshared "github.com/plsyro/data/resources/shared"
 )
 
 type (
 	MessageHandler func(*nats.Msg) error
-	Port           int
+	port           int
 	Group          string
 	Action         string
 	NATSClient     struct {
 		Conn      *nats.Conn
 		JetStream nats.JetStreamContext
 	}
-	NATSConfig struct {
+	natsConfig struct {
 		User     string
 		Password string
-		Port     Port
+		Port     port
 	}
 	Message struct {
 		Topic        string              `json:"topic"`
 		ResourceName string              `json:"resourceName"`
-		ResourceType resourceShared.Type `json:"resourceType"`
+		ResourceType resourceshared.Type `json:"resourceType"`
 		Scope        string              `json:"scope"`
 		Data         any                 `json:"data"`
 	}
@@ -37,9 +37,10 @@ type (
 		ProcessTimeout time.Duration
 	}
 	NatsManager struct {
-		client      *NATSClient
-		mu          sync.RWMutex
-		ctx         context.Context //nolint:containedctx // Context is used for client lifecycle management
+		client *NATSClient
+		mu     sync.RWMutex
+		// Context is used for client lifecycle management
+		ctx         context.Context //nolint:containedctx
 		cancel      context.CancelFunc
 		isConnected bool
 	}

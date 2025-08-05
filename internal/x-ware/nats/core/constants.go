@@ -10,10 +10,11 @@ const (
 )
 
 const (
-	ErrNatsUserRequired       errors.Error = "NATS_USER environment variable is required"
-	ErrNatsPasswordRequired   errors.Error = "NATS_PASSWORD environment variable is required"
+	ErrNatsUserRequired       errors.Error = "NATS_USER env variable is required"
+	ErrNatsPasswordRequired   errors.Error = "NATS_PASSWORD env variable is required"
 	ErrNatsClientNotConnected errors.Error = "NATS client is not connected"
-	ErrFailedInitNatsClient   errors.Error = "failed to initialize NATS client: %w"
+	ErrFailedInitNatsClient   errors.Error = "failed to initialize NATS " +
+		"client: %w"
 )
 
 const (
@@ -23,8 +24,8 @@ const (
 )
 
 const (
-	Client          Port = 4222
-	Monitoring      Port = 8222
+	Client          port = 4222
+	Monitoring      port = 8222
 	NatsServiceName      = "nats-service"
 
 	Grouper        Group = "groupers"

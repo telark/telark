@@ -8,22 +8,30 @@ import (
 
 	"github.com/nats-io/nats.go"
 	"github.com/plsyro/data/errors"
-	resourceShared "github.com/plsyro/data/resources/shared"
-	globalShared "github.com/plsyro/data/shared"
+	resourceshared "github.com/plsyro/data/resources/shared"
+	globalshared "github.com/plsyro/data/shared"
 )
 
-func (s *BaseSubscriber) ValidateMessage(m *nats.Msg) error {
-	if m == nil || len(m.Data) == 0 || m.Data == nil {
+const (
+	emptyDataLength  = 0
+	timestampDivisor = 10
+	hashLength       = 16
+)
+
+func (*BaseSubscriber) ValidateMessage(m *nats.Msg) error {
+	if m == nil || len(m.Data) == emptyDataLength || m.Data == nil {
 		return fmt.Errorf("%s", errors.ErrNatsEmptyMsgData)
 	}
 	return nil
 }
 
-func (s *BaseSubscriber) AcknowledgeMessage(m *nats.Msg) error {
+func (*BaseSubscriber) AcknowledgeMessage(m *nats.Msg) error {
 	return m.Ack()
 }
 
-func NewMessage(topic, name, scope string, resourceType resourceShared.Type, data any) *Message {
+func NewMessage(topic, name, scope string, resourceType resourceshared.Type,
+	data any,
+) *Message {
 	return &Message{
 		Topic:        topic,
 		ResourceName: name,
@@ -35,7 +43,7 @@ func NewMessage(topic, name, scope string, resourceType resourceShared.Type, dat
 
 func GenerateKey(resourceName, resourceType, scope string) string {
 	key := fmt.Sprintf("%s-%s-%s", resourceName, resourceType, scope)
-	timestamp := time.Now().Unix() / 10
+	timestamp := time.Now().Unix() / timestampDivisor
 	return fmt.Sprintf("%s-%d", key, timestamp)
 }
 
@@ -58,11 +66,12 @@ func SetParsedMessageHeader(m *nats.Msg, prefix, value string) {
 }
 
 func GenerateMessageID(subject string, data []byte) string {
-	content := fmt.Sprintf("%s-%s-%d", subject, string(data), time.Now().UnixNano())
+	content := fmt.Sprintf("%s-%s-%d", subject, string(data),
+		time.Now().UnixNano())
 	hash := sha256.Sum256([]byte(content))
-	return hex.EncodeToString(hash[:16])
+	return hex.EncodeToString(hash[:hashLength])
 }
 
 func GenerateSubjectName(group Group) string {
-	return fmt.Sprintf("%s.%s.*", globalShared.BaseNamespace, group)
+	return fmt.Sprintf("%s.%s.*", globalshared.BaseNamespace, group)
 }

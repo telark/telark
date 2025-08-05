@@ -6,24 +6,21 @@ import (
 	"time"
 )
 
-const (
-	DeduplicationValue  = "1"
-	DeduplicationPrefix = "dedup:"
-	UnknownEventType    = "unknown"
-)
-
 type EventType interface {
 	GetEventType() string
 }
 
 func CreateDeduplicationKey(key string, event any) string {
 	if eventWithType, ok := event.(EventType); ok {
-		return fmt.Sprintf("%s%s:%s", DeduplicationPrefix, key, eventWithType.GetEventType())
+		return fmt.Sprintf("%s%s:%s", DeduplicationPrefix, key,
+			eventWithType.GetEventType())
 	}
 	return key
 }
 
-func IsDuplicateEvent(ctx context.Context, client *RedisClient, key string, event any) (bool, error) {
+func IsDuplicateEvent(ctx context.Context, client *RedisClient, key string,
+	event any,
+) (bool, error) {
 	if client == nil || client.Client == nil {
 		return false, fmt.Errorf("%s", ErrRedisClientNotConnected)
 	}
@@ -34,10 +31,12 @@ func IsDuplicateEvent(ctx context.Context, client *RedisClient, key string, even
 		return false, fmt.Errorf(string(ErrRedisExistsError), err)
 	}
 
-	return exists > 0, nil
+	return exists > existsThreshold, nil
 }
 
-func MarkEventAsProcessed(ctx context.Context, client *RedisClient, key string, event any, window time.Duration) error {
+func MarkEventAsProcessed(ctx context.Context, client *RedisClient, key string,
+	event any, window time.Duration,
+) error {
 	if client == nil || client.Client == nil {
 		return fmt.Errorf("%s", ErrRedisClientNotConnected)
 	}

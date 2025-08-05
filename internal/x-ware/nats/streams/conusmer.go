@@ -13,7 +13,9 @@ func DefaultConsumerConfig() *nats.ConsumerConfig {
 	}
 }
 
-func CreateConsumer(c *core.NATSClient, streamName, consumerName, topic, queue string) (*nats.ConsumerInfo, error) {
+func CreateConsumer(c *core.NATSClient, streamName, consumerName, topic,
+	queue string,
+) (*nats.ConsumerInfo, error) {
 	cfg := DefaultConsumerConfig()
 	cfg.Name = consumerName
 	cfg.Durable = consumerName

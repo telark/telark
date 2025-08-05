@@ -76,8 +76,8 @@ func (rm *RedisManager) InitRedisClient() (*RedisClient, error) {
 	var err error
 
 	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.InitialInterval = 1 * time.Second
-	expBackoff.MaxInterval = 30 * time.Second
+	expBackoff.InitialInterval = initialIntervalSeconds * time.Second
+	expBackoff.MaxInterval = maxIntervalSeconds * time.Second
 	expBackoff.MaxElapsedTime = time.Duration(DefaultTimeout) * time.Second
 
 	operation := func() error {

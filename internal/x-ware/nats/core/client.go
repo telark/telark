@@ -10,12 +10,15 @@ import (
 	"github.com/plsyro/data/errors"
 )
 
-func InitClient(ctx context.Context, user, password string) (*NATSClient, error) {
+func InitClient(ctx context.Context, user, password string) (
+	*NATSClient,
+	error,
+) {
 	if user == "" || password == "" {
 		return nil, fmt.Errorf("%s", errors.ErrNatsAuth)
 	}
 
-	config := NATSConfig{
+	config := natsConfig{
 		User:     user,
 		Password: password,
 		Port:     Client,
@@ -30,21 +33,24 @@ func InitClient(ctx context.Context, user, password string) (*NATSClient, error)
 	}
 
 	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.MaxElapsedTime = time.Duration(DefaultConnectionTimeout) * time.Second
+	expBackoff.MaxElapsedTime = time.Duration(DefaultConnectionTimeout) *
+		time.Second
 
-	err := backoff.RetryNotify(operation, backoff.WithContext(expBackoff, ctx), func(err error, d time.Duration) {
-		fmt.Printf(string(errors.ErrNatsConnectionFailedWithRetry), d, err)
-	})
+	err := backoff.RetryNotify(operation, backoff.WithContext(expBackoff, ctx),
+		func(err error, d time.Duration) {
+			fmt.Printf(string(errors.ErrNatsConnectionFailedWithRetry), d, err)
+		})
 	if err != nil {
 		return nil, fmt.Errorf(string(errors.ErrNatsConnectionFailed), err)
 	}
 	return client, nil
 }
 
-func initJetStreamClient(natsConfig NATSConfig) (*NATSClient, error) {
+func initJetStreamClient(natsConfig natsConfig) (*NATSClient, error) {
 	url := GetNATSClientURL()
 
-	nc, err := nats.Connect(url, nats.UserInfo(natsConfig.User, natsConfig.Password))
+	nc, err := nats.Connect(url,
+		nats.UserInfo(natsConfig.User, natsConfig.Password))
 	if err != nil {
 		return nil, fmt.Errorf(string(errors.ErrNatsConnectionFailed), err)
 	}
@@ -52,7 +58,8 @@ func initJetStreamClient(natsConfig NATSConfig) (*NATSClient, error) {
 	js, err := nc.JetStream()
 	if err != nil {
 		nc.Close()
-		return nil, fmt.Errorf(string(errors.ErrNatsCreateJetstreamContext), err)
+		return nil, fmt.Errorf(string(errors.ErrNatsCreateJetstreamContext),
+			err)
 	}
 
 	return &NATSClient{

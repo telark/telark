@@ -18,15 +18,33 @@ linters:
     - goprintffuncname
     - whitespace
     - unconvert
-    - revive #Temporarily ignore exported, package-comments due to configuration bug
+    - revive
+  settings:
+    gocyclo:
+      min-complexity: 15
+    misspell:
+      locale: US
+    funlen:
+      lines: 60
+      statements: 
+    revive:
+      enable-all-rules: true
+      rules:
+        - name: exported
+          disabled: true
+        - name: package-comments
+          disabled: true
+        - name: cognitive-complexity
+          disabled: true
+        - name: line-length-limit
+          arguments:
+            - 85
+        - name: max-public-structs
+          arguments:
+            - 8
 run:
   timeout: 2m
-  tests: true
-linters-settings:
-  gocyclo:
-    min-complexity: 15
-  misspell:
-    locale: US
-  funlen:
-    lines: 60
-    statements: 40
+  tests: false
+
+issues:
+  max-issues-per-linter: 0

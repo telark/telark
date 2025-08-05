@@ -9,7 +9,10 @@ import (
 )
 
 func CreateStreams(c *core.NATSClient) error {
-	groups := []core.Group{core.Grouper, core.AppWorkloads, core.BatchWorkloads, core.Bridges}
+	groups := []core.Group{
+		core.Grouper, core.AppWorkloads,
+		core.BatchWorkloads, core.Bridges,
+	}
 	for _, group := range groups {
 		if err := createStreamByGroup(c, group); err != nil {
 			return err
@@ -36,7 +39,10 @@ func createStreamByGroup(c *core.NATSClient, group core.Group) error {
 	return nil
 }
 
-func GetStreamInfo(c *core.NATSClient, group core.Group) (*nats.StreamInfo, error) {
+func GetStreamInfo(c *core.NATSClient, group core.Group) (
+	*nats.StreamInfo,
+	error,
+) {
 	streamName := core.GetStreamName(group)
 	return c.JetStream.StreamInfo(streamName)
 }

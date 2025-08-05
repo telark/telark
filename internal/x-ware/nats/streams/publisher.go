@@ -8,7 +8,10 @@ import (
 	"github.com/plsyro/x-ware/nats/core"
 )
 
-func PublishMessage(c *core.NATSClient, subj string, data []byte) (*nats.PubAck, error) {
+func PublishMessage(c *core.NATSClient, subj string, data []byte) (
+	*nats.PubAck,
+	error,
+) {
 	if c == nil || c.JetStream == nil {
 		return nil, fmt.Errorf("%s", errors.ErrNatsJetstreamNotInitialized)
 	}

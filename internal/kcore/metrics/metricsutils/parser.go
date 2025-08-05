@@ -32,30 +32,25 @@ func ParseMemory(memoryStr string) int64 {
 
 	lowerStr := strings.ToLower(memoryStr)
 
-	if value := parseMemoryWithUnit(lowerStr, constants.MemoryUnitGB, constants.GB); value > constants.EmptySliceLength { //nolint:revive
-		return value
+	switch {
+	case strings.HasSuffix(lowerStr, "gi"):
+		return parseMemoryWithUnit(lowerStr, "gi", constants.GB)
+	case strings.HasSuffix(lowerStr, "mi"):
+		return parseMemoryWithUnit(lowerStr, "mi", constants.MB)
+	case strings.HasSuffix(lowerStr, "ki"):
+		return parseMemoryWithUnit(lowerStr, "ki", constants.KB)
+	case strings.HasSuffix(lowerStr, "kb"):
+		return parseMemoryWithUnit(lowerStr, "kb", constants.KB)
+	case strings.HasSuffix(lowerStr, "mb"):
+		return parseMemoryWithUnit(lowerStr, "mb", constants.MB)
+	case strings.HasSuffix(lowerStr, "gb"):
+		return parseMemoryWithUnit(lowerStr, "gb", constants.GB)
+	default:
+		if val, err := strconv.ParseInt(memoryStr, constants.Base10, constants.Base64); err == nil {
+			return val
+		}
+		return constants.EmptySliceLength
 	}
-	if value := parseMemoryWithUnit(lowerStr, constants.MemoryUnitMB, constants.MB); value > constants.EmptySliceLength { //nolint:revive
-		return value
-	}
-	if value := parseMemoryWithUnit(lowerStr, constants.MemoryUnitKi, constants.KB); value > constants.EmptySliceLength { //nolint:revive
-		return value
-	}
-	if value := parseMemoryWithUnit(lowerStr, constants.MemoryUnitKB, constants.KB); value > constants.EmptySliceLength { //nolint:revive
-		return value
-	}
-	if value := parseMemoryWithUnit(lowerStr, constants.MemoryUnitMB, constants.MB); value > constants.EmptySliceLength { //nolint:revive
-		return value
-	}
-	if value := parseMemoryWithUnit(lowerStr, constants.MemoryUnitGB, constants.GB); value > constants.EmptySliceLength { //nolint:revive
-		return value
-	}
-
-	if val, err := strconv.ParseInt(memoryStr, constants.Base10, constants.Base64); err == nil {
-		return val
-	}
-
-	return constants.EmptySliceLength
 }
 
 func parseMemoryWithUnit(memoryStr, unit string, multiplier int64) int64 {

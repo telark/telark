@@ -90,7 +90,7 @@ func runTestCase(t *testing.T, tt struct {
 		t.Fatal(err)
 	}
 
-	_, err = request.ParseRequestBody(req, tt.action, tt.checkEmptyBody)
+	_, err = request.ParseRequestBody(req)
 	if (err != nil) != tt.wantErr {
 		t.Errorf("ParseRequestBody() error = %v, wantErr %v", err, tt.wantErr)
 	}

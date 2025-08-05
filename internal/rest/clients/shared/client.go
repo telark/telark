@@ -6,12 +6,12 @@ import (
 	"strings"
 
 	"github.com/plsyro/data/errors"
-	globalShared "github.com/plsyro/data/shared"
+	globalshared "github.com/plsyro/data/shared"
 	"github.com/plsyro/rest/base"
 	"github.com/plsyro/rest/constants"
-	restMapper "github.com/plsyro/rest/mappers/common"
-	response "github.com/plsyro/rest/response"
-	responseUtils "github.com/plsyro/rest/utils/response"
+	restmapper "github.com/plsyro/rest/mappers"
+	"github.com/plsyro/rest/response"
+	responseutils "github.com/plsyro/rest/utils/response"
 )
 
 func New(service base.Service) *Client {
@@ -26,7 +26,11 @@ func NewWithConfig(service base.Service, config *ClientConfig) *Client {
 	}
 }
 
-func (c *Client) executeRequest(method base.Method, endpoint base.Endpoint, payload any) *response.GenericResponse {
+func (c *Client) executeRequest(
+	method base.Method,
+	endpoint base.Endpoint,
+	payload any,
+) *response.GenericResponse {
 	var jsonPayload []byte
 	var err error
 	if payload != nil {
@@ -36,16 +40,20 @@ func (c *Client) executeRequest(method base.Method, endpoint base.Endpoint, payl
 		}
 	}
 
-	//nolint:bodyclose // responseUtils.ReadAndParseGenericResponse handles closing
+	//nolint:bodyclose // responseutils.ReadAndParseGenericResponse handles closing
 	resp, err := executeHTTPRequest(c, method, endpoint, jsonPayload)
 	if err != nil {
 		return createErrorResponse(string(errors.ErrCreateResource), err)
 	}
 
-	return responseUtils.ReadAndParseGenericResponse(resp)
+	return responseutils.ReadAndParseGenericResponse(resp)
 }
 
-func (c *Client) executeRequestWithError(method base.Method, endpoint base.Endpoint, payload any) (*response.GenericResponse, error) {
+func (c *Client) executeRequestWithError(
+	method base.Method,
+	endpoint base.Endpoint,
+	payload any,
+) (*response.GenericResponse, error) {
 	var jsonPayload []byte
 	var err error
 	if payload != nil {
@@ -55,22 +63,26 @@ func (c *Client) executeRequestWithError(method base.Method, endpoint base.Endpo
 		}
 	}
 
-	//nolint:bodyclose // responseUtils.ReadAndParseGenericResponse handles closing
+	//nolint:bodyclose // responseutils.ReadAndParseGenericResponse handles closing
 	resp, err := executeHTTPRequest(c, method, endpoint, jsonPayload)
 	if err != nil {
 		return nil, err
 	}
 
-	apiResponse := responseUtils.ReadAndParseGenericResponse(resp)
-	if apiResponse.Status != globalShared.StatusOK {
-		return nil, fmt.Errorf(string(constants.ErrUnexpectedStatus), apiResponse.Status, apiResponse.Message)
+	apiResponse := responseutils.ReadAndParseGenericResponse(resp)
+	if apiResponse.Status != globalshared.StatusOK {
+		return nil, fmt.Errorf(
+			string(constants.ErrUnexpectedStatus),
+			apiResponse.Status,
+			apiResponse.Message,
+		)
 	}
 
 	return apiResponse, nil
 }
 
 func (c *Client) Create(endpoint base.Endpoint, resource any) *response.GenericResponse {
-	mappedPayload, err := restMapper.MapToJsonPayload(resource)
+	mappedPayload, err := restmapper.MapToJSONPayload(resource)
 	if err != nil {
 		return createErrorResponse(string(errors.ErrRestMarshalPayload), err)
 	}
@@ -78,7 +90,11 @@ func (c *Client) Create(endpoint base.Endpoint, resource any) *response.GenericR
 	return c.executeRequest(base.Post, endpoint, mappedPayload)
 }
 
-func (c *Client) Update(endpoint base.Endpoint, name string, body map[string]any) *response.GenericResponse {
+func (c *Client) Update(
+	endpoint base.Endpoint,
+	name string,
+	body map[string]any,
+) *response.GenericResponse {
 	substitutedEndpoint := substituteEndpointName(endpoint, name)
 	return c.executeRequest(base.Patch, substitutedEndpoint, body)
 }
@@ -94,12 +110,12 @@ func (c *Client) Get(endpoint base.Endpoint, name string) (*response.GenericResp
 }
 
 func (c *Client) GetList(endpoint base.Endpoint) ([]any, error) {
-	//nolint:bodyclose // defer responseUtils.CloseResponseBody handles closing
+	//nolint:bodyclose // defer responseutils.CloseResponseBody handles closing
 	resp, err := executeHTTPRequest(c, base.Get, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
-	defer responseUtils.CloseResponseBody(resp)
+	defer responseutils.CloseResponseBody(resp)
 
 	return parseListResponse[any](resp)
 }
@@ -113,29 +129,34 @@ func (c *Client) DeleteNoParams(endpoint base.Endpoint) *response.GenericRespons
 }
 
 func GetTyped[T any](client *Client, endpoint base.Endpoint, name string) (*T, error) {
-	//nolint:bodyclose // defer responseUtils.CloseResponseBody handles closing
+	//nolint:bodyclose // defer responseutils.CloseResponseBody handles closing
 	resp, err := executeHTTPRequest(client, base.Get, substituteEndpointName(endpoint, name), nil)
 	if err != nil {
 		return nil, err
 	}
-	defer responseUtils.CloseResponseBody(resp)
+	defer responseutils.CloseResponseBody(resp)
 
 	return parseSingleResponse[T](resp)
 }
 
 func GetListTyped[T any](client *Client, endpoint base.Endpoint) ([]T, error) {
-	//nolint:bodyclose // defer responseUtils.CloseResponseBody handles closing
+	//nolint:bodyclose // defer responseutils.CloseResponseBody handles closing
 	resp, err := executeHTTPRequest(client, base.Get, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
-	defer responseUtils.CloseResponseBody(resp)
+	defer responseutils.CloseResponseBody(resp)
 
 	return parseListResponse[T](resp)
 }
 
-func (c *Client) FormatEndpoint(template, name string) string {
-	return strings.Replace(template, string(constants.EndpointNamePlaceholder), name, 1)
+func (*Client) FormatEndpoint(template, name string) string {
+	return strings.Replace(
+		template,
+		string(constants.EndpointNamePlaceholder),
+		name,
+		constants.ReplaceCount,
+	)
 }
 
 func (c *Client) GetService() base.Service {

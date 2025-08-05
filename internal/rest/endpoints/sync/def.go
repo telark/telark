@@ -6,7 +6,7 @@ const (
 	SyncAllGroupers         base.Endpoint = "resources/groupers/sync"
 	SyncGrouper             base.Endpoint = "resources/groupers/{name}/sync"
 	SyncAllAppsWorkloads    base.Endpoint = "resources/workloads/apps/sync"
-	SyncAppWorkload         base.Endpoint = "resources/workloads/apps/{name}/sync"
+	Syncappworkload         base.Endpoint = "resources/workloads/apps/{name}/sync"
 	SyncAllBatchesWorkloads base.Endpoint = "resources/workloads/batches/sync"
 	SyncBatchWorkload       base.Endpoint = "resources/workloads/batches/{name}/sync"
 	SyncAllBridges          base.Endpoint = "resources/bridges/sync"

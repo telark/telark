@@ -12,12 +12,25 @@ import (
 	"github.com/plsyro/rest/response"
 )
 
-func LogAndSendResponse(w http.ResponseWriter, status int, operation response.OperationStatus, message string, data any, err error) {
+func LogAndSendResponse(
+	w http.ResponseWriter,
+	status int,
+	operation response.OperationStatus,
+	message string,
+	data any,
+	err error,
+) {
 	logMessage(message, err)
 	sendResponse(w, status, operation, message, data)
 }
 
-func LogAndReturnResponse(status int, operation response.OperationStatus, message string, data any, err error) *response.GenericResponse {
+func LogAndReturnResponse(
+	status int,
+	operation response.OperationStatus,
+	message string,
+	data any,
+	err error,
+) *response.GenericResponse {
 	logMessage(message, err)
 	return createGenericResponse(status, operation, message, data)
 }
@@ -30,11 +43,22 @@ func logMessage(message string, err error) {
 	}
 }
 
-func sendResponse(w http.ResponseWriter, status int, operation response.OperationStatus, message string, data any) {
+func sendResponse(
+	w http.ResponseWriter,
+	status int,
+	operation response.OperationStatus,
+	message string,
+	data any,
+) {
 	response.SendSingleResponse(w, createGenericResponse(status, operation, message, data))
 }
 
-func createGenericResponse(status int, operation response.OperationStatus, message string, data any) *response.GenericResponse {
+func createGenericResponse(
+	status int,
+	operation response.OperationStatus,
+	message string,
+	data any,
+) *response.GenericResponse {
 	return &response.GenericResponse{
 		Status:    status,
 		Operation: string(operation),
@@ -50,13 +74,25 @@ func ReadAndParseGenericResponse(resp *http.Response) *response.GenericResponse 
 	if err != nil {
 		message := fmt.Sprintf(string(errors.ErrRestReadResponseBody), err)
 		base.GetLogger().Error(message)
-		return LogAndReturnResponse(http.StatusInternalServerError, response.OperationError, message, nil, err)
+		return LogAndReturnResponse(
+			http.StatusInternalServerError,
+			response.OperationError,
+			message,
+			nil,
+			err,
+		)
 	}
 
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode >= constants.HTTPErrorCode {
 		message := fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(body))
 		base.GetLogger().Error(message)
-		return LogAndReturnResponse(resp.StatusCode, response.OperationError, message, nil, fmt.Errorf("HTTP %d", resp.StatusCode))
+		return LogAndReturnResponse(
+			resp.StatusCode,
+			response.OperationError,
+			message,
+			nil,
+			fmt.Errorf("HTTP %d", resp.StatusCode),
+		)
 	}
 
 	var genericResp response.GenericResponse
@@ -64,7 +100,13 @@ func ReadAndParseGenericResponse(resp *http.Response) *response.GenericResponse 
 	if err != nil {
 		message := fmt.Sprintf(string(errors.ErrRestUnmarshalResponseToGeneric), err)
 		base.GetLogger().Error(message)
-		return LogAndReturnResponse(http.StatusUnprocessableEntity, response.OperationError, message, nil, err)
+		return LogAndReturnResponse(
+			http.StatusUnprocessableEntity,
+			response.OperationError,
+			message,
+			nil,
+			err,
+		)
 	}
 
 	return &genericResp

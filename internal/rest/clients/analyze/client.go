@@ -1,4 +1,4 @@
-package analyse
+package analyze
 
 import (
 	"encoding/json"
@@ -7,14 +7,14 @@ import (
 	"net/http"
 
 	"github.com/plsyro/data/errors"
-	globalShared "github.com/plsyro/data/shared"
+	globalshared "github.com/plsyro/data/shared"
 	"github.com/plsyro/rest/base"
 	"github.com/plsyro/rest/clients/shared"
 	"github.com/plsyro/rest/constants"
-	analyseEndpoints "github.com/plsyro/rest/endpoints/analyse"
-	restResponse "github.com/plsyro/rest/response"
-	requestUtils "github.com/plsyro/rest/utils/request"
-	responseUtils "github.com/plsyro/rest/utils/response"
+	eps "github.com/plsyro/rest/endpoints/analyze"
+	restresponse "github.com/plsyro/rest/response"
+	requestutils "github.com/plsyro/rest/utils/request"
+	responseutils "github.com/plsyro/rest/utils/response"
 )
 
 type Client struct {
@@ -27,32 +27,38 @@ func NewClient() *Client {
 	}
 }
 
-func (c *Client) StartAnalyse() error {
-	request := requestUtils.CreateGenericRequest(base.Post, base.Configurator, base.V1, analyseEndpoints.StartAnalyse)
+func (*Client) Startanalyze() error {
+	request := requestutils.CreateGenericRequest(
+		base.Post,
+		base.Configurator,
+		base.V1,
+		eps.Startanalyze,
+	)
 	requestURL, err := request.GenerateURL()
 	if err != nil {
 		return fmt.Errorf(string(constants.ErrFailedToGenerateRequestURL), err)
 	}
 
 	//nolint:gosec // URL is generated from trusted request object
-	response, err := http.Post(requestURL, string(base.JSON), nil) //nolint:bodyclose // defer responseUtils.CloseResponseBody handles closing
+	// defer responseutils.CloseResponseBody handles closing
+	response, err := http.Post(requestURL, string(base.JSON), nil) //nolint:bodyclose
 	if err != nil {
 		return fmt.Errorf(string(constants.ErrFailedToSendPostRequest), err)
 	}
-	defer responseUtils.CloseResponseBody(response)
+	defer responseutils.CloseResponseBody(response)
 
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		return fmt.Errorf(string(errors.ErrRestReadResponseBody), err)
 	}
 
-	var apiResponses []restResponse.GenericResponse
+	var apiResponses []restresponse.GenericResponse
 	if err := json.Unmarshal(body, &apiResponses); err != nil {
 		return fmt.Errorf(string(errors.ErrRestUnmarshalResponseToGeneric), err)
 	}
 
 	for _, resp := range apiResponses {
-		if resp.Status != globalShared.StatusOK {
+		if resp.Status != globalshared.StatusOK {
 			return fmt.Errorf(string(constants.ErrUnexpectedStatus), resp.Status, resp.Message)
 		}
 	}

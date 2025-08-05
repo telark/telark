@@ -1,11 +1,11 @@
 package bridge
 
 import (
-	bridgeResource "github.com/plsyro/data/resources/bridge"
+	bridgeresource "github.com/plsyro/data/resources/bridge"
 	"github.com/plsyro/rest/base"
 	"github.com/plsyro/rest/clients/shared"
-	bridgeEndpoints "github.com/plsyro/rest/endpoints/resources/bridges"
-	response "github.com/plsyro/rest/response"
+	eps "github.com/plsyro/rest/endpoints/resources/bridges"
+	"github.com/plsyro/rest/response"
 )
 
 type Client struct {
@@ -18,22 +18,24 @@ func NewClient() *Client {
 	}
 }
 
-func (c *Client) CreateBridge(bridge *bridgeResource.BridgeAsResource) *response.GenericResponse {
-	return c.Create(bridgeEndpoints.CreateBridge, bridge)
+func (c *Client) CreateBridge(bridge *bridgeresource.BridgeAsResource) *response.GenericResponse {
+	return c.Create(eps.CreateBridge, bridge)
 }
 
-func (c *Client) GetBridgeByName(name string) (*bridgeResource.BridgeAsResource, error) {
-	return shared.GetTyped[bridgeResource.BridgeAsResource](c.Client, bridgeEndpoints.GetBridge, name)
+func (c *Client) GetBridgeByName(name string) (*bridgeresource.BridgeAsResource, error) {
+	return shared.GetTyped[bridgeresource.BridgeAsResource](c.Client, eps.GetBridge,
+		name)
 }
 
-func (c *Client) GetAllBridges() ([]*bridgeResource.BridgeAsResource, error) {
-	return shared.GetListTyped[*bridgeResource.BridgeAsResource](c.Client, bridgeEndpoints.GetAllBridges)
+func (c *Client) GetAllBridges() ([]*bridgeresource.BridgeAsResource, error) {
+	return shared.GetListTyped[*bridgeresource.BridgeAsResource](c.Client,
+		eps.GetAllBridges)
 }
 
-func (c *Client) PatchBridge(name string, body map[string]interface{}) *response.GenericResponse {
-	return c.Update(bridgeEndpoints.PatchBridge, name, body)
+func (c *Client) PatchBridge(name string, body map[string]any) *response.GenericResponse {
+	return c.Update(eps.PatchBridge, name, body)
 }
 
 func (c *Client) DeleteBridge(name string) *response.GenericResponse {
-	return c.Delete(bridgeEndpoints.DeleteBridge, name)
+	return c.Delete(eps.DeleteBridge, name)
 }

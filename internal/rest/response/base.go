@@ -7,6 +7,7 @@ import (
 
 	"github.com/plsyro/data/errors"
 	"github.com/plsyro/rest/base"
+	"github.com/plsyro/rest/constants"
 )
 
 type OperationStatus string
@@ -29,7 +30,12 @@ type GenericResponse struct {
 	Data      any    `json:"data,omitempty"`
 }
 
-func NewGenericResponse(status int, operation OperationStatus, data any, message string) *GenericResponse {
+func NewGenericResponse(
+	status int,
+	operation OperationStatus,
+	data any,
+	message string,
+) *GenericResponse {
 	return &GenericResponse{
 		Status:    status,
 		Operation: string(operation),
@@ -49,7 +55,11 @@ func EncodeJSONResponse(w http.ResponseWriter, status int, response *GenericResp
 
 	encoder := json.NewEncoder(w)
 	if err := encoder.Encode(response); err != nil {
-		http.Error(w, fmt.Sprintf(string(errors.ErrRestEncodeResponse), err), http.StatusInternalServerError)
+		http.Error(
+			w,
+			fmt.Sprintf(string(errors.ErrRestEncodeResponse), err),
+			http.StatusInternalServerError,
+		)
 	}
 }
 
@@ -57,7 +67,7 @@ func EncodeMultiJSONResponse(w http.ResponseWriter, status int, responses []*Gen
 	w.Header().Set("Content-Type", string(base.JSON))
 
 	w.WriteHeader(status)
-	if len(responses) == 0 {
+	if len(responses) == constants.EmptySliceLength {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -66,7 +76,11 @@ func EncodeMultiJSONResponse(w http.ResponseWriter, status int, responses []*Gen
 	copy(responsesToEncode, responses)
 	encoder := json.NewEncoder(w)
 	if err := encoder.Encode(responsesToEncode); err != nil {
-		http.Error(w, fmt.Sprintf(string(errors.ErrRestEncodeResponse), err), http.StatusInternalServerError)
+		http.Error(
+			w,
+			fmt.Sprintf(string(errors.ErrRestEncodeResponse), err),
+			http.StatusInternalServerError,
+		)
 		return
 	}
 }

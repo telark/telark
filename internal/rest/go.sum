@@ -1,4 +1,4 @@
 github.com/gorilla/mux v1.8.1 h1:TuBL49tXwgrFYWhqrNgrUNEY92u81SPhu7sTdzQEiWY=
 github.com/gorilla/mux v1.8.1/go.mod h1:AKf9I4AEqPTmMytcMc0KkNouC66V3BtZ4qD5fmWSiMQ=
-github.com/plsyro/data v1.10.3 h1:BlwkuYV7mfA6c6Xe6xKDX2mfXBvTtXf6Qjik7Mw78FU=
-github.com/plsyro/data v1.10.3/go.mod h1:umk1EKdZjrodiW2IPfqqaduDSn7/HDe20nTnSuGxIhw=
+github.com/plsyro/data v1.10.4 h1:4TD6HnZ3jmiH9TA1+XpZZiDUypz27Ezb3mV9pdk1p4g=
+github.com/plsyro/data v1.10.4/go.mod h1:umk1EKdZjrodiW2IPfqqaduDSn7/HDe20nTnSuGxIhw=

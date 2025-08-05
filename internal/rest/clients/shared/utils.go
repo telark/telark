@@ -9,26 +9,42 @@ import (
 	"strings"
 
 	"github.com/plsyro/data/errors"
-	globalShared "github.com/plsyro/data/shared"
+	globalshared "github.com/plsyro/data/shared"
 	"github.com/plsyro/rest/base"
 	"github.com/plsyro/rest/constants"
-	response "github.com/plsyro/rest/response"
-	requestUtils "github.com/plsyro/rest/utils/request"
-	responseUtils "github.com/plsyro/rest/utils/response"
+	"github.com/plsyro/rest/response"
+	requestutils "github.com/plsyro/rest/utils/request"
+	responseutils "github.com/plsyro/rest/utils/response"
 )
 
-func buildRequestURL(client *Client, method base.Method, endpoint base.Endpoint, payload []byte) (string, error) {
+func buildRequestURL(
+	client *Client,
+	method base.Method,
+	endpoint base.Endpoint,
+	payload []byte,
+) (string, error) {
 	var req base.API
 	if payload != nil {
-		req = requestUtils.CreateGenericRequestWithPayload(method, client.service, base.V1, endpoint, payload)
+		req = requestutils.CreateGenericRequestWithPayload(
+			client.service,
+			base.V1,
+			endpoint,
+			payload,
+		)
 	} else {
-		req = requestUtils.CreateGenericRequest(method, client.service, base.V1, endpoint)
+		req = requestutils.CreateGenericRequest(
+			method, client.service, base.V1, endpoint)
 	}
 
 	return req.GenerateURL()
 }
 
-func executeHTTPRequest(client *Client, method base.Method, endpoint base.Endpoint, payload []byte) (*http.Response, error) {
+func executeHTTPRequest(
+	client *Client,
+	method base.Method,
+	endpoint base.Endpoint,
+	payload []byte,
+) (*http.Response, error) {
 	url, err := buildRequestURL(client, method, endpoint, payload)
 	if err != nil {
 		return nil, wrapError(string(constants.ErrFailedToGenerateRequestURL), err)
@@ -55,7 +71,7 @@ func marshalToJSON(payload any) ([]byte, error) {
 }
 
 func readResponseBody(resp *http.Response) ([]byte, error) {
-	defer responseUtils.CloseResponseBody(resp)
+	defer responseutils.CloseResponseBody(resp)
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, wrapError(string(errors.ErrRestReadResponseBody), err)
@@ -72,7 +88,7 @@ func unmarshalJSON[T any](data []byte) (*T, error) {
 }
 
 func parseSingleResponse[T any](resp *http.Response) (*T, error) {
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode >= constants.HTTPErrorCode {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
 	}
@@ -86,7 +102,7 @@ func parseSingleResponse[T any](resp *http.Response) (*T, error) {
 }
 
 func parseListResponse[T any](resp *http.Response) ([]T, error) {
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode >= constants.HTTPErrorCode {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
 	}
@@ -96,11 +112,7 @@ func parseListResponse[T any](resp *http.Response) ([]T, error) {
 		return nil, err
 	}
 
-	var apiResp struct {
-		Data struct {
-			Items []T `json:"items"`
-		} `json:"data"`
-	}
+	var apiResp listResponse[T]
 
 	if err := json.Unmarshal(body, &apiResp); err != nil {
 		return nil, wrapError(string(errors.ErrRestUnmarshalResponseToGeneric), err)
@@ -110,7 +122,12 @@ func parseListResponse[T any](resp *http.Response) ([]T, error) {
 }
 
 func substituteEndpointName(endpoint base.Endpoint, name string) base.Endpoint {
-	return base.Endpoint(strings.Replace(string(endpoint), string(constants.EndpointNamePlaceholder), name, 1))
+	return base.Endpoint(strings.Replace(
+		string(endpoint),
+		string(constants.EndpointNamePlaceholder),
+		name,
+		constants.ReplaceCount,
+	))
 }
 
 func wrapError(operation string, err error) error {
@@ -118,8 +135,8 @@ func wrapError(operation string, err error) error {
 }
 
 func createErrorResponse(message string, err error) *response.GenericResponse {
-	return responseUtils.LogAndReturnResponse(
-		globalShared.StatusInternalServerError,
+	return responseutils.LogAndReturnResponse(
+		globalshared.StatusInternalServerError,
 		response.OperationError,
 		message,
 		nil,

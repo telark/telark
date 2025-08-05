@@ -1,11 +1,11 @@
 package grouper
 
 import (
-	grouperResource "github.com/plsyro/data/resources/grouper"
+	grouperresource "github.com/plsyro/data/resources/grouper"
 	"github.com/plsyro/rest/base"
 	"github.com/plsyro/rest/clients/shared"
-	grouperEndpoints "github.com/plsyro/rest/endpoints/resources/groupers"
-	response "github.com/plsyro/rest/response"
+	eps "github.com/plsyro/rest/endpoints/resources/groupers"
+	"github.com/plsyro/rest/response"
 )
 
 type Client struct {
@@ -18,22 +18,26 @@ func NewClient() *Client {
 	}
 }
 
-func (c *Client) CreateGrouper(grouper *grouperResource.GrouperAsResource) *response.GenericResponse {
-	return c.Create(grouperEndpoints.CreateGrouper, grouper)
+func (c *Client) CreateGrouper(
+	grouper *grouperresource.GrouperAsResource,
+) *response.GenericResponse {
+	return c.Create(eps.CreateGrouper, grouper)
 }
 
-func (c *Client) GetGrouperByName(name string) (*grouperResource.GrouperAsResource, error) {
-	return shared.GetTyped[grouperResource.GrouperAsResource](c.Client, grouperEndpoints.GetGrouper, name)
+func (c *Client) GetGrouperByName(name string) (*grouperresource.GrouperAsResource, error) {
+	return shared.GetTyped[grouperresource.GrouperAsResource](c.Client, eps.GetGrouper,
+		name)
 }
 
-func (c *Client) GetAllGroupers() ([]*grouperResource.GrouperAsResource, error) {
-	return shared.GetListTyped[*grouperResource.GrouperAsResource](c.Client, grouperEndpoints.GetAllGroupers)
+func (c *Client) GetAllGroupers() ([]*grouperresource.GrouperAsResource, error) {
+	return shared.GetListTyped[*grouperresource.GrouperAsResource](c.Client,
+		eps.GetAllGroupers)
 }
 
-func (c *Client) PatchGrouper(name string, body map[string]interface{}) *response.GenericResponse {
-	return c.Update(grouperEndpoints.PatchGrouper, name, body)
+func (c *Client) PatchGrouper(name string, body map[string]any) *response.GenericResponse {
+	return c.Update(eps.PatchGrouper, name, body)
 }
 
 func (c *Client) DeleteGrouper(name string) *response.GenericResponse {
-	return c.Delete(grouperEndpoints.DeleteGrouper, name)
+	return c.Delete(eps.DeleteGrouper, name)
 }

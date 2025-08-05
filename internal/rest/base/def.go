@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/plsyro/data/logger"
-	globalShared "github.com/plsyro/data/shared"
+	globalshared "github.com/plsyro/data/shared"
 	"github.com/plsyro/rest/constants"
 )
 
@@ -62,30 +62,33 @@ func (api *API) GenerateURL() (string, error) {
 
 	serviceName := GetServiceName(api.Host.Service)
 
-	if (api.Host.Schema == HTTP && api.Host.Port == 80) || (api.Host.Schema == HTTPS && api.Host.Port == 443) {
-		return fmt.Sprintf("%s%s/%s/%s", api.Host.Schema, serviceName, api.Version, api.Endpoint), nil
+	if (api.Host.Schema == HTTP && api.Host.Port == constants.DefaultHTTPPort) ||
+		(api.Host.Schema == HTTPS && api.Host.Port == constants.DefaultHTTPSPort) {
+		return fmt.Sprintf("%s%s/%s/%s", api.Host.Schema, serviceName, api.Version,
+			api.Endpoint), nil
 	}
-	return fmt.Sprintf("%s%s:%d/%s/%s", api.Host.Schema, serviceName, api.Host.Port, api.Version, api.Endpoint), nil
+	return fmt.Sprintf("%s%s:%d/%s/%s", api.Host.Schema, serviceName, api.Host.Port,
+		api.Version, api.Endpoint), nil
 }
 
 func (api *API) Validate() error {
-	if api.Host.Schema == "" {
+	if api.Host.Schema == constants.EmptyString {
 		return errors.New(string(constants.ErrSchemaIsRequired))
 	}
-	if api.Host.Service == "" {
+	if api.Host.Service == constants.EmptyString {
 		return errors.New(string(constants.ErrServiceIsRequired))
 	}
-	if api.Version == "" {
+	if api.Version == constants.EmptyString {
 		return errors.New(string(constants.ErrVersionIsRequired))
 	}
-	if api.Endpoint == "" {
+	if api.Endpoint == constants.EmptyString {
 		return errors.New(string(constants.ErrEndpointIsRequired))
 	}
 	return nil
 }
 
 func GetServiceName(service Service) string {
-	return fmt.Sprintf("%s-%s-service", globalShared.BaseNamespace, service)
+	return fmt.Sprintf("%s-%s-service", globalshared.BaseNamespace, service)
 }
 
 func GetLogger() *logger.CustomLogger {

@@ -1,19 +1,19 @@
 package maintenance
 
 import (
-	"github.com/plsyro/data/feats/maintenance"
+	maintenanceresource "github.com/plsyro/data/feats/maintenance"
 	"github.com/plsyro/rest/base"
 	"github.com/plsyro/rest/clients/shared"
-	maintenanceEndpoints "github.com/plsyro/rest/endpoints/feats/maintenance/base"
-	grouperEndpoints "github.com/plsyro/rest/endpoints/feats/maintenance/grouper"
-	response "github.com/plsyro/rest/response"
+	maineps "github.com/plsyro/rest/endpoints/feats/maintenance/base"
+	grpeps "github.com/plsyro/rest/endpoints/feats/maintenance/grouper"
+	"github.com/plsyro/rest/response"
 )
 
 type Client struct {
 	*shared.Client
 }
 
-func NewClient(useExporter bool) *Client {
+func NewClient(useExporter bool) *Client { //nolint:revive //TODO: each eps will be handled by a different client in the future
 	var service base.Service
 	if useExporter {
 		service = base.Exporter
@@ -26,30 +26,41 @@ func NewClient(useExporter bool) *Client {
 	}
 }
 
-func (c *Client) CreateMaintenanceFeat(maintenance *maintenance.MaintenanceAsFeature) *response.GenericResponse {
-	return c.Create(maintenanceEndpoints.CreateMaintenanceFeat, maintenance)
+func (c *Client) CreateMaintenanceFeat(
+	maintenance *maintenanceresource.MaintenanceAsFeature,
+) *response.GenericResponse {
+	return c.Create(maineps.CreateMaintenanceFeat, maintenance)
 }
 
-func (c *Client) PatchMaintenanceFeat(name string, body map[string]any) *response.GenericResponse {
-	return c.Update(maintenanceEndpoints.PatchMaintenanceFeat, name, body)
+func (c *Client) PatchMaintenanceFeat(
+	name string,
+	body map[string]any,
+) *response.GenericResponse {
+	return c.Update(maineps.PatchMaintenanceFeat, name, body)
 }
 
-func (c *Client) GetMaintenanceFeatByName(name string) (*maintenance.MaintenanceAsFeature, error) {
-	return shared.GetTyped[maintenance.MaintenanceAsFeature](c.Client, maintenanceEndpoints.GetMaintenanceFeat, name)
+func (c *Client) GetMaintenanceFeatByName(
+	name string,
+) (*maintenanceresource.MaintenanceAsFeature, error) {
+	return shared.GetTyped[maintenanceresource.MaintenanceAsFeature](
+		c.Client,
+		maineps.GetMaintenanceFeat,
+		name,
+	)
 }
 
 func (c *Client) DeleteMaintenanceFeat(name string) *response.GenericResponse {
-	return c.Delete(maintenanceEndpoints.DeleteMaintenanceFeat, name)
+	return c.Delete(maineps.DeleteMaintenanceFeat, name)
 }
 
-func (c *Client) EnableGrouperMaintenance(body map[string]interface{}) *response.GenericResponse {
-	return c.Create(grouperEndpoints.EnableGrouperMaintenanceFeat, body)
+func (c *Client) EnableGrouperMaintenance(body map[string]any) *response.GenericResponse {
+	return c.Create(grpeps.EnableGrouperMaintenanceFeat, body)
 }
 
-func (c *Client) UpdateGrouperMaintenance(body map[string]interface{}) *response.GenericResponse {
-	return c.Create(grouperEndpoints.UpdateGrouperMaintenanceFeat, body)
+func (c *Client) UpdateGrouperMaintenance(body map[string]any) *response.GenericResponse {
+	return c.Create(grpeps.UpdateGrouperMaintenanceFeat, body)
 }
 
 func (c *Client) RemoveGrouperMaintenance() *response.GenericResponse {
-	return c.DeleteNoParams(grouperEndpoints.RemoveGrouperMaintenanceFeat)
+	return c.DeleteNoParams(grpeps.RemoveGrouperMaintenanceFeat)
 }

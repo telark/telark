@@ -7,5 +7,5 @@ const (
 	GetAdmissionValidatingWebhook    base.Endpoint = "admissions/validation/{name}/get"
 	PatchAdmissionValidatingWebhook  base.Endpoint = "admissions/validation/{name}/patch"
 	DeleteAdmissionValidatingWebhook base.Endpoint = "admissions/validation/{name}/delete"
-	ValidateGrouper                  base.Endpoint = "admissions/validation/groupers/{name}/validate"
+	ValidateGrouper                  base.Endpoint = "admissions/validation/groupers/{name}/validate" //nolint:revive
 )

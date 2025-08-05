@@ -1,12 +1,14 @@
-package common
+package mappers
 
 import (
 	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/plsyro/rest/constants"
 )
 
-func MapToJsonPayload(input any) (map[string]any, error) {
+func MapToJSONPayload(input any) (map[string]any, error) {
 	if input == nil {
 		return nil, nil
 	}
@@ -26,7 +28,7 @@ func MapToJsonPayload(input any) (map[string]any, error) {
 	}
 
 	typeOfInput := value.Type()
-	for i := 0; i < value.NumField(); i++ {
+	for i := range value.NumField() {
 		field := value.Field(i)
 		fieldType := typeOfInput.Field(i)
 
@@ -53,16 +55,16 @@ func MapToJsonPayload(input any) (map[string]any, error) {
 }
 
 func parseJSONTag(tag string) (string, bool) {
-	if tag == "" {
-		return "", false
+	if tag == constants.EmptyString {
+		return constants.EmptyString, false
 	}
 
 	parts := strings.Split(tag, ",")
-	fieldName := parts[0]
+	fieldName := parts[constants.FirstIndex]
 
 	omitEmpty := false
-	for _, part := range parts[1:] {
-		if strings.TrimSpace(part) == "omitempty" {
+	for _, part := range parts[constants.SecondIndex:] {
+		if strings.TrimSpace(part) == constants.OmitEmpty {
 			omitEmpty = true
 			break
 		}
@@ -76,15 +78,15 @@ func isZeroValue(v reflect.Value) bool {
 	case reflect.Bool:
 		return !v.Bool()
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return v.Int() == 0
+		return v.Int() == constants.FirstIndex
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return v.Uint() == 0
+		return v.Uint() == constants.FirstIndex
 	case reflect.Float32, reflect.Float64:
-		return v.Float() == 0
+		return v.Float() == constants.FirstIndex
 	case reflect.String:
-		return v.String() == ""
+		return v.String() == constants.EmptyString
 	case reflect.Slice, reflect.Map, reflect.Array:
-		return v.Len() == 0
+		return v.Len() == constants.FirstIndex
 	case reflect.Ptr, reflect.Interface:
 		return v.IsNil()
 	case reflect.Struct:
@@ -97,7 +99,7 @@ func isZeroValue(v reflect.Value) bool {
 func processFieldValue(field reflect.Value) (any, error) {
 	switch field.Kind() {
 	case reflect.Struct:
-		return MapToJsonPayload(field.Interface())
+		return MapToJSONPayload(field.Interface())
 	case reflect.Slice, reflect.Array:
 		return processSliceValue(field)
 	case reflect.Map:
@@ -119,12 +121,12 @@ func processFieldValue(field reflect.Value) (any, error) {
 
 func processSliceValue(field reflect.Value) (any, error) {
 	length := field.Len()
-	if length == 0 {
+	if length == constants.EmptySliceLength {
 		return []any{}, nil
 	}
 
-	slice := make([]any, 0, length)
-	for i := 0; i < length; i++ {
+	slice := make([]any, constants.EmptySliceLength, length)
+	for i := range length {
 		elem := field.Index(i)
 		value, err := processFieldValue(elem)
 		if err != nil {
@@ -137,7 +139,7 @@ func processSliceValue(field reflect.Value) (any, error) {
 }
 
 func processMapValue(field reflect.Value) (any, error) {
-	if field.Len() == 0 {
+	if field.Len() == constants.EmptySliceLength {
 		return map[string]any{}, nil
 	}
 

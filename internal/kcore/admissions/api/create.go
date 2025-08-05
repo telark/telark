@@ -11,7 +11,9 @@ import (
 	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func CreateValidatingAdmissionByConfig(webhookConfig *k8sadmissionsv1.ValidatingWebhookConfiguration) shared.KubernetesAPIData {
+func CreateValidatingAdmissionByConfig(
+	webhookConfig *k8sadmissionsv1.ValidatingWebhookConfiguration,
+) shared.KubernetesAPIData {
 	client, err := utils.GetClient()
 	if err != nil {
 		return shared.HandleClientError(err)
@@ -21,13 +23,20 @@ func CreateValidatingAdmissionByConfig(webhookConfig *k8sadmissionsv1.Validating
 	defer cancel()
 
 	operation := func() (any, error) {
-		return client.AdmissionregistrationV1().ValidatingWebhookConfigurations().Create(ctx, webhookConfig, k8smetav1.CreateOptions{})
+		return client.AdmissionregistrationV1().ValidatingWebhookConfigurations().Create(
+			ctx, webhookConfig, k8smetav1.CreateOptions{})
 	}
 
-	return utils.ExecuteWebhookOperation(operation, string(messages.SuccessCreateValidatingAdmission), string(errors.ErrCreateValidatingAdmission))
+	return utils.ExecuteWebhookOperation(
+		operation,
+		string(messages.SuccessCreateValidatingAdmission),
+		string(errors.ErrCreateValidatingAdmission),
+	)
 }
 
-func CreateMutatingAdmissionByConfig(webhookConfig *k8sadmissionsv1.MutatingWebhookConfiguration) shared.KubernetesAPIData {
+func CreateMutatingAdmissionByConfig(
+	webhookConfig *k8sadmissionsv1.MutatingWebhookConfiguration,
+) shared.KubernetesAPIData {
 	client, err := utils.GetClient()
 	if err != nil {
 		return shared.HandleClientError(err)
@@ -37,8 +46,13 @@ func CreateMutatingAdmissionByConfig(webhookConfig *k8sadmissionsv1.MutatingWebh
 	defer cancel()
 
 	operation := func() (any, error) {
-		return client.AdmissionregistrationV1().MutatingWebhookConfigurations().Create(ctx, webhookConfig, k8smetav1.CreateOptions{})
+		return client.AdmissionregistrationV1().MutatingWebhookConfigurations().Create(
+			ctx, webhookConfig, k8smetav1.CreateOptions{})
 	}
 
-	return utils.ExecuteWebhookOperation(operation, string(messages.SuccessCreateMutatingAdmission), string(errors.ErrCreateMutatingAdmission))
+	return utils.ExecuteWebhookOperation(
+		operation,
+		string(messages.SuccessCreateMutatingAdmission),
+		string(errors.ErrCreateMutatingAdmission),
+	)
 }

@@ -14,7 +14,11 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-func PatchAdmissionWebhookAnnotationsByName(name string, webhookType admissionshared.WebhookType, annotations map[string]string) shared.KubernetesAPIData {
+func PatchAdmissionWebhookAnnotationsByName(
+	name string,
+	webhookType admissionshared.WebhookType,
+	annotations map[string]string,
+) shared.KubernetesAPIData {
 	client, err := utils.GetClient()
 	if err != nil {
 		return shared.HandleClientError(err)
@@ -23,7 +27,10 @@ func PatchAdmissionWebhookAnnotationsByName(name string, webhookType admissionsh
 	payload := utils.CreateAnnotationsPayload(annotations)
 	patchBytes, err := json.Marshal(payload)
 	if err != nil {
-		return shared.CreateKubernetesAPIData(shared.StatusInternalServerError, string(errors.ErrRestMarshalPayload), nil, err)
+		return shared.CreateKubernetesAPIData(
+			shared.StatusInternalServerError,
+			string(errors.ErrRestMarshalPayload),
+			nil, err)
 	}
 
 	ctx, cancel := timeout.ContextWithTimeout(constants.AdmissionPatchTimeout)
@@ -35,7 +42,10 @@ func PatchAdmissionWebhookAnnotationsByName(name string, webhookType admissionsh
 		if err != nil {
 			return nil, err
 		}
-		message := utils.CreateMessage(patchedWebhook.GetName(), string(admissionshared.Validating), string(messages.SuccessUpdateResource))
+		message := utils.CreateMessage(
+			patchedWebhook.GetName(),
+			string(admissionshared.Validating),
+			string(messages.SuccessUpdateResource))
 		return shared.CreateKubernetesAPIData(shared.StatusOK, message, patchedWebhook, nil), nil
 	}
 
@@ -45,7 +55,10 @@ func PatchAdmissionWebhookAnnotationsByName(name string, webhookType admissionsh
 		if err != nil {
 			return nil, err
 		}
-		message := utils.CreateMessage(patchedWebhook.GetName(), string(admissionshared.Mutating), string(messages.SuccessUpdateResource))
+		message := utils.CreateMessage(
+			patchedWebhook.GetName(),
+			string(admissionshared.Mutating),
+			string(messages.SuccessUpdateResource))
 		return shared.CreateKubernetesAPIData(shared.StatusOK, message, patchedWebhook, nil), nil
 	}
 

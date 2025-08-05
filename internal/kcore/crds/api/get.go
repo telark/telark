@@ -16,7 +16,10 @@ import (
 
 func GetCustomResourceByName(name string, metadata base.Metadata) shared.KubernetesAPIData {
 	if err := crdutils.ValidateResourceName(name); err != nil {
-		return shared.CreateKubernetesAPIData(shared.StatusBadRequest, string(errors.ErrResourceNameCannotBeEmpty), nil, err)
+		return shared.CreateKubernetesAPIData(
+			shared.StatusBadRequest,
+			string(errors.ErrResourceNameCannotBeEmpty),
+			nil, err)
 	}
 
 	resourceClient, err := crdutils.GetResourceClient(metadata)
@@ -29,7 +32,10 @@ func GetCustomResourceByName(name string, metadata base.Metadata) shared.Kuberne
 
 	resource, err := resourceClient.Get(ctx, name, k8smetav1.GetOptions{})
 	if err != nil {
-		return shared.CreateKubernetesAPIData(shared.StatusInternalServerError, string(errors.ErrGetResource), nil, fmt.Errorf("%s %s :%v", string(errors.ErrGetResource), name, err))
+		return shared.CreateKubernetesAPIData(
+			shared.StatusInternalServerError,
+			string(errors.ErrGetResource),
+			nil, fmt.Errorf("%s %s :%v", string(errors.ErrGetResource), name, err))
 	}
 
 	return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessGetResource), resource, nil)

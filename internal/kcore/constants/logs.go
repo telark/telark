@@ -15,9 +15,11 @@ const (
 	ErrContainerNotFoundInPod          errors.Error     = "container %s not found in pod %s"
 	ErrMetricsAdapterOrClientNil       errors.Error     = "metricsAdapter or its Client is nil"
 	InfoMetricsAPICircuitBreakerOpen   messages.Message = "metrics API circuit breaker is open"
-	InfoMetricsAPIUnavailable          messages.Message = "metrics API not available, using empty defaults"
-	InfoFailedToListPodMetrics         messages.Message = "failed to list pod metrics: %v"
-	InfoMetricsAPIAvailable            messages.Message = "metrics API is available and ready to use"
+	InfoMetricsAPIUnavailable          messages.Message = "metrics API not available, using empty " +
+		"defaults"
+	InfoFailedToListPodMetrics messages.Message = "failed to list pod metrics: %v"
+	InfoMetricsAPIAvailable    messages.Message = "metrics API is available and ready to " +
+		"use"
 
 	// Kubernetes Resource Constants
 	ErrFailedToFetchDeployments  errors.Error = "failed to fetch deployments from namespace %s: %v"
@@ -27,11 +29,12 @@ const (
 	ErrFailedToFetchNamespaces   errors.Error = "failed to fetch namespaces: %v"
 	ErrFailedToFetchServices     errors.Error = "failed to fetch services from namespace %s: %v"
 	ErrFailedToFetchPods         errors.Error = "failed to fetch pods from namespace %s: %v"
-	ErrFailedToFetchPodEvents    errors.Error = "failed to fetch events for pod %s in namespace %s: %v"
-	ErrFailedToGetDeployment     errors.Error = "failed to get deployment %s from namespace %s: %v"
-	ErrFailedToGetService        errors.Error = "failed to get service %s from namespace %s: %v"
-	ErrFailedToGetPodQoS         errors.Error = "failed to get QoS for pods in namespace %s: %v"
-	ErrFailedToGetServerVersion  errors.Error = "failed to get server version: %v"
+	ErrFailedToFetchPodEvents    errors.Error = "failed to fetch events for pod %s in namespace " +
+		"%s: %v"
+	ErrFailedToGetDeployment    errors.Error = "failed to get deployment %s from namespace %s: %v"
+	ErrFailedToGetService       errors.Error = "failed to get service %s from namespace %s: %v"
+	ErrFailedToGetPodQoS        errors.Error = "failed to get QoS for pods in namespace %s: %v"
+	ErrFailedToGetServerVersion errors.Error = "failed to get server version: %v"
 
 	// Informer Constants
 	ErrServiceInformerFailedToSync   errors.Error     = "service informer failed to sync"

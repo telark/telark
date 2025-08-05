@@ -52,9 +52,11 @@ func HandleWebhookType(
 ) shared.KubernetesAPIData {
 	switch webhookType {
 	case admissionshared.Validating:
-		return ExecuteWebhookOperation(validatingHandler, constants.EmptyString, constants.EmptyString)
+		return ExecuteWebhookOperation(validatingHandler, constants.EmptyString,
+			constants.EmptyString)
 	case admissionshared.Mutating:
-		return ExecuteWebhookOperation(mutatingHandler, constants.EmptyString, constants.EmptyString)
+		return ExecuteWebhookOperation(mutatingHandler, constants.EmptyString,
+			constants.EmptyString)
 	default:
 		return HandleInvalidWebhookType()
 	}

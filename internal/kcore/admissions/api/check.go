@@ -10,7 +10,10 @@ import (
 	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func CheckAdmissionWebhookExistsByName(name string, webhookType admissionshared.WebhookType) (bool, error) {
+func CheckAdmissionWebhookExistsByName(
+	name string,
+	webhookType admissionshared.WebhookType,
+) (bool, error) {
 	client, err := utils.GetClient()
 	if err != nil {
 		return false, err
@@ -21,14 +24,16 @@ func CheckAdmissionWebhookExistsByName(name string, webhookType admissionshared.
 
 	switch webhookType {
 	case admissionshared.Validating:
-		_, err := client.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, name, k8smetav1.GetOptions{})
+		_, err := client.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(
+			ctx, name, k8smetav1.GetOptions{})
 		if err == nil {
 			return true, nil
 		}
 		return false, err
 
 	case admissionshared.Mutating:
-		_, err := client.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(ctx, name, k8smetav1.GetOptions{})
+		_, err := client.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(
+			ctx, name, k8smetav1.GetOptions{})
 		if err == nil {
 			return true, nil
 		}

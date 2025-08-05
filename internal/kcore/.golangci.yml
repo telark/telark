@@ -24,18 +24,14 @@ linters:
       min-complexity: 12
     misspell:
       locale: US
-      exclude:
     funlen:
       lines: 60
-      statements: 
     gosec:
       exclude:
         - G101
     revive:
       enable-all-rules: true
       rules:
-        - name: line-length-limit
-          disabled: true
         - name: exported
           disabled: true
         - name: package-comments
@@ -44,9 +40,9 @@ linters:
           disabled: true
         - name: cyclomatic
           disabled: true
-        #- name: line-length-limit
-        #  arguments:
-        #    - 100
+        - name: line-length-limit
+          arguments:
+            - 120
         - name: max-public-structs
           arguments:
             - 10

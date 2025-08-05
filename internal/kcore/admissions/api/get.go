@@ -32,7 +32,10 @@ func GetAdmissionWebhookByName(name string, webhookType admissionshared.WebhookT
 		if err != nil {
 			return nil, err
 		}
-		return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessGetValidatingAdmission), result, nil), nil
+		return shared.CreateKubernetesAPIData(
+			shared.StatusOK,
+			string(messages.SuccessGetValidatingAdmission),
+			result, nil), nil
 	}
 
 	mutatingHandler := func() (any, error) {
@@ -40,7 +43,10 @@ func GetAdmissionWebhookByName(name string, webhookType admissionshared.WebhookT
 		if err != nil {
 			return nil, err
 		}
-		return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessGetMutatingAdmission), result, nil), nil
+		return shared.CreateKubernetesAPIData(
+			shared.StatusOK,
+			string(messages.SuccessGetMutatingAdmission),
+			result, nil), nil
 	}
 
 	return utils.HandleWebhookType(webhookType, validatingHandler, mutatingHandler)

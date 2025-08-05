@@ -32,23 +32,22 @@ func ParseMemory(memoryStr string) int64 {
 
 	lowerStr := strings.ToLower(memoryStr)
 
-	if value := parseMemoryWithUnit(lowerStr, constants.MemoryUnitGB, constants.GB); value > constants.EmptySliceLength {
+	if value := parseMemoryWithUnit(lowerStr, constants.MemoryUnitGB, constants.GB); value > constants.EmptySliceLength { //nolint:revive
 		return value
 	}
-	if value := parseMemoryWithUnit(lowerStr, constants.MemoryUnitMB, constants.MB); value > constants.EmptySliceLength {
+	if value := parseMemoryWithUnit(lowerStr, constants.MemoryUnitMB, constants.MB); value > constants.EmptySliceLength { //nolint:revive
 		return value
 	}
-	if value := parseMemoryWithUnit(lowerStr, constants.MemoryUnitKi, constants.KB); value > constants.EmptySliceLength {
+	if value := parseMemoryWithUnit(lowerStr, constants.MemoryUnitKi, constants.KB); value > constants.EmptySliceLength { //nolint:revive
 		return value
 	}
-
-	if value := parseMemoryWithUnit(lowerStr, constants.MemoryUnitKB, constants.KB); value > constants.EmptySliceLength {
+	if value := parseMemoryWithUnit(lowerStr, constants.MemoryUnitKB, constants.KB); value > constants.EmptySliceLength { //nolint:revive
 		return value
 	}
-	if value := parseMemoryWithUnit(lowerStr, constants.MemoryUnitMB, constants.MB); value > constants.EmptySliceLength {
+	if value := parseMemoryWithUnit(lowerStr, constants.MemoryUnitMB, constants.MB); value > constants.EmptySliceLength { //nolint:revive
 		return value
 	}
-	if value := parseMemoryWithUnit(lowerStr, constants.MemoryUnitGB, constants.GB); value > constants.EmptySliceLength {
+	if value := parseMemoryWithUnit(lowerStr, constants.MemoryUnitGB, constants.GB); value > constants.EmptySliceLength { //nolint:revive
 		return value
 	}
 

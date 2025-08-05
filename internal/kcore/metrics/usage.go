@@ -72,7 +72,9 @@ func BuildWorkloadUsage(
 	return usage
 }
 
-func buildResourceFromPodMetricsList(podMetricsList []*metricstypes.PodMetrics) workloadshared.Resource {
+func buildResourceFromPodMetricsList(
+	podMetricsList []*metricstypes.PodMetrics,
+) workloadshared.Resource {
 	instances := make(
 		[]workloadshared.UsagePerInstance,
 		constants.EmptySliceLength,

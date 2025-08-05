@@ -13,7 +13,10 @@ import (
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 )
 
-func GetPodMetrics(mc *metricstypes.MetricsClient, namespace, podName string) (*metricstypes.PodMetrics, error) {
+func GetPodMetrics(
+	mc *metricstypes.MetricsClient,
+	namespace, podName string,
+) (*metricstypes.PodMetrics, error) {
 	if !shared.IsClientAvailable(mc) {
 		return nil, fmt.Errorf(constants.ErrorFormatString, constants.InfoMetricsAPIUnavailable)
 	}
@@ -26,7 +29,8 @@ func GetPodMetrics(mc *metricstypes.MetricsClient, namespace, podName string) (*
 		defer cancel()
 
 		var apiErr error
-		podMetrics, apiErr = mc.Client.MetricsV1beta1().PodMetricses(namespace).Get(ctx, podName, metav1.GetOptions{})
+		podMetrics, apiErr = mc.Client.MetricsV1beta1().PodMetricses(namespace).Get(
+			ctx, podName, metav1.GetOptions{})
 		return apiErr
 	})
 	if err != nil {
@@ -39,7 +43,10 @@ func GetPodMetrics(mc *metricstypes.MetricsClient, namespace, podName string) (*
 	return metricsutils.ConvertToPodMetrics(podMetrics), nil
 }
 
-func GetContainerMetricsAPI(mc *metricstypes.MetricsClient, namespace, podName, containerName string) (*metricstypes.ContainerMetrics, error) {
+func GetContainerMetricsAPI(
+	mc *metricstypes.MetricsClient,
+	namespace, podName, containerName string,
+) (*metricstypes.ContainerMetrics, error) {
 	if !shared.IsClientAvailable(mc) {
 		return nil, fmt.Errorf(constants.ErrorFormatString, constants.InfoMetricsAPIUnavailable)
 	}
@@ -70,7 +77,8 @@ func ListPodMetrics(mc *metricstypes.MetricsClient, namespace string) ([]*metric
 		defer cancel()
 
 		var apiErr error
-		podMetricsList, apiErr = mc.Client.MetricsV1beta1().PodMetricses(namespace).List(ctx, metav1.ListOptions{})
+		podMetricsList, apiErr = mc.Client.MetricsV1beta1().PodMetricses(namespace).List(
+			ctx, metav1.ListOptions{})
 		return apiErr
 	})
 	if err != nil {
@@ -80,7 +88,8 @@ func ListPodMetrics(mc *metricstypes.MetricsClient, namespace string) ([]*metric
 		return nil, fmt.Errorf(string(constants.InfoFailedToListPodMetrics), err)
 	}
 
-	metricsList := make([]*metricstypes.PodMetrics, constants.EmptySliceLength, len(podMetricsList.Items))
+	metricsList := make([]*metricstypes.PodMetrics, constants.EmptySliceLength,
+		len(podMetricsList.Items))
 	for _, pm := range podMetricsList.Items {
 		metricsList = append(metricsList, metricsutils.ConvertToPodMetrics(&pm))
 	}

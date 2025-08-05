@@ -16,7 +16,10 @@ import (
 
 func PatchCustomResource(metadata base.Metadata, name string, payload map[string]any) shared.KubernetesAPIData {
 	if err := crdutils.ValidateResourceName(name); err != nil {
-		return shared.CreateKubernetesAPIData(shared.StatusBadRequest, string(errors.ErrResourceNameCannotBeEmpty), nil, err)
+		return shared.CreateKubernetesAPIData(
+			shared.StatusBadRequest,
+			string(errors.ErrResourceNameCannotBeEmpty),
+			nil, err)
 	}
 
 	resourceClient, err := crdutils.GetResourceClient(metadata)
@@ -29,12 +32,18 @@ func PatchCustomResource(metadata base.Metadata, name string, payload map[string
 
 	patchBytes, err := json.Marshal(payload)
 	if err != nil {
-		return shared.CreateKubernetesAPIData(shared.StatusInternalServerError, string(errors.ErrRestMarshalPayload), nil, err)
+		return shared.CreateKubernetesAPIData(
+			shared.StatusInternalServerError,
+			string(errors.ErrRestMarshalPayload),
+			nil, err)
 	}
 
 	resource, err := resourceClient.Patch(ctx, name, types.MergePatchType, patchBytes, k8smetav1.PatchOptions{})
 	if err != nil {
-		return shared.CreateKubernetesAPIData(shared.StatusInternalServerError, string(errors.ErrUpdateResource), nil, err)
+		return shared.CreateKubernetesAPIData(
+			shared.StatusInternalServerError,
+			string(errors.ErrUpdateResource),
+			nil, err)
 	}
 
 	return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessUpdateResource), resource, nil)

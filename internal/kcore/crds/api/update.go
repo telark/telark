@@ -12,9 +12,16 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func UpdateCustomResource(name string, metadata base.Metadata, template *unstructured.Unstructured) shared.KubernetesAPIData {
+func UpdateCustomResource(
+	name string,
+	metadata base.Metadata,
+	template *unstructured.Unstructured,
+) shared.KubernetesAPIData {
 	if err := crdutils.ValidateResourceName(name); err != nil {
-		return shared.CreateKubernetesAPIData(shared.StatusBadRequest, string(errors.ErrResourceNameCannotBeEmpty), nil, err)
+		return shared.CreateKubernetesAPIData(
+			shared.StatusBadRequest,
+			string(errors.ErrResourceNameCannotBeEmpty),
+			nil, err)
 	}
 
 	resourceClient, err := crdutils.GetResourceClient(metadata)
@@ -27,7 +34,11 @@ func UpdateCustomResource(name string, metadata base.Metadata, template *unstruc
 
 	resource, err := resourceClient.Update(ctx, template, k8smetav1.UpdateOptions{})
 	if err != nil {
-		return shared.CreateKubernetesAPIData(shared.StatusInternalServerError, string(errors.ErrUpdateResource), nil, err)
+		return shared.CreateKubernetesAPIData(
+			shared.StatusInternalServerError,
+			string(errors.ErrUpdateResource),
+			nil, err,
+		)
 	}
 
 	return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessUpdateResource), resource, nil)

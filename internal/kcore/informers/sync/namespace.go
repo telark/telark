@@ -12,7 +12,11 @@ import (
 
 var logger = k8sclient.GetLogger()
 
-func WaitForNamespaceCacheSync(ctx context.Context, informerFactory informers.SharedInformerFactory, timeout time.Duration) {
+func WaitForNamespaceCacheSync(
+	ctx context.Context,
+	informerFactory informers.SharedInformerFactory,
+	timeout time.Duration,
+) {
 	informerFactory.Start(ctx.Done())
 	syncCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()

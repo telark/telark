@@ -15,7 +15,8 @@ func CreateCustomResourceClient(metadata base.Metadata) (dynamic.ResourceInterfa
 		return nil, err
 	}
 
-	if metadata.BaseGroup == constants.EmptyString || metadata.Version == constants.EmptyString || metadata.Plural == constants.EmptyString || metadata.Namespace == constants.EmptyString {
+	if metadata.BaseGroup == constants.EmptyString || metadata.Version == constants.EmptyString ||
+		metadata.Plural == constants.EmptyString || metadata.Namespace == constants.EmptyString {
 		return nil, fmt.Errorf(string(constants.ErrInvalidMetadata), metadata)
 	}
 

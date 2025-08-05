@@ -30,4 +30,5 @@ const (
 	EmptySliceLength   = 0
 	SingleItem         = 1
 	WorkerPoolAddCount = 1
+	ZeroValue          = 0
 )

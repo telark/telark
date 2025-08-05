@@ -9,7 +9,11 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-func WaitForServiceCacheSync(ctx context.Context, informerFactory informers.SharedInformerFactory, timeout time.Duration) {
+func WaitForServiceCacheSync(
+	ctx context.Context,
+	informerFactory informers.SharedInformerFactory,
+	timeout time.Duration,
+) {
 	informerFactory.Start(ctx.Done())
 	syncCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()

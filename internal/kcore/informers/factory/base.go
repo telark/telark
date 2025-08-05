@@ -10,7 +10,10 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-func CreateInformerFactory(kubeClient *kubernetes.Clientset, resyncPeriod time.Duration) (informers.SharedInformerFactory, error) {
+func CreateInformerFactory(
+	kubeClient *kubernetes.Clientset,
+	resyncPeriod time.Duration,
+) (informers.SharedInformerFactory, error) {
 	if kubeClient == nil {
 		return nil, fmt.Errorf("%s", constants.ErrKubeClientNil)
 	}

@@ -20,19 +20,27 @@ func DeleteAdmissionWebhookByName(name string, webhookType admissionshared.Webho
 	defer cancel()
 
 	validatingOperation := func() (any, error) {
-		err := client.AdmissionregistrationV1().ValidatingWebhookConfigurations().Delete(ctx, name, k8smetav1.DeleteOptions{})
+		err := client.AdmissionregistrationV1().ValidatingWebhookConfigurations().Delete(
+			ctx, name, k8smetav1.DeleteOptions{})
 		if err != nil {
 			return nil, err
 		}
-		return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessDeleteValidatingAdmission), nil, nil), nil
+		return shared.CreateKubernetesAPIData(
+			shared.StatusOK,
+			string(messages.SuccessDeleteValidatingAdmission),
+			nil, nil), nil
 	}
 
 	mutatingOperation := func() (any, error) {
-		err := client.AdmissionregistrationV1().MutatingWebhookConfigurations().Delete(ctx, name, k8smetav1.DeleteOptions{})
+		err := client.AdmissionregistrationV1().MutatingWebhookConfigurations().Delete(
+			ctx, name, k8smetav1.DeleteOptions{})
 		if err != nil {
 			return nil, err
 		}
-		return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessDeleteMutatingAdmission), nil, nil), nil
+		return shared.CreateKubernetesAPIData(
+			shared.StatusOK,
+			string(messages.SuccessDeleteMutatingAdmission),
+			nil, nil), nil
 	}
 
 	return utils.HandleWebhookType(webhookType, validatingOperation, mutatingOperation)

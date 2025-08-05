@@ -7,7 +7,7 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/nats-io/nats.go"
-	"github.com/plsyro/data-pkg/errors"
+	"github.com/plsyro/data/errors"
 )
 
 func InitClient(ctx context.Context, user, password string) (*NATSClient, error) {

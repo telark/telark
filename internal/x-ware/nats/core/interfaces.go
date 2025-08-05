@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/nats-io/nats.go"
-	resourceShared "github.com/plsyro/data-pkg/resources/shared"
+	resourceShared "github.com/plsyro/data/resources/shared"
 )
 
 type (

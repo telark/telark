@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
-	"github.com/plsyro/data-pkg/errors"
-	resourceShared "github.com/plsyro/data-pkg/resources/shared"
-	globalShared "github.com/plsyro/data-pkg/shared"
+	"github.com/plsyro/data/errors"
+	resourceShared "github.com/plsyro/data/resources/shared"
+	globalShared "github.com/plsyro/data/shared"
 )
 
 func (s *BaseSubscriber) ValidateMessage(m *nats.Msg) error {

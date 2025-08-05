@@ -1,7 +1,7 @@
 package core
 
 import (
-	"github.com/plsyro/data-pkg/errors"
+	"github.com/plsyro/data/errors"
 )
 
 const (

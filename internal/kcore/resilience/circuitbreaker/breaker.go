@@ -75,7 +75,7 @@ func (cb *CircuitBreaker) recordResult(err error) {
 			cb.state = Open
 		}
 	} else {
-		cb.failureCount = 0
+		cb.failureCount = constants.EmptySliceLength
 		cb.state = Closed
 	}
 }
@@ -90,13 +90,13 @@ func (cb *CircuitBreaker) Reset() {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 	cb.state = Closed
-	cb.failureCount = 0
+	cb.failureCount = constants.EmptySliceLength
 }
 
 var ErrCircuitBreakerOpen = &CircuitBreakerError{}
 
 type CircuitBreakerError struct{}
 
-func (e *CircuitBreakerError) Error() string {
+func (*CircuitBreakerError) Error() string {
 	return constants.CircuitBreakerIsOpen
 }

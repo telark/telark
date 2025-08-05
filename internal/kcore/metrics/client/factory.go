@@ -7,7 +7,7 @@ import (
 
 	"github.com/plsyro/data/errors"
 	"github.com/plsyro/kcore/constants"
-	types "github.com/plsyro/kcore/metrics/types"
+	"github.com/plsyro/kcore/metrics/metricstypes"
 	"github.com/plsyro/kcore/resilience/circuitbreaker"
 	"github.com/plsyro/kcore/resilience/ratelimiting"
 	"k8s.io/client-go/rest"
@@ -21,7 +21,7 @@ var (
 	mu            sync.RWMutex
 )
 
-func InitMetricsClient() (*types.MetricsClient, error) {
+func InitMetricsClient() (*metricstypes.MetricsClient, error) {
 	mu.RLock()
 	if metricsClient != nil && initError == nil {
 		defer mu.RUnlock()
@@ -46,11 +46,11 @@ func InitMetricsClient() (*types.MetricsClient, error) {
 	return initMetricsClientOnce()
 }
 
-func initMetricsClientOnce() (*types.MetricsClient, error) {
+func initMetricsClientOnce() (*metricstypes.MetricsClient, error) {
 	once.Do(func() {
 		metricsClient, initError = createMetricsClient()
 		if initError != nil {
-			types.Logger.Warn(string(constants.InfoMetricsAPIUnavailable))
+			metricstypes.Logger.Warn(string(constants.InfoMetricsAPIUnavailable))
 		}
 	})
 
@@ -75,8 +75,8 @@ func createMetricsClient() (*metricsclientset.Clientset, error) {
 	return metricsClient, nil
 }
 
-func createMetricsClientInstance() *types.MetricsClient {
-	return &types.MetricsClient{
+func createMetricsClientInstance() *metricstypes.MetricsClient {
+	return &metricstypes.MetricsClient{
 		Client:        metricsClient,
 		Available:     false,
 		LastCheck:     time.Time{},

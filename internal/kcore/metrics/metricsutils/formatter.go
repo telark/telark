@@ -22,12 +22,12 @@ func FormatMemory(bytes int64) string {
 	case bytes >= constants.KB:
 		return formatMemoryUnit(bytes, constants.KB, constants.MemoryUnitKi)
 	default:
-		return formatMemoryUnit(bytes, 1, constants.MemoryUnitB)
+		return formatMemoryUnit(bytes, constants.SingleItem, constants.MemoryUnitB)
 	}
 }
 
 func formatMemoryUnit(bytes, unit int64, suffix string) string {
-	if unit == 1 {
+	if unit == constants.SingleItem {
 		return fmt.Sprintf(constants.MemoryBytesFormat, bytes)
 	}
 	return fmt.Sprintf(constants.MemoryUnitFormat, float64(bytes)/float64(unit), suffix)

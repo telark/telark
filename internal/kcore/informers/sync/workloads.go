@@ -5,13 +5,13 @@ import (
 	"time"
 
 	resourceshared "github.com/plsyro/data/resources/shared"
-	appWorkload "github.com/plsyro/data/resources/workloads/app"
+	appworkload "github.com/plsyro/data/resources/workloads/app"
 	"github.com/plsyro/kcore/constants"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 )
 
-func WaitForWorkloadsCacheSync(ctx context.Context, workloads []*appWorkload.AppWorkloadAsResource, informerFactory informers.SharedInformerFactory, timeout time.Duration) {
+func WaitForWorkloadsCacheSync(ctx context.Context, workloads []*appworkload.AppWorkloadAsResource, informerFactory informers.SharedInformerFactory, timeout time.Duration) {
 	informerFactory.Start(ctx.Done())
 	workloadTypes := make(map[string]bool)
 	for _, workload := range workloads {

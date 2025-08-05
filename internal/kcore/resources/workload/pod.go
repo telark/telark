@@ -17,7 +17,7 @@ func GetQualityOfService(namespace string, selectors map[string]string) (string,
 		return "", err
 	}
 
-	if len(pods) == 0 {
+	if len(pods) == constants.EmptySliceLength {
 		return "", nil
 	}
 

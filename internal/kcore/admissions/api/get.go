@@ -1,16 +1,16 @@
 package api
 
 import (
-	admissionShared "github.com/plsyro/data/admissions/shared"
+	admissionshared "github.com/plsyro/data/admissions/shared"
 	"github.com/plsyro/data/messages"
 	"github.com/plsyro/kcore/admissions/utils"
 	"github.com/plsyro/kcore/constants"
 	"github.com/plsyro/kcore/resilience/timeout"
 	"github.com/plsyro/kcore/shared"
-	kubeApiMeta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GetAdmissionWebhookByName(name string, webhookType admissionShared.WebhookType) shared.KubernetesAPIData {
+func GetAdmissionWebhookByName(name string, webhookType admissionshared.WebhookType) shared.KubernetesAPIData {
 	client, err := utils.GetClient()
 	if err != nil {
 		return shared.HandleClientError(err)
@@ -20,11 +20,11 @@ func GetAdmissionWebhookByName(name string, webhookType admissionShared.WebhookT
 	defer cancel()
 
 	validatingOperation := func() (any, error) {
-		return client.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, name, kubeApiMeta.GetOptions{})
+		return client.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, name, k8smetav1.GetOptions{})
 	}
 
 	mutatingOperation := func() (any, error) {
-		return client.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(ctx, name, kubeApiMeta.GetOptions{})
+		return client.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(ctx, name, k8smetav1.GetOptions{})
 	}
 
 	validatingHandler := func() (any, error) {

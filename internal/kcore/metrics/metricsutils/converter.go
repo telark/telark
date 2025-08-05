@@ -1,19 +1,19 @@
 package metricsutils
 
 import (
-	types "github.com/plsyro/kcore/metrics/types"
-	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
+	"github.com/plsyro/kcore/metrics/metricstypes"
+	k8smetrics "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 )
 
-func ConvertToPodMetrics(pm *metricsv1beta1.PodMetrics) *types.PodMetrics {
-	containers := make(map[string]types.ContainerMetrics, len(pm.Containers))
+func ConvertToPodMetrics(pm *k8smetrics.PodMetrics) *metricstypes.PodMetrics {
+	containers := make(map[string]metricstypes.ContainerMetrics, len(pm.Containers))
 	var totalCPU, totalMemory int64
 
 	for _, container := range pm.Containers {
 		cpu := container.Usage.Cpu().MilliValue()
 		memory := container.Usage.Memory().Value()
 
-		containers[container.Name] = types.ContainerMetrics{
+		containers[container.Name] = metricstypes.ContainerMetrics{
 			CPU:    FormatCPU(cpu),
 			Memory: FormatMemory(memory),
 			Pod:    pm.Name,
@@ -23,7 +23,7 @@ func ConvertToPodMetrics(pm *metricsv1beta1.PodMetrics) *types.PodMetrics {
 		totalMemory += memory
 	}
 
-	return &types.PodMetrics{
+	return &metricstypes.PodMetrics{
 		PodName:     pm.Name,
 		Namespace:   pm.Namespace,
 		Containers:  containers,

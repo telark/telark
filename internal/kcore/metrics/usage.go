@@ -5,60 +5,63 @@ import (
 	"time"
 
 	"github.com/plsyro/data/logger"
-	workloadCommon "github.com/plsyro/data/resources/workloads/shared"
+	workloadshared "github.com/plsyro/data/resources/workloads/shared"
 	globalshared "github.com/plsyro/data/shared"
 	"github.com/plsyro/kcore/constants"
-	metricsClient "github.com/plsyro/kcore/metrics/client"
+	"github.com/plsyro/kcore/metrics/client"
+	"github.com/plsyro/kcore/metrics/metricstypes"
 	"github.com/plsyro/kcore/metrics/metricsutils"
-	types "github.com/plsyro/kcore/metrics/types"
 	"github.com/plsyro/kcore/resources/workload"
 )
 
 var usageLogger = logger.NewCustomLogger(constants.LoggerPrefixWorkloadUsage)
 
 func GetWorkloadQualityOfService(namespace string, selectors map[string]string) string {
-	if namespace == "" || selectors == nil {
-		return ""
+	if namespace == constants.EmptyString || selectors == nil {
+		return constants.EmptyString
 	}
 
 	qos, err := workload.GetQualityOfService(namespace, selectors)
 	if err != nil {
-		return ""
+		return constants.EmptyString
 	}
 
 	return qos
 }
 
-func BuildWorkloadUsage(namespace string, selectors map[string]string, qos string) *workloadCommon.Usage {
-	usage := &workloadCommon.Usage{
+func BuildWorkloadUsage(
+	namespace, qos string,
+	selectors map[string]string,
+) *workloadshared.Usage {
+	usage := &workloadshared.Usage{
 		QoS:       qos,
 		Timestamp: time.Now().Format(time.RFC3339),
 		Available: false,
-		Resources: workloadCommon.Resource{
+		Resources: workloadshared.Resource{
 			TotalCPU:         globalshared.DefaultCPU,
 			TotalMemory:      globalshared.DefaultMemory,
-			UsagePerInstance: []workloadCommon.UsagePerInstance{},
+			UsagePerInstance: []workloadshared.UsagePerInstance{},
 		},
 	}
 
-	metricsAdapter, err := metricsClient.NewMetricsAdapter()
+	metricsAdapter, err := client.NewMetricsAdapter()
 	if err != nil {
 		usageLogger.Error(fmt.Sprintf(string(constants.ErrFailedToInitializeMetricsClient), err))
 		return usage
 	}
 
-	if !metricsClient.IsMetricsAvailable(metricsAdapter) {
+	if !client.IsMetricsAvailable(metricsAdapter) {
 		usageLogger.Warn(string(constants.InfoMetricsAPIUnavailable))
 		return usage
 	}
 
-	podMetricsList, err := metricsClient.GetAllPodMetrics(metricsAdapter, namespace, selectors)
+	podMetricsList, err := client.GetAllPodMetrics(metricsAdapter, namespace, selectors)
 	if err != nil {
 		usageLogger.Error(fmt.Sprintf(string(constants.ErrFailedToGetPodMetrics), err))
 		return usage
 	}
 
-	if len(podMetricsList) == 0 {
+	if len(podMetricsList) == constants.EmptySliceLength {
 		usageLogger.Warn(string(constants.ErrFailedToGetPodMetrics))
 		return usage
 	}
@@ -69,19 +72,23 @@ func BuildWorkloadUsage(namespace string, selectors map[string]string, qos strin
 	return usage
 }
 
-func buildResourceFromPodMetricsList(podMetricsList []*types.PodMetrics) workloadCommon.Resource {
-	instances := make([]workloadCommon.UsagePerInstance, 0, len(podMetricsList))
+func buildResourceFromPodMetricsList(podMetricsList []*metricstypes.PodMetrics) workloadshared.Resource {
+	instances := make(
+		[]workloadshared.UsagePerInstance,
+		constants.EmptySliceLength,
+		len(podMetricsList),
+	)
 	var totalCPU, totalMemory int64
 
 	for _, podMetrics := range podMetricsList {
-		instance := workloadCommon.UsagePerInstance{
+		instance := workloadshared.UsagePerInstance{
 			Name:       podMetrics.PodName,
-			Containers: []workloadCommon.ContainerUsage{},
+			Containers: []workloadshared.ContainerUsage{},
 		}
 
 		var instanceCPU, instanceMemory int64
 		for containerName, containerMetrics := range podMetrics.Containers {
-			containerUsage := workloadCommon.ContainerUsage{
+			containerUsage := workloadshared.ContainerUsage{
 				Name:   containerName,
 				CPU:    containerMetrics.CPU,
 				Memory: containerMetrics.Memory,
@@ -105,7 +112,7 @@ func buildResourceFromPodMetricsList(podMetricsList []*types.PodMetrics) workloa
 		totalMemory += instanceMemory
 	}
 
-	return workloadCommon.Resource{
+	return workloadshared.Resource{
 		TotalCPU:         metricsutils.FormatCPU(totalCPU),
 		TotalMemory:      metricsutils.FormatMemory(totalMemory),
 		UsagePerInstance: instances,

@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"github.com/plsyro/kcore/constants"
+	"github.com/plsyro/kcore/metrics/metricstypes"
 	"github.com/plsyro/kcore/metrics/metricsutils"
-	shared "github.com/plsyro/kcore/metrics/shared"
-	metricstypes "github.com/plsyro/kcore/metrics/types"
+	"github.com/plsyro/kcore/metrics/shared"
 	"github.com/plsyro/kcore/resilience/circuitbreaker"
 	"github.com/plsyro/kcore/resilience/timeout"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,7 +15,7 @@ import (
 
 func GetPodMetrics(mc *metricstypes.MetricsClient, namespace, podName string) (*metricstypes.PodMetrics, error) {
 	if !shared.IsClientAvailable(mc) {
-		return nil, fmt.Errorf("%s", constants.InfoMetricsAPIUnavailable)
+		return nil, fmt.Errorf(constants.ErrorFormatString, constants.InfoMetricsAPIUnavailable)
 	}
 
 	mc.RateLimiter.Wait()
@@ -41,7 +41,7 @@ func GetPodMetrics(mc *metricstypes.MetricsClient, namespace, podName string) (*
 
 func GetContainerMetricsAPI(mc *metricstypes.MetricsClient, namespace, podName, containerName string) (*metricstypes.ContainerMetrics, error) {
 	if !shared.IsClientAvailable(mc) {
-		return nil, fmt.Errorf("%s", constants.InfoMetricsAPIUnavailable)
+		return nil, fmt.Errorf(constants.ErrorFormatString, constants.InfoMetricsAPIUnavailable)
 	}
 
 	podMetrics, err := GetPodMetrics(mc, namespace, podName)
@@ -59,7 +59,7 @@ func GetContainerMetricsAPI(mc *metricstypes.MetricsClient, namespace, podName, 
 
 func ListPodMetrics(mc *metricstypes.MetricsClient, namespace string) ([]*metricstypes.PodMetrics, error) {
 	if !shared.IsClientAvailable(mc) {
-		return nil, fmt.Errorf("%s", constants.InfoMetricsAPIUnavailable)
+		return nil, fmt.Errorf(constants.ErrorFormatString, constants.InfoMetricsAPIUnavailable)
 	}
 
 	mc.RateLimiter.Wait()
@@ -80,7 +80,7 @@ func ListPodMetrics(mc *metricstypes.MetricsClient, namespace string) ([]*metric
 		return nil, fmt.Errorf(string(constants.InfoFailedToListPodMetrics), err)
 	}
 
-	metricsList := make([]*metricstypes.PodMetrics, 0, len(podMetricsList.Items))
+	metricsList := make([]*metricstypes.PodMetrics, constants.EmptySliceLength, len(podMetricsList.Items))
 	for _, pm := range podMetricsList.Items {
 		metricsList = append(metricsList, metricsutils.ConvertToPodMetrics(&pm))
 	}

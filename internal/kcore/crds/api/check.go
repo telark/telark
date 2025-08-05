@@ -1,19 +1,19 @@
 package api
 
 import (
-	metadata "github.com/plsyro/data/metadata/base"
+	"github.com/plsyro/data/metadata/base"
 	"github.com/plsyro/kcore/constants"
-	crdUtils "github.com/plsyro/kcore/crds/utils"
+	crdutils "github.com/plsyro/kcore/crds/utils"
 	"github.com/plsyro/kcore/resilience/timeout"
-	kubeApiMeta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func CheckCustomResourceExistsByName(name string, metadata metadata.Metadata) (bool, error) {
-	if err := crdUtils.ValidateResourceName(name); err != nil {
+func CheckCustomResourceExistsByName(name string, metadata base.Metadata) (bool, error) {
+	if err := crdutils.ValidateResourceName(name); err != nil {
 		return false, err
 	}
 
-	resourceClient, err := crdUtils.GetResourceClient(metadata)
+	resourceClient, err := crdutils.GetResourceClient(metadata)
 	if err != nil {
 		return false, err
 	}
@@ -21,7 +21,7 @@ func CheckCustomResourceExistsByName(name string, metadata metadata.Metadata) (b
 	ctx, cancel := timeout.ContextWithTimeout(constants.CrdGetTimeout)
 	defer cancel()
 
-	_, err = resourceClient.Get(ctx, name, kubeApiMeta.GetOptions{})
+	_, err = resourceClient.Get(ctx, name, k8smetav1.GetOptions{})
 	if err == nil {
 		return true, nil
 	}

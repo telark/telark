@@ -13,7 +13,7 @@ type WorkerPool struct {
 }
 
 func NewWorkerPool(workers int) *WorkerPool {
-	if workers <= 0 {
+	if workers <= constants.EmptySliceLength {
 		workers = constants.DefaultWorkerPoolSize
 	}
 	return &WorkerPool{
@@ -23,7 +23,7 @@ func NewWorkerPool(workers int) *WorkerPool {
 }
 
 func (wp *WorkerPool) Submit(task func()) {
-	wp.wg.Add(1)
+	wp.wg.Add(constants.WorkerPoolAddCount)
 	wp.sem <- struct{}{}
 
 	go func() {

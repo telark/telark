@@ -3,7 +3,7 @@ package metrics
 import (
 	"testing"
 
-	metricstypes "github.com/plsyro/kcore/metrics/types"
+	"github.com/plsyro/kcore/metrics/metricstypes"
 )
 
 func TestContainerMetricsStruct(t *testing.T) {

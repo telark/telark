@@ -3,8 +3,8 @@ package metrics
 import (
 	"testing"
 
+	"github.com/plsyro/kcore/metrics/metricstypes"
 	"github.com/plsyro/kcore/metrics/shared"
-	metricstypes "github.com/plsyro/kcore/metrics/types"
 	"github.com/plsyro/kcore/resilience/ratelimiting"
 )
 

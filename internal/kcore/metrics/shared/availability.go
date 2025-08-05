@@ -4,11 +4,11 @@ import (
 	"time"
 
 	"github.com/plsyro/kcore/constants"
-	types "github.com/plsyro/kcore/metrics/types"
-	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
+	"github.com/plsyro/kcore/metrics/metricstypes"
+	k8smetricsclient "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
-func IsClientAvailable(mc *types.MetricsClient) bool {
+func IsClientAvailable(mc *metricstypes.MetricsClient) bool {
 	if mc == nil {
 		return false
 	}
@@ -31,7 +31,7 @@ func IsClientAvailable(mc *types.MetricsClient) bool {
 	return mc.Available
 }
 
-func checkMetricsAPIAvailability(client *metricsclientset.Clientset) bool {
+func checkMetricsAPIAvailability(client *k8smetricsclient.Clientset) bool {
 	if client == nil {
 		return false
 	}

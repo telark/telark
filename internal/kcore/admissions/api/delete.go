@@ -1,16 +1,16 @@
 package api
 
 import (
-	admissionShared "github.com/plsyro/data/admissions/shared"
+	admissionshared "github.com/plsyro/data/admissions/shared"
 	"github.com/plsyro/data/messages"
 	"github.com/plsyro/kcore/admissions/utils"
 	"github.com/plsyro/kcore/constants"
 	"github.com/plsyro/kcore/resilience/timeout"
 	"github.com/plsyro/kcore/shared"
-	kubeApiMeta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func DeleteAdmissionWebhookByName(name string, webhookType admissionShared.WebhookType) shared.KubernetesAPIData {
+func DeleteAdmissionWebhookByName(name string, webhookType admissionshared.WebhookType) shared.KubernetesAPIData {
 	client, err := utils.GetClient()
 	if err != nil {
 		return shared.HandleClientError(err)
@@ -20,7 +20,7 @@ func DeleteAdmissionWebhookByName(name string, webhookType admissionShared.Webho
 	defer cancel()
 
 	validatingOperation := func() (any, error) {
-		err := client.AdmissionregistrationV1().ValidatingWebhookConfigurations().Delete(ctx, name, kubeApiMeta.DeleteOptions{})
+		err := client.AdmissionregistrationV1().ValidatingWebhookConfigurations().Delete(ctx, name, k8smetav1.DeleteOptions{})
 		if err != nil {
 			return nil, err
 		}
@@ -28,7 +28,7 @@ func DeleteAdmissionWebhookByName(name string, webhookType admissionShared.Webho
 	}
 
 	mutatingOperation := func() (any, error) {
-		err := client.AdmissionregistrationV1().MutatingWebhookConfigurations().Delete(ctx, name, kubeApiMeta.DeleteOptions{})
+		err := client.AdmissionregistrationV1().MutatingWebhookConfigurations().Delete(ctx, name, k8smetav1.DeleteOptions{})
 		if err != nil {
 			return nil, err
 		}

@@ -5,21 +5,21 @@ import (
 
 	"github.com/plsyro/data/errors"
 	"github.com/plsyro/data/messages"
-	metadata "github.com/plsyro/data/metadata/base"
+	"github.com/plsyro/data/metadata/base"
 	"github.com/plsyro/kcore/constants"
-	crdUtils "github.com/plsyro/kcore/crds/utils"
+	crdutils "github.com/plsyro/kcore/crds/utils"
 	"github.com/plsyro/kcore/resilience/timeout"
 	"github.com/plsyro/kcore/shared"
-	kubeApiMeta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
-func PatchCustomResource(metadata metadata.Metadata, name string, payload map[string]any) shared.KubernetesAPIData {
-	if err := crdUtils.ValidateResourceName(name); err != nil {
+func PatchCustomResource(metadata base.Metadata, name string, payload map[string]any) shared.KubernetesAPIData {
+	if err := crdutils.ValidateResourceName(name); err != nil {
 		return shared.CreateKubernetesAPIData(shared.StatusBadRequest, string(errors.ErrResourceNameCannotBeEmpty), nil, err)
 	}
 
-	resourceClient, err := crdUtils.GetResourceClient(metadata)
+	resourceClient, err := crdutils.GetResourceClient(metadata)
 	if err != nil {
 		return shared.HandleClientError(err)
 	}
@@ -32,7 +32,7 @@ func PatchCustomResource(metadata metadata.Metadata, name string, payload map[st
 		return shared.CreateKubernetesAPIData(shared.StatusInternalServerError, string(errors.ErrRestMarshalPayload), nil, err)
 	}
 
-	resource, err := resourceClient.Patch(ctx, name, types.MergePatchType, patchBytes, kubeApiMeta.PatchOptions{})
+	resource, err := resourceClient.Patch(ctx, name, types.MergePatchType, patchBytes, k8smetav1.PatchOptions{})
 	if err != nil {
 		return shared.CreateKubernetesAPIData(shared.StatusInternalServerError, string(errors.ErrUpdateResource), nil, err)
 	}

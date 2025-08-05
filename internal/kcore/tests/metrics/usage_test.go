@@ -14,7 +14,7 @@ func TestGetWorkloadQualityOfService_EmptyNamespace(t *testing.T) {
 }
 
 func TestBuildWorkloadUsage_EmptyNamespace(t *testing.T) {
-	usage := metrics.BuildWorkloadUsage(TestEmptyString, nil, TestEmptyString)
+	usage := metrics.BuildWorkloadUsage(TestEmptyString, TestEmptyString, nil)
 	if usage != nil && usage.Available {
 		t.Error(ExpectedUsageToBeUnavailableForEmptyNamespace)
 	}

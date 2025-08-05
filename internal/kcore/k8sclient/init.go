@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/plsyro/data/errors"
-	globalLogger "github.com/plsyro/data/logger"
+	globallogger "github.com/plsyro/data/logger"
 	"github.com/plsyro/kcore/constants"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	logger           = globalLogger.NewCustomLogger(constants.LoggerPrefixK8sManager)
+	logger           = globallogger.NewCustomLogger(constants.LoggerPrefixK8sManager)
 	kubernetesClient *kubernetes.Clientset
 	dynamicClient    dynamic.Interface
 	config           *rest.Config
@@ -97,6 +97,6 @@ func ResetAllClients() {
 	configOnce = sync.Once{}
 }
 
-func GetLogger() *globalLogger.CustomLogger {
+func GetLogger() *globallogger.CustomLogger {
 	return logger
 }

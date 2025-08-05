@@ -3,18 +3,18 @@ package api
 import (
 	"encoding/json"
 
-	admissionShared "github.com/plsyro/data/admissions/shared"
+	admissionshared "github.com/plsyro/data/admissions/shared"
 	"github.com/plsyro/data/errors"
 	"github.com/plsyro/data/messages"
 	"github.com/plsyro/kcore/admissions/utils"
 	"github.com/plsyro/kcore/constants"
 	"github.com/plsyro/kcore/resilience/timeout"
 	"github.com/plsyro/kcore/shared"
-	kubeApiMeta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
-func PatchAdmissionWebhookAnnotationsByName(name string, webhookType admissionShared.WebhookType, annotations map[string]string) shared.KubernetesAPIData {
+func PatchAdmissionWebhookAnnotationsByName(name string, webhookType admissionshared.WebhookType, annotations map[string]string) shared.KubernetesAPIData {
 	client, err := utils.GetClient()
 	if err != nil {
 		return shared.HandleClientError(err)
@@ -31,21 +31,21 @@ func PatchAdmissionWebhookAnnotationsByName(name string, webhookType admissionSh
 
 	validatingOperation := func() (any, error) {
 		patchedWebhook, err := client.AdmissionregistrationV1().ValidatingWebhookConfigurations().
-			Patch(ctx, name, types.MergePatchType, patchBytes, kubeApiMeta.PatchOptions{})
+			Patch(ctx, name, types.MergePatchType, patchBytes, k8smetav1.PatchOptions{})
 		if err != nil {
 			return nil, err
 		}
-		message := utils.CreateMessage(patchedWebhook.GetName(), string(admissionShared.Validating), string(messages.SuccessUpdateResource))
+		message := utils.CreateMessage(patchedWebhook.GetName(), string(admissionshared.Validating), string(messages.SuccessUpdateResource))
 		return shared.CreateKubernetesAPIData(shared.StatusOK, message, patchedWebhook, nil), nil
 	}
 
 	mutatingOperation := func() (any, error) {
 		patchedWebhook, err := client.AdmissionregistrationV1().MutatingWebhookConfigurations().
-			Patch(ctx, name, types.MergePatchType, patchBytes, kubeApiMeta.PatchOptions{})
+			Patch(ctx, name, types.MergePatchType, patchBytes, k8smetav1.PatchOptions{})
 		if err != nil {
 			return nil, err
 		}
-		message := utils.CreateMessage(patchedWebhook.GetName(), string(admissionShared.Mutating), string(messages.SuccessUpdateResource))
+		message := utils.CreateMessage(patchedWebhook.GetName(), string(admissionshared.Mutating), string(messages.SuccessUpdateResource))
 		return shared.CreateKubernetesAPIData(shared.StatusOK, message, patchedWebhook, nil), nil
 	}
 

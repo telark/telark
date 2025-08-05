@@ -3,19 +3,19 @@ package k8sclient
 import (
 	"fmt"
 
-	metadata "github.com/plsyro/data/metadata/base"
+	"github.com/plsyro/data/metadata/base"
 	"github.com/plsyro/kcore/constants"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 )
 
-func CreateCustomResourceClient(metadata metadata.Metadata) (dynamic.ResourceInterface, error) {
+func CreateCustomResourceClient(metadata base.Metadata) (dynamic.ResourceInterface, error) {
 	dynamicClient, err := InitDynamicClient()
 	if err != nil {
 		return nil, err
 	}
 
-	if metadata.BaseGroup == "" || metadata.Version == "" || metadata.Plural == "" || metadata.Namespace == "" {
+	if metadata.BaseGroup == constants.EmptyString || metadata.Version == constants.EmptyString || metadata.Plural == constants.EmptyString || metadata.Namespace == constants.EmptyString {
 		return nil, fmt.Errorf(string(constants.ErrInvalidMetadata), metadata)
 	}
 

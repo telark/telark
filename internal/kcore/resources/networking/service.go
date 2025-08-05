@@ -74,7 +74,7 @@ func GetServiceStatus(namespace, name string) (bool, error) {
 		return false, fmt.Errorf(string(errors.ErrK8sGetService), name, namespace, err)
 	}
 
-	return service.Spec.ClusterIP != "", nil
+	return service.Spec.ClusterIP != constants.EmptyString, nil
 }
 
 func IsServiceActive(service *core.Service) bool {
@@ -84,18 +84,18 @@ func IsServiceActive(service *core.Service) bool {
 
 	switch service.Spec.Type {
 	case core.ServiceTypeLoadBalancer:
-		return len(service.Status.LoadBalancer.Ingress) > 0
+		return len(service.Status.LoadBalancer.Ingress) > constants.EmptySliceLength
 	case core.ServiceTypeClusterIP:
-		return service.Spec.ClusterIP != ""
+		return service.Spec.ClusterIP != constants.EmptyString
 	case core.ServiceTypeNodePort:
-		return len(service.Spec.Ports) > 0
+		return len(service.Spec.Ports) > constants.EmptySliceLength
 	default:
 		return false
 	}
 }
 
 func validateInputs(namespace, name string) error {
-	if namespace == "" || name == "" {
+	if namespace == constants.EmptyString || name == constants.EmptyString {
 		return fmt.Errorf("%s", errors.ErrK8sEmptyNamespaceOrResourceName)
 	}
 	return nil

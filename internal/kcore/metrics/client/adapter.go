@@ -5,24 +5,24 @@ import (
 	"strings"
 
 	"github.com/plsyro/kcore/constants"
-	shared "github.com/plsyro/kcore/metrics/shared"
-	types "github.com/plsyro/kcore/metrics/types"
+	"github.com/plsyro/kcore/metrics/metricstypes"
+	"github.com/plsyro/kcore/metrics/shared"
 )
 
-func NewMetricsAdapter() (*types.MetricsAdapter, error) {
+func NewMetricsAdapter() (*metricstypes.MetricsAdapter, error) {
 	client, err := InitMetricsClient()
 	if err != nil {
 		return nil, fmt.Errorf(string(constants.ErrFailedToInitializeMetricsClient), err)
 	}
 
-	return &types.MetricsAdapter{
+	return &metricstypes.MetricsAdapter{
 		Client: client,
 	}, nil
 }
 
-func GetWorkloadMetrics(ma *types.MetricsAdapter, namespace string, selectors map[string]string) (map[string]*types.ContainerMetrics, error) {
+func GetWorkloadMetrics(ma *metricstypes.MetricsAdapter, namespace string, selectors map[string]string) (map[string]*metricstypes.ContainerMetrics, error) {
 	if ma == nil || ma.Client == nil {
-		return nil, fmt.Errorf("%s", constants.ErrMetricsAdapterOrClientNil)
+		return nil, fmt.Errorf(constants.ErrorFormatString, constants.ErrMetricsAdapterOrClientNil)
 	}
 	if !shared.IsClientAvailable(ma.Client) {
 		return nil, fmt.Errorf("%s", constants.InfoMetricsAPIUnavailable)
@@ -33,7 +33,7 @@ func GetWorkloadMetrics(ma *types.MetricsAdapter, namespace string, selectors ma
 		return nil, fmt.Errorf(string(constants.InfoFailedToListPodMetrics), err)
 	}
 
-	workloadMetrics := make(map[string]*types.ContainerMetrics)
+	workloadMetrics := make(map[string]*metricstypes.ContainerMetrics)
 	for _, pm := range podMetrics {
 		if matchesSelectors(pm.PodName, selectors) {
 			for containerName, containerMetrics := range pm.Containers {
@@ -45,9 +45,9 @@ func GetWorkloadMetrics(ma *types.MetricsAdapter, namespace string, selectors ma
 	return workloadMetrics, nil
 }
 
-func GetAllPodMetrics(ma *types.MetricsAdapter, namespace string, selectors map[string]string) ([]*types.PodMetrics, error) {
+func GetAllPodMetrics(ma *metricstypes.MetricsAdapter, namespace string, selectors map[string]string) ([]*metricstypes.PodMetrics, error) {
 	if ma == nil || ma.Client == nil {
-		return nil, fmt.Errorf("%s", constants.ErrMetricsAdapterOrClientNil)
+		return nil, fmt.Errorf(constants.ErrorFormatString, constants.ErrMetricsAdapterOrClientNil)
 	}
 	if !shared.IsClientAvailable(ma.Client) {
 		return nil, fmt.Errorf("%s", constants.InfoMetricsAPIUnavailable)
@@ -58,37 +58,37 @@ func GetAllPodMetrics(ma *types.MetricsAdapter, namespace string, selectors map[
 		return nil, fmt.Errorf(string(constants.InfoFailedToListPodMetrics), err)
 	}
 
-	var matchingPods []*types.PodMetrics
+	var matchingPods []*metricstypes.PodMetrics
 	for _, pm := range podMetrics {
 		if matchesSelectors(pm.PodName, selectors) {
 			matchingPods = append(matchingPods, pm)
 		}
 	}
 
-	if len(matchingPods) == 0 {
-		return nil, fmt.Errorf("%s", constants.ErrNoPodsFoundMatchingSelectors)
+	if len(matchingPods) == constants.EmptySliceLength {
+		return nil, fmt.Errorf(constants.ErrorFormatString, constants.ErrNoPodsFoundMatchingSelectors)
 	}
 
 	return matchingPods, nil
 }
 
-func AdapterGetContainerMetrics(ma *types.MetricsAdapter, namespace, podName, containerName string) (*types.ContainerMetrics, error) {
+func AdapterGetContainerMetrics(ma *metricstypes.MetricsAdapter, namespace, podName, containerName string) (*metricstypes.ContainerMetrics, error) {
 	if ma == nil || ma.Client == nil {
-		return nil, fmt.Errorf("%s", constants.ErrMetricsAdapterOrClientNil)
+		return nil, fmt.Errorf(constants.ErrorFormatString, constants.ErrMetricsAdapterOrClientNil)
 	}
 	if !shared.IsClientAvailable(ma.Client) {
-		return nil, fmt.Errorf("%s", constants.InfoMetricsAPIUnavailable)
+		return nil, fmt.Errorf(constants.ErrorFormatString, constants.InfoMetricsAPIUnavailable)
 	}
 
 	return GetContainerMetricsAPI(ma.Client, namespace, podName, containerName)
 }
 
-func IsMetricsAvailable(ma *types.MetricsAdapter) bool {
+func IsMetricsAvailable(ma *metricstypes.MetricsAdapter) bool {
 	return shared.IsClientAvailable(ma.Client)
 }
 
 func matchesSelectors(podName string, selectors map[string]string) bool {
-	if len(selectors) == 0 {
+	if len(selectors) == constants.EmptySliceLength {
 		return false
 	}
 

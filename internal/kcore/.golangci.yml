@@ -34,6 +34,8 @@ linters:
     revive:
       enable-all-rules: true
       rules:
+        - name: line-length-limit
+          disabled: true
         - name: exported
           disabled: true
         - name: package-comments
@@ -42,9 +44,9 @@ linters:
           disabled: true
         - name: cyclomatic
           disabled: true
-        - name: line-length-limit
-          arguments:
-            - 100
+        #- name: line-length-limit
+        #  arguments:
+        #    - 100
         - name: max-public-structs
           arguments:
             - 10

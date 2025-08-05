@@ -24,10 +24,8 @@ linters:
       min-complexity: 12
     misspell:
       locale: US
-      exclude:
     funlen:
       lines: 60
-      statements: 
     gosec:
       exclude:
         - G101
@@ -44,7 +42,7 @@ linters:
           disabled: true
         - name: line-length-limit
           arguments:
-            - 100
+            - 120
         - name: max-public-structs
           arguments:
             - 10

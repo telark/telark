@@ -6,12 +6,12 @@ This repository hosts a Private Packages designed to be integrated within GO Cor
 ## Installation Instructions
 Add the module to any GO service by running the following command:
 ```bash
-go get github.com/plsyro/data-pkg @version
+go get github.com/plsyro/data @version
 ```
 Or include in go.mod:
 ```bash
 require (
-	github.com/plsyro/data-pkg @version
+	github.com/plsyro/data @version
 )
 ```
 Then, execute:

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/plsyro/kcore-pkg/constants"
+	"github.com/plsyro/kcore/constants"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"

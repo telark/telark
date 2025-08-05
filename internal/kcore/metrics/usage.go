@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	globalShared "github.com/plsyro/data/ed"
 	"github.com/plsyro/data/logger"
-	workloadCommon "github.com/plsyro/data/urces/workloads/shared"
+	workloadCommon "github.com/plsyro/data/resources/workloads/shared"
+	globalShared "github.com/plsyro/data/shared"
 	"github.com/plsyro/kcore/constants"
 	metricsClient "github.com/plsyro/kcore/metrics/client"
 	"github.com/plsyro/kcore/metrics/metricsutils"

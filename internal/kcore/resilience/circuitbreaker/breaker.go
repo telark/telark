@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/plsyro/kcore-pkg/constants"
+	"github.com/plsyro/kcore/constants"
 )
 
 type (

@@ -3,10 +3,10 @@ package workload
 import (
 	"fmt"
 
-	workload "github.com/plsyro/data-pkg/resources/workloads/shared"
-	"github.com/plsyro/kcore-pkg/constants"
-	"github.com/plsyro/kcore-pkg/k8sclient"
-	"github.com/plsyro/kcore-pkg/resilience/timeout"
+	workload "github.com/plsyro/data/resources/workloads/shared"
+	"github.com/plsyro/kcore/constants"
+	"github.com/plsyro/kcore/k8sclient"
+	"github.com/plsyro/kcore/resilience/timeout"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

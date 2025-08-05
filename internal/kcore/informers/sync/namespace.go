@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/plsyro/kcore-pkg/constants"
-	"github.com/plsyro/kcore-pkg/k8sclient"
+	"github.com/plsyro/kcore/constants"
+	"github.com/plsyro/kcore/k8sclient"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 )

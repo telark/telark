@@ -3,10 +3,10 @@ package api
 import (
 	"fmt"
 
-	admissionShared "github.com/plsyro/data-pkg/admissions/shared"
-	"github.com/plsyro/kcore-pkg/admissions/utils"
-	"github.com/plsyro/kcore-pkg/constants"
-	"github.com/plsyro/kcore-pkg/resilience/timeout"
+	admissionShared "github.com/plsyro/data/admissions/shared"
+	"github.com/plsyro/kcore/admissions/utils"
+	"github.com/plsyro/kcore/constants"
+	"github.com/plsyro/kcore/resilience/timeout"
 	kubeApiMeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

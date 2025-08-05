@@ -3,7 +3,7 @@ package worker
 import (
 	"sync"
 
-	"github.com/plsyro/kcore-pkg/constants"
+	"github.com/plsyro/kcore/constants"
 )
 
 type WorkerPool struct {

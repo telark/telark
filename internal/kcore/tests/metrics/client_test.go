@@ -3,8 +3,8 @@ package metrics
 import (
 	"testing"
 
-	"github.com/plsyro/kcore-pkg/constants"
-	"github.com/plsyro/kcore-pkg/metrics/client"
+	"github.com/plsyro/kcore/constants"
+	"github.com/plsyro/kcore/metrics/client"
 )
 
 func TestInitMetricsClient(t *testing.T) {

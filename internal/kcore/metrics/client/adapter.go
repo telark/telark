@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/plsyro/kcore-pkg/constants"
-	shared "github.com/plsyro/kcore-pkg/metrics/shared"
-	types "github.com/plsyro/kcore-pkg/metrics/types"
+	"github.com/plsyro/kcore/constants"
+	shared "github.com/plsyro/kcore/metrics/shared"
+	types "github.com/plsyro/kcore/metrics/types"
 )
 
 func NewMetricsAdapter() (*types.MetricsAdapter, error) {

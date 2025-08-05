@@ -3,7 +3,7 @@ package metrics
 import (
 	"testing"
 
-	"github.com/plsyro/kcore-pkg/metrics"
+	"github.com/plsyro/kcore/metrics"
 )
 
 func TestGetWorkloadQualityOfService_EmptyNamespace(t *testing.T) {

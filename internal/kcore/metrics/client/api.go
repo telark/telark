@@ -3,12 +3,12 @@ package client
 import (
 	"fmt"
 
-	"github.com/plsyro/kcore-pkg/constants"
-	"github.com/plsyro/kcore-pkg/metrics/metricsutils"
-	shared "github.com/plsyro/kcore-pkg/metrics/shared"
-	metricstypes "github.com/plsyro/kcore-pkg/metrics/types"
-	"github.com/plsyro/kcore-pkg/resilience/circuitbreaker"
-	"github.com/plsyro/kcore-pkg/resilience/timeout"
+	"github.com/plsyro/kcore/constants"
+	"github.com/plsyro/kcore/metrics/metricsutils"
+	shared "github.com/plsyro/kcore/metrics/shared"
+	metricstypes "github.com/plsyro/kcore/metrics/types"
+	"github.com/plsyro/kcore/resilience/circuitbreaker"
+	"github.com/plsyro/kcore/resilience/timeout"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 )

@@ -5,11 +5,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/plsyro/data-pkg/errors"
-	"github.com/plsyro/kcore-pkg/constants"
-	types "github.com/plsyro/kcore-pkg/metrics/types"
-	"github.com/plsyro/kcore-pkg/resilience/circuitbreaker"
-	"github.com/plsyro/kcore-pkg/resilience/ratelimiting"
+	"github.com/plsyro/data/errors"
+	"github.com/plsyro/kcore/constants"
+	types "github.com/plsyro/kcore/metrics/types"
+	"github.com/plsyro/kcore/resilience/circuitbreaker"
+	"github.com/plsyro/kcore/resilience/ratelimiting"
 	"k8s.io/client-go/rest"
 	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 )

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	resourceShared "github.com/plsyro/data/resources/shared"
-	appWorkload "github.com/plsyro/data/urces/workloads/app"
+	appWorkload "github.com/plsyro/data/resources/workloads/app"
 	"github.com/plsyro/kcore/constants"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"

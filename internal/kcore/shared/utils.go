@@ -1,7 +1,7 @@
 package shared
 
 import (
-	"github.com/plsyro/data-pkg/errors"
+	"github.com/plsyro/data/errors"
 )
 
 func HandleClientError(err error) KubernetesAPIData {

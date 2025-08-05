@@ -3,7 +3,7 @@ package metricsutils
 import (
 	"fmt"
 
-	"github.com/plsyro/kcore-pkg/constants"
+	"github.com/plsyro/kcore/constants"
 )
 
 func FormatCPU(milliValue int64) string {

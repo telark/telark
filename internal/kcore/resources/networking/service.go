@@ -3,10 +3,10 @@ package networking
 import (
 	"fmt"
 
-	"github.com/plsyro/data-pkg/errors"
-	"github.com/plsyro/kcore-pkg/constants"
-	"github.com/plsyro/kcore-pkg/k8sclient"
-	"github.com/plsyro/kcore-pkg/resilience/timeout"
+	"github.com/plsyro/data/errors"
+	"github.com/plsyro/kcore/constants"
+	"github.com/plsyro/kcore/k8sclient"
+	"github.com/plsyro/kcore/resilience/timeout"
 
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

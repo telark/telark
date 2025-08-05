@@ -3,9 +3,9 @@ package api
 import (
 	"fmt"
 
-	metadata "github.com/plsyro/data/data/base"
 	"github.com/plsyro/data/errors"
 	"github.com/plsyro/data/messages"
+	metadata "github.com/plsyro/data/metadata/base"
 	"github.com/plsyro/kcore/constants"
 	crdUtils "github.com/plsyro/kcore/crds/utils"
 	"github.com/plsyro/kcore/resilience/timeout"

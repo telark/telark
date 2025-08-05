@@ -1,10 +1,10 @@
 package api
 
 import (
-	metadata "github.com/plsyro/data-pkg/metadata/base"
-	"github.com/plsyro/kcore-pkg/constants"
-	crdUtils "github.com/plsyro/kcore-pkg/crds/utils"
-	"github.com/plsyro/kcore-pkg/resilience/timeout"
+	metadata "github.com/plsyro/data/metadata/base"
+	"github.com/plsyro/kcore/constants"
+	crdUtils "github.com/plsyro/kcore/crds/utils"
+	"github.com/plsyro/kcore/resilience/timeout"
 	kubeApiMeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

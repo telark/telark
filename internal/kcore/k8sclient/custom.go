@@ -3,8 +3,8 @@ package k8sclient
 import (
 	"fmt"
 
-	metadata "github.com/plsyro/data-pkg/metadata/base"
-	"github.com/plsyro/kcore-pkg/constants"
+	metadata "github.com/plsyro/data/metadata/base"
+	"github.com/plsyro/kcore/constants"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 )

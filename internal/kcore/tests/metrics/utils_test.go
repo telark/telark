@@ -3,7 +3,7 @@ package metrics
 import (
 	"testing"
 
-	"github.com/plsyro/kcore-pkg/metrics/metricsutils"
+	"github.com/plsyro/kcore/metrics/metricsutils"
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 )
 

@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/plsyro/kcore-pkg/constants"
+	"github.com/plsyro/kcore/constants"
 )
 
 func ParseCPU(cpuStr string) int64 {

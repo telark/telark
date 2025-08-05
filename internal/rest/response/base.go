@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/plsyro/data-pkg/errors"
-	"github.com/plsyro/rest-pkg/base"
+	"github.com/plsyro/data/errors"
+	"github.com/plsyro/rest/base"
 )
 
 type OperationStatus string

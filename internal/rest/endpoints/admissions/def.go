@@ -1,6 +1,6 @@
 package admissions
 
-import "github.com/plsyro/rest-pkg/base"
+import "github.com/plsyro/rest/base"
 
 const (
 	CreateAdmissionValidatingWebhook base.Endpoint = "admissions/validation/create"

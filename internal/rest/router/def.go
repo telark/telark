@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/plsyro/rest-pkg/base"
+	"github.com/plsyro/rest/base"
 )
 
 type Route struct {

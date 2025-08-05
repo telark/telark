@@ -6,15 +6,15 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/plsyro/data-pkg/errors"
-	globalShared "github.com/plsyro/data-pkg/shared"
-	"github.com/plsyro/rest-pkg/base"
-	"github.com/plsyro/rest-pkg/clients/shared"
-	"github.com/plsyro/rest-pkg/constants"
-	analyseEndpoints "github.com/plsyro/rest-pkg/endpoints/analyse"
-	restResponse "github.com/plsyro/rest-pkg/response"
-	requestUtils "github.com/plsyro/rest-pkg/utils/request"
-	responseUtils "github.com/plsyro/rest-pkg/utils/response"
+	"github.com/plsyro/data/errors"
+	globalShared "github.com/plsyro/data/shared"
+	"github.com/plsyro/rest/base"
+	"github.com/plsyro/rest/clients/shared"
+	"github.com/plsyro/rest/constants"
+	analyseEndpoints "github.com/plsyro/rest/endpoints/analyse"
+	restResponse "github.com/plsyro/rest/response"
+	requestUtils "github.com/plsyro/rest/utils/request"
+	responseUtils "github.com/plsyro/rest/utils/response"
 )
 
 type Client struct {

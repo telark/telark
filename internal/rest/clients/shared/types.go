@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/plsyro/rest-pkg/base"
+	"github.com/plsyro/rest/base"
 )
 
 type Client struct {

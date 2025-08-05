@@ -5,13 +5,13 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/plsyro/data-pkg/errors"
-	globalShared "github.com/plsyro/data-pkg/shared"
-	"github.com/plsyro/rest-pkg/base"
-	"github.com/plsyro/rest-pkg/constants"
-	restMapper "github.com/plsyro/rest-pkg/mappers/common"
-	response "github.com/plsyro/rest-pkg/response"
-	responseUtils "github.com/plsyro/rest-pkg/utils/response"
+	"github.com/plsyro/data/errors"
+	globalShared "github.com/plsyro/data/shared"
+	"github.com/plsyro/rest/base"
+	"github.com/plsyro/rest/constants"
+	restMapper "github.com/plsyro/rest/mappers/common"
+	response "github.com/plsyro/rest/response"
+	responseUtils "github.com/plsyro/rest/utils/response"
 )
 
 func New(service base.Service) *Client {

@@ -1,12 +1,12 @@
 package workloads
 
 import (
-	appWorkload "github.com/plsyro/data-pkg/resources/workloads/app"
-	batchWorkload "github.com/plsyro/data-pkg/resources/workloads/batch"
-	"github.com/plsyro/rest-pkg/base"
-	"github.com/plsyro/rest-pkg/clients/shared"
-	workloadsEndpoints "github.com/plsyro/rest-pkg/endpoints/resources/workloads"
-	response "github.com/plsyro/rest-pkg/response"
+	appWorkload "github.com/plsyro/data/resources/workloads/app"
+	batchWorkload "github.com/plsyro/data/resources/workloads/batch"
+	"github.com/plsyro/rest/base"
+	"github.com/plsyro/rest/clients/shared"
+	workloadsEndpoints "github.com/plsyro/rest/endpoints/resources/workloads"
+	response "github.com/plsyro/rest/response"
 )
 
 type Client struct {

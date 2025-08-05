@@ -1,6 +1,6 @@
 package base
 
-import "github.com/plsyro/rest-pkg/base"
+import "github.com/plsyro/rest/base"
 
 const (
 	CreateMaintenanceFeat base.Endpoint = "feats/maintenance/create"

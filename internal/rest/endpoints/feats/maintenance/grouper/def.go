@@ -1,6 +1,6 @@
 package grouper
 
-import "github.com/plsyro/rest-pkg/base"
+import "github.com/plsyro/rest/base"
 
 const (
 	EnableGrouperMaintenanceFeat base.Endpoint = "feats/maintenance/grouper/enable"

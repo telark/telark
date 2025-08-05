@@ -1,6 +1,6 @@
 package resources
 
-import "github.com/plsyro/rest-pkg/base"
+import "github.com/plsyro/rest/base"
 
 const (
 	CreateBridge           base.Endpoint = "resources/bridges/create"

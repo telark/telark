@@ -1,12 +1,12 @@
 package maintenance
 
 import (
-	"github.com/plsyro/data-pkg/feats/maintenance"
-	"github.com/plsyro/rest-pkg/base"
-	"github.com/plsyro/rest-pkg/clients/shared"
-	maintenanceEndpoints "github.com/plsyro/rest-pkg/endpoints/feats/maintenance/base"
-	grouperEndpoints "github.com/plsyro/rest-pkg/endpoints/feats/maintenance/grouper"
-	response "github.com/plsyro/rest-pkg/response"
+	"github.com/plsyro/data/feats/maintenance"
+	"github.com/plsyro/rest/base"
+	"github.com/plsyro/rest/clients/shared"
+	maintenanceEndpoints "github.com/plsyro/rest/endpoints/feats/maintenance/base"
+	grouperEndpoints "github.com/plsyro/rest/endpoints/feats/maintenance/grouper"
+	response "github.com/plsyro/rest/response"
 )
 
 type Client struct {

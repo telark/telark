@@ -6,10 +6,10 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/plsyro/data-pkg/errors"
-	"github.com/plsyro/rest-pkg/base"
-	"github.com/plsyro/rest-pkg/constants"
-	"github.com/plsyro/rest-pkg/response"
+	"github.com/plsyro/data/errors"
+	"github.com/plsyro/rest/base"
+	"github.com/plsyro/rest/constants"
+	"github.com/plsyro/rest/response"
 )
 
 func LogAndSendResponse(w http.ResponseWriter, status int, operation response.OperationStatus, message string, data any, err error) {

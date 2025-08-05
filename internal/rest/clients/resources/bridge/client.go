@@ -1,11 +1,11 @@
 package bridge
 
 import (
-	bridgeResource "github.com/plsyro/data-pkg/resources/bridge"
-	"github.com/plsyro/rest-pkg/base"
-	"github.com/plsyro/rest-pkg/clients/shared"
-	bridgeEndpoints "github.com/plsyro/rest-pkg/endpoints/resources/bridges"
-	response "github.com/plsyro/rest-pkg/response"
+	bridgeResource "github.com/plsyro/data/resources/bridge"
+	"github.com/plsyro/rest/base"
+	"github.com/plsyro/rest/clients/shared"
+	bridgeEndpoints "github.com/plsyro/rest/endpoints/resources/bridges"
+	response "github.com/plsyro/rest/response"
 )
 
 type Client struct {

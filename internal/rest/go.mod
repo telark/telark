@@ -1,8 +1,8 @@
-module github.com/plsyro/rest-pkg
+module github.com/plsyro/rest
 
 go 1.24.4
 
 require (
 	github.com/gorilla/mux v1.8.1
-	github.com/plsyro/data-pkg v1.10.2
+	github.com/plsyro/data v1.10.3
 )

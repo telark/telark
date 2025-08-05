@@ -8,13 +8,13 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/plsyro/data-pkg/errors"
-	globalShared "github.com/plsyro/data-pkg/shared"
-	"github.com/plsyro/rest-pkg/base"
-	"github.com/plsyro/rest-pkg/constants"
-	response "github.com/plsyro/rest-pkg/response"
-	requestUtils "github.com/plsyro/rest-pkg/utils/request"
-	responseUtils "github.com/plsyro/rest-pkg/utils/response"
+	"github.com/plsyro/data/errors"
+	globalShared "github.com/plsyro/data/shared"
+	"github.com/plsyro/rest/base"
+	"github.com/plsyro/rest/constants"
+	response "github.com/plsyro/rest/response"
+	requestUtils "github.com/plsyro/rest/utils/request"
+	responseUtils "github.com/plsyro/rest/utils/response"
 )
 
 func buildRequestURL(client *Client, method base.Method, endpoint base.Endpoint, payload []byte) (string, error) {

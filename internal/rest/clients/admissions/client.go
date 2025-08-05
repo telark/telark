@@ -1,10 +1,10 @@
 package admissions
 
 import (
-	"github.com/plsyro/rest-pkg/base"
-	"github.com/plsyro/rest-pkg/clients/shared"
-	admissionsEndpoints "github.com/plsyro/rest-pkg/endpoints/admissions"
-	response "github.com/plsyro/rest-pkg/response"
+	"github.com/plsyro/rest/base"
+	"github.com/plsyro/rest/clients/shared"
+	admissionsEndpoints "github.com/plsyro/rest/endpoints/admissions"
+	response "github.com/plsyro/rest/response"
 )
 
 type Client struct {

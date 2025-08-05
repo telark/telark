@@ -1,11 +1,11 @@
 package grouper
 
 import (
-	grouperResource "github.com/plsyro/data-pkg/resources/grouper"
-	"github.com/plsyro/rest-pkg/base"
-	"github.com/plsyro/rest-pkg/clients/shared"
-	grouperEndpoints "github.com/plsyro/rest-pkg/endpoints/resources/groupers"
-	response "github.com/plsyro/rest-pkg/response"
+	grouperResource "github.com/plsyro/data/resources/grouper"
+	"github.com/plsyro/rest/base"
+	"github.com/plsyro/rest/clients/shared"
+	grouperEndpoints "github.com/plsyro/rest/endpoints/resources/groupers"
+	response "github.com/plsyro/rest/response"
 )
 
 type Client struct {

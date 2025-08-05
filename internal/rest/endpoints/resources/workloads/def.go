@@ -1,6 +1,6 @@
 package workloads
 
-import "github.com/plsyro/rest-pkg/base"
+import "github.com/plsyro/rest/base"
 
 const (
 	CreateAppWorkload             base.Endpoint = "resources/workloads/apps/create"

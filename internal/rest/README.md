@@ -12,7 +12,7 @@ This Go package provides utilities for building RESTful APIs. It includes functi
 ## Installation
 To install the package, run:
 ```bash
-go get github.com/plsyro/rest-pkg
+go get github.com/plsyro/rest
 ```
 
 ## Usage
@@ -23,8 +23,8 @@ package main
 import (
 	"net/http"
 
-	"github.com/plsyro/rest-pkg/base"
-	"github.com/plsyro/rest-pkg/router"
+	"github.com/plsyro/rest/base"
+	"github.com/plsyro/rest/router"
 )
 
 func main() {
@@ -46,7 +46,7 @@ package main
 import (
 	"net/http"
 
-	"github.com/plsyro/rest-pkg/utils/request"
+	"github.com/plsyro/rest/utils/request"
 )
 
 func handler(w http.ResponseWriter, r *http.Request) {

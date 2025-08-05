@@ -1,6 +1,6 @@
 package constants
 
-import "github.com/plsyro/data-pkg/errors"
+import "github.com/plsyro/data/errors"
 
 const (
 	ErrFailedToGenerateRequestURL errors.Error = "failed to generate request URL: %v"

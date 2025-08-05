@@ -7,8 +7,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/plsyro/data-pkg/errors"
-	"github.com/plsyro/rest-pkg/base"
+	"github.com/plsyro/data/errors"
+	"github.com/plsyro/rest/base"
 )
 
 func ParseRequestBody(r *http.Request, action string, checkEmptyBody bool) (map[string]any, error) {

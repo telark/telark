@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/plsyro/data-pkg/logger"
-	globalShared "github.com/plsyro/data-pkg/shared"
-	"github.com/plsyro/rest-pkg/constants"
+	"github.com/plsyro/data/logger"
+	globalShared "github.com/plsyro/data/shared"
+	"github.com/plsyro/rest/constants"
 )
 
 type (

@@ -1,8 +1,8 @@
 package resources
 
 import (
-	"github.com/plsyro/data-pkg/metadata/base"
-	globalShared "github.com/plsyro/data-pkg/shared"
+	"github.com/plsyro/data/metadata/base"
+	globalShared "github.com/plsyro/data/shared"
 )
 
 var GrouperAsResourceMetadata = base.Metadata{

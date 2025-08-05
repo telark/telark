@@ -1,8 +1,8 @@
 package admissions
 
 import (
-	admissionsShared "github.com/plsyro/data-pkg/admissions/shared"
-	globalShared "github.com/plsyro/data-pkg/shared"
+	admissionsShared "github.com/plsyro/data/admissions/shared"
+	globalShared "github.com/plsyro/data/shared"
 )
 
 type ValidationWebhookConfig struct {

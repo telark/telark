@@ -1,8 +1,8 @@
 package bridge
 
 import (
-	resourceShared "github.com/plsyro/data-pkg/resources/shared"
-	globalShared "github.com/plsyro/data-pkg/shared"
+	resourceShared "github.com/plsyro/data/resources/shared"
+	globalShared "github.com/plsyro/data/shared"
 )
 
 type BridgeAsResource struct {

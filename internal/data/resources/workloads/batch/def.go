@@ -1,8 +1,8 @@
 package batch
 
 import (
-	resourceShared "github.com/plsyro/data-pkg/resources/shared"
-	workloadShared "github.com/plsyro/data-pkg/resources/workloads/shared"
+	resourceShared "github.com/plsyro/data/resources/shared"
+	workloadShared "github.com/plsyro/data/resources/workloads/shared"
 )
 
 type BatchWorkloadAsResource struct {

@@ -1,6 +1,6 @@
 package grouper
 
-import resourceShared "github.com/plsyro/data-pkg/resources/shared"
+import resourceShared "github.com/plsyro/data/resources/shared"
 
 type GrouperAsResource struct {
 	Fasid  resourceShared.Fasid  `json:"fasid"`

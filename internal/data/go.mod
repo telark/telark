@@ -1,4 +1,4 @@
-module github.com/plsyro/data-pkg
+module github.com/plsyro/data
 
 go 1.24.4
 

@@ -3,7 +3,7 @@ package suffixes
 import (
 	"fmt"
 
-	"github.com/plsyro/data-pkg/shared"
+	"github.com/plsyro/data/shared"
 )
 
 type Suffix string

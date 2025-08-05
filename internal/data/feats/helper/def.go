@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/plsyro/data-pkg/suffixes"
+	"github.com/plsyro/data/suffixes"
 )
 
 func GenerateName(targetName string, targetType string, suffix suffixes.Suffix) string {

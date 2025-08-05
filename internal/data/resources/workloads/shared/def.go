@@ -1,6 +1,6 @@
 package shared
 
-import globalShared "github.com/plsyro/data-pkg/shared"
+import globalShared "github.com/plsyro/data/shared"
 
 type ComposedLabels struct {
 	Global   []globalShared.Unified `json:"global"`

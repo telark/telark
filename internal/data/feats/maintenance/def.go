@@ -1,6 +1,6 @@
 package maintenance
 
-import globalShared "github.com/plsyro/data-pkg/shared"
+import globalShared "github.com/plsyro/data/shared"
 
 type MaintenanceAsFeature struct {
 	Name           string              `json:"name"`

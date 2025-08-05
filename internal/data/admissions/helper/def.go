@@ -6,8 +6,8 @@ import (
 	"strings"
 	"unicode"
 
-	globalShared "github.com/plsyro/data-pkg/shared"
-	"github.com/plsyro/data-pkg/suffixes"
+	globalShared "github.com/plsyro/data/shared"
+	"github.com/plsyro/data/suffixes"
 )
 
 func formatName(name string) string {

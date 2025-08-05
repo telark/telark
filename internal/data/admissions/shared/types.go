@@ -1,13 +1,15 @@
 package shared
 
-import v1 "k8s.io/api/admissionregistration/v1"
+import (
+	admissionsv1 "k8s.io/api/admissionregistration/v1"
+)
 
 type Rule struct {
-	Operations  []v1.OperationType `json:"operations"`
-	APIGroups   []string           `json:"apiGroups"`
-	APIVersions []string           `json:"apiVersions"`
-	Resources   []string           `json:"resources"`
-	Scope       string             `json:"scope"`
+	Operations  []admissionsv1.OperationType `json:"operations"`
+	APIGroups   []string                     `json:"apiGroups"`
+	APIVersions []string                     `json:"apiVersions"`
+	Resources   []string                     `json:"resources"`
+	Scope       string                       `json:"scope"`
 }
 
 type ClientConfig struct {
@@ -15,10 +17,10 @@ type ClientConfig struct {
 	CaBundle string        `json:"caBundle"`
 }
 
-var AllOperationsExceptConnect = []v1.OperationType{
-	v1.Create,
-	v1.Update,
-	v1.Delete,
+var AllOperationsExceptConnect = []admissionsv1.OperationType{
+	admissionsv1.Create,
+	admissionsv1.Update,
+	admissionsv1.Delete,
 }
 
 type ServiceConfig struct {

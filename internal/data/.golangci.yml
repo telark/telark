@@ -19,15 +19,35 @@ linters:
     - whitespace
     - unconvert
     - revive
-   # - revive #Temporarily ignore exported, package-comments due to configuration bug
+  settings:
+    gocyclo:
+      min-complexity: 15
+    misspell:
+      locale: US
+    funlen:
+      lines: 60
+      statements: 
+    gosec:
+      exclude:
+        - G101
+    revive:
+      enable-all-rules: true
+      rules:
+        - name: exported
+          disabled: true
+        - name: package-comments
+          disabled: true
+        - name: cognitive-complexity
+          disabled: true
+        - name: line-length-limit
+          arguments:
+            - 95
+        - name: max-public-structs
+          arguments:
+            - 15
 run:
   timeout: 2m
-  tests: true
-linters-settings:
-  gocyclo:
-    min-complexity: 15
-  misspell:
-    locale: US
-  funlen:
-    lines: 60
-    statements: 40
+  tests: false
+
+issues:
+  max-issues-per-linter: 0

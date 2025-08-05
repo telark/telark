@@ -22,6 +22,6 @@ const (
 	Alpha2 Version = "v1alpha2"
 )
 
-func (metadata *Metadata) GetApiVersion() string {
+func (metadata *Metadata) GetAPIVersion() string {
 	return fmt.Sprintf("%s/%s", metadata.BaseGroup, metadata.Version)
 }

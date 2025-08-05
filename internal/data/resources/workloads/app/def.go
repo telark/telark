@@ -1,27 +1,27 @@
 package app
 
 import (
-	resourceShared "github.com/plsyro/data/resources/shared"
-	workloadShared "github.com/plsyro/data/resources/workloads/shared"
+	resourceshared "github.com/plsyro/data/resources/shared"
+	workloadshared "github.com/plsyro/data/resources/workloads/shared"
 )
 
 type AppWorkloadAsResource struct {
-	Fasid  resourceShared.Fasid  `json:"fasid"`
+	Fasid  resourceshared.Fasid  `json:"fasid"`
 	Cacid  CacidApp              `json:"cacid"`
-	Config resourceShared.Config `json:"config"`
+	Config resourceshared.Config `json:"config"`
 }
 
 type CacidApp struct {
 	Status                 string                                `json:"status"`
-	Metadata               workloadShared.Metadata               `json:"metadata"`
+	Metadata               workloadshared.Metadata               `json:"metadata"`
 	Strategy               string                                `json:"strategy"`
-	Instances              workloadShared.Instances              `json:"instances"`
-	Crates                 workloadShared.Crates                 `json:"crates"`
-	Registry               workloadShared.RegType                `json:"registry"`
+	Instances              workloadshared.Instances              `json:"instances"`
+	Crates                 workloadshared.Crates                 `json:"crates"`
+	Registry               workloadshared.RegType                `json:"registry"`
 	Bridges                []Bridge                              `json:"bridges"`
-	BridgeAttachmentPolicy workloadShared.BridgeAttachmentPolicy `json:"bridgeAttachmentPolicy"`
-	Events                 []workloadShared.Events               `json:"events"`
-	Usage                  workloadShared.Usage                  `json:"usage"`
+	BridgeAttachmentPolicy workloadshared.BridgeAttachmentPolicy `json:"bridgeAttachmentPolicy"` //nolint:revive
+	Events                 []workloadshared.Events               `json:"events"`
+	Usage                  workloadshared.Usage                  `json:"usage"`
 }
 
 type Bridge struct {

@@ -1,11 +1,11 @@
 package grouper
 
-import resourceShared "github.com/plsyro/data/resources/shared"
+import resourceshared "github.com/plsyro/data/resources/shared"
 
 type GrouperAsResource struct {
-	Fasid  resourceShared.Fasid  `json:"fasid"`
+	Fasid  resourceshared.Fasid  `json:"fasid"`
 	Cacid  Cacid                 `json:"cacid"`
-	Config resourceShared.Config `json:"config"`
+	Config resourceshared.Config `json:"config"`
 }
 
 type Cacid struct {

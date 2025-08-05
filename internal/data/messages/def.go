@@ -9,22 +9,34 @@ const (
 	SuccessUpdateResource            Message = "resource %s of kind %s updated successfully."
 	SuccessPatchResource             Message = "resource %s of kind %s patched successfully."
 	SuccessDeleteResource            Message = "resource %s of kind %s deleted successfully."
-	InfoResourceCreateWithOutHistory Message = "resource %s of kind %s created without add in history."
-	InfoResourceUpdateWithOutHistory Message = "resource %s of kind %s updated without add in history."
-	InfoResourcePatchWithOutHistory  Message = "resource %s of kind %s patched without add in history."
-	InfoResourceDeleteWithOutHistory Message = "resource %s of kind %s deleted without add in history."
+	InfoResourceCreateWithOutHistory Message = "resource %s of kind %s created without " +
+		"add in history."
+	InfoResourceUpdateWithOutHistory Message = "resource %s of kind %s updated without " +
+		"add in history."
+	InfoResourcePatchWithOutHistory Message = "resource %s of kind %s patched without " +
+		"add in history."
+	InfoResourceDeleteWithOutHistory Message = "resource %s of kind %s deleted without " +
+		"add in history."
 
 	// Validating Admission Webhook Messages
-	SuccessCreateValidatingAdmission Message = "admission validating webhook created successfully."
-	SuccessGetValidatingAdmission    Message = "admission validating webhook fetched successfully."
-	SuccessUpdateValidatingAdmission Message = "admission validating webhook updated successfully."
-	SuccessDeleteValidatingAdmission Message = "admission validating webhook deleted successfully."
+	SuccessCreateValidatingAdmission Message = "admission validating webhook created " +
+		"successfully."
+	SuccessGetValidatingAdmission Message = "admission validating webhook fetched " +
+		"successfully."
+	SuccessUpdateValidatingAdmission Message = "admission validating webhook updated " +
+		"successfully."
+	SuccessDeleteValidatingAdmission Message = "admission validating webhook deleted " +
+		"successfully."
 
 	// Mutating Admission Webhook Messages
-	SuccessCreateMutatingAdmission Message = "admission mutating webhook created successfully."
-	SuccessGetMutatingAdmission    Message = "admission mutating webhook fetched successfully."
-	SuccessUpdateMutatingAdmission Message = "admission mutating webhook updated successfully."
-	SuccessDeleteMutatingAdmission Message = "admission mutating webhook deleted successfully."
+	SuccessCreateMutatingAdmission Message = "admission mutating webhook created " +
+		"successfully."
+	SuccessGetMutatingAdmission Message = "admission mutating webhook fetched " +
+		"successfully."
+	SuccessUpdateMutatingAdmission Message = "admission mutating webhook updated " +
+		"successfully."
+	SuccessDeleteMutatingAdmission Message = "admission mutating webhook deleted " +
+		"successfully."
 
 	// General Status Messages
 	SuccessOperation Message = "operation completed successfully."
@@ -43,7 +55,7 @@ const (
 	SuccessNatsPatchGrouper                 Message = "successfully patched grouper %s"
 	InfoSkippingAckMessage                  Message = "skipping acknowledgment message: %s"
 	InfoProcessingMessage                   Message = "processing message: %s"
-	InfoSkippingDuplicate                   Message = "skipping duplicate message (processed %v ago)"
+	InfoSkippingDuplicate                   Message = "skipping duplicate message (pro %v ago)"
 	InfoAckSentForMessage                   Message = "ack sent for message: %s"
 	SuccessNatsDeleteGrouper                Message = "successfully deleted grouper %s"
 	SuccessNatsDeleteBridge                 Message = "successfully deleted bridge %s"
@@ -58,12 +70,15 @@ const (
 
 	// Health Monitoring
 	SuccessServiceHealthCheckPassed Message = "service health check passed"
-	SuccessServiceRestarting        Message = "restarting service due to health check failure..."
+	SuccessServiceRestarting        Message = "restarting service due to health check " +
+		"failure..."
 
 	// Patch-related Messages
-	InfoBridgeOrWorkloadsAreEmpty                    Message = "bridge or workloads are empty"
-	InfoBatchWorkloadPatchingNotSupportedYet         Message = "batch workload patching operation not supported yet"
-	InfoSkippingPatchingEmptyAppsOrBridgesCollection Message = "skipping patching: empty apps or bridges collection."
+	InfoBridgeOrWorkloadsAreEmpty            Message = "bridge or workloads are empty"
+	InfoBatchWorkloadPatchingNotSupportedYet Message = "batch workload patching " +
+		"operation not supported yet"
+	InfoSkippingPatchingEmptyAppsOrBridgesCollection Message = "skipping patching: empty " +
+		"apps or bridges collection."
 
 	// History Records
 	RecordResourceCreated Message = "resource created successfully"

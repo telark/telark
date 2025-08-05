@@ -1,14 +1,14 @@
 package shared
 
-import globalShared "github.com/plsyro/data/shared"
+import globalshared "github.com/plsyro/data/shared"
 
 type ComposedLabels struct {
-	Global   []globalShared.Unified `json:"global"`
-	Selector []globalShared.Unified `json:"selector"`
+	Global   []globalshared.Unified `json:"global"`
+	Selector []globalshared.Unified `json:"selector"`
 }
 
 type Metadata struct {
-	Annotations []globalShared.Unified `json:"annotations"`
+	Annotations []globalshared.Unified `json:"annotations"`
 	Labels      ComposedLabels         `json:"labels"`
 }
 
@@ -16,7 +16,7 @@ type Instances struct {
 	Total     int                    `json:"total"`
 	Available int                    `json:"available"`
 	Names     []string               `json:"names"`
-	Labels    []globalShared.Unified `json:"labels"`
+	Labels    []globalshared.Unified `json:"labels"`
 }
 
 type Crates struct {

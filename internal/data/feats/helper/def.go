@@ -9,7 +9,10 @@ import (
 	"github.com/plsyro/data/suffixes"
 )
 
-func GenerateName(targetName string, targetType string, suffix suffixes.Suffix) string {
+func GenerateName(
+	targetName string, targetType string,
+	suffix suffixes.Suffix,
+) string {
 	name := fmt.Sprintf("%s-%s%s", targetName, targetType, string(suffix))
 	name = strings.ToLower(name)
 	re := regexp.MustCompile(`[^a-z0-9-]`)

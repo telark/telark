@@ -2,7 +2,7 @@ package resources
 
 import (
 	"github.com/plsyro/data/metadata/base"
-	globalShared "github.com/plsyro/data/shared"
+	globalshared "github.com/plsyro/data/shared"
 )
 
 var GrouperAsResourceMetadata = base.Metadata{
@@ -10,7 +10,7 @@ var GrouperAsResourceMetadata = base.Metadata{
 	Kind:      "GrouperAsResource",
 	Version:   string(base.Alpha1),
 	Plural:    "groupersasresources",
-	Namespace: globalShared.BaseNamespace,
+	Namespace: globalshared.BaseNamespace,
 }
 
 var AppWorkloadAsResourceMetadata = base.Metadata{
@@ -18,7 +18,7 @@ var AppWorkloadAsResourceMetadata = base.Metadata{
 	Kind:      "AppWorkloadAsResource",
 	Version:   string(base.Alpha1),
 	Plural:    "appsworkloadsasresources",
-	Namespace: globalShared.BaseNamespace,
+	Namespace: globalshared.BaseNamespace,
 }
 
 var BatchWorkloadAsResourceMetadata = base.Metadata{
@@ -26,7 +26,7 @@ var BatchWorkloadAsResourceMetadata = base.Metadata{
 	Kind:      "BatchWorkloadAsResource",
 	Version:   string(base.Alpha1),
 	Plural:    "batchesworkloadsasresources",
-	Namespace: globalShared.BaseNamespace,
+	Namespace: globalshared.BaseNamespace,
 }
 
 var BridgeAsResourceMetadata = base.Metadata{
@@ -34,5 +34,5 @@ var BridgeAsResourceMetadata = base.Metadata{
 	Kind:      "BridgeAsResource",
 	Version:   string(base.Alpha1),
 	Plural:    "bridgesasresources",
-	Namespace: globalShared.BaseNamespace,
+	Namespace: globalshared.BaseNamespace,
 }

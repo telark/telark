@@ -19,7 +19,7 @@ func NewClient() *Client {
 	}
 }
 
-func (c *Client) Createappworkload(
+func (c *Client) CreateAppWorkload(
 	workload *appworkload.AppWorkloadAsResource,
 ) *response.GenericResponse {
 	return c.Create(eps.Createappworkload, workload)
@@ -31,7 +31,7 @@ func (c *Client) CreateBatchWorkload(
 	return c.Create(eps.CreateBatchWorkload, workload)
 }
 
-func (c *Client) GetappworkloadByName(name string) (*appworkload.AppWorkloadAsResource, error) {
+func (c *Client) GetAppWorkloadByName(name string) (*appworkload.AppWorkloadAsResource, error) {
 	return shared.GetTyped[appworkload.AppWorkloadAsResource](c.Client, eps.Getappworkload,
 		name)
 }
@@ -45,7 +45,7 @@ func (c *Client) GetBatchWorkloadByName(
 	)
 }
 
-func (c *Client) GetAllappworkloads() ([]*appworkload.AppWorkloadAsResource, error) {
+func (c *Client) GetAllAppWorkloads() ([]*appworkload.AppWorkloadAsResource, error) {
 	return shared.GetListTyped[*appworkload.AppWorkloadAsResource](c.Client,
 		eps.GetAllAppsWorkloads)
 }
@@ -55,7 +55,7 @@ func (c *Client) GetAllBatchWorkloads() ([]*batchworkload.BatchWorkloadAsResourc
 		eps.GetAllBatchesWorkloads)
 }
 
-func (c *Client) Patchappworkload(name string, body map[string]any) *response.GenericResponse {
+func (c *Client) PatchAppWorkload(name string, body map[string]any) *response.GenericResponse {
 	return c.Update(eps.Patchappworkload, name, body)
 }
 
@@ -63,7 +63,7 @@ func (c *Client) PatchBatchWorkload(name string, body map[string]any) *response.
 	return c.Update(eps.PatchBatchWorkload, name, body)
 }
 
-func (c *Client) Deleteappworkload(name string) *response.GenericResponse {
+func (c *Client) DeleteAppWorkload(name string) *response.GenericResponse {
 	return c.Delete(eps.Deleteappworkload, name)
 }
 

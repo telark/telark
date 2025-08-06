@@ -27,7 +27,7 @@ func NewClient() *Client {
 	}
 }
 
-func (*Client) Startanalyze() error {
+func (*Client) StartAnalyze() error {
 	request := requestutils.CreateGenericRequest(
 		base.Post,
 		base.Configurator,

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/nats-io/nats.go"
 	"github.com/plsyro/data/errors"
 )
@@ -26,20 +26,16 @@ func InitClient(ctx context.Context, user, password string) (
 
 	var client *NATSClient
 
-	operation := func() error {
-		var err error
-		client, err = initJetStreamClient(config)
-		return err
+	operation := func() (*NATSClient, error) {
+		return initJetStreamClient(config)
 	}
 
-	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.MaxElapsedTime = time.Duration(DefaultConnectionTimeout) *
-		time.Second
-
-	err := backoff.RetryNotify(operation, backoff.WithContext(expBackoff, ctx),
-		func(err error, d time.Duration) {
-			fmt.Printf(string(errors.ErrNatsConnectionFailedWithRetry), d, err)
-		})
+	client, err := backoff.Retry(
+		ctx, operation,
+		backoff.WithMaxElapsedTime(
+			time.Duration(DefaultConnectionTimeout)*time.Second,
+		),
+	)
 	if err != nil {
 		return nil, fmt.Errorf(string(errors.ErrNatsConnectionFailed), err)
 	}

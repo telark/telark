@@ -128,6 +128,17 @@ func (c *Client) DeleteNoParams(endpoint base.Endpoint) *response.GenericRespons
 	return c.executeRequest(base.Delete, endpoint, nil)
 }
 
+func (c *Client) PostAndParseGenericResponses(endpoint base.Endpoint) ([]response.GenericResponse, error) {
+	//nolint:bodyclose // parseGenericResponseSlice handles closing
+	resp, err := executeHTTPRequest(c, base.Post, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer responseutils.CloseResponseBody(resp)
+
+	return parseGenericResponseSlice(resp)
+}
+
 func GetTyped[T any](client *Client, endpoint base.Endpoint, name string) (*T, error) {
 	//nolint:bodyclose // defer responseutils.CloseResponseBody handles closing
 	resp, err := executeHTTPRequest(client, base.Get, substituteEndpointName(endpoint, name), nil)

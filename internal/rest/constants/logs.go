@@ -13,17 +13,16 @@ const (
 	ErrVersionIsRequired          errors.Error = "version is required"
 	ErrEndpointIsRequired         errors.Error = "endpoint is required"
 	ErrValidationFailed           errors.Error = "validation failed: %v"
-	EndpointNamePlaceholder       errors.Error = "{name}"
-
-	// Common constants for magic numbers
-	DefaultHTTPPort  = 80
-	DefaultHTTPSPort = 443
-	DefaultTimeout   = 30
-	HTTPErrorCode    = 400
-	ReplaceCount     = 1
-	EmptySliceLength = 0
-	FirstIndex       = 0
-	SecondIndex      = 1
-	EmptyString      = ""
-	OmitEmpty        = "omitempty"
+	HTTPStatus                    errors.Error = "HTTP %d: %s"
+	DefaultHTTPPort                            = 80
+	DefaultHTTPSPort                           = 443
+	DefaultTimeout                             = 30
+	HTTPErrorCode                              = 400
+	ReplaceCount                               = 1
+	EmptySliceLength                           = 0
+	FirstIndex                                 = 0
+	SecondIndex                                = 1
+	EmptyString                                = ""
+	OmitEmpty                                  = "omitempty"
+	EndpointNamePlaceholder                    = "{name}"
 )

@@ -121,6 +121,25 @@ func parseListResponse[T any](resp *http.Response) ([]T, error) {
 	return apiResp.Data.Items, nil
 }
 
+func parseGenericResponseSlice(resp *http.Response) ([]response.GenericResponse, error) {
+	if resp.StatusCode >= constants.HTTPErrorCode {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf(string(constants.HTTPStatus), resp.StatusCode, string(body))
+	}
+
+	body, err := readResponseBody(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	var apiResponses []response.GenericResponse
+	if err := json.Unmarshal(body, &apiResponses); err != nil {
+		return nil, wrapError(string(errors.ErrRestUnmarshalResponseToGeneric), err)
+	}
+
+	return apiResponses, nil
+}
+
 func substituteEndpointName(endpoint base.Endpoint, name string) base.Endpoint {
 	return base.Endpoint(strings.Replace(
 		string(endpoint),

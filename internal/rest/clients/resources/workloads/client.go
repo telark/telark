@@ -22,7 +22,7 @@ func NewClient() *Client {
 func (c *Client) CreateAppWorkload(
 	workload *appworkload.AppWorkloadAsResource,
 ) *response.GenericResponse {
-	return c.Create(eps.Createappworkload, workload)
+	return c.Create(eps.CreateAppWorkload, workload)
 }
 
 func (c *Client) CreateBatchWorkload(
@@ -32,7 +32,7 @@ func (c *Client) CreateBatchWorkload(
 }
 
 func (c *Client) GetAppWorkloadByName(name string) (*appworkload.AppWorkloadAsResource, error) {
-	return shared.GetTyped[appworkload.AppWorkloadAsResource](c.Client, eps.Getappworkload,
+	return shared.GetTyped[appworkload.AppWorkloadAsResource](c.Client, eps.GetAppWorkload,
 		name)
 }
 
@@ -56,7 +56,7 @@ func (c *Client) GetAllBatchWorkloads() ([]*batchworkload.BatchWorkloadAsResourc
 }
 
 func (c *Client) PatchAppWorkload(name string, body map[string]any) *response.GenericResponse {
-	return c.Update(eps.Patchappworkload, name, body)
+	return c.Update(eps.PatchAppWorkload, name, body)
 }
 
 func (c *Client) PatchBatchWorkload(name string, body map[string]any) *response.GenericResponse {
@@ -64,7 +64,7 @@ func (c *Client) PatchBatchWorkload(name string, body map[string]any) *response.
 }
 
 func (c *Client) DeleteAppWorkload(name string) *response.GenericResponse {
-	return c.Delete(eps.Deleteappworkload, name)
+	return c.Delete(eps.DeleteAppWorkload, name)
 }
 
 func (c *Client) DeleteBatchWorkload(name string) *response.GenericResponse {

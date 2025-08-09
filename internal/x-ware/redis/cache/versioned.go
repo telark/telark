@@ -1,0 +1,44 @@
+package cache
+
+import (
+	"encoding/json"
+	"time"
+)
+
+func SetWithVersion(set func(key string, val any, ttl time.Duration) error, key string, value any, version string, ttl time.Duration) error {
+	if version == "" {
+		return set(key, value, ttl)
+	}
+	versionedKey := key + ":" + version
+	if err := set(versionedKey, value, ttl); err != nil {
+		return err
+	}
+	return set(key, value, ttl)
+}
+
+func GetWithVersionCheck(get func(key string) (string, error), key string, currentVersion string, extractVersion func(raw string) (string, bool)) (val string, exists bool, stale bool) {
+	raw, err := get(key)
+	if err != nil || raw == "" {
+		return "", false, false
+	}
+	if currentVersion == "" || extractVersion == nil {
+		return raw, true, false
+	}
+	if v, ok := extractVersion(raw); ok && v != "" && v != currentVersion {
+		return raw, true, true
+	}
+	return raw, true, false
+}
+
+func ExtractResourceVersionJSON(raw string) (string, bool) {
+	var obj map[string]any
+	if err := json.Unmarshal([]byte(raw), &obj); err != nil {
+		return "", false
+	}
+	meta, ok := obj["metadata"].(map[string]any)
+	if !ok {
+		return "", false
+	}
+	v, ok := meta["resourceVersion"].(string)
+	return v, ok
+}

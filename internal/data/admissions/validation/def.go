@@ -1,4 +1,4 @@
-package admissions
+package validation
 
 import (
 	admissionshared "github.com/plsyro/data/admissions/shared"

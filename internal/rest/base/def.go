@@ -46,6 +46,7 @@ const (
 	Notifier          Service     = "notifier"
 	JSON              ContentType = "application/json"
 	Default           Port        = 8080
+	HTTPSPort         Port        = 443
 	UIPort            Port        = 3000
 	V1                Version     = "api/v1"
 	Get               Method      = "GET"

@@ -29,17 +29,27 @@ func ParseRequestBody(r *http.Request) (map[string]any, error) {
 	return spec, nil
 }
 
+func getServiceConfig(service base.Service) (base.Schema, base.Port) {
+	switch service {
+	case base.AdmissionOperator:
+		return base.HTTPS, base.HTTPSPort
+	default:
+		return base.HTTP, base.Default
+	}
+}
+
 func CreateGenericRequest(
 	method base.Method,
 	service base.Service,
 	apiVersion base.Version,
 	endpoint base.Endpoint,
 ) base.API {
+	schema, port := getServiceConfig(service)
 	return base.API{
 		Host: base.Host{
-			Schema:  base.HTTP,
+			Schema:  schema,
 			Service: service,
-			Port:    base.Default,
+			Port:    port,
 		},
 		Version:  apiVersion,
 		Endpoint: endpoint,
@@ -53,11 +63,12 @@ func CreateGenericRequestWithPayload(
 	endpoint base.Endpoint,
 	payload []byte,
 ) base.API {
+	schema, port := getServiceConfig(service)
 	return base.API{
 		Host: base.Host{
-			Schema:  base.HTTP,
+			Schema:  schema,
 			Service: service,
-			Port:    base.Default,
+			Port:    port,
 		},
 		Version:     apiVersion,
 		Endpoint:    endpoint,

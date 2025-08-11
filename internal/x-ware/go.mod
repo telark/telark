@@ -5,7 +5,7 @@ go 1.24.5
 require (
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/nats-io/nats.go v1.44.0
-	github.com/plsyro/data v1.10.5
+	github.com/plsyro/data v1.10.7
 	github.com/redis/go-redis/v9 v9.12.0
 	github.com/rs/cors v1.11.1
 )

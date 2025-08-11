@@ -43,7 +43,8 @@ func (c *Client) executeRequest(
 	//nolint:bodyclose // responseutils.ReadAndParseGenericResponse handles closing
 	resp, err := executeHTTPRequest(c, method, endpoint, jsonPayload)
 	if err != nil {
-		return createErrorResponse(string(errors.ErrCreateResource), err)
+		msg := fmt.Sprintf(string(errors.ErrCreateRes), "", err)
+		return createErrorResponse(msg, err)
 	}
 
 	return responseutils.ReadAndParseGenericResponse(resp)

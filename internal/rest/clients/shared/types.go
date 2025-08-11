@@ -18,12 +18,16 @@ type ClientConfig struct {
 	Timeout time.Duration
 }
 
-type listData[T any] struct {
+type Items[T any] struct {
 	Items []T `json:"items"`
 }
 
-type listResponse[T any] struct {
-	Data listData[T] `json:"data"`
+type listDataResponse[T any] struct {
+	Data Items[T] `json:"data"`
+}
+
+type singleDataResponse[T any] struct {
+	Data T `json:"data"`
 }
 
 func DefaultClientConfig() *ClientConfig {

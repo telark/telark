@@ -79,14 +79,6 @@ func readResponseBody(resp *http.Response) ([]byte, error) {
 	return body, nil
 }
 
-func unmarshalJSON[T any](data []byte) (*T, error) {
-	var result T
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, wrapError(string(errors.ErrRestUnmarshalResponseToGeneric), err)
-	}
-	return &result, nil
-}
-
 func parseSingleResponse[T any](resp *http.Response) (*T, error) {
 	if resp.StatusCode >= constants.HTTPErrorCode {
 		body, _ := io.ReadAll(resp.Body)
@@ -98,7 +90,13 @@ func parseSingleResponse[T any](resp *http.Response) (*T, error) {
 		return nil, err
 	}
 
-	return unmarshalJSON[T](body)
+	var dataResp singleDataResponse[T]
+
+	if err := json.Unmarshal(body, &dataResp); err == nil {
+		return nil, wrapError(string(errors.ErrRestUnmarshalResponseToGeneric), err)
+	}
+
+	return &dataResp.Data, nil
 }
 
 func parseListResponse[T any](resp *http.Response) ([]T, error) {
@@ -112,13 +110,13 @@ func parseListResponse[T any](resp *http.Response) ([]T, error) {
 		return nil, err
 	}
 
-	var apiResp listResponse[T]
+	var dataResp listDataResponse[T]
 
-	if err := json.Unmarshal(body, &apiResp); err != nil {
+	if err := json.Unmarshal(body, &dataResp); err != nil {
 		return nil, wrapError(string(errors.ErrRestUnmarshalResponseToGeneric), err)
 	}
 
-	return apiResp.Data.Items, nil
+	return dataResp.Data.Items, nil
 }
 
 func parseGenericResponseSlice(resp *http.Response) ([]response.GenericResponse, error) {

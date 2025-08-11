@@ -42,7 +42,7 @@ linters:
           disabled: true
         - name: line-length-limit
           arguments:
-            - 120
+            - 150
         - name: max-public-structs
           arguments:
             - 15

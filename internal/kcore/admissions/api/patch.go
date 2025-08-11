@@ -42,11 +42,9 @@ func PatchAdmissionWebhookAnnotationsByName(
 		if err != nil {
 			return nil, err
 		}
-		message := utils.CreateMessage(
-			patchedWebhook.GetName(),
-			string(admissionshared.Validating),
-			string(messages.SuccessUpdateResource))
-		return shared.CreateKubernetesAPIData(shared.StatusOK, message, patchedWebhook, nil), nil
+
+		msg := utils.CreateAdmissionMessage(messages.SuccessUpdateAdmission, name, admissionshared.Validating)
+		return shared.CreateKubernetesAPIData(shared.StatusOK, msg, patchedWebhook, nil), nil
 	}
 
 	mutatingOperation := func() (any, error) {
@@ -55,11 +53,9 @@ func PatchAdmissionWebhookAnnotationsByName(
 		if err != nil {
 			return nil, err
 		}
-		message := utils.CreateMessage(
-			patchedWebhook.GetName(),
-			string(admissionshared.Mutating),
-			string(messages.SuccessUpdateResource))
-		return shared.CreateKubernetesAPIData(shared.StatusOK, message, patchedWebhook, nil), nil
+
+		msg := utils.CreateAdmissionMessage(messages.SuccessUpdateAdmission, name, admissionshared.Mutating)
+		return shared.CreateKubernetesAPIData(shared.StatusOK, msg, patchedWebhook, nil), nil
 	}
 
 	return utils.HandleWebhookType(webhookType, validatingOperation, mutatingOperation)

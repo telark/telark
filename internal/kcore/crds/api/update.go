@@ -1,6 +1,8 @@
 package api
 
 import (
+	"fmt"
+
 	"github.com/plsyro/data/errors"
 	"github.com/plsyro/data/messages"
 	"github.com/plsyro/data/metadata/base"
@@ -34,12 +36,15 @@ func UpdateCustomResource(
 
 	resource, err := resourceClient.Update(ctx, template, k8smetav1.UpdateOptions{})
 	if err != nil {
+		message := fmt.Sprintf(string(errors.ErrUpdateRes), name, err)
 		return shared.CreateKubernetesAPIData(
 			shared.StatusInternalServerError,
-			string(errors.ErrUpdateResource),
-			nil, err,
+			message,
+			nil,
+			err,
 		)
 	}
 
-	return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessUpdateResource), resource, nil)
+	message := fmt.Sprintf(string(messages.SuccessUpdateRes), name, metadata.Kind)
+	return shared.CreateKubernetesAPIData(shared.StatusOK, message, resource, nil)
 }

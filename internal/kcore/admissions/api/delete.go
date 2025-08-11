@@ -25,10 +25,13 @@ func DeleteAdmissionWebhookByName(name string, webhookType admissionshared.Webho
 		if err != nil {
 			return nil, err
 		}
+
 		return shared.CreateKubernetesAPIData(
 			shared.StatusOK,
-			string(messages.SuccessDeleteValidatingAdmission),
-			nil, nil), nil
+			utils.CreateAdmissionMessage(messages.SuccessDeleteAdmission, name, admissionshared.Validating),
+			nil,
+			nil,
+		), nil
 	}
 
 	mutatingOperation := func() (any, error) {
@@ -37,10 +40,13 @@ func DeleteAdmissionWebhookByName(name string, webhookType admissionshared.Webho
 		if err != nil {
 			return nil, err
 		}
+
 		return shared.CreateKubernetesAPIData(
 			shared.StatusOK,
-			string(messages.SuccessDeleteMutatingAdmission),
-			nil, nil), nil
+			utils.CreateAdmissionMessage(messages.SuccessDeleteAdmission, name, admissionshared.Mutating),
+			nil,
+			nil,
+		), nil
 	}
 
 	return utils.HandleWebhookType(webhookType, validatingOperation, mutatingOperation)

@@ -10,7 +10,6 @@ import (
 	crdutils "github.com/plsyro/kcore/crds/utils"
 	"github.com/plsyro/kcore/resilience/timeout"
 	"github.com/plsyro/kcore/shared"
-
 	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -32,13 +31,17 @@ func GetCustomResourceByName(name string, metadata base.Metadata) shared.Kuberne
 
 	resource, err := resourceClient.Get(ctx, name, k8smetav1.GetOptions{})
 	if err != nil {
+		message := fmt.Sprintf(string(errors.ErrGetRes), name, err)
 		return shared.CreateKubernetesAPIData(
 			shared.StatusInternalServerError,
-			string(errors.ErrGetResource),
-			nil, fmt.Errorf("%s %s :%v", string(errors.ErrGetResource), name, err))
+			message,
+			nil,
+			err,
+		)
 	}
 
-	return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessGetResource), resource, nil)
+	message := fmt.Sprintf(string(messages.SuccessGetRes), name, metadata.Kind)
+	return shared.CreateKubernetesAPIData(shared.StatusOK, message, resource, nil)
 }
 
 func ListCustomResources(metadata base.Metadata) shared.KubernetesAPIData {
@@ -52,8 +55,14 @@ func ListCustomResources(metadata base.Metadata) shared.KubernetesAPIData {
 
 	resourceList, err := resourceClient.List(ctx, k8smetav1.ListOptions{})
 	if err != nil {
-		return shared.CreateKubernetesAPIData(shared.StatusInternalServerError, string(errors.ErrGetResource), nil, err)
+		message := fmt.Sprintf(string(errors.ErrListRes), err)
+		return shared.CreateKubernetesAPIData(
+			shared.StatusInternalServerError,
+			message,
+			nil,
+			err,
+		)
 	}
 
-	return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessListResources), resourceList, nil)
+	return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessListRes), resourceList, nil)
 }

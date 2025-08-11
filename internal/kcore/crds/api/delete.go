@@ -1,6 +1,8 @@
 package api
 
 import (
+	"fmt"
+
 	"github.com/plsyro/data/errors"
 	"github.com/plsyro/data/messages"
 	"github.com/plsyro/data/metadata/base"
@@ -29,11 +31,15 @@ func DeleteCustomResourceByName(name string, metadata base.Metadata) shared.Kube
 
 	err = resourceClient.Delete(ctx, name, k8smetav1.DeleteOptions{})
 	if err != nil {
+		message := fmt.Sprintf(string(errors.ErrDeleteRes), name, err)
 		return shared.CreateKubernetesAPIData(
 			shared.StatusInternalServerError,
-			string(errors.ErrDeleteResource),
-			nil, err)
+			message,
+			nil,
+			err,
+		)
 	}
 
-	return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessDeleteResource), nil, nil)
+	message := fmt.Sprintf(string(messages.SuccessDeleteRes), name, metadata.Kind)
+	return shared.CreateKubernetesAPIData(shared.StatusOK, message, nil, nil)
 }

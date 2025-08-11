@@ -6,6 +6,7 @@ import (
 
 	admissionshared "github.com/plsyro/data/admissions/shared"
 	"github.com/plsyro/data/errors"
+	"github.com/plsyro/data/messages"
 	"github.com/plsyro/kcore/constants"
 	"github.com/plsyro/kcore/k8sclient"
 	"github.com/plsyro/kcore/shared"
@@ -62,8 +63,12 @@ func HandleWebhookType(
 	}
 }
 
-func CreateMessage(name string, webhookType string, message string) string {
-	return fmt.Sprintf("%s:%s %s", name, webhookType, message)
+func CreateAdmissionMessage(message messages.Message, name string, webhookType admissionshared.WebhookType) string {
+	return fmt.Sprintf(string(message), name, string(webhookType))
+}
+
+func CreateAdmissionError(err errors.Error, name string, webhookType admissionshared.WebhookType) string {
+	return fmt.Sprintf(string(err), name, string(webhookType))
 }
 
 func CreateAnnotationsPayload(annotations map[string]string) map[string]any {

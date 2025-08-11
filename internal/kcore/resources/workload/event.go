@@ -7,7 +7,7 @@ import (
 	"github.com/plsyro/kcore/constants"
 	"github.com/plsyro/kcore/k8sclient"
 	"github.com/plsyro/kcore/resilience/timeout"
-	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func GetEventsByPod(pod, namespace string) ([]workload.EventItem, error) {
@@ -21,7 +21,7 @@ func GetEventsByPod(pod, namespace string) ([]workload.EventItem, error) {
 	ctx, cancel := timeout.ContextWithTimeout(constants.EventFetchTimeout)
 	defer cancel()
 
-	events, err := client.CoreV1().Events(namespace).List(ctx, meta.ListOptions{
+	events, err := client.CoreV1().Events(namespace).List(ctx, k8smetav1.ListOptions{
 		FieldSelector: fmt.Sprintf(constants.FieldSelectorInvolvedObject, pod),
 	})
 	if err != nil {

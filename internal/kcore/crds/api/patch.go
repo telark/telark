@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/plsyro/data/errors"
 	"github.com/plsyro/data/messages"
@@ -40,11 +41,15 @@ func PatchCustomResource(metadata base.Metadata, name string, payload map[string
 
 	resource, err := resourceClient.Patch(ctx, name, types.MergePatchType, patchBytes, k8smetav1.PatchOptions{})
 	if err != nil {
+		message := fmt.Sprintf(string(errors.ErrUpdateRes), name, err)
 		return shared.CreateKubernetesAPIData(
 			shared.StatusInternalServerError,
-			string(errors.ErrUpdateResource),
-			nil, err)
+			message,
+			nil,
+			err,
+		)
 	}
 
-	return shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessUpdateResource), resource, nil)
+	message := fmt.Sprintf(string(messages.SuccessUpdateRes), name, metadata.Kind)
+	return shared.CreateKubernetesAPIData(shared.StatusOK, message, resource, nil)
 }

@@ -6,7 +6,7 @@ const (
 	ErrFailedToGenerateRequestURL errors.Error = "failed to generate request URL: %v"
 	ErrFailedToSendPostRequest    errors.Error = "failed to send POST request: %v"
 	ErrUnexpectedStatus           errors.Error = "unexpected status: %d: %s"
-	ErrFailedToCreateHTTPRequest  errors.Error = "create HTTP request"
+	ErrFailedToCreateHTTPRequest  errors.Error = "failed to create HTTP request: %v"
 	ErrFailedToCloseResponseBody  errors.Error = "failed to close response body: %v"
 	ErrSchemaIsRequired           errors.Error = "schema is required"
 	ErrServiceIsRequired          errors.Error = "service is required"

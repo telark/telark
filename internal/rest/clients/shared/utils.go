@@ -47,12 +47,12 @@ func executeHTTPRequest(
 ) (*http.Response, error) {
 	url, err := buildRequestURL(client, method, endpoint, payload)
 	if err != nil {
-		return nil, wrapError(string(constants.ErrFailedToGenerateRequestURL), err)
+		return nil, fmt.Errorf(string(constants.ErrFailedToGenerateRequestURL), err)
 	}
 
 	req, err := http.NewRequest(string(method), url, bytes.NewBuffer(payload))
 	if err != nil {
-		return nil, wrapError(string(constants.ErrFailedToCreateHTTPRequest), err)
+		return nil, fmt.Errorf(string(constants.ErrFailedToCreateHTTPRequest), err)
 	}
 
 	if payload != nil {
@@ -65,7 +65,7 @@ func executeHTTPRequest(
 func marshalToJSON(payload any) ([]byte, error) {
 	data, err := json.Marshal(payload)
 	if err != nil {
-		return nil, wrapError(string(errors.ErrRestMarshalPayload), err)
+		return nil, fmt.Errorf(string(errors.ErrRestMarshalPayload), err)
 	}
 	return data, nil
 }
@@ -74,15 +74,14 @@ func readResponseBody(resp *http.Response) ([]byte, error) {
 	defer responseutils.CloseResponseBody(resp)
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, wrapError(string(errors.ErrRestReadResponseBody), err)
+		return nil, fmt.Errorf(string(errors.ErrRestReadResponseBody), err)
 	}
 	return body, nil
 }
 
 func parseSingleResponse[T any](resp *http.Response) (*T, error) {
-	if resp.StatusCode >= constants.HTTPErrorCode {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("status: %d", resp.StatusCode)
 	}
 
 	body, err := readResponseBody(resp)
@@ -90,19 +89,18 @@ func parseSingleResponse[T any](resp *http.Response) (*T, error) {
 		return nil, err
 	}
 
-	var dataResp singleDataResponse[T]
+	var data singleDataResponse[T]
 
-	if err := json.Unmarshal(body, &dataResp); err == nil {
-		return nil, wrapError(string(errors.ErrRestUnmarshalResponseToGeneric), err)
+	if err := json.Unmarshal(body, &data); err != nil {
+		return nil, fmt.Errorf(string(errors.ErrRestUnmarshalResponseToGeneric), err)
 	}
 
-	return &dataResp.Data, nil
+	return &data.Data, nil
 }
 
 func parseListResponse[T any](resp *http.Response) ([]T, error) {
-	if resp.StatusCode >= constants.HTTPErrorCode {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("status: %d", resp.StatusCode)
 	}
 
 	body, err := readResponseBody(resp)
@@ -110,13 +108,13 @@ func parseListResponse[T any](resp *http.Response) ([]T, error) {
 		return nil, err
 	}
 
-	var dataResp listDataResponse[T]
+	var data listDataResponse[T]
 
-	if err := json.Unmarshal(body, &dataResp); err != nil {
-		return nil, wrapError(string(errors.ErrRestUnmarshalResponseToGeneric), err)
+	if err := json.Unmarshal(body, &data); err != nil {
+		return nil, fmt.Errorf(string(errors.ErrRestUnmarshalResponseToGeneric), err)
 	}
 
-	return dataResp.Data.Items, nil
+	return data.Data.Items, nil
 }
 
 func parseGenericResponseSlice(resp *http.Response) ([]response.GenericResponse, error) {
@@ -132,7 +130,7 @@ func parseGenericResponseSlice(resp *http.Response) ([]response.GenericResponse,
 
 	var apiResponses []response.GenericResponse
 	if err := json.Unmarshal(body, &apiResponses); err != nil {
-		return nil, wrapError(string(errors.ErrRestUnmarshalResponseToGeneric), err)
+		return nil, fmt.Errorf(string(errors.ErrRestUnmarshalResponseToGeneric), err)
 	}
 
 	return apiResponses, nil
@@ -145,10 +143,6 @@ func substituteEndpointName(endpoint base.Endpoint, name string) base.Endpoint {
 		name,
 		constants.ReplaceCount,
 	))
-}
-
-func wrapError(operation string, err error) error {
-	return fmt.Errorf("failed to %s: %w", operation, err)
 }
 
 func createErrorResponse(message string, err error) *response.GenericResponse {

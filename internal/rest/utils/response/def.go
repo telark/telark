@@ -83,7 +83,8 @@ func ReadAndParseGenericResponse(resp *http.Response) *response.GenericResponse 
 		)
 	}
 
-	if resp.StatusCode >= constants.HTTPErrorCode {
+	// Only 200 OK and 202 Accepted are considered success
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		message := fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(body))
 		base.GetLogger().Error(message)
 		return LogAndReturnResponse(

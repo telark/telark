@@ -26,3 +26,19 @@ func GetNamespaces() ([]k8scorev1.Namespace, error) {
 	}
 	return namespaces.Items, nil
 }
+
+func CheckNamespaceExists(namespace string) (bool, error) {
+	client, err := k8sclient.InitKubernetesClient()
+	if err != nil {
+		return false, err
+	}
+
+	ctx, cancel := timeout.ContextWithTimeout(constants.NamespaceGetTimeout)
+	defer cancel()
+
+	_, err = client.CoreV1().Namespaces().Get(ctx, namespace, k8smetav1.GetOptions{})
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}

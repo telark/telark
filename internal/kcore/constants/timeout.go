@@ -4,14 +4,15 @@ import "time"
 
 const (
 	MetricsGetTimeout         = 10 * time.Second
-	MetricsListTimeout        = 15 * time.Second
+	MetricsListTimeout        = 20 * time.Second
 	EventFetchTimeout         = 20 * time.Second
 	PodListTimeout            = 30 * time.Second
-	PodGetTimeout             = 15 * time.Second
-	ServiceGetTimeout         = 20 * time.Second
+	PodGetTimeout             = 10 * time.Second
+	ServiceGetTimeout         = 10 * time.Second
 	ServiceListTimeout        = 30 * time.Second
 	NamespaceListTimeout      = 30 * time.Second
-	WorkloadGetTimeout        = 30 * time.Second
+	NamespaceGetTimeout       = 10 * time.Second
+	WorkloadGetTimeout        = 20 * time.Second
 	WorkloadListTimeout       = 45 * time.Second
 	AdmissionGetTimeout       = 15 * time.Second
 	AdmissionPatchTimeout     = 15 * time.Second
@@ -20,7 +21,7 @@ const (
 	DefaultTimeout            = 30 * time.Second
 	ServerVersionTimeout      = 30 * time.Second
 	AvailabilityCheckInterval = 5 * time.Minute
-	CrdGetTimeout             = 15 * time.Second
+	CrdGetTimeout             = 10 * time.Second
 	CrdListTimeout            = 30 * time.Second
 	CrdPatchTimeout           = 15 * time.Second
 	CrdDeleteTimeout          = 15 * time.Second

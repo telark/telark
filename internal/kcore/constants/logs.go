@@ -29,6 +29,10 @@ const (
 	ErrFailedToFetchNamespaces   errors.Error = "failed to fetch namespaces: %v"
 	ErrFailedToFetchServices     errors.Error = "failed to fetch services from namespace %s: %v"
 	ErrFailedToFetchPods         errors.Error = "failed to fetch pods from namespace %s: %v"
+	ErrFailedToGetNamespace      errors.Error = "failed to get namespace %s: %v"
+	ErrFailedToGetConfigMap      errors.Error = "failed to get configmap %s from namespace %s: %v"
+	ErrFailedToFetchNodes        errors.Error = "failed to fetch nodes: %v"
+	ErrFailedToFetchStorage      errors.Error = "failed to fetch storage resources: %v"
 	ErrFailedToFetchPodEvents    errors.Error = "failed to fetch events for pod %s in namespace " +
 		"%s: %v"
 	ErrFailedToGetDeployment    errors.Error = "failed to get deployment %s from namespace %s: %v"

@@ -47,3 +47,20 @@ func GetPodsBySelectors(namespace string, selectors map[string]string) ([]k8scor
 
 	return pods.Items, nil
 }
+
+func GetPodsByNamespace(namespace string) ([]k8scorev1.Pod, error) {
+	client, err := k8sclient.InitKubernetesClient()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := timeout.ContextWithTimeout(constants.PodListTimeout)
+	defer cancel()
+
+	pods, err := client.CoreV1().Pods(namespace).List(ctx, k8smetav1.ListOptions{})
+	if err != nil {
+		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ErrFailedToFetchPods), namespace, err))
+		return nil, err
+	}
+	return pods.Items, nil
+}

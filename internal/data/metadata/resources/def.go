@@ -36,3 +36,11 @@ var BridgeAsResourceMetadata = base.Metadata{
 	Plural:    "bridgesasresources",
 	Namespace: globalshared.BaseNamespace,
 }
+
+var ClusterInsightAsResourceMetadata = base.Metadata{
+	BaseGroup: string(base.Erpi),
+	Kind:      "ClusterInsightAsResource",
+	Version:   string(base.Alpha1),
+	Plural:    "clusterinsightsasresources",
+	Namespace: globalshared.BaseNamespace,
+}

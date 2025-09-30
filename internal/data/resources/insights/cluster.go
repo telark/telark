@@ -1,6 +1,7 @@
 package insights
 
 type ClusterInsightAsResource struct {
+	Name         string      `json:"name"`
 	Cluster      Cluster      `json:"cluster"`
 	Orchestrator Orchestrator `json:"orchestrator"`
 	Metrics      Metrics      `json:"metrics"`

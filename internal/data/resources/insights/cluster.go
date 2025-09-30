@@ -1,7 +1,7 @@
 package insights
 
 type ClusterInsightAsResource struct {
-	Name         string      `json:"name"`
+	Name         string       `json:"name"`
 	Cluster      Cluster      `json:"cluster"`
 	Orchestrator Orchestrator `json:"orchestrator"`
 	Metrics      Metrics      `json:"metrics"`
@@ -9,8 +9,6 @@ type ClusterInsightAsResource struct {
 }
 
 type Cluster struct {
-	UID           string `json:"uid"`
-	Name          string `json:"name"`
 	CloudProvider string `json:"cloudProvider"`
 	Distribution  string `json:"distribution"`
 	Region        string `json:"region"`

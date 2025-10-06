@@ -9,5 +9,5 @@ var Methods = []string{
 }
 
 var Headers = []string{
-	"Content-Type", "Authorization",
+    "Content-Type", "Authorization", "X-Silent-404",
 }

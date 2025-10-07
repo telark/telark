@@ -8,9 +8,11 @@ import (
 
 func NewCORS() func(http.Handler) http.Handler {
 	corsHandler := cors.New(cors.Options{
-		AllowedOrigins: Origins,
-		AllowedMethods: Methods,
-		AllowedHeaders: Headers,
+		AllowedOrigins:   Origins,
+		AllowedMethods:   Methods,
+		AllowedHeaders:   Headers,
+		AllowCredentials: true,
+		Debug:            true,
 	})
 	return corsHandler.Handler
 }

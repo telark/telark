@@ -5,9 +5,9 @@ var Origins = []string{
 }
 
 var Methods = []string{
-	"GET", "POST", "PUT", "DELETE", "PATCH",
+	"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS",
 }
 
 var Headers = []string{
-    "Content-Type", "Authorization", "X-Silent-404",
+	"Content-Type", "Authorization", "X-Silent-404",
 }

@@ -47,3 +47,19 @@ func GetDeploymentStatus(namespace, name string) (bool, error) {
 	}
 	return false, nil
 }
+
+func CheckDeploymentExists(namespace, name string) (bool, error) {
+	client, err := k8sclient.InitKubernetesClient()
+	if err != nil {
+		return false, err
+	}
+
+	ctx, cancel := timeout.ContextWithTimeout(constants.WorkloadGetTimeout)
+	defer cancel()
+
+	_, err = client.AppsV1().Deployments(namespace).Get(ctx, name, k8smetav1.GetOptions{})
+	if err != nil {
+		return false, nil // Return false if not found, don't treat as error
+	}
+	return true, nil
+}

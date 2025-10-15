@@ -26,3 +26,19 @@ func GetStatefulSetsByNamespace(namespace string) ([]k8sappsv1.StatefulSet, erro
 	}
 	return sets.Items, nil
 }
+
+func CheckStatefulSetExists(namespace, name string) (bool, error) {
+	client, err := k8sclient.InitKubernetesClient()
+	if err != nil {
+		return false, err
+	}
+
+	ctx, cancel := timeout.ContextWithTimeout(constants.WorkloadGetTimeout)
+	defer cancel()
+
+	_, err = client.AppsV1().StatefulSets(namespace).Get(ctx, name, k8smetav1.GetOptions{})
+	if err != nil {
+		return false, nil // Return false if not found, don't treat as error
+	}
+	return true, nil
+}

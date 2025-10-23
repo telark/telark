@@ -53,7 +53,8 @@ const (
 	InfoWorkloadInformerSynced       messages.Message = "workloads informer synced"
 
 	// Logger prefixes
-	LoggerPrefixK8sMetrics    = "KubernetesMetrics: "
-	LoggerPrefixK8sManager    = "KubernetesManager: "
-	LoggerPrefixWorkloadUsage = "WorkloadUsage: "
+	LoggerPrefixK8sMetrics                 = "KubernetesMetrics: "
+	LoggerPrefixK8sManager                 = "KubernetesManager: "
+	LoggerPrefixWorkloadUsage              = "WorkloadUsage: "
+	ErrTimeout                errors.Error = "operation timed out"
 )

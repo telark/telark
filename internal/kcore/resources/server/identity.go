@@ -9,7 +9,7 @@ import (
 )
 
 func DetectClusterMeta() (name, provider, distribution, region string) {
-	// Only provider and region are inferred; name and distribution left empty intentionally
+	// Only provider and region are inferred as name and distribution left empty intentionally
 	nodes, _ := coreclient.GetNodes()
 	if len(nodes) > 0 {
 		provider = detectProviderFromNodes(nodes)
@@ -28,8 +28,8 @@ func detectProviderFromNodes(nodes []k8scorev1.Node) string {
 			continue
 		}
 		p := pid
-		if idx := strings.Index(pid, "://"); idx > 0 {
-			p = pid[:idx]
+		if before, _, found := strings.Cut(pid, "://"); found && before != "" {
+			p = before
 		}
 		switch p {
 		case "gce":

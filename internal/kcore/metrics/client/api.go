@@ -1,6 +1,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/plsyro/kcore/constants"
@@ -25,7 +26,7 @@ func GetPodMetrics(
 
 	var podMetrics *metricsv1beta1.PodMetrics
 	err := mc.CircuitBreaker.Call(func() error {
-		ctx, cancel := timeout.ContextWithTimeout(constants.MetricsGetTimeout)
+		ctx, cancel := timeout.ContextWithTimeoutCause(constants.MetricsGetTimeout)
 		defer cancel()
 
 		var apiErr error
@@ -36,6 +37,9 @@ func GetPodMetrics(
 	if err != nil {
 		if err == circuitbreaker.ErrCircuitBreakerOpen {
 			return nil, fmt.Errorf("%s", constants.InfoMetricsAPICircuitBreakerOpen)
+		}
+		if errors.Is(err, errors.New(string(constants.ErrTimeout))) {
+			return nil, fmt.Errorf(string(constants.ErrFailedToGetPodMetrics), err)
 		}
 		return nil, fmt.Errorf(string(constants.ErrFailedToGetPodMetrics), err)
 	}
@@ -73,7 +77,7 @@ func ListPodMetrics(mc *metricstypes.MetricsClient, namespace string) ([]*metric
 
 	var podMetricsList *metricsv1beta1.PodMetricsList
 	err := mc.CircuitBreaker.Call(func() error {
-		ctx, cancel := timeout.ContextWithTimeout(constants.MetricsListTimeout)
+		ctx, cancel := timeout.ContextWithTimeoutCause(constants.MetricsListTimeout)
 		defer cancel()
 
 		var apiErr error

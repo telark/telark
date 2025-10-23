@@ -12,8 +12,7 @@ func ParseCPU(cpuStr string) int64 {
 		return constants.EmptySliceLength
 	}
 
-	if strings.HasSuffix(cpuStr, constants.CPUUnitMillicore) {
-		value := strings.TrimSuffix(cpuStr, constants.CPUUnitMillicore)
+	if value, ok := strings.CutSuffix(cpuStr, constants.CPUUnitMillicore); ok {
 		if val, err := strconv.ParseInt(value, constants.Base10, constants.Base64); err == nil {
 			return val
 		}
@@ -54,14 +53,12 @@ func ParseMemory(memoryStr string) int64 {
 }
 
 func parseMemoryWithUnit(memoryStr, unit string, multiplier int64) int64 {
-	if !strings.HasSuffix(memoryStr, unit) {
+	value, ok := strings.CutSuffix(memoryStr, unit)
+	if !ok {
 		return constants.EmptySliceLength
 	}
-
-	value := strings.TrimSuffix(memoryStr, unit)
 	if val, err := strconv.ParseFloat(value, constants.Base64); err == nil {
 		return int64(val * float64(multiplier))
 	}
-
 	return constants.EmptySliceLength
 }

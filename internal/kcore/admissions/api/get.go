@@ -16,7 +16,7 @@ func GetAdmissionWebhookByName(name string, webhookType admissionshared.WebhookT
 		return shared.HandleClientError(err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.AdmissionGetTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.AdmissionGetTimeout)
 	defer cancel()
 
 	validatingOperation := func() (any, error) {

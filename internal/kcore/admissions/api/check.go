@@ -19,7 +19,7 @@ func CheckAdmissionWebhookExistsByName(
 		return false, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.AdmissionGetTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.AdmissionGetTimeout)
 	defer cancel()
 
 	switch webhookType {

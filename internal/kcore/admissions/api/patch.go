@@ -33,7 +33,7 @@ func PatchAdmissionWebhookAnnotationsByName(
 			nil, err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.AdmissionPatchTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.AdmissionPatchTimeout)
 	defer cancel()
 
 	validatingOperation := func() (any, error) {

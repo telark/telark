@@ -31,7 +31,7 @@ func UpdateCustomResource(
 		return shared.HandleClientError(err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.CrdPatchTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.CrdPatchTimeout)
 	defer cancel()
 
 	resource, err := resourceClient.Update(ctx, template, k8smetav1.UpdateOptions{})

@@ -16,7 +16,7 @@ func GetDaemonSetsByNamespace(namespace string) ([]k8sappsv1.DaemonSet, error) {
 		return nil, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.WorkloadListTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.WorkloadListTimeout)
 	defer cancel()
 
 	daemons, err := client.AppsV1().DaemonSets(namespace).List(ctx, k8smetav1.ListOptions{})
@@ -33,7 +33,7 @@ func CheckDaemonSetExists(namespace, name string) (bool, error) {
 		return false, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.WorkloadGetTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.WorkloadGetTimeout)
 	defer cancel()
 
 	_, err = client.AppsV1().DaemonSets(namespace).Get(ctx, name, k8smetav1.GetOptions{})

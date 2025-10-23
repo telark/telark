@@ -16,7 +16,7 @@ func GetDeploymentsByNamespace(namespace string) ([]k8sappsv1.Deployment, error)
 		return nil, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.WorkloadListTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.WorkloadListTimeout)
 	defer cancel()
 
 	deployments, err := client.AppsV1().Deployments(namespace).List(ctx, k8smetav1.ListOptions{})
@@ -33,7 +33,7 @@ func GetDeploymentStatus(namespace, name string) (bool, error) {
 		return false, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.WorkloadGetTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.WorkloadGetTimeout)
 	defer cancel()
 
 	deployment, err := client.AppsV1().Deployments(namespace).Get(ctx, name, k8smetav1.GetOptions{})
@@ -54,7 +54,7 @@ func CheckDeploymentExists(namespace, name string) (bool, error) {
 		return false, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.WorkloadGetTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.WorkloadGetTimeout)
 	defer cancel()
 
 	_, err = client.AppsV1().Deployments(namespace).Get(ctx, name, k8smetav1.GetOptions{})

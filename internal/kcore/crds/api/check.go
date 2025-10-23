@@ -18,7 +18,7 @@ func CheckCustomResourceExistsByName(name string, metadata base.Metadata) (bool,
 		return false, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.CrdGetTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.CrdGetTimeout)
 	defer cancel()
 
 	_, err = resourceClient.Get(ctx, name, k8smetav1.GetOptions{})

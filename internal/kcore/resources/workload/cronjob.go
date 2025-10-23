@@ -16,7 +16,7 @@ func GetCronJobsByNamespace(namespace string) ([]k8sbatchv1.CronJob, error) {
 		return nil, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.WorkloadListTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.WorkloadListTimeout)
 	defer cancel()
 
 	cronjobs, err := client.BatchV1().CronJobs(namespace).List(ctx, k8smetav1.ListOptions{})

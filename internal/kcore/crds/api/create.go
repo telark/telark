@@ -20,7 +20,7 @@ func CreateCustomResource(template *unstructured.Unstructured, metadata base.Met
 		return shared.HandleClientError(err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.CrdCreateTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.CrdCreateTimeout)
 	defer cancel()
 
 	resource, err := resourceClient.Create(ctx, template, k8smetav1.CreateOptions{})

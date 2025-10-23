@@ -34,7 +34,7 @@ func GetPodsBySelectors(namespace string, selectors map[string]string) ([]k8scor
 		MatchLabels: selectors,
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.PodListTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.PodListTimeout)
 	defer cancel()
 
 	pods, err := client.CoreV1().Pods(namespace).List(ctx, k8smetav1.ListOptions{
@@ -54,7 +54,7 @@ func GetPodsByNamespace(namespace string) ([]k8scorev1.Pod, error) {
 		return nil, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.PodListTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.PodListTimeout)
 	defer cancel()
 
 	pods, err := client.CoreV1().Pods(namespace).List(ctx, k8smetav1.ListOptions{})

@@ -16,7 +16,7 @@ func GetNodes() ([]k8scorev1.Node, error) {
 		return nil, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.DefaultTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.DefaultTimeout)
 	defer cancel()
 
 	nodes, err := client.CoreV1().Nodes().List(ctx, k8smetav1.ListOptions{})

@@ -18,7 +18,7 @@ func GetEventsByPod(pod, namespace string) ([]workload.EventItem, error) {
 
 	eventsPerPod := make([]workload.EventItem, constants.EmptySliceLength)
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.EventFetchTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.EventFetchTimeout)
 	defer cancel()
 
 	events, err := client.CoreV1().Events(namespace).List(ctx, k8smetav1.ListOptions{

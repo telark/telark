@@ -20,7 +20,7 @@ func CreateValidatingAdmissionByConfig(
 		return shared.HandleClientError(err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.AdmissionCreateTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.AdmissionCreateTimeout)
 	defer cancel()
 
 	operation := func() (any, error) {
@@ -46,7 +46,7 @@ func CreateMutatingAdmissionByConfig(
 		return shared.HandleClientError(err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.AdmissionCreateTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.AdmissionCreateTimeout)
 	defer cancel()
 
 	operation := func() (any, error) {

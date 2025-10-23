@@ -16,7 +16,7 @@ func GetJobsByNamespace(namespace string) ([]batch.Job, error) {
 		return nil, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.WorkloadListTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.WorkloadListTimeout)
 	defer cancel()
 
 	jobs, err := client.BatchV1().Jobs(namespace).List(ctx, meta.ListOptions{})

@@ -16,7 +16,7 @@ func GetStorageClasses() ([]storagev1.StorageClass, error) {
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := timeout.ContextWithTimeout(constants.DefaultTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.DefaultTimeout)
 	defer cancel()
 
 	scs, err := client.StorageV1().StorageClasses().List(ctx, k8smetav1.ListOptions{})
@@ -32,7 +32,7 @@ func GetPersistentVolumeClaims(namespace string) ([]corev1.PersistentVolumeClaim
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := timeout.ContextWithTimeout(constants.DefaultTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.DefaultTimeout)
 	defer cancel()
 
 	pvcs, err := client.CoreV1().PersistentVolumeClaims(namespace).List(ctx, k8smetav1.ListOptions{})
@@ -48,7 +48,7 @@ func GetPersistentVolumes() ([]corev1.PersistentVolume, error) {
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := timeout.ContextWithTimeout(constants.DefaultTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.DefaultTimeout)
 	defer cancel()
 
 	pvs, err := client.CoreV1().PersistentVolumes().List(ctx, k8smetav1.ListOptions{})

@@ -16,7 +16,7 @@ func GetAllNamespaces() ([]k8scorev1.Namespace, error) {
 		return nil, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.NamespaceListTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.NamespaceListTimeout)
 	defer cancel()
 
 	namespaces, err := client.CoreV1().Namespaces().List(ctx, k8smetav1.ListOptions{})
@@ -33,7 +33,7 @@ func GetNamespace(name string) (k8scorev1.Namespace, error) {
 		return k8scorev1.Namespace{}, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.NamespaceGetTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.NamespaceGetTimeout)
 	defer cancel()
 
 	namespace, err := client.CoreV1().Namespaces().Get(ctx, name, k8smetav1.GetOptions{})
@@ -50,7 +50,7 @@ func CheckNamespaceExists(namespace string) (bool, error) {
 		return false, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.NamespaceGetTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.NamespaceGetTimeout)
 	defer cancel()
 
 	_, err = client.CoreV1().Namespaces().Get(ctx, namespace, k8smetav1.GetOptions{})

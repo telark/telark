@@ -21,7 +21,7 @@ func GetServiceByName(namespace, name string) (*k8scorev1.Service, error) {
 		return nil, fmt.Errorf(string(errors.ErrK8sSetClient), err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.ServiceGetTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.ServiceGetTimeout)
 	defer cancel()
 
 	service, err := client.CoreV1().Services(namespace).Get(ctx, name, k8smetav1.GetOptions{})
@@ -42,7 +42,7 @@ func GetServicesByNamespace(namespace string) ([]k8scorev1.Service, error) {
 		return nil, fmt.Errorf(string(errors.ErrK8sSetClient), err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.ServiceListTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.ServiceListTimeout)
 	defer cancel()
 
 	services, err := client.CoreV1().Services(namespace).List(ctx, k8smetav1.ListOptions{})
@@ -64,7 +64,7 @@ func GetServiceStatus(namespace, name string) (bool, error) {
 		return false, fmt.Errorf(string(errors.ErrK8sSetClient), err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.ServiceGetTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.ServiceGetTimeout)
 	defer cancel()
 
 	service, err := client.CoreV1().Services(namespace).Get(ctx, name, k8smetav1.GetOptions{})

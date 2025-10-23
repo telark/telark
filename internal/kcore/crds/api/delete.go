@@ -26,7 +26,7 @@ func DeleteCustomResourceByName(name string, metadata base.Metadata) shared.Kube
 		return shared.HandleClientError(err)
 	}
 
-	ctx, cancel := timeout.ContextWithTimeout(constants.CrdDeleteTimeout)
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.CrdDeleteTimeout)
 	defer cancel()
 
 	err = resourceClient.Delete(ctx, name, k8smetav1.DeleteOptions{})

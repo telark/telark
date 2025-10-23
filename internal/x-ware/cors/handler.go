@@ -12,7 +12,7 @@ func NewCORS() func(http.Handler) http.Handler {
 		AllowedMethods:   Methods,
 		AllowedHeaders:   Headers,
 		AllowCredentials: true,
-		Debug:            true,
+		Debug:            false,
 	})
 	return corsHandler.Handler
 }

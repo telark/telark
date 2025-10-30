@@ -26,7 +26,7 @@ const (
 const (
 	Client          port = 4222
 	Monitoring      port = 8222
-	NatsServiceName      = "nats-service"
+	NatsServiceName      = "release-nats"
 
 	Grouper        Group = "groupers"
 	AppWorkloads   Group = "workloads_apps"

@@ -44,3 +44,11 @@ var ClusterInsightAsResourceMetadata = base.Metadata{
 	Plural:    "clusterinsightsasresources",
 	Namespace: globalshared.BaseNamespace,
 }
+
+var UserAsResourceMetadata = base.Metadata{
+	BaseGroup: string(base.Erpi),
+	Kind:      "UserAsResource",
+	Version:   string(base.Alpha1),
+	Plural:    "usersasresources",
+	Namespace: globalshared.BaseNamespace,
+}

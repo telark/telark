@@ -17,6 +17,7 @@ type (
 
 const (
 	Erpi   Group   = "erpi.plsyro"
+	Auth   Group   = "auth.plsyro"
 	Feats  Group   = "feats.plsyro"
 	Alpha1 Version = "v1alpha1"
 	Alpha2 Version = "v1alpha2"

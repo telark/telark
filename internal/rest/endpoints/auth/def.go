@@ -9,11 +9,11 @@ const (
 	Logout      base.Endpoint = "auth/logout"
 
 	// Passkeys
-	GetAllPasskeysByUser base.Endpoint = "auth/passkeys/{userId}/get"
-	GetPasskeyByUser     base.Endpoint = "auth/passkeys/{userId}/{id}/get"
-	CreatePasskeyByUser  base.Endpoint = "auth/passkeys/{userId}/create"
-	PatchPasskeyByUser   base.Endpoint = "auth/passkeys/{userId}/{id}/patch"
-	DeletePasskeyByUser  base.Endpoint = "auth/passkeys/{userId}/{id}/delete"
+	CreatePasskeyByUser                base.Endpoint = "auth/passkeys/create"
+	GetAllPasskeysByUser               base.Endpoint = "auth/passkeys/get"
+	GetPasskeyByUserAndCredentialID    base.Endpoint = "auth/passkeys/single/get"
+	PatchPasskeyByUserAndCredentialID  base.Endpoint = "auth/passkeys/patch"
+	DeletePasskeyByUserAndCredentialID base.Endpoint = "auth/passkeys/delete"
 
 	// Sessions
 	CreateSessionByUser  base.Endpoint = "auth/sessions/{userId}/create"

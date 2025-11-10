@@ -13,11 +13,11 @@ var AuthChallengeMetadata = base.Metadata{
 	Namespace: globalshared.BaseNamespace,
 }
 
-var UserCredentialMetadata = base.Metadata{
+var UserPasskeyMetadata = base.Metadata{
 	BaseGroup: string(base.Auth),
-	Kind:      "UserCredential",
+	Kind:      "UserPasskey",
 	Version:   string(base.Alpha1),
-	Plural:    "usercredentials",
+	Plural:    "userpasskeys",
 	Namespace: globalshared.BaseNamespace,
 }
 

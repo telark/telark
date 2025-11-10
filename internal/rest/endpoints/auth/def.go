@@ -18,9 +18,9 @@ const (
 	// Sessions
 	CreateSessionByUser  base.Endpoint = "auth/sessions/{userId}/create"
 	GetAllSessionsByUser base.Endpoint = "auth/sessions/{userId}/get"
-	GetSessionByToken    base.Endpoint = "auth/sessions/{token}/get"
-	DeleteSessionByToken base.Endpoint = "auth/sessions/{token}/delete"
-	PatchSessionByToken  base.Endpoint = "auth/sessions/{token}/patch"
+	GetSessionByToken    base.Endpoint = "auth/sessions/tokens/{token}/get"
+	DeleteSessionByToken base.Endpoint = "auth/sessions/tokens/{token}/delete"
+	PatchSessionByToken  base.Endpoint = "auth/sessions/tokens/{token}/patch"
 
 	// Challenges
 	CreateChallengeByUser base.Endpoint = "auth/challenges/{userId}/create"

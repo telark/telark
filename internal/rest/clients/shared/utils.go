@@ -145,6 +145,21 @@ func substituteEndpointName(endpoint base.Endpoint, name string) base.Endpoint {
 	))
 }
 
+// SubstituteEndpointName substitutes {name} placeholder in endpoint with the provided value
+func SubstituteEndpointName(endpoint string, value string) string {
+	return strings.Replace(
+		endpoint,
+		string(constants.EndpointNamePlaceholder),
+		value,
+		constants.ReplaceCount,
+	)
+}
+
+// SubstituteEndpointParam substitutes a specific placeholder in endpoint with the provided value
+func SubstituteEndpointParam(endpoint string, placeholder string, value string) string {
+	return strings.Replace(endpoint, placeholder, value, constants.ReplaceCount)
+}
+
 func createErrorResponse(message string, err error) *response.GenericResponse {
 	return responseutils.LogAndReturnResponse(
 		globalshared.StatusInternalServerError,
@@ -153,4 +168,9 @@ func createErrorResponse(message string, err error) *response.GenericResponse {
 		nil,
 		err,
 	)
+}
+
+// CreateErrorResponse creates an error response (exported version)
+func CreateErrorResponse(message string, err error) *response.GenericResponse {
+	return createErrorResponse(message, err)
 }

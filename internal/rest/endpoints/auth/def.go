@@ -8,12 +8,19 @@ const (
 	FinishLogin base.Endpoint = "auth/login/finish"
 	Logout      base.Endpoint = "auth/logout"
 
-	// Passkeys
-	CreatePasskeyByUser                base.Endpoint = "auth/passkeys/create"
-	GetAllPasskeysByUser               base.Endpoint = "auth/passkeys/get"
-	GetPasskeyByUserAndCredentialID    base.Endpoint = "auth/passkeys/single/get"
-	PatchPasskeyByUserAndCredentialID  base.Endpoint = "auth/passkeys/patch"
-	DeletePasskeyByUserAndCredentialID base.Endpoint = "auth/passkeys/delete"
+	// Internal Passkeys EPs used only exporter-service
+	CreateInternalPasskeyByUser                base.Endpoint = "auth/passkeys/internal/create"
+	GetAllInternalPasskeysByUser               base.Endpoint = "auth/passkeys/internal/get"
+	GetInternalPasskeyByUserAndCredentialID    base.Endpoint = "auth/passkeys/internal/single/get"
+	PatchInternalPasskeyByUserAndCredentialID  base.Endpoint = "auth/passkeys/internal/patch"
+	DeleteInternalPasskeyByUserAndCredentialID base.Endpoint = "auth/passkeys/internal/delete"
+
+	// used by auth-service as proxy to exporter-service internal passkeys EPs
+	GetAllPasskeysByUserViaProxy               base.Endpoint = "auth/passkeys/proxy/get"
+	CreatePasskeyByUserViaProxy                base.Endpoint = "auth/passkeys/proxy/create"
+	GetPasskeyByUserAndCredentialIDViaProxy    base.Endpoint = "auth/passkeys/proxy/single/get"
+	PatchPasskeyByUserAndCredentialIDViaProxy  base.Endpoint = "auth/passkeys/proxy/patch"
+	DeletePasskeyByUserAndCredentialIDViaProxy base.Endpoint = "auth/passkeys/proxy/delete"
 
 	// Sessions
 	CreateSessionByUser  base.Endpoint = "auth/sessions/{userId}/create"

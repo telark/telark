@@ -23,7 +23,12 @@ func (c *Client) CreateAdmissionValidatingWebhook(webhook any) *response.Generic
 }
 
 func (c *Client) GetAdmissionValidatingWebhook(name string) (*response.GenericResponse, error) {
-	return c.Get(eps.GetAdmissionValidatingWebhook, name)
+	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(eps.GetAdmissionValidatingWebhook),
+		constants.NameParam,
+		name,
+	))
+	return c.Get(ep)
 }
 
 func (c *Client) PatchAdmissionValidatingWebhook(
@@ -32,7 +37,7 @@ func (c *Client) PatchAdmissionValidatingWebhook(
 ) *response.GenericResponse {
 	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(
 		string(eps.PatchAdmissionValidatingWebhook),
-		constants.EndpointNamePlaceholder,
+		constants.NameParam,
 		name,
 	))
 	return c.Update(endpoint, body)
@@ -41,7 +46,7 @@ func (c *Client) PatchAdmissionValidatingWebhook(
 func (c *Client) DeleteAdmissionValidatingWebhook(name string) *response.GenericResponse {
 	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
 		string(eps.DeleteAdmissionValidatingWebhook),
-		constants.EndpointNamePlaceholder,
+		constants.NameParam,
 		name,
 	))
 	return c.Delete(ep)
@@ -50,7 +55,7 @@ func (c *Client) DeleteAdmissionValidatingWebhook(name string) *response.Generic
 func (c *Client) ValidateGrouper(name string) (*response.GenericResponse, error) {
 	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
 		string(eps.ValidateGrouper),
-		constants.EndpointNamePlaceholder,
+		constants.NameParam,
 		name,
 	))
 	return c.Post(ep)

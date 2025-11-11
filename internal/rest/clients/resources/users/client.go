@@ -4,6 +4,7 @@ import (
 	userresource "github.com/plsyro/data/resources/user"
 	"github.com/plsyro/rest/base"
 	"github.com/plsyro/rest/clients/shared"
+	"github.com/plsyro/rest/constants"
 	eps "github.com/plsyro/rest/endpoints/resources/users"
 	"github.com/plsyro/rest/response"
 )
@@ -23,21 +24,21 @@ func (c *Client) CreateUser(user *userresource.UserAsResource) *response.Generic
 }
 
 func (c *Client) GetUserByID(id string) (*userresource.UserAsResource, error) {
-	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(
+	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
 		string(eps.GetUserByID),
-		"{id}",
+		constants.IDParam,
 		id,
 	))
-	return shared.GetTyped[userresource.UserAsResource](c.Client, endpoint)
+	return shared.GetTyped[userresource.UserAsResource](c.Client, ep)
 }
 
 func (c *Client) GetUserByUsername(username string) (*userresource.UserAsResource, error) {
-	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(
+	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
 		string(eps.GetUserByUsername),
-		"{username}",
+		constants.UsernameParam,
 		username,
 	))
-	return shared.GetTyped[userresource.UserAsResource](c.Client, endpoint)
+	return shared.GetTyped[userresource.UserAsResource](c.Client, ep)
 }
 
 func (c *Client) GetAllUsers() ([]*userresource.UserAsResource, error) {
@@ -45,19 +46,19 @@ func (c *Client) GetAllUsers() ([]*userresource.UserAsResource, error) {
 }
 
 func (c *Client) PatchUserByID(id string, body map[string]any) *response.GenericResponse {
-	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(
+	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
 		string(eps.PatchUserByID),
-		"{id}",
+		constants.IDParam,
 		id,
 	))
-	return c.Update(endpoint, body)
+	return c.Update(ep, body)
 }
 
 func (c *Client) DeleteUserByID(id string) *response.GenericResponse {
-	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(
+	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
 		string(eps.DeleteUserByID),
-		"{id}",
+		constants.IDParam,
 		id,
 	))
-	return c.Delete(endpoint)
+	return c.Delete(ep)
 }

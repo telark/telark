@@ -53,7 +53,7 @@ func ExecuteRequestWithHeaders(
 	if payload != nil {
 		jsonPayload, err = marshalToJSON(payload)
 		if err != nil {
-			return createErrorResponse(string(errors.ErrRestMarshalPayload), err)
+			return CreateErrorResponse(string(errors.ErrRestMarshalPayload), err)
 		}
 	}
 
@@ -61,7 +61,7 @@ func ExecuteRequestWithHeaders(
 	resp, err := executeHTTPRequestWithHeaders(client, method, endpoint, jsonPayload, headers)
 	if err != nil {
 		msg := fmt.Sprintf(string(errors.ErrCreateRes), "", err)
-		return createErrorResponse(msg, err)
+		return CreateErrorResponse(msg, err)
 	}
 
 	return responseutils.ReadAndParseGenericResponse(resp)
@@ -96,4 +96,3 @@ func GetListWithHeaders[T any](
 
 	return parseListResponse[T](resp)
 }
-

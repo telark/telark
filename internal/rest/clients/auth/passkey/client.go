@@ -33,7 +33,11 @@ func (c *Client) CreatePasskeyByUser(userID string, passkey *authdata.UserPasske
 	headers := map[string]string{
 		HeaderUserID: userID,
 	}
-	return shared.ExecuteRequestWithHeaders(c.Client, base.Post, eps.CreateInternalPasskeyByUser, mappedPayload, headers)
+	return shared.ExecuteRequestWithHeaders(c.Client, base.Post,
+		eps.CreateInternalPasskeyByUser,
+		mappedPayload,
+		headers,
+	)
 }
 
 func (c *Client) GetAllPasskeysByUser(userID string) ([]*authdata.UserPasskey, error) {
@@ -48,18 +52,31 @@ func (c *Client) GetPasskeyByUserAndCredentialID(userID string, credentialID str
 		HeaderUserID:       userID,
 		HeaderCredentialID: credentialID,
 	}
-	return shared.GetWithHeaders[authdata.UserPasskey](c.Client, eps.GetInternalPasskeyByUserAndCredentialID, headers)
+	return shared.GetWithHeaders[authdata.UserPasskey](
+		c.Client,
+		eps.GetInternalPasskeyByUserAndCredentialID,
+		headers,
+	)
 }
 
-func (c *Client) PatchPasskeyByUserAndCredentialID(userID string, credentialID string, body map[string]any) *response.GenericResponse {
+func (c *Client) PatchPasskeyByUserAndCredentialID(
+	userID string, credentialID string, body map[string]any,
+) *response.GenericResponse {
 	headers := map[string]string{
 		HeaderUserID:       userID,
 		HeaderCredentialID: credentialID,
 	}
-	return shared.ExecuteRequestWithHeaders(c.Client, base.Patch, eps.PatchInternalPasskeyByUserAndCredentialID, body, headers)
+	return shared.ExecuteRequestWithHeaders(
+		c.Client, base.Patch, eps.PatchInternalPasskeyByUserAndCredentialID, body, headers,
+	)
 }
 
-func (c *Client) DeletePasskeyByUserAndCredentialID(userID string, credentialID string, forceLastDelete bool) *response.GenericResponse {
+//nolint:revive
+func (c *Client) DeletePasskeyByUserAndCredentialID(
+	userID string,
+	credentialID string,
+	forceLastDelete bool,
+) *response.GenericResponse {
 	headers := map[string]string{
 		HeaderUserID:       userID,
 		HeaderCredentialID: credentialID,
@@ -68,5 +85,10 @@ func (c *Client) DeletePasskeyByUserAndCredentialID(userID string, credentialID 
 	if forceLastDelete {
 		body["forceLastDelete"] = true
 	}
-	return shared.ExecuteRequestWithHeaders(c.Client, base.Delete, eps.DeleteInternalPasskeyByUserAndCredentialID, body, headers)
+	return shared.ExecuteRequestWithHeaders(
+		c.Client, base.Delete,
+		eps.DeleteInternalPasskeyByUserAndCredentialID,
+		body,
+		headers,
+	)
 }

@@ -37,29 +37,29 @@ func (c *Client) PatchMaintenanceFeat(
 	name string,
 	body map[string]any,
 ) *response.GenericResponse {
-	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(
+	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
 		string(maineps.PatchMaintenanceFeat),
-		constants.EndpointNamePlaceholder,
+		constants.NameParam,
 		name,
 	))
-	return c.Update(endpoint, body)
+	return c.Update(ep, body)
 }
 
 func (c *Client) GetMaintenanceFeatByName(
 	name string,
 ) (*maintenanceresource.MaintenanceAsFeature, error) {
-	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(
+	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
 		string(maineps.GetMaintenanceFeat),
-		constants.EndpointNamePlaceholder,
+		constants.NameParam,
 		name,
 	))
-	return shared.GetTyped[maintenanceresource.MaintenanceAsFeature](c.Client, endpoint)
+	return shared.GetTyped[maintenanceresource.MaintenanceAsFeature](c.Client, ep)
 }
 
 func (c *Client) DeleteMaintenanceFeat(name string) *response.GenericResponse {
 	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
 		string(maineps.DeleteMaintenanceFeat),
-		constants.EndpointNamePlaceholder,
+		constants.NameParam,
 		name,
 	))
 	return c.Delete(ep)
@@ -74,6 +74,5 @@ func (c *Client) UpdateGrouperMaintenance(body map[string]any) *response.Generic
 }
 
 func (c *Client) RemoveGrouperMaintenance() *response.GenericResponse {
-	ep := base.Endpoint(grpeps.RemoveGrouperMaintenanceFeat)
-	return c.Delete(ep)
+	return c.Delete(grpeps.RemoveGrouperMaintenanceFeat)
 }

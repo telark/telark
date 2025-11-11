@@ -136,20 +136,11 @@ func parseGenericResponseSlice(resp *http.Response) ([]response.GenericResponse,
 	return apiResponses, nil
 }
 
-func substituteEndpointName(endpoint base.Endpoint, name string) base.Endpoint {
-	return base.Endpoint(strings.Replace(
-		string(endpoint),
-		string(constants.EndpointNamePlaceholder),
-		name,
-		constants.ReplaceCount,
-	))
-}
-
 func SubstituteEndpointWithParam(endpoint string, placeholder string, value string) string {
 	return strings.Replace(endpoint, placeholder, value, constants.ReplaceCount)
 }
 
-func createErrorResponse(message string, err error) *response.GenericResponse {
+func CreateErrorResponse(message string, err error) *response.GenericResponse {
 	return responseutils.LogAndReturnResponse(
 		globalshared.StatusInternalServerError,
 		response.OperationError,
@@ -157,8 +148,4 @@ func createErrorResponse(message string, err error) *response.GenericResponse {
 		nil,
 		err,
 	)
-}
-
-func CreateErrorResponse(message string, err error) *response.GenericResponse {
-	return createErrorResponse(message, err)
 }

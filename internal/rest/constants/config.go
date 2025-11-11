@@ -24,5 +24,9 @@ const (
 	SecondIndex                                = 1
 	EmptyString                                = ""
 	OmitEmpty                                  = "omitempty"
-	EndpointNamePlaceholder                    = "{name}"
+	NameParam                                  = "{name}"
+	UserIDParam                                = "{userId}"
+	TokenParam                                 = "{token}"
+	IDParam                                    = "{id}"
+	UsernameParam                              = "{username}"
 )

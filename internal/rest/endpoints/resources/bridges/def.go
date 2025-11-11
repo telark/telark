@@ -1,4 +1,4 @@
-package resources
+package bridges
 
 import "github.com/plsyro/rest/base"
 

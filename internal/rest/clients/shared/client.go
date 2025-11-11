@@ -35,7 +35,7 @@ func (c *Client) executeRequest(
 	if payload != nil {
 		jsonPayload, err = marshalToJSON(payload)
 		if err != nil {
-			return createErrorResponse(string(errors.ErrRestMarshalPayload), err)
+			return CreateErrorResponse(string(errors.ErrRestMarshalPayload), err)
 		}
 	}
 
@@ -43,7 +43,7 @@ func (c *Client) executeRequest(
 	resp, err := executeHTTPRequest(c, method, endpoint, jsonPayload)
 	if err != nil {
 		msg := fmt.Sprintf(string(errors.ErrCreateRes), "", err)
-		return createErrorResponse(msg, err)
+		return CreateErrorResponse(msg, err)
 	}
 
 	return responseutils.ReadAndParseGenericResponse(resp)
@@ -84,7 +84,7 @@ func (c *Client) executeRequestWithError(
 func (c *Client) Create(endpoint base.Endpoint, resource any) *response.GenericResponse {
 	mappedPayload, err := restmapper.MapToJSONPayload(resource)
 	if err != nil {
-		return createErrorResponse(string(errors.ErrRestMarshalPayload), err)
+		return CreateErrorResponse(string(errors.ErrRestMarshalPayload), err)
 	}
 
 	return c.executeRequest(base.Post, endpoint, mappedPayload)
@@ -97,9 +97,8 @@ func (c *Client) Update(
 	return c.executeRequest(base.Patch, endpoint, body)
 }
 
-func (c *Client) Get(endpoint base.Endpoint, name string) (*response.GenericResponse, error) {
-	substitutedEndpoint := substituteEndpointName(endpoint, name)
-	return c.executeRequestWithError(base.Get, substitutedEndpoint, nil)
+func (c *Client) Get(endpoint base.Endpoint) (*response.GenericResponse, error) {
+	return c.executeRequestWithError(base.Get, endpoint, nil)
 }
 
 func (c *Client) Post(endpoint base.Endpoint) (*response.GenericResponse, error) {

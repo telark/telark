@@ -27,7 +27,7 @@ linters:
     funlen:
       lines: 60
     gosec:
-      exclude:
+      excludes:
         - G101
     revive:
       enable-all-rules: true

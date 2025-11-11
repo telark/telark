@@ -4,6 +4,7 @@ import (
 	authdata "github.com/plsyro/data/auth"
 	"github.com/plsyro/rest/base"
 	"github.com/plsyro/rest/clients/shared"
+	"github.com/plsyro/rest/constants"
 	eps "github.com/plsyro/rest/endpoints/auth"
 	"github.com/plsyro/rest/response"
 )
@@ -19,26 +20,46 @@ func NewClient() *Client {
 }
 
 func (c *Client) CreateSessionByUser(userID string, session *authdata.UserSession) *response.GenericResponse {
-	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(string(eps.CreateSessionByUser), "{userId}", userID))
-	return c.Create(endpoint, session)
+	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(eps.CreateSessionByUser),
+		constants.UserIDParam,
+		userID,
+	))
+	return c.Create(ep, session)
 }
 
 func (c *Client) GetAllSessionsByUser(userID string) ([]*authdata.UserSession, error) {
-	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(string(eps.GetAllSessionsByUser), "{userId}", userID))
-	return shared.GetListTyped[*authdata.UserSession](c.Client, endpoint)
+	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(eps.GetAllSessionsByUser),
+		constants.UserIDParam,
+		userID,
+	))
+	return shared.GetListTyped[*authdata.UserSession](c.Client, ep)
 }
 
 func (c *Client) GetSessionByToken(token string) (*authdata.UserSession, error) {
-	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(string(eps.GetSessionByToken), "{token}", token))
-	return shared.GetTyped[authdata.UserSession](c.Client, endpoint)
+	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(eps.GetSessionByToken),
+		constants.TokenParam,
+		token,
+	))
+	return shared.GetTyped[authdata.UserSession](c.Client, ep)
 }
 
 func (c *Client) PatchSessionByToken(token string, body map[string]any) *response.GenericResponse {
-	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(string(eps.PatchSessionByToken), "{token}", token))
-	return c.Update(endpoint, body)
+	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(eps.PatchSessionByToken),
+		constants.TokenParam,
+		token,
+	))
+	return c.Update(ep, body)
 }
 
 func (c *Client) DeleteSessionByToken(token string) *response.GenericResponse {
-	ep := base.Endpoint(shared.SubstituteEndpointWithParam(string(eps.DeleteSessionByToken), "{token}", token))
+	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(eps.DeleteSessionByToken),
+		constants.TokenParam,
+		token,
+	))
 	return c.Delete(ep)
 }

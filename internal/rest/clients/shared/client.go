@@ -140,9 +140,9 @@ func (c *Client) PostAndParseGenericResponses(endpoint base.Endpoint) ([]respons
 	return parseGenericResponseSlice(resp)
 }
 
-func GetTyped[T any](client *Client, endpoint base.Endpoint, name string) (*T, error) {
+func GetTyped[T any](client *Client, endpoint base.Endpoint) (*T, error) {
 	//nolint:bodyclose // defer responseutils.CloseResponseBody handles closing
-	resp, err := executeHTTPRequest(client, base.Get, substituteEndpointName(endpoint, name), nil)
+	resp, err := executeHTTPRequest(client, base.Get, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}

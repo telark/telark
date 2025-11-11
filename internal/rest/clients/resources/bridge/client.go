@@ -4,6 +4,7 @@ import (
 	bridgeresource "github.com/plsyro/data/resources/bridge"
 	"github.com/plsyro/rest/base"
 	"github.com/plsyro/rest/clients/shared"
+	"github.com/plsyro/rest/constants"
 	eps "github.com/plsyro/rest/endpoints/resources/bridges"
 	"github.com/plsyro/rest/response"
 )
@@ -23,8 +24,12 @@ func (c *Client) CreateBridge(bridge *bridgeresource.BridgeAsResource) *response
 }
 
 func (c *Client) GetBridgeByName(name string) (*bridgeresource.BridgeAsResource, error) {
-	return shared.GetTyped[bridgeresource.BridgeAsResource](c.Client, eps.GetBridge,
-		name)
+	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(eps.GetBridge),
+		constants.EndpointNamePlaceholder,
+		name,
+	))
+	return shared.GetTyped[bridgeresource.BridgeAsResource](c.Client, endpoint)
 }
 
 func (c *Client) GetAllBridges() ([]*bridgeresource.BridgeAsResource, error) {

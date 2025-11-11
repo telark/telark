@@ -23,11 +23,21 @@ func (c *Client) CreateUser(user *userresource.UserAsResource) *response.Generic
 }
 
 func (c *Client) GetUserByID(id string) (*userresource.UserAsResource, error) {
-	return shared.GetTyped[userresource.UserAsResource](c.Client, eps.GetUserByID, id)
+	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(eps.GetUserByID),
+		"{id}",
+		id,
+	))
+	return shared.GetTyped[userresource.UserAsResource](c.Client, endpoint)
 }
 
 func (c *Client) GetUserByUsername(username string) (*userresource.UserAsResource, error) {
-	return shared.GetTyped[userresource.UserAsResource](c.Client, eps.GetUserByUsername, username)
+	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(eps.GetUserByUsername),
+		"{username}",
+		username,
+	))
+	return shared.GetTyped[userresource.UserAsResource](c.Client, endpoint)
 }
 
 func (c *Client) GetAllUsers() ([]*userresource.UserAsResource, error) {

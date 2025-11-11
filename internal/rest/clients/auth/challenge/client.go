@@ -19,16 +19,16 @@ func NewClient() *Client {
 }
 
 func (c *Client) CreateChallengeByUser(userID string, challenge *authdata.AuthChallenge) *response.GenericResponse {
-	endpoint := base.Endpoint(shared.SubstituteEndpointParam(string(eps.CreateChallengeByUser), "{userId}", userID))
+	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(string(eps.CreateChallengeByUser), "{userId}", userID))
 	return c.Create(endpoint, challenge)
 }
 
 func (c *Client) GetChallengeByUser(userID string) (*authdata.AuthChallenge, error) {
-	endpoint := base.Endpoint(shared.SubstituteEndpointParam(string(eps.GetChallengeByUser), "{userId}", userID))
-	return shared.GetTyped[authdata.AuthChallenge](c.Client, endpoint, "")
+	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(string(eps.GetChallengeByUser), "{userId}", userID))
+	return shared.GetTyped[authdata.AuthChallenge](c.Client, endpoint)
 }
 
 func (c *Client) DeleteChallengeByUser(userID string) *response.GenericResponse {
-	endpoint := base.Endpoint(shared.SubstituteEndpointParam(string(eps.DeleteChallengeByUser), "{userId}", userID))
+	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(string(eps.DeleteChallengeByUser), "{userId}", userID))
 	return c.DeleteNoParams(endpoint)
 }

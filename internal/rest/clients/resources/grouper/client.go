@@ -4,6 +4,7 @@ import (
 	grouperresource "github.com/plsyro/data/resources/grouper"
 	"github.com/plsyro/rest/base"
 	"github.com/plsyro/rest/clients/shared"
+	"github.com/plsyro/rest/constants"
 	eps "github.com/plsyro/rest/endpoints/resources/groupers"
 	"github.com/plsyro/rest/response"
 )
@@ -25,8 +26,11 @@ func (c *Client) CreateGrouper(
 }
 
 func (c *Client) GetGrouperByName(name string) (*grouperresource.GrouperAsResource, error) {
-	return shared.GetTyped[grouperresource.GrouperAsResource](c.Client, eps.GetGrouper,
-		name)
+	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(string(eps.GetGrouper),
+		constants.EndpointNamePlaceholder,
+		name,
+	))
+	return shared.GetTyped[grouperresource.GrouperAsResource](c.Client, endpoint)
 }
 
 func (c *Client) GetAllGroupers() ([]*grouperresource.GrouperAsResource, error) {

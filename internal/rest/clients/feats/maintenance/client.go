@@ -4,6 +4,7 @@ import (
 	maintenanceresource "github.com/plsyro/data/feats/maintenance"
 	"github.com/plsyro/rest/base"
 	"github.com/plsyro/rest/clients/shared"
+	"github.com/plsyro/rest/constants"
 	maineps "github.com/plsyro/rest/endpoints/feats/maintenance/base"
 	grpeps "github.com/plsyro/rest/endpoints/feats/maintenance/grouper"
 	"github.com/plsyro/rest/response"
@@ -42,11 +43,12 @@ func (c *Client) PatchMaintenanceFeat(
 func (c *Client) GetMaintenanceFeatByName(
 	name string,
 ) (*maintenanceresource.MaintenanceAsFeature, error) {
-	return shared.GetTyped[maintenanceresource.MaintenanceAsFeature](
-		c.Client,
-		maineps.GetMaintenanceFeat,
+	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(maineps.GetMaintenanceFeat),
+		constants.EndpointNamePlaceholder,
 		name,
-	)
+	))
+	return shared.GetTyped[maintenanceresource.MaintenanceAsFeature](c.Client, endpoint)
 }
 
 func (c *Client) DeleteMaintenanceFeat(name string) *response.GenericResponse {

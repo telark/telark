@@ -5,6 +5,7 @@ import (
 	batchworkload "github.com/plsyro/data/resources/workloads/batch"
 	"github.com/plsyro/rest/base"
 	"github.com/plsyro/rest/clients/shared"
+	"github.com/plsyro/rest/constants"
 	eps "github.com/plsyro/rest/endpoints/resources/workloads"
 	"github.com/plsyro/rest/response"
 )
@@ -32,17 +33,23 @@ func (c *Client) CreateBatchWorkload(
 }
 
 func (c *Client) GetAppWorkloadByName(name string) (*appworkload.AppWorkloadAsResource, error) {
-	return shared.GetTyped[appworkload.AppWorkloadAsResource](c.Client, eps.GetAppWorkload,
-		name)
+	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(eps.GetAppWorkload),
+		constants.EndpointNamePlaceholder,
+		name,
+	))
+	return shared.GetTyped[appworkload.AppWorkloadAsResource](c.Client, endpoint)
 }
 
 func (c *Client) GetBatchWorkloadByName(
 	name string,
 ) (*batchworkload.BatchWorkloadAsResource, error) {
-	return shared.GetTyped[batchworkload.BatchWorkloadAsResource](
-		c.Client, eps.GetBatchWorkload,
+	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(eps.GetBatchWorkload),
+		constants.EndpointNamePlaceholder,
 		name,
-	)
+	))
+	return shared.GetTyped[batchworkload.BatchWorkloadAsResource](c.Client, endpoint)
 }
 
 func (c *Client) GetAllAppWorkloads() ([]*appworkload.AppWorkloadAsResource, error) {

@@ -3,6 +3,7 @@ package admissions
 import (
 	"github.com/plsyro/rest/base"
 	"github.com/plsyro/rest/clients/shared"
+	"github.com/plsyro/rest/constants"
 	eps "github.com/plsyro/rest/endpoints/admissions"
 	"github.com/plsyro/rest/response"
 )
@@ -29,14 +30,28 @@ func (c *Client) PatchAdmissionValidatingWebhook(
 	name string,
 	body map[string]any,
 ) *response.GenericResponse {
-	return c.Update(eps.PatchAdmissionValidatingWebhook, name, body)
+	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(eps.PatchAdmissionValidatingWebhook),
+		constants.EndpointNamePlaceholder,
+		name,
+	))
+	return c.Update(endpoint, body)
 }
 
 func (c *Client) DeleteAdmissionValidatingWebhook(name string) *response.GenericResponse {
-	return c.Delete(eps.DeleteAdmissionValidatingWebhook, name)
+	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(eps.DeleteAdmissionValidatingWebhook),
+		constants.EndpointNamePlaceholder,
+		name,
+	))
+	return c.Delete(ep)
 }
 
 func (c *Client) ValidateGrouper(name string) (*response.GenericResponse, error) {
-	apiEndpoint := c.FormatEndpoint(string(eps.ValidateGrouper), name)
-	return c.Post(base.Endpoint(apiEndpoint))
+	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(eps.ValidateGrouper),
+		constants.EndpointNamePlaceholder,
+		name,
+	))
+	return c.Post(ep)
 }

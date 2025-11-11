@@ -39,9 +39,19 @@ func (c *Client) GetAllGroupers() ([]*grouperresource.GrouperAsResource, error) 
 }
 
 func (c *Client) PatchGrouper(name string, body map[string]any) *response.GenericResponse {
-	return c.Update(eps.PatchGrouper, name, body)
+	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(eps.PatchGrouper),
+		constants.EndpointNamePlaceholder,
+		name,
+	))
+	return c.Update(endpoint, body)
 }
 
 func (c *Client) DeleteGrouper(name string) *response.GenericResponse {
-	return c.Delete(eps.DeleteGrouper, name)
+	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(eps.DeleteGrouper),
+		constants.EndpointNamePlaceholder,
+		name,
+	))
+	return c.Delete(ep)
 }

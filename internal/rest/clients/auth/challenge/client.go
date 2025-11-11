@@ -29,6 +29,6 @@ func (c *Client) GetChallengeByUser(userID string) (*authdata.AuthChallenge, err
 }
 
 func (c *Client) DeleteChallengeByUser(userID string) *response.GenericResponse {
-	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(string(eps.DeleteChallengeByUser), "{userId}", userID))
-	return c.DeleteNoParams(endpoint)
+	ep := base.Endpoint(shared.SubstituteEndpointWithParam(string(eps.DeleteChallengeByUser), "{userId}", userID))
+	return c.Delete(ep)
 }

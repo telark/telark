@@ -63,17 +63,37 @@ func (c *Client) GetAllBatchWorkloads() ([]*batchworkload.BatchWorkloadAsResourc
 }
 
 func (c *Client) PatchAppWorkload(name string, body map[string]any) *response.GenericResponse {
-	return c.Update(eps.PatchAppWorkload, name, body)
+	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(eps.PatchAppWorkload),
+		constants.EndpointNamePlaceholder,
+		name,
+	))
+	return c.Update(endpoint, body)
 }
 
 func (c *Client) PatchBatchWorkload(name string, body map[string]any) *response.GenericResponse {
-	return c.Update(eps.PatchBatchWorkload, name, body)
+	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(eps.PatchBatchWorkload),
+		constants.EndpointNamePlaceholder,
+		name,
+	))
+	return c.Update(endpoint, body)
 }
 
 func (c *Client) DeleteAppWorkload(name string) *response.GenericResponse {
-	return c.Delete(eps.DeleteAppWorkload, name)
+	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(eps.DeleteAppWorkload),
+		constants.EndpointNamePlaceholder,
+		name,
+	))
+	return c.Delete(ep)
 }
 
 func (c *Client) DeleteBatchWorkload(name string) *response.GenericResponse {
-	return c.Delete(eps.DeleteBatchWorkload, name)
+	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(eps.DeleteBatchWorkload),
+		constants.EndpointNamePlaceholder,
+		name,
+	))
+	return c.Delete(ep)
 }

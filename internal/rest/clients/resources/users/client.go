@@ -45,9 +45,19 @@ func (c *Client) GetAllUsers() ([]*userresource.UserAsResource, error) {
 }
 
 func (c *Client) PatchUserByID(id string, body map[string]any) *response.GenericResponse {
-	return c.Update(eps.PatchUserByID, id, body)
+	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(eps.PatchUserByID),
+		"{id}",
+		id,
+	))
+	return c.Update(endpoint, body)
 }
 
 func (c *Client) DeleteUserByID(id string) *response.GenericResponse {
-	return c.Delete(eps.DeleteUserByID, id)
+	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(eps.DeleteUserByID),
+		"{id}",
+		id,
+	))
+	return c.Delete(endpoint)
 }

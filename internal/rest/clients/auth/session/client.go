@@ -35,10 +35,10 @@ func (c *Client) GetSessionByToken(token string) (*authdata.UserSession, error) 
 
 func (c *Client) PatchSessionByToken(token string, body map[string]any) *response.GenericResponse {
 	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(string(eps.PatchSessionByToken), "{token}", token))
-	return c.Update(endpoint, token, body)
+	return c.Update(endpoint, body)
 }
 
 func (c *Client) DeleteSessionByToken(token string) *response.GenericResponse {
-	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(string(eps.DeleteSessionByToken), "{token}", token))
-	return c.DeleteNoParams(endpoint)
+	ep := base.Endpoint(shared.SubstituteEndpointWithParam(string(eps.DeleteSessionByToken), "{token}", token))
+	return c.Delete(ep)
 }

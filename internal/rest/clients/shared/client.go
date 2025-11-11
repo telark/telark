@@ -3,7 +3,6 @@ package shared
 import (
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/plsyro/data/errors"
 	globalshared "github.com/plsyro/data/shared"
@@ -93,16 +92,9 @@ func (c *Client) Create(endpoint base.Endpoint, resource any) *response.GenericR
 
 func (c *Client) Update(
 	endpoint base.Endpoint,
-	name string,
 	body map[string]any,
 ) *response.GenericResponse {
-	substitutedEndpoint := substituteEndpointName(endpoint, name)
-	return c.executeRequest(base.Patch, substitutedEndpoint, body)
-}
-
-func (c *Client) Delete(endpoint base.Endpoint, name string) *response.GenericResponse {
-	substitutedEndpoint := substituteEndpointName(endpoint, name)
-	return c.executeRequest(base.Delete, substitutedEndpoint, nil)
+	return c.executeRequest(base.Patch, endpoint, body)
 }
 
 func (c *Client) Get(endpoint base.Endpoint, name string) (*response.GenericResponse, error) {
@@ -110,22 +102,11 @@ func (c *Client) Get(endpoint base.Endpoint, name string) (*response.GenericResp
 	return c.executeRequestWithError(base.Get, substitutedEndpoint, nil)
 }
 
-func (c *Client) GetList(endpoint base.Endpoint) ([]any, error) {
-	//nolint:bodyclose // defer responseutils.CloseResponseBody handles closing
-	resp, err := executeHTTPRequest(c, base.Get, endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer responseutils.CloseResponseBody(resp)
-
-	return parseListResponse[any](resp)
-}
-
 func (c *Client) Post(endpoint base.Endpoint) (*response.GenericResponse, error) {
 	return c.executeRequestWithError(base.Post, endpoint, nil)
 }
 
-func (c *Client) DeleteNoParams(endpoint base.Endpoint) *response.GenericResponse {
+func (c *Client) Delete(endpoint base.Endpoint) *response.GenericResponse {
 	return c.executeRequest(base.Delete, endpoint, nil)
 }
 
@@ -160,15 +141,6 @@ func GetListTyped[T any](client *Client, endpoint base.Endpoint) ([]T, error) {
 	defer responseutils.CloseResponseBody(resp)
 
 	return parseListResponse[T](resp)
-}
-
-func (*Client) FormatEndpoint(template, name string) string {
-	return strings.Replace(
-		template,
-		string(constants.EndpointNamePlaceholder),
-		name,
-		constants.ReplaceCount,
-	)
 }
 
 func (c *Client) GetService() base.Service {

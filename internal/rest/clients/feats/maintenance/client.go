@@ -37,7 +37,12 @@ func (c *Client) PatchMaintenanceFeat(
 	name string,
 	body map[string]any,
 ) *response.GenericResponse {
-	return c.Update(maineps.PatchMaintenanceFeat, name, body)
+	endpoint := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(maineps.PatchMaintenanceFeat),
+		constants.EndpointNamePlaceholder,
+		name,
+	))
+	return c.Update(endpoint, body)
 }
 
 func (c *Client) GetMaintenanceFeatByName(
@@ -52,7 +57,12 @@ func (c *Client) GetMaintenanceFeatByName(
 }
 
 func (c *Client) DeleteMaintenanceFeat(name string) *response.GenericResponse {
-	return c.Delete(maineps.DeleteMaintenanceFeat, name)
+	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+		string(maineps.DeleteMaintenanceFeat),
+		constants.EndpointNamePlaceholder,
+		name,
+	))
+	return c.Delete(ep)
 }
 
 func (c *Client) EnableGrouperMaintenance(body map[string]any) *response.GenericResponse {
@@ -64,5 +74,6 @@ func (c *Client) UpdateGrouperMaintenance(body map[string]any) *response.Generic
 }
 
 func (c *Client) RemoveGrouperMaintenance() *response.GenericResponse {
-	return c.DeleteNoParams(grpeps.RemoveGrouperMaintenanceFeat)
+	ep := base.Endpoint(grpeps.RemoveGrouperMaintenanceFeat)
+	return c.Delete(ep)
 }

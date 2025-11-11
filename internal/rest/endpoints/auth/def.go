@@ -4,9 +4,10 @@ import "github.com/plsyro/rest/base"
 
 const (
 	// Login & logout
-	StartLogin  base.Endpoint = "auth/login/start"
-	FinishLogin base.Endpoint = "auth/login/finish"
-	Logout      base.Endpoint = "auth/logout"
+	StartLogin    base.Endpoint = "auth/login/start"
+	FinishLogin   base.Endpoint = "auth/login/finish"
+	StartRegister base.Endpoint = "auth/register/start"
+	Logout        base.Endpoint = "auth/logout"
 
 	// Internal Passkeys EPs used only exporter-service
 	CreateInternalPasskeyByUser                base.Endpoint = "auth/passkeys/internal/create"

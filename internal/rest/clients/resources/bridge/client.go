@@ -24,11 +24,11 @@ func (c *Client) CreateBridge(bridge *bridgeresource.BridgeAsResource) *response
 }
 
 func (c *Client) GetBridgeByName(name string) (*bridgeresource.BridgeAsResource, error) {
-	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+	ep := shared.SubstituteEndpointWithParam(
 		string(eps.GetBridge),
 		constants.NameParam,
 		name,
-	))
+	)
 	return shared.GetTyped[bridgeresource.BridgeAsResource](c.Client, ep)
 }
 
@@ -38,19 +38,19 @@ func (c *Client) GetAllBridges() ([]*bridgeresource.BridgeAsResource, error) {
 }
 
 func (c *Client) PatchBridge(name string, body map[string]any) *response.GenericResponse {
-	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+	ep := shared.SubstituteEndpointWithParam(
 		string(eps.PatchBridge),
 		constants.NameParam,
 		name,
-	))
+	)
 	return c.Update(ep, body)
 }
 
 func (c *Client) DeleteBridge(name string) *response.GenericResponse {
-	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+	ep := shared.SubstituteEndpointWithParam(
 		string(eps.DeleteBridge),
 		constants.NameParam,
 		name,
-	))
+	)
 	return c.Delete(ep)
 }

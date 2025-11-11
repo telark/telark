@@ -37,31 +37,31 @@ func (c *Client) PatchMaintenanceFeat(
 	name string,
 	body map[string]any,
 ) *response.GenericResponse {
-	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+	ep := shared.SubstituteEndpointWithParam(
 		string(maineps.PatchMaintenanceFeat),
 		constants.NameParam,
 		name,
-	))
+	)
 	return c.Update(ep, body)
 }
 
 func (c *Client) GetMaintenanceFeatByName(
 	name string,
 ) (*maintenanceresource.MaintenanceAsFeature, error) {
-	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+	ep := shared.SubstituteEndpointWithParam(
 		string(maineps.GetMaintenanceFeat),
 		constants.NameParam,
 		name,
-	))
+	)
 	return shared.GetTyped[maintenanceresource.MaintenanceAsFeature](c.Client, ep)
 }
 
 func (c *Client) DeleteMaintenanceFeat(name string) *response.GenericResponse {
-	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+	ep := shared.SubstituteEndpointWithParam(
 		string(maineps.DeleteMaintenanceFeat),
 		constants.NameParam,
 		name,
-	))
+	)
 	return c.Delete(ep)
 }
 

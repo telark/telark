@@ -136,8 +136,8 @@ func parseGenericResponseSlice(resp *http.Response) ([]response.GenericResponse,
 	return apiResponses, nil
 }
 
-func SubstituteEndpointWithParam(endpoint string, placeholder string, value string) string {
-	return strings.Replace(endpoint, placeholder, value, constants.ReplaceCount)
+func SubstituteEndpointWithParam(endpoint string, placeholder string, value string) base.Endpoint {
+	return base.Endpoint(strings.Replace(endpoint, placeholder, value, constants.ReplaceCount))
 }
 
 func CreateErrorResponse(message string, err error) *response.GenericResponse {

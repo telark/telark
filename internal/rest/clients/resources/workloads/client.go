@@ -33,22 +33,22 @@ func (c *Client) CreateBatchWorkload(
 }
 
 func (c *Client) GetAppWorkloadByName(name string) (*appworkload.AppWorkloadAsResource, error) {
-	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+	ep := shared.SubstituteEndpointWithParam(
 		string(eps.GetAppWorkload),
 		constants.NameParam,
 		name,
-	))
+	)
 	return shared.GetTyped[appworkload.AppWorkloadAsResource](c.Client, ep)
 }
 
 func (c *Client) GetBatchWorkloadByName(
 	name string,
 ) (*batchworkload.BatchWorkloadAsResource, error) {
-	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+	ep := shared.SubstituteEndpointWithParam(
 		string(eps.GetBatchWorkload),
 		constants.NameParam,
 		name,
-	))
+	)
 	return shared.GetTyped[batchworkload.BatchWorkloadAsResource](c.Client, ep)
 }
 
@@ -63,37 +63,37 @@ func (c *Client) GetAllBatchWorkloads() ([]*batchworkload.BatchWorkloadAsResourc
 }
 
 func (c *Client) PatchAppWorkload(name string, body map[string]any) *response.GenericResponse {
-	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+	ep := shared.SubstituteEndpointWithParam(
 		string(eps.PatchAppWorkload),
 		constants.NameParam,
 		name,
-	))
+	)
 	return c.Update(ep, body)
 }
 
 func (c *Client) PatchBatchWorkload(name string, body map[string]any) *response.GenericResponse {
-	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+	ep := shared.SubstituteEndpointWithParam(
 		string(eps.PatchBatchWorkload),
 		constants.NameParam,
 		name,
-	))
+	)
 	return c.Update(ep, body)
 }
 
 func (c *Client) DeleteAppWorkload(name string) *response.GenericResponse {
-	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+	ep := shared.SubstituteEndpointWithParam(
 		string(eps.DeleteAppWorkload),
 		constants.NameParam,
 		name,
-	))
+	)
 	return c.Delete(ep)
 }
 
 func (c *Client) DeleteBatchWorkload(name string) *response.GenericResponse {
-	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+	ep := shared.SubstituteEndpointWithParam(
 		string(eps.DeleteBatchWorkload),
 		constants.NameParam,
 		name,
-	))
+	)
 	return c.Delete(ep)
 }

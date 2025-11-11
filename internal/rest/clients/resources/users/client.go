@@ -24,20 +24,20 @@ func (c *Client) CreateUser(user *userresource.UserAsResource) *response.Generic
 }
 
 func (c *Client) GetUserByID(id string) (*userresource.UserAsResource, error) {
-	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+	ep := shared.SubstituteEndpointWithParam(
 		string(eps.GetUserByID),
 		constants.IDParam,
 		id,
-	))
+	)
 	return shared.GetTyped[userresource.UserAsResource](c.Client, ep)
 }
 
 func (c *Client) GetUserByUsername(username string) (*userresource.UserAsResource, error) {
-	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+	ep := shared.SubstituteEndpointWithParam(
 		string(eps.GetUserByUsername),
 		constants.UsernameParam,
 		username,
-	))
+	)
 	return shared.GetTyped[userresource.UserAsResource](c.Client, ep)
 }
 
@@ -46,19 +46,19 @@ func (c *Client) GetAllUsers() ([]*userresource.UserAsResource, error) {
 }
 
 func (c *Client) PatchUserByID(id string, body map[string]any) *response.GenericResponse {
-	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+	ep := shared.SubstituteEndpointWithParam(
 		string(eps.PatchUserByID),
 		constants.IDParam,
 		id,
-	))
+	)
 	return c.Update(ep, body)
 }
 
 func (c *Client) DeleteUserByID(id string) *response.GenericResponse {
-	ep := base.Endpoint(shared.SubstituteEndpointWithParam(
+	ep := shared.SubstituteEndpointWithParam(
 		string(eps.DeleteUserByID),
 		constants.IDParam,
 		id,
-	))
+	)
 	return c.Delete(ep)
 }

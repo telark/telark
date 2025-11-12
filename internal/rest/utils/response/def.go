@@ -96,6 +96,17 @@ func ReadAndParseGenericResponse(resp *http.Response) *response.GenericResponse 
 		)
 	}
 
+	// Handle empty response body (common for DELETE operations)
+	if len(body) == 0 {
+		return LogAndReturnResponse(
+			resp.StatusCode,
+			response.OperationSuccess,
+			"Operation completed successfully",
+			nil,
+			nil,
+		)
+	}
+
 	var genericResp response.GenericResponse
 	err = json.Unmarshal(body, &genericResp)
 	if err != nil {

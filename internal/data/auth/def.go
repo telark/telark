@@ -15,6 +15,8 @@ type UserPasskey struct {
 	DeviceType        string  `json:"deviceType"` // "platform" or "cross-platform"
 	CreationTimestamp *string `json:"creationTimestamp,omitempty"`
 	LastUsedTimestamp *string `json:"lastUsedTimestamp,omitempty"`
+	BackupEligible    bool    `json:"backupEligible"`    // Backup Eligible flag from WebAuthn authenticator data
+	BackupState       bool    `json:"backupState"`       // Backup State flag from WebAuthn authenticator data
 }
 
 type UserSession struct {

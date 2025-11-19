@@ -10,10 +10,11 @@ import (
 	"github.com/plsyro/data/suffixes"
 )
 
+var nameRegex = regexp.MustCompile(`[^a-z0-9-.]`)
+
 func formatName(name string) string {
 	name = strings.ToLower(name)
-	re := regexp.MustCompile(`[^a-z0-9-.]`)
-	name = re.ReplaceAllString(name, "-")
+	name = nameRegex.ReplaceAllString(name, "-")
 
 	name = strings.TrimLeftFunc(name, func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)

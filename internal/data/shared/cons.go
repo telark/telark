@@ -2,10 +2,12 @@ package shared
 
 import (
 	"net/http"
+	"regexp"
 	"time"
 )
 
 var (
+	NameRegex     = regexp.MustCompile(`[^a-z0-9-.]`)
 	ManagedFields = []string{
 		"apiVersion",
 		"kind",

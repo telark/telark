@@ -2,27 +2,17 @@ package logger
 
 import "sync"
 
-var (
-	loggerCache = make(map[string]*CustomLogger)
-	loggerMutex sync.RWMutex
-)
+var loggerCache sync.Map
 
 func GetLogger(prefix string) *CustomLogger {
-	loggerMutex.RLock()
-	if lg, exists := loggerCache[prefix]; exists {
-		loggerMutex.RUnlock()
-		return lg
-	}
-	loggerMutex.RUnlock()
-
-	loggerMutex.Lock()
-	defer loggerMutex.Unlock()
-
-	if lg, exists := loggerCache[prefix]; exists {
-		return lg
+	if lg, ok := loggerCache.Load(prefix); ok {
+		return lg.(*CustomLogger)
 	}
 
 	lg := NewCustomLogger(prefix)
-	loggerCache[prefix] = lg
+	if actual, loaded := loggerCache.LoadOrStore(prefix, lg); loaded {
+		return actual.(*CustomLogger)
+	}
+
 	return lg
 }

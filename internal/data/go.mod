@@ -1,6 +1,6 @@
 module github.com/plsyro/data
 
-go 1.24.5
+go 1.25.1
 
 require k8s.io/api v0.34.1
 

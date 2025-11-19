@@ -2,16 +2,16 @@ package utils //nolint:revive
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"unicode"
+
+	"github.com/plsyro/data/shared"
 )
 
 func GenerateName(sourceName string, sourceType string) string {
 	name := fmt.Sprintf("%s-%s", sourceName, sourceType)
 	name = strings.ToLower(name)
-	re := regexp.MustCompile(`[^a-z0-9-]`)
-	name = re.ReplaceAllString(name, "-")
+	name = shared.NameRegex.ReplaceAllString(name, "-")
 
 	name = strings.TrimLeftFunc(name, func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)

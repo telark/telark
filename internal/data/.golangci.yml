@@ -19,6 +19,10 @@ linters:
     - whitespace
     - unconvert
     - revive
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
   settings:
     gocyclo:
       min-complexity: 12
@@ -27,7 +31,7 @@ linters:
     funlen:
       lines: 60
     gosec:
-      exclude:
+      excludes:
         - G101
     revive:
       enable-all-rules: true
@@ -46,6 +50,12 @@ linters:
         - name: max-public-structs
           arguments:
             - 15
+        - name: var-naming
+          arguments:
+            - [] # AllowList
+            - [] # DenyList
+            - - skip-package-name-checks: true
+                
 run:
   timeout: 2m
   tests: false

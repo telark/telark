@@ -60,3 +60,11 @@ var GroupAsResourceMetadata = base.Metadata{
 	Plural:    "groupsasresources",
 	Namespace: globalshared.BaseNamespace,
 }
+
+var RoleAsResourceMetadata = base.Metadata{
+	BaseGroup: string(base.Erpi),
+	Kind:      "RoleAsResource",
+	Version:   string(base.Alpha1),
+	Plural:    "rolesasresources",
+	Namespace: globalshared.BaseNamespace,
+}

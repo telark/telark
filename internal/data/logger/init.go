@@ -6,12 +6,16 @@ var loggerCache sync.Map
 
 func GetLogger(prefix string) *CustomLogger {
 	if lg, ok := loggerCache.Load(prefix); ok {
-		return lg.(*CustomLogger)
+		if customLogger, ok := lg.(*CustomLogger); ok {
+			return customLogger
+		}
 	}
 
 	lg := NewCustomLogger(prefix)
 	if actual, loaded := loggerCache.LoadOrStore(prefix, lg); loaded {
-		return actual.(*CustomLogger)
+		if customLogger, ok := actual.(*CustomLogger); ok {
+			return customLogger
+		}
 	}
 
 	return lg

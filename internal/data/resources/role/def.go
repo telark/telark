@@ -52,7 +52,6 @@ type Protection struct {
 	PreventScopeChanges bool `json:"preventScopeChanges,omitempty"`
 	LockName            bool `json:"lockName,omitempty"`
 	LockCategory        bool `json:"lockCategory,omitempty"`
-	BuiltIn             bool `json:"builtIn,omitempty"`
 	SoftDelete          bool `json:"softDelete,omitempty"`
 }
 

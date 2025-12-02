@@ -27,9 +27,9 @@ type AssignedTo struct {
 }
 
 type ScopeAndPermissions struct {
-	Scope string           `json:"scope"`
-	Level PermissionLevel  `json:"level"`
-	Rules *PermissionRules `json:"rules,omitempty"`
+	Scope string          `json:"scope"`
+	Level PermissionLevel `json:"level"`
+	Rules *[]string       `json:"rules,omitempty"`
 }
 
 type PermissionLevel string
@@ -40,11 +40,6 @@ const (
 	PermissionLevelOwner       PermissionLevel = "Owner"
 	PermissionLevelAdmin       PermissionLevel = "Admin"
 )
-
-type PermissionRules struct {
-	Allow []string `json:"allow,omitempty"`
-	Deny  []string `json:"deny,omitempty"`
-}
 
 type Protection struct {
 	PreventDeletion     bool `json:"preventDeletion,omitempty"`

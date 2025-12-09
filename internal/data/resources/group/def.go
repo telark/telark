@@ -3,6 +3,7 @@ package group
 type GroupAsResource struct {
 	ID               string   `json:"id"`
 	AssignedUsersIDs []string `json:"assignedUsersIDs"`
+	AssignedRolesIDs []string `json:"assignedRolesIDs"`
 	Name             string   `json:"name"`
 	Description      string   `json:"description"`
 	CategoryID       string   `json:"categoryID"`

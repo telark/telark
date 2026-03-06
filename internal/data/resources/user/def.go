@@ -5,8 +5,8 @@ type UserAsResource struct {
 	Username          string     `json:"username"`
 	Fullname          string     `json:"fullname"`
 	Email             string     `json:"email"`
-	AssignedRolesIDs  []*string  `json:"assignedRolesIDs:omitempty"`
-	AssignedGroupsIDs []*string  `json:"assignedGroupsIDs:omitempty"`
+	AssignedRolesIDs  []*string  `json:"assignedRolesIDs,omitempty"`
+	AssignedGroupsIDs []*string  `json:"assignedGroupsIDs,omitempty"`
 	CreationDate      string     `json:"creationDate"`
 	LastUpdateDate    *string    `json:"lastUpdateDate,omitempty"`
 	Avatar            *Avatar    `json:"avatar,omitempty"`

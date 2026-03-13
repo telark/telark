@@ -25,8 +25,8 @@ type ResourceRef struct {
 
 type SearchInput struct {
 	LabelSelector string
-	SearchText   string
-	UseSelector  bool
+	SearchText    string
+	UseSelector   bool
 }
 
 var resourceToKind = map[string]string{
@@ -64,8 +64,6 @@ func AppGVRs() []schema.GroupVersionResource {
 	}
 }
 
-// ParseSearch interprets input as either a label selector (key=value or key:value) or plain text.
-// Returns SearchInput with UseSelector true when input looks like a selector.
 func ParseSearch(input string) (SearchInput, error) {
 	s := strings.TrimSpace(input)
 	if s == "" {

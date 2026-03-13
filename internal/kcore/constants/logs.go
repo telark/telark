@@ -60,6 +60,8 @@ const (
 	InfoServiceInformerSynced        messages.Message = "service informer synced"
 	InfoWorkloadInformerSynced       messages.Message = "workloads informer synced"
 
+	ErrEmptySearchParam errors.Error = "search parameter cannot be empty"
+
 	// Logger prefixes
 	LoggerPrefixK8sMetrics                 = "KubernetesMetrics: "
 	LoggerPrefixK8sManager                 = "KubernetesManager: "

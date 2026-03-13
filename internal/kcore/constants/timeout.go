@@ -11,6 +11,7 @@ const (
 	ServiceGetTimeout         = 10 * time.Second
 	ServiceListTimeout        = 30 * time.Second
 	ResourceListTimeout       = 30 * time.Second
+	GroupSearchTimeout        = 90 * time.Second
 	NamespaceListTimeout      = 30 * time.Second
 	NamespaceGetTimeout       = 10 * time.Second
 	WorkloadGetTimeout        = 20 * time.Second

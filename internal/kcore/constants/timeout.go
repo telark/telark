@@ -10,6 +10,7 @@ const (
 	PodGetTimeout             = 10 * time.Second
 	ServiceGetTimeout         = 10 * time.Second
 	ServiceListTimeout        = 30 * time.Second
+	ResourceListTimeout       = 30 * time.Second
 	NamespaceListTimeout      = 30 * time.Second
 	NamespaceGetTimeout       = 10 * time.Second
 	WorkloadGetTimeout        = 20 * time.Second

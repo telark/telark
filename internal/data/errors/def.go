@@ -127,6 +127,8 @@ const (
 	ErrNatsFailedToDeleteGrouper              Error = "failed to delete grouper %s: %s"
 	ErrNatsFailedToDeleteBridge               Error = "failed to delete bridge %s: %s"
 	ErrNatsFailedToDeleteWorkload             Error = "failed to delete workload %s: %s"
+	ErrNatsFailedToPatchApplication           Error = "failed to patch application %s: %s"
+	ErrNatsFailedToDeleteApplication          Error = "failed to delete application %s: %s"
 
 	// Common Errors
 	ErrInvalidAction       Error = "invalid action."

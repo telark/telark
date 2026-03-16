@@ -42,6 +42,7 @@ type (
 
 const (
 	Grouper           Type       = "Grouper"
+	Application       Type       = "Application"
 	AppWorkload       Type       = "AppWorkload"
 	BatchWorkload     Type       = "BatchWorkload"
 	Bridge            Type       = "Bridge"

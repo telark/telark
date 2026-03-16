@@ -50,6 +50,8 @@ const (
 	SuccessNatsDeleteWorkload               Message = "successfully deleted workload %s"
 	SuccessNatsPatchWorkload                Message = "successfully patched workload %s"
 	SuccessNatsPatchBridge                  Message = "successfully patched bridge %s"
+	SuccessNatsPatchApplication             Message = "successfully patched application %s"
+	SuccessNatsDeleteApplication            Message = "successfully deleted application %s"
 
 	// Server-related Messages
 	SuccessReceivedShutdownSig      Message = "received shutdown signal, cleaning up..."

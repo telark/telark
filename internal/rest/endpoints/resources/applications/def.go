@@ -5,7 +5,7 @@ import "github.com/plsyro/rest/base"
 const (
 	CreateApplication     base.Endpoint = "resources/applications/create"
 	GetAllApplications    base.Endpoint = "resources/applications/get"
-	GetApplicationByID    base.Endpoint = "resources/applications/{id}/get"
-	PatchApplicationByID  base.Endpoint = "resources/applications/{id}/patch"
-	DeleteApplicationByID base.Endpoint = "resources/applications/{id}/delete"
+	GetApplicationByName    base.Endpoint = "resources/applications/{name}/get"
+	PatchApplicationByName  base.Endpoint = "resources/applications/{name}/patch"
+	DeleteApplicationByName base.Endpoint = "resources/applications/{name}/delete"
 )

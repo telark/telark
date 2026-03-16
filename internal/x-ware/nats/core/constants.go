@@ -29,6 +29,7 @@ const (
 	NatsServiceName      = "release-nats"
 
 	Grouper        Group = "groupers"
+	Applications   Group = "applications"
 	AppWorkloads   Group = "workloads_apps"
 	BatchWorkloads Group = "workloads_batches"
 	Bridges        Group = "bridges"

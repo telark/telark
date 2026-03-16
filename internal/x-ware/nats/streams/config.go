@@ -10,7 +10,7 @@ import (
 
 func CreateStreams(c *core.NATSClient) error {
 	groups := []core.Group{
-		core.Grouper, core.AppWorkloads,
+		core.Grouper, core.Applications, core.AppWorkloads,
 		core.BatchWorkloads, core.Bridges,
 	}
 	for _, group := range groups {

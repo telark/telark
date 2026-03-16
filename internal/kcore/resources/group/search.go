@@ -83,6 +83,46 @@ func SearchResourcesByLabelOrText(search string) ([]ResourceRef, error) {
 	return SearchResourcesByLabelOrTextInNamespaces(search, nil)
 }
 
+func ListAllResourcesInNamespaces(namespaces []string) ([]ResourceRef, error) {
+	dyn, err := k8sclient.InitDynamicClient()
+	if err != nil {
+		return nil, err
+	}
+	if len(namespaces) == 0 {
+		var listErr error
+		namespaces, listErr = listNamespaceNames()
+		if listErr != nil {
+			return nil, listErr
+		}
+	}
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.GroupSearchTimeout)
+	defer cancel()
+	return listAllInNamespaces(ctx, dyn, namespaces, AppGVRs())
+}
+
+func listAllInNamespaces(
+	ctx context.Context,
+	dyn dynamic.Interface,
+	namespaces []string,
+	gvrs []schema.GroupVersionResource,
+) ([]ResourceRef, error) {
+	var out []ResourceRef
+	opts := k8smetav1.ListOptions{}
+	for _, ns := range namespaces {
+		for _, gvr := range gvrs {
+			list, err := dyn.Resource(gvr).Namespace(ns).List(ctx, opts)
+			if err != nil {
+				continue
+			}
+			kind := resourceKind(gvr.Resource)
+			for i := range list.Items {
+				out = append(out, toRef(&list.Items[i], ns, kind))
+			}
+		}
+	}
+	return out, nil
+}
+
 func SearchResourcesByLabelOrTextInNamespaces(search string, namespaces []string) ([]ResourceRef, error) {
 	in, err := ParseSearch(search)
 	if err != nil {

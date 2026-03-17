@@ -69,6 +69,14 @@ type Insights struct {
 	PromptVersion *string      `json:"promptVersion"`
 }
 
+// CRStatus is the status of the Application CR (created via NATS/notifier).
+const (
+	CRStatusPending   = "Pending"
+	CRStatusPublished = "Published"
+	CRStatusCreated   = "Created"
+	CRStatusFailed    = "Failed"
+)
+
 type Application struct {
 	Name            string          `json:"name"`
 	DisplayName     string          `json:"displayName"`
@@ -84,6 +92,8 @@ type Application struct {
 	Images          []string        `json:"images"`
 	Ports           []int           `json:"ports"`
 	EnvVarKeys      []string        `json:"envVarKeys"`
+	// CRStatus is set after publishing to NATS: Published (ack received), Failed (publish error), or Created (when notifier confirms).
+	CRStatus string `json:"crStatus,omitempty"`
 }
 
 type ResponseData struct {

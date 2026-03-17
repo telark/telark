@@ -58,7 +58,8 @@ const (
 	SyncStatusSuccess SyncStatus = "success"
 	SyncStatusFailed  SyncStatus = "failed"
 	FasidDataScope    DataScope  = "fasid"
-	CacidDataScope    DataScope  = "cacid"
-	FullDataScope     DataScope  = "full"
-	NoneDataScope     DataScope  = "none"
+	CacidDataScope    	 DataScope  = "cacid"
+	FullDataScope    	 DataScope  = "full"
+	ApplicationSpecScope DataScope = "applicationSpec"
+	NoneDataScope     	 DataScope  = "none"
 )

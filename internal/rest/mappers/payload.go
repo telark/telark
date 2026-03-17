@@ -97,6 +97,11 @@ func isZeroValue(v reflect.Value) bool {
 }
 
 func processFieldValue(field reflect.Value) (any, error) {
+	if !field.CanInterface() {
+		// Unexported or otherwise non-interfaceable field – skip it
+		return nil, nil
+	}
+
 	switch field.Kind() {
 	case reflect.Struct:
 		return MapToJSONPayload(field.Interface())

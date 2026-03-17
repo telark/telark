@@ -1,6 +1,9 @@
 package application
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type Resource struct {
 	Namespace string `json:"namespace"`
@@ -77,6 +80,32 @@ const (
 	CRStatusFailed    = "Failed"
 )
 
+// ApplicationChange describes a single detected change.
+type ApplicationChange struct {
+	Field       string  `json:"field"`
+	Description string  `json:"description"`
+	ChangeType  string  `json:"changeType"` // "added" | "removed" | "updated"
+	OldValue    *string `json:"oldValue"`
+	NewValue    *string `json:"newValue"`
+}
+
+// ApplicationSnapshot holds the previous full state for rollback.
+type ApplicationSnapshot struct {
+	Version int             `json:"version"`
+	TakenAt time.Time       `json:"takenAt"`
+	State   json.RawMessage `json:"state"`
+}
+
+// ApplicationHistory holds drift and change history.
+type ApplicationHistory struct {
+	HasDrift     bool               `json:"hasDrift"`
+	Version      int                `json:"version"`
+	ChangeCount  int                `json:"changeCount"`
+	DetectedAt   *time.Time         `json:"detectedAt"`
+	Changes      []ApplicationChange `json:"changes"`
+	Snapshot     *ApplicationSnapshot `json:"snapshot"`
+}
+
 type Application struct {
 	Name            string          `json:"name"`
 	DisplayName     string          `json:"displayName"`
@@ -94,6 +123,8 @@ type Application struct {
 	EnvVarKeys      []string        `json:"envVarKeys"`
 	// CRStatus is set after publishing to NATS: Published (ack received), Failed (publish error), or Created (when notifier confirms).
 	CRStatus string `json:"crStatus,omitempty"`
+	// History holds drift and change history (populated by sync-manager from CRD diff).
+	History ApplicationHistory `json:"history"`
 }
 
 type ResponseData struct {

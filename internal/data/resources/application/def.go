@@ -84,8 +84,8 @@ type Application struct {
 	ResourceCount   int             `json:"resourceCount"`
 	Namespaces      Namespaces      `json:"namespaces"`
 	Managed         Managed         `json:"managed"`
-	CreatedAt       time.Time       `json:"createdAt"`
-	LastUpdated     time.Time       `json:"lastUpdated"`
+	CreatedAt       string          `json:"createdAt"`
+	LastUpdated     string          `json:"lastUpdated"`
 	ResourceSummary ResourceSummary `json:"resourceSummary"`
 	Resources       []Resource      `json:"resources"`
 	Insights        Insights        `json:"insights"`
@@ -100,11 +100,4 @@ type ResponseData struct {
 	TotalResources    int           `json:"totalResources"`
 	TotalApplications int           `json:"totalApplications"`
 	Applications      []Application `json:"applications"`
-}
-
-type APIResponse struct {
-	Status    int          `json:"status"`
-	Operation string       `json:"operation"`
-	Message   string       `json:"message"`
-	Data      ResponseData `json:"data"`
 }

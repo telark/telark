@@ -17,6 +17,7 @@ type Client struct {
 type CreateSnapshotPayload struct {
 	ID       string `json:"id"`
 	Scope    string `json:"scope"`
+	Version  int    `json:"version"`
 	Manifest any    `json:"manifest"`
 }
 

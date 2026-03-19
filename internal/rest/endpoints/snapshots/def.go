@@ -3,6 +3,7 @@ package snapshots
 import "github.com/plsyro/rest/base"
 
 const (
-	CreateSnapshot base.Endpoint = "resources/snapshots/create"
-	GetSnapshot    base.Endpoint = "resources/snapshots/{id}/get"
+	CreateSnapshot      base.Endpoint = "snapshots/create"
+	GetSnapshot         base.Endpoint = "snapshots/{id}/get"
+	GetSnapshotManifest base.Endpoint = "snapshots/{id}/manifest"
 )

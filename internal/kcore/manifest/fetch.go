@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/plsyro/kcore/constants"
@@ -11,7 +12,7 @@ import (
 	"github.com/plsyro/kcore/shared"
 	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/dynamic"
 )
 
 var kindToGVR = func() map[string]schema.GroupVersionResource {
@@ -28,10 +29,22 @@ const (
 	manifestMetadataKey    = "metadata"
 )
 
+var (
+	dynOnce   sync.Once
+	dynClient dynamic.Interface
+	dynErr    error
+)
+
+func getDynamicClient() (dynamic.Interface, error) {
+	dynOnce.Do(func() {
+		dynClient, dynErr = k8sclient.InitDynamicClient()
+	})
+	return dynClient, dynErr
+}
+
 // GetRawManifest fetches the raw unstructured manifest of a K8s resource and returns it as JSON
 func GetRawManifest(
 	ctx context.Context,
-	_ *kubernetes.Clientset,
 	kind string,
 	name string,
 	namespace string,
@@ -40,7 +53,7 @@ func GetRawManifest(
 	if !ok {
 		return nil, nil // unsupported kind, caller may skip
 	}
-	dyn, err := k8sclient.InitDynamicClient()
+	dyn, err := getDynamicClient()
 	if err != nil {
 		return nil, err
 	}
@@ -108,15 +121,15 @@ func mapFrom(v any) map[string]any {
 
 func stripClusterMetadata(m map[string]any) {
 	meta := mapFrom(m[manifestMetadataKey])
-	if meta == nil {
-		return
+	if meta != nil {
+		delete(meta, "managedFields")
+		delete(meta, "resourceVersion")
+		delete(meta, "uid")
+		delete(meta, "generation")
+		delete(meta, "selfLink")
+		delete(meta, "creationTimestamp")
 	}
-	delete(meta, "managedFields")
-	delete(meta, "resourceVersion")
-	delete(meta, "uid")
-	delete(meta, "generation")
-	delete(meta, "selfLink")
-	delete(meta, "creationTimestamp")
+	delete(m, "status")
 }
 
 func stripServiceForApply(m map[string]any) {

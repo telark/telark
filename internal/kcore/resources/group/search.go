@@ -32,12 +32,11 @@ type SearchInput struct {
 
 const (
 	metadataField = "metadata"
-	emptyValue    = ""
 )
 
 func ParseSearch(input string) (SearchInput, error) {
 	s := strings.TrimSpace(input)
-	if s == "" {
+	if s == constants.EmptyString {
 		return SearchInput{}, fmt.Errorf("%s", constants.ErrEmptySearchParam)
 	}
 	selectorStr := strings.ReplaceAll(s, ":", "=")
@@ -165,7 +164,7 @@ func listGVRInNamespace(
 	}
 	kind := shared.ResourceKind(gvr.Resource)
 	refs := make([]ResourceRef, constants.EmptySliceLength, len(list.Items))
-	usedSelector := opts.LabelSelector != emptyValue
+	usedSelector := opts.LabelSelector != constants.EmptyString
 	for i := range list.Items {
 		item := &list.Items[i]
 		if usedSelector {
@@ -182,7 +181,7 @@ func listGVRInNamespace(
 func toRef(u *unstructured.Unstructured, namespace, kind string) ResourceRef {
 	lbls, _, _ := unstructured.NestedStringMap(u.Object, metadataField, "labels")
 	name, _, _ := unstructured.NestedString(u.Object, metadataField, "name")
-	if name == emptyValue {
+	if name == constants.EmptyString {
 		name = u.GetName()
 	}
 	return ResourceRef{Namespace: namespace, Kind: kind, Name: name, Labels: lbls}

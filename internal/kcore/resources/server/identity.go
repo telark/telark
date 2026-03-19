@@ -8,20 +8,15 @@ import (
 	k8scorev1 "k8s.io/api/core/v1"
 )
 
-const (
-	emptyValue  = ""
-	initialZero = 0
-)
-
 //nolint:revive // Keeping existing public API shape for backward compatibility.
 func DetectClusterMeta() (name, provider, distribution, region string) {
 	// Only provider and region are inferred as name and distribution left empty intentionally
 	nodes, _ := coreclient.GetNodes()
-	if len(nodes) > initialZero {
+	if len(nodes) > constants.ZeroValue {
 		provider = detectProviderFromNodes(nodes)
 		region = detectRegionFromNodes(nodes)
 	}
-	return emptyValue, provider, emptyValue, region
+	return constants.EmptyString, provider, constants.EmptyString, region
 }
 
 func detectProviderFromNodes(nodes []k8scorev1.Node) string {
@@ -29,7 +24,7 @@ func detectProviderFromNodes(nodes []k8scorev1.Node) string {
 	hasEmpty := false
 	for _, n := range nodes {
 		pid := strings.ToLower(n.Spec.ProviderID)
-		if pid == emptyValue {
+		if pid == constants.EmptyString {
 			hasEmpty = true
 			continue
 		}
@@ -46,11 +41,11 @@ func detectProviderFromNodes(nodes []k8scorev1.Node) string {
 		}
 		counts[p]++
 	}
-	if len(counts) == initialZero && hasEmpty {
+	if len(counts) == constants.ZeroValue && hasEmpty {
 		return "baremetal"
 	}
-	maxCount := initialZero
-	top := emptyValue
+	maxCount := constants.ZeroValue
+	top := constants.EmptyString
 	for p, c := range counts {
 		if c > maxCount {
 			maxCount = c
@@ -62,9 +57,9 @@ func detectProviderFromNodes(nodes []k8scorev1.Node) string {
 
 func detectRegionFromNodes(nodes []k8scorev1.Node) string {
 	for _, n := range nodes {
-		if r, ok := n.Labels[constants.TopologyRegionLabel]; ok && r != emptyValue {
+		if r, ok := n.Labels[constants.TopologyRegionLabel]; ok && r != constants.EmptyString {
 			return r
 		}
 	}
-	return emptyValue
+	return constants.EmptyString
 }

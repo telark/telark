@@ -24,12 +24,7 @@ const (
 	MemoryBytesFormat  = "%dB"
 	MemoryUnitFormat   = "%.2f%s"
 	NAValue            = "N/A"
-	EmptyString        = ""
 	ErrorFormatString  = "%s"
 	Base10             = 10
 	Base64             = 64
-	EmptySliceLength   = 0
-	SingleItem         = 1
-	WorkerPoolAddCount = 1
-	ZeroValue          = 0
 )

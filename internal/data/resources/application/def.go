@@ -18,8 +18,8 @@ type Application struct {
 	Ports           []int           `json:"ports"`
 	EnvVarKeys      []string        `json:"envVarKeys"`
 	// CRStatus is set after publishing to NATS: Published (ack received), Failed (publish error), or Created (when notifier confirms).
-	CRStatus string `json:"crStatus,omitempty"`
-	History ApplicationHistory `json:"history"`
+	CRStatus string             `json:"crStatus,omitempty"`
+	History  ApplicationHistory `json:"history"`
 }
 
 type Health struct {
@@ -83,12 +83,12 @@ type RelatedApp struct {
 }
 
 type ApplicationHistory struct {
-	HasDrift    bool                 `json:"hasDrift"`
-	Version     int                  `json:"version"`
-	ChangeCount int                  `json:"changeCount"`
-	DetectedAt  *string              `json:"detectedAt"` // RFC3339 when set, null for new app / no change
-	Changes     []ApplicationChange  `json:"changes"`
-	Snapshot    *ApplicationSnapshot `json:"snapshot"`
+	HasDrift    bool                  `json:"hasDrift"`
+	Version     int                   `json:"version"`
+	ChangeCount int                   `json:"changeCount"`
+	DetectedAt  *string               `json:"detectedAt"` // RFC3339 when set, null for new app / no change
+	Changes     []ApplicationChange   `json:"changes"`
+	Snapshots   []ApplicationSnapshot `json:"snapshots"`
 }
 
 type Managed struct {
@@ -106,11 +106,11 @@ type ApplicationChange struct {
 }
 
 type ApplicationSnapshot struct {
-	Version int       `json:"version"`
-	TakenAt time.Time `json:"takenAt"`
-	ID      string    `json:"id"`
-	Scope   string    `json:"scope"`
-	Path    string    `json:"path"`
+	Version   int       `json:"version"`
+	TakenAt   time.Time `json:"takenAt"`
+	ID        string    `json:"id"`
+	Namespace string    `json:"namespace"`
+	Path      string    `json:"path"`
 }
 
 type ResponseData struct {

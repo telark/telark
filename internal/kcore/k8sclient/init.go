@@ -16,20 +16,23 @@ var (
 	logger           = globallogger.NewCustomLogger(constants.LoggerPrefixK8sManager)
 	kubernetesClient *kubernetes.Clientset
 	dynamicClient    dynamic.Interface
-	config           *rest.Config
-	configOnce       sync.Once
+	configLoader     func() (*rest.Config, error)
 	mu               sync.RWMutex
 )
 
-func getConfig() (*rest.Config, error) {
-	var err error
-	configOnce.Do(func() {
-		config, err = rest.InClusterConfig()
+func makeConfigLoader() func() (*rest.Config, error) {
+	return sync.OnceValues(func() (*rest.Config, error) {
+		cfg, err := rest.InClusterConfig()
 		if err != nil {
 			logger.Error(fmt.Sprintf(string(errors.ErrK8sCreateConfig), err))
+			return nil, err
 		}
+		return cfg, nil
 	})
-	return config, err
+}
+
+func getConfig() (*rest.Config, error) {
+	return configLoader()
 }
 
 func InitDynamicClient() (dynamic.Interface, error) {
@@ -93,10 +96,13 @@ func ResetAllClients() {
 	defer mu.Unlock()
 	kubernetesClient = nil
 	dynamicClient = nil
-	config = nil
-	configOnce = sync.Once{}
+	configLoader = makeConfigLoader()
 }
 
 func GetLogger() *globallogger.CustomLogger {
 	return logger
+}
+
+func init() {
+	configLoader = makeConfigLoader()
 }

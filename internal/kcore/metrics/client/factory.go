@@ -16,47 +16,33 @@ import (
 
 var (
 	metricsClient *metricsclientset.Clientset
-	initError     error
-	once          sync.Once
+	clientLoader  func() (*metricsclientset.Clientset, error)
 	mu            sync.RWMutex
 )
 
 func InitMetricsClient() (*metricstypes.MetricsClient, error) {
 	mu.RLock()
-	if metricsClient != nil && initError == nil {
+	if metricsClient != nil {
 		defer mu.RUnlock()
 		return createMetricsClientInstance(), nil
 	}
-	if initError != nil {
+	if _, err := clientLoader(); err != nil {
 		defer mu.RUnlock()
-		return nil, initError
+		return nil, err
 	}
 	mu.RUnlock()
 
 	mu.Lock()
 	defer mu.Unlock()
 
-	if metricsClient != nil && initError == nil {
+	if metricsClient != nil {
 		return createMetricsClientInstance(), nil
 	}
-	if initError != nil {
-		return nil, initError
+	client, err := clientLoader()
+	if err != nil {
+		return nil, err
 	}
-
-	return initMetricsClientOnce()
-}
-
-func initMetricsClientOnce() (*metricstypes.MetricsClient, error) {
-	once.Do(func() {
-		metricsClient, initError = createMetricsClient()
-		if initError != nil {
-			metricstypes.Logger.Warn(string(constants.InfoMetricsAPIUnavailable))
-		}
-	})
-
-	if initError != nil {
-		return nil, initError
-	}
+	metricsClient = client
 
 	return createMetricsClientInstance(), nil
 }
@@ -94,6 +80,20 @@ func ResetClient() {
 	mu.Lock()
 	defer mu.Unlock()
 	metricsClient = nil
-	initError = nil
-	once = sync.Once{}
+	clientLoader = makeMetricsClientLoader()
+}
+
+func makeMetricsClientLoader() func() (*metricsclientset.Clientset, error) {
+	return sync.OnceValues(func() (*metricsclientset.Clientset, error) {
+		client, err := createMetricsClient()
+		if err != nil {
+			metricstypes.Logger.Warn(string(constants.InfoMetricsAPIUnavailable))
+			return nil, err
+		}
+		return client, nil
+	})
+}
+
+func init() {
+	clientLoader = makeMetricsClientLoader()
 }

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/plsyro/kcore/constants"
@@ -25,4 +26,32 @@ func GetPersistentVolumeClaimsByNamespace(namespace string) ([]k8scorev1.Persist
 		return nil, err
 	}
 	return list.Items, nil
+}
+
+func GetPersistentVolumeClaimCapacityBytes(namespace string, name string) (int64, error) {
+	client, err := k8sclient.InitKubernetesClient()
+	if err != nil {
+		return 0, err
+	}
+
+	ctx, cancel := timeout.ContextWithTimeoutCause(constants.DefaultTimeout)
+	defer cancel()
+
+	pvc, err := client.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, name, k8smetav1.GetOptions{})
+	if err != nil {
+		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ErrFailedToGetPVC), name, namespace, err))
+		return 0, err
+	}
+
+	storage, exists := pvc.Status.Capacity[k8scorev1.ResourceStorage]
+	if !exists {
+		return 0, errors.New(fmt.Sprintf(string(constants.ErrPVCStorageCapacityMissing), name, namespace))
+	}
+
+	totalBytes, ok := storage.AsInt64()
+	if !ok || totalBytes < 0 {
+		return 0, errors.New(fmt.Sprintf(string(constants.ErrPVCStorageCapacityMissing), name, namespace))
+	}
+
+	return totalBytes, nil
 }

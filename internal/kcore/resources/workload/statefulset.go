@@ -1,44 +1,29 @@
 package workload
 
 import (
-	"fmt"
-
 	"github.com/plsyro/kcore/constants"
-	"github.com/plsyro/kcore/k8sclient"
-	"github.com/plsyro/kcore/resilience/timeout"
 	k8sappsv1 "k8s.io/api/apps/v1"
-	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func GetStatefulSetsByNamespace(namespace string) ([]k8sappsv1.StatefulSet, error) {
-	client, err := k8sclient.InitKubernetesClient()
+	client, err := getAppsClient()
 	if err != nil {
 		return nil, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeoutCause(constants.WorkloadListTimeout)
-	defer cancel()
-
-	sets, err := client.AppsV1().StatefulSets(namespace).List(ctx, k8smetav1.ListOptions{})
+	sets, err := getDaemonOrStatefulWithTimeout(statefulItems(client, namespace))
 	if err != nil {
-		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ErrFailedToFetchStatefulsets), namespace, err))
+		logWorkloadFetchError(constants.ErrFailedToFetchStatefulsets, namespace, err)
 		return nil, err
 	}
-	return sets.Items, nil
+	return sets, nil
 }
 
 func CheckStatefulSetExists(namespace, name string) (bool, error) {
-	client, err := k8sclient.InitKubernetesClient()
+	client, err := getAppsClient()
 	if err != nil {
 		return false, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeoutCause(constants.WorkloadGetTimeout)
-	defer cancel()
-
-	_, err = client.AppsV1().StatefulSets(namespace).Get(ctx, name, k8smetav1.GetOptions{})
-	if err != nil {
-		return false, nil // Return false if not found, don't treat as error
-	}
-	return true, nil
+	return isWorkloadPresent(statefulGet(client, namespace, name))
 }

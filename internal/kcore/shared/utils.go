@@ -5,6 +5,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
+const (
+	appsGroup = "apps"
+	coreGroup = ""
+	apiV1     = "v1"
+)
+
 func HandleClientError(err error) KubernetesAPIData {
 	return CreateKubernetesAPIData(StatusInternalServerError, string(errors.ErrK8sSetClient), nil, err)
 }
@@ -20,20 +26,20 @@ func CreateKubernetesAPIData(status int, message string, data any, err error) Ku
 
 func AppGVRs() []schema.GroupVersionResource {
 	return []schema.GroupVersionResource{
-		{Group: "apps", Version: "v1", Resource: "deployments"},
-		{Group: "apps", Version: "v1", Resource: "statefulsets"},
-		{Group: "apps", Version: "v1", Resource: "daemonsets"},
-		{Group: "batch", Version: "v1", Resource: "jobs"},
-		{Group: "batch", Version: "v1", Resource: "cronjobs"},
-		{Group: "", Version: "v1", Resource: "configmaps"},
-		{Group: "", Version: "v1", Resource: "secrets"},
-		{Group: "", Version: "v1", Resource: "services"},
-		{Group: "", Version: "v1", Resource: "persistentvolumeclaims"},
-		{Group: "", Version: "v1", Resource: "serviceaccounts"},
-		{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"},
-		{Group: "networking.k8s.io", Version: "v1", Resource: "networkpolicies"},
+		{Group: appsGroup, Version: apiV1, Resource: "deployments"},
+		{Group: appsGroup, Version: apiV1, Resource: "statefulsets"},
+		{Group: appsGroup, Version: apiV1, Resource: "daemonsets"},
+		{Group: "batch", Version: apiV1, Resource: "jobs"},
+		{Group: "batch", Version: apiV1, Resource: "cronjobs"},
+		{Group: coreGroup, Version: apiV1, Resource: "configmaps"},
+		{Group: coreGroup, Version: apiV1, Resource: "secrets"},
+		{Group: coreGroup, Version: apiV1, Resource: "services"},
+		{Group: coreGroup, Version: apiV1, Resource: "persistentvolumeclaims"},
+		{Group: coreGroup, Version: apiV1, Resource: "serviceaccounts"},
+		{Group: "networking.k8s.io", Version: apiV1, Resource: "ingresses"},
+		{Group: "networking.k8s.io", Version: apiV1, Resource: "networkpolicies"},
 		{Group: "autoscaling", Version: "v2", Resource: "horizontalpodautoscalers"},
-		{Group: "autoscaling.k8s.io", Version: "v1", Resource: "verticalpodautoscalers"},
+		{Group: "autoscaling.k8s.io", Version: apiV1, Resource: "verticalpodautoscalers"},
 	}
 }
 

@@ -12,7 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-
 var vpaGVR = schema.GroupVersionResource{
 	Group:    "autoscaling.k8s.io",
 	Version:  "v1",
@@ -39,7 +38,7 @@ func GetVerticalPodAutoscalersByNamespace(namespace string) ([]string, error) {
 		return nil, err
 	}
 
-	names := make([]string, 0, len(list.Items))
+	names := make([]string, constants.EmptySliceLength, len(list.Items))
 	for i := range list.Items {
 		name := list.Items[i].GetName()
 		if name != "" {

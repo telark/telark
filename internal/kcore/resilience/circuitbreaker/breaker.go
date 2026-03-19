@@ -44,7 +44,7 @@ func (cb *CircuitBreaker) canExecute() bool {
 	defer cb.mu.RUnlock()
 
 	switch cb.state {
-	case Closed:
+	case Closed, HalfOpen:
 		return true
 	case Open:
 		if time.Since(cb.lastFailureTime) > cb.resetTimeout {
@@ -56,8 +56,6 @@ func (cb *CircuitBreaker) canExecute() bool {
 			return true
 		}
 		return false
-	case HalfOpen:
-		return true
 	default:
 		return false
 	}

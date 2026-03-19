@@ -22,6 +22,11 @@ var kindToGVR = func() map[string]schema.GroupVersionResource {
 	return m
 }()
 
+const (
+	defaultManifestTimeout = 20 * time.Second
+	manifestMetadataKey    = "metadata"
+)
+
 // GetRawManifest fetches the raw unstructured manifest of a K8s resource and returns it as JSON
 func GetRawManifest(
 	ctx context.Context,
@@ -39,8 +44,8 @@ func GetRawManifest(
 		return nil, err
 	}
 	timeoutDur := constants.WorkloadGetTimeout
-	if timeoutDur <= 0 {
-		timeoutDur = 20 * time.Second
+	if timeoutDur <= constants.ZeroValue {
+		timeoutDur = defaultManifestTimeout
 	}
 	reqCtx, cancel := context.WithTimeout(ctx, timeoutDur)
 	defer cancel()
@@ -59,12 +64,17 @@ func GetRawManifest(
 }
 
 func stripManifestForApply(m map[string]any) {
-	meta, _ := m["metadata"].(map[string]any)
-	if meta != nil {
-		delete(meta, "managedFields")
-		delete(meta, "resourceVersion")
-		delete(meta, "uid")
-		delete(meta, "generation")
-		delete(meta, "selfLink")
+	rawMeta, found := m[manifestMetadataKey]
+	if !found {
+		return
 	}
+	meta, ok := rawMeta.(map[string]any)
+	if !ok {
+		return
+	}
+	delete(meta, "managedFields")
+	delete(meta, "resourceVersion")
+	delete(meta, "uid")
+	delete(meta, "generation")
+	delete(meta, "selfLink")
 }

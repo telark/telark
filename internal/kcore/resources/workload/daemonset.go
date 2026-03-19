@@ -1,44 +1,29 @@
 package workload
 
 import (
-	"fmt"
-
 	"github.com/plsyro/kcore/constants"
-	"github.com/plsyro/kcore/k8sclient"
-	"github.com/plsyro/kcore/resilience/timeout"
 	k8sappsv1 "k8s.io/api/apps/v1"
-	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func GetDaemonSetsByNamespace(namespace string) ([]k8sappsv1.DaemonSet, error) {
-	client, err := k8sclient.InitKubernetesClient()
+	client, err := getAppsClient()
 	if err != nil {
 		return nil, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeoutCause(constants.WorkloadListTimeout)
-	defer cancel()
-
-	daemons, err := client.AppsV1().DaemonSets(namespace).List(ctx, k8smetav1.ListOptions{})
+	daemons, err := getDaemonOrStatefulWithTimeout(daemonItems(client, namespace))
 	if err != nil {
-		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ErrFailedToFetchDaemonsets), namespace, err))
+		logWorkloadFetchError(constants.ErrFailedToFetchDaemonsets, namespace, err)
 		return nil, err
 	}
-	return daemons.Items, nil
+	return daemons, nil
 }
 
 func CheckDaemonSetExists(namespace, name string) (bool, error) {
-	client, err := k8sclient.InitKubernetesClient()
+	client, err := getAppsClient()
 	if err != nil {
 		return false, err
 	}
 
-	ctx, cancel := timeout.ContextWithTimeoutCause(constants.WorkloadGetTimeout)
-	defer cancel()
-
-	_, err = client.AppsV1().DaemonSets(namespace).Get(ctx, name, k8smetav1.GetOptions{})
-	if err != nil {
-		return false, nil // Return false if not found, don't treat as error
-	}
-	return true, nil
+	return isWorkloadPresent(daemonGet(client, namespace, name))
 }

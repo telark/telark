@@ -30,6 +30,11 @@ type SearchInput struct {
 	UseSelector   bool
 }
 
+const (
+	metadataField = "metadata"
+	emptyValue    = ""
+)
+
 func ParseSearch(input string) (SearchInput, error) {
 	s := strings.TrimSpace(input)
 	if s == "" {
@@ -54,7 +59,7 @@ func ListAllResourcesInNamespaces(namespaces []string) ([]ResourceRef, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(namespaces) == 0 {
+	if len(namespaces) == constants.EmptySliceLength {
 		var listErr error
 		namespaces, listErr = listNamespaceNames()
 		if listErr != nil {
@@ -63,7 +68,7 @@ func ListAllResourcesInNamespaces(namespaces []string) ([]ResourceRef, error) {
 	}
 	ctx, cancel := timeout.ContextWithTimeoutCause(constants.GroupSearchTimeout)
 	defer cancel()
-	return listAllInNamespaces(ctx, dyn, namespaces, shared.AppGVRs())
+	return listAllInNamespaces(ctx, dyn, namespaces, shared.AppGVRs()), nil
 }
 
 func listAllInNamespaces(
@@ -71,7 +76,7 @@ func listAllInNamespaces(
 	dyn dynamic.Interface,
 	namespaces []string,
 	gvrs []schema.GroupVersionResource,
-) ([]ResourceRef, error) {
+) []ResourceRef {
 	var out []ResourceRef
 	opts := k8smetav1.ListOptions{}
 	for _, ns := range namespaces {
@@ -86,7 +91,7 @@ func listAllInNamespaces(
 			}
 		}
 	}
-	return out, nil
+	return out
 }
 
 func SearchResourcesByLabelOrTextInNamespaces(search string, namespaces []string) ([]ResourceRef, error) {
@@ -98,7 +103,7 @@ func SearchResourcesByLabelOrTextInNamespaces(search string, namespaces []string
 	if err != nil {
 		return nil, err
 	}
-	if len(namespaces) == 0 {
+	if len(namespaces) == constants.EmptySliceLength {
 		var listErr error
 		namespaces, listErr = listNamespaceNames()
 		if listErr != nil {
@@ -107,7 +112,7 @@ func SearchResourcesByLabelOrTextInNamespaces(search string, namespaces []string
 	}
 	ctx, cancel := timeout.ContextWithTimeoutCause(constants.GroupSearchTimeout)
 	defer cancel()
-	return collectMatching(ctx, dyn, namespaces, shared.AppGVRs(), in)
+	return collectMatching(ctx, dyn, namespaces, shared.AppGVRs(), in), nil
 }
 
 func listNamespaceNames() ([]string, error) {
@@ -115,7 +120,7 @@ func listNamespaceNames() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	names := make([]string, 0, len(nsList))
+	names := make([]string, constants.EmptySliceLength, len(nsList))
 	for i := range nsList {
 		names = append(names, nsList[i].Name)
 	}
@@ -128,7 +133,7 @@ func collectMatching(
 	namespaces []string,
 	gvrs []schema.GroupVersionResource,
 	in SearchInput,
-) ([]ResourceRef, error) {
+) []ResourceRef {
 	var out []ResourceRef
 	listOpts := k8smetav1.ListOptions{}
 	if in.UseSelector {
@@ -136,14 +141,14 @@ func collectMatching(
 	}
 	for _, ns := range namespaces {
 		for _, gvr := range gvrs {
-			refs, err := listGVRInNamespace(ctx, dyn, gvr, ns, listOpts, in.SearchText, in.UseSelector)
+			refs, err := listGVRInNamespace(ctx, dyn, gvr, ns, listOpts, in.SearchText)
 			if err != nil {
 				continue
 			}
 			out = append(out, refs...)
 		}
 	}
-	return out, nil
+	return out
 }
 
 func listGVRInNamespace(
@@ -153,14 +158,14 @@ func listGVRInNamespace(
 	namespace string,
 	opts k8smetav1.ListOptions,
 	searchText string,
-	usedSelector bool,
 ) ([]ResourceRef, error) {
 	list, err := dyn.Resource(gvr).Namespace(namespace).List(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
 	kind := shared.ResourceKind(gvr.Resource)
-	refs := make([]ResourceRef, 0, len(list.Items))
+	refs := make([]ResourceRef, constants.EmptySliceLength, len(list.Items))
+	usedSelector := opts.LabelSelector != emptyValue
 	for i := range list.Items {
 		item := &list.Items[i]
 		if usedSelector {
@@ -175,16 +180,16 @@ func listGVRInNamespace(
 }
 
 func toRef(u *unstructured.Unstructured, namespace, kind string) ResourceRef {
-	lbls, _, _ := unstructured.NestedStringMap(u.Object, "metadata", "labels")
-	name, _, _ := unstructured.NestedString(u.Object, "metadata", "name")
-	if name == "" {
+	lbls, _, _ := unstructured.NestedStringMap(u.Object, metadataField, "labels")
+	name, _, _ := unstructured.NestedString(u.Object, metadataField, "name")
+	if name == emptyValue {
 		name = u.GetName()
 	}
 	return ResourceRef{Namespace: namespace, Kind: kind, Name: name, Labels: lbls}
 }
 
 func labelsMatchText(u *unstructured.Unstructured, text string) bool {
-	lbls, _, _ := unstructured.NestedStringMap(u.Object, "metadata", "labels")
+	lbls, _, _ := unstructured.NestedStringMap(u.Object, metadataField, "labels")
 	lower := strings.ToLower(text)
 	for k, v := range lbls {
 		if strings.Contains(strings.ToLower(k), lower) || strings.Contains(strings.ToLower(v), lower) {

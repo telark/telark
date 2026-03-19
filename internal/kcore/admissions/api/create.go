@@ -28,13 +28,17 @@ func CreateValidatingAdmissionByConfig(
 			ctx, webhookConfig, k8smetav1.CreateOptions{})
 	}
 
-	successMsg := utils.CreateAdmissionMessage(messages.SuccessCreateAdmission, webhookConfig.Name, admissionshared.Validating)
+	successMsg := utils.CreateAdmissionMessage(
+		messages.SuccessCreateAdmission,
+		webhookConfig.Name,
+		admissionshared.Validating,
+	)
 	errorMsg := utils.CreateAdmissionError(errors.ErrCreateAdmission, webhookConfig.Name, admissionshared.Validating)
 
 	return utils.ExecuteWebhookOperation(
 		operation,
-		string(successMsg),
-		string(errorMsg),
+		successMsg,
+		errorMsg,
 	)
 }
 
@@ -54,12 +58,16 @@ func CreateMutatingAdmissionByConfig(
 			ctx, webhookConfig, k8smetav1.CreateOptions{})
 	}
 
-	successMsg := utils.CreateAdmissionMessage(messages.SuccessCreateAdmission, webhookConfig.Name, admissionshared.Mutating)
+	successMsg := utils.CreateAdmissionMessage(
+		messages.SuccessCreateAdmission,
+		webhookConfig.Name,
+		admissionshared.Mutating,
+	)
 	errorMsg := utils.CreateAdmissionError(errors.ErrCreateAdmission, webhookConfig.Name, admissionshared.Mutating)
 
 	return utils.ExecuteWebhookOperation(
 		operation,
-		string(successMsg),
-		string(errorMsg),
+		successMsg,
+		errorMsg,
 	)
 }

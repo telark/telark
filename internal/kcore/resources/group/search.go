@@ -9,6 +9,7 @@ import (
 	"github.com/plsyro/kcore/k8sclient"
 	"github.com/plsyro/kcore/resilience/timeout"
 	"github.com/plsyro/kcore/resources/core"
+	"github.com/plsyro/kcore/shared"
 	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
@@ -27,41 +28,6 @@ type SearchInput struct {
 	LabelSelector string
 	SearchText    string
 	UseSelector   bool
-}
-
-var resourceToKind = map[string]string{
-	"deployments": "Deployment", "statefulsets": "StatefulSet", "daemonsets": "DaemonSet",
-	"jobs": "Job", "cronjobs": "CronJob", "configmaps": "ConfigMap", "secrets": "Secret",
-	"services": "Service", "persistentvolumeclaims": "PersistentVolumeClaim",
-	"serviceaccounts": "ServiceAccount", "ingresses": "Ingress",
-	"networkpolicies": "NetworkPolicy", "horizontalpodautoscalers": "HorizontalPodAutoscaler",
-	"verticalpodautoscalers": "VerticalPodAutoscaler",
-}
-
-func resourceKind(resource string) string {
-	if k, ok := resourceToKind[resource]; ok {
-		return k
-	}
-	return resource
-}
-
-func AppGVRs() []schema.GroupVersionResource {
-	return []schema.GroupVersionResource{
-		{Group: "apps", Version: "v1", Resource: "deployments"},
-		{Group: "apps", Version: "v1", Resource: "statefulsets"},
-		{Group: "apps", Version: "v1", Resource: "daemonsets"},
-		{Group: "batch", Version: "v1", Resource: "jobs"},
-		{Group: "batch", Version: "v1", Resource: "cronjobs"},
-		{Group: "", Version: "v1", Resource: "configmaps"},
-		{Group: "", Version: "v1", Resource: "secrets"},
-		{Group: "", Version: "v1", Resource: "services"},
-		{Group: "", Version: "v1", Resource: "persistentvolumeclaims"},
-		{Group: "", Version: "v1", Resource: "serviceaccounts"},
-		{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"},
-		{Group: "networking.k8s.io", Version: "v1", Resource: "networkpolicies"},
-		{Group: "autoscaling", Version: "v2", Resource: "horizontalpodautoscalers"},
-		{Group: "autoscaling.k8s.io", Version: "v1", Resource: "verticalpodautoscalers"},
-	}
 }
 
 func ParseSearch(input string) (SearchInput, error) {
@@ -97,7 +63,7 @@ func ListAllResourcesInNamespaces(namespaces []string) ([]ResourceRef, error) {
 	}
 	ctx, cancel := timeout.ContextWithTimeoutCause(constants.GroupSearchTimeout)
 	defer cancel()
-	return listAllInNamespaces(ctx, dyn, namespaces, AppGVRs())
+	return listAllInNamespaces(ctx, dyn, namespaces, shared.AppGVRs())
 }
 
 func listAllInNamespaces(
@@ -114,7 +80,7 @@ func listAllInNamespaces(
 			if err != nil {
 				continue
 			}
-			kind := resourceKind(gvr.Resource)
+			kind := shared.ResourceKind(gvr.Resource)
 			for i := range list.Items {
 				out = append(out, toRef(&list.Items[i], ns, kind))
 			}
@@ -141,7 +107,7 @@ func SearchResourcesByLabelOrTextInNamespaces(search string, namespaces []string
 	}
 	ctx, cancel := timeout.ContextWithTimeoutCause(constants.GroupSearchTimeout)
 	defer cancel()
-	return collectMatching(ctx, dyn, namespaces, AppGVRs(), in)
+	return collectMatching(ctx, dyn, namespaces, shared.AppGVRs(), in)
 }
 
 func listNamespaceNames() ([]string, error) {
@@ -193,7 +159,7 @@ func listGVRInNamespace(
 	if err != nil {
 		return nil, err
 	}
-	kind := resourceKind(gvr.Resource)
+	kind := shared.ResourceKind(gvr.Resource)
 	refs := make([]ResourceRef, 0, len(list.Items))
 	for i := range list.Items {
 		item := &list.Items[i]

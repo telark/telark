@@ -27,6 +27,7 @@ var kindToGVR = func() map[string]schema.GroupVersionResource {
 const (
 	defaultManifestTimeout = 20 * time.Second
 	manifestMetadataKey    = "metadata"
+	annotationsKey         = "annotations"
 )
 
 var (
@@ -42,7 +43,7 @@ func getDynamicClient() (dynamic.Interface, error) {
 	return dynClient, dynErr
 }
 
-// GetRawManifest fetches the raw unstructured manifest of a K8s resource and returns it as JSON
+// GetRawManifest fetches the raw unstructured manifest of a K8s resource and returns it as JSON.
 func GetRawManifest(
 	ctx context.Context,
 	kind string,
@@ -51,7 +52,7 @@ func GetRawManifest(
 ) (json.RawMessage, error) {
 	gvr, ok := kindToGVR[kind]
 	if !ok {
-		return nil, nil // unsupported kind, caller may skip
+		return nil, nil
 	}
 	dyn, err := getDynamicClient()
 	if err != nil {
@@ -77,8 +78,7 @@ func GetRawManifest(
 	return raw, nil
 }
 
-// cleanManifestForApply removes cluster-managed and apply-hostile fields so manifests can be re-applied safely.
-// It is kind-aware and only deletes keys when the expected structure exists.
+// removes cluster-managed and apply-hostile fields
 func cleanManifestForApply(m map[string]any) {
 	stripClusterMetadata(m)
 	kind := strings.TrimSpace(kindString(m))
@@ -89,47 +89,72 @@ func cleanManifestForApply(m map[string]any) {
 	case "PersistentVolumeClaim":
 		stripPersistentVolumeClaimForApply(m)
 	case "Deployment", "StatefulSet", "DaemonSet":
-		stripRestartedAtAnnotation(m)
-	default:
-		// other kinds: only cluster metadata + container field cleanup apply
+		stripWorkloadTemplateMetadata(m)
+	case "Job":
+		stripJobTemplateMetadata(m)
+	case "CronJob":
+		stripCronJobTemplateMetadata(m)
 	}
 
 	stripContainerFieldsFromManifest(m, kind)
 }
 
 func kindString(m map[string]any) string {
-	kindValue, ok := m["kind"]
+	v, ok := m["kind"]
 	if !ok {
 		return ""
 	}
-	kind, ok := kindValue.(string)
+	s, ok := v.(string)
 	if !ok {
 		return ""
 	}
-
-	return kind
+	return s
 }
 
 func mapFrom(v any) map[string]any {
-	meta, ok := v.(map[string]any)
-	if !ok || meta == nil {
+	m, ok := v.(map[string]any)
+	if !ok || m == nil {
 		return nil
 	}
-
-	return meta
+	return m
 }
 
+// removes root-level metadata fields that are
 func stripClusterMetadata(m map[string]any) {
-	meta := mapFrom(m[manifestMetadataKey])
-	if meta != nil {
-		delete(meta, "managedFields")
-		delete(meta, "resourceVersion")
-		delete(meta, "uid")
-		delete(meta, "generation")
-		delete(meta, "selfLink")
-		delete(meta, "creationTimestamp")
-	}
+	// Strip root status block — never needed for apply
 	delete(m, "status")
+
+	meta := mapFrom(m[manifestMetadataKey])
+	if meta == nil {
+		return
+	}
+
+	// Cluster-assigned identity fields
+	delete(meta, "managedFields")
+	delete(meta, "resourceVersion")
+	delete(meta, "uid")
+	delete(meta, "generation")
+	delete(meta, "selfLink")
+	delete(meta, "creationTimestamp")
+
+	// Strip apply-hostile annotations from root metadata
+	stripApplyHostileAnnotations(meta)
+}
+
+// removes annotations that cause conflicts
+func stripApplyHostileAnnotations(meta map[string]any) {
+	ann := mapFrom(meta[annotationsKey])
+	if ann == nil {
+		return
+	}
+	// Contains full previous manifest as escaped JSON — large, redundant
+	delete(ann, "kubectl.kubernetes.io/last-applied-configuration")
+	// PVC provisioner bookkeeping — not needed for apply
+	delete(ann, "pv.kubernetes.io/bind-completed")
+	delete(ann, "pv.kubernetes.io/bound-by-controller")
+	delete(ann, "volume.beta.kubernetes.io/storage-provisioner")
+	delete(ann, "volume.kubernetes.io/selected-node")
+	delete(ann, "volume.kubernetes.io/storage-provisioner")
 }
 
 func stripServiceForApply(m map[string]any) {
@@ -137,28 +162,60 @@ func stripServiceForApply(m map[string]any) {
 	if spec == nil {
 		return
 	}
+	// Auto-assigned by K8s — immutable, causes conflict on re-apply
 	delete(spec, "clusterIP")
 	delete(spec, "clusterIPs")
 	delete(spec, "clusterIPFamily")
 }
 
 func stripPersistentVolumeClaimForApply(m map[string]any) {
-	spec := mapFrom(m["spec"])
-	if spec != nil {
+	if spec := mapFrom(m["spec"]); spec != nil {
+		// Binds to a specific PV — may not exist on target cluster
 		delete(spec, "volumeName")
 	}
-	meta := mapFrom(m[manifestMetadataKey])
-	if meta != nil {
+	if meta := mapFrom(m[manifestMetadataKey]); meta != nil {
+		// Controller-managed — must not be specified on apply
 		delete(meta, "finalizers")
 	}
 }
 
-func stripRestartedAtAnnotation(m map[string]any) {
+// strips template-level metadata for
+func stripWorkloadTemplateMetadata(m map[string]any) {
 	spec := mapFrom(m["spec"])
 	if spec == nil {
 		return
 	}
-	tmpl := mapFrom(spec["template"])
+	stripPodTemplateMetadata(mapFrom(spec["template"]))
+}
+
+// strips template metadata for Job.
+func stripJobTemplateMetadata(m map[string]any) {
+	spec := mapFrom(m["spec"])
+	if spec == nil {
+		return
+	}
+	stripPodTemplateMetadata(mapFrom(spec["template"]))
+}
+
+// strips template metadata for CronJob
+func stripCronJobTemplateMetadata(m map[string]any) {
+	spec := mapFrom(m["spec"])
+	if spec == nil {
+		return
+	}
+	jt := mapFrom(spec["jobTemplate"])
+	if jt == nil {
+		return
+	}
+	js := mapFrom(jt["spec"])
+	if js == nil {
+		return
+	}
+	stripPodTemplateMetadata(mapFrom(js["template"]))
+}
+
+// leans the metadata block inside a pod template.
+func stripPodTemplateMetadata(tmpl map[string]any) {
 	if tmpl == nil {
 		return
 	}
@@ -166,11 +223,57 @@ func stripRestartedAtAnnotation(m map[string]any) {
 	if tmeta == nil {
 		return
 	}
-	ann := mapFrom(tmeta["annotations"])
+	delete(tmeta, "creationTimestamp")
+
+	ann := mapFrom(tmeta[annotationsKey])
 	if ann == nil {
 		return
 	}
+	// Triggers immediate rollout restart on apply — not desired for rollback
 	delete(ann, "kubectl.kubernetes.io/restartedAt")
+	// Also strip last-applied from template annotations if present
+	delete(ann, "kubectl.kubernetes.io/last-applied-configuration")
+}
+
+func stripContainerFieldsFromManifest(m map[string]any, kind string) {
+	switch kind {
+	case "Pod":
+		if ps := mapFrom(m["spec"]); ps != nil {
+			stripContainerFieldsInPodSpec(ps)
+		}
+	case "CronJob":
+		spec := mapFrom(m["spec"])
+		if spec == nil {
+			return
+		}
+		jt := mapFrom(spec["jobTemplate"])
+		if jt == nil {
+			return
+		}
+		js := mapFrom(jt["spec"])
+		if js == nil {
+			return
+		}
+		if tmpl := mapFrom(js["template"]); tmpl != nil {
+			if ps := mapFrom(tmpl["spec"]); ps != nil {
+				stripContainerFieldsInPodSpec(ps)
+			}
+		}
+	default:
+		stripContainersFromWorkloadSpec(m)
+	}
+}
+
+func stripContainersFromWorkloadSpec(m map[string]any) {
+	spec := mapFrom(m["spec"])
+	if spec == nil {
+		return
+	}
+	if tmpl := mapFrom(spec["template"]); tmpl != nil {
+		if ps := mapFrom(tmpl["spec"]); ps != nil {
+			stripContainerFieldsInPodSpec(ps)
+		}
+	}
 }
 
 func stripContainerFieldsInPodSpec(podSpec map[string]any) {
@@ -189,40 +292,8 @@ func stripContainerList(raw any) {
 		if c == nil {
 			continue
 		}
+		// Defaults set by K8s — no need to specify explicitly
 		delete(c, "terminationMessagePath")
 		delete(c, "terminationMessagePolicy")
-	}
-}
-
-func stripContainerFieldsFromManifest(m map[string]any, kind string) {
-	if kind == "Pod" {
-		if ps := mapFrom(m["spec"]); ps != nil {
-			stripContainerFieldsInPodSpec(ps)
-		}
-
-		return
-	}
-
-	stripContainersFromWorkloadSpec(m)
-}
-
-func stripContainersFromWorkloadSpec(m map[string]any) {
-	spec := mapFrom(m["spec"])
-	if spec == nil {
-		return
-	}
-	if tmpl := mapFrom(spec["template"]); tmpl != nil {
-		if podSpec := mapFrom(tmpl["spec"]); podSpec != nil {
-			stripContainerFieldsInPodSpec(podSpec)
-		}
-	}
-	if jt := mapFrom(spec["jobTemplate"]); jt != nil {
-		if js := mapFrom(jt["spec"]); js != nil {
-			if tmpl := mapFrom(js["template"]); tmpl != nil {
-				if podSpec := mapFrom(tmpl["spec"]); podSpec != nil {
-					stripContainerFieldsInPodSpec(podSpec)
-				}
-			}
-		}
 	}
 }

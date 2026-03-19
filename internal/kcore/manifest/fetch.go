@@ -3,6 +3,7 @@ package manifest
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/plsyro/kcore/constants"
@@ -55,7 +56,7 @@ func GetRawManifest(
 		return nil, err
 	}
 	m := obj.Object
-	stripManifestForApply(m)
+	cleanManifestForApply(m)
 	raw, err := json.Marshal(m)
 	if err != nil {
 		return nil, err
@@ -63,13 +64,51 @@ func GetRawManifest(
 	return raw, nil
 }
 
-func stripManifestForApply(m map[string]any) {
-	rawMeta, found := m[manifestMetadataKey]
-	if !found {
-		return
+// cleanManifestForApply removes cluster-managed and apply-hostile fields so manifests can be re-applied safely.
+// It is kind-aware and only deletes keys when the expected structure exists.
+func cleanManifestForApply(m map[string]any) {
+	stripClusterMetadata(m)
+	kind := strings.TrimSpace(kindString(m))
+
+	switch kind {
+	case "Service":
+		stripServiceForApply(m)
+	case "PersistentVolumeClaim":
+		stripPersistentVolumeClaimForApply(m)
+	case "Deployment", "StatefulSet", "DaemonSet":
+		stripRestartedAtAnnotation(m)
+	default:
+		// other kinds: only cluster metadata + container field cleanup apply
 	}
-	meta, ok := rawMeta.(map[string]any)
+
+	stripContainerFieldsFromManifest(m, kind)
+}
+
+func kindString(m map[string]any) string {
+	kindValue, ok := m["kind"]
 	if !ok {
+		return ""
+	}
+	kind, ok := kindValue.(string)
+	if !ok {
+		return ""
+	}
+
+	return kind
+}
+
+func mapFrom(v any) map[string]any {
+	meta, ok := v.(map[string]any)
+	if !ok || meta == nil {
+		return nil
+	}
+
+	return meta
+}
+
+func stripClusterMetadata(m map[string]any) {
+	meta := mapFrom(m[manifestMetadataKey])
+	if meta == nil {
 		return
 	}
 	delete(meta, "managedFields")
@@ -77,4 +116,100 @@ func stripManifestForApply(m map[string]any) {
 	delete(meta, "uid")
 	delete(meta, "generation")
 	delete(meta, "selfLink")
+	delete(meta, "creationTimestamp")
+}
+
+func stripServiceForApply(m map[string]any) {
+	spec := mapFrom(m["spec"])
+	if spec == nil {
+		return
+	}
+	delete(spec, "clusterIP")
+	delete(spec, "clusterIPs")
+	delete(spec, "clusterIPFamily")
+}
+
+func stripPersistentVolumeClaimForApply(m map[string]any) {
+	spec := mapFrom(m["spec"])
+	if spec != nil {
+		delete(spec, "volumeName")
+	}
+	meta := mapFrom(m[manifestMetadataKey])
+	if meta != nil {
+		delete(meta, "finalizers")
+	}
+}
+
+func stripRestartedAtAnnotation(m map[string]any) {
+	spec := mapFrom(m["spec"])
+	if spec == nil {
+		return
+	}
+	tmpl := mapFrom(spec["template"])
+	if tmpl == nil {
+		return
+	}
+	tmeta := mapFrom(tmpl["metadata"])
+	if tmeta == nil {
+		return
+	}
+	ann := mapFrom(tmeta["annotations"])
+	if ann == nil {
+		return
+	}
+	delete(ann, "kubectl.kubernetes.io/restartedAt")
+}
+
+func stripContainerFieldsInPodSpec(podSpec map[string]any) {
+	stripContainerList(podSpec["containers"])
+	stripContainerList(podSpec["initContainers"])
+	stripContainerList(podSpec["ephemeralContainers"])
+}
+
+func stripContainerList(raw any) {
+	list, ok := raw.([]any)
+	if !ok {
+		return
+	}
+	for _, item := range list {
+		c := mapFrom(item)
+		if c == nil {
+			continue
+		}
+		delete(c, "terminationMessagePath")
+		delete(c, "terminationMessagePolicy")
+	}
+}
+
+func stripContainerFieldsFromManifest(m map[string]any, kind string) {
+	if kind == "Pod" {
+		if ps := mapFrom(m["spec"]); ps != nil {
+			stripContainerFieldsInPodSpec(ps)
+		}
+
+		return
+	}
+
+	stripContainersFromWorkloadSpec(m)
+}
+
+func stripContainersFromWorkloadSpec(m map[string]any) {
+	spec := mapFrom(m["spec"])
+	if spec == nil {
+		return
+	}
+	if tmpl := mapFrom(spec["template"]); tmpl != nil {
+		if podSpec := mapFrom(tmpl["spec"]); podSpec != nil {
+			stripContainerFieldsInPodSpec(podSpec)
+		}
+	}
+	if jt := mapFrom(spec["jobTemplate"]); jt != nil {
+		if js := mapFrom(jt["spec"]); js != nil {
+			if tmpl := mapFrom(js["template"]); tmpl != nil {
+				if podSpec := mapFrom(tmpl["spec"]); podSpec != nil {
+					stripContainerFieldsInPodSpec(podSpec)
+				}
+			}
+		}
+	}
 }

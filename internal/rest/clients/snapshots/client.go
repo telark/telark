@@ -15,10 +15,11 @@ type Client struct {
 }
 
 type CreateSnapshotPayload struct {
-	ID       string `json:"id"`
-	Scope    string `json:"scope"`
-	Version  int    `json:"version"`
-	Manifest any    `json:"manifest"`
+	ID         string `json:"id"`
+	Scope      string `json:"scope"`
+	Namespace  string `json:"namespace"`
+	Generation int    `json:"generation"`
+	Manifest   any    `json:"manifest"`
 }
 
 func NewClient() *Client {

@@ -83,8 +83,14 @@ type RelatedApp struct {
 }
 
 type ApplicationHistory struct {
+	Generation  int                   `json:"generation"`
 	HasDrift    bool                  `json:"hasDrift"`
-	Version     int                   `json:"version"`
+	ChangeClass string                `json:"changeClass"`
+	Severity    string                `json:"severity"`
+	Source      string                `json:"source"`
+	IsIncident  bool                  `json:"isIncident"`
+	IsRecovery  bool                  `json:"isRecovery"`
+	Fingerprint string                `json:"fingerprint"`
 	ChangeCount int                   `json:"changeCount"`
 	DetectedAt  *string               `json:"detectedAt"` // RFC3339 when set, null for new app / no change
 	Changes     []ApplicationChange   `json:"changes"`
@@ -106,11 +112,13 @@ type ApplicationChange struct {
 }
 
 type ApplicationSnapshot struct {
-	Version   int       `json:"version"`
-	TakenAt   time.Time `json:"takenAt"`
-	ID        string    `json:"id"`
-	Namespace string    `json:"namespace"`
-	Path      string    `json:"path"`
+	Generation  int       `json:"generation"`
+	ChangeClass string    `json:"changeClass"`
+	Severity    string    `json:"severity"`
+	TakenAt     time.Time `json:"takenAt"`
+	ID          string    `json:"id"`
+	Namespace   string    `json:"namespace"`
+	Path        string    `json:"path"`
 }
 
 type ResponseData struct {

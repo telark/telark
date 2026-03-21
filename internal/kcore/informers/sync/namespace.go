@@ -1,4 +1,4 @@
-package sync //nolint:revive // Directory name is intentionally "sync" and used by current imports.
+package sync
 
 import (
 	"context"

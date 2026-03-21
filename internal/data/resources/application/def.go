@@ -1,7 +1,5 @@
 package application
 
-import "time"
-
 type Application struct {
 	Name            string                `json:"name"`
 	DisplayName     string                `json:"displayName"`
@@ -65,7 +63,7 @@ type Resource struct {
 
 type Insights struct {
 	Enriched      bool         `json:"enriched"`
-	EnrichedAt    *time.Time   `json:"enrichedAt"`
+	EnrichedAt    *string      `json:"enrichedAt"`
 	Confidence    *string      `json:"confidence"`
 	Summary       *string      `json:"summary"`
 	TechStack     []string     `json:"techStack"`

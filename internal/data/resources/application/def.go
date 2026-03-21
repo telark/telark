@@ -17,11 +17,10 @@ type Application struct {
 	Images          []string        `json:"images"`
 	Ports           []int           `json:"ports"`
 	EnvVarKeys      []string        `json:"envVarKeys"`
-	// Snapshots are versioned manifest references (trimmed by SNAPSHOTS_MAX_VERSIONS); not part of History.
-	Snapshots []ApplicationSnapshot `json:"snapshots"`
 	// CRStatus is set after publishing to NATS: Published (ack received), Failed (publish error), or Created (when notifier confirms).
-	CRStatus string `json:"crStatus,omitempty"`
-	History ApplicationHistory `json:"history"`
+	CRStatus  string                `json:"crStatus,omitempty"`
+	Snapshots []ApplicationSnapshot `json:"snapshots"`
+	History   ApplicationHistory    `json:"history"`
 }
 
 type Health struct {
@@ -85,22 +84,13 @@ type RelatedApp struct {
 }
 
 type ApplicationHistory struct {
-	Generation  int                 `json:"generation"`
-	HasDrift    bool                `json:"hasDrift"`
-	ChangeClass string              `json:"changeClass"`
-	Severity    string              `json:"severity"`
-	Source      string              `json:"source"`
-	IsIncident  bool                `json:"isIncident"`
-	IsRecovery  bool                `json:"isRecovery"`
-	Fingerprint string              `json:"fingerprint"`
-	ChangeCount int                 `json:"changeCount"`
-	DetectedAt  *string             `json:"detectedAt"` // RFC3339 when set, null for new app / no change
-	Changes     []ApplicationChange `json:"changes"`
-	// ChangeLog is append-only, generation-ordered; new entries only when drift is detected.
+	Generation int `json:"generation"`
+	// True when the last detection cycle found changes.
+	HasDrift bool `json:"hasDrift"`
+	// Full audit trail — one entry per generation that had a change, ordered by generation ascending.
 	ChangeLog []ChangeLogEntry `json:"changeLog"`
 }
 
-// ChangeLogEntry records one generation's classified diff (immutable once written).
 type ChangeLogEntry struct {
 	Generation  int                 `json:"generation"`
 	DetectedAt  string              `json:"detectedAt"`
@@ -111,6 +101,8 @@ type ChangeLogEntry struct {
 	IsIncident  bool                `json:"isIncident"`
 	IsRecovery  bool                `json:"isRecovery"`
 	Changes     []ApplicationChange `json:"changes"`
+	// Computed at read time — never stored as true on disk.
+	IsLastOne bool `json:"isLastOne,omitempty"`
 }
 
 type Managed struct {

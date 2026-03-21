@@ -4,5 +4,5 @@ go 1.26.1
 
 require (
 	github.com/gorilla/mux v1.8.1
-	github.com/plsyro/data v1.10.36
+	github.com/plsyro/data v1.10.37
 )

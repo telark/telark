@@ -1,3 +1,4 @@
+//nolint:revive
 package errors
 
 type Error string

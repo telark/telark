@@ -3,24 +3,23 @@ package application
 import "time"
 
 type Application struct {
-	Name            string          `json:"name"`
-	DisplayName     string          `json:"displayName"`
-	Health          Health          `json:"health"`
-	ResourceCount   int             `json:"resourceCount"`
-	Namespaces      Namespaces      `json:"namespaces"`
-	Managed         Managed         `json:"managed"`
-	CreatedAt       string          `json:"createdAt"`
-	LastUpdated     string          `json:"lastUpdated"`
-	ResourceSummary ResourceSummary `json:"resourceSummary"`
-	Resources       []Resource      `json:"resources"`
-	Insights        Insights        `json:"insights"`
-	Images          []string        `json:"images"`
-	Ports           []int           `json:"ports"`
-	EnvVarKeys      []string        `json:"envVarKeys"`
-	// CRStatus is set after publishing to NATS: Published (ack received), Failed (publish error), or Created (when notifier confirms).
-	CRStatus  string                `json:"crStatus,omitempty"`
-	Snapshots []ApplicationSnapshot `json:"snapshots"`
-	History   ApplicationHistory    `json:"history"`
+	Name            string                `json:"name"`
+	DisplayName     string                `json:"displayName"`
+	Health          Health                `json:"health"`
+	ResourceCount   int                   `json:"resourceCount"`
+	Namespaces      Namespaces            `json:"namespaces"`
+	Managed         Managed               `json:"managed"`
+	CreatedAt       string                `json:"createdAt"`
+	LastUpdated     string                `json:"lastUpdated"`
+	ResourceSummary ResourceSummary       `json:"resourceSummary"`
+	Resources       []Resource            `json:"resources"`
+	Insights        Insights              `json:"insights"`
+	Images          []string              `json:"images"`
+	Ports           []int                 `json:"ports"`
+	EnvVarKeys      []string              `json:"envVarKeys"`
+	Snapshots       []ApplicationSnapshot `json:"snapshots"`
+	CRStatus        string                `json:"crStatus,omitempty"`
+	History         ApplicationHistory    `json:"history"`
 }
 
 type Health struct {
@@ -84,11 +83,18 @@ type RelatedApp struct {
 }
 
 type ApplicationHistory struct {
-	Generation int `json:"generation"`
-	// True when the last detection cycle found changes.
-	HasDrift bool `json:"hasDrift"`
-	// Full audit trail — one entry per generation that had a change, ordered by generation ascending.
-	ChangeLog []ChangeLogEntry `json:"changeLog"`
+	Generation  int                 `json:"generation"`
+	HasDrift    bool                `json:"hasDrift"`
+	ChangeClass string              `json:"changeClass"`
+	Severity    string              `json:"severity"`
+	Source      string              `json:"source"`
+	IsIncident  bool                `json:"isIncident"`
+	IsRecovery  bool                `json:"isRecovery"`
+	Fingerprint string              `json:"fingerprint"`
+	ChangeCount int                 `json:"changeCount"`
+	DetectedAt  *string             `json:"detectedAt"`
+	Changes     []ApplicationChange `json:"changes"`
+	ChangeLog   []ChangeLogEntry    `json:"changeLog"`
 }
 
 type ChangeLogEntry struct {
@@ -120,13 +126,13 @@ type ApplicationChange struct {
 }
 
 type ApplicationSnapshot struct {
-	Generation  int       `json:"generation"`
-	ChangeClass string    `json:"changeClass"`
-	Severity    string    `json:"severity"`
-	TakenAt     time.Time `json:"takenAt"`
-	ID          string    `json:"id"`
-	Namespace   string    `json:"namespace"`
-	Path        string    `json:"path"`
+	Generation  int    `json:"generation"`
+	ChangeClass string `json:"changeClass"`
+	Severity    string `json:"severity"`
+	TakenAt     string `json:"takenAt"`
+	ID          string `json:"id"`
+	Namespace   string `json:"namespace"`
+	Path        string `json:"path"`
 }
 
 type ResponseData struct {

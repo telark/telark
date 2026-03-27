@@ -108,7 +108,7 @@ type ChangeLogEntry struct {
 	IsRecovery  bool                `json:"isRecovery"`
 	Changes     []ApplicationChange `json:"changes"`
 	// Computed at read time — never stored as true on disk.
-	IsLastOne bool `json:"isLastOne,omitempty"`
+	IsLastOne *bool `json:"isLastOne,omitempty"`
 }
 
 type Managed struct {

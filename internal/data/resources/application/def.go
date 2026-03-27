@@ -82,19 +82,9 @@ type RelatedApp struct {
 }
 
 type ApplicationHistory struct {
-	Generation     int                 `json:"generation"`
-	HasDrift       bool                `json:"hasDrift"`
-	ChangeClass    string              `json:"changeClass"`
-	Severity       string              `json:"severity"`
-	Source         string              `json:"source"`
-	LastModifiedBy string              `json:"lastModifiedBy"`
-	IsIncident     bool                `json:"isIncident"`
-	IsRecovery     bool                `json:"isRecovery"`
-	Fingerprint    string              `json:"fingerprint"`
-	ChangeCount    int                 `json:"changeCount"`
-	DetectedAt     *string             `json:"detectedAt"`
-	Changes        []ApplicationChange `json:"changes"`
-	ChangeLog      []ChangeLogEntry    `json:"changeLog"`
+	Generation int              `json:"generation"`
+	HasDrift   bool             `json:"hasDrift"`
+	ChangeLog  []ChangeLogEntry `json:"changeLog"`
 }
 
 type ChangeLogEntry struct {
@@ -102,11 +92,13 @@ type ChangeLogEntry struct {
 	DetectedAt  string              `json:"detectedAt"`
 	ChangeClass string              `json:"changeClass"`
 	Severity    string              `json:"severity"`
-	ChangedBy   string              `json:"changedBy"`
+	Source      string              `json:"source"`
 	Fingerprint string              `json:"fingerprint"`
 	IsIncident  bool                `json:"isIncident"`
 	IsRecovery  bool                `json:"isRecovery"`
 	Changes     []ApplicationChange `json:"changes"`
+	// API-computed convenience field; not part of the Application CRD.
+	IsLastOne bool `json:"isLastOne,omitempty"`
 }
 
 type Managed struct {

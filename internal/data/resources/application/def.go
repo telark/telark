@@ -82,9 +82,11 @@ type RelatedApp struct {
 }
 
 type ApplicationHistory struct {
-	Generation int              `json:"generation"`
-	HasDrift   bool             `json:"hasDrift"`
-	ChangeLog  []ChangeLogEntry `json:"changeLog"`
+	Generation     int              `json:"generation"`
+	HasDrift       bool             `json:"hasDrift"`
+	LastModifiedBy string           `json:"lastModifiedBy,omitempty"`
+	LastModifiedAt string           `json:"lastModifiedAt,omitempty"`
+	ChangeLog      []ChangeLogEntry `json:"changeLog"`
 }
 
 type ChangeLogEntry struct {
@@ -92,7 +94,7 @@ type ChangeLogEntry struct {
 	DetectedAt  string              `json:"detectedAt"`
 	ChangeClass string              `json:"changeClass"`
 	Severity    string              `json:"severity"`
-	Source      string              `json:"source"`
+	ChangedBy   string              `json:"changedBy,omitempty"`
 	Fingerprint string              `json:"fingerprint"`
 	IsIncident  bool                `json:"isIncident"`
 	IsRecovery  bool                `json:"isRecovery"`

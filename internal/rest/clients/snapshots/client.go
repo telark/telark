@@ -2,7 +2,9 @@ package snapshots
 
 import (
 	"context"
+	"fmt"
 	"net/url"
+	"strconv"
 
 	"github.com/plsyro/rest/base"
 	"github.com/plsyro/rest/clients/shared"
@@ -56,16 +58,32 @@ func (c *Client) GetSnapshotManifest(
 	ctx context.Context,
 	snapshotID string,
 ) ([]unstructured.Unstructured, error) {
+	return c.GetSnapshotManifestWithQuery(ctx, snapshotID, "", "", "")
+}
+
+// GetSnapshotManifestWithQuery fetches a sanitized manifest for a snapshot and forwards exporter query params.
+// Any empty query param is omitted.
+func (c *Client) GetSnapshotManifestWithQuery(
+	ctx context.Context,
+	snapshotID string,
+	scope string,
+	namespace string,
+	generation string,
+) ([]unstructured.Unstructured, error) {
 	_ = ctx // reserved for future context-aware HTTP calls
 	ep := shared.SubstituteEndpointWithParam(
 		string(eps.GetSnapshotManifest),
 		constants.IDParam,
 		snapshotID,
 	)
+	epWithQuery, err := appendManifestQuery(ep, scope, namespace, generation)
+	if err != nil {
+		return nil, err
+	}
 
 	objs, err := shared.GetRawJSONWithHeaders[[]map[string]any](
 		c.Client,
-		ep,
+		epWithQuery,
 		map[string]string{"Accept": "application/json"},
 	)
 	if err != nil {
@@ -77,4 +95,24 @@ func (c *Client) GetSnapshotManifest(
 		out = append(out, unstructured.Unstructured{Object: obj})
 	}
 	return out, nil
+}
+
+func appendManifestQuery(ep base.Endpoint, scope, namespace, generation string) (base.Endpoint, error) {
+	q := url.Values{}
+	if scope != "" {
+		q.Set("scope", scope)
+	}
+	if namespace != "" {
+		q.Set("namespace", namespace)
+	}
+	if generation != "" {
+		if _, err := strconv.Atoi(generation); err != nil {
+			return "", fmt.Errorf("invalid generation query param: %w", err)
+		}
+		q.Set("generation", generation)
+	}
+	if len(q) == 0 {
+		return ep, nil
+	}
+	return base.Endpoint(string(ep) + "?" + q.Encode()), nil
 }

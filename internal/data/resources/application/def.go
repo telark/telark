@@ -16,6 +16,7 @@ type Application struct {
 	Ports           []int                 `json:"ports"`
 	EnvVarKeys      []string              `json:"envVarKeys"`
 	Snapshots       []ApplicationSnapshot `json:"snapshots"`
+	Rollbacks       []RollbackEntry       `json:"rollbacks,omitempty"`
 	Metrics         ApplicationMetrics    `json:"metrics"`
 	CRStatus        string                `json:"crStatus,omitempty"`
 	History         ApplicationHistory    `json:"history"`

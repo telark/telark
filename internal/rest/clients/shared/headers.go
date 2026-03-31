@@ -96,3 +96,18 @@ func GetListWithHeaders[T any](
 
 	return parseListResponse[T](resp)
 }
+
+func GetRawJSONWithHeaders[T any](
+	client *Client,
+	endpoint base.Endpoint,
+	headers map[string]string,
+) (*T, error) {
+	//nolint:bodyclose // defer responseutils.CloseResponseBody handles closing
+	resp, err := executeHTTPRequestWithHeaders(client, base.Get, endpoint, nil, headers)
+	if err != nil {
+		return nil, err
+	}
+	defer responseutils.CloseResponseBody(resp)
+
+	return parseRawJSONResponse[T](resp)
+}

@@ -98,6 +98,24 @@ func parseSingleResponse[T any](resp *http.Response) (*T, error) {
 	return &data.Data, nil
 }
 
+func parseRawJSONResponse[T any](resp *http.Response) (*T, error) {
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("status: %d", resp.StatusCode)
+	}
+
+	body, err := readResponseBody(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	var data T
+	if err := json.Unmarshal(body, &data); err != nil {
+		return nil, fmt.Errorf(string(errors.ErrRestUnmarshalResponseToGeneric), err)
+	}
+
+	return &data, nil
+}
+
 func parseListResponse[T any](resp *http.Response) ([]T, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("status: %d", resp.StatusCode)

@@ -19,6 +19,12 @@ func NewClient() *Client {
 	}
 }
 
+func NewClientWithConfig(cfg *shared.ClientConfig) *Client {
+	return &Client{
+		Client: shared.NewWithConfig(base.Exporter, cfg),
+	}
+}
+
 func (c *Client) CreateApplication(app *appresource.Application) *response.GenericResponse {
 	return c.Create(eps.CreateApplication, app)
 }

@@ -53,17 +53,7 @@ func (c *Client) GetSnapshot(id string, scope string) (*map[string]any, error) {
 	return shared.GetTyped[map[string]any](c.Client, withQuery)
 }
 
-// GetSnapshotManifest fetches and returns the sanitized manifest for the given snapshot ID from the exporter-service.
 func (c *Client) GetSnapshotManifest(
-	ctx context.Context,
-	snapshotID string,
-) ([]unstructured.Unstructured, error) {
-	return c.GetSnapshotManifestWithQuery(ctx, snapshotID, "", "", "")
-}
-
-// GetSnapshotManifestWithQuery fetches a sanitized manifest for a snapshot and forwards exporter query params.
-// Any empty query param is omitted.
-func (c *Client) GetSnapshotManifestWithQuery(
 	ctx context.Context,
 	snapshotID string,
 	scope string,
@@ -107,7 +97,7 @@ func appendManifestQuery(ep base.Endpoint, scope, namespace, generation string) 
 	}
 	if generation != "" {
 		if _, err := strconv.Atoi(generation); err != nil {
-			return "", fmt.Errorf("invalid generation query param: %w", err)
+			return "", fmt.Errorf("invalid generation query param: %v", err)
 		}
 		q.Set("generation", generation)
 	}

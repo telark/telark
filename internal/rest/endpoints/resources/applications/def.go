@@ -9,4 +9,9 @@ const (
 	GetApplicationByName    base.Endpoint = "resources/applications/{name}/get"
 	PatchApplicationByName  base.Endpoint = "resources/applications/{name}/patch"
 	DeleteApplicationByName base.Endpoint = "resources/applications/{name}/delete"
+
+	// Application Rollback endpoints
+	TriggerRollback base.Endpoint = "resources/applications/{name}/rollbacks"
+	GetRollbacks    base.Endpoint = "resources/applications/{name}/rollbacks"
+	GetRollback     base.Endpoint = "resources/applications/{name}/rollbacks/{rollbackId}"
 )

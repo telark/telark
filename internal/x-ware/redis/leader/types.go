@@ -8,14 +8,12 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// LeaderEvent is emitted on leadership changes.
 type LeaderEvent struct {
 	IsLeader   bool
 	FenceToken string
 	Timestamp  time.Time
 }
 
-// LeaderConfig holds configuration for leader election.
 type LeaderConfig struct {
 	LeaseKey      string
 	LeaseTTL      time.Duration
@@ -23,7 +21,6 @@ type LeaderConfig struct {
 	RetryInterval time.Duration
 }
 
-// LeaderElector manages leader election via Redis distributed locks.
 type LeaderElector struct {
 	client     *redis.Client
 	lock       lock.DistributedLock

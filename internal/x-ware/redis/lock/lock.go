@@ -12,13 +12,12 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// New creates a new distributed lock backed by the given Redis client.
+// creates a new distributed lock backed by the given Redis client.
 func New(client *redis.Client) *Lock {
 	return &Lock{client: client}
 }
 
-// GenerateHolderID returns a unique holder identifier in the format
-// {hostname}:{pid}:{uuid}, guaranteeing uniqueness across replicas and restarts.
+// generates a unique holder identifier in the format
 func GenerateHolderID() string {
 	host, _ := os.Hostname()
 	pid := os.Getpid()
@@ -28,17 +27,10 @@ func GenerateHolderID() string {
 	return fmt.Sprintf("%s%s%d%s%s", host, HolderSeparator, pid, HolderSeparator, id)
 }
 
-// fenceKey returns the fence token key for a given lock key.
 func fenceKey(key string) string {
 	return key + FenceKeySuffix
 }
 
-// Acquire attempts to acquire the distributed lock for the given key.
-// Uses Watch + TxPipelined for atomicity.
-// If the key does not exist, it sets the holder and increments the fence token.
-// If the key exists and the holder matches (reentrant), it extends the TTL.
-// If the key exists and the holder differs, it returns acquired=false.
-// On transaction abort (concurrent modification), it returns acquired=false.
 func (l *Lock) Acquire(ctx context.Context, key, holder string, ttl time.Duration) (string, bool, error) {
 	if err := l.validate(key, holder, ttl); err != nil {
 		return "", false, err
@@ -111,8 +103,6 @@ func (l *Lock) Acquire(ctx context.Context, key, holder string, ttl time.Duratio
 	return fenceToken, acquired, nil
 }
 
-// Release releases the lock only if the caller is the current holder.
-// Uses Watch + TxPipelined for safe release.
 func (l *Lock) Release(ctx context.Context, key, holder string) (bool, error) {
 	if l.client == nil {
 		return false, fmt.Errorf("%s", ErrNilRedisClient)
@@ -163,8 +153,7 @@ func (l *Lock) Release(ctx context.Context, key, holder string) (bool, error) {
 	return released, nil
 }
 
-// Extend extends the lock TTL only if the caller is the current holder.
-// Uses Watch + TxPipelined to prevent extending a lock held by another replica.
+// extends the lock TTL only if the caller is the current holder.
 func (l *Lock) Extend(ctx context.Context, key, holder string, ttl time.Duration) (bool, error) {
 	if err := l.validate(key, holder, ttl); err != nil {
 		return false, err
@@ -208,8 +197,6 @@ func (l *Lock) Extend(ctx context.Context, key, holder string, ttl time.Duration
 	return extended, nil
 }
 
-// FenceToken reads the current fence token for the given lock key.
-// Simple GET on {key}:fence — no transaction needed.
 func (l *Lock) FenceToken(ctx context.Context, key string) (string, error) {
 	if l.client == nil {
 		return "", fmt.Errorf("%s", ErrNilRedisClient)
@@ -228,7 +215,6 @@ func (l *Lock) FenceToken(ctx context.Context, key string) (string, error) {
 	return token, nil
 }
 
-// validate checks common preconditions for lock operations.
 func (l *Lock) validate(key, holder string, ttl time.Duration) error {
 	if l.client == nil {
 		return fmt.Errorf("%s", ErrNilRedisClient)
@@ -245,7 +231,6 @@ func (l *Lock) validate(key, holder string, ttl time.Duration) error {
 	return nil
 }
 
-// FormatFenceToken converts an int64 fence value to string for comparison.
 func FormatFenceToken(val int64) string {
 	return strconv.FormatInt(val, 10)
 }

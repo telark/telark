@@ -10,7 +10,6 @@ import (
 )
 
 // New creates a new LeaderElector with the given Redis client and configuration.
-// Uses GenerateHolderID from the lock package for unique identification.
 func New(client *redis.Client, cfg LeaderConfig) (*LeaderElector, error) {
 	if client == nil {
 		return nil, fmt.Errorf("%s", ErrNilRedisClient)
@@ -36,24 +35,20 @@ func New(client *redis.Client, cfg LeaderConfig) (*LeaderElector, error) {
 	}, nil
 }
 
-// Run starts the leader election loop. It returns a channel that emits
-// LeaderEvent whenever leadership status changes. The channel is closed
-// when the context is cancelled.
 func (le *LeaderElector) Run(ctx context.Context) <-chan LeaderEvent {
 	ch := make(chan LeaderEvent, 1)
 	go le.electionLoop(ctx, ch)
 	return ch
 }
 
-// IsLeader returns whether this elector currently holds the leader lease.
-// Thread-safe.
+// returns whether this elector currently holds the leader lease.
 func (le *LeaderElector) IsLeader() bool {
 	le.mu.RLock()
 	defer le.mu.RUnlock()
 	return le.isLeader
 }
 
-// FenceToken returns the current fence token, or empty if not leader.
+// returns the current fence token, or empty if not leader.
 func (le *LeaderElector) CurrentFenceToken() string {
 	le.mu.RLock()
 	defer le.mu.RUnlock()

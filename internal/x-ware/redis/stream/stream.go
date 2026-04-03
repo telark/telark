@@ -59,6 +59,14 @@ func (c *StreamClient) Ack(ctx context.Context, stream, group, messageID string)
 	return c.redis.XAck(ctx, stream, group, messageID).Err()
 }
 
+func (c *StreamClient) DeleteConsumer(ctx context.Context, stream, group, consumer string) error {
+	return c.redis.XGroupDelConsumer(ctx, stream, group, consumer).Err()
+}
+
+func (c *StreamClient) ListConsumers(ctx context.Context, stream, group string) ([]redis.XInfoConsumer, error) {
+	return c.redis.XInfoConsumers(ctx, stream, group).Result()
+}
+
 func (c *StreamClient) ClaimStale(
 	ctx context.Context,
 	stream, group, consumer string,

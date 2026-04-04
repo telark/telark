@@ -51,18 +51,15 @@ func BuildWorkloadUsage(
 	}
 
 	if !client.IsMetricsAvailable(metricsAdapter) {
-		usageLogger.Warn(string(constants.InfoMetricsAPIUnavailable))
 		return usage
 	}
 
 	podMetricsList, err := client.GetAllPodMetrics(metricsAdapter, namespace, selectors)
 	if err != nil {
-		usageLogger.Error(fmt.Sprintf(string(constants.ErrFailedToGetPodMetrics), err))
 		return usage
 	}
 
 	if len(podMetricsList) == constants.EmptySliceLength {
-		usageLogger.Warn(string(constants.ErrFailedToGetPodMetrics))
 		return usage
 	}
 

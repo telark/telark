@@ -2,6 +2,7 @@ package stream
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -17,7 +18,7 @@ func NewStreamClient(r *redis.Client) *StreamClient {
 
 func (c *StreamClient) EnsureConsumerGroup(ctx context.Context, stream, group string) error {
 	err := c.redis.XGroupCreateMkStream(ctx, stream, group, "0").Err()
-	if err != nil && err.Error() == "BUSYGROUP Consumer Group name already exists" {
+	if err != nil && strings.Contains(strings.ToLower(err.Error()), "busygroup") {
 		return nil
 	}
 	return err

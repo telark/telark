@@ -1,6 +1,10 @@
 package stream
 
-import "time"
+import (
+	"time"
+
+	"github.com/plsyro/data/errors"
+)
 
 const (
 	StreamConsumerGroupDeliveryID = ">"
@@ -12,6 +16,8 @@ const (
 
 	LockDefaultTTL        = 120 * time.Second
 	LockHeartbeatInterval = 30 * time.Second
+	LockReleaseMaxRetries = 3
+	LockReleaseRetryDelay = 10 * time.Millisecond
 
 	OperationStateTTL = 300 * time.Second
 	DedupTTL          = 60 * time.Second
@@ -19,6 +25,7 @@ const (
 	ReplicaHeartbeatTTL      = 30 * time.Second
 	ReplicaHeartbeatInterval = 10 * time.Second
 
-	ElectionDefaultTTL    = 60 * time.Second
-	ElectionRenewInterval = 20 * time.Second
+	ElectionDefaultTTL                    = 60 * time.Second
+	ElectionRenewInterval                 = 20 * time.Second
+	LockReleaseFailedMessage errors.Error = "lock release failed after %d attempts: %s"
 )

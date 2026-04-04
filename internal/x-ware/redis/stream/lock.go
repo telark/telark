@@ -2,6 +2,8 @@ package stream
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -20,6 +22,21 @@ func (c *LockClient) Acquire(ctx context.Context, key, value string, ttl time.Du
 }
 
 func (c *LockClient) Release(ctx context.Context, key, value string) error {
+	for range LockReleaseMaxRetries {
+		err := c.tryRelease(ctx, key, value)
+		if err == nil {
+			return nil
+		}
+		if errors.Is(err, redis.TxFailedErr) {
+			time.Sleep(LockReleaseRetryDelay)
+			continue
+		}
+		return err
+	}
+	return fmt.Errorf(string(LockReleaseFailedMessage), LockReleaseMaxRetries, key)
+}
+
+func (c *LockClient) tryRelease(ctx context.Context, key, value string) error {
 	txf := func(tx *redis.Tx) error {
 		held, err := tx.Get(ctx, key).Result()
 		if err != nil {
@@ -37,12 +54,7 @@ func (c *LockClient) Release(ctx context.Context, key, value string) error {
 		})
 		return err
 	}
-
-	err := c.redis.Watch(ctx, txf, key)
-	if err != nil && err == redis.TxFailedErr {
-		return nil
-	}
-	return err
+	return c.redis.Watch(ctx, txf, key)
 }
 
 func (c *LockClient) Extend(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {

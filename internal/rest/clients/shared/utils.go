@@ -11,6 +11,7 @@ import (
 	"github.com/plsyro/data/errors"
 	globalshared "github.com/plsyro/data/shared"
 	"github.com/plsyro/rest/base"
+	"github.com/plsyro/rest/connectivity"
 	"github.com/plsyro/rest/constants"
 	"github.com/plsyro/rest/response"
 	requestutils "github.com/plsyro/rest/utils/request"
@@ -45,6 +46,11 @@ func executeHTTPRequest(
 	endpoint base.Endpoint,
 	payload []byte,
 ) (*http.Response, error) {
+	if mgr := connectivity.Global(); mgr != nil {
+		if !mgr.IsReady(string(client.service)) {
+			return nil, fmt.Errorf(string(constants.ErrConnectivityServiceNotReady), client.service)
+		}
+	}
 	url, err := buildRequestURL(client, method, endpoint, payload)
 	if err != nil {
 		return nil, fmt.Errorf(string(constants.ErrFailedToGenerateRequestURL), err)
@@ -81,7 +87,7 @@ func readResponseBody(resp *http.Response) ([]byte, error) {
 
 func parseSingleResponse[T any](resp *http.Response) (*T, error) {
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status: %d", resp.StatusCode)
+		return nil, fmt.Errorf(string(constants.ErrStatus), resp.StatusCode)
 	}
 
 	body, err := readResponseBody(resp)
@@ -100,7 +106,7 @@ func parseSingleResponse[T any](resp *http.Response) (*T, error) {
 
 func parseRawJSONResponse[T any](resp *http.Response) (*T, error) {
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status: %d", resp.StatusCode)
+		return nil, fmt.Errorf(string(constants.ErrStatus), resp.StatusCode)
 	}
 
 	body, err := readResponseBody(resp)
@@ -118,7 +124,7 @@ func parseRawJSONResponse[T any](resp *http.Response) (*T, error) {
 
 func parseListResponse[T any](resp *http.Response) ([]T, error) {
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status: %d", resp.StatusCode)
+		return nil, fmt.Errorf(string(constants.ErrStatus), resp.StatusCode)
 	}
 
 	body, err := readResponseBody(resp)

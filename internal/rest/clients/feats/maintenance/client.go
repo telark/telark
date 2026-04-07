@@ -14,7 +14,7 @@ type Client struct {
 	*shared.Client
 }
 
-func NewClient(useExporter bool) *Client { //nolint:revive //TODO: each eps will be handled by a different client in the future
+func NewClient(useExporter bool) *Client {
 	var service base.Service
 	if useExporter {
 		service = base.Exporter

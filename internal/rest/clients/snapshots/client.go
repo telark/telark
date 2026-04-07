@@ -80,7 +80,7 @@ func (c *Client) GetSnapshotManifest(
 		return nil, err
 	}
 
-	out := make([]unstructured.Unstructured, 0, len(*objs))
+	out := make([]unstructured.Unstructured, constants.EmptySliceLength, len(*objs))
 	for _, obj := range *objs {
 		out = append(out, unstructured.Unstructured{Object: obj})
 	}
@@ -89,19 +89,19 @@ func (c *Client) GetSnapshotManifest(
 
 func appendManifestQuery(ep base.Endpoint, scope, namespace, generation string) (base.Endpoint, error) {
 	q := url.Values{}
-	if scope != "" {
+	if scope != constants.EmptyString {
 		q.Set("scope", scope)
 	}
-	if namespace != "" {
+	if namespace != constants.EmptyString {
 		q.Set("namespace", namespace)
 	}
-	if generation != "" {
+	if generation != constants.EmptyString {
 		if _, err := strconv.Atoi(generation); err != nil {
 			return "", fmt.Errorf("invalid generation query param: %v", err)
 		}
 		q.Set("generation", generation)
 	}
-	if len(q) == 0 {
+	if len(q) == constants.EmptySliceLength {
 		return ep, nil
 	}
 	return base.Endpoint(string(ep) + "?" + q.Encode()), nil

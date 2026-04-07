@@ -4,11 +4,14 @@ go 1.26.1
 
 require (
 	github.com/gorilla/mux v1.8.1
-	github.com/plsyro/data v1.10.38
+	github.com/plsyro/data v1.10.46
+	github.com/redis/go-redis/v9 v9.12.0
 	k8s.io/apimachinery v0.35.3
 )
 
 require (
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect

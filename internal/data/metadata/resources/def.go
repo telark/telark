@@ -76,3 +76,11 @@ var ApplicationAsResourceMetadata = base.Metadata{
 	Plural:    "applicationsasresources",
 	Namespace: globalshared.BaseNamespace,
 }
+
+var GlobalConfigMetadata = base.Metadata{
+	BaseGroup: string(base.Erpi),
+	Kind:      "GlobalConfig",
+	Version:   string(base.Alpha1),
+	Plural:    "globalconfigs",
+	Namespace: globalshared.BaseNamespace,
+}

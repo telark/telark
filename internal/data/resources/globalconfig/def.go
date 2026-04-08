@@ -1,15 +1,18 @@
 package globalconfig
 
 type GlobalConfig struct {
-	UserSettings UserSettings `json:"userSettings"`
-	AI           AIConfig     `json:"ai"`
-	Cluster      Cluster      `json:"cluster"`
+	UserSettings       UserSettings    `json:"userSettings"`
+	AI                 AIConfig        `json:"ai"`
+	Cluster            Cluster         `json:"cluster"`
+	ExcludedNamespaces []string        `json:"excludedNamespaces,omitempty"`
+	Snapshots          SnapshotsConfig `json:"snapshots"`
 }
 
 type UserSettings struct {
-	Theme      string `json:"theme"`
-	Density    string `json:"density"`
-	UIViewSize string `json:"uiViewSize"`
+	Theme                string `json:"theme"`
+	Density              string `json:"density"`
+	UIViewSize           string `json:"uiViewSize"`
+	FetchIntervalSeconds int    `json:"fetchIntervalSeconds"`
 }
 
 type AIConfig struct {
@@ -20,4 +23,8 @@ type AIConfig struct {
 
 type Cluster struct {
 	Version string `json:"version"`
+}
+
+type SnapshotsConfig struct {
+	MaxPerApp int `json:"maxPerApp"`
 }

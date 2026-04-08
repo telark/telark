@@ -3,6 +3,7 @@ package application
 type Application struct {
 	Name            string                `json:"name"`
 	DisplayName     string                `json:"displayName"`
+	Description     *string               `json:"description,omitempty"`
 	Health          Health                `json:"health"`
 	ResourceCount   int                   `json:"resourceCount"`
 	Namespaces      Namespaces            `json:"namespaces"`

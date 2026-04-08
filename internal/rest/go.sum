@@ -26,8 +26,8 @@ github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd/go.mod h1:6dJ
 github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
 github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee h1:W5t00kpgFdJifH4BDsTlE89Zl93FEloxaWZfGcifgq8=
 github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
-github.com/plsyro/data v1.10.46 h1:ls5gVbok7LSGIdtyYuNs+gwccrWM5FCVYdLOLa3Rw24=
-github.com/plsyro/data v1.10.46/go.mod h1:Ezn6Rl+aXLmlyAHQ4Cf6ky/bTc+qoio2rdlv/0q7CG4=
+github.com/plsyro/data v1.10.48 h1:PBzsZzzsR1v/FQY55FB4Km49CCXU4Q1EeyGszTjkE3E=
+github.com/plsyro/data v1.10.48/go.mod h1:Ezn6Rl+aXLmlyAHQ4Cf6ky/bTc+qoio2rdlv/0q7CG4=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/redis/go-redis/v9 v9.12.0 h1:XlVPGlflh4nxfhsNXPA8Qp6EmEfTo0rp8oaBzPipXnU=

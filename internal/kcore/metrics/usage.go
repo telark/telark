@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/plsyro/data/logger"
-	workloadshared "github.com/plsyro/data/resources/workloads/shared"
+	usage "github.com/plsyro/data/resources/application"
 	globalshared "github.com/plsyro/data/shared"
 	"github.com/plsyro/kcore/constants"
 	"github.com/plsyro/kcore/metrics/client"
@@ -32,15 +32,15 @@ func GetWorkloadQualityOfService(namespace string, selectors map[string]string) 
 func BuildWorkloadUsage(
 	namespace, qos string,
 	selectors map[string]string,
-) *workloadshared.Usage {
-	usage := &workloadshared.Usage{
+) *usage.Usage {
+	usage := &usage.Usage{
 		QoS:       qos,
 		Timestamp: time.Now().Format(time.RFC3339),
 		Available: false,
-		Resources: workloadshared.Resource{
+		Resources: usage.ResourceUsage{
 			TotalCPU:         globalshared.DefaultCPU,
 			TotalMemory:      globalshared.DefaultMemory,
-			UsagePerInstance: []workloadshared.UsagePerInstance{},
+			UsagePerInstance: []usage.UsagePerInstance{},
 		},
 	}
 
@@ -71,23 +71,23 @@ func BuildWorkloadUsage(
 
 func buildResourceFromPodMetricsList(
 	podMetricsList []*metricstypes.PodMetrics,
-) workloadshared.Resource {
+) usage.ResourceUsage {
 	instances := make(
-		[]workloadshared.UsagePerInstance,
+		[]usage.UsagePerInstance,
 		constants.EmptySliceLength,
 		len(podMetricsList),
 	)
 	var totalCPU, totalMemory int64
 
 	for _, podMetrics := range podMetricsList {
-		instance := workloadshared.UsagePerInstance{
+		instance := usage.UsagePerInstance{
 			Name:       podMetrics.PodName,
-			Containers: []workloadshared.ContainerUsage{},
+			Containers: []usage.ContainerUsage{},
 		}
 
 		var instanceCPU, instanceMemory int64
 		for containerName, containerMetrics := range podMetrics.Containers {
-			containerUsage := workloadshared.ContainerUsage{
+			containerUsage := usage.ContainerUsage{
 				Name:   containerName,
 				CPU:    containerMetrics.CPU,
 				Memory: containerMetrics.Memory,
@@ -111,7 +111,7 @@ func buildResourceFromPodMetricsList(
 		totalMemory += instanceMemory
 	}
 
-	return workloadshared.Resource{
+	return usage.ResourceUsage{
 		TotalCPU:         metricsutils.FormatCPU(totalCPU),
 		TotalMemory:      metricsutils.FormatMemory(totalMemory),
 		UsagePerInstance: instances,

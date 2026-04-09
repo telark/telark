@@ -42,7 +42,6 @@ const (
 	Configurator      Service     = "configurator"
 	Exporter          Service     = "exporter"
 	AdmissionOperator Service     = "admission-operator"
-	SyncManager       Service     = "sync-manager"
 	Notifier          Service     = "notifier"
 	JSON              ContentType = "application/json"
 	Default           Port        = 8080

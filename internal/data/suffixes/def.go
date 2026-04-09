@@ -8,8 +8,4 @@ import (
 
 type Suffix string
 
-const (
-	MainFeatNameSuffix Suffix = "-maintenance-feat"
-)
-
 var AdmissionNameSuffix Suffix = Suffix(fmt.Sprintf(".%s.io", shared.BaseNamespace))

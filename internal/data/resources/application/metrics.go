@@ -1,7 +1,5 @@
 package application
 
-import workloadshared "github.com/plsyro/data/resources/workloads/shared"
-
 type ApplicationMetrics struct {
 	Derived   DerivedMetrics  `json:"derived"`
 	Workloads []WorkloadUsage `json:"workloads"`
@@ -21,11 +19,11 @@ type DerivedMetrics struct {
 }
 
 type WorkloadUsage struct {
-	ResourceName string               `json:"resourceName"`
-	ResourceKind string               `json:"resourceKind"`
-	Namespace    string               `json:"namespace"`
-	Baseline     MetricsBaseline      `json:"baseline"`
-	Usage        workloadshared.Usage `json:"usage"`
+	ResourceName string          `json:"resourceName"`
+	ResourceKind string          `json:"resourceKind"`
+	Namespace    string          `json:"namespace"`
+	Baseline     MetricsBaseline `json:"baseline"`
+	Usage        Usage           `json:"usage"`
 }
 
 type MetricsBaseline struct {

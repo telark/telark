@@ -4,7 +4,7 @@ import "time"
 
 type RollbackEntry struct {
 	ID                 string     `json:"id"`
-	TargetSnapshotId   string     `json:"targetSnapshotId"`
+	TargetSnapshotID   string     `json:"targetSnapshotId"`
 	TargetGeneration   int        `json:"targetGeneration"`
 	TargetPath         string     `json:"targetPath"`
 	TriggeredBy        string     `json:"triggeredBy"`
@@ -15,4 +15,3 @@ type RollbackEntry struct {
 	RestoredGeneration *int       `json:"restoredGeneration,omitempty"`
 	Namespace          string     `json:"namespace"`
 }
-

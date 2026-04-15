@@ -26,6 +26,17 @@ type CreateSnapshotPayload struct {
 	Manifest   any    `json:"manifest"`
 }
 
+type SnapshotStorageInfo struct {
+	TotalPVCSpace  map[string]any `json:"totalPVCSpace"`
+	ConsumedSpace  map[string]any `json:"consumedSpace"`
+	AvailableSpace map[string]any `json:"availableSpace"`
+	TotalSnapshots int            `json:"totalSnapshots"`
+	SnapshotsPath  string         `json:"snapshotsPath"`
+	SnapshotScopes []string       `json:"snapshotScopes"`
+	PVCName        string         `json:"pvcName"`
+	PVCNamespace   string         `json:"pvcNamespace"`
+}
+
 func NewClient() *Client {
 	return &Client{
 		Client: shared.New(base.Exporter),
@@ -85,6 +96,10 @@ func (c *Client) GetSnapshotManifest(
 		out = append(out, unstructured.Unstructured{Object: obj})
 	}
 	return out, nil
+}
+
+func (c *Client) GetSnapshotInfos() (*SnapshotStorageInfo, error) {
+	return shared.GetTyped[SnapshotStorageInfo](c.Client, eps.GetSnapshotInfos)
 }
 
 func appendManifestQuery(ep base.Endpoint, scope, namespace, generation string) (base.Endpoint, error) {

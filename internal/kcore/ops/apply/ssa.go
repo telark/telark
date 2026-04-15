@@ -5,14 +5,15 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"
 )
 
 type ServerSideApplyOptions struct {
 	FieldManager string
 	Force        bool
+	DryRun       bool
 }
 
 type ApplyLogFunc func(kind, name, namespace string)
@@ -37,6 +38,9 @@ func ApplyUnstructuredServerSide(
 		gvr := mapping.Resource
 		ri := dyn.Resource(gvr)
 		applyOpts := metav1.ApplyOptions{FieldManager: opts.FieldManager, Force: opts.Force}
+		if opts.DryRun {
+			applyOpts.DryRun = []string{metav1.DryRunAll}
+		}
 
 		var applyErr error
 		if ns := res.GetNamespace(); ns != "" {
@@ -53,4 +57,3 @@ func ApplyUnstructuredServerSide(
 	}
 	return nil
 }
-

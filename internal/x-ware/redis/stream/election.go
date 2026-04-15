@@ -89,3 +89,14 @@ func (c *ElectionClient) IsLeader(ctx context.Context) (bool, error) {
 	}
 	return held == c.leaderID, nil
 }
+
+func (c *ElectionClient) CurrentLeader(ctx context.Context) (string, error) {
+	held, err := c.redis.Get(ctx, c.key).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return "", nil
+		}
+		return "", err
+	}
+	return held, nil
+}

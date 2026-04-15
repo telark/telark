@@ -16,6 +16,10 @@ type Application struct {
 	Images          []string              `json:"images"`
 	Ports           []int                 `json:"ports"`
 	EnvVarKeys      []string              `json:"envVarKeys"`
+	ConfigMapRefs   []string              `json:"configMapRefs"`
+	SecretRefs      []string              `json:"secretRefs"`
+	ServiceMappings []string              `json:"serviceMappings"`
+	IngressRules    []string              `json:"ingressRules"`
 	Snapshots       []ApplicationSnapshot `json:"snapshots"`
 	Rollbacks       []RollbackEntry       `json:"rollbacks,omitempty"`
 	Metrics         ApplicationMetrics    `json:"metrics"`

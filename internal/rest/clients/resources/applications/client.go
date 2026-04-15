@@ -63,3 +63,13 @@ func (c *Client) DeleteApplicationByName(name string) *response.GenericResponse 
 	)
 	return c.Delete(ep)
 }
+
+func (c *Client) CleanupApplicationByName(name string) *response.GenericResponse {
+	ep := shared.SubstituteEndpointWithParam(
+		string(eps.CleanupApplication),
+		constants.NameParam,
+		name,
+	)
+	discoveryClient := shared.New(base.Discovery)
+	return discoveryClient.Delete(ep)
+}

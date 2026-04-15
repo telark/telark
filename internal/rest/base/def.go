@@ -41,6 +41,7 @@ const (
 const (
 	Configurator      Service     = "configurator"
 	Exporter          Service     = "exporter"
+	Discovery         Service     = "discovery"
 	AdmissionOperator Service     = "admission-operator"
 	Notifier          Service     = "notifier"
 	JSON              ContentType = "application/json"

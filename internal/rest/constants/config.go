@@ -1,6 +1,10 @@
 package constants
 
-import "github.com/plsyro/data/errors"
+import (
+	"time"
+
+	"github.com/plsyro/data/errors"
+)
 
 const (
 	ErrFailedToGenerateRequestURL    errors.Error = "failed to generate request URL: %v"
@@ -37,4 +41,17 @@ const (
 	ConnectivityRedisOpTimeoutMillis              = 200
 	ErrStatus                        errors.Error = "status: %d"
 	ErrConnectivityServiceNotReady   errors.Error = "service not ready: %s"
+	ErrGlobalConfigReadFailed        errors.Error = "failed to read global config before patch: %v"
+	ErrGlobalConfigResponseData      errors.Error = "invalid global config response data"
+	ErrGlobalConfigMetadataMissing   errors.Error = "global config metadata is missing"
+	ErrGlobalConfigVersionMissing    errors.Error = "global config resourceVersion is missing"
+	ErrGlobalConfigPatchRetryFailure errors.Error = "global config patch conflict after %d retries"
+	MetadataField                                 = "metadata"
+	SpecField                                     = "spec"
+	ResourceVersionField                          = "resourceVersion"
+	GlobalConfigConflictStatus                    = 409
+	GlobalConfigPatchRetryAttempts                = 3
+	GlobalConfigPatchRetryBackoff                 = 200 * time.Millisecond
+	GlobalConfigConflictMessageOne                = "the object has been modified"
+	GlobalConfigConflictMessageTwo                = "operation cannot be fulfilled"
 )

@@ -3,6 +3,7 @@ package applications
 import "github.com/plsyro/rest/base"
 
 const (
+	// Application endpoints
 	EnrichApplications      base.Endpoint = "resources/applications/enrich" // namespace, selector params are optional
 	CreateApplication       base.Endpoint = "resources/applications/create"
 	GetAllApplications      base.Endpoint = "resources/applications/get"
@@ -12,8 +13,9 @@ const (
 	SyncApplication         base.Endpoint = "resources/applications/{name}/sync"
 	CleanupApplication      base.Endpoint = "resources/applications/{name}/cleanup"
 
-	// Application Rollback endpoints
-	TriggerRollback base.Endpoint = "resources/applications/{name}/rollbacks"
-	GetRollbacks    base.Endpoint = "resources/applications/{name}/rollbacks"
-	GetRollback     base.Endpoint = "resources/applications/{name}/rollbacks/{rollbackId}"
+	// Rollback endpoints
+	GetRollbacks    base.Endpoint = "resources/applications/{name}/rollbacks/get"
+	GetRollback     base.Endpoint = "resources/applications/{name}/rollbacks/{rollbackId}/get"
+	TriggerRollback base.Endpoint = "resources/applications/{name}/rollbacks/trigger"
+	AbortRollback   base.Endpoint = "resources/applications/{name}/rollbacks/abort"
 )

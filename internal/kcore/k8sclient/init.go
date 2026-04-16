@@ -18,6 +18,10 @@ var (
 	dynamicClient    dynamic.Interface
 	configLoader     func() (*rest.Config, error)
 	mu               sync.RWMutex
+	restRLMu         sync.Mutex
+	restQPS          float32
+	restBurst        int
+	restRLConfigured bool
 )
 
 func makeConfigLoader() func() (*rest.Config, error) {
@@ -32,7 +36,37 @@ func makeConfigLoader() func() (*rest.Config, error) {
 }
 
 func getConfig() (*rest.Config, error) {
-	return configLoader()
+	cfg, err := configLoader()
+	if err != nil {
+		return nil, err
+	}
+	applyRESTRateLimit(cfg)
+	return cfg, nil
+}
+
+func SetRESTClientRateLimit(qps float32, burst int) {
+	restRLMu.Lock()
+	defer restRLMu.Unlock()
+	if qps <= 0 || burst <= 0 {
+		restRLConfigured = false
+		return
+	}
+	restQPS = qps
+	restBurst = burst
+	restRLConfigured = true
+}
+
+func applyRESTRateLimit(cfg *rest.Config) {
+	if cfg == nil {
+		return
+	}
+	restRLMu.Lock()
+	defer restRLMu.Unlock()
+	if !restRLConfigured {
+		return
+	}
+	cfg.QPS = restQPS
+	cfg.Burst = restBurst
 }
 
 func InitDynamicClient() (dynamic.Interface, error) {

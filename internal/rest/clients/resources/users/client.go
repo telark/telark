@@ -41,6 +41,15 @@ func (c *Client) GetUserByUsername(username string) (*userresource.UserAsResourc
 	return shared.GetTyped[userresource.UserAsResource](c.Client, ep)
 }
 
+func (c *Client) GetUserByEmail(email string) (*userresource.UserAsResource, error) {
+	ep := shared.SubstituteEndpointWithParam(
+		string(eps.GetUserByEmail),
+		constants.EmailParam,
+		email,
+	)
+	return shared.GetTyped[userresource.UserAsResource](c.Client, ep)
+}
+
 func (c *Client) GetAllUsers() ([]*userresource.UserAsResource, error) {
 	return shared.GetListTyped[*userresource.UserAsResource](c.Client, eps.GetAllUsers)
 }

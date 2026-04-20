@@ -33,6 +33,7 @@ const (
 	TokenParam                                    = "{token}"
 	IDParam                                       = "{id}"
 	UsernameParam                                 = "{username}"
+	EmailParam                                    = "{email}"
 	ConnectivityKeyPrefix                         = "connectivity:service:"
 	ConnectivityValueReady                        = "1"
 	ConnectivityValueNotReady                     = "0"

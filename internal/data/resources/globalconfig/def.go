@@ -6,6 +6,7 @@ type GlobalConfig struct {
 	Cluster            Cluster         `json:"cluster"`
 	ExcludedNamespaces []string        `json:"excludedNamespaces,omitempty"`
 	Snapshots          SnapshotsConfig `json:"snapshots"`
+	OIDC               OIDCConfig      `json:"oidc"`
 }
 
 type UserSettings struct {
@@ -27,4 +28,9 @@ type Cluster struct {
 
 type SnapshotsConfig struct {
 	MaxPerApp int `json:"maxPerApp"`
+}
+
+type OIDCConfig struct {
+	Enabled        bool   `json:"enabled"`
+	GoogleClientID string `json:"googleClientID"`
 }

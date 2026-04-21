@@ -15,8 +15,18 @@ type UserPasskey struct {
 	DeviceType        string  `json:"deviceType"` // "platform" or "cross-platform"
 	CreationTimestamp *string `json:"creationTimestamp,omitempty"`
 	LastUsedTimestamp *string `json:"lastUsedTimestamp,omitempty"`
-	BackupEligible    bool    `json:"backupEligible"`    // Backup Eligible flag from WebAuthn authenticator data
-	BackupState       bool    `json:"backupState"`       // Backup State flag from WebAuthn authenticator data
+	BackupEligible    bool    `json:"backupEligible"` // Backup Eligible flag from WebAuthn authenticator data
+	BackupState       bool    `json:"backupState"`    // Backup State flag from WebAuthn authenticator data
+}
+
+// DeviceMetadata holds optional client-provided session context.
+// Single source of truth — embedded in UserSession and handler request types.
+type DeviceMetadata struct {
+	Browser   *string `json:"browser,omitempty"`
+	Device    *string `json:"device,omitempty"`
+	OS        *string `json:"os,omitempty"`
+	Location  *string `json:"location,omitempty"`
+	UserAgent *string `json:"userAgent,omitempty"`
 }
 
 type UserSession struct {
@@ -25,9 +35,5 @@ type UserSession struct {
 	CreatedTimestamp string  `json:"createdTimestamp"`
 	ExpiresTimestamp string  `json:"expiresTimestamp"`
 	IPAddress        *string `json:"ipAddress,omitempty"`
-	Browser          *string `json:"browser,omitempty"`
-	Device           *string `json:"device,omitempty"`
-	OS               *string `json:"os,omitempty"`
-	Location         *string `json:"location,omitempty"`
-	UserAgent        *string `json:"userAgent,omitempty"`
+	DeviceMetadata
 }

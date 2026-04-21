@@ -25,4 +25,9 @@ type UserSession struct {
 	CreatedTimestamp string  `json:"createdTimestamp"`
 	ExpiresTimestamp string  `json:"expiresTimestamp"`
 	IPAddress        *string `json:"ipAddress,omitempty"`
+	Browser          *string `json:"browser,omitempty"`
+	Device           *string `json:"device,omitempty"`
+	OS               *string `json:"os,omitempty"`
+	Location         *string `json:"location,omitempty"`
+	UserAgent        *string `json:"userAgent,omitempty"`
 }

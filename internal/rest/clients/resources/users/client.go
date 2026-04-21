@@ -1,6 +1,9 @@
 package users
 
 import (
+	"fmt"
+	"net/url"
+
 	userresource "github.com/plsyro/data/resources/user"
 	"github.com/plsyro/rest/base"
 	"github.com/plsyro/rest/clients/shared"
@@ -47,6 +50,16 @@ func (c *Client) GetUserByEmail(email string) (*userresource.UserAsResource, err
 		constants.EmailParam,
 		email,
 	)
+	return shared.GetTyped[userresource.UserAsResource](c.Client, ep)
+}
+
+func (c *Client) GetUserByIdentity(provider, issuer, subject string) (*userresource.UserAsResource, error) {
+	ep := base.Endpoint(fmt.Sprintf("%s?provider=%s&issuer=%s&subject=%s",
+		eps.GetUserByIdentity,
+		url.QueryEscape(provider),
+		url.QueryEscape(issuer),
+		url.QueryEscape(subject),
+	))
 	return shared.GetTyped[userresource.UserAsResource](c.Client, ep)
 }
 

@@ -19,21 +19,20 @@ type UserPasskey struct {
 	BackupState       bool    `json:"backupState"`    // Backup State flag from WebAuthn authenticator data
 }
 
-// DeviceMetadata holds optional client-provided session context.
-// Single source of truth — embedded in UserSession and handler request types.
+type UserSession struct {
+	UserID           string         `json:"userId"`
+	SessionToken     string         `json:"sessionToken"`
+	CreatedTimestamp string         `json:"createdTimestamp"`
+	ExpiresTimestamp string         `json:"expiresTimestamp"`
+	IPAddress        *string        `json:"ipAddress,omitempty"`
+	DeviceMetadata   DeviceMetadata `json:"deviceMetadata"`
+}
+
+// DeviceMetadata holds optional browser-client-provided session context.
 type DeviceMetadata struct {
 	Browser   *string `json:"browser,omitempty"`
 	Device    *string `json:"device,omitempty"`
 	OS        *string `json:"os,omitempty"`
 	Location  *string `json:"location,omitempty"`
 	UserAgent *string `json:"userAgent,omitempty"`
-}
-
-type UserSession struct {
-	UserID           string  `json:"userId"`
-	SessionToken     string  `json:"sessionToken"`
-	CreatedTimestamp string  `json:"createdTimestamp"`
-	ExpiresTimestamp string  `json:"expiresTimestamp"`
-	IPAddress        *string `json:"ipAddress,omitempty"`
-	DeviceMetadata
 }

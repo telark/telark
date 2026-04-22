@@ -30,6 +30,9 @@ const (
 	DeleteSessionByToken base.Endpoint = "auth/sessions/tokens/{token}/delete"
 	PatchSessionByToken  base.Endpoint = "auth/sessions/tokens/{token}/patch"
 
+	// Authorisation
+	GetMyPermissions base.Endpoint = "auth/permissions"
+
 	// OIDC
 	OIDCGoogleCallback base.Endpoint = "auth/oidc/google/callback"
 

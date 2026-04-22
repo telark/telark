@@ -30,6 +30,7 @@ const (
 	OmitEmpty                                     = "omitempty"
 	NameParam                                     = "{name}"
 	UserIDParam                                   = "{userId}"
+	GroupIDParam                                  = "{groupId}"
 	TokenParam                                    = "{token}"
 	IDParam                                       = "{id}"
 	UsernameParam                                 = "{username}"

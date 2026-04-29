@@ -24,6 +24,16 @@ func LogAndSendResponse(
 	sendResponse(w, status, operation, message, data)
 }
 
+func SendResponse(
+	w http.ResponseWriter,
+	status int,
+	operation response.OperationStatus,
+	message string,
+	data any,
+) {
+	sendResponse(w, status, operation, message, data)
+}
+
 func LogAndReturnResponse(
 	status int,
 	operation response.OperationStatus,

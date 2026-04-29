@@ -12,6 +12,7 @@ type KubernetesAPIData struct {
 const (
 	StatusOK                  = http.StatusOK
 	StatusBadRequest          = http.StatusBadRequest
+	StatusConflict            = http.StatusConflict
 	StatusInternalServerError = http.StatusInternalServerError
 )
 

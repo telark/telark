@@ -1,10 +1,10 @@
 module github.com/plsyro/rest
 
-go 1.26.1
+go 1.26.2
 
 require (
 	github.com/gorilla/mux v1.8.1
-	github.com/plsyro/data v1.11.0
+	github.com/plsyro/data v1.11.7
 	github.com/redis/go-redis/v9 v9.12.0
 	k8s.io/apimachinery v0.35.3
 )

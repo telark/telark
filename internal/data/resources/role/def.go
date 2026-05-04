@@ -12,7 +12,6 @@ type RoleAsResource struct {
 	Protection           *Protection           `json:"protection,omitempty"`
 	Status               RoleStatus            `json:"status"`
 	Validity             *Validity             `json:"validity,omitempty"`
-	AssignedTo           *AssignedTo           `json:"assignedTo,omitempty"`
 	CreationDate         string                `json:"creationDate"`
 	LastUpdateDate       *string               `json:"lastUpdateDate,omitempty"`
 	CreatedBy            *string               `json:"createdBy,omitempty"`

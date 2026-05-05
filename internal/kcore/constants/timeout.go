@@ -27,5 +27,5 @@ const (
 	CrdListTimeout            = 30 * time.Second
 	CrdPatchTimeout           = 15 * time.Second
 	CrdDeleteTimeout          = 15 * time.Second
-	CrdCreateTimeout          = 15 * time.Second
+	CrdCreateTimeout          = 12 * time.Second
 )

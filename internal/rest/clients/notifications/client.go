@@ -34,7 +34,7 @@ func (c *Client) Emit(ctx context.Context, n Notification) *response.GenericResp
 		return shared.CreateErrorResponse(err.Error(), err)
 	}
 	Truncate(&n)
-	return c.Create(eps.Emit, n)
+	return shared.ExecuteRequestWithHeaders(c.Client, base.Post, eps.Emit, n, nil)
 }
 
 func (c *Client) List(ctx context.Context, userID string, opts ListOptions) (*ListResponse, error) {

@@ -9,6 +9,9 @@ const (
 	StartRegister base.Endpoint = "auth/register/start"
 	Logout        base.Endpoint = "auth/logout"
 
+	// Public bootstrap config (no authentication)
+	Config base.Endpoint = "auth/config"
+
 	// Internal Passkeys EPs used only exporter-service
 	CreateInternalPasskeyByUser                base.Endpoint = "auth/passkeys/internal/create"
 	GetAllInternalPasskeysByUser               base.Endpoint = "auth/passkeys/internal/get"

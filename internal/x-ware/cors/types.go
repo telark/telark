@@ -18,6 +18,7 @@ var Headers = []string{
 	"X-Device-Name",
 	"X-Device-Type",
 	"X-Username",
+	"X-Email",
 	"X-User-ID",
 	"Accept",
 	"Origin",

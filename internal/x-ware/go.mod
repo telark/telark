@@ -1,11 +1,11 @@
 module github.com/plsyro/x-ware
 
-go 1.26.1
+go 1.26.2
 
 require (
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/nats-io/nats.go v1.44.0
-	github.com/plsyro/data v1.11.0
+	github.com/plsyro/data v1.11.7
 	github.com/redis/go-redis/v9 v9.12.0
 	github.com/rs/cors v1.11.1
 )

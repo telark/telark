@@ -1,6 +1,10 @@
 package plans
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/plsyro/data/constants"
+)
 
 type ParamType string
 
@@ -140,7 +144,7 @@ func ValidateParams(template *Template, params map[string]any) error {
 		}
 		if spec.Type == ParamTypeStringArray {
 			arr, ok := toStringSlice(val)
-			if !ok || len(arr) == 0 {
+			if !ok || len(arr) == constants.DefaultInitValue {
 				return fmt.Errorf("param %q must be a non-empty string array for template %q", spec.Key, template.ID)
 			}
 		}
@@ -153,7 +157,7 @@ func toStringSlice(v any) ([]string, bool) {
 	case []string:
 		return cast, true
 	case []any:
-		out := make([]string, 0, len(cast))
+		out := make([]string, constants.DefaultInitValue, len(cast))
 		for _, item := range cast {
 			s, ok := item.(string)
 			if !ok {

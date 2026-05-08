@@ -4,10 +4,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
+	"github.com/plsyro/data/constants"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -33,7 +34,7 @@ func PolicyName(planID, templateID string, scope ScopeSpec) string {
 
 func scopeSuffix(scope ScopeSpec) string {
 	apps := append([]string(nil), scope.ApplicationIDs...)
-	sort.Strings(apps)
+	slices.Sort(apps)
 	h := sha256.Sum256([]byte(scope.Namespace + "\x00" + joinSorted(apps)))
 	return hex.EncodeToString(h[:])[:scopeHashLength]
 }
@@ -41,7 +42,7 @@ func scopeSuffix(scope ScopeSpec) string {
 func joinSorted(items []string) string {
 	var out strings.Builder
 	for i, s := range items {
-		if i > 0 {
+		if i > constants.DefaultInitValue {
 			out.WriteString(",")
 		}
 		out.WriteString(s)
@@ -73,7 +74,7 @@ func FailureAction(mode string) kyvernov1.ValidationFailureAction {
 }
 
 func AppScopeSelector(appIDs []string) *metav1.LabelSelector {
-	if len(appIDs) == 0 {
+	if len(appIDs) == constants.DefaultInitValue {
 		return nil
 	}
 	return &metav1.LabelSelector{

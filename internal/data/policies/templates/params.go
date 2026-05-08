@@ -1,6 +1,10 @@
 package templates
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/plsyro/data/constants"
+)
 
 // paramStringSlice extracts a non-empty []string from a free-form params map.
 func paramStringSlice(params map[string]any, key string) ([]string, error) {
@@ -10,12 +14,12 @@ func paramStringSlice(params map[string]any, key string) ([]string, error) {
 	}
 	switch v := raw.(type) {
 	case []string:
-		if len(v) == 0 {
+		if len(v) == constants.DefaultInitValue {
 			return nil, fmt.Errorf("param %q must not be empty", key)
 		}
 		return append([]string(nil), v...), nil
 	case []any:
-		out := make([]string, 0, len(v))
+		out := make([]string, constants.DefaultInitValue, len(v))
 		for _, item := range v {
 			s, ok := item.(string)
 			if !ok {
@@ -23,7 +27,7 @@ func paramStringSlice(params map[string]any, key string) ([]string, error) {
 			}
 			out = append(out, s)
 		}
-		if len(out) == 0 {
+		if len(out) == constants.DefaultInitValue {
 			return nil, fmt.Errorf("param %q must not be empty", key)
 		}
 		return out, nil

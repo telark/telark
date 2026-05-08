@@ -1,19 +1,18 @@
 package policies
 
 import (
+	"errors"
 	"fmt"
-	"sort"
+	"slices"
 
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
+	"github.com/plsyro/data/constants"
 	"github.com/plsyro/data/plans"
 )
 
-// Callers must import "github.com/plsyro/data/policies/templates" once at
-// startup (typically a blank import in main) so each template registers itself
-// before Render runs. This split avoids a templates -> policies -> templates cycle.
 func Render(plan *plans.ProtectionPlan, applicationNamespaces map[string]string) ([]kyvernov1.Policy, error) {
 	if plan == nil {
-		return nil, fmt.Errorf("policies: plan is required")
+		return nil, errors.New("policies: plan is required")
 	}
 
 	scopes, err := buildScopes(plan, applicationNamespaces)
@@ -28,7 +27,7 @@ func Render(plan *plans.ProtectionPlan, applicationNamespaces map[string]string)
 		Mode:      plan.Mode,
 	}
 
-	out := make([]kyvernov1.Policy, 0, len(scopes)*len(plan.Policies))
+	out := make([]kyvernov1.Policy, constants.DefaultInitValue, len(scopes)*len(plan.Policies))
 	for _, scope := range scopes {
 		for _, entry := range plan.Policies {
 			renderer, ok := GetRenderer(entry.TemplateID)
@@ -49,8 +48,8 @@ func buildScopes(plan *plans.ProtectionPlan, applicationNamespaces map[string]st
 	switch plan.Scope.Type {
 	case plans.ScopeTypeNamespaces:
 		nss := append([]string(nil), plan.Scope.Namespaces...)
-		sort.Strings(nss)
-		out := make([]ScopeSpec, 0, len(nss))
+		slices.Sort(nss)
+		out := make([]ScopeSpec, constants.DefaultInitValue, len(nss))
 		for _, ns := range nss {
 			out = append(out, ScopeSpec{Namespace: ns})
 		}
@@ -58,22 +57,22 @@ func buildScopes(plan *plans.ProtectionPlan, applicationNamespaces map[string]st
 
 	case plans.ScopeTypeApplications:
 		grouped := map[string][]string{}
-		for _, appID := range plan.Scope.ApplicationIds {
+		for _, appID := range plan.Scope.ApplicationIDs {
 			ns, ok := applicationNamespaces[appID]
 			if !ok || ns == "" {
 				return nil, fmt.Errorf("policies: application %q has no resolved namespace", appID)
 			}
 			grouped[ns] = append(grouped[ns], appID)
 		}
-		nss := make([]string, 0, len(grouped))
+		nss := make([]string, constants.DefaultInitValue, len(grouped))
 		for ns := range grouped {
 			nss = append(nss, ns)
 		}
-		sort.Strings(nss)
-		out := make([]ScopeSpec, 0, len(nss))
+		slices.Sort(nss)
+		out := make([]ScopeSpec, constants.DefaultInitValue, len(nss))
 		for _, ns := range nss {
 			apps := grouped[ns]
-			sort.Strings(apps)
+			slices.Sort(apps)
 			out = append(out, ScopeSpec{Namespace: ns, ApplicationIDs: apps})
 		}
 		return out, nil

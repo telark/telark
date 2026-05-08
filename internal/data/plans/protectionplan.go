@@ -2,7 +2,7 @@ package plans
 
 const (
 	PhaseActive     = "active"
-	PhaseCancelled  = "cancelled"
+	PhaseCanceled   = "canceled"
 	PhaseDraft      = "draft"
 	PhaseFailed     = "failed"
 	PhaseScheduled  = "scheduled"
@@ -25,7 +25,7 @@ const (
 
 type ProtectionPlanScope struct {
 	Type           string   `json:"type"`
-	ApplicationIds []string `json:"applicationIds,omitempty"`
+	ApplicationIDs []string `json:"applicationIds,omitempty"`
 	Namespaces     []string `json:"namespaces,omitempty"`
 }
 
@@ -40,26 +40,26 @@ type ProtectionPlanTimeRange struct {
 }
 
 type ProtectionPlan struct {
-	ID               string                  `json:"id"`
-	Name             string                  `json:"name"`
-	Description      *string                 `json:"description,omitempty"`
-	Severity         string                  `json:"severity"`
-	Priority         int                     `json:"priority"`
-	Scope            ProtectionPlanScope     `json:"scope"`
-	Policies         []ProtectionPlanPolicy  `json:"policies"`
-	Mode             string                  `json:"mode"`
-	TimeMode         string                  `json:"timeMode"`
+	ID               string                   `json:"id"`
+	Name             string                   `json:"name"`
+	Description      *string                  `json:"description,omitempty"`
+	Severity         string                   `json:"severity"`
+	Priority         int                      `json:"priority"`
+	Scope            ProtectionPlanScope      `json:"scope"`
+	Policies         []ProtectionPlanPolicy   `json:"policies"`
+	Mode             string                   `json:"mode"`
+	TimeMode         string                   `json:"timeMode"`
 	TimeRange        *ProtectionPlanTimeRange `json:"timeRange,omitempty"`
-	Phase            string                  `json:"phase"`
-	Reason           *string                 `json:"reason,omitempty"`
-	RenderedPolicies []string                `json:"renderedPolicies,omitempty"`
-	CreatedAt        string                  `json:"createdAt"`
-	CreatedBy        string                  `json:"createdBy"`
-	LastUpdatedAt    string                  `json:"lastUpdatedAt"`
-	LastUpdatedBy    string                  `json:"lastUpdatedBy"`
-	StartedAt        *string                 `json:"startedAt,omitempty"`
-	StartedBy        *string                 `json:"startedBy,omitempty"`
-	TerminatedAt     *string                 `json:"terminatedAt,omitempty"`
-	TerminatedBy     *string                 `json:"terminatedBy,omitempty"`
-	ParticipantsIDs  []string                `json:"participantsIDs"`
+	Phase            string                   `json:"phase"`
+	Reason           *string                  `json:"reason,omitempty"`
+	RenderedPolicies []string                 `json:"renderedPolicies,omitempty"`
+	CreatedAt        string                   `json:"createdAt"`
+	CreatedBy        string                   `json:"createdBy"`
+	LastUpdatedAt    string                   `json:"lastUpdatedAt"`
+	LastUpdatedBy    string                   `json:"lastUpdatedBy"`
+	StartedAt        *string                  `json:"startedAt,omitempty"`
+	StartedBy        *string                  `json:"startedBy,omitempty"`
+	TerminatedAt     *string                  `json:"terminatedAt,omitempty"`
+	TerminatedBy     *string                  `json:"terminatedBy,omitempty"`
+	ParticipantsIDs  []string                 `json:"participantsIDs"`
 }

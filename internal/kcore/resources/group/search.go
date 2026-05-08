@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/plsyro/kcore/constants"
 	"github.com/plsyro/kcore/k8sclient"
@@ -70,27 +71,89 @@ func ListAllResourcesInNamespaces(namespaces []string) ([]ResourceRef, error) {
 	return listAllInNamespaces(ctx, dyn, namespaces, shared.AppGVRs()), nil
 }
 
+type listJobState struct {
+	sem chan struct{}
+	wg  *sync.WaitGroup
+	mu  *sync.Mutex
+	out *[]ResourceRef
+}
+
 func listAllInNamespaces(
 	ctx context.Context,
 	dyn dynamic.Interface,
 	namespaces []string,
 	gvrs []schema.GroupVersionResource,
 ) []ResourceRef {
-	var out []ResourceRef
+	var (
+		mu  sync.Mutex
+		out []ResourceRef
+		wg  sync.WaitGroup
+	)
+	state := &listJobState{
+		sem: make(chan struct{}, constants.GroupSearchMaxConcurrent),
+		wg:  &wg,
+		mu:  &mu,
+		out: &out,
+	}
 	opts := k8smetav1.ListOptions{}
 	for _, ns := range namespaces {
 		for _, gvr := range gvrs {
-			list, err := dyn.Resource(gvr).Namespace(ns).List(ctx, opts)
-			if err != nil {
-				continue
-			}
-			kind := shared.ResourceKind(gvr.Resource)
-			for i := range list.Items {
-				out = append(out, toRef(&list.Items[i], ns, kind))
-			}
+			wg.Add(constants.WorkerPoolAddCount)
+			go runListJob(ctx, dyn, ns, gvr, opts, state)
 		}
 	}
+	wg.Wait()
 	return out
+}
+
+func runListJob(
+	ctx context.Context,
+	dyn dynamic.Interface,
+	ns string,
+	gvr schema.GroupVersionResource,
+	opts k8smetav1.ListOptions,
+	state *listJobState,
+) {
+	defer state.wg.Done()
+	if !acquireListSlot(ctx, state.sem) {
+		return
+	}
+	defer func() { <-state.sem }()
+	refs := listOneGVRInNamespace(ctx, dyn, ns, gvr, opts)
+	if len(refs) == constants.EmptySliceLength {
+		return
+	}
+	state.mu.Lock()
+	*state.out = append(*state.out, refs...)
+	state.mu.Unlock()
+}
+
+func acquireListSlot(ctx context.Context, sem chan struct{}) bool {
+	select {
+	case sem <- struct{}{}:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+func listOneGVRInNamespace(
+	ctx context.Context,
+	dyn dynamic.Interface,
+	ns string,
+	gvr schema.GroupVersionResource,
+	opts k8smetav1.ListOptions,
+) []ResourceRef {
+	list, err := dyn.Resource(gvr).Namespace(ns).List(ctx, opts)
+	if err != nil {
+		return nil
+	}
+	kind := shared.ResourceKind(gvr.Resource)
+	refs := make([]ResourceRef, constants.EmptySliceLength, len(list.Items))
+	for i := range list.Items {
+		refs = append(refs, toRef(&list.Items[i], ns, kind))
+	}
+	return refs
 }
 
 func SearchResourcesByLabelOrTextInNamespaces(search string, namespaces []string) ([]ResourceRef, error) {

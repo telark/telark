@@ -33,7 +33,7 @@ func BuildWorkloadUsage(
 	namespace, qos string,
 	selectors map[string]string,
 ) *usage.Usage {
-	usage := &usage.Usage{
+	ug := &usage.Usage{
 		QoS:       qos,
 		Timestamp: time.Now().Format(time.RFC3339),
 		Available: false,
@@ -47,26 +47,26 @@ func BuildWorkloadUsage(
 	metricsAdapter, err := client.NewMetricsAdapter()
 	if err != nil {
 		usageLogger.Error(fmt.Sprintf(string(constants.ErrFailedToInitializeMetricsClient), err))
-		return usage
+		return ug
 	}
 
 	if !client.IsMetricsAvailable(metricsAdapter) {
-		return usage
+		return ug
 	}
 
 	podMetricsList, err := client.GetAllPodMetrics(metricsAdapter, namespace, selectors)
 	if err != nil {
-		return usage
+		return ug
 	}
 
 	if len(podMetricsList) == constants.EmptySliceLength {
-		return usage
+		return ug
 	}
 
-	usage.Available = true
-	usage.Resources = buildResourceFromPodMetricsList(podMetricsList)
+	ug.Available = true
+	ug.Resources = buildResourceFromPodMetricsList(podMetricsList)
 
-	return usage
+	return ug
 }
 
 func buildResourceFromPodMetricsList(

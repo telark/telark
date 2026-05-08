@@ -47,7 +47,7 @@ func getConfig() (*rest.Config, error) {
 func SetRESTClientRateLimit(qps float32, burst int) {
 	restRLMu.Lock()
 	defer restRLMu.Unlock()
-	if qps <= 0 || burst <= 0 {
+	if qps <= constants.EmptySliceLength || burst <= constants.EmptySliceLength {
 		restRLConfigured = false
 		return
 	}

@@ -94,6 +94,7 @@ func cleanManifestForApply(m map[string]any) {
 		stripJobTemplateMetadata(m)
 	case "CronJob":
 		stripCronJobTemplateMetadata(m)
+	default:
 	}
 
 	stripContainerFieldsFromManifest(m, kind)

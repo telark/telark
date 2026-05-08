@@ -4,9 +4,9 @@ go 1.26.2
 
 require (
 	github.com/gorilla/mux v1.8.1
-	github.com/plsyro/data v1.11.7
+	github.com/plsyro/data v1.12.0
 	github.com/redis/go-redis/v9 v9.12.0
-	k8s.io/apimachinery v0.35.3
+	k8s.io/apimachinery v0.35.4
 )
 
 require (
@@ -19,7 +19,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	golang.org/x/net v0.52.0 // indirect
+	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect

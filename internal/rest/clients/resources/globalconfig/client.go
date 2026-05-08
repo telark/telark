@@ -1,6 +1,7 @@
 package globalconfig
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -34,7 +35,7 @@ func (c *Client) GetGlobalConfig() (*globalconfigresource.GlobalConfig, error) {
 }
 
 func (c *Client) PatchGlobalConfig(body map[string]any) *response.GenericResponse {
-	for attempt := 1; attempt <= constants.GlobalConfigPatchRetryAttempts; attempt++ {
+	for attempt := range constants.GlobalConfigPatchRetryAttempts {
 		resourceVersion, err := c.getResourceVersion()
 		if err != nil {
 			return shared.CreateErrorResponse(fmt.Sprintf(string(constants.ErrGlobalConfigReadFailed), err), err)
@@ -46,7 +47,7 @@ func (c *Client) PatchGlobalConfig(body map[string]any) *response.GenericRespons
 			return resp
 		}
 
-		if attempt < constants.GlobalConfigPatchRetryAttempts {
+		if attempt < constants.GlobalConfigPatchRetryAttempts-constants.SecondIndex {
 			time.Sleep(constants.GlobalConfigPatchRetryBackoff)
 		}
 	}
@@ -68,19 +69,19 @@ func (c *Client) getResourceVersion() (string, error) {
 
 	data, ok := resp.Data.(map[string]any)
 	if !ok || data == nil {
-		return constants.EmptyString, fmt.Errorf(string(constants.ErrGlobalConfigResponseData))
+		return constants.EmptyString, errors.New(string(constants.ErrGlobalConfigResponseData))
 	}
 	metadata, ok := data[constants.MetadataField].(map[string]any)
 	if !ok || metadata == nil {
-		return constants.EmptyString, fmt.Errorf(string(constants.ErrGlobalConfigMetadataMissing))
+		return constants.EmptyString, errors.New(string(constants.ErrGlobalConfigMetadataMissing))
 	}
 	rawVersion, ok := metadata[constants.ResourceVersionField]
 	if !ok {
-		return constants.EmptyString, fmt.Errorf(string(constants.ErrGlobalConfigVersionMissing))
+		return constants.EmptyString, errors.New(string(constants.ErrGlobalConfigVersionMissing))
 	}
 	resourceVersion := strings.TrimSpace(fmt.Sprintf("%v", rawVersion))
 	if resourceVersion == constants.EmptyString {
-		return constants.EmptyString, fmt.Errorf(string(constants.ErrGlobalConfigVersionMissing))
+		return constants.EmptyString, errors.New(string(constants.ErrGlobalConfigVersionMissing))
 	}
 	return resourceVersion, nil
 }

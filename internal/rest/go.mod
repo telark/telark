@@ -4,7 +4,7 @@ go 1.26.2
 
 require (
 	github.com/gorilla/mux v1.8.1
-	github.com/plsyro/data v1.12.0
+	github.com/plsyro/data v1.12.1
 	github.com/redis/go-redis/v9 v9.12.0
 	k8s.io/apimachinery v0.35.4
 )

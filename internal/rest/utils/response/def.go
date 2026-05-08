@@ -21,7 +21,7 @@ func LogAndSendResponse(
 	err error,
 ) {
 	logMessage(message, err)
-	sendResponse(w, status, operation, message, data)
+	writeResponse(w, status, operation, message, data)
 }
 
 func SendResponse(
@@ -31,7 +31,7 @@ func SendResponse(
 	message string,
 	data any,
 ) {
-	sendResponse(w, status, operation, message, data)
+	writeResponse(w, status, operation, message, data)
 }
 
 func LogAndReturnResponse(
@@ -53,7 +53,7 @@ func logMessage(message string, err error) {
 	}
 }
 
-func sendResponse(
+func writeResponse(
 	w http.ResponseWriter,
 	status int,
 	operation response.OperationStatus,

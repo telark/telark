@@ -66,3 +66,5 @@ const (
 	MaxTitleLen      = 100
 	MaxMessageLen    = 500
 )
+
+const userIDQueryFormat = "%s?userId=%s"

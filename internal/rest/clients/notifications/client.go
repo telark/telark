@@ -39,11 +39,11 @@ func (c *Client) Emit(ctx context.Context, n Notification) *response.GenericResp
 
 func (c *Client) List(ctx context.Context, userID string, opts ListOptions) (*ListResponse, error) {
 	_ = ctx
-	if userID == "" {
+	if userID == constants.EmptyString {
 		return nil, ErrUserIDRequired
 	}
 	limit := opts.Limit
-	if limit <= 0 {
+	if limit <= constants.EmptySliceLength {
 		limit = DefaultListLimit
 	}
 	if limit > MaxListLimit {
@@ -60,23 +60,23 @@ func (c *Client) List(ctx context.Context, userID string, opts ListOptions) (*Li
 
 func (c *Client) MarkRead(ctx context.Context, userID, notificationID string) *response.GenericResponse {
 	_ = ctx
-	if userID == "" {
+	if userID == constants.EmptyString {
 		return shared.CreateErrorResponse(ErrUserIDRequired.Error(), ErrUserIDRequired)
 	}
-	if notificationID == "" {
+	if notificationID == constants.EmptyString {
 		return shared.CreateErrorResponse(ErrNotificationIDRequired.Error(), ErrNotificationIDRequired)
 	}
 	ep := shared.SubstituteEndpointWithParam(string(eps.MarkRead), constants.IDParam, notificationID)
-	ep = base.Endpoint(fmt.Sprintf("%s?userId=%s", ep, url.QueryEscape(userID)))
+	ep = base.Endpoint(fmt.Sprintf(userIDQueryFormat, ep, url.QueryEscape(userID)))
 	return c.Update(ep, map[string]any{})
 }
 
 func (c *Client) MarkAllRead(ctx context.Context, userID string) *response.GenericResponse {
 	_ = ctx
-	if userID == "" {
+	if userID == constants.EmptyString {
 		return shared.CreateErrorResponse(ErrUserIDRequired.Error(), ErrUserIDRequired)
 	}
-	ep := base.Endpoint(fmt.Sprintf("%s?userId=%s", eps.MarkAllRead, url.QueryEscape(userID)))
+	ep := base.Endpoint(fmt.Sprintf(userIDQueryFormat, eps.MarkAllRead, url.QueryEscape(userID)))
 	resp, err := c.Post(ep)
 	if err != nil {
 		return shared.CreateErrorResponse(err.Error(), err)
@@ -86,24 +86,24 @@ func (c *Client) MarkAllRead(ctx context.Context, userID string) *response.Gener
 
 func (c *Client) Clear(ctx context.Context, userID string) *response.GenericResponse {
 	_ = ctx
-	if userID == "" {
+	if userID == constants.EmptyString {
 		return shared.CreateErrorResponse(ErrUserIDRequired.Error(), ErrUserIDRequired)
 	}
-	ep := base.Endpoint(fmt.Sprintf("%s?userId=%s", eps.Clear, url.QueryEscape(userID)))
+	ep := base.Endpoint(fmt.Sprintf(userIDQueryFormat, eps.Clear, url.QueryEscape(userID)))
 	return c.Delete(ep)
 }
 
 func ValidateForEmit(n *Notification) error {
-	if n.UserID == "" {
+	if n.UserID == constants.EmptyString {
 		return ErrUserIDRequired
 	}
-	if n.Type == "" {
+	if n.Type == constants.EmptyString {
 		return ErrTypeRequired
 	}
-	if n.Title == "" {
+	if n.Title == constants.EmptyString {
 		return ErrTitleRequired
 	}
-	if n.Message == "" {
+	if n.Message == constants.EmptyString {
 		return ErrMessageRequired
 	}
 	switch n.Severity {

@@ -64,7 +64,7 @@ type CancelProtectionPlanRequest struct {
 
 type ScopeRequest struct {
 	Type           string   `json:"type"`
-	ApplicationIds []string `json:"applicationIds,omitempty"`
+	ApplicationIDs []string `json:"applicationIds,omitempty"`
 	Namespaces     []string `json:"namespaces,omitempty"`
 }
 

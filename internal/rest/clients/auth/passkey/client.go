@@ -71,6 +71,7 @@ func (c *Client) PatchPasskeyByUserAndCredentialID(
 	)
 }
 
+//nolint:revive
 func (c *Client) DeletePasskeyByUserAndCredentialID(
 	userID string,
 	credentialID string,

@@ -14,4 +14,5 @@ const (
 	PrepareProtectionPlan      base.Endpoint = "plans/protection/prepare"
 	GetProtectionPlanTemplates base.Endpoint = "plans/protection/templates"
 	CancelProtectionPlan       base.Endpoint = "plans/protection/{id}/cancel"
+	ClearProtectionPlan        base.Endpoint = "plans/protection/{id}/clear"
 )

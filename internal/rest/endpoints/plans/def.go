@@ -15,4 +15,8 @@ const (
 	GetProtectionPlanTemplates base.Endpoint = "plans/protection/templates"
 	CancelProtectionPlan       base.Endpoint = "plans/protection/{id}/cancel"
 	ClearProtectionPlan        base.Endpoint = "plans/protection/{id}/clear"
+
+	GetProtectionPlanStatus     base.Endpoint = "plans/protection/{id}/status"
+	GetProtectionPlanViolations base.Endpoint = "plans/protection/{id}/violations"
+	DuplicateProtectionPlan     base.Endpoint = "plans/protection/{id}/duplicate"
 )

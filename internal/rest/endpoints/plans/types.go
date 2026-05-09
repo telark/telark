@@ -136,6 +136,7 @@ type ProtectionPlanResource struct {
 }
 
 type DuplicateProtectionPlanRequest struct {
-	Name     *string `json:"name,omitempty"`
-	TimeMode *string `json:"timeMode,omitempty"`
+	Name      *string           `json:"name,omitempty"`
+	TimeMode  *string           `json:"timeMode,omitempty"`
+	TimeRange *TimeRangeRequest `json:"timeRange,omitempty"`
 }

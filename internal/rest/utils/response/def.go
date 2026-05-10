@@ -48,8 +48,6 @@ func LogAndReturnResponse(
 func logMessage(message string, err error) {
 	if err != nil {
 		base.GetLogger().Error(fmt.Sprintf("%s: %v", message, err))
-	} else {
-		base.GetLogger().Info(message)
 	}
 }
 

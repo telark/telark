@@ -1,6 +1,5 @@
 package plans
 
-// CreateProtectionPlanRequest carries the full plan payload from discovery to exporter on create.
 type CreateProtectionPlanRequest struct {
 	ID               string                `json:"id"`
 	Name             string                `json:"name"`
@@ -37,7 +36,6 @@ type HealthDetailRequest struct {
 	FailureAction string `json:"failureAction"`
 }
 
-// PatchProtectionPlanRequest carries only the mutable fields a client may update.
 type PatchProtectionPlanRequest struct {
 	Name             *string               `json:"name,omitempty"`
 	Description      *string               `json:"description,omitempty"`
@@ -63,8 +61,6 @@ type PatchProtectionPlanRequest struct {
 	HealthDetail     []HealthDetailRequest `json:"healthDetail,omitempty"`
 }
 
-// PrepareProtectionPlanRequest is the user-facing payload sent by the UI to discovery.
-// No id, no audit fields, no phase — those are all derived or set server-side.
 type PrepareProtectionPlanRequest struct {
 	Name            string            `json:"name"`
 	Description     *string           `json:"description,omitempty"`

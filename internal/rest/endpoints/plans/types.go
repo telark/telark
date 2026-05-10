@@ -43,6 +43,12 @@ type PatchProtectionPlanRequest struct {
 	Description      *string               `json:"description,omitempty"`
 	Severity         *string               `json:"severity,omitempty"`
 	Priority         *int                  `json:"priority,omitempty"`
+	Mode             *string               `json:"mode,omitempty"`
+	TimeMode         *string               `json:"timeMode,omitempty"`
+	TimeRange        *TimeRangeRequest     `json:"timeRange,omitempty"`
+	Scope            *ScopeRequest         `json:"scope,omitempty"`
+	Policies         []PolicyRequest       `json:"policies,omitempty"`
+	ParticipantsIDs  []string              `json:"participantsIDs,omitempty"`
 	Phase            *string               `json:"phase,omitempty"`
 	Reason           *string               `json:"reason,omitempty"`
 	RenderedPolicies []string              `json:"renderedPolicies,omitempty"`

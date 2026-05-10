@@ -88,6 +88,22 @@ func AppScopeSelector(appIDs []string) *metav1.LabelSelector {
 	}
 }
 
+func ExcludePlsyroManaged() *kyvernov1.MatchResources {
+	return &kyvernov1.MatchResources{
+		Any: kyvernov1.ResourceFilters{
+			{
+				ResourceDescription: kyvernov1.ResourceDescription{
+					Selector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							LabelManagedBy: ManagedByValue,
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func MatchAllAny(kinds []string, ops []string, appIDs []string) kyvernov1.MatchResources {
 	rd := kyvernov1.ResourceDescription{
 		Kinds:    append([]string(nil), kinds...),

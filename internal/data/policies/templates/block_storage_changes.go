@@ -21,8 +21,9 @@ func (blockStorageChanges) Render(meta policies.RenderMeta, scope policies.Scope
 	pol := policies.PolicyShell(meta, templateBlockStorageChanges, scope)
 	pol.Spec.Rules = []kyvernov1.Rule{
 		{
-			Name:           rulePVCMutation,
-			MatchResources: policies.MatchAllAny(kindsPVC, opsUpdateDelete, scope.ApplicationIDs),
+			Name:             rulePVCMutation,
+			MatchResources:   policies.MatchAllAny(kindsPVC, opsUpdateDelete, scope.ApplicationIDs),
+			ExcludeResources: policies.ExcludePlsyroManaged(),
 			Validation: &kyvernov1.Validation{
 				Message: fmt.Sprintf(msgBlockPVCMutation, meta.PlanName),
 				Deny: policies.DenyWithConditions([]kyvernov1.Condition{
@@ -31,8 +32,9 @@ func (blockStorageChanges) Render(meta policies.RenderMeta, scope policies.Scope
 			},
 		},
 		{
-			Name:           ruleWorkloadVolumeChanges,
-			MatchResources: policies.MatchAllAny(policies.WorkloadKinds, opsUpdate, scope.ApplicationIDs),
+			Name:             ruleWorkloadVolumeChanges,
+			MatchResources:   policies.MatchAllAny(policies.WorkloadKinds, opsUpdate, scope.ApplicationIDs),
+			ExcludeResources: policies.ExcludePlsyroManaged(),
 			Validation: &kyvernov1.Validation{
 				Message: fmt.Sprintf(msgBlockVolumeChanges, meta.PlanName),
 				Deny: policies.DenyWithConditions([]kyvernov1.Condition{

@@ -17,8 +17,9 @@ func (blockUpdate) Render(meta policies.RenderMeta, scope policies.ScopeSpec, _ 
 	pol := policies.PolicyShell(meta, templateBlockUpdate, scope)
 	pol.Spec.Rules = []kyvernov1.Rule{
 		{
-			Name:           templateBlockUpdate,
-			MatchResources: policies.MatchAllAny(kindsWildcard, opsUpdate, scope.ApplicationIDs),
+			Name:             templateBlockUpdate,
+			MatchResources:   policies.MatchAllAny(kindsWildcard, opsUpdate, scope.ApplicationIDs),
+			ExcludeResources: policies.ExcludePlsyroManaged(),
 			Validation: &kyvernov1.Validation{
 				Message: fmt.Sprintf(msgBlockUpdate, meta.PlanName),
 				Deny: policies.DenyWithConditions([]kyvernov1.Condition{

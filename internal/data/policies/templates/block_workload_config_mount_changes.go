@@ -17,8 +17,9 @@ func (blockMountChanges) Render(meta policies.RenderMeta, scope policies.ScopeSp
 	pol := policies.PolicyShell(meta, templateBlockMountChanges, scope)
 	pol.Spec.Rules = []kyvernov1.Rule{
 		{
-			Name:           templateBlockMountChanges,
-			MatchResources: policies.MatchAllAny(policies.WorkloadKinds, opsUpdate, scope.ApplicationIDs),
+			Name:             templateBlockMountChanges,
+			MatchResources:   policies.MatchAllAny(policies.WorkloadKinds, opsUpdate, scope.ApplicationIDs),
+			ExcludeResources: policies.ExcludePlsyroManaged(),
 			Validation: &kyvernov1.Validation{
 				Message: fmt.Sprintf(msgBlockConfigMountChng, meta.PlanName),
 				Deny: &kyvernov1.Deny{

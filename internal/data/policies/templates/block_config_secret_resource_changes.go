@@ -17,8 +17,9 @@ func (blockConfigSecretChanges) Render(meta policies.RenderMeta, scope policies.
 	pol := policies.PolicyShell(meta, templateBlockConfigSecretChanges, scope)
 	pol.Spec.Rules = []kyvernov1.Rule{
 		{
-			Name:           templateBlockConfigSecretChanges,
-			MatchResources: policies.MatchAllAny(kindsConfigSecret, opsUpdateDelete, scope.ApplicationIDs),
+			Name:             templateBlockConfigSecretChanges,
+			MatchResources:   policies.MatchAllAny(kindsConfigSecret, opsUpdateDelete, scope.ApplicationIDs),
+			ExcludeResources: policies.ExcludePlsyroManaged(),
 			Validation: &kyvernov1.Validation{
 				Message: fmt.Sprintf(msgBlockConfigSecret, meta.PlanName),
 				Deny: policies.DenyWithConditions([]kyvernov1.Condition{

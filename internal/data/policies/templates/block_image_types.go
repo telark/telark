@@ -25,8 +25,9 @@ func (blockImageTypes) Render(meta policies.RenderMeta, scope policies.ScopeSpec
 	pol := policies.PolicyShell(meta, templateBlockImageTypes, scope)
 	pol.Spec.Rules = []kyvernov1.Rule{
 		{
-			Name:           templateBlockImageTypes,
-			MatchResources: policies.MatchAllAny(policies.WorkloadKinds, opsCreateUpdate, scope.ApplicationIDs),
+			Name:             templateBlockImageTypes,
+			MatchResources:   policies.MatchAllAny(policies.WorkloadKinds, opsCreateUpdate, scope.ApplicationIDs),
+			ExcludeResources: policies.ExcludePlsyroManaged(),
 			Validation: &kyvernov1.Validation{
 				Message: fmt.Sprintf(msgBlockImagePatterns, meta.PlanName),
 				Deny: policies.DenyWithConditions([]kyvernov1.Condition{

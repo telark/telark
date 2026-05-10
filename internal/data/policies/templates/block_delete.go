@@ -17,8 +17,9 @@ func (blockDelete) Render(meta policies.RenderMeta, scope policies.ScopeSpec, _ 
 	pol := policies.PolicyShell(meta, templateBlockDelete, scope)
 	pol.Spec.Rules = []kyvernov1.Rule{
 		{
-			Name:           templateBlockDelete,
-			MatchResources: policies.MatchAllAny(kindsWildcard, opsDelete, scope.ApplicationIDs),
+			Name:             templateBlockDelete,
+			MatchResources:   policies.MatchAllAny(kindsWildcard, opsDelete, scope.ApplicationIDs),
+			ExcludeResources: policies.ExcludePlsyroManaged(),
 			Validation: &kyvernov1.Validation{
 				Message: fmt.Sprintf(msgBlockDelete, meta.PlanName),
 				Deny: policies.DenyWithConditions([]kyvernov1.Condition{

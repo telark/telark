@@ -17,8 +17,9 @@ func (blockCreate) Render(meta policies.RenderMeta, scope policies.ScopeSpec, _ 
 	pol := policies.PolicyShell(meta, templateBlockCreate, scope)
 	pol.Spec.Rules = []kyvernov1.Rule{
 		{
-			Name:           templateBlockCreate,
-			MatchResources: policies.MatchAllAny(kindsWildcard, opsCreate, scope.ApplicationIDs),
+			Name:             templateBlockCreate,
+			MatchResources:   policies.MatchAllAny(kindsWildcard, opsCreate, scope.ApplicationIDs),
+			ExcludeResources: policies.ExcludePlsyroManaged(),
 			Validation: &kyvernov1.Validation{
 				Message: fmt.Sprintf(msgBlockCreate, meta.PlanName),
 				Deny: policies.DenyWithConditions([]kyvernov1.Condition{

@@ -17,8 +17,9 @@ func (blockReplicaScaling) Render(meta policies.RenderMeta, scope policies.Scope
 	pol := policies.PolicyShell(meta, templateBlockReplicaScaling, scope)
 	pol.Spec.Rules = []kyvernov1.Rule{
 		{
-			Name:           templateBlockReplicaScaling,
-			MatchResources: policies.MatchAllAny(kindsReplicaTarget, opsUpdate, scope.ApplicationIDs),
+			Name:             templateBlockReplicaScaling,
+			MatchResources:   policies.MatchAllAny(kindsReplicaTarget, opsUpdate, scope.ApplicationIDs),
+			ExcludeResources: policies.ExcludePlsyroManaged(),
 			Validation: &kyvernov1.Validation{
 				Message: fmt.Sprintf(msgBlockReplicaScaling, meta.PlanName),
 				Deny: policies.DenyWithConditions([]kyvernov1.Condition{

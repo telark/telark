@@ -1,6 +1,6 @@
 module github.com/plsyro/data
 
-go 1.26.2
+go 1.26.3
 
 require (
 	github.com/kyverno/kyverno v1.18.0

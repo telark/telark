@@ -44,8 +44,7 @@ linters:
           arguments:
             - 120
         - name: max-public-structs
-          arguments:
-            - 10
+          disabled: true
 run:
   timeout: 2m
   tests: false

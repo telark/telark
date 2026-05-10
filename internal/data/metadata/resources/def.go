@@ -5,14 +5,6 @@ import (
 	globalshared "github.com/plsyro/data/shared"
 )
 
-var ClusterInsightAsResourceMetadata = base.Metadata{
-	BaseGroup: string(base.Erpi),
-	Kind:      "ClusterInsightAsResource",
-	Version:   string(base.Alpha1),
-	Plural:    "clusterinsightsasresources",
-	Namespace: globalshared.BaseNamespace,
-}
-
 var UserAsResourceMetadata = base.Metadata{
 	BaseGroup: string(base.Erpi),
 	Kind:      "UserAsResource",

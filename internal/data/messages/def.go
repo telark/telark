@@ -13,12 +13,6 @@ const (
 	SuccessRecordResCreated Message = "resource created successfully"
 	SuccessRecordResUpdated Message = "resource updated successfully"
 
-	// Admission-related Messages
-	SuccessCreateAdmission Message = "admission %s:%s-webhook created successfully"
-	SuccessGetAdmission    Message = "admission %s:%s-webhook fetched successfully"
-	SuccessUpdateAdmission Message = "admission %s:%s-webhook updated successfully"
-	SuccessDeleteAdmission Message = "admission %s:%s-webhook deleted successfully"
-
 	// Status Messages
 	SuccessOperation Message = "operation completed successfully"
 	SuccessCreation  Message = "creation completed successfully"

@@ -58,16 +58,6 @@ const (
 	ErrSourceNameCannotBeEmpty   Error = "source name cannot be empty"
 	ErrResourceNameCannotBeEmpty Error = "resource name cannot be empty"
 
-	// Admission-related Errors
-	ErrCreateAdmission         Error = "error while creating admission %s:%s-webhook"
-	ErrGetAdmission            Error = "error while fetching admission %s:%s-webhook"
-	ErrUpdateAdmission         Error = "error while updating admission %s:%s-webhook"
-	ErrDeleteAdmission         Error = "error while deleting admission %s:%s-webhook"
-	ErrFilterAdmission         Error = "error while filtering admission %s:%s-webhook"
-	ErrCheckAdmissionExistence Error = "error while checking admission %s:%s-webhook existence"
-	ErrAdmissionExists         Error = "admission %s:%s-webhook already exists"
-	ErrAdmissionNotFound       Error = "admission %s:%s-webhook not found"
-
 	// NATS-related Errors
 	ErrNatsAuth                               Error = "user and password must be set for auth"
 	ErrNatsConnectionAttemptAlreadyInProgress Error = "connection attempt already in progress"

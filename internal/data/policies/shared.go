@@ -122,10 +122,10 @@ func MatchAllAny(kinds []string, ops []string, appIDs []string) kyvernov1.MatchR
 const KindWildcard = "*"
 
 // BuildMatch returns the Kyverno match block for a rule. For namespace scope it matches
-// kinds + ops cluster-wide within the policy's namespace (unchanged behaviour). For application
+// kinds + ops cluster-wide within the policy's namespace (unchanged behavior). For application
 // scope it builds per-(kind, namespace) ResourceFilter entries with explicit Names taken from
 // scope.AppResources. The boolean return is false when application scope has no resources for
-// any of the requested kinds, signalling the caller to skip rendering this rule.
+// any of the requested kinds, signaling the caller to skip rendering this rule.
 func BuildMatch(scope ScopeSpec, kinds []string, ops []string) (kyvernov1.MatchResources, bool) {
 	if len(scope.ApplicationIDs) == constants.DefaultInitValue {
 		return MatchAllAny(kinds, ops, nil), true
@@ -175,7 +175,7 @@ func groupAppResourcesByKind(refs []ApplicationResourceRef, namespace string) ma
 }
 
 func intersectKinds(requested []string, grouped map[string][]string) []string {
-	if len(requested) == 1 && requested[constants.DefaultInitValue] == KindWildcard {
+	if len(requested) == constants.SingleItem && requested[constants.DefaultInitValue] == KindWildcard {
 		out := make([]string, constants.DefaultInitValue, len(grouped))
 		for k := range grouped {
 			out = append(out, k)
@@ -190,6 +190,40 @@ func intersectKinds(requested []string, grouped map[string][]string) []string {
 		}
 	}
 	return out
+}
+
+// SingleRuleSpec describes the per-template inputs to RenderSingleRulePolicy.
+type SingleRuleSpec struct {
+	TemplateID   string
+	TemplateCode string
+	RuleName     string
+	Kinds        []string
+	Ops          []string
+	Message      string
+	Deny         *kyvernov1.Deny
+}
+
+// RenderSingleRulePolicy is the canonical builder for templates that emit one Kyverno rule. It
+// owns the BuildMatch + PolicyShell + ExcludePlsyroManaged wiring so each template only declares
+// its own kinds/ops/message/deny.
+func RenderSingleRulePolicy(meta RenderMeta, scope ScopeSpec, spec SingleRuleSpec) *kyvernov1.Policy {
+	match, ok := BuildMatch(scope, spec.Kinds, spec.Ops)
+	if !ok {
+		return nil
+	}
+	pol := PolicyShell(meta, spec.TemplateID, spec.TemplateCode, scope)
+	pol.Spec.Rules = []kyvernov1.Rule{
+		{
+			Name:             spec.RuleName,
+			MatchResources:   match,
+			ExcludeResources: ExcludePlsyroManaged(),
+			Validation: &kyvernov1.Validation{
+				Message: spec.Message,
+				Deny:    spec.Deny,
+			},
+		},
+	}
+	return pol
 }
 
 func DenyWithConditions(allConditions []kyvernov1.Condition) *kyvernov1.Deny {

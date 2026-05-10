@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
+	"github.com/plsyro/data/constants"
 	"github.com/plsyro/data/policies"
 )
 
@@ -12,6 +13,7 @@ const (
 	codeBlockStorageChanges     = "bsc"
 	rulePVCMutation             = "block-pvc-mutation"
 	ruleWorkloadVolumeChanges   = "block-workload-volume-changes"
+	storageRuleCapacity         = 2
 )
 
 type blockStorageChanges struct{}
@@ -19,7 +21,7 @@ type blockStorageChanges struct{}
 func (blockStorageChanges) TemplateID() string   { return templateBlockStorageChanges }
 func (blockStorageChanges) TemplateCode() string { return codeBlockStorageChanges }
 func (blockStorageChanges) Render(meta policies.RenderMeta, scope policies.ScopeSpec, _ map[string]any) (*kyvernov1.Policy, error) {
-	rules := make([]kyvernov1.Rule, 0, 2)
+	rules := make([]kyvernov1.Rule, constants.DefaultInitValue, storageRuleCapacity)
 
 	if pvcMatch, ok := policies.BuildMatch(scope, kindsPVC, opsUpdateDelete); ok {
 		rules = append(rules, kyvernov1.Rule{
@@ -49,7 +51,7 @@ func (blockStorageChanges) Render(meta policies.RenderMeta, scope policies.Scope
 		})
 	}
 
-	if len(rules) == 0 {
+	if len(rules) == constants.DefaultInitValue {
 		return nil, nil
 	}
 

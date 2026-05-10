@@ -3,13 +3,15 @@ package policies
 import (
 	"fmt"
 
+	"github.com/plsyro/data/constants"
 	"github.com/plsyro/data/plans"
 )
 
 const (
-	maxK8sNameBytes      = 63
-	planIDExampleLength  = 16
-	scopeHashFixedLength = 8
+	maxK8sNameBytes        = 63
+	planIDExampleLength    = 16
+	scopeHashFixedLength   = 8
+	separatorLengthSegment = 1
 )
 
 // ValidateCatalog validates the template catalog against the renderer registry. It enforces:
@@ -22,13 +24,13 @@ const (
 // Returns the first violation found (empty string when all checks pass).
 func ValidateCatalog() string {
 	codes := map[string]string{}
-	longestCode := ""
+	longestCode := constants.EmptyString
 	for _, t := range plans.Templates {
 		r, ok := GetRenderer(t.ID)
 		if !ok {
 			return fmt.Sprintf("policies: no renderer registered for template %q", t.ID)
 		}
-		if t.Code == "" {
+		if t.Code == constants.EmptyString {
 			return fmt.Sprintf("policies: template %q has empty Code", t.ID)
 		}
 		if other, exists := codes[t.Code]; exists {
@@ -51,12 +53,9 @@ func ValidateCatalog() string {
 			got, maxK8sNameBytes, longestCode,
 		)
 	}
-	return ""
+	return constants.EmptyString
 }
 
-// projectedNameLength computes the worst-case length of PolicyName for a given template code.
-// Format: "plsyro-" + planID + "-" + code + "-" + scopeHash. planID example length is 16
-// matching the "pp-xxx-yyyy-zzzz" pattern produced by ids.GeneratePlanID.
 func projectedNameLength(code string) int {
-	return len("plsyro-") + planIDExampleLength + 1 + len(code) + 1 + scopeHashFixedLength
+	return len("plsyro-") + planIDExampleLength + separatorLengthSegment + len(code) + separatorLengthSegment + scopeHashFixedLength
 }

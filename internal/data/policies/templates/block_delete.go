@@ -7,18 +7,25 @@ import (
 	"github.com/plsyro/data/policies"
 )
 
-const templateBlockDelete = "block-delete"
+const (
+	templateBlockDelete = "block-delete"
+	codeBlockDelete     = "bd"
+)
 
 type blockDelete struct{}
 
-func (blockDelete) TemplateID() string { return templateBlockDelete }
-
+func (blockDelete) TemplateID() string   { return templateBlockDelete }
+func (blockDelete) TemplateCode() string { return codeBlockDelete }
 func (blockDelete) Render(meta policies.RenderMeta, scope policies.ScopeSpec, _ map[string]any) (*kyvernov1.Policy, error) {
-	pol := policies.PolicyShell(meta, templateBlockDelete, scope)
+	match, ok := policies.BuildMatch(scope, kindsWildcard, opsDelete)
+	if !ok {
+		return nil, nil
+	}
+	pol := policies.PolicyShell(meta, templateBlockDelete, codeBlockDelete, scope)
 	pol.Spec.Rules = []kyvernov1.Rule{
 		{
 			Name:             templateBlockDelete,
-			MatchResources:   policies.MatchAllAny(kindsWildcard, opsDelete, scope.ApplicationIDs),
+			MatchResources:   match,
 			ExcludeResources: policies.ExcludePlsyroManaged(),
 			Validation: &kyvernov1.Validation{
 				Message: fmt.Sprintf(msgBlockDelete, meta.PlanName),

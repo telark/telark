@@ -30,6 +30,7 @@ type ParamSpec struct {
 
 type Template struct {
 	ID              string         `json:"id"`
+	Code            string         `json:"code"`
 	Name            string         `json:"name"`
 	Description     string         `json:"description"`
 	SupportedScopes []ScopeSupport `json:"supportedScopes"`
@@ -39,6 +40,7 @@ type Template struct {
 var Templates = []Template{
 	{
 		ID:              "block-create",
+		Code:            "bc",
 		Name:            "Block Resource Creation",
 		Description:     "Prevents creation of any Kubernetes resources within the target scope.",
 		SupportedScopes: []ScopeSupport{ScopeSupportNamespaces, ScopeSupportApplications},
@@ -46,6 +48,7 @@ var Templates = []Template{
 	},
 	{
 		ID:              "block-update",
+		Code:            "bu",
 		Name:            "Block Resource Updates",
 		Description:     "Prevents updates to any Kubernetes resources within the target scope.",
 		SupportedScopes: []ScopeSupport{ScopeSupportNamespaces, ScopeSupportApplications},
@@ -53,6 +56,7 @@ var Templates = []Template{
 	},
 	{
 		ID:              "block-delete",
+		Code:            "bd",
 		Name:            "Block Resource Deletion",
 		Description:     "Prevents deletion of any Kubernetes resources within the target scope.",
 		SupportedScopes: []ScopeSupport{ScopeSupportNamespaces, ScopeSupportApplications},
@@ -60,6 +64,7 @@ var Templates = []Template{
 	},
 	{
 		ID:              "block-image-types",
+		Code:            "bit",
 		Name:            "Block Image Patterns",
 		Description:     "Prevents workloads from using container images matching the specified patterns.",
 		SupportedScopes: []ScopeSupport{ScopeSupportNamespaces, ScopeSupportApplications},
@@ -76,6 +81,7 @@ var Templates = []Template{
 	},
 	{
 		ID:              "block-image-tags",
+		Code:            "bitg",
 		Name:            "Block Image Tags",
 		Description:     "Prevents workloads from using container images with the specified tags.",
 		SupportedScopes: []ScopeSupport{ScopeSupportNamespaces, ScopeSupportApplications},
@@ -92,6 +98,7 @@ var Templates = []Template{
 	},
 	{
 		ID:              "block-replica-scaling",
+		Code:            "brs",
 		Name:            "Block Replica Scaling",
 		Description:     "Prevents changes to replica counts on Deployments and StatefulSets within the target applications.",
 		SupportedScopes: []ScopeSupport{ScopeSupportApplications},
@@ -99,6 +106,7 @@ var Templates = []Template{
 	},
 	{
 		ID:              "block-storage-changes",
+		Code:            "bsc",
 		Name:            "Block Storage Changes",
 		Description:     "Prevents creation, deletion, or modification of PersistentVolumeClaims and volume definitions on workloads.",
 		SupportedScopes: []ScopeSupport{ScopeSupportNamespaces, ScopeSupportApplications},
@@ -106,6 +114,7 @@ var Templates = []Template{
 	},
 	{
 		ID:              "block-config-secret-resource-changes",
+		Code:            "bcsr",
 		Name:            "Block ConfigMap and Secret Changes",
 		Description:     "Prevents updates or deletion of ConfigMaps and Secrets within the target scope.",
 		SupportedScopes: []ScopeSupport{ScopeSupportNamespaces, ScopeSupportApplications},
@@ -113,6 +122,7 @@ var Templates = []Template{
 	},
 	{
 		ID:              "block-workload-config-mount-changes",
+		Code:            "bwcm",
 		Name:            "Block Workload Config Mount Changes",
 		Description:     "Prevents modifications to volume mounts or environment variable sources referencing ConfigMaps or Secrets on workloads.",
 		SupportedScopes: []ScopeSupport{ScopeSupportNamespaces, ScopeSupportApplications},

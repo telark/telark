@@ -9,14 +9,15 @@ import (
 
 const (
 	templateBlockImageTags = "block-image-tags"
+	codeBlockImageTags     = "bitg"
 	paramTags              = "tags"
 	imageTagPrefix         = "*:"
 )
 
 type blockImageTags struct{}
 
-func (blockImageTags) TemplateID() string { return templateBlockImageTags }
-
+func (blockImageTags) TemplateID() string   { return templateBlockImageTags }
+func (blockImageTags) TemplateCode() string { return codeBlockImageTags }
 func (blockImageTags) Render(meta policies.RenderMeta, scope policies.ScopeSpec, params map[string]any) (*kyvernov1.Policy, error) {
 	tags, err := paramStringSlice(params, paramTags)
 	if err != nil {
@@ -28,11 +29,16 @@ func (blockImageTags) Render(meta policies.RenderMeta, scope policies.ScopeSpec,
 		suffixed[i] = imageTagPrefix + tag
 	}
 
-	pol := policies.PolicyShell(meta, templateBlockImageTags, scope)
+	match, ok := policies.BuildMatch(scope, policies.WorkloadKinds, opsCreateUpdate)
+	if !ok {
+		return nil, nil
+	}
+
+	pol := policies.PolicyShell(meta, templateBlockImageTags, codeBlockImageTags, scope)
 	pol.Spec.Rules = []kyvernov1.Rule{
 		{
 			Name:             templateBlockImageTags,
-			MatchResources:   policies.MatchAllAny(policies.WorkloadKinds, opsCreateUpdate, scope.ApplicationIDs),
+			MatchResources:   match,
 			ExcludeResources: policies.ExcludePlsyroManaged(),
 			Validation: &kyvernov1.Validation{
 				Message: fmt.Sprintf(msgBlockImageTags, meta.PlanName),

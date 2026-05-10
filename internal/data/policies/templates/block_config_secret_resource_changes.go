@@ -7,18 +7,25 @@ import (
 	"github.com/plsyro/data/policies"
 )
 
-const templateBlockConfigSecretChanges = "block-config-secret-resource-changes"
+const (
+	templateBlockConfigSecretChanges = "block-config-secret-resource-changes"
+	codeBlockConfigSecretChanges     = "bcsr"
+)
 
 type blockConfigSecretChanges struct{}
 
-func (blockConfigSecretChanges) TemplateID() string { return templateBlockConfigSecretChanges }
-
+func (blockConfigSecretChanges) TemplateID() string   { return templateBlockConfigSecretChanges }
+func (blockConfigSecretChanges) TemplateCode() string { return codeBlockConfigSecretChanges }
 func (blockConfigSecretChanges) Render(meta policies.RenderMeta, scope policies.ScopeSpec, _ map[string]any) (*kyvernov1.Policy, error) {
-	pol := policies.PolicyShell(meta, templateBlockConfigSecretChanges, scope)
+	match, ok := policies.BuildMatch(scope, kindsConfigSecret, opsUpdateDelete)
+	if !ok {
+		return nil, nil
+	}
+	pol := policies.PolicyShell(meta, templateBlockConfigSecretChanges, codeBlockConfigSecretChanges, scope)
 	pol.Spec.Rules = []kyvernov1.Rule{
 		{
 			Name:             templateBlockConfigSecretChanges,
-			MatchResources:   policies.MatchAllAny(kindsConfigSecret, opsUpdateDelete, scope.ApplicationIDs),
+			MatchResources:   match,
 			ExcludeResources: policies.ExcludePlsyroManaged(),
 			Validation: &kyvernov1.Validation{
 				Message: fmt.Sprintf(msgBlockConfigSecret, meta.PlanName),

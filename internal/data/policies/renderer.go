@@ -10,12 +10,12 @@ import (
 	"github.com/plsyro/data/plans"
 )
 
-func Render(plan *plans.ProtectionPlan, applicationNamespaces map[string]string) ([]kyvernov1.Policy, error) {
+func Render(plan *plans.ProtectionPlan, resolved map[string]ResolvedApp, logger Logger) ([]kyvernov1.Policy, error) {
 	if plan == nil {
 		return nil, errors.New("policies: plan is required")
 	}
 
-	scopes, err := buildScopes(plan, applicationNamespaces)
+	scopes, err := buildScopes(plan, resolved)
 	if err != nil {
 		return nil, err
 	}
@@ -38,13 +38,27 @@ func Render(plan *plans.ProtectionPlan, applicationNamespaces map[string]string)
 			if rerr != nil {
 				return nil, fmt.Errorf("policies: render template %q: %w", entry.TemplateID, rerr)
 			}
+			if pol == nil {
+				logSkippedTemplate(logger, plan.ID, entry.TemplateID, scope)
+				continue
+			}
 			out = append(out, *pol)
 		}
 	}
 	return out, nil
 }
 
-func buildScopes(plan *plans.ProtectionPlan, applicationNamespaces map[string]string) ([]ScopeSpec, error) {
+func logSkippedTemplate(logger Logger, planID, templateID string, scope ScopeSpec) {
+	if logger == nil {
+		return
+	}
+	logger.Info(fmt.Sprintf(
+		"template %s skipped for plan %s namespace=%s apps=%v: no matching application resources",
+		templateID, planID, scope.Namespace, scope.ApplicationIDs,
+	))
+}
+
+func buildScopes(plan *plans.ProtectionPlan, resolved map[string]ResolvedApp) ([]ScopeSpec, error) {
 	switch plan.Scope.Type {
 	case plans.ScopeTypeNamespaces:
 		nss := append([]string(nil), plan.Scope.Namespaces...)
@@ -57,12 +71,14 @@ func buildScopes(plan *plans.ProtectionPlan, applicationNamespaces map[string]st
 
 	case plans.ScopeTypeApplications:
 		grouped := map[string][]string{}
+		resourcesByNS := map[string][]ApplicationResourceRef{}
 		for _, appID := range plan.Scope.ApplicationIDs {
-			ns, ok := applicationNamespaces[appID]
-			if !ok || ns == "" {
+			ra, ok := resolved[appID]
+			if !ok || ra.Namespace == constants.EmptyString {
 				return nil, fmt.Errorf("policies: application %q has no resolved namespace", appID)
 			}
-			grouped[ns] = append(grouped[ns], appID)
+			grouped[ra.Namespace] = append(grouped[ra.Namespace], appID)
+			resourcesByNS[ra.Namespace] = append(resourcesByNS[ra.Namespace], ra.Resources...)
 		}
 		nss := make([]string, constants.DefaultInitValue, len(grouped))
 		for ns := range grouped {
@@ -73,7 +89,11 @@ func buildScopes(plan *plans.ProtectionPlan, applicationNamespaces map[string]st
 		for _, ns := range nss {
 			apps := grouped[ns]
 			slices.Sort(apps)
-			out = append(out, ScopeSpec{Namespace: ns, ApplicationIDs: apps})
+			out = append(out, ScopeSpec{
+				Namespace:      ns,
+				ApplicationIDs: apps,
+				AppResources:   resourcesByNS[ns],
+			})
 		}
 		return out, nil
 

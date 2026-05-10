@@ -7,18 +7,25 @@ import (
 	"github.com/plsyro/data/policies"
 )
 
-const templateBlockMountChanges = "block-workload-config-mount-changes"
+const (
+	templateBlockMountChanges = "block-workload-config-mount-changes"
+	codeBlockMountChanges     = "bwcm"
+)
 
 type blockMountChanges struct{}
 
-func (blockMountChanges) TemplateID() string { return templateBlockMountChanges }
-
+func (blockMountChanges) TemplateID() string   { return templateBlockMountChanges }
+func (blockMountChanges) TemplateCode() string { return codeBlockMountChanges }
 func (blockMountChanges) Render(meta policies.RenderMeta, scope policies.ScopeSpec, _ map[string]any) (*kyvernov1.Policy, error) {
-	pol := policies.PolicyShell(meta, templateBlockMountChanges, scope)
+	match, ok := policies.BuildMatch(scope, policies.WorkloadKinds, opsUpdate)
+	if !ok {
+		return nil, nil
+	}
+	pol := policies.PolicyShell(meta, templateBlockMountChanges, codeBlockMountChanges, scope)
 	pol.Spec.Rules = []kyvernov1.Rule{
 		{
 			Name:             templateBlockMountChanges,
-			MatchResources:   policies.MatchAllAny(policies.WorkloadKinds, opsUpdate, scope.ApplicationIDs),
+			MatchResources:   match,
 			ExcludeResources: policies.ExcludePlsyroManaged(),
 			Validation: &kyvernov1.Validation{
 				Message: fmt.Sprintf(msgBlockConfigMountChng, meta.PlanName),

@@ -52,6 +52,13 @@ func (c *Client) Patch(userID, id string, req eps.PatchProtectionPlanRequest) *r
 	return shared.ExecuteRequestWithHeaders(c.Client, base.Patch, ep, mappedPayload, headers(userID))
 }
 
+// PatchRaw sends a JSON merge patch using a caller-supplied body. nil map entries serialize as JSON null,
+// allowing nullable fields like terminatedAt/terminatedBy/reason to be cleared on the underlying CRD.
+func (c *Client) PatchRaw(userID, id string, body map[string]any) *response.GenericResponse {
+	ep := shared.SubstituteEndpointWithParam(string(eps.PatchProtectionPlanByID), constants.IDParam, id)
+	return shared.ExecuteRequestWithHeaders(c.Client, base.Patch, ep, body, headers(userID))
+}
+
 func (c *Client) Delete(id string) *response.GenericResponse {
 	ep := shared.SubstituteEndpointWithParam(string(eps.DeleteProtectionPlanByID), constants.IDParam, id)
 	return c.Client.Delete(ep)

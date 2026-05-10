@@ -76,6 +76,10 @@ type CancelProtectionPlanRequest struct {
 	Reason *string `json:"reason,omitempty"`
 }
 
+type ReactivateProtectionPlanRequest struct {
+	Reason *string `json:"reason,omitempty"`
+}
+
 type ScopeRequest struct {
 	Type           string   `json:"type"`
 	ApplicationIDs []string `json:"applicationIds,omitempty"`

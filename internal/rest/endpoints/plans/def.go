@@ -11,12 +11,13 @@ const (
 	DeleteProtectionPlanByID base.Endpoint = "plans/protection/{id}/delete"
 
 	// Discovery endpoints — orchestration and template catalog.
-	PrepareProtectionPlan      base.Endpoint = "plans/protection/prepare"
-	GetProtectionPlanTemplates base.Endpoint = "plans/protection/templates"
-	CancelProtectionPlan       base.Endpoint = "plans/protection/{id}/cancel"
-	ClearProtectionPlan        base.Endpoint = "plans/protection/{id}/clear"
-
+	PrepareProtectionPlan       base.Endpoint = "plans/protection/prepare"
+	GetProtectionPlanTemplates  base.Endpoint = "plans/protection/templates"
+	CancelProtectionPlan        base.Endpoint = "plans/protection/{id}/cancel"
+	ClearProtectionPlan         base.Endpoint = "plans/protection/{id}/clear"
 	GetProtectionPlanStatus     base.Endpoint = "plans/protection/{id}/status"
 	GetProtectionPlanViolations base.Endpoint = "plans/protection/{id}/violations"
 	DuplicateProtectionPlan     base.Endpoint = "plans/protection/{id}/duplicate"
+	ReactivateProtectionPlan    base.Endpoint = "plans/protection/{id}/reactivate"
+	UpdateProtectionPlan        base.Endpoint = "plans/protection/{id}/update"
 )

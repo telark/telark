@@ -100,3 +100,35 @@ func (c *ElectionClient) CurrentLeader(ctx context.Context) (string, error) {
 	}
 	return held, nil
 }
+
+// ClearIfHeld atomically removes the leader claim only if the stored value
+// matches expected. Returns true if the claim was cleared.
+func (c *ElectionClient) ClearIfHeld(ctx context.Context, expected string) (bool, error) {
+	cleared := false
+	txf := func(tx *redis.Tx) error {
+		held, err := tx.Get(ctx, c.key).Result()
+		if err != nil {
+			if err == redis.Nil {
+				return nil
+			}
+			return err
+		}
+		if held != expected {
+			return nil
+		}
+		_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+			pipe.Del(ctx, c.key)
+			return nil
+		})
+		if err == nil {
+			cleared = true
+		}
+		return err
+	}
+
+	err := c.redis.Watch(ctx, txf, c.key)
+	if err != nil && err == redis.TxFailedErr {
+		return false, nil
+	}
+	return cleared, err
+}

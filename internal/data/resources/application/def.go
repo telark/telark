@@ -25,6 +25,18 @@ type Application struct {
 	Metrics         ApplicationMetrics    `json:"metrics"`
 	CRStatus        string                `json:"crStatus,omitempty"`
 	History         ApplicationHistory    `json:"history"`
+	LastForceSync   *LastForceSync        `json:"lastForceSync,omitempty"`
+}
+
+type LastForceSync struct {
+	JobID       string `json:"jobId,omitempty"`
+	Phase       string `json:"phase,omitempty"`
+	RequestedAt string `json:"requestedAt,omitempty"`
+	StartedAt   string `json:"startedAt,omitempty"`
+	CompletedAt string `json:"completedAt,omitempty"`
+	RequestedBy string `json:"requestedBy,omitempty"`
+	Reason      string `json:"reason,omitempty"`
+	Error       string `json:"error,omitempty"`
 }
 
 type Health struct {
@@ -161,4 +173,10 @@ const (
 	SeverityCritical = "critical"
 	SeverityHigh     = "high"
 	SeverityMedium   = "medium"
+
+	// ForceSync phases
+	ForceSyncPhaseQueued    = "queued"
+	ForceSyncPhaseRunning   = "running"
+	ForceSyncPhaseCompleted = "completed"
+	ForceSyncPhaseFailed    = "failed"
 )

@@ -144,10 +144,12 @@ func BuildMatch(scope ScopeSpec, kinds []string, ops []string) (kyvernov1.MatchR
 		if len(names) == constants.DefaultInitValue {
 			continue
 		}
+		// Namespaced Policy: do NOT set Namespaces. Kyverno admission rejects
+		// `match.any[].resources.namespaces[]` on namespaced Policy. Scope comes
+		// from ObjectMeta.Namespace on the Policy itself.
 		rd := kyvernov1.ResourceDescription{
-			Kinds:      []string{k},
-			Names:      append([]string(nil), names...),
-			Namespaces: []string{scope.Namespace},
+			Kinds: []string{k},
+			Names: append([]string(nil), names...),
 		}
 		for _, op := range ops {
 			rd.Operations = append(rd.Operations, kyvernov1.AdmissionOperation(op))

@@ -31,6 +31,24 @@ func (c *StreamClient) Publish(ctx context.Context, stream string, fields map[st
 	}).Result()
 }
 
+func (c *StreamClient) PublishWithMaxLen(
+	ctx context.Context,
+	stream string,
+	fields map[string]any,
+	maxLen int64,
+) (string, error) {
+	return c.redis.XAdd(ctx, &redis.XAddArgs{
+		Stream: stream,
+		Values: fields,
+		MaxLen: maxLen,
+		Approx: true,
+	}).Result()
+}
+
+func (c *StreamClient) TrimMinID(ctx context.Context, stream, minID string) error {
+	return c.redis.XTrimMinIDApprox(ctx, stream, minID, 0).Err()
+}
+
 func (c *StreamClient) Consume(
 	ctx context.Context,
 	stream, group, consumer string,

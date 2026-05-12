@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/plsyro/data/errors"
 	globalshared "github.com/plsyro/data/shared"
@@ -65,7 +66,10 @@ func executeHTTPRequest(
 		req.Header.Set("Content-Type", string(base.JSON))
 	}
 
-	return client.httpClient.Do(req)
+	start := time.Now()
+	resp, doErr := client.httpClient.Do(req)
+	observeExporterCall(client.service, method, endpoint, resp, doErr, time.Since(start))
+	return resp, doErr
 }
 
 func marshalToJSON(payload any) ([]byte, error) {

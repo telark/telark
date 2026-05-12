@@ -56,4 +56,14 @@ const (
 	GlobalConfigPatchRetryBackoff                 = 200 * time.Millisecond
 	GlobalConfigConflictMessageOne                = "the object has been modified"
 	GlobalConfigConflictMessageTwo                = "operation cannot be fulfilled"
+
+	EnvExporterDurationLogEnabled      = "REST_EXPORTER_DURATION_LOG_ENABLED"
+	EnvExporterDurationLogDedupSec     = "REST_EXPORTER_DURATION_LOG_DEDUP_SEC"
+	DefaultExporterDurationLogDedupSec = 10
+	NoStatusCode                       = -1
+	MillisecondsPerSecond              = 1000
+
+	LogExporterCallSuccess errors.Error = "exporter call ok service=%s method=%s endpoint=%s status=%d elapsedMs=%d"
+	LogExporterCallError   errors.Error = "exporter call error service=%s method=%s endpoint=%s status=%d" +
+		" elapsedMs=%d suppressedSinceLast=%d err=%v"
 )

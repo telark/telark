@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/plsyro/data/errors"
 	"github.com/plsyro/rest/base"
@@ -38,7 +39,10 @@ func executeHTTPRequestWithHeaders(
 		req.Header.Set(key, value)
 	}
 
-	return client.httpClient.Do(req)
+	start := time.Now()
+	resp, doErr := client.httpClient.Do(req)
+	observeExporterCall(client.service, method, endpoint, resp, doErr, time.Since(start))
+	return resp, doErr
 }
 
 func ExecuteRequestWithHeaders(

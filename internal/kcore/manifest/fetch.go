@@ -9,8 +9,10 @@ import (
 
 	"github.com/plsyro/kcore/constants"
 	"github.com/plsyro/kcore/k8sclient"
+	"github.com/plsyro/kcore/resilience/retry"
 	"github.com/plsyro/kcore/shared"
 	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 )
@@ -65,7 +67,12 @@ func GetRawManifest(
 	reqCtx, cancel := context.WithTimeout(ctx, timeoutDur)
 	defer cancel()
 
-	obj, err := dyn.Resource(gvr).Namespace(namespace).Get(reqCtx, name, k8smetav1.GetOptions{})
+	var obj *unstructured.Unstructured
+	err = retry.OnTransient(reqCtx, retry.DefaultTransient(), func() error {
+		var getErr error
+		obj, getErr = dyn.Resource(gvr).Namespace(namespace).Get(reqCtx, name, k8smetav1.GetOptions{})
+		return getErr
+	})
 	if err != nil {
 		return nil, err
 	}

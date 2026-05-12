@@ -1,36 +1,19 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/plsyro/data/errors"
-	"github.com/plsyro/data/messages"
 	"github.com/plsyro/data/metadata/base"
-	"github.com/plsyro/kcore/constants"
-	crdutils "github.com/plsyro/kcore/crds/utils"
-	"github.com/plsyro/kcore/resilience/timeout"
 	"github.com/plsyro/kcore/shared"
 	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/dynamic"
 )
 
 func PatchCustomResource(metadata base.Metadata, name string, payload map[string]any) shared.KubernetesAPIData {
-	if err := crdutils.ValidateResourceName(name); err != nil {
-		return shared.CreateKubernetesAPIData(
-			shared.StatusBadRequest,
-			string(errors.ErrResourceNameCannotBeEmpty),
-			nil, err)
-	}
-
-	resourceClient, err := crdutils.GetResourceClient(metadata)
-	if err != nil {
-		return shared.HandleClientError(err)
-	}
-
-	ctx, cancel := timeout.ContextWithTimeoutCause(constants.CrdPatchTimeout)
-	defer cancel()
-
 	patchBytes, err := json.Marshal(payload)
 	if err != nil {
 		return shared.CreateKubernetesAPIData(
@@ -39,17 +22,9 @@ func PatchCustomResource(metadata base.Metadata, name string, payload map[string
 			nil, err)
 	}
 
-	resource, err := resourceClient.Patch(ctx, name, types.MergePatchType, patchBytes, k8smetav1.PatchOptions{})
-	if err != nil {
-		message := fmt.Sprintf(string(errors.ErrUpdateRes), name, err)
-		return shared.CreateKubernetesAPIData(
-			shared.StatusInternalServerError,
-			message,
-			nil,
-			err,
-		)
-	}
-
-	message := fmt.Sprintf(string(messages.SuccessUpdateRes), name, metadata.Kind)
-	return shared.CreateKubernetesAPIData(shared.StatusOK, message, resource, nil)
+	return performRetryingWrite(name, metadata,
+		func(ctx context.Context, client dynamic.ResourceInterface) (*unstructured.Unstructured, error) {
+			return client.Patch(ctx, name, types.MergePatchType, patchBytes, k8smetav1.PatchOptions{})
+		},
+	)
 }

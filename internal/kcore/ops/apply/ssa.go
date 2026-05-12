@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/plsyro/kcore/resilience/retry"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -42,12 +43,15 @@ func ApplyUnstructuredServerSide(
 			applyOpts.DryRun = []string{metav1.DryRunAll}
 		}
 
-		var applyErr error
-		if ns := res.GetNamespace(); ns != "" {
-			_, applyErr = ri.Namespace(ns).Apply(ctx, res.GetName(), &res, applyOpts)
-		} else {
-			_, applyErr = ri.Apply(ctx, res.GetName(), &res, applyOpts)
-		}
+		applyErr := retry.OnTransient(ctx, retry.DefaultApply(), func() error {
+			var doErr error
+			if ns := res.GetNamespace(); ns != "" {
+				_, doErr = ri.Namespace(ns).Apply(ctx, res.GetName(), &res, applyOpts)
+			} else {
+				_, doErr = ri.Apply(ctx, res.GetName(), &res, applyOpts)
+			}
+			return doErr
+		})
 		if applyErr != nil {
 			return fmt.Errorf("apply %s/%s: %w", res.GetKind(), res.GetName(), applyErr)
 		}

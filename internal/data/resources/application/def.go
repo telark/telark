@@ -29,14 +29,14 @@ type Application struct {
 }
 
 type LastForceSync struct {
-	JobID       string `json:"jobId,omitempty"`
-	Phase       string `json:"phase,omitempty"`
-	RequestedAt string `json:"requestedAt,omitempty"`
-	StartedAt   string `json:"startedAt"`
-	CompletedAt string `json:"completedAt"`
-	RequestedBy string `json:"requestedBy,omitempty"`
-	Reason      string `json:"reason,omitempty"`
-	Error       string `json:"error"`
+	JobID       string  `json:"jobId,omitempty"`
+	Phase       string  `json:"phase,omitempty"`
+	RequestedAt string  `json:"requestedAt,omitempty"`
+	StartedAt   *string `json:"startedAt"`
+	CompletedAt *string `json:"completedAt"`
+	RequestedBy string  `json:"requestedBy,omitempty"`
+	Reason      string  `json:"reason,omitempty"`
+	Error       string  `json:"error"`
 }
 
 type Health struct {

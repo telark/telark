@@ -7,12 +7,14 @@ const (
 	opUpdate = "UPDATE"
 	opDelete = "DELETE"
 
-	kindWildcard    = "*"
-	kindDeployment  = "Deployment"
-	kindStatefulSet = "StatefulSet"
-	kindPVC         = "PersistentVolumeClaim"
-	kindConfigMap   = "ConfigMap"
-	kindSecret      = "Secret"
+	kindWildcard         = "*"
+	kindDeployment       = "Deployment"
+	kindDeploymentScale  = "Deployment/scale"
+	kindStatefulSet      = "StatefulSet"
+	kindStatefulSetScale = "StatefulSet/scale"
+	kindPVC              = "PersistentVolumeClaim"
+	kindConfigMap        = "ConfigMap"
+	kindSecret           = "Secret"
 
 	opEquals    = kyvernov1.ConditionOperator("Equals")
 	opNotEquals = kyvernov1.ConditionOperator("NotEquals")
@@ -40,7 +42,7 @@ var (
 	opsCreateUpdate    = []string{opCreate, opUpdate}
 	opsUpdateDelete    = []string{opUpdate, opDelete}
 	kindsWildcard      = []string{kindWildcard}
-	kindsReplicaTarget = []string{kindDeployment, kindStatefulSet}
+	kindsReplicaTarget = []string{kindDeployment, kindDeploymentScale, kindStatefulSet, kindStatefulSetScale}
 	kindsPVC           = []string{kindPVC}
 	kindsConfigSecret  = []string{kindConfigMap, kindSecret}
 )

@@ -119,7 +119,20 @@ func MatchAllAny(kinds []string, ops []string, appIDs []string) kyvernov1.MatchR
 	}
 }
 
-const KindWildcard = "*"
+const (
+	KindWildcard       = "*"
+	subresourceSepRune = '/'
+)
+
+// baseKind returns the parent kind for entries that use subresource notation
+// ("Deployment/scale" → "Deployment"). For plain kinds it returns the input as-is.
+func baseKind(kind string) string {
+	idx := strings.IndexRune(kind, subresourceSepRune)
+	if idx < 0 {
+		return kind
+	}
+	return kind[:idx]
+}
 
 // BuildMatch returns the Kyverno match block for a rule. For namespace scope it matches
 // kinds + ops cluster-wide within the policy's namespace (unchanged behavior). For application
@@ -140,7 +153,7 @@ func BuildMatch(scope ScopeSpec, kinds []string, ops []string) (kyvernov1.MatchR
 	}
 	filters := make(kyvernov1.ResourceFilters, constants.DefaultInitValue, len(targetKinds))
 	for _, k := range targetKinds {
-		names := grouped[k]
+		names := grouped[baseKind(k)]
 		if len(names) == constants.DefaultInitValue {
 			continue
 		}
@@ -187,7 +200,7 @@ func intersectKinds(requested []string, grouped map[string][]string) []string {
 	}
 	out := make([]string, constants.DefaultInitValue, len(requested))
 	for _, k := range requested {
-		if _, ok := grouped[k]; ok {
+		if _, ok := grouped[baseKind(k)]; ok {
 			out = append(out, k)
 		}
 	}

@@ -40,11 +40,6 @@ const (
 	OIDCGoogleCallback base.Endpoint = "auth/oidc/google/callback"
 	OIDCGoogleNonce    base.Endpoint = "auth/oidc/google/nonce"
 
-	// Challenges
-	CreateChallengeByUser base.Endpoint = "auth/challenges/{userId}/create"
-	GetChallengeByUser    base.Endpoint = "auth/challenges/{userId}/get"
-	DeleteChallengeByUser base.Endpoint = "auth/challenges/{userId}/delete"
-
 	// Cleanup (async business delete; finalizer-backed cleanup runs after)
 	DeleteUserCleanup  base.Endpoint = "auth/users/{id}/cleanup"
 	DeleteGroupCleanup base.Endpoint = "auth/groups/{id}/cleanup"

@@ -70,10 +70,6 @@ func observeExporterCall(
 	}
 	elapsedMs := elapsed.Milliseconds()
 	if err == nil && statusCode > constants.EmptySliceLength && statusCode < constants.HTTPErrorCode {
-		base.GetLogger().Info(fmt.Sprintf(
-			string(constants.LogExporterCallSuccess),
-			string(service), string(method), string(endpoint), statusCode, elapsedMs,
-		))
 		return
 	}
 	emit, suppressed := shouldEmitError(string(service), string(method), string(endpoint), statusCode)

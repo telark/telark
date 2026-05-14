@@ -65,7 +65,6 @@ const (
 	NoStatusCode                       = -1
 	MillisecondsPerSecond              = 1000
 
-	LogExporterCallSuccess errors.Error = "exporter call ok service=%s method=%s endpoint=%s status=%d elapsedMs=%d"
-	LogExporterCallError   errors.Error = "exporter call error service=%s method=%s endpoint=%s status=%d" +
+	LogExporterCallError errors.Error = "exporter call error service=%s method=%s endpoint=%s status=%d" +
 		" elapsedMs=%d suppressedSinceLast=%d err=%v"
 )

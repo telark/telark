@@ -124,21 +124,16 @@ const (
 	subresourceSepRune = '/'
 )
 
-// baseKind returns the parent kind for entries that use subresource notation
-// ("Deployment/scale" → "Deployment"). For plain kinds it returns the input as-is.
 func baseKind(kind string) string {
 	idx := strings.IndexRune(kind, subresourceSepRune)
-	if idx < 0 {
+	if idx < constants.DefaultInitValue {
 		return kind
 	}
 	return kind[:idx]
 }
 
 // BuildMatch returns the Kyverno match block for a rule. For namespace scope it matches
-// kinds + ops cluster-wide within the policy's namespace (unchanged behavior). For application
-// scope it builds per-(kind, namespace) ResourceFilter entries with explicit Names taken from
-// scope.AppResources. The boolean return is false when application scope has no resources for
-// any of the requested kinds, signaling the caller to skip rendering this rule.
+// kinds + ops cluster-wide within the policy's namespace (unchanged behavior).
 func BuildMatch(scope ScopeSpec, kinds []string, ops []string) (kyvernov1.MatchResources, bool) {
 	if len(scope.ApplicationIDs) == constants.DefaultInitValue {
 		return MatchAllAny(kinds, ops, nil), true

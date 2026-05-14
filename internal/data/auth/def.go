@@ -28,7 +28,6 @@ type UserSession struct {
 	DeviceMetadata   DeviceMetadata `json:"deviceMetadata"`
 }
 
-// DeviceMetadata holds optional browser-client-provided session context.
 type DeviceMetadata struct {
 	Browser   *string `json:"browser,omitempty"`
 	Device    *string `json:"device,omitempty"`

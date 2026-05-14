@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/plsyro/data/resources/finalizers"
+	resourcesshared "github.com/plsyro/data/resources/shared"
 	userresource "github.com/plsyro/data/resources/user"
 	"github.com/plsyro/rest/base"
+	cleanupclient "github.com/plsyro/rest/clients/resources/cleanup"
 	"github.com/plsyro/rest/clients/shared"
 	"github.com/plsyro/rest/constants"
 	eps "github.com/plsyro/rest/endpoints/resources/users"
@@ -27,29 +30,17 @@ func (c *Client) CreateUser(user *userresource.UserAsResource) *response.Generic
 }
 
 func (c *Client) GetUserByID(id string) (*userresource.UserAsResource, error) {
-	ep := shared.SubstituteEndpointWithParam(
-		string(eps.GetUserByID),
-		constants.IDParam,
-		id,
-	)
+	ep := shared.SubstituteEndpointWithParam(string(eps.GetUserByID), constants.IDParam, id)
 	return shared.GetTyped[userresource.UserAsResource](c.Client, ep)
 }
 
 func (c *Client) GetUserByUsername(username string) (*userresource.UserAsResource, error) {
-	ep := shared.SubstituteEndpointWithParam(
-		string(eps.GetUserByUsername),
-		constants.UsernameParam,
-		username,
-	)
+	ep := shared.SubstituteEndpointWithParam(string(eps.GetUserByUsername), constants.UsernameParam, username)
 	return shared.GetTyped[userresource.UserAsResource](c.Client, ep)
 }
 
 func (c *Client) GetUserByEmail(email string) (*userresource.UserAsResource, error) {
-	ep := shared.SubstituteEndpointWithParam(
-		string(eps.GetUserByEmail),
-		constants.EmailParam,
-		email,
-	)
+	ep := shared.SubstituteEndpointWithParam(string(eps.GetUserByEmail), constants.EmailParam, email)
 	return shared.GetTyped[userresource.UserAsResource](c.Client, ep)
 }
 
@@ -68,19 +59,27 @@ func (c *Client) GetAllUsers() ([]*userresource.UserAsResource, error) {
 }
 
 func (c *Client) PatchUserByID(id string, body map[string]any) *response.GenericResponse {
-	ep := shared.SubstituteEndpointWithParam(
-		string(eps.PatchUserByID),
-		constants.IDParam,
-		id,
-	)
+	ep := shared.SubstituteEndpointWithParam(string(eps.PatchUserByID), constants.IDParam, id)
 	return c.Update(ep, body)
 }
 
 func (c *Client) DeleteUserByID(id string) *response.GenericResponse {
-	ep := shared.SubstituteEndpointWithParam(
-		string(eps.DeleteUserByID),
-		constants.IDParam,
-		id,
-	)
+	ep := shared.SubstituteEndpointWithParam(string(eps.DeleteUserByID), constants.IDParam, id)
 	return c.Delete(ep)
+}
+
+func (c *Client) GetCleanupViewByID(id string) (*resourcesshared.CleanupView, error) {
+	return cleanupclient.GetCleanupViewByID(c.Client, finalizers.ResourceTypeUsers, id)
+}
+
+func (c *Client) ListCleanupViews() ([]*resourcesshared.CleanupView, error) {
+	return cleanupclient.ListCleanupViews(c.Client, finalizers.ResourceTypeUsers)
+}
+
+func (c *Client) AddFinalizer(id, name string) *response.GenericResponse {
+	return cleanupclient.AddFinalizer(c.Client, finalizers.ResourceTypeUsers, id, name)
+}
+
+func (c *Client) RemoveFinalizer(id, name string) *response.GenericResponse {
+	return cleanupclient.RemoveFinalizer(c.Client, finalizers.ResourceTypeUsers, id, name)
 }

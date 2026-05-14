@@ -1,8 +1,11 @@
 package groups
 
 import (
+	"github.com/plsyro/data/resources/finalizers"
 	groupresource "github.com/plsyro/data/resources/group"
+	resourcesshared "github.com/plsyro/data/resources/shared"
 	"github.com/plsyro/rest/base"
+	cleanupclient "github.com/plsyro/rest/clients/resources/cleanup"
 	"github.com/plsyro/rest/clients/shared"
 	"github.com/plsyro/rest/constants"
 	eps "github.com/plsyro/rest/endpoints/resources/groups"
@@ -24,11 +27,7 @@ func (c *Client) CreateGroup(group *groupresource.GroupAsResource) *response.Gen
 }
 
 func (c *Client) GetGroupByID(id string) (*groupresource.GroupAsResource, error) {
-	ep := shared.SubstituteEndpointWithParam(
-		string(eps.GetGroupByID),
-		constants.IDParam,
-		id,
-	)
+	ep := shared.SubstituteEndpointWithParam(string(eps.GetGroupByID), constants.IDParam, id)
 	return shared.GetTyped[groupresource.GroupAsResource](c.Client, ep)
 }
 
@@ -37,19 +36,27 @@ func (c *Client) GetAllGroups() ([]*groupresource.GroupAsResource, error) {
 }
 
 func (c *Client) PatchGroupByID(id string, body map[string]any) *response.GenericResponse {
-	ep := shared.SubstituteEndpointWithParam(
-		string(eps.PatchGroupByID),
-		constants.IDParam,
-		id,
-	)
+	ep := shared.SubstituteEndpointWithParam(string(eps.PatchGroupByID), constants.IDParam, id)
 	return c.Update(ep, body)
 }
 
 func (c *Client) DeleteGroupByID(id string) *response.GenericResponse {
-	ep := shared.SubstituteEndpointWithParam(
-		string(eps.DeleteGroupByID),
-		constants.IDParam,
-		id,
-	)
+	ep := shared.SubstituteEndpointWithParam(string(eps.DeleteGroupByID), constants.IDParam, id)
 	return c.Delete(ep)
+}
+
+func (c *Client) GetCleanupViewByID(id string) (*resourcesshared.CleanupView, error) {
+	return cleanupclient.GetCleanupViewByID(c.Client, finalizers.ResourceTypeGroups, id)
+}
+
+func (c *Client) ListCleanupViews() ([]*resourcesshared.CleanupView, error) {
+	return cleanupclient.ListCleanupViews(c.Client, finalizers.ResourceTypeGroups)
+}
+
+func (c *Client) AddFinalizer(id, name string) *response.GenericResponse {
+	return cleanupclient.AddFinalizer(c.Client, finalizers.ResourceTypeGroups, id, name)
+}
+
+func (c *Client) RemoveFinalizer(id, name string) *response.GenericResponse {
+	return cleanupclient.RemoveFinalizer(c.Client, finalizers.ResourceTypeGroups, id, name)
 }

@@ -44,4 +44,9 @@ const (
 	CreateChallengeByUser base.Endpoint = "auth/challenges/{userId}/create"
 	GetChallengeByUser    base.Endpoint = "auth/challenges/{userId}/get"
 	DeleteChallengeByUser base.Endpoint = "auth/challenges/{userId}/delete"
+
+	// Cleanup (async business delete; finalizer-backed cleanup runs after)
+	DeleteUserCleanup  base.Endpoint = "auth/users/{id}/cleanup"
+	DeleteGroupCleanup base.Endpoint = "auth/groups/{id}/cleanup"
+	DeleteRoleCleanup  base.Endpoint = "auth/roles/{id}/cleanup"
 )

@@ -58,6 +58,7 @@ const (
 const (
 	RollbackStatusSuccess = "success"
 	RollbackStatusFailure = "failure"
+	RollbackStatusAborted = "aborted"
 )
 
 const (

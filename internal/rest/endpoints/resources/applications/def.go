@@ -17,5 +17,5 @@ const (
 	GetRollbacks    base.Endpoint = "resources/applications/{name}/rollbacks/get"
 	GetRollback     base.Endpoint = "resources/applications/{name}/rollbacks/{rollbackId}/get"
 	TriggerRollback base.Endpoint = "resources/applications/{name}/rollbacks/trigger"
-	AbortRollback   base.Endpoint = "resources/applications/{name}/rollbacks/abort"
+	AbortRollback   base.Endpoint = "resources/applications/{name}/rollbacks/{rollbackId}/abort"
 )

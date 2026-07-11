@@ -6,9 +6,9 @@ import (
 
 	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/messages"
-	"github.com/telark/discovery/constants"
-	"github.com/telark/discovery/core/plans/protection"
-	"github.com/telark/discovery/helpers/shared"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/core/plans/protection"
+	"github.com/telark/discovery/internal/helpers/shared"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 )

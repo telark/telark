@@ -6,7 +6,7 @@ import (
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	"github.com/telark/data/plans"
 	datapolicies "github.com/telark/data/policies"
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 )
 
 // PolicyTargetCombo pairs one plan policy with one scope target (namespace or application id).

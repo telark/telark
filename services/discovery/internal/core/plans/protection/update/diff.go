@@ -7,7 +7,7 @@ import (
 	"slices"
 
 	"github.com/telark/data/plans"
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 )
 
 type PolicyKey struct {

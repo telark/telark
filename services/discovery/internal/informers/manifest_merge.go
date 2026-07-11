@@ -4,10 +4,10 @@ import (
 	"time"
 
 	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/config"
-	"github.com/telark/discovery/constants"
-	historyshared "github.com/telark/discovery/core/applications/history/shared"
-	appsnapshot "github.com/telark/discovery/core/applications/snapshot"
+	"github.com/telark/discovery/internal/config"
+	"github.com/telark/discovery/internal/constants"
+	historyshared "github.com/telark/discovery/internal/core/applications/history/shared"
+	appsnapshot "github.com/telark/discovery/internal/core/applications/snapshot"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

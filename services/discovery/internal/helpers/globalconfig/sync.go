@@ -7,8 +7,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/telark/discovery/constants"
-	"github.com/telark/discovery/startup"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/startup"
 	gcfgclient "github.com/telark/rest/clients/resources/globalconfig"
 )
 

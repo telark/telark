@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/telark/discovery/config"
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/config"
+	"github.com/telark/discovery/internal/constants"
 )
 
 func NewMaintenance(cfg config.ForceSyncConfig, stream *StreamOps, replicaID string) *Maintenance {

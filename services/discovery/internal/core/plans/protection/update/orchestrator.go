@@ -8,11 +8,11 @@ import (
 	"github.com/telark/data/plans"
 	"github.com/telark/data/policies"
 	globalshared "github.com/telark/data/shared"
-	"github.com/telark/discovery/clients"
-	"github.com/telark/discovery/constants"
-	"github.com/telark/discovery/core/plans/protection"
-	"github.com/telark/discovery/core/plans/protection/applications"
-	protpolicies "github.com/telark/discovery/core/plans/protection/policies"
+	"github.com/telark/discovery/internal/clients"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/core/plans/protection"
+	"github.com/telark/discovery/internal/core/plans/protection/applications"
+	protpolicies "github.com/telark/discovery/internal/core/plans/protection/policies"
 	planseps "github.com/telark/rest/endpoints/plans"
 )
 

@@ -4,8 +4,8 @@ import (
 	"context"
 	"slices"
 
-	"github.com/telark/discovery/constants"
-	gcfghelper "github.com/telark/discovery/helpers/globalconfig"
+	"github.com/telark/discovery/internal/constants"
+	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
 	kcorecore "github.com/telark/kcore/resources/core"
 	kcoregroup "github.com/telark/kcore/resources/group"
 )

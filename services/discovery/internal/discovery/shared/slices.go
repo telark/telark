@@ -1,6 +1,6 @@
 package shared
 
-import "github.com/telark/discovery/constants"
+import "github.com/telark/discovery/internal/constants"
 
 func DefaultSlice[T any](s, empty []T) []T {
 	if len(s) > constants.DefaultInitValue {

@@ -2,10 +2,10 @@ package groupbylabels
 
 import (
 	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/constants"
-	apphistorydiff "github.com/telark/discovery/core/applications/history/diff"
-	"github.com/telark/discovery/discovery/derivation"
-	discoveryshared "github.com/telark/discovery/discovery/shared"
+	"github.com/telark/discovery/internal/constants"
+	apphistorydiff "github.com/telark/discovery/internal/core/applications/history/diff"
+	"github.com/telark/discovery/internal/discovery/derivation"
+	discoveryshared "github.com/telark/discovery/internal/discovery/shared"
 )
 
 func BuildGroupByLabelsData(withGroups []derivation.ResourceWithGroup) GroupByLabelsData {

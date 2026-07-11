@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/constants"
-	"github.com/telark/discovery/core/applications/history/changes"
-	appshared "github.com/telark/discovery/core/applications/shared"
-	xwareredis "github.com/telark/x-ware/redis/stream"
 	"github.com/redis/go-redis/v9"
+	"github.com/telark/data/resources/application"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/core/applications/history/changes"
+	appshared "github.com/telark/discovery/internal/core/applications/shared"
+	xwareredis "github.com/telark/x-ware/redis/stream"
 )
 
 func ApplyFilters(

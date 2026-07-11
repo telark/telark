@@ -6,8 +6,8 @@ import (
 
 	"github.com/telark/data/plans"
 	globalshared "github.com/telark/data/shared"
-	"github.com/telark/discovery/clients"
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/clients"
+	"github.com/telark/discovery/internal/constants"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/dynamic"
 )

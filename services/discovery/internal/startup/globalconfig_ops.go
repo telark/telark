@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/kcore/resources/server"
 	gcfgclient "github.com/telark/rest/clients/resources/globalconfig"
 )

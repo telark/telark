@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/telark/discovery/constants"
-	analyzeshared "github.com/telark/discovery/handlers/analyze/shared"
-	sharedhelper "github.com/telark/discovery/helpers/shared"
+	"github.com/telark/discovery/internal/constants"
+	analyzeshared "github.com/telark/discovery/internal/handlers/analyze/shared"
+	sharedhelper "github.com/telark/discovery/internal/helpers/shared"
 	"github.com/telark/kcore/resources/autoscaling"
 	"github.com/telark/kcore/resources/core"
 	"github.com/telark/kcore/resources/networking"

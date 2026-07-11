@@ -3,7 +3,7 @@ package config
 import (
 	"time"
 
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 )
 
 func InformerResyncSec() int {

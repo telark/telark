@@ -1,13 +1,13 @@
 package routes
 
 import (
-	"github.com/telark/discovery/constants"
-	resourceslist "github.com/telark/discovery/handlers/analyze/resources"
-	workloadslist "github.com/telark/discovery/handlers/analyze/workloads"
-	namespacehandler "github.com/telark/discovery/handlers/namespaces"
-	protectionplanhandler "github.com/telark/discovery/handlers/plans/protection"
-	applicationhandler "github.com/telark/discovery/handlers/resources/applications"
-	statushandler "github.com/telark/discovery/handlers/status"
+	"github.com/telark/discovery/internal/constants"
+	resourceslist "github.com/telark/discovery/internal/handlers/analyze/resources"
+	workloadslist "github.com/telark/discovery/internal/handlers/analyze/workloads"
+	namespacehandler "github.com/telark/discovery/internal/handlers/namespaces"
+	protectionplanhandler "github.com/telark/discovery/internal/handlers/plans/protection"
+	applicationhandler "github.com/telark/discovery/internal/handlers/resources/applications"
+	statushandler "github.com/telark/discovery/internal/handlers/status"
 	"github.com/telark/rest/base"
 	analyzeps "github.com/telark/rest/endpoints/analyze"
 	planseps "github.com/telark/rest/endpoints/plans"

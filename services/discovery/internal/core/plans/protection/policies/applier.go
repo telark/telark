@@ -7,7 +7,7 @@ import (
 
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	datapolicies "github.com/telark/data/policies"
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 	kcoreapply "github.com/telark/kcore/ops/apply"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/apimachinery/pkg/api/meta"

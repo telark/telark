@@ -3,8 +3,8 @@ package redis
 import (
 	"context"
 
-	"github.com/telark/discovery/constants"
 	"github.com/redis/go-redis/v9"
+	"github.com/telark/discovery/internal/constants"
 )
 
 func ApplicationHasRedisState(ctx context.Context, rdb *redis.Client, appName string) bool {

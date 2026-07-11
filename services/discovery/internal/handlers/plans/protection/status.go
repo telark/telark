@@ -5,8 +5,8 @@ import (
 
 	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/messages"
-	"github.com/telark/discovery/constants"
-	"github.com/telark/discovery/helpers/shared"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/helpers/shared"
 	planseps "github.com/telark/rest/endpoints/plans"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"

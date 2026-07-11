@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	appsnapshot "github.com/telark/discovery/core/applications/snapshot"
+	appsnapshot "github.com/telark/discovery/internal/core/applications/snapshot"
 )
 
 var globalM *Manager

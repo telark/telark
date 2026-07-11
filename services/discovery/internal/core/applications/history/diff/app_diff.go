@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/constants"
-	"github.com/telark/discovery/core/applications/history/changes"
-	"github.com/telark/discovery/core/applications/history/gate"
-	historyshared "github.com/telark/discovery/core/applications/history/shared"
-	"github.com/telark/discovery/core/applications/history/utils"
-	"github.com/telark/discovery/core/applications/metrics"
-	"github.com/telark/discovery/core/applications/snapshot"
 	"github.com/redis/go-redis/v9"
+	"github.com/telark/data/resources/application"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/core/applications/history/changes"
+	"github.com/telark/discovery/internal/core/applications/history/gate"
+	historyshared "github.com/telark/discovery/internal/core/applications/history/shared"
+	"github.com/telark/discovery/internal/core/applications/history/utils"
+	"github.com/telark/discovery/internal/core/applications/metrics"
+	"github.com/telark/discovery/internal/core/applications/snapshot"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

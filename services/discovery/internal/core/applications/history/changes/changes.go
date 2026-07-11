@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/constants"
-	"github.com/telark/discovery/core/applications/history/utils"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/core/applications/history/utils"
 )
 
 func HasReplicaChange(appChanges []application.ApplicationChange) bool {

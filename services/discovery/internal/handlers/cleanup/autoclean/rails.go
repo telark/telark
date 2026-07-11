@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	appresource "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/constants"
-	gcfghelper "github.com/telark/discovery/helpers/globalconfig"
 	"github.com/redis/go-redis/v9"
+	appresource "github.com/telark/data/resources/application"
+	"github.com/telark/discovery/internal/constants"
+	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -26,6 +26,7 @@ func pass(name string) railResult { return railResult{name: name, pass: true} }
 func block(name, reason string) railResult {
 	return railResult{name: name, pass: false, reason: reason}
 }
+
 func errored(name string, err error) railResult {
 	return railResult{name: name, pass: false, reason: err.Error(), hardErr: err}
 }

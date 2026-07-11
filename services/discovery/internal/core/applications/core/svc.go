@@ -7,18 +7,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/constants"
-	"github.com/telark/discovery/core/applications/history/diff"
-	"github.com/telark/discovery/core/applications/metrics"
-	appshared "github.com/telark/discovery/core/applications/shared"
-	"github.com/telark/discovery/core/applications/snapshot"
-	"github.com/telark/discovery/discovery/cache"
-	"github.com/telark/discovery/discovery/derivation"
-	discoveryshared "github.com/telark/discovery/discovery/shared"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/core/applications/history/diff"
+	"github.com/telark/discovery/internal/core/applications/metrics"
+	appshared "github.com/telark/discovery/internal/core/applications/shared"
+	"github.com/telark/discovery/internal/core/applications/snapshot"
+	"github.com/telark/discovery/internal/discovery/cache"
+	"github.com/telark/discovery/internal/discovery/derivation"
+	discoveryshared "github.com/telark/discovery/internal/discovery/shared"
 	"github.com/telark/kcore/resources/workload"
 	"github.com/telark/rest/response"
-	"github.com/redis/go-redis/v9"
 )
 
 func applyHistoryFromDiff(

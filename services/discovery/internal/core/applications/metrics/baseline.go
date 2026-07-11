@@ -2,10 +2,10 @@ package metrics
 
 import (
 	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/constants"
-	"github.com/telark/discovery/core/applications/history/changes"
-	"github.com/telark/discovery/core/applications/history/utils"
-	appshared "github.com/telark/discovery/core/applications/shared"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/core/applications/history/changes"
+	"github.com/telark/discovery/internal/core/applications/history/utils"
+	appshared "github.com/telark/discovery/internal/core/applications/shared"
 )
 
 func BaselineResourceChanges(

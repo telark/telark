@@ -3,7 +3,7 @@ package shared
 import (
 	"encoding/json"
 
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 )
 
 func IsValidSnapshotSeverity(severity string) bool {

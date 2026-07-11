@@ -1,6 +1,6 @@
 package shared
 
-import "github.com/telark/discovery/constants"
+import "github.com/telark/discovery/internal/constants"
 
 type NameFetcher struct {
 	Dst *[]string

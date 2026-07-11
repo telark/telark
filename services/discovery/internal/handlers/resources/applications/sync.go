@@ -8,9 +8,9 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/telark/discovery/constants"
-	"github.com/telark/discovery/coordination/forcesync"
-	sharedhelper "github.com/telark/discovery/helpers/shared"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/coordination/forcesync"
+	sharedhelper "github.com/telark/discovery/internal/helpers/shared"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 )

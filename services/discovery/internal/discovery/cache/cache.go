@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/constants"
-	"github.com/telark/discovery/discovery/shared"
 	"github.com/redis/go-redis/v9"
+	"github.com/telark/data/resources/application"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/discovery/shared"
 )
 
 func (ft *FlexTime) UnmarshalJSON(b []byte) error {

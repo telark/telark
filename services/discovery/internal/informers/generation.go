@@ -2,8 +2,8 @@ package informers
 
 import (
 	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/constants"
-	"github.com/telark/discovery/core/applications/history/diff"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/core/applications/history/diff"
 )
 
 func nextSnapshotGeneration(stored *application.Application) int {

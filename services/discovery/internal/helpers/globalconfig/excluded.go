@@ -3,7 +3,7 @@ package globalconfig
 import (
 	"context"
 
-	"github.com/telark/discovery/startup"
+	"github.com/telark/discovery/internal/startup"
 	gcfgclient "github.com/telark/rest/clients/resources/globalconfig"
 )
 

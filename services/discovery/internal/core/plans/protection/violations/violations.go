@@ -10,9 +10,9 @@ import (
 
 	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/plans"
-	"github.com/telark/discovery/clients"
-	"github.com/telark/discovery/constants"
-	"github.com/telark/discovery/core/plans/protection/applications"
+	"github.com/telark/discovery/internal/clients"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/core/plans/protection/applications"
 	planseps "github.com/telark/rest/endpoints/plans"
 	"golang.org/x/sync/errgroup"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

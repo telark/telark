@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 )
 
 func New(cfg Config) *CircuitBreaker {

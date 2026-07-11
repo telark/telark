@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/telark/discovery/constants"
-	redishelper "github.com/telark/discovery/helpers/redis"
-	sharehelper "github.com/telark/discovery/helpers/shared"
+	"github.com/telark/discovery/internal/constants"
+	redishelper "github.com/telark/discovery/internal/helpers/redis"
+	sharehelper "github.com/telark/discovery/internal/helpers/shared"
 	kcoreconst "github.com/telark/kcore/constants"
 	"github.com/telark/kcore/health"
 	"github.com/telark/rest/response"

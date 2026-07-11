@@ -7,15 +7,15 @@ import (
 	"slices"
 	"strings"
 
-	applicationmodel "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/clients"
-	"github.com/telark/discovery/constants"
-	serviceapp "github.com/telark/discovery/core/applications/core"
-	"github.com/telark/discovery/discovery/listing"
-	"github.com/telark/discovery/discovery/prewarm"
-	discoveryshared "github.com/telark/discovery/discovery/shared"
-	gcfghelper "github.com/telark/discovery/helpers/globalconfig"
 	"github.com/redis/go-redis/v9"
+	applicationmodel "github.com/telark/data/resources/application"
+	"github.com/telark/discovery/internal/clients"
+	"github.com/telark/discovery/internal/constants"
+	serviceapp "github.com/telark/discovery/internal/core/applications/core"
+	"github.com/telark/discovery/internal/discovery/listing"
+	"github.com/telark/discovery/internal/discovery/prewarm"
+	discoveryshared "github.com/telark/discovery/internal/discovery/shared"
+	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
 )
 
 var errUnexpectedResponseData = errors.New("unexpected response data type")

@@ -5,10 +5,10 @@ import (
 	"errors"
 
 	applicationmodel "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/constants"
-	applicationscore "github.com/telark/discovery/core/applications/core"
-	"github.com/telark/discovery/core/applications/history/diff"
-	"github.com/telark/discovery/discovery/prewarm"
+	"github.com/telark/discovery/internal/constants"
+	applicationscore "github.com/telark/discovery/internal/core/applications/core"
+	"github.com/telark/discovery/internal/core/applications/history/diff"
+	"github.com/telark/discovery/internal/discovery/prewarm"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 )
 
 // implements label-intelligence-first grouping for no-selector mode.

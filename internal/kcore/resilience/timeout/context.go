@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/plsyro/kcore/constants"
+	"github.com/telark/kcore/constants"
 )
 
 func ContextWithTimeoutCause(timeout time.Duration) (context.Context, context.CancelFunc) {

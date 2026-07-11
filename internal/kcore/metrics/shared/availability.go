@@ -3,8 +3,8 @@ package shared
 import (
 	"time"
 
-	"github.com/plsyro/kcore/constants"
-	"github.com/plsyro/kcore/metrics/metricstypes"
+	"github.com/telark/kcore/constants"
+	"github.com/telark/kcore/metrics/metricstypes"
 	k8smetricsclient "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 

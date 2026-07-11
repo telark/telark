@@ -4,12 +4,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/plsyro/kcore/constants"
-	"github.com/plsyro/kcore/metrics/metricstypes"
-	"github.com/plsyro/kcore/metrics/metricsutils"
-	"github.com/plsyro/kcore/metrics/shared"
-	"github.com/plsyro/kcore/resilience/circuitbreaker"
-	"github.com/plsyro/kcore/resilience/timeout"
+	"github.com/telark/kcore/constants"
+	"github.com/telark/kcore/metrics/metricstypes"
+	"github.com/telark/kcore/metrics/metricsutils"
+	"github.com/telark/kcore/metrics/shared"
+	"github.com/telark/kcore/resilience/circuitbreaker"
+	"github.com/telark/kcore/resilience/timeout"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 )

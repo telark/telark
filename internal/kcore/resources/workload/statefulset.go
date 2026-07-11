@@ -1,7 +1,7 @@
 package workload
 
 import (
-	"github.com/plsyro/kcore/constants"
+	"github.com/telark/kcore/constants"
 	k8sappsv1 "k8s.io/api/apps/v1"
 )
 

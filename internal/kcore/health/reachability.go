@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/plsyro/kcore/constants"
-	"github.com/plsyro/kcore/k8sclient"
+	"github.com/telark/kcore/constants"
+	"github.com/telark/kcore/k8sclient"
 )
 
 type reachabilityState struct {

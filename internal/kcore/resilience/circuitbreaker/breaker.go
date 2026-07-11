@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/plsyro/kcore/constants"
+	"github.com/telark/kcore/constants"
 )
 
 type (

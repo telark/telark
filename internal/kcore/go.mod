@@ -1,9 +1,9 @@
-module github.com/plsyro/kcore
+module github.com/telark/kcore
 
-go 1.26.3
+go 1.26.5
 
 require (
-	github.com/plsyro/data v1.13.1
+	github.com/telark/data v1.14.0
 	k8s.io/api v0.35.4
 	k8s.io/apimachinery v0.35.4
 	k8s.io/client-go v0.35.4

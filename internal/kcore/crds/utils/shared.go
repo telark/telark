@@ -3,9 +3,9 @@ package utils //nolint:revive // Directory name must remain "utils" for import c
 import (
 	"fmt"
 
-	"github.com/plsyro/data/errors"
-	"github.com/plsyro/data/metadata/base"
-	"github.com/plsyro/kcore/k8sclient"
+	"github.com/telark/data/errors"
+	"github.com/telark/data/metadata/base"
+	"github.com/telark/kcore/k8sclient"
 	"k8s.io/client-go/dynamic"
 )
 

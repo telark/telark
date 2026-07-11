@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/plsyro/kcore/constants"
-	"github.com/plsyro/kcore/metrics/metricstypes"
-	"github.com/plsyro/kcore/metrics/shared"
+	"github.com/telark/kcore/constants"
+	"github.com/telark/kcore/metrics/metricstypes"
+	"github.com/telark/kcore/metrics/shared"
 )
 
 func NewMetricsAdapter() (*metricstypes.MetricsAdapter, error) {

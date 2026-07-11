@@ -3,8 +3,8 @@ package metrics
 import (
 	"testing"
 
-	"github.com/plsyro/kcore/constants"
-	"github.com/plsyro/kcore/metrics/client"
+	"github.com/telark/kcore/constants"
+	"github.com/telark/kcore/metrics/client"
 )
 
 func TestInitMetricsClient(t *testing.T) {

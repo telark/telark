@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/plsyro/kcore/resilience/retry"
+	"github.com/telark/kcore/resilience/retry"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"

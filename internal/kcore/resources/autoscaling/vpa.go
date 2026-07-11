@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/plsyro/kcore/constants"
-	"github.com/plsyro/kcore/k8sclient"
-	"github.com/plsyro/kcore/resilience/timeout"
+	"github.com/telark/kcore/constants"
+	"github.com/telark/kcore/k8sclient"
+	"github.com/telark/kcore/resilience/timeout"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"

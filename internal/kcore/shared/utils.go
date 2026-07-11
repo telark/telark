@@ -1,8 +1,8 @@
 package shared
 
 import (
-	"github.com/plsyro/data/errors"
-	"github.com/plsyro/kcore/constants"
+	"github.com/telark/data/errors"
+	"github.com/telark/kcore/constants"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 

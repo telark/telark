@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/plsyro/data/errors"
-	"github.com/plsyro/data/metadata/base"
-	"github.com/plsyro/kcore/shared"
+	"github.com/telark/data/errors"
+	"github.com/telark/data/metadata/base"
+	"github.com/telark/kcore/shared"
 	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"

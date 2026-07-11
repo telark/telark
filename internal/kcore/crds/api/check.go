@@ -1,10 +1,10 @@
 package api
 
 import (
-	"github.com/plsyro/data/metadata/base"
-	"github.com/plsyro/kcore/constants"
-	crdutils "github.com/plsyro/kcore/crds/utils"
-	"github.com/plsyro/kcore/resilience/timeout"
+	"github.com/telark/data/metadata/base"
+	"github.com/telark/kcore/constants"
+	crdutils "github.com/telark/kcore/crds/utils"
+	"github.com/telark/kcore/resilience/timeout"
 	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

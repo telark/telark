@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/plsyro/data/errors"
-	"github.com/plsyro/data/messages"
-	"github.com/plsyro/data/metadata/base"
-	crdutils "github.com/plsyro/kcore/crds/utils"
-	"github.com/plsyro/kcore/resilience/timeout"
-	"github.com/plsyro/kcore/shared"
+	"github.com/telark/data/errors"
+	"github.com/telark/data/messages"
+	"github.com/telark/data/metadata/base"
+	crdutils "github.com/telark/kcore/crds/utils"
+	"github.com/telark/kcore/resilience/timeout"
+	"github.com/telark/kcore/shared"
 	"k8s.io/client-go/dynamic"
 )
 

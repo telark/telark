@@ -1,11 +1,11 @@
 package api
 
 import (
-	"github.com/plsyro/data/errors"
-	"github.com/plsyro/data/messages"
-	"github.com/plsyro/data/metadata/base"
-	"github.com/plsyro/kcore/constants"
-	"github.com/plsyro/kcore/shared"
+	"github.com/telark/data/errors"
+	"github.com/telark/data/messages"
+	"github.com/telark/data/metadata/base"
+	"github.com/telark/kcore/constants"
+	"github.com/telark/kcore/shared"
 	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

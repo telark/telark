@@ -1,0 +1,62 @@
+# In-cluster k6 Job template. Placeholders: __RUN__, __SCENARIO__, __BASE_URL__,
+# __BASELINE_RPS__, __MAX_RPS__, __SEED_POOL_SIZE__, __SEED_PREFIX__, __CONFIGMAP__.
+# Rendered + applied by k6/cluster/run.sh.
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: k6-__RUN__
+  namespace: telark
+  labels:
+    app: k6
+    run: "__RUN__"
+    scenario: "__SCENARIO__"
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: k6
+        run: "__RUN__"
+        scenario: "__SCENARIO__"
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: k6
+          image: grafana/k6:latest
+          command:
+            - k6
+            - run
+            - --quiet
+            - /scripts/__SCENARIO__.js
+          env:
+            - name: BASE_URL
+              value: "__BASE_URL__"
+            - name: BASELINE_RPS
+              value: "__BASELINE_RPS__"
+            - name: MAX_RPS
+              value: "__MAX_RPS__"
+            - name: SEED_POOL_SIZE
+              value: "__SEED_POOL_SIZE__"
+            - name: SEED_PREFIX
+              value: "__SEED_PREFIX__"
+            - name: RESULTS_DIR
+              value: "/tmp/results"
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+            - name: results
+              mountPath: /tmp/results
+          resources:
+            requests:
+              cpu: "1"
+              memory: "1Gi"
+            limits:
+              cpu: "4"
+              memory: "8Gi"
+      volumes:
+        - name: scripts
+          configMap:
+            name: __CONFIGMAP__
+        - name: results
+          emptyDir: {}

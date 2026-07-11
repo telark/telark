@@ -1,0 +1,6 @@
+{{- if $.Values.services.exporter.enabled }}
+{{- include "clusterRole" (dict "service" "exporter" "values" .Values "rules" (list
+  (dict "apiGroups" (list "admissionregistration.k8s.io") "resources" (list "*") "verbs" (list "*"))
+  (dict "apiGroups" (list "kyverno.io") "resources" (list "policies") "verbs" (list "create" "get" "list" "delete"))
+)) }}
+{{- end }}

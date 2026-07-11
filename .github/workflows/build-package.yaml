@@ -1,0 +1,91 @@
+name: Build & Deploy Package
+run-name: Build Package "${{ inputs.package }}" with Bump "${{ inputs.build_type }}"
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        required: true
+        type: choice
+        description: Package
+        options:
+          - data
+          - rest
+          - kcore
+          - x-ware
+      build_type:
+        required: false
+        type: choice
+        description: Package Build Type
+        options:
+          - patch
+          - minor
+          - major
+      branch:
+        required: false
+        description: Branch to build from
+        default: main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Package Repository
+        uses: actions/checkout@v6.0.2
+        with:
+          repository: telark/${{ github.event.inputs.package }}
+          token: ${{ secrets.ACCESS_TOKEN }}
+          path: package
+          ref: ${{ github.event.inputs.branch || 'main' }}
+
+      - name: Set up Git
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+      
+      - name: Fetch tags and get latest semver
+        id: get_tag
+        run: |
+          cd package
+          git fetch --tags
+
+          latest_tag=$(git tag --sort=-v:refname | grep '^v[0-9]' | head -n 1)
+          if [ -z "$latest_tag" ]; then
+            latest_tag="v0.0.0"
+          fi
+
+          echo "Found latest tag: $latest_tag"
+          echo "latest_tag=$latest_tag" >> $GITHUB_OUTPUT
+
+      - name: Bump version
+        id: bump
+        run: |
+          latest_tag=${{ steps.get_tag.outputs.latest_tag }}
+          version=${latest_tag#v}
+          IFS='.' read -r major minor patch <<< "$version"
+
+          build_type="${{ github.event.inputs.build_type || 'patch' }}"
+          case "$build_type" in
+            major)
+              major=$((major + 1)); minor=0; patch=0 ;;
+            minor)
+              minor=$((minor + 1)); patch=0 ;;
+            patch|*)
+              patch=$((patch + 1)) ;;
+          esac
+
+          new_tag="v${major}.${minor}.${patch}"
+          echo "Bumping to new tag: $new_tag"
+          echo "new_tag=$new_tag" >> $GITHUB_OUTPUT
+      
+      - name: Create annotated tag with commit message
+        run: |
+          cd package
+          git checkout ${{ github.event.inputs.branch || 'main' }}
+
+          tag_message=$(git log -1 --pretty=%B)
+
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git tag -a ${{ steps.bump.outputs.new_tag }} -m "$tag_message"
+          git push origin ${{ steps.bump.outputs.new_tag }}

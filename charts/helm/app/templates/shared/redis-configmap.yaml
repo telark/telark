@@ -1,0 +1,14 @@
+{{- if .Values.app.shared.redis }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.app.name }}-redis-cm
+  namespace: {{ .Values.app.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.app.name }}-redis-cm
+    app.kubernetes.io/part-of: {{ .Values.app.name }}
+data:
+{{- range $key, $value := .Values.app.shared.redis }}
+  {{ $key }}: {{ $value | quote }}
+{{- end }}
+{{- end }}

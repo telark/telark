@@ -1,0 +1,39 @@
+{{- define "usageBlockSchema" -}}
+type: object
+properties:
+  qos:
+    type: string
+  resources:
+    type: object
+    properties:
+      totalCpu:
+        type: string
+      totalMemory:
+        type: string
+      usagePerInstance:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            containers:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  cpu:
+                    type: string
+                  memory:
+                    type: string
+            totalCpu:
+              type: string
+            totalMemory:
+              type: string
+  available:
+    type: boolean
+  timestamp:
+    type: string
+{{- end }}

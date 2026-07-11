@@ -1,0 +1,13 @@
+{
+    "cSpell.words": [
+        "telark"
+    ],
+    "[go]": {
+        "editor.defaultFormatter": "golang.go",
+        "editor.formatOnSave": true
+    },
+    "gopls": {
+        "formatting.gofumpt": true
+    }
+}
+  

@@ -1,0 +1,3 @@
+{{- if $.Values.services.exporter.enabled }}
+{{- include "clusterRoleBinding" (dict "service" "exporter" "values" .Values) }}
+{{- end }} 

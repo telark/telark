@@ -1,0 +1,30 @@
+# Developer-only overrides for local tooling.
+# NOT loaded by Helm during install. Consumed by tests/port-forward/port-forward.sh
+# (and any future local-dev scripts).
+#
+# Helm install is unaffected by this file.
+services:
+  exporter:
+    portForward:
+      enabled: true
+      localPort: 8002
+  discovery:
+    portForward:
+      enabled: true
+      localPort: 8004
+  enrichment:
+    portForward:
+      enabled: true
+      localPort: 8007
+  notifier:
+    portForward:
+      enabled: false
+      localPort: 8005
+  auth:
+    portForward:
+      enabled: true
+      localPort: 8006
+  ui:
+    portForward:
+      enabled: false
+      localPort: 3000

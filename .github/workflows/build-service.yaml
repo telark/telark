@@ -64,36 +64,25 @@ jobs:
     outputs:
       image_tag: ${{ steps.service_data.outputs.new_version }}
     steps:
-      - name: Checkout Service Repository
+      - name: Checkout Repository
         uses: actions/checkout@v6.0.2
         with:
-          repository: telark/${{ github.event.inputs.service }}-service
-          token: ${{ secrets.ACCESS_TOKEN }}
-          path: service
           ref: ${{ github.event.inputs.branch }}
-
-      - name: Checkout Release Repository
-        uses: actions/checkout@v6.0.2
-        with:
-          repository: telark/release-manager
-          path: release
-          ref: 'main'
-          fetch-depth: 0
 
       - name: Bump Service Version
         id: service_data
-        uses: ./release/.github/actions/bump-service-version
+        uses: ./.github/actions/bump-service-version
         with:
           service: ${{ inputs.service }}
           build_type: ${{ inputs.build_type }}
-          values_file_path: './release/helm/app/values.yaml'
+          values_file_path: './charts/helm/app/values.yaml'
 
       - name: Read image config from helm values
         id: image
         shell: bash
         run: |
-          echo "registry=$(yq e '.app.image.registry' release/helm/app/values.yaml)" >> $GITHUB_OUTPUT
-          echo "repository=$(yq e '.app.image.repository' release/helm/app/values.yaml)" >> $GITHUB_OUTPUT
+          echo "registry=$(yq e '.app.image.registry' charts/helm/app/values.yaml)" >> $GITHUB_OUTPUT
+          echo "repository=$(yq e '.app.image.repository' charts/helm/app/values.yaml)" >> $GITHUB_OUTPUT
 
       - name: Docker Login
         uses: docker/login-action@v4.0.0
@@ -103,14 +92,14 @@ jobs:
           password: ${{ secrets.CONTAINER_REGISTRY_PASSWORD }}
 
       - name: Build and Push Service Image
-        uses: ./release/.github/actions/build-push-service-image
+        uses: ./.github/actions/build-push-service-image
         with:
           service_name: ${{ inputs.service }}
           service_path: 'service'
           image_tag: ${{ steps.service_data.outputs.new_version }}
           container_registry_name: ${{ steps.image.outputs.registry }}
           container_registry_repo_name: ${{ steps.image.outputs.repository }}
-          dockerfile_path: './service/Dockerfile'
+          dockerfile_path: './services/${{ inputs.service }}/Dockerfile'
           platforms: 'linux/amd64'
           cache_enabled: 'true'
           push_enabled: 'true'
@@ -118,7 +107,7 @@ jobs:
           access_token: ${{ secrets.ACCESS_TOKEN }}
 
       - name: Tag Service Repository
-        uses: ./release/.github/actions/tag-service-repo
+        uses: ./.github/actions/tag-service-repo
         with:
           service_name: ${{ inputs.service }}
           service_version: ${{ steps.service_data.outputs.service_new_version }}
@@ -148,8 +137,6 @@ jobs:
       - name: Checkout Release Repository
         uses: actions/checkout@v6.0.2
         with:
-          repository: telark/release-manager
-          path: release
           ref: 'main'
           fetch-depth: 0
 

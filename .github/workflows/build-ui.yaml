@@ -55,10 +55,10 @@ jobs:
           path: service
           ref: ${{ github.event.inputs.branch }}
 
-      - name: Checkout Release Repository
+      - name: Checkout Core Repository
         uses: actions/checkout@v6.0.2
         with:
-          repository: telark/release-manager
+          repository: telark/telark
           path: release
           ref: 'main'
           fetch-depth: 0
@@ -75,8 +75,8 @@ jobs:
         id: image
         shell: bash
         run: |
-          echo "registry=$(yq e '.app.image.registry' release/helm/app/values.yaml)" >> $GITHUB_OUTPUT
-          echo "repository=$(yq e '.app.image.repository' release/helm/app/values.yaml)" >> $GITHUB_OUTPUT
+          echo "registry=$(yq e '.app.image.registry' release/charts/helm/app/values.yaml)" >> $GITHUB_OUTPUT
+          echo "repository=$(yq e '.app.image.repository' release/charts/helm/app/values.yaml)" >> $GITHUB_OUTPUT
 
       - name: Docker Login
         uses: docker/login-action@v4.0.0
@@ -131,7 +131,7 @@ jobs:
       - name: Checkout Release Repository
         uses: actions/checkout@v6.0.2
         with:
-          repository: telark/release-manager
+          repository: telark/telark
           path: release
           ref: 'main'
           fetch-depth: 0
@@ -139,7 +139,7 @@ jobs:
       - name: Trigger Helm Release Pipeline
         uses: peter-evans/repository-dispatch@v4
         with:
-          repository: telark/release-manager
+          repository: telark/telark
           token: ${{ secrets.ACCESS_TOKEN }}
           event-type: execute-helm-release
           client-payload: '{"build_type": "${{ inputs.helm_build_type }}", "ns": "${{ env.NAMESPACE }}", "sonar_scan": "skip"}'

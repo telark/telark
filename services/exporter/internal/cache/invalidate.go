@@ -3,7 +3,7 @@ package cache
 import (
 	"fmt"
 
-	"github.com/telark/exporter/constants"
+	"github.com/telark/exporter/internal/constants"
 	rediscache "github.com/telark/x-ware/redis/cache"
 )
 

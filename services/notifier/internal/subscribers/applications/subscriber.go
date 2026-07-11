@@ -5,7 +5,7 @@ import (
 
 	"github.com/nats-io/nats.go"
 	resourceshared "github.com/telark/data/resources/shared"
-	"github.com/telark/notifier/subscribers/base"
+	"github.com/telark/notifier/internal/subscribers/base"
 	natscore "github.com/telark/x-ware/nats/core"
 )
 

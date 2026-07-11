@@ -7,7 +7,7 @@ import (
 
 	"github.com/nats-io/nats.go"
 	"github.com/telark/data/resources/shared"
-	"github.com/telark/notifier/constants"
+	"github.com/telark/notifier/internal/constants"
 	"github.com/telark/rest/response"
 	natscore "github.com/telark/x-ware/nats/core"
 )

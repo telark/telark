@@ -8,7 +8,7 @@ import (
 	"github.com/telark/data/errors"
 	"github.com/telark/data/logger"
 	"github.com/telark/data/messages"
-	"github.com/telark/notifier/constants"
+	"github.com/telark/notifier/internal/constants"
 	natscore "github.com/telark/x-ware/nats/core"
 )
 

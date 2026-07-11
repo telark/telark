@@ -11,8 +11,8 @@ import (
 	"github.com/telark/data/messages"
 	appresource "github.com/telark/data/resources/application"
 	resourceshared "github.com/telark/data/resources/shared"
-	"github.com/telark/notifier/constants"
-	"github.com/telark/notifier/subscribers/base"
+	"github.com/telark/notifier/internal/constants"
+	"github.com/telark/notifier/internal/subscribers/base"
 	applicationsclient "github.com/telark/rest/clients/resources/applications"
 	natscore "github.com/telark/x-ware/nats/core"
 )

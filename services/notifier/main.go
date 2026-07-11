@@ -8,15 +8,15 @@ import (
 	"syscall"
 	"time"
 
+	goredis "github.com/redis/go-redis/v9"
 	"github.com/telark/data/errors"
 	"github.com/telark/data/logger"
 	"github.com/telark/data/messages"
-	"github.com/telark/notifier/constants"
-	"github.com/telark/notifier/subscribers/manager"
+	"github.com/telark/notifier/internal/constants"
+	"github.com/telark/notifier/internal/subscribers/manager"
 	"github.com/telark/rest/connectivity"
 	rediscore "github.com/telark/x-ware/redis/core"
 	redisinit "github.com/telark/x-ware/redis/init"
-	goredis "github.com/redis/go-redis/v9"
 )
 
 func main() {

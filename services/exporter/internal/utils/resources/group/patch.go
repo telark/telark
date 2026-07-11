@@ -6,7 +6,7 @@ import (
 
 	dataerrors "github.com/telark/data/errors"
 	groupdata "github.com/telark/data/resources/group"
-	"github.com/telark/exporter/constants"
+	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"

@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	"github.com/telark/data/errors"
-	"github.com/telark/exporter/constants"
-	snapshotexp "github.com/telark/exporter/exporters/snapshot"
-	sharedutils "github.com/telark/exporter/utils/shared"
+	"github.com/telark/exporter/internal/constants"
+	snapshotexp "github.com/telark/exporter/internal/exporters/snapshot"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/rest/response"
 	requestutils "github.com/telark/rest/utils/request"
 	responseutils "github.com/telark/rest/utils/response"

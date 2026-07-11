@@ -6,10 +6,10 @@ import (
 
 	"github.com/telark/data/errors"
 	metadata "github.com/telark/data/metadata/base"
-	"github.com/telark/exporter/constants"
-	"github.com/telark/exporter/exporters/generics"
-	"github.com/telark/exporter/utils/concurrency"
-	sharedutils "github.com/telark/exporter/utils/shared"
+	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/exporter/internal/exporters/generics"
+	"github.com/telark/exporter/internal/utils/concurrency"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	requestutils "github.com/telark/rest/utils/request"
 )
 

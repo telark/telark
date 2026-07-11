@@ -3,7 +3,7 @@ package shared
 import (
 	"net/http"
 
-	"github.com/telark/exporter/constants"
+	"github.com/telark/exporter/internal/constants"
 )
 
 type ResponseCapture struct {

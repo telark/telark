@@ -5,9 +5,9 @@ import (
 	"slices"
 
 	globalerrors "github.com/telark/data/errors"
-	"github.com/telark/exporter/constants"
-	"github.com/telark/exporter/utils/concurrency"
-	sharedutils "github.com/telark/exporter/utils/shared"
+	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/exporter/internal/utils/concurrency"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/kcore/crds/api"
 	restconstants "github.com/telark/rest/constants"
 	"github.com/telark/rest/response"

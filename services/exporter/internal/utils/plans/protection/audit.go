@@ -5,7 +5,7 @@ import (
 
 	"github.com/telark/data/plans"
 	globalshared "github.com/telark/data/shared"
-	"github.com/telark/exporter/constants"
+	"github.com/telark/exporter/internal/constants"
 )
 
 func ApplyCreateAudit(plan *plans.ProtectionPlan, userID string) {

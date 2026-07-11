@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	metadata "github.com/telark/data/metadata/classification"
-	"github.com/telark/exporter/constants"
+	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/kcore/crds/api"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )

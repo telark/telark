@@ -4,10 +4,10 @@ import (
 	"net/http"
 
 	authmetadata "github.com/telark/data/metadata/auth"
-	"github.com/telark/exporter/exporters/generics"
-	sessionutils "github.com/telark/exporter/utils/auth/session"
-	"github.com/telark/exporter/utils/concurrency"
-	sharedutils "github.com/telark/exporter/utils/shared"
+	"github.com/telark/exporter/internal/exporters/generics"
+	sessionutils "github.com/telark/exporter/internal/utils/auth/session"
+	"github.com/telark/exporter/internal/utils/concurrency"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 )

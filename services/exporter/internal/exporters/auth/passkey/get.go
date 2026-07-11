@@ -6,8 +6,8 @@ import (
 
 	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/messages"
-	passkeyutils "github.com/telark/exporter/utils/auth/passkey"
-	sharedutils "github.com/telark/exporter/utils/shared"
+	passkeyutils "github.com/telark/exporter/internal/utils/auth/passkey"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 )

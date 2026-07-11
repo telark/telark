@@ -6,10 +6,10 @@ import (
 
 	metadata "github.com/telark/data/metadata/resources"
 	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/exporter/constants"
-	roleconstants "github.com/telark/exporter/utils/computation/role/constants"
-	resourcesshared "github.com/telark/exporter/utils/resources/shared"
-	sharedutils "github.com/telark/exporter/utils/shared"
+	"github.com/telark/exporter/internal/constants"
+	roleconstants "github.com/telark/exporter/internal/utils/computation/role/constants"
+	resourcesshared "github.com/telark/exporter/internal/utils/resources/shared"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 )

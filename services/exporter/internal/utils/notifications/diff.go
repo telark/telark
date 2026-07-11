@@ -1,6 +1,6 @@
 package notifications
 
-import "github.com/telark/exporter/constants"
+import "github.com/telark/exporter/internal/constants"
 
 func DiffPtrStringSlices(oldVals []*string, newVals []*string) (added, removed []string) {
 	oldSet := make(map[string]struct{}, len(oldVals))

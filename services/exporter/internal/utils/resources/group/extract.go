@@ -2,8 +2,8 @@ package group
 
 import (
 	groupdata "github.com/telark/data/resources/group"
-	resourcesshared "github.com/telark/exporter/utils/resources/shared"
-	sharedutils "github.com/telark/exporter/utils/shared"
+	resourcesshared "github.com/telark/exporter/internal/utils/resources/shared"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 )
 
 func ExtractGroupSpecFromRequestBody(body map[string]any) (*groupdata.GroupAsResource, error) {

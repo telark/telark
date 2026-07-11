@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/telark/exporter/constants"
+	"github.com/telark/exporter/internal/constants"
 	kcoreconst "github.com/telark/kcore/constants"
 	"github.com/telark/kcore/health"
 	statuseps "github.com/telark/rest/endpoints/status"

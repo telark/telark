@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	metadata "github.com/telark/data/metadata/base"
-	"github.com/telark/exporter/constants"
+	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/kcore/crds/api"
 )
 

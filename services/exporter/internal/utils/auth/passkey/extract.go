@@ -7,9 +7,9 @@ import (
 
 	authdata "github.com/telark/data/auth"
 	dataerrors "github.com/telark/data/errors"
-	"github.com/telark/exporter/constants"
-	authutils "github.com/telark/exporter/utils/auth/shared"
-	sharedutils "github.com/telark/exporter/utils/shared"
+	"github.com/telark/exporter/internal/constants"
+	authutils "github.com/telark/exporter/internal/utils/auth/shared"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/rest/response"
 	requestutils "github.com/telark/rest/utils/request"
 	responseutils "github.com/telark/rest/utils/response"

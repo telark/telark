@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/telark/exporter/constants"
+	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/kcore/k8sclient"
 )
 

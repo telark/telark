@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"github.com/telark/data/plans"
-	"github.com/telark/exporter/constants"
+	"github.com/telark/exporter/internal/constants"
 )
 
 func Validate(plan *plans.ProtectionPlan) error {

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/telark/discovery/config"
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/config"
+	"github.com/telark/discovery/internal/constants"
 	xwareredis "github.com/telark/x-ware/redis/stream"
 )
 

@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/telark/discovery/config"
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/config"
+	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/rest/clients/shared"
 	snapshotsclient "github.com/telark/rest/clients/snapshots"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"

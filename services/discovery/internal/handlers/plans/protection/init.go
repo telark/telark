@@ -1,6 +1,6 @@
 package protection
 
-import "github.com/telark/discovery/core/plans/protection"
+import "github.com/telark/discovery/internal/core/plans/protection"
 
 var globalService *protection.Service
 

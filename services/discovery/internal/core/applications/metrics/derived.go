@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 )
 
 func computeDerivedMetrics(app *application.Application) application.DerivedMetrics {

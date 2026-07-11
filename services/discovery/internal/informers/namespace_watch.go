@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/telark/discovery/constants"
-	gcfghelper "github.com/telark/discovery/helpers/globalconfig"
+	"github.com/telark/discovery/internal/constants"
+	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
 	kcoredynamic "github.com/telark/kcore/informers/dynamic"
 	"github.com/telark/kcore/resources/core"
 	"k8s.io/apimachinery/pkg/runtime/schema"

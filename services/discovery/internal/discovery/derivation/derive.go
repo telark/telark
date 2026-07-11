@@ -3,7 +3,7 @@ package derivation
 import (
 	"strings"
 
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 )
 
 func DeriveGroups(resources []ResourceInput) ([]ResourceWithGroup, []string) {

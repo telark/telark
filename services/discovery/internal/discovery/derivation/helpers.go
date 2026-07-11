@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 )
 
 func FirstGroupNameFromLabels(labels map[string]string) string {

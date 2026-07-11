@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/telark/discovery/constants"
 	"github.com/redis/go-redis/v9"
+	"github.com/telark/discovery/internal/constants"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

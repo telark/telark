@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"slices"
 
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 	kcorecore "github.com/telark/kcore/resources/core"
 	"github.com/telark/rest/response"
 )

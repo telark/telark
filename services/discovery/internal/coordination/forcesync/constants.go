@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 )
 
 const (

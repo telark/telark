@@ -13,13 +13,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/telark/discovery/clients"
-	"github.com/telark/discovery/constants"
-	redishelper "github.com/telark/discovery/helpers/redis"
-	sharedhelper "github.com/telark/discovery/helpers/shared"
+	"github.com/redis/go-redis/v9"
+	"github.com/telark/discovery/internal/clients"
+	"github.com/telark/discovery/internal/constants"
+	redishelper "github.com/telark/discovery/internal/helpers/redis"
+	sharedhelper "github.com/telark/discovery/internal/helpers/shared"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
-	"github.com/redis/go-redis/v9"
 )
 
 func CleanupApplicationData(w http.ResponseWriter, r *http.Request) {

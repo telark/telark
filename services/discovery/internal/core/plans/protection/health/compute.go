@@ -7,8 +7,8 @@ import (
 
 	"github.com/telark/data/plans"
 	"github.com/telark/data/policies"
-	"github.com/telark/discovery/constants"
-	protpolicies "github.com/telark/discovery/core/plans/protection/policies"
+	"github.com/telark/discovery/internal/constants"
+	protpolicies "github.com/telark/discovery/internal/core/plans/protection/policies"
 	planseps "github.com/telark/rest/endpoints/plans"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"

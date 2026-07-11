@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/telark/data/plans"
-	"github.com/telark/discovery/constants"
-	"github.com/telark/discovery/core/plans/protection"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/core/plans/protection"
 )
 
 const (

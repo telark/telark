@@ -3,11 +3,11 @@ package applications
 import (
 	"context"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/telark/data/policies"
 	applicationmodel "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/constants"
-	"github.com/telark/discovery/coordination"
-	"github.com/redis/go-redis/v9"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/coordination"
 )
 
 // Resolver maps application IDs to a resolved application context (primary namespace plus the

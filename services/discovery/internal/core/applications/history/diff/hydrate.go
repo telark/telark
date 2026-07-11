@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/config"
-	"github.com/telark/discovery/constants"
-	appshared "github.com/telark/discovery/core/applications/shared"
+	"github.com/telark/discovery/internal/config"
+	"github.com/telark/discovery/internal/constants"
+	appshared "github.com/telark/discovery/internal/core/applications/shared"
 	"github.com/telark/kcore/resources/workload"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )

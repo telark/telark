@@ -5,10 +5,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/telark/discovery/clients"
-	"github.com/telark/discovery/config"
-	xwareredis "github.com/telark/x-ware/redis/stream"
 	"github.com/redis/go-redis/v9"
+	"github.com/telark/discovery/internal/clients"
+	"github.com/telark/discovery/internal/config"
+	xwareredis "github.com/telark/x-ware/redis/stream"
 )
 
 type (

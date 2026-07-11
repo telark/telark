@@ -2,7 +2,7 @@ package duplicate
 
 import (
 	"github.com/telark/data/plans"
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 	planseps "github.com/telark/rest/endpoints/plans"
 )
 

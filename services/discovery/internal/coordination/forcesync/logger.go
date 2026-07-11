@@ -1,8 +1,8 @@
 package forcesync
 
 import (
-	"github.com/telark/discovery/constants"
-	"github.com/telark/discovery/helpers/logdedup"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/helpers/logdedup"
 )
 
 var (

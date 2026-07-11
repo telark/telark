@@ -6,11 +6,11 @@ import (
 	"runtime/debug"
 	"time"
 
-	appresource "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/clients"
-	"github.com/telark/discovery/config"
-	"github.com/telark/discovery/constants"
 	"github.com/redis/go-redis/v9"
+	appresource "github.com/telark/data/resources/application"
+	"github.com/telark/discovery/internal/clients"
+	"github.com/telark/discovery/internal/config"
+	"github.com/telark/discovery/internal/constants"
 )
 
 func NewManager(

@@ -6,7 +6,7 @@ import (
 	"github.com/telark/data/plans"
 	"github.com/telark/data/policies"
 	_ "github.com/telark/data/policies/templates" // registers all TemplateRenderers via init()
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 )
 
 // ValidateRendererRegistry returns the first catalog or registry violation, or empty string when

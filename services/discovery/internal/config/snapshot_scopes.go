@@ -1,7 +1,7 @@
 package config
 
 import (
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 )
 
 type ScopeDefinition struct {

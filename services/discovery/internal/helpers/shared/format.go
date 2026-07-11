@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 )
 
 var stringBuilderPool = sync.Pool{

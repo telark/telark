@@ -6,8 +6,8 @@ import (
 
 	"github.com/telark/data/plans"
 	datapolicies "github.com/telark/data/policies"
-	"github.com/telark/discovery/constants"
-	"github.com/telark/discovery/core/plans/protection/shared"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/core/plans/protection/shared"
 )
 
 type DiffLogger interface {

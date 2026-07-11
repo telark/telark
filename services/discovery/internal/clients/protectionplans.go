@@ -12,7 +12,7 @@ import (
 	planseps "github.com/telark/rest/endpoints/plans"
 	"github.com/telark/rest/response"
 
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 )
 
 const protectionPlanTimeout = 30 * time.Second

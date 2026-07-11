@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	appresource "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/clients"
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/clients"
+	"github.com/telark/discovery/internal/constants"
 )
 
 func NewIngress(stream *StreamOps, dedup *Dedup, exporter *clients.ExporterClient) *Ingress {

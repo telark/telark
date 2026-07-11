@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 	kcoremetrics "github.com/telark/kcore/metrics"
 	"github.com/telark/kcore/resources/workload"
 )

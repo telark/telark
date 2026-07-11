@@ -1,11 +1,11 @@
 package protection
 
 import (
-	"github.com/telark/discovery/clients"
-	"github.com/telark/discovery/core/plans/protection/applications"
-	protpolicies "github.com/telark/discovery/core/plans/protection/policies"
-	kcorek8s "github.com/telark/kcore/k8sclient"
 	"github.com/redis/go-redis/v9"
+	"github.com/telark/discovery/internal/clients"
+	"github.com/telark/discovery/internal/core/plans/protection/applications"
+	protpolicies "github.com/telark/discovery/internal/core/plans/protection/policies"
+	kcorek8s "github.com/telark/kcore/k8sclient"
 	"k8s.io/client-go/kubernetes"
 )
 

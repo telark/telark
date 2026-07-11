@@ -106,17 +106,8 @@ jobs:
           access_user: ${{ secrets.ACCESS_USER }}
           access_token: ${{ secrets.ACCESS_TOKEN }}
 
-      - name: Tag Service Repository
-        uses: ./.github/actions/tag-service-repo
-        with:
-          service_name: ${{ inputs.service }}
-          service_version: ${{ steps.service_data.outputs.service_new_version }}
-          service_path: service
-          branch: ${{ inputs.branch }}
-
       - name: Pull Latest Changes
         run: |
-          cd release
           git stash push -m "Temporary stash before pull" || true
           git pull origin main
           git stash pop || true
@@ -126,7 +117,7 @@ jobs:
         with:
           author_name: GitHub Action
           author_email: action@github.com
-          cwd: './release'
+          cwd: './'
           message: "bump ${{ inputs.service }} to ${{ steps.service_data.outputs.new_version }}"
 
   trigger-helm-release:

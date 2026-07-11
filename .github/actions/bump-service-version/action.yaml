@@ -10,7 +10,7 @@ inputs:
   values_file_path:
     description: 'Path to the Helm values.yaml file'
     required: true
-    default: './release/helm/app/values.yaml'
+    default: './release/charts/helm/app/values.yaml'
 
 outputs:
   service_name:

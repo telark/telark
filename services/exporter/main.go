@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	goredis "github.com/redis/go-redis/v9"
 	"github.com/telark/exporter/internal/config"
 	"github.com/telark/exporter/internal/constants"
 	envmanager "github.com/telark/exporter/internal/managers/envs"
@@ -21,7 +22,6 @@ import (
 	"github.com/telark/x-ware/cors"
 	rediscore "github.com/telark/x-ware/redis/core"
 	redisinit "github.com/telark/x-ware/redis/init"
-	goredis "github.com/redis/go-redis/v9"
 )
 
 var lg = constants.GetLogger(constants.PrefixMain)

@@ -3,7 +3,7 @@ package priority
 import (
 	roledata "github.com/telark/data/resources/role"
 	"github.com/telark/exporter/internal/constants"
-	roleconstants "github.com/telark/exporter/internal/utils/computation/role/constants"
+	roleconstants "github.com/telark/exporter/internal/utils/compute/role/constants"
 )
 
 func Calculate(role *roledata.RoleAsResource) int {

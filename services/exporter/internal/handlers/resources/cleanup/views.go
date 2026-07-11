@@ -5,8 +5,8 @@ import (
 
 	globalerrors "github.com/telark/data/errors"
 	resourcesshared "github.com/telark/data/resources/shared"
-	"github.com/telark/exporter/constants"
-	sharedutils "github.com/telark/exporter/utils/shared"
+	"github.com/telark/exporter/internal/constants"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/kcore/crds/api"
 	restconstants "github.com/telark/rest/constants"
 	"github.com/telark/rest/response"

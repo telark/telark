@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/telark/exporter/constants"
+	"github.com/telark/exporter/internal/constants"
 	restsnapshot "github.com/telark/rest/clients/snapshots"
 )
 

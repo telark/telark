@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/telark/exporter/constants"
-	notifstorage "github.com/telark/exporter/redis/notifications"
-	notiftypes "github.com/telark/exporter/types/notifications"
-	"github.com/telark/exporter/utils/async"
+	"github.com/telark/exporter/internal/constants"
+	notifstorage "github.com/telark/exporter/internal/redis/notifications"
+	notiftypes "github.com/telark/exporter/internal/types/notifications"
+	"github.com/telark/exporter/internal/utils/async"
 )
 
 const loggerPrefix = "Notifications: "

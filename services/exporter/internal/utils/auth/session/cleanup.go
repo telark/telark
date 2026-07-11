@@ -4,7 +4,7 @@ import (
 	"time"
 
 	authmetadata "github.com/telark/data/metadata/auth"
-	"github.com/telark/exporter/utils/concurrency"
+	"github.com/telark/exporter/internal/utils/concurrency"
 	"github.com/telark/kcore/crds/api"
 )
 

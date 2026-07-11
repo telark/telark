@@ -9,9 +9,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/telark/exporter/constants"
-	envmanager "github.com/telark/exporter/managers/envs"
-	snaputil "github.com/telark/exporter/utils/snapshot"
+	"github.com/telark/exporter/internal/constants"
+	envmanager "github.com/telark/exporter/internal/managers/envs"
+	snaputil "github.com/telark/exporter/internal/utils/snapshot"
 	restsnapshot "github.com/telark/rest/clients/snapshots"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"

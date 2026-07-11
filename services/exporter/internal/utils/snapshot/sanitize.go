@@ -3,7 +3,7 @@ package snapshot
 import (
 	"strings"
 
-	"github.com/telark/exporter/constants"
+	"github.com/telark/exporter/internal/constants"
 )
 
 const emptyLen = 0

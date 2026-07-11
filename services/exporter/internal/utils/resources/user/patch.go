@@ -6,8 +6,8 @@ import (
 
 	dataerrors "github.com/telark/data/errors"
 	userdata "github.com/telark/data/resources/user"
-	"github.com/telark/exporter/constants"
-	resourcesshared "github.com/telark/exporter/utils/resources/shared"
+	"github.com/telark/exporter/internal/constants"
+	resourcesshared "github.com/telark/exporter/internal/utils/resources/shared"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"

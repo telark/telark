@@ -6,8 +6,8 @@ import (
 	"net/http"
 
 	metadata "github.com/telark/data/metadata/classification"
-	"github.com/telark/exporter/constants"
-	sharedutils "github.com/telark/exporter/utils/shared"
+	"github.com/telark/exporter/internal/constants"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/kcore/crds/api"
 )
 

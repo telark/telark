@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	derrs "github.com/telark/data/errors"
-	"github.com/telark/exporter/constants"
-	envmanager "github.com/telark/exporter/managers/envs"
+	"github.com/telark/exporter/internal/constants"
+	envmanager "github.com/telark/exporter/internal/managers/envs"
 	restsnapshot "github.com/telark/rest/clients/snapshots"
 )
 

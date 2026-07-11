@@ -2,8 +2,8 @@ package group
 
 import (
 	groupdata "github.com/telark/data/resources/group"
-	"github.com/telark/exporter/constants"
-	resourcesshared "github.com/telark/exporter/utils/resources/shared"
+	"github.com/telark/exporter/internal/constants"
+	resourcesshared "github.com/telark/exporter/internal/utils/resources/shared"
 )
 
 func MergeGroupAndPreparePatchBody(existingGroup, newGroup *groupdata.GroupAsResource, body map[string]any) *groupdata.GroupAsResource {

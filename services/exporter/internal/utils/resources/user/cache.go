@@ -1,10 +1,10 @@
 package user
 
 import (
-	"github.com/telark/exporter/cache"
-	"github.com/telark/exporter/constants"
-	"github.com/telark/exporter/utils/performance"
-	resourcesshared "github.com/telark/exporter/utils/resources/shared"
+	"github.com/telark/exporter/internal/cache"
+	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/exporter/internal/utils/performance"
+	resourcesshared "github.com/telark/exporter/internal/utils/resources/shared"
 )
 
 func InvalidateUserCaches(optimizer *performance.Optimizer, userID string) {

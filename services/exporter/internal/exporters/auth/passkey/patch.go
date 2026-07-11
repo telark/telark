@@ -4,11 +4,11 @@ import (
 	"net/http"
 
 	authmetadata "github.com/telark/data/metadata/auth"
-	"github.com/telark/exporter/constants"
-	"github.com/telark/exporter/exporters/generics"
-	passkeyutils "github.com/telark/exporter/utils/auth/passkey"
-	"github.com/telark/exporter/utils/concurrency"
-	sharedutils "github.com/telark/exporter/utils/shared"
+	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/exporter/internal/exporters/generics"
+	passkeyutils "github.com/telark/exporter/internal/utils/auth/passkey"
+	"github.com/telark/exporter/internal/utils/concurrency"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 )
 
 func PatchPasskeyByCredentialID(w http.ResponseWriter, credentialID string, userID string, patchData map[string]any) {

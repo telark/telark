@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/telark/exporter/cache"
-	"github.com/telark/exporter/constants"
+	"github.com/telark/exporter/internal/cache"
+	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 	rediscache "github.com/telark/x-ware/redis/cache"

@@ -3,7 +3,7 @@ package snapshot
 import (
 	"errors"
 
-	"github.com/telark/exporter/constants"
+	"github.com/telark/exporter/internal/constants"
 )
 
 var (

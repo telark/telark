@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/telark/exporter/constants"
+	"github.com/telark/exporter/internal/constants"
 )
 
 const (

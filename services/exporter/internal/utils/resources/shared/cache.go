@@ -1,8 +1,8 @@
 package shared
 
 import (
-	"github.com/telark/exporter/cache"
-	"github.com/telark/exporter/utils/performance"
+	"github.com/telark/exporter/internal/cache"
+	"github.com/telark/exporter/internal/utils/performance"
 )
 
 func InvalidateResourceCaches(optimizer *performance.Optimizer, resourceType string, resourceID string) {

@@ -4,9 +4,9 @@ import (
 	"net/http"
 
 	authmetadata "github.com/telark/data/metadata/auth"
-	"github.com/telark/exporter/constants"
-	"github.com/telark/exporter/utils/auth/shared"
-	sharedutils "github.com/telark/exporter/utils/shared"
+	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/exporter/internal/utils/auth/shared"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

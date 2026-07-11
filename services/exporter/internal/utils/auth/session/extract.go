@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	authdata "github.com/telark/data/auth"
-	"github.com/telark/exporter/constants"
-	authutils "github.com/telark/exporter/utils/auth/shared"
-	sharedutils "github.com/telark/exporter/utils/shared"
+	"github.com/telark/exporter/internal/constants"
+	authutils "github.com/telark/exporter/internal/utils/auth/shared"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

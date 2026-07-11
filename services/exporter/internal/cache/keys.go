@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/telark/exporter/constants"
-	sharedutils "github.com/telark/exporter/utils/shared"
+	"github.com/telark/exporter/internal/constants"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	rediscache "github.com/telark/x-ware/redis/cache"
 )
 

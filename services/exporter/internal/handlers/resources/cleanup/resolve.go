@@ -3,7 +3,7 @@ package cleanup
 import (
 	"net/http"
 
-	sharedutils "github.com/telark/exporter/utils/shared"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	restconstants "github.com/telark/rest/constants"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"

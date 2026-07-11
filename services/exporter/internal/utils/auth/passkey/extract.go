@@ -1,0 +1,164 @@
+package passkey
+
+import (
+	"errors"
+	"fmt"
+	"net/http"
+
+	authdata "github.com/telark/data/auth"
+	dataerrors "github.com/telark/data/errors"
+	"github.com/telark/exporter/constants"
+	authutils "github.com/telark/exporter/utils/auth/shared"
+	sharedutils "github.com/telark/exporter/utils/shared"
+	"github.com/telark/rest/response"
+	requestutils "github.com/telark/rest/utils/request"
+	responseutils "github.com/telark/rest/utils/response"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+)
+
+func ExtractPasskeySpec(body map[string]any, userID string) (*authdata.UserPasskey, string, error) {
+	passkey, err := sharedutils.ExtractStructFromBody[authdata.UserPasskey](body)
+	if err != nil {
+		return nil, constants.EmptyString, err
+	}
+
+	if err := validatePasskeyFields(passkey, userID); err != nil {
+		return nil, constants.EmptyString, err
+	}
+
+	passkeyName, err := authutils.GenerateCRDName(userID, constants.ResourceTypePasskey, FindPasskeysByUserID)
+	if err != nil {
+		return nil, constants.EmptyString, fmt.Errorf(string(constants.ErrFailedToGenerateResourceName), err)
+	}
+
+	return passkey, passkeyName, nil
+}
+
+func validatePasskeyFields(passkey *authdata.UserPasskey, userID string) error {
+	if err := validateRequiredPasskeyFields(passkey); err != nil {
+		return err
+	}
+
+	if err := validateDeviceType(passkey.DeviceType); err != nil {
+		return err
+	}
+
+	if err := checkCredentialIDUniqueness(passkey.CredentialID, userID); err != nil {
+		return err
+	}
+
+	passkey.UserID = userID
+
+	return nil
+}
+
+func validateRequiredPasskeyFields(passkey *authdata.UserPasskey) error {
+	if err := sharedutils.ValidateRequiredField(passkey.CredentialID, string(constants.ErrPasskeyFieldRequired)); err != nil {
+		return err
+	}
+	if err := sharedutils.ValidateRequiredField(passkey.PublicKey, string(constants.ErrPasskeyFieldRequired)); err != nil {
+		return err
+	}
+	if err := sharedutils.ValidateRequiredField(passkey.DeviceName, string(constants.ErrPasskeyFieldRequired)); err != nil {
+		return err
+	}
+	return sharedutils.ValidateRequiredField(passkey.DeviceType, string(constants.ErrPasskeyFieldRequired))
+}
+
+func validateDeviceType(deviceType string) error {
+	if deviceType != constants.PasskeyDeviceTypePlatform &&
+		deviceType != constants.PasskeyDeviceTypeCrossPlatform {
+		return fmt.Errorf(string(constants.ErrPasskeyInvalidDeviceType), deviceType)
+	}
+
+	return nil
+}
+
+func checkCredentialIDUniqueness(credentialID string, userID string) error {
+	// Check if a passkey with this credentialId already exists for this user (credentialId must be unique per user)
+	// Note: Credential IDs are stored as base64url strings (no padding). The comparison is case-sensitive
+	passkeys, err := FindPasskeysByUserID(userID)
+	if err != nil {
+		return fmt.Errorf(string(constants.ErrFailedToListResources), constants.ResourceTypePasskey, err)
+	}
+
+	for _, existingPasskey := range passkeys {
+		if isDuplicateCredentialID(existingPasskey, credentialID) {
+			return fmt.Errorf(string(constants.ErrPasskeyCredentialIDAlreadyExists), credentialID)
+		}
+	}
+
+	return nil
+}
+
+func isDuplicateCredentialID(existingPasskey unstructured.Unstructured, credentialID string) bool {
+	spec, exists := existingPasskey.Object[constants.SpecField].(map[string]any)
+	if !exists {
+		return false
+	}
+
+	existingCredentialID, ok := spec[constants.FieldCredentialID].(string)
+	if !ok {
+		return false
+	}
+
+	return existingCredentialID == credentialID
+}
+
+func UnstructuredToPasskey(resource *unstructured.Unstructured) (*authdata.UserPasskey, error) {
+	return sharedutils.UnstructuredToStruct[authdata.UserPasskey](
+		resource,
+		constants.ErrPasskeySpecNotFound,
+		constants.ErrPasskeySpecInvalid,
+		constants.ErrFailedToUnmarshalPasskey,
+	)
+}
+
+func ExtractPatchFields(body map[string]any) (map[string]any, error) {
+	filteredPatchData := make(map[string]any)
+
+	if deviceName, ok := body["deviceName"].(string); ok {
+		filteredPatchData["deviceName"] = deviceName
+	}
+
+	if lastUsedTimestamp, ok := body["lastUsedTimestamp"].(string); ok {
+		filteredPatchData["lastUsedTimestamp"] = lastUsedTimestamp
+	}
+
+	// Check if any other fields are present (only deviceName and lastUsedTimestamp should be in the patch)
+	if len(body) > len(filteredPatchData) {
+		return nil, errors.New(string(constants.ErrPasskeyPatchOnlyAllowedFields))
+	}
+
+	return filteredPatchData, nil
+}
+
+func ExtractPasskeyRequestParams(w http.ResponseWriter, r *http.Request) (
+	userID string, credentialID string, body map[string]any, ok bool,
+) {
+	var err error
+	userID, err = sharedutils.GetHeader(w, r, constants.HeaderUserID)
+	if err != nil {
+		return constants.EmptyString, constants.EmptyString, nil, false
+	}
+
+	credentialID, err = sharedutils.GetHeader(w, r, constants.HeaderCredentialID)
+	if err != nil {
+		return constants.EmptyString, constants.EmptyString, nil, false
+	}
+
+	body, err = requestutils.ParseRequestBody(r)
+	if err != nil {
+		responseutils.LogAndSendResponse(
+			w,
+			http.StatusUnprocessableEntity,
+			response.OperationUnprocessed,
+			string(dataerrors.ErrRestParseRequestBody),
+			nil,
+			err,
+		)
+		return constants.EmptyString, constants.EmptyString, nil, false
+	}
+
+	return userID, credentialID, body, true
+}

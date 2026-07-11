@@ -1,0 +1,119 @@
+package applications
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strings"
+
+	"github.com/nats-io/nats.go"
+	"github.com/telark/data/errors"
+	"github.com/telark/data/messages"
+	appresource "github.com/telark/data/resources/application"
+	resourceshared "github.com/telark/data/resources/shared"
+	"github.com/telark/notifier/constants"
+	"github.com/telark/notifier/subscribers/base"
+	applicationsclient "github.com/telark/rest/clients/resources/applications"
+	natscore "github.com/telark/x-ware/nats/core"
+)
+
+// If application CR does not exist yet, create it using the full payload (upsert behavior).
+func (*ApplicationSubscriber) handleUpdate(m *nats.Msg) error {
+	msg, dataMap, err := parseNatsMessageToMap(m)
+	if err != nil {
+		return base.AckWithLog(m, m.Subject, err.Error(), true)
+	}
+	if msg.Scope == constants.EmptyString {
+		return base.AckWithLog(m, m.Subject, string(errors.ErrNatsNoScopeFoundInUpdateMessage), true)
+	}
+
+	patchBody, resourceName, err := base.BuildPatchBodyFromScope(
+		msg.Scope,
+		dataMap,
+		strings.ToLower(string(resourceshared.Application)),
+		msg.ResourceName,
+	)
+	if err != nil {
+		return base.AckWithLog(m, m.Subject, err.Error(), true)
+	}
+
+	client := applicationsclient.NewClient()
+	patchResp := &base.GenericResponseAdapter{Resp: client.PatchApplicationByName(resourceName, patchBody)}
+	if patchResp.GetStatus() == http.StatusOK {
+		_ = base.AckWithLog(m, m.Subject, fmt.Sprintf(string(messages.SuccessNatsPatchApplication), resourceName), false)
+		return nil
+	}
+
+	if patchResp.GetStatus() == http.StatusNotFound {
+		app, err := mapToApplication(dataMap, resourceName)
+		if err != nil {
+			return base.AckWithLog(m, m.Subject, err.Error(), true)
+		}
+
+		createResp := &base.GenericResponseAdapter{Resp: client.CreateApplication(&app)}
+		if createResp.GetStatus() == http.StatusOK {
+			_ = base.AckWithLog(m, m.Subject, fmt.Sprintf(string(messages.SuccessNatsPatchApplication), resourceName), false)
+			return nil
+		}
+		logMsg := fmt.Sprintf(
+			string(errors.ErrNatsFailedToPatchApplication),
+			resourceName,
+			createResp.GetMessage(),
+		)
+		return base.AckWithLog(m, m.Subject, logMsg, true)
+	}
+
+	logMsg := fmt.Sprintf(
+		string(errors.ErrNatsFailedToPatchApplication),
+		resourceName,
+		patchResp.GetMessage(),
+	)
+	return base.AckWithLog(m, m.Subject, logMsg, true)
+}
+
+func (*ApplicationSubscriber) handleDelete(m *nats.Msg) error {
+	return base.ExecuteDeleteHandler(
+		m,
+		func(resourceName string) base.GenericResponse {
+			client := applicationsclient.NewClient()
+			return &base.GenericResponseAdapter{Resp: client.DeleteApplicationByName(resourceName)}
+		},
+		string(messages.SuccessNatsDeleteApplication),
+		string(errors.ErrNatsFailedToDeleteApplication),
+	)
+}
+
+func parseNatsMessageToMap(m *nats.Msg) (*natscore.Message, map[string]any, error) {
+	msgStr := natscore.GetParsedMessageHeader(m)
+	if msgStr == constants.EmptyString {
+		return nil, nil, fmt.Errorf("%s", errors.ErrNatsNoParsedMessageFoundInMetadata)
+	}
+	var msg natscore.Message
+	if err := json.Unmarshal([]byte(msgStr), &msg); err != nil {
+		return nil, nil, fmt.Errorf(string(errors.ErrNatsHandleMsg), m, err)
+	}
+	dataBytes, err := json.Marshal(msg.Data)
+	if err != nil {
+		return nil, nil, fmt.Errorf(string(errors.ErrNatsHandleMsg), m, err)
+	}
+	var dataMap map[string]any
+	if err := json.Unmarshal(dataBytes, &dataMap); err != nil {
+		return nil, nil, fmt.Errorf(string(errors.ErrNatsHandleMsg), m, err)
+	}
+	return &msg, dataMap, nil
+}
+
+func mapToApplication(dataMap map[string]any, fallbackName string) (appresource.Application, error) {
+	b, err := json.Marshal(dataMap)
+	if err != nil {
+		return appresource.Application{}, err
+	}
+	var app appresource.Application
+	if err := json.Unmarshal(b, &app); err != nil {
+		return appresource.Application{}, err
+	}
+	if app.Name == constants.EmptyString {
+		app.Name = fallbackName
+	}
+	return app, nil
+}

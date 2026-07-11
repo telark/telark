@@ -1,0 +1,137 @@
+name: 'Build and Push Service Image'
+description: 'Build and push Docker image for a service with optimized caching'
+inputs:
+  service_name:
+    description: 'Name of the service'
+    required: true
+  service_path:
+    description: 'Path to the service directory'
+    required: true
+    default: 'service'
+  image_tag:
+    description: 'Tag for the Docker image'
+    required: true
+  container_registry_name:
+    description: 'Container registry name'
+    required: true
+    default: 'botriack'
+  container_registry_repo_name:
+    description: 'Container registry repository name'
+    required: true
+    default: 'telark'
+  dockerfile_path:
+    description: 'Path to the Dockerfile'
+    required: false
+    default: './service/Dockerfile'
+  platforms:
+    description: 'Target platforms for the build'
+    required: false
+    default: 'linux/amd64'
+  build_args:
+    description: 'Additional build arguments (JSON format)'
+    required: false
+    default: '{}'
+  cache_enabled:
+    description: 'Enable Docker layer caching'
+    required: false
+    default: 'true'
+  push_enabled:
+    description: 'Enable pushing to registry'
+    required: false
+    default: 'true'
+  access_user:
+    description: 'GitHub access user for build args'
+    required: false
+    default: ''
+  access_token:
+    description: 'GitHub access token for build args'
+    required: false
+    default: ''
+
+outputs:
+  image_name:
+    description: 'Full image name with tag'
+    value: ${{ steps.build_image.outputs.image_name }}
+  image_digest:
+    description: 'Image digest'
+    value: ${{ steps.build_image.outputs.image_digest }}
+  build_time:
+    description: 'Build time in seconds'
+    value: ${{ steps.build_image.outputs.build_time }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v4.0.0
+      with:
+        driver-opts: |
+          image=moby/buildkit:buildx-stable-1
+          network=host
+
+    - name: Build and Push Service Image
+      id: build_image
+      shell: bash
+      run: |
+        start_time=$(date +%s)
+
+        parse_additional_args() {
+          local json="$1"
+          if [[ "$json" != "{}" ]]; then
+            echo "$json" | jq -r 'to_entries[] | "--build-arg \(.key)=\(.value)"' | tr '\n' ' '
+          fi
+        }
+
+        echo "🐳 Building Docker image for service: ${{ inputs.service_name }}"
+        echo "📦 Image tag: ${{ inputs.image_tag }}"
+        echo "🏗️  Platforms: ${{ inputs.platforms }}"
+
+        CACHE_REF="${{ inputs.container_registry_name }}/${{ inputs.container_registry_repo_name }}:cache-${{ inputs.service_name }}"
+
+        build_cmd="docker buildx build"
+
+        if [[ "${{ inputs.cache_enabled }}" == "true" ]]; then
+          build_cmd="$build_cmd \
+            --cache-from=type=registry,ref=${CACHE_REF} \
+            --cache-to=type=registry,ref=${CACHE_REF},mode=max,compression=zstd"
+        fi
+
+        build_cmd="$build_cmd \
+          --platform=${{ inputs.platforms }} \
+          --build-arg ORG=\"telark\" \
+          --build-arg URL=\"github.com\" \
+          --progress=plain \
+          --metadata-file=/tmp/metadata.json"
+
+        [[ -n "${{ inputs.access_user }}" ]] && build_cmd="$build_cmd --build-arg USER=\"${{ inputs.access_user }}\""
+        [[ -n "${{ inputs.access_token }}" ]] && build_cmd="$build_cmd --build-arg PAT=\"${{ inputs.access_token }}\""
+
+        additional_args=$(parse_additional_args '${{ inputs.build_args }}')
+        [[ -n "$additional_args" ]] && build_cmd="$build_cmd $additional_args"
+
+        build_cmd="$build_cmd \
+          -f ${{ inputs.dockerfile_path }} \
+          -t ${{ inputs.container_registry_name }}/${{ inputs.container_registry_repo_name }}:${{ inputs.image_tag }}"
+
+        [[ "${{ inputs.push_enabled }}" == "true" ]] && build_cmd="$build_cmd --push"
+
+        build_cmd="$build_cmd ${{ inputs.service_path }}/"
+
+        echo "🚀 Executing build command..."
+        eval $build_cmd
+
+        end_time=$(date +%s)
+        build_time=$((end_time - start_time))
+
+        image_name="${{ inputs.container_registry_name }}/${{ inputs.container_registry_repo_name }}:${{ inputs.image_tag }}"
+        echo "image_name=$image_name" >> $GITHUB_OUTPUT
+        echo "build_time=$build_time" >> $GITHUB_OUTPUT
+
+        if [[ -f "/tmp/metadata.json" ]]; then
+          image_digest=$(jq -r '.containerimage.digest // empty' /tmp/metadata.json 2>/dev/null || echo "")
+          [[ -n "$image_digest" ]] && echo "image_digest=$image_digest" >> $GITHUB_OUTPUT
+        fi
+
+        echo "✅ Build completed successfully!"
+        echo "⏱️  Build time: ${build_time}s"
+        echo "🏷️  Image: $image_name"

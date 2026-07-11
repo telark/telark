@@ -1,0 +1,52 @@
+package globalconfig
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sync/atomic"
+	"time"
+
+	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/startup"
+	gcfgclient "github.com/telark/rest/clients/resources/globalconfig"
+)
+
+var excludedCache atomic.Value
+
+func StartExcludedNamespacesSync(ctx context.Context) {
+	go runExcludedSync(ctx)
+}
+
+func runExcludedSync(ctx context.Context) {
+	t := time.NewTicker(time.Duration(constants.GlobalConfigExcludedPollSec) * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			refreshExcluded(ctx)
+		}
+	}
+}
+
+func refreshExcluded(ctx context.Context) {
+	if !startup.WaitForGlobalConfigReady(ctx) {
+		return
+	}
+	cfg, err := gcfgclient.NewClient().GetGlobalConfig()
+	if err != nil {
+		constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(
+			fmt.Sprintf(string(constants.WarnExcludedNamespacesRefresh), err),
+		)
+		return
+	}
+	if cfg == nil {
+		constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(
+			fmt.Sprintf(string(constants.WarnExcludedNamespacesRefresh), errors.New("nil config")),
+		)
+		return
+	}
+	excludedCache.Store(cfg.ExcludedNamespaces)
+}

@@ -1,0 +1,68 @@
+package role
+
+import (
+	roledata "github.com/telark/data/resources/role"
+	"github.com/telark/exporter/constants"
+)
+
+func MergeRoleAndPreparePatchBody(existingRole, newRole *roledata.RoleAsResource, body map[string]any) *roledata.RoleAsResource {
+	mergedRole := *existingRole
+
+	mergeBasicFields(&mergedRole, newRole)
+	mergeComplexFields(&mergedRole, newRole, body)
+	handleValidityAutoRevoke(&mergedRole, body)
+	computePriorityAndVersion(existingRole, &mergedRole, body)
+
+	return &mergedRole
+}
+
+func mergeBasicFields(mergedRole, newRole *roledata.RoleAsResource) {
+	if newRole.Name != constants.EmptyString {
+		mergedRole.Name = newRole.Name
+	}
+	if newRole.Type != roledata.RoleTypeBuiltIn {
+		mergedRole.Type = newRole.Type
+	}
+	if newRole.Description != constants.EmptyString {
+		mergedRole.Description = newRole.Description
+	}
+	if newRole.CategoryID != constants.EmptyString {
+		mergedRole.CategoryID = newRole.CategoryID
+	}
+}
+
+func mergeComplexFields(mergedRole, newRole *roledata.RoleAsResource, body map[string]any) {
+	if len(newRole.ScopesAndPermissions) > constants.DefaultInitValue {
+		mergedRole.ScopesAndPermissions = newRole.ScopesAndPermissions
+	}
+	if newRole.Protection != nil {
+		mergedRole.Protection = newRole.Protection
+	}
+	if newRole.Validity != nil {
+		mergedRole.Validity = newRole.Validity
+	}
+	if newRole.Status != roledata.RoleStatusActive {
+		mergedRole.Status = newRole.Status
+	}
+	if newRole.LastUpdatedBy != nil {
+		mergedRole.LastUpdatedBy = newRole.LastUpdatedBy
+		body["lastUpdatedBy"] = *newRole.LastUpdatedBy
+	}
+}
+
+func handleValidityAutoRevoke(mergedRole *roledata.RoleAsResource, body map[string]any) {
+	if mergedRole.Validity != nil && mergedRole.Validity.Type == roledata.ValidityTypeTemporary {
+		if validityBody, ok := body["validity"].(map[string]any); ok {
+			validityBody["autoRevoke"] = mergedRole.Validity.AutoRevoke
+		}
+	}
+}
+
+func computePriorityAndVersion(existingRole, mergedRole *roledata.RoleAsResource, body map[string]any) {
+	ComputeAndSetPriority(mergedRole)
+	body["priority"] = mergedRole.Priority
+
+	changeType := DetectRoleChangeType(existingRole, mergedRole)
+	ComputeAndBumpVersion(mergedRole, existingRole.Version, changeType)
+	body["version"] = mergedRole.Version
+}

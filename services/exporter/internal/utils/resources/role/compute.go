@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 
 	roledata "github.com/telark/data/resources/role"
-	rolepriority "github.com/telark/exporter/internal/utils/computation/role/priority"
-	roleversion "github.com/telark/exporter/internal/utils/computation/role/version"
+	rolepriority "github.com/telark/exporter/internal/utils/compute/role/priority"
+	roleversion "github.com/telark/exporter/internal/utils/compute/role/version"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

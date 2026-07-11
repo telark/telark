@@ -8,7 +8,7 @@ import (
 	"github.com/telark/data/logger"
 	"github.com/telark/data/messages"
 	"github.com/telark/data/resources/shared"
-	"github.com/telark/notifier/constants"
+	"github.com/telark/notifier/internal/constants"
 )
 
 func AckWithLog(m *nats.Msg, subject, logMsg string, isError bool) error { //nolint:revive

@@ -1,6 +1,6 @@
 package constants
 
-import "github.com/plsyro/data/errors"
+import "github.com/telark/data/errors"
 
 const (
 	ErrNatsInitRetrying        errors.Error = "[nats] NATS not ready, retrying in %ds (elapsed: %ds)"

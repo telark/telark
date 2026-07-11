@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/plsyro/x-ware/shared"
+	"github.com/telark/x-ware/shared"
 )
 
 func NewNatsManager() NatsManagerInterface {

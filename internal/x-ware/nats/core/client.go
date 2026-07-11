@@ -7,7 +7,7 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 	"github.com/nats-io/nats.go"
-	"github.com/plsyro/data/errors"
+	"github.com/telark/data/errors"
 )
 
 func InitClient(ctx context.Context, user, password string) (

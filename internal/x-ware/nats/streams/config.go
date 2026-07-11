@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/nats-io/nats.go"
-	"github.com/plsyro/data/errors"
-	"github.com/plsyro/x-ware/nats/core"
+	"github.com/telark/data/errors"
+	"github.com/telark/x-ware/nats/core"
 )
 
 func CreateStreams(c *core.NATSClient) error {

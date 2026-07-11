@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
-	"github.com/plsyro/data/errors"
-	resourceshared "github.com/plsyro/data/resources/shared"
-	globalshared "github.com/plsyro/data/shared"
+	"github.com/telark/data/errors"
+	resourceshared "github.com/telark/data/resources/shared"
+	globalshared "github.com/telark/data/shared"
 )
 
 const (

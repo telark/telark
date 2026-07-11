@@ -21,7 +21,9 @@ func NewGraceClient(r *redis.Client) *GraceClient {
 	return &GraceClient{redis: r}
 }
 
-func (c *GraceClient) SetScaleGrace(ctx context.Context, appName string, expectedReplicas int, ttl time.Duration) error {
+func (c *GraceClient) SetScaleGrace(
+	ctx context.Context, appName string, expectedReplicas int, ttl time.Duration,
+) error {
 	data, err := json.Marshal(ScaleGrace{
 		DetectedAt:       time.Now().UTC(),
 		ExpectedReplicas: expectedReplicas,

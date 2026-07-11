@@ -3,7 +3,7 @@ package redis
 import (
 	"testing"
 
-	"github.com/plsyro/x-ware/redis/core"
+	"github.com/telark/x-ware/redis/core"
 )
 
 func TestNewRedisManager(t *testing.T) {

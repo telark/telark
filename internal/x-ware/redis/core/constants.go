@@ -1,6 +1,6 @@
 package core
 
-import "github.com/plsyro/data/errors"
+import "github.com/telark/data/errors"
 
 const (
 	EnvRedisHost            = "REDIS_HOST"

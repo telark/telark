@@ -3,7 +3,7 @@ package stream
 import (
 	"time"
 
-	"github.com/plsyro/data/errors"
+	"github.com/telark/data/errors"
 )
 
 const (

@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/plsyro/x-ware/shared"
+	"github.com/telark/x-ware/shared"
 	"github.com/redis/go-redis/v9"
 )
 

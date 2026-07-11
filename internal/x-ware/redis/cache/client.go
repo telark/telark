@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/plsyro/x-ware/redis/core"
+	"github.com/telark/x-ware/redis/core"
 	"github.com/redis/go-redis/v9"
 )
 

@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/plsyro/x-ware/constants"
-	natscore "github.com/plsyro/x-ware/nats/core"
+	"github.com/telark/x-ware/constants"
+	natscore "github.com/telark/x-ware/nats/core"
 )
 
 type logger interface {
@@ -18,8 +18,6 @@ type logger interface {
 var (
 	clientMu sync.RWMutex
 	clientV  *natscore.NATSClient
-
-	bootstrap sync.Once
 )
 
 func Client() *natscore.NATSClient {

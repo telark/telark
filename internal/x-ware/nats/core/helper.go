@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	globalshared "github.com/plsyro/data/shared"
+	globalshared "github.com/telark/data/shared"
 )
 
 func GetNATSClientURL() string {

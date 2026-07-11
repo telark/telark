@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/plsyro/x-ware/constants"
+	"github.com/telark/x-ware/constants"
 	"github.com/redis/go-redis/v9"
 )
 

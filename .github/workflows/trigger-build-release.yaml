@@ -19,21 +19,21 @@ jobs:
 
       - name: Lint Helm Charts
         run: |
-          helm lint helm/bootstrap -f helm/app/values.yaml
-          helm lint helm/app
+          helm lint charts/helm/bootstrap -f charts/helm/app/values.yaml
+          helm lint charts/helm/app
 
       - name: Bump App Chart Version
         id: chart_version
         run: |
           set -euo pipefail
-          current_version=$(yq e '.version' helm/app/Chart.yaml)
+          current_version=$(yq e '.version' charts/helm/app/Chart.yaml)
           case "${{ github.event.client_payload.build_type }}" in
             major) new_version=$(echo "$current_version" | awk -F. '{$1+=1;$2=0;$3=0;OFS=".";print $1,$2,$3}');;
             minor) new_version=$(echo "$current_version" | awk -F. '{$2+=1;$3=0;OFS=".";print $1,$2,$3}');;
             patch) new_version=$(echo "$current_version" | awk -F. '{$3+=1;OFS=".";print $1,$2,$3}');;
             *) echo "Invalid version type"; exit 1;;
           esac
-          sed -i '' "s/version: $current_version/version: $new_version/" helm/app/Chart.yaml
+          sed -i '' "s/version: $current_version/version: $new_version/" charts/helm/app/Chart.yaml
           echo "new_version=$new_version" >> $GITHUB_OUTPUT
 
       - name: Update Helm Dependencies
@@ -42,14 +42,14 @@ jobs:
           helm repo add kyverno https://kyverno.github.io/kyverno/
           helm repo add otwld https://helm.otwld.com/
           helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
-          helm dependency build helm/app
+          helm dependency build charts/helm/app
 
       - name: Package Helm charts
         run: |
           set -euo pipefail
           mkdir -p releases/${{ steps.chart_version.outputs.new_version }}
-          helm package helm/bootstrap --destination releases/${{ steps.chart_version.outputs.new_version }}
-          helm package helm/app       --destination releases/${{ steps.chart_version.outputs.new_version }}
+          helm package charts/helm/bootstrap --destination charts/releases/${{ steps.chart_version.outputs.new_version }}
+          helm package charts/helm/app       --destination charts/releases/${{ steps.chart_version.outputs.new_version }}
 
       - name: Bypass admission webhooks for upgrade
         run: |
@@ -82,13 +82,13 @@ jobs:
           bootstrap_release="${namespace}-bootstrap"
           app_release="${namespace}-release"
           app_version="${{ steps.chart_version.outputs.new_version }}"
-          bootstrap_version=$(yq e '.version' helm/bootstrap/Chart.yaml)
+          bootstrap_version=$(yq e '.version' charts/helm/bootstrap/Chart.yaml)
           bootstrap_pkg="releases/${app_version}/telark-bootstrap-chart-${bootstrap_version}.tgz"
           app_pkg="releases/${app_version}/telark-core-chart-${app_version}.tgz"
 
-          charts_values="-f helm/app/values.charts.yaml"
-          nats_conf_value="--set-file nats.configuration=helm/app/config/nats.conf"
-          kyverno_values="-f helm/app/values.kyverno.${kyverno_config_mode}.yaml"
+          charts_values="-f charts/helm/app/values.charts.yaml"
+          nats_conf_value="--set-file nats.configuration=charts/helm/app/config/nats.conf"
+          kyverno_values="-f charts/helm/app/values.kyverno.${kyverno_config_mode}.yaml"
 
           if ! kubectl get namespace "$namespace" >/dev/null 2>&1; then
             kubectl create namespace "$namespace"
@@ -105,15 +105,15 @@ jobs:
 
           # Pre-apply CRDs
           helm template "$bootstrap_release" "$bootstrap_pkg" \
-            -f helm/app/values.yaml \
+            -f charts/helm/app/values.yaml \
             | yq 'select(.kind == "CustomResourceDefinition")' \
             | kubectl apply --server-side --force-conflicts -f -
 
-          # Bootstrap: CRDs + built-in CR instances. Reads helm/app/values.yaml so
+          # Bootstrap: CRDs + built-in CR instances. Reads charts/helm/app/values.yaml so
           # base.namespace and services.auth.env.GOOGLE_CLIENT_ID match the app release.
           helm upgrade --install "$bootstrap_release" "$bootstrap_pkg" \
             -n "$namespace" \
-            -f helm/app/values.yaml \
+            -f charts/helm/app/values.yaml \
             --take-ownership \
             --force-conflicts \
             --wait \

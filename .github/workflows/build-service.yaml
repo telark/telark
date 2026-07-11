@@ -95,7 +95,7 @@ jobs:
         uses: ./.github/actions/build-push-service-image
         with:
           service_name: ${{ inputs.service }}
-          service_path: 'service'
+          service_path: './services/${{ inputs.service }}/'
           image_tag: ${{ steps.service_data.outputs.new_version }}
           container_registry_name: ${{ steps.image.outputs.registry }}
           container_registry_repo_name: ${{ steps.image.outputs.repository }}

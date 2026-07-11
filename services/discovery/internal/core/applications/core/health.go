@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/constants"
-	appshared "github.com/telark/discovery/core/applications/shared"
+	"github.com/telark/discovery/internal/constants"
+	appshared "github.com/telark/discovery/internal/core/applications/shared"
 	"github.com/telark/kcore/resources/workload"
 )
 

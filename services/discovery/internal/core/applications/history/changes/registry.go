@@ -2,7 +2,7 @@ package changes
 
 import (
 	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/core/applications/history/shared"
+	"github.com/telark/discovery/internal/core/applications/history/shared"
 )
 
 type changeFieldDescriptor struct {

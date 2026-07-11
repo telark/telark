@@ -4,9 +4,9 @@ import (
 	"time"
 
 	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/constants"
-	"github.com/telark/discovery/core/applications/history/changes"
-	"github.com/telark/discovery/core/applications/history/utils"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/core/applications/history/changes"
+	"github.com/telark/discovery/internal/core/applications/history/utils"
 )
 
 type changeKey struct {

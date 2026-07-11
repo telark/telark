@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/telark/discovery/config"
-	"github.com/telark/discovery/constants"
-	xwareredis "github.com/telark/x-ware/redis/stream"
 	"github.com/redis/go-redis/v9"
+	"github.com/telark/discovery/internal/config"
+	"github.com/telark/discovery/internal/constants"
+	xwareredis "github.com/telark/x-ware/redis/stream"
 )
 
 type messageFields struct {

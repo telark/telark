@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 )
 
 func StartLeaderGated(ctx context.Context, ctrl *Controller, isLeader func(context.Context) bool) {

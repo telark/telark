@@ -3,7 +3,7 @@ package nats
 import (
 	"context"
 
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 	natscore "github.com/telark/x-ware/nats/core"
 	natsinit "github.com/telark/x-ware/nats/init"
 )

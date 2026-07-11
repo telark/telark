@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/telark/discovery/constants"
 	"github.com/redis/go-redis/v9"
+	"github.com/telark/discovery/internal/constants"
 )
 
 func NewDedup(rdb *redis.Client, ttl time.Duration) *Dedup {
@@ -30,8 +30,8 @@ func (d *Dedup) TryClaim(ctx context.Context, appName, jobID string) (bool, stri
 }
 
 const (
-	setModeNX    = "NX"
-	setResultOK  = "OK"
+	setModeNX   = "NX"
+	setResultOK = "OK"
 )
 
 func (d *Dedup) Release(ctx context.Context, appName string) error {

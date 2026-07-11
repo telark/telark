@@ -6,7 +6,7 @@ import (
 
 	"github.com/telark/data/errors"
 	resourceshared "github.com/telark/data/resources/shared"
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 	natscore "github.com/telark/x-ware/nats/core"
 )
 

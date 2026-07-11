@@ -4,9 +4,9 @@ import (
 	"context"
 
 	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/constants"
-	"github.com/telark/discovery/discovery/derivation"
-	discoveryshared "github.com/telark/discovery/discovery/shared"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/discovery/derivation"
+	discoveryshared "github.com/telark/discovery/internal/discovery/shared"
 )
 
 func inputsForApp(

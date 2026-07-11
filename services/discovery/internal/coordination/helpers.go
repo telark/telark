@@ -3,8 +3,8 @@ package coordination
 import (
 	"strconv"
 
-	"github.com/telark/discovery/constants"
 	"github.com/redis/go-redis/v9"
+	"github.com/telark/discovery/internal/constants"
 )
 
 var lg = constants.GetLogger(constants.LoggerPrefixDiscoveryManager)

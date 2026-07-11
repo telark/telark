@@ -4,12 +4,12 @@ import (
 	"context"
 	"sync"
 
-	cb "github.com/telark/discovery/circuitbreaker"
-	"github.com/telark/discovery/config"
-	"github.com/telark/discovery/constants"
+	redisv9 "github.com/redis/go-redis/v9"
+	cb "github.com/telark/discovery/internal/circuitbreaker"
+	"github.com/telark/discovery/internal/config"
+	"github.com/telark/discovery/internal/constants"
 	rediscore "github.com/telark/x-ware/redis/core"
 	redisinit "github.com/telark/x-ware/redis/init"
-	redisv9 "github.com/redis/go-redis/v9"
 )
 
 var (

@@ -3,9 +3,9 @@ package informers
 import (
 	"context"
 
-	"github.com/telark/discovery/constants"
-	"github.com/telark/discovery/discovery/derivation"
-	discoveryshared "github.com/telark/discovery/discovery/shared"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/discovery/derivation"
+	discoveryshared "github.com/telark/discovery/internal/discovery/shared"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

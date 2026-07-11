@@ -4,7 +4,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 )
 
 func BuildDisplayName(groupKey, namespace string) string {

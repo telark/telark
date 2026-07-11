@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"time"
 
-	applicationmodel "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/clients"
-	"github.com/telark/discovery/constants"
-	serviceapp "github.com/telark/discovery/core/applications/core"
-	"github.com/telark/discovery/discovery/listing"
-	discoveryshared "github.com/telark/discovery/discovery/shared"
-	natshelper "github.com/telark/discovery/helpers/nats"
-	"github.com/telark/kcore/resources/core"
 	"github.com/redis/go-redis/v9"
+	applicationmodel "github.com/telark/data/resources/application"
+	"github.com/telark/discovery/internal/clients"
+	"github.com/telark/discovery/internal/constants"
+	serviceapp "github.com/telark/discovery/internal/core/applications/core"
+	"github.com/telark/discovery/internal/discovery/listing"
+	discoveryshared "github.com/telark/discovery/internal/discovery/shared"
+	natshelper "github.com/telark/discovery/internal/helpers/nats"
+	"github.com/telark/kcore/resources/core"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

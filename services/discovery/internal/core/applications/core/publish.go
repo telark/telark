@@ -6,10 +6,10 @@ import (
 
 	"github.com/telark/data/resources/application"
 	resourceshared "github.com/telark/data/resources/shared"
-	"github.com/telark/discovery/config"
-	"github.com/telark/discovery/constants"
-	"github.com/telark/discovery/core/applications/snapshot"
-	"github.com/telark/discovery/publisher"
+	"github.com/telark/discovery/internal/config"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/core/applications/snapshot"
+	"github.com/telark/discovery/internal/publisher"
 	natscore "github.com/telark/x-ware/nats/core"
 )
 

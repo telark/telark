@@ -6,12 +6,12 @@ import (
 	"strings"
 	"time"
 
-	appresource "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/clients"
-	"github.com/telark/discovery/config"
-	"github.com/telark/discovery/constants"
-	applicationhandler "github.com/telark/discovery/handlers/resources/applications"
 	"github.com/redis/go-redis/v9"
+	appresource "github.com/telark/data/resources/application"
+	"github.com/telark/discovery/internal/clients"
+	"github.com/telark/discovery/internal/config"
+	"github.com/telark/discovery/internal/constants"
+	applicationhandler "github.com/telark/discovery/internal/handlers/resources/applications"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/kubernetes"
 )

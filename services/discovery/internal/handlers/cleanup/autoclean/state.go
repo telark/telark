@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/telark/discovery/constants"
 	"github.com/redis/go-redis/v9"
+	"github.com/telark/discovery/internal/constants"
 )
 
 // streakState tracks how long an application has been observed empty.

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/telark/discovery/constants"
+	"github.com/telark/discovery/internal/constants"
 )
 
 func FormatAppTime(t time.Time) string {

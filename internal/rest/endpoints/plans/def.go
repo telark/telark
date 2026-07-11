@@ -1,6 +1,6 @@
 package plans
 
-import "github.com/plsyro/rest/base"
+import "github.com/telark/rest/base"
 
 const (
 	// Exporter endpoints — CRUD for the ProtectionPlan CRD.

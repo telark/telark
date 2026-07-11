@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/plsyro/rest/base"
-	"github.com/plsyro/rest/clients/shared"
-	"github.com/plsyro/rest/constants"
-	eps "github.com/plsyro/rest/endpoints/notifications"
-	"github.com/plsyro/rest/response"
+	"github.com/telark/rest/base"
+	"github.com/telark/rest/clients/shared"
+	"github.com/telark/rest/constants"
+	eps "github.com/telark/rest/endpoints/notifications"
+	"github.com/telark/rest/response"
 )
 
 type Client struct {

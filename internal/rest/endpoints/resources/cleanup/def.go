@@ -1,6 +1,6 @@
 package cleanup
 
-import "github.com/plsyro/rest/base"
+import "github.com/telark/rest/base"
 
 const (
 	AddFinalizer       base.Endpoint = "cleanup/resources/{type}/{id}/finalizers/add"

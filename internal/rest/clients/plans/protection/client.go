@@ -1,13 +1,13 @@
 package protection
 
 import (
-	"github.com/plsyro/data/plans"
-	"github.com/plsyro/rest/base"
-	"github.com/plsyro/rest/clients/shared"
-	"github.com/plsyro/rest/constants"
-	eps "github.com/plsyro/rest/endpoints/plans"
-	restmapper "github.com/plsyro/rest/mappers"
-	"github.com/plsyro/rest/response"
+	"github.com/telark/data/plans"
+	"github.com/telark/rest/base"
+	"github.com/telark/rest/clients/shared"
+	"github.com/telark/rest/constants"
+	eps "github.com/telark/rest/endpoints/plans"
+	restmapper "github.com/telark/rest/mappers"
+	"github.com/telark/rest/response"
 )
 
 const HeaderUserID = "X-User-ID"

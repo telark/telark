@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/plsyro/rest/base"
-	"github.com/plsyro/rest/router"
+	"github.com/telark/rest/base"
+	"github.com/telark/rest/router"
 )
 
 func TestNewRouter(t *testing.T) {

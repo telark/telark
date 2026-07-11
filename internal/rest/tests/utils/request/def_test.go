@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/plsyro/rest/utils/request"
+	"github.com/telark/rest/utils/request"
 )
 
 func TestParseRequestBody(t *testing.T) {

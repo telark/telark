@@ -1,6 +1,6 @@
 package snapshots
 
-import "github.com/plsyro/rest/base"
+import "github.com/telark/rest/base"
 
 const (
 	CreateSnapshot      base.Endpoint = "snapshots/create"

@@ -1,12 +1,12 @@
 package cleanup
 
 import (
-	resourcesshared "github.com/plsyro/data/resources/shared"
-	"github.com/plsyro/rest/base"
-	"github.com/plsyro/rest/clients/shared"
-	"github.com/plsyro/rest/constants"
-	eps "github.com/plsyro/rest/endpoints/resources/cleanup"
-	"github.com/plsyro/rest/response"
+	resourcesshared "github.com/telark/data/resources/shared"
+	"github.com/telark/rest/base"
+	"github.com/telark/rest/clients/shared"
+	"github.com/telark/rest/constants"
+	eps "github.com/telark/rest/endpoints/resources/cleanup"
+	"github.com/telark/rest/response"
 )
 
 func AddFinalizer(c *shared.Client, resourceType, id, name string) *response.GenericResponse {

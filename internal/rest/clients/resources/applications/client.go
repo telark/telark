@@ -1,12 +1,12 @@
 package applications
 
 import (
-	appresource "github.com/plsyro/data/resources/application"
-	"github.com/plsyro/rest/base"
-	"github.com/plsyro/rest/clients/shared"
-	"github.com/plsyro/rest/constants"
-	eps "github.com/plsyro/rest/endpoints/resources/applications"
-	"github.com/plsyro/rest/response"
+	appresource "github.com/telark/data/resources/application"
+	"github.com/telark/rest/base"
+	"github.com/telark/rest/clients/shared"
+	"github.com/telark/rest/constants"
+	eps "github.com/telark/rest/endpoints/resources/applications"
+	"github.com/telark/rest/response"
 )
 
 type Client struct {

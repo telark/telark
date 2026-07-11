@@ -1,15 +1,15 @@
 package roles
 
 import (
-	"github.com/plsyro/data/resources/finalizers"
-	roleresource "github.com/plsyro/data/resources/role"
-	resourcesshared "github.com/plsyro/data/resources/shared"
-	"github.com/plsyro/rest/base"
-	cleanupclient "github.com/plsyro/rest/clients/resources/cleanup"
-	"github.com/plsyro/rest/clients/shared"
-	"github.com/plsyro/rest/constants"
-	eps "github.com/plsyro/rest/endpoints/resources/roles"
-	"github.com/plsyro/rest/response"
+	"github.com/telark/data/resources/finalizers"
+	roleresource "github.com/telark/data/resources/role"
+	resourcesshared "github.com/telark/data/resources/shared"
+	"github.com/telark/rest/base"
+	cleanupclient "github.com/telark/rest/clients/resources/cleanup"
+	"github.com/telark/rest/clients/shared"
+	"github.com/telark/rest/constants"
+	eps "github.com/telark/rest/endpoints/resources/roles"
+	"github.com/telark/rest/response"
 )
 
 type Client struct {

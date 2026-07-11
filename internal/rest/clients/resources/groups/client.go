@@ -1,15 +1,15 @@
 package groups
 
 import (
-	"github.com/plsyro/data/resources/finalizers"
-	groupresource "github.com/plsyro/data/resources/group"
-	resourcesshared "github.com/plsyro/data/resources/shared"
-	"github.com/plsyro/rest/base"
-	cleanupclient "github.com/plsyro/rest/clients/resources/cleanup"
-	"github.com/plsyro/rest/clients/shared"
-	"github.com/plsyro/rest/constants"
-	eps "github.com/plsyro/rest/endpoints/resources/groups"
-	"github.com/plsyro/rest/response"
+	"github.com/telark/data/resources/finalizers"
+	groupresource "github.com/telark/data/resources/group"
+	resourcesshared "github.com/telark/data/resources/shared"
+	"github.com/telark/rest/base"
+	cleanupclient "github.com/telark/rest/clients/resources/cleanup"
+	"github.com/telark/rest/clients/shared"
+	"github.com/telark/rest/constants"
+	eps "github.com/telark/rest/endpoints/resources/groups"
+	"github.com/telark/rest/response"
 )
 
 type Client struct {

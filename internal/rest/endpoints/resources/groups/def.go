@@ -1,6 +1,6 @@
 package groups
 
-import "github.com/plsyro/rest/base"
+import "github.com/telark/rest/base"
 
 const (
 	CreateGroup     base.Endpoint = "resources/groups/create"

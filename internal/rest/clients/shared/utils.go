@@ -9,14 +9,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/plsyro/data/errors"
-	globalshared "github.com/plsyro/data/shared"
-	"github.com/plsyro/rest/base"
-	"github.com/plsyro/rest/connectivity"
-	"github.com/plsyro/rest/constants"
-	"github.com/plsyro/rest/response"
-	requestutils "github.com/plsyro/rest/utils/request"
-	responseutils "github.com/plsyro/rest/utils/response"
+	"github.com/telark/data/errors"
+	globalshared "github.com/telark/data/shared"
+	"github.com/telark/rest/base"
+	"github.com/telark/rest/connectivity"
+	"github.com/telark/rest/constants"
+	"github.com/telark/rest/response"
+	requestutils "github.com/telark/rest/utils/request"
+	responseutils "github.com/telark/rest/utils/response"
 )
 
 func buildRequestURL(

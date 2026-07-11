@@ -1,11 +1,11 @@
-module github.com/plsyro/rest
+module github.com/telark/rest
 
-go 1.26.3
+go 1.26.5
 
 require (
 	github.com/gorilla/mux v1.8.1
-	github.com/plsyro/data v1.13.1
 	github.com/redis/go-redis/v9 v9.12.0
+	github.com/telark/data v1.14.0
 	k8s.io/apimachinery v0.35.4
 )
 
@@ -30,4 +30,4 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
 )
 
-replace github.com/plsyro/data => ../data
+replace github.com/telark/data => ../data

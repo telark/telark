@@ -1,6 +1,6 @@
 package provider
 
-import "github.com/plsyro/rest/base"
+import "github.com/telark/rest/base"
 
 const (
 	ValidateAPIKey base.Endpoint = "provider/validate-api-key"

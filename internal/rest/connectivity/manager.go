@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/plsyro/rest/constants"
 	"github.com/redis/go-redis/v9"
+	"github.com/telark/rest/constants"
 )
 
 type ConnectivityManager struct {

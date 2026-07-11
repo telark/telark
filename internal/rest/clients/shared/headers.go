@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/plsyro/data/errors"
-	"github.com/plsyro/rest/base"
-	"github.com/plsyro/rest/constants"
-	"github.com/plsyro/rest/response"
-	responseutils "github.com/plsyro/rest/utils/response"
+	"github.com/telark/data/errors"
+	"github.com/telark/rest/base"
+	"github.com/telark/rest/constants"
+	"github.com/telark/rest/response"
+	responseutils "github.com/telark/rest/utils/response"
 )
 
 func executeHTTPRequestWithHeaders(

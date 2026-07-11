@@ -6,10 +6,10 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/plsyro/data/errors"
-	"github.com/plsyro/rest/base"
-	"github.com/plsyro/rest/constants"
-	"github.com/plsyro/rest/response"
+	"github.com/telark/data/errors"
+	"github.com/telark/rest/base"
+	"github.com/telark/rest/constants"
+	"github.com/telark/rest/response"
 )
 
 func LogAndSendResponse(

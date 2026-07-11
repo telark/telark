@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/plsyro/rest/clients/notifications"
+	"github.com/telark/rest/clients/notifications"
 )
 
 func validNotification() notifications.Notification {

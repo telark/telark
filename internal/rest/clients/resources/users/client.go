@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/plsyro/data/resources/finalizers"
-	resourcesshared "github.com/plsyro/data/resources/shared"
-	userresource "github.com/plsyro/data/resources/user"
-	"github.com/plsyro/rest/base"
-	cleanupclient "github.com/plsyro/rest/clients/resources/cleanup"
-	"github.com/plsyro/rest/clients/shared"
-	"github.com/plsyro/rest/constants"
-	eps "github.com/plsyro/rest/endpoints/resources/users"
-	"github.com/plsyro/rest/response"
+	"github.com/telark/data/resources/finalizers"
+	resourcesshared "github.com/telark/data/resources/shared"
+	userresource "github.com/telark/data/resources/user"
+	"github.com/telark/rest/base"
+	cleanupclient "github.com/telark/rest/clients/resources/cleanup"
+	"github.com/telark/rest/clients/shared"
+	"github.com/telark/rest/constants"
+	eps "github.com/telark/rest/endpoints/resources/users"
+	"github.com/telark/rest/response"
 )
 
 type Client struct {

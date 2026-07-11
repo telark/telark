@@ -1,6 +1,6 @@
 package globalconfig
 
-import "github.com/plsyro/rest/base"
+import "github.com/telark/rest/base"
 
 const (
 	GetGlobalConfig   base.Endpoint = "resources/globalconfig/get"

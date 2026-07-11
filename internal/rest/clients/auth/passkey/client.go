@@ -1,13 +1,13 @@
 package passkey
 
 import (
-	authdata "github.com/plsyro/data/auth"
-	"github.com/plsyro/data/errors"
-	"github.com/plsyro/rest/base"
-	"github.com/plsyro/rest/clients/shared"
-	eps "github.com/plsyro/rest/endpoints/auth"
-	restmapper "github.com/plsyro/rest/mappers"
-	"github.com/plsyro/rest/response"
+	authdata "github.com/telark/data/auth"
+	"github.com/telark/data/errors"
+	"github.com/telark/rest/base"
+	"github.com/telark/rest/clients/shared"
+	eps "github.com/telark/rest/endpoints/auth"
+	restmapper "github.com/telark/rest/mappers"
+	"github.com/telark/rest/response"
 )
 
 const (

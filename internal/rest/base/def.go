@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/plsyro/data/logger"
-	globalshared "github.com/plsyro/data/shared"
-	"github.com/plsyro/rest/constants"
+	"github.com/telark/data/logger"
+	globalshared "github.com/telark/data/shared"
+	"github.com/telark/rest/constants"
 )
 
 type (

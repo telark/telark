@@ -1,6 +1,6 @@
 package roles
 
-import "github.com/plsyro/rest/base"
+import "github.com/telark/rest/base"
 
 const (
 	CreateRole        base.Endpoint = "resources/roles/create"

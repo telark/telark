@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/plsyro/rest/constants"
+	"github.com/telark/rest/constants"
 )
 
 func MapToJSONPayload(input any) (map[string]any, error) {

@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/plsyro/data/errors"
-	globalshared "github.com/plsyro/data/shared"
-	"github.com/plsyro/rest/base"
-	"github.com/plsyro/rest/constants"
-	restmapper "github.com/plsyro/rest/mappers"
-	"github.com/plsyro/rest/response"
-	responseutils "github.com/plsyro/rest/utils/response"
+	"github.com/telark/data/errors"
+	globalshared "github.com/telark/data/shared"
+	"github.com/telark/rest/base"
+	"github.com/telark/rest/constants"
+	restmapper "github.com/telark/rest/mappers"
+	"github.com/telark/rest/response"
+	responseutils "github.com/telark/rest/utils/response"
 )
 
 func New(service base.Service) *Client {

@@ -1,12 +1,12 @@
 package session
 
 import (
-	authdata "github.com/plsyro/data/auth"
-	"github.com/plsyro/rest/base"
-	"github.com/plsyro/rest/clients/shared"
-	"github.com/plsyro/rest/constants"
-	eps "github.com/plsyro/rest/endpoints/auth"
-	"github.com/plsyro/rest/response"
+	authdata "github.com/telark/data/auth"
+	"github.com/telark/rest/base"
+	"github.com/telark/rest/clients/shared"
+	"github.com/telark/rest/constants"
+	eps "github.com/telark/rest/endpoints/auth"
+	"github.com/telark/rest/response"
 )
 
 type Client struct {

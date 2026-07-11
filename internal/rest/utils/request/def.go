@@ -7,9 +7,9 @@ import (
 	"io"
 	"net/http"
 
-	globalerrors "github.com/plsyro/data/errors"
-	"github.com/plsyro/rest/base"
-	"github.com/plsyro/rest/constants"
+	globalerrors "github.com/telark/data/errors"
+	"github.com/telark/rest/base"
+	"github.com/telark/rest/constants"
 )
 
 func ParseRequestBody(r *http.Request) (map[string]any, error) {

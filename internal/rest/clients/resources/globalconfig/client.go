@@ -6,12 +6,12 @@ import (
 	"strings"
 	"time"
 
-	globalconfigresource "github.com/plsyro/data/resources/globalconfig"
-	"github.com/plsyro/rest/base"
-	"github.com/plsyro/rest/clients/shared"
-	"github.com/plsyro/rest/constants"
-	eps "github.com/plsyro/rest/endpoints/resources/globalconfig"
-	"github.com/plsyro/rest/response"
+	globalconfigresource "github.com/telark/data/resources/globalconfig"
+	"github.com/telark/rest/base"
+	"github.com/telark/rest/clients/shared"
+	"github.com/telark/rest/constants"
+	eps "github.com/telark/rest/endpoints/resources/globalconfig"
+	"github.com/telark/rest/response"
 )
 
 type Client struct {

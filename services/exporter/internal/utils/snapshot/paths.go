@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/telark/exporter/constants"
-	envmanager "github.com/telark/exporter/managers/envs"
+	"github.com/telark/exporter/internal/constants"
+	envmanager "github.com/telark/exporter/internal/managers/envs"
 )
 
 func IsWithinBase(targetPath string, basePath string) bool {

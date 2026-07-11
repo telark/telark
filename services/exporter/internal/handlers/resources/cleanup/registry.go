@@ -4,7 +4,7 @@ import (
 	metadatabase "github.com/telark/data/metadata/base"
 	metadata "github.com/telark/data/metadata/resources"
 	"github.com/telark/data/resources/finalizers"
-	"github.com/telark/exporter/constants"
+	"github.com/telark/exporter/internal/constants"
 )
 
 type resourceTarget struct {

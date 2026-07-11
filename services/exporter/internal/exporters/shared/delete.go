@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	metadata "github.com/telark/data/metadata/base"
-	"github.com/telark/exporter/exporters/generics"
-	"github.com/telark/exporter/utils/concurrency"
+	"github.com/telark/exporter/internal/exporters/generics"
+	"github.com/telark/exporter/internal/utils/concurrency"
 )
 
 func DeleteResource(w http.ResponseWriter, _ *http.Request, resourceMetadata metadata.Metadata, resourceName string) {

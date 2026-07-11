@@ -2,8 +2,8 @@ package category
 
 import (
 	metadata "github.com/telark/data/metadata/classification"
-	"github.com/telark/exporter/constants"
-	resourcesshared "github.com/telark/exporter/utils/resources/shared"
+	"github.com/telark/exporter/internal/constants"
+	resourcesshared "github.com/telark/exporter/internal/utils/resources/shared"
 )
 
 func GenerateUniqueCategoryID() (string, error) {

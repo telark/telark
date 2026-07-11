@@ -1,9 +1,9 @@
 package category
 
 import (
-	"github.com/telark/exporter/cache"
-	"github.com/telark/exporter/constants"
-	"github.com/telark/exporter/utils/performance"
+	"github.com/telark/exporter/internal/cache"
+	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/exporter/internal/utils/performance"
 )
 
 func InvalidateCategoryCaches(optimizer *performance.Optimizer) {

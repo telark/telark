@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/telark/exporter/constants"
+	"github.com/telark/exporter/internal/constants"
 )
 
 func LoadAndValidateEnv(envVarName string) (string, error) {

@@ -2,7 +2,7 @@ package role
 
 import (
 	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/exporter/constants"
+	"github.com/telark/exporter/internal/constants"
 )
 
 func MergeRoleAndPreparePatchBody(existingRole, newRole *roledata.RoleAsResource, body map[string]any) *roledata.RoleAsResource {

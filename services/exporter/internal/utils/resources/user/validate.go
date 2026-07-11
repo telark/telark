@@ -8,9 +8,9 @@ import (
 	dataerrors "github.com/telark/data/errors"
 	metadata "github.com/telark/data/metadata/resources"
 	userdata "github.com/telark/data/resources/user"
-	"github.com/telark/exporter/constants"
-	resourcesshared "github.com/telark/exporter/utils/resources/shared"
-	sharedutils "github.com/telark/exporter/utils/shared"
+	"github.com/telark/exporter/internal/constants"
+	resourcesshared "github.com/telark/exporter/internal/utils/resources/shared"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 )

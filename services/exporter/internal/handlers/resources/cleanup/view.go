@@ -2,7 +2,7 @@ package cleanup
 
 import (
 	resourcesshared "github.com/telark/data/resources/shared"
-	"github.com/telark/exporter/constants"
+	"github.com/telark/exporter/internal/constants"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

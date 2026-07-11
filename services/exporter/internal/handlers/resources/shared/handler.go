@@ -6,11 +6,11 @@ import (
 
 	"github.com/telark/data/errors"
 	metadata "github.com/telark/data/metadata/base"
-	"github.com/telark/exporter/cache"
-	"github.com/telark/exporter/constants"
-	sharedexp "github.com/telark/exporter/exporters/shared"
-	"github.com/telark/exporter/utils/performance"
-	sharedutils "github.com/telark/exporter/utils/shared"
+	"github.com/telark/exporter/internal/cache"
+	"github.com/telark/exporter/internal/constants"
+	sharedexp "github.com/telark/exporter/internal/exporters/shared"
+	"github.com/telark/exporter/internal/utils/performance"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 )
 
 func CreateResourceWithCacheInvalidation(

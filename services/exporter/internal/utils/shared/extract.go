@@ -11,7 +11,7 @@ import (
 	"github.com/gorilla/mux"
 	dataerrors "github.com/telark/data/errors"
 	metadata "github.com/telark/data/metadata/base"
-	"github.com/telark/exporter/constants"
+	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/kcore/crds/api"
 	"github.com/telark/rest/response"
 	requestutils "github.com/telark/rest/utils/request"

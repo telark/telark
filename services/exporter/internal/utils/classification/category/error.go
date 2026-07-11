@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/telark/exporter/constants"
+	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 )

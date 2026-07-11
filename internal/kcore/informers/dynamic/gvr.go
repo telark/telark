@@ -6,7 +6,9 @@ import (
 	"k8s.io/client-go/discovery"
 )
 
-func GVRsForKinds(kindSet map[string]struct{}, disco discovery.DiscoveryInterface) ([]schema.GroupVersionResource, error) {
+func GVRsForKinds(
+	kindSet map[string]struct{}, disco discovery.DiscoveryInterface,
+) ([]schema.GroupVersionResource, error) {
 	if len(kindSet) == 0 {
 		return nil, nil
 	}

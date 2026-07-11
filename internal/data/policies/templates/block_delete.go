@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
-	"github.com/plsyro/data/policies"
+	"github.com/telark/data/policies"
 )
 
 const (

@@ -1,9 +1,9 @@
 package finalizers
 
 const (
-	UserCleanup  = "plsyro.io/user-cleanup"
-	GroupCleanup = "plsyro.io/group-cleanup"
-	RoleCleanup  = "plsyro.io/role-cleanup"
+	UserCleanup  = "telark.io/user-cleanup"
+	GroupCleanup = "telark.io/group-cleanup"
+	RoleCleanup  = "telark.io/role-cleanup"
 )
 
 const (

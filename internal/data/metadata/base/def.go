@@ -16,10 +16,9 @@ type (
 )
 
 const (
-	Erpi           Group   = "erpi.plsyro"
-	Auth           Group   = "auth.plsyro"
-	Feats          Group   = "feats.plsyro"
-	Classification Group   = "classification.plsyro"
+	Erpi           Group   = "erpi.telark"
+	Auth           Group   = "auth.telark"
+	Classification Group   = "classification.telark"
 	Alpha1         Version = "v1alpha1"
 	Alpha2         Version = "v1alpha2"
 )

@@ -1,8 +1,8 @@
 package resources
 
 import (
-	"github.com/plsyro/data/metadata/base"
-	globalshared "github.com/plsyro/data/shared"
+	"github.com/telark/data/metadata/base"
+	globalshared "github.com/telark/data/shared"
 )
 
 var UserAsResourceMetadata = base.Metadata{

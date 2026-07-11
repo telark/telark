@@ -8,18 +8,18 @@ import (
 	"strings"
 
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
-	"github.com/plsyro/data/constants"
+	"github.com/telark/data/constants"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
-	LabelPlanID    = "plsyro.erpi/protection-plan"
-	LabelTemplate  = "plsyro.erpi/template-id"
-	LabelManagedBy = "plsyro.erpi/managed-by"
-	ManagedByValue = "plsyro"
+	LabelPlanID    = "telark.erpi/protection-plan"
+	LabelTemplate  = "telark.erpi/template-id"
+	LabelManagedBy = "telark.erpi/managed-by"
+	ManagedByValue = "telark"
 
-	AnnotationPlanName  = "plsyro.erpi/plan-name"
-	AnnotationCreatedBy = "plsyro.erpi/created-by"
+	AnnotationPlanName  = "telark.erpi/plan-name"
+	AnnotationCreatedBy = "telark.erpi/created-by"
 
 	AppNameLabel = "app.kubernetes.io/name"
 
@@ -29,7 +29,7 @@ const (
 var WorkloadKinds = []string{"Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"}
 
 func PolicyName(planID, templateCode string, scope ScopeSpec) string {
-	return fmt.Sprintf("plsyro-%s-%s-%s", planID, templateCode, scopeSuffix(scope))
+	return fmt.Sprintf("telark-%s-%s-%s", planID, templateCode, scopeSuffix(scope))
 }
 
 func scopeSuffix(scope ScopeSpec) string {
@@ -88,7 +88,7 @@ func AppScopeSelector(appIDs []string) *metav1.LabelSelector {
 	}
 }
 
-func ExcludePlsyroManaged() *kyvernov1.MatchResources {
+func ExcludetelarkManaged() *kyvernov1.MatchResources {
 	return &kyvernov1.MatchResources{
 		Any: kyvernov1.ResourceFilters{
 			{
@@ -214,7 +214,7 @@ type SingleRuleSpec struct {
 }
 
 // RenderSingleRulePolicy is the canonical builder for templates that emit one Kyverno rule. It
-// owns the BuildMatch + PolicyShell + ExcludePlsyroManaged wiring so each template only declares
+// owns the BuildMatch + PolicyShell + ExcludetelarkManaged wiring so each template only declares
 // its own kinds/ops/message/deny.
 func RenderSingleRulePolicy(meta RenderMeta, scope ScopeSpec, spec SingleRuleSpec) *kyvernov1.Policy {
 	match, ok := BuildMatch(scope, spec.Kinds, spec.Ops)
@@ -226,7 +226,7 @@ func RenderSingleRulePolicy(meta RenderMeta, scope ScopeSpec, spec SingleRuleSpe
 		{
 			Name:             spec.RuleName,
 			MatchResources:   match,
-			ExcludeResources: ExcludePlsyroManaged(),
+			ExcludeResources: ExcludetelarkManaged(),
 			Validation: &kyvernov1.Validation{
 				Message: spec.Message,
 				Deny:    spec.Deny,

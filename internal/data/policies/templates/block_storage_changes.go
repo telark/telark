@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
-	"github.com/plsyro/data/constants"
-	"github.com/plsyro/data/policies"
+	"github.com/telark/data/constants"
+	"github.com/telark/data/policies"
 )
 
 const (
@@ -27,7 +27,7 @@ func (blockStorageChanges) Render(meta policies.RenderMeta, scope policies.Scope
 		rules = append(rules, kyvernov1.Rule{
 			Name:             rulePVCMutation,
 			MatchResources:   pvcMatch,
-			ExcludeResources: policies.ExcludePlsyroManaged(),
+			ExcludeResources: policies.ExcludetelarkManaged(),
 			Validation: &kyvernov1.Validation{
 				Message: fmt.Sprintf(msgBlockPVCMutation, meta.PlanName),
 				Deny: policies.DenyWithConditions([]kyvernov1.Condition{
@@ -41,7 +41,7 @@ func (blockStorageChanges) Render(meta policies.RenderMeta, scope policies.Scope
 		rules = append(rules, kyvernov1.Rule{
 			Name:             ruleWorkloadVolumeChanges,
 			MatchResources:   volMatch,
-			ExcludeResources: policies.ExcludePlsyroManaged(),
+			ExcludeResources: policies.ExcludetelarkManaged(),
 			Validation: &kyvernov1.Validation{
 				Message: fmt.Sprintf(msgBlockVolumeChanges, meta.PlanName),
 				Deny: policies.DenyWithConditions([]kyvernov1.Condition{

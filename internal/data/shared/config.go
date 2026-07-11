@@ -20,7 +20,7 @@ var (
 		"kube-system":     true,
 		"kube-public":     true,
 		"kube-node-lease": true,
-		"plsyro":          true,
+		"telark":          true,
 		"prometheus":      true,
 		"monitoring":      true,
 		"default":         true,
@@ -28,7 +28,7 @@ var (
 )
 
 const (
-	BaseNamespace                    = "plsyro"
+	BaseNamespace                    = "telark"
 	DefaultTimeFormat                = time.RFC3339
 	DefaultNamespace                 = "default"
 	UnknownName                      = "unknown"

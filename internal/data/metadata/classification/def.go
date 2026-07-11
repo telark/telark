@@ -1,8 +1,8 @@
 package classification
 
 import (
-	metadata "github.com/plsyro/data/metadata/base"
-	globalshared "github.com/plsyro/data/shared"
+	metadata "github.com/telark/data/metadata/base"
+	globalshared "github.com/telark/data/shared"
 )
 
 var CategoryAsClassificationMetadata = metadata.Metadata{
@@ -12,4 +12,3 @@ var CategoryAsClassificationMetadata = metadata.Metadata{
 	Plural:    "categoriesasclassifications",
 	Namespace: globalshared.BaseNamespace,
 }
-

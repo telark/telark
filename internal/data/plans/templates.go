@@ -3,7 +3,7 @@ package plans
 import (
 	"fmt"
 
-	"github.com/plsyro/data/constants"
+	"github.com/telark/data/constants"
 )
 
 type ParamType string

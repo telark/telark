@@ -1,6 +1,6 @@
-module github.com/plsyro/data
+module github.com/telark/data
 
-go 1.26.3
+go 1.26.5
 
 require (
 	github.com/kyverno/kyverno v1.18.0

@@ -3,7 +3,7 @@ package templates
 import (
 	"fmt"
 
-	"github.com/plsyro/data/constants"
+	"github.com/telark/data/constants"
 )
 
 // paramStringSlice extracts a non-empty []string from a free-form params map.

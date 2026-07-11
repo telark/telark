@@ -3,8 +3,8 @@ package policies
 import (
 	"fmt"
 
-	"github.com/plsyro/data/constants"
-	"github.com/plsyro/data/plans"
+	"github.com/telark/data/constants"
+	"github.com/telark/data/plans"
 )
 
 const (
@@ -57,5 +57,5 @@ func ValidateCatalog() string {
 }
 
 func projectedNameLength(code string) int {
-	return len("plsyro-") + planIDExampleLength + separatorLengthSegment + len(code) + separatorLengthSegment + scopeHashFixedLength
+	return len("telark-") + planIDExampleLength + separatorLengthSegment + len(code) + separatorLengthSegment + scopeHashFixedLength
 }

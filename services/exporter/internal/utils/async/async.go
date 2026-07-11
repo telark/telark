@@ -8,11 +8,11 @@ import (
 )
 
 const (
-	poolSize        = 64
-	taskTimeout     = 10 * time.Second
-	drainTimeout    = 5 * time.Second
-	asyncDelta      = 1
-	loggerPrefix    = "Async: "
+	poolSize     = 64
+	taskTimeout  = 10 * time.Second
+	drainTimeout = 5 * time.Second
+	asyncDelta   = 1
+	loggerPrefix = "Async: "
 )
 
 type pool struct {

@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/telark/exporter/internal/constants"
 	exprdb "github.com/telark/exporter/internal/redis"
 	notiftypes "github.com/telark/exporter/internal/types/notifications"
-	"github.com/redis/go-redis/v9"
 )
 
 const (

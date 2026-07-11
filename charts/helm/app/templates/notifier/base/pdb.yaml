@@ -1,0 +1,5 @@
+{{- $service := "notifier" -}}
+{{- $serviceConfig := index .Values.services $service -}}
+{{- if and $serviceConfig.pdb $serviceConfig.pdb.enabled }}
+{{- include "servicePDB" (dict "service" $service "values" .Values) }}
+{{- end }}

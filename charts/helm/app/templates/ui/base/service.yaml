@@ -1,0 +1,6 @@
+{{- $service := "ui" -}}
+{{- $values := .Values -}}
+{{- $serviceConfig := index $values.services $service -}}
+{{- if $serviceConfig.enabled }}
+{{- include "serviceService" (dict "service" $service "values" $values) }}
+{{- end }}

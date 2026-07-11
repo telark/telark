@@ -1,0 +1,12 @@
+# Schema stub only. Real values come from helm/app/values.yaml at install time
+# via `helm upgrade --install <bootstrap-release> -f helm/app/values.yaml ...`.
+# Single source of truth lives in helm/app/values.yaml — do not duplicate values here.
+# Keys below exist so `helm lint` and `helm template` resolve without errors.
+
+app:
+  name: ""
+  namespace: ""
+  auth:
+    oidc:
+      enabled: false
+      googleClientID: ""

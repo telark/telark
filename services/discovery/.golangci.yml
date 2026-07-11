@@ -1,0 +1,69 @@
+version: 2
+linters:
+  enable:
+    - errcheck
+    - gocritic
+    - gosec
+    - gocyclo
+    - misspell
+    - unparam
+    - nakedret
+    - perfsprint
+    - prealloc
+    - nolintlint
+    - funlen
+    - dupl
+    - bodyclose
+    - containedctx
+    - goprintffuncname
+    - whitespace
+    - unconvert
+    - revive
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+  settings:
+    gocyclo:
+      min-complexity: 12
+    misspell:
+      locale: US
+    funlen:
+      lines: 60
+    gosec:
+      excludes:
+        - G101
+    revive:
+      enable-all-rules: true
+      rules:
+        - name: exported
+          disabled: true
+        - name: package-comments
+          disabled: true
+        - name: package-naming
+          disabled: true
+        - name: cognitive-complexity
+          disabled: true
+        - name: cyclomatic
+          disabled: true
+        - name: line-length-limit
+          arguments:
+            - 120
+        - name: max-public-structs
+          arguments:
+            - 10
+        - name: argument-limit
+          arguments:
+            - 9
+        - name: var-naming
+          arguments:
+            - [] # AllowList
+            - [] # DenyList
+            - - skip-package-name-checks: true
+                
+run:
+  timeout: 2m
+  tests: false
+
+issues:
+  max-issues-per-linter: 0

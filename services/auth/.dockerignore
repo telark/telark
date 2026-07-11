@@ -1,0 +1,27 @@
+.git
+*.md
+docs/
+README*
+
+# IDE and editor files
+.idea/
+.cursor/
+.vscode/
+.idea/
+*.swp
+
+# Exclude editor/project files
+*.iml
+*.sublime*
+
+# Exclude build artifacts
+*.out
+*.exe
+*.test
+
+# Exclude coverage and debug files
+coverage*
+*.prof 
+
+# Exclude tests
+tests/

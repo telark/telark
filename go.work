@@ -1,0 +1,8 @@
+go 1.26.5
+
+use (
+	./services/auth
+	./services/discovery
+	./services/exporter
+	./services/notifier
+)

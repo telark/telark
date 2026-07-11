@@ -1,0 +1,70 @@
+name: 'Tag Service Repository'
+description: 'Create and push a tag to the service repository with the version'
+inputs:
+  service_name:
+    description: 'Name of the service'
+    required: true
+  service_version:
+    description: 'Version of the service (without v prefix)'
+    required: true
+  service_path:
+    description: 'Path to the service repository'
+    required: true
+    default: 'service'
+  branch:
+    description: 'Branch that the tag was built from'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Create and push tag to service repository
+      shell: bash
+      run: |
+        cd ${{ inputs.service_path }}
+        git config user.name "github-actions"
+        git config user.email "action@github.com"
+        
+        # Get last commit information
+        last_commit_short=$(git rev-parse --short HEAD)
+        last_commit_message=$(git log -1 --pretty=format:"%s")
+        last_commit_author=$(git log -1 --pretty=format:"%an")
+        
+        # Create tag with version for the service
+        tag_name="v${{ inputs.service_version }}"
+        
+        # Fetch all tags from remote
+        git fetch --tags origin || true
+        
+        # Check if tag exists locally or remotely
+        tag_exists_locally=$(git tag -l "$tag_name" | wc -l)
+        tag_exists_remotely=$(git ls-remote --tags origin "$tag_name" | wc -l)
+        
+        # Delete tag if it exists (since tags are immutable, we need to recreate them)
+        if [ "$tag_exists_locally" -gt 0 ]; then
+          echo "Tag $tag_name exists locally. Deleting..."
+          git tag -d "$tag_name" || true
+        fi
+        
+        if [ "$tag_exists_remotely" -gt 0 ]; then
+          echo "Tag $tag_name exists remotely. Deleting..."
+          git push origin --delete "$tag_name" || true
+        fi
+        
+        # Create tag message
+        cat > tag_message.txt << EOF
+        ## Release ${{ inputs.service_name }} v${{ inputs.service_version }}
+        
+        Built from Branch: ${{ inputs.branch }}
+        Built on: $(TZ="Europe/Paris" date '+%Y-%m-%d %H:%M:%S %Z')
+        Author: $last_commit_author
+        Last Commit Message: $last_commit_message($last_commit_short)
+        
+        ---
+        *This tag was automatically created by GitHub Actions*
+        EOF
+        
+        # Create and push tag
+        git tag -a "$tag_name" -F tag_message.txt
+        git push origin "$tag_name"
+        rm tag_message.txt

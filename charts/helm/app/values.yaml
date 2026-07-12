@@ -312,7 +312,7 @@ services:
     enabled: true
     name: "auth-service"
     imageTagPrefix: "auth-"
-    version: 0.3.1
+    version: 0.3.2
     category: "auth"
     terminationGracePeriodSec: 30
     env:

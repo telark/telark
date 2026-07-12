@@ -197,7 +197,7 @@ services:
     enabled: true
     name: "exporter-service"
     imageTagPrefix: "exp-"
-    version: 3.3.1
+    version: 3.3.2
     category: "export"
     includeResources: false
     env:
@@ -219,7 +219,7 @@ services:
     enabled: true
     name: "discovery-service"
     imageTagPrefix: "discovery-"
-    version: 1.8.4
+    version: 1.8.5
     category: "sync"
     replicas: 2
     includeSecurity: false
@@ -300,7 +300,7 @@ services:
     enabled: true
     name: "notifier-service"
     imageTagPrefix: "not-"
-    version: 0.2.1
+    version: 0.2.2
     category: "notification"
     terminationGracePeriodSec: 30
     includeResources: false
@@ -312,7 +312,7 @@ services:
     enabled: true
     name: "auth-service"
     imageTagPrefix: "auth-"
-    version: 0.3.1
+    version: 0.3.2
     category: "auth"
     terminationGracePeriodSec: 30
     env:

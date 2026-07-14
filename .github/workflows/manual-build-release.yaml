@@ -39,7 +39,7 @@ jobs:
       - name: Trigger Helm Release Pipeline
         uses: peter-evans/repository-dispatch@v4
         with:
-          repository: telark/release-manager
+          repository: telark/telark
           token: ${{ secrets.ACCESS_TOKEN }}
           event-type: execute-telark-helm-release
           client-payload: '{"build_type": "${{ inputs.build_type }}", "ns": "${{ env.NAMESPACE }}", "sonar_scan": "${{ inputs.sonar_scan }}", "kyverno_config_mode": "${{ inputs.kyverno_config_mode }}"}'

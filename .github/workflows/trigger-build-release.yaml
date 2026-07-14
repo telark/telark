@@ -83,8 +83,8 @@ jobs:
           app_release="${namespace}-release"
           app_version="${{ steps.chart_version.outputs.new_version }}"
           bootstrap_version=$(yq e '.version' charts/helm/bootstrap/Chart.yaml)
-          bootstrap_pkg="releases/${app_version}/telark-bootstrap-chart-${bootstrap_version}.tgz"
-          app_pkg="releases/${app_version}/telark-core-chart-${app_version}.tgz"
+          bootstrap_pkg="charts/releases/${app_version}/telark-bootstrap-chart-${bootstrap_version}.tgz"
+          app_pkg="charts/releases/${app_version}/telark-core-chart-${app_version}.tgz"
 
           charts_values="-f charts/helm/app/values.charts.yaml"
           nats_conf_value="--set-file nats.configuration=charts/helm/app/config/nats.conf"

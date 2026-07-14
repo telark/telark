@@ -2,7 +2,7 @@ apiVersion: v2
 name: telark-core-chart
 description: A Helm chart for telark core
 type: application
-version: 2.2.2
+version: 2.2.3
 appVersion: "2.0"
 
 dependencies:

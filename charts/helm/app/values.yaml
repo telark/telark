@@ -276,7 +276,7 @@ services:
     enabled: true
     name: "enrichment-service"
     imageTagPrefix: "enrich-"
-    version: 0.1.0
+    version: 0.1.1
     category: "ai-enrichment"
     includeResources: false
     includeHealthCheck: false

@@ -41,5 +41,5 @@ jobs:
         with:
           repository: telark/release-manager
           token: ${{ secrets.ACCESS_TOKEN }}
-          event-type: execute-helm-release
+          event-type: execute-telark-helm-release
           client-payload: '{"build_type": "${{ inputs.build_type }}", "ns": "${{ env.NAMESPACE }}", "sonar_scan": "${{ inputs.sonar_scan }}", "kyverno_config_mode": "${{ inputs.kyverno_config_mode }}"}'

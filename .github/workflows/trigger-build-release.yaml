@@ -2,7 +2,7 @@ name: Trigger & Install Helm Release
 run-name: Trigger & Install Helm Release with Bump "${{ github.event.client_payload.build_type }}"
 on:
   repository_dispatch:
-    types: [execute-helm-release]
+    types: [execute-telark-helm-release]
 
 jobs:
   build:

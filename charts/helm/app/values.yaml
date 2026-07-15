@@ -219,7 +219,7 @@ services:
     enabled: true
     name: "discovery-service"
     imageTagPrefix: "discovery-"
-    version: 1.8.5
+    version: 1.8.6
     category: "sync"
     replicas: 2
     includeSecurity: false

@@ -25,6 +25,8 @@ func RunPrewarmLeaderLoop(
 ) {
 	electionTicker := time.NewTicker(coord.Config.ElectionRenewInterval)
 	defer electionTicker.Stop()
+	prewarmTicker := time.NewTicker(prewarmInterval(ctx))
+	defer prewarmTicker.Stop()
 
 	isLeader := false
 	if ok, err := coord.Election.Campaign(ctx); err != nil {
@@ -44,6 +46,13 @@ func RunPrewarmLeaderLoop(
 				isLeader = tryCampaign(ctx, coord, replicaID, rdb)
 			}
 
+		case <-prewarmTicker.C:
+			// Re-read every cycle so a changed interval applies without a restart.
+			prewarmTicker.Reset(prewarmInterval(ctx))
+			if isLeader {
+				safeEnqueueApplicationBatch(ctx, coord, rdb)
+			}
+
 		case <-ctx.Done():
 			if isLeader {
 				resignAndExit(coord)
@@ -51,6 +60,16 @@ func RunPrewarmLeaderLoop(
 			return
 		}
 	}
+}
+
+// Without this, namespaces and workloads created after startup are only picked up
+// by a restart, a leadership change or a force-sync.
+func prewarmInterval(ctx context.Context) time.Duration {
+	secs := gcfghelper.FetchIntervalSeconds(ctx)
+	if secs <= constants.DefaultInitValue {
+		return constants.PrewarmDefaultInterval
+	}
+	return time.Duration(secs) * time.Second
 }
 
 func tryRenewLeadership(ctx context.Context, coord *CoordinationBundle, replicaID string) bool {

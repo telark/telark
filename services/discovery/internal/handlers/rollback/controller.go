@@ -619,6 +619,9 @@ func (c *Controller) appendHistoryChangeLog(
 		constants.RollbackSpecKey: map[string]any{
 			constants.RollbackHistoryKey: map[string]any{
 				constants.RollbackChangeLogKey: updated,
+				// The diff derives its next generation from this field alone, so leaving it
+				// behind makes the next diff-authored entry reuse gen.
+				constants.RollbackGenerationKey: gen,
 			},
 		},
 	}

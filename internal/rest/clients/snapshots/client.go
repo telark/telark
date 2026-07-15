@@ -17,6 +17,12 @@ import (
 	k8sjson "k8s.io/apimachinery/pkg/util/json"
 )
 
+const (
+	scopeQueryParam      = "scope"
+	namespaceQueryParam  = "namespace"
+	generationQueryParam = "generation"
+)
+
 type Client struct {
 	*shared.Client
 }
@@ -80,7 +86,7 @@ func (c *Client) GetSnapshotManifest(
 		constants.IDParam,
 		snapshotID,
 	)
-	epWithQuery, err := appendManifestQuery(ep, scope, namespace, generation)
+	epWithQuery, err := appendSnapshotQuery(ep, scope, namespace, generation)
 	if err != nil {
 		return nil, err
 	}
@@ -113,19 +119,40 @@ func (c *Client) GetSnapshotInfos() (*SnapshotStorageInfo, error) {
 	return shared.GetTyped[SnapshotStorageInfo](c.Client, eps.GetSnapshotInfos)
 }
 
-func appendManifestQuery(ep base.Endpoint, scope, namespace, generation string) (base.Endpoint, error) {
+func (c *Client) DeleteSnapshot(
+	id string,
+	scope string,
+	namespace string,
+	generation string,
+) (*response.GenericResponse, error) {
+	if generation == constants.EmptyString {
+		return nil, fmt.Errorf(string(errors.ErrRestRequiredParam), generationQueryParam)
+	}
+	ep := shared.SubstituteEndpointWithParam(
+		string(eps.DeleteSnapshot),
+		constants.IDParam,
+		id,
+	)
+	epWithQuery, err := appendSnapshotQuery(ep, scope, namespace, generation)
+	if err != nil {
+		return nil, err
+	}
+	return c.Delete(epWithQuery), nil
+}
+
+func appendSnapshotQuery(ep base.Endpoint, scope, namespace, generation string) (base.Endpoint, error) {
 	q := url.Values{}
 	if scope != constants.EmptyString {
-		q.Set("scope", scope)
+		q.Set(scopeQueryParam, scope)
 	}
 	if namespace != constants.EmptyString {
-		q.Set("namespace", namespace)
+		q.Set(namespaceQueryParam, namespace)
 	}
 	if generation != constants.EmptyString {
 		if _, err := strconv.Atoi(generation); err != nil {
 			return "", fmt.Errorf("invalid generation query param: %v", err)
 		}
-		q.Set("generation", generation)
+		q.Set(generationQueryParam, generation)
 	}
 	if len(q) == constants.EmptySliceLength {
 		return ep, nil

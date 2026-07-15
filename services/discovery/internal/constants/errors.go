@@ -61,6 +61,9 @@ const (
 	// Snapshot Errors
 	ErrFailedCreateSnapshot           errors.Error = "failed to create snapshot: %v"
 	ErrFailedCreateSnapshotWithStatus errors.Error = "failed to create snapshot: status=%v message=%v"
+	ErrFailedDeleteSnapshot           errors.Error = "failed to delete snapshot: %v"
+	ErrFailedDeleteSnapshotWithStatus errors.Error = "failed to delete snapshot: status=%v message=%v"
+	ErrOrphanSnapshotNotRemoved       errors.Error = "unrecorded snapshot left: id=%s ns=%s gen=%d error=%v"
 	ErrFailedGetSnapshotPath          errors.Error = "failed to get snapshot path: %v"
 
 	// Snapshot strict build errors

@@ -197,7 +197,7 @@ services:
     enabled: true
     name: "exporter-service"
     imageTagPrefix: "exp-"
-    version: 3.3.2
+    version: 3.3.3
     category: "export"
     includeResources: false
     env:

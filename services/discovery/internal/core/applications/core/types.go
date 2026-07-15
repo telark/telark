@@ -119,6 +119,7 @@ const (
 	msgEnqueueFailed    = "enqueue failed: app=%s err=%v"
 	msgReplicasReady    = "%d/%d replicas ready"
 	payloadKeyName      = "name"
+	payloadKeyHistory   = "history"
 	payloadKeySnapshots = "snapshots"
 	payloadKeyTakenAt   = "takenAt"
 	csvSeparator        = ","

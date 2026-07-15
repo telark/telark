@@ -21,25 +21,31 @@ import (
 	"github.com/telark/rest/response"
 )
 
+// applyHistoryFromDiff returns, per application, whether the diff authored the
+// history and snapshots it produced. Callers without an informer-captured
+// pre-image echo back stored values, which must not be republished.
 func applyHistoryFromDiff(
 	ctx context.Context,
 	apps *[]application.Application,
 	opts GetApplicationsOptions,
-) {
+) []bool {
+	authored := make([]bool, len(*apps))
 	for i := range *apps {
 		app := &(*apps)[i]
-		h, snaps := historyAndSnapshotsForApp(ctx, app, opts)
+		h, snaps, ok := historyAndSnapshotsForApp(ctx, app, opts)
 		app.History = h
 		app.Snapshots = snaps
+		authored[i] = ok
 		snapshot.NormalizeApplicationSnapshotTakenAt(app)
 	}
+	return authored
 }
 
 func historyAndSnapshotsForApp(
 	ctx context.Context,
 	app *application.Application,
 	opts GetApplicationsOptions,
-) (h application.ApplicationHistory, snaps []application.ApplicationSnapshot) {
+) (h application.ApplicationHistory, snaps []application.ApplicationSnapshot, authored bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(
@@ -47,6 +53,7 @@ func historyAndSnapshotsForApp(
 			)
 			h = diff.NewApplicationHistory()
 			snaps = []application.ApplicationSnapshot{}
+			authored = false
 		}
 	}()
 	var stored *application.Application
@@ -54,7 +61,7 @@ func historyAndSnapshotsForApp(
 		stored = opts.GetStoredApplication(app.Name)
 	}
 	dopts := buildDiffOpts(app, opts)
-	h, snaps = diff.DiffApplications(
+	h, snaps, authored = diff.DiffApplications(
 		ctx,
 		workload.ReadMetricsBaseline,
 		opts.CreateSnapshot,
@@ -67,7 +74,7 @@ func historyAndSnapshotsForApp(
 	if stored == nil && opts.GetSnapshotManifest != nil && len(snaps) > constants.DefaultInitValue {
 		diff.HydrateApplicationFromV1Snapshots(ctx, app, snaps, opts.GetSnapshotManifest)
 	}
-	return h, snaps
+	return h, snaps, authored
 }
 
 func buildDiffOpts(app *application.Application, opts GetApplicationsOptions) *diff.DiffOptions {
@@ -131,12 +138,12 @@ func GetApplications(
 		totalResources += apps[i].ResourceCount
 	}
 
-	applyHistoryFromDiff(ctx, &apps, opts)
+	authored := applyHistoryFromDiff(ctx, &apps, opts)
 	for i := range apps {
 		metrics.PopulateApplicationMetrics(ctx, &apps[i])
 	}
 
-	PublishApplications(opts.NatsClient, apps)
+	PublishApplications(opts.NatsClient, apps, authored)
 	runEnrichmentWaitLoop(ctx, rdb, opts, enqueuedCount, apps)
 
 	return response.GenericResponse{

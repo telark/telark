@@ -11,7 +11,7 @@ require (
 	github.com/redis/go-redis/v9 v9.21.0
 	github.com/telark/data v1.14.0
 	github.com/telark/kcore v0.6.0
-	github.com/telark/rest v0.12.0
+	github.com/telark/rest v0.12.1
 	github.com/telark/x-ware v0.2.0
 	golang.org/x/sync v0.22.0
 	k8s.io/api v0.35.4

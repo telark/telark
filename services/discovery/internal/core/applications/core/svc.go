@@ -36,6 +36,10 @@ func applyHistoryFromDiff(
 		app.History = h
 		app.Snapshots = snaps
 		authored[i] = ok
+		// Nothing authored means the publish omits snapshots, leaving the prewritten files unreferenced.
+		if !ok && isPrewrittenForApp(app.Name, opts) {
+			snapshot.DiscardSnapshots(opts.PrewrittenSnapshots, opts.DeleteSnapshot)
+		}
 		snapshot.NormalizeApplicationSnapshotTakenAt(app)
 	}
 	return authored

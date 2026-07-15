@@ -8,6 +8,7 @@ import (
 	"github.com/telark/discovery/internal/constants"
 	applicationscore "github.com/telark/discovery/internal/core/applications/core"
 	"github.com/telark/discovery/internal/core/applications/history/diff"
+	appsnapshot "github.com/telark/discovery/internal/core/applications/snapshot"
 	"github.com/telark/discovery/internal/discovery/prewarm"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -71,15 +72,17 @@ func (m *Manager) applyFlushWithLock(
 		}
 		return nil
 	}
-	byNS := oldObjectsByNamespace(buf)
-	newSnaps, err := writePreSnapshotsForNamespaces(nextGen, byNS, opts.CreateSnapshot)
-	if err != nil {
-		m.coalesce.clearBufferRedis(appName)
-		return err
-	}
+	// Resolved before any file is written: bailing after writePreSnapshots orphans them.
 	inputs := inputsForApp(ctx, m, stored, appName)
 	if len(inputs) == constants.DefaultInitValue {
 		return nil
+	}
+	byNS := oldObjectsByNamespace(buf)
+	newSnaps, err := writePreSnapshotsForNamespaces(nextGen, byNS, opts.CreateSnapshot)
+	if err != nil {
+		appsnapshot.DiscardSnapshots(newSnaps, opts.DeleteSnapshot)
+		m.coalesce.clearBufferRedis(appName)
+		return err
 	}
 	applyFlushOpts(&opts, appName, nextGen, newSnaps)
 	_ = applicationscore.GetApplications(ctx, m.cfg.RDB, inputs, opts)

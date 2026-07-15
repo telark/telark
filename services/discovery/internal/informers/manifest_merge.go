@@ -30,11 +30,12 @@ func writePreSnapshotsForNamespaces(
 		}
 		snapID, idErr := appsnapshot.NewSnapshotID()
 		if idErr != nil {
-			return nil, idErr
+			// Partial result: earlier namespaces already wrote files the caller must take back.
+			return out, idErr
 		}
 		path, err := createSnapshot(snapID, scope, ns, nextGen, payload)
 		if err != nil {
-			return nil, err
+			return out, err
 		}
 		out = append(out, application.ApplicationSnapshot{
 			Generation:  nextGen,

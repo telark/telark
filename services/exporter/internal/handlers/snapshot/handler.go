@@ -60,6 +60,20 @@ func GetSnapshotManifest() func(http.ResponseWriter, *http.Request) {
 	}
 }
 
+func DeleteSnapshot() func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := sharedutils.GetPathParam(w, r, constants.IDParam)
+		if err != nil {
+			return
+		}
+
+		scope := r.URL.Query().Get(constants.ScopeParam)
+		namespace := r.URL.Query().Get(constants.NamespaceParam)
+		generation := r.URL.Query().Get(constants.GenerationParam)
+		snapshotexp.RemoveSnapshot(w, id, scope, namespace, generation)
+	}
+}
+
 func GetSnapshotInfos() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		snapshotexp.ReadSnapshotInfos(w)

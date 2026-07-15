@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/telark/kcore/manifest"
 	"github.com/telark/kcore/resilience/retry"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,7 +29,11 @@ func ApplyUnstructuredServerSide(
 	onApplied ApplyLogFunc,
 ) error {
 	for i := range resources {
-		res := resources[i]
+		// Apply a sanitized copy: an apply config must never carry
+		// cluster-managed fields, and Force only overrides field-manager
+		// conflicts, not the resourceVersion precondition.
+		res := *resources[i].DeepCopy()
+		manifest.CleanManifestForApply(res.Object)
 		gvk := res.GroupVersionKind()
 
 		mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)

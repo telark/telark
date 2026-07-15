@@ -77,7 +77,7 @@ func GetRawManifest(
 		return nil, err
 	}
 	m := obj.Object
-	cleanManifestForApply(m)
+	CleanManifestForApply(m)
 	raw, err := json.Marshal(m)
 	if err != nil {
 		return nil, err
@@ -85,8 +85,11 @@ func GetRawManifest(
 	return raw, nil
 }
 
-// removes cluster-managed and apply-hostile fields
-func cleanManifestForApply(m map[string]any) {
+// CleanManifestForApply removes cluster-managed and apply-hostile fields.
+// Server-side apply runs an optimistic concurrency check whenever
+// metadata.resourceVersion is present, so a stored manifest that keeps it can
+// never be applied back once the live object has moved on.
+func CleanManifestForApply(m map[string]any) {
 	stripClusterMetadata(m)
 	kind := strings.TrimSpace(kindString(m))
 

@@ -43,6 +43,9 @@ const (
 	CoordinationElectionResignTimeoutSec               = 5
 	CoordinationBackgroundProcessingSlots              = 4
 	DiscoveryLeaderGatePoll                            = 500 * time.Millisecond
+	// Fallback for the leader's rediscovery cycle when GlobalConfig carries no
+	// fetch interval. Operators set the real value through the UI setting.
+	PrewarmDefaultInterval = 60 * time.Second
 	GraceScaleTTL                                      = 90 * time.Second
 	CleanupCooldownTTL                                 = 60 * time.Second
 	CleanupLoopGuardLogAt                        int64 = 2

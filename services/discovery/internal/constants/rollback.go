@@ -15,8 +15,9 @@ const (
 	// CRD schema keys.
 	RollbackSpecKey      = "spec"
 	RollbackRollbacksKey = "rollbacks"
-	RollbackHistoryKey   = "history"
-	RollbackChangeLogKey = "changeLog"
+	RollbackHistoryKey    = "history"
+	RollbackChangeLogKey  = "changeLog"
+	RollbackGenerationKey = "generation"
 
 	// Workload kinds.
 	RollbackKindDeployment     = "Deployment"

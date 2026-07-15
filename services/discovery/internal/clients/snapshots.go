@@ -116,6 +116,29 @@ func (c *SnapshotClient) verifySnapshotReadable(
 	return fmt.Errorf(string(constants.ErrFailedGetSnapshotManifest), id, lastErr)
 }
 
+func (c *SnapshotClient) DeleteSnapshot(
+	id string,
+	scope string,
+	namespace string,
+	generation int,
+) error {
+	resp, err := c.client.DeleteSnapshot(id, scope, namespace, strconv.Itoa(generation))
+	if err != nil {
+		return fmt.Errorf(string(constants.ErrFailedDeleteSnapshot), err)
+	}
+	if resp == nil {
+		return errors.New(string(constants.ErrFailedDeleteSnapshot))
+	}
+	if resp.Status != http.StatusOK {
+		return fmt.Errorf(
+			string(constants.ErrFailedDeleteSnapshotWithStatus),
+			resp.Status,
+			resp.Message,
+		)
+	}
+	return nil
+}
+
 func (c *SnapshotClient) GetSnapshotManifest(
 	ctx context.Context,
 	snapshotID string,

@@ -126,6 +126,9 @@ func BuildPrewarmApplicationOptions() serviceapp.GetApplicationsOptions {
 	opts.CreateSnapshot = func(id, scope, namespace string, generation int, manifest any) (string, error) {
 		return snapshotClient.CreateSnapshotAndReturnPath(id, scope, namespace, generation, manifest)
 	}
+	opts.DeleteSnapshot = func(id, scope, namespace string, generation int) error {
+		return snapshotClient.DeleteSnapshot(id, scope, namespace, generation)
+	}
 	opts.GetSnapshotManifest = func(
 		ctx context.Context,
 		snapshotID string,

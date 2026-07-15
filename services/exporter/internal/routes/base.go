@@ -511,5 +511,13 @@ func snapshotRoutes(optimizer *performance.Optimizer) []router.Route {
 				constants.OpGet,
 			),
 		),
+		router.CreateRoute(base.Delete, snapshotendpoints.DeleteSnapshot,
+			performance.NewDynamicOptimizedHandlerFunc(
+				optimizer,
+				snapshothandler.DeleteSnapshot(),
+				constants.ResourceSnapshot,
+				constants.OpDelete,
+			),
+		),
 	}
 }

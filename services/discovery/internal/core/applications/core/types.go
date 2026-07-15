@@ -25,6 +25,9 @@ type GetApplicationsOptions struct {
 	GetStoredApplication func(name string) *application.Application
 	// CreateSnapshot stores manifests in exporter snapshot storage and returns the stored path.
 	CreateSnapshot func(id string, scope string, namespace string, generation int, manifest any) (string, error)
+	// DeleteSnapshot removes a snapshot file from exporter snapshot storage. Used to take back files
+	// written ahead of a diff that then authored nothing. When nil, those files are left in place.
+	DeleteSnapshot func(id string, scope string, namespace string, generation int) error
 	// GetSnapshotManifest fetches a previously stored snapshot manifest from exporter snapshot storage (optional).
 	// When set, it is used to ensure "pre-change" snapshots reflect the previous known state.
 	GetSnapshotManifest func(

@@ -173,6 +173,101 @@ func ReadSnapshot(w http.ResponseWriter, id string, scope string, namespace stri
 	)
 }
 
+func RemoveSnapshot(w http.ResponseWriter, id string, scope string, namespace string, generation string) {
+	if !requireExplicitGeneration(w, generation) {
+		return
+	}
+	target, ok := validateAndResolvePath(w, id, scope, namespace, generation)
+	if !ok {
+		return
+	}
+	if !ensureWithinSnapshotsBase(w, id, target.Path) {
+		return
+	}
+	if !removeSnapshotFile(w, id, target.Path) {
+		return
+	}
+	sendSnapshotDeleted(w, id, scope, target)
+}
+
+// An empty generation resolves to "latest" on the read paths.
+func requireExplicitGeneration(w http.ResponseWriter, generation string) bool {
+	if strings.TrimSpace(generation) != constants.EmptyString {
+		return true
+	}
+	responseutils.LogAndSendResponse(
+		w,
+		http.StatusBadRequest,
+		response.OperationUnprocessed,
+		string(constants.ErrSnapshotGenerationForDelete),
+		nil,
+		nil,
+	)
+	return false
+}
+
+// namespace reaches BuildSnapshotDir unvalidated, so it can traverse outside the base.
+func ensureWithinSnapshotsBase(w http.ResponseWriter, id string, path string) bool {
+	base := envmanager.GetSnapshotsPath()
+	if snaputil.IsWithinBase(path, base) {
+		return true
+	}
+	lg.Error(fmt.Sprintf(string(constants.ErrSnapshotPathOutsideBaseContext), id, path, base))
+	responseutils.LogAndSendResponse(
+		w,
+		http.StatusBadRequest,
+		response.OperationUnprocessed,
+		string(constants.ErrSnapshotPathOutsideBase),
+		nil,
+		nil,
+	)
+	return false
+}
+
+func removeSnapshotFile(w http.ResponseWriter, id string, path string) bool {
+	err := os.Remove(path)
+	if err == nil {
+		return true
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		responseutils.LogAndSendResponse(
+			w,
+			http.StatusNotFound,
+			response.OperationNotFound,
+			string(constants.ErrSnapshotNotFound),
+			nil,
+			nil,
+		)
+		return false
+	}
+	lg.Error(fmt.Sprintf(string(constants.ErrSnapshotDeleteContext), id, path, err))
+	responseutils.LogAndSendResponse(
+		w,
+		http.StatusInternalServerError,
+		response.OperationError,
+		string(constants.ErrSnapshotDeleteFailed),
+		nil,
+		err,
+	)
+	return false
+}
+
+func sendSnapshotDeleted(w http.ResponseWriter, id string, scope string, target *snaputil.SnapshotTarget) {
+	responseutils.LogAndSendResponse(
+		w,
+		http.StatusOK,
+		response.OperationSuccess,
+		string(constants.InfSnapshotDeleteSuccessful),
+		map[string]any{
+			constants.FieldID:         id,
+			constants.FieldScope:      scope,
+			constants.FieldNamespace:  target.Namespace,
+			constants.FieldGeneration: target.Generation,
+		},
+		nil,
+	)
+}
+
 func ReadSnapshotManifest(w http.ResponseWriter, id string, scope string, namespace string, generation string) {
 	ReadSnapshotManifestWithAccept(w, id, scope, namespace, generation, constants.EmptyString)
 }

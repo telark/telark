@@ -244,7 +244,9 @@ func fetchSnapshotItem(
 ) *snapshotResourceItem {
 	if GetManifestFromCache != nil {
 		if m, ok := GetManifestFromCache(res.Kind, res.Name, res.Namespace); ok {
-			delete(m, shared.ManifestStatusKey)
+			// Informer objects carry cluster-managed metadata; GetRawManifest
+			// already cleans its own result, so only the cache hit needs this.
+			kcoremanifest.CleanManifestForApply(m)
 			return &snapshotResourceItem{
 				Kind:      res.Kind,
 				Name:      res.Name,
@@ -321,11 +323,11 @@ func PayloadFromUnstructured(objs []unstructured.Unstructured) map[string]any {
 
 	resourcePayload := make([]map[string]any, constants.DefaultInitValue, len(objs))
 	for i := range objs {
-		obj := kcoremanifest.UnstructuredWithoutManagedFields(&objs[i])
+		obj := objs[i].DeepCopy()
 		if obj == nil || obj.Object == nil {
 			continue
 		}
-		delete(obj.Object, shared.ManifestStatusKey)
+		kcoremanifest.CleanManifestForApply(obj.Object)
 		resourcePayload = append(resourcePayload, map[string]any{
 			shared.PayloadKeyKind:      obj.GetKind(),
 			shared.PayloadKeyName:      obj.GetName(),

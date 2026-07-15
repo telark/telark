@@ -13,7 +13,7 @@ import (
 	natscore "github.com/telark/x-ware/nats/core"
 )
 
-func PublishApplications(natsClient *natscore.NATSClient, apps []application.Application) {
+func PublishApplications(natsClient *natscore.NATSClient, apps []application.Application, authored []bool) {
 	if natsClient == nil {
 		return
 	}
@@ -23,6 +23,9 @@ func PublishApplications(natsClient *natscore.NATSClient, apps []application.App
 		app := &apps[i]
 		snapshot.NormalizeApplicationSnapshotTakenAt(app)
 		payload := applicationPayload(app)
+		if i >= len(authored) || !authored[i] {
+			stripUnauthoredHistory(payload)
+		}
 		params := publisher.PublishUpdateParams{
 			Name:    app.Name,
 			Scope:   resourceshared.ApplicationSpecScope,
@@ -58,4 +61,13 @@ func applicationPayload(app *application.Application) map[string]any {
 	}
 	replaceSnapshotsWithExplicitTakenAt(m, app)
 	return m
+}
+
+// stripUnauthoredHistory drops history and snapshots from a payload the caller
+// did not author. The CR is written with a JSON merge patch, so omitting the
+// keys leaves the stored values untouched; echoing back a possibly stale read
+// would instead overwrite history authored by a concurrent flush.
+func stripUnauthoredHistory(m map[string]any) {
+	delete(m, payloadKeyHistory)
+	delete(m, payloadKeySnapshots)
 }

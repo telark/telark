@@ -70,8 +70,11 @@ func ensureSnapshotForGeneration(ctx context.Context, a snapshotEnsureArgs) ([]a
 	if a.diffOpts.FromCoalescingFlush {
 		return a.prev, false
 	}
+	// Force sync has no informer-captured oldObject, so no honest pre-update
+	// snapshot can exist for nextGen. Reporting success here would record a
+	// changelog entry with nothing to roll back to.
 	if a.diffOpts.FromForceSync {
-		return a.prev, true
+		return a.prev, false
 	}
 	lockKey, acquired := AcquireGenProcessingLock(ctx, a.rdb, a.fresh.Name, a.nextGen)
 	if !acquired {
@@ -117,7 +120,7 @@ func DiffApplications(
 	stored *application.Application,
 	fresh application.Application,
 	diffOpts *DiffOptions,
-) (application.ApplicationHistory, []application.ApplicationSnapshot) {
+) (application.ApplicationHistory, []application.ApplicationSnapshot, bool) {
 	if stored == nil {
 		return newAppWithBaselineSnapshot(ctx, createSnapshot, fresh)
 	}
@@ -159,15 +162,20 @@ func handleNoChange(
 	stored *application.Application,
 	fresh *application.Application,
 	diffOpts *DiffOptions,
-) (application.ApplicationHistory, []application.ApplicationSnapshot) {
+) (application.ApplicationHistory, []application.ApplicationSnapshot, bool) {
 	h := noChangeHistory(stored)
 	prev := snapshotsNoChange(stored)
-	if shouldBackfillNoChangeSnapshot(stored, prev, h.Generation) {
-		if diffOpts == nil || !diffOpts.FromCoalescingFlush {
-			prev, _ = maybeAddSnapshotBestEffort(ctx, createSnapshot, fresh, prev, h.Generation)
-		}
+	if !shouldBackfillNoChangeSnapshot(stored, prev, h.Generation) {
+		return h, prev, false
 	}
-	return h, prev
+	if diffOpts != nil && diffOpts.FromCoalescingFlush {
+		return h, prev, false
+	}
+	backfilled, err := maybeAddSnapshotBestEffort(ctx, createSnapshot, fresh, prev, h.Generation)
+	if err != nil {
+		return h, prev, false
+	}
+	return h, backfilled, snapshot.HasSnapshotGeneration(backfilled, h.Generation)
 }
 
 func handleChange(
@@ -179,7 +187,7 @@ func handleChange(
 	appChanges []application.ApplicationChange,
 	detectedAtOverride *time.Time,
 	diffOpts *DiffOptions,
-) (application.ApplicationHistory, []application.ApplicationSnapshot) {
+) (application.ApplicationHistory, []application.ApplicationSnapshot, bool) {
 	normalizeApplicationChangeDescriptions(appChanges)
 	filtered := gate.ApplyFilters(ctx, rdb, fresh, appChanges)
 	if len(filtered) == constants.DefaultInitValue {
@@ -209,12 +217,12 @@ func handleChange(
 		lg:             lg,
 	})
 	if !ok {
-		return noChangeHistory(stored), snapshotsNoChange(stored)
+		return noChangeHistory(stored), snapshotsNoChange(stored), false
 	}
 
 	h := changeHistory(stored, *fresh, filtered, detectedAtOverride)
 	gate.PersistRedisState(ctx, rdb, fresh.Name, LastChangeLogEntry(h))
-	return h, prev
+	return h, prev, true
 }
 
 func CurrentGenerationOrDefault(stored *application.Application) int {
@@ -454,7 +462,7 @@ func newAppWithBaselineSnapshot(
 	ctx context.Context,
 	createSnapshot func(id string, scope string, namespace string, generation int, manifest any) (string, error),
 	fresh application.Application,
-) (application.ApplicationHistory, []application.ApplicationSnapshot) {
+) (application.ApplicationHistory, []application.ApplicationSnapshot, bool) {
 	h := NewApplicationHistory()
 	takenAt := time.Now().UTC()
 	baseline := snapshot.BuildSnapshotEntries(
@@ -467,5 +475,5 @@ func newAppWithBaselineSnapshot(
 		takenAt,
 	)
 	merged := snapshot.MergeSnapshots([]application.ApplicationSnapshot{}, baseline, snapshot.MaxSnapshots())
-	return h, merged
+	return h, merged, true
 }

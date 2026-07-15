@@ -2,16 +2,19 @@ package snapshots
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strconv"
 
+	"github.com/telark/data/errors"
 	"github.com/telark/rest/base"
 	"github.com/telark/rest/clients/shared"
 	"github.com/telark/rest/constants"
 	eps "github.com/telark/rest/endpoints/snapshots"
 	"github.com/telark/rest/response"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	k8sjson "k8s.io/apimachinery/pkg/util/json"
 )
 
 type Client struct {
@@ -82,7 +85,7 @@ func (c *Client) GetSnapshotManifest(
 		return nil, err
 	}
 
-	objs, err := shared.GetRawJSONWithHeaders[[]map[string]any](
+	raw, err := shared.GetRawJSONWithHeaders[json.RawMessage](
 		c.Client,
 		epWithQuery,
 		map[string]string{"Accept": "application/json"},
@@ -91,8 +94,16 @@ func (c *Client) GetSnapshotManifest(
 		return nil, err
 	}
 
-	out := make([]unstructured.Unstructured, constants.EmptySliceLength, len(*objs))
-	for _, obj := range *objs {
+	// encoding/json decodes every number as float64, which unstructured's typed
+	// accessors reject. k8sjson decodes whole numbers as int64, the only numeric
+	// form unstructured.Unstructured.Object is allowed to hold.
+	var objs []map[string]any
+	if err := k8sjson.Unmarshal(*raw, &objs); err != nil {
+		return nil, fmt.Errorf(string(errors.ErrRestDecodeResponse), err)
+	}
+
+	out := make([]unstructured.Unstructured, constants.EmptySliceLength, len(objs))
+	for _, obj := range objs {
 		out = append(out, unstructured.Unstructured{Object: obj})
 	}
 	return out, nil

@@ -7,10 +7,8 @@ import (
 	roledata "github.com/telark/data/resources/role"
 )
 
-// Allows reports whether id satisfies req.
-//
-// A deny rule is checked before the level, so withholding one action from a
-// role does not depend on what level that role holds.
+// Deny is checked before level, so withholding one action does not depend on
+// the level the role holds.
 func Allows(id Identity, req Requirement) bool {
 	if isRuleDenied(id.Grants, req) {
 		return false
@@ -24,10 +22,8 @@ func Allows(id Identity, req Requirement) bool {
 	return granted.Covers(req.MinLevel)
 }
 
-// A role's Rules list names the individual actions withheld from it, in the
-// form "<scope>.<action>.deny" (see RuleKey). A rule therefore denies one
-// action, not the whole scope: a role denied "applications.deleteapplication"
-// keeps every other application action.
+// A rule denies one action, not the whole scope: a role denied
+// "applications.deleteapplication" keeps every other application action.
 func isRuleDenied(grants Grants, req Requirement) bool {
 	if req.Rule == dataconstants.EmptyString {
 		return false

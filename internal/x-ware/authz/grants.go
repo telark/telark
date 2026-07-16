@@ -12,24 +12,21 @@ import (
 	userdata "github.com/telark/data/resources/user"
 )
 
-// GrantSource supplies the records grants are computed from. A host that owns
-// them reads them directly; one that does not fetches them.
+// A host that owns these records reads them directly; one that does not fetches them.
 type GrantSource interface {
 	User(userID string) (*userdata.UserAsResource, error)
 	Group(groupID string) (*groupdata.GroupAsResource, error)
 	Role(roleID string) (*roledata.RoleAsResource, error)
 }
 
-// Warner receives records that could not be read. A role or group that cannot
-// be loaded is skipped rather than fatal, so one broken reference cannot lock
-// every user out, but it must not pass silently either.
+// An unreadable role or group is skipped, not fatal: one broken reference must
+// not lock every user out, nor pass silently.
 type Warner interface {
 	Warn(message string)
 }
 
-// CollectGrants flattens every role a user holds, directly or through a group,
-// into the strongest level per scope. It lives here so that the rules deciding
-// what a role grants exist once rather than once per service.
+// Flattens every role a user holds into the strongest level per scope. Here, so
+// the rules deciding what a role grants exist once rather than once per service.
 func CollectGrants(source GrantSource, log Warner, userID string) (Grants, error) {
 	user, err := source.User(userID)
 	if err != nil {
@@ -95,8 +92,7 @@ func applyRole(grants *Grants, source GrantSource, log Warner, roleID string) {
 	}
 }
 
-// RoleGrantsAccess reports whether a role currently confers anything. Only an
-// Active, unexpired role does.
+// Only an Active, unexpired role confers anything.
 func RoleGrantsAccess(role *roledata.RoleAsResource) bool {
 	if role.Status != roledata.RoleStatusActive {
 		return false
@@ -104,8 +100,7 @@ func RoleGrantsAccess(role *roledata.RoleAsResource) bool {
 	return !roleExpired(role)
 }
 
-// An unparsable expiry counts as expired: a validity that cannot be read must
-// not be read as permanent.
+// An unparsable expiry counts as expired, never as permanent.
 func roleExpired(role *roledata.RoleAsResource) bool {
 	if role.Validity == nil || role.Validity.Type != roledata.ValidityTypeTemporary {
 		return false

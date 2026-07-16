@@ -1,12 +1,12 @@
 package authz
 
 import (
-	groupdata "github.com/telark/data/resources/group"
-	roledata "github.com/telark/data/resources/role"
-	userdata "github.com/telark/data/resources/user"
 	"github.com/telark/auth/internal/clients"
 	"github.com/telark/auth/internal/constants"
 	authhelper "github.com/telark/auth/internal/helpers/auth"
+	groupdata "github.com/telark/data/resources/group"
+	roledata "github.com/telark/data/resources/role"
+	userdata "github.com/telark/data/resources/user"
 	"github.com/telark/x-ware/authz"
 )
 

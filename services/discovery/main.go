@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -15,9 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gorilla/mux"
 	goredis "github.com/redis/go-redis/v9"
-	dataconstants "github.com/telark/data/constants"
 	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/messages"
 	discoveryauthz "github.com/telark/discovery/internal/authz"
@@ -53,7 +50,7 @@ import (
 var (
 	server          *http.Server
 	lg              = constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
-	authzMiddleware mux.MiddlewareFunc
+	authzMiddleware func(http.Handler) http.Handler
 )
 
 var (
@@ -74,7 +71,7 @@ func main() {
 	}
 	// A misconfigured authz layer must never degrade into an open API, so this
 	// stops the process rather than serving without it.
-	mw, err := initAuthz()
+	mw, err := xauthz.NewFromEnv(discoveryauthz.NewResolver(), discoveryauthz.Requirements())
 	if err != nil {
 		lg.Error(fmt.Sprintf(string(dataerrors.ErrAuthzInitFailed), err))
 		os.Exit(constants.ExitCodeFatal)
@@ -111,26 +108,6 @@ func main() {
 		lg.Error(string(constants.ErrFailedSendShutdownSignal))
 		lg.Error(string(constants.ErrGracefulShutdownFailed))
 	}
-}
-
-func initAuthz() (mux.MiddlewareFunc, error) {
-	serviceToken := strings.TrimSpace(os.Getenv(dataconstants.EnvServiceToken))
-	if serviceToken == constants.EmptyString {
-		return nil, errors.New(string(dataerrors.ErrAuthzServiceTokenNotSet))
-	}
-
-	middleware, err := xauthz.New(xauthz.Config{
-		Resolver:     discoveryauthz.NewResolver(),
-		Requirements: discoveryauthz.Requirements(),
-		RouteKey:     router.KeyFromRequest,
-		ServiceToken: serviceToken,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	lg.Info(string(messages.SuccessAuthzEnabled))
-	return middleware, nil
 }
 
 func startMainService() {

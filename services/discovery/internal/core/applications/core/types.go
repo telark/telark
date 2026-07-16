@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/telark/data/resources/application"
 	natscore "github.com/telark/x-ware/nats/core"
-	"github.com/redis/go-redis/v9"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )

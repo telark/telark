@@ -26,6 +26,8 @@ spec:
       level: Contributor
     - scope: settings
       level: Contributor
+    - scope: protection-plans
+      level: Contributor
   protection:
     preventDeletion: true
     preventModification: true

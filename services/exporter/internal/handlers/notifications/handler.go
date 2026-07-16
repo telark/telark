@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/constants"
 	notifstorage "github.com/telark/exporter/internal/redis/notifications"
 	notiftypes "github.com/telark/exporter/internal/types/notifications"
@@ -71,6 +72,10 @@ func List() func(http.ResponseWriter, *http.Request) {
 			respondBadRequest(w)
 			return
 		}
+
+		if !authz.GuardSelfUser(w, r, userID) {
+			return
+		}
 		limit, _ := strconv.Atoi(r.URL.Query().Get(queryLimit))
 		cursor := r.URL.Query().Get(queryCursor)
 
@@ -101,6 +106,10 @@ func MarkRead() func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
+		if !authz.GuardSelfUser(w, r, userID) {
+			return
+		}
+
 		storage, err := notifstorage.NewStorage()
 		if err != nil {
 			respondInternal(w, err)
@@ -123,6 +132,10 @@ func MarkAllRead() func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
+		if !authz.GuardSelfUser(w, r, userID) {
+			return
+		}
+
 		storage, err := notifstorage.NewStorage()
 		if err != nil {
 			respondInternal(w, err)
@@ -142,6 +155,10 @@ func Clear() func(http.ResponseWriter, *http.Request) {
 		userID := r.URL.Query().Get(queryUserID)
 		if userID == constants.EmptyString {
 			respondBadRequest(w)
+			return
+		}
+
+		if !authz.GuardSelfUser(w, r, userID) {
 			return
 		}
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -14,8 +15,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gorilla/mux"
 	goredis "github.com/redis/go-redis/v9"
+	dataconstants "github.com/telark/data/constants"
+	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/messages"
+	discoveryauthz "github.com/telark/discovery/internal/authz"
 	"github.com/telark/discovery/internal/clients"
 	"github.com/telark/discovery/internal/config"
 	"github.com/telark/discovery/internal/constants"
@@ -40,13 +45,15 @@ import (
 	"github.com/telark/kcore/k8sclient"
 	"github.com/telark/rest/connectivity"
 	"github.com/telark/rest/router"
+	xauthz "github.com/telark/x-ware/authz"
 	"github.com/telark/x-ware/cors"
 	xwareredis "github.com/telark/x-ware/redis/stream"
 )
 
 var (
-	server *http.Server
-	lg     = constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
+	server          *http.Server
+	lg              = constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
+	authzMiddleware mux.MiddlewareFunc
 )
 
 var (
@@ -65,6 +72,15 @@ func main() {
 		lg.Error(msg)
 		os.Exit(constants.ExitCodeFatal)
 	}
+	// A misconfigured authz layer must never degrade into an open API, so this
+	// stops the process rather than serving without it.
+	mw, err := initAuthz()
+	if err != nil {
+		lg.Error(fmt.Sprintf(string(dataerrors.ErrAuthzInitFailed), err))
+		os.Exit(constants.ExitCodeFatal)
+	}
+	authzMiddleware = mw
+
 	async.Init()
 	supervisorCtx, supervisorCancel := context.WithCancel(context.Background())
 	defer supervisorCancel()
@@ -97,11 +113,34 @@ func main() {
 	}
 }
 
+func initAuthz() (mux.MiddlewareFunc, error) {
+	serviceToken := strings.TrimSpace(os.Getenv(dataconstants.EnvServiceToken))
+	if serviceToken == constants.EmptyString {
+		return nil, errors.New(string(dataerrors.ErrAuthzServiceTokenNotSet))
+	}
+
+	middleware, err := xauthz.New(xauthz.Config{
+		Resolver:     discoveryauthz.NewResolver(),
+		Requirements: discoveryauthz.Requirements(),
+		RouteKey:     router.KeyFromRequest,
+		ServiceToken: serviceToken,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	lg.Info(string(messages.SuccessAuthzEnabled))
+	return middleware, nil
+}
+
 func startMainService() {
 	//nolint:gosec // G118: cancel is invoked via shutdownExistingServices on restart/shutdown.
 	serviceCtx, serviceCancel = context.WithCancel(context.Background())
 	redishelper.ResetBootstrapReady()
 	newRouter := router.NewRouter(routes.Routes)
+	// Registered on the router: mux middleware runs after route matching, which
+	// is what makes the matched path template available to find the rule.
+	newRouter.Use(authzMiddleware)
 	corsHandler := cors.NewCORS()
 	handler := corsHandler(newRouter)
 

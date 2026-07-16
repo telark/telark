@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/telark/data/errors"
+	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/constants"
 	sessionexp "github.com/telark/exporter/internal/exporters/auth/session"
 	authutils "github.com/telark/exporter/internal/utils/auth/shared"
@@ -46,6 +47,10 @@ func ListSessionsByUserWithCacheInvalidation() func(http.ResponseWriter, *http.R
 			return
 		}
 
+		if !authz.GuardSelfUser(w, r, userID) {
+			return
+		}
+
 		sessionexp.ListSessionsByUser(w, userID)
 	}
 }
@@ -54,6 +59,10 @@ func GetSessionByToken() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token, err := sharedutils.GetPathParam(w, r, constants.TokenParam)
 		if err != nil {
+			return
+		}
+
+		if !authz.GuardSelfSessionToken(w, r, token) {
 			return
 		}
 
@@ -93,7 +102,14 @@ func DeleteSessionByTokenWithCacheInvalidation(optimizer *performance.Optimizer)
 			return
 		}
 
+		if !authz.GuardSelfSessionToken(w, r, token) {
+			return
+		}
+
 		sessionexp.DeleteSessionByToken(w, token)
+		// The token's cached identity must die with the session, or logout
+		// would leave it usable until the cache entry expired.
+		authz.ForgetSession(r.Context(), token)
 		authutils.InvalidateResourceCaches(optimizer, constants.ResourceUserSession, string(constants.OpDelete), constants.EmptyString)
 	}
 }

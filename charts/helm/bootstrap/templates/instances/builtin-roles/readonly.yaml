@@ -26,6 +26,8 @@ spec:
       level: ReadOnly
     - scope: settings
       level: ReadOnly
+    - scope: protection-plans
+      level: ReadOnly
   protection:
     preventDeletion: true
     preventModification: true

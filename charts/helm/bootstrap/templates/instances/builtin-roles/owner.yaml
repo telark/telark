@@ -26,6 +26,8 @@ spec:
       level: Owner
     - scope: settings
       level: Owner
+    - scope: protection-plans
+      level: Owner
   protection:
     preventDeletion: true
     preventModification: true

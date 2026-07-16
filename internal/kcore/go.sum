@@ -77,8 +77,8 @@ github.com/stretchr/objx v0.5.2/go.mod h1:FRsXN1f5AsAjCGJKqEizvkpNtU+EGNCLh3NxZ/
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
-github.com/telark/data v1.14.0 h1:IzLHakE98huBn7dDTHzFW3e2phb64TgB7gg88pKKg8Q=
-github.com/telark/data v1.14.0/go.mod h1:64sUlmmT0UOTWq+8GofUyU/Ss9mbQ566z2hMrCLRap4=
+github.com/telark/data v1.14.1 h1:FJew6QrJPrR2pIy+wP5oaRRk0LG0LwgK9GnCy7bufZw=
+github.com/telark/data v1.14.1/go.mod h1:Oj2DBnE5j2666m15/QYUDo8KXAYyyOKFOB3DUOOrjM0=
 github.com/x448/float16 v0.8.4 h1:qLwI1I70+NjRFUR3zs1JPUCgaCXSh3SW62uAKT1mSBM=
 github.com/x448/float16 v0.8.4/go.mod h1:14CWIYCyZA/cWjXOioeEpHeN/83MdbZDRQHoFcYsOfg=
 go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=

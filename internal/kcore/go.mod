@@ -3,7 +3,7 @@ module github.com/telark/kcore
 go 1.26.5
 
 require (
-	github.com/telark/data v1.14.0
+	github.com/telark/data v1.14.1
 	k8s.io/api v0.35.4
 	k8s.io/apimachinery v0.35.4
 	k8s.io/client-go v0.35.4

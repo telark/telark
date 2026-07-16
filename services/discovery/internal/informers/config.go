@@ -3,8 +3,8 @@ package informers
 import (
 	"context"
 
-	applicationmodel "github.com/telark/data/resources/application"
 	"github.com/redis/go-redis/v9"
+	applicationmodel "github.com/telark/data/resources/application"
 )
 
 type Config struct {

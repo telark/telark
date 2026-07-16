@@ -15,11 +15,8 @@ import (
 )
 
 // Editing what a user may do is a different operation from editing their
-// profile, even though both arrive as one PATCH.
-//
-// Scope and level per field come from the product's own action table (the
-// dashboard's scopeRules): attaching a role is users/Owner, group membership
-// is governed by the groups scope, and suspending an account is Admin.
+// profile, though both arrive as one PATCH. Scope and level per field come
+// from the product action table.
 var privilegedUserFields = map[string]xauthz.Requirement{
 	constants.FieldAssignedRolesIDs: {
 		Scope:    roledata.ScopeUsers,
@@ -53,10 +50,8 @@ func denyForbidden(w http.ResponseWriter, message string) {
 	)
 }
 
-// GuardUserPatch separates a profile edit from a privilege edit. The route's
-// Contributor rule covers the former; the latter additionally demands Owner on
-// the users scope and refuses to let anyone edit their own privileges, which is
-// what stops a self-service promotion to Admin.
+// GuardUserPatch separates a profile edit from a privilege edit, and refuses
+// anyone editing their own privileges: that is what stops self-promotion.
 func GuardUserPatch(w http.ResponseWriter, r *http.Request, targetUserID string, body map[string]any) bool {
 	required := privilegesIn(body)
 	if len(required) == constants.DefaultInitValue {
@@ -98,9 +93,7 @@ func privilegesIn(body map[string]any) []xauthz.Requirement {
 	return required
 }
 
-// GuardSelfUser restricts a route to the caller's own record. Holding the users
-// scope means being allowed to administer users, not to read their live session
-// tokens.
+// Holding the users scope means administering users, not reading their tokens.
 func GuardSelfUser(w http.ResponseWriter, r *http.Request, targetUserID string) bool {
 	identity, ok := identityOf(r)
 	if !ok {
@@ -116,9 +109,8 @@ func GuardSelfUser(w http.ResponseWriter, r *http.Request, targetUserID string) 
 	return false
 }
 
-// GuardSelfSessionToken restricts a session route to a token the caller owns.
-// An unknown token is refused with the same answer as someone else's, so the
-// route cannot be used to test whether a token exists.
+// An unknown token is refused like someone elses, so this cannot probe for
+// which tokens exist.
 func GuardSelfSessionToken(w http.ResponseWriter, r *http.Request, token string) bool {
 	identity, ok := identityOf(r)
 	if !ok {
@@ -130,8 +122,7 @@ func GuardSelfSessionToken(w http.ResponseWriter, r *http.Request, token string)
 		return true
 	}
 
-	// Expiry is deliberately not checked: a user must still be able to delete
-	// their own expired sessions.
+	// Expiry unchecked: a user must still be able to delete an expired session.
 	resource, err := sessionutils.FindSessionByToken(token)
 	if err != nil {
 		denyForbidden(w, constants.ErrAuthzNotSessionOwner)
@@ -147,10 +138,8 @@ func GuardSelfSessionToken(w http.ResponseWriter, r *http.Request, token string)
 	return true
 }
 
-// A category names the scope it classifies, and the deny rules that govern it
-// live in that scope: adding a category to groups is groups.addgroupcategory,
-// to roles it is roles.addrolecategory. The route cannot know which applies, so
-// the level and rule are resolved from the category's own scope here.
+// A category names the scope it classifies, and its deny rules live in that
+// scope, so both are resolved from the category itself.
 var categoryActions = map[string]map[roledata.PermissionLevel]string{
 	roledata.ScopeGroups: {
 		roledata.PermissionLevelContributor: roledata.ActionAddGroupCategory,
@@ -162,9 +151,7 @@ var categoryActions = map[string]map[roledata.PermissionLevel]string{
 	},
 }
 
-// GuardCategoryScope restricts a category write to holders of the scope that
-// category classifies. A scope no role can grant is refused outright, so an
-// unrecognized category scope cannot be used to slip past the check.
+// An unknown scope is refused outright rather than slipping past the check.
 func GuardCategoryScope(w http.ResponseWriter, r *http.Request, categoryScope string, level roledata.PermissionLevel) bool {
 	identity, ok := identityOf(r)
 	if !ok {
@@ -195,13 +182,8 @@ func GuardCategoryScope(w http.ResponseWriter, r *http.Request, categoryScope st
 	return true
 }
 
-// One endpoint patches the whole GlobalConfig, but the role model grants its
-// parts separately: discovery config and snapshot storage are Contributor with
-// a rule each, AI insights is Owner. The route's own check is the weakest of
-// them, so each field is checked against its own requirement here.
-//
-// Identity provider settings decide who can authenticate at all and predate the
-// rule vocabulary, so they take Admin and carry no rule to withhold.
+// One endpoint, but the role model grants its parts separately. Identity
+// settings decide who can authenticate at all, so they take Admin.
 var globalConfigFields = map[string]xauthz.Requirement{
 	constants.FieldExcludedNamespaces: {
 		Scope:    roledata.ScopeSettings,
@@ -224,11 +206,9 @@ var globalConfigFields = map[string]xauthz.Requirement{
 	},
 }
 
-// RedactGlobalConfig strips the parts of the config a caller may not see.
-//
 // The provider API key is part of AI insights, so reading it takes the same
-// right as changing it. Without this it would travel to anyone allowed to read
-// the config at all, which is every role: a secret handed out at ReadOnly.
+// right as changing it. Every role can read the config, so without this the
+// secret reaches ReadOnly users.
 func RedactGlobalConfig(r *http.Request, resource *unstructured.Unstructured) {
 	if resource == nil || mayControlAIInsights(r) {
 		return
@@ -258,9 +238,7 @@ func mayControlAIInsights(r *http.Request) bool {
 	return xauthz.Allows(identity, globalConfigFields[constants.FieldAI])
 }
 
-// GuardGlobalConfigPatch checks every part of the config the body touches.
-// Fields absent from the table (a user's own display preferences, the cluster
-// version discovery reports) are left to the route's own check.
+// Fields absent from the table are not privileges and stay open.
 func GuardGlobalConfigPatch(w http.ResponseWriter, r *http.Request, spec map[string]any) bool {
 	required := globalConfigRequirementsIn(spec)
 	if len(required) == constants.DefaultInitValue {
@@ -297,8 +275,7 @@ func globalConfigRequirementsIn(spec map[string]any) []xauthz.Requirement {
 	return required
 }
 
-// GuardRoleDeletion enforces protection.preventDeletion, which the built-in
-// roles set but nothing checked.
+// Enforces protection.preventDeletion, which builtin roles set but nothing read.
 func GuardRoleDeletion(w http.ResponseWriter, existingRole *roledata.RoleAsResource) bool {
 	if existingRole.Protection == nil || !existingRole.Protection.PreventDeletion {
 		return true

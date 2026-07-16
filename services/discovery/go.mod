@@ -5,14 +5,13 @@ go 1.26.5
 require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
-	github.com/gorilla/mux v1.8.1
 	github.com/kyverno/kyverno v1.18.0
 	github.com/nats-io/nats.go v1.52.0
 	github.com/redis/go-redis/v9 v9.21.0
 	github.com/telark/data v1.14.1
-	github.com/telark/kcore v0.6.1
-	github.com/telark/rest v0.13.1
-	github.com/telark/x-ware v0.3.1
+	github.com/telark/kcore v0.6.2
+	github.com/telark/rest v0.13.2
+	github.com/telark/x-ware v0.3.2
 	golang.org/x/sync v0.22.0
 	k8s.io/api v0.35.4
 	k8s.io/apimachinery v0.35.4
@@ -146,6 +145,7 @@ require (
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.14 // indirect
 	github.com/googleapis/gax-go/v2 v2.19.0 // indirect
+	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.8 // indirect

@@ -6,13 +6,14 @@ require (
 	github.com/nats-io/nats.go v1.52.0
 	github.com/redis/go-redis/v9 v9.21.0
 	github.com/telark/data v1.14.1
-	github.com/telark/rest v0.13.1
-	github.com/telark/x-ware v0.3.1
+	github.com/telark/rest v0.13.2
+	github.com/telark/x-ware v0.3.2
 )
 
 require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/klauspost/compress v1.19.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/nats-io/nkeys v0.4.16 // indirect

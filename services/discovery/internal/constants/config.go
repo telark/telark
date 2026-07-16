@@ -49,21 +49,21 @@ const (
 	SimpleConcatLimit = 2
 
 	// Parsing / numeric constants for linters
-	IntBase10                       = 10
-	IntBitSize64                    = 64
-	ZeroInt64         int64         = 0
-	ZeroDuration      time.Duration = 0
-	StatusPending     string        = "pending"
-	StatusInProgress  string        = "in_progress"
-	StatusSuccess     string        = "success"
-	StatusFailed      string        = "failed"
-	PathSeparator     string        = "/"
-	DashSeparator     string        = "-"
-	ColonSeparator    string        = ":"
-	SpaceSeparator                  = " "
-	Wildcard          string        = "*"
-	TwoValue                        = 2
-	ThreeValue                      = 3
+	IntBase10                      = 10
+	IntBitSize64                   = 64
+	ZeroInt64        int64         = 0
+	ZeroDuration     time.Duration = 0
+	StatusPending    string        = "pending"
+	StatusInProgress string        = "in_progress"
+	StatusSuccess    string        = "success"
+	StatusFailed     string        = "failed"
+	PathSeparator    string        = "/"
+	DashSeparator    string        = "-"
+	ColonSeparator   string        = ":"
+	SpaceSeparator                 = " "
+	Wildcard         string        = "*"
+	TwoValue                       = 2
+	ThreeValue                     = 3
 
 	// Snapshot note (split for line-length limits)
 	SnapshotNote = "Manifests reflect K8s state at snapshot time. " +

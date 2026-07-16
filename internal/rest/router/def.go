@@ -33,11 +33,11 @@ func NewRouter(routes []Route) *mux.Router {
 	return router
 }
 
-func CreateRoute(method base.Method, endpoint base.Endpoint, handlerFunc any) Route {
+func CreateRoute(method base.Method, endpoint base.Endpoint, handlerFunc http.HandlerFunc) Route {
 	return Route{
 		Method:     string(method),
 		Pattern:    Pattern(endpoint),
-		HandleFunc: http.HandlerFunc(handlerFunc.(func(w http.ResponseWriter, r *http.Request))),
+		HandleFunc: handlerFunc,
 	}
 }
 

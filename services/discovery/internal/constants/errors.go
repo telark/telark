@@ -42,7 +42,6 @@ const (
 	ErrElectionResignFailed      errors.Error = "[election] failed to resign on shutdown: %v"
 
 	// Local Shared Rest HTTP Errors
-	ErrMissingPathParam  errors.Error = "missing path param: %s"
 	ErrMissingQueryParam errors.Error = "missing required query param: %s"
 
 	// Analyze Errors

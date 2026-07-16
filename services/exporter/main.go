@@ -9,10 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gorilla/mux"
 	goredis "github.com/redis/go-redis/v9"
 	dataerrors "github.com/telark/data/errors"
-	datamessages "github.com/telark/data/messages"
 	exporterauthz "github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/config"
 	"github.com/telark/exporter/internal/constants"
@@ -40,7 +38,7 @@ func main() {
 	initConnectivity()
 	async.Init()
 
-	authzMiddleware, err := initAuthz()
+	authzMiddleware, err := xauthz.NewFromEnv(exporterauthz.NewResolver(), exporterauthz.Requirements())
 	if err != nil {
 		lg.Error(fmt.Sprintf(string(dataerrors.ErrAuthzInitFailed), err))
 		os.Exit(constants.ExitCodeFailure)
@@ -92,7 +90,7 @@ func initConnectivity() {
 	conn.SetReady("exporter", true)
 }
 
-func startServer(optimizer *performance.Optimizer, authzMiddleware mux.MiddlewareFunc) *http.Server {
+func startServer(optimizer *performance.Optimizer, authzMiddleware func(http.Handler) http.Handler) *http.Server {
 	rt := router.NewRouter(routes.InitRoutes(optimizer))
 	// Registered on the router rather than wrapped around it: mux middleware
 	// runs after route matching, which is what makes the matched path template
@@ -117,26 +115,6 @@ func startServer(optimizer *performance.Optimizer, authzMiddleware mux.Middlewar
 		}
 	}()
 	return server
-}
-
-func initAuthz() (mux.MiddlewareFunc, error) {
-	serviceToken, err := envmanager.InitServiceToken()
-	if err != nil {
-		return nil, err
-	}
-
-	middleware, err := xauthz.New(xauthz.Config{
-		Resolver:     exporterauthz.NewResolver(),
-		Requirements: exporterauthz.Requirements(),
-		RouteKey:     router.KeyFromRequest,
-		ServiceToken: serviceToken,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	lg.Info(string(datamessages.SuccessAuthzEnabled))
-	return middleware, nil
 }
 
 func waitForShutdown(server *http.Server) {

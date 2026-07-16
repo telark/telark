@@ -4,27 +4,14 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/gorilla/mux"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/rest/response"
+	requestutils "github.com/telark/rest/utils/request"
 	responseutils "github.com/telark/rest/utils/response"
 )
 
 func GetPathParam(w http.ResponseWriter, r *http.Request, param string) (string, error) {
-	vars := mux.Vars(r)
-	value, exists := vars[param]
-	if !exists || value == constants.EmptyString {
-		responseutils.LogAndSendResponse(
-			w,
-			http.StatusBadRequest,
-			response.OperationError,
-			fmt.Sprintf(string(constants.ErrMissingPathParam), param),
-			nil,
-			nil,
-		)
-		return constants.EmptyString, fmt.Errorf(string(constants.ErrMissingPathParam), param)
-	}
-	return value, nil
+	return requestutils.PathParam(w, r, param)
 }
 
 func GetRequiredQueryParam(w http.ResponseWriter, r *http.Request, param string) (string, error) {

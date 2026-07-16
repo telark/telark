@@ -20,6 +20,8 @@ const (
 	OperationNotFound      OperationStatus = "Not Found"
 	OperationDeleted       OperationStatus = "Deleted"
 	OperationUnprocessed   OperationStatus = "Unprocessed"
+	OperationUnauthorized  OperationStatus = "Unauthorized"
+	OperationForbidden     OperationStatus = "Forbidden"
 	OperationError         OperationStatus = "Error"
 )
 

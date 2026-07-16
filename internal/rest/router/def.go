@@ -1,11 +1,16 @@
 package router
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
 	"github.com/telark/rest/base"
+)
+
+const (
+	pathSeparator = "/"
+	keySeparator  = " "
+	emptyString   = ""
 )
 
 type Route struct {
@@ -31,7 +36,40 @@ func NewRouter(routes []Route) *mux.Router {
 func CreateRoute(method base.Method, endpoint base.Endpoint, handlerFunc any) Route {
 	return Route{
 		Method:     string(method),
-		Pattern:    fmt.Sprintf("/%s/%s", base.V1, endpoint),
+		Pattern:    Pattern(endpoint),
 		HandleFunc: http.HandlerFunc(handlerFunc.(func(w http.ResponseWriter, r *http.Request))),
 	}
+}
+
+func Pattern(endpoint base.Endpoint) string {
+	return pathSeparator + string(base.V1) + pathSeparator + string(endpoint)
+}
+
+// Key identifies a registered route for tables keyed by route, such as an
+// authorization rule map.
+func Key(method base.Method, endpoint base.Endpoint) string {
+	return buildKey(string(method), Pattern(endpoint))
+}
+
+// KeyFromRequest returns the Key of the route that matched this request. It is
+// only meaningful once mux has matched, so a middleware relying on it must be
+// registered with Router.Use rather than wrapped around the router.
+func KeyFromRequest(r *http.Request) string {
+	route := mux.CurrentRoute(r)
+	if route == nil {
+		return emptyString
+	}
+
+	template, err := route.GetPathTemplate()
+	if err != nil {
+		return emptyString
+	}
+
+	return buildKey(r.Method, template)
+}
+
+// Both keys are built here from the same pattern the router registers, so a
+// lookup table cannot drift out of step with the routes it describes.
+func buildKey(method, pattern string) string {
+	return method + keySeparator + pattern
 }

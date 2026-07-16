@@ -33,6 +33,7 @@ func executeHTTPRequestWithHeaders(
 	if payload != nil {
 		req.Header.Set("Content-Type", string(base.JSON))
 	}
+	applyServiceToken(req)
 
 	// Add custom headers
 	for key, value := range headers {

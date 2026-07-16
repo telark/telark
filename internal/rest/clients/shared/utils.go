@@ -65,6 +65,7 @@ func executeHTTPRequest(
 	if payload != nil {
 		req.Header.Set("Content-Type", string(base.JSON))
 	}
+	applyServiceToken(req)
 
 	start := time.Now()
 	resp, doErr := client.httpClient.Do(req)

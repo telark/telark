@@ -198,10 +198,13 @@ func (s *Storage) List(
 	if cursor != constants.EmptyString {
 		maxScore = "(" + cursor
 	}
+	// BYSCORE combined with REV requires Start to carry the max bound and Stop
+	// the min — reversed from the ascending case. Passing them the ascending
+	// way here made every query empty, since -inf is never >= +inf in REV mode.
 	ids, err := s.rdb.ZRangeArgs(ctx, redis.ZRangeArgs{
 		Key:     itemsKey(userID),
-		Start:   "-inf",
-		Stop:    maxScore,
+		Start:   maxScore,
+		Stop:    "-inf",
 		ByScore: true,
 		Rev:     true,
 		Offset:  constants.DefaultInitValue,

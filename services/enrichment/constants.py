@@ -99,3 +99,33 @@ LOG_REDIS_CONNECTED = "Redis connected on attempt {}"
 LOG_REDIS_NOT_READY = "Redis not ready, retrying in {}s... (attempt {}): {}"
 LOG_OLLAMA_READY = "Ollama ready on attempt {}"
 LOG_OLLAMA_NOT_READY = "Ollama not ready, retrying in {}s... (attempt {}): {}"
+# -----------------------------------------------------------------------------
+# Authorization
+# -----------------------------------------------------------------------------
+DEFAULT_AUTH_SERVICE_URL = "http://telark-auth-service:8080"
+AUTHZ_PERMISSIONS_PATH = "/api/v1/auth/permissions"
+AUTHZ_TIMEOUT_SECONDS = 5.0
+
+HEADER_SESSION_TOKEN = "X-Session-Token"
+
+SCOPE_ALL = "ALL"
+SCOPE_SETTINGS = "settings"
+
+PERMISSION_LEVEL_READONLY = "ReadOnly"
+PERMISSION_LEVEL_CONTRIBUTOR = "Contributor"
+PERMISSION_LEVEL_OWNER = "Owner"
+PERMISSION_LEVEL_ADMIN = "Admin"
+
+# Unknown levels rank 0 so they can never grant access.
+PERMISSION_RANKS = {
+    PERMISSION_LEVEL_READONLY: 1,
+    PERMISSION_LEVEL_CONTRIBUTOR: 2,
+    PERMISSION_LEVEL_OWNER: 3,
+    PERMISSION_LEVEL_ADMIN: 4,
+}
+
+MSG_AUTHZ_MISSING_SESSION = "a session token is required"
+MSG_AUTHZ_FORBIDDEN = "you do not have permission to perform this action"
+MSG_AUTHZ_UNAVAILABLE = "unable to verify permissions"
+
+LOG_AUTHZ_RESOLVE_FAILED = "authz: failed to resolve permissions: {error}"

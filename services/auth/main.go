@@ -2,16 +2,20 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
+	"github.com/gorilla/mux"
 	goredis "github.com/redis/go-redis/v9"
+	authauthz "github.com/telark/auth/internal/authz"
 	"github.com/telark/auth/internal/cmd"
 	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
@@ -23,7 +27,11 @@ import (
 	redishelper "github.com/telark/auth/internal/helpers/redis"
 	"github.com/telark/auth/internal/helpers/webauthn"
 	"github.com/telark/auth/internal/routes"
+	dataconstants "github.com/telark/data/constants"
+	dataerrors "github.com/telark/data/errors"
+	datamessages "github.com/telark/data/messages"
 	"github.com/telark/rest/router"
+	xauthz "github.com/telark/x-ware/authz"
 	"github.com/telark/x-ware/cors"
 )
 
@@ -74,7 +82,13 @@ func main() {
 	quitMutex.Unlock()
 	signal.Notify(quitChannel, syscall.SIGINT, syscall.SIGTERM)
 
-	startMainService(cfg)
+	authzMiddleware, err := initAuthz()
+	if err != nil {
+		lg.Error(fmt.Sprintf(string(dataerrors.ErrAuthzInitFailed), err))
+		os.Exit(constants.ExitCodeError)
+	}
+
+	startMainService(cfg, authzMiddleware)
 
 	<-quitChannel
 	lg.Info(string(constants.SuccessServiceShuttingDown))
@@ -82,8 +96,32 @@ func main() {
 	gracefulShutdown(cfg)
 }
 
-func startMainService(cfg *config.Config) {
+func initAuthz() (mux.MiddlewareFunc, error) {
+	serviceToken := strings.TrimSpace(os.Getenv(dataconstants.EnvServiceToken))
+	if serviceToken == constants.EmptyString {
+		return nil, errors.New(string(dataerrors.ErrAuthzServiceTokenNotSet))
+	}
+
+	middleware, err := xauthz.New(xauthz.Config{
+		Resolver:     authauthz.NewResolver(),
+		Requirements: authauthz.Requirements(),
+		RouteKey:     router.KeyFromRequest,
+		ServiceToken: serviceToken,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	lg.Info(string(datamessages.SuccessAuthzEnabled))
+	return middleware, nil
+}
+
+func startMainService(cfg *config.Config, authzMiddleware mux.MiddlewareFunc) {
 	newRouter := router.NewRouter(routes.Routes)
+
+	// Registered on the router: mux middleware runs after route matching, which
+	// is what makes the matched path template available to find the rule.
+	newRouter.Use(authzMiddleware)
 
 	corsHandler := cors.NewCORS()
 	handler := corsHandler(newRouter)

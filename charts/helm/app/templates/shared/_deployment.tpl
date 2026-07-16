@@ -65,8 +65,13 @@ spec:
           ports:
             - containerPort: {{ $port }}
               name: http
-{{- if or $serviceConfig.env (or $serviceConfig.envFromSecret (or $serviceConfig.envFromConfigMap $useNatsCreds)) }}
           env:
+            {{/* Every service authenticates its peers, so this is never optional. */}}
+            - name: {{ $values.app.shared.serviceToken.envVar }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $values.app.name }}-service-token-secret
+                  key: token
 {{- range $key, $value := $serviceConfig.env }}
             - name: {{ $key }}
               value: {{ tpl (printf "%v" $value) (dict "Values" $values) | quote }}
@@ -93,7 +98,6 @@ spec:
                 configMapKeyRef:
                   name: {{ $cm.name }}
                   key: {{ $cm.key }}
-{{- end }}
 {{- end }}
 {{- if and $includeResources $values.app.shared.resources }}
           resources:

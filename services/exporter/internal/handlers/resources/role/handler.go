@@ -9,6 +9,7 @@ import (
 	metadata "github.com/telark/data/metadata/resources"
 	"github.com/telark/data/resources/finalizers"
 	roledata "github.com/telark/data/resources/role"
+	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/cache"
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/exporters/generics"
@@ -205,6 +206,10 @@ func PatchRoleByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(h
 		}
 
 		patchRoleResource(w, roleID, body, optimizer)
+		// A role edit changes the permissions of every user holding it,
+		// directly or through a group, so no single user's grants can be
+		// targeted for invalidation.
+		authz.BumpGeneration(r.Context())
 	}
 }
 
@@ -234,7 +239,17 @@ func DeleteRoleByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 			return
 		}
 
+		existingRole, ok := roleutils.GetExistingRoleForPatch(w, roleID)
+		if !ok {
+			return
+		}
+
+		if !authz.GuardRoleDeletion(w, existingRole) {
+			return
+		}
+
 		resourcesshared.InvalidateResourceCaches(optimizer, constants.ResourceRole, roleID)
+		authz.BumpGeneration(r.Context())
 		lock := concurrency.GetLock(roleID)
 		lock.Lock()
 		defer lock.Unlock()

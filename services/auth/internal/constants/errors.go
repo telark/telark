@@ -81,7 +81,6 @@ const (
 
 	// Validation Errors
 	ErrMissingRequiredFields         errors.Error = "credentialId, publicKey, deviceName and deviceType are required"
-	ErrMissingPathParameter          errors.Error = "missing path parameter: %s"
 	ErrFailedGetConfig               errors.Error = "failed to get config: %v"
 	ErrFailedGenerateSessionToken    errors.Error = "failed to generate session token: %v"
 	ErrManualCredentialParsingFailed errors.Error = "manual credential parsing failed: %v"

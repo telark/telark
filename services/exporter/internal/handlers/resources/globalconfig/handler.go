@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	metadata "github.com/telark/data/metadata/resources"
+	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/constants"
 	resourcesutils "github.com/telark/exporter/internal/utils/resources/shared"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
@@ -16,11 +17,11 @@ import (
 
 func GetGlobalConfig() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_ = r
 		out, ok := getOrRespond(w)
 		if !ok {
 			return
 		}
+		authz.RedactGlobalConfig(r, out)
 		resourcesutils.SendFilteredResourceResponse(w, out)
 	}
 }
@@ -32,6 +33,9 @@ func PatchGlobalConfig() func(http.ResponseWriter, *http.Request) {
 			return
 		}
 		specPatch := extractSpecPatch(body)
+		if !authz.GuardGlobalConfigPatch(w, r, specPatch) {
+			return
+		}
 		patchBody := map[string]any{constants.SpecField: specPatch}
 		if metadataPatch, ok := extractMetadataPatch(body); ok {
 			patchBody[constants.MetadataField] = metadataPatch

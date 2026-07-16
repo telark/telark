@@ -9,6 +9,7 @@ import (
 	metadata "github.com/telark/data/metadata/resources"
 	"github.com/telark/data/resources/finalizers"
 	groupdata "github.com/telark/data/resources/group"
+	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/cache"
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/exporters/generics"
@@ -129,6 +130,9 @@ func PatchGroupByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 		}
 
 		ok2 := patchGroupResource(w, groupID, body, optimizer)
+		// Membership and role changes both alter the grants of an unknown set
+		// of users, so every cached grant is retired rather than one user's.
+		authz.BumpGeneration(r.Context())
 		if ok2 && membersPatched {
 			emitGroupMembershipChanged(groupID, groupName, oldMembers, body)
 		}
@@ -205,6 +209,7 @@ func DeleteGroupByIDWithCacheInvalidation(optimizer *performance.Optimizer) func
 		}
 
 		resourcesutils.InvalidateResourceCaches(optimizer, constants.ResourceGroup, groupID)
+		authz.BumpGeneration(r.Context())
 		lock := concurrency.GetLock(groupID)
 		lock.Lock()
 		defer lock.Unlock()

@@ -6,14 +6,18 @@ import asyncio
 from dataclasses import dataclass
 
 import httpx
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from config import ANTHROPIC_MODEL, GEMINI_MODEL, API_PORT
 
+from authz import require_scope
+
 from constants import (
     API_HOST,
+    PERMISSION_LEVEL_CONTRIBUTOR,
+    SCOPE_SETTINGS,
     CHATGPT_MODELS_URL,
     GROQ_MODELS_URL,
     GEMINI_OPENAI_BASE_URL,
@@ -56,7 +60,13 @@ def create_app() -> FastAPI:
         max_age=600,
     )
 
-    @app.post("/provider/validate-api-key", response_model=ValidateAPIKeyResponse)
+    # Validating a key against a provider is part of configuring insights, and
+    # an open endpoint here would answer "is this API key live?" for anyone.
+    @app.post(
+        "/provider/validate-api-key",
+        response_model=ValidateAPIKeyResponse,
+        dependencies=[Depends(require_scope(SCOPE_SETTINGS, PERMISSION_LEVEL_CONTRIBUTOR))],
+    )
     async def validate_api_key(req: ValidateAPIKeyRequest) -> ValidateAPIKeyResponse:
         provider = (req.provider or "").strip().lower()
         api_key = (req.api_key or "").strip()

@@ -8,6 +8,8 @@ import (
 	categorydata "github.com/telark/data/classification/category"
 	"github.com/telark/data/messages"
 	metadata "github.com/telark/data/metadata/classification"
+	roledata "github.com/telark/data/resources/role"
+	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/cache"
 	"github.com/telark/exporter/internal/constants"
 	categoryutils "github.com/telark/exporter/internal/utils/classification/category"
@@ -40,6 +42,10 @@ func CreateCategoryResourceWithCacheInvalidation(optimizer *performance.Optimize
 		}
 
 		if err := categoryutils.ValidateAndPrepareCategory(category, w); err != nil {
+			return
+		}
+
+		if !authz.GuardCategoryScope(w, r, category.Scope, roledata.PermissionLevelContributor) {
 			return
 		}
 
@@ -218,6 +224,10 @@ func PatchCategoryByIDWithCacheInvalidation(optimizer *performance.Optimizer) fu
 			return
 		}
 
+		if !authz.GuardCategoryScope(w, r, oldScope, roledata.PermissionLevelOwner) {
+			return
+		}
+
 		body, err := sharedutils.GetSpec(w, r)
 		if err != nil {
 			return
@@ -227,6 +237,15 @@ func PatchCategoryByIDWithCacheInvalidation(optimizer *performance.Optimizer) fu
 		var newScope string
 		if scope, ok := body[constants.FieldScope].(string); ok {
 			newScope = scope
+		}
+
+		// Moving a category between scopes needs the same right on the scope it
+		// is moving into, or it would be a way to write into a scope the caller
+		// does not hold.
+		if newScope != constants.EmptyString && newScope != oldScope {
+			if !authz.GuardCategoryScope(w, r, newScope, roledata.PermissionLevelOwner) {
+				return
+			}
 		}
 
 		patchCategoryResource(w, categoryID, existingCategory, body, optimizer)
@@ -246,6 +265,10 @@ func DeleteCategoryByIDWithCacheInvalidation(optimizer *performance.Optimizer) f
 
 		_, deletedScope, ok := categoryutils.GetCategoryWithScope(w, categoryID)
 		if !ok {
+			return
+		}
+
+		if !authz.GuardCategoryScope(w, r, deletedScope, roledata.PermissionLevelOwner) {
 			return
 		}
 

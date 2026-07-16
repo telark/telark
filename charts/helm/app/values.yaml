@@ -152,6 +152,17 @@ app:
     replicas: 1
     terminationGracePeriodSec: 60
   shared:
+    serviceToken:
+      envVar: "TELARK_SERVICE_TOKEN"
+      # Shared secret one service presents to another. Left empty, it is
+      # generated on install and read back from the cluster on upgrade, so it
+      # stays put.
+      #
+      # Set it explicitly when rendering without a cluster to reach
+      # (`helm template | kubectl apply`, or any GitOps flow): the lookup finds
+      # nothing there, so a new token is minted on every apply, and services
+      # cannot authenticate each other until every pod has restarted onto it.
+      value: ""
     redis:
       REDIS_HOST: "telark-release-redis-master"
       REDIS_PORT: "6379"

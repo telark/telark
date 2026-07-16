@@ -10,6 +10,7 @@ import (
 	metadata "github.com/telark/data/metadata/resources"
 	"github.com/telark/data/resources/finalizers"
 	userdata "github.com/telark/data/resources/user"
+	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/cache"
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/exporters/generics"
@@ -175,6 +176,10 @@ func PatchUserByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(h
 			return
 		}
 
+		if !authz.GuardUserPatch(w, r, userID, body) {
+			return
+		}
+
 		_, rolesPatched := body[constants.FieldAssignedRolesIDs]
 		oldRoles := existingUser.AssignedRolesIDs
 
@@ -196,6 +201,7 @@ func PatchUserByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(h
 		rc := sharedutils.NewResponseCapture(w)
 		generics.GenericPatchCustomResource(rc, metadata.UserAsResourceMetadata, userID, specPatchData)
 		userutils.InvalidateUserCaches(optimizer, userID)
+		authz.ForgetUserGrants(r.Context(), userID)
 
 		if rc.Status() == http.StatusOK && rolesPatched {
 			emitRoleChanged(userID, oldRoles, body)
@@ -247,6 +253,7 @@ func DeleteUserByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 		}
 
 		userutils.InvalidateUserCaches(optimizer, userID)
+		authz.ForgetUserGrants(r.Context(), userID)
 		lock := concurrency.GetLock(userID)
 		lock.Lock()
 		defer lock.Unlock()

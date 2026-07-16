@@ -9,7 +9,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gorilla/mux"
 	goredis "github.com/redis/go-redis/v9"
+	dataerrors "github.com/telark/data/errors"
+	datamessages "github.com/telark/data/messages"
+	exporterauthz "github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/config"
 	"github.com/telark/exporter/internal/constants"
 	envmanager "github.com/telark/exporter/internal/managers/envs"
@@ -19,6 +23,7 @@ import (
 	"github.com/telark/exporter/internal/utils/performance"
 	"github.com/telark/rest/connectivity"
 	"github.com/telark/rest/router"
+	xauthz "github.com/telark/x-ware/authz"
 	"github.com/telark/x-ware/cors"
 	rediscore "github.com/telark/x-ware/redis/core"
 	redisinit "github.com/telark/x-ware/redis/init"
@@ -34,7 +39,13 @@ func main() {
 	optimizer := initOptimizerWithRetry()
 	initConnectivity()
 	async.Init()
-	server := startServer(optimizer)
+
+	authzMiddleware, err := initAuthz()
+	if err != nil {
+		lg.Error(fmt.Sprintf(string(dataerrors.ErrAuthzInitFailed), err))
+		os.Exit(constants.ExitCodeFailure)
+	}
+	server := startServer(optimizer, authzMiddleware)
 	waitForShutdown(server)
 	async.Drain()
 	optimizer.Close()
@@ -81,8 +92,12 @@ func initConnectivity() {
 	conn.SetReady("exporter", true)
 }
 
-func startServer(optimizer *performance.Optimizer) *http.Server {
+func startServer(optimizer *performance.Optimizer, authzMiddleware mux.MiddlewareFunc) *http.Server {
 	rt := router.NewRouter(routes.InitRoutes(optimizer))
+	// Registered on the router rather than wrapped around it: mux middleware
+	// runs after route matching, which is what makes the matched path template
+	// available to derive the route's requirement.
+	rt.Use(authzMiddleware)
 	corsHandler := cors.NewCORS()
 	handler := corsHandler(rt)
 
@@ -102,6 +117,26 @@ func startServer(optimizer *performance.Optimizer) *http.Server {
 		}
 	}()
 	return server
+}
+
+func initAuthz() (mux.MiddlewareFunc, error) {
+	serviceToken, err := envmanager.InitServiceToken()
+	if err != nil {
+		return nil, err
+	}
+
+	middleware, err := xauthz.New(xauthz.Config{
+		Resolver:     exporterauthz.NewResolver(),
+		Requirements: exporterauthz.Requirements(),
+		RouteKey:     router.KeyFromRequest,
+		ServiceToken: serviceToken,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	lg.Info(string(datamessages.SuccessAuthzEnabled))
+	return middleware, nil
 }
 
 func waitForShutdown(server *http.Server) {

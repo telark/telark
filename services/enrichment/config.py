@@ -5,7 +5,9 @@ import os
 from dotenv import load_dotenv
 
 from constants import (
+    AUTHZ_PERMISSIONS_PATH,
     DEFAULT_API_PORT,
+    DEFAULT_AUTH_SERVICE_URL,
     DEFAULT_CACHE_PREFIX,
     DEFAULT_CACHE_TTL,
     DEFAULT_LOG_LEVEL,
@@ -30,6 +32,8 @@ QUEUE_KEY: str = os.environ.get("QUEUE_KEY", DEFAULT_QUEUE_KEY)
 CACHE_PREFIX: str = os.environ.get("CACHE_PREFIX", DEFAULT_CACHE_PREFIX)
 LOG_LEVEL: str = os.environ.get("LOG_LEVEL", DEFAULT_LOG_LEVEL)
 API_PORT: int = int(os.environ.get("API_PORT", str(DEFAULT_API_PORT)))
+AUTH_SERVICE_URL: str = os.environ.get("AUTH_SERVICE_URL", DEFAULT_AUTH_SERVICE_URL)
+AUTHZ_PERMISSIONS_URL: str = AUTH_SERVICE_URL.rstrip("/") + AUTHZ_PERMISSIONS_PATH
 
 # Concurrency and pool
 NUM_WORKERS: int = int(os.environ.get("NUM_WORKERS", "3"))

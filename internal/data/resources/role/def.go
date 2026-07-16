@@ -40,6 +40,51 @@ const (
 	PermissionLevelAdmin       PermissionLevel = "Admin"
 )
 
+const (
+	permissionRankNone        = 0
+	permissionRankReadOnly    = 1
+	permissionRankContributor = 2
+	permissionRankOwner       = 3
+	permissionRankAdmin       = 4
+)
+
+// Unknown levels rank below every named level so they can never grant access.
+func (l PermissionLevel) Rank() int {
+	switch l {
+	case PermissionLevelReadOnly:
+		return permissionRankReadOnly
+	case PermissionLevelContributor:
+		return permissionRankContributor
+	case PermissionLevelOwner:
+		return permissionRankOwner
+	case PermissionLevelAdmin:
+		return permissionRankAdmin
+	default:
+		return permissionRankNone
+	}
+}
+
+func (l PermissionLevel) Covers(required PermissionLevel) bool {
+	if l.Rank() == permissionRankNone || required.Rank() == permissionRankNone {
+		return false
+	}
+	return l.Rank() >= required.Rank()
+}
+
+// Wildcard scope: applies its level to every scope.
+const ScopeAll = "ALL"
+
+// Built-in scopes only. Custom roles may define any scope string.
+
+const (
+	ScopeApplications    = "applications"
+	ScopeGroups          = "groups"
+	ScopeUsers           = "users"
+	ScopeRoles           = "roles"
+	ScopeSettings        = "settings"
+	ScopeProtectionPlans = "protection-plans"
+)
+
 type Protection struct {
 	PreventDeletion     bool `json:"preventDeletion,omitempty"`
 	PreventModification bool `json:"preventModification,omitempty"`

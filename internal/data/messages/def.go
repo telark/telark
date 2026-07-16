@@ -40,4 +40,7 @@ const (
 	SuccessStartingServer           Message = "starting server on port"
 	SuccessServiceHealthCheckPassed Message = "service health check passed"
 	SuccessServiceRestarting        Message = "restarting service due to health check failure..."
+
+	// Authorization-related Messages
+	SuccessAuthzEnabled Message = "authz middleware enabled"
 )

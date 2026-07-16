@@ -111,4 +111,21 @@ const (
 
 	// Server-related Errors
 	ErrServerFailedToStart Error = "server failed to start"
+
+	// Authorization-related Errors
+	ErrAuthzInitFailed         Error = "authz middleware initialization failed: %v"
+	ErrAuthzServiceTokenNotSet Error = "TELARK_SERVICE_TOKEN is not set"
+	ErrAuthzIdentityMissing    Error = "the request carries no verified identity"
+	ErrAuthzSessionNotFound    Error = "session not found for token"
+	ErrAuthzSessionExpired     Error = "session has expired"
+	ErrAuthzUserNotActive      Error = "user account is not active"
+	ErrAuthzGroupSkipped       Error = "authz: skipping unreadable group %s: %v"
+	ErrAuthzRoleSkipped        Error = "authz: skipping unreadable role %s: %v"
+
+	// Authorization denials returned to the caller
+	ErrAuthzMissingSessionToken Error = "a session token is required"
+	ErrAuthzInvalidSession      Error = "the session is invalid or has expired"
+	ErrAuthzGrantsUnavailable   Error = "unable to resolve permissions for this session"
+	ErrAuthzForbidden           Error = "you do not have permission to perform this action"
+	ErrAuthzInvalidServiceToken Error = "the service token is invalid"
 )

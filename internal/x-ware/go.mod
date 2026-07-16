@@ -8,7 +8,7 @@ require (
 	github.com/redis/go-redis/v9 v9.21.0
 	github.com/rs/cors v1.11.1
 	github.com/telark/data v1.14.1
-	github.com/telark/rest v0.13.0
+	github.com/telark/rest v0.13.1
 )
 
 require (

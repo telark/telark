@@ -12,7 +12,9 @@ from pydantic import BaseModel, Field
 
 from config import ANTHROPIC_MODEL, GEMINI_MODEL, API_PORT
 
-from authz import require_scope
+from authz import require_scope, require_service_token
+from insights import dispatch_applications
+from models import InsightsDispatchRequest, InsightsDispatchResponse
 
 from constants import (
     API_HOST,
@@ -29,6 +31,15 @@ from constants import (
     MSG_API_KEY_REQUIRED,
     MSG_VALIDATE_FAILED,
     MSG_VALIDATE_OK,
+    SERVICE_NAME,
+    STATUS_READY_PATH,
+    STATUS_LIVE_PATH,
+    STATUS_READY,
+    STATUS_ALIVE,
+    INSIGHTS_APPLICATIONS_PATH,
+    HTTP_OK,
+    OPERATION_SUCCESS,
+    MSG_INSIGHTS_DISPATCHED,
 )
 from app_logger import logger
 
@@ -93,6 +104,34 @@ def create_app() -> FastAPI:
 
         logger.warning(LOG_VALIDATE_API_KEY_FAILED, provider, res.reason or MSG_VALIDATE_FAILED)
         return ValidateAPIKeyResponse(ok=False, reason=res.reason or MSG_VALIDATE_FAILED)
+
+    # Probes carry no auth: kubelet reaches them with no session, and they must
+    # answer while the service is still starting up.
+    @app.get(STATUS_LIVE_PATH)
+    async def liveness() -> dict[str, str]:
+        return {"status": STATUS_ALIVE, "service": SERVICE_NAME}
+
+    @app.get(STATUS_READY_PATH)
+    async def readiness() -> dict[str, str]:
+        return {"status": STATUS_READY, "service": SERVICE_NAME}
+
+    # Discovery calls this, no user does — it carries the service token, not a
+    # session. Sync def so FastAPI runs the blocking Redis work off the event loop.
+    # Wrapped in the Go response envelope because the caller is a Go rest client
+    # that reads success from the envelope's status field, not the HTTP code.
+    @app.post(
+        INSIGHTS_APPLICATIONS_PATH,
+        dependencies=[Depends(require_service_token)],
+    )
+    def dispatch_insights(req: InsightsDispatchRequest) -> dict:
+        ready, pending = dispatch_applications(req.items)
+        data = InsightsDispatchResponse(ready=ready, pending=pending)
+        return {
+            "status": HTTP_OK,
+            "operation": OPERATION_SUCCESS,
+            "message": MSG_INSIGHTS_DISPATCHED,
+            "data": data.model_dump(),
+        }
 
     return app
 

@@ -1,29 +1,18 @@
 package status
 
 import (
-	"net/http"
-
 	"github.com/telark/auth/internal/constants"
-	"github.com/telark/auth/internal/helpers/shared"
+	statuseps "github.com/telark/rest/endpoints/status"
+	statushandler "github.com/telark/rest/handlers/status"
 )
 
-func HealthHandler(w http.ResponseWriter, _ *http.Request) {
-	shared.SendSuccessResponse(w, constants.HealthMessageHealthy, map[string]any{
-		constants.JSONKeyStatus:  constants.HealthStatusOK,
-		constants.JSONKeyService: constants.ServiceName,
-	})
-}
-
-func ReadinessHandler(w http.ResponseWriter, _ *http.Request) {
-	shared.SendSuccessResponse(w, constants.HealthMessageReady, map[string]any{
-		constants.JSONKeyStatus:  constants.HealthStatusReady,
-		constants.JSONKeyService: constants.ServiceName,
-	})
-}
-
-func LivenessHandler(w http.ResponseWriter, _ *http.Request) {
-	shared.SendSuccessResponse(w, constants.HealthMessageAlive, map[string]any{
-		constants.JSONKeyStatus:  constants.HealthStatusAlive,
-		constants.JSONKeyService: constants.ServiceName,
-	})
-}
+// One handler serves all three probes: health and liveness always succeed, and
+// readiness runs the check. auth has no readiness gate, so it is always ready.
+var ProbeHandler = statushandler.NewProbeHandler(
+	string(statuseps.ReadinessCheck),
+	nil,
+	statushandler.Messages{
+		Ready:    constants.HealthMessageHealthy,
+		NotReady: constants.HealthMessageNotReady,
+	},
+)

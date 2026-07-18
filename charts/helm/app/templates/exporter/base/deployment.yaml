@@ -1,6 +1,7 @@
 {{- $service := "exporter" -}}
 {{- $values := .Values -}}
 {{- $serviceConfig := index $values.services $service -}}
+{{- include "validateExporterStorage" (dict "values" $values) -}}
 {{- if $serviceConfig.enabled }}
 {{- include "serviceDeployment" (dict "service" $service "values" $values) }}
 {{- end }}

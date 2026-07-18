@@ -7,6 +7,7 @@ import (
 	analyzeps "github.com/telark/rest/endpoints/analyze"
 	planseps "github.com/telark/rest/endpoints/plans"
 	applicationeps "github.com/telark/rest/endpoints/resources/applications"
+	insightseps "github.com/telark/rest/endpoints/insights"
 	"github.com/telark/rest/router"
 	"github.com/telark/x-ware/authz"
 )
@@ -39,7 +40,7 @@ func addAnalyze(r map[string]authz.Requirement) {
 // Rollback, sync and cleanup mutate live workloads through this service's
 // cluster-wide write access, so they are the most consequential routes here.
 func addApplications(r map[string]authz.Requirement) {
-	r[router.Key(base.Get, applicationeps.EnrichApplications)] = authz.Read(roledata.ScopeApplications)
+	r[router.Key(base.Get, insightseps.Applications)] = authz.Read(roledata.ScopeApplications)
 	r[router.Key(base.Post, applicationeps.TriggerRollback)] = authz.Denyable(
 		authz.Write(roledata.ScopeApplications), roledata.ActionRollbackApplication)
 	r[router.Key(base.Post, applicationeps.AbortRollback)] = authz.Denyable(

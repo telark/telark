@@ -16,8 +16,19 @@ func Requirements() map[string]authz.Requirement {
 	addLogin(requirements)
 	addSelfService(requirements)
 	addCleanup(requirements)
+	addIdentityProvider(requirements)
 
 	return requirements
+}
+
+// The exporter writes this config, but its own guard sees a service token on the way
+// in and stands aside, so this line is the whole authorization for changing who can
+// authenticate. It must stay in step with the exporter's globalConfigFields entry.
+func addIdentityProvider(r map[string]authz.Requirement) {
+	r[router.Key(base.Patch, autheps.OIDCConfig)] = authz.Denyable(
+		authz.Administer(roledata.ScopeSettings),
+		roledata.ActionEditOIDCConfig,
+	)
 }
 
 func addStatus(r map[string]authz.Requirement) {

@@ -1,0 +1,144 @@
+# Install mode: standard
+#
+# Production defaults for a small to mid sized cluster. Two replicas per service,
+# disruption budgets that keep one pod up through a drain, and bounded resources
+# so one service cannot starve its neighbours.
+#
+# The middle rung: minimal survives no node loss, performance costs an order of
+# magnitude more to run. Most installs belong here.
+#
+# Layered over values.charts.yaml at install:
+#   -f values.charts.yaml -f values.mode.standard.yaml
+#
+# Capacity only. This says nothing about security posture: app.shared.crdGuard is
+# an independent flag, deliberately, so a small cluster can still enforce the role
+# model and a large one never enforces it by accident.
+
+app:
+  serviceDefaults:
+    replicas: 2
+  persistence:
+    size: 10Gi
+  shared:
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+services:
+  exporter:
+    # One replica: snapshots sit on a ReadWriteOnce volume here, so a second
+    # replica lands on another node, cannot mount it, and stays Pending. Recreate
+    # for the same reason — a rolling update would start the new pod before the
+    # old released the volume. Use performance mode with a ReadWriteMany class to
+    # run this service highly available.
+    replicas: 1
+    strategy: Recreate
+    env:
+      EXPORTER_K8S_CLIENT_QPS: "50"
+      EXPORTER_K8S_CLIENT_BURST: "100"
+    pdb:
+      enabled: false
+  discovery:
+    replicas: 2
+    env:
+      DISCOVERY_K8S_CLIENT_QPS: "100"
+      DISCOVERY_K8S_CLIENT_BURST: "200"
+      FORCE_SYNC_WORKERS: "4"
+    pdb:
+      enabled: true
+      minAvailable: 1
+  enrichment:
+    env:
+      NUM_WORKERS: "3"
+    pdb:
+      enabled: true
+      minAvailable: 1
+  notifier:
+    pdb:
+      enabled: true
+      minAvailable: 1
+  auth:
+    env:
+      CLEANUP_WORKERS_PER_TYPE: "2"
+    pdb:
+      enabled: true
+      minAvailable: 1
+
+redis:
+  master:
+    persistence:
+      size: 4Gi
+
+nats:
+  persistence:
+    size: 4Gi
+
+metrics-server:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 200Mi
+    limits:
+      cpu: 200m
+      memory: 400Mi
+
+kyverno:
+  admissionController:
+    replicas: 2
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+    container:
+      resources:
+        requests:
+          cpu: 200m
+          memory: 256Mi
+        limits:
+          memory: 512Mi
+      extraArgs:
+        clientRateLimitQPS: 50
+        clientRateLimitBurst: 100
+    initContainer:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+  backgroundController:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+    extraArgs:
+      clientRateLimitQPS: 50
+      clientRateLimitBurst: 100
+  cleanupController:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+    extraArgs:
+      clientRateLimitQPS: 50
+      clientRateLimitBurst: 100
+  reportsController:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+    extraArgs:
+      clientRateLimitQPS: 50
+      clientRateLimitBurst: 100

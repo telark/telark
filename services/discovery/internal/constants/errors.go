@@ -28,6 +28,8 @@ const (
 	ErrSelectorTypeMustBeLabelsOrText      errors.Error = "selectorType must be 'labels' or 'text'"
 	ErrPatchApplicationReturnedNilResponse errors.Error = "patch application returned nil response"
 	ErrPatchApplicationFailed              errors.Error = "patch application failed: status=%d message=%s"
+	ErrDispatchInsightsNilResponse         errors.Error = "insights dispatch returned nil response"
+	ErrDispatchInsightsFailed              errors.Error = "insights dispatch failed: status=%d message=%s"
 
 	// Enrichment Pre-warming
 	ErrPrewarmListNamespaces         errors.Error = "pre-warming: failed to list namespaces: %v"

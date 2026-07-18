@@ -45,12 +45,13 @@ on:
           - minor
           - major
           - skip
-      kyverno_config_mode:
+      install_mode:
         required: false
         type: choice
-        description: Kyverno Config Mode
+        description: "Install Mode (sizing for every chart: replicas, resources, rate limits, volumes)"
         options:
           - minimal
+          - standard
           - performance
         default: minimal
 
@@ -137,7 +138,7 @@ jobs:
           repository: telark/telark
           token: ${{ secrets.ACCESS_TOKEN }}
           event-type: execute-telark-helm-release
-          client-payload: '{"build_type": "${{ inputs.helm_build_type }}", "ns": "${{ env.NAMESPACE }}", "sonar_scan": "skip", "kyverno_config_mode": "${{ inputs.kyverno_config_mode }}"}'
+          client-payload: '{"build_type": "${{ inputs.helm_build_type }}", "ns": "${{ env.NAMESPACE }}", "sonar_scan": "skip", "install_mode": "${{ inputs.install_mode }}"}'
 
   restart-service:
     runs-on: self-hosted

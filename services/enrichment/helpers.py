@@ -63,6 +63,10 @@ def inflight_key(prefix: str, namespace: str, name: str) -> str:
     return f"{prefix}:inflight:{namespace}:{name}"
 
 
+def enqueued_key(prefix: str, namespace: str, name: str) -> str:
+    return f"{prefix}:enqueued:{namespace}:{name}"
+
+
 def clear_inflight(r: redis.Redis, key: str) -> None:
     try:
         r.delete(key)

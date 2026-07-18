@@ -69,3 +69,9 @@ spec:
                       type: boolean
                     googleClientID:
                       type: string
+                    egressAllowed:
+                      type: boolean
+                      description: whether the cluster may reach the provider to fetch signing keys. When false, googleJwkJson must be set.
+                    googleJwkJson:
+                      type: string
+                      description: pinned provider signing key set, used to verify identity tokens when egress is not allowed. Identity tokens are trusted against these keys, so treat writes to this field as an authentication change.

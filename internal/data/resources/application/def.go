@@ -79,26 +79,6 @@ type Resource struct {
 	Name      string `json:"name"`
 }
 
-type Insights struct {
-	Enriched      bool         `json:"enriched"`
-	EnrichedAt    *string      `json:"enrichedAt"`
-	Confidence    *string      `json:"confidence"`
-	Summary       *string      `json:"summary"`
-	TechStack     []string     `json:"techStack"`
-	Role          *string      `json:"role"`
-	Dependencies  []string     `json:"dependencies"`
-	Category      *string      `json:"category"` // infrastructure | application | data | messaging | security
-	Risks         []string     `json:"risks"`
-	Suggestions   []string     `json:"suggestions"`
-	RelatedApps   []RelatedApp `json:"relatedApps"`
-	PromptVersion *string      `json:"promptVersion"`
-}
-
-type RelatedApp struct {
-	Name   string `json:"name"`
-	Reason string `json:"reason"`
-}
-
 type ApplicationHistory struct {
 	Generation     int              `json:"generation"`
 	HasDrift       bool             `json:"hasDrift"`

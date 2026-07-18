@@ -48,6 +48,7 @@ const (
 	ActionEditDiscoveryConfig = "editdiscoveryconfig"
 	ActionEditSnapshotStorage = "editsnapshotstorage"
 	ActionControlAIInsights   = "controlainsights"
+	ActionEditOIDCConfig      = "editoidcconfig"
 )
 
 const (

@@ -1,0 +1,30 @@
+{{ include "telark.name" . }} {{ .Chart.AppVersion }} installed as release "{{ .Release.Name }}" in namespace "{{ .Values.app.namespace }}".
+
+Services deployed:
+{{- range $name, $svc := .Values.services }}
+{{- if $svc.enabled }}
+  - {{ include "telark.fullname" $ }}-{{ $svc.name }}
+{{- end }}
+{{- end }}
+
+Check rollout:
+  kubectl get pods -n {{ .Values.app.namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Reach the auth service to create the first admin:
+  kubectl port-forward -n {{ .Values.app.namespace }} svc/{{ include "telark.fullname" . }}-{{ .Values.services.auth.name }} 8080:{{ .Values.app.serviceDefaults.port }}
+
+Next steps:
+  1. Log in with the bootstrap admin ({{ join ", " .Values.app.auth.bootstrap.admins }}).
+  2. Enable SSO and AI insights from Settings once the platform is up.
+{{- if not .Values.app.crdGuard.enabled }}
+  3. The CRD write guard is OFF. Turn it on (app.crdGuard.enabled=true, enforce=false)
+     to audit, then enforce=true once the audit log is clean.
+{{- else if not .Values.app.crdGuard.enforce }}
+  3. The CRD write guard is in AUDIT mode. Confirm the audit log is clean, then set
+     app.crdGuard.enforce=true.
+{{- end }}
+{{- if not (index .Values "metrics-server" "enabled") }}
+
+metrics-server is disabled: HPAs and `kubectl top` require it. Enable it, or ensure
+the cluster already provides v1beta1.metrics.k8s.io.
+{{- end }}

@@ -9,6 +9,6 @@ metadata:
     app.kubernetes.io/component: redis
 data:
 {{- range $key, $value := .Values.app.shared.redis }}
-  {{ $key }}: {{ $value | quote }}
+  {{ $key }}: {{ tpl ($value | toString) $ | quote }}
 {{- end }}
 {{- end }}

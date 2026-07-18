@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "telark chart values",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["app", "services"],
+  "properties": {
+    "nameOverride": { "type": "string" },
+    "fullnameOverride": { "type": "string" },
+    "commonLabels": { "type": "object" },
+    "commonAnnotations": { "type": "object" },
+    "global": {
+      "type": "object",
+      "properties": {
+        "imagePullSecrets": { "type": "array" }
+      }
+    },
+    "app": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name", "namespace", "image"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "namespace": { "type": "string", "minLength": 1 },
+        "image": {
+          "type": "object",
+          "required": ["registry", "repository"],
+          "properties": {
+            "registry": { "type": "string", "minLength": 1 },
+            "repository": { "type": "string", "minLength": 1 },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
+            "pullSecrets": { "type": "array" },
+            "registrySecret": {
+              "type": "object",
+              "properties": { "create": { "type": "boolean" } }
+            }
+          }
+        },
+        "persistence": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "storageClass": { "type": "string" },
+            "size": { "type": "string" },
+            "accessMode": { "type": "string", "enum": ["ReadWriteOnce", "ReadWriteMany", "ReadOnlyMany"] }
+          }
+        },
+        "serviceDefaults": {
+          "type": "object",
+          "properties": {
+            "port": { "type": "integer" },
+            "serviceType": { "type": "string" },
+            "replicas": { "type": "integer", "minimum": 0 },
+            "terminationGracePeriodSec": { "type": "integer" },
+            "nodeSelector": { "type": "object" },
+            "tolerations": { "type": "array" },
+            "affinity": { "type": "object" }
+          }
+        }
+      }
+    },
+    "services": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["enabled", "name", "imageTagPrefix", "version", "category"],
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "name": { "type": "string", "minLength": 1 },
+          "imageTagPrefix": { "type": "string" },
+          "version": { "type": "string", "minLength": 1 },
+          "category": { "type": "string", "minLength": 1 },
+          "replicas": { "type": "integer", "minimum": 0 },
+          "includeResources": { "type": "boolean" },
+          "includeHealthCheck": { "type": "boolean" },
+          "includeSecurity": { "type": "boolean" },
+          "useRedis": { "type": "boolean" },
+          "useNatsCreds": { "type": "boolean" },
+          "env": { "type": "object" },
+          "pdb": {
+            "type": "object",
+            "properties": { "enabled": { "type": "boolean" } }
+          },
+          "serviceAccount": {
+            "type": "object",
+            "properties": {
+              "create": { "type": "boolean" },
+              "name": { "type": "string" },
+              "annotations": { "type": "object" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

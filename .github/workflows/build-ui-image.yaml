@@ -80,7 +80,7 @@ jobs:
         with:
           service: ${{ env.SERVICE }}
           build_type: ${{ inputs.build_type }}
-          values_file_path: './release/telark/values.yaml'
+          values_file_path: './release/charts/telark/values.yaml'
 
       - name: Read image config from helm values
         id: image

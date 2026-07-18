@@ -1,9 +1,23 @@
 apiVersion: v2
 name: telark
-description: A Helm chart for telark core
+description: A protection gate for your Kubernetes workloads — discover your applications, then decide what can change them, and when
 type: application
 version: 2.2.8
 appVersion: "2.0"
+home: https://telark.io
+sources:
+  - https://github.com/telark/telark
+icon: https://telark.io/icon.svg
+keywords:
+  - kubernetes
+  - workload-protection
+  - application-discovery
+  - protection
+  - governance
+maintainers:
+  - name: telark
+    email: houssem.kraoua@gmail.com
+    url: https://github.com/telark
 # 1.33 is the oldest release still receiving upstream patches, and the oldest
 # offered by the managed providers. It also clears ValidatingAdmissionPolicy
 # (GA in 1.30), so the admission guard needs no fallback for older clusters.
@@ -28,3 +42,14 @@ dependencies:
     version: 1.50.0
     repository: https://helm.otwld.com/
     condition: app.ollama.enabled
+
+annotations:
+  artifacthub.io/license: Elastic-2.0
+  artifacthub.io/prerelease: "false"
+  artifacthub.io/operator: "false"
+  artifacthub.io/links: |
+    - name: source
+      url: https://github.com/telark/telark
+    - name: support
+      url: https://github.com/telark/telark/issues
+  artifacthub.io/containsSecurityUpdates: "false"

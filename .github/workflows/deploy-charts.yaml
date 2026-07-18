@@ -101,7 +101,6 @@ jobs:
           bootstrap_pkg="$RELEASES_DIR/${app_version}/telark-crds-${bootstrap_version}.tgz"
           app_pkg="$RELEASES_DIR/${app_version}/telark-${app_version}.tgz"
 
-          charts_values="-f $CHART_DIR/values.charts.yaml"
           nats_conf_value="--set-file nats.configuration=$CHART_DIR/config/nats.conf"
           mode_values="-f $CHART_DIR/values.mode.${install_mode}.yaml"
 
@@ -143,7 +142,6 @@ jobs:
           # App: services + subcharts
           helm upgrade --install "$app_release" "$app_pkg" \
             -n "$namespace" \
-            ${charts_values} \
             ${nats_conf_value} \
             ${mode_values} \
             --force-conflicts \

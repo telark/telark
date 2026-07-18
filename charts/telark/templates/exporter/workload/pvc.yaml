@@ -6,11 +6,11 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ $values.app.name }}-exporter-snapshots-pvc
+  name: {{ include "telark.exporterSnapshotsPvcName" $ }}
   namespace: {{ $values.app.namespace }}
   labels:
-    app.kubernetes.io/name: {{ $values.app.name }}-{{ $serviceConfig.name }}
-    app.kubernetes.io/part-of: {{ $values.app.name }}
+    {{- include "telark.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $serviceConfig.name }}
 spec:
   accessModes:
     - {{ $values.app.persistence.accessMode | default "ReadWriteOnce" }}

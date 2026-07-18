@@ -119,53 +119,6 @@ spec:
                         type: string
                       name:
                         type: string
-                insights:
-                  type: object
-                  properties:
-                    enriched:
-                      type: boolean
-                    enrichedAt:
-                      type: string
-                    confidence:
-                      type: string
-                      nullable: true
-                    summary:
-                      type: string
-                      nullable: true
-                    techStack:
-                      type: array
-                      items:
-                        type: string
-                    role:
-                      type: string
-                      nullable: true
-                    dependencies:
-                      type: array
-                      items:
-                        type: string
-                    category:
-                      type: string
-                      nullable: true
-                    risks:
-                      type: array
-                      items:
-                        type: string
-                    suggestions:
-                      type: array
-                      items:
-                        type: string
-                    relatedApps:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          name:
-                            type: string
-                          reason:
-                            type: string
-                    promptVersion:
-                      type: string
-                      nullable: true
                 images:
                   type: array
                   items:

@@ -49,7 +49,7 @@
 #   String values inside services.<svc>.env.* and volume claimNames are passed
 #   through Helm's `tpl` function with .Values in scope. They may therefore
 #   reference other parts of this file using `{{ .Values.app.* }}` syntax —
-#   used here to wire BOOTSTRAP_ADMINS, RP_ID, GOOGLE_CLIENT_ID, snapshot PVC
+#   used here to wire BOOTSTRAP_ADMINS, RP_ID, snapshot PVC
 #   names, etc. without duplication.
 #
 # ─── Notes for operators ─────────────────────────────────────────────────────
@@ -86,11 +86,6 @@
 #                                               is "false" (otherwise the
 #                                               cluster has no path to its
 #                                               first admin user).
-#                      oidc.*                   Google OIDC config: client ID
-#                                               plus offline-mode controls
-#                                               (egressAllowed + googleJwkJson).
-#                                               Also published to the
-#                                               GlobalConfig CR.
 #                      passkey.{id,name,origin} WebAuthn relying-party
 #                                               identity. Browser enforces
 #                                               origin strictly.
@@ -127,11 +122,6 @@ app:
     bootstrap:
       admins:
         - "REDACTED"
-    oidc:
-      enabled: true
-      googleClientID: "286046819175-kp314vmuu0rd9ig8qcocn4be3e4r5rqp.apps.googleusercontent.com"
-      egressAllowed: "true"
-      googleJwkJson: ""
     passkey:
       id: "localhost"
       name: "Dashboard App"
@@ -163,6 +153,18 @@ app:
       # nothing there, so a new token is minted on every apply, and services
       # cannot authenticate each other until every pod has restarted onto it.
       value: ""
+    crdGuard:
+      # Refuses writes to Telark's own custom resources from anything but the
+      # services that own them, so cluster access alone no longer bypasses the
+      # role model. Off by default: turn it on once the allow list below matches
+      # the service accounts actually running.
+      enabled: false
+      # Off reports violations in the audit log and allows the write, which is how
+      # to confirm nothing legitimate is caught. On refuses it.
+      enforce: false
+      # Extra usernames permitted to write directly, for break-glass. The service
+      # accounts of the services that own these resources are always allowed.
+      extraAllowedUsers: []
     redis:
       REDIS_HOST: "telark-release-redis-master"
       REDIS_PORT: "6379"
@@ -210,7 +212,6 @@ services:
     imageTagPrefix: "exp-"
     version: 3.3.3
     category: "export"
-    includeResources: false
     env:
       SNAPSHOTS_PATH: "/snapshots"
       SNAPSHOTS_PVC_NAME: '{{ .Values.app.name }}-exporter-snapshots-pvc'
@@ -238,6 +239,10 @@ services:
     env:
       DISCOVERY_K8S_CLIENT_QPS: "100"
       DISCOVERY_K8S_CLIENT_BURST: "200"
+      # How often the leader dispatches app signals to enrichment. Deliberately
+      # slower than the UI's insights poll: production is expensive (LLM calls),
+      # the read is cheap, so the UI fills in between ticks.
+      INSIGHTS_TICK_INTERVAL_SEC: "300"
       DISCOVERY_INFORMER_RESYNC_SEC: "600"
       DISCOVERY_ROLLBACK_INFORMER_RESYNC_SEC: "600"
       DISCOVERY_INFORMER_RESYNC_JITTER_FRACTION: "0.2"
@@ -289,19 +294,15 @@ services:
     imageTagPrefix: "enrich-"
     version: 0.1.1
     category: "ai-enrichment"
-    includeResources: false
-    includeHealthCheck: false
     env:
       REDIS_POOL_SIZE: "10"
-      ENRICHMENT_PROVIDER: "groq"
+      # Provider and API key are read from the GlobalConfig CR at runtime, set by
+      # an admin from the UI. Only the non-secret model names live here.
       OLLAMA_HOST: "http://telark-release-ollama:11434"
       OLLAMA_MODEL: "qwen2.5:3b"
       ANTHROPIC_MODEL: "claude-haiku-4-5-20251001"
-      ANTHROPIC_API_KEY: "***REMOVED***"
       GROQ_MODEL: "llama-3.3-70b-versatile"
-      GROQ_API_KEY: "***REMOVED***"
       GEMINI_MODEL: "gemini-2.5-flash"
-      GEMINI_API_KEY: "***REMOVED***"
       NUM_WORKERS: "3"
       METRICS_INTERVAL_S: "60"
       WORKER_SHUTDOWN_TIMEOUT_S: "30"
@@ -314,8 +315,6 @@ services:
     version: 0.2.2
     category: "notification"
     terminationGracePeriodSec: 30
-    includeResources: false
-    includeHealthCheck: false
     useNatsCreds: true
     pdb:
       enabled: false
@@ -338,9 +337,6 @@ services:
       RP_ORIGIN: '{{ .Values.app.auth.passkey.origin }}'
       CHALLENGE_TIMEOUT: "60"
       SESSION_EXPIRY: "24"
-      GOOGLE_CLIENT_ID: '{{ .Values.app.auth.oidc.googleClientID }}'
-      EGRESS_ALLOWED: '{{ .Values.app.auth.oidc.egressAllowed }}'
-      GOOGLE_OIDC_JWK_JSON: '{{ .Values.app.auth.oidc.googleJwkJson }}'
       RECONCILE_TICK_SECONDS: "5"
       RECONCILE_PASS_DEADLINE_SECONDS: "30"
       CLEANUP_WORKERS_PER_TYPE: "2"
@@ -364,7 +360,8 @@ services:
     version: 0.0.1
     category: "ui"
     terminationGracePeriodSec: 30
-    includeResources: false
+    # Static assets behind nginx: it serves no /api/v1/status route, so probes
+    # stay off. Resources still apply.
     includeHealthCheck: false
     includeSecurity: false
     useRedis: false

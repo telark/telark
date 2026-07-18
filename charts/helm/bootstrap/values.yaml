@@ -6,7 +6,3 @@
 app:
   name: ""
   namespace: ""
-  auth:
-    oidc:
-      enabled: false
-      googleClientID: ""

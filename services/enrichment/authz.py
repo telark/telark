@@ -8,17 +8,21 @@ that decide what a role grants in two places. Instead it asks auth-service to
 resolve the caller, which is the same resolution every other service performs.
 """
 
+import hmac
+
 import httpx
 from fastapi import Header, HTTPException, status
 
 from app_logger import logger
-from config import AUTHZ_PERMISSIONS_URL
+from config import AUTHZ_PERMISSIONS_URL, SERVICE_TOKEN
 from constants import (
     AUTHZ_TIMEOUT_SECONDS,
+    HEADER_SERVICE_TOKEN,
     HEADER_SESSION_TOKEN,
     LOG_AUTHZ_RESOLVE_FAILED,
     MSG_AUTHZ_FORBIDDEN,
     MSG_AUTHZ_MISSING_SESSION,
+    MSG_AUTHZ_SERVICE_ONLY,
     MSG_AUTHZ_UNAVAILABLE,
     PERMISSION_RANKS,
     SCOPE_ALL,
@@ -57,6 +61,16 @@ async def _resolve(session_token: str) -> list[dict]:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, MSG_AUTHZ_MISSING_SESSION)
     response.raise_for_status()
     return (response.json() or {}).get("data", {}).get("roles") or []
+
+
+def require_service_token(
+    token: str | None = Header(default=None, alias=HEADER_SERVICE_TOKEN),
+) -> None:
+    """Admit only a peer service, by the shared token. Used for routes another
+    Telark service calls but no user should reach directly. Compared in constant
+    time so a mismatch does not leak position by timing."""
+    if not SERVICE_TOKEN or not token or not hmac.compare_digest(token, SERVICE_TOKEN):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, MSG_AUTHZ_SERVICE_ONLY)
 
 
 def require_scope(scope: str, min_level: str):

@@ -13,6 +13,22 @@ const (
 	ErrServerStartFailed      errors.Error     = "server failed to start: %v"
 	InfServerStarting         messages.Message = "starting Server on port: 8080"
 	InfServerExitedGracefully messages.Message = "server exited gracefully"
+
+	// Startup seeding
+	InfSeedStarting          messages.Message = "[startup] reconciling built-in resources"
+	InfSeedRoleReconciled    messages.Message = "[startup] reconciled built-in role %s"
+	InfSeedCategoriesMerged  messages.Message = "[startup] reconciled %d built-in categories"
+	InfSeedGlobalConfigOK    messages.Message = "[startup] created global config"
+	InfSeedGlobalConfigKept  messages.Message = "[startup] global config already exists, left untouched"
+	ErrSeedRoleFailed        errors.Error     = "[startup] failed to reconcile built-in role %s: %v"
+	ErrSeedCategoriesFailed  errors.Error     = "[startup] failed to reconcile built-in categories: %v"
+	ErrSeedGlobalConfigFail  errors.Error     = "[startup] failed to create global config: %v"
+	ErrSeedExistsCheckFailed errors.Error     = "[startup] failed to check whether %s exists: %v"
+	ErrSeedSpecEncodeFailed  errors.Error     = "[startup] failed to encode %s spec: %v"
+
+	ErrCategoriesSpecNotFound    errors.Error = "categories spec not found"
+	ErrCategoriesSpecInvalid     errors.Error = "categories spec is not an object"
+	ErrFailedToUnmarshalCategory errors.Error = "failed to unmarshal categories: %v"
 	InfServerShuttingDown     messages.Message = "shutting down server..."
 	InfServerForcedShutdown   messages.Message = "server forced to shutdown: %v"
 	InfSuccessStatusMessage   messages.Message = "service is healthy"

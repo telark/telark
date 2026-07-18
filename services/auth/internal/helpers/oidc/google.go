@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
 	redishelper "github.com/telark/auth/internal/helpers/redis"
+	globalconfigresource "github.com/telark/data/resources/globalconfig"
 )
 
 type jwk struct {
@@ -47,54 +47,61 @@ type keyStore struct {
 	egressMode  bool
 	staticJSON  string
 	stopRefresh chan struct{}
+	stopOnce    sync.Once
 }
 
 var (
-	store     *keyStore
-	storeOnce sync.Once
-	storeErr  error
+	store   *keyStore
+	storeMu sync.Mutex
 )
 
 var lg = constants.GetLogger(constants.LoggerPrefixOIDC)
 
-func getStore() (*keyStore, error) {
-	storeOnce.Do(func() {
-		cfg, err := config.GetConfig()
-		if err != nil {
-			storeErr = fmt.Errorf(string(constants.ErrFailedGetConfig), err)
-			return
-		}
+func (s *keyStore) stop() {
+	s.stopOnce.Do(func() { close(s.stopRefresh) })
+}
 
-		s := &keyStore{
-			egressMode:  cfg.OIDC.EgressAllowed,
-			staticJSON:  cfg.OIDC.JWKJson,
-			keys:        make(map[string]*rsa.PublicKey),
-			stopRefresh: make(chan struct{}),
-		}
+func (s *keyStore) matches(oidc globalconfigresource.OIDCConfig) bool {
+	return s.egressMode == oidc.EgressAllowed && s.staticJSON == oidc.GoogleJWKJSON
+}
 
-		if err := s.doRefresh(); err != nil {
-			if !cfg.OIDC.EgressAllowed {
-				storeErr = err
-				return
-			}
-			// Egress mode: log and continue — background refresh will populate keys
-			lg.Error(fmt.Sprintf(string(constants.ErrOIDCJWKSFetchFailed), err))
-		}
+// Rebuilt whenever the admin changes the trust settings, so a key rotation takes
+// effect on the next login rather than on the next restart.
+func getStore(oidc globalconfigresource.OIDCConfig) (*keyStore, error) {
+	storeMu.Lock()
+	defer storeMu.Unlock()
 
-		store = s
-
-		if cfg.OIDC.EgressAllowed {
-			go s.runBackgroundRefresh()
-		}
-	})
-
-	if storeErr != nil {
-		return nil, storeErr
+	if store != nil && store.matches(oidc) {
+		return store, nil
 	}
-	if store == nil {
-		return nil, fmt.Errorf("%s", string(constants.ErrOIDCKeyStoreNotReady))
+
+	if store != nil {
+		store.stop()
+		store = nil
 	}
-	return store, nil
+
+	s := &keyStore{
+		egressMode:  oidc.EgressAllowed,
+		staticJSON:  oidc.GoogleJWKJSON,
+		keys:        make(map[string]*rsa.PublicKey),
+		stopRefresh: make(chan struct{}),
+	}
+
+	if err := s.doRefresh(); err != nil {
+		if !oidc.EgressAllowed {
+			return nil, err
+		}
+		// Egress mode: log and continue — background refresh will populate keys
+		lg.Error(fmt.Sprintf(string(constants.ErrOIDCJWKSFetchFailed), err))
+	}
+
+	store = s
+
+	if oidc.EgressAllowed {
+		go s.runBackgroundRefresh()
+	}
+
+	return s, nil
 }
 
 func (s *keyStore) getKey(kid string) (*rsa.PublicKey, error) {
@@ -176,8 +183,10 @@ func (s *keyStore) runBackgroundRefresh() {
 }
 
 func StopJWKSRefresh() {
+	storeMu.Lock()
+	defer storeMu.Unlock()
 	if store != nil {
-		close(store.stopRefresh)
+		store.stop()
 	}
 }
 
@@ -260,8 +269,8 @@ func buildRSAPublicKey(nB64, eB64 string) (*rsa.PublicKey, error) {
 	return &rsa.PublicKey{N: n, E: int(e.Int64())}, nil
 }
 
-func ValidateGoogleIDToken(rawToken, clientID string) (*GoogleClaims, error) {
-	s, err := getStore()
+func ValidateGoogleIDToken(rawToken string, oidc globalconfigresource.OIDCConfig) (*GoogleClaims, error) {
+	s, err := getStore(oidc)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +285,7 @@ func ValidateGoogleIDToken(rawToken, clientID string) (*GoogleClaims, error) {
 		}
 		return s.getKey(kid)
 	},
-		jwt.WithAudience(clientID),
+		jwt.WithAudience(oidc.GoogleClientID),
 		jwt.WithIssuer(constants.GoogleIssuer),
 		jwt.WithExpirationRequired(),
 	)

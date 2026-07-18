@@ -64,6 +64,7 @@ const (
 	PrefixLink                           = "Link: "
 	PrefixOptimizer                      = "Optimizer: "
 	PrefixMain                           = "Main: "
+	PrefixStartup                        = "Startup: "
 	MaxHeaderBytes                       = 1 << 20 // 1MB
 	DefaultRoutesCount                   = 35
 	SnapshotInfosResponseFieldsCount     = 9
@@ -164,6 +165,9 @@ const (
 	ContentDispositionAttachmentTemplate = "attachment; filename=\"%s\""
 	SnapshotLatestGenerationValue        = "latest"
 	SnapshotDirPerm                      = 0o755
+	// The star is where the unique part goes; the suffix keeps orphaned temp
+	// files greppable.
+	SnapshotTempSuffix = ".*.tmp"
 	SnapshotGenerationMinValue           = 1
 	KubernetesListAPIVersion             = "v1"
 	KubernetesListKind                   = "List"

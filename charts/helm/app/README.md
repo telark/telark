@@ -231,18 +231,16 @@ Misc:
 
 #### `services.enrichment.env`
 
+The AI **provider** and **API key** are not env vars: an admin sets them at runtime from the UI, and they are stored in the GlobalConfig CR. Only the non-secret model names live here.
+
 | Variable | Default | Description |
 |---|---|---|
 | `REDIS_POOL_SIZE` | `10` | Redis client connection pool size |
-| `ENRICHMENT_PROVIDER` | `groq` | LLM provider: `ollama` / `anthropic` / `groq` / `gemini` |
 | `OLLAMA_HOST` | `http://telark-release-ollama:11434` | Ollama base URL (used when provider = `ollama`) |
 | `OLLAMA_MODEL` | `qwen2.5:3b` | Ollama model tag |
 | `ANTHROPIC_MODEL` | `claude-haiku-4-5-20251001` | Anthropic model id |
-| `ANTHROPIC_API_KEY` | _(set in values)_ | Anthropic API key |
 | `GROQ_MODEL` | `llama-3.3-70b-versatile` | Groq model id |
-| `GROQ_API_KEY` | _(set in values)_ | Groq API key |
 | `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model id |
-| `GEMINI_API_KEY` | _(set in values)_ | Gemini API key |
 | `NUM_WORKERS` | `3` | Concurrent worker goroutines (1 for ollama, 3 for cloud providers) |
 | `METRICS_INTERVAL_S` | `60` | Metrics emit cadence (seconds) |
 | `WORKER_SHUTDOWN_TIMEOUT_S` | `30` | Graceful worker shutdown deadline (seconds) |

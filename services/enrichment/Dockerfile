@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 FROM python:3.14.3-alpine3.23
 
 ENV PYTHONUNBUFFERED=1

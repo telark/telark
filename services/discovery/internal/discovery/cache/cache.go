@@ -29,23 +29,6 @@ func CacheKey(namespace, name string) string {
 	return fmt.Sprintf("%s:%s:%s", cachePrefix, namespace, name)
 }
 
-func inflightKey(namespace, name string) string {
-	return fmt.Sprintf("%s%s%s:%s", cachePrefix, inflightSuffix, namespace, name)
-}
-
-// reports whether a job for this app is already in-flight (Python worker).
-func IsEnqueued(ctx context.Context, rdb *redis.Client, namespace, name string) bool {
-	if rdb == nil {
-		return false
-	}
-	key := inflightKey(namespace, name)
-	result, err := rdb.Exists(ctx, key).Result()
-	if err != nil {
-		return false
-	}
-	return result > constants.DefaultInitValue
-}
-
 func GetEnrichment(ctx context.Context, rdb *redis.Client, namespace, name string) (*application.Insights, error) {
 	if rdb == nil {
 		constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(MsgRedisClientNil)
@@ -101,10 +84,13 @@ func parseCachedEnrichment(key, raw string) *application.Insights {
 		Role:          ptrString(c.Role),
 		Dependencies:  shared.CoalesceStrings(c.Dependencies),
 		Category:      ptrString(c.Category),
-		Risks:         shared.CoalesceStrings(c.Risks),
-		Suggestions:   shared.CoalesceStrings(c.Suggestions),
-		RelatedApps:   coalesceRelatedApps(c.RelatedApps),
-		PromptVersion: promptVersionPtr,
+		Risks:              coalesceRisks(c.Risks),
+		Suggestions:        coalesceSuggestions(c.Suggestions),
+		ResourceEfficiency: c.ResourceEfficiency,
+		Criticality:        c.Criticality,
+		Tags:               shared.CoalesceStrings(c.Tags),
+		RelatedApps:        coalesceRelatedApps(c.RelatedApps),
+		PromptVersion:      promptVersionPtr,
 	}
 }
 
@@ -113,6 +99,20 @@ func coalesceRelatedApps(a []application.RelatedApp) []application.RelatedApp {
 		return a
 	}
 	return []application.RelatedApp{}
+}
+
+func coalesceRisks(a []application.Risk) []application.Risk {
+	if len(a) > constants.DefaultInitValue {
+		return a
+	}
+	return []application.Risk{}
+}
+
+func coalesceSuggestions(a []application.Suggestion) []application.Suggestion {
+	if len(a) > constants.DefaultInitValue {
+		return a
+	}
+	return []application.Suggestion{}
 }
 
 func parseEnrichedAtFallback(s string) time.Time {

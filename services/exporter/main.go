@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	goredis "github.com/redis/go-redis/v9"
@@ -17,17 +15,24 @@ import (
 	envmanager "github.com/telark/exporter/internal/managers/envs"
 	exprdb "github.com/telark/exporter/internal/redis"
 	"github.com/telark/exporter/internal/routes"
+	"github.com/telark/exporter/internal/startup"
 	"github.com/telark/exporter/internal/utils/async"
 	"github.com/telark/exporter/internal/utils/performance"
 	"github.com/telark/rest/connectivity"
 	"github.com/telark/rest/router"
+	restserver "github.com/telark/rest/server"
 	xauthz "github.com/telark/x-ware/authz"
 	"github.com/telark/x-ware/cors"
 	rediscore "github.com/telark/x-ware/redis/core"
 	redisinit "github.com/telark/x-ware/redis/init"
 )
 
-var lg = constants.GetLogger(constants.PrefixMain)
+var (
+	lg = constants.GetLogger(constants.PrefixMain)
+	// Package level so a failed listener can signal shutdown from the goroutine
+	// serving it, rather than leaving the process alive with no listener.
+	getQuitChannel = restserver.SignalQuit()
+)
 
 const snapshotsDirPerm = 0o755
 
@@ -36,6 +41,7 @@ func main() {
 	initSnapshotsConfig()
 	optimizer := initOptimizerWithRetry()
 	initConnectivity()
+	startup.SeedBuiltins()
 	async.Init()
 
 	authzMiddleware, err := xauthz.NewFromEnv(exporterauthz.NewResolver(), exporterauthz.Requirements())
@@ -108,19 +114,13 @@ func startServer(optimizer *performance.Optimizer, authzMiddleware func(http.Han
 		MaxHeaderBytes: constants.MaxHeaderBytes,
 	}
 
-	go func() {
-		lg.Info(string(constants.InfServerStarting))
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			lg.Error(fmt.Sprintf(string(constants.ErrServerStartFailed), err))
-		}
-	}()
+	lg.Info(string(constants.InfServerStarting))
+	go restserver.ListenAndSignal(server, getQuitChannel, lg)
 	return server
 }
 
 func waitForShutdown(server *http.Server) {
-	quit := make(chan os.Signal, constants.DefaultChannelBufferSize)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	<-getQuitChannel()
 
 	lg.Warn(string(constants.InfServerShuttingDown))
 	ctx, cancel := context.WithTimeout(context.Background(), constants.ServerShutdownTimeout)

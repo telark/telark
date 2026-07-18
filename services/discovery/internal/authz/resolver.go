@@ -31,31 +31,22 @@ func (s clientSource) Role(roleID string) (*roledata.RoleAsResource, error) {
 	return s.client.GetRoleByID(roleID)
 }
 
-type Resolver struct {
-	client *clients.AuthzClient
-	source clientSource
-}
-
-func NewResolver() *Resolver {
+func NewResolver() *authz.BasicResolver {
 	client := clients.NewAuthzClient()
-	return &Resolver{client: client, source: clientSource{client: client}}
+	return authz.NewBasicResolver(clientSource{client: client}, validateSession(client), lg)
 }
 
-func (r *Resolver) UserIDForToken(token string) (string, error) {
-	session, err := r.client.GetSessionByToken(token)
-	if err != nil {
-		return constants.EmptyString, errors.New(string(dataerrors.ErrAuthzSessionNotFound))
+func validateSession(client *clients.AuthzClient) authz.SessionValidator {
+	return func(token string) (string, error) {
+		session, err := client.GetSessionByToken(token)
+		if err != nil {
+			return constants.EmptyString, errors.New(string(dataerrors.ErrAuthzSessionNotFound))
+		}
+		if expired(session.ExpiresTimestamp) {
+			return constants.EmptyString, errors.New(string(dataerrors.ErrAuthzSessionExpired))
+		}
+		return session.UserID, nil
 	}
-
-	if expired(session.ExpiresTimestamp) {
-		return constants.EmptyString, errors.New(string(dataerrors.ErrAuthzSessionExpired))
-	}
-
-	return session.UserID, nil
-}
-
-func (r *Resolver) GrantsForUser(userID string) (authz.Grants, error) {
-	return authz.CollectGrants(r.source, lg, userID)
 }
 
 // An unparsable expiry counts as expired: a session whose validity cannot be

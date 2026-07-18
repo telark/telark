@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	dataerrors "github.com/telark/data/errors"
+	globalconfigresource "github.com/telark/data/resources/globalconfig"
 	roledata "github.com/telark/data/resources/role"
 	"github.com/telark/exporter/internal/constants"
 	sessionutils "github.com/telark/exporter/internal/utils/auth/session"
@@ -185,24 +186,25 @@ func GuardCategoryScope(w http.ResponseWriter, r *http.Request, categoryScope st
 // One endpoint, but the role model grants its parts separately. Identity
 // settings decide who can authenticate at all, so they take Admin.
 var globalConfigFields = map[string]xauthz.Requirement{
-	constants.FieldExcludedNamespaces: {
+	globalconfigresource.FieldExcludedNamespaces: {
 		Scope:    roledata.ScopeSettings,
 		MinLevel: roledata.PermissionLevelContributor,
 		Rule:     xauthz.RuleKey(roledata.ScopeSettings, roledata.ActionEditDiscoveryConfig),
 	},
-	constants.FieldSnapshots: {
+	globalconfigresource.FieldSnapshots: {
 		Scope:    roledata.ScopeSettings,
 		MinLevel: roledata.PermissionLevelContributor,
 		Rule:     xauthz.RuleKey(roledata.ScopeSettings, roledata.ActionEditSnapshotStorage),
 	},
-	constants.FieldAI: {
+	globalconfigresource.FieldAI: {
 		Scope:    roledata.ScopeSettings,
 		MinLevel: roledata.PermissionLevelOwner,
 		Rule:     xauthz.RuleKey(roledata.ScopeSettings, roledata.ActionControlAIInsights),
 	},
-	constants.FieldOIDC: {
+	globalconfigresource.FieldOIDC: {
 		Scope:    roledata.ScopeSettings,
 		MinLevel: roledata.PermissionLevelAdmin,
+		Rule:     xauthz.RuleKey(roledata.ScopeSettings, roledata.ActionEditOIDCConfig),
 	},
 }
 
@@ -219,12 +221,12 @@ func RedactGlobalConfig(r *http.Request, resource *unstructured.Unstructured) {
 		return
 	}
 
-	ai, found := spec[constants.FieldAI].(map[string]any)
+	ai, found := spec[globalconfigresource.FieldAI].(map[string]any)
 	if !found {
 		return
 	}
 
-	delete(ai, constants.FieldAPIKey)
+	delete(ai, globalconfigresource.FieldAPIKey)
 }
 
 func mayControlAIInsights(r *http.Request) bool {
@@ -235,7 +237,7 @@ func mayControlAIInsights(r *http.Request) bool {
 	if identity.Internal {
 		return true
 	}
-	return xauthz.Allows(identity, globalConfigFields[constants.FieldAI])
+	return xauthz.Allows(identity, globalConfigFields[globalconfigresource.FieldAI])
 }
 
 // Fields absent from the table are not privileges and stay open.

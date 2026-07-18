@@ -15,13 +15,23 @@
 {{- $tgps := default $serviceDefaults.terminationGracePeriodSec $serviceConfig.terminationGracePeriodSec | default 30 -}}
 {{- $strategy := default $serviceDefaults.strategy $serviceConfig.strategy -}}
 {{- $priorityClass := default $serviceDefaults.priorityClassName $serviceConfig.priorityClassName -}}
+{{- $nodeSelector := $serviceConfig.nodeSelector | default $serviceDefaults.nodeSelector -}}
+{{- $tolerations := $serviceConfig.tolerations | default $serviceDefaults.tolerations -}}
+{{- $affinity := $serviceConfig.affinity | default $serviceDefaults.affinity -}}
+{{- $podSecurity := $values.app.shared.podSecurityContext | default dict -}}
+{{- $containerSecurity := $values.app.shared.containerSecurityContext | default dict -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
     {{- include "telark.labels" $root | nindent 4 }}
     app.kubernetes.io/component: {{ $serviceConfig.name }}
-  name: {{ $values.app.name }}-{{ $serviceConfig.name }}
+    {{ printf "%s.io/category" (include "telark.name" $root) }}: {{ $serviceConfig.category }}
+  {{- with (include "telark.annotations" $root) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+  name: {{ include "telark.fullname" $root }}-{{ $serviceConfig.name }}
   namespace: {{ $values.app.namespace }}
 spec:
   replicas: {{ $replicas }}
@@ -34,29 +44,38 @@ spec:
 {{- end }}
   selector:
     matchLabels:
-      app: {{ $values.app.name }}-{{ $serviceConfig.name }}
-      type: {{ $serviceConfig.category }}
+      {{- include "telark.selectorLabels" (dict "root" $root "component" $serviceConfig.name) | nindent 6 }}
   template:
     metadata:
       labels:
         {{- include "telark.labels" $root | nindent 8 }}
         app.kubernetes.io/component: {{ $serviceConfig.name }}
-        app: {{ $values.app.name }}-{{ $serviceConfig.name }}
-        type: {{ $serviceConfig.category }}
+        {{ printf "%s.io/category" (include "telark.name" $root) }}: {{ $serviceConfig.category }}
     spec:
       terminationGracePeriodSeconds: {{ $tgps }}
 {{- if $priorityClass }}
       priorityClassName: {{ $priorityClass }}
 {{- end }}
-      serviceAccountName: {{ $values.app.name }}-{{ $serviceConfig.name }}-sa
-      imagePullSecrets:
-        - name: {{ $values.app.name }}-reg-cred
-{{- if and $includeSecurity $values.app.shared.security }}
+      serviceAccountName: {{ include "telark.serviceAccountName" (dict "root" $root "serviceConfig" $serviceConfig) }}
+      {{- include "telark.imagePullSecrets" $root | nindent 6 }}
+{{- if and $includeSecurity $podSecurity.enabled }}
       securityContext:
         runAsNonRoot: true
-        runAsUser: {{ $values.app.shared.security.runAsUser }}
-        runAsGroup: {{ $values.app.shared.security.runAsGroup }}
-        fsGroup: {{ $values.app.shared.security.fsGroup }}
+        runAsUser: {{ $podSecurity.runAsUser }}
+        runAsGroup: {{ $podSecurity.runAsGroup }}
+        fsGroup: {{ $podSecurity.fsGroup }}
+{{- end }}
+{{- if $nodeSelector }}
+      nodeSelector:
+        {{- toYaml $nodeSelector | nindent 8 }}
+{{- end }}
+{{- if $tolerations }}
+      tolerations:
+        {{- toYaml $tolerations | nindent 8 }}
+{{- end }}
+{{- if $affinity }}
+      affinity:
+        {{- toYaml $affinity | nindent 8 }}
 {{- end }}
 {{- if and $serviceConfig.topologySpread $serviceConfig.topologySpread.enabled }}
       topologySpreadConstraints:
@@ -65,37 +84,36 @@ spec:
           whenUnsatisfiable: {{ $serviceConfig.topologySpread.whenUnsatisfiable | default "ScheduleAnyway" }}
           labelSelector:
             matchLabels:
-              app: {{ $values.app.name }}-{{ $serviceConfig.name }}
-              type: {{ $serviceConfig.category }}
+              {{- include "telark.selectorLabels" (dict "root" $root "component" $serviceConfig.name) | nindent 14 }}
 {{- end }}
       containers:
-        - name: {{ $values.app.name }}-{{ $serviceConfig.name }}-container
+        - name: {{ include "telark.fullname" $root }}-{{ $serviceConfig.name }}-container
           image: {{ $values.app.image.registry }}/{{ $values.app.image.repository }}:{{ $serviceConfig.imageTagPrefix }}{{ $serviceConfig.version }}
-          imagePullPolicy: Always
+          imagePullPolicy: {{ $values.app.image.pullPolicy | default "Always" }}
 {{- if and $useRedis $values.app.shared.redis }}
           envFrom:
             - configMapRef:
-                name: {{ $values.app.name }}-redis-cm
+                name: {{ include "telark.fullname" $root }}-redis-cm
 {{- end }}
           ports:
             - containerPort: {{ $port }}
               name: http
           env:
             {{/* Every service authenticates its peers, so this is never optional. */}}
-            - name: {{ $values.app.shared.serviceToken.envVar }}
+            - name: {{ $values.app.serviceToken.envVar }}
               valueFrom:
                 secretKeyRef:
-                  name: {{ $values.app.name }}-service-token-secret
+                  name: {{ include "telark.fullname" $root }}-service-token-secret
                   key: token
 {{- range $key, $value := $serviceConfig.env }}
             - name: {{ $key }}
-              value: {{ tpl (printf "%v" $value) (dict "Values" $values) | quote }}
+              value: {{ tpl (printf "%v" $value) $root | quote }}
 {{- end }}
 {{- range $key, $secret := $serviceConfig.envFromSecret }}
             - name: {{ $key }}
               valueFrom:
                 secretKeyRef:
-                  name: {{ $values.app.name }}-{{ $secret.name }}-secret
+                  name: {{ include "telark.fullname" $root }}-{{ $secret.name }}-secret
                   key: {{ $secret.key }}
 {{- end }}
 {{- if $useNatsCreds }}
@@ -103,7 +121,7 @@ spec:
             - name: {{ $key }}
               valueFrom:
                 secretKeyRef:
-                  name: {{ $values.app.name }}-{{ $secret.name }}-secret
+                  name: {{ include "telark.fullname" $root }}-{{ $secret.name }}-secret
                   key: {{ $secret.key }}
 {{- end }}
 {{- end }}
@@ -141,15 +159,15 @@ spec:
             timeoutSeconds: {{ $values.app.shared.healthCheck.readinessProbe.timeoutSeconds }}
             failureThreshold: {{ $values.app.shared.healthCheck.readinessProbe.failureThreshold }}
 {{- end }}
-{{- if and $includeSecurity $values.app.shared.security }}
+{{- if and $includeSecurity $containerSecurity.enabled }}
           securityContext:
-            allowPrivilegeEscalation: {{ $values.app.shared.security.allowPrivilegeEscalation }}
+            allowPrivilegeEscalation: {{ $containerSecurity.allowPrivilegeEscalation }}
             runAsNonRoot: true
-            runAsUser: {{ $values.app.shared.security.runAsUser }}
-            runAsGroup: {{ $values.app.shared.security.runAsGroup }}
-            readOnlyRootFilesystem: {{ $values.app.shared.security.readOnlyRootFilesystem }}
+            runAsUser: {{ $containerSecurity.runAsUser }}
+            runAsGroup: {{ $containerSecurity.runAsGroup }}
+            readOnlyRootFilesystem: {{ $containerSecurity.readOnlyRootFilesystem }}
             capabilities:
-              drop: {{ $values.app.shared.security.dropCapabilities | toJson }}
+              drop: {{ $containerSecurity.capabilities.drop | toJson }}
 {{- end }}
 {{- if $serviceConfig.volumeMounts }}
           volumeMounts:
@@ -175,8 +193,8 @@ spec:
           {{- end }}
           {{- if $volume.persistentVolumeClaim }}
           persistentVolumeClaim:
-            claimName: {{ tpl ($volume.persistentVolumeClaim.claimName | toString) (dict "Values" $values) }}
+            claimName: {{ tpl ($volume.persistentVolumeClaim.claimName | toString) $root }}
           {{- end }}
 {{- end }}
 {{- end }}
-{{- end -}} 
+{{- end -}}

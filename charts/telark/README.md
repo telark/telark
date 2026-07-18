@@ -1,17 +1,47 @@
-# telark-core-chart
+# telark
 
-Helm chart for the telark app: 6 first-class services + shared infra (redis, nats, kyverno, metrics-server, ollama).
+Helm chart for [telark](https://telark.io) — a protection gate for your Kubernetes workloads. Discover your applications, then decide what can change them, and when. Deploys 6 first-class services + shared infra (redis, nats, kyverno, metrics-server, ollama).
+
+## Install
+
+```sh
+helm install telark ./charts/telark \
+  --set-file nats.configuration=charts/telark/config/nats.conf
+```
+
+Sizing overlays (optional) layer on top of the chart defaults:
+
+```sh
+helm install telark ./charts/telark \
+  -f charts/telark/values.mode.standard.yaml \
+  --set-file nats.configuration=charts/telark/config/nats.conf
+```
+
+Modes: `minimal` | `standard` | `performance`.
 
 ## Values reference
+
+### Top-level
+
+| Key | Default | Description |
+|---|---|---|
+| `nameOverride` | `""` | Override the base name (defaults to `app.name`) |
+| `fullnameOverride` | `""` | Override the resource-name prefix |
+| `commonLabels` | `{}` | Labels added to every resource |
+| `commonAnnotations` | `{}` | Annotations added to every resource |
+| `global.imagePullSecrets` | `[]` | Pull secrets merged into every pod |
 
 ### `app`
 
 | Key | Default | Description |
 |---|---|---|
-| `app.name` | `telark` | Prefix for all resource names |
+| `app.name` | `telark` | Source of truth for the app identity / resource-name prefix |
 | `app.namespace` | `telark` | Install namespace; bootstrap CRs land here |
 | `app.image.registry` | `botriack` | Container image registry |
 | `app.image.repository` | `telark` | Container image repository |
+| `app.image.pullPolicy` | `Always` | Image pull policy for every service container |
+| `app.image.registrySecret.create` | `true` | Create the chart-managed `<name>-reg-cred` pull secret |
+| `app.image.pullSecrets` | `[]` | Extra pull secrets |
 | `app.kyverno.enabled` | `true` | Install kyverno subchart |
 | `app.ollama.enabled` | `false` | Install ollama subchart |
 | `app.persistence.enabled` | `true` | Provision exporter snapshot PVC |
@@ -86,14 +116,18 @@ Pod-level config selectively applied via per-service gates.
 | `*.initialDelaySeconds` / `periodSeconds` / `timeoutSeconds` | `15` | Probe timings |
 | `*.failureThreshold` | `3` | Consecutive failures before unhealthy |
 
-**`app.shared.security`** — pod + container securityContext, applied when `includeSecurity: true` (default).
+**`app.shared.podSecurityContext`** / **`app.shared.containerSecurityContext`** — pod- and container-level securityContext, applied when a service has `includeSecurity: true` (default). Set `enabled: false` on either to omit it.
 
 | Key | Default | Description |
 |---|---|---|
-| `runAsUser` / `runAsGroup` / `fsGroup` | `1001` | Non-root identity |
-| `allowPrivilegeEscalation` | `false` | Block setuid-style escalation |
-| `readOnlyRootFilesystem` | `true` | Mount root FS read-only |
-| `dropCapabilities` | `["ALL"]` | Linux capabilities to drop |
+| `app.shared.podSecurityContext.enabled` | `true` | Render the pod securityContext |
+| `app.shared.podSecurityContext.runAsUser` / `runAsGroup` / `fsGroup` | `1001` | Non-root identity |
+| `app.shared.containerSecurityContext.enabled` | `true` | Render the container securityContext |
+| `app.shared.containerSecurityContext.allowPrivilegeEscalation` | `false` | Block setuid-style escalation |
+| `app.shared.containerSecurityContext.readOnlyRootFilesystem` | `true` | Mount root FS read-only |
+| `app.shared.containerSecurityContext.capabilities.drop` | `["ALL"]` | Linux capabilities to drop |
+
+**`app.serviceDefaults`** scheduling — `nodeSelector` (`{}`), `tolerations` (`[]`), `affinity` (`{}`); overridable per service.
 
 **`app.shared.natsEnvFromSecret`** — mounted when `useNatsCreds: true` (default false). Secret: `<app.name>-nats-secret`.
 
@@ -112,14 +146,16 @@ Per-service block. Gates default to `true` unless noted.
 | `name` | varies | K8s resource suffix |
 | `imageTagPrefix` | varies | Image tag prefix; full tag = `<imageTagPrefix><version>` |
 | `version` | varies | Image version segment |
-| `category` | varies | Semantic label (pod label `type:<category>`) |
+| `category` | varies | Semantic grouping, rendered as the label `<name>.io/category:<category>` |
 | `replicas` | `app.serviceDefaults.replicas` | Override |
 | `port` | `app.serviceDefaults.port` | Override |
 | `serviceType` | `app.serviceDefaults.serviceType` | Override |
 | `terminationGracePeriodSec` | `app.serviceDefaults.terminationGracePeriodSec` | Override |
 | `includeResources` | `true` | Apply `app.shared.resources` |
 | `includeHealthCheck` | `true` | Apply `app.shared.healthCheck` |
-| `includeSecurity` | `true` | Apply `app.shared.security` |
+| `includeSecurity` | `true` | Apply `app.shared.podSecurityContext` + `app.shared.containerSecurityContext` |
+| `serviceAccount.create` / `serviceAccount.name` / `serviceAccount.annotations` | `create: true` | Per-service ServiceAccount control |
+| `nodeSelector` / `tolerations` / `affinity` | `app.serviceDefaults.*` | Scheduling overrides |
 | `useRedis` | `true` | Mount `app.shared.redis` configmap |
 | `useNatsCreds` | `false` | Mount `app.shared.natsEnvFromSecret` |
 | `env` | `{}` | Inline env map; values pass through `tpl` against `.Values` |

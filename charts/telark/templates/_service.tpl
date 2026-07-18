@@ -9,15 +9,18 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ $values.app.name }}-{{ $serviceConfig.name }}
+  name: {{ include "telark.fullname" $root }}-{{ $serviceConfig.name }}
   namespace: {{ $values.app.namespace }}
   labels:
     {{- include "telark.labels" $root | nindent 4 }}
     app.kubernetes.io/component: {{ $serviceConfig.name }}
+  {{- with (include "telark.annotations" $root) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   selector:
-    app: {{ $values.app.name }}-{{ $serviceConfig.name }}
-    type: {{ $serviceConfig.category }}
+    {{- include "telark.selectorLabels" (dict "root" $root "component" $serviceConfig.name) | nindent 4 }}
   ports:
     - name: http
       port: {{ $port }}

@@ -10,7 +10,7 @@ metadata:
   labels:
     {{- include "telark.labels" $root | nindent 4 }}
     app.kubernetes.io/component: {{ $serviceConfig.name }}
-  name: {{ $values.app.name }}-{{ $serviceConfig.name }}-role
+  name: {{ include "telark.fullname" $root }}-{{ $serviceConfig.name }}-role
   namespace: {{ $values.app.namespace }}
 rules:
 {{- range $rule := $rules }}
@@ -28,17 +28,17 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ $values.app.name }}-{{ $serviceConfig.name }}-role-binding
+  name: {{ include "telark.fullname" $root }}-{{ $serviceConfig.name }}-role-binding
   namespace: {{ $values.app.namespace }}
   labels:
     {{- include "telark.labels" $root | nindent 4 }}
     app.kubernetes.io/component: {{ $serviceConfig.name }}
 subjects:
   - kind: ServiceAccount
-    name: {{ $values.app.name }}-{{ $serviceConfig.name }}-sa
+    name: {{ include "telark.serviceAccountName" (dict "root" $root "serviceConfig" $serviceConfig) }}
     namespace: {{ $values.app.namespace }}
 roleRef:
   kind: Role
-  name: {{ $values.app.name }}-{{ $serviceConfig.name }}-role
+  name: {{ include "telark.fullname" $root }}-{{ $serviceConfig.name }}-role
   apiGroup: rbac.authorization.k8s.io
 {{- end -}}

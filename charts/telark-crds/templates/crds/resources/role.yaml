@@ -3,8 +3,8 @@ kind: CustomResourceDefinition
 metadata:
   name: rolesasresources.erpi.{{ $.Values.app.name }}
   labels:
-    app.kubernetes.io/name: rolesasresources.erpi.{{ $.Values.app.name }}
-    app.kubernetes.io/part-of: {{ $.Values.app.name }}
+    {{- include "telark.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: crd
 spec:
   group: erpi.{{ $.Values.app.name }}
   names:

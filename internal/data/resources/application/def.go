@@ -12,7 +12,6 @@ type Application struct {
 	LastUpdated     string                `json:"lastUpdated"`
 	ResourceSummary ResourceSummary       `json:"resourceSummary"`
 	Resources       []Resource            `json:"resources"`
-	Insights        Insights              `json:"insights"`
 	Images          []string              `json:"images"`
 	Ports           []int                 `json:"ports"`
 	EnvVarKeys      []string              `json:"envVarKeys"`

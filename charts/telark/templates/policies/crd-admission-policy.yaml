@@ -12,11 +12,11 @@ A cluster admin can always delete this policy. The point is not to make the
 resources unwritable, it is to make writing them a deliberate, audited act
 rather than a side effect of holding namespace edit.
 */}}
-{{- if $.Values.app.shared.crdGuard.enabled }}
+{{- if $.Values.app.crdGuard.enabled }}
 {{- $ns := $.Values.app.namespace }}
-{{- $extra := $.Values.app.shared.crdGuard.extraAllowedUsers }}
-{{- $exporter := printf "system:serviceaccount:%s:%s-exporter-service-sa" $ns $.Values.app.name }}
-{{- $discovery := printf "system:serviceaccount:%s:%s-discovery-service-sa" $ns $.Values.app.name }}
+{{- $extra := $.Values.app.crdGuard.extraAllowedUsers }}
+{{- $exporter := printf "system:serviceaccount:%s:%s" $ns (include "telark.serviceAccountName" (dict "root" $ "serviceConfig" $.Values.services.exporter)) }}
+{{- $discovery := printf "system:serviceaccount:%s:%s" $ns (include "telark.serviceAccountName" (dict "root" $ "serviceConfig" $.Values.services.discovery)) }}
 {{/*
 The exporter owns every one of these resources. Discovery owns nothing outright:
 it only patches its own applications, so it is admitted for that resource alone
@@ -78,7 +78,7 @@ metadata:
 spec:
   policyName: {{ $.Values.app.name }}-crd-guard
   validationActions:
-    {{- if $.Values.app.shared.crdGuard.enforce }}
+    {{- if $.Values.app.crdGuard.enforce }}
     - Deny
     {{- else }}
     - Audit

@@ -7,10 +7,10 @@
 # Costs roughly an order of magnitude more than minimal to run. Pick it when the
 # cluster is genuinely large, not to be safe.
 #
-# Layered over values.charts.yaml at install:
-#   -f values.charts.yaml -f values.mode.performance.yaml
+# Layered over the chart defaults at install:
+#   -f values.mode.performance.yaml
 #
-# Capacity only. This says nothing about security posture: app.shared.crdGuard is
+# Capacity only. This says nothing about security posture: app.crdGuard is
 # an independent flag, deliberately, so a small cluster can still enforce the role
 # model and a large one never enforces it by accident.
 

@@ -1,123 +1,44 @@
-# ──────────────────────────────────────────────────────────────────────────────
-# telark-core-chart — values.yaml
+# telark — Helm chart values. Full per-key reference: ./README.md
 #
-# This is the canonical configuration source for the telark Helm chart. A full
-# per-key reference (with descriptions and operational notes for every service
-# env var) lives in ./README.md.
+# Layout:  app.*            app-wide config (identity, images, auth, storage,
+#                           shared pod fragments).
+#          services.<svc>   per-workload blocks; inherit app.serviceDefaults and
+#                           opt into shared fragments via gates.
+#          Subcharts        bottom of this file. Sizing: values.mode.<mode>.yaml.
 #
-# ─── File layout ─────────────────────────────────────────────────────────────
-#
-#   app/        Application-wide configuration. Defines who the app is, where
-#               its container images come from, how authentication works,
-#               which subcharts are enabled, what storage to provision, and
-#               the shared pod-level fragments (probes, resources, security,
-#               env injection) that services opt into.
-#
-#   services/   Per-service blocks (one per workload: exporter, discovery,
-#               enrichment, notifier, auth, ui). Each service inherits from
-#               app.serviceDefaults and selectively pulls in fragments from
-#               app.shared via boolean gates. Only deviations from the
-#               defaults need to be set explicitly.
-#
-# ─── Conventions ─────────────────────────────────────────────────────────────
-#
-#   - YAML keys use camelCase.
-#   - Container env var keys use SCREAMING_SNAKE_CASE (Kubernetes convention).
-#   - Boolean-like strings ("true" / "false") are used where the value is
-#     forwarded directly into a container env var. Real YAML booleans appear
-#     only where Helm itself consumes the value (e.g. service.enabled).
-#
-# ─── Inheritance & gates ─────────────────────────────────────────────────────
-#
-#   Each per-service block can override any field from app.serviceDefaults
-#   (port, replicas, serviceType, terminationGracePeriodSec). Five boolean
-#   gates control which app.shared fragments are mounted into the pod:
-#
-#     Gate                Default   Effect when true
-#     ----                -------   ----------------
-#     includeResources    true      Apply app.shared.resources
-#     includeHealthCheck  true      Apply app.shared.healthCheck probes
-#     includeSecurity     true      Apply app.shared.security securityContext
-#     useRedis            true      Mount app.shared.redis as envFrom configmap
-#     useNatsCreds        false     Mount app.shared.natsEnvFromSecret entries
-#
-#   To opt out of a default-true gate, set it to false on the service block.
-#   To opt in to useNatsCreds, set it to true.
-#
-# ─── Templating ──────────────────────────────────────────────────────────────
-#
-#   String values inside services.<svc>.env.* and volume claimNames are passed
-#   through Helm's `tpl` function with .Values in scope. They may therefore
-#   reference other parts of this file using `{{ .Values.app.* }}` syntax —
-#   used here to wire BOOTSTRAP_ADMINS, RP_ID, snapshot PVC
-#   names, etc. without duplication.
-#
-# ─── Notes for operators ─────────────────────────────────────────────────────
-#
-#   - Secrets in production: API keys under services.enrichment.env should be
-#     moved to a Kubernetes Secret and consumed via envFromSecret rather than
-#     being checked in here.
-#   - Storage class semantics for any *.storageClass key in this file:
-#       ""        -> omit storageClassName; cluster default class wins
-#       "-"       -> storageClassName: "" (disables dynamic provisioning)
-#       "<name>"  -> storageClassName: "<name>"
-#   - Auth-service note: SELF_REGISTRATION_ENABLED gates ONLY the passkey
-#     path. OIDC users are auto-provisioned on first successful Google login
-#     regardless of this flag, and admin role is granted automatically if the
-#     email appears in app.auth.bootstrap.admins.
-#
-# ─────────────────────────────────────────────────────────────────────────────
+# Conventions: keys camelCase; container env keys SCREAMING_SNAKE_CASE.
+# Gates (per service, defaults): includeResources / includeHealthCheck /
+#   includeSecurity / useRedis = true, useNatsCreds = false.
+# storageClass: "" = cluster default · "-" = disable provisioning · "<name>" = that class.
 
-# ─── app ─────────────────────────────────────────────────────────────────────
-# Application-wide configuration.
-#
-#   name             Prefix for every rendered resource name (Deployment,
-#                    Service, RBAC, etc.). Effectively the install identity.
-#   namespace        Install namespace. Bootstrap-chart CRs also land here.
-#   image            Container image source. Full image reference for each
-#                    service is composed as:
-#                      <registry>/<repository>:<imageTagPrefix><version>
-#                    e.g. botriack/telark:exp-3.3.1
-#   auth             Operator-facing auth-service configuration:
-#                      bootstrap.admins         Comma-list of emails; each
-#                                               receives the Admin role on
-#                                               first OIDC login. Required
-#                                               when passkey.selfRegistration
-#                                               is "false" (otherwise the
-#                                               cluster has no path to its
-#                                               first admin user).
-#                      passkey.{id,name,origin} WebAuthn relying-party
-#                                               identity. Browser enforces
-#                                               origin strictly.
-#                      passkey.selfRegistration "false" blocks new passkey
-#                                               registration. OIDC users are
-#                                               unaffected.
-#   kyverno.enabled  Install the Kyverno admission-controller subchart.
-#                    Subchart-internal config lives in values.charts.yaml.
-#   ollama.enabled   Install the Ollama LLM subchart. Required only when
-#                    services.enrichment uses provider=ollama.
-#   persistence      Storage for the single telark-owned PVC (exporter
-#                    snapshots). See "Storage class semantics" above.
-#   serviceDefaults  Fallback values for every entry under services.*. A
-#                    service block overrides any of these by setting the same
-#                    key explicitly.
-#   shared           Pod-level fragments selectively applied to each service
-#                    via the gates listed above:
-#                      redis             REDIS_* env vars mounted via
-#                                        envFrom: configMapRef (when useRedis).
-#                      resources         CPU/memory requests + limits.
-#                      healthCheck       HTTP liveness + readiness probes.
-#                                        `port` is the container's named port.
-#                      security          Pod + container securityContext.
-#                      natsEnvFromSecret NATS credentials mounted from
-#                                        Secret <app.name>-nats-secret (when
-#                                        useNatsCreds).
+# global: propagated to subcharts.
+global:
+  imagePullSecrets: []
+
+# app.name is the source of truth for the app identity. These override the name
+# used for rendered resources without touching app.name.
+nameOverride: ""
+fullnameOverride: ""
+
+# Added to the metadata of every rendered resource.
+commonLabels: {}
+commonAnnotations: {}
+
 app:
+  # Identity — app.name is the source of truth for every resource name.
   name: "telark"
   namespace: "telark"
+
+  # Container images. Full ref: <registry>/<repository>:<imageTagPrefix><version>.
   image:
     registry: "botriack"
     repository: "telark"
+    pullPolicy: "Always"        # re-build-current re-pulls the same tag, so never IfNotPresent
+    registrySecret:
+      create: true              # chart-managed <name>-reg-cred pull secret
+    pullSecrets: []
+
+  # Auth service — WebAuthn relying-party identity + bootstrap admins.
   auth:
     bootstrap:
       admins:
@@ -126,55 +47,58 @@ app:
       id: "localhost"
       name: "Dashboard App"
       origin: "http://localhost:3000"
-      selfRegistration: "true"
+      selfRegistration: "true"  # gates passkey registration only; OIDC users unaffected
+
+  # Optional subcharts. Their config lives in the Subcharts section below.
   kyverno:
     enabled: true
   ollama:
-    enabled: false
+    enabled: false              # required only when enrichment uses provider=ollama
+
+  # Storage for the exporter snapshots PVC.
+  # storageClass: "" = cluster default · "-" = disable provisioning · "<name>" = that class.
   persistence:
     enabled: true
     storageClass: ""
     size: 1Gi
     accessMode: ReadWriteOnce
+
+  # Shared secret services present to each other. Empty = generated on install and
+  # read back on upgrade. Set explicitly for cluster-less renders (GitOps).
+  serviceToken:
+    envVar: "TELARK_SERVICE_TOKEN"
+    value: ""
+
+  # Admission-side guard: only owning service accounts may write Telark CRs.
+  # enabled=false off · enforce=false audits (logs + allows) · enforce=true rejects.
+  crdGuard:
+    enabled: false
+    enforce: false
+    extraAllowedUsers: []       # break-glass usernames; owning SAs always allowed
+
+  # Per-service defaults. Override any key on a services.<svc> block.
   serviceDefaults:
     port: 8080
     serviceType: ClusterIP
     replicas: 1
     terminationGracePeriodSec: 60
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+
+  # Shared pod fragments, applied per service via gates:
+  # includeResources · includeHealthCheck · includeSecurity · useRedis · useNatsCreds.
   shared:
-    serviceToken:
-      envVar: "TELARK_SERVICE_TOKEN"
-      # Shared secret one service presents to another. Left empty, it is
-      # generated on install and read back from the cluster on upgrade, so it
-      # stays put.
-      #
-      # Set it explicitly when rendering without a cluster to reach
-      # (`helm template | kubectl apply`, or any GitOps flow): the lookup finds
-      # nothing there, so a new token is minted on every apply, and services
-      # cannot authenticate each other until every pod has restarted onto it.
-      value: ""
-    crdGuard:
-      # Refuses writes to Telark's own custom resources from anything but the
-      # services that own them, so cluster access alone no longer bypasses the
-      # role model. Off by default: turn it on once the allow list below matches
-      # the service accounts actually running.
-      enabled: false
-      # Off reports violations in the audit log and allows the write, which is how
-      # to confirm nothing legitimate is caught. On refuses it.
-      enforce: false
-      # Extra usernames permitted to write directly, for break-glass. The service
-      # accounts of the services that own these resources are always allowed.
-      extraAllowedUsers: []
     redis:
-      REDIS_HOST: "telark-release-redis-master"
+      REDIS_HOST: "{{ .Release.Name }}-redis-master"   # redis subchart master service
       REDIS_PORT: "6379"
     resources:
       requests:
         cpu: "100m"
         memory: "128Mi"
       limits:
-        memory: "512Mi"
         cpu: "500m"
+        memory: "512Mi"
     healthCheck:
       port: http
       livenessProbe:
@@ -189,13 +113,19 @@ app:
         periodSeconds: 15
         timeoutSeconds: 15
         failureThreshold: 3
-    security:
+    podSecurityContext:
+      enabled: true
       runAsUser: 1001
       runAsGroup: 1001
       fsGroup: 1001
+    containerSecurityContext:
+      enabled: true
       allowPrivilegeEscalation: false
       readOnlyRootFilesystem: true
-      dropCapabilities: ["ALL"]
+      runAsUser: 1001
+      runAsGroup: 1001
+      capabilities:
+        drop: ["ALL"]
     natsEnvFromSecret:
       NATS_USER:
         name: "nats"
@@ -213,18 +143,18 @@ services:
     version: 3.3.3
     category: "export"
     env:
-      SNAPSHOTS_PATH: "/snapshots"
-      SNAPSHOTS_PVC_NAME: '{{ .Values.app.name }}-exporter-snapshots-pvc'
+      SNAPSHOTS_PATH: &snapshotsPath "/snapshots"
+      SNAPSHOTS_PVC_NAME: '{{ include "telark.exporterSnapshotsPvcName" . }}'
       SNAPSHOTS_PVC_NAMESPACE: '{{ .Values.app.namespace }}'
       EXPORTER_K8S_CLIENT_QPS: "50"
       EXPORTER_K8S_CLIENT_BURST: "100"
     volumes:
       - name: snapshots-storage
         persistentVolumeClaim:
-          claimName: '{{ .Values.app.name }}-exporter-snapshots-pvc'
+          claimName: '{{ include "telark.exporterSnapshotsPvcName" . }}'
     volumeMounts:
       - name: snapshots-storage
-        path: /snapshots
+        path: *snapshotsPath
     pdb:
       enabled: false
   discovery:
@@ -298,7 +228,7 @@ services:
       REDIS_POOL_SIZE: "10"
       # Provider and API key are read from the GlobalConfig CR at runtime, set by
       # an admin from the UI. Only the non-secret model names live here.
-      OLLAMA_HOST: "http://telark-release-ollama:11434"
+      OLLAMA_HOST: "http://{{ .Release.Name }}-ollama:11434"
       OLLAMA_MODEL: "qwen2.5:3b"
       ANTHROPIC_MODEL: "claude-haiku-4-5-20251001"
       GROQ_MODEL: "llama-3.3-70b-versatile"
@@ -365,3 +295,89 @@ services:
     includeHealthCheck: false
     includeSecurity: false
     useRedis: false
+
+# ─── Subcharts ───────────────────────────────────────────────────────────────
+# Config that does not vary between install modes. Sizing (replicas, resources,
+# rate limits, volume sizes) is layered on top from values.mode.<mode>.yaml:
+#
+#   helm install <name> . -f values.mode.<mode>.yaml
+#
+# Modes: minimal | standard | performance. Installing without a mode overlay uses
+# the subchart defaults below, which suit a single-node / evaluation cluster.
+
+redis:
+  architecture: standalone
+  auth:
+    enabled: false
+  master:
+    persistence:
+      enabled: true
+      size: 1Gi
+
+nats:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: nats
+    tag: 2.12.1-scratch
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+  # configuration: loaded via --set-file nats.configuration=config/nats.conf
+  persistence:
+    enabled: true
+    path: /data
+    size: 2Gi
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+
+kyverno:
+  namespaceOverride: "telark"
+  features:
+    forceFailurePolicyIgnore:
+      enabled: true
+  webhooksCleanup:
+    enabled: false
+  # Replicas and resources intentionally omitted: they come from the install mode.
+
+# metrics-server: required by HPAs and `kubectl top`. Default on.
+# Disable for clusters that already ship it (GKE, AKS, k3s, OpenShift):
+#   kubectl get apiservice v1beta1.metrics.k8s.io
+# If present, override: --set metrics-server.enabled=false
+metrics-server:
+  enabled: true
+  args:
+    - --kubelet-insecure-tls
+    - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+  resources:
+    requests:
+      cpu: 100m
+      memory: 200Mi
+    limits:
+      cpu: 200m
+      memory: 400Mi
+
+ollama:
+  ollama:
+    models:
+      pull:
+      # tested: phi3.5 (HIGH) / llama3.2:3b (LOW, inaccurate) / qwen2.5:3b (MEDIUM, best fit)
+       - qwen2.5:3b
+  persistentVolume:
+    enabled: true
+    size: 10Gi
+    # Empty -> cluster default class. Override per env via --set or values overlay.
+    storageClass: ""
+  extraEnv:
+    - name: OLLAMA_NO_CLOUD
+      value: "true"
+    - name: OLLAMA_CONTEXT_LENGTH
+      value: "2048"
+    - name: OLLAMA_KEEP_ALIVE
+      value: "-1"
+    - name: OLLAMA_FLASH_ATTENTION
+      value: "true"
+    - name: OLLAMA_NUM_PARALLEL
+      value: "1"

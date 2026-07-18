@@ -2,7 +2,7 @@
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
-  name: telark-inject-modifier
+  name: {{ include "telark.fullname" . }}-inject-modifier
   labels:
 {{- include "telark.labels" . | nindent 4 }}
   annotations:
@@ -33,7 +33,7 @@ spec:
           - resources:
               namespaces:
                 # Avoid self-mutation loops / policy churn in our own/system namespaces.
-                - telark
+                - {{ .Values.app.namespace }}
                 - kyverno
                 - kube-system
                 - kube-public
@@ -42,7 +42,7 @@ spec:
         patchStrategicMerge:
           metadata:
             annotations:
-              telark.io/last-modified-by: {{ "{{ request.userInfo.username }}" | quote }}
-              telark.io/last-modified-at: {{ "{{ time_now_utc() }}" | quote }}
-              telark.io/last-modified-operation: {{ "{{ request.operation }}" | quote }}
+              {{ printf "%s.io/last-modified-by" .Values.app.name }}: {{ "{{ request.userInfo.username }}" | quote }}
+              {{ printf "%s.io/last-modified-at" .Values.app.name }}: {{ "{{ time_now_utc() }}" | quote }}
+              {{ printf "%s.io/last-modified-operation" .Values.app.name }}: {{ "{{ request.operation }}" | quote }}
 {{- end }}

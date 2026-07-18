@@ -6,10 +6,10 @@
 #
 # For development, demos and evaluation. Losing a node takes the service with it.
 #
-# Layered over values.charts.yaml at install:
-#   -f values.charts.yaml -f values.mode.minimal.yaml
+# Layered over the chart defaults at install:
+#   -f values.mode.minimal.yaml
 #
-# Capacity only. This says nothing about security posture: app.shared.crdGuard is
+# Capacity only. This says nothing about security posture: app.crdGuard is
 # an independent flag, deliberately, so a small cluster can still enforce the role
 # model and a large one never enforces it by accident.
 

@@ -10,7 +10,7 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ $values.app.name }}-{{ $serviceConfig.name }}-pdb
+  name: {{ include "telark.fullname" $root }}-{{ $serviceConfig.name }}-pdb
   namespace: {{ $values.app.namespace }}
   labels:
     {{- include "telark.labels" $root | nindent 4 }}
@@ -18,8 +18,7 @@ metadata:
 spec:
   selector:
     matchLabels:
-      app: {{ $values.app.name }}-{{ $serviceConfig.name }}
-      type: {{ $serviceConfig.category }}
+      {{- include "telark.selectorLabels" (dict "root" $root "component" $serviceConfig.name) | nindent 6 }}
 {{- if hasKey $pdb "minAvailable" }}
   minAvailable: {{ $pdb.minAvailable }}
 {{- else if hasKey $pdb "maxUnavailable" }}

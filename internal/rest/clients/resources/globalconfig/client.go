@@ -3,6 +3,7 @@ package globalconfig
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 
@@ -88,9 +89,7 @@ func (c *Client) getResourceVersion() (string, error) {
 
 func withResourceVersion(body map[string]any, resourceVersion string) map[string]any {
 	spec := make(map[string]any, len(body))
-	for key, value := range body {
-		spec[key] = value
-	}
+	maps.Copy(spec, body)
 
 	return map[string]any{
 		constants.SpecField: spec,

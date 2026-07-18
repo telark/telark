@@ -39,21 +39,21 @@ const (
 )
 
 const (
-	Configurator      Service     = "configurator"
-	Exporter          Service     = "exporter"
-	Discovery         Service     = "discovery"
-	AdmissionOperator Service     = "admission-operator"
-	Notifier          Service     = "notifier"
-	JSON              ContentType = "application/json"
-	Default           Port        = 8080
-	HTTPSPort         Port        = 443
-	UIPort            Port        = 3000
-	V1                Version     = "api/v1"
-	Get               Method      = "GET"
-	Post              Method      = "POST"
-	Update            Method      = "PUT"
-	Delete            Method      = "DELETE"
-	Patch             Method      = "PATCH"
+	Configurator Service     = "configurator"
+	Exporter     Service     = "exporter"
+	Discovery    Service     = "discovery"
+	Notifier     Service     = "notifier"
+	Enrichment   Service     = "enrichment"
+	JSON         ContentType = "application/json"
+	Default      Port        = 8080
+	HTTPSPort    Port        = 443
+	UIPort       Port        = 3000
+	V1           Version     = "api/v1"
+	Get          Method      = "GET"
+	Post         Method      = "POST"
+	Update       Method      = "PUT"
+	Delete       Method      = "DELETE"
+	Patch        Method      = "PATCH"
 )
 
 func (api *API) GenerateURL() (string, error) {

@@ -42,10 +42,6 @@ func (c *Client) GetAllApplications() ([]*appresource.Application, error) {
 	return shared.GetListTyped[*appresource.Application](c.Client, eps.GetAllApplications)
 }
 
-func (c *Client) EnrichApplications() (*response.GenericResponse, error) {
-	return c.Post(eps.EnrichApplications)
-}
-
 func (c *Client) PatchApplicationByName(name string, body map[string]any) *response.GenericResponse {
 	ep := shared.SubstituteEndpointWithParam(
 		string(eps.PatchApplicationByName),

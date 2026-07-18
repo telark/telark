@@ -4,7 +4,6 @@ import "github.com/telark/rest/base"
 
 const (
 	// Application endpoints
-	EnrichApplications      base.Endpoint = "resources/applications/enrich" // namespace, selector params are optional
 	CreateApplication       base.Endpoint = "resources/applications/create"
 	GetAllApplications      base.Endpoint = "resources/applications/get"
 	GetApplicationByName    base.Endpoint = "resources/applications/{name}/get"

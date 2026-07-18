@@ -3,8 +3,8 @@ kind: CustomResourceDefinition
 metadata:
   name: globalconfigs.erpi.{{ $.Values.app.name }}
   labels:
-    app.kubernetes.io/name: globalconfigs.erpi.{{ $.Values.app.name }}
-    app.kubernetes.io/part-of: {{ $.Values.app.name }}
+    {{- include "telark.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: crd
   annotations:
     "helm.sh/resource-policy": keep
 spec:

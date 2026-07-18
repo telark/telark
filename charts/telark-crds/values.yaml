@@ -1,8 +1,7 @@
-# Schema stub only. Real values come from helm/app/values.yaml at install time
-# via `helm upgrade --install <bootstrap-release> -f helm/app/values.yaml ...`.
-# Single source of truth lives in helm/app/values.yaml — do not duplicate values here.
-# Keys below exist so `helm lint` and `helm template` resolve without errors.
-
+# Defaults for standalone install/inspection. At the real install the telark
+# chart is the source of truth and overrides these:
+#   helm upgrade --install <crds-release> . -f ../telark/values.yaml
+# Do not maintain real config here — keep it in charts/telark/values.yaml.
 app:
-  name: ""
-  namespace: ""
+  name: "telark"
+  namespace: "telark"

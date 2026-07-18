@@ -1,0 +1,10 @@
+apiVersion: v2
+name: telark-crds
+description: telark CRDs. Installed before the telark chart.
+type: application
+version: 0.2.1
+appVersion: "1.0"
+# 1.33 is the oldest release still receiving upstream patches, and the oldest
+# offered by the managed providers. It also clears ValidatingAdmissionPolicy
+# (GA in 1.30), so the admission guard needs no fallback for older clusters.
+kubeVersion: ">=1.33.0-0"

@@ -1,0 +1,8 @@
+{{- if $.Values.services.exporter.enabled }}
+{{- include "role" (dict "service" "exporter" "values" .Values "root" $ "rules" (list
+  (dict "apiGroups" (list "erpi.telark") "resources" (list "*") "verbs" (list "*"))
+  (dict "apiGroups" (list "auth.telark") "resources" (list "*") "verbs" (list "*"))
+  (dict "apiGroups" (list "classification.telark") "resources" (list "*") "verbs" (list "*"))
+  (dict "apiGroups" (list "") "resources" (list "persistentvolumeclaims") "verbs" (list "get" "list" "watch" "update" "patch"))
+)) }}
+{{- end }}

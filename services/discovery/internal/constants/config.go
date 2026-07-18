@@ -117,10 +117,9 @@ const (
 	// (Redis SCAN/DEL fan-out + snapshot directory removal + exporter delete).
 	AppCleanupHandlerTimeout = 30 * time.Second
 
-	// EnrichApplicationsTimeout bounds the EnrichApplications handler's
-	// downstream listing + enrichment compute. Set generously since enrichment
-	// can be slow.
-	EnrichApplicationsTimeout = 5 * time.Minute
+	// InsightsReadTimeout bounds the windowed cache reads behind the insights read
+	// route. Short: these are a handful of Redis GETs for one page of apps.
+	InsightsReadTimeout = 5 * time.Second
 
 	// NATSConnectTimeout bounds NATS dial-with-retry for fetching the shared
 	// publisher client.

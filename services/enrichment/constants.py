@@ -30,6 +30,12 @@ MSG_API_KEY_REQUIRED = "api_key is required"
 MSG_VALIDATE_OK = "ok"
 MSG_VALIDATE_FAILED = "validation failed"
 
+SERVICE_NAME = "enrichment-service"
+STATUS_READY_PATH = "/api/v1/status/ready"
+STATUS_LIVE_PATH = "/api/v1/status/live"
+STATUS_READY = "ready"
+STATUS_ALIVE = "alive"
+
 LOG_VALIDATE_API_KEY_OK = "API key validated for provider: {}"
 LOG_VALIDATE_API_KEY_FAILED = "API key validation failed for provider {}: {}"
 
@@ -54,6 +60,10 @@ RATE_LIMIT_RETRIES = 3
 ROLE_PATTERN = None  # removed — role is now free-form
 CONFIDENCE_PATTERN = "^(high|medium|low)$"
 CATEGORY_PATTERN = "^(infrastructure|application|data|messaging|security)$"
+SEVERITY_PATTERN = "^(high|medium|low)$"
+PRIORITY_PATTERN = "^(high|medium|low)$"
+EFFICIENCY_STATUS_PATTERN = "^(over|under|balanced|unknown)$"
+CRITICALITY_LEVEL_PATTERN = "^(critical|high|medium|low)$"
 
 # -----------------------------------------------------------------------------
 # Log / message strings — main
@@ -107,6 +117,16 @@ AUTHZ_PERMISSIONS_PATH = "/api/v1/auth/permissions"
 AUTHZ_TIMEOUT_SECONDS = 5.0
 
 HEADER_SESSION_TOKEN = "X-Session-Token"
+HEADER_SERVICE_TOKEN = "X-Service-Token"
+ENV_SERVICE_TOKEN = "TELARK_SERVICE_TOKEN"
+
+# AI provider + key live in the GlobalConfig CR. Read through exporter (the sole
+# CRD reader) with the service token, cached briefly so it is not fetched per job.
+DEFAULT_EXPORTER_SERVICE_URL = "http://telark-exporter-service:8080"
+GLOBALCONFIG_PATH = "/api/v1/resources/globalconfig/get"
+GLOBALCONFIG_TIMEOUT_SECONDS = 5.0
+GLOBALCONFIG_TTL_SECONDS = 45.0
+LOG_GLOBALCONFIG_FETCH_FAILED = "failed to read AI config from GlobalConfig: {error}"
 
 SCOPE_ALL = "ALL"
 SCOPE_SETTINGS = "settings"
@@ -124,6 +144,32 @@ PERMISSION_RANKS = {
     PERMISSION_LEVEL_ADMIN: 4,
 }
 
+MSG_AI_DISABLED = "AI enrichment is not configured"
+
+# Scope-based insights dispatch. Discovery posts a whole scope's signals in one
+# call; the route returns what is cached and enqueues the rest for the workers.
+INSIGHTS_APPLICATIONS_PATH = "/api/v1/insights/applications"
+# The Go rest clients read success from the response envelope, not the HTTP code,
+# so this internal route answers in their shape.
+HTTP_OK = 200
+OPERATION_SUCCESS = "success"
+MSG_INSIGHTS_DISPATCHED = "insights dispatch accepted"
+# Marks an app as already queued, so repeated discovery ticks do not pile the
+# same job up while the workers are still draining. Self-expiring: once a worker
+# produces the result the cache is fresh and future ticks see it as ready anyway;
+# the TTL only bounds how long a lost job blocks a retry.
+ENQUEUED_TTL_S = 600
+LOG_INSIGHTS_DISPATCH = "insights dispatch: {ready} ready, {pending} queued (scope=applications)"
+
+# Connectivity heartbeat: the Go rest clients refuse to call a service whose
+# readiness key is absent, so this service must publish its own, same key shape,
+# value and TTL the Go side uses.
+CONNECTIVITY_KEY = "connectivity:service:enrichment"
+CONNECTIVITY_VALUE_READY = "1"
+CONNECTIVITY_TTL_S = 3
+CONNECTIVITY_INTERVAL_S = 1
+
+MSG_AUTHZ_SERVICE_ONLY = "this endpoint is for internal service calls only"
 MSG_AUTHZ_MISSING_SESSION = "a session token is required"
 MSG_AUTHZ_FORBIDDEN = "you do not have permission to perform this action"
 MSG_AUTHZ_UNAVAILABLE = "unable to verify permissions"

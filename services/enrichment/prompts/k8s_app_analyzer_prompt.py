@@ -6,19 +6,72 @@ import inspect
 from models import AppSignals
 
 
+def _fmt(values: list) -> str:
+    """Render a signal list, marking emptiness explicitly so the model does not guess."""
+    return ", ".join(str(v) for v in values) if values else "(none provided)"
+
+
+def _fmt_workloads(workloads: list) -> str:
+    """One compact line per workload: kind, replicas, QoS, usage, whether limits are set."""
+    if not workloads:
+        return "  (none provided)"
+    return "\n".join(
+        f"  - {w.name} {w.kind} x{w.replicas} "
+        f"QoS={w.qos or '?'} cpu={w.cpu or '?'} mem={w.memory or '?'} "
+        f"limitsSet={w.limitsSet}"
+        for w in workloads
+    )
+
+
 def build_prompt(signals: AppSignals) -> str:
     """Build a tight deterministic prompt for the LLM. No explanation, JSON only."""
     return f"""You are a Kubernetes application analyzer.
 Analyze the signals below and return ONLY a JSON object.
 Do not include any explanation, markdown, or text outside the JSON.
+Base every field strictly on the signals. A "(none provided)" signal is
+missing data, NOT evidence of absence — never invent values to fill it, and
+lower your confidence when core signals are missing.
 
 Application: {signals.name} (namespace: {signals.namespace})
-Container images: {signals.images}
-Exposed ports: {signals.ports}
-Environment variable keys: {signals.envVarKeys}
-Resource kinds: {signals.resourceKinds}
-Has Ingress: {signals.hasIngress}
-Has PersistentVolumeClaim: {signals.hasPVC}
+Container images: {_fmt(signals.images)}
+Exposed ports: {_fmt(signals.ports)}
+Environment variable keys: {_fmt(signals.envVarKeys)}
+Resource kinds: {_fmt(signals.resourceKinds)}
+Workload kinds: {_fmt(signals.workloadKinds)}
+Has Ingress: {signals.hasIngress} | Has Service: {signals.hasService} | Has HPA: {signals.hasHPA} | Has NetworkPolicy: {signals.hasNetworkPolicy} | Has PVC: {signals.hasPVC}
+Replicas: {signals.replicas} (ready {signals.readyReplicas}) | Health: {signals.healthStatus or "unknown"}
+Secret refs: {_fmt(signals.secretRefs)} | ConfigMap refs: {_fmt(signals.configMapRefs)}
+Managed by: {signals.managedBy or "unknown"} {signals.chart}
+Stability: {signals.changeVelocityPerDay}/day changes, {signals.incidents} incidents, {signals.recoveries} recoveries
+Workloads (usage snapshot):
+{_fmt_workloads(signals.workloads)}
+
+════════════════════════════════════════
+SIGNAL DICTIONARY  (single source of truth — every section below uses this)
+════════════════════════════════════════
+Env keys / ports map to a technology, a dependency name, and a purpose.
+Match keys case-insensitively; a prefix match counts (REDIS_URL matches REDIS_).
+
+  Env key(s)                          | port | techStack   | dependency | purpose
+  REDIS_HOST/REDIS_URL                | 6379 | Redis       | redis      | Redis data store
+  NATS_URL/NATS_USER/NATS_HOST        | 4222 | NATS        | nats       | NATS messaging
+  POSTGRES_HOST/DATABASE_URL/POSTGRES_URL | 5432 | PostgreSQL | postgres | PostgreSQL database
+  MYSQL_HOST/MYSQL_URL                | 3306 | MySQL       | mysql      | MySQL database
+  MONGO_URI/MONGODB_URL               |      | MongoDB     | mongodb    | MongoDB database
+  KAFKA_BROKER/KAFKA_URL              | 9092 | Kafka       | kafka      | Kafka event streaming
+  RABBITMQ_URL/RABBITMQ_HOST          | 5672 | RabbitMQ    | rabbitmq   | RabbitMQ messaging
+  ELASTICSEARCH_URL/ES_HOST           |      | Elasticsearch | elasticsearch | search/indexing
+  OLLAMA_HOST/OLLAMA_URL/OLLAMA_MODEL |      | Ollama      | ollama     | Ollama AI inference
+  S3_ENDPOINT/AWS_S3_BUCKET           |      | S3          | s3         | object storage
+  VAULT_ADDR/VAULT_URL                |      | Vault       | vault      | secret management
+  RP_ID/RP_ORIGIN/RP_NAME/CHALLENGE_TIMEOUT |      | WebAuthn | —      | WebAuthn/FIDO2 authentication
+  JWT_SECRET/JWT_EXPIRY               |      | JWT         | —          | JWT-based authentication
+  SESSION_EXPIRY                      |      | —           | —          | session management
+  STRIPE_KEY/PAYMENT_PROVIDER         |      | Payments    | —          | payment processing
+  (port 80/443)                       | 443  | HTTPS/TLS   | —          | HTTP(S) serving
+
+A "—" dependency means it is a capability of THIS app, not an external service:
+it belongs in techStack but NOT in dependencies/relatedApps.
 
 ════════════════════════════════════════
 CONFIDENCE RULES
@@ -79,18 +132,8 @@ SUMMARY RULES
 ════════════════════════════════════════
 Write ONE specific technical sentence describing what this app
 actually does based on the signals. Be precise and concrete.
-
-Env var key → meaning mappings (use these to infer purpose):
-  RP_ID / RP_ORIGIN / RP_NAME / CHALLENGE_TIMEOUT → WebAuthn/FIDO2 authentication
-  NATS_USER / NATS_URL / NATS_HOST → NATS messaging integration
-  REDIS_HOST / REDIS_URL → Redis data store integration
-  STRIPE_KEY / PAYMENT_PROVIDER → payment processing
-  JWT_SECRET / JWT_EXPIRY → JWT-based authentication
-  OLLAMA_HOST / OLLAMA_MODEL → Ollama AI inference integration
-  KAFKA_BROKER → Kafka event streaming
-  POSTGRES_HOST / DATABASE_URL → PostgreSQL database integration
-  SESSION_EXPIRY → session management
-  REDIS_REPLICATION_MODE → Redis replication/clustering
+Infer purpose from the SIGNAL DICTIONARY above; name the concrete
+technologies and what the app does WITH them.
 
 For opaque private images (e.g. botriack/plsyro:auth-x.x.x):
   Rely on app name + env var keys + ports to describe purpose.
@@ -119,19 +162,8 @@ GOOD summary examples:
 TECHSTACK RULES
 ════════════════════════════════════════
 Infer from image name, ports, and env var keys.
-
-For opaque private images infer from env keys and ports:
-  NATS_USER / NATS_URL → NATS
-  REDIS_HOST / REDIS_URL → Redis
-  POSTGRES_HOST / DATABASE_URL → PostgreSQL
-  OLLAMA_HOST → Ollama
-  PORT 443 → HTTPS/TLS
-  PORT 4222 → NATS
-  PORT 6379 → Redis
-  PORT 5432 → PostgreSQL
-  RP_ID / RP_ORIGIN / CHALLENGE_TIMEOUT → WebAuthn
-  SESSION_EXPIRY → Session management
-  PAYMENT_PROVIDER / STRIPE_KEY → Payment processing
+Use the techStack column of the SIGNAL DICTIONARY. Also add the app's own
+runtime when the image name reveals it (nginx, node, python, go, java).
 
 NEVER use image registry paths as tech stack entries:
   "botriack/plsyro", "bitnami/redis", "docker.io/nats" are INVALID
@@ -148,66 +180,85 @@ Both must be derived from the SAME env key signals.
 If relatedApps contains "redis" then dependencies must contain "redis".
 If dependencies is empty then relatedApps must be empty too.
 
-Use these mappings for both:
-  REDIS_HOST / REDIS_URL → "redis"
-  NATS_URL / NATS_USER / NATS_HOST → "nats"
-  POSTGRES_HOST / DATABASE_URL / POSTGRES_URL → "postgres"
-  KAFKA_BROKER / KAFKA_URL → "kafka"
-  MONGO_URI / MONGODB_URL → "mongodb"
-  MYSQL_HOST / MYSQL_URL → "mysql"
-  OLLAMA_HOST / OLLAMA_URL → "ollama"
-  ELASTICSEARCH_URL / ES_HOST → "elasticsearch"
-  RABBITMQ_URL / RABBITMQ_HOST → "rabbitmq"
-  S3_ENDPOINT / AWS_S3_BUCKET → "s3"
-  VAULT_ADDR / VAULT_URL → "vault"
+Use the dependency column of the SIGNAL DICTIONARY. Only include entries whose
+dependency name is a real service (not "—"): WebAuthn, JWT, and payments are
+capabilities of this app, so they NEVER appear here.
 
 ════════════════════════════════════════
-RISKS RULES
+RISKS RULES  →  [{{"severity": "high|medium|low", "message": "..."}}]
 ════════════════════════════════════════
-Identify ONLY real risks visible from the provided signals.
-Do NOT invent risks not supported by the signals.
-Do NOT mention "insufficient signals" as a risk.
-Do NOT suggest adding Ingress or PVC unless clearly needed.
-Return [] if no real risks are detected.
-Maximum 5 risks, each a single concise sentence.
+Report ONLY risks the signals above actually show. Each risk is an object with a
+severity and a one-sentence message. Max 5. Return [] if none. NEVER invent a
+risk that no signal value supports.
 
-Signal → risk mappings:
-  Single replica workload → "Single replica — no high availability"
-  Sensitive env keys in plain env (REDIS_HOST, NATS_USER, JWT_SECRET,
-  POSTGRES_HOST, STRIPE_KEY, API_KEY, SECRET, PASSWORD, TOKEN, KEY)
-    → "Sensitive config exposed in plain env vars instead of Secrets"
-  REDIS_TLS_ENABLED=false or absent → "TLS disabled — Redis traffic transmitted in plaintext"
-  No PodDisruptionBudget with stateful workload → "No PodDisruptionBudget — vulnerable during node drain"
-
-CRITICAL: if "NetworkPolicy" appears in resource kinds →
-  a NetworkPolicy ALREADY EXISTS.
-  Do NOT flag "No NetworkPolicy" as a risk.
-  Only flag missing NetworkPolicy if NetworkPolicy is ABSENT from resource kinds.
+Grounded risk sources (read the real values above):
+- replicas == 1 AND workloadKinds has Deployment or StatefulSet
+    → medium "Single replica — no high availability"
+- healthStatus is degraded or down
+    → high "Workload unhealthy ({{readyReplicas}}/{{replicas}} replicas ready)"
+- a workload with QoS == BestEffort
+    → high "BestEffort QoS on {{workload}} — first evicted under memory pressure"
+- a workload with limitsSet == false
+    → medium "No CPU/memory limits on {{workload}} — resource usage is unbounded"
+- hasNetworkPolicy == false
+    → low "No NetworkPolicy — pod traffic is unrestricted"
+- sensitive env keys present (SECRET/PASSWORD/TOKEN/KEY/API_KEY, or REDIS_HOST/
+  NATS_USER/POSTGRES_HOST/STRIPE_KEY) AND secretRefs is empty
+    → medium "Sensitive config in plain env vars, not Secret refs"
+    (if secretRefs is NON-empty, assume values come from there — do NOT flag)
+- incidents > 0
+    → low "{{incidents}} incident(s) in recent change history"
 
 ════════════════════════════════════════
-SUGGESTIONS RULES
+SUGGESTIONS RULES  →  [{{"priority": "high|medium|low", "message": "..."}}]
 ════════════════════════════════════════
-Provide ONLY actionable improvements directly supported by signals.
-Do NOT suggest Ingress unless app clearly needs external access.
-Do NOT suggest PVC unless app clearly needs persistence.
-Do NOT invent suggestions unrelated to actual signals.
-Return [] if no relevant suggestions exist.
-Maximum 5 suggestions, each a single concise sentence.
+Actionable improvements, each backed by a signal above. Max 5. Return [] if none.
+- any workload with limitsSet == false
+    → high "Set CPU and memory limits on {{workload}}"
+- replicas == 1 AND hasHPA == false AND hasService == true
+    → medium "Add a HorizontalPodAutoscaler or raise replicas for availability"
+- sensitive env keys present AND secretRefs empty
+    → high "Move sensitive config into Secret references"
+- hasNetworkPolicy == false
+    → low "Add a NetworkPolicy to restrict pod-to-pod traffic"
+Do NOT suggest Ingress or PVC unless a signal clearly calls for it.
 
-Signal → suggestion mappings:
-  REDIS_TLS_ENABLED present → "Set REDIS_TLS_ENABLED=true to encrypt Redis traffic"
-  NATS_USER in plain env → "Move NATS_USER to a Kubernetes Secret"
-  REDIS_HOST in plain env → "Move REDIS_HOST to a Kubernetes Secret"
-  POSTGRES_HOST in plain env → "Move POSTGRES_HOST to a Kubernetes Secret"
-  Single replica → "Add HorizontalPodAutoscaler to handle traffic spikes"
-  No probes (inferred from sparse signals) → "Add liveness and readiness probes on port {{port}}"
+════════════════════════════════════════
+RESOURCE EFFICIENCY RULES  →  {{"status": "over|under|balanced|unknown", "note": "..."}}
+════════════════════════════════════════
+Judge from the workloads' usage vs their limits:
+- unknown:  no workloads, or none report cpu/mem usage
+- under:    a workload has real usage but limitsSet == false (bursts unbounded),
+            or usage sits close to / above a set limit
+- over:     workloads are sized far above their observed usage (idle waste)
+- balanced: usage sits sensibly within limits
+note: one sentence naming the workload and the numbers you used.
+
+════════════════════════════════════════
+CRITICALITY RULES  →  {{"level": "critical|high|medium|low", "reason": "..."}}
+════════════════════════════════════════
+How important is this app to the platform? Base it on exposure, statefulness and
+incident history:
+- critical/high: internet-facing (hasIngress, gateway/frontend role, port 443),
+  OR a stateful data store (database/cache/messaging role, or StatefulSet + PVC)
+- raise one level if incidents > 0 (recent instability)
+- medium: internal stateless backend that others depend on
+- low: isolated or ancillary workload
+reason: one sentence citing the signals used.
+
+════════════════════════════════════════
+TAGS RULES  →  ["tag1", "tag2", ...]
+════════════════════════════════════════
+3-6 short lowercase keyword tags for search and filtering. Single or hyphenated
+words, never sentences. Draw from workload shape (stateless/stateful), exposure
+(public-facing/internal), backing stores (redis-backed/postgres-backed),
+management (helm-managed) and role.
 
 ════════════════════════════════════════
 RELATED APPS RULES
 ════════════════════════════════════════
-Same mappings as DEPENDENCIES above.
-Each entry: name (lowercase) + reason (exact env key that revealed it).
-Must be consistent with dependencies field — same services, same data.
+Same mappings as DEPENDENCIES above. Each entry: name (lowercase) + reason
+(exact env key that revealed it). Must match the dependencies field exactly.
 Return [] if no dependencies detected from env var keys.
 
 Return ONLY this exact JSON structure with no extra fields:
@@ -218,11 +269,12 @@ Return ONLY this exact JSON structure with no extra fields:
   "dependencies": ["service1", "service2"],
   "confidence": "high|medium|low",
   "category": "infrastructure|application|data|messaging|security",
-  "risks": ["risk1", "risk2"],
-  "suggestions": ["suggestion1", "suggestion2"],
-  "relatedApps": [
-    {{"name": "redis", "reason": "REDIS_HOST env key present"}}
-  ]
+  "risks": [{{"severity": "high|medium|low", "message": "..."}}],
+  "suggestions": [{{"priority": "high|medium|low", "message": "..."}}],
+  "resourceEfficiency": {{"status": "over|under|balanced|unknown", "note": "..."}},
+  "criticality": {{"level": "critical|high|medium|low", "reason": "..."}},
+  "tags": ["tag1", "tag2"],
+  "relatedApps": [{{"name": "redis", "reason": "REDIS_HOST env key present"}}]
 }}"""
 
 def get_prompt_version() -> str:

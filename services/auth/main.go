@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/signal"
 	"runtime/debug"
 	"sync"
 	"syscall"
@@ -26,16 +25,16 @@ import (
 	"github.com/telark/auth/internal/routes"
 	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/rest/router"
+	restserver "github.com/telark/rest/server"
 	xauthz "github.com/telark/x-ware/authz"
 	"github.com/telark/x-ware/cors"
 )
 
 var (
-	server      *http.Server
-	serverMutex sync.RWMutex
-	quitChannel chan os.Signal
-	quitMutex   sync.RWMutex
-	lg          = constants.GetLogger(constants.LoggerPrefixAuthService)
+	server         *http.Server
+	serverMutex    sync.RWMutex
+	getQuitChannel = restserver.SignalQuit()
+	lg             = constants.GetLogger(constants.LoggerPrefixAuthService)
 )
 
 func main() {
@@ -72,11 +71,6 @@ func main() {
 
 	startCleanupSystem(rdb)
 
-	quitMutex.Lock()
-	quitChannel = make(chan os.Signal, constants.DefaultQuitChannelSize)
-	quitMutex.Unlock()
-	signal.Notify(quitChannel, syscall.SIGINT, syscall.SIGTERM)
-
 	authzMiddleware, err := xauthz.NewFromEnv(authauthz.NewResolver(), authauthz.Requirements())
 	if err != nil {
 		lg.Error(fmt.Sprintf(string(dataerrors.ErrAuthzInitFailed), err))
@@ -85,7 +79,7 @@ func main() {
 
 	startMainService(cfg, authzMiddleware)
 
-	<-quitChannel
+	<-getQuitChannel()
 	lg.Info(string(constants.SuccessServiceShuttingDown))
 
 	gracefulShutdown(cfg)
@@ -119,24 +113,7 @@ func startMainService(cfg *config.Config, authzMiddleware func(http.Handler) htt
 
 func startServer(server *http.Server, port string) {
 	lg.Info(fmt.Sprintf(string(constants.SuccessServiceStarted), port))
-
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		lg.Error(fmt.Sprintf(string(constants.ErrServerFailedToStartDetail), err.Error()))
-		lg.Error(string(constants.ErrServerInitiatingShutdown))
-
-		quit := getQuitChannel()
-		if quit == nil {
-			lg.Error(string(constants.ErrQuitChannelNotAvailable))
-			return
-		}
-
-		select {
-		case quit <- syscall.SIGTERM:
-			lg.Info(string(constants.SuccessShutdownSignalSent))
-		default:
-			lg.Error(string(constants.ErrFailedSendShutdownSignal))
-		}
-	}
+	restserver.ListenAndSignal(server, getQuitChannel, lg)
 }
 
 var panicRecoveryAttempts int
@@ -167,11 +144,7 @@ func startServerWithRecovery(server *http.Server, port string) {
 }
 
 func gracefulShutdown(cfg *config.Config) {
-	quitMutex.RLock()
-	quit := quitChannel
-	quitMutex.RUnlock()
-
-	if quit == nil {
+	if getQuitChannel() == nil {
 		lg.Error(string(constants.ErrQuitChannelNotAvailable))
 		lg.Error(string(constants.ErrGracefulShutdownFailed))
 		return
@@ -197,12 +170,6 @@ func gracefulShutdown(cfg *config.Config) {
 	if cleanupSystemCancel != nil {
 		cleanupSystemCancel()
 	}
-}
-
-func getQuitChannel() chan os.Signal {
-	quitMutex.RLock()
-	defer quitMutex.RUnlock()
-	return quitChannel
 }
 
 var cleanupSystemCancel context.CancelFunc

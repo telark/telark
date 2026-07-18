@@ -1,3 +1,11 @@
+# Config that does not vary between install modes. What does vary — replicas,
+# resources, rate limits, volume sizes — lives in values.mode.<mode>.yaml and is
+# layered on top of this file:
+#
+#   helm install -f values.charts.yaml -f values.mode.<mode>.yaml ...
+#
+# Modes: minimal | standard | performance.
+
 redis:
   architecture: standalone
   auth:
@@ -34,7 +42,7 @@ kyverno:
       enabled: true
   webhooksCleanup:
     enabled: false
-  # Resource config intentionally omitted — apply values.kyverno.minimal.yaml or values.kyverno.performance.yaml at install time.
+  # Replicas and resources intentionally omitted: they come from the install mode.
 
 # metrics-server: required by HPAs and `kubectl top`. Default on.
 # Disable for clusters that already ship it (GKE, AKS, k3s, OpenShift):

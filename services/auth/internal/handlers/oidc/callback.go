@@ -11,21 +11,20 @@ import (
 	authhelper "github.com/telark/auth/internal/helpers/auth"
 	oidchelper "github.com/telark/auth/internal/helpers/oidc"
 	"github.com/telark/auth/internal/helpers/shared"
+	globalconfigresource "github.com/telark/data/resources/globalconfig"
 	userresource "github.com/telark/data/resources/user"
 )
 
 var lg = constants.GetLogger(constants.LoggerPrefixOIDC)
 
 func GoogleCallback(w http.ResponseWriter, r *http.Request) {
-	cfg, err := shared.GetCachedConfig()
+	oidcCfg, err := oidchelper.LoadConfig()
 	if err != nil {
-		shared.HandleError(w, fmt.Errorf(string(constants.ErrFailedGetConfig), err),
-			http.StatusInternalServerError,
-			fmt.Sprintf(string(constants.ErrFailedGetConfig), err))
+		shared.HandleError(w, err, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	if !isOIDCConfigured(w, cfg) {
+	if !isOIDCConfigured(w, oidcCfg) {
 		return
 	}
 
@@ -35,7 +34,7 @@ func GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, err := oidchelper.ValidateGoogleIDToken(req.IDToken, cfg.OIDC.GoogleClientID)
+	claims, err := oidchelper.ValidateGoogleIDToken(req.IDToken, oidcCfg)
 	if err != nil {
 		shared.HandleError(w, err, http.StatusUnauthorized, err.Error())
 		return
@@ -75,18 +74,13 @@ func GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func isOIDCConfigured(w http.ResponseWriter, cfg *config.Config) bool {
-	if cfg.OIDC.GoogleClientID == constants.EmptyString {
-		shared.HandleError(w, errors.New(string(constants.ErrOIDCNotConfigured)),
-			http.StatusServiceUnavailable, string(constants.ErrOIDCNotConfigured))
-		return false
+func isOIDCConfigured(w http.ResponseWriter, oidc globalconfigresource.OIDCConfig) bool {
+	if oidchelper.Usable(oidc) {
+		return true
 	}
-	if !cfg.OIDC.EgressAllowed && cfg.OIDC.JWKJson == constants.EmptyString {
-		shared.HandleError(w, errors.New(string(constants.ErrOIDCNotConfigured)),
-			http.StatusServiceUnavailable, string(constants.ErrOIDCNotConfigured))
-		return false
-	}
-	return true
+	shared.HandleError(w, errors.New(string(constants.ErrOIDCNotConfigured)),
+		http.StatusServiceUnavailable, string(constants.ErrOIDCNotConfigured))
+	return false
 }
 
 func isEmailVerified(w http.ResponseWriter, claims *oidchelper.GoogleClaims) bool {

@@ -39,11 +39,12 @@ var Routes = []router.Route{
 	// OIDC routes
 	router.CreateRoute(base.Post, autheps.OIDCGoogleCallback, oidchandler.GoogleCallback),
 	router.CreateRoute(base.Post, autheps.OIDCGoogleNonce, oidchandler.GetNonce),
+	router.CreateRoute(base.Patch, autheps.OIDCConfig, oidchandler.SetConfig),
 
 	// Status routes
-	router.CreateRoute(base.Get, statuseps.HealthCheck, statushandler.HealthHandler),
-	router.CreateRoute(base.Get, statuseps.ReadinessCheck, statushandler.ReadinessHandler),
-	router.CreateRoute(base.Get, statuseps.LivenessCheck, statushandler.LivenessHandler),
+	router.CreateRoute(base.Get, statuseps.HealthCheck, statushandler.ProbeHandler),
+	router.CreateRoute(base.Get, statuseps.ReadinessCheck, statushandler.ProbeHandler),
+	router.CreateRoute(base.Get, statuseps.LivenessCheck, statushandler.ProbeHandler),
 
 	// Cleanup (async business delete)
 	router.CreateRoute(base.Delete, autheps.DeleteUserCleanup, cleanuphandler.DeleteUser),

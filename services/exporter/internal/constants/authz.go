@@ -16,17 +16,6 @@ const (
 	AuthzKeyGeneration = "generation"
 )
 
-// Top-level GlobalConfig spec fields. One endpoint patches all of them, but
-// the role model grants them separately, so each is checked on its own.
-const (
-	FieldExcludedNamespaces = "excludedNamespaces"
-	FieldUserSettings       = "userSettings"
-	FieldAI                 = "ai"
-	FieldSnapshots          = "snapshots"
-	FieldCluster            = "cluster"
-	FieldOIDC               = "oidc"
-	FieldAPIKey             = "apiKey"
-)
 
 const (
 	ErrAuthzGlobalConfigDenied    = "you do not have permission to change this setting"

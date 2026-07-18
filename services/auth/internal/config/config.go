@@ -13,13 +13,6 @@ import (
 type Config struct {
 	Service  ServiceConfig
 	WebAuthn WebAuthnConfig
-	OIDC     OIDCConfig
-}
-
-type OIDCConfig struct {
-	GoogleClientID string
-	JWKJson        string
-	EgressAllowed  bool
 }
 
 type ServiceConfig struct {
@@ -122,11 +115,6 @@ func loadConfigInternal() (*Config, error) {
 			RPOrigin:         rpOrigin,
 			ChallengeTimeout: challengeTimeout,
 			SessionExpiry:    sessionExpiry,
-		},
-		OIDC: OIDCConfig{
-			GoogleClientID: getEnvOrDefault(constants.EnvGoogleClientID, constants.EmptyString),
-			JWKJson:        getEnvOrDefault(constants.EnvGoogleOIDCJWKJSON, constants.EmptyString),
-			EgressAllowed:  getEnvAsBool(constants.EnvEgressAllowed, false),
 		},
 	}
 

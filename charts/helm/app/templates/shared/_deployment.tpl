@@ -12,6 +12,8 @@
 {{- $replicas := default $serviceDefaults.replicas $serviceConfig.replicas | default 1 -}}
 {{- $port := default $serviceDefaults.port $serviceConfig.port | default 8080 -}}
 {{- $tgps := default $serviceDefaults.terminationGracePeriodSec $serviceConfig.terminationGracePeriodSec | default 30 -}}
+{{- $strategy := default $serviceDefaults.strategy $serviceConfig.strategy -}}
+{{- $priorityClass := default $serviceDefaults.priorityClassName $serviceConfig.priorityClassName -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -22,6 +24,13 @@ metadata:
   namespace: {{ $values.app.namespace }}
 spec:
   replicas: {{ $replicas }}
+{{- if $strategy }}
+  # Recreate for anything holding a ReadWriteOnce volume: the default rolling
+  # update starts the new pod first, and it cannot attach a volume the old pod
+  # still holds on another node, so the rollout stalls.
+  strategy:
+    type: {{ $strategy }}
+{{- end }}
   selector:
     matchLabels:
       app: {{ $values.app.name }}-{{ $serviceConfig.name }}
@@ -33,6 +42,9 @@ spec:
         type: {{ $serviceConfig.category }}
     spec:
       terminationGracePeriodSeconds: {{ $tgps }}
+{{- if $priorityClass }}
+      priorityClassName: {{ $priorityClass }}
+{{- end }}
       serviceAccountName: {{ $values.app.name }}-{{ $serviceConfig.name }}-sa
       imagePullSecrets:
         - name: {{ $values.app.name }}-reg-cred

@@ -14,7 +14,6 @@ import (
 	"github.com/telark/discovery/internal/core/applications/metrics"
 	appshared "github.com/telark/discovery/internal/core/applications/shared"
 	"github.com/telark/discovery/internal/core/applications/snapshot"
-	"github.com/telark/discovery/internal/discovery/cache"
 	"github.com/telark/discovery/internal/discovery/derivation"
 	discoveryshared "github.com/telark/discovery/internal/discovery/shared"
 	"github.com/telark/kcore/resources/workload"
@@ -129,16 +128,8 @@ func GetApplications(
 	withGroups := derivation.GroupByWorkloadAnchor(inputs)
 	apps := buildApplications(withGroups, opts)
 	totalResources := constants.DefaultInitValue
-	enqueuedCount := constants.DefaultInitValue
 	for i := range apps {
 		apps[i].Health = ComputeHealth(&apps[i])
-		if opts.InsightsEnabled {
-			if attachEnrichment(ctx, rdb, &apps[i]) {
-				enqueuedCount++
-			}
-		} else {
-			apps[i].Insights = emptyInsights()
-		}
 		totalResources += apps[i].ResourceCount
 	}
 
@@ -148,7 +139,6 @@ func GetApplications(
 	}
 
 	PublishApplications(opts.NatsClient, apps, authored)
-	runEnrichmentWaitLoop(ctx, rdb, opts, enqueuedCount, apps)
 
 	return response.GenericResponse{
 		Status:    http.StatusOK,
@@ -162,32 +152,7 @@ func GetApplications(
 	}
 }
 
-func countUnenriched(apps []application.Application) int {
-	n := constants.DefaultInitValue
-	for i := range apps {
-		if !apps[i].Insights.Enriched {
-			n++
-		}
-	}
-	return n
-}
 
-func refillEnrichment(ctx context.Context, rdb *redis.Client, apps []application.Application) {
-	for i := range apps {
-		if apps[i].Insights.Enriched {
-			continue
-		}
-		primaryNamespace := constants.EmptyString
-		if len(apps[i].Namespaces.Items) >= sortOne {
-			primaryNamespace = apps[i].Namespaces.Items[firstItemIdx].Name
-		}
-		insights, err := cache.GetEnrichment(ctx, rdb, primaryNamespace, apps[i].Name)
-		if err != nil || insights == nil || cache.IsStale(insights, apps[i].LastUpdated) {
-			continue
-		}
-		apps[i].Insights = *insights
-	}
-}
 
 func buildApplications(
 	withGroups []derivation.ResourceWithGroup,
@@ -331,7 +296,6 @@ func buildApplication(
 		LastUpdated:     formatAppTime(appLastUpdated),
 		ResourceSummary: summary,
 		Resources:       agg.resList,
-		Insights:        application.Insights{},
 		Images:          images,
 		Ports:           ports,
 		EnvVarKeys:      envVarKeys,
@@ -367,90 +331,3 @@ func labelsFromResources(resources []derivation.ResourceWithGroup) labelValues {
 	return out
 }
 
-// loads insights from Redis and enqueues if missing/stale
-func attachEnrichment(ctx context.Context, rdb *redis.Client, app *application.Application) bool {
-	primaryNamespace := constants.EmptyString
-	if len(app.Namespaces.Items) >= sortOne {
-		primaryNamespace = app.Namespaces.Items[firstItemIdx].Name
-	}
-	insights, err := cache.GetEnrichment(ctx, rdb, primaryNamespace, app.Name)
-	if err != nil {
-		constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(
-			fmt.Sprintf(string(constants.WarnEnrichmentCacheReadFailed),
-				app.Name, primaryNamespace, err),
-		)
-		app.Insights = emptyInsights()
-		return false
-	}
-	if insights != nil && !cache.IsStale(insights, app.LastUpdated) {
-		app.Insights = *insights
-		return false
-	}
-	app.Insights = emptyInsights()
-	if !cache.IsEnqueued(ctx, rdb, primaryNamespace, app.Name) {
-		enqueueJobAsync(ctx, rdb, app)
-		return true
-	}
-	return false
-}
-
-func enqueueJobAsync(ctx context.Context, rdb *redis.Client, app *application.Application) {
-	go func(a application.Application) {
-		if err := cache.EnqueueJob(ctx, rdb, a); err != nil {
-			constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(
-				fmt.Sprintf(msgEnqueueFailed, a.Name, err))
-		}
-	}(*app)
-}
-
-func emptyInsights() application.Insights {
-	return application.Insights{
-		Enriched:      false,
-		EnrichedAt:    nil,
-		Confidence:    nil,
-		Summary:       nil,
-		TechStack:     []string{},
-		Role:          nil,
-		Dependencies:  []string{},
-		Category:      nil,
-		Risks:         []string{},
-		Suggestions:   []string{},
-		RelatedApps:   []application.RelatedApp{},
-		PromptVersion: nil,
-	}
-}
-
-func runEnrichmentWaitLoop(
-	ctx context.Context,
-	rdb *redis.Client,
-	opts GetApplicationsOptions,
-	enqueuedCount int,
-	apps []application.Application,
-) {
-	if !opts.InsightsEnabled {
-		return
-	}
-	if !opts.Wait || enqueuedCount <= constants.DefaultInitValue {
-		return
-	}
-	if countUnenriched(apps) == constants.DefaultInitValue {
-		return
-	}
-
-	timeoutSec := opts.WaitTimeoutSec
-	if timeoutSec <= constants.DefaultInitValue {
-		timeoutSec = constants.WaitTimeoutDefaultSec
-	}
-	if timeoutSec > constants.WaitTimeoutMaxSec {
-		timeoutSec = constants.WaitTimeoutMaxSec
-	}
-
-	deadline := time.Now().Add(time.Duration(timeoutSec) * time.Second)
-	for time.Now().Before(deadline) {
-		time.Sleep(waitPollIntervalSec * time.Second)
-		refillEnrichment(ctx, rdb, apps)
-		if countUnenriched(apps) == constants.DefaultInitValue {
-			break
-		}
-	}
-}

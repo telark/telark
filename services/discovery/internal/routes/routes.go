@@ -6,10 +6,12 @@ import (
 	workloadslist "github.com/telark/discovery/internal/handlers/analyze/workloads"
 	namespacehandler "github.com/telark/discovery/internal/handlers/namespaces"
 	protectionplanhandler "github.com/telark/discovery/internal/handlers/plans/protection"
+	insightshandler "github.com/telark/discovery/internal/handlers/insights"
 	applicationhandler "github.com/telark/discovery/internal/handlers/resources/applications"
 	statushandler "github.com/telark/discovery/internal/handlers/status"
 	"github.com/telark/rest/base"
 	analyzeps "github.com/telark/rest/endpoints/analyze"
+	insightseps "github.com/telark/rest/endpoints/insights"
 	planseps "github.com/telark/rest/endpoints/plans"
 	applicationeps "github.com/telark/rest/endpoints/resources/applications"
 	"github.com/telark/rest/router"
@@ -20,8 +22,10 @@ var Routes = []router.Route{
 	router.CreateRoute(base.Get, analyzeps.GetAllWorkloadsByNamespace, workloadslist.ListNamespaceWorkloads),
 	router.CreateRoute(base.Get, analyzeps.GetAllResourcesByNamespace, resourceslist.ListNamespaceResources),
 
+	// Insights read (windowed to the caller's visible apps)
+	router.CreateRoute(base.Get, insightseps.Applications, insightshandler.GetApplicationsInsights),
+
 	// Application routes
-	router.CreateRoute(base.Get, applicationeps.EnrichApplications, applicationhandler.EnrichApplications),
 	router.CreateRoute(base.Post, applicationeps.TriggerRollback, applicationhandler.TriggerRollback),
 	router.CreateRoute(base.Post, applicationeps.AbortRollback, applicationhandler.AbortRollback),
 	router.CreateRoute(base.Post, applicationeps.SyncApplication, applicationhandler.SyncApplication),

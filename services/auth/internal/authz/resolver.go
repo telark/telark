@@ -28,16 +28,6 @@ func (clientSource) Role(roleID string) (*roledata.RoleAsResource, error) {
 	return clients.GetRoleClient().GetRoleByID(roleID)
 }
 
-type Resolver struct{}
-
-func NewResolver() *Resolver {
-	return &Resolver{}
-}
-
-func (*Resolver) UserIDForToken(token string) (string, error) {
-	return authhelper.ValidateSession(token)
-}
-
-func (*Resolver) GrantsForUser(userID string) (authz.Grants, error) {
-	return authz.CollectGrants(clientSource{}, lg, userID)
+func NewResolver() *authz.BasicResolver {
+	return authz.NewBasicResolver(clientSource{}, authhelper.ValidateSession, lg)
 }

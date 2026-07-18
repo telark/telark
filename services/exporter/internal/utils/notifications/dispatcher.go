@@ -15,12 +15,18 @@ const loggerPrefix = "Notifications: "
 var lg = constants.GetLogger(loggerPrefix)
 
 func Emit(n notiftypes.Notification) {
-	async.Dispatch(func() {
-		emitSync(n)
-	})
+	async.Dispatch(emitSyncWith(n))
 }
 
-func emitSync(n notiftypes.Notification) {
+// The pool's context carries the task deadline, so the storage call is bounded
+// by it rather than running unbounded on a background context.
+func emitSyncWith(n notiftypes.Notification) func(context.Context) {
+	return func(ctx context.Context) {
+		emitSync(ctx, n)
+	}
+}
+
+func emitSync(ctx context.Context, n notiftypes.Notification) {
 	if err := notiftypes.ValidateForEmit(&n); err != nil {
 		lg.Warn(fmt.Sprintf("notification validation failed: type=%s userID=%s err=%v", n.Type, n.UserID, err))
 		return
@@ -32,7 +38,7 @@ func emitSync(n notiftypes.Notification) {
 		lg.Warn(fmt.Sprintf("notification storage unavailable: %v", err))
 		return
 	}
-	if _, err := storage.Emit(context.Background(), n); err != nil {
+	if _, err := storage.Emit(ctx, n); err != nil {
 		lg.Warn(fmt.Sprintf("notification emit failed: type=%s userID=%s err=%v", n.Type, n.UserID, err))
 	}
 }

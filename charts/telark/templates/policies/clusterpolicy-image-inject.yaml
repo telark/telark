@@ -1,0 +1,48 @@
+{{- if and .Values.app.kyverno.enabled (.Capabilities.APIVersions.Has "kyverno.io/v1/ClusterPolicy") }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: telark-inject-modifier
+  labels:
+{{- include "telark.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: hook-succeeded,hook-failed
+spec:
+  # This policy uses admission request variables (request.userInfo.*),
+  # which are not available in Kyverno background mode.
+  background: false
+  failurePolicy: Ignore
+  # Never block writes — admission webhook must fail open if Kyverno is unhealthy
+  # or a rule errors. Audit only, never Enforce.
+  validationFailureAction: Audit
+  rules:
+    - name: inject-last-modified-by
+      match:
+        any:
+          - resources:
+              kinds:
+                - "*"
+              # Matching on namespaces ensures cluster-scoped resources are not targeted.
+              # Kyverno supports wildcards in `kinds` and `namespaces`.
+              namespaces:
+                - "*"
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                # Avoid self-mutation loops / policy churn in our own/system namespaces.
+                - telark
+                - kyverno
+                - kube-system
+                - kube-public
+                - kube-node-lease
+      mutate:
+        patchStrategicMerge:
+          metadata:
+            annotations:
+              telark.io/last-modified-by: {{ "{{ request.userInfo.username }}" | quote }}
+              telark.io/last-modified-at: {{ "{{ time_now_utc() }}" | quote }}
+              telark.io/last-modified-operation: {{ "{{ request.operation }}" | quote }}
+{{- end }}

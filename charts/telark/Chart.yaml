@@ -1,0 +1,30 @@
+apiVersion: v2
+name: telark
+description: A Helm chart for telark core
+type: application
+version: 2.2.8
+appVersion: "2.0"
+# 1.33 is the oldest release still receiving upstream patches, and the oldest
+# offered by the managed providers. It also clears ValidatingAdmissionPolicy
+# (GA in 1.30), so the admission guard needs no fallback for older clusters.
+kubeVersion: ">=1.33.0-0"
+
+dependencies:
+  - name: redis
+    version: 23.0.10
+    repository: https://charts.bitnami.com/bitnami
+  - name: nats
+    version: 9.0.28
+    repository: https://charts.bitnami.com/bitnami
+  - name: kyverno
+    version: 3.7.1
+    repository: https://kyverno.github.io/kyverno/
+    condition: app.kyverno.enabled
+  - name: metrics-server
+    version: 3.12.2
+    repository: https://kubernetes-sigs.github.io/metrics-server/
+    condition: metrics-server.enabled
+  - name: ollama
+    version: 1.50.0
+    repository: https://helm.otwld.com/
+    condition: app.ollama.enabled

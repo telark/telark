@@ -23,6 +23,8 @@ env:
   # pointing at sibling paths must be absent (release state) for these jobs to pass.
   GOPRIVATE: github.com/telark/*
   GOWORK: "off"
+  CHART_DIR: charts/telark
+  CRDS_DIR: charts/telark-crds
 
 jobs:
   go:
@@ -102,5 +104,5 @@ jobs:
 
       - name: Lint charts
         run: |
-          helm lint charts/helm/app
-          helm lint charts/helm/bootstrap
+          helm lint "$CHART_DIR"
+          helm lint "$CRDS_DIR"

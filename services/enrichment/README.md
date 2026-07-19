@@ -31,7 +31,8 @@ flowchart LR
   PROV -->|prompt| LLM
   POOL -->|SETEX insights| CACHE
   POOL -.failures.-> CACHE
-  UI -->|windowed read| CACHE
+  UI -->|insights| DISC
+  DISC -->|windowed read| CACHE
 
   classDef svc fill:#eef2ff,stroke:#6366f1,stroke-width:1.5px,color:#312e81;
   classDef peer fill:#f1f5f9,stroke:#94a3b8,stroke-width:1.5px,color:#334155;
@@ -49,7 +50,9 @@ flowchart LR
 2. The API enqueues one job per application onto the Redis list `enrichment:jobs` and returns immediately.
 3. Each worker `BLPOP`s a job, reads the active **provider + API key from the `GlobalConfig` CR via exporter** (cached, stale-tolerant — a transient exporter blip never flips a working provider off), and skips the job if a fresh cache entry already exists.
 4. The provider returns a typed result (risk, suggestions, resource efficiency, criticality, tags), written with `SETEX` under `enrichment:*` (24h TTL). Repeated failures land in a dead-letter list.
-5. The UI reads insights from a windowed scan of the cache — enrichment never calls the UI.
+5. The UI polls discovery, which returns insights from a windowed read of the cache — enrichment never calls the UI.
+
+> Full annotated walkthrough: **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
 ## Layout
 

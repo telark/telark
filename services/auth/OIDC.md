@@ -4,19 +4,19 @@ How signing in with Google works in Telark. There are two separate flows: an
 **admin turns SSO on** (letters A–C), and then a **user signs in** (numbers 1–5).
 
 ```mermaid
-%%{init: {'flowchart': {'curve': 'basis'}}}%%
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif","fontSize":"13px","lineColor":"#94a3b8","primaryColor":"#eef2ff","primaryBorderColor":"#6366f1","primaryTextColor":"#312e81","edgeLabelBackground":"#ffffff","clusterBkg":"#f8fafc","clusterBorder":"#e2e8f0"},"flowchart":{"curve":"basis","htmlLabels":true,"nodeSpacing":46,"rankSpacing":54,"padding":12}}}%%
 flowchart TB
-    admin([Admin]):::actor
-    user([User]):::actor
-    settings["Settings → SSO<br/>web UI"]:::client
-    login["Login page<br/>web UI"]:::client
+    admin(["Admin"]):::actor
+    user(["User"]):::actor
+    settings("Settings → SSO<br/>web UI"):::client
+    login("Login page<br/>web UI"):::client
 
     subgraph cluster["Inside the Kubernetes cluster"]
-        auth["auth-service<br/>handles login &amp; Google SSO"]:::svc
-        exp["exporter-service<br/>stores the settings"]:::svc
+        auth("auth<br/>handles login &amp; Google SSO"):::svc
+        exp("exporter<br/>stores the settings"):::svc
     end
 
-    google["Google<br/>Google Sign-In"]:::ext
+    google{{"Google<br/>Sign-In"}}:::ext
 
     admin --> settings
     settings -->|"A · save SSO settings (admin only)"| auth
@@ -30,10 +30,10 @@ flowchart TB
     auth -->|"4 · verify token with Google"| google
     auth -->|"5 · create a session"| user
 
-    classDef svc fill:#e6effc,stroke:#4f8ce6,color:#123663
-    classDef ext fill:#ede4fb,stroke:#9871e4,color:#412879
-    classDef client fill:#daf4ea,stroke:#34b892,color:#094f3c
-    classDef actor fill:#e2e9f2,stroke:#8ea3ba,color:#2c3f55
+    classDef svc fill:#eef2ff,stroke:#6366f1,stroke-width:1.5px,color:#312e81;
+    classDef ext fill:#faf5ff,stroke:#a855f7,stroke-width:1.5px,color:#6b21a8;
+    classDef client fill:#f1f5f9,stroke:#94a3b8,stroke-width:1.5px,color:#334155;
+    classDef actor fill:#f8fafc,stroke:#cbd5e1,stroke-width:1.5px,color:#475569;
 ```
 
 ## Turning SSO on (admin)

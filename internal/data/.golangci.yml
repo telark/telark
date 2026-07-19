@@ -1,4 +1,4 @@
-version: 2
+version: "2"
 linters:
   enable:
     - errcheck
@@ -44,6 +44,10 @@ linters:
           disabled: true
         - name: cyclomatic
           disabled: true
+        - name: package-naming
+          disabled: true
+        - name: flag-parameter
+          disabled: true
         - name: line-length-limit
           arguments:
             - 150
@@ -57,6 +61,7 @@ linters:
             - - skip-package-name-checks: true
                 
 run:
+  go: "1.26"
   timeout: 2m
   tests: false
 

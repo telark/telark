@@ -1,5 +1,5 @@
 {{- $service := "exporter" -}}
-{{- $values := .Values -}}
+{{- $values := include "telark.modeValues" $ | fromYaml -}}
 {{- $serviceConfig := index $values.services $service -}}
 {{- if and $serviceConfig.enabled $values.app.persistence.enabled }}
 {{- $sc := $values.app.persistence.storageClass | default "" -}}

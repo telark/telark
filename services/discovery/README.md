@@ -161,8 +161,8 @@ sequenceDiagram
 Discovery is the most tunable service. The full, authoritative env reference lives in the
 [chart README](../../charts/telark/README.md#servicesdiscoveryenv) — K8s client rate limits,
 informer resync/coalescing, coordination TTLs, snapshot writer, protection-plan tick,
-force-sync, and auto-cleanup. Per-cluster overrides come from the
-[install-mode overlays](../../docs/INSTALL.md#sizing-modes-optional), not this service's defaults.
+force-sync, and auto-cleanup. Per-cluster sizing comes from the
+[install mode](../../docs/INSTALL.md#sizing-modes) (`--set app.mode`), not this service's defaults.
 
 ## API
 

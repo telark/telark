@@ -94,10 +94,9 @@ jobs:
         run: |
           set -euo pipefail
           namespace="${{ github.event.client_payload.ns }}"
-          # Sizes every chart: replicas, resources, client rate limits, volumes.
-          # Defaulted here because the payload may come from a dispatch that does
-          # not set it, and an empty mode would resolve to a values file that
-          # does not exist.
+          # Sizes every telark service: replicas, resources, client rate limits,
+          # volumes. Defaulted here because the payload may come from a dispatch
+          # that does not set it, and an empty mode is not a valid app.mode.
           install_mode="${{ github.event.client_payload.install_mode }}"  # minimal | standard | performance
           install_mode="${install_mode:-minimal}"
           bootstrap_release="${namespace}-bootstrap"
@@ -114,13 +113,10 @@ jobs:
             exit 1
           fi
 
-          nats_conf_value="--set-file nats.configuration=$CHART_DIR/config/nats.conf"
-          mode_values="-f $CHART_DIR/values.mode.${install_mode}.yaml"
-
-          if [ ! -f "$CHART_DIR/values.mode.${install_mode}.yaml" ]; then
-            echo "unknown install_mode '${install_mode}': expected minimal, standard or performance" >&2
-            exit 1
-          fi
+          case "$install_mode" in
+            minimal|standard|performance) ;;
+            *) echo "unknown install_mode '${install_mode}': expected minimal, standard or performance" >&2; exit 1 ;;
+          esac
 
           if ! kubectl get namespace "$namespace" >/dev/null 2>&1; then
             kubectl create namespace "$namespace"
@@ -152,11 +148,11 @@ jobs:
             --cleanup-on-fail \
             --timeout 5m
 
-          # App: services + subcharts
+          # App: services + subcharts. app.mode sizes every telark service; the
+          # NATS config is inlined in the chart, so no --set-file is needed.
           helm upgrade --install "$app_release" "$app_pkg" \
             -n "$namespace" \
-            ${nats_conf_value} \
-            ${mode_values} \
+            --set "app.mode=${install_mode}" \
             --force-conflicts \
             --cleanup-on-fail \
             --timeout 15m

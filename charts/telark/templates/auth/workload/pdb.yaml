@@ -1,5 +1,6 @@
 {{- $service := "auth" -}}
-{{- $serviceConfig := index .Values.services $service -}}
+{{- $values := include "telark.modeValues" $ | fromYaml -}}
+{{- $serviceConfig := index $values.services $service -}}
 {{- if and $serviceConfig.pdb $serviceConfig.pdb.enabled }}
-{{- include "servicePDB" (dict "service" $service "values" .Values "root" $) }}
+{{- include "servicePDB" (dict "service" $service "values" $values "root" $) }}
 {{- end }}

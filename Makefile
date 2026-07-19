@@ -3,7 +3,6 @@ export GOPRIVATE := github.com/telark/*
 GO_SERVICES := auth discovery exporter notifier
 CHART_DIR    := charts/telark
 CRDS_DIR     := charts/telark-crds
-NATS_CONF    := --set-file nats.configuration=$(CHART_DIR)/config/nats.conf
 REGISTRY     ?= oci://ghcr.io/telark/charts
 HELM_DOCS    := go run github.com/norwoodj/helm-docs/cmd/helm-docs@v1.14.2
 
@@ -31,8 +30,8 @@ helm-lint: ## Lint both charts
 	helm lint $(CRDS_DIR) -f $(CHART_DIR)/values.yaml
 	helm lint $(CHART_DIR)
 
-helm-template: ## Render the app chart (standard mode)
-	helm template t $(CHART_DIR) -f $(CHART_DIR)/values.mode.standard.yaml $(NATS_CONF)
+helm-template: ## Render the app chart (override sizing with MODE=minimal|performance)
+	helm template t $(CHART_DIR) $(if $(MODE),--set app.mode=$(MODE),)
 
 sync: ## Sync the Go workspace
 	go work sync

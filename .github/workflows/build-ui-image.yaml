@@ -1,0 +1,135 @@
+# Build: build + push the dashboard-ui image, tag the UI repo, then dispatch a
+# cluster deploy.
+name: Build · UI Image
+run-name: Build UI image (bump "${{ inputs.build_type }}")
+on:
+  workflow_dispatch:
+    inputs:
+      image_scan:
+        required: false
+        type: choice
+        description: Image Scanning
+        default: skip
+        options:
+          - skip
+          - scan
+      branch:
+        required: true
+        type: string
+        description: UI Branch
+        default: "master"
+      build_type:
+        required: false
+        type: choice
+        description: UI Build Type
+        options:
+          - patch
+          - minor
+          - major
+          - re-build-current
+      helm_build_type:
+        required: false
+        type: choice
+        description: Helm Release Build Type
+        default: skip
+        options:
+          - patch
+          - minor
+          - major
+          - skip
+      install_mode:
+        required: false
+        type: choice
+        description: "Install Mode (sizing for every chart: replicas, resources, rate limits, volumes)"
+        options:
+          - minimal
+          - standard
+          - performance
+        default: minimal
+
+env:
+  NAMESPACE: "telark"
+  DOCKER_BUILDKIT: 1
+  SERVICE: "ui"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.service_data.outputs.new_version }}
+    steps:
+      - name: Checkout UI Repository
+        uses: actions/checkout@v6.0.2
+        with:
+          repository: telark/dashboard-ui
+          token: ${{ secrets.ACCESS_TOKEN }}
+          path: service
+          ref: ${{ github.event.inputs.branch }}
+
+      - name: Checkout Core Repository
+        uses: actions/checkout@v6.0.2
+        with:
+          repository: telark/telark
+          path: release
+          ref: 'main'
+          fetch-depth: 0
+
+      - name: Bump UI Version
+        id: service_data
+        uses: ./release/.github/actions/bump-service-version
+        with:
+          service: ${{ env.SERVICE }}
+          build_type: ${{ inputs.build_type }}
+          values_file_path: './release/charts/telark/values.yaml'
+
+      - name: Read image config from helm values
+        id: image
+        shell: bash
+        run: |
+          echo "registry=$(yq e '.app.image.registry' release/charts/telark/values.yaml)" >> $GITHUB_OUTPUT
+          echo "repository=$(yq e '.services.ui.repository' release/charts/telark/values.yaml)" >> $GITHUB_OUTPUT
+
+      - name: Docker Login
+        uses: docker/login-action@v4.0.0
+        with:
+          registry: "docker.io"
+          username: ${{ secrets.CONTAINER_REGISTRY_USERNAME }}
+          password: ${{ secrets.CONTAINER_REGISTRY_PASSWORD }}
+
+      - name: Build and Push UI Image
+        uses: ./release/.github/actions/build-push-service-image
+        with:
+          service_name: ${{ env.SERVICE }}
+          service_path: 'service'
+          image_tag: ${{ steps.service_data.outputs.new_version }}
+          container_registry_name: ${{ steps.image.outputs.registry }}
+          container_registry_repo_name: ${{ steps.image.outputs.repository }}
+          dockerfile_path: './service/Dockerfile'
+          platforms: 'linux/amd64'
+          cache_enabled: 'true'
+          push_enabled: 'true'
+          access_user: ${{ secrets.ACCESS_USER }}
+          access_token: ${{ secrets.ACCESS_TOKEN }}
+
+      - name: Tag UI Repository
+        uses: ./release/.github/actions/tag-service-repo
+        with:
+          service_name: ${{ env.SERVICE }}
+          service_version: ${{ steps.service_data.outputs.service_new_version }}
+          service_path: service
+          branch: ${{ inputs.branch }}
+
+      - name: Pull Latest Changes
+        run: |
+          cd release
+          git stash push -m "Temporary stash before pull" || true
+          git pull origin main
+          git stash pop || true
+
+      - name: Commit UI Version
+        uses: EndBug/add-and-commit@v10.0.0
+        with:
+          author_name: GitHub Action
+          author_email: action@github.com
+          cwd: './release'
+          message: "bump ui to ${{ steps.service_data.outputs.new_version }}"

@@ -1,0 +1,8 @@
+# Code owners for telark. Order matters: the last matching pattern wins.
+
+*                       @hourki
+
+/charts/                @hourki
+/.github/               @hourki
+/services/enrichment/   @hourki
+/docs/                  @hourki

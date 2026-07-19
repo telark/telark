@@ -1,0 +1,90 @@
+{{/*
+Telark's own custom resources carry the role model: who holds which scope, at
+which level, and what each role is denied. The services enforce that model on
+their APIs, but the resources sit in the cluster, so anyone with edit rights on
+this namespace could rewrite them and skip the services entirely.
+
+This refuses writes to those groups from anything but the service accounts that
+own them. It is admission-side only: no webhook pod, so refusing costs no
+availability, and Deny cannot be coupled to a controller's health.
+
+A cluster admin can always delete this policy. The point is not to make the
+resources unwritable, it is to make writing them a deliberate, audited act
+rather than a side effect of holding namespace edit.
+*/}}
+{{- if $.Values.app.crdGuard.enabled }}
+{{- $ns := $.Values.app.namespace }}
+{{- $extra := $.Values.app.crdGuard.extraAllowedUsers }}
+{{- $exporter := printf "system:serviceaccount:%s:%s" $ns (include "telark.serviceAccountName" (dict "root" $ "serviceConfig" $.Values.services.exporter)) }}
+{{- $discovery := printf "system:serviceaccount:%s:%s" $ns (include "telark.serviceAccountName" (dict "root" $ "serviceConfig" $.Values.services.discovery)) }}
+{{/*
+The exporter owns every one of these resources. Discovery owns nothing outright:
+it only patches its own applications, so it is admitted for that resource alone
+rather than for the group. Widening it to the group would state that discovery
+may rewrite sessions, passkeys and roles, which is not true and must not become
+true by accident.
+*/}}
+{{- $ownersAll := concat (list $exporter) $extra }}
+{{- $ownersApplications := concat (list $exporter $discovery) $extra }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: {{ $.Values.app.name }}-crd-guard
+  labels:
+    {{- include "telark.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: security
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      # Named groups only. A wildcard here would put every resource in the
+      # cluster behind this allow list.
+      - apiGroups:
+          - erpi.{{ $.Values.app.name }}
+          - auth.{{ $.Values.app.name }}
+          - classification.{{ $.Values.app.name }}
+        apiVersions: ["*"]
+        resources: ["*"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+  variables:
+    # Quoted: every expression here is CEL source, and unquoted these would parse
+    # as YAML lists and be rejected as the wrong type.
+    - name: ownersAll
+      expression: {{ toJson $ownersAll | squote }}
+    - name: ownersApplications
+      expression: {{ toJson $ownersApplications | squote }}
+    # The allow list narrows to the resource being written, so admitting discovery
+    # for its own applications does not admit it for sessions, passkeys or roles.
+    - name: allowed
+      expression: >-
+        request.resource.group == '{{ printf "erpi.%s" $.Values.app.name }}'
+        && request.resource.resource == 'applicationsasresources'
+        ? variables.ownersApplications : variables.ownersAll
+  validations:
+    # userInfo is set by the API server from the authenticated request, so it is
+    # the one field a caller cannot forge. DELETE carries no object, only
+    # oldObject, which is why nothing here reads request.object.
+    - expression: request.userInfo.username in variables.allowed
+      reason: Forbidden
+      messageExpression: '"writes to " + request.resource.resource + "." + request.resource.group + " are reserved to {{ $.Values.app.name }}; use its API so the role model applies"'
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: {{ $.Values.app.name }}-crd-guard-binding
+  labels:
+    {{- include "telark.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: security
+spec:
+  policyName: {{ $.Values.app.name }}-crd-guard
+  validationActions:
+    {{- if $.Values.app.crdGuard.enforce }}
+    - Deny
+    {{- else }}
+    - Audit
+    {{- end }}
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: {{ $ns }}
+{{- end }}

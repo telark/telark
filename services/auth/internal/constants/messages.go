@@ -26,6 +26,7 @@ const (
 	// OIDC Messages
 	SuccessOIDCLoginCompleted messages.Message = "OIDC login completed successfully"
 	SuccessOIDCNonceGenerated messages.Message = "nonce generated successfully"
+	SuccessOIDCConfigUpdated  messages.Message = "OIDC configuration updated successfully"
 
 	// JIT Provisioning Messages
 	LogJIT409RoleRepair          messages.Message = "409 conflict: repaired missing role for %s"

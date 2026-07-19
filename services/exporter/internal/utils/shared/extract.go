@@ -20,15 +20,7 @@ import (
 )
 
 func GetPathParam(w http.ResponseWriter, r *http.Request, param string) (string, error) {
-	vars := mux.Vars(r)
-	resourceName, exists := vars[param]
-	if !exists || resourceName == constants.EmptyString {
-		msg := fmt.Sprintf(string(dataerrors.ErrRestRequiredParam), param)
-		responseutils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationUnprocessed, msg, nil, nil)
-		return constants.EmptyString, fmt.Errorf("%s", msg)
-	}
-
-	return resourceName, nil
+	return requestutils.PathParam(w, r, param)
 }
 
 func GetSpec(w http.ResponseWriter, r *http.Request) (map[string]any, error) {

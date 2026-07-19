@@ -49,21 +49,21 @@ const (
 	SimpleConcatLimit = 2
 
 	// Parsing / numeric constants for linters
-	IntBase10                       = 10
-	IntBitSize64                    = 64
-	ZeroInt64         int64         = 0
-	ZeroDuration      time.Duration = 0
-	StatusPending     string        = "pending"
-	StatusInProgress  string        = "in_progress"
-	StatusSuccess     string        = "success"
-	StatusFailed      string        = "failed"
-	PathSeparator     string        = "/"
-	DashSeparator     string        = "-"
-	ColonSeparator    string        = ":"
-	SpaceSeparator                  = " "
-	Wildcard          string        = "*"
-	TwoValue                        = 2
-	ThreeValue                      = 3
+	IntBase10                      = 10
+	IntBitSize64                   = 64
+	ZeroInt64        int64         = 0
+	ZeroDuration     time.Duration = 0
+	StatusPending    string        = "pending"
+	StatusInProgress string        = "in_progress"
+	StatusSuccess    string        = "success"
+	StatusFailed     string        = "failed"
+	PathSeparator    string        = "/"
+	DashSeparator    string        = "-"
+	ColonSeparator   string        = ":"
+	SpaceSeparator                 = " "
+	Wildcard         string        = "*"
+	TwoValue                       = 2
+	ThreeValue                     = 3
 
 	// Snapshot note (split for line-length limits)
 	SnapshotNote = "Manifests reflect K8s state at snapshot time. " +
@@ -117,10 +117,9 @@ const (
 	// (Redis SCAN/DEL fan-out + snapshot directory removal + exporter delete).
 	AppCleanupHandlerTimeout = 30 * time.Second
 
-	// EnrichApplicationsTimeout bounds the EnrichApplications handler's
-	// downstream listing + enrichment compute. Set generously since enrichment
-	// can be slow.
-	EnrichApplicationsTimeout = 5 * time.Minute
+	// InsightsReadTimeout bounds the windowed cache reads behind the insights read
+	// route. Short: these are a handful of Redis GETs for one page of apps.
+	InsightsReadTimeout = 5 * time.Second
 
 	// NATSConnectTimeout bounds NATS dial-with-retry for fetching the shared
 	// publisher client.

@@ -1,0 +1,7 @@
+# Defaults for standalone install/inspection. At the real install the telark
+# chart is the source of truth and overrides these:
+#   helm upgrade --install <crds-release> . -f ../telark/values.yaml
+# Do not maintain real config here — keep it in charts/telark/values.yaml.
+app:
+  name: "telark"
+  namespace: "telark"

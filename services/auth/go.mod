@@ -7,11 +7,10 @@ require (
 	github.com/go-webauthn/webauthn v0.17.4
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
-	github.com/gorilla/mux v1.8.1
 	github.com/redis/go-redis/v9 v9.21.0
-	github.com/telark/data v1.14.0
-	github.com/telark/rest v0.12.0
-	github.com/telark/x-ware v0.2.0
+	github.com/telark/data v1.14.2
+	github.com/telark/rest v0.13.3
+	github.com/telark/x-ware v0.3.3
 )
 
 require (
@@ -20,6 +19,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/go-webauthn/x v0.2.6 // indirect
 	github.com/google/go-tpm v0.9.8 // indirect
+	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/rs/cors v1.11.1 // indirect

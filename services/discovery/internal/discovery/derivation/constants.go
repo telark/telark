@@ -29,7 +29,6 @@ const (
 	signalComponent    = "component+instance"
 	signalAppLegacy    = "app"
 	signalUnidentified = "UNIDENTIFIED"
-
 )
 
 var workloadKinds = func() map[string]bool {

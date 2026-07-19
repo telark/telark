@@ -10,7 +10,7 @@ inputs:
   values_file_path:
     description: 'Path to the Helm values.yaml file'
     required: true
-    default: './release/charts/helm/app/values.yaml'
+    default: './release/charts/telark/values.yaml'
 
 outputs:
   service_name:
@@ -20,7 +20,7 @@ outputs:
     description: 'The new version number'
     value: ${{ steps.bump_version.outputs.service_new_version }}
   new_version:
-    description: 'The complete new version with tag prefix'
+    description: 'The new image tag (semver, no prefix)'
     value: ${{ steps.bump_version.outputs.new_version }}
   service_current_version:
     description: 'The current version before bump'
@@ -42,8 +42,7 @@ runs:
           service_name="${{ inputs.service }}"
         fi
 
-        # Get current service information
-        service_tag=$(yq ".services.${service_name}.imageTagPrefix" ${{ inputs.values_file_path }})
+        # Get current service version
         service_current_version=$(yq ".services.${service_name}.version" ${{ inputs.values_file_path }})
 
         # Calculate new version based on build type
@@ -73,11 +72,11 @@ runs:
         # Set outputs
         echo "service_name=$service_name" >> $GITHUB_OUTPUT
         echo "service_new_version=$service_new_version" >> $GITHUB_OUTPUT
-        echo "new_version=$service_tag$service_new_version" >> $GITHUB_OUTPUT
+        echo "new_version=$service_new_version" >> $GITHUB_OUTPUT
         echo "service_current_version=$service_current_version" >> $GITHUB_OUTPUT
         
         # Log the version bump
         echo "✅ Version bumped for service: $service_name"
         echo "   Current: $service_current_version → New: $service_new_version"
         echo "   Build type: ${{ inputs.build_type }}"
-        echo "   Full version: $service_tag$service_new_version"
+        echo "   Image tag: $service_new_version"

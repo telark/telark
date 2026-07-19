@@ -1,0 +1,383 @@
+# telark — Helm chart values. Full per-key reference: ./README.md
+#
+# Layout:  app.*            app-wide config (identity, images, auth, storage,
+#                           shared pod fragments).
+#          services.<svc>   per-workload blocks; inherit app.serviceDefaults and
+#                           opt into shared fragments via gates.
+#          Subcharts        bottom of this file. Sizing: values.mode.<mode>.yaml.
+#
+# Conventions: keys camelCase; container env keys SCREAMING_SNAKE_CASE.
+# Gates (per service, defaults): includeResources / includeHealthCheck /
+#   includeSecurity / useRedis = true, useNatsCreds = false.
+# storageClass: "" = cluster default · "-" = disable provisioning · "<name>" = that class.
+
+# global: propagated to subcharts.
+global:
+  imagePullSecrets: []
+
+# app.name is the source of truth for the app identity. These override the name
+# used for rendered resources without touching app.name.
+nameOverride: ""
+fullnameOverride: ""
+
+# Added to the metadata of every rendered resource.
+commonLabels: {}
+commonAnnotations: {}
+
+app:
+  # Identity — app.name is the source of truth for every resource name.
+  name: "telark"
+  namespace: "telark"
+
+  # Container images. Full ref per service: <registry>/<service.repository>:<service.version>.
+  image:
+    # Docker Hub namespace (account/org) that hosts the per-service repos.
+    registry: "telark"
+    pullPolicy: "Always"        # re-build-current re-pulls the same tag, so never IfNotPresent
+    # Public images pull anonymously. Add pull secrets here (or via
+    # global.imagePullSecrets) only for a private registry/mirror.
+    pullSecrets: []
+
+  # Auth service — WebAuthn relying-party identity + bootstrap admins.
+  auth:
+    bootstrap:
+      admins:
+        - "contact@telark.io"
+    passkey:
+      id: "localhost"
+      name: "Dashboard App"
+      origin: "http://localhost:3000"
+      selfRegistration: "true"  # gates passkey registration only; OIDC users unaffected
+
+  # Optional subcharts. Their config lives in the Subcharts section below.
+  kyverno:
+    enabled: true
+  ollama:
+    enabled: false              # required only when enrichment uses provider=ollama
+
+  # Storage for the exporter snapshots PVC.
+  # storageClass: "" = cluster default · "-" = disable provisioning · "<name>" = that class.
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 1Gi
+    accessMode: ReadWriteOnce
+
+  # Shared secret services present to each other. Empty = generated on install and
+  # read back on upgrade. Set explicitly for cluster-less renders (GitOps).
+  serviceToken:
+    envVar: "TELARK_SERVICE_TOKEN"
+    value: ""
+
+  # Admission-side guard: only owning service accounts may write Telark CRs.
+  # enabled=false off · enforce=false audits (logs + allows) · enforce=true rejects.
+  crdGuard:
+    enabled: false
+    enforce: false
+    extraAllowedUsers: []       # break-glass usernames; owning SAs always allowed
+
+  # Per-service defaults. Override any key on a services.<svc> block.
+  serviceDefaults:
+    port: 8080
+    serviceType: ClusterIP
+    replicas: 1
+    terminationGracePeriodSec: 60
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+
+  # Shared pod fragments, applied per service via gates:
+  # includeResources · includeHealthCheck · includeSecurity · useRedis · useNatsCreds.
+  shared:
+    redis:
+      REDIS_HOST: "{{ .Release.Name }}-redis-master"   # redis subchart master service
+      REDIS_PORT: "6379"
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+    healthCheck:
+      port: http
+      livenessProbe:
+        path: /api/v1/status/live
+        initialDelaySeconds: 15
+        periodSeconds: 15
+        timeoutSeconds: 15
+        failureThreshold: 3
+      readinessProbe:
+        path: /api/v1/status/ready
+        initialDelaySeconds: 15
+        periodSeconds: 15
+        timeoutSeconds: 15
+        failureThreshold: 3
+    podSecurityContext:
+      enabled: true
+      runAsUser: 1001
+      runAsGroup: 1001
+      fsGroup: 1001
+    containerSecurityContext:
+      enabled: true
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsUser: 1001
+      runAsGroup: 1001
+      capabilities:
+        drop: ["ALL"]
+    natsEnvFromSecret:
+      NATS_USER:
+        name: "nats"
+        key: "username"
+      NATS_PASSWORD:
+        name: "nats"
+        key: "password"
+
+# Per-service configuration. See README.md for the full env reference and gate semantics.
+services:
+  exporter:
+    enabled: true
+    name: "exporter-service"
+    repository: "exporter"
+    version: 3.3.3
+    category: "export"
+    env:
+      SNAPSHOTS_PATH: &snapshotsPath "/snapshots"
+      SNAPSHOTS_PVC_NAME: '{{ include "telark.exporterSnapshotsPvcName" . }}'
+      SNAPSHOTS_PVC_NAMESPACE: '{{ .Values.app.namespace }}'
+      EXPORTER_K8S_CLIENT_QPS: "50"
+      EXPORTER_K8S_CLIENT_BURST: "100"
+    volumes:
+      - name: snapshots-storage
+        persistentVolumeClaim:
+          claimName: '{{ include "telark.exporterSnapshotsPvcName" . }}'
+    volumeMounts:
+      - name: snapshots-storage
+        path: *snapshotsPath
+    pdb:
+      enabled: false
+  discovery:
+    enabled: true
+    name: "discovery-service"
+    repository: "discovery"
+    version: 1.9.0
+    category: "sync"
+    replicas: 2
+    includeSecurity: false
+    useNatsCreds: true
+    env:
+      DISCOVERY_K8S_CLIENT_QPS: "100"
+      DISCOVERY_K8S_CLIENT_BURST: "200"
+      # How often the leader dispatches app signals to enrichment. Deliberately
+      # slower than the UI's insights poll: production is expensive (LLM calls),
+      # the read is cheap, so the UI fills in between ticks.
+      INSIGHTS_TICK_INTERVAL_SEC: "300"
+      DISCOVERY_INFORMER_RESYNC_SEC: "600"
+      DISCOVERY_ROLLBACK_INFORMER_RESYNC_SEC: "600"
+      DISCOVERY_INFORMER_RESYNC_JITTER_FRACTION: "0.2"
+      DISCOVERY_INFORMER_COALESCING_WINDOW_SEC: "5"
+      DISCOVERY_INFORMER_COALESCING_MAX_WAIT_SEC: "10"
+      DISCOVERY_COALESCE_BUFFER_MAX_ENTRIES: "500"
+      DISCOVERY_SNAPSHOT_FETCH_TIMEOUT_MS: "5000"
+      COORDINATION_BATCH_SIZE: "10"
+      COORDINATION_BATCH_BLOCK_SEC: "2"
+      COORDINATION_MAX_RETRY_ATTEMPTS: "5"
+      COORDINATION_LOCK_TTL_SEC: "120"
+      COORDINATION_LOCK_HEARTBEAT_SEC: "30"
+      COORDINATION_ELECTION_TTL_SEC: "15"
+      COORDINATION_ELECTION_RENEW_SEC: "5"
+      COORDINATION_DEDUP_TTL_SEC: "60"
+      COORDINATION_STALE_CLAIM_MIN_IDLE_SEC: "300"
+      COORDINATION_STALE_CLAIM_INTERVAL_SEC: "60"
+      COORDINATION_SHUTDOWN_CLEANUP_TIMEOUT_SEC: "45"
+      REDIS_RETRY_INTERVAL_SEC: "5"
+      REDIS_MAX_WAIT_SEC: "180"
+      REDIS_PING_TIMEOUT_SEC: "2"
+      SNAPSHOT_WRITE_MAX_ATTEMPTS: "5"
+      SNAPSHOT_WRITE_RETRY_INTERVAL_SEC: "2"
+      PROTECTION_PLAN_TICK_INTERVAL_SEC: "31"
+      FORCE_SYNC_WORKERS: "4"
+      FORCE_SYNC_STREAM_MAX_LEN: "5000"
+      FORCE_SYNC_DEDUP_TTL_SEC: "600"
+      FORCE_SYNC_JOB_TIMEOUT_SEC: "300"
+      FORCE_SYNC_MAINTENANCE_INTERVAL_SEC: "60"
+      FORCE_SYNC_PEL_IDLE_RECLAIM_SEC: "60"
+      FORCE_SYNC_ACK_RETENTION_SEC: "3600"
+      REST_EXPORTER_DURATION_LOG_ENABLED: "true"
+      DISCOVERY_AUTO_CLEANUP_ENABLED: "true"
+      DISCOVERY_AUTO_CLEANUP_DELETE_ENABLED: "false"
+      DISCOVERY_AUTO_CLEANUP_CYCLE_INTERVAL_SEC: "300"
+      DISCOVERY_AUTO_CLEANUP_EMPTY_CYCLES_REQUIRED: "3"
+      DISCOVERY_AUTO_CLEANUP_GRACE_PERIOD_SEC: "900"
+      REST_EXPORTER_DURATION_LOG_DEDUP_SEC: "10"
+    topologySpread:
+      enabled: true
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    pdb:
+      enabled: true
+  enrichment:
+    enabled: true
+    name: "enrichment-service"
+    repository: "enrichment"
+    version: 0.1.1
+    category: "ai-enrichment"
+    env:
+      REDIS_POOL_SIZE: "10"
+      # Provider and API key are read from the GlobalConfig CR at runtime, set by
+      # an admin from the UI. Only the non-secret model names live here.
+      OLLAMA_HOST: "http://{{ .Release.Name }}-ollama:11434"
+      OLLAMA_MODEL: "qwen2.5:3b"
+      ANTHROPIC_MODEL: "claude-haiku-4-5-20251001"
+      GROQ_MODEL: "llama-3.3-70b-versatile"
+      GEMINI_MODEL: "gemini-2.5-flash"
+      NUM_WORKERS: "3"
+      METRICS_INTERVAL_S: "60"
+      WORKER_SHUTDOWN_TIMEOUT_S: "30"
+    pdb:
+      enabled: false
+  notifier:
+    enabled: true
+    name: "notifier-service"
+    repository: "notifier"
+    version: 0.2.2
+    category: "notification"
+    terminationGracePeriodSec: 30
+    useNatsCreds: true
+    pdb:
+      enabled: false
+  auth:
+    enabled: true
+    name: "auth-service"
+    repository: "auth"
+    version: 0.3.2
+    category: "auth"
+    terminationGracePeriodSec: 30
+    env:
+      REDIS_DB: "1"
+      REDIS_RETRY_INTERVAL_SEC: "2"
+      REDIS_MAX_WAIT_SEC: "30"
+      REDIS_PING_TIMEOUT_SEC: "3"
+      BOOTSTRAP_ADMINS: '{{ join "," .Values.app.auth.bootstrap.admins }}'
+      SELF_REGISTRATION_ENABLED: '{{ .Values.app.auth.passkey.selfRegistration }}'
+      RP_ID: '{{ .Values.app.auth.passkey.id }}'
+      RP_NAME: '{{ .Values.app.auth.passkey.name }}'
+      RP_ORIGIN: '{{ .Values.app.auth.passkey.origin }}'
+      CHALLENGE_TIMEOUT: "60"
+      SESSION_EXPIRY: "24"
+      RECONCILE_TICK_SECONDS: "5"
+      RECONCILE_PASS_DEADLINE_SECONDS: "30"
+      CLEANUP_WORKERS_PER_TYPE: "2"
+      CLEANUP_STREAM_MAXLEN: "10000"
+      CLEANUP_LAG_ALERT_THRESHOLD: "500"
+      CLEANUP_SWEEPER_INTERVAL_SECONDS: "60"
+      CLEANUP_JOB_MAX_ATTEMPTS: "5"
+      CLEANUP_DEDUP_TTL_SECONDS: "600"
+      CLEANUP_XCLAIM_MIN_IDLE_SECONDS: "60"
+      CLEANUP_LIST_TIMEOUT_SECONDS: "10"
+      CLEANUP_PATCH_TIMEOUT_SECONDS: "5"
+      CLEANUP_MAX_CONCURRENT_PATCHES: "4"
+      RECONCILE_BACKOFF_INITIAL_SECONDS: "5"
+      RECONCILE_BACKOFF_MAX_SECONDS: "300"
+    pdb:
+      enabled: false
+  ui:
+    enabled: false
+    name: "ui-service"
+    repository: "ui"
+    version: 0.0.1
+    category: "ui"
+    terminationGracePeriodSec: 30
+    # Static assets behind nginx: it serves no /api/v1/status route, so probes
+    # stay off. Resources still apply.
+    includeHealthCheck: false
+    includeSecurity: false
+    useRedis: false
+
+# ─── Subcharts ───────────────────────────────────────────────────────────────
+# Config that does not vary between install modes. Sizing (replicas, resources,
+# rate limits, volume sizes) is layered on top from values.mode.<mode>.yaml:
+#
+#   helm install <name> . -f values.mode.<mode>.yaml
+#
+# Modes: minimal | standard | performance. Installing without a mode overlay uses
+# the subchart defaults below, which suit a single-node / evaluation cluster.
+
+redis:
+  architecture: standalone
+  auth:
+    enabled: false
+  master:
+    persistence:
+      enabled: true
+      size: 1Gi
+
+nats:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: nats
+    tag: 2.12.1-scratch
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+  # configuration: loaded via --set-file nats.configuration=config/nats.conf
+  persistence:
+    enabled: true
+    path: /data
+    size: 2Gi
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+
+kyverno:
+  namespaceOverride: "telark"
+  features:
+    forceFailurePolicyIgnore:
+      enabled: true
+  webhooksCleanup:
+    enabled: false
+  # Replicas and resources intentionally omitted: they come from the install mode.
+
+# metrics-server: required by HPAs and `kubectl top`. Default on.
+# Disable for clusters that already ship it (GKE, AKS, k3s, OpenShift):
+#   kubectl get apiservice v1beta1.metrics.k8s.io
+# If present, override: --set metrics-server.enabled=false
+metrics-server:
+  enabled: true
+  args:
+    - --kubelet-insecure-tls
+    - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+  resources:
+    requests:
+      cpu: 100m
+      memory: 200Mi
+    limits:
+      cpu: 200m
+      memory: 400Mi
+
+ollama:
+  ollama:
+    models:
+      pull:
+      # tested: phi3.5 (HIGH) / llama3.2:3b (LOW, inaccurate) / qwen2.5:3b (MEDIUM, best fit)
+       - qwen2.5:3b
+  persistentVolume:
+    enabled: true
+    size: 10Gi
+    # Empty -> cluster default class. Override per env via --set or values overlay.
+    storageClass: ""
+  extraEnv:
+    - name: OLLAMA_NO_CLOUD
+      value: "true"
+    - name: OLLAMA_CONTEXT_LENGTH
+      value: "2048"
+    - name: OLLAMA_KEEP_ALIVE
+      value: "-1"
+    - name: OLLAMA_FLASH_ATTENTION
+      value: "true"
+    - name: OLLAMA_NUM_PARALLEL
+      value: "1"

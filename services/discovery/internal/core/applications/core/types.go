@@ -4,20 +4,14 @@ import (
 	"context"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/telark/data/resources/application"
 	natscore "github.com/telark/x-ware/nats/core"
-	"github.com/redis/go-redis/v9"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 type GetApplicationsOptions struct {
-	// Wait enables polling Redis until all apps are enriched or timeout.
-	Wait bool
-	// WaitTimeoutSec is the max number of seconds to wait (default 15, max 30).
-	WaitTimeoutSec int
-	// InsightsEnabled toggles enrichment (Redis cache + queue). When false, insights stay empty.
-	InsightsEnabled bool
 	// NatsClient, when set, is used to publish applications to NATS for CR creation.
 	NatsClient *natscore.NATSClient
 	// GetStoredApplication fetches the current Application CR state by name (e.g. from exporter API).
@@ -86,13 +80,6 @@ const (
 	helmReleaseSecretPrefix = "sh.helm.release."
 )
 
-// Wait / polling
-const (
-	sortOne             = 1
-	firstItemIdx        = 0
-	waitPollIntervalSec = 1
-)
-
 // Enrich K8s
 const (
 	envKeySkipSubstr = "PASSWORD,SECRET,TOKEN,KEY,CREDENTIAL"
@@ -119,7 +106,6 @@ const (
 
 // Log / message formats
 const (
-	msgEnqueueFailed    = "enqueue failed: app=%s err=%v"
 	msgReplicasReady    = "%d/%d replicas ready"
 	payloadKeyName      = "name"
 	payloadKeyHistory   = "history"

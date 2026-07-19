@@ -19,6 +19,11 @@ def signals_hash(signals: AppSignals) -> str:
     Name and namespace excluded — they don't affect analysis.
     Same tech signals = same hash = same result = zero LLM call.
     """
+    # Structural identity only. Volatile metrics (actual CPU/mem usage,
+    # readyReplicas, health, change velocity, incidents) are deliberately excluded
+    # so momentary drift doesn't re-trigger an LLM call every tick. Configuration
+    # posture that does change the analysis (replicas, limits set, QoS, workload
+    # kinds, wiring) is included.
     fingerprint = {
         "images": sorted(signals.images),
         "ports": sorted(signals.ports),
@@ -26,6 +31,18 @@ def signals_hash(signals: AppSignals) -> str:
         "resourceKinds": sorted(signals.resourceKinds),
         "hasIngress": signals.hasIngress,
         "hasPVC": signals.hasPVC,
+        "replicas": signals.replicas,
+        "workloadKinds": sorted(signals.workloadKinds),
+        "hasService": signals.hasService,
+        "hasHPA": signals.hasHPA,
+        "hasNetworkPolicy": signals.hasNetworkPolicy,
+        "secretRefs": sorted(signals.secretRefs),
+        "configMapRefs": sorted(signals.configMapRefs),
+        "managedBy": signals.managedBy,
+        "chart": signals.chart,
+        "workloadSpec": sorted(
+            f"{w.kind}:{w.qos}:{w.limitsSet}" for w in signals.workloads
+        ),
     }
     raw = json.dumps(fingerprint, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode()).hexdigest()[:16]

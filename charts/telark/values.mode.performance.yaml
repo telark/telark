@@ -1,0 +1,154 @@
+# Install mode: performance
+#
+# Large cluster, high change rate. Three replicas per service, disruption budgets
+# that keep a quorum up through a drain, and client rate limits raised so the
+# services are not the bottleneck when thousands of resources move at once.
+#
+# Costs roughly an order of magnitude more than minimal to run. Pick it when the
+# cluster is genuinely large, not to be safe.
+#
+# Layered over the chart defaults at install:
+#   -f values.mode.performance.yaml
+#
+# Capacity only. This says nothing about security posture: app.crdGuard is
+# an independent flag, deliberately, so a small cluster can still enforce the role
+# model and a large one never enforces it by accident.
+
+app:
+  serviceDefaults:
+    replicas: 3
+  persistence:
+    size: 50Gi
+    # The exporter is the only stateful service and everything depends on it, so
+    # this mode refuses to run it on a volume one node can hold. Set storageClass
+    # to a class that serves ReadWriteMany (an EFS class on EKS); the install
+    # fails rather than silently dropping to a single replica.
+    accessMode: ReadWriteMany
+    storageClass: ""
+  shared:
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "512Mi"
+      limits:
+        cpu: "2000m"
+        memory: "2Gi"
+
+services:
+  exporter:
+    # Safe above one replica only because snapshot writes go to a uniquely named
+    # temp file and are renamed into place, so concurrent writers cannot publish
+    # a partial file. Requires the ReadWriteMany volume declared above, which the
+    # storage guard enforces.
+    replicas: 3
+    env:
+      EXPORTER_K8S_CLIENT_QPS: "200"
+      EXPORTER_K8S_CLIENT_BURST: "400"
+    pdb:
+      enabled: true
+      minAvailable: 2
+    topologySpread:
+      enabled: true
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+  discovery:
+    replicas: 3
+    env:
+      DISCOVERY_K8S_CLIENT_QPS: "300"
+      DISCOVERY_K8S_CLIENT_BURST: "600"
+      FORCE_SYNC_WORKERS: "8"
+    pdb:
+      enabled: true
+      minAvailable: 2
+  enrichment:
+    env:
+      NUM_WORKERS: "6"
+    pdb:
+      enabled: true
+      minAvailable: 2
+  notifier:
+    pdb:
+      enabled: true
+      minAvailable: 2
+  auth:
+    env:
+      CLEANUP_WORKERS_PER_TYPE: "4"
+    pdb:
+      enabled: true
+      minAvailable: 2
+
+redis:
+  master:
+    persistence:
+      size: 8Gi
+
+nats:
+  persistence:
+    size: 8Gi
+
+metrics-server:
+  resources:
+    requests:
+      cpu: 200m
+      memory: 400Mi
+    limits:
+      cpu: 500m
+      memory: 800Mi
+
+kyverno:
+  admissionController:
+    replicas: 3
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 2
+    container:
+      resources:
+        requests:
+          cpu: 500m
+          memory: 512Mi
+        limits:
+          memory: 1Gi
+      extraArgs:
+        clientRateLimitQPS: 200
+        clientRateLimitBurst: 400
+    initContainer:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          memory: 256Mi
+  backgroundController:
+    replicas: 2
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+    extraArgs:
+      clientRateLimitQPS: 200
+      clientRateLimitBurst: 400
+  cleanupController:
+    replicas: 2
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+    extraArgs:
+      clientRateLimitQPS: 200
+      clientRateLimitBurst: 400
+  reportsController:
+    replicas: 2
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+    extraArgs:
+      clientRateLimitQPS: 200
+      clientRateLimitBurst: 400

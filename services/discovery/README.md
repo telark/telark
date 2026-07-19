@@ -1,204 +1,181 @@
-# Overview
+# discovery service
 
-Discovery Manager runs alongside your cluster: it discovers grouped applications, compares live state to the last persisted `ApplicationAsResource` spec, classifies diffs, records structured history, and stores filesystem snapshots of manifests. A separate rollback path applies a chosen snapshot back to the cluster under explicit intent and controller-driven status.
+The engine that turns raw workloads into protected applications. Discovery watches the
+cluster, groups workloads into **applications**, diffs each against its last stored spec,
+classifies the change, snapshots the manifests, and publishes the result. It also runs
+the **protection-plan** lifecycle and the **rollback** path. Every replica cooperates
+over Redis so the work stays correct and non-duplicated at scale.
 
-What sets it apart is the combination of **CRD-backed application identity**, **deterministic change classes and severity**, **pre-change snapshots** tied to history generations, and **multi-replica coordination** over Redis so discovery and prewarm stay correct at scale.
+Discovery never writes the `ApplicationAsResource` CR directly — it publishes to NATS and
+lets [notifier](../notifier) persist through [exporter](../exporter). Exporter remains the
+single CR writer.
 
 ## Architecture
 
 ```mermaid
-graph TD
-  subgraph NotifierPath["notifier-service NATS path"]
-    NTF[notifier-service]
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif","fontSize":"13px","lineColor":"#94a3b8","primaryColor":"#eef2ff","primaryBorderColor":"#6366f1","primaryTextColor":"#312e81","edgeLabelBackground":"#ffffff","clusterBkg":"#f8fafc","clusterBorder":"#e2e8f0"},"flowchart":{"curve":"basis","htmlLabels":true,"nodeSpacing":46,"rankSpacing":64,"padding":12}}}%%
+flowchart LR
+  K8S[("Kubernetes API")]
+
+  subgraph discovery["discovery"]
+    INF(informers) --> DER("derive apps<br/>group by labels")
+    DER --> DIFF(diff + classify)
+    DIFF --> SNAP(snapshot)
+    DIFF --> PUB(publisher)
+    INS(insights controller)
+    PLN(protection-plan controller)
+    COORD("leader election<br/>claim stream · locks")
   end
 
-  subgraph ExporterAndCRD["Exporter & ApplicationAsResource"]
-    EXP[exporter-service]
-    CRD[ApplicationAsResource CRD]
-    EXP -->|REST + cluster client persist Application spec| CRD
-  end
+  EXP(exporter)
+  NATS[("NATS JetStream")]
+  NTF(notifier)
+  REDIS[("Redis")]
+  ENR(enrichment)
 
-  SM[discovery-service]
-  RM[release-manager / Helm]
-  NATS[(NATS JetStream)]
-  REDIS[(Redis)]
+  K8S -->|watch| INF
+  DIFF -->|stored app| EXP
+  SNAP -->|manifests| EXP
+  PUB -->|publish| NATS --> NTF -->|persist CR| EXP
+  COORD <--> REDIS
+  INS -->|signals batch| ENR
+  PLN -->|admission policy| K8S
 
-  RM -->|deploys| SM
-  RM -->|deploys| NTF
-  RM -->|deploys| EXP
-  RM -->|installs CRD schema| CRD
-
-  SM -->|REST snapshots, GET stored Application| EXP
-  SM -->|publish telark.applications.update| NATS
-  SM --> REDIS
-
-  NATS -->|JetStream deliver| NTF
-  NTF -->|exporter client PATCH application only| EXP
+  classDef svc fill:#eef2ff,stroke:#6366f1,stroke-width:1.5px,color:#312e81;
+  classDef infra fill:#ecfdf5,stroke:#10b981,stroke-width:1.5px,color:#065f46;
+  classDef peer fill:#f1f5f9,stroke:#94a3b8,stroke-width:1.5px,color:#334155;
+  classDef store fill:#fff7ed,stroke:#f59e0b,stroke-width:1.5px,color:#92400e;
+  class INF,DER,DIFF,SNAP,PUB,INS,PLN,COORD svc;
+  class NATS infra;
+  class EXP,NTF,ENR peer;
+  class K8S,REDIS store;
 ```
 
-**discovery-service** discovers workloads from the cluster, builds `Application` models, and diffs them against the **last stored copy** it loads from **exporter-service** over REST. **Snapshots** are created by calling exporter’s snapshot API. The **ApplicationAsResource** CRD is defined once by Helm but **lives in the exporter domain**: exporter is the control point for reading and updating that resource’s spec on the cluster; **discovery-service** does not patch the CR directly.
+## Responsibilities
 
-**Redis** is used **only inside discovery-service** for coordination, not for application payloads. **Leader election** (`election:prewarm`) picks one replica to enqueue prewarm batches. A **Redis Stream** plus **consumer group** hands work to workers. **Per-app locks** (`lock:app:…`, `lock:enrich:…`) prevent overlapping prewarm or enrich runs. **Dedup** keys skip duplicate stream publishes in a cycle; **grace** and **incident-state** keys gate health-related changelog noise; **replica heartbeats** back stale-consumer cleanup. None of this carries full Application documents—that traffic is REST + NATS.
+- **Discover:** watch workloads via `kcore` informers and group them into applications by label derivation.
+- **Diff & classify:** compare the live app to the last stored spec (from exporter) and resolve overlapping signals into a single change class.
+- **Snapshot:** on each material change, read and sanitize the workload manifests and store them through exporter — the audit trail and rollback targets.
+- **Publish:** emit `telark.applications.{update,delete}` to NATS; notifier persists the CR via exporter.
+- **Enrich:** the leader tick dispatches application signals to enrichment (`POST /api/v1/insights/applications`) when AI is configured — fire-and-forget, never blocking on the model.
+- **Protect:** drive the protection-plan lifecycle (`scheduled → active → terminated`); while active, deploy admission policies for the plan's scope and verify their health against live cluster state.
+- **Rollback:** apply a chosen snapshot back to the cluster under explicit intent, with controller-driven status.
 
-**NATS** (JetStream) is discovery-service’s **outbox** after diff/snapshot: each reconciled app is published on subject **`telark.applications.update`** (namespace prefix `telark`, resource group `applications`, action `update`). **notifier-service** subscribes to that stream and, **for application CR reconciliation only**, calls the **exporter HTTP client** to patch the stored application so **ApplicationAsResource** stays aligned—discovery-service never holds that subscriber or CR patch credentials; exporter remains the service that persists the CR.
+## How change detection works
 
-## Core Concepts
+Discovery compares the stored application to a freshly derived one: images, replica
+counts, health transitions, CPU/memory requests and limits, ports, env-var keys, chart
+version, resource membership, and counts. Overlapping signals collapse into one
+`changeClass` by priority (many simultaneous categories become **drift**).
 
-**ApplicationAsResource**  
-A namespaced CRD (`erpi.telark/v1alpha1`, kind `ApplicationAsResource`) whose `spec` mirrors the `Application` model: health, namespaces, resource inventory, Helm-style `managed` metadata, AI `insights`, `snapshots`, `rollbacks`, workload `metrics`, and `history` with a versioned `changeLog`. It is the durable source of truth **discovery-service** reconciles against and exporter patches.
+| Class | Trigger |
+|---|---|
+| `topology` | Resource membership changed (objects added/removed) |
+| `deployment` | Container image reference changed |
+| `scaling` | Replica count changed |
+| `resources` | CPU/memory requests or limits changed |
+| `config` | Env-var keys or ports changed |
+| `incident` | Health degraded or down |
+| `recovery` | Health restored after an incident |
+| `rollback` | A snapshot was applied to the cluster |
+| `drift` | Multiple categories in one detection window |
 
-**Change Detection**  
-**discovery-service** compares the stored application (from exporter) to a freshly derived app from the live API: images, replica counts, health transitions, CPU/memory requests and limits (including metrics baselines), ports, env var keys, chart version, resource membership, and resource counts. Overlapping signals collapse into a single **changeClass** via priority rules (e.g. many simultaneous categories become **drift**). Supported classes in the CRD enum are **topology**, **deployment**, **scaling**, **resources**, **config**, **incident**, **recovery**, **rollback**, and **drift** (plus empty for legacy rows).
+## Distributed coordination
 
-**Snapshots**  
-On each material change, manifests for all workloads in the app are read from the **Kubernetes API** (dynamic client), server-managed fields stripped (same sanitization as apply-oriented manifest export), and written through exporter’s snapshot API. Entries in `spec.snapshots[]` record `generation`, `changeClass`, `severity`, `takenAt`, `id`, `namespace`, and storage `path`. Snapshots enable audit, comparison, and rollback targets.
-
-**Rollbacks**  
-Rollback is **intent-based**: a client appends a `rollbacks[]` entry (pending) on the Application CR via exporter. The in-cluster **rollback controller** picks up pending work, loads the manifest for the target snapshot from exporter, applies resources to the cluster, and advances status **pending → in_progress → success** or **failed**. **discovery-service** exposes a convenience HTTP trigger that validates the snapshot generation and patches rollbacks through exporter.
-
-## Distributed Coordination
+Redis coordinates the replicas — it never carries application payloads (that is REST +
+NATS). One leader enqueues work; workers consume a stream under a consumer group, each
+holding a per-app lock.
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif","fontSize":"13px","actorBkg":"#eef2ff","actorBorder":"#6366f1","actorTextColor":"#312e81","actorLineColor":"#cbd5e1","signalColor":"#64748b","signalTextColor":"#334155","noteBkgColor":"#fff7ed","noteBorderColor":"#f59e0b","noteTextColor":"#92400e"},"sequence":{"mirrorActors":false,"messageAlign":"center"}}}%%
 sequenceDiagram
   participant L as Leader replica
   participant R as Redis
   participant W as Worker replica
   participant NJ as NATS JetStream
-  participant NTF as notifier-service
-  participant EXP as exporter-service
+  participant NTF as notifier
+  participant EXP as exporter
 
-  L->>R: Campaign election:prewarm (SET NX + TTL)
-  L->>R: XADD stream (batch prewarm ops)
+  L->>R: Campaign leader lease (SET NX + TTL)
+  L->>R: XADD operations stream (batch)
   W->>R: XREADGROUP (consumer group)
-  W->>R: Acquire Redis lock per app key
-  W->>W: GetApplications / process op
+  W->>R: Acquire per-app lock
+  W->>W: Derive / diff / snapshot
   W->>NJ: Publish telark.applications.update
-  NJ->>NTF: Deliver message
-  NTF->>EXP: Exporter client PATCH application
-  W->>R: Ack message, release lock
-  Note over L,R: Leader renews election, followers skip prewarm enqueue
-  Note over W,R: On shutdown, reclaim stale, delete consumer, resign optional
-  Note over NTF,EXP: Notifier uses exporter client only for this NATS-driven app update path
+  NJ->>NTF: Deliver
+  NTF->>EXP: PATCH / CREATE application
+  W->>R: Ack, release lock
+  Note over L,R: Leader renews its lease, followers skip enqueue
+  Note over W,R: On shutdown: reclaim stale claims, delete consumer
 ```
 
-Redis backs **leader election** for prewarm enqueue, a **stream** of per-application operations, **per-app locks** for workers, **dedup** keys for batch cycles, **operation state** for observability, **scaling grace** and **incident state** strings for health gating, and **replica heartbeats** for consumer hygiene.
+| Key pattern | Purpose | TTL source |
+|---|---|---|
+| leader lease | Single writer for batch enqueue | `COORDINATION_ELECTION_TTL_SEC` (15s), renewed every `…_RENEW_SEC` (5s) |
+| operations stream + consumer group | Hand work to workers | Redis retention |
+| per-app lock | Serialize processing per app | `COORDINATION_LOCK_TTL_SEC` (120s), heartbeat `…_HEARTBEAT_SEC` (30s) |
+| dedup key | Skip duplicate enqueue in a cycle | `COORDINATION_DEDUP_TTL_SEC` (60s) |
+| replica heartbeat | Detect dead stream consumers | swept every `COORDINATION_STALE_CLAIM_INTERVAL_SEC` (60s) |
 
-| Key pattern | Purpose | TTL |
-|-------------|---------|-----|
-| `election:prewarm` | Single writer for prewarm batch enqueue | Configurable (`COORDINATION_ELECTION_TTL_SEC`, default 120s in chart) |
-| `streams:discovery:operations` | Operation stream (consumer group) | Stream retention (Redis / config) |
-| `lock:app:{key}` | Serialize consumer processing per app | `COORDINATION_LOCK_TTL_SEC` (default 120s) |
-| `lock:enrich:{id}` | Serialize enrichment for selector/namespace | Same lock TTL |
-| `ops:{operationId}` | Serialized operation state | 300s (x-ware default) |
-| `dedup:{app}:{cycle}` | Skip duplicate enqueue in a cycle | `COORDINATION_DEDUP_TTL_SEC` (default 60s) |
-| `grace:scale:{app}` | Suppress incident noise right after replica changes | 90s (`GraceScaleTTL`) |
-| `incident:state:{app}` | Redis-backed incident vs healthy for changelog dedup | 24h |
-| `replica:{name}:heartbeat` | Detect dead stream consumers | 30s |
+## Rollback
 
-## Rollback Flow
+Rollback is intent-based: a client appends a pending `rollbacks[]` entry to the Application
+CR (via exporter); the in-cluster controller applies the target snapshot and advances status.
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif","fontSize":"13px","actorBkg":"#eef2ff","actorBorder":"#6366f1","actorTextColor":"#312e81","actorLineColor":"#cbd5e1","signalColor":"#64748b","signalTextColor":"#334155","noteBkgColor":"#fff7ed","noteBorderColor":"#f59e0b","noteTextColor":"#92400e"},"sequence":{"mirrorActors":false,"messageAlign":"center"}}}%%
 sequenceDiagram
-  participant API as Client / discovery-service API
-  participant EXP as exporter-service
-  participant CRD as ApplicationAsResource
+  participant API as Client / discovery API
+  participant EXP as exporter
   participant CTRL as Rollback controller
   participant CL as Kubernetes API
 
-  API->>EXP: PATCH application rollbacks (+ pending entry)
-  EXP->>CRD: Persist spec
-  CTRL->>CRD: Watch pending rollback
-  CTRL->>EXP: GET snapshot manifest (id, scope, namespace, generation)
-  EXP-->>CTRL: Manifest JSON
+  API->>EXP: PATCH application (pending rollback)
+  CTRL->>EXP: Watch pending → GET snapshot manifest
   CTRL->>CL: Apply / reconcile resources
-  CTRL->>CRD: Patch rollback status (in_progress → success | failed)
+  CTRL->>EXP: PATCH status (in_progress → success | failed)
 ```
 
-## API Reference
+## Layout
 
-Base path for both services: **`/api/v1/`** (rest-pkg `V1`).
+| Package | Role |
+|---|---|
+| `internal/informers` | `kcore` dynamic informers over cluster workloads |
+| `internal/discovery/{derivation,groupbylabels,listing,prewarm,cache}` | Derive applications from live state |
+| `internal/core/{applications,plans}` | Core application + protection-plan domain logic |
+| `internal/controllers/{insights,plans}` | Leader-tick enrichment dispatch; protection-plan reconcile |
+| `internal/coordination/{forcesync,leadergate}` | Leader election, claim queue, force-sync |
+| `internal/publisher` · `internal/helpers/nats` | NATS JetStream publishing |
+| `internal/handlers/{analyze,resources,plans,rollback,insights,namespaces,cleanup,status}` | HTTP handlers |
+| `internal/clients` | Exporter + enrichment REST client wrappers |
+| `internal/informers` · `internal/state` · `internal/startup` · `internal/circuitbreaker` | Watch state, boot wiring, resiliency |
 
-### exporter-service — applications
+## Dependencies
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/resources/applications/create` | Create application resource. Request: application body. Response: created resource. |
-| `GET` | `/resources/applications/get` | List applications. Response: list payload. |
-| `GET` | `/resources/applications/{name}/get` | Get one application by name. Response: full `Application` including `history`, `snapshots`, `rollbacks`. |
-| `PATCH` | `/resources/applications/{name}/patch` | Partial update. Request: JSON patch body. Response: updated resource. |
-| `DELETE` | `/resources/applications/{name}/delete` | Delete application resource. |
-| `GET` | `/resources/applications/{name}/rollbacks` | List rollbacks for the app. |
-| `GET` | `/resources/applications/{name}/rollbacks/{rollbackId}` | Get a single rollback entry. |
-
-### exporter-service — snapshots
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/snapshots/create` | Store snapshot payload. Request: JSON body (id, scope, namespace, generation, manifest). Response: snapshot metadata / path. |
-| `GET` | `/snapshots/{id}/get` | Query: `scope`, `namespace`, `generation`. Response: snapshot blob / metadata. |
-| `GET` | `/snapshots/{id}/manifest` | Same query params; `Accept` selects representation. Response: manifest for apply or inspection. |
-
-### discovery-service
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/analyze/workloads/{namespace}/get` | List workloads in a namespace. Response: analyze payload. |
-| `GET` | `/analyze/resources/{namespace}/get` | List resources in a namespace. Response: analyze payload. |
-| `GET` | `/resources/applications/enrich` | Derive applications, run history diff, optional enrichment. Query: `namespace`, `selectorType`, `selector`, `insights`, `wait`, `waitTimeout`. Response: `applications[]`, totals. |
-| `POST` | `/resources/applications/{name}/rollbacks` | Create rollback intent. Request: `{ "snapshotGeneration": number, "triggeredBy": string }`. Response: `{ "rollbackId", "status" }`. |
-| `GET` | `/status/ready` | Readiness (503 until bootstrap / Redis ready when configured). |
-| `GET` | `/status/live` | Liveness. |
-
-## Change Classes
-
-| Class | Trigger | Severity |
-|-------|---------|----------|
-| scaling | Replica count changed | medium |
-| config | Env var keys added, removed, or changed (ports included in this path in the engine) | low |
-| image-update | Container image reference changed (stored as **deployment** in API enums) | medium |
-| resource-change | CPU/memory requests or limits changed | low |
-| probe-change | Liveness, readiness, or startup probe changed (surfaced via workload baseline / resource drift) | low |
-| mutation | Other field-level updates contributing to drift | low |
-| incident | Health degraded or down | high / critical |
-| recovery | Health restored after incident | medium |
-| rollback | Snapshot applied to cluster (rollback change type) | low |
-| drift | Multiple change categories in one detection window | medium |
-| topology | Resource membership changed (add/remove tracked objects) | high |
-
-*Priority resolution in code may return **topology**, **incident**, **recovery**, **deployment**, **scaling**, **resources**, or **config** before **drift** when a single category dominates.*
+- **Internal modules:** `data`, `kcore` (informers/client), `rest` (clients, router, server), `x-ware` (Redis, NATS, authz, CORS).
+- **Infrastructure:** Kubernetes API (watch + admission policy), Redis (coordination), NATS JetStream (publish).
+- **Peers:** reads/stores via **exporter**; publishes to **notifier** (NATS); dispatches to **enrichment** (HTTP).
 
 ## Configuration
 
-Shared (release-manager `common.sharedEnv` unless overridden per service):
+Discovery is the most tunable service. The full, authoritative env reference lives in the
+[chart README](../../charts/telark/README.md#servicesdiscoveryenv) — K8s client rate limits,
+informer resync/coalescing, coordination TTLs, snapshot writer, protection-plan tick,
+force-sync, and auto-cleanup. Per-cluster overrides come from the
+[install-mode overlays](../../docs/INSTALL.md#sizing-modes-optional), not this service's defaults.
 
-| Env var | Description | Default (chart) |
-|---------|-------------|-----------------|
-| `REDIS_HOST` | Redis service host | `telark-release-redis-master` |
-| `REDIS_PORT` | Redis port | `6379` |
-| `SNAPSHOTS_MAX_VERSIONS` | Max snapshot entries retained per app | `5` |
-| `SNAPSHOTS_SCOPES` | Snapshot scope config | `apps:true` |
+## API
 
-**discovery-service** environment variables (`services.Discovery.env` in release-manager
+REST under `/api/v1/` — `analyze/*` (namespace workloads/resources), `resources/*`
+(applications), `plans/*` (protection plans), `rollback` intents, and
+`/api/v1/status/{live,ready}`.
 
-| Env var | Description | Default (chart) |
-|---------|-------------|-----------------|
-| `APPLICATIONS_PREWARM_REFRESH_INTERVAL_SEC` | Prewarm scheduler interval | `31` |
-| `COORDINATION_BATCH_SIZE` | Stream read count | `10` |
-| `COORDINATION_BATCH_BLOCK_SEC` | XREADGROUP block | `2` |
-| `COORDINATION_MAX_RETRY_ATTEMPTS` | Consumer retries per message | `3` |
-| `COORDINATION_LOCK_TTL_SEC` | App / enrich lock TTL | `120` |
-| `COORDINATION_LOCK_HEARTBEAT_SEC` | Lock renewal period | `30` |
-| `COORDINATION_ELECTION_TTL_SEC` | Leader key TTL | `120` |
-| `COORDINATION_ELECTION_RENEW_SEC` | Leader renew cadence | `15` |
-| `COORDINATION_DEDUP_TTL_SEC` | Dedup key TTL | `60` |
-| `COORDINATION_STALE_CLAIM_MIN_IDLE_SEC` | Stale message idle threshold | `300` |
-| `COORDINATION_STALE_CLAIM_INTERVAL_SEC` | Reclaimer tick | `60` |
-| `COORDINATION_SHUTDOWN_CLEANUP_TIMEOUT_SEC` | Consumer cleanup timeout | `45` |
-| `REDIS_RETRY_INTERVAL_SEC` | Startup dial retry delay | `5` |
-| `REDIS_MAX_WAIT_SEC` | Startup dial budget (`0` = unlimited) | `300` |
-| `REDIS_PING_TIMEOUT_SEC` | Per-attempt PING timeout | `3` |
-| `SNAPSHOT_WRITE_MAX_ATTEMPTS` | Snapshot write retries before blocking CRD update | `3` |
-| `SNAPSHOT_WRITE_RETRY_INTERVAL_SEC` | Delay between snapshot write attempts | `2` |
-| `HOSTNAME` | Pod name for consumer identity | Set by Kubernetes |
+## Build & run
 
-*NATS credentials and other secrets are typically injected via `envFromSecret` in the same charts.*
+```sh
+go build ./...
+docker build -t telark/discovery:<version> .
+```
+
+Runs in-cluster via the [telark chart](../../charts/telark); see [INSTALL](../../docs/INSTALL.md)
+and [CONTRIBUTING](../../CONTRIBUTING.md).

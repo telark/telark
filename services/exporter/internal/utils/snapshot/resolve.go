@@ -50,7 +50,6 @@ func resolveLatestInDir(dir string) (int, string, error) {
 	return bestGen, bestPath, nil
 }
 
-//nolint:revive
 func ResolveSnapshotPath(
 	snapshotsPath string,
 	scope string,

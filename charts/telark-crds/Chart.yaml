@@ -1,0 +1,32 @@
+apiVersion: v2
+name: telark-crds
+description: Custom resource definitions for telark — install before the telark chart
+type: application
+version: 0.2.1
+appVersion: "1.0"
+# 1.33 is the oldest release still receiving upstream patches, and the oldest
+# offered by the managed providers. It also clears ValidatingAdmissionPolicy
+# (GA in 1.30), so the admission guard needs no fallback for older clusters.
+kubeVersion: ">=1.33.0-0"
+home: https://telark.io
+sources:
+  - https://github.com/telark/telark
+icon: https://telark.io/icon.svg
+keywords:
+  - kubernetes
+  - crds
+  - workload-protection
+maintainers:
+  - name: telark
+    email: contact@telark.io
+    url: https://github.com/telark
+
+annotations:
+  artifacthub.io/license: Elastic-2.0
+  artifacthub.io/prerelease: "false"
+  artifacthub.io/operator: "false"
+  artifacthub.io/links: |
+    - name: source
+      url: https://github.com/telark/telark
+    - name: support
+      url: https://github.com/telark/telark/issues

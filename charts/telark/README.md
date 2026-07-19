@@ -62,7 +62,7 @@ Google OIDC config. Consumed by both the auth-service (env) and the bootstrap ch
 | Key | Default | Description |
 |---|---|---|
 | `app.auth.oidc.enabled` | `true` | Feature flag exposed via `GlobalConfig.spec.oidc.enabled`. |
-| `app.auth.oidc.googleClientID` | `"286046819175-..."` | Google OAuth2 client id. Injected as `GOOGLE_CLIENT_ID` env and published in `GlobalConfig.spec.oidc.googleClientID`. |
+| `app.auth.oidc.googleClientID` | `""` | Google OAuth2 client id. Empty by default — set your own per install (an operator can also set it at runtime from the UI, stored in `GlobalConfig.spec.oidc.googleClientID`). |
 | `app.auth.oidc.egressAllowed` | `"true"` | `"true"` = backend fetches Google JWKS dynamically (needs egress to `googleapis.com`). `"false"` = offline mode using `googleJwkJson`. |
 | `app.auth.oidc.googleJwkJson` | `""` | Pasted content of `https://www.googleapis.com/oauth2/v3/certs`. Used only when `egressAllowed: "false"`. Rotate every 24–48h. |
 

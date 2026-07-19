@@ -46,10 +46,9 @@ No new mental model, no YAML archaeology: discover your apps, pick what to prote
 
 ## Quick start
 
-Install the CRDs, then the app — two one-line commands, both from the registry:
+One command from the registry — CRDs ship with the chart:
 
 ```sh
-helm install telark-crds oci://ghcr.io/telark/charts/telark-crds
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace
 ```
 

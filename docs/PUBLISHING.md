@@ -58,19 +58,10 @@ subchart DNS (`{{ .Release.Name }}-redis-master`, `-nats`, `-ollama`) resolves.
 ```sh
 NS=telark
 
-# CRDs first (server-side apply, kept on uninstall)
-helm template telark-crds oci://ghcr.io/telark/charts/telark-crds --version <crds-version> \
-  -f charts/telark/values.yaml \
-  | yq 'select(.kind == "CustomResourceDefinition")' \
-  | kubectl apply --server-side --force-conflicts -f -
-
-# Bootstrap: CRDs chart + built-in CRs (reads the app values for a matching identity)
-helm upgrade --install telark-bootstrap oci://ghcr.io/telark/charts/telark-crds --version <crds-version> \
-  -n "$NS" --create-namespace -f charts/telark/values.yaml --wait
-
-# App: services + subcharts (NATS config inlined; size with --set app.mode=<mode>)
+# App: services, subcharts, and CRDs — all ship in the chart (telark-crds is a
+# subchart). NATS config inlined; size with --set app.mode=<mode>.
 helm upgrade --install telark-release oci://ghcr.io/telark/charts/telark --version <version> \
-  -n "$NS" \
+  -n "$NS" --create-namespace \
   --wait --timeout 15m
 
 helm test telark-release -n "$NS"    # readiness probe against auth

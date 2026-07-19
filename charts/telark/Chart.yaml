@@ -23,6 +23,14 @@ maintainers:
 # (GA in 1.30), so the admission guard needs no fallback for older clusters.
 kubeVersion: ">=1.33.0-0"
 dependencies:
+  # CRDs ship with the app so a single `helm install` covers everything. Kept as a
+  # standalone versioned chart (published to OCI too); vendored here via a local
+  # ref. resource-policy:keep on each CRD means they survive uninstall. GitOps that
+  # pre-applies CRDs sets crds.enabled=false.
+  - name: telark-crds
+    version: ">= 0.0.0"
+    repository: "file://../telark-crds"
+    condition: crds.enabled
   - name: redis
     version: 23.0.10
     repository: https://charts.bitnami.com/bitnami

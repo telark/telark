@@ -10,7 +10,7 @@ services/
   enrichment                            Python / FastAPI service
 charts/
   telark        application chart
-  telark-crds   custom resource definitions (install first)
+  telark-crds   custom resource definitions (bundled as a subchart of telark)
 .github/        CI and release workflows
 docs/           architecture, install guide, CRD reference, ADRs
 ```

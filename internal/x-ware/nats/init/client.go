@@ -10,6 +10,8 @@ import (
 	natscore "github.com/telark/x-ware/nats/core"
 )
 
+const defaultRetryIntervalSeconds = 5
+
 type logger interface {
 	Error(string)
 	Info(string)
@@ -37,7 +39,7 @@ func isHealthy(c *natscore.NATSClient) bool {
 }
 
 func maxWaitExceeded(start time.Time, maxWait time.Duration) bool {
-	return maxWait > 0 && time.Since(start) >= maxWait
+	return maxWait > constants.ZeroValue && time.Since(start) >= maxWait
 }
 
 func sleepRetry(ctx context.Context, d time.Duration) bool {
@@ -49,6 +51,7 @@ func sleepRetry(ctx context.Context, d time.Duration) bool {
 	}
 }
 
+//nolint:gocyclo // connection retry is an inherent state machine; splitting hurts readability
 func NewClientWithRetry(
 	ctx context.Context,
 	dial func() (*natscore.NATSClient, error),
@@ -72,8 +75,8 @@ func NewClientWithRetry(
 	if ctx == nil || dial == nil {
 		return nil
 	}
-	if cfg.RetryInterval <= 0 {
-		cfg.RetryInterval = 5 * time.Second
+	if cfg.RetryInterval <= constants.ZeroValue {
+		cfg.RetryInterval = defaultRetryIntervalSeconds * time.Second
 	}
 
 	start := time.Now()

@@ -10,6 +10,11 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const (
+	defaultRetryIntervalSeconds = 5
+	defaultPingTimeoutSeconds   = 3
+)
+
 type logger interface {
 	Error(string)
 	Info(string)
@@ -56,7 +61,7 @@ func pingWithTimeout(ctx context.Context, client *redis.Client, timeout time.Dur
 }
 
 func maxWaitExceeded(start time.Time, maxWait time.Duration) bool {
-	return maxWait > 0 && time.Since(start) >= maxWait
+	return maxWait > constants.ZeroValue && time.Since(start) >= maxWait
 }
 
 func sleepRetry(ctx context.Context, d time.Duration) bool {
@@ -68,6 +73,7 @@ func sleepRetry(ctx context.Context, d time.Duration) bool {
 	}
 }
 
+//nolint:gocyclo,funlen // connection retry is an inherent state machine; splitting hurts readability
 func NewClientWithRetry(
 	ctx context.Context,
 	dial func() (*redis.Client, error),
@@ -94,11 +100,11 @@ func NewClientWithRetry(
 	if dial == nil {
 		return nil
 	}
-	if cfg.RetryInterval <= 0 {
-		cfg.RetryInterval = 5 * time.Second
+	if cfg.RetryInterval <= constants.ZeroValue {
+		cfg.RetryInterval = defaultRetryIntervalSeconds * time.Second
 	}
-	if cfg.PingTimeout <= 0 {
-		cfg.PingTimeout = 3 * time.Second
+	if cfg.PingTimeout <= constants.ZeroValue {
+		cfg.PingTimeout = defaultPingTimeoutSeconds * time.Second
 	}
 
 	start := time.Now()

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/telark/x-ware/constants"
 	"github.com/telark/x-ware/redis/core"
 	"github.com/redis/go-redis/v9"
 )
@@ -25,7 +26,7 @@ func (c *RedisCache) Get(ctx context.Context, key string) (string, error) {
 }
 
 func (c *RedisCache) Set(ctx context.Context, key string, value any, ttl time.Duration) error {
-	if ttl <= 0 {
+	if ttl <= constants.ZeroValue {
 		ttl = c.TTL
 	}
 	return c.Client.Set(ctx, key, value, ttl).Err()

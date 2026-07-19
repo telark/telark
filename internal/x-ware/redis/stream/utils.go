@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/telark/x-ware/constants"
 )
 
 func (c *StateClient) SetValue(ctx context.Context, key, value string, ttl time.Duration) error {
@@ -16,14 +17,14 @@ func (c *StateClient) SetValue(ctx context.Context, key, value string, ttl time.
 
 func (c *StateClient) GetValue(ctx context.Context, key string) (string, error) {
 	if c == nil || c.redis == nil {
-		return "", nil
+		return constants.EmptyString, nil
 	}
 	v, err := c.redis.Get(ctx, key).Result()
 	if err == redis.Nil {
-		return "", nil
+		return constants.EmptyString, nil
 	}
 	if err != nil {
-		return "", err
+		return constants.EmptyString, err
 	}
 	return v, nil
 }

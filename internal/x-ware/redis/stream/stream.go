@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/telark/x-ware/constants"
 )
 
 type StreamClient struct {
@@ -68,10 +69,10 @@ func (c *StreamClient) Consume(
 		}
 		return nil, err
 	}
-	if len(results) == 0 {
+	if len(results) == constants.EmptySliceLength {
 		return nil, nil
 	}
-	return results[0].Messages, nil
+	return results[constants.FirstIndex].Messages, nil
 }
 
 func (c *StreamClient) Ack(ctx context.Context, stream, group, messageID string) error {

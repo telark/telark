@@ -1,11 +1,15 @@
 package cache
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/telark/x-ware/constants"
+)
 
 const KeyDelimiter = ":"
 
 func BuildKey(parts ...string) string {
-	filtered := make([]string, 0, len(parts))
+	filtered := make([]string, constants.EmptySliceLength, len(parts))
 	for _, p := range parts {
 		if s := strings.TrimSpace(p); s != "" {
 			filtered = append(filtered, s)

@@ -2,7 +2,7 @@ apiVersion: v2
 name: telark-crds
 description: Custom resource definitions for telark — install before the telark chart
 type: application
-version: 0.0.0
+version: 0.0.1
 appVersion: "1.0"
 # 1.33 is the oldest release still receiving upstream patches, and the oldest
 # offered by the managed providers. It also clears ValidatingAdmissionPolicy
@@ -20,7 +20,6 @@ maintainers:
   - name: telark
     email: contact@telark.io
     url: https://github.com/telark
-
 annotations:
   artifacthub.io/license: Elastic-2.0
   artifacthub.io/prerelease: "false"

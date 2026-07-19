@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -153,7 +154,11 @@ func ContentDispositionFilename(id string, generation int) string {
 }
 
 func LoadSnapshotData(path string) (map[string]any, error) {
-	content, err := os.ReadFile(path)
+	cleaned := filepath.Clean(path)
+	if !IsWithinBase(cleaned, envmanager.GetSnapshotsPath()) {
+		return nil, os.ErrNotExist
+	}
+	content, err := os.ReadFile(cleaned)
 	if err != nil {
 		return nil, err
 	}

@@ -37,11 +37,9 @@ Modes: `minimal` | `standard` | `performance`.
 |---|---|---|
 | `app.name` | `telark` | Source of truth for the app identity / resource-name prefix |
 | `app.namespace` | `telark` | Install namespace; bootstrap CRs land here |
-| `app.image.registry` | `botriack` | Container image registry |
-| `app.image.repository` | `telark` | Container image repository |
+| `app.image.registry` | _(namespace)_ | Docker Hub namespace (account/org) hosting the per-service repos |
 | `app.image.pullPolicy` | `Always` | Image pull policy for every service container |
-| `app.image.registrySecret.create` | `true` | Create the chart-managed `<name>-reg-cred` pull secret |
-| `app.image.pullSecrets` | `[]` | Extra pull secrets |
+| `app.image.pullSecrets` | `[]` | Pull secrets (public images need none; set for a private registry) |
 | `app.kyverno.enabled` | `true` | Install kyverno subchart |
 | `app.ollama.enabled` | `false` | Install ollama subchart |
 | `app.persistence.enabled` | `true` | Provision exporter snapshot PVC |
@@ -144,8 +142,8 @@ Per-service block. Gates default to `true` unless noted.
 |---|---|---|
 | `enabled` | varies | Render this service's manifests |
 | `name` | varies | K8s resource suffix |
-| `imageTagPrefix` | varies | Image tag prefix; full tag = `<imageTagPrefix><version>` |
-| `version` | varies | Image version segment |
+| `repository` | varies | Image repo name; image = `<app.image.registry>/<repository>:<version>` |
+| `version` | varies | Image tag (semver) |
 | `category` | varies | Semantic grouping, rendered as the label `<name>.io/category:<category>` |
 | `replicas` | `app.serviceDefaults.replicas` | Override |
 | `port` | `app.serviceDefaults.port` | Override |
@@ -167,14 +165,14 @@ Per-service block. Gates default to `true` unless noted.
 
 #### Service identities
 
-| Service | `name` | `imageTagPrefix` | `version` | `category` | `enabled` |
+| Service | `name` | `repository` | `version` | `category` | `enabled` |
 |---|---|---|---|---|---|
-| `exporter` | `exporter-service` | `exp-` | `3.3.1` | `export` | `true` |
-| `discovery` | `discovery-service` | `discovery-` | `1.8.4` | `sync` | `true` |
-| `enrichment` | `enrichment-service` | `enrich-` | `0.1.0` | `ai-enrichment` | `true` |
-| `notifier` | `notifier-service` | `not-` | `0.2.1` | `notification` | `true` |
-| `auth` | `auth-service` | `auth-` | `0.3.1` | `auth` | `true` |
-| `ui` | `ui-service` | `ui-` | `0.0.1` | `ui` | `false` |
+| `exporter` | `exporter-service` | `exporter` | `3.3.3` | `export` | `true` |
+| `discovery` | `discovery-service` | `discovery` | `1.9.0` | `sync` | `true` |
+| `enrichment` | `enrichment-service` | `enrichment` | `0.1.1` | `ai-enrichment` | `true` |
+| `notifier` | `notifier-service` | `notifier` | `0.2.2` | `notification` | `true` |
+| `auth` | `auth-service` | `auth` | `0.3.2` | `auth` | `true` |
+| `ui` | `ui-service` | `ui` | `0.0.1` | `ui` | `false` |
 
 #### `services.exporter.env`
 

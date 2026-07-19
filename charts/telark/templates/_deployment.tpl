@@ -88,7 +88,7 @@ spec:
 {{- end }}
       containers:
         - name: {{ include "telark.fullname" $root }}-{{ $serviceConfig.name }}-container
-          image: {{ $values.app.image.registry }}/{{ $values.app.image.repository }}:{{ $serviceConfig.imageTagPrefix }}{{ $serviceConfig.version }}
+          image: {{ $values.app.image.registry }}/{{ $serviceConfig.repository }}:{{ $serviceConfig.version }}
           imagePullPolicy: {{ $values.app.image.pullPolicy | default "Always" }}
 {{- if and $useRedis $values.app.shared.redis }}
           envFrom:

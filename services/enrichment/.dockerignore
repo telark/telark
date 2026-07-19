@@ -1,0 +1,25 @@
+.git
+.gitignore
+.dockerignore
+Dockerfile
+*.md
+docs/
+README*
+
+# IDE and editor files
+.idea/
+.cursor/
+.vscode/
+*.swp
+
+# Python caches and virtualenvs
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/

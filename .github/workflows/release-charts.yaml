@@ -33,6 +33,14 @@ on:
           - patch
           - minor
           - major
+      release_type:
+        description: "telark GitHub release kind"
+        type: choice
+        default: auto
+        options:
+          - auto        # pre-release if the version has a semver suffix, else release
+          - release
+          - prerelease
 
 permissions:
   contents: write   # commit the version bump + push the release tag / create the release
@@ -152,8 +160,13 @@ jobs:
             echo "tag ${tag} already exists — skipping tag + release"
             exit 0
           fi
+          # release_type=auto derives from the semver suffix; release/prerelease force it.
           pre=""
-          case "$v" in *-*) pre="--prerelease" ;; esac
+          case "${{ github.event.inputs.release_type || 'auto' }}" in
+            prerelease) pre="--prerelease" ;;
+            release)    pre="" ;;
+            *)          case "$v" in *-*) pre="--prerelease" ;; esac ;;
+          esac
           git tag "$tag"
           git push origin "$tag"          # pushed with GITHUB_TOKEN, so it does not re-trigger this workflow
           gh release create "$tag" --title "$tag" --generate-notes $pre

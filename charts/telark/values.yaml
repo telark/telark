@@ -42,7 +42,7 @@ app:
   auth:
     bootstrap:
       admins:
-        - "REDACTED"
+        - "contact@telark.io"
     passkey:
       id: "localhost"
       name: "Dashboard App"

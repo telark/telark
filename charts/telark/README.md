@@ -51,7 +51,7 @@ Modes: `minimal` | `standard` | `performance`.
 
 | Key | Default | Description |
 |---|---|---|
-| `app.auth.bootstrap.admins` | `["REDACTED"]` | Admin email list. Each entry receives the Admin role on first OIDC login. Joined with commas → `BOOTSTRAP_ADMINS` env. Required when `app.auth.passkey.selfRegistration` is `"false"`. |
+| `app.auth.bootstrap.admins` | `["contact@telark.io"]` | Admin email list. Each entry receives the Admin role on first OIDC login. Joined with commas → `BOOTSTRAP_ADMINS` env. Required when `app.auth.passkey.selfRegistration` is `"false"`. |
 
 #### `app.auth.oidc`
 
@@ -94,7 +94,7 @@ Pod-level config selectively applied via per-service gates.
 
 | Variable | Default | Description |
 |---|---|---|
-| `REDIS_HOST` | `telark-release-redis-master` | Redis service DNS name |
+| `REDIS_HOST` | `<release>-redis-master` | Redis service DNS name (templated on the release name) |
 | `REDIS_PORT` | `6379` | Redis port |
 
 **`app.shared.resources`** — applied when `includeResources: true` (default).
@@ -270,7 +270,7 @@ The AI **provider** and **API key** are not env vars: an admin sets them at runt
 | Variable | Default | Description |
 |---|---|---|
 | `REDIS_POOL_SIZE` | `10` | Redis client connection pool size |
-| `OLLAMA_HOST` | `http://telark-release-ollama:11434` | Ollama base URL (used when provider = `ollama`) |
+| `OLLAMA_HOST` | `http://<release>-ollama:11434` | Ollama base URL, templated on the release name (used when provider = `ollama`) |
 | `OLLAMA_MODEL` | `qwen2.5:3b` | Ollama model tag |
 | `ANTHROPIC_MODEL` | `claude-haiku-4-5-20251001` | Anthropic model id |
 | `GROQ_MODEL` | `llama-3.3-70b-versatile` | Groq model id |

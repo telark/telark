@@ -80,19 +80,17 @@ func (m *Manager) startSubscribers(parentCtx context.Context, nc *natscore.NATSC
 	errChan := make(chan error, len(m.subscribers))
 
 	for _, subscriber := range m.subscribers {
-		wg.Add(constants.DefaultAdd)
-		go func(s natscore.ResourceSubscriber) {
-			defer wg.Done()
-			if cs, ok := any(s).(ctxSubscriber); ok {
+		wg.Go(func() {
+			if cs, ok := any(subscriber).(ctxSubscriber); ok {
 				if err := cs.SubscribeWithContext(nc, parentCtx); err != nil {
 					errChan <- fmt.Errorf(string(errors.ErrNatsSubscriberManager), err)
 				}
 				return
 			}
-			if err := s.Subscribe(nc); err != nil {
+			if err := subscriber.Subscribe(nc); err != nil {
 				errChan <- fmt.Errorf(string(errors.ErrNatsSubscriberManager), err)
 			}
-		}(subscriber)
+		})
 	}
 
 	wg.Wait()

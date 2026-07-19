@@ -22,6 +22,7 @@ Kubernetes: `>=1.33.0-0`
 
 | Repository | Name | Version |
 |------------|------|---------|
+| file://../telark-crds | telark-crds | >= 0.0.0 |
 | https://charts.bitnami.com/bitnami | nats | 9.0.28 |
 | https://charts.bitnami.com/bitnami | redis | 23.0.10 |
 | https://helm.otwld.com/ | ollama | 1.50.0 |
@@ -94,6 +95,7 @@ Kubernetes: `>=1.33.0-0`
 | app.shared.resources.requests.memory | string | `"128Mi"` |  |
 | commonAnnotations | object | `{}` |  |
 | commonLabels | object | `{}` |  |
+| crds.enabled | bool | `true` |  |
 | fullnameOverride | string | `""` |  |
 | global.imagePullSecrets | list | `[]` |  |
 | kyverno.admissionController.container.extraArgs.clientRateLimitBurst | int | `100` |  |

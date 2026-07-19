@@ -99,19 +99,9 @@ jobs:
           # that does not set it, and an empty mode is not a valid app.mode.
           install_mode="${{ github.event.client_payload.install_mode }}"  # minimal | standard | performance
           install_mode="${install_mode:-minimal}"
-          bootstrap_release="${namespace}-bootstrap"
           app_release="${namespace}-release"
           app_version="${{ steps.chart_version.outputs.new_version }}"
-          bootstrap_version=$(yq e '.version' "$CRDS_DIR/Chart.yaml")
-          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          crds_ref="oci://ghcr.io/${owner}/charts/telark-crds"
           app_pkg="$RELEASES_DIR/${app_version}/telark-${app_version}.tgz"
-
-          # CRDs come from the registry — release telark-crds before deploying.
-          if ! helm show chart "$crds_ref" --version "$bootstrap_version" >/dev/null 2>&1; then
-            echo "telark-crds ${bootstrap_version} is not in the registry — publish it first (Release · Publish Charts)." >&2
-            exit 1
-          fi
 
           case "$install_mode" in
             minimal|standard|performance) ;;
@@ -122,34 +112,16 @@ jobs:
             kubectl create namespace "$namespace"
           fi
 
-          for r in "$bootstrap_release" "$app_release"; do
-            if helm status "$r" -n "$namespace" >/dev/null 2>&1; then
-              status=$(helm status "$r" -n "$namespace" --output json | jq -r '.info.status')
-              if [ "$status" != "deployed" ]; then
-                helm uninstall "$r" -n "$namespace" --wait
-              fi
+          if helm status "$app_release" -n "$namespace" >/dev/null 2>&1; then
+            status=$(helm status "$app_release" -n "$namespace" --output json | jq -r '.info.status')
+            if [ "$status" != "deployed" ]; then
+              helm uninstall "$app_release" -n "$namespace" --wait
             fi
-          done
+          fi
 
-          # Pre-apply CRDs (from the registry)
-          helm template "$bootstrap_release" "$crds_ref" --version "$bootstrap_version" \
-            -f "$CHART_DIR/values.yaml" \
-            | yq 'select(.kind == "CustomResourceDefinition")' \
-            | kubectl apply --server-side --force-conflicts -f -
-
-          # Bootstrap: CRDs + built-in CR instances. Reads the app values.yaml so
-          # base.namespace and services.auth.env.GOOGLE_CLIENT_ID match the app release.
-          helm upgrade --install "$bootstrap_release" "$crds_ref" --version "$bootstrap_version" \
-            -n "$namespace" \
-            -f "$CHART_DIR/values.yaml" \
-            --take-ownership \
-            --force-conflicts \
-            --wait \
-            --cleanup-on-fail \
-            --timeout 5m
-
-          # App: services + subcharts. app.mode sizes every telark service; the
-          # NATS config is inlined in the chart, so no --set-file is needed.
+          # App: services, subcharts, and the telark-crds subchart — CRDs ship with
+          # the chart (resource-policy:keep preserves them), so one release covers
+          # everything. app.mode sizes every telark service; NATS config is inlined.
           helm upgrade --install "$app_release" "$app_pkg" \
             -n "$namespace" \
             --set "app.mode=${install_mode}" \

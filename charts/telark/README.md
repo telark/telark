@@ -30,6 +30,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | `commonLabels` | `{}` | Labels added to every resource |
 | `commonAnnotations` | `{}` | Annotations added to every resource |
 | `global.imagePullSecrets` | `[]` | Pull secrets merged into every pod |
+| `crds.enabled` | `true` | Install CRDs (the telark-crds subchart) with the app; `false` to manage them out of band |
 
 ### `app`
 

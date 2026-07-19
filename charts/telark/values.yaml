@@ -24,6 +24,12 @@ fullnameOverride: ""
 commonLabels: {}
 commonAnnotations: {}
 
+# CRDs ship with the chart via the telark-crds subchart, so one install covers
+# everything. Disable to manage CRDs out of band (e.g. GitOps applies them first).
+# Every CRD carries resource-policy:keep, so they survive uninstall either way.
+crds:
+  enabled: true
+
 app:
   # Identity — app.name is the source of truth for every resource name.
   name: "telark"

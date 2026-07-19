@@ -61,6 +61,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.0
+        with:
+          fetch-depth: 0   # full history + tags so git-cliff can build the changelog
 
       - name: Set up Helm
         uses: azure/setup-helm@v5
@@ -137,6 +139,18 @@ jobs:
             echo "Nothing new to publish — bump the chart version(s) in Chart.yaml."
           fi
 
+      # Regenerate CHANGELOG.md for the new version (git-cliff, Conventional
+      # Commits). --tag labels the just-bumped commits under the release version,
+      # since the git tag itself is created a step later.
+      - name: Generate changelog
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump != 'current' && steps.publish.outputs.telark_version != '' }}
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --tag v${{ steps.publish.outputs.telark_version }}
+        env:
+          OUTPUT: CHANGELOG.md
+
       - name: Commit version bumps
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump != 'current' }}
         run: |
@@ -148,7 +162,7 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "$CHART_DIR/Chart.yaml" "$CRDS_DIR/Chart.yaml" \
-                  "$CHART_DIR/VALUES.md" "$CRDS_DIR/VALUES.md"
+                  "$CHART_DIR/VALUES.md" "$CRDS_DIR/VALUES.md" CHANGELOG.md
           if git diff --cached --quiet; then
             echo "no version changes to commit"
           else

@@ -57,16 +57,18 @@ make fmt         # gofmt
 
 ## Charts
 
-After any chart change:
+Subchart packages (`charts/*/charts/*.tgz`) are git-ignored build artifacts — fetch them once with `make deps` (Chart.lock is committed). After any chart change:
 
 ```sh
+make deps            # once, or after editing dependencies
 make helm-lint
+make helm-validate   # renders every mode and schema-validates with kubeconform
 helm template t ./charts/telark               # optionally: --set app.mode=<mode>
 ```
 
 Do not bump chart or module versions, and do not commit local `replace` directives — releases handle versioning, and the services must build against the published modules.
 
-After changing `values.yaml`, run `make values-docs` to refresh each chart's `VALUES.md` (CI fails if it drifts). Packaging, pushing, and signing the charts is covered in [docs/PUBLISHING.md](docs/PUBLISHING.md).
+After changing `values.yaml`, run `make values-docs` to refresh each chart's `VALUES.md` (CI fails if it drifts). `CHANGELOG.md` is generated from Conventional Commits by the release workflow — preview it with `make changelog`. Packaging, pushing, and signing the charts is covered in [docs/PUBLISHING.md](docs/PUBLISHING.md).
 
 ## Commits & PRs
 

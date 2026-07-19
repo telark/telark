@@ -1,0 +1,9 @@
+# Code owners for telark. Adjust the team/handle below to your real GitHub team.
+# Order matters: the last matching pattern wins.
+
+*                       @telark/maintainers
+
+/charts/                @telark/maintainers
+/.github/               @telark/maintainers
+/services/enrichment/   @telark/maintainers
+/docs/                  @telark/maintainers

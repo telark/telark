@@ -87,16 +87,13 @@ claimName, and the SNAPSHOTS_PVC_NAME env. Call with the root context.
 {{- end -}}
 
 {{/*
-imagePullSecrets block. Merges the chart-managed registry secret with any
-global.imagePullSecrets and app.image.pullSecrets. Renders nothing when empty.
+imagePullSecrets block from global.imagePullSecrets + app.image.pullSecrets.
+Renders nothing when both are empty (public images pull anonymously).
   {{- include "telark.imagePullSecrets" $root | nindent 6 }}
 */}}
 {{- define "telark.imagePullSecrets" -}}
 {{- $root := . -}}
 {{- $secrets := list -}}
-{{- if dig "registrySecret" "create" true $root.Values.app.image -}}
-{{- $secrets = append $secrets (dict "name" (printf "%s-reg-cred" (include "telark.fullname" $root))) -}}
-{{- end -}}
 {{- with $root.Values.global -}}
 {{- range .imagePullSecrets -}}
 {{- $secrets = append $secrets (kindIs "string" . | ternary (dict "name" .) .) -}}

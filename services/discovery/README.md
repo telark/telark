@@ -105,7 +105,7 @@ sequenceDiagram
   NJ->>NTF: Deliver
   NTF->>EXP: PATCH / CREATE application
   W->>R: Ack, release lock
-  Note over L,R: Leader renews its lease; followers skip enqueue
+  Note over L,R: Leader renews its lease, followers skip enqueue
   Note over W,R: On shutdown: reclaim stale claims, delete consumer
 ```
 

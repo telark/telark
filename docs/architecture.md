@@ -95,5 +95,5 @@ The app identity is a single value, `app.name` (default `telark`), shared by bot
 
 ## Deeper references
 
-- [Enrichment architecture](../ENRICHMENT-ARCHITECTURE.md)
-- [OIDC architecture](../OIDC-ARCHITECTURE.md)
+- [Enrichment architecture](../services/enrichment/ARCHITECTURE.md)
+- [OIDC / SSO architecture](../services/auth/OIDC.md)

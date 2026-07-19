@@ -80,7 +80,7 @@ func (m *Manager) startSubscribers(parentCtx context.Context, nc *natscore.NATSC
 	errChan := make(chan error, len(m.subscribers))
 
 	for _, subscriber := range m.subscribers {
-		wg.Add(constants.DefaultAdd) //nolint:revive // WaitGroup pattern is intentional here
+		wg.Add(constants.DefaultAdd)
 		go func(s natscore.ResourceSubscriber) {
 			defer wg.Done()
 			if cs, ok := any(s).(ctxSubscriber); ok {

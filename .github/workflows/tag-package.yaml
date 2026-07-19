@@ -34,6 +34,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout telark repo (for local actions)
+        uses: actions/checkout@v6.0.2
+
       - name: Checkout Package Repository
         uses: actions/checkout@v6.0.2
         with:
@@ -42,28 +45,13 @@ jobs:
           path: package
           ref: ${{ github.event.inputs.branch || 'main' }}
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
+      - name: Go CI
+        uses: ./.github/actions/go-ci
         with:
-          go-version-file: package/go.mod
-          cache-dependency-path: package/go.sum
-
-      - name: Authenticate to private telark modules
-        run: git config --global url."https://${{ secrets.ACCESS_USER }}:${{ secrets.ACCESS_TOKEN }}@github.com/".insteadOf "https://github.com/"
-
-      - name: Build
-        working-directory: package
-        run: go build ./...
-
-      - name: Test
-        working-directory: package
-        run: go test -race ./...
-
-      - name: Lint
-        uses: golangci/golangci-lint-action@v8
-        with:
-          version: latest
           working-directory: package
+          cache-key: ${{ github.event.inputs.package }}
+          access-user: ${{ secrets.ACCESS_USER }}
+          access-token: ${{ secrets.ACCESS_TOKEN }}
 
       - name: Set up Git
         run: |

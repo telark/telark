@@ -73,6 +73,16 @@ jobs:
         with:
           ref: ${{ github.event.inputs.branch }}
 
+      - name: Go CI (build + lint gate)
+        if: ${{ inputs.service != 'enrichment' }}
+        uses: ./.github/actions/go-ci
+        with:
+          working-directory: services/${{ inputs.service }}
+          cache-key: ${{ inputs.service }}
+          access-user: ${{ secrets.ACCESS_USER }}
+          access-token: ${{ secrets.ACCESS_TOKEN }}
+          test: 'false'
+
       - name: Bump Service Version
         id: service_data
         uses: ./.github/actions/bump-service-version

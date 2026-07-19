@@ -7,6 +7,10 @@ on:
   repository_dispatch:
     types: [execute-telark-helm-release]
 
+permissions:
+  contents: read
+  packages: read   # pull the published telark-crds chart from GHCR
+
 # Chart paths declared once, reused by every step below.
 env:
   CHART_DIR: charts/telark
@@ -53,13 +57,15 @@ jobs:
           helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
           helm dependency build "$CHART_DIR"
 
-      - name: Package Helm charts
+      - name: Package app chart
         run: |
           set -euo pipefail
           dest="$RELEASES_DIR/${{ steps.chart_version.outputs.new_version }}"
           mkdir -p "$dest"
-          helm package "$CRDS_DIR"  --destination "$dest"
           helm package "$CHART_DIR" --destination "$dest"
+
+      - name: Registry login (pull published CRDs)
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Bypass admission webhooks for upgrade
         run: |
@@ -98,8 +104,15 @@ jobs:
           app_release="${namespace}-release"
           app_version="${{ steps.chart_version.outputs.new_version }}"
           bootstrap_version=$(yq e '.version' "$CRDS_DIR/Chart.yaml")
-          bootstrap_pkg="$RELEASES_DIR/${app_version}/telark-crds-${bootstrap_version}.tgz"
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          crds_ref="oci://ghcr.io/${owner}/charts/telark-crds"
           app_pkg="$RELEASES_DIR/${app_version}/telark-${app_version}.tgz"
+
+          # CRDs come from the registry — release telark-crds before deploying.
+          if ! helm show chart "$crds_ref" --version "$bootstrap_version" >/dev/null 2>&1; then
+            echo "telark-crds ${bootstrap_version} is not in the registry — publish it first (Release · Publish Charts)." >&2
+            exit 1
+          fi
 
           nats_conf_value="--set-file nats.configuration=$CHART_DIR/config/nats.conf"
           mode_values="-f $CHART_DIR/values.mode.${install_mode}.yaml"
@@ -122,15 +135,15 @@ jobs:
             fi
           done
 
-          # Pre-apply CRDs
-          helm template "$bootstrap_release" "$bootstrap_pkg" \
+          # Pre-apply CRDs (from the registry)
+          helm template "$bootstrap_release" "$crds_ref" --version "$bootstrap_version" \
             -f "$CHART_DIR/values.yaml" \
             | yq 'select(.kind == "CustomResourceDefinition")' \
             | kubectl apply --server-side --force-conflicts -f -
 
           # Bootstrap: CRDs + built-in CR instances. Reads the app values.yaml so
           # base.namespace and services.auth.env.GOOGLE_CLIENT_ID match the app release.
-          helm upgrade --install "$bootstrap_release" "$bootstrap_pkg" \
+          helm upgrade --install "$bootstrap_release" "$crds_ref" --version "$bootstrap_version" \
             -n "$namespace" \
             -f "$CHART_DIR/values.yaml" \
             --take-ownership \

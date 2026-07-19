@@ -4,7 +4,7 @@
 #                           shared pod fragments).
 #          services.<svc>   per-workload blocks; inherit app.serviceDefaults and
 #                           opt into shared fragments via gates.
-#          Subcharts        bottom of this file. Sizing: values.mode.<mode>.yaml.
+#          Subcharts        bottom of this file. Service sizing: app.mode.
 #
 # Conventions: keys camelCase; container env keys SCREAMING_SNAKE_CASE.
 # Gates (per service, defaults): includeResources / includeHealthCheck /
@@ -28,6 +28,13 @@ app:
   # Identity — app.name is the source of truth for every resource name.
   name: "telark"
   namespace: "telark"
+
+  # Install mode: sizes every telark service (replicas, resources, rate limits,
+  # disruption budgets) from one flag. minimal = dev/demo · standard = the values
+  # below · performance = large cluster. Override: --set app.mode=performance.
+  # Subcharts don't follow this flag (Helm resolves their values before it) — they
+  # ship production-grade defaults for every mode. See the Subcharts section.
+  mode: standard
 
   # Container images. Full ref per service: <registry>/<service.repository>:<service.version>.
   image:
@@ -60,7 +67,7 @@ app:
   persistence:
     enabled: true
     storageClass: ""
-    size: 1Gi
+    size: 10Gi
     accessMode: ReadWriteOnce
 
   # Shared secret services present to each other. Empty = generated on install and
@@ -80,7 +87,7 @@ app:
   serviceDefaults:
     port: 8080
     serviceType: ClusterIP
-    replicas: 1
+    replicas: 2
     terminationGracePeriodSec: 60
     nodeSelector: {}
     tolerations: []
@@ -142,6 +149,12 @@ services:
     repository: "exporter"
     version: 3.3.3
     category: "export"
+    # One replica: snapshots sit on a ReadWriteOnce volume, so a second replica
+    # lands on another node, cannot mount it, and stays Pending. Recreate for the
+    # same reason — a rolling update would start the new pod before the old
+    # released the volume. Run it HA with app.mode=performance on a RWX class.
+    replicas: 1
+    strategy: Recreate
     env:
       SNAPSHOTS_PATH: &snapshotsPath "/snapshots"
       SNAPSHOTS_PVC_NAME: '{{ include "telark.exporterSnapshotsPvcName" . }}'
@@ -218,6 +231,7 @@ services:
       whenUnsatisfiable: ScheduleAnyway
     pdb:
       enabled: true
+      minAvailable: 1
   enrichment:
     enabled: true
     name: "enrichment-service"
@@ -237,7 +251,8 @@ services:
       METRICS_INTERVAL_S: "60"
       WORKER_SHUTDOWN_TIMEOUT_S: "30"
     pdb:
-      enabled: false
+      enabled: true
+      minAvailable: 1
   notifier:
     enabled: true
     name: "notifier-service"
@@ -247,7 +262,8 @@ services:
     terminationGracePeriodSec: 30
     useNatsCreds: true
     pdb:
-      enabled: false
+      enabled: true
+      minAvailable: 1
   auth:
     enabled: true
     name: "auth-service"
@@ -282,7 +298,8 @@ services:
       RECONCILE_BACKOFF_INITIAL_SECONDS: "5"
       RECONCILE_BACKOFF_MAX_SECONDS: "300"
     pdb:
-      enabled: false
+      enabled: true
+      minAvailable: 1
   ui:
     enabled: false
     name: "ui-service"
@@ -297,13 +314,9 @@ services:
     useRedis: false
 
 # ─── Subcharts ───────────────────────────────────────────────────────────────
-# Config that does not vary between install modes. Sizing (replicas, resources,
-# rate limits, volume sizes) is layered on top from values.mode.<mode>.yaml:
-#
-#   helm install <name> . -f values.mode.<mode>.yaml
-#
-# Modes: minimal | standard | performance. Installing without a mode overlay uses
-# the subchart defaults below, which suit a single-node / evaluation cluster.
+# Helm resolves a subchart's values before templates run, so app.mode (a
+# template-time input) cannot reach them. These ship production-grade defaults,
+# owned by the chart and identical across every mode.
 
 redis:
   architecture: standalone
@@ -312,7 +325,7 @@ redis:
   master:
     persistence:
       enabled: true
-      size: 1Gi
+      size: 4Gi
 
 nats:
   enabled: true
@@ -323,10 +336,30 @@ nats:
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
-  # configuration: loaded via --set-file nats.configuration=config/nats.conf
-  # The server env-expands $NATS_PASSWORD (in config/nats.conf) from the generated
-  # <app.name>-nats-secret. This name tracks app.name — override it here too if you
-  # change app.name.
+  # NATS server config, inlined so the chart installs with no --set-file. The
+  # server env-expands $NATS_PASSWORD from the generated <app.name>-nats-secret
+  # (see extraEnvVars). Change the secret name below if you change app.name.
+  configuration: |
+    server_name: nats-server
+    port: 4222
+    jetstream {
+      store_dir: "/data"
+      max_mem: 1G
+      max_file: 5G
+    }
+    authorization {
+      users = [
+        {
+          user: "nats",
+          password: $NATS_PASSWORD,
+          permissions: {
+            publish   = ["telark.applications.*", "$JS.ACK.>", "$JS.API.>", "_INBOX.>"]
+            subscribe = ["telark.applications.*", "$JS.ACK.>", "$JS.API.>", "_INBOX.>"]
+          }
+        }
+      ]
+    }
+    http_port: 8222
   extraEnvVars:
     - name: NATS_PASSWORD
       valueFrom:
@@ -336,7 +369,7 @@ nats:
   persistence:
     enabled: true
     path: /data
-    size: 2Gi
+    size: 4Gi
   securityContext:
     runAsUser: 1000
     runAsGroup: 1000
@@ -349,7 +382,61 @@ kyverno:
       enabled: true
   webhooksCleanup:
     enabled: false
-  # Replicas and resources intentionally omitted: they come from the install mode.
+  admissionController:
+    replicas: 2
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+    container:
+      resources:
+        requests:
+          cpu: 200m
+          memory: 256Mi
+        limits:
+          memory: 512Mi
+      extraArgs:
+        clientRateLimitQPS: 50
+        clientRateLimitBurst: 100
+    initContainer:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+  backgroundController:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+    extraArgs:
+      clientRateLimitQPS: 50
+      clientRateLimitBurst: 100
+  cleanupController:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+    extraArgs:
+      clientRateLimitQPS: 50
+      clientRateLimitBurst: 100
+  reportsController:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+    extraArgs:
+      clientRateLimitQPS: 50
+      clientRateLimitBurst: 100
 
 # metrics-server: required by HPAs and `kubectl top`. Default on.
 # Disable for clusters that already ship it (GKE, AKS, k3s, OpenShift):

@@ -22,6 +22,7 @@
       "properties": {
         "name": { "type": "string", "minLength": 1 },
         "namespace": { "type": "string", "minLength": 1 },
+        "mode": { "type": "string", "enum": ["minimal", "standard", "performance"] },
         "image": {
           "type": "object",
           "required": ["registry"],

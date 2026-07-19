@@ -19,27 +19,27 @@ Pulls the latest published CRD chart. Uses the chart defaults (`app.name: telark
 ## 2. Install the app
 
 ```sh
-helm install telark ./charts/telark \
-  --set-file nats.configuration=charts/telark/config/nats.conf
+helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace
 ```
 
-`--set-file` is required: the NATS config is loaded from `charts/telark/config/nats.conf` and cannot be a values default.
+One command — everything needed to run (NATS config, default `standard` sizing) ships in the chart. From a checkout, `./charts/telark` works in place of the OCI ref.
 
-### Sizing modes (optional)
+### Sizing modes
 
-Layer an overlay for cluster size. Without one, the chart defaults suit a single-node / evaluation cluster.
+`app.mode` sizes every telark service — replicas, resources, client rate limits and disruption budgets — from a single flag. The default is `standard`; pick another with `--set`:
 
 ```sh
-helm install telark ./charts/telark \
-  -f charts/telark/values.mode.<mode>.yaml \
-  --set-file nats.configuration=charts/telark/config/nats.conf
+helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
+  --set app.mode=performance
 ```
 
 | Mode | For |
 |---|---|
 | `minimal` | dev, demos, evaluation — single replica, no PDBs |
-| `standard` | small–mid production — 2 replicas, disruption budgets |
-| `performance` | large clusters — 3 replicas; needs a ReadWriteMany storage class for the exporter |
+| `standard` (default) | small–mid production — 2 replicas, disruption budgets |
+| `performance` | large clusters — 3 replicas; needs a ReadWriteMany class for the exporter (add `--set app.persistence.storageClass=<rwx-class>`) |
+
+`app.mode` sizes telark's own services only — Helm resolves a subchart's values before the mode is known, so redis, NATS, the policy engine and metrics-server ship fixed production-grade defaults owned by the chart, identical in every mode. Nothing to tune.
 
 ## 3. First admin
 
@@ -64,10 +64,11 @@ Every value is documented in [`charts/telark/README.md`](../charts/telark/README
 ## Upgrade
 
 ```sh
-helm upgrade telark ./charts/telark \
-  -f charts/telark/values.mode.<mode>.yaml \
-  --set-file nats.configuration=charts/telark/config/nats.conf
+helm upgrade telark oci://ghcr.io/telark/charts/telark -n telark \
+  --set app.mode=<mode>
 ```
+
+Re-pass the same `--set` / `-f` flags used at install: Helm does not remember them across upgrades.
 
 ## Uninstall
 

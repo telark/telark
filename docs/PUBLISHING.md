@@ -45,36 +45,32 @@ for pkg in .cr-release/*.tgz; do helm push "$pkg" oci://ghcr.io/telark/charts; d
 ## 3. Verify the publish
 
 ```sh
-helm show chart oci://ghcr.io/telark/charts/telark --version 2.2.8
-helm pull       oci://ghcr.io/telark/charts/telark --version 2.2.8
-helm template t oci://ghcr.io/telark/charts/telark --version 2.2.8 \
-  --set-file nats.configuration=charts/telark/config/nats.conf
+helm show chart oci://ghcr.io/telark/charts/telark --version <version>
+helm pull       oci://ghcr.io/telark/charts/telark --version <version>
+helm template t oci://ghcr.io/telark/charts/telark --version <version>
 ```
 
 ## 4. Deploy from the registry
 
 Mirrors the deploy workflow. The app release **must** be named `telark-release` so the
-subchart DNS (`{{ .Release.Name }}-redis-master`, `-nats`, `-ollama`) resolves. The
-`--set-file` and mode-overlay paths come from your local checkout.
+subchart DNS (`{{ .Release.Name }}-redis-master`, `-nats`, `-ollama`) resolves.
 
 ```sh
 NS=telark
 
 # CRDs first (server-side apply, kept on uninstall)
-helm template telark-crds oci://ghcr.io/telark/charts/telark-crds --version 0.2.1 \
+helm template telark-crds oci://ghcr.io/telark/charts/telark-crds --version <crds-version> \
   -f charts/telark/values.yaml \
   | yq 'select(.kind == "CustomResourceDefinition")' \
   | kubectl apply --server-side --force-conflicts -f -
 
 # Bootstrap: CRDs chart + built-in CRs (reads the app values for a matching identity)
-helm upgrade --install telark-bootstrap oci://ghcr.io/telark/charts/telark-crds --version 0.2.1 \
+helm upgrade --install telark-bootstrap oci://ghcr.io/telark/charts/telark-crds --version <crds-version> \
   -n "$NS" --create-namespace -f charts/telark/values.yaml --wait
 
-# App: services + subcharts, with the NATS config and a sizing overlay
-helm upgrade --install telark-release oci://ghcr.io/telark/charts/telark --version 2.2.8 \
+# App: services + subcharts (NATS config inlined; size with --set app.mode=<mode>)
+helm upgrade --install telark-release oci://ghcr.io/telark/charts/telark --version <version> \
   -n "$NS" \
-  --set-file nats.configuration=charts/telark/config/nats.conf \
-  -f charts/telark/values.mode.standard.yaml \
   --wait --timeout 15m
 
 helm test telark-release -n "$NS"    # readiness probe against auth

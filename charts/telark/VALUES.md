@@ -1,6 +1,6 @@
 # telark
 
-![Version: 0.0.0](https://img.shields.io/badge/Version-0.0.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.0](https://img.shields.io/badge/AppVersion-2.0-informational?style=flat-square)
+![Version: 0.0.1](https://img.shields.io/badge/Version-0.0.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.0](https://img.shields.io/badge/AppVersion-2.0-informational?style=flat-square)
 
 A protection gate for your Kubernetes workloads — discover your applications, then decide what can change them, and when
 
@@ -44,17 +44,18 @@ Kubernetes: `>=1.33.0-0`
 | app.image.pullSecrets | list | `[]` |  |
 | app.image.registry | string | `"telark"` |  |
 | app.kyverno.enabled | bool | `true` |  |
+| app.mode | string | `"standard"` |  |
 | app.name | string | `"telark"` |  |
 | app.namespace | string | `"telark"` |  |
 | app.ollama.enabled | bool | `false` |  |
 | app.persistence.accessMode | string | `"ReadWriteOnce"` |  |
 | app.persistence.enabled | bool | `true` |  |
-| app.persistence.size | string | `"1Gi"` |  |
+| app.persistence.size | string | `"10Gi"` |  |
 | app.persistence.storageClass | string | `""` |  |
 | app.serviceDefaults.affinity | object | `{}` |  |
 | app.serviceDefaults.nodeSelector | object | `{}` |  |
 | app.serviceDefaults.port | int | `8080` |  |
-| app.serviceDefaults.replicas | int | `1` |  |
+| app.serviceDefaults.replicas | int | `2` |  |
 | app.serviceDefaults.serviceType | string | `"ClusterIP"` |  |
 | app.serviceDefaults.terminationGracePeriodSec | int | `60` |  |
 | app.serviceDefaults.tolerations | list | `[]` |  |
@@ -95,8 +96,37 @@ Kubernetes: `>=1.33.0-0`
 | commonLabels | object | `{}` |  |
 | fullnameOverride | string | `""` |  |
 | global.imagePullSecrets | list | `[]` |  |
+| kyverno.admissionController.container.extraArgs.clientRateLimitBurst | int | `100` |  |
+| kyverno.admissionController.container.extraArgs.clientRateLimitQPS | int | `50` |  |
+| kyverno.admissionController.container.resources.limits.memory | string | `"512Mi"` |  |
+| kyverno.admissionController.container.resources.requests.cpu | string | `"200m"` |  |
+| kyverno.admissionController.container.resources.requests.memory | string | `"256Mi"` |  |
+| kyverno.admissionController.initContainer.resources.limits.memory | string | `"128Mi"` |  |
+| kyverno.admissionController.initContainer.resources.requests.cpu | string | `"50m"` |  |
+| kyverno.admissionController.initContainer.resources.requests.memory | string | `"64Mi"` |  |
+| kyverno.admissionController.podDisruptionBudget.enabled | bool | `true` |  |
+| kyverno.admissionController.podDisruptionBudget.minAvailable | int | `1` |  |
+| kyverno.admissionController.replicas | int | `2` |  |
+| kyverno.backgroundController.extraArgs.clientRateLimitBurst | int | `100` |  |
+| kyverno.backgroundController.extraArgs.clientRateLimitQPS | int | `50` |  |
+| kyverno.backgroundController.replicas | int | `1` |  |
+| kyverno.backgroundController.resources.limits.memory | string | `"256Mi"` |  |
+| kyverno.backgroundController.resources.requests.cpu | string | `"100m"` |  |
+| kyverno.backgroundController.resources.requests.memory | string | `"128Mi"` |  |
+| kyverno.cleanupController.extraArgs.clientRateLimitBurst | int | `100` |  |
+| kyverno.cleanupController.extraArgs.clientRateLimitQPS | int | `50` |  |
+| kyverno.cleanupController.replicas | int | `1` |  |
+| kyverno.cleanupController.resources.limits.memory | string | `"256Mi"` |  |
+| kyverno.cleanupController.resources.requests.cpu | string | `"100m"` |  |
+| kyverno.cleanupController.resources.requests.memory | string | `"128Mi"` |  |
 | kyverno.features.forceFailurePolicyIgnore.enabled | bool | `true` |  |
 | kyverno.namespaceOverride | string | `"telark"` |  |
+| kyverno.reportsController.extraArgs.clientRateLimitBurst | int | `100` |  |
+| kyverno.reportsController.extraArgs.clientRateLimitQPS | int | `50` |  |
+| kyverno.reportsController.replicas | int | `1` |  |
+| kyverno.reportsController.resources.limits.memory | string | `"256Mi"` |  |
+| kyverno.reportsController.resources.requests.cpu | string | `"100m"` |  |
+| kyverno.reportsController.resources.requests.memory | string | `"128Mi"` |  |
 | kyverno.webhooksCleanup.enabled | bool | `false` |  |
 | metrics-server.args[0] | string | `"--kubelet-insecure-tls"` |  |
 | metrics-server.args[1] | string | `"--kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname"` |  |
@@ -106,6 +136,7 @@ Kubernetes: `>=1.33.0-0`
 | metrics-server.resources.requests.cpu | string | `"100m"` |  |
 | metrics-server.resources.requests.memory | string | `"200Mi"` |  |
 | nameOverride | string | `""` |  |
+| nats.configuration | string | `"server_name: nats-server\nport: 4222\njetstream {\n  store_dir: \"/data\"\n  max_mem: 1G\n  max_file: 5G\n}\nauthorization {\n  users = [\n    {\n      user: \"nats\",\n      password: $NATS_PASSWORD,\n      permissions: {\n        publish   = [\"telark.applications.*\", \"$JS.ACK.>\", \"$JS.API.>\", \"_INBOX.>\"]\n        subscribe = [\"telark.applications.*\", \"$JS.ACK.>\", \"$JS.API.>\", \"_INBOX.>\"]\n      }\n    }\n  ]\n}\nhttp_port: 8222\n"` |  |
 | nats.enabled | bool | `true` |  |
 | nats.extraEnvVars[0].name | string | `"NATS_PASSWORD"` |  |
 | nats.extraEnvVars[0].valueFrom.secretKeyRef.key | string | `"password"` |  |
@@ -116,7 +147,7 @@ Kubernetes: `>=1.33.0-0`
 | nats.image.tag | string | `"2.12.1-scratch"` |  |
 | nats.persistence.enabled | bool | `true` |  |
 | nats.persistence.path | string | `"/data"` |  |
-| nats.persistence.size | string | `"2Gi"` |  |
+| nats.persistence.size | string | `"4Gi"` |  |
 | nats.securityContext.fsGroup | int | `1000` |  |
 | nats.securityContext.runAsGroup | int | `1000` |  |
 | nats.securityContext.runAsUser | int | `1000` |  |
@@ -138,7 +169,7 @@ Kubernetes: `>=1.33.0-0`
 | redis.architecture | string | `"standalone"` |  |
 | redis.auth.enabled | bool | `false` |  |
 | redis.master.persistence.enabled | bool | `true` |  |
-| redis.master.persistence.size | string | `"1Gi"` |  |
+| redis.master.persistence.size | string | `"4Gi"` |  |
 | services.auth.category | string | `"auth"` |  |
 | services.auth.enabled | bool | `true` |  |
 | services.auth.env.BOOTSTRAP_ADMINS | string | `"{{ join \",\" .Values.app.auth.bootstrap.admins }}"` |  |
@@ -167,7 +198,8 @@ Kubernetes: `>=1.33.0-0`
 | services.auth.env.SELF_REGISTRATION_ENABLED | string | `"{{ .Values.app.auth.passkey.selfRegistration }}"` |  |
 | services.auth.env.SESSION_EXPIRY | string | `"24"` |  |
 | services.auth.name | string | `"auth-service"` |  |
-| services.auth.pdb.enabled | bool | `false` |  |
+| services.auth.pdb.enabled | bool | `true` |  |
+| services.auth.pdb.minAvailable | int | `1` |  |
 | services.auth.repository | string | `"auth"` |  |
 | services.auth.terminationGracePeriodSec | int | `30` |  |
 | services.auth.version | string | `"0.3.2"` |  |
@@ -217,6 +249,7 @@ Kubernetes: `>=1.33.0-0`
 | services.discovery.includeSecurity | bool | `false` |  |
 | services.discovery.name | string | `"discovery-service"` |  |
 | services.discovery.pdb.enabled | bool | `true` |  |
+| services.discovery.pdb.minAvailable | int | `1` |  |
 | services.discovery.replicas | int | `2` |  |
 | services.discovery.repository | string | `"discovery"` |  |
 | services.discovery.topologySpread.enabled | bool | `true` |  |
@@ -237,7 +270,8 @@ Kubernetes: `>=1.33.0-0`
 | services.enrichment.env.REDIS_POOL_SIZE | string | `"10"` |  |
 | services.enrichment.env.WORKER_SHUTDOWN_TIMEOUT_S | string | `"30"` |  |
 | services.enrichment.name | string | `"enrichment-service"` |  |
-| services.enrichment.pdb.enabled | bool | `false` |  |
+| services.enrichment.pdb.enabled | bool | `true` |  |
+| services.enrichment.pdb.minAvailable | int | `1` |  |
 | services.enrichment.repository | string | `"enrichment"` |  |
 | services.enrichment.version | string | `"0.1.1"` |  |
 | services.exporter.category | string | `"export"` |  |
@@ -249,7 +283,9 @@ Kubernetes: `>=1.33.0-0`
 | services.exporter.env.SNAPSHOTS_PVC_NAMESPACE | string | `"{{ .Values.app.namespace }}"` |  |
 | services.exporter.name | string | `"exporter-service"` |  |
 | services.exporter.pdb.enabled | bool | `false` |  |
+| services.exporter.replicas | int | `1` |  |
 | services.exporter.repository | string | `"exporter"` |  |
+| services.exporter.strategy | string | `"Recreate"` |  |
 | services.exporter.version | string | `"3.3.3"` |  |
 | services.exporter.volumeMounts[0].name | string | `"snapshots-storage"` |  |
 | services.exporter.volumeMounts[0].path | string | `"/snapshots"` |  |
@@ -258,7 +294,8 @@ Kubernetes: `>=1.33.0-0`
 | services.notifier.category | string | `"notification"` |  |
 | services.notifier.enabled | bool | `true` |  |
 | services.notifier.name | string | `"notifier-service"` |  |
-| services.notifier.pdb.enabled | bool | `false` |  |
+| services.notifier.pdb.enabled | bool | `true` |  |
+| services.notifier.pdb.minAvailable | int | `1` |  |
 | services.notifier.repository | string | `"notifier"` |  |
 | services.notifier.terminationGracePeriodSec | int | `30` |  |
 | services.notifier.useNatsCreds | bool | `true` |  |

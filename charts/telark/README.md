@@ -5,19 +5,17 @@ Helm chart for [telark](https://telark.io) — a protection gate for your Kubern
 ## Install
 
 ```sh
-helm install telark ./charts/telark \
-  --set-file nats.configuration=charts/telark/config/nats.conf
+helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace
 ```
 
-Sizing overlays (optional) layer on top of the chart defaults:
+Size every telark service with one flag — `minimal` | `standard` (default) | `performance`:
 
 ```sh
-helm install telark ./charts/telark \
-  -f charts/telark/values.mode.standard.yaml \
-  --set-file nats.configuration=charts/telark/config/nats.conf
+helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
+  --set app.mode=performance
 ```
 
-Modes: `minimal` | `standard` | `performance`.
+`app.mode` sizes telark's own services; the subcharts (redis/nats/kyverno/metrics-server) ship fixed production-grade defaults owned by the chart, identical in every mode. Full guide: [docs/INSTALL.md](../../docs/INSTALL.md).
 
 ## Values reference
 
@@ -39,6 +37,7 @@ Modes: `minimal` | `standard` | `performance`.
 |---|---|---|
 | `app.name` | `telark` | Source of truth for the app identity / resource-name prefix |
 | `app.namespace` | `telark` | Install namespace; bootstrap CRs land here |
+| `app.mode` | `standard` | Sizes every telark service (replicas, resources, rate limits, PDBs). `minimal` \| `standard` \| `performance`. Subcharts keep production-grade defaults across all modes. |
 | `app.image.registry` | _(namespace)_ | Docker Hub namespace (account/org) hosting the per-service repos |
 | `app.image.pullPolicy` | `Always` | Image pull policy for every service container |
 | `app.image.pullSecrets` | `[]` | Pull secrets (public images need none; set for a private registry) |
@@ -46,7 +45,7 @@ Modes: `minimal` | `standard` | `performance`.
 | `app.ollama.enabled` | `false` | Install ollama subchart |
 | `app.persistence.enabled` | `true` | Provision exporter snapshot PVC |
 | `app.persistence.storageClass` | `""` | `""` = cluster default; `"-"` = disable dynamic provisioning; `"<name>"` = explicit class |
-| `app.persistence.size` | `1Gi` | PVC size |
+| `app.persistence.size` | `10Gi` | PVC size (`minimal` mode lowers it to `1Gi`) |
 | `app.persistence.accessMode` | `ReadWriteOnce` | PVC access mode |
 
 #### `app.auth.bootstrap`
@@ -85,7 +84,7 @@ Fallbacks for any `services.<svc>.*` key omitted.
 |---|---|---|
 | `app.serviceDefaults.port` | `8080` | Container + Service port |
 | `app.serviceDefaults.serviceType` | `ClusterIP` | K8s Service type |
-| `app.serviceDefaults.replicas` | `1` | Deployment replicas |
+| `app.serviceDefaults.replicas` | `2` | Deployment replicas (driven by `app.mode`: `minimal`=1, `performance`=3) |
 | `app.serviceDefaults.terminationGracePeriodSec` | `60` | Pod termination grace period |
 
 ### `app.shared`

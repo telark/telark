@@ -61,8 +61,7 @@ After any chart change:
 
 ```sh
 make helm-lint
-helm template t ./charts/telark -f charts/telark/values.mode.standard.yaml \
-  --set-file nats.configuration=charts/telark/config/nats.conf
+helm template t ./charts/telark               # optionally: --set app.mode=<mode>
 ```
 
 Do not bump chart or module versions, and do not commit local `replace` directives — releases handle versioning, and the services must build against the published modules.

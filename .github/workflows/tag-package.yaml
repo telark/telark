@@ -26,6 +26,10 @@ on:
         description: Branch to build from
         default: main
 
+env:
+  GOPRIVATE: github.com/telark/*
+  GOWORK: "off"
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -37,6 +41,29 @@ jobs:
           token: ${{ secrets.ACCESS_TOKEN }}
           path: package
           ref: ${{ github.event.inputs.branch || 'main' }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: package/go.mod
+          cache-dependency-path: package/go.sum
+
+      - name: Authenticate to private telark modules
+        run: git config --global url."https://${{ secrets.ACCESS_USER }}:${{ secrets.ACCESS_TOKEN }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Build
+        working-directory: package
+        run: go build ./...
+
+      - name: Test
+        working-directory: package
+        run: go test -race ./...
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+          working-directory: package
 
       - name: Set up Git
         run: |

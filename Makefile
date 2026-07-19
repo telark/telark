@@ -4,8 +4,10 @@ GO_SERVICES := auth discovery exporter notifier
 CHART_DIR    := charts/telark
 CRDS_DIR     := charts/telark-crds
 NATS_CONF    := --set-file nats.configuration=$(CHART_DIR)/config/nats.conf
+REGISTRY     ?= oci://ghcr.io/telark/charts
+HELM_DOCS    := go run github.com/norwoodj/helm-docs/cmd/helm-docs@v1.14.2
 
-.PHONY: help build test lint fmt vet helm-lint helm-template sync check
+.PHONY: help build test lint fmt vet helm-lint helm-template values-docs publish-charts sync check
 
 help: ## List targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-14s %s\n", $$1, $$2}'
@@ -34,5 +36,19 @@ helm-template: ## Render the app chart (standard mode)
 
 sync: ## Sync the Go workspace
 	go work sync
+
+values-docs: ## Regenerate each chart's VALUES.md index from values.yaml (helm-docs)
+	$(HELM_DOCS) --chart-search-root charts --output-file VALUES.md
+
+publish-charts: ## Package + push both charts to the OCI registry (run `helm registry login ghcr.io` first)
+	helm repo add bitnami        https://charts.bitnami.com/bitnami
+	helm repo add kyverno        https://kyverno.github.io/kyverno/
+	helm repo add otwld          https://helm.otwld.com/
+	helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+	helm dependency build $(CHART_DIR)
+	rm -rf .cr-release && mkdir -p .cr-release
+	helm package $(CRDS_DIR)  --destination .cr-release
+	helm package $(CHART_DIR) --destination .cr-release
+	@for pkg in .cr-release/*.tgz; do echo "== push $$pkg =="; helm push "$$pkg" $(REGISTRY); done
 
 check: lint test ## Lint and test everything

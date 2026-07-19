@@ -90,3 +90,10 @@ jobs:
         run: |
           helm lint "$CHART_DIR"
           helm lint "$CRDS_DIR"
+
+      - name: VALUES.md up to date
+        run: |
+          docker run --rm -v "$PWD:/work" -w /work jnorwood/helm-docs:v1.14.2 \
+            helm-docs --chart-search-root charts --output-file VALUES.md
+          git diff --exit-code -- charts/telark/VALUES.md charts/telark-crds/VALUES.md \
+            || { echo "VALUES.md is stale — run 'make values-docs' and commit."; exit 1; }

@@ -7,7 +7,7 @@ CRDs are cluster-scoped and carry `helm.sh/resource-policy: keep`, so they survi
 ## Install
 
 ```sh
-helm install telark-crds ./charts/telark-crds -f ../telark/values.yaml
+helm install telark-crds ./charts/telark-crds -f charts/telark/values.yaml
 ```
 
 ## Values

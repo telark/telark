@@ -5,7 +5,7 @@
 Please report security issues **privately**. Do not open a public issue for anything exploitable.
 
 - Preferred: [GitHub private vulnerability reporting](https://github.com/telark/telark/security/advisories/new).
-- Or email: **houssem.kraoua@gmail.com** with subject `SECURITY: <summary>`.
+- Or email: **contact@telark.io** with subject `SECURITY: <summary>`.
 
 Include: affected component and version, a description, reproduction steps or a PoC, and impact. We aim to acknowledge within 3 business days and to agree on a disclosure timeline once the issue is confirmed.
 

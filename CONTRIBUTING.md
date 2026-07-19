@@ -15,25 +15,25 @@ charts/
 docs/           architecture, install guide, CRD reference, ADRs
 ```
 
-The Go services depend on shared packages published under `github.com/telark/*`. They resolve locally through the workspace during development.
+The Go services depend on shared packages published under `github.com/telark/*` (`data`, `rest`, `x-ware`, `kcore`) — ordinary module dependencies, pinned in each service's `go.mod`.
 
 ## Prerequisites
 
-- Go (see `go.work` for the version), `golangci-lint`, `helm` ≥ 3.
-- Python 3.12 + `venv` for the enrichment service.
+- Go 1.26+ (see `go.work` for the exact version), `golangci-lint`, `helm` ≥ 3.
+- Python 3.13+ + `venv` for the enrichment service.
 - Docker + a Kubernetes cluster for end-to-end work.
 
 ## Go workspace
 
-The four Go services live in a single `go.work`. Shared internal packages resolve via workspace-wide `replace` directives.
+The four Go services live in a single `go.work`; it holds only those four. They build against the published `github.com/telark/*` modules at the versions pinned in each `go.mod` — there are no `replace` directives.
 
-**Set `GOPRIVATE` before any module operation** — the internal packages are private:
+**Set `GOPRIVATE` before any module operation** — the internal packages are private until release:
 
 ```sh
 export GOPRIVATE=github.com/telark/*
 ```
 
-Build the whole workspace rather than tidying a single service — a standalone `go mod tidy` re-resolves shared packages to published versions and can fail:
+Build the whole workspace rather than tidying a single service — a standalone `go mod tidy` re-resolves the shared `github.com/telark/*` modules and can fail against the private registry:
 
 ```sh
 go build ./...        # from the repo root, uses the workspace
@@ -46,7 +46,7 @@ A `Makefile` wraps the common flows:
 
 ```sh
 make build       # go build across the workspace
-make lint        # golangci-lint per Go service (each service's own config) + helm lint
+make lint        # golangci-lint per Go service (shared root .golangci.yml) + helm lint
 make test        # go test per module
 make helm-lint   # lint both charts
 make fmt         # gofmt
@@ -65,7 +65,7 @@ helm template t ./charts/telark -f charts/telark/values.mode.standard.yaml \
   --set-file nats.configuration=charts/telark/config/nats.conf
 ```
 
-Do not bump chart/module versions or remove `replace` directives — releases handle versioning.
+Do not bump chart or module versions, and do not commit local `replace` directives — releases handle versioning, and the services must build against the published modules.
 
 ## Commits & PRs
 

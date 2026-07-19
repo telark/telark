@@ -16,7 +16,7 @@ keywords:
   - governance
 maintainers:
   - name: telark
-    email: houssem.kraoua@gmail.com
+    email: contact@telark.io
     url: https://github.com/telark
 # 1.33 is the oldest release still receiving upstream patches, and the oldest
 # offered by the managed providers. It also clears ValidatingAdmissionPolicy

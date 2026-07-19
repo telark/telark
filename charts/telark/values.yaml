@@ -42,7 +42,7 @@ app:
   auth:
     bootstrap:
       admins:
-        - "houssem.kraoua@gmail.com"
+        - "contact@telark.io"
     passkey:
       id: "localhost"
       name: "Dashboard App"

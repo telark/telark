@@ -13,12 +13,11 @@ import (
 	resourceshared "github.com/telark/data/resources/shared"
 	"github.com/telark/notifier/internal/constants"
 	"github.com/telark/notifier/internal/subscribers/base"
-	applicationsclient "github.com/telark/rest/clients/resources/applications"
 	natscore "github.com/telark/x-ware/nats/core"
 )
 
 // If application CR does not exist yet, create it using the full payload (upsert behavior).
-func (*ApplicationSubscriber) handleUpdate(m *nats.Msg) error {
+func (s *ApplicationSubscriber) handleUpdate(m *nats.Msg) error {
 	msg, dataMap, err := parseNatsMessageToMap(m)
 	if err != nil {
 		return base.AckWithLog(m, m.Subject, err.Error(), true)
@@ -37,7 +36,7 @@ func (*ApplicationSubscriber) handleUpdate(m *nats.Msg) error {
 		return base.AckWithLog(m, m.Subject, err.Error(), true)
 	}
 
-	client := applicationsclient.NewClient()
+	client := s.client
 	patchResp := &base.GenericResponseAdapter{Resp: client.PatchApplicationByName(resourceName, patchBody)}
 	if patchResp.GetStatus() == http.StatusOK {
 		_ = base.AckWithLog(m, m.Subject, fmt.Sprintf(string(messages.SuccessNatsPatchApplication), resourceName), false)
@@ -71,12 +70,11 @@ func (*ApplicationSubscriber) handleUpdate(m *nats.Msg) error {
 	return base.AckWithLog(m, m.Subject, logMsg, true)
 }
 
-func (*ApplicationSubscriber) handleDelete(m *nats.Msg) error {
+func (s *ApplicationSubscriber) handleDelete(m *nats.Msg) error {
 	return base.ExecuteDeleteHandler(
 		m,
 		func(resourceName string) base.GenericResponse {
-			client := applicationsclient.NewClient()
-			return &base.GenericResponseAdapter{Resp: client.DeleteApplicationByName(resourceName)}
+			return &base.GenericResponseAdapter{Resp: s.client.DeleteApplicationByName(resourceName)}
 		},
 		string(messages.SuccessNatsDeleteApplication),
 		string(errors.ErrNatsFailedToDeleteApplication),

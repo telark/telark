@@ -31,6 +31,9 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | `commonAnnotations` | `{}` | Annotations added to every resource |
 | `global.imagePullSecrets` | `[]` | Pull secrets merged into every pod |
 | `crds.enabled` | `true` | Install CRDs (the telark-crds subchart) with the app; `false` to manage them out of band |
+| `monitoring.serviceMonitor.enabled` | `false` | Emit a Prometheus-Operator ServiceMonitor for the services' `/metrics`. See [docs/INSTALL.md](../../docs/INSTALL.md#monitoring-prometheus) |
+| `monitoring.serviceMonitor.labels` | `{}` | Labels matching Prometheus's `serviceMonitorSelector` (usually `release: <name>`) |
+| `monitoring.serviceMonitor.path` / `interval` | `/metrics` / `30s` | Scrape path / interval |
 
 ### `app`
 
@@ -87,6 +90,9 @@ Fallbacks for any `services.<svc>.*` key omitted.
 | `app.serviceDefaults.serviceType` | `ClusterIP` | K8s Service type |
 | `app.serviceDefaults.replicas` | `2` | Deployment replicas (driven by `app.mode`: `minimal`=1, `performance`=3) |
 | `app.serviceDefaults.terminationGracePeriodSec` | `60` | Pod termination grace period |
+| `app.serviceDefaults.autoscaling.enabled` | `false` | Fleet-wide HPA default (`performance` mode turns it on). See [docs/INSTALL.md](../../docs/INSTALL.md#autoscaling-hpa) |
+| `app.serviceDefaults.autoscaling.minReplicas` / `maxReplicas` | `1` / `3` | HPA replica floor / ceiling |
+| `app.serviceDefaults.autoscaling.targetCPUUtilizationPercentage` | `80` | HPA scale-up CPU target |
 
 ### `app.shared`
 
@@ -163,6 +169,7 @@ Per-service block. Gates default to `true` unless noted.
 | `envFromSecret` | `{}` | `valueFrom: secretKeyRef` map (secret `<app.name>-<name>-secret`) |
 | `volumes` / `volumeMounts` | `[]` | Pod volumes + mounts |
 | `pdb.enabled` | varies | PodDisruptionBudget |
+| `autoscaling.enabled` | `false` | Per-service HPA (auth/discovery/enrichment/notifier/ui; never exporter). Inherits `app.serviceDefaults.autoscaling.*`; on in `performance` |
 | `topologySpread.*` | unset | TopologySpreadConstraints |
 
 #### Service identities

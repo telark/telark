@@ -67,6 +67,8 @@ helm template t ./charts/telark -f charts/telark/values.mode.standard.yaml \
 
 Do not bump chart or module versions, and do not commit local `replace` directives — releases handle versioning, and the services must build against the published modules.
 
+After changing `values.yaml`, run `make values-docs` to refresh each chart's `VALUES.md` (CI fails if it drifts). Packaging, pushing, and signing the charts is covered in [docs/PUBLISHING.md](docs/PUBLISHING.md).
+
 ## Commits & PRs
 
 - Conventional-commit style subjects (`feat:`, `fix:`, `chore:`, `docs:`…), ≤ 50 chars, imperative.

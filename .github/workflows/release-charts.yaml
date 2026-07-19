@@ -3,7 +3,11 @@
 # cosign-sign every pushed chart. The two charts version independently — telark-crds
 # bumps only when a CRD changes. A pushed `v*` tag publishes both; a manual run can
 # target one. Already-published versions are skipped, so the job is idempotent and
-# only ships a chart whose Chart.yaml version is new. Bump versions in Chart.yaml.
+# only ships a chart whose Chart.yaml version is new. On a manual bump the new
+# version is committed back; the telark app chart is then tagged (v<version>) and a
+# GitHub release is created — a pre-release when the version carries a semver
+# suffix (e.g. 1.2.0-rc.1). telark-crds is published + committed but never
+# tagged/released.
 name: Release · Publish Charts
 run-name: Publish charts (${{ github.event.inputs.chart || 'both' }} · bump ${{ github.event.inputs.bump || 'current' }})
 
@@ -31,7 +35,7 @@ on:
           - major
 
 permissions:
-  contents: read
+  contents: write   # commit the version bump + push the release tag / create the release
   packages: write
   id-token: write   # keyless cosign signing via GitHub OIDC
 
@@ -78,6 +82,7 @@ jobs:
           helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
 
       - name: Package, publish + sign
+        id: publish
         env:
           COSIGN_YES: "true"
         run: |
@@ -112,7 +117,43 @@ jobs:
             echo "signing ${repo}/${name}@${digest}"
             cosign sign "${repo}/${name}@${digest}"
             published=$((published+1))
+            # Only the app chart gets a repo tag + release; telark-crds does not.
+            [ "$dir" = "$CHART_DIR" ] && echo "telark_version=${version}" >> "$GITHUB_OUTPUT"
           done
           if [ "$published" -eq 0 ]; then
             echo "Nothing new to publish — bump the chart version(s) in Chart.yaml."
           fi
+
+      - name: Commit version bumps
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump != 'current' }}
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$CHART_DIR/Chart.yaml" "$CRDS_DIR/Chart.yaml"
+          if git diff --cached --quiet; then
+            echo "no version changes to commit"
+          else
+            git commit -m "chore(release): bump chart version(s) [skip ci]"
+            git push
+          fi
+
+      # Only telark is tagged + released on the repo. The version's semver
+      # pre-release suffix (e.g. 1.2.0-rc.1) decides release vs pre-release.
+      - name: Tag + release telark
+        if: ${{ steps.publish.outputs.telark_version != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          v="${{ steps.publish.outputs.telark_version }}"
+          tag="v${v}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "tag ${tag} already exists — skipping tag + release"
+            exit 0
+          fi
+          pre=""
+          case "$v" in *-*) pre="--prerelease" ;; esac
+          git tag "$tag"
+          git push origin "$tag"          # pushed with GITHUB_TOKEN, so it does not re-trigger this workflow
+          gh release create "$tag" --title "$tag" --generate-notes $pre

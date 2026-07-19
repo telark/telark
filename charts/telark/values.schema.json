@@ -19,6 +19,20 @@
       "type": "object",
       "properties": { "enabled": { "type": "boolean" } }
     },
+    "monitoring": {
+      "type": "object",
+      "properties": {
+        "serviceMonitor": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "path": { "type": "string" },
+            "interval": { "type": "string" },
+            "labels": { "type": "object" }
+          }
+        }
+      }
+    },
     "app": {
       "type": "object",
       "additionalProperties": true,
@@ -81,6 +95,16 @@
           "pdb": {
             "type": "object",
             "properties": { "enabled": { "type": "boolean" } }
+          },
+          "autoscaling": {
+            "type": "object",
+            "properties": {
+              "enabled": { "type": "boolean" },
+              "minReplicas": { "type": "integer", "minimum": 1 },
+              "maxReplicas": { "type": "integer", "minimum": 1 },
+              "targetCPUUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 },
+              "targetMemoryUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 }
+            }
           },
           "serviceAccount": {
             "type": "object",

@@ -30,6 +30,16 @@ commonAnnotations: {}
 crds:
   enabled: true
 
+# Prometheus-Operator ServiceMonitor scraping each service's /metrics. Off by
+# default (needs the Prometheus-Operator CRDs). Set labels to match your Prometheus
+# instance's serviceMonitorSelector.
+monitoring:
+  serviceMonitor:
+    enabled: false
+    path: /metrics
+    interval: 30s
+    labels: {}
+
 app:
   # Identity — app.name is the source of truth for every resource name.
   name: "telark"
@@ -98,6 +108,14 @@ app:
     nodeSelector: {}
     tolerations: []
     affinity: {}
+    # HPA defaults (autoscaling/v2). enabled=false everywhere; performance mode
+    # flips it per stateless service. Only services with a workload/hpa.yaml
+    # autoscale (auth/discovery/enrichment/notifier/ui — never the exporter).
+    autoscaling:
+      enabled: false
+      minReplicas: 1
+      maxReplicas: 3
+      targetCPUUtilizationPercentage: 80
 
   # Shared pod fragments, applied per service via gates:
   # includeResources · includeHealthCheck · includeSecurity · useRedis · useNatsCreds.

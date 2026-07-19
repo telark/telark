@@ -21,6 +21,10 @@ inputs:
     description: 'Run golangci-lint'
     required: false
     default: 'true'
+  coverage-threshold:
+    description: 'Minimum total coverage percent; the build fails below it (0 = no gate)'
+    required: false
+    default: '0'
 
 runs:
   using: 'composite'
@@ -56,7 +60,14 @@ runs:
       if: ${{ inputs.test == 'true' }}
       shell: bash
       working-directory: ${{ inputs.working-directory }}
-      run: go test -race ./...
+      # -coverpkg=./... so tests in internal/tests/* count against the code they
+      # exercise (per-package coverage reports 0 for this layout).
+      run: |
+        go test -race -coverpkg=./... -coverprofile=coverage.out ./...
+        total=$(go tool cover -func=coverage.out | awk '/^total:/{print $3}' | tr -d '%')
+        echo "Total coverage: ${total}%"
+        awk -v t="$total" -v m='${{ inputs.coverage-threshold }}' \
+          'BEGIN { if (t+0 < m+0) { printf "coverage %.1f%% is below threshold %s%%\n", t, m; exit 1 } }'
 
     - name: Lint
       if: ${{ inputs.lint == 'true' }}

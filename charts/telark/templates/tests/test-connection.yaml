@@ -1,8 +1,11 @@
-{{- $svc := .Values.services.auth -}}
+{{- $fullname := include "telark.fullname" . -}}
+{{- $port := .Values.app.serviceDefaults.port -}}
+{{- $readyPath := .Values.app.shared.healthCheck.readinessProbe.path -}}
+{{- $group := printf "erpi.%s" (include "telark.name" .) -}}
 apiVersion: v1
 kind: Pod
 metadata:
-  name: {{ include "telark.fullname" . }}-test-connection
+  name: {{ $fullname }}-test-connection
   namespace: {{ .Values.app.namespace }}
   labels:
     {{- include "telark.labels" . | nindent 4 }}
@@ -13,11 +16,22 @@ metadata:
 spec:
   restartPolicy: Never
   containers:
-    - name: readiness
-      image: busybox:1.37
+    - name: smoke
+      image: curlimages/curl:8.20.0
       command:
-        - wget
-        - -S
-        - --spider
-        - --timeout=10
-        - http://{{ include "telark.fullname" . }}-{{ $svc.name }}:{{ .Values.app.serviceDefaults.port }}{{ .Values.app.shared.healthCheck.readinessProbe.path }}
+        - /bin/sh
+        - -ec
+        - |
+          {{- range $name, $svc := .Values.services }}
+          {{- if and $svc.enabled (dig "includeHealthCheck" true $svc) }}
+          echo "-> {{ $svc.name }} readiness"
+          curl -fsS --max-time 10 "http://{{ $fullname }}-{{ $svc.name }}:{{ $port }}{{ $readyPath }}" >/dev/null
+          {{- end }}
+          {{- end }}
+          {{- if .Values.crds.enabled }}
+          echo "-> CRD group {{ $group }} established"
+          curl -fsS --max-time 10 --cacert /var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
+            -H "Authorization: Bearer $(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+            "https://kubernetes.default.svc/apis/{{ $group }}" >/dev/null
+          {{- end }}
+          echo "OK"

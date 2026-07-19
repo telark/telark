@@ -34,33 +34,17 @@ jobs:
       fail-fast: false
       matrix:
         service: [auth, discovery, exporter, notifier]
-    defaults:
-      run:
-        working-directory: services/${{ matrix.service }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
+      - name: Go CI
+        uses: ./.github/actions/go-ci
         with:
-          go-version-file: services/${{ matrix.service }}/go.mod
-          cache-dependency-path: services/${{ matrix.service }}/go.sum
-
-      - name: Authenticate to private telark modules
-        run: git config --global url."https://${{ secrets.ACCESS_USER }}:${{ secrets.ACCESS_TOKEN }}@github.com/".insteadOf "https://github.com/"
-
-      - name: Build
-        run: go build ./...
-
-      - name: Test
-        run: go test -race ./...
-
-      - name: Lint
-        uses: golangci/golangci-lint-action@v8
-        with:
-          version: latest
           working-directory: services/${{ matrix.service }}
+          cache-key: ${{ matrix.service }}
+          access-user: ${{ secrets.ACCESS_USER }}
+          access-token: ${{ secrets.ACCESS_TOKEN }}
 
   enrichment:
     name: Python · enrichment

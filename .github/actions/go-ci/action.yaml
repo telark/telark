@@ -1,0 +1,66 @@
+name: 'Go CI'
+description: 'Set up Go, restore the build + module cache, authenticate private telark modules, then build (and optionally test + lint).'
+inputs:
+  working-directory:
+    description: 'Directory holding the Go module (contains go.mod)'
+    required: true
+  cache-key:
+    description: 'Unique cache-key component, e.g. the service or package name'
+    required: true
+  access-user:
+    description: 'GitHub user for private module access'
+    required: true
+  access-token:
+    description: 'GitHub token for private module access'
+    required: true
+  test:
+    description: 'Run go test -race'
+    required: false
+    default: 'true'
+  lint:
+    description: 'Run golangci-lint'
+    required: false
+    default: 'true'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version-file: ${{ inputs.working-directory }}/go.mod
+        # Explicit cache below (with restore-keys) instead of setup-go's
+        # exact-match cache, so a changed go.sum still reuses the prior build.
+        cache: false
+
+    - name: Cache Go build and module cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ inputs.cache-key }}-${{ hashFiles(format('{0}/go.sum', inputs.working-directory)) }}
+        restore-keys: |
+          ${{ runner.os }}-go-${{ inputs.cache-key }}-
+
+    - name: Authenticate to private telark modules
+      shell: bash
+      run: git config --global url."https://${{ inputs.access-user }}:${{ inputs.access-token }}@github.com/".insteadOf "https://github.com/"
+
+    - name: Build
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: go build ./...
+
+    - name: Test
+      if: ${{ inputs.test == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: go test -race ./...
+
+    - name: Lint
+      if: ${{ inputs.lint == 'true' }}
+      uses: golangci/golangci-lint-action@v8
+      with:
+        version: latest
+        working-directory: ${{ inputs.working-directory }}

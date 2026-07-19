@@ -1,4 +1,7 @@
-version: 2
+# Shared golangci-lint config for every Go service. golangci-lint walks up from
+# services/<svc> and finds this at the repo root, so services carry no local config.
+# Thresholds are the loosest of the former per-service configs, unified here.
+version: "2"
 linters:
   enable:
     - errcheck
@@ -50,7 +53,7 @@ linters:
           disabled: true
         - name: line-length-limit
           arguments:
-            - 120
+            - 150
         - name: max-public-structs
           arguments:
             - 10
@@ -62,13 +65,12 @@ linters:
             - 9
         - name: var-naming
           arguments:
-            - [] # AllowList
+            - ["ID"] # AllowList
             - [] # DenyList
             - - skip-package-name-checks: true
-                
 run:
-  timeout: 2m
+  go: "1.26"
+  timeout: 3m
   tests: false
-
 issues:
   max-issues-per-linter: 0

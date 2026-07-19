@@ -34,6 +34,8 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | `monitoring.serviceMonitor.enabled` | `false` | Emit a Prometheus-Operator ServiceMonitor for the services' `/metrics`. See [docs/INSTALL.md](../../docs/INSTALL.md#monitoring-prometheus) |
 | `monitoring.serviceMonitor.labels` | `{}` | Labels matching Prometheus's `serviceMonitorSelector` (usually `release: <name>`) |
 | `monitoring.serviceMonitor.path` / `interval` | `/metrics` / `30s` | Scrape path / interval |
+| `ingress.enabled` | `false` | Ingress for the dashboard (routes to `ingress.service`, default `ui`). See [docs/INSTALL.md](../../docs/INSTALL.md#access-the-dashboard) |
+| `ingress.className` / `host` / `path` / `pathType` / `tls` / `annotations` | see values | Ingress routing + TLS |
 
 ### `app`
 

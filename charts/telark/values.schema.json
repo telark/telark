@@ -17,13 +17,16 @@
     },
     "crds": {
       "type": "object",
+      "additionalProperties": false,
       "properties": { "enabled": { "type": "boolean" } }
     },
     "monitoring": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "serviceMonitor": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "enabled": { "type": "boolean" },
             "path": { "type": "string" },
@@ -31,6 +34,21 @@
             "labels": { "type": "object" }
           }
         }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "className": { "type": "string" },
+        "host": { "type": "string" },
+        "service": { "type": "string" },
+        "servicePort": { "type": "integer" },
+        "path": { "type": "string" },
+        "pathType": { "type": "string", "enum": ["Prefix", "Exact", "ImplementationSpecific"] },
+        "annotations": { "type": "object" },
+        "tls": { "type": "array" }
       }
     },
     "app": {
@@ -43,6 +61,7 @@
         "mode": { "type": "string", "enum": ["minimal", "standard", "performance"] },
         "image": {
           "type": "object",
+          "additionalProperties": false,
           "required": ["registry"],
           "properties": {
             "registry": { "type": "string", "minLength": 1 },
@@ -52,6 +71,7 @@
         },
         "persistence": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "enabled": { "type": "boolean" },
             "storageClass": { "type": "string" },
@@ -68,7 +88,8 @@
             "terminationGracePeriodSec": { "type": "integer" },
             "nodeSelector": { "type": "object" },
             "tolerations": { "type": "array" },
-            "affinity": { "type": "object" }
+            "affinity": { "type": "object" },
+            "autoscaling": { "$ref": "#/definitions/autoscaling" }
           }
         }
       }
@@ -94,20 +115,17 @@
           "env": { "type": "object" },
           "pdb": {
             "type": "object",
-            "properties": { "enabled": { "type": "boolean" } }
-          },
-          "autoscaling": {
-            "type": "object",
+            "additionalProperties": false,
             "properties": {
               "enabled": { "type": "boolean" },
-              "minReplicas": { "type": "integer", "minimum": 1 },
-              "maxReplicas": { "type": "integer", "minimum": 1 },
-              "targetCPUUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 },
-              "targetMemoryUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 }
+              "minAvailable": { "type": ["integer", "string"] },
+              "maxUnavailable": { "type": ["integer", "string"] }
             }
           },
+          "autoscaling": { "$ref": "#/definitions/autoscaling" },
           "serviceAccount": {
             "type": "object",
+            "additionalProperties": false,
             "properties": {
               "create": { "type": "boolean" },
               "name": { "type": "string" },
@@ -115,6 +133,19 @@
             }
           }
         }
+      }
+    }
+  },
+  "definitions": {
+    "autoscaling": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minReplicas": { "type": "integer", "minimum": 1 },
+        "maxReplicas": { "type": "integer", "minimum": 1 },
+        "targetCPUUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "targetMemoryUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 }
       }
     }
   }

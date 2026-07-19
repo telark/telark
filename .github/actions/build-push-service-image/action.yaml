@@ -61,6 +61,9 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3   # cross-arch emulation for linux/arm64
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v4.0.0
       with:
@@ -102,6 +105,8 @@ runs:
 
         build_cmd="$build_cmd \
           --platform=${{ inputs.platforms }} \
+          --sbom=true \
+          --provenance=mode=max \
           --build-arg ORG=\"telark\" \
           --build-arg URL=\"github.com\" \
           --progress=plain \

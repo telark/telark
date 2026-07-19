@@ -40,6 +40,19 @@ monitoring:
     interval: 30s
     labels: {}
 
+# Ingress for the dashboard. Off by default — without it, reach the UI with
+# `kubectl port-forward`. Routes to the `service` below (enable services.ui.enabled
+# too). Set className + host for your ingress controller; add tls for HTTPS.
+ingress:
+  enabled: false
+  className: ""            # e.g. nginx
+  host: ""                 # e.g. telark.example.com ("" = match any host)
+  service: ui              # services.<key> to route to (the dashboard)
+  path: /
+  pathType: Prefix
+  annotations: {}
+  tls: []                  # [{ secretName: telark-tls, hosts: [telark.example.com] }]
+
 app:
   # Identity — app.name is the source of truth for every resource name.
   name: "telark"

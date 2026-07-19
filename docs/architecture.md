@@ -2,6 +2,67 @@
 
 telark is a control plane for **protection plans** over Kubernetes workloads: discover applications, bind policy templates to a scope and a window, decide what may change them at admission, and verify the running state against the cluster.
 
+## System
+
+```mermaid
+flowchart LR
+  UI[ui / operator]
+
+  subgraph services["Services"]
+    AUTH[auth]
+    DISC[discovery]
+    EXP[exporter]
+    ENR[enrichment]
+    NTF[notifier]
+  end
+
+  subgraph infra["Infrastructure"]
+    REDIS[("Redis")]
+    NATS[("NATS JetStream")]
+    KYV[kyverno admission]
+  end
+
+  subgraph cluster["Cluster"]
+    K8S[("Kubernetes API<br/>Telark CRDs")]
+    PVC[("Snapshots PVC")]
+  end
+
+  LLM[["LLM provider"]]
+
+  UI -->|login| AUTH
+  UI -->|REST API| DISC
+  UI -->|insights: windowed read| REDIS
+
+  AUTH -->|CRDs| EXP
+  AUTH --> REDIS
+
+  DISC -->|watch / list| K8S
+  DISC -->|read + store| EXP
+  DISC -->|publish app events| NATS --> NTF -->|persist CR| EXP
+  DISC -->|dispatch signals| ENR
+  DISC <-->|coordination| REDIS
+  DISC -->|protection plans| KYV
+  KYV -->|admit / reject writes| K8S
+
+  ENR -->|queue · cache| REDIS
+  ENR -->|GlobalConfig| EXP
+  ENR --> LLM
+
+  EXP -->|read/write CRDs| K8S
+  EXP -->|snapshots| PVC
+
+  classDef svc fill:#4f46e5,stroke:#3730a3,color:#fff;
+  classDef infra fill:#0f766e,stroke:#134e4a,color:#fff;
+  classDef store fill:#b45309,stroke:#92400e,color:#fff;
+  classDef peer fill:#475569,stroke:#334155,color:#fff;
+  class AUTH,DISC,EXP,ENR,NTF svc;
+  class NATS,KYV infra;
+  class REDIS,K8S,PVC store;
+  class UI,LLM peer;
+```
+
+Each service's own README carries a focused diagram of its internals: [auth](../services/auth/README.md) · [discovery](../services/discovery/README.md) · [exporter](../services/exporter/README.md) · [enrichment](../services/enrichment/README.md) · [notifier](../services/notifier/README.md).
+
 ## Services
 
 | Service | Language | Responsibility |

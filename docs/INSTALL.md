@@ -93,6 +93,51 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
   --set app.auth.bootstrap.admins[0]=you@corp.com
 ```
 
+## Autoscaling (HPA)
+
+The stateless services — auth, discovery, enrichment, notifier, ui — can run behind a HorizontalPodAutoscaler (`autoscaling/v2`, CPU-based). The exporter never autoscales (it holds a ReadWriteOnce volume). HPAs need metrics-server, which ships with the chart.
+
+**`performance` mode turns autoscaling on automatically** (min 3, max 5). In any mode you can enable or tune it per service:
+
+```sh
+helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
+  --set services.discovery.autoscaling.enabled=true \
+  --set services.discovery.autoscaling.minReplicas=2 \
+  --set services.discovery.autoscaling.maxReplicas=8 \
+  --set services.discovery.autoscaling.targetCPUUtilizationPercentage=70
+```
+
+| Key | Default | Description |
+|---|---|---|
+| `services.<svc>.autoscaling.enabled` | `false` | Turn the HPA on for that service (on in `performance`) |
+| `services.<svc>.autoscaling.minReplicas` | `1` | Replica floor |
+| `services.<svc>.autoscaling.maxReplicas` | `3` | Replica ceiling |
+| `services.<svc>.autoscaling.targetCPUUtilizationPercentage` | `80` | Scale-up CPU target |
+| `services.<svc>.autoscaling.targetMemoryUtilizationPercentage` | _(unset)_ | Optional memory target |
+
+Set the same keys under `app.serviceDefaults.autoscaling` to change the default for **every** service at once. When a service autoscales, Helm stops managing its replica count (`spec.replicas` is omitted) so the HPA and Helm don't fight.
+
+## Monitoring (Prometheus)
+
+telark can emit a **ServiceMonitor** (Prometheus Operator) that scrapes every service's `/metrics`. It is **off by default** — it needs the Prometheus Operator CRDs already in the cluster (e.g. from kube-prometheus-stack).
+
+```sh
+helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
+  --set monitoring.serviceMonitor.enabled=true \
+  --set monitoring.serviceMonitor.labels.release=kube-prometheus-stack
+```
+
+**The label is the part people miss:** Prometheus only picks up a ServiceMonitor whose labels match its `serviceMonitorSelector`. For kube-prometheus-stack that selector is `release: <your-release>`, so set `monitoring.serviceMonitor.labels.release` to your Prometheus release name. Omit it and Prometheus silently ignores the monitor.
+
+| Key | Default | Description |
+|---|---|---|
+| `monitoring.serviceMonitor.enabled` | `false` | Create the ServiceMonitor |
+| `monitoring.serviceMonitor.labels` | `{}` | Labels matching Prometheus's `serviceMonitorSelector` (usually `release: <name>`) |
+| `monitoring.serviceMonitor.path` | `/metrics` | Scrape path |
+| `monitoring.serviceMonitor.interval` | `30s` | Scrape interval |
+
+The monitor selects every telark service (`app.kubernetes.io/part-of: telark`) on the `http` port — the services must expose `/metrics` there for scraping to return data.
+
 ## Upgrade
 
 ```sh

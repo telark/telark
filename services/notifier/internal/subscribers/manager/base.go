@@ -29,14 +29,20 @@ type ctxSubscriber interface {
 }
 
 func NewManager() *Manager {
+	return NewManagerWith(natscore.NewNatsManager(), []natscore.ResourceSubscriber{
+		applications.NewApplicationSubscriber(),
+	})
+}
+
+// NewManagerWith builds a manager with an injected NATS manager and subscriber
+// set — the seam tests use to drive Start against an embedded server.
+func NewManagerWith(nm natscore.NatsManagerInterface, subs []natscore.ResourceSubscriber) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Manager{
-		natsManager: natscore.NewNatsManager(),
-		subscribers: []natscore.ResourceSubscriber{
-			applications.NewApplicationSubscriber(),
-		},
-		ctx:    ctx,
-		cancel: cancel,
+		natsManager: nm,
+		subscribers: subs,
+		ctx:         ctx,
+		cancel:      cancel,
 	}
 }
 

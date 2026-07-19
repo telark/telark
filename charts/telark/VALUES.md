@@ -1,6 +1,6 @@
 # telark
 
-![Version: 2.2.8](https://img.shields.io/badge/Version-2.2.8-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.0](https://img.shields.io/badge/AppVersion-2.0-informational?style=flat-square)
+![Version: 0.0.0](https://img.shields.io/badge/Version-0.0.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.0](https://img.shields.io/badge/AppVersion-2.0-informational?style=flat-square)
 
 A protection gate for your Kubernetes workloads — discover your applications, then decide what can change them, and when
 
@@ -107,6 +107,9 @@ Kubernetes: `>=1.33.0-0`
 | metrics-server.resources.requests.memory | string | `"200Mi"` |  |
 | nameOverride | string | `""` |  |
 | nats.enabled | bool | `true` |  |
+| nats.extraEnvVars[0].name | string | `"NATS_PASSWORD"` |  |
+| nats.extraEnvVars[0].valueFrom.secretKeyRef.key | string | `"password"` |  |
+| nats.extraEnvVars[0].valueFrom.secretKeyRef.name | string | `"telark-nats-secret"` |  |
 | nats.image.pullPolicy | string | `"IfNotPresent"` |  |
 | nats.image.registry | string | `"docker.io"` |  |
 | nats.image.repository | string | `"nats"` |  |

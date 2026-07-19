@@ -15,7 +15,6 @@ func IsWithinBase(targetPath string, basePath string) bool {
 		targetPath[:len(basePath)+baseSeparatorShift] == basePath+string(os.PathSeparator)
 }
 
-//nolint:revive
 func BuildSnapshotDir(
 	snapshotsPath string,
 	scope string,
@@ -29,7 +28,6 @@ func BuildSnapshotDir(
 	return filepath.Join(snapshotsPath, scope, id)
 }
 
-//nolint:revive
 func BuildSnapshotPath(
 	snapshotsPath string,
 	scope string,

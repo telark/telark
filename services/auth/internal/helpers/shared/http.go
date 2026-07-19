@@ -6,8 +6,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/gorilla/mux"
 	"github.com/telark/auth/internal/constants"
+	requestutils "github.com/telark/rest/utils/request"
 )
 
 var lg = constants.GetLogger(constants.LoggerPrefixHelper)
@@ -66,12 +66,7 @@ func DecodeRequestBody(r *http.Request, v any) error {
 }
 
 func GetPathParam(r *http.Request, param string) (string, error) {
-	vars := mux.Vars(r)
-	value, ok := vars[param]
-	if !ok || value == constants.EmptyString {
-		return constants.EmptyString, fmt.Errorf(string(constants.ErrMissingPathParameter), param)
-	}
-	return value, nil
+	return requestutils.ReadPathParam(r, param)
 }
 
 func HandleError(w http.ResponseWriter, err error, statusCode int, logMessage string) {

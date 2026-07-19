@@ -58,7 +58,7 @@ func (m *Manager) reconcileNamespaceWatchers(ctx context.Context, dyn dynamicifa
 		if _, exists := m.nsCancels[ns]; exists {
 			continue
 		}
-		//nolint:gosec // G118: cancel is stored in nsCancels and called when the namespace is excluded or run stops.
+
 		nctx, cancel := context.WithCancel(ctx)
 		m.nsCancels[ns] = cancel
 		go m.runNamespaceInformerLoop(nctx, dyn, resync, ns)

@@ -164,8 +164,11 @@ func HandleBackupFlagError(
 		return nil, fmt.Errorf(string(constants.ErrFailedMarshalCredentialBody), err)
 	}
 
+	// This request is synthetic: it is only handed to ParseCredentialRequestResponse,
+	// which reads the body and headers, and is never sent. A fixed path keeps the
+	// caller-controlled URL out of it (gosec G704 / SSRF).
 	credentialOnlyRequest,
-		err := http.NewRequest(r.Method, r.URL.String(), bytes.NewBuffer(credentialOnlyBytes)) //nolint:gosec
+		err := http.NewRequest(r.Method, "/", bytes.NewBuffer(credentialOnlyBytes))
 	if err != nil {
 		return nil, fmt.Errorf(string(constants.ErrFailedCreateCredentialRequest), err)
 	}

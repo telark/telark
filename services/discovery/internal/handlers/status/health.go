@@ -2,14 +2,12 @@ package status
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/telark/discovery/internal/constants"
 	redishelper "github.com/telark/discovery/internal/helpers/redis"
-	sharehelper "github.com/telark/discovery/internal/helpers/shared"
 	kcoreconst "github.com/telark/kcore/constants"
 	"github.com/telark/kcore/health"
-	"github.com/telark/rest/response"
+	statushandler "github.com/telark/rest/handlers/status"
 )
 
 const (
@@ -20,30 +18,14 @@ const (
 	HeartbeatZero      = 0
 )
 
-func ProbeHandler(w http.ResponseWriter, r *http.Request) {
-	if strings.HasSuffix(r.URL.Path, constants.StatusReadinessEp) && !readinessOK(r) {
-		response.SendSingleResponse(
-			w,
-			response.NewGenericResponse(
-				http.StatusServiceUnavailable,
-				response.OperationUnprocessed,
-				nil,
-				sharehelper.ConcatWithColon("service is", "not ready"),
-			),
-		)
-		return
-	}
-
-	response.SendSingleResponse(
-		w,
-		response.NewGenericResponse(
-			http.StatusOK,
-			response.OperationSuccess,
-			nil,
-			sharehelper.ConcatWithColon("service is", "healthy"),
-		),
-	)
-}
+var ProbeHandler = statushandler.NewProbeHandler(
+	constants.StatusReadinessEp,
+	readinessOK,
+	statushandler.Messages{
+		Ready:    constants.InfServiceHealthy,
+		NotReady: constants.InfServiceNotReady,
+	},
+)
 
 func readinessOK(r *http.Request) bool {
 	if !redishelper.IsBootstrapReady() {

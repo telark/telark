@@ -1,0 +1,135 @@
+# Build: bump a service's version, build + push its container image, then dispatch
+# a cluster deploy (or restart the deployment for a re-build).
+name: Build · Service Image
+run-name: Build service "${{ inputs.service }}" image (bump "${{ inputs.build_type }}")
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        required: true
+        type: choice
+        description: Service
+        default: discovery
+        options:
+          - discovery
+          - exporter
+          - notifier
+          - auth
+          - enrichment
+      image_scan:
+        required: false
+        type: choice
+        description: Image Scanning
+        options:
+          - skip
+          - scan
+      branch:
+        required: true
+        type: string
+        description: Service Branch
+        default: "main"
+      build_type:
+        required: false
+        type: choice
+        description: Service Build Type
+        options:
+          - patch
+          - minor
+          - major
+          - re-build-current
+      helm_build_type:
+        required: false
+        type: choice
+        description: Helm Release Build Type
+        default: skip
+        options:
+          - patch
+          - minor
+          - major
+          - skip
+      install_mode:
+        required: false
+        type: choice
+        description: "Install Mode (sizing for every chart: replicas, resources, rate limits, volumes)"
+        options:
+          - minimal
+          - standard
+          - performance
+        default: minimal
+
+env:
+  NAMESPACE: "telark"
+  DOCKER_BUILDKIT: 1
+  CHART_VALUES: charts/telark/values.yaml
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.service_data.outputs.new_version }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.event.inputs.branch }}
+
+      - name: Go CI (build + lint gate)
+        if: ${{ inputs.service != 'enrichment' }}
+        uses: ./.github/actions/go-ci
+        with:
+          working-directory: services/${{ inputs.service }}
+          cache-key: ${{ inputs.service }}
+          access-user: ${{ secrets.ACCESS_USER }}
+          access-token: ${{ secrets.ACCESS_TOKEN }}
+          test: 'false'
+
+      - name: Bump Service Version
+        id: service_data
+        uses: ./.github/actions/bump-service-version
+        with:
+          service: ${{ inputs.service }}
+          build_type: ${{ inputs.build_type }}
+          values_file_path: '${{ env.CHART_VALUES }}'
+
+      - name: Read image config from helm values
+        id: image
+        shell: bash
+        run: |
+          echo "registry=$(yq e '.app.image.registry' "$CHART_VALUES")" >> $GITHUB_OUTPUT
+          echo "repository=$(yq e '.services.${{ inputs.service }}.repository' "$CHART_VALUES")" >> $GITHUB_OUTPUT
+
+      - name: Docker Login
+        uses: docker/login-action@v4.0.0
+        with:
+          registry: "docker.io"
+          username: ${{ secrets.CONTAINER_REGISTRY_USERNAME }}
+          password: ${{ secrets.CONTAINER_REGISTRY_PASSWORD }}
+
+      - name: Build and Push Service Image
+        uses: ./.github/actions/build-push-service-image
+        with:
+          service_name: ${{ inputs.service }}
+          service_path: './services/${{ inputs.service }}/'
+          image_tag: ${{ steps.service_data.outputs.new_version }}
+          container_registry_name: ${{ steps.image.outputs.registry }}
+          container_registry_repo_name: ${{ steps.image.outputs.repository }}
+          dockerfile_path: './services/${{ inputs.service }}/Dockerfile'
+          platforms: 'linux/amd64'
+          cache_enabled: 'true'
+          push_enabled: 'true'
+          access_user: ${{ secrets.ACCESS_USER }}
+          access_token: ${{ secrets.ACCESS_TOKEN }}
+
+      - name: Pull Latest Changes
+        run: |
+          git stash push -m "Temporary stash before pull" || true
+          git pull origin main
+          git stash pop || true
+
+      - name: Commit Service Version
+        uses: EndBug/add-and-commit@v10.0.0
+        with:
+          author_name: GitHub Action
+          author_email: action@github.com
+          cwd: './'
+          message: "bump ${{ inputs.service }} to ${{ steps.service_data.outputs.new_version }}"

@@ -36,6 +36,13 @@ const (
 	WarnClusterVersionPatchFailedStatus messages.Message = "[startup] failed to patch GlobalConfig cluster.version, " +
 		"response=%v"
 	WarnClusterVersionPatchExhausted messages.Message = "[startup] cluster.version patch exhausted all %d attempts: %v"
+
+	// Insights tick
+	InfoInsightsDispatched      messages.Message = "[insights] dispatched %d apps to enrichment"
+	WarnInsightsGlobalConfigRead messages.Message = "[insights] skipped tick, GlobalConfig read failed: %v"
+	WarnInsightsListApplications messages.Message = "[insights] skipped tick, listing applications failed: %v"
+	WarnInsightsDispatch         messages.Message = "[insights] dispatch to enrichment failed: %v"
+	InfoInsightsRead             messages.Message = "insights read"
 	WarnGlobalConfigUnavailable      messages.Message = "[startup] GlobalConfig not reachable yet, retrying in %ds: %v"
 	InfoGlobalConfigAvailable        messages.Message = "[startup] GlobalConfig is reachable."
 	WarnExcludedNamespacesRefresh    messages.Message = "[globalconfig] failed to refresh ExcludedNamespaces cache: %v"

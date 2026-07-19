@@ -1,0 +1,43 @@
+# Dependabot. Note: the github.com/telark/* shared modules are private — for
+# dependabot to resolve them, configure a git registry (Settings → Dependabot
+# secrets) or Dependabot will skip private updates. Public deps update fine.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directories:
+      - /services/auth
+      - /services/discovery
+      - /services/exporter
+      - /services/notifier
+    schedule:
+      interval: weekly
+    groups:
+      go-dependencies:
+        patterns: ["*"]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: pip
+    directory: /services/enrichment
+    schedule:
+      interval: weekly
+    groups:
+      python-dependencies:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directories:
+      - /services/auth
+      - /services/discovery
+      - /services/exporter
+      - /services/notifier
+      - /services/enrichment
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

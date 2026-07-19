@@ -1,0 +1,91 @@
+# Release: on a version tag, package the telark + telark-crds charts and publish
+# them to the OCI chart registry. This is where the OFFICIAL chart version is set
+# (from the tag) — separate from the local "Deploy · Charts to Cluster" flow.
+#
+# SCAFFOLD — confirm before first use:
+#   * REGISTRY target (defaults to GHCR under this repo's owner).
+#   * Whether telark-crds is versioned with the app (currently published at its
+#     own Chart.yaml version, since CRDs change independently of the app).
+#   * Pushed charts are cosign-signed keyless via GitHub OIDC (id-token: write);
+#     verify with `cosign verify ghcr.io/telark/charts/<chart>@<digest> ...`.
+name: Release · Publish Charts
+run-name: Publish charts ${{ github.event.inputs.version || github.ref_name }}
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Chart version to publish (semver, no leading v)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write   # keyless cosign signing via GitHub OIDC
+
+concurrency:
+  group: release-charts
+  cancel-in-progress: false
+
+env:
+  CHART_DIR: charts/telark
+  CRDS_DIR: charts/telark-crds
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Resolve version + registry
+        id: meta
+        run: |
+          set -euo pipefail
+          # From the tag (strip leading v) or the manual input.
+          version="${{ github.event.inputs.version || github.ref_name }}"
+          version="${version#v}"
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "version=$version"                      >> "$GITHUB_OUTPUT"
+          echo "registry=oci://ghcr.io/${owner}/charts" >> "$GITHUB_OUTPUT"
+
+      - name: Set app chart version
+        run: |
+          set -euo pipefail
+          yq -i '.version = "${{ steps.meta.outputs.version }}"' "$CHART_DIR/Chart.yaml"
+
+      - name: Build dependencies + package
+        run: |
+          set -euo pipefail
+          helm repo add bitnami        https://charts.bitnami.com/bitnami
+          helm repo add kyverno        https://kyverno.github.io/kyverno/
+          helm repo add otwld          https://helm.otwld.com/
+          helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+          helm dependency build "$CHART_DIR"
+          mkdir -p .cr-release
+          helm package "$CRDS_DIR"  --destination .cr-release
+          helm package "$CHART_DIR" --destination .cr-release
+
+      - name: Publish + sign
+        env:
+          COSIGN_YES: "true"
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+          repo="${{ steps.meta.outputs.registry }}"; repo="${repo#oci://}"   # ghcr.io/<owner>/charts
+          for pkg in .cr-release/*.tgz; do
+            out=$(helm push "$pkg" "${{ steps.meta.outputs.registry }}" 2>&1); echo "$out"
+            name=$(helm show chart "$pkg" | awk '/^name:/{print $2}')
+            digest=$(echo "$out" | awk '/[Dd]igest:/{print $NF}')
+            echo "signing ${repo}/${name}@${digest}"
+            cosign sign "${repo}/${name}@${digest}"   # keyless via GitHub OIDC
+          done

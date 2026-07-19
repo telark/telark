@@ -12,13 +12,12 @@ inputs:
     description: 'Tag for the Docker image'
     required: true
   container_registry_name:
-    description: 'Container registry name'
-    required: true
-    default: 'botriack'
-  container_registry_repo_name:
-    description: 'Container registry repository name'
+    description: 'Container registry namespace (Docker Hub account/org)'
     required: true
     default: 'telark'
+  container_registry_repo_name:
+    description: 'Per-service image repository name (e.g. exporter)'
+    required: true
   dockerfile_path:
     description: 'Path to the Dockerfile'
     required: false
@@ -69,6 +68,11 @@ runs:
           image=moby/buildkit:buildx-stable-1
           network=host
 
+    # Exposes ACTIONS_RUNTIME_TOKEN / cache URLs so a manual `docker buildx build`
+    # can use the GitHub Actions cache backend (type=gha).
+    - name: Expose GitHub Actions runtime
+      uses: crazy-max/ghaction-github-runtime@v3
+
     - name: Build and Push Service Image
       id: build_image
       shell: bash
@@ -86,14 +90,14 @@ runs:
         echo "📦 Image tag: ${{ inputs.image_tag }}"
         echo "🏗️  Platforms: ${{ inputs.platforms }}"
 
-        CACHE_REF="${{ inputs.container_registry_name }}/${{ inputs.container_registry_repo_name }}:cache-${{ inputs.service_name }}"
-
         build_cmd="docker buildx build"
 
+        # GitHub Actions cache, scoped per service so images stay out of the
+        # public registry (no cache-* tags on Docker Hub).
         if [[ "${{ inputs.cache_enabled }}" == "true" ]]; then
           build_cmd="$build_cmd \
-            --cache-from=type=registry,ref=${CACHE_REF} \
-            --cache-to=type=registry,ref=${CACHE_REF},mode=max,compression=zstd"
+            --cache-from=type=gha,scope=${{ inputs.service_name }} \
+            --cache-to=type=gha,scope=${{ inputs.service_name }},mode=max"
         fi
 
         build_cmd="$build_cmd \

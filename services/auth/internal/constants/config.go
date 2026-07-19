@@ -50,9 +50,6 @@ const (
 	MaxUserHandleLength           = 64
 	RandomBytesLength             = 8
 	UserHandleFormat              = "%s:%s"
-	EnvGoogleClientID             = "GOOGLE_CLIENT_ID"
-	EnvGoogleOIDCJWKJSON          = "GOOGLE_OIDC_JWK_JSON"
-	EnvEgressAllowed              = "EGRESS_ALLOWED"
 	OIDCJWKSRefreshInterval       = 6 * time.Hour
 	OIDCJWKSMinRefreshInterval    = 5 * time.Minute
 	OIDCJWKSFetchTimeout          = 10 * time.Second

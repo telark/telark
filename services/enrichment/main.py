@@ -17,7 +17,6 @@ from config import (
     CACHE_PREFIX,
     CACHE_TTL,
     DLQ_KEY,
-    ENRICHMENT_PROVIDER,
     LOG_LEVEL,
     METRICS_INTERVAL_S,
     NUM_WORKERS,
@@ -28,9 +27,16 @@ from config import (
     REDIS_URL,
     WORKER_SHUTDOWN_TIMEOUT_S,
 )
+from provider_config import get_ai_config
+
+OLLAMA = "ollama"
 from constants import (
     BLPOP_TIMEOUT_S,
     CONNECTION_ERROR_SLEEP_S,
+    CONNECTIVITY_INTERVAL_S,
+    CONNECTIVITY_KEY,
+    CONNECTIVITY_TTL_S,
+    CONNECTIVITY_VALUE_READY,
     INFLIGHT_TTL_S,
     LOG_BAD_JOB,
     LOG_CACHE_EXISTS_SKIP,
@@ -109,8 +115,12 @@ class WorkerMetrics:
 
 
 def get_num_workers() -> int:
-    """Ollama is single-threaded; cloud providers allow concurrency."""
-    if ENRICHMENT_PROVIDER == "ollama":
+    """Ollama is single-threaded; cloud providers allow concurrency.
+
+    Resolved from GlobalConfig at startup. Switching provider family later takes a
+    restart to change the worker count, though not to change which key is used.
+    """
+    if get_ai_config().provider == OLLAMA:
         return 1
     return NUM_WORKERS
 
@@ -264,9 +274,13 @@ def _process_one_job(
 
 
 def worker_loop(worker_id: int, pool: redis.ConnectionPool) -> None:
-    """Each worker runs its own BLPOP loop with a dedicated provider and Redis connection."""
+    """Each worker runs its own BLPOP loop with a dedicated Redis connection.
+
+    The provider is resolved per job, not once at start: it is read from
+    GlobalConfig (cached), so an admin changing provider or key takes effect
+    without restarting the workers.
+    """
     r = redis.Redis(connection_pool=pool)
-    provider = get_provider()
     with _metrics_lock:
         _metrics[worker_id] = WorkerMetrics(worker_id=worker_id)
     logger.info(LOG_WORKER_STARTED, worker_id)
@@ -291,6 +305,15 @@ def worker_loop(worker_id: int, pool: redis.ConnectionPool) -> None:
             with _metrics_lock:
                 _metrics[worker_id].record_failed()
             _push_to_dlq(r, raw, "?", "?", worker_id)
+            continue
+
+        # AI off, or a cloud provider with no key: nothing this worker can do with
+        # the job. Drop it rather than requeue — discovery re-dispatches once AI is
+        # configured, so a dropped job is retried, not lost.
+        provider = get_provider()
+        if provider is None:
+            with _metrics_lock:
+                _metrics[worker_id].record_skipped()
             continue
 
         ckey = cache_key(CACHE_PREFIX, signals.namespace, signals.name)
@@ -353,6 +376,21 @@ def _metrics_reporter() -> None:
                 )
 
 
+def _connectivity_heartbeat(pool: redis.ConnectionPool) -> None:
+    """Publish the readiness key the Go rest clients look for before calling us.
+
+    Short TTL, refreshed faster than it expires, so the key disappears on its own
+    if this process dies — callers then see us as unreachable rather than stale.
+    """
+    r = redis.Redis(connection_pool=pool)
+    while not _shutdown:
+        try:
+            r.set(CONNECTIVITY_KEY, CONNECTIVITY_VALUE_READY, ex=CONNECTIVITY_TTL_S)
+        except redis.RedisError as e:
+            logger.warning("connectivity heartbeat failed: {}", e)
+        time.sleep(CONNECTIVITY_INTERVAL_S)
+
+
 def _handle_signal(_signum, _frame) -> None:
     global _shutdown
     _shutdown = True
@@ -366,10 +404,11 @@ def run() -> None:
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT, _handle_signal)
 
-    if ENRICHMENT_PROVIDER == "ollama":
+    startup_provider = get_ai_config().provider
+    if startup_provider == OLLAMA:
         logger.info(LOG_OLLAMA_HOST_MODEL, OLLAMA_HOST, OLLAMA_MODEL)
     else:
-        logger.info(LOG_PROVIDER, ENRICHMENT_PROVIDER)
+        logger.info(LOG_PROVIDER, startup_provider or "unset")
     logger.info(LOG_PROMPT_VERSION, PROMPT_VERSION)
 
     connect_redis(REDIS_URL)
@@ -379,7 +418,7 @@ def run() -> None:
         decode_responses=True,
     )
 
-    if ENRICHMENT_PROVIDER == "ollama":
+    if startup_provider == OLLAMA:
         wait_for_ollama(OLLAMA_HOST)
 
     api_thread = threading.Thread(target=run_api_in_thread, daemon=True)
@@ -391,6 +430,9 @@ def run() -> None:
 
     metrics_thread = threading.Thread(target=_metrics_reporter, daemon=True)
     metrics_thread.start()
+
+    heartbeat_thread = threading.Thread(target=_connectivity_heartbeat, args=(pool,), daemon=True)
+    heartbeat_thread.start()
 
     with ThreadPoolExecutor(max_workers=num_workers) as executor:
         futures = [executor.submit(worker_loop, i, pool) for i in range(num_workers)]

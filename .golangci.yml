@@ -1,0 +1,77 @@
+# Shared golangci-lint config for every Go service. golangci-lint walks up from
+# services/<svc> and finds this at the repo root, so services carry no local config.
+# Thresholds are the loosest of the former per-service configs, unified here.
+version: "2"
+linters:
+  enable:
+    - errcheck
+    - gocritic
+    - gosec
+    - gocyclo
+    - misspell
+    - unparam
+    - nakedret
+    - perfsprint
+    - prealloc
+    - nolintlint
+    - funlen
+    - dupl
+    - bodyclose
+    - containedctx
+    - goprintffuncname
+    - whitespace
+    - unconvert
+    - revive
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+  settings:
+    gocyclo:
+      min-complexity: 12
+    misspell:
+      locale: US
+    funlen:
+      lines: 60
+    gosec:
+      excludes:
+        - G101
+        - G118
+    revive:
+      enable-all-rules: true
+      rules:
+        - name: exported
+          disabled: true
+        - name: package-comments
+          disabled: true
+        - name: package-naming
+          disabled: true
+        - name: cognitive-complexity
+          disabled: true
+        - name: cyclomatic
+          disabled: true
+        - name: flag-parameter
+          disabled: true
+        - name: line-length-limit
+          arguments:
+            - 150
+        - name: max-public-structs
+          arguments:
+            - 10
+        - name: function-result-limit
+          arguments:
+            - 8
+        - name: argument-limit
+          arguments:
+            - 9
+        - name: var-naming
+          arguments:
+            - ["ID"] # AllowList
+            - [] # DenyList
+            - - skip-package-name-checks: true
+run:
+  go: "1.26"
+  timeout: 3m
+  tests: false
+issues:
+  max-issues-per-linter: 0

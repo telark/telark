@@ -11,7 +11,7 @@ type (
 	}
 	LoginStartResponse struct {
 		Options *protocol.CredentialAssertion `json:"options"`
-		UserID  string                         `json:"userId,omitempty"`
+		UserID  string                        `json:"userId,omitempty"`
 	}
 	LoginFinishRequest struct {
 		/*

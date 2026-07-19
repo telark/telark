@@ -324,6 +324,15 @@ nats:
   service:
     type: ClusterIP
   # configuration: loaded via --set-file nats.configuration=config/nats.conf
+  # The server env-expands $NATS_PASSWORD (in config/nats.conf) from the generated
+  # <app.name>-nats-secret. This name tracks app.name — override it here too if you
+  # change app.name.
+  extraEnvVars:
+    - name: NATS_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: telark-nats-secret
+          key: password
   persistence:
     enabled: true
     path: /data

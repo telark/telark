@@ -5,7 +5,7 @@
 # target one. Already-published versions are skipped, so the job is idempotent and
 # only ships a chart whose Chart.yaml version is new. Bump versions in Chart.yaml.
 name: Release · Publish Charts
-run-name: Publish charts (${{ github.event.inputs.chart || 'both' }})
+run-name: Publish charts (${{ github.event.inputs.chart || 'both' }} · bump ${{ github.event.inputs.bump || 'current' }})
 
 on:
   push:
@@ -20,6 +20,15 @@ on:
           - both
           - telark
           - telark-crds
+      bump:
+        description: "Semver bump applied to the chart version (base = Chart.yaml)"
+        type: choice
+        default: current
+        options:
+          - current   # publish the version already in Chart.yaml
+          - patch
+          - minor
+          - major
 
 permissions:
   contents: read
@@ -77,10 +86,19 @@ jobs:
           repo="${registry#oci://}"
           echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
           mkdir -p .cr-release
+          bump="${{ github.event.inputs.bump || 'current' }}"
           published=0
           for dir in ${{ steps.meta.outputs.dirs }}; do
             name=$(yq e '.name' "$dir/Chart.yaml")
             version=$(yq e '.version' "$dir/Chart.yaml")
+            # Base version comes from Chart.yaml; the selected bump increments it.
+            case "$bump" in
+              major) version=$(echo "$version" | awk -F. '{$1+=1;$2=0;$3=0;OFS=".";print $1,$2,$3}') ;;
+              minor) version=$(echo "$version" | awk -F. '{$2+=1;$3=0;OFS=".";print $1,$2,$3}') ;;
+              patch) version=$(echo "$version" | awk -F. '{$3+=1;OFS=".";print $1,$2,$3}') ;;
+            esac
+            # Write it back so `helm package` uses it (commit this bump to Chart.yaml).
+            [ "$bump" != "current" ] && yq -i ".version = \"$version\"" "$dir/Chart.yaml"
             if helm show chart "${registry}/${name}" --version "$version" >/dev/null 2>&1; then
               echo "skip ${name} ${version} — already published"
               continue

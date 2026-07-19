@@ -135,7 +135,7 @@ actually does based on the signals. Be precise and concrete.
 Infer purpose from the SIGNAL DICTIONARY above; name the concrete
 technologies and what the app does WITH them.
 
-For opaque private images (e.g. botriack/plsyro:auth-x.x.x):
+For opaque private images (e.g. org/private-app:auth-x.x.x):
   Rely on app name + env var keys + ports to describe purpose.
   The image tag prefix (auth, sync, con, not, exp, ao, enrich)
   often reveals the service role — use it.
@@ -166,7 +166,7 @@ Use the techStack column of the SIGNAL DICTIONARY. Also add the app's own
 runtime when the image name reveals it (nginx, node, python, go, java).
 
 NEVER use image registry paths as tech stack entries:
-  "botriack/plsyro", "bitnami/redis", "docker.io/nats" are INVALID
+  "acme/private-app", "bitnami/redis", "docker.io/nats" are INVALID
 Use clean names only: "Redis", "NATS", "Node.js", "PostgreSQL", "WebAuthn"
 
 ════════════════════════════════════════

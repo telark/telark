@@ -22,10 +22,10 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v7.0.0
 
       - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v5
+        uses: SonarSource/sonarqube-scan-action@v8
         if: ${{ github.event.client_payload.sonar_scan != 'skip' }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

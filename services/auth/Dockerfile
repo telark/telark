@@ -32,7 +32,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 RUN adduser -D -u 10001 auth-service && \
     rm -rf /root/.gitconfig
 
-FROM alpine:3.23.5
+FROM alpine:3.24.1
 WORKDIR /app
 RUN apk add --no-cache ca-certificates
 COPY --from=build /etc/passwd /etc/passwd

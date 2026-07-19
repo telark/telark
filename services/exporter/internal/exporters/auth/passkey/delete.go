@@ -15,7 +15,6 @@ import (
 	responseutils "github.com/telark/rest/utils/response"
 )
 
-//nolint:revive // forceLastDelete should be used to delete the last passkey
 func DeletePasskeyByCredentialID(w http.ResponseWriter, credentialID string, userID string, forceLastDelete bool) {
 	resource, err := passkeyutils.FindPasskeyByCredentialIDAndUserID(credentialID, userID)
 	if err != nil {

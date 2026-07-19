@@ -1,4 +1,9 @@
-"""All text and message constants used by enrichment providers."""
+"""Text and constant values shared by enrichment providers.
+
+Provider-specific log lines were collapsed into generic templates parameterised by
+the provider name — the first "{}" is always the provider (groq, gemini, ollama,
+anthropic).
+"""
 
 # -----------------------------------------------------------------------------
 # Fallback result (shared by all providers)
@@ -8,44 +13,21 @@ FALLBACK_ROLE = "backend-service"
 FALLBACK_CONFIDENCE = "low"
 
 # -----------------------------------------------------------------------------
-# Ollama
+# Messages
 # -----------------------------------------------------------------------------
-LOG_OLLAMA_SETUP_FAILED = "Ollama client setup failed: {}"
+MSG_API_KEY_NOT_SET = "{} API key is not set"
 MSG_OLLAMA_UNREACHABLE = "Ollama unreachable"
-LOG_OLLAMA_UNREACHABLE = "Ollama unreachable: {}"
-LOG_ENRICHMENT_COMPLETED = "Enrichment completed in {}ms (attempt {})"
-LOG_INVALID_JSON_RETRIES = "Invalid or missing JSON after {} retries: {}"
-LOG_FALLBACK_AFTER_MS = "Fallback result returned after {}ms"
-LOG_ATTEMPT_RETRY = "Attempt {} failed, retrying: {}"
 
 # -----------------------------------------------------------------------------
-# Anthropic
+# Generic provider log templates (first {} = provider name)
 # -----------------------------------------------------------------------------
-MSG_ANTHROPIC_API_KEY_NOT_SET = "ANTHROPIC_API_KEY is not set"
-LOG_ANTHROPIC_COMPLETED = "Anthropic enrichment completed in {}ms"
-LOG_ANTHROPIC_API_UNREACHABLE = "Anthropic API unreachable: {}"
-LOG_ANTHROPIC_API_KEY_INVALID = "Anthropic API key invalid: {}"
-LOG_ANTHROPIC_PARSE_FAILED = "Anthropic response parse failed: {}"
-LOG_ANTHROPIC_FAILED = "Anthropic enrichment failed: {}"
-
-# -----------------------------------------------------------------------------
-# Groq
-# -----------------------------------------------------------------------------
-MSG_GROQ_API_KEY_NOT_SET = "GROQ_API_KEY is not set"
-LOG_GROQ_SETUP_FAILED = "Groq client setup failed: {}"
-LOG_GROQ_COMPLETED = "Groq enrichment completed in {}ms (attempt {})"
-LOG_GROQ_API_KEY_INVALID = "Groq API key invalid: {}"
-LOG_GROQ_RATE_LIMIT = "Groq rate limit hit: {}"
-LOG_GROQ_RETRIES_FAILED = "Groq failed after {} retries: {}"
-LOG_GROQ_ATTEMPT_RETRY = "Groq attempt {} failed, retrying: {}"
-
-# -----------------------------------------------------------------------------
-# Gemini
-# -----------------------------------------------------------------------------
-MSG_GEMINI_API_KEY_NOT_SET = "GEMINI_API_KEY is not set"
-LOG_GEMINI_SETUP_FAILED = "Gemini client setup failed: {}"
-LOG_GEMINI_COMPLETED = "Gemini enrichment completed in {}ms (attempt {})"
-LOG_GEMINI_API_KEY_INVALID = "Gemini API key invalid: {}"
-LOG_GEMINI_RATE_LIMIT = "Gemini rate limit hit: {}"
-LOG_GEMINI_RETRIES_FAILED = "Gemini failed after {} retries: {}"
-LOG_GEMINI_ATTEMPT_RETRY = "Gemini attempt {} failed, retrying: {}"
+LOG_PROVIDER_CACHE_HIT = "{} cache hit for {}/{} (key={})"
+LOG_PROVIDER_SETUP_FAILED = "{} client setup failed: {}"
+LOG_PROVIDER_COMPLETED = "{} enrichment completed in {}ms (attempt {})"
+LOG_PROVIDER_API_KEY_INVALID = "{} API key invalid: {}"
+LOG_PROVIDER_RATE_LIMIT = "{} rate limit hit: {}"
+LOG_PROVIDER_RETRIES_FAILED = "{} failed after {} retries: {}"
+LOG_PROVIDER_ATTEMPT_RETRY = "{} attempt {} failed, retrying: {}"
+LOG_PROVIDER_UNREACHABLE = "{} API unreachable: {}"
+LOG_PROVIDER_PARSE_FAILED = "{} response parse failed: {}"
+LOG_PROVIDER_FAILED = "{} enrichment failed: {}"

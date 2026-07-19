@@ -1,0 +1,3 @@
+{{- if $.Values.services.discovery.enabled }}
+{{- include "clusterRoleBinding" (dict "service" "discovery" "values" .Values "root" $) }}
+{{- end }} 

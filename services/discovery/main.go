@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -15,13 +14,17 @@ import (
 	"time"
 
 	goredis "github.com/redis/go-redis/v9"
+	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/messages"
+	discoveryauthz "github.com/telark/discovery/internal/authz"
 	"github.com/telark/discovery/internal/clients"
 	"github.com/telark/discovery/internal/config"
 	"github.com/telark/discovery/internal/constants"
+	insightsctrl "github.com/telark/discovery/internal/controllers/insights"
 	protectionctrl "github.com/telark/discovery/internal/controllers/plans/protection"
 	"github.com/telark/discovery/internal/coordination"
 	"github.com/telark/discovery/internal/coordination/forcesync"
+	"github.com/telark/discovery/internal/coordination/leadergate"
 	"github.com/telark/discovery/internal/core/plans/protection"
 	"github.com/telark/discovery/internal/discovery/listing"
 	"github.com/telark/discovery/internal/discovery/prewarm"
@@ -40,13 +43,16 @@ import (
 	"github.com/telark/kcore/k8sclient"
 	"github.com/telark/rest/connectivity"
 	"github.com/telark/rest/router"
+	restserver "github.com/telark/rest/server"
+	xauthz "github.com/telark/x-ware/authz"
 	"github.com/telark/x-ware/cors"
 	xwareredis "github.com/telark/x-ware/redis/stream"
 )
 
 var (
-	server *http.Server
-	lg     = constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
+	server          *http.Server
+	lg              = constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
+	authzMiddleware func(http.Handler) http.Handler
 )
 
 var (
@@ -58,20 +64,26 @@ var (
 )
 
 func main() {
-	quitChannel = make(chan os.Signal, constants.DefaultQuitChannelSize)
-	signal.Notify(quitChannel, syscall.SIGINT, syscall.SIGTERM)
-
 	if msg := startup.ValidateRendererRegistry(); msg != constants.EmptyString {
 		lg.Error(msg)
 		os.Exit(constants.ExitCodeFatal)
 	}
+	// A misconfigured authz layer must never degrade into an open API, so this
+	// stops the process rather than serving without it.
+	mw, err := xauthz.NewFromEnv(discoveryauthz.NewResolver(), discoveryauthz.Requirements())
+	if err != nil {
+		lg.Error(fmt.Sprintf(string(dataerrors.ErrAuthzInitFailed), err))
+		os.Exit(constants.ExitCodeFatal)
+	}
+	authzMiddleware = mw
+
 	async.Init()
 	supervisorCtx, supervisorCancel := context.WithCancel(context.Background())
 	defer supervisorCancel()
 	go startSupervisor(supervisorCtx)
 	startMainService()
 
-	<-quitChannel
+	<-getQuitChannel()
 	lg.Info(string(constants.SuccessServiceShuttingDown))
 
 	resignLeaderOnShutdown()
@@ -98,10 +110,12 @@ func main() {
 }
 
 func startMainService() {
-	//nolint:gosec // G118: cancel is invoked via shutdownExistingServices on restart/shutdown.
 	serviceCtx, serviceCancel = context.WithCancel(context.Background())
 	redishelper.ResetBootstrapReady()
 	newRouter := router.NewRouter(routes.Routes)
+	// Registered on the router: mux middleware runs after route matching, which
+	// is what makes the matched path template available to find the rule.
+	newRouter.Use(authzMiddleware)
 	corsHandler := cors.NewCORS()
 	handler := corsHandler(newRouter)
 
@@ -122,24 +136,7 @@ func startMainService() {
 }
 
 func startServer(server *http.Server) {
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		lg.Error(fmt.Sprintf(string(constants.ErrServerFailedToStartDetail), err.Error()))
-		lg.Error(string(constants.ErrServerInitiatingShutdown))
-
-		quit := getQuitChannel()
-		if quit == nil {
-			lg.Error(string(constants.ErrQuitChannelNotAvailable))
-			return
-		}
-
-		select {
-		case quit <- syscall.SIGTERM:
-			lg.Info(string(constants.SuccessShutdownSignalSent))
-		default:
-			lg.Error(string(constants.ErrFailedSendShutdownSignal))
-			return
-		}
-	}
+	restserver.ListenAndSignal(server, getQuitChannel, lg)
 }
 
 func startServerWithRecovery(server *http.Server) {
@@ -210,7 +207,11 @@ func startProtectionPlanLeaderGated(ctx context.Context, rdb *goredis.Client) {
 	}
 	protectionhandler.InitService(svc)
 	ctrl := protectionctrl.NewController(svc, lg)
-	protectionctrl.StartLeaderGated(ctx, ctrl, leaderElectionForInformers)
+	leadergate.Start(ctx, ctrl, leaderElectionForInformers)
+}
+
+func startInsightsLeaderGated(ctx context.Context) {
+	leadergate.Start(ctx, insightsctrl.NewController(lg), leaderElectionForInformers)
 }
 
 func bootstrapContext() context.Context {
@@ -245,6 +246,7 @@ func runStandaloneBootstrap(ctx context.Context, rdb *goredis.Client, conn *conn
 	startDiscoveryWatchers(ctx, rdb, constants.EmptyString)
 	startRollbackLeaderGatedIfEnabled(ctx)
 	startProtectionPlanLeaderGated(ctx, rdb)
+	startInsightsLeaderGated(ctx)
 	startAutoCleanupIfEnabled(ctx, rdb)
 	conn.SetReady(constants.ServiceIDDiscovery, true)
 	redishelper.SetBootstrapReady()
@@ -265,6 +267,7 @@ func startCoordinationBootstrap(
 		startDiscoveryWatchers(ctx, rdb, replicaID)
 		startRollbackLeaderGatedIfEnabled(ctx)
 		startProtectionPlanLeaderGated(ctx, rdb)
+		startInsightsLeaderGated(ctx)
 		redishelper.SetBootstrapReady()
 		return
 	}
@@ -283,6 +286,7 @@ func startCoordinationBootstrap(
 	startForceSyncSubsystem(ctx, coord, rdb, replicaID)
 	startRollbackLeaderGatedIfEnabled(ctx)
 	startProtectionPlanLeaderGated(ctx, rdb)
+	startInsightsLeaderGated(ctx)
 	startAutoCleanupIfEnabled(ctx, rdb)
 	conn.SetReady(constants.ServiceIDDiscovery, true)
 	redishelper.SetBootstrapReady()
@@ -324,11 +328,7 @@ func leaderElectionForInformers(ctx context.Context) bool {
 	return err == nil && ok
 }
 
-var quitChannel chan os.Signal
-
-func getQuitChannel() chan os.Signal {
-	return quitChannel
-}
+var getQuitChannel = restserver.SignalQuit()
 
 func startSupervisor(ctx context.Context) {
 	ticker := time.NewTicker(state.HealthCheckInterval)

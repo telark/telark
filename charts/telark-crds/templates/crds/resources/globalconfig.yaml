@@ -1,0 +1,77 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: globalconfigs.erpi.{{ $.Values.app.name }}
+  labels:
+    {{- include "telark.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: crd
+  annotations:
+    "helm.sh/resource-policy": keep
+spec:
+  group: erpi.{{ $.Values.app.name }}
+  names:
+    kind: GlobalConfig
+    plural: globalconfigs
+    singular: globalconfig
+    shortNames:
+      - gcfg
+      - globalconfig
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                excludedNamespaces:
+                  type: array
+                  items:
+                    type: string
+                userSettings:
+                  type: object
+                  properties:
+                    theme:
+                      type: string
+                    density:
+                      type: string
+                    uiViewSize:
+                      type: string
+                    fetchIntervalSeconds:
+                      type: integer
+                ai:
+                  type: object
+                  properties:
+                    enabled:
+                      type: boolean
+                    provider:
+                      type: string
+                    apiKey:
+                      type: string
+                snapshots:
+                  type: object
+                  properties:
+                    maxPerApp:
+                      type: integer
+                cluster:
+                  type: object
+                  properties:
+                    version:
+                      type: string
+                oidc:
+                  type: object
+                  properties:
+                    enabled:
+                      type: boolean
+                    googleClientID:
+                      type: string
+                    egressAllowed:
+                      type: boolean
+                      description: whether the cluster may reach the provider to fetch signing keys. When false, googleJwkJson must be set.
+                    googleJwkJson:
+                      type: string
+                      description: pinned provider signing key set, used to verify identity tokens when egress is not allowed. Identity tokens are trusted against these keys, so treat writes to this field as an authentication change.

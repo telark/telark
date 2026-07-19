@@ -1,0 +1,8 @@
+{{- if $.Values.services.exporter.enabled }}
+{{- include "role" (dict "service" "exporter" "values" .Values "root" $ "rules" (list
+  (dict "apiGroups" (list (printf "erpi.%s" .Values.app.name)) "resources" (list "*") "verbs" (list "*"))
+  (dict "apiGroups" (list (printf "auth.%s" .Values.app.name)) "resources" (list "*") "verbs" (list "*"))
+  (dict "apiGroups" (list (printf "classification.%s" .Values.app.name)) "resources" (list "*") "verbs" (list "*"))
+  (dict "apiGroups" (list "") "resources" (list "persistentvolumeclaims") "verbs" (list "get" "list" "watch" "update" "patch"))
+)) }}
+{{- end }}

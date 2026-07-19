@@ -1,0 +1,7 @@
+{{ include "telark.name" . }} CRDs installed (release "{{ .Release.Name }}").
+
+Custom resource definitions are cluster-scoped and kept on uninstall
+(helm.sh/resource-policy: keep), so removing this release leaves existing
+custom resources intact.
+
+Next: install the telark chart, which reconciles these resources.

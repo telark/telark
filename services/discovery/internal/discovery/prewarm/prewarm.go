@@ -107,9 +107,7 @@ func runPrewarmOnce(ctx context.Context, rdb *redis.Client) (errOut error) {
 }
 
 func BuildPrewarmApplicationOptions() serviceapp.GetApplicationsOptions {
-	opts := serviceapp.GetApplicationsOptions{
-		InsightsEnabled: false,
-	}
+	opts := serviceapp.GetApplicationsOptions{}
 	if nc, err := natshelper.GetClient(); err == nil && nc != nil {
 		opts.NatsClient = nc
 	}

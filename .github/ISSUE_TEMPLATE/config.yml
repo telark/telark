@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/telark/telark/security/advisories/new
+    about: Report security issues privately — never in a public issue.
+  - name: Documentation
+    url: https://telark.io
+    about: Product docs and guides.

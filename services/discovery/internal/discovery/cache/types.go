@@ -4,16 +4,9 @@ import (
 	"time"
 
 	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
 )
 
-const (
-	cachePrefix    = "enrichment"
-	inflightSuffix = ":inflight:"
-	queueKey       = "enrichment:jobs"
-	hasAnyCount    = constants.DefaultInitValue
-	firstItemIdx   = constants.DefaultInitValue
-)
+const cachePrefix = "enrichment"
 
 // DateTime layouts for parsing Python/API enrichment timestamps.
 var DateTimeLayouts = []string{
@@ -44,23 +37,15 @@ type cachedEnrichment struct {
 	Dependencies    []string                 `json:"dependencies"`
 	Confidence      string                   `json:"confidence"`
 	EnrichedAt      FlexTime                 `json:"enrichedAt"`
-	Category        string                   `json:"category"`
-	Risks           []string                 `json:"risks"`
-	Suggestions     []string                 `json:"suggestions"`
-	RelatedApps     []application.RelatedApp `json:"relatedApps"`
-	PromptVersion   string                   `json:"promptVersion"`
-	TechStackSnake  []string                 `json:"tech_stack"`
-	EnrichedAtSnake *string                  `json:"enriched_at"`
+	Category           string                        `json:"category"`
+	Risks              []application.Risk            `json:"risks"`
+	Suggestions        []application.Suggestion      `json:"suggestions"`
+	ResourceEfficiency application.ResourceEfficiency `json:"resourceEfficiency"`
+	Criticality        application.Criticality       `json:"criticality"`
+	Tags               []string                      `json:"tags"`
+	RelatedApps        []application.RelatedApp      `json:"relatedApps"`
+	PromptVersion      string                        `json:"promptVersion"`
+	TechStackSnake     []string                      `json:"tech_stack"`
+	EnrichedAtSnake    *string                       `json:"enriched_at"`
 }
 
-// AppSignals is the job payload for the Python worker; result is stored at CacheKey(Namespace, Name).
-type AppSignals struct {
-	Name          string   `json:"name"`
-	Namespace     string   `json:"namespace"`
-	Images        []string `json:"images"`
-	Ports         []int    `json:"ports"`
-	EnvVarKeys    []string `json:"envVarKeys"`
-	ResourceKinds []string `json:"resourceKinds"`
-	HasIngress    bool     `json:"hasIngress"`
-	HasPVC        bool     `json:"hasPVC"`
-}

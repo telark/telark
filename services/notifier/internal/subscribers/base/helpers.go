@@ -11,7 +11,7 @@ import (
 	"github.com/telark/notifier/internal/constants"
 )
 
-func AckWithLog(m *nats.Msg, subject, logMsg string, isError bool) error { //nolint:revive
+func AckWithLog(m *nats.Msg, subject, logMsg string, isError bool) error {
 	lg := logger.GetLogger(constants.PrefixManagerSubscriber)
 	if logMsg != "" {
 		if isError {

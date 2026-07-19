@@ -18,4 +18,7 @@ const (
 	ServiceID                    = "notifier"
 	NatsInitRetryIntervalSeconds = 5
 	NatsInitMaxWaitSeconds       = 300
+	StatusServerPort             = ":8080"
+	StatusServerReadTimeoutSec   = 5
+	ConnectionLogIntervalSeconds = 30
 )

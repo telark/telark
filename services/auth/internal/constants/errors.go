@@ -81,7 +81,6 @@ const (
 
 	// Validation Errors
 	ErrMissingRequiredFields         errors.Error = "credentialId, publicKey, deviceName and deviceType are required"
-	ErrMissingPathParameter          errors.Error = "missing path parameter: %s"
 	ErrFailedGetConfig               errors.Error = "failed to get config: %v"
 	ErrFailedGenerateSessionToken    errors.Error = "failed to generate session token: %v"
 	ErrManualCredentialParsingFailed errors.Error = "manual credential parsing failed: %v"
@@ -125,10 +124,14 @@ const (
 	ErrOIDCUnexpectedAlg         errors.Error = "unexpected JWK algorithm: %s"
 	ErrOIDCMissingEmail          errors.Error = "OIDC token missing email claim"
 	ErrOIDCJWKSFetchFailed       errors.Error = "JWKS fetch failed: %v"
-	ErrOIDCKeyStoreNotReady      errors.Error = "OIDC key store not ready"
 	ErrOIDCEmailNotVerified      errors.Error = "OIDC login requires a verified email address"
 	ErrOIDCJITProvisioningFailed errors.Error = "OIDC JIT user provisioning failed: %v"
 	ErrOIDCNonceMissing          errors.Error = "OIDC nonce is missing from token claims"
+	ErrOIDCConfigLoadFailed      errors.Error = "failed to load OIDC config: %v"
+	ErrOIDCConfigSaveFailed      errors.Error = "failed to save OIDC config: %v"
+	ErrOIDCClientIDRequired      errors.Error = "googleClientID is required when OIDC is enabled"
+	ErrOIDCTrustSourceRequired   errors.Error = "OIDC requires either egressAllowed or a pinned googleJwkJson"
+	ErrOIDCJWKUnreachable        errors.Error = "provider signing keys are unreachable: %v"
 	ErrOIDCNonceInvalid          errors.Error = "OIDC nonce is invalid or has already been used"
 	ErrOIDCNonceStoreFailed      errors.Error = "failed to store OIDC nonce: %v"
 

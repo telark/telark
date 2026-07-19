@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/signal"
 	"runtime/debug"
 	"sync"
 	"syscall"
 	"time"
 
 	goredis "github.com/redis/go-redis/v9"
+	authauthz "github.com/telark/auth/internal/authz"
 	"github.com/telark/auth/internal/cmd"
 	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
@@ -23,16 +23,18 @@ import (
 	redishelper "github.com/telark/auth/internal/helpers/redis"
 	"github.com/telark/auth/internal/helpers/webauthn"
 	"github.com/telark/auth/internal/routes"
+	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/rest/router"
+	restserver "github.com/telark/rest/server"
+	xauthz "github.com/telark/x-ware/authz"
 	"github.com/telark/x-ware/cors"
 )
 
 var (
-	server      *http.Server
-	serverMutex sync.RWMutex
-	quitChannel chan os.Signal
-	quitMutex   sync.RWMutex
-	lg          = constants.GetLogger(constants.LoggerPrefixAuthService)
+	server         *http.Server
+	serverMutex    sync.RWMutex
+	getQuitChannel = restserver.SignalQuit()
+	lg             = constants.GetLogger(constants.LoggerPrefixAuthService)
 )
 
 func main() {
@@ -69,21 +71,26 @@ func main() {
 
 	startCleanupSystem(rdb)
 
-	quitMutex.Lock()
-	quitChannel = make(chan os.Signal, constants.DefaultQuitChannelSize)
-	quitMutex.Unlock()
-	signal.Notify(quitChannel, syscall.SIGINT, syscall.SIGTERM)
+	authzMiddleware, err := xauthz.NewFromEnv(authauthz.NewResolver(), authauthz.Requirements())
+	if err != nil {
+		lg.Error(fmt.Sprintf(string(dataerrors.ErrAuthzInitFailed), err))
+		os.Exit(constants.ExitCodeError)
+	}
 
-	startMainService(cfg)
+	startMainService(cfg, authzMiddleware)
 
-	<-quitChannel
+	<-getQuitChannel()
 	lg.Info(string(constants.SuccessServiceShuttingDown))
 
 	gracefulShutdown(cfg)
 }
 
-func startMainService(cfg *config.Config) {
+func startMainService(cfg *config.Config, authzMiddleware func(http.Handler) http.Handler) {
 	newRouter := router.NewRouter(routes.Routes)
+
+	// Registered on the router: mux middleware runs after route matching, which
+	// is what makes the matched path template available to find the rule.
+	newRouter.Use(authzMiddleware)
 
 	corsHandler := cors.NewCORS()
 	handler := corsHandler(newRouter)
@@ -106,24 +113,7 @@ func startMainService(cfg *config.Config) {
 
 func startServer(server *http.Server, port string) {
 	lg.Info(fmt.Sprintf(string(constants.SuccessServiceStarted), port))
-
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		lg.Error(fmt.Sprintf(string(constants.ErrServerFailedToStartDetail), err.Error()))
-		lg.Error(string(constants.ErrServerInitiatingShutdown))
-
-		quit := getQuitChannel()
-		if quit == nil {
-			lg.Error(string(constants.ErrQuitChannelNotAvailable))
-			return
-		}
-
-		select {
-		case quit <- syscall.SIGTERM:
-			lg.Info(string(constants.SuccessShutdownSignalSent))
-		default:
-			lg.Error(string(constants.ErrFailedSendShutdownSignal))
-		}
-	}
+	restserver.ListenAndSignal(server, getQuitChannel, lg)
 }
 
 var panicRecoveryAttempts int
@@ -154,11 +144,7 @@ func startServerWithRecovery(server *http.Server, port string) {
 }
 
 func gracefulShutdown(cfg *config.Config) {
-	quitMutex.RLock()
-	quit := quitChannel
-	quitMutex.RUnlock()
-
-	if quit == nil {
+	if getQuitChannel() == nil {
 		lg.Error(string(constants.ErrQuitChannelNotAvailable))
 		lg.Error(string(constants.ErrGracefulShutdownFailed))
 		return
@@ -186,12 +172,6 @@ func gracefulShutdown(cfg *config.Config) {
 	}
 }
 
-func getQuitChannel() chan os.Signal {
-	quitMutex.RLock()
-	defer quitMutex.RUnlock()
-	return quitChannel
-}
-
 var cleanupSystemCancel context.CancelFunc
 
 func startCleanupSystem(rdb *goredis.Client) {
@@ -203,7 +183,6 @@ func startCleanupSystem(rdb *goredis.Client) {
 	targets := cleanupctrl.DefaultTargets()
 	reconciler := cleanupctrl.NewReconciler(cfg, targets, constants.GetLogger(constants.LoggerPrefixCleanup))
 
-	//nolint:gosec // G118: cancel is stored in cleanupSystemCancel and invoked in gracefulShutdown.
 	ctx, cancel := context.WithCancel(context.Background())
 	cleanupSystemCancel = cancel
 

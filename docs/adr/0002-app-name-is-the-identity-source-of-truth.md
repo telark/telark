@@ -25,4 +25,4 @@ Helm's idiomatic source for a chart name is `.Chart.Name`. That does not work he
 - Both charts render a consistent identity even though their chart names differ.
 - The CRD chart carries its own `app.name: telark` default so it renders valid standalone; at the real install the `telark` chart's values are authoritative.
 - Changing the identity is a coordinated change across both charts *and* the Go source — it is not a per-chart values tweak.
-- A repo-wide `grep telark` over rendered output should return zero static literals; only helper identifiers remain in source.
+- A `grep telark` over the chart *templates* should turn up only helper identifier names (`telark.labels`, …); every name, API group, and annotation domain in the rendered output derives from `app.name`.

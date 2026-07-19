@@ -33,6 +33,7 @@ body:
         - enrichment
         - auth
         - notifier
+        - ui (dashboard)
         - other
     validations:
       required: true

@@ -42,6 +42,37 @@ kubectl get pods -n telark -l app.kubernetes.io/instance=telark
 helm test telark -n telark      # readiness probe against the auth service
 ```
 
+## Access the dashboard
+
+The dashboard (`ui` service) is optional and **off by default** — enable it with `--set services.ui.enabled=true`, then reach it either way.
+
+**Port-forward** (no ingress needed):
+
+```sh
+kubectl port-forward -n telark svc/telark-ui-service 8080:3000
+# open http://localhost:3000
+```
+
+**Ingress** (off by default; needs an ingress controller in the cluster):
+
+```sh
+helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
+  --set services.ui.enabled=true \
+  --set ingress.enabled=true \
+  --set ingress.className=nginx \
+  --set ingress.host=telark.example.com
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `ingress.enabled` | `false` | Create an Ingress for the dashboard |
+| `ingress.className` | `""` | IngressClass (e.g. `nginx`) |
+| `ingress.host` | `""` | Hostname (`""` = match any host) |
+| `ingress.service` | `ui` | Which `services.<key>` to route to |
+| `ingress.path` / `ingress.pathType` | `/` / `Prefix` | Route path + match type |
+| `ingress.tls` | `[]` | TLS blocks, e.g. `[{secretName: telark-tls, hosts: [telark.example.com]}]` |
+| `ingress.annotations` | `{}` | Controller annotations (cert-manager, etc.) |
+
 ## Install-time flags
 
 Everything is set on the one command line with `--set key=value`. Re-pass the same flags on `helm upgrade` — Helm does not remember them across upgrades.

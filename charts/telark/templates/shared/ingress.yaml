@@ -1,0 +1,38 @@
+{{- if .Values.ingress.enabled }}
+{{- $ing := .Values.ingress -}}
+{{- $svcKey := $ing.service | default "ui" -}}
+{{- $svc := index .Values.services $svcKey -}}
+{{- $port := default .Values.app.serviceDefaults.port $ing.servicePort -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "telark.fullname" . }}
+  namespace: {{ .Values.app.namespace }}
+  labels:
+    {{- include "telark.labels" . | nindent 4 }}
+  {{- with $ing.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with $ing.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with $ing.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - http:
+        paths:
+          - path: {{ $ing.path | default "/" }}
+            pathType: {{ $ing.pathType | default "Prefix" }}
+            backend:
+              service:
+                name: {{ include "telark.fullname" . }}-{{ $svc.name }}
+                port:
+                  number: {{ $port }}
+      {{- with $ing.host }}
+      host: {{ . }}
+      {{- end }}
+{{- end }}

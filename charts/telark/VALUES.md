@@ -102,6 +102,14 @@ Kubernetes: `>=1.33.0-0`
 | crds.enabled | bool | `true` |  |
 | fullnameOverride | string | `""` |  |
 | global.imagePullSecrets | list | `[]` |  |
+| ingress.annotations | object | `{}` |  |
+| ingress.className | string | `""` |  |
+| ingress.enabled | bool | `false` |  |
+| ingress.host | string | `""` |  |
+| ingress.path | string | `"/"` |  |
+| ingress.pathType | string | `"Prefix"` |  |
+| ingress.service | string | `"ui"` |  |
+| ingress.tls | list | `[]` |  |
 | kyverno.admissionController.container.extraArgs.clientRateLimitBurst | int | `100` |  |
 | kyverno.admissionController.container.extraArgs.clientRateLimitQPS | int | `50` |  |
 | kyverno.admissionController.container.resources.limits.memory | string | `"512Mi"` |  |

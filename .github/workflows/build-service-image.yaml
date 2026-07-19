@@ -20,6 +20,7 @@ on:
         required: false
         type: choice
         description: Image Scanning
+        default: scan
         options:
           - skip
           - scan
@@ -56,6 +57,10 @@ on:
           - standard
           - performance
         default: minimal
+
+permissions:
+  contents: write   # commit the version bump
+  id-token: write   # cosign keyless image signing (OIDC)
 
 env:
   NAMESPACE: "telark"
@@ -106,6 +111,7 @@ jobs:
           password: ${{ secrets.CONTAINER_REGISTRY_PASSWORD }}
 
       - name: Build and Push Service Image
+        id: build
         uses: ./.github/actions/build-push-service-image
         with:
           service_name: ${{ inputs.service }}
@@ -114,11 +120,34 @@ jobs:
           container_registry_name: ${{ steps.image.outputs.registry }}
           container_registry_repo_name: ${{ steps.image.outputs.repository }}
           dockerfile_path: './services/${{ inputs.service }}/Dockerfile'
-          platforms: 'linux/amd64'
+          platforms: 'linux/amd64,linux/arm64'
           cache_enabled: 'true'
           push_enabled: 'true'
           access_user: ${{ secrets.ACCESS_USER }}
           access_token: ${{ secrets.ACCESS_TOKEN }}
+
+      - name: Scan image for vulnerabilities (Trivy)
+        if: ${{ inputs.image_scan == 'scan' }}
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ steps.image.outputs.registry }}/${{ steps.image.outputs.repository }}:${{ steps.service_data.outputs.new_version }}
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image (cosign keyless)
+        shell: bash
+        env:
+          COSIGN_YES: "true"
+        run: |
+          ref="${{ steps.image.outputs.registry }}/${{ steps.image.outputs.repository }}"
+          digest="${{ steps.build.outputs.image_digest }}"
+          if [ -z "$digest" ]; then echo "no image digest — cannot sign" >&2; exit 1; fi
+          cosign sign "${ref}@${digest}"
 
       - name: Pull Latest Changes
         run: |

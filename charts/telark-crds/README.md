@@ -12,7 +12,7 @@ helm install telark-crds ./charts/telark-crds -f charts/telark/values.yaml
 
 ## Values
 
-This chart holds no config of its own. It reads two keys from the telark chart's values so CRD groups and namespaces match the app release:
+This chart holds no config of its own. It reads two keys from the telark chart's values so CRD groups and namespaces match the app release (full index: **[VALUES.md](VALUES.md)**):
 
 | Key | Description |
 |---|---|

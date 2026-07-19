@@ -4,6 +4,7 @@
 - [Install guide](INSTALL.md) — prerequisites, CRDs, app, sizing modes, verification.
 - [CRD reference](CRDS.md) — custom resource groups and kinds.
 - [Architecture decisions](adr/) — ADRs.
+- [Publishing](PUBLISHING.md) — package, push, sign, and register the Helm charts (OCI / GHCR).
 
 Service deep dives:
 

@@ -43,7 +43,7 @@ flowchart LR
 ## Responsibilities
 
 - **Passkey auth:** WebAuthn registration and assertion (login start/finish), passkey CRUD.
-- **Google OIDC:** token verification against Google's JWKS — fetched live (`EGRESS_ALLOWED=true`) or from a pasted key set for air-gapped clusters.
+- **Google OIDC:** token verification against Google's JWKS — fetched live (`EGRESS_ALLOWED=true`) or from a pasted key set for air-gapped clusters. Full admin-config + login flow: **[OIDC.md](OIDC.md)**.
 - **Sessions:** issue, validate (`X-Session-Token`), and expire; a cleanup controller sweeps expired sessions and challenges.
 - **Role model:** reconcile authorization resources; grant the Admin role to `BOOTSTRAP_ADMINS` on first login.
 - **Provisioning policy:** `SELF_REGISTRATION_ENABLED` gates the passkey path only — OIDC users are always auto-provisioned.

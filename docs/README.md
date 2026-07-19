@@ -5,7 +5,7 @@
 - [CRD reference](CRDS.md) — custom resource groups and kinds.
 - [Architecture decisions](adr/) — ADRs.
 
-Deep dives (repo root):
+Service deep dives:
 
-- [Enrichment architecture](../ENRICHMENT-ARCHITECTURE.md) — AI insights pipeline.
-- [OIDC architecture](../OIDC-ARCHITECTURE.md) — Google SSO admin config and login flow.
+- [Enrichment architecture](../services/enrichment/ARCHITECTURE.md) — AI insights pipeline.
+- [OIDC / SSO architecture](../services/auth/OIDC.md) — Google SSO admin config and login flow.

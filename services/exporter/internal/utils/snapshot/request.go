@@ -153,7 +153,6 @@ func ContentDispositionFilename(id string, generation int) string {
 }
 
 func LoadSnapshotData(path string) (map[string]any, error) {
-	//nolint:gosec // Path comes from validated scope/id/generation resolution.
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err

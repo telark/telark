@@ -9,28 +9,29 @@ CR writer (exporter), so application identity stays consistent under load.
 ## Architecture
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif","fontSize":"13px","lineColor":"#94a3b8","primaryColor":"#eef2ff","primaryBorderColor":"#6366f1","primaryTextColor":"#312e81","edgeLabelBackground":"#ffffff","clusterBkg":"#f8fafc","clusterBorder":"#e2e8f0"},"flowchart":{"curve":"basis","htmlLabels":true,"nodeSpacing":48,"rankSpacing":62,"padding":12}}}%%
 flowchart LR
-  DISC[discovery]
+  DISC(discovery)
   NATS[("NATS JetStream<br/>telark.applications.*")]
 
   subgraph notifier["notifier"]
-    MGR[subscriber manager] --> SUB[ApplicationSubscriber]
-    SUB --> ACT[handleUpdate · handleDelete]
-    ST[status server]
+    MGR(subscriber manager) --> SUB(ApplicationSubscriber)
+    SUB --> ACT("handleUpdate · handleDelete")
+    ST(status server)
   end
 
-  EXP[exporter]
-  REDIS[("Redis<br/>connectivity")]
+  EXP(exporter)
+  REDIS[("Redis")]
 
-  DISC -->|publish update/delete| NATS
-  NATS -->|JetStream deliver| MGR
-  ACT -->|PATCH / CREATE / DELETE application| EXP
-  notifier -.connectivity heartbeat.-> REDIS
+  DISC -->|publish| NATS
+  NATS -->|deliver| MGR
+  ACT -->|PATCH · CREATE · DELETE| EXP
+  notifier -.heartbeat.-> REDIS
 
-  classDef svc fill:#4f46e5,stroke:#3730a3,color:#fff;
-  classDef infra fill:#0f766e,stroke:#134e4a,color:#fff;
-  classDef peer fill:#475569,stroke:#334155,color:#fff;
-  classDef store fill:#b45309,stroke:#92400e,color:#fff;
+  classDef svc fill:#eef2ff,stroke:#6366f1,stroke-width:1.5px,color:#312e81;
+  classDef infra fill:#ecfdf5,stroke:#10b981,stroke-width:1.5px,color:#065f46;
+  classDef peer fill:#f1f5f9,stroke:#94a3b8,stroke-width:1.5px,color:#334155;
+  classDef store fill:#fff7ed,stroke:#f59e0b,stroke-width:1.5px,color:#92400e;
   class MGR,SUB,ACT,ST svc;
   class NATS infra;
   class DISC,EXP peer;

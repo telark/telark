@@ -9,33 +9,34 @@ returns; the model runs asynchronously.
 ## Architecture
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif","fontSize":"13px","lineColor":"#94a3b8","primaryColor":"#eef2ff","primaryBorderColor":"#6366f1","primaryTextColor":"#312e81","edgeLabelBackground":"#ffffff","clusterBkg":"#f8fafc","clusterBorder":"#e2e8f0"},"flowchart":{"curve":"basis","htmlLabels":true,"nodeSpacing":48,"rankSpacing":64,"padding":12}}}%%
 flowchart LR
-  DISC[discovery]
+  DISC(discovery)
 
   subgraph enrichment["enrichment"]
-    API["FastAPI<br/>POST /insights/applications<br/>provider/validate-api-key"]
-    POOL[worker pool]
+    API("FastAPI<br/>dispatch · validate-key")
+    POOL(worker pool)
     API -->|enqueue| Q
-    POOL -->|BLPOP| Q[["Redis list<br/>enrichment:jobs"]]
-    POOL --> PROV[get_provider]
+    POOL -->|BLPOP| Q[("Redis list<br/>enrichment:jobs")]
+    POOL --> PROV(get_provider)
   end
 
-  EXP[exporter]
-  LLM[["LLM provider<br/>Anthropic · Gemini · Groq · Ollama"]]
+  EXP(exporter)
+  LLM{{"Anthropic · Gemini<br/>Groq · Ollama"}}
   CACHE[("Redis cache<br/>enrichment:*  ·  DLQ")]
-  UI[ui]
+  UI(ui)
 
-  DISC -->|POST signals batch| API
-  POOL -->|GET globalconfig: provider + key| EXP
+  DISC -->|signals batch| API
+  POOL -->|provider + key| EXP
   PROV -->|prompt| LLM
-  POOL -->|SETEX typed insights| CACHE
+  POOL -->|SETEX insights| CACHE
   POOL -.failures.-> CACHE
   UI -->|windowed read| CACHE
 
-  classDef svc fill:#4f46e5,stroke:#3730a3,color:#fff;
-  classDef peer fill:#475569,stroke:#334155,color:#fff;
-  classDef store fill:#b45309,stroke:#92400e,color:#fff;
-  classDef ext fill:#0f766e,stroke:#134e4a,color:#fff;
+  classDef svc fill:#eef2ff,stroke:#6366f1,stroke-width:1.5px,color:#312e81;
+  classDef peer fill:#f1f5f9,stroke:#94a3b8,stroke-width:1.5px,color:#334155;
+  classDef store fill:#fff7ed,stroke:#f59e0b,stroke-width:1.5px,color:#92400e;
+  classDef ext fill:#faf5ff,stroke:#a855f7,stroke-width:1.5px,color:#6b21a8;
   class API,POOL,PROV svc;
   class DISC,EXP,UI peer;
   class Q,CACHE store;

@@ -5,21 +5,22 @@ telark is a control plane for **protection plans** over Kubernetes workloads: di
 ## System
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif","fontSize":"13px","lineColor":"#94a3b8","primaryColor":"#eef2ff","primaryBorderColor":"#6366f1","primaryTextColor":"#312e81","edgeLabelBackground":"#ffffff","clusterBkg":"#f8fafc","clusterBorder":"#e2e8f0"},"flowchart":{"curve":"basis","htmlLabels":true,"nodeSpacing":48,"rankSpacing":64,"padding":12}}}%%
 flowchart LR
-  UI[ui / operator]
+  UI(["ui / operator"])
 
   subgraph services["Services"]
-    AUTH[auth]
-    DISC[discovery]
-    EXP[exporter]
-    ENR[enrichment]
-    NTF[notifier]
+    AUTH(auth)
+    DISC(discovery)
+    EXP(exporter)
+    ENR(enrichment)
+    NTF(notifier)
   end
 
   subgraph infra["Infrastructure"]
     REDIS[("Redis")]
     NATS[("NATS JetStream")]
-    KYV[kyverno admission]
+    KYV(kyverno admission)
   end
 
   subgraph cluster["Cluster"]
@@ -27,38 +28,40 @@ flowchart LR
     PVC[("Snapshots PVC")]
   end
 
-  LLM[["LLM provider"]]
+  LLM{{"LLM provider"}}
 
   UI -->|login| AUTH
   UI -->|REST API| DISC
-  UI -->|insights: windowed read| REDIS
+  UI -->|insights| REDIS
 
   AUTH -->|CRDs| EXP
   AUTH --> REDIS
 
-  DISC -->|watch / list| K8S
+  DISC -->|watch| K8S
   DISC -->|read + store| EXP
-  DISC -->|publish app events| NATS --> NTF -->|persist CR| EXP
-  DISC -->|dispatch signals| ENR
-  DISC <-->|coordination| REDIS
-  DISC -->|protection plans| KYV
-  KYV -->|admit / reject writes| K8S
+  DISC -->|publish| NATS --> NTF -->|persist CR| EXP
+  DISC -->|dispatch| ENR
+  DISC <-->|coordinate| REDIS
+  DISC -->|plans| KYV
+  KYV -->|admit / reject| K8S
 
   ENR -->|queue · cache| REDIS
   ENR -->|GlobalConfig| EXP
   ENR --> LLM
 
-  EXP -->|read/write CRDs| K8S
+  EXP -->|CRDs| K8S
   EXP -->|snapshots| PVC
 
-  classDef svc fill:#4f46e5,stroke:#3730a3,color:#fff;
-  classDef infra fill:#0f766e,stroke:#134e4a,color:#fff;
-  classDef store fill:#b45309,stroke:#92400e,color:#fff;
-  classDef peer fill:#475569,stroke:#334155,color:#fff;
+  classDef svc fill:#eef2ff,stroke:#6366f1,stroke-width:1.5px,color:#312e81;
+  classDef infra fill:#ecfdf5,stroke:#10b981,stroke-width:1.5px,color:#065f46;
+  classDef store fill:#fff7ed,stroke:#f59e0b,stroke-width:1.5px,color:#92400e;
+  classDef peer fill:#f1f5f9,stroke:#94a3b8,stroke-width:1.5px,color:#334155;
+  classDef ext fill:#faf5ff,stroke:#a855f7,stroke-width:1.5px,color:#6b21a8;
   class AUTH,DISC,EXP,ENR,NTF svc;
   class NATS,KYV infra;
   class REDIS,K8S,PVC store;
-  class UI,LLM peer;
+  class UI peer;
+  class LLM ext;
 ```
 
 Each service's own README carries a focused diagram of its internals: [auth](../services/auth/README.md) · [discovery](../services/discovery/README.md) · [exporter](../services/exporter/README.md) · [enrichment](../services/enrichment/README.md) · [notifier](../services/notifier/README.md).

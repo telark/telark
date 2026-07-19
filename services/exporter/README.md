@@ -8,33 +8,34 @@ holds the snapshots PVC and is the single writer of Telark CRs on the cluster.
 ## Architecture
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif","fontSize":"13px","lineColor":"#94a3b8","primaryColor":"#eef2ff","primaryBorderColor":"#6366f1","primaryTextColor":"#312e81","edgeLabelBackground":"#ffffff","clusterBkg":"#f8fafc","clusterBorder":"#e2e8f0"},"flowchart":{"curve":"basis","htmlLabels":true,"nodeSpacing":48,"rankSpacing":62,"padding":12}}}%%
 flowchart LR
-  subgraph peers["Callers (REST)"]
-    AUTH[auth]
-    DISC[discovery]
-    ENR[enrichment]
-    NTF[notifier]
+  subgraph peers["Callers"]
+    AUTH(auth)
+    DISC(discovery)
+    ENR(enrichment)
+    NTF(notifier)
   end
 
   subgraph exporter["exporter"]
-    RT[routes] --> H[handlers]
-    H --> EX[exporters<br/>snapshot · generics · auth]
-    H --> SEED[startup.SeedBuiltins]
-    EX --> KC[kcore dynamic client]
+    RT(routes) --> H(handlers)
+    H --> EX("exporters<br/>snapshot · generics · auth")
+    H --> SEED(SeedBuiltins)
+    EX --> KC(kcore client)
   end
 
   K8S[("Kubernetes API<br/>Telark CRDs")]
   PVC[("Snapshots PVC")]
-  REDIS[("Redis<br/>notifications")]
+  REDIS[("Redis")]
 
-  AUTH & DISC & ENR & NTF -->|CRD read/write| RT
+  AUTH & DISC & ENR & NTF -->|REST| RT
   KC -->|list · get · patch| K8S
-  EX -->|write / read manifests| PVC
-  H -->|publish change events| REDIS
+  EX -->|manifests| PVC
+  H -->|change events| REDIS
 
-  classDef svc fill:#4f46e5,stroke:#3730a3,color:#fff;
-  classDef store fill:#b45309,stroke:#92400e,color:#fff;
-  classDef peer fill:#475569,stroke:#334155,color:#fff;
+  classDef svc fill:#eef2ff,stroke:#6366f1,stroke-width:1.5px,color:#312e81;
+  classDef store fill:#fff7ed,stroke:#f59e0b,stroke-width:1.5px,color:#92400e;
+  classDef peer fill:#f1f5f9,stroke:#94a3b8,stroke-width:1.5px,color:#334155;
   class RT,H,EX,SEED,KC svc;
   class K8S,PVC,REDIS store;
   class AUTH,DISC,ENR,NTF peer;

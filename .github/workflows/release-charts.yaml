@@ -65,6 +65,11 @@ jobs:
       - name: Set up Helm
         uses: azure/setup-helm@v5
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+
       - name: Install cosign
         uses: sigstore/cosign-installer@v3
 
@@ -136,9 +141,14 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump != 'current' }}
         run: |
           set -euo pipefail
+          # Regenerate VALUES.md so its version badge tracks the bump — same command
+          # as `make values-docs` and the CI drift check — and commit it together, so
+          # the bump never leaves VALUES.md stale.
+          go run github.com/norwoodj/helm-docs/cmd/helm-docs@v1.14.2 --chart-search-root charts --output-file VALUES.md
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$CHART_DIR/Chart.yaml" "$CRDS_DIR/Chart.yaml"
+          git add "$CHART_DIR/Chart.yaml" "$CRDS_DIR/Chart.yaml" \
+                  "$CHART_DIR/VALUES.md" "$CRDS_DIR/VALUES.md"
           if git diff --cached --quiet; then
             echo "no version changes to commit"
           else

@@ -6,9 +6,13 @@ CRDs are cluster-scoped and carry `helm.sh/resource-policy: keep`, so they survi
 
 ## Install
 
+From the registry (uses the chart defaults, `app.name: telark`):
+
 ```sh
-helm install telark-crds ./charts/telark-crds -f charts/telark/values.yaml
+helm install telark-crds oci://ghcr.io/telark/charts/telark-crds --version 0.2.1
 ```
+
+Override to match a customized app release: `--set app.name=<name> --set app.namespace=<ns>`. From a checkout, `./charts/telark-crds` works in place of the OCI ref.
 
 ## Values
 

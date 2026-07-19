@@ -46,10 +46,10 @@ No new mental model, no YAML archaeology: discover your apps, pick what to prote
 
 ## Quick start
 
-Install the CRDs, then the app:
+Install the CRDs from the registry, then the app from a checkout (it needs the NATS config file):
 
 ```sh
-helm install telark-crds ./charts/telark-crds -f charts/telark/values.yaml
+helm install telark-crds oci://ghcr.io/telark/charts/telark-crds
 helm install telark ./charts/telark \
   --set-file nats.configuration=charts/telark/config/nats.conf
 ```

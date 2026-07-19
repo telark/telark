@@ -8,11 +8,13 @@
 
 ## 1. Install the CRDs
 
-CRDs are a separate chart and must be installed first. They are cluster-scoped and kept on uninstall.
+CRDs are a separate chart, published to the registry, and must be installed first. They are cluster-scoped and kept on uninstall.
 
 ```sh
-helm install telark-crds ./charts/telark-crds -f charts/telark/values.yaml
+helm install telark-crds oci://ghcr.io/telark/charts/telark-crds --version 0.2.1
 ```
+
+Uses the chart defaults (`app.name: telark`); add `--set app.name=<name> --set app.namespace=<ns>` if you customize the app identity. From a checkout, `./charts/telark-crds` works in place of the OCI ref.
 
 ## 2. Install the app
 

@@ -9,30 +9,31 @@ exporter.
 ## Architecture
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif","fontSize":"13px","lineColor":"#94a3b8","primaryColor":"#eef2ff","primaryBorderColor":"#6366f1","primaryTextColor":"#312e81","edgeLabelBackground":"#ffffff","clusterBkg":"#f8fafc","clusterBorder":"#e2e8f0"},"flowchart":{"curve":"basis","htmlLabels":true,"nodeSpacing":48,"rankSpacing":62,"padding":12}}}%%
 flowchart LR
-  UI[ui / operator]
+  UI(["ui / operator"])
 
   subgraph auth["auth"]
-    RT[routes] --> H["handlers<br/>auth · passkey · oidc · authorisation"]
-    H --> WA[webauthn helper]
-    H --> OI[oidc helper]
-    CL[cleanup controller]
+    RT(routes) --> H("handlers<br/>auth · passkey · oidc")
+    H --> WA(webauthn)
+    H --> OI(oidc)
+    CL(cleanup controller)
   end
 
-  REDIS[("Redis<br/>sessions · challenges · cleanup streams")]
-  EXP[exporter]
-  GOOG[["Google OIDC<br/>JWKS"]]
+  REDIS[("Redis<br/>sessions · challenges")]
+  EXP(exporter)
+  GOOG{{"Google OIDC<br/>JWKS"}}
 
-  UI -->|login / passkey ops| RT
-  H -->|sessions, challenges| REDIS
-  CL -->|expire sessions| REDIS
-  H -->|User · UserSession · UserPasskey CRDs| EXP
-  OI -.EGRESS_ALLOWED=true.-> GOOG
+  UI -->|login / passkey| RT
+  H -->|sessions| REDIS
+  CL -->|expire| REDIS
+  H -->|User · Session · Passkey CRDs| EXP
+  OI -.egress.-> GOOG
 
-  classDef svc fill:#4f46e5,stroke:#3730a3,color:#fff;
-  classDef peer fill:#475569,stroke:#334155,color:#fff;
-  classDef store fill:#b45309,stroke:#92400e,color:#fff;
-  classDef ext fill:#0f766e,stroke:#134e4a,color:#fff;
+  classDef svc fill:#eef2ff,stroke:#6366f1,stroke-width:1.5px,color:#312e81;
+  classDef peer fill:#f1f5f9,stroke:#94a3b8,stroke-width:1.5px,color:#334155;
+  classDef store fill:#fff7ed,stroke:#f59e0b,stroke-width:1.5px,color:#92400e;
+  classDef ext fill:#faf5ff,stroke:#a855f7,stroke-width:1.5px,color:#6b21a8;
   class RT,H,WA,OI,CL svc;
   class UI,EXP peer;
   class REDIS store;

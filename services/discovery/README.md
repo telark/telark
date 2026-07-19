@@ -13,37 +13,38 @@ single CR writer.
 ## Architecture
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif","fontSize":"13px","lineColor":"#94a3b8","primaryColor":"#eef2ff","primaryBorderColor":"#6366f1","primaryTextColor":"#312e81","edgeLabelBackground":"#ffffff","clusterBkg":"#f8fafc","clusterBorder":"#e2e8f0"},"flowchart":{"curve":"basis","htmlLabels":true,"nodeSpacing":46,"rankSpacing":64,"padding":12}}}%%
 flowchart LR
   K8S[("Kubernetes API")]
 
   subgraph discovery["discovery"]
-    INF[informers] --> DER[derive apps<br/>group by labels]
-    DER --> DIFF[diff vs stored + classify]
-    DIFF --> SNAP[snapshot manifests]
-    DIFF --> PUB[publisher]
-    INS[insights controller]
-    PLN[protection-plan controller]
-    COORD[(leader election ·<br/>claim stream · locks)]
+    INF(informers) --> DER("derive apps<br/>group by labels")
+    DER --> DIFF(diff + classify)
+    DIFF --> SNAP(snapshot)
+    DIFF --> PUB(publisher)
+    INS(insights controller)
+    PLN(protection-plan controller)
+    COORD("leader election<br/>claim stream · locks")
   end
 
-  EXP[exporter]
+  EXP(exporter)
   NATS[("NATS JetStream")]
-  NTF[notifier]
+  NTF(notifier)
   REDIS[("Redis")]
-  ENR[enrichment]
+  ENR(enrichment)
 
-  K8S -->|watch / list| INF
-  DIFF -->|GET stored app| EXP
-  SNAP -->|store manifests| EXP
-  PUB -->|publish telark.applications.*| NATS --> NTF -->|persist CR| EXP
+  K8S -->|watch| INF
+  DIFF -->|stored app| EXP
+  SNAP -->|manifests| EXP
+  PUB -->|publish| NATS --> NTF -->|persist CR| EXP
   COORD <--> REDIS
-  INS -->|POST signals batch| ENR
-  PLN -->|deploy / verify admission policy| K8S
+  INS -->|signals batch| ENR
+  PLN -->|admission policy| K8S
 
-  classDef svc fill:#4f46e5,stroke:#3730a3,color:#fff;
-  classDef infra fill:#0f766e,stroke:#134e4a,color:#fff;
-  classDef peer fill:#475569,stroke:#334155,color:#fff;
-  classDef store fill:#b45309,stroke:#92400e,color:#fff;
+  classDef svc fill:#eef2ff,stroke:#6366f1,stroke-width:1.5px,color:#312e81;
+  classDef infra fill:#ecfdf5,stroke:#10b981,stroke-width:1.5px,color:#065f46;
+  classDef peer fill:#f1f5f9,stroke:#94a3b8,stroke-width:1.5px,color:#334155;
+  classDef store fill:#fff7ed,stroke:#f59e0b,stroke-width:1.5px,color:#92400e;
   class INF,DER,DIFF,SNAP,PUB,INS,PLN,COORD svc;
   class NATS infra;
   class EXP,NTF,ENR peer;
@@ -86,6 +87,7 @@ NATS). One leader enqueues work; workers consume a stream under a consumer group
 holding a per-app lock.
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif","fontSize":"13px","actorBkg":"#eef2ff","actorBorder":"#6366f1","actorTextColor":"#312e81","actorLineColor":"#cbd5e1","signalColor":"#64748b","signalTextColor":"#334155","noteBkgColor":"#fff7ed","noteBorderColor":"#f59e0b","noteTextColor":"#92400e"},"sequence":{"mirrorActors":false,"messageAlign":"center"}}}%%
 sequenceDiagram
   participant L as Leader replica
   participant R as Redis
@@ -121,6 +123,7 @@ Rollback is intent-based: a client appends a pending `rollbacks[]` entry to the 
 CR (via exporter); the in-cluster controller applies the target snapshot and advances status.
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif","fontSize":"13px","actorBkg":"#eef2ff","actorBorder":"#6366f1","actorTextColor":"#312e81","actorLineColor":"#cbd5e1","signalColor":"#64748b","signalTextColor":"#334155","noteBkgColor":"#fff7ed","noteBorderColor":"#f59e0b","noteTextColor":"#92400e"},"sequence":{"mirrorActors":false,"messageAlign":"center"}}}%%
 sequenceDiagram
   participant API as Client / discovery API
   participant EXP as exporter

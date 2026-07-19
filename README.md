@@ -14,6 +14,10 @@
   <a href="https://github.com/telark/telark/issues">Issues</a>
 </p>
 
+<p align="center">
+  <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-Elastic--2.0-2f6feb.svg" alt="License: Elastic-2.0"></a>
+</p>
+
 ---
 
 ## Why telark

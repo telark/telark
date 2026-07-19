@@ -1,10 +1,25 @@
 # kcore
-GO Package designed to handle custom k8s adapters, metrics, clients and informers
 
-This package provides reusable building blocks for Kubernetes-related modules. It includes:
-- **Custom adapters** for integrating with Kubernetes APIs and resources
-- **Metrics collection and utilities** for working with k8s metrics APIs
-- **Client helpers** for managing connections and API calls
-- **Informer logic** for watching and reacting to k8s resource changes
-- **Resilience utilities** (circuit breakers, rate limiting, timeouts)
-- **Constants and formatting helpers** for consistent configuration
+Kubernetes building blocks for the [telark](https://telark.io) platform. Dynamic informers, CRD helpers, metrics, and health — the k8s plumbing services share instead of re-implementing.
+
+## Packages
+
+| Package | What it provides |
+|---|---|
+| `informers` | Dynamic informers for watching and reacting to k8s resources |
+| `crds` | Custom-resource helpers and utilities |
+| `resources` | Resource adapters and typed access |
+| `metrics` | Metrics collection over the k8s metrics APIs |
+| `health` | Health and reachability checks |
+| `manifest` | Manifest parsing and helpers |
+| `shared` | Shared helpers |
+| `constants` | Constants and formatting helpers |
+
+## Install
+
+```sh
+export GOPRIVATE=github.com/telark/*   # private until public release
+go get github.com/telark/kcore
+```
+
+Consumed by the telark services (notably `discovery` and `exporter`).

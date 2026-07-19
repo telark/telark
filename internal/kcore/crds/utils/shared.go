@@ -1,4 +1,4 @@
-package utils //nolint:revive // Directory name must remain "utils" for import compatibility.
+package utils
 
 import (
 	"fmt"

@@ -1,6 +1,7 @@
 package dynamic
 
 import (
+	"github.com/telark/kcore/constants"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
@@ -9,14 +10,14 @@ import (
 func GVRsForKinds(
 	kindSet map[string]struct{}, disco discovery.DiscoveryInterface,
 ) ([]schema.GroupVersionResource, error) {
-	if len(kindSet) == 0 {
+	if len(kindSet) == constants.EmptySliceLength {
 		return nil, nil
 	}
 	grs, err := disco.ServerPreferredResources()
 	if err != nil {
 		return nil, err
 	}
-	out := make([]schema.GroupVersionResource, 0, len(kindSet))
+	out := make([]schema.GroupVersionResource, constants.EmptySliceLength, len(kindSet))
 	seen := make(map[schema.GroupVersionResource]struct{})
 	for _, list := range grs {
 		gv, err := schema.ParseGroupVersion(list.GroupVersion)

@@ -65,15 +65,15 @@ jobs:
           fetch-depth: 0   # full history + tags so git-cliff can build the changelog
 
       - name: Set up Helm
-        uses: azure/setup-helm@v5
+        uses: azure/setup-helm@v5.0.1
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7.0.0
         with:
           go-version: "1.26"
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@v4.1.2
 
       - name: Resolve registry + selected charts
         id: meta
@@ -144,7 +144,7 @@ jobs:
       # since the git tag itself is created a step later.
       - name: Generate changelog
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump != 'current' && steps.publish.outputs.telark_version != '' }}
-        uses: orhun/git-cliff-action@v4
+        uses: orhun/git-cliff-action@v4.8.0
         with:
           config: cliff.toml
           args: --tag v${{ steps.publish.outputs.telark_version }}

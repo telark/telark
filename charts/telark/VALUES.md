@@ -54,6 +54,10 @@ Kubernetes: `>=1.33.0-0`
 | app.persistence.size | string | `"10Gi"` |  |
 | app.persistence.storageClass | string | `""` |  |
 | app.serviceDefaults.affinity | object | `{}` |  |
+| app.serviceDefaults.autoscaling.enabled | bool | `false` |  |
+| app.serviceDefaults.autoscaling.maxReplicas | int | `3` |  |
+| app.serviceDefaults.autoscaling.minReplicas | int | `1` |  |
+| app.serviceDefaults.autoscaling.targetCPUUtilizationPercentage | int | `80` |  |
 | app.serviceDefaults.nodeSelector | object | `{}` |  |
 | app.serviceDefaults.port | int | `8080` |  |
 | app.serviceDefaults.replicas | int | `2` |  |
@@ -137,6 +141,10 @@ Kubernetes: `>=1.33.0-0`
 | metrics-server.resources.limits.memory | string | `"400Mi"` |  |
 | metrics-server.resources.requests.cpu | string | `"100m"` |  |
 | metrics-server.resources.requests.memory | string | `"200Mi"` |  |
+| monitoring.serviceMonitor.enabled | bool | `false` |  |
+| monitoring.serviceMonitor.interval | string | `"30s"` |  |
+| monitoring.serviceMonitor.labels | object | `{}` |  |
+| monitoring.serviceMonitor.path | string | `"/metrics"` |  |
 | nameOverride | string | `""` |  |
 | nats.configuration | string | `"server_name: nats-server\nport: 4222\njetstream {\n  store_dir: \"/data\"\n  max_mem: 1G\n  max_file: 5G\n}\nauthorization {\n  users = [\n    {\n      user: \"nats\",\n      password: $NATS_PASSWORD,\n      permissions: {\n        publish   = [\"telark.applications.*\", \"$JS.ACK.>\", \"$JS.API.>\", \"_INBOX.>\"]\n        subscribe = [\"telark.applications.*\", \"$JS.ACK.>\", \"$JS.API.>\", \"_INBOX.>\"]\n      }\n    }\n  ]\n}\nhttp_port: 8222\n"` |  |
 | nats.enabled | bool | `true` |  |

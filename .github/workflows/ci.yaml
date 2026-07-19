@@ -32,8 +32,14 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      # coverage = per-service ratchet floor (just below current); raise as coverage
+      # improves. Never lower it — that is the point.
       matrix:
-        service: [auth, discovery, exporter, notifier]
+        include:
+          - { service: auth, coverage: 20 }
+          - { service: discovery, coverage: 3 }
+          - { service: exporter, coverage: 7 }
+          - { service: notifier, coverage: 75 }
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.0
@@ -45,6 +51,7 @@ jobs:
           cache-key: ${{ matrix.service }}
           access-user: ${{ secrets.ACCESS_USER }}
           access-token: ${{ secrets.ACCESS_TOKEN }}
+          coverage-threshold: ${{ matrix.coverage }}
 
   enrichment:
     name: Python · enrichment
@@ -71,10 +78,13 @@ jobs:
 
       # The stub-based suites replace sys.modules at import, so they run in a
       # separate process from the real-dependency suites to avoid cross-pollution.
+      # --cov-append across the two processes, then one combined gate. 95 is the
+      # ratchet floor (current ~99%); raise as coverage improves, never lower.
       - name: Test
         run: |
-          python -m pytest tests/test_*_cov.py -q
-          python -m pytest tests/test_authz.py tests/test_insights.py tests/test_provider_config.py -q
+          python -m pytest --cov=. --cov-report= tests/test_*_cov.py -q
+          python -m pytest --cov=. --cov-append --cov-report= tests/test_authz.py tests/test_insights.py tests/test_provider_config.py -q
+          python -m coverage report --fail-under=95
 
   helm:
     name: Helm · lint

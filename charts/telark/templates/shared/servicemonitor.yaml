@@ -1,0 +1,25 @@
+{{- $sm := (.Values.monitoring | default dict).serviceMonitor | default dict -}}
+{{- if $sm.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "telark.fullname" . }}
+  namespace: {{ .Values.app.namespace }}
+  labels:
+    {{- include "telark.labels" . | nindent 4 }}
+    {{- with $sm.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.app.namespace }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: {{ include "telark.name" . }}
+  endpoints:
+    - port: http
+      path: {{ $sm.path | default "/metrics" }}
+      interval: {{ $sm.interval | default "30s" }}
+      scheme: http
+{{- end }}

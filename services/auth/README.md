@@ -245,8 +245,8 @@ export PORT="8080"
 
 1. Build and push Docker image:
 ```bash
-docker build -t botriack/telark/auth-service:auth-0.0.1 .
-docker push botriack/telark/auth-service:auth-0.0.1
+docker build -t telark/auth:0.3.2 .
+docker push telark/auth:0.3.2
 ```
 
 2. Enable service in Helm values:

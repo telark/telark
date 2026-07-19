@@ -29,13 +29,13 @@ app:
   name: "telark"
   namespace: "telark"
 
-  # Container images. Full ref: <registry>/<repository>:<imageTagPrefix><version>.
+  # Container images. Full ref per service: <registry>/<service.repository>:<service.version>.
   image:
-    registry: "botriack"
-    repository: "telark"
+    # Docker Hub namespace (account/org) that hosts the per-service repos.
+    registry: "telark"
     pullPolicy: "Always"        # re-build-current re-pulls the same tag, so never IfNotPresent
-    registrySecret:
-      create: true              # chart-managed <name>-reg-cred pull secret
+    # Public images pull anonymously. Add pull secrets here (or via
+    # global.imagePullSecrets) only for a private registry/mirror.
     pullSecrets: []
 
   # Auth service — WebAuthn relying-party identity + bootstrap admins.
@@ -139,7 +139,7 @@ services:
   exporter:
     enabled: true
     name: "exporter-service"
-    imageTagPrefix: "exp-"
+    repository: "exporter"
     version: 3.3.3
     category: "export"
     env:
@@ -160,7 +160,7 @@ services:
   discovery:
     enabled: true
     name: "discovery-service"
-    imageTagPrefix: "discovery-"
+    repository: "discovery"
     version: 1.9.0
     category: "sync"
     replicas: 2
@@ -221,7 +221,7 @@ services:
   enrichment:
     enabled: true
     name: "enrichment-service"
-    imageTagPrefix: "enrich-"
+    repository: "enrichment"
     version: 0.1.1
     category: "ai-enrichment"
     env:
@@ -241,7 +241,7 @@ services:
   notifier:
     enabled: true
     name: "notifier-service"
-    imageTagPrefix: "not-"
+    repository: "notifier"
     version: 0.2.2
     category: "notification"
     terminationGracePeriodSec: 30
@@ -251,7 +251,7 @@ services:
   auth:
     enabled: true
     name: "auth-service"
-    imageTagPrefix: "auth-"
+    repository: "auth"
     version: 0.3.2
     category: "auth"
     terminationGracePeriodSec: 30
@@ -286,7 +286,7 @@ services:
   ui:
     enabled: false
     name: "ui-service"
-    imageTagPrefix: "ui-"
+    repository: "ui"
     version: 0.0.1
     category: "ui"
     terminationGracePeriodSec: 30

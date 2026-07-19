@@ -165,7 +165,7 @@ func HandleBackupFlagError(
 	}
 
 	credentialOnlyRequest,
-		err := http.NewRequest(r.Method, r.URL.String(), bytes.NewBuffer(credentialOnlyBytes)) //nolint:gosec
+		err := http.NewRequest(r.Method, r.URL.String(), bytes.NewBuffer(credentialOnlyBytes))
 	if err != nil {
 		return nil, fmt.Errorf(string(constants.ErrFailedCreateCredentialRequest), err)
 	}

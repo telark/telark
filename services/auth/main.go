@@ -183,7 +183,6 @@ func startCleanupSystem(rdb *goredis.Client) {
 	targets := cleanupctrl.DefaultTargets()
 	reconciler := cleanupctrl.NewReconciler(cfg, targets, constants.GetLogger(constants.LoggerPrefixCleanup))
 
-	//nolint:gosec // G118: cancel is stored in cleanupSystemCancel and invoked in gracefulShutdown.
 	ctx, cancel := context.WithCancel(context.Background())
 	cleanupSystemCancel = cancel
 

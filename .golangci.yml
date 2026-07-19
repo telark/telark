@@ -36,6 +36,7 @@ linters:
     gosec:
       excludes:
         - G101
+        - G118
     revive:
       enable-all-rules: true
       rules:

@@ -110,7 +110,6 @@ func main() {
 }
 
 func startMainService() {
-	//nolint:gosec // G118: cancel is invoked via shutdownExistingServices on restart/shutdown.
 	serviceCtx, serviceCancel = context.WithCancel(context.Background())
 	redishelper.ResetBootstrapReady()
 	newRouter := router.NewRouter(routes.Routes)
@@ -268,7 +267,7 @@ func startCoordinationBootstrap(
 		startDiscoveryWatchers(ctx, rdb, replicaID)
 		startRollbackLeaderGatedIfEnabled(ctx)
 		startProtectionPlanLeaderGated(ctx, rdb)
-	startInsightsLeaderGated(ctx)
+		startInsightsLeaderGated(ctx)
 		redishelper.SetBootstrapReady()
 		return
 	}

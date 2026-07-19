@@ -85,6 +85,8 @@ jobs:
           registry="${{ steps.meta.outputs.registry }}"
           repo="${registry#oci://}"
           echo "${{ secrets.ACCESS_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+          # cosign uses the Docker keychain, not helm's registry config — log it in too.
+          echo "${{ secrets.ACCESS_TOKEN }}" | cosign login ghcr.io -u "${{ github.actor }}" --password-stdin
           mkdir -p .cr-release
           bump="${{ github.event.inputs.bump || 'current' }}"
           published=0

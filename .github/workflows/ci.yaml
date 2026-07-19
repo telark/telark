@@ -87,7 +87,7 @@ jobs:
           python -m coverage report --fail-under=95
 
   helm:
-    name: Helm · lint
+    name: Helm · lint + validate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -101,6 +101,16 @@ jobs:
         with:
           go-version: "1.26"
 
+      # Subchart .tgz are git-ignored build artifacts, so fetch them before
+      # anything lints or renders the chart. Mirrors `make deps`.
+      - name: Fetch chart dependencies
+        run: |
+          helm repo add bitnami        https://charts.bitnami.com/bitnami
+          helm repo add kyverno        https://kyverno.github.io/kyverno/
+          helm repo add otwld          https://helm.otwld.com/
+          helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+          helm dependency build "$CHART_DIR"
+
       - name: Lint charts
         run: |
           helm lint "$CHART_DIR"
@@ -112,3 +122,17 @@ jobs:
           go run github.com/norwoodj/helm-docs/cmd/helm-docs@v1.14.2 --chart-search-root charts --output-file VALUES.md
           git diff --exit-code -- charts/telark/VALUES.md charts/telark-crds/VALUES.md \
             || { echo "VALUES.md is stale — run 'make values-docs' and commit."; exit 1; }
+
+      # Schema-validate the rendered manifests against Kubernetes + CRD schemas
+      # (every mode). Mirrors `make helm-validate`.
+      - name: Validate rendered manifests
+        run: |
+          curl -sSLo /tmp/kc.tar.gz https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          tar -xzf /tmp/kc.tar.gz -C /usr/local/bin kubeconform
+          for m in minimal standard performance; do
+            echo "== kubeconform $m =="
+            helm template t "$CHART_DIR" --set app.mode="$m" --set app.persistence.storageClass=validate \
+              | kubeconform -strict -summary -ignore-missing-schemas \
+                  -schema-location default \
+                  -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+          done

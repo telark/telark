@@ -2,7 +2,7 @@ apiVersion: v2
 name: telark
 description: A protection gate for your Kubernetes workloads — discover your applications, then decide what can change them, and when
 type: application
-version: 0.0.0
+version: 0.0.1
 appVersion: "2.0"
 home: https://telark.io
 sources:
@@ -22,7 +22,6 @@ maintainers:
 # offered by the managed providers. It also clears ValidatingAdmissionPolicy
 # (GA in 1.30), so the admission guard needs no fallback for older clusters.
 kubeVersion: ">=1.33.0-0"
-
 dependencies:
   - name: redis
     version: 23.0.10
@@ -42,7 +41,6 @@ dependencies:
     version: 1.50.0
     repository: https://helm.otwld.com/
     condition: app.ollama.enabled
-
 annotations:
   artifacthub.io/license: Elastic-2.0
   artifacthub.io/prerelease: "false"

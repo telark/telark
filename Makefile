@@ -22,7 +22,7 @@ fmt: ## Format the Go services
 test: ## Run Go tests per module
 	@for s in $(GO_SERVICES); do echo "== test $$s =="; (cd services/$$s && go test ./...) || exit 1; done
 
-lint: helm-lint ## golangci-lint per service (each service's own config) + helm lint
+lint: helm-lint ## golangci-lint per service (shared root .golangci.yml) + helm lint
 	@for s in $(GO_SERVICES); do echo "== lint $$s =="; (cd services/$$s && golangci-lint run) || exit 1; done
 
 helm-lint: ## Lint both charts

@@ -52,7 +52,7 @@ make helm-lint   # lint both charts
 make fmt         # gofmt
 ```
 
-- **Never pass `--no-config` or override linter flags.** Each Go service ships its own `.golangci.yml`; use it. Fix all errors (warnings are acceptable, errors must be zero, no `//nolint` as a workaround).
+- **Never pass `--no-config` or override linter flags.** A shared root `.golangci.yml` covers every Go service (golangci-lint discovers it by walking up from `services/<svc>`). Fix all errors (warnings are acceptable, errors must be zero, no `//nolint` as a workaround).
 - The enrichment service uses `pytest` inside a virtualenv (`services/enrichment`).
 
 ## Charts

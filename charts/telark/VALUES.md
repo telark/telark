@@ -18,7 +18,7 @@ A protection gate for your Kubernetes workloads — discover your applications, 
 
 ## Requirements
 
-Kubernetes: `>=1.33.0-0`
+Kubernetes: `>=1.30.0-0`
 
 | Repository | Name | Version |
 |------------|------|---------|

@@ -18,7 +18,7 @@ Custom resource definitions for telark — bundled by the telark chart as a subc
 
 ## Requirements
 
-Kubernetes: `>=1.33.0-0`
+Kubernetes: `>=1.30.0-0`
 
 ## Values
 

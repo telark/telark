@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Kubernetes ≥ 1.33 (clears ValidatingAdmissionPolicy GA; see `Chart.yaml` `kubeVersion`).
+- Kubernetes ≥ 1.30 (1.33+ recommended) — enforced by the chart's `kubeVersion`; see [Kubernetes compatibility](../README.md#kubernetes-compatibility).
 - Helm ≥ 3.
 - A default StorageClass (the exporter needs a PVC for snapshots).
 

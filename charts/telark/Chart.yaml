@@ -18,10 +18,9 @@ maintainers:
   - name: telark
     email: contact@telark.io
     url: https://github.com/telark
-# 1.33 is the oldest release still receiving upstream patches, and the oldest
-# offered by the managed providers. It also clears ValidatingAdmissionPolicy
-# (GA in 1.30), so the admission guard needs no fallback for older clusters.
-kubeVersion: ">=1.33.0-0"
+# Floor = 1.30: ValidatingAdmissionPolicy is GA there, so the crdGuard needs no
+# fallback. 1.33+ is the supported tier, 1.30–1.32 best-effort (see README compat).
+kubeVersion: ">=1.30.0-0"
 dependencies:
   # CRDs ship with the app so a single `helm install` covers everything. Kept as a
   # standalone versioned chart (published to OCI too); vendored here via a local

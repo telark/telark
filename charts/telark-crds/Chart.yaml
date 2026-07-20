@@ -4,10 +4,9 @@ description: Custom resource definitions for telark — bundled by the telark ch
 type: application
 version: 0.0.1
 appVersion: "1.0"
-# 1.33 is the oldest release still receiving upstream patches, and the oldest
-# offered by the managed providers. It also clears ValidatingAdmissionPolicy
-# (GA in 1.30), so the admission guard needs no fallback for older clusters.
-kubeVersion: ">=1.33.0-0"
+# Floor kept in step with the telark chart (1.30). The CRDs themselves need only
+# apiextensions.k8s.io/v1 (GA since 1.16).
+kubeVersion: ">=1.30.0-0"
 home: https://telark.io
 sources:
   - https://github.com/telark/telark

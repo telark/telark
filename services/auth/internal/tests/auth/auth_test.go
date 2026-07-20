@@ -1,0 +1,249 @@
+package auth
+
+import (
+	"encoding/base64"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	webauthnlib "github.com/go-webauthn/webauthn/webauthn"
+
+	"github.com/telark/auth/internal/clients"
+	"github.com/telark/auth/internal/config"
+	"github.com/telark/auth/internal/constants"
+	authhelper "github.com/telark/auth/internal/helpers/auth"
+	"github.com/telark/auth/internal/tests/testutil"
+	userresource "github.com/telark/data/resources/user"
+)
+
+// A username is the sanitised email local-part plus a random suffix, padded to a
+// floor length so it is always a legal handle.
+func TestBuildUsername(t *testing.T) {
+	cases := []struct {
+		name   string
+		email  string
+		prefix string
+	}{
+		{"simple", "alice@example.com", "alice_"},
+		{"short local", "a@x.com", "a_"},
+		{"special chars sanitised", "a.b+c@x.com", "a_b_c_"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := authhelper.BuildUsername(c.email)
+			if err != nil {
+				t.Fatalf("BuildUsername(%q) = %v", c.email, err)
+			}
+			if !strings.HasPrefix(got, c.prefix) {
+				t.Fatalf("BuildUsername(%q) = %q, want prefix %q", c.email, got, c.prefix)
+			}
+			if len(got) < constants.UsernameMinLen {
+				t.Fatalf("username %q shorter than floor %d", got, constants.UsernameMinLen)
+			}
+		})
+	}
+
+	long := strings.Repeat("x", 100) + "@x.com"
+	got, err := authhelper.BuildUsername(long)
+	if err != nil {
+		t.Fatalf("BuildUsername(long) = %v", err)
+	}
+	if len(got) > constants.UsernameMaxLocalLen+1+2*constants.UsernameRandomBytes {
+		t.Fatalf("local part not truncated: %q", got)
+	}
+}
+
+// The first-login role is Admin for a configured bootstrap admin and read-only
+// for everyone else.
+func TestResolveInitialRoleID(t *testing.T) {
+	t.Setenv(constants.EnvBootstrapAdmins, "admin@x.com")
+	t.Setenv(constants.EnvSelfRegistrationEnabled, "true")
+	if _, err := config.LoadBootstrapConfig(); err != nil {
+		t.Fatalf("LoadBootstrapConfig = %v", err)
+	}
+
+	testutil.Equal(t, "admin", authhelper.ResolveInitialRoleID("admin@x.com"), constants.BuiltInRoleAdmin)
+	testutil.Equal(t, "reader", authhelper.ResolveInitialRoleID("nobody@x.com"), constants.BuiltInRoleReadOnly)
+}
+
+// The decoder accepts raw-url tokens and falls back to standard base64 (with
+// padding and +/ alphabet) so it tolerates both encodings a browser may send.
+func TestDecodeBase64URLWithFallback(t *testing.T) {
+	cases := []struct {
+		name    string
+		input   string
+		want    []byte
+		wantErr bool
+	}{
+		{"raw url", base64.RawURLEncoding.EncodeToString([]byte{1, 2, 3, 4}), []byte{1, 2, 3, 4}, false},
+		{"std alphabet", "////", []byte{255, 255, 255}, false},
+		{"std padding", "AQ==", []byte{1}, false},
+		{"invalid", "!!!", nil, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := authhelper.DecodeBase64URLWithFallback(c.input)
+			testutil.Equal(t, "err", err != nil, c.wantErr)
+			if !c.wantErr {
+				testutil.Equal(t, "decoded", string(got), string(c.want))
+			}
+		})
+	}
+}
+
+// Header extractors return the value when present and a specific error when the
+// header is missing.
+func TestHeaderExtractors(t *testing.T) {
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set(constants.HeaderSessionToken, "tok")
+	r.Header.Set(constants.HeaderCredentialID, "cred")
+
+	tok, err := authhelper.ExtractSessionToken(r)
+	testutil.Equal(t, "token", tok, "tok")
+	testutil.Equal(t, "token err", err != nil, false)
+
+	cred, err := authhelper.ExtractCredentialID(r)
+	testutil.Equal(t, "cred", cred, "cred")
+	testutil.Equal(t, "cred err", err != nil, false)
+
+	empty := httptest.NewRequest("GET", "/", nil)
+	if _, err := authhelper.ExtractSessionToken(empty); err == nil {
+		t.Fatal("missing session token should error")
+	}
+	if _, err := authhelper.ExtractCredentialID(empty); err == nil {
+		t.Fatal("missing credential id should error")
+	}
+}
+
+// Both device headers are required together.
+func TestValidateDeviceHeaders(t *testing.T) {
+	full := httptest.NewRequest("GET", "/", nil)
+	full.Header.Set(constants.HeaderDeviceName, "Pixel")
+	full.Header.Set(constants.HeaderDeviceType, "phone")
+	name, typ, err := authhelper.ValidateDeviceHeaders(full)
+	if err != nil {
+		t.Fatalf("ValidateDeviceHeaders = %v", err)
+	}
+	testutil.Equal(t, "name", name, "Pixel")
+	testutil.Equal(t, "type", typ, "phone")
+
+	partial := httptest.NewRequest("GET", "/", nil)
+	partial.Header.Set(constants.HeaderDeviceName, "Pixel")
+	if _, _, err := authhelper.ValidateDeviceHeaders(partial); err == nil {
+		t.Fatal("missing device type should error")
+	}
+}
+
+// The 409 conflict carrier surfaces the upstream message verbatim.
+func TestConflictError(t *testing.T) {
+	err := &authhelper.ConflictError{Message: "already exists"}
+	testutil.Equal(t, "message", err.Error(), "already exists")
+}
+
+// An empty token is rejected before any lookup; a real token with no reachable
+// backend fails closed as "not found" rather than granting access.
+func TestValidateSession(t *testing.T) {
+	if _, err := authhelper.ValidateSession(""); err == nil {
+		t.Fatal("empty session token should error")
+	}
+
+	noHeader := httptest.NewRequest("GET", "/", nil)
+	if _, err := authhelper.ValidateSessionFromRequest(noHeader); err == nil {
+		t.Fatal("request without session header should error")
+	}
+
+	if _, err := authhelper.ValidateSession("no-such-token"); err == nil {
+		t.Fatal("unresolvable session token should fail closed")
+	}
+}
+
+// The async worker is nil-safe before init, then runs dispatched work to
+// completion by the time the drain returns.
+func TestAsyncWorker(t *testing.T) {
+	authhelper.Dispatch(func() {})
+	authhelper.DrainAsyncWorker()
+
+	authhelper.InitAsyncWorker()
+	ran := make(chan struct{})
+	authhelper.Dispatch(func() { close(ran) })
+	authhelper.DrainAsyncWorker()
+
+	select {
+	case <-ran:
+	default:
+		t.Fatal("dispatched work did not run before drain returned")
+	}
+}
+
+// Every helper that reaches the resource backend fails closed when the backend
+// is unreachable rather than returning a partial success.
+func TestClientHelpersFailClosed(t *testing.T) {
+	if _, _, err := authhelper.GetUserAndPasskeys("a@b.com"); err == nil {
+		t.Fatal("GetUserAndPasskeys should fail with no backend")
+	}
+	if _, err := authhelper.GetUserByIDWithErrorHandling("uid"); err == nil {
+		t.Fatal("GetUserByIDWithErrorHandling should fail with no backend")
+	}
+	if _, err := authhelper.CheckUserHasExistingPasskeys("uid"); err == nil {
+		t.Fatal("CheckUserHasExistingPasskeys should fail with no backend")
+	}
+	if _, err := authhelper.JitProvisionUserByEmail(clients.GetUserClient(), "a@b.com"); err == nil {
+		t.Fatal("JitProvisionUserByEmail should fail with no backend")
+	}
+	if err := authhelper.UpdatePasskeyLastUsed("uid", []byte{1, 2, 3}); err == nil {
+		t.Fatal("UpdatePasskeyLastUsed should fail with no backend")
+	}
+	if err := authhelper.DeletePasskey("uid", "cred", false); err == nil {
+		t.Fatal("DeletePasskey should fail with no backend")
+	}
+}
+
+// Passkey creation surfaces backend failures, and identity attachment reports a
+// non-OK patch as an error.
+func TestPasskeyMutationsFailClosed(t *testing.T) {
+	passkey := authhelper.CreatePasskeyFromCredential(
+		"uid", &webauthnlib.Credential{ID: []byte{1}}, "dev", "phone", false, false)
+	if passkey == nil {
+		t.Fatal("CreatePasskeyFromCredential returned nil")
+	}
+
+	if _, err := authhelper.CreatePasskey("uid", passkey); err == nil {
+		t.Fatal("CreatePasskey should fail with no backend")
+	}
+	if _, err := authhelper.UpdatePasskey("uid", "cred", map[string]any{"k": "v"}); err == nil {
+		t.Fatal("UpdatePasskey should fail with no backend")
+	}
+
+	user := &userresource.UserAsResource{ID: "uid"}
+	if err := authhelper.AttachPasskeyIdentity("uid", user, &webauthnlib.Credential{ID: []byte{1}}); err == nil {
+		t.Fatal("AttachPasskeyIdentity should fail with no backend")
+	}
+}
+
+// Registration entry points resolve the caller from the request; with no
+// session and an unreachable backend they fail rather than provisioning.
+func TestGetUserForRegistrationFailClosed(t *testing.T) {
+	byBody := httptest.NewRequest("POST", "/", strings.NewReader(`{"email":"a@b.com"}`))
+	if _, _, err := authhelper.GetUserForRegistrationStart(byBody); err == nil {
+		t.Fatal("GetUserForRegistrationStart should fail with no backend")
+	}
+
+	byHeader := httptest.NewRequest("POST", "/", strings.NewReader("{}"))
+	byHeader.Header.Set(constants.HeaderEmail, "a@b.com")
+	if _, _, err := authhelper.GetUserForRegistration(byHeader); err == nil {
+		t.Fatal("GetUserForRegistration should fail with no backend")
+	}
+}
+
+// A session is minted from the cached config; with no backend the create call
+// fails, and a returned token is never empty.
+func TestCreateUserSession(t *testing.T) {
+	t.Setenv("RP_ID", "localhost")
+	t.Setenv("RP_NAME", "Test")
+	t.Setenv("RP_ORIGIN", "http://localhost:3000")
+
+	token, err := authhelper.CreateUserSession("uid", nil)
+	if err == nil && token == "" {
+		t.Fatal("CreateUserSession returned an empty token without an error")
+	}
+}

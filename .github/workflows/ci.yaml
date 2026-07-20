@@ -36,9 +36,9 @@ jobs:
       # improves. Never lower it — that is the point.
       matrix:
         include:
-          - { service: auth, coverage: 20 }
-          - { service: discovery, coverage: 3 }
-          - { service: exporter, coverage: 7 }
+          - { service: auth, coverage: 53 }
+          - { service: discovery, coverage: 28 }
+          - { service: exporter, coverage: 52 }
           - { service: notifier, coverage: 75 }
     steps:
       - name: Checkout

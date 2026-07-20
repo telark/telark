@@ -1,6 +1,0 @@
-{{- $service := "notifier" -}}
-{{- $values := include "telark.modeValues" $ | fromYaml -}}
-{{- $serviceConfig := index $values.services $service -}}
-{{- if $serviceConfig.enabled }}
-{{- include "serviceHPA" (dict "service" $service "values" $values "root" $) }}
-{{- end }}

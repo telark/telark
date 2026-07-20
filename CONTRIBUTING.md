@@ -2,6 +2,8 @@
 
 Thanks for contributing to telark.
 
+**Start here:** [CONVENTIONS.md](CONVENTIONS.md) — the rulebook · [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — every command · [GOVERNANCE.md](GOVERNANCE.md) — roles & the contributor ladder.
+
 ## Repository layout
 
 ```
@@ -42,7 +44,7 @@ go work sync
 
 ## Build, lint, test
 
-A `Makefile` wraps the common flows:
+A `Makefile` wraps the common flows — full target reference in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md):
 
 ```sh
 make build       # go build across the workspace
@@ -71,6 +73,8 @@ Do not bump chart or module versions, and do not commit local `replace` directiv
 After changing `values.yaml`, run `make values-docs` to refresh each chart's `VALUES.md` (CI fails if it drifts). `CHANGELOG.md` is generated from Conventional Commits by the release workflow — preview it with `make changelog`. Packaging, pushing, and signing the charts is covered in [docs/PUBLISHING.md](docs/PUBLISHING.md).
 
 ## Commits & PRs
+
+Full rules: [CONVENTIONS.md](CONVENTIONS.md#commits-branches-prs) · who can approve/merge: [GOVERNANCE.md](GOVERNANCE.md).
 
 - Conventional-commit style subjects (`feat:`, `fix:`, `chore:`, `docs:`…), ≤ 50 chars, imperative.
 - Keep changes surgical; every changed line should trace to the stated goal.

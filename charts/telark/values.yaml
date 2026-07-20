@@ -24,15 +24,13 @@ fullnameOverride: ""
 commonLabels: {}
 commonAnnotations: {}
 
-# CRDs ship with the chart via the telark-crds subchart, so one install covers
-# everything. Disable to manage CRDs out of band (e.g. GitOps applies them first).
-# Every CRD carries resource-policy:keep, so they survive uninstall either way.
+# CRDs ship with the chart (telark-crds subchart) — one install covers everything.
+# Disable for out-of-band/GitOps management; every CRD carries resource-policy:keep.
 crds:
   enabled: true
 
-# Prometheus-Operator ServiceMonitor scraping each service's /metrics. Off by
-# default (needs the Prometheus-Operator CRDs). Set labels to match your Prometheus
-# instance's serviceMonitorSelector.
+# Prometheus-Operator ServiceMonitor for each service's /metrics. Off by default
+# (needs the Operator CRDs). labels must match your Prometheus serviceMonitorSelector.
 monitoring:
   serviceMonitor:
     enabled: false
@@ -40,9 +38,8 @@ monitoring:
     interval: 30s
     labels: {}
 
-# Ingress for the dashboard. Off by default — without it, reach the UI with
-# `kubectl port-forward`. Routes to the `service` below (the ui service, deployed
-# by default). Set className + host for your ingress controller; add tls for HTTPS.
+# Ingress for the dashboard (the ui service). Off by default — else reach it via
+# kubectl port-forward. Set className + host for your controller; add tls for HTTPS.
 ingress:
   enabled: false
   className: ""            # e.g. nginx
@@ -121,9 +118,8 @@ app:
     nodeSelector: {}
     tolerations: []
     affinity: {}
-    # HPA defaults (autoscaling/v2). enabled=false everywhere; performance mode
-    # flips it per stateless service. Only services with a workload/hpa.yaml
-    # autoscale (auth/discovery/enrichment/notifier/ui — never the exporter).
+    # HPA defaults (autoscaling/v2). Off everywhere; performance mode enables it per
+    # stateless service (auth/discovery/enrichment/notifier/ui — never the exporter).
     autoscaling:
       enabled: false
       minReplicas: 1

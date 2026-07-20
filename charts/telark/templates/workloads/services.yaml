@@ -1,0 +1,7 @@
+{{- $values := include "telark.modeValues" $ | fromYaml -}}
+{{- range $name, $svc := $values.services }}
+{{- if $svc.enabled }}
+---
+{{ include "serviceService" (dict "service" $name "values" $values "root" $) }}
+{{- end }}
+{{- end }}

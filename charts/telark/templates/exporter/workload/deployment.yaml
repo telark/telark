@@ -1,7 +1,0 @@
-{{- $service := "exporter" -}}
-{{- $values := include "telark.modeValues" $ | fromYaml -}}
-{{- $serviceConfig := index $values.services $service -}}
-{{- include "validateExporterStorage" (dict "values" $values "root" $) -}}
-{{- if $serviceConfig.enabled }}
-{{- include "serviceDeployment" (dict "service" $service "values" $values "root" $) }}
-{{- end }}

@@ -1,0 +1,42 @@
+package clients
+
+import (
+	"testing"
+
+	"github.com/telark/auth/internal/clients"
+)
+
+// Every resource client is a lazily-built singleton: the getter never returns
+// nil and hands back the same instance on repeat calls.
+func TestClientSingletons(t *testing.T) {
+	cases := []struct {
+		name string
+		get  func() any
+	}{
+		{"passkey", func() any { return clients.GetPasskeyClient() }},
+		{"session", func() any { return clients.GetSessionClient() }},
+		{"user", func() any { return clients.GetUserClient() }},
+		{"group", func() any { return clients.GetGroupClient() }},
+		{"role", func() any { return clients.GetRoleClient() }},
+		{"global config", func() any { return clients.GetGlobalConfigClient() }},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			first := c.get()
+			if first == nil {
+				t.Fatalf("%s client is nil", c.name)
+			}
+			if second := c.get(); second != first {
+				t.Fatalf("%s client not memoised", c.name)
+			}
+		})
+	}
+}
+
+// NewAuthClients bundles the individual singletons into one struct.
+func TestNewAuthClients(t *testing.T) {
+	ac := clients.NewAuthClients()
+	if ac.Passkey == nil || ac.Session == nil || ac.User == nil || ac.Group == nil || ac.Role == nil {
+		t.Fatalf("NewAuthClients left a nil client: %+v", ac)
+	}
+}

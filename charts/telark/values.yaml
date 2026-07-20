@@ -180,7 +180,7 @@ services:
     enabled: true
     name: "exporter-service"
     repository: "exporter"
-    version: 3.3.3
+    version: 3.3.4
     category: "export"
     # One replica: snapshots sit on a ReadWriteOnce volume, so a second replica
     # lands on another node, cannot mount it, and stays Pending. Recreate for the
@@ -207,7 +207,7 @@ services:
     enabled: true
     name: "discovery-service"
     repository: "discovery"
-    version: 1.9.0
+    version: 1.9.1
     category: "sync"
     replicas: 2
     includeSecurity: false
@@ -269,8 +269,8 @@ services:
     enabled: true
     name: "enrichment-service"
     repository: "enrichment"
-    version: 0.1.1
-    category: "ai-enrichment"
+    version: 0.1.2
+    category: "ai-inisghts"
     env:
       REDIS_POOL_SIZE: "10"
       # Provider and API key are read from the GlobalConfig CR at runtime, set by
@@ -290,7 +290,7 @@ services:
     enabled: true
     name: "notifier-service"
     repository: "notifier"
-    version: 0.2.2
+    version: 0.2.3
     category: "notification"
     terminationGracePeriodSec: 30
     useNatsCreds: true
@@ -301,7 +301,7 @@ services:
     enabled: true
     name: "auth-service"
     repository: "auth"
-    version: 0.3.2
+    version: 0.3.3
     category: "auth"
     terminationGracePeriodSec: 30
     env:

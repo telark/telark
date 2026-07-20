@@ -18,4 +18,4 @@ dependencies:
   repository: https://helm.otwld.com/
   version: 1.50.0
 digest: sha256:afc4cafc53e31606faf2a2d7d7594ecfd3d7ae071ee048293c59a91ec4892ac9
-generated: "2026-07-19T23:07:30.382614+02:00"
+generated: "2026-07-20T16:38:34.608564+02:00"

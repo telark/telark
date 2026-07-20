@@ -10,8 +10,14 @@ Services deployed:
 Check rollout:
   kubectl get pods -n {{ .Values.app.namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
 
-Reach the auth service to create the first admin:
+{{- if .Values.services.ui.enabled }}
+Open the dashboard (local 3000 → service {{ .Values.app.serviceDefaults.port }}):
+  kubectl port-forward -n {{ .Values.app.namespace }} svc/{{ include "telark.fullname" . }}-{{ .Values.services.ui.name }} 3000:{{ .Values.app.serviceDefaults.port }}
+  # then browse http://localhost:3000 and log in with the bootstrap admin
+{{- else }}
+Reach the auth service directly (dashboard disabled):
   kubectl port-forward -n {{ .Values.app.namespace }} svc/{{ include "telark.fullname" . }}-{{ .Values.services.auth.name }} 8080:{{ .Values.app.serviceDefaults.port }}
+{{- end }}
 
 Next steps:
   1. Log in with the bootstrap admin ({{ join ", " .Values.app.auth.bootstrap.admins }}).

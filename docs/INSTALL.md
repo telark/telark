@@ -44,12 +44,12 @@ helm test telark -n telark      # readiness probe against the auth service
 
 ## Access the dashboard
 
-The dashboard (`ui` service) is optional and **off by default** — enable it with `--set services.ui.enabled=true`, then reach it either way.
+The dashboard (`ui` service) is **deployed by default**, served on port 8080. Reach it either way.
 
-**Port-forward** (no ingress needed):
+**Port-forward** (no ingress needed) — maps local `3000` to the service's `8080`:
 
 ```sh
-kubectl port-forward -n telark svc/telark-ui-service 8080:3000
+kubectl port-forward -n telark svc/telark-ui-service 3000:8080
 # open http://localhost:3000
 ```
 
@@ -57,7 +57,6 @@ kubectl port-forward -n telark svc/telark-ui-service 8080:3000
 
 ```sh
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
-  --set services.ui.enabled=true \
   --set ingress.enabled=true \
   --set ingress.className=nginx \
   --set ingress.host=telark.example.com

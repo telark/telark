@@ -1,0 +1,34 @@
+# Codecov config — https://docs.codecov.com/docs/codecov-yaml
+# Coverage is reported for visibility + the README badge. The hard gate stays the
+# per-service ratchet in CI (go-ci `coverage-threshold`), so Codecov statuses are
+# informational and never block a PR.
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+
+# Per-service flags. Each CI job uploads under its own flag; carryforward keeps a
+# flag's last coverage when a run didn't re-upload it (the matrix uploads separately).
+flag_management:
+  default_rules:
+    carryforward: true
+
+flags:
+  auth:
+    paths: [services/auth]
+  discovery:
+    paths: [services/discovery]
+  exporter:
+    paths: [services/exporter]
+  notifier:
+    paths: [services/notifier]
+  enrichment:
+    paths: [services/enrichment]
+
+comment:
+  layout: "reach, diff, flags"
+  require_changes: false

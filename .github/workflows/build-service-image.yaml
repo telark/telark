@@ -34,29 +34,10 @@ on:
         type: choice
         description: Service Build Type
         options:
-          - patch
-          - minor
-          - major
           - re-build-current
-      helm_build_type:
-        required: false
-        type: choice
-        description: Helm Release Build Type
-        default: skip
-        options:
           - patch
           - minor
           - major
-          - skip
-      install_mode:
-        required: false
-        type: choice
-        description: "Install Mode (sizing for every chart: replicas, resources, rate limits, volumes)"
-        options:
-          - minimal
-          - standard
-          - performance
-        default: minimal
 
 permissions:
   contents: write   # commit the version bump

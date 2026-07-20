@@ -1,6 +1,6 @@
 # telark
 
-![Version: 0.0.1](https://img.shields.io/badge/Version-0.0.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.0](https://img.shields.io/badge/AppVersion-2.0-informational?style=flat-square)
+![Version: 0.0.2](https://img.shields.io/badge/Version-0.0.2-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.0](https://img.shields.io/badge/AppVersion-2.0-informational?style=flat-square)
 
 A protection gate for your Kubernetes workloads — discover your applications, then decide what can change them, and when
 
@@ -220,7 +220,7 @@ Kubernetes: `>=1.30.0-0`
 | services.auth.pdb.minAvailable | int | `1` |  |
 | services.auth.repository | string | `"auth"` |  |
 | services.auth.terminationGracePeriodSec | int | `30` |  |
-| services.auth.version | string | `"0.3.2"` |  |
+| services.auth.version | string | `"0.3.3"` |  |
 | services.discovery.category | string | `"sync"` |  |
 | services.discovery.enabled | bool | `true` |  |
 | services.discovery.env.COORDINATION_BATCH_BLOCK_SEC | string | `"2"` |  |
@@ -275,8 +275,8 @@ Kubernetes: `>=1.30.0-0`
 | services.discovery.topologySpread.topologyKey | string | `"kubernetes.io/hostname"` |  |
 | services.discovery.topologySpread.whenUnsatisfiable | string | `"ScheduleAnyway"` |  |
 | services.discovery.useNatsCreds | bool | `true` |  |
-| services.discovery.version | string | `"1.9.0"` |  |
-| services.enrichment.category | string | `"ai-enrichment"` |  |
+| services.discovery.version | string | `"1.9.1"` |  |
+| services.enrichment.category | string | `"ai-inisghts"` |  |
 | services.enrichment.enabled | bool | `true` |  |
 | services.enrichment.env.ANTHROPIC_MODEL | string | `"claude-haiku-4-5-20251001"` |  |
 | services.enrichment.env.GEMINI_MODEL | string | `"gemini-2.5-flash"` |  |
@@ -291,7 +291,7 @@ Kubernetes: `>=1.30.0-0`
 | services.enrichment.pdb.enabled | bool | `true` |  |
 | services.enrichment.pdb.minAvailable | int | `1` |  |
 | services.enrichment.repository | string | `"enrichment"` |  |
-| services.enrichment.version | string | `"0.1.1"` |  |
+| services.enrichment.version | string | `"0.1.2"` |  |
 | services.exporter.category | string | `"export"` |  |
 | services.exporter.enabled | bool | `true` |  |
 | services.exporter.env.EXPORTER_K8S_CLIENT_BURST | string | `"100"` |  |
@@ -304,7 +304,7 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.replicas | int | `1` |  |
 | services.exporter.repository | string | `"exporter"` |  |
 | services.exporter.strategy | string | `"Recreate"` |  |
-| services.exporter.version | string | `"3.3.3"` |  |
+| services.exporter.version | string | `"3.3.4"` |  |
 | services.exporter.volumeMounts[0].name | string | `"snapshots-storage"` |  |
 | services.exporter.volumeMounts[0].path | string | `"/snapshots"` |  |
 | services.exporter.volumes[0].name | string | `"snapshots-storage"` |  |
@@ -317,7 +317,7 @@ Kubernetes: `>=1.30.0-0`
 | services.notifier.repository | string | `"notifier"` |  |
 | services.notifier.terminationGracePeriodSec | int | `30` |  |
 | services.notifier.useNatsCreds | bool | `true` |  |
-| services.notifier.version | string | `"0.2.2"` |  |
+| services.notifier.version | string | `"0.2.3"` |  |
 | services.ui.category | string | `"ui"` |  |
 | services.ui.enabled | bool | `true` |  |
 | services.ui.includeHealthCheck | bool | `false` |  |

@@ -15,6 +15,8 @@
 </p>
 
 <p align="center">
+  <!-- Replace CODECOV_BADGE_TOKEN with the graph token from codecov.io → repo Settings → Badges & Graphs. Private repos need it; if you make the badge public, drop the ?token=… part. -->
+  <a href="https://codecov.io/gh/telark/telark"><img src="https://codecov.io/gh/telark/telark/graph/badge.svg?token=CODECOV_BADGE_TOKEN" alt="Coverage"></a>
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-Elastic--2.0-2f6feb.svg" alt="License: Elastic-2.0"></a>
 </p>
 

@@ -53,6 +53,15 @@ jobs:
           access-token: ${{ secrets.ACCESS_TOKEN }}
           coverage-threshold: ${{ matrix.coverage }}
 
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7.0.0
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: services/${{ matrix.service }}/coverage.out
+          flags: ${{ matrix.service }}
+          slug: telark/telark
+          fail_ci_if_error: false
+
   enrichment:
     name: Python · enrichment
     runs-on: ubuntu-latest
@@ -85,6 +94,16 @@ jobs:
           python -m pytest --cov=. --cov-report= tests/test_*_cov.py -q
           python -m pytest --cov=. --cov-append --cov-report= tests/test_authz.py tests/test_insights.py tests/test_provider_config.py -q
           python -m coverage report --fail-under=95
+          python -m coverage xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7.0.0
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: services/enrichment/coverage.xml
+          flags: enrichment
+          slug: telark/telark
+          fail_ci_if_error: false
 
   helm:
     name: Helm · lint + validate

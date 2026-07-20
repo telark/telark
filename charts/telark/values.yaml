@@ -41,8 +41,8 @@ monitoring:
     labels: {}
 
 # Ingress for the dashboard. Off by default — without it, reach the UI with
-# `kubectl port-forward`. Routes to the `service` below (enable services.ui.enabled
-# too). Set className + host for your ingress controller; add tls for HTTPS.
+# `kubectl port-forward`. Routes to the `service` below (the ui service, deployed
+# by default). Set className + host for your ingress controller; add tls for HTTPS.
 ingress:
   enabled: false
   className: ""            # e.g. nginx
@@ -338,7 +338,7 @@ services:
       enabled: true
       minAvailable: 1
   ui:
-    enabled: false
+    enabled: true
     name: "ui-service"
     repository: "ui"
     version: 0.0.1

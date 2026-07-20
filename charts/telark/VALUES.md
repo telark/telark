@@ -319,7 +319,7 @@ Kubernetes: `>=1.33.0-0`
 | services.notifier.useNatsCreds | bool | `true` |  |
 | services.notifier.version | string | `"0.2.2"` |  |
 | services.ui.category | string | `"ui"` |  |
-| services.ui.enabled | bool | `false` |  |
+| services.ui.enabled | bool | `true` |  |
 | services.ui.includeHealthCheck | bool | `false` |  |
 | services.ui.includeSecurity | bool | `false` |  |
 | services.ui.name | string | `"ui-service"` |  |

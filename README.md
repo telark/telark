@@ -72,7 +72,7 @@ Six services plus shared infrastructure, all shipped by the Helm chart:
 | `enrichment` | AI insights over applications (Python/FastAPI) |
 | `auth` | Passkey + Google OIDC login, sessions, roles |
 | `notifier` | Notifications |
-| `ui` | Dashboard (separate repo; image only) |
+| `ui` | Dashboard SPA, deployed by default (image built from a separate repo) |
 
 Subcharts: redis, nats, kyverno, metrics-server, ollama. Details in [docs/architecture.md](docs/architecture.md).
 

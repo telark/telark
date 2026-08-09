@@ -1,9 +1,9 @@
 instructor>=1.15.4,<2
 pydantic>=2.13.4,<3
-redis>=8.0.1,<9
+redis>=8.1.0,<9
 loguru>=0.7.3,<1
 python-dotenv>=1.2.2,<2
 httpx>=0.28.1,<1
-anthropic>=0.117.0,<1
-fastapi>=0.139.2,<1
-uvicorn>=0.51.0,<1
+anthropic>=0.120.2,<1
+fastapi>=0.141.1,<1
+uvicorn>=0.52.1,<1

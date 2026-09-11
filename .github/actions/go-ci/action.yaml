@@ -47,10 +47,6 @@ runs:
         restore-keys: |
           ${{ runner.os }}-go-${{ inputs.cache-key }}-
 
-    - name: Authenticate to private telark modules
-      shell: bash
-      run: git config --global url."https://${{ inputs.access-user }}:${{ inputs.access-token }}@github.com/".insteadOf "https://github.com/"
-
     - name: Build
       shell: bash
       working-directory: ${{ inputs.working-directory }}

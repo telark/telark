@@ -1,7 +1,7 @@
 name: CI
 run-name: CI for ${{ github.head_ref || github.ref_name }}
 
-# Quality gate for pull requests: every service builds, lints and tests before a
+# Quality gate for pull requests: every service lints and tests before a
 # change can merge. Build/release workflows stay manual (workflow_dispatch); this
 # is the automated check that protects the repo.
 on:
@@ -30,6 +30,7 @@ jobs:
   go:
     name: Go · ${{ matrix.service }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       # coverage = per-service ratchet floor (just below current); raise as coverage
@@ -65,6 +66,7 @@ jobs:
   enrichment:
     name: Python · enrichment
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: services/enrichment
@@ -108,6 +110,7 @@ jobs:
   helm:
     name: Helm · lint + validate
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -129,8 +132,6 @@ jobs:
           helm lint "$CRDS_DIR"
 
       # Same command as `make values-docs`, so local + CI never disagree.
-      - name: VALUES.md up to date
-        run: |
       - name: Regenerate VALUES.md
         uses: ./.github/actions/helm-docs-regenerate
 
@@ -143,7 +144,9 @@ jobs:
       # (every mode). Mirrors `make helm-validate`.
       - name: Validate rendered manifests
         run: |
-          curl -sSLo /tmp/kc.tar.gz https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz
+          curl -sSL --fail --retry 3 --retry-all-errors --retry-delay 2 \
+            -o /tmp/kc.tar.gz \
+            https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz
           tar -xzf /tmp/kc.tar.gz -C /usr/local/bin kubeconform
           for m in minimal standard performance; do
             echo "== kubeconform $m =="

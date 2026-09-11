@@ -79,7 +79,6 @@ func validateAttestationFormat(attMap map[string]any) error {
 	return errors.New(string(constants.ErrInvalidAttStmtType))
 }
 
-//nolint:revive // function-result-limit: 7 return values needed for authData parsing
 func parseAuthData(authData []byte) ([]byte, []byte, []byte, uint32, bool, bool, error) {
 	if len(authData) < constants.AuthDataMinLengthForCredIDLen {
 		return nil, nil, nil, 0, false, false, errors.New(string(constants.ErrAuthDataTooShort))

@@ -103,6 +103,7 @@ jobs:
           platforms: 'linux/amd64,linux/arm64'
           cache_enabled: 'true'
           push_enabled: 'true'
+          setup_qemu: ${{ inputs.service == 'enrichment' }}
 
       - name: Scan image for vulnerabilities (Trivy)
         if: ${{ inputs.image_scan == 'scan' }}

@@ -180,6 +180,14 @@ jobs:
           service_path: service
           branch: ${{ inputs.branch || 'master' }}
 
+      # The bump rewrote values.yaml, so the docs index is now stale. Regenerate
+      # it here — add-and-commit picks it up — or the next CI run fails the
+      # "VALUES.md is up to date" check on a change this workflow made.
+      - name: Regenerate VALUES.md
+        uses: ./release/.github/actions/helm-docs-regenerate
+        with:
+          cwd: release
+
       - name: Commit Service Version
         uses: ./release/.github/actions/git-commit-version-bump
         with:

@@ -275,7 +275,7 @@ Kubernetes: `>=1.30.0-0`
 | services.discovery.topologySpread.topologyKey | string | `"kubernetes.io/hostname"` |  |
 | services.discovery.topologySpread.whenUnsatisfiable | string | `"ScheduleAnyway"` |  |
 | services.discovery.useNatsCreds | bool | `true` |  |
-| services.discovery.version | string | `"1.9.1"` |  |
+| services.discovery.version | string | `"1.9.2"` |  |
 | services.enrichment.category | string | `"ai-inisghts"` |  |
 | services.enrichment.enabled | bool | `true` |  |
 | services.enrichment.env.ANTHROPIC_MODEL | string | `"claude-haiku-4-5-20251001"` |  |

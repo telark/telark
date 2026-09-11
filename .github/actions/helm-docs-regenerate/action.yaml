@@ -1,9 +1,15 @@
 name: 'Helm Docs Regenerate'
 description: 'Regenerate VALUES.md for every chart under charts/ via helm-docs.'
+inputs:
+  cwd:
+    description: 'Directory containing charts/ (the telark checkout root)'
+    required: false
+    default: '.'
 
 runs:
   using: 'composite'
   steps:
     - name: Regenerate VALUES.md
       shell: bash
+      working-directory: ${{ inputs.cwd }}
       run: go run github.com/norwoodj/helm-docs/cmd/helm-docs@v1.14.2 --chart-search-root charts --output-file VALUES.md

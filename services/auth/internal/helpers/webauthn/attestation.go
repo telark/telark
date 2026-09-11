@@ -79,31 +79,38 @@ func validateAttestationFormat(attMap map[string]any) error {
 	return errors.New(string(constants.ErrInvalidAttStmtType))
 }
 
-func parseAuthData(authData []byte) ([]byte, []byte, []byte, uint32, bool, bool, error) {
+func parseAuthData(authData []byte) (
+	credID, aaguid, coseKey []byte,
+	signCount uint32,
+	backupEligible, backupState bool,
+	err error,
+) {
 	if len(authData) < constants.AuthDataMinLengthForCredIDLen {
-		return nil, nil, nil, 0, false, false, errors.New(string(constants.ErrAuthDataTooShort))
+		return nil, nil, nil, constants.DefaultInitValue, false, false,
+			errors.New(string(constants.ErrAuthDataTooShort))
 	}
 
 	flags := authData[constants.AuthDataOffsetFlags]
-	backupEligible := (flags & constants.BackupEligibleFlag) != 0
-	backupState := (flags & constants.BackupStateFlag) != 0
+	backupEligible = (flags & constants.BackupEligibleFlag) != constants.DefaultInitValue
+	backupState = (flags & constants.BackupStateFlag) != constants.DefaultInitValue
 
-	signCount := uint32(authData[constants.AuthDataOffsetSignCount])<<constants.SignCountShift24 |
+	signCount = uint32(authData[constants.AuthDataOffsetSignCount])<<constants.SignCountShift24 |
 		uint32(authData[constants.AuthDataOffsetSignCount+1])<<constants.SignCountShift16 |
 		uint32(authData[constants.AuthDataOffsetSignCount+2])<<constants.SignCountShift8 |
 		uint32(authData[constants.AuthDataOffsetSignCount+3])
 
-	aaguid := authData[constants.AuthDataOffsetAAGUID : constants.AuthDataOffsetAAGUID+constants.AAGUIDLength]
+	aaguid = authData[constants.AuthDataOffsetAAGUID : constants.AuthDataOffsetAAGUID+constants.AAGUIDLength]
 	const credIDLenShift = 8
 	credIDLen := int(authData[constants.AuthDataOffsetCredIDLen])<<credIDLenShift | int(authData[constants.AuthDataOffsetCredIDLen+1])
 
 	minRequiredLen := constants.AuthDataOffsetCredID + credIDLen
 	if len(authData) < minRequiredLen {
-		return nil, nil, nil, 0, false, false, errors.New(string(constants.ErrAuthDataTooShortForCredID))
+		return nil, nil, nil, constants.DefaultInitValue, false, false,
+			errors.New(string(constants.ErrAuthDataTooShortForCredID))
 	}
 
-	credID := authData[constants.AuthDataOffsetCredID : constants.AuthDataOffsetCredID+credIDLen]
-	coseKey := authData[constants.AuthDataOffsetCredID+credIDLen:]
+	credID = authData[constants.AuthDataOffsetCredID : constants.AuthDataOffsetCredID+credIDLen]
+	coseKey = authData[constants.AuthDataOffsetCredID+credIDLen:]
 
 	return credID, aaguid, coseKey, signCount, backupEligible, backupState, nil
 }

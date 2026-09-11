@@ -71,3 +71,4 @@ runs:
       with:
         version: latest
         working-directory: ${{ inputs.working-directory }}
+        args: --config=${{ github.workspace }}/.golangci.yml

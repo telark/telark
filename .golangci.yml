@@ -1,5 +1,5 @@
-# Shared golangci-lint config for every Go service. golangci-lint walks up from
-# services/<svc> and finds this at the repo root, so services carry no local config.
+# Shared golangci-lint config for every Go service. Services carry no local
+# config; CI pins this file with --config (see .github/actions/go-ci).
 # Thresholds are the loosest of the former per-service configs, unified here.
 version: "2"
 linters:

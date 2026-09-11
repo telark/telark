@@ -207,7 +207,7 @@ services:
     enabled: true
     name: "discovery-service"
     repository: "discovery"
-    version: 1.9.1
+    version: 1.9.2
     category: "sync"
     replicas: 2
     includeSecurity: false

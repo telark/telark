@@ -65,15 +65,14 @@ jobs:
 
       - name: Read image config from helm values
         id: image
-        shell: bash
-        run: |
-          echo "registry=$(yq e '.app.image.registry' release/charts/telark/values.yaml)" >> $GITHUB_OUTPUT
-          echo "repository=$(yq e '.services.ui.repository' release/charts/telark/values.yaml)" >> $GITHUB_OUTPUT
+        uses: ./release/.github/actions/helm-image-config
+        with:
+          values-file: release/charts/telark/values.yaml
+          service: ${{ env.SERVICE }}
 
       - name: Docker Login
-        uses: docker/login-action@v4.6.0
+        uses: ./release/.github/actions/docker-login
         with:
-          registry: "docker.io"
           username: ${{ secrets.CONTAINER_REGISTRY_USERNAME }}
           password: ${{ secrets.CONTAINER_REGISTRY_PASSWORD }}
 
@@ -89,8 +88,6 @@ jobs:
           platforms: 'linux/amd64'
           cache_enabled: 'true'
           push_enabled: 'true'
-          access_user: ${{ secrets.ACCESS_USER }}
-          access_token: ${{ secrets.ACCESS_TOKEN }}
 
       - name: Tag UI Repository
         uses: ./release/.github/actions/tag-service-repo
@@ -100,17 +97,8 @@ jobs:
           service_path: service
           branch: ${{ inputs.branch }}
 
-      - name: Pull Latest Changes
-        run: |
-          cd release
-          git stash push -m "Temporary stash before pull" || true
-          git pull origin main
-          git stash pop || true
-
       - name: Commit UI Version
-        uses: EndBug/add-and-commit@v11.1.1
+        uses: ./release/.github/actions/git-commit-version-bump
         with:
-          author_name: GitHub Action
-          author_email: action@github.com
           cwd: './release'
           message: "bump ui to ${{ steps.service_data.outputs.new_version }}"

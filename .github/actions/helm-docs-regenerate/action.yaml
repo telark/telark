@@ -1,0 +1,9 @@
+name: 'Helm Docs Regenerate'
+description: 'Regenerate VALUES.md for every chart under charts/ via helm-docs.'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Regenerate VALUES.md
+      shell: bash
+      run: go run github.com/norwoodj/helm-docs/cmd/helm-docs@v1.14.2 --chart-search-root charts --output-file VALUES.md

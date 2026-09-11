@@ -112,23 +112,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7.0.1
 
-      - name: Set up Helm
-        uses: azure/setup-helm@v5.0.1
-
-      - name: Set up Go
-        uses: actions/setup-go@v7.0.0
-        with:
-          go-version: "1.26"
+      - name: Setup Helm and Go
+        uses: ./.github/actions/setup-helm-go
 
       # Subchart .tgz are git-ignored build artifacts, so fetch them before
       # anything lints or renders the chart. Mirrors `make deps`.
+      - name: Add Helm dependency repos
+        uses: ./.github/actions/helm-add-dependency-repos
+
       - name: Fetch chart dependencies
-        run: |
-          helm repo add bitnami        https://charts.bitnami.com/bitnami
-          helm repo add kyverno        https://kyverno.github.io/kyverno/
-          helm repo add otwld          https://helm.otwld.com/
-          helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
-          helm dependency build "$CHART_DIR"
+        run: helm dependency build "$CHART_DIR"
 
       - name: Lint charts
         run: |
@@ -138,7 +131,11 @@ jobs:
       # Same command as `make values-docs`, so local + CI never disagree.
       - name: VALUES.md up to date
         run: |
-          go run github.com/norwoodj/helm-docs/cmd/helm-docs@v1.14.2 --chart-search-root charts --output-file VALUES.md
+      - name: Regenerate VALUES.md
+        uses: ./.github/actions/helm-docs-regenerate
+
+      - name: Check VALUES.md is up to date
+        run: |
           git diff --exit-code -- charts/telark/VALUES.md charts/telark-crds/VALUES.md \
             || { echo "VALUES.md is stale — run 'make values-docs' and commit."; exit 1; }
 

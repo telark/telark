@@ -38,14 +38,6 @@ inputs:
     description: 'Enable pushing to registry'
     required: false
     default: 'true'
-  access_user:
-    description: 'GitHub access user for build args'
-    required: false
-    default: ''
-  access_token:
-    description: 'GitHub access token for build args'
-    required: false
-    default: ''
 
 outputs:
   image_name:
@@ -107,13 +99,8 @@ runs:
           --platform=${{ inputs.platforms }} \
           --sbom=true \
           --provenance=mode=max \
-          --build-arg ORG=\"telark\" \
-          --build-arg URL=\"github.com\" \
           --progress=plain \
           --metadata-file=/tmp/metadata.json"
-
-        [[ -n "${{ inputs.access_user }}" ]] && build_cmd="$build_cmd --build-arg USER=\"${{ inputs.access_user }}\""
-        [[ -n "${{ inputs.access_token }}" ]] && build_cmd="$build_cmd --build-arg PAT=\"${{ inputs.access_token }}\""
 
         additional_args=$(parse_additional_args '${{ inputs.build_args }}')
         [[ -n "$additional_args" ]] && build_cmd="$build_cmd $additional_args"

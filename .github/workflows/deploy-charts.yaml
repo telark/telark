@@ -49,13 +49,11 @@ jobs:
           sed -i '' "s/version: $current_version/version: $new_version/" "$CHART_DIR/Chart.yaml"
           echo "new_version=$new_version" >> $GITHUB_OUTPUT
 
+      - name: Add Helm dependency repos
+        uses: ./.github/actions/helm-add-dependency-repos
+
       - name: Update Helm Dependencies
-        run: |
-          helm repo add bitnami https://charts.bitnami.com/bitnami
-          helm repo add kyverno https://kyverno.github.io/kyverno/
-          helm repo add otwld https://helm.otwld.com/
-          helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
-          helm dependency build "$CHART_DIR"
+        run: helm dependency build "$CHART_DIR"
 
       - name: Package app chart
         run: |

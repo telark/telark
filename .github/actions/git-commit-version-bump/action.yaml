@@ -1,0 +1,29 @@
+name: 'Git Commit Version Bump'
+description: 'Pull latest changes then commit and push a version bump.'
+inputs:
+  cwd:
+    description: 'Working directory containing the repo to pull/commit in'
+    required: true
+    default: '.'
+  message:
+    description: 'Commit message'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Pull Latest Changes
+      shell: bash
+      working-directory: ${{ inputs.cwd }}
+      run: |
+        git stash push -m "Temporary stash before pull" || true
+        git pull origin main
+        git stash pop || true
+
+    - name: Commit Version
+      uses: EndBug/add-and-commit@v10.0.0
+      with:
+        author_name: GitHub Action
+        author_email: action@github.com
+        cwd: ${{ inputs.cwd }}
+        message: ${{ inputs.message }}

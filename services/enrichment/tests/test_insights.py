@@ -24,7 +24,10 @@ sys.modules["dotenv"] = _dotenv
 
 _app_logger = types.ModuleType("app_logger")
 _app_logger.logger = types.SimpleNamespace(
-    warning=lambda *a, **k: None, info=lambda *a, **k: None, error=lambda *a, **k: None
+    debug=lambda *a, **k: None,
+    warning=lambda *a, **k: None,
+    info=lambda *a, **k: None,
+    error=lambda *a, **k: None,
 )
 sys.modules["app_logger"] = _app_logger
 

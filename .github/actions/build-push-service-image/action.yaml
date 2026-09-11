@@ -123,10 +123,23 @@ runs:
         echo "image_name=$image_name" >> $GITHUB_OUTPUT
         echo "build_time=$build_time" >> $GITHUB_OUTPUT
 
-        if [[ -f "/tmp/metadata.json" ]]; then
-          image_digest=$(jq -r '.containerimage.digest // empty' /tmp/metadata.json 2>/dev/null || echo "")
-          [[ -n "$image_digest" ]] && echo "image_digest=$image_digest" >> $GITHUB_OUTPUT
+        if [[ ! -f "/tmp/metadata.json" ]]; then
+          echo "❌ Buildx metadata file was not created"
+          exit 1
         fi
+
+        echo "📄 Buildx metadata:"
+        cat /tmp/metadata.json | jq .
+
+        image_digest=$(jq -r '.["containerimage.digest"] // empty' /tmp/metadata.json)
+
+        if [[ -z "$image_digest" ]]; then
+          echo "❌ No container image digest found in Buildx metadata"
+          exit 1
+        fi
+
+        echo "image_digest=$image_digest" >> "$GITHUB_OUTPUT"
+        echo "🔐 Image digest: $image_digest"
 
         echo "✅ Build completed successfully!"
         echo "⏱️  Build time: ${build_time}s"

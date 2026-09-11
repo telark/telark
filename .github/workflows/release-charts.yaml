@@ -60,7 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0   # full history + tags so git-cliff can build the changelog
 
@@ -144,7 +144,7 @@ jobs:
       # since the git tag itself is created a step later.
       - name: Generate changelog
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump != 'current' && steps.publish.outputs.telark_version != '' }}
-        uses: orhun/git-cliff-action@v4.8.0
+        uses: orhun/git-cliff-action@v4.9.0
         with:
           config: cliff.toml
           args: --tag v${{ steps.publish.outputs.telark_version }}

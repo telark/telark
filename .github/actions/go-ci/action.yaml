@@ -1,5 +1,5 @@
 name: 'Go CI'
-description: 'Set up Go, restore the build + module cache, authenticate private telark modules, then build (and optionally test + lint).'
+description: 'Set up Go, restore the build + module + lint caches, then test and lint (both compile every package).'
 inputs:
   working-directory:
     description: 'Directory holding the Go module (contains go.mod)'
@@ -21,6 +21,10 @@ inputs:
     description: 'Run golangci-lint'
     required: false
     default: 'true'
+  config-file:
+    description: 'Path to the shared .golangci.yml, relative to the workspace root'
+    required: false
+    default: '.golangci.yml'
   coverage-threshold:
     description: 'Minimum total coverage percent; the build fails below it (0 = no gate)'
     required: false
@@ -43,14 +47,13 @@ runs:
         path: |
           ~/.cache/go-build
           ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ inputs.cache-key }}-${{ hashFiles(format('{0}/go.sum', inputs.working-directory)) }}
+          ~/.cache/golangci-lint
+        key: ${{ runner.os }}-go-${{ inputs.cache-key }}-${{ hashFiles(format('{0}/go.sum', inputs.working-directory), '.golangci.yml') }}
         restore-keys: |
           ${{ runner.os }}-go-${{ inputs.cache-key }}-
 
-    - name: Build
-      shell: bash
-      working-directory: ${{ inputs.working-directory }}
-      run: go build ./...
+    # No separate `go build ./...`: both Test (`go test ./...`) and Lint compile
+    # every package, so a standalone build step is a third redundant compile.
 
     - name: Test
       if: ${{ inputs.test == 'true' }}
@@ -69,6 +72,8 @@ runs:
       if: ${{ inputs.lint == 'true' }}
       uses: golangci/golangci-lint-action@v9.3.0
       with:
-        version: latest
+        # Pinned, not `latest`: a linter release can add rules overnight and
+        # break an unrelated PR. Bump deliberately, after running it locally.
+        version: v2.11.3
         working-directory: ${{ inputs.working-directory }}
-        args: --config=${{ github.workspace }}/.golangci.yml
+        args: --config=${{ github.workspace }}/${{ inputs.config-file }}

@@ -17,7 +17,7 @@ func GetPasskeyByCredentialID(w http.ResponseWriter, credentialID string, userID
 	// Find passkey by credentialId and verify it belongs to the user
 	resource, err := passkeyutils.FindPasskeyByCredentialIDAndUserID(credentialID, userID)
 	if err != nil {
-		responseutils.LogAndSendResponse(
+		sharedutils.LogDebugAndSend(
 			w,
 			http.StatusNotFound,
 			response.OperationNotFound,

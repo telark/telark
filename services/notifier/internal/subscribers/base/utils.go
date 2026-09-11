@@ -17,7 +17,7 @@ import (
 
 func (*BaseSubscriber) ValidateMessage(m *nats.Msg) error {
 	if strings.HasPrefix(m.Subject, "$JS.ACK.") {
-		logger.GetLogger(constants.PrefixManagerSubscriber).Info(fmt.Sprintf(string(messages.InfoSkippingAckMessage), m.Subject))
+		logger.GetLogger(constants.PrefixManagerSubscriber).Debug(fmt.Sprintf(string(messages.InfoSkippingAckMessage), m.Subject))
 		return nil
 	}
 
@@ -65,7 +65,7 @@ func (s *BaseSubscriber) isDuplicateMessage(msgKey string) bool {
 	existing, exists := s.processedMessages.LoadOrStore(msgKey, now)
 	if exists {
 		if timestamp, ok := existing.(time.Time); ok {
-			logger.GetLogger(constants.PrefixManagerSubscriber).Info(
+			logger.GetLogger(constants.PrefixManagerSubscriber).Debug(
 				fmt.Sprintf(string(messages.InfoSkippingDuplicate), now.Sub(timestamp)))
 		}
 		return true
@@ -76,7 +76,7 @@ func (s *BaseSubscriber) isDuplicateMessage(msgKey string) bool {
 func (*BaseSubscriber) extractAction(subject string) natscore.Action {
 	parts := strings.Split(subject, ".")
 	if len(parts) < constants.SubjectPartsMin {
-		logger.GetLogger(constants.PrefixManagerSubscriber).Error(string(errors.ErrNatsInvalidSubject))
+		logger.GetLogger(constants.PrefixManagerSubscriber).Warn(string(errors.ErrNatsInvalidSubject))
 		return ""
 	}
 	return natscore.Action(parts[2])
@@ -91,7 +91,7 @@ func (s *BaseSubscriber) processMessageWithRetry(ctx context.Context, m *nats.Ms
 	for i := range s.MaxRetries {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf(string(errors.ErrNatsHandleMsg), m, ctx.Err())
+			return fmt.Errorf(string(errors.ErrNatsHandleMsg), m.Subject, ctx.Err())
 		default:
 			if s.handlerCallback != nil {
 				lastErr = s.handlerCallback(m, action)
@@ -106,5 +106,5 @@ func (s *BaseSubscriber) processMessageWithRetry(ctx context.Context, m *nats.Ms
 			}
 		}
 	}
-	return fmt.Errorf(string(errors.ErrNatsHandleMsg), m, lastErr)
+	return fmt.Errorf(string(errors.ErrNatsHandleMsg), m.Subject, lastErr)
 }

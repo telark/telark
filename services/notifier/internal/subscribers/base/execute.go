@@ -36,7 +36,7 @@ func ExecuteUpdateHandler(
 
 	var msg natscore.Message
 	if err := json.Unmarshal([]byte(msgStr), &msg); err != nil {
-		return AckWithLog(m, m.Subject, fmt.Sprintf(string(errors.ErrNatsHandleMsg), m, err), true)
+		return AckWithLog(m, m.Subject, fmt.Sprintf(string(errors.ErrNatsHandleMsg), m.Subject, err), true)
 	}
 
 	scope := msg.Scope
@@ -46,12 +46,12 @@ func ExecuteUpdateHandler(
 
 	dataBytes, err := json.Marshal(msg.Data)
 	if err != nil {
-		return AckWithLog(m, m.Subject, fmt.Sprintf(string(errors.ErrNatsHandleMsg), m, err), true)
+		return AckWithLog(m, m.Subject, fmt.Sprintf(string(errors.ErrNatsHandleMsg), m.Subject, err), true)
 	}
 
 	var dataMap map[string]any
 	if err := json.Unmarshal(dataBytes, &dataMap); err != nil {
-		return AckWithLog(m, m.Subject, fmt.Sprintf(string(errors.ErrNatsHandleMsg), m, err), true)
+		return AckWithLog(m, m.Subject, fmt.Sprintf(string(errors.ErrNatsHandleMsg), m.Subject, err), true)
 	}
 
 	patchBody, resourceName, err := buildPatchBody(scope, dataMap, resourceNameKey, msg.ResourceName)
@@ -82,7 +82,7 @@ func ExecuteDeleteHandler(
 
 	var msg natscore.Message
 	if err := json.Unmarshal([]byte(msgStr), &msg); err != nil {
-		return AckWithLog(m, m.Subject, fmt.Sprintf(string(errors.ErrNatsHandleMsg), m, err), true)
+		return AckWithLog(m, m.Subject, fmt.Sprintf(string(errors.ErrNatsHandleMsg), m.Subject, err), true)
 	}
 
 	resourceName := msg.ResourceName

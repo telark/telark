@@ -95,6 +95,5 @@ func applyOne(
 		))
 		return
 	}
-	lg.Info(fmt.Sprintf(string(constants.LogBackfillFinalizersAdded), resourceType, id))
 	s.patched++
 }

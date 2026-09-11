@@ -1,11 +1,36 @@
 package circuitbreaker
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/telark/discovery/internal/constants"
 )
+
+var (
+	ErrOpen       = errors.New(string(constants.ErrCircuitBreakerOpenSentinel))
+	ErrNotCounted = errors.New(string(constants.ErrCircuitBreakerNotCounted))
+)
+
+func (e openError) Error() string {
+	return fmt.Sprintf(string(constants.ErrCircuitBreakerOpen), e.name)
+}
+
+func (openError) Unwrap() error { return ErrOpen }
+
+func (e notCountedError) Error() string { return e.err.Error() }
+
+func (e notCountedError) Unwrap() []error { return []error{e.err, ErrNotCounted} }
+
+func IsOpen(err error) bool { return errors.Is(err, ErrOpen) }
+
+func NotCounted(err error) error {
+	if err == nil {
+		return nil
+	}
+	return notCountedError{err: err}
+}
 
 func New(cfg Config) *CircuitBreaker {
 	if cfg.FailureThreshold <= constants.DefaultInitValue {
@@ -30,8 +55,12 @@ func New(cfg Config) *CircuitBreaker {
 }
 
 func (cb *CircuitBreaker) Execute(fn func() error) error {
-	if !cb.canAttempt() {
-		return fmt.Errorf(string(constants.ErrCircuitBreakerOpen), cb.name)
+	allowed, isProbe := cb.canAttempt()
+	if !allowed {
+		return openError{name: cb.name}
+	}
+	if isProbe {
+		defer cb.releaseProbe()
 	}
 
 	err := fn()
@@ -39,25 +68,46 @@ func (cb *CircuitBreaker) Execute(fn func() error) error {
 	return err
 }
 
-func (cb *CircuitBreaker) canAttempt() bool {
+func (cb *CircuitBreaker) canAttempt() (allowed, isProbe bool) {
 	cb.mutex.Lock()
 	defer cb.mutex.Unlock()
 
-	if cb.state == StateClosed || cb.state == StateHalfOpen {
-		return true
-	}
-
 	if cb.state == StateOpen && time.Since(cb.lastFailureTime) > cb.timeout {
 		cb.transitionTo(StateHalfOpen)
-		return true
 	}
 
-	return false
+	switch cb.state {
+	case StateClosed:
+		return true, false
+	case StateHalfOpen:
+		if cb.halfOpenProbes >= constants.CircuitBreakerHalfOpenMaxProbes {
+			return false, false
+		}
+		cb.halfOpenProbes++
+		return true, true
+	default:
+		return false, false
+	}
+}
+
+// The slot is released even when the probe reopened the circuit; transitionTo
+// zeroes the counter, so the guard keeps it from going negative.
+func (cb *CircuitBreaker) releaseProbe() {
+	cb.mutex.Lock()
+	defer cb.mutex.Unlock()
+
+	if cb.halfOpenProbes > constants.DefaultInitValue {
+		cb.halfOpenProbes--
+	}
 }
 
 func (cb *CircuitBreaker) recordResult(err error) {
 	cb.mutex.Lock()
 	defer cb.mutex.Unlock()
+
+	if errors.Is(err, ErrNotCounted) {
+		return
+	}
 
 	if err != nil {
 		cb.onFailure()
@@ -104,6 +154,7 @@ func (cb *CircuitBreaker) transitionTo(newState State) {
 	oldState := cb.state
 	cb.state = newState
 	cb.lastStateChange = time.Now()
+	cb.halfOpenProbes = constants.DefaultInitValue
 
 	if newState == StateClosed {
 		cb.failureCount = constants.DefaultInitValue
@@ -144,6 +195,7 @@ func (cb *CircuitBreaker) Reset() {
 	cb.state = StateClosed
 	cb.failureCount = constants.DefaultInitValue
 	cb.successCount = constants.DefaultInitValue
+	cb.halfOpenProbes = constants.DefaultInitValue
 	cb.lastStateChange = time.Now()
 
 	if cb.onStateChange != nil && oldState != StateClosed {

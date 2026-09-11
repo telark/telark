@@ -56,6 +56,8 @@ const (
 	IdentityProviderGoogle        = "google"
 	IdentityProviderPasskey       = "passkey"
 	UserFieldIdentities           = "identities"
+	IdentityHashLength            = 8
+	IdentityHashUnknown           = "unknown"
 	TokenStatusValid              = "valid"
 	TokenStatusExpired            = "expired"
 	TokenStatusInvalid            = "invalid"

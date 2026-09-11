@@ -19,6 +19,7 @@ import (
 	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
 	authhelper "github.com/telark/auth/internal/helpers/auth"
+	sharedhelper "github.com/telark/auth/internal/helpers/shared"
 	authdata "github.com/telark/data/auth"
 )
 
@@ -49,7 +50,6 @@ func InitWebAuthn(cfg *config.WebAuthnConfig) error {
 
 	wa, err := webauthn.New(wconfig)
 	if err != nil {
-		lg.Error(fmt.Sprintf(string(constants.ErrWebAuthnSetupFailed), err))
 		return err
 	}
 
@@ -259,6 +259,7 @@ func FinishRegistration(
 	}
 
 	CleanupChallenge(userID)
-	lg.Info(fmt.Sprintf(string(constants.LogRegistrationVerifiedSuccessfully), userID))
+	lg.Info(fmt.Sprintf(string(constants.LogRegistrationVerifiedSuccessfully),
+		sharedhelper.IdentityHash(userID)))
 	return credential, backupEligible, backupState, nil
 }

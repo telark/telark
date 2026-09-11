@@ -8,13 +8,14 @@ import (
 	"github.com/telark/data/messages"
 	metadata "github.com/telark/data/metadata/base"
 	"github.com/telark/exporter/internal/constants"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/kcore/crds/api"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 )
 
 func GenericDeleteCustomResource(w http.ResponseWriter, md metadata.Metadata, name string) {
-	if name == "" {
+	if name == constants.EmptyString {
 		msg := fmt.Sprintf(string(globalerrors.ErrRestRequiredParam), constants.NameParam)
 		responseutils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationError, msg, nil, nil)
 		return
@@ -22,7 +23,7 @@ func GenericDeleteCustomResource(w http.ResponseWriter, md metadata.Metadata, na
 
 	exists, err := api.CheckCustomResourceExistsByName(name, md)
 	if err != nil {
-		responseutils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationError, string(globalerrors.ErrCheckResExistence), nil, err)
+		sharedutils.LogByStatusAndSend(w, http.StatusBadRequest, response.OperationError, string(globalerrors.ErrCheckResExistence), nil, err)
 		return
 	}
 
@@ -36,10 +37,10 @@ func GenericDeleteCustomResource(w http.ResponseWriter, md metadata.Metadata, na
 				response.OperationSuccess,
 				msg,
 				result.Data,
-				result.Error,
+				nil,
 			)
 		} else {
-			responseutils.LogAndSendResponse(
+			sharedutils.LogByStatusAndSend(
 				w,
 				result.Status,
 				response.OperationError,

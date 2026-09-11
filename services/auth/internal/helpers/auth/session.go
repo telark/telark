@@ -20,7 +20,7 @@ func ValidateSession(sessionToken string) (string, error) {
 	client := clients.GetSessionClient()
 	session, err := client.GetSessionByToken(sessionToken)
 	if err != nil {
-		lg.Error(fmt.Sprintf(string(constants.ErrFailedGetSession), err))
+		lg.Warn(fmt.Sprintf(string(constants.ErrFailedGetSession), err))
 		return constants.EmptyString, errors.New(string(constants.ErrSessionNotFound))
 	}
 

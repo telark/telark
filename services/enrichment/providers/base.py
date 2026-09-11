@@ -6,7 +6,6 @@ enrich flow shared by every OpenAI-compatible, instructor-backed provider
 plus, where it differs, an error-policy override.
 """
 
-import time
 from abc import ABC, abstractmethod
 from datetime import datetime
 
@@ -25,7 +24,6 @@ from .constants import (
     LOG_PROVIDER_API_KEY_INVALID,
     LOG_PROVIDER_ATTEMPT_RETRY,
     LOG_PROVIDER_CACHE_HIT,
-    LOG_PROVIDER_COMPLETED,
     LOG_PROVIDER_RATE_LIMIT,
     LOG_PROVIDER_RETRIES_FAILED,
     LOG_PROVIDER_SETUP_FAILED,
@@ -78,7 +76,7 @@ class InstructorProvider(BaseProvider):
         )
 
     def _on_setup_error(self, e: Exception) -> EnrichmentResult:
-        logger.error(LOG_PROVIDER_SETUP_FAILED, self.name, e)
+        logger.error(LOG_PROVIDER_SETUP_FAILED, self.name, type(e).__name__)
         return fallback_result()
 
     def _handle_error(self, e: Exception, attempt: int) -> EnrichmentResult | None:
@@ -86,15 +84,15 @@ class InstructorProvider(BaseProvider):
         unavailability."""
         msg = str(e).lower()
         if "authentication" in msg or "api key" in msg:
-            logger.error(LOG_PROVIDER_API_KEY_INVALID, self.name, e)
+            logger.error(LOG_PROVIDER_API_KEY_INVALID, self.name, type(e).__name__)
             return fallback_result()
         if "rate" in msg or "limit" in msg or "quota" in msg:
-            logger.warning(LOG_PROVIDER_RATE_LIMIT, self.name, e)
+            logger.warning(LOG_PROVIDER_RATE_LIMIT, self.name, type(e).__name__)
             return fallback_result()
         if attempt >= self.retries:
-            logger.warning(LOG_PROVIDER_RETRIES_FAILED, self.name, self.retries, e)
+            logger.warning(LOG_PROVIDER_RETRIES_FAILED, self.name, self.retries, type(e).__name__)
             return fallback_result()
-        logger.debug(LOG_PROVIDER_ATTEMPT_RETRY, self.name, attempt, e)
+        logger.debug(LOG_PROVIDER_ATTEMPT_RETRY, self.name, attempt, type(e).__name__)
         return None
 
     # --- shared flow ------------------------------------------------------
@@ -106,7 +104,6 @@ class InstructorProvider(BaseProvider):
             return cached
 
         prompt = build_prompt(signals)
-        start = time.perf_counter()
 
         try:
             client = self._client()
@@ -120,8 +117,6 @@ class InstructorProvider(BaseProvider):
                     messages=[{"role": "user", "content": prompt}],
                     response_model=EnrichmentResultLLM,
                 )
-                elapsed_ms = int((time.perf_counter() - start) * 1000)
-                logger.info(LOG_PROVIDER_COMPLETED, self.name, elapsed_ms, attempt)
                 result = EnrichmentResult(**resp.model_dump(), enrichedAt=datetime.utcnow())
                 set_cached(key, result)
                 return result

@@ -5,7 +5,6 @@ into the schema ourselves, so it keeps its own flow rather than InstructorProvid
 """
 
 import json
-import time
 from datetime import datetime
 
 import anthropic
@@ -20,7 +19,6 @@ from .cache import cache_key, get_cached, set_cached, signals_hash
 from .constants import (
     LOG_PROVIDER_API_KEY_INVALID,
     LOG_PROVIDER_CACHE_HIT,
-    LOG_PROVIDER_COMPLETED,
     LOG_PROVIDER_FAILED,
     LOG_PROVIDER_PARSE_FAILED,
     LOG_PROVIDER_UNREACHABLE,
@@ -29,7 +27,6 @@ from .constants import (
 
 _NAME = "anthropic"
 _MAX_TOKENS = 1024
-_FIRST_ATTEMPT = 1
 
 
 class AnthropicProvider(BaseProvider):
@@ -48,7 +45,6 @@ class AnthropicProvider(BaseProvider):
 
         client = anthropic.Anthropic(api_key=self._api_key)
         prompt = build_prompt(signals)
-        start = time.perf_counter()
 
         try:
             message = client.messages.create(
@@ -56,9 +52,6 @@ class AnthropicProvider(BaseProvider):
                 max_tokens=_MAX_TOKENS,
                 messages=[{"role": "user", "content": prompt}],
             )
-            elapsed_ms = int((time.perf_counter() - start) * 1000)
-            logger.info(LOG_PROVIDER_COMPLETED, _NAME, elapsed_ms, _FIRST_ATTEMPT)
-
             data = json.loads(_strip_fences(message.content[0].text.strip()))
             llm = EnrichmentResultLLM.model_validate(data)
             result = EnrichmentResult(**llm.model_dump(), enrichedAt=datetime.utcnow())
@@ -66,16 +59,22 @@ class AnthropicProvider(BaseProvider):
             return result
 
         except anthropic.APIConnectionError as e:
-            logger.error(LOG_PROVIDER_UNREACHABLE, _NAME, e)
+            logger.error(LOG_PROVIDER_UNREACHABLE, _NAME, type(e).__name__)
             raise
         except anthropic.AuthenticationError as e:
-            logger.error(LOG_PROVIDER_API_KEY_INVALID, _NAME, e)
+            logger.error(LOG_PROVIDER_API_KEY_INVALID, _NAME, type(e).__name__)
             raise
         except (json.JSONDecodeError, KeyError) as e:
-            logger.warning(LOG_PROVIDER_PARSE_FAILED, _NAME, e)
+            # e.doc is the raw model completion — never log it.
+            detail = (
+                f"{type(e).__name__} at pos {e.pos}: {e.msg}"
+                if isinstance(e, json.JSONDecodeError)
+                else type(e).__name__
+            )
+            logger.warning(LOG_PROVIDER_PARSE_FAILED, _NAME, detail)
             return fallback_result()
         except Exception as e:
-            logger.error(LOG_PROVIDER_FAILED, _NAME, e)
+            logger.error(LOG_PROVIDER_FAILED, _NAME, type(e).__name__)
             return fallback_result()
 
 

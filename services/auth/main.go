@@ -50,11 +50,11 @@ func main() {
 
 	bootstrapCfg, err := config.LoadBootstrapConfig()
 	if err != nil {
-		lg.Error(fmt.Sprintf(string(constants.ErrFailedLoadConfig), err))
+		lg.Error(fmt.Sprintf(string(constants.ErrFailedLoadBootstrapConfig), err))
 		os.Exit(constants.ExitCodeError)
 	}
 	lg.Info(fmt.Sprintf(string(constants.LogBootstrapConfig),
-		bootstrapCfg.SelfRegistrationEnabled, bootstrapCfg.BootstrapAdmins))
+		bootstrapCfg.SelfRegistrationEnabled, len(bootstrapCfg.BootstrapAdmins)))
 
 	if err := webauthn.InitWebAuthn(&cfg.WebAuthn); err != nil {
 		lg.Error(fmt.Sprintf(string(constants.ErrWebAuthnSetupFailed), err))
@@ -146,7 +146,6 @@ func startServerWithRecovery(server *http.Server, port string) {
 func gracefulShutdown(cfg *config.Config) {
 	if getQuitChannel() == nil {
 		lg.Error(string(constants.ErrQuitChannelNotAvailable))
-		lg.Error(string(constants.ErrGracefulShutdownFailed))
 		return
 	}
 

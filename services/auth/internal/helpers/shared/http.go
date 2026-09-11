@@ -49,7 +49,7 @@ func SendSuccessResponse(w http.ResponseWriter, message string, data any) {
 func DecodeRequestBody(r *http.Request, v any) error {
 	defer func() {
 		if cerr := r.Body.Close(); cerr != nil {
-			lg.Warn(fmt.Sprintf(string(constants.ErrFailedCloseRequestBody), cerr))
+			lg.Debug(fmt.Sprintf(string(constants.ErrFailedCloseRequestBody), cerr))
 		}
 	}()
 

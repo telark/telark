@@ -60,6 +60,6 @@ func (s *Sweeper) enqueue(parent context.Context, id string) {
 		return
 	}
 	if result.Enqueued {
-		lg.Info(fmt.Sprintf(string(constants.LogCleanupSweeperEnqueued), s.resourceType, id))
+		lg.Debug(fmt.Sprintf(string(constants.LogCleanupSweeperEnqueued), s.resourceType, id))
 	}
 }

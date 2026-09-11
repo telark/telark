@@ -31,7 +31,11 @@ func SetConfig(w http.ResponseWriter, r *http.Request) {
 		globalconfigresource.FieldOIDC: req,
 	})
 	if resp == nil || resp.Status != http.StatusOK {
-		err := fmt.Errorf(string(constants.ErrOIDCConfigSaveFailed), resp)
+		status := constants.DefaultInitValue
+		if resp != nil {
+			status = resp.Status
+		}
+		err := fmt.Errorf(string(constants.ErrOIDCConfigSaveFailed), status)
 		shared.HandleError(w, err, http.StatusInternalServerError, err.Error())
 		return
 	}

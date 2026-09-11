@@ -24,7 +24,6 @@ const (
 	ErrInvalidSessionToken         errors.Error = "invalid session token"
 	ErrMissingSessionToken         errors.Error = "missing session token"
 	ErrPasskeyNotFound             errors.Error = "passkey not found"
-	ErrFailedUpdatePasskeyLastUsed errors.Error = "failed to update passkey last used: %v"
 
 	// WebAuthn Errors
 	ErrWebAuthnSetupFailed          errors.Error = "failed to setup WebAuthn %v"
@@ -34,10 +33,10 @@ const (
 	ErrFailedGetWebAuthnInstance    errors.Error = "failed to get WebAuthn instance: %v"
 
 	// Client Errors
-	ErrFailedGetUser         errors.Error = "failed to get user %s: %v"
-	ErrFailedCreateUser      errors.Error = "failed to create user %s: status %d: %s"
-	ErrFailedRoleRepair      errors.Error = "failed to repair missing role for user %s: status %d"
-	ErrFailedAttachIdentity  errors.Error = "failed to attach identity to user %s: status %d"
+	ErrFailedGetUser         errors.Error = "failed to get user identityHash=%s: %v"
+	ErrFailedCreateUser      errors.Error = "failed to create user identityHash=%s: status %d: %s"
+	ErrFailedRoleRepair      errors.Error = "failed to repair missing role for identityHash=%s: status %d"
+	ErrFailedAttachIdentity  errors.Error = "failed to attach identity to identityHash=%s: status %d"
 	ErrFailedGetPasskeys     errors.Error = "failed to get passkeys: %s"
 	ErrFailedCreateChallenge errors.Error = "failed to create challenge: %s"
 	ErrFailedGetChallenge    errors.Error = "failed to get challenge: %s"
@@ -64,16 +63,16 @@ const (
 	ErrServerInitiatingShutdown        errors.Error = "server initiating shutdown"
 	ErrFailedShutdownHTTPServer        errors.Error = "failed to shutdown HTTP server: %s"
 	ErrServiceHealthCheckFailed        errors.Error = "service health check failed"
-	ErrGracefulShutdownFailed          errors.Error = "graceful shutdown failed"
 	ErrQuitChannelNotAvailable         errors.Error = "quit channel not available"
 	ErrFailedSendShutdownSignal        errors.Error = "failed to send shutdown signal"
 	ErrServerPanicRecovered            errors.Error = "server panic recovered: %v\nStack: %s"
 	ErrMaxPanicRecoveryAttemptsReached errors.Error = "max panic recovery attempts (%d) reached, shutting down"
 
 	// Configuration Errors
-	ErrMissingEnvVar      errors.Error = "missing required environment variable: %s"
-	ErrInvalidEnvVarValue errors.Error = "invalid value for environment variable %s: %s"
-	ErrFailedLoadConfig   errors.Error = "failed to load configuration: %v"
+	ErrMissingEnvVar             errors.Error = "missing required environment variable: %s"
+	ErrInvalidEnvVarValue        errors.Error = "invalid value for environment variable %s: %s"
+	ErrFailedLoadConfig          errors.Error = "failed to load configuration: %v"
+	ErrFailedLoadBootstrapConfig errors.Error = "failed to load bootstrap configuration: %v"
 
 	// Bootstrap Configuration Errors
 	ErrBootstrapNoAdminsAndNoSelfReg errors.Error = "bootstrap config must have at least one admin when self-registration is disabled" //nolint:revive // line length acceptable for error message
@@ -128,12 +127,15 @@ const (
 	ErrOIDCJITProvisioningFailed errors.Error = "OIDC JIT user provisioning failed: %v"
 	ErrOIDCNonceMissing          errors.Error = "OIDC nonce is missing from token claims"
 	ErrOIDCConfigLoadFailed      errors.Error = "failed to load OIDC config: %v"
-	ErrOIDCConfigSaveFailed      errors.Error = "failed to save OIDC config: %v"
+	ErrOIDCConfigSaveFailed      errors.Error = "failed to save OIDC config: status %d"
 	ErrOIDCClientIDRequired      errors.Error = "googleClientID is required when OIDC is enabled"
 	ErrOIDCTrustSourceRequired   errors.Error = "OIDC requires either egressAllowed or a pinned googleJwkJson"
 	ErrOIDCJWKUnreachable        errors.Error = "provider signing keys are unreachable: %v"
 	ErrOIDCNonceInvalid          errors.Error = "OIDC nonce is invalid or has already been used"
 	ErrOIDCNonceStoreFailed      errors.Error = "failed to store OIDC nonce: %v"
+	ErrOIDCIdentityLookupFailed  errors.Error = "user identity lookup failed for identityHash=%s: %v"
+	ErrOIDCEmailLookupFailed     errors.Error = "email lookup failed for identityHash=%s: %v"
+	ErrOIDCAdminPromotionFailed  errors.Error = "failed to promote bootstrap admin identityHash=%s: status %d"
 
 	// Redis Errors
 	ErrRedisClientUnavailable errors.Error = "redis client is not available — check REDIS_HOST and REDIS_PORT"
@@ -141,11 +143,11 @@ const (
 	ErrRedisGetFailed         errors.Error = "redis GET failed for key %s: %v"
 	ErrRedisSetFailed         errors.Error = "redis SET failed for key %s: %v"
 	ErrRedisDelFailed         errors.Error = "redis DEL failed for key %s: %v"
-	ErrRedisChallengeConflict errors.Error = "concurrent login ceremony detected for user %s — only one ceremony allowed at a time" //nolint:revive // line length acceptable for error message
+	ErrRedisChallengeConflict errors.Error = "concurrent login ceremony detected for identityHash=%s — only one ceremony allowed at a time" //nolint:revive // line length acceptable for error message
 
 	// Async Worker Warnings
-	WarnAsyncWorkerFull         errors.Error = "async worker pool full, dropping op %s for user %s"
-	WarnAsyncWorkerFailed       errors.Error = "async op %s failed for user %s: %v"
+	WarnAsyncWorkerFull         errors.Error = "async worker pool full, dropping housekeeping op"
+	WarnAsyncWorkerFailed       errors.Error = "async housekeeping op timed out"
 	WarnAsyncWorkerDrainTimeout errors.Error = "async worker drain timed out — some housekeeping ops may not have completed" //nolint:revive // line length acceptable for error message
 
 	// Credential Verification Errors

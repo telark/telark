@@ -29,6 +29,8 @@ const (
 	ExitCodeFatal                   = 1
 	EmptyString                     = ""
 	NameParam                       = "name"
+	FormatVerbPrefix                = "%"
+	SnapshotPathKey                 = "path"
 	NamespaceParam                  = "namespace"
 	SelectorParam                   = "selector"
 	NamespaceParamQuery             = "namespace"
@@ -161,6 +163,10 @@ const (
 	CircuitBreakerRedisTimeout            = 30 * time.Second
 	CircuitBreakerNatsFailureThreshold    = 5
 	CircuitBreakerNatsTimeout             = 45 * time.Second
+	CircuitBreakerRestFailureThreshold    = 5
+	CircuitBreakerRestSuccessThreshold    = 2
+	CircuitBreakerRestTimeout             = 30 * time.Second
+	CircuitBreakerHalfOpenMaxProbes       = 1
 )
 
 // Acronym map for display name restoration

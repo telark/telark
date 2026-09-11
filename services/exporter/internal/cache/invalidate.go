@@ -31,9 +31,6 @@ func SmartInvalidateListCache(optimizer interface{ Delete(string) }, resourceTyp
 func InvalidateAllResourceCaches(optimizer interface{ Delete(string) }, resourceType string) {
 	listKey := rediscache.GenerateKey(string(constants.OpList), resourceType, constants.EmptyString)
 	optimizer.Delete(listKey)
-	getKeyPattern := rediscache.GenerateKey(string(constants.OpGet), resourceType, "*")
-	lg.Info(fmt.Sprintf(string(constants.InfCacheInvalidatingPattern), getKeyPattern))
-	lg.Info(fmt.Sprintf(string(constants.InfCacheInvalidateResourceType), resourceType))
 }
 
 func InvalidateSpecificResourceCache(optimizer interface{ Delete(string) }, resourceType string, resourceName string) {
@@ -41,7 +38,5 @@ func InvalidateSpecificResourceCache(optimizer interface{ Delete(string) }, reso
 	optimizer.Delete(listKey)
 	getKey := rediscache.GenerateKey(string(constants.OpGet), resourceType, resourceName)
 	optimizer.Delete(getKey)
-	versionedKeyPattern := getKey + ":*"
-	lg.Info(fmt.Sprintf(string(constants.InfCacheInvalidatingVersionedKeys), versionedKeyPattern))
 	lg.Info(fmt.Sprintf(string(constants.InfCacheInvalidatedSpecific), resourceType, resourceName))
 }

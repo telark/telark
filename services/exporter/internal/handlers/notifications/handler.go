@@ -2,7 +2,6 @@ package notifications
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -20,10 +19,7 @@ const (
 	queryUserID = "userId"
 	queryLimit  = "limit"
 	queryCursor = "cursor"
-	loggerPref  = "Notifications: "
 )
-
-var lg = constants.GetLogger(loggerPref)
 
 func Emit() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -41,7 +37,7 @@ func Emit() func(http.ResponseWriter, *http.Request) {
 		}
 
 		if err := notiftypes.ValidateForEmit(&n); err != nil {
-			responseutils.LogAndSendResponse(
+			sharedutils.LogByStatusAndSend(
 				w, http.StatusBadRequest, response.OperationUnprocessed,
 				err.Error(), nil, err,
 			)
@@ -56,7 +52,6 @@ func Emit() func(http.ResponseWriter, *http.Request) {
 		}
 		created, err := storage.Emit(r.Context(), n)
 		if err != nil {
-			lg.Warn(fmt.Sprintf("emit failed: %v", err))
 			respondInternal(w, err)
 			return
 		}
@@ -86,7 +81,6 @@ func List() func(http.ResponseWriter, *http.Request) {
 		}
 		resp, err := storage.List(r.Context(), userID, limit, cursor)
 		if err != nil {
-			lg.Warn(fmt.Sprintf("list failed: %v", err))
 			respondInternal(w, err)
 			return
 		}
@@ -116,7 +110,6 @@ func MarkRead() func(http.ResponseWriter, *http.Request) {
 			return
 		}
 		if err := storage.MarkRead(r.Context(), userID, notificationID); err != nil {
-			lg.Warn(fmt.Sprintf("markread failed: %v", err))
 			respondInternal(w, err)
 			return
 		}
@@ -142,7 +135,6 @@ func MarkAllRead() func(http.ResponseWriter, *http.Request) {
 			return
 		}
 		if err := storage.MarkAllRead(r.Context(), userID); err != nil {
-			lg.Warn(fmt.Sprintf("markallread failed: %v", err))
 			respondInternal(w, err)
 			return
 		}
@@ -168,7 +160,6 @@ func Clear() func(http.ResponseWriter, *http.Request) {
 			return
 		}
 		if err := storage.Clear(r.Context(), userID); err != nil {
-			lg.Warn(fmt.Sprintf("clear failed: %v", err))
 			respondInternal(w, err)
 			return
 		}
@@ -185,7 +176,7 @@ func respondBadRequest(w http.ResponseWriter) {
 }
 
 func respondParseError(w http.ResponseWriter, err error) {
-	responseutils.LogAndSendResponse(
+	sharedutils.LogByStatusAndSend(
 		w, http.StatusUnprocessableEntity, response.OperationUnprocessed,
 		"failed to parse request body", nil, err,
 	)

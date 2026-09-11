@@ -62,7 +62,7 @@ func GetUniqueResourceFromList(w http.ResponseWriter, _ *http.Request, resourceM
 	result := api.ListCustomResources(resourceMetadata)
 
 	if result.Status != http.StatusOK || result.Error != nil {
-		responseutils.LogAndSendResponse(
+		sharedutils.LogByStatusAndSend(
 			w,
 			result.Status,
 			response.OperationError,

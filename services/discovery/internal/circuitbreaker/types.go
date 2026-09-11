@@ -15,12 +15,25 @@ type (
 )
 
 const (
-	StateClosed     State          = "Closed"
-	StateOpen       State          = "Open"
-	StateHalfOpen   State          = "HalfOpen"
-	DependencyRedis DependencyType = "Redis"
-	DependencyNATS  DependencyType = "NATS"
+	StateClosed          State          = "Closed"
+	StateOpen            State          = "Open"
+	StateHalfOpen        State          = "HalfOpen"
+	DependencyRedis      DependencyType = "Redis"
+	DependencyNATS       DependencyType = "NATS"
+	DependencyExporter   DependencyType = "Exporter"
+	DependencyAuth       DependencyType = "Auth"
+	DependencyNotifier   DependencyType = "Notifier"
+	DependencyEnrichment DependencyType = "Enrichment"
 )
+
+type openError struct {
+	name string
+}
+
+// Keeps the caller's message verbatim while still matching ErrNotCounted.
+type notCountedError struct {
+	err error
+}
 
 type CircuitBreaker struct {
 	name             string
@@ -30,6 +43,7 @@ type CircuitBreaker struct {
 	failureCount     int
 	successCount     int
 	state            State
+	halfOpenProbes   int
 	lastFailureTime  time.Time
 	lastStateChange  time.Time
 	mutex            sync.RWMutex

@@ -37,16 +37,16 @@ class OllamaProvider(InstructorProvider):
         return f"{OLLAMA_HOST.rstrip('/')}/v1"
 
     def _on_setup_error(self, e: Exception) -> EnrichmentResult:
-        logger.error(LOG_PROVIDER_SETUP_FAILED, self.name, e)
+        logger.warning(LOG_PROVIDER_SETUP_FAILED, self.name, type(e).__name__)
         raise OllamaUnavailableError(MSG_OLLAMA_UNREACHABLE) from e
 
     def _handle_error(self, e: Exception, attempt: int) -> EnrichmentResult | None:
         msg = str(e).lower()
         if "connection" in msg or "refused" in msg or "unreachable" in msg:
-            logger.error(LOG_PROVIDER_UNREACHABLE, self.name, e)
+            logger.warning(LOG_PROVIDER_UNREACHABLE, self.name, type(e).__name__)
             raise OllamaUnavailableError(MSG_OLLAMA_UNREACHABLE) from e
         if attempt >= self.retries:
-            logger.warning(LOG_PROVIDER_RETRIES_FAILED, self.name, self.retries, e)
+            logger.warning(LOG_PROVIDER_RETRIES_FAILED, self.name, self.retries, type(e).__name__)
             return fallback_result()
-        logger.debug(LOG_PROVIDER_ATTEMPT_RETRY, self.name, attempt, e)
+        logger.debug(LOG_PROVIDER_ATTEMPT_RETRY, self.name, attempt, type(e).__name__)
         return None

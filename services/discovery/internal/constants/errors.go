@@ -30,6 +30,8 @@ const (
 	ErrPatchApplicationFailed              errors.Error = "patch application failed: status=%d message=%s"
 	ErrDispatchInsightsNilResponse         errors.Error = "insights dispatch returned nil response"
 	ErrDispatchInsightsFailed              errors.Error = "insights dispatch failed: status=%d message=%s"
+	ErrNotificationEmitFailed              errors.Error = "emit notification: status=%d message=%s"
+	ErrRestCallFailed                      errors.Error = "rest call failed: status=%d message=%s"
 
 	// Enrichment Pre-warming
 	ErrPrewarmListNamespaces         errors.Error = "pre-warming: failed to list namespaces: %v"
@@ -58,6 +60,8 @@ const (
 	// Circuit Breaker Errors
 	ErrCircuitBreakerOpen         errors.Error = "circuit breaker for %s is open"
 	ErrNoCircuitBreakerRegistered errors.Error = "no circuit breaker registered for %s"
+	ErrCircuitBreakerOpenSentinel errors.Error = "circuit breaker is open"
+	ErrCircuitBreakerNotCounted   errors.Error = "error excluded from circuit breaker accounting"
 
 	// Snapshot Errors
 	ErrFailedCreateSnapshot           errors.Error = "failed to create snapshot: %v"

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	goredis "github.com/redis/go-redis/v9"
-	"github.com/telark/data/errors"
 	"github.com/telark/data/logger"
 	"github.com/telark/data/messages"
 	"github.com/telark/notifier/internal/constants"
@@ -45,13 +44,19 @@ func main() {
 	}
 
 	m := manager.NewManager()
-	if err := m.Start(); err != nil {
-		lg.Error(fmt.Sprintf(string(errors.ErrNatsSubscriberManager), err))
-	} else {
+	go func() {
+		if err := manager.RetryStart(
+			ctx,
+			m.Start,
+			constants.NatsStartRetrySeconds*time.Second,
+			lg,
+		); err != nil {
+			return
+		}
 		if conn := connectivity.Global(); conn != nil {
 			conn.SetReady(constants.ServiceID, true)
 		}
-	}
+	}()
 
 	statusSrv := status.NewServer(m.IsConnected)
 	go restserver.ListenAndSignal(statusSrv, getQuitChannel, lg)
@@ -73,15 +78,17 @@ func logConnectionStatus(ctx context.Context, m *manager.Manager, lg *logger.Cus
 	ticker := time.NewTicker(constants.ConnectionLogIntervalSeconds * time.Second)
 	defer ticker.Stop()
 
+	connected := true
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if m.IsConnected() {
-				lg.Info(string(messages.SuccessNatsConnectionStatusConnected))
-			} else {
-				lg.Info(string(messages.SuccessNatsConnectionStatusDisconnected))
+			if current := m.IsConnected(); current != connected {
+				connected = current
+				if !connected {
+					lg.Warn(string(messages.SuccessNatsConnectionStatusDisconnected))
+				}
 			}
 		}
 	}

@@ -40,13 +40,10 @@ func storeResponseInCache(clh *CachedListHandler, r *http.Request, responseCaptu
 		return
 	}
 
-	lg.Info(fmt.Sprintf(string(constants.InfOptimizerCacheStoreSuccess), requestID, cacheKey, responseCapture.statusCode))
-
 	if data, exists := responseMap["data"]; exists {
 		storeDataInCache(clh, r, data, cacheKey)
 	} else {
 		clh.optimizer.Set(cacheKey, responseCapture.body)
-		lg.Info(fmt.Sprintf(string(constants.InfOptimizerCacheStoreSuccess), requestID, cacheKey, responseCapture.statusCode))
 	}
 }
 
@@ -63,14 +60,12 @@ func storeGetOperationData(clh *CachedListHandler, data any, cacheKey string) {
 		versionedCacheKey := cacheKey + ":" + resourceVersion
 		clh.optimizer.Set(versionedCacheKey, data)
 		clh.optimizer.Set(cacheKey, data)
-		lg.Info(fmt.Sprintf(string(constants.InfOptimizerCacheStoreVersionedKey), versionedCacheKey, cacheKey))
 	} else {
 		if b, err := json.Marshal(data); err == nil {
 			clh.optimizer.Set(cacheKey, b)
 		} else {
 			clh.optimizer.Set(cacheKey, data)
 		}
-		lg.Info(fmt.Sprintf(string(constants.InfOptimizerCacheStoreRegularKey), cacheKey))
 	}
 }
 

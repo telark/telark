@@ -20,7 +20,7 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 		userID, tokenStatus = revokeSessionIfPresent(sessionToken)
 	}
 
-	lg.Info(fmt.Sprintf(string(constants.LogLogoutAttempted), userID, tokenStatus))
+	lg.Info(fmt.Sprintf(string(constants.LogLogoutAttempted), shared.IdentityHash(userID), tokenStatus))
 	shared.SendSuccessResponse(w, string(constants.SuccessLogoutCompleted), nil)
 }
 

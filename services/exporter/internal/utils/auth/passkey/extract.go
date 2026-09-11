@@ -12,7 +12,6 @@ import (
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/rest/response"
 	requestutils "github.com/telark/rest/utils/request"
-	responseutils "github.com/telark/rest/utils/response"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -84,7 +83,7 @@ func checkCredentialIDUniqueness(credentialID string, userID string) error {
 
 	for _, existingPasskey := range passkeys {
 		if isDuplicateCredentialID(existingPasskey, credentialID) {
-			return fmt.Errorf(string(constants.ErrPasskeyCredentialIDAlreadyExists), credentialID)
+			return errors.New(string(constants.ErrPasskeyCredentialIDAlreadyExists))
 		}
 	}
 
@@ -149,7 +148,7 @@ func ExtractPasskeyRequestParams(w http.ResponseWriter, r *http.Request) (
 
 	body, err = requestutils.ParseRequestBody(r)
 	if err != nil {
-		responseutils.LogAndSendResponse(
+		sharedutils.LogByStatusAndSend(
 			w,
 			http.StatusUnprocessableEntity,
 			response.OperationUnprocessed,

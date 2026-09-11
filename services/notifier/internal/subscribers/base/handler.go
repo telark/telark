@@ -20,7 +20,7 @@ func SharedExecuteHandler(
 	transformData func([]byte) ([]byte, error),
 ) error {
 	handler := getHandler(action)
-	logger.GetLogger(constants.PrefixManagerSubscriber).Info(fmt.Sprintf(
+	logger.GetLogger(constants.PrefixManagerSubscriber).Debug(fmt.Sprintf(
 		string(messages.SuccessNatsTopicMessageReceive), m.Subject))
 	msgStr := natscore.GetParsedMessageHeader(m)
 	if msgStr == constants.EmptyString {
@@ -45,9 +45,7 @@ func SharedExecuteHandler(
 	if transformData != nil {
 		transformed, err = transformData(dataBytes)
 		if err != nil {
-			logger.GetLogger(constants.PrefixManagerSubscriber).Error(fmt.Sprintf(
-				"%s: %v", string(errors.ErrNatsConvertMsgData), err))
-			return nil
+			return fmt.Errorf("%s: %w", errors.ErrNatsConvertMsgData, err)
 		}
 	} else {
 		transformed = dataBytes

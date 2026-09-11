@@ -21,9 +21,9 @@ import (
 func GenericGetCustomResource(w http.ResponseWriter, _ *http.Request, name string, md metadata.Metadata) {
 	result := api.GetCustomResourceByName(name, md)
 	if result.Status != http.StatusOK || result.Error != nil {
-		lg.Error(fmt.Sprintf(string(constants.InfExternalDeletionResourceNotFound), name))
+		lg.Debug(fmt.Sprintf(string(constants.InfExternalDeletionResourceNotFound), name))
 		errorMsg := sharedutils.GenerateResourceError(globalerrors.ErrGetRes, name, result.Error)
-		responseutils.LogAndSendResponse(
+		sharedutils.LogDebugAndSend(
 			w,
 			http.StatusNotFound,
 			response.OperationNotFound,
@@ -94,7 +94,7 @@ func GenericListCustomResources(w http.ResponseWriter, resourceMetadata metadata
 		return
 	}
 
-	responseutils.LogAndSendResponse(
+	sharedutils.LogByStatusAndSend(
 		w,
 		result.Status,
 		response.OperationSuccess,

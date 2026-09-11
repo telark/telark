@@ -6,7 +6,6 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/telark/data/errors"
 	"github.com/telark/data/logger"
-	"github.com/telark/data/messages"
 	"github.com/telark/data/resources/shared"
 	"github.com/telark/notifier/internal/constants"
 )
@@ -17,14 +16,12 @@ func AckWithLog(m *nats.Msg, subject, logMsg string, isError bool) error {
 		if isError {
 			lg.Error(logMsg)
 		} else {
-			lg.Info(logMsg)
+			lg.Debug(logMsg)
 		}
 	}
 	if err := m.Ack(); err != nil {
-		lg.Error(fmt.Sprintf(string(errors.ErrNatsAckMsg), subject, err))
-		return err
+		return fmt.Errorf(string(errors.ErrNatsAckMsg), subject, err)
 	}
-	lg.Info(fmt.Sprintf(string(messages.InfoAckSentForMessage), subject))
 	return nil
 }
 

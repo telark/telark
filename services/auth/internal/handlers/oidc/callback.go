@@ -66,7 +66,7 @@ func GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lg.Info("OIDC login for " + claims.Email)
+	lg.Info(fmt.Sprintf(string(constants.LogOIDCLoginAccepted), shared.IdentityHash(claims.Subject)))
 	shared.SendSuccessResponse(w, string(constants.SuccessOIDCLoginCompleted), CallbackResponse{
 		SessionToken: sessionToken,
 		Email:        claims.Email,
@@ -100,7 +100,8 @@ func resolveOIDCUser(w http.ResponseWriter, claims *oidchelper.GoogleClaims) (*u
 	}
 	if !isNotFoundError(err) {
 		shared.HandleError(w, err, http.StatusInternalServerError,
-			fmt.Sprintf("user identity lookup failed for %s: %v", claims.Email, err))
+			fmt.Sprintf(string(constants.ErrOIDCIdentityLookupFailed),
+				shared.IdentityHash(claims.Subject), err))
 		return nil, false
 	}
 	user, err = jitProvisionUser(userClient, claims)

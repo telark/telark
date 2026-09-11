@@ -35,8 +35,7 @@ func FindPasskeyOrRespond(w http.ResponseWriter, credentialID string) (*unstruct
 		func() (*unstructured.Unstructured, error) {
 			return FindPasskeyByCredentialID(credentialID)
 		},
-		constants.ErrPasskeyNotFoundForCredentialID,
-		credentialID,
+		constants.ErrPasskeyNotFound,
 	)
 }
 

@@ -68,7 +68,7 @@ func runCreateFromTemplate(
 
 	if result.Status != http.StatusOK {
 		errorMsg := sharedutils.GenerateResourceError(globalerrors.ErrCreateRes, name, result.Error)
-		responseutils.LogAndSendResponse(w, result.Status, response.OperationError, errorMsg, nil, result.Error)
+		sharedutils.LogByStatusAndSend(w, result.Status, response.OperationError, errorMsg, nil, result.Error)
 		return
 	}
 

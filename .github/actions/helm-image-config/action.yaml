@@ -1,0 +1,27 @@
+name: 'Helm Image Config'
+description: 'Read the container registry and repository for a service from the Helm values file.'
+inputs:
+  values-file:
+    description: 'Path to the Helm values.yaml file'
+    required: true
+  service:
+    description: 'Service key under .services in the values file, e.g. discovery or ui'
+    required: true
+
+outputs:
+  registry:
+    description: 'Container registry, from .app.image.registry'
+    value: ${{ steps.image.outputs.registry }}
+  repository:
+    description: 'Image repository for the service, from .services.<service>.repository'
+    value: ${{ steps.image.outputs.repository }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Read image config from helm values
+      id: image
+      shell: bash
+      run: |
+        echo "registry=$(yq e '.app.image.registry' "${{ inputs.values-file }}")" >> "$GITHUB_OUTPUT"
+        echo "repository=$(yq e '.services.${{ inputs.service }}.repository' "${{ inputs.values-file }}")" >> "$GITHUB_OUTPUT"

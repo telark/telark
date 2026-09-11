@@ -89,12 +89,8 @@ jobs:
           esac
           echo "dirs=$dirs" >> "$GITHUB_OUTPUT"
 
-      - name: Add dependency repos
-        run: |
-          helm repo add bitnami        https://charts.bitnami.com/bitnami
-          helm repo add kyverno        https://kyverno.github.io/kyverno/
-          helm repo add otwld          https://helm.otwld.com/
-          helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+      - name: Add Helm dependency repos
+        uses: ./.github/actions/helm-add-dependency-repos
 
       - name: Package, publish + sign
         id: publish
@@ -151,14 +147,16 @@ jobs:
         env:
           OUTPUT: CHANGELOG.md
 
+      - name: Regenerate VALUES.md
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump != 'current' }}
+        uses: ./.github/actions/helm-docs-regenerate
+
       - name: Commit version bumps
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump != 'current' }}
         run: |
           set -euo pipefail
-          # Regenerate VALUES.md so its version badge tracks the bump — same command
-          # as `make values-docs` and the CI drift check — and commit it together, so
-          # the bump never leaves VALUES.md stale.
-          go run github.com/norwoodj/helm-docs/cmd/helm-docs@v1.14.2 --chart-search-root charts --output-file VALUES.md
+          # Same command as `make values-docs` and the CI drift check — regenerated
+          # by the step above, so the bump never leaves VALUES.md stale.
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "$CHART_DIR/Chart.yaml" "$CRDS_DIR/Chart.yaml" \

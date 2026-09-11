@@ -4,13 +4,7 @@ FROM golang:1.26.5-alpine3.24 AS build
 
 WORKDIR /app
 
-ARG ORG
-ARG URL
-ARG USER
-ARG PAT
-RUN apk add --no-cache --virtual .build-deps ca-certificates git && \
-    go env -w GOPRIVATE=${URL}/${ORG}/* && \
-    git config --global url."https://${USER}:${PAT}@${URL}".insteadOf "https://${URL}"
+RUN apk add --no-cache ca-certificates
 
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
@@ -29,8 +23,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
         -buildvcs=false \
         -o main .
 
-RUN adduser -D -u 10001 auth-service && \
-    rm -rf /root/.gitconfig
+RUN adduser -D -u 10001 auth-service
 
 FROM alpine:3.24.1
 WORKDIR /app

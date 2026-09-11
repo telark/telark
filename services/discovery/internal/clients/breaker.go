@@ -15,15 +15,11 @@ import (
 	"github.com/telark/rest/response"
 )
 
-// The connectivity gate returns a plain fmt.Errorf with no sentinel, so its
-// rest-pkg format string is the only thing left to recognise it by.
 var connectivityNotReadyPrefix, _, _ = strings.Cut(
 	string(restconstants.ErrConnectivityServiceNotReady),
 	constants.FormatVerbPrefix,
 )
 
-// rest-pkg preserves the real status on responses and synthesizes 500 only for
-// transport or gate failures, so 500 is the single status worth tripping on.
 func classifyStatus(status int, err error) error {
 	if err == nil || status == http.StatusInternalServerError {
 		return err

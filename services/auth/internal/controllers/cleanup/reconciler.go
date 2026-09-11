@@ -115,7 +115,7 @@ func (r *Reconciler) patchAffected(
 	return int(successCount.Load()), nil
 }
 
-func (r *Reconciler) patchOne(
+func (*Reconciler) patchOne(
 	ctx context.Context,
 	ref BackRef,
 	view *resourcesshared.CleanupView,

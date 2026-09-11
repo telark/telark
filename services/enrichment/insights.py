@@ -60,5 +60,5 @@ def dispatch_applications(items: list[AppSignals]) -> tuple[list[str], list[str]
         _enqueue_once(r, signals)
         pending.append(signals.name)
 
-    logger.info(LOG_INSIGHTS_DISPATCH.format(ready=len(ready), pending=len(pending)))
+    logger.debug(LOG_INSIGHTS_DISPATCH.format(ready=len(ready), pending=len(pending)))
     return ready, pending

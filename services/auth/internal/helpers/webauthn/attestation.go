@@ -15,25 +15,25 @@ import (
 func ExtractBackupFlagsFromAttestation(attObjB64 string) (backupEligible, backupState bool) {
 	attBytes, err := authhelper.DecodeBase64URLWithFallback(attObjB64)
 	if err != nil {
-		lg.Error(fmt.Sprintf(string(constants.LogFailedDecodeAttestationForBackupFlags), err))
+		lg.Warn(fmt.Sprintf(string(constants.LogFailedDecodeAttestationForBackupFlags), err))
 		return false, false
 	}
 
 	var attMap map[string]any
 	if err := cbor.Unmarshal(attBytes, &attMap); err != nil {
-		lg.Error(fmt.Sprintf(string(constants.LogFailedUnmarshalCBORForBackupFlags), err))
+		lg.Warn(fmt.Sprintf(string(constants.LogFailedUnmarshalCBORForBackupFlags), err))
 		return false, false
 	}
 
 	authData, ok := attMap[constants.WebAuthnKeyAuthData].([]byte)
 	if !ok {
-		lg.Error(string(constants.LogAuthDataNotByteForBackupFlags))
+		lg.Warn(string(constants.LogAuthDataNotByteForBackupFlags))
 		return false, false
 	}
 
 	const minAuthDataLengthForFlags = constants.AuthDataOffsetFlags + 1
 	if len(authData) < minAuthDataLengthForFlags {
-		lg.Error(string(constants.LogAuthDataTooShortForBackupFlags))
+		lg.Warn(string(constants.LogAuthDataTooShortForBackupFlags))
 		return false, false
 	}
 
@@ -186,7 +186,7 @@ func ParseAttestationObjectManually(
 		return nil, false, false, err
 	}
 
-	lg.Info(fmt.Sprintf(string(constants.LogExtractedBackupFlags), backupEligible, backupState))
+	lg.Debug(fmt.Sprintf(string(constants.LogExtractedBackupFlags), backupEligible, backupState))
 
 	return &webauthn.Credential{
 		ID:        credID,

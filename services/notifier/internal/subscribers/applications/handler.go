@@ -88,15 +88,15 @@ func parseNatsMessageToMap(m *nats.Msg) (*natscore.Message, map[string]any, erro
 	}
 	var msg natscore.Message
 	if err := json.Unmarshal([]byte(msgStr), &msg); err != nil {
-		return nil, nil, fmt.Errorf(string(errors.ErrNatsHandleMsg), m, err)
+		return nil, nil, fmt.Errorf(string(errors.ErrNatsHandleMsg), m.Subject, err)
 	}
 	dataBytes, err := json.Marshal(msg.Data)
 	if err != nil {
-		return nil, nil, fmt.Errorf(string(errors.ErrNatsHandleMsg), m, err)
+		return nil, nil, fmt.Errorf(string(errors.ErrNatsHandleMsg), m.Subject, err)
 	}
 	var dataMap map[string]any
 	if err := json.Unmarshal(dataBytes, &dataMap); err != nil {
-		return nil, nil, fmt.Errorf(string(errors.ErrNatsHandleMsg), m, err)
+		return nil, nil, fmt.Errorf(string(errors.ErrNatsHandleMsg), m.Subject, err)
 	}
 	return &msg, dataMap, nil
 }

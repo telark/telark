@@ -7,6 +7,7 @@ import (
 
 	"github.com/telark/auth/internal/clients"
 	"github.com/telark/auth/internal/constants"
+	"github.com/telark/auth/internal/helpers/shared"
 	authdata "github.com/telark/data/auth"
 	userresource "github.com/telark/data/resources/user"
 )
@@ -24,7 +25,8 @@ func GetUserWithErrorHandling(
 		if strings.Contains(err.Error(), constants.HTTPStatus404Pattern) {
 			return nil, errors.New(string(constants.ErrUserNotFound))
 		}
-		return nil, fmt.Errorf(string(constants.ErrFailedGetUser), identifier, err.Error())
+		return nil, fmt.Errorf(string(constants.ErrFailedGetUser),
+			shared.IdentityHash(identifier), err.Error())
 	}
 	if user == nil {
 		return nil, errors.New(string(constants.ErrUserNotFound))

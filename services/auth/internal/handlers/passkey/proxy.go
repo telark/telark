@@ -79,7 +79,6 @@ func CreatePasskey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	shared.SendJSONResponse(w, http.StatusCreated, data)
-	lg.Info(string(constants.SuccessPasskeyCreated))
 }
 
 func GetSinglePasskey(w http.ResponseWriter, r *http.Request) {
@@ -130,7 +129,6 @@ func UpdatePasskey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	shared.SendJSONResponse(w, http.StatusOK, data)
-	lg.Info(string(constants.SuccessPasskeyUpdated))
 }
 
 func DeletePasskey(w http.ResponseWriter, r *http.Request) {
@@ -138,7 +136,7 @@ func DeletePasskey(w http.ResponseWriter, r *http.Request) {
 	forceLastDelete := constants.DefaultForceLastDelete
 	cleanupOrphaned := constants.DefaultCleanupOrphaned
 	if err := shared.DecodeRequestBody(r, &req); err != nil {
-		lg.Warn(fmt.Sprintf(string(constants.ErrFailedDecodeRequest), err))
+		lg.Debug(fmt.Sprintf(string(constants.ErrFailedDecodeRequest), err))
 	} else {
 		forceLastDelete = req.ForceLastDelete
 		cleanupOrphaned = req.CleanupOrphaned
@@ -181,5 +179,4 @@ func DeletePasskey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	shared.SendSuccessResponse(w, string(constants.SuccessPasskeyDeleted), nil)
-	lg.Info(string(constants.SuccessPasskeyDeleted))
 }

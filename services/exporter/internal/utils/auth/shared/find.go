@@ -2,15 +2,14 @@ package shared
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 
 	dataerrors "github.com/telark/data/errors"
 	metadata "github.com/telark/data/metadata/base"
 	"github.com/telark/exporter/internal/constants"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/kcore/crds/api"
 	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -71,25 +70,20 @@ func FindResourcesByUserID(
 	return FilterResourcesByUserID(list, userID), nil
 }
 
+// The identifier being looked up is a session token or a credential ID, so it
+// is never echoed into the message.
 func FindResourceOrRespond(
 	w http.ResponseWriter,
 	findFunc func() (*unstructured.Unstructured, error),
 	notFoundErr dataerrors.Error,
-	formatArgs ...any,
 ) (*unstructured.Unstructured, bool) {
 	resource, err := findFunc()
 	if err != nil {
-		var errorMsg string
-		if len(formatArgs) > constants.DefaultInitValue {
-			errorMsg = fmt.Sprintf(string(notFoundErr), formatArgs...)
-		} else {
-			errorMsg = string(notFoundErr)
-		}
-		responseutils.LogAndSendResponse(
+		sharedutils.LogDebugAndSend(
 			w,
 			http.StatusNotFound,
 			response.OperationNotFound,
-			errorMsg,
+			string(notFoundErr),
 			nil,
 			err,
 		)

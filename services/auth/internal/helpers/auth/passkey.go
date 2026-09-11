@@ -164,7 +164,7 @@ func AttachPasskeyIdentity(
 	userClient := clients.GetUserClient()
 	resp := userClient.PatchUserByID(userID, map[string]any{constants.UserFieldIdentities: user.Identities})
 	if resp.Status != http.StatusOK {
-		return fmt.Errorf(string(constants.ErrFailedAttachIdentity), userID, resp.Status)
+		return fmt.Errorf(string(constants.ErrFailedAttachIdentity), shared.IdentityHash(userID), resp.Status)
 	}
 	return nil
 }

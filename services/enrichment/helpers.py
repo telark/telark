@@ -34,7 +34,7 @@ def connect_redis(url: str) -> redis.Redis:
             logger.info(LOG_REDIS_CONNECTED, attempt)
             return r
         except redis.RedisError as e:
-            logger.warning(LOG_REDIS_NOT_READY, delay, attempt, e)
+            logger.info(LOG_REDIS_NOT_READY, delay, attempt, type(e).__name__)
             time.sleep(delay)
             delay = min(delay * 2, REDIS_BACKOFF_CAP_S)
 
@@ -50,7 +50,7 @@ def wait_for_ollama(host: str) -> None:
                 logger.info(LOG_OLLAMA_READY, attempt)
                 return
         except Exception as e:
-            logger.warning(LOG_OLLAMA_NOT_READY, delay, attempt, e)
+            logger.info(LOG_OLLAMA_NOT_READY, delay, attempt, type(e).__name__)
         time.sleep(delay)
         delay = min(delay * 2, OLLAMA_BACKOFF_CAP_S)
 

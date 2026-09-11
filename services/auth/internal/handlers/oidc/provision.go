@@ -10,6 +10,7 @@ import (
 	"github.com/telark/auth/internal/constants"
 	authhelper "github.com/telark/auth/internal/helpers/auth"
 	oidchelper "github.com/telark/auth/internal/helpers/oidc"
+	"github.com/telark/auth/internal/helpers/shared"
 	userresource "github.com/telark/data/resources/user"
 	userclient "github.com/telark/rest/clients/resources/users"
 )
@@ -25,11 +26,12 @@ func promoteBootstrapAdmin(user *userresource.UserAsResource, userClient *usercl
 	roles = append(roles, user.AssignedRolesIDs...)
 	roles = append(roles, &adminID)
 	resp := userClient.PatchUserByID(user.ID, map[string]any{"assignedRolesIDs": roles})
+	identityHash := shared.IdentityHash(user.Email)
 	if resp.Status != http.StatusOK {
-		lg.Error(fmt.Sprintf("failed to promote bootstrap admin %s: status %d", user.Email, resp.Status))
+		lg.Error(fmt.Sprintf(string(constants.ErrOIDCAdminPromotionFailed), identityHash, resp.Status))
 		return
 	}
-	lg.Info("bootstrap admin promoted: " + user.Email)
+	lg.Info(fmt.Sprintf(string(constants.LogOIDCAdminPromoted), identityHash))
 }
 
 func isNotFoundError(err error) bool {
@@ -44,7 +46,8 @@ func jitProvisionUser(
 		return attachGoogleIdentity(userClient, existing, claims)
 	}
 	if err != nil && !isNotFoundError(err) {
-		return nil, fmt.Errorf("email lookup failed for %s: %w", claims.Email, err)
+		return nil, fmt.Errorf(string(constants.ErrOIDCEmailLookupFailed),
+			shared.IdentityHash(claims.Email), err)
 	}
 	return createNewOIDCUser(userClient, claims)
 }
@@ -61,10 +64,11 @@ func attachGoogleIdentity(
 	}
 	user.Identities = append(user.Identities, identity)
 	resp := userClient.PatchUserByID(user.ID, map[string]any{constants.UserFieldIdentities: user.Identities})
+	identityHash := shared.IdentityHash(user.Email)
 	if resp.Status != http.StatusOK {
-		return nil, fmt.Errorf(string(constants.ErrFailedAttachIdentity), user.Email, resp.Status)
+		return nil, fmt.Errorf(string(constants.ErrFailedAttachIdentity), identityHash, resp.Status)
 	}
-	lg.Info(fmt.Sprintf(string(constants.LogJITEmailIdentityAttached), user.Email))
+	lg.Info(fmt.Sprintf(string(constants.LogJITEmailIdentityAttached), identityHash))
 	return user, nil
 }
 
@@ -146,5 +150,5 @@ func repairRoleIfMissing(user *userresource.UserAsResource, userClient *userclie
 		lg.Error(err.Error())
 		return
 	}
-	lg.Info(fmt.Sprintf(string(constants.LogJIT409RoleRepair), email))
+	lg.Info(fmt.Sprintf(string(constants.LogJIT409RoleRepair), shared.IdentityHash(email)))
 }

@@ -70,7 +70,6 @@ func LoginStart(w http.ResponseWriter, r *http.Request) {
 		UserID:  user.ID,
 	}
 	shared.SendJSONResponse(w, http.StatusOK, response)
-	lg.Info(string(constants.SuccessLoginStarted))
 }
 
 func LoginFinish(w http.ResponseWriter, r *http.Request) {
@@ -113,9 +112,7 @@ func LoginFinish(w http.ResponseWriter, r *http.Request) {
 
 	capturedUserID, capturedCredID := user.ID, credential.ID
 	auth.Dispatch(func() {
-		if err := auth.UpdatePasskeyLastUsed(capturedUserID, capturedCredID); err != nil {
-			lg.Error(fmt.Sprintf(string(constants.ErrFailedUpdatePasskeyLastUsed), err))
-		}
+		_ = auth.UpdatePasskeyLastUsed(capturedUserID, capturedCredID)
 		webauthnhelper.CleanupChallenge(capturedUserID)
 	})
 
@@ -132,13 +129,12 @@ func LoginFinish(w http.ResponseWriter, r *http.Request) {
 		SessionToken: sessionToken,
 		User:         user,
 	})
-	lg.Info(string(constants.SuccessLoginCompleted))
 }
 
 func extractDeviceMeta(bodyBytes []byte) *authdata.DeviceMetadata {
 	req, err := extractLoginRequest(bodyBytes)
 	if err != nil {
-		lg.Info(fmt.Sprintf(string(constants.LogExtractLoginRequestFailed), err))
+		lg.Debug(fmt.Sprintf(string(constants.LogExtractLoginRequestFailed), err))
 		return nil
 	}
 	return &req.DeviceMetadata

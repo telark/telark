@@ -73,7 +73,6 @@ func (m *Manager) Start() error {
 		logger.GetLogger(constants.PrefixManagerSubscriber).Error(fmt.Sprintf("%s: %v", errors.ErrNatsSubscriberManager, err))
 	}
 
-	logger.GetLogger(constants.PrefixNotifierService).Info(string(constants.InfoSubscribersStarted))
 	return nil
 }
 

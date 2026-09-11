@@ -9,6 +9,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/telark/auth/internal/constants"
 	redishelper "github.com/telark/auth/internal/helpers/redis"
+	"github.com/telark/auth/internal/helpers/shared"
 	authdata "github.com/telark/data/auth"
 )
 
@@ -27,7 +28,7 @@ func StoreChallenge(userID string, challenge string) error {
 		return fmt.Errorf(string(constants.ErrFailedCreateChallenge), err.Error())
 	}
 	if !set {
-		return fmt.Errorf(string(constants.ErrRedisChallengeConflict), userID)
+		return fmt.Errorf(string(constants.ErrRedisChallengeConflict), shared.IdentityHash(userID))
 	}
 	return nil
 }
@@ -62,6 +63,6 @@ func CleanupChallenge(userID string) {
 	defer cancel()
 
 	if err := rdb.Del(ctx, key).Err(); err != nil {
-		lg.Error(fmt.Sprintf(string(constants.ErrFailedDeleteChallenge), err.Error()))
+		lg.Warn(fmt.Sprintf(string(constants.ErrFailedDeleteChallenge), err.Error()))
 	}
 }

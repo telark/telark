@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/telark/discovery/internal/circuitbreaker"
 	"github.com/telark/discovery/internal/config"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/rest/clients/shared"
@@ -47,6 +48,9 @@ func (c *SnapshotClient) CreateSnapshotAndReturnPath(
 		if err == nil {
 			return path, nil
 		}
+		if circuitbreaker.IsOpen(err) {
+			return constants.EmptyString, err
+		}
 		lastErr = err
 		if attempt < attemptMax {
 			time.Sleep(interval)
@@ -62,6 +66,23 @@ func (c *SnapshotClient) createSnapshotOnce(
 	generation int,
 	manifest any,
 ) (string, error) {
+	path, err := c.createSnapshotCall(id, scope, namespace, generation, manifest)
+	if err != nil {
+		return constants.EmptyString, err
+	}
+	if err := c.verifySnapshotReadable(id, scope, namespace, generation); err != nil {
+		return constants.EmptyString, err
+	}
+	return path, nil
+}
+
+func (c *SnapshotClient) createSnapshotCall(
+	id string,
+	scope string,
+	namespace string,
+	generation int,
+	manifest any,
+) (string, error) {
 	payload := &snapshotsclient.CreateSnapshotPayload{
 		ID:         id,
 		Scope:      scope,
@@ -69,27 +90,40 @@ func (c *SnapshotClient) createSnapshotOnce(
 		Generation: generation,
 		Manifest:   manifest,
 	}
-	resp := c.client.CreateSnapshot(payload)
-	if resp == nil {
-		return constants.EmptyString, errors.New(string(constants.ErrFailedCreateSnapshot))
-	}
-	if resp.Status != http.StatusOK {
-		return constants.EmptyString, fmt.Errorf(
-			string(constants.ErrFailedCreateSnapshotWithStatus),
-			resp.Status,
-			resp.Message,
+	var path string
+	err := circuitbreaker.ExecuteExporter(func() error {
+		resp := c.client.CreateSnapshot(payload)
+		if resp == nil {
+			return errors.New(string(constants.ErrFailedCreateSnapshot))
+		}
+		if resp.Status != http.StatusOK {
+			return classifyStatus(resp.Status, fmt.Errorf(
+				string(constants.ErrFailedCreateSnapshotWithStatus),
+				resp.Status,
+				resp.Message,
+			))
+		}
+		var readErr error
+		path, readErr = snapshotPathFrom(resp.Data)
+		return readErr
+	})
+	return path, err
+}
+
+// A malformed payload is the exporter answering, not failing to answer, so it
+// must not count towards the breaker.
+func snapshotPathFrom(data any) (string, error) {
+	dataMap, ok := data.(map[string]any)
+	if !ok {
+		return constants.EmptyString, circuitbreaker.NotCounted(
+			errors.New(string(constants.ErrFailedGetSnapshotDataMap)),
 		)
 	}
-	dataMap, ok := resp.Data.(map[string]any)
-	if !ok {
-		return constants.EmptyString, errors.New(string(constants.ErrFailedGetSnapshotDataMap))
-	}
-	path, ok := dataMap["path"].(string)
+	path, ok := dataMap[constants.SnapshotPathKey].(string)
 	if !ok || path == constants.EmptyString {
-		return constants.EmptyString, errors.New(string(constants.ErrFailedGetSnapshotPath))
-	}
-	if err := c.verifySnapshotReadable(id, scope, namespace, generation); err != nil {
-		return constants.EmptyString, err
+		return constants.EmptyString, circuitbreaker.NotCounted(
+			errors.New(string(constants.ErrFailedGetSnapshotPath)),
+		)
 	}
 	return path, nil
 }
@@ -108,6 +142,9 @@ func (c *SnapshotClient) verifySnapshotReadable(
 		if err == nil {
 			return nil
 		}
+		if circuitbreaker.IsOpen(err) {
+			return err
+		}
 		lastErr = err
 		if attempt < snapshotVerifyAttempts {
 			time.Sleep(snapshotVerifyDelay)
@@ -122,21 +159,23 @@ func (c *SnapshotClient) DeleteSnapshot(
 	namespace string,
 	generation int,
 ) error {
-	resp, err := c.client.DeleteSnapshot(id, scope, namespace, strconv.Itoa(generation))
-	if err != nil {
-		return fmt.Errorf(string(constants.ErrFailedDeleteSnapshot), err)
-	}
-	if resp == nil {
-		return errors.New(string(constants.ErrFailedDeleteSnapshot))
-	}
-	if resp.Status != http.StatusOK {
-		return fmt.Errorf(
-			string(constants.ErrFailedDeleteSnapshotWithStatus),
-			resp.Status,
-			resp.Message,
-		)
-	}
-	return nil
+	return circuitbreaker.ExecuteExporter(func() error {
+		resp, err := c.client.DeleteSnapshot(id, scope, namespace, strconv.Itoa(generation))
+		if err != nil {
+			return classifyWrapped(err, fmt.Errorf(string(constants.ErrFailedDeleteSnapshot), err))
+		}
+		if resp == nil {
+			return errors.New(string(constants.ErrFailedDeleteSnapshot))
+		}
+		if resp.Status != http.StatusOK {
+			return classifyStatus(resp.Status, fmt.Errorf(
+				string(constants.ErrFailedDeleteSnapshotWithStatus),
+				resp.Status,
+				resp.Message,
+			))
+		}
+		return nil
+	})
 }
 
 func (c *SnapshotClient) GetSnapshotManifest(
@@ -146,15 +185,22 @@ func (c *SnapshotClient) GetSnapshotManifest(
 	namespace string,
 	generation int,
 ) ([]unstructured.Unstructured, error) {
-	out, err := c.client.GetSnapshotManifest(
-		ctx,
-		snapshotID,
-		scope,
-		namespace,
-		strconv.Itoa(generation),
-	)
-	if err != nil {
-		return nil, fmt.Errorf(string(constants.ErrFailedGetSnapshotManifest), snapshotID, err)
-	}
-	return out, nil
+	var out []unstructured.Unstructured
+	err := circuitbreaker.ExecuteExporter(func() error {
+		result, callErr := c.client.GetSnapshotManifest(
+			ctx,
+			snapshotID,
+			scope,
+			namespace,
+			strconv.Itoa(generation),
+		)
+		if callErr != nil {
+			return classifyWrapped(callErr, fmt.Errorf(
+				string(constants.ErrFailedGetSnapshotManifest), snapshotID, callErr,
+			))
+		}
+		out = result
+		return nil
+	})
+	return out, err
 }

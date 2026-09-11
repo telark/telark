@@ -6,6 +6,7 @@ import (
 
 	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
+	"github.com/telark/auth/internal/helpers/shared"
 	userresource "github.com/telark/data/resources/user"
 	userclient "github.com/telark/rest/clients/resources/users"
 )
@@ -24,7 +25,7 @@ func RepairMissingRole(user *userresource.UserAsResource, userClient *userclient
 	roleID := ResolveInitialRoleID(email)
 	resp := userClient.PatchUserByID(user.ID, map[string]any{"assignedRolesIDs": []*string{&roleID}})
 	if resp.Status != http.StatusOK {
-		return fmt.Errorf(string(constants.ErrFailedRoleRepair), email, resp.Status)
+		return fmt.Errorf(string(constants.ErrFailedRoleRepair), shared.IdentityHash(email), resp.Status)
 	}
 	return nil
 }

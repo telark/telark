@@ -10,6 +10,10 @@ import (
 var (
 	instance *Manager
 	once     sync.Once
+
+	restDependencies = []DependencyType{
+		DependencyExporter, DependencyAuth, DependencyNotifier, DependencyEnrichment,
+	}
 )
 
 func GetManager() *Manager {
@@ -38,6 +42,16 @@ func (m *Manager) initialize() {
 		Timeout:          constants.CircuitBreakerNatsTimeout,
 		OnStateChange:    m.createStateChangeHandler(DependencyNATS),
 	})
+
+	for _, dep := range restDependencies {
+		m.breakers[dep] = New(Config{
+			Name:             string(dep),
+			FailureThreshold: constants.CircuitBreakerRestFailureThreshold,
+			SuccessThreshold: constants.CircuitBreakerRestSuccessThreshold,
+			Timeout:          constants.CircuitBreakerRestTimeout,
+			OnStateChange:    m.createStateChangeHandler(dep),
+		})
+	}
 }
 
 func (m *Manager) createStateChangeHandler(depType DependencyType) func(from, to State) {
@@ -126,4 +140,24 @@ func ExecuteRedis(operation func() error) error {
 
 func ExecuteNATS(operation func() error) error {
 	return GetManager().Execute(DependencyNATS, operation)
+}
+
+func ExecuteExporter(operation func() error) error {
+	return GetManager().Execute(DependencyExporter, operation)
+}
+
+func ExecuteAuth(operation func() error) error {
+	return GetManager().Execute(DependencyAuth, operation)
+}
+
+func ExecuteNotifier(operation func() error) error {
+	return GetManager().Execute(DependencyNotifier, operation)
+}
+
+func ExecuteEnrichment(operation func() error) error {
+	return GetManager().Execute(DependencyEnrichment, operation)
+}
+
+func ExecuteREST(depType DependencyType, operation func() error) error {
+	return GetManager().Execute(depType, operation)
 }

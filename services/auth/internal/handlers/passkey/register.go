@@ -33,5 +33,4 @@ func RegisterStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	shared.SendJSONResponse(w, http.StatusOK, RegisterStartResponse{Options: options})
-	lg.Info(string(constants.SuccessChallengeCreated))
 }

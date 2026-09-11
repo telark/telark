@@ -28,17 +28,25 @@ func NewAuthzClient() *AuthzClient {
 }
 
 func (c *AuthzClient) GetSessionByToken(token string) (*authdata.UserSession, error) {
-	return c.sessions.GetSessionByToken(token)
+	return guardedExporterGet(func() (*authdata.UserSession, error) {
+		return c.sessions.GetSessionByToken(token)
+	})
 }
 
 func (c *AuthzClient) GetUserByID(userID string) (*userresource.UserAsResource, error) {
-	return c.users.GetUserByID(userID)
+	return guardedExporterGet(func() (*userresource.UserAsResource, error) {
+		return c.users.GetUserByID(userID)
+	})
 }
 
 func (c *AuthzClient) GetGroupByID(groupID string) (*groupresource.GroupAsResource, error) {
-	return c.groups.GetGroupByID(groupID)
+	return guardedExporterGet(func() (*groupresource.GroupAsResource, error) {
+		return c.groups.GetGroupByID(groupID)
+	})
 }
 
 func (c *AuthzClient) GetRoleByID(roleID string) (*roleresource.RoleAsResource, error) {
-	return c.roles.GetRoleByID(roleID)
+	return guardedExporterGet(func() (*roleresource.RoleAsResource, error) {
+		return c.roles.GetRoleByID(roleID)
+	})
 }

@@ -2,7 +2,6 @@ package user
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 
 	dataerrors "github.com/telark/data/errors"
@@ -39,7 +38,7 @@ func CheckUsernameExists(username string) error {
 	}
 
 	if exists {
-		return fmt.Errorf(string(constants.ErrUsernameAlreadyExists), username)
+		return errors.New(string(constants.ErrUsernameAlreadyExists))
 	}
 
 	return nil
@@ -48,7 +47,7 @@ func CheckUsernameExists(username string) error {
 func CheckIdentityExists(provider, issuer, subject string) error {
 	_, err := FindUserByIdentity(provider, issuer, subject)
 	if err == nil {
-		return fmt.Errorf(string(constants.ErrIdentityAlreadyExists), provider, issuer, subject)
+		return errors.New(string(constants.ErrIdentityAlreadyExists))
 	}
 	if errors.Is(err, ErrUserNotFound) {
 		return nil
@@ -62,7 +61,7 @@ func ValidateAndPrepareUser(user *userdata.UserAsResource, w http.ResponseWriter
 			continue
 		}
 		if err := CheckIdentityExists(identity.Provider, identity.Issuer, identity.Subject); err != nil {
-			responseutils.LogAndSendResponse(w, http.StatusConflict, response.OperationAlreadyExists,
+			sharedutils.LogByStatusAndSend(w, http.StatusConflict, response.OperationAlreadyExists,
 				err.Error(), nil, err)
 			return err
 		}
@@ -73,7 +72,7 @@ func ValidateAndPrepareUser(user *userdata.UserAsResource, w http.ResponseWriter
 		if err.Error() == string(constants.ErrUsernameCannotBeEmpty) {
 			statusCode = http.StatusBadRequest
 		}
-		responseutils.LogAndSendResponse(
+		sharedutils.LogByStatusAndSend(
 			w,
 			statusCode,
 			response.OperationError,

@@ -25,7 +25,7 @@ func GenericPatchCustomResource(w http.ResponseWriter, md metadata.Metadata, nam
 
 	exists, err := api.CheckCustomResourceExistsByName(name, md)
 	if err != nil {
-		responseutils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationError, string(globalerrors.ErrCheckResExistence), nil, err)
+		sharedutils.LogByStatusAndSend(w, http.StatusBadRequest, response.OperationError, string(globalerrors.ErrCheckResExistence), nil, err)
 		return
 	}
 
@@ -33,7 +33,7 @@ func GenericPatchCustomResource(w http.ResponseWriter, md metadata.Metadata, nam
 		result := api.PatchCustomResource(md, name, patchData)
 		if result.Status != http.StatusOK {
 			errorMsg := sharedutils.GenerateResourceError(globalerrors.ErrUpdateRes, name, result.Error)
-			responseutils.LogAndSendResponse(w, result.Status, response.OperationError, errorMsg, nil, result.Error)
+			sharedutils.LogByStatusAndSend(w, result.Status, response.OperationError, errorMsg, nil, result.Error)
 			return
 		}
 

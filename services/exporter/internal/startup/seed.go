@@ -41,7 +41,6 @@ func seedRoles() {
 			lg.Error(fmt.Sprintf(string(constants.ErrSeedRoleFailed), builtin.ID, err))
 			continue
 		}
-		lg.Info(fmt.Sprintf(string(constants.InfSeedRoleReconciled), builtin.Name))
 	}
 }
 

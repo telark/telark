@@ -137,7 +137,6 @@ func initOptimizerWithRetry() *performance.Optimizer {
 			return opt
 		}
 		lg.Error(fmt.Sprintf(string(constants.ErrOptimizerInitFailed), err))
-		lg.Warn(string(constants.InfOptimizerRetryingInitialization))
 		time.Sleep(constants.CacheRefreshInterval)
 	}
 }

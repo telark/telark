@@ -66,9 +66,7 @@ func (clh *CachedListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	requestID := generateRequestID()
 	ctx = context.WithValue(ctx, RequestIDCtxKey, requestID)
 	r = r.WithContext(ctx)
-
 	cacheKey := clh.cacheKey(r)
-	lg.Info(fmt.Sprintf(string(constants.InfOptimizerCacheKey), requestID, cacheKey, r.Method, r.URL.Path))
 
 	if cached, exists := clh.optimizer.Get(cacheKey); exists {
 		lg.Info(fmt.Sprintf(string(constants.InfOptimizerCacheHit), requestID, cacheKey))

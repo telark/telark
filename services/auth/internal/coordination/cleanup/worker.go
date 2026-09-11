@@ -100,7 +100,7 @@ func (m *Manager) guardedProcess(ctx context.Context, msg redis.XMessage) {
 }
 
 func (m *Manager) processJob(ctx context.Context, msg redis.XMessage, job Job) {
-	lg.Info(fmt.Sprintf(string(constants.LogCleanupWorkerPickup), m.resourceType, job.ResourceID, msg.ID))
+	lg.Debug(fmt.Sprintf(string(constants.LogCleanupWorkerPickup), m.resourceType, job.ResourceID, msg.ID))
 
 	jobCtx, cancel := context.WithTimeout(ctx, m.cfg.ReconcilePassDeadline)
 	defer cancel()

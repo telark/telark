@@ -8,6 +8,7 @@ import (
 
 	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
+	"github.com/telark/auth/internal/helpers/shared"
 	userresource "github.com/telark/data/resources/user"
 	userclient "github.com/telark/rest/clients/resources/users"
 )
@@ -18,7 +19,7 @@ func JitProvisionUserByEmail(
 	userClient *userclient.Client, email string,
 ) (*userresource.UserAsResource, error) {
 	if !config.IsSelfRegistrationEnabled() {
-		jitLg.Info("self-registration blocked for email: " + email)
+		jitLg.Info(fmt.Sprintf(string(constants.LogJITSelfRegistrationBlock), shared.IdentityHash(email)))
 		return nil, errors.New(string(constants.ErrSelfRegistrationDisabled))
 	}
 	username, err := BuildUsername(email)
@@ -37,7 +38,8 @@ func JitProvisionUserByEmail(
 		repairRoleIfMissingByEmail(existing, userClient, email)
 		return existing, nil
 	default:
-		return nil, fmt.Errorf(string(constants.ErrFailedCreateUser), email, resp.Status, resp.Message)
+		return nil, fmt.Errorf(string(constants.ErrFailedCreateUser),
+			shared.IdentityHash(email), resp.Status, resp.Message)
 	}
 }
 
@@ -58,7 +60,8 @@ func resolveExistingByEmail(
 ) (*userresource.UserAsResource, error) {
 	existing, fetchErr := userClient.GetUserByEmail(email)
 	if fetchErr != nil {
-		return nil, fmt.Errorf(string(constants.ErrFailedGetUser), email, fetchErr.Error())
+		return nil, fmt.Errorf(string(constants.ErrFailedGetUser),
+			shared.IdentityHash(email), fetchErr.Error())
 	}
 	if existing == nil {
 		return nil, errors.New(string(constants.ErrUserNotFound))
@@ -76,5 +79,5 @@ func repairRoleIfMissingByEmail(
 		jitLg.Error(err.Error())
 		return
 	}
-	jitLg.Info(fmt.Sprintf(string(constants.LogJIT409RoleRepair), email))
+	jitLg.Info(fmt.Sprintf(string(constants.LogJIT409RoleRepair), shared.IdentityHash(email)))
 }

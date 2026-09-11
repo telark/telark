@@ -12,7 +12,6 @@ import (
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/rest/response"
 	requestutils "github.com/telark/rest/utils/request"
-	responseutils "github.com/telark/rest/utils/response"
 )
 
 func CreatePasskeyByUserWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
@@ -24,7 +23,7 @@ func CreatePasskeyByUserWithCacheInvalidation(optimizer *performance.Optimizer) 
 
 		body, err := requestutils.ParseRequestBody(r)
 		if err != nil {
-			responseutils.LogAndSendResponse(
+			sharedutils.LogByStatusAndSend(
 				w,
 				http.StatusUnprocessableEntity,
 				response.OperationUnprocessed,

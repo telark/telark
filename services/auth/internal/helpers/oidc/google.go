@@ -92,7 +92,7 @@ func getStore(oidc globalconfigresource.OIDCConfig) (*keyStore, error) {
 			return nil, err
 		}
 		// Egress mode: log and continue — background refresh will populate keys
-		lg.Error(fmt.Sprintf(string(constants.ErrOIDCJWKSFetchFailed), err))
+		lg.Warn(fmt.Sprintf(string(constants.ErrOIDCJWKSFetchFailed), err))
 	}
 
 	store = s
@@ -144,7 +144,7 @@ func (s *keyStore) doRefresh() error {
 		} else {
 			fetched, err := fetchJWKS()
 			if err != nil {
-				lg.Error(fmt.Sprintf(string(constants.ErrOIDCJWKSFetchFailed), err))
+				lg.Warn(fmt.Sprintf(string(constants.ErrOIDCJWKSFetchFailed), err))
 				s.mu.Lock()
 				s.lastRefresh = time.Now()
 				s.mu.Unlock()
@@ -225,7 +225,7 @@ func fetchJWKS() ([]byte, error) {
 	}
 	defer func() {
 		if cerr := resp.Body.Close(); cerr != nil {
-			lg.Warn(fmt.Sprintf(string(constants.ErrFailedCloseRequestBody), cerr))
+			lg.Debug(fmt.Sprintf(string(constants.ErrFailedCloseRequestBody), cerr))
 		}
 	}()
 	if resp.StatusCode != http.StatusOK {

@@ -99,7 +99,7 @@ def create_app() -> FastAPI:
             return ValidateAPIKeyResponse(ok=False, reason=MSG_INVALID_PROVIDER)
 
         if res.ok:
-            logger.info(LOG_VALIDATE_API_KEY_OK, provider)
+            logger.debug(LOG_VALIDATE_API_KEY_OK, provider)
             return ValidateAPIKeyResponse(ok=True, reason=MSG_VALIDATE_OK)
 
         logger.warning(LOG_VALIDATE_API_KEY_FAILED, provider, res.reason or MSG_VALIDATE_FAILED)

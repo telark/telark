@@ -34,7 +34,6 @@ func FindSessionOrRespond(w http.ResponseWriter, token string) (*unstructured.Un
 		func() (*unstructured.Unstructured, error) {
 			return FindSessionByToken(token)
 		},
-		constants.ErrSessionNotFoundForToken,
-		token,
+		constants.ErrSessionNotFound,
 	)
 }

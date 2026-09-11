@@ -34,7 +34,7 @@ func (r *Reconciler) ReconcileOne(ctx context.Context, resourceType, id string, 
 	if !ok {
 		return Outcome{}, fmt.Errorf("cleanup: unknown resource type %q", resourceType)
 	}
-	r.lg.Info(fmt.Sprintf(string(constants.LogCleanupReconcileStart), resourceType, id, attempts))
+	r.lg.Debug(fmt.Sprintf(string(constants.LogCleanupReconcileStart), resourceType, id, attempts))
 	start := time.Now()
 
 	passCtx, cancel := context.WithTimeout(ctx, r.cfg.ReconcilePassDeadline)
@@ -65,15 +65,15 @@ func (r *Reconciler) ReconcileOne(ctx context.Context, resourceType, id string, 
 		return Outcome{Requeue: true, PatchCount: patchCount, DurationMS: elapsedMS(start)}, err
 	}
 
-	r.lg.Info(fmt.Sprintf(string(constants.LogCleanupReconcileDone), resourceType, id, elapsedMS(start), patchCount))
+	r.lg.Debug(fmt.Sprintf(string(constants.LogCleanupReconcileDone), resourceType, id, elapsedMS(start), patchCount))
 	return Outcome{Requeue: false, PatchCount: patchCount, DurationMS: elapsedMS(start)}, nil
 }
 
 func (r *Reconciler) cleanBackRef(ctx context.Context, ref BackRef, targetID string) (int, error) {
 	views, err := ref.List(ctx)
 	if err != nil {
-		r.lg.Error(fmt.Sprintf(string(constants.ErrCleanupListBackRefsFailed), ref.ResourceType, err))
-		return constants.DefaultInitValue, err
+		return constants.DefaultInitValue, fmt.Errorf(
+			string(constants.ErrCleanupListBackRefsFailed), ref.ResourceType, err)
 	}
 	affected := filterByMembership(views, ref.ArrayField, targetID)
 	if len(affected) == constants.DefaultInitValue {
@@ -133,11 +133,8 @@ func (r *Reconciler) patchOne(
 		if resp != nil {
 			status = resp.Status
 		}
-		err := fmt.Errorf(string(constants.ErrCleanupPatchBackRefFailed), ref.ResourceType, view.Name, status)
-		r.lg.Error(err.Error())
-		return err
+		return fmt.Errorf(string(constants.ErrCleanupPatchBackRefFailed), ref.ResourceType, view.Name, status)
 	}
-	r.lg.Info(fmt.Sprintf(string(constants.LogCleanupRefPatched), ref.ResourceType, view.Name, targetID))
 	return nil
 }
 
@@ -166,9 +163,7 @@ func (r *Reconciler) removeFinalizer(ctx context.Context, target Target, id stri
 		)
 	}
 	if resp.Status != http.StatusOK && resp.Status != http.StatusNotFound {
-		err := fmt.Errorf(string(constants.ErrCleanupRemoveFinalizerFail), target.ResourceType, id, resp.Status)
-		r.lg.Error(err.Error())
-		return err
+		return fmt.Errorf(string(constants.ErrCleanupRemoveFinalizerFail), target.ResourceType, id, resp.Status)
 	}
 	r.lg.Info(fmt.Sprintf(string(constants.LogCleanupFinalizerRemoved), target.ResourceType, id))
 	return nil

@@ -52,6 +52,7 @@ from constants import (
     LOG_PROMPT_VERSION,
     LOG_PROMPT_VERSION_STALE,
     LOG_REDIS_BLPOP_ERROR,
+    LOG_REDIS_CACHE_ERROR,
     LOG_REDIS_CLOSED,
     LOG_REDIS_SETEX_ERROR,
     LOG_SHUTDOWN_CLEANED_INFLIGHT,
@@ -147,9 +148,9 @@ def _is_connection_error(exc: BaseException) -> bool:
 def _push_to_dlq(r: redis.Redis, raw: str, namespace: str, name: str, worker_id: int) -> None:
     try:
         r.lpush(DLQ_KEY, raw)
-        logger.error("Worker {} " + LOG_JOB_TO_DLQ, worker_id, namespace, name)
+        logger.warning("Worker {} " + LOG_JOB_TO_DLQ, worker_id, namespace, name)
     except redis.RedisError as e:
-        logger.exception("Worker {} failed to push job to DLQ: {}", worker_id, e)
+        logger.error("Worker {} failed to push job to DLQ: {}", worker_id, type(e).__name__)
 
 
 def _process_one_job(
@@ -169,7 +170,6 @@ def _process_one_job(
         clear_inflight(r, if_key)
         with _worker_inflight_lock:
             _worker_inflight.pop(worker_id, None)
-        logger.exception("Worker {} " + LOG_BAD_JOB, worker_id, e)
         with _metrics_lock:
             metrics.record_failed()
         _push_to_dlq(r, raw, "?", "?", worker_id)
@@ -191,7 +191,7 @@ def _process_one_job(
             try:
                 r.lpush(QUEUE_KEY, raw)
             except redis.RedisError as re_err:
-                logger.error("Worker {} " + LOG_FAILED_REQUEUE, worker_id, re_err)
+                logger.warning("Worker {} " + LOG_FAILED_REQUEUE, worker_id, type(re_err).__name__)
             with _metrics_lock:
                 metrics.record_failed()
             return
@@ -205,18 +205,24 @@ def _process_one_job(
                     r.lpush(QUEUE_KEY, raw)
                 except redis.RedisError:
                     pass
-                logger.warning("Worker {} connection error, re-queued job: {}", worker_id, e)
+                logger.warning("Worker {} connection error, re-queued job: {}", worker_id, type(e).__name__)
                 time.sleep(CONNECTION_ERROR_SLEEP_S)
                 return
             if _is_rate_limit_error(e) and attempt < RATE_LIMIT_RETRIES - 1:
                 backoff = 2**attempt
-                logger.warning("Worker {} rate limit (attempt {}), backoff {}s: {}", worker_id, attempt + 1, backoff, e)
+                logger.warning(
+                    "Worker {} rate limit (attempt {}), backoff {}s: {}",
+                    worker_id,
+                    attempt + 1,
+                    backoff,
+                    type(e).__name__,
+                )
                 time.sleep(backoff)
                 continue
             clear_inflight(r, if_key)
             with _worker_inflight_lock:
                 _worker_inflight.pop(worker_id, None)
-            logger.exception("Worker {} " + LOG_ENRICHMENT_FAILED, worker_id, e)
+            logger.error("Worker {} " + LOG_ENRICHMENT_FAILED, worker_id, type(e).__name__)
             with _metrics_lock:
                 metrics.record_failed()
             _push_to_dlq(r, raw, signals.namespace, signals.name, worker_id)
@@ -226,7 +232,6 @@ def _process_one_job(
             clear_inflight(r, if_key)
             with _worker_inflight_lock:
                 _worker_inflight.pop(worker_id, None)
-            logger.exception("Worker {} " + LOG_ENRICHMENT_FAILED, worker_id, last_error)
             with _metrics_lock:
                 metrics.record_failed()
             _push_to_dlq(r, raw, signals.namespace, signals.name, worker_id)
@@ -242,7 +247,7 @@ def _process_one_job(
             _worker_inflight.pop(worker_id, None)
         with _metrics_lock:
             metrics.record_processed(elapsed_ms)
-        logger.info(
+        logger.debug(
             "Worker {} " + LOG_ENRICHED,
             worker_id,
             signals.namespace,
@@ -255,11 +260,11 @@ def _process_one_job(
         clear_inflight(r, if_key)
         with _worker_inflight_lock:
             _worker_inflight.pop(worker_id, None)
-        logger.warning("Worker {} " + LOG_REDIS_SETEX_ERROR, worker_id, e)
+        logger.warning("Worker {} " + LOG_REDIS_SETEX_ERROR, worker_id, type(e).__name__)
         try:
             r.lpush(QUEUE_KEY, raw)
         except redis.RedisError as re_err:
-            logger.error("Worker {} " + LOG_FAILED_REQUEUE, worker_id, re_err)
+            logger.warning("Worker {} " + LOG_FAILED_REQUEUE, worker_id, type(re_err).__name__)
             _push_to_dlq(r, raw, signals.namespace, signals.name, worker_id)
         with _metrics_lock:
             metrics.record_failed()
@@ -267,7 +272,7 @@ def _process_one_job(
         clear_inflight(r, if_key)
         with _worker_inflight_lock:
             _worker_inflight.pop(worker_id, None)
-        logger.exception("Worker {} " + LOG_CACHE_WRITE_FAILED, worker_id, e)
+        logger.error("Worker {} " + LOG_CACHE_WRITE_FAILED, worker_id, type(e).__name__)
         with _metrics_lock:
             metrics.record_failed()
         _push_to_dlq(r, raw, signals.namespace, signals.name, worker_id)
@@ -283,13 +288,13 @@ def worker_loop(worker_id: int, pool: redis.ConnectionPool) -> None:
     r = redis.Redis(connection_pool=pool)
     with _metrics_lock:
         _metrics[worker_id] = WorkerMetrics(worker_id=worker_id)
-    logger.info(LOG_WORKER_STARTED, worker_id)
+    logger.debug(LOG_WORKER_STARTED, worker_id)
 
     while not _shutdown:
         try:
             result = r.blpop(QUEUE_KEY, timeout=BLPOP_TIMEOUT_S)
         except redis.RedisError as e:
-            logger.warning("Worker {} " + LOG_REDIS_BLPOP_ERROR, worker_id, e)
+            logger.warning("Worker {} " + LOG_REDIS_BLPOP_ERROR, worker_id, type(e).__name__)
             time.sleep(MAIN_LOOP_ERROR_SLEEP_S)
             continue
 
@@ -301,7 +306,7 @@ def worker_loop(worker_id: int, pool: redis.ConnectionPool) -> None:
             job = json.loads(raw)
             signals = AppSignals.model_validate(job)
         except (json.JSONDecodeError, Exception) as e:
-            logger.exception("Worker {} " + LOG_BAD_JOB, worker_id, e)
+            logger.error("Worker {} " + LOG_BAD_JOB, worker_id, type(e).__name__)
             with _metrics_lock:
                 _metrics[worker_id].record_failed()
             _push_to_dlq(r, raw, "?", "?", worker_id)
@@ -332,7 +337,7 @@ def worker_loop(worker_id: int, pool: redis.ConnectionPool) -> None:
                     with _metrics_lock:
                         _metrics[worker_id].record_skipped()
                     continue
-                logger.info(
+                logger.debug(
                     LOG_PROMPT_VERSION_STALE,
                     worker_id,
                     signals.namespace,
@@ -347,7 +352,7 @@ def worker_loop(worker_id: int, pool: redis.ConnectionPool) -> None:
             with _worker_inflight_lock:
                 _worker_inflight[worker_id] = if_key
         except redis.RedisError as e:
-            logger.warning("Worker {} " + LOG_REDIS_BLPOP_ERROR, worker_id, e)
+            logger.warning("Worker {} " + LOG_REDIS_CACHE_ERROR, worker_id, type(e).__name__)
             time.sleep(MAIN_LOOP_ERROR_SLEEP_S)
             continue
 
@@ -355,7 +360,7 @@ def worker_loop(worker_id: int, pool: redis.ConnectionPool) -> None:
 
     with _worker_inflight_lock:
         _worker_inflight.pop(worker_id, None)
-    logger.info(LOG_WORKER_STOPPED, worker_id)
+    logger.debug(LOG_WORKER_STOPPED, worker_id)
 
 
 def _metrics_reporter() -> None:
@@ -366,7 +371,7 @@ def _metrics_reporter() -> None:
             break
         with _metrics_lock:
             for wid, m in _metrics.items():
-                logger.info(
+                logger.debug(
                     LOG_METRICS,
                     wid,
                     m.jobs_processed,
@@ -383,11 +388,15 @@ def _connectivity_heartbeat(pool: redis.ConnectionPool) -> None:
     if this process dies — callers then see us as unreachable rather than stale.
     """
     r = redis.Redis(connection_pool=pool)
+    healthy = True
     while not _shutdown:
         try:
             r.set(CONNECTIVITY_KEY, CONNECTIVITY_VALUE_READY, ex=CONNECTIVITY_TTL_S)
+            healthy = True
         except redis.RedisError as e:
-            logger.warning("connectivity heartbeat failed: {}", e)
+            if healthy:
+                healthy = False
+                logger.warning("connectivity heartbeat failed: {}", type(e).__name__)
         time.sleep(CONNECTIVITY_INTERVAL_S)
 
 
@@ -448,7 +457,7 @@ def run() -> None:
                     try:
                         conn = redis.Redis(connection_pool=pool)
                         conn.delete(if_key)
-                        logger.info(LOG_SHUTDOWN_CLEANED_INFLIGHT, wid)
+                        logger.debug(LOG_SHUTDOWN_CLEANED_INFLIGHT, wid)
                     except redis.RedisError:
                         pass
 

@@ -10,7 +10,12 @@ import (
 	"github.com/telark/exporter/internal/utils/async"
 )
 
-const loggerPrefix = "Notifications: "
+const (
+	loggerPrefix          = "Notifications: "
+	logValidationFailed   = "notification validation failed: type=%s err=%v"
+	logStorageUnavailable = "notification storage unavailable: %v"
+	logEmitFailed         = "notification emit failed: type=%s err=%v"
+)
 
 var lg = constants.GetLogger(loggerPrefix)
 
@@ -28,17 +33,17 @@ func emitSyncWith(n notiftypes.Notification) func(context.Context) {
 
 func emitSync(ctx context.Context, n notiftypes.Notification) {
 	if err := notiftypes.ValidateForEmit(&n); err != nil {
-		lg.Warn(fmt.Sprintf("notification validation failed: type=%s userID=%s err=%v", n.Type, n.UserID, err))
+		lg.Warn(fmt.Sprintf(logValidationFailed, n.Type, err))
 		return
 	}
 	notiftypes.Truncate(&n)
 
 	storage, err := notifstorage.NewStorage()
 	if err != nil {
-		lg.Warn(fmt.Sprintf("notification storage unavailable: %v", err))
+		lg.Warn(fmt.Sprintf(logStorageUnavailable, err))
 		return
 	}
 	if _, err := storage.Emit(ctx, n); err != nil {
-		lg.Warn(fmt.Sprintf("notification emit failed: type=%s userID=%s err=%v", n.Type, n.UserID, err))
+		lg.Warn(fmt.Sprintf(logEmitFailed, n.Type, err))
 	}
 }

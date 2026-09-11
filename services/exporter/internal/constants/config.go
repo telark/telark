@@ -65,6 +65,8 @@ const (
 	PrefixOptimizer                      = "Optimizer: "
 	PrefixMain                           = "Main: "
 	PrefixStartup                        = "Startup: "
+	PrefixShared                         = "Shared: "
+	LogMessageWithError                  = "%s: %v"
 	MaxHeaderBytes                       = 1 << 20 // 1MB
 	DefaultRoutesCount                   = 35
 	SnapshotInfosResponseFieldsCount     = 9

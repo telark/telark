@@ -57,7 +57,7 @@ func (s *BaseSubscriber) fetchAndProcessMessages(ctx context.Context, sub *nats.
 			if err != nil {
 				if err != nats.ErrTimeout {
 					logger.GetLogger(constants.PrefixManagerSubscriber).Error(
-						fmt.Sprintf(string(errors.ErrNatsHandleMsg), msgs, err))
+						fmt.Sprintf(constants.ErrNatsFetchMessages, sub.Subject, err))
 					time.Sleep(500 * time.Millisecond)
 				}
 				continue
@@ -102,10 +102,7 @@ func (s *BaseSubscriber) HandleMessage(m *nats.Msg) error {
 
 	msgKey := s.generateMessageKey(m)
 	if s.isDuplicateMessage(msgKey) {
-		if err := m.Ack(nats.AckWait(constants.AckWaitSeconds * time.Second)); err != nil &&
-			err.Error() != string(errors.ErrNatsMsgAlreadyAcknowledged) {
-			logger.GetLogger(constants.PrefixManagerSubscriber).Error(fmt.Sprintf(string(errors.ErrNatsAckMsg), m.Subject, err))
-		}
+		_ = m.Ack(nats.AckWait(constants.AckWaitSeconds * time.Second))
 		return nil
 	}
 
@@ -115,11 +112,8 @@ func (s *BaseSubscriber) HandleMessage(m *nats.Msg) error {
 
 func (s *BaseSubscriber) handleMessageForAck(m *nats.Msg) {
 	if err := s.HandleMessage(m); err != nil {
-		logger.GetLogger(constants.PrefixManagerSubscriber).Error(fmt.Sprintf(string(errors.ErrNatsHandleMsg), m, err))
-		if err := m.Nak(nats.AckWait(constants.AckWaitSeconds * time.Second)); err != nil &&
-			err.Error() != string(errors.ErrNatsMsgAlreadyAcknowledged) {
-			logger.GetLogger(constants.PrefixManagerSubscriber).Error(fmt.Sprintf(string(errors.ErrNatsAckMsg), m.Subject, err))
-		}
+		logger.GetLogger(constants.PrefixManagerSubscriber).Error(fmt.Sprintf(string(errors.ErrNatsHandleMsg), m.Subject, err))
+		_ = m.Nak(nats.AckWait(constants.AckWaitSeconds * time.Second))
 		return
 	}
 	if err := m.Ack(nats.AckWait(constants.AckWaitSeconds * time.Second)); err != nil &&

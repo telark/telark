@@ -38,6 +38,10 @@ inputs:
     description: 'Enable pushing to registry'
     required: false
     default: 'true'
+  setup_qemu:
+    description: 'Register QEMU binfmt handlers. Only needed when a build stage executes foreign-arch binaries (e.g. pip install); Go images cross-compile instead.'
+    required: false
+    default: 'true'
 
 outputs:
   image_name:
@@ -53,7 +57,17 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    # ubuntu-latest ships ~25GB of preinstalled toolchains we never use; a
+    # multi-arch Go build fills the remaining space mid-compile.
+    - name: Free runner disk space
+      shell: bash
+      run: |
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                    /usr/local/share/boost /opt/hostedtoolcache/CodeQL
+        df -h /
+
     - name: Set up QEMU
+      if: ${{ inputs.setup_qemu == 'true' }}
       uses: docker/setup-qemu-action@v4.2.0   # cross-arch emulation for linux/arm64
 
     - name: Set up Docker Buildx

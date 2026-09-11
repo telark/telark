@@ -1,6 +1,8 @@
 # syntax=docker/dockerfile:1.7
 
-FROM golang:1.26.5-alpine3.24 AS build
+FROM --platform=$BUILDPLATFORM golang:1.26.5-alpine3.24 AS build
+
+ARG TARGETARCH
 
 WORKDIR /app
 
@@ -8,7 +10,6 @@ RUN apk add --no-cache ca-certificates
 
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
     go mod download
 
 COPY . .
@@ -16,8 +17,8 @@ COPY . .
 ENV GOEXPERIMENT=jsonv2 \
     GOMAXPROCS=0
 RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build \
+    --mount=type=cache,target=/root/.cache/go-build,id=gobuild-$TARGETARCH \
+    CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build \
         -ldflags="-w -s -extldflags '-static'" \
         -trimpath \
         -buildvcs=false \
@@ -27,7 +28,7 @@ RUN adduser -D -u 10001 auth-service
 
 FROM alpine:3.24.1
 WORKDIR /app
-RUN apk add --no-cache ca-certificates
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=build /etc/passwd /etc/passwd
 COPY --from=build /app/main .
 USER 10001

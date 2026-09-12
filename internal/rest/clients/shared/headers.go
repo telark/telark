@@ -1,14 +1,11 @@
 package shared
 
 import (
-	"bytes"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/telark/data/errors"
 	"github.com/telark/rest/base"
-	"github.com/telark/rest/constants"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 )
@@ -20,30 +17,7 @@ func executeHTTPRequestWithHeaders(
 	payload []byte,
 	headers map[string]string,
 ) (*http.Response, error) {
-	url, err := buildRequestURL(client, method, endpoint, payload)
-	if err != nil {
-		return nil, fmt.Errorf(string(constants.ErrFailedToGenerateRequestURL), err)
-	}
-
-	req, err := http.NewRequest(string(method), url, bytes.NewBuffer(payload))
-	if err != nil {
-		return nil, fmt.Errorf(string(constants.ErrFailedToCreateHTTPRequest), err)
-	}
-
-	if payload != nil {
-		req.Header.Set("Content-Type", string(base.JSON))
-	}
-	applyServiceToken(req)
-
-	// Add custom headers
-	for key, value := range headers {
-		req.Header.Set(key, value)
-	}
-
-	start := time.Now()
-	resp, doErr := client.httpClient.Do(req)
-	observeExporterCall(client.service, method, endpoint, resp, doErr, time.Since(start))
-	return resp, doErr
+	return doHTTPRequest(client, method, endpoint, payload, headers)
 }
 
 func ExecuteRequestWithHeaders(
@@ -66,7 +40,7 @@ func ExecuteRequestWithHeaders(
 	resp, err := executeHTTPRequestWithHeaders(client, method, endpoint, jsonPayload, headers)
 	if err != nil {
 		msg := fmt.Sprintf(string(errors.ErrCreateRes), "", err)
-		return CreateErrorResponse(msg, err)
+		return errorResponse(client.service, msg, err)
 	}
 
 	return responseutils.ReadAndParseGenericResponse(resp)

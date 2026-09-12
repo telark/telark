@@ -63,14 +63,8 @@ func (c *Client) CreateSnapshot(payload *CreateSnapshotPayload) *response.Generi
 }
 
 func (c *Client) GetSnapshot(id string, scope string) (*map[string]any, error) {
-	ep := shared.SubstituteEndpointWithParam(
-		string(eps.GetSnapshot),
-		constants.IDParam,
-		id,
-	)
-
-	withQuery := base.Endpoint(string(ep) + "?scope=" + url.QueryEscape(scope))
-	return shared.GetTyped[map[string]any](c.Client, withQuery)
+	withQuery := base.Endpoint(string(eps.GetSnapshot) + "?scope=" + url.QueryEscape(scope))
+	return shared.GetTyped[map[string]any](byID(c.Client, id), withQuery)
 }
 
 func (c *Client) GetSnapshotManifest(
@@ -81,18 +75,13 @@ func (c *Client) GetSnapshotManifest(
 	generation string,
 ) ([]unstructured.Unstructured, error) {
 	_ = ctx // reserved for future context-aware HTTP calls
-	ep := shared.SubstituteEndpointWithParam(
-		string(eps.GetSnapshotManifest),
-		constants.IDParam,
-		snapshotID,
-	)
-	epWithQuery, err := appendSnapshotQuery(ep, scope, namespace, generation)
+	epWithQuery, err := appendSnapshotQuery(eps.GetSnapshotManifest, scope, namespace, generation)
 	if err != nil {
 		return nil, err
 	}
 
 	raw, err := shared.GetRawJSONWithHeaders[json.RawMessage](
-		c.Client,
+		byID(c.Client, snapshotID),
 		epWithQuery,
 		map[string]string{"Accept": "application/json"},
 	)
@@ -128,16 +117,15 @@ func (c *Client) DeleteSnapshot(
 	if generation == constants.EmptyString {
 		return nil, fmt.Errorf(string(errors.ErrRestRequiredParam), generationQueryParam)
 	}
-	ep := shared.SubstituteEndpointWithParam(
-		string(eps.DeleteSnapshot),
-		constants.IDParam,
-		id,
-	)
-	epWithQuery, err := appendSnapshotQuery(ep, scope, namespace, generation)
+	epWithQuery, err := appendSnapshotQuery(eps.DeleteSnapshot, scope, namespace, generation)
 	if err != nil {
 		return nil, err
 	}
-	return c.Delete(epWithQuery), nil
+	return byID(c.Client, id).Delete(epWithQuery), nil
+}
+
+func byID(c *shared.Client, id string) *shared.Client {
+	return c.WithParams(map[string]string{constants.IDParam: id})
 }
 
 func appendSnapshotQuery(ep base.Endpoint, scope, namespace, generation string) (base.Endpoint, error) {

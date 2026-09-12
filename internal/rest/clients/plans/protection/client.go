@@ -35,8 +35,8 @@ func (c *Client) Create(userID string, req eps.CreateProtectionPlanRequest) *res
 }
 
 func (c *Client) Get(id string) (*plans.ProtectionPlan, error) {
-	ep := shared.SubstituteEndpointWithParam(string(eps.GetProtectionPlanByID), constants.IDParam, id)
-	return shared.GetTyped[plans.ProtectionPlan](c.Client, ep)
+	byID := c.WithParams(map[string]string{constants.IDParam: id})
+	return shared.GetTyped[plans.ProtectionPlan](byID, eps.GetProtectionPlanByID)
 }
 
 func (c *Client) List() ([]plans.ProtectionPlan, error) {
@@ -44,24 +44,28 @@ func (c *Client) List() ([]plans.ProtectionPlan, error) {
 }
 
 func (c *Client) Patch(userID, id string, req eps.PatchProtectionPlanRequest) *response.GenericResponse {
-	ep := shared.SubstituteEndpointWithParam(string(eps.PatchProtectionPlanByID), constants.IDParam, id)
 	mappedPayload, err := restmapper.MapToJSONPayload(req)
 	if err != nil {
 		return shared.CreateErrorResponse(string(constants.ErrFailedToCreateHTTPRequest), err)
 	}
-	return shared.ExecuteRequestWithHeaders(c.Client, base.Patch, ep, mappedPayload, headers(userID))
+	byID := c.WithParams(map[string]string{constants.IDParam: id})
+	return shared.ExecuteRequestWithHeaders(
+		byID, base.Patch, eps.PatchProtectionPlanByID, mappedPayload, headers(userID),
+	)
 }
 
 // PatchRaw sends a JSON merge patch using a caller-supplied body. nil map entries serialize as JSON null,
 // allowing nullable fields like terminatedAt/terminatedBy/reason to be cleared on the underlying CRD.
 func (c *Client) PatchRaw(userID, id string, body map[string]any) *response.GenericResponse {
-	ep := shared.SubstituteEndpointWithParam(string(eps.PatchProtectionPlanByID), constants.IDParam, id)
-	return shared.ExecuteRequestWithHeaders(c.Client, base.Patch, ep, body, headers(userID))
+	byID := c.WithParams(map[string]string{constants.IDParam: id})
+	return shared.ExecuteRequestWithHeaders(
+		byID, base.Patch, eps.PatchProtectionPlanByID, body, headers(userID),
+	)
 }
 
 func (c *Client) Delete(id string) *response.GenericResponse {
-	ep := shared.SubstituteEndpointWithParam(string(eps.DeleteProtectionPlanByID), constants.IDParam, id)
-	return c.Client.Delete(ep)
+	byID := c.WithParams(map[string]string{constants.IDParam: id})
+	return byID.Delete(eps.DeleteProtectionPlanByID)
 }
 
 func headers(userID string) map[string]string {

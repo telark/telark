@@ -43,7 +43,7 @@ func (c *Client) executeRequest(
 	resp, err := executeHTTPRequest(c, method, endpoint, jsonPayload)
 	if err != nil {
 		msg := fmt.Sprintf(string(errors.ErrCreateRes), "", err)
-		return CreateErrorResponse(msg, err)
+		return errorResponse(c.service, msg, err)
 	}
 
 	return responseutils.ReadAndParseGenericResponse(resp)

@@ -66,9 +66,9 @@ func (c *Client) MarkRead(ctx context.Context, userID, notificationID string) *r
 	if notificationID == constants.EmptyString {
 		return shared.CreateErrorResponse(ErrNotificationIDRequired.Error(), ErrNotificationIDRequired)
 	}
-	ep := shared.SubstituteEndpointWithParam(string(eps.MarkRead), constants.IDParam, notificationID)
-	ep = base.Endpoint(fmt.Sprintf(userIDQueryFormat, ep, url.QueryEscape(userID)))
-	return c.Update(ep, map[string]any{})
+	ep := base.Endpoint(fmt.Sprintf(userIDQueryFormat, eps.MarkRead, url.QueryEscape(userID)))
+	byID := c.WithParams(map[string]string{constants.IDParam: notificationID})
+	return byID.Update(ep, map[string]any{})
 }
 
 func (c *Client) MarkAllRead(ctx context.Context, userID string) *response.GenericResponse {

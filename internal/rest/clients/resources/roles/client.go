@@ -27,8 +27,8 @@ func (c *Client) CreateRole(role *roleresource.RoleAsResource) *response.Generic
 }
 
 func (c *Client) GetRoleByID(id string) (*roleresource.RoleAsResource, error) {
-	ep := shared.SubstituteEndpointWithParam(string(eps.GetRoleByID), constants.IDParam, id)
-	return shared.GetTyped[roleresource.RoleAsResource](c.Client, ep)
+	byID := c.WithParams(map[string]string{constants.IDParam: id})
+	return shared.GetTyped[roleresource.RoleAsResource](byID, eps.GetRoleByID)
 }
 
 func (c *Client) GetAllRoles() ([]*roleresource.RoleAsResource, error) {
@@ -36,23 +36,23 @@ func (c *Client) GetAllRoles() ([]*roleresource.RoleAsResource, error) {
 }
 
 func (c *Client) GetRolesByUserID(userID string) ([]*roleresource.RoleAsResource, error) {
-	ep := shared.SubstituteEndpointWithParam(string(eps.GetRolesByUserID), constants.UserIDParam, userID)
-	return shared.GetListTyped[*roleresource.RoleAsResource](c.Client, ep)
+	params := map[string]string{constants.UserIDParam: userID}
+	return shared.GetListTyped[*roleresource.RoleAsResource](c.WithParams(params), eps.GetRolesByUserID)
 }
 
 func (c *Client) GetRolesByGroupID(groupID string) ([]*roleresource.RoleAsResource, error) {
-	ep := shared.SubstituteEndpointWithParam(string(eps.GetRolesByGroupID), constants.GroupIDParam, groupID)
-	return shared.GetListTyped[*roleresource.RoleAsResource](c.Client, ep)
+	params := map[string]string{constants.GroupIDParam: groupID}
+	return shared.GetListTyped[*roleresource.RoleAsResource](c.WithParams(params), eps.GetRolesByGroupID)
 }
 
 func (c *Client) PatchRoleByID(id string, body map[string]any) *response.GenericResponse {
-	ep := shared.SubstituteEndpointWithParam(string(eps.PatchRoleByID), constants.IDParam, id)
-	return c.Update(ep, body)
+	byID := c.WithParams(map[string]string{constants.IDParam: id})
+	return byID.Update(eps.PatchRoleByID, body)
 }
 
 func (c *Client) DeleteRoleByID(id string) *response.GenericResponse {
-	ep := shared.SubstituteEndpointWithParam(string(eps.DeleteRoleByID), constants.IDParam, id)
-	return c.Delete(ep)
+	byID := c.WithParams(map[string]string{constants.IDParam: id})
+	return byID.Delete(eps.DeleteRoleByID)
 }
 
 func (c *Client) GetCleanupViewByID(id string) (*resourcesshared.CleanupView, error) {

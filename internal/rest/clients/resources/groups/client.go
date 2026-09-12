@@ -27,8 +27,8 @@ func (c *Client) CreateGroup(group *groupresource.GroupAsResource) *response.Gen
 }
 
 func (c *Client) GetGroupByID(id string) (*groupresource.GroupAsResource, error) {
-	ep := shared.SubstituteEndpointWithParam(string(eps.GetGroupByID), constants.IDParam, id)
-	return shared.GetTyped[groupresource.GroupAsResource](c.Client, ep)
+	byID := c.WithParams(map[string]string{constants.IDParam: id})
+	return shared.GetTyped[groupresource.GroupAsResource](byID, eps.GetGroupByID)
 }
 
 func (c *Client) GetAllGroups() ([]*groupresource.GroupAsResource, error) {
@@ -36,13 +36,13 @@ func (c *Client) GetAllGroups() ([]*groupresource.GroupAsResource, error) {
 }
 
 func (c *Client) PatchGroupByID(id string, body map[string]any) *response.GenericResponse {
-	ep := shared.SubstituteEndpointWithParam(string(eps.PatchGroupByID), constants.IDParam, id)
-	return c.Update(ep, body)
+	byID := c.WithParams(map[string]string{constants.IDParam: id})
+	return byID.Update(eps.PatchGroupByID, body)
 }
 
 func (c *Client) DeleteGroupByID(id string) *response.GenericResponse {
-	ep := shared.SubstituteEndpointWithParam(string(eps.DeleteGroupByID), constants.IDParam, id)
-	return c.Delete(ep)
+	byID := c.WithParams(map[string]string{constants.IDParam: id})
+	return byID.Delete(eps.DeleteGroupByID)
 }
 
 func (c *Client) GetCleanupViewByID(id string) (*resourcesshared.CleanupView, error) {

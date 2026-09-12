@@ -72,14 +72,23 @@ func observeExporterCall(
 	if err == nil && statusCode > constants.EmptySliceLength && statusCode < constants.HTTPErrorCode {
 		return
 	}
-	emit, suppressed := shouldEmitError(string(service), string(method), string(endpoint), statusCode)
+	safeEndpoint := string(sanitizeEndpoint(endpoint))
+	emit, suppressed := shouldEmitError(string(service), string(method), safeEndpoint, statusCode)
 	if !emit {
 		return
 	}
-	base.GetLogger().Warn(fmt.Sprintf(
+	line := fmt.Sprintf(
 		string(constants.LogExporterCallError),
-		string(service), string(method), string(endpoint), statusCode, elapsedMs, suppressed, err,
-	))
+		string(service), string(method), safeEndpoint, statusCode, elapsedMs, suppressed,
+		redactEndpointError(err, endpoint),
+	)
+	// A 4xx is the peer answering, not a fault: the caller already gets the
+	// status back and decides whether it is an error.
+	if err == nil && statusCode < constants.HTTPServerErrorCode {
+		base.GetLogger().Debug(line)
+		return
+	}
+	base.GetLogger().Warn(line)
 }
 
 func shouldEmitError(service, method, endpoint string, statusCode int) (bool, int64) {

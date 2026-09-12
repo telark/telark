@@ -30,12 +30,7 @@ func (c *Client) CreateApplication(app *appresource.Application) *response.Gener
 }
 
 func (c *Client) GetApplicationByName(name string) (*appresource.Application, error) {
-	ep := shared.SubstituteEndpointWithParam(
-		string(eps.GetApplicationByName),
-		constants.NameParam,
-		name,
-	)
-	return shared.GetTyped[appresource.Application](c.Client, ep)
+	return shared.GetTyped[appresource.Application](byName(c.Client, name), eps.GetApplicationByName)
 }
 
 func (c *Client) GetAllApplications() ([]*appresource.Application, error) {
@@ -43,29 +38,18 @@ func (c *Client) GetAllApplications() ([]*appresource.Application, error) {
 }
 
 func (c *Client) PatchApplicationByName(name string, body map[string]any) *response.GenericResponse {
-	ep := shared.SubstituteEndpointWithParam(
-		string(eps.PatchApplicationByName),
-		constants.NameParam,
-		name,
-	)
-	return c.Update(ep, body)
+	return byName(c.Client, name).Update(eps.PatchApplicationByName, body)
 }
 
 func (c *Client) DeleteApplicationByName(name string) *response.GenericResponse {
-	ep := shared.SubstituteEndpointWithParam(
-		string(eps.DeleteApplicationByName),
-		constants.NameParam,
-		name,
-	)
-	return c.Delete(ep)
+	return byName(c.Client, name).Delete(eps.DeleteApplicationByName)
 }
 
 func (*Client) CleanupApplicationByName(name string) *response.GenericResponse {
-	ep := shared.SubstituteEndpointWithParam(
-		string(eps.CleanupApplication),
-		constants.NameParam,
-		name,
-	)
 	discoveryClient := shared.New(base.Discovery)
-	return discoveryClient.Delete(ep)
+	return byName(discoveryClient, name).Delete(eps.CleanupApplication)
+}
+
+func byName(c *shared.Client, name string) *shared.Client {
+	return c.WithParams(map[string]string{constants.NameParam: name})
 }

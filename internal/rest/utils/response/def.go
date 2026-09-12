@@ -80,27 +80,23 @@ func ReadAndParseGenericResponse(resp *http.Response) *response.GenericResponse 
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		message := fmt.Sprintf(string(errors.ErrRestReadResponseBody), err)
-		base.GetLogger().Error(message)
 		return LogAndReturnResponse(
 			http.StatusInternalServerError,
 			response.OperationError,
-			message,
+			fmt.Sprintf(string(errors.ErrRestReadResponseBody), err),
 			nil,
 			err,
 		)
 	}
 
-	// Only 200 OK and 202 Accepted are considered success
+	// Only 200 OK and 202 Accepted are considered success. The peer's body is
+	// still returned to the caller but kept out of the log: it can carry PII.
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		message := fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(body))
-		base.GetLogger().Error(message)
-		return LogAndReturnResponse(
+		return createGenericResponse(
 			resp.StatusCode,
 			response.OperationError,
-			message,
+			fmt.Sprintf(string(constants.HTTPStatus), resp.StatusCode, string(body)),
 			nil,
-			fmt.Errorf("HTTP %d", resp.StatusCode),
 		)
 	}
 
@@ -118,12 +114,10 @@ func ReadAndParseGenericResponse(resp *http.Response) *response.GenericResponse 
 	var genericResp response.GenericResponse
 	err = json.Unmarshal(body, &genericResp)
 	if err != nil {
-		message := fmt.Sprintf(string(errors.ErrRestUnmarshalResponseToGeneric), err)
-		base.GetLogger().Error(message)
 		return LogAndReturnResponse(
 			http.StatusUnprocessableEntity,
 			response.OperationError,
-			message,
+			fmt.Sprintf(string(errors.ErrRestUnmarshalResponseToGeneric), err),
 			nil,
 			err,
 		)
@@ -134,6 +128,8 @@ func ReadAndParseGenericResponse(resp *http.Response) *response.GenericResponse 
 
 func CloseResponseBody(resp *http.Response) {
 	if closeErr := resp.Body.Close(); closeErr != nil {
-		fmt.Printf(string(constants.ErrFailedToCloseResponseBody), closeErr)
+		base.GetLogger().Warn(
+			fmt.Sprintf(string(constants.ErrFailedToCloseResponseBody), closeErr),
+		)
 	}
 }

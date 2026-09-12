@@ -30,18 +30,18 @@ func (c *Client) CreateUser(user *userresource.UserAsResource) *response.Generic
 }
 
 func (c *Client) GetUserByID(id string) (*userresource.UserAsResource, error) {
-	ep := shared.SubstituteEndpointWithParam(string(eps.GetUserByID), constants.IDParam, id)
-	return shared.GetTyped[userresource.UserAsResource](c.Client, ep)
+	byID := c.WithParams(map[string]string{constants.IDParam: id})
+	return shared.GetTyped[userresource.UserAsResource](byID, eps.GetUserByID)
 }
 
 func (c *Client) GetUserByUsername(username string) (*userresource.UserAsResource, error) {
-	ep := shared.SubstituteEndpointWithParam(string(eps.GetUserByUsername), constants.UsernameParam, username)
-	return shared.GetTyped[userresource.UserAsResource](c.Client, ep)
+	params := map[string]string{constants.UsernameParam: username}
+	return shared.GetTyped[userresource.UserAsResource](c.WithParams(params), eps.GetUserByUsername)
 }
 
 func (c *Client) GetUserByEmail(email string) (*userresource.UserAsResource, error) {
-	ep := shared.SubstituteEndpointWithParam(string(eps.GetUserByEmail), constants.EmailParam, email)
-	return shared.GetTyped[userresource.UserAsResource](c.Client, ep)
+	params := map[string]string{constants.EmailParam: email}
+	return shared.GetTyped[userresource.UserAsResource](c.WithParams(params), eps.GetUserByEmail)
 }
 
 func (c *Client) GetUserByIdentity(provider, issuer, subject string) (*userresource.UserAsResource, error) {
@@ -59,13 +59,13 @@ func (c *Client) GetAllUsers() ([]*userresource.UserAsResource, error) {
 }
 
 func (c *Client) PatchUserByID(id string, body map[string]any) *response.GenericResponse {
-	ep := shared.SubstituteEndpointWithParam(string(eps.PatchUserByID), constants.IDParam, id)
-	return c.Update(ep, body)
+	byID := c.WithParams(map[string]string{constants.IDParam: id})
+	return byID.Update(eps.PatchUserByID, body)
 }
 
 func (c *Client) DeleteUserByID(id string) *response.GenericResponse {
-	ep := shared.SubstituteEndpointWithParam(string(eps.DeleteUserByID), constants.IDParam, id)
-	return c.Delete(ep)
+	byID := c.WithParams(map[string]string{constants.IDParam: id})
+	return byID.Delete(eps.DeleteUserByID)
 }
 
 func (c *Client) GetCleanupViewByID(id string) (*resourcesshared.CleanupView, error) {

@@ -39,14 +39,13 @@ func (c *Client) executeRequest(
 		}
 	}
 
-	//nolint:bodyclose // responseutils.ReadAndParseGenericResponse handles closing
-	resp, err := executeHTTPRequest(c, method, endpoint, jsonPayload)
+	result, err := executeHTTPRequest(c, method, endpoint, jsonPayload)
 	if err != nil {
 		msg := fmt.Sprintf(string(errors.ErrCreateRes), "", err)
 		return errorResponse(c.service, msg, err)
 	}
 
-	return responseutils.ReadAndParseGenericResponse(resp)
+	return responseutils.ReadAndParseGenericResponse(result)
 }
 
 func (c *Client) executeRequestWithError(
@@ -63,13 +62,12 @@ func (c *Client) executeRequestWithError(
 		}
 	}
 
-	//nolint:bodyclose // responseutils.ReadAndParseGenericResponse handles closing
-	resp, err := executeHTTPRequest(c, method, endpoint, jsonPayload)
+	result, err := executeHTTPRequest(c, method, endpoint, jsonPayload)
 	if err != nil {
 		return nil, err
 	}
 
-	apiResponse := responseutils.ReadAndParseGenericResponse(resp)
+	apiResponse := responseutils.ReadAndParseGenericResponse(result)
 	if apiResponse.Status != globalshared.StatusOK {
 		return nil, fmt.Errorf(
 			string(constants.ErrUnexpectedStatus),
@@ -110,36 +108,30 @@ func (c *Client) Delete(endpoint base.Endpoint) *response.GenericResponse {
 }
 
 func (c *Client) PostAndParseGenericResponses(endpoint base.Endpoint) ([]response.GenericResponse, error) {
-	//nolint:bodyclose // parseGenericResponseSlice handles closing
-	resp, err := executeHTTPRequest(c, base.Post, endpoint, nil)
+	result, err := executeHTTPRequest(c, base.Post, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
-	defer responseutils.CloseResponseBody(resp)
 
-	return parseGenericResponseSlice(resp)
+	return parseGenericResponseSlice(result)
 }
 
 func GetTyped[T any](client *Client, endpoint base.Endpoint) (*T, error) {
-	//nolint:bodyclose // defer responseutils.CloseResponseBody handles closing
-	resp, err := executeHTTPRequest(client, base.Get, endpoint, nil)
+	result, err := executeHTTPRequest(client, base.Get, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
-	defer responseutils.CloseResponseBody(resp)
 
-	return parseSingleResponse[T](resp)
+	return parseSingleResponse[T](result)
 }
 
 func GetListTyped[T any](client *Client, endpoint base.Endpoint) ([]T, error) {
-	//nolint:bodyclose // defer responseutils.CloseResponseBody handles closing
-	resp, err := executeHTTPRequest(client, base.Get, endpoint, nil)
+	result, err := executeHTTPRequest(client, base.Get, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
-	defer responseutils.CloseResponseBody(resp)
 
-	return parseListResponse[T](resp)
+	return parseListResponse[T](result)
 }
 
 func (c *Client) GetService() base.Service {

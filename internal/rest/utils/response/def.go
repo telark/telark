@@ -3,7 +3,6 @@ package response
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/telark/data/errors"
@@ -75,27 +74,25 @@ func createGenericResponse(
 	}
 }
 
-func ReadAndParseGenericResponse(resp *http.Response) *response.GenericResponse {
-	defer CloseResponseBody(resp)
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
+func ReadAndParseGenericResponse(result *base.HTTPResult) *response.GenericResponse {
+	body := result.Body
+	if result.ReadErr != nil {
 		return LogAndReturnResponse(
 			http.StatusInternalServerError,
 			response.OperationError,
-			fmt.Sprintf(string(errors.ErrRestReadResponseBody), err),
+			fmt.Sprintf(string(errors.ErrRestReadResponseBody), result.ReadErr),
 			nil,
-			err,
+			result.ReadErr,
 		)
 	}
 
 	// Only 200 OK and 202 Accepted are considered success. The peer's body is
 	// still returned to the caller but kept out of the log: it can carry PII.
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+	if result.Status != http.StatusOK && result.Status != http.StatusAccepted {
 		return createGenericResponse(
-			resp.StatusCode,
+			result.Status,
 			response.OperationError,
-			fmt.Sprintf(string(constants.HTTPStatus), resp.StatusCode, string(body)),
+			fmt.Sprintf(string(constants.HTTPStatus), result.Status, string(body)),
 			nil,
 		)
 	}
@@ -103,7 +100,7 @@ func ReadAndParseGenericResponse(resp *http.Response) *response.GenericResponse 
 	// Handle empty response body (common for DELETE operations)
 	if len(body) == constants.EmptySliceLength {
 		return LogAndReturnResponse(
-			resp.StatusCode,
+			result.Status,
 			response.OperationSuccess,
 			"Operation completed successfully",
 			nil,
@@ -112,7 +109,7 @@ func ReadAndParseGenericResponse(resp *http.Response) *response.GenericResponse 
 	}
 
 	var genericResp response.GenericResponse
-	err = json.Unmarshal(body, &genericResp)
+	err := json.Unmarshal(body, &genericResp)
 	if err != nil {
 		return LogAndReturnResponse(
 			http.StatusUnprocessableEntity,
@@ -124,12 +121,4 @@ func ReadAndParseGenericResponse(resp *http.Response) *response.GenericResponse 
 	}
 
 	return &genericResp
-}
-
-func CloseResponseBody(resp *http.Response) {
-	if closeErr := resp.Body.Close(); closeErr != nil {
-		base.GetLogger().Warn(
-			fmt.Sprintf(string(constants.ErrFailedToCloseResponseBody), closeErr),
-		)
-	}
 }

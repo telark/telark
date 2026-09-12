@@ -71,15 +71,13 @@ func buildRequestURL(
 	return req.GenerateURL()
 }
 
-// Sole caller of httpClient.Do, so observation and error redaction cannot be
-// bypassed by a new request path.
-func doHTTPRequest(
+func buildHTTPRequest(
 	client *Client,
 	method base.Method,
 	endpoint base.Endpoint,
 	payload []byte,
 	headers map[string]string,
-) (*http.Response, error) {
+) (*http.Request, error) {
 	requestURL, err := buildRequestURL(client, method, endpoint, payload)
 	if err != nil {
 		return nil, fmt.Errorf(string(constants.ErrFailedToGenerateRequestURL), err)
@@ -99,11 +97,39 @@ func doHTTPRequest(
 	for key, value := range headers {
 		req.Header.Set(key, value)
 	}
+	return req, nil
+}
+
+// Sole caller of httpClient.Do: observation, error redaction and body ownership
+// all live here, so no open *http.Response ever reaches a caller.
+func doHTTPRequest(
+	client *Client,
+	method base.Method,
+	endpoint base.Endpoint,
+	payload []byte,
+	headers map[string]string,
+) (*base.HTTPResult, error) {
+	req, err := buildHTTPRequest(client, method, endpoint, payload, headers)
+	if err != nil {
+		return nil, err
+	}
 
 	start := time.Now()
 	resp, doErr := client.httpClient.Do(req)
 	observeExporterCall(client.service, method, endpoint, resp, doErr, time.Since(start))
-	return resp, redactEndpointError(doErr, endpoint)
+	if doErr != nil {
+		return nil, redactEndpointError(doErr, endpoint)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			base.GetLogger().Warn(
+				fmt.Sprintf(string(constants.ErrFailedToCloseResponseBody), closeErr),
+			)
+		}
+	}()
+
+	body, readErr := io.ReadAll(resp.Body)
+	return &base.HTTPResult{Status: resp.StatusCode, Body: body, ReadErr: readErr}, nil
 }
 
 func executeHTTPRequest(
@@ -111,7 +137,7 @@ func executeHTTPRequest(
 	method base.Method,
 	endpoint base.Endpoint,
 	payload []byte,
-) (*http.Response, error) {
+) (*base.HTTPResult, error) {
 	if mgr := connectivity.Global(); mgr != nil {
 		if !mgr.IsReady(string(client.service)) {
 			return nil, fmt.Errorf(string(constants.ErrConnectivityServiceNotReady), client.service)
@@ -129,21 +155,19 @@ func marshalToJSON(payload any) ([]byte, error) {
 	return data, nil
 }
 
-func readResponseBody(resp *http.Response) ([]byte, error) {
-	defer responseutils.CloseResponseBody(resp)
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf(string(errors.ErrRestReadResponseBody), err)
+func resultBody(result *base.HTTPResult) ([]byte, error) {
+	if result.ReadErr != nil {
+		return nil, fmt.Errorf(string(errors.ErrRestReadResponseBody), result.ReadErr)
 	}
-	return body, nil
+	return result.Body, nil
 }
 
-func parseSingleResponse[T any](resp *http.Response) (*T, error) {
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(string(constants.ErrStatus), resp.StatusCode)
+func parseSingleResponse[T any](result *base.HTTPResult) (*T, error) {
+	if result.Status != http.StatusOK {
+		return nil, fmt.Errorf(string(constants.ErrStatus), result.Status)
 	}
 
-	body, err := readResponseBody(resp)
+	body, err := resultBody(result)
 	if err != nil {
 		return nil, err
 	}
@@ -157,12 +181,12 @@ func parseSingleResponse[T any](resp *http.Response) (*T, error) {
 	return &data.Data, nil
 }
 
-func parseRawJSONResponse[T any](resp *http.Response) (*T, error) {
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(string(constants.ErrStatus), resp.StatusCode)
+func parseRawJSONResponse[T any](result *base.HTTPResult) (*T, error) {
+	if result.Status != http.StatusOK {
+		return nil, fmt.Errorf(string(constants.ErrStatus), result.Status)
 	}
 
-	body, err := readResponseBody(resp)
+	body, err := resultBody(result)
 	if err != nil {
 		return nil, err
 	}
@@ -175,12 +199,12 @@ func parseRawJSONResponse[T any](resp *http.Response) (*T, error) {
 	return &data, nil
 }
 
-func parseListResponse[T any](resp *http.Response) ([]T, error) {
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(string(constants.ErrStatus), resp.StatusCode)
+func parseListResponse[T any](result *base.HTTPResult) ([]T, error) {
+	if result.Status != http.StatusOK {
+		return nil, fmt.Errorf(string(constants.ErrStatus), result.Status)
 	}
 
-	body, err := readResponseBody(resp)
+	body, err := resultBody(result)
 	if err != nil {
 		return nil, err
 	}
@@ -194,13 +218,12 @@ func parseListResponse[T any](resp *http.Response) ([]T, error) {
 	return data.Data.Items, nil
 }
 
-func parseGenericResponseSlice(resp *http.Response) ([]response.GenericResponse, error) {
-	if resp.StatusCode >= constants.HTTPErrorCode {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf(string(constants.HTTPStatus), resp.StatusCode, string(body))
+func parseGenericResponseSlice(result *base.HTTPResult) ([]response.GenericResponse, error) {
+	if result.Status >= constants.HTTPErrorCode {
+		return nil, fmt.Errorf(string(constants.HTTPStatus), result.Status, string(result.Body))
 	}
 
-	body, err := readResponseBody(resp)
+	body, err := resultBody(result)
 	if err != nil {
 		return nil, err
 	}

@@ -30,6 +30,13 @@ type (
 		Payload     []byte
 		Method      Method
 	}
+	// ReadErr rides along instead of being returned: every caller applies its own
+	// status check first and decides whether a read failure still matters.
+	HTTPResult struct {
+		Status  int
+		Body    []byte
+		ReadErr error
+	}
 )
 
 const (

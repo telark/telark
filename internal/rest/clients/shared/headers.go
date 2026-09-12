@@ -2,7 +2,6 @@ package shared
 
 import (
 	"fmt"
-	"net/http"
 
 	"github.com/telark/data/errors"
 	"github.com/telark/rest/base"
@@ -16,7 +15,7 @@ func executeHTTPRequestWithHeaders(
 	endpoint base.Endpoint,
 	payload []byte,
 	headers map[string]string,
-) (*http.Response, error) {
+) (*base.HTTPResult, error) {
 	return doHTTPRequest(client, method, endpoint, payload, headers)
 }
 
@@ -36,14 +35,13 @@ func ExecuteRequestWithHeaders(
 		}
 	}
 
-	//nolint:bodyclose // responseutils.ReadAndParseGenericResponse handles closing
-	resp, err := executeHTTPRequestWithHeaders(client, method, endpoint, jsonPayload, headers)
+	result, err := executeHTTPRequestWithHeaders(client, method, endpoint, jsonPayload, headers)
 	if err != nil {
 		msg := fmt.Sprintf(string(errors.ErrCreateRes), "", err)
 		return errorResponse(client.service, msg, err)
 	}
 
-	return responseutils.ReadAndParseGenericResponse(resp)
+	return responseutils.ReadAndParseGenericResponse(result)
 }
 
 func GetWithHeaders[T any](
@@ -51,14 +49,12 @@ func GetWithHeaders[T any](
 	endpoint base.Endpoint,
 	headers map[string]string,
 ) (*T, error) {
-	//nolint:bodyclose // defer responseutils.CloseResponseBody handles closing
-	resp, err := executeHTTPRequestWithHeaders(client, base.Get, endpoint, nil, headers)
+	result, err := executeHTTPRequestWithHeaders(client, base.Get, endpoint, nil, headers)
 	if err != nil {
 		return nil, err
 	}
-	defer responseutils.CloseResponseBody(resp)
 
-	return parseSingleResponse[T](resp)
+	return parseSingleResponse[T](result)
 }
 
 func GetListWithHeaders[T any](
@@ -66,14 +62,12 @@ func GetListWithHeaders[T any](
 	endpoint base.Endpoint,
 	headers map[string]string,
 ) ([]T, error) {
-	//nolint:bodyclose // defer responseutils.CloseResponseBody handles closing
-	resp, err := executeHTTPRequestWithHeaders(client, base.Get, endpoint, nil, headers)
+	result, err := executeHTTPRequestWithHeaders(client, base.Get, endpoint, nil, headers)
 	if err != nil {
 		return nil, err
 	}
-	defer responseutils.CloseResponseBody(resp)
 
-	return parseListResponse[T](resp)
+	return parseListResponse[T](result)
 }
 
 func GetRawJSONWithHeaders[T any](
@@ -81,12 +75,10 @@ func GetRawJSONWithHeaders[T any](
 	endpoint base.Endpoint,
 	headers map[string]string,
 ) (*T, error) {
-	//nolint:bodyclose // defer responseutils.CloseResponseBody handles closing
-	resp, err := executeHTTPRequestWithHeaders(client, base.Get, endpoint, nil, headers)
+	result, err := executeHTTPRequestWithHeaders(client, base.Get, endpoint, nil, headers)
 	if err != nil {
 		return nil, err
 	}
-	defer responseutils.CloseResponseBody(resp)
 
-	return parseRawJSONResponse[T](resp)
+	return parseRawJSONResponse[T](result)
 }

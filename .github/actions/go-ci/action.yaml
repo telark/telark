@@ -41,8 +41,12 @@ runs:
         # exact-match cache, so a changed go.sum still reuses the prior build.
         cache: false
 
-    - name: Cache Go build and module cache
-      uses: actions/cache@v6.1.0
+    # restore/save split, not plain actions/cache: its post step is skipped when
+    # the job fails, so a run that times out never seeds the cache and the next
+    # run is cold again. The explicit save below runs with if: always().
+    - name: Restore Go build and module cache
+      id: go-cache
+      uses: actions/cache/restore@v6.1.0
       with:
         path: |
           ~/.cache/go-build
@@ -80,3 +84,13 @@ runs:
         version: v2.11.3
         working-directory: ${{ inputs.working-directory }}
         args: --config=${{ github.workspace }}/${{ inputs.config-file }}
+
+    - name: Save Go build and module cache
+      if: always() && steps.go-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6.1.0
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+          ~/.cache/golangci-lint
+        key: ${{ steps.go-cache.outputs.cache-primary-key }}

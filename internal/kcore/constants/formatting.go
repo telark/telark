@@ -12,7 +12,6 @@ const (
 )
 
 const (
-	//nolint:revive // Cluster-local service addresses can be plain HTTP in this environment.
 	ServiceHostPattern          = "http://%s.%s.svc.cluster.local:%d"
 	FieldSelectorInvolvedObject = "involvedObject.name=%s"
 	MetricsAPIVersion           = "metrics.k8s.io/v1beta1"

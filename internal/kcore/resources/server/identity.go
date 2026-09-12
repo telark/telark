@@ -8,7 +8,6 @@ import (
 	k8scorev1 "k8s.io/api/core/v1"
 )
 
-//nolint:revive // Keeping existing public API shape for backward compatibility.
 func DetectClusterMeta() (name, provider, distribution, region string) {
 	// Only provider and region are inferred as name and distribution left empty intentionally
 	nodes, _ := coreclient.GetNodes()

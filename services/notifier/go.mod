@@ -6,9 +6,9 @@ require (
 	github.com/nats-io/nats-server/v2 v2.14.3
 	github.com/nats-io/nats.go v1.52.0
 	github.com/redis/go-redis/v9 v9.21.0
-	github.com/telark/data v1.14.2
-	github.com/telark/rest v0.13.3
-	github.com/telark/x-ware v0.3.3
+	github.com/telark/data v1.14.3
+	github.com/telark/rest v0.14.0
+	github.com/telark/x-ware v0.3.4
 )
 
 require (

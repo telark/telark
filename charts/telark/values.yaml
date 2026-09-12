@@ -180,6 +180,7 @@ services:
     enabled: true
     name: "exporter-service"
     repository: "exporter"
+    # @ignore
     version: 3.3.4
     category: "export"
     # One replica: snapshots sit on a ReadWriteOnce volume, so a second replica
@@ -209,6 +210,7 @@ services:
     enabled: true
     name: "discovery-service"
     repository: "discovery"
+    # @ignore
     version: 1.9.2
     category: "sync"
     replicas: 2
@@ -271,6 +273,7 @@ services:
     enabled: true
     name: "enrichment-service"
     repository: "enrichment"
+    # @ignore
     version: 0.1.2
     category: "ai-inisghts"
     env:
@@ -292,6 +295,7 @@ services:
     enabled: true
     name: "notifier-service"
     repository: "notifier"
+    # @ignore
     version: 0.2.3
     category: "notification"
     terminationGracePeriodSec: 30
@@ -303,6 +307,7 @@ services:
     enabled: true
     name: "auth-service"
     repository: "auth"
+    # @ignore
     version: 0.3.3
     category: "auth"
     terminationGracePeriodSec: 30
@@ -339,6 +344,7 @@ services:
     enabled: true
     name: "ui-service"
     repository: "ui"
+    # @ignore
     version: 0.0.1
     category: "ui"
     terminationGracePeriodSec: 30

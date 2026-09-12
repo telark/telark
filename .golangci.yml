@@ -52,6 +52,11 @@ linters:
           disabled: true
         - name: flag-parameter
           disabled: true
+        # The exporter/handler layers name every operation Verb...(w, args) and
+        # write to the ResponseWriter instead of returning. The rule would force
+        # the two Get* of ten such functions to break that convention.
+        - name: get-return
+          disabled: true
         - name: line-length-limit
           arguments:
             - 150

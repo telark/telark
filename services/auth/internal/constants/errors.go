@@ -11,19 +11,19 @@ const (
 	ErrNotFound            errors.Error = "not found"
 
 	// Authentication Errors
-	ErrInvalidUsername             errors.Error = "invalid username"
-	ErrInvalidEmail                errors.Error = "invalid email"
-	ErrInvalidCredentials          errors.Error = "invalid credentials"
-	ErrUserNotFound                errors.Error = "user not found"
-	ErrUserAlreadyHasPasskeys      errors.Error = "user already has passkeys. please login first"
-	ErrNoPasskeysFound             errors.Error = "no passkeys found for user"
-	ErrChallengeExpired            errors.Error = "challenge has expired"
-	ErrChallengeNotFound           errors.Error = "challenge not found"
-	ErrSessionNotFound             errors.Error = "session not found"
-	ErrSessionExpired              errors.Error = "session has expired"
-	ErrInvalidSessionToken         errors.Error = "invalid session token"
-	ErrMissingSessionToken         errors.Error = "missing session token"
-	ErrPasskeyNotFound             errors.Error = "passkey not found"
+	ErrInvalidUsername        errors.Error = "invalid username"
+	ErrInvalidEmail           errors.Error = "invalid email"
+	ErrInvalidCredentials     errors.Error = "invalid credentials"
+	ErrUserNotFound           errors.Error = "user not found"
+	ErrUserAlreadyHasPasskeys errors.Error = "user already has passkeys. please login first"
+	ErrNoPasskeysFound        errors.Error = "no passkeys found for user"
+	ErrChallengeExpired       errors.Error = "challenge has expired"
+	ErrChallengeNotFound      errors.Error = "challenge not found"
+	ErrSessionNotFound        errors.Error = "session not found"
+	ErrSessionExpired         errors.Error = "session has expired"
+	ErrInvalidSessionToken    errors.Error = "invalid session token"
+	ErrMissingSessionToken    errors.Error = "missing session token"
+	ErrPasskeyNotFound        errors.Error = "passkey not found"
 
 	// WebAuthn Errors
 	ErrWebAuthnSetupFailed          errors.Error = "failed to setup WebAuthn %v"
@@ -75,7 +75,7 @@ const (
 	ErrFailedLoadBootstrapConfig errors.Error = "failed to load bootstrap configuration: %v"
 
 	// Bootstrap Configuration Errors
-	ErrBootstrapNoAdminsAndNoSelfReg errors.Error = "bootstrap config must have at least one admin when self-registration is disabled" //nolint:revive // line length acceptable for error message
+	ErrBootstrapNoAdminsAndNoSelfReg errors.Error = "bootstrap config must have at least one admin when self-registration is disabled"
 	ErrSelfRegistrationDisabled      errors.Error = "self-registration is disabled. contact your administrator"
 
 	// Validation Errors
@@ -85,8 +85,8 @@ const (
 	ErrManualCredentialParsingFailed errors.Error = "manual credential parsing failed: %v"
 
 	// Passkey Registration Errors
-	ErrUsernameRequiredForUnauthenticatedRegistration errors.Error = "username is required for unauthenticated registration" //nolint:revive // line length acceptable for error message
-	ErrEmailRequiredForUnauthenticatedRegistration    errors.Error = "email is required for unauthenticated registration"    //nolint:revive // line length acceptable for error message
+	ErrUsernameRequiredForUnauthenticatedRegistration errors.Error = "username is required for unauthenticated registration"
+	ErrEmailRequiredForUnauthenticatedRegistration    errors.Error = "email is required for unauthenticated registration"
 	ErrInvalidResponseStructure                       errors.Error = "invalid response structure"
 	ErrMissingAttestationObject                       errors.Error = "missing attestationObject"
 	ErrMissingClientDataJSON                          errors.Error = "missing clientDataJSON"
@@ -143,15 +143,15 @@ const (
 	ErrRedisGetFailed         errors.Error = "redis GET failed for key %s: %v"
 	ErrRedisSetFailed         errors.Error = "redis SET failed for key %s: %v"
 	ErrRedisDelFailed         errors.Error = "redis DEL failed for key %s: %v"
-	ErrRedisChallengeConflict errors.Error = "concurrent login ceremony detected for identityHash=%s — only one ceremony allowed at a time" //nolint:revive // line length acceptable for error message
+	ErrRedisChallengeConflict errors.Error = "concurrent login ceremony detected for identityHash=%s — only one ceremony allowed at a time"
 
 	// Async Worker Warnings
 	WarnAsyncWorkerFull         errors.Error = "async worker pool full, dropping housekeeping op"
 	WarnAsyncWorkerFailed       errors.Error = "async housekeeping op timed out"
-	WarnAsyncWorkerDrainTimeout errors.Error = "async worker drain timed out — some housekeeping ops may not have completed" //nolint:revive // line length acceptable for error message
+	WarnAsyncWorkerDrainTimeout errors.Error = "async worker drain timed out — some housekeeping ops may not have completed"
 
 	// Credential Verification Errors
-	ErrBackupEligibleFlagInconsistency  errors.Error = "backup eligible flag inconsistency: stored (BE:%v, BS:%v) != login (BE:%v, BS:%v)" //nolint:revive // line length acceptable for error message
+	ErrBackupEligibleFlagInconsistency  errors.Error = "backup eligible flag inconsistency: stored (BE:%v, BS:%v) != login (BE:%v, BS:%v)"
 	ErrBackupFlag                       errors.Error = "backup flag"
 	ErrCredentialNotFoundInAllowed      errors.Error = "credential not found in allowed credentials"
 	ErrFailedMarshalCredentialBody      errors.Error = "failed to marshal credential body: %v"

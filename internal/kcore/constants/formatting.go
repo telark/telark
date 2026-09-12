@@ -12,7 +12,9 @@ const (
 )
 
 const (
-	ServiceHostPattern          = "http://%s.%s.svc.cluster.local:%d"
+	// Service-to-service traffic stays inside the cluster network; TLS terminates
+	// at the ingress, so the in-cluster scheme is plain HTTP by design.
+	ServiceHostPattern          = "http://%s.%s.svc.cluster.local:%d" //nolint:revive // in-cluster service DNS
 	FieldSelectorInvolvedObject = "involvedObject.name=%s"
 	MetricsAPIVersion           = "metrics.k8s.io/v1beta1"
 )

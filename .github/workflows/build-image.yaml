@@ -148,7 +148,7 @@ jobs:
         run: npm ci
 
       - name: Type-check and lint
-        run: npm run check-all
+        run: npm run check-all-and-build
 
   build:
     needs: [gate-go, gate-enrichment, gate-ui]

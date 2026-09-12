@@ -16,8 +16,12 @@ runs:
       shell: bash
       working-directory: ${{ inputs.cwd }}
       run: |
+        # Pull the branch that is checked out, never a hardcoded main: the
+        # caller builds from any branch, and the checkout is shallow, so
+        # merging main here has no common ancestor and aborts.
+        branch=$(git rev-parse --abbrev-ref HEAD)
         git stash push -m "Temporary stash before pull" || true
-        git pull origin main
+        git pull --rebase origin "$branch"
         git stash pop || true
 
     - name: Commit Version

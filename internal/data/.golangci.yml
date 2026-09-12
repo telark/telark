@@ -77,7 +77,8 @@ linters:
             - - skip-package-name-checks: true
 run:
   go: "1.26"
-  timeout: 3m
+  # 3m tripped on a cold lint cache (201s); warm runs are well under.
+  timeout: 10m
   tests: false
 issues:
   max-issues-per-linter: 0

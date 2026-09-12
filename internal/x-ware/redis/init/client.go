@@ -2,11 +2,11 @@ package init
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/telark/x-ware/constants"
+	"github.com/telark/x-ware/shared"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -60,20 +60,6 @@ func pingWithTimeout(ctx context.Context, client *redis.Client, timeout time.Dur
 	return client.Ping(pingCtx).Err()
 }
 
-func maxWaitExceeded(start time.Time, maxWait time.Duration) bool {
-	return maxWait > constants.ZeroValue && time.Since(start) >= maxWait
-}
-
-func sleepRetry(ctx context.Context, d time.Duration) bool {
-	select {
-	case <-ctx.Done():
-		return false
-	case <-time.After(d):
-		return true
-	}
-}
-
-//nolint:gocyclo,funlen // connection retry is an inherent state machine; splitting hurts readability
 func NewClientWithRetry(
 	ctx context.Context,
 	dial func() (*redis.Client, error),
@@ -107,47 +93,19 @@ func NewClientWithRetry(
 		cfg.PingTimeout = defaultPingTimeoutSeconds * time.Second
 	}
 
-	start := time.Now()
-	for {
-		if ctx.Err() != nil {
-			return nil
-		}
-		if maxWaitExceeded(start, cfg.MaxWait) {
-			if lg != nil {
-				lg.Error(fmt.Sprintf(string(constants.ErrRedisInitMaxWaitExceeded), int(cfg.MaxWait.Seconds())))
+	clientV = shared.ConnectWithRetry(ctx, shared.RetryPolicy[*redis.Client]{
+		Dial:    dial,
+		Healthy: func(c *redis.Client) bool { return pingWithTimeout(ctx, c, cfg.PingTimeout) == nil },
+		OnFailure: func(c *redis.Client, err error) {
+			if err == nil {
+				_ = c.Close()
 			}
-			return nil
-		}
-
-		c, err := dial()
-		if err != nil {
-			if lg != nil {
-				lg.Info(fmt.Sprintf(string(constants.ErrRedisInitRetrying),
-					int(cfg.RetryInterval.Seconds()),
-					int(time.Since(start).Seconds()),
-				))
-			}
-			if !sleepRetry(ctx, cfg.RetryInterval) {
-				return nil
-			}
-			continue
-		}
-
-		if err := pingWithTimeout(ctx, c, cfg.PingTimeout); err != nil {
-			_ = c.Close()
-			if lg != nil {
-				lg.Info(fmt.Sprintf(string(constants.ErrRedisInitRetrying),
-					int(cfg.RetryInterval.Seconds()),
-					int(time.Since(start).Seconds()),
-				))
-			}
-			if !sleepRetry(ctx, cfg.RetryInterval) {
-				return nil
-			}
-			continue
-		}
-
-		clientV = c
-		return clientV
-	}
+		},
+		Interval:   cfg.RetryInterval,
+		MaxWait:    cfg.MaxWait,
+		Log:        lg,
+		MaxWaitMsg: string(constants.ErrRedisInitMaxWaitExceeded),
+		RetryMsg:   string(constants.ErrRedisInitRetrying),
+	})
+	return clientV
 }

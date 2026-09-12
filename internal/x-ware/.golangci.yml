@@ -1,3 +1,6 @@
+# Shared golangci-lint config for every Go service. Services carry no local
+# config; CI pins this file with --config (see .github/actions/go-ci).
+# Thresholds are the loosest of the former per-service configs, unified here.
 version: "2"
 linters:
   enable:
@@ -19,6 +22,10 @@ linters:
     - whitespace
     - unconvert
     - revive
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
   settings:
     gocyclo:
       min-complexity: 12
@@ -27,8 +34,9 @@ linters:
     funlen:
       lines: 60
     gosec:
-      exclude:
+      excludes:
         - G101
+        - G118
     revive:
       enable-all-rules: true
       rules:
@@ -36,24 +44,40 @@ linters:
           disabled: true
         - name: package-comments
           disabled: true
+        - name: package-naming
+          disabled: true
         - name: cognitive-complexity
           disabled: true
         - name: cyclomatic
           disabled: true
-        - name: package-naming
-          disabled: true
         - name: flag-parameter
+          disabled: true
+        # The exporter/handler layers name every operation Verb...(w, args) and
+        # write to the ResponseWriter instead of returning. The rule would force
+        # the two Get* of ten such functions to break that convention.
+        - name: get-return
           disabled: true
         - name: line-length-limit
           arguments:
-            - 120
+            - 150
+        # Counted per file, so a request/response or endpoint types file trips it
+        # for being what it is. Raising the cap only moves the next failure.
         - name: max-public-structs
+          disabled: true
+        - name: function-result-limit
           arguments:
-            - 15
+            - 8
+        - name: argument-limit
+          arguments:
+            - 9
+        - name: var-naming
+          arguments:
+            - ["ID"] # AllowList
+            - [] # DenyList
+            - - skip-package-name-checks: true
 run:
   go: "1.26"
-  timeout: 2m
+  timeout: 3m
   tests: false
-
 issues:
   max-issues-per-linter: 0

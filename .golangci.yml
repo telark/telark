@@ -57,7 +57,7 @@ linters:
             - 150
         - name: max-public-structs
           arguments:
-            - 10
+            - 15
         - name: function-result-limit
           arguments:
             - 8

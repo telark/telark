@@ -21,7 +21,7 @@ type UserPasskey struct {
 
 type UserSession struct {
 	UserID           string         `json:"userId"`
-	SessionToken     string         `json:"sessionToken"`
+	SessionToken     string         `json:"sessionToken,omitempty"`
 	CreatedTimestamp string         `json:"createdTimestamp"`
 	ExpiresTimestamp string         `json:"expiresTimestamp"`
 	IPAddress        *string        `json:"ipAddress,omitempty"`

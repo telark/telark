@@ -29,7 +29,7 @@ type UserSettings struct {
 type AIConfig struct {
 	Enabled  bool   `json:"enabled"`
 	Provider string `json:"provider"`
-	APIKey   string `json:"apiKey"`
+	APIKey   string `json:"apiKey,omitempty"`
 }
 
 type Cluster struct {

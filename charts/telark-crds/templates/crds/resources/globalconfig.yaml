@@ -50,8 +50,6 @@ spec:
                       type: boolean
                     provider:
                       type: string
-                    apiKey:
-                      type: string
                 snapshots:
                   type: object
                   properties:

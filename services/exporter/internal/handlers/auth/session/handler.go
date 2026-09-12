@@ -106,9 +106,6 @@ func DeleteSessionByTokenWithCacheInvalidation(optimizer *performance.Optimizer)
 		}
 
 		sessionexp.DeleteSessionByToken(w, token)
-		// The token's cached identity must die with the session, or logout
-		// would leave it usable until the cache entry expired.
-		authz.ForgetSession(r.Context(), token)
 		authutils.InvalidateResourceCaches(optimizer, constants.ResourceUserSession, string(constants.OpDelete), constants.EmptyString)
 	}
 }

@@ -42,7 +42,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | Key | Default | Description |
 |---|---|---|
 | `app.name` | `telark` | Source of truth for the app identity / resource-name prefix |
-| `app.namespace` | `telark` | Install namespace; bootstrap CRs land here |
+| `app.namespace` | `telark` | Install namespace; bootstrap CRs land here. Must match the release namespace (`-n`) — the subcharts follow `-n`, so a mismatch splits redis/nats away from the services |
 | `app.mode` | `standard` | Sizes every telark service (replicas, resources, rate limits, PDBs). `minimal` \| `standard` \| `performance`. Subcharts keep production-grade defaults across all modes. |
 | `app.image.registry` | _(namespace)_ | Docker Hub namespace (account/org) hosting the per-service repos |
 | `app.image.pullPolicy` | `Always` | Image pull policy for every service container |
@@ -192,6 +192,8 @@ Per-service block. Gates default to `true` unless noted.
 | `SNAPSHOTS_PATH` | `/snapshots` | Filesystem mount path for snapshot files |
 | `SNAPSHOTS_PVC_NAME` | `{{ .Values.app.name }}-exporter-snapshots-pvc` (tpl) | PVC backing snapshot storage |
 | `SNAPSHOTS_PVC_NAMESPACE` | `{{ .Values.app.namespace }}` (tpl) | Namespace of the snapshots PVC |
+| `AI_KEY_SECRET_NAME` | `{{ .Values.app.name }}-ai-provider-key` (tpl) | Secret holding the AI provider key (`apiKey` field), written by the exporter |
+| `AI_KEY_SECRET_NAMESPACE` | `{{ .Values.app.namespace }}` (tpl) | Namespace of that secret |
 | `EXPORTER_K8S_CLIENT_QPS` | `50` | K8s client QPS; sized for CRD-write fanout (10× client-go default) |
 | `EXPORTER_K8S_CLIENT_BURST` | `100` | K8s client burst |
 

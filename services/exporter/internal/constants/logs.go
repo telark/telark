@@ -35,6 +35,7 @@ const (
 	// Cache
 	InfExternalDeletionResourceNotFound messages.Message = "🗑️ [EXTERNAL DELETION] Resource %s not found"
 	InfCacheInvalidatedSpecific         messages.Message = "🧹 [CACHE INVALIDATE] Invalidated cache for specific resource: %s/%s"
+	ErrCacheGenerationBumpFailed        errors.Error     = "❌ [CACHE INVALIDATE] failed to bump the %s list generation: %v"
 	// Optimizer
 	InfOptimizerCacheHit                  messages.Message = "✅ [CACHE HIT] RequestID: %s, Cache Key: %s"
 	InfOptimizerCacheMiss                 messages.Message = "⚠️ [CACHE MISS] RequestID: %s, Cache Key: %s"
@@ -122,6 +123,12 @@ const (
 	ErrFailedToCheckCategoriesCRD  errors.Error = "failed to check categories CRD existence: %v"
 	ErrFailedToCreateCategoriesCRD errors.Error = "failed to create categories CRD: %v"
 	ErrFailedToUpdateCategoriesCRD errors.Error = "failed to update categories CRD: %v"
+
+	// AI provider key
+	ErrAIKeyPersistFailed     errors.Error = "failed to persist the AI provider key"
+	ErrAIKeyClientUnavailable errors.Error = "ai key store: kubernetes client unavailable: %v"
+	ErrAIKeyReadFailed        errors.Error = "ai key store: failed to read secret: %v"
+	ErrAIKeyWriteFailed       errors.Error = "ai key store: failed to write secret: %v"
 
 	// User Session
 	ErrSessionListFormatInvalid         errors.Error = "invalid session list format"

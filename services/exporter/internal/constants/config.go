@@ -41,6 +41,8 @@ const (
 	ConflictMessageFragment              = "the object has been modified"
 	AllowedEnvVarPattern                 = `^[A-Z_][A-Z0-9_]*$`
 	MaxEnvVarLength                      = 8192
+	CacheKeyPrefix                       = "cache"
+	CacheGenerationSegment               = "generation"
 	CacheTTL                             = 5 * time.Minute
 	CacheRefreshInterval                 = 30 * time.Second
 	DefaultPort                          = 8080
@@ -102,10 +104,13 @@ const (
 	SessionSuffix                        = "-session"
 	PasskeySuffix                        = "-passkey"
 	ResourceTypeChallenge                = "challenge"
-	ResourceTypeSession                  = "session"
+	SessionNamePrefix                    = "session-"
+	SessionDigestLength                  = 64
+	AIKeySecretNamespaceEnv              = "AI_KEY_SECRET_NAMESPACE"
+	AIKeySecretNameEnv                   = "AI_KEY_SECRET_NAME"
+	AIKeySecretField                     = "apiKey"
 	ResourceTypePasskey                  = "passkey"
 	FieldToken                           = "token"
-	FieldSessionToken                    = "sessionToken"
 	FieldCredentialID                    = "credentialId"
 	FieldUsername                        = "username"
 	FieldFullname                        = "fullname"

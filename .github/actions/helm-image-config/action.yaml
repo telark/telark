@@ -22,6 +22,11 @@ runs:
     - name: Read image config from helm values
       id: image
       shell: bash
+      # Inputs reach yq through env, never string interpolation, so a value
+      # carrying shell or yq syntax cannot escape into the expression.
+      env:
+        VALUES_FILE: ${{ inputs.values-file }}
+        SERVICE: ${{ inputs.service }}
       run: |
-        echo "registry=$(yq e '.app.image.registry' "${{ inputs.values-file }}")" >> "$GITHUB_OUTPUT"
-        echo "repository=$(yq e '.services.${{ inputs.service }}.repository' "${{ inputs.values-file }}")" >> "$GITHUB_OUTPUT"
+        echo "registry=$(yq e '.app.image.registry' "$VALUES_FILE")" >> "$GITHUB_OUTPUT"
+        echo "repository=$(yq e '.services[strenv(SERVICE)].repository' "$VALUES_FILE")" >> "$GITHUB_OUTPUT"

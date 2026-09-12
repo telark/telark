@@ -31,7 +31,12 @@ func revokeSessionIfPresent(sessionToken string) (userID string, tokenStatus str
 		return constants.EmptyString, constants.TokenStatusInvalid
 	}
 
-	sessionClient.DeleteSessionByToken(sessionToken)
+	// A dropped revoke would answer "logged out" while the token stays live.
+	if resp := sessionClient.DeleteSessionByToken(sessionToken); resp.Status >= constants.HTTPBadRequest {
+		lg.Error(fmt.Sprintf(string(constants.ErrFailedDeleteSession), resp.Message))
+		return session.UserID, constants.TokenStatusRevokeFailed
+	}
+
 	return session.UserID, resolveTokenStatus(session)
 }
 

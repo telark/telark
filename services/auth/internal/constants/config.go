@@ -11,6 +11,7 @@ const (
 	DefaultShutdownTimeout        = 30 * time.Second
 	DefaultChallengeTimeout       = 60 // seconds
 	DefaultSessionExpiry          = 24 // hours
+	SessionTokenBytes             = 32
 	HeaderSessionToken            = "X-Session-Token"
 	HeaderUserID                  = "X-User-ID"
 	HeaderCredentialID            = "X-Credential-ID"

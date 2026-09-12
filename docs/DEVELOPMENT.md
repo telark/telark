@@ -16,10 +16,6 @@ file is only "what command, when".
 | Docker + a cluster | end-to-end work | |
 | `git-cliff` | `make changelog` | changelog generation |
 
-**Always `export GOPRIVATE=github.com/telark/*`** before any module operation — the
-shared `github.com/telark/*` packages are private until release. The `Makefile`
-sets it for you inside targets; set it in your shell for ad-hoc `go` commands.
-
 ## Make targets
 
 | Target | What it does | When to use | Prereqs |
@@ -28,7 +24,7 @@ sets it for you inside targets; set it in your shell for ad-hoc `go` commands.
 | `make build` | `go build ./...` across the workspace | after any Go change | Go |
 | `make vet` | `go vet ./...` | quick static check | Go |
 | `make fmt` | `gofmt -w services` | before committing Go | Go |
-| `make test` | `go test ./...` per Go service (`auth discovery exporter notifier`) | after any Go change | Go, `GOPRIVATE` |
+| `make test` | `go test ./...` per Go service (`auth discovery exporter notifier`) | after any Go change | Go |
 | `make lint` | `golangci-lint run` per service **+** `make helm-lint` | before every PR | golangci-lint, helm |
 | `make helm-lint` | `helm lint` on `telark-crds` (with app values) and `telark` | after any chart change | helm |
 | `make helm-template` | Render the app chart; `MODE=minimal\|standard\|performance` optional | inspect rendered manifests | helm, `make deps` |
@@ -43,7 +39,7 @@ sets it for you inside targets; set it in your shell for ad-hoc `go` commands.
 ## Notes
 
 - **No per-service Makefiles.** Targets loop over the Go services; to work on one
-  service directly: `export GOPRIVATE=github.com/telark/* && cd services/<svc> && go test ./...`.
+  service directly: `cd services/<svc> && go test ./...`.
 - **Coverage** is measured cross-package (`go test -coverpkg=./...`) because tests
   live in `internal/tests/*`; CI enforces a per-service floor (see `.github/workflows/ci.yaml`).
 - **Chart deps are git-ignored** (`charts/*/charts/*.tgz`) — run `make deps` after a

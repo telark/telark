@@ -192,6 +192,8 @@ services:
       SNAPSHOTS_PATH: &snapshotsPath "/snapshots"
       SNAPSHOTS_PVC_NAME: '{{ include "telark.exporterSnapshotsPvcName" . }}'
       SNAPSHOTS_PVC_NAMESPACE: '{{ .Values.app.namespace }}'
+      AI_KEY_SECRET_NAME: '{{ printf "%s-ai-provider-key" .Values.app.name }}'
+      AI_KEY_SECRET_NAMESPACE: '{{ .Values.app.namespace }}'
       EXPORTER_K8S_CLIENT_QPS: "50"
       EXPORTER_K8S_CLIENT_BURST: "100"
     volumes:
@@ -355,6 +357,11 @@ redis:
   architecture: standalone
   auth:
     enabled: false
+  # Redis runs without auth, so the network is the only boundary: ingress is
+  # restricted to pods carrying the <release>-redis-client label.
+  networkPolicy:
+    enabled: true
+    allowExternal: false
   master:
     persistence:
       enabled: true

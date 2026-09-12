@@ -54,6 +54,9 @@ spec:
         {{- include "telark.labels" $root | nindent 8 }}
         app.kubernetes.io/component: {{ $serviceConfig.name }}
         {{ printf "%s.io/category" (include "telark.name" $root) }}: {{ $serviceConfig.category }}
+{{- if $useRedis }}
+        {{ printf "%s-redis-client" $root.Release.Name }}: "true"
+{{- end }}
     spec:
       terminationGracePeriodSeconds: {{ $tgps }}
 {{- if $priorityClass }}

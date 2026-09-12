@@ -3,19 +3,21 @@ package constants
 import "time"
 
 const (
-	AuthzSessionTTL               = 60 * time.Second
-	AuthzGrantsTTL                = 60 * time.Second
-	ExitCodeFailure               = 1
-	AuthzNoTTL      time.Duration = 0
+	AuthzGrantsTTL  = 60 * time.Second
+	ExitCodeFailure = 1
 )
 
 const (
 	AuthzKeyPrefix     = "authz"
-	AuthzKeySession    = "session"
 	AuthzKeyGrants     = "grants"
 	AuthzKeyGeneration = "generation"
 )
 
+const (
+	CacheSignatureSeparator = "."
+	CacheSignatureLabel     = "telark:authz-cache:v1:"
+	ConstantTimeEqual       = 1
+)
 
 const (
 	ErrAuthzGlobalConfigDenied    = "you do not have permission to change this setting"
@@ -28,6 +30,7 @@ const (
 )
 
 const (
+	LogAuthzGrantsCacheUnsigned    = "authz: dropped an unsigned or tampered grants cache entry for %s"
 	LogAuthzGrantsCacheReadFailed  = "authz: failed to read grants cache: %v"
 	LogAuthzGrantsCacheWriteFailed = "authz: failed to write grants cache: %v"
 	LogAuthzGenerationBumpFailed   = "authz: failed to bump grants generation: %v"

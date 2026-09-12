@@ -82,7 +82,7 @@ Everything is set on the one command line with `--set key=value`. Re-pass the sa
 |---|---|---|
 | `app.mode` | `standard` | Size every telark service: `minimal` \| `standard` \| `performance` (see [Sizing modes](#sizing-modes)) |
 | `app.name` | `telark` | App identity / resource-name prefix (also the CRD group, `erpi.<name>`) |
-| `app.namespace` | `telark` | Install namespace |
+| `app.namespace` | `telark` | Install namespace. Must match the release namespace (`-n`): the subcharts follow `-n`, so a mismatch splits redis/nats away from the services that address them by bare name |
 | `app.image.registry` | `telark` | Registry / org hosting the service images |
 | `app.image.pullPolicy` | `Always` | Image pull policy |
 | `app.image.pullSecrets` | `[]` | Image pull secrets for a private registry |
@@ -176,6 +176,8 @@ helm upgrade telark oci://ghcr.io/telark/charts/telark -n telark \
 ```
 
 Re-pass the same `--set` / `-f` flags used at install: Helm does not remember them across upgrades.
+
+telark stores the AI provider key in the Secret `<app.name>-ai-provider-key`. To encrypt that and every other Secret at rest without a cloud KMS, see [SECURITY.md](../SECURITY.md).
 
 ## Uninstall
 

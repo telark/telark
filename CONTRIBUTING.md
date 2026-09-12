@@ -29,13 +29,7 @@ The Go services depend on shared packages published under `github.com/telark/*` 
 
 The four Go services live in a single `go.work`; it holds only those four. They build against the published `github.com/telark/*` modules at the versions pinned in each `go.mod` — there are no `replace` directives.
 
-**Set `GOPRIVATE` before any module operation** — the internal packages are private until release:
-
-```sh
-export GOPRIVATE=github.com/telark/*
-```
-
-Build the whole workspace rather than tidying a single service — a standalone `go mod tidy` re-resolves the shared `github.com/telark/*` modules and can fail against the private registry:
+Build the whole workspace rather than tidying a single service — a standalone `go mod tidy` re-resolves the shared `github.com/telark/*` modules:
 
 ```sh
 go build ./...        # from the repo root, uses the workspace

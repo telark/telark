@@ -11,6 +11,7 @@ import (
 	authhelper "github.com/telark/auth/internal/helpers/auth"
 	"github.com/telark/auth/internal/helpers/shared"
 	webauthnhelper "github.com/telark/auth/internal/helpers/webauthn"
+	xauthz "github.com/telark/x-ware/authz"
 )
 
 func GetPasskeys(w http.ResponseWriter, r *http.Request) {
@@ -131,6 +132,33 @@ func UpdatePasskey(w http.ResponseWriter, r *http.Request) {
 	shared.SendJSONResponse(w, http.StatusOK, data)
 }
 
+// Orphan cleanup names a user who cannot produce a session, so only a peer
+// service may name one. Every other caller is bound to its own session: a
+// request header can never decide whose credential is deleted.
+func resolveDeleteTarget(r *http.Request, cleanupOrphaned bool) (userID, credentialID string, status int, err error) {
+	identity, found := xauthz.FromContext(r.Context())
+	if !cleanupOrphaned || !found || !identity.Internal {
+		userID, credentialID, err = authhelper.ValidateSessionAndExtractCredentialID(r)
+		if err != nil {
+			return constants.EmptyString, constants.EmptyString, shared.GetStatusCodeForAuthError(err), err
+		}
+		return userID, credentialID, http.StatusOK, nil
+	}
+
+	userID = r.Header.Get(constants.HeaderUserID)
+	if userID == constants.EmptyString {
+		return constants.EmptyString, constants.EmptyString, http.StatusBadRequest,
+			errors.New(string(constants.ErrMissingUserID))
+	}
+
+	credentialID, err = authhelper.ExtractCredentialID(r)
+	if err != nil {
+		return constants.EmptyString, constants.EmptyString, http.StatusBadRequest, err
+	}
+
+	return userID, credentialID, http.StatusOK, nil
+}
+
 func DeletePasskey(w http.ResponseWriter, r *http.Request) {
 	var req DeletePasskeyRequest
 	forceLastDelete := constants.DefaultForceLastDelete
@@ -142,30 +170,10 @@ func DeletePasskey(w http.ResponseWriter, r *http.Request) {
 		cleanupOrphaned = req.CleanupOrphaned
 	}
 
-	var userID, credentialID string
-	var err error
-
-	if cleanupOrphaned {
-		// Bypass session validation
-		userID = r.Header.Get(constants.HeaderUserID)
-		if userID == constants.EmptyString {
-			shared.SendErrorResponse(w, http.StatusBadRequest,
-				errors.New(string(constants.ErrMissingUserID)))
-			return
-		}
-
-		credentialID, err = authhelper.ExtractCredentialID(r)
-		if err != nil {
-			shared.SendErrorResponse(w, http.StatusBadRequest, err)
-			return
-		}
-	} else {
-		// Normal flow with session validation
-		userID, credentialID, err = authhelper.ValidateSessionAndExtractCredentialID(r)
-		if err != nil {
-			shared.SendErrorResponse(w, shared.GetStatusCodeForAuthError(err), err)
-			return
-		}
+	userID, credentialID, status, err := resolveDeleteTarget(r, cleanupOrphaned)
+	if err != nil {
+		shared.SendErrorResponse(w, status, err)
+		return
 	}
 
 	if err := authhelper.DeletePasskey(userID, credentialID, forceLastDelete); err != nil {

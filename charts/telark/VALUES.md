@@ -188,6 +188,8 @@ Kubernetes: `>=1.30.0-0`
 | redis.auth.enabled | bool | `false` |  |
 | redis.master.persistence.enabled | bool | `true` |  |
 | redis.master.persistence.size | string | `"4Gi"` |  |
+| redis.networkPolicy.allowExternal | bool | `false` |  |
+| redis.networkPolicy.enabled | bool | `true` |  |
 | services.auth.category | string | `"auth"` |  |
 | services.auth.enabled | bool | `true` |  |
 | services.auth.env.BOOTSTRAP_ADMINS | string | `"{{ join \",\" .Values.app.auth.bootstrap.admins }}"` |  |
@@ -294,6 +296,8 @@ Kubernetes: `>=1.30.0-0`
 | services.enrichment.version | string | `"0.1.2"` |  |
 | services.exporter.category | string | `"export"` |  |
 | services.exporter.enabled | bool | `true` |  |
+| services.exporter.env.AI_KEY_SECRET_NAME | string | `"{{ printf \"%s-ai-provider-key\" .Values.app.name }}"` |  |
+| services.exporter.env.AI_KEY_SECRET_NAMESPACE | string | `"{{ .Values.app.namespace }}"` |  |
 | services.exporter.env.EXPORTER_K8S_CLIENT_BURST | string | `"100"` |  |
 | services.exporter.env.EXPORTER_K8S_CLIENT_QPS | string | `"50"` |  |
 | services.exporter.env.SNAPSHOTS_PATH | string | `"/snapshots"` |  |

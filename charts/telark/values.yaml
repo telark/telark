@@ -337,7 +337,7 @@ services:
     enabled: true
     name: "ui-service"
     repository: "ui"
-    version: 0.0.2
+    version: 0.0.3
     category: "ui"
     terminationGracePeriodSec: 30
     # Static assets behind nginx: it serves no /api/v1/status route, so probes

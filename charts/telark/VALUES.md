@@ -326,5 +326,5 @@ Kubernetes: `>=1.30.0-0`
 | services.ui.repository | string | `"ui"` |  |
 | services.ui.terminationGracePeriodSec | int | `30` |  |
 | services.ui.useRedis | bool | `false` |  |
-| services.ui.version | string | `"0.0.2"` |  |
+| services.ui.version | string | `"0.0.3"` |  |
 

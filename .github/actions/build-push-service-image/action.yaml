@@ -58,13 +58,21 @@ runs:
   using: 'composite'
   steps:
     # ubuntu-latest ships ~25GB of preinstalled toolchains we never use; a
-    # multi-arch Go build fills the remaining space mid-compile.
+    # multi-arch Go build fills the remaining space mid-compile. Deleting that
+    # many small files costs ~90s serially, so run it detached and in parallel:
+    # the QEMU/Buildx/runtime steps below are network-bound and absorb it. The
+    # wait before the build is what makes the space guaranteed, not assumed.
     - name: Free runner disk space
       shell: bash
       run: |
-        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
-                    /usr/local/share/boost /opt/hostedtoolcache/CodeQL
-        df -h /
+        nohup sudo bash -c '
+          for dir in /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                     /usr/local/share/boost /opt/hostedtoolcache/CodeQL; do
+            rm -rf "$dir" &
+          done
+          wait
+          touch /tmp/disk-freed
+        ' >/tmp/free-disk.log 2>&1 &
 
     - name: Set up QEMU
       if: ${{ inputs.setup_qemu == 'true' }}
@@ -81,6 +89,15 @@ runs:
     # can use the GitHub Actions cache backend (type=gha).
     - name: Expose GitHub Actions runtime
       uses: crazy-max/ghaction-github-runtime@v4.0.0
+
+    - name: Wait for disk cleanup
+      shell: bash
+      run: |
+        for _ in $(seq 1 180); do
+          [ -f /tmp/disk-freed ] && break
+          sleep 1
+        done
+        df -h /
 
     # Inputs reach the script through env, never string interpolation, so a
     # value carrying shell syntax cannot escape into the build command.

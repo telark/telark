@@ -66,6 +66,8 @@ jobs:
 
       - name: Set up Helm
         uses: azure/setup-helm@v5.0.1
+        with:
+          version: v4.2.3   # 4.3.0 changed token-auth push scope; last version that pushed to GHCR
 
       - name: Set up Go
         uses: actions/setup-go@v7.0.0
@@ -123,8 +125,8 @@ jobs:
             fi
             [ "$dir" = "$CHART_DIR" ] && helm dependency build "$dir"
             helm package "$dir" --destination .cr-release
-            out=$(helm push ".cr-release/${name}-${version}.tgz" "$registry" 2>&1); echo "$out"
-            digest=$(echo "$out" | awk '/[Dd]igest:/{print $NF}')
+            helm push ".cr-release/${name}-${version}.tgz" "$registry" 2>&1 | tee .cr-release/push.log
+            digest=$(awk '/[Dd]igest:/{print $NF}' .cr-release/push.log)
             echo "signing ${repo}/${name}@${digest}"
             cosign sign "${repo}/${name}@${digest}"
             published=$((published+1))

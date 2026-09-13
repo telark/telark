@@ -306,6 +306,7 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.replicas | int | `1` |  |
 | services.exporter.repository | string | `"exporter"` |  |
 | services.exporter.strategy | string | `"Recreate"` |  |
+| services.exporter.version | string | `"3.3.5"` |  |
 | services.exporter.volumeMounts[0].name | string | `"snapshots-storage"` |  |
 | services.exporter.volumeMounts[0].path | string | `"/snapshots"` |  |
 | services.exporter.volumes[0].name | string | `"snapshots-storage"` |  |
@@ -326,4 +327,5 @@ Kubernetes: `>=1.30.0-0`
 | services.ui.repository | string | `"ui"` |  |
 | services.ui.terminationGracePeriodSec | int | `30` |  |
 | services.ui.useRedis | bool | `false` |  |
+| services.ui.version | string | `"0.0.3"` |  |
 

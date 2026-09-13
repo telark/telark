@@ -213,7 +213,7 @@ services:
     name: "discovery-service"
     repository: "discovery"
     # @ignore
-    version: 1.9.3
+    version: 1.9.4
     category: "sync"
     replicas: 2
     includeSecurity: false

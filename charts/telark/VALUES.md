@@ -83,6 +83,7 @@ Kubernetes: `>=1.30.0-0`
 | app.shared.healthCheck.readinessProbe.path | string | `"/api/v1/status/ready"` |  |
 | app.shared.healthCheck.readinessProbe.periodSeconds | int | `15` |  |
 | app.shared.healthCheck.readinessProbe.timeoutSeconds | int | `15` |  |
+| app.shared.nats.NATS_HOST | string | `"{{ .Release.Name }}-nats"` |  |
 | app.shared.natsEnvFromSecret.NATS_PASSWORD.key | string | `"password"` |  |
 | app.shared.natsEnvFromSecret.NATS_PASSWORD.name | string | `"nats"` |  |
 | app.shared.natsEnvFromSecret.NATS_USER.key | string | `"username"` |  |

@@ -123,6 +123,10 @@ spec:
                   key: {{ $secret.key }}
 {{- end }}
 {{- if $useNatsCreds }}
+{{- range $key, $value := $values.app.shared.nats }}
+            - name: {{ $key }}
+              value: {{ tpl ($value | toString) $root | quote }}
+{{- end }}
 {{- range $key, $secret := $values.app.shared.natsEnvFromSecret }}
             - name: {{ $key }}
               valueFrom:

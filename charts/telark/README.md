@@ -137,10 +137,11 @@ Pod-level config selectively applied via per-service gates.
 
 **`app.serviceDefaults`** scheduling — `nodeSelector` (`{}`), `tolerations` (`[]`), `affinity` (`{}`); overridable per service.
 
-**`app.shared.natsEnvFromSecret`** — mounted when `useNatsCreds: true` (default false). Secret: `<app.name>-nats-secret`.
+**`app.shared.natsEnvFromSecret`** + **`app.shared.nats`** — mounted when `useNatsCreds: true` (default false). Secret: `<app.name>-nats-secret`.
 
-| Variable | Secret key | Description |
+| Variable | Secret key / default | Description |
 |---|---|---|
+| `NATS_HOST` | `<release>-nats` | NATS service DNS name (templated on the release name) |
 | `NATS_USER` | `username` | NATS auth user |
 | `NATS_PASSWORD` | `password` | NATS auth password |
 

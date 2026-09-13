@@ -166,6 +166,8 @@ app:
       runAsGroup: 1001
       capabilities:
         drop: ["ALL"]
+    nats:
+      NATS_HOST: "{{ .Release.Name }}-nats"   # nats subchart client service
     natsEnvFromSecret:
       NATS_USER:
         name: "nats"

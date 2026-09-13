@@ -72,6 +72,23 @@ func ValidateSessionAndExtractCredentialID(r *http.Request) (userID string, cred
 	return userID, credentialID, nil
 }
 
+// UpdateUserLastLogin records the login on the user resource. Phase is passed
+// in rather than re-fetched because a status patch replaces the whole field,
+// so omitting it here would silently reset the account back to active.
+func UpdateUserLastLogin(userID, phase string) {
+	userClient := clients.GetUserClient()
+	updateData := map[string]any{
+		constants.UserFieldStatus: map[string]any{
+			constants.UserStatusFieldPhase:       phase,
+			constants.UserStatusFieldLastLoginAt: time.Now().UTC().Format(constants.TimeFormatRFC3339),
+		},
+	}
+	resp := userClient.PatchUserByID(userID, updateData)
+	if resp.Status >= constants.HTTPBadRequest {
+		lg.Error(fmt.Sprintf(string(constants.ErrFailedUpdateLastLogin), shared.IdentityHash(userID), resp.Status, resp.Message))
+	}
+}
+
 func CreateUserSession(userID string, meta *authdata.DeviceMetadata) (string, error) {
 	sessionClient := clients.GetSessionClient()
 	cfg, err := shared.GetCachedConfig()

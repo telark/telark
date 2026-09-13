@@ -110,9 +110,10 @@ func LoginFinish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	capturedUserID, capturedCredID := user.ID, credential.ID
+	capturedUserID, capturedCredID, capturedPhase := user.ID, credential.ID, user.Status.Phase
 	auth.Dispatch(func() {
 		_ = auth.UpdatePasskeyLastUsed(capturedUserID, capturedCredID)
+		auth.UpdateUserLastLogin(capturedUserID, capturedPhase)
 		webauthnhelper.CleanupChallenge(capturedUserID)
 	})
 

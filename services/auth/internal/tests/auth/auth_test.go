@@ -194,6 +194,7 @@ func TestClientHelpersFailClosed(t *testing.T) {
 	if err := authhelper.UpdatePasskeyLastUsed("uid", []byte{1, 2, 3}); err == nil {
 		t.Fatal("UpdatePasskeyLastUsed should fail with no backend")
 	}
+	authhelper.UpdateUserLastLogin("uid", "active") // must not panic with no backend
 	if err := authhelper.DeletePasskey("uid", "cred", false); err == nil {
 		t.Fatal("DeletePasskey should fail with no backend")
 	}

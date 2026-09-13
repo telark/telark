@@ -11,7 +11,14 @@ type UserAsResource struct {
 	CreationDate      string          `json:"creationDate"`
 	LastUpdateDate    *string         `json:"lastUpdateDate,omitempty"`
 	Avatar            *Avatar         `json:"avatar,omitempty"`
+	Settings          *UserSettings   `json:"settings,omitempty"`
 	Status            UserStatus      `json:"status"`
+}
+
+type UserSettings struct {
+	Timezone string `json:"timezone,omitempty"`
+	Region   string `json:"region,omitempty"`
+	Theme    string `json:"theme,omitempty"`
 }
 
 type UserIdentity struct {

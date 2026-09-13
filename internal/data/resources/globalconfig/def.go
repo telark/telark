@@ -20,10 +20,7 @@ type GlobalConfig struct {
 }
 
 type UserSettings struct {
-	Theme                string `json:"theme"`
-	Density              string `json:"density"`
-	UIViewSize           string `json:"uiViewSize"`
-	FetchIntervalSeconds int    `json:"fetchIntervalSeconds"`
+	FetchIntervalSeconds int `json:"fetchIntervalSeconds"`
 }
 
 type AIConfig struct {

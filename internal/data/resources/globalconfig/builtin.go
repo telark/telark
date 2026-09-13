@@ -6,8 +6,6 @@ import (
 	"github.com/telark/data/constants"
 )
 
-const defaultUserSetting = "default"
-
 var defaultExcludedNamespaces = []string{
 	"default",
 	"kube-system",
@@ -19,9 +17,6 @@ func DefaultGlobalConfig() GlobalConfig {
 	return GlobalConfig{
 		ExcludedNamespaces: slices.Clone(defaultExcludedNamespaces),
 		UserSettings: UserSettings{
-			Theme:                defaultUserSetting,
-			Density:              defaultUserSetting,
-			UIViewSize:           defaultUserSetting,
 			FetchIntervalSeconds: constants.DefaultFetchIntervalSeconds,
 		},
 		Snapshots: SnapshotsConfig{MaxPerApp: constants.DefaultSnapshotsMaxPerApp},

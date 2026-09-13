@@ -19,6 +19,7 @@ type (
 		JetStream nats.JetStreamContext
 	}
 	natsConfig struct {
+		Host     string
 		User     string
 		Password string
 		Port     port

@@ -69,6 +69,15 @@ func (nm *NatsManager) Close() error {
 }
 
 func (nm *NatsManager) InitNatsClient() (*NATSClient, error) {
+	host, err := shared.GetEnvString(shared.EnvConfig{
+		Key:      EnvNatsHost,
+		Required: true,
+		ErrorMsg: string(ErrNatsHostRequired),
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	user, err := shared.GetEnvString(shared.EnvConfig{
 		Key:      EnvNatsUser,
 		Required: true,
@@ -87,7 +96,7 @@ func (nm *NatsManager) InitNatsClient() (*NATSClient, error) {
 		return nil, err
 	}
 
-	client, err := InitClient(nm.ctx, user, password)
+	client, err := InitClient(nm.ctx, host, user, password)
 	if err != nil {
 		return nil, fmt.Errorf(string(ErrFailedInitNatsClient), err)
 	}

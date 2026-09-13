@@ -10,7 +10,7 @@ import (
 	"github.com/telark/data/errors"
 )
 
-func InitClient(ctx context.Context, user, password string) (
+func InitClient(ctx context.Context, host, user, password string) (
 	*NATSClient,
 	error,
 ) {
@@ -19,6 +19,7 @@ func InitClient(ctx context.Context, user, password string) (
 	}
 
 	config := natsConfig{
+		Host:     host,
 		User:     user,
 		Password: password,
 		Port:     Client,
@@ -43,7 +44,7 @@ func InitClient(ctx context.Context, user, password string) (
 }
 
 func initJetStreamClient(natsConfig natsConfig) (*NATSClient, error) {
-	url := GetNATSClientURL()
+	url := GetNATSClientURL(natsConfig.Host)
 
 	nc, err := nats.Connect(url,
 		nats.UserInfo(natsConfig.User, natsConfig.Password))

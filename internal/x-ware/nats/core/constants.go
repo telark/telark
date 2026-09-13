@@ -5,11 +5,13 @@ import (
 )
 
 const (
+	EnvNatsHost     = "NATS_HOST"
 	EnvNatsUser     = "NATS_USER"
 	EnvNatsPassword = "NATS_PASSWORD"
 )
 
 const (
+	ErrNatsHostRequired       errors.Error = "NATS_HOST env variable is required"
 	ErrNatsUserRequired       errors.Error = "NATS_USER env variable is required"
 	ErrNatsPasswordRequired   errors.Error = "NATS_PASSWORD env variable is required"
 	ErrNatsClientNotConnected errors.Error = "NATS client is not connected"
@@ -26,7 +28,6 @@ const (
 const (
 	Client          port = 4222
 	Monitoring      port = 8222
-	NatsServiceName      = "release-nats"
 
 	Grouper        Group = "groupers"
 	Applications   Group = "applications"

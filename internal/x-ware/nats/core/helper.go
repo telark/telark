@@ -7,9 +7,8 @@ import (
 	globalshared "github.com/telark/data/shared"
 )
 
-func GetNATSClientURL() string {
-	return fmt.Sprintf("nats://%s-%s:%d", globalshared.BaseNamespace,
-		NatsServiceName, Client)
+func GetNATSClientURL(host string) string {
+	return fmt.Sprintf("nats://%s:%d", host, Client)
 }
 
 func GetTopicName(group Group, action Action) string {

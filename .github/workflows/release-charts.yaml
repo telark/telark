@@ -96,13 +96,13 @@ jobs:
         id: publish
         env:
           COSIGN_YES: "true"
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.ACCESS_TOKEN }}
         run: |
           set -euo pipefail
           registry="${{ steps.meta.outputs.registry }}"
           repo="${registry#oci://}"
-          echo "${{ secrets.ACCESS_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
-          # cosign uses the Docker keychain, not helm's registry config — log it in too.
-          echo "${{ secrets.ACCESS_TOKEN }}" | cosign login ghcr.io -u "${{ github.actor }}" --password-stdin
+          echo "$REGISTRY_TOKEN" | helm registry login ghcr.io -u "$REGISTRY_USER" --password-stdin
           mkdir -p .cr-release
           bump="${{ github.event.inputs.bump || 'current' }}"
           published=0
@@ -126,7 +126,10 @@ jobs:
             helm push ".cr-release/${name}-${version}.tgz" "$registry" 2>&1 | tee .cr-release/push.log
             digest=$(awk '/[Dd]igest:/{print $NF}' .cr-release/push.log)
             echo "signing ${repo}/${name}@${digest}"
-            cosign sign "${repo}/${name}@${digest}"
+            # Credentials passed per call: `cosign login` would write them to
+            # ~/.docker/config.json in plaintext (and warn about it).
+            cosign sign --registry-username "$REGISTRY_USER" --registry-password "$REGISTRY_TOKEN" \
+              "${repo}/${name}@${digest}"
             published=$((published+1))
             # Only the app chart gets a repo tag + release; telark-crds does not.
             [ "$dir" = "$CHART_DIR" ] && echo "telark_version=${version}" >> "$GITHUB_OUTPUT"

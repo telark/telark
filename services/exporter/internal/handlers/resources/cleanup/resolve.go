@@ -3,14 +3,14 @@ package cleanup
 import (
 	"net/http"
 
+	"github.com/telark/exporter/internal/constants"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
-	restconstants "github.com/telark/rest/constants"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 )
 
 func resolveTargetFromRequest(w http.ResponseWriter, r *http.Request) (resourceTarget, bool) {
-	resourceType, err := sharedutils.GetPathParam(w, r, restconstants.TypeParam)
+	resourceType, err := sharedutils.GetPathParam(w, r, constants.TypeParam)
 	if err != nil {
 		return resourceTarget{}, false
 	}

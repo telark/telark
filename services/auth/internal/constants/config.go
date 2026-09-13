@@ -20,6 +20,7 @@ const (
 	HeaderUsername                = "X-Username"
 	HeaderEmail                   = "X-Email"
 	HeaderContentType             = "Content-Type"
+	IDPathParam                   = "id"
 	ContentTypeJSON               = "application/json"
 	EmptyString                   = ""
 	ColonSeparator                = ":"

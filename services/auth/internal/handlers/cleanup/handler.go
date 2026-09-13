@@ -10,7 +10,6 @@ import (
 	sharedhelper "github.com/telark/auth/internal/helpers/shared"
 	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/resources/finalizers"
-	restconstants "github.com/telark/rest/constants"
 	"github.com/telark/rest/response"
 	resputils "github.com/telark/rest/utils/response"
 )
@@ -39,9 +38,9 @@ func DeleteRole(w http.ResponseWriter, r *http.Request) {
 type businessDeleteFn func(id string) *response.GenericResponse
 
 func handleDelete(w http.ResponseWriter, r *http.Request, resourceType string, deleteFn businessDeleteFn) {
-	id, err := sharedhelper.GetPathParam(r, restconstants.IDParam)
+	id, err := sharedhelper.GetPathParam(r, constants.IDPathParam)
 	if err != nil || id == constants.EmptyString {
-		msg := fmt.Sprintf(string(dataerrors.ErrRestRequiredParam), restconstants.IDParam)
+		msg := fmt.Sprintf(string(dataerrors.ErrRestRequiredParam), constants.IDPathParam)
 		resputils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationError,
 			msg, nil, err)
 		return
@@ -72,7 +71,7 @@ func handleDelete(w http.ResponseWriter, r *http.Request, resourceType string, d
 
 	resputils.LogAndSendResponse(w, http.StatusAccepted, response.OperationSuccess,
 		string(constants.SuccessCleanupAccepted), map[string]any{
-			restconstants.IDParam:              id,
+			constants.IDPathParam:              id,
 			constants.CleanupFieldResourceType: resourceType,
 		}, nil)
 }

@@ -25,6 +25,7 @@ const (
 	ResourcePathPrefix                   = "resources/"
 	NameParam                            = "name"
 	IDParam                              = "id"
+	TypeParam                            = "type"
 	LatestParam                          = "latest"
 	ScopeParam                           = "scope"
 	NamespaceParam                       = "namespace"

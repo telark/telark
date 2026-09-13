@@ -298,7 +298,7 @@ services:
     name: "notifier-service"
     repository: "notifier"
     # @ignore
-    version: 0.2.4
+    version: 0.2.5
     category: "notification"
     terminationGracePeriodSec: 30
     useNatsCreds: true

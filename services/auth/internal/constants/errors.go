@@ -45,6 +45,7 @@ const (
 	ErrFailedGetSession      errors.Error = "failed to get session: %s"
 	ErrFailedDeleteSession   errors.Error = "failed to delete session: %s"
 	ErrFailedUpdatePasskey   errors.Error = "failed to update passkey: %s"
+	ErrFailedUpdateLastLogin errors.Error = "failed to update last login for identityHash=%s: status %d: %s"
 	ErrFailedProxyRequest    errors.Error = "failed to proxy request: %s"
 
 	// Encoding/Decoding Errors

@@ -66,6 +66,11 @@ func GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	capturedUserID, capturedPhase := user.ID, user.Status.Phase
+	authhelper.Dispatch(func() {
+		authhelper.UpdateUserLastLogin(capturedUserID, capturedPhase)
+	})
+
 	lg.Info(fmt.Sprintf(string(constants.LogOIDCLoginAccepted), shared.IdentityHash(claims.Subject)))
 	shared.SendSuccessResponse(w, string(constants.SuccessOIDCLoginCompleted), CallbackResponse{
 		SessionToken: sessionToken,

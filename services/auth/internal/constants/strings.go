@@ -56,6 +56,9 @@ const (
 	IdentityProviderGoogle        = "google"
 	IdentityProviderPasskey       = "passkey"
 	UserFieldIdentities           = "identities"
+	UserFieldStatus               = "status"
+	UserStatusFieldPhase          = "phase"
+	UserStatusFieldLastLoginAt    = "lastLoginAt"
 	IdentityHashLength            = 8
 	IdentityHashUnknown           = "unknown"
 	TokenStatusValid              = "valid"

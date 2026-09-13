@@ -88,9 +88,6 @@ export const bodies = {
   // R14 globalconfig patch — partial spec map
   globalconfigPatch: () => ({
     userSettings: {
-      theme: 'dark',
-      density: 'compact',
-      uiViewSize: 'md',
       fetchIntervalSeconds: 60,
     },
   }),

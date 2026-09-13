@@ -42,8 +42,10 @@ def _grants_scope(roles: list[dict], scope: str, min_level: str) -> bool:
         if role.get("isExpired") or role.get("status") != "Active":
             continue
         for entry in role.get("scopes") or []:
-            if entry.get("rules"):
-                continue
+            # A rule denies one specific action, not the whole scope grant (see
+            # x-ware/authz.Allows on the Go side). require_scope only ever checks
+            # scope+level with no action to look up, so a rules list here can
+            # never apply and must not disqualify the grant.
             if entry.get("scope") not in (scope, SCOPE_ALL):
                 continue
             if _covers(entry.get("level", ""), min_level):

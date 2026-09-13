@@ -97,6 +97,7 @@ const (
 	UsernameMinLen       = 3
 	EmailSplitParts      = 2
 	UsernameInvalidChars = `[^a-zA-Z0-9_-]`
+	SpaceSeparator       = " "
 
 	// Cleanup controllers + queue
 	EnvReconcileTickSeconds          = "RECONCILE_TICK_SECONDS"

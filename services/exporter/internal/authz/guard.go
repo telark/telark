@@ -53,11 +53,6 @@ func denyForbidden(w http.ResponseWriter, message string) {
 // GuardUserPatch separates a profile edit from a privilege edit, and refuses
 // anyone editing their own privileges: that is what stops self-promotion.
 func GuardUserPatch(w http.ResponseWriter, r *http.Request, targetUserID string, body map[string]any) bool {
-	required := privilegesIn(body)
-	if len(required) == constants.DefaultInitValue {
-		return true
-	}
-
 	identity, ok := identityOf(r)
 	if !ok {
 		denyForbidden(w, string(dataerrors.ErrAuthzIdentityMissing))
@@ -65,6 +60,17 @@ func GuardUserPatch(w http.ResponseWriter, r *http.Request, targetUserID string,
 	}
 
 	if identity.Internal {
+		return true
+	}
+
+	required := privilegesIn(body)
+	if len(required) == constants.DefaultInitValue {
+		// No privileged field is touched, so this is a profile edit: only the
+		// account owner may make it.
+		if identity.UserID != targetUserID {
+			denyForbidden(w, constants.ErrAuthzNotProfileOwner)
+			return false
+		}
 		return true
 	}
 

@@ -47,7 +47,7 @@ func buildJitUser(email, username string) *userresource.UserAsResource {
 	roleID := ResolveInitialRoleID(email)
 	return &userresource.UserAsResource{
 		Username:         username,
-		Fullname:         email,
+		Fullname:         BuildFullnameFromEmail(email),
 		Email:            email,
 		CreationDate:     time.Now().UTC().Format(time.RFC3339),
 		Status:           userresource.UserStatus{Phase: string(userresource.AccountPhaseActive)},

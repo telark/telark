@@ -94,8 +94,8 @@ github.com/stretchr/objx v0.5.2/go.mod h1:FRsXN1f5AsAjCGJKqEizvkpNtU+EGNCLh3NxZ/
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
-github.com/telark/data v1.14.3 h1:zdUYmTk52cWDtIwhj1r/9KOe/98eET0VdOqJowLT9jY=
-github.com/telark/data v1.14.3/go.mod h1:Oj2DBnE5j2666m15/QYUDo8KXAYyyOKFOB3DUOOrjM0=
+github.com/telark/data v1.14.4 h1:dG2rH2TiTPSvQVd7uf52zecmUXE4QRADhp9z7C2K9ps=
+github.com/telark/data v1.14.4/go.mod h1:Oj2DBnE5j2666m15/QYUDo8KXAYyyOKFOB3DUOOrjM0=
 github.com/telark/kcore v0.6.3 h1:dXH+WaC/7RO0CQlbuMVPsOlHPiPORIL/CJPbXLNUMEE=
 github.com/telark/kcore v0.6.3/go.mod h1:C8WAjr/O8qrl9qgV/aYpm77jQ+Aa1OG2g5YnzZSLyV4=
 github.com/telark/rest v0.14.0 h1:DDhzpSToJdG9yZQLOx8BnTtzX3qbwgWkVmvWFXHCIdY=

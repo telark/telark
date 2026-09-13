@@ -24,6 +24,7 @@ const (
 	ErrAuthzPrivilegedFieldDenied = "you do not have permission to change this user's roles, groups or status"
 	ErrAuthzSelfPrivilegeChange   = "you cannot change your own roles, groups or status"
 	ErrAuthzNotSessionOwner       = "you can only access your own sessions"
+	ErrAuthzNotProfileOwner       = "you can only edit your own profile"
 	ErrAuthzCategoryScopeDenied   = "you do not have permission to manage categories for this scope"
 	ErrAuthzUnknownCategoryScope  = "this category scope is not recognized"
 	ErrRoleDeletionPrevented      = "this role is protected and cannot be deleted"

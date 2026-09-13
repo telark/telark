@@ -39,7 +39,14 @@ def test_grants_scope():
         ("unrelated scope denied", [role("users", PERMISSION_LEVEL_ADMIN)], False),
         ("expired role grants nothing", [role(SCOPE_SETTINGS, PERMISSION_LEVEL_ADMIN, expired=True)], False),
         ("inactive role grants nothing", [role(SCOPE_SETTINGS, PERMISSION_LEVEL_ADMIN, status="Inactive")], False),
-        ("deny rule beats level", [role(SCOPE_SETTINGS, PERMISSION_LEVEL_ADMIN, rules=["any"])], False),
+        # FIXED 2026-09-13: this case asserted the opposite of the Go model and was
+        # the actual cause of a live bug (an Admin with any unrelated deny rule on
+        # "settings" got 403 on validate-api-key). In x-ware/authz.Allows, a rule
+        # only denies the one action it names (via Requirement.Rule); a bare
+        # scope+level check like this one passes no action, so no rule can ever
+        # apply to it. See x-ware/authz/allow.go:isRuleDenied.
+        ("unrelated deny rule does not block a bare scope+level check",
+         [role(SCOPE_SETTINGS, PERMISSION_LEVEL_ADMIN, rules=["settings.editOIDCConfig"])], True),
         ("no roles at all", [], False),
         ("unknown level never grants", [role(SCOPE_SETTINGS, "Superuser")], False),
         (

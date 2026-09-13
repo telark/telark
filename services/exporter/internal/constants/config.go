@@ -118,6 +118,7 @@ const (
 	FieldEmail                           = "email"
 	FieldIdentities                      = "identities"
 	FieldAvatar                          = "avatar"
+	FieldSettings                        = "settings"
 	FieldStatus                          = "status"
 	FieldID                              = "id"
 	FieldVersion                         = "version"

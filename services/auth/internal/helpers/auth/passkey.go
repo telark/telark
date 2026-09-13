@@ -29,7 +29,7 @@ func UpdatePasskeyLastUsed(userID string, credentialID []byte) error {
 	passkeyClient := clients.GetPasskeyClient()
 	credIDStr := base64.RawURLEncoding.EncodeToString(credentialID)
 	updateData := map[string]any{
-		constants.PasskeyFieldLastUsedTimestamp: time.Now().Format(constants.TimeFormatRFC3339),
+		constants.PasskeyFieldLastUsedTimestamp: time.Now().UTC().Format(constants.TimeFormatRFC3339),
 	}
 
 	resp := passkeyClient.PatchPasskeyByUserAndCredentialID(userID, credIDStr, updateData)
@@ -178,7 +178,7 @@ func CreatePasskeyFromCredential(
 ) *authdata.UserPasskey {
 	credIDStr := base64.RawURLEncoding.EncodeToString(credential.ID)
 	pubKeyStr := base64.StdEncoding.EncodeToString(credential.PublicKey)
-	now := time.Now()
+	now := time.Now().UTC()
 	creationTime := now.Format(constants.TimeFormatRFC3339)
 	lastUsedTime := now.Format(constants.TimeFormatRFC3339)
 	return &authdata.UserPasskey{

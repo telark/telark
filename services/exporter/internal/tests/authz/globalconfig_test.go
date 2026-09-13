@@ -114,22 +114,14 @@ func TestGuardGlobalConfigPatchChecksEveryFieldPresent(t *testing.T) {
 	}
 }
 
-// Display preferences and the reported cluster version are not privileges. A
-// user holding no scope at all must still be able to set their own theme.
+// The reported cluster version is not a privilege, so a user holding no scope
+// at all must still be able to set it.
 func TestGuardGlobalConfigPatchLeavesUngovernedFieldsOpen(t *testing.T) {
 	tests := []struct {
 		name string
 		spec map[string]any
 	}{
-		{"display preferences", map[string]any{globalconfigresource.FieldUserSettings: map[string]any{"theme": "dark"}}},
 		{"cluster version", map[string]any{globalconfigresource.FieldCluster: map[string]any{"version": "1.31"}}},
-		{
-			name: "both together",
-			spec: map[string]any{
-				globalconfigresource.FieldUserSettings: map[string]any{"density": "compact"},
-				globalconfigresource.FieldCluster:      map[string]any{"version": "1.31"},
-			},
-		},
 	}
 
 	for _, tt := range tests {

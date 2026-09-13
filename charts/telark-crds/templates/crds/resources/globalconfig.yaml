@@ -35,12 +35,6 @@ spec:
                 userSettings:
                   type: object
                   properties:
-                    theme:
-                      type: string
-                    density:
-                      type: string
-                    uiViewSize:
-                      type: string
                     fetchIntervalSeconds:
                       type: integer
                 ai:

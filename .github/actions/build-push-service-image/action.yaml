@@ -58,20 +58,28 @@ runs:
   using: 'composite'
   steps:
     # ubuntu-latest ships ~25GB of preinstalled toolchains we never use; a
-    # multi-arch Go build fills the remaining space mid-compile.
+    # multi-arch Go build fills the remaining space mid-compile. Deleting that
+    # many small files costs ~90s serially, so run it detached and in parallel:
+    # the QEMU/Buildx/runtime steps below are network-bound and absorb it. The
+    # wait before the build is what makes the space guaranteed, not assumed.
     - name: Free runner disk space
       shell: bash
       run: |
-        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
-                    /usr/local/share/boost /opt/hostedtoolcache/CodeQL
-        df -h /
+        nohup sudo bash -c '
+          for dir in /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                     /usr/local/share/boost /opt/hostedtoolcache/CodeQL; do
+            rm -rf "$dir" &
+          done
+          wait
+          touch /tmp/disk-freed
+        ' >/tmp/free-disk.log 2>&1 &
 
     - name: Set up QEMU
       if: ${{ inputs.setup_qemu == 'true' }}
-      uses: docker/setup-qemu-action@v4.2.0   # cross-arch emulation for linux/arm64
+      uses: docker/setup-qemu-action@v4.3.0   # cross-arch emulation for linux/arm64
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v4.2.0
+      uses: docker/setup-buildx-action@v4.3.0
       with:
         driver-opts: |
           image=moby/buildkit:buildx-stable-1
@@ -82,79 +90,32 @@ runs:
     - name: Expose GitHub Actions runtime
       uses: crazy-max/ghaction-github-runtime@v4.0.0
 
+    - name: Wait for disk cleanup
+      shell: bash
+      run: |
+        for _ in $(seq 1 180); do
+          [ -f /tmp/disk-freed ] && break
+          sleep 1
+        done
+        df -h /
+
+    # Inputs reach the script through env, never string interpolation, so a
+    # value carrying shell syntax cannot escape into the build command.
     - name: Build and Push Service Image
       id: build_image
       shell: bash
-      run: |
-        start_time=$(date +%s)
-
-        parse_additional_args() {
-          local json="$1"
-          if [[ "$json" != "{}" ]]; then
-            echo "$json" | jq -r 'to_entries[] | "--build-arg \(.key)=\(.value)"' | tr '\n' ' '
-          fi
-        }
-
-        echo "🐳 Building Docker image for service: ${{ inputs.service_name }}"
-        echo "📦 Image tag: ${{ inputs.image_tag }}"
-        echo "🏗️  Platforms: ${{ inputs.platforms }}"
-
-        build_cmd="docker buildx build"
-
-        # GitHub Actions cache, scoped per service so images stay out of the
-        # public registry (no cache-* tags on Docker Hub).
-        if [[ "${{ inputs.cache_enabled }}" == "true" ]]; then
-          build_cmd="$build_cmd \
-            --cache-from=type=gha,scope=${{ inputs.service_name }} \
-            --cache-to=type=gha,scope=${{ inputs.service_name }},mode=max"
-        fi
-
-        build_cmd="$build_cmd \
-          --platform=${{ inputs.platforms }} \
-          --sbom=true \
-          --provenance=mode=max \
-          --progress=plain \
-          --metadata-file=/tmp/metadata.json"
-
-        additional_args=$(parse_additional_args '${{ inputs.build_args }}')
-        [[ -n "$additional_args" ]] && build_cmd="$build_cmd $additional_args"
-
-        build_cmd="$build_cmd \
-          -f ${{ inputs.dockerfile_path }} \
-          -t ${{ inputs.container_registry_name }}/${{ inputs.container_registry_repo_name }}:${{ inputs.image_tag }}"
-
-        [[ "${{ inputs.push_enabled }}" == "true" ]] && build_cmd="$build_cmd --push"
-
-        build_cmd="$build_cmd ${{ inputs.service_path }}/"
-
-        echo "🚀 Executing build command..."
-        eval $build_cmd
-
-        end_time=$(date +%s)
-        build_time=$((end_time - start_time))
-
-        image_name="${{ inputs.container_registry_name }}/${{ inputs.container_registry_repo_name }}:${{ inputs.image_tag }}"
-        echo "image_name=$image_name" >> $GITHUB_OUTPUT
-        echo "build_time=$build_time" >> $GITHUB_OUTPUT
-
-        if [[ ! -f "/tmp/metadata.json" ]]; then
-          echo "❌ Buildx metadata file was not created"
-          exit 1
-        fi
-
-        echo "📄 Buildx metadata:"
-        cat /tmp/metadata.json | jq .
-
-        image_digest=$(jq -r '.["containerimage.digest"] // empty' /tmp/metadata.json)
-
-        if [[ -z "$image_digest" ]]; then
-          echo "❌ No container image digest found in Buildx metadata"
-          exit 1
-        fi
-
-        echo "image_digest=$image_digest" >> "$GITHUB_OUTPUT"
-        echo "🔐 Image digest: $image_digest"
-
-        echo "✅ Build completed successfully!"
-        echo "⏱️  Build time: ${build_time}s"
-        echo "🏷️  Image: $image_name"
+      env:
+        SERVICE_NAME: ${{ inputs.service_name }}
+        SERVICE_PATH: ${{ inputs.service_path }}
+        IMAGE_TAG: ${{ inputs.image_tag }}
+        CONTAINER_REGISTRY_NAME: ${{ inputs.container_registry_name }}
+        CONTAINER_REGISTRY_REPO_NAME: ${{ inputs.container_registry_repo_name }}
+        DOCKERFILE_PATH: ${{ inputs.dockerfile_path }}
+        PLATFORMS: ${{ inputs.platforms }}
+        BUILD_ARGS: ${{ inputs.build_args }}
+        CACHE_ENABLED: ${{ inputs.cache_enabled }}
+        PUSH_ENABLED: ${{ inputs.push_enabled }}
+        # .github/actions/<name> -> up two -> .github -> scripts. Anchored on
+        # action_path, not the workspace, so it resolves under any checkout path.
+        SCRIPT_DIR: ${{ github.action_path }}/../../scripts
+      run: bash "$SCRIPT_DIR/build-push-service-image.sh"

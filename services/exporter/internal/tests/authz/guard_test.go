@@ -107,6 +107,21 @@ func TestGuardUserPatchAllowsOwnProfileEdit(t *testing.T) {
 	}
 }
 
+// A profile edit is not a privilege, but it must still be confined to the
+// account owner: nobody may rename or re-email a stranger's account.
+func TestGuardUserPatchBlocksProfileEditOnAnotherUser(t *testing.T) {
+	w := httptest.NewRecorder()
+
+	allowed := authz.GuardUserPatch(w, requestAs(userWithLevel(roledata.PermissionLevelAdmin)), victimID, profileEdit())
+
+	if allowed {
+		t.Error("a caller edited another user's profile fields")
+	}
+	if w.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusForbidden)
+	}
+}
+
 func TestGuardUserPatchBlocksEveryPrivilegedField(t *testing.T) {
 	fields := []string{
 		constants.FieldAssignedRolesIDs,

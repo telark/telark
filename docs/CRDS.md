@@ -18,7 +18,7 @@ telark's custom resources are defined by the `telark-crds` chart. The group suff
 | Kind | Plural | Purpose |
 |---|---|---|
 | `UserPasskey` | `userpasskeys` | A registered WebAuthn passkey credential. |
-| `UserSession` | `usersessions` | An active authenticated session. |
+| `UserSession` | `usersessions` | An active authenticated session. Named `session-<sha256(token)>`; the token itself is never stored. |
 
 ## Group `classification.<name>`
 

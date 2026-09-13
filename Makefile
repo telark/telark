@@ -1,5 +1,3 @@
-export GOPRIVATE := github.com/telark/*
-
 GO_SERVICES := auth discovery exporter notifier
 CHART_DIR    := charts/telark
 CRDS_DIR     := charts/telark-crds
@@ -40,14 +38,26 @@ deps: ## Fetch subchart dependencies into charts/*/charts (git-ignored; rebuilt 
 	helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
 	helm dependency build $(CHART_DIR)
 
-helm-validate: deps ## Schema-validate the rendered manifests for every mode (kubeconform)
+# Kubernetes versions to validate against: the chart's kubeVersion floor through
+# the newest supported release. Keep in step with Chart.yaml and the
+# helm-kubeconform-validate action, which fails if the floor goes untested.
+K8S_VERSIONS ?= 1.30.0 1.31.0 1.32.0 1.33.0 1.34.0
+
+helm-validate: deps ## Schema-validate the rendered manifests for every mode and supported k8s version (kubeconform)
+	@mkdir -p /tmp/kubeconform-cache
 	@for m in minimal standard performance; do \
-	  echo "== kubeconform $$m =="; \
 	  helm template t $(CHART_DIR) --set app.mode=$$m --set app.persistence.storageClass=validate \
-	    | kubeconform -strict -summary -ignore-missing-schemas \
+	    > /tmp/rendered-$$m.yaml || exit 1; \
+	  for v in $(K8S_VERSIONS); do \
+	    echo "== kubeconform $$m · k8s $$v =="; \
+	    kubeconform -strict -summary -ignore-missing-schemas \
+	        -kubernetes-version $$v \
+	        -cache /tmp/kubeconform-cache \
 	        -schema-location default \
 	        -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
-	    || exit 1; \
+	        < /tmp/rendered-$$m.yaml \
+	      || exit 1; \
+	  done; \
 	done
 
 sync: ## Sync the Go workspace

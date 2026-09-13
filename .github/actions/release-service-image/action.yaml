@@ -1,0 +1,146 @@
+name: 'Release Service Image'
+description: 'Bump a service version, build + push its image, scan, sign, tag and commit the bump.'
+inputs:
+  service:
+    description: 'Name of the service (the key under .services in the chart values)'
+    required: true
+  build_type:
+    description: 'Type of version bump (patch, minor, major, re-build-current)'
+    required: true
+  values_file:
+    description: 'Path to the Helm values.yaml file'
+    required: true
+  context:
+    description: 'Docker build context'
+    required: true
+  dockerfile:
+    description: 'Path to the Dockerfile'
+    required: true
+  platforms:
+    description: 'Comma-separated buildx target platforms'
+    required: true
+  registry_username:
+    description: 'Container registry username'
+    required: true
+  registry_password:
+    description: 'Container registry password'
+    required: true
+  image_scan:
+    description: "Run Trivy when set to 'scan'"
+    required: false
+    default: 'scan'
+  setup_qemu:
+    description: 'Install QEMU for foreign-arch builds'
+    required: false
+    default: 'false'
+  # Set only for a service whose source lives in its own repository: the bump
+  # commit tags in-repo services, so those leave this blank.
+  source_repo_path:
+    description: 'Checkout path of the external source repo to tag'
+    required: false
+    default: ''
+  source_repo_branch:
+    description: 'Branch the external source was built from, recorded in the tag'
+    required: false
+    default: ''
+  chart_dir:
+    description: 'Checkout path of the telark repo holding the chart'
+    required: false
+    default: 'release'
+
+outputs:
+  new_version:
+    description: 'The version the service was bumped to'
+    value: ${{ steps.service_data.outputs.new_version }}
+  image_digest:
+    description: 'Digest of the pushed image'
+    value: ${{ steps.build.outputs.image_digest }}
+
+runs:
+  using: 'composite'
+  steps:
+    # A local `uses:` inside a composite action resolves against the workspace
+    # root, not this action's directory, so the telark checkout path is baked in
+    # here rather than taken from chart_dir.
+    - name: Bump Service Version
+      id: service_data
+      uses: ./release/.github/actions/bump-service-version
+      with:
+        service: ${{ inputs.service }}
+        build_type: ${{ inputs.build_type }}
+        values_file_path: ${{ inputs.values_file }}
+
+    - name: Read image config from helm values
+      id: image
+      uses: ./release/.github/actions/helm-image-config
+      with:
+        values-file: ${{ inputs.values_file }}
+        service: ${{ inputs.service }}
+
+    - name: Docker Login
+      uses: ./release/.github/actions/docker-login
+      with:
+        username: ${{ inputs.registry_username }}
+        password: ${{ inputs.registry_password }}
+
+    - name: Build and Push Image
+      id: build
+      uses: ./release/.github/actions/build-push-service-image
+      with:
+        service_name: ${{ inputs.service }}
+        service_path: ${{ inputs.context }}
+        image_tag: ${{ steps.service_data.outputs.new_version }}
+        container_registry_name: ${{ steps.image.outputs.registry }}
+        container_registry_repo_name: ${{ steps.image.outputs.repository }}
+        dockerfile_path: ${{ inputs.dockerfile }}
+        platforms: ${{ inputs.platforms }}
+        cache_enabled: 'true'
+        push_enabled: 'true'
+        setup_qemu: ${{ inputs.setup_qemu }}
+
+    - name: Scan image for vulnerabilities (Trivy)
+      if: ${{ inputs.image_scan == 'scan' }}
+      uses: aquasecurity/trivy-action@v0.36.0
+      with:
+        image-ref: ${{ steps.image.outputs.registry }}/${{ steps.image.outputs.repository }}:${{ steps.service_data.outputs.new_version }}
+        format: table
+        severity: CRITICAL,HIGH
+        ignore-unfixed: true
+        exit-code: '1'
+
+    - name: Install cosign
+      uses: sigstore/cosign-installer@v4.1.2
+
+    # No empty-digest guard here: build-push-service-image already fails the
+    # run when buildx produces no digest, so this step is unreachable without one.
+    - name: Sign image (cosign keyless)
+      shell: bash
+      env:
+        COSIGN_YES: "true"
+        IMAGE: ${{ steps.image.outputs.registry }}/${{ steps.image.outputs.repository }}@${{ steps.build.outputs.image_digest }}
+      run: cosign sign "$IMAGE"
+
+    # In-repo services are tagged by the bump commit below; a service whose
+    # source lives elsewhere needs its own tag in that repository.
+    - name: Tag Source Repository
+      if: ${{ inputs.source_repo_path != '' }}
+      uses: ./release/.github/actions/tag-service-repo
+      with:
+        service_name: ${{ inputs.service }}
+        service_version: ${{ steps.service_data.outputs.service_new_version }}
+        service_path: ${{ inputs.source_repo_path }}
+        branch: ${{ inputs.source_repo_branch }}
+
+    # The bump rewrote values.yaml, so the docs index is now stale. Regenerate
+    # it here — add-and-commit picks it up — or the next CI run fails the
+    # "VALUES.md is up to date" check on a change this workflow made.
+    - name: Regenerate VALUES.md
+      uses: ./release/.github/actions/helm-docs-regenerate
+      with:
+        cwd: ${{ inputs.chart_dir }}
+
+    - name: Commit Service Version
+      uses: ./release/.github/actions/git-commit-version-bump
+      with:
+        cwd: ${{ inputs.chart_dir }}
+        message: "bump ${{ inputs.service }} to ${{ steps.service_data.outputs.new_version }}"

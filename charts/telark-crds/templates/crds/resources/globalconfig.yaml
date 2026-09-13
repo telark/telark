@@ -35,12 +35,6 @@ spec:
                 userSettings:
                   type: object
                   properties:
-                    theme:
-                      type: string
-                    density:
-                      type: string
-                    uiViewSize:
-                      type: string
                     fetchIntervalSeconds:
                       type: integer
                 ai:
@@ -49,8 +43,6 @@ spec:
                     enabled:
                       type: boolean
                     provider:
-                      type: string
-                    apiKey:
                       type: string
                 snapshots:
                   type: object

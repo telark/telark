@@ -84,12 +84,12 @@ func CreateUserSession(userID string, meta *authdata.DeviceMetadata) (string, er
 		return constants.EmptyString, fmt.Errorf(string(constants.ErrFailedGenerateSessionToken), err)
 	}
 
-	expiresAt := time.Now().Add(time.Duration(cfg.WebAuthn.SessionExpiry) * time.Hour)
+	expiresAt := time.Now().UTC().Add(time.Duration(cfg.WebAuthn.SessionExpiry) * time.Hour)
 
 	session := &authdata.UserSession{
 		SessionToken:     sessionToken,
 		UserID:           userID,
-		CreatedTimestamp: time.Now().Format(constants.TimeFormatRFC3339),
+		CreatedTimestamp: time.Now().UTC().Format(constants.TimeFormatRFC3339),
 		ExpiresTimestamp: expiresAt.Format(constants.TimeFormatRFC3339),
 	}
 

@@ -6,7 +6,6 @@ import (
 	"github.com/telark/exporter/internal/constants"
 )
 
-//nolint:exhaustive // operation space is controlled by constants and default is safe
 func GetTimeoutForResource(resourceType, operation string) time.Duration {
 	if timeouts, exists := DefaultTimeoutConfig.ResourceTimeouts[resourceType]; exists {
 		if timeout, exists := timeouts[operation]; exists {

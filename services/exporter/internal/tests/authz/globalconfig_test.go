@@ -9,7 +9,6 @@ import (
 	roledata "github.com/telark/data/resources/role"
 	"github.com/telark/exporter/internal/authz"
 	xauthz "github.com/telark/x-ware/authz"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 func settingsIdentity(level roledata.PermissionLevel, denied ...string) xauthz.Identity {
@@ -115,22 +114,14 @@ func TestGuardGlobalConfigPatchChecksEveryFieldPresent(t *testing.T) {
 	}
 }
 
-// Display preferences and the reported cluster version are not privileges. A
-// user holding no scope at all must still be able to set their own theme.
+// The reported cluster version is not a privilege, so a user holding no scope
+// at all must still be able to set it.
 func TestGuardGlobalConfigPatchLeavesUngovernedFieldsOpen(t *testing.T) {
 	tests := []struct {
 		name string
 		spec map[string]any
 	}{
-		{"display preferences", map[string]any{globalconfigresource.FieldUserSettings: map[string]any{"theme": "dark"}}},
 		{"cluster version", map[string]any{globalconfigresource.FieldCluster: map[string]any{"version": "1.31"}}},
-		{
-			name: "both together",
-			spec: map[string]any{
-				globalconfigresource.FieldUserSettings: map[string]any{"density": "compact"},
-				globalconfigresource.FieldCluster:      map[string]any{"version": "1.31"},
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -145,31 +136,9 @@ func TestGuardGlobalConfigPatchLeavesUngovernedFieldsOpen(t *testing.T) {
 	}
 }
 
-func configResource() *unstructured.Unstructured {
-	return &unstructured.Unstructured{Object: map[string]any{
-		"spec": map[string]any{
-			globalconfigresource.FieldAI: map[string]any{
-				"enabled":             true,
-				"provider":            "gemini",
-				globalconfigresource.FieldAPIKey: "sk-secret-value",
-			},
-			globalconfigresource.FieldUserSettings: map[string]any{"theme": "dark"},
-		},
-	}}
-}
-
-func apiKeyIn(resource *unstructured.Unstructured) (string, bool) {
-	spec, _ := resource.Object["spec"].(map[string]any)
-	ai, _ := spec[globalconfigresource.FieldAI].(map[string]any)
-	key, present := ai[globalconfigresource.FieldAPIKey]
-	value, _ := key.(string)
-	return value, present
-}
-
-// The key is part of AI insights, so seeing it takes the same right as
-// changing it. Every role can read the config, so without this the secret
-// reaches ReadOnly users.
-func TestRedactGlobalConfigHidesAPIKeyBelowOwner(t *testing.T) {
+// The key now lives in a Secret and is added to the response only when this
+// gate allows it, so the gate is what keeps it from ReadOnly users.
+func TestMayControlAIInsightsDeniesBelowOwner(t *testing.T) {
 	levels := []roledata.PermissionLevel{
 		roledata.PermissionLevelReadOnly,
 		roledata.PermissionLevelContributor,
@@ -177,64 +146,33 @@ func TestRedactGlobalConfigHidesAPIKeyBelowOwner(t *testing.T) {
 
 	for _, level := range levels {
 		t.Run(string(level), func(t *testing.T) {
-			resource := configResource()
-
-			authz.RedactGlobalConfig(patchRequest(settingsIdentity(level)), resource)
-
-			if _, present := apiKeyIn(resource); present {
-				t.Errorf("%s user received the provider API key", level)
+			if authz.MayControlAIInsights(patchRequest(settingsIdentity(level))) {
+				t.Errorf("%s user would receive the provider API key", level)
 			}
 		})
 	}
 }
 
-func TestRedactGlobalConfigKeepsAPIKeyForOwner(t *testing.T) {
-	resource := configResource()
-
-	authz.RedactGlobalConfig(patchRequest(settingsIdentity(roledata.PermissionLevelOwner)), resource)
-
-	value, present := apiKeyIn(resource)
-	if !present || value != "sk-secret-value" {
-		t.Error("owner could not read the key they are allowed to change")
+func TestMayControlAIInsightsAllowsOwner(t *testing.T) {
+	if !authz.MayControlAIInsights(patchRequest(settingsIdentity(roledata.PermissionLevelOwner))) {
+		t.Error("owner cannot read the key they are allowed to change")
 	}
 }
 
 // Withholding the AI action must withhold the key it protects.
-func TestRedactGlobalConfigHonoursDenyRule(t *testing.T) {
+func TestMayControlAIInsightsHonoursDenyRule(t *testing.T) {
 	rule := xauthz.RuleKey(roledata.ScopeSettings, roledata.ActionControlAIInsights)
-	resource := configResource()
 
-	authz.RedactGlobalConfig(patchRequest(settingsIdentity(roledata.PermissionLevelAdmin, rule)), resource)
-
-	if _, present := apiKeyIn(resource); present {
-		t.Error("a user denied AI insights received the key")
+	if authz.MayControlAIInsights(patchRequest(settingsIdentity(roledata.PermissionLevelAdmin, rule))) {
+		t.Error("a user denied AI insights would receive the key")
 	}
 }
 
-func TestRedactGlobalConfigWithoutIdentityHidesKey(t *testing.T) {
-	resource := configResource()
+func TestMayControlAIInsightsDeniesWithoutIdentity(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/v1/resources/globalconfig/get", nil)
 
-	authz.RedactGlobalConfig(r, resource)
-
-	if _, present := apiKeyIn(resource); present {
-		t.Error("the key survived a request carrying no identity")
-	}
-}
-
-// Redaction must not disturb the rest of the config.
-func TestRedactGlobalConfigLeavesOtherFields(t *testing.T) {
-	resource := configResource()
-
-	authz.RedactGlobalConfig(patchRequest(settingsIdentity(roledata.PermissionLevelReadOnly)), resource)
-
-	spec, _ := resource.Object["spec"].(map[string]any)
-	ai, _ := spec[globalconfigresource.FieldAI].(map[string]any)
-	if ai["provider"] != "gemini" || ai["enabled"] != true {
-		t.Error("redaction removed more than the key")
-	}
-	if _, ok := spec[globalconfigresource.FieldUserSettings]; !ok {
-		t.Error("redaction dropped unrelated settings")
+	if authz.MayControlAIInsights(r) {
+		t.Error("a request carrying no identity would receive the key")
 	}
 }
 

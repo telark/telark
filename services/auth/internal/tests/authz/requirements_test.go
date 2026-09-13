@@ -48,16 +48,17 @@ func TestNoRequirementWithoutRoute(t *testing.T) {
 // mistake, so the set is pinned here rather than left to review.
 func TestPublicRoutesArePinned(t *testing.T) {
 	allowed := map[string]bool{
-		"GET /api/v1/status/health":              true,
-		"GET /api/v1/status/ready":               true,
-		"GET /api/v1/status/live":                true,
-		"POST /api/v1/auth/login/start":          true,
-		"POST /api/v1/auth/login/finish":         true,
-		"POST /api/v1/auth/register/start":       true,
-		"GET /api/v1/auth/config":                true,
-		"POST /api/v1/auth/logout":               true,
-		"POST /api/v1/auth/oidc/google/callback": true,
-		"POST /api/v1/auth/oidc/google/nonce":    true,
+		"GET /api/v1/status/health":               true,
+		"GET /api/v1/status/ready":                true,
+		"GET /api/v1/status/live":                 true,
+		"POST /api/v1/auth/login/start":           true,
+		"POST /api/v1/auth/login/finish":          true,
+		"POST /api/v1/auth/register/start":        true,
+		"POST /api/v1/auth/passkeys/proxy/create": true,
+		"GET /api/v1/auth/config":                 true,
+		"POST /api/v1/auth/logout":                true,
+		"POST /api/v1/auth/oidc/google/callback":  true,
+		"POST /api/v1/auth/oidc/google/nonce":     true,
 	}
 
 	for key, requirement := range authz.Requirements() {

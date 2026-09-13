@@ -68,6 +68,12 @@ func ExtractAndMergeUserForPatch(existingUser *userdata.UserAsResource, body map
 		return false
 	}
 
+	if _, provided := body[constants.FieldUsername]; provided {
+		if !CheckUsernameChangeAllowed(existingUser.Username, newUser.Username, w) {
+			return false
+		}
+	}
+
 	MergeUserAndPreparePatchBody(existingUser, newUser, body)
 	delete(body, constants.FieldCreationDate)
 	return true
@@ -83,6 +89,11 @@ func MergeUserAndPreparePatchBody(existingUser, newUser *userdata.UserAsResource
 	if _, provided := body[constants.FieldAvatar]; provided {
 		mergedUser.Avatar = newUser.Avatar
 		body[constants.FieldAvatar] = newUser.Avatar
+	}
+
+	if _, provided := body[constants.FieldSettings]; provided {
+		mergedUser.Settings = newUser.Settings
+		body[constants.FieldSettings] = newUser.Settings
 	}
 
 	if _, provided := body[constants.FieldStatus]; provided {

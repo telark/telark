@@ -8,12 +8,19 @@ import (
 	"github.com/telark/exporter/internal/cache"
 )
 
-type fakeOptimizer struct{ deleted []string }
+type fakeOptimizer struct {
+	deleted []string
+	bumped  []string
+}
 
 func (f *fakeOptimizer) Delete(key string) { f.deleted = append(f.deleted, key) }
 
-// Every invalidation path deletes at least one key from the optimizer — a write
-// that does not invalidate the read cache would serve stale resources.
+func (f *fakeOptimizer) BumpListGeneration(resourceType string) {
+	f.bumped = append(f.bumped, resourceType)
+}
+
+// Every invalidation path either drops a key or moves the list generation — a
+// write that does not invalidate the read cache would serve stale resources.
 func TestInvalidation(t *testing.T) {
 	f := &fakeOptimizer{}
 	cache.InvalidateListCache(f, "users")
@@ -23,6 +30,9 @@ func TestInvalidation(t *testing.T) {
 	cache.InvalidateSpecificResourceCache(f, "users", "u1")
 	if len(f.deleted) == 0 {
 		t.Fatal("no cache keys were invalidated")
+	}
+	if len(f.bumped) != 4 {
+		t.Fatalf("list generation moved %d times, want 4", len(f.bumped))
 	}
 }
 
@@ -40,6 +50,5 @@ func TestKeys(t *testing.T) {
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/resources/users", nil)
-	_ = cache.NewListCacheKeyFunc("users")(req)
 	_ = cache.NewGetCacheKeyFunc("users")(req)
 }

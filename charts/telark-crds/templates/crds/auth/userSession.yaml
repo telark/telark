@@ -30,16 +30,12 @@ spec:
               type: object
               required:
                 - userId
-                - sessionToken
                 - createdTimestamp
                 - expiresTimestamp
               properties:
                 userId:
                   type: string
                   description: User ID associated with this session
-                sessionToken:
-                  type: string
-                  description: Unique session token
                 createdTimestamp:
                   type: string
                   format: date-time

@@ -72,10 +72,6 @@ GATE: All tasks complete and locally verified before Step 3.
 
 ## STEP 3 — Internal Package Changes *(skip if no `github.com/telark/*` package was modified)*
 
-```bash
-export GOPRIVATE=github.com/telark/*
-```
-
 For each modified internal package:
 
 1. Confirm package is committed and pushed to `main` in its own repo.
@@ -221,6 +217,5 @@ Do not declare done until the script passes.
 | Scripts once at Step 9 | Never during tasks |
 | One post-push path | A or B — never both |
 | Wait for scripts | Never proceed mid-script |
-| GOPRIVATE required | Set before internal package work |
 | This service → `feat/agent_changes` | Never push to `main` |
 | Release-manager → `main` | Always |

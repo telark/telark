@@ -115,15 +115,23 @@ func parseAuthData(authData []byte) (
 	return credID, aaguid, coseKey, signCount, backupEligible, backupState, nil
 }
 
-func validateClientData(clientDataJSONB64, expectedChallenge string) error {
+func parseClientData(clientDataJSONB64 string) (map[string]any, error) {
 	clientDataJSON, err := authhelper.DecodeBase64URLWithFallback(clientDataJSONB64)
 	if err != nil {
-		return fmt.Errorf(string(constants.ErrFailedDecodeClientDataJSON), err)
+		return nil, fmt.Errorf(string(constants.ErrFailedDecodeClientDataJSON), err)
 	}
 
 	var clientData map[string]any
 	if err := json.Unmarshal(clientDataJSON, &clientData); err != nil {
-		return fmt.Errorf(string(constants.ErrFailedParseClientDataJSON), err)
+		return nil, fmt.Errorf(string(constants.ErrFailedParseClientDataJSON), err)
+	}
+	return clientData, nil
+}
+
+func validateClientData(clientDataJSONB64, expectedChallenge string) error {
+	clientData, err := parseClientData(clientDataJSONB64)
+	if err != nil {
+		return err
 	}
 
 	challenge, ok := clientData[constants.WebAuthnKeyChallenge].(string)

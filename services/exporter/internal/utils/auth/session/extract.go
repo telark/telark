@@ -1,8 +1,6 @@
 package session
 
 import (
-	"fmt"
-
 	authdata "github.com/telark/data/auth"
 	"github.com/telark/exporter/internal/constants"
 	authutils "github.com/telark/exporter/internal/utils/auth/shared"
@@ -20,10 +18,8 @@ func ExtractSessionSpec(body map[string]any, userID string) (*authdata.UserSessi
 		return nil, constants.EmptyString, err
 	}
 
-	sessionName, err := authutils.GenerateCRDName(userID, constants.ResourceTypeSession, FindSessionsByUserID)
-	if err != nil {
-		return nil, constants.EmptyString, fmt.Errorf(string(constants.ErrFailedToGenerateResourceName), err)
-	}
+	sessionName := SessionName(session.SessionToken)
+	session.SessionToken = constants.EmptyString
 
 	return session, sessionName, nil
 }

@@ -8,7 +8,6 @@ import (
 	"github.com/telark/exporter/internal/constants"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/kcore/crds/api"
-	restconstants "github.com/telark/rest/constants"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -19,7 +18,7 @@ func GetCleanupViewByID(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	id, err := sharedutils.GetPathParam(w, r, restconstants.IDParam)
+	id, err := sharedutils.GetPathParam(w, r, constants.IDParam)
 	if err != nil {
 		return
 	}

@@ -27,7 +27,6 @@ on:
         default: main
 
 env:
-  GOPRIVATE: github.com/telark/*
   GOWORK: "off"
 
 jobs:
@@ -58,29 +57,35 @@ jobs:
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
       
-      - name: Fetch tags and get latest semver
+      - name: Fetch tags and get latest released semver
         id: get_tag
         run: |
           cd package
           git fetch --tags
 
-          latest_tag=$(git tag --sort=-v:refname | grep '^v[0-9]' | head -n 1)
+          # Release tags only. A pre-release tag must never seed the next bump:
+          # git ranks v1.2.3-branch.sha above v1.2.3, so one branch build would
+          # otherwise drag every later version along with it.
+          latest_tag=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
           if [ -z "$latest_tag" ]; then
             latest_tag="v0.0.0"
           fi
 
-          echo "Found latest tag: $latest_tag"
-          echo "latest_tag=$latest_tag" >> $GITHUB_OUTPUT
+          echo "Found latest release tag: $latest_tag"
+          echo "latest_tag=$latest_tag" >> "$GITHUB_OUTPUT"
 
       - name: Bump version
         id: bump
+        env:
+          LATEST_TAG: ${{ steps.get_tag.outputs.latest_tag }}
+          BUILD_TYPE: ${{ github.event.inputs.build_type || 'patch' }}
+          SOURCE_BRANCH: ${{ github.event.inputs.branch || 'main' }}
         run: |
-          latest_tag=${{ steps.get_tag.outputs.latest_tag }}
-          version=${latest_tag#v}
+          cd package
+          version=${LATEST_TAG#v}
           IFS='.' read -r major minor patch <<< "$version"
 
-          build_type="${{ github.event.inputs.build_type || 'patch' }}"
-          case "$build_type" in
+          case "$BUILD_TYPE" in
             major)
               major=$((major + 1)); minor=0; patch=0 ;;
             minor)
@@ -90,18 +95,50 @@ jobs:
           esac
 
           new_tag="v${major}.${minor}.${patch}"
+
+          # Anything off main is a pre-release: semver ranks it below the plain
+          # version and `go get @latest` skips it, so it cannot become the
+          # official release by accident. The branch and commit ride along in the
+          # identifier so the build is traceable back to its source.
+          if [ "$SOURCE_BRANCH" != "main" ]; then
+            slug=$(printf '%s' "$SOURCE_BRANCH" \
+              | tr '[:upper:]' '[:lower:]' \
+              | sed -e 's/[^a-z0-9]\{1,\}/-/g' -e 's/^-\{1,\}//' -e 's/-\{1,\}$//' \
+              | cut -c1-24)
+            # A pre-release identifier may not be empty, and a purely numeric one
+            # may not carry a leading zero.
+            case "$slug" in
+              "") slug="branch" ;;
+              *[!0-9]*) ;;
+              *) slug="b${slug}" ;;
+            esac
+            new_tag="${new_tag}-${slug}.$(git rev-parse --short HEAD)"
+          fi
+
           echo "Bumping to new tag: $new_tag"
-          echo "new_tag=$new_tag" >> $GITHUB_OUTPUT
+          echo "new_tag=$new_tag" >> "$GITHUB_OUTPUT"
       
       - name: Create annotated tag with commit message
+        env:
+          NEW_TAG: ${{ steps.bump.outputs.new_tag }}
+          SOURCE_BRANCH: ${{ github.event.inputs.branch || 'main' }}
         run: |
           cd package
-          git checkout ${{ github.event.inputs.branch || 'main' }}
+          git checkout "$SOURCE_BRANCH"
+
+          if git rev-parse -q --verify "refs/tags/$NEW_TAG" >/dev/null; then
+            echo "::error::tag $NEW_TAG already exists — this commit has been tagged already"
+            exit 1
+          fi
 
           tag_message=$(git log -1 --pretty=%B)
 
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git tag -a ${{ steps.bump.outputs.new_tag }} -m "$tag_message"
-          git push origin ${{ steps.bump.outputs.new_tag }}
+          git tag -a "$NEW_TAG" -m "$tag_message"
+          git push origin "$NEW_TAG"
+
+          if [ "$SOURCE_BRANCH" != "main" ]; then
+            echo "::notice::$NEW_TAG is a pre-release from branch $SOURCE_BRANCH — not an official release. Consumers must request it explicitly; 'go get @latest' will not select it."
+          fi

@@ -82,7 +82,7 @@ func extractFinalizerInputs(
 	if !ok {
 		return resourceTarget{}, constants.EmptyString, constants.EmptyString, false
 	}
-	id, err := sharedutils.GetPathParam(w, r, restconstants.IDParam)
+	id, err := sharedutils.GetPathParam(w, r, constants.IDParam)
 	if err != nil {
 		return resourceTarget{}, constants.EmptyString, constants.EmptyString, false
 	}

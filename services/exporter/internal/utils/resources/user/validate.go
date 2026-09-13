@@ -44,6 +44,26 @@ func CheckUsernameExists(username string) error {
 	return nil
 }
 
+// CheckUsernameChangeAllowed validates a username patch, skipping the uniqueness
+// check when the username is unchanged so a no-op patch never conflicts with itself.
+func CheckUsernameChangeAllowed(existingUsername, newUsername string, w http.ResponseWriter) bool {
+	if newUsername == existingUsername {
+		return true
+	}
+
+	err := CheckUsernameExists(newUsername)
+	if err == nil {
+		return true
+	}
+
+	statusCode := http.StatusConflict
+	if err.Error() == string(constants.ErrUsernameCannotBeEmpty) {
+		statusCode = http.StatusBadRequest
+	}
+	sharedutils.LogByStatusAndSend(w, statusCode, response.OperationError, err.Error(), nil, err)
+	return false
+}
+
 func CheckIdentityExists(provider, issuer, subject string) error {
 	_, err := FindUserByIdentity(provider, issuer, subject)
 	if err == nil {

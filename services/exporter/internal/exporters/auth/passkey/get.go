@@ -12,7 +12,6 @@ import (
 	responseutils "github.com/telark/rest/utils/response"
 )
 
-//nolint:revive // This function writes to ResponseWriter, not a getter
 func GetPasskeyByCredentialID(w http.ResponseWriter, credentialID string, userID string) {
 	// Find passkey by credentialId and verify it belongs to the user
 	resource, err := passkeyutils.FindPasskeyByCredentialIDAndUserID(credentialID, userID)

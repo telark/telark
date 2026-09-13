@@ -106,7 +106,7 @@ All sent with `Content-Type: application/json`. Examples reflect struct + hand-r
 
 ```js
 // R14 PatchGlobalConfig
-{ userSettings: { theme:'dark', density:'compact', uiViewSize:'md', fetchIntervalSeconds:60 } }
+{ userSettings: { fetchIntervalSeconds:60 } }
 
 // R15 CreateApplication
 { name:'app-k6-<uuid>', displayName:'app-k6', namespaces:{ primary:'default' }, managed:{ by:'k6' } }

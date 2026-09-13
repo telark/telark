@@ -12,7 +12,6 @@ import (
 	responseutils "github.com/telark/rest/utils/response"
 )
 
-//nolint:revive
 func GetSessionByToken(w http.ResponseWriter, token string) {
 	// Find session by token (verifies session exists)
 	resource, ok := sessionutils.FindSessionOrRespond(w, token)

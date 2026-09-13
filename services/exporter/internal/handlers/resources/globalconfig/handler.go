@@ -1,12 +1,15 @@
 package globalconfig
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
 	metadata "github.com/telark/data/metadata/resources"
+	globalconfigresource "github.com/telark/data/resources/globalconfig"
 	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/exporter/internal/secrets"
 	resourcesutils "github.com/telark/exporter/internal/utils/resources/shared"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/kcore/crds/api"
@@ -21,7 +24,12 @@ func GetGlobalConfig() func(http.ResponseWriter, *http.Request) {
 		if !ok {
 			return
 		}
-		authz.RedactGlobalConfig(r, out)
+		// A config stored before the key moved into the Secret still carries it,
+		// so it is dropped first and re-added only for a caller allowed to see it.
+		clearAIKey(out)
+		if authz.MayControlAIInsights(r) {
+			injectAIKey(r.Context(), out)
+		}
 		resourcesutils.SendFilteredResourceResponse(w, out)
 	}
 }
@@ -34,6 +42,10 @@ func PatchGlobalConfig() func(http.ResponseWriter, *http.Request) {
 		}
 		specPatch := extractSpecPatch(body)
 		if !authz.GuardGlobalConfigPatch(w, r, specPatch) {
+			return
+		}
+		if err := divertAIKey(r.Context(), specPatch); err != nil {
+			sharedutils.LogAndReturnError(w, http.StatusInternalServerError, string(constants.ErrAIKeyPersistFailed), err)
 			return
 		}
 		patchBody := map[string]any{constants.SpecField: specPatch}
@@ -66,8 +78,73 @@ func PatchGlobalConfig() func(http.ResponseWriter, *http.Request) {
 			)
 			return
 		}
+		clearAIKey(res)
 		resourcesutils.SendFilteredResourceResponse(w, res)
 	}
+}
+
+// The key is only ever served by injectAIKey, so any copy riding along on the
+// resource itself is a leftover and is removed before the resource is sent.
+func clearAIKey(resource *unstructured.Unstructured) {
+	spec, found := resource.Object[constants.SpecField].(map[string]any)
+	if !found {
+		return
+	}
+
+	if ai, found := spec[globalconfigresource.FieldAI].(map[string]any); found {
+		delete(ai, globalconfigresource.FieldAPIKey)
+	}
+}
+
+// The key never reaches the CR: it is pulled out of the patch and written to
+// the secret, so a CRD without field-level RBAC cannot expose it.
+func divertAIKey(ctx context.Context, specPatch map[string]any) error {
+	ai, found := specPatch[globalconfigresource.FieldAI].(map[string]any)
+	if !found {
+		return nil
+	}
+
+	key, found := ai[globalconfigresource.FieldAPIKey].(string)
+	if !found {
+		return nil
+	}
+	delete(ai, globalconfigresource.FieldAPIKey)
+
+	store, err := secrets.NewAIKeyStore()
+	if err != nil {
+		return err
+	}
+
+	if key == constants.EmptyString {
+		return store.Clear(ctx)
+	}
+	return store.Set(ctx, key)
+}
+
+// A key that cannot be read is reported as unset rather than failing the whole
+// config read, which would take the dashboard down with it.
+func injectAIKey(ctx context.Context, resource *unstructured.Unstructured) {
+	store, err := secrets.NewAIKeyStore()
+	if err != nil {
+		return
+	}
+
+	key, err := store.Get(ctx)
+	if err != nil || key == constants.EmptyString {
+		return
+	}
+
+	spec, found := resource.Object[constants.SpecField].(map[string]any)
+	if !found {
+		return
+	}
+
+	ai, found := spec[globalconfigresource.FieldAI].(map[string]any)
+	if !found {
+		ai = map[string]any{}
+		spec[globalconfigresource.FieldAI] = ai
+	}
+	ai[globalconfigresource.FieldAPIKey] = key
 }
 
 func extractSpecPatch(body map[string]any) map[string]any {

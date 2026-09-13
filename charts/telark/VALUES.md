@@ -1,6 +1,6 @@
 # telark
 
-![Version: 0.0.2](https://img.shields.io/badge/Version-0.0.2-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.0](https://img.shields.io/badge/AppVersion-2.0-informational?style=flat-square)
+![Version: 0.1.2](https://img.shields.io/badge/Version-0.1.2-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.0](https://img.shields.io/badge/AppVersion-2.0-informational?style=flat-square)
 
 A protection gate for your Kubernetes workloads — discover your applications, then decide what can change them, and when
 
@@ -83,6 +83,7 @@ Kubernetes: `>=1.30.0-0`
 | app.shared.healthCheck.readinessProbe.path | string | `"/api/v1/status/ready"` |  |
 | app.shared.healthCheck.readinessProbe.periodSeconds | int | `15` |  |
 | app.shared.healthCheck.readinessProbe.timeoutSeconds | int | `15` |  |
+| app.shared.nats.NATS_HOST | string | `"{{ .Release.Name }}-nats"` |  |
 | app.shared.natsEnvFromSecret.NATS_PASSWORD.key | string | `"password"` |  |
 | app.shared.natsEnvFromSecret.NATS_PASSWORD.name | string | `"nats"` |  |
 | app.shared.natsEnvFromSecret.NATS_USER.key | string | `"username"` |  |
@@ -188,6 +189,8 @@ Kubernetes: `>=1.30.0-0`
 | redis.auth.enabled | bool | `false` |  |
 | redis.master.persistence.enabled | bool | `true` |  |
 | redis.master.persistence.size | string | `"4Gi"` |  |
+| redis.networkPolicy.allowExternal | bool | `false` |  |
+| redis.networkPolicy.enabled | bool | `true` |  |
 | services.auth.category | string | `"auth"` |  |
 | services.auth.enabled | bool | `true` |  |
 | services.auth.env.BOOTSTRAP_ADMINS | string | `"{{ join \",\" .Values.app.auth.bootstrap.admins }}"` |  |
@@ -220,7 +223,6 @@ Kubernetes: `>=1.30.0-0`
 | services.auth.pdb.minAvailable | int | `1` |  |
 | services.auth.repository | string | `"auth"` |  |
 | services.auth.terminationGracePeriodSec | int | `30` |  |
-| services.auth.version | string | `"0.3.3"` |  |
 | services.discovery.category | string | `"sync"` |  |
 | services.discovery.enabled | bool | `true` |  |
 | services.discovery.env.COORDINATION_BATCH_BLOCK_SEC | string | `"2"` |  |
@@ -275,7 +277,6 @@ Kubernetes: `>=1.30.0-0`
 | services.discovery.topologySpread.topologyKey | string | `"kubernetes.io/hostname"` |  |
 | services.discovery.topologySpread.whenUnsatisfiable | string | `"ScheduleAnyway"` |  |
 | services.discovery.useNatsCreds | bool | `true` |  |
-| services.discovery.version | string | `"1.9.2"` |  |
 | services.enrichment.category | string | `"ai-inisghts"` |  |
 | services.enrichment.enabled | bool | `true` |  |
 | services.enrichment.env.ANTHROPIC_MODEL | string | `"claude-haiku-4-5-20251001"` |  |
@@ -291,9 +292,10 @@ Kubernetes: `>=1.30.0-0`
 | services.enrichment.pdb.enabled | bool | `true` |  |
 | services.enrichment.pdb.minAvailable | int | `1` |  |
 | services.enrichment.repository | string | `"enrichment"` |  |
-| services.enrichment.version | string | `"0.1.2"` |  |
 | services.exporter.category | string | `"export"` |  |
 | services.exporter.enabled | bool | `true` |  |
+| services.exporter.env.AI_KEY_SECRET_NAME | string | `"{{ printf \"%s-ai-provider-key\" .Values.app.name }}"` |  |
+| services.exporter.env.AI_KEY_SECRET_NAMESPACE | string | `"{{ .Values.app.namespace }}"` |  |
 | services.exporter.env.EXPORTER_K8S_CLIENT_BURST | string | `"100"` |  |
 | services.exporter.env.EXPORTER_K8S_CLIENT_QPS | string | `"50"` |  |
 | services.exporter.env.SNAPSHOTS_PATH | string | `"/snapshots"` |  |
@@ -317,7 +319,6 @@ Kubernetes: `>=1.30.0-0`
 | services.notifier.repository | string | `"notifier"` |  |
 | services.notifier.terminationGracePeriodSec | int | `30` |  |
 | services.notifier.useNatsCreds | bool | `true` |  |
-| services.notifier.version | string | `"0.2.3"` |  |
 | services.ui.category | string | `"ui"` |  |
 | services.ui.enabled | bool | `true` |  |
 | services.ui.includeHealthCheck | bool | `false` |  |

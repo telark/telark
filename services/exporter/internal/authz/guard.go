@@ -12,7 +12,6 @@ import (
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 	xauthz "github.com/telark/x-ware/authz"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 // Editing what a user may do is a different operation from editing their
@@ -54,11 +53,6 @@ func denyForbidden(w http.ResponseWriter, message string) {
 // GuardUserPatch separates a profile edit from a privilege edit, and refuses
 // anyone editing their own privileges: that is what stops self-promotion.
 func GuardUserPatch(w http.ResponseWriter, r *http.Request, targetUserID string, body map[string]any) bool {
-	required := privilegesIn(body)
-	if len(required) == constants.DefaultInitValue {
-		return true
-	}
-
 	identity, ok := identityOf(r)
 	if !ok {
 		denyForbidden(w, string(dataerrors.ErrAuthzIdentityMissing))
@@ -66,6 +60,17 @@ func GuardUserPatch(w http.ResponseWriter, r *http.Request, targetUserID string,
 	}
 
 	if identity.Internal {
+		return true
+	}
+
+	required := privilegesIn(body)
+	if len(required) == constants.DefaultInitValue {
+		// No privileged field is touched, so this is a profile edit: only the
+		// account owner may make it.
+		if identity.UserID != targetUserID {
+			denyForbidden(w, constants.ErrAuthzNotProfileOwner)
+			return false
+		}
 		return true
 	}
 
@@ -124,7 +129,7 @@ func GuardSelfSessionToken(w http.ResponseWriter, r *http.Request, token string)
 	}
 
 	// Expiry unchecked: a user must still be able to delete an expired session.
-	resource, err := sessionutils.FindSessionByToken(token)
+	resource, err := sessionutils.FindSessionByRef(token)
 	if err != nil {
 		denyForbidden(w, constants.ErrAuthzNotSessionOwner)
 		return false
@@ -208,28 +213,10 @@ var globalConfigFields = map[string]xauthz.Requirement{
 	},
 }
 
-// The provider API key is part of AI insights, so reading it takes the same
-// right as changing it. Every role can read the config, so without this the
-// secret reaches ReadOnly users.
-func RedactGlobalConfig(r *http.Request, resource *unstructured.Unstructured) {
-	if resource == nil || mayControlAIInsights(r) {
-		return
-	}
-
-	spec, found := resource.Object[constants.SpecField].(map[string]any)
-	if !found {
-		return
-	}
-
-	ai, found := spec[globalconfigresource.FieldAI].(map[string]any)
-	if !found {
-		return
-	}
-
-	delete(ai, globalconfigresource.FieldAPIKey)
-}
-
-func mayControlAIInsights(r *http.Request) bool {
+// Reading the provider key takes the same right as changing it. The key is no
+// longer on the CR, so callers add it only when this allows — never strip it
+// afterwards, which would leak on any missed path.
+func MayControlAIInsights(r *http.Request) bool {
 	identity, ok := identityOf(r)
 	if !ok {
 		return false

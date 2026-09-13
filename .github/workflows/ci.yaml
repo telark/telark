@@ -17,11 +17,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # The internal telark modules (data, rest, x-ware, kcore) resolve as private
-  # today and public at release. GOPRIVATE + the token step below cover both; the
-  # token is harmless once the modules are public. Note: local `replace` directives
-  # pointing at sibling paths must be absent (release state) for these jobs to pass.
-  GOPRIVATE: github.com/telark/*
   GOWORK: "off"
   CHART_DIR: charts/telark
   CRDS_DIR: charts/telark-crds
@@ -129,7 +124,7 @@ jobs:
       - name: Lint charts
         run: |
           helm lint "$CHART_DIR"
-          helm lint "$CRDS_DIR"
+          helm lint "$CRDS_DIR" -f "$CHART_DIR/values.yaml"
 
       # Same command as `make values-docs`, so local + CI never disagree.
       - name: Regenerate VALUES.md
@@ -143,15 +138,6 @@ jobs:
       # Schema-validate the rendered manifests against Kubernetes + CRD schemas
       # (every mode). Mirrors `make helm-validate`.
       - name: Validate rendered manifests
-        run: |
-          curl -sSL --fail --retry 3 --retry-all-errors --retry-delay 2 \
-            -o /tmp/kc.tar.gz \
-            https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz
-          tar -xzf /tmp/kc.tar.gz -C /usr/local/bin kubeconform
-          for m in minimal standard performance; do
-            echo "== kubeconform $m =="
-            helm template t "$CHART_DIR" --set app.mode="$m" --set app.persistence.storageClass=validate \
-              | kubeconform -strict -summary -ignore-missing-schemas \
-                  -schema-location default \
-                  -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
-          done
+        uses: ./.github/actions/helm-kubeconform-validate
+        with:
+          chart-dir: ${{ env.CHART_DIR }}

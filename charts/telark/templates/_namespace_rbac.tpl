@@ -16,6 +16,9 @@ rules:
 {{- range $rule := $rules }}
   - apiGroups: {{ $rule.apiGroups | toJson }}
     resources: {{ $rule.resources | toJson }}
+    {{- with $rule.resourceNames }}
+    resourceNames: {{ . | toJson }}
+    {{- end }}
     verbs: {{ $rule.verbs | toJson }}
 {{- end }}
 {{- end -}}

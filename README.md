@@ -111,6 +111,8 @@ telark installs on **Kubernetes 1.30 or newer** (enforced by the chart's `kubeVe
 
 Managed distros: EKS · GKE · AKS · OpenShift. The floor is 1.30 because the optional `crdGuard` uses ValidatingAdmissionPolicy (GA in 1.30); the bundled policy engine (kyverno) only needs 1.25.
 
+Every CI run schema-validates the rendered chart against **1.30 through 1.34** in all three sizing modes (`make helm-validate` runs the same matrix locally). The check fails if the chart's `kubeVersion` floor is ever raised without adding that version to the matrix, so the floor in the table above cannot drift away from what is actually tested. Extending the matrix upwards as new minors ship is a manual step.
+
 ## Documentation
 
 | | |

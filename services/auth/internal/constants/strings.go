@@ -61,4 +61,5 @@ const (
 	TokenStatusValid              = "valid"
 	TokenStatusExpired            = "expired"
 	TokenStatusInvalid            = "invalid"
+	TokenStatusRevokeFailed       = "revoke-failed"
 )

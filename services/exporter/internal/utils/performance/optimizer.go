@@ -2,6 +2,7 @@ package performance
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/telark/exporter/internal/cache"
@@ -44,6 +45,21 @@ func (o *Optimizer) Delete(key string) {
 		return
 	}
 	_, _ = o.cache.Del(context.Background(), key)
+}
+
+func (o *Optimizer) ListGeneration(resourceType string) string {
+	value, err := o.cache.Client.Get(context.Background(), cache.ListGenerationKey(resourceType)).Result()
+	if err != nil {
+		return constants.EmptyString
+	}
+	return value
+}
+
+func (o *Optimizer) BumpListGeneration(resourceType string) {
+	key := cache.ListGenerationKey(resourceType)
+	if err := o.cache.Client.Incr(context.Background(), key).Err(); err != nil {
+		lg.Error(fmt.Sprintf(string(constants.ErrCacheGenerationBumpFailed), resourceType, err))
+	}
 }
 
 func (o *Optimizer) Clear() {

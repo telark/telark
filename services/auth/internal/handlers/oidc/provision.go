@@ -98,7 +98,7 @@ func createNewOIDCUser(
 func buildOIDCUser(claims *oidchelper.GoogleClaims, username string) *userresource.UserAsResource {
 	fullname := claims.Name
 	if fullname == constants.EmptyString {
-		fullname = username
+		fullname = authhelper.BuildFullnameFromEmail(claims.Email)
 	}
 	roleID := authhelper.ResolveInitialRoleID(claims.Email)
 	return &userresource.UserAsResource{

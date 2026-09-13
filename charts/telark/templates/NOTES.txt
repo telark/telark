@@ -1,4 +1,13 @@
 {{ include "telark.name" . }} {{ .Chart.AppVersion }} installed as release "{{ .Release.Name }}" in namespace "{{ .Values.app.namespace }}".
+{{- if ne .Values.app.namespace .Release.Namespace }}
+
+WARNING: app.namespace is "{{ .Values.app.namespace }}" but this release is in
+"{{ .Release.Namespace }}". The subcharts (redis, nats) follow the release namespace,
+so they land apart from the services, which address them by bare service name and
+cannot resolve them. Redis also ships a NetworkPolicy that only admits pods in its
+own namespace. Reinstall with -n {{ .Values.app.namespace }}, or set
+--set app.namespace={{ .Release.Namespace }}.
+{{- end }}
 
 Services deployed:
 {{- range $name, $svc := .Values.services }}

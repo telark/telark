@@ -21,7 +21,6 @@ func TestGenerationAndForgetWithClient(t *testing.T) {
 	authz.BumpGeneration(ctx)
 	authz.BumpGeneration(ctx)
 	authz.ForgetUserGrants(ctx, "u1")
-	authz.ForgetSession(ctx, "token-1")
 
 	if len(mr.Keys()) == 0 {
 		t.Error("BumpGeneration should have written a generation key")
@@ -34,7 +33,6 @@ func TestCacheMaintenanceWithoutClient(t *testing.T) {
 	// With no client configured these must be safe no-ops, never a panic.
 	authz.BumpGeneration(ctx)
 	authz.ForgetUserGrants(ctx, "u1")
-	authz.ForgetSession(ctx, "token-1")
 }
 
 func TestResolverDegradedWithoutBackend(t *testing.T) {

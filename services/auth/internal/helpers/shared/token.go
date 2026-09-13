@@ -5,12 +5,15 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/telark/auth/internal/constants"
 )
 
 func GenerateSessionToken() (string, error) {
-	return uuid.New().String(), nil
+	raw, err := GenerateRandomBytes(constants.SessionTokenBytes)
+	if err != nil {
+		return constants.EmptyString, err
+	}
+	return Base64URLEncode(raw), nil
 }
 
 func GenerateRandomBytes(n int) ([]byte, error) {

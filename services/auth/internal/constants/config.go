@@ -11,6 +11,7 @@ const (
 	DefaultShutdownTimeout        = 30 * time.Second
 	DefaultChallengeTimeout       = 60 // seconds
 	DefaultSessionExpiry          = 24 // hours
+	SessionTokenBytes             = 32
 	HeaderSessionToken            = "X-Session-Token"
 	HeaderUserID                  = "X-User-ID"
 	HeaderCredentialID            = "X-Credential-ID"
@@ -19,6 +20,7 @@ const (
 	HeaderUsername                = "X-Username"
 	HeaderEmail                   = "X-Email"
 	HeaderContentType             = "Content-Type"
+	IDPathParam                   = "id"
 	ContentTypeJSON               = "application/json"
 	EmptyString                   = ""
 	ColonSeparator                = ":"
@@ -72,10 +74,11 @@ const (
 	DefaultRedisPingTimeoutSec   = 3
 
 	// Redis key prefixes
-	RedisKeyPrefixChallenge = "auth:webauthn:challenge:"
-	RedisKeyPrefixNonce     = "auth:oidc:nonce:"
-	RedisKeyJWKS            = "auth:oidc:jwks:google"
-	RedisKeyJWKSLock        = "auth:oidc:jwks:refresh-lock"
+	RedisKeyPrefixChallenge         = "auth:webauthn:challenge:"
+	RedisKeyPrefixRegistrationOwner = "auth:webauthn:registration-owner:"
+	RedisKeyPrefixNonce             = "auth:oidc:nonce:"
+	RedisKeyJWKS                    = "auth:oidc:jwks:google"
+	RedisKeyJWKSLock                = "auth:oidc:jwks:refresh-lock"
 
 	// Redis TTLs
 	RedisTTLChallenge        = 60  // seconds — matches WebAuthn ceremony timeout
@@ -94,6 +97,7 @@ const (
 	UsernameMinLen       = 3
 	EmailSplitParts      = 2
 	UsernameInvalidChars = `[^a-zA-Z0-9_-]`
+	SpaceSeparator       = " "
 
 	// Cleanup controllers + queue
 	EnvReconcileTickSeconds          = "RECONCILE_TICK_SECONDS"

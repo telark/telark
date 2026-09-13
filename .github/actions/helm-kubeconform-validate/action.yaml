@@ -1,0 +1,60 @@
+name: 'Helm Kubeconform Validate'
+description: 'Schema-validate the rendered chart against every supported Kubernetes version and sizing mode. Mirrors `make helm-validate`.'
+
+inputs:
+  chart-dir:
+    description: 'Chart to render and validate'
+    required: true
+  kubernetes-versions:
+    description: 'Space-separated Kubernetes versions to validate against, oldest first. Must cover the chart kubeVersion floor through the newest supported release.'
+    required: false
+    default: '1.30.0 1.31.0 1.32.0 1.33.0 1.34.0'
+  modes:
+    description: 'Space-separated app.mode values to render'
+    required: false
+    default: 'minimal standard performance'
+  storage-class:
+    description: 'app.persistence.storageClass to set while rendering'
+    required: false
+    default: 'validate'
+  kubeconform-version:
+    description: 'kubeconform release tag to install'
+    required: false
+    default: 'v0.8.0'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install kubeconform
+      shell: bash
+      env:
+        KUBECONFORM_VERSION: ${{ inputs.kubeconform-version }}
+      run: |
+        curl -sSL --fail --retry 3 --retry-all-errors --retry-delay 2 \
+          -o /tmp/kubeconform.tar.gz \
+          "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
+        tar -xzf /tmp/kubeconform.tar.gz -C /usr/local/bin kubeconform
+
+    # A kubeVersion bump that is not mirrored here would leave a version the
+    # chart claims to support with nothing validating it.
+    - name: Check the tested versions cover the chart floor
+      shell: bash
+      env:
+        CHART_PATH: ${{ inputs.chart-dir }}
+        K8S_VERSIONS: ${{ inputs.kubernetes-versions }}
+        # .github/actions/<name> -> up two -> .github -> scripts. Anchored on
+        # action_path, not the workspace, so it resolves under any checkout path.
+        SCRIPT_DIR: ${{ github.action_path }}/../../scripts
+      run: bash "$SCRIPT_DIR/helm-kubeconform-validate-check-floor.sh"
+
+    # Inputs reach the script through env, never string interpolation, so a
+    # value carrying shell syntax cannot escape into the command.
+    - name: Validate rendered manifests
+      shell: bash
+      env:
+        CHART_PATH: ${{ inputs.chart-dir }}
+        K8S_VERSIONS: ${{ inputs.kubernetes-versions }}
+        RENDER_MODES: ${{ inputs.modes }}
+        STORAGE_CLASS: ${{ inputs.storage-class }}
+        SCRIPT_DIR: ${{ github.action_path }}/../../scripts
+      run: bash "$SCRIPT_DIR/helm-kubeconform-validate-run.sh"

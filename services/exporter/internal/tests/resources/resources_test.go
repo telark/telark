@@ -137,12 +137,38 @@ func TestMergeUserAndPreparePatchBody(t *testing.T) {
 	}
 }
 
+func TestMergeUserSettingsIntoPatchBody(t *testing.T) {
+	existing := &userdata.UserAsResource{Username: "u", Avatar: &userdata.Avatar{Style: "s", Seed: "x"}}
+	next := &userdata.UserAsResource{Settings: &userdata.UserSettings{Timezone: "Europe/Paris", Region: "FR"}}
+	body := map[string]any{"settings": map[string]any{"timezone": "Europe/Paris", "region": "FR"}}
+	merged := userutil.MergeUserAndPreparePatchBody(existing, next, body)
+	if merged.Settings == nil || merged.Settings.Timezone != "Europe/Paris" || merged.Settings.Region != "FR" {
+		t.Fatalf("settings not merged: %+v", merged.Settings)
+	}
+	if body["settings"] != next.Settings {
+		t.Errorf("patch body settings not normalized: %#v", body["settings"])
+	}
+	if merged.Avatar == nil || merged.Avatar.Seed != "x" {
+		t.Errorf("avatar clobbered: %+v", merged.Avatar)
+	}
+}
+
 func TestExtractAndMergeUserForPatch(t *testing.T) {
 	existing := &userdata.UserAsResource{Username: "old"}
-	body := map[string]any{"username": "renamed"}
+	body := map[string]any{"fullname": "New Name"}
 	rec := httptest.NewRecorder()
 	if !userutil.ExtractAndMergeUserForPatch(existing, body, rec) {
 		t.Fatal("ExtractAndMergeUserForPatch returned false")
+	}
+}
+
+// An unchanged username must never trigger the cluster uniqueness lookup.
+func TestExtractAndMergeUserForPatchSkipsUsernameCheckWhenUnchanged(t *testing.T) {
+	existing := &userdata.UserAsResource{Username: "old"}
+	body := map[string]any{"username": "old"}
+	rec := httptest.NewRecorder()
+	if !userutil.ExtractAndMergeUserForPatch(existing, body, rec) {
+		t.Fatal("ExtractAndMergeUserForPatch returned false for an unchanged username")
 	}
 }
 

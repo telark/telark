@@ -12,3 +12,10 @@ charts/releases/
 # Vendored subchart packages — build artifacts, rebuilt via `make deps`
 # (helm dependency build). Chart.lock is committed; the .tgz are not.
 charts/*/charts
+
+# Local AI-agent working notes (plans, TDD evidence)
+.claude/
+
+# Local-only workspace overlay (machine-specific paths; CI uses the pinned versions)
+go.work.local
+go.work.local.sum

@@ -41,8 +41,12 @@ runs:
         # exact-match cache, so a changed go.sum still reuses the prior build.
         cache: false
 
-    - name: Cache Go build and module cache
-      uses: actions/cache@v6.1.0
+    # restore/save split, not plain actions/cache: its post step is skipped when
+    # the job fails, so a run that times out never seeds the cache and the next
+    # run is cold again. The explicit save below runs with if: always().
+    - name: Restore Go build and module cache
+      id: go-cache
+      uses: actions/cache/restore@v6.1.0
       with:
         path: |
           ~/.cache/go-build
@@ -59,21 +63,34 @@ runs:
       if: ${{ inputs.test == 'true' }}
       shell: bash
       working-directory: ${{ inputs.working-directory }}
-      # -coverpkg=./... so tests in internal/tests/* count against the code they
-      # exercise (per-package coverage reports 0 for this layout).
-      run: |
-        go test -race -coverpkg=./... -coverprofile=coverage.out ./...
-        total=$(go tool cover -func=coverage.out | awk '/^total:/{print $3}' | tr -d '%')
-        echo "Total coverage: ${total}%"
-        awk -v t="$total" -v m='${{ inputs.coverage-threshold }}' \
-          'BEGIN { if (t+0 < m+0) { printf "coverage %.1f%% is below threshold %s%%\n", t, m; exit 1 } }'
+      env:
+        COVERAGE_THRESHOLD: ${{ inputs.coverage-threshold }}
+        # Set here, not per caller: the repo has a tracked go.work (and a
+        # gitignored go.work.local), and CI must resolve from go.mod alone.
+        GOWORK: "off"
+        # action_path is absolute, so this still resolves from working-directory.
+        # .github/actions/<name> -> up two -> .github -> scripts.
+        SCRIPT_DIR: ${{ github.action_path }}/../../scripts
+      run: bash "$SCRIPT_DIR/go-ci-test.sh"
 
     - name: Lint
       if: ${{ inputs.lint == 'true' }}
       uses: golangci/golangci-lint-action@v9.3.0
+      env:
+        GOWORK: "off"
       with:
         # Pinned, not `latest`: a linter release can add rules overnight and
         # break an unrelated PR. Bump deliberately, after running it locally.
         version: v2.11.3
         working-directory: ${{ inputs.working-directory }}
         args: --config=${{ github.workspace }}/${{ inputs.config-file }}
+
+    - name: Save Go build and module cache
+      if: always() && steps.go-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6.1.0
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+          ~/.cache/golangci-lint
+        key: ${{ steps.go-cache.outputs.cache-primary-key }}

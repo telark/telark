@@ -89,6 +89,23 @@ spec:
                     seed:
                       type: string
                       description: Avatar seed for generation
+                settings:
+                  type: object
+                  description: Per-user display preferences. Timestamps stay stored in UTC; these only affect rendering.
+                  properties:
+                    timezone:
+                      type: string
+                      description: IANA time zone name used to render timestamps (e.g. Europe/Paris)
+                      maxLength: 64
+                      pattern: '^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+){0,2}$'
+                    region:
+                      type: string
+                      description: ISO 3166-1 alpha-2 country code (e.g. FR)
+                      pattern: '^[A-Z]{2}$'
+                    theme:
+                      type: string
+                      description: UI theme preference
+                      maxLength: 32
                 status:
                   type: object
                   description: User status information

@@ -175,6 +175,10 @@ func StartRegistration(userID, username, fullname string, existingCredentials []
 	if err := StoreChallenge(userID, sessionData.Challenge); err != nil {
 		return nil, constants.EmptyString, err
 	}
+	if err := StoreRegistrationChallengeOwner(sessionData.Challenge, userID); err != nil {
+		CleanupChallenge(userID)
+		return nil, constants.EmptyString, err
+	}
 
 	return options, sessionData.Challenge, nil
 }
@@ -259,6 +263,7 @@ func FinishRegistration(
 	}
 
 	CleanupChallenge(userID)
+	cleanupRegistrationChallengeOwner(challenge.Challenge)
 	lg.Info(fmt.Sprintf(string(constants.LogRegistrationVerifiedSuccessfully),
 		sharedhelper.IdentityHash(userID)))
 	return credential, backupEligible, backupState, nil

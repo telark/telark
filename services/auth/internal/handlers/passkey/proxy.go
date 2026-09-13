@@ -34,7 +34,7 @@ func GetPasskeys(w http.ResponseWriter, r *http.Request) {
 }
 
 func CreatePasskey(w http.ResponseWriter, r *http.Request) {
-	user, userID, err := authhelper.GetUserForRegistration(r)
+	user, userID, err := authhelper.GetUserForRegistration(r, webauthnhelper.RegistrationChallengeOwner)
 	if err != nil {
 		statusCode := http.StatusBadRequest
 		if shared.IsError(err, constants.ErrUserAlreadyHasPasskeys) {

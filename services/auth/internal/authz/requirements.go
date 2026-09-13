@@ -43,6 +43,9 @@ func addLogin(r map[string]authz.Requirement) {
 	r[router.Key(base.Post, autheps.StartLogin)] = authz.Public
 	r[router.Key(base.Post, autheps.FinishLogin)] = authz.Public
 	r[router.Key(base.Post, autheps.StartRegister)] = authz.Public
+	// Registration finish: a signed-in user adds a passkey through its session, a
+	// new one completes the ceremony register/start opened, bound by its challenge.
+	r[router.Key(base.Post, autheps.CreatePasskeyByUserViaProxy)] = authz.Public
 	r[router.Key(base.Get, autheps.Config)] = authz.Public
 	r[router.Key(base.Post, autheps.OIDCGoogleCallback)] = authz.Public
 	r[router.Key(base.Post, autheps.OIDCGoogleNonce)] = authz.Public
@@ -57,7 +60,6 @@ func addLogin(r map[string]authz.Requirement) {
 func addSelfService(r map[string]authz.Requirement) {
 	r[router.Key(base.Get, autheps.GetMyPermissions)] = authz.Authenticated
 	r[router.Key(base.Get, autheps.GetAllPasskeysByUserViaProxy)] = authz.Authenticated
-	r[router.Key(base.Post, autheps.CreatePasskeyByUserViaProxy)] = authz.Authenticated
 	r[router.Key(base.Get, autheps.GetPasskeyByUserAndCredentialIDViaProxy)] = authz.Authenticated
 	r[router.Key(base.Patch, autheps.PatchPasskeyByUserAndCredentialIDViaProxy)] = authz.Authenticated
 	r[router.Key(base.Delete, autheps.DeletePasskeyByUserAndCredentialIDViaProxy)] = authz.Authenticated

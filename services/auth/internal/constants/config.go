@@ -73,10 +73,11 @@ const (
 	DefaultRedisPingTimeoutSec   = 3
 
 	// Redis key prefixes
-	RedisKeyPrefixChallenge = "auth:webauthn:challenge:"
-	RedisKeyPrefixNonce     = "auth:oidc:nonce:"
-	RedisKeyJWKS            = "auth:oidc:jwks:google"
-	RedisKeyJWKSLock        = "auth:oidc:jwks:refresh-lock"
+	RedisKeyPrefixChallenge         = "auth:webauthn:challenge:"
+	RedisKeyPrefixRegistrationOwner = "auth:webauthn:registration-owner:"
+	RedisKeyPrefixNonce             = "auth:oidc:nonce:"
+	RedisKeyJWKS                    = "auth:oidc:jwks:google"
+	RedisKeyJWKSLock                = "auth:oidc:jwks:refresh-lock"
 
 	// Redis TTLs
 	RedisTTLChallenge        = 60  // seconds — matches WebAuthn ceremony timeout

@@ -12,6 +12,7 @@ import (
 	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
 	authhelper "github.com/telark/auth/internal/helpers/auth"
+	webauthnhelper "github.com/telark/auth/internal/helpers/webauthn"
 	"github.com/telark/auth/internal/tests/testutil"
 	userresource "github.com/telark/data/resources/user"
 )
@@ -228,10 +229,10 @@ func TestGetUserForRegistrationFailClosed(t *testing.T) {
 		t.Fatal("GetUserForRegistrationStart should fail with no backend")
 	}
 
-	byHeader := httptest.NewRequest("POST", "/", strings.NewReader("{}"))
-	byHeader.Header.Set(constants.HeaderEmail, "a@b.com")
-	if _, _, err := authhelper.GetUserForRegistration(byHeader); err == nil {
-		t.Fatal("GetUserForRegistration should fail with no backend")
+	noCeremony := httptest.NewRequest("POST", "/", strings.NewReader("{}"))
+	noCeremony.Header.Set(constants.HeaderEmail, "a@b.com")
+	if _, _, err := authhelper.GetUserForRegistration(noCeremony, webauthnhelper.RegistrationChallengeOwner); err == nil {
+		t.Fatal("GetUserForRegistration should fail without a registration ceremony")
 	}
 }
 

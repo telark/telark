@@ -86,7 +86,6 @@ const (
 
 	// Passkey Registration Errors
 	ErrUsernameRequiredForUnauthenticatedRegistration errors.Error = "username is required for unauthenticated registration"
-	ErrEmailRequiredForUnauthenticatedRegistration    errors.Error = "email is required for unauthenticated registration"
 	ErrInvalidResponseStructure                       errors.Error = "invalid response structure"
 	ErrMissingAttestationObject                       errors.Error = "missing attestationObject"
 	ErrMissingClientDataJSON                          errors.Error = "missing clientDataJSON"

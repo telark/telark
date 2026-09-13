@@ -108,7 +108,11 @@ func GetUserForRegistrationStart(r *http.Request) (*userresource.UserAsResource,
 	return user, user.ID, nil
 }
 
-func GetUserForRegistration(r *http.Request) (*userresource.UserAsResource, string, error) {
+// ceremonyOwner resolves the user a session-less finish belongs to. The identity
+// headers are stripped by the authz layer, so only the signed ceremony can name it.
+func GetUserForRegistration(
+	r *http.Request, ceremonyOwner func(*http.Request) (string, error),
+) (*userresource.UserAsResource, string, error) {
 	userClient := clients.GetUserClient()
 	sessionUserID, sessionErr := ValidateSessionFromRequest(r)
 	if sessionErr == nil {
@@ -119,26 +123,14 @@ func GetUserForRegistration(r *http.Request) (*userresource.UserAsResource, stri
 		return user, sessionUserID, nil
 	}
 
-	email := r.Header.Get(constants.HeaderEmail)
-	if email == constants.EmptyString {
-		return nil, constants.EmptyString,
-			errors.New(string(constants.ErrEmailRequiredForUnauthenticatedRegistration))
-	}
-
-	if err := shared.ValidateEmail(email); err != nil {
+	ownerID, err := ceremonyOwner(r)
+	if err != nil {
 		return nil, constants.EmptyString, err
 	}
 
-	user, err := GetUserWithErrorHandling(email, userClient.GetUserByEmail)
+	user, err := GetUserWithErrorHandling(ownerID, userClient.GetUserByID)
 	if err != nil {
-		if !shared.IsError(err, constants.ErrUserNotFound) {
-			return nil, constants.EmptyString, err
-		}
-		user, err = JitProvisionUserByEmail(userClient, email)
-		if err != nil {
-			return nil, constants.EmptyString, err
-		}
-		return user, user.ID, nil
+		return nil, constants.EmptyString, err
 	}
 
 	hasPasskeys, err := CheckUserHasExistingPasskeys(user.ID)

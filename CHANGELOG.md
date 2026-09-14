@@ -3,11 +3,13 @@
 All notable changes to telark are documented here.
 Commits follow [Conventional Commits](https://www.conventionalcommits.org).
 
-## [0.1.0] - 2026-09-13
+## [0.1.3] - 2026-09-14
+
+### Bug Fixes
+- Fix ListCleanupViews parsing by setting views in nested items
 
 ### [MAJOR]
 - Fix Issues in some services like Discovery in where when the exporter-service is not available and unreachable the discovery-service keeps sending requests on a broken REST CALLs, Remove Noisy & Sensitive Logs from all the backend services and keep only the ones that are necessary for users to view, Fix notifier nats connection failing  maxAttended retries
-- Integrate secrets storage with redis, enhance the GHA pipelines, cleanup markdown files
 
 ## [0.0.1] - 2026-07-20
 

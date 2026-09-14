@@ -185,8 +185,31 @@ telark stores the AI provider key in the Secret `<app.name>-ai-provider-key`. To
 helm uninstall telark -n telark
 ```
 
-CRDs and existing custom resources are **not** removed (they carry `helm.sh/resource-policy: keep`). For a full teardown, delete the CRDs explicitly — this also deletes every telark custom resource:
+This removes every telark service **and the exporter's snapshot PVC** — back it up first if you need it. CRDs and custom resources are **not** removed (they carry `helm.sh/resource-policy: keep`), nor are the redis/NATS volumes or the AI provider key Secret, so a reinstall picks up where you left off.
+
+Before uninstalling, cancel active protection plans (so their admission policies are removed) and let in-progress rollbacks finish.
+
+### Full teardown
+
+Run after `helm uninstall`, **in this order**. Deleting the CRDs or namespace first hangs in `Terminating`: users, groups and roles carry `telark.io/*-cleanup` finalizers that only the (now removed) auth service clears. Those finalizers only tidy references between telark resources, which this teardown deletes anyway, so clearing them is safe.
 
 ```sh
+# 1. Clear the cleanup finalizers
+for crd in $(kubectl get crd -l app.kubernetes.io/part-of=telark -o name | cut -d/ -f2); do
+  kubectl get "$crd" -A -o jsonpath='{range .items[*]}{.metadata.namespace} {.metadata.name}{"\n"}{end}' |
+    while read -r ns name; do
+      kubectl patch "$crd" "$name" -n "$ns" --type merge -p '{"metadata":{"finalizers":null}}'
+    done
+done
+
+# 2. Delete the CRDs — this deletes every telark custom resource
 kubectl delete crd -l app.kubernetes.io/part-of=telark
+
+# 3. Only with an external policy engine (app.kyverno.enabled=false): leftover plan policies
+kubectl delete policies.kyverno.io -A -l telark.erpi/protection-plan
+
+# 4. Remaining volumes and the kept Secret
+kubectl delete namespace telark
 ```
+
+Already stuck in `Terminating`? Run step 1; the pending deletions complete on their own.

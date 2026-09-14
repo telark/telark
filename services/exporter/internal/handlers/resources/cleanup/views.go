@@ -61,5 +61,9 @@ func ListCleanupViews(w http.ResponseWriter, r *http.Request) {
 		views = append(views, projectCleanupView(&list.Items[i], target.RefKeys))
 	}
 	responseutils.LogAndSendResponse(w, http.StatusOK, response.OperationSuccess,
-		messageViewsProjected, views, nil)
+		messageViewsProjected, cleanupViewsResponse{Items: views}, nil)
+}
+
+type cleanupViewsResponse struct {
+	Items []resourcesshared.CleanupView `json:"items"`
 }

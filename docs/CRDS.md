@@ -1,6 +1,6 @@
 # CRD reference
 
-telark's custom resources are defined by the `telark-crds` chart. The group suffix is the app identity `app.name` (default `telark`); below it is shown as `<name>`. All are kept on uninstall (`helm.sh/resource-policy: keep`).
+telark's custom resources are defined by the `telark-crds` chart. The group suffix is the app identity `app.name` (default `telark`); below it is shown as `<name>`. All are kept on uninstall (`helm.sh/resource-policy: keep`); to remove them, follow the [full teardown](INSTALL.md#full-teardown).
 
 ## Group `erpi.<name>`
 

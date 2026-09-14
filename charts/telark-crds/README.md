@@ -2,7 +2,7 @@
 
 Custom resource definitions for [telark](https://telark.io). These ship **with** the `telark` chart as a subchart, so a normal `helm install telark` already includes them. Install this chart on its own only when managing CRDs out of band (e.g. GitOps, with `--set crds.enabled=false` on the app).
 
-CRDs are cluster-scoped and carry `helm.sh/resource-policy: keep`, so they survive an uninstall of this release. The `telark` chart reconciles the resources these definitions describe.
+CRDs are cluster-scoped and carry `helm.sh/resource-policy: keep`, so they survive an uninstall of this release — removing them is the [full teardown](https://github.com/telark/telark/blob/main/docs/INSTALL.md#full-teardown). The `telark` chart reconciles the resources these definitions describe.
 
 ## Standalone install
 

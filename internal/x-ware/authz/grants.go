@@ -19,8 +19,9 @@ type GrantSource interface {
 	Role(roleID string) (*roledata.RoleAsResource, error)
 }
 
-// An unreadable role or group is skipped, not fatal: one broken reference must
-// not lock every user out, nor pass silently.
+// A missing role or group is skipped, not fatal: one dangling reference must
+// not lock every user out, nor pass silently. An unreachable backend is fatal,
+// or a timeout would quietly shrink the grants into a denial.
 type Warner interface {
 	Warn(message string)
 }
@@ -34,7 +35,12 @@ func CollectGrants(source GrantSource, log Warner, userID string) (Grants, error
 	}
 
 	if userdata.AccountPhase(user.Status.Phase) != userdata.AccountPhaseActive {
-		return Grants{}, errors.New(string(dataerrors.ErrAuthzUserNotActive))
+		return Grants{}, ErrUserNotActive
+	}
+
+	roleIDs, err := roleIDsFor(source, log, user)
+	if err != nil {
+		return Grants{}, err
 	}
 
 	grants := Grants{
@@ -42,14 +48,16 @@ func CollectGrants(source GrantSource, log Warner, userID string) (Grants, error
 		Denied: map[string][]string{},
 	}
 
-	for _, roleID := range roleIDsFor(source, log, user) {
-		applyRole(&grants, source, log, roleID)
+	for _, roleID := range roleIDs {
+		if err := applyRole(&grants, source, log, roleID); err != nil {
+			return Grants{}, err
+		}
 	}
 
 	return grants, nil
 }
 
-func roleIDsFor(source GrantSource, log Warner, user *userdata.UserAsResource) []string {
+func roleIDsFor(source GrantSource, log Warner, user *userdata.UserAsResource) ([]string, error) {
 	roleIDs := make([]string, dataconstants.DefaultInitValue, len(user.AssignedRolesIDs))
 
 	for _, roleID := range user.AssignedRolesIDs {
@@ -63,25 +71,31 @@ func roleIDsFor(source GrantSource, log Warner, user *userdata.UserAsResource) [
 			continue
 		}
 		group, err := source.Group(*groupID)
-		if err != nil {
+		if errors.Is(err, ErrNotFound) {
 			warnf(log, dataerrors.ErrAuthzGroupSkipped, *groupID, err)
 			continue
+		}
+		if err != nil {
+			return nil, err
 		}
 		roleIDs = append(roleIDs, group.AssignedRolesIDs...)
 	}
 
-	return roleIDs
+	return roleIDs, nil
 }
 
-func applyRole(grants *Grants, source GrantSource, log Warner, roleID string) {
+func applyRole(grants *Grants, source GrantSource, log Warner, roleID string) error {
 	role, err := source.Role(roleID)
-	if err != nil {
+	if errors.Is(err, ErrNotFound) {
 		warnf(log, dataerrors.ErrAuthzRoleSkipped, roleID, err)
-		return
+		return nil
+	}
+	if err != nil {
+		return err
 	}
 
 	if !RoleGrantsAccess(role) {
-		return
+		return nil
 	}
 
 	for _, scope := range role.ScopesAndPermissions {
@@ -90,6 +104,7 @@ func applyRole(grants *Grants, source GrantSource, log Warner, roleID string) {
 			grants.Denied[scope.Scope] = append(grants.Denied[scope.Scope], *scope.Rules...)
 		}
 	}
+	return nil
 }
 
 // Only an Active, unexpired role confers anything.

@@ -1,7 +1,8 @@
 package authz
 
-// SessionValidator turns a session token into a user ID, or an error for an
-// invalid or expired session.
+// SessionValidator turns a session token into a user ID. A rejected token is
+// answered with ErrNotFound or ErrSessionExpired; any other error is read as
+// the backend being unreachable.
 type SessionValidator func(token string) (string, error)
 
 // BasicResolver is the no-cache Resolver a service without its own session cache

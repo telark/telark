@@ -1,6 +1,7 @@
 package authz
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -34,7 +35,7 @@ func (s stubResolver) UserIDForToken(token string) (string, error) {
 		return "", s.userErr
 	}
 	if token != testSessionToken {
-		return "", errStub
+		return "", authz.ErrNotFound
 	}
 	return s.userID, nil
 }
@@ -169,18 +170,36 @@ func TestInvalidSessionTokenIsUnauthorized(t *testing.T) {
 	}
 }
 
-func TestGrantsFailureIsServerError(t *testing.T) {
-	resolver := stubResolver{userID: testUserID, grantsErr: errStub}
-	r := request(testRouteKey)
-	r.Header.Set(dataconstants.HeaderSessionToken, testSessionToken)
-
-	rec, got := serve(t, newTestConfig(resolver), r)
-
-	if rec.Code != http.StatusInternalServerError {
-		t.Errorf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+// Only a backend that answered may deny; one that could not answer is reported
+// as unavailable so the client retries instead of logging the user out.
+func TestResolverErrorsAreVerdictsOrOutages(t *testing.T) {
+	tests := map[string]struct {
+		resolver stubResolver
+		want     int
+	}{
+		"session not found":       {stubResolver{userErr: authz.ErrNotFound}, http.StatusUnauthorized},
+		"session expired":         {stubResolver{userErr: authz.ErrSessionExpired}, http.StatusUnauthorized},
+		"session backend down":    {stubResolver{userErr: errStub}, http.StatusServiceUnavailable},
+		"user not found":          {stubResolver{userID: testUserID, grantsErr: authz.ErrNotFound}, http.StatusForbidden},
+		"user not active":         {stubResolver{userID: testUserID, grantsErr: authz.ErrUserNotActive}, http.StatusForbidden},
+		"user not found, wrapped": {stubResolver{userID: testUserID, grantsErr: fmt.Errorf("%w: u-1", authz.ErrNotFound)}, http.StatusForbidden},
+		"grants backend down":     {stubResolver{userID: testUserID, grantsErr: errStub}, http.StatusServiceUnavailable},
 	}
-	if got.called {
-		t.Error("handler ran despite unresolved grants")
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			r := request(testRouteKey)
+			r.Header.Set(dataconstants.HeaderSessionToken, testSessionToken)
+
+			rec, got := serve(t, newTestConfig(tc.resolver), r)
+
+			if rec.Code != tc.want {
+				t.Errorf("status = %d, want %d", rec.Code, tc.want)
+			}
+			if got.called {
+				t.Error("handler ran despite a resolver failure")
+			}
+		})
 	}
 }
 

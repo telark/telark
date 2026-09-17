@@ -4,6 +4,7 @@ import (
 	"crypto/subtle"
 	"errors"
 	"net/http"
+	"slices"
 
 	dataconstants "github.com/telark/data/constants"
 	dataerrors "github.com/telark/data/errors"
@@ -93,12 +94,12 @@ func (m *middleware) identifyUser(r *http.Request, req Requirement) (Identity, *
 
 	userID, err := m.config.Resolver.UserIDForToken(sessionToken)
 	if err != nil {
-		return Identity{}, &denial{http.StatusUnauthorized, string(dataerrors.ErrAuthzInvalidSession)}
+		return Identity{}, denialFor(err, http.StatusUnauthorized, dataerrors.ErrAuthzInvalidSession)
 	}
 
 	grants, err := m.config.Resolver.GrantsForUser(userID)
 	if err != nil {
-		return Identity{}, &denial{http.StatusInternalServerError, string(dataerrors.ErrAuthzGrantsUnavailable)}
+		return Identity{}, denialFor(err, http.StatusForbidden, dataerrors.ErrAuthzForbidden)
 	}
 
 	identity := Identity{UserID: userID, Grants: grants}
@@ -111,6 +112,16 @@ func (m *middleware) identifyUser(r *http.Request, req Requirement) (Identity, *
 	}
 
 	return identity, nil
+}
+
+// Only a backend that answered gets to deny; one that could not answer is an
+// outage, and an outage must never log a user out.
+func denialFor(err error, status int, message dataerrors.Error) *denial {
+	answered := slices.ContainsFunc(verdicts, func(verdict error) bool { return errors.Is(err, verdict) })
+	if !answered {
+		return &denial{http.StatusServiceUnavailable, string(dataerrors.ErrAuthzResolverUnavailable)}
+	}
+	return &denial{status, string(message)}
 }
 
 func (m *middleware) serviceTokenMatches(candidate string) bool {
@@ -140,6 +151,8 @@ func operationFor(status int) response.OperationStatus {
 		return response.OperationUnauthorized
 	case http.StatusForbidden:
 		return response.OperationForbidden
+	case http.StatusServiceUnavailable:
+		return response.OperationUnavailable
 	default:
 		return response.OperationError
 	}

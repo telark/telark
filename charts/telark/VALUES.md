@@ -303,6 +303,7 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.env.SNAPSHOTS_PVC_NAMESPACE | string | `"{{ .Values.app.namespace }}"` |  |
 | services.exporter.name | string | `"exporter-service"` |  |
 | services.exporter.pdb.enabled | bool | `false` |  |
+| services.exporter.autoscaling.enabled | bool | `false` |  |
 | services.exporter.replicas | int | `1` |  |
 | services.exporter.repository | string | `"exporter"` |  |
 | services.exporter.strategy | string | `"Recreate"` |  |

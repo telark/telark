@@ -172,7 +172,7 @@ Per-service block. Gates default to `true` unless noted.
 | `envFromSecret` | `{}` | `valueFrom: secretKeyRef` map (secret `<app.name>-<name>-secret`) |
 | `volumes` / `volumeMounts` | `[]` | Pod volumes + mounts |
 | `pdb.enabled` | varies | PodDisruptionBudget |
-| `autoscaling.enabled` | `false` | Per-service HPA (auth/discovery/enrichment/notifier/ui; never exporter). Inherits `app.serviceDefaults.autoscaling.*`; on in `performance` |
+| `autoscaling.enabled` | mode | Per-service HPA (auth/discovery/enrichment/notifier/ui; never exporter). Inherits `app.serviceDefaults.autoscaling.*`; on in `standard` and `performance`, off in `minimal` |
 | `topologySpread.*` | unset | TopologySpreadConstraints |
 
 #### Service identities

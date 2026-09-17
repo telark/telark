@@ -4,7 +4,7 @@
 {{- $root := .root -}}
 {{- $serviceConfig := index $values.services $service -}}
 {{- $serviceDefaults := $values.app.serviceDefaults | default dict -}}
-{{- $autoscaling := merge (deepCopy ($serviceConfig.autoscaling | default dict)) ($serviceDefaults.autoscaling | default dict) -}}
+{{- $autoscaling := mergeOverwrite (deepCopy ($serviceDefaults.autoscaling | default dict)) ($serviceConfig.autoscaling | default dict) -}}
 {{- if $autoscaling.enabled -}}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler

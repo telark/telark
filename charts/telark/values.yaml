@@ -198,6 +198,8 @@ services:
     # released the volume. Run it HA with app.mode=performance on a RWX class.
     replicas: 1
     strategy: Recreate
+    autoscaling:
+      enabled: false
     env:
       SNAPSHOTS_PATH: &snapshotsPath "/snapshots"
       SNAPSHOTS_PVC_NAME: '{{ include "telark.exporterSnapshotsPvcName" . }}'

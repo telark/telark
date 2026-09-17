@@ -127,7 +127,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 
 The stateless services — auth, discovery, enrichment, notifier, ui — can run behind a HorizontalPodAutoscaler (`autoscaling/v2`, CPU-based). The exporter never autoscales (it holds a ReadWriteOnce volume). HPAs need metrics-server, which ships with the chart.
 
-**`performance` mode turns autoscaling on automatically** (min 3, max 5). In any mode you can enable or tune it per service:
+**`standard` and `performance` turn autoscaling on** (start at 1, max 3 and 5); `minimal` keeps it off. In any mode you can enable, disable or tune it per service:
 
 ```sh
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
@@ -139,7 +139,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 
 | Key | Default | Description |
 |---|---|---|
-| `services.<svc>.autoscaling.enabled` | `false` | Turn the HPA on for that service (on in `performance`) |
+| `services.<svc>.autoscaling.enabled` | mode | Turn the HPA on or off for that service (on in `standard` and `performance`, off in `minimal`) |
 | `services.<svc>.autoscaling.minReplicas` | `1` | Replica floor |
 | `services.<svc>.autoscaling.maxReplicas` | `3` | Replica ceiling |
 | `services.<svc>.autoscaling.targetCPUUtilizationPercentage` | `80` | Scale-up CPU target |

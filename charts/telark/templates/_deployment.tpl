@@ -11,7 +11,7 @@
 {{- $useRedis := dig "useRedis" true $serviceConfig -}}
 {{- $useNatsCreds := dig "useNatsCreds" false $serviceConfig -}}
 {{- $replicas := default $serviceDefaults.replicas $serviceConfig.replicas | default 1 -}}
-{{- $autoscaling := merge (deepCopy ($serviceConfig.autoscaling | default dict)) ($serviceDefaults.autoscaling | default dict) -}}
+{{- $autoscaling := mergeOverwrite (deepCopy ($serviceDefaults.autoscaling | default dict)) ($serviceConfig.autoscaling | default dict) -}}
 {{- $port := default $serviceDefaults.port $serviceConfig.port | default 8080 -}}
 {{- $tgps := default $serviceDefaults.terminationGracePeriodSec $serviceConfig.terminationGracePeriodSec | default 30 -}}
 {{- $strategy := default $serviceDefaults.strategy $serviceConfig.strategy -}}

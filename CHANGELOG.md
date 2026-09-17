@@ -3,6 +3,11 @@
 All notable changes to telark are documented here.
 Commits follow [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.3.0] - 2026-09-17
+
+### [MAJOR]
+- Fix all bugs for last storm test
+
 ## [0.2.1] - 2026-09-17
 
 ### Bug Fixes

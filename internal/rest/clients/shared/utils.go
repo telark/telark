@@ -162,7 +162,13 @@ func resultBody(result *base.HTTPResult) ([]byte, error) {
 	return result.Body, nil
 }
 
+// ErrNotFound lets a caller tell "this resource does not exist" from a failed call.
+var ErrNotFound = stderrors.New("resource not found")
+
 func parseSingleResponse[T any](result *base.HTTPResult) (*T, error) {
+	if result.Status == http.StatusNotFound {
+		return nil, ErrNotFound
+	}
 	if result.Status != http.StatusOK {
 		return nil, fmt.Errorf(string(constants.ErrStatus), result.Status)
 	}

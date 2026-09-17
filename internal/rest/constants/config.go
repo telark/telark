@@ -31,6 +31,8 @@ const (
 	EmptyString                                   = ""
 	OmitEmpty                                     = "omitempty"
 	QuerySeparator                                = "?"
+	HeaderCacheControl                            = "Cache-Control"
+	CacheControlNoCache                           = "no-cache"
 	NameParam                                     = "{name}"
 	UserIDParam                                   = "{userId}"
 	GroupIDParam                                  = "{groupId}"

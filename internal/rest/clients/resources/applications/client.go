@@ -33,6 +33,16 @@ func (c *Client) GetApplicationByName(name string) (*appresource.Application, er
 	return shared.GetTyped[appresource.Application](byName(c.Client, name), eps.GetApplicationByName)
 }
 
+// GetApplicationByNameFresh bypasses the exporter's read cache; a caller that
+// derives the next generation from the stored copy must never see a stale one.
+func (c *Client) GetApplicationByNameFresh(name string) (*appresource.Application, error) {
+	return shared.GetWithHeaders[appresource.Application](
+		byName(c.Client, name),
+		eps.GetApplicationByName,
+		map[string]string{constants.HeaderCacheControl: constants.CacheControlNoCache},
+	)
+}
+
 func (c *Client) GetAllApplications() ([]*appresource.Application, error) {
 	return shared.GetListTyped[*appresource.Application](c.Client, eps.GetAllApplications)
 }
@@ -45,9 +55,9 @@ func (c *Client) DeleteApplicationByName(name string) *response.GenericResponse 
 	return byName(c.Client, name).Delete(eps.DeleteApplicationByName)
 }
 
-func (*Client) CleanupApplicationByName(name string) *response.GenericResponse {
+func (*Client) ResetApplicationByName(name string) (*response.GenericResponse, error) {
 	discoveryClient := shared.New(base.Discovery)
-	return byName(discoveryClient, name).Delete(eps.CleanupApplication)
+	return byName(discoveryClient, name).Post(eps.ResetApplication)
 }
 
 func byName(c *shared.Client, name string) *shared.Client {

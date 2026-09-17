@@ -3,6 +3,11 @@
 All notable changes to telark are documented here.
 Commits follow [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.2.1] - 2026-09-17
+
+### Bug Fixes
+- Fix login with passkeys with the proper error handling and remove the login ceremonu lock, adjust the modes config values
+
 ## [0.2.0] - 2026-09-17
 
 ### [MAJOR]

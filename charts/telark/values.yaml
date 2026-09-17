@@ -315,7 +315,7 @@ services:
     name: "auth-service"
     repository: "auth"
     # @ignore
-    version: 0.3.6
+    version: 0.3.7
     category: "auth"
     terminationGracePeriodSec: 30
     env:
@@ -351,7 +351,7 @@ services:
     name: "ui-service"
     repository: "ui"
     # @ignore
-    version: 0.2.0
+    version: 0.2.1
     category: "ui"
     terminationGracePeriodSec: 30
     # Static assets behind nginx: it serves no /api/v1/status route, so probes

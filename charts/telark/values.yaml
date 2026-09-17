@@ -184,7 +184,7 @@ services:
     name: "exporter-service"
     repository: "exporter"
     # @ignore
-    version: 3.3.7
+    version: 4.0.0
     category: "export"
     # One replica: snapshots sit on a ReadWriteOnce volume, so a second replica
     # lands on another node, cannot mount it, and stays Pending. Recreate for the
@@ -214,7 +214,7 @@ services:
     name: "discovery-service"
     repository: "discovery"
     # @ignore
-    version: 1.9.4
+    version: 2.0.0
     category: "sync"
     replicas: 2
     includeSecurity: false

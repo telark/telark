@@ -350,7 +350,7 @@ services:
     name: "ui-service"
     repository: "ui"
     # @ignore
-    version: 0.2.0
+    version: 0.2.1
     category: "ui"
     terminationGracePeriodSec: 30
     # Static assets behind nginx; one replica serves standard.

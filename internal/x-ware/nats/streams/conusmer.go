@@ -1,6 +1,8 @@
 package streams
 
 import (
+	"errors"
+
 	"github.com/nats-io/nats.go"
 	"github.com/telark/x-ware/nats/core"
 )
@@ -10,6 +12,8 @@ func DefaultConsumerConfig() *nats.ConsumerConfig {
 		DeliverPolicy: nats.DeliverAllPolicy,
 		AckPolicy:     nats.AckExplicitPolicy,
 		MaxDeliver:    StreamMaxDeliverCount,
+		MaxAckPending: StreamMaxAckPending,
+		AckWait:       StreamAckWait,
 	}
 }
 
@@ -21,5 +25,11 @@ func CreateConsumer(c *core.NATSClient, streamName, consumerName, topic,
 	cfg.Durable = consumerName
 	cfg.FilterSubject = topic
 	cfg.DeliverGroup = queue
-	return c.JetStream.AddConsumer(streamName, cfg)
+	info, err := c.JetStream.AddConsumer(streamName, cfg)
+	// A durable left by an older release keeps its AckWait/MaxAckPending, and
+	// AddConsumer rejects the mismatch instead of converging it.
+	if errors.Is(err, nats.ErrConsumerNameAlreadyInUse) {
+		return c.JetStream.UpdateConsumer(streamName, cfg)
+	}
+	return info, err
 }

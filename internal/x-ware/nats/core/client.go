@@ -47,7 +47,8 @@ func initJetStreamClient(natsConfig natsConfig) (*NATSClient, error) {
 	url := GetNATSClientURL(natsConfig.Host)
 
 	nc, err := nats.Connect(url,
-		nats.UserInfo(natsConfig.User, natsConfig.Password))
+		nats.UserInfo(natsConfig.User, natsConfig.Password),
+		nats.MaxReconnects(unlimitedReconnects))
 	if err != nil {
 		return nil, fmt.Errorf(string(errors.ErrNatsConnectionFailed), err)
 	}

@@ -17,7 +17,7 @@ func NewNatsManager() NatsManagerInterface {
 
 func (nm *NatsManager) GetClient() (*NATSClient, error) {
 	nm.mu.RLock()
-	if nm.client != nil && nm.isConnected {
+	if nm.healthy() {
 		nm.mu.RUnlock()
 		return nm.client, nil
 	}
@@ -26,8 +26,15 @@ func (nm *NatsManager) GetClient() (*NATSClient, error) {
 	nm.mu.Lock()
 	defer nm.mu.Unlock()
 
-	if nm.client != nil && nm.isConnected {
+	if nm.healthy() {
 		return nm.client, nil
+	}
+	// A connection the server dropped for good (pod rescheduled, reconnect budget
+	// exhausted) must not be handed out forever; drop it and dial again.
+	if nm.client != nil {
+		nm.client.Close()
+		nm.client = nil
+		nm.isConnected = false
 	}
 
 	client, err := nm.InitNatsClient()
@@ -43,12 +50,12 @@ func (nm *NatsManager) GetClient() (*NATSClient, error) {
 func (nm *NatsManager) IsConnected() bool {
 	nm.mu.RLock()
 	defer nm.mu.RUnlock()
+	return nm.healthy()
+}
 
-	if nm.client == nil {
-		return false
-	}
-
-	return nm.isConnected && nm.client.Conn.IsConnected()
+func (nm *NatsManager) healthy() bool {
+	return nm.client != nil && nm.isConnected && nm.client.Conn != nil &&
+		nm.client.Conn.IsConnected() && !nm.client.Conn.IsClosed()
 }
 
 func (nm *NatsManager) Close() error {

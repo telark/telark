@@ -21,13 +21,14 @@ const (
 
 const (
 	DefaultConnectionTimeout = 10
+	unlimitedReconnects      = -1
 	MaxReconnectAttempts     = 5
 	ReconnectDelay           = 5
 )
 
 const (
-	Client          port = 4222
-	Monitoring      port = 8222
+	Client     port = 4222
+	Monitoring port = 8222
 
 	Grouper        Group = "groupers"
 	Applications   Group = "applications"

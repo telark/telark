@@ -22,6 +22,7 @@ const (
 	OperationUnprocessed   OperationStatus = "Unprocessed"
 	OperationUnauthorized  OperationStatus = "Unauthorized"
 	OperationForbidden     OperationStatus = "Forbidden"
+	OperationUnavailable   OperationStatus = "Unavailable"
 	OperationError         OperationStatus = "Error"
 )
 

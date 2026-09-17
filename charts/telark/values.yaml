@@ -226,7 +226,7 @@ services:
     name: "discovery-service"
     repository: "discovery"
     # @ignore
-    version: 2.0.0
+    version: 2.0.1
     category: "sync"
     includeSecurity: false
     useNatsCreds: true

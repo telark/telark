@@ -7,7 +7,7 @@ const (
 	SeverityHigh          = "high"
 	SeverityMedium        = "medium"
 	SeverityLow           = "low"
-	DriftCategoryMinCount = 2
+	DriftCategoryMinCount = 3
 	SourceHPA             = "hpa"
 	SourceOperator        = "operator"
 	SourceUnknown         = "unknown"

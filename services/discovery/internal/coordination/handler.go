@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	applicationmodel "github.com/telark/data/resources/application"
@@ -28,18 +29,19 @@ func executeHandler(
 	ctx context.Context,
 	rdb *redis.Client,
 	namespace string,
+	appName string,
 	operation string,
 ) error {
 	switch operation {
 	case constants.OperationTypePrewarm:
-		return executePrewarmHandler(ctx, rdb, namespace)
+		return executePrewarmHandler(ctx, rdb, namespace, appName)
 	default:
 		return fmt.Errorf(string(constants.ErrUnknownOperation), operation)
 	}
 }
 
 func RunPrewarmForNamespace(ctx context.Context, rdb *redis.Client, namespace string) error {
-	return executePrewarmHandler(ctx, rdb, namespace)
+	return executePrewarmHandler(ctx, rdb, namespace, constants.EmptyString)
 }
 
 func executeSyncHandler(ctx context.Context, rdb *redis.Client, appName string) error {
@@ -138,7 +140,7 @@ func RunForceSyncJob(
 	lockKey := constants.KeyPrefixLockApp + appName
 	lockValue := replicaID + constants.ColonSeparator + appName
 
-	acquired, err := coord.Lock.Acquire(ctx, lockKey, lockValue, coord.Config.LockTTL)
+	acquired, err := acquireLockWithWait(ctx, coord, lockKey, lockValue)
 	if err != nil || !acquired {
 		return fmt.Errorf(string(constants.ErrForceSyncLockNotAcquired), appName)
 	}
@@ -153,7 +155,27 @@ func RunForceSyncJob(
 	return handlerErr
 }
 
-func executePrewarmHandler(ctx context.Context, rdb *redis.Client, namespace string) error {
+// The informer consumer holds the same per-app lock while it processes an app;
+// a force sync that lands in that window waits its turn instead of failing.
+func acquireLockWithWait(
+	ctx context.Context,
+	coord *CoordinationBundle,
+	lockKey, lockValue string,
+) (bool, error) {
+	for {
+		acquired, err := coord.Lock.Acquire(ctx, lockKey, lockValue, coord.Config.LockTTL)
+		if err != nil || acquired {
+			return acquired, err
+		}
+		select {
+		case <-ctx.Done():
+			return false, nil
+		case <-time.After(constants.ForceSyncLockRetryInterval):
+		}
+	}
+}
+
+func executePrewarmHandler(ctx context.Context, rdb *redis.Client, namespace string, appName string) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -174,6 +196,9 @@ func executePrewarmHandler(ctx context.Context, rdb *redis.Client, namespace str
 
 	inputs := discoveryshared.ToDerivationInputs(resources)
 	opts := prewarm.BuildPrewarmApplicationOptions()
+	if appName != constants.EmptyString {
+		opts = prewarm.BuildPrewarmApplicationOptionsForApp(appName)
+	}
 	resp := serviceapp.GetApplications(ctx, rdb, inputs, opts)
 
 	if _, ok := resp.Data.(applicationmodel.ResponseData); !ok {

@@ -60,11 +60,15 @@ func (m *Manager) listRefsInNamespaces(
 }
 
 func refFromUnstructured(u *unstructured.Unstructured) kcoregroup.ResourceRef {
+	cms, secs := kcoregroup.WorkloadConfigRefs(u)
 	return kcoregroup.ResourceRef{
-		Namespace: u.GetNamespace(),
-		Kind:      u.GetKind(),
-		Name:      u.GetName(),
-		Labels:    u.GetLabels(),
+		Namespace:     u.GetNamespace(),
+		Kind:          u.GetKind(),
+		Name:          u.GetName(),
+		Labels:        u.GetLabels(),
+		Owners:        kcoregroup.OwnersOf(u),
+		ConfigMapRefs: cms,
+		SecretRefs:    secs,
 	}
 }
 
@@ -72,7 +76,9 @@ func (m *Manager) getCachedManifest(kind, name, ns string) (map[string]any, bool
 	if m == nil {
 		return nil, false
 	}
-	key := ns + "/" + kind + "/" + name
+	// Indexers key by namespace/name; the kind is checked on the hit because
+	// every watched resource of the namespace shares the same key space.
+	key := ns + "/" + name
 	m.informersMu.RLock()
 	defer m.informersMu.RUnlock()
 	for _, inf := range m.informers {
@@ -81,7 +87,7 @@ func (m *Manager) getCachedManifest(kind, name, ns string) (map[string]any, bool
 			continue
 		}
 		u, ok := obj.(*unstructured.Unstructured)
-		if !ok || u == nil {
+		if !ok || u == nil || u.GetKind() != kind {
 			continue
 		}
 		cp := u.DeepCopy()

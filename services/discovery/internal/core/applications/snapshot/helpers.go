@@ -77,3 +77,18 @@ func NamespacesForGeneration(snaps []application.ApplicationSnapshot, generation
 	slices.Sort(out)
 	return out
 }
+
+// Pruned returns the entries retention dropped between before and after.
+func Pruned(before, after []application.ApplicationSnapshot) []application.ApplicationSnapshot {
+	kept := make(map[string]struct{}, len(after))
+	for i := range after {
+		kept[after[i].Path] = struct{}{}
+	}
+	var out []application.ApplicationSnapshot
+	for i := range before {
+		if _, ok := kept[before[i].Path]; !ok {
+			out = append(out, before[i])
+		}
+	}
+	return out
+}

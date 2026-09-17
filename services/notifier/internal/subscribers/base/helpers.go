@@ -2,6 +2,8 @@ package base
 
 import (
 	"fmt"
+	"net/http"
+	"time"
 
 	"github.com/nats-io/nats.go"
 	"github.com/telark/data/errors"
@@ -9,6 +11,25 @@ import (
 	"github.com/telark/data/resources/shared"
 	"github.com/telark/notifier/internal/constants"
 )
+
+// NakWithLog hands the message back to JetStream for redelivery: acking a
+// transient downstream failure dropped the publish and froze the application
+// behind the generation the leader had already recorded. The dedup entry goes
+// too, or the redelivery would be skipped as a duplicate of this attempt.
+func (s *BaseSubscriber) NakWithLog(m *nats.Msg, subject, logMsg string) error {
+	logger.GetLogger(constants.PrefixManagerSubscriber).Error(logMsg)
+	s.processedMessages.Delete(s.generateMessageKey(m))
+	if err := m.NakWithDelay(constants.RetryDelaySeconds * time.Second); err != nil {
+		return fmt.Errorf(string(errors.ErrNatsNakMsg), subject, err)
+	}
+	return nil
+}
+
+// TransientStatus is a failure worth redelivering: no HTTP answer at all, a
+// 5xx, or a conflict on the create fallback (the resource exists after all).
+func TransientStatus(status int) bool {
+	return status < http.StatusOK || status >= http.StatusInternalServerError || status == http.StatusConflict
+}
 
 func AckWithLog(m *nats.Msg, subject, logMsg string, isError bool) error {
 	lg := logger.GetLogger(constants.PrefixManagerSubscriber)

@@ -71,9 +71,9 @@ func railNamespaceExists(ctx context.Context, kube *kubernetes.Clientset, app *a
 		ns := app.Namespaces.Items[i].Name
 		got, err := kube.CoreV1().Namespaces().Get(ctx, ns, metav1.GetOptions{})
 		if err != nil {
+			// A deleted namespace took the app's resources with it: nothing left to wait for.
 			if k8serrors.IsNotFound(err) {
-				return block(constants.RailNamespaceExists,
-					fmt.Sprintf("namespace %s not found (likely deleted)", ns))
+				continue
 			}
 			return errored(constants.RailNamespaceExists, err)
 		}
@@ -83,6 +83,21 @@ func railNamespaceExists(ctx context.Context, kube *kubernetes.Clientset, app *a
 		}
 	}
 	return pass(constants.RailNamespaceExists)
+}
+
+// namespacesGone — every namespace the app owns is deleted. The informers stop
+// with the namespace, so the stored resource list is stale and must be ignored.
+func namespacesGone(ctx context.Context, kube *kubernetes.Clientset, app *appresource.Application) bool {
+	if app == nil || kube == nil || len(app.Namespaces.Items) == constants.DefaultInitValue {
+		return false
+	}
+	for i := range app.Namespaces.Items {
+		_, err := kube.CoreV1().Namespaces().Get(ctx, app.Namespaces.Items[i].Name, metav1.GetOptions{})
+		if !k8serrors.IsNotFound(err) {
+			return false
+		}
+	}
+	return true
 }
 
 // railNamespaceIncluded — none of the app's namespaces are in the excluded list.
@@ -174,7 +189,7 @@ func railNoGenerationLock(ctx context.Context, rdb redis.Cmdable, appName string
 // railCleanupCooldown — no recent manual cleanup attempt cooling down.
 func railCleanupCooldown(ctx context.Context, rdb redis.Cmdable, appName string) railResult {
 	return railRedisKeyAbsent(ctx, rdb, constants.RailCleanupCooldown,
-		constants.KeyPrefixCleanupCooldown+appName)
+		constants.KeyPrefixResetCooldown+appName)
 }
 
 // railSustainedAbsence — empty streak count meets threshold.

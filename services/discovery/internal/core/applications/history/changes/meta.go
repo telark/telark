@@ -53,6 +53,11 @@ func classifyOneChange(c application.ApplicationChange, flags *changeClassFlags)
 	case ChangeFieldHealth:
 		classifyHealthChange(c, flags)
 	default:
+		if IsWorkloadTemplateField(c.Field) {
+			flags.hasDeployment = true
+		} else if IsManifestField(c.Field) {
+			flags.hasConfig = true
+		}
 	}
 }
 

@@ -2,10 +2,12 @@ package informers
 
 import (
 	"context"
+	"slices"
 
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/discovery/derivation"
 	discoveryshared "github.com/telark/discovery/internal/discovery/shared"
+	kcoregroup "github.com/telark/kcore/resources/group"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -25,8 +27,14 @@ func (m *Manager) appGroupFromCache(
 		return constants.EmptyString
 	}
 	refs, ok := m.listRefsInNamespaces(ctx, map[string]struct{}{ns: {}})
-	if !ok || len(refs) == constants.DefaultInitValue {
+	if !ok {
 		return constants.EmptyString
+	}
+	// A deleted object has already left the cache; group it with what remains.
+	if !slices.ContainsFunc(refs, func(r kcoregroup.ResourceRef) bool {
+		return r.Namespace == ns && r.Kind == u.GetKind() && r.Name == u.GetName()
+	}) {
+		refs = append(refs, refFromUnstructured(u))
 	}
 	inputs := discoveryshared.ToDerivationInputs(refs)
 	withGroups := derivation.GroupByWorkloadAnchor(inputs)

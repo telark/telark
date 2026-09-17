@@ -9,8 +9,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/redis/go-redis/v9"
@@ -22,7 +20,7 @@ import (
 	responseutils "github.com/telark/rest/utils/response"
 )
 
-func CleanupApplicationData(w http.ResponseWriter, r *http.Request) {
+func ResetApplication(w http.ResponseWriter, r *http.Request) {
 	name, err := sharedhelper.GetPathParam(w, r, constants.NameParam)
 	if err != nil {
 		return
@@ -35,39 +33,38 @@ func CleanupApplicationData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), constants.AppCleanupHandlerTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), constants.AppResetHandlerTimeout)
 	defer cancel()
 
-	if forwarded := forwardCleanupToLeaderIfNeeded(ctx, w, r, name); forwarded {
+	if forwarded := forwardResetToLeaderIfNeeded(ctx, w, r, name); forwarded {
 		return
 	}
 
 	rdb := redishelper.NewRedisClient()
-	if shouldSkipCleanup(ctx, rdb, name) {
-		sendCleanupResponse(w, name)
+	if shouldSkipReset(ctx, rdb, name) {
+		sendResetResponse(w, name)
 		return
 	}
 
-	RunCleanup(ctx, rdb, name)
-	sendCleanupResponse(w, name)
+	RunReset(ctx, rdb, name)
+	sendResetResponse(w, name)
 }
 
-// RunCleanup performs the destructive cleanup steps (Redis state, snapshot
-// directory, exporter CRD) for an application. Loop-guard and leader-forward
+// RunReset performs the destructive reset steps (Redis state, exporter CRD;
+// the exporter removes the CRD's snapshot files) for an application. Loop-guard and leader-forward
 // are NOT performed here — callers (HTTP handler / detector loop) own gating.
 // Safe to call from any leader-side context.
-func RunCleanup(ctx context.Context, rdb *redis.Client, name string) {
+func RunReset(ctx context.Context, rdb *redis.Client, name string) {
 	lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
-	lg.Info(fmt.Sprintf(string(constants.LogAppCleanupStarted), name))
+	lg.Info(fmt.Sprintf(string(constants.LogAppResetStarted), name))
 	if rdb != nil {
-		cleanupRedisByPatterns(ctx, rdb, name)
+		deleteRedisByPatterns(ctx, rdb, name)
 	}
-	cleanupSnapshotDirectory(name)
-	cleanupApplicationCRD(name)
-	lg.Info(fmt.Sprintf(string(constants.LogAppCleanupDone), name))
+	deleteApplicationCRD(name)
+	lg.Info(fmt.Sprintf(string(constants.LogAppResetDone), name))
 }
 
-func forwardCleanupToLeaderIfNeeded(ctx context.Context, w http.ResponseWriter, r *http.Request, name string) bool {
+func forwardResetToLeaderIfNeeded(ctx context.Context, w http.ResponseWriter, r *http.Request, name string) bool {
 	coord, replicaID := getCoordinationBundle()
 	if coord == nil || strings.TrimSpace(replicaID) == constants.EmptyString {
 		return false
@@ -85,8 +82,8 @@ func forwardCleanupToLeaderIfNeeded(ctx context.Context, w http.ResponseWriter, 
 		return false
 	}
 	lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
-	lg.Info(fmt.Sprintf(string(constants.LogAppCleanupForwarding), name, leaderID))
-	if err := proxyCleanupRequestToLeader(ctx, w, r, name, leaderID); err != nil {
+	lg.Info(fmt.Sprintf(string(constants.LogAppResetForwarding), name, leaderID))
+	if err := proxyResetRequestToLeader(ctx, w, r, name, leaderID); err != nil {
 		responseutils.LogAndSendResponse(
 			w, http.StatusBadGateway, response.OperationError, err.Error(), nil, err,
 		)
@@ -94,26 +91,26 @@ func forwardCleanupToLeaderIfNeeded(ctx context.Context, w http.ResponseWriter, 
 	return true
 }
 
-func proxyCleanupRequestToLeader(
+func proxyResetRequestToLeader(
 	ctx context.Context,
 	w http.ResponseWriter,
 	r *http.Request,
 	name string,
 	leaderID string,
 ) error {
-	targetURL, err := buildLeaderCleanupURL(leaderID, name)
+	targetURL, err := buildLeaderResetURL(leaderID, name)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, targetURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, nil)
 	if err != nil {
-		return fmt.Errorf(string(constants.ErrAppCleanupLeaderForwardFailed), leaderID, err)
+		return fmt.Errorf(string(constants.ErrAppResetLeaderForwardFailed), leaderID, err)
 	}
 	req.Header = r.Header.Clone()
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf(string(constants.ErrAppCleanupLeaderForwardFailed), leaderID, err)
+		return fmt.Errorf(string(constants.ErrAppResetLeaderForwardFailed), leaderID, err)
 	}
 	defer func() {
 		_ = resp.Body.Close()
@@ -121,10 +118,10 @@ func proxyCleanupRequestToLeader(
 
 	body, readErr := io.ReadAll(resp.Body)
 	if readErr != nil {
-		return fmt.Errorf(string(constants.ErrAppCleanupLeaderForwardFailed), leaderID, readErr)
+		return fmt.Errorf(string(constants.ErrAppResetLeaderForwardFailed), leaderID, readErr)
 	}
 	if resp.StatusCode >= http.StatusBadRequest {
-		return fmt.Errorf(string(constants.ErrAppCleanupLeaderForwardStatus), resp.StatusCode, string(body))
+		return fmt.Errorf(string(constants.ErrAppResetLeaderForwardStatus), resp.StatusCode, string(body))
 	}
 
 	maps.Copy(w.Header(), resp.Header)
@@ -133,8 +130,8 @@ func proxyCleanupRequestToLeader(
 	return nil
 }
 
-func buildLeaderCleanupURL(leaderID string, name string) (string, error) {
-	rawPath := fmt.Sprintf(constants.CleanupProxyPathFormat, url.PathEscape(strings.TrimSpace(name)))
+func buildLeaderResetURL(leaderID string, name string) (string, error) {
+	rawPath := fmt.Sprintf(constants.ResetProxyPathFormat, url.PathEscape(strings.TrimSpace(name)))
 	u := &url.URL{
 		Scheme: constants.HTTPScheme,
 		Host:   net.JoinHostPort(strings.TrimSpace(leaderID), constants.MainPort),
@@ -145,43 +142,43 @@ func buildLeaderCleanupURL(leaderID string, name string) (string, error) {
 	}
 	parsed, err := url.Parse(u.String())
 	if err != nil {
-		return constants.EmptyString, fmt.Errorf(string(constants.ErrAppCleanupLeaderForwardFailed), leaderID, err)
+		return constants.EmptyString, fmt.Errorf(string(constants.ErrAppResetLeaderForwardFailed), leaderID, err)
 	}
 	return parsed.String(), nil
 }
 
-func shouldSkipCleanup(ctx context.Context, rdb *redis.Client, name string) bool {
+func shouldSkipReset(ctx context.Context, rdb *redis.Client, name string) bool {
 	if rdb == nil {
 		return false
 	}
-	key := constants.KeyPrefixCleanupCooldown + name
+	key := constants.KeyPrefixResetCooldown + name
 	count, err := rdb.Incr(ctx, key).Result()
 	if err != nil {
 		return false
 	}
 	if count == constants.DefaultAddValue {
-		_ = rdb.Expire(ctx, key, constants.CleanupCooldownTTL).Err()
+		_ = rdb.Expire(ctx, key, constants.ResetCooldownTTL).Err()
 		return false
 	}
-	if count == constants.CleanupLoopGuardLogAt {
+	if count == constants.ResetLoopGuardLogAt {
 		lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
-		lg.Error(fmt.Sprintf(string(constants.LogAppCleanupLoopGuard), count, name))
+		lg.Error(fmt.Sprintf(string(constants.LogAppResetLoopGuard), count, name))
 	}
 	return true
 }
 
-func sendCleanupResponse(w http.ResponseWriter, name string) {
+func sendResetResponse(w http.ResponseWriter, name string) {
 	responseutils.LogAndSendResponse(
 		w,
 		http.StatusOK,
 		response.OperationSuccess,
-		constants.ApplicationCleanupMessage,
+		constants.ApplicationResetMessage,
 		map[string]any{"name": name},
 		nil,
 	)
 }
 
-func cleanupRedisByPatterns(ctx context.Context, rdb *redis.Client, appName string) {
+func deleteRedisByPatterns(ctx context.Context, rdb *redis.Client, appName string) {
 	patterns := []string{
 		constants.ForceSyncStateKeyPrefix + appName + constants.Wildcard,
 		constants.KeyPrefixLockApp + appName + constants.Wildcard,
@@ -189,6 +186,10 @@ func cleanupRedisByPatterns(ctx context.Context, rdb *redis.Client, appName stri
 		constants.KeyPrefixGraceScale + appName + constants.Wildcard,
 		constants.KeyPrefixIncidentState + appName + constants.Wildcard,
 		constants.KeyPrefixOpState + appName + constants.ColonSeparator + constants.Wildcard,
+		constants.KeyPrefixCoalesceBuffer + appName,
+		constants.KeyPrefixLockGen + appName + constants.ColonSeparator + constants.Wildcard,
+		constants.ForceSyncDedupKeyPrefix + appName,
+		constants.KeyPrefixRollbackApplying + appName,
 	}
 	for i := range patterns {
 		deletePattern(ctx, rdb, patterns[i])
@@ -201,12 +202,12 @@ func deletePattern(ctx context.Context, rdb *redis.Client, pattern string) {
 	for {
 		keys, nextCursor, err := rdb.Scan(ctx, cursor, pattern, constants.DefaultQueueSize).Result()
 		if err != nil {
-			lg.Error(fmt.Sprintf(string(constants.ErrAppCleanupRedisScanFailed), pattern, err))
+			lg.Error(fmt.Sprintf(string(constants.ErrAppResetRedisScanFailed), pattern, err))
 			return
 		}
 		if len(keys) > constants.DefaultInitValue {
 			if delErr := rdb.Del(ctx, keys...).Err(); delErr != nil {
-				lg.Error(fmt.Sprintf(string(constants.ErrAppCleanupRedisDeleteFailed), pattern, delErr))
+				lg.Error(fmt.Sprintf(string(constants.ErrAppResetRedisDeleteFailed), pattern, delErr))
 			}
 		}
 		cursor = nextCursor
@@ -216,29 +217,10 @@ func deletePattern(ctx context.Context, rdb *redis.Client, pattern string) {
 	}
 }
 
-func cleanupSnapshotDirectory(appName string) {
-	lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
-	basePath := filepath.Clean(filepath.Join(
-		constants.DefaultSnapshotsBasePath,
-		constants.DefaultSnapshotScopeDirectory,
-	))
-	appPath := filepath.Clean(filepath.Join(
-		basePath,
-		appName,
-	))
-	if !strings.HasPrefix(appPath, basePath+string(os.PathSeparator)) {
-		lg.Error(fmt.Sprintf(string(constants.ErrAppCleanupSnapshotPathInvalid), appName))
-		return
-	}
-	if err := os.RemoveAll(appPath); err != nil {
-		lg.Error(fmt.Sprintf(string(constants.ErrAppCleanupSnapshotDeleteFailed), appName, err))
-	}
-}
-
-func cleanupApplicationCRD(appName string) {
+func deleteApplicationCRD(appName string) {
 	lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
 	resp := clients.NewExporterClient().DeleteApplicationByName(appName)
 	if resp == nil || (resp.Status != http.StatusOK && resp.Status != http.StatusNotFound) {
-		lg.Error(fmt.Sprintf(string(constants.ErrAppCleanupExporterDeleteFailed), appName, resp))
+		lg.Error(fmt.Sprintf(string(constants.ErrAppResetExporterDeleteFailed), appName, resp))
 	}
 }

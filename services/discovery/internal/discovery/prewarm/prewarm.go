@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -15,6 +16,7 @@ import (
 	discoveryshared "github.com/telark/discovery/internal/discovery/shared"
 	natshelper "github.com/telark/discovery/internal/helpers/nats"
 	"github.com/telark/kcore/resources/core"
+	restshared "github.com/telark/rest/clients/shared"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -114,13 +116,7 @@ func BuildPrewarmApplicationOptions() serviceapp.GetApplicationsOptions {
 
 	exporterClient := clients.NewExporterClient()
 	snapshotClient := clients.NewSnapshotClient()
-	opts.GetStoredApplication = func(name string) *applicationmodel.Application {
-		app, err := exporterClient.GetApplicationByName(name)
-		if err != nil {
-			return nil
-		}
-		return app
-	}
+	opts.GetStoredApplication = storedApplicationLookup(exporterClient)
 	opts.CreateSnapshot = func(id, scope, namespace string, generation int, manifest any) (string, error) {
 		return snapshotClient.CreateSnapshotAndReturnPath(id, scope, namespace, generation, manifest)
 	}
@@ -137,4 +133,51 @@ func BuildPrewarmApplicationOptions() serviceapp.GetApplicationsOptions {
 		return snapshotClient.GetSnapshotManifest(ctx, snapshotID, scope, namespace, generation)
 	}
 	return opts
+}
+
+// BuildPrewarmApplicationOptionsForApp scopes a per-app job: only appName is
+// looked up (one GET instead of the full list) and published; the rest of the
+// namespace is derived for grouping only. A missing app is a new one.
+func BuildPrewarmApplicationOptionsForApp(appName string) serviceapp.GetApplicationsOptions {
+	opts := BuildPrewarmApplicationOptions()
+	exporterClient := clients.NewExporterClient()
+	opts.GetStoredApplication = func(name string) (*applicationmodel.Application, error) {
+		if name != appName {
+			return nil, serviceapp.ErrNotJobTarget
+		}
+		stored, err := exporterClient.GetApplicationByName(name)
+		if errors.Is(err, restshared.ErrNotFound) {
+			return nil, nil
+		}
+		return stored, err
+	}
+	return opts
+}
+
+// storedApplicationLookup lists the stored applications once per derivation. A
+// name missing from a successful list is a new application; a failed list makes
+// every application unknown, which callers must treat as "do not publish".
+func storedApplicationLookup(exporterClient *clients.ExporterClient) func(string) (*applicationmodel.Application, error) {
+	var once sync.Once
+	var byName map[string]*applicationmodel.Application
+	var listErr error
+	return func(name string) (*applicationmodel.Application, error) {
+		once.Do(func() {
+			apps, err := exporterClient.GetAllApplications()
+			if err != nil {
+				listErr = err
+				return
+			}
+			byName = make(map[string]*applicationmodel.Application, len(apps))
+			for _, app := range apps {
+				if app != nil {
+					byName[app.Name] = app
+				}
+			}
+		})
+		if listErr != nil {
+			return nil, listErr
+		}
+		return byName[name], nil
+	}
 }

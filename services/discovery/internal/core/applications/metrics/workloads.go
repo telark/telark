@@ -55,9 +55,6 @@ func findExistingBaseline(
 }
 
 func workloadUsageForResource(r application.Resource, existing *application.MetricsBaseline) application.WorkloadUsage {
-	sel := workload.WorkloadPodMatchLabels(r.Namespace, r.Kind, r.Name)
-	qos := kcoremetrics.GetWorkloadQualityOfService(r.Namespace, sel)
-	u := kcoremetrics.BuildWorkloadUsage(r.Namespace, qos, sel)
 	var baseline application.MetricsBaseline
 	if existing != nil && existing.Replicas != constants.DefaultInitValue {
 		baseline = *existing
@@ -70,7 +67,13 @@ func workloadUsageForResource(r application.Resource, existing *application.Metr
 		Namespace:    r.Namespace,
 		Baseline:     baseline,
 	}
-	if u != nil {
+	// No replicas, no pods: skip the pod list and the metrics API round trips.
+	if baseline.Replicas == int32(constants.DefaultInitValue) {
+		return wu
+	}
+	sel := workload.WorkloadPodMatchLabels(r.Namespace, r.Kind, r.Name)
+	qos := kcoremetrics.GetWorkloadQualityOfService(r.Namespace, sel)
+	if u := kcoremetrics.BuildWorkloadUsage(r.Namespace, qos, sel); u != nil {
 		wu.Usage = *u
 	}
 	return wu

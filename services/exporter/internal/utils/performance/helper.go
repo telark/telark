@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/rest/base"
 )
 
 func generateRequestID() string {
@@ -34,52 +33,34 @@ func randomString(length int) string {
 }
 
 func storeResponseInCache(clh *CachedListHandler, r *http.Request, responseCapture *responseCaptureWriter, cacheKey string, requestID string) {
+	// A write landed while this list was being built: its generation is gone and
+	// the blob would only sit in Redis until its TTL.
+	if cacheKey != clh.cacheKey(r) {
+		return
+	}
 	var responseMap map[string]any
 	if err := json.Unmarshal(responseCapture.body, &responseMap); err != nil {
 		lg.Error(fmt.Sprintf(string(constants.ErrOptimizerCacheStoreError), requestID, err))
 		return
 	}
 
+	blob := responseCapture.body
 	if data, exists := responseMap["data"]; exists {
-		storeDataInCache(clh, r, data, cacheKey)
-	} else {
-		clh.optimizer.Set(cacheKey, responseCapture.body)
-	}
-}
-
-func storeDataInCache(clh *CachedListHandler, r *http.Request, data any, cacheKey string) {
-	if isGetOperation(r) {
-		storeGetOperationData(clh, data, cacheKey)
-	} else {
-		clh.optimizer.Set(cacheKey, data)
-	}
-}
-
-func storeGetOperationData(clh *CachedListHandler, data any, cacheKey string) {
-	if resourceVersion := extractResourceVersion(data); resourceVersion != "" {
-		versionedCacheKey := cacheKey + ":" + resourceVersion
-		clh.optimizer.Set(versionedCacheKey, data)
-		clh.optimizer.Set(cacheKey, data)
-	} else {
-		if b, err := json.Marshal(data); err == nil {
-			clh.optimizer.Set(cacheKey, b)
-		} else {
-			clh.optimizer.Set(cacheKey, data)
+		// go-redis marshals scalars and []byte only; a decoded map or slice is an
+		// error that Set discards, which is why GET responses never reached Redis.
+		b, err := json.Marshal(data)
+		if err != nil {
+			lg.Error(fmt.Sprintf(string(constants.ErrOptimizerCacheStoreError), requestID, err))
+			return
 		}
+		blob = b
 	}
+	clh.optimizer.SetTTL(cacheKey, blob, clh.storeTTL())
 }
 
-func isGetOperation(r *http.Request) bool {
-	return r.Method == string(base.Get)
-}
-
-func extractResourceVersion(data any) string {
-	if dataMap, ok := data.(map[string]any); ok {
-		if metadata, exists := dataMap["metadata"].(map[string]any); exists {
-			if resourceVersion, ok := metadata["resourceVersion"].(string); ok {
-				return resourceVersion
-			}
-		}
+func (clh *CachedListHandler) storeTTL() time.Duration {
+	if clh.operation == constants.OpGet {
+		return constants.GetCacheTTL
 	}
-	return constants.EmptyString
+	return constants.CacheTTL
 }

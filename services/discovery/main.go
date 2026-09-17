@@ -310,7 +310,7 @@ func startForceSyncSubsystem(
 		return coordination.RunForceSyncJob(jobCtx, coord, rdb, replica, appName)
 	}
 	manager := forcesync.NewManager(fsCfg, stream, dedup, exporter, executor, replicaID)
-	maintenance := forcesync.NewMaintenance(fsCfg, stream, replicaID)
+	maintenance := forcesync.NewMaintenance(fsCfg, stream)
 	leaderLoop := forcesync.NewLeaderLoop(coord.Election, manager, maintenance, coord.Config)
 	ingress := forcesync.NewIngress(stream, dedup, exporter)
 	applicationhandler.SetForceSyncIngress(ingress)

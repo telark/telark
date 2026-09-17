@@ -38,14 +38,14 @@ const (
 	WarnClusterVersionPatchExhausted messages.Message = "[startup] cluster.version patch exhausted all %d attempts: %v"
 
 	// Insights tick
-	InfoInsightsDispatched      messages.Message = "[insights] dispatched %d apps to enrichment"
-	WarnInsightsGlobalConfigRead messages.Message = "[insights] skipped tick, GlobalConfig read failed: %v"
-	WarnInsightsListApplications messages.Message = "[insights] skipped tick, listing applications failed: %v"
-	WarnInsightsDispatch         messages.Message = "[insights] dispatch to enrichment failed: %v"
-	InfoInsightsRead             messages.Message = "insights read"
-	WarnGlobalConfigUnavailable      messages.Message = "[startup] GlobalConfig not reachable yet, retrying in %ds: %v"
-	InfoGlobalConfigAvailable        messages.Message = "[startup] GlobalConfig is reachable."
-	WarnExcludedNamespacesRefresh    messages.Message = "[globalconfig] failed to refresh ExcludedNamespaces cache: %v"
+	InfoInsightsDispatched        messages.Message = "[insights] dispatched %d apps to enrichment"
+	WarnInsightsGlobalConfigRead  messages.Message = "[insights] skipped tick, GlobalConfig read failed: %v"
+	WarnInsightsListApplications  messages.Message = "[insights] skipped tick, listing applications failed: %v"
+	WarnInsightsDispatch          messages.Message = "[insights] dispatch to enrichment failed: %v"
+	InfoInsightsRead              messages.Message = "insights read"
+	WarnGlobalConfigUnavailable   messages.Message = "[startup] GlobalConfig not reachable yet, retrying in %ds: %v"
+	InfoGlobalConfigAvailable     messages.Message = "[startup] GlobalConfig is reachable."
+	WarnExcludedNamespacesRefresh messages.Message = "[globalconfig] failed to refresh ExcludedNamespaces cache: %v"
 
 	// Startup: Renderer Registry
 	ErrRendererNotRegistered messages.Message = "[startup] no renderer registered for template %q"
@@ -59,6 +59,7 @@ const (
 	InfoPickedUpPendingEntry         messages.Message = "picked up pending entry: %s"
 	InfoPatchingStatusToInProgress   messages.Message = "patching status to in_progress"
 	InfoRollbackApplied              messages.Message = "[rollback] Applied %s/%s in %s"
+	InfoRollbackSkippedJob           messages.Message = "[rollback] %s: skipped Job %s/%s, job runs are never re-applied"
 	LogRollbackReconcileBackpressure messages.Message = "[rollback] reconcile deferred under backpressure: key=%s"
 	InfoRollbackNoLongerPending      messages.Message = "rollback %s no longer pending; skipping pickup"
 
@@ -73,6 +74,8 @@ const (
 	// Rollback HTTP responses
 	MsgRollbackAborted     messages.Message = "rollback aborted"
 	MsgApplicationNotFound messages.Message = "application not found"
+	// Discovery status HTTP response
+	MsgDiscoveryStatusFetched messages.Message = "discovery status fetched"
 
 	// Rollback abort audit
 	RollbackAbortedByPrefix messages.Message = "aborted by "
@@ -93,15 +96,16 @@ const (
 		"clearing residual redis state: app=%s"
 
 	// Cleanup
-	LogAppCleanupStarted   messages.Message = "[cleanup] Application cleanup started: %s"
-	LogAppCleanupDone      messages.Message = "[cleanup] Application cleanup finished: %s"
-	LogAppCleanupLoopGuard messages.Message = "[cleanup] loop guard tripped: cleanup invoked %d times for %s " +
+	LogAppResetStarted   messages.Message = "[reset] Application reset started: %s"
+	LogAppResetDone      messages.Message = "[reset] Application reset finished: %s"
+	LogAppResetLoopGuard messages.Message = "[reset] loop guard tripped: reset invoked %d times for %s " +
 		"within cooldown — skipping; investigate upstream caller"
-	LogAppCleanupForwarding messages.Message = "[cleanup] forwarding to leader: app=%s leader=%s"
+	LogAppResetForwarding messages.Message = "[reset] forwarding to leader: app=%s leader=%s"
 
 	// Coordination
 	LogPrewarmBatchEnqueued       messages.Message = "[prewarm] Enqueued %d applications for processing."
 	LogPrewarmBatchSkipped        messages.Message = "[prewarm] Skipped %d applications — already enqueued."
+	LogPrewarmBatchBacklog        messages.Message = "[prewarm] Skipped cycle — %d operations still pending from the previous one."
 	LogElectionWon                messages.Message = "[election] This replica is now leader: %s"
 	LogElectionLost               messages.Message = "[election] Leadership lost — stepping down: %s"
 	LogElectionResignedOnShutdown messages.Message = "[election] Resigned leadership on shutdown"
@@ -116,7 +120,20 @@ const (
 
 	// Application history — snapshots & incidents
 	InfoInformerOldObjectCaptured messages.Message = "[informers] MODIFIED oldObject captured " +
-		"app=%s kind=%s ns=%s name=%s replicas=%v"
+		"app=%s kind=%s ns=%s name=%s replicas=%v lag=%s"
+	WarnInformerWatchError             messages.Message = "[informers] watch %s/%s failed: %v"
+	InfoInformerNamespaceSynced        messages.Message = "[informers] namespace %s: %d informers synced in %s"
+	WarnInformerSlowHandler            messages.Message = "[informers] slow handler: ns=%s resource=%s event=%s took %s"
+	WarnInformersFlushRetry            messages.Message = "[informers] flush for %s deferred: %v — retrying in %s"
+	WarnInformersFlushFailed           messages.Message = "[informers] flush for %s failed: %v"
+	WarnInformersFlushStaleStored      messages.Message = "[informers] flush for %s deferred: stored generation %d is behind published %d"
+	InfoInformersFlushResult           messages.Message = "[informers] flush for %s: generation %d -> %d, publish=%s"
+	InfoInformersFlushRollbackDropped  messages.Message = "[informers] flush for %s dropped: rollback applying"
+	InfoHistoryChangeDeferred          messages.Message = "[history] %s: %d change(s) have no pre-image, deferred to the informer flush"
+	WarnInformersFlushTargetMissing    messages.Message = "[informers] flush for %s: derivation returned %d applications, target missing"
+	InfoHistoryReplicaChangeCancelled  messages.Message = "[history] %s: replicas change dropped, pre-image replicas %d equal fresh %d"
+	WarnApplicationPublishFailed       messages.Message = "[publish] %s: NATS publish failed after %d attempts: %v"
+	WarnHistoryStoredLookupFailed      messages.Message = "[history] %s: stored application lookup failed, skipping publish: %v"
 	WarnSnapshotClassOrSeverityMissing messages.Message = "[snapshot] changeClass or severity missing for %s " +
 		"— entry incomplete."
 	InfoIncidentOngoingSkippingDuplicate messages.Message = "[incident] Ongoing incident for %s " +

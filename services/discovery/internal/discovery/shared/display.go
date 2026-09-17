@@ -1,17 +1,13 @@
 package shared
 
 import (
-	"slices"
 	"strings"
 
 	"github.com/telark/discovery/internal/constants"
 )
 
-func BuildDisplayName(groupKey, namespace string) string {
+func BuildDisplayName(groupKey string) string {
 	original := groupKey
-	if namespace != constants.EmptyString && strings.HasPrefix(groupKey, namespace+"-") {
-		groupKey = groupKey[len(namespace)+constants.DefaultAddValue:]
-	}
 	groupKey = strings.ReplaceAll(groupKey, "-", " ")
 	groupKey = strings.ReplaceAll(groupKey, "_", " ")
 	groupKey = strings.TrimSpace(groupKey)
@@ -66,18 +62,6 @@ func restoreAcronyms(s string) string {
 	return strings.Join(parts, constants.SpaceSeparator)
 }
 
-func PrimaryNamespaceFromCounts(nsCounts map[string]int) string {
-	if len(nsCounts) == constants.DefaultInitValue {
-		return constants.EmptyString
-	}
-	keys := make([]string, constants.DefaultInitValue, len(nsCounts))
-	for k := range nsCounts {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
-	return keys[constants.DefaultInitValue]
-}
-
 func ToDisplayName(name string) string {
-	return BuildDisplayName(name, constants.EmptyString)
+	return BuildDisplayName(name)
 }

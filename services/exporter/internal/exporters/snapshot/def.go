@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/telark/exporter/internal/constants"
@@ -526,4 +527,23 @@ func registeredScopeNames() []string {
 		names = append(names, scope.Name)
 	}
 	return names
+}
+
+// RemoveSnapshotFiles deletes the files behind an application's snapshot
+// references and prunes the id directories they leave empty.
+func RemoveSnapshotFiles(paths []string) {
+	base := envmanager.GetSnapshotsPath()
+	for _, path := range paths {
+		id := filepath.Base(filepath.Dir(filepath.Dir(path)))
+		if !snaputil.IsWithinBase(path, base) {
+			lg.Error(fmt.Sprintf(string(constants.ErrSnapshotPathOutsideBaseContext), id, path, base))
+			continue
+		}
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			lg.Error(fmt.Sprintf(string(constants.ErrSnapshotDeleteContext), id, path, err))
+			continue
+		}
+		_ = os.Remove(filepath.Dir(path))
+		_ = os.Remove(filepath.Dir(filepath.Dir(path)))
+	}
 }

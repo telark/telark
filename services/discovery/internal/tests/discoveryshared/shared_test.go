@@ -26,12 +26,6 @@ func TestParseNamespaceList(t *testing.T) {
 	}
 }
 
-// The primary namespace is the alphabetically-first key; no counts means empty.
-func TestPrimaryNamespaceFromCounts(t *testing.T) {
-	testutil.Equal(t, "empty", shared.PrimaryNamespaceFromCounts(nil), "")
-	testutil.Equal(t, "first", shared.PrimaryNamespaceFromCounts(map[string]int{"z": 1, "a": 2}), "a")
-}
-
 // Namespace items are sorted by name and carry their resource counts.
 func TestBuildNamespaceItems(t *testing.T) {
 	items := shared.BuildNamespaceItems(map[string]int{"z": 2, "a": 1})
@@ -64,11 +58,10 @@ func TestBuildManaged(t *testing.T) {
 	}
 }
 
-// Display names strip the namespace prefix and title-case the remainder.
+// Display names keep the namespace prefix so "demo3-report" in ns demo3 does
+// not collapse to "Report".
 func TestDisplayNames(t *testing.T) {
-	if shared.BuildDisplayName("prod-shop-api", "prod") == "" {
-		t.Fatal("display name is empty")
-	}
+	testutil.Equal(t, "display name", shared.BuildDisplayName("demo3-report"), "Demo3 Report")
 	if shared.ToDisplayName("my-service") == "" {
 		t.Fatal("display name is empty")
 	}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"github.com/telark/data/resources/application"
+	"github.com/telark/discovery/internal/core/applications/history/manifestdiff"
 	natscore "github.com/telark/x-ware/nats/core"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -15,8 +16,10 @@ type GetApplicationsOptions struct {
 	// NatsClient, when set, is used to publish applications to NATS for CR creation.
 	NatsClient *natscore.NATSClient
 	// GetStoredApplication fetches the current Application CR state by name (e.g. from exporter API).
-	// Use a client with 3s timeout. If nil or returns nil/error, history is set to new-app (generation 1, no snapshot).
-	GetStoredApplication func(name string) *application.Application
+	// (nil, nil) means the application does not exist yet and gets a new-app history (generation 1).
+	// An error means the state is unknown: the application is skipped entirely so a transient
+	// exporter outage can never reset stored history.
+	GetStoredApplication func(name string) (*application.Application, error)
 	// CreateSnapshot stores manifests in exporter snapshot storage and returns the stored path.
 	CreateSnapshot func(id string, scope string, namespace string, generation int, manifest any) (string, error)
 	// DeleteSnapshot removes a snapshot file from exporter snapshot storage. Used to take back files
@@ -36,6 +39,9 @@ type GetApplicationsOptions struct {
 	PrewrittenSnapshotAppName    string
 	PrewrittenSnapshotGeneration int
 	PrewrittenSnapshots          []application.ApplicationSnapshot
+	// ManifestPairs are the informer-captured before/after objects behind a coalescing
+	// flush; the generic manifest diff reports every field change between them.
+	ManifestPairs []manifestdiff.ManifestPair
 	// FromCoalescingFlush marks calls from the informer coalescing flush path. When true, snapshot
 	// fallback writes and best-effort backfill are suppressed; the valid pre-change manifest source
 	// is the prewritten snapshot from oldObj (when provided).
@@ -44,6 +50,10 @@ type GetApplicationsOptions struct {
 	// Diff/snapshot behavior uses this to avoid contending on per-generation processing locks held
 	// elsewhere on that path.
 	FromForceSync bool
+	// DeriveOnly returns grouped applications with health and nothing else: no
+	// history diff, no snapshots, no metrics, no publish. The leader tick uses it
+	// to enumerate apps; per-app consumer jobs do the expensive work.
+	DeriveOnly bool
 }
 
 type resourceAggregate struct {

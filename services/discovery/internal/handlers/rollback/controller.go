@@ -16,6 +16,7 @@ import (
 	dconfig "github.com/telark/discovery/internal/config"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/helpers/async"
+	redishelper "github.com/telark/discovery/internal/helpers/redis"
 	notifclient "github.com/telark/rest/clients/notifications"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -248,11 +249,12 @@ func (c *Controller) validateAndApplyRollback(
 	spec *application.Application,
 	idx int,
 ) error {
-	sorted := sortManifestForApply(manifest)
+	sorted := withoutJobRuns(sortManifestForApply(manifest), name)
 	if err := c.validateRollbackManifest(ctx, sorted); err != nil {
 		c.failRollback(ctx, ns, name, spec, idx, err.Error())
 		return err
 	}
+	markRollbackApplying(ctx, name)
 	if err := c.applyAllWithRetry(ctx, sorted); err != nil {
 		c.failRollback(ctx, ns, name, spec, idx, fmt.Sprintf(string(constants.ErrRollbackApplyFailed), err))
 		return err
@@ -715,4 +717,26 @@ func scopeFromSnapshotPath(path string) string {
 		return constants.RollbackSnapshotPathDefaultScope
 	}
 	return strings.TrimSpace(parts[constants.DefaultInitValue])
+}
+
+func markRollbackApplying(ctx context.Context, appName string) {
+	rdb := redishelper.NewRedisClient()
+	if rdb == nil {
+		return
+	}
+	_ = rdb.Set(ctx, constants.KeyPrefixRollbackApplying+appName, constants.DefaultAddValue, constants.RollbackApplyingTTL).Err()
+}
+
+// withoutJobRuns drops Job manifests: re-applying a finished or deleted Job
+// would start a new run, which a rollback must never do.
+func withoutJobRuns(in []unstructured.Unstructured, appName string) []unstructured.Unstructured {
+	out := make([]unstructured.Unstructured, constants.DefaultInitValue, len(in))
+	for i := range in {
+		if in[i].GetKind() == constants.RollbackKindJob {
+			logger.Info(fmt.Sprintf(string(constants.InfoRollbackSkippedJob), appName, in[i].GetNamespace(), in[i].GetName()))
+			continue
+		}
+		out = append(out, in[i])
+	}
+	return out
 }

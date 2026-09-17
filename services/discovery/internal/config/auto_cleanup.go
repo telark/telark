@@ -35,11 +35,24 @@ func LoadAutoCleanupConfig() AutoCleanupConfig {
 			constants.EnvAutoCleanupEmptyCyclesRequired,
 			constants.DefaultAutoCleanupEmptyCyclesRequired,
 		),
-		GracePeriod: envDurationSec(
+		GracePeriod: envGraceSec(
 			constants.EnvAutoCleanupGracePeriodSec,
 			constants.DefaultAutoCleanupGracePeriod,
 		),
 	}
+}
+
+// Unlike envDurationSec, zero is a valid grace period: delete on the first eligible cycle.
+func envGraceSec(key string, fallback time.Duration) time.Duration {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == constants.EmptyString {
+		return fallback
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < constants.DefaultInitValue {
+		return fallback
+	}
+	return time.Duration(n) * time.Second
 }
 
 func envBool(key string, fallback bool) bool {

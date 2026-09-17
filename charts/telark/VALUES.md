@@ -236,11 +236,11 @@ Kubernetes: `>=1.30.0-0`
 | services.discovery.env.COORDINATION_SHUTDOWN_CLEANUP_TIMEOUT_SEC | string | `"45"` |  |
 | services.discovery.env.COORDINATION_STALE_CLAIM_INTERVAL_SEC | string | `"60"` |  |
 | services.discovery.env.COORDINATION_STALE_CLAIM_MIN_IDLE_SEC | string | `"300"` |  |
-| services.discovery.env.DISCOVERY_AUTO_CLEANUP_CYCLE_INTERVAL_SEC | string | `"300"` |  |
-| services.discovery.env.DISCOVERY_AUTO_CLEANUP_DELETE_ENABLED | string | `"false"` |  |
-| services.discovery.env.DISCOVERY_AUTO_CLEANUP_EMPTY_CYCLES_REQUIRED | string | `"3"` |  |
+| services.discovery.env.DISCOVERY_AUTO_CLEANUP_CYCLE_INTERVAL_SEC | string | `"15"` |  |
+| services.discovery.env.DISCOVERY_AUTO_CLEANUP_DELETE_ENABLED | string | `"true"` |  |
+| services.discovery.env.DISCOVERY_AUTO_CLEANUP_EMPTY_CYCLES_REQUIRED | string | `"2"` |  |
 | services.discovery.env.DISCOVERY_AUTO_CLEANUP_ENABLED | string | `"true"` |  |
-| services.discovery.env.DISCOVERY_AUTO_CLEANUP_GRACE_PERIOD_SEC | string | `"900"` |  |
+| services.discovery.env.DISCOVERY_AUTO_CLEANUP_GRACE_PERIOD_SEC | string | `"0"` |  |
 | services.discovery.env.DISCOVERY_COALESCE_BUFFER_MAX_ENTRIES | string | `"500"` |  |
 | services.discovery.env.DISCOVERY_INFORMER_COALESCING_MAX_WAIT_SEC | string | `"10"` |  |
 | services.discovery.env.DISCOVERY_INFORMER_COALESCING_WINDOW_SEC | string | `"5"` |  |

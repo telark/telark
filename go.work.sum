@@ -981,9 +981,15 @@ github.com/tektoncd/plumbing v0.0.0-20230907180608-5625252a2de1/go.mod h1:7eWs1X
 github.com/telark/data v1.14.0/go.mod h1:64sUlmmT0UOTWq+8GofUyU/Ss9mbQ566z2hMrCLRap4=
 github.com/telark/data v1.14.1/go.mod h1:Oj2DBnE5j2666m15/QYUDo8KXAYyyOKFOB3DUOOrjM0=
 github.com/telark/data v1.14.2/go.mod h1:Oj2DBnE5j2666m15/QYUDo8KXAYyyOKFOB3DUOOrjM0=
-github.com/telark/data v1.14.4 h1:dG2rH2TiTPSvQVd7uf52zecmUXE4QRADhp9z7C2K9ps=
-github.com/telark/data v1.14.4/go.mod h1:Oj2DBnE5j2666m15/QYUDo8KXAYyyOKFOB3DUOOrjM0=
+github.com/telark/data v1.14.5 h1:wfNS/vehwHLb1fj0bZsjafW7wm3QpIGdVoAjY7NT+jc=
+github.com/telark/data v1.14.5/go.mod h1:Oj2DBnE5j2666m15/QYUDo8KXAYyyOKFOB3DUOOrjM0=
+github.com/telark/kcore v0.7.0 h1:C0DQ9oPhcRWTPZ86DGGNJJo8H3BkatbUJ8G6q3PVydU=
+github.com/telark/kcore v0.7.0/go.mod h1:C8WAjr/O8qrl9qgV/aYpm77jQ+Aa1OG2g5YnzZSLyV4=
 github.com/telark/rest v0.13.3/go.mod h1:4NOApaArEuK8PvTJG8n2CVRvJm0Rul80Glt2g4SzNXw=
+github.com/telark/rest v0.14.1 h1:tVyiy5GU1QZ9mpafKGVYduIGpuXIM6+/ECXGdCKN9Vo=
+github.com/telark/rest v0.14.1/go.mod h1:4NOApaArEuK8PvTJG8n2CVRvJm0Rul80Glt2g4SzNXw=
+github.com/telark/x-ware v0.3.6 h1:tm8Ez66BCk3zENa+T+Yo2OZfMUw/k6hPcAAOkIsZG8o=
+github.com/telark/x-ware v0.3.6/go.mod h1:0q7V5ht8I0V85KlsoIaBW/DwWaW14eN+enTiZwt15eQ=
 github.com/tetafro/godot v1.4.16/go.mod h1:2oVxTBSftRTh4+MVfUaUXR6bn2GDXCaMcOG4Dk3rfio=
 github.com/tetratelabs/wazero v1.11.0/go.mod h1:eV28rsN8Q+xwjogd7f4/Pp4xFxO7uOGbLcD/LzB1wiU=
 github.com/theckman/httpforwarded v0.4.0/go.mod h1:GVkFynv6FJreNbgH/bpOU9ITDZ7a5WuzdNCtIMI1pVI=

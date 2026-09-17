@@ -265,10 +265,10 @@ Auto-cleanup of empty application CRDs:
 | Variable | Default | Description |
 |---|---|---|
 | `DISCOVERY_AUTO_CLEANUP_ENABLED` | `"true"` | Master switch. `false` = detector goroutine never runs (zero overhead). |
-| `DISCOVERY_AUTO_CLEANUP_DELETE_ENABLED` | `"false"` | Action gate. `false` = dry-run (logs intent only). `true` = destructive cleanup (Redis purge, snapshot dir removal, CRD delete). |
-| `DISCOVERY_AUTO_CLEANUP_CYCLE_INTERVAL_SEC` | `300` | Detector wake interval |
-| `DISCOVERY_AUTO_CLEANUP_EMPTY_CYCLES_REQUIRED` | `3` | Consecutive empty cycles before a CRD becomes cleanup-eligible |
-| `DISCOVERY_AUTO_CLEANUP_GRACE_PERIOD_SEC` | `900` | Wall-clock floor from first-empty observation to eligibility |
+| `DISCOVERY_AUTO_CLEANUP_DELETE_ENABLED` | `"true"` | Action gate. `false` = dry-run (logs intent only). `true` = destructive cleanup (Redis purge, snapshot dir removal, CRD delete). |
+| `DISCOVERY_AUTO_CLEANUP_CYCLE_INTERVAL_SEC` | `15` | Detector wake interval |
+| `DISCOVERY_AUTO_CLEANUP_EMPTY_CYCLES_REQUIRED` | `2` | Consecutive empty cycles before a CRD becomes cleanup-eligible |
+| `DISCOVERY_AUTO_CLEANUP_GRACE_PERIOD_SEC` | `0` | Wall-clock floor from first-empty observation to eligibility; `0` = none |
 
 Misc:
 

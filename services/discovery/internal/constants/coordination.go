@@ -18,7 +18,7 @@ const (
 	KeyPrefixDedup                               = "dedup:"
 	KeyPrefixGraceScale                          = "grace:scale:"
 	KeyPrefixReplicaHB                           = "replica:"
-	KeyPrefixCleanupCooldown                     = "cleanup:cooldown:"
+	KeyPrefixResetCooldown                       = "reset:cooldown:"
 	KeySuffixReplicaHB                           = ":heartbeat"
 	KeyElectionPrewarm                           = "election:prewarm"
 	OperationTypePrewarm                         = "prewarm"
@@ -46,7 +46,21 @@ const (
 	// Fallback for the leader's rediscovery cycle when GlobalConfig carries no
 	// fetch interval. Operators set the real value through the UI setting.
 	PrewarmDefaultInterval       = 60 * time.Second
+	PrewarmCycleTTL              = 24 * time.Hour
 	GraceScaleTTL                = 90 * time.Second
-	CleanupCooldownTTL           = 60 * time.Second
-	CleanupLoopGuardLogAt  int64 = 2
+	ResetCooldownTTL             = 60 * time.Second
+	ResetLoopGuardLogAt    int64 = 3
+	// Bounds the operations stream in Redis; entries older than the cap are
+	// long acked and only cost memory (it reached 17k entries unbounded).
+	OperationsStreamMaxLen int64 = 20000
+	// In-flight jobs of the running workers do not count as a backlog.
+	PrewarmBacklogTolerance int64 = 8
+)
+
+// Leader rediscovery cycle bookkeeping the UI reads (see coordination.CycleStatus).
+const (
+	KeyPrewarmCycle             = "prewarm:cycle"
+	PrewarmCycleFieldStartedAt  = "startedAt"
+	PrewarmCycleFieldFinishedAt = "finishedAt"
+	PrewarmCycleFieldEnqueued   = "enqueued"
 )

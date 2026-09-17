@@ -88,7 +88,7 @@ func (d *Detector) evaluateApp(ctx context.Context, app *appresource.Application
 	lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
 	name := app.Name
 
-	if r := railResourcesEmpty(app); !r.pass {
+	if r := railResourcesEmpty(app); !r.pass && !namespacesGone(ctx, d.kube, app) {
 		d.handleNonEmpty(ctx, name, r)
 		return
 	}
@@ -187,7 +187,7 @@ func (d *Detector) fireCleanup(
 			name, "inflight", "auto-cleanup already running"))
 		return
 	}
-	inflightTTL := constants.AppCleanupHandlerTimeout + constants.AutoCleanupInflightTTLBuffer
+	inflightTTL := constants.AppResetHandlerTimeout + constants.AutoCleanupInflightTTLBuffer
 	_ = markInflight(ctx, d.rdb, name, inflightTTL)
 	defer func() { _ = clearInflight(ctx, d.rdb, name) }()
 
@@ -195,9 +195,9 @@ func (d *Detector) fireCleanup(
 		name, s.Count, firstSeen, snapCount, nsNames))
 	start := time.Now().UTC()
 
-	cctx, cancel := context.WithTimeout(ctx, constants.AppCleanupHandlerTimeout)
+	cctx, cancel := context.WithTimeout(ctx, constants.AppResetHandlerTimeout)
 	defer cancel()
-	applicationhandler.RunCleanup(cctx, d.rdb, name)
+	applicationhandler.RunReset(cctx, d.rdb, name)
 
 	_ = clearStreak(ctx, d.rdb, name)
 	lg.Info(fmt.Sprintf(string(constants.LogAutoCleanupDone),
@@ -217,9 +217,9 @@ func (d *Detector) HandleOrphanIfMissing(ctx context.Context, name string, err e
 	if !d.cfg.DeleteEnabled {
 		return true
 	}
-	cctx, cancel := context.WithTimeout(ctx, constants.AppCleanupHandlerTimeout)
+	cctx, cancel := context.WithTimeout(ctx, constants.AppResetHandlerTimeout)
 	defer cancel()
-	applicationhandler.RunCleanup(cctx, d.rdb, name)
+	applicationhandler.RunReset(cctx, d.rdb, name)
 	_ = clearStreak(ctx, d.rdb, name)
 	return true
 }

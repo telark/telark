@@ -39,7 +39,6 @@ const (
 	SelectorTypeText                = "text"
 	DefaultLockTTL                  = 30 * time.Second
 	RemovalStabilizationWindow      = 45 * time.Second
-	InversePairSuppressionWindow    = 120 * time.Second
 
 	// rest
 	ApplicationJSON = "application/json"
@@ -93,13 +92,11 @@ const (
 	DefaultSnapshotsMaxVersions = 5
 	MinSnapshotsMaxVersions     = 1
 
-	DefaultSnapshotsBasePath = "/snapshots"
-
 	// Enrichment wait loop
 	WaitTimeoutDefaultSec         = 15
 	WaitTimeoutMaxSec             = 30
 	DefaultSnapshotScopeDirectory = "apps"
-	ApplicationCleanupMessage     = "application cleanup triggered"
+	ApplicationResetMessage       = "application reset triggered"
 
 	// Common
 	IDPathParam         = "id"
@@ -115,9 +112,9 @@ const (
 	// completion even if the HTTP caller disconnects.
 	ProtectionPlanLifecycleTimeout = 30 * time.Second
 
-	// AppCleanupHandlerTimeout bounds the per-app destructive cleanup
+	// AppResetHandlerTimeout bounds the per-app destructive reset
 	// (Redis SCAN/DEL fan-out + snapshot directory removal + exporter delete).
-	AppCleanupHandlerTimeout = 30 * time.Second
+	AppResetHandlerTimeout = 30 * time.Second
 
 	// InsightsReadTimeout bounds the windowed cache reads behind the insights read
 	// route. Short: these are a handful of Redis GETs for one page of apps.

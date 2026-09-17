@@ -42,13 +42,10 @@ func (*BaseSubscriber) ValidateMessage(m *nats.Msg) error {
 	return nil
 }
 
+// Keyed on payload content: a republish of an unchanged application is skipped,
+// a new generation for the same application never is.
 func (*BaseSubscriber) generateMessageKey(m *nats.Msg) string {
-	var msg natscore.Message
-	if err := json.Unmarshal(m.Data, &msg); err != nil {
-		return natscore.GenerateDataHash(m.Data, m.Subject)
-	}
-
-	return natscore.GenerateKey(msg.ResourceName, string(msg.ResourceType), msg.Scope)
+	return natscore.GenerateDataHash(m.Data, m.Subject)
 }
 
 func (s *BaseSubscriber) isDuplicateMessage(msgKey string) bool {

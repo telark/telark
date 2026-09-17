@@ -12,7 +12,6 @@ import (
 	"github.com/telark/discovery/internal/config"
 	"github.com/telark/discovery/internal/constants"
 	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
-	redishelper "github.com/telark/discovery/internal/helpers/redis"
 	kcoredynamic "github.com/telark/kcore/informers/dynamic"
 	kcorefactory "github.com/telark/kcore/informers/factory"
 	"github.com/telark/kcore/k8sclient"
@@ -25,26 +24,30 @@ import (
 
 //nolint:containedctx // lifecycle root for flush and event handlers
 type Manager struct {
-	cfg         Config
-	rootCtxMu   sync.RWMutex
-	rootCtx     context.Context
-	informersMu sync.RWMutex
-	informers   map[string]cache.SharedIndexInformer
-	nsRunMu     sync.Mutex
-	nsCancels   map[string]context.CancelFunc
-	watchGVRs   []schema.GroupVersionResource
-	coalesce    *coalescer
-	exporter    *clients.ExporterClient
-	kubeClient  *kubernetes.Clientset
-	appNames    map[string]struct{}
+	cfg             Config
+	rootCtxMu       sync.RWMutex
+	rootCtx         context.Context
+	informersMu     sync.RWMutex
+	informers       map[string]cache.SharedIndexInformer
+	nsRunMu         sync.Mutex
+	nsCancels       map[string]context.CancelFunc
+	watchGVRs       []schema.GroupVersionResource
+	coalesce        *coalescer
+	exporter        *clients.ExporterClient
+	kubeClient      *kubernetes.Clientset
+	appNamesMu      sync.RWMutex
+	appNames        map[string]struct{}
+	nsPrewarmMu     sync.Mutex
+	nsPrewarmTimers map[string]*time.Timer
 }
 
 func newManager(cfg Config) *Manager {
 	m := &Manager{
-		cfg:       cfg,
-		informers: make(map[string]cache.SharedIndexInformer),
-		nsCancels: make(map[string]context.CancelFunc),
-		exporter:  clients.NewExporterClient(),
+		cfg:             cfg,
+		informers:       make(map[string]cache.SharedIndexInformer),
+		nsCancels:       make(map[string]context.CancelFunc),
+		nsPrewarmTimers: make(map[string]*time.Timer),
+		exporter:        clients.NewExporterClient(),
 	}
 	kc, _ := k8sclient.InitKubernetesClient()
 	m.kubeClient = kc
@@ -55,8 +58,8 @@ func newManager(cfg Config) *Manager {
 		cfg.RDB,
 		func() context.Context { return m.ctxOrBackground() },
 		cfg.LeaderFn,
-		func(app string) error {
-			return m.flushApp(app)
+		func(app string, buf map[string]*unstructured.Unstructured) error {
+			return m.flushApp(app, buf)
 		},
 	)
 	return m
@@ -78,22 +81,18 @@ func (m *Manager) run(ctx context.Context) {
 	if m.cfg.DiscoverApps == nil {
 		return
 	}
-	apps, err := m.cfg.DiscoverApps(ctx, m.cfg.RDB)
-	if err != nil {
-		lg.Warn(fmt.Sprintf(string(constants.WarnInformersDiscoverAppsFailed), err))
-		apps = nil
-	}
-	m.appNames = knownAppNames(apps)
-	watchKinds := kindSetFromApps(apps)
-	gvrs, err := kcoredynamic.GVRsForKinds(watchKinds, m.kubeClient.Discovery())
-	if err != nil {
-		lg.Warn(fmt.Sprintf(string(constants.WarnInformersGVRFailed), err))
+	m.refreshKnownApps(ctx)
+	watchKinds := watchKindSet()
+	gvrs, ok := m.resolveWatchGVRs(ctx, watchKinds)
+	if !ok {
 		return
 	}
 	m.watchGVRs = gvrs
 	go m.watchLeaderResume(ctx)
 	nsTick := time.NewTicker(time.Duration(constants.GlobalConfigExcludedPollSec) * time.Second)
 	defer nsTick.Stop()
+	appsTick := time.NewTicker(constants.InformerKnownAppsRefresh)
+	defer appsTick.Stop()
 	m.reconcileNamespaceWatchers(ctx, dyn, resync)
 	for {
 		select {
@@ -103,8 +102,23 @@ func (m *Manager) run(ctx context.Context) {
 			return
 		case <-nsTick.C:
 			m.reconcileNamespaceWatchers(ctx, dyn, resync)
+		case <-appsTick.C:
+			m.refreshKnownApps(ctx)
 		}
 	}
+}
+
+// A failed refresh keeps the previous set; nil (no apps yet) treats every app as known.
+func (m *Manager) refreshKnownApps(ctx context.Context) {
+	apps, err := m.cfg.DiscoverApps(ctx, m.cfg.RDB)
+	if err != nil {
+		constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(
+			fmt.Sprintf(string(constants.WarnInformersDiscoverAppsFailed), err))
+		return
+	}
+	m.appNamesMu.Lock()
+	m.appNames = knownAppNames(apps)
+	m.appNamesMu.Unlock()
 }
 
 func (m *Manager) attachInformer(
@@ -113,6 +127,10 @@ func (m *Manager) attachInformer(
 	gvr schema.GroupVersionResource,
 ) cache.SharedIndexInformer {
 	inf := factory.ForResource(gvr).Informer()
+	_ = inf.SetWatchErrorHandler(func(_ *cache.Reflector, err error) {
+		constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(
+			fmt.Sprintf(string(constants.WarnInformerWatchError), ns, gvr.Resource, err))
+	})
 	key := informerIndexKey(ns, gvr)
 	m.informersMu.Lock()
 	m.informers[key] = inf
@@ -122,19 +140,19 @@ func (m *Manager) attachInformer(
 			if !inf.HasSynced() {
 				return
 			}
-			m.onAdd(obj)
+			timedHandler(ns, gvr.Resource, constants.InformerEventAdd, func() { m.onAdd(obj) })
 		},
 		UpdateFunc: func(oldObj, newObj any) {
 			if !inf.HasSynced() {
 				return
 			}
-			m.onUpdate(oldObj, newObj)
+			timedHandler(ns, gvr.Resource, constants.InformerEventUpdate, func() { m.onUpdate(oldObj, newObj) })
 		},
 		DeleteFunc: func(obj any) {
 			if !inf.HasSynced() {
 				return
 			}
-			m.onDelete(obj)
+			timedHandler(ns, gvr.Resource, constants.InformerEventDelete, func() { m.onDelete(obj) })
 		},
 	})
 	return inf
@@ -183,10 +201,11 @@ func (m *Manager) onAdd(obj any) {
 	if !m.isKnownAppName(app) {
 		return
 	}
-	if app != constants.EmptyString && redishelper.ApplicationHasRedisState(ctx, m.cfg.RDB, app) {
-		return
+	// A fresh ADD has no pre-image; the flush diffs it against the stored
+	// resource list. A replayed one (startup, resync) is already there.
+	if eventLag(u) <= constants.InformerAddFreshWindow {
+		m.coalesce.schedule(app, resourceKey(u), nil)
 	}
-	m.runPrewarmNS(ctx, ns)
 }
 
 func (m *Manager) onUpdate(oldObj, newObj any) {
@@ -226,7 +245,7 @@ func (m *Manager) onUpdate(oldObj, newObj any) {
 	}
 	lg.Info(fmt.Sprintf(
 		string(constants.InfoInformerOldObjectCaptured),
-		app, oldU.GetKind(), oldU.GetNamespace(), oldU.GetName(), repv,
+		app, oldU.GetKind(), oldU.GetNamespace(), oldU.GetName(), repv, eventLag(newU),
 	))
 	m.coalesce.schedule(app, key, oldU.DeepCopy())
 }
@@ -248,6 +267,8 @@ func (m *Manager) isKnownAppName(app string) bool {
 	if app == constants.EmptyString {
 		return false
 	}
+	m.appNamesMu.RLock()
+	defer m.appNamesMu.RUnlock()
 	if m.appNames == nil {
 		return true
 	}
@@ -286,6 +307,9 @@ func (m *Manager) onDelete(obj any) {
 	if !m.isLeader(ctx) {
 		return
 	}
+	if tomb, isTomb := obj.(cache.DeletedFinalStateUnknown); isTomb {
+		obj = tomb.Obj
+	}
 	u, ok := obj.(*unstructured.Unstructured)
 	if !ok || u == nil {
 		return
@@ -300,13 +324,31 @@ func (m *Manager) onDelete(obj any) {
 	if ns == constants.EmptyString {
 		return
 	}
-	m.runPrewarmNS(ctx, ns)
+	app := m.appGroupFromCache(ctx, u)
+	if !m.isKnownAppName(app) {
+		m.runPrewarmNS(ns)
+		return
+	}
+	// The deleted object is the pre-image: the flush records the removal and
+	// the snapshot keeps a copy a rollback can restore.
+	m.coalesce.schedule(app, resourceKey(u), u.DeepCopy())
 }
 
-func (m *Manager) runPrewarmNS(ctx context.Context, ns string) {
-	if m.cfg.RunPrewarmNS != nil {
-		_ = m.cfg.RunPrewarmNS(ctx, m.cfg.RDB, ns)
+func (m *Manager) runPrewarmNS(ns string) {
+	if m.cfg.RunPrewarmNS == nil {
+		return
 	}
+	m.nsPrewarmMu.Lock()
+	defer m.nsPrewarmMu.Unlock()
+	if t, ok := m.nsPrewarmTimers[ns]; ok {
+		t.Stop()
+	}
+	m.nsPrewarmTimers[ns] = time.AfterFunc(constants.InformerPrewarmDebounce, func() {
+		m.nsPrewarmMu.Lock()
+		delete(m.nsPrewarmTimers, ns)
+		m.nsPrewarmMu.Unlock()
+		_ = m.cfg.RunPrewarmNS(m.ctxOrBackground(), m.cfg.RDB, ns)
+	})
 }
 
 func (m *Manager) ctxOrBackground() context.Context {
@@ -337,4 +379,47 @@ func namespaceExcluded(ctx context.Context, ns string) bool {
 		}
 	}
 	return false
+}
+
+// eventLag measures how long the API server change waited before this handler
+// saw it, using the newest managedFields timestamp on the object.
+func eventLag(u *unstructured.Unstructured) time.Duration {
+	var newest time.Time
+	for _, mf := range u.GetManagedFields() {
+		if mf.Time != nil && mf.Time.After(newest) {
+			newest = mf.Time.Time
+		}
+	}
+	if newest.IsZero() {
+		return time.Duration(constants.DefaultInitValue)
+	}
+	return time.Since(newest).Round(time.Second)
+}
+
+func timedHandler(ns, resource, event string, fn func()) {
+	start := time.Now()
+	fn()
+	if took := time.Since(start); took > constants.InformerSlowHandlerThreshold {
+		constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(fmt.Sprintf(
+			string(constants.WarnInformerSlowHandler), ns, resource, event, took.Round(time.Millisecond),
+		))
+	}
+}
+
+// resolveWatchGVRs keeps retrying API discovery until it succeeds or the
+// context ends: giving up would leave the informers off until a restart.
+func (m *Manager) resolveWatchGVRs(ctx context.Context, watchKinds map[string]struct{}) ([]schema.GroupVersionResource, bool) {
+	lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
+	for {
+		gvrs, err := kcoredynamic.GVRsForKinds(watchKinds, m.kubeClient.Discovery())
+		if err == nil {
+			return gvrs, true
+		}
+		lg.Warn(fmt.Sprintf(string(constants.WarnInformersGVRFailed), err))
+		select {
+		case <-ctx.Done():
+			return nil, false
+		case <-time.After(constants.InformersGVRRetryInterval):
+		}
+	}
 }

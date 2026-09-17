@@ -54,7 +54,10 @@ func isNoiseResource(r *ResourceInput) bool {
 		r.Name == noiseResourceKubernetes {
 		return true
 	}
-	if r.Kind == "Secret" && strings.HasPrefix(r.Name, noiseResourceSecretHelmReleasePrefix) {
+	if r.Kind == kindSecret && strings.HasPrefix(r.Name, noiseResourceSecretHelmReleasePrefix) {
+		return true
+	}
+	if r.Kind == kindJob && ownedByKind(r, kindCronJob) {
 		return true
 	}
 	return false
@@ -182,4 +185,13 @@ func flattenGroups(groups map[groupKey][]ResourceInput) []ResourceWithGroup {
 		}
 	}
 	return out
+}
+
+func ownedByKind(r *ResourceInput, kind string) bool {
+	for i := range r.OwnerReferences {
+		if r.OwnerReferences[i].Kind == kind {
+			return true
+		}
+	}
+	return false
 }

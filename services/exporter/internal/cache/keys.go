@@ -27,6 +27,21 @@ func ListGenerationKey(resourceType string) string {
 	return rediscache.BuildKey(constants.CacheKeyPrefix, constants.OpList, constants.CacheGenerationSegment, resourceType)
 }
 
+// ListGenerationWindowKey exists while a bump window is open; ListGenerationDirtyKey
+// records a bump deferred by that window.
+func ListGenerationWindowKey(resourceType string) string {
+	return ListGenerationKey(resourceType) + constants.CacheKeySeparator + constants.CacheWindowSegment
+}
+
+func ListGenerationDirtyKey(resourceType string) string {
+	return ListGenerationKey(resourceType) + constants.CacheKeySeparator + constants.CacheDirtySegment
+}
+
+// ListKeyPattern matches every list blob of a resource type, any generation or subject.
+func ListKeyPattern(resourceType string) string {
+	return rediscache.BuildKey(constants.OpList, resourceType) + constants.CacheKeySeparator + "*"
+}
+
 func generateListKey(resourceType string, generation string, subject string) string {
 	if resourceType == constants.EmptyString {
 		return constants.EmptyString

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"time"
 
 	goredis "github.com/redis/go-redis/v9"
 	dataerrors "github.com/telark/data/errors"
@@ -39,8 +38,7 @@ const snapshotsDirPerm = 0o755
 func main() {
 	config.ApplyKubernetesRESTRateLimit()
 	initSnapshotsConfig()
-	optimizer := initOptimizerWithRetry()
-	initConnectivity()
+	optimizer := performance.NewOptimizer(initConnectivity())
 	startup.SeedBuiltins()
 	async.Init()
 
@@ -73,7 +71,7 @@ func initSnapshotsConfig() {
 	))
 }
 
-func initConnectivity() {
+func initConnectivity() *goredis.Client {
 	rdb := redisinit.NewClientWithRetry(
 		context.Background(),
 		func() (*goredis.Client, error) {
@@ -87,13 +85,14 @@ func initConnectivity() {
 		lg,
 	)
 	if rdb == nil {
-		return
+		return nil
 	}
 	exprdb.Set(rdb)
 	conn := connectivity.New(rdb)
 	connectivity.SetGlobal(conn)
 	conn.Register("exporter")
 	conn.SetReady("exporter", true)
+	return rdb
 }
 
 func startServer(optimizer *performance.Optimizer, authzMiddleware func(http.Handler) http.Handler) *http.Server {
@@ -127,16 +126,5 @@ func waitForShutdown(server *http.Server) {
 	defer cancel()
 	if err := server.Shutdown(ctx); err != nil {
 		lg.Error(fmt.Sprintf(string(constants.InfServerForcedShutdown), err))
-	}
-}
-
-func initOptimizerWithRetry() *performance.Optimizer {
-	for {
-		opt, err := performance.NewOptimizer()
-		if err == nil {
-			return opt
-		}
-		lg.Error(fmt.Sprintf(string(constants.ErrOptimizerInitFailed), err))
-		time.Sleep(constants.CacheRefreshInterval)
 	}
 }

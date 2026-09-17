@@ -2,6 +2,7 @@ package performance
 
 import (
 	"net/http"
+	"sync"
 	"time"
 
 	rediscache "github.com/telark/x-ware/redis/cache"
@@ -35,6 +36,9 @@ type CachedListHandler struct {
 	cacheKey     CacheKeyFunc
 	resourceType string
 	operation    string
+	// One rebuild per cache key at a time; concurrent misses wait for it.
+	inflightMu sync.Mutex
+	inflight   map[string]*sync.Mutex
 }
 
 type responseCaptureWriter struct {
@@ -56,5 +60,6 @@ func NewCachedListHandler(
 		cacheKey:     cacheKeyFunc,
 		resourceType: resourceType,
 		operation:    operation,
+		inflight:     map[string]*sync.Mutex{},
 	}
 }

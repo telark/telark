@@ -10,6 +10,7 @@ import (
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/applications/history/changes"
 	"github.com/telark/discovery/internal/core/applications/history/gate"
+	"github.com/telark/discovery/internal/core/applications/history/manifestdiff"
 	historyshared "github.com/telark/discovery/internal/core/applications/history/shared"
 	"github.com/telark/discovery/internal/core/applications/history/utils"
 	"github.com/telark/discovery/internal/core/applications/metrics"
@@ -20,8 +21,37 @@ import (
 type DiffOptions struct {
 	PrewrittenGeneration int
 	PrewrittenSnapshots  []application.ApplicationSnapshot
+	ManifestPairs        []manifestdiff.ManifestPair
+	DeleteSnapshot       snapshot.DeleteSnapshotFn
 	FromCoalescingFlush  bool
 	FromForceSync        bool
+}
+
+// Outcome tells the publisher what the diff did. Deferred means the diff saw
+// changes it could not author (no pre-image); publishing the fresh app anyway
+// would persist them history-less and leave the informer flush nothing to diff.
+type Outcome int
+
+const (
+	OutcomeNoChange Outcome = iota
+	OutcomeAuthored
+	OutcomeDeferred
+)
+
+func authoredOutcome(ok bool) Outcome {
+	if ok {
+		return OutcomeAuthored
+	}
+	return OutcomeNoChange
+}
+
+// ponytail: force sync still publishes history-less as before; defer it too once
+// every watched kind is trusted to reach the informer flush.
+func unauthoredOutcome(diffOpts *DiffOptions) Outcome {
+	if diffOpts != nil && diffOpts.FromForceSync {
+		return OutcomeNoChange
+	}
+	return OutcomeDeferred
 }
 
 func coalesceBufferPending(ctx context.Context, rdb *redis.Client, appName string) bool {
@@ -51,6 +81,7 @@ func ensureSnapshotForGeneration(ctx context.Context, a snapshotEnsureArgs) ([]a
 		len(a.diffOpts.PrewrittenSnapshots) > constants.DefaultInitValue
 	if prewritten {
 		merged := snapshot.MergeSnapshots(a.prev, a.diffOpts.PrewrittenSnapshots, snapshot.MaxSnapshots())
+		snapshot.DiscardSnapshots(snapshot.Pruned(a.prev, merged), a.diffOpts.DeleteSnapshot)
 		if !hasValidSnapshotForGeneration(merged, a.nextGen) {
 			a.lg.Error(fmt.Sprintf(string(constants.ErrSnapshotWriteFailedAbortCRD),
 				a.fresh.Name, "prewritten snapshot missing or invalid"))
@@ -120,24 +151,35 @@ func DiffApplications(
 	stored *application.Application,
 	fresh application.Application,
 	diffOpts *DiffOptions,
-) (application.ApplicationHistory, []application.ApplicationSnapshot, bool) {
+) (application.ApplicationHistory, []application.ApplicationSnapshot, Outcome) {
 	if stored == nil {
 		return newAppWithBaselineSnapshot(ctx, createSnapshot, fresh)
 	}
+	stored = seedBaselineFromPreImage(ctx, getSnapshotManifest, stored, diffOpts)
 	appChanges := changes.CollectChanges(stored, &fresh)
 	if readBaseline != nil {
 		appChanges = append(appChanges, metrics.BaselineResourceChanges(stored, &fresh, readBaseline)...)
 	}
 	appChanges = filterCancelledScalarChanges(ctx, getSnapshotManifest, &fresh, appChanges, diffOpts)
+	if diffOpts != nil {
+		appChanges = append(appChanges, manifestdiff.Changes(diffOpts.ManifestPairs)...)
+	}
 
 	now := time.Now()
 	promoted, promotedAt, appChanges := removalBuffer.resolve(fresh.Name, appChanges, now)
 	newRemovals, immediate := splitRemovalChanges(appChanges)
+	if diffOpts != nil && diffOpts.FromCoalescingFlush {
+		// An informer-observed deletion is authoritative; the buffer only guards
+		// polled paths that can flap.
+		immediate = append(immediate, newRemovals...)
+		newRemovals = nil
+	}
 	removalBuffer.add(fresh.Name, newRemovals, now)
 
 	allChanges := mergePromotedAndImmediate(promoted, immediate)
 	if len(allChanges) == constants.DefaultInitValue {
-		return handleNoChange(ctx, createSnapshot, stored, &fresh, diffOpts)
+		h, snaps, ok := handleNoChange(ctx, createSnapshot, stored, &fresh, diffOpts)
+		return h, snaps, authoredOutcome(ok)
 	}
 
 	var detectedAtOverride *time.Time
@@ -171,7 +213,7 @@ func handleNoChange(
 	if diffOpts != nil && diffOpts.FromCoalescingFlush {
 		return h, prev, false
 	}
-	backfilled, err := maybeAddSnapshotBestEffort(ctx, createSnapshot, fresh, prev, h.Generation)
+	backfilled, err := maybeAddSnapshotBestEffort(ctx, createSnapshot, deleteSnapshotFn(diffOpts), fresh, prev, h.Generation)
 	if err != nil {
 		return h, prev, false
 	}
@@ -187,11 +229,12 @@ func handleChange(
 	appChanges []application.ApplicationChange,
 	detectedAtOverride *time.Time,
 	diffOpts *DiffOptions,
-) (application.ApplicationHistory, []application.ApplicationSnapshot, bool) {
+) (application.ApplicationHistory, []application.ApplicationSnapshot, Outcome) {
 	normalizeApplicationChangeDescriptions(appChanges)
 	filtered := gate.ApplyFilters(ctx, rdb, fresh, appChanges)
 	if len(filtered) == constants.DefaultInitValue {
-		return handleNoChange(ctx, createSnapshot, stored, fresh, diffOpts)
+		h, snaps, ok := handleNoChange(ctx, createSnapshot, stored, fresh, diffOpts)
+		return h, snaps, authoredOutcome(ok)
 	}
 	normalizeApplicationChangeDescriptions(filtered)
 
@@ -217,12 +260,16 @@ func handleChange(
 		lg:             lg,
 	})
 	if !ok {
-		return noChangeHistory(stored), snapshotsNoChange(stored), false
+		outcome := unauthoredOutcome(diffOpts)
+		if outcome == OutcomeDeferred {
+			lg.Info(fmt.Sprintf(string(constants.InfoHistoryChangeDeferred), fresh.Name, len(filtered)))
+		}
+		return noChangeHistory(stored), snapshotsNoChange(stored), outcome
 	}
 
 	h := changeHistory(stored, *fresh, filtered, detectedAtOverride)
 	gate.PersistRedisState(ctx, rdb, fresh.Name, LastChangeLogEntry(h))
-	return h, prev, true
+	return h, prev, OutcomeAuthored
 }
 
 func CurrentGenerationOrDefault(stored *application.Application) int {
@@ -239,6 +286,7 @@ func CurrentGenerationOrDefault(stored *application.Application) int {
 func maybeAddSnapshotBestEffort(
 	ctx context.Context,
 	createSnapshot func(id string, scope string, namespace string, generation int, manifest any) (string, error),
+	del snapshot.DeleteSnapshotFn,
 	fresh *application.Application,
 	prev []application.ApplicationSnapshot,
 	generation int,
@@ -259,7 +307,16 @@ func maybeAddSnapshotBestEffort(
 		)
 		return prev, err
 	}
-	return snapshot.MergeSnapshots(prev, snaps, snapshot.MaxSnapshots()), nil
+	merged := snapshot.MergeSnapshots(prev, snaps, snapshot.MaxSnapshots())
+	snapshot.DiscardSnapshots(snapshot.Pruned(prev, merged), del)
+	return merged, nil
+}
+
+func deleteSnapshotFn(dopts *DiffOptions) snapshot.DeleteSnapshotFn {
+	if dopts == nil {
+		return nil
+	}
+	return dopts.DeleteSnapshot
 }
 
 func snapshotsNoChange(stored *application.Application) []application.ApplicationSnapshot {
@@ -337,13 +394,6 @@ func changeHistory(
 		existingLog = []application.ChangeLogEntry{}
 	}
 
-	if len(existingLog) > constants.DefaultInitValue {
-		last := existingLog[len(existingLog)-constants.DefaultAddValue]
-		if isInversePair(last, appChanges, class, detectedAtTime) {
-			return suppressedHistory(existingLog, fresh)
-		}
-	}
-
 	severity := changes.DetermineSeverity(class, appChanges)
 	entry := application.ChangeLogEntry{
 		Generation:  nextGen,
@@ -373,25 +423,6 @@ func resolveDetectedAtTime(lastModifiedAt string, override *time.Time) time.Time
 		return *override
 	}
 	return historyDetectedAt(lastModifiedAt)
-}
-
-func suppressedHistory(
-	existingLog []application.ChangeLogEntry,
-	fresh application.Application,
-) application.ApplicationHistory {
-	truncatedLog := make([]application.ChangeLogEntry, len(existingLog)-constants.DefaultAddValue)
-	copy(truncatedLog, existingLog[:len(existingLog)-constants.DefaultAddValue])
-	gen := constants.DefaultAddValue
-	if len(truncatedLog) > constants.DefaultInitValue {
-		gen = truncatedLog[len(truncatedLog)-constants.DefaultAddValue].Generation
-	}
-	return application.ApplicationHistory{
-		Generation:     gen,
-		HasDrift:       hasDriftFromChangeLog(truncatedLog),
-		LastModifiedBy: fresh.History.LastModifiedBy,
-		LastModifiedAt: fresh.History.LastModifiedAt,
-		ChangeLog:      truncatedLog,
-	}
 }
 
 func historyDetectedAt(lastModifiedAt string) time.Time {
@@ -462,7 +493,7 @@ func newAppWithBaselineSnapshot(
 	ctx context.Context,
 	createSnapshot func(id string, scope string, namespace string, generation int, manifest any) (string, error),
 	fresh application.Application,
-) (application.ApplicationHistory, []application.ApplicationSnapshot, bool) {
+) (application.ApplicationHistory, []application.ApplicationSnapshot, Outcome) {
 	h := NewApplicationHistory()
 	takenAt := time.Now().UTC()
 	baseline := snapshot.BuildSnapshotEntries(
@@ -475,5 +506,5 @@ func newAppWithBaselineSnapshot(
 		takenAt,
 	)
 	merged := snapshot.MergeSnapshots([]application.ApplicationSnapshot{}, baseline, snapshot.MaxSnapshots())
-	return h, merged, true
+	return h, merged, OutcomeAuthored
 }

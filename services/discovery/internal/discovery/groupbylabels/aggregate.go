@@ -55,10 +55,9 @@ func buildApplication(name string, resources []derivation.ResourceWithGroup) app
 		}
 	}
 
-	primaryNS := discoveryshared.PrimaryNamespaceFromCounts(nsCounts)
 	return application.Application{
 		Name:          name,
-		DisplayName:   discoveryshared.BuildDisplayName(name, primaryNS),
+		DisplayName:   discoveryshared.BuildDisplayName(name),
 		ResourceCount: len(resources),
 		Namespaces: application.Namespaces{
 			Total: len(nsCounts),

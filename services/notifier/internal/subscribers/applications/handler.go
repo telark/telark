@@ -59,6 +59,9 @@ func (s *ApplicationSubscriber) handleUpdate(m *nats.Msg) error {
 			resourceName,
 			createResp.GetMessage(),
 		)
+		if base.TransientStatus(createResp.GetStatus()) {
+			return s.NakWithLog(m, m.Subject, logMsg)
+		}
 		return base.AckWithLog(m, m.Subject, logMsg, true)
 	}
 
@@ -67,6 +70,9 @@ func (s *ApplicationSubscriber) handleUpdate(m *nats.Msg) error {
 		resourceName,
 		patchResp.GetMessage(),
 	)
+	if base.TransientStatus(patchResp.GetStatus()) {
+		return s.NakWithLog(m, m.Subject, logMsg)
+	}
 	return base.AckWithLog(m, m.Subject, logMsg, true)
 }
 

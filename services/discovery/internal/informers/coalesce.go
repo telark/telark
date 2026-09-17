@@ -3,6 +3,8 @@ package informers
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -28,7 +30,7 @@ type coalescer struct {
 	buf           map[string]map[string]*unstructured.Unstructured
 	bufFirstEvent map[string]time.Time // time of the first event in each pending window
 	timers        map[string]*time.Timer
-	flush         func(string) error
+	flush         func(string, map[string]*unstructured.Unstructured) error
 }
 
 func newCoalescer(
@@ -38,7 +40,7 @@ func newCoalescer(
 	rdb *redis.Client,
 	ctxFn func() context.Context,
 	leaderFn func(context.Context) bool,
-	flush func(string) error,
+	flush func(string, map[string]*unstructured.Unstructured) error,
 ) *coalescer {
 	return &coalescer{
 		window:        window,
@@ -119,7 +121,7 @@ func (c *coalescer) persistBufferLocked(appName string) error {
 	if err != nil {
 		return err
 	}
-	return c.rdb.Set(c.ctx(), coalesceRedisKey(appName), raw, c.window).Err()
+	return c.rdb.Set(c.ctx(), coalesceRedisKey(appName), raw, constants.CoalesceBufferPersistTTL).Err()
 }
 
 func (c *coalescer) shouldSkipEntry(buf map[string]*unstructured.Unstructured, key string) bool {
@@ -137,13 +139,12 @@ func (c *coalescer) schedule(appName, key string, oldObj *unstructured.Unstructu
 		c.buf[appName] = make(map[string]*unstructured.Unstructured)
 	}
 	buf := c.buf[appName]
-	if oldObj != nil {
-		if c.shouldSkipEntry(buf, key) {
-			return
-		}
-		if _, exists := buf[key]; !exists {
-			buf[key] = oldObj.DeepCopy()
-		}
+	if c.shouldSkipEntry(buf, key) {
+		return
+	}
+	if _, exists := buf[key]; !exists {
+		// nil is an added resource: no pre-image, but the flush still runs.
+		buf[key] = oldObj.DeepCopy()
 	}
 	// Best-effort Redis persist — timer is always set regardless of result so
 	// events are never silently dropped due to transient Redis unavailability.
@@ -183,11 +184,61 @@ func (c *coalescer) fireFlush(appName string) {
 		delete(c.timers, appName)
 	}
 	delete(c.bufFirstEvent, appName)
+	// Detached: events landing while this flush runs open a fresh buffer instead
+	// of being wiped together with the flushed one.
+	flushing := c.buf[appName]
+	delete(c.buf, appName)
 	c.mu.Unlock()
-	if err := c.flush(appName); err != nil {
+	err := c.flush(appName, flushing)
+	if err == nil {
+		c.clearBufferAfterSuccessfulFlush(appName)
 		return
 	}
-	c.clearBufferAfterSuccessfulFlush(appName)
+	if errors.Is(err, errFlushStoredMissing) || errors.Is(err, errFlushNoInputs) {
+		constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(
+			fmt.Sprintf(string(constants.WarnInformersFlushFailed), appName, err))
+		return
+	}
+	c.restoreBuffer(appName, flushing)
+	if errors.Is(err, errFlushNotLeader) {
+		return
+	}
+	delay := c.window
+	if errors.Is(err, errFlushStoredStale) {
+		delay = constants.InformerFlushStaleRetry
+	}
+	constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(
+		fmt.Sprintf(string(constants.WarnInformersFlushRetry), appName, err, delay))
+	c.rearm(appName, delay)
+}
+
+// restoreBuffer puts a detached buffer back; its objects predate anything
+// buffered meanwhile, so they win as the pre-image.
+func (c *coalescer) restoreBuffer(appName string, flushing map[string]*unstructured.Unstructured) {
+	if len(flushing) == constants.DefaultInitValue {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.buf[appName] == nil {
+		c.buf[appName] = make(map[string]*unstructured.Unstructured, len(flushing))
+	}
+	for key, obj := range flushing {
+		c.buf[appName][key] = obj
+	}
+	_ = c.persistBufferLocked(appName)
+}
+
+// rearm schedules another flush attempt after delay, keeping the buffer intact.
+func (c *coalescer) rearm(appName string, delay time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, exists := c.timers[appName]; exists {
+		return
+	}
+	c.timers[appName] = time.AfterFunc(delay, func() {
+		c.fireFlush(appName)
+	})
 }
 
 func (c *coalescer) loadBufferFromRedisForFlush(appName string) (map[string]*unstructured.Unstructured, error) {
@@ -213,8 +264,11 @@ func (c *coalescer) loadBufferFromRedisForFlush(appName string) (map[string]*uns
 
 func (c *coalescer) clearBufferAfterSuccessfulFlush(appName string) {
 	c.mu.Lock()
-	delete(c.buf, appName)
-	delete(c.bufFirstEvent, appName)
+	if len(c.buf[appName]) > constants.DefaultInitValue {
+		_ = c.persistBufferLocked(appName)
+		c.mu.Unlock()
+		return
+	}
 	rdb := c.rdb
 	c.mu.Unlock()
 	if rdb != nil {
@@ -290,8 +344,8 @@ func (c *coalescer) resumeOneKey(ctx context.Context, key string) {
 	}
 	rem := time.Until(time.Unix(deadline, int64(constants.DefaultInitValue)))
 	if rem <= time.Duration(constants.DefaultInitValue) {
-		_, _ = c.rdb.Del(ctx, key).Result()
-		return
+		// Deadline passed while no leader was running: flush on the next tick, never drop.
+		rem = time.Millisecond
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()

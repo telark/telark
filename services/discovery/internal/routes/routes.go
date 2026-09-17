@@ -4,9 +4,9 @@ import (
 	"github.com/telark/discovery/internal/constants"
 	resourceslist "github.com/telark/discovery/internal/handlers/analyze/resources"
 	workloadslist "github.com/telark/discovery/internal/handlers/analyze/workloads"
+	insightshandler "github.com/telark/discovery/internal/handlers/insights"
 	namespacehandler "github.com/telark/discovery/internal/handlers/namespaces"
 	protectionplanhandler "github.com/telark/discovery/internal/handlers/plans/protection"
-	insightshandler "github.com/telark/discovery/internal/handlers/insights"
 	applicationhandler "github.com/telark/discovery/internal/handlers/resources/applications"
 	statushandler "github.com/telark/discovery/internal/handlers/status"
 	"github.com/telark/rest/base"
@@ -29,7 +29,8 @@ var Routes = []router.Route{
 	router.CreateRoute(base.Post, applicationeps.TriggerRollback, applicationhandler.TriggerRollback),
 	router.CreateRoute(base.Post, applicationeps.AbortRollback, applicationhandler.AbortRollback),
 	router.CreateRoute(base.Post, applicationeps.SyncApplication, applicationhandler.SyncApplication),
-	router.CreateRoute(base.Delete, applicationeps.CleanupApplication, applicationhandler.CleanupApplicationData),
+	router.CreateRoute(base.Post, applicationeps.ResetApplication, applicationhandler.ResetApplication),
+	router.CreateRoute(base.Get, applicationeps.DiscoveryStatus, applicationhandler.DiscoveryStatus),
 
 	// Namespace routes
 	router.CreateRoute(base.Get, analyzeps.GetAllNamespaces, namespacehandler.GetNamespaces),

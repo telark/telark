@@ -3,40 +3,86 @@ package informers
 import (
 	"context"
 	"errors"
+	"fmt"
+	"slices"
 
 	applicationmodel "github.com/telark/data/resources/application"
 	"github.com/telark/discovery/internal/constants"
 	applicationscore "github.com/telark/discovery/internal/core/applications/core"
 	"github.com/telark/discovery/internal/core/applications/history/diff"
+	"github.com/telark/discovery/internal/core/applications/history/manifestdiff"
 	appsnapshot "github.com/telark/discovery/internal/core/applications/snapshot"
 	"github.com/telark/discovery/internal/discovery/prewarm"
+	"github.com/telark/rest/response"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-var errFlushNotLeader = errors.New("informers flush skipped: not leader")
+var (
+	errFlushNotLeader     = errors.New("informers flush skipped: not leader")
+	errFlushGenLockBusy   = errors.New(string(constants.ErrInformersFlushGenLockBusy))
+	errFlushStoredMissing = errors.New(string(constants.ErrInformersFlushStoredMissing))
+	errFlushNoInputs      = errors.New(string(constants.ErrInformersFlushNoInputs))
+	errFlushNotTarget     = errors.New(string(constants.ErrInformersFlushNotTarget))
+	errFlushStoredStale   = errors.New(string(constants.ErrInformersFlushStoredStale))
+)
 
-func (m *Manager) flushApp(appName string) error {
+func (m *Manager) flushApp(appName string, buf map[string]*unstructured.Unstructured) error {
 	ctx := m.ctxOrBackground()
 	if !m.isLeader(ctx) {
 		return errFlushNotLeader
 	}
-	buf, err := m.loadFlushBuffer(appName)
-	if err != nil {
-		return err
+	if len(buf) == constants.DefaultInitValue {
+		var err error
+		buf, err = m.loadFlushBuffer(appName)
+		if err != nil {
+			return err
+		}
 	}
 	if len(buf) == constants.DefaultInitValue {
 		return nil
 	}
-	stored, err := m.exporter.GetApplicationByName(appName)
+	if m.rollbackApplying(ctx, appName) {
+		constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Info(
+			fmt.Sprintf(string(constants.InfoInformersFlushRollbackDropped), appName))
+		return nil
+	}
+	stored, err := m.exporter.GetApplicationByNameFresh(appName)
 	if err != nil {
-		m.coalesce.clearBufferRedis(appName)
 		return err
 	}
 	if stored == nil {
 		m.coalesce.clearBufferRedis(appName)
-		return nil
+		return errFlushStoredMissing
+	}
+	// The exporter applies publishes asynchronously; under a burst it can still
+	// serve the generation this leader already moved past. Deriving the next
+	// generation from that copy re-issues the same number and overwrites the
+	// entry (a burst lost two of three rounds this way). Deferring keeps the
+	// pre-image and retries once the store has caught up.
+	if floor := m.publishedGeneration(ctx, appName); stored.History.Generation < floor {
+		constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(fmt.Sprintf(
+			string(constants.WarnInformersFlushStaleStored), appName, stored.History.Generation, floor))
+		return errFlushStoredStale
 	}
 	return m.applyFlushWithLock(ctx, appName, stored, buf)
+}
+
+func (m *Manager) publishedGeneration(ctx context.Context, appName string) int {
+	if m.cfg.RDB == nil {
+		return constants.DefaultInitValue
+	}
+	floor, err := m.cfg.RDB.Get(ctx, constants.KeyPrefixHistoryFloor+appName).Int()
+	if err != nil {
+		return constants.DefaultInitValue
+	}
+	return floor
+}
+
+func (m *Manager) rememberPublishedGeneration(ctx context.Context, appName string, generation int) {
+	if m.cfg.RDB == nil {
+		return
+	}
+	_ = m.cfg.RDB.Set(ctx, constants.KeyPrefixHistoryFloor+appName, generation, constants.HistoryFloorTTL).Err()
 }
 
 func (m *Manager) loadFlushBuffer(appName string) (map[string]*unstructured.Unstructured, error) {
@@ -62,22 +108,23 @@ func (m *Manager) applyFlushWithLock(
 	nextGen := nextSnapshotGeneration(stored)
 	lockKey, acquired := diff.AcquireGenProcessingLock(ctx, m.cfg.RDB, appName, nextGen)
 	if !acquired {
-		return nil
+		return errFlushGenLockBusy
 	}
 	defer diff.ReleaseGenProcessingLock(m.cfg.RDB, lockKey)
 	opts := prewarm.BuildPrewarmApplicationOptions()
-	opts.GetStoredApplication = func(name string) *applicationmodel.Application {
+	opts.GetStoredApplication = func(name string) (*applicationmodel.Application, error) {
 		if name == appName {
-			return stored
+			return stored, nil
 		}
-		return nil
+		return nil, errFlushNotTarget
 	}
 	// Resolved before any file is written: bailing after writePreSnapshots orphans them.
 	inputs := inputsForApp(ctx, m, stored, appName)
 	if len(inputs) == constants.DefaultInitValue {
-		return nil
+		m.coalesce.clearBufferRedis(appName)
+		return errFlushNoInputs
 	}
-	byNS := oldObjectsByNamespace(buf)
+	byNS := m.preImageByNamespace(stored, buf)
 	newSnaps, err := writePreSnapshotsForNamespaces(nextGen, byNS, opts.CreateSnapshot)
 	if err != nil {
 		appsnapshot.DiscardSnapshots(newSnaps, opts.DeleteSnapshot)
@@ -85,8 +132,31 @@ func (m *Manager) applyFlushWithLock(
 		return err
 	}
 	applyFlushOpts(&opts, appName, nextGen, newSnaps)
-	_ = applicationscore.GetApplications(ctx, m.cfg.RDB, inputs, opts)
+	opts.ManifestPairs = m.manifestPairs(buf)
+	res := applicationscore.GetApplications(ctx, m.cfg.RDB, inputs, opts)
+	if app := logFlushResult(appName, stored, res); app != nil &&
+		app.CRStatus == applicationmodel.CRStatusPublished && app.History.Generation > stored.History.Generation {
+		m.rememberPublishedGeneration(ctx, appName, app.History.Generation)
+	}
 	return nil
+}
+
+func logFlushResult(appName string, stored *applicationmodel.Application, res response.GenericResponse) *applicationmodel.Application {
+	lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
+	data, ok := res.Data.(applicationmodel.ResponseData)
+	if !ok {
+		lg.Warn(fmt.Sprintf(string(constants.WarnInformersFlushTargetMissing), appName, constants.DefaultInitValue))
+		return nil
+	}
+	idx := slices.IndexFunc(data.Applications, func(a applicationmodel.Application) bool { return a.Name == appName })
+	if idx < constants.DefaultInitValue {
+		lg.Warn(fmt.Sprintf(string(constants.WarnInformersFlushTargetMissing), appName, len(data.Applications)))
+		return nil
+	}
+	app := &data.Applications[idx]
+	lg.Info(fmt.Sprintf(string(constants.InfoInformersFlushResult),
+		appName, stored.History.Generation, app.History.Generation, app.CRStatus))
+	return app
 }
 
 func applyFlushOpts(
@@ -104,14 +174,60 @@ func applyFlushOpts(
 // oldObjectsByNamespace partitions the coalescer buffer (resource-key → oldObject)
 // into namespace → []objects, ready for snapshot creation.
 // Each value is a DeepCopy of the informer-captured oldObject.
-func oldObjectsByNamespace(buf map[string]*unstructured.Unstructured) map[string][]unstructured.Unstructured {
-	out := make(map[string][]unstructured.Unstructured)
+// preImageByNamespace completes the buffered old objects with the rest of the
+// application from the informer cache, so every snapshot holds the whole app.
+func (m *Manager) preImageByNamespace(
+	stored *applicationmodel.Application,
+	buf map[string]*unstructured.Unstructured,
+) map[string][]unstructured.Unstructured {
+	old := make(map[string]*unstructured.Unstructured, len(buf))
 	for _, v := range buf {
-		if v == nil {
+		if v != nil {
+			old[resourceKey(v)] = v
+		}
+	}
+	out := make(map[string][]unstructured.Unstructured)
+	seen := make(map[string]struct{}, len(stored.Resources))
+	for _, r := range stored.Resources {
+		key := r.Namespace + "/" + r.Kind + "/" + r.Name
+		seen[key] = struct{}{}
+		if v, ok := old[key]; ok {
+			out[r.Namespace] = append(out[r.Namespace], *v.DeepCopy())
 			continue
 		}
-		ns := v.GetNamespace()
-		out[ns] = append(out[ns], *v.DeepCopy())
+		if obj, ok := m.getCachedManifest(r.Kind, r.Name, r.Namespace); ok {
+			out[r.Namespace] = append(out[r.Namespace], unstructured.Unstructured{Object: obj})
+		}
+	}
+	for key, v := range old {
+		if _, ok := seen[key]; !ok {
+			out[v.GetNamespace()] = append(out[v.GetNamespace()], *v.DeepCopy())
+		}
 	}
 	return out
+}
+
+// ponytail: a user change landing inside the 60s rollback window is dropped too;
+// diff against the rollback target if that ever matters.
+func (m *Manager) rollbackApplying(ctx context.Context, appName string) bool {
+	if m.cfg.RDB == nil {
+		return false
+	}
+	n, err := m.cfg.RDB.Exists(ctx, constants.KeyPrefixRollbackApplying+appName).Result()
+	return err == nil && n > constants.DefaultInitValue
+}
+
+func (m *Manager) manifestPairs(buf map[string]*unstructured.Unstructured) []manifestdiff.ManifestPair {
+	pairs := make([]manifestdiff.ManifestPair, constants.DefaultInitValue, len(buf))
+	for _, old := range buf {
+		if old == nil {
+			continue
+		}
+		cur, ok := m.getCachedManifest(old.GetKind(), old.GetName(), old.GetNamespace())
+		if !ok {
+			continue
+		}
+		pairs = append(pairs, manifestdiff.ManifestPair{Old: old.DeepCopy(), New: &unstructured.Unstructured{Object: cur}})
+	}
+	return pairs
 }

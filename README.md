@@ -49,6 +49,7 @@ No new mental model, no YAML archaeology: discover your apps, pick what to prote
 - **Time-bounded windows** — freeze a scope from 22:00 to 02:00 tonight; it arms and disarms itself on schedule.
 - **Ready-made policy templates** — block deletion, replica scaling, image patterns/tags, storage changes, ConfigMap/Secret edits, and more. Run in **audit** first, flip to **enforce** when you trust it.
 - **Cluster-truth health** — telark reads the cluster to confirm the protection you asked for is the protection actually running. Drift, missing policies, and tampering are surfaced.
+- **Change history & rollback** — every change to an application is recorded field by field, deletions included, with a pre-change snapshot you can roll back to from the dashboard.
 - **AI insights** — optional per-application summaries and risk signals.
 - **Modern auth** — passkeys and Google SSO, with a built-in role model.
 

@@ -78,6 +78,7 @@ func attachUnidentified(
 		k := resourceMapKey(resources[i].Namespace, resources[i].Kind, resources[i].Name)
 		byKey[k] = i
 	}
+	configIndex := referencedConfigIndex(groups)
 	// Known app keys per namespace for name-contains
 	appKeysByNS := knownAppKeysByNamespace(groups)
 
@@ -86,6 +87,9 @@ func attachUnidentified(
 			continue
 		}
 		r := &resources[i]
+		if tryAttachViaConfigRef(r, configIndex, groups) {
+			continue
+		}
 		attached := tryAttachViaOwnerRef(r, identities, byKey, resources, groups)
 		if attached {
 			continue
@@ -157,4 +161,50 @@ func removeAnchorless(groups map[groupKey][]ResourceInput) map[groupKey][]Resour
 		}
 	}
 	return groups
+}
+
+// referencedConfigIndex maps every ConfigMap and Secret a grouped workload reads
+// to that workload's group. Groups are visited in a stable order so a config
+// shared by two applications always lands in the same one.
+func referencedConfigIndex(groups map[groupKey][]ResourceInput) map[string]groupKey {
+	keys := make([]groupKey, constants.DefaultInitValue, len(groups))
+	for key := range groups {
+		keys = append(keys, key)
+	}
+	slices.SortFunc(keys, func(a, b groupKey) int {
+		if c := strings.Compare(a.namespace, b.namespace); c != constants.DefaultInitValue {
+			return c
+		}
+		return strings.Compare(a.appKey, b.appKey)
+	})
+	idx := make(map[string]groupKey)
+	for _, key := range keys {
+		for i := range groups[key] {
+			r := &groups[key][i]
+			if !workloadKinds[r.Kind] {
+				continue
+			}
+			for _, n := range r.ConfigMapRefs {
+				idx[resourceMapKey(r.Namespace, kindConfigMap, n)] = key
+			}
+			for _, n := range r.SecretRefs {
+				idx[resourceMapKey(r.Namespace, kindSecret, n)] = key
+			}
+		}
+	}
+	return idx
+}
+
+// tryAttachViaConfigRef attaches an unlabeled ConfigMap or Secret to the
+// application whose workload reads it.
+func tryAttachViaConfigRef(r *ResourceInput, idx map[string]groupKey, groups map[groupKey][]ResourceInput) bool {
+	if r.Kind != kindConfigMap && r.Kind != kindSecret {
+		return false
+	}
+	key, ok := idx[resourceMapKey(r.Namespace, r.Kind, r.Name)]
+	if !ok {
+		return false
+	}
+	groups[key] = append(groups[key], *r)
+	return true
 }

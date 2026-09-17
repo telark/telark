@@ -73,6 +73,12 @@ func PatchResourceWithCacheInvalidation(
 	linkFunc func(http.ResponseWriter, *http.Request),
 ) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		resourceName := sharedutils.ExtractResourceNameFromRequest(r)
+		// The response goes out before the invalidation below; a client that reads
+		// back immediately must not get the pre-write copy.
+		if resourceName != constants.EmptyString {
+			cache.InvalidateGetCache(optimizer, resourceType, resourceName)
+		}
 		sharedexp.PatchResource(w, r, md)
 
 		// Run cascade function if provided
@@ -80,7 +86,6 @@ func PatchResourceWithCacheInvalidation(
 			linkFunc(w, r)
 		}
 
-		resourceName := sharedutils.ExtractResourceNameFromRequest(r)
 		if resourceName != constants.EmptyString {
 			cache.InvalidateSpecificResourceCache(optimizer, resourceType, resourceName)
 		} else {

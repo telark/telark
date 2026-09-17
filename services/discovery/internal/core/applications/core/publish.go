@@ -2,18 +2,20 @@ package core
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/telark/data/resources/application"
 	resourceshared "github.com/telark/data/resources/shared"
 	"github.com/telark/discovery/internal/config"
 	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/core/applications/history/diff"
 	"github.com/telark/discovery/internal/core/applications/snapshot"
 	"github.com/telark/discovery/internal/publisher"
 	natscore "github.com/telark/x-ware/nats/core"
 )
 
-func PublishApplications(natsClient *natscore.NATSClient, apps []application.Application, authored []bool) {
+func PublishApplications(natsClient *natscore.NATSClient, apps []application.Application, outcomes []diff.Outcome) {
 	if natsClient == nil {
 		return
 	}
@@ -21,9 +23,12 @@ func PublishApplications(natsClient *natscore.NATSClient, apps []application.App
 	interval := config.SnapshotWriteRetryInterval()
 	for i := range apps {
 		app := &apps[i]
+		if i < len(outcomes) && outcomes[i] == diff.OutcomeDeferred {
+			continue
+		}
 		snapshot.NormalizeApplicationSnapshotTakenAt(app)
 		payload := applicationPayload(app)
-		if i >= len(authored) || !authored[i] {
+		if i >= len(outcomes) || outcomes[i] != diff.OutcomeAuthored {
 			stripUnauthoredHistory(payload)
 		}
 		params := publisher.PublishUpdateParams{
@@ -46,6 +51,8 @@ func PublishApplications(natsClient *natscore.NATSClient, apps []application.App
 		}
 		if lastErr != nil {
 			app.CRStatus = application.CRStatusFailed
+			constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(
+				fmt.Sprintf(string(constants.WarnApplicationPublishFailed), app.Name, attemptMax, lastErr))
 		}
 	}
 }

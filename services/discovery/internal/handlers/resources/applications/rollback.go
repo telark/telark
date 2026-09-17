@@ -40,6 +40,10 @@ func getAppRollbackMu(name string) *sync.Mutex {
 	return m
 }
 
+func rollbackActive(r applicationmodel.RollbackEntry) bool {
+	return r.Status == constants.RollbackStatusPending || r.Status == constants.RollbackStatusInProgress
+}
+
 type triggerRollbackBody struct {
 	SnapshotGeneration int    `json:"snapshotGeneration"`
 	TriggeredBy        string `json:"triggeredBy"`
@@ -69,9 +73,16 @@ func TriggerRollback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	exporterClient := clients.NewExporterClient()
-	app, getErr := exporterClient.GetApplicationByName(name)
+	app, getErr := exporterClient.GetApplicationByNameFresh(name)
 	if getErr != nil || app == nil {
 		writeError(w, http.StatusNotFound, response.OperationNotFound, string(constants.MsgApplicationNotFound), getErr)
+		return
+	}
+
+	// The mutex only covers simultaneous calls; a second trigger arriving right
+	// after the first must see the pending entry and stop, not append over it.
+	if slices.ContainsFunc(app.Rollbacks, rollbackActive) {
+		writeError(w, http.StatusConflict, response.OperationError, string(constants.ErrRollbackInFlight), nil)
 		return
 	}
 
@@ -132,7 +143,7 @@ func AbortRollback(w http.ResponseWriter, r *http.Request) {
 	defer mu.Unlock()
 
 	exporterClient := clients.NewExporterClient()
-	app, getErr := exporterClient.GetApplicationByName(name)
+	app, getErr := exporterClient.GetApplicationByNameFresh(name)
 	if getErr != nil || app == nil {
 		writeError(w, http.StatusNotFound, response.OperationNotFound, string(constants.MsgApplicationNotFound), getErr)
 		return

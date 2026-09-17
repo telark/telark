@@ -9,6 +9,11 @@ const (
 	RollbackStatusFailed     = "failed"
 	RollbackStatusAborted    = "aborted"
 
+	// Marker set while a rollback applies manifests; informer flushes drop the
+	// resulting changes so history keeps the single rollback entry.
+	KeyPrefixRollbackApplying = "rollback:applying:"
+	RollbackApplyingTTL       = 60 * time.Second
+
 	// Server-side apply.
 	RollbackFieldManager = "telark-discovery-service"
 

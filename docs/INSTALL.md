@@ -25,9 +25,9 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 
 | Mode | For | Capacity (measured 2026-09-17) |
 |---|---|---|
-| `minimal` | dev, demos, evaluation — single replica, no PDBs | a few hundred applications |
-| `standard` (default) | small–mid production — 2 replicas for discovery, notifier and enrichment; auth, the dashboard and the exporter run 1; disruption budgets | verified at 1 000 applications |
-| `performance` | large clusters — 3 replicas (auth and the dashboard 2); needs a ReadWriteMany class for the exporter (add `--set app.persistence.storageClass=<rwx-class>`) | beyond 1 000 applications |
+| `minimal` | dev, demos, evaluation — single replica, no autoscaling, no PDBs | a few hundred applications |
+| `standard` (default) | small–mid production — every service starts at 1 replica and scales on CPU up to 3 (HPA; the exporter stays at 1); add `--set vpa.enabled=true` for vertical scaling | verified at 1 000 applications |
+| `performance` | large clusters — same, HPA ceiling 5, disruption budgets keep one pod through drains; larger requests/limits and a 50 GiB volume | beyond 1 000 applications |
 
 `app.mode` sizes telark's own services only — Helm resolves a subchart's values before the mode is known, so redis, NATS, the policy engine and metrics-server ship fixed production-grade defaults owned by the chart, identical in every mode. Nothing to tune.
 
@@ -87,7 +87,7 @@ Everything is set on the one command line with `--set key=value`. Re-pass the sa
 | `app.image.pullPolicy` | `Always` | Image pull policy |
 | `app.image.pullSecrets` | `[]` | Image pull secrets for a private registry |
 | `app.persistence.size` | `10Gi` | Exporter snapshot PVC size |
-| `app.persistence.storageClass` | `""` | PVC class (`""` = cluster default; a ReadWriteMany class is required for `performance`) |
+| `app.persistence.storageClass` | `""` | PVC class (`""` = cluster default; a ReadWriteMany class only if you raise `services.exporter.replicas` above 1) |
 | `app.persistence.accessMode` | `ReadWriteOnce` | Exporter PVC access mode |
 | `app.crdGuard.enabled` | `false` | Admission guard: only owning service accounts may write telark CRs |
 | `app.crdGuard.enforce` | `false` | With the guard on, `false` audits and `true` rejects |

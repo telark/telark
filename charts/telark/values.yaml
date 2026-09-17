@@ -114,18 +114,24 @@ app:
   serviceDefaults:
     port: 8080
     serviceType: ClusterIP
-    replicas: 2
+    replicas: 1
     terminationGracePeriodSec: 60
     nodeSelector: {}
     tolerations: []
     affinity: {}
-    # HPA defaults (autoscaling/v2). Off everywhere; performance mode enables it per
-    # stateless service (auth/discovery/enrichment/notifier/ui — never the exporter).
+    # Every service starts at one replica and scales horizontally on CPU (HPA,
+    # autoscaling/v2) — never the exporter (ReadWriteOnce volume). minimal turns
+    # this off; performance raises the ceiling. Vertical scaling: see vpa below.
     autoscaling:
-      enabled: false
+      enabled: true
       minReplicas: 1
       maxReplicas: 3
       targetCPUUtilizationPercentage: 80
+    # VerticalPodAutoscaler per service, rendered only when vpa.enabled installed
+    # the operator (its CRD must exist, so it appears on the upgrade after the
+    # install). Auto resizes requests/limits in place of the shared defaults.
+    vpa:
+      updateMode: Auto
 
   # Shared pod fragments, applied per service via gates:
   # includeResources · includeHealthCheck · includeSecurity · useRedis · useNatsCreds.
@@ -216,7 +222,6 @@ services:
     # @ignore
     version: 2.0.0
     category: "sync"
-    replicas: 2
     includeSecurity: false
     useNatsCreds: true
     env:
@@ -269,9 +274,10 @@ services:
       maxSkew: 1
       topologyKey: kubernetes.io/hostname
       whenUnsatisfiable: ScheduleAnyway
+    # Disruption budgets stay off in standard: with one replica they only block
+    # node drains. performance enables them once the floor is above one.
     pdb:
-      enabled: true
-      minAvailable: 1
+      enabled: false
   enrichment:
     enabled: true
     name: "enrichment-service"
@@ -292,8 +298,7 @@ services:
       METRICS_INTERVAL_S: "60"
       WORKER_SHUTDOWN_TIMEOUT_S: "30"
     pdb:
-      enabled: true
-      minAvailable: 1
+      enabled: false
   notifier:
     enabled: true
     name: "notifier-service"
@@ -304,8 +309,7 @@ services:
     terminationGracePeriodSec: 30
     useNatsCreds: true
     pdb:
-      enabled: true
-      minAvailable: 1
+      enabled: false
   auth:
     enabled: true
     name: "auth-service"
@@ -314,9 +318,6 @@ services:
     version: 0.3.6
     category: "auth"
     terminationGracePeriodSec: 30
-    # Login and session checks are cheap; one replica carries standard. A
-    # one-replica disruption budget would only block node drains, so it is off.
-    replicas: 1
     env:
       REDIS_DB: "1"
       REDIS_RETRY_INTERVAL_SEC: "2"
@@ -353,8 +354,6 @@ services:
     version: 0.2.0
     category: "ui"
     terminationGracePeriodSec: 30
-    # Static assets behind nginx; one replica serves standard.
-    replicas: 1
     # Static assets behind nginx: it serves no /api/v1/status route, so probes
     # stay off. Resources still apply.
     includeHealthCheck: false
@@ -495,6 +494,12 @@ kyverno:
 # Disable for clusters that already ship it (GKE, AKS, k3s, OpenShift):
 #   kubectl get apiservice v1beta1.metrics.k8s.io
 # If present, override: --set metrics-server.enabled=false
+# Vertical Pod Autoscaler operator (recommender/updater/admission). Off by
+# default; --set vpa.enabled=true for standard/performance — subcharts cannot
+# follow app.mode. Needs metrics-server (bundled). Objects: app.serviceDefaults.vpa.
+vpa:
+  enabled: false
+
 metrics-server:
   enabled: true
   args:

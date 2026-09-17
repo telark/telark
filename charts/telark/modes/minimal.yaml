@@ -13,6 +13,8 @@
 app:
   serviceDefaults:
     replicas: 1
+    autoscaling:
+      enabled: false
   persistence:
     size: 1Gi
     accessMode: ReadWriteOnce

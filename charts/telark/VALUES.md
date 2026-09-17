@@ -54,13 +54,14 @@ Kubernetes: `>=1.30.0-0`
 | app.persistence.size | string | `"10Gi"` |  |
 | app.persistence.storageClass | string | `""` |  |
 | app.serviceDefaults.affinity | object | `{}` |  |
-| app.serviceDefaults.autoscaling.enabled | bool | `false` |  |
+| app.serviceDefaults.autoscaling.enabled | bool | `true` |  |
 | app.serviceDefaults.autoscaling.maxReplicas | int | `3` |  |
 | app.serviceDefaults.autoscaling.minReplicas | int | `1` |  |
 | app.serviceDefaults.autoscaling.targetCPUUtilizationPercentage | int | `80` |  |
 | app.serviceDefaults.nodeSelector | object | `{}` |  |
 | app.serviceDefaults.port | int | `8080` |  |
-| app.serviceDefaults.replicas | int | `2` |  |
+| app.serviceDefaults.replicas | int | `1` |  |
+| app.serviceDefaults.vpa.updateMode | string | `"Auto"` |  |
 | app.serviceDefaults.serviceType | string | `"ClusterIP"` |  |
 | app.serviceDefaults.terminationGracePeriodSec | int | `60` |  |
 | app.serviceDefaults.tolerations | list | `[]` |  |
@@ -220,7 +221,6 @@ Kubernetes: `>=1.30.0-0`
 | services.auth.env.SESSION_EXPIRY | string | `"24"` |  |
 | services.auth.name | string | `"auth-service"` |  |
 | services.auth.pdb.enabled | bool | `false` |  |
-| services.auth.replicas | int | `1` |  |
 | services.auth.repository | string | `"auth"` |  |
 | services.auth.terminationGracePeriodSec | int | `30` |  |
 | services.discovery.category | string | `"sync"` |  |
@@ -323,7 +323,6 @@ Kubernetes: `>=1.30.0-0`
 | services.ui.includeHealthCheck | bool | `false` |  |
 | services.ui.includeSecurity | bool | `false` |  |
 | services.ui.name | string | `"ui-service"` |  |
-| services.ui.replicas | int | `1` |  |
 | services.ui.repository | string | `"ui"` |  |
 | services.ui.terminationGracePeriodSec | int | `30` |  |
 | services.ui.useRedis | bool | `false` |  |

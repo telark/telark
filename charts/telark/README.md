@@ -90,9 +90,9 @@ Fallbacks for any `services.<svc>.*` key omitted.
 |---|---|---|
 | `app.serviceDefaults.port` | `8080` | Container + Service port |
 | `app.serviceDefaults.serviceType` | `ClusterIP` | K8s Service type |
-| `app.serviceDefaults.replicas` | `2` | Deployment replicas (driven by `app.mode`: `minimal`=1, `performance`=3) |
+| `app.serviceDefaults.replicas` | `1` | Starting replicas; the HPA scales from here in `standard`/`performance` (`minimal` stays fixed at 1) |
 | `app.serviceDefaults.terminationGracePeriodSec` | `60` | Pod termination grace period |
-| `app.serviceDefaults.autoscaling.enabled` | `false` | Fleet-wide HPA default (`performance` mode turns it on). See [docs/INSTALL.md](../../docs/INSTALL.md#autoscaling-hpa) |
+| `app.serviceDefaults.autoscaling.enabled` | `true` | Fleet-wide HPA (1 → 3 replicas on CPU; `performance` 1 → 5; `minimal` off; never the exporter). Vertical scaling: `vpa.enabled=true` installs the operator and `app.serviceDefaults.vpa.updateMode` (`Auto`) drives a VPA per service. See [docs/INSTALL.md](../../docs/INSTALL.md#autoscaling-hpa) |
 | `app.serviceDefaults.autoscaling.minReplicas` / `maxReplicas` | `1` / `3` | HPA replica floor / ceiling |
 | `app.serviceDefaults.autoscaling.targetCPUUtilizationPercentage` | `80` | HPA scale-up CPU target |
 

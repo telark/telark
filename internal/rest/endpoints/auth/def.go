@@ -25,6 +25,7 @@ const (
 	GetPasskeyByUserAndCredentialIDViaProxy    base.Endpoint = "auth/passkeys/proxy/single/get"
 	PatchPasskeyByUserAndCredentialIDViaProxy  base.Endpoint = "auth/passkeys/proxy/patch"
 	DeletePasskeyByUserAndCredentialIDViaProxy base.Endpoint = "auth/passkeys/proxy/delete"
+	CreatePasskeyEnrollLink                    base.Endpoint = "auth/passkeys/enroll-link"
 
 	// Sessions
 	CreateSessionByUser  base.Endpoint = "auth/sessions/{userId}/create"

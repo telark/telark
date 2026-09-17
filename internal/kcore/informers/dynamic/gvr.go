@@ -14,7 +14,9 @@ func GVRsForKinds(
 		return nil, nil
 	}
 	grs, err := disco.ServerPreferredResources()
-	if err != nil {
+	// A broken aggregated API (metrics.k8s.io behind an unhealthy metrics-server)
+	// fails only its own group; the groups that resolved are still usable.
+	if err != nil && !discovery.IsGroupDiscoveryFailedError(err) {
 		return nil, err
 	}
 	out := make([]schema.GroupVersionResource, constants.EmptySliceLength, len(kindSet))

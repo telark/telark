@@ -18,6 +18,10 @@ var (
 	metricsClient *metricsclientset.Clientset
 	clientLoader  func() (*metricsclientset.Clientset, error)
 	mu            sync.RWMutex
+	// One shared instance: the availability probe, rate limiter and circuit
+	// breaker only mean something when every caller goes through the same one.
+	instance     *metricstypes.MetricsClient
+	instanceOnce sync.Once
 )
 
 func InitMetricsClient() (*metricstypes.MetricsClient, error) {
@@ -62,24 +66,29 @@ func createMetricsClient() (*metricsclientset.Clientset, error) {
 }
 
 func createMetricsClientInstance() *metricstypes.MetricsClient {
-	return &metricstypes.MetricsClient{
-		Client:        metricsClient,
-		Available:     false,
-		LastCheck:     time.Time{},
-		CheckInterval: constants.AvailabilityCheckInterval,
-		RateLimiter:   ratelimiting.NewRateLimiter(constants.MetricsAPIRateLimit),
-		CircuitBreaker: circuitbreaker.NewCircuitBreaker(
-			constants.MetricsCircuitBreakerMaxFailures,
-			constants.MetricsCircuitBreakerTimeout,
-			constants.MetricsCircuitBreakerResetTimeout,
-		),
-	}
+	instanceOnce.Do(func() {
+		instance = &metricstypes.MetricsClient{
+			Client:        metricsClient,
+			Available:     false,
+			LastCheck:     time.Time{},
+			CheckInterval: constants.AvailabilityCheckInterval,
+			RateLimiter:   ratelimiting.NewRateLimiter(constants.MetricsAPIRateLimit),
+			CircuitBreaker: circuitbreaker.NewCircuitBreaker(
+				constants.MetricsCircuitBreakerMaxFailures,
+				constants.MetricsCircuitBreakerTimeout,
+				constants.MetricsCircuitBreakerResetTimeout,
+			),
+		}
+	})
+	return instance
 }
 
 func ResetClient() {
 	mu.Lock()
 	defer mu.Unlock()
 	metricsClient = nil
+	instance = nil
+	instanceOnce = sync.Once{}
 	clientLoader = makeMetricsClientLoader()
 }
 

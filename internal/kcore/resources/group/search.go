@@ -23,6 +23,15 @@ type ResourceRef struct {
 	Kind      string            `json:"kind"`
 	Name      string            `json:"name"`
 	Labels    map[string]string `json:"labels,omitempty"`
+	Owners    []OwnerRef        `json:"owners,omitempty"`
+	// ConfigMaps and Secrets a workload reads; empty for other kinds.
+	ConfigMapRefs []string `json:"configMapRefs,omitempty"`
+	SecretRefs    []string `json:"secretRefs,omitempty"`
+}
+
+type OwnerRef struct {
+	Kind string `json:"kind"`
+	Name string `json:"name"`
 }
 
 type SearchInput struct {
@@ -247,7 +256,24 @@ func toRef(u *unstructured.Unstructured, namespace, kind string) ResourceRef {
 	if name == constants.EmptyString {
 		name = u.GetName()
 	}
-	return ResourceRef{Namespace: namespace, Kind: kind, Name: name, Labels: lbls}
+	cms, secs := WorkloadConfigRefs(u)
+	return ResourceRef{
+		Namespace: namespace, Kind: kind, Name: name, Labels: lbls, Owners: OwnersOf(u),
+		ConfigMapRefs: cms, SecretRefs: secs,
+	}
+}
+
+// OwnersOf keeps the owner kinds and names so derivation can follow them.
+func OwnersOf(u *unstructured.Unstructured) []OwnerRef {
+	refs := u.GetOwnerReferences()
+	if len(refs) == constants.EmptySliceLength {
+		return nil
+	}
+	out := make([]OwnerRef, constants.EmptySliceLength, len(refs))
+	for i := range refs {
+		out = append(out, OwnerRef{Kind: refs[i].Kind, Name: refs[i].Name})
+	}
+	return out
 }
 
 func labelsMatchText(u *unstructured.Unstructured, text string) bool {

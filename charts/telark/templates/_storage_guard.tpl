@@ -14,7 +14,7 @@ instead of leaving a release quietly stuck.
 {{- if $exporter.enabled -}}
 {{- $replicas := $exporter.replicas | default 1 | int -}}
 {{- $persistence := $values.app.persistence | default dict -}}
-{{- if and (gt $replicas 1) (not $persistence.storageClass) -}}
+{{- if and (gt $replicas 1) $persistence.enabled (not $persistence.storageClass) -}}
 {{- fail (printf "exporter runs %d replicas on a ReadWriteMany volume but app.persistence.storageClass is empty, so the cluster default (block storage) would be used and the claim would never bind. Set app.persistence.storageClass to a ReadWriteMany class (for example efs-sc on EKS), or --set app.singleNode=true to run one replica on ReadWriteOnce." $replicas) -}}
 {{- end -}}
 {{- end -}}

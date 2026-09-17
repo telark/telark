@@ -25,6 +25,7 @@ Kubernetes: `>=1.30.0-0`
 | file://../telark-crds | telark-crds | >= 0.0.0 |
 | https://charts.bitnami.com/bitnami | nats | 9.0.28 |
 | https://charts.bitnami.com/bitnami | redis | 23.0.10 |
+| https://charts.fairwinds.com/stable | vpa | 5.1.0 |
 | https://helm.otwld.com/ | ollama | 1.50.0 |
 | https://kubernetes-sigs.github.io/metrics-server/ | metrics-server | 3.12.2 |
 | https://kyverno.github.io/kyverno/ | kyverno | 3.7.1 |
@@ -60,10 +61,10 @@ Kubernetes: `>=1.30.0-0`
 | app.serviceDefaults.nodeSelector | object | `{}` |  |
 | app.serviceDefaults.port | int | `8080` |  |
 | app.serviceDefaults.replicas | int | `1` |  |
-| app.serviceDefaults.vpa.updateMode | string | `"Auto"` |  |
 | app.serviceDefaults.serviceType | string | `"ClusterIP"` |  |
 | app.serviceDefaults.terminationGracePeriodSec | int | `60` |  |
 | app.serviceDefaults.tolerations | list | `[]` |  |
+| app.serviceDefaults.vpa.updateMode | string | `"Auto"` |  |
 | app.serviceToken.envVar | string | `"TELARK_SERVICE_TOKEN"` |  |
 | app.serviceToken.value | string | `""` |  |
 | app.shared.containerSecurityContext.allowPrivilegeEscalation | bool | `false` |  |
@@ -268,9 +269,7 @@ Kubernetes: `>=1.30.0-0`
 | services.discovery.env.SNAPSHOT_WRITE_RETRY_INTERVAL_SEC | string | `"2"` |  |
 | services.discovery.includeSecurity | bool | `false` |  |
 | services.discovery.name | string | `"discovery-service"` |  |
-| services.discovery.pdb.enabled | bool | `true` |  |
-| services.discovery.pdb.minAvailable | int | `1` |  |
-| services.discovery.replicas | int | `2` |  |
+| services.discovery.pdb.enabled | bool | `false` |  |
 | services.discovery.repository | string | `"discovery"` |  |
 | services.discovery.topologySpread.enabled | bool | `true` |  |
 | services.discovery.topologySpread.maxSkew | int | `1` |  |
@@ -289,9 +288,9 @@ Kubernetes: `>=1.30.0-0`
 | services.enrichment.env.REDIS_POOL_SIZE | string | `"10"` |  |
 | services.enrichment.env.WORKER_SHUTDOWN_TIMEOUT_S | string | `"30"` |  |
 | services.enrichment.name | string | `"enrichment-service"` |  |
-| services.enrichment.pdb.enabled | bool | `true` |  |
-| services.enrichment.pdb.minAvailable | int | `1` |  |
+| services.enrichment.pdb.enabled | bool | `false` |  |
 | services.enrichment.repository | string | `"enrichment"` |  |
+| services.exporter.autoscaling.enabled | bool | `false` |  |
 | services.exporter.category | string | `"export"` |  |
 | services.exporter.enabled | bool | `true` |  |
 | services.exporter.env.AI_KEY_SECRET_NAME | string | `"{{ printf \"%s-ai-provider-key\" .Values.app.name }}"` |  |
@@ -303,7 +302,6 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.env.SNAPSHOTS_PVC_NAMESPACE | string | `"{{ .Values.app.namespace }}"` |  |
 | services.exporter.name | string | `"exporter-service"` |  |
 | services.exporter.pdb.enabled | bool | `false` |  |
-| services.exporter.autoscaling.enabled | bool | `false` |  |
 | services.exporter.replicas | int | `2` |  |
 | services.exporter.repository | string | `"exporter"` |  |
 | services.exporter.volumeMounts[0].name | string | `"snapshots-storage"` |  |
@@ -313,8 +311,7 @@ Kubernetes: `>=1.30.0-0`
 | services.notifier.category | string | `"notification"` |  |
 | services.notifier.enabled | bool | `true` |  |
 | services.notifier.name | string | `"notifier-service"` |  |
-| services.notifier.pdb.enabled | bool | `true` |  |
-| services.notifier.pdb.minAvailable | int | `1` |  |
+| services.notifier.pdb.enabled | bool | `false` |  |
 | services.notifier.repository | string | `"notifier"` |  |
 | services.notifier.terminationGracePeriodSec | int | `30` |  |
 | services.notifier.useNatsCreds | bool | `true` |  |
@@ -326,4 +323,5 @@ Kubernetes: `>=1.30.0-0`
 | services.ui.repository | string | `"ui"` |  |
 | services.ui.terminationGracePeriodSec | int | `30` |  |
 | services.ui.useRedis | bool | `false` |  |
+| vpa.enabled | bool | `false` |  |
 

@@ -39,9 +39,9 @@ spec:
   replicas: {{ $replicas }}
 {{- end }}
 {{- if $strategy }}
-  # Recreate for anything holding a ReadWriteOnce volume: the default rolling
-  # update starts the new pod first, and it cannot attach a volume the old pod
-  # still holds on another node, so the rollout stalls.
+  # Derived from the exporter replica count: RollingUpdate on a shared
+  # ReadWriteMany volume, Recreate on ReadWriteOnce (a rolling update would
+  # start the new pod before the old one released the volume).
   strategy:
     type: {{ $strategy }}
 {{- end }}

@@ -54,7 +54,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | `app.kyverno.enabled` | `true` | Install kyverno subchart |
 | `app.ollama.enabled` | `false` | Install ollama subchart |
 | `app.persistence.enabled` | `true` | Provision exporter snapshot PVC |
-| `app.persistence.storageClass` | `""` | `"<name>"` = explicit class; `"-"` = disable dynamic provisioning; `""` = cluster default. Must name a ReadWriteMany class in `standard`/`performance` (two exporter replicas) unless `app.singleNode=true`; the render fails otherwise |
+| `app.persistence.storageClass` | `""` | `"<name>"` = explicit class; `"-"` = disable dynamic provisioning; `""` = cluster default. In `standard`/`performance` (two exporter replicas) the render fails when this is `""` unless `app.singleNode=true`; name a ReadWriteMany class, or with `"-"` pre-provision a ReadWriteMany PV yourself |
 | `app.persistence.size` | `10Gi` | PVC size (`minimal` mode lowers it to `1Gi`) |
 
 #### `app.auth.bootstrap`

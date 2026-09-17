@@ -62,12 +62,13 @@ No new mental model, no YAML archaeology: discover your apps, pick what to prote
 
 ## Quick start
 
-> **Prerequisites:** Kubernetes ≥ 1.30 (1.33+ recommended), Helm 3, and a default StorageClass.
+> **Prerequisites:** Kubernetes ≥ 1.30 (1.33+ recommended), Helm 3, and a ReadWriteMany StorageClass for the exporter snapshot volume (`efs-sc` on EKS). One-node cluster? Pass `--set app.singleNode=true` and any default class works.
 
 One command from the registry — CRDs, dashboard, and everything else ship with the chart:
 
 ```sh
-helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace
+helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
+  --set app.persistence.storageClass=<rwx-class>
 ```
 
 Size it for the cluster with one flag (`minimal` · `standard` · `performance`):

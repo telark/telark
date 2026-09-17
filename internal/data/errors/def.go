@@ -71,6 +71,7 @@ const (
 	ErrNatsSubscriberManager                  Error = "failed to start subscriber manager: %v"
 	ErrNatsClientClosed                       Error = "nats client closed"
 	ErrNatsAckMsg                             Error = "failed to acknowledge message on topic %s: %v"
+	ErrNatsNakMsg                             Error = "failed to negatively acknowledge message on topic %s: %v"
 	ErrNatsAckDupMsg                          Error = "failed to acknowledge duplicated message"
 	ErrNatsFailedToCreateConsumer             Error = "failed to create consumer %s: %v"
 	ErrNatsHandleMsg                          Error = "failed to handle message %v :%v"

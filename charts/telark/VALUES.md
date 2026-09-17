@@ -49,7 +49,6 @@ Kubernetes: `>=1.30.0-0`
 | app.name | string | `"telark"` |  |
 | app.namespace | string | `"telark"` |  |
 | app.ollama.enabled | bool | `false` |  |
-| app.persistence.accessMode | string | `"ReadWriteOnce"` |  |
 | app.persistence.enabled | bool | `true` |  |
 | app.persistence.size | string | `"10Gi"` |  |
 | app.persistence.storageClass | string | `""` |  |
@@ -99,6 +98,7 @@ Kubernetes: `>=1.30.0-0`
 | app.shared.resources.limits.memory | string | `"512Mi"` |  |
 | app.shared.resources.requests.cpu | string | `"100m"` |  |
 | app.shared.resources.requests.memory | string | `"128Mi"` |  |
+| app.singleNode | bool | `false` |  |
 | commonAnnotations | object | `{}` |  |
 | commonLabels | object | `{}` |  |
 | crds.enabled | bool | `true` |  |
@@ -304,9 +304,8 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.name | string | `"exporter-service"` |  |
 | services.exporter.pdb.enabled | bool | `false` |  |
 | services.exporter.autoscaling.enabled | bool | `false` |  |
-| services.exporter.replicas | int | `1` |  |
+| services.exporter.replicas | int | `2` |  |
 | services.exporter.repository | string | `"exporter"` |  |
-| services.exporter.strategy | string | `"Recreate"` |  |
 | services.exporter.volumeMounts[0].name | string | `"snapshots-storage"` |  |
 | services.exporter.volumeMounts[0].path | string | `"/snapshots"` |  |
 | services.exporter.volumes[0].name | string | `"snapshots-storage"` |  |

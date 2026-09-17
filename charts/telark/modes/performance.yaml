@@ -31,10 +31,6 @@ app:
 
 services:
   exporter:
-    # One replica on ReadWriteOnce. To run it HA, set services.exporter.replicas,
-    # strategy RollingUpdate and app.persistence.accessMode=ReadWriteMany with an
-    # RWX class (snapshot writes are temp-file + rename, so concurrent writers are
-    # safe); the storage guard refuses more than one replica on RWO.
     env:
       EXPORTER_K8S_CLIENT_QPS: "200"
       EXPORTER_K8S_CLIENT_BURST: "400"

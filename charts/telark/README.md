@@ -5,8 +5,11 @@ Helm chart for [telark](https://telark.io) — a protection gate for your Kubern
 ## Install
 
 ```sh
-helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace
+helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
+  --set app.persistence.storageClass=<rwx-class>
 ```
+
+`standard` and `performance` run two exporter replicas on a shared ReadWriteMany snapshot volume, so name a ReadWriteMany class (`efs-sc` on EKS with the EFS CSI driver); the install fails early without one. On a one-node cluster pass `--set app.singleNode=true` instead — one replica on ReadWriteOnce, any default class works (`minimal` always runs that way).
 
 Size every telark service with one flag — `minimal` | `standard` (default) | `performance`:
 
@@ -44,15 +47,15 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | `app.name` | `telark` | Source of truth for the app identity / resource-name prefix |
 | `app.namespace` | `telark` | Install namespace; bootstrap CRs land here. Must match the release namespace (`-n`) — the subcharts follow `-n`, so a mismatch splits redis/nats away from the services |
 | `app.mode` | `standard` | Sizes every telark service (replicas, resources, rate limits, PDBs). `minimal` \| `standard` \| `performance`. Subcharts keep production-grade defaults across all modes. |
+| `app.singleNode` | `false` | One-node cluster: the exporter runs 1 replica on ReadWriteOnce instead of 2 on ReadWriteMany, so no RWX class is needed. Update strategy and PVC access mode are derived from the exporter replica count, never set by hand |
 | `app.image.registry` | _(namespace)_ | Docker Hub namespace (account/org) hosting the per-service repos |
 | `app.image.pullPolicy` | `Always` | Image pull policy for every service container |
 | `app.image.pullSecrets` | `[]` | Pull secrets (public images need none; set for a private registry) |
 | `app.kyverno.enabled` | `true` | Install kyverno subchart |
 | `app.ollama.enabled` | `false` | Install ollama subchart |
 | `app.persistence.enabled` | `true` | Provision exporter snapshot PVC |
-| `app.persistence.storageClass` | `""` | `""` = cluster default; `"-"` = disable dynamic provisioning; `"<name>"` = explicit class |
+| `app.persistence.storageClass` | `""` | `"<name>"` = explicit class; `"-"` = disable dynamic provisioning; `""` = cluster default. Must name a ReadWriteMany class in `standard`/`performance` (two exporter replicas) unless `app.singleNode=true`; the render fails otherwise |
 | `app.persistence.size` | `10Gi` | PVC size (`minimal` mode lowers it to `1Gi`) |
-| `app.persistence.accessMode` | `ReadWriteOnce` | PVC access mode |
 
 #### `app.auth.bootstrap`
 

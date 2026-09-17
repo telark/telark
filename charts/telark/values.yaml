@@ -63,6 +63,10 @@ app:
   # ship production-grade defaults for every mode. See the Subcharts section.
   mode: standard
 
+  # One-node cluster: the exporter runs a single replica on a ReadWriteOnce
+  # volume instead of two on ReadWriteMany (no RWX storage class needed).
+  singleNode: false
+
   # Container images. Full ref per service: <registry>/<service.repository>:<service.version>.
   image:
     # Docker Hub namespace (account/org) that hosts the per-service repos.
@@ -95,7 +99,6 @@ app:
     enabled: true
     storageClass: ""
     size: 10Gi
-    accessMode: ReadWriteOnce
 
   # Shared secret services present to each other. Empty = generated on install and
   # read back on upgrade. Set explicitly for cluster-less renders (GitOps).
@@ -120,7 +123,7 @@ app:
     tolerations: []
     affinity: {}
     # Every service starts at one replica and scales horizontally on CPU (HPA,
-    # autoscaling/v2) — never the exporter (ReadWriteOnce volume). minimal turns
+    # autoscaling/v2) — never the exporter (replicas fixed by the mode). minimal turns
     # this off; performance raises the ceiling. Vertical scaling: see vpa below.
     autoscaling:
       enabled: true
@@ -192,12 +195,11 @@ services:
     # @ignore
     version: 4.0.0
     category: "export"
-    # One replica: snapshots sit on a ReadWriteOnce volume, so a second replica
-    # lands on another node, cannot mount it, and stays Pending. Recreate for the
-    # same reason — a rolling update would start the new pod before the old
-    # released the volume. Run it HA with app.mode=performance on a RWX class.
-    replicas: 1
-    strategy: Recreate
+    # Two replicas share the snapshot volume, so the chart derives the rest:
+    # replicas > 1 → RollingUpdate + ReadWriteMany (needs app.persistence.storageClass
+    # set to an RWX class); 1 replica (minimal, or app.singleNode=true) → Recreate +
+    # ReadWriteOnce. Never autoscaled — the volume, not CPU, bounds it.
+    replicas: 2
     autoscaling:
       enabled: false
     env:

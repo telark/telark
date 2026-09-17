@@ -4,13 +4,16 @@
 
 - Kubernetes ≥ 1.30 (1.33+ recommended) — enforced by the chart's `kubeVersion`; see [Kubernetes compatibility](../README.md#kubernetes-compatibility).
 - Helm ≥ 3.
-- A default StorageClass (the exporter needs a PVC for snapshots).
+- A StorageClass for the exporter snapshot PVC. `standard` and `performance` run two exporter replicas on a shared volume, so it must be **ReadWriteMany** (`efs-sc` on EKS with the EFS CSI driver). A one-node cluster (`--set app.singleNode=true`) and `minimal` run one replica on any default class.
 
 ## 1. Install
 
 ```sh
-helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace
+helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
+  --set app.persistence.storageClass=<rwx-class>
 ```
+
+The install fails early if the class is missing in `standard`/`performance` — a ReadWriteMany claim against block storage never binds. On a one-node cluster pass `--set app.singleNode=true` instead of the class; the examples below omit both flags for brevity, keep yours on every command.
 
 One command installs everything — CRDs, NATS config, and default `standard` sizing all ship in the chart. The CRDs are cluster-scoped and kept on uninstall (`resource-policy: keep`). Managing CRDs out of band (e.g. GitOps applies them first)? Add `--set crds.enabled=false`. From a checkout, `./charts/telark` works in place of the OCI ref.
 
@@ -26,7 +29,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | Mode | For | Capacity (measured 2026-09-17) |
 |---|---|---|
 | `minimal` | dev, demos, evaluation — single replica, no autoscaling, no PDBs | a few hundred applications |
-| `standard` (default) | small–mid production — every service starts at 1 replica and scales on CPU up to 3 (HPA; the exporter stays at 1); add `--set vpa.enabled=true` for vertical scaling | verified at 1 000 applications |
+| `standard` (default) | small–mid production — every service starts at 1 replica and scales on CPU up to 3 (HPA); the exporter runs 2 replicas sharing a ReadWriteMany snapshot volume; add `--set vpa.enabled=true` for vertical scaling | verified at 1 000 applications |
 | `performance` | large clusters — same, HPA ceiling 5, disruption budgets keep one pod through drains; larger requests/limits and a 50 GiB volume | beyond 1 000 applications |
 
 `app.mode` sizes telark's own services only — Helm resolves a subchart's values before the mode is known, so redis, NATS, the policy engine and metrics-server ship fixed production-grade defaults owned by the chart, identical in every mode. Nothing to tune.
@@ -87,8 +90,8 @@ Everything is set on the one command line with `--set key=value`. Re-pass the sa
 | `app.image.pullPolicy` | `Always` | Image pull policy |
 | `app.image.pullSecrets` | `[]` | Image pull secrets for a private registry |
 | `app.persistence.size` | `10Gi` | Exporter snapshot PVC size |
-| `app.persistence.storageClass` | `""` | PVC class (`""` = cluster default; a ReadWriteMany class only if you raise `services.exporter.replicas` above 1) |
-| `app.persistence.accessMode` | `ReadWriteOnce` | Exporter PVC access mode |
+| `app.persistence.storageClass` | `""` | Exporter PVC class. Must be a ReadWriteMany class in `standard`/`performance` (two exporter replicas); `""` = cluster default, valid only with `app.singleNode=true` or `minimal` |
+| `app.singleNode` | `false` | One-node cluster: the exporter runs 1 replica on ReadWriteOnce, no ReadWriteMany class needed. Access mode and update strategy follow the replica count automatically |
 | `app.crdGuard.enabled` | `false` | Admission guard: only owning service accounts may write telark CRs |
 | `app.crdGuard.enforce` | `false` | With the guard on, `false` audits and `true` rejects |
 | `app.auth.bootstrap.admins[0]` | `contact@telark.io` | Emails granted Admin on first login (indexed: `[0]`, `[1]`, …) |
@@ -125,7 +128,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 
 ## Autoscaling (HPA)
 
-The stateless services — auth, discovery, enrichment, notifier, ui — can run behind a HorizontalPodAutoscaler (`autoscaling/v2`, CPU-based). The exporter never autoscales (it holds a ReadWriteOnce volume). HPAs need metrics-server, which ships with the chart.
+The stateless services — auth, discovery, enrichment, notifier, ui — can run behind a HorizontalPodAutoscaler (`autoscaling/v2`, CPU-based). The exporter never autoscales — its replica count is fixed by the mode (2 in `standard`/`performance`, 1 in `minimal` or with `app.singleNode=true`). HPAs need metrics-server, which ships with the chart.
 
 **`standard` and `performance` turn autoscaling on** (start at 1, max 3 and 5); `minimal` keeps it off. In any mode you can enable, disable or tune it per service:
 

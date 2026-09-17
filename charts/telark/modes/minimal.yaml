@@ -17,7 +17,6 @@ app:
       enabled: false
   persistence:
     size: 1Gi
-    accessMode: ReadWriteOnce
   shared:
     resources:
       requests:
@@ -30,7 +29,6 @@ app:
 services:
   exporter:
     replicas: 1
-    strategy: Recreate
     env:
       EXPORTER_K8S_CLIENT_QPS: "20"
       EXPORTER_K8S_CLIENT_BURST: "40"

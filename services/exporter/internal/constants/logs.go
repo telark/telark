@@ -228,4 +228,11 @@ const (
 	ErrSnapshotInvalidInt              errors.Error     = "invalid"
 	ErrSnapshotNotFoundByTarget        errors.Error     = "snapshot not found: id=%s scope=%s namespace=%s generation=%s"
 	ErrSnapshotScopeRootCreateFailed   errors.Error     = "failed to create snapshot scope root: scope=%s error=%v"
+	InfSnapshotGCIntervalConfigured    messages.Message = "SNAPSHOT_GC_INTERVAL_SEC configured: %s"
+	InfSnapshotGCDisabled              messages.Message = "snapshot gc disabled"
+	InfSnapshotGCSwept                 messages.Message = "snapshot gc: scanned=%d referenced=%d removed=%d"
+	WarnSnapshotGCListFailed           messages.Message = "snapshot gc skipped: %v"
+	WarnSnapshotGCSkippedNoRefs        messages.Message = "snapshot gc skipped: no application references any snapshot"
+	ErrSnapshotGCListFailed            errors.Error     = "application list failed status=%d error=%v"
+	ErrSnapshotGCListInvalid           errors.Error     = "application list has unexpected type %T"
 )

@@ -143,7 +143,7 @@ func applicationRoutes(optimizer *performance.Optimizer) []router.Route {
 			performance.NewCachedListHandlerFunc(
 				optimizer,
 				applicationhandler.ListApplicationResourcesWithCacheInvalidation(optimizer),
-				cache.NewListCacheKeyFunc(optimizer, constants.ResourceApplication),
+				cache.NewViewListCacheKeyFunc(optimizer, constants.ResourceApplication),
 				constants.ResourceApplication,
 				constants.OpList,
 			)),

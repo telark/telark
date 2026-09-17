@@ -23,10 +23,19 @@ type (
 		group             natscore.Group
 		logger            any
 		handlerCallback   func(*nats.Msg, natscore.Action) error
+		workers           []chan *nats.Msg
+		fetchWG           sync.WaitGroup
+		workerWG          sync.WaitGroup
+		startOnce         sync.Once
+		stopOnce          sync.Once
 	}
 )
 
 func NewBaseSubscriber(group natscore.Group, resourceType shared.Type, logger any) *BaseSubscriber {
+	workers := make([]chan *nats.Msg, applyWorkerCount())
+	for i := range workers {
+		workers[i] = make(chan *nats.Msg, constants.ApplyWorkerQueueSize)
+	}
 	return &BaseSubscriber{
 		BaseSubscriber: natscore.BaseSubscriber{
 			Group:          group,
@@ -37,6 +46,7 @@ func NewBaseSubscriber(group natscore.Group, resourceType shared.Type, logger an
 		resourceType: resourceType,
 		group:        group,
 		logger:       logger,
+		workers:      workers,
 	}
 }
 

@@ -30,6 +30,9 @@ const (
 	ScopeParam              = "scope"
 	NamespaceParam          = "namespace"
 	GenerationParam         = "generation"
+	ViewParam               = "view"
+	ViewSummary             = "summary"
+	ViewFull                = "full"
 	UsernameParam           = "username"
 	EmailParam              = "email"
 	UserIDParam             = "userId"
@@ -156,6 +159,14 @@ const (
 	FieldMegabytes                              = "mb"
 	FieldPercent                                = "percent"
 	FieldResources                              = "resources"
+	FieldSnapshots                              = "snapshots"
+	FieldRollbacks                              = "rollbacks"
+	FieldMetrics                                = "metrics"
+	FieldWorkloads                              = "workloads"
+	FieldHistory                                = "history"
+	FieldChangeLog                              = "changeLog"
+	FieldChanges                                = "changes"
+	FieldPath                                   = "path"
 	FieldAPIVersion                             = "apiVersion"
 	FieldKind                                   = "kind"
 	FieldItemsManifest                          = "items"
@@ -171,6 +182,12 @@ const (
 	SnapshotsMaxVersionsEnv                     = "SNAPSHOTS_MAX_VERSIONS"
 	SnapshotsPVCNameEnv                         = "SNAPSHOTS_PVC_NAME"
 	SnapshotsPVCNamespaceEnv                    = "SNAPSHOTS_PVC_NAMESPACE"
+	SnapshotGCIntervalSecEnv                    = "SNAPSHOT_GC_INTERVAL_SEC"
+	DefaultSnapshotGCInterval                   = time.Hour
+	SnapshotGCMinAge                            = time.Hour
+	SnapshotGCLockKey                           = "exporter:snapshot:gc"
+	SnapshotGCLockTTLDivisor                    = 2
+	SnapshotTempFileSuffix                      = ".tmp"
 	SnapshotsAppsSubdir                         = "apps"
 	DefaultSnapshotsPath                        = "/snapshots"
 	DefaultSnapshotsMaxVersions                 = 5

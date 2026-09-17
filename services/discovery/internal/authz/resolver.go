@@ -1,6 +1,8 @@
 package authz
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"time"
 
@@ -15,10 +17,6 @@ import (
 
 var lg = constants.GetLogger(constants.LoggerPrefixAuthz)
 
-type clientSource struct {
-	client *clients.AuthzClient
-}
-
 func (s clientSource) User(userID string) (*userdata.UserAsResource, error) {
 	return s.client.GetUserByID(userID)
 }
@@ -31,9 +29,27 @@ func (s clientSource) Role(roleID string) (*roledata.RoleAsResource, error) {
 	return s.client.GetRoleByID(roleID)
 }
 
-func NewResolver() *authz.BasicResolver {
+func NewResolver() *Resolver {
 	client := clients.NewAuthzClient()
-	return authz.NewBasicResolver(clientSource{client: client}, validateSession(client), lg)
+	return NewCachedResolver(authz.NewBasicResolver(clientSource{client: client}, validateSession(client), lg))
+}
+
+func NewCachedResolver(inner authz.Resolver) *Resolver {
+	return &Resolver{inner: inner}
+}
+
+// Keyed by digest so a raw token never sits in a heap dump.
+func (r *Resolver) UserIDForToken(token string) (string, error) {
+	digest := sha256.Sum256([]byte(token))
+	return lookup(&r.tokens, hex.EncodeToString(digest[:]), constants.AuthzSessionCacheTTL, func() (string, error) {
+		return r.inner.UserIDForToken(token)
+	})
+}
+
+func (r *Resolver) GrantsForUser(userID string) (authz.Grants, error) {
+	return lookup(&r.grants, userID, constants.AuthzGrantsCacheTTL, func() (authz.Grants, error) {
+		return r.inner.GrantsForUser(userID)
+	})
 }
 
 func validateSession(client *clients.AuthzClient) authz.SessionValidator {

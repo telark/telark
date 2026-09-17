@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"strings"
 	"time"
 
@@ -13,7 +14,63 @@ import (
 	"github.com/telark/data/messages"
 	"github.com/telark/notifier/internal/constants"
 	natscore "github.com/telark/x-ware/nats/core"
+	xshared "github.com/telark/x-ware/shared"
 )
+
+func applyWorkerCount() int {
+	n, err := xshared.GetEnvInt(xshared.EnvConfig{Key: constants.EnvApplyWorkers})
+	if err != nil || n <= constants.DefaultInitValue {
+		return constants.ApplyWorkerCount
+	}
+	return n
+}
+
+// Same resource name, same worker: one application's messages apply in fetch
+// order. That holds within a topic only; update and delete are separate
+// consumers with separate fetch loops.
+func (s *BaseSubscriber) Dispatch(m *nats.Msg) {
+	s.workers[s.workerIndex(m)] <- m
+}
+
+func (s *BaseSubscriber) workerIndex(m *nats.Msg) int {
+	name := s.resourceName(m)
+	if name == constants.EmptyString {
+		return constants.DefaultInitValue
+	}
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(name))
+	return int(h.Sum32()) % len(s.workers)
+}
+
+func (*BaseSubscriber) resourceName(m *nats.Msg) string {
+	var msg natscore.Message
+	if err := json.Unmarshal(m.Data, &msg); err != nil {
+		return constants.EmptyString
+	}
+	return msg.ResourceName
+}
+
+// A redelivered copy (AckWait expired or NAK'd) queues behind newer messages
+// for the same application, so applying it would roll the spec back. Messages
+// without JetStream metadata or a resource name are handled as-is.
+func (s *BaseSubscriber) isStaleRedelivery(m *nats.Msg, last map[string]uint64) bool {
+	meta, err := m.Metadata()
+	if err != nil {
+		return false
+	}
+	name := s.resourceName(m)
+	if name == constants.EmptyString {
+		return false
+	}
+	seq := meta.Sequence.Stream
+	if seq < last[name] {
+		logger.GetLogger(constants.PrefixManagerSubscriber).Debug(
+			fmt.Sprintf(string(constants.InfoSkippingStaleRedelivery), name, seq, last[name]))
+		return true
+	}
+	last[name] = seq
+	return false
+}
 
 func (*BaseSubscriber) ValidateMessage(m *nats.Msg) error {
 	if strings.HasPrefix(m.Subject, "$JS.ACK.") {

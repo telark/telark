@@ -25,7 +25,8 @@ type Manager struct {
 }
 
 type ctxSubscriber interface {
-	SubscribeWithContext(*natscore.NATSClient, context.Context) error
+	SubscribeWithContext(context.Context, *natscore.NATSClient) error
+	Drain()
 }
 
 func NewManager() *Manager {
@@ -69,11 +70,7 @@ func (m *Manager) Start() error {
 		return fmt.Errorf(string(errors.ErrNatsFailedCreateStreams), err)
 	}
 
-	if err := m.startSubscribers(m.ctx, nc); err != nil {
-		logger.GetLogger(constants.PrefixManagerSubscriber).Error(fmt.Sprintf("%s: %v", errors.ErrNatsSubscriberManager, err))
-	}
-
-	return nil
+	return m.startSubscribers(m.ctx, nc)
 }
 
 func (m *Manager) startSubscribers(parentCtx context.Context, nc *natscore.NATSClient) error {
@@ -87,7 +84,7 @@ func (m *Manager) startSubscribers(parentCtx context.Context, nc *natscore.NATSC
 	for _, subscriber := range m.subscribers {
 		wg.Go(func() {
 			if cs, ok := any(subscriber).(ctxSubscriber); ok {
-				if err := cs.SubscribeWithContext(nc, parentCtx); err != nil {
+				if err := cs.SubscribeWithContext(parentCtx, nc); err != nil {
 					errChan <- fmt.Errorf(string(errors.ErrNatsSubscriberManager), err)
 				}
 				return
@@ -124,6 +121,14 @@ func (m *Manager) Shutdown() {
 
 	if m.cancel != nil {
 		m.cancel()
+	}
+
+	// Cancel stops the fetch loops, Drain acks what was already fetched, and
+	// only then does the connection go away.
+	for _, sub := range m.subscribers {
+		if cs, ok := any(sub).(ctxSubscriber); ok {
+			cs.Drain()
+		}
 	}
 
 	if m.natsManager != nil {

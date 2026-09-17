@@ -62,6 +62,7 @@ const (
 	InfoRollbackSkippedJob           messages.Message = "[rollback] %s: skipped Job %s/%s, job runs are never re-applied"
 	LogRollbackReconcileBackpressure messages.Message = "[rollback] reconcile deferred under backpressure: key=%s"
 	InfoRollbackNoLongerPending      messages.Message = "rollback %s no longer pending; skipping pickup"
+	LogRollbackLockBusy              messages.Message = "[rollback] lock for %s held elsewhere; deferring pickup"
 
 	// Rollback Notifications
 	NotifRollbackCompletedTitle  messages.Message = "Rollback completed"

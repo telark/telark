@@ -13,6 +13,8 @@ const (
 	// resulting changes so history keeps the single rollback entry.
 	KeyPrefixRollbackApplying = "rollback:applying:"
 	RollbackApplyingTTL       = 60 * time.Second
+	// Serializes trigger/abort read-check-write across replicas.
+	KeyPrefixLockRollback = "lock:rollback:"
 
 	// Server-side apply.
 	RollbackFieldManager = "telark-discovery-service"

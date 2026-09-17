@@ -34,6 +34,7 @@ services:
     env:
       EXPORTER_K8S_CLIENT_QPS: "200"
       EXPORTER_K8S_CLIENT_BURST: "400"
+      SNAPSHOT_GC_INTERVAL_SEC: "900"
     pdb:
       enabled: true
       minAvailable: 1
@@ -42,6 +43,7 @@ services:
       DISCOVERY_K8S_CLIENT_QPS: "300"
       DISCOVERY_K8S_CLIENT_BURST: "600"
       FORCE_SYNC_WORKERS: "12"
+      DISCOVERY_AUTO_CLEANUP_CYCLE_INTERVAL_SEC: "120"
     # Budgets keep one pod through a drain once the HPA has scaled above one.
     pdb:
       enabled: true
@@ -53,6 +55,8 @@ services:
       enabled: true
       minAvailable: 1
   notifier:
+    env:
+      NOTIFIER_APPLY_WORKERS: "32"
     pdb:
       enabled: true
       minAvailable: 1

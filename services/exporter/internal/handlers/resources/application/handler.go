@@ -13,6 +13,7 @@ import (
 	metadata "github.com/telark/data/metadata/resources"
 	"github.com/telark/data/resources/application"
 	"github.com/telark/exporter/internal/constants"
+	applicationexp "github.com/telark/exporter/internal/exporters/application"
 	sharedexp "github.com/telark/exporter/internal/exporters/shared"
 	snapshotexp "github.com/telark/exporter/internal/exporters/snapshot"
 	"github.com/telark/exporter/internal/handlers/resources/shared"
@@ -28,14 +29,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-const (
-	specKey       = "spec"
-	historyKey    = "history"
-	snapshotsKey  = "snapshots"
-	generationKey = "generation"
-	changeLogKey  = "changeLog"
-)
-
 func CreateApplicationResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
 	return shared.CreateResourceWithCacheInvalidation(optimizer, metadata.ApplicationAsResourceMetadata, constants.ResourceApplication, nil)
 }
@@ -45,7 +38,14 @@ func GetApplicationResourceWithCacheInvalidation(optimizer *performance.Optimize
 }
 
 func ListApplicationResourcesWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
-	return shared.ListResourceWithCacheInvalidation(optimizer, metadata.ApplicationAsResourceMetadata)
+	full := shared.ListResourceWithCacheInvalidation(optimizer, metadata.ApplicationAsResourceMetadata)
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get(constants.ViewParam) == constants.ViewSummary {
+			applicationexp.ListApplicationSummaries(w)
+			return
+		}
+		full(w, r)
+	}
 }
 
 func PatchApplicationResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
@@ -63,7 +63,7 @@ func guardHistoryRegression(r *http.Request) {
 	if !ok {
 		return
 	}
-	incomingHistory, ok := target[historyKey].(map[string]any)
+	incomingHistory, ok := target[constants.FieldHistory].(map[string]any)
 	if !ok {
 		return
 	}
@@ -79,12 +79,40 @@ func guardHistoryRegression(r *http.Request) {
 	if !regressed {
 		return
 	}
-	delete(target, historyKey)
-	delete(target, snapshotsKey)
+	orphans := droppedSnapshotPaths(target, stored)
+	delete(target, constants.FieldHistory)
+	delete(target, constants.FieldSnapshots)
 	constants.GetLogger(constants.PrefixMain).Warn(fmt.Sprintf(
 		string(constants.WarnApplicationHistoryRegressionRejected), name, incomingGen, stored.History.Generation,
 	))
 	replaceRequestBody(r, patch)
+	snapshotexp.RemoveSnapshotFiles(orphans)
+}
+
+// The dropped refs will never be stored, so their files would leak; an entry the
+// stored CR already references is kept because the equal-generation branch can
+// legitimately echo stored snapshots.
+func droppedSnapshotPaths(target map[string]any, stored *application.Application) []string {
+	incoming, isList := target[constants.FieldSnapshots].([]any)
+	if !isList {
+		return nil
+	}
+	orphans := make([]string, constants.DefaultInitValue, len(incoming))
+	for _, raw := range incoming {
+		entry, isMap := raw.(map[string]any)
+		if !isMap {
+			continue
+		}
+		path, isString := entry[constants.FieldPath].(string)
+		if !isString || path == constants.EmptyString {
+			continue
+		}
+		if slices.ContainsFunc(stored.Snapshots, func(s application.ApplicationSnapshot) bool { return s.Path == path }) {
+			continue
+		}
+		orphans = append(orphans, path)
+	}
+	return orphans
 }
 
 // readPatchTarget decodes the patch body and returns the map holding the
@@ -101,19 +129,19 @@ func readPatchTarget(r *http.Request) (patch, target map[string]any, ok bool) {
 		return nil, nil, false
 	}
 	target = patch
-	if spec, isSpec := patch[specKey].(map[string]any); isSpec {
+	if spec, isSpec := patch[constants.SpecField].(map[string]any); isSpec {
 		target = spec
 	}
 	return patch, target, true
 }
 
 func historyRegressed(incoming map[string]any, stored application.ApplicationHistory) (int, bool) {
-	gen, ok := incoming[generationKey].(float64)
+	gen, ok := incoming[constants.FieldGeneration].(float64)
 	if !ok {
 		return constants.DefaultInitValue, false
 	}
 	var entries []any
-	if list, isList := incoming[changeLogKey].([]any); isList {
+	if list, isList := incoming[constants.FieldChangeLog].([]any); isList {
 		entries = list
 	}
 	incomingGen := int(gen)

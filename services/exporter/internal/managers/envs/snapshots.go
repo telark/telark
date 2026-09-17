@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/telark/exporter/internal/constants"
 )
@@ -15,6 +16,7 @@ var (
 	snapshotsPVCName      = constants.DefaultSnapshotsPVCName
 	snapshotsPVCNamespace = constants.DefaultSnapshotsPVCNamespace
 	snapshotsMaxVersions  = constants.DefaultSnapshotsMaxVersions
+	snapshotGCInterval    = constants.DefaultSnapshotGCInterval
 )
 
 type ScopeDefinition struct {
@@ -54,6 +56,26 @@ func InitSnapshotsMaxVersions() int {
 	}
 	snapshotsMaxVersions = n
 	return snapshotsMaxVersions
+}
+
+// Zero disables the sweep; a malformed or negative value falls back to the default.
+func InitSnapshotGCInterval() time.Duration {
+	envVal := strings.TrimSpace(getEnv(constants.SnapshotGCIntervalSecEnv))
+	if envVal == constants.EmptyString {
+		snapshotGCInterval = constants.DefaultSnapshotGCInterval
+		return snapshotGCInterval
+	}
+	n, err := strconv.Atoi(envVal)
+	if err != nil || n < constants.DefaultInitValue {
+		snapshotGCInterval = constants.DefaultSnapshotGCInterval
+		return snapshotGCInterval
+	}
+	snapshotGCInterval = time.Duration(n) * time.Second
+	return snapshotGCInterval
+}
+
+func GetSnapshotGCInterval() time.Duration {
+	return snapshotGCInterval
 }
 
 func GetSnapshotsPath() string {

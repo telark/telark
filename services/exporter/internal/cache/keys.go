@@ -55,6 +55,18 @@ func NewListCacheKeyFunc(generations ListGenerationReader, resourceType string) 
 	}
 }
 
+// The summary view is a pruned blob: served to a full-view caller it would read
+// as an application with no snapshots and no history, so the view is in the key.
+func NewViewListCacheKeyFunc(generations ListGenerationReader, resourceType string) func(r *http.Request) string {
+	return func(r *http.Request) string {
+		view := r.URL.Query().Get(constants.ViewParam)
+		if view != constants.ViewSummary {
+			view = constants.ViewFull
+		}
+		return generateListKey(resourceType, generations.ListGeneration(resourceType), view)
+	}
+}
+
 // A subject-less key would be shared by every caller of the route, so a request
 // whose subject cannot be read gets no key and therefore bypasses the cache.
 func NewSubjectListCacheKeyFunc(

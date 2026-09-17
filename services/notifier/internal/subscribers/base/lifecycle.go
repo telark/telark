@@ -15,15 +15,57 @@ import (
 )
 
 func (s *BaseSubscriber) Subscribe(nc *natscore.NATSClient) error {
+	return s.SubscribeWithContext(context.Background(), nc)
+}
+
+func (s *BaseSubscriber) SubscribeWithContext(ctx context.Context, nc *natscore.NATSClient) error {
+	s.startOnce.Do(s.startWorkers)
 	for _, action := range []natscore.Action{natscore.Create, natscore.Update, natscore.Delete} {
 		topic := natscore.GetTopicName(s.group, action)
 		queue := natscore.GetQueueName(s.group, action)
 
-		if err := s.subscribeToTopic(nc, topic, queue); err != nil {
+		if err := s.subscribeToTopic(ctx, nc, topic, queue); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (s *BaseSubscriber) startWorkers() {
+	for _, ch := range s.workers {
+		s.workerWG.Go(func() {
+			last := map[string]uint64{}
+			for m := range ch {
+				if s.isStaleRedelivery(m, last) {
+					_ = m.Ack(nats.AckWait(constants.AckWaitSeconds * time.Second))
+					continue
+				}
+				s.handleMessageForAck(m)
+			}
+		})
+	}
+}
+
+// Drain expects the Subscribe context to be canceled first: it waits for the
+// fetch loops to stop, then lets the workers finish (and ack) what was already
+// fetched, bounded so shutdown stays under the pod's termination grace period.
+func (s *BaseSubscriber) Drain() {
+	s.stopOnce.Do(func() {
+		drained := make(chan struct{})
+		go func() {
+			s.fetchWG.Wait()
+			for _, ch := range s.workers {
+				close(ch)
+			}
+			s.workerWG.Wait()
+			close(drained)
+		}()
+		select {
+		case <-drained:
+		case <-time.After(constants.DrainTimeoutSeconds * time.Second):
+			logger.GetLogger(constants.PrefixManagerSubscriber).Warn(string(constants.WarnApplyDrainTimeout))
+		}
+	})
 }
 
 func (s *BaseSubscriber) createConsumer(nc *natscore.NATSClient, topic, queue string) error {
@@ -63,13 +105,13 @@ func (s *BaseSubscriber) fetchAndProcessMessages(ctx context.Context, sub *nats.
 				continue
 			}
 			for _, m := range msgs {
-				s.handleMessageForAck(m)
+				s.Dispatch(m)
 			}
 		}
 	}
 }
 
-func (s *BaseSubscriber) subscribeToTopic(nc *natscore.NATSClient, topic, queue string) error {
+func (s *BaseSubscriber) subscribeToTopic(ctx context.Context, nc *natscore.NATSClient, topic, queue string) error {
 	// Create consumer
 	if err := s.createConsumer(nc, topic, queue); err != nil {
 		return err
@@ -82,11 +124,7 @@ func (s *BaseSubscriber) subscribeToTopic(nc *natscore.NATSClient, topic, queue 
 	}
 
 	// Start message processing goroutine
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		defer cancel()
-		s.fetchAndProcessMessages(ctx, sub)
-	}()
+	s.fetchWG.Go(func() { s.fetchAndProcessMessages(ctx, sub) })
 
 	logger.GetLogger(constants.PrefixManagerSubscriber).Info(fmt.Sprintf(string(messages.SuccessNatsTopicSubscribe), topic))
 	return nil

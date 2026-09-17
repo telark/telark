@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/telark/data/resources/application"
 	"github.com/telark/discovery/internal/clients"
 	dconfig "github.com/telark/discovery/internal/config"
@@ -18,6 +19,7 @@ import (
 	"github.com/telark/discovery/internal/helpers/async"
 	redishelper "github.com/telark/discovery/internal/helpers/redis"
 	notifclient "github.com/telark/rest/clients/notifications"
+	xwareredis "github.com/telark/x-ware/redis/stream"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -42,6 +44,8 @@ const (
 	splitPathPartsLimit = 2
 	notifEmitTimeout    = 5 * time.Second
 )
+
+var errRollbackLockBusy = errors.New(string(constants.ErrRollbackLockBusy))
 
 var crdGVR = schema.GroupVersionResource{
 	Group:    "erpi.telark",
@@ -161,7 +165,7 @@ func isTransientBackpressure(err error) bool {
 	if err == nil {
 		return false
 	}
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, errRollbackLockBusy) {
 		return true
 	}
 	msg := err.Error()
@@ -208,18 +212,13 @@ func (c *Controller) processPending(
 	defer cancel()
 
 	logger.Info(string(constants.InfoPatchingStatusToInProgress))
-	spec, idx, err := c.refetchAndVerifyPending(procCtx, ns, name, pending.ID)
+	spec, idx, err := c.claimPending(procCtx, ns, name, pending.ID)
 	if err != nil {
 		return err
 	}
 	if spec == nil {
 		logger.Info(fmt.Sprintf(string(constants.InfoRollbackNoLongerPending), pending.ID))
 		return nil
-	}
-	if err := c.patchRollbackStatus(procCtx, ns, name, spec, idx, rollbackPatchOpts{
-		Status: constants.RollbackStatusInProgress,
-	}); err != nil {
-		return fmt.Errorf(string(constants.ErrRollbackStatusPatchFailed), err)
 	}
 
 	targetSnapshots := snapshotsByGeneration(spec.Snapshots, pending.TargetGeneration)
@@ -240,6 +239,51 @@ func (c *Controller) processPending(
 		return nil
 	}
 	return c.finalizeRollbackSuccess(procCtx, ns, name, spec, pending, idx)
+}
+
+// Holds the key the trigger/abort handlers take, so an abort cannot land
+// between the pending check and the whole-array in_progress patch that would
+// otherwise overwrite it.
+func (c *Controller) claimPending(
+	ctx context.Context,
+	ns, name, rollbackID string,
+) (*application.Application, int, error) {
+	release, err := lockRollback(ctx, name)
+	if err != nil {
+		return nil, invalidIndex, err
+	}
+	defer release()
+	spec, idx, err := c.refetchAndVerifyPending(ctx, ns, name, rollbackID)
+	if err != nil || spec == nil {
+		return nil, invalidIndex, err
+	}
+	if err := c.patchRollbackStatus(ctx, ns, name, spec, idx, rollbackPatchOpts{
+		Status: constants.RollbackStatusInProgress,
+	}); err != nil {
+		return nil, invalidIndex, fmt.Errorf(string(constants.ErrRollbackStatusPatchFailed), err)
+	}
+	return spec, idx, nil
+}
+
+// A busy lock is a handler mid-request; the sentinel is requeued as
+// backpressure so pickup retries within milliseconds instead of at resync.
+func lockRollback(ctx context.Context, name string) (func(), error) {
+	rdb := redishelper.NewRedisClient()
+	if rdb == nil {
+		return func() {}, nil
+	}
+	lock := xwareredis.NewLockClient(rdb)
+	key := constants.KeyPrefixLockRollback + name
+	value := uuid.NewString()
+	acquired, err := lock.Acquire(ctx, key, value, constants.DefaultLockTTL)
+	if err != nil {
+		return nil, err
+	}
+	if !acquired {
+		logger.Debug(fmt.Sprintf(string(constants.LogRollbackLockBusy), name))
+		return nil, errRollbackLockBusy
+	}
+	return func() { _ = lock.Release(context.Background(), key, value) }, nil
 }
 
 func (c *Controller) validateAndApplyRollback(

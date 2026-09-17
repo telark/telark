@@ -32,6 +32,7 @@ services:
     env:
       EXPORTER_K8S_CLIENT_QPS: "20"
       EXPORTER_K8S_CLIENT_BURST: "40"
+      SNAPSHOT_GC_INTERVAL_SEC: "7200"
     pdb:
       enabled: false
   discovery:
@@ -48,6 +49,8 @@ services:
     pdb:
       enabled: false
   notifier:
+    env:
+      NOTIFIER_APPLY_WORKERS: "2"
     pdb:
       enabled: false
   auth:

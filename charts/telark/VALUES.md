@@ -1,6 +1,6 @@
 # telark
 
-![Version: 0.2.1](https://img.shields.io/badge/Version-0.2.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.0](https://img.shields.io/badge/AppVersion-2.0-informational?style=flat-square)
+![Version: 0.3.0](https://img.shields.io/badge/Version-0.3.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.0](https://img.shields.io/badge/AppVersion-2.0-informational?style=flat-square)
 
 A protection gate for your Kubernetes workloads — discover your applications, then decide what can change them, and when
 
@@ -237,7 +237,7 @@ Kubernetes: `>=1.30.0-0`
 | services.discovery.env.COORDINATION_SHUTDOWN_CLEANUP_TIMEOUT_SEC | string | `"45"` |  |
 | services.discovery.env.COORDINATION_STALE_CLAIM_INTERVAL_SEC | string | `"60"` |  |
 | services.discovery.env.COORDINATION_STALE_CLAIM_MIN_IDLE_SEC | string | `"300"` |  |
-| services.discovery.env.DISCOVERY_AUTO_CLEANUP_CYCLE_INTERVAL_SEC | string | `"15"` |  |
+| services.discovery.env.DISCOVERY_AUTO_CLEANUP_CYCLE_INTERVAL_SEC | string | `"60"` |  |
 | services.discovery.env.DISCOVERY_AUTO_CLEANUP_DELETE_ENABLED | string | `"true"` |  |
 | services.discovery.env.DISCOVERY_AUTO_CLEANUP_EMPTY_CYCLES_REQUIRED | string | `"2"` |  |
 | services.discovery.env.DISCOVERY_AUTO_CLEANUP_ENABLED | string | `"true"` |  |
@@ -300,6 +300,7 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.env.SNAPSHOTS_PATH | string | `"/snapshots"` |  |
 | services.exporter.env.SNAPSHOTS_PVC_NAME | string | `"{{ include \"telark.exporterSnapshotsPvcName\" . }}"` |  |
 | services.exporter.env.SNAPSHOTS_PVC_NAMESPACE | string | `"{{ .Values.app.namespace }}"` |  |
+| services.exporter.env.SNAPSHOT_GC_INTERVAL_SEC | string | `"3600"` |  |
 | services.exporter.name | string | `"exporter-service"` |  |
 | services.exporter.pdb.enabled | bool | `false` |  |
 | services.exporter.replicas | int | `2` |  |
@@ -310,6 +311,7 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.volumes[0].persistentVolumeClaim.claimName | string | `"{{ include \"telark.exporterSnapshotsPvcName\" . }}"` |  |
 | services.notifier.category | string | `"notification"` |  |
 | services.notifier.enabled | bool | `true` |  |
+| services.notifier.env.NOTIFIER_APPLY_WORKERS | string | `"8"` |  |
 | services.notifier.name | string | `"notifier-service"` |  |
 | services.notifier.pdb.enabled | bool | `false` |  |
 | services.notifier.repository | string | `"notifier"` |  |

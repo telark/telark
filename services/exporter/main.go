@@ -11,6 +11,7 @@ import (
 	exporterauthz "github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/config"
 	"github.com/telark/exporter/internal/constants"
+	snapshotexp "github.com/telark/exporter/internal/exporters/snapshot"
 	envmanager "github.com/telark/exporter/internal/managers/envs"
 	exprdb "github.com/telark/exporter/internal/redis"
 	"github.com/telark/exporter/internal/routes"
@@ -41,6 +42,8 @@ func main() {
 	optimizer := performance.NewOptimizer(initConnectivity())
 	startup.SeedBuiltins()
 	async.Init()
+	gcCtx, stopGC := context.WithCancel(context.Background())
+	go snapshotexp.StartSnapshotGC(gcCtx)
 
 	authzMiddleware, err := xauthz.NewFromEnv(exporterauthz.NewResolver(), exporterauthz.Requirements())
 	if err != nil {
@@ -49,6 +52,7 @@ func main() {
 	}
 	server := startServer(optimizer, authzMiddleware)
 	waitForShutdown(server)
+	stopGC()
 	async.Drain()
 	optimizer.Close()
 	lg.Warn(string(constants.InfServerExitedGracefully))
@@ -64,6 +68,7 @@ func initSnapshotsConfig() {
 	}
 	maxSnapVersions := envmanager.InitSnapshotsMaxVersions()
 	lg.Info(fmt.Sprintf(string(constants.InfSnapshotsMaxVersionsConfigured), maxSnapVersions))
+	lg.Info(fmt.Sprintf(string(constants.InfSnapshotGCIntervalConfigured), envmanager.InitSnapshotGCInterval()))
 	lg.Info(fmt.Sprintf(
 		string(constants.InfSnapshotsPVCConfigured),
 		envmanager.GetSnapshotsPVCNamespace(),

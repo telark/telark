@@ -76,7 +76,9 @@ func executeSyncHandler(ctx context.Context, rdb *redis.Client, appName string) 
 		return err
 	}
 	inputs := discoveryshared.ToDerivationInputs(resources)
-	syncOpts := prewarm.BuildPrewarmApplicationOptions()
+	// Per-app options drop the namespace's other apps at buildApplications;
+	// the full-list variant re-diffed and re-published every neighbor per job.
+	syncOpts := prewarm.BuildPrewarmApplicationOptionsForApp(appName)
 	syncOpts.FromForceSync = true
 	resp := serviceapp.GetApplications(ctx, rdb, inputs, syncOpts)
 	data, ok := resp.Data.(applicationmodel.ResponseData)

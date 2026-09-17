@@ -200,6 +200,7 @@ Per-service block. Gates default to `true` unless noted.
 | `AI_KEY_SECRET_NAMESPACE` | `{{ .Values.app.namespace }}` (tpl) | Namespace of that secret |
 | `EXPORTER_K8S_CLIENT_QPS` | `50` | K8s client QPS; sized for CRD-write fanout (10× client-go default) |
 | `EXPORTER_K8S_CLIENT_BURST` | `100` | K8s client burst |
+| `SNAPSHOT_GC_INTERVAL_SEC` | `3600` | Sweep the snapshot PVC for files no Application CR references and older than 1 h (`minimal` 7200, `performance` 900; `0` = off). One replica sweeps per interval |
 
 `services.exporter.envFromConfigMap.CA_BUNDLE` → configmap `telark-ca-bundle`, key `ca.crt` (trusted CA bundle).
 
@@ -255,7 +256,7 @@ Force-sync queue:
 
 | Variable | Default | Description |
 |---|---|---|
-| `FORCE_SYNC_WORKERS` | `6` | Concurrent force-sync worker count on the leader (`minimal` 2, `performance` 12); a job takes 25–60 s |
+| `FORCE_SYNC_WORKERS` | `6` | Concurrent force-sync worker count on the leader (`minimal` 2, `performance` 12) |
 | `FORCE_SYNC_STREAM_MAX_LEN` | `5000` | Redis stream length cap |
 | `FORCE_SYNC_DEDUP_TTL_SEC` | `600` | Dedup key TTL |
 | `FORCE_SYNC_JOB_TIMEOUT_SEC` | `300` | Per-job deadline |
@@ -269,7 +270,7 @@ Auto-cleanup of empty application CRDs:
 |---|---|---|
 | `DISCOVERY_AUTO_CLEANUP_ENABLED` | `"true"` | Master switch. `false` = detector goroutine never runs (zero overhead). |
 | `DISCOVERY_AUTO_CLEANUP_DELETE_ENABLED` | `"true"` | Action gate. `false` = dry-run (logs intent only). `true` = destructive cleanup (Redis purge, snapshot dir removal, CRD delete). |
-| `DISCOVERY_AUTO_CLEANUP_CYCLE_INTERVAL_SEC` | `15` | Detector wake interval |
+| `DISCOVERY_AUTO_CLEANUP_CYCLE_INTERVAL_SEC` | `60` | Detector wake interval; each cycle lists every application once (`performance` 120) |
 | `DISCOVERY_AUTO_CLEANUP_EMPTY_CYCLES_REQUIRED` | `2` | Consecutive empty cycles before a CRD becomes cleanup-eligible |
 | `DISCOVERY_AUTO_CLEANUP_GRACE_PERIOD_SEC` | `0` | Wall-clock floor from first-empty observation to eligibility; `0` = none |
 
@@ -298,7 +299,11 @@ The AI **provider** and **API key** are not env vars: an admin sets them at runt
 
 #### `services.notifier.env`
 
-No service-specific env. Inherits `app.shared.redis` and `app.shared.natsEnvFromSecret`.
+| Variable | Default | Description |
+|---|---|---|
+| `NOTIFIER_APPLY_WORKERS` | `8` | Concurrent apply workers; an application always maps to the same worker, so its updates stay ordered (`minimal` 2, `performance` 32; max 62) |
+
+Also inherits `app.shared.redis` and `app.shared.natsEnvFromSecret`.
 
 #### `services.auth.env`
 

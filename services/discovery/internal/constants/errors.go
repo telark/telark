@@ -106,13 +106,15 @@ const (
 	ErrRollbackDryRunFailed       errors.Error = "rollback validation failed during dry-run apply: %v"
 	ErrRollbackMarshalPatchFailed errors.Error = "failed to marshal rollback patch: %v"
 	ErrRollbackInterruptedRestart errors.Error = "rollback interrupted by service restart"
+	ErrRollbackLockBusy           errors.Error = "rollback lock busy"
 
 	// Rollback Trigger / Abort handler errors
-	ErrRollbackInFlight   errors.Error = "rollback already in progress for this application"
-	ErrRollbackNotFound   errors.Error = "rollback not found"
-	ErrRollbackNotPending errors.Error = "rollback already in progress; cannot abort"
-	ErrRollbackTerminal   errors.Error = "rollback is in terminal state"
-	ErrAbortUserRequired  errors.Error = "abort requires a user (X-User-ID header)"
+	ErrRollbackInFlight                errors.Error = "rollback already in progress for this application"
+	ErrRollbackNotFound                errors.Error = "rollback not found"
+	ErrRollbackNotPending              errors.Error = "rollback already in progress; cannot abort"
+	ErrRollbackTerminal                errors.Error = "rollback is in terminal state"
+	ErrAbortUserRequired               errors.Error = "abort requires a user (X-User-ID header)"
+	ErrRollbackCoordinationUnavailable errors.Error = "rollback coordination unavailable"
 
 	// Auto-cleanup detector errors
 	ErrAutoCleanupListAppsFailed     errors.Error = "[auto-cleanup] list applications failed: %v"
@@ -120,6 +122,7 @@ const (
 	ErrAutoCleanupNamespaceGetFailed errors.Error = "[auto-cleanup] namespace get failed: app=%s ns=%s err=%v"
 	ErrAutoCleanupRailRedisFailed    errors.Error = "[auto-cleanup] rail redis lookup failed: app=%s rail=%s err=%v"
 	ErrAutoCleanupStateWriteFailed   errors.Error = "[auto-cleanup] streak state write failed: app=%s err=%v"
+	ErrAutoCleanupResetFailed        errors.Error = "[auto-cleanup] reset failed: app=%s err=%v"
 
 	// Coordination Errors
 	ErrPrewarmLeaderPanic                 errors.Error = "[prewarm] Recovered from panic: %v"
@@ -151,4 +154,5 @@ const (
 	ErrAppResetExporterDeleteFailed       errors.Error = "failed to delete application CRD during reset for %s: %v"
 	ErrAppResetLeaderForwardFailed        errors.Error = "reset forward to leader %s failed: %v"
 	ErrAppResetLeaderForwardStatus        errors.Error = "reset forward to leader returned status %d: %s"
+	ErrExcludedNamespacesUnavailable      errors.Error = "excluded namespaces unavailable: %v"
 )

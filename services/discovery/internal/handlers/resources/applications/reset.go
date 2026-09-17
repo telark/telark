@@ -46,7 +46,11 @@ func ResetApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	RunReset(ctx, rdb, name)
+	if err := RunReset(ctx, rdb, name); err != nil {
+		clearResetCooldown(ctx, rdb, name)
+		responseutils.LogAndSendResponse(w, http.StatusBadGateway, response.OperationError, err.Error(), nil, err)
+		return
+	}
 	sendResetResponse(w, name)
 }
 
@@ -54,14 +58,17 @@ func ResetApplication(w http.ResponseWriter, r *http.Request) {
 // the exporter removes the CRD's snapshot files) for an application. Loop-guard and leader-forward
 // are NOT performed here — callers (HTTP handler / detector loop) own gating.
 // Safe to call from any leader-side context.
-func RunReset(ctx context.Context, rdb *redis.Client, name string) {
+func RunReset(ctx context.Context, rdb *redis.Client, name string) error {
 	lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
 	lg.Info(fmt.Sprintf(string(constants.LogAppResetStarted), name))
 	if rdb != nil {
 		deleteRedisByPatterns(ctx, rdb, name)
 	}
-	deleteApplicationCRD(name)
+	if err := deleteApplicationCRD(name); err != nil {
+		return err
+	}
 	lg.Info(fmt.Sprintf(string(constants.LogAppResetDone), name))
+	return nil
 }
 
 func forwardResetToLeaderIfNeeded(ctx context.Context, w http.ResponseWriter, r *http.Request, name string) bool {
@@ -167,6 +174,16 @@ func shouldSkipReset(ctx context.Context, rdb *redis.Client, name string) bool {
 	return true
 }
 
+// shouldSkipReset arms the cooldown before the reset runs; left behind after a
+// failure it turns the operator's retry into a 200 no-op. The handler context
+// may be why the reset failed, so the delete does not share its deadline.
+func clearResetCooldown(ctx context.Context, rdb *redis.Client, name string) {
+	if rdb == nil {
+		return
+	}
+	_ = rdb.Del(context.WithoutCancel(ctx), constants.KeyPrefixResetCooldown+name).Err()
+}
+
 func sendResetResponse(w http.ResponseWriter, name string) {
 	responseutils.LogAndSendResponse(
 		w,
@@ -190,6 +207,7 @@ func deleteRedisByPatterns(ctx context.Context, rdb *redis.Client, appName strin
 		constants.KeyPrefixLockGen + appName + constants.ColonSeparator + constants.Wildcard,
 		constants.ForceSyncDedupKeyPrefix + appName,
 		constants.KeyPrefixRollbackApplying + appName,
+		constants.KeyPrefixLockRollback + appName,
 	}
 	for i := range patterns {
 		deletePattern(ctx, rdb, patterns[i])
@@ -217,10 +235,10 @@ func deletePattern(ctx context.Context, rdb *redis.Client, pattern string) {
 	}
 }
 
-func deleteApplicationCRD(appName string) {
-	lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
+func deleteApplicationCRD(appName string) error {
 	resp := clients.NewExporterClient().DeleteApplicationByName(appName)
 	if resp == nil || (resp.Status != http.StatusOK && resp.Status != http.StatusNotFound) {
-		lg.Error(fmt.Sprintf(string(constants.ErrAppResetExporterDeleteFailed), appName, resp))
+		return fmt.Errorf(string(constants.ErrAppResetExporterDeleteFailed), appName, resp)
 	}
+	return nil
 }

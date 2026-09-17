@@ -197,7 +197,11 @@ func (d *Detector) fireCleanup(
 
 	cctx, cancel := context.WithTimeout(ctx, constants.AppResetHandlerTimeout)
 	defer cancel()
-	applicationhandler.RunReset(cctx, d.rdb, name)
+	// The streak stays so the next cycle retries instead of re-accumulating.
+	if rerr := applicationhandler.RunReset(cctx, d.rdb, name); rerr != nil {
+		lg.Error(fmt.Sprintf(string(constants.ErrAutoCleanupResetFailed), name, rerr))
+		return
+	}
 
 	_ = clearStreak(ctx, d.rdb, name)
 	lg.Info(fmt.Sprintf(string(constants.LogAutoCleanupDone),
@@ -219,7 +223,10 @@ func (d *Detector) HandleOrphanIfMissing(ctx context.Context, name string, err e
 	}
 	cctx, cancel := context.WithTimeout(ctx, constants.AppResetHandlerTimeout)
 	defer cancel()
-	applicationhandler.RunReset(cctx, d.rdb, name)
+	if rerr := applicationhandler.RunReset(cctx, d.rdb, name); rerr != nil {
+		lg.Error(fmt.Sprintf(string(constants.ErrAutoCleanupResetFailed), name, rerr))
+		return true
+	}
 	_ = clearStreak(ctx, d.rdb, name)
 	return true
 }

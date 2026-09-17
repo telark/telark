@@ -210,6 +210,8 @@ services:
       AI_KEY_SECRET_NAMESPACE: '{{ .Values.app.namespace }}'
       EXPORTER_K8S_CLIENT_QPS: "50"
       EXPORTER_K8S_CLIENT_BURST: "100"
+      # Orphan snapshot sweep: unreferenced files older than 1h on the PVC. 0 = off.
+      SNAPSHOT_GC_INTERVAL_SEC: "3600"
     volumes:
       - name: snapshots-storage
         persistentVolumeClaim:
@@ -269,7 +271,7 @@ services:
       REST_EXPORTER_DURATION_LOG_ENABLED: "true"
       DISCOVERY_AUTO_CLEANUP_ENABLED: "true"
       DISCOVERY_AUTO_CLEANUP_DELETE_ENABLED: "true"
-      DISCOVERY_AUTO_CLEANUP_CYCLE_INTERVAL_SEC: "15"
+      DISCOVERY_AUTO_CLEANUP_CYCLE_INTERVAL_SEC: "60"
       DISCOVERY_AUTO_CLEANUP_EMPTY_CYCLES_REQUIRED: "2"
       DISCOVERY_AUTO_CLEANUP_GRACE_PERIOD_SEC: "0"
       REST_EXPORTER_DURATION_LOG_DEDUP_SEC: "10"
@@ -312,6 +314,9 @@ services:
     category: "notification"
     terminationGracePeriodSec: 30
     useNatsCreds: true
+    env:
+      # Concurrent apply workers; one app always maps to the same worker (ordered).
+      NOTIFIER_APPLY_WORKERS: "8"
     pdb:
       enabled: false
   auth:

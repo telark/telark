@@ -8,7 +8,7 @@ const (
 	DefaultAdd                   = 1
 	SubjectPartsMin              = 3
 	SignalChanBuffer             = 1
-	NatsFetchBatchSize           = 10
+	NatsFetchBatchSize           = 64
 	DefaultMaxRetries            = 3
 	AckWaitSeconds               = 5
 	FetchMaxWaitSeconds          = 5
@@ -22,4 +22,8 @@ const (
 	StatusServerPort             = ":8080"
 	StatusServerReadTimeoutSec   = 5
 	ConnectionLogIntervalSeconds = 30
+	ApplyWorkerCount             = 8
+	ApplyWorkerQueueSize         = 32
+	DrainTimeoutSeconds          = 20
+	EnvApplyWorkers              = "NOTIFIER_APPLY_WORKERS"
 )

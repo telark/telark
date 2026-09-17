@@ -10,6 +10,7 @@ import (
 	"github.com/telark/auth/internal/helpers/shared"
 	authdata "github.com/telark/data/auth"
 	userresource "github.com/telark/data/resources/user"
+	restshared "github.com/telark/rest/clients/shared"
 )
 
 var lg = constants.GetLogger(constants.LoggerPrefixHelper)
@@ -22,7 +23,7 @@ func GetUserWithErrorHandling(
 ) (*userresource.UserAsResource, error) {
 	user, err := retrievalFunc(identifier)
 	if err != nil {
-		if strings.Contains(err.Error(), constants.HTTPStatus404Pattern) {
+		if errors.Is(err, restshared.ErrNotFound) {
 			return nil, errors.New(string(constants.ErrUserNotFound))
 		}
 		return nil, fmt.Errorf(string(constants.ErrFailedGetUser),

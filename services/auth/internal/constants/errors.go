@@ -143,7 +143,6 @@ const (
 	ErrRedisGetFailed         errors.Error = "redis GET failed for key %s: %v"
 	ErrRedisSetFailed         errors.Error = "redis SET failed for key %s: %v"
 	ErrRedisDelFailed         errors.Error = "redis DEL failed for key %s: %v"
-	ErrRedisChallengeConflict errors.Error = "concurrent login ceremony detected for identityHash=%s — only one ceremony allowed at a time"
 
 	// Async Worker Warnings
 	WarnAsyncWorkerFull         errors.Error = "async worker pool full, dropping housekeeping op"

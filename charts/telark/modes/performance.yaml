@@ -79,14 +79,20 @@ services:
       minAvailable: 2
     autoscaling:
       enabled: true
+  # auth and the dashboard are light: two replicas for availability, the
+  # autoscaler floor follows.
   auth:
+    replicas: 2
     env:
       CLEANUP_WORKERS_PER_TYPE: "4"
     pdb:
       enabled: true
-      minAvailable: 2
+      minAvailable: 1
     autoscaling:
       enabled: true
+      minReplicas: 2
   ui:
+    replicas: 2
     autoscaling:
       enabled: true
+      minReplicas: 2

@@ -219,8 +219,8 @@ Kubernetes: `>=1.30.0-0`
 | services.auth.env.SELF_REGISTRATION_ENABLED | string | `"{{ .Values.app.auth.passkey.selfRegistration }}"` |  |
 | services.auth.env.SESSION_EXPIRY | string | `"24"` |  |
 | services.auth.name | string | `"auth-service"` |  |
-| services.auth.pdb.enabled | bool | `true` |  |
-| services.auth.pdb.minAvailable | int | `1` |  |
+| services.auth.pdb.enabled | bool | `false` |  |
+| services.auth.replicas | int | `1` |  |
 | services.auth.repository | string | `"auth"` |  |
 | services.auth.terminationGracePeriodSec | int | `30` |  |
 | services.discovery.category | string | `"sync"` |  |
@@ -323,6 +323,7 @@ Kubernetes: `>=1.30.0-0`
 | services.ui.includeHealthCheck | bool | `false` |  |
 | services.ui.includeSecurity | bool | `false` |  |
 | services.ui.name | string | `"ui-service"` |  |
+| services.ui.replicas | int | `1` |  |
 | services.ui.repository | string | `"ui"` |  |
 | services.ui.terminationGracePeriodSec | int | `30` |  |
 | services.ui.useRedis | bool | `false` |  |

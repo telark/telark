@@ -314,6 +314,9 @@ services:
     version: 0.3.6
     category: "auth"
     terminationGracePeriodSec: 30
+    # Login and session checks are cheap; one replica carries standard. A
+    # one-replica disruption budget would only block node drains, so it is off.
+    replicas: 1
     env:
       REDIS_DB: "1"
       REDIS_RETRY_INTERVAL_SEC: "2"
@@ -341,8 +344,7 @@ services:
       RECONCILE_BACKOFF_INITIAL_SECONDS: "5"
       RECONCILE_BACKOFF_MAX_SECONDS: "300"
     pdb:
-      enabled: true
-      minAvailable: 1
+      enabled: false
   ui:
     enabled: true
     name: "ui-service"
@@ -351,6 +353,8 @@ services:
     version: 0.2.0
     category: "ui"
     terminationGracePeriodSec: 30
+    # Static assets behind nginx; one replica serves standard.
+    replicas: 1
     # Static assets behind nginx: it serves no /api/v1/status route, so probes
     # stay off. Resources still apply.
     includeHealthCheck: false

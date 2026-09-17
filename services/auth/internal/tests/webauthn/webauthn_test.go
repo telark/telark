@@ -251,9 +251,14 @@ func TestChallengeLifecycle(t *testing.T) {
 	}
 	testutil.Equal(t, "stored challenge", got.Challenge, "value")
 
-	if webauthnhelper.StoreChallenge("chalUser", "other") == nil {
-		t.Fatal("second store should conflict")
+	if err := webauthnhelper.StoreChallenge("chalUser", "other"); err != nil {
+		t.Fatalf("second store should supersede the pending ceremony: %v", err)
 	}
+	got, err = webauthnhelper.ValidateAndGetChallenge("chalUser")
+	if err != nil {
+		t.Fatalf("ValidateAndGetChallenge after supersede = %v", err)
+	}
+	testutil.Equal(t, "superseded challenge", got.Challenge, "other")
 	if _, err := webauthnhelper.ValidateAndGetChallenge("missingUser"); err == nil {
 		t.Fatal("missing challenge should error")
 	}

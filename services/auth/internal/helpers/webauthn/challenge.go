@@ -14,7 +14,6 @@ import (
 	"github.com/telark/auth/internal/constants"
 	authhelper "github.com/telark/auth/internal/helpers/auth"
 	redishelper "github.com/telark/auth/internal/helpers/redis"
-	"github.com/telark/auth/internal/helpers/shared"
 	authdata "github.com/telark/data/auth"
 )
 
@@ -27,13 +26,11 @@ func StoreChallenge(userID string, challenge string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisChallengeOpTimeout)
 	defer cancel()
 
-	set, err := rdb.SetNX(ctx, key, challenge,
-		time.Duration(constants.RedisTTLChallenge)*time.Second).Result()
-	if err != nil {
+	// A new start supersedes a pending ceremony: the old challenge can no longer
+	// finish, and the user is not locked out until the previous one expires.
+	if err := rdb.Set(ctx, key, challenge,
+		time.Duration(constants.RedisTTLChallenge)*time.Second).Err(); err != nil {
 		return fmt.Errorf(string(constants.ErrFailedCreateChallenge), err.Error())
-	}
-	if !set {
-		return fmt.Errorf(string(constants.ErrRedisChallengeConflict), shared.IdentityHash(userID))
 	}
 	return nil
 }

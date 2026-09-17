@@ -26,8 +26,8 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | Mode | For | Capacity (measured 2026-09-17) |
 |---|---|---|
 | `minimal` | dev, demos, evaluation — single replica, no PDBs | a few hundred applications |
-| `standard` (default) | small–mid production — 2 replicas, disruption budgets | verified at 1 000 applications |
-| `performance` | large clusters — 3 replicas; needs a ReadWriteMany class for the exporter (add `--set app.persistence.storageClass=<rwx-class>`) | beyond 1 000 applications |
+| `standard` (default) | small–mid production — 2 replicas for discovery, notifier and enrichment; auth, the dashboard and the exporter run 1; disruption budgets | verified at 1 000 applications |
+| `performance` | large clusters — 3 replicas (auth and the dashboard 2); needs a ReadWriteMany class for the exporter (add `--set app.persistence.storageClass=<rwx-class>`) | beyond 1 000 applications |
 
 `app.mode` sizes telark's own services only — Helm resolves a subchart's values before the mode is known, so redis, NATS, the policy engine and metrics-server ship fixed production-grade defaults owned by the chart, identical in every mode. Nothing to tune.
 

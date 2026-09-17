@@ -52,7 +52,6 @@ const (
 	OIDCJWKKeyType                = "RSA"
 	OIDCJWKUse                    = "sig"
 	OIDCJWKSFetchURL              = "https://www.googleapis.com/oauth2/v3/certs"
-	HTTPStatus404Pattern          = "status: 404"
 	IdentityProviderGoogle        = "google"
 	IdentityProviderPasskey       = "passkey"
 	UserFieldIdentities           = "identities"

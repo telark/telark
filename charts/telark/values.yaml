@@ -56,8 +56,9 @@ app:
   namespace: "telark"
 
   # Install mode: sizes every telark service (replicas, resources, rate limits,
-  # disruption budgets) from one flag. minimal = dev/demo · standard = the values
-  # below · performance = large cluster. Override: --set app.mode=performance.
+  # disruption budgets) from one flag. minimal = dev/demo, a few hundred apps ·
+  # standard = the values below, verified at 1 000 apps (2026-09-17 stress run)
+  # · performance = beyond that. Override: --set app.mode=performance.
   # Subcharts don't follow this flag (Helm resolves their values before it) — they
   # ship production-grade defaults for every mode. See the Subcharts section.
   mode: standard
@@ -249,7 +250,7 @@ services:
       SNAPSHOT_WRITE_MAX_ATTEMPTS: "5"
       SNAPSHOT_WRITE_RETRY_INTERVAL_SEC: "2"
       PROTECTION_PLAN_TICK_INTERVAL_SEC: "31"
-      FORCE_SYNC_WORKERS: "4"
+      FORCE_SYNC_WORKERS: "6"
       FORCE_SYNC_STREAM_MAX_LEN: "5000"
       FORCE_SYNC_DEDUP_TTL_SEC: "600"
       FORCE_SYNC_JOB_TIMEOUT_SEC: "300"

@@ -7,6 +7,8 @@
 # Sizes telark's own services only — subchart sizing (redis, nats, kyverno) is
 # fixed by the chart and does not vary by mode. Capacity here says nothing about
 # security posture (app.crdGuard is independent).
+# Measured 2026-09-17: fine to a few hundred apps; at 1 000 apps discovery OOMs
+# at 256Mi and the 20 QPS exporter limit throttles bulk deletes — use standard.
 
 app:
   serviceDefaults:

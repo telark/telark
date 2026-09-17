@@ -15,7 +15,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
   --set app.mode=performance
 ```
 
-`app.mode` sizes telark's own services; the subcharts (redis/nats/kyverno/metrics-server) ship fixed production-grade defaults owned by the chart, identical in every mode. Full guide: [docs/INSTALL.md](../../docs/INSTALL.md).
+`app.mode` sizes telark's own services; the subcharts (redis/nats/kyverno/metrics-server) ship fixed production-grade defaults owned by the chart, identical in every mode. Capacity, measured 2026-09-17: `minimal` handles a few hundred applications; `standard` was verified at 1 000 applications (discovery ~200 Mi steady, rediscovery cycle ≈ 4.5 min); `performance` is for clusters beyond that. Full guide: [docs/INSTALL.md](../../docs/INSTALL.md).
 
 ## Values reference
 
@@ -252,7 +252,7 @@ Force-sync queue:
 
 | Variable | Default | Description |
 |---|---|---|
-| `FORCE_SYNC_WORKERS` | `4` | Concurrent force-sync worker count |
+| `FORCE_SYNC_WORKERS` | `6` | Concurrent force-sync worker count on the leader (`minimal` 2, `performance` 12); a job takes 25–60 s |
 | `FORCE_SYNC_STREAM_MAX_LEN` | `5000` | Redis stream length cap |
 | `FORCE_SYNC_DEDUP_TTL_SEC` | `600` | Dedup key TTL |
 | `FORCE_SYNC_JOB_TIMEOUT_SEC` | `300` | Per-job deadline |

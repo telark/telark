@@ -256,7 +256,7 @@ Kubernetes: `>=1.30.0-0`
 | services.discovery.env.FORCE_SYNC_MAINTENANCE_INTERVAL_SEC | string | `"60"` |  |
 | services.discovery.env.FORCE_SYNC_PEL_IDLE_RECLAIM_SEC | string | `"60"` |  |
 | services.discovery.env.FORCE_SYNC_STREAM_MAX_LEN | string | `"5000"` |  |
-| services.discovery.env.FORCE_SYNC_WORKERS | string | `"4"` |  |
+| services.discovery.env.FORCE_SYNC_WORKERS | string | `"6"` |  |
 | services.discovery.env.INSIGHTS_TICK_INTERVAL_SEC | string | `"300"` |  |
 | services.discovery.env.PROTECTION_PLAN_TICK_INTERVAL_SEC | string | `"31"` |  |
 | services.discovery.env.REDIS_MAX_WAIT_SEC | string | `"180"` |  |

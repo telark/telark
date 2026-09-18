@@ -122,16 +122,11 @@ func collectSyncNamespaces(stored *applicationmodel.Application, excluded []stri
 }
 
 func containsApp(data applicationmodel.ResponseData, appName string) bool {
-	for i := range data.Applications {
-		if data.Applications[i].Name == appName {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(data.Applications, func(a applicationmodel.Application) bool {
+		return a.Name == appName
+	})
 }
 
-// RunForceSyncJob is the JobExecutor used by the force-sync worker pool. It
-// acquires the per-app lock, runs the heartbeat, and invokes the sync handler.
 func RunForceSyncJob(
 	ctx context.Context,
 	coord *CoordinationBundle,

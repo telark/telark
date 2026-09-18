@@ -24,7 +24,6 @@ type Detector struct {
 	leaderFn func(context.Context) bool
 }
 
-// NewDetector wires the auto-cleanup detector.
 func NewDetector(
 	cfg config.AutoCleanupConfig,
 	rdb *redis.Client,
@@ -41,8 +40,6 @@ func NewDetector(
 	}
 }
 
-// Run blocks until ctx is canceled. Runs one cycle every CycleInterval.
-// Detector exits cleanly on context cancel.
 func (d *Detector) Run(ctx context.Context) {
 	lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
 	lg.Info(fmt.Sprintf(string(constants.LogAutoCleanupDetectorStarted),
@@ -114,7 +111,6 @@ func (d *Detector) evaluateApp(ctx context.Context, app *appresource.Application
 		return
 	}
 
-	// All immediate rails pass — advance streak.
 	d.advanceStreakAndMaybeFire(ctx, app)
 }
 
@@ -180,7 +176,6 @@ func (d *Detector) fireCleanup(
 		return
 	}
 
-	// Phase 2+: re-entry guard + run cleanup.
 	inflight, ierr := isInflight(ctx, d.rdb, name)
 	if ierr == nil && inflight {
 		lg.Info(fmt.Sprintf(string(constants.LogAutoCleanupBlocked),
@@ -208,10 +203,8 @@ func (d *Detector) fireCleanup(
 		name, time.Since(start).Milliseconds()))
 }
 
-// HandleOrphanIfMissing handles the case where the exporter reports 404 for an
-// app the detector tried to evaluate (CRD already deleted out-of-band). Clears
-// residual Redis state via the existing cleanup path. Safe to call from
-// non-detector contexts.
+// A 404 means the CRD was already deleted out-of-band; the residual Redis state still has to
+// go through the normal cleanup path.
 func (d *Detector) HandleOrphanIfMissing(ctx context.Context, name string, err error) bool {
 	if !k8serrors.IsNotFound(err) && !isHTTPNotFound(err) {
 		return false

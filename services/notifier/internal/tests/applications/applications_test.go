@@ -55,12 +55,12 @@ func updateNoScopeMsg() []byte {
 // injected client so no exporter is needed.
 func TestApplicationSubscriberRoutesEvents(t *testing.T) {
 	cases := []struct {
-		name                      string
-		subject                   string
-		payload                   []byte
-		fake                      fakeAppClient
-		wantPatched, wantCreated  bool
-		wantDeleted               bool
+		name                     string
+		subject                  string
+		payload                  []byte
+		fake                     fakeAppClient
+		wantPatched, wantCreated bool
+		wantDeleted              bool
 	}{
 		{"update patched", "telark.applications.update", updateMsg(), fakeAppClient{patchStatus: http.StatusOK}, true, false, false},
 		{"update upserts on 404", "telark.applications.update", updateMsg(), fakeAppClient{patchStatus: http.StatusNotFound, createStatus: http.StatusOK}, true, true, false},

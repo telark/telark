@@ -31,7 +31,6 @@ type jwkSet struct {
 	Keys []jwk `json:"keys"`
 }
 
-// GoogleClaims holds the OIDC claims from a Google ID token.
 type GoogleClaims struct {
 	Email         string `json:"email"`
 	EmailVerified bool   `json:"email_verified"`

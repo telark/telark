@@ -5,5 +5,4 @@ const (
 	EnvDiscoveryK8sClientBurst     = "DISCOVERY_K8S_CLIENT_BURST"
 	DefaultDiscoveryK8sClientQPS   = 50
 	DefaultDiscoveryK8sClientBurst = 100
-	Float64ParseBitSize            = 32
 )

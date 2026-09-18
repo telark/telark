@@ -36,8 +36,6 @@ var (
 	getQuitChannel = restserver.SignalQuit()
 )
 
-const snapshotsDirPerm = 0o755
-
 func main() {
 	config.ApplyKubernetesRESTRateLimit()
 	initSnapshotsConfig()
@@ -49,6 +47,7 @@ func main() {
 	go snapshotexp.StartSnapshotGC(gcCtx)
 	go snaputil.StartStorageStatsRefresher(gcCtx)
 	go informers.StartApplications(gcCtx)
+	go informers.StartSessions(gcCtx)
 
 	authzMiddleware, err := xauthz.NewFromEnv(exporterauthz.NewResolver(), exporterauthz.Requirements())
 	if err != nil {
@@ -67,7 +66,7 @@ func initSnapshotsConfig() {
 	snapshotsPath := envmanager.InitSnapshotsPath()
 	lg.Info(fmt.Sprintf(string(constants.InfSnapshotsPathConfigured), snapshotsPath))
 	for _, scope := range envmanager.GetSnapshotScopes() {
-		if err := os.MkdirAll(envmanager.GetSnapshotsScopeRoot(scope.Name), snapshotsDirPerm); err != nil {
+		if err := os.MkdirAll(envmanager.GetSnapshotsScopeRoot(scope.Name), constants.SnapshotDirPerm); err != nil {
 			lg.Error(fmt.Sprintf(string(constants.ErrSnapshotScopeRootCreateFailed), scope.Name, err))
 		}
 	}

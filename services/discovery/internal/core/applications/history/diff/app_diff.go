@@ -3,6 +3,7 @@ package diff
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -328,21 +329,15 @@ func snapshotsNoChange(stored *application.Application) []application.Applicatio
 }
 
 func hasValidSnapshotForGeneration(snaps []application.ApplicationSnapshot, generation int) bool {
-	for i := range snaps {
-		if snaps[i].Generation == generation && snaps[i].Path != constants.EmptyString {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(snaps, func(s application.ApplicationSnapshot) bool {
+		return s.Generation == generation && s.Path != constants.EmptyString
+	})
 }
 
 func hasChangeLogForGeneration(changeLog []application.ChangeLogEntry, generation int) bool {
-	for i := range changeLog {
-		if changeLog[i].Generation == generation {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(changeLog, func(e application.ChangeLogEntry) bool {
+		return e.Generation == generation
+	})
 }
 
 func shouldBackfillNoChangeSnapshot(

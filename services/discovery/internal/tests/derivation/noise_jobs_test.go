@@ -1,14 +1,18 @@
 package derivation
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/telark/discovery/internal/discovery/derivation"
+)
 
 func TestCronJobOwnedJobsAreNoiseStandaloneJobsStay(t *testing.T) {
-	in := []ResourceInput{
+	in := []derivation.ResourceInput{
 		{Namespace: "n", Kind: "CronJob", Name: "cron", Labels: map[string]string{"app": "a"}},
-		{Namespace: "n", Kind: "Job", Name: "cron-1", Labels: map[string]string{"app": "a"}, OwnerReferences: []OwnerReference{{Kind: "CronJob", Name: "cron"}}},
+		{Namespace: "n", Kind: "Job", Name: "cron-1", Labels: map[string]string{"app": "a"}, OwnerReferences: []derivation.OwnerReference{{Kind: "CronJob", Name: "cron"}}},
 		{Namespace: "n", Kind: "Job", Name: "migrate", Labels: map[string]string{"app": "a"}},
 	}
-	out := GroupByWorkloadAnchor(in)
+	out := derivation.GroupByWorkloadAnchor(in)
 	names := map[string]bool{}
 	for _, r := range out {
 		names[r.Kind+"/"+r.Name] = r.Group == "a"

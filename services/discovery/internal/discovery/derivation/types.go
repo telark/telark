@@ -2,11 +2,9 @@ package derivation
 
 import "time"
 
-// OwnerReference is a minimal K8s owner reference for resolving parent groups
 type OwnerReference struct {
 	Kind string
 	Name string
-	UID  string
 }
 
 type ResourceInput struct {

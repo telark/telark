@@ -10,12 +10,9 @@ import (
 )
 
 func HasReplicaChange(appChanges []application.ApplicationChange) bool {
-	for i := range appChanges {
-		if appChanges[i].Field == ChangeFieldReplicas {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(appChanges, func(c application.ApplicationChange) bool {
+		return c.Field == ChangeFieldReplicas
+	})
 }
 
 func CollectChanges(stored, fresh *application.Application) []application.ApplicationChange {

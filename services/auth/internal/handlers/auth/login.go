@@ -12,7 +12,6 @@ import (
 	"github.com/telark/auth/internal/helpers/auth"
 	"github.com/telark/auth/internal/helpers/shared"
 	webauthnhelper "github.com/telark/auth/internal/helpers/webauthn"
-	authdata "github.com/telark/data/auth"
 )
 
 var lg = constants.GetLogger(constants.LoggerPrefixHandler)
@@ -78,13 +77,13 @@ func LoginFinish(w http.ResponseWriter, r *http.Request) {
 	}
 	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-	email, err := extractLoginEmail(bodyBytes)
+	req, err := extractLoginRequest(bodyBytes)
 	if err != nil {
 		shared.SendErrorResponse(w, http.StatusBadRequest, err)
 		return
 	}
 
-	user, passkeys, err := auth.GetUserAndPasskeys(email)
+	user, passkeys, err := auth.GetUserAndPasskeys(req.Email)
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		if shared.IsError(err, constants.ErrUserNotFound) || shared.IsError(err, constants.ErrNoPasskeysFound) {
@@ -115,9 +114,7 @@ func LoginFinish(w http.ResponseWriter, r *http.Request) {
 		webauthnhelper.CleanupChallenge(capturedUserID)
 	})
 
-	meta := extractDeviceMeta(bodyBytes)
-
-	sessionToken, err := auth.CreateUserSession(user.ID, meta)
+	sessionToken, err := auth.CreateUserSession(user.ID, &req.DeviceMetadata)
 	if err != nil {
 		shared.HandleError(w, errors.New(string(constants.ErrInternalServerError)),
 			http.StatusInternalServerError, err.Error())
@@ -130,15 +127,6 @@ func LoginFinish(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func extractDeviceMeta(bodyBytes []byte) *authdata.DeviceMetadata {
-	req, err := extractLoginRequest(bodyBytes)
-	if err != nil {
-		lg.Debug(fmt.Sprintf(string(constants.LogExtractLoginRequestFailed), err))
-		return nil
-	}
-	return &req.DeviceMetadata
-}
-
 func extractLoginRequest(bodyBytes []byte) (*LoginFinishRequest, error) {
 	var req LoginFinishRequest
 	if err := json.Unmarshal(bodyBytes, &req); err != nil {
@@ -148,12 +136,4 @@ func extractLoginRequest(bodyBytes []byte) (*LoginFinishRequest, error) {
 		return nil, err
 	}
 	return &req, nil
-}
-
-func extractLoginEmail(bodyBytes []byte) (string, error) {
-	req, err := extractLoginRequest(bodyBytes)
-	if err != nil {
-		return constants.EmptyString, err
-	}
-	return req.Email, nil
 }

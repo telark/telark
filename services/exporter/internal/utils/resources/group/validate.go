@@ -12,14 +12,6 @@ import (
 	responseutils "github.com/telark/rest/utils/response"
 )
 
-func CheckGroupExists(groupID string) error {
-	return resourcesshared.CheckResourceExists(groupID, metadata.GroupAsResourceMetadata, constants.ErrGroupNotFound)
-}
-
-func ValidateGroupOrRespond(w http.ResponseWriter, groupID string) bool {
-	return resourcesshared.ValidateResourceOrRespond(w, groupID, metadata.GroupAsResourceMetadata, constants.ErrGroupNotFound)
-}
-
 func ValidateAndPrepareGroup(group *groupdata.GroupAsResource, w http.ResponseWriter) error {
 	if err := sharedutils.ValidateRequiredField(group.Name, string(constants.ErrGroupNameCannotBeEmpty)); err != nil {
 		responseutils.LogAndSendResponse(

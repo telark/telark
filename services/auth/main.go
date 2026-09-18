@@ -111,11 +111,6 @@ func startMainService(cfg *config.Config, authzMiddleware func(http.Handler) htt
 	go startServerWithRecovery(srv, cfg.Service.Port)
 }
 
-func startServer(server *http.Server, port string) {
-	lg.Info(fmt.Sprintf(string(constants.SuccessServiceStarted), port))
-	restserver.ListenAndSignal(server, getQuitChannel, lg)
-}
-
 var panicRecoveryAttempts int
 
 func startServerWithRecovery(server *http.Server, port string) {
@@ -140,7 +135,8 @@ func startServerWithRecovery(server *http.Server, port string) {
 		}
 	}()
 
-	startServer(server, port)
+	lg.Info(fmt.Sprintf(string(constants.SuccessServiceStarted), port))
+	restserver.ListenAndSignal(server, getQuitChannel, lg)
 }
 
 func gracefulShutdown(cfg *config.Config) {
@@ -187,7 +183,7 @@ func startCleanupSystem(rdb *goredis.Client) {
 
 	system, err := coordcleanup.Bootstrap(ctx, rdb, cfg, reconciler, nil, replicaID(), cfg.ReconcileTick)
 	if err != nil {
-		lg.Error(fmt.Sprintf("[cleanup] bootstrap failed: %v", err))
+		lg.Error(fmt.Sprintf(string(constants.ErrCleanupBootstrapFailed), err))
 		return
 	}
 	cleanuphandler.InitIngress(system.Ingress)

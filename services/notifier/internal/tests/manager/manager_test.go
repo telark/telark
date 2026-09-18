@@ -11,11 +11,11 @@ import (
 
 type fakeNatsManager struct{ c *natscore.NATSClient }
 
-func (f *fakeNatsManager) GetClient() (*natscore.NATSClient, error)  { return f.c, nil }
-func (f *fakeNatsManager) IsConnected() bool                         { return f.c != nil }
-func (f *fakeNatsManager) Close() error                              { return nil }
-func (f *fakeNatsManager) Reconnect() error                          { return nil }
-func (f *fakeNatsManager) GetConnectionStatus() (bool, error)        { return f.c != nil, nil }
+func (f *fakeNatsManager) GetClient() (*natscore.NATSClient, error) { return f.c, nil }
+func (f *fakeNatsManager) IsConnected() bool                        { return f.c != nil }
+func (f *fakeNatsManager) Close() error                             { return nil }
+func (f *fakeNatsManager) Reconnect() error                         { return nil }
+func (f *fakeNatsManager) GetConnectionStatus() (bool, error)       { return f.c != nil, nil }
 
 // A fresh manager reports disconnected until Start dials NATS, and never panics
 // on the nil client — the readiness probe depends on this being safe pre-Start.

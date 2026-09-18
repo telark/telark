@@ -23,7 +23,6 @@ func DeletePasskeyByCredentialID(w http.ResponseWriter, credentialID string, use
 	}
 	passkeyName := resource.GetName()
 
-	// Check if this is the last passkey (unless forceLastDelete is true)
 	if !forceLastDelete {
 		if !passkeyutils.ValidateLastPasskeyDeletion(w, userID) {
 			return

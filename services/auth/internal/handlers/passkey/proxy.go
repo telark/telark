@@ -68,7 +68,6 @@ func CreatePasskey(w http.ResponseWriter, r *http.Request) {
 
 	data, err := authhelper.CreatePasskey(userID, passkey)
 	if err != nil {
-		// Check if it's a conflict error (409)
 		var conflictErr *authhelper.ConflictError
 		if errors.As(err, &conflictErr) {
 			shared.SendErrorResponse(w, http.StatusConflict, err)

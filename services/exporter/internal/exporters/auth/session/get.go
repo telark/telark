@@ -13,13 +13,11 @@ import (
 )
 
 func GetSessionByToken(w http.ResponseWriter, token string) {
-	// Find session by token (verifies session exists)
 	resource, ok := sessionutils.FindSessionOrRespond(w, token)
 	if !ok {
 		return
 	}
 
-	// Validate session expiration (authorization check) and extract session struct
 	session, err := sessionutils.ValidateSessionExpiration(resource)
 	if err != nil {
 		sharedutils.HandleValidationError(w, err)
@@ -39,7 +37,6 @@ func GetSessionByToken(w http.ResponseWriter, token string) {
 		return
 	}
 
-	// Return session details including userId as a single item (spec map)
 	msg := fmt.Sprintf(string(messages.SuccessGetRes), resource.GetName(), resource.GetKind())
 	responseutils.LogAndSendResponse(
 		w,

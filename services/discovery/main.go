@@ -135,10 +135,6 @@ func startMainService() {
 	gcfghelper.StartExcludedNamespacesSync(serviceCtx)
 }
 
-func startServer(server *http.Server) {
-	restserver.ListenAndSignal(server, getQuitChannel, lg)
-}
-
 func startServerWithRecovery(server *http.Server) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -148,7 +144,7 @@ func startServerWithRecovery(server *http.Server) {
 		}
 	}()
 
-	startServer(server)
+	restserver.ListenAndSignal(server, getQuitChannel, lg)
 }
 
 func startBootstrapWithRecovery() {
@@ -371,7 +367,7 @@ func restartService() {
 	}
 
 	shutdownExistingServices()
-	waitForShutdown()
+	time.Sleep(state.RestartDelay)
 	startMainService()
 }
 
@@ -399,10 +395,6 @@ func shutdownHTTPServer() {
 			lg.Error(fmt.Sprintf(string(constants.ErrFailedShutdownHTTPServer), err))
 		}
 	}
-}
-
-func waitForShutdown() {
-	time.Sleep(state.RestartDelay)
 }
 
 func resignLeaderOnShutdown() {

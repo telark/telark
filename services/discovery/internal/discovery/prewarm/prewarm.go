@@ -135,8 +135,7 @@ func BuildPrewarmApplicationOptions() serviceapp.GetApplicationsOptions {
 	return opts
 }
 
-// BuildPrewarmApplicationOptionsForApp scopes a per-app job: only appName is
-// looked up (one GET instead of the full list) and published; the rest of the
+// Only appName is looked up (one GET instead of the full list) and published; the rest of the
 // namespace is derived for grouping only. A missing app is a new one.
 func BuildPrewarmApplicationOptionsForApp(appName string) serviceapp.GetApplicationsOptions {
 	opts := BuildPrewarmApplicationOptions()
@@ -154,9 +153,8 @@ func BuildPrewarmApplicationOptionsForApp(appName string) serviceapp.GetApplicat
 	return opts
 }
 
-// storedApplicationLookup lists the stored applications once per derivation. A
-// name missing from a successful list is a new application; a failed list makes
-// every application unknown, which callers must treat as "do not publish".
+// Listed once per derivation: a name missing from a successful list is a new application, while
+// a failed list makes every application unknown, which callers must treat as "do not publish".
 func storedApplicationLookup(exporterClient *clients.ExporterClient) func(string) (*applicationmodel.Application, error) {
 	var once sync.Once
 	var byName map[string]*applicationmodel.Application

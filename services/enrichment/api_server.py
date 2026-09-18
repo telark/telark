@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """HTTP API for enrichment-service (validation endpoints)."""
+
+from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
@@ -10,7 +10,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from config import ANTHROPIC_MODEL, GEMINI_MODEL, API_PORT
+from config import ANTHROPIC_MODEL, API_PORT
 
 from authz import require_scope, require_service_token
 from insights import dispatch_applications
@@ -18,20 +18,32 @@ from models import InsightsDispatchRequest, InsightsDispatchResponse
 
 from constants import (
     API_HOST,
+    CORS_ALLOWED_ORIGIN,
+    CORS_MAX_AGE_S,
     PERMISSION_LEVEL_CONTRIBUTOR,
     SCOPE_SETTINGS,
+    ANTHROPIC_API_VERSION,
+    ANTHROPIC_MESSAGES_URL,
     CHATGPT_MODELS_URL,
     GROQ_MODELS_URL,
-    GEMINI_OPENAI_BASE_URL,
     GEMINI_MODELS_URL,
+    MODELS_LIST_TIMEOUT_S,
+    PROVIDER_TIMEOUT_S,
+    GEMINI_INVALID_KEY_REASON,
+    INVALID_API_KEY_PATTERNS,
+    PROVIDER_MESSAGE_MAX_LEN,
     LOG_VALIDATE_API_KEY_FAILED,
     LOG_VALIDATE_API_KEY_OK,
+    MSG_API_KEY_REJECTED,
     MSG_INVALID_PROVIDER,
     MSG_PROVIDER_OLLAMA_NOT_ALLOWED,
+    MSG_PROVIDER_UNREACHABLE,
     MSG_API_KEY_REQUIRED,
     MSG_VALIDATE_FAILED,
     MSG_VALIDATE_OK,
+    MSG_VALIDATION_FAILED_STATUS,
     SERVICE_NAME,
+    VALIDATE_API_KEY_PATH,
     STATUS_READY_PATH,
     STATUS_LIVE_PATH,
     STATUS_READY,
@@ -64,17 +76,17 @@ def create_app() -> FastAPI:
     app = FastAPI()
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000"],
+        allow_origins=[CORS_ALLOWED_ORIGIN],
         allow_credentials=False,
         allow_methods=["POST", "OPTIONS"],
         allow_headers=["*"],
-        max_age=600,
+        max_age=CORS_MAX_AGE_S,
     )
 
     # Validating a key against a provider is part of configuring insights, and
     # an open endpoint here would answer "is this API key live?" for anyone.
     @app.post(
-        "/provider/validate-api-key",
+        VALIDATE_API_KEY_PATH,
         response_model=ValidateAPIKeyResponse,
         dependencies=[Depends(require_scope(SCOPE_SETTINGS, PERMISSION_LEVEL_CONTRIBUTOR))],
     )
@@ -136,48 +148,40 @@ def create_app() -> FastAPI:
     return app
 
 
+def _classify(resp: httpx.Response) -> _ValidationResult:
+    if resp.status_code == 200:
+        return _ValidationResult(ok=True)
+    if resp.status_code in (401, 403):
+        return _ValidationResult(ok=False, reason=MSG_API_KEY_REJECTED)
+    if resp.status_code == 400 and _looks_like_invalid_api_key(resp):
+        return _ValidationResult(ok=False, reason=MSG_API_KEY_REJECTED)
+    return _ValidationResult(ok=False, reason=_format_validation_failure(resp))
+
+
 async def _validate_models_list(url: str, api_key: str) -> _ValidationResult:
     try:
-        async with httpx.AsyncClient(timeout=5) as client:
+        async with httpx.AsyncClient(timeout=MODELS_LIST_TIMEOUT_S) as client:
             resp = await client.get(url, headers={"Authorization": f"Bearer {api_key}"})
-        if resp.status_code == 200:
-            return _ValidationResult(ok=True)
-        if resp.status_code in (401, 403):
-            return _ValidationResult(ok=False, reason="API key rejected.")
-        if resp.status_code == 400 and _looks_like_invalid_api_key(resp):
-            return _ValidationResult(ok=False, reason="API key rejected.")
-        return _ValidationResult(
-            ok=False,
-            reason=_format_validation_failure(resp),
-        )
     except Exception:
-        return _ValidationResult(ok=False, reason="Provider unreachable.")
+        return _ValidationResult(ok=False, reason=MSG_PROVIDER_UNREACHABLE)
+    return _classify(resp)
 
 
 async def _validate_gemini(api_key: str) -> _ValidationResult:
+    # Gemini keys are validated against the native REST API (key=...), not OAuth
+    # "Bearer" auth: the OpenAI-compat endpoint returns 400 for good and bad keys alike.
     try:
-        # Gemini API keys are validated via the native Gemini REST API (key=...),
-        # not via OAuth "Bearer" auth. Using the OpenAI-compat endpoint with a
-        # Bearer API key returns 400 for both good and bad keys.
-        async with httpx.AsyncClient(timeout=8) as client:
+        async with httpx.AsyncClient(timeout=PROVIDER_TIMEOUT_S) as client:
             resp = await client.get(GEMINI_MODELS_URL, params={"key": api_key})
-        if resp.status_code == 200:
-            return _ValidationResult(ok=True)
-        if resp.status_code in (401, 403):
-            return _ValidationResult(ok=False, reason="API key rejected.")
-        if resp.status_code == 400 and _looks_like_invalid_api_key(resp):
-            return _ValidationResult(ok=False, reason="API key rejected.")
-        return _ValidationResult(ok=False, reason=_format_validation_failure(resp))
     except Exception:
-        return _ValidationResult(ok=False, reason="Provider unreachable.")
+        return _ValidationResult(ok=False, reason=MSG_PROVIDER_UNREACHABLE)
+    return _classify(resp)
 
 
 async def _validate_claude(api_key: str) -> _ValidationResult:
-    # Use Anthropic messages API via httpx for a real minimal call.
-    url = "https://api.anthropic.com/v1/messages"
     headers = {
         "x-api-key": api_key,
-        "anthropic-version": "2023-06-01",
+        "anthropic-version": ANTHROPIC_API_VERSION,
         "content-type": "application/json",
     }
     payload = {
@@ -186,24 +190,15 @@ async def _validate_claude(api_key: str) -> _ValidationResult:
         "messages": [{"role": "user", "content": "ping"}],
     }
     try:
-        async with httpx.AsyncClient(timeout=8) as client:
-            resp = await client.post(url, json=payload, headers=headers)
-        if resp.status_code == 200:
-            return _ValidationResult(ok=True)
-        if resp.status_code in (401, 403):
-            return _ValidationResult(ok=False, reason="API key rejected.")
-        if resp.status_code == 400 and _looks_like_invalid_api_key(resp):
-            return _ValidationResult(ok=False, reason="API key rejected.")
-        return _ValidationResult(ok=False, reason=_format_validation_failure(resp))
+        async with httpx.AsyncClient(timeout=PROVIDER_TIMEOUT_S) as client:
+            resp = await client.post(ANTHROPIC_MESSAGES_URL, json=payload, headers=headers)
     except Exception:
-        return _ValidationResult(ok=False, reason="Provider unreachable.")
+        return _ValidationResult(ok=False, reason=MSG_PROVIDER_UNREACHABLE)
+    return _classify(resp)
 
 
 def _format_validation_failure(resp: httpx.Response) -> str:
-    provider_msg = _extract_provider_message(resp)
-    if provider_msg:
-        return provider_msg
-    return f"Validation failed (status {resp.status_code})."
+    return _extract_provider_message(resp) or MSG_VALIDATION_FAILED_STATUS.format(resp.status_code)
 
 
 def _extract_provider_message(resp: httpx.Response) -> str | None:
@@ -236,9 +231,7 @@ def _extract_provider_message(resp: httpx.Response) -> str | None:
     except Exception:
         text = ""
     text = " ".join(text.split()).strip()
-    if not text:
-        return None
-    return text[:160]
+    return text[:PROVIDER_MESSAGE_MAX_LEN] or None
 
 
 def _looks_like_invalid_api_key(resp: httpx.Response) -> bool:
@@ -247,22 +240,9 @@ def _looks_like_invalid_api_key(resp: httpx.Response) -> bool:
     except Exception:
         return False
 
-    message = _collect_error_text(data)
-    if message:
-        msg = message.lower()
-        patterns = [
-            "api key not valid",
-            "api_key_invalid",
-            "api key invalid",
-            "invalid api key",
-            "incorrect api key",
-            "invalid_api_key",
-            "invalid authentication",
-            "invalid authorization",
-            "unauthorized",
-        ]
-        if any(p in msg for p in patterns):
-            return True
+    message = _collect_error_text(data).lower()
+    if message and any(p in message for p in INVALID_API_KEY_PATTERNS):
+        return True
 
     # Gemini details: {"error": {"details": [{"reason":"API_KEY_INVALID", ...}]}}
     if isinstance(data, dict):
@@ -270,16 +250,16 @@ def _looks_like_invalid_api_key(resp: httpx.Response) -> bool:
         if isinstance(err, dict):
             details = err.get("details")
             if isinstance(details, list):
-                for d in details:
-                    if isinstance(d, dict) and d.get("reason") == "API_KEY_INVALID":
-                        return True
+                return any(
+                    isinstance(d, dict) and d.get("reason") == GEMINI_INVALID_KEY_REASON
+                    for d in details
+                )
     return False
 
 
 def _collect_error_text(data: object) -> str:
     if not isinstance(data, dict):
         return ""
-    # Prefer explicit strings
     for key in ("message", "error", "detail"):
         v = data.get(key)
         if isinstance(v, str) and v.strip():
@@ -292,6 +272,7 @@ def _collect_error_text(data: object) -> str:
             if isinstance(v, str) and v.strip():
                 return v.strip()
     return ""
+
 
 def run_api_in_thread() -> None:
     import uvicorn

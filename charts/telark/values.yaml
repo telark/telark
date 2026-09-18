@@ -242,6 +242,8 @@ services:
     env:
       DISCOVERY_K8S_CLIENT_QPS: "100"
       DISCOVERY_K8S_CLIENT_BURST: "200"
+      DISCOVERY_ROLLBACK_K8S_CLIENT_QPS: "100"
+      DISCOVERY_ROLLBACK_K8S_CLIENT_BURST: "200"
       # How often the leader dispatches app signals to enrichment. Deliberately
       # slower than the UI's insights poll: production is expensive (LLM calls),
       # the read is cheap, so the UI fills in between ticks.

@@ -25,8 +25,7 @@ func ExtractBackupFlagsFromAuthenticatorData(authenticatorDataB64 string) (
 		return false, false, err
 	}
 
-	const minAuthDataLengthForFlags = constants.AuthDataOffsetFlags + 1
-	if len(authDataBytes) < minAuthDataLengthForFlags {
+	if len(authDataBytes) < constants.AuthDataMinLengthForFlags {
 		return false, false, errors.New(string(constants.ErrAuthDataTooShort))
 	}
 

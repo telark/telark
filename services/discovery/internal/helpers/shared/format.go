@@ -92,7 +92,6 @@ func concatWithSeparator(separator string, values ...string) string {
 		return strings.Join(values, separator)
 	}
 
-	// Use string builder for complex concatenations
 	estimatedSize := len(values[0])
 	for i := constants.DefaultAddValue; i < len(values); i++ {
 		estimatedSize += len(separator) + len(values[i])

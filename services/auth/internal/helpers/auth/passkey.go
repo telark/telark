@@ -16,7 +16,6 @@ import (
 	userresource "github.com/telark/data/resources/user"
 )
 
-// ConflictError represents a 409 Conflict error from the data service
 type ConflictError struct {
 	Message string
 }
@@ -153,8 +152,8 @@ func GetUserForRegistrationStart(r *http.Request) (
 	return user, user.ID, false, nil
 }
 
-// ceremonyOwner resolves the user a session-less finish belongs to. The identity
-// headers are stripped by the authz layer, so only the signed ceremony can name it.
+// The identity headers are stripped by the authz layer, so for a session-less
+// finish only the signed ceremony (ceremonyOwner) can name the user.
 func GetUserForRegistration(
 	r *http.Request, ceremonyOwner func(*http.Request) (string, bool, error),
 ) (*userresource.UserAsResource, string, error) {
@@ -246,7 +245,6 @@ func CreatePasskey(userID string, passkey *authdata.UserPasskey) (any, error) {
 	passkeyClient := clients.GetPasskeyClient()
 	resp := passkeyClient.CreatePasskeyByUser(userID, passkey)
 	if resp.Status >= constants.HTTPBadRequest {
-		// Preserve 409 Conflict status
 		if resp.Status == http.StatusConflict {
 			return nil, &ConflictError{Message: resp.Message}
 		}

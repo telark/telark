@@ -25,9 +25,8 @@ type Deps struct {
 	System   string
 }
 
-// Check runs Compute, persists the result via PATCH (best-effort — failures are logged not
-// returned because the read still succeeded), and returns both the plan and the result so the
-// HTTP handler can render the response without an extra round-trip.
+// The PATCH is best-effort: a failed persist is logged, not returned, because the health read
+// itself still succeeded.
 func Check(ctx context.Context, deps Deps, planID string) (*plans.ProtectionPlan, Result, error) {
 	plan, err := deps.Exporter.Get(planID)
 	if err != nil {
@@ -53,7 +52,6 @@ func Check(ctx context.Context, deps Deps, planID string) (*plans.ProtectionPlan
 	return plan, result, nil
 }
 
-// ReconcileForActive iterates active plans and patches the latest health result for each.
 // Errors per plan are logged and the loop continues — one bad plan must not block the rest.
 func ReconcileForActive(ctx context.Context, deps Deps, planList []plans.ProtectionPlan) {
 	g, gctx := errgroup.WithContext(ctx)

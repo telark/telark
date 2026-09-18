@@ -61,12 +61,10 @@ func (s *Service) ResolveApps() applications.Resolver      { return s.resolveApp
 func (s *Service) AppLogger() Logger                       { return s.logger }
 func (s *Service) Clock() time.Time                        { return s.clock() }
 
-// HealthCheck runs an on-demand health probe for a plan and persists the result.
 func (s *Service) HealthCheck(ctx context.Context, planID string) (*plans.ProtectionPlan, health.Result, error) {
 	return health.Check(ctx, s.healthDeps(), planID)
 }
 
-// ReconcileHealthForActive batches health checks for active plans (controller loop).
 func (s *Service) ReconcileHealthForActive(ctx context.Context, planList []plans.ProtectionPlan) {
 	health.ReconcileForActive(ctx, s.healthDeps(), planList)
 }

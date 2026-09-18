@@ -3,29 +3,17 @@ package notifications
 import "github.com/telark/exporter/internal/constants"
 
 func DiffPtrStringSlices(oldVals []*string, newVals []*string) (added, removed []string) {
-	oldSet := make(map[string]struct{}, len(oldVals))
-	for _, v := range oldVals {
+	return DiffStringSlices(derefStrings(oldVals), derefStrings(newVals))
+}
+
+func derefStrings(vals []*string) []string {
+	out := make([]string, constants.DefaultInitValue, len(vals))
+	for _, v := range vals {
 		if v != nil {
-			oldSet[*v] = struct{}{}
+			out = append(out, *v)
 		}
 	}
-	newSet := make(map[string]struct{}, len(newVals))
-	for _, v := range newVals {
-		if v != nil {
-			newSet[*v] = struct{}{}
-		}
-	}
-	for k := range newSet {
-		if _, ok := oldSet[k]; !ok {
-			added = append(added, k)
-		}
-	}
-	for k := range oldSet {
-		if _, ok := newSet[k]; !ok {
-			removed = append(removed, k)
-		}
-	}
-	return added, removed
+	return out
 }
 
 func DiffStringSlices(oldVals, newVals []string) (added, removed []string) {

@@ -16,12 +16,9 @@ func MaxSnapshots() int {
 }
 
 func HasSnapshotGeneration(existing []application.ApplicationSnapshot, generation int) bool {
-	for _, s := range existing {
-		if s.Generation == generation {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(existing, func(s application.ApplicationSnapshot) bool {
+		return s.Generation == generation
+	})
 }
 
 func NormalizeApplicationSnapshotTakenAt(app *application.Application) {
@@ -78,7 +75,6 @@ func NamespacesForGeneration(snaps []application.ApplicationSnapshot, generation
 	return out
 }
 
-// Pruned returns the entries retention dropped between before and after.
 func Pruned(before, after []application.ApplicationSnapshot) []application.ApplicationSnapshot {
 	kept := make(map[string]struct{}, len(after))
 	for i := range after {

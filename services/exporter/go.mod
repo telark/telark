@@ -8,7 +8,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/redis/go-redis/v9 v9.21.0
 	github.com/telark/data v1.14.8
-	github.com/telark/kcore v0.7.0
+	github.com/telark/kcore v0.7.1
 	github.com/telark/rest v0.14.4
 	github.com/telark/x-ware v0.4.0
 	k8s.io/api v0.35.4

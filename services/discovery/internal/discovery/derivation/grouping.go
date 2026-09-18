@@ -8,7 +8,6 @@ import (
 	"github.com/telark/discovery/internal/constants"
 )
 
-// implements label-intelligence-first grouping for no-selector mode.
 func GroupByWorkloadAnchor(resources []ResourceInput) []ResourceWithGroup {
 	if len(resources) == constants.DefaultInitValue {
 		return nil
@@ -53,7 +52,6 @@ func extractIdentity(resources []ResourceInput) []identityResult {
 	return results
 }
 
-// associates resources to app groups using identities.
 func buildGroups(resources []ResourceInput, identities []identityResult) map[groupKey][]ResourceInput {
 	groups := make(map[groupKey][]ResourceInput)
 	for i := range resources {
@@ -66,20 +64,17 @@ func buildGroups(resources []ResourceInput, identities []identityResult) map[gro
 	return groups
 }
 
-// tries to attach resources without direct identity.
 func attachUnidentified(
 	resources []ResourceInput,
 	identities []identityResult,
 	groups map[groupKey][]ResourceInput,
 ) map[groupKey][]ResourceInput {
-	// Build index: (namespace, kind, name) -> resource index for owner resolution
 	byKey := make(map[string]int)
 	for i := range resources {
 		k := resourceMapKey(resources[i].Namespace, resources[i].Kind, resources[i].Name)
 		byKey[k] = i
 	}
 	configIndex := referencedConfigIndex(groups)
-	// Known app keys per namespace for name-contains
 	appKeysByNS := knownAppKeysByNamespace(groups)
 
 	for i := range resources {
@@ -152,7 +147,6 @@ func tryAttachViaNameContains(
 	return true
 }
 
-// drops groups that do not contain workloads.
 func removeAnchorless(groups map[groupKey][]ResourceInput) map[groupKey][]ResourceInput {
 	for key, resources := range groups {
 		n := countWorkloads(resources)
@@ -195,8 +189,6 @@ func referencedConfigIndex(groups map[groupKey][]ResourceInput) map[string]group
 	return idx
 }
 
-// tryAttachViaConfigRef attaches an unlabeled ConfigMap or Secret to the
-// application whose workload reads it.
 func tryAttachViaConfigRef(r *ResourceInput, idx map[string]groupKey, groups map[groupKey][]ResourceInput) bool {
 	if r.Kind != kindConfigMap && r.Kind != kindSecret {
 		return false

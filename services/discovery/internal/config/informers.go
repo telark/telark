@@ -10,10 +10,8 @@ func InformerResyncSec() int {
 	return envInt(constants.EnvDiscoveryInformerResyncSec, constants.DefaultInformerResyncSec)
 }
 
-// RollbackInformerResync returns the duration used for the RollbackController's
-// dynamic informer resync. A long interval (default 10 minutes) prevents the
-// resync from stampeding K8s API calls for every cached CR. Watch events still
-// flow on actual changes regardless of this value.
+// A long interval keeps the resync from stampeding K8s with one call per cached CR; watch
+// events still flow on actual changes regardless of it.
 func RollbackInformerResync() time.Duration {
 	secs := envInt(constants.EnvDiscoveryRollbackInformerResync, constants.DefaultRollbackInformerResyncSec)
 	return time.Duration(secs) * time.Second
@@ -39,9 +37,8 @@ func InformerFlushRatePerSec() int {
 	return envInt(constants.EnvDiscoveryInformerFlushRatePerSec, constants.DefaultInformerFlushRatePerSec)
 }
 
-// InformerResyncJitterFraction returns the ±fraction applied to per-replica
-// informer resync periods so multiple replicas do not stampede apiserver LISTs
-// in the same window. Clamped to [0, 0.5] downstream.
+// ±fraction on per-replica resync periods so replicas do not stampede apiserver LISTs in the
+// same window. Clamped to [0, 0.5] downstream.
 func InformerResyncJitterFraction() float64 {
 	v := envFloat(constants.EnvDiscoveryInformerResyncJitterFraction, constants.DefaultInformerResyncJitterFraction)
 	if v > constants.MaxInformerResyncJitterFraction {
@@ -50,9 +47,7 @@ func InformerResyncJitterFraction() float64 {
 	return v
 }
 
-// SnapshotFetchTimeout bounds a single per-resource K8s GET during snapshot
-// assembly. Env-tunable so production can absorb K8s API tail latency without
-// recompilation.
+// Env-tunable so production can absorb K8s API tail latency without recompilation.
 func SnapshotFetchTimeout() time.Duration {
 	ms := envInt(constants.EnvDiscoverySnapshotFetchTimeoutMs, constants.DefaultSnapshotFetchTimeoutMs)
 	return time.Duration(ms) * time.Millisecond

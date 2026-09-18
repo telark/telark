@@ -21,8 +21,8 @@ func (s *BaseSubscriber) Subscribe(nc *natscore.NATSClient) error {
 func (s *BaseSubscriber) SubscribeWithContext(ctx context.Context, nc *natscore.NATSClient) error {
 	s.startOnce.Do(s.startWorkers)
 	for _, action := range []natscore.Action{natscore.Create, natscore.Update, natscore.Delete} {
-		topic := natscore.GetTopicName(s.group, action)
-		queue := natscore.GetQueueName(s.group, action)
+		topic := natscore.GetTopicName(s.Group, action)
+		queue := natscore.GetQueueName(s.Group, action)
 
 		if err := s.subscribeToTopic(ctx, nc, topic, queue); err != nil {
 			return err
@@ -69,8 +69,8 @@ func (s *BaseSubscriber) Drain() {
 }
 
 func (s *BaseSubscriber) createConsumer(nc *natscore.NATSClient, topic, queue string) error {
-	streamName := natscore.GetStreamName(s.group)
-	consumerName := natscore.GetConsumerName(s.group, queue, topic)
+	streamName := natscore.GetStreamName(s.Group)
+	consumerName := natscore.GetConsumerName(s.Group, queue, topic)
 
 	_, err := natstreams.CreateConsumer(nc, streamName, consumerName, topic, queue)
 	if err != nil {
@@ -80,7 +80,7 @@ func (s *BaseSubscriber) createConsumer(nc *natscore.NATSClient, topic, queue st
 }
 
 func (s *BaseSubscriber) createSubscription(nc *natscore.NATSClient, topic, queue string) (*nats.Subscription, error) {
-	consumerName := natscore.GetConsumerName(s.group, queue, topic)
+	consumerName := natscore.GetConsumerName(s.Group, queue, topic)
 
 	sub, err := nc.JetStream.PullSubscribe(topic, consumerName, nats.DeliverAll())
 	if err != nil {
@@ -112,18 +112,15 @@ func (s *BaseSubscriber) fetchAndProcessMessages(ctx context.Context, sub *nats.
 }
 
 func (s *BaseSubscriber) subscribeToTopic(ctx context.Context, nc *natscore.NATSClient, topic, queue string) error {
-	// Create consumer
 	if err := s.createConsumer(nc, topic, queue); err != nil {
 		return err
 	}
 
-	// Create subscription
 	sub, err := s.createSubscription(nc, topic, queue)
 	if err != nil {
 		return err
 	}
 
-	// Start message processing goroutine
 	s.fetchWG.Go(func() { s.fetchAndProcessMessages(ctx, sub) })
 
 	logger.GetLogger(constants.PrefixManagerSubscriber).Info(fmt.Sprintf(string(messages.SuccessNatsTopicSubscribe), topic))

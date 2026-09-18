@@ -4,26 +4,19 @@ import "github.com/telark/data/errors"
 
 const (
 	// General Errors
-	ErrInvalidRequest      errors.Error = "invalid request"
 	ErrInternalServerError errors.Error = "internal server error"
-	ErrUnauthorized        errors.Error = "unauthorized"
-	ErrForbidden           errors.Error = "forbidden"
-	ErrNotFound            errors.Error = "not found"
 
 	// Authentication Errors
 	ErrInvalidUsername        errors.Error = "invalid username"
 	ErrInvalidEmail           errors.Error = "invalid email"
-	ErrInvalidCredentials     errors.Error = "invalid credentials"
 	ErrUserNotFound           errors.Error = "user not found"
 	ErrUserAlreadyHasPasskeys errors.Error = "user already has passkeys. please login first"
 	ErrRegisterEmailMismatch  errors.Error = "email does not belong to the signed-in user"
 	ErrEnrollTokenInvalid     errors.Error = "invalid or expired enrollment token"
 	ErrNoPasskeysFound        errors.Error = "no passkeys found for user"
-	ErrChallengeExpired       errors.Error = "challenge has expired"
 	ErrChallengeNotFound      errors.Error = "challenge not found"
 	ErrSessionNotFound        errors.Error = "session not found"
 	ErrSessionExpired         errors.Error = "session has expired"
-	ErrInvalidSessionToken    errors.Error = "invalid session token"
 	ErrMissingSessionToken    errors.Error = "missing session token"
 	ErrPasskeyNotFound        errors.Error = "passkey not found"
 
@@ -31,7 +24,6 @@ const (
 	ErrWebAuthnSetupFailed          errors.Error = "failed to setup WebAuthn %v"
 	ErrChallengeGenerationFailed    errors.Error = "failed to generate challenge %v"
 	ErrCredentialVerificationFailed errors.Error = "credential verification failed %v"
-	ErrInvalidCredential            errors.Error = "invalid credential"
 	ErrOriginNotAllowed             errors.Error = "origin not allowed for relying party"
 
 	// Client Errors
@@ -64,12 +56,8 @@ const (
 	LogHTTPServerShutdownSuccess errors.Error = "HTTP server shutdown successfully"
 
 	// Server Errors
-	ErrServerFailedToStartDetail       errors.Error = "server failed to start: %s"
-	ErrServerInitiatingShutdown        errors.Error = "server initiating shutdown"
 	ErrFailedShutdownHTTPServer        errors.Error = "failed to shutdown HTTP server: %s"
-	ErrServiceHealthCheckFailed        errors.Error = "service health check failed"
 	ErrQuitChannelNotAvailable         errors.Error = "quit channel not available"
-	ErrFailedSendShutdownSignal        errors.Error = "failed to send shutdown signal"
 	ErrServerPanicRecovered            errors.Error = "server panic recovered: %v\nStack: %s"
 	ErrMaxPanicRecoveryAttemptsReached errors.Error = "max panic recovery attempts (%d) reached, shutting down"
 
@@ -90,38 +78,33 @@ const (
 	ErrManualCredentialParsingFailed errors.Error = "manual credential parsing failed: %v"
 
 	// Passkey Registration Errors
-	ErrUsernameRequiredForUnauthenticatedRegistration errors.Error = "username is required for unauthenticated registration"
-	ErrInvalidResponseStructure                       errors.Error = "invalid response structure"
-	ErrMissingAttestationObject                       errors.Error = "missing attestationObject"
-	ErrMissingClientDataJSON                          errors.Error = "missing clientDataJSON"
-	ErrMissingCredentialID                            errors.Error = "missing credential id"
-	ErrMissingUserID                                  errors.Error = "missing user id"
-	ErrFailedDecodeAttestationObject                  errors.Error = "failed to decode attestationObject: %v"
-	ErrFailedUnmarshalCBOR                            errors.Error = "failed to unmarshal CBOR: %v"
-	ErrAuthDataNotByteArray                           errors.Error = "authData is not []byte"
-	ErrAuthDataTooShort                               errors.Error = "authData too short"
-	ErrUnsupportedAttestationFormat                   errors.Error = "unsupported attestation format: %v"
-	ErrAttStmtMustBeEmpty                             errors.Error = "attStmt must be empty for none format"
-	ErrInvalidAttStmtType                             errors.Error = "invalid attStmt type"
-	ErrAuthDataTooShortForAAGUID                      errors.Error = "authData too short for AAGUID"
-	ErrAuthDataTooShortForCredIDLen                   errors.Error = "authData too short for credential ID length"
-	ErrAuthDataTooShortForCredID                      errors.Error = "authData too short for credential ID"
-	ErrAuthDataTooShortForPublicKey                   errors.Error = "authData too short for public key"
-	ErrFailedDecodeCredentialID                       errors.Error = "failed to decode credential ID: %v"
-	ErrCredentialIDMismatch                           errors.Error = "credential ID mismatch"
-	ErrFailedDecodeClientDataJSON                     errors.Error = "failed to decode clientDataJSON: %v"
-	ErrFailedParseClientDataJSON                      errors.Error = "failed to parse clientDataJSON: %v"
-	ErrMissingChallengeInClientData                   errors.Error = "missing challenge in clientDataJSON"
-	ErrFailedDecodeChallenge                          errors.Error = "failed to decode challenge: %v"
-	ErrFailedDecodeExpectedChallenge                  errors.Error = "failed to decode expected challenge: %v"
-	ErrChallengeMismatch                              errors.Error = "challenge mismatch"
-	ErrMissingOriginInClientData                      errors.Error = "missing origin in clientDataJSON"
-	ErrUserAlreadyHasPasskeysPleaseLoginFirst         errors.Error = "user already has passkeys. please login first"
+	ErrInvalidResponseStructure               errors.Error = "invalid response structure"
+	ErrMissingAttestationObject               errors.Error = "missing attestationObject"
+	ErrMissingClientDataJSON                  errors.Error = "missing clientDataJSON"
+	ErrMissingCredentialID                    errors.Error = "missing credential id"
+	ErrMissingUserID                          errors.Error = "missing user id"
+	ErrFailedDecodeAttestationObject          errors.Error = "failed to decode attestationObject: %v"
+	ErrFailedUnmarshalCBOR                    errors.Error = "failed to unmarshal CBOR: %v"
+	ErrAuthDataNotByteArray                   errors.Error = "authData is not []byte"
+	ErrAuthDataTooShort                       errors.Error = "authData too short"
+	ErrUnsupportedAttestationFormat           errors.Error = "unsupported attestation format: %v"
+	ErrAttStmtMustBeEmpty                     errors.Error = "attStmt must be empty for none format"
+	ErrInvalidAttStmtType                     errors.Error = "invalid attStmt type"
+	ErrAuthDataTooShortForCredID              errors.Error = "authData too short for credential ID"
+	ErrFailedDecodeCredentialID               errors.Error = "failed to decode credential ID: %v"
+	ErrCredentialIDMismatch                   errors.Error = "credential ID mismatch"
+	ErrFailedDecodeClientDataJSON             errors.Error = "failed to decode clientDataJSON: %v"
+	ErrFailedParseClientDataJSON              errors.Error = "failed to parse clientDataJSON: %v"
+	ErrMissingChallengeInClientData           errors.Error = "missing challenge in clientDataJSON"
+	ErrFailedDecodeChallenge                  errors.Error = "failed to decode challenge: %v"
+	ErrFailedDecodeExpectedChallenge          errors.Error = "failed to decode expected challenge: %v"
+	ErrChallengeMismatch                      errors.Error = "challenge mismatch"
+	ErrMissingOriginInClientData              errors.Error = "missing origin in clientDataJSON"
+	ErrUserAlreadyHasPasskeysPleaseLoginFirst errors.Error = "user already has passkeys. please login first"
 
 	// OIDC Errors
 	ErrOIDCNotConfigured         errors.Error = "OIDC is not configured"
 	ErrOIDCInvalidToken          errors.Error = "invalid OIDC token: %v"
-	ErrOIDCUserNotProvisioned    errors.Error = "OIDC user not provisioned"
 	ErrOIDCInvalidJWKSet         errors.Error = "invalid JWK set: %v"
 	ErrOIDCUnknownKid            errors.Error = "unknown JWK key id: %s"
 	ErrOIDCUnexpectedAlg         errors.Error = "unexpected JWK algorithm: %s"
@@ -143,10 +126,6 @@ const (
 
 	// Redis Errors
 	ErrRedisClientUnavailable errors.Error = "redis client is not available — check REDIS_HOST and REDIS_PORT"
-	ErrRedisInitFailed        errors.Error = "failed to initialize Redis: %v"
-	ErrRedisGetFailed         errors.Error = "redis GET failed for key %s: %v"
-	ErrRedisSetFailed         errors.Error = "redis SET failed for key %s: %v"
-	ErrRedisDelFailed         errors.Error = "redis DEL failed for key %s: %v"
 
 	// Async Worker Warnings
 	WarnAsyncWorkerFull         errors.Error = "async worker pool full, dropping housekeeping op"
@@ -154,11 +133,9 @@ const (
 	WarnAsyncWorkerDrainTimeout errors.Error = "async worker drain timed out — some housekeeping ops may not have completed"
 
 	// Credential Verification Errors
-	ErrBackupEligibleFlagInconsistency  errors.Error = "backup eligible flag inconsistency: stored (BE:%v, BS:%v) != login (BE:%v, BS:%v)"
-	ErrBackupFlag                       errors.Error = "backup flag"
-	ErrCredentialNotFoundInAllowed      errors.Error = "credential not found in allowed credentials"
-	ErrFailedMarshalCredentialBody      errors.Error = "failed to marshal credential body: %v"
-	ErrFailedCreateCredentialRequest    errors.Error = "failed to create credential-only request: %v"
-	ErrFailedParseCredentialRequest     errors.Error = "failed to parse credential request: %v"
-	ErrManualCredentialValidationFailed errors.Error = "manual credential validation failed: %v"
+	ErrBackupEligibleFlagInconsistency errors.Error = "backup eligible flag inconsistency: stored (BE:%v, BS:%v) != login (BE:%v, BS:%v)"
+	ErrCredentialNotFoundInAllowed     errors.Error = "credential not found in allowed credentials"
+	ErrFailedMarshalCredentialBody     errors.Error = "failed to marshal credential body: %v"
+	ErrFailedCreateCredentialRequest   errors.Error = "failed to create credential-only request: %v"
+	ErrFailedParseCredentialRequest    errors.Error = "failed to parse credential request: %v"
 )

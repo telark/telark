@@ -21,7 +21,6 @@ const (
 	ClusterVersionPatchMaxAttempts  = 5
 	ClusterVersionPatchRetryBackoff = 5 * time.Second
 	GlobalConfigReadyRetryBackoff   = 5 * time.Second
-	DefaultQuitChannelSize          = 1
 	DefaultQueueSize                = 100
 	DefaultAddValue                 = 1
 	DefaultInitValue                = 0
@@ -32,11 +31,7 @@ const (
 	FormatVerbPrefix                = "%"
 	SnapshotPathKey                 = "path"
 	NamespaceParam                  = "namespace"
-	SelectorParam                   = "selector"
-	NamespaceParamQuery             = "namespace"
 	NamespaceAll                    = "ALL"
-	SelectorTypeLabels              = "labels"
-	SelectorTypeText                = "text"
 	DefaultLockTTL                  = 30 * time.Second
 	RemovalStabilizationWindow      = 45 * time.Second
 
@@ -89,12 +84,8 @@ const (
 	ManifestOrderUnknown                 = 99
 
 	// Snapshot history / exporter retention (same env as exporter-service)
-	DefaultSnapshotsMaxVersions = 5
-	MinSnapshotsMaxVersions     = 1
-
-	// Enrichment wait loop
-	WaitTimeoutDefaultSec         = 15
-	WaitTimeoutMaxSec             = 30
+	DefaultSnapshotsMaxVersions   = 5
+	MinSnapshotsMaxVersions       = 1
 	DefaultSnapshotScopeDirectory = "apps"
 	ApplicationResetMessage       = "application reset triggered"
 

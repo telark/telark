@@ -100,8 +100,8 @@ func GetGroupByIDWithCacheInvalidation() func(http.ResponseWriter, *http.Request
 	}
 }
 
-func ListGroupResourcesWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
-	return shared.ListResourceWithCacheInvalidation(optimizer, metadata.GroupAsResourceMetadata)
+func ListGroupResourcesWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {
+	return shared.ListResourceWithCacheInvalidation(metadata.GroupAsResourceMetadata)
 }
 
 func PatchGroupByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {

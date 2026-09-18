@@ -215,6 +215,8 @@ K8s client + informers:
 |---|---|---|
 | `DISCOVERY_K8S_CLIENT_QPS` | `100` | K8s client QPS; above 50/100 default to absorb snapshot LIST fanout on busy clusters |
 | `DISCOVERY_K8S_CLIENT_BURST` | `200` | K8s client burst |
+| `DISCOVERY_ROLLBACK_K8S_CLIENT_QPS` | `100` | Rollback controller's own K8s client QPS (its own bucket, sized like the shared one), so informer/prewarm traffic never queues a rollback's apply calls |
+| `DISCOVERY_ROLLBACK_K8S_CLIENT_BURST` | `200` | Rollback controller's own K8s client burst |
 | `DISCOVERY_INFORMER_RESYNC_SEC` | `600` | Base informer resync interval |
 | `DISCOVERY_ROLLBACK_INFORMER_RESYNC_SEC` | `600` | Rollback informer resync interval |
 | `DISCOVERY_INFORMER_RESYNC_JITTER_FRACTION` | `0.2` | ±jitter applied per replica to spread resyncs and avoid LIST stampedes |

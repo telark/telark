@@ -8,7 +8,7 @@ import (
 	"github.com/telark/exporter/internal/utils/concurrency"
 )
 
-func DeleteResource(w http.ResponseWriter, _ *http.Request, resourceMetadata metadata.Metadata, resourceName string) {
+func DeleteResource(w http.ResponseWriter, resourceMetadata metadata.Metadata, resourceName string) {
 	lock := concurrency.GetLock(resourceName)
 	lock.Lock()
 	defer lock.Unlock()

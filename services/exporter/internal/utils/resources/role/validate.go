@@ -14,14 +14,6 @@ import (
 	responseutils "github.com/telark/rest/utils/response"
 )
 
-func CheckRoleExists(roleID string) error {
-	return resourcesshared.CheckResourceExists(roleID, metadata.RoleAsResourceMetadata, constants.ErrRoleNotFound)
-}
-
-func ValidateRoleOrRespond(w http.ResponseWriter, roleID string) bool {
-	return resourcesshared.ValidateResourceOrRespond(w, roleID, metadata.RoleAsResourceMetadata, constants.ErrRoleNotFound)
-}
-
 func ValidateAndPrepareRole(role *roledata.RoleAsResource, w http.ResponseWriter) error {
 	if err := validateRoleFields(role, w); err != nil {
 		return err

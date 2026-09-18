@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/telark/data/messages"
+	"github.com/telark/data/metadata/base"
 	metadata "github.com/telark/data/metadata/resources"
 	"github.com/telark/exporter/internal/constants"
 	kcoredynamic "github.com/telark/kcore/informers/dynamic"
@@ -65,32 +67,43 @@ func StartApplications(ctx context.Context) {
 // reads, until ctx is canceled. It returns once the store has synced or the sync
 // timeout passed; until then lists fall back to a LIST.
 func RunApplications(ctx context.Context, dyn dynamic.Interface) {
-	md := metadata.ApplicationAsResourceMetadata
-	factory := kcoredynamic.NewNamespacedInformerFactory(dyn, constants.InformerNoResync, md.Namespace)
+	runMirror(ctx, dyn, mirror{
+		md:        metadata.ApplicationAsResourceMetadata,
+		install:   Use,
+		synced:    constants.InfApplicationInformerSynced,
+		notSynced: constants.WarnApplicationInformerNotSynced,
+	})
+}
+
+type mirror struct {
+	md        base.Metadata
+	install   func(k8scache.Store, k8scache.InformerSynced)
+	synced    messages.Message
+	notSynced messages.Message
+}
+
+func runMirror(ctx context.Context, dyn dynamic.Interface, m mirror) {
+	factory := kcoredynamic.NewNamespacedInformerFactory(dyn, constants.InformerNoResync, m.md.Namespace)
 	informer := factory.ForResource(schema.GroupVersionResource{
-		Group:    md.BaseGroup,
-		Version:  md.Version,
-		Resource: md.Plural,
+		Group:    m.md.BaseGroup,
+		Version:  m.md.Version,
+		Resource: m.md.Plural,
 	}).Informer()
 	// managedFields often outweigh the spec and are never served.
 	_ = informer.SetTransform(func(obj any) (any, error) {
-		if app, ok := obj.(*unstructured.Unstructured); ok {
-			app.SetManagedFields(nil)
+		if item, ok := obj.(*unstructured.Unstructured); ok {
+			item.SetManagedFields(nil)
 		}
 		return obj, nil
 	})
-	Use(informer.GetStore(), informer.HasSynced)
+	m.install(informer.GetStore(), informer.HasSynced)
 	factory.Start(ctx.Done())
 	start := time.Now()
 	syncCtx, cancel := context.WithTimeout(ctx, constants.InformerSyncTimeout)
 	defer cancel()
 	if !k8scache.WaitForCacheSync(syncCtx.Done(), informer.HasSynced) {
-		lg.Warn(fmt.Sprintf(string(constants.WarnApplicationInformerNotSynced), constants.InformerSyncTimeout))
+		lg.Warn(fmt.Sprintf(string(m.notSynced), constants.InformerSyncTimeout))
 		return
 	}
-	lg.Info(fmt.Sprintf(
-		string(constants.InfApplicationInformerSynced),
-		len(informer.GetStore().List()),
-		time.Since(start).Round(time.Millisecond),
-	))
+	lg.Info(fmt.Sprintf(string(m.synced), len(informer.GetStore().List()), time.Since(start).Round(time.Millisecond)))
 }

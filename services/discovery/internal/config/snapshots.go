@@ -14,8 +14,8 @@ var (
 	snapshotsMaxLive atomic.Int64
 )
 
-// SetSnapshotsMaxVersions publishes the value from the global-config sync loop so
-// a settings change applies to the next recorded change, not the next restart.
+// Fed by the global-config sync loop so a settings change applies to the next recorded change,
+// not the next restart.
 func SetSnapshotsMaxVersions(n int) {
 	if n >= constants.MinSnapshotsMaxVersions {
 		snapshotsMaxLive.Store(int64(n))

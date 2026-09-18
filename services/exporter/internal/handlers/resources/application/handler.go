@@ -31,11 +31,11 @@ import (
 )
 
 func CreateApplicationResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
-	return shared.CreateResourceWithCacheInvalidation(optimizer, metadata.ApplicationAsResourceMetadata, constants.ResourceApplication, nil)
+	return shared.CreateResourceWithCacheInvalidation(optimizer, metadata.ApplicationAsResourceMetadata, constants.ResourceApplication)
 }
 
-func GetApplicationResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
-	return shared.GetResourceWithCacheInvalidation(optimizer, metadata.ApplicationAsResourceMetadata)
+func GetApplicationResourceWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {
+	return shared.GetResourceWithCacheInvalidation(metadata.ApplicationAsResourceMetadata)
 }
 
 func ListApplicationResourcesWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {
@@ -46,7 +46,7 @@ func ListApplicationResourcesWithCacheInvalidation() func(http.ResponseWriter, *
 }
 
 func PatchApplicationResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
-	patch := shared.PatchResourceWithCacheInvalidation(optimizer, metadata.ApplicationAsResourceMetadata, constants.ResourceApplication, nil)
+	patch := shared.PatchResourceWithCacheInvalidation(optimizer, metadata.ApplicationAsResourceMetadata, constants.ResourceApplication)
 	return func(w http.ResponseWriter, r *http.Request) {
 		guardHistoryRegression(r)
 		patch(w, r)
@@ -166,14 +166,9 @@ func DeleteApplicationResourceWithCacheInvalidation(optimizer *performance.Optim
 	)
 }
 
-func deleteApplicationAndTriggerReset(
-	w http.ResponseWriter,
-	r *http.Request,
-	md basemetadata.Metadata,
-	resourceName string,
-) {
+func deleteApplicationAndTriggerReset(w http.ResponseWriter, md basemetadata.Metadata, resourceName string) {
 	spec, _ := getApplicationSpec(resourceName)
-	sharedexp.DeleteResource(w, r, md, resourceName)
+	sharedexp.DeleteResource(w, md, resourceName)
 	if spec != nil && applicationGone(resourceName) {
 		snapshotexp.RemoveSnapshotFiles(snapshotPaths(spec.Snapshots))
 	}

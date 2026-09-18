@@ -1,10 +1,11 @@
-package manifestdiff
+package manifestdiff_test
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/telark/discovery/internal/core/applications/history/changes"
+	"github.com/telark/discovery/internal/core/applications/history/manifestdiff"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -55,7 +56,7 @@ type changesOut = struct {
 
 func run(old, cur *unstructured.Unstructured) []changesOut {
 	var out []changesOut
-	for _, c := range Changes([]ManifestPair{{Old: old, New: cur}}) {
+	for _, c := range manifestdiff.Changes([]manifestdiff.ManifestPair{{Old: old, New: cur}}) {
 		out = append(out, changesOut{c.Field, c.Description, c.ChangeType, c.OldValue, c.NewValue})
 	}
 	return out
@@ -132,7 +133,7 @@ func TestConfigMapDataKeyChange(t *testing.T) {
 
 func TestNilSideSkippedAndIdenticalQuiet(t *testing.T) {
 	obj := deployment(1, "img:1", 10, nil, nil)
-	if out := Changes([]ManifestPair{{Old: nil, New: obj}, {Old: obj, New: nil}, {Old: obj, New: obj.DeepCopy()}}); len(out) != 0 {
+	if out := manifestdiff.Changes([]manifestdiff.ManifestPair{{Old: nil, New: obj}, {Old: obj, New: nil}, {Old: obj, New: obj.DeepCopy()}}); len(out) != 0 {
 		t.Fatalf("expected no changes, got %+v", out)
 	}
 }

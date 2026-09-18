@@ -13,20 +13,17 @@ import (
 )
 
 type GetApplicationsOptions struct {
-	// NatsClient, when set, is used to publish applications to NATS for CR creation.
 	NatsClient *natscore.NATSClient
 	// GetStoredApplication fetches the current Application CR state by name (e.g. from exporter API).
 	// (nil, nil) means the application does not exist yet and gets a new-app history (generation 1).
 	// An error means the state is unknown: the application is skipped entirely so a transient
 	// exporter outage can never reset stored history.
 	GetStoredApplication func(name string) (*application.Application, error)
-	// CreateSnapshot stores manifests in exporter snapshot storage and returns the stored path.
-	CreateSnapshot func(id string, scope string, namespace string, generation int, manifest any) (string, error)
+	CreateSnapshot       func(id string, scope string, namespace string, generation int, manifest any) (string, error)
 	// DeleteSnapshot removes a snapshot file from exporter snapshot storage. Used to take back files
 	// written ahead of a diff that then authored nothing. When nil, those files are left in place.
 	DeleteSnapshot func(id string, scope string, namespace string, generation int) error
-	// GetSnapshotManifest fetches a previously stored snapshot manifest from exporter snapshot storage (optional).
-	// When set, it is used to ensure "pre-change" snapshots reflect the previous known state.
+	// When set, "pre-change" snapshots reflect the previous known state instead of the live one.
 	GetSnapshotManifest func(
 		ctx context.Context,
 		snapshotID string,

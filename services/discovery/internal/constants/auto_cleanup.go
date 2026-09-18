@@ -24,9 +24,6 @@ const (
 )
 
 const (
-	RailLeader            = "leader"
-	RailInformerCacheSync = "informer_cache_sync"
-	RailAppLoadable       = "app_loadable"
 	RailResourcesEmpty    = "resources_empty"
 	RailNamespaceExists   = "namespace_exists"
 	RailNamespaceIncluded = "namespace_included"

@@ -108,11 +108,13 @@ func (c *Controller) Run(ctx context.Context) {
 }
 
 func (c *Controller) initClients() error {
-	dyn, err := kcorek8s.InitDynamicClient()
+	qps, burst := dconfig.RollbackK8sClientRateLimit()
+	dyn, err := kcorek8s.NewDynamicClientWithRateLimit(qps, burst)
 	if err != nil {
 		return err
 	}
 	c.dyn = dyn
+	logger.Info(fmt.Sprintf(string(constants.InfoRollbackClientBudget), qps, burst))
 	c.mapper = kcorek8s.NewDeferredRESTMapper(c.kubeClient)
 	return nil
 }

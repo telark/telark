@@ -20,8 +20,7 @@ type DeployErrorMessages struct {
 	InternalErrorFormat  string
 }
 
-// ApplyClusterDiff renders + deploys deployCombos, mode-patches survivors, then deletes
-// removeCombos. Order is deploy → mode-patch → delete so coverage never dips during the window.
+// Order is deploy → mode-patch → delete so coverage never dips during the window.
 func ApplyClusterDiff(
 	ctx context.Context,
 	applier *Applier,
@@ -70,7 +69,6 @@ func ApplyClusterDiff(
 	return deployedNames, kept, nil
 }
 
-// RollbackPatchFailure tears down the policies that were just deployed when the CRD patch fails.
 func RollbackPatchFailure(
 	ctx context.Context,
 	applier *Applier,

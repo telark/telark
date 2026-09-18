@@ -14,7 +14,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-// railResult captures the outcome of one rail check.
 type railResult struct {
 	name    string
 	pass    bool
@@ -31,7 +30,6 @@ func errored(name string, err error) railResult {
 	return railResult{name: name, pass: false, reason: err.Error(), hardErr: err}
 }
 
-// railResourcesEmpty — app's tracked resources report empty.
 func railResourcesEmpty(app *appresource.Application) railResult {
 	if app == nil {
 		return block(constants.RailResourcesEmpty, "app nil")
@@ -47,7 +45,6 @@ func railResourcesEmpty(app *appresource.Application) railResult {
 	return pass(constants.RailResourcesEmpty)
 }
 
-// railNoActiveRollback — no rollback in pending/in_progress state.
 func railNoActiveRollback(app *appresource.Application) railResult {
 	if app == nil {
 		return pass(constants.RailNoActiveRollback)
@@ -62,7 +59,6 @@ func railNoActiveRollback(app *appresource.Application) railResult {
 	return pass(constants.RailNoActiveRollback)
 }
 
-// railNamespaceExists — every namespace owned by the app exists and is not terminating.
 func railNamespaceExists(ctx context.Context, kube *kubernetes.Clientset, app *appresource.Application) railResult {
 	if app == nil || kube == nil {
 		return pass(constants.RailNamespaceExists)
@@ -85,8 +81,8 @@ func railNamespaceExists(ctx context.Context, kube *kubernetes.Clientset, app *a
 	return pass(constants.RailNamespaceExists)
 }
 
-// namespacesGone — every namespace the app owns is deleted. The informers stop
-// with the namespace, so the stored resource list is stale and must be ignored.
+// The informers stop with the namespace, so the app's stored resource list is
+// stale and must be ignored once every namespace is gone.
 func namespacesGone(ctx context.Context, kube *kubernetes.Clientset, app *appresource.Application) bool {
 	if app == nil || kube == nil || len(app.Namespaces.Items) == constants.DefaultInitValue {
 		return false
@@ -100,7 +96,6 @@ func namespacesGone(ctx context.Context, kube *kubernetes.Clientset, app *appres
 	return true
 }
 
-// railNamespaceIncluded — none of the app's namespaces are in the excluded list.
 func railNamespaceIncluded(ctx context.Context, app *appresource.Application) railResult {
 	if app == nil {
 		return pass(constants.RailNamespaceIncluded)
@@ -123,7 +118,6 @@ func railNamespaceIncluded(ctx context.Context, app *appresource.Application) ra
 	return pass(constants.RailNamespaceIncluded)
 }
 
-// railRedisKeyAbsent — generic helper: blocks if EXISTS returns >0.
 func railRedisKeyAbsent(
 	ctx context.Context,
 	rdb redis.Cmdable,
@@ -144,7 +138,6 @@ func railRedisKeyAbsent(
 	return pass(railName)
 }
 
-// railNoForceSync — no force-sync lock or dedup key held.
 func railNoForceSync(ctx context.Context, rdb redis.Cmdable, appName string) railResult {
 	if r := railRedisKeyAbsent(ctx, rdb, constants.RailNoForceSync,
 		constants.KeyPrefixLockApp+appName); !r.pass {
@@ -154,19 +147,16 @@ func railNoForceSync(ctx context.Context, rdb redis.Cmdable, appName string) rai
 		constants.ForceSyncDedupKeyPrefix+appName)
 }
 
-// railNoCoalesceBuffer — no pending coalesce buffer entry.
 func railNoCoalesceBuffer(ctx context.Context, rdb redis.Cmdable, appName string) railResult {
 	return railRedisKeyAbsent(ctx, rdb, constants.RailNoCoalesceBuffer,
 		constants.KeyPrefixCoalesceBuffer+appName)
 }
 
-// railNoEnrichmentLock — no enrichment lock held.
 func railNoEnrichmentLock(ctx context.Context, rdb redis.Cmdable, appName string) railResult {
 	return railRedisKeyAbsent(ctx, rdb, constants.RailNoEnrichmentLock,
 		constants.KeyPrefixLockEnrich+appName)
 }
 
-// railNoGenerationLock — no per-generation processing lock held.
 // Uses SCAN with pattern: cardinality per app is small (current gen only).
 func railNoGenerationLock(ctx context.Context, rdb redis.Cmdable, appName string) railResult {
 	if rdb == nil {
@@ -186,13 +176,11 @@ func railNoGenerationLock(ctx context.Context, rdb redis.Cmdable, appName string
 	return pass(constants.RailNoGenerationLock)
 }
 
-// railCleanupCooldown — no recent manual cleanup attempt cooling down.
 func railCleanupCooldown(ctx context.Context, rdb redis.Cmdable, appName string) railResult {
 	return railRedisKeyAbsent(ctx, rdb, constants.RailCleanupCooldown,
 		constants.KeyPrefixResetCooldown+appName)
 }
 
-// railSustainedAbsence — empty streak count meets threshold.
 func railSustainedAbsence(s streakState, required int) railResult {
 	if s.Count < required {
 		return block(constants.RailSustainedAbsence,
@@ -201,7 +189,6 @@ func railSustainedAbsence(s streakState, required int) railResult {
 	return pass(constants.RailSustainedAbsence)
 }
 
-// railGracePeriod — wall-clock delay since first-empty observation meets threshold.
 func railGracePeriod(s streakState, grace time.Duration, now time.Time) railResult {
 	if s.FirstEmptyUnixMs == int64(constants.DefaultInitValue) {
 		return block(constants.RailGracePeriod, "first-empty timestamp unset")

@@ -10,9 +10,8 @@ import (
 	"github.com/telark/discovery/internal/coordination"
 )
 
-// Resolver maps application IDs to a resolved application context (primary namespace plus the
-// resource inventory). Returns the resolved subset and the IDs that could not be located so
-// callers can surface a precise error.
+// Returns the resolved subset and the IDs that could not be located, so callers can surface a
+// precise error.
 type Resolver func(
 	ctx context.Context,
 	ids []string,

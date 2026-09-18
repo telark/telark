@@ -13,7 +13,6 @@ import (
 )
 
 func GetPasskeyByCredentialID(w http.ResponseWriter, credentialID string, userID string) {
-	// Find passkey by credentialId and verify it belongs to the user
 	resource, err := passkeyutils.FindPasskeyByCredentialIDAndUserID(credentialID, userID)
 	if err != nil {
 		sharedutils.LogDebugAndSend(
@@ -40,7 +39,6 @@ func GetPasskeyByCredentialID(w http.ResponseWriter, credentialID string, userID
 		return
 	}
 
-	// Return passkey details as a single item (spec map)
 	msg := fmt.Sprintf(string(messages.SuccessGetRes), resource.GetName(), resource.GetKind())
 	responseutils.LogAndSendResponse(
 		w,

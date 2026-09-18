@@ -55,10 +55,8 @@ func ResetApplication(w http.ResponseWriter, r *http.Request) {
 	sendResetResponse(w, name)
 }
 
-// RunReset performs the destructive reset steps (Redis state, exporter CRD;
-// the exporter removes the CRD's snapshot files) for an application. Loop-guard and leader-forward
-// are NOT performed here — callers (HTTP handler / detector loop) own gating.
-// Safe to call from any leader-side context.
+// Loop-guard and leader-forward are NOT performed here — callers (HTTP handler / detector loop)
+// own that gating. Safe to call from any leader-side context.
 func RunReset(ctx context.Context, rdb *redis.Client, name string) error {
 	lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
 	lg.Info(fmt.Sprintf(string(constants.LogAppResetStarted), name))
@@ -172,9 +170,9 @@ func shouldSkipReset(ctx context.Context, rdb *redis.Client, name string) bool {
 	return true
 }
 
-// shouldSkipReset arms the cooldown before the reset runs; left behind after a
-// failure it turns the operator's retry into a 200 no-op. The handler context
-// may be why the reset failed, so the delete does not share its deadline.
+// shouldSkipReset arms the cooldown before the reset runs; left behind after a failure it turns
+// the operator's retry into a 200 no-op. The handler context may be why the reset failed, so the
+// delete does not share its deadline.
 func clearResetCooldown(ctx context.Context, rdb *redis.Client, name string) {
 	if rdb == nil {
 		return

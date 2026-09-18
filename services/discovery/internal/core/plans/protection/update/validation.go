@@ -7,6 +7,7 @@ import (
 
 	"github.com/telark/data/plans"
 	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/core/plans/protection/validation"
 	planseps "github.com/telark/rest/endpoints/plans"
 )
 
@@ -25,7 +26,7 @@ func validatePolicies(items []planseps.PolicyRequest, scopeType string) error {
 			errs = append(errs, fmt.Sprintf(string(ErrUnknownTemplate), p.TemplateID))
 			continue
 		}
-		if !templateSupports(tpl, scopeType) {
+		if !validation.TemplateSupports(tpl, scopeType) {
 			errs = append(errs, fmt.Sprintf(string(ErrTemplateScope), p.TemplateID, scopeType))
 			continue
 		}
@@ -37,15 +38,6 @@ func validatePolicies(items []planseps.PolicyRequest, scopeType string) error {
 		return fmt.Errorf(fmtRawString, strings.Join(errs, "; "))
 	}
 	return nil
-}
-
-func templateSupports(tpl *plans.Template, scopeType string) bool {
-	for _, supported := range tpl.SupportedScopes {
-		if string(supported) == scopeType {
-			return true
-		}
-	}
-	return false
 }
 
 func validateTimeRange(tr *planseps.TimeRangeRequest) error {

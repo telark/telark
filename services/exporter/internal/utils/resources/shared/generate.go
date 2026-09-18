@@ -22,7 +22,6 @@ func GenerateUniqueResourceID(
 			continue
 		}
 
-		// Check if ID already exists
 		exists, err := api.CheckCustomResourceExistsByName(id, md)
 		if err != nil {
 			continue
@@ -49,7 +48,6 @@ func generateResourceID(config constants.IDConfig) (string, error) {
 		return constants.EmptyString, errors.New(string(constants.ErrInsufficientHexCharacters))
 	}
 
-	// Build the ID with dashes using the specified segments
 	var builder strings.Builder
 	builder.Grow(len(config.Prefix) + totalHexChars + len(config.HexSegments))
 	_, _ = builder.WriteString(config.Prefix)

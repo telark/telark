@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -120,7 +121,6 @@ func applyEnrichResult(in *derivation.ResourceInput, res enrichResult) {
 }
 
 func lastModifiedFromAnnotations(ann map[string]string) (by string, at time.Time, op string) {
-	// This is the enrichment stage which collects Kyverno-injected metadata from live K8s objects.
 	if len(ann) == constants.DefaultInitValue {
 		return constants.EmptyString, time.Time{}, constants.EmptyString
 	}
@@ -221,11 +221,8 @@ func fetchByNamespaceKind(ctx context.Context, ns, kind string) map[string]enric
 	if err := ctx.Err(); err != nil {
 		return nil
 	}
-	// The kindFetchers run synchronously against the shared K8s client whose
-	// per-request timeout is enforced at the REST layer. Previously this call
-	// was wrapped in a goroutine guarded by select{ ctx | timer | done } — but
-	// if the inner K8s call ignored ctx and ran past the timer, the goroutine
-	// would leak. Call directly so the caller fully owns the lifecycle.
+	// Called directly, not in a ctx-guarded goroutine: a K8s call that ignores ctx
+	// would outlive the timer and leak. The REST layer enforces the per-request timeout.
 	return fetchByNamespaceKindSync(ns, kind)
 }
 
@@ -603,10 +600,7 @@ func ingressRuleValues(rule networkingv1.IngressRule) []string {
 }
 
 func envVarMatchesSkip(upper string, skipUpper []string) bool {
-	for _, s := range skipUpper {
-		if s != constants.EmptyString && strings.Contains(upper, s) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(skipUpper, func(s string) bool {
+		return s != constants.EmptyString && strings.Contains(upper, s)
+	})
 }

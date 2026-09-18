@@ -23,7 +23,6 @@ MSG_OLLAMA_UNREACHABLE = "Ollama unreachable"
 # -----------------------------------------------------------------------------
 LOG_PROVIDER_CACHE_HIT = "{} cache hit for {}/{} (key={})"
 LOG_PROVIDER_SETUP_FAILED = "{} client setup failed: {}"
-LOG_PROVIDER_COMPLETED = "{} enrichment completed in {}ms (attempt {})"
 LOG_PROVIDER_API_KEY_INVALID = "{} API key invalid: {}"
 LOG_PROVIDER_RATE_LIMIT = "{} rate limit hit: {}"
 LOG_PROVIDER_RETRIES_FAILED = "{} failed after {} retries: {}"

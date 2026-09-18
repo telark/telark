@@ -49,7 +49,6 @@ const (
 	ForceSyncNoGroupErrorSubstr               = "NOGROUP"
 	ForceSyncLogScopeWorkerRead               = "forcesync.worker.read"
 	ForceSyncLogScopeWorkerPanic              = "forcesync.worker.panic"
-	ForceSyncLogScopeIngressXAdd              = "forcesync.ingress.xadd"
 	ForceSyncLogScopeMaintReclaim             = "forcesync.maintenance.reclaim"
 	ForceSyncLogScopeMaintTrim                = "forcesync.maintenance.trim"
 )

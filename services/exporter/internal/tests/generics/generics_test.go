@@ -4,11 +4,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync"
 	"testing"
 
-	metadata "github.com/telark/data/metadata/resources"
 	"github.com/gorilla/mux"
+	metadata "github.com/telark/data/metadata/resources"
 	"github.com/telark/exporter/internal/constants"
 	generics "github.com/telark/exporter/internal/exporters/generics"
 	exportshared "github.com/telark/exporter/internal/exporters/shared"
@@ -38,11 +37,11 @@ func TestGenericCRDOperations(t *testing.T) {
 	spec := map[string]any{constants.SpecField: map[string]any{"name": "n1"}}
 
 	rec := httptest.NewRecorder()
-	generics.GenericGetCustomResource(rec, namedReq(""), "n1", md)
+	generics.GenericGetCustomResource(rec, "n1", md)
 	expectError(t, rec, "GenericGet")
 
 	list := httptest.NewRecorder()
-	generics.GenericListCustomResources(list, md, &sync.Mutex{})
+	generics.GenericListCustomResources(list, md)
 	expectError(t, list, "GenericList")
 
 	create := httptest.NewRecorder()
@@ -70,11 +69,11 @@ func TestSharedExporterOperations(t *testing.T) {
 	expectError(t, create, "CreateResource")
 
 	getUnique := httptest.NewRecorder()
-	exportshared.GetUniqueResourceFromList(getUnique, namedReq(""), md)
+	exportshared.GetUniqueResourceFromList(getUnique, md)
 	expectError(t, getUnique, "GetUniqueResourceFromList")
 
 	del := httptest.NewRecorder()
-	exportshared.DeleteResource(del, namedReq(""), md, "n1")
+	exportshared.DeleteResource(del, md, "n1")
 	expectError(t, del, "DeleteResource")
 
 	patch := httptest.NewRecorder()

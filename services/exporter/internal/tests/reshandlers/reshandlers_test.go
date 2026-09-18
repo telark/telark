@@ -50,7 +50,7 @@ func TestRoleHandlers(t *testing.T) {
 	o := newOptimizer(t)
 	assertErrorResponse(t, rolehandler.CreateRoleResourceWithCacheInvalidation(o), postJSON("{}"), "CreateRole")
 	assertErrorResponse(t, rolehandler.GetRoleByIDWithCacheInvalidation(), idReq("r1"), "GetRoleByID")
-	assertErrorResponse(t, rolehandler.ListRoleResourcesWithCacheInvalidation(o), idReq("r1"), "ListRoles")
+	assertErrorResponse(t, rolehandler.ListRoleResourcesWithCacheInvalidation(), idReq("r1"), "ListRoles")
 	assertErrorResponse(t, rolehandler.PatchRoleByIDWithCacheInvalidation(o), idReq("r1"), "PatchRole")
 	assertErrorResponse(t, rolehandler.DeleteRoleByIDWithCacheInvalidation(o), idReq("r1"), "DeleteRole")
 }
@@ -59,7 +59,7 @@ func TestUserHandlers(t *testing.T) {
 	o := newOptimizer(t)
 	assertErrorResponse(t, userhandler.CreateUserResourceWithCacheInvalidation(o), postJSON("{}"), "CreateUser")
 	assertErrorResponse(t, userhandler.GetUserByIDWithCacheInvalidation(), idReq("u1"), "GetUserByID")
-	assertErrorResponse(t, userhandler.ListUserResourcesWithCacheInvalidation(o), idReq("u1"), "ListUsers")
+	assertErrorResponse(t, userhandler.ListUserResourcesWithCacheInvalidation(), idReq("u1"), "ListUsers")
 	assertErrorResponse(t, userhandler.PatchUserByIDWithCacheInvalidation(o), idReq("u1"), "PatchUser")
 	assertErrorResponse(t, userhandler.DeleteUserByIDWithCacheInvalidation(o), idReq("u1"), "DeleteUser")
 }
@@ -68,7 +68,7 @@ func TestGroupHandlers(t *testing.T) {
 	o := newOptimizer(t)
 	assertErrorResponse(t, grouphandler.CreateGroupResourceWithCacheInvalidation(o), postJSON("{}"), "CreateGroup")
 	assertErrorResponse(t, grouphandler.GetGroupByIDWithCacheInvalidation(), idReq("g1"), "GetGroupByID")
-	assertErrorResponse(t, grouphandler.ListGroupResourcesWithCacheInvalidation(o), idReq("g1"), "ListGroups")
+	assertErrorResponse(t, grouphandler.ListGroupResourcesWithCacheInvalidation(), idReq("g1"), "ListGroups")
 	assertErrorResponse(t, grouphandler.PatchGroupByIDWithCacheInvalidation(o), idReq("g1"), "PatchGroup")
 	assertErrorResponse(t, grouphandler.DeleteGroupByIDWithCacheInvalidation(o), idReq("g1"), "DeleteGroup")
 }

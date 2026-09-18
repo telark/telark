@@ -35,8 +35,7 @@ func NewManager() *Manager {
 	})
 }
 
-// NewManagerWith builds a manager with an injected NATS manager and subscriber
-// set — the seam tests use to drive Start against an embedded server.
+// Injection seam: tests drive Start against an embedded NATS server.
 func NewManagerWith(nm natscore.NatsManagerInterface, subs []natscore.ResourceSubscriber) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Manager{

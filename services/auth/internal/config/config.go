@@ -33,49 +33,28 @@ type WebAuthnConfig struct {
 }
 
 var (
-	globalConfig *Config
-	configOnce   sync.Once
-	configMutex  sync.RWMutex
+	globalConfig    *Config
+	globalConfigErr error
+	configOnce      sync.Once
 )
 
+// sync.Once publishes both results to every later caller, so a first load that
+// failed keeps reporting its error instead of handing back a nil config.
 func LoadConfig() (*Config, error) {
-	configMutex.RLock()
-	if globalConfig != nil {
-		cfg := globalConfig
-		configMutex.RUnlock()
-		return cfg, nil
-	}
-	configMutex.RUnlock()
-
-	var err error
 	configOnce.Do(func() {
-		var cfg *Config
-		cfg, err = loadConfigInternal()
-		if err == nil {
-			configMutex.Lock()
-			globalConfig = cfg
-			configMutex.Unlock()
-		}
+		globalConfig, globalConfigErr = loadConfigInternal()
 	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	configMutex.RLock()
-	cfg := globalConfig
-	configMutex.RUnlock()
-	return cfg, nil
+	return globalConfig, globalConfigErr
 }
 
 func loadConfigInternal() (*Config, error) {
-	rpName, err := getEnvOrFail("RP_NAME")
+	rpName, err := getEnvOrFail(constants.EnvRPName)
 	if err != nil {
 		return nil, err
 	}
 
 	challengeTimeout, err := getEnvAsInt64OrDefault(
-		"CHALLENGE_TIMEOUT",
+		constants.EnvChallengeTimeout,
 		constants.DefaultChallengeTimeout,
 	)
 	if err != nil {
@@ -83,7 +62,7 @@ func loadConfigInternal() (*Config, error) {
 	}
 
 	sessionExpiry, err := getEnvAsInt64OrDefault(
-		"SESSION_EXPIRY",
+		constants.EnvSessionExpiry,
 		constants.DefaultSessionExpiry,
 	)
 	if err != nil {
@@ -92,7 +71,7 @@ func loadConfigInternal() (*Config, error) {
 
 	cfg := &Config{
 		Service: ServiceConfig{
-			Port:              getEnvOrDefault("PORT", constants.DefaultPort),
+			Port:              getEnvOrDefault(constants.EnvPort, constants.DefaultPort),
 			ShutdownTimeout:   constants.DefaultShutdownTimeout,
 			ReadHeaderTimeout: constants.DefaultReadHeaderTimeout,
 			ReadTimeout:       constants.DefaultReadTimeout,
@@ -112,14 +91,6 @@ func loadConfigInternal() (*Config, error) {
 }
 
 func GetConfig() (*Config, error) {
-	configMutex.RLock()
-	if globalConfig != nil {
-		cfg := globalConfig
-		configMutex.RUnlock()
-		return cfg, nil
-	}
-	configMutex.RUnlock()
-
 	return LoadConfig()
 }
 
@@ -139,14 +110,13 @@ func getEnvOrFail(key string) (string, error) {
 }
 
 const (
-	emptyString = constants.EmptyString
-	base10      = 10
-	int64Bits   = 64
+	base10    = 10
+	int64Bits = 64
 )
 
 func getEnvAsBool(key string, defaultValue bool) bool {
 	value := os.Getenv(key)
-	if value == emptyString {
+	if value == constants.EmptyString {
 		return defaultValue
 	}
 	b, err := strconv.ParseBool(value)
@@ -158,7 +128,7 @@ func getEnvAsBool(key string, defaultValue bool) bool {
 
 func getEnvAsInt64OrDefault(key string, defaultValue int64) (int64, error) {
 	valueStr := os.Getenv(key)
-	if valueStr == emptyString {
+	if valueStr == constants.EmptyString {
 		return defaultValue, nil
 	}
 

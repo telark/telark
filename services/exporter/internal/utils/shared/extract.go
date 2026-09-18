@@ -33,7 +33,7 @@ func GetSpec(w http.ResponseWriter, r *http.Request) (map[string]any, error) {
 }
 
 func ExtractResourceNameFromRequestBody(spec map[string]any) string {
-	if name, ok := spec["name"].(string); ok {
+	if name, ok := spec[constants.FieldName].(string); ok {
 		return name
 	}
 
@@ -50,13 +50,11 @@ func ExtractMapValue(data map[string]any, key string) (map[string]any, bool) {
 }
 
 func ExtractResourceNameFromRequest(r *http.Request) string {
-	// Prefer router variables when available
 	if vars := mux.Vars(r); vars != nil {
 		if name, ok := vars[constants.NameParam]; ok && name != constants.EmptyString {
 			return name
 		}
 	}
-	// Fallback to path parsing
 	pathParts := strings.Split(r.URL.Path, "/")
 	if len(pathParts) >= constants.IndexSecondLastElementOffset {
 		return pathParts[len(pathParts)-constants.IndexSecondLastElementOffset]
@@ -65,7 +63,7 @@ func ExtractResourceNameFromRequest(r *http.Request) string {
 }
 
 func LogAndReturnError(w http.ResponseWriter, statusCode int, errorMessage string, err error) {
-	message := fmt.Sprintf("%s: %v", errorMessage, err)
+	message := fmt.Sprintf(constants.LogMessageWithError, errorMessage, err)
 	responseutils.LogAndSendResponse(w, statusCode, response.OperationError, message, nil, err)
 }
 

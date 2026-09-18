@@ -395,9 +395,6 @@ func applyFlushOpts(
 	opts.FromCoalescingFlush = true
 }
 
-// oldObjectsByNamespace partitions the coalescer buffer (resource-key → oldObject)
-// into namespace → []objects, ready for snapshot creation.
-// Each value is a DeepCopy of the informer-captured oldObject.
 // preImageByNamespace completes the buffered old objects with the rest of the
 // application from the informer cache, so every snapshot holds the whole app.
 func (m *Manager) preImageByNamespace(

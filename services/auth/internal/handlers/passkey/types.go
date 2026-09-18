@@ -3,10 +3,6 @@ package passkey
 import "github.com/go-webauthn/webauthn/protocol"
 
 type (
-	RegisterStartRequest struct {
-		Email       string `json:"email,omitempty"`
-		EnrollToken string `json:"enrollToken,omitempty"`
-	}
 	EnrollLinkResponse struct {
 		Token     string `json:"token"`
 		ExpiresAt string `json:"expiresAt"`

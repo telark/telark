@@ -9,9 +9,7 @@ const (
 	SuccessServiceShuttingDown messages.Message = "service shutting down"
 	SuccessWorkloadsListed     messages.Message = "workloads listed"
 	SuccessResourcesListed     messages.Message = "resources listed"
-	SuccessGroupByLabelsListed messages.Message = "resources grouped by application"
 	SuccessNamespacesListed    messages.Message = "namespaces listed"
-	MessageApplicationsListAll messages.Message = "all applications"
 
 	// Circuit Breaker
 	InfoCircuitBreakerStateChange messages.Message = "circuit breaker '%s' transitioned from %s to %s"
@@ -20,11 +18,9 @@ const (
 	InfoCircuitBreakerHalfOpen    messages.Message = "circuit breaker '%s' half-open, testing connection"
 
 	//  Pre-warming
-	InfoPrewarmEnrichmentStarted  messages.Message = "🔥 Pre-warming enrichment cache in background..."
-	InfoPrewarmFoundApplications  messages.Message = "Pre-warming: found %d applications across %d namespaces"
-	InfoPrewarmComplete           messages.Message = "🔥 Pre-warming complete — totalApps=%d elapsedMs=%d"
-	WarnEnrichmentCacheReadFailed messages.Message = "enrichment cache read failed, skipping enqueue " +
-		"app=%s namespace=%s err=%v"
+	InfoPrewarmEnrichmentStarted      messages.Message = "🔥 Pre-warming enrichment cache in background..."
+	InfoPrewarmFoundApplications      messages.Message = "Pre-warming: found %d applications across %d namespaces"
+	InfoPrewarmComplete               messages.Message = "🔥 Pre-warming complete — totalApps=%d elapsedMs=%d"
 	InfoPrewarmSupervisorShuttingDown messages.Message = "[prewarm] Supervisor shutting down."
 	ErrorPrewarmRecoveredFromPanic    messages.Message = "[prewarm] Recovered from panic: %v"
 	ErrorPrewarmRecoveredFromRunPanic messages.Message = "[prewarm] Recovered from panic in run: %v"
@@ -64,6 +60,7 @@ const (
 	InfoRollbackNoLongerPending      messages.Message = "rollback %s no longer pending; skipping pickup"
 	LogRollbackLockBusy              messages.Message = "[rollback] lock for %s held elsewhere; deferring pickup"
 	InfoRollbackWorkersStarted       messages.Message = "[rollback] started %d workers"
+	InfoRollbackClientBudget         messages.Message = "[rollback] dedicated K8s client budget: %.0f qps, burst %d"
 
 	// Rollback Notifications
 	NotifRollbackCompletedTitle  messages.Message = "Rollback completed"
@@ -118,7 +115,6 @@ const (
 	LogConsumerCleanedUp          messages.Message = "[consumer] Consumer deregistered on shutdown: %s"
 	LogConsumerPruned             messages.Message = "[consumer] Pruned dead consumer from group: %s"
 	LogConsumerStaleNoState       messages.Message = "[consumer] Stale message %s has no state — acking and releasing."
-	LogEnrichComplete             messages.Message = "[enrich] Enrichment complete for app %s."
 
 	// Application history — snapshots & incidents
 	InfoInformerOldObjectCaptured messages.Message = "[informers] MODIFIED oldObject captured " +

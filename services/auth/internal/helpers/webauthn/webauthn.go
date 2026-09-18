@@ -145,22 +145,7 @@ func requestScheme(r *http.Request) string {
 }
 
 func ConvertPasskeysToCredentials(passkeys []*authdata.UserPasskey) []webauthn.Credential {
-	if len(passkeys) == constants.InitialCapacity {
-		return []webauthn.Credential{}
-	}
-
-	validCount := constants.InitialCapacity
-	for _, pk := range passkeys {
-		if pk != nil {
-			validCount++
-		}
-	}
-
-	if validCount == constants.InitialCapacity {
-		return []webauthn.Credential{}
-	}
-
-	credentials := make([]webauthn.Credential, constants.InitialCapacity, validCount)
+	credentials := make([]webauthn.Credential, constants.InitialCapacity, len(passkeys))
 	for _, pk := range passkeys {
 		if pk == nil {
 			continue
@@ -188,41 +173,36 @@ func ConvertPasskeysToCredentials(passkeys []*authdata.UserPasskey) []webauthn.C
 }
 
 func CreateUser(userID, username, fullname string, credentials []webauthn.Credential) *User {
-	randomBytes := make([]byte, constants.RandomBytesLength)
-	if _, err := rand.Read(randomBytes); err != nil {
-		uniqueUserHandle := fmt.Sprintf(
-			constants.UserHandleFormat, userID, uuid.New().String()[:constants.RandomBytesLength])
-		return &User{
-			ID:          []byte(uniqueUserHandle),
-			Name:        username,
-			DisplayName: fullname,
-			Credentials: credentials,
-		}
-	}
-
-	suffix := base64.RawURLEncoding.EncodeToString(randomBytes)
-	uniqueUserHandle := fmt.Sprintf(constants.UserHandleFormat, userID, suffix)
-
-	if len(uniqueUserHandle) > constants.MaxUserHandleLength {
-		maxSuffixLen := constants.MaxUserHandleLength - len(userID) - constants.DefaultColonSeparatorLength
-		if maxSuffixLen > constants.DefaultInitValue {
-			suffix = suffix[:maxSuffixLen]
-			uniqueUserHandle = fmt.Sprintf(constants.UserHandleFormat, userID, suffix)
-		} else {
-			uniqueUserHandle = userID
-		}
-	}
-
 	return &User{
-		ID:          []byte(uniqueUserHandle),
+		ID:          []byte(userHandle(userID)),
 		Name:        username,
 		DisplayName: fullname,
 		Credentials: credentials,
 	}
 }
 
+func userHandle(userID string) string {
+	randomBytes := make([]byte, constants.RandomBytesLength)
+	if _, err := rand.Read(randomBytes); err != nil {
+		return fmt.Sprintf(
+			constants.UserHandleFormat, userID, uuid.New().String()[:constants.RandomBytesLength])
+	}
+
+	suffix := base64.RawURLEncoding.EncodeToString(randomBytes)
+	handle := fmt.Sprintf(constants.UserHandleFormat, userID, suffix)
+	if len(handle) <= constants.MaxUserHandleLength {
+		return handle
+	}
+
+	maxSuffixLen := constants.MaxUserHandleLength - len(userID) - constants.DefaultColonSeparatorLength
+	if maxSuffixLen <= constants.DefaultInitValue {
+		return userID
+	}
+	return fmt.Sprintf(constants.UserHandleFormat, userID, suffix[:maxSuffixLen])
+}
+
 func ExtractBaseUserID(uniqueUserHandle string) string {
-	parts := strings.Split(uniqueUserHandle, ":")
+	parts := strings.Split(uniqueUserHandle, constants.ColonSeparator)
 	if len(parts) > constants.DefaultInitValue {
 		return parts[constants.DefaultInitValue]
 	}

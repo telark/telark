@@ -156,7 +156,7 @@ func GetApplications(
 	if !opts.DeriveOnly {
 		outcomes, storedApps := applyHistoryFromDiff(ctx, &apps, opts)
 		for i := range apps {
-			metrics.PopulateApplicationMetrics(ctx, &apps[i])
+			metrics.PopulateApplicationMetrics(&apps[i])
 			if outcomes[i] == diff.OutcomeNoChange && unchangedSinceStored(storedApps[i], &apps[i]) {
 				outcomes[i] = diff.OutcomeDeferred
 			}

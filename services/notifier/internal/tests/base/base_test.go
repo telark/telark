@@ -57,37 +57,6 @@ func TestExecuteDeleteHandler(t *testing.T) {
 	}
 }
 
-// ExecuteUpdateHandler must reach the patch backend only for a well-formed
-// update (parsed header, known scope, resolvable name); every malformed case is
-// acked-and-dropped without a patch so a bad message never mutates a CR.
-func TestExecuteUpdateHandler(t *testing.T) {
-	valid := &natscore.Message{ResourceName: "app1", Scope: appScope, Data: map[string]any{"replicas": 2}}
-	cases := []struct {
-		name       string
-		msg        *nats.Msg
-		status     int
-		wantCalled bool
-	}{
-		{"no parsed header", testutil.Msg(appSubject, nil), http.StatusOK, false},
-		{"malformed header", testutil.HeaderMsg(appSubject, "{bad"), http.StatusOK, false},
-		{"missing scope", testutil.Msg(appSubject, &natscore.Message{ResourceName: "app1"}), http.StatusOK, false},
-		{"unknown scope", testutil.Msg(appSubject, &natscore.Message{ResourceName: "app1", Scope: "nope", Data: map[string]any{}}), http.StatusOK, false},
-		{"backend error", testutil.Msg(appSubject, valid), http.StatusInternalServerError, true},
-		{"success", testutil.Msg(appSubject, valid), http.StatusOK, true},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			var called bool
-			pf := func(_ string, _ map[string]any) base.GenericResponse {
-				called = true
-				return testutil.Resp{Status: c.status, Message: "boom"}
-			}
-			_ = base.ExecuteUpdateHandler(c.msg, "name", base.BuildPatchBodyFromScope, pf, "patched %s", "patch %s failed: %s")
-			testutil.Equal(t, "called", called, c.wantCalled)
-		})
-	}
-}
-
 // SharedExecuteHandler routes by action and only forwards to the resource
 // handler once the payload is parsed; a transform failure is swallowed (acked)
 // so the message is not redelivered forever.
@@ -175,7 +144,7 @@ func TestAckWithLog(t *testing.T) {
 // HandleUnknown acks and never errors — unrecognised actions must not stall the
 // consumer.
 func TestHandleUnknown(t *testing.T) {
-	s := base.NewBaseSubscriber(natscore.Applications, shared.Application, nil)
+	s := base.NewBaseSubscriber(natscore.Applications, shared.Application)
 	if err := s.HandleUnknown(testutil.Msg(appSubject, nil)); err != nil {
 		t.Fatalf("HandleUnknown = %v, want nil", err)
 	}
@@ -184,7 +153,7 @@ func TestHandleUnknown(t *testing.T) {
 // ValidateMessage skips JetStream acks, rejects empty/garbled payloads, and
 // stamps the parsed-message header for valid ones.
 func TestValidateMessage(t *testing.T) {
-	s := base.NewBaseSubscriber(natscore.Applications, shared.Application, nil)
+	s := base.NewBaseSubscriber(natscore.Applications, shared.Application)
 	valid := testutil.Data(&natscore.Message{ResourceName: "app1"})
 	cases := []struct {
 		name    string
@@ -207,7 +176,7 @@ func TestValidateMessage(t *testing.T) {
 // from the subject, and drives the handler callback with retries.
 func TestHandleMessage(t *testing.T) {
 	newSub := func(cb func(*nats.Msg, natscore.Action) error) *base.BaseSubscriber {
-		s := base.NewBaseSubscriber(natscore.Applications, shared.Application, nil)
+		s := base.NewBaseSubscriber(natscore.Applications, shared.Application)
 		s.RetryDelay = time.Millisecond
 		s.MaxRetries = 2
 		s.SetHandlerCallback(cb)
@@ -257,7 +226,7 @@ func TestHandleMessage(t *testing.T) {
 // NewBaseSubscriber wires the resource type through to GetResourceType so the
 // manager can key subscribers by the resource they own.
 func TestNewBaseSubscriber(t *testing.T) {
-	s := base.NewBaseSubscriber(natscore.Applications, shared.Application, nil)
+	s := base.NewBaseSubscriber(natscore.Applications, shared.Application)
 	testutil.Equal(t, "resource type", s.GetResourceType(), shared.Application)
 }
 
@@ -281,7 +250,7 @@ func TestSubscribeAndProcess(t *testing.T) {
 	if err := natstreams.CreateStreams(c); err != nil {
 		t.Fatalf("create streams: %v", err)
 	}
-	s := base.NewBaseSubscriber(natscore.Applications, shared.Application, nil)
+	s := base.NewBaseSubscriber(natscore.Applications, shared.Application)
 
 	processed := make(chan natscore.Action, 1)
 	s.SetHandlerCallback(func(_ *nats.Msg, a natscore.Action) error {
@@ -321,7 +290,7 @@ func TestWorkerPoolKeepsPerAppOrder(t *testing.T) {
 	if err := natstreams.CreateStreams(c); err != nil {
 		t.Fatalf("create streams: %v", err)
 	}
-	s := base.NewBaseSubscriber(natscore.Applications, shared.Application, nil)
+	s := base.NewBaseSubscriber(natscore.Applications, shared.Application)
 
 	const perApp = 20
 	apps := []string{"app-a", "app-b"}
@@ -406,7 +375,7 @@ func TestWorkerPoolDropsStaleRedelivery(t *testing.T) {
 	if err := natstreams.CreateStreams(c); err != nil {
 		t.Fatalf("create streams: %v", err)
 	}
-	s := base.NewBaseSubscriber(natscore.Applications, shared.Application, nil)
+	s := base.NewBaseSubscriber(natscore.Applications, shared.Application)
 
 	applied := make(chan float64, 4)
 	s.SetHandlerCallback(func(m *nats.Msg, _ natscore.Action) error {

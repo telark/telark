@@ -7,7 +7,6 @@ const (
 	DefaultInitValue             = 0
 	DefaultAdd                   = 1
 	SubjectPartsMin              = 3
-	SignalChanBuffer             = 1
 	NatsFetchBatchSize           = 64
 	DefaultMaxRetries            = 3
 	AckWaitSeconds               = 5

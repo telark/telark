@@ -6,8 +6,10 @@ import (
 
 	authmetadata "github.com/telark/data/metadata/auth"
 	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/exporter/internal/informers"
 	sessionutils "github.com/telark/exporter/internal/utils/auth/session"
 	"github.com/telark/x-ware/authz"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 var lg = constants.GetLogger(constants.PrefixMain)
@@ -18,10 +20,11 @@ func NewResolver() *Resolver {
 	return &Resolver{}
 }
 
-// Deliberately uncached: the session record is the only acceptable source of
-// an identity, and one get-by-digest is cheap enough not to need a cache.
+// The session record is the only acceptable source of an identity; it is read
+// from the informer mirror so a burst of authenticated requests never queues
+// identity lookups behind the shared apiserver client.
 func (*Resolver) UserIDForToken(token string) (string, error) {
-	resource, err := getByName(sessionutils.SessionName(token), authmetadata.UserSessionMetadata)
+	resource, err := sessionRecord(sessionutils.SessionName(token))
 	if err != nil {
 		return constants.EmptyString, err
 	}
@@ -48,6 +51,15 @@ func (*Resolver) GrantsForUser(userID string) (authz.Grants, error) {
 
 	storeGrants(ctx, userID, grants)
 	return grants, nil
+}
+
+// A miss is confirmed against the apiserver: a session created a moment ago may
+// not have reached the mirror yet, and a login must never fail on watch latency.
+func sessionRecord(name string) (*unstructured.Unstructured, error) {
+	if resource, found := informers.GetSession(name); found {
+		return resource, nil
+	}
+	return getByName(name, authmetadata.UserSessionMetadata)
 }
 
 func fmtLog(format string, args ...any) string {

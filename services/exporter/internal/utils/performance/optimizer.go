@@ -9,8 +9,6 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/telark/exporter/internal/cache"
 	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
 	rediscache "github.com/telark/x-ware/redis/cache"
 )
 
@@ -122,29 +120,6 @@ func (o *Optimizer) Close() {
 	_ = o.cache.Close()
 }
 
-func CachedHandler(optimizer *Optimizer, handler http.HandlerFunc, keyFunc func(r *http.Request) string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		cacheKey := keyFunc(r)
-		if cached, exists := optimizer.Get(cacheKey); exists {
-			responseutils.LogAndSendResponse(w, http.StatusOK, response.OperationSuccess, constants.CachedResponse, cached, nil)
-			return
-		}
-		responseCapture := &responseCaptureWriter{
-			ResponseWriter: w,
-			statusCode:     http.StatusOK,
-			body:           make([]byte, constants.DefaultInitValue),
-		}
-		handler(responseCapture, r)
-		if responseCapture.statusCode == http.StatusOK {
-			optimizer.Set(cacheKey, responseCapture.body)
-		}
-	}
-}
-
 func KeyFunc(r *http.Request) string {
 	return "cache:" + r.URL.Path + "?" + r.URL.RawQuery
-}
-
-func Handler(handler http.HandlerFunc) http.HandlerFunc {
-	return handler
 }

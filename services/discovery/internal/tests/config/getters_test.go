@@ -62,3 +62,22 @@ func TestConfigGetters(t *testing.T) {
 	_ = config.LoadAutoCleanupConfig()
 	_ = config.LoadForceSyncConfig()
 }
+
+func TestRollbackK8sClientRateLimit(t *testing.T) {
+	cases := []struct {
+		qps, burst string
+		wantQPS    float32
+		wantBurst  int
+	}{
+		{"", "", float32(constants.DefaultRollbackK8sClientQPS), constants.DefaultRollbackK8sClientBurst},
+		{"12", "24", 12, 24},
+		{"bad", "-1", float32(constants.DefaultRollbackK8sClientQPS), constants.DefaultRollbackK8sClientBurst},
+	}
+	for _, c := range cases {
+		t.Setenv(constants.EnvDiscoveryRollbackK8sClientQPS, c.qps)
+		t.Setenv(constants.EnvDiscoveryRollbackK8sClientBurst, c.burst)
+		qps, burst := config.RollbackK8sClientRateLimit()
+		testutil.Equal(t, fmt.Sprintf("qps for %q", c.qps), qps, c.wantQPS)
+		testutil.Equal(t, fmt.Sprintf("burst for %q", c.burst), burst, c.wantBurst)
+	}
+}

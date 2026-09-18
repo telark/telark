@@ -1,7 +1,5 @@
 """Thin router: delegates to the configured enrichment provider."""
 
-from typing import Optional
-
 from constants import MSG_AI_DISABLED
 from models import AppSignals, EnrichmentResult
 from providers import get_provider
@@ -9,7 +7,7 @@ from providers.base import BaseProvider
 from providers.ollama import OllamaUnavailableError
 
 
-def enrich(signals: AppSignals, provider: Optional[BaseProvider] = None) -> EnrichmentResult:
+def enrich(signals: AppSignals, provider: BaseProvider | None = None) -> EnrichmentResult:
     """Enrich using the given provider, or the one resolved from GlobalConfig.
 
     Not memoised: provider and key can change under us via GlobalConfig, so the

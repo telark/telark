@@ -12,11 +12,8 @@ import (
 
 var InformersCache func(context.Context, []string) ([]kcoregroup.ResourceRef, bool)
 
-// Resources lists application-relevant resources across the given namespaces.
-// Excluded namespaces are filtered out at the boundary so both the informer-cache
-// fast path and the live-list fallback honor the exclusion list. Empty input
-// means "all namespaces" — expanded explicitly with exclusion applied so the
-// fallback can never see excluded namespaces.
+// Exclusions are applied at this boundary so both the informer-cache fast path and the
+// live-list fallback honor them; empty input means "all namespaces", expanded explicitly.
 func Resources(ctx context.Context, namespaces []string) ([]kcoregroup.ResourceRef, error) {
 	resolved, err := resolveNamespaces(ctx, namespaces)
 	if err != nil {

@@ -62,14 +62,12 @@ func normalizeParamValue(v any) any {
 	}
 }
 
-// PolicyDiff captures added/removed/unchanged policies between two policy lists.
 type PolicyDiff struct {
 	Added     []plans.ProtectionPlanPolicy
 	Removed   []plans.ProtectionPlanPolicy
 	Unchanged []plans.ProtectionPlanPolicy
 }
 
-// TargetDiff captures added/removed/unchanged scope targets between two target lists.
 type TargetDiff struct {
 	Added     []string
 	Removed   []string

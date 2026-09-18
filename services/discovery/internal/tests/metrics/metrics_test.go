@@ -1,7 +1,6 @@
 package metrics
 
 import (
-	"context"
 	"testing"
 
 	appresource "github.com/telark/data/resources/application"
@@ -85,7 +84,7 @@ func TestPopulateApplicationMetrics(t *testing.T) {
 			},
 		},
 	}
-	metrics.PopulateApplicationMetrics(context.Background(), app)
+	metrics.PopulateApplicationMetrics(app)
 	d := app.Metrics.Derived
 	if d.ChangesByClass == nil || d.ChangesBySeverity == nil {
 		t.Fatal("derived class/severity maps must be initialised")
@@ -94,12 +93,12 @@ func TestPopulateApplicationMetrics(t *testing.T) {
 	testutil.Equal(t, "snapshot count", d.SnapshotCount, 1)
 
 	empty := &appresource.Application{}
-	metrics.PopulateApplicationMetrics(context.Background(), empty)
+	metrics.PopulateApplicationMetrics(empty)
 	testutil.Equal(t, "empty total", empty.Metrics.Derived.TotalChanges, 0)
 	testutil.Equal(t, "empty velocity", empty.Metrics.Derived.ChangeVelocityPerDay, 0.0)
 }
 
 // A nil application is a no-op, not a panic.
 func TestPopulateNilApp(t *testing.T) {
-	metrics.PopulateApplicationMetrics(context.Background(), nil)
+	metrics.PopulateApplicationMetrics(nil)
 }

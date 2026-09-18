@@ -6,17 +6,14 @@ import (
 
 const (
 	// Common Errors
-	ErrInPublishUpdate           errors.Error = "in publish update with scope: %v\n%s"
-	ErrInPublishDelete           errors.Error = "in publish delete: %v\n%s"
-	ErrFailedMarshalPayload      errors.Error = "failed to marshal payload: %v"
-	ErrNatsPublishRetry          errors.Error = "(%d/%d): %v"
-	ErrServerFailedToStartDetail errors.Error = "server failed to start: %s"
-	ErrServerInitiatingShutdown  errors.Error = "server failed to start, initiating graceful shutdown"
-	ErrFailedSendShutdownSignal  errors.Error = "failed to send shutdown signal, forcing exit"
-	ErrQuitChannelNotAvailable   errors.Error = "Quit channel not available, forcing exit"
-	ErrGracefulShutdownFailed    errors.Error = "graceful shutdown failed"
-	ErrTooManyRestartAttempts    errors.Error = "too many restart attempts, stopping supervisor"
-	ErrServiceHealthCheckFailed  errors.Error = "service health check failed - attempting restart"
+	ErrInPublishUpdate          errors.Error = "in publish update with scope: %v\n%s"
+	ErrFailedMarshalPayload     errors.Error = "failed to marshal payload: %v"
+	ErrNatsPublishRetry         errors.Error = "(%d/%d): %v"
+	ErrFailedSendShutdownSignal errors.Error = "failed to send shutdown signal, forcing exit"
+	ErrQuitChannelNotAvailable  errors.Error = "Quit channel not available, forcing exit"
+	ErrGracefulShutdownFailed   errors.Error = "graceful shutdown failed"
+	ErrTooManyRestartAttempts   errors.Error = "too many restart attempts, stopping supervisor"
+	ErrServiceHealthCheckFailed errors.Error = "service health check failed - attempting restart"
 
 	// Error Messages
 	ErrBootstrapPanicRecovered       errors.Error = "bootstrap panic recovered: %v"
@@ -25,7 +22,6 @@ const (
 	ErrInternalServerError           errors.Error = "internal server error"
 
 	// API Errors
-	ErrSelectorTypeMustBeLabelsOrText      errors.Error = "selectorType must be 'labels' or 'text'"
 	ErrPatchApplicationReturnedNilResponse errors.Error = "patch application returned nil response"
 	ErrPatchApplicationFailed              errors.Error = "patch application failed: status=%d message=%s"
 	ErrDispatchInsightsNilResponse         errors.Error = "insights dispatch returned nil response"
@@ -51,7 +47,6 @@ const (
 	// Analyze Errors
 	ErrFailedListNamespaceWorkloads errors.Error = "failed to list workloads in namespace %s: %v"
 	ErrFailedListNamespaceResources errors.Error = "failed to list resources in namespace %s: %v"
-	ErrFailedGroupByLabels          errors.Error = "failed to group resources by labels: %v"
 
 	// Connection and Shutdown Errors
 	ErrFailedCloseHealthCheckConnection errors.Error = "failed to close health check connection: %v"
@@ -94,7 +89,6 @@ const (
 	ErrRollbackHistoryAppendFailed       errors.Error = "rollback history append failed: %v"
 	ErrRollbackKubeClientInitFailed      errors.Error = "rollback controller kube client init failed: %v"
 	ErrRollbackKubeClientNil             errors.Error = "rollback controller kube client is nil"
-	ErrRollbackKubeClientNilStart        errors.Error = "rollback controller start: kube client is nil"
 	ErrRollbackInvalidIndex              errors.Error = "invalid rollback index"
 	ErrRollbackMissingSpec               errors.Error = "missing spec"
 	ErrRollbackStatusPatchFailed         errors.Error = "failed to patch rollback status: %v"
@@ -119,12 +113,9 @@ const (
 	ErrRollbackSnapshotMissing         errors.Error = "no snapshot stored for generation %d"
 
 	// Auto-cleanup detector errors
-	ErrAutoCleanupListAppsFailed     errors.Error = "[auto-cleanup] list applications failed: %v"
-	ErrAutoCleanupGetAppFailed       errors.Error = "[auto-cleanup] get application failed: app=%s err=%v"
-	ErrAutoCleanupNamespaceGetFailed errors.Error = "[auto-cleanup] namespace get failed: app=%s ns=%s err=%v"
-	ErrAutoCleanupRailRedisFailed    errors.Error = "[auto-cleanup] rail redis lookup failed: app=%s rail=%s err=%v"
-	ErrAutoCleanupStateWriteFailed   errors.Error = "[auto-cleanup] streak state write failed: app=%s err=%v"
-	ErrAutoCleanupResetFailed        errors.Error = "[auto-cleanup] reset failed: app=%s err=%v"
+	ErrAutoCleanupListAppsFailed   errors.Error = "[auto-cleanup] list applications failed: %v"
+	ErrAutoCleanupStateWriteFailed errors.Error = "[auto-cleanup] streak state write failed: app=%s err=%v"
+	ErrAutoCleanupResetFailed      errors.Error = "[auto-cleanup] reset failed: app=%s err=%v"
 
 	// Coordination Errors
 	ErrPrewarmLeaderPanic                 errors.Error = "[prewarm] Recovered from panic: %v"
@@ -139,8 +130,6 @@ const (
 	ErrConsumerLockLost                   errors.Error = "[consumer] Lock lost during processing for %s — aborting."
 	ErrConsumerMaxAttempts                errors.Error = "[consumer] App %s permanently failed after max attempts."
 	ErrConsumerFailed                     errors.Error = "[consumer] App %s processing failed: %v"
-	ErrEnrichLockNotAcquired              errors.Error = "[enrich] Enrichment already in progress for app %s."
-	ErrEnrichLockLost                     errors.Error = "[enrich] Lock lost during enrichment for app %s — aborting."
 	ErrConsumerCleanupFailed              errors.Error = "[consumer] Failed to deregister consumer on shutdown: %s — %v"
 	ErrEnqueueFailed                      errors.Error = "[prewarm] Enqueue %s failed: %v"
 	ErrPrewarmBatchEnqueueDiscoveryFailed errors.Error = "[prewarm] Batch enqueue: discovery failed: %v"

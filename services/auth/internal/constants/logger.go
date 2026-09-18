@@ -6,8 +6,6 @@ const (
 	LoggerPrefixAuthService = "auth-service"
 	LoggerPrefixHandler     = "handler"
 	LoggerPrefixHelper      = "helper"
-	LoggerPrefixWebAuthn    = "webauthn"
-	LoggerPrefixConfig      = "config"
 	LoggerPrefixOIDC        = "oidc"
 	LoggerPrefixRedis       = "redis"
 	LoggerPrefixAsync       = "async"

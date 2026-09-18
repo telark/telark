@@ -982,6 +982,8 @@ github.com/tektoncd/plumbing v0.0.0-20230907180608-5625252a2de1/go.mod h1:7eWs1X
 github.com/telark/data v1.14.0/go.mod h1:64sUlmmT0UOTWq+8GofUyU/Ss9mbQ566z2hMrCLRap4=
 github.com/telark/data v1.14.1/go.mod h1:Oj2DBnE5j2666m15/QYUDo8KXAYyyOKFOB3DUOOrjM0=
 github.com/telark/data v1.14.2/go.mod h1:Oj2DBnE5j2666m15/QYUDo8KXAYyyOKFOB3DUOOrjM0=
+github.com/telark/kcore v0.7.1 h1:Fk+7QUlEld8B2SOs6Nr+KdeRbAnp854bx2S5eJQQC68=
+github.com/telark/kcore v0.7.1/go.mod h1:C8WAjr/O8qrl9qgV/aYpm77jQ+Aa1OG2g5YnzZSLyV4=
 github.com/telark/rest v0.13.3/go.mod h1:4NOApaArEuK8PvTJG8n2CVRvJm0Rul80Glt2g4SzNXw=
 github.com/telark/rest v0.14.3 h1:54sLYMNKikhCz0e8sGhZe5pLuIohpOsdhuIzzOtKK8Y=
 github.com/telark/rest v0.14.3/go.mod h1:4NOApaArEuK8PvTJG8n2CVRvJm0Rul80Glt2g4SzNXw=

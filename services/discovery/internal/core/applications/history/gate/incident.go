@@ -3,6 +3,7 @@ package gate
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/telark/data/resources/application"
@@ -57,12 +58,9 @@ func filterHealthToBadUnderGrace(
 }
 
 func hasHealthChangeToBad(appChanges []application.ApplicationChange) bool {
-	for i := range appChanges {
-		if appChanges[i].Field == changes.ChangeFieldHealth && healthChangeIsToBad(&appChanges[i]) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(appChanges, func(c application.ApplicationChange) bool {
+		return c.Field == changes.ChangeFieldHealth && healthChangeIsToBad(&c)
+	})
 }
 
 func healthChangeIsToBad(c *application.ApplicationChange) bool {

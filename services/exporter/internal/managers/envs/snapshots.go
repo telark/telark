@@ -3,6 +3,7 @@ package envs
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -131,20 +132,19 @@ func getEnv(key string) string {
 	return strings.TrimSpace(os.Getenv(key))
 }
 
-func IsScopeValid(scopes []ScopeDefinition, name string) bool {
-	for _, s := range scopes {
-		if s.Name == name {
-			return true
-		}
-	}
-	return false
+func scopeIndex(scopes []ScopeDefinition, name string) int {
+	return slices.IndexFunc(scopes, func(s ScopeDefinition) bool { return s.Name == name })
 }
 
+func IsScopeValid(scopes []ScopeDefinition, name string) bool {
+	return scopeIndex(scopes, name) >= constants.DefaultInitValue
+}
+
+// An unregistered scope is treated as namespaced: the caller then has to supply
+// a namespace instead of silently writing to the scope root.
 func IsScopeNamespaced(scopes []ScopeDefinition, name string) bool {
-	for _, s := range scopes {
-		if s.Name == name {
-			return s.Namespaced
-		}
+	if i := scopeIndex(scopes, name); i >= constants.DefaultInitValue {
+		return scopes[i].Namespaced
 	}
 	return true
 }

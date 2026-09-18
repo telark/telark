@@ -20,8 +20,6 @@ type (
 		natscore.BaseSubscriber
 		processedMessages sync.Map
 		resourceType      shared.Type
-		group             natscore.Group
-		logger            any
 		handlerCallback   func(*nats.Msg, natscore.Action) error
 		workers           []chan *nats.Msg
 		fetchWG           sync.WaitGroup
@@ -31,7 +29,7 @@ type (
 	}
 )
 
-func NewBaseSubscriber(group natscore.Group, resourceType shared.Type, logger any) *BaseSubscriber {
+func NewBaseSubscriber(group natscore.Group, resourceType shared.Type) *BaseSubscriber {
 	workers := make([]chan *nats.Msg, applyWorkerCount())
 	for i := range workers {
 		workers[i] = make(chan *nats.Msg, constants.ApplyWorkerQueueSize)
@@ -44,8 +42,6 @@ func NewBaseSubscriber(group natscore.Group, resourceType shared.Type, logger an
 			ProcessTimeout: constants.ProcessTimeoutSeconds * time.Second,
 		},
 		resourceType: resourceType,
-		group:        group,
-		logger:       logger,
 		workers:      workers,
 	}
 }
@@ -54,8 +50,9 @@ func (s *BaseSubscriber) GetResourceType() shared.Type {
 	return s.resourceType
 }
 
+// ctx is part of the natscore.ResourceSubscriber contract; message handling is synchronous today.
 func (s *BaseSubscriber) ProcessMessage(ctx context.Context, m *nats.Msg) error {
-	_ = ctx // context currently unused
+	_ = ctx
 	return s.HandleMessage(m)
 }
 
@@ -68,7 +65,7 @@ func (g *GenericResponseAdapter) GetStatus() int {
 
 func (g *GenericResponseAdapter) GetMessage() string {
 	if g.Resp == nil {
-		return ""
+		return constants.EmptyString
 	}
 	return g.Resp.Message
 }

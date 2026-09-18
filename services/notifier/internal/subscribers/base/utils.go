@@ -95,7 +95,7 @@ func (*BaseSubscriber) ValidateMessage(m *nats.Msg) error {
 	if err != nil {
 		return fmt.Errorf(string(errors.ErrNatsFailedToMarshalMsgData), err)
 	}
-	natscore.SetParsedMessageHeader(m, "", string(msgBytes))
+	natscore.SetParsedMessageHeader(m, constants.EmptyString, string(msgBytes))
 	return nil
 }
 
@@ -131,7 +131,7 @@ func (*BaseSubscriber) extractAction(subject string) natscore.Action {
 	parts := strings.Split(subject, ".")
 	if len(parts) < constants.SubjectPartsMin {
 		logger.GetLogger(constants.PrefixManagerSubscriber).Warn(string(errors.ErrNatsInvalidSubject))
-		return ""
+		return constants.EmptyString
 	}
 	return natscore.Action(parts[2])
 }

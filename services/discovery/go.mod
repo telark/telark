@@ -11,7 +11,7 @@ require (
 	github.com/nats-io/nats.go v1.52.0
 	github.com/redis/go-redis/v9 v9.21.0
 	github.com/telark/data v1.14.8
-	github.com/telark/kcore v0.7.0
+	github.com/telark/kcore v0.7.1
 	github.com/telark/rest v0.14.4
 	github.com/telark/x-ware v0.4.0
 	golang.org/x/sync v0.22.0

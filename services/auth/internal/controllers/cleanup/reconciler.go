@@ -19,10 +19,6 @@ func NewReconciler(cfg config.CleanupConfig, targets map[string]Target, lg *logg
 	return &Reconciler{cfg: cfg, targets: targets, lg: lg}
 }
 
-func (r *Reconciler) Targets() map[string]Target {
-	return r.targets
-}
-
 type Outcome struct {
 	Requeue    bool
 	PatchCount int
@@ -32,7 +28,7 @@ type Outcome struct {
 func (r *Reconciler) ReconcileOne(ctx context.Context, resourceType, id string, attempts int) (Outcome, error) {
 	target, ok := r.targets[resourceType]
 	if !ok {
-		return Outcome{}, fmt.Errorf("cleanup: unknown resource type %q", resourceType)
+		return Outcome{}, fmt.Errorf(string(constants.ErrCleanupUnknownResourceType), resourceType)
 	}
 	r.lg.Debug(fmt.Sprintf(string(constants.LogCleanupReconcileStart), resourceType, id, attempts))
 	start := time.Now()
@@ -148,7 +144,7 @@ func confirmAllRefsCleared(ctx context.Context, target Target, id string) error 
 			return err
 		}
 		if len(filterByMembership(views, ref.ArrayField, id)) > constants.DefaultInitValue {
-			return fmt.Errorf("cleanup: references still present in %s", ref.ResourceType)
+			return fmt.Errorf(string(constants.ErrCleanupRefsStillPresent), ref.ResourceType)
 		}
 	}
 	return nil

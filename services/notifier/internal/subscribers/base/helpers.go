@@ -33,7 +33,7 @@ func TransientStatus(status int) bool {
 
 func AckWithLog(m *nats.Msg, subject, logMsg string, isError bool) error {
 	lg := logger.GetLogger(constants.PrefixManagerSubscriber)
-	if logMsg != "" {
+	if logMsg != constants.EmptyString {
 		if isError {
 			lg.Error(logMsg)
 		} else {

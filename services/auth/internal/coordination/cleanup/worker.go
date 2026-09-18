@@ -11,6 +11,7 @@ import (
 	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
 	cleanupctrl "github.com/telark/auth/internal/controllers/cleanup"
+	"github.com/telark/data/messages"
 )
 
 func NewManager(
@@ -92,7 +93,7 @@ func (m *Manager) guardedProcess(ctx context.Context, msg redis.XMessage) {
 	job := parseJob(msg)
 	defer func() {
 		if r := recover(); r != nil {
-			lg.Error(fmt.Sprintf("[cleanup] panic: type=%s id=%s err=%v\n%s",
+			lg.Error(fmt.Sprintf(string(constants.ErrCleanupWorkerPanic),
 				m.resourceType, job.ResourceID, r, string(debug.Stack())))
 		}
 	}()
@@ -116,7 +117,7 @@ func (m *Manager) processJob(ctx context.Context, msg redis.XMessage, job Job) {
 func (m *Manager) finalizeSuccess(msg redis.XMessage, job Job) {
 	ctx, cancel := m.cleanupCtx()
 	defer cancel()
-	m.ackAndRelease(ctx, msg, job, "ack failed", "dedup release failed")
+	m.ackAndRelease(ctx, msg, job, constants.CleanupStepAck, constants.CleanupStepRelease)
 }
 
 func (m *Manager) finalizeFailure(msg redis.XMessage, job Job, workErr error) {
@@ -133,7 +134,7 @@ func (m *Manager) finalizeFailure(msg redis.XMessage, job Job, workErr error) {
 			job.ResourceType, job.ResourceID, err))
 	}
 	if err := m.stream.Ack(ctx, msg.ID); err != nil {
-		lg.Error(fmt.Sprintf("[cleanup] ack-after-requeue failed: id=%s err=%v", msg.ID, err))
+		lg.Error(fmt.Sprintf(string(constants.ErrCleanupAckAfterRequeueFail), msg.ID, err))
 	}
 }
 
@@ -144,24 +145,24 @@ func (m *Manager) moveToDLQ(msg redis.XMessage, job Job, attempts int, workErr e
 	ctx, cancel := m.cleanupCtx()
 	defer cancel()
 	if err := m.stream.PublishDLQ(ctx, jobFields(job.dlq(attempts))); err != nil {
-		lg.Error(fmt.Sprintf("[cleanup] DLQ publish failed: type=%s id=%s err=%v",
+		lg.Error(fmt.Sprintf(string(constants.ErrCleanupDLQPublishFailed),
 			job.ResourceType, job.ResourceID, err))
 	}
-	m.ackAndRelease(ctx, msg, job, "ack-after-DLQ failed", "dedup release after DLQ failed")
+	m.ackAndRelease(ctx, msg, job, constants.CleanupStepAckAfterDLQ, constants.CleanupStepReleaseAfterDLQ)
 }
 
 func (m *Manager) ackAndRelease(
 	ctx context.Context,
 	msg redis.XMessage,
 	job Job,
-	ackErrMsg, releaseErrMsg string,
+	ackStep, releaseStep messages.Message,
 ) {
 	if err := m.stream.Ack(ctx, msg.ID); err != nil {
-		lg.Error(fmt.Sprintf("[cleanup] %s: id=%s err=%v", ackErrMsg, msg.ID, err))
+		lg.Error(fmt.Sprintf(string(constants.ErrCleanupAckStepFailed), ackStep, msg.ID, err))
 	}
 	if err := m.dedup.Release(ctx, job.ResourceType, job.ResourceID); err != nil {
-		lg.Error(fmt.Sprintf("[cleanup] %s: type=%s id=%s err=%v",
-			releaseErrMsg, job.ResourceType, job.ResourceID, err))
+		lg.Error(fmt.Sprintf(string(constants.ErrCleanupReleaseStepFailed),
+			releaseStep, job.ResourceType, job.ResourceID, err))
 	}
 }
 

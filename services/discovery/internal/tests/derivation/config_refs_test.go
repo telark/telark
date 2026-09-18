@@ -1,9 +1,13 @@
 package derivation
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/telark/discovery/internal/discovery/derivation"
+)
 
 func TestReferencedConfigMapsAndSecretsJoinTheirWorkloadsApp(t *testing.T) {
-	in := []ResourceInput{
+	in := []derivation.ResourceInput{
 		{Namespace: "n", Kind: "Deployment", Name: "web", Labels: map[string]string{"app": "web"}, ConfigMapRefs: []string{"web-cfg"}, SecretRefs: []string{"web-creds"}},
 		{Namespace: "n", Kind: "ConfigMap", Name: "web-cfg"},
 		{Namespace: "n", Kind: "Secret", Name: "web-creds"},
@@ -11,7 +15,7 @@ func TestReferencedConfigMapsAndSecretsJoinTheirWorkloadsApp(t *testing.T) {
 		{Namespace: "n", Kind: "Secret", Name: "sh.helm.release.v1.web.v3"},
 	}
 	groups := map[string]string{}
-	for _, r := range GroupByWorkloadAnchor(in) {
+	for _, r := range derivation.GroupByWorkloadAnchor(in) {
 		groups[r.Kind+"/"+r.Name] = r.Group
 	}
 	if groups["ConfigMap/web-cfg"] != "web" || groups["Secret/web-creds"] != "web" {

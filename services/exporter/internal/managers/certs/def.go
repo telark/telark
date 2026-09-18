@@ -98,7 +98,6 @@ func validatePublicKeyStrength(cert *x509.Certificate) error {
 			return fmt.Errorf(string(constants.ErrCertRSAKeyTooShort), pk.N.BitLen())
 		}
 	case *ecdsa.PublicKey:
-		// Reject weak curve P-224
 		if pk.Curve == elliptic.P224() {
 			return errors.New(string(constants.ErrCertECDSATooWeak))
 		}

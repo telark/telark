@@ -62,7 +62,7 @@ func handleDelete(w http.ResponseWriter, r *http.Request, resourceType string, d
 		_, enqErr := ingressInstance.Enqueue(r.Context(), coordcleanup.EnqueueRequest{
 			ResourceType: resourceType,
 			ResourceID:   id,
-			RequestedBy:  requesterID(r),
+			RequestedBy:  r.Header.Get(constants.HeaderUserID),
 		})
 		if enqErr != nil {
 			lg.Warn(enqErr.Error())
@@ -74,10 +74,6 @@ func handleDelete(w http.ResponseWriter, r *http.Request, resourceType string, d
 			constants.IDPathParam:              id,
 			constants.CleanupFieldResourceType: resourceType,
 		}, nil)
-}
-
-func requesterID(r *http.Request) string {
-	return r.Header.Get(constants.HeaderUserID)
 }
 
 func deleteUserBusiness(id string) *response.GenericResponse {

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/redis/go-redis/v9"
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/utils/performance"
 )
@@ -13,12 +14,7 @@ import (
 func newOptimizer(t *testing.T) *performance.Optimizer {
 	t.Helper()
 	mr := miniredis.RunT(t)
-	t.Setenv("REDIS_HOST", mr.Host())
-	t.Setenv("REDIS_PORT", mr.Port())
-	o, err := performance.NewOptimizer()
-	if err != nil {
-		t.Fatalf("NewOptimizer: %v", err)
-	}
+	o := performance.NewOptimizer(redis.NewClient(&redis.Options{Addr: mr.Addr()}))
 	t.Cleanup(o.Close)
 	return o
 }

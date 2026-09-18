@@ -33,10 +33,8 @@ type Logger interface {
 	Error(msg string)
 }
 
-// Controller drives insights production. On each tick, on the leader only, it
-// reads the app CRDs discovery already maintains and hands their signals to
-// enrichment in one batch. It never waits on the model — enrichment fills the
-// cache in the background and the UI reads it on its own interval.
+// Never waits on the model: enrichment fills the cache in the background and the UI reads it
+// on its own interval.
 type Controller struct {
 	exporter   *clients.ExporterClient
 	enrichment *clients.EnrichmentClient

@@ -14,10 +14,8 @@ type (
 		UserID  string                        `json:"userId,omitempty"`
 	}
 	LoginFinishRequest struct {
-		/*
-			Note: The credential is sent in the request body in WebAuthn format
-			The go-webauthn library's FinishLogin will parse it from the raw request
-		*/
+		// The WebAuthn credential rides in the same body; FinishLogin parses it
+		// straight off the raw request, so it is not modeled here.
 		Email string `json:"email"`
 		authdata.DeviceMetadata
 	}

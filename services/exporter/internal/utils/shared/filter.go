@@ -3,6 +3,7 @@ package shared
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 
 	dataerrors "github.com/telark/data/errors"
@@ -66,10 +67,8 @@ func filterSingleItem(item *unstructured.Unstructured) (*unstructured.Unstructur
 		return nil, errors.New(string(constants.ErrSpecIsNotValidMap))
 	}
 
-	out := make(map[string]any, len(specMap)+1)
-	for k, v := range specMap {
-		out[k] = v
-	}
+	out := make(map[string]any, len(specMap)+constants.DefaultIncrementValue)
+	maps.Copy(out, specMap)
 	if meta := minimalMetadataSubset(item); meta != nil {
 		out[constants.MetadataField] = meta
 	}
@@ -83,19 +82,15 @@ func minimalMetadataSubset(item *unstructured.Unstructured) map[string]any {
 		return nil
 	}
 	out := map[string]any{}
-	if v, ok := raw[constants.ResourceVersionField]; ok {
-		out[constants.ResourceVersionField] = v
+	for _, field := range []string{constants.ResourceVersionField, constants.FieldName, constants.FieldNamespace} {
+		if v, ok := raw[field]; ok {
+			out[field] = v
+		}
 	}
-	if v, ok := raw["name"]; ok {
-		out["name"] = v
+	if len(out) == constants.DefaultInitValue {
+		return nil
 	}
-	if v, ok := raw["namespace"]; ok {
-		out["namespace"] = v
-	}
-	for range out {
-		return out
-	}
-	return nil
+	return out
 }
 
 func FilterResourceOrRespond(resource *unstructured.Unstructured) (any, bool) {

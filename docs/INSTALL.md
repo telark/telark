@@ -4,13 +4,16 @@
 
 - Kubernetes ≥ 1.30 (1.33+ recommended) — enforced by the chart's `kubeVersion`; see [Kubernetes compatibility](../README.md#kubernetes-compatibility).
 - Helm ≥ 3.
-- A default StorageClass (the exporter needs a PVC for snapshots).
+- A StorageClass for the exporter snapshot PVC. `standard` and `performance` run two exporter replicas on a shared volume, so it must be **ReadWriteMany** (`efs-sc` on EKS with the EFS CSI driver). A one-node cluster (`--set app.singleNode=true`) and `minimal` run one replica on any default class.
 
 ## 1. Install
 
 ```sh
-helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace
+helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
+  --set app.persistence.storageClass=<rwx-class>
 ```
+
+The install fails early if the class is missing in `standard`/`performance` — a ReadWriteMany claim against block storage never binds. On a one-node cluster pass `--set app.singleNode=true` instead of the class; the examples below omit both flags for brevity, keep yours on every command.
 
 One command installs everything — CRDs, NATS config, and default `standard` sizing all ship in the chart. The CRDs are cluster-scoped and kept on uninstall (`resource-policy: keep`). Managing CRDs out of band (e.g. GitOps applies them first)? Add `--set crds.enabled=false`. From a checkout, `./charts/telark` works in place of the OCI ref.
 
@@ -23,11 +26,11 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
   --set app.mode=performance
 ```
 
-| Mode | For |
-|---|---|
-| `minimal` | dev, demos, evaluation — single replica, no PDBs |
-| `standard` (default) | small–mid production — 2 replicas, disruption budgets |
-| `performance` | large clusters — 3 replicas; needs a ReadWriteMany class for the exporter (add `--set app.persistence.storageClass=<rwx-class>`) |
+| Mode | For | Capacity (measured 2026-09-17) |
+|---|---|---|
+| `minimal` | dev, demos, evaluation — single replica, no autoscaling, no PDBs | a few hundred applications |
+| `standard` (default) | small–mid production — every service starts at 1 replica and scales on CPU up to 3 (HPA); the exporter runs 2 replicas sharing a ReadWriteMany snapshot volume; add `--set vpa.enabled=true` for vertical scaling | verified at 2 000 applications |
+| `performance` | large clusters — same, HPA ceiling 5, disruption budgets keep one pod through drains; larger requests/limits and a 50 GiB volume | beyond 1 000 applications |
 
 `app.mode` sizes telark's own services only — Helm resolves a subchart's values before the mode is known, so redis, NATS, the policy engine and metrics-server ship fixed production-grade defaults owned by the chart, identical in every mode. Nothing to tune.
 
@@ -44,16 +47,55 @@ helm test telark -n telark      # readiness probe against the auth service
 
 ## Access the dashboard
 
-The dashboard (`ui` service) is **deployed by default**, served on port 8080. Reach it either way.
+The dashboard (`ui` service) is **deployed by default** behind a ClusterIP Service on port 8080 — reachable inside the cluster only. Expose it one of four ways. The chart bundles no ingress or gateway controller: like Argo CD, Grafana, Vault and Longhorn it ships ClusterIP plus the knobs, and uses whichever controller your cluster already runs.
 
-**Port-forward** (no ingress needed) — maps local `3000` to the service's `8080`:
+Passkeys are bound to the host you open the dashboard on. By default the WebAuthn relying party follows the request host, so a passkey registered on `localhost:3000` is not accepted on the NodePort or Ingress hostname — register again there. For production, pin `app.auth.passkey.id=<domain>` and `app.auth.passkey.origin=https://<domain>` so the relying party stays fixed. A passkey is always created for the host the browser is open on, so to sign in on a second host open Settings → Security → Passkeys while signed in, choose "Add on another device", and open the one-time link it shows (valid for 10 minutes) on the other host to register a passkey there.
+
+**HTTPS is required for passkeys.** Browsers only enable WebAuthn on secure origins — `https://` or `http://localhost` — so the port-forward tier works without TLS, but on a NodePort, LoadBalancer or Ingress host the dashboard shows a warning and passkey sign-in and registration stay disabled until the host serves a certificate the browser trusts. NodePort and LoadBalancer expose the plain-HTTP `ui` service, so terminate TLS in front of them; the Ingress tier can get a certificate from cert-manager (below).
+
+### Port-forward (default, dev)
+
+Maps local `3000` to the service's `8080`. Nothing to install:
 
 ```sh
 kubectl port-forward -n telark svc/telark-ui-service 3000:8080
 # open http://localhost:3000
 ```
 
-**Ingress** (off by default; needs an ingress controller in the cluster):
+### NodePort
+
+Opens the same port on every node:
+
+```sh
+helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
+  --set services.ui.serviceType=NodePort \
+  --set services.ui.nodePort=30080
+# open http://<any-node-ip>:30080
+```
+
+Leave `services.ui.nodePort` unset and Kubernetes allocates one from 30000–32767 (`kubectl get svc -n telark telark-ui-service`). Allow the port inbound in the nodes' firewall or cloud security group.
+
+### LoadBalancer
+
+Needs a cloud load balancer (EKS, GKE, AKS, …) or MetalLB on bare metal:
+
+```sh
+helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
+  --set services.ui.serviceType=LoadBalancer
+kubectl get svc -n telark telark-ui-service   # EXTERNAL-IP
+```
+
+### Ingress
+
+Needs an ingress controller. Without one, install ingress-nginx:
+
+```sh
+helm upgrade --install ingress-nginx ingress-nginx \
+  --repo https://kubernetes.github.io/ingress-nginx \
+  --namespace ingress-nginx --create-namespace
+```
+
+Then enable the chart's Ingress for your hostname:
 
 ```sh
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
@@ -72,6 +114,68 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | `ingress.tls` | `[]` | TLS blocks, e.g. `[{secretName: telark-tls, hosts: [telark.example.com]}]` |
 | `ingress.annotations` | `{}` | Controller annotations (cert-manager, etc.) |
 
+**TLS with cert-manager** — install cert-manager with its CRDs, create a Let's Encrypt `ClusterIssuer` that solves HTTP-01 challenges through the nginx class, then point the chart's Ingress at it. The DNS name must already resolve to the ingress controller's load balancer (`kubectl get svc -n ingress-nginx ingress-nginx-controller` shows its `EXTERNAL-IP`) or the challenge cannot pass. A self-signed certificate is not enough: Chrome also disables WebAuthn on pages with certificate errors, so the certificate must be one the browser trusts. Replace `admin@example.com` with the address Let's Encrypt should notify about expiring certificates.
+
+```sh
+helm upgrade --install cert-manager cert-manager \
+  --repo https://charts.jetstack.io \
+  --namespace cert-manager --create-namespace \
+  --set crds.enabled=true
+```
+
+```sh
+kubectl apply -f - <<'EOF'
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: admin@example.com
+    privateKeySecretRef:
+      name: letsencrypt
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: nginx
+EOF
+```
+
+```sh
+helm upgrade --install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
+  --set ingress.enabled=true \
+  --set ingress.className=nginx \
+  --set ingress.host=telark.example.com \
+  --set ingress.tls[0].secretName=telark-tls \
+  --set ingress.tls[0].hosts[0]=telark.example.com \
+  --set ingress.annotations."cert-manager\.io/cluster-issuer"=letsencrypt
+# open https://telark.example.com
+```
+
+**Gateway API** — instead of an Ingress, the chart can render an `HTTPRoute` (`gateway.networking.k8s.io/v1`) attached to a Gateway you already run. Requirements: Kubernetes ≥ 1.30 (the chart's floor), Gateway API v1.0+ CRDs (`HTTPRoute` v1) and a controller that implements `HTTPRoute` v1 — Envoy Gateway, NGINX Gateway Fabric, Cilium or Istio; ingress-nginx does **not** implement Gateway API. Install the CRDs (standard channel) if the cluster has none:
+
+```sh
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.2/standard-install.yaml
+```
+
+Then attach the route to your Gateway:
+
+```sh
+helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
+  --set gateway.enabled=true \
+  --set gateway.parentRefs[0].name=<gateway> \
+  --set gateway.hostnames[0]=telark.example.com
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `gateway.enabled` | `false` | Create an HTTPRoute for the dashboard |
+| `gateway.parentRefs` | `[]` | Gateways to attach to; entries take `name`, `namespace`, `sectionName` |
+| `gateway.hostnames` | `[]` | Hostnames the route matches (`[]` = any host) |
+| `gateway.service` | `ui` | Which `services.<key>` to route to |
+| `gateway.annotations` | `{}` | HTTPRoute annotations |
+
 ## Install-time flags
 
 Everything is set on the one command line with `--set key=value`. Re-pass the same flags on `helm upgrade` — Helm does not remember them across upgrades.
@@ -87,8 +191,8 @@ Everything is set on the one command line with `--set key=value`. Re-pass the sa
 | `app.image.pullPolicy` | `Always` | Image pull policy |
 | `app.image.pullSecrets` | `[]` | Image pull secrets for a private registry |
 | `app.persistence.size` | `10Gi` | Exporter snapshot PVC size |
-| `app.persistence.storageClass` | `""` | PVC class (`""` = cluster default; a ReadWriteMany class is required for `performance`) |
-| `app.persistence.accessMode` | `ReadWriteOnce` | Exporter PVC access mode |
+| `app.persistence.storageClass` | `""` | Exporter PVC class. Must be a ReadWriteMany class in `standard`/`performance` (two exporter replicas); `""` = cluster default, valid only with `app.singleNode=true` or `minimal` |
+| `app.singleNode` | `false` | One-node cluster: the exporter runs 1 replica on ReadWriteOnce, no ReadWriteMany class needed. Access mode and update strategy follow the replica count automatically |
 | `app.crdGuard.enabled` | `false` | Admission guard: only owning service accounts may write telark CRs |
 | `app.crdGuard.enforce` | `false` | With the guard on, `false` audits and `true` rejects |
 | `app.auth.bootstrap.admins[0]` | `contact@telark.io` | Emails granted Admin on first login (indexed: `[0]`, `[1]`, …) |
@@ -125,9 +229,9 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 
 ## Autoscaling (HPA)
 
-The stateless services — auth, discovery, enrichment, notifier, ui — can run behind a HorizontalPodAutoscaler (`autoscaling/v2`, CPU-based). The exporter never autoscales (it holds a ReadWriteOnce volume). HPAs need metrics-server, which ships with the chart.
+The stateless services — auth, discovery, enrichment, notifier, ui — can run behind a HorizontalPodAutoscaler (`autoscaling/v2`, CPU-based). The exporter never autoscales — its replica count is fixed by the mode (2 in `standard`/`performance`, 1 in `minimal` or with `app.singleNode=true`). HPAs need metrics-server, which ships with the chart.
 
-**`performance` mode turns autoscaling on automatically** (min 3, max 5). In any mode you can enable or tune it per service:
+**`standard` and `performance` turn autoscaling on** (start at 1, max 3 and 5); `minimal` keeps it off. In any mode you can enable, disable or tune it per service:
 
 ```sh
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
@@ -139,7 +243,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 
 | Key | Default | Description |
 |---|---|---|
-| `services.<svc>.autoscaling.enabled` | `false` | Turn the HPA on for that service (on in `performance`) |
+| `services.<svc>.autoscaling.enabled` | mode | Turn the HPA on or off for that service (on in `standard` and `performance`, off in `minimal`) |
 | `services.<svc>.autoscaling.minReplicas` | `1` | Replica floor |
 | `services.<svc>.autoscaling.maxReplicas` | `3` | Replica ceiling |
 | `services.<svc>.autoscaling.targetCPUUtilizationPercentage` | `80` | Scale-up CPU target |
@@ -176,6 +280,8 @@ helm upgrade telark oci://ghcr.io/telark/charts/telark -n telark \
 ```
 
 Re-pass the same `--set` / `-f` flags used at install: Helm does not remember them across upgrades.
+
+**From chart 0.2.1 or older, or when switching modes:** those releases run one exporter replica on a ReadWriteOnce claim, and Kubernetes cannot change a bound claim's access mode or class. Add `--set app.singleNode=true` to keep that claim (one replica, Recreate). To move to two replicas on ReadWriteMany, uninstall, delete the `telark-exporter-snapshots-pvc` claim (snapshots are lost — copy `/snapshots` off the pod first if you need them), then reinstall with `--set app.persistence.storageClass=<rwx-class>`. The same applies when switching between `minimal` and `standard`/`performance`, or toggling `app.singleNode`.
 
 telark stores the AI provider key in the Secret `<app.name>-ai-provider-key`. To encrypt that and every other Secret at rest without a cloud KMS, see [SECURITY.md](../SECURITY.md).
 

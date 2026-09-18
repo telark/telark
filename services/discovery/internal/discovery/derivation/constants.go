@@ -29,6 +29,13 @@ const (
 	signalComponent    = "component+instance"
 	signalAppLegacy    = "app"
 	signalUnidentified = "UNIDENTIFIED"
+
+	// Job runs spawned by a CronJob come and go every schedule tick; the
+	// CronJob represents them, so they are not application resources.
+	kindJob       = "Job"
+	kindCronJob   = "CronJob"
+	kindConfigMap = "ConfigMap"
+	kindSecret    = "Secret"
 )
 
 var workloadKinds = func() map[string]bool {

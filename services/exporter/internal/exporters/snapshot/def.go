@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/telark/exporter/internal/constants"
@@ -504,6 +505,7 @@ func ReadSnapshotInfos(w http.ResponseWriter) {
 			constants.FieldPercent:   infos.AvailableSpace.Percent,
 		},
 		constants.FieldTotalSnapshots: infos.TotalSnapshots,
+		constants.FieldUpdatedAt:      infos.UpdatedAt,
 		constants.FieldSnapshotsPath:  envmanager.GetSnapshotsPath(),
 		constants.FieldSnapshotScopes: registeredScopeNames(),
 		constants.FieldPVCName:        envmanager.GetSnapshotsPVCName(),
@@ -526,4 +528,37 @@ func registeredScopeNames() []string {
 		names = append(names, scope.Name)
 	}
 	return names
+}
+
+// RemoveSnapshotFiles deletes the files behind an application's snapshot
+// references and prunes the id directories they leave empty.
+func RemoveSnapshotFiles(paths []string) (removedDirs int) {
+	base := envmanager.GetSnapshotsPath()
+	for _, path := range paths {
+		id := filepath.Base(filepath.Dir(filepath.Dir(path)))
+		if !snaputil.IsWithinBase(path, base) {
+			lg.Error(fmt.Sprintf(string(constants.ErrSnapshotPathOutsideBaseContext), id, path, base))
+			continue
+		}
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			lg.Error(fmt.Sprintf(string(constants.ErrSnapshotDeleteContext), id, path, err))
+			continue
+		}
+		if os.Remove(filepath.Dir(path)) == nil {
+			removedDirs++
+		}
+		if os.Remove(filepath.Dir(filepath.Dir(path))) == nil {
+			removedDirs++
+		}
+	}
+	return removedDirs
+}
+
+func RemoveSnapshotDirs(dirs []string) (removed int) {
+	for _, dir := range dirs {
+		if os.Remove(dir) == nil {
+			removed++
+		}
+	}
+	return removed
 }

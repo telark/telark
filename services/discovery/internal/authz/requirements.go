@@ -5,9 +5,9 @@ import (
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/rest/base"
 	analyzeps "github.com/telark/rest/endpoints/analyze"
+	insightseps "github.com/telark/rest/endpoints/insights"
 	planseps "github.com/telark/rest/endpoints/plans"
 	applicationeps "github.com/telark/rest/endpoints/resources/applications"
-	insightseps "github.com/telark/rest/endpoints/insights"
 	"github.com/telark/rest/router"
 	"github.com/telark/x-ware/authz"
 )
@@ -37,17 +37,18 @@ func addAnalyze(r map[string]authz.Requirement) {
 	r[router.Key(base.Get, analyzeps.GetAllNamespaces)] = authz.Read(roledata.ScopeApplications)
 }
 
-// Rollback, sync and cleanup mutate live workloads through this service's
+// Rollback, sync and reset mutate live workloads through this service's
 // cluster-wide write access, so they are the most consequential routes here.
 func addApplications(r map[string]authz.Requirement) {
 	r[router.Key(base.Get, insightseps.Applications)] = authz.Read(roledata.ScopeApplications)
+	r[router.Key(base.Get, applicationeps.DiscoveryStatus)] = authz.Read(roledata.ScopeApplications)
 	r[router.Key(base.Post, applicationeps.TriggerRollback)] = authz.Denyable(
 		authz.Write(roledata.ScopeApplications), roledata.ActionRollbackApplication)
 	r[router.Key(base.Post, applicationeps.AbortRollback)] = authz.Denyable(
 		authz.Write(roledata.ScopeApplications), roledata.ActionRollbackApplication)
 	r[router.Key(base.Post, applicationeps.SyncApplication)] = authz.Denyable(
 		authz.Write(roledata.ScopeApplications), roledata.ActionForceApplicationSync)
-	r[router.Key(base.Delete, applicationeps.CleanupApplication)] = authz.Denyable(
+	r[router.Key(base.Post, applicationeps.ResetApplication)] = authz.Denyable(
 		authz.Own(roledata.ScopeApplications), roledata.ActionDeleteApplication)
 }
 

@@ -66,7 +66,7 @@ func TestDiffApplicationsNoChange(t *testing.T) {
 		context.Background(), noopBaseline, recordingCreate(&created), emptyManifest,
 		newRedis(t), &stored, app, nil,
 	)
-	if changed {
+	if changed != diff.OutcomeNoChange {
 		t.Fatal("identical applications reported a change")
 	}
 	if history.Generation < 2 {
@@ -74,10 +74,9 @@ func TestDiffApplicationsNoChange(t *testing.T) {
 	}
 }
 
-// A changed image drives the change-handling path. Without a populated manifest
-// cache the generation snapshot cannot be sealed, so the diff falls back to the
-// no-change history rather than sealing a new generation — the point here is that
-// the full change path executes without error.
+// A changed image drives the change-handling path. Without a pre-image the
+// generation cannot be sealed, so the diff keeps the stored history and reports
+// the change as deferred: the caller must not publish the fresh application.
 func TestDiffApplicationsWithChange(t *testing.T) {
 	created := 0
 	stored := &appresource.Application{
@@ -91,11 +90,14 @@ func TestDiffApplicationsWithChange(t *testing.T) {
 		Resources: []appresource.Resource{{Namespace: "prod", Kind: "Deployment", Name: "api"}},
 		Images:    []string{"nginx:2.0"},
 	}
-	history, _, _ := diff.DiffApplications(
+	history, _, outcome := diff.DiffApplications(
 		context.Background(), noopBaseline, recordingCreate(&created), emptyManifest,
 		newRedis(t), stored, fresh, nil,
 	)
-	if history.Generation < 3 {
-		t.Fatalf("generation regressed to %d", history.Generation)
+	if outcome != diff.OutcomeDeferred {
+		t.Fatalf("change without pre-image reported %v, want deferred", outcome)
+	}
+	if history.Generation != 3 {
+		t.Fatalf("deferred change moved generation to %d", history.Generation)
 	}
 }

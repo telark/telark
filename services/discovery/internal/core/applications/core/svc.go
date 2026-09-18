@@ -2,8 +2,10 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
@@ -20,35 +22,48 @@ import (
 	"github.com/telark/rest/response"
 )
 
-// applyHistoryFromDiff returns, per application, whether the diff authored the
+// applyHistoryFromDiff returns, per application, what the diff did with the
 // history and snapshots it produced. Callers without an informer-captured
 // pre-image echo back stored values, which must not be republished.
 func applyHistoryFromDiff(
 	ctx context.Context,
 	apps *[]application.Application,
 	opts GetApplicationsOptions,
-) []bool {
-	authored := make([]bool, len(*apps))
+) ([]diff.Outcome, []*application.Application) {
+	outcomes := make([]diff.Outcome, len(*apps))
+	storedApps := make([]*application.Application, len(*apps))
 	for i := range *apps {
 		app := &(*apps)[i]
-		h, snaps, ok := historyAndSnapshotsForApp(ctx, app, opts)
+		h, snaps, outcome, stored := historyAndSnapshotsForApp(ctx, app, opts)
 		app.History = h
 		app.Snapshots = snaps
-		authored[i] = ok
+		outcomes[i] = outcome
+		storedApps[i] = stored
 		// Nothing authored means the publish omits snapshots, leaving the prewritten files unreferenced.
-		if !ok && isPrewrittenForApp(app.Name, opts) {
+		if outcome != diff.OutcomeAuthored && isPrewrittenForApp(app.Name, opts) {
 			snapshot.DiscardSnapshots(opts.PrewrittenSnapshots, opts.DeleteSnapshot)
 		}
 		snapshot.NormalizeApplicationSnapshotTakenAt(app)
 	}
-	return authored
+	return outcomes, storedApps
+}
+
+// unchangedSinceStored is true when a publish would carry nothing the store
+// does not already hold. Every no-op update still costs the exporter a CR write;
+// at hundreds of apps per minute that queue is what starves real changes.
+func unchangedSinceStored(stored *application.Application, fresh *application.Application) bool {
+	return stored != nil &&
+		stored.Health == fresh.Health &&
+		stored.ResourceCount == fresh.ResourceCount &&
+		reflect.DeepEqual(stored.Resources, fresh.Resources) &&
+		reflect.DeepEqual(stored.Metrics, fresh.Metrics)
 }
 
 func historyAndSnapshotsForApp(
 	ctx context.Context,
 	app *application.Application,
 	opts GetApplicationsOptions,
-) (h application.ApplicationHistory, snaps []application.ApplicationSnapshot, authored bool) {
+) (h application.ApplicationHistory, snaps []application.ApplicationSnapshot, outcome diff.Outcome, stored *application.Application) {
 	defer func() {
 		if r := recover(); r != nil {
 			constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(
@@ -56,15 +71,18 @@ func historyAndSnapshotsForApp(
 			)
 			h = diff.NewApplicationHistory()
 			snaps = []application.ApplicationSnapshot{}
-			authored = false
+			outcome = diff.OutcomeNoChange
 		}
 	}()
-	var stored *application.Application
 	if opts.GetStoredApplication != nil {
-		stored = opts.GetStoredApplication(app.Name)
+		var err error
+		stored, err = opts.GetStoredApplication(app.Name)
+		if err != nil {
+			return diff.NewApplicationHistory(), []application.ApplicationSnapshot{}, diff.OutcomeNoChange, nil
+		}
 	}
 	dopts := buildDiffOpts(app, opts)
-	h, snaps, authored = diff.DiffApplications(
+	h, snaps, outcome = diff.DiffApplications(
 		ctx,
 		workload.ReadMetricsBaseline,
 		opts.CreateSnapshot,
@@ -77,7 +95,7 @@ func historyAndSnapshotsForApp(
 	if stored == nil && opts.GetSnapshotManifest != nil && len(snaps) > constants.DefaultInitValue {
 		diff.HydrateApplicationFromV1Snapshots(ctx, app, snaps, opts.GetSnapshotManifest)
 	}
-	return h, snaps, authored
+	return h, snaps, outcome, stored
 }
 
 func buildDiffOpts(app *application.Application, opts GetApplicationsOptions) *diff.DiffOptions {
@@ -88,10 +106,12 @@ func buildDiffOpts(app *application.Application, opts GetApplicationsOptions) *d
 	dopts := &diff.DiffOptions{
 		FromCoalescingFlush: opts.FromCoalescingFlush,
 		FromForceSync:       opts.FromForceSync,
+		DeleteSnapshot:      opts.DeleteSnapshot,
 	}
 	if hasPrewritten {
 		dopts.PrewrittenGeneration = opts.PrewrittenSnapshotGeneration
 		dopts.PrewrittenSnapshots = opts.PrewrittenSnapshots
+		dopts.ManifestPairs = opts.ManifestPairs
 	}
 	return dopts
 }
@@ -133,12 +153,16 @@ func GetApplications(
 		totalResources += apps[i].ResourceCount
 	}
 
-	authored := applyHistoryFromDiff(ctx, &apps, opts)
-	for i := range apps {
-		metrics.PopulateApplicationMetrics(ctx, &apps[i])
+	if !opts.DeriveOnly {
+		outcomes, storedApps := applyHistoryFromDiff(ctx, &apps, opts)
+		for i := range apps {
+			metrics.PopulateApplicationMetrics(&apps[i])
+			if outcomes[i] == diff.OutcomeNoChange && unchangedSinceStored(storedApps[i], &apps[i]) {
+				outcomes[i] = diff.OutcomeDeferred
+			}
+		}
+		PublishApplications(opts.NatsClient, apps, outcomes)
 	}
-
-	PublishApplications(opts.NatsClient, apps, authored)
 
 	return response.GenericResponse{
 		Status:    http.StatusOK,
@@ -151,8 +175,6 @@ func GetApplications(
 		},
 	}
 }
-
-
 
 func buildApplications(
 	withGroups []derivation.ResourceWithGroup,
@@ -171,7 +193,16 @@ func buildApplications(
 		resources := byApp[name]
 		var stored *application.Application
 		if opts.GetStoredApplication != nil {
-			stored = opts.GetStoredApplication(name)
+			var err error
+			stored, err = opts.GetStoredApplication(name)
+			if err != nil {
+				if errors.Is(err, ErrNotJobTarget) {
+					continue
+				}
+				constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(
+					fmt.Sprintf(string(constants.WarnHistoryStoredLookupFailed), name, err))
+				continue
+			}
 		}
 		out = append(out, buildApplication(name, resources, stored))
 	}
@@ -270,8 +301,7 @@ func buildApplication(
 	h.LastModifiedBy = agg.lastModifiedBy
 	h.LastModifiedAt = formatAppTime(agg.lastModifiedAt)
 	lv := labelsFromResources(resources)
-	primaryNS := discoveryshared.PrimaryNamespaceFromCounts(agg.nsCounts)
-	displayName := discoveryshared.BuildDisplayName(name, primaryNS)
+	displayName := discoveryshared.BuildDisplayName(name)
 	if stored != nil && stored.DisplayName != constants.EmptyString {
 		displayName = stored.DisplayName
 	}
@@ -331,3 +361,5 @@ func labelsFromResources(resources []derivation.ResourceWithGroup) labelValues {
 	return out
 }
 
+// ErrNotJobTarget marks an application a per-app job must skip silently.
+var ErrNotJobTarget = errors.New(string(constants.ErrPrewarmNotJobTarget))

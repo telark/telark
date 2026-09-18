@@ -6,11 +6,6 @@ import (
 	"github.com/telark/exporter/internal/constants"
 )
 
-type ResponseCapture struct {
-	http.ResponseWriter
-	status int
-}
-
 func NewResponseCapture(w http.ResponseWriter) *ResponseCapture {
 	return &ResponseCapture{ResponseWriter: w}
 }

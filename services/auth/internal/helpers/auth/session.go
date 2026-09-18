@@ -10,6 +10,7 @@ import (
 	"github.com/telark/auth/internal/constants"
 	"github.com/telark/auth/internal/helpers/shared"
 	authdata "github.com/telark/data/auth"
+	restshared "github.com/telark/rest/clients/shared"
 )
 
 func ValidateSession(sessionToken string) (string, error) {
@@ -21,7 +22,10 @@ func ValidateSession(sessionToken string) (string, error) {
 	session, err := client.GetSessionByToken(sessionToken)
 	if err != nil {
 		lg.Warn(fmt.Sprintf(string(constants.ErrFailedGetSession), err))
-		return constants.EmptyString, errors.New(string(constants.ErrSessionNotFound))
+		if errors.Is(err, restshared.ErrNotFound) {
+			return constants.EmptyString, errors.New(string(constants.ErrSessionNotFound))
+		}
+		return constants.EmptyString, shared.ErrBackendUnavailable
 	}
 
 	if session == nil {
@@ -72,9 +76,8 @@ func ValidateSessionAndExtractCredentialID(r *http.Request) (userID string, cred
 	return userID, credentialID, nil
 }
 
-// UpdateUserLastLogin records the login on the user resource. Phase is passed
-// in rather than re-fetched because a status patch replaces the whole field,
-// so omitting it here would silently reset the account back to active.
+// Phase is passed in rather than re-fetched: a status patch replaces the whole
+// field, so omitting it would silently reset the account back to active.
 func UpdateUserLastLogin(userID, phase string) {
 	userClient := clients.GetUserClient()
 	updateData := map[string]any{

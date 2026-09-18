@@ -80,7 +80,7 @@ func TestManagerConstructAndStop(t *testing.T) {
 	s := forcesync.NewStreamOps(xwareredis.NewStreamClient(redisClient(t)), cfg)
 	d := forcesync.NewDedup(redisClient(t), time.Minute)
 
-	_ = forcesync.NewMaintenance(cfg, s, "replica-1")
+	_ = forcesync.NewMaintenance(cfg, s)
 
 	executor := func(ctx context.Context, replicaID, appName string) error { return nil }
 	m := forcesync.NewManager(cfg, s, d, nil, executor, "replica-1")

@@ -50,17 +50,31 @@ ingress:
   annotations: {}
   tls: []                  # [{ secretName: telark-tls, hosts: [telark.example.com] }]
 
+# Gateway API alternative to the Ingress: an HTTPRoute for the dashboard attached to a
+# Gateway you already run. Needs Gateway API v1 CRDs + a controller implementing HTTPRoute.
+gateway:
+  enabled: false
+  parentRefs: []           # [{ name: <gateway>, namespace: <ns>, sectionName: <listener> }]
+  hostnames: []            # e.g. [telark.example.com] ([] = any host)
+  service: ui              # services.<key> to route to (the dashboard)
+  annotations: {}
+
 app:
   # Identity — app.name is the source of truth for every resource name.
   name: "telark"
   namespace: "telark"
 
   # Install mode: sizes every telark service (replicas, resources, rate limits,
-  # disruption budgets) from one flag. minimal = dev/demo · standard = the values
-  # below · performance = large cluster. Override: --set app.mode=performance.
+  # disruption budgets) from one flag. minimal = dev/demo, a few hundred apps ·
+  # standard = the values below, verified at 2 000 apps (2026-09-18 stress run)
+  # · performance = beyond that. Override: --set app.mode=performance.
   # Subcharts don't follow this flag (Helm resolves their values before it) — they
   # ship production-grade defaults for every mode. See the Subcharts section.
   mode: standard
+
+  # One-node cluster: the exporter runs a single replica on a ReadWriteOnce
+  # volume instead of two on ReadWriteMany (no RWX storage class needed).
+  singleNode: false
 
   # Container images. Full ref per service: <registry>/<service.repository>:<service.version>.
   image:
@@ -77,9 +91,9 @@ app:
       admins:
         - "contact@telark.io"
     passkey:
-      id: "localhost"
+      id: ""  # empty follows the request host; pin to your domain for production
       name: "Dashboard App"
-      origin: "http://localhost:3000"
+      origin: ""  # empty follows the request Origin; pin to https://<domain> for production
       selfRegistration: "true"  # gates passkey registration only; OIDC users unaffected
 
   # Optional subcharts. Their config lives in the Subcharts section below.
@@ -94,7 +108,6 @@ app:
     enabled: true
     storageClass: ""
     size: 10Gi
-    accessMode: ReadWriteOnce
 
   # Shared secret services present to each other. Empty = generated on install and
   # read back on upgrade. Set explicitly for cluster-less renders (GitOps).
@@ -113,18 +126,24 @@ app:
   serviceDefaults:
     port: 8080
     serviceType: ClusterIP
-    replicas: 2
+    replicas: 1
     terminationGracePeriodSec: 60
     nodeSelector: {}
     tolerations: []
     affinity: {}
-    # HPA defaults (autoscaling/v2). Off everywhere; performance mode enables it per
-    # stateless service (auth/discovery/enrichment/notifier/ui — never the exporter).
+    # Every service starts at one replica and scales horizontally on CPU (HPA,
+    # autoscaling/v2) — never the exporter (replicas fixed by the mode). minimal turns
+    # this off; performance raises the ceiling. Vertical scaling: see vpa below.
     autoscaling:
-      enabled: false
+      enabled: true
       minReplicas: 1
       maxReplicas: 3
       targetCPUUtilizationPercentage: 80
+    # VerticalPodAutoscaler per service, rendered only when vpa.enabled installed
+    # the operator (its CRD must exist, so it appears on the upgrade after the
+    # install). Auto resizes requests/limits in place of the shared defaults.
+    vpa:
+      updateMode: Auto
 
   # Shared pod fragments, applied per service via gates:
   # includeResources · includeHealthCheck · includeSecurity · useRedis · useNatsCreds.
@@ -149,8 +168,8 @@ app:
         failureThreshold: 3
       readinessProbe:
         path: /api/v1/status/ready
-        initialDelaySeconds: 15
-        periodSeconds: 15
+        initialDelaySeconds: 5
+        periodSeconds: 5
         timeoutSeconds: 15
         failureThreshold: 3
     podSecurityContext:
@@ -183,14 +202,15 @@ services:
     name: "exporter-service"
     repository: "exporter"
     # @ignore
-    version: 3.3.7
+    version: 4.0.1
     category: "export"
-    # One replica: snapshots sit on a ReadWriteOnce volume, so a second replica
-    # lands on another node, cannot mount it, and stays Pending. Recreate for the
-    # same reason — a rolling update would start the new pod before the old
-    # released the volume. Run it HA with app.mode=performance on a RWX class.
-    replicas: 1
-    strategy: Recreate
+    # Two replicas share the snapshot volume, so the chart derives the rest:
+    # replicas > 1 → RollingUpdate + ReadWriteMany (needs app.persistence.storageClass
+    # set to an RWX class); 1 replica (minimal, or app.singleNode=true) → Recreate +
+    # ReadWriteOnce. Never autoscaled — the volume, not CPU, bounds it.
+    replicas: 2
+    autoscaling:
+      enabled: false
     env:
       SNAPSHOTS_PATH: &snapshotsPath "/snapshots"
       SNAPSHOTS_PVC_NAME: '{{ include "telark.exporterSnapshotsPvcName" . }}'
@@ -199,6 +219,8 @@ services:
       AI_KEY_SECRET_NAMESPACE: '{{ .Values.app.namespace }}'
       EXPORTER_K8S_CLIENT_QPS: "50"
       EXPORTER_K8S_CLIENT_BURST: "100"
+      # Orphan snapshot sweep: unreferenced files older than 1h on the PVC. 0 = off.
+      SNAPSHOT_GC_INTERVAL_SEC: "3600"
     volumes:
       - name: snapshots-storage
         persistentVolumeClaim:
@@ -213,14 +235,15 @@ services:
     name: "discovery-service"
     repository: "discovery"
     # @ignore
-    version: 1.9.4
+    version: 2.0.1
     category: "sync"
-    replicas: 2
     includeSecurity: false
     useNatsCreds: true
     env:
       DISCOVERY_K8S_CLIENT_QPS: "100"
       DISCOVERY_K8S_CLIENT_BURST: "200"
+      DISCOVERY_ROLLBACK_K8S_CLIENT_QPS: "100"
+      DISCOVERY_ROLLBACK_K8S_CLIENT_BURST: "200"
       # How often the leader dispatches app signals to enrichment. Deliberately
       # slower than the UI's insights poll: production is expensive (LLM calls),
       # the read is cheap, so the UI fills in between ticks.
@@ -249,7 +272,7 @@ services:
       SNAPSHOT_WRITE_MAX_ATTEMPTS: "5"
       SNAPSHOT_WRITE_RETRY_INTERVAL_SEC: "2"
       PROTECTION_PLAN_TICK_INTERVAL_SEC: "31"
-      FORCE_SYNC_WORKERS: "4"
+      FORCE_SYNC_WORKERS: "6"
       FORCE_SYNC_STREAM_MAX_LEN: "5000"
       FORCE_SYNC_DEDUP_TTL_SEC: "600"
       FORCE_SYNC_JOB_TIMEOUT_SEC: "300"
@@ -258,19 +281,20 @@ services:
       FORCE_SYNC_ACK_RETENTION_SEC: "3600"
       REST_EXPORTER_DURATION_LOG_ENABLED: "true"
       DISCOVERY_AUTO_CLEANUP_ENABLED: "true"
-      DISCOVERY_AUTO_CLEANUP_DELETE_ENABLED: "false"
-      DISCOVERY_AUTO_CLEANUP_CYCLE_INTERVAL_SEC: "300"
-      DISCOVERY_AUTO_CLEANUP_EMPTY_CYCLES_REQUIRED: "3"
-      DISCOVERY_AUTO_CLEANUP_GRACE_PERIOD_SEC: "900"
+      DISCOVERY_AUTO_CLEANUP_DELETE_ENABLED: "true"
+      DISCOVERY_AUTO_CLEANUP_CYCLE_INTERVAL_SEC: "60"
+      DISCOVERY_AUTO_CLEANUP_EMPTY_CYCLES_REQUIRED: "2"
+      DISCOVERY_AUTO_CLEANUP_GRACE_PERIOD_SEC: "0"
       REST_EXPORTER_DURATION_LOG_DEDUP_SEC: "10"
     topologySpread:
       enabled: true
       maxSkew: 1
       topologyKey: kubernetes.io/hostname
       whenUnsatisfiable: ScheduleAnyway
+    # Disruption budgets stay off in standard: with one replica they only block
+    # node drains. performance enables them once the floor is above one.
     pdb:
-      enabled: true
-      minAvailable: 1
+      enabled: false
   enrichment:
     enabled: true
     name: "enrichment-service"
@@ -291,26 +315,27 @@ services:
       METRICS_INTERVAL_S: "60"
       WORKER_SHUTDOWN_TIMEOUT_S: "30"
     pdb:
-      enabled: true
-      minAvailable: 1
+      enabled: false
   notifier:
     enabled: true
     name: "notifier-service"
     repository: "notifier"
     # @ignore
-    version: 0.2.5
+    version: 0.3.1
     category: "notification"
     terminationGracePeriodSec: 30
     useNatsCreds: true
+    env:
+      # Concurrent apply workers; one app always maps to the same worker (ordered).
+      NOTIFIER_APPLY_WORKERS: "8"
     pdb:
-      enabled: true
-      minAvailable: 1
+      enabled: false
   auth:
     enabled: true
     name: "auth-service"
     repository: "auth"
     # @ignore
-    version: 0.3.6
+    version: 0.3.7
     category: "auth"
     terminationGracePeriodSec: 30
     env:
@@ -340,14 +365,13 @@ services:
       RECONCILE_BACKOFF_INITIAL_SECONDS: "5"
       RECONCILE_BACKOFF_MAX_SECONDS: "300"
     pdb:
-      enabled: true
-      minAvailable: 1
+      enabled: false
   ui:
     enabled: true
     name: "ui-service"
     repository: "ui"
     # @ignore
-    version: 0.1.0
+    version: 0.2.2
     category: "ui"
     terminationGracePeriodSec: 30
     # Static assets behind nginx: it serves no /api/v1/status route, so probes
@@ -355,6 +379,7 @@ services:
     includeHealthCheck: false
     includeSecurity: false
     useRedis: false
+    # nodePort: 30080         # with serviceType: NodePort (unset = allocated by Kubernetes)
 
 # ─── Subcharts ───────────────────────────────────────────────────────────────
 # Helm resolves a subchart's values before templates run, so app.mode (a
@@ -490,6 +515,12 @@ kyverno:
 # Disable for clusters that already ship it (GKE, AKS, k3s, OpenShift):
 #   kubectl get apiservice v1beta1.metrics.k8s.io
 # If present, override: --set metrics-server.enabled=false
+# Vertical Pod Autoscaler operator (recommender/updater/admission). Off by
+# default; --set vpa.enabled=true for standard/performance — subcharts cannot
+# follow app.mode. Needs metrics-server (bundled). Objects: app.serviceDefaults.vpa.
+vpa:
+  enabled: false
+
 metrics-server:
   enabled: true
   args:

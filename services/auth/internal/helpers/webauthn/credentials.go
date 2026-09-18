@@ -25,8 +25,7 @@ func ExtractBackupFlagsFromAuthenticatorData(authenticatorDataB64 string) (
 		return false, false, err
 	}
 
-	const minAuthDataLengthForFlags = constants.AuthDataOffsetFlags + 1
-	if len(authDataBytes) < minAuthDataLengthForFlags {
+	if len(authDataBytes) < constants.AuthDataMinLengthForFlags {
 		return false, false, errors.New(string(constants.ErrAuthDataTooShort))
 	}
 
@@ -221,9 +220,9 @@ func VerifyCredential(
 	passkeys []*authdata.UserPasskey,
 	r *http.Request,
 ) (*webauthn.Credential, error) {
-	wa, err := GetWebAuthn()
+	wa, err := GetWebAuthnFor(r)
 	if err != nil {
-		return nil, fmt.Errorf(string(constants.ErrFailedGetWebAuthnInstance), err)
+		return nil, err
 	}
 
 	bodyBytes, err := ReadAndRestoreRequestBody(r)

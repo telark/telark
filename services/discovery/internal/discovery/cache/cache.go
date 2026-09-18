@@ -41,7 +41,8 @@ func GetEnrichment(ctx context.Context, rdb *redis.Client, namespace, name strin
 			return nil, nil
 		}
 		constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(
-			fmt.Sprintf(MsgCacheGetFailed, key, err))
+			fmt.Sprintf(MsgCacheGetFailed, key, err),
+		)
 		return nil, err
 	}
 	insights := parseCachedEnrichment(key, raw)
@@ -55,7 +56,8 @@ func parseCachedEnrichment(key, raw string) *application.Insights {
 	var c cachedEnrichment
 	if err := json.Unmarshal([]byte(raw), &c); err != nil {
 		constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(
-			fmt.Sprintf(MsgCacheDeserializeFailed, key, err, raw))
+			fmt.Sprintf(MsgCacheDeserializeFailed, key, err, raw),
+		)
 		return nil
 	}
 	techStack := shared.CoalesceStrings(c.TechStack)
@@ -76,14 +78,14 @@ func parseCachedEnrichment(key, raw string) *application.Insights {
 		promptVersionPtr = &c.PromptVersion
 	}
 	return &application.Insights{
-		Enriched:      true,
-		EnrichedAt:    enrichedAtPtr,
-		Confidence:    ptrString(c.Confidence),
-		Summary:       ptrString(c.Summary),
-		TechStack:     techStack,
-		Role:          ptrString(c.Role),
-		Dependencies:  shared.CoalesceStrings(c.Dependencies),
-		Category:      ptrString(c.Category),
+		Enriched:           true,
+		EnrichedAt:         enrichedAtPtr,
+		Confidence:         ptrString(c.Confidence),
+		Summary:            ptrString(c.Summary),
+		TechStack:          techStack,
+		Role:               ptrString(c.Role),
+		Dependencies:       shared.CoalesceStrings(c.Dependencies),
+		Category:           ptrString(c.Category),
 		Risks:              coalesceRisks(c.Risks),
 		Suggestions:        coalesceSuggestions(c.Suggestions),
 		ResourceEfficiency: c.ResourceEfficiency,
@@ -146,7 +148,6 @@ func IsStale(insights *application.Insights, lastUpdated string) bool {
 	return false
 }
 
-// parseInsightEnrichedAt parses application.Insights.EnrichedAt (*string RFC3339 or legacy layouts).
 func parseInsightEnrichedAt(p *string) time.Time {
 	if p == nil {
 		return time.Time{}

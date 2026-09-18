@@ -7,6 +7,7 @@ import (
 	"github.com/telark/discovery/internal/constants"
 	appshared "github.com/telark/discovery/internal/core/applications/shared"
 	"github.com/telark/kcore/resources/workload"
+	k8sbatchv1 "k8s.io/api/batch/v1"
 )
 
 func ComputeHealth(app *application.Application) application.Health {
@@ -29,6 +30,11 @@ func ComputeHealth(app *application.Application) application.Health {
 			}
 			totalReady += readyMap[r.Name]
 			totalDesired += desiredMap[r.Name]
+		}
+	}
+	if totalDesired == constants.DefaultInitValue {
+		if h, ok := healthFromJobRuns(app); ok {
+			return h
 		}
 	}
 	return healthFromCounts(totalReady, totalDesired)
@@ -141,4 +147,101 @@ func fmtReplicaReason(ready, total int) string {
 		return constants.EmptyString
 	}
 	return fmt.Sprintf(msgReplicasReady, ready, total)
+}
+
+const (
+	healthReasonJobRunning   = "job run in progress"
+	healthReasonJobSucceeded = "last job run succeeded"
+	healthReasonJobFailed    = "last job run failed"
+)
+
+type jobSelectors struct {
+	cronByNS map[string]map[string]bool
+	jobByNS  map[string]map[string]bool
+}
+
+// healthFromJobRuns scores applications made of CronJobs and Jobs by their most
+// recent run: running or succeeded is healthy, failed is degraded.
+func healthFromJobRuns(app *application.Application) (application.Health, bool) {
+	sel := selectAppJobs(app)
+	if len(sel.cronByNS) == constants.DefaultInitValue && len(sel.jobByNS) == constants.DefaultInitValue {
+		return application.Health{}, false
+	}
+	latest := latestAppJob(sel)
+	if latest == nil {
+		return application.Health{}, false
+	}
+	return healthFromJob(latest), true
+}
+
+func selectAppJobs(app *application.Application) jobSelectors {
+	sel := jobSelectors{cronByNS: make(map[string]map[string]bool), jobByNS: make(map[string]map[string]bool)}
+	for _, r := range app.Resources {
+		switch r.Kind {
+		case appshared.KindCronJob:
+			addName(sel.cronByNS, r.Namespace, r.Name)
+		case appshared.KindJob:
+			addName(sel.jobByNS, r.Namespace, r.Name)
+		default:
+		}
+	}
+	return sel
+}
+
+func addName(byNS map[string]map[string]bool, ns, name string) {
+	if byNS[ns] == nil {
+		byNS[ns] = make(map[string]bool)
+	}
+	byNS[ns][name] = true
+}
+
+func latestAppJob(sel jobSelectors) *k8sbatchv1.Job {
+	namespaces := make(map[string]bool)
+	for ns := range sel.cronByNS {
+		namespaces[ns] = true
+	}
+	for ns := range sel.jobByNS {
+		namespaces[ns] = true
+	}
+	var latest *k8sbatchv1.Job
+	for ns := range namespaces {
+		jobs, err := workload.GetJobsByNamespace(ns)
+		if err != nil {
+			continue
+		}
+		for i := range jobs {
+			j := &jobs[i]
+			if !sel.jobByNS[ns][j.Name] && !ownedByAppCronJob(j, sel.cronByNS[ns]) {
+				continue
+			}
+			if latest == nil || j.CreationTimestamp.After(latest.CreationTimestamp.Time) {
+				latest = j
+			}
+		}
+	}
+	return latest
+}
+
+func healthFromJob(j *k8sbatchv1.Job) application.Health {
+	reason := healthReasonJobRunning
+	status := appshared.HealthStatusHealthy
+	switch {
+	case j.Status.Active > constants.DefaultInitValue:
+	case j.Status.Succeeded > constants.DefaultInitValue:
+		reason = healthReasonJobSucceeded
+	case j.Status.Failed > constants.DefaultInitValue:
+		reason = healthReasonJobFailed
+		status = appshared.HealthStatusDegraded
+	default:
+	}
+	return application.Health{Status: status, Reason: &reason}
+}
+
+func ownedByAppCronJob(j *k8sbatchv1.Job, cronNames map[string]bool) bool {
+	for _, o := range j.OwnerReferences {
+		if o.Kind == appshared.KindCronJob && cronNames[o.Name] {
+			return true
+		}
+	}
+	return false
 }

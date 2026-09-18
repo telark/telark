@@ -28,11 +28,8 @@ type (
 	}
 )
 
-// Run reconciles a plan against the desired state submitted by the UI. It validates inputs,
-// computes scope-target and policy diffs, then for active plans renders + deploys additions
-// before deleting removals. Order matters: deploy-then-delete keeps coverage at the
-// intersection of old and new during the brief update window so we never drop below the prior
-// posture.
+// Deploy-then-delete keeps coverage at the intersection of old and new during the update
+// window, so the plan never drops below its prior posture.
 func Run(
 	ctx context.Context,
 	deps Deps,

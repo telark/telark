@@ -74,8 +74,7 @@ func validateDeviceType(deviceType string) error {
 }
 
 func checkCredentialIDUniqueness(credentialID string, userID string) error {
-	// Check if a passkey with this credentialId already exists for this user (credentialId must be unique per user)
-	// Note: Credential IDs are stored as base64url strings (no padding). The comparison is case-sensitive
+	// Credential IDs are stored as unpadded base64url, so the comparison is case-sensitive.
 	passkeys, err := FindPasskeysByUserID(userID)
 	if err != nil {
 		return fmt.Errorf(string(constants.ErrFailedToListResources), constants.ResourceTypePasskey, err)
@@ -124,7 +123,6 @@ func ExtractPatchFields(body map[string]any) (map[string]any, error) {
 		filteredPatchData["lastUsedTimestamp"] = lastUsedTimestamp
 	}
 
-	// Check if any other fields are present (only deviceName and lastUsedTimestamp should be in the patch)
 	if len(body) > len(filteredPatchData) {
 		return nil, errors.New(string(constants.ErrPasskeyPatchOnlyAllowedFields))
 	}

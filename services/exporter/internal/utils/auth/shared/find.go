@@ -39,24 +39,6 @@ func FilterResourcesByUserID(list *unstructured.UnstructuredList, userID string)
 	return resources
 }
 
-func FindResourceByUserID(
-	resourceMetadata metadata.Metadata,
-	listFormatErr dataerrors.Error,
-	userID string,
-) (*unstructured.Unstructured, error) {
-	list, err := ListResources(resourceMetadata, listFormatErr)
-	if err != nil {
-		return nil, err
-	}
-
-	resources := FilterResourcesByUserID(list, userID)
-	if len(resources) == constants.DefaultInitValue {
-		return nil, errors.New(string(dataerrors.ErrGetRes))
-	}
-
-	return &resources[constants.DefaultInitValue], nil
-}
-
 func FindResourcesByUserID(
 	resourceMetadata metadata.Metadata,
 	listFormatErr dataerrors.Error,
@@ -79,6 +61,10 @@ func FindResourceOrRespond(
 ) (*unstructured.Unstructured, bool) {
 	resource, err := findFunc()
 	if err != nil {
+		if status := sharedutils.StatusForError(err, http.StatusNotFound); status != http.StatusNotFound {
+			sharedutils.LogByStatusAndSend(w, status, response.OperationError, string(constants.ErrResourceLookupFailed), nil, err)
+			return nil, false
+		}
 		sharedutils.LogDebugAndSend(
 			w,
 			http.StatusNotFound,

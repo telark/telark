@@ -58,15 +58,7 @@ func buildJitUser(email, username string) *userresource.UserAsResource {
 func resolveExistingByEmail(
 	userClient *userclient.Client, email string,
 ) (*userresource.UserAsResource, error) {
-	existing, fetchErr := userClient.GetUserByEmail(email)
-	if fetchErr != nil {
-		return nil, fmt.Errorf(string(constants.ErrFailedGetUser),
-			shared.IdentityHash(email), fetchErr.Error())
-	}
-	if existing == nil {
-		return nil, errors.New(string(constants.ErrUserNotFound))
-	}
-	return existing, nil
+	return GetUserWithErrorHandling(email, userClient.GetUserByEmail)
 }
 
 func repairRoleIfMissingByEmail(

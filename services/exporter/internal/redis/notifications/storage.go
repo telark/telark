@@ -23,7 +23,26 @@ const (
 	listMaxLimit = 200
 	base10       = 10
 	int64BitSize = 64
-	fieldReadAt  = "readAt"
+	scanBatch    = 100
+
+	fieldID        = "id"
+	fieldUserID    = "userId"
+	fieldType      = "type"
+	fieldTitle     = "title"
+	fieldMessage   = "message"
+	fieldSeverity  = "severity"
+	fieldMetadata  = "metadata"
+	fieldCreatedAt = "createdAt"
+	fieldReadAt    = "readAt"
+
+	// A ZSET range of 0..-1 is every member, whatever the set holds.
+	rangeStart = 0
+	rangeEnd   = -1
+
+	scoreMax          = "+inf"
+	scoreMin          = "-inf"
+	scoreExclusive    = "("
+	dedupKeyAllSuffix = "*"
 )
 
 type Storage struct {
@@ -45,9 +64,9 @@ func (s *Storage) Emit(ctx context.Context, n notiftypes.Notification) (*notifty
 	defer cancel()
 
 	targetID := metaString(n.Metadata, notiftypes.MetaKeyTargetID)
-	if targetID != "" {
+	if targetID != constants.EmptyString {
 		existingID, err := s.rdb.Get(ctx, dedupKey(n.UserID, n.Type, targetID)).Result()
-		if err == nil && existingID != "" {
+		if err == nil && existingID != constants.EmptyString {
 			updated, ok, uerr := s.tryUpdateUnread(ctx, n, existingID)
 			if uerr != nil {
 				return nil, uerr
@@ -86,11 +105,11 @@ func (s *Storage) tryUpdateUnread(
 
 	pipe := s.rdb.TxPipeline()
 	pipe.HSet(ctx, itemK, map[string]any{
-		"title":     n.Title,
-		"message":   n.Message,
-		"severity":  n.Severity,
-		"metadata":  metaJSON,
-		"createdAt": createdMs,
+		fieldTitle:     n.Title,
+		fieldMessage:   n.Message,
+		fieldSeverity:  n.Severity,
+		fieldMetadata:  metaJSON,
+		fieldCreatedAt: createdMs,
 	})
 	pipe.Expire(ctx, itemK, UnreadTTL)
 	pipe.ZAdd(ctx, itemsKey(n.UserID), redis.Z{Score: float64(createdMs), Member: id})
@@ -122,14 +141,14 @@ func (s *Storage) createNew(
 
 	pipe := s.rdb.TxPipeline()
 	pipe.HSet(ctx, itemKey(id), map[string]any{
-		"id":        id,
-		"userId":    n.UserID,
-		"type":      n.Type,
-		"title":     n.Title,
-		"message":   n.Message,
-		"severity":  n.Severity,
-		"metadata":  metaJSON,
-		"createdAt": createdMs,
+		fieldID:        id,
+		fieldUserID:    n.UserID,
+		fieldType:      n.Type,
+		fieldTitle:     n.Title,
+		fieldMessage:   n.Message,
+		fieldSeverity:  n.Severity,
+		fieldMetadata:  metaJSON,
+		fieldCreatedAt: createdMs,
 	})
 	pipe.Expire(ctx, itemKey(id), UnreadTTL)
 	pipe.ZAdd(ctx, itemsKey(n.UserID), redis.Z{Score: float64(createdMs), Member: id})
@@ -194,9 +213,9 @@ func (s *Storage) List(
 		limit = listMaxLimit
 	}
 
-	maxScore := "+inf"
+	maxScore := scoreMax
 	if cursor != constants.EmptyString {
-		maxScore = "(" + cursor
+		maxScore = scoreExclusive + cursor
 	}
 	// BYSCORE combined with REV requires Start to carry the max bound and Stop
 	// the min — reversed from the ascending case. Passing them the ascending
@@ -204,7 +223,7 @@ func (s *Storage) List(
 	ids, err := s.rdb.ZRangeArgs(ctx, redis.ZRangeArgs{
 		Key:     itemsKey(userID),
 		Start:   maxScore,
-		Stop:    "-inf",
+		Stop:    scoreMin,
 		ByScore: true,
 		Rev:     true,
 		Offset:  constants.DefaultInitValue,
@@ -252,7 +271,7 @@ func (s *Storage) MarkRead(ctx context.Context, userID, notificationID string) e
 	if err != nil {
 		return fmt.Errorf("hgetall: %w", err)
 	}
-	if len(fields) == constants.DefaultInitValue || fields["userId"] != userID {
+	if len(fields) == constants.DefaultInitValue || fields[fieldUserID] != userID {
 		return nil
 	}
 	if fields[fieldReadAt] != constants.EmptyString {
@@ -274,7 +293,7 @@ func (s *Storage) MarkAllRead(ctx context.Context, userID string) error {
 	ctx, cancel := withTimeout(ctx)
 	defer cancel()
 
-	ids, err := s.rdb.ZRange(ctx, itemsKey(userID), 0, -1).Result()
+	ids, err := s.rdb.ZRange(ctx, itemsKey(userID), rangeStart, rangeEnd).Result()
 	if err != nil {
 		return fmt.Errorf("zrange: %w", err)
 	}
@@ -299,7 +318,7 @@ func (s *Storage) Clear(ctx context.Context, userID string) error {
 	ctx, cancel := withTimeout(ctx)
 	defer cancel()
 
-	ids, err := s.rdb.ZRange(ctx, itemsKey(userID), 0, -1).Result()
+	ids, err := s.rdb.ZRange(ctx, itemsKey(userID), rangeStart, rangeEnd).Result()
 	if err != nil {
 		return fmt.Errorf("zrange: %w", err)
 	}
@@ -312,13 +331,13 @@ func (s *Storage) Clear(ctx context.Context, userID string) error {
 	if _, err := pipe.Exec(ctx); err != nil {
 		return fmt.Errorf("clear pipeline: %w", err)
 	}
-	dedupPattern := fmt.Sprintf("%suser:%s:dedup:*", keyPrefix, userID)
+	dedupPattern := fmt.Sprintf("%suser:%s:dedup:%s", keyPrefix, userID, dedupKeyAllSuffix)
 	s.deleteByPattern(ctx, dedupPattern)
 	return nil
 }
 
 func (s *Storage) deleteByPattern(ctx context.Context, pattern string) {
-	iter := s.rdb.Scan(ctx, 0, pattern, 100).Iterator()
+	iter := s.rdb.Scan(ctx, constants.DefaultInitValue, pattern, scanBatch).Iterator()
 	for iter.Next(ctx) {
 		s.rdb.Del(ctx, iter.Val())
 	}
@@ -366,17 +385,17 @@ func marshalMeta(meta map[string]any) (string, error) {
 }
 
 func hashToNotification(fields map[string]string) notiftypes.Notification {
-	createdMs, _ := strconv.ParseInt(fields["createdAt"], base10, int64BitSize)
+	createdMs, _ := strconv.ParseInt(fields[fieldCreatedAt], base10, int64BitSize)
 	n := notiftypes.Notification{
-		ID:        fields["id"],
-		UserID:    fields["userId"],
-		Type:      fields["type"],
-		Title:     fields["title"],
-		Message:   fields["message"],
-		Severity:  fields["severity"],
+		ID:        fields[fieldID],
+		UserID:    fields[fieldUserID],
+		Type:      fields[fieldType],
+		Title:     fields[fieldTitle],
+		Message:   fields[fieldMessage],
+		Severity:  fields[fieldSeverity],
 		CreatedAt: time.UnixMilli(createdMs).UTC(),
 	}
-	if metaRaw := fields["metadata"]; metaRaw != constants.EmptyString {
+	if metaRaw := fields[fieldMetadata]; metaRaw != constants.EmptyString {
 		var meta map[string]any
 		if err := json.Unmarshal([]byte(metaRaw), &meta); err == nil {
 			n.Metadata = meta

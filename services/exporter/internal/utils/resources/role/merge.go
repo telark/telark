@@ -46,23 +46,23 @@ func mergeComplexFields(mergedRole, newRole *roledata.RoleAsResource, body map[s
 	}
 	if newRole.LastUpdatedBy != nil {
 		mergedRole.LastUpdatedBy = newRole.LastUpdatedBy
-		body["lastUpdatedBy"] = *newRole.LastUpdatedBy
+		body[constants.FieldLastUpdatedBy] = *newRole.LastUpdatedBy
 	}
 }
 
 func handleValidityAutoRevoke(mergedRole *roledata.RoleAsResource, body map[string]any) {
 	if mergedRole.Validity != nil && mergedRole.Validity.Type == roledata.ValidityTypeTemporary {
-		if validityBody, ok := body["validity"].(map[string]any); ok {
-			validityBody["autoRevoke"] = mergedRole.Validity.AutoRevoke
+		if validityBody, ok := body[constants.FieldValidity].(map[string]any); ok {
+			validityBody[constants.FieldAutoRevoke] = mergedRole.Validity.AutoRevoke
 		}
 	}
 }
 
 func computePriorityAndVersion(existingRole, mergedRole *roledata.RoleAsResource, body map[string]any) {
 	ComputeAndSetPriority(mergedRole)
-	body["priority"] = mergedRole.Priority
+	body[constants.FieldPriority] = mergedRole.Priority
 
 	changeType := DetectRoleChangeType(existingRole, mergedRole)
 	ComputeAndBumpVersion(mergedRole, existingRole.Version, changeType)
-	body["version"] = mergedRole.Version
+	body[constants.FieldVersion] = mergedRole.Version
 }

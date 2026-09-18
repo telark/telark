@@ -85,9 +85,26 @@ func (m *Manager) consumeOnce(ctx context.Context, consumer string) {
 		sleepWithCtx(ctx, readBlockDuration)
 		return
 	}
+	if len(msgs) == constants.DefaultInitValue {
+		msgs = m.reclaimStale(ctx, consumer)
+	}
 	for _, msg := range msgs {
 		m.guardedProcess(msg)
 	}
+}
+
+func (m *Manager) reclaimStale(ctx context.Context, consumer string) []redis.XMessage {
+	msgs, err := m.stream.Reclaim(ctx, consumer)
+	if err != nil {
+		if ctx.Err() == nil {
+			logDedup.ErrorOnce(constants.ForceSyncLogScopeMaintReclaim, string(constants.ErrForceSyncAutoClaimFailed), err)
+		}
+		return nil
+	}
+	if len(msgs) > constants.DefaultInitValue {
+		lg.Info(fmt.Sprintf(string(constants.LogForceSyncMaintenanceClaimed), len(msgs)))
+	}
+	return msgs
 }
 
 func (m *Manager) guardedProcess(msg redis.XMessage) {

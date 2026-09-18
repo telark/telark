@@ -53,7 +53,7 @@ func CreatePasskey(w http.ResponseWriter, r *http.Request) {
 	credential, backupEligible, backupState, err := webauthnhelper.FinishRegistration(
 		userID, user.Username, user.Fullname, r)
 	if err != nil {
-		shared.SendErrorResponse(w, http.StatusUnauthorized, err)
+		shared.SendErrorResponse(w, shared.GetStatusCodeForWebAuthnError(err, http.StatusUnauthorized), err)
 		return
 	}
 
@@ -68,7 +68,6 @@ func CreatePasskey(w http.ResponseWriter, r *http.Request) {
 
 	data, err := authhelper.CreatePasskey(userID, passkey)
 	if err != nil {
-		// Check if it's a conflict error (409)
 		var conflictErr *authhelper.ConflictError
 		if errors.As(err, &conflictErr) {
 			shared.SendErrorResponse(w, http.StatusConflict, err)

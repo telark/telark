@@ -8,8 +8,8 @@ import (
 
 func ExtractRoleSpecFromRequestBody(body map[string]any) (*roledata.RoleAsResource, error) {
 	// Remove priority and version from body - these are computed server-side
-	delete(body, "priority")
-	delete(body, "version")
+	delete(body, constants.FieldPriority)
+	delete(body, constants.FieldVersion)
 
 	role, err := sharedutils.ExtractStructFromBodyIgnoringID[roledata.RoleAsResource](body)
 	if err != nil {
@@ -18,14 +18,6 @@ func ExtractRoleSpecFromRequestBody(body map[string]any) (*roledata.RoleAsResour
 
 	if role.Status == constants.EmptyString {
 		role.Status = roledata.RoleStatusActive
-	}
-
-	if role.Description == constants.EmptyString {
-		role.Description = constants.EmptyString
-	}
-
-	if role.CategoryID == constants.EmptyString {
-		role.CategoryID = constants.EmptyString
 	}
 
 	if role.Validity == nil {

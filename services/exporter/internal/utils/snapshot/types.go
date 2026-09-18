@@ -2,6 +2,8 @@ package snapshot
 
 import (
 	"errors"
+	"sync"
+	"sync/atomic"
 
 	"github.com/telark/exporter/internal/constants"
 )
@@ -9,7 +11,19 @@ import (
 var (
 	lg                = constants.GetLogger(constants.PrefixMain)
 	ErrLatestNotFound = errors.New(string(constants.ErrSnapshotNotFound))
+	storageStats      storageStatsCache
 )
+
+// walk is held for the whole volume walk so at most one runs per process; mu
+// only guards the published fields, so readers never wait on a walk.
+type storageStatsCache struct {
+	walk      sync.Mutex
+	mu        sync.Mutex
+	walks     atomic.Uint64
+	usedBytes uint64
+	count     int
+	updatedAt int64
+}
 
 type SnapshotTarget struct {
 	Path       string

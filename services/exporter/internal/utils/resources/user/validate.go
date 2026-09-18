@@ -14,10 +14,6 @@ import (
 	responseutils "github.com/telark/rest/utils/response"
 )
 
-func CheckUserExists(userID string) error {
-	return resourcesshared.CheckResourceExists(userID, metadata.UserAsResourceMetadata, constants.ErrUserNotFound)
-}
-
 func ValidateUserOrRespond(w http.ResponseWriter, userID string) bool {
 	return resourcesshared.ValidateResourceOrRespond(w, userID, metadata.UserAsResourceMetadata, constants.ErrUserNotFound)
 }
@@ -44,8 +40,8 @@ func CheckUsernameExists(username string) error {
 	return nil
 }
 
-// CheckUsernameChangeAllowed validates a username patch, skipping the uniqueness
-// check when the username is unchanged so a no-op patch never conflicts with itself.
+// The uniqueness check is skipped when the username is unchanged, so a no-op
+// patch never conflicts with itself.
 func CheckUsernameChangeAllowed(existingUsername, newUsername string, w http.ResponseWriter) bool {
 	if newUsername == existingUsername {
 		return true

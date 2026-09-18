@@ -2,8 +2,11 @@ package base
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -50,37 +53,6 @@ func TestExecuteDeleteHandler(t *testing.T) {
 			_ = base.ExecuteDeleteHandler(c.msg, df, "deleted %s", "delete %s failed: %s")
 			testutil.Equal(t, "called", called, c.wantCalled)
 			testutil.Equal(t, "name", gotName, c.wantName)
-		})
-	}
-}
-
-// ExecuteUpdateHandler must reach the patch backend only for a well-formed
-// update (parsed header, known scope, resolvable name); every malformed case is
-// acked-and-dropped without a patch so a bad message never mutates a CR.
-func TestExecuteUpdateHandler(t *testing.T) {
-	valid := &natscore.Message{ResourceName: "app1", Scope: appScope, Data: map[string]any{"replicas": 2}}
-	cases := []struct {
-		name       string
-		msg        *nats.Msg
-		status     int
-		wantCalled bool
-	}{
-		{"no parsed header", testutil.Msg(appSubject, nil), http.StatusOK, false},
-		{"malformed header", testutil.HeaderMsg(appSubject, "{bad"), http.StatusOK, false},
-		{"missing scope", testutil.Msg(appSubject, &natscore.Message{ResourceName: "app1"}), http.StatusOK, false},
-		{"unknown scope", testutil.Msg(appSubject, &natscore.Message{ResourceName: "app1", Scope: "nope", Data: map[string]any{}}), http.StatusOK, false},
-		{"backend error", testutil.Msg(appSubject, valid), http.StatusInternalServerError, true},
-		{"success", testutil.Msg(appSubject, valid), http.StatusOK, true},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			var called bool
-			pf := func(_ string, _ map[string]any) base.GenericResponse {
-				called = true
-				return testutil.Resp{Status: c.status, Message: "boom"}
-			}
-			_ = base.ExecuteUpdateHandler(c.msg, "name", base.BuildPatchBodyFromScope, pf, "patched %s", "patch %s failed: %s")
-			testutil.Equal(t, "called", called, c.wantCalled)
 		})
 	}
 }
@@ -172,7 +144,7 @@ func TestAckWithLog(t *testing.T) {
 // HandleUnknown acks and never errors — unrecognised actions must not stall the
 // consumer.
 func TestHandleUnknown(t *testing.T) {
-	s := base.NewBaseSubscriber(natscore.Applications, shared.Application, nil)
+	s := base.NewBaseSubscriber(natscore.Applications, shared.Application)
 	if err := s.HandleUnknown(testutil.Msg(appSubject, nil)); err != nil {
 		t.Fatalf("HandleUnknown = %v, want nil", err)
 	}
@@ -181,7 +153,7 @@ func TestHandleUnknown(t *testing.T) {
 // ValidateMessage skips JetStream acks, rejects empty/garbled payloads, and
 // stamps the parsed-message header for valid ones.
 func TestValidateMessage(t *testing.T) {
-	s := base.NewBaseSubscriber(natscore.Applications, shared.Application, nil)
+	s := base.NewBaseSubscriber(natscore.Applications, shared.Application)
 	valid := testutil.Data(&natscore.Message{ResourceName: "app1"})
 	cases := []struct {
 		name    string
@@ -204,7 +176,7 @@ func TestValidateMessage(t *testing.T) {
 // from the subject, and drives the handler callback with retries.
 func TestHandleMessage(t *testing.T) {
 	newSub := func(cb func(*nats.Msg, natscore.Action) error) *base.BaseSubscriber {
-		s := base.NewBaseSubscriber(natscore.Applications, shared.Application, nil)
+		s := base.NewBaseSubscriber(natscore.Applications, shared.Application)
 		s.RetryDelay = time.Millisecond
 		s.MaxRetries = 2
 		s.SetHandlerCallback(cb)
@@ -254,7 +226,7 @@ func TestHandleMessage(t *testing.T) {
 // NewBaseSubscriber wires the resource type through to GetResourceType so the
 // manager can key subscribers by the resource they own.
 func TestNewBaseSubscriber(t *testing.T) {
-	s := base.NewBaseSubscriber(natscore.Applications, shared.Application, nil)
+	s := base.NewBaseSubscriber(natscore.Applications, shared.Application)
 	testutil.Equal(t, "resource type", s.GetResourceType(), shared.Application)
 }
 
@@ -278,7 +250,7 @@ func TestSubscribeAndProcess(t *testing.T) {
 	if err := natstreams.CreateStreams(c); err != nil {
 		t.Fatalf("create streams: %v", err)
 	}
-	s := base.NewBaseSubscriber(natscore.Applications, shared.Application, nil)
+	s := base.NewBaseSubscriber(natscore.Applications, shared.Application)
 
 	processed := make(chan natscore.Action, 1)
 	s.SetHandlerCallback(func(_ *nats.Msg, a natscore.Action) error {
@@ -286,9 +258,11 @@ func TestSubscribeAndProcess(t *testing.T) {
 		return nil
 	})
 
-	if err := s.Subscribe(c); err != nil {
-		t.Fatalf("Subscribe: %v", err)
+	ctx, cancel := context.WithCancel(context.Background())
+	if err := s.SubscribeWithContext(ctx, c); err != nil {
+		t.Fatalf("SubscribeWithContext: %v", err)
 	}
+	t.Cleanup(func() { cancel(); s.Drain() })
 
 	payload := testutil.Data(&natscore.Message{
 		ResourceName: "app1",
@@ -306,4 +280,166 @@ func TestSubscribeAndProcess(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("published message was not processed")
 	}
+}
+
+// The worker pool may interleave applications but must never reorder one
+// application's messages, and Drain must return only once every fetched
+// message has gone through the handler.
+func TestWorkerPoolKeepsPerAppOrder(t *testing.T) {
+	c := testutil.NatsServer(t)
+	if err := natstreams.CreateStreams(c); err != nil {
+		t.Fatalf("create streams: %v", err)
+	}
+	s := base.NewBaseSubscriber(natscore.Applications, shared.Application)
+
+	const perApp = 20
+	apps := []string{"app-a", "app-b"}
+	var mu sync.Mutex
+	seen := map[string][]float64{}
+	s.SetHandlerCallback(func(m *nats.Msg, _ natscore.Action) error {
+		var msg natscore.Message
+		if err := json.Unmarshal(m.Data, &msg); err != nil {
+			return err
+		}
+		time.Sleep(10 * time.Millisecond) // keep the queues non-empty so Drain does the flushing
+		mu.Lock()
+		defer mu.Unlock()
+		seen[msg.ResourceName] = append(seen[msg.ResourceName], msg.Data.(float64))
+		return nil
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	if err := s.SubscribeWithContext(ctx, c); err != nil {
+		t.Fatalf("SubscribeWithContext: %v", err)
+	}
+	t.Cleanup(func() { cancel(); s.Drain() })
+
+	topic := natscore.GetTopicName(natscore.Applications, natscore.Update)
+	for i := range perApp {
+		for _, app := range apps {
+			payload := testutil.Data(&natscore.Message{ResourceName: app, Scope: appScope, Data: i})
+			if _, err := c.JetStream.Publish(topic, payload); err != nil {
+				t.Fatalf("publish: %v", err)
+			}
+		}
+	}
+
+	// Wait until JetStream has delivered everything to the fetch loop, so the
+	// remaining work sits in the worker queues when Drain runs.
+	consumer := natscore.GetConsumerName(natscore.Applications, natscore.GetQueueName(natscore.Applications, natscore.Update), topic)
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		info, err := c.JetStream.ConsumerInfo(natscore.GetStreamName(natscore.Applications), consumer)
+		if err != nil {
+			t.Fatalf("consumer info: %v", err)
+		}
+		if info.NumPending == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%d messages never delivered", info.NumPending)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	cancel()
+	s.Drain()
+
+	mu.Lock()
+	defer mu.Unlock()
+	for _, app := range apps {
+		testutil.Equal(t, app+" handled", len(seen[app]), perApp)
+		for i, seq := range seen[app] {
+			testutil.Equal(t, app+" order", seq, float64(i))
+		}
+	}
+}
+
+// jsMsg shapes a message the way a JetStream pull fetch hands it over: the ack
+// reply carries the stream sequence the worker's stale-redelivery guard reads.
+func jsMsg(app string, streamSeq uint64) *nats.Msg {
+	m := testutil.RawMsg(appSubject, testutil.Data(&natscore.Message{ResourceName: app, Scope: appScope, Data: streamSeq}))
+	m.Reply = fmt.Sprintf("$JS.ACK.stream.consumer.1.%d.%d.0.0", streamSeq, streamSeq)
+	m.Sub = &nats.Subscription{}
+	return m
+}
+
+// A1 is NAK'd on a transient failure, A2 applies while the redelivery is still
+// pending, then the redelivered A1 queues on the same worker: it must be
+// dropped, not applied as the final spec. The pool is fed directly because a
+// real JetStream only redelivers after the NAK delay or AckWait, and A1 is
+// NAK'd through NakWithLog as the resource handlers do — that clears the dedup
+// entry, so only the guard stands between the copy and the handler.
+func TestWorkerPoolDropsStaleRedelivery(t *testing.T) {
+	c := testutil.NatsServer(t)
+	if err := natstreams.CreateStreams(c); err != nil {
+		t.Fatalf("create streams: %v", err)
+	}
+	s := base.NewBaseSubscriber(natscore.Applications, shared.Application)
+
+	applied := make(chan float64, 4)
+	s.SetHandlerCallback(func(m *nats.Msg, _ natscore.Action) error {
+		var msg natscore.Message
+		if err := json.Unmarshal(m.Data, &msg); err != nil {
+			return err
+		}
+		seq := msg.Data.(float64)
+		applied <- seq
+		if seq == 1 {
+			_ = s.NakWithLog(m, m.Subject, "transient failure") // no server behind the synthetic message; only the dedup reset matters
+		}
+		return nil
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	if err := s.SubscribeWithContext(ctx, c); err != nil {
+		t.Fatalf("SubscribeWithContext: %v", err)
+	}
+	t.Cleanup(func() { cancel(); s.Drain() })
+
+	s.Dispatch(jsMsg("app-a", 1))
+	s.Dispatch(jsMsg("app-a", 2))
+	s.Dispatch(jsMsg("app-a", 1)) // the redelivered copy
+	s.Dispatch(jsMsg("app-a", 3)) // same worker, so its arrival proves the copy was already decided
+
+	var got []float64
+	for len(got) < 3 {
+		select {
+		case v := <-applied:
+			got = append(got, v)
+		case <-time.After(5 * time.Second):
+			t.Fatalf("applied %v, want [1 2 3]", got)
+		}
+	}
+	testutil.Equal(t, "applied", fmt.Sprint(got), "[1 2 3]")
+}
+
+// A durable consumer left by an older release carries the old AckWait and
+// MaxAckPending; AddConsumer refuses the mismatch, so CreateConsumer must
+// converge the existing consumer instead of failing the subscriber at boot.
+func TestCreateConsumerConvergesExistingDurable(t *testing.T) {
+	c := testutil.NatsServer(t)
+	if err := natstreams.CreateStreams(c); err != nil {
+		t.Fatalf("create streams: %v", err)
+	}
+	stream := natscore.GetStreamName(natscore.Applications)
+	topic := natscore.GetTopicName(natscore.Applications, natscore.Update)
+	queue := natscore.GetQueueName(natscore.Applications, natscore.Update)
+	consumer := natscore.GetConsumerName(natscore.Applications, queue, topic)
+
+	info, err := natstreams.CreateConsumer(c, stream, consumer, topic, queue)
+	if err != nil {
+		t.Fatalf("CreateConsumer: %v", err)
+	}
+	old := info.Config
+	old.AckWait = time.Second
+	if _, err := c.JetStream.UpdateConsumer(stream, &old); err != nil {
+		t.Fatalf("UpdateConsumer: %v", err)
+	}
+
+	info, err = natstreams.CreateConsumer(c, stream, consumer, topic, queue)
+	if err != nil {
+		t.Fatalf("CreateConsumer on existing durable: %v", err)
+	}
+	testutil.Equal(t, "ack wait", info.Config.AckWait, natstreams.StreamAckWait)
 }

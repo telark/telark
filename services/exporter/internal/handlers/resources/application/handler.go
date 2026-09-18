@@ -1,8 +1,11 @@
 package application
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"slices"
 
@@ -10,32 +13,148 @@ import (
 	metadata "github.com/telark/data/metadata/resources"
 	"github.com/telark/data/resources/application"
 	"github.com/telark/exporter/internal/constants"
+	applicationexp "github.com/telark/exporter/internal/exporters/application"
 	sharedexp "github.com/telark/exporter/internal/exporters/shared"
+	snapshotexp "github.com/telark/exporter/internal/exporters/snapshot"
 	"github.com/telark/exporter/internal/handlers/resources/shared"
 	"github.com/telark/exporter/internal/utils/performance"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/kcore/crds/api"
+	"github.com/telark/rest/base"
 	appclient "github.com/telark/rest/clients/resources/applications"
+	restconstants "github.com/telark/rest/constants"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
 func CreateApplicationResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
-	return shared.CreateResourceWithCacheInvalidation(optimizer, metadata.ApplicationAsResourceMetadata, constants.ResourceApplication, nil)
+	return shared.CreateResourceWithCacheInvalidation(optimizer, metadata.ApplicationAsResourceMetadata, constants.ResourceApplication)
 }
 
-func GetApplicationResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
-	return shared.GetResourceWithCacheInvalidation(optimizer, metadata.ApplicationAsResourceMetadata)
+func GetApplicationResourceWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {
+	return shared.GetResourceWithCacheInvalidation(metadata.ApplicationAsResourceMetadata)
 }
 
-func ListApplicationResourcesWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
-	return shared.ListResourceWithCacheInvalidation(optimizer, metadata.ApplicationAsResourceMetadata)
+func ListApplicationResourcesWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		fresh := r.Header.Get(restconstants.HeaderCacheControl) == restconstants.CacheControlNoCache
+		applicationexp.ListApplications(w, r.URL.Query().Get(constants.ViewParam), fresh)
+	}
 }
 
 func PatchApplicationResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
-	return shared.PatchResourceWithCacheInvalidation(optimizer, metadata.ApplicationAsResourceMetadata, constants.ResourceApplication, nil)
+	patch := shared.PatchResourceWithCacheInvalidation(optimizer, metadata.ApplicationAsResourceMetadata, constants.ResourceApplication)
+	return func(w http.ResponseWriter, r *http.Request) {
+		guardHistoryRegression(r)
+		patch(w, r)
+	}
+}
+
+// guardHistoryRegression drops history and snapshots from a patch that is behind
+// the stored generation: a publisher that lost sight of the CR must never reset it.
+func guardHistoryRegression(r *http.Request) {
+	patch, target, ok := readPatchTarget(r)
+	if !ok {
+		return
+	}
+	incomingHistory, ok := target[constants.FieldHistory].(map[string]any)
+	if !ok {
+		return
+	}
+	name := sharedutils.ExtractResourceNameFromRequest(r)
+	stored, err := getApplicationSpec(name)
+	if err != nil || stored == nil {
+		constants.GetLogger(constants.PrefixMain).Warn(fmt.Sprintf(
+			string(constants.WarnApplicationHistoryGuardSkipped), name, err,
+		))
+		return
+	}
+	incomingGen, regressed := historyRegressed(incomingHistory, stored.History)
+	if !regressed {
+		return
+	}
+	orphans := droppedSnapshotPaths(target, stored)
+	delete(target, constants.FieldHistory)
+	delete(target, constants.FieldSnapshots)
+	constants.GetLogger(constants.PrefixMain).Warn(fmt.Sprintf(
+		string(constants.WarnApplicationHistoryRegressionRejected), name, incomingGen, stored.History.Generation,
+	))
+	replaceRequestBody(r, patch)
+	snapshotexp.RemoveSnapshotFiles(orphans)
+}
+
+// The dropped refs will never be stored, so their files would leak; an entry the
+// stored CR already references is kept because the equal-generation branch can
+// legitimately echo stored snapshots.
+func droppedSnapshotPaths(target map[string]any, stored *application.Application) []string {
+	incoming, isList := target[constants.FieldSnapshots].([]any)
+	if !isList {
+		return nil
+	}
+	orphans := make([]string, constants.DefaultInitValue, len(incoming))
+	for _, raw := range incoming {
+		entry, isMap := raw.(map[string]any)
+		if !isMap {
+			continue
+		}
+		path, isString := entry[constants.FieldPath].(string)
+		if !isString || path == constants.EmptyString {
+			continue
+		}
+		if slices.ContainsFunc(stored.Snapshots, func(s application.ApplicationSnapshot) bool { return s.Path == path }) {
+			continue
+		}
+		orphans = append(orphans, path)
+	}
+	return orphans
+}
+
+// readPatchTarget decodes the patch body and returns the map holding the
+// application fields: the notifier wraps NATS payloads as {"spec": {...}},
+// direct callers patch fields at the top level. The body is restored for the
+// downstream handler.
+func readPatchTarget(r *http.Request) (patch, target map[string]any, ok bool) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, base.MaxRequestBodySize))
+	if err != nil {
+		return nil, nil, false
+	}
+	r.Body = io.NopCloser(bytes.NewReader(body))
+	if json.Unmarshal(body, &patch) != nil {
+		return nil, nil, false
+	}
+	target = patch
+	if spec, isSpec := patch[constants.SpecField].(map[string]any); isSpec {
+		target = spec
+	}
+	return patch, target, true
+}
+
+func historyRegressed(incoming map[string]any, stored application.ApplicationHistory) (int, bool) {
+	gen, ok := incoming[constants.FieldGeneration].(float64)
+	if !ok {
+		return constants.DefaultInitValue, false
+	}
+	var entries []any
+	if list, isList := incoming[constants.FieldChangeLog].([]any); isList {
+		entries = list
+	}
+	incomingGen := int(gen)
+	if incomingGen < stored.Generation {
+		return incomingGen, true
+	}
+	return incomingGen, incomingGen == stored.Generation && len(entries) < len(stored.ChangeLog)
+}
+
+func replaceRequestBody(r *http.Request, patch map[string]any) {
+	guarded, err := json.Marshal(patch)
+	if err != nil {
+		return
+	}
+	r.Body = io.NopCloser(bytes.NewReader(guarded))
+	r.ContentLength = int64(len(guarded))
 }
 
 func DeleteApplicationResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
@@ -43,20 +162,31 @@ func DeleteApplicationResourceWithCacheInvalidation(optimizer *performance.Optim
 		optimizer,
 		metadata.ApplicationAsResourceMetadata,
 		constants.ResourceApplication,
-		deleteApplicationAndTriggerCleanup,
+		deleteApplicationAndTriggerReset,
 	)
 }
 
-func deleteApplicationAndTriggerCleanup(
-	w http.ResponseWriter,
-	r *http.Request,
-	md basemetadata.Metadata,
-	resourceName string,
-) {
-	sharedexp.DeleteResource(w, r, md, resourceName)
+func deleteApplicationAndTriggerReset(w http.ResponseWriter, md basemetadata.Metadata, resourceName string) {
+	spec, _ := getApplicationSpec(resourceName)
+	sharedexp.DeleteResource(w, md, resourceName)
+	if spec != nil && applicationGone(resourceName) {
+		snapshotexp.RemoveSnapshotFiles(snapshotPaths(spec.Snapshots))
+	}
 	go func(appName string) {
-		_ = appclient.NewClient().CleanupApplicationByName(appName)
+		_, _ = appclient.NewClient().ResetApplicationByName(appName)
 	}(resourceName)
+}
+
+func applicationGone(name string) bool {
+	return k8serrors.IsNotFound(api.GetCustomResourceByName(name, metadata.ApplicationAsResourceMetadata).Error)
+}
+
+func snapshotPaths(snaps []application.ApplicationSnapshot) []string {
+	out := make([]string, constants.DefaultInitValue, len(snaps))
+	for i := range snaps {
+		out = append(out, snaps[i].Path)
+	}
+	return out
 }
 
 func GetRollbacks() func(http.ResponseWriter, *http.Request) {
@@ -67,7 +197,7 @@ func GetRollbacks() func(http.ResponseWriter, *http.Request) {
 		}
 		spec, err := getApplicationSpec(name)
 		if err != nil {
-			sharedutils.LogAndReturnError(w, http.StatusNotFound, "application not found", err)
+			sharedutils.LogAndReturnError(w, sharedutils.StatusForError(err, http.StatusNotFound), string(constants.ErrResourceLookupFailed), err)
 			return
 		}
 
@@ -100,7 +230,7 @@ func GetRollback() func(http.ResponseWriter, *http.Request) {
 		}
 		spec, err := getApplicationSpec(name)
 		if err != nil {
-			sharedutils.LogAndReturnError(w, http.StatusNotFound, "application not found", err)
+			sharedutils.LogAndReturnError(w, sharedutils.StatusForError(err, http.StatusNotFound), string(constants.ErrResourceLookupFailed), err)
 			return
 		}
 		for _, rb := range spec.Rollbacks {
@@ -115,8 +245,8 @@ func GetRollback() func(http.ResponseWriter, *http.Request) {
 
 func getApplicationSpec(name string) (*application.Application, error) {
 	result := api.GetCustomResourceByName(name, metadata.ApplicationAsResourceMetadata)
-	if result.Status != http.StatusOK || result.Error != nil {
-		return nil, fmt.Errorf("get crd failed: %w", result.Error)
+	if status := sharedutils.StatusForResult(result); status != http.StatusOK {
+		return nil, &sharedutils.UpstreamError{Status: status, Err: result.Error}
 	}
 	cr, ok := result.Data.(*unstructured.Unstructured)
 	if !ok {

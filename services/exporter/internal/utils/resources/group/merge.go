@@ -34,11 +34,11 @@ func MergeGroupAndPreparePatchBody(existingGroup, newGroup *groupdata.GroupAsRes
 
 	if newGroup.CreatedBy != nil {
 		mergedGroup.CreatedBy = newGroup.CreatedBy
-		body["createdBy"] = *newGroup.CreatedBy
+		body[constants.FieldCreatedBy] = *newGroup.CreatedBy
 	}
 	if newGroup.LastUpdatedBy != nil {
 		mergedGroup.LastUpdatedBy = newGroup.LastUpdatedBy
-		body["lastUpdatedBy"] = *newGroup.LastUpdatedBy
+		body[constants.FieldLastUpdatedBy] = *newGroup.LastUpdatedBy
 	}
 
 	return &mergedGroup

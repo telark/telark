@@ -54,7 +54,10 @@ func isNoiseResource(r *ResourceInput) bool {
 		r.Name == noiseResourceKubernetes {
 		return true
 	}
-	if r.Kind == "Secret" && strings.HasPrefix(r.Name, noiseResourceSecretHelmReleasePrefix) {
+	if r.Kind == kindSecret && strings.HasPrefix(r.Name, noiseResourceSecretHelmReleasePrefix) {
+		return true
+	}
+	if r.Kind == kindJob && ownedByKind(r, kindCronJob) {
 		return true
 	}
 	return false
@@ -161,25 +164,33 @@ func flattenGroups(groups map[groupKey][]ResourceInput) []ResourceWithGroup {
 	var out []ResourceWithGroup
 	for _, key := range keys {
 		for _, r := range groups[key] {
-			out = append(out, ResourceWithGroup{
-				Namespace:       r.Namespace,
-				Kind:            r.Kind,
-				Name:            r.Name,
-				Labels:          r.Labels,
-				Group:           key.appKey,
-				CreatedAt:       r.CreatedAt,
-				LastModifiedBy:  r.LastModifiedBy,
-				LastModifiedAt:  r.LastModifiedAt,
-				LastModifiedOp:  r.LastModifiedOp,
-				Images:          copyStringSlice(r.Images),
-				Ports:           copyIntSlice(r.Ports),
-				EnvVarKeys:      copyStringSlice(r.EnvVarKeys),
-				ConfigMapRefs:   copyStringSlice(r.ConfigMapRefs),
-				SecretRefs:      copyStringSlice(r.SecretRefs),
-				ServiceMappings: copyStringSlice(r.ServiceMappings),
-				IngressRules:    copyStringSlice(r.IngressRules),
-			})
+			out = append(out, withGroup(r, key.appKey))
 		}
 	}
 	return out
+}
+
+func withGroup(r ResourceInput, group string) ResourceWithGroup {
+	return ResourceWithGroup{
+		Namespace:       r.Namespace,
+		Kind:            r.Kind,
+		Name:            r.Name,
+		Labels:          r.Labels,
+		Group:           group,
+		CreatedAt:       r.CreatedAt,
+		LastModifiedBy:  r.LastModifiedBy,
+		LastModifiedAt:  r.LastModifiedAt,
+		LastModifiedOp:  r.LastModifiedOp,
+		Images:          copyStringSlice(r.Images),
+		Ports:           copyIntSlice(r.Ports),
+		EnvVarKeys:      copyStringSlice(r.EnvVarKeys),
+		ConfigMapRefs:   copyStringSlice(r.ConfigMapRefs),
+		SecretRefs:      copyStringSlice(r.SecretRefs),
+		ServiceMappings: copyStringSlice(r.ServiceMappings),
+		IngressRules:    copyStringSlice(r.IngressRules),
+	}
+}
+
+func ownedByKind(r *ResourceInput, kind string) bool {
+	return slices.ContainsFunc(r.OwnerReferences, func(o OwnerReference) bool { return o.Kind == kind })
 }

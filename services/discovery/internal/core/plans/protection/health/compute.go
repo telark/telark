@@ -3,6 +3,7 @@ package health
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/telark/data/plans"
@@ -15,8 +16,7 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
-// Compute walks the cluster's Kyverno Policies for a plan and produces a Result. Plans not in
-// the active phase are reported as unknown — health only makes sense once policies are deployed.
+// Plans not in the active phase are unknown: health only means something once policies are deployed.
 func Compute(ctx context.Context, dyn dynamic.Interface, plan *plans.ProtectionPlan) (Result, error) {
 	if plan.Phase != plans.PhaseActive {
 		return Result{Health: plans.HealthUnknown}, nil
@@ -162,16 +162,10 @@ func readReady(obj *unstructured.Unstructured) bool {
 	if err != nil || !found {
 		return false
 	}
-	for _, raw := range conditions {
+	return slices.ContainsFunc(conditions, func(raw any) bool {
 		cond, ok := raw.(map[string]any)
-		if !ok {
-			continue
-		}
-		if cond["type"] == kyvernoConditionReady && cond["status"] == kyvernoStatusTrue {
-			return true
-		}
-	}
-	return false
+		return ok && cond["type"] == kyvernoConditionReady && cond["status"] == kyvernoStatusTrue
+	})
 }
 
 func readFailureAction(obj *unstructured.Unstructured) string {

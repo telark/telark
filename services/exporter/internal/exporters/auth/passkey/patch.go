@@ -12,7 +12,6 @@ import (
 )
 
 func PatchPasskeyByCredentialID(w http.ResponseWriter, credentialID string, userID string, patchData map[string]any) {
-	// Find passkey by credentialId and verify it belongs to the user
 	resource, err := passkeyutils.FindPasskeyByCredentialIDAndUserID(credentialID, userID)
 	if err != nil {
 		sharedutils.HandleValidationError(w, err)

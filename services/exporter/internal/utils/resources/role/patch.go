@@ -36,8 +36,8 @@ func ValidatePatchRequest(existingRole *roledata.RoleAsResource, body map[string
 }
 
 func ExtractAndMergeRoleForPatch(existingRole *roledata.RoleAsResource, body map[string]any, w http.ResponseWriter) bool {
-	delete(body, "priority")
-	delete(body, "version")
+	delete(body, constants.FieldPriority)
+	delete(body, constants.FieldVersion)
 	newRole, err := ExtractRoleSpecFromRequestBody(body)
 	if err != nil {
 		responseutils.LogAndSendResponse(

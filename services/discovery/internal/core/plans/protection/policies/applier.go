@@ -18,7 +18,6 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
-// Applier is the cluster-side gateway for Kyverno Policies owned by protection plans.
 type Applier struct {
 	dyn    dynamic.Interface
 	mapper meta.RESTMapper
@@ -121,8 +120,7 @@ func (a *Applier) DeletePoliciesByLabelAndNames(ctx context.Context, planID stri
 	return nil
 }
 
-// PatchPoliciesMode JSON-merge-patches spec.validationFailureAction on every Policy with the
-// given plan-id label. Returns the first patch error so the caller can roll back.
+// Returns the first patch error so the caller can roll back.
 func (a *Applier) PatchPoliciesMode(ctx context.Context, planID, newMode string) error {
 	selector := fmt.Sprintf(labelSelectorFormat, datapolicies.LabelPlanID, planID)
 	list, err := a.dyn.Resource(KyvernoPolicyGVR).Namespace(metav1.NamespaceAll).List(ctx, metav1.ListOptions{

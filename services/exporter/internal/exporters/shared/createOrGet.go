@@ -3,7 +3,6 @@ package shared
 import (
 	"fmt"
 	"net/http"
-	"sync"
 
 	"github.com/telark/data/errors"
 	"github.com/telark/data/messages"
@@ -26,19 +25,17 @@ func CreateResource(w http.ResponseWriter, resourceMetadata metadata.Metadata, n
 }
 
 func GetOrListResource(w http.ResponseWriter, r *http.Request, resourceMetadata metadata.Metadata, action string) {
-	var mutex sync.Mutex
-
 	switch action {
 	case constants.OpGet:
-		handleGet(w, r, resourceMetadata, &mutex)
+		handleGet(w, r, resourceMetadata)
 	case constants.OpList:
-		handleLists(w, resourceMetadata, &mutex)
+		generics.GenericListCustomResources(w, resourceMetadata)
 	default:
 		handleInvalidAction(w, action)
 	}
 }
 
-func handleGet(w http.ResponseWriter, r *http.Request, resourceMetadata metadata.Metadata, _ *sync.Mutex) {
+func handleGet(w http.ResponseWriter, r *http.Request, resourceMetadata metadata.Metadata) {
 	name, err := sharedutils.GetPathParam(w, r, constants.NameParam)
 	if err != nil {
 		msg := fmt.Sprintf(string(errors.ErrRestRequiredParam), constants.NameParam)
@@ -46,11 +43,7 @@ func handleGet(w http.ResponseWriter, r *http.Request, resourceMetadata metadata
 		return
 	}
 
-	generics.GenericGetCustomResource(w, r, name, resourceMetadata)
-}
-
-func handleLists(w http.ResponseWriter, resourceMetadata metadata.Metadata, mutex *sync.Mutex) {
-	generics.GenericListCustomResources(w, resourceMetadata, mutex)
+	generics.GenericGetCustomResource(w, name, resourceMetadata)
 }
 
 func handleInvalidAction(w http.ResponseWriter, action string) {
@@ -58,7 +51,7 @@ func handleInvalidAction(w http.ResponseWriter, action string) {
 	responseutils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationError, message, nil, nil)
 }
 
-func GetUniqueResourceFromList(w http.ResponseWriter, _ *http.Request, resourceMetadata metadata.Metadata) {
+func GetUniqueResourceFromList(w http.ResponseWriter, resourceMetadata metadata.Metadata) {
 	result := api.ListCustomResources(resourceMetadata)
 
 	if result.Status != http.StatusOK || result.Error != nil {

@@ -29,15 +29,44 @@ const (
 	notFoundIndex         = -1
 )
 
-var rollbackMu sync.Map
+var localRollbackLocks sync.Map
 
-func getAppRollbackMu(name string) *sync.Mutex {
-	mu, _ := rollbackMu.LoadOrStore(name, &sync.Mutex{})
-	m, ok := mu.(*sync.Mutex)
-	if !ok {
-		return &sync.Mutex{}
+// A per-request value keeps a TTL-expired holder from releasing the next
+// owner's lock; Release only deletes when the stored value matches.
+func lockRollback(ctx context.Context, w http.ResponseWriter, name string) (func(), bool) {
+	coord, _ := getCoordinationBundle()
+	if coord == nil {
+		return lockRollbackLocal(w, name)
 	}
-	return m
+	key := constants.KeyPrefixLockRollback + name
+	value := uuid.NewString()
+	acquired, err := coord.Lock.Acquire(ctx, key, value, constants.DefaultLockTTL)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, response.OperationError,
+			string(constants.ErrRollbackCoordinationUnavailable), err)
+		return nil, false
+	}
+	if !acquired {
+		writeError(w, http.StatusConflict, response.OperationError, string(constants.ErrRollbackInFlight), nil)
+		return nil, false
+	}
+	return func() { _ = coord.Lock.Release(context.Background(), key, value) }, true
+}
+
+// Without a bundle (standalone bootstrap, or consumer-group setup failed) the
+// routes still serve, so a per-app mutex is what keeps two triggers apart.
+func lockRollbackLocal(w http.ResponseWriter, name string) (func(), bool) {
+	entry, _ := localRollbackLocks.LoadOrStore(name, &sync.Mutex{})
+	mu, ok := entry.(*sync.Mutex)
+	if !ok || !mu.TryLock() {
+		writeError(w, http.StatusConflict, response.OperationError, string(constants.ErrRollbackInFlight), nil)
+		return nil, false
+	}
+	return mu.Unlock, true
+}
+
+func rollbackActive(r applicationmodel.RollbackEntry) bool {
+	return r.Status == constants.RollbackStatusPending || r.Status == constants.RollbackStatusInProgress
 }
 
 type triggerRollbackBody struct {
@@ -56,12 +85,11 @@ func TriggerRollback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mu := getAppRollbackMu(name)
-	if !mu.TryLock() {
-		writeError(w, http.StatusConflict, response.OperationError, string(constants.ErrRollbackInFlight), nil)
+	release, ok := lockRollback(r.Context(), w, name)
+	if !ok {
 		return
 	}
-	defer mu.Unlock()
+	defer release()
 
 	body, ok := decodeTriggerRollbackBody(w, r)
 	if !ok {
@@ -69,15 +97,21 @@ func TriggerRollback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	exporterClient := clients.NewExporterClient()
-	app, getErr := exporterClient.GetApplicationByName(name)
+	app, getErr := exporterClient.GetApplicationByNameFresh(name)
 	if getErr != nil || app == nil {
 		writeError(w, http.StatusNotFound, response.OperationNotFound, string(constants.MsgApplicationNotFound), getErr)
 		return
 	}
 
-	snaps, found := findSnapshotsByGeneration(app.Snapshots, body.SnapshotGeneration)
-	if !found {
-		writeError(w, http.StatusNotFound, response.OperationNotFound, "Snapshot generation not found.", nil)
+	// The lock only covers simultaneous calls; a second trigger arriving right
+	// after the first must see the pending entry and stop, not append over it.
+	if slices.ContainsFunc(app.Rollbacks, rollbackActive) {
+		writeError(w, http.StatusConflict, response.OperationError, string(constants.ErrRollbackInFlight), nil)
+		return
+	}
+
+	snap, ok := validateRollbackTarget(w, app, body.SnapshotGeneration)
+	if !ok {
 		return
 	}
 
@@ -86,7 +120,7 @@ func TriggerRollback(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, response.OperationError, "failed to generate rollback id", genErr)
 		return
 	}
-	entry := buildRollbackEntry(rollbackID, &snaps[constants.DefaultInitValue], body.TriggeredBy)
+	entry := buildRollbackEntry(rollbackID, snap, body.TriggeredBy)
 
 	updated := slices.Clone(app.Rollbacks)
 	updated = append(updated, entry)
@@ -127,12 +161,14 @@ func AbortRollback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mu := getAppRollbackMu(name)
-	mu.Lock()
-	defer mu.Unlock()
+	release, ok := lockRollback(r.Context(), w, name)
+	if !ok {
+		return
+	}
+	defer release()
 
 	exporterClient := clients.NewExporterClient()
-	app, getErr := exporterClient.GetApplicationByName(name)
+	app, getErr := exporterClient.GetApplicationByNameFresh(name)
 	if getErr != nil || app == nil {
 		writeError(w, http.StatusNotFound, response.OperationNotFound, string(constants.MsgApplicationNotFound), getErr)
 		return
@@ -302,17 +338,27 @@ func writeError(
 	responseutils.LogAndSendResponse(w, status, op, msg, nil, err)
 }
 
-func findSnapshotsByGeneration(
-	snapshots []applicationmodel.ApplicationSnapshot,
+// Rolling back to the current generation is a no-op apply that still appends
+// history and bumps the generation with no snapshot behind it.
+func validateRollbackTarget(
+	w http.ResponseWriter,
+	app *applicationmodel.Application,
 	gen int,
-) ([]applicationmodel.ApplicationSnapshot, bool) {
-	out := make([]applicationmodel.ApplicationSnapshot, constants.DefaultInitValue)
-	for i := range snapshots {
-		if snapshots[i].Generation == gen {
-			out = append(out, snapshots[i])
-		}
+) (*applicationmodel.ApplicationSnapshot, bool) {
+	if gen >= app.History.Generation {
+		writeError(w, http.StatusBadRequest, response.OperationError,
+			fmt.Sprintf(string(constants.ErrRollbackTargetNotOlder), app.History.Generation), nil)
+		return nil, false
 	}
-	return out, len(out) > constants.DefaultInitValue
+	idx := slices.IndexFunc(app.Snapshots, func(s applicationmodel.ApplicationSnapshot) bool {
+		return s.Generation == gen
+	})
+	if idx == notFoundIndex {
+		writeError(w, http.StatusBadRequest, response.OperationError,
+			fmt.Sprintf(string(constants.ErrRollbackSnapshotMissing), gen), nil)
+		return nil, false
+	}
+	return &app.Snapshots[idx], true
 }
 
 func newRollbackID() (string, error) {

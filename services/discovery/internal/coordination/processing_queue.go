@@ -129,10 +129,8 @@ func (q *processingQueue) runTask(ctx context.Context, task *processingTask) {
 		go executeTask(ctx, task, nil)
 		return
 	}
-	// Acquire slot in a separate goroutine so the dispatch loop is never blocked
-	// waiting for a free worker slot. This ensures bypass-priority tasks (e.g.
-	// force sync) are always dequeued and run immediately regardless of how many
-	// background workers are currently occupying slots.
+	// Acquired off the dispatch loop so bypass-priority tasks still run immediately
+	// however many background workers hold slots.
 	go func() {
 		select {
 		case q.slots <- struct{}{}:

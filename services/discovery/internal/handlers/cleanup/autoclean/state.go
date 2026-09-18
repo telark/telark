@@ -10,7 +10,6 @@ import (
 	"github.com/telark/discovery/internal/constants"
 )
 
-// streakState tracks how long an application has been observed empty.
 type streakState struct {
 	Count            int   `json:"count"`
 	FirstEmptyUnixMs int64 `json:"firstEmptyUnixMs"`

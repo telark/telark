@@ -17,82 +17,36 @@ import (
 
 var ErrRoleNotFound = errors.New(string(constants.ErrRoleNotFound))
 
-func FindRoleByID(roleID string) (*unstructured.Unstructured, error) {
-	return resourcesshared.FindResourceByID(roleID, metadata.RoleAsResourceMetadata, constants.ErrRoleNotFound)
-}
-
 func FindRoleByIDOrRespond(w http.ResponseWriter, roleID string) (*unstructured.Unstructured, bool) {
 	return resourcesshared.FindResourceByIDOrRespond(w, roleID, metadata.RoleAsResourceMetadata, constants.ErrRoleNotFound)
-}
-
-func findRoleByAssignedTo(field string, id string) (*unstructured.Unstructured, error) {
-	result := api.ListCustomResources(metadata.RoleAsResourceMetadata)
-	if result.Error != nil {
-		return nil, fmt.Errorf(string(constants.ErrFailedToListRoles), result.Error)
-	}
-
-	list, ok := result.Data.(*unstructured.UnstructuredList)
-	if !ok {
-		return nil, errors.New(string(dataerrors.ErrGetRes))
-	}
-
-	for i := range list.Items {
-		item := &list.Items[i]
-		spec, ok := item.Object[constants.SpecField].(map[string]any)
-		if !ok || spec == nil {
-			continue
-		}
-
-		assignedTo, ok := spec["assignedTo"].(map[string]any)
-		if !ok || assignedTo == nil {
-			continue
-		}
-
-		ids, ok := assignedTo[field].([]any)
-		if !ok {
-			continue
-		}
-
-		for _, itemID := range ids {
-			if idStr, ok := itemID.(string); ok && idStr == id {
-				return item, nil
-			}
-		}
-	}
-
-	return nil, ErrRoleNotFound
-}
-
-func FindRoleByUserID(userID string) (*unstructured.Unstructured, error) {
-	return findRoleByAssignedTo(constants.FieldUserIDs, userID)
 }
 
 func FindRoleByUserIDOrRespond(w http.ResponseWriter, userID string) (*unstructured.Unstructured, bool) {
 	return findRoleByAssignedToOrRespond(w, constants.FieldUserIDs, userID)
 }
 
-func ListRolesByUserID(userID string) ([]*unstructured.Unstructured, error) {
-	return findAllRolesByAssignedTo(constants.FieldUserIDs, userID)
-}
-
 func ListRolesByUserIDOrRespond(w http.ResponseWriter, userID string) ([]*unstructured.Unstructured, bool) {
 	return findAllRolesByAssignedToOrRespond(w, constants.FieldUserIDs, userID)
-}
-
-func FindRoleByGroupID(groupID string) (*unstructured.Unstructured, error) {
-	return findRoleByAssignedTo(constants.FieldGroupIDs, groupID)
 }
 
 func FindRoleByGroupIDOrRespond(w http.ResponseWriter, groupID string) (*unstructured.Unstructured, bool) {
 	return findRoleByAssignedToOrRespond(w, constants.FieldGroupIDs, groupID)
 }
 
-func ListRolesByGroupID(groupID string) ([]*unstructured.Unstructured, error) {
-	return findAllRolesByAssignedTo(constants.FieldGroupIDs, groupID)
-}
-
 func ListRolesByGroupIDOrRespond(w http.ResponseWriter, groupID string) ([]*unstructured.Unstructured, bool) {
 	return findAllRolesByAssignedToOrRespond(w, constants.FieldGroupIDs, groupID)
+}
+
+func findRoleByAssignedTo(field string, id string) (*unstructured.Unstructured, error) {
+	matched, err := findAllRolesByAssignedTo(field, id)
+	if err != nil {
+		return nil, err
+	}
+	if len(matched) == constants.DefaultInitValue {
+		return nil, ErrRoleNotFound
+	}
+
+	return matched[constants.DefaultInitValue], nil
 }
 
 func findRoleByAssignedToOrRespond(w http.ResponseWriter, field, id string) (*unstructured.Unstructured, bool) {
@@ -141,7 +95,7 @@ func findAllRolesByAssignedTo(field string, id string) ([]*unstructured.Unstruct
 			continue
 		}
 
-		assignedTo, ok := spec["assignedTo"].(map[string]any)
+		assignedTo, ok := spec[constants.FieldAssignedTo].(map[string]any)
 		if !ok || assignedTo == nil {
 			continue
 		}

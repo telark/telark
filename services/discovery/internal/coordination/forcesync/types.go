@@ -52,9 +52,8 @@ type (
 		active    bool
 	}
 	Maintenance struct {
-		cfg       config.ForceSyncConfig
-		stream    *StreamOps
-		replicaID string
+		cfg    config.ForceSyncConfig
+		stream *StreamOps
 	}
 	Ingress struct {
 		stream   *StreamOps

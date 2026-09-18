@@ -12,7 +12,7 @@ import (
 )
 
 func ConvertToCRDTemplate(md metadata.Metadata, name string, spec map[string]any) *unstructured.Unstructured {
-	return buildCRDTemplate(md, map[string]any{"name": name}, spec)
+	return buildCRDTemplate(md, map[string]any{constants.FieldName: name}, spec)
 }
 
 func ConvertToCRDTemplateWithFinalizers(
@@ -21,9 +21,9 @@ func ConvertToCRDTemplateWithFinalizers(
 	spec map[string]any,
 	finalizers []string,
 ) *unstructured.Unstructured {
-	meta := map[string]any{"name": name}
+	meta := map[string]any{constants.FieldName: name}
 	if len(finalizers) > constants.DefaultInitValue {
-		meta["finalizers"] = finalizers
+		meta[constants.FieldFinalizers] = finalizers
 	}
 	return buildCRDTemplate(md, meta, spec)
 }
@@ -31,16 +31,37 @@ func ConvertToCRDTemplateWithFinalizers(
 func buildCRDTemplate(md metadata.Metadata, meta, spec map[string]any) *unstructured.Unstructured {
 	return &unstructured.Unstructured{
 		Object: map[string]any{
-			"apiVersion": md.GetAPIVersion(),
-			"kind":       md.Kind,
-			"metadata":   meta,
-			"spec":       spec,
+			constants.FieldAPIVersion: md.GetAPIVersion(),
+			constants.FieldKind:       md.Kind,
+			constants.MetadataField:   meta,
+			constants.SpecField:       spec,
 		},
 	}
 }
 
 func ConvertToUnstructuredWithoutManagedFields(spec map[string]any) *unstructured.Unstructured {
-	return &unstructured.Unstructured{Object: map[string]any{"spec": spec}}
+	return &unstructured.Unstructured{Object: map[string]any{constants.SpecField: spec}}
+}
+
+// A resource with no spec is reported as no value rather than an error: callers
+// treat it the same as a resource they did not ask to decode.
+func SpecToStruct[T any](resource *unstructured.Unstructured) (*T, error) {
+	spec, ok := resource.Object[constants.SpecField].(map[string]any)
+	if !ok || spec == nil {
+		return nil, nil
+	}
+
+	specBytes, err := json.Marshal(spec)
+	if err != nil {
+		return nil, err
+	}
+
+	var result T
+	if err := json.Unmarshal(specBytes, &result); err != nil {
+		return nil, err
+	}
+
+	return &result, nil
 }
 
 func StructToSpecMap(v any) (map[string]any, error) {

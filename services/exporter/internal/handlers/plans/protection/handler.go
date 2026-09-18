@@ -78,7 +78,9 @@ func GetPlanByID() func(http.ResponseWriter, *http.Request) {
 
 func ListPlans() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, _ *http.Request) {
-		generics.GenericListCustomResources(w, plansmd.ProtectionPlanMetadata, &listMutex)
+		listMutex.Lock()
+		defer listMutex.Unlock()
+		generics.GenericListCustomResources(w, plansmd.ProtectionPlanMetadata)
 	}
 }
 

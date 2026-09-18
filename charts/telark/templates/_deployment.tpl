@@ -11,7 +11,7 @@
 {{- $useRedis := dig "useRedis" true $serviceConfig -}}
 {{- $useNatsCreds := dig "useNatsCreds" false $serviceConfig -}}
 {{- $replicas := default $serviceDefaults.replicas $serviceConfig.replicas | default 1 -}}
-{{- $autoscaling := merge (deepCopy ($serviceConfig.autoscaling | default dict)) ($serviceDefaults.autoscaling | default dict) -}}
+{{- $autoscaling := mergeOverwrite (deepCopy ($serviceDefaults.autoscaling | default dict)) ($serviceConfig.autoscaling | default dict) -}}
 {{- $port := default $serviceDefaults.port $serviceConfig.port | default 8080 -}}
 {{- $tgps := default $serviceDefaults.terminationGracePeriodSec $serviceConfig.terminationGracePeriodSec | default 30 -}}
 {{- $strategy := default $serviceDefaults.strategy $serviceConfig.strategy -}}
@@ -39,9 +39,9 @@ spec:
   replicas: {{ $replicas }}
 {{- end }}
 {{- if $strategy }}
-  # Recreate for anything holding a ReadWriteOnce volume: the default rolling
-  # update starts the new pod first, and it cannot attach a volume the old pod
-  # still holds on another node, so the rollout stalls.
+  # Derived from the exporter replica count: RollingUpdate on a shared
+  # ReadWriteMany volume, Recreate on ReadWriteOnce (a rolling update would
+  # start the new pod before the old one released the volume).
   strategy:
     type: {{ $strategy }}
 {{- end }}
@@ -111,6 +111,10 @@ spec:
                 secretKeyRef:
                   name: {{ include "telark.fullname" $root }}-service-token-secret
                   key: token
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
 {{- range $key, $value := $serviceConfig.env }}
             - name: {{ $key }}
               value: {{ tpl (printf "%v" $value) $root | quote }}

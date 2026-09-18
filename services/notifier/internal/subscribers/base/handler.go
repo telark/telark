@@ -56,6 +56,6 @@ func SharedExecuteHandler(
 }
 
 func (*BaseSubscriber) HandleUnknown(m *nats.Msg) error {
-	_ = AckWithLog(m, m.Subject, "", false)
+	_ = AckWithLog(m, m.Subject, constants.EmptyString, false)
 	return nil
 }

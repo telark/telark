@@ -8,7 +8,6 @@ import (
 	"github.com/telark/discovery/internal/constants"
 )
 
-// implements label-intelligence-first grouping for no-selector mode.
 func GroupByWorkloadAnchor(resources []ResourceInput) []ResourceWithGroup {
 	if len(resources) == constants.DefaultInitValue {
 		return nil
@@ -53,7 +52,6 @@ func extractIdentity(resources []ResourceInput) []identityResult {
 	return results
 }
 
-// associates resources to app groups using identities.
 func buildGroups(resources []ResourceInput, identities []identityResult) map[groupKey][]ResourceInput {
 	groups := make(map[groupKey][]ResourceInput)
 	for i := range resources {
@@ -66,19 +64,17 @@ func buildGroups(resources []ResourceInput, identities []identityResult) map[gro
 	return groups
 }
 
-// tries to attach resources without direct identity.
 func attachUnidentified(
 	resources []ResourceInput,
 	identities []identityResult,
 	groups map[groupKey][]ResourceInput,
 ) map[groupKey][]ResourceInput {
-	// Build index: (namespace, kind, name) -> resource index for owner resolution
 	byKey := make(map[string]int)
 	for i := range resources {
 		k := resourceMapKey(resources[i].Namespace, resources[i].Kind, resources[i].Name)
 		byKey[k] = i
 	}
-	// Known app keys per namespace for name-contains
+	configIndex := referencedConfigIndex(groups)
 	appKeysByNS := knownAppKeysByNamespace(groups)
 
 	for i := range resources {
@@ -86,6 +82,9 @@ func attachUnidentified(
 			continue
 		}
 		r := &resources[i]
+		if tryAttachViaConfigRef(r, configIndex, groups) {
+			continue
+		}
 		attached := tryAttachViaOwnerRef(r, identities, byKey, resources, groups)
 		if attached {
 			continue
@@ -148,7 +147,6 @@ func tryAttachViaNameContains(
 	return true
 }
 
-// drops groups that do not contain workloads.
 func removeAnchorless(groups map[groupKey][]ResourceInput) map[groupKey][]ResourceInput {
 	for key, resources := range groups {
 		n := countWorkloads(resources)
@@ -157,4 +155,48 @@ func removeAnchorless(groups map[groupKey][]ResourceInput) map[groupKey][]Resour
 		}
 	}
 	return groups
+}
+
+// referencedConfigIndex maps every ConfigMap and Secret a grouped workload reads
+// to that workload's group. Groups are visited in a stable order so a config
+// shared by two applications always lands in the same one.
+func referencedConfigIndex(groups map[groupKey][]ResourceInput) map[string]groupKey {
+	keys := make([]groupKey, constants.DefaultInitValue, len(groups))
+	for key := range groups {
+		keys = append(keys, key)
+	}
+	slices.SortFunc(keys, func(a, b groupKey) int {
+		if c := strings.Compare(a.namespace, b.namespace); c != constants.DefaultInitValue {
+			return c
+		}
+		return strings.Compare(a.appKey, b.appKey)
+	})
+	idx := make(map[string]groupKey)
+	for _, key := range keys {
+		for i := range groups[key] {
+			r := &groups[key][i]
+			if !workloadKinds[r.Kind] {
+				continue
+			}
+			for _, n := range r.ConfigMapRefs {
+				idx[resourceMapKey(r.Namespace, kindConfigMap, n)] = key
+			}
+			for _, n := range r.SecretRefs {
+				idx[resourceMapKey(r.Namespace, kindSecret, n)] = key
+			}
+		}
+	}
+	return idx
+}
+
+func tryAttachViaConfigRef(r *ResourceInput, idx map[string]groupKey, groups map[groupKey][]ResourceInput) bool {
+	if r.Kind != kindConfigMap && r.Kind != kindSecret {
+		return false
+	}
+	key, ok := idx[resourceMapKey(r.Namespace, r.Kind, r.Name)]
+	if !ok {
+		return false
+	}
+	groups[key] = append(groups[key], *r)
+	return true
 }

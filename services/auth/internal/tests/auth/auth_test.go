@@ -226,7 +226,7 @@ func TestPasskeyMutationsFailClosed(t *testing.T) {
 // session and an unreachable backend they fail rather than provisioning.
 func TestGetUserForRegistrationFailClosed(t *testing.T) {
 	byBody := httptest.NewRequest("POST", "/", strings.NewReader(`{"email":"a@b.com"}`))
-	if _, _, err := authhelper.GetUserForRegistrationStart(byBody); err == nil {
+	if _, _, _, err := authhelper.GetUserForRegistrationStart(byBody); err == nil {
 		t.Fatal("GetUserForRegistrationStart should fail with no backend")
 	}
 

@@ -1,6 +1,6 @@
 {{- $values := include "telark.modeValues" $ | fromYaml -}}
 {{- range $name, $svc := $values.services }}
-{{/* exporter is stateful (ReadWriteOnce snapshot volume) and never autoscales */}}
+{{/* exporter replicas are fixed by the mode (shared snapshot volume) and never autoscale */}}
 {{- if and $svc.enabled (ne $name "exporter") }}
 ---
 {{ include "serviceHPA" (dict "service" $name "values" $values "root" $) }}

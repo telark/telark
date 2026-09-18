@@ -84,6 +84,8 @@ func TestScopelessRoutesAreGuarded(t *testing.T) {
 		"GET /api/v1/classification/categories/scope/{scope}/get": true,
 		// Narrowed field by field by GuardGlobalConfigPatch.
 		"PATCH /api/v1/resources/globalconfig/patch": true,
+		// Narrowed to the profile owner, and per privileged field, by GuardUserPatch.
+		"PATCH /api/v1/resources/users/{id}/patch": true,
 	}
 
 	for key, requirement := range authz.Requirements() {

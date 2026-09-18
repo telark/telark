@@ -14,9 +14,8 @@ import (
 
 var usernameClean = regexp.MustCompile(constants.UsernameInvalidChars)
 
-// BuildFullnameFromEmail derives a placeholder full name from an email's local
-// part (e.g. "jane.doe@example.com" -> "jane doe"), used only when no real name
-// is supplied at provisioning time.
+// Placeholder name for provisioning when the provider supplies none:
+// "jane.doe@example.com" -> "jane doe".
 func BuildFullnameFromEmail(email string) string {
 	local := strings.SplitN(email, "@", constants.EmailSplitParts)[constants.DefaultInitValue]
 	words := strings.FieldsFunc(local, func(r rune) bool {

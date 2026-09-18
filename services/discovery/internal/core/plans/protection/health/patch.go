@@ -6,9 +6,8 @@ import (
 	planseps "github.com/telark/rest/endpoints/plans"
 )
 
-// ToPatch turns a Result into the exporter PATCH shape used by the health controllers and
-// the on-demand health endpoint. Detail rows are only attached when present so we don't blow
-// away an existing detail list with an empty array on early-failure paths.
+// Detail rows are attached only when present, so an early-failure path cannot blow away an
+// existing detail list with an empty array.
 func ToPatch(result Result, now string) planseps.PatchProtectionPlanRequest {
 	health := result.Health
 	checked := now

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/telark/discovery/internal/circuitbreaker"
+	"github.com/telark/discovery/internal/clients"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/rest/response"
 )
@@ -32,7 +33,7 @@ func TestRoutineStatusesDoNotOpenCircuit(t *testing.T) {
 		resetExporter(t)
 		calls := constants.DefaultInitValue
 		for range failuresPastThreshold {
-			err := guardedStatusError(constants.ErrRestCallFailed, func() *response.GenericResponse {
+			err := clients.GuardStatusError(constants.ErrRestCallFailed, func() *response.GenericResponse {
 				calls++
 				return statusResponse(status)
 			})
@@ -54,7 +55,7 @@ func TestRoutineStatusesDoNotOpenCircuit(t *testing.T) {
 func TestServerErrorOpensCircuitAndSkipsIO(t *testing.T) {
 	resetExporter(t)
 	for range constants.CircuitBreakerRestFailureThreshold {
-		_ = guardedStatusError(constants.ErrRestCallFailed, func() *response.GenericResponse {
+		_ = clients.GuardStatusError(constants.ErrRestCallFailed, func() *response.GenericResponse {
 			return statusResponse(http.StatusInternalServerError)
 		})
 	}
@@ -63,7 +64,7 @@ func TestServerErrorOpensCircuitAndSkipsIO(t *testing.T) {
 	}
 
 	calls := constants.DefaultInitValue
-	err := guardedStatusError(constants.ErrRestCallFailed, func() *response.GenericResponse {
+	err := clients.GuardStatusError(constants.ErrRestCallFailed, func() *response.GenericResponse {
 		calls++
 		return statusResponse(http.StatusOK)
 	})
@@ -77,15 +78,15 @@ func TestServerErrorOpensCircuitAndSkipsIO(t *testing.T) {
 
 // The gate error carries no sentinel, so only its rest-pkg prefix identifies it.
 func TestConnectivityGateErrorCounts(t *testing.T) {
-	gateErr := errors.New(connectivityNotReadyPrefix + "exporter")
-	if classifyWrapped(gateErr, gateErr) == nil || circuitbreaker.NotCounted(gateErr) == nil {
+	gateErr := errors.New(clients.ConnectivityNotReadyPrefix() + "exporter")
+	if clients.ClassifyForBreaker(gateErr) == nil || circuitbreaker.NotCounted(gateErr) == nil {
 		t.Fatal("classification dropped the error")
 	}
-	if errors.Is(classifyTransport(gateErr), circuitbreaker.ErrNotCounted) {
+	if errors.Is(clients.ClassifyForBreaker(gateErr), circuitbreaker.ErrNotCounted) {
 		t.Fatal("connectivity gate failure must count towards the breaker")
 	}
 	opaque := errors.New("unexpected status: 404: nope")
-	if !errors.Is(classifyTransport(opaque), circuitbreaker.ErrNotCounted) {
+	if !errors.Is(clients.ClassifyForBreaker(opaque), circuitbreaker.ErrNotCounted) {
 		t.Fatal("an opaque non-connectivity error must not count")
 	}
 }
@@ -97,13 +98,13 @@ func TestCreateSnapshotStopsRetryingWhenOpen(t *testing.T) {
 	t.Setenv(constants.EnvSnapshotWriteRetryIntervalSec, "2")
 	resetExporter(t)
 	for range constants.CircuitBreakerRestFailureThreshold {
-		_ = guardedStatusError(constants.ErrRestCallFailed, func() *response.GenericResponse {
+		_ = clients.GuardStatusError(constants.ErrRestCallFailed, func() *response.GenericResponse {
 			return statusResponse(http.StatusInternalServerError)
 		})
 	}
 
 	start := time.Now()
-	path, err := NewSnapshotClient().CreateSnapshotAndReturnPath("id", "scope", "ns", 1, nil)
+	path, err := clients.NewSnapshotClient().CreateSnapshotAndReturnPath("id", "scope", "ns", 1, nil)
 	elapsed := time.Since(start)
 
 	if !circuitbreaker.IsOpen(err) {

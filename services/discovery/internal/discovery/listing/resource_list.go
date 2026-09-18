@@ -12,11 +12,8 @@ import (
 
 var InformersCache func(context.Context, []string) ([]kcoregroup.ResourceRef, bool)
 
-// Resources lists application-relevant resources across the given namespaces.
-// Excluded namespaces are filtered out at the boundary so both the informer-cache
-// fast path and the live-list fallback honor the exclusion list. Empty input
-// means "all namespaces" — expanded explicitly with exclusion applied so the
-// fallback can never see excluded namespaces.
+// Exclusions are applied at this boundary so both the informer-cache fast path and the
+// live-list fallback honor them; empty input means "all namespaces", expanded explicitly.
 func Resources(ctx context.Context, namespaces []string) ([]kcoregroup.ResourceRef, error) {
 	resolved, err := resolveNamespaces(ctx, namespaces)
 	if err != nil {
@@ -37,7 +34,7 @@ func resolveNamespaces(ctx context.Context, namespaces []string) ([]string, erro
 	if len(namespaces) == constants.DefaultInitValue {
 		return allNonExcludedNamespaces(ctx)
 	}
-	return filterExcludedNamespaces(ctx, namespaces), nil
+	return filterExcludedNamespaces(ctx, namespaces)
 }
 
 func allNonExcludedNamespaces(ctx context.Context) ([]string, error) {
@@ -45,7 +42,10 @@ func allNonExcludedNamespaces(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	excluded := gcfghelper.FetchExcludedNamespaces(ctx)
+	excluded, err := gcfghelper.ExcludedNamespaces(ctx)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]string, constants.DefaultInitValue, len(nsList))
 	for i := range nsList {
 		name := nsList[i].Name
@@ -60,10 +60,13 @@ func allNonExcludedNamespaces(ctx context.Context) ([]string, error) {
 	return out, nil
 }
 
-func filterExcludedNamespaces(ctx context.Context, namespaces []string) []string {
-	excluded := gcfghelper.FetchExcludedNamespaces(ctx)
+func filterExcludedNamespaces(ctx context.Context, namespaces []string) ([]string, error) {
+	excluded, err := gcfghelper.ExcludedNamespaces(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if len(excluded) == constants.DefaultInitValue {
-		return namespaces
+		return namespaces, nil
 	}
 	out := make([]string, constants.DefaultInitValue, len(namespaces))
 	for _, ns := range namespaces {
@@ -72,5 +75,5 @@ func filterExcludedNamespaces(ctx context.Context, namespaces []string) []string
 		}
 		out = append(out, ns)
 	}
-	return out
+	return out, nil
 }

@@ -155,8 +155,8 @@ func GetUserByIdentityWithCacheInvalidation() func(http.ResponseWriter, *http.Re
 	}
 }
 
-func ListUserResourcesWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
-	return shared.ListResourceWithCacheInvalidation(optimizer, metadata.UserAsResourceMetadata)
+func ListUserResourcesWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {
+	return shared.ListResourceWithCacheInvalidation(metadata.UserAsResourceMetadata)
 }
 
 func PatchUserByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
@@ -187,7 +187,6 @@ func PatchUserByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(h
 			return
 		}
 
-		// Update lastUpdateDate on patch
 		resourcesshared.AddLastUpdateDateToPatchBody(body)
 
 		specPatchData := map[string]any{

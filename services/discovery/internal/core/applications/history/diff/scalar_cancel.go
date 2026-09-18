@@ -2,6 +2,7 @@ package diff
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/telark/data/resources/application"
@@ -37,6 +38,8 @@ func filterCancelledScalarChanges(
 		c := appChanges[i]
 		if c.Field == changes.ChangeFieldReplicas && sawWorkload &&
 			preReplicas == int64(fresh.Health.TotalReplicas) {
+			constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Info(fmt.Sprintf(
+				string(constants.InfoHistoryReplicaChangeCancelled), fresh.Name, preReplicas, fresh.Health.TotalReplicas))
 			continue
 		}
 		if c.Field == changes.ChangeFieldImage && len(preImages) > constants.DefaultInitValue &&
@@ -155,4 +158,32 @@ func imageSetMatchesFresh(pre map[string]struct{}, fresh []string) bool {
 		}
 	}
 	return true
+}
+
+// seedBaselineFromPreImage diffs replicas against the state captured before the
+// change rather than the CR, which a concurrent consumer publish may already
+// have refreshed to the post-change value.
+// ponytail: replicas only; seed images/resources the same way if that race shows up.
+func seedBaselineFromPreImage(
+	ctx context.Context,
+	getManifest func(
+		ctx context.Context,
+		snapshotID string,
+		scope string,
+		namespace string,
+		generation int,
+	) ([]unstructured.Unstructured, error),
+	stored *application.Application,
+	dopts *DiffOptions,
+) *application.Application {
+	if dopts == nil || len(dopts.PrewrittenSnapshots) == constants.DefaultInitValue || getManifest == nil {
+		return stored
+	}
+	replicas, _, sawWorkload := extractWorkloadStateFromSnapshots(ctx, getManifest, dopts)
+	if !sawWorkload {
+		return stored
+	}
+	seeded := *stored
+	seeded.Health.TotalReplicas = int(replicas)
+	return &seeded
 }

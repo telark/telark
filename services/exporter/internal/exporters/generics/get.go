@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"sync"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -18,11 +17,15 @@ import (
 	responseutils "github.com/telark/rest/utils/response"
 )
 
-func GenericGetCustomResource(w http.ResponseWriter, _ *http.Request, name string, md metadata.Metadata) {
+func GenericGetCustomResource(w http.ResponseWriter, name string, md metadata.Metadata) {
 	result := api.GetCustomResourceByName(name, md)
-	if result.Status != http.StatusOK || result.Error != nil {
-		lg.Debug(fmt.Sprintf(string(constants.InfExternalDeletionResourceNotFound), name))
+	if status := sharedutils.StatusForResult(result); status != http.StatusOK {
 		errorMsg := sharedutils.GenerateResourceError(globalerrors.ErrGetRes, name, result.Error)
+		if status != http.StatusNotFound {
+			responseutils.LogAndSendResponse(w, status, response.OperationError, errorMsg, nil, result.Error)
+			return
+		}
+		lg.Debug(fmt.Sprintf(string(constants.InfExternalDeletionResourceNotFound), name))
 		sharedutils.LogDebugAndSend(
 			w,
 			http.StatusNotFound,
@@ -75,10 +78,7 @@ func sendFilteredResourceResponse(w http.ResponseWriter, resource *unstructured.
 	)
 }
 
-func GenericListCustomResources(w http.ResponseWriter, resourceMetadata metadata.Metadata, mutex *sync.Mutex) {
-	mutex.Lock()
-	defer mutex.Unlock()
-
+func GenericListCustomResources(w http.ResponseWriter, resourceMetadata metadata.Metadata) {
 	result := api.ListCustomResources(resourceMetadata)
 
 	filteredList, err := sharedutils.FilterData(result.Data)

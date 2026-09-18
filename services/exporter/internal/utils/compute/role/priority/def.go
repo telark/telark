@@ -11,7 +11,6 @@ func Calculate(role *roledata.RoleAsResource) int {
 		return constants.DefaultInitValue
 	}
 
-	// Find the maximum permission level weight
 	maxWeight := constants.DefaultInitValue
 	for _, scope := range role.ScopesAndPermissions {
 		weight := roleconstants.PermissionLevelWeights[string(scope.Level)]
@@ -20,11 +19,9 @@ func Calculate(role *roledata.RoleAsResource) int {
 		}
 	}
 
-	// Calculate base priority: (maxLevelWeight / divisor) + scopeCount
 	scopeCount := len(role.ScopesAndPermissions)
 	basePriority := int(float64(maxWeight)/roleconstants.PriorityCalculationDivisor) + scopeCount
 
-	// Built-in roles get priority boost to ensure they rank higher than custom roles
 	if role.Type == roledata.RoleTypeBuiltIn {
 		return basePriority + roleconstants.BuiltInRolePriorityBoost
 	}

@@ -7,13 +7,16 @@
 # Sizes telark's own services only — subchart sizing (redis, nats, kyverno) is
 # fixed by the chart and does not vary by mode. Capacity here says nothing about
 # security posture (app.crdGuard is independent).
+# Measured 2026-09-17: fine to a few hundred apps; at 1 000 apps discovery OOMs
+# at 256Mi and the 20 QPS exporter limit throttles bulk deletes — use standard.
 
 app:
   serviceDefaults:
     replicas: 1
+    autoscaling:
+      enabled: false
   persistence:
     size: 1Gi
-    accessMode: ReadWriteOnce
   shared:
     resources:
       requests:
@@ -26,10 +29,10 @@ app:
 services:
   exporter:
     replicas: 1
-    strategy: Recreate
     env:
       EXPORTER_K8S_CLIENT_QPS: "20"
       EXPORTER_K8S_CLIENT_BURST: "40"
+      SNAPSHOT_GC_INTERVAL_SEC: "7200"
     pdb:
       enabled: false
   discovery:
@@ -46,6 +49,8 @@ services:
     pdb:
       enabled: false
   notifier:
+    env:
+      NOTIFIER_APPLY_WORKERS: "2"
     pdb:
       enabled: false
   auth:

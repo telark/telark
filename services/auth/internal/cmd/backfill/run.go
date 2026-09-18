@@ -44,11 +44,11 @@ func Run(cfg config.BackfillConfig, lg *logger.CustomLogger) error {
 func runForType(resourceType string, cfg config.BackfillConfig, lg *logger.CustomLogger) (stats, error) {
 	ops, ok := cleanupctrl.GetResourceOps(resourceType)
 	if !ok {
-		return stats{}, fmt.Errorf("backfill: unknown resource type %q", resourceType)
+		return stats{}, fmt.Errorf(string(constants.ErrBackfillUnknownResourceType), resourceType)
 	}
 	views, err := ops.List(context.Background())
 	if err != nil {
-		return stats{}, fmt.Errorf("backfill: list %s: %w", resourceType, err)
+		return stats{}, fmt.Errorf(string(constants.ErrBackfillListFailed), resourceType, err)
 	}
 	return patchBatches(resourceType, ops, views, cfg, lg), nil
 }
@@ -90,7 +90,7 @@ func applyOne(
 			status = resp.Status
 		}
 		lg.Error(fmt.Sprintf(
-			"[backfill] add-finalizer failed: type=%s id=%s status=%d",
+			string(constants.ErrBackfillAddFinalizerFailed),
 			resourceType, id, status,
 		))
 		return

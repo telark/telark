@@ -1,7 +1,6 @@
 package authorisation
 
 import (
-	"errors"
 	"net/http"
 	"time"
 
@@ -23,8 +22,7 @@ func GetPermissions(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := resolveUserPermissions(userID)
 	if err != nil {
-		shared.HandleError(w, errors.New(string(constants.ErrInternalServerError)),
-			http.StatusInternalServerError, err.Error())
+		shared.SendErrorResponse(w, http.StatusForbidden, err)
 		return
 	}
 

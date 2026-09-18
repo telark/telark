@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Session and scope checks for enrichment-service endpoints.
 
 The Go services share a middleware for this. This service is Python, so it
@@ -7,6 +5,8 @@ cannot use it, and reimplementing grant resolution here would put the rules
 that decide what a role grants in two places. Instead it asks auth-service to
 resolve the caller, which is the same resolution every other service performs.
 """
+
+from __future__ import annotations
 
 import hmac
 

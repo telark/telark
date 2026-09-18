@@ -32,28 +32,6 @@ func FindResourceBySpecField(
 	return nil, errors.New(string(notFoundErr))
 }
 
-func ExtractFieldValuesFromList(
-	resourceMetadata metadata.Metadata,
-	listFormatErr dataerrors.Error,
-	fieldName string,
-) ([]string, error) {
-	list, err := ListResources(resourceMetadata, listFormatErr)
-	if err != nil {
-		return nil, err
-	}
-
-	values := make([]string, constants.DefaultInitValue)
-	for _, item := range list.Items {
-		if spec, exists := item.Object[constants.SpecField].(map[string]any); exists {
-			if value, ok := spec[fieldName].(string); ok && value != constants.EmptyString {
-				values = append(values, value)
-			}
-		}
-	}
-
-	return values, nil
-}
-
 func CheckFieldValueExists(
 	resourceMetadata metadata.Metadata,
 	listFormatErr dataerrors.Error,
@@ -74,26 +52,4 @@ func CheckFieldValueExists(
 	}
 
 	return false, nil
-}
-
-func ExtractFieldValueMap(
-	resourceMetadata metadata.Metadata,
-	listFormatErr dataerrors.Error,
-	fieldName string,
-) (map[string]bool, error) {
-	list, err := ListResources(resourceMetadata, listFormatErr)
-	if err != nil {
-		return nil, err
-	}
-
-	valueMap := make(map[string]bool)
-	for _, item := range list.Items {
-		if spec, exists := item.Object[constants.SpecField].(map[string]any); exists {
-			if value, ok := spec[fieldName].(string); ok && value != constants.EmptyString {
-				valueMap[value] = true
-			}
-		}
-	}
-
-	return valueMap, nil
 }

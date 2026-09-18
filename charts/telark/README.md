@@ -5,8 +5,11 @@ Helm chart for [telark](https://telark.io) — a protection gate for your Kubern
 ## Install
 
 ```sh
-helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace
+helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
+  --set app.persistence.storageClass=<rwx-class>
 ```
+
+`standard` and `performance` run two exporter replicas on a shared ReadWriteMany snapshot volume, so name a ReadWriteMany class (`efs-sc` on EKS with the EFS CSI driver); the install fails early without one. On a one-node cluster pass `--set app.singleNode=true` instead — one replica on ReadWriteOnce, any default class works (`minimal` always runs that way).
 
 Size every telark service with one flag — `minimal` | `standard` (default) | `performance`:
 
@@ -15,7 +18,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
   --set app.mode=performance
 ```
 
-`app.mode` sizes telark's own services; the subcharts (redis/nats/kyverno/metrics-server) ship fixed production-grade defaults owned by the chart, identical in every mode. Full guide: [docs/INSTALL.md](../../docs/INSTALL.md).
+`app.mode` sizes telark's own services; the subcharts (redis/nats/kyverno/metrics-server) ship fixed production-grade defaults owned by the chart, identical in every mode. Capacity, measured 2026-09-18: `minimal` handles a few hundred applications; `standard` was verified at 2 000 applications (three discovery replicas, rediscovery of a deleted 100-app namespace ≈ 3.5 min); `performance` is for clusters beyond that. Full guide: [docs/INSTALL.md](../../docs/INSTALL.md).
 
 ## Values reference
 
@@ -36,6 +39,8 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | `monitoring.serviceMonitor.path` / `interval` | `/metrics` / `30s` | Scrape path / interval |
 | `ingress.enabled` | `false` | Ingress for the dashboard (routes to `ingress.service`, default `ui`). See [docs/INSTALL.md](../../docs/INSTALL.md#access-the-dashboard) |
 | `ingress.className` / `host` / `path` / `pathType` / `tls` / `annotations` | see values | Ingress routing + TLS |
+| `gateway.enabled` | `false` | Gateway API `HTTPRoute` for the dashboard, the alternative to the Ingress (routes to `gateway.service`, default `ui`). See [docs/INSTALL.md](../../docs/INSTALL.md#access-the-dashboard) |
+| `gateway.parentRefs` / `hostnames` / `annotations` | `[]` / `[]` / `{}` | Gateways to attach to (entries take `name`, `namespace`, `sectionName`), hostnames the route matches, HTTPRoute annotations |
 
 ### `app`
 
@@ -44,15 +49,15 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | `app.name` | `telark` | Source of truth for the app identity / resource-name prefix |
 | `app.namespace` | `telark` | Install namespace; bootstrap CRs land here. Must match the release namespace (`-n`) — the subcharts follow `-n`, so a mismatch splits redis/nats away from the services |
 | `app.mode` | `standard` | Sizes every telark service (replicas, resources, rate limits, PDBs). `minimal` \| `standard` \| `performance`. Subcharts keep production-grade defaults across all modes. |
+| `app.singleNode` | `false` | One-node cluster: the exporter runs 1 replica on ReadWriteOnce instead of 2 on ReadWriteMany, so no RWX class is needed. Update strategy and PVC access mode are derived from the exporter replica count, never set by hand |
 | `app.image.registry` | _(namespace)_ | Docker Hub namespace (account/org) hosting the per-service repos |
 | `app.image.pullPolicy` | `Always` | Image pull policy for every service container |
 | `app.image.pullSecrets` | `[]` | Pull secrets (public images need none; set for a private registry) |
 | `app.kyverno.enabled` | `true` | Install kyverno subchart |
 | `app.ollama.enabled` | `false` | Install ollama subchart |
 | `app.persistence.enabled` | `true` | Provision exporter snapshot PVC |
-| `app.persistence.storageClass` | `""` | `""` = cluster default; `"-"` = disable dynamic provisioning; `"<name>"` = explicit class |
+| `app.persistence.storageClass` | `""` | `"<name>"` = explicit class; `"-"` = disable dynamic provisioning; `""` = cluster default. In `standard`/`performance` (two exporter replicas) the render fails when this is `""` unless `app.singleNode=true`; name a ReadWriteMany class, or with `"-"` pre-provision a ReadWriteMany PV yourself |
 | `app.persistence.size` | `10Gi` | PVC size (`minimal` mode lowers it to `1Gi`) |
-| `app.persistence.accessMode` | `ReadWriteOnce` | PVC access mode |
 
 #### `app.auth.bootstrap`
 
@@ -77,9 +82,9 @@ WebAuthn relying-party identity + passkey-flow policy. **`selfRegistration` gate
 
 | Key | Default | Description |
 |---|---|---|
-| `app.auth.passkey.id` | `"localhost"` | Relying Party identifier (eTLD+1 of the origin). Injected as `RP_ID`. |
+| `app.auth.passkey.id` | `""` | Relying Party identifier. Empty follows the request host (`X-Forwarded-Host`, else `Host`, port stripped), so passkeys work on whichever hostname you open the dashboard on. Pin to your domain in production. Injected as `RP_ID`. |
 | `app.auth.passkey.name` | `"Dashboard App"` | Display name shown by the authenticator (Touch ID prompt, etc.). Injected as `RP_NAME`. |
-| `app.auth.passkey.origin` | `"http://localhost:3000"` | Origin accepted by the server for WebAuthn assertions. Browser enforces strictly. Injected as `RP_ORIGIN`. |
+| `app.auth.passkey.origin` | `""` | Origin(s) accepted for WebAuthn ceremonies, comma-separated. Empty follows the request `Origin` header, whose host must be the relying party or one of its subdomains. Pin to `https://<domain>` in production. Injected as `RP_ORIGIN`. |
 | `app.auth.passkey.selfRegistration` | `"true"` | `"false"` blocks new passkey registration. Requires at least one `app.auth.bootstrap.admins` entry when disabled. Injected as `SELF_REGISTRATION_ENABLED`. |
 
 ### `app.serviceDefaults`
@@ -90,9 +95,9 @@ Fallbacks for any `services.<svc>.*` key omitted.
 |---|---|---|
 | `app.serviceDefaults.port` | `8080` | Container + Service port |
 | `app.serviceDefaults.serviceType` | `ClusterIP` | K8s Service type |
-| `app.serviceDefaults.replicas` | `2` | Deployment replicas (driven by `app.mode`: `minimal`=1, `performance`=3) |
+| `app.serviceDefaults.replicas` | `1` | Starting replicas; the HPA scales from here in `standard`/`performance` (`minimal` stays fixed at 1) |
 | `app.serviceDefaults.terminationGracePeriodSec` | `60` | Pod termination grace period |
-| `app.serviceDefaults.autoscaling.enabled` | `false` | Fleet-wide HPA default (`performance` mode turns it on). See [docs/INSTALL.md](../../docs/INSTALL.md#autoscaling-hpa) |
+| `app.serviceDefaults.autoscaling.enabled` | `true` | Fleet-wide HPA (1 → 3 replicas on CPU; `performance` 1 → 5; `minimal` off; never the exporter). Vertical scaling: `vpa.enabled=true` installs the operator and `app.serviceDefaults.vpa.updateMode` (`Auto`) drives a VPA per service. See [docs/INSTALL.md](../../docs/INSTALL.md#autoscaling-hpa) |
 | `app.serviceDefaults.autoscaling.minReplicas` / `maxReplicas` | `1` / `3` | HPA replica floor / ceiling |
 | `app.serviceDefaults.autoscaling.targetCPUUtilizationPercentage` | `80` | HPA scale-up CPU target |
 
@@ -121,7 +126,7 @@ Pod-level config selectively applied via per-service gates.
 | `port` | `http` | Named port for probe targets |
 | `livenessProbe.path` | `/api/v1/status/live` | Liveness HTTP path |
 | `readinessProbe.path` | `/api/v1/status/ready` | Readiness HTTP path |
-| `*.initialDelaySeconds` / `periodSeconds` / `timeoutSeconds` | `15` | Probe timings |
+| `*.initialDelaySeconds` / `periodSeconds` / `timeoutSeconds` | liveness `15`; readiness `5` / `5` / `15` | Probe timings — readiness only checks the pod's own Redis link, so it turns Ready seconds after start and rollouts do not wait on other services |
 | `*.failureThreshold` | `3` | Consecutive failures before unhealthy |
 
 **`app.shared.podSecurityContext`** / **`app.shared.containerSecurityContext`** — pod- and container-level securityContext, applied when a service has `includeSecurity: true` (default). Set `enabled: false` on either to omit it.
@@ -159,6 +164,7 @@ Per-service block. Gates default to `true` unless noted.
 | `replicas` | `app.serviceDefaults.replicas` | Override |
 | `port` | `app.serviceDefaults.port` | Override |
 | `serviceType` | `app.serviceDefaults.serviceType` | Override |
+| `nodePort` | unset | Fixed port when `serviceType: NodePort` (used on `ui`, the dashboard; unset = allocated by Kubernetes). See [docs/INSTALL.md](../../docs/INSTALL.md#access-the-dashboard) |
 | `terminationGracePeriodSec` | `app.serviceDefaults.terminationGracePeriodSec` | Override |
 | `includeResources` | `true` | Apply `app.shared.resources` |
 | `includeHealthCheck` | `true` | Apply `app.shared.healthCheck` |
@@ -172,7 +178,7 @@ Per-service block. Gates default to `true` unless noted.
 | `envFromSecret` | `{}` | `valueFrom: secretKeyRef` map (secret `<app.name>-<name>-secret`) |
 | `volumes` / `volumeMounts` | `[]` | Pod volumes + mounts |
 | `pdb.enabled` | varies | PodDisruptionBudget |
-| `autoscaling.enabled` | `false` | Per-service HPA (auth/discovery/enrichment/notifier/ui; never exporter). Inherits `app.serviceDefaults.autoscaling.*`; on in `performance` |
+| `autoscaling.enabled` | mode | Per-service HPA (auth/discovery/enrichment/notifier/ui; never exporter). Inherits `app.serviceDefaults.autoscaling.*`; on in `standard` and `performance`, off in `minimal` |
 | `topologySpread.*` | unset | TopologySpreadConstraints |
 
 #### Service identities
@@ -197,6 +203,7 @@ Per-service block. Gates default to `true` unless noted.
 | `AI_KEY_SECRET_NAMESPACE` | `{{ .Values.app.namespace }}` (tpl) | Namespace of that secret |
 | `EXPORTER_K8S_CLIENT_QPS` | `50` | K8s client QPS; sized for CRD-write fanout (10× client-go default) |
 | `EXPORTER_K8S_CLIENT_BURST` | `100` | K8s client burst |
+| `SNAPSHOT_GC_INTERVAL_SEC` | `3600` | Sweep the snapshot PVC for files no Application CR references and older than 1 h (`minimal` 7200, `performance` 900; `0` = off). One replica sweeps per interval |
 
 `services.exporter.envFromConfigMap.CA_BUNDLE` → configmap `telark-ca-bundle`, key `ca.crt` (trusted CA bundle).
 
@@ -208,6 +215,8 @@ K8s client + informers:
 |---|---|---|
 | `DISCOVERY_K8S_CLIENT_QPS` | `100` | K8s client QPS; above 50/100 default to absorb snapshot LIST fanout on busy clusters |
 | `DISCOVERY_K8S_CLIENT_BURST` | `200` | K8s client burst |
+| `DISCOVERY_ROLLBACK_K8S_CLIENT_QPS` | `100` | Rollback controller's own K8s client QPS (its own bucket, sized like the shared one), so informer/prewarm traffic never queues a rollback's apply calls |
+| `DISCOVERY_ROLLBACK_K8S_CLIENT_BURST` | `200` | Rollback controller's own K8s client burst |
 | `DISCOVERY_INFORMER_RESYNC_SEC` | `600` | Base informer resync interval |
 | `DISCOVERY_ROLLBACK_INFORMER_RESYNC_SEC` | `600` | Rollback informer resync interval |
 | `DISCOVERY_INFORMER_RESYNC_JITTER_FRACTION` | `0.2` | ±jitter applied per replica to spread resyncs and avoid LIST stampedes |
@@ -252,7 +261,7 @@ Force-sync queue:
 
 | Variable | Default | Description |
 |---|---|---|
-| `FORCE_SYNC_WORKERS` | `4` | Concurrent force-sync worker count |
+| `FORCE_SYNC_WORKERS` | `6` | Concurrent force-sync worker count on the leader (`minimal` 2, `performance` 12) |
 | `FORCE_SYNC_STREAM_MAX_LEN` | `5000` | Redis stream length cap |
 | `FORCE_SYNC_DEDUP_TTL_SEC` | `600` | Dedup key TTL |
 | `FORCE_SYNC_JOB_TIMEOUT_SEC` | `300` | Per-job deadline |
@@ -265,10 +274,10 @@ Auto-cleanup of empty application CRDs:
 | Variable | Default | Description |
 |---|---|---|
 | `DISCOVERY_AUTO_CLEANUP_ENABLED` | `"true"` | Master switch. `false` = detector goroutine never runs (zero overhead). |
-| `DISCOVERY_AUTO_CLEANUP_DELETE_ENABLED` | `"false"` | Action gate. `false` = dry-run (logs intent only). `true` = destructive cleanup (Redis purge, snapshot dir removal, CRD delete). |
-| `DISCOVERY_AUTO_CLEANUP_CYCLE_INTERVAL_SEC` | `300` | Detector wake interval |
-| `DISCOVERY_AUTO_CLEANUP_EMPTY_CYCLES_REQUIRED` | `3` | Consecutive empty cycles before a CRD becomes cleanup-eligible |
-| `DISCOVERY_AUTO_CLEANUP_GRACE_PERIOD_SEC` | `900` | Wall-clock floor from first-empty observation to eligibility |
+| `DISCOVERY_AUTO_CLEANUP_DELETE_ENABLED` | `"true"` | Action gate. `false` = dry-run (logs intent only). `true` = destructive cleanup (Redis purge, snapshot dir removal, CRD delete). |
+| `DISCOVERY_AUTO_CLEANUP_CYCLE_INTERVAL_SEC` | `60` | Detector wake interval; each cycle lists every application once (`performance` 120) |
+| `DISCOVERY_AUTO_CLEANUP_EMPTY_CYCLES_REQUIRED` | `2` | Consecutive empty cycles before a CRD becomes cleanup-eligible |
+| `DISCOVERY_AUTO_CLEANUP_GRACE_PERIOD_SEC` | `0` | Wall-clock floor from first-empty observation to eligibility; `0` = none |
 
 Misc:
 
@@ -295,7 +304,11 @@ The AI **provider** and **API key** are not env vars: an admin sets them at runt
 
 #### `services.notifier.env`
 
-No service-specific env. Inherits `app.shared.redis` and `app.shared.natsEnvFromSecret`.
+| Variable | Default | Description |
+|---|---|---|
+| `NOTIFIER_APPLY_WORKERS` | `8` | Concurrent apply workers; an application always maps to the same worker, so its updates stay ordered (`minimal` 2, `performance` 32; max 62) |
+
+Also inherits `app.shared.redis` and `app.shared.natsEnvFromSecret`.
 
 #### `services.auth.env`
 
@@ -318,9 +331,9 @@ WebAuthn / passkey (templated from `app.auth.passkey`):
 
 | Variable | Source | Description |
 |---|---|---|
-| `RP_ID` | `{{ .Values.app.auth.passkey.id }}` | Relying Party identifier (origin host) |
+| `RP_ID` | `{{ .Values.app.auth.passkey.id }}` | Relying Party identifier; empty follows the request host |
 | `RP_NAME` | `{{ .Values.app.auth.passkey.name }}` | Display name shown to the user |
-| `RP_ORIGIN` | `{{ .Values.app.auth.passkey.origin }}` | Allowed origin |
+| `RP_ORIGIN` | `{{ .Values.app.auth.passkey.origin }}` | Allowed origin(s), comma-separated; empty follows the request `Origin` |
 | `SELF_REGISTRATION_ENABLED` | `{{ .Values.app.auth.passkey.selfRegistration }}` | `"false"` blocks new passkey registration. OIDC self-provisioning is always on. |
 | `CHALLENGE_TIMEOUT` | inline (`"60"`) | Challenge TTL (seconds) |
 | `SESSION_EXPIRY` | inline (`"24"`) | Session TTL (hours) |

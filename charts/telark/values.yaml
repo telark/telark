@@ -335,7 +335,7 @@ services:
     name: "auth-service"
     repository: "auth"
     # @ignore
-    version: 0.3.7
+    version: 0.4.0
     category: "auth"
     terminationGracePeriodSec: 30
     env:

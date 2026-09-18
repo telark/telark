@@ -300,7 +300,7 @@ services:
     name: "enrichment-service"
     repository: "enrichment"
     # @ignore
-    version: 0.1.4
+    version: 0.1.5
     category: "ai-inisghts"
     env:
       REDIS_POOL_SIZE: "10"

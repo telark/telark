@@ -97,6 +97,26 @@ func InitDynamicClient() (dynamic.Interface, error) {
 	return dynamicClient, nil
 }
 
+// NewDynamicClientWithRateLimit builds a client with its own token bucket, so a
+// caller's API traffic neither waits behind nor starves the shared client.
+func NewDynamicClientWithRateLimit(qps float32, burst int) (dynamic.Interface, error) {
+	config, err := getConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	dedicated := rest.CopyConfig(config)
+	dedicated.QPS = qps
+	dedicated.Burst = burst
+
+	client, err := dynamic.NewForConfig(dedicated)
+	if err != nil {
+		return nil, fmt.Errorf(string(errors.ErrK8sSetClient), err)
+	}
+
+	return client, nil
+}
+
 func InitKubernetesClient() (*kubernetes.Clientset, error) {
 	mu.RLock()
 	if kubernetesClient != nil {

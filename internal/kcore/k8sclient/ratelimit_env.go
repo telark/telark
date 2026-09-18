@@ -28,6 +28,12 @@ func ApplyRESTClientRateLimitFromEnv(env RateLimitEnv) {
 	SetRESTClientRateLimit(float32(qpsFromEnv(env)), burstFromEnv(env))
 }
 
+// RateLimitFromEnv reads a limit the same way, for a client that keeps its own
+// budget instead of configuring the shared one.
+func RateLimitFromEnv(env RateLimitEnv) (float32, int) {
+	return float32(qpsFromEnv(env)), burstFromEnv(env)
+}
+
 func qpsFromEnv(env RateLimitEnv) float64 {
 	raw := strings.TrimSpace(os.Getenv(env.QPSVar))
 	if raw == emptyString {

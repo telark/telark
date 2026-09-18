@@ -254,9 +254,9 @@ Kubernetes: `>=1.30.0-0`
 | services.discovery.env.DISCOVERY_INFORMER_RESYNC_SEC | string | `"600"` |  |
 | services.discovery.env.DISCOVERY_K8S_CLIENT_BURST | string | `"200"` |  |
 | services.discovery.env.DISCOVERY_K8S_CLIENT_QPS | string | `"100"` |  |
+| services.discovery.env.DISCOVERY_ROLLBACK_INFORMER_RESYNC_SEC | string | `"600"` |  |
 | services.discovery.env.DISCOVERY_ROLLBACK_K8S_CLIENT_BURST | string | `"200"` |  |
 | services.discovery.env.DISCOVERY_ROLLBACK_K8S_CLIENT_QPS | string | `"100"` |  |
-| services.discovery.env.DISCOVERY_ROLLBACK_INFORMER_RESYNC_SEC | string | `"600"` |  |
 | services.discovery.env.DISCOVERY_SNAPSHOT_FETCH_TIMEOUT_MS | string | `"5000"` |  |
 | services.discovery.env.FORCE_SYNC_ACK_RETENTION_SEC | string | `"3600"` |  |
 | services.discovery.env.FORCE_SYNC_DEDUP_TTL_SEC | string | `"600"` |  |

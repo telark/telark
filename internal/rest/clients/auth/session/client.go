@@ -23,8 +23,10 @@ func (c *Client) withUser(userID string) *shared.Client {
 	return c.WithParams(map[string]string{constants.UserIDParam: userID})
 }
 
+// The path carries the session name, never the token: every proxy and
+// access log between here and the exporter would keep the credential otherwise.
 func (c *Client) withToken(token string) *shared.Client {
-	return c.WithParams(map[string]string{constants.TokenParam: token})
+	return c.WithParams(map[string]string{constants.TokenParam: authdata.SessionRef(token)})
 }
 
 func (c *Client) CreateSessionByUser(userID string, session *authdata.UserSession) *response.GenericResponse {

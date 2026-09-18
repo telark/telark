@@ -53,6 +53,11 @@ func classifyOneChange(c application.ApplicationChange, flags *changeClassFlags)
 	case ChangeFieldHealth:
 		classifyHealthChange(c, flags)
 	default:
+		if IsWorkloadTemplateField(c.Field) {
+			flags.hasDeployment = true
+		} else if IsManifestField(c.Field) {
+			flags.hasConfig = true
+		}
 	}
 }
 
@@ -149,25 +154,19 @@ func DetectIncident(changes []application.ApplicationChange, class string) bool 
 	if class == application.ChangeClassIncident {
 		return true
 	}
-	for _, c := range changes {
-		if c.Field == ChangeFieldHealth && c.NewValue != nil && *c.NewValue == appshared.HealthStatusDown {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(changes, func(c application.ApplicationChange) bool {
+		return c.Field == ChangeFieldHealth && c.NewValue != nil && *c.NewValue == appshared.HealthStatusDown
+	})
 }
 
 func DetectRecovery(changes []application.ApplicationChange) bool {
-	for _, c := range changes {
+	return slices.ContainsFunc(changes, func(c application.ApplicationChange) bool {
 		if c.Field != ChangeFieldHealth || c.OldValue == nil || c.NewValue == nil {
-			continue
+			return false
 		}
-		if (*c.OldValue == appshared.HealthStatusDown || *c.OldValue == appshared.HealthStatusDegraded) &&
-			*c.NewValue == appshared.HealthStatusHealthy {
-			return true
-		}
-	}
-	return false
+		return (*c.OldValue == appshared.HealthStatusDown || *c.OldValue == appshared.HealthStatusDegraded) &&
+			*c.NewValue == appshared.HealthStatusHealthy
+	})
 }
 
 func ComputeFingerprint(changes []application.ApplicationChange) string {

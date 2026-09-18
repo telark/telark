@@ -28,7 +28,7 @@ func PatchSessionByToken(w http.ResponseWriter, token string, patchData map[stri
 	}
 
 	filteredPatchData := map[string]any{
-		"expiresTimestamp": expiresTimestamp,
+		constants.FieldExpiresTimestamp: expiresTimestamp,
 	}
 
 	specPatchData := map[string]any{
@@ -43,18 +43,15 @@ func PatchSessionByToken(w http.ResponseWriter, token string, patchData map[stri
 }
 
 func validateAndExtractExpiresTimestamp(patchData map[string]any) (string, error) {
-	// Only allow expiresTimestamp to be updated
-	expiresTimestamp, hasExpiresTimestamp := patchData["expiresTimestamp"].(string)
+	expiresTimestamp, hasExpiresTimestamp := patchData[constants.FieldExpiresTimestamp].(string)
 	if !hasExpiresTimestamp {
 		return constants.EmptyString, errors.New(string(constants.ErrSessionPatchOnlyExpiresTimestamp))
 	}
 
-	// Check if any other fields are present (only expiresTimestamp should be in the patch)
 	if len(patchData) > constants.DefaultChannelBufferSize {
 		return constants.EmptyString, errors.New(string(constants.ErrSessionPatchOnlyExpiresTimestamp))
 	}
 
-	// Validate expiresTimestamp
 	if expiresTimestamp != constants.EmptyString {
 		if err := authutils.ValidateExpiresAt(expiresTimestamp, constants.ErrSessionExpiresInPast); err != nil {
 			return constants.EmptyString, err

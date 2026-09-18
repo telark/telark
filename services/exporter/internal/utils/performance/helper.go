@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/rest/base"
 )
 
 func generateRequestID() string {
@@ -34,52 +33,29 @@ func randomString(length int) string {
 }
 
 func storeResponseInCache(clh *CachedListHandler, r *http.Request, responseCapture *responseCaptureWriter, cacheKey string, requestID string) {
-	var responseMap map[string]any
-	if err := json.Unmarshal(responseCapture.body, &responseMap); err != nil {
+	// A write landed while this list was being built: its generation is gone and
+	// the blob would only sit in Redis until its TTL.
+	if cacheKey != clh.cacheKey(r) {
+		return
+	}
+	// One level deep: this validates the body once and keeps the data field's
+	// bytes without ever building the value tree of a multi-megabyte list.
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal(responseCapture.body, &envelope); err != nil {
 		lg.Error(fmt.Sprintf(string(constants.ErrOptimizerCacheStoreError), requestID, err))
 		return
 	}
-
-	if data, exists := responseMap["data"]; exists {
-		storeDataInCache(clh, r, data, cacheKey)
-	} else {
-		clh.optimizer.Set(cacheKey, responseCapture.body)
+	blob := responseCapture.body
+	if data, exists := envelope[constants.ResponseDataField]; exists {
+		blob = data
 	}
+	clh.localPut(cacheKey, blob)
+	clh.optimizer.SetTTL(cacheKey, blob, clh.storeTTL())
 }
 
-func storeDataInCache(clh *CachedListHandler, r *http.Request, data any, cacheKey string) {
-	if isGetOperation(r) {
-		storeGetOperationData(clh, data, cacheKey)
-	} else {
-		clh.optimizer.Set(cacheKey, data)
+func (clh *CachedListHandler) storeTTL() time.Duration {
+	if clh.operation == constants.OpGet {
+		return constants.GetCacheTTL
 	}
-}
-
-func storeGetOperationData(clh *CachedListHandler, data any, cacheKey string) {
-	if resourceVersion := extractResourceVersion(data); resourceVersion != "" {
-		versionedCacheKey := cacheKey + ":" + resourceVersion
-		clh.optimizer.Set(versionedCacheKey, data)
-		clh.optimizer.Set(cacheKey, data)
-	} else {
-		if b, err := json.Marshal(data); err == nil {
-			clh.optimizer.Set(cacheKey, b)
-		} else {
-			clh.optimizer.Set(cacheKey, data)
-		}
-	}
-}
-
-func isGetOperation(r *http.Request) bool {
-	return r.Method == string(base.Get)
-}
-
-func extractResourceVersion(data any) string {
-	if dataMap, ok := data.(map[string]any); ok {
-		if metadata, exists := dataMap["metadata"].(map[string]any); exists {
-			if resourceVersion, ok := metadata["resourceVersion"].(string); ok {
-				return resourceVersion
-			}
-		}
-	}
-	return constants.EmptyString
+	return constants.CacheTTL
 }

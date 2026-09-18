@@ -106,12 +106,6 @@ func (m *Manager) Execute(depType DependencyType, operation func() error) error 
 	return breaker.Execute(operation)
 }
 
-func (m *Manager) GetBreaker(depType DependencyType) *CircuitBreaker {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.breakers[depType]
-}
-
 func (m *Manager) GetState(depType DependencyType) State {
 	m.mu.RLock()
 	breaker, exists := m.breakers[depType]
@@ -146,18 +140,6 @@ func ExecuteExporter(operation func() error) error {
 	return GetManager().Execute(DependencyExporter, operation)
 }
 
-func ExecuteAuth(operation func() error) error {
-	return GetManager().Execute(DependencyAuth, operation)
-}
-
-func ExecuteNotifier(operation func() error) error {
-	return GetManager().Execute(DependencyNotifier, operation)
-}
-
 func ExecuteEnrichment(operation func() error) error {
 	return GetManager().Execute(DependencyEnrichment, operation)
-}
-
-func ExecuteREST(depType DependencyType, operation func() error) error {
-	return GetManager().Execute(depType, operation)
 }

@@ -20,6 +20,7 @@ from constants import (
     REDIS_BACKOFF_CAP_S,
     REDIS_BACKOFF_INITIAL_S,
 )
+from prompts.k8s_app_analyzer_prompt import PROMPT_VERSION
 
 
 def connect_redis(url: str) -> redis.Redis:
@@ -75,19 +76,12 @@ def clear_inflight(r: redis.Redis, key: str) -> None:
 
 
 def is_prompt_stale(cached_json: str) -> bool:
-    """
-    Returns True if cached result used a different prompt version than the current one.
-    Returns True if promptVersion field is missing (old cache entry before versioning).
-    Returns False if versions match — cache is fresh.
-    """
+    """A missing promptVersion (pre-versioning entry) or an unparseable payload
+    both count as stale, so the entry is re-enriched rather than trusted."""
     try:
-        from prompts.k8s_app_analyzer_prompt import PROMPT_VERSION
-
-        data = json.loads(cached_json)
-        stored = data.get(PROMPT_VERSION_KEY, "")
-        return stored != PROMPT_VERSION
+        return json.loads(cached_json).get(PROMPT_VERSION_KEY, "") != PROMPT_VERSION
     except Exception:
-        return True  # unparseable → treat as stale
+        return True
 
 
 def replay_dlq(r: redis.Redis, queue_key: str, dlq_key: str) -> int:

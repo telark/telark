@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Runtime AI provider config, sourced from the GlobalConfig CR.
 
 Provider and API key live in GlobalConfig, not env, so an admin can change them
@@ -8,6 +6,8 @@ the service token, and cached briefly so a busy worker pool does not fetch it pe
 job. The key never rides between services on the wire — each side reads it from
 the CR itself.
 """
+
+from __future__ import annotations
 
 import threading
 import time

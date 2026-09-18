@@ -2,6 +2,7 @@ package informers
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -79,7 +80,11 @@ func (m *Manager) runNamespaceInformerLoop(
 		syncers = append(syncers, inf.HasSynced)
 	}
 	factory.Start(ctx.Done())
+	start := time.Now()
 	_ = cache.WaitForCacheSync(ctx.Done(), syncers...)
+	constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Info(fmt.Sprintf(
+		string(constants.InfoInformerNamespaceSynced), ns, len(syncers), time.Since(start).Round(time.Millisecond),
+	))
 	<-ctx.Done()
 	m.removeInformersForNamespace(ns)
 }

@@ -9,8 +9,8 @@ import (
 	"github.com/telark/discovery/internal/constants"
 )
 
-func NewMaintenance(cfg config.ForceSyncConfig, stream *StreamOps, replicaID string) *Maintenance {
-	return &Maintenance{cfg: cfg, stream: stream, replicaID: replicaID}
+func NewMaintenance(cfg config.ForceSyncConfig, stream *StreamOps) *Maintenance {
+	return &Maintenance{cfg: cfg, stream: stream}
 }
 
 func (m *Maintenance) Run(ctx context.Context) {
@@ -27,16 +27,6 @@ func (m *Maintenance) Run(ctx context.Context) {
 }
 
 func (m *Maintenance) tick(ctx context.Context) {
-	reclaimed, err := m.stream.Reclaim(ctx, m.replicaID)
-	if err != nil {
-		if ctx.Err() != nil {
-			return
-		}
-		logDedup.ErrorOnce(constants.ForceSyncLogScopeMaintReclaim, string(constants.ErrForceSyncAutoClaimFailed), err)
-	}
-	if count := len(reclaimed); count > constants.DefaultInitValue {
-		lg.Info(fmt.Sprintf(string(constants.LogForceSyncMaintenanceClaimed), count))
-	}
 	cutoff := time.Now().UTC()
 	if err := m.stream.TrimByAge(ctx, cutoff); err != nil {
 		if ctx.Err() != nil {

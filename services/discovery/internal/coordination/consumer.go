@@ -112,7 +112,12 @@ func pruneDeadConsumers(ctx context.Context, coord *CoordinationBundle, rdb *red
 	}
 	inactiveThreshold := xwareredis.LockDefaultTTL * constants.TwoValue
 	for _, c := range consumers {
-		if c.Inactive < inactiveThreshold {
+		// A consumer that never read reports Inactive=-1; judge it by Idle instead.
+		inactive := c.Inactive
+		if inactive < constants.DefaultInitValue {
+			inactive = c.Idle
+		}
+		if inactive < inactiveThreshold {
 			continue
 		}
 		hbKey := constants.KeyPrefixReplicaHB + c.Name + constants.KeySuffixReplicaHB
@@ -208,7 +213,7 @@ func executeLockedWork(
 	hbCtx, cancelHB := context.WithCancel(ctx)
 	go runLockHeartbeat(hbCtx, cancelHB, coord, lockKey, lockValue, mf.appName)
 
-	handlerErr := executeHandler(hbCtx, rdb, mf.namespace, mf.operation)
+	handlerErr := executeHandler(hbCtx, rdb, mf.namespace, mf.appName, mf.operation)
 	cancelHB()
 
 	if handlerErr == nil {
@@ -269,13 +274,13 @@ func runLockHeartbeat(
 }
 
 func retryEnqueue(ctx context.Context, coord *CoordinationBundle, msg redis.XMessage, nextAttempt int) {
-	_, _ = coord.Stream.Publish(ctx, constants.StreamOperations, GenerateMsgPayload(
+	_, _ = coord.Stream.PublishWithMaxLen(ctx, constants.StreamOperations, GenerateMsgPayload(
 		MsgField(msg, constants.StreamMsgFieldAppName),
 		MsgField(msg, constants.StreamMsgFieldNamespace),
 		MsgField(msg, constants.StreamMsgFieldCycleID),
 		MsgField(msg, constants.StreamMsgFieldOperation),
 		MsgField(msg, constants.StreamMsgFieldEnqueuedAt),
-		nextAttempt))
+		nextAttempt), constants.OperationsStreamMaxLen)
 }
 
 func parseMessageFields(msg redis.XMessage) messageFields {

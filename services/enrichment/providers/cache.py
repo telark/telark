@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Shared in-process signal-based response cache for all providers."""
+
+from __future__ import annotations
 
 import hashlib
 import json
@@ -14,16 +14,13 @@ _CACHE_MAX_SIZE = 512
 
 
 def signals_hash(signals: AppSignals) -> str:
+    """Structural identity only, so identical posture reuses one LLM call.
+
+    Name, namespace and volatile metrics (CPU/mem usage, readyReplicas, health,
+    change velocity, incidents) are excluded so momentary drift does not
+    re-trigger the model every tick; configuration posture that does change the
+    analysis stays in.
     """
-    Compute a stable hash from enrichment-relevant signals only.
-    Name and namespace excluded — they don't affect analysis.
-    Same tech signals = same hash = same result = zero LLM call.
-    """
-    # Structural identity only. Volatile metrics (actual CPU/mem usage,
-    # readyReplicas, health, change velocity, incidents) are deliberately excluded
-    # so momentary drift doesn't re-trigger an LLM call every tick. Configuration
-    # posture that does change the analysis (replicas, limits set, QoS, workload
-    # kinds, wiring) is included.
     fingerprint = {
         "images": sorted(signals.images),
         "ports": sorted(signals.ports),

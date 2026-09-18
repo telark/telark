@@ -85,7 +85,7 @@ func TestDestructiveRoutesRequireWriteAccess(t *testing.T) {
 		"POST /api/v1/resources/applications/{name}/rollbacks/trigger",
 		"POST /api/v1/resources/applications/{name}/rollbacks/{rollbackId}/abort",
 		"POST /api/v1/resources/applications/{name}/sync",
-		"DELETE /api/v1/resources/applications/{name}/cleanup",
+		"POST /api/v1/resources/applications/{name}/reset",
 	}
 
 	requirements := authz.Requirements()

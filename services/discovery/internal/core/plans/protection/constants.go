@@ -32,6 +32,5 @@ const (
 	ErrReactivateMissingTemplates errors.Error = "policy templates no longer exist: %v"
 	ErrRequestBody                errors.Error = "invalid request body: %v"
 	ErrIDGeneration               errors.Error = "failed to generate plan id: %v"
-	ErrIDMissing                  errors.Error = "plan id path parameter missing"
 	ErrInternal                   errors.Error = "internal error: %v"
 )

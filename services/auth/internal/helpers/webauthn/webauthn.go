@@ -8,7 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -24,68 +27,125 @@ import (
 )
 
 var (
-	webAuthnInstance *webauthn.WebAuthn
-	webAuthnMutex    sync.RWMutex
-	lg               = constants.GetLogger(constants.LoggerPrefixHelper)
+	webAuthnConfig    *config.WebAuthnConfig
+	webAuthnMutex     sync.RWMutex
+	webAuthnInstances sync.Map
+	lg                = constants.GetLogger(constants.LoggerPrefixHelper)
 )
 
 func InitWebAuthn(cfg *config.WebAuthnConfig) error {
-	wconfig := &webauthn.Config{
-		RPDisplayName: cfg.RPName,
-		RPID:          cfg.RPID,
-		RPOrigins:     []string{cfg.RPOrigin},
-		Timeouts: webauthn.TimeoutsConfig{
-			Login: webauthn.TimeoutConfig{
-				Enforce:    constants.DefaultWebAuthnEnforce,
-				Timeout:    time.Duration(cfg.ChallengeTimeout) * time.Second,
-				TimeoutUVD: time.Duration(cfg.ChallengeTimeout) * time.Second,
-			},
-			Registration: webauthn.TimeoutConfig{
-				Enforce:    constants.DefaultWebAuthnEnforce,
-				Timeout:    time.Duration(cfg.ChallengeTimeout) * time.Second,
-				TimeoutUVD: time.Duration(cfg.ChallengeTimeout) * time.Second,
-			},
-		},
-	}
-
-	wa, err := webauthn.New(wconfig)
-	if err != nil {
-		return err
-	}
-
 	webAuthnMutex.Lock()
-	webAuthnInstance = wa
+	webAuthnConfig = cfg
 	webAuthnMutex.Unlock()
-	return nil
+	webAuthnInstances.Clear()
+
+	if cfg.RPID == constants.EmptyString || cfg.RPOrigin == constants.EmptyString {
+		return nil
+	}
+	_, err := instanceFor(cfg, cfg.RPID, splitOrigins(cfg.RPOrigin))
+	return err
 }
 
-func GetWebAuthn() (*webauthn.WebAuthn, error) {
+// The relying party follows the host the browser opened, so one instance is
+// built per resolved (rpID, origins) pair and reused across the whole ceremony.
+func GetWebAuthnFor(r *http.Request) (*webauthn.WebAuthn, error) {
 	webAuthnMutex.RLock()
-	defer webAuthnMutex.RUnlock()
-
-	if webAuthnInstance == nil {
+	cfg := webAuthnConfig
+	webAuthnMutex.RUnlock()
+	if cfg == nil {
 		return nil, errors.New(string(constants.ErrWebAuthnNotInitialized))
 	}
-	return webAuthnInstance, nil
+
+	rpID, origins, err := resolveRelyingParty(cfg, r)
+	if err != nil {
+		return nil, err
+	}
+	return instanceFor(cfg, rpID, origins)
 }
 
-func ConvertPasskeysToCredentials(passkeys []*authdata.UserPasskey) []webauthn.Credential {
-	if len(passkeys) == constants.InitialCapacity {
-		return []webauthn.Credential{}
-	}
-
-	validCount := constants.InitialCapacity
-	for _, pk := range passkeys {
-		if pk != nil {
-			validCount++
+// ponytail: unbounded when RP_ID is empty (one entry per distinct Host); pin RP_ID or add an LRU if it ever matters.
+func instanceFor(cfg *config.WebAuthnConfig, rpID string, origins []string) (*webauthn.WebAuthn, error) {
+	key := rpID + constants.SpaceSeparator + strings.Join(origins, constants.CommaSeparator)
+	if cached, ok := webAuthnInstances.Load(key); ok {
+		if wa, isInstance := cached.(*webauthn.WebAuthn); isInstance {
+			return wa, nil
 		}
 	}
 
-	if validCount == constants.InitialCapacity {
-		return []webauthn.Credential{}
+	timeout := webauthn.TimeoutConfig{
+		Enforce:    constants.DefaultWebAuthnEnforce,
+		Timeout:    time.Duration(cfg.ChallengeTimeout) * time.Second,
+		TimeoutUVD: time.Duration(cfg.ChallengeTimeout) * time.Second,
+	}
+	wa, err := webauthn.New(&webauthn.Config{
+		RPDisplayName: cfg.RPName,
+		RPID:          rpID,
+		RPOrigins:     origins,
+		Timeouts:      webauthn.TimeoutsConfig{Login: timeout, Registration: timeout},
+	})
+	if err != nil {
+		return nil, fmt.Errorf(string(constants.ErrWebAuthnSetupFailed), err)
+	}
+	webAuthnInstances.Store(key, wa)
+	return wa, nil
+}
+
+func resolveRelyingParty(cfg *config.WebAuthnConfig, r *http.Request) (string, []string, error) {
+	host := r.Header.Get(constants.HeaderForwardedHost)
+	if host == constants.EmptyString {
+		host = r.Host
+	}
+	rpID := cfg.RPID
+	if rpID == constants.EmptyString {
+		rpID = stripPort(host)
 	}
 
-	credentials := make([]webauthn.Credential, constants.InitialCapacity, validCount)
+	origin := r.Header.Get(constants.HeaderOrigin)
+	if cfg.RPOrigin != constants.EmptyString {
+		origins := splitOrigins(cfg.RPOrigin)
+		if origin != constants.EmptyString && !slices.Contains(origins, origin) {
+			return constants.EmptyString, nil, errors.New(string(constants.ErrOriginNotAllowed))
+		}
+		return rpID, origins, nil
+	}
+
+	if origin == constants.EmptyString {
+		origin = requestScheme(r) + constants.SchemeSeparator + host
+	}
+	parsed, err := url.Parse(origin)
+	if err != nil || (parsed.Hostname() != rpID && !strings.HasSuffix(parsed.Hostname(), constants.DotSeparator+rpID)) {
+		return constants.EmptyString, nil, errors.New(string(constants.ErrOriginNotAllowed))
+	}
+	return rpID, []string{origin}, nil
+}
+
+func splitOrigins(raw string) []string {
+	origins := strings.Split(raw, constants.CommaSeparator)
+	for i, origin := range origins {
+		origins[i] = strings.TrimSpace(origin)
+	}
+	return origins
+}
+
+func stripPort(host string) string {
+	if hostname, _, err := net.SplitHostPort(host); err == nil {
+		return hostname
+	}
+	return host
+}
+
+func requestScheme(r *http.Request) string {
+	if proto := r.Header.Get(constants.HeaderForwardedProto); proto != constants.EmptyString {
+		return proto
+	}
+	if r.TLS != nil {
+		return constants.SchemeHTTPS
+	}
+	return constants.SchemeHTTP
+}
+
+func ConvertPasskeysToCredentials(passkeys []*authdata.UserPasskey) []webauthn.Credential {
+	credentials := make([]webauthn.Credential, constants.InitialCapacity, len(passkeys))
 	for _, pk := range passkeys {
 		if pk == nil {
 			continue
@@ -113,53 +173,50 @@ func ConvertPasskeysToCredentials(passkeys []*authdata.UserPasskey) []webauthn.C
 }
 
 func CreateUser(userID, username, fullname string, credentials []webauthn.Credential) *User {
-	randomBytes := make([]byte, constants.RandomBytesLength)
-	if _, err := rand.Read(randomBytes); err != nil {
-		uniqueUserHandle := fmt.Sprintf(
-			constants.UserHandleFormat, userID, uuid.New().String()[:constants.RandomBytesLength])
-		return &User{
-			ID:          []byte(uniqueUserHandle),
-			Name:        username,
-			DisplayName: fullname,
-			Credentials: credentials,
-		}
-	}
-
-	suffix := base64.RawURLEncoding.EncodeToString(randomBytes)
-	uniqueUserHandle := fmt.Sprintf(constants.UserHandleFormat, userID, suffix)
-
-	if len(uniqueUserHandle) > constants.MaxUserHandleLength {
-		maxSuffixLen := constants.MaxUserHandleLength - len(userID) - constants.DefaultColonSeparatorLength
-		if maxSuffixLen > constants.DefaultInitValue {
-			suffix = suffix[:maxSuffixLen]
-			uniqueUserHandle = fmt.Sprintf(constants.UserHandleFormat, userID, suffix)
-		} else {
-			uniqueUserHandle = userID
-		}
-	}
-
 	return &User{
-		ID:          []byte(uniqueUserHandle),
+		ID:          []byte(userHandle(userID)),
 		Name:        username,
 		DisplayName: fullname,
 		Credentials: credentials,
 	}
 }
 
+func userHandle(userID string) string {
+	randomBytes := make([]byte, constants.RandomBytesLength)
+	if _, err := rand.Read(randomBytes); err != nil {
+		return fmt.Sprintf(
+			constants.UserHandleFormat, userID, uuid.New().String()[:constants.RandomBytesLength])
+	}
+
+	suffix := base64.RawURLEncoding.EncodeToString(randomBytes)
+	handle := fmt.Sprintf(constants.UserHandleFormat, userID, suffix)
+	if len(handle) <= constants.MaxUserHandleLength {
+		return handle
+	}
+
+	maxSuffixLen := constants.MaxUserHandleLength - len(userID) - constants.DefaultColonSeparatorLength
+	if maxSuffixLen <= constants.DefaultInitValue {
+		return userID
+	}
+	return fmt.Sprintf(constants.UserHandleFormat, userID, suffix[:maxSuffixLen])
+}
+
 func ExtractBaseUserID(uniqueUserHandle string) string {
-	parts := strings.Split(uniqueUserHandle, ":")
+	parts := strings.Split(uniqueUserHandle, constants.ColonSeparator)
 	if len(parts) > constants.DefaultInitValue {
 		return parts[constants.DefaultInitValue]
 	}
 	return uniqueUserHandle
 }
 
-func StartRegistration(userID, username, fullname string, existingCredentials []webauthn.Credential) (
-	*protocol.CredentialCreation, string, error,
-) {
-	wa, err := GetWebAuthn()
+func StartRegistration(
+	userID, username, fullname string,
+	existingCredentials []webauthn.Credential,
+	r *http.Request,
+) (*protocol.CredentialCreation, string, error) {
+	wa, err := GetWebAuthnFor(r)
 	if err != nil {
-		return nil, constants.EmptyString, fmt.Errorf(string(constants.ErrWebAuthnSetupFailed), err)
+		return nil, constants.EmptyString, err
 	}
 
 	webAuthnUser := CreateUser(userID, username, fullname, existingCredentials)
@@ -223,9 +280,9 @@ func FinishRegistration(
 	userID, username, fullname string,
 	r *http.Request,
 ) (credential *webauthn.Credential, backupEligible, backupState bool, err error) {
-	wa, err := GetWebAuthn()
+	wa, err := GetWebAuthnFor(r)
 	if err != nil {
-		return nil, false, false, fmt.Errorf(string(constants.ErrFailedGetWebAuthnInstance), err)
+		return nil, false, false, err
 	}
 
 	challenge, err := ValidateAndGetChallenge(userID)

@@ -7,6 +7,7 @@ DEFAULT_REDIS_HOST = "localhost"
 DEFAULT_REDIS_PORT = "6379"
 DEFAULT_OLLAMA_HOST = "http://localhost:11434"
 DEFAULT_OLLAMA_MODEL = "qwen2.5:7b"
+PROVIDER_OLLAMA = "ollama"
 DEFAULT_CACHE_TTL = 86400
 DEFAULT_QUEUE_KEY = "enrichment:jobs"
 DEFAULT_CACHE_PREFIX = "enrichment"
@@ -19,16 +20,43 @@ DEFAULT_LOG_LEVEL = "INFO"
 API_HOST = "0.0.0.0"
 DEFAULT_API_PORT = 8080
 
+CORS_ALLOWED_ORIGIN = "http://localhost:3000"
+CORS_MAX_AGE_S = 600
+VALIDATE_API_KEY_PATH = "/provider/validate-api-key"
+
 CHATGPT_MODELS_URL = "https://api.openai.com/v1/models"
 GROQ_MODELS_URL = "https://api.groq.com/openai/v1/models"
-GEMINI_OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 GEMINI_MODELS_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_API_VERSION = "2023-06-01"
+
+MODELS_LIST_TIMEOUT_S = 5
+PROVIDER_TIMEOUT_S = 8
 
 MSG_PROVIDER_OLLAMA_NOT_ALLOWED = "ollama is not valid for this endpoint"
 MSG_INVALID_PROVIDER = "invalid provider"
 MSG_API_KEY_REQUIRED = "api_key is required"
 MSG_VALIDATE_OK = "ok"
 MSG_VALIDATE_FAILED = "validation failed"
+MSG_API_KEY_REJECTED = "API key rejected."
+MSG_PROVIDER_UNREACHABLE = "Provider unreachable."
+MSG_VALIDATION_FAILED_STATUS = "Validation failed (status {})."
+
+# Providers word "bad key" differently; a 400 only means a rejected key when the
+# body says so, otherwise it is a genuine request error worth surfacing verbatim.
+INVALID_API_KEY_PATTERNS = (
+    "api key not valid",
+    "api_key_invalid",
+    "api key invalid",
+    "invalid api key",
+    "incorrect api key",
+    "invalid_api_key",
+    "invalid authentication",
+    "invalid authorization",
+    "unauthorized",
+)
+GEMINI_INVALID_KEY_REASON = "API_KEY_INVALID"
+PROVIDER_MESSAGE_MAX_LEN = 160
 
 SERVICE_NAME = "enrichment-service"
 STATUS_READY_PATH = "/api/v1/status/ready"
@@ -47,17 +75,16 @@ REDIS_BACKOFF_CAP_S = 30
 OLLAMA_BACKOFF_INITIAL_S = 5
 OLLAMA_BACKOFF_CAP_S = 30
 OLLAMA_HTTP_TIMEOUT_S = 3
-OLLAMA_REQUEUE_SLEEP_S = 10
 MAIN_LOOP_ERROR_SLEEP_S = 1
 BLPOP_TIMEOUT_S = 1
+SHUTDOWN_POLL_INTERVAL_S = 0.5
 CONNECTION_ERROR_SLEEP_S = 5
 RATE_LIMIT_RETRIES = 3
 
 # -----------------------------------------------------------------------------
-# Validation patterns (single source of truth for role/confidence)
+# Validation patterns (single source of truth). Role has none by design — it is
+# free-form, so the model may answer with a short custom description.
 # -----------------------------------------------------------------------------
-# Role is free-form — model can use known roles or a short custom description
-ROLE_PATTERN = None  # removed — role is now free-form
 CONFIDENCE_PATTERN = "^(high|medium|low)$"
 CATEGORY_PATTERN = "^(infrastructure|application|data|messaging|security)$"
 SEVERITY_PATTERN = "^(high|medium|low)$"
@@ -82,7 +109,8 @@ LOG_ENRICHMENT_FAILED = "Enrichment failed, skipping job: {}"
 LOG_ENRICHED = "Enriched {}/{} → {} ({}) in {}ms"
 LOG_REDIS_SETEX_ERROR = "Redis error during SETEX, re-queuing job and reconnecting: {}"
 LOG_CACHE_WRITE_FAILED = "Cache write failed: {}"
-LOG_UNEXPECTED_LOOP_ERROR = "Unexpected error in main loop, continuing: {}"
+LOG_CONNECTION_REQUEUE = "Worker {} connection error, re-queued job: {}"
+LOG_RATE_LIMIT_BACKOFF = "Worker {} rate limit (attempt {}), backoff {}s: {}"
 LOG_REDIS_CLOSED = "Redis connection closed"
 LOG_JOB_INFLIGHT = "Job already in-flight, skipping: {}/{}"
 LOG_CACHE_EXISTS_SKIP = "Cache already exists for {}/{}, skipping duplicate job"
@@ -98,9 +126,11 @@ PROMPT_VERSION_KEY = "promptVersion"
 LOG_WORKER_STARTED = "Worker {} started"
 LOG_WORKER_STOPPED = "Worker {} stopped"
 LOG_JOB_TO_DLQ = "Job moved to DLQ after failure: {}/{}"
+LOG_DLQ_PUSH_FAILED = "Worker {} failed to push job to DLQ: {}"
 LOG_DLQ_REPLAYED = "Replayed {} jobs from DLQ"
 LOG_METRICS = "Worker {} | processed={} failed={} skipped={} avg={}ms"
 LOG_SHUTDOWN_WAITING = "Shutting down: waiting up to {}s for {} workers"
+LOG_SHUTDOWN_TIMEOUT_WORKERS = "{} worker(s) did not finish within the shutdown timeout"
 LOG_SHUTDOWN_CLEANED_INFLIGHT = "Shutdown: cleaned inflight key for worker {}"
 
 # -----------------------------------------------------------------------------
@@ -169,6 +199,7 @@ CONNECTIVITY_KEY = "connectivity:service:enrichment"
 CONNECTIVITY_VALUE_READY = "1"
 CONNECTIVITY_TTL_S = 3
 CONNECTIVITY_INTERVAL_S = 1
+LOG_CONNECTIVITY_FAILED = "connectivity heartbeat failed: {}"
 
 MSG_AUTHZ_SERVICE_ONLY = "this endpoint is for internal service calls only"
 MSG_AUTHZ_MISSING_SESSION = "a session token is required"

@@ -24,7 +24,6 @@ type Detector struct {
 	leaderFn func(context.Context) bool
 }
 
-// NewDetector wires the auto-cleanup detector.
 func NewDetector(
 	cfg config.AutoCleanupConfig,
 	rdb *redis.Client,
@@ -41,8 +40,6 @@ func NewDetector(
 	}
 }
 
-// Run blocks until ctx is canceled. Runs one cycle every CycleInterval.
-// Detector exits cleanly on context cancel.
 func (d *Detector) Run(ctx context.Context) {
 	lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
 	lg.Info(fmt.Sprintf(string(constants.LogAutoCleanupDetectorStarted),
@@ -88,7 +85,7 @@ func (d *Detector) evaluateApp(ctx context.Context, app *appresource.Application
 	lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
 	name := app.Name
 
-	if r := railResourcesEmpty(app); !r.pass {
+	if r := railResourcesEmpty(app); !r.pass && !namespacesGone(ctx, d.kube, app) {
 		d.handleNonEmpty(ctx, name, r)
 		return
 	}
@@ -114,7 +111,6 @@ func (d *Detector) evaluateApp(ctx context.Context, app *appresource.Application
 		return
 	}
 
-	// All immediate rails pass — advance streak.
 	d.advanceStreakAndMaybeFire(ctx, app)
 }
 
@@ -180,14 +176,13 @@ func (d *Detector) fireCleanup(
 		return
 	}
 
-	// Phase 2+: re-entry guard + run cleanup.
 	inflight, ierr := isInflight(ctx, d.rdb, name)
 	if ierr == nil && inflight {
 		lg.Info(fmt.Sprintf(string(constants.LogAutoCleanupBlocked),
 			name, "inflight", "auto-cleanup already running"))
 		return
 	}
-	inflightTTL := constants.AppCleanupHandlerTimeout + constants.AutoCleanupInflightTTLBuffer
+	inflightTTL := constants.AppResetHandlerTimeout + constants.AutoCleanupInflightTTLBuffer
 	_ = markInflight(ctx, d.rdb, name, inflightTTL)
 	defer func() { _ = clearInflight(ctx, d.rdb, name) }()
 
@@ -195,19 +190,21 @@ func (d *Detector) fireCleanup(
 		name, s.Count, firstSeen, snapCount, nsNames))
 	start := time.Now().UTC()
 
-	cctx, cancel := context.WithTimeout(ctx, constants.AppCleanupHandlerTimeout)
+	cctx, cancel := context.WithTimeout(ctx, constants.AppResetHandlerTimeout)
 	defer cancel()
-	applicationhandler.RunCleanup(cctx, d.rdb, name)
+	// The streak stays so the next cycle retries instead of re-accumulating.
+	if rerr := applicationhandler.RunReset(cctx, d.rdb, name); rerr != nil {
+		lg.Error(fmt.Sprintf(string(constants.ErrAutoCleanupResetFailed), name, rerr))
+		return
+	}
 
 	_ = clearStreak(ctx, d.rdb, name)
 	lg.Info(fmt.Sprintf(string(constants.LogAutoCleanupDone),
 		name, time.Since(start).Milliseconds()))
 }
 
-// HandleOrphanIfMissing handles the case where the exporter reports 404 for an
-// app the detector tried to evaluate (CRD already deleted out-of-band). Clears
-// residual Redis state via the existing cleanup path. Safe to call from
-// non-detector contexts.
+// A 404 means the CRD was already deleted out-of-band; the residual Redis state still has to
+// go through the normal cleanup path.
 func (d *Detector) HandleOrphanIfMissing(ctx context.Context, name string, err error) bool {
 	if !k8serrors.IsNotFound(err) && !isHTTPNotFound(err) {
 		return false
@@ -217,9 +214,12 @@ func (d *Detector) HandleOrphanIfMissing(ctx context.Context, name string, err e
 	if !d.cfg.DeleteEnabled {
 		return true
 	}
-	cctx, cancel := context.WithTimeout(ctx, constants.AppCleanupHandlerTimeout)
+	cctx, cancel := context.WithTimeout(ctx, constants.AppResetHandlerTimeout)
 	defer cancel()
-	applicationhandler.RunCleanup(cctx, d.rdb, name)
+	if rerr := applicationhandler.RunReset(cctx, d.rdb, name); rerr != nil {
+		lg.Error(fmt.Sprintf(string(constants.ErrAutoCleanupResetFailed), name, rerr))
+		return true
+	}
 	_ = clearStreak(ctx, d.rdb, name)
 	return true
 }

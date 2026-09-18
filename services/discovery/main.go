@@ -135,10 +135,6 @@ func startMainService() {
 	gcfghelper.StartExcludedNamespacesSync(serviceCtx)
 }
 
-func startServer(server *http.Server) {
-	restserver.ListenAndSignal(server, getQuitChannel, lg)
-}
-
 func startServerWithRecovery(server *http.Server) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -148,7 +144,7 @@ func startServerWithRecovery(server *http.Server) {
 		}
 	}()
 
-	startServer(server)
+	restserver.ListenAndSignal(server, getQuitChannel, lg)
 }
 
 func startBootstrapWithRecovery() {
@@ -310,7 +306,7 @@ func startForceSyncSubsystem(
 		return coordination.RunForceSyncJob(jobCtx, coord, rdb, replica, appName)
 	}
 	manager := forcesync.NewManager(fsCfg, stream, dedup, exporter, executor, replicaID)
-	maintenance := forcesync.NewMaintenance(fsCfg, stream, replicaID)
+	maintenance := forcesync.NewMaintenance(fsCfg, stream)
 	leaderLoop := forcesync.NewLeaderLoop(coord.Election, manager, maintenance, coord.Config)
 	ingress := forcesync.NewIngress(stream, dedup, exporter)
 	applicationhandler.SetForceSyncIngress(ingress)
@@ -371,7 +367,7 @@ func restartService() {
 	}
 
 	shutdownExistingServices()
-	waitForShutdown()
+	time.Sleep(state.RestartDelay)
 	startMainService()
 }
 
@@ -399,10 +395,6 @@ func shutdownHTTPServer() {
 			lg.Error(fmt.Sprintf(string(constants.ErrFailedShutdownHTTPServer), err))
 		}
 	}
-}
-
-func waitForShutdown() {
-	time.Sleep(state.RestartDelay)
 }
 
 func resignLeaderOnShutdown() {
@@ -484,13 +476,14 @@ func reclaimAndRepublishPending(
 }
 
 func runReplicaHeartbeat(ctx context.Context, rdb *goredis.Client, replicaID string) {
+	addr := os.Getenv(constants.EnvPodIP)
+	coordination.AdvertiseReplica(ctx, rdb, replicaID, addr)
 	ticker := time.NewTicker(xwareredis.ReplicaHeartbeatInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			key := constants.KeyPrefixReplicaHB + replicaID + constants.KeySuffixReplicaHB
-			rdb.Set(ctx, key, time.Now().UTC().String(), xwareredis.ReplicaHeartbeatTTL)
+			coordination.AdvertiseReplica(ctx, rdb, replicaID, addr)
 		case <-ctx.Done():
 			return
 		}

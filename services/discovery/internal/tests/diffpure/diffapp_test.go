@@ -37,7 +37,7 @@ func TestDiffApplicationsPrewrittenSeal(t *testing.T) {
 		context.Background(), noopBaseline, recordingCreate(&created), emptyManifest,
 		newRedis(t), stored, fresh, opts,
 	)
-	testutil.Equal(t, "changed", changed, true)
+	testutil.Equal(t, "changed", changed, diff.OutcomeAuthored)
 	testutil.Equal(t, "generation", history.Generation, 4)
 	if len(history.ChangeLog) == 0 {
 		t.Fatal("expected a change-log entry after sealing generation 4")
@@ -83,7 +83,7 @@ func TestDiffApplicationsHealthIncident(t *testing.T) {
 		context.Background(), noopBaseline, recordingCreate(&created), emptyManifest,
 		newRedis(t), &stored, fresh, healthSealOpts(4),
 	)
-	testutil.Equal(t, "changed", changed, true)
+	testutil.Equal(t, "changed", changed, diff.OutcomeAuthored)
 	testutil.Equal(t, "generation", history.Generation, 4)
 }
 
@@ -107,6 +107,6 @@ func TestDiffApplicationsHealthRecovery(t *testing.T) {
 		context.Background(), noopBaseline, recordingCreate(&created), emptyManifest,
 		newRedis(t), &stored, fresh, healthSealOpts(4),
 	)
-	testutil.Equal(t, "suppressed", changed, false)
+	testutil.Equal(t, "suppressed", changed, diff.OutcomeNoChange)
 	testutil.Equal(t, "generation held", history.Generation, 3)
 }

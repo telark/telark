@@ -10,16 +10,22 @@ import (
 	"github.com/telark/rest/response"
 )
 
-const storedApplicationTimeout = 3 * time.Second
+const (
+	storedApplicationTimeout = 3 * time.Second
+	// A full list at 1000 apps is several MB behind a cache rebuild; the
+	// single-GET budget above aborted every auto-cleanup cycle at that size.
+	listApplicationsTimeout = 30 * time.Second
+)
 
 type ExporterClient struct {
-	client *applicationsclient.Client
+	client     *applicationsclient.Client
+	listClient *applicationsclient.Client
 }
 
 func NewExporterClient() *ExporterClient {
-	cfg := &shared.ClientConfig{Timeout: storedApplicationTimeout}
 	return &ExporterClient{
-		client: applicationsclient.NewClientWithConfig(cfg),
+		client:     applicationsclient.NewClientWithConfig(&shared.ClientConfig{Timeout: storedApplicationTimeout}),
+		listClient: applicationsclient.NewClientWithConfig(&shared.ClientConfig{Timeout: listApplicationsTimeout}),
 	}
 }
 
@@ -29,8 +35,14 @@ func (c *ExporterClient) GetApplicationByName(name string) (*appresource.Applica
 	})
 }
 
+func (c *ExporterClient) GetApplicationByNameFresh(name string) (*appresource.Application, error) {
+	return guardedExporterGet(func() (*appresource.Application, error) {
+		return c.client.GetApplicationByNameFresh(name)
+	})
+}
+
 func (c *ExporterClient) GetAllApplications() ([]*appresource.Application, error) {
-	return guardedExporterGet(c.client.GetAllApplications)
+	return guardedExporterGet(c.listClient.GetAllApplications)
 }
 
 func (c *ExporterClient) PatchApplicationByName(name string, body map[string]any) *response.GenericResponse {

@@ -13,3 +13,12 @@ func ApplyKubernetesRESTRateLimit() {
 		DefaultBurst: constants.DefaultDiscoveryK8sClientBurst,
 	})
 }
+
+func RollbackK8sClientRateLimit() (float32, int) {
+	return k8sclient.RateLimitFromEnv(k8sclient.RateLimitEnv{
+		QPSVar:       constants.EnvDiscoveryRollbackK8sClientQPS,
+		BurstVar:     constants.EnvDiscoveryRollbackK8sClientBurst,
+		DefaultQPS:   float64(constants.DefaultRollbackK8sClientQPS),
+		DefaultBurst: constants.DefaultRollbackK8sClientBurst,
+	})
+}

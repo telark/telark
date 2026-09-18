@@ -58,11 +58,11 @@ func mutateFinalizer(w http.ResponseWriter, r *http.Request, op finalizerMutatio
 	next, changed := applyFinalizerMutation(current, name, op)
 	if !changed {
 		responseutils.LogAndSendResponse(w, http.StatusOK, response.OperationSuccess,
-			messageNoChange, map[string]any{fieldFinalizers: current}, nil)
+			messageNoChange, map[string]any{constants.FieldFinalizers: current}, nil)
 		return
 	}
 
-	patch := map[string]any{fieldMetadata: map[string]any{fieldFinalizers: next}}
+	patch := map[string]any{constants.MetadataField: map[string]any{constants.FieldFinalizers: next}}
 	patchResult := api.PatchCustomResource(target.Metadata, id, patch)
 	if patchResult.Status != http.StatusOK {
 		responseutils.LogAndSendResponse(w, patchResult.Status, response.OperationError,
@@ -71,7 +71,7 @@ func mutateFinalizer(w http.ResponseWriter, r *http.Request, op finalizerMutatio
 	}
 
 	responseutils.LogAndSendResponse(w, http.StatusOK, response.OperationSuccess,
-		messageFinalizersUpdated, map[string]any{fieldFinalizers: next}, nil)
+		messageFinalizersUpdated, map[string]any{constants.FieldFinalizers: next}, nil)
 }
 
 func extractFinalizerInputs(

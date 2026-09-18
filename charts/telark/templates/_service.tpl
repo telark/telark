@@ -26,5 +26,8 @@ spec:
       port: {{ $port }}
       protocol: TCP
       targetPort: {{ $port }}
+      {{- if and (eq $serviceType "NodePort") $serviceConfig.nodePort }}
+      nodePort: {{ $serviceConfig.nodePort }}
+      {{- end }}
   type: {{ $serviceType }}
 {{- end -}}

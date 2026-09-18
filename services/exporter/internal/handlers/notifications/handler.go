@@ -19,6 +19,15 @@ const (
 	queryUserID = "userId"
 	queryLimit  = "limit"
 	queryCursor = "cursor"
+
+	msgEmitted       = "notification emitted"
+	msgRetrieved     = "notifications retrieved"
+	msgMarkedRead    = "notification marked read"
+	msgAllMarkedRead = "all notifications marked read"
+	msgCleared       = "notifications cleared"
+	msgUserIDMissing = "userId required"
+	msgParseFailed   = "failed to parse request body"
+	msgOperationFail = "notifications operation failed"
 )
 
 func Emit() func(http.ResponseWriter, *http.Request) {
@@ -56,35 +65,25 @@ func Emit() func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		respondData(w, "notification emitted", structAsMap(*created))
+		respondData(w, msgEmitted, structAsMap(*created))
 	}
 }
 
 func List() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userID := r.URL.Query().Get(queryUserID)
-		if userID == constants.EmptyString {
-			respondBadRequest(w)
-			return
-		}
-
-		if !authz.GuardSelfUser(w, r, userID) {
+		userID, storage, ok := userStorage(w, r)
+		if !ok {
 			return
 		}
 		limit, _ := strconv.Atoi(r.URL.Query().Get(queryLimit))
 		cursor := r.URL.Query().Get(queryCursor)
 
-		storage, err := notifstorage.NewStorage()
-		if err != nil {
-			respondInternal(w, err)
-			return
-		}
 		resp, err := storage.List(r.Context(), userID, limit, cursor)
 		if err != nil {
 			respondInternal(w, err)
 			return
 		}
-		respondData(w, "notifications retrieved", structAsMap(*resp))
+		respondData(w, msgRetrieved, structAsMap(*resp))
 	}
 }
 
@@ -94,77 +93,68 @@ func MarkRead() func(http.ResponseWriter, *http.Request) {
 		if err != nil {
 			return
 		}
-		userID := r.URL.Query().Get(queryUserID)
-		if userID == constants.EmptyString {
-			respondBadRequest(w)
+		userID, storage, ok := userStorage(w, r)
+		if !ok {
 			return
 		}
 
-		if !authz.GuardSelfUser(w, r, userID) {
-			return
-		}
-
-		storage, err := notifstorage.NewStorage()
-		if err != nil {
-			respondInternal(w, err)
-			return
-		}
 		if err := storage.MarkRead(r.Context(), userID, notificationID); err != nil {
 			respondInternal(w, err)
 			return
 		}
-		respondData(w, "notification marked read", nil)
+		respondData(w, msgMarkedRead, nil)
 	}
 }
 
 func MarkAllRead() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userID := r.URL.Query().Get(queryUserID)
-		if userID == constants.EmptyString {
-			respondBadRequest(w)
+		userID, storage, ok := userStorage(w, r)
+		if !ok {
 			return
 		}
 
-		if !authz.GuardSelfUser(w, r, userID) {
-			return
-		}
-
-		storage, err := notifstorage.NewStorage()
-		if err != nil {
-			respondInternal(w, err)
-			return
-		}
 		if err := storage.MarkAllRead(r.Context(), userID); err != nil {
 			respondInternal(w, err)
 			return
 		}
-		respondData(w, "all notifications marked read", nil)
+		respondData(w, msgAllMarkedRead, nil)
 	}
 }
 
 func Clear() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userID := r.URL.Query().Get(queryUserID)
-		if userID == constants.EmptyString {
-			respondBadRequest(w)
+		userID, storage, ok := userStorage(w, r)
+		if !ok {
 			return
 		}
 
-		if !authz.GuardSelfUser(w, r, userID) {
-			return
-		}
-
-		storage, err := notifstorage.NewStorage()
-		if err != nil {
-			respondInternal(w, err)
-			return
-		}
 		if err := storage.Clear(r.Context(), userID); err != nil {
 			respondInternal(w, err)
 			return
 		}
-		respondData(w, "notifications cleared", nil)
+		respondData(w, msgCleared, nil)
 	}
+}
+
+// Every route here is scoped to the caller's own notifications, so the guard
+// runs before the store is ever touched.
+func userStorage(w http.ResponseWriter, r *http.Request) (string, *notifstorage.Storage, bool) {
+	userID := r.URL.Query().Get(queryUserID)
+	if userID == constants.EmptyString {
+		respondBadRequest(w)
+		return constants.EmptyString, nil, false
+	}
+
+	if !authz.GuardSelfUser(w, r, userID) {
+		return constants.EmptyString, nil, false
+	}
+
+	storage, err := notifstorage.NewStorage()
+	if err != nil {
+		respondInternal(w, err)
+		return constants.EmptyString, nil, false
+	}
+	return userID, storage, true
 }
 
 func respondData(w http.ResponseWriter, msg string, data any) {
@@ -172,20 +162,20 @@ func respondData(w http.ResponseWriter, msg string, data any) {
 }
 
 func respondBadRequest(w http.ResponseWriter) {
-	responseutils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationUnprocessed, "userId required", nil, nil)
+	responseutils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationUnprocessed, msgUserIDMissing, nil, nil)
 }
 
 func respondParseError(w http.ResponseWriter, err error) {
 	sharedutils.LogByStatusAndSend(
 		w, http.StatusUnprocessableEntity, response.OperationUnprocessed,
-		"failed to parse request body", nil, err,
+		msgParseFailed, nil, err,
 	)
 }
 
 func respondInternal(w http.ResponseWriter, err error) {
 	responseutils.LogAndSendResponse(
 		w, http.StatusInternalServerError, response.OperationError,
-		"notifications operation failed", nil, err,
+		msgOperationFail, nil, err,
 	)
 }
 

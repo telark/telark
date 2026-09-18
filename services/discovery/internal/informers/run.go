@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	applicationscore "github.com/telark/discovery/internal/core/applications/core"
 	appsnapshot "github.com/telark/discovery/internal/core/applications/snapshot"
 )
 
@@ -23,6 +24,9 @@ func Run(ctx context.Context, cfg Config) {
 	m := newManager(cfg)
 	globalM = m
 	appsnapshot.GetManifestFromCache = func(kind, name, ns string) (map[string]any, bool) {
+		return m.getCachedManifest(kind, name, ns)
+	}
+	applicationscore.GetManifestFromCache = func(kind, name, ns string) (map[string]any, bool) {
 		return m.getCachedManifest(kind, name, ns)
 	}
 	informerMu.Unlock()

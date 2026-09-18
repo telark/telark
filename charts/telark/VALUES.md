@@ -1,6 +1,6 @@
 # telark
 
-![Version: 0.1.3](https://img.shields.io/badge/Version-0.1.3-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.0](https://img.shields.io/badge/AppVersion-2.0-informational?style=flat-square)
+![Version: 0.3.0](https://img.shields.io/badge/Version-0.3.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.0](https://img.shields.io/badge/AppVersion-2.0-informational?style=flat-square)
 
 A protection gate for your Kubernetes workloads — discover your applications, then decide what can change them, and when
 
@@ -25,6 +25,7 @@ Kubernetes: `>=1.30.0-0`
 | file://../telark-crds | telark-crds | >= 0.0.0 |
 | https://charts.bitnami.com/bitnami | nats | 9.0.28 |
 | https://charts.bitnami.com/bitnami | redis | 23.0.10 |
+| https://charts.fairwinds.com/stable | vpa | 5.1.0 |
 | https://helm.otwld.com/ | ollama | 1.50.0 |
 | https://kubernetes-sigs.github.io/metrics-server/ | metrics-server | 3.12.2 |
 | https://kyverno.github.io/kyverno/ | kyverno | 3.7.1 |
@@ -34,9 +35,9 @@ Kubernetes: `>=1.30.0-0`
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | app.auth.bootstrap.admins[0] | string | `"contact@telark.io"` |  |
-| app.auth.passkey.id | string | `"localhost"` |  |
+| app.auth.passkey.id | string | `""` |  |
 | app.auth.passkey.name | string | `"Dashboard App"` |  |
-| app.auth.passkey.origin | string | `"http://localhost:3000"` |  |
+| app.auth.passkey.origin | string | `""` |  |
 | app.auth.passkey.selfRegistration | string | `"true"` |  |
 | app.crdGuard.enabled | bool | `false` |  |
 | app.crdGuard.enforce | bool | `false` |  |
@@ -49,21 +50,21 @@ Kubernetes: `>=1.30.0-0`
 | app.name | string | `"telark"` |  |
 | app.namespace | string | `"telark"` |  |
 | app.ollama.enabled | bool | `false` |  |
-| app.persistence.accessMode | string | `"ReadWriteOnce"` |  |
 | app.persistence.enabled | bool | `true` |  |
 | app.persistence.size | string | `"10Gi"` |  |
 | app.persistence.storageClass | string | `""` |  |
 | app.serviceDefaults.affinity | object | `{}` |  |
-| app.serviceDefaults.autoscaling.enabled | bool | `false` |  |
+| app.serviceDefaults.autoscaling.enabled | bool | `true` |  |
 | app.serviceDefaults.autoscaling.maxReplicas | int | `3` |  |
 | app.serviceDefaults.autoscaling.minReplicas | int | `1` |  |
 | app.serviceDefaults.autoscaling.targetCPUUtilizationPercentage | int | `80` |  |
 | app.serviceDefaults.nodeSelector | object | `{}` |  |
 | app.serviceDefaults.port | int | `8080` |  |
-| app.serviceDefaults.replicas | int | `2` |  |
+| app.serviceDefaults.replicas | int | `1` |  |
 | app.serviceDefaults.serviceType | string | `"ClusterIP"` |  |
 | app.serviceDefaults.terminationGracePeriodSec | int | `60` |  |
 | app.serviceDefaults.tolerations | list | `[]` |  |
+| app.serviceDefaults.vpa.updateMode | string | `"Auto"` |  |
 | app.serviceToken.envVar | string | `"TELARK_SERVICE_TOKEN"` |  |
 | app.serviceToken.value | string | `""` |  |
 | app.shared.containerSecurityContext.allowPrivilegeEscalation | bool | `false` |  |
@@ -79,9 +80,9 @@ Kubernetes: `>=1.30.0-0`
 | app.shared.healthCheck.livenessProbe.timeoutSeconds | int | `15` |  |
 | app.shared.healthCheck.port | string | `"http"` |  |
 | app.shared.healthCheck.readinessProbe.failureThreshold | int | `3` |  |
-| app.shared.healthCheck.readinessProbe.initialDelaySeconds | int | `15` |  |
+| app.shared.healthCheck.readinessProbe.initialDelaySeconds | int | `5` |  |
 | app.shared.healthCheck.readinessProbe.path | string | `"/api/v1/status/ready"` |  |
-| app.shared.healthCheck.readinessProbe.periodSeconds | int | `15` |  |
+| app.shared.healthCheck.readinessProbe.periodSeconds | int | `5` |  |
 | app.shared.healthCheck.readinessProbe.timeoutSeconds | int | `15` |  |
 | app.shared.nats.NATS_HOST | string | `"{{ .Release.Name }}-nats"` |  |
 | app.shared.natsEnvFromSecret.NATS_PASSWORD.key | string | `"password"` |  |
@@ -98,10 +99,16 @@ Kubernetes: `>=1.30.0-0`
 | app.shared.resources.limits.memory | string | `"512Mi"` |  |
 | app.shared.resources.requests.cpu | string | `"100m"` |  |
 | app.shared.resources.requests.memory | string | `"128Mi"` |  |
+| app.singleNode | bool | `false` |  |
 | commonAnnotations | object | `{}` |  |
 | commonLabels | object | `{}` |  |
 | crds.enabled | bool | `true` |  |
 | fullnameOverride | string | `""` |  |
+| gateway.annotations | object | `{}` |  |
+| gateway.enabled | bool | `false` |  |
+| gateway.hostnames | list | `[]` |  |
+| gateway.parentRefs | list | `[]` |  |
+| gateway.service | string | `"ui"` |  |
 | global.imagePullSecrets | list | `[]` |  |
 | ingress.annotations | object | `{}` |  |
 | ingress.className | string | `""` |  |
@@ -219,8 +226,7 @@ Kubernetes: `>=1.30.0-0`
 | services.auth.env.SELF_REGISTRATION_ENABLED | string | `"{{ .Values.app.auth.passkey.selfRegistration }}"` |  |
 | services.auth.env.SESSION_EXPIRY | string | `"24"` |  |
 | services.auth.name | string | `"auth-service"` |  |
-| services.auth.pdb.enabled | bool | `true` |  |
-| services.auth.pdb.minAvailable | int | `1` |  |
+| services.auth.pdb.enabled | bool | `false` |  |
 | services.auth.repository | string | `"auth"` |  |
 | services.auth.terminationGracePeriodSec | int | `30` |  |
 | services.discovery.category | string | `"sync"` |  |
@@ -236,11 +242,11 @@ Kubernetes: `>=1.30.0-0`
 | services.discovery.env.COORDINATION_SHUTDOWN_CLEANUP_TIMEOUT_SEC | string | `"45"` |  |
 | services.discovery.env.COORDINATION_STALE_CLAIM_INTERVAL_SEC | string | `"60"` |  |
 | services.discovery.env.COORDINATION_STALE_CLAIM_MIN_IDLE_SEC | string | `"300"` |  |
-| services.discovery.env.DISCOVERY_AUTO_CLEANUP_CYCLE_INTERVAL_SEC | string | `"300"` |  |
-| services.discovery.env.DISCOVERY_AUTO_CLEANUP_DELETE_ENABLED | string | `"false"` |  |
-| services.discovery.env.DISCOVERY_AUTO_CLEANUP_EMPTY_CYCLES_REQUIRED | string | `"3"` |  |
+| services.discovery.env.DISCOVERY_AUTO_CLEANUP_CYCLE_INTERVAL_SEC | string | `"60"` |  |
+| services.discovery.env.DISCOVERY_AUTO_CLEANUP_DELETE_ENABLED | string | `"true"` |  |
+| services.discovery.env.DISCOVERY_AUTO_CLEANUP_EMPTY_CYCLES_REQUIRED | string | `"2"` |  |
 | services.discovery.env.DISCOVERY_AUTO_CLEANUP_ENABLED | string | `"true"` |  |
-| services.discovery.env.DISCOVERY_AUTO_CLEANUP_GRACE_PERIOD_SEC | string | `"900"` |  |
+| services.discovery.env.DISCOVERY_AUTO_CLEANUP_GRACE_PERIOD_SEC | string | `"0"` |  |
 | services.discovery.env.DISCOVERY_COALESCE_BUFFER_MAX_ENTRIES | string | `"500"` |  |
 | services.discovery.env.DISCOVERY_INFORMER_COALESCING_MAX_WAIT_SEC | string | `"10"` |  |
 | services.discovery.env.DISCOVERY_INFORMER_COALESCING_WINDOW_SEC | string | `"5"` |  |
@@ -249,6 +255,8 @@ Kubernetes: `>=1.30.0-0`
 | services.discovery.env.DISCOVERY_K8S_CLIENT_BURST | string | `"200"` |  |
 | services.discovery.env.DISCOVERY_K8S_CLIENT_QPS | string | `"100"` |  |
 | services.discovery.env.DISCOVERY_ROLLBACK_INFORMER_RESYNC_SEC | string | `"600"` |  |
+| services.discovery.env.DISCOVERY_ROLLBACK_K8S_CLIENT_BURST | string | `"200"` |  |
+| services.discovery.env.DISCOVERY_ROLLBACK_K8S_CLIENT_QPS | string | `"100"` |  |
 | services.discovery.env.DISCOVERY_SNAPSHOT_FETCH_TIMEOUT_MS | string | `"5000"` |  |
 | services.discovery.env.FORCE_SYNC_ACK_RETENTION_SEC | string | `"3600"` |  |
 | services.discovery.env.FORCE_SYNC_DEDUP_TTL_SEC | string | `"600"` |  |
@@ -256,7 +264,7 @@ Kubernetes: `>=1.30.0-0`
 | services.discovery.env.FORCE_SYNC_MAINTENANCE_INTERVAL_SEC | string | `"60"` |  |
 | services.discovery.env.FORCE_SYNC_PEL_IDLE_RECLAIM_SEC | string | `"60"` |  |
 | services.discovery.env.FORCE_SYNC_STREAM_MAX_LEN | string | `"5000"` |  |
-| services.discovery.env.FORCE_SYNC_WORKERS | string | `"4"` |  |
+| services.discovery.env.FORCE_SYNC_WORKERS | string | `"6"` |  |
 | services.discovery.env.INSIGHTS_TICK_INTERVAL_SEC | string | `"300"` |  |
 | services.discovery.env.PROTECTION_PLAN_TICK_INTERVAL_SEC | string | `"31"` |  |
 | services.discovery.env.REDIS_MAX_WAIT_SEC | string | `"180"` |  |
@@ -268,9 +276,7 @@ Kubernetes: `>=1.30.0-0`
 | services.discovery.env.SNAPSHOT_WRITE_RETRY_INTERVAL_SEC | string | `"2"` |  |
 | services.discovery.includeSecurity | bool | `false` |  |
 | services.discovery.name | string | `"discovery-service"` |  |
-| services.discovery.pdb.enabled | bool | `true` |  |
-| services.discovery.pdb.minAvailable | int | `1` |  |
-| services.discovery.replicas | int | `2` |  |
+| services.discovery.pdb.enabled | bool | `false` |  |
 | services.discovery.repository | string | `"discovery"` |  |
 | services.discovery.topologySpread.enabled | bool | `true` |  |
 | services.discovery.topologySpread.maxSkew | int | `1` |  |
@@ -289,9 +295,9 @@ Kubernetes: `>=1.30.0-0`
 | services.enrichment.env.REDIS_POOL_SIZE | string | `"10"` |  |
 | services.enrichment.env.WORKER_SHUTDOWN_TIMEOUT_S | string | `"30"` |  |
 | services.enrichment.name | string | `"enrichment-service"` |  |
-| services.enrichment.pdb.enabled | bool | `true` |  |
-| services.enrichment.pdb.minAvailable | int | `1` |  |
+| services.enrichment.pdb.enabled | bool | `false` |  |
 | services.enrichment.repository | string | `"enrichment"` |  |
+| services.exporter.autoscaling.enabled | bool | `false` |  |
 | services.exporter.category | string | `"export"` |  |
 | services.exporter.enabled | bool | `true` |  |
 | services.exporter.env.AI_KEY_SECRET_NAME | string | `"{{ printf \"%s-ai-provider-key\" .Values.app.name }}"` |  |
@@ -301,20 +307,20 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.env.SNAPSHOTS_PATH | string | `"/snapshots"` |  |
 | services.exporter.env.SNAPSHOTS_PVC_NAME | string | `"{{ include \"telark.exporterSnapshotsPvcName\" . }}"` |  |
 | services.exporter.env.SNAPSHOTS_PVC_NAMESPACE | string | `"{{ .Values.app.namespace }}"` |  |
+| services.exporter.env.SNAPSHOT_GC_INTERVAL_SEC | string | `"3600"` |  |
 | services.exporter.name | string | `"exporter-service"` |  |
 | services.exporter.pdb.enabled | bool | `false` |  |
-| services.exporter.replicas | int | `1` |  |
+| services.exporter.replicas | int | `2` |  |
 | services.exporter.repository | string | `"exporter"` |  |
-| services.exporter.strategy | string | `"Recreate"` |  |
 | services.exporter.volumeMounts[0].name | string | `"snapshots-storage"` |  |
 | services.exporter.volumeMounts[0].path | string | `"/snapshots"` |  |
 | services.exporter.volumes[0].name | string | `"snapshots-storage"` |  |
 | services.exporter.volumes[0].persistentVolumeClaim.claimName | string | `"{{ include \"telark.exporterSnapshotsPvcName\" . }}"` |  |
 | services.notifier.category | string | `"notification"` |  |
 | services.notifier.enabled | bool | `true` |  |
+| services.notifier.env.NOTIFIER_APPLY_WORKERS | string | `"8"` |  |
 | services.notifier.name | string | `"notifier-service"` |  |
-| services.notifier.pdb.enabled | bool | `true` |  |
-| services.notifier.pdb.minAvailable | int | `1` |  |
+| services.notifier.pdb.enabled | bool | `false` |  |
 | services.notifier.repository | string | `"notifier"` |  |
 | services.notifier.terminationGracePeriodSec | int | `30` |  |
 | services.notifier.useNatsCreds | bool | `true` |  |
@@ -326,4 +332,5 @@ Kubernetes: `>=1.30.0-0`
 | services.ui.repository | string | `"ui"` |  |
 | services.ui.terminationGracePeriodSec | int | `30` |  |
 | services.ui.useRedis | bool | `false` |  |
+| vpa.enabled | bool | `false` |  |
 

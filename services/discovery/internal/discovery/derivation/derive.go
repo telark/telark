@@ -17,24 +17,7 @@ func DeriveGroups(resources []ResourceInput) ([]ResourceWithGroup, []string) {
 	out := make([]ResourceWithGroup, constants.DefaultInitValue, len(resources))
 	for _, r := range resources {
 		g := groupForResource(r, repeated)
-		out = append(out, ResourceWithGroup{
-			Namespace:       r.Namespace,
-			Kind:            r.Kind,
-			Name:            r.Name,
-			Labels:          r.Labels,
-			Group:           g,
-			CreatedAt:       r.CreatedAt,
-			LastModifiedBy:  r.LastModifiedBy,
-			LastModifiedAt:  r.LastModifiedAt,
-			LastModifiedOp:  r.LastModifiedOp,
-			Images:          copyStringSlice(r.Images),
-			Ports:           copyIntSlice(r.Ports),
-			EnvVarKeys:      copyStringSlice(r.EnvVarKeys),
-			ConfigMapRefs:   copyStringSlice(r.ConfigMapRefs),
-			SecretRefs:      copyStringSlice(r.SecretRefs),
-			ServiceMappings: copyStringSlice(r.ServiceMappings),
-			IngressRules:    copyStringSlice(r.IngressRules),
-		})
+		out = append(out, withGroup(r, g))
 		if !seen[g] {
 			seen[g] = true
 			groups = append(groups, g)

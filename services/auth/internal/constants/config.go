@@ -17,15 +17,21 @@ const (
 	HeaderCredentialID            = "X-Credential-ID"
 	HeaderDeviceName              = "X-Device-Name"
 	HeaderDeviceType              = "X-Device-Type"
-	HeaderUsername                = "X-Username"
 	HeaderEmail                   = "X-Email"
 	HeaderContentType             = "Content-Type"
+	HeaderOrigin                  = "Origin"
+	HeaderForwardedHost           = "X-Forwarded-Host"
+	HeaderForwardedProto          = "X-Forwarded-Proto"
 	IDPathParam                   = "id"
 	ContentTypeJSON               = "application/json"
 	EmptyString                   = ""
 	ColonSeparator                = ":"
 	UnderscoreSeparator           = "_"
-	DefaultQuitChannelSize        = 1
+	CommaSeparator                = ","
+	DotSeparator                  = "."
+	SchemeSeparator               = "://"
+	SchemeHTTP                    = "http"
+	SchemeHTTPS                   = "https"
 	DefaultInitValue              = 0
 	DefaultIncrementValue         = 1
 	DefaultColonSeparatorLength   = 1
@@ -37,6 +43,7 @@ const (
 	BackupEligibleFlag            = 0x08
 	BackupStateFlag               = 0x10
 	AuthDataOffsetFlags           = 32
+	AuthDataMinLengthForFlags     = AuthDataOffsetFlags + 1
 	AuthDataOffsetSignCount       = 33
 	AuthDataOffsetAAGUID          = 37
 	AuthDataOffsetCredIDLen       = 53
@@ -55,15 +62,19 @@ const (
 	OIDCJWKSRefreshInterval       = 6 * time.Hour
 	OIDCJWKSMinRefreshInterval    = 5 * time.Minute
 	OIDCJWKSFetchTimeout          = 10 * time.Second
+	EnvPort                       = "PORT"
+	EnvRPID                       = "RP_ID"
+	EnvRPName                     = "RP_NAME"
+	EnvRPOrigin                   = "RP_ORIGIN"
+	EnvChallengeTimeout           = "CHALLENGE_TIMEOUT"
+	EnvSessionExpiry              = "SESSION_EXPIRY"
 	EnvBootstrapAdmins            = "BOOTSTRAP_ADMINS"
 	EnvSelfRegistrationEnabled    = "SELF_REGISTRATION_ENABLED"
 	EnvReplicaID                  = "HOSTNAME"
 	StandaloneReplicaID           = "standalone"
 
-	BuiltInRoleAdmin       = "r-00000-0000-0001"
-	BuiltInRoleOwner       = "r-00000-0000-0002"
-	BuiltInRoleContributor = "r-00000-0000-0003"
-	BuiltInRoleReadOnly    = "r-00000-0000-0004"
+	BuiltInRoleAdmin    = "r-00000-0000-0001"
+	BuiltInRoleReadOnly = "r-00000-0000-0004"
 
 	// Redis config env vars
 	EnvRedisRetryIntervalSec     = "REDIS_RETRY_INTERVAL_SEC"
@@ -76,16 +87,17 @@ const (
 	// Redis key prefixes
 	RedisKeyPrefixChallenge         = "auth:webauthn:challenge:"
 	RedisKeyPrefixRegistrationOwner = "auth:webauthn:registration-owner:"
+	RedisKeyPrefixEnrolledCeremony  = "auth:webauthn:enrolled-ceremony:"
+	RedisKeyPrefixEnrollToken       = "auth:passkey:enroll-token:"
 	RedisKeyPrefixNonce             = "auth:oidc:nonce:"
 	RedisKeyJWKS                    = "auth:oidc:jwks:google"
-	RedisKeyJWKSLock                = "auth:oidc:jwks:refresh-lock"
 
 	// Redis TTLs
 	RedisTTLChallenge        = 60  // seconds — matches WebAuthn ceremony timeout
 	RedisTTLNonce            = 300 // seconds — 5 minutes for OIDC flow
+	RedisTTLEnrollToken      = 600 // seconds — 10 minutes to open the enrollment link on the other host
 	RedisTTLJWKS             = 6   // hours
 	OIDCNonceByteLen         = 32
-	RedisTTLJWKSLock         = 10 // seconds
 	RedisAsyncWorkerPoolSize = 32
 	RedisAsyncWorkerTimeout  = 5 * time.Second
 	RedisAsyncDrainTimeout   = 5 * time.Second

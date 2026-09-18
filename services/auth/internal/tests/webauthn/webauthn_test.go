@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
@@ -23,6 +24,13 @@ import (
 	authdata "github.com/telark/data/auth"
 )
 
+var pinnedRelyingParty = config.WebAuthnConfig{
+	RPID:             "localhost",
+	RPName:           "Test",
+	RPOrigin:         "http://localhost:3000",
+	ChallengeTimeout: 60,
+}
+
 // A single embedded Redis + one WebAuthn init serve the whole package: the redis
 // helper caches its client globally, so a per-test server would leave the cache
 // pointing at a torn-down instance.
@@ -38,12 +46,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	redishelper.NewRedisClientWithRetry(context.Background())
-	if err := webauthnhelper.InitWebAuthn(&config.WebAuthnConfig{
-		RPID:             "localhost",
-		RPName:           "Test",
-		RPOrigin:         "http://localhost:3000",
-		ChallengeTimeout: 60,
-	}); err != nil {
+	if err := webauthnhelper.InitWebAuthn(&pinnedRelyingParty); err != nil {
 		panic(err)
 	}
 	code := m.Run()
@@ -67,11 +70,11 @@ func TestUserMethods(t *testing.T) {
 	testutil.Equal(t, "creds", len(u.WebAuthnCredentials()), 1)
 }
 
-// GetWebAuthn returns the instance wired up in TestMain.
-func TestGetWebAuthn(t *testing.T) {
-	wa, err := webauthnhelper.GetWebAuthn()
+// GetWebAuthnFor returns the pinned instance wired up in TestMain.
+func TestGetWebAuthnFor(t *testing.T) {
+	wa, err := webauthnhelper.GetWebAuthnFor(httptest.NewRequest(http.MethodPost, "/", nil))
 	if err != nil || wa == nil {
-		t.Fatalf("GetWebAuthn = (%v, %v), want a live instance", wa, err)
+		t.Fatalf("GetWebAuthnFor = (%v, %v), want a live instance", wa, err)
 	}
 }
 
@@ -251,9 +254,14 @@ func TestChallengeLifecycle(t *testing.T) {
 	}
 	testutil.Equal(t, "stored challenge", got.Challenge, "value")
 
-	if webauthnhelper.StoreChallenge("chalUser", "other") == nil {
-		t.Fatal("second store should conflict")
+	if err := webauthnhelper.StoreChallenge("chalUser", "other"); err != nil {
+		t.Fatalf("second store should supersede the pending ceremony: %v", err)
 	}
+	got, err = webauthnhelper.ValidateAndGetChallenge("chalUser")
+	if err != nil {
+		t.Fatalf("ValidateAndGetChallenge after supersede = %v", err)
+	}
+	testutil.Equal(t, "superseded challenge", got.Challenge, "other")
 	if _, err := webauthnhelper.ValidateAndGetChallenge("missingUser"); err == nil {
 		t.Fatal("missing challenge should error")
 	}
@@ -263,7 +271,8 @@ func TestChallengeLifecycle(t *testing.T) {
 // StartRegistration issues creation options and persists the challenge for the
 // finish step.
 func TestStartRegistration(t *testing.T) {
-	opts, challenge, err := webauthnhelper.StartRegistration("regUser", "name", "full", nil)
+	opts, challenge, err := webauthnhelper.StartRegistration(
+		"regUser", "name", "full", nil, httptest.NewRequest(http.MethodPost, "/", nil))
 	if err != nil {
 		t.Fatalf("StartRegistration = %v", err)
 	}

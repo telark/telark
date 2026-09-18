@@ -7,6 +7,7 @@ import (
 	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/constants"
 	sessionexp "github.com/telark/exporter/internal/exporters/auth/session"
+	sessionutils "github.com/telark/exporter/internal/utils/auth/session"
 	authutils "github.com/telark/exporter/internal/utils/auth/shared"
 	"github.com/telark/exporter/internal/utils/performance"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
@@ -56,8 +57,8 @@ func ListSessionsByUserWithCacheInvalidation() func(http.ResponseWriter, *http.R
 
 func GetSessionByToken() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		token, err := sharedutils.GetPathParam(w, r, constants.TokenParam)
-		if err != nil {
+		token, ok := sessionutils.RefFromRequest(w, r)
+		if !ok {
 			return
 		}
 
@@ -71,8 +72,8 @@ func GetSessionByToken() func(http.ResponseWriter, *http.Request) {
 
 func PatchSessionByTokenWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		token, err := sharedutils.GetPathParam(w, r, constants.TokenParam)
-		if err != nil {
+		token, ok := sessionutils.RefFromRequest(w, r)
+		if !ok {
 			return
 		}
 
@@ -96,8 +97,8 @@ func PatchSessionByTokenWithCacheInvalidation(optimizer *performance.Optimizer) 
 
 func DeleteSessionByTokenWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		token, err := sharedutils.GetPathParam(w, r, constants.TokenParam)
-		if err != nil {
+		token, ok := sessionutils.RefFromRequest(w, r)
+		if !ok {
 			return
 		}
 

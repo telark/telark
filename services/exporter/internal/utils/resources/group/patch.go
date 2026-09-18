@@ -1,12 +1,12 @@
 package group
 
 import (
-	"encoding/json"
 	"net/http"
 
 	dataerrors "github.com/telark/data/errors"
 	groupdata "github.com/telark/data/resources/group"
 	"github.com/telark/exporter/internal/constants"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -35,22 +35,7 @@ func GetExistingGroupForPatch(w http.ResponseWriter, groupID string) (*groupdata
 }
 
 func ExtractGroupFromUnstructured(resource *unstructured.Unstructured) (*groupdata.GroupAsResource, error) {
-	spec, ok := resource.Object["spec"].(map[string]any)
-	if !ok || spec == nil {
-		return nil, nil
-	}
-
-	specBytes, err := json.Marshal(spec)
-	if err != nil {
-		return nil, err
-	}
-
-	var group groupdata.GroupAsResource
-	if err := json.Unmarshal(specBytes, &group); err != nil {
-		return nil, err
-	}
-
-	return &group, nil
+	return sharedutils.SpecToStruct[groupdata.GroupAsResource](resource)
 }
 
 func ExtractAndMergeGroupForPatch(existingGroup *groupdata.GroupAsResource, body map[string]any, w http.ResponseWriter) bool {

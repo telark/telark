@@ -1,15 +1,19 @@
 package authz
 
 import (
+	"errors"
+
 	dataerrors "github.com/telark/data/errors"
+	"github.com/telark/data/metadata/base"
+	metadata "github.com/telark/data/metadata/resources"
 	groupdata "github.com/telark/data/resources/group"
 	roledata "github.com/telark/data/resources/role"
 	userdata "github.com/telark/data/resources/user"
-	grouputils "github.com/telark/exporter/internal/utils/resources/group"
-	roleutils "github.com/telark/exporter/internal/utils/resources/role"
-	userutils "github.com/telark/exporter/internal/utils/resources/user"
+	"github.com/telark/exporter/internal/constants"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
+	"github.com/telark/kcore/crds/api"
 	"github.com/telark/x-ware/authz"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -18,15 +22,35 @@ import (
 type crdSource struct{}
 
 func (crdSource) User(userID string) (*userdata.UserAsResource, error) {
-	return decode[userdata.UserAsResource](userutils.FindUserByID(userID))
+	return decode[userdata.UserAsResource](getByName(userID, metadata.UserAsResourceMetadata))
 }
 
 func (crdSource) Group(groupID string) (*groupdata.GroupAsResource, error) {
-	return decode[groupdata.GroupAsResource](grouputils.FindGroupByID(groupID))
+	return decode[groupdata.GroupAsResource](getByName(groupID, metadata.GroupAsResourceMetadata))
 }
 
 func (crdSource) Role(roleID string) (*roledata.RoleAsResource, error) {
-	return decode[roledata.RoleAsResource](roleutils.FindRoleByID(roleID))
+	return decode[roledata.RoleAsResource](getByName(roleID, metadata.RoleAsResourceMetadata))
+}
+
+// The finder utilities fold every failure into "not found"; authz must keep a
+// missing record apart from an unreachable API server, so it reads the raw
+// envelope.
+func getByName(name string, md base.Metadata) (*unstructured.Unstructured, error) {
+	result := api.GetCustomResourceByName(name, md)
+	if apierrors.IsNotFound(result.Error) {
+		return nil, authz.ErrNotFound
+	}
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	resource, ok := result.Data.(*unstructured.Unstructured)
+	if !ok {
+		return nil, errors.New(string(constants.ErrInvalidResourceTypeReturned))
+	}
+
+	return resource, nil
 }
 
 func decode[T any](resource *unstructured.Unstructured, err error) (*T, error) {

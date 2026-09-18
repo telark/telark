@@ -31,16 +31,14 @@ func ExtractBackupFlagsFromAttestation(attObjB64 string) (backupEligible, backup
 		return false, false
 	}
 
-	const minAuthDataLengthForFlags = constants.AuthDataOffsetFlags + 1
-	if len(authData) < minAuthDataLengthForFlags {
+	if len(authData) < constants.AuthDataMinLengthForFlags {
 		lg.Warn(string(constants.LogAuthDataTooShortForBackupFlags))
 		return false, false
 	}
 
-	const zeroValue = 0
 	flags := authData[constants.AuthDataOffsetFlags]
-	backupEligible = (flags & constants.BackupEligibleFlag) != zeroValue
-	backupState = (flags & constants.BackupStateFlag) != zeroValue
+	backupEligible = (flags & constants.BackupEligibleFlag) != constants.DefaultInitValue
+	backupState = (flags & constants.BackupStateFlag) != constants.DefaultInitValue
 
 	return backupEligible, backupState
 }
@@ -51,32 +49,24 @@ func validateAttestationFormat(attMap map[string]any) error {
 		return fmt.Errorf(string(constants.ErrUnsupportedAttestationFormat), attMap[constants.WebAuthnKeyFormat])
 	}
 
-	attStmtVal, exists := attMap[constants.AttStmtKey]
-	if !exists {
+	// A missing key decodes to a nil interface, so absent and explicitly-null
+	// attStmt both land on the nil case.
+	var attStmtLen int
+	switch attStmt := attMap[constants.AttStmtKey].(type) {
+	case nil:
 		return nil
+	case map[any]any:
+		attStmtLen = len(attStmt)
+	case map[string]any:
+		attStmtLen = len(attStmt)
+	default:
+		return errors.New(string(constants.ErrInvalidAttStmtType))
 	}
 
-	if attStmtVal == nil {
-		return nil
+	if attStmtLen != constants.DefaultInitValue {
+		return errors.New(string(constants.ErrAttStmtMustBeEmpty))
 	}
-
-	attStmt, ok := attStmtVal.(map[any]any)
-	if ok {
-		if len(attStmt) != constants.DefaultInitValue {
-			return errors.New(string(constants.ErrAttStmtMustBeEmpty))
-		}
-		return nil
-	}
-
-	attStmtStr, ok := attStmtVal.(map[string]any)
-	if ok {
-		if len(attStmtStr) != constants.DefaultInitValue {
-			return errors.New(string(constants.ErrAttStmtMustBeEmpty))
-		}
-		return nil
-	}
-
-	return errors.New(string(constants.ErrInvalidAttStmtType))
+	return nil
 }
 
 func parseAuthData(authData []byte) (

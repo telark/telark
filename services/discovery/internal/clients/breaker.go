@@ -109,3 +109,13 @@ func guardedExporterGet[T any](op func() (T, error)) (T, error) {
 	})
 	return out, err
 }
+
+// The breaker suite lives under internal/tests; these wrappers are the only way
+// it can drive the guard and its classification without exporting either.
+func GuardStatusError(failFormat dataerrors.Error, op func() *response.GenericResponse) error {
+	return guardedStatusError(failFormat, op)
+}
+
+func ClassifyForBreaker(err error) error { return classifyTransport(err) }
+
+func ConnectivityNotReadyPrefix() string { return connectivityNotReadyPrefix }

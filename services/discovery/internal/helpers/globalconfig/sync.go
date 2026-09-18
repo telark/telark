@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/telark/discovery/internal/config"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/startup"
 	gcfgclient "github.com/telark/rest/clients/resources/globalconfig"
@@ -49,4 +50,5 @@ func refreshExcluded(ctx context.Context) {
 		return
 	}
 	excludedCache.Store(cfg.ExcludedNamespaces)
+	config.SetSnapshotsMaxVersions(cfg.Snapshots.MaxPerApp)
 }

@@ -30,6 +30,7 @@ const (
 	ForceSyncRetryAfterSec              int   = 5
 	ForceSyncEnqueueTimeout                   = 10 * time.Second
 	ForceSyncCleanupTimeout                   = 10 * time.Second
+	ForceSyncLockRetryInterval                = 2 * time.Second
 	ForceSyncReclaimMaxCount            int64 = 64
 	DefaultForceSyncStreamMaxLen        int64 = 5000
 	ForceSyncWorkerNamePattern                = "%s-fsworker-%d"
@@ -48,7 +49,6 @@ const (
 	ForceSyncNoGroupErrorSubstr               = "NOGROUP"
 	ForceSyncLogScopeWorkerRead               = "forcesync.worker.read"
 	ForceSyncLogScopeWorkerPanic              = "forcesync.worker.panic"
-	ForceSyncLogScopeIngressXAdd              = "forcesync.ingress.xadd"
 	ForceSyncLogScopeMaintReclaim             = "forcesync.maintenance.reclaim"
 	ForceSyncLogScopeMaintTrim                = "forcesync.maintenance.trim"
 )

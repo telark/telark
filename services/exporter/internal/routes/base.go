@@ -70,7 +70,7 @@ func subjectListCachedRoute(
 func InitRoutes(optimizer *performance.Optimizer) []router.Route {
 	routes := make([]router.Route, constants.DefaultInitValue, constants.DefaultRoutesCount)
 	routes = append(routes, applicationRoutes(optimizer)...)
-	routes = append(routes, globalConfigRoutes(optimizer)...)
+	routes = append(routes, globalConfigRoutes()...)
 	routes = append(routes, userRoutes(optimizer)...)
 	routes = append(routes, groupRoutes(optimizer)...)
 	routes = append(routes, roleRoutes(optimizer)...)
@@ -96,8 +96,8 @@ func cleanupRoutes() []router.Route {
 
 func statusRoutes() []router.Route {
 	return []router.Route{
-		router.CreateRoute(base.Get, statusendpoints.LivenessCheck, statushandler.ProbeHandler),
-		router.CreateRoute(base.Get, statusendpoints.ReadinessCheck, statushandler.ProbeHandler),
+		router.CreateRoute(base.Get, statusendpoints.LivenessCheck, statushandler.Liveness),
+		router.CreateRoute(base.Get, statusendpoints.ReadinessCheck, statushandler.Readiness),
 	}
 }
 
@@ -121,8 +121,7 @@ func notificationRoutes() []router.Route {
 	}
 }
 
-func globalConfigRoutes(optimizer *performance.Optimizer) []router.Route {
-	_ = optimizer
+func globalConfigRoutes() []router.Route {
 	return []router.Route{
 		router.CreateRoute(base.Get, globalconfigendpoints.GetGlobalConfig, globalconfighandler.GetGlobalConfig()),
 		router.CreateRoute(base.Patch, globalconfigendpoints.PatchGlobalConfig, globalconfighandler.PatchGlobalConfig()),
@@ -142,8 +141,8 @@ func applicationRoutes(optimizer *performance.Optimizer) []router.Route {
 		router.CreateRoute(base.Get, applicationendpoints.GetAllApplications,
 			performance.NewCachedListHandlerFunc(
 				optimizer,
-				applicationhandler.ListApplicationResourcesWithCacheInvalidation(optimizer),
-				cache.NewListCacheKeyFunc(optimizer, constants.ResourceApplication),
+				applicationhandler.ListApplicationResourcesWithCacheInvalidation(),
+				cache.NewViewListCacheKeyFunc(optimizer, constants.ResourceApplication),
 				constants.ResourceApplication,
 				constants.OpList,
 			)),
@@ -166,7 +165,7 @@ func applicationRoutes(optimizer *performance.Optimizer) []router.Route {
 		router.CreateRoute(base.Get, applicationendpoints.GetApplicationByName,
 			performance.NewCachedListHandlerFunc(
 				optimizer,
-				applicationhandler.GetApplicationResourceWithCacheInvalidation(optimizer),
+				applicationhandler.GetApplicationResourceWithCacheInvalidation(),
 				cache.NewGetCacheKeyFunc(constants.ResourceApplication),
 				constants.ResourceApplication,
 				constants.OpGet,
@@ -203,7 +202,7 @@ func userRoutes(optimizer *performance.Optimizer) []router.Route {
 		router.CreateRoute(base.Get, userendpoints.GetAllUsers,
 			performance.NewCachedListHandlerFunc(
 				optimizer,
-				userhandler.ListUserResourcesWithCacheInvalidation(optimizer),
+				userhandler.ListUserResourcesWithCacheInvalidation(),
 				cache.NewListCacheKeyFunc(optimizer, constants.ResourceUser),
 				constants.ResourceUser,
 				constants.OpList,
@@ -248,7 +247,7 @@ func groupRoutes(optimizer *performance.Optimizer) []router.Route {
 		router.CreateRoute(base.Get, groupendpoints.GetAllGroups,
 			performance.NewCachedListHandlerFunc(
 				optimizer,
-				grouphandler.ListGroupResourcesWithCacheInvalidation(optimizer),
+				grouphandler.ListGroupResourcesWithCacheInvalidation(),
 				cache.NewListCacheKeyFunc(optimizer, constants.ResourceGroup),
 				constants.ResourceGroup,
 				constants.OpList,
@@ -373,7 +372,7 @@ func roleQueryRoutes(optimizer *performance.Optimizer) []router.Route {
 		router.CreateRoute(base.Get, roleendpoints.GetAllRoles,
 			performance.NewCachedListHandlerFunc(
 				optimizer,
-				rolehandler.ListRoleResourcesWithCacheInvalidation(optimizer),
+				rolehandler.ListRoleResourcesWithCacheInvalidation(),
 				cache.NewListCacheKeyFunc(optimizer, constants.ResourceRole),
 				constants.ResourceRole,
 				constants.OpList,

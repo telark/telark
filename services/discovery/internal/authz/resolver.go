@@ -1,10 +1,10 @@
 package authz
 
 import (
-	"errors"
+	"crypto/sha256"
+	"encoding/hex"
 	"time"
 
-	dataerrors "github.com/telark/data/errors"
 	groupdata "github.com/telark/data/resources/group"
 	roledata "github.com/telark/data/resources/role"
 	userdata "github.com/telark/data/resources/user"
@@ -14,10 +14,6 @@ import (
 )
 
 var lg = constants.GetLogger(constants.LoggerPrefixAuthz)
-
-type clientSource struct {
-	client *clients.AuthzClient
-}
 
 func (s clientSource) User(userID string) (*userdata.UserAsResource, error) {
 	return s.client.GetUserByID(userID)
@@ -31,19 +27,37 @@ func (s clientSource) Role(roleID string) (*roledata.RoleAsResource, error) {
 	return s.client.GetRoleByID(roleID)
 }
 
-func NewResolver() *authz.BasicResolver {
+func NewResolver() *Resolver {
 	client := clients.NewAuthzClient()
-	return authz.NewBasicResolver(clientSource{client: client}, validateSession(client), lg)
+	return NewCachedResolver(authz.NewBasicResolver(clientSource{client: client}, validateSession(client), lg))
+}
+
+func NewCachedResolver(inner authz.Resolver) *Resolver {
+	return &Resolver{inner: inner}
+}
+
+// Keyed by digest so a raw token never sits in a heap dump.
+func (r *Resolver) UserIDForToken(token string) (string, error) {
+	digest := sha256.Sum256([]byte(token))
+	return lookup(&r.tokens, hex.EncodeToString(digest[:]), constants.AuthzSessionCacheTTL, func() (string, error) {
+		return r.inner.UserIDForToken(token)
+	})
+}
+
+func (r *Resolver) GrantsForUser(userID string) (authz.Grants, error) {
+	return lookup(&r.grants, userID, constants.AuthzGrantsCacheTTL, func() (authz.Grants, error) {
+		return r.inner.GrantsForUser(userID)
+	})
 }
 
 func validateSession(client *clients.AuthzClient) authz.SessionValidator {
 	return func(token string) (string, error) {
 		session, err := client.GetSessionByToken(token)
 		if err != nil {
-			return constants.EmptyString, errors.New(string(dataerrors.ErrAuthzSessionNotFound))
+			return constants.EmptyString, err
 		}
 		if expired(session.ExpiresTimestamp) {
-			return constants.EmptyString, errors.New(string(dataerrors.ErrAuthzSessionExpired))
+			return constants.EmptyString, authz.ErrSessionExpired
 		}
 		return session.UserID, nil
 	}

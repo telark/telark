@@ -1,0 +1,26 @@
+{{- $values := include "telark.modeValues" $ | fromYaml -}}
+{{- $mode := .Values.app.mode | default "standard" -}}
+{{/* The operator ships as the optional vpa subchart; its CRD only exists from the upgrade after the install. minimal never autoscales. */}}
+{{- if and .Values.vpa.enabled (ne $mode "minimal") (.Capabilities.APIVersions.Has "autoscaling.k8s.io/v1") }}
+{{- $updateMode := ($values.app.serviceDefaults.vpa | default dict).updateMode | default "Auto" }}
+{{- range $name, $svc := $values.services }}
+{{- if $svc.enabled }}
+---
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: {{ include "telark.fullname" $ }}-{{ $svc.name }}-vpa
+  namespace: {{ $values.app.namespace }}
+  labels:
+    {{- include "telark.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $svc.name }}
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "telark.fullname" $ }}-{{ $svc.name }}
+  updatePolicy:
+    updateMode: {{ $updateMode }}
+{{- end }}
+{{- end }}
+{{- end }}

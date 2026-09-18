@@ -52,8 +52,9 @@ func addUsers(r map[string]authz.Requirement) {
 	r[router.Key(base.Get, userendpoints.GetAllUsers)] = authz.Read(roledata.ScopeUsers)
 	r[router.Key(base.Get, userendpoints.GetUserByID)] = authz.Read(roledata.ScopeUsers)
 	r[router.Key(base.Get, userendpoints.GetUserByEmail)] = authz.Read(roledata.ScopeUsers)
-	// No rule here: each privileged field has its own, checked by the guard.
-	r[router.Key(base.Patch, userendpoints.PatchUserByID)] = authz.Write(roledata.ScopeUsers)
+	// Any signed-in user may edit their own profile, so the route only needs a
+	// session; GuardUserPatch enforces ownership and each privileged field's rule.
+	r[router.Key(base.Patch, userendpoints.PatchUserByID)] = authz.Authenticated
 	r[router.Key(base.Delete, userendpoints.DeleteUserByID)] = authz.Denyable(
 		authz.Own(roledata.ScopeUsers), roledata.ActionDeleteUser)
 

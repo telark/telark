@@ -3,6 +3,21 @@
 All notable changes to telark are documented here.
 Commits follow [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.3.0] - 2026-09-17
+
+### [MAJOR]
+- Fix all bugs for last storm test
+
+## [0.2.1] - 2026-09-17
+
+### Bug Fixes
+- Fix login with passkeys with the proper error handling and remove the login ceremonu lock, adjust the modes config values
+
+## [0.2.0] - 2026-09-17
+
+### [MAJOR]
+- Fix apps discovery by design by improving  applications snapshots persistance, fix redis missed dead cache logic on exporter single-get, improve concurrency on notifier and remove the silent apps patch drops, drop apis latency
+
 ## [0.1.3] - 2026-09-14
 
 ### Bug Fixes

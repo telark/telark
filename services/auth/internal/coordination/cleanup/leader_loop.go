@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/telark/auth/internal/constants"
 	xwareredis "github.com/telark/x-ware/redis/stream"
 )
 
@@ -78,7 +79,7 @@ func (l *LeaderLoop) checkLeader(ctx context.Context) bool {
 	}
 	ok, err := l.election.IsLeader(ctx)
 	if err != nil {
-		lg.Error(fmt.Sprintf("[cleanup] election check failed: %v", err))
+		lg.Error(fmt.Sprintf(string(constants.ErrCleanupElectionCheckFailed), err))
 		return false
 	}
 	return ok

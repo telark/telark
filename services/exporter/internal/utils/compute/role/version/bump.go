@@ -46,7 +46,6 @@ func parseVersion(version string) (major, minor, patch int) {
 		return constants.DefaultIncrementValue, constants.DefaultInitValue, constants.DefaultInitValue
 	}
 
-	// Remove 'v' prefix if present
 	version = strings.TrimPrefix(version, "v")
 	parts := strings.Split(version, ".")
 	if len(parts) == constants.DefaultInitValue {

@@ -9,10 +9,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func FindGroupByID(groupID string) (*unstructured.Unstructured, error) {
-	return resourcesshared.FindResourceByID(groupID, metadata.GroupAsResourceMetadata, constants.ErrGroupNotFound)
-}
-
 func FindGroupByIDOrRespond(w http.ResponseWriter, groupID string) (*unstructured.Unstructured, bool) {
 	return resourcesshared.FindResourceByIDOrRespond(w, groupID, metadata.GroupAsResourceMetadata, constants.ErrGroupNotFound)
 }

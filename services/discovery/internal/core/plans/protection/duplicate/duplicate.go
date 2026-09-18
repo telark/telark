@@ -8,8 +8,7 @@ import (
 
 const namePrefix = "Copy of "
 
-// BuildRequest produces a prepare-shaped payload from an existing plan plus the user's
-// duplicate overrides. Callers feed the result back into the prepare flow so duplication
+// Prepare-shaped on purpose: callers feed the result back into the prepare flow so duplication
 // reuses the standard validation and rendering pipeline.
 func BuildRequest(
 	source *plans.ProtectionPlan,

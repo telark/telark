@@ -3,6 +3,7 @@ package validation
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/telark/data/plans"
@@ -66,7 +67,7 @@ func Policies(items []planseps.PolicyRequest, scopeType string) error {
 		if !ok {
 			return fmt.Errorf(fmtUnknownTemplate, p.TemplateID)
 		}
-		if !templateSupports(tpl, scopeType) {
+		if !TemplateSupports(tpl, scopeType) {
 			return fmt.Errorf(fmtTemplateScope, p.TemplateID, scopeType)
 		}
 		if err := plans.ValidateParams(tpl, p.Params); err != nil {
@@ -76,13 +77,10 @@ func Policies(items []planseps.PolicyRequest, scopeType string) error {
 	return nil
 }
 
-func templateSupports(tpl *plans.Template, scopeType string) bool {
-	for _, supported := range tpl.SupportedScopes {
-		if string(supported) == scopeType {
-			return true
-		}
-	}
-	return false
+func TemplateSupports(tpl *plans.Template, scopeType string) bool {
+	return slices.ContainsFunc(tpl.SupportedScopes, func(s plans.ScopeSupport) bool {
+		return string(s) == scopeType
+	})
 }
 
 func TimeRange(tr *planseps.TimeRangeRequest) error {

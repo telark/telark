@@ -6,7 +6,6 @@ import (
 )
 
 const (
-	LabelManagedBy = "app.kubernetes.io/managed-by"
 	ManagedHelm    = "Helm"
 	ManagedManual  = "manual"
 	ManagedUnknown = "unknown"

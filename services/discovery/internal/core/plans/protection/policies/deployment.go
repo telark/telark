@@ -9,7 +9,6 @@ import (
 	"github.com/telark/discovery/internal/constants"
 )
 
-// PolicyTargetCombo pairs one plan policy with one scope target (namespace or application id).
 type PolicyTargetCombo struct {
 	Policy plans.ProtectionPlanPolicy
 	Target string

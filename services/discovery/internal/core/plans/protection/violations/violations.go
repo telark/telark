@@ -45,9 +45,6 @@ type Deps struct {
 	ResolveApps applications.Resolver
 }
 
-// List walks Kyverno PolicyReports for every namespace in the plan's scope, picks out the
-// rows whose policy name matches one we deployed, optionally filters by result, sorts newest
-// first, then truncates to the requested limit.
 func List(
 	ctx context.Context,
 	deps Deps,

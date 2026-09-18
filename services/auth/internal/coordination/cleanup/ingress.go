@@ -16,7 +16,7 @@ func NewIngress(streams map[string]*StreamOps, dedup *Dedup) *Ingress {
 func (i *Ingress) Enqueue(ctx context.Context, req EnqueueRequest) (EnqueueResult, error) {
 	stream, ok := i.streams[req.ResourceType]
 	if !ok {
-		return EnqueueResult{}, fmt.Errorf("cleanup: unknown resource type %q", req.ResourceType)
+		return EnqueueResult{}, fmt.Errorf(string(constants.ErrCleanupUnknownResourceType), req.ResourceType)
 	}
 	jobID := uuid.NewString()
 	isNew, currentJobID, err := i.dedup.TryClaim(ctx, req.ResourceType, req.ResourceID, jobID)

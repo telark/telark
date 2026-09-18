@@ -16,7 +16,6 @@ import (
 	userresource "github.com/telark/data/resources/user"
 )
 
-// ConflictError represents a 409 Conflict error from the data service
 type ConflictError struct {
 	Message string
 }
@@ -66,52 +65,97 @@ func CheckUserHasExistingPasskeys(userID string) (bool, error) {
 	return len(passkeys) > constants.InitialCapacity && passkeys[constants.DefaultInitValue] != nil, nil
 }
 
-func GetUserForRegistrationStart(r *http.Request) (*userresource.UserAsResource, string, error) {
-	userClient := clients.GetUserClient()
-	sessionUserID, sessionErr := ValidateSessionFromRequest(r)
-	if sessionErr == nil {
-		user, err := GetUserWithErrorHandling(sessionUserID, userClient.GetUserByID)
-		if err != nil {
-			return nil, constants.EmptyString, err
-		}
-		return user, sessionUserID, nil
+func registerStartBody(r *http.Request) (email, enrollToken string, err error) {
+	if r.ContentLength == constants.DefaultInitValue {
+		return constants.EmptyString, constants.EmptyString, nil
 	}
-
 	var req struct {
-		Email string `json:"email,omitempty"`
+		Email       string `json:"email,omitempty"`
+		EnrollToken string `json:"enrollToken,omitempty"`
 	}
 	if err := shared.DecodeRequestBody(r, &req); err != nil {
-		return nil, constants.EmptyString, err
+		return constants.EmptyString, constants.EmptyString, err
+	}
+	return req.Email, req.EnrollToken, nil
+}
+
+// A caller who proved an identity (session or enrollment token) registers for
+// that user: the body may repeat its email or omit it, never name another account.
+func ownUser(userID, email string) (*userresource.UserAsResource, error) {
+	user, err := GetUserByIDWithErrorHandling(userID)
+	if err != nil {
+		return nil, err
+	}
+	if email != constants.EmptyString && !strings.EqualFold(email, user.Email) {
+		return nil, errors.New(string(constants.ErrRegisterEmailMismatch))
+	}
+	return user, nil
+}
+
+func userForEmail(email string) (*userresource.UserAsResource, error) {
+	if err := shared.ValidateEmail(email); err != nil {
+		return nil, err
 	}
 
-	if err := shared.ValidateEmail(req.Email); err != nil {
-		return nil, constants.EmptyString, err
-	}
-
-	user, err := GetUserWithErrorHandling(req.Email, userClient.GetUserByEmail)
+	userClient := clients.GetUserClient()
+	user, err := GetUserWithErrorHandling(email, userClient.GetUserByEmail)
 	if err != nil {
 		if !shared.IsError(err, constants.ErrUserNotFound) {
-			return nil, constants.EmptyString, err
+			return nil, err
 		}
-		user, err = JitProvisionUserByEmail(userClient, req.Email)
-		if err != nil {
-			return nil, constants.EmptyString, err
-		}
-		return user, user.ID, nil
+		return JitProvisionUserByEmail(userClient, email)
 	}
 
 	hasPasskeys, err := CheckUserHasExistingPasskeys(user.ID)
 	if err == nil && hasPasskeys {
-		return nil, constants.EmptyString, errors.New(string(constants.ErrUserAlreadyHasPasskeysPleaseLoginFirst))
+		return nil, errors.New(string(constants.ErrUserAlreadyHasPasskeysPleaseLoginFirst))
 	}
-
-	return user, user.ID, nil
+	return user, nil
 }
 
-// ceremonyOwner resolves the user a session-less finish belongs to. The identity
-// headers are stripped by the authz layer, so only the signed ceremony can name it.
+// The registrant is resolved from the strongest proof present: a session, then
+// a one-time enrollment token (reported as enrolled so the session-less finish
+// may add to an account that already has passkeys), then a bare email.
+func GetUserForRegistrationStart(r *http.Request) (
+	user *userresource.UserAsResource, userID string, enrolled bool, err error,
+) {
+	sessionUserID, sessionErr := ValidateSessionFromRequest(r)
+	email, enrollToken, err := registerStartBody(r)
+	if err != nil {
+		return nil, constants.EmptyString, false, err
+	}
+
+	if sessionErr == nil {
+		user, err = ownUser(sessionUserID, email)
+		if err != nil {
+			return nil, constants.EmptyString, false, err
+		}
+		return user, sessionUserID, false, nil
+	}
+
+	if enrollToken != constants.EmptyString {
+		userID, err = ResolveEnrollToken(enrollToken)
+		if err != nil {
+			return nil, constants.EmptyString, false, err
+		}
+		user, err = ownUser(userID, email)
+		if err != nil {
+			return nil, constants.EmptyString, false, err
+		}
+		return user, userID, true, nil
+	}
+
+	user, err = userForEmail(email)
+	if err != nil {
+		return nil, constants.EmptyString, false, err
+	}
+	return user, user.ID, false, nil
+}
+
+// The identity headers are stripped by the authz layer, so for a session-less
+// finish only the signed ceremony (ceremonyOwner) can name the user.
 func GetUserForRegistration(
-	r *http.Request, ceremonyOwner func(*http.Request) (string, error),
+	r *http.Request, ceremonyOwner func(*http.Request) (string, bool, error),
 ) (*userresource.UserAsResource, string, error) {
 	userClient := clients.GetUserClient()
 	sessionUserID, sessionErr := ValidateSessionFromRequest(r)
@@ -123,7 +167,7 @@ func GetUserForRegistration(
 		return user, sessionUserID, nil
 	}
 
-	ownerID, err := ceremonyOwner(r)
+	ownerID, enrolled, err := ceremonyOwner(r)
 	if err != nil {
 		return nil, constants.EmptyString, err
 	}
@@ -131,6 +175,9 @@ func GetUserForRegistration(
 	user, err := GetUserWithErrorHandling(ownerID, userClient.GetUserByID)
 	if err != nil {
 		return nil, constants.EmptyString, err
+	}
+	if enrolled {
+		return user, user.ID, nil
 	}
 
 	hasPasskeys, err := CheckUserHasExistingPasskeys(user.ID)
@@ -198,7 +245,6 @@ func CreatePasskey(userID string, passkey *authdata.UserPasskey) (any, error) {
 	passkeyClient := clients.GetPasskeyClient()
 	resp := passkeyClient.CreatePasskeyByUser(userID, passkey)
 	if resp.Status >= constants.HTTPBadRequest {
-		// Preserve 409 Conflict status
 		if resp.Status == http.StatusConflict {
 			return nil, &ConflictError{Message: resp.Message}
 		}

@@ -14,17 +14,15 @@ import (
 )
 
 const (
-	appsParam      = "apps"
-	appKeySep      = "/"
-	appKeyFields   = 2
-	namespaceIdx   = 0
-	nameIdx        = 1
+	appsParam    = "apps"
+	appKeySep    = "/"
+	appKeyFields = 2
+	namespaceIdx = 0
+	nameIdx      = 1
 )
 
-// Response is windowed to the apps the caller names — the visible page, never the
-// whole cluster — so the body stays bounded no matter how many apps exist. Results
-// are whatever is cached now; pending are still being enriched and appear on a
-// later poll.
+// Windowed to the apps the caller names, never the whole cluster, so the body stays bounded.
+// Pending apps are still being enriched and appear on a later poll.
 type Response struct {
 	Results map[string]*appresource.Insights `json:"results"`
 	Pending []string                         `json:"pending"`

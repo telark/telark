@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,7 +19,11 @@ import (
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 )
+
+var GetManifestFromCache func(kind, name, ns string) (map[string]any, bool)
 
 var envVarSkipUpper = func() []string {
 	parts := strings.Split(strings.ToUpper(envKeySkipSubstr), csvSeparator)
@@ -116,7 +121,6 @@ func applyEnrichResult(in *derivation.ResourceInput, res enrichResult) {
 }
 
 func lastModifiedFromAnnotations(ann map[string]string) (by string, at time.Time, op string) {
-	// This is the enrichment stage which collects Kyverno-injected metadata from live K8s objects.
 	if len(ann) == constants.DefaultInitValue {
 		return constants.EmptyString, time.Time{}, constants.EmptyString
 	}
@@ -130,10 +134,14 @@ func lastModifiedFromAnnotations(ann map[string]string) (by string, at time.Time
 func buildEnrichCache(ctx context.Context, inputs []derivation.ResourceInput) map[string]enrichResult {
 	type nskind struct{ ns, kind string }
 	seen := make(map[nskind]bool)
+	cache := make(map[string]enrichResult, len(inputs))
 	for _, r := range inputs {
+		if res, ok := enrichFromCachedManifest(r.Kind, r.Name, r.Namespace); ok {
+			cache[r.Namespace+keySeparator+r.Kind+keySeparator+r.Name] = res
+			continue
+		}
 		seen[nskind{r.Namespace, r.Kind}] = true
 	}
-	cache := make(map[string]enrichResult)
 	var mu sync.Mutex
 	g, gctx := errgroup.WithContext(ctx)
 	for nk := range seen {
@@ -152,6 +160,53 @@ func buildEnrichCache(ctx context.Context, inputs []derivation.ResourceInput) ma
 	return cache
 }
 
+// Kinds without a fetcher stay unenriched so the informer set (which is
+// wider) does not start stamping fields the live path never produced.
+func enrichFromCachedManifest(kind, name, ns string) (enrichResult, bool) {
+	if GetManifestFromCache == nil {
+		return enrichResult{}, false
+	}
+	if _, known := kindFetchers[kind]; !known {
+		return enrichResult{}, false
+	}
+	obj, ok := GetManifestFromCache(kind, name, ns)
+	if !ok {
+		return enrichResult{}, false
+	}
+	u := unstructured.Unstructured{Object: obj}
+	res := baseEnrichResult(u.GetAnnotations(), u.GetCreationTimestamp().Time)
+	switch kind {
+	case appshared.KindDeployment, appshared.KindStatefulSet, appshared.KindDaemonSet:
+		res.spec = podSpecFromUnstructured(&u)
+	case appshared.KindService:
+		var s corev1.Service
+		if runtime.DefaultUnstructuredConverter.FromUnstructured(obj, &s) == nil {
+			res.serviceMappings = extractServiceMappings(&s)
+		}
+	case appshared.KindIngress:
+		var ing networkingv1.Ingress
+		if runtime.DefaultUnstructuredConverter.FromUnstructured(obj, &ing) == nil {
+			res.ingressRules = extractIngressRules(&ing)
+		}
+	default:
+	}
+	return res, true
+}
+
+func podSpecFromUnstructured(u *unstructured.Unstructured) *corev1.PodSpec {
+	m, found, err := unstructured.NestedMap(
+		u.Object, constants.K8sObjectFieldSpec, constants.K8sObjectFieldTemplate, constants.K8sObjectFieldSpec,
+	)
+	if err != nil || !found {
+		return nil
+	}
+	var spec corev1.PodSpec
+	if runtime.DefaultUnstructuredConverter.FromUnstructured(m, &spec) != nil {
+		return nil
+	}
+	return &spec
+}
+
 func baseEnrichResult(annotations map[string]string, created time.Time) enrichResult {
 	by, at, op := lastModifiedFromAnnotations(annotations)
 	return enrichResult{
@@ -166,11 +221,8 @@ func fetchByNamespaceKind(ctx context.Context, ns, kind string) map[string]enric
 	if err := ctx.Err(); err != nil {
 		return nil
 	}
-	// The kindFetchers run synchronously against the shared K8s client whose
-	// per-request timeout is enforced at the REST layer. Previously this call
-	// was wrapped in a goroutine guarded by select{ ctx | timer | done } — but
-	// if the inner K8s call ignored ctx and ran past the timer, the goroutine
-	// would leak. Call directly so the caller fully owns the lifecycle.
+	// Called directly, not in a ctx-guarded goroutine: a K8s call that ignores ctx
+	// would outlive the timer and leak. The REST layer enforces the per-request timeout.
 	return fetchByNamespaceKindSync(ns, kind)
 }
 
@@ -548,10 +600,7 @@ func ingressRuleValues(rule networkingv1.IngressRule) []string {
 }
 
 func envVarMatchesSkip(upper string, skipUpper []string) bool {
-	for _, s := range skipUpper {
-		if s != constants.EmptyString && strings.Contains(upper, s) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(skipUpper, func(s string) bool {
+		return s != constants.EmptyString && strings.Contains(upper, s)
+	})
 }

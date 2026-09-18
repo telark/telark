@@ -8,6 +8,7 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gorilla/mux"
+	"github.com/redis/go-redis/v9"
 	"github.com/telark/exporter/internal/constants"
 	categoryhandler "github.com/telark/exporter/internal/handlers/classification/category"
 	protectionhandler "github.com/telark/exporter/internal/handlers/plans/protection"
@@ -20,12 +21,7 @@ import (
 func newOptimizer(t *testing.T) *performance.Optimizer {
 	t.Helper()
 	mr := miniredis.RunT(t)
-	t.Setenv("REDIS_HOST", mr.Host())
-	t.Setenv("REDIS_PORT", mr.Port())
-	o, err := performance.NewOptimizer()
-	if err != nil {
-		t.Fatalf("NewOptimizer: %v", err)
-	}
+	o := performance.NewOptimizer(redis.NewClient(&redis.Options{Addr: mr.Addr()}))
 	t.Cleanup(o.Close)
 	return o
 }
@@ -54,7 +50,7 @@ func TestRoleHandlers(t *testing.T) {
 	o := newOptimizer(t)
 	assertErrorResponse(t, rolehandler.CreateRoleResourceWithCacheInvalidation(o), postJSON("{}"), "CreateRole")
 	assertErrorResponse(t, rolehandler.GetRoleByIDWithCacheInvalidation(), idReq("r1"), "GetRoleByID")
-	assertErrorResponse(t, rolehandler.ListRoleResourcesWithCacheInvalidation(o), idReq("r1"), "ListRoles")
+	assertErrorResponse(t, rolehandler.ListRoleResourcesWithCacheInvalidation(), idReq("r1"), "ListRoles")
 	assertErrorResponse(t, rolehandler.PatchRoleByIDWithCacheInvalidation(o), idReq("r1"), "PatchRole")
 	assertErrorResponse(t, rolehandler.DeleteRoleByIDWithCacheInvalidation(o), idReq("r1"), "DeleteRole")
 }
@@ -63,7 +59,7 @@ func TestUserHandlers(t *testing.T) {
 	o := newOptimizer(t)
 	assertErrorResponse(t, userhandler.CreateUserResourceWithCacheInvalidation(o), postJSON("{}"), "CreateUser")
 	assertErrorResponse(t, userhandler.GetUserByIDWithCacheInvalidation(), idReq("u1"), "GetUserByID")
-	assertErrorResponse(t, userhandler.ListUserResourcesWithCacheInvalidation(o), idReq("u1"), "ListUsers")
+	assertErrorResponse(t, userhandler.ListUserResourcesWithCacheInvalidation(), idReq("u1"), "ListUsers")
 	assertErrorResponse(t, userhandler.PatchUserByIDWithCacheInvalidation(o), idReq("u1"), "PatchUser")
 	assertErrorResponse(t, userhandler.DeleteUserByIDWithCacheInvalidation(o), idReq("u1"), "DeleteUser")
 }
@@ -72,7 +68,7 @@ func TestGroupHandlers(t *testing.T) {
 	o := newOptimizer(t)
 	assertErrorResponse(t, grouphandler.CreateGroupResourceWithCacheInvalidation(o), postJSON("{}"), "CreateGroup")
 	assertErrorResponse(t, grouphandler.GetGroupByIDWithCacheInvalidation(), idReq("g1"), "GetGroupByID")
-	assertErrorResponse(t, grouphandler.ListGroupResourcesWithCacheInvalidation(o), idReq("g1"), "ListGroups")
+	assertErrorResponse(t, grouphandler.ListGroupResourcesWithCacheInvalidation(), idReq("g1"), "ListGroups")
 	assertErrorResponse(t, grouphandler.PatchGroupByIDWithCacheInvalidation(o), idReq("g1"), "PatchGroup")
 	assertErrorResponse(t, grouphandler.DeleteGroupByIDWithCacheInvalidation(o), idReq("g1"), "DeleteGroup")
 }

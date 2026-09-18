@@ -16,12 +16,9 @@ func MaxSnapshots() int {
 }
 
 func HasSnapshotGeneration(existing []application.ApplicationSnapshot, generation int) bool {
-	for _, s := range existing {
-		if s.Generation == generation {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(existing, func(s application.ApplicationSnapshot) bool {
+		return s.Generation == generation
+	})
 }
 
 func NormalizeApplicationSnapshotTakenAt(app *application.Application) {
@@ -75,5 +72,19 @@ func NamespacesForGeneration(snaps []application.ApplicationSnapshot, generation
 		out = append(out, ns)
 	}
 	slices.Sort(out)
+	return out
+}
+
+func Pruned(before, after []application.ApplicationSnapshot) []application.ApplicationSnapshot {
+	kept := make(map[string]struct{}, len(after))
+	for i := range after {
+		kept[after[i].Path] = struct{}{}
+	}
+	var out []application.ApplicationSnapshot
+	for i := range before {
+		if _, ok := kept[before[i].Path]; !ok {
+			out = append(out, before[i])
+		}
+	}
 	return out
 }

@@ -2,15 +2,23 @@ package shared
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/telark/auth/internal/constants"
+	dataerrors "github.com/telark/data/errors"
+	restresponse "github.com/telark/rest/response"
 	requestutils "github.com/telark/rest/utils/request"
+	responseutils "github.com/telark/rest/utils/response"
 )
 
-var lg = constants.GetLogger(constants.LoggerPrefixHelper)
+var (
+	lg = constants.GetLogger(constants.LoggerPrefixHelper)
+
+	ErrBackendUnavailable = errors.New(string(dataerrors.ErrAuthzResolverUnavailable))
+)
 
 func SendJSONResponse(w http.ResponseWriter, statusCode int, data any) {
 	w.Header().Set(constants.HeaderContentType, constants.ContentTypeJSON)
@@ -21,7 +29,14 @@ func SendJSONResponse(w http.ResponseWriter, statusCode int, data any) {
 	}
 }
 
+// A backend that could not answer is an outage, never a verdict: the caller's
+// status is overridden so a stale 401/500 cannot log the user out.
 func SendErrorResponse(w http.ResponseWriter, statusCode int, err error) {
+	if errors.Is(err, ErrBackendUnavailable) {
+		responseutils.SendResponse(w, http.StatusServiceUnavailable, restresponse.OperationUnavailable, err.Error(), nil)
+		return
+	}
+
 	const responseSize = 2
 	response := make(map[string]any, responseSize)
 	response[constants.JSONKeyError] = true
@@ -81,4 +96,11 @@ func GetStatusCodeForAuthError(err error) int {
 		return http.StatusBadRequest
 	}
 	return http.StatusUnauthorized
+}
+
+func GetStatusCodeForWebAuthnError(err error, fallback int) int {
+	if IsError(err, constants.ErrOriginNotAllowed) {
+		return http.StatusBadRequest
+	}
+	return fallback
 }

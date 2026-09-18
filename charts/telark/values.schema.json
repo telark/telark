@@ -51,6 +51,17 @@
         "tls": { "type": "array" }
       }
     },
+    "gateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "parentRefs": { "type": "array" },
+        "hostnames": { "type": "array" },
+        "service": { "type": "string" },
+        "annotations": { "type": "object" }
+      }
+    },
     "app": {
       "type": "object",
       "additionalProperties": true,
@@ -59,6 +70,7 @@
         "name": { "type": "string", "minLength": 1 },
         "namespace": { "type": "string", "minLength": 1 },
         "mode": { "type": "string", "enum": ["minimal", "standard", "performance"] },
+        "singleNode": { "type": "boolean" },
         "image": {
           "type": "object",
           "additionalProperties": false,
@@ -75,8 +87,7 @@
           "properties": {
             "enabled": { "type": "boolean" },
             "storageClass": { "type": "string" },
-            "size": { "type": "string" },
-            "accessMode": { "type": "string", "enum": ["ReadWriteOnce", "ReadWriteMany", "ReadOnlyMany"] }
+            "size": { "type": "string" }
           }
         },
         "serviceDefaults": {
@@ -112,6 +123,7 @@
           "includeSecurity": { "type": "boolean" },
           "useRedis": { "type": "boolean" },
           "useNatsCreds": { "type": "boolean" },
+          "nodePort": { "type": "integer" },
           "env": { "type": "object" },
           "pdb": {
             "type": "object",

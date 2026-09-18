@@ -1,16 +1,13 @@
 package metrics
 
 import (
-	"context"
-
 	"github.com/telark/data/resources/application"
 	"github.com/telark/discovery/internal/constants"
 	kcoremetrics "github.com/telark/kcore/metrics"
 	"github.com/telark/kcore/resources/workload"
 )
 
-func PopulateApplicationMetrics(ctx context.Context, app *application.Application) {
-	_ = ctx
+func PopulateApplicationMetrics(app *application.Application) {
 	if app == nil {
 		return
 	}
@@ -38,9 +35,8 @@ func collectWorkloadUsageEntries(app *application.Application) []application.Wor
 	return out
 }
 
-// findExistingBaseline returns the baseline from a prior WorkloadUsage slice if present.
-// A non-zero Replicas field signals that the baseline was seeded from a V1 snapshot and
-// must not be overwritten by a live ReadMetricsBaseline call.
+// A non-zero Replicas field means the baseline was seeded from a V1 snapshot and must not be
+// overwritten by a live ReadMetricsBaseline call.
 func findExistingBaseline(
 	workloads []application.WorkloadUsage,
 	ns, kind, name string,
@@ -55,9 +51,6 @@ func findExistingBaseline(
 }
 
 func workloadUsageForResource(r application.Resource, existing *application.MetricsBaseline) application.WorkloadUsage {
-	sel := workload.WorkloadPodMatchLabels(r.Namespace, r.Kind, r.Name)
-	qos := kcoremetrics.GetWorkloadQualityOfService(r.Namespace, sel)
-	u := kcoremetrics.BuildWorkloadUsage(r.Namespace, qos, sel)
 	var baseline application.MetricsBaseline
 	if existing != nil && existing.Replicas != constants.DefaultInitValue {
 		baseline = *existing
@@ -70,7 +63,13 @@ func workloadUsageForResource(r application.Resource, existing *application.Metr
 		Namespace:    r.Namespace,
 		Baseline:     baseline,
 	}
-	if u != nil {
+	// No replicas, no pods: skip the pod list and the metrics API round trips.
+	if baseline.Replicas == int32(constants.DefaultInitValue) {
+		return wu
+	}
+	sel := workload.WorkloadPodMatchLabels(r.Namespace, r.Kind, r.Name)
+	qos := kcoremetrics.GetWorkloadQualityOfService(r.Namespace, sel)
+	if u := kcoremetrics.BuildWorkloadUsage(r.Namespace, qos, sel); u != nil {
 		wu.Usage = *u
 	}
 	return wu

@@ -14,8 +14,11 @@ dependencies:
 - name: metrics-server
   repository: https://kubernetes-sigs.github.io/metrics-server/
   version: 3.12.2
+- name: vpa
+  repository: https://charts.fairwinds.com/stable
+  version: 5.1.0
 - name: ollama
   repository: https://helm.otwld.com/
   version: 1.50.0
-digest: sha256:afc4cafc53e31606faf2a2d7d7594ecfd3d7ae071ee048293c59a91ec4892ac9
-generated: "2026-07-20T16:38:34.608564+02:00"
+digest: sha256:7b5ed2ddab78550454d6a35de6b225018123ad2dca0881c5d938076b17548dde
+generated: "2026-09-17T14:16:22.463744+02:00"

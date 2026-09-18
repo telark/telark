@@ -1,13 +1,13 @@
 package user
 
 import (
-	"encoding/json"
 	"net/http"
 
 	dataerrors "github.com/telark/data/errors"
 	userdata "github.com/telark/data/resources/user"
 	"github.com/telark/exporter/internal/constants"
 	resourcesshared "github.com/telark/exporter/internal/utils/resources/shared"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -36,22 +36,7 @@ func GetExistingUserForPatch(w http.ResponseWriter, userID string) (*userdata.Us
 }
 
 func ExtractUserFromUnstructured(resource *unstructured.Unstructured) (*userdata.UserAsResource, error) {
-	spec, ok := resource.Object[constants.SpecField].(map[string]any)
-	if !ok || spec == nil {
-		return nil, nil
-	}
-
-	specBytes, err := json.Marshal(spec)
-	if err != nil {
-		return nil, err
-	}
-
-	var user userdata.UserAsResource
-	if err := json.Unmarshal(specBytes, &user); err != nil {
-		return nil, err
-	}
-
-	return &user, nil
+	return sharedutils.SpecToStruct[userdata.UserAsResource](resource)
 }
 
 func ExtractAndMergeUserForPatch(existingUser *userdata.UserAsResource, body map[string]any, w http.ResponseWriter) bool {

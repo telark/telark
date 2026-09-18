@@ -1,6 +1,8 @@
 package cleanup
 
 import (
+	"time"
+
 	resourcesshared "github.com/telark/data/resources/shared"
 	"github.com/telark/exporter/internal/constants"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -13,7 +15,7 @@ func projectCleanupView(obj *unstructured.Unstructured, refKeys []string) resour
 		Finalizers:      obj.GetFinalizers(),
 	}
 	if ts := obj.GetDeletionTimestamp(); ts != nil {
-		s := ts.UTC().Format(timeFormatRFC3339)
+		s := ts.UTC().Format(time.RFC3339)
 		view.DeletionTimestamp = &s
 	}
 	if len(refKeys) > constants.DefaultInitValue {
@@ -23,7 +25,7 @@ func projectCleanupView(obj *unstructured.Unstructured, refKeys []string) resour
 }
 
 func collectRefs(obj map[string]any, refKeys []string) map[string][]string {
-	spec, ok := obj[fieldSpec].(map[string]any)
+	spec, ok := obj[constants.SpecField].(map[string]any)
 	if !ok {
 		return nil
 	}

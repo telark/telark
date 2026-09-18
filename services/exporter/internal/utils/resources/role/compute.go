@@ -1,32 +1,15 @@
 package role
 
 import (
-	"encoding/json"
-
 	roledata "github.com/telark/data/resources/role"
 	rolepriority "github.com/telark/exporter/internal/utils/compute/role/priority"
 	roleversion "github.com/telark/exporter/internal/utils/compute/role/version"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 func ExtractRoleFromUnstructured(resource *unstructured.Unstructured) (*roledata.RoleAsResource, error) {
-	spec, ok := resource.Object["spec"].(map[string]any)
-	if !ok || spec == nil {
-		return nil, nil
-	}
-
-	// Convert map to JSON and back to struct
-	specBytes, err := json.Marshal(spec)
-	if err != nil {
-		return nil, err
-	}
-
-	var role roledata.RoleAsResource
-	if err := json.Unmarshal(specBytes, &role); err != nil {
-		return nil, err
-	}
-
-	return &role, nil
+	return sharedutils.SpecToStruct[roledata.RoleAsResource](resource)
 }
 
 func ComputeAndSetPriority(role *roledata.RoleAsResource) {
@@ -42,7 +25,6 @@ func ComputeAndBumpVersion(role *roledata.RoleAsResource, currentVersion string,
 }
 
 func DetectRoleChangeType(existingRole, newRole *roledata.RoleAsResource) roleversion.ChangeType {
-	// Check for major changes (breaking): scopesAndPermissions or type
 	if !scopesEqual(existingRole.ScopesAndPermissions, newRole.ScopesAndPermissions) {
 		return roleversion.ChangeTypeMajor
 	}
@@ -50,7 +32,6 @@ func DetectRoleChangeType(existingRole, newRole *roledata.RoleAsResource) roleve
 		return roleversion.ChangeTypeMajor
 	}
 
-	// Check for minor changes (non-breaking but significant): description or categoryID
 	if existingRole.Description != newRole.Description {
 		return roleversion.ChangeTypeMinor
 	}
@@ -58,7 +39,6 @@ func DetectRoleChangeType(existingRole, newRole *roledata.RoleAsResource) roleve
 		return roleversion.ChangeTypeMinor
 	}
 
-	// Default to patch for metadata changes (status, validity, protection, assignedTo)
 	return roleversion.ChangeTypePatch
 }
 

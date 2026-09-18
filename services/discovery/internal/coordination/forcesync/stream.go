@@ -70,12 +70,14 @@ func (s *StreamOps) Ack(ctx context.Context, entryID string) error {
 }
 
 func (s *StreamOps) Reclaim(ctx context.Context, consumer string) ([]redis.XMessage, error) {
+	// An entry is only stale once its job can no longer be running anywhere.
+	minIdle := max(s.cfg.PELIdleReclaim, s.cfg.JobTimeout+constants.ForceSyncCleanupTimeout)
 	return s.client.ClaimStale(
 		ctx,
 		s.cfg.StreamKey,
 		s.cfg.ConsumerGroup,
 		consumer,
-		s.cfg.PELIdleReclaim,
+		minIdle,
 		reclaimMaxCount,
 	)
 }

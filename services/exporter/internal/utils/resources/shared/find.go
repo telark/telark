@@ -6,6 +6,7 @@ import (
 
 	dataerrors "github.com/telark/data/errors"
 	metadata "github.com/telark/data/metadata/base"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/kcore/crds/api"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
@@ -34,8 +35,8 @@ func FindResourceByID(
 	notFoundErr dataerrors.Error,
 ) (*unstructured.Unstructured, error) {
 	resourceResult := api.GetCustomResourceByName(resourceID, md)
-	if resourceResult.Error != nil || resourceResult.Status != http.StatusOK {
-		return nil, errors.New(string(notFoundErr))
+	if err := sharedutils.ErrorForResult(resourceResult, notFoundErr); err != nil {
+		return nil, err
 	}
 
 	resource, ok := resourceResult.Data.(*unstructured.Unstructured)
@@ -65,10 +66,9 @@ func findResourceOrRespond(
 			return nil, false
 		}
 
-		// For other errors, return internal server error
 		responseutils.LogAndSendResponse(
 			w,
-			http.StatusInternalServerError,
+			sharedutils.StatusForError(err, http.StatusInternalServerError),
 			response.OperationError,
 			err.Error(),
 			nil,

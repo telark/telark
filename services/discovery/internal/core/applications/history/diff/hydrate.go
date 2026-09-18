@@ -16,16 +16,9 @@ import (
 
 const k8sFieldName = "name"
 
-// HydrateApplicationFromV1Snapshots reads the generation-1 snapshots back from storage and
-// uses the unstructured manifest content to:
-//  1. Hydrate derived fields on app (Images, Ports, EnvVarKeys, ConfigMapRefs, SecretRefs,
-//     ServiceMappings, IngressRules) when they are empty — preventing false-positive "field added"
-//     changes at generation 2.
-//  2. Seed workload baselines (Replicas, Fingerprint, Requests, Limits) from the pre-change
-//     manifest rather than from the live Kubernetes API — preventing stale baseline values
-//     caused by ReadMetricsBaseline racing against the change that just happened.
-//
-// Called only when stored == nil (new application, first generation).
+// Derived fields and workload baselines come from the generation-1 snapshot, not the live API:
+// empty fields would read as "field added" at generation 2, and a live baseline read races the
+// change that just happened. Called only when stored == nil (new application).
 func HydrateApplicationFromV1Snapshots(
 	ctx context.Context,
 	app *application.Application,
@@ -64,7 +57,6 @@ func HydrateApplicationFromV1Snapshots(
 	applyHydrateAggToApp(app, agg)
 }
 
-// hydrateAgg accumulates fields extracted from all V1 snapshot objects.
 type hydrateAgg struct {
 	imagesSet       map[string]bool
 	portsSet        map[int]bool

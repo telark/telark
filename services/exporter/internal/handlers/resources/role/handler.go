@@ -75,8 +75,8 @@ func createRoleResource(w http.ResponseWriter, role *roledata.RoleAsResource, op
 
 	// Ensure validity.autoRevoke is always present for temporary roles
 	if role.Validity != nil && role.Validity.Type == roledata.ValidityTypeTemporary {
-		if validitySpec, ok := spec["validity"].(map[string]any); ok {
-			validitySpec["autoRevoke"] = role.Validity.AutoRevoke
+		if validitySpec, ok := spec[constants.FieldValidity].(map[string]any); ok {
+			validitySpec[constants.FieldAutoRevoke] = role.Validity.AutoRevoke
 		}
 	}
 
@@ -144,8 +144,8 @@ func GetRoleByGroupIDWithCacheInvalidation() func(http.ResponseWriter, *http.Req
 	}
 }
 
-func ListRoleResourcesWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
-	return shared.ListResourceWithCacheInvalidation(optimizer, metadata.RoleAsResourceMetadata)
+func ListRoleResourcesWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {
+	return shared.ListResourceWithCacheInvalidation(metadata.RoleAsResourceMetadata)
 }
 
 func ListRolesByUserIDWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {

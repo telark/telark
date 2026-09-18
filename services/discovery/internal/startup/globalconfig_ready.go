@@ -16,6 +16,10 @@ func EnsureGlobalConfigReadyAsync(ctx context.Context) {
 	go waitUntilGlobalConfigReady(ctx)
 }
 
+func IsGlobalConfigReady() bool {
+	return globalConfigReady.Load()
+}
+
 func WaitForGlobalConfigReady(ctx context.Context) bool {
 	if globalConfigReady.Load() {
 		return true

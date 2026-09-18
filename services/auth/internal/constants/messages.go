@@ -5,18 +5,13 @@ import "github.com/telark/data/messages"
 const (
 	// Authentication Success Messages
 	SuccessLogoutCompleted messages.Message = "session invalidated"
-	SuccessSessionCreated  messages.Message = "session created successfully"
-	SuccessSessionDeleted  messages.Message = "session deleted successfully"
 
 	// Server Messages
 	SuccessServiceStarted      messages.Message = "auth service started on port %s"
 	SuccessServiceShuttingDown messages.Message = "auth service shutting down gracefully"
-	SuccessShutdownSignalSent  messages.Message = "shutdown signal sent successfully"
-	SuccessServerRecovered     messages.Message = "server panic recovered: %v\nStack: %s"
 
 	// Passkey Messages
-	SuccessPasskeysFetched messages.Message = "passkeys fetched successfully"
-	SuccessPasskeyDeleted  messages.Message = "passkey deleted successfully"
+	SuccessPasskeyDeleted messages.Message = "passkey deleted successfully"
 
 	// OIDC Messages
 	SuccessOIDCLoginCompleted messages.Message = "OIDC login completed successfully"
@@ -26,10 +21,9 @@ const (
 	LogOIDCAdminPromoted      messages.Message = "bootstrap admin promoted: identityHash=%s"
 
 	// JIT Provisioning Messages
-	LogJIT409RoleRepair          messages.Message = "409 conflict: repaired missing role for identityHash=%s"
-	LogJITSelfRegistrationBlock  messages.Message = "self-registration blocked for identityHash=%s"
-	LogExtractLoginRequestFailed messages.Message = "failed to extract device metadata from login request: %v"
-	LogJITEmailIdentityAttached  messages.Message = "google identity attached to existing " +
+	LogJIT409RoleRepair         messages.Message = "409 conflict: repaired missing role for identityHash=%s"
+	LogJITSelfRegistrationBlock messages.Message = "self-registration blocked for identityHash=%s"
+	LogJITEmailIdentityAttached messages.Message = "google identity attached to existing " +
 		"user identityHash=%s via email match"
 
 	// Bootstrap Config Messages
@@ -50,7 +44,6 @@ const (
 	LogAuthDataTooShortForBackupFlags    messages.Message = "authData too short for backup flags extraction"
 	LogExtractedBackupFlags              messages.Message = "extracted flags - BackupEligible: %v, " +
 		"BackupState: %v"
-	LogCredentialCreatedManually messages.Message = "successfully created credential using manual parsing workaround"
 
 	// Cleanup messages
 	SuccessCleanupAccepted        messages.Message = "deletion scheduled"
@@ -69,10 +62,29 @@ const (
 	LogBackfillFinalizersDone     messages.Message = "[backfill] finalizers done: scanned=%d patched=%d skipped=%d"
 	ErrCleanupEnqueueFailed       messages.Message = "[cleanup] enqueue failed: type=%s id=%s err=%v"
 	ErrCleanupDedupCheckFailed    messages.Message = "[cleanup] dedup check failed: type=%s id=%s err=%v"
-	ErrCleanupBusinessDeleteFail  messages.Message = "[cleanup] business delete failed: type=%s id=%s status=%d"
 	ErrCleanupListBackRefsFailed  messages.Message = "[cleanup] list back-refs failed: refType=%s err=%v"
 	ErrCleanupPatchBackRefFailed  messages.Message = "[cleanup] patch back-ref failed: refType=%s id=%s status=%d"
 	ErrCleanupRemoveFinalizerFail messages.Message = "[cleanup] remove finalizer failed: type=%s id=%s status=%d"
 	ErrCleanupStreamReadFailed    messages.Message = "[cleanup] stream read failed: type=%s err=%v"
 	ErrCleanupSweeperListFailed   messages.Message = "[cleanup] sweeper list failed: type=%s err=%v"
+	ErrCleanupUnknownResourceType messages.Message = "cleanup: unknown resource type %q"
+	ErrCleanupRefsStillPresent    messages.Message = "cleanup: references still present in %s"
+	ErrCleanupBootstrapFailed     messages.Message = "[cleanup] bootstrap failed: %v"
+	ErrCleanupElectionCheckFailed messages.Message = "[cleanup] election check failed: %v"
+	ErrCleanupWorkerPanic         messages.Message = "[cleanup] panic: type=%s id=%s err=%v\n%s"
+	ErrCleanupAckAfterRequeueFail messages.Message = "[cleanup] ack-after-requeue failed: id=%s err=%v"
+	ErrCleanupDLQPublishFailed    messages.Message = "[cleanup] DLQ publish failed: type=%s id=%s err=%v"
+	ErrCleanupAckStepFailed       messages.Message = "[cleanup] %s: id=%s err=%v"
+	ErrCleanupReleaseStepFailed   messages.Message = "[cleanup] %s: type=%s id=%s err=%v"
+
+	// Ack / dedup-release step names, substituted into the two messages above.
+	CleanupStepAck             messages.Message = "ack failed"
+	CleanupStepAckAfterDLQ     messages.Message = "ack-after-DLQ failed"
+	CleanupStepRelease         messages.Message = "dedup release failed"
+	CleanupStepReleaseAfterDLQ messages.Message = "dedup release after DLQ failed"
+
+	// Backfill messages
+	ErrBackfillUnknownResourceType messages.Message = "backfill: unknown resource type %q"
+	ErrBackfillListFailed          messages.Message = "backfill: list %s: %w"
+	ErrBackfillAddFinalizerFailed  messages.Message = "[backfill] add-finalizer failed: type=%s id=%s status=%d"
 )

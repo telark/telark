@@ -171,15 +171,12 @@ func patchCategoryResource(
 	body map[string]any,
 	optimizer *performance.Optimizer,
 ) {
-	// Update lastUpdateDate on patch
 	resourcesshared.AddLastUpdateDateToPatchBody(body)
 
-	// Merge existing category with patch data
 	updatedCategory := make(map[string]any)
 	maps.Copy(updatedCategory, existingCategory)
 	maps.Copy(updatedCategory, body)
 
-	// Ensure ID is not changed
 	updatedCategory[constants.FieldID] = categoryID
 
 	lock := concurrency.GetLock(constants.CategoriesCRDName)
@@ -233,7 +230,6 @@ func PatchCategoryByIDWithCacheInvalidation(optimizer *performance.Optimizer) fu
 			return
 		}
 
-		// Extract new scope after merge for cache invalidation
 		var newScope string
 		if scope, ok := body[constants.FieldScope].(string); ok {
 			newScope = scope

@@ -12,9 +12,8 @@ import (
 	natscore "github.com/telark/x-ware/nats/core"
 )
 
-// AppClient is the slice of the exporter applications client the subscriber
-// needs. Defining it here lets tests inject a fake and exercise every branch
-// (patch / create-on-404 / delete) without a live exporter.
+// Narrow slice of the exporter client so tests can inject a fake and cover
+// patch / create-on-404 / delete without a live exporter.
 type AppClient interface {
 	PatchApplicationByName(name string, body map[string]any) *response.GenericResponse
 	CreateApplication(app *appresource.Application) *response.GenericResponse
@@ -30,12 +29,10 @@ func NewApplicationSubscriber() natscore.ResourceSubscriber {
 	return NewApplicationSubscriberWithClient(applicationsclient.NewClient())
 }
 
-// NewApplicationSubscriberWithClient builds a subscriber backed by the given
-// exporter client — the seam used by tests (concrete type so retry timings can
-// be tuned).
+// Returns the concrete type, not the interface, so tests can tune retry timings.
 func NewApplicationSubscriberWithClient(client AppClient) *ApplicationSubscriber {
 	subscriber := &ApplicationSubscriber{
-		BaseSubscriber: base.NewBaseSubscriber(natscore.Applications, resourceshared.Application, nil),
+		BaseSubscriber: base.NewBaseSubscriber(natscore.Applications, resourceshared.Application),
 		client:         client,
 	}
 

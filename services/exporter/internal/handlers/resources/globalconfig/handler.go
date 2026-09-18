@@ -61,7 +61,7 @@ func PatchGlobalConfig() func(http.ResponseWriter, *http.Request) {
 			sharedutils.LogAndReturnError(
 				w,
 				status,
-				"failed to patch global config",
+				string(constants.ErrGlobalConfigPatchFailed),
 				result.Error,
 			)
 			return
@@ -72,7 +72,7 @@ func PatchGlobalConfig() func(http.ResponseWriter, *http.Request) {
 				w,
 				http.StatusInternalServerError,
 				response.OperationError,
-				"invalid global config response type",
+				string(constants.ErrGlobalConfigInvalidReply),
 				nil,
 				nil,
 			)
@@ -175,13 +175,13 @@ func isConflictError(message string) bool {
 
 func getOrRespond(w http.ResponseWriter) (*unstructured.Unstructured, bool) {
 	result := api.GetCustomResourceByName(constants.GlobalConfigResourceName, metadata.GlobalConfigMetadata)
-	if result.Error != nil || result.Status != http.StatusOK {
-		sharedutils.LogAndReturnError(w, http.StatusNotFound, "global config not found", result.Error)
+	if status := sharedutils.StatusForResult(result); status != http.StatusOK {
+		sharedutils.LogAndReturnError(w, status, string(constants.ErrResourceLookupFailed), result.Error)
 		return nil, false
 	}
 	cr, ok := result.Data.(*unstructured.Unstructured)
 	if !ok || cr == nil {
-		sharedutils.LogAndReturnError(w, http.StatusInternalServerError, "invalid global config type", nil)
+		sharedutils.LogAndReturnError(w, http.StatusInternalServerError, string(constants.ErrGlobalConfigInvalidType), nil)
 		return nil, false
 	}
 	return cr, true

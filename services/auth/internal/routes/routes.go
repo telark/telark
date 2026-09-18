@@ -32,6 +32,7 @@ var Routes = []router.Route{
 	// Passkey management routes (proxy)
 	router.CreateRoute(base.Get, autheps.GetAllPasskeysByUserViaProxy, passkeyhandler.GetPasskeys),
 	router.CreateRoute(base.Post, autheps.CreatePasskeyByUserViaProxy, passkeyhandler.CreatePasskey),
+	router.CreateRoute(base.Post, autheps.CreatePasskeyEnrollLink, passkeyhandler.CreateEnrollLink),
 	router.CreateRoute(base.Get, autheps.GetPasskeyByUserAndCredentialIDViaProxy, passkeyhandler.GetSinglePasskey),
 	router.CreateRoute(base.Patch, autheps.PatchPasskeyByUserAndCredentialIDViaProxy, passkeyhandler.UpdatePasskey),
 	router.CreateRoute(base.Delete, autheps.DeletePasskeyByUserAndCredentialIDViaProxy, passkeyhandler.DeletePasskey),

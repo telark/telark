@@ -79,6 +79,10 @@ func FindResourceOrRespond(
 ) (*unstructured.Unstructured, bool) {
 	resource, err := findFunc()
 	if err != nil {
+		if status := sharedutils.StatusForError(err, http.StatusNotFound); status != http.StatusNotFound {
+			sharedutils.LogByStatusAndSend(w, status, response.OperationError, string(constants.ErrResourceLookupFailed), nil, err)
+			return nil, false
+		}
 		sharedutils.LogDebugAndSend(
 			w,
 			http.StatusNotFound,

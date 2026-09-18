@@ -3,6 +3,7 @@ package envs
 import (
 	"testing"
 
+	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/managers/envs"
 )
 
@@ -40,5 +41,25 @@ func TestSnapshotsConfig(t *testing.T) {
 	}
 	if envs.InitSnapshotsMaxVersions() <= 0 {
 		t.Fatalf("InitSnapshotsMaxVersions = %d, want > 0", envs.InitSnapshotsMaxVersions())
+	}
+}
+
+// The render bound is read once at startup; a malformed value or one below
+// the minimum keeps the default rather than lifting the bound.
+func TestListRenderConcurrency(t *testing.T) {
+	cases := []struct {
+		raw  string
+		want int
+	}{
+		{"4", 4},
+		{"0", constants.DefaultListRenderConcurrency},
+		{"x", constants.DefaultListRenderConcurrency},
+		{"", constants.DefaultListRenderConcurrency},
+	}
+	for _, tc := range cases {
+		t.Setenv(constants.ListRenderConcurrencyEnv, tc.raw)
+		if got := envs.InitListRenderConcurrency(); got != tc.want || envs.GetListRenderConcurrency() != tc.want {
+			t.Errorf("%q: InitListRenderConcurrency = %d, want %d", tc.raw, got, tc.want)
+		}
 	}
 }

@@ -1,9 +1,15 @@
 package auth
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/gorilla/mux"
+	authdata "github.com/telark/data/auth"
+	dataconstants "github.com/telark/data/constants"
+	"github.com/telark/exporter/internal/constants"
 	sessionutil "github.com/telark/exporter/internal/utils/auth/session"
 )
 
@@ -54,5 +60,50 @@ func TestResolvedNamesStayValidResourceNames(t *testing.T) {
 		if !rfc1123Subdomain.MatchString(resolved) {
 			t.Errorf("ResolveSessionRef(%q) = %q, not a valid resource name", ref, resolved)
 		}
+	}
+}
+
+func selfRequest(token string) *http.Request {
+	r := httptest.NewRequest(http.MethodGet, "/auth/sessions/tokens/self/get", nil)
+	r = mux.SetURLVars(r, map[string]string{constants.TokenParam: authdata.SessionRefSelf})
+	if token != "" {
+		r.Header.Set(dataconstants.HeaderSessionToken, token)
+	}
+	return r
+}
+
+func TestRefFromRequestResolvesSelfToTheCallerToken(t *testing.T) {
+	w := httptest.NewRecorder()
+	ref, ok := sessionutil.RefFromRequest(w, selfRequest(rawToken))
+	if !ok || ref != rawToken {
+		t.Fatalf("self must resolve to the header token, got %q ok=%v", ref, ok)
+	}
+}
+
+func TestRefFromRequestRejectsSelfWithoutToken(t *testing.T) {
+	w := httptest.NewRecorder()
+	if _, ok := sessionutil.RefFromRequest(w, selfRequest("")); ok || w.Code != http.StatusBadRequest {
+		t.Fatalf("self without a token must be a 400, got ok=%v code=%d", ok, w.Code)
+	}
+}
+
+func TestRefFromRequestPassesNamesThrough(t *testing.T) {
+	name := sessionutil.SessionName(rawToken)
+	r := httptest.NewRequest(http.MethodGet, "/auth/sessions/tokens/"+name+"/get", nil)
+	r = mux.SetURLVars(r, map[string]string{constants.TokenParam: name})
+	if ref, ok := sessionutil.RefFromRequest(httptest.NewRecorder(), r); !ok || ref != name {
+		t.Fatalf("a name must pass through, got %q ok=%v", ref, ok)
+	}
+}
+
+func TestRefFromRequestRefusesARawToken(t *testing.T) {
+	r := mux.SetURLVars(httptest.NewRequest(http.MethodGet, "/", nil), map[string]string{constants.TokenParam: rawToken})
+	w := httptest.NewRecorder()
+
+	if _, ok := sessionutil.RefFromRequest(w, r); ok || w.Code != http.StatusBadRequest {
+		t.Fatalf("a raw token in the path must be refused with 400, got ok=%v status=%d", ok, w.Code)
+	}
+	if strings.Contains(w.Body.String(), rawToken) {
+		t.Error("the refusal must not echo the token")
 	}
 }

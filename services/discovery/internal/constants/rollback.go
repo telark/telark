@@ -43,6 +43,8 @@ const (
 	RollbackApplyTimeout               = 60 * time.Second
 	DefaultRollbackInformerResyncSec   = 600
 	EnvDiscoveryRollbackInformerResync = "DISCOVERY_ROLLBACK_INFORMER_RESYNC_SEC"
+	DefaultRollbackWorkers             = 4
+	EnvDiscoveryRollbackWorkers        = "DISCOVERY_ROLLBACK_WORKERS"
 	RollbackProcessTimeout             = 3 * time.Minute
 	RollbackSnapshotFetchTimeout       = 30 * time.Second
 	RollbackPatchTimeout               = 10 * time.Second

@@ -19,6 +19,10 @@ func RollbackInformerResync() time.Duration {
 	return time.Duration(secs) * time.Second
 }
 
+func RollbackWorkers() int {
+	return envInt(constants.EnvDiscoveryRollbackWorkers, constants.DefaultRollbackWorkers)
+}
+
 func CoalesceWindowSec() int {
 	return envInt(constants.EnvDiscoveryInformerCoalescingWindowSec, constants.DefaultCoalesceWindowSec)
 }
@@ -29,6 +33,10 @@ func CoalesceMaxWaitSec() int {
 
 func CoalesceBufferMaxEntries() int {
 	return envInt(constants.EnvDiscoveryCoalesceBufferMaxEntries, constants.DefaultCoalesceBufferMaxEntries)
+}
+
+func InformerFlushRatePerSec() int {
+	return envInt(constants.EnvDiscoveryInformerFlushRatePerSec, constants.DefaultInformerFlushRatePerSec)
 }
 
 // InformerResyncJitterFraction returns the ±fraction applied to per-replica

@@ -17,6 +17,7 @@ var (
 	snapshotsPVCNamespace = constants.DefaultSnapshotsPVCNamespace
 	snapshotsMaxVersions  = constants.DefaultSnapshotsMaxVersions
 	snapshotGCInterval    = constants.DefaultSnapshotGCInterval
+	snapshotStatsRefresh  = constants.DefaultSnapshotStatsRefreshInterval
 )
 
 type ScopeDefinition struct {
@@ -76,6 +77,27 @@ func InitSnapshotGCInterval() time.Duration {
 
 func GetSnapshotGCInterval() time.Duration {
 	return snapshotGCInterval
+}
+
+// Zero disables the cache and walks the volume per request; a malformed or
+// negative value falls back to the default.
+func InitSnapshotStatsRefreshInterval() time.Duration {
+	envVal := strings.TrimSpace(getEnv(constants.SnapshotStatsRefreshSecEnv))
+	if envVal == constants.EmptyString {
+		snapshotStatsRefresh = constants.DefaultSnapshotStatsRefreshInterval
+		return snapshotStatsRefresh
+	}
+	n, err := strconv.Atoi(envVal)
+	if err != nil || n < constants.DefaultInitValue {
+		snapshotStatsRefresh = constants.DefaultSnapshotStatsRefreshInterval
+		return snapshotStatsRefresh
+	}
+	snapshotStatsRefresh = time.Duration(n) * time.Second
+	return snapshotStatsRefresh
+}
+
+func GetSnapshotStatsRefreshInterval() time.Duration {
+	return snapshotStatsRefresh
 }
 
 func GetSnapshotsPath() string {

@@ -505,6 +505,7 @@ func ReadSnapshotInfos(w http.ResponseWriter) {
 			constants.FieldPercent:   infos.AvailableSpace.Percent,
 		},
 		constants.FieldTotalSnapshots: infos.TotalSnapshots,
+		constants.FieldUpdatedAt:      infos.UpdatedAt,
 		constants.FieldSnapshotsPath:  envmanager.GetSnapshotsPath(),
 		constants.FieldSnapshotScopes: registeredScopeNames(),
 		constants.FieldPVCName:        envmanager.GetSnapshotsPVCName(),
@@ -531,7 +532,7 @@ func registeredScopeNames() []string {
 
 // RemoveSnapshotFiles deletes the files behind an application's snapshot
 // references and prunes the id directories they leave empty.
-func RemoveSnapshotFiles(paths []string) {
+func RemoveSnapshotFiles(paths []string) (removedDirs int) {
 	base := envmanager.GetSnapshotsPath()
 	for _, path := range paths {
 		id := filepath.Base(filepath.Dir(filepath.Dir(path)))
@@ -543,7 +544,21 @@ func RemoveSnapshotFiles(paths []string) {
 			lg.Error(fmt.Sprintf(string(constants.ErrSnapshotDeleteContext), id, path, err))
 			continue
 		}
-		_ = os.Remove(filepath.Dir(path))
-		_ = os.Remove(filepath.Dir(filepath.Dir(path)))
+		if os.Remove(filepath.Dir(path)) == nil {
+			removedDirs++
+		}
+		if os.Remove(filepath.Dir(filepath.Dir(path))) == nil {
+			removedDirs++
+		}
 	}
+	return removedDirs
+}
+
+func RemoveSnapshotDirs(dirs []string) (removed int) {
+	for _, dir := range dirs {
+		if os.Remove(dir) == nil {
+			removed++
+		}
+	}
+	return removed
 }

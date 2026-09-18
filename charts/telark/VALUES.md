@@ -35,9 +35,9 @@ Kubernetes: `>=1.30.0-0`
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | app.auth.bootstrap.admins[0] | string | `"contact@telark.io"` |  |
-| app.auth.passkey.id | string | `"localhost"` |  |
+| app.auth.passkey.id | string | `""` |  |
 | app.auth.passkey.name | string | `"Dashboard App"` |  |
-| app.auth.passkey.origin | string | `"http://localhost:3000"` |  |
+| app.auth.passkey.origin | string | `""` |  |
 | app.auth.passkey.selfRegistration | string | `"true"` |  |
 | app.crdGuard.enabled | bool | `false` |  |
 | app.crdGuard.enforce | bool | `false` |  |
@@ -80,9 +80,9 @@ Kubernetes: `>=1.30.0-0`
 | app.shared.healthCheck.livenessProbe.timeoutSeconds | int | `15` |  |
 | app.shared.healthCheck.port | string | `"http"` |  |
 | app.shared.healthCheck.readinessProbe.failureThreshold | int | `3` |  |
-| app.shared.healthCheck.readinessProbe.initialDelaySeconds | int | `15` |  |
+| app.shared.healthCheck.readinessProbe.initialDelaySeconds | int | `5` |  |
 | app.shared.healthCheck.readinessProbe.path | string | `"/api/v1/status/ready"` |  |
-| app.shared.healthCheck.readinessProbe.periodSeconds | int | `15` |  |
+| app.shared.healthCheck.readinessProbe.periodSeconds | int | `5` |  |
 | app.shared.healthCheck.readinessProbe.timeoutSeconds | int | `15` |  |
 | app.shared.nats.NATS_HOST | string | `"{{ .Release.Name }}-nats"` |  |
 | app.shared.natsEnvFromSecret.NATS_PASSWORD.key | string | `"password"` |  |
@@ -104,6 +104,11 @@ Kubernetes: `>=1.30.0-0`
 | commonLabels | object | `{}` |  |
 | crds.enabled | bool | `true` |  |
 | fullnameOverride | string | `""` |  |
+| gateway.annotations | object | `{}` |  |
+| gateway.enabled | bool | `false` |  |
+| gateway.hostnames | list | `[]` |  |
+| gateway.parentRefs | list | `[]` |  |
+| gateway.service | string | `"ui"` |  |
 | global.imagePullSecrets | list | `[]` |  |
 | ingress.annotations | object | `{}` |  |
 | ingress.className | string | `""` |  |

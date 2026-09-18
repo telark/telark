@@ -1,16 +1,21 @@
 package reshandlers
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gorilla/mux"
 	"github.com/redis/go-redis/v9"
+	applicationmodel "github.com/telark/data/resources/application"
 	"github.com/telark/discovery/internal/config"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/coordination"
@@ -102,4 +107,55 @@ func TestTriggerRollbackRedisDownIs503(t *testing.T) {
 	mr.Close()
 
 	testutil.Equal(t, "trigger with redis down", triggerRollback("shop").Code, http.StatusServiceUnavailable)
+}
+
+func triggerRollbackTo(name string, gen int) *httptest.ResponseRecorder {
+	body := fmt.Sprintf(`{"snapshotGeneration":%d,"triggeredBy":"tester"}`, gen)
+	return triggerRollbackWithBody(name, strings.NewReader(body))
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// The exporter host is a fixed cluster DNS name, so the stored application is
+// served by swapping the default transport the rest client dials through.
+func stubStoredApplication(t *testing.T, app applicationmodel.Application) {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{"data": app})
+	if err != nil {
+		t.Fatal(err)
+	}
+	prev := http.DefaultTransport
+	http.DefaultTransport = roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{},
+			Body:       io.NopCloser(bytes.NewReader(body)),
+		}, nil
+	})
+	t.Cleanup(func() { http.DefaultTransport = prev })
+}
+
+// Rolling back to the generation the app is already at ran a no-op apply that
+// still appended history and bumped the generation with no snapshot behind it,
+// leaving the CR with more generations than snapshot refs. A generation with no
+// stored snapshot has nothing to apply at all.
+func TestTriggerRollbackRejectsTargetWithoutOlderSnapshot(t *testing.T) {
+	applications.SetCoordinationBundle(nil, "")
+	stubStoredApplication(t, applicationmodel.Application{
+		Name:      "shop",
+		Snapshots: []applicationmodel.ApplicationSnapshot{{Generation: 1, ID: "snap-1"}},
+		History:   applicationmodel.ApplicationHistory{Generation: 3},
+	})
+
+	current := triggerRollbackTo("shop", 3)
+	testutil.Equal(t, "target equals current", current.Code, http.StatusBadRequest)
+	testutil.Equal(t, "target equals current message",
+		strings.Contains(current.Body.String(), fmt.Sprintf(string(constants.ErrRollbackTargetNotOlder), 3)), true)
+
+	missing := triggerRollbackTo("shop", 2)
+	testutil.Equal(t, "target with no snapshot", missing.Code, http.StatusBadRequest)
+	testutil.Equal(t, "target with no snapshot message",
+		strings.Contains(missing.Body.String(), fmt.Sprintf(string(constants.ErrRollbackSnapshotMissing), 2)), true)
 }

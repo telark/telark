@@ -51,6 +51,17 @@
         "tls": { "type": "array" }
       }
     },
+    "gateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "parentRefs": { "type": "array" },
+        "hostnames": { "type": "array" },
+        "service": { "type": "string" },
+        "annotations": { "type": "object" }
+      }
+    },
     "app": {
       "type": "object",
       "additionalProperties": true,
@@ -112,6 +123,7 @@
           "includeSecurity": { "type": "boolean" },
           "useRedis": { "type": "boolean" },
           "useNatsCreds": { "type": "boolean" },
+          "nodePort": { "type": "integer" },
           "env": { "type": "object" },
           "pdb": {
             "type": "object",

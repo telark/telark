@@ -20,11 +20,19 @@ const (
 	HeaderUsername                = "X-Username"
 	HeaderEmail                   = "X-Email"
 	HeaderContentType             = "Content-Type"
+	HeaderOrigin                  = "Origin"
+	HeaderForwardedHost           = "X-Forwarded-Host"
+	HeaderForwardedProto          = "X-Forwarded-Proto"
 	IDPathParam                   = "id"
 	ContentTypeJSON               = "application/json"
 	EmptyString                   = ""
 	ColonSeparator                = ":"
 	UnderscoreSeparator           = "_"
+	CommaSeparator                = ","
+	DotSeparator                  = "."
+	SchemeSeparator               = "://"
+	SchemeHTTP                    = "http"
+	SchemeHTTPS                   = "https"
 	DefaultQuitChannelSize        = 1
 	DefaultInitValue              = 0
 	DefaultIncrementValue         = 1
@@ -55,6 +63,8 @@ const (
 	OIDCJWKSRefreshInterval       = 6 * time.Hour
 	OIDCJWKSMinRefreshInterval    = 5 * time.Minute
 	OIDCJWKSFetchTimeout          = 10 * time.Second
+	EnvRPID                       = "RP_ID"
+	EnvRPOrigin                   = "RP_ORIGIN"
 	EnvBootstrapAdmins            = "BOOTSTRAP_ADMINS"
 	EnvSelfRegistrationEnabled    = "SELF_REGISTRATION_ENABLED"
 	EnvReplicaID                  = "HOSTNAME"
@@ -76,6 +86,8 @@ const (
 	// Redis key prefixes
 	RedisKeyPrefixChallenge         = "auth:webauthn:challenge:"
 	RedisKeyPrefixRegistrationOwner = "auth:webauthn:registration-owner:"
+	RedisKeyPrefixEnrolledCeremony  = "auth:webauthn:enrolled-ceremony:"
+	RedisKeyPrefixEnrollToken       = "auth:passkey:enroll-token:"
 	RedisKeyPrefixNonce             = "auth:oidc:nonce:"
 	RedisKeyJWKS                    = "auth:oidc:jwks:google"
 	RedisKeyJWKSLock                = "auth:oidc:jwks:refresh-lock"
@@ -83,6 +95,7 @@ const (
 	// Redis TTLs
 	RedisTTLChallenge        = 60  // seconds — matches WebAuthn ceremony timeout
 	RedisTTLNonce            = 300 // seconds — 5 minutes for OIDC flow
+	RedisTTLEnrollToken      = 600 // seconds — 10 minutes to open the enrollment link on the other host
 	RedisTTLJWKS             = 6   // hours
 	OIDCNonceByteLen         = 32
 	RedisTTLJWKSLock         = 10 // seconds

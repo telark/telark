@@ -74,45 +74,77 @@ func StoreRegistrationChallengeOwner(challenge, userID string) error {
 	return nil
 }
 
-func RegistrationChallengeOwner(r *http.Request) (string, error) {
+// An enrolled ceremony was opened with a one-time enrollment token, so its
+// session-less finish may add a passkey to an account that already has some.
+func StoreEnrolledCeremony(challenge, userID string) error {
+	rdb := redishelper.GetClient()
+	if rdb == nil {
+		return errors.New(string(constants.ErrRedisClientUnavailable))
+	}
+	key, err := enrolledCeremonyKey(challenge)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisChallengeOpTimeout)
+	defer cancel()
+
+	if err := rdb.Set(ctx, key, userID, time.Duration(constants.RedisTTLChallenge)*time.Second).Err(); err != nil {
+		return fmt.Errorf(string(constants.ErrFailedCreateChallenge), err.Error())
+	}
+	return nil
+}
+
+func RegistrationChallengeOwner(r *http.Request) (userID string, enrolled bool, err error) {
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
-		return constants.EmptyString, fmt.Errorf(string(constants.ErrFailedReadRequestBody), err.Error())
+		return constants.EmptyString, false, fmt.Errorf(string(constants.ErrFailedReadRequestBody), err.Error())
 	}
 	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	_, clientDataJSONB64, _, err := extractRegistrationData(bodyBytes)
 	if err != nil {
-		return constants.EmptyString, err
+		return constants.EmptyString, false, err
 	}
 	clientData, err := parseClientData(clientDataJSONB64)
 	if err != nil {
-		return constants.EmptyString, err
+		return constants.EmptyString, false, err
 	}
 	challenge, ok := clientData[constants.WebAuthnKeyChallenge].(string)
 	if !ok {
-		return constants.EmptyString, errors.New(string(constants.ErrMissingChallengeInClientData))
+		return constants.EmptyString, false, errors.New(string(constants.ErrMissingChallengeInClientData))
 	}
-	key, err := registrationOwnerKey(challenge)
+	return ceremonyOwner(challenge)
+}
+
+func ceremonyOwner(challenge string) (userID string, enrolled bool, err error) {
+	ownerKey, err := registrationOwnerKey(challenge)
 	if err != nil {
-		return constants.EmptyString, err
+		return constants.EmptyString, false, err
+	}
+	enrolledKey, err := enrolledCeremonyKey(challenge)
+	if err != nil {
+		return constants.EmptyString, false, err
 	}
 
 	rdb := redishelper.GetClient()
 	if rdb == nil {
-		return constants.EmptyString, errors.New(string(constants.ErrRedisClientUnavailable))
+		return constants.EmptyString, false, errors.New(string(constants.ErrRedisClientUnavailable))
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisChallengeOpTimeout)
 	defer cancel()
 
-	userID, err := rdb.Get(ctx, key).Result()
+	userID, err = rdb.Get(ctx, ownerKey).Result()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
-			return constants.EmptyString, errors.New(string(constants.ErrChallengeNotFound))
+			return constants.EmptyString, false, errors.New(string(constants.ErrChallengeNotFound))
 		}
-		return constants.EmptyString, fmt.Errorf(string(constants.ErrFailedGetChallenge), err.Error())
+		return constants.EmptyString, false, fmt.Errorf(string(constants.ErrFailedGetChallenge), err.Error())
 	}
-	return userID, nil
+	found, err := rdb.Exists(ctx, enrolledKey).Result()
+	if err != nil {
+		return constants.EmptyString, false, fmt.Errorf(string(constants.ErrFailedGetChallenge), err.Error())
+	}
+	return userID, found > constants.DefaultInitValue, nil
 }
 
 func cleanupRegistrationChallengeOwner(challenge string) {
@@ -121,7 +153,12 @@ func cleanupRegistrationChallengeOwner(challenge string) {
 		lg.Error(string(constants.ErrRedisClientUnavailable))
 		return
 	}
-	key, err := registrationOwnerKey(challenge)
+	ownerKey, err := registrationOwnerKey(challenge)
+	if err != nil {
+		lg.Warn(err.Error())
+		return
+	}
+	enrolledKey, err := enrolledCeremonyKey(challenge)
 	if err != nil {
 		lg.Warn(err.Error())
 		return
@@ -129,19 +166,27 @@ func cleanupRegistrationChallengeOwner(challenge string) {
 	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisChallengeOpTimeout)
 	defer cancel()
 
-	if err := rdb.Del(ctx, key).Err(); err != nil {
+	if err := rdb.Del(ctx, ownerKey, enrolledKey).Err(); err != nil {
 		lg.Warn(fmt.Sprintf(string(constants.ErrFailedDeleteChallenge), err.Error()))
 	}
 }
 
 // The stored challenge and the one echoed in clientDataJSON may differ in base64
 // padding/alphabet, so both are keyed by their decoded bytes.
-func registrationOwnerKey(challenge string) (string, error) {
+func ceremonyKey(prefix, challenge string) (string, error) {
 	decoded, err := authhelper.DecodeBase64URLWithFallback(challenge)
 	if err != nil {
 		return constants.EmptyString, fmt.Errorf(string(constants.ErrFailedDecodeChallenge), err)
 	}
-	return constants.RedisKeyPrefixRegistrationOwner + base64.RawURLEncoding.EncodeToString(decoded), nil
+	return prefix + base64.RawURLEncoding.EncodeToString(decoded), nil
+}
+
+func registrationOwnerKey(challenge string) (string, error) {
+	return ceremonyKey(constants.RedisKeyPrefixRegistrationOwner, challenge)
+}
+
+func enrolledCeremonyKey(challenge string) (string, error) {
+	return ceremonyKey(constants.RedisKeyPrefixEnrolledCeremony, challenge)
 }
 
 func CleanupChallenge(userID string) {

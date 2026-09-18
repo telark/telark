@@ -111,6 +111,10 @@ spec:
                 secretKeyRef:
                   name: {{ include "telark.fullname" $root }}-service-token-secret
                   key: token
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
 {{- range $key, $value := $serviceConfig.env }}
             - name: {{ $key }}
               value: {{ tpl (printf "%v" $value) $root | quote }}

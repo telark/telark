@@ -2,9 +2,12 @@ package informers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
+	"strconv"
 
 	applicationmodel "github.com/telark/data/resources/application"
 	"github.com/telark/discovery/internal/constants"
@@ -13,6 +16,7 @@ import (
 	"github.com/telark/discovery/internal/core/applications/history/manifestdiff"
 	appsnapshot "github.com/telark/discovery/internal/core/applications/snapshot"
 	"github.com/telark/discovery/internal/discovery/prewarm"
+	restshared "github.com/telark/rest/clients/shared"
 	"github.com/telark/rest/response"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -24,6 +28,7 @@ var (
 	errFlushNoInputs      = errors.New(string(constants.ErrInformersFlushNoInputs))
 	errFlushNotTarget     = errors.New(string(constants.ErrInformersFlushNotTarget))
 	errFlushStoredStale   = errors.New(string(constants.ErrInformersFlushStoredStale))
+	errFlushRateLimited   = errors.New(string(constants.ErrInformersFlushRateLimited))
 )
 
 func (m *Manager) flushApp(appName string, buf map[string]*unstructured.Unstructured) error {
@@ -38,20 +43,27 @@ func (m *Manager) flushApp(appName string, buf map[string]*unstructured.Unstruct
 			return err
 		}
 	}
-	if len(buf) == constants.DefaultInitValue {
+	if buf = m.unrecordedEntries(ctx, appName, buf); len(buf) == constants.DefaultInitValue {
 		return nil
 	}
 	if m.rollbackApplying(ctx, appName) {
 		constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Info(
 			fmt.Sprintf(string(constants.InfoInformersFlushRollbackDropped), appName))
+		// The dropped writes are the rollback's own: the restored objects are
+		// what the history now describes, so they are recorded as they stand.
+		m.rememberRestored(ctx, appName, buf)
 		return nil
 	}
-	stored, err := m.exporter.GetApplicationByNameFresh(appName)
-	if err != nil {
+	if !m.admitFlush(ctx) {
+		return errFlushRateLimited
+	}
+	stored, err := m.getStoredApp(appName)
+	if err != nil && !errors.Is(err, restshared.ErrNotFound) {
 		return err
 	}
 	if stored == nil {
 		m.coalesce.clearBufferRedis(appName)
+		m.forgetRecorded(ctx, appName)
 		return errFlushStoredMissing
 	}
 	// The exporter applies publishes asynchronously; under a burst it can still
@@ -65,6 +77,14 @@ func (m *Manager) flushApp(appName string, buf map[string]*unstructured.Unstruct
 		return errFlushStoredStale
 	}
 	return m.applyFlushWithLock(ctx, appName, stored, buf)
+}
+
+// admitFlush bounds cache-bypassing exporter GETs process-wide; a flush that
+// finds no token within the window backs off instead of piling onto the exporter.
+func (m *Manager) admitFlush(ctx context.Context) bool {
+	ctx, cancel := context.WithTimeout(ctx, m.coalesce.window)
+	defer cancel()
+	return m.flushLimiter.Wait(ctx) == nil
 }
 
 func (m *Manager) publishedGeneration(ctx context.Context, appName string) int {
@@ -83,6 +103,126 @@ func (m *Manager) rememberPublishedGeneration(ctx context.Context, appName strin
 		return
 	}
 	_ = m.cfg.RDB.Set(ctx, constants.KeyPrefixHistoryFloor+appName, generation, constants.HistoryFloorTTL).Err()
+}
+
+// A patch landing between a timer firing and the flush reading the cache is
+// diffed by that flush, while its own event (queued behind the handler) opens a
+// new window with the pre-patch object; flushing that pre-image records the
+// same change again (a burst got 4-5 entries out of 3 patches). The live
+// object still matching what the last flush diffed means nothing is left to record.
+func (m *Manager) unrecordedEntries(
+	ctx context.Context,
+	appName string,
+	buf map[string]*unstructured.Unstructured,
+) map[string]*unstructured.Unstructured {
+	if len(buf) == constants.DefaultInitValue {
+		return buf
+	}
+	recorded := m.recordedFingerprints(ctx, appName)
+	if len(recorded) == constants.DefaultInitValue {
+		return buf
+	}
+	out := maps.Clone(buf)
+	maps.DeleteFunc(out, func(key string, old *unstructured.Unstructured) bool {
+		if old == nil {
+			return false
+		}
+		cur, ok := m.getCachedManifest(old.GetKind(), old.GetName(), old.GetNamespace())
+		if !ok {
+			return false
+		}
+		fp := manifestdiff.Fingerprint(&unstructured.Unstructured{Object: cur})
+		return fp != constants.EmptyString && fp == recorded[key]
+	})
+	return out
+}
+
+func (m *Manager) recordedFingerprints(ctx context.Context, appName string) map[string]string {
+	if m.cfg.RDB == nil {
+		return nil
+	}
+	fields, err := m.cfg.RDB.HGetAll(ctx, recordedKey(appName)).Result()
+	if err != nil {
+		return nil
+	}
+	return fields
+}
+
+func (m *Manager) rememberFlushedManifests(
+	ctx context.Context,
+	appName string,
+	app *applicationmodel.Application,
+	pairs []manifestdiff.ManifestPair,
+) {
+	if m.cfg.RDB == nil || len(pairs) == constants.DefaultInitValue {
+		return
+	}
+	if app == nil || app.CRStatus == applicationmodel.CRStatusFailed {
+		return
+	}
+	fields := make(map[string]string, len(pairs))
+	post := make(map[string]string, len(pairs))
+	for i := range pairs {
+		key, fp := resourceKey(pairs[i].New), manifestdiff.Fingerprint(pairs[i].New)
+		fields[key] = fp
+		if fp == manifestdiff.Fingerprint(pairs[i].Old) {
+			continue
+		}
+		if raw, err := json.Marshal(manifestdiff.Roots(pairs[i].New)); err == nil {
+			post[key] = string(raw)
+		}
+	}
+	key := recordedKey(appName)
+	pipe := m.cfg.RDB.TxPipeline()
+	pipe.HSet(ctx, key, fields)
+	pipe.Expire(ctx, key, constants.HistoryRecordedTTL)
+	// Only this flush's changed resources: the snapshot it wrote already holds
+	// every other resource as recorded, so the hash stays a resource or two. The
+	// generation is stamped even when nothing changed by fingerprint, so a
+	// reconcile can tell the set is complete for what the store now holds.
+	if len(post) > constants.DefaultInitValue {
+		pipe.Del(ctx, postKey(appName))
+	}
+	post[constants.HistoryPostGenerationField] = strconv.Itoa(app.History.Generation)
+	pipe.HSet(ctx, postKey(appName), post)
+	pipe.Expire(ctx, postKey(appName), constants.HistoryRecordedTTL)
+	_, _ = pipe.Exec(ctx)
+}
+
+func (m *Manager) rememberRestored(ctx context.Context, appName string, buf map[string]*unstructured.Unstructured) {
+	if m.cfg.RDB == nil {
+		return
+	}
+	resources := make([]applicationmodel.Resource, constants.DefaultInitValue, len(buf))
+	for _, old := range buf {
+		if old != nil {
+			resources = append(resources, applicationmodel.Resource{Namespace: old.GetNamespace(), Kind: old.GetKind(), Name: old.GetName()})
+		}
+	}
+	fields := m.liveFingerprints(resources)
+	if len(fields) == constants.DefaultInitValue {
+		return
+	}
+	pipe := m.cfg.RDB.TxPipeline()
+	pipe.HSet(ctx, recordedKey(appName), fields)
+	pipe.Expire(ctx, recordedKey(appName), constants.HistoryRecordedTTL)
+	pipe.Del(ctx, postKey(appName))
+	_, _ = pipe.Exec(ctx)
+}
+
+func recordedKey(appName string) string {
+	return constants.KeyPrefixHistoryRecorded + appName
+}
+
+func postKey(appName string) string {
+	return constants.KeyPrefixHistoryPost + appName
+}
+
+func (m *Manager) forgetRecorded(ctx context.Context, appName string) {
+	if m.cfg.RDB == nil {
+		return
+	}
+	_ = m.cfg.RDB.Del(ctx, recordedKey(appName), postKey(appName)).Err()
 }
 
 func (m *Manager) loadFlushBuffer(appName string) (map[string]*unstructured.Unstructured, error) {
@@ -124,8 +264,7 @@ func (m *Manager) applyFlushWithLock(
 		m.coalesce.clearBufferRedis(appName)
 		return errFlushNoInputs
 	}
-	byNS := m.preImageByNamespace(stored, buf)
-	newSnaps, err := writePreSnapshotsForNamespaces(nextGen, byNS, opts.CreateSnapshot)
+	newSnaps, err := m.writePreSnapshots(ctx, appName, stored, nextGen, m.preImageByNamespace(stored, buf), &opts)
 	if err != nil {
 		appsnapshot.DiscardSnapshots(newSnaps, opts.DeleteSnapshot)
 		m.coalesce.clearBufferRedis(appName)
@@ -134,11 +273,96 @@ func (m *Manager) applyFlushWithLock(
 	applyFlushOpts(&opts, appName, nextGen, newSnaps)
 	opts.ManifestPairs = m.manifestPairs(buf)
 	res := applicationscore.GetApplications(ctx, m.cfg.RDB, inputs, opts)
-	if app := logFlushResult(appName, stored, res); app != nil &&
-		app.CRStatus == applicationmodel.CRStatusPublished && app.History.Generation > stored.History.Generation {
+	app := logFlushResult(appName, stored, res)
+	m.settlePendingSnapshots(ctx, appName, stored, app)
+	m.rememberFlushedManifests(ctx, appName, app, opts.ManifestPairs)
+	return nil
+}
+
+// The set is written ahead of the publish; an attempt that stops short of a
+// landed CR update would otherwise leave it on disk and write another one next
+// time, with a throttled exporter DELETE as the only cleanup.
+func (m *Manager) writePreSnapshots(
+	ctx context.Context,
+	appName string,
+	stored *applicationmodel.Application,
+	nextGen int,
+	byNS map[string][]unstructured.Unstructured,
+	opts *applicationscore.GetApplicationsOptions,
+) ([]applicationmodel.ApplicationSnapshot, error) {
+	payloads := preImagePayloads(byNS)
+	hash := preImageHash(payloads)
+	if rec := m.loadPendingSnapshots(ctx, appName); rec != nil {
+		switch {
+		case referencedByStored(stored, rec.Snapshots):
+			m.forgetPendingSnapshots(ctx, appName)
+		case rec.Generation == nextGen && rec.ContentHash == hash:
+			return rec.Snapshots, nil
+		default:
+			appsnapshot.DiscardSnapshots(rec.Snapshots, opts.DeleteSnapshot)
+		}
+	}
+	snaps, err := writePreSnapshotsForNamespaces(nextGen, payloads, opts.CreateSnapshot)
+	if err != nil {
+		return snaps, err
+	}
+	m.rememberPendingSnapshots(ctx, appName, pendingSnapshots{Generation: nextGen, ContentHash: hash, Snapshots: snaps})
+	return snaps, nil
+}
+
+// A failed or unanswered publish leaves the files on disk for the next attempt;
+// anything else either referenced them or already ran the discard.
+func (m *Manager) settlePendingSnapshots(ctx context.Context, appName string, stored, app *applicationmodel.Application) {
+	if app == nil || app.CRStatus == applicationmodel.CRStatusFailed {
+		return
+	}
+	if app.CRStatus == applicationmodel.CRStatusPublished && app.History.Generation > stored.History.Generation {
 		m.rememberPublishedGeneration(ctx, appName, app.History.Generation)
 	}
-	return nil
+	m.forgetPendingSnapshots(ctx, appName)
+}
+
+func referencedByStored(stored *applicationmodel.Application, snaps []applicationmodel.ApplicationSnapshot) bool {
+	return slices.ContainsFunc(stored.Snapshots, func(s applicationmodel.ApplicationSnapshot) bool {
+		return slices.ContainsFunc(snaps, func(p applicationmodel.ApplicationSnapshot) bool { return p.Path == s.Path })
+	})
+}
+
+func pendingSnapshotsKey(appName string) string {
+	return constants.KeyPrefixSnapshotPending + appName
+}
+
+func (m *Manager) loadPendingSnapshots(ctx context.Context, appName string) *pendingSnapshots {
+	if m.cfg.RDB == nil {
+		return nil
+	}
+	raw, err := m.cfg.RDB.Get(ctx, pendingSnapshotsKey(appName)).Bytes()
+	if err != nil {
+		return nil
+	}
+	var rec pendingSnapshots
+	if err := json.Unmarshal(raw, &rec); err != nil {
+		return nil
+	}
+	return &rec
+}
+
+func (m *Manager) rememberPendingSnapshots(ctx context.Context, appName string, rec pendingSnapshots) {
+	if m.cfg.RDB == nil {
+		return
+	}
+	raw, err := json.Marshal(rec)
+	if err != nil {
+		return
+	}
+	_ = m.cfg.RDB.Set(ctx, pendingSnapshotsKey(appName), raw, constants.SnapshotPendingTTL).Err()
+}
+
+func (m *Manager) forgetPendingSnapshots(ctx context.Context, appName string) {
+	if m.cfg.RDB == nil {
+		return
+	}
+	_ = m.cfg.RDB.Del(ctx, pendingSnapshotsKey(appName)).Err()
 }
 
 func logFlushResult(appName string, stored *applicationmodel.Application, res response.GenericResponse) *applicationmodel.Application {
@@ -189,7 +413,7 @@ func (m *Manager) preImageByNamespace(
 	out := make(map[string][]unstructured.Unstructured)
 	seen := make(map[string]struct{}, len(stored.Resources))
 	for _, r := range stored.Resources {
-		key := r.Namespace + "/" + r.Kind + "/" + r.Name
+		key := resourceRefKey(r)
 		seen[key] = struct{}{}
 		if v, ok := old[key]; ok {
 			out[r.Namespace] = append(out[r.Namespace], *v.DeepCopy())

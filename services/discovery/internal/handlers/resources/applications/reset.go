@@ -14,6 +14,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/telark/discovery/internal/clients"
 	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/coordination"
 	redishelper "github.com/telark/discovery/internal/helpers/redis"
 	sharedhelper "github.com/telark/discovery/internal/helpers/shared"
 	"github.com/telark/rest/response"
@@ -36,11 +37,11 @@ func ResetApplication(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), constants.AppResetHandlerTimeout)
 	defer cancel()
 
-	if forwarded := forwardResetToLeaderIfNeeded(ctx, w, r, name); forwarded {
+	rdb := redishelper.NewRedisClient()
+	if forwarded := forwardResetToLeaderIfNeeded(ctx, rdb, w, r, name); forwarded {
 		return
 	}
 
-	rdb := redishelper.NewRedisClient()
 	if shouldSkipReset(ctx, rdb, name) {
 		sendResetResponse(w, name)
 		return
@@ -71,7 +72,7 @@ func RunReset(ctx context.Context, rdb *redis.Client, name string) error {
 	return nil
 }
 
-func forwardResetToLeaderIfNeeded(ctx context.Context, w http.ResponseWriter, r *http.Request, name string) bool {
+func forwardResetToLeaderIfNeeded(ctx context.Context, rdb *redis.Client, w http.ResponseWriter, r *http.Request, name string) bool {
 	coord, replicaID := getCoordinationBundle()
 	if coord == nil || strings.TrimSpace(replicaID) == constants.EmptyString {
 		return false
@@ -90,7 +91,7 @@ func forwardResetToLeaderIfNeeded(ctx context.Context, w http.ResponseWriter, r 
 	}
 	lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
 	lg.Info(fmt.Sprintf(string(constants.LogAppResetForwarding), name, leaderID))
-	if err := proxyResetRequestToLeader(ctx, w, r, name, leaderID); err != nil {
+	if err := proxyResetRequestToLeader(ctx, rdb, w, r, name, leaderID); err != nil {
 		responseutils.LogAndSendResponse(
 			w, http.StatusBadGateway, response.OperationError, err.Error(), nil, err,
 		)
@@ -100,12 +101,13 @@ func forwardResetToLeaderIfNeeded(ctx context.Context, w http.ResponseWriter, r 
 
 func proxyResetRequestToLeader(
 	ctx context.Context,
+	rdb *redis.Client,
 	w http.ResponseWriter,
 	r *http.Request,
 	name string,
 	leaderID string,
 ) error {
-	targetURL, err := buildLeaderResetURL(leaderID, name)
+	targetURL, err := LeaderResetURL(ctx, rdb, leaderID, name)
 	if err != nil {
 		return err
 	}
@@ -137,21 +139,17 @@ func proxyResetRequestToLeader(
 	return nil
 }
 
-func buildLeaderResetURL(leaderID string, name string) (string, error) {
-	rawPath := fmt.Sprintf(constants.ResetProxyPathFormat, url.PathEscape(strings.TrimSpace(name)))
-	u := &url.URL{
-		Scheme: constants.HTTPScheme,
-		Host:   net.JoinHostPort(strings.TrimSpace(leaderID), constants.MainPort),
-		Path:   rawPath,
-	}
-	if strings.TrimSpace(u.Host) == constants.EmptyString {
+func LeaderResetURL(ctx context.Context, rdb *redis.Client, leaderID, name string) (string, error) {
+	addr := coordination.ReplicaAddress(ctx, rdb, leaderID)
+	if addr == constants.EmptyString {
 		return constants.EmptyString, errors.New(string(constants.ErrForceSyncLeaderNotAvailable))
 	}
-	parsed, err := url.Parse(u.String())
-	if err != nil {
-		return constants.EmptyString, fmt.Errorf(string(constants.ErrAppResetLeaderForwardFailed), leaderID, err)
+	u := &url.URL{
+		Scheme: constants.HTTPScheme,
+		Host:   net.JoinHostPort(addr, constants.MainPort),
+		Path:   fmt.Sprintf(constants.ResetProxyPathFormat, url.PathEscape(strings.TrimSpace(name))),
 	}
-	return parsed.String(), nil
+	return u.String(), nil
 }
 
 func shouldSkipReset(ctx context.Context, rdb *redis.Client, name string) bool {
@@ -204,6 +202,10 @@ func deleteRedisByPatterns(ctx context.Context, rdb *redis.Client, appName strin
 		constants.KeyPrefixIncidentState + appName + constants.Wildcard,
 		constants.KeyPrefixOpState + appName + constants.ColonSeparator + constants.Wildcard,
 		constants.KeyPrefixCoalesceBuffer + appName,
+		constants.KeyPrefixHistoryRecorded + appName,
+		constants.KeyPrefixHistoryPost + appName,
+		constants.KeyPrefixHistoryFloor + appName,
+		constants.KeyPrefixSnapshotPending + appName,
 		constants.KeyPrefixLockGen + appName + constants.ColonSeparator + constants.Wildcard,
 		constants.ForceSyncDedupKeyPrefix + appName,
 		constants.KeyPrefixRollbackApplying + appName,

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,13 +21,11 @@ import (
 	redishelper "github.com/telark/discovery/internal/helpers/redis"
 	notifclient "github.com/telark/rest/clients/notifications"
 	xwareredis "github.com/telark/x-ware/redis/stream"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -66,25 +65,9 @@ var kindRank = map[string]int{
 	constants.RollbackKindCronJob:        10,
 }
 
-type Controller struct {
-	kubeClient     *kubernetes.Clientset
-	dyn            dynamic.Interface
-	mapper         meta.RESTMapper
-	queue          workqueue.TypedRateLimitingInterface[string]
-	snapshotClient *clients.SnapshotClient
-	notifClient    *clients.NotificationClient
-}
-
-type rollbackPatchOpts struct {
-	Status      string
-	ErrorMsg    string
-	CompletedAt *time.Time
-}
-
 func NewController(kubeClient *kubernetes.Clientset) *Controller {
 	return &Controller{
 		kubeClient:     kubeClient,
-		queue:          workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[string]()),
 		snapshotClient: clients.NewSnapshotClient(),
 		notifClient:    clients.NewNotificationClient(),
 	}
@@ -96,6 +79,9 @@ func (c *Controller) Run(ctx context.Context) {
 		return
 	}
 
+	// Per Run: leadergate re-runs the same Controller each leadership term and
+	// a shut-down workqueue never accepts items again.
+	queue := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[string]())
 	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(
 		c.dyn,
 		kcorefactory.JitteredResync(dconfig.RollbackInformerResync(), dconfig.InformerResyncJitterFraction()),
@@ -105,18 +91,20 @@ func (c *Controller) Run(ctx context.Context) {
 	inf := factory.ForResource(crdGVR).Informer()
 
 	_, _ = inf.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    c.enqueue,
-		UpdateFunc: func(_, newObj any) { c.enqueue(newObj) },
+		AddFunc:    func(obj any) { enqueue(queue, obj) },
+		UpdateFunc: func(_, newObj any) { enqueue(queue, newObj) },
 	})
 
 	factory.Start(ctx.Done())
+	defer factory.Shutdown()
 	if !cache.WaitForCacheSync(ctx.Done(), inf.HasSynced) {
 		logger.Error(string(constants.ErrRollbackControllerCacheSyncFailed))
 		return
 	}
 
-	go c.worker(ctx)
-	<-ctx.Done()
+	workers := dconfig.RollbackWorkers()
+	logger.Info(fmt.Sprintf(string(constants.InfoRollbackWorkersStarted), workers))
+	RunWorkers(ctx, queue, workers, c.reconcile)
 }
 
 func (c *Controller) initClients() error {
@@ -129,34 +117,55 @@ func (c *Controller) initClients() error {
 	return nil
 }
 
-func (c *Controller) enqueue(obj any) {
+func enqueue(queue workqueue.TypedRateLimitingInterface[string], obj any) {
 	u, ok := obj.(*unstructured.Unstructured)
 	if !ok || u == nil {
 		return
 	}
 	key := fmt.Sprintf("%s/%s", u.GetNamespace(), u.GetName())
-	c.queue.Add(key)
+	queue.Add(key)
 }
 
-func (c *Controller) worker(ctx context.Context) {
+// Workers only ever overlap on different apps: the workqueue hands a key to one
+// worker at a time and claimPending holds the per-app Redis lock.
+func RunWorkers(
+	ctx context.Context,
+	queue workqueue.TypedRateLimitingInterface[string],
+	workers int,
+	reconcile func(context.Context, string) error,
+) {
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Go(func() { worker(ctx, queue, reconcile) })
+	}
+	<-ctx.Done()
+	queue.ShutDown()
+	wg.Wait()
+}
+
+func worker(
+	ctx context.Context,
+	queue workqueue.TypedRateLimitingInterface[string],
+	reconcile func(context.Context, string) error,
+) {
 	for {
-		item, shutdown := c.queue.Get()
+		item, shutdown := queue.Get()
 		if shutdown {
 			return
 		}
 		func() {
-			defer c.queue.Done(item)
-			if err := c.reconcile(ctx, item); err != nil {
+			defer queue.Done(item)
+			if err := reconcile(ctx, item); err != nil {
 				if isTransientBackpressure(err) {
 					logger.Debug(fmt.Sprintf(string(constants.LogRollbackReconcileBackpressure), item))
-					c.queue.AddRateLimited(item)
+					queue.AddRateLimited(item)
 					return
 				}
 				logger.Error(fmt.Sprintf(string(constants.ErrRollbackReconcileFailed), item, err))
-				c.queue.AddRateLimited(item)
+				queue.AddRateLimited(item)
 				return
 			}
-			c.queue.Forget(item)
+			queue.Forget(item)
 		}()
 	}
 }

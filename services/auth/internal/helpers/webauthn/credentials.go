@@ -221,9 +221,9 @@ func VerifyCredential(
 	passkeys []*authdata.UserPasskey,
 	r *http.Request,
 ) (*webauthn.Credential, error) {
-	wa, err := GetWebAuthn()
+	wa, err := GetWebAuthnFor(r)
 	if err != nil {
-		return nil, fmt.Errorf(string(constants.ErrFailedGetWebAuthnInstance), err)
+		return nil, err
 	}
 
 	bodyBytes, err := ReadAndRestoreRequestBody(r)

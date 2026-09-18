@@ -11,6 +11,11 @@ const (
 )
 
 const (
-	InfServiceHealthy  = "service is: healthy"
-	InfServiceNotReady = "service is: not ready"
+	InfServiceHealthy           = "service is: healthy"
+	InfServiceNotReady          = "service is: not ready"
+	ReadinessReasonRedis        = "redis unreachable"
+	ReadinessReasonBootstrap    = "bootstrap pending"
+	ReadinessReasonGlobalConfig = "globalconfig not loaded"
+	ReadinessReasonExporter     = "exporter circuit open"
+	ReadinessReasonKubernetes   = "kubernetes api unreachable"
 )

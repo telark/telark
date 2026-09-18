@@ -1,11 +1,13 @@
 package performance
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
+	"slices"
+	"strconv"
 	"sync"
 	"time"
 
@@ -16,8 +18,17 @@ import (
 )
 
 var (
-	lg                   = constants.GetLogger(constants.PrefixOptimizer)
-	errInvalidCachedJSON = errors.New("cached payload is not valid JSON")
+	lg = constants.GetLogger(constants.PrefixOptimizer)
+	// Built from the same GenericResponse the live path encodes, so a hit and a
+	// render differ only in the message.
+	cachedEnvelope = sync.OnceValues(func() (prefix, suffix []byte) {
+		var buf bytes.Buffer
+		_ = json.NewEncoder(&buf).Encode(response.NewGenericResponse(
+			http.StatusOK, response.OperationSuccess, json.RawMessage(constants.CachedEnvelopeSentinel), constants.CachedResponse,
+		))
+		prefix, suffix, _ = bytes.Cut(buf.Bytes(), []byte(constants.CachedEnvelopeSentinel))
+		return prefix, suffix
+	})
 )
 
 func NewOptimizedHandler(optimizer *Optimizer, handler http.HandlerFunc, timeout time.Duration) *OptimizedHandler {
@@ -79,6 +90,14 @@ func (clh *CachedListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	cacheKey := clh.cacheKey(r)
+	if etag := clh.etag(cacheKey); etag != constants.EmptyString {
+		w.Header().Set(constants.HeaderETag, etag)
+		w.Header().Set(restconstants.HeaderCacheControl, restconstants.CacheControlNoCache)
+		if r.Header.Get(constants.HeaderIfNoneMatch) == etag {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+	}
 
 	if clh.serveCached(w, requestID, cacheKey) {
 		return
@@ -89,32 +108,54 @@ func (clh *CachedListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 }
 
 func (clh *CachedListHandler) serveCached(w http.ResponseWriter, requestID string, cacheKey string) bool {
-	cached, exists := clh.optimizer.Get(cacheKey)
-	if !exists {
+	blob, ok := clh.cachedBlob(cacheKey)
+	if !ok {
 		return false
 	}
 	lg.Info(fmt.Sprintf(string(constants.InfOptimizerCacheHit), requestID, cacheKey))
-	// The blob is the JSON we stored; embedding it verbatim skips a decode and
-	// re-encode of up to a megabyte per request.
-	var cachedData any
-	switch v := cached.(type) {
-	case []byte:
-		if !json.Valid(v) {
-			lg.Error(fmt.Sprintf(string(constants.ErrOptimizerCacheParseError), requestID, errInvalidCachedJSON))
-			return false
-		}
-		cachedData = json.RawMessage(v)
-	case string:
-		if !json.Valid([]byte(v)) {
-			lg.Error(fmt.Sprintf(string(constants.ErrOptimizerCacheParseError), requestID, errInvalidCachedJSON))
-			return false
-		}
-		cachedData = json.RawMessage(v)
-	default:
-		cachedData = v
-	}
-	responseutils.LogAndSendResponse(w, http.StatusOK, response.OperationSuccess, constants.CachedResponse, cachedData, nil)
+	writeCachedEnvelope(w, blob)
 	return true
+}
+
+// The blob is the data field's JSON, validated when it was stored; it goes out
+// spliced into the envelope as-is, so a hit is one write of the bytes and never
+// a decode, re-encode or scan of a multi-megabyte body.
+func (clh *CachedListHandler) cachedBlob(cacheKey string) ([]byte, bool) {
+	if blob, ok := clh.localGet(cacheKey); ok {
+		return blob, true
+	}
+	cached, exists := clh.optimizer.Get(cacheKey)
+	if !exists {
+		return nil, false
+	}
+	text, ok := cached.(string)
+	if !ok {
+		return nil, false
+	}
+	blob := []byte(text)
+	clh.localPut(cacheKey, blob)
+	return blob, true
+}
+
+func writeCachedEnvelope(w http.ResponseWriter, blob []byte) {
+	prefix, suffix := cachedEnvelope()
+	w.Header().Set(constants.HeaderContentType, constants.ContentTypeJSON)
+	w.Header().Set(constants.HeaderContentLength, strconv.Itoa(len(prefix)+len(blob)+len(suffix)))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(prefix)
+	_, _ = w.Write(blob)
+	_, _ = w.Write(suffix)
+}
+
+// The key names the blob a client holds, so a poller still holding it is
+// answered before the blob is read. A single-resource key has no generation
+// and would never move. ponytail: a TTL rebuild under an unchanged generation
+// keeps the validator; a per-blob validator beside the blob would close that.
+func (clh *CachedListHandler) etag(cacheKey string) string {
+	if clh.operation != constants.OpList || cacheKey == constants.EmptyString {
+		return constants.EmptyString
+	}
+	return constants.WeakETagPrefix + strconv.Quote(cacheKey)
 }
 
 func (clh *CachedListHandler) inflightLock(cacheKey string) *sync.Mutex {
@@ -146,6 +187,15 @@ func (clh *CachedListHandler) executeHandler(w http.ResponseWriter, r *http.Requ
 			return
 		}
 	}
+	if !clh.acquireRender(r.Context()) {
+		lg.Warn(fmt.Sprintf(string(constants.WarnOptimizerRenderRefused), requestID, cacheKey))
+		w.Header().Del(constants.HeaderETag)
+		w.Header().Set(constants.HeaderRetryAfter, constants.ListRenderRetryAfter)
+		responseutils.LogAndSendResponse(w, http.StatusServiceUnavailable, response.OperationUnavailable,
+			string(constants.ErrOptimizerRenderBusy), nil, nil)
+		return
+	}
+	defer clh.releaseRender()
 	responseCapture := &responseCaptureWriter{
 		ResponseWriter: w,
 		statusCode:     http.StatusOK,
@@ -161,8 +211,65 @@ func (clh *CachedListHandler) executeHandler(w http.ResponseWriter, r *http.Requ
 	}
 }
 
+// Waits ListRenderWait for a render slot: a request that would only queue
+// behind the running renders is refused with Retry-After instead. Single
+// resource reads are never bounded, so their handler has no slots.
+func (clh *CachedListHandler) acquireRender(ctx context.Context) bool {
+	if clh.renders == nil {
+		return true
+	}
+	wait := time.NewTimer(constants.ListRenderWait)
+	defer wait.Stop()
+	select {
+	case clh.renders <- struct{}{}:
+		return true
+	case <-wait.C:
+		return false
+	case <-ctx.Done():
+		return false
+	}
+}
+
+func (clh *CachedListHandler) releaseRender() {
+	if clh.renders != nil {
+		<-clh.renders
+	}
+}
+
+func (clh *CachedListHandler) localGet(cacheKey string) ([]byte, bool) {
+	clh.localMu.Lock()
+	defer clh.localMu.Unlock()
+	for i := range clh.local {
+		if clh.local[i].key != cacheKey {
+			continue
+		}
+		if time.Now().Before(clh.local[i].expires) {
+			return clh.local[i].data, true
+		}
+		clh.local = slices.Delete(clh.local, i, i+constants.DefaultIncrementValue)
+		return nil, false
+	}
+	return nil, false
+}
+
+func (clh *CachedListHandler) localPut(cacheKey string, blob []byte) {
+	if clh.operation != constants.OpList || cacheKey == constants.EmptyString {
+		return
+	}
+	clh.localMu.Lock()
+	defer clh.localMu.Unlock()
+	clh.local = slices.DeleteFunc(clh.local, func(b localBlob) bool { return b.key == cacheKey })
+	if len(clh.local) >= constants.ListBlobLocalEntries {
+		clh.local = slices.Delete(clh.local, constants.DefaultInitValue, constants.DefaultIncrementValue)
+	}
+	clh.local = append(clh.local, localBlob{key: cacheKey, data: blob, expires: time.Now().Add(clh.storeTTL())})
+}
+
 func (rcw *responseCaptureWriter) WriteHeader(statusCode int) {
 	rcw.statusCode = statusCode
+	if statusCode != http.StatusOK {
+		rcw.Header().Del(constants.HeaderETag)
+	}
 	rcw.ResponseWriter.WriteHeader(statusCode)
 }
 

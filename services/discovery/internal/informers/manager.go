@@ -11,10 +11,13 @@ import (
 	"github.com/telark/discovery/internal/clients"
 	"github.com/telark/discovery/internal/config"
 	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/core/applications/history/manifestdiff"
+	historyshared "github.com/telark/discovery/internal/core/applications/history/shared"
 	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
 	kcoredynamic "github.com/telark/kcore/informers/dynamic"
 	kcorefactory "github.com/telark/kcore/informers/factory"
 	"github.com/telark/kcore/k8sclient"
+	"golang.org/x/time/rate"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic/dynamicinformer"
@@ -24,30 +27,36 @@ import (
 
 //nolint:containedctx // lifecycle root for flush and event handlers
 type Manager struct {
-	cfg             Config
-	rootCtxMu       sync.RWMutex
-	rootCtx         context.Context
-	informersMu     sync.RWMutex
-	informers       map[string]cache.SharedIndexInformer
-	nsRunMu         sync.Mutex
-	nsCancels       map[string]context.CancelFunc
-	watchGVRs       []schema.GroupVersionResource
-	coalesce        *coalescer
-	exporter        *clients.ExporterClient
-	kubeClient      *kubernetes.Clientset
-	appNamesMu      sync.RWMutex
-	appNames        map[string]struct{}
-	nsPrewarmMu     sync.Mutex
-	nsPrewarmTimers map[string]*time.Timer
+	cfg                 Config
+	rootCtxMu           sync.RWMutex
+	rootCtx             context.Context
+	informersMu         sync.RWMutex
+	informers           map[string]cache.SharedIndexInformer
+	nsRunMu             sync.Mutex
+	nsCancels           map[string]context.CancelFunc
+	watchGVRs           []schema.GroupVersionResource
+	coalesce            *coalescer
+	getStoredApp        func(string) (*applicationmodel.Application, error)
+	getSnapshotManifest snapshotManifestFn
+	flushLimiter        *rate.Limiter
+	kubeClient          *kubernetes.Clientset
+	appNamesMu          sync.RWMutex
+	appNames            map[string]struct{}
+	nsPrewarmMu         sync.Mutex
+	nsPrewarmTimers     map[string]*time.Timer
+	reconcileMu         sync.Mutex
 }
 
 func newManager(cfg Config) *Manager {
+	flushRate := config.InformerFlushRatePerSec()
 	m := &Manager{
-		cfg:             cfg,
-		informers:       make(map[string]cache.SharedIndexInformer),
-		nsCancels:       make(map[string]context.CancelFunc),
-		nsPrewarmTimers: make(map[string]*time.Timer),
-		exporter:        clients.NewExporterClient(),
+		cfg:                 cfg,
+		informers:           make(map[string]cache.SharedIndexInformer),
+		nsCancels:           make(map[string]context.CancelFunc),
+		nsPrewarmTimers:     make(map[string]*time.Timer),
+		getStoredApp:        clients.NewExporterClient().GetApplicationByNameFresh,
+		getSnapshotManifest: clients.NewSnapshotClient().GetSnapshotManifest,
+		flushLimiter:        rate.NewLimiter(rate.Limit(flushRate), flushRate),
 	}
 	kc, _ := k8sclient.InitKubernetesClient()
 	m.kubeClient = kc
@@ -113,12 +122,26 @@ func (m *Manager) refreshKnownApps(ctx context.Context) {
 	apps, err := m.cfg.DiscoverApps(ctx, m.cfg.RDB)
 	if err != nil {
 		constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(
-			fmt.Sprintf(string(constants.WarnInformersDiscoverAppsFailed), err))
+			fmt.Sprintf(string(constants.WarnInformersDiscoverAppsFailed), err),
+		)
 		return
 	}
 	m.appNamesMu.Lock()
 	m.appNames = knownAppNames(apps)
 	m.appNamesMu.Unlock()
+	m.reconcileInBackground(ctx, apps)
+}
+
+// One pass at a time, off the run loop: a drift-heavy pass waits on the
+// exporter per app and must neither hold the tick nor pile up behind it.
+func (m *Manager) reconcileInBackground(ctx context.Context, apps []applicationmodel.Application) {
+	if !m.isLeader(ctx) || !m.informersSynced() || !m.reconcileMu.TryLock() {
+		return
+	}
+	go func() {
+		defer m.reconcileMu.Unlock()
+		m.reconcileRecorded(ctx, apps)
+	}()
 }
 
 func (m *Manager) attachInformer(
@@ -129,7 +152,8 @@ func (m *Manager) attachInformer(
 	inf := factory.ForResource(gvr).Informer()
 	_ = inf.SetWatchErrorHandler(func(_ *cache.Reflector, err error) {
 		constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(
-			fmt.Sprintf(string(constants.WarnInformerWatchError), ns, gvr.Resource, err))
+			fmt.Sprintf(string(constants.WarnInformerWatchError), ns, gvr.Resource, err),
+		)
 	})
 	key := informerIndexKey(ns, gvr)
 	m.informersMu.Lock()
@@ -170,6 +194,11 @@ func (m *Manager) watchLeaderResume(ctx context.Context) {
 			now := m.isLeader(ctx)
 			if now && !wasLeader {
 				m.coalesce.resumeFromRedis(ctx)
+				// A failover lands on synced informers: catch up now rather than
+				// at the next tick. At startup the tick runs it once synced.
+				if m.informersSynced() {
+					m.refreshKnownApps(ctx)
+				}
 			} else if !now && wasLeader {
 				m.coalesce.stopAllTimers()
 			}
@@ -276,30 +305,26 @@ func (m *Manager) isKnownAppName(app string) bool {
 	return ok
 }
 
+// A controller status write leaves the diff roots untouched; the flush it
+// would open publishes nothing unless the counters ComputeHealth reads or the
+// owner references grouping follows moved with it.
 func isResyncArtifact(oldU, newU *unstructured.Unstructured) bool {
 	if oldU == nil || newU == nil {
 		return false
 	}
-	a := sanitizedUnstructuredForCompare(oldU)
-	b := sanitizedUnstructuredForCompare(newU)
-	return cmp.Equal(a, b)
+	if manifestdiff.Fingerprint(oldU) != manifestdiff.Fingerprint(newU) {
+		return false
+	}
+	return cmp.Equal(observedState(oldU), observedState(newU))
 }
 
-func sanitizedUnstructuredForCompare(u *unstructured.Unstructured) map[string]any {
-	c := u.DeepCopy()
-	if c == nil || c.Object == nil {
-		return nil
+func observedState(u *unstructured.Unstructured) []any {
+	out := make([]any, constants.DefaultInitValue, len(constants.InformerHealthStatusFields)+constants.DefaultAddValue)
+	for _, field := range constants.InformerHealthStatusFields {
+		v, _, _ := unstructured.NestedFieldNoCopy(u.Object, historyshared.ManifestStatusKey, field)
+		out = append(out, v)
 	}
-	if md, ok := c.Object["metadata"].(map[string]any); ok && md != nil {
-		delete(md, "resourceVersion")
-		delete(md, "managedFields")
-		delete(md, "generation")
-		if len(md) > constants.DefaultInitValue {
-			return c.Object
-		}
-		delete(c.Object, "metadata")
-	}
-	return c.Object
+	return append(out, u.GetOwnerReferences())
 }
 
 func (m *Manager) onDelete(obj any) {
@@ -366,6 +391,20 @@ func (m *Manager) isLeader(ctx context.Context) bool {
 		return true
 	}
 	return m.cfg.LeaderFn(ctx)
+}
+
+func (m *Manager) informersSynced() bool {
+	m.informersMu.RLock()
+	defer m.informersMu.RUnlock()
+	if len(m.informers) == constants.DefaultInitValue {
+		return false
+	}
+	for _, inf := range m.informers {
+		if !inf.HasSynced() {
+			return false
+		}
+	}
+	return true
 }
 
 func namespaceExcluded(ctx context.Context, ns string) bool {

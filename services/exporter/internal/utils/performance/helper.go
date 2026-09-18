@@ -38,23 +38,18 @@ func storeResponseInCache(clh *CachedListHandler, r *http.Request, responseCaptu
 	if cacheKey != clh.cacheKey(r) {
 		return
 	}
-	var responseMap map[string]any
-	if err := json.Unmarshal(responseCapture.body, &responseMap); err != nil {
+	// One level deep: this validates the body once and keeps the data field's
+	// bytes without ever building the value tree of a multi-megabyte list.
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal(responseCapture.body, &envelope); err != nil {
 		lg.Error(fmt.Sprintf(string(constants.ErrOptimizerCacheStoreError), requestID, err))
 		return
 	}
-
 	blob := responseCapture.body
-	if data, exists := responseMap["data"]; exists {
-		// go-redis marshals scalars and []byte only; a decoded map or slice is an
-		// error that Set discards, which is why GET responses never reached Redis.
-		b, err := json.Marshal(data)
-		if err != nil {
-			lg.Error(fmt.Sprintf(string(constants.ErrOptimizerCacheStoreError), requestID, err))
-			return
-		}
-		blob = b
+	if data, exists := envelope[constants.ResponseDataField]; exists {
+		blob = data
 	}
+	clh.localPut(cacheKey, blob)
 	clh.optimizer.SetTTL(cacheKey, blob, clh.storeTTL())
 }
 

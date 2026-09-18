@@ -73,6 +73,15 @@ func refFromUnstructured(u *unstructured.Unstructured) kcoregroup.ResourceRef {
 }
 
 func (m *Manager) getCachedManifest(kind, name, ns string) (map[string]any, bool) {
+	u, ok := m.cachedObject(kind, name, ns)
+	if !ok {
+		return nil, false
+	}
+	return u.DeepCopy().Object, true
+}
+
+// cachedObject hands out the informer's own object: read it, never mutate it.
+func (m *Manager) cachedObject(kind, name, ns string) (*unstructured.Unstructured, bool) {
 	if m == nil {
 		return nil, false
 	}
@@ -90,8 +99,7 @@ func (m *Manager) getCachedManifest(kind, name, ns string) (map[string]any, bool
 		if !ok || u == nil || u.GetKind() != kind {
 			continue
 		}
-		cp := u.DeepCopy()
-		return cp.Object, true
+		return u, true
 	}
 	return nil, false
 }

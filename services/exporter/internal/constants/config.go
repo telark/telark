@@ -22,6 +22,9 @@ const (
 	ResourceSnapshot        = "snapshots"
 	ResourceDefault         = "default"
 	CachedResponse          = "Cached response"
+	HeaderETag              = "ETag"
+	HeaderIfNoneMatch       = "If-None-Match"
+	WeakETagPrefix          = "W/"
 	ResourcePathPrefix      = "resources/"
 	NameParam               = "name"
 	IDParam                 = "id"
@@ -53,8 +56,29 @@ const (
 	GetCacheTTL = 15 * time.Second
 	// Lists may lag writes by this much; in exchange a write storm costs one
 	// list rebuild per window instead of one per write.
-	ListCacheMinAge                             = 3 * time.Second
-	ListCacheDirtyTTL                           = time.Minute
+	ListCacheMinAge   = 3 * time.Second
+	ListCacheDirtyTTL = time.Minute
+	// Rendered list blobs kept in process, newest last; the key carries the
+	// generation, so an entry stops being read the moment the list changes.
+	ListBlobLocalEntries     = 4
+	ListRenderConcurrencyEnv = "EXPORTER_LIST_RENDER_CONCURRENCY"
+	// A full list is megabytes of marshal buffer; beyond this many renders at
+	// once a request is refused rather than queued.
+	DefaultListRenderConcurrency                = 2
+	MinListRenderConcurrency                    = 1
+	ListRenderWait                              = 2 * time.Second
+	ListRenderRetryAfter                        = "2"
+	HeaderRetryAfter                            = "Retry-After"
+	HeaderContentLength                         = "Content-Length"
+	ResponseDataField                           = "data"
+	CachedEnvelopeSentinel                      = `"__blob__"`
+	InformerNoResync                            = 0
+	InformerSyncTimeout                         = 30 * time.Second
+	ReadinessPingTimeout                        = time.Second
+	ReadinessReasonRedis                        = "redis unreachable"
+	ReadinessReasonInformer                     = "application informer not synced"
+	ReadinessReasonKubernetes                   = "kubernetes api unreachable"
+	PrefixInformers                             = "Informers: "
 	CacheWindowSegment                          = "window"
 	CacheDirtySegment                           = "dirty"
 	CacheKeySeparator                           = ":"
@@ -120,8 +144,6 @@ const (
 	SessionSuffix                               = "-session"
 	PasskeySuffix                               = "-passkey"
 	ResourceTypeChallenge                       = "challenge"
-	SessionNamePrefix                           = "session-"
-	SessionDigestLength                         = 64
 	AIKeySecretNamespaceEnv                     = "AI_KEY_SECRET_NAMESPACE"
 	AIKeySecretNameEnv                          = "AI_KEY_SECRET_NAME"
 	AIKeySecretField                            = "apiKey"
@@ -150,6 +172,7 @@ const (
 	FieldConsumedSpace                          = "consumedSpace"
 	FieldAvailableSpace                         = "availableSpace"
 	FieldTotalSnapshots                         = "totalSnapshots"
+	FieldUpdatedAt                              = "updatedAt"
 	FieldSnapshotsPath                          = "snapshotsPath"
 	FieldSnapshotScopes                         = "snapshotScopes"
 	FieldPVCName                                = "pvcName"
@@ -187,6 +210,8 @@ const (
 	SnapshotGCMinAge                            = time.Hour
 	SnapshotGCLockKey                           = "exporter:snapshot:gc"
 	SnapshotGCLockTTLDivisor                    = 2
+	SnapshotStatsRefreshSecEnv                  = "SNAPSHOT_STATS_REFRESH_SEC"
+	DefaultSnapshotStatsRefreshInterval         = time.Minute
 	SnapshotTempFileSuffix                      = ".tmp"
 	SnapshotsAppsSubdir                         = "apps"
 	DefaultSnapshotsPath                        = "/snapshots"

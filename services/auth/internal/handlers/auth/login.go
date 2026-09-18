@@ -42,11 +42,9 @@ func LoginStart(w http.ResponseWriter, r *http.Request) {
 	credentials := webauthnhelper.ConvertPasskeysToCredentials(passkeys)
 	webAuthnUser := webauthnhelper.CreateUser(user.ID, user.Username, user.Fullname, credentials)
 
-	wa, err := webauthnhelper.GetWebAuthn()
+	wa, err := webauthnhelper.GetWebAuthnFor(r)
 	if err != nil {
-		shared.HandleError(w, fmt.Errorf(string(constants.ErrWebAuthnSetupFailed), err),
-			http.StatusInternalServerError,
-			fmt.Sprintf(string(constants.ErrWebAuthnSetupFailed), err))
+		shared.HandleError(w, err, shared.GetStatusCodeForWebAuthnError(err, http.StatusInternalServerError), err.Error())
 		return
 	}
 
@@ -106,7 +104,7 @@ func LoginFinish(w http.ResponseWriter, r *http.Request) {
 	webAuthnUser := webauthnhelper.CreateUser(user.ID, user.Username, user.Fullname, credentials)
 	credential, err := webauthnhelper.VerifyCredential(challenge, webAuthnUser, credentials, passkeys, r)
 	if err != nil {
-		shared.SendErrorResponse(w, http.StatusUnauthorized, err)
+		shared.SendErrorResponse(w, shared.GetStatusCodeForWebAuthnError(err, http.StatusUnauthorized), err)
 		return
 	}
 

@@ -18,7 +18,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
   --set app.mode=performance
 ```
 
-`app.mode` sizes telark's own services; the subcharts (redis/nats/kyverno/metrics-server) ship fixed production-grade defaults owned by the chart, identical in every mode. Capacity, measured 2026-09-17: `minimal` handles a few hundred applications; `standard` was verified at 1 000 applications (discovery ~200 Mi steady, rediscovery cycle ≈ 4.5 min); `performance` is for clusters beyond that. Full guide: [docs/INSTALL.md](../../docs/INSTALL.md).
+`app.mode` sizes telark's own services; the subcharts (redis/nats/kyverno/metrics-server) ship fixed production-grade defaults owned by the chart, identical in every mode. Capacity, measured 2026-09-18: `minimal` handles a few hundred applications; `standard` was verified at 2 000 applications (three discovery replicas, rediscovery of a deleted 100-app namespace ≈ 3.5 min); `performance` is for clusters beyond that. Full guide: [docs/INSTALL.md](../../docs/INSTALL.md).
 
 ## Values reference
 
@@ -39,6 +39,8 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | `monitoring.serviceMonitor.path` / `interval` | `/metrics` / `30s` | Scrape path / interval |
 | `ingress.enabled` | `false` | Ingress for the dashboard (routes to `ingress.service`, default `ui`). See [docs/INSTALL.md](../../docs/INSTALL.md#access-the-dashboard) |
 | `ingress.className` / `host` / `path` / `pathType` / `tls` / `annotations` | see values | Ingress routing + TLS |
+| `gateway.enabled` | `false` | Gateway API `HTTPRoute` for the dashboard, the alternative to the Ingress (routes to `gateway.service`, default `ui`). See [docs/INSTALL.md](../../docs/INSTALL.md#access-the-dashboard) |
+| `gateway.parentRefs` / `hostnames` / `annotations` | `[]` / `[]` / `{}` | Gateways to attach to (entries take `name`, `namespace`, `sectionName`), hostnames the route matches, HTTPRoute annotations |
 
 ### `app`
 
@@ -80,9 +82,9 @@ WebAuthn relying-party identity + passkey-flow policy. **`selfRegistration` gate
 
 | Key | Default | Description |
 |---|---|---|
-| `app.auth.passkey.id` | `"localhost"` | Relying Party identifier (eTLD+1 of the origin). Injected as `RP_ID`. |
+| `app.auth.passkey.id` | `""` | Relying Party identifier. Empty follows the request host (`X-Forwarded-Host`, else `Host`, port stripped), so passkeys work on whichever hostname you open the dashboard on. Pin to your domain in production. Injected as `RP_ID`. |
 | `app.auth.passkey.name` | `"Dashboard App"` | Display name shown by the authenticator (Touch ID prompt, etc.). Injected as `RP_NAME`. |
-| `app.auth.passkey.origin` | `"http://localhost:3000"` | Origin accepted by the server for WebAuthn assertions. Browser enforces strictly. Injected as `RP_ORIGIN`. |
+| `app.auth.passkey.origin` | `""` | Origin(s) accepted for WebAuthn ceremonies, comma-separated. Empty follows the request `Origin` header, whose host must be the relying party or one of its subdomains. Pin to `https://<domain>` in production. Injected as `RP_ORIGIN`. |
 | `app.auth.passkey.selfRegistration` | `"true"` | `"false"` blocks new passkey registration. Requires at least one `app.auth.bootstrap.admins` entry when disabled. Injected as `SELF_REGISTRATION_ENABLED`. |
 
 ### `app.serviceDefaults`
@@ -124,7 +126,7 @@ Pod-level config selectively applied via per-service gates.
 | `port` | `http` | Named port for probe targets |
 | `livenessProbe.path` | `/api/v1/status/live` | Liveness HTTP path |
 | `readinessProbe.path` | `/api/v1/status/ready` | Readiness HTTP path |
-| `*.initialDelaySeconds` / `periodSeconds` / `timeoutSeconds` | `15` | Probe timings |
+| `*.initialDelaySeconds` / `periodSeconds` / `timeoutSeconds` | liveness `15`; readiness `5` / `5` / `15` | Probe timings — readiness only checks the pod's own Redis link, so it turns Ready seconds after start and rollouts do not wait on other services |
 | `*.failureThreshold` | `3` | Consecutive failures before unhealthy |
 
 **`app.shared.podSecurityContext`** / **`app.shared.containerSecurityContext`** — pod- and container-level securityContext, applied when a service has `includeSecurity: true` (default). Set `enabled: false` on either to omit it.
@@ -162,6 +164,7 @@ Per-service block. Gates default to `true` unless noted.
 | `replicas` | `app.serviceDefaults.replicas` | Override |
 | `port` | `app.serviceDefaults.port` | Override |
 | `serviceType` | `app.serviceDefaults.serviceType` | Override |
+| `nodePort` | unset | Fixed port when `serviceType: NodePort` (used on `ui`, the dashboard; unset = allocated by Kubernetes). See [docs/INSTALL.md](../../docs/INSTALL.md#access-the-dashboard) |
 | `terminationGracePeriodSec` | `app.serviceDefaults.terminationGracePeriodSec` | Override |
 | `includeResources` | `true` | Apply `app.shared.resources` |
 | `includeHealthCheck` | `true` | Apply `app.shared.healthCheck` |
@@ -326,9 +329,9 @@ WebAuthn / passkey (templated from `app.auth.passkey`):
 
 | Variable | Source | Description |
 |---|---|---|
-| `RP_ID` | `{{ .Values.app.auth.passkey.id }}` | Relying Party identifier (origin host) |
+| `RP_ID` | `{{ .Values.app.auth.passkey.id }}` | Relying Party identifier; empty follows the request host |
 | `RP_NAME` | `{{ .Values.app.auth.passkey.name }}` | Display name shown to the user |
-| `RP_ORIGIN` | `{{ .Values.app.auth.passkey.origin }}` | Allowed origin |
+| `RP_ORIGIN` | `{{ .Values.app.auth.passkey.origin }}` | Allowed origin(s), comma-separated; empty follows the request `Origin` |
 | `SELF_REGISTRATION_ENABLED` | `{{ .Values.app.auth.passkey.selfRegistration }}` | `"false"` blocks new passkey registration. OIDC self-provisioning is always on. |
 | `CHALLENGE_TIMEOUT` | inline (`"60"`) | Challenge TTL (seconds) |
 | `SESSION_EXPIRY` | inline (`"24"`) | Session TTL (hours) |

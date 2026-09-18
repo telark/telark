@@ -3,10 +3,8 @@ package authz
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"time"
 
-	dataerrors "github.com/telark/data/errors"
 	groupdata "github.com/telark/data/resources/group"
 	roledata "github.com/telark/data/resources/role"
 	userdata "github.com/telark/data/resources/user"
@@ -56,10 +54,10 @@ func validateSession(client *clients.AuthzClient) authz.SessionValidator {
 	return func(token string) (string, error) {
 		session, err := client.GetSessionByToken(token)
 		if err != nil {
-			return constants.EmptyString, errors.New(string(dataerrors.ErrAuthzSessionNotFound))
+			return constants.EmptyString, err
 		}
 		if expired(session.ExpiresTimestamp) {
-			return constants.EmptyString, errors.New(string(dataerrors.ErrAuthzSessionExpired))
+			return constants.EmptyString, authz.ErrSessionExpired
 		}
 		return session.UserID, nil
 	}

@@ -1,0 +1,30 @@
+{{- if .Values.gateway.enabled }}
+{{- $gw := .Values.gateway -}}
+{{- $svcKey := $gw.service | default "ui" -}}
+{{- $svc := index .Values.services $svcKey -}}
+{{- $port := default .Values.app.serviceDefaults.port $svc.port -}}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "telark.fullname" . }}
+  namespace: {{ .Values.app.namespace }}
+  labels:
+    {{- include "telark.labels" . | nindent 4 }}
+  {{- with $gw.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with $gw.parentRefs }}
+  parentRefs:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $gw.hostnames }}
+  hostnames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - backendRefs:
+        - name: {{ include "telark.fullname" . }}-{{ $svc.name }}
+          port: {{ $port }}
+{{- end }}

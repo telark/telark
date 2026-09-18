@@ -12,12 +12,14 @@ import (
 	"github.com/telark/exporter/internal/config"
 	"github.com/telark/exporter/internal/constants"
 	snapshotexp "github.com/telark/exporter/internal/exporters/snapshot"
+	"github.com/telark/exporter/internal/informers"
 	envmanager "github.com/telark/exporter/internal/managers/envs"
 	exprdb "github.com/telark/exporter/internal/redis"
 	"github.com/telark/exporter/internal/routes"
 	"github.com/telark/exporter/internal/startup"
 	"github.com/telark/exporter/internal/utils/async"
 	"github.com/telark/exporter/internal/utils/performance"
+	snaputil "github.com/telark/exporter/internal/utils/snapshot"
 	"github.com/telark/rest/connectivity"
 	"github.com/telark/rest/router"
 	restserver "github.com/telark/rest/server"
@@ -39,11 +41,14 @@ const snapshotsDirPerm = 0o755
 func main() {
 	config.ApplyKubernetesRESTRateLimit()
 	initSnapshotsConfig()
+	lg.Info(fmt.Sprintf(string(constants.InfListRenderConcurrencyConfigured), envmanager.InitListRenderConcurrency()))
 	optimizer := performance.NewOptimizer(initConnectivity())
 	startup.SeedBuiltins()
 	async.Init()
 	gcCtx, stopGC := context.WithCancel(context.Background())
 	go snapshotexp.StartSnapshotGC(gcCtx)
+	go snaputil.StartStorageStatsRefresher(gcCtx)
+	go informers.StartApplications(gcCtx)
 
 	authzMiddleware, err := xauthz.NewFromEnv(exporterauthz.NewResolver(), exporterauthz.Requirements())
 	if err != nil {
@@ -69,6 +74,7 @@ func initSnapshotsConfig() {
 	maxSnapVersions := envmanager.InitSnapshotsMaxVersions()
 	lg.Info(fmt.Sprintf(string(constants.InfSnapshotsMaxVersionsConfigured), maxSnapVersions))
 	lg.Info(fmt.Sprintf(string(constants.InfSnapshotGCIntervalConfigured), envmanager.InitSnapshotGCInterval()))
+	lg.Info(fmt.Sprintf(string(constants.InfSnapshotStatsRefreshConfigured), envmanager.InitSnapshotStatsRefreshInterval()))
 	lg.Info(fmt.Sprintf(
 		string(constants.InfSnapshotsPVCConfigured),
 		envmanager.GetSnapshotsPVCNamespace(),

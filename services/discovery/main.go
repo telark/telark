@@ -484,13 +484,14 @@ func reclaimAndRepublishPending(
 }
 
 func runReplicaHeartbeat(ctx context.Context, rdb *goredis.Client, replicaID string) {
+	addr := os.Getenv(constants.EnvPodIP)
+	coordination.AdvertiseReplica(ctx, rdb, replicaID, addr)
 	ticker := time.NewTicker(xwareredis.ReplicaHeartbeatInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			key := constants.KeyPrefixReplicaHB + replicaID + constants.KeySuffixReplicaHB
-			rdb.Set(ctx, key, time.Now().UTC().String(), xwareredis.ReplicaHeartbeatTTL)
+			coordination.AdvertiseReplica(ctx, rdb, replicaID, addr)
 		case <-ctx.Done():
 			return
 		}

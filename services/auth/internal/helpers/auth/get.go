@@ -26,8 +26,8 @@ func GetUserWithErrorHandling(
 		if errors.Is(err, restshared.ErrNotFound) {
 			return nil, errors.New(string(constants.ErrUserNotFound))
 		}
-		return nil, fmt.Errorf(string(constants.ErrFailedGetUser),
-			shared.IdentityHash(identifier), err.Error())
+		lg.Error(fmt.Sprintf(string(constants.ErrFailedGetUser), shared.IdentityHash(identifier), err))
+		return nil, shared.ErrBackendUnavailable
 	}
 	if user == nil {
 		return nil, errors.New(string(constants.ErrUserNotFound))
@@ -54,7 +54,7 @@ func GetUserAndPasskeys(email string) (*userresource.UserAsResource, []*authdata
 			return nil, nil, errors.New(string(constants.ErrNoPasskeysFound))
 		}
 		lg.Error(fmt.Sprintf(string(constants.ErrFailedGetPasskeys), err))
-		return nil, nil, errors.New(string(constants.ErrInternalServerError))
+		return nil, nil, shared.ErrBackendUnavailable
 	}
 
 	if passkeys == nil || len(passkeys) == constants.InitialCapacity {

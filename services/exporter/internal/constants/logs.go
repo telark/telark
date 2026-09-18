@@ -9,6 +9,7 @@ const (
 	// Server
 	ErrInvalidRequestData     errors.Error     = "invalid request data"
 	ErrInvalidAnnotationValue errors.Error     = "invalid annotation value"
+	ErrResourceLookupFailed   errors.Error     = "resource lookup failed"
 	ErrServerStartFailed      errors.Error     = "server failed to start: %v"
 	InfServerStarting         messages.Message = "starting Server on port: 8080"
 	InfServerExitedGracefully messages.Message = "server exited gracefully"
@@ -42,6 +43,15 @@ const (
 	ErrOptimizerCacheParseError           errors.Error     = "❌ [CACHE PARSE ERROR] RequestID: %s, Error: %v"
 	ErrOptimizerCacheStoreError           errors.Error     = "❌ [CACHE STORE ERROR] RequestID: %s, Error: %v"
 	ErrOptimizerResponseSizeLimitExceeded errors.Error     = "❌ [RESPONSE SIZE_LIMIT_EXC] Response size limit exceeded (%d bytes), stopping capture"
+	ErrOptimizerRenderBusy                errors.Error     = "list render capacity exhausted, retry later"
+	WarnOptimizerRenderRefused            messages.Message = "⚠️ [RENDER REFUSED] RequestID: %s, Cache Key: %s"
+	InfListRenderConcurrencyConfigured    messages.Message = "EXPORTER_LIST_RENDER_CONCURRENCY configured: %d"
+	// Informers
+	InfApplicationInformerSynced      messages.Message = "application informer synced: %d applications in %s"
+	WarnApplicationInformerNotSynced  messages.Message = "application informer not synced after %s: lists fall back to the apiserver"
+	ErrApplicationInformerStartFailed errors.Error     = "application informer start failed: %v"
+	// Readiness
+	InfNotReadyStatusMessage messages.Message = "service is not ready"
 
 	// Certs
 	InfCertValid              messages.Message = "cert is valid and passed validation."
@@ -137,6 +147,8 @@ const (
 	ErrSessionExpired                   errors.Error = "session has expired"
 	ErrSessionExpiresInPast             errors.Error = "expiresAt must be in the future"
 	ErrSessionNotFound                  errors.Error = "session not found"
+	ErrSessionSelfRefWithoutToken       errors.Error = "session ref self requires X-Session-Token"
+	ErrSessionRefNotAName               errors.Error = "session ref must be a session name or self"
 	ErrSessionPatchOnlyExpiresTimestamp errors.Error = "patch operation only allows updating expiresTimestamp field"
 	ErrFailedToUnmarshalSession         errors.Error = "failed to unmarshal session: %v"
 
@@ -230,9 +242,12 @@ const (
 	ErrSnapshotScopeRootCreateFailed   errors.Error     = "failed to create snapshot scope root: scope=%s error=%v"
 	InfSnapshotGCIntervalConfigured    messages.Message = "SNAPSHOT_GC_INTERVAL_SEC configured: %s"
 	InfSnapshotGCDisabled              messages.Message = "snapshot gc disabled"
-	InfSnapshotGCSwept                 messages.Message = "snapshot gc: scanned=%d referenced=%d removed=%d"
+	InfSnapshotGCSwept                 messages.Message = "snapshot gc: scanned=%d referenced=%d removed=%d dirs=%d"
 	WarnSnapshotGCListFailed           messages.Message = "snapshot gc skipped: %v"
 	WarnSnapshotGCSkippedNoRefs        messages.Message = "snapshot gc skipped: no application references any snapshot"
 	ErrSnapshotGCListFailed            errors.Error     = "application list failed status=%d error=%v"
 	ErrSnapshotGCListInvalid           errors.Error     = "application list has unexpected type %T"
+	InfSnapshotStatsRefreshConfigured  messages.Message = "SNAPSHOT_STATS_REFRESH_SEC configured: %s"
+	InfSnapshotStatsRefreshDisabled    messages.Message = "snapshot stats refresh disabled: walking per request"
+	InfSnapshotStatsRefreshed          messages.Message = "snapshot stats refreshed: snapshots=%d bytes=%d took=%s"
 )

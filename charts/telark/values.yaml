@@ -50,6 +50,15 @@ ingress:
   annotations: {}
   tls: []                  # [{ secretName: telark-tls, hosts: [telark.example.com] }]
 
+# Gateway API alternative to the Ingress: an HTTPRoute for the dashboard attached to a
+# Gateway you already run. Needs Gateway API v1 CRDs + a controller implementing HTTPRoute.
+gateway:
+  enabled: false
+  parentRefs: []           # [{ name: <gateway>, namespace: <ns>, sectionName: <listener> }]
+  hostnames: []            # e.g. [telark.example.com] ([] = any host)
+  service: ui              # services.<key> to route to (the dashboard)
+  annotations: {}
+
 app:
   # Identity — app.name is the source of truth for every resource name.
   name: "telark"
@@ -57,7 +66,7 @@ app:
 
   # Install mode: sizes every telark service (replicas, resources, rate limits,
   # disruption budgets) from one flag. minimal = dev/demo, a few hundred apps ·
-  # standard = the values below, verified at 1 000 apps (2026-09-17 stress run)
+  # standard = the values below, verified at 2 000 apps (2026-09-18 stress run)
   # · performance = beyond that. Override: --set app.mode=performance.
   # Subcharts don't follow this flag (Helm resolves their values before it) — they
   # ship production-grade defaults for every mode. See the Subcharts section.
@@ -82,9 +91,9 @@ app:
       admins:
         - "contact@telark.io"
     passkey:
-      id: "localhost"
+      id: ""  # empty follows the request host; pin to your domain for production
       name: "Dashboard App"
-      origin: "http://localhost:3000"
+      origin: ""  # empty follows the request Origin; pin to https://<domain> for production
       selfRegistration: "true"  # gates passkey registration only; OIDC users unaffected
 
   # Optional subcharts. Their config lives in the Subcharts section below.
@@ -159,8 +168,8 @@ app:
         failureThreshold: 3
       readinessProbe:
         path: /api/v1/status/ready
-        initialDelaySeconds: 15
-        periodSeconds: 15
+        initialDelaySeconds: 5
+        periodSeconds: 5
         timeoutSeconds: 15
         failureThreshold: 3
     podSecurityContext:
@@ -368,6 +377,7 @@ services:
     includeHealthCheck: false
     includeSecurity: false
     useRedis: false
+    # nodePort: 30080         # with serviceType: NodePort (unset = allocated by Kubernetes)
 
 # ─── Subcharts ───────────────────────────────────────────────────────────────
 # Helm resolves a subchart's values before templates run, so app.mode (a

@@ -22,6 +22,7 @@ import (
 	"github.com/telark/kcore/crds/api"
 	"github.com/telark/rest/base"
 	appclient "github.com/telark/rest/clients/resources/applications"
+	restconstants "github.com/telark/rest/constants"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -37,14 +38,10 @@ func GetApplicationResourceWithCacheInvalidation(optimizer *performance.Optimize
 	return shared.GetResourceWithCacheInvalidation(optimizer, metadata.ApplicationAsResourceMetadata)
 }
 
-func ListApplicationResourcesWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
-	full := shared.ListResourceWithCacheInvalidation(optimizer, metadata.ApplicationAsResourceMetadata)
+func ListApplicationResourcesWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get(constants.ViewParam) == constants.ViewSummary {
-			applicationexp.ListApplicationSummaries(w)
-			return
-		}
-		full(w, r)
+		fresh := r.Header.Get(restconstants.HeaderCacheControl) == restconstants.CacheControlNoCache
+		applicationexp.ListApplications(w, r.URL.Query().Get(constants.ViewParam), fresh)
 	}
 }
 
@@ -205,7 +202,7 @@ func GetRollbacks() func(http.ResponseWriter, *http.Request) {
 		}
 		spec, err := getApplicationSpec(name)
 		if err != nil {
-			sharedutils.LogAndReturnError(w, http.StatusNotFound, "application not found", err)
+			sharedutils.LogAndReturnError(w, sharedutils.StatusForError(err, http.StatusNotFound), string(constants.ErrResourceLookupFailed), err)
 			return
 		}
 
@@ -238,7 +235,7 @@ func GetRollback() func(http.ResponseWriter, *http.Request) {
 		}
 		spec, err := getApplicationSpec(name)
 		if err != nil {
-			sharedutils.LogAndReturnError(w, http.StatusNotFound, "application not found", err)
+			sharedutils.LogAndReturnError(w, sharedutils.StatusForError(err, http.StatusNotFound), string(constants.ErrResourceLookupFailed), err)
 			return
 		}
 		for _, rb := range spec.Rollbacks {
@@ -253,8 +250,8 @@ func GetRollback() func(http.ResponseWriter, *http.Request) {
 
 func getApplicationSpec(name string) (*application.Application, error) {
 	result := api.GetCustomResourceByName(name, metadata.ApplicationAsResourceMetadata)
-	if result.Status != http.StatusOK || result.Error != nil {
-		return nil, fmt.Errorf("get crd failed: %w", result.Error)
+	if status := sharedutils.StatusForResult(result); status != http.StatusOK {
+		return nil, &sharedutils.UpstreamError{Status: status, Err: result.Error}
 	}
 	cr, ok := result.Data.(*unstructured.Unstructured)
 	if !ok {

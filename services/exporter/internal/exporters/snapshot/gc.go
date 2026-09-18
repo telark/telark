@@ -72,9 +72,12 @@ func RunSnapshotGC() {
 		lg.Warn(string(constants.WarnSnapshotGCSkippedNoRefs))
 		return
 	}
-	orphans, scanned := snaputil.CollectOrphans(envmanager.GetSnapshotsPath(), referenced, constants.SnapshotGCMinAge)
-	RemoveSnapshotFiles(orphans)
-	lg.Info(fmt.Sprintf(string(constants.InfSnapshotGCSwept), scanned, len(referenced), len(orphans)))
+	orphans, emptyDirs, scanned := snaputil.CollectOrphans(envmanager.GetSnapshotsPath(), referenced, constants.SnapshotGCMinAge)
+	// Directories first: a snap dir holding both an empty namespace dir and an
+	// orphan is then gone in one sweep instead of three.
+	dirs := RemoveSnapshotDirs(emptyDirs)
+	dirs += RemoveSnapshotFiles(orphans)
+	lg.Info(fmt.Sprintf(string(constants.InfSnapshotGCSwept), scanned, len(referenced), len(orphans), dirs))
 }
 
 // Refs come from the live API, never the cached list route: a stale blob would

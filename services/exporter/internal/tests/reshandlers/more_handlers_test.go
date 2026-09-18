@@ -35,7 +35,7 @@ func varsReq(method, body string) *http.Request {
 func TestApplicationHandlers(t *testing.T) {
 	o := newOptimizer(t)
 	assertErrorResponse(t, apphandler.GetApplicationResourceWithCacheInvalidation(o), varsReq(http.MethodGet, ""), "GetApplication")
-	assertErrorResponse(t, apphandler.ListApplicationResourcesWithCacheInvalidation(o), varsReq(http.MethodGet, ""), "ListApplications")
+	assertErrorResponse(t, apphandler.ListApplicationResourcesWithCacheInvalidation(), varsReq(http.MethodGet, ""), "ListApplications")
 	assertErrorResponse(t, apphandler.DeleteApplicationResourceWithCacheInvalidation(o), varsReq(http.MethodDelete, ""), "DeleteApplication")
 	assertErrorResponse(t, apphandler.GetRollbacks(), varsReq(http.MethodGet, ""), "GetRollbacks")
 	assertErrorResponse(t, apphandler.GetRollback(), varsReq(http.MethodGet, ""), "GetRollback")

@@ -63,6 +63,7 @@ func addSelfService(r map[string]authz.Requirement) {
 	r[router.Key(base.Get, autheps.GetPasskeyByUserAndCredentialIDViaProxy)] = authz.Authenticated
 	r[router.Key(base.Patch, autheps.PatchPasskeyByUserAndCredentialIDViaProxy)] = authz.Authenticated
 	r[router.Key(base.Delete, autheps.DeletePasskeyByUserAndCredentialIDViaProxy)] = authz.Authenticated
+	r[router.Key(base.Post, autheps.CreatePasskeyEnrollLink)] = authz.Authenticated
 }
 
 // Cascading deletes of a principal and everything attached to it.

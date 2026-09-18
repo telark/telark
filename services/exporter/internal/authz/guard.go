@@ -9,6 +9,7 @@ import (
 	roledata "github.com/telark/data/resources/role"
 	"github.com/telark/exporter/internal/constants"
 	sessionutils "github.com/telark/exporter/internal/utils/auth/session"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 	xauthz "github.com/telark/x-ware/authz"
@@ -131,6 +132,11 @@ func GuardSelfSessionToken(w http.ResponseWriter, r *http.Request, token string)
 	// Expiry unchecked: a user must still be able to delete an expired session.
 	resource, err := sessionutils.FindSessionByRef(token)
 	if err != nil {
+		var upstream *sharedutils.UpstreamError
+		if errors.As(err, &upstream) {
+			sharedutils.LogByStatusAndSend(w, upstream.Status, response.OperationError, string(constants.ErrResourceLookupFailed), nil, err)
+			return false
+		}
 		denyForbidden(w, constants.ErrAuthzNotSessionOwner)
 		return false
 	}

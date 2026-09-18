@@ -10,6 +10,7 @@ import (
 	"github.com/telark/auth/internal/constants"
 	"github.com/telark/auth/internal/helpers/shared"
 	authdata "github.com/telark/data/auth"
+	restshared "github.com/telark/rest/clients/shared"
 )
 
 func ValidateSession(sessionToken string) (string, error) {
@@ -21,7 +22,10 @@ func ValidateSession(sessionToken string) (string, error) {
 	session, err := client.GetSessionByToken(sessionToken)
 	if err != nil {
 		lg.Warn(fmt.Sprintf(string(constants.ErrFailedGetSession), err))
-		return constants.EmptyString, errors.New(string(constants.ErrSessionNotFound))
+		if errors.Is(err, restshared.ErrNotFound) {
+			return constants.EmptyString, errors.New(string(constants.ErrSessionNotFound))
+		}
+		return constants.EmptyString, shared.ErrBackendUnavailable
 	}
 
 	if session == nil {

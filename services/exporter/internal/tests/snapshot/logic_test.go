@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/telark/exporter/internal/managers/envs"
 	snaputil "github.com/telark/exporter/internal/utils/snapshot"
@@ -176,19 +177,19 @@ func TestParseCreatePayload(t *testing.T) {
 	})
 
 	mutate := map[string]func(m map[string]any){
-		"missing id":        func(m map[string]any) { delete(m, "id") },
-		"id not string":     func(m map[string]any) { m["id"] = 1 },
-		"empty id":          func(m map[string]any) { m["id"] = "" },
-		"missing scope":     func(m map[string]any) { delete(m, "scope") },
-		"scope not string":  func(m map[string]any) { m["scope"] = 1 },
-		"empty scope":       func(m map[string]any) { m["scope"] = "" },
-		"missing manifest":  func(m map[string]any) { delete(m, "manifest") },
-		"nil manifest":      func(m map[string]any) { m["manifest"] = nil },
-		"missing gen":       func(m map[string]any) { delete(m, "generation") },
-		"zero gen":          func(m map[string]any) { m["generation"] = float64(0) },
-		"fractional gen":    func(m map[string]any) { m["generation"] = float64(2.5) },
-		"bad string gen":    func(m map[string]any) { m["generation"] = "abc" },
-		"unsupported gen":   func(m map[string]any) { m["generation"] = []int{1} },
+		"missing id":       func(m map[string]any) { delete(m, "id") },
+		"id not string":    func(m map[string]any) { m["id"] = 1 },
+		"empty id":         func(m map[string]any) { m["id"] = "" },
+		"missing scope":    func(m map[string]any) { delete(m, "scope") },
+		"scope not string": func(m map[string]any) { m["scope"] = 1 },
+		"empty scope":      func(m map[string]any) { m["scope"] = "" },
+		"missing manifest": func(m map[string]any) { delete(m, "manifest") },
+		"nil manifest":     func(m map[string]any) { m["manifest"] = nil },
+		"missing gen":      func(m map[string]any) { delete(m, "generation") },
+		"zero gen":         func(m map[string]any) { m["generation"] = float64(0) },
+		"fractional gen":   func(m map[string]any) { m["generation"] = float64(2.5) },
+		"bad string gen":   func(m map[string]any) { m["generation"] = "abc" },
+		"unsupported gen":  func(m map[string]any) { m["generation"] = []int{1} },
 	}
 	for name, mut := range mutate {
 		t.Run(name, func(t *testing.T) {
@@ -231,12 +232,12 @@ func TestParseCreateSnapshotRequest(t *testing.T) {
 		}
 	})
 	mutate := map[string]func(m map[string]any){
-		"missing id":               func(m map[string]any) { delete(m, "id") },
-		"missing scope":            func(m map[string]any) { delete(m, "scope") },
-		"unregistered scope":       func(m map[string]any) { m["scope"] = "nope" },
-		"namespaced without ns":    func(m map[string]any) { delete(m, "namespace") },
-		"missing generation":       func(m map[string]any) { delete(m, "generation") },
-		"missing manifest":         func(m map[string]any) { delete(m, "manifest") },
+		"missing id":            func(m map[string]any) { delete(m, "id") },
+		"missing scope":         func(m map[string]any) { delete(m, "scope") },
+		"unregistered scope":    func(m map[string]any) { m["scope"] = "nope" },
+		"namespaced without ns": func(m map[string]any) { delete(m, "namespace") },
+		"missing generation":    func(m map[string]any) { delete(m, "generation") },
+		"missing manifest":      func(m map[string]any) { delete(m, "manifest") },
 	}
 	for name, mut := range mutate {
 		t.Run(name, func(t *testing.T) {
@@ -493,15 +494,43 @@ func TestSanitizeManifestDropsEmptyAnnotations(t *testing.T) {
 	}
 }
 
-func TestComputeSnapshotsUsedBytes(t *testing.T) {
-	root := t.TempDir()
-	writeGen(t, filepath.Join(root, "apps", "app-1", "ns"), 1)
-	if err := os.WriteFile(filepath.Join(root, "apps", "app-1", "ns", "V1.json"), make([]byte, 100), 0o600); err != nil {
-		t.Fatal(err)
+// The cache is process-global, so this is the one test that runs in cached
+// mode and it must be the first in the package to touch it.
+func TestStorageStatsCache(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("SNAPSHOTS_PATH", dir)
+	envs.InitSnapshotsPath()
+	t.Setenv("SNAPSHOT_STATS_REFRESH_SEC", "60")
+	envs.InitSnapshotStatsRefreshInterval()
+	appDir := filepath.Join(dir, "apps", "app-1", "ns")
+	writeGen(t, appDir, 1, 2)
+
+	// First read must not wait for the walk it kicks off.
+	if infos := snaputil.BuildSnapshotInfos(); infos.UpdatedAt != 0 || infos.TotalSnapshots != 0 {
+		t.Fatalf("pre-walk read = %+v, want zeros", infos)
 	}
-	total, err := snaputil.ComputeSnapshotsUsedBytes(root)
-	if err != nil || total != 100 {
-		t.Errorf("ComputeSnapshotsUsedBytes = %d, err %v, want 100", total, err)
+	deadline := time.Now().Add(5 * time.Second)
+	for snaputil.StorageStatsWalks() == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	walks := snaputil.StorageStatsWalks()
+	infos := snaputil.BuildSnapshotInfos()
+	if walks != 1 || infos.TotalSnapshots != 2 || infos.ConsumedSpace.Bytes != 4 || infos.UpdatedAt == 0 {
+		t.Fatalf("walks = %d, infos = %+v, want 1 walk, 2 snapshots, 4 bytes, updatedAt set", walks, infos)
+	}
+
+	// Reads serve the last walk even once the volume has changed.
+	writeGen(t, appDir, 3)
+	infos = snaputil.BuildSnapshotInfos()
+	if snaputil.StorageStatsWalks() != walks || infos.TotalSnapshots != 2 {
+		t.Errorf("cached read re-walked: walks = %d, snapshots = %d", snaputil.StorageStatsWalks(), infos.TotalSnapshots)
+	}
+
+	// Only the refresher tick re-walks.
+	snaputil.RefreshStorageStats()
+	infos = snaputil.BuildSnapshotInfos()
+	if snaputil.StorageStatsWalks() != walks+1 || infos.TotalSnapshots != 3 {
+		t.Errorf("refresh did not re-walk: walks = %d, snapshots = %d", snaputil.StorageStatsWalks(), infos.TotalSnapshots)
 	}
 }
 
@@ -509,6 +538,8 @@ func TestGetStorageInfo(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("SNAPSHOTS_PATH", dir)
 	envs.InitSnapshotsPath()
+	t.Setenv("SNAPSHOT_STATS_REFRESH_SEC", "0")
+	envs.InitSnapshotStatsRefreshInterval()
 	// No PVC backend is reachable in tests, so every field falls back to a
 	// placeholder rather than panicking or returning an empty string.
 	avail, total, pct := snaputil.GetStorageInfo()

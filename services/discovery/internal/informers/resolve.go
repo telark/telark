@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 
+	applicationmodel "github.com/telark/data/resources/application"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/discovery/derivation"
 	discoveryshared "github.com/telark/discovery/internal/discovery/shared"
@@ -53,5 +54,9 @@ func resourceKey(u *unstructured.Unstructured) string {
 	if u == nil {
 		return constants.EmptyString
 	}
-	return u.GetNamespace() + "/" + u.GetKind() + "/" + u.GetName()
+	return resourceRefKey(applicationmodel.Resource{Namespace: u.GetNamespace(), Kind: u.GetKind(), Name: u.GetName()})
+}
+
+func resourceRefKey(r applicationmodel.Resource) string {
+	return r.Namespace + constants.PathSeparator + r.Kind + constants.PathSeparator + r.Name
 }

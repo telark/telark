@@ -10,11 +10,12 @@ require (
 	github.com/kyverno/kyverno v1.18.0
 	github.com/nats-io/nats.go v1.52.0
 	github.com/redis/go-redis/v9 v9.21.0
-	github.com/telark/data v1.14.5
+	github.com/telark/data v1.14.8
 	github.com/telark/kcore v0.7.0
-	github.com/telark/rest v0.14.1
-	github.com/telark/x-ware v0.3.7
+	github.com/telark/rest v0.14.4
+	github.com/telark/x-ware v0.4.0
 	golang.org/x/sync v0.22.0
+	golang.org/x/time v0.15.0
 	k8s.io/api v0.35.4
 	k8s.io/apimachinery v0.35.4
 	k8s.io/client-go v0.35.4
@@ -261,7 +262,6 @@ require (
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/term v0.45.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
-	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/api v0.272.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260401024825-9d38bb4040a9 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260401024825-9d38bb4040a9 // indirect

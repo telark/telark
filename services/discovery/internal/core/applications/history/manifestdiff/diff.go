@@ -1,8 +1,11 @@
 package manifestdiff
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 	"strings"
@@ -11,7 +14,28 @@ import (
 	"github.com/telark/data/resources/application"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/applications/history/changes"
+	kcoremanifest "github.com/telark/kcore/manifest"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
+
+// Fingerprint covers exactly the roots Changes walks, so a status or
+// managedFields write leaves it untouched and two objects sharing it diff empty.
+func Fingerprint(u *unstructured.Unstructured) string {
+	if u == nil {
+		return constants.EmptyString
+	}
+	roots := diffRoots(ManifestPair{Old: u, New: u})
+	compared := make([]any, len(roots))
+	for i := range roots {
+		compared[i] = roots[i].newValue
+	}
+	raw, err := json.Marshal(compared)
+	if err != nil {
+		return constants.EmptyString
+	}
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])
+}
 
 // Changes reports every spec, data, label and annotation difference between
 // the two sides of each pair, for any kind and any field, so a change the
@@ -48,18 +72,90 @@ type diffRoot struct {
 }
 
 func diffRoots(p ManifestPair) []diffRoot {
-	oldMeta := objectMap(p.Old.Object[rootMetadata])
-	newMeta := objectMap(p.New.Object[rootMetadata])
+	oldObj, newObj := comparable(p.Old), comparable(p.New)
+	oldMeta := objectMap(oldObj[rootMetadata])
+	newMeta := objectMap(newObj[rootMetadata])
 	return []diffRoot{
-		{rootSpec, p.Old.Object[rootSpec], p.New.Object[rootSpec]},
-		{rootData, p.Old.Object[rootData], p.New.Object[rootData]},
-		{rootMetadata + pathSeparator + labelsKey, metaMap(oldMeta, labelsKey), metaMap(newMeta, labelsKey)},
+		{rootSpec, oldObj[rootSpec], newObj[rootSpec]},
+		{rootData, oldObj[rootData], newObj[rootData]},
+		{pathLabels, metaMap(oldMeta, labelsKey), metaMap(newMeta, labelsKey)},
 		{
-			rootMetadata + pathSeparator + annotationsKey,
+			pathAnnotation,
 			withoutNoisyAnnotations(metaMap(oldMeta, annotationsKey)),
 			withoutNoisyAnnotations(metaMap(newMeta, annotationsKey)),
 		},
 	}
+}
+
+// A snapshot holds the apply-clean copy kcore writes (server defaults such as
+// terminationMessagePath, the rollout-restart stamp, Service and PVC
+// bookkeeping dropped); a live informer object is raw. Both sides are cleaned
+// the same way before comparing, so a snapshot laid back as a pre-image diffs
+// empty against an unchanged object instead of listing every stripped field
+// as added. What kcore drops for apply is by definition not a manifest change.
+func comparable(u *unstructured.Unstructured) map[string]any {
+	obj := u.DeepCopy().Object
+	kcoremanifest.CleanManifestForApply(obj)
+	if u.GetKind() == kindService {
+		if spec := objectMap(obj[rootSpec]); spec != nil {
+			for _, f := range servedServiceSpecStripped {
+				delete(spec, f)
+			}
+		}
+	}
+	return obj
+}
+
+// Roots returns the values Fingerprint hashes, keyed by path, for a stored
+// copy that WithRoots lays back over a live object.
+func Roots(u *unstructured.Unstructured) map[string]any {
+	roots := diffRoots(ManifestPair{Old: u, New: u})
+	out := make(map[string]any, len(roots))
+	for i := range roots {
+		if roots[i].newValue != nil {
+			out[roots[i].path] = roots[i].newValue
+		}
+	}
+	return out
+}
+
+// WithRoots returns a copy of live whose compared roots are roots; kind, name,
+// namespace, status and the noisy annotations stay live's, so the result diffs
+// against live as the object the roots came from would and still snapshots whole.
+func WithRoots(live *unstructured.Unstructured, roots map[string]any) *unstructured.Unstructured {
+	out := live.DeepCopy()
+	putRoot(out.Object, rootSpec, roots[rootSpec])
+	putRoot(out.Object, rootData, roots[rootData])
+	meta := objectMap(out.Object[rootMetadata])
+	if meta == nil {
+		meta = make(map[string]any)
+		out.Object[rootMetadata] = meta
+	}
+	putRoot(meta, labelsKey, roots[pathLabels])
+	putRoot(meta, annotationsKey, withNoisyAnnotations(meta[annotationsKey], roots[pathAnnotation]))
+	return out
+}
+
+func putRoot(m map[string]any, key string, v any) {
+	if v == nil {
+		delete(m, key)
+		return
+	}
+	m[key] = v
+}
+
+func withNoisyAnnotations(live, stored any) any {
+	out := make(map[string]any)
+	for k, v := range objectMap(live) {
+		if slices.Contains(noisyAnnotations, k) {
+			out[k] = v
+		}
+	}
+	maps.Copy(out, objectMap(stored))
+	if len(out) == constants.DefaultInitValue {
+		return nil
+	}
+	return out
 }
 
 func objectMap(v any) map[string]any {
@@ -69,8 +165,13 @@ func objectMap(v any) map[string]any {
 	return nil
 }
 
+// An empty map and an absent key compare equal: a stored copy loses the key
+// once its last annotation is stripped, the live object keeps it as {}.
 func metaMap(meta map[string]any, key string) any {
 	if meta == nil {
+		return nil
+	}
+	if m, ok := meta[key].(map[string]any); ok && len(m) == constants.DefaultInitValue {
 		return nil
 	}
 	return meta[key]
@@ -88,13 +189,26 @@ func withoutNoisyAnnotations(v any) any {
 		}
 		out[k] = val
 	}
+	if len(out) == constants.DefaultInitValue {
+		return nil
+	}
 	return out
+}
+
+// A map appearing or vanishing is reported per key, the same rows a map that
+// emptied would produce.
+func emptyMapForNil(v, other any) any {
+	if _, ok := other.(map[string]any); ok && v == nil {
+		return map[string]any{}
+	}
+	return v
 }
 
 func walk(oldV, newV any, path string, out *[]diffRow) {
 	if oldV == nil && newV == nil {
 		return
 	}
+	oldV, newV = emptyMapForNil(oldV, newV), emptyMapForNil(newV, oldV)
 	if oldV == nil {
 		*out = append(*out, diffRow{path: path, changeType: changes.ChangeTypeAdded, newValue: stringify(newV)})
 		return

@@ -1,6 +1,9 @@
 package manifestdiff
 
-import "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import (
+	"github.com/telark/discovery/internal/constants"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+)
 
 // ManifestPair is one object before (informer-captured oldObject) and after
 // (informer cache) a change. Either side nil means the pair is skipped: adds
@@ -25,6 +28,8 @@ const (
 	annotationsKey = "annotations"
 	itemNameKey    = "name"
 	pathSeparator  = "."
+	pathLabels     = rootMetadata + pathSeparator + labelsKey
+	pathAnnotation = rootMetadata + pathSeparator + annotationsKey
 	indexOpen      = "["
 	indexClose     = "]"
 	kindNameSep    = "/"
@@ -47,7 +52,15 @@ const (
 var noisyAnnotations = []string{
 	"deployment.kubernetes.io/revision",
 	"kubectl.kubernetes.io/last-applied-configuration",
+	constants.AnnotationLastModifiedAt,
+	constants.AnnotationLastModifiedBy,
+	constants.AnnotationLastModifiedOperation,
 }
+
+// Service defaults the API server fills in; the exporter strips them from the
+// snapshot manifests it serves (utils/snapshot/sanitize.go), so a stored copy
+// only compares equal to a live Service without them.
+var servedServiceSpecStripped = []string{"internalTrafficPolicy", "ipFamilies", "ipFamilyPolicy", "sessionAffinity"}
 
 // Paths already reported by the curated summary checks (replicas, images,
 // ports, env keys, config/secret refs, resources, service mappings, ingress

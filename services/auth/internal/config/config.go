@@ -69,17 +69,7 @@ func LoadConfig() (*Config, error) {
 }
 
 func loadConfigInternal() (*Config, error) {
-	rpID, err := getEnvOrFail("RP_ID")
-	if err != nil {
-		return nil, err
-	}
-
 	rpName, err := getEnvOrFail("RP_NAME")
-	if err != nil {
-		return nil, err
-	}
-
-	rpOrigin, err := getEnvOrFail("RP_ORIGIN")
 	if err != nil {
 		return nil, err
 	}
@@ -110,9 +100,9 @@ func loadConfigInternal() (*Config, error) {
 			IdleTimeout:       constants.DefaultIdleTimeout,
 		},
 		WebAuthn: WebAuthnConfig{
-			RPID:             rpID,
+			RPID:             os.Getenv(constants.EnvRPID),
 			RPName:           rpName,
-			RPOrigin:         rpOrigin,
+			RPOrigin:         os.Getenv(constants.EnvRPOrigin),
 			ChallengeTimeout: challengeTimeout,
 			SessionExpiry:    sessionExpiry,
 		},

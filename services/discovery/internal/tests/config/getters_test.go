@@ -1,10 +1,28 @@
 package config
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/telark/discovery/internal/config"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/tests/testutil"
 )
+
+// Anything unparsable or non-positive falls back to the default worker count.
+func TestRollbackWorkers(t *testing.T) {
+	cases := map[string]int{
+		"":    constants.DefaultRollbackWorkers,
+		"8":   8,
+		"0":   constants.DefaultRollbackWorkers,
+		"-3":  constants.DefaultRollbackWorkers,
+		"abc": constants.DefaultRollbackWorkers,
+	}
+	for raw, want := range cases {
+		t.Setenv(constants.EnvDiscoveryRollbackWorkers, raw)
+		testutil.Equal(t, fmt.Sprintf("workers for %q", raw), config.RollbackWorkers(), want)
+	}
+}
 
 // The exported configuration getters resolve without panicking and return usable
 // values under the default (unset) environment, exercising their fallback paths.

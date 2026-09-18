@@ -29,7 +29,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | Mode | For | Capacity (measured 2026-09-17) |
 |---|---|---|
 | `minimal` | dev, demos, evaluation — single replica, no autoscaling, no PDBs | a few hundred applications |
-| `standard` (default) | small–mid production — every service starts at 1 replica and scales on CPU up to 3 (HPA); the exporter runs 2 replicas sharing a ReadWriteMany snapshot volume; add `--set vpa.enabled=true` for vertical scaling | verified at 1 000 applications |
+| `standard` (default) | small–mid production — every service starts at 1 replica and scales on CPU up to 3 (HPA); the exporter runs 2 replicas sharing a ReadWriteMany snapshot volume; add `--set vpa.enabled=true` for vertical scaling | verified at 2 000 applications |
 | `performance` | large clusters — same, HPA ceiling 5, disruption budgets keep one pod through drains; larger requests/limits and a 50 GiB volume | beyond 1 000 applications |
 
 `app.mode` sizes telark's own services only — Helm resolves a subchart's values before the mode is known, so redis, NATS, the policy engine and metrics-server ship fixed production-grade defaults owned by the chart, identical in every mode. Nothing to tune.
@@ -47,16 +47,55 @@ helm test telark -n telark      # readiness probe against the auth service
 
 ## Access the dashboard
 
-The dashboard (`ui` service) is **deployed by default**, served on port 8080. Reach it either way.
+The dashboard (`ui` service) is **deployed by default** behind a ClusterIP Service on port 8080 — reachable inside the cluster only. Expose it one of four ways. The chart bundles no ingress or gateway controller: like Argo CD, Grafana, Vault and Longhorn it ships ClusterIP plus the knobs, and uses whichever controller your cluster already runs.
 
-**Port-forward** (no ingress needed) — maps local `3000` to the service's `8080`:
+Passkeys are bound to the host you open the dashboard on. By default the WebAuthn relying party follows the request host, so a passkey registered on `localhost:3000` is not accepted on the NodePort or Ingress hostname — register again there. For production, pin `app.auth.passkey.id=<domain>` and `app.auth.passkey.origin=https://<domain>` so the relying party stays fixed. A passkey is always created for the host the browser is open on, so to sign in on a second host open Settings → Security → Passkeys while signed in, choose "Add on another device", and open the one-time link it shows (valid for 10 minutes) on the other host to register a passkey there.
+
+**HTTPS is required for passkeys.** Browsers only enable WebAuthn on secure origins — `https://` or `http://localhost` — so the port-forward tier works without TLS, but on a NodePort, LoadBalancer or Ingress host the dashboard shows a warning and passkey sign-in and registration stay disabled until the host serves a certificate the browser trusts. NodePort and LoadBalancer expose the plain-HTTP `ui` service, so terminate TLS in front of them; the Ingress tier can get a certificate from cert-manager (below).
+
+### Port-forward (default, dev)
+
+Maps local `3000` to the service's `8080`. Nothing to install:
 
 ```sh
 kubectl port-forward -n telark svc/telark-ui-service 3000:8080
 # open http://localhost:3000
 ```
 
-**Ingress** (off by default; needs an ingress controller in the cluster):
+### NodePort
+
+Opens the same port on every node:
+
+```sh
+helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
+  --set services.ui.serviceType=NodePort \
+  --set services.ui.nodePort=30080
+# open http://<any-node-ip>:30080
+```
+
+Leave `services.ui.nodePort` unset and Kubernetes allocates one from 30000–32767 (`kubectl get svc -n telark telark-ui-service`). Allow the port inbound in the nodes' firewall or cloud security group.
+
+### LoadBalancer
+
+Needs a cloud load balancer (EKS, GKE, AKS, …) or MetalLB on bare metal:
+
+```sh
+helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
+  --set services.ui.serviceType=LoadBalancer
+kubectl get svc -n telark telark-ui-service   # EXTERNAL-IP
+```
+
+### Ingress
+
+Needs an ingress controller. Without one, install ingress-nginx:
+
+```sh
+helm upgrade --install ingress-nginx ingress-nginx \
+  --repo https://kubernetes.github.io/ingress-nginx \
+  --namespace ingress-nginx --create-namespace
+```
+
+Then enable the chart's Ingress for your hostname:
 
 ```sh
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
@@ -74,6 +113,68 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | `ingress.path` / `ingress.pathType` | `/` / `Prefix` | Route path + match type |
 | `ingress.tls` | `[]` | TLS blocks, e.g. `[{secretName: telark-tls, hosts: [telark.example.com]}]` |
 | `ingress.annotations` | `{}` | Controller annotations (cert-manager, etc.) |
+
+**TLS with cert-manager** — install cert-manager with its CRDs, create a Let's Encrypt `ClusterIssuer` that solves HTTP-01 challenges through the nginx class, then point the chart's Ingress at it. The DNS name must already resolve to the ingress controller's load balancer (`kubectl get svc -n ingress-nginx ingress-nginx-controller` shows its `EXTERNAL-IP`) or the challenge cannot pass. A self-signed certificate is not enough: Chrome also disables WebAuthn on pages with certificate errors, so the certificate must be one the browser trusts. Replace `admin@example.com` with the address Let's Encrypt should notify about expiring certificates.
+
+```sh
+helm upgrade --install cert-manager cert-manager \
+  --repo https://charts.jetstack.io \
+  --namespace cert-manager --create-namespace \
+  --set crds.enabled=true
+```
+
+```sh
+kubectl apply -f - <<'EOF'
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: admin@example.com
+    privateKeySecretRef:
+      name: letsencrypt
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: nginx
+EOF
+```
+
+```sh
+helm upgrade --install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
+  --set ingress.enabled=true \
+  --set ingress.className=nginx \
+  --set ingress.host=telark.example.com \
+  --set ingress.tls[0].secretName=telark-tls \
+  --set ingress.tls[0].hosts[0]=telark.example.com \
+  --set ingress.annotations."cert-manager\.io/cluster-issuer"=letsencrypt
+# open https://telark.example.com
+```
+
+**Gateway API** — instead of an Ingress, the chart can render an `HTTPRoute` (`gateway.networking.k8s.io/v1`) attached to a Gateway you already run. Requirements: Kubernetes ≥ 1.30 (the chart's floor), Gateway API v1.0+ CRDs (`HTTPRoute` v1) and a controller that implements `HTTPRoute` v1 — Envoy Gateway, NGINX Gateway Fabric, Cilium or Istio; ingress-nginx does **not** implement Gateway API. Install the CRDs (standard channel) if the cluster has none:
+
+```sh
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.2/standard-install.yaml
+```
+
+Then attach the route to your Gateway:
+
+```sh
+helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
+  --set gateway.enabled=true \
+  --set gateway.parentRefs[0].name=<gateway> \
+  --set gateway.hostnames[0]=telark.example.com
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `gateway.enabled` | `false` | Create an HTTPRoute for the dashboard |
+| `gateway.parentRefs` | `[]` | Gateways to attach to; entries take `name`, `namespace`, `sectionName` |
+| `gateway.hostnames` | `[]` | Hostnames the route matches (`[]` = any host) |
+| `gateway.service` | `ui` | Which `services.<key>` to route to |
+| `gateway.annotations` | `{}` | HTTPRoute annotations |
 
 ## Install-time flags
 

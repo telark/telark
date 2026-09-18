@@ -110,9 +110,8 @@ func TriggerRollback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	snaps, found := findSnapshotsByGeneration(app.Snapshots, body.SnapshotGeneration)
-	if !found {
-		writeError(w, http.StatusNotFound, response.OperationNotFound, "Snapshot generation not found.", nil)
+	snap, ok := validateRollbackTarget(w, app, body.SnapshotGeneration)
+	if !ok {
 		return
 	}
 
@@ -121,7 +120,7 @@ func TriggerRollback(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, response.OperationError, "failed to generate rollback id", genErr)
 		return
 	}
-	entry := buildRollbackEntry(rollbackID, &snaps[constants.DefaultInitValue], body.TriggeredBy)
+	entry := buildRollbackEntry(rollbackID, snap, body.TriggeredBy)
 
 	updated := slices.Clone(app.Rollbacks)
 	updated = append(updated, entry)
@@ -339,17 +338,27 @@ func writeError(
 	responseutils.LogAndSendResponse(w, status, op, msg, nil, err)
 }
 
-func findSnapshotsByGeneration(
-	snapshots []applicationmodel.ApplicationSnapshot,
+// Rolling back to the current generation is a no-op apply that still appends
+// history and bumps the generation with no snapshot behind it.
+func validateRollbackTarget(
+	w http.ResponseWriter,
+	app *applicationmodel.Application,
 	gen int,
-) ([]applicationmodel.ApplicationSnapshot, bool) {
-	out := make([]applicationmodel.ApplicationSnapshot, constants.DefaultInitValue)
-	for i := range snapshots {
-		if snapshots[i].Generation == gen {
-			out = append(out, snapshots[i])
-		}
+) (*applicationmodel.ApplicationSnapshot, bool) {
+	if gen >= app.History.Generation {
+		writeError(w, http.StatusBadRequest, response.OperationError,
+			fmt.Sprintf(string(constants.ErrRollbackTargetNotOlder), app.History.Generation), nil)
+		return nil, false
 	}
-	return out, len(out) > constants.DefaultInitValue
+	idx := slices.IndexFunc(app.Snapshots, func(s applicationmodel.ApplicationSnapshot) bool {
+		return s.Generation == gen
+	})
+	if idx == notFoundIndex {
+		writeError(w, http.StatusBadRequest, response.OperationError,
+			fmt.Sprintf(string(constants.ErrRollbackSnapshotMissing), gen), nil)
+		return nil, false
+	}
+	return &app.Snapshots[idx], true
 }
 
 func newRollbackID() (string, error) {

@@ -63,6 +63,7 @@ const (
 	LogRollbackReconcileBackpressure messages.Message = "[rollback] reconcile deferred under backpressure: key=%s"
 	InfoRollbackNoLongerPending      messages.Message = "rollback %s no longer pending; skipping pickup"
 	LogRollbackLockBusy              messages.Message = "[rollback] lock for %s held elsewhere; deferring pickup"
+	InfoRollbackWorkersStarted       messages.Message = "[rollback] started %d workers"
 
 	// Rollback Notifications
 	NotifRollbackCompletedTitle  messages.Message = "Rollback completed"
@@ -132,6 +133,13 @@ const (
 	InfoInformersFlushRollbackDropped  messages.Message = "[informers] flush for %s dropped: rollback applying"
 	InfoHistoryChangeDeferred          messages.Message = "[history] %s: %d change(s) have no pre-image, deferred to the informer flush"
 	WarnInformersFlushTargetMissing    messages.Message = "[informers] flush for %s: derivation returned %d applications, target missing"
+	LogInformersReconcileBackfill      messages.Message = "[informers] reconcile: %d app(s) baselined from their newest snapshot"
+	InfoInformersReconcileDrift        messages.Message = "[informers] reconcile %s: %s changed while unobserved, flush scheduled from snapshot %s"
+	InfoInformersReconcileDriftPost    messages.Message = "[informers] reconcile %s: %s changed while unobserved, flush scheduled from post-image"
+	WarnInformersReconcileDeferred     messages.Message = "[informers] reconcile %s: %d resource(s) unresolved, left for the next tick: %v"
+	LogInformersReconcileNoPreImage    messages.Message = "[informers] reconcile %s: %s absent from snapshot %s, baselined without publishing"
+	InfoInformersReconcileBaselineLive messages.Message = "[informers] reconcile %s: %d resource(s) baselined from live, " +
+		"not published: generation %d has no post-image record"
 	InfoHistoryReplicaChangeCancelled  messages.Message = "[history] %s: replicas change dropped, pre-image replicas %d equal fresh %d"
 	WarnApplicationPublishFailed       messages.Message = "[publish] %s: NATS publish failed after %d attempts: %v"
 	WarnHistoryStoredLookupFailed      messages.Message = "[history] %s: stored application lookup failed, skipping publish: %v"

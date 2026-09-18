@@ -1,37 +1,45 @@
 package session
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"strings"
+	"net/http"
 
+	authdata "github.com/telark/data/auth"
+	dataconstants "github.com/telark/data/constants"
 	"github.com/telark/exporter/internal/constants"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
+	"github.com/telark/rest/response"
 )
 
-// The token is never persisted; its digest names the resource instead. That
-// keeps the credential out of etcd and still resolves a token in one lookup.
 func SessionName(token string) string {
-	digest := sha256.Sum256([]byte(token))
-	return constants.SessionNamePrefix + hex.EncodeToString(digest[:])
+	return authdata.SessionName(token)
 }
 
-// Endpoints that address one session accept either its token or its resource
-// name, so the UI can revoke a device without ever being handed that device's
-// token. Only the authentication path is restricted to tokens: a name is not a
-// credential, and SessionName is what enforces that.
 func ResolveSessionRef(ref string) string {
-	if isSessionName(ref) {
-		return ref
-	}
-	return SessionName(ref)
+	return authdata.SessionRef(ref)
 }
 
-func isSessionName(ref string) bool {
-	digest, found := strings.CutPrefix(ref, constants.SessionNamePrefix)
-	if !found || len(digest) != constants.SessionDigestLength {
-		return false
+// The ref in the path is a session name or the self ref; self resolves to the
+// caller's own token from the header, so a browser never has to derive the
+// digest (crypto.subtle is unavailable on plain http) nor put its token in a URL.
+// A raw token in the path is refused so it can never reach an access log again.
+func RefFromRequest(w http.ResponseWriter, r *http.Request) (string, bool) {
+	ref, err := sharedutils.GetPathParam(w, r, constants.TokenParam)
+	if err != nil {
+		return dataconstants.EmptyString, false
 	}
-
-	_, err := hex.DecodeString(digest)
-	return err == nil
+	if authdata.IsSessionName(ref) {
+		return ref, true
+	}
+	if ref != authdata.SessionRefSelf {
+		sharedutils.LogByStatusAndSend(w, http.StatusBadRequest, response.OperationError,
+			string(constants.ErrSessionRefNotAName), nil, nil)
+		return dataconstants.EmptyString, false
+	}
+	token := r.Header.Get(dataconstants.HeaderSessionToken)
+	if token == dataconstants.EmptyString {
+		sharedutils.LogByStatusAndSend(w, http.StatusBadRequest, response.OperationError,
+			string(constants.ErrSessionSelfRefWithoutToken), nil, nil)
+		return dataconstants.EmptyString, false
+	}
+	return token, true
 }

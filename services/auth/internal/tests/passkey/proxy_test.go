@@ -67,7 +67,7 @@ func TestDeletePasskeyOrphanCleanupBindsToIdentity(t *testing.T) {
 				constants.HeaderCredentialID: credentialID,
 				constants.HeaderSessionToken: sessionToken,
 			},
-			want: http.StatusUnauthorized,
+			want: http.StatusServiceUnavailable,
 		},
 		{
 			name:     "internal caller may clean up an orphan",

@@ -96,8 +96,8 @@ func cleanupRoutes() []router.Route {
 
 func statusRoutes() []router.Route {
 	return []router.Route{
-		router.CreateRoute(base.Get, statusendpoints.LivenessCheck, statushandler.ProbeHandler),
-		router.CreateRoute(base.Get, statusendpoints.ReadinessCheck, statushandler.ProbeHandler),
+		router.CreateRoute(base.Get, statusendpoints.LivenessCheck, statushandler.Liveness),
+		router.CreateRoute(base.Get, statusendpoints.ReadinessCheck, statushandler.Readiness),
 	}
 }
 
@@ -142,7 +142,7 @@ func applicationRoutes(optimizer *performance.Optimizer) []router.Route {
 		router.CreateRoute(base.Get, applicationendpoints.GetAllApplications,
 			performance.NewCachedListHandlerFunc(
 				optimizer,
-				applicationhandler.ListApplicationResourcesWithCacheInvalidation(optimizer),
+				applicationhandler.ListApplicationResourcesWithCacheInvalidation(),
 				cache.NewViewListCacheKeyFunc(optimizer, constants.ResourceApplication),
 				constants.ResourceApplication,
 				constants.OpList,

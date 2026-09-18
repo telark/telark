@@ -11,6 +11,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"github.com/telark/discovery/internal/constants"
+	kcorefactory "github.com/telark/kcore/informers/factory"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -30,6 +31,8 @@ type coalescer struct {
 	buf           map[string]map[string]*unstructured.Unstructured
 	bufFirstEvent map[string]time.Time // time of the first event in each pending window
 	timers        map[string]*time.Timer
+	attempts      map[string]int // consecutive failed flushes, drives the retry backoff
+	inflight      map[string]struct{}
 	flush         func(string, map[string]*unstructured.Unstructured) error
 }
 
@@ -52,6 +55,8 @@ func newCoalescer(
 		buf:           make(map[string]map[string]*unstructured.Unstructured),
 		bufFirstEvent: make(map[string]time.Time),
 		timers:        make(map[string]*time.Timer),
+		attempts:      make(map[string]int),
+		inflight:      make(map[string]struct{}),
 		flush:         flush,
 	}
 }
@@ -188,27 +193,36 @@ func (c *coalescer) fireFlush(appName string) {
 	// of being wiped together with the flushed one.
 	flushing := c.buf[appName]
 	delete(c.buf, appName)
+	c.inflight[appName] = struct{}{}
 	c.mu.Unlock()
 	err := c.flush(appName, flushing)
+	c.mu.Lock()
+	delete(c.inflight, appName)
+	c.mu.Unlock()
 	if err == nil {
+		c.forgetRetries(appName)
 		c.clearBufferAfterSuccessfulFlush(appName)
 		return
 	}
 	if errors.Is(err, errFlushStoredMissing) || errors.Is(err, errFlushNoInputs) {
+		c.forgetRetries(appName)
 		constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(
-			fmt.Sprintf(string(constants.WarnInformersFlushFailed), appName, err))
+			fmt.Sprintf(string(constants.WarnInformersFlushFailed), appName, err),
+		)
 		return
 	}
 	c.restoreBuffer(appName, flushing)
 	if errors.Is(err, errFlushNotLeader) {
 		return
 	}
-	delay := c.window
+	base := c.window
 	if errors.Is(err, errFlushStoredStale) {
-		delay = constants.InformerFlushStaleRetry
+		base = constants.InformerFlushStaleRetry
 	}
+	delay := c.retryDelay(appName, base)
 	constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(
-		fmt.Sprintf(string(constants.WarnInformersFlushRetry), appName, err, delay))
+		fmt.Sprintf(string(constants.WarnInformersFlushRetry), appName, err, delay),
+	)
 	c.rearm(appName, delay)
 }
 
@@ -227,6 +241,25 @@ func (c *coalescer) restoreBuffer(appName string, flushing map[string]*unstructu
 		c.buf[appName][key] = obj
 	}
 	_ = c.persistBufferLocked(appName)
+}
+
+// retryDelay doubles per consecutive failure so a storm of dirty apps drains
+// instead of re-hitting an overloaded exporter every window.
+func (c *coalescer) retryDelay(appName string, base time.Duration) time.Duration {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delay := min(base<<c.attempts[appName], constants.InformerFlushMaxRetryDelay)
+	if delay < constants.InformerFlushMaxRetryDelay {
+		c.attempts[appName]++
+	}
+	jittered := kcorefactory.JitteredResync(delay, constants.InformerFlushRetryJitterFraction)
+	return min(jittered, constants.InformerFlushMaxRetryDelay)
+}
+
+func (c *coalescer) forgetRetries(appName string) {
+	c.mu.Lock()
+	delete(c.attempts, appName)
+	c.mu.Unlock()
 }
 
 // rearm schedules another flush attempt after delay, keeping the buffer intact.
@@ -287,7 +320,7 @@ func (c *coalescer) clearBufferRedis(appName string) {
 	rdb := c.rdb
 	c.mu.Unlock()
 	if rdb != nil {
-		_ = rdb.Del(c.ctx(), coalesceRedisKey(appName)).Err()
+		_ = rdb.Del(c.ctx(), coalesceRedisKey(appName), pendingSnapshotsKey(appName)).Err()
 	}
 }
 
@@ -296,6 +329,16 @@ func (c *coalescer) inMemBuf(appName string) map[string]*unstructured.Unstructur
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.buf[appName]
+}
+
+// pending reports buffered events, an armed flush or one in flight: the
+// reconcile leaves such an app to that flush, which records its own result.
+func (c *coalescer) pending(appName string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, armed := c.timers[appName]
+	_, running := c.inflight[appName]
+	return armed || running || len(c.buf[appName]) > constants.DefaultInitValue
 }
 
 func (c *coalescer) resumeFromRedis(ctx context.Context) {

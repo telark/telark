@@ -115,6 +115,8 @@ const (
 	ErrRollbackTerminal                errors.Error = "rollback is in terminal state"
 	ErrAbortUserRequired               errors.Error = "abort requires a user (X-User-ID header)"
 	ErrRollbackCoordinationUnavailable errors.Error = "rollback coordination unavailable"
+	ErrRollbackTargetNotOlder          errors.Error = "snapshotGeneration must be older than the current generation %d"
+	ErrRollbackSnapshotMissing         errors.Error = "no snapshot stored for generation %d"
 
 	// Auto-cleanup detector errors
 	ErrAutoCleanupListAppsFailed     errors.Error = "[auto-cleanup] list applications failed: %v"
@@ -132,6 +134,7 @@ const (
 	ErrInformersFlushNoInputs             errors.Error = "no resource inputs resolved — buffered changes discarded"
 	ErrInformersFlushNotTarget            errors.Error = "application is not the flush target"
 	ErrInformersFlushStoredStale          errors.Error = "stored application is behind the last published generation"
+	ErrInformersFlushRateLimited          errors.Error = "flush admission limiter exhausted within the coalescing window"
 	ErrPrewarmNotJobTarget                errors.Error = "application is not this job's target"
 	ErrConsumerLockLost                   errors.Error = "[consumer] Lock lost during processing for %s — aborting."
 	ErrConsumerMaxAttempts                errors.Error = "[consumer] App %s permanently failed after max attempts."

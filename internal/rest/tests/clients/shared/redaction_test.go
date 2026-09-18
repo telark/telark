@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	authdata "github.com/telark/data/auth"
 	"github.com/telark/rest/clients/auth/session"
 	"github.com/telark/rest/clients/notifications"
 	"github.com/telark/rest/constants"
@@ -126,7 +127,7 @@ func TestSessionDeleteFailureKeepsTokenOutOfLogs(t *testing.T) {
 	assertIdentity(t, string(authendpoints.DeleteSessionByToken), logged)
 }
 
-func TestRequestURLStillCarriesTheResolvedToken(t *testing.T) {
+func TestRequestURLCarriesTheSessionNameNotTheToken(t *testing.T) {
 	var requestedPath string
 	client := session.NewClient()
 	client.GetHTTPClient().Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -137,8 +138,9 @@ func TestRequestURLStillCarriesTheResolvedToken(t *testing.T) {
 	if _, err := client.GetSessionByToken(secretToken); err == nil {
 		t.Fatal("expected a failure from the session lookup")
 	}
-	if !strings.Contains(requestedPath, secretToken) {
-		t.Errorf("the token must still reach the server in the path, got %q", requestedPath)
+	assertNoLeak(t, "request path", secretToken, requestedPath)
+	if !strings.Contains(requestedPath, authdata.SessionName(secretToken)) {
+		t.Errorf("the session name must reach the server in the path, got %q", requestedPath)
 	}
 }
 

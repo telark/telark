@@ -1,6 +1,10 @@
 package templates
 
-import kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
+import (
+	"fmt"
+
+	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
+)
 
 const (
 	opCreate = "CREATE"
@@ -22,27 +26,49 @@ const (
 	opAnyIn     = kyvernov1.ConditionOperator("AnyIn")
 
 	exprRequestOperation = "{{ request.operation || 'BACKGROUND' }}"
-	exprNewImages        = "{{ request.object.spec.template.spec.[containers, initContainers, ephemeralContainers][].image }}"
 	exprNewReplicas      = "{{ request.object.spec.replicas || `0` }}"
 	exprOldReplicas      = "{{ request.oldObject.spec.replicas || `0` }}"
-	exprNewVolumes       = "{{ request.object.spec.template.spec.volumes || `[]` }}"
-	exprOldVolumes       = "{{ request.oldObject.spec.template.spec.volumes || `[]` }}"
-	exprNewCMVolumes     = "{{ request.object.spec.template.spec.volumes[?configMap].configMap.name || `[]` }}"
-	exprOldCMVolumes     = "{{ request.oldObject.spec.template.spec.volumes[?configMap].configMap.name || `[]` }}"
-	exprNewSecretVolumes = "{{ request.object.spec.template.spec.volumes[?secret].secret.secretName || `[]` }}"
-	exprOldSecretVolumes = "{{ request.oldObject.spec.template.spec.volumes[?secret].secret.secretName || `[]` }}"
-	exprNewEnvFrom       = "{{ request.object.spec.template.spec.containers[].envFrom[] || `[]` }}"
-	exprOldEnvFrom       = "{{ request.oldObject.spec.template.spec.containers[].envFrom[] || `[]` }}"
+
+	// Kyverno's parsed image info, keyed group -> container -> info. A digest-pinned
+	// reference has no tag and is deliberately out of scope for a tag block list.
+	exprImageTags = "{{ images.*.*.tag[] || `[]` }}"
+
+	// %s is the request root (object / oldObject) and %s the pod-spec path, which differs
+	// between CronJob and every other workload kind.
+	exprImagesFmt  = "{{ request.%s.%s.[containers, initContainers, ephemeralContainers][].image }}"
+	exprVolumesFmt = "{{ request.%s.%s.volumes || `[]` }}"
+	// Whole volume sources, not just the name: items, defaultMode and optional decide which
+	// keys land in the container, and comparing only the name made those changes invisible.
+	exprCMVolumesFmt     = "{{ request.%s.%s.volumes[?configMap].configMap || `[]` }}"
+	exprSecretVolumesFmt = "{{ request.%s.%s.volumes[?secret].secret || `[]` }}"
+	// Every container list, not just containers[]: an initContainer envFrom went unnoticed.
+	exprEnvFromFmt      = "{{ request.%s.%s." + allContainers + ".envFrom[] || `[]` }}"
+	exprEnvRefsFmt      = "{{ request.%s.%s." + allContainers + ".env[].valueFrom.[configMapKeyRef, secretKeyRef][] || `[]` }}"
+	exprVolumeMountsFmt = "{{ request.%s.%s." + allContainers + ".volumeMounts[] || `[]` }}"
+
+	allContainers = "[containers, initContainers, ephemeralContainers][]"
+
+	rootObject    = "object"
+	rootOldObject = "oldObject"
 )
 
+func newExpr(format, podSpecPath string) string {
+	return fmt.Sprintf(format, rootObject, podSpecPath)
+}
+
+func oldExpr(format, podSpecPath string) string {
+	return fmt.Sprintf(format, rootOldObject, podSpecPath)
+}
+
 var (
-	opsCreate          = []string{opCreate}
-	opsUpdate          = []string{opUpdate}
-	opsDelete          = []string{opDelete}
-	opsCreateUpdate    = []string{opCreate, opUpdate}
-	opsUpdateDelete    = []string{opUpdate, opDelete}
-	kindsWildcard      = []string{kindWildcard}
-	kindsReplicaTarget = []string{kindDeployment, kindDeploymentScale, kindStatefulSet, kindStatefulSetScale}
-	kindsPVC           = []string{kindPVC}
-	kindsConfigSecret  = []string{kindConfigMap, kindSecret}
+	opsCreate             = []string{opCreate}
+	opsUpdate             = []string{opUpdate}
+	opsDelete             = []string{opDelete}
+	opsCreateUpdate       = []string{opCreate, opUpdate}
+	opsUpdateDelete       = []string{opUpdate, opDelete}
+	opsCreateUpdateDelete = []string{opCreate, opUpdate, opDelete}
+	kindsWildcard         = []string{kindWildcard}
+	kindsReplicaTarget    = []string{kindDeployment, kindDeploymentScale, kindStatefulSet, kindStatefulSetScale}
+	kindsPVC              = []string{kindPVC}
+	kindsConfigSecret     = []string{kindConfigMap, kindSecret}
 )

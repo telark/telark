@@ -124,7 +124,7 @@ var Templates = []Template{
 		ID:              "block-workload-config-mount-changes",
 		Code:            "bwcm",
 		Name:            "Block Workload Config Mount Changes",
-		Description:     "Prevents modifications to volume mounts or environment variable sources referencing ConfigMaps or Secrets on workloads.",
+		Description:     "Prevents modifications to workload volume mounts, and to ConfigMap or Secret volume and environment sources.",
 		SupportedScopes: []ScopeSupport{ScopeSupportNamespaces, ScopeSupportApplications},
 		Params:          nil,
 	},

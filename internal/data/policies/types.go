@@ -11,12 +11,17 @@ type ApplicationResourceRef struct {
 type ResolvedApp struct {
 	Namespace string
 	Resources []ApplicationResourceRef
+	// A PersistentVolumeClaim is referenced by an application, not owned by it, so it never
+	// appears in Resources. Carrying the claim names separately keeps storage rules able to
+	// reach them without pulling PVCs into every other application-scoped template.
+	VolumeClaims []string
 }
 
 type ScopeSpec struct {
 	Namespace      string
 	ApplicationIDs []string
 	AppResources   []ApplicationResourceRef
+	VolumeClaims   []string
 }
 
 type TemplateRenderer interface {

@@ -18,26 +18,34 @@ func (blockMountChanges) TemplateID() string   { return templateBlockMountChange
 func (blockMountChanges) TemplateCode() string { return codeBlockMountChanges }
 
 func (blockMountChanges) Render(meta policies.RenderMeta, scope policies.ScopeSpec, _ map[string]any) (*kyvernov1.Policy, error) {
-	deny := &kyvernov1.Deny{
+	return policies.RenderPodSpecRulePolicy(meta, scope, policies.PodSpecRuleSpec{
+		TemplateID:   templateBlockMountChanges,
+		TemplateCode: codeBlockMountChanges,
+		RuleName:     templateBlockMountChanges,
+		Ops:          opsUpdate,
+		Message:      fmt.Sprintf(msgBlockConfigMountChng, meta.PlanName),
+		Deny:         mountChangesDeny,
+	}), nil
+}
+
+func mountChangesDeny(podSpecPath string) *kyvernov1.Deny {
+	return &kyvernov1.Deny{
 		RawAnyAllConditions: &kyvernov1.ConditionsWrapper{
 			Conditions: kyvernov1.AnyAllConditions{
 				AnyConditions: []kyvernov1.Condition{
-					policies.MakeCondition(exprNewCMVolumes, opNotEquals, exprOldCMVolumes),
-					policies.MakeCondition(exprNewSecretVolumes, opNotEquals, exprOldSecretVolumes),
-					policies.MakeCondition(exprNewEnvFrom, opNotEquals, exprOldEnvFrom),
+					mountCondition(exprCMVolumesFmt, podSpecPath),
+					mountCondition(exprSecretVolumesFmt, podSpecPath),
+					mountCondition(exprEnvFromFmt, podSpecPath),
+					mountCondition(exprEnvRefsFmt, podSpecPath),
+					mountCondition(exprVolumeMountsFmt, podSpecPath),
 				},
 			},
 		},
 	}
-	return policies.RenderSingleRulePolicy(meta, scope, policies.SingleRuleSpec{
-		TemplateID:   templateBlockMountChanges,
-		TemplateCode: codeBlockMountChanges,
-		RuleName:     templateBlockMountChanges,
-		Kinds:        policies.WorkloadKinds,
-		Ops:          opsUpdate,
-		Message:      fmt.Sprintf(msgBlockConfigMountChng, meta.PlanName),
-		Deny:         deny,
-	}), nil
+}
+
+func mountCondition(format, podSpecPath string) kyvernov1.Condition {
+	return policies.MakeCondition(newExpr(format, podSpecPath), opNotEquals, oldExpr(format, podSpecPath))
 }
 
 func init() {

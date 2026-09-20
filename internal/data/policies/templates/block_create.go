@@ -29,6 +29,12 @@ func (blockCreate) Render(meta policies.RenderMeta, scope policies.ScopeSpec, _ 
 		Ops:          opsCreate,
 		Message:      fmt.Sprintf(msgBlockCreate, meta.PlanName),
 		Deny:         deny,
+		// Matching only the application's current resource names blocks re-creation of a
+		// deleted member but never a new resource joining the application.
+		MatchAppIdentity: true,
+		// Reaches the Pods and PVCs controllers create themselves, so a replacement pod must
+		// still be admitted while the plan is active.
+		ExcludeControllers: true,
 	}), nil
 }
 

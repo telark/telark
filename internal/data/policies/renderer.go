@@ -72,6 +72,7 @@ func buildScopes(plan *plans.ProtectionPlan, resolved map[string]ResolvedApp) ([
 	case plans.ScopeTypeApplications:
 		grouped := map[string][]string{}
 		resourcesByNS := map[string][]ApplicationResourceRef{}
+		claimsByNS := map[string][]string{}
 		for _, appID := range plan.Scope.ApplicationIDs {
 			ra, ok := resolved[appID]
 			if !ok || ra.Namespace == constants.EmptyString {
@@ -79,6 +80,7 @@ func buildScopes(plan *plans.ProtectionPlan, resolved map[string]ResolvedApp) ([
 			}
 			grouped[ra.Namespace] = append(grouped[ra.Namespace], appID)
 			resourcesByNS[ra.Namespace] = append(resourcesByNS[ra.Namespace], ra.Resources...)
+			claimsByNS[ra.Namespace] = append(claimsByNS[ra.Namespace], ra.VolumeClaims...)
 		}
 		nss := make([]string, constants.DefaultInitValue, len(grouped))
 		for ns := range grouped {
@@ -89,10 +91,13 @@ func buildScopes(plan *plans.ProtectionPlan, resolved map[string]ResolvedApp) ([
 		for _, ns := range nss {
 			apps := grouped[ns]
 			slices.Sort(apps)
+			claims := claimsByNS[ns]
+			slices.Sort(claims)
 			out = append(out, ScopeSpec{
 				Namespace:      ns,
 				ApplicationIDs: apps,
 				AppResources:   resourcesByNS[ns],
+				VolumeClaims:   slices.Compact(claims),
 			})
 		}
 		return out, nil

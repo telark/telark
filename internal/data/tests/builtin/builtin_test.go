@@ -45,8 +45,8 @@ func TestBuiltinRoleScopes(t *testing.T) {
 		constants.RoleIDReadOnly:    role.PermissionLevelReadOnly,
 	}
 
-	if len(role.BuiltinRoles) != len(uniform)+1 {
-		t.Fatalf("got %d builtin roles, want %d", len(role.BuiltinRoles), len(uniform)+1)
+	if len(role.BuiltinRoles) != len(uniform)+constants.SingleItem {
+		t.Fatalf("got %d builtin roles, want %d", len(role.BuiltinRoles), len(uniform)+constants.SingleItem)
 	}
 
 	for _, r := range role.BuiltinRoles {
@@ -56,7 +56,7 @@ func TestBuiltinRoleScopes(t *testing.T) {
 		}
 
 		if r.ID == constants.RoleIDAdmin {
-			if len(granted) != 1 || granted[role.ScopeAll] != role.PermissionLevelAdmin {
+			if len(granted) != constants.SingleItem || granted[role.ScopeAll] != role.PermissionLevelAdmin {
 				t.Errorf("Admin grants %v, want only %s=%s", granted, role.ScopeAll, role.PermissionLevelAdmin)
 			}
 			continue
@@ -86,19 +86,19 @@ func TestWithBuiltinsKeepsUserCategoriesAndRestoresBuiltins(t *testing.T) {
 		Type:         category.CategoryTypeCustom,
 		CreationDate: "2026-01-01T00:00:00Z",
 	}
-	tampered := category.BuiltinCategories[0]
+	tampered := category.BuiltinCategories[constants.DefaultInitValue]
 	tampered.Name = "Renamed By Hand"
 	tampered.Scope = role.ScopeRoles
 
 	merged := category.WithBuiltins([]category.Category{tampered, userCategory})
 
-	if len(merged) != len(category.BuiltinCategories)+1 {
-		t.Fatalf("got %d categories, want %d", len(merged), len(category.BuiltinCategories)+1)
+	if len(merged) != len(category.BuiltinCategories)+constants.SingleItem {
+		t.Fatalf("got %d categories, want %d", len(merged), len(category.BuiltinCategories)+constants.SingleItem)
 	}
 
 	for _, want := range category.BuiltinCategories {
 		idx := slices.IndexFunc(merged, func(c category.Category) bool { return c.ID == want.ID })
-		if idx < 0 {
+		if idx < constants.DefaultInitValue {
 			t.Errorf("built-in %s missing after merge", want.ID)
 			continue
 		}

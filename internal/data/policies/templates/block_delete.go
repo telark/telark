@@ -29,6 +29,8 @@ func (blockDelete) Render(meta policies.RenderMeta, scope policies.ScopeSpec, _ 
 		Ops:          opsDelete,
 		Message:      fmt.Sprintf(msgBlockDelete, meta.PlanName),
 		Deny:         deny,
+		// Reaches the Pods, ReplicaSets and PVCs controllers create and delete themselves.
+		ExcludeControllers: true,
 	}), nil
 }
 

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	authdata "github.com/telark/data/auth"
-	globalconfig "github.com/telark/data/resources/globalconfig"
+	"github.com/telark/data/resources/globalconfig"
 )
 
 const (
@@ -17,7 +17,7 @@ const (
 	fieldUserID       = "userId"
 )
 
-// Mirrors the exporter's StructToSpecMap: the struct is marshalled and the
+// Mirrors the exporter's StructToSpecMap: the struct is marshaled and the
 // resulting map becomes the CR spec.
 func specMap(t *testing.T, v any) map[string]any {
 	t.Helper()

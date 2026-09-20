@@ -23,17 +23,17 @@ func (blockImageTypes) Render(meta policies.RenderMeta, scope policies.ScopeSpec
 	if err != nil {
 		return nil, err
 	}
-	deny := policies.DenyWithConditions([]kyvernov1.Condition{
-		policies.MakeCondition(exprNewImages, opAnyIn, patterns),
-	})
-	return policies.RenderSingleRulePolicy(meta, scope, policies.SingleRuleSpec{
+	return policies.RenderPodSpecRulePolicy(meta, scope, policies.PodSpecRuleSpec{
 		TemplateID:   templateBlockImageTypes,
 		TemplateCode: codeBlockImageTypes,
 		RuleName:     templateBlockImageTypes,
-		Kinds:        policies.WorkloadKinds,
 		Ops:          opsCreateUpdate,
 		Message:      fmt.Sprintf(msgBlockImagePatterns, meta.PlanName),
-		Deny:         deny,
+		Deny: func(podSpecPath string) *kyvernov1.Deny {
+			return policies.DenyWithConditions([]kyvernov1.Condition{
+				policies.MakeCondition(newExpr(exprImagesFmt, podSpecPath), opAnyIn, patterns),
+			})
+		},
 	}), nil
 }
 

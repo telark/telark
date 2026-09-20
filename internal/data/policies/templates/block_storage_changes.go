@@ -23,33 +23,36 @@ func (blockStorageChanges) TemplateCode() string { return codeBlockStorageChange
 func (blockStorageChanges) Render(meta policies.RenderMeta, scope policies.ScopeSpec, _ map[string]any) (*kyvernov1.Policy, error) {
 	rules := make([]kyvernov1.Rule, constants.DefaultInitValue, storageRuleCapacity)
 
-	if pvcMatch, ok := policies.BuildMatch(scope, kindsPVC, opsUpdateDelete); ok {
+	if match, ok := pvcMatch(scope); ok {
 		rules = append(rules, kyvernov1.Rule{
-			Name:             rulePVCMutation,
-			MatchResources:   pvcMatch,
-			ExcludeResources: policies.ExcludetelarkManaged(),
-			Validation: &kyvernov1.Validation{
-				Message: fmt.Sprintf(msgBlockPVCMutation, meta.PlanName),
-				Deny: policies.DenyWithConditions([]kyvernov1.Condition{
-					policies.MakeCondition(exprRequestOperation, opIn, opsUpdateDelete),
+			Name:           rulePVCMutation,
+			MatchResources: match,
+			// The PV controller completes a bind and the scheduler writes selected-node as PVC
+			// updates; denying those leaves a Pending claim unable to ever bind.
+			ExcludeResources: policies.ExcludeControllerWrites(),
+			Validation: policies.Validation(
+				fmt.Sprintf(msgBlockPVCMutation, meta.PlanName),
+				policies.DenyWithConditions([]kyvernov1.Condition{
+					policies.MakeCondition(exprRequestOperation, opIn, opsCreateUpdateDelete),
 				}),
-			},
+			),
 		})
 	}
 
-	if volMatch, ok := policies.BuildMatch(scope, policies.WorkloadKinds, opsUpdate); ok {
-		rules = append(rules, kyvernov1.Rule{
-			Name:             ruleWorkloadVolumeChanges,
-			MatchResources:   volMatch,
-			ExcludeResources: policies.ExcludetelarkManaged(),
-			Validation: &kyvernov1.Validation{
-				Message: fmt.Sprintf(msgBlockVolumeChanges, meta.PlanName),
-				Deny: policies.DenyWithConditions([]kyvernov1.Condition{
-					policies.MakeCondition(exprNewVolumes, opNotEquals, exprOldVolumes),
-				}),
-			},
-		})
-	}
+	rules = append(rules, policies.PodSpecRules(scope, policies.PodSpecRuleSpec{
+		RuleName: ruleWorkloadVolumeChanges,
+		Ops:      opsUpdate,
+		Message:  fmt.Sprintf(msgBlockVolumeChanges, meta.PlanName),
+		Deny: func(podSpecPath string) *kyvernov1.Deny {
+			return policies.DenyWithConditions([]kyvernov1.Condition{
+				policies.MakeCondition(
+					newExpr(exprVolumesFmt, podSpecPath),
+					opNotEquals,
+					oldExpr(exprVolumesFmt, podSpecPath),
+				),
+			})
+		},
+	})...)
 
 	if len(rules) == constants.DefaultInitValue {
 		return nil, nil
@@ -58,6 +61,16 @@ func (blockStorageChanges) Render(meta policies.RenderMeta, scope policies.Scope
 	pol := policies.PolicyShell(meta, templateBlockStorageChanges, codeBlockStorageChanges, scope)
 	pol.Spec.Rules = rules
 	return pol, nil
+}
+
+// An application never owns its PersistentVolumeClaims, so the name-filtered application match
+// produced no PVC rule at all; application scope matches the claim names its workloads mount.
+// Both scopes cover CREATE so the rule means what the template description promises.
+func pvcMatch(scope policies.ScopeSpec) (kyvernov1.MatchResources, bool) {
+	if len(scope.ApplicationIDs) == constants.DefaultInitValue {
+		return policies.BuildMatch(scope, kindsPVC, opsCreateUpdateDelete)
+	}
+	return policies.MatchNamed(kindsPVC, opsCreateUpdateDelete, scope.VolumeClaims)
 }
 
 func init() {

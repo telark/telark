@@ -11,7 +11,6 @@ const (
 	templateBlockImageTags = "block-image-tags"
 	codeBlockImageTags     = "bitg"
 	paramTags              = "tags"
-	imageTagPrefix         = "*:"
 )
 
 type blockImageTags struct{}
@@ -24,12 +23,11 @@ func (blockImageTags) Render(meta policies.RenderMeta, scope policies.ScopeSpec,
 	if err != nil {
 		return nil, err
 	}
-	suffixed := make([]string, len(tags))
-	for i, tag := range tags {
-		suffixed[i] = imageTagPrefix + tag
-	}
+	// Matching the raw image string missed `nginx`, which Kubernetes resolves to `nginx:latest`.
+	// Kyverno's parsed image info defaults an untagged reference to `latest` and also knows a
+	// CronJob's deeper pod-template path, so one rule covers every workload kind.
 	deny := policies.DenyWithConditions([]kyvernov1.Condition{
-		policies.MakeCondition(exprNewImages, opAnyIn, suffixed),
+		policies.MakeCondition(exprImageTags, opAnyIn, tags),
 	})
 	return policies.RenderSingleRulePolicy(meta, scope, policies.SingleRuleSpec{
 		TemplateID:   templateBlockImageTags,

@@ -3,6 +3,7 @@ package auth
 import (
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
@@ -18,12 +19,18 @@ func ResolveInitialRoleID(email string) string {
 	return constants.BuiltInRoleReadOnly
 }
 
+func HasAdminRole(roleIDs []*string) bool {
+	return slices.ContainsFunc(roleIDs, func(rid *string) bool {
+		return rid != nil && *rid == constants.BuiltInRoleAdmin
+	})
+}
+
 func RepairMissingRole(user *userresource.UserAsResource, userClient *userclient.Client, email string) error {
 	if len(user.AssignedRolesIDs) > constants.DefaultInitValue {
 		return nil
 	}
 	roleID := ResolveInitialRoleID(email)
-	resp := userClient.PatchUserByID(user.ID, map[string]any{"assignedRolesIDs": []*string{&roleID}})
+	resp := userClient.PatchUserByID(user.ID, map[string]any{constants.SpecFieldAssignedRolesIDs: []*string{&roleID}})
 	if resp.Status != http.StatusOK {
 		return fmt.Errorf(string(constants.ErrFailedRoleRepair), shared.IdentityHash(email), resp.Status)
 	}

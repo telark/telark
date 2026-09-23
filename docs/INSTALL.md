@@ -4,7 +4,7 @@
 
 - Kubernetes ≥ 1.30 (1.33+ recommended) — enforced by the chart's `kubeVersion`; see [Kubernetes compatibility](../README.md#kubernetes-compatibility).
 - Helm ≥ 3.
-- A StorageClass for the exporter snapshot PVC. `standard` and `performance` run two exporter replicas on a shared volume, so it must be **ReadWriteMany** (`efs-sc` on EKS with the EFS CSI driver). A one-node cluster (`--set app.singleNode=true`) and `minimal` run one replica on any default class.
+- A StorageClass for the exporter's two PVCs (snapshots and protection plan reports). `standard` and `performance` run two exporter replicas sharing both volumes, so the class must be **ReadWriteMany** for both claims (`efs-sc` on EKS with the EFS CSI driver). A one-node cluster (`--set app.singleNode=true`) and `minimal` run one replica on any default class.
 
 ## 1. Install
 
@@ -191,7 +191,8 @@ Everything is set on the one command line with `--set key=value`. Re-pass the sa
 | `app.image.pullPolicy` | `Always` | Image pull policy |
 | `app.image.pullSecrets` | `[]` | Image pull secrets for a private registry |
 | `app.persistence.size` | `10Gi` | Exporter snapshot PVC size |
-| `app.persistence.storageClass` | `""` | Exporter PVC class. Must be a ReadWriteMany class in `standard`/`performance` (two exporter replicas); `""` = cluster default, valid only with `app.singleNode=true` or `minimal` |
+| `app.persistence.reportsSize` | `2Gi` | Exporter reports PVC size (`minimal` 512Mi, `performance` 10Gi) |
+| `app.persistence.storageClass` | `""` | Class for both exporter PVCs (snapshots and reports). Must be a ReadWriteMany class in `standard`/`performance` (two exporter replicas); `""` = cluster default, valid only with `app.singleNode=true` or `minimal` |
 | `app.singleNode` | `false` | One-node cluster: the exporter runs 1 replica on ReadWriteOnce, no ReadWriteMany class needed. Access mode and update strategy follow the replica count automatically |
 | `app.crdGuard.enabled` | `false` | Admission guard: only owning service accounts may write telark CRs |
 | `app.crdGuard.enforce` | `false` | With the guard on, `false` audits and `true` rejects |
@@ -282,6 +283,8 @@ helm upgrade telark oci://ghcr.io/telark/charts/telark -n telark \
 Re-pass the same `--set` / `-f` flags used at install: Helm does not remember them across upgrades.
 
 **From chart 0.2.1 or older, or when switching modes:** those releases run one exporter replica on a ReadWriteOnce claim, and Kubernetes cannot change a bound claim's access mode or class. Add `--set app.singleNode=true` to keep that claim (one replica, Recreate). To move to two replicas on ReadWriteMany, uninstall, delete the `telark-exporter-snapshots-pvc` claim (snapshots are lost — copy `/snapshots` off the pod first if you need them), then reinstall with `--set app.persistence.storageClass=<rwx-class>`. The same applies when switching between `minimal` and `standard`/`performance`, or toggling `app.singleNode`.
+
+**Upgrading to the chart that adds protection plan reports:** the exporter gains a second claim, `telark-exporter-reports-pvc`, which binds on rollout with the same class and access mode as the snapshot claim. Do not upgrade with `--reuse-values`: the reports volume, mount and the `REPORTS_PATH` / `PROTECTION_PLAN_REPORT_*` entries arrive only with the new chart defaults; with `--reuse-values` the exporter logs a reports-root error at start and every report write fails. Note that the exporter volumes render even when `app.persistence.enabled=false` (pre-existing behaviour), so the pods then wait on claims nobody provisions.
 
 telark stores the AI provider key in the Secret `<app.name>-ai-provider-key`. To encrypt that and every other Secret at rest without a cloud KMS, see [SECURITY.md](../SECURITY.md).
 

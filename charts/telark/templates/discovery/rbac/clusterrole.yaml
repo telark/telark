@@ -16,6 +16,5 @@
   (dict "apiGroups" (list (printf "erpi.%s" .Values.app.name)) "resources" (list "applicationsasresources") "verbs" (list "get" "list" "watch" "patch" "update"))
   (dict "apiGroups" (list "metrics.k8s.io") "resources" (list "pods" "nodes") "verbs" (list "get" "list"))
   (dict "apiGroups" (list "kyverno.io") "resources" (list "policies") "verbs" (list "create" "get" "list" "delete" "patch"))
-  (dict "apiGroups" (list "wgpolicyk8s.io") "resources" (list "policyreports") "verbs" (list "get" "list"))
 )) }}
 {{- end }}

@@ -12,13 +12,13 @@ import (
 func LoadAndValidateEnv(envVarName string) (string, error) {
 	allowedEnvVarPattern := regexp.MustCompile(constants.AllowedEnvVarPattern)
 	if !allowedEnvVarPattern.MatchString(envVarName) {
-		return "", fmt.Errorf(string(constants.ErrInvalidEnvVarName), envVarName)
+		return constants.EmptyString, fmt.Errorf(string(constants.ErrInvalidEnvVarName), envVarName)
 	}
 
 	env := os.Getenv(envVarName)
 
 	if env == constants.EmptyString {
-		return "", fmt.Errorf(string(constants.ErrEnvVarNotSet), envVarName)
+		return constants.EmptyString, fmt.Errorf(string(constants.ErrEnvVarNotSet), envVarName)
 	}
 
 	if len(env) > constants.MaxEnvVarLength {

@@ -1,4 +1,4 @@
-go 1.26.5
+go 1.27.1
 
 use (
 	./services/auth
@@ -6,3 +6,11 @@ use (
 	./services/exporter
 	./services/notifier
 )
+
+replace github.com/telark/data => /Users/houssem/Desktop/Github/internal/data
+
+replace github.com/telark/rest => /Users/houssem/Desktop/Github/internal/rest
+
+replace github.com/telark/kcore => /Users/houssem/Desktop/Github/internal/kcore
+
+replace github.com/telark/x-ware => /Users/houssem/Desktop/Github/internal/x-ware

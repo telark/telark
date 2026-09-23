@@ -4,26 +4,41 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/applications/history/changes"
 	"github.com/telark/discovery/internal/core/applications/history/manifestdiff"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+const (
+	keyKind             = "kind"
+	keyMetadata         = "metadata"
+	keyName             = "name"
+	keySpec             = "spec"
+	keyReplicas         = "replicas"
+	image1              = "img:1"
+	probePeriod         = 10
+	probePeriodChanged  = 20
+	unexpectedChangeFmt = "unexpected change: %+v"
+	statusReplicas      = 99
+	labelTier           = "tier"
+)
+
 func deployment(replicas int64, image string, probePeriod int64, args []any, annotations map[string]any) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]any{
-		"kind": "Deployment",
-		"metadata": map[string]any{
-			"name":        "web",
-			"labels":      map[string]any{"app": "web", "tier": "backend"},
+		keyKind: "Deployment",
+		keyMetadata: map[string]any{
+			keyName:       "web",
+			"labels":      map[string]any{"app": "web", labelTier: "backend"},
 			"annotations": annotations,
 		},
-		"spec": map[string]any{
-			"replicas": replicas,
+		keySpec: map[string]any{
+			keyReplicas: replicas,
 			"template": map[string]any{
-				"spec": map[string]any{
+				keySpec: map[string]any{
 					"containers": []any{
 						map[string]any{
-							"name":  "app",
+							keyName: "app",
 							"image": image,
 							"args":  args,
 							"livenessProbe": map[string]any{
@@ -34,16 +49,16 @@ func deployment(replicas int64, image string, probePeriod int64, args []any, ann
 				},
 			},
 		},
-		"status": map[string]any{"replicas": replicas},
+		"status": map[string]any{keyReplicas: replicas},
 	}}
 }
 
 func single(t *testing.T, out []changesOut, want string) changesOut {
 	t.Helper()
-	if len(out) != 1 {
+	if len(out) != constants.DefaultAddValue {
 		t.Fatalf("want exactly one change (%s), got %d: %+v", want, len(out), out)
 	}
-	return out[0]
+	return out[constants.DefaultInitValue]
 }
 
 type changesOut = struct {
@@ -55,85 +70,87 @@ type changesOut = struct {
 }
 
 func run(old, cur *unstructured.Unstructured) []changesOut {
-	var out []changesOut
-	for _, c := range manifestdiff.Changes([]manifestdiff.ManifestPair{{Old: old, New: cur}}) {
+	changed := manifestdiff.Changes([]manifestdiff.ManifestPair{{Old: old, New: cur}})
+	out := make([]changesOut, constants.DefaultInitValue, len(changed))
+	for _, c := range changed {
 		out = append(out, changesOut{c.Field, c.Description, c.ChangeType, c.OldValue, c.NewValue})
 	}
 	return out
 }
 
 func TestProbeChangeInsideNamedContainer(t *testing.T) {
-	old := deployment(1, "img:1", 10, []any{"a"}, nil)
-	cur := deployment(1, "img:1", 20, []any{"a"}, nil)
+	old := deployment(constants.DefaultAddValue, image1, probePeriod, []any{"a"}, nil)
+	cur := deployment(constants.DefaultAddValue, image1, probePeriodChanged, []any{"a"}, nil)
 	c := single(t, run(old, cur), "probe")
 	if c.Field != "Deployment/web spec.template.spec.containers[app].livenessProbe.periodSeconds" {
 		t.Fatalf("field: %s", c.Field)
 	}
 	if c.ChangeType != changes.ChangeTypeUpdated || *c.OldValue != "10" || *c.NewValue != "20" {
-		t.Fatalf("unexpected change: %+v", c)
+		t.Fatalf(unexpectedChangeFmt, c)
 	}
 	if !changes.IsWorkloadTemplateField(c.Field) {
-		t.Fatalf("template field not recognised: %s", c.Field)
+		t.Fatalf("template field not recognized: %s", c.Field)
 	}
 }
 
 func TestCuratedPathsAndStatusAreSkipped(t *testing.T) {
-	old := deployment(1, "img:1", 10, []any{"a"}, nil)
-	cur := deployment(3, "img:2", 10, []any{"a"}, nil)
-	cur.Object["status"] = map[string]any{"replicas": int64(99)}
-	if out := run(old, cur); len(out) != 0 {
+	old := deployment(constants.DefaultAddValue, image1, probePeriod, []any{"a"}, nil)
+	cur := deployment(constants.ThreeValue, "img:2", probePeriod, []any{"a"}, nil)
+	cur.Object["status"] = map[string]any{keyReplicas: int64(statusReplicas)}
+	if out := run(old, cur); len(out) != constants.DefaultInitValue {
 		t.Fatalf("replicas, image and status must be skipped, got %+v", out)
 	}
 }
 
 func TestNoisyAnnotationIgnoredRealAnnotationReported(t *testing.T) {
-	old := deployment(1, "img:1", 10, nil, map[string]any{"deployment.kubernetes.io/revision": "1"})
-	cur := deployment(1, "img:1", 10, nil, map[string]any{"deployment.kubernetes.io/revision": "2", "team": "core"})
+	old := deployment(constants.DefaultAddValue, image1, probePeriod, nil, map[string]any{"deployment.kubernetes.io/revision": "1"})
+	cur := deployment(constants.DefaultAddValue, image1, probePeriod, nil, map[string]any{"deployment.kubernetes.io/revision": "2", "team": "core"})
 	c := single(t, run(old, cur), "annotation")
 	if c.Field != "Deployment/web metadata.annotations.team" || c.ChangeType != changes.ChangeTypeAdded || *c.NewValue != "core" {
-		t.Fatalf("unexpected change: %+v", c)
+		t.Fatalf(unexpectedChangeFmt, c)
 	}
 	if changes.IsWorkloadTemplateField(c.Field) {
-		t.Fatalf("metadata change must not classify as a template change")
+		t.Fatal("metadata change must not classify as a template change")
 	}
 }
 
 func TestLabelRemoved(t *testing.T) {
-	old := deployment(1, "img:1", 10, nil, nil)
-	cur := deployment(1, "img:1", 10, nil, nil)
-	delete(cur.Object["metadata"].(map[string]any)["labels"].(map[string]any), "tier")
+	old := deployment(constants.DefaultAddValue, image1, probePeriod, nil, nil)
+	cur := deployment(constants.DefaultAddValue, image1, probePeriod, nil, nil)
+	delete(cur.Object[keyMetadata].(map[string]any)["labels"].(map[string]any), labelTier)
 	c := single(t, run(old, cur), "label")
 	if c.Field != "Deployment/web metadata.labels.tier" || c.ChangeType != changes.ChangeTypeRemoved || *c.OldValue != "backend" {
-		t.Fatalf("unexpected change: %+v", c)
+		t.Fatalf(unexpectedChangeFmt, c)
 	}
 }
 
 func TestPositionalListLengthChangeReportedWhole(t *testing.T) {
-	old := deployment(1, "img:1", 10, []any{"a"}, nil)
-	cur := deployment(1, "img:1", 10, []any{"a", "b"}, nil)
+	old := deployment(constants.DefaultAddValue, image1, probePeriod, []any{"a"}, nil)
+	cur := deployment(constants.DefaultAddValue, image1, probePeriod, []any{"a", "b"}, nil)
 	c := single(t, run(old, cur), "args")
 	if c.Field != "Deployment/web spec.template.spec.containers[app].args" || *c.OldValue != `["a"]` || *c.NewValue != `["a","b"]` {
-		t.Fatalf("unexpected change: %+v", c)
+		t.Fatalf(unexpectedChangeFmt, c)
 	}
 }
 
 func TestConfigMapDataKeyChange(t *testing.T) {
 	mk := func(v string) *unstructured.Unstructured {
 		return &unstructured.Unstructured{Object: map[string]any{
-			"kind":     "ConfigMap",
-			"metadata": map[string]any{"name": "cfg"},
-			"data":     map[string]any{"LOG_LEVEL": v},
+			keyKind:     "ConfigMap",
+			keyMetadata: map[string]any{keyName: "cfg"},
+			"data":      map[string]any{"LOG_LEVEL": v},
 		}}
 	}
 	c := single(t, run(mk("info"), mk("debug")), "configmap")
 	if c.Field != "ConfigMap/cfg data.LOG_LEVEL" || c.Description != "ConfigMap/cfg: data.LOG_LEVEL: info → debug" {
-		t.Fatalf("unexpected change: %+v", c)
+		t.Fatalf(unexpectedChangeFmt, c)
 	}
 }
 
 func TestNilSideSkippedAndIdenticalQuiet(t *testing.T) {
-	obj := deployment(1, "img:1", 10, nil, nil)
-	if out := manifestdiff.Changes([]manifestdiff.ManifestPair{{Old: nil, New: obj}, {Old: obj, New: nil}, {Old: obj, New: obj.DeepCopy()}}); len(out) != 0 {
+	obj := deployment(constants.DefaultAddValue, image1, probePeriod, nil, nil)
+	pairs := []manifestdiff.ManifestPair{{Old: nil, New: obj}, {Old: obj, New: nil}, {Old: obj, New: obj.DeepCopy()}}
+	if out := manifestdiff.Changes(pairs); len(out) != constants.DefaultInitValue {
 		t.Fatalf("expected no changes, got %+v", out)
 	}
 }
@@ -141,9 +158,9 @@ func TestNilSideSkippedAndIdenticalQuiet(t *testing.T) {
 func TestSecretValuesAreRedacted(t *testing.T) {
 	mk := func(v string) *unstructured.Unstructured {
 		return &unstructured.Unstructured{Object: map[string]any{
-			"kind":     "Secret",
-			"metadata": map[string]any{"name": "creds", "labels": map[string]any{"tier": "db"}},
-			"data":     map[string]any{"password": v},
+			keyKind:     "Secret",
+			keyMetadata: map[string]any{keyName: "creds", "labels": map[string]any{labelTier: "db"}},
+			"data":      map[string]any{"password": v},
 		}}
 	}
 	out := run(mk("b2xk"), mk("bmV3"))

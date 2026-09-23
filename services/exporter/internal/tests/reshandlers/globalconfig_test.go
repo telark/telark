@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/telark/exporter/internal/constants"
 	globalconfighandler "github.com/telark/exporter/internal/handlers/resources/globalconfig"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	kshared "github.com/telark/kcore/shared"
@@ -32,19 +33,19 @@ func TestStatusForResult(t *testing.T) {
 		},
 		{
 			name: "kubernetes not found",
-			result: kshared.CreateKubernetesAPIData(http.StatusInternalServerError, "",
+			result: kshared.CreateKubernetesAPIData(http.StatusInternalServerError, constants.EmptyString,
 				nil, k8serrors.NewNotFound(globalConfigGR, "global-config")),
 			want: http.StatusNotFound,
 		},
 		{
 			name: "real upstream status passes through",
-			result: kshared.CreateKubernetesAPIData(http.StatusInternalServerError, "",
+			result: kshared.CreateKubernetesAPIData(http.StatusInternalServerError, constants.EmptyString,
 				nil, k8serrors.NewForbidden(globalConfigGR, "global-config", errors.New("rbac"))),
 			want: http.StatusForbidden,
 		},
 		{
 			name:   "ok",
-			result: kshared.CreateKubernetesAPIData(http.StatusOK, "", &unstructured.Unstructured{}, nil),
+			result: kshared.CreateKubernetesAPIData(http.StatusOK, constants.EmptyString, &unstructured.Unstructured{}, nil),
 			want:   http.StatusOK,
 		},
 	}

@@ -4,8 +4,17 @@ import (
 	"slices"
 	"testing"
 
+	insightsdata "github.com/telark/data/insights"
 	appresource "github.com/telark/data/resources/application"
+	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/controllers/insights"
+)
+
+const (
+	portHTTP       = 80
+	portHTTPS      = 443
+	changeVelocity = 1.5
+	kindDeployment = "Deployment"
 )
 
 // The signal set is the data contract with the enrichment service: what is built
@@ -13,35 +22,54 @@ import (
 // name+namespace. A drifted mapping silently produces insights for the wrong app
 // or none at all, so the mapping is pinned.
 func TestBuildSignalsMapsEveryField(t *testing.T) {
+	signals := insights.BuildSignals([]*appresource.Application{signalsFixture(), nil})
+
+	if len(signals) != constants.DefaultAddValue {
+		t.Fatalf("got %d signals, want 1 (nil apps skipped)", len(signals))
+	}
+	s := signals[constants.DefaultInitValue]
+	if s.Name != "shop" || s.Namespace != "prod" {
+		t.Errorf("identity = %s/%s, want prod/shop", s.Namespace, s.Name)
+	}
+	assertSignalInventory(t, s)
+	assertSignalPosture(t, s)
+	if len(s.Workloads) != constants.DefaultAddValue {
+		t.Fatalf("got %d workloads, want 1", len(s.Workloads))
+	}
+	assertWorkloadSignal(t, s.Workloads[constants.DefaultInitValue])
+}
+
+func signalsFixture() *appresource.Application {
 	chart := "shop-1.0.0"
-	app := &appresource.Application{
+	return &appresource.Application{
 		Name: "shop",
 		Namespaces: appresource.Namespaces{
 			Items: []appresource.NamespaceEntry{{Name: "prod"}, {Name: "staging"}},
 		},
 		Images:     []string{"nginx:1.27"},
-		Ports:      []int{80, 443},
+		Ports:      []int{portHTTP, portHTTPS},
 		EnvVarKeys: []string{"DB_HOST"},
 		Resources: []appresource.Resource{
-			{Kind: "Deployment"}, {Kind: "Service"}, {Kind: "Deployment"},
+			{Kind: kindDeployment}, {Kind: "Service"}, {Kind: kindDeployment},
 		},
-		Health: appresource.Health{Status: "degraded", ReadyReplicas: 2, TotalReplicas: 3},
+		Health: appresource.Health{Status: "degraded", ReadyReplicas: constants.TwoValue, TotalReplicas: constants.ThreeValue},
 		ResourceSummary: appresource.ResourceSummary{
-			Ingress: 1, PersistentVolumeClaim: 0,
-			Deployment: 1, Service: 1, NetworkPolicy: 1, HorizontalPodAutoscaler: 1,
+			Ingress: constants.DefaultAddValue, PersistentVolumeClaim: constants.DefaultInitValue,
+			Deployment: constants.DefaultAddValue, Service: constants.DefaultAddValue,
+			NetworkPolicy: constants.DefaultAddValue, HorizontalPodAutoscaler: constants.DefaultAddValue,
 		},
 		SecretRefs:    []string{"db-secret"},
 		ConfigMapRefs: []string{"app-config"},
 		Managed:       appresource.Managed{By: "helm", Chart: &chart},
 		Metrics: appresource.ApplicationMetrics{
 			Derived: appresource.DerivedMetrics{
-				ChangeVelocityPerDay: 1.5, TotalIncidents: 2, TotalRecoveries: 1,
+				ChangeVelocityPerDay: changeVelocity, TotalIncidents: constants.TwoValue, TotalRecoveries: constants.DefaultAddValue,
 			},
 			Workloads: []appresource.WorkloadUsage{{
 				ResourceName: "shop-api",
-				ResourceKind: "Deployment",
+				ResourceKind: kindDeployment,
 				Baseline: appresource.MetricsBaseline{
-					Replicas: 3,
+					Replicas: constants.ThreeValue,
 					Limits:   appresource.ResourceValues{CPU: "500m", Memory: "512Mi"},
 				},
 				Usage: appresource.Usage{
@@ -51,35 +79,33 @@ func TestBuildSignalsMapsEveryField(t *testing.T) {
 			}},
 		},
 	}
+}
 
-	signals := insights.BuildSignals([]*appresource.Application{app, nil})
-
-	if len(signals) != 1 {
-		t.Fatalf("got %d signals, want 1 (nil apps skipped)", len(signals))
-	}
-	s := signals[0]
-	if s.Name != "shop" || s.Namespace != "prod" {
-		t.Errorf("identity = %s/%s, want prod/shop", s.Namespace, s.Name)
-	}
-	if !slices.Equal(s.Images, []string{"nginx:1.27"}) || !slices.Equal(s.Ports, []int{80, 443}) {
+func assertSignalInventory(t *testing.T, s insightsdata.Signal) {
+	t.Helper()
+	if !slices.Equal(s.Images, []string{"nginx:1.27"}) || !slices.Equal(s.Ports, []int{portHTTP, portHTTPS}) {
 		t.Errorf("images/ports not carried: %+v", s)
 	}
 	if !slices.Equal(s.EnvVarKeys, []string{"DB_HOST"}) {
 		t.Errorf("envVarKeys not carried: %v", s.EnvVarKeys)
 	}
-	if !slices.Equal(s.ResourceKinds, []string{"Deployment", "Service"}) {
+	if !slices.Equal(s.ResourceKinds, []string{kindDeployment, "Service"}) {
 		t.Errorf("resourceKinds = %v, want deduped [Deployment Service]", s.ResourceKinds)
 	}
 	if !s.HasIngress || s.HasPVC {
 		t.Errorf("flags = ingress:%v pvc:%v, want ingress:true pvc:false", s.HasIngress, s.HasPVC)
 	}
-	if s.Replicas != 3 || s.ReadyReplicas != 2 || s.HealthStatus != "degraded" {
+	if s.Replicas != constants.ThreeValue || s.ReadyReplicas != constants.TwoValue || s.HealthStatus != "degraded" {
 		t.Errorf("health = %d/%d %q, want 3/2 degraded", s.Replicas, s.ReadyReplicas, s.HealthStatus)
 	}
+}
+
+func assertSignalPosture(t *testing.T, s insightsdata.Signal) {
+	t.Helper()
 	if !s.HasService || !s.HasHPA || !s.HasNetworkPolicy {
 		t.Errorf("posture = svc:%v hpa:%v np:%v, want all true", s.HasService, s.HasHPA, s.HasNetworkPolicy)
 	}
-	if !slices.Equal(s.WorkloadKinds, []string{"Deployment"}) {
+	if !slices.Equal(s.WorkloadKinds, []string{kindDeployment}) {
 		t.Errorf("workloadKinds = %v, want [Deployment]", s.WorkloadKinds)
 	}
 	if !slices.Equal(s.SecretRefs, []string{"db-secret"}) || !slices.Equal(s.ConfigMapRefs, []string{"app-config"}) {
@@ -88,14 +114,14 @@ func TestBuildSignalsMapsEveryField(t *testing.T) {
 	if s.ManagedBy != "helm" || s.Chart != "shop-1.0.0" {
 		t.Errorf("managed = %q %q, want helm shop-1.0.0", s.ManagedBy, s.Chart)
 	}
-	if s.ChangeVelocityPerDay != 1.5 || s.Incidents != 2 || s.Recoveries != 1 {
+	if s.ChangeVelocityPerDay != changeVelocity || s.Incidents != constants.TwoValue || s.Recoveries != constants.DefaultAddValue {
 		t.Errorf("stability = %.1f/%d/%d, want 1.5/2/1", s.ChangeVelocityPerDay, s.Incidents, s.Recoveries)
 	}
-	if len(s.Workloads) != 1 {
-		t.Fatalf("got %d workloads, want 1", len(s.Workloads))
-	}
-	w := s.Workloads[0]
-	if w.Name != "shop-api" || w.Kind != "Deployment" || w.Replicas != 3 {
+}
+
+func assertWorkloadSignal(t *testing.T, w insightsdata.WorkloadSignal) {
+	t.Helper()
+	if w.Name != "shop-api" || w.Kind != kindDeployment || w.Replicas != constants.ThreeValue {
 		t.Errorf("workload identity = %s/%s x%d, want shop-api/Deployment x3", w.Name, w.Kind, w.Replicas)
 	}
 	if w.QoS != "Burstable" || w.CPU != "120m" || w.Memory != "256Mi" || !w.LimitsSet {
@@ -107,10 +133,10 @@ func TestBuildSignalsEmptySlicesStayEmptyNotNil(t *testing.T) {
 	app := &appresource.Application{Name: "bare"}
 	signals := insights.BuildSignals([]*appresource.Application{app})
 
-	if len(signals) != 1 {
+	if len(signals) != constants.DefaultAddValue {
 		t.Fatalf("got %d signals, want 1", len(signals))
 	}
-	s := signals[0]
+	s := signals[constants.DefaultInitValue]
 	// nil slices marshal to JSON null; the Python side validates lists, so the
 	// contract is empty lists, never null.
 	if s.Images == nil || s.Ports == nil || s.EnvVarKeys == nil || s.ResourceKinds == nil {

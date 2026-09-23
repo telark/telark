@@ -11,9 +11,14 @@ import (
 	"github.com/telark/discovery/internal/tests/testutil"
 )
 
+const (
+	enrichmentNamespace = "prod"
+	enrichmentApp       = "api"
+)
+
 // The cache key must stay lockstep with the Python enrichment writer.
 func TestCacheKey(t *testing.T) {
-	testutil.Equal(t, "key", cache.CacheKey("prod", "api"), "enrichment:prod:api")
+	testutil.Equal(t, "key", cache.CacheKey(enrichmentNamespace, enrichmentApp), "enrichment:prod:api")
 }
 
 // FlexTime accepts RFC3339 and rejects garbage.
@@ -47,7 +52,7 @@ func TestIsStale(t *testing.T) {
 // on a hit.
 func TestGetEnrichment(t *testing.T) {
 	ctx := context.Background()
-	if got, err := cache.GetEnrichment(ctx, nil, "prod", "api"); got != nil || err != nil {
+	if got, err := cache.GetEnrichment(ctx, nil, enrichmentNamespace, enrichmentApp); got != nil || err != nil {
 		t.Fatalf("nil client = %v, %v", got, err)
 	}
 
@@ -55,12 +60,14 @@ func TestGetEnrichment(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	defer func() { _ = rdb.Close() }()
 
-	if got, _ := cache.GetEnrichment(ctx, rdb, "prod", "missing"); got != nil {
+	if got, _ := cache.GetEnrichment(ctx, rdb, enrichmentNamespace, "missing"); got != nil {
 		t.Fatal("cache miss should yield nil insights")
 	}
 
-	mr.Set(cache.CacheKey("prod", "api"), `{"summary":"web app","enrichedAt":"2026-01-01T00:00:00Z"}`)
-	got, err := cache.GetEnrichment(ctx, rdb, "prod", "api")
+	if err := mr.Set(cache.CacheKey(enrichmentNamespace, enrichmentApp), `{"summary":"web app","enrichedAt":"2026-01-01T00:00:00Z"}`); err != nil {
+		t.Fatal(err)
+	}
+	got, err := cache.GetEnrichment(ctx, rdb, enrichmentNamespace, enrichmentApp)
 	if err != nil || got == nil {
 		t.Fatalf("cache hit = %v, %v", got, err)
 	}

@@ -6,11 +6,16 @@ import (
 	"testing"
 
 	appresource "github.com/telark/data/resources/application"
-	shared "github.com/telark/data/resources/shared"
+	"github.com/telark/data/resources/shared"
 	"github.com/telark/notifier/internal/subscribers/applications"
 	"github.com/telark/notifier/internal/tests/testutil"
 	"github.com/telark/rest/response"
 	natscore "github.com/telark/x-ware/nats/core"
+)
+
+const (
+	updateSubject = "telark.applications.update"
+	deleteSubject = "telark.applications.delete"
 )
 
 type fakeAppClient struct {
@@ -62,13 +67,19 @@ func TestApplicationSubscriberRoutesEvents(t *testing.T) {
 		wantPatched, wantCreated bool
 		wantDeleted              bool
 	}{
-		{"update patched", "telark.applications.update", updateMsg(), fakeAppClient{patchStatus: http.StatusOK}, true, false, false},
-		{"update upserts on 404", "telark.applications.update", updateMsg(), fakeAppClient{patchStatus: http.StatusNotFound, createStatus: http.StatusOK}, true, true, false},
-		{"update backend error acked", "telark.applications.update", updateMsg(), fakeAppClient{patchStatus: http.StatusInternalServerError}, true, false, false},
-		{"update create fails on 404", "telark.applications.update", updateMsg(), fakeAppClient{patchStatus: http.StatusNotFound, createStatus: http.StatusInternalServerError}, true, true, false},
-		{"update missing scope acked", "telark.applications.update", updateNoScopeMsg(), fakeAppClient{}, false, false, false},
-		{"delete removed", "telark.applications.delete", deleteMsg(), fakeAppClient{deleteStatus: http.StatusOK}, false, false, true},
-		{"delete backend error acked", "telark.applications.delete", deleteMsg(), fakeAppClient{deleteStatus: http.StatusInternalServerError}, false, false, true},
+		{"update patched", updateSubject, updateMsg(), fakeAppClient{patchStatus: http.StatusOK}, true, false, false},
+		{
+			"update upserts on 404", updateSubject, updateMsg(),
+			fakeAppClient{patchStatus: http.StatusNotFound, createStatus: http.StatusOK}, true, true, false,
+		},
+		{"update backend error acked", updateSubject, updateMsg(), fakeAppClient{patchStatus: http.StatusInternalServerError}, true, false, false},
+		{
+			"update create fails on 404", updateSubject, updateMsg(),
+			fakeAppClient{patchStatus: http.StatusNotFound, createStatus: http.StatusInternalServerError}, true, true, false,
+		},
+		{"update missing scope acked", updateSubject, updateNoScopeMsg(), fakeAppClient{}, false, false, false},
+		{"delete removed", deleteSubject, deleteMsg(), fakeAppClient{deleteStatus: http.StatusOK}, false, false, true},
+		{"delete backend error acked", deleteSubject, deleteMsg(), fakeAppClient{deleteStatus: http.StatusInternalServerError}, false, false, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

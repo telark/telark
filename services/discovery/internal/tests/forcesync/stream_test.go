@@ -14,6 +14,8 @@ import (
 	xwareredis "github.com/telark/x-ware/redis/stream"
 )
 
+const streamAppName = "shop"
+
 func redisClient(t *testing.T) *redis.Client {
 	t.Helper()
 	mr := miniredis.RunT(t)
@@ -30,7 +32,7 @@ func TestStreamOpsLifecycle(t *testing.T) {
 	s := forcesync.NewStreamOps(xwareredis.NewStreamClient(redisClient(t)), cfg)
 
 	_ = s.EnsureGroup(ctx)
-	id, err := s.Enqueue(ctx, map[string]any{"appName": "shop"})
+	id, err := s.Enqueue(ctx, map[string]any{"appName": streamAppName})
 	if err != nil || id == "" {
 		t.Fatalf("enqueue = %q, %v", id, err)
 	}
@@ -45,7 +47,7 @@ func TestStreamOpsLifecycle(t *testing.T) {
 	_ = s.TrimByAge(ctx, time.Now())
 }
 
-// A NOGROUP error is recognised; other errors and nil are not.
+// A NOGROUP error is recognized; other errors and nil are not.
 func TestIsNoGroupError(t *testing.T) {
 	testutil.Equal(t, "nil", forcesync.IsNoGroupError(nil), false)
 	testutil.Equal(t, "other", forcesync.IsNoGroupError(errors.New("boom")), false)
@@ -58,18 +60,18 @@ func TestDedupClaim(t *testing.T) {
 	ctx := context.Background()
 	d := forcesync.NewDedup(redisClient(t), time.Minute)
 
-	isNew, _, err := d.TryClaim(ctx, "shop", "job-1")
+	isNew, _, err := d.TryClaim(ctx, streamAppName, "job-1")
 	if err != nil || !isNew {
 		t.Fatalf("first claim = %v, %v", isNew, err)
 	}
-	isNew2, holder, _ := d.TryClaim(ctx, "shop", "job-2")
+	isNew2, holder, _ := d.TryClaim(ctx, streamAppName, "job-2")
 	if isNew2 || holder != "job-1" {
 		t.Fatalf("second claim = %v, holder=%q, want false/job-1", isNew2, holder)
 	}
-	if err := d.Release(ctx, "shop"); err != nil {
+	if err := d.Release(ctx, streamAppName); err != nil {
 		t.Fatalf("release: %v", err)
 	}
-	isNew3, _, _ := d.TryClaim(ctx, "shop", "job-3")
+	isNew3, _, _ := d.TryClaim(ctx, streamAppName, "job-3")
 	testutil.Equal(t, "reclaim after release", isNew3, true)
 }
 
@@ -82,7 +84,7 @@ func TestManagerConstructAndStop(t *testing.T) {
 
 	_ = forcesync.NewMaintenance(cfg, s)
 
-	executor := func(ctx context.Context, replicaID, appName string) error { return nil }
+	executor := func(context.Context, string, string) error { return nil }
 	m := forcesync.NewManager(cfg, s, d, nil, executor, "replica-1")
 	m.Stop()
 }

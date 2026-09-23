@@ -38,71 +38,73 @@ func deleteRequest(body string, identity *xauthz.Identity, headers map[string]st
 	return r
 }
 
+type deleteCase struct {
+	name     string
+	body     string
+	identity *xauthz.Identity
+	headers  map[string]string
+	want     int
+}
+
+var orphanCleanupCases = []deleteCase{
+	{
+		name: "unauthenticated caller cannot name another user",
+		body: orphanBody,
+		headers: map[string]string{
+			constants.HeaderUserID:       victimUserID,
+			constants.HeaderCredentialID: credentialID,
+		},
+		want: http.StatusUnauthorized,
+	},
+	{
+		name:     "session user cannot name another user",
+		body:     orphanBody,
+		identity: &xauthz.Identity{UserID: attackerUserID},
+		headers: map[string]string{
+			constants.HeaderUserID:       victimUserID,
+			constants.HeaderCredentialID: credentialID,
+			constants.HeaderSessionToken: sessionToken,
+		},
+		want: http.StatusServiceUnavailable,
+	},
+	{
+		name:     "internal caller may clean up an orphan",
+		body:     orphanBody,
+		identity: &xauthz.Identity{Internal: true},
+		headers: map[string]string{
+			constants.HeaderUserID:       victimUserID,
+			constants.HeaderCredentialID: credentialID,
+		},
+		want: http.StatusInternalServerError,
+	},
+	{
+		name:     "internal caller without a user id",
+		body:     orphanBody,
+		identity: &xauthz.Identity{Internal: true},
+		headers:  map[string]string{constants.HeaderCredentialID: credentialID},
+		want:     http.StatusBadRequest,
+	},
+	{
+		name:     "internal caller without a credential id",
+		body:     orphanBody,
+		identity: &xauthz.Identity{Internal: true},
+		headers:  map[string]string{constants.HeaderUserID: victimUserID},
+		want:     http.StatusBadRequest,
+	},
+	{
+		name:     "ordinary delete still validates the session",
+		body:     plainBody,
+		identity: &xauthz.Identity{UserID: attackerUserID},
+		headers:  map[string]string{constants.HeaderCredentialID: credentialID},
+		want:     http.StatusUnauthorized,
+	},
+}
+
 // The resource backend is deliberately absent, so a request that reaches it
 // answers 500: that is what separates "was allowed to act on this user" from
 // "was refused before acting".
 func TestDeletePasskeyOrphanCleanupBindsToIdentity(t *testing.T) {
-	cases := []struct {
-		name     string
-		body     string
-		identity *xauthz.Identity
-		headers  map[string]string
-		want     int
-	}{
-		{
-			name: "unauthenticated caller cannot name another user",
-			body: orphanBody,
-			headers: map[string]string{
-				constants.HeaderUserID:       victimUserID,
-				constants.HeaderCredentialID: credentialID,
-			},
-			want: http.StatusUnauthorized,
-		},
-		{
-			name:     "session user cannot name another user",
-			body:     orphanBody,
-			identity: &xauthz.Identity{UserID: attackerUserID},
-			headers: map[string]string{
-				constants.HeaderUserID:       victimUserID,
-				constants.HeaderCredentialID: credentialID,
-				constants.HeaderSessionToken: sessionToken,
-			},
-			want: http.StatusServiceUnavailable,
-		},
-		{
-			name:     "internal caller may clean up an orphan",
-			body:     orphanBody,
-			identity: &xauthz.Identity{Internal: true},
-			headers: map[string]string{
-				constants.HeaderUserID:       victimUserID,
-				constants.HeaderCredentialID: credentialID,
-			},
-			want: http.StatusInternalServerError,
-		},
-		{
-			name:     "internal caller without a user id",
-			body:     orphanBody,
-			identity: &xauthz.Identity{Internal: true},
-			headers:  map[string]string{constants.HeaderCredentialID: credentialID},
-			want:     http.StatusBadRequest,
-		},
-		{
-			name:     "internal caller without a credential id",
-			body:     orphanBody,
-			identity: &xauthz.Identity{Internal: true},
-			headers:  map[string]string{constants.HeaderUserID: victimUserID},
-			want:     http.StatusBadRequest,
-		},
-		{
-			name:     "ordinary delete still validates the session",
-			body:     plainBody,
-			identity: &xauthz.Identity{UserID: attackerUserID},
-			headers:  map[string]string{constants.HeaderCredentialID: credentialID},
-			want:     http.StatusUnauthorized,
-		},
-	}
-
-	for _, c := range cases {
+	for _, c := range orphanCleanupCases {
 		t.Run(c.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
 			passkeyhandler.DeletePasskey(rec, deleteRequest(c.body, c.identity, c.headers))

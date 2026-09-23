@@ -71,7 +71,7 @@ jobs:
         uses: ./release/.github/actions/go-ci
         with:
           working-directory: release/services/${{ inputs.service }}
-          cache-key: ${{ inputs.service }}
+          cache-key: ${{ inputs.service }}-lint
           access-user: ${{ secrets.ACCESS_USER }}
           access-token: ${{ secrets.ACCESS_TOKEN }}
           config-file: release/.golangci.yml

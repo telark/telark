@@ -15,13 +15,21 @@ import (
 	"testing"
 	"time"
 
-	certs "github.com/telark/exporter/internal/managers/certs"
+	"github.com/telark/exporter/internal/managers/certs"
+)
+
+const (
+	certSerialNumber = 1
+
+	// Below the 2048-bit floor the loader must reject; that rejection is the
+	// assertion, so the key is deliberately weak.
+	weakRSABits = 1024
 )
 
 func certB64(t *testing.T, key crypto.Signer, configure func(*x509.Certificate)) string {
 	t.Helper()
 	tmpl := &x509.Certificate{
-		SerialNumber: big.NewInt(1),
+		SerialNumber: big.NewInt(certSerialNumber),
 		Subject:      pkix.Name{CommonName: "test"},
 		NotBefore:    time.Now().Add(-time.Hour),
 		NotAfter:     time.Now().Add(time.Hour),
@@ -104,7 +112,7 @@ func TestLoadCertBase64CAWithoutCertSign(t *testing.T) {
 }
 
 func TestLoadCertBase64WeakKeys(t *testing.T) {
-	rsaKey, err := rsa.GenerateKey(rand.Reader, 1024)
+	rsaKey, err := rsa.GenerateKey(rand.Reader, weakRSABits)
 	if err != nil {
 		t.Fatal(err)
 	}

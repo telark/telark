@@ -1,7 +1,7 @@
 package constants
 
 const (
-	// ViolationListConcurrency caps concurrent dynamic.List(PolicyReport) calls
+	// ViolationListConcurrency caps concurrent dynamic.List(Event) calls
 	// when fanning out per-namespace violation lookups.
 	ViolationListConcurrency = 8
 

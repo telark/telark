@@ -202,6 +202,17 @@ spec:
                   description: User IDs of participants associated with this plan
                   items:
                     type: string
+                environmentID:
+                  type: string
+                  description: "Optional environment category id (scope plan-environments); metadata only, never affects enforcement. Empty string clears it."
+                  maxLength: 19
+                tagIDs:
+                  type: array
+                  description: "Optional tag category ids (scope plan-tags); metadata only."
+                  maxItems: 20
+                  items:
+                    type: string
+                    maxLength: 19
                 health:
                   type: string
                   description: Health/drift status of the plan's deployed Kyverno policies

@@ -12,6 +12,7 @@ import (
 
 	"github.com/telark/exporter/internal/constants"
 	envmanager "github.com/telark/exporter/internal/managers/envs"
+	"github.com/telark/exporter/internal/utils/artifact"
 	snaputil "github.com/telark/exporter/internal/utils/snapshot"
 	restsnapshot "github.com/telark/rest/clients/snapshots"
 	"github.com/telark/rest/response"
@@ -210,7 +211,7 @@ func requireExplicitGeneration(w http.ResponseWriter, generation string) bool {
 // namespace reaches BuildSnapshotDir unvalidated, so it can traverse outside the base.
 func ensureWithinSnapshotsBase(w http.ResponseWriter, id string, path string) bool {
 	base := envmanager.GetSnapshotsPath()
-	if snaputil.IsWithinBase(path, base) {
+	if artifact.IsWithinBase(path, base) {
 		return true
 	}
 	lg.Error(fmt.Sprintf(string(constants.ErrSnapshotPathOutsideBaseContext), id, path, base))
@@ -507,7 +508,7 @@ func ReadSnapshotInfos(w http.ResponseWriter) {
 		constants.FieldTotalSnapshots: infos.TotalSnapshots,
 		constants.FieldUpdatedAt:      infos.UpdatedAt,
 		constants.FieldSnapshotsPath:  envmanager.GetSnapshotsPath(),
-		constants.FieldSnapshotScopes: registeredScopeNames(),
+		constants.FieldSnapshotScopes: snaputil.RegisteredScopeNames(envmanager.GetSnapshotScopes()),
 		constants.FieldPVCName:        envmanager.GetSnapshotsPVCName(),
 		constants.FieldPVCNamespace:   envmanager.GetSnapshotsPVCNamespace(),
 	}
@@ -521,22 +522,11 @@ func ReadSnapshotInfos(w http.ResponseWriter) {
 	)
 }
 
-func registeredScopeNames() []string {
-	scopes := envmanager.GetSnapshotScopes()
-	names := make([]string, constants.DefaultInitValue, len(scopes))
-	for _, scope := range scopes {
-		names = append(names, scope.Name)
-	}
-	return names
-}
-
-// RemoveSnapshotFiles deletes the files behind an application's snapshot
-// references and prunes the id directories they leave empty.
 func RemoveSnapshotFiles(paths []string) (removedDirs int) {
 	base := envmanager.GetSnapshotsPath()
 	for _, path := range paths {
 		id := filepath.Base(filepath.Dir(filepath.Dir(path)))
-		if !snaputil.IsWithinBase(path, base) {
+		if !artifact.IsWithinBase(path, base) {
 			lg.Error(fmt.Sprintf(string(constants.ErrSnapshotPathOutsideBaseContext), id, path, base))
 			continue
 		}

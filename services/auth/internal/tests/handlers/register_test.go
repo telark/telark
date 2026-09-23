@@ -89,7 +89,7 @@ func TestEnrollLinkRegisterStart(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &link); err != nil {
 		t.Fatalf("decode enroll-link: %v", err)
 	}
-	if link.Token == "" || link.ExpiresAt == "" {
+	if link.Token == constants.EmptyString || link.ExpiresAt == constants.EmptyString {
 		t.Fatalf("enroll-link body = %+v, want a token and an expiry", link)
 	}
 

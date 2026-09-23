@@ -44,7 +44,7 @@ func VerifyAndConsumeNonce(nonce string) error {
 	defer cancel()
 	n, err := rdb.Del(ctx, key).Result()
 	if err != nil {
-		return fmt.Errorf("%s: %v", string(constants.ErrOIDCNonceInvalid), err)
+		return fmt.Errorf(string(constants.ErrOIDCNonceConsumeFailed), err)
 	}
 	if n == constants.DefaultInitValue {
 		return errors.New(string(constants.ErrOIDCNonceInvalid))

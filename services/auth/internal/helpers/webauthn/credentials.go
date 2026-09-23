@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/go-webauthn/webauthn/protocol"
@@ -29,10 +30,7 @@ func ExtractBackupFlagsFromAuthenticatorData(authenticatorDataB64 string) (
 		return false, false, errors.New(string(constants.ErrAuthDataTooShort))
 	}
 
-	flags := authDataBytes[constants.AuthDataOffsetFlags]
-	backupEligible = (flags & constants.BackupEligibleFlag) != constants.DefaultInitValue
-	backupState = (flags & constants.BackupStateFlag) != constants.DefaultInitValue
-
+	backupEligible, backupState = backupFlags(authDataBytes)
 	return backupEligible, backupState, nil
 }
 
@@ -167,7 +165,7 @@ func HandleBackupFlagError(
 	// which reads the body and headers, and is never sent. A fixed path keeps the
 	// caller-controlled URL out of it (gosec G704 / SSRF).
 	credentialOnlyRequest,
-		err := http.NewRequest(r.Method, "/", bytes.NewBuffer(credentialOnlyBytes))
+		err := http.NewRequest(r.Method, constants.SyntheticRequestPath, bytes.NewBuffer(credentialOnlyBytes))
 	if err != nil {
 		return nil, fmt.Errorf(string(constants.ErrFailedCreateCredentialRequest), err)
 	}
@@ -183,19 +181,14 @@ func HandleBackupFlagError(
 		return nil, err
 	}
 
-	var matchingCred *webauthn.Credential
-	for i := range credentials {
-		if bytes.Equal(credentials[i].ID, credIDBytes) {
-			matchingCred = &credentials[i]
-			break
-		}
-	}
-
-	if matchingCred == nil {
+	idx := slices.IndexFunc(credentials, func(c webauthn.Credential) bool {
+		return bytes.Equal(c.ID, credIDBytes)
+	})
+	if idx < constants.DefaultInitValue {
 		return nil, errors.New(string(constants.ErrCredentialNotFoundInAllowed))
 	}
 
-	return ValidateCredentialManually(credentialResponse, matchingCred)
+	return ValidateCredentialManually(credentialResponse, &credentials[idx])
 }
 
 func ValidateCredentialManually(

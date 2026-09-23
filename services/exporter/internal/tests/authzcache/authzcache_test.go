@@ -7,8 +7,11 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 	"github.com/telark/exporter/internal/authz"
+	"github.com/telark/exporter/internal/constants"
 	exprdb "github.com/telark/exporter/internal/redis"
 )
+
+const testUserID = "u1"
 
 func TestGenerationAndForgetWithClient(t *testing.T) {
 	ctx := context.Background()
@@ -20,9 +23,9 @@ func TestGenerationAndForgetWithClient(t *testing.T) {
 	// Fire-and-forget cache maintenance must run cleanly against a live client.
 	authz.BumpGeneration(ctx)
 	authz.BumpGeneration(ctx)
-	authz.ForgetUserGrants(ctx, "u1")
+	authz.ForgetUserGrants(ctx, testUserID)
 
-	if len(mr.Keys()) == 0 {
+	if len(mr.Keys()) == constants.DefaultInitValue {
 		t.Error("BumpGeneration should have written a generation key")
 	}
 }
@@ -30,9 +33,16 @@ func TestGenerationAndForgetWithClient(t *testing.T) {
 func TestCacheMaintenanceWithoutClient(t *testing.T) {
 	exprdb.Set(nil)
 	ctx := context.Background()
+
 	// With no client configured these must be safe no-ops, never a panic.
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			t.Fatalf("cache maintenance panicked with no client: %v", recovered)
+		}
+	}()
+
 	authz.BumpGeneration(ctx)
-	authz.ForgetUserGrants(ctx, "u1")
+	authz.ForgetUserGrants(ctx, testUserID)
 }
 
 func TestResolverDegradedWithoutBackend(t *testing.T) {
@@ -47,7 +57,7 @@ func TestResolverDegradedWithoutBackend(t *testing.T) {
 	if _, err := resolver.UserIDForToken("unknown-token"); err == nil {
 		t.Error("UserIDForToken should fail when the session backend is unavailable")
 	}
-	if _, err := resolver.GrantsForUser("u1"); err == nil {
+	if _, err := resolver.GrantsForUser(testUserID); err == nil {
 		t.Error("GrantsForUser should fail when the grants backend is unavailable")
 	}
 }

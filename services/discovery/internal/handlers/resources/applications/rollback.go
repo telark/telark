@@ -338,14 +338,15 @@ func writeError(
 	responseutils.LogAndSendResponse(w, status, op, msg, nil, err)
 }
 
-// Rolling back to the current generation is a no-op apply that still appends
-// history and bumps the generation with no snapshot behind it.
+// A snapshot stamped with generation N is the pre-image of the change that
+// produced N, so the one matching the current generation is the newest valid
+// target (undo the latest change); only a future generation has nothing behind it.
 func validateRollbackTarget(
 	w http.ResponseWriter,
 	app *applicationmodel.Application,
 	gen int,
 ) (*applicationmodel.ApplicationSnapshot, bool) {
-	if gen >= app.History.Generation {
+	if gen > app.History.Generation {
 		writeError(w, http.StatusBadRequest, response.OperationError,
 			fmt.Sprintf(string(constants.ErrRollbackTargetNotOlder), app.History.Generation), nil)
 		return nil, false

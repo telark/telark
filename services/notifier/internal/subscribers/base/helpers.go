@@ -75,5 +75,5 @@ func BuildPatchBodyFromScope(scope string, dataMap map[string]any,
 		return nil, constants.EmptyString, fmt.Errorf(string(errors.ErrNatsCouldNotDetermineResNameFromData), resourceNameKey)
 	}
 
-	return map[string]any{"spec": patchSpec}, resourceName, nil
+	return map[string]any{constants.FieldSpecKey: patchSpec}, resourceName, nil
 }

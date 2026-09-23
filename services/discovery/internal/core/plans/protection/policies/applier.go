@@ -10,6 +10,7 @@ import (
 	"github.com/telark/discovery/internal/constants"
 	kcoreapply "github.com/telark/kcore/ops/apply"
 	"golang.org/x/sync/errgroup"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -76,14 +77,10 @@ func (a *Applier) CleanupByPlanID(ctx context.Context, planID string) error {
 		item := &list.Items[i]
 		ns, name := item.GetNamespace(), item.GetName()
 		g.Go(func() error {
-			_ = a.dyn.Resource(KyvernoPolicyGVR).
-				Namespace(ns).
-				Delete(gctx, name, metav1.DeleteOptions{})
-			return nil
+			return a.deletePolicy(gctx, ns, name)
 		})
 	}
-	_ = g.Wait()
-	return nil
+	return g.Wait()
 }
 
 func (a *Applier) DeletePoliciesByLabelAndNames(ctx context.Context, planID string, names []string) error {
@@ -110,14 +107,10 @@ func (a *Applier) DeletePoliciesByLabelAndNames(ctx context.Context, planID stri
 		}
 		ns, name := item.GetNamespace(), item.GetName()
 		g.Go(func() error {
-			_ = a.dyn.Resource(KyvernoPolicyGVR).
-				Namespace(ns).
-				Delete(gctx, name, metav1.DeleteOptions{})
-			return nil
+			return a.deletePolicy(gctx, ns, name)
 		})
 	}
-	_ = g.Wait()
-	return nil
+	return g.Wait()
 }
 
 // Returns the first patch error so the caller can roll back.
@@ -167,12 +160,17 @@ func (a *Applier) DeletePoliciesByNamespacedName(ctx context.Context, refs []Nam
 	for _, ref := range refs {
 		ns, name := ref.Namespace, ref.Name
 		g.Go(func() error {
-			_ = a.dyn.Resource(KyvernoPolicyGVR).
-				Namespace(ns).
-				Delete(gctx, name, metav1.DeleteOptions{})
-			return nil
+			return a.deletePolicy(gctx, ns, name)
 		})
 	}
-	_ = g.Wait()
+	return g.Wait()
+}
+
+// A policy someone else already removed is the state the caller wanted, so NotFound is a success.
+func (a *Applier) deletePolicy(ctx context.Context, namespace, name string) error {
+	err := a.dyn.Resource(KyvernoPolicyGVR).Namespace(namespace).Delete(ctx, name, metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf(errDeletePolicyFmt, namespace, name, err)
+	}
 	return nil
 }

@@ -5,6 +5,7 @@ import (
 
 	roledata "github.com/telark/data/resources/role"
 	"github.com/telark/exporter/internal/authz"
+	"github.com/telark/exporter/internal/constants"
 	xauthz "github.com/telark/x-ware/authz"
 )
 
@@ -51,7 +52,7 @@ func TestRulesBelongToTheirOwnScope(t *testing.T) {
 			continue
 		}
 		want := xauthz.RuleKey(requirement.Scope, "")
-		prefix := want[:len(requirement.Scope)+1]
+		prefix := want[:len(requirement.Scope)+constants.DefaultIncrementValue]
 		if len(requirement.Rule) < len(prefix) || requirement.Rule[:len(prefix)] != prefix {
 			t.Errorf("route %q declares rule %q outside its scope %q", key, requirement.Rule, requirement.Scope)
 		}

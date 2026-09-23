@@ -57,6 +57,9 @@ const (
 	RollbackPatchTimeout               = 10 * time.Second
 	RollbackRetryInterval              = 5 * time.Second
 	RollbackRetryMaxAttempts           = 3
+	// Bounds the detached context that records a failure: three patch attempts
+	// plus the gaps between them, and nothing beyond that.
+	RollbackFailureRecordTimeout = 45 * time.Second
 
 	// Snapshot path parsing.
 	RollbackSnapshotPathScopePrefix  = "/snapshots/"

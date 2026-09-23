@@ -2,10 +2,8 @@ package protection
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 
-	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/messages"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/plans/protection"
@@ -16,6 +14,10 @@ import (
 )
 
 func Cancel(w http.ResponseWriter, r *http.Request) {
+	svc, ok := readyService(w)
+	if !ok {
+		return
+	}
 	userID := r.Header.Get(constants.HeaderUserID)
 	if userID == constants.EmptyString {
 		respondError(w, http.StatusUnauthorized, protection.ErrUserMissing, nil)
@@ -28,7 +30,9 @@ func Cancel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req planseps.CancelProtectionPlanRequest
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if !decodeOptionalBody(w, r, &req) {
+		return
+	}
 	reason := constants.EmptyString
 	if req.Reason != nil {
 		reason = *req.Reason
@@ -37,9 +41,9 @@ func Cancel(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), constants.ProtectionPlanLifecycleTimeout)
 	defer cancel()
 
-	plan, err := globalService.Cancel(ctx, userID, planID, reason)
+	plan, err := svc.Cancel(ctx, userID, planID, reason)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, dataerrors.Error(err.Error()), err)
+		respondDomainError(w, err)
 		return
 	}
 	responseutils.LogAndSendResponse(

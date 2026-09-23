@@ -7,23 +7,33 @@ import (
 
 	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
-	"github.com/telark/auth/internal/coordination/cleanup"
 	cleanupctrl "github.com/telark/auth/internal/controllers/cleanup"
+	"github.com/telark/auth/internal/coordination/cleanup"
 	"github.com/telark/auth/internal/tests/testutil"
 	"github.com/telark/data/resources/finalizers"
 	xwareredis "github.com/telark/x-ware/redis/stream"
 )
 
+const (
+	testResourceType    = "user"
+	testReplicaID       = "replica-1"
+	testWorkersPerType  = 1
+	testStreamMaxLen    = 100
+	testJobMaxAttempts  = 3
+	testSweeperInterval = 10 * time.Millisecond
+	testCallTimeout     = 20 * time.Millisecond
+)
+
 func fastConfig() config.CleanupConfig {
 	return config.CleanupConfig{
-		WorkersPerType:  1,
-		StreamMaxLen:    100,
-		SweeperInterval: 10 * time.Millisecond,
+		WorkersPerType:  testWorkersPerType,
+		StreamMaxLen:    testStreamMaxLen,
+		SweeperInterval: testSweeperInterval,
 		DedupTTL:        time.Minute,
 		XClaimMinIdle:   time.Minute,
-		ListTimeout:     20 * time.Millisecond,
-		PatchTimeout:    20 * time.Millisecond,
-		JobMaxAttempts:  3,
+		ListTimeout:     testCallTimeout,
+		PatchTimeout:    testCallTimeout,
+		JobMaxAttempts:  testJobMaxAttempts,
 	}
 }
 
@@ -37,9 +47,9 @@ func newReconciler(cfg config.CleanupConfig) *cleanupctrl.Reconciler {
 func TestBootstrap(t *testing.T) {
 	rdb, _ := testutil.RedisClient(t)
 	cfg := fastConfig()
-	election := xwareredis.NewElectionClient(rdb, "replica-1", "cleanup:leader", time.Minute)
+	election := xwareredis.NewElectionClient(rdb, testReplicaID, "cleanup:leader", time.Minute)
 
-	sys, err := cleanup.Bootstrap(context.Background(), rdb, cfg, newReconciler(cfg), election, "replica-1", 10*time.Millisecond)
+	sys, err := cleanup.Bootstrap(context.Background(), rdb, cfg, newReconciler(cfg), election, testReplicaID, 10*time.Millisecond)
 	if err != nil {
 		t.Fatalf("Bootstrap: %v", err)
 	}
@@ -60,11 +70,11 @@ func TestBootstrap(t *testing.T) {
 func TestManagerStartStop(t *testing.T) {
 	rdb, _ := testutil.RedisClient(t)
 	cfg := fastConfig()
-	stream := cleanup.NewStreamOps(xwareredis.NewStreamClient(rdb), "user", cfg.StreamMaxLen, cfg.XClaimMinIdle)
+	stream := cleanup.NewStreamOps(xwareredis.NewStreamClient(rdb), testResourceType, cfg.StreamMaxLen, cfg.XClaimMinIdle)
 	if err := stream.EnsureGroup(context.Background()); err != nil {
 		t.Fatalf("EnsureGroup: %v", err)
 	}
-	m := cleanup.NewManager(cfg, "user", stream, cleanup.NewDedup(rdb, cfg.DedupTTL), newReconciler(cfg), "replica-1")
+	m := cleanup.NewManager(cfg, testResourceType, stream, cleanup.NewDedup(rdb, cfg.DedupTTL), newReconciler(cfg), testReplicaID)
 
 	m.Start(context.Background())
 	time.Sleep(20 * time.Millisecond) // let the worker poll at least once
@@ -77,9 +87,9 @@ func TestManagerStartStop(t *testing.T) {
 func TestSweeperRun(t *testing.T) {
 	rdb, _ := testutil.RedisClient(t)
 	cfg := fastConfig()
-	stream := cleanup.NewStreamOps(xwareredis.NewStreamClient(rdb), "user", cfg.StreamMaxLen, cfg.XClaimMinIdle)
-	ingress := cleanup.NewIngress(map[string]*cleanup.StreamOps{"user": stream}, cleanup.NewDedup(rdb, cfg.DedupTTL))
-	sweeper := cleanup.NewSweeper(cfg, "user", ingress)
+	stream := cleanup.NewStreamOps(xwareredis.NewStreamClient(rdb), testResourceType, cfg.StreamMaxLen, cfg.XClaimMinIdle)
+	ingress := cleanup.NewIngress(map[string]*cleanup.StreamOps{testResourceType: stream}, cleanup.NewDedup(rdb, cfg.DedupTTL))
+	sweeper := cleanup.NewSweeper(cfg, testResourceType, ingress)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Millisecond)
 	defer cancel()

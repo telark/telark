@@ -7,6 +7,7 @@ import (
 	categoryendpoints "github.com/telark/rest/endpoints/classification/category"
 	notificationsendpoints "github.com/telark/rest/endpoints/notifications"
 	plansendpoints "github.com/telark/rest/endpoints/plans"
+	reportsendpoints "github.com/telark/rest/endpoints/reports"
 	applicationendpoints "github.com/telark/rest/endpoints/resources/applications"
 	cleanupendpoints "github.com/telark/rest/endpoints/resources/cleanup"
 	globalconfigendpoints "github.com/telark/rest/endpoints/resources/globalconfig"
@@ -30,6 +31,7 @@ func Requirements() map[string]authz.Requirement {
 	addCategories(requirements)
 	addApplications(requirements)
 	addSnapshots(requirements)
+	addReports(requirements)
 	addPlans(requirements)
 	addNotifications(requirements)
 	addGlobalConfig(requirements)
@@ -48,7 +50,8 @@ func addStatus(r map[string]authz.Requirement) {
 
 func addUsers(r map[string]authz.Requirement) {
 	r[router.Key(base.Post, userendpoints.CreateUser)] = authz.Denyable(
-		authz.Write(roledata.ScopeUsers), roledata.ActionCreateUser)
+		authz.Write(roledata.ScopeUsers), roledata.ActionCreateUser,
+	)
 	r[router.Key(base.Get, userendpoints.GetAllUsers)] = authz.Read(roledata.ScopeUsers)
 	r[router.Key(base.Get, userendpoints.GetUserByID)] = authz.Read(roledata.ScopeUsers)
 	r[router.Key(base.Get, userendpoints.GetUserByEmail)] = authz.Read(roledata.ScopeUsers)
@@ -56,7 +59,8 @@ func addUsers(r map[string]authz.Requirement) {
 	// session; GuardUserPatch enforces ownership and each privileged field's rule.
 	r[router.Key(base.Patch, userendpoints.PatchUserByID)] = authz.Authenticated
 	r[router.Key(base.Delete, userendpoints.DeleteUserByID)] = authz.Denyable(
-		authz.Own(roledata.ScopeUsers), roledata.ActionDeleteUser)
+		authz.Own(roledata.ScopeUsers), roledata.ActionDeleteUser,
+	)
 
 	// Login resolves an identity before a session exists.
 	r[router.Key(base.Get, userendpoints.GetUserByUsername)] = authz.Internal
@@ -65,18 +69,22 @@ func addUsers(r map[string]authz.Requirement) {
 
 func addGroups(r map[string]authz.Requirement) {
 	r[router.Key(base.Post, groupendpoints.CreateGroup)] = authz.Denyable(
-		authz.Write(roledata.ScopeGroups), roledata.ActionCreateGroup)
+		authz.Write(roledata.ScopeGroups), roledata.ActionCreateGroup,
+	)
 	r[router.Key(base.Get, groupendpoints.GetAllGroups)] = authz.Read(roledata.ScopeGroups)
 	r[router.Key(base.Get, groupendpoints.GetGroupByID)] = authz.Read(roledata.ScopeGroups)
 	r[router.Key(base.Patch, groupendpoints.PatchGroupByID)] = authz.Denyable(
-		authz.Write(roledata.ScopeGroups), roledata.ActionEditGroup)
+		authz.Write(roledata.ScopeGroups), roledata.ActionEditGroup,
+	)
 	r[router.Key(base.Delete, groupendpoints.DeleteGroupByID)] = authz.Denyable(
-		authz.Own(roledata.ScopeGroups), roledata.ActionDeleteGroup)
+		authz.Own(roledata.ScopeGroups), roledata.ActionDeleteGroup,
+	)
 }
 
 func addRoles(r map[string]authz.Requirement) {
 	r[router.Key(base.Post, roleendpoints.CreateRole)] = authz.Denyable(
-		authz.Write(roledata.ScopeRoles), roledata.ActionCreateRole)
+		authz.Write(roledata.ScopeRoles), roledata.ActionCreateRole,
+	)
 	r[router.Key(base.Get, roleendpoints.GetAllRoles)] = authz.Read(roledata.ScopeRoles)
 	r[router.Key(base.Get, roleendpoints.GetRoleByID)] = authz.Read(roledata.ScopeRoles)
 	r[router.Key(base.Get, roleendpoints.GetRoleByUserID)] = authz.Read(roledata.ScopeRoles)
@@ -84,9 +92,11 @@ func addRoles(r map[string]authz.Requirement) {
 	r[router.Key(base.Get, roleendpoints.GetRoleByGroupID)] = authz.Read(roledata.ScopeRoles)
 	r[router.Key(base.Get, roleendpoints.GetRolesByGroupID)] = authz.Read(roledata.ScopeRoles)
 	r[router.Key(base.Patch, roleendpoints.PatchRoleByID)] = authz.Denyable(
-		authz.Write(roledata.ScopeRoles), roledata.ActionEditRole)
+		authz.Write(roledata.ScopeRoles), roledata.ActionEditRole,
+	)
 	r[router.Key(base.Delete, roleendpoints.DeleteRoleByID)] = authz.Denyable(
-		authz.Own(roledata.ScopeRoles), roledata.ActionDeleteRole)
+		authz.Own(roledata.ScopeRoles), roledata.ActionDeleteRole,
+	)
 }
 
 // A category names the scope it classifies, so no route rule fits; writes
@@ -105,25 +115,42 @@ func addApplications(r map[string]authz.Requirement) {
 	r[router.Key(base.Get, applicationendpoints.GetAllApplications)] = authz.Read(roledata.ScopeApplications)
 	r[router.Key(base.Get, applicationendpoints.GetApplicationByName)] = authz.Read(roledata.ScopeApplications)
 	r[router.Key(base.Get, applicationendpoints.GetRollbacks)] = authz.Denyable(
-		authz.Read(roledata.ScopeApplications), roledata.ActionViewApplicationsRollbacks)
+		authz.Read(roledata.ScopeApplications), roledata.ActionViewApplicationsRollbacks,
+	)
 	r[router.Key(base.Get, applicationendpoints.GetRollback)] = authz.Denyable(
-		authz.Read(roledata.ScopeApplications), roledata.ActionViewApplicationsRollbacks)
+		authz.Read(roledata.ScopeApplications), roledata.ActionViewApplicationsRollbacks,
+	)
 	r[router.Key(base.Patch, applicationendpoints.PatchApplicationByName)] = authz.Denyable(
-		authz.Write(roledata.ScopeApplications), roledata.ActionEditApplication)
+		authz.Write(roledata.ScopeApplications), roledata.ActionEditApplication,
+	)
 	r[router.Key(base.Delete, applicationendpoints.DeleteApplicationByName)] = authz.Denyable(
-		authz.Own(roledata.ScopeApplications), roledata.ActionDeleteApplication)
+		authz.Own(roledata.ScopeApplications), roledata.ActionDeleteApplication,
+	)
 }
 
 // Snapshots are taken of applications, so they follow the applications scope.
 func addSnapshots(r map[string]authz.Requirement) {
 	r[router.Key(base.Post, snapshotendpoints.CreateSnapshot)] = authz.Write(roledata.ScopeApplications)
 	r[router.Key(base.Get, snapshotendpoints.GetSnapshot)] = authz.Denyable(
-		authz.Read(roledata.ScopeApplications), roledata.ActionViewApplicationsSnapshots)
+		authz.Read(roledata.ScopeApplications), roledata.ActionViewApplicationsSnapshots,
+	)
 	r[router.Key(base.Get, snapshotendpoints.GetSnapshotInfos)] = authz.Denyable(
-		authz.Read(roledata.ScopeApplications), roledata.ActionViewApplicationsSnapshots)
+		authz.Read(roledata.ScopeApplications), roledata.ActionViewApplicationsSnapshots,
+	)
 	r[router.Key(base.Get, snapshotendpoints.GetSnapshotManifest)] = authz.Denyable(
-		authz.Read(roledata.ScopeApplications), roledata.ActionViewApplicationSnapshotManifest)
+		authz.Read(roledata.ScopeApplications), roledata.ActionViewApplicationSnapshotManifest,
+	)
 	r[router.Key(base.Delete, snapshotendpoints.DeleteSnapshot)] = authz.Own(roledata.ScopeApplications)
+}
+
+// Reports are written by discovery at a plan boundary; users only read them,
+// under the same scope as the plan they describe.
+func addReports(r map[string]authz.Requirement) {
+	r[router.Key(base.Post, reportsendpoints.CreatePlanReport)] = authz.Internal
+	r[router.Key(base.Post, reportsendpoints.PutPlanReportLedger)] = authz.Internal
+	r[router.Key(base.Get, reportsendpoints.GetPlanReportLedger)] = authz.Internal
+	r[router.Key(base.Get, reportsendpoints.ListPlanReports)] = authz.Read(roledata.ScopeProtectionPlans)
+	r[router.Key(base.Get, reportsendpoints.DownloadPlanReport)] = authz.Read(roledata.ScopeProtectionPlans)
 }
 
 // Their own feature: managing an application does not imply managing its plans.
@@ -131,11 +158,14 @@ func addPlans(r map[string]authz.Requirement) {
 	r[router.Key(base.Get, plansendpoints.ListProtectionPlans)] = authz.Read(roledata.ScopeProtectionPlans)
 	r[router.Key(base.Get, plansendpoints.GetProtectionPlanByID)] = authz.Read(roledata.ScopeProtectionPlans)
 	r[router.Key(base.Post, plansendpoints.CreateProtectionPlan)] = authz.Denyable(
-		authz.Write(roledata.ScopeProtectionPlans), roledata.ActionCreateProtectionPlan)
+		authz.Write(roledata.ScopeProtectionPlans), roledata.ActionCreateProtectionPlan,
+	)
 	r[router.Key(base.Patch, plansendpoints.PatchProtectionPlanByID)] = authz.Denyable(
-		authz.Write(roledata.ScopeProtectionPlans), roledata.ActionEditProtectionPlan)
+		authz.Write(roledata.ScopeProtectionPlans), roledata.ActionEditProtectionPlan,
+	)
 	r[router.Key(base.Delete, plansendpoints.DeleteProtectionPlanByID)] = authz.Denyable(
-		authz.Own(roledata.ScopeProtectionPlans), roledata.ActionDeleteProtectionPlan)
+		authz.Own(roledata.ScopeProtectionPlans), roledata.ActionDeleteProtectionPlan,
+	)
 }
 
 // Every user reaches their own, whatever scopes their roles carry.

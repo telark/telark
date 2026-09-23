@@ -103,7 +103,6 @@ func BumpGeneration(ctx context.Context) {
 	}
 }
 
-// ForgetUserGrants drops one user's cached grants for the current generation.
 func ForgetUserGrants(ctx context.Context, userID string) {
 	client := exprdb.Get()
 	if client == nil {

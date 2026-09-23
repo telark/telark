@@ -4,12 +4,15 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/plans/protection/reasons"
 	"github.com/telark/discovery/internal/tests/testutil"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
+
+const objectName = "p"
 
 // UserFacingReason collapses each error class into its stable user-facing phrase.
 func TestUserFacingReason(t *testing.T) {
@@ -21,11 +24,11 @@ func TestUserFacingReason(t *testing.T) {
 		want string
 	}{
 		{"nil", nil, ""},
-		{"not found", apierrors.NewNotFound(gr, "p"), reasons.K8sUnavailable},
-		{"forbidden", apierrors.NewForbidden(gr, "p", errors.New("no")), reasons.AdmissionRejected},
-		{"invalid", apierrors.NewInvalid(gk, "p", field.ErrorList{}), reasons.AdmissionRejected},
-		{"timeout", apierrors.NewTimeoutError("slow", 0), reasons.K8sUnavailable},
-		{"server timeout", apierrors.NewServerTimeout(gr, "create", 0), reasons.K8sUnavailable},
+		{"not found", apierrors.NewNotFound(gr, objectName), reasons.K8sUnavailable},
+		{"forbidden", apierrors.NewForbidden(gr, objectName, errors.New("no")), reasons.AdmissionRejected},
+		{"invalid", apierrors.NewInvalid(gk, objectName, field.ErrorList{}), reasons.AdmissionRejected},
+		{"timeout", apierrors.NewTimeoutError("slow", constants.DefaultInitValue), reasons.K8sUnavailable},
+		{"server timeout", apierrors.NewServerTimeout(gr, "create", constants.DefaultInitValue), reasons.K8sUnavailable},
 		{"unavailable", apierrors.NewServiceUnavailable("down"), reasons.K8sUnavailable},
 		{"webhook text", errors.New("admission webhook denied the request"), reasons.AdmissionRejected},
 		{"generic", errors.New("something else"), reasons.UserFriendlyDeploy},

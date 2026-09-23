@@ -3,8 +3,8 @@ package protection
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
-	"slices"
 
 	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/messages"
@@ -12,13 +12,16 @@ import (
 	"github.com/telark/discovery/internal/core/plans/protection"
 	"github.com/telark/discovery/internal/core/plans/protection/update"
 	"github.com/telark/discovery/internal/helpers/shared"
-	kcorecore "github.com/telark/kcore/resources/core"
 	planseps "github.com/telark/rest/endpoints/plans"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 )
 
 func Update(w http.ResponseWriter, r *http.Request) {
+	svc, ok := readyService(w)
+	if !ok {
+		return
+	}
 	userID := r.Header.Get(constants.HeaderUserID)
 	if userID == constants.EmptyString {
 		respondError(w, http.StatusUnauthorized, protection.ErrUserMissing, nil)
@@ -32,16 +35,17 @@ func Update(w http.ResponseWriter, r *http.Request) {
 
 	var req planseps.PrepareProtectionPlanRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, dataerrors.Error(err.Error()), err)
+		msg := fmt.Sprintf(string(protection.ErrRequestBody), err)
+		respondError(w, http.StatusBadRequest, dataerrors.Error(msg), err)
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), constants.ProtectionPlanDeployTimeout)
 	defer cancel()
 
-	plan, err := update.Run(ctx, buildUpdateDeps(), userID, planID, &req)
+	plan, err := update.Run(ctx, buildUpdateDeps(svc), userID, planID, &req)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, dataerrors.Error(err.Error()), err)
+		respondDomainError(w, err)
 		return
 	}
 	responseutils.LogAndSendResponse(
@@ -54,26 +58,14 @@ func Update(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
-func buildUpdateDeps() update.Deps {
+func buildUpdateDeps(svc *protection.Service) update.Deps {
 	return update.Deps{
-		Applier:        globalService.Applier(),
-		Exporter:       globalService.Exporter(),
-		ResolveApps:    globalService.ResolveApps(),
-		ListNamespaces: listClusterNamespaces,
-		Logger:         globalService.AppLogger(),
-		Clock:          globalService.Clock,
+		Applier:        svc.Applier(),
+		Exporter:       svc.Exporter(),
+		ResolveApps:    svc.ResolveApps(),
+		ListNamespaces: svc.ListNamespaces(),
+		Logger:         svc.AppLogger(),
+		Clock:          svc.Clock,
+		StampHealth:    svc.StampFirstHealth,
 	}
-}
-
-func listClusterNamespaces(_ context.Context) ([]string, error) {
-	list, err := kcorecore.GetAllNamespaces()
-	if err != nil {
-		return nil, err
-	}
-	out := make([]string, constants.DefaultInitValue, len(list))
-	for i := range list {
-		out = append(out, list[i].Name)
-	}
-	slices.Sort(out)
-	return out, nil
 }

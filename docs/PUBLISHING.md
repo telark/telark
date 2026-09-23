@@ -60,8 +60,8 @@ NS=telark
 
 # App: services, subcharts, and CRDs — all ship in the chart (telark-crds is a
 # subchart). NATS config inlined; size with --set app.mode=<mode>. standard runs
-# two exporter replicas, so name a ReadWriteMany class (or --set app.singleNode=true
-# on a one-node test cluster).
+# two exporter replicas that share both exporter volumes, so name a ReadWriteMany
+# class (or --set app.singleNode=true on a one-node test cluster).
 helm upgrade --install telark-release oci://ghcr.io/telark/charts/telark --version <version> \
   -n "$NS" --create-namespace \
   --set app.persistence.storageClass=<rwx-class> \

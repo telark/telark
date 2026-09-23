@@ -8,8 +8,11 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/telark/exporter/internal/constants"
 	snaputil "github.com/telark/exporter/internal/utils/snapshot"
 )
+
+const payloadFieldSize = 4096
 
 // Performance mode puts several exporter replicas on one ReadWriteMany volume, so
 // the same snapshot can be written from several places at once. Every reader must
@@ -20,20 +23,18 @@ func TestConcurrentWritesNeverLeaveAPartialSnapshot(t *testing.T) {
 
 	const writers = 16
 	payload := map[string]any{
-		"kind": "Deployment",
-		"spec": strings.Repeat("x", 4096),
+		constants.FieldKind: kindDeployment,
+		constants.SpecField: strings.Repeat("x", payloadFieldSize),
 	}
 
 	var wg sync.WaitGroup
 	errs := make(chan error, writers)
 	for range writers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := snaputil.WriteSnapshotJSON(path, "app-1", payload); err != nil {
+		wg.Go(func() {
+			if err := snaputil.WriteSnapshotJSON(path, testAppID, payload); err != nil {
 				errs <- err
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	close(errs)
@@ -42,7 +43,7 @@ func TestConcurrentWritesNeverLeaveAPartialSnapshot(t *testing.T) {
 		t.Errorf("concurrent write failed: %v", err)
 	}
 
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		t.Fatalf("snapshot unreadable after concurrent writes: %v", err)
 	}
@@ -51,8 +52,8 @@ func TestConcurrentWritesNeverLeaveAPartialSnapshot(t *testing.T) {
 	if err := json.Unmarshal(raw, &got); err != nil {
 		t.Fatalf("snapshot is not valid JSON after concurrent writes, a partial write reached readers: %v", err)
 	}
-	if got["kind"] != "Deployment" {
-		t.Errorf("snapshot content mangled: kind = %v", got["kind"])
+	if got[constants.FieldKind] != kindDeployment {
+		t.Errorf("snapshot content mangled: kind = %v", got[constants.FieldKind])
 	}
 }
 
@@ -60,7 +61,7 @@ func TestWriteLeavesNoTempFileBehind(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "snapshot.json")
 
-	if err := snaputil.WriteSnapshotJSON(path, "app-1", map[string]any{"kind": "Service"}); err != nil {
+	if err := snaputil.WriteSnapshotJSON(path, testAppID, map[string]any{constants.FieldKind: kindService}); err != nil {
 		t.Fatalf("write failed: %v", err)
 	}
 
@@ -73,7 +74,7 @@ func TestWriteLeavesNoTempFileBehind(t *testing.T) {
 			t.Errorf("temp file %s survived a successful write", entry.Name())
 		}
 	}
-	if len(entries) != 1 {
+	if len(entries) != constants.DefaultIncrementValue {
 		t.Errorf("got %d files, want only the snapshot", len(entries))
 	}
 }

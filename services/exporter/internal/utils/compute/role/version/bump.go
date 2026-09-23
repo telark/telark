@@ -53,7 +53,7 @@ func parseVersion(version string) (major, minor, patch int) {
 	}
 
 	if len(parts) > constants.DefaultInitValue {
-		if m, err := strconv.Atoi(parts[0]); err == nil {
+		if m, err := strconv.Atoi(parts[constants.DefaultInitValue]); err == nil {
 			major = m
 		} else {
 			major = constants.DefaultIncrementValue
@@ -61,7 +61,7 @@ func parseVersion(version string) (major, minor, patch int) {
 	}
 
 	if len(parts) > constants.DefaultIncrementValue {
-		if m, err := strconv.Atoi(parts[1]); err == nil {
+		if m, err := strconv.Atoi(parts[constants.DefaultIncrementValue]); err == nil {
 			minor = m
 		}
 	}

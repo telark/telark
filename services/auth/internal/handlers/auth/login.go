@@ -30,11 +30,7 @@ func LoginStart(w http.ResponseWriter, r *http.Request) {
 
 	user, passkeys, err := auth.GetUserAndPasskeys(req.Email)
 	if err != nil {
-		statusCode := http.StatusInternalServerError
-		if shared.IsError(err, constants.ErrUserNotFound) || shared.IsError(err, constants.ErrNoPasskeysFound) {
-			statusCode = http.StatusNotFound
-		}
-		shared.SendErrorResponse(w, statusCode, err)
+		shared.SendErrorResponse(w, userLookupStatus(err), err)
 		return
 	}
 
@@ -85,11 +81,7 @@ func LoginFinish(w http.ResponseWriter, r *http.Request) {
 
 	user, passkeys, err := auth.GetUserAndPasskeys(req.Email)
 	if err != nil {
-		statusCode := http.StatusInternalServerError
-		if shared.IsError(err, constants.ErrUserNotFound) || shared.IsError(err, constants.ErrNoPasskeysFound) {
-			statusCode = http.StatusNotFound
-		}
-		shared.SendErrorResponse(w, statusCode, err)
+		shared.SendErrorResponse(w, userLookupStatus(err), err)
 		return
 	}
 
@@ -125,6 +117,13 @@ func LoginFinish(w http.ResponseWriter, r *http.Request) {
 		SessionToken: sessionToken,
 		User:         user,
 	})
+}
+
+func userLookupStatus(err error) int {
+	if shared.IsError(err, constants.ErrUserNotFound) || shared.IsError(err, constants.ErrNoPasskeysFound) {
+		return http.StatusNotFound
+	}
+	return http.StatusInternalServerError
 }
 
 func extractLoginRequest(bodyBytes []byte) (*LoginFinishRequest, error) {

@@ -11,11 +11,13 @@ import (
 	"github.com/telark/auth/internal/helpers/shared"
 )
 
+const randomBytesLen = 16
+
 func TestValidateUsername(t *testing.T) {
 	if err := shared.ValidateUsername("alice"); err != nil {
 		t.Fatalf("valid username rejected: %v", err)
 	}
-	if shared.ValidateUsername("") == nil {
+	if shared.ValidateUsername(constants.EmptyString) == nil {
 		t.Fatal("empty username accepted")
 	}
 }
@@ -28,7 +30,7 @@ func TestValidateEmail(t *testing.T) {
 		wantErr bool
 	}{
 		{"a@b.com", false},
-		{"", true},
+		{constants.EmptyString, true},
 		{"not-an-email", true},
 	}
 	for _, c := range cases {
@@ -43,12 +45,12 @@ func TestValidateEmail(t *testing.T) {
 func TestTokenHelpers(t *testing.T) {
 	a, _ := shared.GenerateSessionToken()
 	b, _ := shared.GenerateSessionToken()
-	if a == "" || a == b {
+	if a == constants.EmptyString || a == b {
 		t.Fatalf("session tokens not unique: %q %q", a, b)
 	}
 
-	raw, err := shared.GenerateRandomBytes(16)
-	if err != nil || len(raw) != 16 {
+	raw, err := shared.GenerateRandomBytes(randomBytesLen)
+	if err != nil || len(raw) != randomBytesLen {
 		t.Fatalf("GenerateRandomBytes = %v (len %d)", err, len(raw))
 	}
 	enc := shared.Base64URLEncode(raw)

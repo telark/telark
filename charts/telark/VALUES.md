@@ -49,8 +49,9 @@ Kubernetes: `>=1.30.0-0`
 | app.mode | string | `"standard"` |  |
 | app.name | string | `"telark"` |  |
 | app.namespace | string | `"telark"` |  |
-| app.ollama.enabled | bool | `false` |  |
+| app.ollama.enabled | bool | `true` |  |
 | app.persistence.enabled | bool | `true` |  |
+| app.persistence.reportsSize | string | `"2Gi"` |  |
 | app.persistence.size | string | `"10Gi"` |  |
 | app.persistence.storageClass | string | `""` |  |
 | app.serviceDefaults.affinity | object | `{}` |  |
@@ -266,6 +267,8 @@ Kubernetes: `>=1.30.0-0`
 | services.discovery.env.FORCE_SYNC_STREAM_MAX_LEN | string | `"5000"` |  |
 | services.discovery.env.FORCE_SYNC_WORKERS | string | `"6"` |  |
 | services.discovery.env.INSIGHTS_TICK_INTERVAL_SEC | string | `"300"` |  |
+| services.discovery.env.PROTECTION_PLAN_REPORT_CHECKPOINT_SEC | string | `"900"` |  |
+| services.discovery.env.PROTECTION_PLAN_REPORT_MAX_VIOLATIONS | string | `"5000"` |  |
 | services.discovery.env.PROTECTION_PLAN_TICK_INTERVAL_SEC | string | `"31"` |  |
 | services.discovery.env.REDIS_MAX_WAIT_SEC | string | `"180"` |  |
 | services.discovery.env.REDIS_PING_TIMEOUT_SEC | string | `"2"` |  |
@@ -304,6 +307,7 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.env.AI_KEY_SECRET_NAMESPACE | string | `"{{ .Values.app.namespace }}"` |  |
 | services.exporter.env.EXPORTER_K8S_CLIENT_BURST | string | `"100"` |  |
 | services.exporter.env.EXPORTER_K8S_CLIENT_QPS | string | `"50"` |  |
+| services.exporter.env.REPORTS_PATH | string | `"/reports"` |  |
 | services.exporter.env.SNAPSHOTS_PATH | string | `"/snapshots"` |  |
 | services.exporter.env.SNAPSHOTS_PVC_NAME | string | `"{{ include \"telark.exporterSnapshotsPvcName\" . }}"` |  |
 | services.exporter.env.SNAPSHOTS_PVC_NAMESPACE | string | `"{{ .Values.app.namespace }}"` |  |
@@ -314,8 +318,12 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.repository | string | `"exporter"` |  |
 | services.exporter.volumeMounts[0].name | string | `"snapshots-storage"` |  |
 | services.exporter.volumeMounts[0].path | string | `"/snapshots"` |  |
+| services.exporter.volumeMounts[1].name | string | `"reports-storage"` |  |
+| services.exporter.volumeMounts[1].path | string | `"/reports"` |  |
 | services.exporter.volumes[0].name | string | `"snapshots-storage"` |  |
 | services.exporter.volumes[0].persistentVolumeClaim.claimName | string | `"{{ include \"telark.exporterSnapshotsPvcName\" . }}"` |  |
+| services.exporter.volumes[1].name | string | `"reports-storage"` |  |
+| services.exporter.volumes[1].persistentVolumeClaim.claimName | string | `"{{ include \"telark.exporterReportsPvcName\" . }}"` |  |
 | services.notifier.category | string | `"notification"` |  |
 | services.notifier.enabled | bool | `true` |  |
 | services.notifier.env.NOTIFIER_APPLY_WORKERS | string | `"8"` |  |

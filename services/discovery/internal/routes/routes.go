@@ -45,6 +45,7 @@ var Routes = []router.Route{
 	router.CreateRoute(base.Post, planseps.DuplicateProtectionPlan, protectionplanhandler.Duplicate),
 	router.CreateRoute(base.Post, planseps.ReactivateProtectionPlan, protectionplanhandler.Reactivate),
 	router.CreateRoute(base.Post, planseps.UpdateProtectionPlan, protectionplanhandler.Update),
+	router.CreateRoute(base.Post, planseps.GenerateProtectionPlanReport, protectionplanhandler.GenerateReport),
 
 	// Status routes
 	router.CreateRoute(base.Get, constants.StatusReadinessEp, statushandler.Readiness),

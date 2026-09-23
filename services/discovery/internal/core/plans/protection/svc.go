@@ -17,10 +17,12 @@ import (
 	"github.com/telark/discovery/internal/core/plans/protection/ids"
 	protpolicies "github.com/telark/discovery/internal/core/plans/protection/policies"
 	"github.com/telark/discovery/internal/core/plans/protection/reasons"
+	"github.com/telark/discovery/internal/core/plans/protection/reports"
 	"github.com/telark/discovery/internal/core/plans/protection/shared"
 	"github.com/telark/discovery/internal/core/plans/protection/validation"
 	"github.com/telark/discovery/internal/core/plans/protection/violations"
 	planseps "github.com/telark/rest/endpoints/plans"
+	reportseps "github.com/telark/rest/endpoints/reports"
 	"k8s.io/client-go/dynamic"
 )
 
@@ -30,12 +32,14 @@ type Logger interface {
 }
 
 type Service struct {
-	applier     *protpolicies.Applier
-	resolveApps applications.Resolver
-	exporter    *clients.ProtectionPlanClient
-	dyn         dynamic.Interface
-	clock       func() time.Time
-	logger      Logger
+	applier        *protpolicies.Applier
+	resolveApps    applications.Resolver
+	exporter       *clients.ProtectionPlanClient
+	dyn            dynamic.Interface
+	listNamespaces validation.NamespaceLister
+	reports        *reports.Generator
+	clock          func() time.Time
+	logger         Logger
 }
 
 func NewService(
@@ -43,23 +47,28 @@ func NewService(
 	resolveApps applications.Resolver,
 	exporter *clients.ProtectionPlanClient,
 	dyn dynamic.Interface,
+	listNamespaces validation.NamespaceLister,
+	reportsGen *reports.Generator,
 	logger Logger,
 ) *Service {
 	return &Service{
-		applier:     applier,
-		resolveApps: resolveApps,
-		exporter:    exporter,
-		dyn:         dyn,
-		clock:       func() time.Time { return time.Now().UTC() },
-		logger:      logger,
+		applier:        applier,
+		resolveApps:    resolveApps,
+		exporter:       exporter,
+		dyn:            dyn,
+		listNamespaces: listNamespaces,
+		reports:        reportsGen,
+		clock:          func() time.Time { return time.Now().UTC() },
+		logger:         logger,
 	}
 }
 
-func (s *Service) Applier() *protpolicies.Applier          { return s.applier }
-func (s *Service) Exporter() *clients.ProtectionPlanClient { return s.exporter }
-func (s *Service) ResolveApps() applications.Resolver      { return s.resolveApps }
-func (s *Service) AppLogger() Logger                       { return s.logger }
-func (s *Service) Clock() time.Time                        { return s.clock() }
+func (s *Service) Applier() *protpolicies.Applier             { return s.applier }
+func (s *Service) Exporter() *clients.ProtectionPlanClient    { return s.exporter }
+func (s *Service) ResolveApps() applications.Resolver         { return s.resolveApps }
+func (s *Service) ListNamespaces() validation.NamespaceLister { return s.listNamespaces }
+func (s *Service) AppLogger() Logger                          { return s.logger }
+func (s *Service) Clock() time.Time                           { return s.clock() }
 
 func (s *Service) HealthCheck(ctx context.Context, planID string) (*plans.ProtectionPlan, health.Result, error) {
 	return health.Check(ctx, s.healthDeps(), planID)
@@ -67,6 +76,16 @@ func (s *Service) HealthCheck(ctx context.Context, planID string) (*plans.Protec
 
 func (s *Service) ReconcileHealthForActive(ctx context.Context, planList []plans.ProtectionPlan) {
 	health.ReconcileForActive(ctx, s.healthDeps(), planList)
+}
+
+// Detached from the caller's request so the response is not held for the delayed check.
+func (s *Service) StampFirstHealth(planID string) {
+	deps := s.healthDeps()
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), health.FirstCheckBudget)
+		defer cancel()
+		health.StampFirst(ctx, deps, planID)
+	}()
 }
 
 func (s *Service) Duplicate(
@@ -78,7 +97,19 @@ func (s *Service) Duplicate(
 	if err != nil {
 		return nil, err
 	}
-	return s.Prepare(ctx, userID, duplicate.BuildRequest(source, overrides))
+	req := duplicate.BuildRequest(source, overrides)
+	if duplicate.UsesDefaultName(overrides) {
+		existing, listErr := s.exporter.List()
+		if listErr != nil {
+			return nil, listErr
+		}
+		name, nameErr := duplicate.AvailableName(req.Name, existing)
+		if nameErr != nil {
+			return nil, nameErr
+		}
+		req.Name = name
+	}
+	return s.Prepare(ctx, userID, req)
 }
 
 func (s *Service) ListViolations(
@@ -95,11 +126,13 @@ func (s *Service) ListViolations(
 
 func (s *Service) healthDeps() health.Deps {
 	return health.Deps{
-		Exporter: s.exporter,
-		Dyn:      s.dyn,
-		Logger:   s.logger,
-		Clock:    s.clock,
-		System:   SystemActor,
+		Exporter:    s.exporter,
+		Dyn:         s.dyn,
+		Applier:     s.applier,
+		ResolveApps: s.resolveApps,
+		Logger:      s.logger,
+		Clock:       s.clock,
+		System:      SystemActor,
 	}
 }
 
@@ -109,6 +142,12 @@ func (s *Service) Prepare(
 	req *planseps.PrepareProtectionPlanRequest,
 ) (*plans.ProtectionPlan, error) {
 	if err := validation.PrepareRequest(req); err != nil {
+		return nil, err
+	}
+	if err := validation.NamespaceScope(ctx, req.Scope.Type, req.Scope.Namespaces, s.listNamespaces); err != nil {
+		return nil, err
+	}
+	if err := s.ensureNameAvailable(req.Name, constants.EmptyString); err != nil {
 		return nil, err
 	}
 
@@ -135,6 +174,9 @@ func (s *Service) Prepare(
 		s.rollbackOnPersistFailure(ctx, plan)
 		return nil, err
 	}
+	if plan.Phase == plans.PhaseActive {
+		s.StampFirstHealth(plan.ID)
+	}
 	return plan, nil
 }
 
@@ -144,7 +186,7 @@ func (s *Service) Cancel(ctx context.Context, userID, planID, reason string) (*p
 		return nil, err
 	}
 	if !cancellable(plan.Phase) {
-		return nil, fmt.Errorf(string(ErrCancelInvalidPhase), plan.Phase)
+		return nil, validation.Invalidf(string(ErrCancelInvalidPhase), plan.Phase)
 	}
 
 	if err := s.applier.CleanupByPlanID(ctx, planID); err != nil {
@@ -152,20 +194,10 @@ func (s *Service) Cancel(ctx context.Context, userID, planID, reason string) (*p
 	}
 
 	now := s.clock().Format(globalshared.DefaultTimeFormat)
-	healthUnknown := plans.HealthUnknown
-	patch := planseps.PatchProtectionPlanRequest{
-		Phase:            ptrString(plans.PhaseCanceled),
-		Reason:           ptrStringOrDefault(reason, ReasonCanceledByUser),
-		RenderedPolicies: []string{},
-		TerminatedAt:     &now,
-		TerminatedBy:     &userID,
-		LastUpdatedAt:    &now,
-		LastUpdatedBy:    &userID,
-		Health:           &healthUnknown,
-	}
-	if err := s.exporter.PatchOrError(userID, planID, patch); err != nil {
+	if err := s.exporter.PatchRawOrError(userID, planID, BuildCancelPatch(userID, reason, now)); err != nil {
 		return nil, err
 	}
+	s.reports.CaptureAsync(plan, now, userID, stringOrDefault(reason, ReasonCanceledByUser), reportseps.TriggerCancel)
 
 	updated, err := s.exporter.Get(planID)
 	if err != nil {
@@ -180,7 +212,10 @@ func (s *Service) Reactivate(ctx context.Context, userID, planID string) (*plans
 		return nil, err
 	}
 	if !reactivatable(plan.Phase) {
-		return nil, fmt.Errorf(string(ErrReactivateInvalidPhase), plan.Phase)
+		return nil, validation.Invalidf(string(ErrReactivateInvalidPhase), plan.Phase)
+	}
+	if err := validation.NamespaceScope(ctx, plan.Scope.Type, plan.Scope.Namespaces, s.listNamespaces); err != nil {
+		return nil, err
 	}
 
 	resolved, err := s.resolveScopeForPlan(ctx, plan)
@@ -195,7 +230,7 @@ func (s *Service) Reactivate(ctx context.Context, userID, planID string) (*plans
 	now := s.clock()
 	phase, expired := computeReactivatePhase(plan, now)
 	if expired {
-		return nil, errors.New(string(ErrReactivateExpired))
+		return nil, validation.Invalid(string(ErrReactivateExpired))
 	}
 
 	plan.Phase = phase
@@ -206,19 +241,29 @@ func (s *Service) Reactivate(ctx context.Context, userID, planID string) (*plans
 		}
 	}
 
-	patch := buildReactivatePatch(plan, userID, now)
-	if err := s.exporter.PatchRawOrError(userID, planID, patch); err != nil {
-		if phase == plans.PhaseActive {
+	if err := s.persistReactivate(ctx, userID, planID, plan, now); err != nil {
+		return nil, err
+	}
+	return s.exporter.Get(planID)
+}
+
+func (s *Service) persistReactivate(
+	ctx context.Context,
+	userID, planID string,
+	plan *plans.ProtectionPlan,
+	now time.Time,
+) error {
+	active := plan.Phase == plans.PhaseActive
+	if err := s.exporter.PatchRawOrError(userID, planID, buildReactivatePatch(plan, userID, now)); err != nil {
+		if active {
 			_ = s.applier.CleanupByPlanID(ctx, planID)
 		}
-		return nil, err
+		return err
 	}
-
-	updated, err := s.exporter.Get(planID)
-	if err != nil {
-		return nil, err
+	if active {
+		s.StampFirstHealth(planID)
 	}
-	return updated, nil
+	return nil
 }
 
 func computeReactivatePhase(plan *plans.ProtectionPlan, now time.Time) (string, bool) {
@@ -270,7 +315,7 @@ func validateTemplatesForPlan(plan *plans.ProtectionPlan) error {
 		}
 	}
 	if len(missing) > constants.DefaultInitValue {
-		return fmt.Errorf(string(ErrReactivateMissingTemplates), missing)
+		return validation.Invalidf(string(ErrReactivateMissingTemplates), missing)
 	}
 	return nil
 }
@@ -279,20 +324,20 @@ func (s *Service) Activate(ctx context.Context, plan *plans.ProtectionPlan) erro
 	resolved, err := s.resolveScopeForPlan(ctx, plan)
 	if err != nil {
 		shared.LogDeployFailure(s.logger, plan, "activate-resolve-scope", err)
-		return s.markFailedRemote(ctx, plan, err.Error())
+		return s.markFailedRemote(plan, err.Error())
 	}
 
 	rendered, err := policies.Render(plan, resolved, s.logger)
 	if err != nil {
 		shared.LogDeployFailure(s.logger, plan, "activate-render", err)
-		return s.markFailedRemote(ctx, plan, fmt.Sprintf(string(ErrInternal), err))
+		return s.markFailedRemote(plan, fmt.Sprintf(string(ErrInternal), err))
 	}
 
 	names, deployErr := s.applier.Deploy(ctx, rendered)
 	if deployErr != nil {
 		shared.LogDeployFailure(s.logger, plan, "activate-deploy", deployErr)
 		_ = s.applier.CleanupByPlanID(ctx, plan.ID)
-		return s.markFailedRemote(ctx, plan, reasons.UserFacingReason(deployErr))
+		return s.markFailedRemote(plan, reasons.UserFacingReason(deployErr))
 	}
 
 	now := s.clock().Format(globalshared.DefaultTimeFormat)
@@ -305,7 +350,12 @@ func (s *Service) Activate(ctx context.Context, plan *plans.ProtectionPlan) erro
 		LastUpdatedAt:    &now,
 		LastUpdatedBy:    &system,
 	}
-	return s.exporter.PatchOrError(SystemActor, plan.ID, patch)
+	if err := s.exporter.PatchOrError(SystemActor, plan.ID, patch); err != nil {
+		return err
+	}
+	s.StampFirstHealth(plan.ID)
+	s.logger.Info(fmt.Sprintf(LogPlanActivated, plan.ID))
+	return nil
 }
 
 func (s *Service) Terminate(ctx context.Context, plan *plans.ProtectionPlan) error {
@@ -314,18 +364,42 @@ func (s *Service) Terminate(ctx context.Context, plan *plans.ProtectionPlan) err
 	}
 
 	now := s.clock().Format(globalshared.DefaultTimeFormat)
-	system := SystemActor
-	expired := ReasonExpired
-	patch := planseps.PatchProtectionPlanRequest{
-		Phase:            ptrString(plans.PhaseTerminated),
-		Reason:           &expired,
-		RenderedPolicies: []string{},
-		TerminatedAt:     &now,
-		TerminatedBy:     &system,
-		LastUpdatedAt:    &now,
-		LastUpdatedBy:    &system,
+	if err := s.exporter.PatchRawOrError(SystemActor, plan.ID, BuildTerminatePatch(now)); err != nil {
+		return err
 	}
-	return s.exporter.PatchOrError(SystemActor, plan.ID, patch)
+	s.reports.CaptureAsync(plan, now, SystemActor, ReasonExpired, reportseps.TriggerEnd)
+	s.logger.Info(fmt.Sprintf(LogPlanTerminated, plan.ID))
+	return nil
+}
+
+func (s *Service) GenerateReport(ctx context.Context, userID, planID string) (*reportseps.ReportMeta, error) {
+	plan, err := s.exporter.Get(planID)
+	if err != nil {
+		return nil, err
+	}
+	if err := reports.ManualAllowed(plan); err != nil {
+		return nil, err
+	}
+	return s.reports.Generate(ctx, plan, userID, reportseps.TriggerManual)
+}
+
+// Sequential on purpose; an exporter outage costs one timeout, not one per plan.
+func (s *Service) CheckpointReports(ctx context.Context, planList []plans.ProtectionPlan) {
+	for i := range planList {
+		plan := &planList[i]
+		if plan.Phase != plans.PhaseActive || plan.StartedAt == nil || plan.TerminatedAt != nil {
+			continue
+		}
+		pctx, cancel := context.WithTimeout(ctx, constants.DefaultReportCaptureTimeout)
+		_, err := s.reports.Checkpoint(pctx, plan)
+		cancel()
+		if err != nil {
+			s.logger.Error(fmt.Sprintf(reports.LogCheckpointFailed, plan.ID, err))
+		}
+		if clients.IsExporterFailure(err) {
+			break
+		}
+	}
 }
 
 func (s *Service) Clear(ctx context.Context, planID string) error {
@@ -352,7 +426,7 @@ func (s *Service) buildPlan(
 		ApplicationIDs: req.Scope.ApplicationIDs,
 		Namespaces:     req.Scope.Namespaces,
 	}
-	return &plans.ProtectionPlan{
+	plan := &plans.ProtectionPlan{
 		ID:              planID,
 		Name:            req.Name,
 		Description:     req.Description,
@@ -364,12 +438,17 @@ func (s *Service) buildPlan(
 		TimeMode:        req.TimeMode,
 		TimeRange:       toTimeRange(req.TimeRange),
 		ParticipantsIDs: req.ParticipantsIDs,
+		TagIDs:          req.TagIDs,
 		CreatedAt:       now,
 		CreatedBy:       userID,
 		LastUpdatedAt:   now,
 		LastUpdatedBy:   userID,
 		Health:          plans.HealthUnknown,
 	}
+	if req.EnvironmentID != nil {
+		plan.EnvironmentID = *req.EnvironmentID
+	}
+	return plan
 }
 
 func (s *Service) assignInitialPhase(plan *plans.ProtectionPlan) {
@@ -416,24 +495,59 @@ func (s *Service) rollbackOnPersistFailure(ctx context.Context, plan *plans.Prot
 	}
 }
 
-func (s *Service) markFailedRemote(
-	_ context.Context,
-	plan *plans.ProtectionPlan,
-	reason string,
-) error {
-	system := SystemActor
+func (s *Service) markFailedRemote(plan *plans.ProtectionPlan, reason string) error {
 	now := s.clock().Format(globalshared.DefaultTimeFormat)
-	patch := planseps.PatchProtectionPlanRequest{
-		Phase:            ptrString(plans.PhaseFailed),
-		Reason:           &reason,
-		RenderedPolicies: []string{},
-		LastUpdatedAt:    &now,
-		LastUpdatedBy:    &system,
-	}
-	if err := s.exporter.PatchOrError(SystemActor, plan.ID, patch); err != nil {
+	if err := s.exporter.PatchRawOrError(SystemActor, plan.ID, BuildFailedPatch(reason, now)); err != nil {
 		return err
 	}
 	return errors.New(reason)
+}
+
+func (s *Service) ensureNameAvailable(name, excludePlanID string) error {
+	existing, err := s.exporter.List()
+	if err != nil {
+		return err
+	}
+	return validation.UniqueName(existing, name, excludePlanID)
+}
+
+// These three clear renderedPolicies, which the typed patch drops as an empty slice, so they
+// go through the raw patch instead.
+func BuildCancelPatch(userID, reason, now string) map[string]any {
+	return map[string]any{
+		FieldPhase:            plans.PhaseCanceled,
+		FieldReason:           stringOrDefault(reason, ReasonCanceledByUser),
+		FieldRenderedPolicies: []string{},
+		FieldTerminatedAt:     now,
+		FieldTerminatedBy:     userID,
+		FieldLastUpdatedAt:    now,
+		FieldLastUpdatedBy:    userID,
+		FieldHealth:           plans.HealthUnknown,
+	}
+}
+
+func BuildTerminatePatch(now string) map[string]any {
+	return map[string]any{
+		FieldPhase:            plans.PhaseTerminated,
+		FieldReason:           ReasonExpired,
+		FieldRenderedPolicies: []string{},
+		FieldTerminatedAt:     now,
+		FieldTerminatedBy:     SystemActor,
+		FieldLastUpdatedAt:    now,
+		FieldLastUpdatedBy:    SystemActor,
+		FieldHealth:           plans.HealthUnknown,
+	}
+}
+
+func BuildFailedPatch(reason, now string) map[string]any {
+	return map[string]any{
+		FieldPhase:            plans.PhaseFailed,
+		FieldReason:           reason,
+		FieldRenderedPolicies: []string{},
+		FieldLastUpdatedAt:    now,
+		FieldLastUpdatedBy:    SystemActor,
+		FieldHealth:           plans.HealthUnknown,
+	}
 }
 
 func (s *Service) resolveScope(
@@ -448,7 +562,7 @@ func (s *Service) resolveScope(
 		return nil, err
 	}
 	if len(missing) > constants.DefaultInitValue {
-		return nil, fmt.Errorf(string(ErrMissingApplications), missing)
+		return nil, validation.Invalidf(string(ErrMissingApplications), missing)
 	}
 	return resolved, nil
 }
@@ -465,7 +579,7 @@ func (s *Service) resolveScopeForPlan(
 		return nil, err
 	}
 	if len(missing) > constants.DefaultInitValue {
-		return nil, fmt.Errorf(string(ErrMissingApplications), missing)
+		return nil, validation.Invalidf(string(ErrMissingApplications), missing)
 	}
 	return resolved, nil
 }
@@ -527,6 +641,8 @@ func toCreateRequest(plan *plans.ProtectionPlan) planseps.CreateProtectionPlanRe
 		TerminatedAt:     plan.TerminatedAt,
 		TerminatedBy:     plan.TerminatedBy,
 		ParticipantsIDs:  plan.ParticipantsIDs,
+		EnvironmentID:    plan.EnvironmentID,
+		TagIDs:           plan.TagIDs,
 		Health:           plan.Health,
 		HealthCheckedAt:  plan.HealthCheckedAt,
 		HealthDetail:     health.ToDetailRequests(plan.HealthDetail),
@@ -550,11 +666,9 @@ func fromTimeRange(tr *plans.ProtectionPlanTimeRange) *planseps.TimeRangeRequest
 
 func ptrString(s string) *string { return &s }
 
-func ptrStringOrDefault(value, fallback string) *string {
+func stringOrDefault(value, fallback string) string {
 	if value == constants.EmptyString {
-		s := fallback
-		return &s
+		return fallback
 	}
-	s := value
-	return &s
+	return value
 }

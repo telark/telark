@@ -19,46 +19,52 @@ import (
 func varsReq(method, body string) *http.Request {
 	url := "/x/val?userId=u1&scope=roles&username=n&email=e@x.io"
 	var r *http.Request
-	if body == "" {
+	if body == constants.EmptyString {
 		r = httptest.NewRequest(method, url, nil)
 	} else {
 		r = httptest.NewRequest(method, url, strings.NewReader(body))
 	}
-	r.Header.Set(constants.HeaderUserID, "u1")
-	r.Header.Set(constants.HeaderCredentialID, "c1")
+	r.Header.Set(constants.HeaderUserID, testUserID)
+	r.Header.Set(constants.HeaderCredentialID, testCategoryID)
 	return mux.SetURLVars(r, map[string]string{
-		"id": "val", "name": "val", "userId": "u1", "groupId": "g1",
-		"credentialId": "c1", "token": "tok", "scope": "roles",
+		constants.IDParam: "val", constants.NameParam: "val", constants.UserIDParam: testUserID, constants.GroupIDParam: testGroupID,
+		"credentialId": testCategoryID, constants.TokenParam: "tok", constants.ScopeParam: constants.ResourceRole,
 	})
 }
 
 func TestApplicationHandlers(t *testing.T) {
 	o := newOptimizer(t)
-	assertErrorResponse(t, apphandler.GetApplicationResourceWithCacheInvalidation(), varsReq(http.MethodGet, ""), "GetApplication")
-	assertErrorResponse(t, apphandler.ListApplicationResourcesWithCacheInvalidation(), varsReq(http.MethodGet, ""), "ListApplications")
-	assertErrorResponse(t, apphandler.DeleteApplicationResourceWithCacheInvalidation(o), varsReq(http.MethodDelete, ""), "DeleteApplication")
-	assertErrorResponse(t, apphandler.GetRollbacks(), varsReq(http.MethodGet, ""), "GetRollbacks")
-	assertErrorResponse(t, apphandler.GetRollback(), varsReq(http.MethodGet, ""), "GetRollback")
+	assertErrorResponse(t, apphandler.GetApplicationResourceWithCacheInvalidation(), varsReq(http.MethodGet, constants.EmptyString), "GetApplication")
+	assertErrorResponse(t, apphandler.ListApplicationResourcesWithCacheInvalidation(),
+		varsReq(http.MethodGet, constants.EmptyString), "ListApplications")
+	assertErrorResponse(t, apphandler.DeleteApplicationResourceWithCacheInvalidation(o),
+		varsReq(http.MethodDelete, constants.EmptyString), "DeleteApplication")
+	assertErrorResponse(t, apphandler.GetRollbacks(), varsReq(http.MethodGet, constants.EmptyString), "GetRollbacks")
+	assertErrorResponse(t, apphandler.GetRollback(), varsReq(http.MethodGet, constants.EmptyString), "GetRollback")
 }
 
 func TestGlobalConfigHandlers(t *testing.T) {
-	assertErrorResponse(t, globalconfighandler.GetGlobalConfig(), varsReq(http.MethodGet, ""), "GetGlobalConfig")
+	assertErrorResponse(t, globalconfighandler.GetGlobalConfig(), varsReq(http.MethodGet, constants.EmptyString), "GetGlobalConfig")
 }
 
 func TestSessionHandlers(t *testing.T) {
 	o := newOptimizer(t)
-	assertErrorResponse(t, sessionhandler.CreateSessionByUserWithCacheInvalidation(o), varsReq(http.MethodPost, "{}"), "CreateSession")
-	assertErrorResponse(t, sessionhandler.ListSessionsByUserWithCacheInvalidation(), varsReq(http.MethodGet, ""), "ListSessions")
-	assertErrorResponse(t, sessionhandler.GetSessionByToken(), varsReq(http.MethodGet, ""), "GetSessionByToken")
-	assertErrorResponse(t, sessionhandler.PatchSessionByTokenWithCacheInvalidation(o), varsReq(http.MethodPatch, "{}"), "PatchSession")
-	assertErrorResponse(t, sessionhandler.DeleteSessionByTokenWithCacheInvalidation(o), varsReq(http.MethodDelete, ""), "DeleteSession")
+	assertErrorResponse(t, sessionhandler.CreateSessionByUserWithCacheInvalidation(o), varsReq(http.MethodPost, emptyJSONBody), "CreateSession")
+	assertErrorResponse(t, sessionhandler.ListSessionsByUserWithCacheInvalidation(), varsReq(http.MethodGet, constants.EmptyString), "ListSessions")
+	assertErrorResponse(t, sessionhandler.GetSessionByToken(), varsReq(http.MethodGet, constants.EmptyString), "GetSessionByToken")
+	assertErrorResponse(t, sessionhandler.PatchSessionByTokenWithCacheInvalidation(o), varsReq(http.MethodPatch, emptyJSONBody), "PatchSession")
+	assertErrorResponse(t, sessionhandler.DeleteSessionByTokenWithCacheInvalidation(o),
+		varsReq(http.MethodDelete, constants.EmptyString), "DeleteSession")
 }
 
 func TestPasskeyHandlers(t *testing.T) {
 	o := newOptimizer(t)
-	assertErrorResponse(t, passkeyhandler.CreatePasskeyByUserWithCacheInvalidation(o), varsReq(http.MethodPost, "{}"), "CreatePasskey")
-	assertErrorResponse(t, passkeyhandler.ListPasskeysByUserWithCacheInvalidation(), varsReq(http.MethodGet, ""), "ListPasskeys")
-	assertErrorResponse(t, passkeyhandler.GetPasskeyByUserAndCredentialIDWithCacheInvalidation(), varsReq(http.MethodGet, ""), "GetPasskey")
-	assertErrorResponse(t, passkeyhandler.PatchPasskeyByUserAndCredentialIDWithCacheInvalidation(o), varsReq(http.MethodPatch, "{}"), "PatchPasskey")
-	assertErrorResponse(t, passkeyhandler.DeletePasskeyByUserAndCredentialIDWithCacheInvalidation(o), varsReq(http.MethodDelete, ""), "DeletePasskey")
+	assertErrorResponse(t, passkeyhandler.CreatePasskeyByUserWithCacheInvalidation(o), varsReq(http.MethodPost, emptyJSONBody), "CreatePasskey")
+	assertErrorResponse(t, passkeyhandler.ListPasskeysByUserWithCacheInvalidation(), varsReq(http.MethodGet, constants.EmptyString), "ListPasskeys")
+	assertErrorResponse(t, passkeyhandler.GetPasskeyByUserAndCredentialIDWithCacheInvalidation(),
+		varsReq(http.MethodGet, constants.EmptyString), "GetPasskey")
+	assertErrorResponse(t, passkeyhandler.PatchPasskeyByUserAndCredentialIDWithCacheInvalidation(o),
+		varsReq(http.MethodPatch, emptyJSONBody), "PatchPasskey")
+	assertErrorResponse(t, passkeyhandler.DeletePasskeyByUserAndCredentialIDWithCacheInvalidation(o),
+		varsReq(http.MethodDelete, constants.EmptyString), "DeletePasskey")
 }

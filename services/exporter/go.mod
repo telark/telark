@@ -1,12 +1,12 @@
 module github.com/telark/exporter
 
-go 1.26.5
+go 1.27.1
 
 require (
-	github.com/alicebob/miniredis/v2 v2.38.0
+	github.com/alicebob/miniredis/v2 v2.39.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
-	github.com/redis/go-redis/v9 v9.21.0
+	github.com/redis/go-redis/v9 v9.22.0
 	github.com/telark/data v1.14.8
 	github.com/telark/kcore v0.7.1
 	github.com/telark/rest v0.14.4

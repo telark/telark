@@ -73,10 +73,6 @@ func (m *Manager) Start() error {
 }
 
 func (m *Manager) startSubscribers(parentCtx context.Context, nc *natscore.NATSClient) error {
-	if nc == nil {
-		return fmt.Errorf("%s", errors.ErrNatsClientNotAvailable)
-	}
-
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(m.subscribers))
 

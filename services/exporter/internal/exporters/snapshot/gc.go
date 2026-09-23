@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -12,9 +11,9 @@ import (
 	"github.com/telark/exporter/internal/constants"
 	envmanager "github.com/telark/exporter/internal/managers/envs"
 	exprdb "github.com/telark/exporter/internal/redis"
+	"github.com/telark/exporter/internal/utils/artifact"
 	snaputil "github.com/telark/exporter/internal/utils/snapshot"
 	"github.com/telark/kcore/crds/api"
-	"github.com/telark/x-ware/redis/stream"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -45,19 +44,7 @@ func StartSnapshotGC(ctx context.Context) {
 // a TTL equal to the interval races its own expiry and skips about half the
 // sweeps. A canceled context is shutdown, not a Redis error, so it never sweeps.
 func gcTickAllowed(ctx context.Context, interval time.Duration) bool {
-	if ctx.Err() != nil {
-		return false
-	}
-	rdb := exprdb.Get()
-	if rdb == nil {
-		return true
-	}
-	hostname, _ := os.Hostname()
-	acquired, err := stream.NewLockClient(rdb).Acquire(ctx, constants.SnapshotGCLockKey, hostname, interval/constants.SnapshotGCLockTTLDivisor)
-	if ctx.Err() != nil {
-		return false
-	}
-	return err != nil || acquired
+	return artifact.TickAllowed(ctx, exprdb.Get(), constants.SnapshotGCLockKey, interval/constants.SnapshotGCLockTTLDivisor)
 }
 
 // Never sweep on a failed or empty ref set: with no refs every file would look

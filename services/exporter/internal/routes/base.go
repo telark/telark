@@ -10,6 +10,7 @@ import (
 	categoryhandler "github.com/telark/exporter/internal/handlers/classification/category"
 	notificationhandler "github.com/telark/exporter/internal/handlers/notifications"
 	planshandler "github.com/telark/exporter/internal/handlers/plans/protection"
+	reportshandler "github.com/telark/exporter/internal/handlers/reports"
 	applicationhandler "github.com/telark/exporter/internal/handlers/resources/application"
 	cleanuphandler "github.com/telark/exporter/internal/handlers/resources/cleanup"
 	globalconfighandler "github.com/telark/exporter/internal/handlers/resources/globalconfig"
@@ -24,6 +25,7 @@ import (
 	categoryendpoints "github.com/telark/rest/endpoints/classification/category"
 	notificationsendpoints "github.com/telark/rest/endpoints/notifications"
 	plansendpoints "github.com/telark/rest/endpoints/plans"
+	reportsendpoints "github.com/telark/rest/endpoints/reports"
 	applicationendpoints "github.com/telark/rest/endpoints/resources/applications"
 	cleanupendpoints "github.com/telark/rest/endpoints/resources/cleanup"
 	globalconfigendpoints "github.com/telark/rest/endpoints/resources/globalconfig"
@@ -78,6 +80,7 @@ func InitRoutes(optimizer *performance.Optimizer) []router.Route {
 	routes = append(routes, sessionRoutes(optimizer)...)
 	routes = append(routes, passkeyRoutes(optimizer)...)
 	routes = append(routes, snapshotRoutes(optimizer)...)
+	routes = append(routes, reportRoutes()...)
 	routes = append(routes, notificationRoutes()...)
 	routes = append(routes, protectionPlanRoutes()...)
 	routes = append(routes, statusRoutes()...)
@@ -108,6 +111,16 @@ func protectionPlanRoutes() []router.Route {
 		router.CreateRoute(base.Get, plansendpoints.GetProtectionPlanByID, planshandler.GetPlanByID()),
 		router.CreateRoute(base.Patch, plansendpoints.PatchProtectionPlanByID, planshandler.PatchPlanByID()),
 		router.CreateRoute(base.Delete, plansendpoints.DeleteProtectionPlanByID, planshandler.DeletePlanByID()),
+	}
+}
+
+func reportRoutes() []router.Route {
+	return []router.Route{
+		router.CreateRoute(base.Post, reportsendpoints.CreatePlanReport, reportshandler.CreatePlanReport()),
+		router.CreateRoute(base.Get, reportsendpoints.ListPlanReports, reportshandler.ListPlanReports()),
+		router.CreateRoute(base.Get, reportsendpoints.DownloadPlanReport, reportshandler.DownloadPlanReport()),
+		router.CreateRoute(base.Post, reportsendpoints.PutPlanReportLedger, reportshandler.PutPlanReportLedger()),
+		router.CreateRoute(base.Get, reportsendpoints.GetPlanReportLedger, reportshandler.GetPlanReportLedger()),
 	}
 }
 

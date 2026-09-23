@@ -12,6 +12,7 @@ import (
 	derrs "github.com/telark/data/errors"
 	"github.com/telark/exporter/internal/constants"
 	envmanager "github.com/telark/exporter/internal/managers/envs"
+	"github.com/telark/exporter/internal/utils/artifact"
 	restsnapshot "github.com/telark/rest/clients/snapshots"
 )
 
@@ -124,13 +125,16 @@ func ResolveTarget(id string, scope string, namespace string, generation string)
 	)
 }
 
-func RegisteredScopesText(scopes []envmanager.ScopeDefinition) string {
+func RegisteredScopeNames(scopes []envmanager.ScopeDefinition) []string {
 	names := make([]string, constants.DefaultInitValue, len(scopes))
 	for _, scope := range scopes {
 		names = append(names, scope.Name)
 	}
+	return names
+}
 
-	return strings.Join(names, ",")
+func RegisteredScopesText(scopes []envmanager.ScopeDefinition) string {
+	return strings.Join(RegisteredScopeNames(scopes), ",")
 }
 
 func SnapshotNotFoundMessage(id string, scope string, namespace string, generation string) string {
@@ -155,7 +159,7 @@ func ContentDispositionFilename(id string, generation int) string {
 
 func LoadSnapshotData(path string) (map[string]any, error) {
 	cleaned := filepath.Clean(path)
-	if !IsWithinBase(cleaned, envmanager.GetSnapshotsPath()) {
+	if !artifact.IsWithinBase(cleaned, envmanager.GetSnapshotsPath()) {
 		return nil, os.ErrNotExist
 	}
 	content, err := os.ReadFile(cleaned)

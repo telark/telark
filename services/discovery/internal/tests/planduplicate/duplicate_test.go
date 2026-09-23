@@ -1,12 +1,27 @@
 package planduplicate
 
 import (
+	"fmt"
+	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/telark/data/plans"
+	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/plans/protection/duplicate"
 	"github.com/telark/discovery/internal/tests/testutil"
 	planseps "github.com/telark/rest/endpoints/plans"
+)
+
+const (
+	sourceEnvironmentID   = "cat-00002-0001-0001"
+	overrideEnvironmentID = "cat-00002-0001-0002"
+	sourceTagID           = "cat-00003-0001-0001"
+	overrideTagA          = "cat-00003-0001-0002"
+	overrideTagB          = "cat-00003-0001-0003"
+	defaultCopyName       = "Copy of prod-guard"
+	secondCopyName        = "Copy of prod-guard (2)"
+	takenSuffixCeiling    = 200
 )
 
 func strptr(s string) *string { return &s }
@@ -15,13 +30,15 @@ func sourcePlan() *plans.ProtectionPlan {
 	return &plans.ProtectionPlan{
 		Name:            "prod-guard",
 		Severity:        "high",
-		Priority:        2,
+		Priority:        constants.TwoValue,
 		Mode:            plans.ModeEnforce,
 		TimeMode:        plans.TimeModeTimeRange,
 		Scope:           plans.ProtectionPlanScope{Type: plans.ScopeTypeNamespaces, Namespaces: []string{"prod"}},
 		Policies:        []plans.ProtectionPlanPolicy{{TemplateID: "block-create"}},
 		TimeRange:       &plans.ProtectionPlanTimeRange{StartAt: "2026-01-01T00:00:00Z", EndAt: "2026-01-02T00:00:00Z"},
 		ParticipantsIDs: []string{"u1"},
+		EnvironmentID:   sourceEnvironmentID,
+		TagIDs:          []string{sourceTagID},
 	}
 }
 
@@ -29,9 +46,9 @@ func sourcePlan() *plans.ProtectionPlan {
 // scope and policies, and reuses the source time range.
 func TestBuildRequestDefaults(t *testing.T) {
 	got := duplicate.BuildRequest(sourcePlan(), planseps.DuplicateProtectionPlanRequest{})
-	testutil.Equal(t, "name", got.Name, "Copy of prod-guard")
+	testutil.Equal(t, "name", got.Name, defaultCopyName)
 	testutil.Equal(t, "scope type", got.Scope.Type, plans.ScopeTypeNamespaces)
-	testutil.Equal(t, "policies", len(got.Policies), 1)
+	testutil.Equal(t, "policies", len(got.Policies), constants.DefaultAddValue)
 	testutil.Equal(t, "policy template", got.Policies[0].TemplateID, "block-create")
 	if got.TimeRange == nil || got.TimeRange.StartAt != "2026-01-01T00:00:00Z" {
 		t.Fatalf("time range = %+v, want source window", got.TimeRange)
@@ -56,4 +73,81 @@ func TestBuildRequestModeSwitchDropsTimeRange(t *testing.T) {
 	if got.TimeRange != nil {
 		t.Fatalf("time range should be nil for non-time-range mode, got %+v", got.TimeRange)
 	}
+}
+
+// A nil override copies the source taxonomy verbatim.
+func TestBuildRequestCopiesTaxonomy(t *testing.T) {
+	got := duplicate.BuildRequest(sourcePlan(), planseps.DuplicateProtectionPlanRequest{})
+	if got.EnvironmentID == nil {
+		t.Fatal("environmentID should be copied from the source")
+	}
+	testutil.Equal(t, "environmentID", *got.EnvironmentID, sourceEnvironmentID)
+	testutil.Equal(t, "tagIDs", slices.Equal(got.TagIDs, []string{sourceTagID}), true)
+}
+
+// A non-nil override is taken as sent, so an empty override clears rather than
+// falling back to the source.
+func TestBuildRequestTaxonomyOverrides(t *testing.T) {
+	got := duplicate.BuildRequest(sourcePlan(), planseps.DuplicateProtectionPlanRequest{
+		EnvironmentID: strptr(overrideEnvironmentID),
+		TagIDs:        []string{overrideTagA, overrideTagB},
+	})
+	testutil.Equal(t, "environmentID", *got.EnvironmentID, overrideEnvironmentID)
+	testutil.Equal(t, "tagIDs", slices.Equal(got.TagIDs, []string{overrideTagA, overrideTagB}), true)
+
+	cleared := duplicate.BuildRequest(sourcePlan(), planseps.DuplicateProtectionPlanRequest{
+		EnvironmentID: strptr(""),
+		TagIDs:        []string{},
+	})
+	testutil.Equal(t, "cleared environmentID", *cleared.EnvironmentID, "")
+	if cleared.TagIDs == nil {
+		t.Fatal("cleared tagIDs should be a non-nil empty slice")
+	}
+	testutil.Equal(t, "cleared tagIDs len", len(cleared.TagIDs), constants.DefaultInitValue)
+}
+
+// AvailableName keeps the default copy name when free and otherwise suffixes it until it is.
+func TestAvailableName(t *testing.T) {
+	cases := []struct {
+		name     string
+		existing []string
+		want     string
+	}{
+		{"free", nil, defaultCopyName},
+		{"taken once", []string{defaultCopyName}, secondCopyName},
+		{"taken twice", []string{defaultCopyName, secondCopyName}, "Copy of prod-guard (3)"},
+		{"case insensitive clash", []string{"copy of PROD-GUARD"}, secondCopyName},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			existing := make([]plans.ProtectionPlan, 0, len(c.existing))
+			for i, name := range c.existing {
+				existing = append(existing, plans.ProtectionPlan{ID: strconv.Itoa(i), Name: name})
+			}
+			got, err := duplicate.AvailableName(defaultCopyName, existing)
+			testutil.Equal(t, "err", err, nil)
+			testutil.Equal(t, "name", got, c.want)
+		})
+	}
+}
+
+// Every candidate being taken is an error rather than an endless search.
+func TestAvailableNameExhausted(t *testing.T) {
+	existing := []plans.ProtectionPlan{{ID: "0", Name: defaultCopyName}}
+	for i := constants.TwoValue; i < takenSuffixCeiling; i++ {
+		existing = append(existing, plans.ProtectionPlan{
+			ID:   strconv.Itoa(i),
+			Name: fmt.Sprintf("Copy of prod-guard (%d)", i),
+		})
+	}
+	if _, err := duplicate.AvailableName(defaultCopyName, existing); err == nil {
+		t.Fatal("exhausted suffixes should fail")
+	}
+}
+
+// UsesDefaultName is true only when the caller left the copy unnamed.
+func TestUsesDefaultName(t *testing.T) {
+	testutil.Equal(t, "nil", duplicate.UsesDefaultName(planseps.DuplicateProtectionPlanRequest{}), true)
+	testutil.Equal(t, "empty", duplicate.UsesDefaultName(planseps.DuplicateProtectionPlanRequest{Name: strptr("")}), true)
+	testutil.Equal(t, "named", duplicate.UsesDefaultName(planseps.DuplicateProtectionPlanRequest{Name: strptr("x")}), false)
 }

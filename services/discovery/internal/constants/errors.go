@@ -29,6 +29,18 @@ const (
 	ErrNotificationEmitFailed              errors.Error = "emit notification: status=%d message=%s"
 	ErrRestCallFailed                      errors.Error = "rest call failed: status=%d message=%s"
 
+	// Protection Plan Exporter Errors
+	ErrCreateProtectionPlanFailed errors.Error = "create protection plan failed: status=%d message=%s"
+	ErrPatchProtectionPlanFailed  errors.Error = "patch protection plan failed: status=%d message=%s"
+	ErrDeleteProtectionPlanFailed errors.Error = "delete protection plan failed: status=%d message=%s"
+
+	// Protection Plan Report Errors
+	ErrReportRejected     errors.Error = "exporter rejected the report: %s"
+	ErrReportNilResponse  errors.Error = "report call returned nil response"
+	ErrCreateReportFailed errors.Error = "create report failed: %v"
+	ErrPutLedgerFailed    errors.Error = "put report ledger failed: %v"
+	ErrReportPanic        errors.Error = "report generation panicked: %v"
+
 	// Enrichment Pre-warming
 	ErrPrewarmListNamespaces         errors.Error = "pre-warming: failed to list namespaces: %v"
 	ErrPrewarmListResources          errors.Error = "pre-warming: failed to list resources: %v"
@@ -101,6 +113,9 @@ const (
 	ErrRollbackMarshalPatchFailed errors.Error = "failed to marshal rollback patch: %v"
 	ErrRollbackInterruptedRestart errors.Error = "rollback interrupted by service restart"
 	ErrRollbackLockBusy           errors.Error = "rollback lock busy"
+	// Losing this patch is what leaves the entry in_progress until the stale
+	// sweep replaces the real reason, so the reason is logged before it is lost.
+	ErrRollbackFailureRecordFailed errors.Error = "failed to record rollback failure for %s/%s (reason: %s): %v"
 
 	// Rollback Trigger / Abort handler errors
 	ErrRollbackInFlight                errors.Error = "rollback already in progress for this application"
@@ -109,7 +124,7 @@ const (
 	ErrRollbackTerminal                errors.Error = "rollback is in terminal state"
 	ErrAbortUserRequired               errors.Error = "abort requires a user (X-User-ID header)"
 	ErrRollbackCoordinationUnavailable errors.Error = "rollback coordination unavailable"
-	ErrRollbackTargetNotOlder          errors.Error = "snapshotGeneration must be older than the current generation %d"
+	ErrRollbackTargetNotOlder          errors.Error = "snapshotGeneration cannot exceed the current generation %d"
 	ErrRollbackSnapshotMissing         errors.Error = "no snapshot stored for generation %d"
 
 	// Auto-cleanup detector errors

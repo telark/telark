@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -212,7 +213,7 @@ func saveJWKSToRedis(raw []byte) {
 	defer cancel()
 	if err := rdb.Set(ctx, constants.RedisKeyJWKS, raw,
 		time.Duration(constants.RedisTTLJWKS)*time.Hour).Err(); err != nil {
-		lg.Warn(fmt.Sprintf("failed to cache JWKS in Redis: %v", err))
+		lg.Warn(fmt.Sprintf(string(constants.ErrOIDCJWKSCacheFailed), err))
 	}
 }
 
@@ -228,7 +229,7 @@ func fetchJWKS() ([]byte, error) {
 		}
 	}()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("JWKS endpoint returned status %d", resp.StatusCode)
+		return nil, fmt.Errorf(string(constants.ErrOIDCJWKSBadStatus), resp.StatusCode)
 	}
 	return io.ReadAll(resp.Body)
 }
@@ -276,11 +277,11 @@ func ValidateGoogleIDToken(rawToken string, oidc globalconfigresource.OIDCConfig
 
 	token, err := jwt.ParseWithClaims(rawToken, &GoogleClaims{}, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodRSA); !ok {
-			return nil, fmt.Errorf(string(constants.ErrOIDCUnexpectedAlg), t.Header["alg"])
+			return nil, fmt.Errorf(string(constants.ErrOIDCUnexpectedAlg), t.Header[constants.JWTHeaderAlg])
 		}
-		kid, ok := t.Header["kid"].(string)
+		kid, ok := t.Header[constants.JWTHeaderKid].(string)
 		if !ok {
-			return nil, fmt.Errorf(string(constants.ErrOIDCUnknownKid), "")
+			return nil, fmt.Errorf(string(constants.ErrOIDCUnknownKid), constants.EmptyString)
 		}
 		return s.getKey(kid)
 	},
@@ -294,11 +295,11 @@ func ValidateGoogleIDToken(rawToken string, oidc globalconfigresource.OIDCConfig
 
 	claims, ok := token.Claims.(*GoogleClaims)
 	if !ok || !token.Valid {
-		return nil, fmt.Errorf(string(constants.ErrOIDCInvalidToken), "token invalid")
+		return nil, fmt.Errorf(string(constants.ErrOIDCInvalidToken), string(constants.ErrOIDCTokenInvalidDetail))
 	}
 
 	if claims.Email == constants.EmptyString {
-		return nil, fmt.Errorf("%s", string(constants.ErrOIDCMissingEmail))
+		return nil, errors.New(string(constants.ErrOIDCMissingEmail))
 	}
 
 	return claims, nil

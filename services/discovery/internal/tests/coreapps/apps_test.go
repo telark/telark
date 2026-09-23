@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	appresource "github.com/telark/data/resources/application"
+	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/applications/core"
 	"github.com/telark/discovery/internal/discovery/prewarm"
 )
@@ -18,7 +19,7 @@ func TestGetApplicationsEmpty(t *testing.T) {
 	if !ok {
 		t.Fatalf("response data has unexpected type %T", resp.Data)
 	}
-	if len(data.Applications) != 0 {
+	if len(data.Applications) != constants.DefaultInitValue {
 		t.Fatalf("expected no applications, got %d", len(data.Applications))
 	}
 }

@@ -20,6 +20,8 @@ const (
 	FieldHealth           = "health"
 	FieldStartedAt        = "startedAt"
 	FieldStartedBy        = "startedBy"
+	LogPlanActivated      = "protection-plan activated plan=%s"
+	LogPlanTerminated     = "protection-plan terminated plan=%s"
 )
 
 const (
@@ -33,4 +35,6 @@ const (
 	ErrRequestBody                errors.Error = "invalid request body: %v"
 	ErrIDGeneration               errors.Error = "failed to generate plan id: %v"
 	ErrInternal                   errors.Error = "internal error: %v"
+	ErrServiceNotReady            errors.Error = "protection plan service is not ready"
+	ErrReportBusy                 errors.Error = "a report is already being generated; retry shortly"
 )

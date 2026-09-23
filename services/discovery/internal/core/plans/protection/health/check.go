@@ -2,12 +2,14 @@ package health
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/telark/data/plans"
 	globalshared "github.com/telark/data/shared"
-	"github.com/telark/discovery/internal/clients"
 	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/core/plans/protection/applications"
+	protpolicies "github.com/telark/discovery/internal/core/plans/protection/policies"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/dynamic"
 )
@@ -18,11 +20,13 @@ type Logger interface {
 }
 
 type Deps struct {
-	Exporter *clients.ProtectionPlanClient
-	Dyn      dynamic.Interface
-	Logger   Logger
-	Clock    func() time.Time
-	System   string
+	Exporter    PlanStore
+	Dyn         dynamic.Interface
+	Applier     *protpolicies.Applier
+	ResolveApps applications.Resolver
+	Logger      Logger
+	Clock       func() time.Time
+	System      string
 }
 
 // The PATCH is best-effort: a failed persist is logged, not returned, because the health read
@@ -36,7 +40,7 @@ func Check(ctx context.Context, deps Deps, planID string) (*plans.ProtectionPlan
 	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(CheckTimeoutSeconds)*time.Second)
 	defer cancel()
 
-	result, err := Compute(checkCtx, deps.Dyn, plan)
+	result, err := ComputeAndRepair(checkCtx, deps, plan)
 	if err != nil {
 		return plan, Result{}, err
 	}
@@ -52,8 +56,40 @@ func Check(ctx context.Context, deps Deps, planID string) (*plans.ProtectionPlan
 	return plan, result, nil
 }
 
+// A plan that just went active carries no health until the controller's next tick, which shows
+// a fully enforcing plan as unknown for up to the tick interval. One delayed check closes that
+// window; the delay is there because Kyverno has not marked the Policy Ready yet.
+func StampFirst(ctx context.Context, deps Deps, planID string) {
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(firstCheckDelaySeconds * time.Second):
+	}
+	// A bulk create would otherwise fire one cluster LIST per plan at the same instant. Anything
+	// that cannot get a slot inside its budget is left to the controller tick.
+	select {
+	case firstCheckSlots <- struct{}{}:
+		defer func() { <-firstCheckSlots }()
+	case <-ctx.Done():
+		return
+	}
+	// Check re-reads the plan, so a plan canceled in the meantime computes as unknown and the
+	// repair path's own phase re-check keeps its policies from being redeployed.
+	if _, _, err := Check(ctx, deps, planID); err != nil {
+		deps.Logger.Error(formatErr(stageFirstCheck, planID, err))
+	}
+}
+
 // Errors per plan are logged and the loop continues — one bad plan must not block the rest.
 func ReconcileForActive(ctx context.Context, deps Deps, planList []plans.ProtectionPlan) {
+	snapCtx, cancelSnap := context.WithTimeout(ctx, time.Duration(CheckTimeoutSeconds)*time.Second)
+	snapshot, err := listManagedPolicies(snapCtx, deps.Dyn)
+	cancelSnap()
+	if err != nil {
+		deps.Logger.Error(fmt.Sprintf(logSnapshotFailedFmt, err))
+		return
+	}
+
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(constants.HealthReconcileConcurrency)
 	for i := range planList {
@@ -62,18 +98,18 @@ func ReconcileForActive(ctx context.Context, deps Deps, planList []plans.Protect
 			continue
 		}
 		g.Go(func() error {
-			reconcileOne(gctx, deps, plan)
+			reconcileOne(gctx, deps, plan, snapshot[plan.ID])
 			return nil
 		})
 	}
 	_ = g.Wait()
 }
 
-func reconcileOne(ctx context.Context, deps Deps, plan *plans.ProtectionPlan) {
+func reconcileOne(ctx context.Context, deps Deps, plan *plans.ProtectionPlan, snapshot map[string]policySnapshot) {
 	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(CheckTimeoutSeconds)*time.Second)
 	defer cancel()
 
-	result, err := Compute(checkCtx, deps.Dyn, plan)
+	result, err := repairIfDrifted(checkCtx, deps, plan, computeFrom(plan, snapshot))
 	if err != nil {
 		deps.Logger.Error(formatErr("compute", plan.ID, err))
 		return

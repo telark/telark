@@ -16,6 +16,7 @@ const (
 	testNamespace = "telark"
 	testName      = "telark-ai-provider-key"
 	testKey       = "sk-test-0123456789"
+	getErrFmt     = "Get: %v"
 )
 
 func newStore(objects ...runtime.Object) *secrets.AIKeyStore {
@@ -33,9 +34,9 @@ func existingSecret(value string) *k8scorev1.Secret {
 func TestGetIsEmptyWhenSecretAbsent(t *testing.T) {
 	got, err := newStore().Get(context.Background())
 	if err != nil {
-		t.Fatalf("Get: %v", err)
+		t.Fatalf(getErrFmt, err)
 	}
-	if got != "" {
+	if got != constants.EmptyString {
 		t.Errorf("Get = %q, want empty when no secret exists", got)
 	}
 }
@@ -50,7 +51,7 @@ func TestSetThenGetRoundTrips(t *testing.T) {
 
 	got, err := store.Get(ctx)
 	if err != nil {
-		t.Fatalf("Get: %v", err)
+		t.Fatalf(getErrFmt, err)
 	}
 	if got != testKey {
 		t.Errorf("Get = %q, want %q", got, testKey)
@@ -67,7 +68,7 @@ func TestSetReplacesAnExistingKey(t *testing.T) {
 
 	got, err := store.Get(ctx)
 	if err != nil {
-		t.Fatalf("Get: %v", err)
+		t.Fatalf(getErrFmt, err)
 	}
 	if got != testKey {
 		t.Errorf("Get = %q, want %q", got, testKey)
@@ -82,9 +83,9 @@ func TestGetIsEmptyWhenFieldMissing(t *testing.T) {
 
 	got, err := newStore(secret).Get(context.Background())
 	if err != nil {
-		t.Fatalf("Get: %v", err)
+		t.Fatalf(getErrFmt, err)
 	}
-	if got != "" {
+	if got != constants.EmptyString {
 		t.Errorf("Get = %q, want empty when the field is absent", got)
 	}
 }
@@ -99,9 +100,9 @@ func TestClearRemovesTheKey(t *testing.T) {
 
 	got, err := store.Get(ctx)
 	if err != nil {
-		t.Fatalf("Get: %v", err)
+		t.Fatalf(getErrFmt, err)
 	}
-	if got != "" {
+	if got != constants.EmptyString {
 		t.Errorf("Get = %q, want empty after Clear", got)
 	}
 }

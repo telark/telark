@@ -13,16 +13,22 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+const (
+	testUserID       = "u1"
+	testCredentialID = "c1"
+	testSessionToken = "tok"
+)
+
 func TestExtractPasskeySpecValidation(t *testing.T) {
 	// A missing required field fails before any uniqueness lookup.
-	if _, _, err := passkeyutil.ExtractPasskeySpec(map[string]any{"publicKey": "k"}, "u1"); err == nil {
+	if _, _, err := passkeyutil.ExtractPasskeySpec(map[string]any{"publicKey": "k"}, testUserID); err == nil {
 		t.Error("passkey without credentialId accepted")
 	}
 	// All required fields present but an invalid device type is rejected.
 	body := map[string]any{
-		"credentialId": "c1", "publicKey": "k", "deviceName": "phone", "deviceType": "hologram",
+		"credentialId": testCredentialID, "publicKey": "k", "deviceName": "phone", "deviceType": "hologram",
 	}
-	if _, _, err := passkeyutil.ExtractPasskeySpec(body, "u1"); err == nil {
+	if _, _, err := passkeyutil.ExtractPasskeySpec(body, testUserID); err == nil {
 		t.Error("invalid device type accepted")
 	}
 }
@@ -38,9 +44,9 @@ func TestExtractPatchFields(t *testing.T) {
 }
 
 func TestUnstructuredToPasskey(t *testing.T) {
-	res := &unstructured.Unstructured{Object: map[string]any{"spec": map[string]any{"credentialId": "c1"}}}
+	res := &unstructured.Unstructured{Object: map[string]any{"spec": map[string]any{"credentialId": testCredentialID}}}
 	pk, err := passkeyutil.UnstructuredToPasskey(res)
-	if err != nil || pk.CredentialID != "c1" {
+	if err != nil || pk.CredentialID != testCredentialID {
 		t.Fatalf("UnstructuredToPasskey = %+v, err %v", pk, err)
 	}
 	if _, err := passkeyutil.UnstructuredToPasskey(&unstructured.Unstructured{Object: map[string]any{}}); err == nil {
@@ -55,29 +61,29 @@ func TestExtractPasskeyRequestParams(t *testing.T) {
 	}
 
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"deviceName":"n"}`))
-	r.Header.Set(constants.HeaderUserID, "u1")
-	r.Header.Set(constants.HeaderCredentialID, "c1")
+	r.Header.Set(constants.HeaderUserID, testUserID)
+	r.Header.Set(constants.HeaderCredentialID, testCredentialID)
 	userID, credID, body, ok := passkeyutil.ExtractPasskeyRequestParams(httptest.NewRecorder(), r)
-	if !ok || userID != "u1" || credID != "c1" || body == nil {
+	if !ok || userID != testUserID || credID != testCredentialID || body == nil {
 		t.Errorf("valid request rejected: ok=%v userID=%q credID=%q", ok, userID, credID)
 	}
 }
 
 func TestExtractSessionSpecValidation(t *testing.T) {
-	if _, _, err := sessionutil.ExtractSessionSpec(map[string]any{}, "u1"); err == nil {
+	if _, _, err := sessionutil.ExtractSessionSpec(map[string]any{}, testUserID); err == nil {
 		t.Error("session without token accepted")
 	}
 	past := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
-	body := map[string]any{"sessionToken": "tok", "expiresTimestamp": past}
-	if _, _, err := sessionutil.ExtractSessionSpec(body, "u1"); err == nil {
+	body := map[string]any{"sessionToken": testSessionToken, "expiresTimestamp": past}
+	if _, _, err := sessionutil.ExtractSessionSpec(body, testUserID); err == nil {
 		t.Error("already-expired session accepted")
 	}
 }
 
 func TestUnstructuredToSession(t *testing.T) {
-	res := &unstructured.Unstructured{Object: map[string]any{"spec": map[string]any{"sessionToken": "tok"}}}
+	res := &unstructured.Unstructured{Object: map[string]any{"spec": map[string]any{"sessionToken": testSessionToken}}}
 	s, err := sessionutil.UnstructuredToSession(res)
-	if err != nil || s.SessionToken != "tok" {
+	if err != nil || s.SessionToken != testSessionToken {
 		t.Fatalf("UnstructuredToSession = %+v, err %v", s, err)
 	}
 	if _, err := sessionutil.UnstructuredToSession(&unstructured.Unstructured{Object: map[string]any{}}); err == nil {

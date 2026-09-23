@@ -50,18 +50,18 @@ func TestManagerDrainsFailingJobToDLQ(t *testing.T) {
 	stream := cleanup.NewStreamOps(xwareredis.NewStreamClient(rdb), resourceType, cfg.StreamMaxLen, cfg.XClaimMinIdle)
 	enqueueJob(t, stream, resourceType, "u1")
 
-	m := cleanup.NewManager(cfg, resourceType, stream, cleanup.NewDedup(rdb, cfg.DedupTTL), newReconciler(cfg), "replica-1")
+	m := cleanup.NewManager(cfg, resourceType, stream, cleanup.NewDedup(rdb, cfg.DedupTTL), newReconciler(cfg), testReplicaID)
 	m.Start(context.Background())
 	defer m.Stop()
 
-	if !waitForStreamLen(rdb, constants.CleanupDLQStreamPrefix+resourceType, 1) {
+	if !waitForStreamLen(rdb, constants.CleanupDLQStreamPrefix+resourceType, constants.DefaultIncrementValue) {
 		t.Fatal("job never reached the DLQ after exhausting its attempts")
 	}
 }
 
 // A nil election makes the replica the unconditional leader, so the loop starts
 // its managers; the started manager drains the enqueued job to the DLQ, and the
-// loop stops cleanly once its context is cancelled.
+// loop stops cleanly once its context is canceled.
 func TestLeaderLoopStartsManagers(t *testing.T) {
 	rdb, _ := testutil.RedisClient(t)
 	cfg := fastConfig()
@@ -69,7 +69,7 @@ func TestLeaderLoopStartsManagers(t *testing.T) {
 	stream := cleanup.NewStreamOps(xwareredis.NewStreamClient(rdb), resourceType, cfg.StreamMaxLen, cfg.XClaimMinIdle)
 	enqueueJob(t, stream, resourceType, "u2")
 
-	m := cleanup.NewManager(cfg, resourceType, stream, cleanup.NewDedup(rdb, cfg.DedupTTL), newReconciler(cfg), "replica-1")
+	m := cleanup.NewManager(cfg, resourceType, stream, cleanup.NewDedup(rdb, cfg.DedupTTL), newReconciler(cfg), testReplicaID)
 	loop := cleanup.NewLeaderLoop(nil, []*cleanup.Manager{m}, nil, 5*time.Millisecond)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -80,7 +80,7 @@ func TestLeaderLoopStartsManagers(t *testing.T) {
 		close(done)
 	}()
 
-	drained := waitForStreamLen(rdb, constants.CleanupDLQStreamPrefix+resourceType, 1)
+	drained := waitForStreamLen(rdb, constants.CleanupDLQStreamPrefix+resourceType, constants.DefaultIncrementValue)
 	cancel()
 	<-done
 

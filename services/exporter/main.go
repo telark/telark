@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	goredis "github.com/redis/go-redis/v9"
 	dataerrors "github.com/telark/data/errors"
 	exporterauthz "github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/config"
 	"github.com/telark/exporter/internal/constants"
+	reportsexp "github.com/telark/exporter/internal/exporters/reports"
 	snapshotexp "github.com/telark/exporter/internal/exporters/snapshot"
 	"github.com/telark/exporter/internal/informers"
 	envmanager "github.com/telark/exporter/internal/managers/envs"
@@ -39,12 +41,14 @@ var (
 func main() {
 	config.ApplyKubernetesRESTRateLimit()
 	initSnapshotsConfig()
+	initReportsConfig()
 	lg.Info(fmt.Sprintf(string(constants.InfListRenderConcurrencyConfigured), envmanager.InitListRenderConcurrency()))
 	optimizer := performance.NewOptimizer(initConnectivity())
 	startup.SeedBuiltins()
 	async.Init()
 	gcCtx, stopGC := context.WithCancel(context.Background())
 	go snapshotexp.StartSnapshotGC(gcCtx)
+	go reportsexp.StartReportsGC(gcCtx)
 	go snaputil.StartStorageStatsRefresher(gcCtx)
 	go informers.StartApplications(gcCtx)
 	go informers.StartSessions(gcCtx)
@@ -79,6 +83,15 @@ func initSnapshotsConfig() {
 		envmanager.GetSnapshotsPVCNamespace(),
 		envmanager.GetSnapshotsPVCName(),
 	))
+}
+
+func initReportsConfig() {
+	reportsPath := envmanager.InitReportsPath()
+	lg.Info(fmt.Sprintf(string(constants.InfReportsPathConfigured), reportsPath))
+	plansRoot := filepath.Join(reportsPath, constants.ReportsPlansSubdir)
+	if err := os.MkdirAll(plansRoot, constants.SnapshotDirPerm); err != nil {
+		lg.Error(fmt.Sprintf(string(constants.ErrReportsRootCreateFailed), plansRoot, err))
+	}
 }
 
 func initConnectivity() *goredis.Client {

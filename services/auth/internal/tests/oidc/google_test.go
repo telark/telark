@@ -11,6 +11,11 @@ import (
 	globalconfigresource "github.com/telark/data/resources/globalconfig"
 )
 
+const (
+	testClientID    = "client"
+	rsaModulusBytes = 128
+)
+
 // LoadConfig reads the OIDC block from the resource backend; with no backend it
 // fails rather than returning a zero config.
 func TestLoadConfigFailsClosed(t *testing.T) {
@@ -26,14 +31,14 @@ func TestValidateGoogleIDTokenOffline(t *testing.T) {
 	t.Cleanup(oidc.StopJWKSRefresh)
 
 	badKeys := globalconfigresource.OIDCConfig{
-		Enabled: true, GoogleClientID: "client", EgressAllowed: false, GoogleJWKJSON: "not-json",
+		Enabled: true, GoogleClientID: testClientID, EgressAllowed: false, GoogleJWKJSON: "not-json",
 	}
 	if _, err := oidc.ValidateGoogleIDToken("header.claims.sig", badKeys); err == nil {
 		t.Fatal("unparseable JWK set should fail store construction")
 	}
 
 	emptyKeys := globalconfigresource.OIDCConfig{
-		Enabled: true, GoogleClientID: "client", EgressAllowed: false, GoogleJWKJSON: "{}",
+		Enabled: true, GoogleClientID: testClientID, EgressAllowed: false, GoogleJWKJSON: "{}",
 	}
 	_, err := oidc.ValidateGoogleIDToken("not-a-jwt", emptyKeys)
 	testutil.Equal(t, "malformed token rejected", err != nil, true)
@@ -44,11 +49,11 @@ func TestValidateGoogleIDTokenOffline(t *testing.T) {
 func TestValidateGoogleIDTokenStaticKeys(t *testing.T) {
 	t.Cleanup(oidc.StopJWKSRefresh)
 
-	n := base64.RawURLEncoding.EncodeToString(bytes.Repeat([]byte{0xAB}, 128))
+	n := base64.RawURLEncoding.EncodeToString(bytes.Repeat([]byte{0xAB}, rsaModulusBytes))
 	jwks := fmt.Sprintf(
 		`{"keys":[{"kty":"RSA","use":"sig","kid":"k1","alg":"RS256","n":%q,"e":"AQAB"}]}`, n)
 	cfg := globalconfigresource.OIDCConfig{
-		Enabled: true, GoogleClientID: "client", EgressAllowed: false, GoogleJWKJSON: jwks,
+		Enabled: true, GoogleClientID: testClientID, EgressAllowed: false, GoogleJWKJSON: jwks,
 	}
 
 	if _, err := oidc.ValidateGoogleIDToken("not-a-jwt", cfg); err == nil {

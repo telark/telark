@@ -9,9 +9,11 @@ import (
 	"github.com/gorilla/mux"
 	metadata "github.com/telark/data/metadata/resources"
 	"github.com/telark/exporter/internal/constants"
-	generics "github.com/telark/exporter/internal/exporters/generics"
+	"github.com/telark/exporter/internal/exporters/generics"
 	exportshared "github.com/telark/exporter/internal/exporters/shared"
 )
+
+const testResourceName = "n1"
 
 func namedReq(body string) *http.Request {
 	var r *http.Request
@@ -20,7 +22,7 @@ func namedReq(body string) *http.Request {
 	} else {
 		r = httptest.NewRequest(http.MethodPost, "/resource", strings.NewReader(body))
 	}
-	return mux.SetURLVars(r, map[string]string{constants.NameParam: "n1", constants.IDParam: "n1"})
+	return mux.SetURLVars(r, map[string]string{constants.NameParam: testResourceName, constants.IDParam: testResourceName})
 }
 
 func expectError(t *testing.T, w *httptest.ResponseRecorder, name string) {
@@ -34,10 +36,10 @@ func expectError(t *testing.T, w *httptest.ResponseRecorder, name string) {
 // response instead of a success.
 func TestGenericCRDOperations(t *testing.T) {
 	md := metadata.RoleAsResourceMetadata
-	spec := map[string]any{constants.SpecField: map[string]any{"name": "n1"}}
+	spec := map[string]any{constants.SpecField: map[string]any{"name": testResourceName}}
 
 	rec := httptest.NewRecorder()
-	generics.GenericGetCustomResource(rec, "n1", md)
+	generics.GenericGetCustomResource(rec, testResourceName, md)
 	expectError(t, rec, "GenericGet")
 
 	list := httptest.NewRecorder()
@@ -45,19 +47,19 @@ func TestGenericCRDOperations(t *testing.T) {
 	expectError(t, list, "GenericList")
 
 	create := httptest.NewRecorder()
-	generics.GenericCreateCustomResource(create, md, "n1", map[string]any{"name": "n1"})
+	generics.GenericCreateCustomResource(create, md, testResourceName, map[string]any{"name": testResourceName})
 	expectError(t, create, "GenericCreate")
 
 	createFin := httptest.NewRecorder()
-	generics.GenericCreateCustomResourceWithFinalizers(createFin, md, "n1", map[string]any{"name": "n1"}, []string{"f"})
+	generics.GenericCreateCustomResourceWithFinalizers(createFin, md, testResourceName, map[string]any{"name": testResourceName}, []string{"f"})
 	expectError(t, createFin, "GenericCreateWithFinalizers")
 
 	patch := httptest.NewRecorder()
-	generics.GenericPatchCustomResource(patch, md, "n1", spec)
+	generics.GenericPatchCustomResource(patch, md, testResourceName, spec)
 	expectError(t, patch, "GenericPatch")
 
 	del := httptest.NewRecorder()
-	generics.GenericDeleteCustomResource(del, md, "n1")
+	generics.GenericDeleteCustomResource(del, md, testResourceName)
 	expectError(t, del, "GenericDelete")
 }
 
@@ -65,7 +67,7 @@ func TestSharedExporterOperations(t *testing.T) {
 	md := metadata.RoleAsResourceMetadata
 
 	create := httptest.NewRecorder()
-	exportshared.CreateResource(create, md, "n1", map[string]any{"name": "n1"})
+	exportshared.CreateResource(create, md, testResourceName, map[string]any{"name": testResourceName})
 	expectError(t, create, "CreateResource")
 
 	getUnique := httptest.NewRecorder()
@@ -73,7 +75,7 @@ func TestSharedExporterOperations(t *testing.T) {
 	expectError(t, getUnique, "GetUniqueResourceFromList")
 
 	del := httptest.NewRecorder()
-	exportshared.DeleteResource(del, md, "n1")
+	exportshared.DeleteResource(del, md, testResourceName)
 	expectError(t, del, "DeleteResource")
 
 	patch := httptest.NewRecorder()

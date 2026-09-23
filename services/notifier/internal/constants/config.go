@@ -7,6 +7,7 @@ const (
 	DefaultInitValue             = 0
 	DefaultAdd                   = 1
 	SubjectPartsMin              = 3
+	SubjectActionIndex           = 2
 	NatsFetchBatchSize           = 64
 	DefaultMaxRetries            = 3
 	AckWaitSeconds               = 5
@@ -14,6 +15,8 @@ const (
 	RetryDelaySeconds            = 5
 	ProcessTimeoutSeconds        = 30
 	FieldNameKey                 = "name"
+	FieldSpecKey                 = "spec"
+	JetStreamAckPrefix           = "$JS.ACK."
 	ServiceID                    = "notifier"
 	NatsInitRetryIntervalSeconds = 5
 	NatsInitMaxWaitSeconds       = 300

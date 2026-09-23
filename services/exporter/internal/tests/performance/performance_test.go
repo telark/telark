@@ -16,17 +16,19 @@ import (
 	responseutils "github.com/telark/rest/utils/response"
 )
 
+const applicationsPath = "/applications"
+
 func TestGetTimeoutForResource(t *testing.T) {
 	// A resource+operation configured explicitly returns its specific timeout.
-	if got := performance.GetTimeoutForResource(constants.ResourceApplication, constants.OpGet); got <= 0 {
+	if got := performance.GetTimeoutForResource(constants.ResourceApplication, constants.OpGet); got <= constants.DefaultInitValue {
 		t.Errorf("configured timeout = %v, want > 0", got)
 	}
 	// An unconfigured resource falls back to the per-operation default.
-	if got := performance.GetTimeoutForResource("unconfigured", constants.OpCreate); got <= 0 {
+	if got := performance.GetTimeoutForResource("unconfigured", constants.OpCreate); got <= constants.DefaultInitValue {
 		t.Errorf("fallback timeout = %v, want > 0", got)
 	}
 	// An unknown operation lands on the global default.
-	if got := performance.GetTimeoutForResource("unconfigured", "unknown-op"); got <= 0 {
+	if got := performance.GetTimeoutForResource("unconfigured", "unknown-op"); got <= constants.DefaultInitValue {
 		t.Errorf("default timeout = %v, want > 0", got)
 	}
 }
@@ -65,11 +67,9 @@ func TestCachedListHandlerBoundsConcurrentRenders(t *testing.T) {
 	var wg sync.WaitGroup
 	codes := make([]int, constants.DefaultListRenderConcurrency)
 	for i := range codes {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			codes[i] = serveList(handler, "/"+strconv.Itoa(i)).Code
-		}()
+		})
 	}
 	for range codes {
 		<-started
@@ -96,7 +96,7 @@ func TestCachedListHandlerBoundsConcurrentRenders(t *testing.T) {
 // hit is spliced into the same envelope the live response used.
 func TestCachedListHandlerServesLocalBlobWithoutRedis(t *testing.T) {
 	o := newOptimizer(t)
-	renders := 0
+	renders := constants.DefaultInitValue
 	live := func(w http.ResponseWriter, r *http.Request) {
 		renders++
 		listBody(w, r)
@@ -104,10 +104,10 @@ func TestCachedListHandlerServesLocalBlobWithoutRedis(t *testing.T) {
 	keyFunc := cache.NewListCacheKeyFunc(o, constants.ResourceApplication)
 	handler := performance.NewCachedListHandlerFunc(o, live, keyFunc, constants.ResourceApplication, constants.OpList)
 
-	first := serveList(handler, "/applications")
-	o.Delete(keyFunc(httptest.NewRequest(http.MethodGet, "/applications", nil)))
-	second := serveList(handler, "/applications")
-	if renders != 1 || second.Code != http.StatusOK {
+	first := serveList(handler, applicationsPath)
+	o.Delete(keyFunc(httptest.NewRequest(http.MethodGet, applicationsPath, nil)))
+	second := serveList(handler, applicationsPath)
+	if renders != constants.DefaultIncrementValue || second.Code != http.StatusOK {
 		t.Fatalf("renders = %d, second code = %d, want one render and a local hit", renders, second.Code)
 	}
 

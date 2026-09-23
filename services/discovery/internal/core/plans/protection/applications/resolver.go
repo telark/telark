@@ -17,7 +17,7 @@ type Resolver func(
 	ids []string,
 ) (resolved map[string]policies.ResolvedApp, missing []string, err error)
 
-func NewRedisResolver(rdb *redis.Client) Resolver {
+func NewRedisResolver(rdb *redis.Client, readClaims ClaimReader) Resolver {
 	return func(ctx context.Context, ids []string) (map[string]policies.ResolvedApp, []string, error) {
 		apps, err := coordination.DiscoverApplications(ctx, rdb)
 		if err != nil {
@@ -41,10 +41,14 @@ func NewRedisResolver(rdb *redis.Client) Resolver {
 				missing = append(missing, id)
 				continue
 			}
-			resolved[id] = policies.ResolvedApp{
+			entry := policies.ResolvedApp{
 				Namespace: ns,
 				Resources: toResourceRefs(app.Resources),
 			}
+			if readClaims != nil {
+				entry.VolumeClaims = readClaims(ctx, app.Resources)
+			}
+			resolved[id] = entry
 		}
 		return resolved, missing, nil
 	}

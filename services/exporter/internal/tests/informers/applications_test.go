@@ -14,6 +14,9 @@ import (
 	k8scache "k8s.io/client-go/tools/cache"
 )
 
+// Two applications live in the watched namespace; a third sits outside it.
+const wantNamespacedApps = 2
+
 func application(name string, namespace string) *unstructured.Unstructured {
 	md := metadata.ApplicationAsResourceMetadata
 	return &unstructured.Unstructured{Object: map[string]any{
@@ -54,8 +57,8 @@ func TestRunApplicationsServesTheStoreOnceSynced(t *testing.T) {
 	if !ok {
 		t.Fatal("synced store not served")
 	}
-	if len(list.Items) != 2 {
-		t.Fatalf("items = %d, want the 2 from the namespace", len(list.Items))
+	if len(list.Items) != wantNamespacedApps {
+		t.Fatalf("items = %d, want the %d from the namespace", len(list.Items), wantNamespacedApps)
 	}
 	if list.Items[0].GetName() != "alpha" || list.Items[1].GetName() != "beta" {
 		t.Errorf("order = %s, %s, want alpha, beta", list.Items[0].GetName(), list.Items[1].GetName())

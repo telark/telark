@@ -1,9 +1,16 @@
 package protection
 
-import "github.com/telark/discovery/internal/core/plans/protection"
+import (
+	"sync/atomic"
 
-var globalService *protection.Service
+	"github.com/telark/discovery/internal/core/plans/protection"
+)
+
+// The bootstrap publishes the service from its own goroutine while the HTTP server is
+// already serving, and re-publishes it on every bootstrap path, so the pointer is read
+// and written concurrently.
+var globalService atomic.Pointer[protection.Service]
 
 func InitService(svc *protection.Service) {
-	globalService = svc
+	globalService.Store(svc)
 }

@@ -26,6 +26,7 @@ flowchart LR
   subgraph cluster["Cluster"]
     K8S[("Kubernetes API<br/>Telark CRDs")]
     PVC[("Snapshots PVC")]
+    RPVC[("Reports PVC")]
   end
 
   LLM{{"LLM provider"}}
@@ -51,6 +52,7 @@ flowchart LR
 
   EXP -->|CRDs| K8S
   EXP -->|snapshots| PVC
+  EXP -->|reports| RPVC
 
   classDef svc fill:#eef2ff,stroke:#6366f1,stroke-width:1.5px,color:#312e81;
   classDef infra fill:#ecfdf5,stroke:#10b981,stroke-width:1.5px,color:#065f46;
@@ -59,7 +61,7 @@ flowchart LR
   classDef ext fill:#faf5ff,stroke:#a855f7,stroke-width:1.5px,color:#6b21a8;
   class AUTH,DISC,EXP,ENR,NTF svc;
   class NATS,KYV infra;
-  class REDIS,K8S,PVC store;
+  class REDIS,K8S,PVC,RPVC store;
   class UI peer;
   class LLM ext;
 ```

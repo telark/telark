@@ -60,6 +60,7 @@ flowchart LR
 - **Enrich:** the leader tick dispatches application signals to enrichment (`POST /api/v1/insights/applications`) when AI is configured — fire-and-forget, never blocking on the model.
 - **Protect:** drive the protection-plan lifecycle (`scheduled → active → terminated`); while active, deploy admission policies for the plan's scope and verify their health against live cluster state.
 - **Rollback:** apply a chosen snapshot back to the cluster under explicit intent, with controller-driven status.
+- **Report:** render protection plan reports (HTML, Markdown, JSON, CSV) and store them through exporter. A final report is captured asynchronously right after a plan ends — after the terminal patch removes its policies and records its phase — bounded at 10 s and serialized. A checkpoint loop (`PROTECTION_PLAN_REPORT_CHECKPOINT_SEC`) merges live violation Events into the plan's ledger before the 1 h Event retention drops them, on its own rate-limited K8s client that reuses `DISCOVERY_ROLLBACK_K8S_CLIENT_QPS` / `_BURST`. On-demand reports merge the ledger with what the cluster still holds, then render.
 
 ## How change detection works
 
@@ -133,7 +134,7 @@ sequenceDiagram
   API->>EXP: PATCH application (pending rollback)
   CTRL->>EXP: Watch pending → GET snapshot manifest
   CTRL->>CL: Apply / reconcile resources
-  CTRL->>EXP: PATCH status (in_progress → success | failed)
+  CTRL->>EXP: PATCH status (in_progress → success | failed; pending → aborted)
 ```
 
 ## Layout
@@ -161,14 +162,19 @@ sequenceDiagram
 Discovery is the most tunable service. The full, authoritative env reference lives in the
 [chart README](../../charts/telark/README.md#servicesdiscoveryenv) — K8s client rate limits,
 informer resync/coalescing, coordination TTLs, snapshot writer, protection-plan tick,
-force-sync, and auto-cleanup. Per-cluster sizing comes from the
+force-sync, auto-cleanup, and protection plan reports (`PROTECTION_PLAN_REPORT_MAX_VIOLATIONS`, default `5000`, bounds the per-plan ledger; `PROTECTION_PLAN_REPORT_CHECKPOINT_SEC`, default `900`, clamped to 60–1800). Per-cluster sizing comes from the
 [install mode](../../docs/INSTALL.md#sizing-modes) (`--set app.mode`), not this service's defaults.
 
 ## API
 
 REST under `/api/v1/` — `analyze/*` (namespace workloads/resources), `resources/*`
 (applications), `plans/*` (protection plans), `rollback` intents, and
-`/api/v1/status/{live,ready}`.
+`/api/v1/status/{live,ready}`. Plan bodies accept optional `environmentID` and `tagIDs`
+(category ids, metadata only); omitting them on update keeps the stored values, sending
+`""` / `[]` clears them; a duplicate copies them unless the request overrides them.
+`POST plans/protection/{id}/reports/generate` renders an on-demand report (Write access):
+400 for a plan that never started, 429 with `Retry-After` when two on-demand renders are
+already in flight.
 
 ## Build & run
 

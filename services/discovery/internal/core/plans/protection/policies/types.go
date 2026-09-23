@@ -5,6 +5,7 @@ import "k8s.io/apimachinery/pkg/runtime/schema"
 const (
 	FieldManager        = "telark-protection-plans"
 	labelSelectorFormat = "%s=%s"
+	errDeletePolicyFmt  = "delete policy %s/%s: %w"
 )
 
 var KyvernoPolicyGVR = schema.GroupVersionResource{

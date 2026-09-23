@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/telark/auth/internal/constants"
 	cleanuphandler "github.com/telark/auth/internal/handlers/cleanup"
 	"github.com/telark/rest/base"
 	restconstants "github.com/telark/rest/constants"
@@ -22,7 +23,7 @@ func TestDeleteUserCleanupReadsIDFromRoute(t *testing.T) {
 		router.CreateRoute(base.Delete, endpoint, cleanuphandler.DeleteUser),
 	})
 
-	path := strings.Replace(router.Pattern(endpoint), restconstants.IDParam, "u-1", 1)
+	path := strings.Replace(router.Pattern(endpoint), restconstants.IDParam, "u-1", constants.DefaultIncrementValue)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, path, nil))
 

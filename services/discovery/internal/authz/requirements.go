@@ -61,5 +61,6 @@ func addPlans(r map[string]authz.Requirement) {
 	r[router.Key(base.Post, planseps.DuplicateProtectionPlan)] = authz.Write(roledata.ScopeProtectionPlans)
 	r[router.Key(base.Post, planseps.ReactivateProtectionPlan)] = authz.Write(roledata.ScopeProtectionPlans)
 	r[router.Key(base.Post, planseps.UpdateProtectionPlan)] = authz.Write(roledata.ScopeProtectionPlans)
+	r[router.Key(base.Post, planseps.GenerateProtectionPlanReport)] = authz.Write(roledata.ScopeProtectionPlans)
 	r[router.Key(base.Delete, planseps.ClearProtectionPlan)] = authz.Own(roledata.ScopeProtectionPlans)
 }

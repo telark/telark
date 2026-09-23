@@ -18,6 +18,11 @@ import (
 const (
 	subjectA = "u-00001-0001-000a"
 	subjectB = "u-00001-0001-000b"
+
+	listPath = "/api/v1/list"
+
+	wantOneCall  = 1
+	wantTwoCalls = 2
 )
 
 func newOptimizer(t *testing.T) *performance.Optimizer {
@@ -36,12 +41,12 @@ func echoSubjectHandler(subject func(*http.Request) string) http.HandlerFunc {
 }
 
 func pathRequest(param string, value string) *http.Request {
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/list", nil)
+	r := httptest.NewRequest(http.MethodGet, listPath, nil)
 	return mux.SetURLVars(r, map[string]string{param: value})
 }
 
 func headerRequest(header string, value string) *http.Request {
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/list", nil)
+	r := httptest.NewRequest(http.MethodGet, listPath, nil)
 	r.Header.Set(header, value)
 	return r
 }
@@ -149,7 +154,7 @@ func TestListInvalidationReachesPerSubjectEntries(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			o := newOptimizer(t)
-			calls := 0
+			calls := constants.DefaultInitValue
 			subject := cache.SubjectFromPathParam(constants.UserIDParam)
 			handler := performance.NewCachedListHandlerFunc(
 				o,
@@ -161,14 +166,14 @@ func TestListInvalidationReachesPerSubjectEntries(t *testing.T) {
 
 			handler(httptest.NewRecorder(), pathRequest(constants.UserIDParam, subjectA))
 			handler(httptest.NewRecorder(), pathRequest(constants.UserIDParam, subjectA))
-			if calls != 1 {
-				t.Fatalf("handler ran %d times, want 1 — the second read was not cached", calls)
+			if calls != wantOneCall {
+				t.Fatalf("handler ran %d times, want %d — the second read was not cached", calls, wantOneCall)
 			}
 
 			tt.invalidate(o)
 			handler(httptest.NewRecorder(), pathRequest(constants.UserIDParam, subjectA))
-			if calls != 2 {
-				t.Errorf("handler ran %d times, want 2 — the per-subject entry survived invalidation", calls)
+			if calls != wantTwoCalls {
+				t.Errorf("handler ran %d times, want %d — the per-subject entry survived invalidation", calls, wantTwoCalls)
 			}
 		})
 	}
@@ -177,7 +182,7 @@ func TestListInvalidationReachesPerSubjectEntries(t *testing.T) {
 // A request whose subject cannot be read must never fall back to a shared key.
 func TestUnresolvableSubjectIsNeverCached(t *testing.T) {
 	o := newOptimizer(t)
-	calls := 0
+	calls := constants.DefaultInitValue
 	handler := performance.NewCachedListHandlerFunc(
 		o,
 		countingHandler(&calls),
@@ -186,18 +191,18 @@ func TestUnresolvableSubjectIsNeverCached(t *testing.T) {
 		constants.OpList,
 	)
 
-	handler(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/v1/list", nil))
-	handler(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/v1/list", nil))
+	handler(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, listPath, nil))
+	handler(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, listPath, nil))
 
-	if calls != 2 {
-		t.Errorf("handler ran %d times, want 2 — a subjectless request was served from cache", calls)
+	if calls != wantTwoCalls {
+		t.Errorf("handler ran %d times, want %d — a subjectless request was served from cache", calls, wantTwoCalls)
 	}
 }
 
 // Invalidating one resource type must not throw away another type's lists.
 func TestListInvalidationIsScopedToItsResourceType(t *testing.T) {
 	o := newOptimizer(t)
-	calls := 0
+	calls := constants.DefaultInitValue
 	handler := performance.NewCachedListHandlerFunc(
 		o,
 		countingHandler(&calls),
@@ -206,12 +211,12 @@ func TestListInvalidationIsScopedToItsResourceType(t *testing.T) {
 		constants.OpList,
 	)
 
-	handler(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/v1/list", nil))
+	handler(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, listPath, nil))
 	cache.InvalidateListCache(o, constants.ResourceRole)
-	handler(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/v1/list", nil))
+	handler(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, listPath, nil))
 
-	if calls != 1 {
-		t.Errorf("handler ran %d times, want 1 — a roles write dropped the applications list", calls)
+	if calls != wantOneCall {
+		t.Errorf("handler ran %d times, want %d — a roles write dropped the applications list", calls, wantOneCall)
 	}
 }
 
@@ -231,7 +236,7 @@ func TestListCacheKeysCarryTheirSubject(t *testing.T) {
 		{
 			name:    "global list has no subject",
 			keyFunc: cache.NewListCacheKeyFunc(gen, constants.ResourceRole),
-			request: httptest.NewRequest(http.MethodGet, "/api/v1/list", nil),
+			request: httptest.NewRequest(http.MethodGet, listPath, nil),
 			want:    "list:roles:7",
 		},
 		{
@@ -255,7 +260,7 @@ func TestListCacheKeysCarryTheirSubject(t *testing.T) {
 		{
 			name:    "missing subject yields no key at all",
 			keyFunc: cache.NewSubjectListCacheKeyFunc(gen, constants.ResourceUserSession, cache.SubjectFromPathParam(constants.UserIDParam)),
-			request: httptest.NewRequest(http.MethodGet, "/api/v1/list", nil),
+			request: httptest.NewRequest(http.MethodGet, listPath, nil),
 			want:    constants.EmptyString,
 		},
 	}

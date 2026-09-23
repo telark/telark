@@ -13,6 +13,8 @@ import (
 	"github.com/telark/rest/response"
 )
 
+const maxConcurrentPatches = 2
+
 // ReconcileOne clears a deleted resource's back-references then removes its
 // finalizer. The fake target models a group that references the user until it is
 // patched, so the happy path (patch → re-confirm cleared → drop finalizer) runs
@@ -44,21 +46,21 @@ func TestReconcileOne(t *testing.T) {
 		},
 	}
 
-	cfg := config.CleanupConfig{ReconcilePassDeadline: time.Second, MaxConcurrentPatches: 2}
+	cfg := config.CleanupConfig{ReconcilePassDeadline: time.Second, MaxConcurrentPatches: maxConcurrentPatches}
 	r := cleanupctrl.NewReconciler(cfg, map[string]cleanupctrl.Target{"user": target}, constants.GetLogger(constants.LoggerPrefixCleanup))
 
-	out, err := r.ReconcileOne(context.Background(), "user", "u1", 1)
+	out, err := r.ReconcileOne(context.Background(), "user", "u1", constants.DefaultIncrementValue)
 	if err != nil || out.Requeue {
 		t.Fatalf("ReconcileOne = (%+v, %v), want success", out, err)
 	}
-	if out.PatchCount != 1 {
+	if out.PatchCount != constants.DefaultIncrementValue {
 		t.Fatalf("PatchCount = %d, want 1", out.PatchCount)
 	}
 	if !patched {
 		t.Fatal("back-reference was never patched")
 	}
 
-	if _, err := r.ReconcileOne(context.Background(), "unknown", "x", 1); err == nil {
+	if _, err := r.ReconcileOne(context.Background(), "unknown", "x", constants.DefaultIncrementValue); err == nil {
 		t.Fatal("unknown resource type should error")
 	}
 }

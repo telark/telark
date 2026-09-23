@@ -4,11 +4,11 @@ import (
 	"time"
 
 	authmetadata "github.com/telark/data/metadata/auth"
+	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/utils/concurrency"
 	"github.com/telark/kcore/crds/api"
 )
 
-// PurgeExpiredSessionsForUser deletes expired session CRDs for a user.
 // Called before creating a new session to keep the CRD count bounded,
 // preventing Kubernetes ResourceQuota evaluation timeouts on creation.
 func PurgeExpiredSessionsForUser(userID string) {
@@ -19,7 +19,7 @@ func PurgeExpiredSessionsForUser(userID string) {
 	now := time.Now().UTC()
 	for i := range sessions {
 		session, err := UnstructuredToSession(&sessions[i])
-		if err != nil || session.ExpiresTimestamp == "" {
+		if err != nil || session.ExpiresTimestamp == constants.EmptyString {
 			continue
 		}
 		expiresAt, err := time.Parse(time.RFC3339, session.ExpiresTimestamp)

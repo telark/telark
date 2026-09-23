@@ -6,9 +6,19 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
+	"github.com/telark/exporter/internal/constants"
 	exprdb "github.com/telark/exporter/internal/redis"
 	notifstorage "github.com/telark/exporter/internal/redis/notifications"
 	notiftypes "github.com/telark/exporter/internal/types/notifications"
+)
+
+const (
+	testUserID = "u1"
+
+	listLimit      = 10
+	oversizedLimit = 100000
+
+	seededNotifications = 3
 )
 
 func newStorage(t *testing.T) *notifstorage.Storage {
@@ -24,9 +34,9 @@ func newStorage(t *testing.T) *notifstorage.Storage {
 	return s
 }
 
-func notif(userID string) notiftypes.Notification {
+func notif() notiftypes.Notification {
 	return notiftypes.Notification{
-		UserID:   userID,
+		UserID:   testUserID,
 		Type:     notiftypes.TypeRoleChanged,
 		Title:    "title",
 		Message:  "message",
@@ -45,22 +55,22 @@ func TestEmitAndList(t *testing.T) {
 	ctx := context.Background()
 	s := newStorage(t)
 
-	n := notif("u1")
+	n := notif()
 	n.Metadata = map[string]any{notiftypes.MetaKeyTargetID: "tgt", "extra": "v"}
 	created, err := s.Emit(ctx, n)
-	if err != nil || created.ID == "" {
+	if err != nil || created.ID == constants.EmptyString {
 		t.Fatalf("Emit = %+v, err %v", created, err)
 	}
 
-	list, err := s.List(ctx, "u1", 10, "")
+	list, err := s.List(ctx, testUserID, listLimit, constants.EmptyString)
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
-	if len(list.Items) != 1 || list.UnreadCount != 1 {
+	if len(list.Items) != constants.DefaultIncrementValue || list.UnreadCount != constants.DefaultIncrementValue {
 		t.Fatalf("List items=%d unread=%d, want 1/1", len(list.Items), list.UnreadCount)
 	}
-	if list.Items[0].Title != "title" || list.Items[0].Metadata["extra"] != "v" {
-		t.Errorf("round-tripped notification wrong: %+v", list.Items[0])
+	if list.Items[constants.DefaultInitValue].Title != "title" || list.Items[constants.DefaultInitValue].Metadata["extra"] != "v" {
+		t.Errorf("round-tripped notification wrong: %+v", list.Items[constants.DefaultInitValue])
 	}
 }
 
@@ -68,7 +78,7 @@ func TestEmitDedupUpdatesInPlace(t *testing.T) {
 	ctx := context.Background()
 	s := newStorage(t)
 
-	n := notif("u1")
+	n := notif()
 	n.Metadata = map[string]any{notiftypes.MetaKeyTargetID: "same-target"}
 	first, err := s.Emit(ctx, n)
 	if err != nil {
@@ -85,30 +95,30 @@ func TestEmitDedupUpdatesInPlace(t *testing.T) {
 		t.Errorf("dedup created a new notification: %s vs %s", second.ID, first.ID)
 	}
 
-	list, _ := s.List(ctx, "u1", 10, "")
-	if len(list.Items) != 1 {
+	list, _ := s.List(ctx, testUserID, listLimit, constants.EmptyString)
+	if len(list.Items) != constants.DefaultIncrementValue {
 		t.Fatalf("dedup left %d items, want 1", len(list.Items))
 	}
-	if list.Items[0].Title != "updated title" {
-		t.Errorf("dedup did not update title: %q", list.Items[0].Title)
+	if list.Items[constants.DefaultInitValue].Title != "updated title" {
+		t.Errorf("dedup did not update title: %q", list.Items[constants.DefaultInitValue].Title)
 	}
 }
 
 func TestMarkRead(t *testing.T) {
 	ctx := context.Background()
 	s := newStorage(t)
-	created, err := s.Emit(ctx, notif("u1"))
+	created, err := s.Emit(ctx, notif())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.MarkRead(ctx, "u1", created.ID); err != nil {
+	if err := s.MarkRead(ctx, testUserID, created.ID); err != nil {
 		t.Fatalf("MarkRead: %v", err)
 	}
-	list, _ := s.List(ctx, "u1", 10, "")
-	if list.UnreadCount != 0 {
+	list, _ := s.List(ctx, testUserID, listLimit, constants.EmptyString)
+	if list.UnreadCount != constants.DefaultInitValue {
 		t.Errorf("unread = %d after MarkRead, want 0", list.UnreadCount)
 	}
-	if len(list.Items) == 1 && list.Items[0].ReadAt == nil {
+	if len(list.Items) == constants.DefaultIncrementValue && list.Items[constants.DefaultInitValue].ReadAt == nil {
 		t.Error("read notification has no ReadAt timestamp")
 	}
 }
@@ -116,24 +126,24 @@ func TestMarkRead(t *testing.T) {
 func TestMarkAllReadAndClear(t *testing.T) {
 	ctx := context.Background()
 	s := newStorage(t)
-	for range 3 {
-		if _, err := s.Emit(ctx, notif("u1")); err != nil {
+	for range seededNotifications {
+		if _, err := s.Emit(ctx, notif()); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := s.MarkAllRead(ctx, "u1"); err != nil {
+	if err := s.MarkAllRead(ctx, testUserID); err != nil {
 		t.Fatalf("MarkAllRead: %v", err)
 	}
-	list, _ := s.List(ctx, "u1", 10, "")
-	if list.UnreadCount != 0 {
+	list, _ := s.List(ctx, testUserID, listLimit, constants.EmptyString)
+	if list.UnreadCount != constants.DefaultInitValue {
 		t.Errorf("unread = %d after MarkAllRead, want 0", list.UnreadCount)
 	}
 
-	if err := s.Clear(ctx, "u1"); err != nil {
+	if err := s.Clear(ctx, testUserID); err != nil {
 		t.Fatalf("Clear: %v", err)
 	}
-	cleared, _ := s.List(ctx, "u1", 10, "")
-	if len(cleared.Items) != 0 {
+	cleared, _ := s.List(ctx, testUserID, listLimit, constants.EmptyString)
+	if len(cleared.Items) != constants.DefaultInitValue {
 		t.Errorf("Clear left %d items", len(cleared.Items))
 	}
 }
@@ -141,14 +151,14 @@ func TestMarkAllReadAndClear(t *testing.T) {
 func TestListLimitBounds(t *testing.T) {
 	ctx := context.Background()
 	s := newStorage(t)
-	if _, err := s.Emit(ctx, notif("u1")); err != nil {
+	if _, err := s.Emit(ctx, notif()); err != nil {
 		t.Fatal(err)
 	}
 	// A non-positive limit falls back to the default; an oversized one is capped.
-	if _, err := s.List(ctx, "u1", 0, ""); err != nil {
+	if _, err := s.List(ctx, testUserID, constants.DefaultInitValue, constants.EmptyString); err != nil {
 		t.Errorf("default-limit list failed: %v", err)
 	}
-	if _, err := s.List(ctx, "u1", 100000, ""); err != nil {
+	if _, err := s.List(ctx, testUserID, oversizedLimit, constants.EmptyString); err != nil {
 		t.Errorf("capped-limit list failed: %v", err)
 	}
 }

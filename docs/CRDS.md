@@ -11,7 +11,7 @@ telark's custom resources are defined by the `telark-crds` chart. The group suff
 | `RoleAsResource` | `rolesasresources` | A role: scopes granted and denials, at a level. |
 | `UserAsResource` | `usersasresources` | A user in the role model. |
 | `GlobalConfig` | `globalconfigs` | Cluster-wide settings (AI provider/keys, OIDC) set from the UI at runtime. |
-| `ProtectionPlan` | `protectionplans` | Policy templates bound to a scope and a time window; transitions scheduled → active → terminated. |
+| `ProtectionPlan` | `protectionplans` | Policy templates bound to a scope and a time window; transitions scheduled → active → terminated; carries optional metadata environmentID / tagIDs (category ids, at most 20 tags). |
 
 ## Group `auth.<name>`
 
@@ -24,7 +24,7 @@ telark's custom resources are defined by the `telark-crds` chart. The group suff
 
 | Kind | Plural | Purpose |
 |---|---|---|
-| `CategoryAsClassification` | `categoriesasclassifications` (short: `cat`) | A classification category applied to applications. |
+| `CategoryAsClassification` | `categoriesasclassifications` (short: `cat`) | A classification category; scopes: groups, roles, plan-environments (protection-plan environments), plan-tags (protection-plan tags). |
 
 ## Ownership
 

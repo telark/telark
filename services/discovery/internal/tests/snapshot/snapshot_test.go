@@ -6,23 +6,29 @@ import (
 	"time"
 
 	appresource "github.com/telark/data/resources/application"
+	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/applications/snapshot"
 	"github.com/telark/discovery/internal/tests/testutil"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+const (
+	entryB = "b"
+	entryA = "a"
+)
+
 // Generation membership is a straight scan.
 func TestHasSnapshotGeneration(t *testing.T) {
-	snaps := []appresource.ApplicationSnapshot{{Generation: 1}, {Generation: 3}}
-	testutil.Equal(t, "present", snapshot.HasSnapshotGeneration(snaps, 3), true)
-	testutil.Equal(t, "absent", snapshot.HasSnapshotGeneration(snaps, 2), false)
+	snaps := []appresource.ApplicationSnapshot{{Generation: constants.DefaultAddValue}, {Generation: constants.ThreeValue}}
+	testutil.Equal(t, "present", snapshot.HasSnapshotGeneration(snaps, constants.ThreeValue), true)
+	testutil.Equal(t, "absent", snapshot.HasSnapshotGeneration(snaps, constants.TwoValue), false)
 }
 
 // Blank TakenAt timestamps are backfilled; a nil app is a no-op.
 func TestNormalizeApplicationSnapshotTakenAt(t *testing.T) {
-	app := &appresource.Application{Snapshots: []appresource.ApplicationSnapshot{{ID: "a"}, {ID: "b", TakenAt: "set"}}}
+	app := &appresource.Application{Snapshots: []appresource.ApplicationSnapshot{{ID: entryA}, {ID: entryB, TakenAt: "set"}}}
 	snapshot.NormalizeApplicationSnapshotTakenAt(app)
-	if app.Snapshots[0].TakenAt == "" {
+	if app.Snapshots[constants.DefaultInitValue].TakenAt == "" {
 		t.Fatal("blank timestamp was not backfilled")
 	}
 	testutil.Equal(t, "existing kept", app.Snapshots[1].TakenAt, "set")
@@ -32,25 +38,27 @@ func TestNormalizeApplicationSnapshotTakenAt(t *testing.T) {
 // Merge concatenates, orders by (generation, namespace) and keeps only the most
 // recent maxVersions entries.
 func TestMergeSnapshots(t *testing.T) {
-	existing := []appresource.ApplicationSnapshot{{Generation: 1, Namespace: "a"}, {Generation: 2, Namespace: "b"}}
-	fresh := []appresource.ApplicationSnapshot{{Generation: 3, Namespace: "c"}}
-	merged := snapshot.MergeSnapshots(existing, fresh, 2)
-	testutil.Equal(t, "capped", len(merged), 2)
-	testutil.Equal(t, "oldest dropped", merged[0].Generation, 2)
+	existing := []appresource.ApplicationSnapshot{
+		{Generation: constants.DefaultAddValue, Namespace: entryA}, {Generation: constants.TwoValue, Namespace: entryB},
+	}
+	fresh := []appresource.ApplicationSnapshot{{Generation: constants.ThreeValue, Namespace: "c"}}
+	merged := snapshot.MergeSnapshots(existing, fresh, constants.TwoValue)
+	testutil.Equal(t, "capped", len(merged), constants.TwoValue)
+	testutil.Equal(t, "oldest dropped", merged[0].Generation, constants.TwoValue)
 }
 
 // Namespaces for a generation are unique and sorted; a non-positive generation
 // yields nothing.
 func TestNamespacesForGeneration(t *testing.T) {
 	snaps := []appresource.ApplicationSnapshot{
-		{Generation: 2, Namespace: "b"}, {Generation: 2, Namespace: "a"},
-		{Generation: 2, Namespace: "a"}, {Generation: 3, Namespace: "z"},
+		{Generation: constants.TwoValue, Namespace: entryB}, {Generation: constants.TwoValue, Namespace: entryA},
+		{Generation: constants.TwoValue, Namespace: entryA}, {Generation: constants.ThreeValue, Namespace: "z"},
 	}
-	got := snapshot.NamespacesForGeneration(snaps, 2)
-	if len(got) != 2 || got[0] != "a" || got[1] != "b" {
+	got := snapshot.NamespacesForGeneration(snaps, constants.TwoValue)
+	if len(got) != constants.TwoValue || got[constants.DefaultInitValue] != entryA || got[constants.DefaultAddValue] != entryB {
 		t.Fatalf("namespaces = %v, want [a b]", got)
 	}
-	testutil.Equal(t, "non-positive", len(snapshot.NamespacesForGeneration(snaps, 0)), 0)
+	testutil.Equal(t, "non-positive", len(snapshot.NamespacesForGeneration(snaps, constants.DefaultInitValue)), constants.DefaultInitValue)
 }
 
 // A snapshot id is prefixed and non-empty.
@@ -83,13 +91,13 @@ func TestPayloadFromUnstructured(t *testing.T) {
 func TestDiscardSnapshots(t *testing.T) {
 	snaps := []appresource.ApplicationSnapshot{{ID: "1"}, {ID: "2"}}
 	var seen []string
-	snapshot.DiscardSnapshots(snaps, func(id, scope, namespace string, generation int) error {
+	snapshot.DiscardSnapshots(snaps, func(id, _, _ string, _ int) error {
 		seen = append(seen, id)
 		return nil
 	})
-	testutil.Equal(t, "deleted all", len(seen), 2)
+	testutil.Equal(t, "deleted all", len(seen), constants.TwoValue)
 
-	snapshot.DiscardSnapshots(snaps, func(id, scope, namespace string, generation int) error {
+	snapshot.DiscardSnapshots(snaps, func(string, string, string, int) error {
 		return errFake
 	})
 	snapshot.DiscardSnapshots(snaps, nil)
@@ -113,17 +121,18 @@ func TestBuildSnapshotEntriesNoManifests(t *testing.T) {
 	created := false
 	out := snapshot.BuildSnapshotEntries(
 		context.Background(),
-		func(id, scope, namespace string, generation int, manifestPayload any) (string, error) {
+		func(string, string, string, int, any) (string, error) {
 			created = true
 			return "path", nil
 		},
-		stored, 1, "topology", appresource.SeverityCritical, time.Now(),
+		stored, constants.DefaultAddValue, "topology", appresource.SeverityCritical, time.Now(),
 	)
-	if len(out) != 0 || created {
+	if len(out) != constants.DefaultInitValue || created {
 		t.Fatalf("no cached manifests should yield no snapshots (got %d, created=%v)", len(out), created)
 	}
 	// A nil creator short-circuits.
-	if got := snapshot.BuildSnapshotEntries(context.Background(), nil, stored, 1, "topology", "high", time.Now()); len(got) != 0 {
+	got := snapshot.BuildSnapshotEntries(context.Background(), nil, stored, constants.DefaultAddValue, "topology", "high", time.Now())
+	if len(got) != constants.DefaultInitValue {
 		t.Fatalf("nil creator returned %d entries", len(got))
 	}
 }

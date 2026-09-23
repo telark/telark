@@ -91,7 +91,7 @@ func GetUniqueResourceFromList(w http.ResponseWriter, resourceMetadata metadata.
 		return
 	}
 
-	sendFilteredResourceFromList(w, &list.Items[0])
+	sendFilteredResourceFromList(w, &list.Items[constants.DefaultInitValue])
 }
 
 func sendFilteredResourceFromList(w http.ResponseWriter, resource *unstructured.Unstructured) {

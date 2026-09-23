@@ -3,6 +3,7 @@ package historyshared
 import (
 	"testing"
 
+	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/applications/history/shared"
 	"github.com/telark/discovery/internal/tests/testutil"
 )
@@ -34,7 +35,7 @@ func TestSnapshotPayloadSize(t *testing.T) {
 	size, ok := shared.SnapshotPayloadSize(map[string]any{
 		shared.PayloadKeyResources: []map[string]any{{"kind": "Deployment"}},
 	})
-	if !ok || size <= 0 {
+	if !ok || size <= constants.DefaultInitValue {
 		t.Fatalf("non-empty resources = (%d,%v), want positive size", size, ok)
 	}
 }

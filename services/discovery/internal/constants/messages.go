@@ -62,6 +62,10 @@ const (
 	InfoRollbackWorkersStarted       messages.Message = "[rollback] started %d workers"
 	InfoRollbackClientBudget         messages.Message = "[rollback] dedicated K8s client budget: %.0f qps, burst %d"
 
+	// Protection Plan Reports
+	WarnReportCheckpointClamped messages.Message = "[reports] checkpoint interval clamped to [%d, %d] seconds"
+	InfReportCheckpointInterval messages.Message = "[reports] checkpoint interval: %s"
+
 	// Rollback Notifications
 	NotifRollbackCompletedTitle  messages.Message = "Rollback completed"
 	NotifRollbackFailedTitle     messages.Message = "Rollback failed"

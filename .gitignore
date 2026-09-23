@@ -20,3 +20,7 @@ charts/*/charts
 # Local-only workspace overlay (machine-specific paths; CI uses the pinned versions)
 go.work.local
 go.work.local.sum
+
+# Local-only github actions workflows
+.github/workflows/local-*
+

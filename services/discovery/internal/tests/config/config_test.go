@@ -8,6 +8,11 @@ import (
 	"github.com/telark/discovery/internal/tests/testutil"
 )
 
+const (
+	overrideBatchSize   = 50
+	overrideEmptyCycles = 7
+)
+
 // With no environment overrides every loader falls back to its compiled default
 // and every getter returns a usable value — this walks the fallback branch of
 // each env helper.
@@ -16,19 +21,19 @@ func TestLoadersUseDefaults(t *testing.T) {
 	_ = config.LoadForceSyncConfig()
 	_ = config.LoadAutoCleanupConfig()
 
-	if config.InformerResyncSec() <= 0 {
+	if config.InformerResyncSec() <= constants.DefaultInitValue {
 		t.Error("informer resync must be positive")
 	}
-	if config.SnapshotFetchTimeout() <= 0 {
+	if config.SnapshotFetchTimeout() <= constants.DefaultInitValue {
 		t.Error("snapshot fetch timeout must be positive")
 	}
-	if config.RedisPingTimeout() <= 0 {
+	if config.RedisPingTimeout() <= constants.DefaultInitValue {
 		t.Error("redis ping timeout must be positive")
 	}
-	if config.SnapshotWriteMaxAttempts() <= 0 {
+	if config.SnapshotWriteMaxAttempts() <= constants.DefaultInitValue {
 		t.Error("snapshot write attempts must be positive")
 	}
-	if len(config.SnapshotScopes()) == 0 || config.DefaultSnapshotScope() == "" {
+	if len(config.SnapshotScopes()) == constants.DefaultInitValue || config.DefaultSnapshotScope() == "" {
 		t.Error("snapshot scopes must be defined")
 	}
 	// Exercised for coverage; these have no return worth asserting.
@@ -47,17 +52,17 @@ func TestLoadersUseDefaults(t *testing.T) {
 // the int64/duration/int/bool/allow-zero env helpers.
 func TestLoadersParseOverrides(t *testing.T) {
 	t.Setenv(constants.EnvCoordinationBatchSize, "50")
-	testutil.Equal(t, "batch size", config.LoadCoordinationConfig().BatchSize, int64(50))
+	testutil.Equal(t, "batch size", config.LoadCoordinationConfig().BatchSize, int64(overrideBatchSize))
 
 	t.Setenv(constants.EnvAutoCleanupEnabled, "true")
 	t.Setenv(constants.EnvAutoCleanupEmptyCyclesRequired, "7")
 	t.Setenv(constants.EnvAutoCleanupCycleIntervalSec, "30")
 	ac := config.LoadAutoCleanupConfig()
 	testutil.Equal(t, "enabled", ac.Enabled, true)
-	testutil.Equal(t, "empty cycles", ac.EmptyCyclesRequired, 7)
+	testutil.Equal(t, "empty cycles", ac.EmptyCyclesRequired, overrideEmptyCycles)
 
 	t.Setenv(constants.EnvForceSyncWorkers, "0")
-	testutil.Equal(t, "workers allow zero", config.LoadForceSyncConfig().Workers, 0)
+	testutil.Equal(t, "workers allow zero", config.LoadForceSyncConfig().Workers, constants.DefaultInitValue)
 }
 
 // A malformed override is rejected and the loader keeps its default, matching the

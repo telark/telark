@@ -11,10 +11,10 @@ import (
 )
 
 func parseGenerationFilename(name string) (int, bool) {
-	if !strings.HasPrefix(name, "V") || !strings.HasSuffix(name, constants.SnapshotFileExtension) {
+	if !strings.HasPrefix(name, constants.SnapshotFilePrefix) || !strings.HasSuffix(name, constants.SnapshotFileExtension) {
 		return constants.DefaultInitValue, false
 	}
-	raw := strings.TrimSuffix(strings.TrimPrefix(name, "V"), constants.SnapshotFileExtension)
+	raw := strings.TrimSuffix(strings.TrimPrefix(name, constants.SnapshotFilePrefix), constants.SnapshotFileExtension)
 	if raw == constants.EmptyString {
 		return constants.DefaultInitValue, false
 	}

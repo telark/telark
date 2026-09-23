@@ -99,7 +99,7 @@ func isEmailVerified(w http.ResponseWriter, claims *oidchelper.GoogleClaims) boo
 
 func resolveOIDCUser(w http.ResponseWriter, claims *oidchelper.GoogleClaims) (*userresource.UserAsResource, bool) {
 	userClient := clients.GetUserClient()
-	user, err := userClient.GetUserByIdentity("google", claims.Issuer, claims.Subject)
+	user, err := userClient.GetUserByIdentity(constants.IdentityProviderGoogle, claims.Issuer, claims.Subject)
 	if err == nil {
 		return user, true
 	}

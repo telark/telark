@@ -204,6 +204,13 @@ func startProtectionPlanLeaderGated(ctx context.Context, rdb *goredis.Client) {
 	protectionhandler.InitService(svc)
 	ctrl := protectionctrl.NewController(svc, lg)
 	leadergate.Start(ctx, ctrl, leaderElectionForInformers)
+	interval, clamped := config.ReportCheckpointInterval()
+	if clamped {
+		lg.Warn(fmt.Sprintf(string(constants.WarnReportCheckpointClamped),
+			constants.ReportCheckpointMinSec, constants.ReportCheckpointMaxSec))
+	}
+	lg.Info(fmt.Sprintf(string(constants.InfReportCheckpointInterval), interval))
+	leadergate.Start(ctx, protectionctrl.NewCheckpointController(svc, lg, interval), leaderElectionForInformers)
 }
 
 func startInsightsLeaderGated(ctx context.Context) {

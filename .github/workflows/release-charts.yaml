@@ -70,7 +70,9 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7.0.0
         with:
-          go-version: "1.26"
+          go-version: "1.27"
+          # No root go.sum: key the cache on the file that pins helm-docs instead.
+          cache-dependency-path: .github/actions/helm-docs-regenerate/action.yaml
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v4.1.2
@@ -143,7 +145,7 @@ jobs:
       # since the git tag itself is created a step later.
       - name: Generate changelog
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump != 'current' && steps.publish.outputs.telark_version != '' }}
-        uses: orhun/git-cliff-action@v4.9.0
+        uses: orhun/git-cliff-action@v4.9.1
         with:
           config: cliff.toml
           args: --tag v${{ steps.publish.outputs.telark_version }}

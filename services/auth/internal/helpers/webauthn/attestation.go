@@ -36,11 +36,13 @@ func ExtractBackupFlagsFromAttestation(attObjB64 string) (backupEligible, backup
 		return false, false
 	}
 
-	flags := authData[constants.AuthDataOffsetFlags]
-	backupEligible = (flags & constants.BackupEligibleFlag) != constants.DefaultInitValue
-	backupState = (flags & constants.BackupStateFlag) != constants.DefaultInitValue
+	return backupFlags(authData)
+}
 
-	return backupEligible, backupState
+func backupFlags(authData []byte) (backupEligible, backupState bool) {
+	flags := authData[constants.AuthDataOffsetFlags]
+	return flags&constants.BackupEligibleFlag != constants.DefaultInitValue,
+		flags&constants.BackupStateFlag != constants.DefaultInitValue
 }
 
 func validateAttestationFormat(attMap map[string]any) error {
@@ -80,9 +82,7 @@ func parseAuthData(authData []byte) (
 			errors.New(string(constants.ErrAuthDataTooShort))
 	}
 
-	flags := authData[constants.AuthDataOffsetFlags]
-	backupEligible = (flags & constants.BackupEligibleFlag) != constants.DefaultInitValue
-	backupState = (flags & constants.BackupStateFlag) != constants.DefaultInitValue
+	backupEligible, backupState = backupFlags(authData)
 
 	signCount = uint32(authData[constants.AuthDataOffsetSignCount])<<constants.SignCountShift24 |
 		uint32(authData[constants.AuthDataOffsetSignCount+1])<<constants.SignCountShift16 |

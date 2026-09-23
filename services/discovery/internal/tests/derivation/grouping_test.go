@@ -3,24 +3,31 @@ package derivation
 import (
 	"testing"
 
+	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/discovery/derivation"
 	"github.com/telark/discovery/internal/tests/testutil"
+)
+
+const (
+	prodNamespace = "prod"
+	rawName       = "raw-name"
+	billingGroup  = "billing"
 )
 
 func inputs() []derivation.ResourceInput {
 	appLabel := map[string]string{"app.kubernetes.io/name": "shop"}
 	return []derivation.ResourceInput{
-		{Namespace: "prod", Kind: "Deployment", Name: "shop-api", Labels: appLabel},
-		{Namespace: "prod", Kind: "Service", Name: "shop-svc", Labels: appLabel},
-		{Namespace: "prod", Kind: "ConfigMap", Name: "shop-cfg"},
-		{Namespace: "prod", Kind: "ConfigMap", Name: "kube-root-ca.crt"},
+		{Namespace: prodNamespace, Kind: "Deployment", Name: "shop-api", Labels: appLabel},
+		{Namespace: prodNamespace, Kind: "Service", Name: "shop-svc", Labels: appLabel},
+		{Namespace: prodNamespace, Kind: "ConfigMap", Name: "shop-cfg"},
+		{Namespace: prodNamespace, Kind: "ConfigMap", Name: "kube-root-ca.crt"},
 	}
 }
 
 // FilterNoise drops the well-known cluster-injected resources but keeps the rest.
 func TestFilterNoise(t *testing.T) {
 	kept := derivation.FilterNoise(inputs())
-	testutil.Equal(t, "kept", len(kept), 3)
+	testutil.Equal(t, "kept", len(kept), constants.ThreeValue)
 	for _, r := range kept {
 		if r.Name == "kube-root-ca.crt" {
 			t.Fatal("noise resource survived the filter")
@@ -28,24 +35,24 @@ func TestFilterNoise(t *testing.T) {
 	}
 }
 
-// A labelled workload anchors a group, and unlabelled resources whose name
+// A labeled workload anchors a group, and unlabeled resources whose name
 // contains the app key are attached to it — one namespace, one group named for
 // the app label.
 func TestGroupByWorkloadAnchor(t *testing.T) {
 	groups := derivation.GroupByWorkloadAnchor(inputs())
-	if len(groups) == 0 {
-		t.Fatal("labelled workload produced no groups")
+	if len(groups) == constants.DefaultInitValue {
+		t.Fatal("labeled workload produced no groups")
 	}
 	for _, g := range groups {
 		testutil.Equal(t, "group", g.Group, "shop")
-		testutil.Equal(t, "namespace", g.Namespace, "prod")
+		testutil.Equal(t, "namespace", g.Namespace, prodNamespace)
 	}
 }
 
 // DeriveGroups returns the grouped resources plus the ordered list of group names.
 func TestDeriveGroups(t *testing.T) {
 	withGroups, names := derivation.DeriveGroups(inputs())
-	if len(withGroups) == 0 || len(names) == 0 {
+	if len(withGroups) == constants.DefaultInitValue || len(names) == constants.DefaultInitValue {
 		t.Fatalf("derive produced %d resources / %d names", len(withGroups), len(names))
 	}
 }
@@ -57,11 +64,11 @@ func TestGroupByWorkloadAnchorEmpty(t *testing.T) {
 	}
 }
 
-// The group name comes from the first recognised label key, else the raw name.
+// The group name comes from the first recognized label key, else the raw name.
 func TestGroupNameFromLabels(t *testing.T) {
 	testutil.Equal(t, "no labels", derivation.FirstGroupNameFromLabels(nil), "")
-	labels := map[string]string{"app": "billing"}
-	testutil.Equal(t, "legacy label", derivation.FirstGroupNameFromLabels(labels), "billing")
-	testutil.Equal(t, "fallback", derivation.GroupNameOrFallback("raw-name", nil), "raw-name")
-	testutil.Equal(t, "label wins", derivation.GroupNameOrFallback("raw-name", labels), "billing")
+	labels := map[string]string{"app": billingGroup}
+	testutil.Equal(t, "legacy label", derivation.FirstGroupNameFromLabels(labels), billingGroup)
+	testutil.Equal(t, "fallback", derivation.GroupNameOrFallback(rawName, nil), rawName)
+	testutil.Equal(t, "label wins", derivation.GroupNameOrFallback(rawName, labels), billingGroup)
 }

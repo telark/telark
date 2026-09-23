@@ -73,7 +73,7 @@ func (s *BaseSubscriber) isStaleRedelivery(m *nats.Msg, last map[string]uint64) 
 }
 
 func (*BaseSubscriber) ValidateMessage(m *nats.Msg) error {
-	if strings.HasPrefix(m.Subject, "$JS.ACK.") {
+	if strings.HasPrefix(m.Subject, constants.JetStreamAckPrefix) {
 		logger.GetLogger(constants.PrefixManagerSubscriber).Debug(fmt.Sprintf(string(messages.InfoSkippingAckMessage), m.Subject))
 		return nil
 	}
@@ -133,7 +133,7 @@ func (*BaseSubscriber) extractAction(subject string) natscore.Action {
 		logger.GetLogger(constants.PrefixManagerSubscriber).Warn(string(errors.ErrNatsInvalidSubject))
 		return constants.EmptyString
 	}
-	return natscore.Action(parts[2])
+	return natscore.Action(parts[constants.SubjectActionIndex])
 }
 
 func (s *BaseSubscriber) SetHandlerCallback(callback func(*nats.Msg, natscore.Action) error) {

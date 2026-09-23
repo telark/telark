@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/telark/auth/internal/authz"
+	"github.com/telark/auth/internal/constants"
 	"github.com/telark/auth/internal/routes"
 	roledata "github.com/telark/data/resources/role"
 	"github.com/telark/rest/base"
@@ -23,7 +24,7 @@ func TestRequirementsCoverEveryRoute(t *testing.T) {
 		}
 	}
 
-	if len(missing) > 0 {
+	if len(missing) > constants.DefaultInitValue {
 		t.Errorf("routes with no authz requirement (%d):", len(missing))
 		for _, key := range missing {
 			t.Errorf("  %s", key)
@@ -102,7 +103,7 @@ func TestScopedRequirementsAreComplete(t *testing.T) {
 		if requirement.Scope == "" {
 			t.Errorf("route %q is scoped but declares no scope", key)
 		}
-		if requirement.MinLevel.Rank() == 0 {
+		if requirement.MinLevel.Rank() == constants.DefaultInitValue {
 			t.Errorf("route %q declares an unusable level %q", key, requirement.MinLevel)
 		}
 	}

@@ -5,11 +5,11 @@ import (
 	planseps "github.com/telark/rest/endpoints/plans"
 )
 
-// buildPatch produces the exporter PATCH request limited to fields that actually changed,
+// BuildPatch produces the exporter PATCH request limited to fields that actually changed,
 // plus the always-recomputed renderedPolicies/health/lastUpdated bookkeeping. It NEVER sets
 // id, createdAt/By, phase, startedAt/By, terminatedAt/By, or reason — those are owned by the
 // lifecycle handlers (cancel, reactivate, activate, terminate).
-func buildPatch(
+func BuildPatch(
 	plan *plans.ProtectionPlan,
 	req *planseps.PrepareProtectionPlanRequest,
 	newPolicies []plans.ProtectionPlanPolicy,
@@ -60,6 +60,10 @@ func applyScalarPatch(
 		patch.TimeMode = &req.TimeMode
 		changed = true
 	}
+	if req.EnvironmentID != nil && plan.EnvironmentID != *req.EnvironmentID {
+		patch.EnvironmentID = req.EnvironmentID
+		changed = true
+	}
 	return changed
 }
 
@@ -88,6 +92,11 @@ func applyComplexPatch(
 	}
 	if !stringSliceSetEqual(plan.ParticipantsIDs, req.ParticipantsIDs) {
 		patch.ParticipantsIDs = req.ParticipantsIDs
+		changed = true
+	}
+	if req.TagIDs != nil && !stringSliceSetEqual(plan.TagIDs, req.TagIDs) {
+		tags := req.TagIDs
+		patch.TagIDs = &tags
 		changed = true
 	}
 	return changed

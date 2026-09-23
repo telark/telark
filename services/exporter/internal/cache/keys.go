@@ -37,7 +37,6 @@ func ListGenerationDirtyKey(resourceType string) string {
 	return ListGenerationKey(resourceType) + constants.CacheKeySeparator + constants.CacheDirtySegment
 }
 
-// ListKeyPattern matches every list blob of a resource type, any generation or subject.
 func ListKeyPattern(resourceType string) string {
 	return rediscache.BuildKey(constants.OpList, resourceType) + constants.CacheKeySeparator + "*"
 }

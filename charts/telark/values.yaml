@@ -100,14 +100,15 @@ app:
   kyverno:
     enabled: true
   ollama:
-    enabled: false              # required only when enrichment uses provider=ollama
+    enabled: true              # required only when enrichment uses provider=ollama
 
-  # Storage for the exporter snapshots PVC.
+  # Storage for the exporter PVCs (snapshots, reports).
   # storageClass: "" = cluster default · "-" = disable provisioning · "<name>" = that class.
   persistence:
     enabled: true
     storageClass: ""
     size: 10Gi
+    reportsSize: 2Gi
 
   # Shared secret services present to each other. Empty = generated on install and
   # read back on upgrade. Set explicitly for cluster-less renders (GitOps).
@@ -213,6 +214,7 @@ services:
       enabled: false
     env:
       SNAPSHOTS_PATH: &snapshotsPath "/snapshots"
+      REPORTS_PATH: &reportsPath "/reports"
       SNAPSHOTS_PVC_NAME: '{{ include "telark.exporterSnapshotsPvcName" . }}'
       SNAPSHOTS_PVC_NAMESPACE: '{{ .Values.app.namespace }}'
       AI_KEY_SECRET_NAME: '{{ printf "%s-ai-provider-key" .Values.app.name }}'
@@ -225,9 +227,14 @@ services:
       - name: snapshots-storage
         persistentVolumeClaim:
           claimName: '{{ include "telark.exporterSnapshotsPvcName" . }}'
+      - name: reports-storage
+        persistentVolumeClaim:
+          claimName: '{{ include "telark.exporterReportsPvcName" . }}'
     volumeMounts:
       - name: snapshots-storage
         path: *snapshotsPath
+      - name: reports-storage
+        path: *reportsPath
     pdb:
       enabled: false
   discovery:
@@ -272,6 +279,8 @@ services:
       SNAPSHOT_WRITE_MAX_ATTEMPTS: "5"
       SNAPSHOT_WRITE_RETRY_INTERVAL_SEC: "2"
       PROTECTION_PLAN_TICK_INTERVAL_SEC: "31"
+      PROTECTION_PLAN_REPORT_MAX_VIOLATIONS: "5000"
+      PROTECTION_PLAN_REPORT_CHECKPOINT_SEC: "900"
       FORCE_SYNC_WORKERS: "6"
       FORCE_SYNC_STREAM_MAX_LEN: "5000"
       FORCE_SYNC_DEDUP_TTL_SEC: "600"

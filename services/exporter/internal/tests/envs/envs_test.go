@@ -7,8 +7,10 @@ import (
 	"github.com/telark/exporter/internal/managers/envs"
 )
 
+const wantRenderConcurrency = 4
+
 // Env names are validated against an allow-list pattern, then the value is
-// checked for presence and sanitised — a malformed name or an unset var is a
+// checked for presence and sanitized — a malformed name or an unset var is a
 // hard error, never a silent empty.
 func TestLoadAndValidateEnv(t *testing.T) {
 	t.Run("valid set var", func(t *testing.T) {
@@ -33,13 +35,13 @@ func TestLoadAndValidateEnv(t *testing.T) {
 // The snapshots path + version config resolve to non-empty/positive defaults so
 // the exporter never writes snapshots to an empty path.
 func TestSnapshotsConfig(t *testing.T) {
-	if p := envs.InitSnapshotsPath(); p == "" {
+	if p := envs.InitSnapshotsPath(); p == constants.EmptyString {
 		t.Fatal("InitSnapshotsPath is empty")
 	}
-	if envs.GetSnapshotsPath() == "" {
+	if envs.GetSnapshotsPath() == constants.EmptyString {
 		t.Fatal("GetSnapshotsPath is empty")
 	}
-	if envs.InitSnapshotsMaxVersions() <= 0 {
+	if envs.InitSnapshotsMaxVersions() <= constants.DefaultInitValue {
 		t.Fatalf("InitSnapshotsMaxVersions = %d, want > 0", envs.InitSnapshotsMaxVersions())
 	}
 }
@@ -51,10 +53,10 @@ func TestListRenderConcurrency(t *testing.T) {
 		raw  string
 		want int
 	}{
-		{"4", 4},
+		{"4", wantRenderConcurrency},
 		{"0", constants.DefaultListRenderConcurrency},
 		{"x", constants.DefaultListRenderConcurrency},
-		{"", constants.DefaultListRenderConcurrency},
+		{constants.EmptyString, constants.DefaultListRenderConcurrency},
 	}
 	for _, tc := range cases {
 		t.Setenv(constants.ListRenderConcurrencyEnv, tc.raw)

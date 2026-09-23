@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/telark/data/plans"
+	"github.com/telark/discovery/internal/constants"
 	protpolicies "github.com/telark/discovery/internal/core/plans/protection/policies"
 	"github.com/telark/discovery/internal/tests/testutil"
 )
@@ -24,39 +25,39 @@ func diffMsgs() protpolicies.DeployErrorMessages {
 // A plan that is not active is a no-op: the current rendered policies are
 // returned unchanged and nothing touches the cluster.
 func TestApplyClusterDiffInactivePlan(t *testing.T) {
-	plan := &plans.ProtectionPlan{ID: "pp-1", Phase: "pending", Mode: plans.ModeEnforce, RenderedPolicies: []string{"pol-a"}}
+	plan := &plans.ProtectionPlan{ID: planIDOne, Phase: "pending", Mode: plans.ModeEnforce, RenderedPolicies: []string{policyA}}
 	applier := protpolicies.NewApplier(applierDyn(), nil)
 	deployed, kept, err := protpolicies.ApplyClusterDiff(
 		context.Background(), applier, noopDiffLogger{}, plan, nil, nil, nil, plan.Mode, diffMsgs(),
 	)
 	testutil.Equal(t, "err", err, nil)
-	testutil.Equal(t, "nothing deployed", len(deployed), 0)
-	testutil.Equal(t, "kept rendered", len(kept), 1)
+	testutil.Equal(t, "nothing deployed", len(deployed), constants.DefaultInitValue)
+	testutil.Equal(t, "kept rendered", len(kept), constants.DefaultAddValue)
 }
 
 // An active plan with no deploy or remove combos and an unchanged mode keeps the
 // rendered policies and reports no error.
 func TestApplyClusterDiffNoCombos(t *testing.T) {
-	plan := &plans.ProtectionPlan{ID: "pp-1", Phase: plans.PhaseActive, Mode: plans.ModeEnforce, RenderedPolicies: []string{"pol-a", "pol-b"}}
-	applier := protpolicies.NewApplier(applierDyn(policyObj("pol-a", "prod", "pp-1", "Enforce")), nil)
+	plan := &plans.ProtectionPlan{ID: planIDOne, Phase: plans.PhaseActive, Mode: plans.ModeEnforce, RenderedPolicies: []string{policyA, policyB}}
+	applier := protpolicies.NewApplier(applierDyn(policyObj(policyA, policyNamespace, planIDOne)), nil)
 	deployed, kept, err := protpolicies.ApplyClusterDiff(
 		context.Background(), applier, noopDiffLogger{}, plan, nil, nil, nil, plan.Mode, diffMsgs(),
 	)
 	testutil.Equal(t, "err", err, nil)
-	testutil.Equal(t, "nothing deployed", len(deployed), 0)
-	testutil.Equal(t, "kept both", len(kept), 2)
+	testutil.Equal(t, "nothing deployed", len(deployed), constants.DefaultInitValue)
+	testutil.Equal(t, "kept both", len(kept), constants.TwoValue)
 }
 
 // RollbackPatchFailure is a no-op when nothing was deployed, and deletes the
 // just-deployed policies otherwise.
 func TestRollbackPatchFailure(t *testing.T) {
-	plan := &plans.ProtectionPlan{ID: "pp-1"}
-	dyn := applierDyn(policyObj("pol-a", "prod", "pp-1", "Enforce"))
+	plan := &plans.ProtectionPlan{ID: planIDOne}
+	dyn := applierDyn(policyObj(policyA, policyNamespace, planIDOne))
 	applier := protpolicies.NewApplier(dyn, nil)
 
 	protpolicies.RollbackPatchFailure(context.Background(), applier, noopDiffLogger{}, plan, nil)
-	testutil.Equal(t, "noop keeps policy", countPolicies(t, dyn), 1)
+	testutil.Equal(t, "noop keeps policy", countPolicies(t, dyn), constants.DefaultAddValue)
 
-	protpolicies.RollbackPatchFailure(context.Background(), applier, noopDiffLogger{}, plan, []string{"pol-a"})
-	testutil.Equal(t, "rolled back", countPolicies(t, dyn), 0)
+	protpolicies.RollbackPatchFailure(context.Background(), applier, noopDiffLogger{}, plan, []string{policyA})
+	testutil.Equal(t, "rolled back", countPolicies(t, dyn), constants.DefaultInitValue)
 }

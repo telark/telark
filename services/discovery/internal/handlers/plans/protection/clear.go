@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 
-	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/messages"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/plans/protection"
@@ -14,6 +13,10 @@ import (
 )
 
 func Clear(w http.ResponseWriter, r *http.Request) {
+	svc, ok := readyService(w)
+	if !ok {
+		return
+	}
 	userID := r.Header.Get(constants.HeaderUserID)
 	if userID == constants.EmptyString {
 		respondError(w, http.StatusUnauthorized, protection.ErrUserMissing, nil)
@@ -28,8 +31,8 @@ func Clear(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), constants.ProtectionPlanLifecycleTimeout)
 	defer cancel()
 
-	if err := globalService.Clear(ctx, planID); err != nil {
-		respondError(w, http.StatusInternalServerError, dataerrors.Error(err.Error()), err)
+	if err := svc.Clear(ctx, planID); err != nil {
+		respondDomainError(w, err)
 		return
 	}
 	responseutils.LogAndSendResponse(

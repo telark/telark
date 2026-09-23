@@ -7,8 +7,11 @@ import (
 	"time"
 
 	"github.com/telark/discovery/internal/circuitbreaker"
+	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/tests/testutil"
 )
+
+const farPastThresholdCalls = 50
 
 var errBoom = errors.New("boom")
 
@@ -47,8 +50,8 @@ func TestNotCountedErrorsNeverTrip(t *testing.T) {
 		name  string
 		calls int
 	}{
-		{name: "threshold", calls: 2},
-		{name: "far past threshold", calls: 50},
+		{name: "threshold", calls: constants.TwoValue},
+		{name: "far past threshold", calls: farPastThresholdCalls},
 	}
 
 	for _, tc := range cases {
@@ -89,10 +92,10 @@ func TestHalfOpenAdmitsOneProbe(t *testing.T) {
 		started  sync.WaitGroup
 		rejected error
 	)
-	started.Add(1)
+	started.Add(constants.DefaultAddValue)
 
 	var probe sync.WaitGroup
-	probe.Add(1)
+	probe.Add(constants.DefaultAddValue)
 	go func() {
 		defer probe.Done()
 		_ = cb.Execute(func() error {

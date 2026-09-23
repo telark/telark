@@ -388,13 +388,51 @@ func (c *Controller) failRollback(
 	idx int,
 	message string,
 ) {
-	_ = c.patchRollbackStatus(ctx, ns, name, spec, idx, rollbackPatchOpts{
-		Status:   constants.RollbackStatusFailed,
-		ErrorMsg: message,
+	now := time.Now().UTC()
+	opts := rollbackPatchOpts{
+		Status:      constants.RollbackStatusFailed,
+		ErrorMsg:    message,
+		CompletedAt: &now,
+	}
+	err := RecordWithRetry(ctx, func(recordCtx context.Context) error {
+		return c.patchRollbackStatus(recordCtx, ns, name, spec, idx, opts)
 	})
+	if err != nil {
+		logger.Error(fmt.Sprintf(string(constants.ErrRollbackFailureRecordFailed), ns, name, message, err))
+	}
 	if idx >= constants.DefaultInitValue && idx < len(spec.Rollbacks) {
 		c.emitRollbackFailure(&spec.Rollbacks[idx], name, message)
 	}
+}
+
+// RecordWithRetry runs record on a context detached from ctx's cancellation: a
+// blown process deadline is itself a common reason a rollback failed, and the
+// failure still has to reach the CR. Retries are bounded by attempt count, and
+// each patch keeps its own timeout, so the detached context cannot outlive the
+// retry budget.
+func RecordWithRetry(ctx context.Context, record func(context.Context) error) error {
+	recordCtx, cancel := context.WithTimeout(
+		context.WithoutCancel(ctx),
+		constants.RollbackFailureRecordTimeout,
+	)
+	defer cancel()
+
+	var lastErr error
+	for attempt := constants.DefaultAddValue; attempt <= constants.RollbackRetryMaxAttempts; attempt++ {
+		err := record(recordCtx)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if attempt < constants.RollbackRetryMaxAttempts {
+			select {
+			case <-recordCtx.Done():
+				return lastErr
+			case <-time.After(constants.RollbackRetryInterval):
+			}
+		}
+	}
+	return lastErr
 }
 
 func snapshotsByGeneration(
@@ -448,7 +486,7 @@ func (c *Controller) failStaleInProgress(
 		now := time.Now().UTC()
 		if err := c.patchRollbackStatus(ctx, ns, name, spec, i, rollbackPatchOpts{
 			Status:      constants.RollbackStatusFailed,
-			ErrorMsg:    string(constants.ErrRollbackInterruptedRestart),
+			ErrorMsg:    StaleSweepErrorMsg(rb.Error),
 			CompletedAt: &now,
 		}); err != nil {
 			return true, err
@@ -456,6 +494,17 @@ func (c *Controller) failStaleInProgress(
 		return true, nil
 	}
 	return false, nil
+}
+
+// StaleSweepErrorMsg keeps a reason that is already on the entry. The sweep is a
+// last resort for entries nothing ever wrote back to; replacing a recorded
+// failure with the generic restart text would destroy the only copy of it.
+// An empty return leaves the stored error untouched.
+func StaleSweepErrorMsg(recorded string) string {
+	if strings.TrimSpace(recorded) != constants.EmptyString {
+		return constants.EmptyString
+	}
+	return string(constants.ErrRollbackInterruptedRestart)
 }
 
 func (c *Controller) refetchAndVerifyPending(

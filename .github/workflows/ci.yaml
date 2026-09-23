@@ -23,17 +23,21 @@ env:
 
 jobs:
   go:
-    name: Go · ${{ matrix.service }}
+    name: Go · ${{ matrix.service }} · ${{ matrix.task }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       # coverage = per-service ratchet floor (just below current); raise as coverage
       # improves. Never lower it — that is the point.
+      # test and lint run as parallel legs: -race builds are not reusable by lint,
+      # so one job paid both compiles back to back (discovery: 483 s + 353 s).
       matrix:
+        service: [auth, discovery, exporter, notifier]
+        task: [test, lint]
         include:
-          - { service: auth, coverage: 53 }
-          - { service: discovery, coverage: 28 }
+          - { service: auth, coverage: 55 }
+          - { service: discovery, coverage: 35 }
           - { service: exporter, coverage: 52 }
           - { service: notifier, coverage: 75 }
     steps:
@@ -44,13 +48,16 @@ jobs:
         uses: ./.github/actions/go-ci
         with:
           working-directory: services/${{ matrix.service }}
-          cache-key: ${{ matrix.service }}
+          cache-key: ${{ matrix.service }}-${{ matrix.task }}
           access-user: ${{ secrets.ACCESS_USER }}
           access-token: ${{ secrets.ACCESS_TOKEN }}
           coverage-threshold: ${{ matrix.coverage }}
+          test: ${{ matrix.task == 'test' }}
+          lint: ${{ matrix.task == 'lint' }}
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v7.0.0
+        if: ${{ matrix.task == 'test' }}
+        uses: codecov/codecov-action@v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: services/${{ matrix.service }}/coverage.out
@@ -94,7 +101,7 @@ jobs:
           python -m coverage xml
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v7.0.0
+        uses: codecov/codecov-action@v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: services/enrichment/coverage.xml

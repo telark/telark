@@ -201,7 +201,7 @@ spec:
                         format: date-time
                       status:
                         type: string
-                        enum: [pending, in_progress, success, failed]
+                        enum: [pending, in_progress, success, failed, aborted]
                       error:
                         type: string
                         default: ""

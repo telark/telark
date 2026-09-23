@@ -55,9 +55,14 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | `app.image.pullSecrets` | `[]` | Pull secrets (public images need none; set for a private registry) |
 | `app.kyverno.enabled` | `true` | Install kyverno subchart |
 | `app.ollama.enabled` | `false` | Install ollama subchart |
-| `app.persistence.enabled` | `true` | Provision exporter snapshot PVC |
+| `app.persistence.enabled` | `true` | Provision the exporter snapshot and report PVCs |
 | `app.persistence.storageClass` | `""` | `"<name>"` = explicit class; `"-"` = disable dynamic provisioning; `""` = cluster default. In `standard`/`performance` (two exporter replicas) the render fails when this is `""` unless `app.singleNode=true`; name a ReadWriteMany class, or with `"-"` pre-provision a ReadWriteMany PV yourself |
 | `app.persistence.size` | `10Gi` | PVC size (`minimal` mode lowers it to `1Gi`) |
+| `app.persistence.reportsSize` | `2Gi` | Exporter reports PVC size (`minimal` 512Mi, `performance` 10Gi) |
+
+#### Protection plan reports
+
+The exporter mounts two PVCs rendered from one template (snapshots and reports); both follow `app.persistence.storageClass` and the derived access mode. A final report is captured asynchronously right after a plan ends (after its policies are removed and its phase is recorded). Periodic checkpoints keep records past the 1 h Event retention; an on-demand report merges what the cluster still holds. Reports are deleted with the plan and swept if the plan CR disappears; at most 10 on-demand reports are kept per plan. Formats: HTML, Markdown, JSON, CSV (PDF via the browser's print). The document shows user ids, not names. When two on-demand renders are already running the generate call returns HTTP 429 with `Retry-After`.
 
 #### `app.auth.bootstrap`
 
@@ -203,7 +208,8 @@ Per-service block. Gates default to `true` unless noted.
 | `AI_KEY_SECRET_NAMESPACE` | `{{ .Values.app.namespace }}` (tpl) | Namespace of that secret |
 | `EXPORTER_K8S_CLIENT_QPS` | `50` | K8s client QPS; sized for CRD-write fanout (10× client-go default) |
 | `EXPORTER_K8S_CLIENT_BURST` | `100` | K8s client burst |
-| `SNAPSHOT_GC_INTERVAL_SEC` | `3600` | Sweep the snapshot PVC for files no Application CR references and older than 1 h (`minimal` 7200, `performance` 900; `0` = off). One replica sweeps per interval |
+| `SNAPSHOT_GC_INTERVAL_SEC` | `3600` | Sweep the snapshot PVC for files no Application CR references and older than 1 h (`minimal` 7200, `performance` 900; `0` = off). One replica sweeps per interval. Also drives the reports orphan sweep; `0` disables both |
+| `REPORTS_PATH` | `/reports` | Filesystem mount path for protection plan report files |
 
 `services.exporter.envFromConfigMap.CA_BUNDLE` → configmap `telark-ca-bundle`, key `ca.crt` (trusted CA bundle).
 
@@ -256,6 +262,8 @@ Snapshot writer + protection plan:
 | `SNAPSHOT_WRITE_MAX_ATTEMPTS` | `5` | Retries on snapshot write failure |
 | `SNAPSHOT_WRITE_RETRY_INTERVAL_SEC` | `2` | Retry interval |
 | `PROTECTION_PLAN_TICK_INTERVAL_SEC` | `31` | Protection-plan evaluator tick cadence |
+| `PROTECTION_PLAN_REPORT_MAX_VIOLATIONS` | `5000` | Bounds the per-plan report ledger (`minimal` 2000); rows beyond the report's size budget are dropped oldest-first and flagged |
+| `PROTECTION_PLAN_REPORT_CHECKPOINT_SEC` | `900` | Report checkpoint cadence (`minimal` 1800); clamped to 60–1800 so it always stays below the 1 h Event retention |
 
 Force-sync queue:
 

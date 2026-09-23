@@ -22,18 +22,45 @@ import (
 )
 
 const (
-	checkTimeoutSeconds                     = 20
-	defaultLimit                            = 50
-	maxLimit                                = 200
-	notFoundIndex                           = -1
+	checkTimeoutSeconds = 20
+	defaultLimit        = 50
+	maxLimit            = 200
+
+	// Policy reports only describe resources that exist, so a denied CREATE/UPDATE/DELETE
+	// never lands in one. Events on the policy object are the only record Kyverno keeps of
+	// a blocked admission.
+	violationEventSelector = "reason=PolicyViolation"
+
+	// RetentionWindow mirrors the kube-apiserver --event-ttl default; Events are pruned
+	// after it, so callers can distinguish "nothing blocked recently" from "nothing ever".
+	RetentionWindow         = "1h"
+	RetentionWindowDuration = time.Hour
+
+	resourceSeparator = ": "
+	detailSeparator   = "; "
+	ruleOpen          = "["
+	ruleClose         = "] "
+	blockedSuffix     = " (blocked)"
+
+	fieldMessage   = "message"
+	fieldRelated   = "related"
+	fieldKind      = "kind"
+	fieldName      = "name"
+	fieldNamespace = "namespace"
+
 	errMissingApplications dataerrors.Error = "applications not found: %v"
 )
 
-var kyvernoPolicyReportGVR = schema.GroupVersionResource{
-	Group:    "wgpolicyk8s.io",
-	Version:  "v1alpha2",
-	Resource: "policyreports",
-}
+var (
+	eventGVR = schema.GroupVersionResource{
+		Group:    "",
+		Version:  "v1",
+		Resource: "events",
+	}
+
+	// Kyverno stamps eventTime; the legacy pair is kept as a fallback for older recorders.
+	timestampFields = []string{"eventTime", "lastTimestamp", "firstTimestamp"}
+)
 
 type Query struct {
 	Limit  int
@@ -65,23 +92,34 @@ func List(
 		return nil, err
 	}
 
-	rendered := indexNames(plan.RenderedPolicies)
-	violations, err := collectViolations(listCtx, deps.Dyn, namespaces, rendered, query.Result)
+	violations, err := Collect(listCtx, deps.Dyn, namespaces, plan.RenderedPolicies, query.Result)
 	if err != nil {
 		return nil, err
 	}
 
+	total, page := Page(violations, limit)
+	return &planseps.ProtectionPlanViolationsResponse{
+		PlanID:          plan.ID,
+		Total:           total,
+		RetentionWindow: RetentionWindow,
+		Violations:      page,
+	}, nil
+}
+
+// Page sorts newest-first and caps the result. Total counts what matched, not what fit in
+// the page, so the caller can tell it was capped.
+func Page(
+	violations []planseps.ProtectionPlanViolation,
+	limit int,
+) (int, []planseps.ProtectionPlanViolation) {
 	slices.SortFunc(violations, func(a, b planseps.ProtectionPlanViolation) int {
 		return strings.Compare(b.Timestamp, a.Timestamp)
 	})
-	if len(violations) > limit {
+	total := len(violations)
+	if total > limit {
 		violations = violations[:limit]
 	}
-	return &planseps.ProtectionPlanViolationsResponse{
-		PlanID:     plan.ID,
-		Total:      len(violations),
-		Violations: violations,
-	}, nil
+	return total, violations
 }
 
 func resolvePlanNamespaces(
@@ -106,13 +144,16 @@ func resolvePlanNamespaces(
 	return out, nil
 }
 
-func collectViolations(
+// Collect reads the Kyverno PolicyViolation events raised against the plan's rendered
+// policies across its namespaces.
+func Collect(
 	ctx context.Context,
 	dyn dynamic.Interface,
 	namespaces []string,
-	rendered map[string]struct{},
+	renderedPolicies []string,
 	resultFilter string,
 ) ([]planseps.ProtectionPlanViolation, error) {
+	rendered := indexNames(renderedPolicies)
 	perNS := make([][]planseps.ProtectionPlanViolation, len(namespaces))
 	var mu sync.Mutex
 	g, gctx := errgroup.WithContext(ctx)
@@ -121,13 +162,17 @@ func collectViolations(
 		i := i
 		ns := namespaces[i]
 		g.Go(func() error {
-			reports, err := listPolicyReports(gctx, dyn, ns)
+			events, err := listViolationEvents(gctx, dyn, ns)
 			if err != nil {
 				return err
 			}
-			extracted := make([]planseps.ProtectionPlanViolation, constants.DefaultInitValue, len(reports))
-			for j := range reports {
-				extracted = append(extracted, extractViolations(&reports[j], rendered, resultFilter)...)
+			extracted := make([]planseps.ProtectionPlanViolation, constants.DefaultInitValue, len(events))
+			for j := range events {
+				v, ok := buildViolation(&events[j], rendered, resultFilter)
+				if !ok {
+					continue
+				}
+				extracted = append(extracted, v)
 			}
 			mu.Lock()
 			perNS[i] = extracted
@@ -145,119 +190,93 @@ func collectViolations(
 	return violations, nil
 }
 
-func listPolicyReports(
+func listViolationEvents(
 	ctx context.Context,
 	dyn dynamic.Interface,
 	namespace string,
 ) ([]unstructured.Unstructured, error) {
-	list, err := dyn.Resource(kyvernoPolicyReportGVR).Namespace(namespace).List(ctx, metav1.ListOptions{})
+	list, err := dyn.Resource(eventGVR).
+		Namespace(namespace).
+		List(ctx, metav1.ListOptions{FieldSelector: violationEventSelector})
 	if err != nil {
 		return nil, err
 	}
 	return list.Items, nil
 }
 
-func extractViolations(
-	report *unstructured.Unstructured,
-	rendered map[string]struct{},
-	resultFilter string,
-) []planseps.ProtectionPlanViolation {
-	results, found, err := unstructured.NestedSlice(report.Object, "results")
-	if err != nil || !found {
-		return nil
-	}
-	scope := readScope(report)
-	out := make([]planseps.ProtectionPlanViolation, constants.DefaultInitValue, len(results))
-	for _, raw := range results {
-		v, ok := buildViolation(raw, rendered, resultFilter, scope)
-		if !ok {
-			continue
-		}
-		out = append(out, v)
-	}
-	return out
-}
-
 func buildViolation(
-	raw any,
+	event *unstructured.Unstructured,
 	rendered map[string]struct{},
 	resultFilter string,
-	scope planseps.ProtectionPlanResource,
 ) (planseps.ProtectionPlanViolation, bool) {
-	row, ok := raw.(map[string]any)
-	if !ok {
-		return planseps.ProtectionPlanViolation{}, false
-	}
-	policyName := stripNamespacePrefix(stringField(row, "policy"))
+	policyName := nestedString(event, "involvedObject", fieldName)
 	if _, match := rendered[policyName]; !match {
 		return planseps.ProtectionPlanViolation{}, false
 	}
-	result := stringField(row, "result")
+	rule, result, message := parseMessage(nestedString(event, fieldMessage))
 	if resultFilter != constants.EmptyString && result != resultFilter {
 		return planseps.ProtectionPlanViolation{}, false
 	}
+	resource := readRelated(event)
 	return planseps.ProtectionPlanViolation{
 		Policy:    policyName,
-		Rule:      stringField(row, "rule"),
-		Namespace: scope.Namespace,
-		Resource:  scope,
+		Rule:      rule,
+		Namespace: resource.Namespace,
+		Resource:  resource,
 		Result:    result,
-		Message:   stringField(row, "message"),
-		Timestamp: readTimestamp(row),
+		Message:   message,
+		Timestamp: readTimestamp(event),
+		EventUID:  string(event.GetUID()),
 	}, true
 }
 
-func readScope(report *unstructured.Unstructured) planseps.ProtectionPlanResource {
-	scope, found, err := unstructured.NestedMap(report.Object, "scope")
-	if err != nil || !found {
-		return planseps.ProtectionPlanResource{}
+// Kyverno formats a blocked admission as "<Kind> <ns>/<name>: [<rule>] <result> (blocked); <detail>".
+// The resource half is dropped because the event carries it structurally under `related`.
+func parseMessage(message string) (rule, result, detail string) {
+	_, after, found := strings.Cut(message, resourceSeparator)
+	if !found {
+		return constants.EmptyString, constants.EmptyString, message
 	}
+	head, tail, hasDetail := strings.Cut(after, detailSeparator)
+	detail = message
+	if hasDetail {
+		detail = tail
+	}
+	if name, rest, cut := strings.Cut(strings.TrimPrefix(head, ruleOpen), ruleClose); cut {
+		rule, head = name, rest
+	}
+	return rule, strings.TrimSuffix(head, blockedSuffix), detail
+}
+
+func readRelated(event *unstructured.Unstructured) planseps.ProtectionPlanResource {
 	return planseps.ProtectionPlanResource{
-		Kind:      stringField(scope, "kind"),
-		Name:      stringField(scope, "name"),
-		Namespace: stringField(scope, "namespace"),
+		Kind:      nestedString(event, fieldRelated, fieldKind),
+		Name:      nestedString(event, fieldRelated, fieldName),
+		Namespace: nestedString(event, fieldRelated, fieldNamespace),
 	}
 }
 
-func readTimestamp(row map[string]any) string {
-	ts, ok := row["timestamp"].(map[string]any)
-	if !ok {
+func readTimestamp(event *unstructured.Unstructured) string {
+	for _, field := range timestampFields {
+		parsed, err := time.Parse(time.RFC3339, nestedString(event, field))
+		if err != nil {
+			continue
+		}
+		return parsed.UTC().Format(time.RFC3339)
+	}
+	created := event.GetCreationTimestamp()
+	if created.IsZero() {
 		return constants.EmptyString
 	}
-	seconds := numberField(ts, "seconds")
-	if seconds == int64(constants.DefaultInitValue) {
+	return created.UTC().Format(time.RFC3339)
+}
+
+func nestedString(event *unstructured.Unstructured, fields ...string) string {
+	value, found, err := unstructured.NestedString(event.Object, fields...)
+	if err != nil || !found {
 		return constants.EmptyString
 	}
-	return time.Unix(seconds, int64(constants.DefaultInitValue)).UTC().Format(time.RFC3339)
-}
-
-func stringField(row map[string]any, key string) string {
-	v, ok := row[key].(string)
-	if !ok {
-		return constants.EmptyString
-	}
-	return v
-}
-
-func numberField(row map[string]any, key string) int64 {
-	switch v := row[key].(type) {
-	case int64:
-		return v
-	case int:
-		return int64(v)
-	case float64:
-		return int64(v)
-	default:
-		return int64(constants.DefaultInitValue)
-	}
-}
-
-func stripNamespacePrefix(value string) string {
-	idx := strings.Index(value, "/")
-	if idx == notFoundIndex {
-		return value
-	}
-	return value[idx+constants.DefaultAddValue:]
+	return value
 }
 
 func normalizeLimit(limit int) int {

@@ -4,7 +4,7 @@ inputs:
   go-version:
     description: 'Go version to install'
     required: false
-    default: '1.26'
+    default: '1.27'
 
 runs:
   using: 'composite'
@@ -16,3 +16,6 @@ runs:
       uses: actions/setup-go@v7.0.0
       with:
         go-version: ${{ inputs.go-version }}
+        # No root go.sum, so the default cache never restored and `go run helm-docs`
+        # rebuilt every run (25-35 s). Key it on the file that pins helm-docs.
+        cache-dependency-path: .github/actions/helm-docs-regenerate/action.yaml

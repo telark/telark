@@ -73,7 +73,6 @@ func createRoleResource(w http.ResponseWriter, role *roledata.RoleAsResource, op
 		return
 	}
 
-	// Ensure validity.autoRevoke is always present for temporary roles
 	if role.Validity != nil && role.Validity.Type == roledata.ValidityTypeTemporary {
 		if validitySpec, ok := spec[constants.FieldValidity].(map[string]any); ok {
 			validitySpec[constants.FieldAutoRevoke] = role.Validity.AutoRevoke

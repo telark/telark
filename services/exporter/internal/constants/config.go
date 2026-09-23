@@ -1,6 +1,10 @@
 package constants
 
-import "time"
+import (
+	"time"
+
+	reportseps "github.com/telark/rest/endpoints/reports"
+)
 
 const (
 	OpCreate                = "create"
@@ -43,6 +47,7 @@ const (
 	ConflictMessageFragment = "the object has been modified"
 	AllowedEnvVarPattern    = `^[A-Z_][A-Z0-9_]*$`
 	MaxEnvVarLength         = 8192
+	CertNotBeforeClockSkew  = 5 * time.Minute
 	CacheKeyPrefix          = "cache"
 	CacheGenerationSegment  = "generation"
 	CacheTTL                = 5 * time.Minute
@@ -207,6 +212,8 @@ const (
 	DefaultSnapshotsPVCName                     = "telark-exporter-snapshots-pvc"
 	DefaultSnapshotsPVCNamespace                = "telark"
 	SnapshotFileExtension                       = ".json"
+	SnapshotFilePrefix                          = "V"
+	SnapshotFileNameTemplate                    = SnapshotFilePrefix + "%d" + SnapshotFileExtension
 	SnapshotRollbackFilenameSuffix              = "-rollback.json"
 	HeaderContentDisposition                    = "Content-Disposition"
 	HeaderContentType                           = "Content-Type"
@@ -218,6 +225,23 @@ const (
 	// files greppable.
 	SnapshotTempSuffix             = ".*.tmp"
 	SnapshotGenerationMinValue     = 1
+	ReportsPathEnv                 = "REPORTS_PATH"
+	DefaultReportsPath             = "/reports"
+	ReportsPlansSubdir             = "plans"
+	ReportsReportsSubdir           = "reports"
+	ReportsLedgerFile              = "ledger.json"
+	ReportsMaxPerPlan              = 10
+	ReportFileExtension            = ".json"
+	ReportMaxBodyBytes             = 32 << 20
+	ReportsSweepMinAge             = time.Hour
+	ReportsGCLockKey               = "exporter:reports:gc"
+	HeaderContentTypeOptions       = "X-Content-Type-Options"
+	ContentTypeOptionsNoSniff      = "nosniff"
+	HeaderCSP                      = "Content-Security-Policy"
+	CSPSandbox                     = "sandbox"
+	ContentTypeHTML                = "text/html; charset=utf-8"
+	ContentTypeMarkdown            = "text/markdown; charset=utf-8"
+	ContentTypeCSV                 = "text/csv; charset=utf-8"
 	KubernetesListAPIVersion       = "v1"
 	KubernetesListKind             = "List"
 	KindServiceAccount             = "ServiceAccount"
@@ -238,3 +262,10 @@ const (
 	PasskeyDeviceTypeCrossPlatform = "cross-platform"
 	UnknownValue                   = "unknown"
 )
+
+var ReportContentTypes = map[string]string{
+	reportseps.FormatHTML:     ContentTypeHTML,
+	reportseps.FormatMarkdown: ContentTypeMarkdown,
+	reportseps.FormatJSON:     ContentTypeJSON,
+	reportseps.FormatCSV:      ContentTypeCSV,
+}

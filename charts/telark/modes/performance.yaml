@@ -20,6 +20,7 @@ app:
       maxReplicas: 5
   persistence:
     size: 50Gi
+    reportsSize: 10Gi
   shared:
     resources:
       requests:

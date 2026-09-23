@@ -4,9 +4,34 @@ import (
 	"testing"
 
 	"github.com/telark/data/plans"
-	protection "github.com/telark/exporter/internal/utils/plans/protection"
+	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/exporter/internal/utils/plans/protection"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
+
+const (
+	testAppID  = "a1"
+	testPlanID = "p1"
+	testActor  = "user-1"
+
+	phaseDraft       = "draft"
+	unknownScopeType = "galaxy"
+	testNamespace    = "n1"
+	fieldKeep        = "keep"
+)
+
+// Keeps the table rows readable: every case is one scope type plus whichever of
+// the two id lists it declares.
+func scope(scopeType string, appIDs any, namespaces any) map[string]any {
+	inner := map[string]any{constants.FieldScopeType: scopeType}
+	if appIDs != nil {
+		inner[constants.FieldScopeAppIDs] = appIDs
+	}
+	if namespaces != nil {
+		inner[constants.FieldScopeNamespaces] = namespaces
+	}
+	return map[string]any{constants.FieldScope: inner}
+}
 
 func TestValidatePatchScope(t *testing.T) {
 	tests := []struct {
@@ -14,17 +39,17 @@ func TestValidatePatchScope(t *testing.T) {
 		body    map[string]any
 		wantErr bool
 	}{
-		{"no scope key", map[string]any{"other": 1}, false},
-		{"scope not a map", map[string]any{"scope": "x"}, true},
-		{"scope type missing", map[string]any{"scope": map[string]any{}}, true},
-		{"applications ok", map[string]any{"scope": map[string]any{"type": "applications", "applicationIds": []any{"a1"}}}, false},
-		{"applications without apps", map[string]any{"scope": map[string]any{"type": "applications", "applicationIds": []any{}}}, true},
-		{"applications mixed with namespaces", map[string]any{"scope": map[string]any{"type": "applications", "applicationIds": []any{"a1"}, "namespaces": []any{"n1"}}}, true},
-		{"namespaces ok", map[string]any{"scope": map[string]any{"type": "namespaces", "namespaces": []any{"n1"}}}, false},
-		{"namespaces without namespaces", map[string]any{"scope": map[string]any{"type": "namespaces", "namespaces": []any{}}}, true},
-		{"unknown type", map[string]any{"scope": map[string]any{"type": "galaxy"}}, true},
-		{"string slice form", map[string]any{"scope": map[string]any{"type": "applications", "applicationIds": []string{"a1"}}}, false},
-		{"non-string element", map[string]any{"scope": map[string]any{"type": "applications", "applicationIds": []any{1}}}, true},
+		{"no scope key", map[string]any{"other": constants.DefaultIncrementValue}, false},
+		{"scope not a map", map[string]any{constants.FieldScope: "x"}, true},
+		{"scope type missing", map[string]any{constants.FieldScope: map[string]any{}}, true},
+		{"applications ok", scope(constants.ScopeTypeApplications, []any{testAppID}, nil), false},
+		{"applications without apps", scope(constants.ScopeTypeApplications, []any{}, nil), true},
+		{"applications mixed with namespaces", scope(constants.ScopeTypeApplications, []any{testAppID}, []any{testNamespace}), true},
+		{"namespaces ok", scope(constants.ScopeTypeNamespaces, nil, []any{testNamespace}), false},
+		{"namespaces without namespaces", scope(constants.ScopeTypeNamespaces, nil, []any{}), true},
+		{"unknown type", scope(unknownScopeType, nil, nil), true},
+		{"string slice form", scope(constants.ScopeTypeApplications, []string{testAppID}, nil), false},
+		{"non-string element", scope(constants.ScopeTypeApplications, []any{constants.DefaultIncrementValue}, nil), true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -39,10 +64,10 @@ func TestValidatePatchScope(t *testing.T) {
 func TestValidate(t *testing.T) {
 	valid := func() *plans.ProtectionPlan {
 		return &plans.ProtectionPlan{
-			ID:       "p1",
+			ID:       testPlanID,
 			Name:     "plan",
 			Policies: []plans.ProtectionPlanPolicy{{TemplateID: "t"}},
-			Scope:    plans.ProtectionPlanScope{Type: "applications", ApplicationIDs: []string{"a1"}},
+			Scope:    plans.ProtectionPlanScope{Type: constants.ScopeTypeApplications, ApplicationIDs: []string{testAppID}},
 		}
 	}
 	if err := protection.Validate(valid()); err != nil {
@@ -53,12 +78,12 @@ func TestValidate(t *testing.T) {
 		name   string
 		mutate func(p *plans.ProtectionPlan)
 	}{
-		{"nil id", func(p *plans.ProtectionPlan) { p.ID = "" }},
-		{"nil name", func(p *plans.ProtectionPlan) { p.Name = "" }},
+		{"nil id", func(p *plans.ProtectionPlan) { p.ID = constants.EmptyString }},
+		{"nil name", func(p *plans.ProtectionPlan) { p.Name = constants.EmptyString }},
 		{"no policies", func(p *plans.ProtectionPlan) { p.Policies = nil }},
-		{"bad scope type", func(p *plans.ProtectionPlan) { p.Scope.Type = "galaxy" }},
+		{"bad scope type", func(p *plans.ProtectionPlan) { p.Scope.Type = unknownScopeType }},
 		{"namespace scope with app ids", func(p *plans.ProtectionPlan) {
-			p.Scope = plans.ProtectionPlanScope{Type: "namespaces", Namespaces: []string{"n"}, ApplicationIDs: []string{"a"}}
+			p.Scope = plans.ProtectionPlanScope{Type: constants.ScopeTypeNamespaces, Namespaces: []string{"n"}, ApplicationIDs: []string{"a"}}
 		}},
 	}
 	for _, tt := range tests {
@@ -77,9 +102,9 @@ func TestValidate(t *testing.T) {
 }
 
 func TestExtractFromUnstructured(t *testing.T) {
-	res := &unstructured.Unstructured{Object: map[string]any{"spec": map[string]any{"id": "p1", "name": "plan"}}}
+	res := &unstructured.Unstructured{Object: map[string]any{"spec": map[string]any{constants.IDParam: testPlanID, "name": "plan"}}}
 	plan, err := protection.ExtractFromUnstructured(res)
-	if err != nil || plan == nil || plan.ID != "p1" {
+	if err != nil || plan == nil || plan.ID != testPlanID {
 		t.Fatalf("ExtractFromUnstructured = %+v, err %v", plan, err)
 	}
 	empty, err := protection.ExtractFromUnstructured(&unstructured.Unstructured{Object: map[string]any{}})
@@ -89,34 +114,39 @@ func TestExtractFromUnstructured(t *testing.T) {
 }
 
 func TestApplyCreateAudit(t *testing.T) {
-	active := &plans.ProtectionPlan{Phase: "active"}
-	protection.ApplyCreateAudit(active, "user-1")
-	if active.CreatedBy != "user-1" || active.CreatedAt == "" || active.LastUpdatedBy != "user-1" {
+	active := &plans.ProtectionPlan{Phase: constants.PhaseActive}
+	protection.ApplyCreateAudit(active, testActor)
+	if active.CreatedBy != testActor || active.CreatedAt == constants.EmptyString || active.LastUpdatedBy != testActor {
 		t.Errorf("audit fields not set: %+v", active)
 	}
 	if active.StartedAt == nil || active.StartedBy == nil {
 		t.Error("active plan should record start audit")
 	}
 
-	draft := &plans.ProtectionPlan{Phase: "draft"}
-	protection.ApplyCreateAudit(draft, "user-1")
+	draft := &plans.ProtectionPlan{Phase: phaseDraft}
+	protection.ApplyCreateAudit(draft, testActor)
 	if draft.StartedAt != nil {
 		t.Error("non-active plan should not record start audit")
 	}
 }
 
 func TestApplyPatchAudit(t *testing.T) {
-	body := map[string]any{"createdAt": "x", "createdBy": "y", "id": "z", "keep": 1}
-	protection.ApplyPatchAudit(body, "user-1")
-	if body["lastUpdatedBy"] != "user-1" || body["lastUpdatedAt"] == nil {
+	body := map[string]any{
+		constants.FieldCreatedAt: "x",
+		constants.FieldCreatedBy: "y",
+		constants.IDParam:        "z",
+		fieldKeep:                constants.DefaultIncrementValue,
+	}
+	protection.ApplyPatchAudit(body, testActor)
+	if body[constants.FieldLastUpdatedBy] != testActor || body[constants.FieldLastUpdatedAt] == nil {
 		t.Errorf("patch audit not applied: %v", body)
 	}
-	for _, k := range []string{"createdAt", "createdBy", "id"} {
+	for _, k := range []string{constants.FieldCreatedAt, constants.FieldCreatedBy, constants.IDParam} {
 		if _, ok := body[k]; ok {
 			t.Errorf("%s should be stripped from patch body", k)
 		}
 	}
-	if body["keep"] != 1 {
+	if body[fieldKeep] != constants.DefaultIncrementValue {
 		t.Error("unrelated field was dropped")
 	}
 }

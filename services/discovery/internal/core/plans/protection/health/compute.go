@@ -18,13 +18,9 @@ import (
 
 // Plans not in the active phase are unknown: health only means something once policies are deployed.
 func Compute(ctx context.Context, dyn dynamic.Interface, plan *plans.ProtectionPlan) (Result, error) {
-	if plan.Phase != plans.PhaseActive {
-		return Result{Health: plans.HealthUnknown}, nil
+	if result, done := shortCircuit(plan); done {
+		return result, nil
 	}
-	if len(plan.RenderedPolicies) == constants.DefaultInitValue {
-		return Result{Health: plans.HealthDrifted}, nil
-	}
-
 	snapshot, err := listPlanPolicies(ctx, dyn, plan.ID)
 	if err != nil {
 		return Result{}, err
@@ -32,24 +28,76 @@ func Compute(ctx context.Context, dyn dynamic.Interface, plan *plans.ProtectionP
 	return classify(plan, snapshot), nil
 }
 
+func computeFrom(plan *plans.ProtectionPlan, snapshot map[string]policySnapshot) Result {
+	if result, done := shortCircuit(plan); done {
+		return result
+	}
+	return classify(plan, snapshot)
+}
+
+func shortCircuit(plan *plans.ProtectionPlan) (Result, bool) {
+	if plan.Phase != plans.PhaseActive {
+		return Result{Health: plans.HealthUnknown}, true
+	}
+	if len(plan.RenderedPolicies) == constants.DefaultInitValue {
+		return Result{Health: plans.HealthDrifted}, true
+	}
+	return Result{}, false
+}
+
 func listPlanPolicies(ctx context.Context, dyn dynamic.Interface, planID string) (map[string]policySnapshot, error) {
-	selector := fmt.Sprintf("%s=%s", policies.LabelPlanID, planID)
+	items, err := listPolicyItems(ctx, dyn, fmt.Sprintf("%s=%s", policies.LabelPlanID, planID))
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]policySnapshot, len(items))
+	for i := range items {
+		out[items[i].GetName()] = snapshotOf(&items[i])
+	}
+	return out, nil
+}
+
+// One LIST for the whole reconcile pass: the per-plan selector turned N active plans into N
+// cluster-wide Policy LISTs every tick, each one paying for every other plan's policies too.
+func listManagedPolicies(ctx context.Context, dyn dynamic.Interface) (map[string]map[string]policySnapshot, error) {
+	items, err := listPolicyItems(ctx, dyn, fmt.Sprintf("%s=%s", policies.LabelManagedBy, policies.ManagedByValue))
+	if err != nil {
+		return nil, err
+	}
+	byPlan := map[string]map[string]policySnapshot{}
+	for i := range items {
+		planID := items[i].GetLabels()[policies.LabelPlanID]
+		if planID == constants.EmptyString {
+			continue
+		}
+		if byPlan[planID] == nil {
+			byPlan[planID] = map[string]policySnapshot{}
+		}
+		byPlan[planID][items[i].GetName()] = snapshotOf(&items[i])
+	}
+	return byPlan, nil
+}
+
+func listPolicyItems(
+	ctx context.Context,
+	dyn dynamic.Interface,
+	selector string,
+) ([]unstructured.Unstructured, error) {
 	list, err := dyn.Resource(protpolicies.KyvernoPolicyGVR).
 		Namespace(metav1.NamespaceAll).
 		List(ctx, metav1.ListOptions{LabelSelector: selector})
 	if err != nil {
 		return nil, err
 	}
-	out := make(map[string]policySnapshot, len(list.Items))
-	for i := range list.Items {
-		item := &list.Items[i]
-		out[item.GetName()] = policySnapshot{
-			namespace:     item.GetNamespace(),
-			ready:         readReady(item),
-			failureAction: readFailureAction(item),
-		}
+	return list.Items, nil
+}
+
+func snapshotOf(item *unstructured.Unstructured) policySnapshot {
+	return policySnapshot{
+		namespace:     item.GetNamespace(),
+		ready:         readReady(item),
+		failureAction: readFailureAction(item),
 	}
-	return out, nil
 }
 
 func classify(plan *plans.ProtectionPlan, snapshot map[string]policySnapshot) Result {
@@ -58,7 +106,7 @@ func classify(plan *plans.ProtectionPlan, snapshot map[string]policySnapshot) Re
 
 	policiesOut := make([]planseps.ProtectionPlanPolicyStatus, constants.DefaultInitValue, len(plan.RenderedPolicies))
 	detailOut := make([]plans.ProtectionPlanHealthDetail, constants.DefaultInitValue, len(plan.RenderedPolicies))
-	var missing []string
+	var missing, mismatched []string
 	flags := healthFlags{}
 
 	for _, name := range plan.RenderedPolicies {
@@ -80,6 +128,7 @@ func classify(plan *plans.ProtectionPlan, snapshot map[string]policySnapshot) Re
 			flags.notReady = true
 		}
 		if !strings.EqualFold(snap.failureAction, expected) {
+			mismatched = append(mismatched, name)
 			flags.drifted = true
 		}
 	}
@@ -94,6 +143,7 @@ func classify(plan *plans.ProtectionPlan, snapshot map[string]policySnapshot) Re
 		Detail:     detailOut,
 		Policies:   policiesOut,
 		Missing:    missing,
+		Mismatched: mismatched,
 		Unexpected: unexpected,
 	}
 }

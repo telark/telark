@@ -1,9 +1,11 @@
 package authz
 
 import (
+	"cmp"
 	"errors"
 	"net/http"
 
+	categorydata "github.com/telark/data/classification/category"
 	dataerrors "github.com/telark/data/errors"
 	globalconfigresource "github.com/telark/data/resources/globalconfig"
 	roledata "github.com/telark/data/resources/role"
@@ -150,8 +152,8 @@ func GuardSelfSessionToken(w http.ResponseWriter, r *http.Request, token string)
 	return true
 }
 
-// A category names the scope it classifies, and its deny rules live in that
-// scope, so both are resolved from the category itself.
+// A category scope is governed by its own authz scope, and its deny rules live
+// there, unless categoryGoverningScope says otherwise.
 var categoryActions = map[string]map[roledata.PermissionLevel]string{
 	roledata.ScopeGroups: {
 		roledata.PermissionLevelContributor: roledata.ActionAddGroupCategory,
@@ -161,6 +163,19 @@ var categoryActions = map[string]map[roledata.PermissionLevel]string{
 		roledata.PermissionLevelContributor: roledata.ActionAddRoleCategory,
 		roledata.PermissionLevelOwner:       roledata.ActionEditRoleCategory,
 	},
+	categorydata.ScopePlanEnvironments: {
+		roledata.PermissionLevelContributor: roledata.ActionCreateProtectionPlan,
+		roledata.PermissionLevelOwner:       roledata.ActionEditProtectionPlan,
+	},
+	categorydata.ScopePlanTags: {
+		roledata.PermissionLevelContributor: roledata.ActionCreateProtectionPlan,
+		roledata.PermissionLevelOwner:       roledata.ActionEditProtectionPlan,
+	},
+}
+
+var categoryGoverningScope = map[string]string{
+	categorydata.ScopePlanEnvironments: roledata.ScopeProtectionPlans,
+	categorydata.ScopePlanTags:         roledata.ScopeProtectionPlans,
 }
 
 // An unknown scope is refused outright rather than slipping past the check.
@@ -181,10 +196,11 @@ func GuardCategoryScope(w http.ResponseWriter, r *http.Request, categoryScope st
 		return false
 	}
 
+	scope := cmp.Or(categoryGoverningScope[categoryScope], categoryScope)
 	requirement := xauthz.Requirement{
-		Scope:    categoryScope,
+		Scope:    scope,
 		MinLevel: level,
-		Rule:     xauthz.RuleKey(categoryScope, actions[level]),
+		Rule:     xauthz.RuleKey(scope, actions[level]),
 	}
 	if !xauthz.Allows(identity, requirement) {
 		denyForbidden(w, constants.ErrAuthzCategoryScopeDenied)

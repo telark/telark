@@ -8,6 +8,7 @@ import (
 	globalconfigresource "github.com/telark/data/resources/globalconfig"
 	roledata "github.com/telark/data/resources/role"
 	"github.com/telark/exporter/internal/authz"
+	"github.com/telark/exporter/internal/constants"
 	xauthz "github.com/telark/x-ware/authz"
 )
 
@@ -15,7 +16,7 @@ func settingsIdentity(level roledata.PermissionLevel, denied ...string) xauthz.I
 	grants := xauthz.Grants{
 		Levels: map[string]roledata.PermissionLevel{roledata.ScopeSettings: level},
 	}
-	if len(denied) > 0 {
+	if len(denied) > constants.DefaultInitValue {
 		grants.Denied = map[string][]string{roledata.ScopeSettings: denied}
 	}
 	return xauthz.Identity{UserID: callerID, Grants: grants}

@@ -4,8 +4,11 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/utils/concurrency"
 )
+
+const contendingGoroutines = 50
 
 func TestGetLockReturnsSameInstancePerKey(t *testing.T) {
 	a := concurrency.GetLock("resource-1")
@@ -21,7 +24,9 @@ func TestGetLockReturnsSameInstancePerKey(t *testing.T) {
 
 func TestGetLockEmptyKeyIsEphemeral(t *testing.T) {
 	// An empty key must never be shared, so each call gets a throwaway lock.
-	if concurrency.GetLock("") == concurrency.GetLock("") {
+	first := concurrency.GetLock(constants.EmptyString)
+	second := concurrency.GetLock(constants.EmptyString)
+	if first == second {
 		t.Error("empty key returned a shared lock")
 	}
 }
@@ -30,17 +35,15 @@ func TestGetLockActuallyLocks(t *testing.T) {
 	lock := concurrency.GetLock("guarded")
 	var counter int
 	var wg sync.WaitGroup
-	for range 50 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range contendingGoroutines {
+		wg.Go(func() {
 			lock.Lock()
 			counter++
 			lock.Unlock()
-		}()
+		})
 	}
 	wg.Wait()
-	if counter != 50 {
-		t.Errorf("counter = %d, want 50", counter)
+	if counter != contendingGoroutines {
+		t.Errorf("counter = %d, want %d", counter, contendingGoroutines)
 	}
 }

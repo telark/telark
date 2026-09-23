@@ -13,6 +13,11 @@ import (
 )
 
 type (
+	DeleteFunc      func(resourceName string) GenericResponse
+	GenericResponse interface {
+		GetStatus() int
+		GetMessage() string
+	}
 	GenericResponseAdapter struct {
 		Resp *response.GenericResponse
 	}

@@ -71,8 +71,7 @@ func validateCertificateChain(cert *x509.Certificate) error {
 }
 
 func validateTemporalSkew(cert *x509.Certificate) error {
-	// Allow small clock skew for NotBefore
-	if cert.NotBefore.After(time.Now().Add(5 * time.Minute)) {
+	if cert.NotBefore.After(time.Now().Add(constants.CertNotBeforeClockSkew)) {
 		return fmt.Errorf(string(constants.ErrCertCertificateNotYetValid), cert.NotBefore)
 	}
 	return nil

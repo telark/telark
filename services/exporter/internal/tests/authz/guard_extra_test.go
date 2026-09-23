@@ -3,12 +3,17 @@ package authz
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	categorydata "github.com/telark/data/classification/category"
 	roledata "github.com/telark/data/resources/role"
 	"github.com/telark/exporter/internal/authz"
+	"github.com/telark/exporter/internal/constants"
 	xauthz "github.com/telark/x-ware/authz"
 )
+
+const testSessionToken = "tok"
 
 func noIdentityRequest() *http.Request {
 	return httptest.NewRequest(http.MethodGet, "/", nil)
@@ -39,16 +44,67 @@ func TestGuardCategoryScope(t *testing.T) {
 
 func TestGuardSelfSessionToken(t *testing.T) {
 	w := httptest.NewRecorder()
-	if authz.GuardSelfSessionToken(w, noIdentityRequest(), "tok") {
+	if authz.GuardSelfSessionToken(w, noIdentityRequest(), testSessionToken) {
 		t.Error("session guard passed without identity")
 	}
 
-	if !authz.GuardSelfSessionToken(httptest.NewRecorder(), requestAs(xauthz.Identity{Internal: true}), "tok") {
+	if !authz.GuardSelfSessionToken(httptest.NewRecorder(), requestAs(xauthz.Identity{Internal: true}), testSessionToken) {
 		t.Error("internal caller should pass session guard")
 	}
 
 	// A non-internal caller cannot resolve the token (no session backend), so it is denied.
-	if authz.GuardSelfSessionToken(httptest.NewRecorder(), requestAs(xauthz.Identity{UserID: "u1"}), "tok") {
+	if authz.GuardSelfSessionToken(httptest.NewRecorder(), requestAs(xauthz.Identity{UserID: "u1"}), testSessionToken) {
 		t.Error("unresolvable token should be denied")
+	}
+}
+
+func levels(scope string, level roledata.PermissionLevel) xauthz.Identity {
+	return xauthz.Identity{
+		UserID: "u1",
+		Grants: xauthz.Grants{Levels: map[string]roledata.PermissionLevel{scope: level}},
+	}
+}
+
+func denied(id xauthz.Identity, scope, rule string) xauthz.Identity {
+	id.Grants.Denied = map[string][]string{scope: {rule}}
+	return id
+}
+
+// Plan taxonomies are governed by the protection-plans scope and its existing
+// plan actions; nothing passes through from a grant on the taxonomy name itself.
+func TestGuardCategoryScopePlanTaxonomies(t *testing.T) {
+	contributor, owner := roledata.PermissionLevelContributor, roledata.PermissionLevelOwner
+	plans, groups := roledata.ScopeProtectionPlans, roledata.ScopeGroups
+	environments, tags := categorydata.ScopePlanEnvironments, categorydata.ScopePlanTags
+	editDeny := xauthz.RuleKey(plans, roledata.ActionEditProtectionPlan)
+	plansOwnerNoEdit := denied(levels(plans, owner), plans, editDeny)
+	tests := []struct {
+		name  string
+		id    xauthz.Identity
+		scope string
+		level roledata.PermissionLevel
+		want  bool
+	}{
+		{"plans contributor adds environment", levels(plans, contributor), environments, contributor, true},
+		{"plans owner edits environment", levels(plans, owner), environments, owner, true},
+		{"edit deny bites owner tag edit", plansOwnerNoEdit, tags, owner, false},
+		{"edit deny spares contributor tag add", plansOwnerNoEdit, tags, contributor, true},
+		{"groups grant does not pass through", levels(groups, owner), environments, contributor, false},
+		{"groups category still governed by groups", levels(groups, contributor), groups, contributor, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			if got := authz.GuardCategoryScope(w, requestAs(tt.id), tt.scope, tt.level); got != tt.want {
+				t.Fatalf("GuardCategoryScope = %v, want %v", got, tt.want)
+			}
+			if tt.want {
+				return
+			}
+			body := w.Body.String()
+			if !strings.Contains(body, constants.ErrAuthzCategoryScopeDenied) || strings.Contains(body, constants.ErrAuthzUnknownCategoryScope) {
+				t.Errorf("denied body = %q, want %q", body, constants.ErrAuthzCategoryScopeDenied)
+			}
+		})
 	}
 }

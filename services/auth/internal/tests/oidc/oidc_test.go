@@ -11,6 +11,8 @@ import (
 	"github.com/telark/auth/internal/tests/testutil"
 )
 
+const clientID = "id"
+
 // Usable answers "can we run SSO with this config" — enabled, a client id, and a
 // trust source (live egress or a pasted key set).
 func TestUsable(t *testing.T) {
@@ -19,11 +21,11 @@ func TestUsable(t *testing.T) {
 		cfg  globalconfigresource.OIDCConfig
 		want bool
 	}{
-		{"enabled with egress", globalconfigresource.OIDCConfig{Enabled: true, GoogleClientID: "id", EgressAllowed: true}, true},
+		{"enabled with egress", globalconfigresource.OIDCConfig{Enabled: true, GoogleClientID: clientID, EgressAllowed: true}, true},
 		{"disabled", globalconfigresource.OIDCConfig{Enabled: false}, false},
 		{"no client id", globalconfigresource.OIDCConfig{Enabled: true}, false},
-		{"no trust source", globalconfigresource.OIDCConfig{Enabled: true, GoogleClientID: "id"}, false},
-		{"offline jwk", globalconfigresource.OIDCConfig{Enabled: true, GoogleClientID: "id", GoogleJWKJSON: "{}"}, true},
+		{"no trust source", globalconfigresource.OIDCConfig{Enabled: true, GoogleClientID: clientID}, false},
+		{"offline jwk", globalconfigresource.OIDCConfig{Enabled: true, GoogleClientID: clientID, GoogleJWKJSON: "{}"}, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -40,9 +42,9 @@ func TestValidate(t *testing.T) {
 		wantErr bool
 	}{
 		{"disabled ok", globalconfigresource.OIDCConfig{Enabled: false}, false},
-		{"enabled valid", globalconfigresource.OIDCConfig{Enabled: true, GoogleClientID: "id", EgressAllowed: true}, false},
+		{"enabled valid", globalconfigresource.OIDCConfig{Enabled: true, GoogleClientID: clientID, EgressAllowed: true}, false},
 		{"missing client id", globalconfigresource.OIDCConfig{Enabled: true, EgressAllowed: true}, true},
-		{"missing trust source", globalconfigresource.OIDCConfig{Enabled: true, GoogleClientID: "id"}, true},
+		{"missing trust source", globalconfigresource.OIDCConfig{Enabled: true, GoogleClientID: clientID}, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

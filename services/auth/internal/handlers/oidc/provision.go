@@ -16,16 +16,14 @@ import (
 )
 
 func promoteBootstrapAdmin(user *userresource.UserAsResource, userClient *userclient.Client) {
-	for _, rid := range user.AssignedRolesIDs {
-		if rid != nil && *rid == constants.BuiltInRoleAdmin {
-			return
-		}
+	if authhelper.HasAdminRole(user.AssignedRolesIDs) {
+		return
 	}
 	adminID := constants.BuiltInRoleAdmin
-	roles := make([]*string, constants.InitialCapacity, len(user.AssignedRolesIDs)+1)
+	roles := make([]*string, constants.InitialCapacity, len(user.AssignedRolesIDs)+constants.DefaultIncrementValue)
 	roles = append(roles, user.AssignedRolesIDs...)
 	roles = append(roles, &adminID)
-	resp := userClient.PatchUserByID(user.ID, map[string]any{"assignedRolesIDs": roles})
+	resp := userClient.PatchUserByID(user.ID, map[string]any{constants.SpecFieldAssignedRolesIDs: roles})
 	identityHash := shared.IdentityHash(user.Email)
 	if resp.Status != http.StatusOK {
 		lg.Error(fmt.Sprintf(string(constants.ErrOIDCAdminPromotionFailed), identityHash, resp.Status))
@@ -35,7 +33,7 @@ func promoteBootstrapAdmin(user *userresource.UserAsResource, userClient *usercl
 }
 
 func isNotFoundError(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "status: 404")
+	return err != nil && strings.Contains(err.Error(), constants.NotFoundStatusMarker)
 }
 
 func jitProvisionUser(
@@ -77,7 +75,7 @@ func createNewOIDCUser(
 ) (*userresource.UserAsResource, error) {
 	username, err := authhelper.BuildUsername(claims.Email)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build username: %w", err)
+		return nil, fmt.Errorf(string(constants.ErrOIDCBuildUsernameFailed), err)
 	}
 
 	resp := userClient.CreateUser(buildOIDCUser(claims, username))
@@ -91,7 +89,7 @@ func createNewOIDCUser(
 	case http.StatusConflict:
 		return fetchAndRepairIdentity(userClient, claims)
 	default:
-		return nil, fmt.Errorf("CreateUser returned unexpected status %d: %s", resp.Status, resp.Message)
+		return nil, fmt.Errorf(string(constants.ErrOIDCCreateUserStatus), resp.Status, resp.Message)
 	}
 }
 
@@ -136,7 +134,7 @@ func fetchAndRepairIdentity(
 	existing, fetchErr := userClient.GetUserByIdentity(
 		constants.IdentityProviderGoogle, claims.Issuer, claims.Subject)
 	if fetchErr != nil || existing == nil {
-		return nil, fmt.Errorf("post-create identity lookup failed: %w", fetchErr)
+		return nil, fmt.Errorf(string(constants.ErrOIDCPostCreateLookup), fetchErr)
 	}
 	repairRoleIfMissing(existing, userClient, claims.Email)
 	return existing, nil

@@ -35,11 +35,11 @@ func TestResetApplicationFailureClearsCooldown(t *testing.T) {
 	// Left behind, the floor defers the reset app's first flushes as stale for
 	// up to 10 min and the pending set is reused for a generation it no longer has.
 	stale := []string{
-		constants.KeyPrefixHistoryFloor + "shop",
-		constants.KeyPrefixSnapshotPending + "shop",
-		constants.KeyPrefixHistoryPost + "shop",
-		constants.KeyPrefixHistoryRecorded + "shop",
-		constants.KeyPrefixCoalesceBuffer + "shop",
+		constants.KeyPrefixHistoryFloor + shopApp,
+		constants.KeyPrefixSnapshotPending + shopApp,
+		constants.KeyPrefixHistoryPost + shopApp,
+		constants.KeyPrefixHistoryRecorded + shopApp,
+		constants.KeyPrefixCoalesceBuffer + shopApp,
 	}
 	for _, key := range stale {
 		if err := mr.Set(key, "1"); err != nil {
@@ -47,12 +47,12 @@ func TestResetApplicationFailureClearsCooldown(t *testing.T) {
 		}
 	}
 
-	testutil.Equal(t, "first reset", resetApplication("shop").Code, http.StatusBadGateway)
-	testutil.Equal(t, "cooldown cleared", mr.Exists(constants.KeyPrefixResetCooldown+"shop"), false)
+	testutil.Equal(t, "first reset", resetApplication(shopApp).Code, http.StatusBadGateway)
+	testutil.Equal(t, "cooldown cleared", mr.Exists(constants.KeyPrefixResetCooldown+shopApp), false)
 	for _, key := range stale {
 		testutil.Equal(t, key+" purged", mr.Exists(key), false)
 	}
-	testutil.Equal(t, "retry after failure", resetApplication("shop").Code, http.StatusBadGateway)
+	testutil.Equal(t, "retry after failure", resetApplication(shopApp).Code, http.StatusBadGateway)
 }
 
 // A leader ID is a pod name, which no DNS resolves behind a ClusterIP Service;
@@ -65,12 +65,12 @@ func TestLeaderResetURLUsesAdvertisedAddress(t *testing.T) {
 	leaderID := "telark-discovery-service-5d6c4d9d58-b27wn"
 
 	coordination.AdvertiseReplica(ctx, rdb, leaderID, "10.0.1.7")
-	got, err := applications.LeaderResetURL(ctx, rdb, leaderID, "shop")
+	got, err := applications.LeaderResetURL(ctx, rdb, leaderID, shopApp)
 	if err != nil {
 		t.Fatal(err)
 	}
 	testutil.Equal(t, "forward url", got, "http://10.0.1.7:8080/api/v1/resources/applications/shop/reset")
 
-	_, err = applications.LeaderResetURL(ctx, rdb, "telark-discovery-service-5d6c4d9d58-zzzzz", "shop")
+	_, err = applications.LeaderResetURL(ctx, rdb, "telark-discovery-service-5d6c4d9d58-zzzzz", shopApp)
 	testutil.Equal(t, "unknown leader rejected", err != nil, true)
 }

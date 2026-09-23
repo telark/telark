@@ -14,9 +14,9 @@ import (
 
 func snapQuery() string {
 	q := url.Values{}
-	q.Set(constants.ScopeParam, "apps")
-	q.Set(constants.NamespaceParam, "ns")
-	q.Set(constants.GenerationParam, "1")
+	q.Set(constants.ScopeParam, constants.SnapshotsAppsSubdir)
+	q.Set(constants.NamespaceParam, testNamespace)
+	q.Set(constants.GenerationParam, testGeneration)
 	return "?" + q.Encode()
 }
 
@@ -42,16 +42,16 @@ func TestCreateSnapshotHandler(t *testing.T) {
 
 func TestSnapshotReadHandlers(t *testing.T) {
 	setRoot(t)
-	createOK(t, "app-1", "ns")
+	createOK(t)
 
 	get := httptest.NewRecorder()
-	snaphandler.GetSnapshot()(get, withID(httptest.NewRequest(http.MethodGet, "/snapshots/app-1"+snapQuery(), nil), "app-1"))
+	snaphandler.GetSnapshot()(get, withID(httptest.NewRequest(http.MethodGet, "/snapshots/app-1"+snapQuery(), nil), testAppID))
 	if get.Code != http.StatusOK {
 		t.Errorf("get handler code = %d, want 200", get.Code)
 	}
 
 	man := httptest.NewRecorder()
-	snaphandler.GetSnapshotManifest()(man, withID(httptest.NewRequest(http.MethodGet, "/snapshots/app-1/manifest"+snapQuery(), nil), "app-1"))
+	snaphandler.GetSnapshotManifest()(man, withID(httptest.NewRequest(http.MethodGet, "/snapshots/app-1/manifest"+snapQuery(), nil), testAppID))
 	if man.Code != http.StatusOK {
 		t.Errorf("manifest handler code = %d, want 200", man.Code)
 	}
@@ -65,9 +65,9 @@ func TestSnapshotReadHandlers(t *testing.T) {
 
 func TestDeleteSnapshotHandler(t *testing.T) {
 	setRoot(t)
-	createOK(t, "app-1", "ns")
+	createOK(t)
 	rec := httptest.NewRecorder()
-	snaphandler.DeleteSnapshot()(rec, withID(httptest.NewRequest(http.MethodDelete, "/snapshots/app-1"+snapQuery(), nil), "app-1"))
+	snaphandler.DeleteSnapshot()(rec, withID(httptest.NewRequest(http.MethodDelete, "/snapshots/app-1"+snapQuery(), nil), testAppID))
 	if rec.Code != http.StatusOK {
 		t.Errorf("delete handler code = %d, want 200", rec.Code)
 	}

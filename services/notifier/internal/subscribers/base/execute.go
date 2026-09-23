@@ -11,14 +11,6 @@ import (
 	natscore "github.com/telark/x-ware/nats/core"
 )
 
-type (
-	DeleteFunc      func(resourceName string) GenericResponse
-	GenericResponse interface {
-		GetStatus() int
-		GetMessage() string
-	}
-)
-
 func ExecuteDeleteHandler(
 	m *nats.Msg,
 	deleteFunc DeleteFunc,

@@ -31,21 +31,20 @@ type FlexTime struct {
 
 // cachedEnrichment matches Python EnrichmentResult; accepts snake_case fallbacks.
 type cachedEnrichment struct {
-	Summary         string                   `json:"summary"`
-	TechStack       []string                 `json:"techStack"`
-	Role            string                   `json:"role"`
-	Dependencies    []string                 `json:"dependencies"`
-	Confidence      string                   `json:"confidence"`
-	EnrichedAt      FlexTime                 `json:"enrichedAt"`
-	Category           string                        `json:"category"`
-	Risks              []application.Risk            `json:"risks"`
-	Suggestions        []application.Suggestion      `json:"suggestions"`
+	Summary            string                         `json:"summary"`
+	TechStack          []string                       `json:"techStack"`
+	Role               string                         `json:"role"`
+	Dependencies       []string                       `json:"dependencies"`
+	Confidence         string                         `json:"confidence"`
+	EnrichedAt         FlexTime                       `json:"enrichedAt"`
+	Category           string                         `json:"category"`
+	Risks              []application.Risk             `json:"risks"`
+	Suggestions        []application.Suggestion       `json:"suggestions"`
 	ResourceEfficiency application.ResourceEfficiency `json:"resourceEfficiency"`
-	Criticality        application.Criticality       `json:"criticality"`
-	Tags               []string                      `json:"tags"`
-	RelatedApps        []application.RelatedApp      `json:"relatedApps"`
-	PromptVersion      string                        `json:"promptVersion"`
-	TechStackSnake     []string                      `json:"tech_stack"`
-	EnrichedAtSnake    *string                       `json:"enriched_at"`
+	Criticality        application.Criticality        `json:"criticality"`
+	Tags               []string                       `json:"tags"`
+	RelatedApps        []application.RelatedApp       `json:"relatedApps"`
+	PromptVersion      string                         `json:"promptVersion"`
+	TechStackSnake     []string                       `json:"tech_stack"`
+	EnrichedAtSnake    *string                        `json:"enriched_at"`
 }
-

@@ -62,7 +62,7 @@ No new mental model, no YAML archaeology: discover your apps, pick what to prote
 
 ## Quick start
 
-> **Prerequisites:** Kubernetes ≥ 1.30 (1.33+ recommended), Helm 3, and a ReadWriteMany StorageClass for the exporter snapshot volume (`efs-sc` on EKS). One-node cluster? Pass `--set app.singleNode=true` and any default class works.
+> **Prerequisites:** Kubernetes ≥ 1.30 (1.33+ recommended), Helm 3, and a ReadWriteMany StorageClass for the exporter snapshot and report volumes (`efs-sc` on EKS). One-node cluster? Pass `--set app.singleNode=true` and any default class works.
 
 One command from the registry — CRDs, dashboard, and everything else ship with the chart:
 

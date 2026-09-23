@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 
-	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/messages"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/plans/protection"
@@ -14,6 +13,10 @@ import (
 )
 
 func Reactivate(w http.ResponseWriter, r *http.Request) {
+	svc, ok := readyService(w)
+	if !ok {
+		return
+	}
 	userID := r.Header.Get(constants.HeaderUserID)
 	if userID == constants.EmptyString {
 		respondError(w, http.StatusUnauthorized, protection.ErrUserMissing, nil)
@@ -28,9 +31,9 @@ func Reactivate(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), constants.ProtectionPlanLifecycleTimeout)
 	defer cancel()
 
-	plan, err := globalService.Reactivate(ctx, userID, planID)
+	plan, err := svc.Reactivate(ctx, userID, planID)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, dataerrors.Error(err.Error()), err)
+		respondDomainError(w, err)
 		return
 	}
 	responseutils.LogAndSendResponse(

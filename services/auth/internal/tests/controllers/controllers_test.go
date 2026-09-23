@@ -3,6 +3,7 @@ package controllers
 import (
 	"testing"
 
+	"github.com/telark/auth/internal/constants"
 	cleanupctrl "github.com/telark/auth/internal/controllers/cleanup"
 	"github.com/telark/auth/internal/tests/testutil"
 )
@@ -11,7 +12,7 @@ import (
 // finalizer handling; a target is built for each registered type.
 func TestResourceRegistry(t *testing.T) {
 	types := cleanupctrl.RegisteredResourceTypes()
-	if len(types) == 0 {
+	if len(types) == constants.DefaultInitValue {
 		t.Fatal("no registered resource types")
 	}
 

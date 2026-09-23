@@ -87,7 +87,8 @@
           "properties": {
             "enabled": { "type": "boolean" },
             "storageClass": { "type": "string" },
-            "size": { "type": "string" }
+            "size": { "type": "string" },
+            "reportsSize": { "type": "string" }
           }
         },
         "serviceDefaults": {

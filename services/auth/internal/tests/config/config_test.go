@@ -50,7 +50,9 @@ func TestLoadBootstrapConfig(t *testing.T) {
 func TestBootstrapDefaultsWhenUnloaded(t *testing.T) {
 	// A prior subtest may have loaded config; this only asserts the accessors do
 	// not panic and return booleans, exercising the nil-safe branches.
-	_ = config.IsBootstrapAdmin("nobody@x.com")
+	if config.IsBootstrapAdmin("nobody@x.com") {
+		t.Fatal("unlisted email reported as bootstrap admin")
+	}
 	_ = config.IsSelfRegistrationEnabled()
 }
 
@@ -58,12 +60,13 @@ func TestBootstrapDefaultsWhenUnloaded(t *testing.T) {
 // positive defaults so the reconciler never runs with a zero interval.
 func TestLoadCleanupAndBackfillConfig(t *testing.T) {
 	clean := config.LoadCleanupConfig()
-	if clean.ReconcileTick <= 0 || clean.WorkersPerType <= 0 || clean.SweeperInterval <= 0 {
+	if clean.ReconcileTick <= constants.DefaultInitValue || clean.WorkersPerType <= constants.DefaultInitValue ||
+		clean.SweeperInterval <= constants.DefaultInitValue {
 		t.Fatalf("cleanup defaults not positive: %+v", clean)
 	}
 
 	back := config.LoadBackfillConfig()
-	if back.BatchSize <= 0 {
+	if back.BatchSize <= constants.DefaultInitValue {
 		t.Fatalf("backfill batch size not positive: %d", back.BatchSize)
 	}
 }

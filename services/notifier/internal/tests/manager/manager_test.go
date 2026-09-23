@@ -13,8 +13,8 @@ type fakeNatsManager struct{ c *natscore.NATSClient }
 
 func (f *fakeNatsManager) GetClient() (*natscore.NATSClient, error) { return f.c, nil }
 func (f *fakeNatsManager) IsConnected() bool                        { return f.c != nil }
-func (f *fakeNatsManager) Close() error                             { return nil }
-func (f *fakeNatsManager) Reconnect() error                         { return nil }
+func (*fakeNatsManager) Close() error                               { return nil }
+func (*fakeNatsManager) Reconnect() error                           { return nil }
 func (f *fakeNatsManager) GetConnectionStatus() (bool, error)       { return f.c != nil, nil }
 
 // A fresh manager reports disconnected until Start dials NATS, and never panics
@@ -44,5 +44,7 @@ func TestStartWiresSubscribers(t *testing.T) {
 
 // Shutdown must be safe (cancel + close) even for a manager that never started.
 func TestShutdownBeforeStartIsSafe(t *testing.T) {
-	manager.NewManager().Shutdown()
+	m := manager.NewManager()
+	m.Shutdown()
+	testutil.Equal(t, "connected after shutdown", m.IsConnected(), false)
 }

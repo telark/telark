@@ -9,13 +9,14 @@ import (
 
 	"github.com/telark/auth/internal/clients"
 	"github.com/telark/auth/internal/constants"
+	authhelper "github.com/telark/auth/internal/helpers/auth"
 )
 
 func Run(args []string) int {
-	fs := flag.NewFlagSet("break-glass", flag.ExitOnError)
-	email := fs.String("email", constants.EmptyString, "Email of the user to promote to Admin")
+	fs := flag.NewFlagSet(constants.BreakGlassFlagSet, flag.ExitOnError)
+	email := fs.String(constants.BreakGlassFlagEmail, constants.EmptyString, constants.BreakGlassFlagEmailUsage)
 	if err := fs.Parse(args); err != nil || *email == constants.EmptyString {
-		fmt.Fprintln(os.Stderr, "usage: auth break-glass --email <email>")
+		fmt.Fprintln(os.Stderr, constants.BreakGlassUsage)
 		return constants.ExitCodeError
 	}
 
@@ -24,15 +25,13 @@ func Run(args []string) int {
 
 	user, err := userClient.GetUserByEmail(normalized)
 	if err != nil || user == nil {
-		fmt.Fprintf(os.Stderr, "user not found: %s\n", normalized)
+		fmt.Fprintf(os.Stderr, constants.BreakGlassUserNotFound, normalized)
 		return constants.ExitCodeError
 	}
 
-	for _, rid := range user.AssignedRolesIDs {
-		if rid != nil && *rid == constants.BuiltInRoleAdmin {
-			fmt.Printf("user %s already has Admin role\n", normalized)
-			return constants.DefaultInitValue
-		}
+	if authhelper.HasAdminRole(user.AssignedRolesIDs) {
+		fmt.Printf(constants.BreakGlassAlreadyAdmin, normalized)
+		return constants.DefaultInitValue
 	}
 
 	adminID := constants.BuiltInRoleAdmin
@@ -42,10 +41,10 @@ func Run(args []string) int {
 
 	resp := userClient.PatchUserByID(user.ID, map[string]any{constants.SpecFieldAssignedRolesIDs: roles})
 	if resp.Status != http.StatusOK {
-		fmt.Fprintf(os.Stderr, "patch failed: status %d: %s\n", resp.Status, resp.Message)
+		fmt.Fprintf(os.Stderr, constants.BreakGlassPatchFailed, resp.Status, resp.Message)
 		return constants.ExitCodeError
 	}
 
-	fmt.Printf("promoted %s to Admin\n", normalized)
+	fmt.Printf(constants.BreakGlassPromoted, normalized)
 	return constants.DefaultInitValue
 }

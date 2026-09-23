@@ -4,17 +4,20 @@ import (
 	"context"
 	"testing"
 
+	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/applications/core"
 	appshared "github.com/telark/discovery/internal/core/applications/shared"
 	"github.com/telark/discovery/internal/discovery/derivation"
 	"github.com/telark/discovery/internal/tests/testutil"
 )
 
+const containerPort = 8080
+
 // With every input served by the informer manifest cache the enrichment
 // fields come out populated without any kind fetcher running: there is no
 // Kubernetes client here, so a fetcher would have returned nothing.
 func TestDiscoverInputsSkipsFetchersOnCacheHit(t *testing.T) {
-	hits := 0
+	hits := constants.DefaultInitValue
 	core.GetManifestFromCache = func(kind, name, ns string) (map[string]any, bool) {
 		hits++
 		return map[string]any{
@@ -30,7 +33,7 @@ func TestDiscoverInputsSkipsFetchersOnCacheHit(t *testing.T) {
 				"containers": []any{map[string]any{
 					"name":  "web",
 					"image": "nginx:1.27",
-					"ports": []any{map[string]any{"containerPort": int64(8080)}},
+					"ports": []any{map[string]any{"containerPort": int64(containerPort)}},
 				}},
 			}}},
 		}, true
@@ -41,9 +44,9 @@ func TestDiscoverInputsSkipsFetchersOnCacheHit(t *testing.T) {
 		{Namespace: "prod", Kind: appshared.KindDeployment, Name: "web"},
 	})
 
-	testutil.Equal(t, "cache hits", hits, 1)
+	testutil.Equal(t, "cache hits", hits, constants.DefaultAddValue)
 	testutil.Equal(t, "createdAt set", out[0].CreatedAt.IsZero(), false)
 	testutil.Equal(t, "lastModifiedBy", out[0].LastModifiedBy, "alice")
-	testutil.Equal(t, "images", len(out[0].Images), 1)
-	testutil.Equal(t, "ports", len(out[0].Ports), 1)
+	testutil.Equal(t, "images", len(out[0].Images), constants.DefaultAddValue)
+	testutil.Equal(t, "ports", len(out[0].Ports), constants.DefaultAddValue)
 }

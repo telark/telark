@@ -43,6 +43,8 @@ const (
 	ErrFailedUpdatePasskey    errors.Error = "failed to update passkey: %s"
 	ErrFailedUpdateLastLogin  errors.Error = "failed to update last login for identityHash=%s: status %d: %s"
 	ErrFailedProxyRequest     errors.Error = "failed to proxy request: %s"
+	ErrFailedLoadGroup        errors.Error = "failed to load group %s: %v"
+	ErrFailedLoadRole         errors.Error = "failed to load role %s: %v"
 
 	// Encoding/Decoding Errors
 	ErrFailedDecodeRequest       errors.Error = "failed to decode request body: %s"
@@ -123,6 +125,13 @@ const (
 	ErrOIDCIdentityLookupFailed  errors.Error = "user identity lookup failed for identityHash=%s: %v"
 	ErrOIDCEmailLookupFailed     errors.Error = "email lookup failed for identityHash=%s: %v"
 	ErrOIDCAdminPromotionFailed  errors.Error = "failed to promote bootstrap admin identityHash=%s: status %d"
+	ErrOIDCBuildUsernameFailed   errors.Error = "failed to build username: %w"
+	ErrOIDCCreateUserStatus      errors.Error = "CreateUser returned unexpected status %d: %s"
+	ErrOIDCPostCreateLookup      errors.Error = "post-create identity lookup failed: %w"
+	ErrOIDCNonceConsumeFailed    errors.Error = "OIDC nonce is invalid or has already been used: %v"
+	ErrOIDCJWKSCacheFailed       errors.Error = "failed to cache JWKS in Redis: %v"
+	ErrOIDCJWKSBadStatus         errors.Error = "JWKS endpoint returned status %d"
+	ErrOIDCTokenInvalidDetail    errors.Error = "token invalid"
 
 	// Redis Errors
 	ErrRedisClientUnavailable errors.Error = "redis client is not available — check REDIS_HOST and REDIS_PORT"

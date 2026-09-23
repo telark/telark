@@ -231,4 +231,18 @@ const (
 	InfSnapshotStatsRefreshConfigured  messages.Message = "SNAPSHOT_STATS_REFRESH_SEC configured: %s"
 	InfSnapshotStatsRefreshDisabled    messages.Message = "snapshot stats refresh disabled: walking per request"
 	InfSnapshotStatsRefreshed          messages.Message = "snapshot stats refreshed: snapshots=%d bytes=%d took=%s"
+
+	// Reports
+	InfReportsPathConfigured   messages.Message = "REPORTS_PATH configured: %s"
+	ErrReportsRootCreateFailed errors.Error     = "reports root create failed path=%s error=%v"
+	ErrReportWriteFailed       errors.Error     = "report write failed stage=%d id=%s path=%s error=%v"
+	ErrReportNotFound          errors.Error     = "report not found"
+	ErrReportBadFormat         errors.Error     = "report format is not supported"
+	ErrReportBadID             errors.Error     = "report or plan id is not a safe path segment"
+	ErrReportBodyTooLarge      errors.Error     = "report body exceeds the size limit"
+	ErrReportInvalidLedger     errors.Error     = "report ledger is not valid JSON"
+	WarnReportsSweepListFailed messages.Message = "reports sweep skipped: %v"
+	WarnReportsGCPanic         messages.Message = "reports gc panic recovered: %v"
+	InfReportsSwept            messages.Message = "reports sweep removed=%d temps=%d scanned=%d"
+	InfReportsGCDisabled       messages.Message = "reports gc disabled"
 )

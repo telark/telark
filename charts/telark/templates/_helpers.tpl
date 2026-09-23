@@ -87,6 +87,14 @@ claimName, and the SNAPSHOTS_PVC_NAME env. Call with the root context.
 {{- end -}}
 
 {{/*
+Name of the exporter reports PVC. Single source for the PVC itself and the
+volume claimName. Call with the root context.
+*/}}
+{{- define "telark.exporterReportsPvcName" -}}
+{{- printf "%s-exporter-reports-pvc" (include "telark.fullname" .) -}}
+{{- end -}}
+
+{{/*
 imagePullSecrets block from global.imagePullSecrets + app.image.pullSecrets.
 Renders nothing when both are empty (public images pull anonymously).
   {{- include "telark.imagePullSecrets" $root | nindent 6 }}

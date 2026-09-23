@@ -36,8 +36,9 @@ const (
 	RemovalStabilizationWindow      = 45 * time.Second
 
 	// rest
-	ApplicationJSON = "application/json"
-	HeaderUserID    = "X-User-ID"
+	ApplicationJSON  = "application/json"
+	HeaderUserID     = "X-User-ID"
+	HeaderRetryAfter = "Retry-After"
 
 	// optimization constants
 	StringBuilderSize = 64
@@ -155,6 +156,20 @@ const (
 	CircuitBreakerRestSuccessThreshold    = 2
 	CircuitBreakerRestTimeout             = 30 * time.Second
 	CircuitBreakerHalfOpenMaxProbes       = 1
+)
+
+// Protection plan report constants
+const (
+	DefaultReportCaptureTimeout = 10 * time.Second
+	EnvReportMaxViolations      = "PROTECTION_PLAN_REPORT_MAX_VIOLATIONS"
+	DefaultReportMaxViolations  = 5000
+	EnvReportCheckpointSec      = "PROTECTION_PLAN_REPORT_CHECKPOINT_SEC"
+	DefaultReportCheckpointSec  = 900
+	ReportCheckpointMinSec      = 60
+	ReportCheckpointMaxSec      = 1800
+	// Half the exporter's ReportMaxBodyBytes.
+	ReportRequestBudgetBytes  = 16 << 20
+	KeyPrefixReportLedgerLock = "lock:reports:ledger:"
 )
 
 // Acronym map for display name restoration

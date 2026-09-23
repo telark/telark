@@ -28,11 +28,11 @@ body:
       options:
         - chart (telark)
         - chart (telark-crds)
-        - exporter
         - discovery
-        - enrichment
+        - exporter
         - auth
         - notifier
+        - enrichment
         - ui (dashboard)
         - other
     validations:

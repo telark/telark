@@ -13,18 +13,20 @@ import (
 	"github.com/telark/discovery/internal/core/plans/protection"
 	"github.com/telark/discovery/internal/core/plans/protection/applications"
 	protpolicies "github.com/telark/discovery/internal/core/plans/protection/policies"
+	"github.com/telark/discovery/internal/core/plans/protection/validation"
 	planseps "github.com/telark/rest/endpoints/plans"
 )
 
 type (
-	NamespaceLister func(ctx context.Context) ([]string, error)
-	Deps            struct {
+	Deps struct {
 		Applier        *protpolicies.Applier
 		Exporter       *clients.ProtectionPlanClient
 		ResolveApps    applications.Resolver
-		ListNamespaces NamespaceLister
+		ListNamespaces validation.NamespaceLister
 		Logger         protection.Logger
 		Clock          func() time.Time
+		// The patch blanks health; this restamps it without waiting for a controller tick.
+		StampHealth func(planID string)
 	}
 )
 
@@ -76,7 +78,7 @@ func Run(
 
 	rendered := protpolicies.UnionRenderedNames(kept, deployed)
 	now := deps.Clock().Format(globalshared.DefaultTimeFormat)
-	patch, changed := buildPatch(plan, req, newPolicies, rendered, userID, now)
+	patch, changed := BuildPatch(plan, req, newPolicies, rendered, userID, now)
 	if !changed {
 		return plan, nil
 	}
@@ -84,6 +86,9 @@ func Run(
 	if err := deps.Exporter.PatchOrError(userID, planID, patch); err != nil {
 		protpolicies.RollbackPatchFailure(ctx, deps.Applier, deps.Logger, plan, deployed)
 		return nil, fmt.Errorf(string(ErrPartial), planID)
+	}
+	if plan.Phase == plans.PhaseActive && deps.StampHealth != nil {
+		deps.StampHealth(planID)
 	}
 	return deps.Exporter.Get(planID)
 }
@@ -95,16 +100,22 @@ func validateRequest(
 	deps Deps,
 ) error {
 	if !updatable(plan.Phase) {
-		return fmt.Errorf(fmtRawString, ErrInvalidPhase)
+		return validation.Invalidf(fmtRawString, ErrInvalidPhase)
 	}
 	if req.Scope.Type != plan.Scope.Type {
-		return fmt.Errorf(fmtRawString, ErrScopeTypeChange)
+		return validation.Invalidf(fmtRawString, ErrScopeTypeChange)
 	}
-	if err := validateScopeTargets(ctx, deps, req.Scope); err != nil {
+	if err := validation.Fields(req); err != nil {
+		return err
+	}
+	if err := ensureNameAvailable(deps, plan, req.Name); err != nil {
+		return err
+	}
+	if err := validation.NamespaceScope(ctx, req.Scope.Type, req.Scope.Namespaces, deps.ListNamespaces); err != nil {
 		return err
 	}
 	if err := validatePolicies(req.Policies, req.Scope.Type); err != nil {
-		return fmt.Errorf(string(ErrInvalidPolicies), err)
+		return validation.Invalidf(string(ErrInvalidPolicies), err)
 	}
 	if req.TimeMode == plans.TimeModeTimeRange {
 		if err := validateTimeRange(req.TimeRange); err != nil {
@@ -114,24 +125,15 @@ func validateRequest(
 	return nil
 }
 
-func validateScopeTargets(ctx context.Context, deps Deps, scope planseps.ScopeRequest) error {
-	if scope.Type == plans.ScopeTypeNamespaces && deps.ListNamespaces != nil {
-		existing, err := deps.ListNamespaces(ctx)
-		if err != nil {
-			return err
-		}
-		set := stringSet(existing)
-		var missing []string
-		for _, ns := range scope.Namespaces {
-			if _, ok := set[ns]; !ok {
-				missing = append(missing, ns)
-			}
-		}
-		if len(missing) > constants.DefaultInitValue {
-			return fmt.Errorf(string(ErrMissingNamespaces), missing)
-		}
+func ensureNameAvailable(deps Deps, plan *plans.ProtectionPlan, name string) error {
+	if validation.NormalizeName(name) == validation.NormalizeName(plan.Name) {
+		return nil
 	}
-	return nil
+	existing, err := deps.Exporter.List()
+	if err != nil {
+		return err
+	}
+	return validation.UniqueName(existing, name, plan.ID)
 }
 
 func resolveTargets(
@@ -148,7 +150,7 @@ func resolveTargets(
 		return nil, err
 	}
 	if len(missing) > constants.DefaultInitValue {
-		return nil, fmt.Errorf(string(ErrMissingApplications), missing)
+		return nil, validation.Invalidf(string(ErrMissingApplications), missing)
 	}
 	return resolved, nil
 }

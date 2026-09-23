@@ -8,26 +8,32 @@ import (
 	"testing"
 	"time"
 
+	"github.com/telark/exporter/internal/constants"
 	snapshotexp "github.com/telark/exporter/internal/exporters/snapshot"
 	"github.com/telark/exporter/internal/managers/envs"
 	snaputil "github.com/telark/exporter/internal/utils/snapshot"
 )
 
+const (
+	wantScannedFiles  = 5
+	wantRemovedInodes = 4
+)
+
 func setupSnapshotsDir(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	t.Setenv("SNAPSHOTS_PATH", dir)
+	t.Setenv(constants.SnapshotsPathEnv, dir)
 	envs.InitSnapshotsPath()
 	return dir
 }
 
 func writeSnapshotFile(t *testing.T, dir, rel string, mtime time.Time) string {
 	t.Helper()
-	path := filepath.Join(dir, "apps", rel)
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+	path := filepath.Join(dir, constants.SnapshotsAppsSubdir, rel)
+	if err := os.MkdirAll(filepath.Dir(path), dirPerm); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte("{}"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("{}"), filePerm); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Chtimes(path, mtime, mtime); err != nil {
@@ -39,8 +45,8 @@ func writeSnapshotFile(t *testing.T, dir, rel string, mtime time.Time) string {
 // Creating the namespace dir bumps the snap dir's mtime, so both get stamped.
 func mkdirSnapshotDir(t *testing.T, dir, rel string, mtime time.Time) string {
 	t.Helper()
-	path := filepath.Join(dir, "apps", rel)
-	if err := os.MkdirAll(path, 0o750); err != nil {
+	path := filepath.Join(dir, constants.SnapshotsAppsSubdir, rel)
+	if err := os.MkdirAll(path, dirPerm); err != nil {
 		t.Fatal(err)
 	}
 	for _, p := range []string{path, filepath.Dir(path)} {
@@ -81,7 +87,7 @@ func TestSnapshotGCRemovesOnlyOldUnreferencedFiles(t *testing.T) {
 	other := writeSnapshotFile(t, dir, "notes/ns/readme.txt", old)
 
 	orphans, emptyDirs, scanned := snaputil.CollectOrphans(dir, map[string]struct{}{referenced: {}}, time.Hour)
-	if scanned != 5 || len(emptyDirs) != 0 {
+	if scanned != wantScannedFiles || len(emptyDirs) != constants.DefaultInitValue {
 		t.Errorf("scanned = %d, emptyDirs = %v, want 5 and none", scanned, emptyDirs)
 	}
 	want := []string{leftover, orphan}
@@ -116,9 +122,9 @@ func TestSnapshotGCRemovesEmptySnapshotDirs(t *testing.T) {
 
 	removed := snapshotexp.RemoveSnapshotDirs(emptyDirs)
 	removed += snapshotexp.RemoveSnapshotFiles(orphans)
-	if removed != 4 {
+	if removed != wantRemovedInodes {
 		t.Errorf("removed dirs = %d, want 4", removed)
 	}
 	assertRemoved(t, []string{stale, filepath.Dir(stale), filepath.Dir(orphan), filepath.Dir(filepath.Dir(orphan))})
-	assertKept(t, []string{dir, filepath.Join(dir, "apps"), fresh, filepath.Dir(fresh), referenced})
+	assertKept(t, []string{dir, filepath.Join(dir, constants.SnapshotsAppsSubdir), fresh, filepath.Dir(fresh), referenced})
 }

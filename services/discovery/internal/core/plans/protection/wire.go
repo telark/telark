@@ -1,11 +1,20 @@
 package protection
 
 import (
+	"context"
+	"os"
+	"slices"
+	"strconv"
+
 	"github.com/redis/go-redis/v9"
 	"github.com/telark/discovery/internal/clients"
+	dconfig "github.com/telark/discovery/internal/config"
+	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/plans/protection/applications"
 	protpolicies "github.com/telark/discovery/internal/core/plans/protection/policies"
+	"github.com/telark/discovery/internal/core/plans/protection/reports"
 	kcorek8s "github.com/telark/kcore/k8sclient"
+	kcorecore "github.com/telark/kcore/resources/core"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -16,7 +25,38 @@ func BuildService(kubeClient *kubernetes.Clientset, rdb *redis.Client, logger Lo
 	}
 	mapper := kcorek8s.NewDeferredRESTMapper(kubeClient)
 	applier := protpolicies.NewApplier(dyn, mapper)
-	resolver := applications.NewRedisResolver(rdb)
+	resolver := applications.NewRedisResolver(rdb, applications.NewClusterClaimReader(dyn))
 	exporter := clients.NewProtectionPlanClient()
-	return NewService(applier, resolver, exporter, dyn, logger), nil
+
+	// Own client budget: the checkpoint burst on leadership must never starve the applier.
+	qps, burst := dconfig.RollbackK8sClientRateLimit()
+	reportsDyn, err := kcorek8s.NewDynamicClientWithRateLimit(qps, burst)
+	if err != nil {
+		return nil, err
+	}
+	gen := reports.NewGenerator(
+		clients.NewReportClient(), reportsDyn, resolver, rdb, logger, reportMaxViolations(),
+	)
+	return NewService(applier, resolver, exporter, dyn, ListClusterNamespaces, gen, logger), nil
+}
+
+func reportMaxViolations() int {
+	n, err := strconv.Atoi(os.Getenv(constants.EnvReportMaxViolations))
+	if err != nil || n <= constants.DefaultInitValue {
+		return constants.DefaultReportMaxViolations
+	}
+	return n
+}
+
+func ListClusterNamespaces(context.Context) ([]string, error) {
+	list, err := kcorecore.GetAllNamespaces()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, constants.DefaultInitValue, len(list))
+	for i := range list {
+		out = append(out, list[i].Name)
+	}
+	slices.Sort(out)
+	return out, nil
 }

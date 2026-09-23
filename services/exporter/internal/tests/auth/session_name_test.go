@@ -15,6 +15,8 @@ const (
 	rawToken      = "IoVQ8ZP2rS7m0kQwXn3bYy1cAeF4uJhTgLdNvRp6sKc"
 	otherRawToken = "Zk4TmD9wQ1xLpR7nBvC2eH5yU8aJfGsO3dXi6bNtVlM"
 	k8sMaxNameLen = 253
+
+	extractSessionSpecErrFmt = "ExtractSessionSpec: %v"
 )
 
 var rfc1123Subdomain = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
@@ -78,9 +80,9 @@ func TestSessionNameIsAValidResourceName(t *testing.T) {
 // A session spec is what gets persisted, so the token has to be stripped from
 // it even though the request body carries one.
 func TestExtractSessionSpecStripsTheToken(t *testing.T) {
-	session, _, err := sessionutil.ExtractSessionSpec(sessionBody(), "u1")
+	session, _, err := sessionutil.ExtractSessionSpec(sessionBody(), testUserID)
 	if err != nil {
-		t.Fatalf("ExtractSessionSpec: %v", err)
+		t.Fatalf(extractSessionSpecErrFmt, err)
 	}
 	if session.SessionToken != "" {
 		t.Errorf("SessionToken = %q, want it stripped before persistence", session.SessionToken)
@@ -88,9 +90,9 @@ func TestExtractSessionSpecStripsTheToken(t *testing.T) {
 }
 
 func TestExtractSessionSpecNamesByDigest(t *testing.T) {
-	_, name, err := sessionutil.ExtractSessionSpec(sessionBody(), "u1")
+	_, name, err := sessionutil.ExtractSessionSpec(sessionBody(), testUserID)
 	if err != nil {
-		t.Fatalf("ExtractSessionSpec: %v", err)
+		t.Fatalf(extractSessionSpecErrFmt, err)
 	}
 	if want := sessionutil.SessionName(rawToken); name != want {
 		t.Errorf("name = %q, want %q", name, want)
@@ -98,11 +100,11 @@ func TestExtractSessionSpecNamesByDigest(t *testing.T) {
 }
 
 func TestExtractSessionSpecKeepsUserID(t *testing.T) {
-	session, _, err := sessionutil.ExtractSessionSpec(sessionBody(), "u1")
+	session, _, err := sessionutil.ExtractSessionSpec(sessionBody(), testUserID)
 	if err != nil {
-		t.Fatalf("ExtractSessionSpec: %v", err)
+		t.Fatalf(extractSessionSpecErrFmt, err)
 	}
-	if session.UserID != "u1" {
-		t.Errorf("UserID = %q, want %q", session.UserID, "u1")
+	if session.UserID != testUserID {
+		t.Errorf("UserID = %q, want %q", session.UserID, testUserID)
 	}
 }

@@ -46,6 +46,7 @@ flowchart LR
 - Own the Telark CRDs (groups `erpi.*`, `auth.*`, `classification.*`) — the single service that reads and writes them on the cluster.
 - Seed built-in resources (roles, categories, default `GlobalConfig`) on startup.
 - Store and serve **snapshots** of workload manifests for audit, comparison, and rollback targets, on a PersistentVolume.
+- Store and serve **protection plan reports** (rendered by discovery) and each plan's report ledger on a second PersistentVolume; a reports GC goroutine (own Redis lock key, one replica per tick, shares `SNAPSHOT_GC_INTERVAL_SEC`) sweeps report directories whose plan CR no longer exists.
 - Expose the REST surface every other service consumes for CRD operations.
 - Emit change notifications on Redis for downstream consumers.
 
@@ -56,6 +57,9 @@ flowchart LR
 | `internal/routes` | HTTP route registration (rest router) |
 | `internal/handlers/{resources,plans,classification,auth,notifications}` | Request handlers per CRD domain |
 | `internal/exporters/{snapshot,generics,auth,shared}` | CRD read/write + snapshot serialization against the cluster |
+| `internal/exporters/reports` · `internal/handlers/reports` | Report create/list/download, ledger get/put, reports orphan sweep |
+| `internal/utils/artifact` | Generic on-volume primitives shared by snapshots and reports: atomic write, path containment, `TickAllowed` (Redis-gated GC tick) |
+| `internal/utils/reports` | Reports store on the reports volume (per-plan directory, ledger, retention of 10 on-demand reports) |
 | `internal/startup` | `SeedBuiltins` and boot wiring |
 | `internal/managers/{envs,certs}` | Env resolution, CA-bundle / TLS material |
 | `internal/redis/notifications` | Change-event publishing |
@@ -77,6 +81,8 @@ Full reference: [chart README](../../charts/telark/README.md#servicesexporterenv
 | `SNAPSHOTS_PATH` | `/snapshots` | Mount path for snapshot files |
 | `SNAPSHOTS_PVC_NAME` | `<app.name>-exporter-snapshots-pvc` | PVC backing snapshot storage |
 | `SNAPSHOTS_PVC_NAMESPACE` | `<app.namespace>` | Namespace of the PVC |
+| `REPORTS_PATH` | `/reports` | Mount path for protection plan report files (the reports PVC) |
+| `SNAPSHOT_GC_INTERVAL_SEC` | `3600` | Snapshot sweep interval; also drives the reports orphan sweep (`0` disables both) |
 | `EXPORTER_K8S_CLIENT_QPS` / `_BURST` | `50` / `100` | K8s client rate limits, sized for CRD-write fan-out |
 | `CA_BUNDLE` | configmap `<app.name>-ca-bundle` | Trusted CA bundle (`ca.crt`) |
 
@@ -86,6 +92,18 @@ REST under `/api/v1/` — CRD operations grouped by domain: `resources/*` (appli
 groups, roles, users, globalconfig), `plans/*` (protection plans), `classification/*`,
 `auth/*` (sessions, passkeys), `snapshots/*`, and `notifications/*`. Liveness/readiness
 at `/api/v1/status/{live,ready}`.
+
+Protection plan reports (`{id}` = plan name):
+
+| Route | Authz | Purpose |
+|---|---|---|
+| `POST reports/plans/create` | Internal | Store a rendered report (called by discovery) |
+| `POST reports/plans/{id}/ledger/put` | Internal | Replace the plan's report ledger |
+| `GET reports/plans/{id}/ledger/get` | Internal | Read the plan's report ledger |
+| `GET reports/plans/{id}/get` | Read (protection plans) | List the plan's reports |
+| `GET reports/plans/{id}/download?report=&format=` | Read (protection plans) | Download one report as `html`, `md`, `json` or `csv` |
+
+Downloads carry `X-Content-Type-Options: nosniff` and `Content-Security-Policy: sandbox`, and are served inline (no `Content-Disposition`). Reports are removed when their plan is deleted.
 
 ## Build & run
 

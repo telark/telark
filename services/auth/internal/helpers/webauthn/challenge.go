@@ -57,31 +57,21 @@ func ValidateAndGetChallenge(userID string) (*authdata.AuthChallenge, error) {
 // A registration finish that carries no session is bound to its ceremony by the
 // challenge the authenticator signed, never by a caller-supplied identity header.
 func StoreRegistrationChallengeOwner(challenge, userID string) error {
-	rdb := redishelper.GetClient()
-	if rdb == nil {
-		return errors.New(string(constants.ErrRedisClientUnavailable))
-	}
-	key, err := registrationOwnerKey(challenge)
-	if err != nil {
-		return err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisChallengeOpTimeout)
-	defer cancel()
-
-	if err := rdb.Set(ctx, key, userID, time.Duration(constants.RedisTTLChallenge)*time.Second).Err(); err != nil {
-		return fmt.Errorf(string(constants.ErrFailedCreateChallenge), err.Error())
-	}
-	return nil
+	return storeCeremonyOwner(constants.RedisKeyPrefixRegistrationOwner, challenge, userID)
 }
 
 // An enrolled ceremony was opened with a one-time enrollment token, so its
 // session-less finish may add a passkey to an account that already has some.
 func StoreEnrolledCeremony(challenge, userID string) error {
+	return storeCeremonyOwner(constants.RedisKeyPrefixEnrolledCeremony, challenge, userID)
+}
+
+func storeCeremonyOwner(prefix, challenge, userID string) error {
 	rdb := redishelper.GetClient()
 	if rdb == nil {
 		return errors.New(string(constants.ErrRedisClientUnavailable))
 	}
-	key, err := enrolledCeremonyKey(challenge)
+	key, err := ceremonyKey(prefix, challenge)
 	if err != nil {
 		return err
 	}

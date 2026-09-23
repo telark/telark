@@ -1,14 +1,14 @@
 module github.com/telark/auth
 
-go 1.26.5
+go 1.27.1
 
 require (
-	github.com/alicebob/miniredis/v2 v2.38.0
+	github.com/alicebob/miniredis/v2 v2.39.0
 	github.com/fxamacker/cbor/v2 v2.9.2
 	github.com/go-webauthn/webauthn v0.17.4
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
-	github.com/redis/go-redis/v9 v9.21.0
+	github.com/redis/go-redis/v9 v9.22.0
 	github.com/telark/data v1.14.8
 	github.com/telark/rest v0.14.4
 	github.com/telark/x-ware v0.4.0

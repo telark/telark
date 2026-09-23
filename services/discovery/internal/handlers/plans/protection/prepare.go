@@ -17,6 +17,10 @@ import (
 )
 
 func Prepare(w http.ResponseWriter, r *http.Request) {
+	svc, ok := readyService(w)
+	if !ok {
+		return
+	}
 	userID := r.Header.Get(constants.HeaderUserID)
 	if userID == constants.EmptyString {
 		respondError(w, http.StatusUnauthorized, protection.ErrUserMissing, nil)
@@ -33,9 +37,9 @@ func Prepare(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), constants.ProtectionPlanDeployTimeout)
 	defer cancel()
 
-	plan, err := globalService.Prepare(ctx, userID, &req)
+	plan, err := svc.Prepare(ctx, userID, &req)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, dataerrors.Error(err.Error()), err)
+		respondDomainError(w, err)
 		return
 	}
 

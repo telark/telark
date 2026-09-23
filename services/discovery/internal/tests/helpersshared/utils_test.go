@@ -1,4 +1,4 @@
-package shared
+package helpersshared
 
 import (
 	"testing"
@@ -8,16 +8,20 @@ import (
 	"github.com/telark/discovery/internal/tests/testutil"
 )
 
+const strconvSample = 42
+
+var sampleTime = time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+
 // The small pure helpers behave as advertised: zero times format empty, keys and
 // pointers round-trip, and slices index into set maps.
 func TestUtilsHelpers(t *testing.T) {
 	testutil.Equal(t, "zero time", utils.FormatAppTime(time.Time{}), "")
-	if utils.FormatAppTime(time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)) == "" {
+	if utils.FormatAppTime(sampleTime) == "" {
 		t.Fatal("non-zero time formatted empty")
 	}
 	testutil.Equal(t, "resource key", utils.ResourceKey("Deployment", "web"), "Deployment/web")
 	testutil.Equal(t, "strptr", *utils.StrPtr("x"), "x")
-	testutil.Equal(t, "strconv", utils.StrconvInt(42), "42")
+	testutil.Equal(t, "strconv", utils.StrconvInt(strconvSample), "42")
 
 	m := utils.SliceToMap([]string{"a", "b"})
 	testutil.Equal(t, "slice map", m["a"], true)

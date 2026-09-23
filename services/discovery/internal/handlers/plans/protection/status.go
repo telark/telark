@@ -3,7 +3,6 @@ package protection
 import (
 	"net/http"
 
-	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/messages"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/helpers/shared"
@@ -13,14 +12,18 @@ import (
 )
 
 func Status(w http.ResponseWriter, r *http.Request) {
+	svc, ok := readyService(w)
+	if !ok {
+		return
+	}
 	planID, err := shared.GetPathParam(w, r, constants.IDPathParam)
 	if err != nil {
 		return
 	}
 
-	plan, result, err := globalService.HealthCheck(r.Context(), planID)
+	plan, result, err := svc.HealthCheck(r.Context(), planID)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, dataerrors.Error(err.Error()), err)
+		respondDomainError(w, err)
 		return
 	}
 

@@ -6,7 +6,6 @@ import (
 )
 
 const (
-	// Metrics Constants
 	ErrFailedToInitializeMetricsClient errors.Error     = "failed to initialize metrics client: %v"
 	ErrFailedToCreateMetricsClient     errors.Error     = "failed to create metrics client: %v"
 	ErrMetricsAPICheckFailed           errors.Error     = "metrics API check failed: %v"
@@ -21,7 +20,6 @@ const (
 	InfoMetricsAPIAvailable    messages.Message = "metrics API is available and ready to " +
 		"use"
 
-	// Kubernetes Resource Constants
 	ErrFailedToFetchDeployments     errors.Error = "failed to fetch deployments from namespace %s: %v"
 	ErrFailedToFetchStatefulsets    errors.Error = "failed to fetch statefulsets from namespace %s: %v"
 	ErrFailedToFetchDaemonsets      errors.Error = "failed to fetch daemonsets from namespace %s: %v"
@@ -50,7 +48,6 @@ const (
 	ErrFailedToGetPodQoS        errors.Error = "failed to get QoS for pods in namespace %s: %v"
 	ErrFailedToGetServerVersion errors.Error = "failed to get server version: %v"
 
-	// Informer Constants
 	ErrServiceInformerFailedToSync   errors.Error     = "service informer failed to sync"
 	ErrWorkloadInformerFailedToSync  errors.Error     = "workloads informer failed to sync"
 	ErrNamespaceInformerFailedToSync errors.Error     = "namespace informer failed to sync"
@@ -64,7 +61,6 @@ const (
 
 	ErrEmptySearchParam errors.Error = "search parameter cannot be empty"
 
-	// Logger prefixes
 	LoggerPrefixK8sMetrics                 = "KubernetesMetrics: "
 	LoggerPrefixK8sManager                 = "KubernetesManager: "
 	LoggerPrefixWorkloadUsage              = "WorkloadUsage: "

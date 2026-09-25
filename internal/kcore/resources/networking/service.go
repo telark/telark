@@ -33,7 +33,7 @@ func GetServiceByName(namespace, name string) (*k8scorev1.Service, error) {
 }
 
 func GetServicesByNamespace(namespace string) ([]k8scorev1.Service, error) {
-	if namespace == "" {
+	if namespace == constants.EmptyString {
 		return nil, fmt.Errorf("%s", errors.ErrK8sEmptyNsOrResName)
 	}
 

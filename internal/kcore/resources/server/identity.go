@@ -28,7 +28,7 @@ func detectProviderFromNodes(nodes []k8scorev1.Node) string {
 			continue
 		}
 		p := pid
-		if before, _, found := strings.Cut(pid, "://"); found && before != "" {
+		if before, _, found := strings.Cut(pid, "://"); found && before != constants.EmptyString {
 			p = before
 		}
 		switch p {

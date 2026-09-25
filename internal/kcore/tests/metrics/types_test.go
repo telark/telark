@@ -3,6 +3,7 @@ package metrics
 import (
 	"testing"
 
+	"github.com/telark/kcore/constants"
 	"github.com/telark/kcore/metrics/metricstypes"
 )
 
@@ -22,8 +23,9 @@ func TestPodMetricsStruct(t *testing.T) {
 		TotalMemory: TestMemoryStringMi,
 	}
 	if pm.PodName != TestPodName || pm.Namespace != TestNamespace ||
-		len(pm.Containers) != 0 || pm.TotalCPU != TestCPUString || pm.TotalMemory != TestMemoryStringMi {
-		t.Error("PodMetrics struct fields not set correctly")
+		len(pm.Containers) != constants.EmptySliceLength || pm.TotalCPU != TestCPUString ||
+		pm.TotalMemory != TestMemoryStringMi {
+		t.Error(ExpectedPodMetricsStructFieldsNotSet)
 	}
 }
 

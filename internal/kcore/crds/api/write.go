@@ -13,13 +13,8 @@ import (
 	"k8s.io/client-go/util/retry"
 )
 
-// writeFn performs one attempt of a Patch/Update against the supplied resource
-// client and ctx. Returns the post-write object or the K8s error.
 type writeFn func(ctx context.Context, client dynamic.ResourceInterface) (*unstructured.Unstructured, error)
 
-// performRetryingWrite is the shared pipeline for named CRD writes
-// (Patch, Update): prepare ctx+client, retry op on K8s conflict under
-// retry.DefaultRetry, wrap result in the project's envelope.
 func performRetryingWrite(name string, metadata base.Metadata, op writeFn) shared.KubernetesAPIData {
 	prep := prepare(name, metadata, constants.CrdPatchTimeout)
 	if !prep.ok {

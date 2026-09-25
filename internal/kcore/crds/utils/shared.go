@@ -5,6 +5,7 @@ import (
 
 	"github.com/telark/data/errors"
 	"github.com/telark/data/metadata/base"
+	"github.com/telark/kcore/constants"
 	"github.com/telark/kcore/k8sclient"
 	"k8s.io/client-go/dynamic"
 )
@@ -14,7 +15,7 @@ func GetResourceClient(metadata base.Metadata) (dynamic.ResourceInterface, error
 }
 
 func ValidateResourceName(name string) error {
-	if name == "" {
+	if name == constants.EmptyString {
 		return fmt.Errorf("%s", errors.ErrResourceNameCannotBeEmpty)
 	}
 	return nil

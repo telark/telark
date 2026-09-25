@@ -59,7 +59,7 @@ func CheckDeploymentExists(namespace, name string) (bool, error) {
 
 	_, err = client.AppsV1().Deployments(namespace).Get(ctx, name, k8smetav1.GetOptions{})
 	if err != nil {
-		return false, nil // Return false if not found, don't treat as error
+		return false, nil
 	}
 	return true, nil
 }

@@ -17,6 +17,10 @@ func TestInitMetricsClient(t *testing.T) {
 
 func TestResetClient(t *testing.T) {
 	client.ResetClient()
+	mc, err := client.InitMetricsClient()
+	if mc == nil && err == nil {
+		t.Error(ExpectedClientOrErrorAfterReset)
+	}
 }
 
 func TestNewMetricsAdapter(t *testing.T) {

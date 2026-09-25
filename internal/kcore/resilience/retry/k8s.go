@@ -10,7 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
-// Backoff describes a single bounded exponential backoff schedule.
 type Backoff struct {
 	Steps    int
 	Duration time.Duration
@@ -31,7 +30,6 @@ func DefaultTransient() Backoff {
 	}
 }
 
-// DefaultApply returns the backoff used for SSA Apply retries.
 func DefaultApply() Backoff {
 	return Backoff{
 		Steps:    constants.K8sApplyRetrySteps,

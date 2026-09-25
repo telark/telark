@@ -45,7 +45,6 @@ func getDynamicClient() (dynamic.Interface, error) {
 	return dynClient, dynErr
 }
 
-// GetRawManifest fetches the raw unstructured manifest of a K8s resource and returns it as JSON.
 func GetRawManifest(
 	ctx context.Context,
 	kind string,
@@ -130,9 +129,7 @@ func mapFrom(v any) map[string]any {
 	return m
 }
 
-// removes root-level metadata fields that are
 func stripClusterMetadata(m map[string]any) {
-	// Strip root status block — never needed for apply
 	delete(m, "status")
 
 	meta := mapFrom(m[manifestMetadataKey])
@@ -148,11 +145,9 @@ func stripClusterMetadata(m map[string]any) {
 	delete(meta, "selfLink")
 	delete(meta, "creationTimestamp")
 
-	// Strip apply-hostile annotations from root metadata
 	stripApplyHostileAnnotations(meta)
 }
 
-// removes annotations that cause conflicts
 func stripApplyHostileAnnotations(meta map[string]any) {
 	ann := mapFrom(meta[annotationsKey])
 	if ann == nil {
@@ -190,7 +185,6 @@ func stripPersistentVolumeClaimForApply(m map[string]any) {
 	}
 }
 
-// strips template-level metadata for
 func stripWorkloadTemplateMetadata(m map[string]any) {
 	spec := mapFrom(m["spec"])
 	if spec == nil {
@@ -199,7 +193,6 @@ func stripWorkloadTemplateMetadata(m map[string]any) {
 	stripPodTemplateMetadata(mapFrom(spec["template"]))
 }
 
-// strips template metadata for Job.
 func stripJobTemplateMetadata(m map[string]any) {
 	spec := mapFrom(m["spec"])
 	if spec == nil {
@@ -208,7 +201,6 @@ func stripJobTemplateMetadata(m map[string]any) {
 	stripPodTemplateMetadata(mapFrom(spec["template"]))
 }
 
-// strips template metadata for CronJob
 func stripCronJobTemplateMetadata(m map[string]any) {
 	spec := mapFrom(m["spec"])
 	if spec == nil {
@@ -225,7 +217,6 @@ func stripCronJobTemplateMetadata(m map[string]any) {
 	stripPodTemplateMetadata(mapFrom(js["template"]))
 }
 
-// leans the metadata block inside a pod template.
 func stripPodTemplateMetadata(tmpl map[string]any) {
 	if tmpl == nil {
 		return
@@ -242,7 +233,6 @@ func stripPodTemplateMetadata(tmpl map[string]any) {
 	}
 	// Triggers immediate rollout restart on apply — not desired for rollback
 	delete(ann, "kubectl.kubernetes.io/restartedAt")
-	// Also strip last-applied from template annotations if present
 	delete(ann, "kubectl.kubernetes.io/last-applied-configuration")
 }
 

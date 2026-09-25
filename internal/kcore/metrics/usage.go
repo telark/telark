@@ -106,7 +106,6 @@ func buildResourceFromPodMetricsList(
 
 		instances = append(instances, instance)
 
-		// Add to total resources
 		totalCPU += instanceCPU
 		totalMemory += instanceMemory
 	}

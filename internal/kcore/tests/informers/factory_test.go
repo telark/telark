@@ -8,8 +8,8 @@ import (
 )
 
 func TestCreateInformerFactory_NilClient(t *testing.T) {
-	factory, err := factory.CreateInformerFactory(nil, 30*time.Second)
-	if err == nil || factory != nil {
+	inf, err := factory.CreateInformerFactory(nil, 30*time.Second)
+	if err == nil || inf != nil {
 		t.Error(ExpectedErrorForNilFactory)
 	}
 }

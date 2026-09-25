@@ -8,15 +8,13 @@ import (
 	"github.com/telark/data/errors"
 	"github.com/telark/data/messages"
 	"github.com/telark/data/metadata/base"
+	"github.com/telark/kcore/constants"
 	crdutils "github.com/telark/kcore/crds/utils"
 	"github.com/telark/kcore/resilience/timeout"
 	"github.com/telark/kcore/shared"
 	"k8s.io/client-go/dynamic"
 )
 
-// preparedCall bundles the per-call wiring shared by every CRD operation:
-// timed context, dynamic resource client. When ok is false, errEnvelope
-// holds the populated KubernetesAPIData the caller must return as-is.
 type preparedCall struct {
 	ctx         context.Context //nolint:containedctx // single-call carrier consumed within callsite.
 	cancel      context.CancelFunc
@@ -25,11 +23,8 @@ type preparedCall struct {
 	ok          bool
 }
 
-// prepare validates name (when nonempty), resolves the dynamic client, and
-// builds the timed context. On failure, returns ok=false with errEnvelope
-// populated; on success, caller MUST `defer prep.cancel()`.
 func prepare(name string, metadata base.Metadata, opTimeout time.Duration) preparedCall {
-	if name != "" {
+	if name != constants.EmptyString {
 		if vErr := crdutils.ValidateResourceName(name); vErr != nil {
 			return preparedCall{
 				errEnvelope: shared.CreateKubernetesAPIData(

@@ -2,11 +2,12 @@ package workload
 
 import (
 	"github.com/telark/kcore/constants"
+	"github.com/telark/kcore/k8sclient"
 	k8sappsv1 "k8s.io/api/apps/v1"
 )
 
 func GetStatefulSetsByNamespace(namespace string) ([]k8sappsv1.StatefulSet, error) {
-	client, err := getAppsClient()
+	client, err := k8sclient.InitKubernetesClient()
 	if err != nil {
 		return nil, err
 	}
@@ -20,7 +21,7 @@ func GetStatefulSetsByNamespace(namespace string) ([]k8sappsv1.StatefulSet, erro
 }
 
 func CheckStatefulSetExists(namespace, name string) (bool, error) {
-	client, err := getAppsClient()
+	client, err := k8sclient.InitKubernetesClient()
 	if err != nil {
 		return false, err
 	}

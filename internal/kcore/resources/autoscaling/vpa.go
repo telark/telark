@@ -41,7 +41,7 @@ func GetVerticalPodAutoscalersByNamespace(namespace string) ([]string, error) {
 	names := make([]string, constants.EmptySliceLength, len(list.Items))
 	for i := range list.Items {
 		name := list.Items[i].GetName()
-		if name != "" {
+		if name != constants.EmptyString {
 			names = append(names, name)
 		}
 	}

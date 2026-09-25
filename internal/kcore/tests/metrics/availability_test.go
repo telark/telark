@@ -17,7 +17,9 @@ func TestIsClientAvailable_Nil(t *testing.T) {
 
 func TestIsClientAvailable_Default(t *testing.T) {
 	mc := &metricstypes.MetricsClient{
-		RateLimiter: ratelimiting.NewRateLimiter(1),
+		RateLimiter: ratelimiting.NewRateLimiter(TestRateLimitInterval),
 	}
-	_ = shared.IsClientAvailable(mc) // Should not panic
+	if shared.IsClientAvailable(mc) {
+		t.Error(ExpectedFalseForUnreachableMetricsAPI)
+	}
 }

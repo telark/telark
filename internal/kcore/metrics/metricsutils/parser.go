@@ -8,7 +8,7 @@ import (
 )
 
 func ParseCPU(cpuStr string) int64 {
-	if cpuStr == "" || cpuStr == constants.NAValue {
+	if cpuStr == constants.EmptyString || cpuStr == constants.NAValue {
 		return constants.EmptySliceLength
 	}
 
@@ -25,7 +25,7 @@ func ParseCPU(cpuStr string) int64 {
 }
 
 func ParseMemory(memoryStr string) int64 {
-	if memoryStr == "" || memoryStr == constants.NAValue {
+	if memoryStr == constants.EmptyString || memoryStr == constants.NAValue {
 		return constants.EmptySliceLength
 	}
 

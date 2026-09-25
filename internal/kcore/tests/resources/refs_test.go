@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/telark/kcore/resources/group"
@@ -9,30 +10,42 @@ import (
 
 func TestWorkloadConfigRefs(t *testing.T) {
 	dep := &unstructured.Unstructured{Object: map[string]any{
-		"kind": "Deployment",
-		"spec": map[string]any{"template": map[string]any{"spec": map[string]any{
-			"containers": []any{map[string]any{
-				"envFrom": []any{map[string]any{"configMapRef": map[string]any{"name": "cfg"}}, map[string]any{"secretRef": map[string]any{"name": "creds"}}},
-				"env":     []any{map[string]any{"valueFrom": map[string]any{"secretKeyRef": map[string]any{"name": "token", "key": "t"}}}},
+		FieldKind: "Deployment",
+		FieldSpec: map[string]any{FieldTemplate: map[string]any{FieldSpec: map[string]any{
+			FieldContainers: []any{map[string]any{
+				FieldEnvFrom: []any{
+					map[string]any{FieldConfigMapRef: map[string]any{FieldName: "cfg"}},
+					map[string]any{FieldSecretRef: map[string]any{FieldName: "creds"}},
+				},
+				FieldEnv: []any{map[string]any{FieldValueFrom: map[string]any{
+					FieldSecretKeyRef: map[string]any{FieldName: "token", FieldKey: "t"},
+				}}},
 			}},
-			"volumes": []any{map[string]any{"configMap": map[string]any{"name": "cfg"}}, map[string]any{"secret": map[string]any{"secretName": "tls"}}},
+			FieldVolumes: []any{
+				map[string]any{FieldConfigMap: map[string]any{FieldName: "cfg"}},
+				map[string]any{FieldSecret: map[string]any{FieldSecretName: "tls"}},
+			},
 		}}},
 	}}
 	cms, secs := group.WorkloadConfigRefs(dep)
-	if len(cms) != 1 || cms[0] != "cfg" {
-		t.Fatalf("configmaps: %v", cms)
+	if !slices.Equal(cms, []string{"cfg"}) {
+		t.Fatalf(ExpectedConfigMapRefs, cms)
 	}
-	if len(secs) != 3 || secs[0] != "creds" || secs[1] != "tls" || secs[2] != "token" {
-		t.Fatalf("secrets: %v", secs)
+	if !slices.Equal(secs, []string{"creds", "tls", "token"}) {
+		t.Fatalf(ExpectedSecretRefs, secs)
 	}
 	cron := &unstructured.Unstructured{Object: map[string]any{
-		"kind": "CronJob",
-		"spec": map[string]any{"jobTemplate": map[string]any{"spec": map[string]any{"template": map[string]any{"spec": map[string]any{
-			"containers": []any{map[string]any{"envFrom": []any{map[string]any{"configMapRef": map[string]any{"name": "cron-cfg"}}}}},
-		}}}}},
+		FieldKind: "CronJob",
+		FieldSpec: map[string]any{FieldJobTemplate: map[string]any{FieldSpec: map[string]any{
+			FieldTemplate: map[string]any{FieldSpec: map[string]any{
+				FieldContainers: []any{map[string]any{FieldEnvFrom: []any{
+					map[string]any{FieldConfigMapRef: map[string]any{FieldName: "cron-cfg"}},
+				}}},
+			}},
+		}}},
 	}}
 	cms, _ = group.WorkloadConfigRefs(cron)
-	if len(cms) != 1 || cms[0] != "cron-cfg" {
-		t.Fatalf("cronjob configmaps: %v", cms)
+	if !slices.Equal(cms, []string{"cron-cfg"}) {
+		t.Fatalf(ExpectedCronJobConfigMapRefs, cms)
 	}
 }

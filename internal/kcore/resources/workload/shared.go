@@ -13,10 +13,6 @@ import (
 	k8sclientgo "k8s.io/client-go/kubernetes"
 )
 
-func getAppsClient() (k8sclientgo.Interface, error) {
-	return k8sclient.InitKubernetesClient()
-}
-
 func getDaemonOrStatefulWithTimeout[T any](
 	listFn func(context.Context) ([]T, error),
 ) ([]T, error) {

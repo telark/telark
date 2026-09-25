@@ -37,7 +37,7 @@ func Violations(w http.ResponseWriter, r *http.Request) {
 		w,
 		http.StatusOK,
 		response.OperationSuccess,
-		string(messages.SuccessGetRes),
+		planMessage(messages.SuccessGetRes, planID),
 		resp,
 		nil,
 	)

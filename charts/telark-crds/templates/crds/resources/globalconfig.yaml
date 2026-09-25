@@ -42,8 +42,14 @@ spec:
                   properties:
                     enabled:
                       type: boolean
-                    provider:
+                    model:
                       type: string
+                      maxLength: 128
+                      pattern: '^[a-z0-9][a-z0-9._-]*(:[a-z0-9._-]+)?$'
+                      description: Local analyzer model tag (default granite4:350m); deep mode additionally requires the tools capability
+                    autoAnalyze:
+                      type: boolean
+                      description: Run the analyzer automatically on incident/recovery changes
                 snapshots:
                   type: object
                   properties:

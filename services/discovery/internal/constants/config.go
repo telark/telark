@@ -33,12 +33,15 @@ const (
 	NamespaceParam                  = "namespace"
 	NamespaceAll                    = "ALL"
 	DefaultLockTTL                  = 30 * time.Second
+	KeyPrefixLockPlanDecision       = "lock:plan-decision:"
 	RemovalStabilizationWindow      = 45 * time.Second
 
 	// rest
-	ApplicationJSON  = "application/json"
-	HeaderUserID     = "X-User-ID"
-	HeaderRetryAfter = "Retry-After"
+	ApplicationJSON   = "application/json"
+	HeaderUserID      = "X-User-ID"
+	HeaderRetryAfter  = "Retry-After"
+	HeaderETag        = "ETag"
+	HeaderIfNoneMatch = "If-None-Match"
 
 	// optimization constants
 	StringBuilderSize = 64
@@ -112,9 +115,29 @@ const (
 	// route. Short: these are a handful of Redis GETs for one page of apps.
 	InsightsReadTimeout = 5 * time.Second
 
+	// InsightsTriggerTimeout bounds the best-effort analyzer job XADD on the
+	// publish path, so a slow Redis never stalls publishing.
+	InsightsTriggerTimeout = 2 * time.Second
+
 	// NATSConnectTimeout bounds NATS dial-with-retry for fetching the shared
 	// publisher client.
 	NATSConnectTimeout = 30 * time.Second
+)
+
+// Insights row index: a per-replica read cache behind the cluster-wide insights list.
+const (
+	EnvInsightsIndexRefreshSec     = "INSIGHTS_INDEX_REFRESH_SEC"
+	EnvInsightsIndexResyncSec      = "INSIGHTS_INDEX_RESYNC_SEC"
+	EnvInsightsStaleAfterSec       = "INSIGHTS_STALE_AFTER_SEC"
+	DefaultInsightsIndexRefreshSec = 15
+	DefaultInsightsIndexResyncSec  = 300
+	DefaultInsightsStaleAfterSec   = 86400
+	InsightsIndexBatchSize         = 200
+	// Deltas re-read this far behind the newest score seen, absorbing writes that land out of order.
+	InsightsIndexOverlapMs      = 5000
+	InsightsIndexSyncTimeout    = 30 * time.Second
+	InsightsEnvironmentsRefresh = 60 * time.Second
+	InsightsIndexRetryAfterSec  = 5
 )
 
 // Logger prefixes

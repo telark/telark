@@ -8,11 +8,11 @@ file is only "what command, when".
 
 | Tool | Needed for | Notes |
 |---|---|---|
-| Go **1.26+** | all Go targets | version pinned in `go.work`; the four Go services share one workspace |
+| Go **1.27+** | all Go targets | version pinned in `go.work`; the four Go services share one workspace |
 | `golangci-lint` | `make lint` | uses the shared root `.golangci.yml` (never pass `--no-config`) |
 | `helm` **≥ 3** (OCI) | all `helm-*` targets | |
 | `kubeconform` | `make helm-validate` | schema-validates rendered manifests |
-| Python **3.13+** + `venv` | enrichment tests | `services/enrichment` |
+| Python **3.13+** + `venv` | analyzer tests | `services/analyzer` |
 | Docker + a cluster | end-to-end work | |
 | `git-cliff` | `make changelog` | changelog generation |
 
@@ -44,5 +44,5 @@ file is only "what command, when".
   live in `internal/tests/*`; CI enforces a per-service floor (see `.github/workflows/ci.yaml`).
 - **Chart deps are git-ignored** (`charts/*/charts/*.tgz`) — run `make deps` after a
   fresh clone before `helm-lint`/`helm-template`/`helm-validate`.
-- **Enrichment (Python)** isn't in the Makefile: `cd services/enrichment && python -m venv .venv && .venv/bin/pip install -r requirements.txt pytest pytest-cov && .venv/bin/python -m pytest`.
+- **Analyzer (Python)** isn't in the Makefile: `cd services/analyzer && python -m venv .venv && .venv/bin/pip install -r requirements.txt pytest pytest-cov && .venv/bin/python -m pytest`.
 - Chart packaging, signing, and registry publishing: [PUBLISHING.md](PUBLISHING.md).

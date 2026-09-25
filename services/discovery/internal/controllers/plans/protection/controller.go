@@ -126,7 +126,7 @@ func earlierEdge(next time.Time, raw string, now time.Time) time.Time {
 }
 
 func awaitsBoundary(phase string) bool {
-	return phase == plans.PhaseScheduled || phase == plans.PhaseActive
+	return phase == plans.PhaseScheduled || phase == plans.PhaseActive || phase == plans.PhasePendingApproval
 }
 
 func (c *Controller) transition(ctx context.Context, plan *plans.ProtectionPlan, now time.Time) bool {
@@ -138,7 +138,7 @@ func (c *Controller) transition(ctx context.Context, plan *plans.ProtectionPlan,
 			}
 			return true
 		}
-	case plans.PhaseActive:
+	case plans.PhaseActive, plans.PhasePendingApproval:
 		if shouldTerminate(plan, now) {
 			if err := c.service.Terminate(ctx, plan); err != nil {
 				c.logger.Error(fmt.Sprintf("protection-plan terminate failed plan=%s err=%v", plan.ID, err))

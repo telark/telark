@@ -30,7 +30,7 @@ Reach the auth service directly (dashboard disabled):
 
 Next steps:
   1. Log in with the bootstrap admin ({{ join ", " .Values.app.auth.bootstrap.admins }}).
-  2. Enable SSO and AI insights from Settings once the platform is up.
+  2. Enable SSO from Settings once the platform is up.
 {{- if not .Values.app.crdGuard.enabled }}
   3. The CRD write guard is OFF. Turn it on (app.crdGuard.enabled=true, enforce=false)
      to audit, then enforce=true once the audit log is clean.

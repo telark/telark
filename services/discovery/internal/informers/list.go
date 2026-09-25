@@ -2,9 +2,11 @@ package informers
 
 import (
 	"context"
+	"maps"
 	"slices"
 
 	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/discovery/derivation"
 	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
 	kcoregroup "github.com/telark/kcore/resources/group"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -57,6 +59,31 @@ func (m *Manager) listRefsInNamespaces(
 		}
 	}
 	return out, true
+}
+
+func AppNamespaces(ctx context.Context, appName string) []string {
+	return Global().namespacesOfApp(ctx, appName)
+}
+
+// Grouping names an app after its objects' identity labels, across namespaces.
+// ponytail: one full cache pass per call; index objects by app key if that shows at thousands of apps.
+func (m *Manager) namespacesOfApp(ctx context.Context, appName string) []string {
+	if m == nil || appName == constants.EmptyString {
+		return nil
+	}
+	excluded := gcfghelper.FetchExcludedNamespaces(ctx)
+	found := make(map[string]struct{})
+	m.informersMu.RLock()
+	defer m.informersMu.RUnlock()
+	for _, inf := range m.informers {
+		for _, it := range inf.GetIndexer().List() {
+			u, ok := it.(*unstructured.Unstructured)
+			if ok && u != nil && derivation.AppKey(u.GetLabels()) == appName && !slices.Contains(excluded, u.GetNamespace()) {
+				found[u.GetNamespace()] = struct{}{}
+			}
+		}
+	}
+	return slices.Sorted(maps.Keys(found))
 }
 
 func refFromUnstructured(u *unstructured.Unstructured) kcoregroup.ResourceRef {

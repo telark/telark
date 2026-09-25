@@ -1,13 +1,17 @@
 package planupdate
 
 import (
+	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/telark/data/plans"
 	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/core/plans/protection"
 	"github.com/telark/discovery/internal/core/plans/protection/update"
 	"github.com/telark/discovery/internal/tests/testutil"
 	planseps "github.com/telark/rest/endpoints/plans"
+	restmapper "github.com/telark/rest/mappers"
 )
 
 const (
@@ -91,4 +95,87 @@ func TestBuildPatchTaxonomySet(t *testing.T) {
 		t.Fatal("environmentID should be set")
 	}
 	testutil.Equal(t, "environmentID", *patch.EnvironmentID, envA)
+}
+
+func TestBuildPatchNeverEmitsApprovalKeys(t *testing.T) {
+	plan := basePlan()
+	plan.ApprovalMode = plans.ApprovalModeRequired
+	plan.Approval = &plans.ProtectionPlanApproval{State: plans.ApprovalStatePending, RequestedBy: userID, RequestedAt: now}
+	req := baseRequest(plan)
+	req.Name = nameChanged
+	req.ApprovalMode = strptr(plans.ApprovalModeAutomatic)
+
+	patch, _ := update.BuildPatch(plan, req, plan.Policies, nil, userID, now)
+	body, err := restmapper.MapToJSONPayload(patch)
+	if err != nil {
+		t.Fatalf("map patch: %v", err)
+	}
+	for _, key := range []string{protection.FieldApproval, protection.FieldApprovalMode} {
+		if _, found := body[key]; found {
+			t.Fatalf("patch must never carry %q, got %v", key, body[key])
+		}
+	}
+}
+
+// Exclusions are persisted inside scope, so an exclusions-only edit must still patch scope,
+// carrying the normalized exclusions and the stored targets.
+func TestBuildPatchScopeOnExclusionsOnlyChange(t *testing.T) {
+	plan := basePlan()
+	req := baseRequest(plan)
+	req.Scope.Exclusions = &plans.ProtectionPlanScopeExclusions{Kinds: []string{kindSecret, kindConfigMap, kindSecret}}
+
+	patch, changed := update.BuildPatch(plan, req, plan.Policies, plan.RenderedPolicies, userID, now)
+	testutil.Equal(t, nameChanged, changed, true)
+	if patch.Scope == nil {
+		t.Fatal("scope should be patched on an exclusions-only change")
+	}
+	if want := storedKinds(); !reflect.DeepEqual(patch.Scope.Exclusions, want) {
+		t.Fatalf("exclusions = %+v, want normalized %+v", patch.Scope.Exclusions, want)
+	}
+	if !slices.Equal(patch.Scope.Namespaces, plan.Scope.Namespaces) {
+		t.Fatalf("namespaces = %v, want stored %v", patch.Scope.Namespaces, plan.Scope.Namespaces)
+	}
+}
+
+// An explicit empty object clears: scope is patched and the effective exclusions are nil.
+func TestBuildPatchScopeOnExclusionsClear(t *testing.T) {
+	plan := basePlan()
+	plan.Scope.Exclusions = storedKinds()
+	req := baseRequest(plan)
+	req.Scope.Exclusions = &plans.ProtectionPlanScopeExclusions{}
+
+	patch, changed := update.BuildPatch(plan, req, plan.Policies, plan.RenderedPolicies, userID, now)
+	testutil.Equal(t, nameChanged, changed, true)
+	if patch.Scope == nil || patch.Scope.Exclusions != nil {
+		t.Fatalf("scope = %+v, want a scope patch with nil exclusions", patch.Scope)
+	}
+}
+
+// A request without exclusions leaves them untouched, so a targets change carries the stored ones.
+func TestBuildPatchScopeCarriesStoredExclusionsWhenTargetsChange(t *testing.T) {
+	plan := basePlan()
+	plan.Scope.Exclusions = storedKinds()
+	req := baseRequest(plan)
+	req.Scope.Namespaces = []string{otherNS}
+
+	patch, _ := update.BuildPatch(plan, req, plan.Policies, plan.RenderedPolicies, userID, now)
+	if patch.Scope == nil {
+		t.Fatal("scope should be patched when targets change")
+	}
+	if !reflect.DeepEqual(patch.Scope.Exclusions, plan.Scope.Exclusions) {
+		t.Fatalf("exclusions = %+v, want stored %+v", patch.Scope.Exclusions, plan.Scope.Exclusions)
+	}
+}
+
+func TestBuildPatchNoScopeWhenNothingChanged(t *testing.T) {
+	plan := basePlan()
+	plan.Scope.Exclusions = storedKinds()
+	req := baseRequest(plan)
+	req.Scope.Exclusions = &plans.ProtectionPlanScopeExclusions{Kinds: []string{kindSecret, kindConfigMap}}
+
+	patch, changed := update.BuildPatch(plan, req, plan.Policies, plan.RenderedPolicies, userID, now)
+	testutil.Equal(t, nameChanged, changed, false)
+	if patch.Scope != nil {
+		t.Fatalf("scope should not be patched, got %+v", patch.Scope)
+	}
 }

@@ -49,8 +49,10 @@ type Generator struct {
 	clock         func() time.Time
 	logger        Logger
 	maxViolations int
-	sem           chan struct{}
-	captureSlot   chan struct{}
+	// The configured cadence, not the ledger's observed spacing: a report adds a checkpoint of its own.
+	checkpointEvery time.Duration
+	sem             chan struct{}
+	captureSlot     chan struct{}
 }
 
 type ReportDocument struct {

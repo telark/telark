@@ -178,10 +178,40 @@ func TestTerminationLandsOnEndAt(t *testing.T) {
 func TestOverdueBoundaryFiresOnLeadershipStart(t *testing.T) {
 	startAt, _ := edge(-time.Hour)
 	endAt, _ := edge(time.Hour)
-	fake := &fakeService{plans: []plans.ProtectionPlan{plan("plan-overdue", plans.PhaseScheduled, startAt, endAt)}}
+	pastEnd, _ := edge(-time.Minute)
+	fake := &fakeService{plans: []plans.ProtectionPlan{
+		plan("plan-overdue", plans.PhaseScheduled, startAt, endAt),
+		plan("plan-overdue-pending", plans.PhasePendingApproval, startAt, pastEnd),
+	}}
 
 	startedAt := start(t, fake)
 	assertLag(t, await(t, fake, kindActivate), startedAt)
+	assertLag(t, await(t, fake, kindTerminate), startedAt)
+}
+
+// Approval is what a pending plan waits on, not its startAt: a window that opens before the
+// decision lands must not start enforcing on its own.
+func TestPendingIsNotActivatedAtStartAt(t *testing.T) {
+	startAt, _ := edge(-time.Hour)
+	endAt, _ := edge(time.Hour)
+	fake := &fakeService{plans: []plans.ProtectionPlan{plan("plan-pending", plans.PhasePendingApproval, startAt, endAt)}}
+
+	start(t, fake)
+	time.Sleep(idleWindow)
+
+	testutil.Equal(t, "events for a pending plan", len(fake.events), constants.DefaultInitValue)
+}
+
+// A pending plan whose window closes is over: it is terminated on its endAt like an active one,
+// so a late approval finds nothing to start.
+func TestPendingTerminatesAtEndAt(t *testing.T) {
+	startAt, _ := edge(-time.Hour)
+	endAt, boundary := edge(boundaryLead)
+	fake := &fakeService{plans: []plans.ProtectionPlan{plan("plan-pending-end", plans.PhasePendingApproval, startAt, endAt)}}
+
+	start(t, fake)
+	assertLag(t, await(t, fake, kindTerminate), boundary)
+	testutil.Equal(t, "further events", len(fake.events), constants.DefaultInitValue)
 }
 
 // The plan the controller just activated still carries phase=scheduled in memory, so its endAt

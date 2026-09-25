@@ -150,6 +150,10 @@ func extractOneIdentity(r *ResourceInput) identityResult {
 	return identityResult{signal: signalUnidentified, identified: false}
 }
 
+func AppKey(labels map[string]string) string {
+	return extractOneIdentity(&ResourceInput{Labels: labels}).appKey
+}
+
 func flattenGroups(groups map[groupKey][]ResourceInput) []ResourceWithGroup {
 	keys := make([]groupKey, constants.DefaultInitValue, len(groups))
 	for k := range groups {

@@ -71,7 +71,7 @@ func executeSyncHandler(ctx context.Context, rdb *redis.Client, appName string) 
 		return err
 	}
 
-	resources, err := listing.Resources(ctx, namespaces)
+	resources, err := listing.Resources(ctx, listing.AppNamespaces(ctx, appName, namespaces))
 	if err != nil {
 		return err
 	}
@@ -182,6 +182,9 @@ func executePrewarmHandler(ctx context.Context, rdb *redis.Client, namespace str
 	}
 
 	namespaces := []string{namespace}
+	if appName != constants.EmptyString {
+		namespaces = listing.AppNamespaces(ctx, appName, namespaces)
+	}
 	resources, err := listing.Resources(ctx, namespaces)
 	if err != nil {
 		return err
@@ -195,6 +198,8 @@ func executePrewarmHandler(ctx context.Context, rdb *redis.Client, namespace str
 	opts := prewarm.BuildPrewarmApplicationOptions()
 	if appName != constants.EmptyString {
 		opts = prewarm.BuildPrewarmApplicationOptionsForApp(appName)
+	} else {
+		opts.GetStoredApplication = storedIfOnlyIn(ctx, namespace, opts.GetStoredApplication)
 	}
 	resp := serviceapp.GetApplications(ctx, rdb, inputs, opts)
 
@@ -202,6 +207,27 @@ func executePrewarmHandler(ctx context.Context, rdb *redis.Client, namespace str
 		return errUnexpectedResponseData
 	}
 	return nil
+}
+
+// An app with objects in other namespaces is left to its per-app job, which lists
+// them all; decided once per app so the build and diff lookups cannot disagree.
+func storedIfOnlyIn(
+	ctx context.Context,
+	namespace string,
+	lookup func(string) (*applicationmodel.Application, error),
+) func(string) (*applicationmodel.Application, error) {
+	spans := make(map[string]bool)
+	return func(name string) (*applicationmodel.Application, error) {
+		elsewhere, decided := spans[name]
+		if !decided {
+			elsewhere = len(listing.AppNamespaces(ctx, name, []string{namespace})) > constants.DefaultAddValue
+			spans[name] = elsewhere
+		}
+		if elsewhere {
+			return nil, serviceapp.ErrNotJobTarget
+		}
+		return lookup(name)
+	}
 }
 
 func isNamespaceExcluded(ns string, excluded []string) bool {

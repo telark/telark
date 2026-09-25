@@ -32,7 +32,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | `standard` (default) | small–mid production — every service starts at 1 replica and scales on CPU up to 3 (HPA); the exporter runs 2 replicas sharing a ReadWriteMany snapshot volume; add `--set vpa.enabled=true` for vertical scaling | verified at 2 000 applications |
 | `performance` | large clusters — same, HPA ceiling 5, disruption budgets keep one pod through drains; larger requests/limits and a 50 GiB volume | beyond 1 000 applications |
 
-`app.mode` sizes telark's own services only — Helm resolves a subchart's values before the mode is known, so redis, NATS, the policy engine and metrics-server ship fixed production-grade defaults owned by the chart, identical in every mode. Nothing to tune.
+`app.mode` sizes telark's own services only — Helm resolves a subchart's values before the mode is known, so redis, NATS, the policy engine, metrics-server and the model runtime (ollama, see [Analyzer runtime](#analyzer-runtime)) ship fixed production-grade defaults owned by the chart, identical in every mode. Nothing to tune up to 2 000 applications; beyond that, size Redis (see [Subcharts](#subcharts)).
 
 ## 2. First admin
 
@@ -207,15 +207,20 @@ Bundled dependencies ship production-grade defaults sized for every mode, so you
 |---|---|---|
 | `crds.enabled` | `true` | Install CRDs (the telark-crds subchart); `false` to manage them out of band |
 | `app.kyverno.enabled` | `true` | Install the policy engine (kyverno) |
-| `app.ollama.enabled` | `false` | Install the local LLM (ollama) for on-cluster enrichment |
+| `app.ollama.enabled` | `true` | Install the local model runtime (ollama) the analyzer needs; see [Analyzer runtime](#analyzer-runtime) |
+| `app.ollama.autoPull` | `true` | Let the analyzer pull a missing model; `false` for air-gapped installs |
+| `app.ollama.runtimeUrl` | `""` | Ollama-API endpoint you run yourself (URL only, no key); empty = the bundled runtime |
 | `metrics-server.enabled` | `true` | Install metrics-server; `false` if the cluster already ships one |
 | `redis.architecture` | `standalone` | `replication` for a replicated redis |
 | `redis.master.persistence.size` | `4Gi` | Redis PVC size |
+| `redis.master.resources.limits.memory` | `512Mi` | Redis memory limit (requests `100m` / `128Mi`); see the sizing note below |
 | `nats.persistence.size` | `4Gi` | NATS JetStream PVC size |
 | `kyverno.admissionController.replicas` | `2` | Policy-engine admission replicas |
 | `kyverno.admissionController.container.extraArgs.clientRateLimitQPS` | `50` | Policy-engine API QPS |
 | `metrics-server.resources.limits.memory` | `400Mi` | metrics-server memory limit |
-| `ollama.persistentVolume.size` | `10Gi` | ollama model storage (when enabled) |
+| `ollama.persistentVolume.size` | `10Gi` | Model storage (when enabled); kept on uninstall |
+
+**Sizing Redis for large installs.** Redis keeps everything in memory and never evicts, so when it reaches its memory limit the pod is OOM-killed. The analyzer's documents are the largest part: in the worst case about 210 MiB for 2 000 applications, which the `512Mi` limit covers. For more applications, raise the limit in proportion, e.g. `--set redis.master.resources.limits.memory=1Gi`. The chart sets `redis.master.resources`, so `redis.master.resourcesPreset` has no effect.
 
 The **complete** field list — every telark value and every pinned subchart value — is the auto-generated [`charts/telark/VALUES.md`](../charts/telark/VALUES.md); full upstream options live in each dependency's own chart (redis/nats = Bitnami, plus kyverno, metrics-server, ollama).
 
@@ -228,9 +233,21 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
   --set app.auth.bootstrap.admins[0]=you@corp.com
 ```
 
+## Analyzer runtime
+
+AI insights run on an in-cluster model runtime (ollama, installed by default), so analysis data stays in the cluster. A fresh install turns the analyzer on with `granite4:350m` (which answers in seconds on 2 vCPU) and automatic analysis off; change the model, turn on automatic analysis or turn the analyzer off in Settings. Upgrades keep the existing settings. The runtime has one size for every mode, because Helm resolves subchart values before `app.mode` applies: requests `250m` CPU and `1536Mi` memory, a 2-CPU limit and no memory limit, enough for `granite4:350m` while `minimal` still fits one 2 vCPU / 8 GiB node. Models live on a 10Gi volume that is kept on uninstall, so they survive restarts and reinstalls.
+
+- **Connected** (default, `app.ollama.autoPull=true`): the analyzer pulls the chosen model right after start when the runtime lacks it (708 MB for `granite4:350m`), and the ollama pod gets HTTPS egress for it. Until the pull finishes, an analysis shows the rule text without the model's narration; **Install model** in Settings starts the pull right away.
+- **Air-gapped** (`--set app.ollama.autoPull=false`): nothing is pulled and the ollama pod gets no HTTPS egress. Pre-load the model on a seeded volume or a baked image, as described in the chart README.
+- **Your own runtime**: `--set app.ollama.enabled=false --set app.ollama.runtimeUrl=http://<host>:11434` points the analyzer at an Ollama-API endpoint you run (URL only, no key).
+
+Larger profiles (CPU 4 vCPU, GPU / deep), model licences and the air-gapped procedure are in the chart README, [Analyzer runtime (ollama)](../charts/telark/README.md#analyzer-runtime-ollama).
+
+**Recommendations:** the analyzer also reviews each app's setup (replicas, disruption budgets, resources, autoscaling, images, network policies, protection plans) and shows recommendation cards; a sweep re-reviews every app every 2 hours (`services.analyzer.env.ANALYZER_REVIEW_INTERVAL_SEC`, `0` disables it) at 20 apps/min (10 in `minimal`, 60 in `performance`). The reviews need read-only access to Services, PodDisruptionBudgets, HorizontalPodAutoscalers and NetworkPolicies, which the chart grants the analyzer ClusterRole (`get`, `list`; nothing else, no writes). Apps count as production when a namespace or a covering plan's environment matches `services.analyzer.env.ANALYZER_PRODUCTION_PATTERN` (default `(^|[-_.])(prod|production|prd)($|[-_.])`, case-insensitive); set it to your own naming, for example `--set-string 'services.analyzer.env.ANALYZER_PRODUCTION_PATTERN=^live-'`. Details in the chart README, [Recommendations](../charts/telark/README.md#recommendations); the dashboard lists every app's cards on its Insights page, see [Insights page](../charts/telark/README.md#insights-page).
+
 ## Autoscaling (HPA)
 
-The stateless services — auth, discovery, enrichment, notifier, ui — can run behind a HorizontalPodAutoscaler (`autoscaling/v2`, CPU-based). The exporter never autoscales — its replica count is fixed by the mode (2 in `standard`/`performance`, 1 in `minimal` or with `app.singleNode=true`). HPAs need metrics-server, which ships with the chart.
+The stateless services — auth, discovery, notifier, ui — can run behind a HorizontalPodAutoscaler (`autoscaling/v2`, CPU-based). The exporter never autoscales — its replica count is fixed by the mode (2 in `standard`/`performance`, 1 in `minimal` or with `app.singleNode=true`). Nor does the analyzer: one worker bound to one runtime slot. HPAs need metrics-server, which ships with the chart.
 
 **`standard` and `performance` turn autoscaling on** (start at 1, max 3 and 5); `minimal` keeps it off. In any mode you can enable, disable or tune it per service:
 
@@ -286,15 +303,13 @@ Re-pass the same `--set` / `-f` flags used at install: Helm does not remember th
 
 **Upgrading to the chart that adds protection plan reports:** the exporter gains a second claim, `telark-exporter-reports-pvc`, which binds on rollout with the same class and access mode as the snapshot claim. Do not upgrade with `--reuse-values`: the reports volume, mount and the `REPORTS_PATH` / `PROTECTION_PLAN_REPORT_*` entries arrive only with the new chart defaults; with `--reuse-values` the exporter logs a reports-root error at start and every report write fails. Note that the exporter volumes render even when `app.persistence.enabled=false` (pre-existing behaviour), so the pods then wait on claims nobody provisions.
 
-telark stores the AI provider key in the Secret `<app.name>-ai-provider-key`. To encrypt that and every other Secret at rest without a cloud KMS, see [SECURITY.md](../SECURITY.md).
-
 ## Uninstall
 
 ```sh
 helm uninstall telark -n telark
 ```
 
-This removes every telark service **and the exporter's snapshot PVC** — back it up first if you need it. CRDs and custom resources are **not** removed (they carry `helm.sh/resource-policy: keep`), nor are the redis/NATS volumes or the AI provider key Secret, so a reinstall picks up where you left off.
+This removes every telark service **and the exporter's snapshot and report PVCs** — back them up first if you need them. CRDs and custom resources are **not** removed (they carry `helm.sh/resource-policy: keep`), nor are the redis/NATS volumes or the analyzer model volume (ollama), so a reinstall picks up where you left off.
 
 Before uninstalling, cancel active protection plans (so their admission policies are removed) and let in-progress rollbacks finish.
 

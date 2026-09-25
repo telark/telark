@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/redis/go-redis/v9"
+	discoveryauthz "github.com/telark/discovery/internal/authz"
 	"github.com/telark/discovery/internal/clients"
 	dconfig "github.com/telark/discovery/internal/config"
 	"github.com/telark/discovery/internal/constants"
@@ -34,10 +35,18 @@ func BuildService(kubeClient *kubernetes.Clientset, rdb *redis.Client, logger Lo
 	if err != nil {
 		return nil, err
 	}
+	checkpointEvery, _ := dconfig.ReportCheckpointInterval()
 	gen := reports.NewGenerator(
-		clients.NewReportClient(), reportsDyn, resolver, rdb, logger, reportMaxViolations(),
+		clients.NewReportClient(), reportsDyn, resolver, rdb, logger, reportMaxViolations(), checkpointEvery,
 	)
-	return NewService(applier, resolver, exporter, dyn, ListClusterNamespaces, gen, logger), nil
+	notifier := &ApprovalNotifier{
+		ListUsers:   clients.NewAuthzClient().GetAllUsers,
+		Grants:      discoveryauthz.NewResolver().GrantsForUser,
+		Emit:        clients.NewNotificationClient().Emit,
+		Requirement: discoveryauthz.ApprovePlanRequirement(),
+		Logger:      logger,
+	}
+	return NewService(applier, resolver, exporter, dyn, ListClusterNamespaces, gen, logger, notifier), nil
 }
 
 func reportMaxViolations() int {

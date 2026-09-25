@@ -36,10 +36,13 @@ const (
 	routePath    = "/reports"
 	downloadName = "download"
 	firstIdx     = 0
-	reportsCount = 5
+	reportsCount = 6
+	totalOne     = "1"
+	badTrigger   = "pdf"
 )
 
 var reportRoutes = []string{
+	router.Key(http.MethodGet, reportseps.ListReports),
 	router.Key(http.MethodPost, reportseps.CreatePlanReport),
 	router.Key(http.MethodGet, reportseps.ListPlanReports),
 	router.Key(http.MethodGet, reportseps.DownloadPlanReport),
@@ -137,6 +140,30 @@ func TestCreateThenListThenDownloadEachFormat(t *testing.T) {
 		if got, want := rec.Body.String(), actor+"-"+format; got != want {
 			t.Fatalf("%s body = %q, want %q", format, got, want)
 		}
+	}
+}
+
+func listAll(query url.Values) *httptest.ResponseRecorder {
+	rec := httptest.NewRecorder()
+	reportshandler.ListReports()(rec, httptest.NewRequest(http.MethodGet, routePath+"?"+query.Encode(), nil))
+	return rec
+}
+
+func TestListAllSetsTotalCountAndRejectsBadFilter(t *testing.T) {
+	setRoot(t)
+	create(t, createBody(t, actor))
+	rec := listAll(url.Values{})
+	if rec.Code != http.StatusOK {
+		t.Fatalf(statusFmt, "list all", rec.Code, http.StatusOK)
+	}
+	if got := rec.Header().Get(reportseps.HeaderTotalCount); got != totalOne {
+		t.Fatalf(headerFmt, "list all", reportseps.HeaderTotalCount, got, totalOne)
+	}
+	if metas := decodeData[[]reportseps.ReportMeta](t, rec); len(metas) != constants.DefaultIncrementValue || metas[firstIdx].PlanID != planID {
+		t.Fatalf("list all = %+v, want one meta of %s", metas, planID)
+	}
+	if bad := listAll(url.Values{reportseps.QueryTrigger: {badTrigger}}); bad.Code != http.StatusBadRequest {
+		t.Fatalf(statusFmt, "bad trigger", bad.Code, http.StatusBadRequest)
 	}
 }
 

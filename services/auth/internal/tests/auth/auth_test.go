@@ -23,6 +23,11 @@ const (
 	separatorLen     = 1
 	hexCharsPerByte  = 2
 	maxByte          = 255
+	byteOne          = 1
+	byteTwo          = 2
+	byteThree        = 3
+	byteFour         = 4
+	rootPath         = "/"
 	testUserID       = "uid"
 	testCredID       = "cred"
 	testEmail        = "a@b.com"
@@ -83,15 +88,16 @@ func TestResolveInitialRoleID(t *testing.T) {
 // The decoder accepts raw-url tokens and falls back to standard base64 (with
 // padding and +/ alphabet) so it tolerates both encodings a browser may send.
 func TestDecodeBase64URLWithFallback(t *testing.T) {
+	rawBytes := []byte{byteOne, byteTwo, byteThree, byteFour}
 	cases := []struct {
 		name    string
 		input   string
 		want    []byte
 		wantErr bool
 	}{
-		{"raw url", base64.RawURLEncoding.EncodeToString([]byte{1, 2, 3, 4}), []byte{1, 2, 3, 4}, false},
+		{"raw url", base64.RawURLEncoding.EncodeToString(rawBytes), rawBytes, false},
 		{"std alphabet", "////", []byte{maxByte, maxByte, maxByte}, false},
-		{"std padding", "AQ==", []byte{1}, false},
+		{"std padding", "AQ==", []byte{byteOne}, false},
 		{"invalid", "!!!", nil, true},
 	}
 	for _, c := range cases {
@@ -108,7 +114,7 @@ func TestDecodeBase64URLWithFallback(t *testing.T) {
 // Header extractors return the value when present and a specific error when the
 // header is missing.
 func TestHeaderExtractors(t *testing.T) {
-	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r := httptest.NewRequest(http.MethodGet, rootPath, nil)
 	r.Header.Set(constants.HeaderSessionToken, "tok")
 	r.Header.Set(constants.HeaderCredentialID, testCredID)
 
@@ -120,7 +126,7 @@ func TestHeaderExtractors(t *testing.T) {
 	testutil.Equal(t, testCredID, cred, testCredID)
 	testutil.Equal(t, "cred err", err != nil, false)
 
-	empty := httptest.NewRequest(http.MethodGet, "/", nil)
+	empty := httptest.NewRequest(http.MethodGet, rootPath, nil)
 	if _, err := authhelper.ExtractSessionToken(empty); err == nil {
 		t.Fatal("missing session token should error")
 	}
@@ -131,7 +137,7 @@ func TestHeaderExtractors(t *testing.T) {
 
 // Both device headers are required together.
 func TestValidateDeviceHeaders(t *testing.T) {
-	full := httptest.NewRequest(http.MethodGet, "/", nil)
+	full := httptest.NewRequest(http.MethodGet, rootPath, nil)
 	full.Header.Set(constants.HeaderDeviceName, testDeviceName)
 	full.Header.Set(constants.HeaderDeviceType, testDeviceType)
 	name, typ, err := authhelper.ValidateDeviceHeaders(full)
@@ -141,7 +147,7 @@ func TestValidateDeviceHeaders(t *testing.T) {
 	testutil.Equal(t, "name", name, testDeviceName)
 	testutil.Equal(t, "type", typ, testDeviceType)
 
-	partial := httptest.NewRequest(http.MethodGet, "/", nil)
+	partial := httptest.NewRequest(http.MethodGet, rootPath, nil)
 	partial.Header.Set(constants.HeaderDeviceName, testDeviceName)
 	if _, _, err := authhelper.ValidateDeviceHeaders(partial); err == nil {
 		t.Fatal("missing device type should error")
@@ -161,7 +167,7 @@ func TestValidateSession(t *testing.T) {
 		t.Fatal("empty session token should error")
 	}
 
-	noHeader := httptest.NewRequest(http.MethodGet, "/", nil)
+	noHeader := httptest.NewRequest(http.MethodGet, rootPath, nil)
 	if _, err := authhelper.ValidateSessionFromRequest(noHeader); err == nil {
 		t.Fatal("request without session header should error")
 	}

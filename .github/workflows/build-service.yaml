@@ -15,7 +15,7 @@ on:
           - exporter
           - notifier
           - auth
-          - enrichment
+          - analyzer
       image_scan:
         required: false
         type: choice
@@ -53,7 +53,7 @@ jobs:
   # `build` tolerates a skipped gate but not a failed one (see its `if`).
   gate-go:
     name: Gate · Go
-    if: ${{ inputs.service != 'enrichment' }}
+    if: ${{ inputs.service != 'analyzer' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -77,16 +77,16 @@ jobs:
           config-file: release/.golangci.yml
           test: 'false'
 
-  gate-enrichment:
+  gate-analyzer:
     name: Gate · Python
-    if: ${{ inputs.service == 'enrichment' }}
+    if: ${{ inputs.service == 'analyzer' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
     defaults:
       run:
-        working-directory: services/enrichment
+        working-directory: services/analyzer
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -98,7 +98,7 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-          cache-dependency-path: services/enrichment/requirements.txt
+          cache-dependency-path: services/analyzer/requirements.txt
 
       - name: Install dependencies
         run: pip install -r requirements.txt pytest pytest-cov
@@ -111,11 +111,11 @@ jobs:
       - name: Test
         run: |
           python -m pytest --cov=. --cov-report= tests/test_*_cov.py -q
-          python -m pytest --cov=. --cov-append --cov-report= tests/test_authz.py tests/test_insights.py tests/test_provider_config.py -q
+          python -m pytest --cov=. --cov-append --cov-report= tests/test_authz.py tests/test_insights.py tests/test_exporter.py -q
           python -m coverage report --fail-under=95
 
   build:
-    needs: [gate-go, gate-enrichment]
+    needs: [gate-go, gate-analyzer]
     # A skipped gate is expected (only one kind runs); a failed or cancelled
     # gate must block the build.
     if: ${{ always() && !failure() && !cancelled() }}
@@ -148,4 +148,4 @@ jobs:
           image_scan: ${{ inputs.image_scan }}
           # Only the Python image runs foreign-arch binaries at build time; the
           # Go images cross-compile.
-          setup_qemu: ${{ inputs.service == 'enrichment' }}
+          setup_qemu: ${{ inputs.service == 'analyzer' }}

@@ -32,7 +32,7 @@ body:
         - exporter
         - auth
         - notifier
-        - enrichment
+        - analyzer
         - ui (dashboard)
         - other
     validations:

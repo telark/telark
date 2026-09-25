@@ -18,7 +18,9 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
   --set app.mode=performance
 ```
 
-`app.mode` sizes telark's own services; the subcharts (redis/nats/kyverno/metrics-server) ship fixed production-grade defaults owned by the chart, identical in every mode. Capacity, measured 2026-09-18: `minimal` handles a few hundred applications; `standard` was verified at 2 000 applications (three discovery replicas, rediscovery of a deleted 100-app namespace ≈ 3.5 min); `performance` is for clusters beyond that. Full guide: [docs/INSTALL.md](../../docs/INSTALL.md).
+`app.mode` sizes telark's own services; the subcharts (redis/nats/kyverno/metrics-server/ollama) ship fixed production-grade defaults owned by the chart, identical in every mode. Capacity, measured 2026-09-18: `minimal` handles a few hundred applications; `standard` was verified at 2 000 applications (three discovery replicas, rediscovery of a deleted 100-app namespace ≈ 3.5 min); `performance` is for clusters beyond that. Full guide: [docs/INSTALL.md](../../docs/INSTALL.md).
+
+**Upgrade order:** when CRDs are managed out of band (`crds.enabled=false`), upgrade `telark-crds` before `telark`: the protection plan `pending_approval` phase and approval fields are rejected by an older CRD, and an older CRD silently prunes `scope.exclusions`, `environmentID` and `tagIDs`. Older dashboard bundles show pending plans with a raw label and no Cancel (Owners can Clear).
 
 ## Values reference
 
@@ -41,6 +43,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | `ingress.className` / `host` / `path` / `pathType` / `tls` / `annotations` | see values | Ingress routing + TLS |
 | `gateway.enabled` | `false` | Gateway API `HTTPRoute` for the dashboard, the alternative to the Ingress (routes to `gateway.service`, default `ui`). See [docs/INSTALL.md](../../docs/INSTALL.md#access-the-dashboard) |
 | `gateway.parentRefs` / `hostnames` / `annotations` | `[]` / `[]` / `{}` | Gateways to attach to (entries take `name`, `namespace`, `sectionName`), hostnames the route matches, HTTPRoute annotations |
+| `redis.master.resources` | requests `100m` / `128Mi`, limits `150m` / `512Mi` | Redis sizing, identical in every mode; replaces the subchart's `nano` preset. Redis never evicts, so raise the memory limit beyond 2 000 applications. See [docs/INSTALL.md](../../docs/INSTALL.md#subcharts) |
 
 ### `app`
 
@@ -54,7 +57,9 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | `app.image.pullPolicy` | `Always` | Image pull policy for every service container |
 | `app.image.pullSecrets` | `[]` | Pull secrets (public images need none; set for a private registry) |
 | `app.kyverno.enabled` | `true` | Install kyverno subchart |
-| `app.ollama.enabled` | `false` | Install ollama subchart |
+| `app.ollama.enabled` | `true` | Install the ollama subchart, the local model runtime the analyzer needs; `false` skips it (for example with `app.ollama.runtimeUrl`). Sized once for every mode. See [Analyzer runtime (ollama)](#analyzer-runtime-ollama) |
+| `app.ollama.autoPull` | `true` | Let the analyzer pull a missing model (and allow ollama HTTPS egress); `false` for air-gapped installs |
+| `app.ollama.runtimeUrl` | `""` | Ollama-API endpoint you run yourself (URL only, no key); empty = the subchart. See [Analyzer runtime (ollama)](#analyzer-runtime-ollama) |
 | `app.persistence.enabled` | `true` | Provision the exporter snapshot and report PVCs |
 | `app.persistence.storageClass` | `""` | `"<name>"` = explicit class; `"-"` = disable dynamic provisioning; `""` = cluster default. In `standard`/`performance` (two exporter replicas) the render fails when this is `""` unless `app.singleNode=true`; name a ReadWriteMany class, or with `"-"` pre-provision a ReadWriteMany PV yourself |
 | `app.persistence.size` | `10Gi` | PVC size (`minimal` mode lowers it to `1Gi`) |
@@ -183,19 +188,23 @@ Per-service block. Gates default to `true` unless noted.
 | `envFromSecret` | `{}` | `valueFrom: secretKeyRef` map (secret `<app.name>-<name>-secret`) |
 | `volumes` / `volumeMounts` | `[]` | Pod volumes + mounts |
 | `pdb.enabled` | varies | PodDisruptionBudget |
-| `autoscaling.enabled` | mode | Per-service HPA (auth/discovery/enrichment/notifier/ui; never exporter). Inherits `app.serviceDefaults.autoscaling.*`; on in `standard` and `performance`, off in `minimal` |
+| `autoscaling.enabled` | mode | Per-service HPA (auth/discovery/notifier/ui; never exporter or analyzer). Inherits `app.serviceDefaults.autoscaling.*`; on in `standard` and `performance`, off in `minimal` |
 | `topologySpread.*` | unset | TopologySpreadConstraints |
 
 #### Service identities
 
-| Service | `name` | `repository` | `version` | `category` | `enabled` |
-|---|---|---|---|---|---|
-| `exporter` | `exporter-service` | `exporter` | `3.3.3` | `export` | `true` |
-| `discovery` | `discovery-service` | `discovery` | `1.9.0` | `sync` | `true` |
-| `enrichment` | `enrichment-service` | `enrichment` | `0.1.1` | `ai-enrichment` | `true` |
-| `notifier` | `notifier-service` | `notifier` | `0.2.2` | `notification` | `true` |
-| `auth` | `auth-service` | `auth` | `0.3.2` | `auth` | `true` |
-| `ui` | `ui-service` | `ui` | `0.0.1` | `ui` | `false` |
+Image tags are `services.<svc>.version` in `values.yaml`, bumped by the release workflows.
+
+| Service | `name` | `repository` | `category` | `enabled` |
+|---|---|---|---|---|
+| `exporter` | `exporter-service` | `exporter` | `export` | `true` |
+| `discovery` | `discovery-service` | `discovery` | `sync` | `true` |
+| `analyzer` | `analyzer-service` | `analyzer` | `ai-insights` | `true` |
+| `notifier` | `notifier-service` | `notifier` | `notification` | `true` |
+| `auth` | `auth-service` | `auth` | `auth` | `true` |
+| `ui` | `ui-service` | `ui` | `ui` | `true` |
+
+`analyzer` (Python) runs one replica with `autoscaling.enabled: false`: one worker bound to one runtime slot.
 
 #### `services.exporter.env`
 
@@ -204,8 +213,6 @@ Per-service block. Gates default to `true` unless noted.
 | `SNAPSHOTS_PATH` | `/snapshots` | Filesystem mount path for snapshot files |
 | `SNAPSHOTS_PVC_NAME` | `{{ .Values.app.name }}-exporter-snapshots-pvc` (tpl) | PVC backing snapshot storage |
 | `SNAPSHOTS_PVC_NAMESPACE` | `{{ .Values.app.namespace }}` (tpl) | Namespace of the snapshots PVC |
-| `AI_KEY_SECRET_NAME` | `{{ .Values.app.name }}-ai-provider-key` (tpl) | Secret holding the AI provider key (`apiKey` field), written by the exporter |
-| `AI_KEY_SECRET_NAMESPACE` | `{{ .Values.app.namespace }}` (tpl) | Namespace of that secret |
 | `EXPORTER_K8S_CLIENT_QPS` | `50` | K8s client QPS; sized for CRD-write fanout (10× client-go default) |
 | `EXPORTER_K8S_CLIENT_BURST` | `100` | K8s client burst |
 | `SNAPSHOT_GC_INTERVAL_SEC` | `3600` | Sweep the snapshot PVC for files no Application CR references and older than 1 h (`minimal` 7200, `performance` 900; `0` = off). One replica sweeps per interval. Also drives the reports orphan sweep; `0` disables both |
@@ -294,21 +301,102 @@ Misc:
 | `REST_EXPORTER_DURATION_LOG_ENABLED` | `"true"` | Log REST → exporter call durations |
 | `REST_EXPORTER_DURATION_LOG_DEDUP_SEC` | `10` | Dedup window for the duration logs |
 
-#### `services.enrichment.env`
+Insights page index (see [Insights page](#insights-page)):
 
-The AI **provider** and **API key** are not env vars: an admin sets them at runtime from the UI, and they are stored in the GlobalConfig CR. Only the non-secret model names live here.
+| Variable | Default | Description |
+|---|---|---|
+| `INSIGHTS_INDEX_REFRESH_SEC` | `15` | Incremental index refresh interval (documents written since the last refresh). Keep it well under 60 s: the dashboard asks for fresh reads for 60 s after a user's triage, then relies on this refresh |
+| `INSIGHTS_INDEX_RESYNC_SEC` | `300` | Full membership resync; drops expired or deleted documents |
+| `INSIGHTS_STALE_AFTER_SEC` | `86400` | An active insight not seen for this long shows as `stale` |
+
+#### `services.analyzer.env`
+
+The analyzer's on/off switch, model and auto-analyze setting live on the GlobalConfig CR (set in Settings; a fresh install seeds it on, with `granite4:350m` and auto-analyze off, and an existing CR is never rewritten); only runtime limits live here. Probes use the shared `/api/v1/status/{live,ready}` paths; readiness fails while Redis is unreachable.
 
 | Variable | Default | Description |
 |---|---|---|
 | `REDIS_POOL_SIZE` | `10` | Redis client connection pool size |
-| `OLLAMA_HOST` | `http://<release>-ollama:11434` | Ollama base URL, templated on the release name (used when provider = `ollama`) |
-| `OLLAMA_MODEL` | `qwen2.5:3b` | Ollama model tag |
-| `ANTHROPIC_MODEL` | `claude-haiku-4-5-20251001` | Anthropic model id |
-| `GROQ_MODEL` | `llama-3.3-70b-versatile` | Groq model id |
-| `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model id |
-| `NUM_WORKERS` | `3` | Concurrent worker goroutines (1 for ollama, 3 for cloud providers) |
-| `METRICS_INTERVAL_S` | `60` | Metrics emit cadence (seconds) |
-| `WORKER_SHUTDOWN_TIMEOUT_S` | `30` | Graceful worker shutdown deadline (seconds) |
+| `OLLAMA_HOST` | `app.ollama.runtimeUrl`, else `http://<release>-ollama:11434` (tpl) | Model runtime URL |
+| `OLLAMA_AUTO_PULL` | `{{ .Values.app.ollama.autoPull }}` (tpl) | Pull a missing model on demand |
+| `ANALYZER_MODE` | `fast` | `fast` = rules + one short narration; `deep` = the multi-step tool loop (4+ vCPU or GPU) |
+| `ANALYZER_NUM_THREAD` | `2` | Threads per model request; = `ollama.resources.limits.cpu`, never above the node's vCPU (oversubscription makes a run minutes long) |
+| `ANALYZER_NARRATE_TIMEOUT_SEC` | `45` | Fast mode: timeout of the narration call; on timeout the rule text stays |
+| `ANALYZER_MAX_STEPS` | `8` | Deep mode: model turns per analysis |
+| `ANALYZER_MAX_TOOL_CALLS` | `8` | Deep mode: read-only tool calls per analysis |
+| `ANALYZER_TOOL_RESULT_MAX_BYTES` | `2048` | Tool output cap; keeps the context small |
+| `ANALYZER_WALL_SEC` | `480` | Deep mode: hard time limit per analysis |
+| `ANALYZER_LOOP_TIMEOUT_SEC` | `120` | Deep mode: per model call; covers a cold load |
+| `ANALYZER_EMIT_TIMEOUT_SEC` | `180` | Deep mode: timeout of the final structured answer |
+| `ANALYZER_CHARS_PER_TOKEN` | `3.5` | Token estimate for the context fit check |
+| `ANALYZER_CONTEXT_TOKENS` | `4096` | Must match `OLLAMA_CONTEXT_LENGTH`; deep: `8192` |
+| `ANALYZER_QUEUE_MAX` | `100` | Pending jobs before Analyze answers 429 |
+| `ANALYZER_AUTO_COOLDOWN_SEC` | `600` | Per-app gap between incident analyses |
+| `ANALYZER_MANUAL_COOLDOWN_SEC` | `60` | Per-app gap between manual analyses |
+| `ANALYZER_CONFIG_POLL_SEC` | `30` | How often Settings are re-read |
+| `ANALYZER_REVIEW_INTERVAL_SEC` | `7200` | Each app is re-reviewed at most this often by the sweep; `0` = no sweep (Analyze still reviews) |
+| `ANALYZER_REVIEW_TICK_SEC` | `120` | Sweep wake interval |
+| `ANALYZER_REVIEW_APPS_PER_MIN` | `20` | Sweep rate limit (`minimal` 10, `performance` 60) |
+| `ANALYZER_REVIEW_WORKLOADS_MAX` | `10` | Workloads reviewed per app; the rest keep their cards untouched |
+| `ANALYZER_USAGE_MIN_SAMPLES` | `12` | Usage samples required before usage rules fire |
+| `ANALYZER_USAGE_MIN_SPAN_SEC` | `43200` | Time those samples must span |
+| `ANALYZER_CHANGE_VELOCITY_PER_DAY` | `20` | 7-day average changes per day that flags an app as changing very often |
+| `ANALYZER_CHANGE_RISK_MIN_SPAN_SEC` | `259200` | Change history an app needs before change-rate rules apply |
+| `ANALYZER_PRODUCTION_PATTERN` | `(^\|[-_.])(prod\|production\|prd)($\|[-_.])` | Case-insensitive regex; an app is production when a namespace or a covering plan's environment matches it. An invalid regex fails the pod at start |
+
+RBAC: the analyzer ClusterRole is read-only (`get`, `list`). Besides pods, events and workloads (incident analysis), setup reviews list four kinds per app namespace: `services` (selectors that match no pod, exposure), `policy/poddisruptionbudgets` (missing or blocking budgets), `autoscaling/horizontalpodautoscalers` (autoscaling limits and conflicts) and `networking.k8s.io/networkpolicies` (namespaces without a policy). It never reads ConfigMaps, Secrets, nodes, metrics or RBAC objects, and never writes. With an older chart these lists answer 403: those rule families are skipped (no card created or resolved) and a warning is logged.
+
+#### Analyzer runtime (ollama)
+
+`app.ollama.enabled=true` (default) installs the ollama subchart as the analyzer's model runtime. Nothing else talks to it: a NetworkPolicy admits only the analyzer pods on port 11434 and allows HTTPS egress only while `app.ollama.autoPull=true`. The chart pulls no model at start (`ollama.ollama.models.pull` stays empty: the subchart pulls in a `postStart` hook that ignores `app.ollama.autoPull`, and a failed pull there restarts the container in a loop). With `app.ollama.autoPull=true` and the analyzer enabled (the fresh-install default), the analyzer itself pulls the model chosen in Settings (default `granite4:350m`, 708 MB) at its first config poll after start when the runtime lacks it, and retries every `ANALYZER_CONFIG_POLL_SEC` while the pull fails; until the pull finishes, a fast-mode analysis keeps the rule text and skips the narration. Models live on a volume (10Gi on the cluster's default class; 20Gi to trial 8B models) that carries `helm.sh/resource-policy: keep`, so they survive pod restarts, disabling and uninstalling.
+
+Sizing does not follow `app.mode`: Helm resolves a subchart's values before the mode preset is applied, so `ollama.resources` is one value for every mode. The default (requests `250m` / `1536Mi`, limit cpu `2`) is the CPU tiny profile below; measured with `granite4:350m` loaded at a 4k context, ollama holds about 1.1Gi and idles near 0 CPU, and a narration bursts to the 2-core limit for a few seconds. The request is kept low so `minimal` still fits one 2 vCPU / 8 GiB node; raise it with the profile values on bigger nodes.
+
+How a run works (`ANALYZER_MODE=fast`, default): the analyzer reads the app's overview, change history, workload status and warning events, and deterministic rules turn them into insight cards, shown within about 2 s. One short schema-constrained model call then rewrites only their title and summary; if it fails or times out, the rule text stays and the run still completes ("rules only"). `ANALYZER_MODE=deep` runs the multi-step tool loop instead.
+
+Profiles (one slot):
+
+| Profile | Model | Requests | Limits | Values | Latency |
+|---|---|---|---|---|---|
+| CPU tiny (default) | `granite4:350m` | cpu 250m, memory 1536Mi | cpu 2 | chart defaults | about 8 s per insight |
+| CPU 4 vCPU | `qwen3:1.7b` | cpu 1, memory 4Gi | cpu 4 | `ollama.resources.requests.cpu=1`, `ollama.resources.requests.memory=4Gi`, `ollama.resources.limits.cpu=4`, `services.analyzer.env.ANALYZER_NUM_THREAD=4` | 20–45 s |
+| GPU / deep | `qwen3:4b` | cpu 1, memory 3Gi, `nvidia.com/gpu` 1 | cpu 2, `nvidia.com/gpu` 1 | `ollama.resources.requests.cpu=1`, `ollama.resources.requests.memory=3Gi`, `ollama.ollama.gpu.enabled=true`, `ANALYZER_MODE=deep`, `ANALYZER_CONTEXT_TOKENS=8192` and `OLLAMA_CONTEXT_LENGTH=8192`, `ANALYZER_WALL_SEC=480` | minutes on CPU; seconds on GPU |
+
+Models (all Apache-2.0; Settings shows the licence of any tag you type and warns on non-commercial ones such as `qwen2.5:3b`). Fast mode accepts any installed model; deep mode requires the `tools` capability:
+
+| Model | Licence | Note |
+|---|---|---|
+| `granite4:350m` | Apache-2.0 | Default; CPU tiny |
+| `qwen3:1.7b` | Apache-2.0 | CPU 4 vCPU; better prose |
+| `qwen3:4b` | Apache-2.0 | GPU / deep |
+| `qwen2.5:7b` | Apache-2.0 | GPU; 4.7 GB, raise memory |
+
+Modes:
+
+- **Connected** (`app.ollama.autoPull=true`): the analyzer pulls the chosen model; the ollama pod gets port-443 egress. On Cilium or Calico you can narrow it with an FQDN policy (e.g. `CiliumNetworkPolicy` `toFQDNs: registry.ollama.ai`).
+- **Air-gapped** (`app.ollama.autoPull=false`): no pulls, no HTTPS egress; provide the model one of two ways:
+  - **Pre-seeded volume:** `ollama.persistentVolume.existingClaim=<pvc>`, a claim whose root holds `models/` (blobs and manifests) copied from `~/.ollama/models` on a connected machine.
+  - **Baked image:** build `FROM ollama/ollama:0.17.7` with `COPY models /models`, then set `ollama.image.repository` / `ollama.image.tag`, `ollama.persistentVolume.enabled=false` and add `{name: OLLAMA_MODELS, value: /models}` to `ollama.extraEnv` (a values file replaces the whole list, so copy the chart's entries too). Never bake under `/root/.ollama`: the subchart always mounts a volume there, which hides the model.
+- **Self-hosted endpoint** (`app.ollama.runtimeUrl=http://<host>:11434`, `app.ollama.enabled=false`): the analyzer talks to an Ollama you run (for example on a GPU host). It must speak the Ollama API; no key, no Secret. No ollama NetworkPolicy is rendered; the analyzer pod's egress follows your cluster's policies. Set `ANALYZER_NUM_THREAD` to that host's cores.
+
+Memory: `ollama.resources` has no memory limit on purpose. Ollama checks free memory as the cgroup limit minus current usage, and usage counts the page cache of pulled model files, so any limit eventually refuses model loads. Without a limit it reads the node's available memory, which is cache-aware; `OLLAMA_KEEP_ALIVE=-1` keeps the loaded model resident. The pod is Burstable and the 1536Mi request still reserves memory. For Guaranteed QoS set requests = limits with memory ≥ 3 × model size + 1Gi and re-check after every pull. Deleting unused models (`DELETE /api/delete`) frees the cache.
+
+#### Recommendations
+
+Besides incidents, the analyzer reviews each app's setup with deterministic rules (reliability, resources, scaling, security, images, config, networking, change risk, protection, multi-namespace consistency) and shows the findings as recommendation cards on the Insights page (per app: `/insights?app=<namespace>/<name>`). Reviews never call the model.
+
+- **When:** after every analysis run (skipped while jobs are queued), and from a sweep every `ANALYZER_REVIEW_TICK_SEC`: apps whose generation changed first, then any app not reviewed for `ANALYZER_REVIEW_INTERVAL_SEC`, at most `ANALYZER_REVIEW_APPS_PER_MIN` (about 2 000 apps in 100 min at the default). The sweep yields to queued analyses and runs only while the analyzer is enabled in Settings.
+- **Budget per mode:** `minimal` 10 apps/min, `standard` 20, `performance` 60.
+- **Production:** `ANALYZER_PRODUCTION_PATTERN` marks an app as production (namespace or plan environment name); production raises single-replica and missing-budget findings to warning and enables the protection-plan rules.
+- **Usage:** usage rules (near limit, over/under-provisioned) need `ANALYZER_USAGE_MIN_SAMPLES` samples over `ANALYZER_USAGE_MIN_SPAN_SEC`, taken from the Application metrics; without metrics-server they stay silent.
+- **Disable:** `ANALYZER_REVIEW_INTERVAL_SEC=0` stops the sweep; Analyze still reviews its app.
+
+A rule fires only when its reads were complete; a failed or truncated read neither creates nor resolves cards. Cards can be dismissed (recommendations) or acknowledged (any card) by Contributors on insights, unless a role denies `insights.triageinsights.deny`. Liveness/startup failures with restarts are now reported as `crashloop` instead of `probe_failure`.
+
+#### Insights page
+
+The dashboard's Insights page lists incidents and recommendations of every app: discovery filters and pages them in a fixed order (`GET /api/v1/insights/get`, Read on insights, excluded namespaces hidden) and the dashboard sorts and groups them. Each discovery replica keeps an in-memory index refreshed every `INSIGHTS_INDEX_REFRESH_SEC` from the analyzer's index key, so requests never touch Redis; the page stays readable while the analyzer is off. Until the first load the route answers 503. Environments come from the protection plans that cover each app.
+
+**Rollout:** release `internal/data` and `internal/rest`, then deploy discovery with the bumped pins (an older discovery drops the new card fields and shows recommendations as incidents), then the analyzer image, then the dashboard. Upgrade `telark-crds` before `telark` (an older CRD prunes `ai.model` and `ai.autoAnalyze`), and upgrade the chart and the analyzer image together: an older analyzer ignores the new variables but runs its tool loop in the 4k context. A pre-upgrade hook Job deletes the old AI provider key Secret `telark-ai-provider-key`; no manual step. Existing GlobalConfig CRs keep their model (e.g. `qwen3:4b`) until changed in Settings; switch to `granite4:350m` on CPU nodes. Dashboard bundles older than this release show an empty insights panel until upgraded.
 
 #### `services.notifier.env`
 

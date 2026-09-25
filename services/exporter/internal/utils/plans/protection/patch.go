@@ -22,26 +22,20 @@ func ValidatePatchScope(body map[string]any) error {
 	}
 	apps := stringSlice(scope[constants.FieldScopeAppIDs])
 	namespaces := stringSlice(scope[constants.FieldScopeNamespaces])
+	return validateScope(scopeType, len(apps), len(namespaces), hasExclusionResources(scope))
+}
 
-	switch scopeType {
-	case constants.ScopeTypeApplications:
-		if len(apps) == constants.DefaultInitValue || len(namespaces) > constants.DefaultInitValue {
-			return errors.New(string(constants.ErrProtectionPlanScopeUnion))
-		}
-	case constants.ScopeTypeNamespaces:
-		if len(namespaces) == constants.DefaultInitValue || len(apps) > constants.DefaultInitValue {
-			return errors.New(string(constants.ErrProtectionPlanScopeUnion))
-		}
-	default:
-		return errors.New(string(constants.ErrProtectionPlanInvalidScope))
+// stringSlice is not reusable here: resources are maps, so it would report none.
+func hasExclusionResources(scope map[string]any) bool {
+	excl, ok := scope[constants.FieldScopeExclusions].(map[string]any)
+	if !ok {
+		return false
 	}
-	return nil
+	resources, ok := excl[constants.FieldExclusionResources].([]any)
+	return ok && len(resources) > constants.DefaultInitValue
 }
 
 func stringSlice(v any) []string {
-	if v == nil {
-		return nil
-	}
 	switch cast := v.(type) {
 	case []string:
 		return cast

@@ -20,15 +20,17 @@ import (
 	"github.com/telark/discovery/internal/clients"
 	"github.com/telark/discovery/internal/config"
 	"github.com/telark/discovery/internal/constants"
-	insightsctrl "github.com/telark/discovery/internal/controllers/insights"
 	protectionctrl "github.com/telark/discovery/internal/controllers/plans/protection"
 	"github.com/telark/discovery/internal/coordination"
 	"github.com/telark/discovery/internal/coordination/forcesync"
 	"github.com/telark/discovery/internal/coordination/leadergate"
+	"github.com/telark/discovery/internal/core/applications/insights"
+	"github.com/telark/discovery/internal/core/insightsindex"
 	"github.com/telark/discovery/internal/core/plans/protection"
 	"github.com/telark/discovery/internal/discovery/listing"
 	"github.com/telark/discovery/internal/discovery/prewarm"
 	"github.com/telark/discovery/internal/handlers/cleanup/autoclean"
+	insightshandler "github.com/telark/discovery/internal/handlers/insights"
 	protectionhandler "github.com/telark/discovery/internal/handlers/plans/protection"
 	applicationhandler "github.com/telark/discovery/internal/handlers/resources/applications"
 	"github.com/telark/discovery/internal/handlers/rollback"
@@ -213,10 +215,6 @@ func startProtectionPlanLeaderGated(ctx context.Context, rdb *goredis.Client) {
 	leadergate.Start(ctx, protectionctrl.NewCheckpointController(svc, lg, interval), leaderElectionForInformers)
 }
 
-func startInsightsLeaderGated(ctx context.Context) {
-	leadergate.Start(ctx, insightsctrl.NewController(lg), leaderElectionForInformers)
-}
-
 func bootstrapContext() context.Context {
 	if serviceCtx != nil {
 		return serviceCtx
@@ -233,7 +231,10 @@ func initConnectivity(rdb *goredis.Client) *connectivity.ConnectivityManager {
 
 func startDiscoveryWatchers(ctx context.Context, rdb *goredis.Client, replicaID string) {
 	listing.InformersCache = informers.TryListResourcesInNamespaces
+	listing.AppNamespacesCache = informers.AppNamespaces
 	coordination.CancelCoalesceFn = informers.CancelAppCoalesce
+	insights.Init(rdb, lg)
+	startInsightsIndex(ctx, rdb)
 	prewarm.PrewarmDiscovery(ctx, rdb)
 	go informers.Run(ctx, informers.Config{
 		RDB:          rdb,
@@ -244,12 +245,21 @@ func startDiscoveryWatchers(ctx context.Context, rdb *goredis.Client, replicaID 
 	})
 }
 
+func startInsightsIndex(ctx context.Context, rdb *goredis.Client) {
+	idx := insightsindex.New(insightsindex.Settings{
+		Refresh:    config.InsightsIndexRefresh(),
+		Resync:     config.InsightsIndexResync(),
+		StaleAfter: config.InsightsStaleAfter(),
+	})
+	insightshandler.InitIndex(idx)
+	go idx.Run(ctx, rdb, clients.NewProtectionPlanClient().List)
+}
+
 func runStandaloneBootstrap(ctx context.Context, rdb *goredis.Client, conn *connectivity.ConnectivityManager) {
 	lg.Error(string(constants.ErrHostnameNotSet))
 	startDiscoveryWatchers(ctx, rdb, constants.EmptyString)
 	startRollbackLeaderGatedIfEnabled(ctx)
 	startProtectionPlanLeaderGated(ctx, rdb)
-	startInsightsLeaderGated(ctx)
 	startAutoCleanupIfEnabled(ctx, rdb)
 	conn.SetReady(constants.ServiceIDDiscovery, true)
 	redishelper.SetBootstrapReady()
@@ -270,7 +280,6 @@ func startCoordinationBootstrap(
 		startDiscoveryWatchers(ctx, rdb, replicaID)
 		startRollbackLeaderGatedIfEnabled(ctx)
 		startProtectionPlanLeaderGated(ctx, rdb)
-		startInsightsLeaderGated(ctx)
 		redishelper.SetBootstrapReady()
 		return
 	}
@@ -286,10 +295,10 @@ func startCoordinationBootstrap(
 	go runReplicaHeartbeat(ctx, rdb, replicaID)
 
 	applicationhandler.SetCoordinationBundle(coord, replicaID)
+	protectionhandler.SetCoordinationBundle(coord)
 	startForceSyncSubsystem(ctx, coord, rdb, replicaID)
 	startRollbackLeaderGatedIfEnabled(ctx)
 	startProtectionPlanLeaderGated(ctx, rdb)
-	startInsightsLeaderGated(ctx)
 	startAutoCleanupIfEnabled(ctx, rdb)
 	conn.SetReady(constants.ServiceIDDiscovery, true)
 	redishelper.SetBootstrapReady()

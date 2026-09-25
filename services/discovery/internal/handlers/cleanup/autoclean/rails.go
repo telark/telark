@@ -152,9 +152,23 @@ func railNoCoalesceBuffer(ctx context.Context, rdb redis.Cmdable, appName string
 		constants.KeyPrefixCoalesceBuffer+appName)
 }
 
-func railNoEnrichmentLock(ctx context.Context, rdb redis.Cmdable, appName string) railResult {
-	return railRedisKeyAbsent(ctx, rdb, constants.RailNoEnrichmentLock,
-		constants.KeyPrefixLockEnrich+appName)
+// The analyzer keys its run lease by namespace too; the rail only has the app name.
+func railNoAnalyzerInflight(ctx context.Context, rdb redis.Cmdable, appName string) railResult {
+	if rdb == nil {
+		return pass(constants.RailNoAnalyzerInflight)
+	}
+	cctx, cancel := context.WithTimeout(ctx, constants.AutoCleanupRailReadTimeout)
+	defer cancel()
+	pattern := constants.KeyPrefixAnalyzerInflight + "*:" + appName
+	keys, _, err := rdb.Scan(cctx, 0, pattern, 10).Result()
+	if err != nil {
+		return errored(constants.RailNoAnalyzerInflight, err)
+	}
+	if len(keys) > constants.DefaultInitValue {
+		return block(constants.RailNoAnalyzerInflight,
+			fmt.Sprintf("analyzer run(s) in flight: %v", keys))
+	}
+	return pass(constants.RailNoAnalyzerInflight)
 }
 
 // Uses SCAN with pattern: cardinality per app is small (current gen only).

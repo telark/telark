@@ -30,3 +30,5 @@ This chart holds no config of its own. It reads two keys from the telark chart's
 | `erpi.<name>` | ApplicationAsResource, GroupAsResource, RoleAsResource, UserAsResource, GlobalConfig, ProtectionPlan |
 | `auth.<name>` | UserPasskey, UserSession |
 | `classification.<name>` | CategoryAsClassification |
+
+ProtectionPlan phases: `draft`, `pending_approval`, `scheduled`, `active`, `terminated`, `canceled`, `failed`. Optional metadata `environmentID` and `tagIDs` (category ids, at most 20 tags) classify a plan. Optional spec fields `approvalMode` (`automatic` | `required`, absent = automatic) and `approval` (state, requester, decider, comment, history of at most 20 events) drive plan approval. Optional `scope.exclusions` {kinds[], resources[]{kind,name,namespace}} excludes kinds (any scope) or named resources (applications scope only) from enforcement.

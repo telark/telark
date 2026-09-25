@@ -18,7 +18,7 @@ const (
 	InfoCircuitBreakerHalfOpen    messages.Message = "circuit breaker '%s' half-open, testing connection"
 
 	//  Pre-warming
-	InfoPrewarmEnrichmentStarted      messages.Message = "🔥 Pre-warming enrichment cache in background..."
+	InfoPrewarmCacheStarted           messages.Message = "Pre-warming discovery cache in background..."
 	InfoPrewarmFoundApplications      messages.Message = "Pre-warming: found %d applications across %d namespaces"
 	InfoPrewarmComplete               messages.Message = "🔥 Pre-warming complete — totalApps=%d elapsedMs=%d"
 	InfoPrewarmSupervisorShuttingDown messages.Message = "[prewarm] Supervisor shutting down."
@@ -33,15 +33,18 @@ const (
 		"response=%v"
 	WarnClusterVersionPatchExhausted messages.Message = "[startup] cluster.version patch exhausted all %d attempts: %v"
 
-	// Insights tick
-	InfoInsightsDispatched        messages.Message = "[insights] dispatched %d apps to enrichment"
-	WarnInsightsGlobalConfigRead  messages.Message = "[insights] skipped tick, GlobalConfig read failed: %v"
-	WarnInsightsListApplications  messages.Message = "[insights] skipped tick, listing applications failed: %v"
-	WarnInsightsDispatch          messages.Message = "[insights] dispatch to enrichment failed: %v"
-	InfoInsightsRead              messages.Message = "insights read"
-	WarnGlobalConfigUnavailable   messages.Message = "[startup] GlobalConfig not reachable yet, retrying in %ds: %v"
-	InfoGlobalConfigAvailable     messages.Message = "[startup] GlobalConfig is reachable."
-	WarnExcludedNamespacesRefresh messages.Message = "[globalconfig] failed to refresh ExcludedNamespaces cache: %v"
+	// Insights
+	InfoInsightsRead               messages.Message = "insights read"
+	InfoInsightsListed             messages.Message = "insights listed"
+	InfoInsightsListNotReady       messages.Message = "insights list not ready yet"
+	WarnInsightsIndexSyncFailed    messages.Message = "[insights-index] sync failed: %v"
+	WarnInsightsIndexCatchUpFailed messages.Message = "[insights-index] fresh read served without catching up: %v"
+	WarnInsightsIndexPlansFailed   messages.Message = "[insights-index] plans list failed, keeping the last environments: %v"
+	LogInsightsIndexSynced         messages.Message = "[insights-index] synced full=%t fetched=%d apps=%d rows=%d in %s"
+	WarnInsightsTriggerFailed      messages.Message = "[insights] failed to enqueue analysis job for %s: %v"
+	WarnGlobalConfigUnavailable    messages.Message = "[startup] GlobalConfig not reachable yet, retrying in %ds: %v"
+	InfoGlobalConfigAvailable      messages.Message = "[startup] GlobalConfig is reachable."
+	WarnExcludedNamespacesRefresh  messages.Message = "[globalconfig] failed to refresh ExcludedNamespaces cache: %v"
 
 	// Startup: Renderer Registry
 	ErrRendererNotRegistered messages.Message = "[startup] no renderer registered for template %q"
@@ -73,6 +76,13 @@ const (
 	NotifRollbackCompletedFormat messages.Message = "Rollback of **%s** Application to generation **%d** completed."
 	NotifRollbackFailedFormat    messages.Message = "Rollback of %s to generation %d failed: %s"
 	NotifRollbackAbortedFormat   messages.Message = "Rollback of **%s** Application to generation **%d** was aborted."
+
+	// Plan approval notifications
+	NotifPlanApprovalRequestedTitle  messages.Message = "Protection plan awaiting approval"
+	NotifPlanApprovalRequestedFormat messages.Message = "**%s** was submitted for approval by %s."
+	NotifPlanApprovalDecidedTitle    messages.Message = "Protection plan decision"
+	NotifPlanApprovalDecidedFormat   messages.Message = "**%s** was %s. %s"
+	WarnPlanApprovalNotifyFailed     messages.Message = "[plan-approval] notification failed plan=%s: %v"
 
 	// Rollback HTTP responses
 	MsgRollbackAborted     messages.Message = "rollback aborted"

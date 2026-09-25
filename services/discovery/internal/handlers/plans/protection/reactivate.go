@@ -40,7 +40,7 @@ func Reactivate(w http.ResponseWriter, r *http.Request) {
 		w,
 		http.StatusOK,
 		response.OperationSuccess,
-		string(messages.SuccessUpdateRes),
+		planMessage(messages.SuccessUpdateRes, planID),
 		plan,
 		nil,
 	)

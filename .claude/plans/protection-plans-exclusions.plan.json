@@ -1,0 +1,832 @@
+{
+  "approach": "PLAN, not implemented. Tree state verified 2026-09-23 (working tree, never HEAD): telark on e2e/set_plans_feature_ready_for_mvp_launch (v0.4.0-2-g5bcfd94, 152 dirty paths: Env+Tags, Reports, Approval, Local AI Analyzer in flight), dashboard-ui same branch (v1.0.0-1-g012d3ebd, 59 dirty), internal/data main v1.14.8-1-g36ba327 (19 dirty), internal/rest main v0.14.4 (32 dirty). Feature: per plan, `spec.scope.exclusions {kinds[], resources[]{kind,name,namespace}}` nested under the existing scope object. Applications scope may exclude kinds and named resources of the selected applications; namespaces scope may exclude kinds only (CEL rule on the CRD, discovery validation, exporter validation). Enforcement: one function in internal/data/policies (ExclusionFilters) appends `{kinds:[K, K/scale?]}` and `{kinds:[kind, kind/scale?], names:[name]}` entries to every rendered rule's `exclude.any`, applied centrally in policies.Render after each template renders, so both scope types, the `*` kind lists, the identity-label filter of block-create and the PVC rule are all covered without touching a single template. Policy names do not change (exclusions are not hashed); server-side apply with Force overwrites same-named policies in place. Discovery: Prepare/Duplicate copy the field (rest DTO reuses the data type, so zero converters); Update treats exclusions as material (approved required plans refuse, pending plans re-request approval, for free) and, because the combos diff never re-renders unchanged (policy,target) pairs and renders per single app (names differ from the create path for multi-app-same-namespace plans), an exclusions change takes a new ApplyFullRender path: render the whole new plan exactly like Prepare/Activate/repair and deploy it. The plan's old names that were not re-rendered are deleted only after the exporter patch succeeds. A failed deploy or patch deletes only the names the old plan did not have, then re-applies the old plan's render for its own names. Clearing exclusions goes through the raw-patch route the approval re-request already uses (MapToJSONPayload drops nil pointers and JSON merge patch keeps absent keys). Exporter: no guard key change (the top-level `scope` entry already covers nested keys; a test proves it); Validate/ValidatePatchScope gain the resources-only-for-applications check so direct callers get a clean 400. Permissions: no new action or deny rule; exclusions are a scope field and ride on the plan edit permission end to end (route, exporter guard, ScopeSection disabled prop, toolbar/card Edit gate), which is exactly the 'new spec option needs no special case' property the PERM plan designs for. UI: two multi-selects under the existing scope pickers (kinds from the Redux applications list resourceSummary for the selected apps or the fixed 14-kind summary vocabulary for namespaces; resources from fetchApplicationDetails per selected app, called directly and cached in a hook), form snapshot/dirty detection, active-plan warning, payload, and two rows in the details Scope card. Backward compatible: absent exclusions render byte-identical policies (test), existing CRs and older UI bundles change no behaviour, update with the key absent leaves stored exclusions untouched (TagIDs precedent).",
+  "executionFlowToday": "1. UI CreatePlanPanel/EditPlanPanel -> buildPreparePayload (planFormValues.ts:58-82) sends scope {type, applicationIds, namespaces} to discovery POST plans/protection/prepare or {id}/update (Write only, requirements.go:55-67).\n2. Prepare (svc.go:143-189): validation.PrepareRequest -> Scope union check (validation.go:142-160) -> NamespaceScope -> resolveScope (apps only, svc.go:655-670; resolver indexes live-derived apps, resolver.go:20-74) -> buildPlan copies scope field by field (svc.go:535-569) -> renderAndDeploy if active -> exporter CreateOrError(toCreateRequest(plan)) copying scope again (svc.go:721-757). Any new scope field must be copied at both sites or it is dropped.\n3. policies.Render (internal/data/policies/renderer.go:13-49): buildScopes -> namespaces scope = one ScopeSpec{Namespace} per namespace, apps scope = one ScopeSpec per resolved namespace grouping apps, AppResources, VolumeClaims (renderer.go:63-103). Every (scope x policy entry) renders through the registered TemplateRenderer; nil policy skipped.\n4. Templates: BuildMatch (shared.go:277-308) = MatchAllAny(kinds) for namespaces scope (no names, `*` for block-create/update/delete) or per-kind {kinds:[k], names:[owned]} filters for apps scope; BuildIdentityMatch adds a label-selector filter on AppIdentityKinds for block-create; PVC rule uses VolumeClaims (block_storage_changes.go:66-74). Every rule already carries ExcludeResources = ExcludePlatformWrites() (Policy kinds) or ExcludeControllerWrites() (+ controller subjects), an `any` list (shared.go:155-186, :380, :422).\n5. Policy name = telark-<planID>-<templateCode>-<sha256(namespace+\\0+sorted appIDs)[:8]> (shared.go:106-115). Applier.Deploy server-side-applies with FieldManager telark-protection-plans, Force=true (applier.go:31-63).\n6. Update (update/orchestrator.go:38-99): validateRequest (own list, does NOT call validation.Scope) -> MaterialChange (patch.go:105-116: policies, targets, mode, timeMode, timeRange) -> policyDiff + targetDiff -> deploy combos = new policies x added targets + added policies x unchanged targets; remove = old policies x removed targets + removed policies x unchanged targets -> ApplyClusterDiff (cluster_diff.go:24-70: renders with the OLD plan through renderForCombinations, deployment.go:27-52, whose subPlan copies only ID/Name/CreatedBy/Mode/Scope.Type/one target/Policies) -> BuildPatch (patch.go:12-30: scope patched as a whole ScopeRequest only when targets differ) -> PatchOrError or, on approval re-request, MapToJSONPayload + PatchRawOrError (orchestrator.go:117-133).\n7. Exporter PATCH wraps {spec: body} with MergePatchType (handler.go:100-141); GuardPlanLifecycle refuses non-Internal identities on any top-level key in PlanLifecycleFields, which includes `scope` (constants/plans.go:20-24, guard.go:266-285); ValidatePatchScope re-checks the union on the raw scope map (patch.go:9-39). Create decodes the body into data plans.ProtectionPlan (unknown fields dropped), Validate checks the union (validate.go:10-41).\n8. Activate, Reactivate, approve and health repair all call policies.Render on the stored plan (svc.go:217-260, :312-345, :430-475; health/repair.go:98-116), so a persisted field reaches them automatically. Health compares policy NAMES only (compute.go:38-58).\n9. Duplicate: duplicate.BuildRequest -> toScopeRequest copies Type/ApplicationIDs/Namespaces (duplicate.go:118-124) -> Prepare.\n10. UI details Content.tsx:427-467 renders scope type + items as RowTag chips; PlanScope model has type/applicationIds/namespaces only (models/index.ts:94-98).",
+  "lifecycle": "DATA CONTRACT: spec.scope.exclusions (object, optional, nullable) {kinds: []string (<=50, each 1..63 chars, no '/'), resources: []{kind, name, namespace} (<=200, every field required)}. Absent == empty == no exclusions. CEL on scope: resources may be non-empty only when type == applications. Kinds are plain base kinds (Deployment, ConfigMap, ...); the renderer expands an excluded kind K, and the kind K of an excluded resource, to K plus K/scale when K is a base of ScaleSubresourceKinds, because Kyverno `*` and plain kinds never match subresource requests.\n\nWHO WRITES IT: the UI through discovery Prepare/Update/Duplicate (Write + edit permission, closed end to end by the PERM plan); discovery writes the exporter with a service token (Internal). A session identity PATCHing exporter plans/protection/{id}/patch with {scope: {exclusions: ...}} is refused by GuardPlanLifecycle because `scope` is a lifecycle/material key (no list change).\n\nRENDER: policies.Render(plan) -> for every rendered policy, for every rule, ExcludeResources.Any += ExclusionFilters(plan.Scope.Exclusions, scope.Namespace): one {kinds:[K(,K/scale)]} per excluded kind, one {kinds:[r.kind(,r.kind/scale)], names:[r.name]} per excluded resource whose namespace equals the scope namespace. Nil exclusions append nothing (byte-identical output). Same for Prepare, Activate, Reactivate, approve, health repair and the update combos path (subPlan now carries plan.Scope.Exclusions).\n\nUPDATE TRANSITIONS (req.Scope.Exclusions nil = untouched, precedent req.TagIDs/EnvironmentID; non-nil = full replacement; {} or {kinds:[],resources:[]} = clear):\nA. exclusions unchanged: today's combos diff; rendered sub-plans carry the stored exclusions.\nB. exclusions changed and plan active: MaterialChange true -> approval gates as today (approved required active/scheduled => 400 ErrApprovedPlanMaterialEdit; pending => re-request in the same raw patch) -> ApplyFullRender(old plan, new plan): datapolicies.Render(new plan incl. new targets, policies, mode, exclusions) -> Deploy (SSA Force overwrites same names) -> exporter patch renderedPolicies = deployed -> only then DeletePoliciesByLabelAndNames(planID, oldRendered \\ deployed). Coverage never dips: deploy precedes delete. On a Deploy or patch failure, RollbackFullRender deletes only attempted names absent from oldRendered and re-applies Render(old plan) filtered to oldRendered. The plan keeps its old policies and old exclusions, and the CR is unchanged.\nC. exclusions changed and plan not active (scheduled, pending_approval, canceled...): no cluster call; the patch persists the new exclusions; the next Activate/Reactivate/approve renders the full plan.\nD. persistence: BuildPatch sets patch.Scope (whole ScopeRequest with effective exclusions) whenever targets or exclusions changed; applyPatch goes raw whenever patch.Scope != nil and writes scope.exclusions explicitly as {kinds:[...], resources:[...]} (both arrays always present so merge patch replaces both) or JSON null when the effective value is empty (merge patch deletes the key). Stored CRs therefore never carry an empty exclusions object.\n\nDUPLICATE: copied verbatim from the source (no override field). CANCEL/TERMINATE/CLEAR/REACTIVATE: untouched (their raw patches never touch scope). HEALTH: names only, unchanged; a content-only drift stays invisible (pre-existing ceiling, documented).\n\nUI: FormValues.excludedKinds []string + excludedResources []string encoded `kind/namespace/name`; ScopeSection shows 'Excluded kinds' under both pickers and 'Excluded resources' under applications only; payload always sends scope.exclusions {kinds, resources} (resources [] for namespaces); snapshot, dirty detection and the active-plan re-render warning include both; details Scope card shows both rows when non-empty. Older UI bundles never send the key, so their edits leave stored exclusions untouched.",
+  "decisions": [
+    {
+      "question": "Where do exclusions live: a new top-level spec key or inside scope?",
+      "choice": "spec.scope.exclusions, nested under the existing scope object (data ProtectionPlanScope.Exclusions *ProtectionPlanScopeExclusions, json exclusions,omitempty).",
+      "why": "scope is already a material key in the exporter guard (constants/plans.go:20-24 lists `scope`; the guard checks top-level keys only, guard.go:266-285), is patched as a whole ScopeRequest by update (patch.go:78-85), copied by duplicate (duplicate.go:118-124) and compared by the UI scope predicates. Nesting means zero new guard keys, one CEL rule beside the union rule, and one place for everyone (incl. the APPS coverage derivation, which keeps reading scope.applicationIds/namespaces) to look."
+    },
+    {
+      "question": "How do exclusions reach the policy engine: filter the resources fed to templates, or add exclude filters?",
+      "choice": "Append to every rendered rule's `exclude.any`: {kinds:[K(,K/scale)]} per excluded kind and {kinds:[kind(,kind/scale)], names:[name]} per excluded resource, applied once in policies.Render after each template renders (new internal/data/policies/exclusions.go).",
+      "why": "Filtering ScopeSpec.AppResources cannot express the namespaces scope (BuildMatch emits MatchAllAny with the template kinds, often `*`, and no names: shared.go:277-279), does not touch BuildIdentityMatch (label selector, independent of AppResources: shared.go:195-211) and does not reach the PVC rule (VolumeClaims from the claim reader). The exclude list is an OR (`any`) that every rule already carries (ExcludePlatformWrites/ExcludeControllerWrites, shared.go:155-186), so one central append covers every template, both scopes and every future template. Kyverno acceptance is gated by the existing real-validator test (discovery tests/policies/kyverno_accepts_test.go), extended in S6."
+    },
+    {
+      "question": "Do exclusions change policy names?",
+      "choice": "No. PolicyName hashes namespace + sorted app IDs only (shared.go:106-115); exclusions are content.",
+      "why": "Same names let Applier.Deploy (SSA, Force=true, applier.go:31-63) overwrite rules in place, keep renderedPolicies/health bookkeeping stable and avoid a delete+create window. The price is that update must re-render on an exclusions change (next decision)."
+    },
+    {
+      "question": "How does update apply an exclusions change to an active plan?",
+      "choice": "New protpolicies.ApplyFullRender(old, new): render the whole new plan with datapolicies.Render and deploy it, then return the stale names (old names not re-rendered). Run deletes the stale names only after the exporter patch succeeds. Both failure paths (Deploy error, patch error) call RollbackFullRender: it deletes only the attempted names absent from the old renderedPolicies and re-applies Render(old plan) for the old names. Used only when exclusions changed; otherwise the combos diff stays (with subPlan now carrying exclusions).",
+      "why": "The combos diff never re-renders unchanged (policy,target) pairs (orchestrator.go:64-71), so an exclusions-only edit would deploy nothing. Worse, renderCombos renders one app per sub-plan (deployment.go:53-75) so its names differ from the create/activate/repair grouped names (renderer.go:72-103) for multi-app-same-namespace plans: a per-app re-render would leave the grouped policy enforcing without the exclusion. Full render uses the same path as Prepare/Activate/repair, converges naming as a side effect, and is ~30 lines beside ApplyClusterDiff. Deploy-then-delete keeps the existing 'coverage never dips' order. The existing failure cleanups cannot be reused. A full render reproduces the live names (D3), so ApplyClusterDiff's deploy-error cleanup (cluster_diff.go:47) and RollbackPatchFailure (cluster_diff.go:86) would each delete the plan's whole enforcement."
+    },
+    {
+      "question": "How is an exclusions edit persisted and cleared through the exporter merge patch?",
+      "choice": "req.Scope.Exclusions nil = untouched (precedent: req.TagIDs / req.EnvironmentID in patch.go:59-62, :93-97); non-nil = full replacement. BuildPatch sets patch.Scope whenever targets or exclusions changed, carrying the effective exclusions; applyPatch goes raw whenever patch.Scope != nil and writes scope.exclusions as {kinds:[...], resources:[...]} (both arrays present) or JSON null when empty.",
+      "why": "MapToJSONPayload drops nil pointers and omitempty-empty slices (rest/mappers/payload.go:41-43, :78-93, :120-124) and JSON merge patch (kcore patch.go:27, exporter handler.go:100-141) keeps absent keys and merges nested objects, so a typed patch can neither clear the object nor empty one of its arrays. The raw route already exists for the approval re-request (orchestrator.go:117-133). Nil-means-untouched also keeps older UI bundles from clearing exclusions on every edit."
+    },
+    {
+      "question": "Are exclusions a material change?",
+      "choice": "Yes: MaterialChange gains exclusionsChanged(plan.Scope, req.Scope).",
+      "why": "They change what is rendered. Everything else follows from the existing predicate: approved required active/scheduled plans refuse the edit (ErrApprovedPlanMaterialEdit), pending plans re-request approval in the same raw patch, the UI ACTIVE_SCOPE_WARNING fires (scopeItemsChanged extended). No new lifecycle code."
+    },
+    {
+      "question": "Which permission gates editing exclusions?",
+      "choice": "The plan edit permission and its deny rule, nothing new: exclusions are a scope field on the existing update route, behind the existing exporter `scope` guard key, inside ScopeSection whose `disabled` prop and the toolbar/card Edit gate already govern scope.",
+      "why": "The PERM plan is designed so that a new spec option is covered by the edit permission without a special case; this feature is that option. The pre-existing gap (discovery update route requires Write but not Denyable(editprotectionplan), requirements.go:55-67) is PERM's to close; this plan adds no authz code and no route."
+    },
+    {
+      "question": "Where does the UI get kinds and resources to pick from?",
+      "choice": "Applications scope: kinds = keys of resourceSummary with count > 0 across the selected apps from the Redux applications list (already loaded by usePlanFormData via fetchAllApplicationsThunk); resources = fetchApplicationDetails(name) per selected app, called directly (not fetchApplicationDetailsThunk) and cached per app in a new hook. Namespaces scope: kinds = the 14 fixed keys of DEFAULT_RESOURCE_SUMMARY (exported from applicationMapper.ts). No new endpoint.",
+      "why": "No endpoint lists kinds per namespace, and the fixed summary vocabulary is exactly the set of kinds the templates enforce on (WorkloadKinds, ConfigMap/Secret, PVC, HPA...). The list endpoint strips resources (list.go:43-47; mapper forces resources: []), so per-app details are the only resource source; dispatching the thunk would clobber the single applications.details slot used by the application details page (models/application.ts:377-380)."
+    },
+    {
+      "question": "How are excluded resources represented in the antd form?",
+      "choice": "String keys `kind/namespace/name` in FormValues.excludedResources with encode/decode helpers in planFormValues.ts; decoded into {kind,name,namespace} objects in buildPreparePayload.",
+      "why": "antd multi-Select values are strings; the three fields cannot contain '/'. Keeps FormValues flat like applicationIds/namespaces and the snapshot sortable."
+    },
+    {
+      "question": "Validation bounds and where they are enforced?",
+      "choice": "kinds <= 50 (plans.ExclusionKindsMax), resources <= 200 (plans.ExclusionResourcesMax), kind/name/namespace required on each resource, resources only for applications scope. Enforced in the CRD (maxItems, maxLength, required, CEL), discovery validation.Exclusions (called from validation.Scope for Prepare/Duplicate and from update.validateRequest), and exporter Validate/ValidatePatchScope (resources-vs-type only, for direct callers).",
+      "why": "CRD bounds are the persisted contract and fail loudly (422) if a service ships before the chart; discovery gives the UI a readable 400; the exporter check is two small funcs beside the existing union checks so a direct PATCH cannot land an inconsistent scope. Kinds are not validated against a vocabulary server-side: an unknown kind renders a harmless exclude entry."
+    },
+    {
+      "question": "Backward compatibility?",
+      "choice": "Absent exclusions -> nil -> Render appends nothing (test asserts rendered policies deep-equal today's output). Existing CRs untouched; older UI bundles never send the key so their edits leave exclusions untouched; older discovery/exporter images ignore the key on read (data struct without the field drops it) and the exporter would prune it on write only if the CRD chart is older than the image, hence rollout order telark-crds -> exporter -> discovery -> UI.",
+      "why": "Required by the brief; the pointer + nil-means-untouched pair is what makes both directions safe."
+    },
+    {
+      "question": "Duplicate semantics?",
+      "choice": "Exclusions are copied verbatim from the source; DuplicateProtectionPlanRequest gains no override.",
+      "why": "Scope and policies are inherited on duplicate today (duplicate.go:43-74); the copy edits them afterwards through Update if needed."
+    },
+    {
+      "question": "How do EXCL steps share a Go module with PERM steps in the merged schedule?",
+      "choice": "One lane per Go module across the three plans, PERM first: internal/data PERM:S1 -> S2; exporter PERM:S2 -> S4; discovery PERM:S3 -> S5 -> S6. internal/rest (S3) and the charts (S1) belong to EXCL alone, and APPS touches no Go module. The edges are recorded as `crossPlanDependsOn` (JSON) / **crossPlanDependsOn** (step headers). `dependsOn` stays plan-local, so every id in it exists in this plan. The PERM plan must carry no dependency on an EXCL step, or the merged graph gets a cycle. Each step's verify runs only its own packages. Module-wide go build/test/golangci-lint runs only in the integrated V gate, after that module's lane drains. A failure in a file the step did not touch is reported to the orchestrator, never fixed in the step. dashboard-ui cannot be package-scoped, so U1/U2 follow the same report-not-fix rule and V4 is the zero-error gate.",
+      "why": "File-level serialization is not enough. S2 and PERM S1 share no file, and neither do S6 and PERM S3; S5/PERM S3 and S4/PERM S2 were ordered only by a shared README. Every one of these steps leaves its module compile-red during test-first (S2: plans.ProtectionPlanScopeExclusions undefined; S6: protpolicies.ApplyFullRender undefined; PERM S1: roledata.ActionViewProtectionPlans; PERM S3: authz.RejectPlanRequirement). Meanwhile `go test ./...` and golangci-lint typecheck every package of the module, including tests, so the partner step's gate would go red mid-schedule and its agent would \"fix\" work that is not its own. PERM goes first because its steps are smaller and depend on nothing in EXCL. The cost is small. Only S2 (and through it S3 and U1) now waits, on PERM S1, which is one rules file plus its test. The other pairs were already serialized by a shared file. Package-scoped verifies also keep the Local AI Analyzer's in-flight edits (discovery insights, internal/data GlobalConfig) out of this plan's gates."
+    }
+  ],
+  "edgeCases": [
+    {
+      "case": "Existing CR without scope.exclusions (every current plan)",
+      "behaviour": "Decodes to nil; Render appends nothing; update with the key absent keeps nil; UI shows no exclusion rows and empty pickers.",
+      "coveredBy": "S2 (TestRenderWithoutExclusionsIsUnchanged, TestScopeExclusionsOmittedWhenAbsent), S6 (material 'exclusions untouched' case), U1"
+    },
+    {
+      "case": "Exclusions-only edit of an active plan",
+      "behaviour": "Material; ApplyFullRender renders the whole new plan, SSA overwrites same-named policies, names that were only produced by the old per-app update path are deleted after the exporter patch succeeds; renderedPolicies rewritten; health restamped.",
+      "coveredBy": "S6 (TestApplyFullRenderDeploysAndReturnsStale, material 'exclusions' case)"
+    },
+    {
+      "case": "Deploy or exporter patch fails during the full re-render of an active plan",
+      "behaviour": "RollbackFullRender deletes only the attempted names absent from the old renderedPolicies and re-applies Render(old plan) for the old names, which restores the old exclusions. Stale names are not deleted, the CR is unchanged, and the caller gets the existing generic/partial error.",
+      "coveredBy": "S6 (TestApplyFullRenderDeployFailureKeepsExisting, TestRollbackFullRenderKeepsExisting)"
+    },
+    {
+      "case": "Clear all exclusions on an active plan",
+      "behaviour": "UI sends {kinds:[], resources:[]}; effective nil; raw patch writes scope.exclusions: null; full render without exclusions.",
+      "coveredBy": "S6 (TestExclusionsPatchValueNullWhenEmpty, TestBuildPatchScopeOnExclusionsClear)"
+    },
+    {
+      "case": "Namespaces scope with exclusions.resources",
+      "behaviour": "400 from discovery validation (Prepare, Update, Duplicate), 400 from exporter Validate/ValidatePatchScope, 422 from the API server CEL rule.",
+      "coveredBy": "S1 (helm template CEL present), S4 (TestValidateExclusionResourcesNamespacesScope, TestValidatePatchScopeExclusions), S5 (TestExclusions)"
+    },
+    {
+      "case": "Excluded resource in a namespace not covered by the scope",
+      "behaviour": "Ignored at render (filtered by scope namespace); no error. Documented.",
+      "coveredBy": "S2 (TestExclusionFiltersSkipOtherNamespaces)"
+    },
+    {
+      "case": "Excluded kind not used by any template of the plan (e.g. Service)",
+      "behaviour": "Exclude entry present on every rule, harmless.",
+      "coveredBy": "S2 (TestExclusionFiltersKinds)"
+    },
+    {
+      "case": "Every kind of a template excluded (e.g. ConfigMap and Secret on block-config-secret-resource-changes)",
+      "behaviour": "Policy still renders with a total exclude; accepted ceiling, no skip logic.",
+      "coveredBy": "S2 (documented in exclusions.go ponytail comment)"
+    },
+    {
+      "case": "Excluded Deployment on a plan with block-update / block-replica-scaling",
+      "behaviour": "Both the kind filter and the named-resource filter carry kinds [Deployment, Deployment/scale], so the scale subresource rules are excluded too: `kubectl scale` of an excluded kind, or of one excluded Deployment, is admitted.",
+      "coveredBy": "S2 (TestExclusionFiltersExpandScale, TestExclusionFiltersResourcesExpandScale), S6 (TestKyvernoAcceptsExclusions)"
+    },
+    {
+      "case": "Pending-approval plan: exclusions edited",
+      "behaviour": "Material -> approval re-requested in the same raw patch (existing path); nothing deployed.",
+      "coveredBy": "S6 (material case), existing planapproval tests"
+    },
+    {
+      "case": "Approved required active/scheduled plan: exclusions edited",
+      "behaviour": "400 ErrApprovedPlanMaterialEdit; UI ScopeSection (incl. new pickers) disabled by materialLocked.",
+      "coveredBy": "S6 (material case), U2 (disabled prop inherited)"
+    },
+    {
+      "case": "UI: an application is removed from applicationIds",
+      "behaviour": "Its excluded resources and excluded kinds stay selected; nothing is pruned automatically. A resource key whose option is gone shows its raw `kind/namespace/name` and the user removes it by hand. At render it is harmless: namespace-filtered by S2, and matched by no rule. Removing the chip is a normal material edit.",
+      "coveredBy": "U2"
+    },
+    {
+      "case": "UI: scope type switched",
+      "behaviour": "handleScopeTypeChange also resets excludedKinds/excludedResources.",
+      "coveredBy": "U2"
+    },
+    {
+      "case": "UI: application details fetch fails for one app",
+      "behaviour": "Resources picker shows the other apps' resources; logger.error; no toast (picker is optional). The failed app is not cached, so it is retried on the next applicationIds change. Its stored excluded keys stay selected and saved unchanged; a save is never a material edit because of the failure.",
+      "coveredBy": "U2"
+    },
+    {
+      "case": "Session identity PATCHes exporter with {scope:{exclusions:{kinds:[...]}}}",
+      "behaviour": "403 from GuardPlanLifecycle (top-level key scope); no key-list change needed.",
+      "coveredBy": "S4 (TestGuardPlanLifecycleSessionDeniedOnScopeExclusions)"
+    },
+    {
+      "case": "Health drift on a content-only difference (policy exists with stale rules)",
+      "behaviour": "Undetected (names only), pre-existing ceiling; the full render on every exclusions edit is the mitigation.",
+      "coveredBy": "risk row"
+    },
+    {
+      "case": "Older dashboard bundle edits a plan that has exclusions",
+      "behaviour": "Payload lacks scope.exclusions -> nil -> untouched; rendering keeps the stored exclusions.",
+      "coveredBy": "S6 (material 'exclusions untouched' case)"
+    }
+  ],
+  "phases": [
+    {
+      "id": "P0",
+      "title": "Phase 0 — Contract: CRD, data, rest (shared modules; user releases)",
+      "goal": "Persisted shape, renderer support and DTO exist and are pruning-safe before any service writes them; everything optional and backward compatible.",
+      "stepIds": [
+        "S1",
+        "S2",
+        "S3"
+      ],
+      "acceptanceCriteria": [
+        "`rtk proxy \"helm template charts/telark-crds\"` renders scope.exclusions (kinds maxItems 50 / maxLength 63, resources maxItems 200 with required kind/name/namespace) and a second CEL rule on scope forbidding resources unless type == applications; spec.required and the scope union rule are byte-identical to today; `helm lint charts/telark-crds` clean.",
+        "internal/data: `go test ./...` and `golangci-lint run` green; serialization test proves absent exclusions omit the key and a populated object round-trips; policies tests prove ExclusionFilters output, K/scale expansion, namespace filtering, and that Render of a plan without exclusions is deep-equal to today's output for every template in both scopes.",
+        "internal/rest: `GOWORK=<scratchpad>/rest.go.work go test ./...` and `GOWORK=<scratchpad>/rest.go.work golangci-lint run` green (rest.go.work is defined in S3: rest is outside telark/go.work and pins data v1.14.8); payload test proves ScopeRequest with nil exclusions emits no key and with exclusions emits the nested object with both arrays.",
+        "Every new Go json name has a matching CRD property with equal-or-tighter bounds (reviewer diffs yaml vs struct).",
+        "User-owned gate (not done here), in this order: tag internal/data -> bump the data pin in internal/rest/go.mod -> tag internal/rest -> bump the data and rest pins in services/{discovery,exporter}/go.mod; CI GOWORK=off green. Only the service builds through telark/go.work (which replaces data/rest/kcore/x-ware) do not wait for this. internal/rest itself needs the scratch rest.go.work until its data pin is bumped."
+      ]
+    },
+    {
+      "id": "P1",
+      "title": "Phase 1 — Exporter: validation of exclusions, guard coverage proven",
+      "goal": "Direct exporter callers get a clean 400 for resources on a namespaces scope; a session PATCH carrying scope.exclusions is refused by the existing guard; no key-list change.",
+      "stepIds": [
+        "S4"
+      ],
+      "acceptanceCriteria": [
+        "services/exporter: `go test ./...` and `golangci-lint run` clean.",
+        "protection_test: Validate rejects namespaces scope + resources, accepts applications scope + resources and any scope + kinds; ValidatePatchScope does the same on raw maps including exclusions: null.",
+        "guard_plan_test: session identity with Write + editprotectionplan gets 403 on {scope:{exclusions:{kinds:[Deployment]}}}; Internal passes.",
+        "exporter README mentions that scope.exclusions is refused with scope from session identities."
+      ]
+    },
+    {
+      "id": "P2",
+      "title": "Phase 2 — Discovery: validation, copy, material update, full re-render",
+      "goal": "Exclusions are validated, persisted on create/duplicate, treated as material on update, rendered on every deploy path, and cleared through the raw patch.",
+      "stepIds": [
+        "S5",
+        "S6"
+      ],
+      "acceptanceCriteria": [
+        "services/discovery: `go build ./...`, `go test ./...` and `golangci-lint run` zero issues; every existing test passes unchanged.",
+        "tests/planvalidation: Exclusions rejects >50 kinds, >200 resources, empty/slashed kind, resource missing a field, resources on namespaces scope; accepts nil, kinds on both scopes, resources on applications.",
+        "tests/planduplicate: BuildRequest copies source exclusions by value (same content, not the same pointer).",
+        "tests/planupdate: MaterialChange true for a kinds change, a resources change and a clear; false when req exclusions nil (untouched) or equal modulo order; BuildPatch sets Scope with effective exclusions on an exclusions-only change and carries stored exclusions when only targets change; ExclusionsPatchValue emits both arrays or nil.",
+        "tests/policies: ApplyFullRender is a no-op for a non-active plan; for an active plan it deploys the rendered set and returns (never deletes) the old names not re-rendered; on a Deploy failure, and in RollbackFullRender, only names absent from the old renderedPolicies are deleted, and the old names survive, re-applied from Render(old plan); TestKyvernoAcceptsExclusions passes the real Kyverno validator for every template in both scopes with kinds + resources exclusions; renderForCombinations sub-plans carry exclusions (rendered rules contain the exclude entry).",
+        "Manual (user-run on dev cluster): create an applications plan excluding kind ConfigMap and one Deployment -> `kubectl get policy -n <ns> <name> -o yaml` shows exclude.any entries {kinds:[ConfigMap]}, {kinds:[Deployment, Deployment/scale], names:[<name>]} (and no Deployment entry without names); editing and `kubectl scale` of that Deployment are admitted, editing or scaling another is denied; namespaces plan excluding Secret admits Secret edits; clearing exclusions re-denies."
+      ]
+    },
+    {
+      "id": "P3",
+      "title": "Phase 3 — dashboard-ui",
+      "goal": "Create/edit forms expose the two pickers with the right data sources; payload, snapshot, warning and details view carry exclusions; check-all zero errors.",
+      "stepIds": [
+        "U1",
+        "U2"
+      ],
+      "acceptanceCriteria": [
+        "`npm run check-all` zero errors, no eslint-disable, no any, no hex, no console.*, no vendor names; every new string lives in constants/protectionPlans.ts.",
+        "User screenshots: applications scope with 2 apps selected showing 'Excluded kinds' (only kinds present in those apps) and 'Excluded resources' grouped by kind; namespaces scope showing 'Excluded kinds' only with the hint; details Scope card with the two rows; edit of an active plan with an exclusion change showing ACTIVE_SCOPE_WARNING; Save enabled only after an exclusion change.",
+        "Duplicate panel unchanged (exclusions inherited server-side)."
+      ]
+    },
+    {
+      "id": "P4",
+      "title": "Phase 4 — Verification and review",
+      "goal": "Each module/service passes its gates; an adversarial review signs off. (The orchestrator replaces V1-V4/R1 with one integrated verification.)",
+      "stepIds": [
+        "V1",
+        "V2",
+        "V3",
+        "V4",
+        "R1"
+      ],
+      "acceptanceCriteria": [
+        "V1-V4 commands exit 0 with zero lint issues and zero check-all errors.",
+        "R1 reports no open finding of severity high; every finding is either fixed in place or recorded as a user-owned follow-up."
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "id": "S1",
+      "phase": "P0",
+      "title": "CRD: scope.exclusions + CEL (before any Go field); CRDS.md + telark-crds README",
+      "part": null,
+      "repo": "telark/charts",
+      "files": [
+        "/Users/houssem/Desktop/Github/telark/charts/telark-crds/templates/crds/plans/protectionplan.yaml",
+        "/Users/houssem/Desktop/Github/telark/docs/CRDS.md",
+        "/Users/houssem/Desktop/Github/telark/charts/telark-crds/README.md"
+      ],
+      "change": "protectionplan.yaml, inside spec.properties.scope.properties (after `namespaces`, before x-kubernetes-validations, lines 108-114): add\n```yaml\nexclusions:\n  type: object\n  nullable: true\n  description: Kinds (any scope) and named resources (applications scope only) this plan never enforces on\n  properties:\n    kinds:\n      type: array\n      maxItems: 50\n      nullable: true\n      items:\n        type: string\n        minLength: 1\n        maxLength: 63\n    resources:\n      type: array\n      maxItems: 200\n      nullable: true\n      items:\n        type: object\n        required: [kind, name, namespace]\n        properties:\n          kind: {type: string, minLength: 1, maxLength: 63}\n          name: {type: string, minLength: 1, maxLength: 253}\n          namespace: {type: string, minLength: 1, maxLength: 63}\n```\nAppend a SECOND entry to scope.x-kubernetes-validations (keep the existing union rule byte-identical):\n```yaml\n- rule: \"self.type == 'applications' || !has(self.exclusions) || !has(self.exclusions.resources) || size(self.exclusions.resources) == 0\"\n  message: \"scope.exclusions.resources is only allowed when scope.type=applications\"\n```\nDo NOT touch spec.required, scope.required, the printer columns or policies[].params. This file is already modified by other uncommitted work: keep the hunk to these lines.\ndocs/CRDS.md line 14 ProtectionPlan row: append '; `scope.exclusions` (kinds for both scope types, named resources for the applications scope only) narrows enforcement without changing policy names'.\ncharts/telark-crds/README.md line 34: append a sentence 'Optional `scope.exclusions` {kinds[], resources[]{kind,name,namespace}} excludes kinds (any scope) or named resources (applications scope only) from enforcement.'",
+      "testFirst": {
+        "file": "/Users/houssem/Desktop/Github/telark/charts/telark-crds/templates/crds/plans/protectionplan.yaml",
+        "names": [
+          "rtk proxy \"helm template charts/telark-crds\" | grep -c 'exclusions:'",
+          "rtk proxy \"helm template charts/telark-crds\" | grep -c 'scope.exclusions.resources is only allowed'"
+        ],
+        "red": "both counts are 0",
+        "green": "exclusions renders once under scope with the bounds above; the CEL message renders once; `helm lint charts/telark-crds` passes; `git diff` of the `required:` blocks and of the first CEL rule is empty"
+      },
+      "verify": "cd /Users/houssem/Desktop/Github/telark && rtk proxy \"helm template charts/telark-crds\" | grep -A30 'exclusions:' ; helm lint charts/telark-crds; git diff charts/telark-crds docs/CRDS.md shows only the added property, one CEL entry and two doc sentences.",
+      "dependsOn": [],
+      "parallelGroup": "contract",
+      "route": {
+        "model": "claude-opus-5-5",
+        "effort": "xhigh",
+        "priority": "P3",
+        "criteria": [
+          "M1",
+          "M2"
+        ],
+        "why": "CRD schema is a contract consumed by exporter, discovery and the UI and changes what is persisted; the strict structural schema prunes silently if a bound or name is wrong."
+      }
+    },
+    {
+      "id": "S2",
+      "phase": "P0",
+      "title": "internal/data: exclusions types/constants/helpers + central exclude-filter rendering",
+      "part": null,
+      "repo": "internal/data",
+      "files": [
+        "/Users/houssem/Desktop/Github/internal/data/plans/protectionplan.go",
+        "/Users/houssem/Desktop/Github/internal/data/plans/exclusions.go",
+        "/Users/houssem/Desktop/Github/internal/data/policies/exclusions.go",
+        "/Users/houssem/Desktop/Github/internal/data/policies/renderer.go",
+        "/Users/houssem/Desktop/Github/internal/data/tests/serialization/spec_test.go",
+        "/Users/houssem/Desktop/Github/internal/data/tests/policies/exclusions_test.go"
+      ],
+      "change": "plans/protectionplan.go (the package's single types file; already modified by other work, keep the hunk minimal): constants `ExclusionKindsMax = 50`, `ExclusionResourcesMax = 200`, `ExclusionKindMaxLength = 63`, `ExclusionNameMaxLength = 253`, `SubresourceSeparator = \"/\"` in the existing const block. Types after ProtectionPlanScope: `type ProtectionPlanScopeExclusions struct { Kinds []string `json:\"kinds,omitempty\"`; Resources []ProtectionPlanExcludedResource `json:\"resources,omitempty\"` }` and `type ProtectionPlanExcludedResource struct { Kind string `json:\"kind\"`; Name string `json:\"name\"`; Namespace string `json:\"namespace\"` }`. ProtectionPlanScope gains `Exclusions *ProtectionPlanScopeExclusions `json:\"exclusions,omitempty\"`` after Namespaces.\nNEW plans/exclusions.go (helpers, no types): `func NormalizeExclusions(e *ProtectionPlanScopeExclusions) *ProtectionPlanScopeExclusions` returns nil when e is nil or both lists are empty, otherwise a copy with Kinds sorted+compacted (slices.Sort/Compact) and Resources sorted by (Namespace, Kind, Name) and compacted; `func ExclusionsEqual(a, b *ProtectionPlanScopeExclusions) bool` compares NormalizeExclusions(a) and NormalizeExclusions(b) with slices.Equal on both lists (nil == empty). Use constants.DefaultInitValue, never bare 0.\nNEW policies/exclusions.go: `func ExclusionFilters(excl *plans.ProtectionPlanScopeExclusions, namespace string) kyvernov1.ResourceFilters` -> nil when excl is nil; for every kind K (after NormalizeExclusions) one `ResourceFilter{ResourceDescription: {Kinds: expandExcludedKind(K)}}` where expandExcludedKind returns [K] plus every entry s of ScaleSubresourceKinds with baseKind(s) == K (so Deployment -> [Deployment, Deployment/scale]); for every resource r with r.Namespace == namespace one `ResourceFilter{ResourceDescription: {Kinds: expandExcludedKind(r.Kind), Names: []string{r.Name}}}`. The expansion applies to resources as well as kinds. The block-update scale rule and block-replica-scaling match `Deployment/scale` by the app's names (block_update.go:48 BuildMatch(scope, ScaleSubresourceKinds, ...); templates/constants.go:71 kindsReplicaTarget; names from shared.go:290-302), and Kyverno plain kinds never match a subresource. A names entry without K/scale would therefore leave `kubectl scale` of an excluded Deployment denied. `func applyExclusions(pol *kyvernov1.Policy, filters kyvernov1.ResourceFilters)`: when len(filters) == 0 return; for every rule in pol.Spec.Rules: if rule.ExcludeResources == nil set it to &kyvernov1.MatchResources{}; append filters to rule.ExcludeResources.Any. Add a `ponytail:` comment naming the ceiling: a template whose every kind is excluded still renders with a total exclude; add a skip when a plan hits it in practice.\npolicies/renderer.go Render loop (line 39-44): after `pol == nil` check and before `out = append(...)`, call `applyExclusions(pol, ExclusionFilters(plan.Scope.Exclusions, scope.Namespace))`. Compute the filters once per scope outside the inner loop. No other change; buildScopes untouched.\nTests (data/tests, existing layout): serialization/spec_test.go adds TestScopeExclusionsOmittedWhenAbsent (JSON of a plan with nil exclusions has no `exclusions` key) and TestScopeExclusionsRoundTrip (kinds + one resource survive Marshal/Unmarshal). NEW policies/exclusions_test.go with TestRenderWithoutExclusionsIsUnchanged (for every registered template in both scopes, Render of a plan with Exclusions nil is reflect.DeepEqual to Render of the same plan with Exclusions &{} — and, as a regression pin, the first rule's ExcludeResources.Any length equals today's 1 or 2), TestExclusionFiltersKinds ({kinds:[ConfigMap]} present on every rule of block-create in namespaces scope), TestExclusionFiltersExpandScale (Deployment -> kinds [Deployment, Deployment/scale] exactly once; StatefulSet likewise; ConfigMap not expanded), TestExclusionFiltersResources (applications scope: {kinds:[Deployment, Deployment/scale], names:[wa1]} on every rule of block-update, the scale rule included), TestExclusionFiltersResourcesExpandScale (resource {Deployment, wa1, prod} -> kinds [Deployment, Deployment/scale] with names [wa1]; resource {ConfigMap, cfg, prod} -> kinds [ConfigMap] only), TestExclusionFiltersSkipOtherNamespaces (resource in another namespace yields no filter), TestExclusionFiltersPreservePlatformExclude (existing Policy-kinds entry still first).",
+      "testFirst": {
+        "file": "/Users/houssem/Desktop/Github/internal/data/tests/policies/exclusions_test.go",
+        "names": [
+          "TestRenderWithoutExclusionsIsUnchanged",
+          "TestExclusionFiltersKinds",
+          "TestExclusionFiltersExpandScale",
+          "TestExclusionFiltersResources",
+          "TestExclusionFiltersResourcesExpandScale",
+          "TestExclusionFiltersSkipOtherNamespaces",
+          "TestExclusionFiltersPreservePlatformExclude",
+          "TestScopeExclusionsOmittedWhenAbsent",
+          "TestScopeExclusionsRoundTrip"
+        ],
+        "red": "compile error: plans.ProtectionPlanScopeExclusions / policies.ExclusionFilters undefined",
+        "green": "all listed tests pass; every pre-existing test in tests/policies and tests/serialization passes unchanged"
+      },
+      "verify": "cd /Users/houssem/Desktop/Github/internal/data && go test ./tests/policies/... ./tests/serialization/... && golangci-lint run ./plans/... ./policies/... ./tests/policies/... ./tests/serialization/... (this step's packages only; module-wide runs in the integrated V gate after the internal/data lane drains)",
+      "dependsOn": [],
+      "crossPlanDependsOn": [
+        "PERM:S1"
+      ],
+      "parallelGroup": "contract",
+      "route": {
+        "model": "claude-opus-5-5",
+        "effort": "xhigh",
+        "priority": "P3",
+        "criteria": [
+          "M1",
+          "M3"
+        ],
+        "why": "Exported API of the shared data package consumed by discovery, exporter and rest, and a change to the policy rendering (enforcement) path."
+      }
+    },
+    {
+      "id": "S3",
+      "phase": "P0",
+      "title": "internal/rest: ScopeRequest.exclusions (reuses the data type)",
+      "part": null,
+      "repo": "internal/rest",
+      "files": [
+        "/Users/houssem/Desktop/Github/internal/rest/endpoints/plans/types.go",
+        "/Users/houssem/Desktop/Github/internal/rest/tests/unit/mappers/payload_test.go"
+      ],
+      "change": "endpoints/plans/types.go: import `github.com/telark/data/plans` (the module already requires github.com/telark/data, go.mod line 8, and clients/plans/protection/client.go imports it) and add `Exclusions *plans.ProtectionPlanScopeExclusions `json:\"exclusions,omitempty\"`` to ScopeRequest after Namespaces (lines 117-121). No rest-local mirror type: reusing the data type removes every converter in discovery (buildPlan, toCreateRequest, duplicate.toScopeRequest, BuildPatch). CreateProtectionPlanRequest, PrepareProtectionPlanRequest and PatchProtectionPlanRequest pick it up through ScopeRequest; DuplicateProtectionPlanRequest gains nothing.\nBuild context: internal/rest is outside every go.work (`go env GOWORK` prints empty there). It pins github.com/telark/data v1.14.8 with no replace, and the module cache holds only data v1.14.0 to v1.14.8, none of which has plans.ProtectionPlanScopeExclusions. So every go and golangci-lint command for rest in this plan (S3, V1, the integrated gate) runs with `GOWORK=<scratchpad>/rest.go.work`. That file lives in the agent's scratchpad directory, never in a repo, and contains exactly three lines: `go 1.27.1`, `use /Users/houssem/Desktop/Github/internal/rest`, `replace github.com/telark/data => /Users/houssem/Desktop/Github/internal/data`. Its go.work.sum lands beside it. Never edit internal/rest/go.mod or go.sum. Verified 2026-09-23: `GOWORK=<file> go build ./...` in internal/rest exits 0 and leaves go.mod/go.sum unchanged.\ntests/unit/mappers/payload_test.go: TestScopeRequestOmitsNilExclusions (MapToJSONPayload(CreateProtectionPlanRequest{Scope: ScopeRequest{Type: applications, ApplicationIDs: [a]}}) scope map has no `exclusions` key) and TestScopeRequestEmitsNestedExclusions (with Exclusions {Kinds:[ConfigMap], Resources:[{Deployment, web, prod}]} the scope map has exclusions.kinds as []any{ConfigMap} and exclusions.resources[0] as a map with kind/name/namespace).",
+      "testFirst": {
+        "file": "/Users/houssem/Desktop/Github/internal/rest/tests/unit/mappers/payload_test.go",
+        "names": [
+          "TestScopeRequestOmitsNilExclusions",
+          "TestScopeRequestEmitsNestedExclusions"
+        ],
+        "red": "compile error: ScopeRequest has no field Exclusions",
+        "green": "both tests pass; MapToJSONPayload nests the object with both arrays"
+      },
+      "verify": "cd /Users/houssem/Desktop/Github/internal/rest && GOWORK=<scratchpad>/rest.go.work go test ./tests/unit/mappers/... && GOWORK=<scratchpad>/rest.go.work golangci-lint run ./endpoints/plans/... ./tests/unit/mappers/... (this step's packages only; module-wide runs in the integrated V gate)",
+      "dependsOn": [
+        "S2"
+      ],
+      "parallelGroup": "contract",
+      "route": {
+        "model": "claude-opus-5-5",
+        "effort": "xhigh",
+        "priority": "P3",
+        "criteria": [
+          "M1"
+        ],
+        "why": "DTO of a shared package consumed by discovery, exporter and the UI contract."
+      }
+    },
+    {
+      "id": "S4",
+      "phase": "P1",
+      "title": "Exporter: exclusions validation on create/patch + guard coverage test + README",
+      "part": null,
+      "repo": "telark/exporter",
+      "files": [
+        "/Users/houssem/Desktop/Github/telark/services/exporter/internal/constants/plans.go",
+        "/Users/houssem/Desktop/Github/telark/services/exporter/internal/utils/plans/protection/validate.go",
+        "/Users/houssem/Desktop/Github/telark/services/exporter/internal/utils/plans/protection/patch.go",
+        "/Users/houssem/Desktop/Github/telark/services/exporter/internal/tests/protection/protection_test.go",
+        "/Users/houssem/Desktop/Github/telark/services/exporter/internal/tests/authz/guard_plan_test.go",
+        "/Users/houssem/Desktop/Github/telark/services/exporter/README.md"
+      ],
+      "change": "constants/plans.go (already modified by other work; minimal hunk): add `FieldScopeExclusions = \"exclusions\"`, `FieldExclusionResources = \"resources\"` to the Field block and `ErrProtectionPlanExclusionScope errors.Error = \"scope.exclusions.resources is only allowed when scope.type=applications\"` to the error block. PlanLifecycleFields is NOT changed: `scope` already covers nested keys.\nutils/plans/protection/validate.go validateScope: in the `ScopeTypeNamespaces` case, before `return nil`, `if scope.Exclusions != nil && len(scope.Exclusions.Resources) > constants.DefaultInitValue { return errors.New(string(constants.ErrProtectionPlanExclusionScope)) }`.\nutils/plans/protection/patch.go ValidatePatchScope: inside the existing `case constants.ScopeTypeNamespaces:`, after its union check, inline with no new helper: `excl, _ := scope[constants.FieldScopeExclusions].(map[string]any)` then `if resources, _ := excl[constants.FieldExclusionResources].([]any); len(resources) > constants.DefaultInitValue { return errors.New(string(constants.ErrProtectionPlanExclusionScope)) }`. An absent key, JSON null or a non-map value all give a nil map, and indexing a nil map is safe. Do NOT reuse stringSlice (patch.go:41-61): it returns nil at the first non-string item, so on this []any of maps it would always report zero resources and let a namespaces scope with resources through. No `stringSliceOrList` exists.\ntests/protection/protection_test.go: extend TestValidate with cases 'namespaces scope with exclusion resources -> ErrProtectionPlanExclusionScope', 'applications scope with exclusion resources -> nil', 'namespaces scope with exclusion kinds -> nil'; extend TestValidatePatchScope with the same three on raw maps (resources as []any{map[string]any{...}}, the shape json.Unmarshal produces) plus 'exclusions: nil -> nil'.\ntests/authz/guard_plan_test.go: add TestGuardPlanLifecycleSessionDeniedOnScopeExclusions: body {\"scope\": {\"exclusions\": {\"kinds\": []any{\"Deployment\"}}}} from planContributor() -> assertDenied; the Internal identity used by the existing Internal test passes the same body.\nservices/exporter/README.md line ~99 (the list of refused keys): after `scope` add '(including its nested `exclusions`)'.",
+      "testFirst": {
+        "file": "/Users/houssem/Desktop/Github/telark/services/exporter/internal/tests/protection/protection_test.go",
+        "names": [
+          "TestValidate",
+          "TestValidatePatchScope",
+          "TestGuardPlanLifecycleSessionDeniedOnScopeExclusions"
+        ],
+        "red": "TestValidate namespaces+resources case expects an error and gets nil; guard test compiles and passes already (it pins existing behaviour) — keep it",
+        "green": "all cases pass; the package-scoped verify below is clean"
+      },
+      "verify": "cd /Users/houssem/Desktop/Github/telark/services/exporter && go test ./internal/tests/protection/... ./internal/tests/authz/... && golangci-lint run ./internal/constants/... ./internal/utils/plans/protection/... ./internal/tests/protection/... ./internal/tests/authz/... (this step's packages only; module-wide runs in the integrated V gate after the exporter lane drains)",
+      "dependsOn": [
+        "S2"
+      ],
+      "crossPlanDependsOn": [
+        "PERM:S2"
+      ],
+      "parallelGroup": "exporter",
+      "route": {
+        "model": "claude-opus-5-5",
+        "effort": "high",
+        "priority": "P4",
+        "criteria": [],
+        "why": "Two small validation checks beside existing ones plus tests that pin the guard; no contract or authz code change."
+      }
+    },
+    {
+      "id": "S5",
+      "phase": "P2",
+      "title": "Discovery: exclusions validation, Prepare/Create copy, Duplicate copy, README",
+      "part": null,
+      "repo": "telark/discovery",
+      "files": [
+        "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/validation/validation.go",
+        "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/svc.go",
+        "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/duplicate/duplicate.go",
+        "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/planvalidation/validation_test.go",
+        "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/planduplicate/duplicate_test.go",
+        "/Users/houssem/Desktop/Github/telark/services/discovery/README.md"
+      ],
+      "change": "validation/validation.go (already modified by other work; minimal hunk): errors `ErrExclusionResourcesScope = Invalid(\"scope.exclusions.resources is only allowed when scope.type=applications\")`, `ErrExclusionKindInvalid = Invalid(\"scope.exclusions.kinds entries must be non-empty base kinds without '/'\")`, `ErrExclusionResourceInvalid = Invalid(\"scope.exclusions.resources entries require kind, name and namespace\")`, formats `fmtTooManyExclusionKinds = \"scope.exclusions.kinds: at most %d\"`, `fmtTooManyExclusionResources = \"scope.exclusions.resources: at most %d\"`. New exported `func Exclusions(scope planseps.ScopeRequest) error`: nil -> nil; len(Kinds) > plans.ExclusionKindsMax -> Invalidf(fmtTooManyExclusionKinds, plans.ExclusionKindsMax); each kind trimmed non-empty, len <= plans.ExclusionKindMaxLength and !strings.Contains(kind, plans.SubresourceSeparator) else ErrExclusionKindInvalid; len(Resources) > plans.ExclusionResourcesMax -> Invalidf; each resource kind/name/namespace trimmed non-empty (name <= plans.ExclusionNameMaxLength) else ErrExclusionResourceInvalid; scope.Type == namespaces && len(Resources) > 0 -> ErrExclusionResourcesScope. Scope() calls `return Exclusions(scope)` instead of `return nil` at its end (after the switch). Update's validateRequest gets its call in S6.\nsvc.go buildPlan (lines 540-544): scope literal gains `Exclusions: plans.NormalizeExclusions(req.Scope.Exclusions)`. toCreateRequest (lines 728-732): ScopeRequest literal gains `Exclusions: plan.Scope.Exclusions`. Nothing else in svc.go.\nduplicate/duplicate.go toScopeRequest (lines 118-124): add `Exclusions: plans.NormalizeExclusions(scope.Exclusions)` (NormalizeExclusions copies, so the duplicate never aliases the source slices).\ntests/planvalidation/validation_test.go: TestExclusions table: nil ok; kinds on namespaces ok; resources on applications ok; resources on namespaces -> ErrExclusionResourcesScope; 51 kinds -> too many; kind 'Deployment/scale' -> ErrExclusionKindInvalid; empty kind -> invalid; resource without namespace -> ErrExclusionResourceInvalid; 201 resources -> too many. Extend TestScope with one case proving Scope() reaches Exclusions (namespaces + resources -> ErrExclusionResourcesScope). Extend TestPrepareRequest with one exclusions failure case.\ntests/planduplicate/duplicate_test.go: TestBuildRequestCopiesExclusions: source with kinds [ConfigMap] and one resource -> request Scope.Exclusions equal by value (plans.ExclusionsEqual) and a different pointer; source nil -> nil.\nservices/discovery/README.md Protect API section (around lines 175-190): add a paragraph 'Scope exclusions: `scope.exclusions.kinds` (any scope) and `scope.exclusions.resources` (applications scope only, {kind,name,namespace}) are appended to every rendered rule's exclude list; an excluded kind or resource also excludes its scale subresource. Exclusions are a material edit (approval rules apply) and re-render the whole plan on update. Policy names are unchanged. On update, an absent `exclusions` key leaves the stored value untouched; `{}` clears it.'",
+      "testFirst": {
+        "file": "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/planvalidation/validation_test.go",
+        "names": [
+          "TestExclusions",
+          "TestScope",
+          "TestPrepareRequest",
+          "TestBuildRequestCopiesExclusions"
+        ],
+        "red": "compile error: validation.Exclusions undefined; TestBuildRequestCopiesExclusions gets nil exclusions",
+        "green": "all listed tests pass; existing planvalidation/planduplicate tests unchanged and green"
+      },
+      "verify": "cd /Users/houssem/Desktop/Github/telark/services/discovery && go test ./internal/tests/planvalidation/... ./internal/tests/planduplicate/... && golangci-lint run ./internal/core/plans/protection/... ./internal/tests/planvalidation/... ./internal/tests/planduplicate/... (this step's packages only; module-wide runs in the integrated V gate after the discovery lane drains)",
+      "dependsOn": [
+        "S2",
+        "S3"
+      ],
+      "crossPlanDependsOn": [
+        "PERM:S3"
+      ],
+      "parallelGroup": "discovery-a",
+      "route": {
+        "model": "claude-opus-5-5",
+        "effort": "xhigh",
+        "priority": "P3",
+        "criteria": [
+          "M1",
+          "M4"
+        ],
+        "why": "Discovery's create/duplicate contract starts accepting and persisting a field that changes what two deployables (discovery render, exporter store) do."
+      }
+    },
+    {
+      "id": "S6",
+      "phase": "P2",
+      "title": "Discovery update: material exclusions, ApplyFullRender, raw scope patch, sub-plan exclusions, Kyverno acceptance",
+      "part": null,
+      "repo": "telark/discovery",
+      "files": [
+        "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/constants.go",
+        "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/exclusions.go",
+        "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/policies/deployment.go",
+        "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/policies/cluster_diff.go",
+        "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/update/orchestrator.go",
+        "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/update/patch.go",
+        "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/planupdate/material_test.go",
+        "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/planupdate/patch_test.go",
+        "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/planpatches/patch_test.go",
+        "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/policies/clusterdiff_test.go",
+        "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/policies/kyverno_accepts_test.go"
+      ],
+      "change": "constants.go (protection package; already modified by other work; minimal hunk): add `FieldScope = \"scope\"` and `FieldScopeExclusions = \"exclusions\"`, `FieldExclusionKinds = \"kinds\"`, `FieldExclusionResources = \"resources\"` beside FieldApproval.\nNEW exclusions.go (protection package, helpers only): `func ExclusionsPatchValue(e *plans.ProtectionPlanScopeExclusions) any`: e = plans.NormalizeExclusions(e); nil -> nil (JSON null: merge patch deletes the key); else map[string]any{FieldExclusionKinds: kinds-or-empty-[]any, FieldExclusionResources: []any of map{kind,name,namespace}} — BOTH keys always present so merge patch replaces both arrays.\npolicies/deployment.go renderForCombinations (lines 37-44): subPlan.Scope gains `Exclusions: plan.Scope.Exclusions` (the combos path runs only when exclusions are unchanged, so the stored value is the effective one). scopeForTarget untouched (names do not depend on exclusions).\npolicies/cluster_diff.go: NEW `func ApplyFullRender(ctx context.Context, applier *Applier, logger DiffLogger, oldPlan, newPlan *plans.ProtectionPlan, resolved map[string]datapolicies.ResolvedApp, msgs DeployErrorMessages) (deployed, kept, stale []string, err error)`: if oldPlan.Phase != plans.PhaseActive return nil, oldPlan.RenderedPolicies, nil, nil; rendered, err := datapolicies.Render(newPlan, resolved, logger) (LogDeployFailure 'update-render-full' on error); deployedNames, err := applier.Deploy(ctx, rendered); on a Deploy error LogDeployFailure 'update-deploy-full', call RollbackFullRender(ctx, applier, logger, oldPlan, <the Name of every rendered policy>, resolved) and return fmt.Errorf(msgs.InternalErrorFormat, msgs.GenericDeployFailure). NEVER reuse ApplyClusterDiff's cleanup DeletePoliciesByNamespacedName(renderedPolicyRefs(rendered)): a full render reproduces the live names (D3), so that cleanup would delete the plan's whole enforcement. On success return deployedNames, nil, subtract(oldPlan.RenderedPolicies, deployedNames), nil. ApplyFullRender deletes nothing; Run deletes the stale names only after the exporter patch succeeds. No PatchPoliciesMode: newPlan.Mode is rendered directly.\npolicies/cluster_diff.go: NEW `func RollbackFullRender(ctx context.Context, applier *Applier, logger DiffLogger, oldPlan *plans.ProtectionPlan, attempted []string, resolved map[string]datapolicies.ResolvedApp)`. It returns immediately when attempted is empty, like RollbackPatchFailure: a non-active plan deployed nothing and must never get the old render applied. (1) applier.DeletePoliciesByLabelAndNames(ctx, oldPlan.ID, subtract(attempted, oldPlan.RenderedPolicies)) removes only names the old plan did not have. (2) It restores the old content: old, err := datapolicies.Render(oldPlan, resolved, logger); drop every policy whose Name is not in oldPlan.RenderedPolicies (slices.DeleteFunc + slices.Contains); applier.Deploy(ctx, old). Every error is logged with logger.Error and none is returned (best effort on a path that already failed). Why (2): SSA had already overwritten same-named policies with the new exclusions before the failure. The name filter means the rollback never creates a policy the CR does not list. `resolved` already covers the old targets, because Run resolves allTargets = added + removed + unchanged.\nupdate/patch.go: `func exclusionsChanged(planScope plans.ProtectionPlanScope, reqScope planseps.ScopeRequest) bool { return reqScope.Exclusions != nil && !plans.ExclusionsEqual(planScope.Exclusions, reqScope.Exclusions) }`; `func effectiveExclusions(planScope, reqScope) *plans.ProtectionPlanScopeExclusions` = NormalizeExclusions(req) when req non-nil else planScope.Exclusions. MaterialChange adds `|| exclusionsChanged(plan.Scope, req.Scope)`. applyComplexPatch: condition becomes `if !scopeTargetsEqual(...) || exclusionsChanged(...)` and the ScopeRequest literal gains `Exclusions: effectiveExclusions(plan.Scope, req.Scope)`.\nupdate/orchestrator.go: validateRequest adds `if err := validation.Exclusions(req.Scope); err != nil { return err }` after the NamespaceScope check. Run: compute `fullRender := exclusionsChanged(plan.Scope, req.Scope)` beside material; after resolveTargets, `var stale []string; if fullRender { deployed, kept, stale, err = protpolicies.ApplyFullRender(ctx, deps.Applier, deps.Logger, plan, renderTarget(plan, req, newPolicies), resolved, msgs) } else { ...existing ApplyClusterDiff call... }` where `func renderTarget(plan, req, newPolicies) *plans.ProtectionPlan` returns a copy of *plan with Scope = {Type: plan.Scope.Type, ApplicationIDs: req.Scope.ApplicationIDs, Namespaces: req.Scope.Namespaces, Exclusions: effectiveExclusions(plan.Scope, req.Scope)}, Policies = newPolicies, Mode = req.Mode. On an applyPatch error: `if fullRender { protpolicies.RollbackFullRender(ctx, deps.Applier, deps.Logger, plan, deployed, resolved) } else { ...existing RollbackPatchFailure call... }`. Never call RollbackPatchFailure after a full render: it deletes every deployed name, which there is every live policy of the plan. After applyPatch succeeds and before afterPatch (so StampHealth sees the final set): `if err := deps.Applier.DeletePoliciesByLabelAndNames(ctx, plan.ID, stale); err != nil { deps.Logger.Error(...) }`. The error is logged, not returned, like ApplyClusterDiff's remove, and a nil list is a no-op. applyPatch: replace `if !reRequest { return PatchOrError }` by `if !reRequest && patch.Scope == nil { return PatchOrError }`; after MapToJSONPayload, `if patch.Scope != nil { scope, ok := body[protection.FieldScope].(map[string]any); if ok { scope[protection.FieldScopeExclusions] = protection.ExclusionsPatchValue(patch.Scope.Exclusions) } }`; the approval branch stays. Keep every other line of the file untouched (moving file).\nTests: planupdate/material_test.go cases 'exclusions kinds' (req {Kinds:[ConfigMap]} vs stored nil -> true), 'exclusions cleared' (stored kinds, req &{} -> true), 'exclusions untouched' (stored kinds, req nil -> false), 'exclusions reordered' (same set, different order -> false). planupdate/patch_test.go: TestBuildPatchScopeOnExclusionsOnlyChange (targets equal, req exclusions differ -> patch.Scope non-nil with the normalized exclusions and the stored targets), TestBuildPatchScopeCarriesStoredExclusionsWhenTargetsChange (req exclusions nil -> patch.Scope.Exclusions == stored pointer content), TestBuildPatchNoScopeWhenNothingChanged. planpatches/patch_test.go: TestExclusionsPatchValueNullWhenEmpty (nil and &{} -> nil) and TestExclusionsPatchValueAlwaysBothKeys (kinds only -> resources key present as empty []any). policies/clusterdiff_test.go: TestApplyFullRenderInactivePlan (returns old rendered, no cluster call); TestApplyFullRenderDeploysAndReturnsStale (active plan with RenderedPolicies [stale-name]: returns the rendered names as deployed, kept nil and stale [stale-name]; the stale policy still exists afterwards, because nothing is deleted before the patch); TestApplyFullRenderDeployFailureKeepsExisting (active plan whose RenderedPolicies hold the name the new render reproduces, seeded in the fake cluster; Deploy fails, so the generic error is returned, that policy still exists, and it was re-applied from Render(old plan)); TestRollbackFullRenderKeepsExisting (the patch-failure path: old RenderedPolicies [old-name], attempted [old-name, new-name], both seeded; new-name is deleted, old-name survives and is re-applied; attempted nil records no apply and deletes nothing). These tests run Deploy through NewApplier(dyn, mapper) with a meta.DefaultRESTMapper that maps kyverno.io/v1 Policy to KyvernoPolicyGVR, plus a PrependReactor(\"patch\", \"policies\") that records the applied objects and fails where the case requires. Reason: the plain object tracker cannot create an object on apply, and the existing tests pass a nil mapper, which Deploy dereferences. TestRenderForCombinationsCarriesExclusions goes through the exported renderCombos entry ApplyClusterDiff on an active plan whose stored exclusions are {Kinds:[ConfigMap]}: every deployed policy's rules carry the {kinds:[ConfigMap]} exclude entry (read from the recording reactor). policies/kyverno_accepts_test.go: TestKyvernoAcceptsExclusions renders every registered template through datapolicies.Render for a plan in each scope with Exclusions {Kinds:[Deployment, ConfigMap], Resources:[{Deployment, wa1, prod}] (applications only)} and runs the same kyvernovalidation check as the existing test on every policy. With S2's expansion the resource entry is {kinds:[Deployment, Deployment/scale], names:[wa1]}, so the validator also sees a subresource kind inside an entry that has names.",
+      "testFirst": {
+        "file": "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/policies/clusterdiff_test.go",
+        "names": [
+          "TestApplyFullRenderInactivePlan",
+          "TestApplyFullRenderDeploysAndReturnsStale",
+          "TestApplyFullRenderDeployFailureKeepsExisting",
+          "TestRollbackFullRenderKeepsExisting",
+          "TestRenderForCombinationsCarriesExclusions",
+          "TestKyvernoAcceptsExclusions",
+          "TestMaterialChange (4 new cases)",
+          "TestBuildPatchScopeOnExclusionsOnlyChange",
+          "TestBuildPatchScopeCarriesStoredExclusionsWhenTargetsChange",
+          "TestExclusionsPatchValueNullWhenEmpty",
+          "TestExclusionsPatchValueAlwaysBothKeys"
+        ],
+        "red": "compile error: protpolicies.ApplyFullRender / protpolicies.RollbackFullRender / protection.ExclusionsPatchValue undefined; material 'exclusions kinds' case returns false",
+        "green": "all listed tests pass; Kyverno's real validator accepts every rendered policy with exclusions in both scopes; existing planupdate/planpatches/policies tests unchanged and green"
+      },
+      "verify": "cd /Users/houssem/Desktop/Github/telark/services/discovery && go test ./internal/tests/planupdate/... ./internal/tests/planpatches/... ./internal/tests/policies/... && golangci-lint run ./internal/core/plans/protection/... ./internal/tests/planupdate/... ./internal/tests/planpatches/... ./internal/tests/policies/... (this step's packages only; read every reported line, because grouped output hides counts). Module-wide go build/test/lint of discovery runs only in the integrated V gate after the discovery lane drains.",
+      "dependsOn": [
+        "S5"
+      ],
+      "crossPlanDependsOn": [
+        "PERM:S3"
+      ],
+      "parallelGroup": "discovery-b",
+      "route": {
+        "model": "claude-opus-5-5",
+        "effort": "xhigh",
+        "priority": "P3",
+        "criteria": [
+          "M3",
+          "M4"
+        ],
+        "why": "Changes the enforcement path (what the policy engine excludes, when a plan is fully re-rendered) and the runtime behaviour of discovery's update against the exporter store."
+      }
+    },
+    {
+      "id": "U1",
+      "phase": "P3",
+      "title": "UI model, payload types, form values/snapshot, constants, details Scope rows",
+      "part": null,
+      "repo": "dashboard-ui",
+      "files": [
+        "/Users/houssem/Desktop/dashboard-ui/src/features/plans/protection/models/index.ts",
+        "/Users/houssem/Desktop/dashboard-ui/src/features/plans/protection/clients/prepare.ts",
+        "/Users/houssem/Desktop/dashboard-ui/src/features/plans/protection/clients/update.ts",
+        "/Users/houssem/Desktop/dashboard-ui/src/features/plans/protection/components/create/types.ts",
+        "/Users/houssem/Desktop/dashboard-ui/src/features/plans/protection/utils/planFormValues.ts",
+        "/Users/houssem/Desktop/dashboard-ui/src/features/plans/protection/hooks/usePlanFormState.ts",
+        "/Users/houssem/Desktop/dashboard-ui/src/features/plans/protection/constants/protectionPlans.ts",
+        "/Users/houssem/Desktop/dashboard-ui/src/features/plans/protection/pages/details/Content.tsx"
+      ],
+      "change": "models/index.ts: `export interface PlanExcludedResource { kind: string; name: string; namespace: string }`, `export interface PlanScopeExclusions { kinds: string[]; resources: PlanExcludedResource[] }`; PlanScope gains `exclusions?: PlanScopeExclusions` (optional: the API omits it; APPS coverage code reading PlanScope keeps compiling).\nclients/prepare.ts and clients/update.ts: the scope type in PreparePlanPayload / UpdatePlanPayload becomes `{ type: string; applicationIds: string[]; namespaces: string[]; exclusions: PlanScopeExclusions }` (always sent; import the model type).\ncomponents/create/types.ts FormValues: `excludedKinds?: string[]; excludedResources?: string[];` after namespaces.\nutils/planFormValues.ts: `export const RESOURCE_KEY_SEPARATOR = '/'`; `export const encodeResourceKey = (r: PlanExcludedResource): string => [r.kind, r.namespace, r.name].join(RESOURCE_KEY_SEPARATOR)`; `export const decodeResourceKey = (key: string): PlanExcludedResource | null` (split into exactly 3 non-empty parts else null). DEFAULT_FORM_VALUES adds excludedKinds: [], excludedResources: []. planToFormValues maps plan.scope.exclusions?.kinds ?? [] and (plan.scope.exclusions?.resources ?? []).map(encodeResourceKey). buildPreparePayload scope gains `exclusions: { kinds: values.excludedKinds ?? [], resources: values.scopeType === 'applications' ? (values.excludedResources ?? []).map(decodeResourceKey).filter((r): r is PlanExcludedResource => r !== null) : [] }`. scopeItemsChanged additionally returns true when excludedKinds or excludedResources differ (arraysEqualUnordered against the encoded plan values).\nhooks/usePlanFormState.ts normalizeFormSnapshot: add `excludedKinds: [...(values.excludedKinds ?? [])].sort()` and `excludedResources: [...(values.excludedResources ?? [])].sort()`.\nconstants/protectionPlans.ts: CREATE_PAGE.FORM adds EXCLUDED_KINDS_LABEL 'Excluded kinds', EXCLUDED_KINDS_PLACEHOLDER 'Kinds this plan will not enforce on', EXCLUDED_RESOURCES_LABEL 'Excluded resources', EXCLUDED_RESOURCES_PLACEHOLDER 'Resources of the selected applications to leave unprotected', EXCLUSIONS_NAMESPACES_HINT 'Only kinds can be excluded for a namespace scope.', EXCLUSIONS_SELECT_APPS_HINT 'Select applications to load their resources.'; DETAIL_PAGE.FIELDS adds EXCLUDED_KINDS 'Excluded kinds', EXCLUDED_RESOURCES 'Excluded resources'. No other string changes (ACTIVE_SCOPE_WARNING already reads correctly).\npages/details/Content.tsx Scope SettingsCard (lines 427-467): after the scopeItems row push, when (plan.scope.exclusions?.kinds?.length ?? 0) > 0, a row {k: 'excludedKinds', label: FIELDS.EXCLUDED_KINDS, value: RowTag chips exactly like scopeItems but background DEFAULT_COLORS.CHIP_CUSTOM_BG / color DEFAULT_COLORS.TEXT_MUTED}; when resources non-empty a row {k: 'excludedResources', label: FIELDS.EXCLUDED_RESOURCES, value: chips with text `${r.kind.toLowerCase()} · ${r.name}` keyed by encodeResourceKey}. Build the rows array with a conditional spread so the grid stays as today for plans without exclusions.",
+      "testFirst": {
+        "file": "/Users/houssem/Desktop/dashboard-ui/src/features/plans/protection/utils/planFormValues.ts",
+        "names": [
+          "npm run check-all"
+        ],
+        "red": "type errors: PreparePlanPayload.scope missing exclusions in buildPreparePayload callers; FormValues has no excludedKinds",
+        "green": "check-all zero errors in this step's files; buildPreparePayload always emits scope.exclusions with both arrays (resources [] for namespaces); planToFormValues round-trips a plan with exclusions"
+      },
+      "verify": "cd /Users/houssem/Desktop/dashboard-ui && npm run check-all (it typechecks the whole project: errors in files this step did not touch are reported to the orchestrator, not fixed here; V4 is the zero-error gate)",
+      "dependsOn": [
+        "S3"
+      ],
+      "parallelGroup": "ui-a",
+      "route": {
+        "model": "claude-opus-5-5",
+        "effort": "high",
+        "priority": "P4",
+        "criteria": [],
+        "why": "Fully specified typed plumbing, machine-checked by check-all; no security or contract change on the UI side."
+      }
+    },
+    {
+      "id": "U2",
+      "phase": "P3",
+      "title": "UI exclusion pickers: options hook, ScopeSection fields, PlanForm reset (no prune)",
+      "part": null,
+      "repo": "dashboard-ui",
+      "files": [
+        "/Users/houssem/Desktop/dashboard-ui/src/features/plans/protection/hooks/useScopeExclusionOptions.ts",
+        "/Users/houssem/Desktop/dashboard-ui/src/features/plans/protection/components/create/ScopeSection.tsx",
+        "/Users/houssem/Desktop/dashboard-ui/src/features/plans/protection/components/shared/PlanForm.tsx",
+        "/Users/houssem/Desktop/dashboard-ui/src/features/resources/applications/utils/mappers/applicationMapper.ts"
+      ],
+      "change": "applicationMapper.ts line 42: `export const DEFAULT_RESOURCE_SUMMARY` (one-word change; the fixed 14-kind vocabulary).\nNEW hooks/useScopeExclusionOptions.ts: `useScopeExclusionOptions({ enabled, scopeType, applicationIds }: { enabled: boolean; scopeType: ScopeType; applicationIds: string[] })` returning `{ kindOptions: { value: string; label: string }[]; resourceOptions: { label: string; options: { value: string; label: string }[] }[]; resourcesLoading: boolean }`. kindOptions: namespaces scope -> Object.keys(DEFAULT_RESOURCE_SUMMARY); applications scope -> union over selectApplications items whose name is in applicationIds of resourceSummary keys with count > 0, sorted. resourceOptions (applications scope only): for each selected app not in a `useRef<Map<string, ApplicationResourceRef[]>>` cache, call fetchApplicationDetails(name) (features/resources/applications/clients) directly, store res.data.resources ?? []. On failure it calls logger.error from the project logger and does NOT cache the app, which is retried the next time applicationIds changes. Then it groups the union by kind into antd OptGroup-shaped entries {label: kind, options: [{value: encodeResourceKey(ref), label: ref.name}]} sorted by kind then name; resourcesLoading = any fetch in flight. Cancel-flag pattern from usePlanFormData for unmount. No Redux writes.\ncomponents/create/ScopeSection.tsx: new props `kindOptions`, `resourceOptions`, `resourcesLoading`, `exclusionsHint?: string`. Under the applicationIds Form.Item (still inside the applications branch) add Form.Item name=\"excludedKinds\" label={FORM.EXCLUDED_KINDS_LABEL} (Select mode=\"multiple\", options=kindOptions, placeholder, disabled={disabled}, same filterOption pattern, allowClear) and Form.Item name=\"excludedResources\" label={FORM.EXCLUDED_RESOURCES_LABEL} (Select mode=\"multiple\", options=resourceOptions (grouped), loading={resourcesLoading}, disabled={disabled}, placeholder = applicationIds empty ? FORM.EXCLUSIONS_SELECT_APPS_HINT : FORM.EXCLUDED_RESOURCES_PLACEHOLDER). Under the namespaces Form.Item add only the excludedKinds Form.Item with extra={FORM.EXCLUSIONS_NAMESPACES_HINT}. Use the existing marginBottom 12 / 0 rhythm and FORM_ITEM_CLASS; every Select inherits `disabled` (materialLocked and whatever PERM wires later); no size= props, no inline heights.\ncomponents/shared/PlanForm.tsx: `const applicationIds = Form.useWatch('applicationIds', form) ?? []`; call useScopeExclusionOptions({ enabled: true, scopeType, applicationIds }) and pass the four props to ScopeSection. handleScopeTypeChange resets ['applicationIds', 'namespaces', 'excludedKinds', 'excludedResources']. NO prune effect. Only the user (removing a chip) or the scope-type reset changes excludedResources; no effect ever does. A key stays selected until the user removes it, and antd shows its raw `kind/namespace/name` value, when its application was removed from applicationIds, its resource no longer exists, or its details fetch failed. Such a key is harmless at render: S2 filters resource entries by scope namespace, and no rule matches a resource that no remaining app owns. It also keeps the stored exclusions unchanged, so a save that leaves the pickers alone is never a material edit. (A prune effect would silently clear stored exclusions on a failed fetch and turn every save of a plan with a deleted excluded resource into a material edit: 400 for approved required plans, and a silent approval re-request for pending ones.)",
+      "testFirst": {
+        "file": "/Users/houssem/Desktop/dashboard-ui/src/features/plans/protection/hooks/useScopeExclusionOptions.ts",
+        "names": [
+          "npm run check-all"
+        ],
+        "red": "type errors: ScopeSection missing new required props from PlanForm",
+        "green": "check-all zero errors in this step's files; no `any`, no console.*, no hex, no vendor names; strings only from constants"
+      },
+      "verify": "cd /Users/houssem/Desktop/dashboard-ui && npm run check-all (errors in files this step did not touch are reported to the orchestrator, not fixed here); user screenshots: applications scope with two apps (kinds limited to those apps; resources grouped by kind, loading state while details load), namespaces scope (kinds only + hint), edit of an active plan changing an exclusion shows ACTIVE_SCOPE_WARNING and enables Save, approved-locked plan shows the pickers disabled",
+      "dependsOn": [
+        "U1"
+      ],
+      "parallelGroup": "ui-b",
+      "route": {
+        "model": "claude-opus-5-5",
+        "effort": "high",
+        "priority": "P4",
+        "criteria": [],
+        "why": "Form composition over existing antd/Form patterns and an existing client; machine-checked plus screenshots."
+      }
+    },
+    {
+      "id": "V1",
+      "phase": "P4",
+      "title": "Verify shared modules: go test + golangci-lint (internal/data, internal/rest)",
+      "part": null,
+      "repo": "internal/data",
+      "files": [
+        "/Users/houssem/Desktop/Github/internal/data",
+        "/Users/houssem/Desktop/Github/internal/rest"
+      ],
+      "change": "Run `cd /Users/houssem/Desktop/Github/internal/data && go test ./... && golangci-lint run; cd /Users/houssem/Desktop/Github/internal/rest && GOWORK=<scratchpad>/rest.go.work go test ./... && GOWORK=<scratchpad>/rest.go.work golangci-lint run` (rest.go.work as defined in S3; plain `go test` in rest resolves data v1.14.8 and cannot compile); fix only issues introduced by S2, S3. Never touch unrelated uncommitted work; never git add/commit/stash.",
+      "testFirst": {
+        "file": "/Users/houssem/Desktop/Github/internal/data/tests/policies/exclusions_test.go",
+        "names": [
+          "cd /Users/houssem/Desktop/Github/internal/data && go test ./... && golangci-lint run; cd /Users/houssem/Desktop/Github/internal/rest && GOWORK=<scratchpad>/rest.go.work go test ./... && GOWORK=<scratchpad>/rest.go.work golangci-lint run"
+        ],
+        "red": "n/a (verification step)",
+        "green": "exit 0, zero lint issues / zero check-all errors"
+      },
+      "verify": "exit codes 0; lint output empty",
+      "dependsOn": [
+        "S2",
+        "S3"
+      ],
+      "parallelGroup": "verify",
+      "route": {
+        "model": "claude-opus-5-5",
+        "effort": "high",
+        "priority": "P4",
+        "criteria": [],
+        "why": "Machine-checked gate."
+      }
+    },
+    {
+      "id": "V2",
+      "phase": "P4",
+      "title": "Verify exporter: go test + golangci-lint",
+      "part": null,
+      "repo": "telark/exporter",
+      "files": [
+        "/Users/houssem/Desktop/Github/telark/services/exporter"
+      ],
+      "change": "Run `cd /Users/houssem/Desktop/Github/telark/services/exporter && go test ./... && golangci-lint run`; fix only issues introduced by S4. Never touch unrelated uncommitted work; never git add/commit/stash.",
+      "testFirst": {
+        "file": "/Users/houssem/Desktop/Github/telark/services/exporter/internal/tests/protection/protection_test.go",
+        "names": [
+          "cd /Users/houssem/Desktop/Github/telark/services/exporter && go test ./... && golangci-lint run"
+        ],
+        "red": "n/a (verification step)",
+        "green": "exit 0, zero lint issues / zero check-all errors"
+      },
+      "verify": "exit codes 0; lint output empty",
+      "dependsOn": [
+        "S4"
+      ],
+      "parallelGroup": "verify",
+      "route": {
+        "model": "claude-opus-5-5",
+        "effort": "high",
+        "priority": "P4",
+        "criteria": [],
+        "why": "Machine-checked gate."
+      }
+    },
+    {
+      "id": "V3",
+      "phase": "P4",
+      "title": "Verify discovery: go build + go test + golangci-lint",
+      "part": null,
+      "repo": "telark/discovery",
+      "files": [
+        "/Users/houssem/Desktop/Github/telark/services/discovery"
+      ],
+      "change": "Run `cd /Users/houssem/Desktop/Github/telark/services/discovery && go build ./... && go test ./... && golangci-lint run`; fix only issues introduced by S5, S6. Never touch unrelated uncommitted work; never git add/commit/stash.",
+      "testFirst": {
+        "file": "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/policies/clusterdiff_test.go",
+        "names": [
+          "cd /Users/houssem/Desktop/Github/telark/services/discovery && go build ./... && go test ./... && golangci-lint run"
+        ],
+        "red": "n/a (verification step)",
+        "green": "exit 0, zero lint issues / zero check-all errors"
+      },
+      "verify": "exit codes 0; lint output empty",
+      "dependsOn": [
+        "S5",
+        "S6"
+      ],
+      "parallelGroup": "verify",
+      "route": {
+        "model": "claude-opus-5-5",
+        "effort": "high",
+        "priority": "P4",
+        "criteria": [],
+        "why": "Machine-checked gate."
+      }
+    },
+    {
+      "id": "V4",
+      "phase": "P4",
+      "title": "Verify dashboard-ui: npm run check-all",
+      "part": null,
+      "repo": "dashboard-ui",
+      "files": [
+        "/Users/houssem/Desktop/dashboard-ui"
+      ],
+      "change": "Run `cd /Users/houssem/Desktop/dashboard-ui && npm run check-all`; fix only issues introduced by U1, U2. Never touch unrelated uncommitted work; never git add/commit/stash.",
+      "testFirst": {
+        "file": "/Users/houssem/Desktop/dashboard-ui/src/features/plans/protection/utils/planFormValues.ts",
+        "names": [
+          "cd /Users/houssem/Desktop/dashboard-ui && npm run check-all"
+        ],
+        "red": "n/a (verification step)",
+        "green": "exit 0, zero lint issues / zero check-all errors"
+      },
+      "verify": "exit codes 0; lint output empty",
+      "dependsOn": [
+        "U1",
+        "U2"
+      ],
+      "parallelGroup": "verify",
+      "route": {
+        "model": "claude-opus-5-5",
+        "effort": "high",
+        "priority": "P4",
+        "criteria": [],
+        "why": "Machine-checked gate."
+      }
+    },
+    {
+      "id": "R1",
+      "phase": "P4",
+      "title": "Adversarial review of the whole change set",
+      "part": null,
+      "repo": "all",
+      "files": [
+        "/Users/houssem/Desktop/Github/internal/data/policies/exclusions.go",
+        "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/policies/cluster_diff.go",
+        "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/update/orchestrator.go",
+        "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/update/patch.go",
+        "/Users/houssem/Desktop/dashboard-ui/src/features/plans/protection/utils/planFormValues.ts",
+        "/Users/houssem/Desktop/dashboard-ui/src/features/plans/protection/hooks/useScopeExclusionOptions.ts"
+      ],
+      "change": "Read the diffs of S1-S6, U1-U2 and check: (1) every CRD property has a Go json twin with equal-or-tighter bounds; (2) Render of a plan without exclusions is byte-identical (test present and meaningful); (3) K/scale expansion covers exactly ScaleSubresourceKinds, for excluded kinds and excluded resources alike; (4) ApplyFullRender deploys before deleting and never deletes a name it just deployed; stale names are deleted only after the exporter patch succeeds, and no failure path of the full render (Deploy error, patch error) deletes a name in the old renderedPolicies; (5) applyPatch writes scope.exclusions as null / both-arrays and never merges a partial object; (6) req exclusions nil never clears stored exclusions on update (older bundle safety); (7) no new permission key, no route change, no PlanLifecycleFields change; (8) UI never dispatches fetchApplicationDetailsThunk from the plan form, and no effect writes excludedResources/excludedKinds (only user input and the scope-type reset do); (9) no literal strings, hex, any, console.*, vendor names; (10) docs sentences match implemented behaviour. Report findings with severity; fix high in place, record the rest as user-owned follow-ups.",
+      "testFirst": {
+        "file": "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/update/orchestrator.go",
+        "names": [
+          "review checklist items 1-10"
+        ],
+        "red": "n/a",
+        "green": "no open high finding"
+      },
+      "verify": "Written review with file:line evidence; V1-V4 re-run green after any fix.",
+      "dependsOn": [
+        "V1",
+        "V2",
+        "V3",
+        "V4"
+      ],
+      "parallelGroup": "review",
+      "route": {
+        "model": "claude-opus-5-5",
+        "effort": "xhigh",
+        "priority": "P4",
+        "criteria": [
+          "M3"
+        ],
+        "why": "Exists to catch a mistake in an enforcement-path change."
+      }
+    }
+  ],
+  "docs": [
+    "/Users/houssem/Desktop/Github/telark/docs/CRDS.md — ProtectionPlan row: scope.exclusions semantics (S1)",
+    "/Users/houssem/Desktop/Github/telark/charts/telark-crds/README.md — Definitions: optional scope.exclusions (S1)",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/README.md — Protect API: exclusions semantics, material edit, full re-render, nil-untouched / {}-clears on update (S5)",
+    "/Users/houssem/Desktop/Github/telark/services/exporter/README.md — refused-keys list: scope includes its nested exclusions (S4)",
+    "/Users/houssem/Desktop/Github/telark/charts/telark/README.md, VALUES.md, INSTALL.md — unchanged (no new tunable; rollout order note already covers 'telark-crds before telark')"
+  ],
+  "risks": [
+    "Kyverno rejecting an exclude entry shape (kinds+names beside a `*` match, or K/scale in exclude, with or without names) is not confirmed from code; the real-validator test TestKyvernoAcceptsExclusions (S6) is the gate. Fallback if it fires: drop the names-based entries and exclude at BuildMatch by filtering AppResources (applications scope) — smaller coverage, documented.",
+    "Health compares policy names only, so a policy whose stored rules drifted from the plan's exclusions is invisible; mitigated by the full re-render on every exclusions edit. Accepted ceiling.",
+    "ApplyFullRender on a large multi-namespace plan re-applies every policy (SSA, idempotent); cost is one apply per policy, same as Activate. Accepted.",
+    "Update path naming convergence: after the first exclusions edit the plan's rendered names follow the grouped create-path scheme; the per-app names from earlier update-path deploys are deleted by name. Plans never updated through the combos path are unaffected.",
+    "Older UI bundle running against the new backend never sends exclusions (nil = untouched), so it cannot clear or set them; it also cannot show them. Rollout: telark-crds -> exporter -> discovery -> UI.",
+    "A template whose every kind is excluded still renders (total exclude); harmless but visible in kubectl. Ponytail comment names the skip as the upgrade path.",
+    "Concurrent PERM/APPS edits: this plan touches ScopeSection (disabled prop only), PlanForm (hook wiring + reset list), models PlanScope (additive optional field), protectionPlans constants (additive keys), permissionEngine untouched. If PERM changes how ScopeSection is disabled, the new Selects must keep inheriting the same prop."
+  ],
+  "outOfScope": [
+    "Excluding individual resources for the namespaces scope (would need a list-every-resource endpoint at 2000-app scale).",
+    "Validating excluded kinds against a server-side vocabulary or excluded resources against the selected applications' actual resources (unknown entries are harmless exclude entries).",
+    "Label-selector or regex based exclusions; per-policy (per-template) exclusions.",
+    "New permission action or deny rule for exclusions (covered by the edit permission; PERM plan closes the discovery-route deny gap).",
+    "Kyverno name-wildcard exclusions (`web-*`).",
+    "Fixing the pre-existing update-path vs create-path policy naming divergence for policy/target-only edits (only converged when exclusions change).",
+    "Reports/violations reading exclusions; ProtectionPlanCard showing exclusion counts.",
+    "Any version bump, build, push, tag, chart publish or deploy; internal/composer; release-manager."
+  ],
+  "userOwnedFollowUps": [
+    "Release in this order: tag internal/data (S2) -> bump the github.com/telark/data pin in internal/rest/go.mod (today v1.14.8, which has no exclusions type) -> tag internal/rest (S3) -> bump the data and rest pins in services/{discovery,exporter}/go.mod. CI (GOWORK=off) stays red until then.",
+    "Rollout order: telark-crds chart -> exporter image -> discovery image -> dashboard-ui bundle (versions bumped by the GHA, never here).",
+    "Manual dev-cluster verification listed in P2 acceptance (kubectl policy yaml, admit/deny checks, clear).",
+    "Screenshot review of the two pickers at the compact form width and of the details Scope card rows.",
+    "Decide whether to add exclusion counts to ProtectionPlanCard (not done)."
+  ],
+  "revisionLog": [
+    {
+      "id": "R1",
+      "severity": "critical",
+      "finding": "S6: both full-render failure cleanups delete the plan's live policies. The Deploy-error cleanup copied from ApplyClusterDiff (cluster_diff.go:47) and RollbackPatchFailure (cluster_diff.go:86, called at orchestrator.go:95) delete every rendered/deployed name, and a full render reproduces the live names (D3).",
+      "resolution": "Applied. ApplyFullRender now returns (deployed, kept, stale, err) and deletes nothing. Run deletes the stale names only after applyPatch succeeds. The new RollbackFullRender runs on both the Deploy-error and the patch-error path. It deletes only attempted names absent from the old renderedPolicies, then re-applies Render(old plan) filtered to the old names. Why the Deploy-error path too: Deploy returns no names on error (applier.go:59-61), so same-named policies may already carry the new exclusions. Tests: TestApplyFullRenderDeployFailureKeepsExisting, TestRollbackFullRenderKeepsExisting, and TestApplyFullRenderDeploysAndReturnsStale (renamed from ...DeletesStale). Adapted: the requested planupdate patch-failure case is on RollbackFullRender in tests/policies. No harness runs update.Run: Deps.Exporter is the concrete HTTP client *clients.ProtectionPlanClient (clients/protectionplans.go:24), and the only caller is handlers/plans/protection/update.go:52. The tests use a recording patch reactor and a DefaultRESTMapper. The client-go v0.37.0 object tracker Gets before applying (testing/fixture.go:565), so it cannot create an object on apply, and the existing tests pass a nil mapper (clusterdiff_test.go:29) that kcore ssa.go:39 dereferences. Updated: Approach, lifecycle B, D4, edge cases (1 new row), P2 acceptance, S6 change/tests/red, R1 item (4)."
+    },
+    {
+      "id": "R2",
+      "severity": "critical",
+      "finding": "S3/V1/P0: internal/rest is in no go.work and pins data v1.14.8, so its go test / golangci-lint can never be green. The release follow-up also misses rest's own data pin.",
+      "resolution": "Applied. Verified: `go env GOWORK` in internal/rest is empty; rest/go.mod:8 has `github.com/telark/data v1.14.8` with no replace; the module cache holds data@v1.14.0..v1.14.8 only; telark/go.work uses the services only. S3 change, S3 verify, V1 and the P0 criterion now use GOWORK=<scratchpad>/rest.go.work, which contains `go 1.27.1`, `use` rest and `replace` data => the local data path. rest/go.mod is never edited. Verified 2026-09-23: `GOWORK=<file> go build ./...` exits 0 and leaves go.mod/go.sum unchanged. The P0 gate and user-owned follow-ups are reordered: tag data -> bump rest's data pin -> tag rest -> bump the service pins."
+    },
+    {
+      "id": "R3",
+      "severity": "critical",
+      "finding": "U2: the prune effect clears stored exclusions when a details fetch fails ([] cached, resourcesReady true). Once an excluded resource is deleted, every save becomes a material edit (400 for approved required plans, a silent re-request for pending ones).",
+      "resolution": "Applied, simplest option. The prune effect is deleted, and no effect writes excludedResources/excludedKinds. The hook no longer returns resourceKeys/resourcesReady (they served only the prune). A failed fetch is not cached and is retried on the next applicationIds change. Stray keys stay selected with their raw value, are harmless at render (namespace-filtered by S2, matched by no rule) and are removed by hand. Updated: U2 title/change, two edge-case rows, R1 item (8)."
+    },
+    {
+      "id": "R4",
+      "severity": "high",
+      "finding": "S2: the excluded-resource filter {kinds:[r.kind], names:[r.name]} lacks the K/scale expansion. The block-update scale rule and block-replica-scaling match `Deployment/scale` by names, so `kubectl scale` of an excluded Deployment stays denied.",
+      "resolution": "Applied. Verified at block_update.go:48 (BuildMatch with ScaleSubresourceKinds), templates/constants.go:71 (kindsReplicaTarget includes Deployment/scale) and shared.go:290-302 (names per base kind). Resource entries now use expandExcludedKind(r.Kind). Added TestExclusionFiltersResourcesExpandScale; TestExclusionFiltersResources now expects the scale kind; TestKyvernoAcceptsExclusions covers a subresource kind inside a names entry. The P2 manual check expects {kinds:[Deployment, Deployment/scale], names:[<name>]}. It also drops the names-less {kinds:[Deployment, Deployment/scale]} entry, which contradicted 'editing another is denied'. Also updated: the discovery README sentence, Approach, lifecycle, D2, the edge-case row, the Kyverno risk, R1 item (3)."
+    },
+    {
+      "id": "R5",
+      "severity": "high",
+      "finding": "S4: ValidatePatchScope calls a nonexistent `stringSliceOrList`. The nearby stringSlice returns nil on a []any of maps, which lets namespaces+resources through.",
+      "resolution": "Applied. Verified at exporter utils/plans/protection/patch.go:41-61: only stringSlice exists, and it returns nil at the first non-string item. The check is now spelled out inline inside the namespaces case, with no helper: `excl, _ := scope[FieldScopeExclusions].(map[string]any)`, then `resources, _ := excl[FieldExclusionResources].([]any)` and `len > DefaultInitValue`. The TestValidatePatchScope cases use []any{map[string]any{...}}, the shape json.Unmarshal produces."
+    },
+    {
+      "id": "R6",
+      "severity": "high",
+      "finding": "S2/S4/S5/S6 vs PERM S1/S2/S3: steps in the same Go module run concurrently, and each red test-first window breaks the partner's module-wide gate.",
+      "resolution": "Applied, with one adaptation. The cross-plan edges are a new step field `crossPlanDependsOn` (S2: PERM:S1, S4: PERM:S2, S5 and S6: PERM:S3), not dependsOn: this plan's dependsOn ids must exist in this plan, and none of the three plan files has a cross-plan id notation. S5 also waits on PERM:S3, because its own red window (validation.Exclusions undefined) breaks discovery-wide gates too. The S2-S6 verifies are package-scoped. Module-wide go build/test/lint runs only in the integrated V gate after the lane drains. U1/U2 report errors in files they did not touch and never fix them. New D13 and a Steps header note. Direction: PERM first; the PERM plan must add no reverse edge."
+    }
+  ],
+  "status": {
+    "state": "PLAN — not implemented; nothing in this document has been applied.",
+    "treeState": [
+      "/Users/houssem/Desktop/Github/telark: e2e/set_plans_feature_ready_for_mvp_launch, v0.4.0-2-g5bcfd94, 152 dirty paths (Env+Tags, Reports, Approval, Local AI Analyzer in flight)",
+      "/Users/houssem/Desktop/dashboard-ui: e2e/set_plans_feature_ready_for_mvp_launch, v1.0.0-1-g012d3ebd, 59 dirty paths",
+      "/Users/houssem/Desktop/Github/internal/data: main, v1.14.8-1-g36ba327, 19 dirty paths (plans/protectionplan.go, policies/shared.go among them)",
+      "/Users/houssem/Desktop/Github/internal/rest: main, v0.14.4, 32 dirty paths (endpoints/plans/types.go among them)"
+    ],
+    "assumptions": [
+      "Terrain (excl-backend, excl-ui) trusted; verified in code: renderer.go Render loop and buildScopes, deployment.go renderForCombinations sub-plan (Scope.Type + one target only), cluster_diff.go ApplyClusterDiff renders with the OLD plan, orchestrator.go combos and raw-patch route, patch.go BuildPatch/MaterialChange/scopeTargetsEqual, rest/mappers/payload.go zero-value and nil-pointer handling, rest go.mod requires github.com/telark/data, exporter validate.go/patch.go/constants PlanLifecycleFields, guard_plan_test helpers, CRD scope block, UI ScopeSection/planFormValues/usePlanFormState/Content.tsx/models/prepare.ts/applicationMapper DEFAULT_RESOURCE_SUMMARY (unexported), fetchApplicationDetails signature.",
+      "Kyverno accepts exclude.any entries with kinds+names and with subresource kinds; gated by the real-validator test in S6, fallback named in risks.",
+      "kyvernov1.ResourceDescription.Names exists (used by BuildMatch today, shared.go:300).",
+      "The PERM plan closes the discovery update-route deny gap; this plan adds no authz code. The APPS plan derives coverage from scope.applicationIds/namespaces and is unaffected by the additive optional exclusions field.",
+      "Local AI Analyzer workflow touches services/analyzer, discovery insights, GlobalConfig ai, applications models/constants and endpoints.ts; this plan touches none of those except the one-word export in applicationMapper.ts (not in that workflow's list).",
+      "Routing per WORKFLOWS_MODEL_ROUTING.md in BUDGET MODE: every step claude-opus-5-5; xhigh for Major steps (S1, S2, S3, S5, S6, R1), high otherwise."
+    ]
+  }
+}

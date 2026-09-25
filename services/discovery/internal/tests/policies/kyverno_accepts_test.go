@@ -3,6 +3,7 @@ package policies
 import (
 	"testing"
 
+	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	kyvernovalidation "github.com/kyverno/kyverno/pkg/validation/policy"
 	"github.com/telark/data/plans"
 	datapolicies "github.com/telark/data/policies"
@@ -14,6 +15,9 @@ import (
 const (
 	acceptNamespace = "prod"
 	acceptApp       = "wa1"
+	acceptPlanID    = "pp-abc-1234-5678"
+	acceptPlanName  = "freeze"
+	kindDeployment  = "Deployment"
 )
 
 // Params for the two templates that take them; the rest render without any.
@@ -72,8 +76,8 @@ func TestKyvernoAcceptsEveryRenderedPolicy(t *testing.T) {
 					t.Fatalf("no renderer registered for %s", tpl.ID)
 				}
 				meta := datapolicies.RenderMeta{
-					PlanID:   "pp-abc-1234-5678",
-					PlanName: "freeze",
+					PlanID:   acceptPlanID,
+					PlanName: acceptPlanName,
 					Mode:     plans.ModeEnforce,
 				}
 				pol, err := renderer.Render(meta, scope, acceptParams[tpl.ID])
@@ -83,16 +87,68 @@ func TestKyvernoAcceptsEveryRenderedPolicy(t *testing.T) {
 				if pol == nil {
 					t.Fatal("template rendered no policy")
 				}
-				if !pol.IsNamespaced() || pol.GetNamespace() == "" {
-					t.Fatal("guard must validate the artifact we deploy: a namespaced Policy")
+				assertKyvernoAccepts(t, pol)
+			})
+		}
+	}
+}
+
+func assertKyvernoAccepts(t *testing.T, pol *kyvernov1.Policy) {
+	t.Helper()
+	if !pol.IsNamespaced() || pol.GetNamespace() == constants.EmptyString {
+		t.Fatal("guard must validate the artifact we deploy: a namespaced Policy")
+	}
+	if _, err := kyvernovalidation.Validate(pol, nil, nil, true, constants.EmptyString, constants.EmptyString); err != nil {
+		t.Errorf("Kyverno would reject this policy: %v", err)
+	}
+	// The second pass, with the cluster-scoped set the webhook derives from
+	// discovery and mock mode leaves empty.
+	if _, errs := pol.Validate(clusterScopedKinds); len(errs) > constants.DefaultInitValue {
+		t.Errorf("Kyverno would reject this policy: %v", errs.ToAggregate())
+	}
+}
+
+// Exclusions append exclude.any entries to every rule: a kind entry, and for applications a
+// named Deployment entry that also carries Deployment/scale. Kyverno must accept them all.
+func acceptPlan(templateID, scopeType string) (*plans.ProtectionPlan, map[string]datapolicies.ResolvedApp) {
+	plan := &plans.ProtectionPlan{
+		ID:   acceptPlanID,
+		Name: acceptPlanName,
+		Mode: plans.ModeEnforce,
+		Scope: plans.ProtectionPlanScope{
+			Type:       scopeType,
+			Exclusions: &plans.ProtectionPlanScopeExclusions{Kinds: []string{kindDeployment, excludedKind}},
+		},
+		Policies: []plans.ProtectionPlanPolicy{{TemplateID: templateID, Params: acceptParams[templateID]}},
+	}
+	if scopeType == plans.ScopeTypeNamespaces {
+		plan.Scope.Namespaces = []string{acceptNamespace}
+		return plan, nil
+	}
+	plan.Scope.ApplicationIDs = []string{acceptApp}
+	plan.Scope.Exclusions.Resources = []plans.ProtectionPlanExcludedResource{
+		{Kind: kindDeployment, Name: acceptApp, Namespace: acceptNamespace},
+	}
+	scope := acceptScopes()[scopeType]
+	return plan, map[string]datapolicies.ResolvedApp{
+		acceptApp: {Namespace: acceptNamespace, Resources: scope.AppResources, VolumeClaims: scope.VolumeClaims},
+	}
+}
+
+func TestKyvernoAcceptsExclusions(t *testing.T) {
+	for _, tpl := range plans.Templates {
+		for _, scopeType := range []string{plans.ScopeTypeNamespaces, plans.ScopeTypeApplications} {
+			t.Run(tpl.ID+"/"+scopeType, func(t *testing.T) {
+				plan, resolved := acceptPlan(tpl.ID, scopeType)
+				rendered, err := datapolicies.Render(plan, resolved, nil)
+				if err != nil {
+					t.Fatalf("render: %v", err)
 				}
-				if _, err := kyvernovalidation.Validate(pol, nil, nil, true, "", ""); err != nil {
-					t.Errorf("Kyverno would reject this policy: %v", err)
+				if len(rendered) == constants.DefaultInitValue {
+					t.Fatal("template rendered no policy")
 				}
-				// The second pass, with the cluster-scoped set the webhook derives from
-				// discovery and mock mode leaves empty.
-				if _, errs := pol.Validate(clusterScopedKinds); len(errs) > 0 {
-					t.Errorf("Kyverno would reject this policy: %v", errs.ToAggregate())
+				for i := range rendered {
+					assertKyvernoAccepts(t, &rendered[i])
 				}
 			})
 		}

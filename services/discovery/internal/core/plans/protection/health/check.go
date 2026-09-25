@@ -44,6 +44,12 @@ func Check(ctx context.Context, deps Deps, planID string) (*plans.ProtectionPlan
 	if err != nil {
 		return plan, Result{}, err
 	}
+	// Every non-active transition already stores health=unknown; patching it again only churned
+	// lastUpdatedAt/By=system on every status poll.
+	if plan.Phase != plans.PhaseActive {
+		plan.Health = plans.HealthUnknown
+		return plan, result, nil
+	}
 
 	now := deps.Clock().Format(globalshared.DefaultTimeFormat)
 	if patchErr := deps.Exporter.PatchOrError(deps.System, planID, ToPatch(result, now)); patchErr != nil {

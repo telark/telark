@@ -26,7 +26,7 @@
   <a href="https://github.com/telark/telark/releases"><img src="https://img.shields.io/github/v/release/telark/telark?sort=semver&color=2f6feb" alt="Release"></a>
   <img src="https://img.shields.io/badge/Kubernetes-%E2%89%A51.30-326ce5?logo=kubernetes&logoColor=white" alt="Kubernetes >= 1.30">
   <img src="https://img.shields.io/badge/Helm-OCI-0f1689?logo=helm&logoColor=white" alt="Helm OCI chart">
-  <img src="https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white" alt="Go 1.26">
+  <img src="https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white" alt="Go 1.27">
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-Elastic--2.0-2f6feb.svg" alt="License: Elastic-2.0"></a>
 </p>
 
@@ -49,8 +49,12 @@ No new mental model, no YAML archaeology: discover your apps, pick what to prote
 - **Time-bounded windows** — freeze a scope from 22:00 to 02:00 tonight; it arms and disarms itself on schedule.
 - **Ready-made policy templates** — block deletion, replica scaling, image patterns/tags, storage changes, ConfigMap/Secret edits, and more. Run in **audit** first, flip to **enforce** when you trust it.
 - **Cluster-truth health** — telark reads the cluster to confirm the protection you asked for is the protection actually running. Drift, missing policies, and tampering are surfaced.
+- **Environments, tags & approvals** — classify plans by environment and tags. A plan either applies automatically or waits for an approver; plans in the Production environment require approval by default.
+- **Scope exclusions** — leave specific kinds (any scope) or named resources (application scope) out of a plan's enforcement.
+- **Plan reports** — generate, list and download a plan's report (HTML, Markdown, JSON, CSV); a final report is captured when an active plan ends or is canceled.
+- **Fine-grained permissions** — every plan action (view, create, edit, duplicate, cancel, reactivate, delete, approve, reject, reports, categories) can be withheld from a custom role with its own deny rule.
 - **Change history & rollback** — every change to an application is recorded field by field, deletions included, with a pre-change snapshot you can roll back to from the dashboard.
-- **AI insights** — optional per-application summaries and risk signals.
+- **Local analyzer** — optional on-cluster incident analysis with a local model (Ollama) over read-only cluster tools; no data leaves the cluster. The runtime installs with the chart; turn the analyzer on in Settings.
 - **Modern auth** — passkeys and Google SSO, with a built-in role model.
 
 ## How it works
@@ -95,7 +99,7 @@ Six services plus shared infrastructure, all shipped by one Helm chart:
 |---|---|
 | `exporter` | Owns the CRDs/storage; seeds built-ins; snapshots cluster state |
 | `discovery` | Groups workloads into applications; drives protection-plan reconciliation |
-| `enrichment` | AI insights over applications (Python/FastAPI) |
+| `analyzer` | Local analyzer (Python/FastAPI) |
 | `auth` | Passkey + Google OIDC login, sessions, roles |
 | `notifier` | Notifications |
 | `ui` | Dashboard SPA, deployed by default (image built from a separate repo) |

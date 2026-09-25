@@ -20,7 +20,7 @@ func noIdentityRequest() *http.Request {
 }
 
 func TestGuardCategoryScope(t *testing.T) {
-	level := roledata.PermissionLevelContributor
+	operation := constants.CategoryOpCreate
 	tests := []struct {
 		name  string
 		req   *http.Request
@@ -35,10 +35,19 @@ func TestGuardCategoryScope(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			if got := authz.GuardCategoryScope(w, tt.req, tt.scope, level); got != tt.want {
+			if got := authz.GuardCategoryScope(w, tt.req, tt.scope, operation); got != tt.want {
 				t.Errorf("GuardCategoryScope = %v, want %v", got, tt.want)
 			}
 		})
+	}
+
+	w := httptest.NewRecorder()
+	admin := levels(roledata.ScopeRoles, roledata.PermissionLevelAdmin)
+	if authz.GuardCategoryScope(w, requestAs(admin), roledata.ScopeRoles, "rename") {
+		t.Error("an unknown operation passed the category guard")
+	}
+	if body := w.Body.String(); !strings.Contains(body, constants.ErrAuthzUnknownCategoryScope) {
+		t.Errorf("unknown operation body = %q, want %q", body, constants.ErrAuthzUnknownCategoryScope)
 	}
 }
 
@@ -70,32 +79,42 @@ func denied(id xauthz.Identity, scope, rule string) xauthz.Identity {
 	return id
 }
 
-// Plan taxonomies are governed by the protection-plans scope and its existing
-// plan actions; nothing passes through from a grant on the taxonomy name itself.
+// Plan taxonomies are governed by the protection-plans scope and their own
+// category actions; nothing passes through from a grant on the taxonomy name itself.
 func TestGuardCategoryScopePlanTaxonomies(t *testing.T) {
 	contributor, owner := roledata.PermissionLevelContributor, roledata.PermissionLevelOwner
 	plans, groups := roledata.ScopeProtectionPlans, roledata.ScopeGroups
 	environments, tags := categorydata.ScopePlanEnvironments, categorydata.ScopePlanTags
-	editDeny := xauthz.RuleKey(plans, roledata.ActionEditProtectionPlan)
-	plansOwnerNoEdit := denied(levels(plans, owner), plans, editDeny)
+	create, edit, remove := constants.CategoryOpCreate, constants.CategoryOpEdit, constants.CategoryOpDelete
+	ownerDenied := func(action string) xauthz.Identity {
+		return denied(levels(plans, owner), plans, xauthz.RuleKey(plans, action))
+	}
+	groupOwnerNoEdit := denied(levels(groups, owner), groups, xauthz.RuleKey(groups, roledata.ActionEditGroupCategory))
 	tests := []struct {
-		name  string
-		id    xauthz.Identity
-		scope string
-		level roledata.PermissionLevel
-		want  bool
+		name      string
+		id        xauthz.Identity
+		scope     string
+		operation string
+		want      bool
 	}{
-		{"plans contributor adds environment", levels(plans, contributor), environments, contributor, true},
-		{"plans owner edits environment", levels(plans, owner), environments, owner, true},
-		{"edit deny bites owner tag edit", plansOwnerNoEdit, tags, owner, false},
-		{"edit deny spares contributor tag add", plansOwnerNoEdit, tags, contributor, true},
-		{"groups grant does not pass through", levels(groups, owner), environments, contributor, false},
-		{"groups category still governed by groups", levels(groups, contributor), groups, contributor, true},
+		{"plans contributor adds environment", levels(plans, contributor), environments, create, true},
+		{"plans contributor edits tag", levels(plans, contributor), tags, edit, false},
+		{"plans owner edits environment", levels(plans, owner), environments, edit, true},
+		{"plans owner deletes tag", levels(plans, owner), tags, remove, true},
+		{"add deny bites tag add", ownerDenied(roledata.ActionAddProtectionPlanCategory), tags, create, false},
+		{"edit deny bites tag edit", ownerDenied(roledata.ActionEditProtectionPlanCategory), tags, edit, false},
+		{"edit deny spares tag delete", ownerDenied(roledata.ActionEditProtectionPlanCategory), tags, remove, true},
+		{"delete deny bites environment delete", ownerDenied(roledata.ActionDeleteProtectionPlanCategory), environments, remove, false},
+		{"plan edit deny no longer governs taxonomies", ownerDenied(roledata.ActionEditProtectionPlan), environments, edit, true},
+		{"plan create deny no longer governs taxonomies", ownerDenied(roledata.ActionCreateProtectionPlan), tags, create, true},
+		{"groups grant does not pass through", levels(groups, owner), environments, create, false},
+		{"groups category still governed by groups", levels(groups, contributor), groups, create, true},
+		{"groups delete still checks the group edit rule", groupOwnerNoEdit, groups, remove, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			if got := authz.GuardCategoryScope(w, requestAs(tt.id), tt.scope, tt.level); got != tt.want {
+			if got := authz.GuardCategoryScope(w, requestAs(tt.id), tt.scope, tt.operation); got != tt.want {
 				t.Fatalf("GuardCategoryScope = %v, want %v", got, tt.want)
 			}
 			if tt.want {

@@ -9,6 +9,7 @@ import (
 	"github.com/telark/data/messages"
 	plansmd "github.com/telark/data/metadata/plans"
 	"github.com/telark/data/plans"
+	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/exporters/generics"
 	envmanager "github.com/telark/exporter/internal/managers/envs"
@@ -37,6 +38,10 @@ func CreatePlan() func(http.ResponseWriter, *http.Request) {
 
 		body, err := sharedutils.GetSpec(w, r)
 		if err != nil {
+			return
+		}
+
+		if !authz.GuardPlanLifecycle(w, r, body) {
 			return
 		}
 
@@ -108,6 +113,10 @@ func PatchPlanByID() func(http.ResponseWriter, *http.Request) {
 
 		body, err := sharedutils.GetSpec(w, r)
 		if err != nil {
+			return
+		}
+
+		if !authz.GuardPlanLifecycle(w, r, body) {
 			return
 		}
 

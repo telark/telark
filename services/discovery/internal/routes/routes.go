@@ -24,6 +24,8 @@ var Routes = []router.Route{
 
 	// Insights read (windowed to the caller's visible apps)
 	router.CreateRoute(base.Get, insightseps.Applications, insightshandler.GetApplicationsInsights),
+	// Cluster-wide insights list (served from the per-replica row index)
+	router.CreateRoute(base.Get, insightseps.List, insightshandler.ListInsights),
 
 	// Application routes
 	router.CreateRoute(base.Post, applicationeps.TriggerRollback, applicationhandler.TriggerRollback),
@@ -45,6 +47,7 @@ var Routes = []router.Route{
 	router.CreateRoute(base.Post, planseps.DuplicateProtectionPlan, protectionplanhandler.Duplicate),
 	router.CreateRoute(base.Post, planseps.ReactivateProtectionPlan, protectionplanhandler.Reactivate),
 	router.CreateRoute(base.Post, planseps.UpdateProtectionPlan, protectionplanhandler.Update),
+	router.CreateRoute(base.Post, planseps.DecideProtectionPlan, protectionplanhandler.Decide),
 	router.CreateRoute(base.Post, planseps.GenerateProtectionPlanReport, protectionplanhandler.GenerateReport),
 
 	// Status routes

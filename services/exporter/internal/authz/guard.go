@@ -1,9 +1,9 @@
 package authz
 
 import (
-	"cmp"
 	"errors"
 	"net/http"
+	"slices"
 
 	categorydata "github.com/telark/data/classification/category"
 	dataerrors "github.com/telark/data/errors"
@@ -38,8 +38,12 @@ var privilegedUserFields = map[string]xauthz.Requirement{
 	},
 }
 
-func identityOf(r *http.Request) (xauthz.Identity, bool) {
-	return xauthz.FromContext(r.Context())
+func callerIdentity(w http.ResponseWriter, r *http.Request) (xauthz.Identity, bool) {
+	identity, ok := xauthz.FromContext(r.Context())
+	if !ok {
+		denyForbidden(w, string(dataerrors.ErrAuthzIdentityMissing))
+	}
+	return identity, ok
 }
 
 func denyForbidden(w http.ResponseWriter, message string) {
@@ -56,9 +60,8 @@ func denyForbidden(w http.ResponseWriter, message string) {
 // GuardUserPatch separates a profile edit from a privilege edit, and refuses
 // anyone editing their own privileges: that is what stops self-promotion.
 func GuardUserPatch(w http.ResponseWriter, r *http.Request, targetUserID string, body map[string]any) bool {
-	identity, ok := identityOf(r)
+	identity, ok := callerIdentity(w, r)
 	if !ok {
-		denyForbidden(w, string(dataerrors.ErrAuthzIdentityMissing))
 		return false
 	}
 
@@ -66,7 +69,7 @@ func GuardUserPatch(w http.ResponseWriter, r *http.Request, targetUserID string,
 		return true
 	}
 
-	required := privilegesIn(body)
+	required := requirementsIn(privilegedUserFields, body)
 	if len(required) == constants.DefaultInitValue {
 		// No privileged field is touched, so this is a profile edit: only the
 		// account owner may make it.
@@ -92,9 +95,9 @@ func GuardUserPatch(w http.ResponseWriter, r *http.Request, targetUserID string,
 	return true
 }
 
-func privilegesIn(body map[string]any) []xauthz.Requirement {
-	required := make([]xauthz.Requirement, constants.DefaultInitValue, len(privilegedUserFields))
-	for field, requirement := range privilegedUserFields {
+func requirementsIn(fields map[string]xauthz.Requirement, body map[string]any) []xauthz.Requirement {
+	required := make([]xauthz.Requirement, constants.DefaultInitValue, len(fields))
+	for field, requirement := range fields {
 		if _, present := body[field]; present {
 			required = append(required, requirement)
 		}
@@ -104,9 +107,8 @@ func privilegesIn(body map[string]any) []xauthz.Requirement {
 
 // Holding the users scope means administering users, not reading their tokens.
 func GuardSelfUser(w http.ResponseWriter, r *http.Request, targetUserID string) bool {
-	identity, ok := identityOf(r)
+	identity, ok := callerIdentity(w, r)
 	if !ok {
-		denyForbidden(w, string(dataerrors.ErrAuthzIdentityMissing))
 		return false
 	}
 
@@ -121,9 +123,8 @@ func GuardSelfUser(w http.ResponseWriter, r *http.Request, targetUserID string) 
 // An unknown token is refused like someone elses, so this cannot probe for
 // which tokens exist.
 func GuardSelfSessionToken(w http.ResponseWriter, r *http.Request, token string) bool {
-	identity, ok := identityOf(r)
+	identity, ok := callerIdentity(w, r)
 	if !ok {
-		denyForbidden(w, string(dataerrors.ErrAuthzIdentityMissing))
 		return false
 	}
 
@@ -152,37 +153,34 @@ func GuardSelfSessionToken(w http.ResponseWriter, r *http.Request, token string)
 	return true
 }
 
-// A category scope is governed by its own authz scope, and its deny rules live
-// there, unless categoryGoverningScope says otherwise.
-var categoryActions = map[string]map[roledata.PermissionLevel]string{
+// A category is governed by the authz scope it classifies, and each operation
+// on it has its own rule.
+var categoryRequirements = map[string]map[string]xauthz.Requirement{
 	roledata.ScopeGroups: {
-		roledata.PermissionLevelContributor: roledata.ActionAddGroupCategory,
-		roledata.PermissionLevelOwner:       roledata.ActionEditGroupCategory,
+		constants.CategoryOpCreate: xauthz.Denyable(xauthz.Write(roledata.ScopeGroups), roledata.ActionAddGroupCategory),
+		constants.CategoryOpEdit:   xauthz.Denyable(xauthz.Own(roledata.ScopeGroups), roledata.ActionEditGroupCategory),
+		// Deletion checks the edit rule, as it did before operations were keyed.
+		constants.CategoryOpDelete: xauthz.Denyable(xauthz.Own(roledata.ScopeGroups), roledata.ActionEditGroupCategory),
 	},
 	roledata.ScopeRoles: {
-		roledata.PermissionLevelContributor: roledata.ActionAddRoleCategory,
-		roledata.PermissionLevelOwner:       roledata.ActionEditRoleCategory,
+		constants.CategoryOpCreate: xauthz.Denyable(xauthz.Write(roledata.ScopeRoles), roledata.ActionAddRoleCategory),
+		constants.CategoryOpEdit:   xauthz.Denyable(xauthz.Own(roledata.ScopeRoles), roledata.ActionEditRoleCategory),
+		constants.CategoryOpDelete: xauthz.Denyable(xauthz.Own(roledata.ScopeRoles), roledata.ActionEditRoleCategory),
 	},
-	categorydata.ScopePlanEnvironments: {
-		roledata.PermissionLevelContributor: roledata.ActionCreateProtectionPlan,
-		roledata.PermissionLevelOwner:       roledata.ActionEditProtectionPlan,
-	},
-	categorydata.ScopePlanTags: {
-		roledata.PermissionLevelContributor: roledata.ActionCreateProtectionPlan,
-		roledata.PermissionLevelOwner:       roledata.ActionEditProtectionPlan,
-	},
+	categorydata.ScopePlanEnvironments: planCategoryRequirements,
+	categorydata.ScopePlanTags:         planCategoryRequirements,
 }
 
-var categoryGoverningScope = map[string]string{
-	categorydata.ScopePlanEnvironments: roledata.ScopeProtectionPlans,
-	categorydata.ScopePlanTags:         roledata.ScopeProtectionPlans,
+var planCategoryRequirements = map[string]xauthz.Requirement{
+	constants.CategoryOpCreate: xauthz.Denyable(xauthz.Write(roledata.ScopeProtectionPlans), roledata.ActionAddProtectionPlanCategory),
+	constants.CategoryOpEdit:   xauthz.Denyable(xauthz.Own(roledata.ScopeProtectionPlans), roledata.ActionEditProtectionPlanCategory),
+	constants.CategoryOpDelete: xauthz.Denyable(xauthz.Own(roledata.ScopeProtectionPlans), roledata.ActionDeleteProtectionPlanCategory),
 }
 
-// An unknown scope is refused outright rather than slipping past the check.
-func GuardCategoryScope(w http.ResponseWriter, r *http.Request, categoryScope string, level roledata.PermissionLevel) bool {
-	identity, ok := identityOf(r)
+// An unknown scope or operation is refused outright rather than slipping past the check.
+func GuardCategoryScope(w http.ResponseWriter, r *http.Request, categoryScope, operation string) bool {
+	identity, ok := callerIdentity(w, r)
 	if !ok {
-		denyForbidden(w, string(dataerrors.ErrAuthzIdentityMissing))
 		return false
 	}
 
@@ -190,18 +188,12 @@ func GuardCategoryScope(w http.ResponseWriter, r *http.Request, categoryScope st
 		return true
 	}
 
-	actions, known := categoryActions[categoryScope]
+	requirement, known := categoryRequirements[categoryScope][operation]
 	if !known {
 		denyForbidden(w, constants.ErrAuthzUnknownCategoryScope)
 		return false
 	}
 
-	scope := cmp.Or(categoryGoverningScope[categoryScope], categoryScope)
-	requirement := xauthz.Requirement{
-		Scope:    scope,
-		MinLevel: level,
-		Rule:     xauthz.RuleKey(scope, actions[level]),
-	}
 	if !xauthz.Allows(identity, requirement) {
 		denyForbidden(w, constants.ErrAuthzCategoryScopeDenied)
 		return false
@@ -235,30 +227,15 @@ var globalConfigFields = map[string]xauthz.Requirement{
 	},
 }
 
-// Reading the provider key takes the same right as changing it. The key is no
-// longer on the CR, so callers add it only when this allows — never strip it
-// afterwards, which would leak on any missed path.
-func MayControlAIInsights(r *http.Request) bool {
-	identity, ok := identityOf(r)
-	if !ok {
-		return false
-	}
-	if identity.Internal {
-		return true
-	}
-	return xauthz.Allows(identity, globalConfigFields[globalconfigresource.FieldAI])
-}
-
 // Fields absent from the table are not privileges and stay open.
 func GuardGlobalConfigPatch(w http.ResponseWriter, r *http.Request, spec map[string]any) bool {
-	required := globalConfigRequirementsIn(spec)
+	required := requirementsIn(globalConfigFields, spec)
 	if len(required) == constants.DefaultInitValue {
 		return true
 	}
 
-	identity, ok := identityOf(r)
+	identity, ok := callerIdentity(w, r)
 	if !ok {
-		denyForbidden(w, string(dataerrors.ErrAuthzIdentityMissing))
 		return false
 	}
 
@@ -276,14 +253,26 @@ func GuardGlobalConfigPatch(w http.ResponseWriter, r *http.Request, spec map[str
 	return true
 }
 
-func globalConfigRequirementsIn(spec map[string]any) []xauthz.Requirement {
-	required := make([]xauthz.Requirement, constants.DefaultInitValue, len(globalConfigFields))
-	for field, requirement := range globalConfigFields {
-		if _, present := spec[field]; present {
-			required = append(required, requirement)
-		}
+// Lifecycle, approval and material plan keys are written only by discovery.
+func GuardPlanLifecycle(w http.ResponseWriter, r *http.Request, body map[string]any) bool {
+	if !slices.ContainsFunc(constants.PlanLifecycleFields, func(field string) bool {
+		_, present := body[field]
+		return present
+	}) {
+		return true
 	}
-	return required
+
+	identity, ok := callerIdentity(w, r)
+	if !ok {
+		return false
+	}
+
+	if identity.Internal {
+		return true
+	}
+
+	denyForbidden(w, constants.ErrAuthzPlanLifecycleDenied)
+	return false
 }
 
 // Enforces protection.preventDeletion, which builtin roles set but nothing read.

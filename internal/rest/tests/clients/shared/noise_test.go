@@ -28,6 +28,7 @@ const (
 	wantInMessage  = "the response body must still reach the caller, got %q"
 	wantLevel      = "expected level %s for this outcome, got: %s"
 	unwantedLevels = "expected no %s for a routine %d, got: %s"
+	singleLogLine  = 1
 )
 
 func respondWith(status int, body string) roundTripFunc {
@@ -71,7 +72,7 @@ func TestServerErrorLogsOnceAndKeepsTheBodyOutOfTheLog(t *testing.T) {
 	})
 
 	lines := logLines(logged)
-	if len(lines) != 1 {
+	if len(lines) != singleLogLine {
 		t.Fatalf(wantOneLine, len(lines), logged)
 	}
 	for _, want := range []string{
@@ -121,7 +122,7 @@ func TestTransportFailureStaysAtWarn(t *testing.T) {
 		}
 	})
 
-	if len(logLines(logged)) != 1 {
+	if len(logLines(logged)) != singleLogLine {
 		t.Fatalf(wantOneLine, len(logLines(logged)), logged)
 	}
 	if !strings.Contains(logged, levelWarning) {

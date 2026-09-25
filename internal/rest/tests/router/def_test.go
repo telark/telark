@@ -11,21 +11,21 @@ import (
 
 func TestNewRouter(t *testing.T) {
 	routes := []router.Route{
-		router.CreateRoute(base.Get, "hello", func(w http.ResponseWriter, r *http.Request) {
+		router.CreateRoute(base.Get, "hello", func(w http.ResponseWriter, _ *http.Request) {
 			if _, err := w.Write([]byte("Hello, World!")); err != nil {
 				t.Errorf("failed to write response: %v", err)
 			}
 		}),
 	}
 
-	router := router.NewRouter(routes)
+	handler := router.NewRouter(routes)
 	req, err := http.NewRequest("GET", "/api/v1/hello", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
+	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
@@ -40,7 +40,7 @@ func TestNewRouter(t *testing.T) {
 }
 
 func TestCreateRoute(t *testing.T) {
-	route := router.CreateRoute(base.Get, "test", func(w http.ResponseWriter, r *http.Request) {
+	route := router.CreateRoute(base.Get, "test", func(w http.ResponseWriter, _ *http.Request) {
 		if _, err := w.Write([]byte("Test Route")); err != nil {
 			t.Errorf("failed to write response: %v", err)
 		}

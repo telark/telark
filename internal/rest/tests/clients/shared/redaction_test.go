@@ -35,7 +35,7 @@ func TestMain(m *testing.M) {
 	if err := os.Setenv(constants.EnvExporterDurationLogDedupSec, dedupDisabled); err != nil {
 		panic(err)
 	}
-	os.Exit(m.Run())
+	m.Run()
 }
 
 func notFound(*http.Request) (*http.Response, error) {

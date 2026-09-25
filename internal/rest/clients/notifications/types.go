@@ -29,6 +29,8 @@ const (
 	TypeRollbackCompleted      = "rollback.completed"
 	TypeRoleChanged            = "role.changed"
 	TypeGroupMembershipChanged = "group.membership.changed"
+	TypePlanApprovalRequested  = "plan.approval.requested"
+	TypePlanApprovalDecided    = "plan.approval.decided"
 )
 
 const (
@@ -48,6 +50,9 @@ const (
 	MetaKeyGroupID         = "groupId"
 	MetaKeyGroupName       = "groupName"
 	MetaKeyAction          = "action"
+	MetaKeyPlanID          = "planId"
+	MetaKeyPlanName        = "planName"
+	MetaKeyDecision        = "decision"
 )
 
 const (

@@ -5,12 +5,12 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/telark/rest/base"
+	"github.com/telark/rest/constants"
 )
 
 const (
 	pathSeparator = "/"
 	keySeparator  = " "
-	emptyString   = ""
 )
 
 type Route struct {
@@ -23,12 +23,11 @@ type Route struct {
 func NewRouter(routes []Route) *mux.Router {
 	router := mux.NewRouter().StrictSlash(true)
 	for _, route := range routes {
-		handler := route.HandleFunc
 		router.
 			Methods(route.Method).
 			Path(route.Pattern).
 			Name(route.Name).
-			Handler(handler)
+			Handler(route.HandleFunc)
 	}
 	return router
 }
@@ -45,8 +44,6 @@ func Pattern(endpoint base.Endpoint) string {
 	return pathSeparator + string(base.V1) + pathSeparator + string(endpoint)
 }
 
-// Key identifies a registered route for tables keyed by route, such as an
-// authorization rule map.
 func Key(method base.Method, endpoint base.Endpoint) string {
 	return buildKey(string(method), Pattern(endpoint))
 }
@@ -57,12 +54,12 @@ func Key(method base.Method, endpoint base.Endpoint) string {
 func KeyFromRequest(r *http.Request) string {
 	route := mux.CurrentRoute(r)
 	if route == nil {
-		return emptyString
+		return constants.EmptyString
 	}
 
 	template, err := route.GetPathTemplate()
 	if err != nil {
-		return emptyString
+		return constants.EmptyString
 	}
 
 	return buildKey(r.Method, template)

@@ -1,5 +1,7 @@
 package plans
 
+import "github.com/telark/data/plans"
+
 type CreateProtectionPlanRequest struct {
 	ID               string                `json:"id"`
 	Name             string                `json:"name"`
@@ -23,9 +25,30 @@ type CreateProtectionPlanRequest struct {
 	TerminatedAt     *string               `json:"terminatedAt,omitempty"`
 	TerminatedBy     *string               `json:"terminatedBy,omitempty"`
 	ParticipantsIDs  []string              `json:"participantsIDs"`
+	EnvironmentID    string                `json:"environmentID,omitempty"`
+	TagIDs           []string              `json:"tagIDs,omitempty"`
+	ApprovalMode     string                `json:"approvalMode,omitempty"`
+	Approval         *ApprovalRequest      `json:"approval,omitempty"`
 	Health           string                `json:"health"`
 	HealthCheckedAt  *string               `json:"healthCheckedAt,omitempty"`
 	HealthDetail     []HealthDetailRequest `json:"healthDetail,omitempty"`
+}
+
+type ApprovalEventRequest struct {
+	Event   string  `json:"event"`
+	By      string  `json:"by"`
+	At      string  `json:"at"`
+	Comment *string `json:"comment,omitempty"`
+}
+
+type ApprovalRequest struct {
+	State       string                 `json:"state"`
+	RequestedBy string                 `json:"requestedBy"`
+	RequestedAt string                 `json:"requestedAt"`
+	DecidedBy   *string                `json:"decidedBy,omitempty"`
+	DecidedAt   *string                `json:"decidedAt,omitempty"`
+	Comment     *string                `json:"comment,omitempty"`
+	History     []ApprovalEventRequest `json:"history,omitempty"`
 }
 
 type HealthDetailRequest struct {
@@ -47,6 +70,8 @@ type PatchProtectionPlanRequest struct {
 	Scope            *ScopeRequest         `json:"scope,omitempty"`
 	Policies         []PolicyRequest       `json:"policies,omitempty"`
 	ParticipantsIDs  []string              `json:"participantsIDs,omitempty"`
+	EnvironmentID    *string               `json:"environmentID,omitempty"`
+	TagIDs           *[]string             `json:"tagIDs,omitempty"`
 	Phase            *string               `json:"phase,omitempty"`
 	Reason           *string               `json:"reason,omitempty"`
 	RenderedPolicies []string              `json:"renderedPolicies,omitempty"`
@@ -72,6 +97,9 @@ type PrepareProtectionPlanRequest struct {
 	TimeMode        string            `json:"timeMode"`
 	TimeRange       *TimeRangeRequest `json:"timeRange,omitempty"`
 	ParticipantsIDs []string          `json:"participantsIDs"`
+	EnvironmentID   *string           `json:"environmentID,omitempty"`
+	TagIDs          []string          `json:"tagIDs,omitempty"`
+	ApprovalMode    *string           `json:"approvalMode,omitempty"`
 }
 
 type CancelProtectionPlanRequest struct {
@@ -82,10 +110,17 @@ type ReactivateProtectionPlanRequest struct {
 	Reason *string `json:"reason,omitempty"`
 }
 
+type DecideProtectionPlanRequest struct {
+	Decision    string  `json:"decision"`
+	Comment     *string `json:"comment,omitempty"`
+	RequestedAt string  `json:"requestedAt"`
+}
+
 type ScopeRequest struct {
-	Type           string   `json:"type"`
-	ApplicationIDs []string `json:"applicationIds,omitempty"`
-	Namespaces     []string `json:"namespaces,omitempty"`
+	Type           string                               `json:"type"`
+	ApplicationIDs []string                             `json:"applicationIds,omitempty"`
+	Namespaces     []string                             `json:"namespaces,omitempty"`
+	Exclusions     *plans.ProtectionPlanScopeExclusions `json:"exclusions,omitempty"`
 }
 
 type PolicyRequest struct {
@@ -119,10 +154,13 @@ type ProtectionPlanDrift struct {
 	Unexpected []string `json:"unexpected"`
 }
 
+// RetentionWindow tells the caller how far back the underlying record reaches, so an
+// empty Violations list is read as "nothing blocked in this window" and not "nothing ever".
 type ProtectionPlanViolationsResponse struct {
-	PlanID     string                    `json:"planId"`
-	Total      int                       `json:"total"`
-	Violations []ProtectionPlanViolation `json:"violations"`
+	PlanID          string                    `json:"planId"`
+	Total           int                       `json:"total"`
+	RetentionWindow string                    `json:"retentionWindow"`
+	Violations      []ProtectionPlanViolation `json:"violations"`
 }
 
 type ProtectionPlanViolation struct {
@@ -133,6 +171,7 @@ type ProtectionPlanViolation struct {
 	Result    string                 `json:"result"`
 	Message   string                 `json:"message"`
 	Timestamp string                 `json:"timestamp"`
+	EventUID  string                 `json:"eventUID,omitempty"`
 }
 
 type ProtectionPlanResource struct {
@@ -142,7 +181,10 @@ type ProtectionPlanResource struct {
 }
 
 type DuplicateProtectionPlanRequest struct {
-	Name      *string           `json:"name,omitempty"`
-	TimeMode  *string           `json:"timeMode,omitempty"`
-	TimeRange *TimeRangeRequest `json:"timeRange,omitempty"`
+	Name          *string           `json:"name,omitempty"`
+	TimeMode      *string           `json:"timeMode,omitempty"`
+	TimeRange     *TimeRangeRequest `json:"timeRange,omitempty"`
+	EnvironmentID *string           `json:"environmentID,omitempty"`
+	TagIDs        []string          `json:"tagIDs,omitempty"`
+	ApprovalMode  *string           `json:"approvalMode,omitempty"`
 }

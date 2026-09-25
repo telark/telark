@@ -63,7 +63,7 @@ func (c *Client) CreateSnapshot(payload *CreateSnapshotPayload) *response.Generi
 }
 
 func (c *Client) GetSnapshot(id string, scope string) (*map[string]any, error) {
-	withQuery := base.Endpoint(string(eps.GetSnapshot) + "?scope=" + url.QueryEscape(scope))
+	withQuery := base.Endpoint(string(eps.GetSnapshot) + constants.QuerySeparator + scopeQueryParam + "=" + url.QueryEscape(scope))
 	return shared.GetTyped[map[string]any](byID(c.Client, id), withQuery)
 }
 
@@ -74,7 +74,7 @@ func (c *Client) GetSnapshotManifest(
 	namespace string,
 	generation string,
 ) ([]unstructured.Unstructured, error) {
-	_ = ctx // reserved for future context-aware HTTP calls
+	_ = ctx
 	epWithQuery, err := appendSnapshotQuery(eps.GetSnapshotManifest, scope, namespace, generation)
 	if err != nil {
 		return nil, err
@@ -138,12 +138,12 @@ func appendSnapshotQuery(ep base.Endpoint, scope, namespace, generation string) 
 	}
 	if generation != constants.EmptyString {
 		if _, err := strconv.Atoi(generation); err != nil {
-			return "", fmt.Errorf("invalid generation query param: %v", err)
+			return constants.EmptyString, fmt.Errorf("invalid generation query param: %v", err)
 		}
 		q.Set(generationQueryParam, generation)
 	}
 	if len(q) == constants.EmptySliceLength {
 		return ep, nil
 	}
-	return base.Endpoint(string(ep) + "?" + q.Encode()), nil
+	return base.Endpoint(string(ep) + constants.QuerySeparator + q.Encode()), nil
 }

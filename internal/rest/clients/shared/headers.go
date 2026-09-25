@@ -9,16 +9,6 @@ import (
 	responseutils "github.com/telark/rest/utils/response"
 )
 
-func executeHTTPRequestWithHeaders(
-	client *Client,
-	method base.Method,
-	endpoint base.Endpoint,
-	payload []byte,
-	headers map[string]string,
-) (*base.HTTPResult, error) {
-	return doHTTPRequest(client, method, endpoint, payload, headers)
-}
-
 func ExecuteRequestWithHeaders(
 	client *Client,
 	method base.Method,
@@ -35,7 +25,7 @@ func ExecuteRequestWithHeaders(
 		}
 	}
 
-	result, err := executeHTTPRequestWithHeaders(client, method, endpoint, jsonPayload, headers)
+	result, err := doHTTPRequest(client, method, endpoint, jsonPayload, headers)
 	if err != nil {
 		msg := fmt.Sprintf(string(errors.ErrCreateRes), "", err)
 		return errorResponse(client.service, msg, err)
@@ -49,7 +39,7 @@ func GetWithHeaders[T any](
 	endpoint base.Endpoint,
 	headers map[string]string,
 ) (*T, error) {
-	result, err := executeHTTPRequestWithHeaders(client, base.Get, endpoint, nil, headers)
+	result, err := doHTTPRequest(client, base.Get, endpoint, nil, headers)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +52,7 @@ func GetListWithHeaders[T any](
 	endpoint base.Endpoint,
 	headers map[string]string,
 ) ([]T, error) {
-	result, err := executeHTTPRequestWithHeaders(client, base.Get, endpoint, nil, headers)
+	result, err := doHTTPRequest(client, base.Get, endpoint, nil, headers)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +65,7 @@ func GetRawJSONWithHeaders[T any](
 	endpoint base.Endpoint,
 	headers map[string]string,
 ) (*T, error) {
-	result, err := executeHTTPRequestWithHeaders(client, base.Get, endpoint, nil, headers)
+	result, err := doHTTPRequest(client, base.Get, endpoint, nil, headers)
 	if err != nil {
 		return nil, err
 	}

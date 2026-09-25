@@ -50,7 +50,7 @@ const (
 	Exporter     Service     = "exporter"
 	Discovery    Service     = "discovery"
 	Notifier     Service     = "notifier"
-	Enrichment   Service     = "enrichment"
+	Analyzer     Service     = "analyzer"
 	JSON         ContentType = "application/json"
 	Default      Port        = 8080
 	HTTPSPort    Port        = 443

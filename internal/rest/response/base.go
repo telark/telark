@@ -75,16 +75,13 @@ func EncodeMultiJSONResponse(w http.ResponseWriter, status int, responses []*Gen
 		return
 	}
 
-	responsesToEncode := make([]*GenericResponse, len(responses))
-	copy(responsesToEncode, responses)
 	encoder := json.NewEncoder(w)
-	if err := encoder.Encode(responsesToEncode); err != nil {
+	if err := encoder.Encode(responses); err != nil {
 		http.Error(
 			w,
 			fmt.Sprintf(string(errors.ErrRestEncodeResponse), err),
 			http.StatusInternalServerError,
 		)
-		return
 	}
 }
 

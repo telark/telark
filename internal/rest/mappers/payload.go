@@ -16,7 +16,7 @@ func MapToJSONPayload(input any) (map[string]any, error) {
 	result := make(map[string]any)
 	value := reflect.ValueOf(input)
 
-	if value.Kind() == reflect.Ptr {
+	if value.Kind() == reflect.Pointer {
 		if value.IsNil() {
 			return nil, nil
 		}
@@ -87,7 +87,7 @@ func isZeroValue(v reflect.Value) bool {
 		return v.String() == constants.EmptyString
 	case reflect.Slice, reflect.Map, reflect.Array:
 		return v.Len() == constants.FirstIndex
-	case reflect.Ptr, reflect.Interface:
+	case reflect.Pointer, reflect.Interface:
 		return v.IsNil()
 	case reflect.Struct:
 		return v.IsZero()
@@ -98,7 +98,6 @@ func isZeroValue(v reflect.Value) bool {
 
 func processFieldValue(field reflect.Value) (any, error) {
 	if !field.CanInterface() {
-		// Unexported or otherwise non-interfaceable field – skip it
 		return nil, nil
 	}
 
@@ -109,7 +108,7 @@ func processFieldValue(field reflect.Value) (any, error) {
 		return processSliceValue(field)
 	case reflect.Map:
 		return processMapValue(field)
-	case reflect.Ptr:
+	case reflect.Pointer:
 		if field.IsNil() {
 			return nil, nil
 		}

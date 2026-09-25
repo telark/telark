@@ -8,6 +8,11 @@ import (
 	"github.com/telark/rest/utils/request"
 )
 
+const (
+	actionCreate  = "create"
+	validJSONBody = `{"key": "value"}`
+)
+
 func TestParseRequestBody(t *testing.T) {
 	tests := getTestCases()
 
@@ -34,35 +39,35 @@ func getTestCases() []struct {
 	}{
 		{
 			name:           "Valid JSON",
-			body:           `{"key": "value"}`,
-			action:         "create",
+			body:           validJSONBody,
+			action:         actionCreate,
 			checkEmptyBody: true,
 			wantErr:        false,
 		},
 		{
 			name:           "Empty Body",
 			body:           "",
-			action:         "create",
+			action:         actionCreate,
 			checkEmptyBody: true,
 			wantErr:        true,
 		},
 		{
 			name:           "Invalid JSON",
 			body:           `{"key": "value"`,
-			action:         "create",
+			action:         actionCreate,
 			checkEmptyBody: true,
 			wantErr:        true,
 		},
 		{
 			name:           "Get Action",
-			body:           `{"key": "value"}`,
+			body:           validJSONBody,
 			action:         "get",
 			checkEmptyBody: true,
 			wantErr:        false,
 		},
 		{
 			name:           "List Action",
-			body:           `{"key": "value"}`,
+			body:           validJSONBody,
 			action:         "list",
 			checkEmptyBody: true,
 			wantErr:        false,
@@ -70,7 +75,7 @@ func getTestCases() []struct {
 		{
 			name:           "Empty Body with No Check",
 			body:           "{}",
-			action:         "create",
+			action:         actionCreate,
 			checkEmptyBody: false,
 			wantErr:        false,
 		},

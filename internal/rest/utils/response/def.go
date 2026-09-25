@@ -97,7 +97,6 @@ func ReadAndParseGenericResponse(result *base.HTTPResult) *response.GenericRespo
 		)
 	}
 
-	// Handle empty response body (common for DELETE operations)
 	if len(body) == constants.EmptySliceLength {
 		return LogAndReturnResponse(
 			result.Status,

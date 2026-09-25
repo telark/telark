@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -86,6 +87,11 @@ func (c *Client) Create(endpoint base.Endpoint, resource any) *response.GenericR
 	}
 
 	return c.executeRequest(base.Post, endpoint, mappedPayload)
+}
+
+// CreateJSON posts the caller's bytes verbatim, bypassing the reflection mapper.
+func (c *Client) CreateJSON(endpoint base.Endpoint, body json.RawMessage) *response.GenericResponse {
+	return c.executeRequest(base.Post, endpoint, body)
 }
 
 func (c *Client) Update(

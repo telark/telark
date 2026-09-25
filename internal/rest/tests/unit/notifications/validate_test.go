@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/telark/rest/clients/notifications"
+	"github.com/telark/rest/constants"
 )
 
 func validNotification() notifications.Notification {
@@ -27,7 +28,7 @@ func TestValidateForEmit_AcceptsValid(t *testing.T) {
 
 func TestValidateForEmit_RejectsMissingUserID(t *testing.T) {
 	n := validNotification()
-	n.UserID = ""
+	n.UserID = constants.EmptyString
 	err := notifications.ValidateForEmit(&n)
 	if !errors.Is(err, notifications.ErrUserIDRequired) {
 		t.Fatalf("expected ErrUserIDRequired, got %v", err)
@@ -36,7 +37,7 @@ func TestValidateForEmit_RejectsMissingUserID(t *testing.T) {
 
 func TestValidateForEmit_RejectsMissingType(t *testing.T) {
 	n := validNotification()
-	n.Type = ""
+	n.Type = constants.EmptyString
 	err := notifications.ValidateForEmit(&n)
 	if !errors.Is(err, notifications.ErrTypeRequired) {
 		t.Fatalf("expected ErrTypeRequired, got %v", err)
@@ -45,7 +46,7 @@ func TestValidateForEmit_RejectsMissingType(t *testing.T) {
 
 func TestValidateForEmit_RejectsMissingTitle(t *testing.T) {
 	n := validNotification()
-	n.Title = ""
+	n.Title = constants.EmptyString
 	err := notifications.ValidateForEmit(&n)
 	if !errors.Is(err, notifications.ErrTitleRequired) {
 		t.Fatalf("expected ErrTitleRequired, got %v", err)
@@ -54,7 +55,7 @@ func TestValidateForEmit_RejectsMissingTitle(t *testing.T) {
 
 func TestValidateForEmit_RejectsMissingMessage(t *testing.T) {
 	n := validNotification()
-	n.Message = ""
+	n.Message = constants.EmptyString
 	err := notifications.ValidateForEmit(&n)
 	if !errors.Is(err, notifications.ErrMessageRequired) {
 		t.Fatalf("expected ErrMessageRequired, got %v", err)

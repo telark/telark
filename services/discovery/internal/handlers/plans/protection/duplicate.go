@@ -46,7 +46,7 @@ func Duplicate(w http.ResponseWriter, r *http.Request) {
 		w,
 		http.StatusOK,
 		response.OperationSuccess,
-		string(messages.SuccessCreateRes),
+		planMessage(messages.SuccessCreateRes, plan.ID),
 		plan,
 		nil,
 	)

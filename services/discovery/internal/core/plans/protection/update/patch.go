@@ -78,11 +78,12 @@ func applyComplexPatch(
 		patch.TimeRange = toPatchTimeRange(req.TimeRange)
 		changed = true
 	}
-	if !scopeTargetsEqual(plan.Scope, req.Scope) {
+	if !scopeTargetsEqual(plan.Scope, req.Scope) || exclusionsChanged(plan.Scope, req.Scope) {
 		patch.Scope = &planseps.ScopeRequest{
 			Type:           req.Scope.Type,
 			ApplicationIDs: req.Scope.ApplicationIDs,
 			Namespaces:     req.Scope.Namespaces,
+			Exclusions:     effectiveExclusions(plan.Scope, req.Scope),
 		}
 		changed = true
 	}
@@ -100,6 +101,32 @@ func applyComplexPatch(
 		changed = true
 	}
 	return changed
+}
+
+// Material = anything that changes what gets rendered or when; kept beside the comparators so they cannot drift.
+func MaterialChange(
+	plan *plans.ProtectionPlan,
+	req *planseps.PrepareProtectionPlanRequest,
+	newPolicies []plans.ProtectionPlanPolicy,
+) bool {
+	return !planPoliciesEqual(plan.Policies, newPolicies) ||
+		!scopeTargetsEqual(plan.Scope, req.Scope) ||
+		plan.Mode != req.Mode ||
+		plan.TimeMode != req.TimeMode ||
+		!timeRangeEqual(plan.TimeRange, req.TimeRange) ||
+		exclusionsChanged(plan.Scope, req.Scope)
+}
+
+// Nil request exclusions mean untouched, like TagIDs; a non-nil value replaces them whole.
+func exclusionsChanged(planScope plans.ProtectionPlanScope, reqScope planseps.ScopeRequest) bool {
+	return reqScope.Exclusions != nil && !plans.ExclusionsEqual(planScope.Exclusions, reqScope.Exclusions)
+}
+
+func effectiveExclusions(planScope plans.ProtectionPlanScope, reqScope planseps.ScopeRequest) *plans.ProtectionPlanScopeExclusions {
+	if reqScope.Exclusions != nil {
+		return plans.NormalizeExclusions(reqScope.Exclusions)
+	}
+	return planScope.Exclusions
 }
 
 func stringPtrEqual(a, b *string) bool {

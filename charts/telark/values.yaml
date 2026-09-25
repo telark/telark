@@ -99,8 +99,12 @@ app:
   # Optional subcharts. Their config lives in the Subcharts section below.
   kyverno:
     enabled: true
+  # Local model runtime for the analyzer; autoPull=false for air-gapped, see README.
   ollama:
-    enabled: true              # required only when enrichment uses provider=ollama
+    enabled: true
+    autoPull: true
+    # Ollama-API endpoint you run yourself (connected mode, no key); empty = the subchart.
+    runtimeUrl: ""
 
   # Storage for the exporter PVCs (snapshots, reports).
   # storageClass: "" = cluster default · "-" = disable provisioning · "<name>" = that class.
@@ -217,8 +221,6 @@ services:
       REPORTS_PATH: &reportsPath "/reports"
       SNAPSHOTS_PVC_NAME: '{{ include "telark.exporterSnapshotsPvcName" . }}'
       SNAPSHOTS_PVC_NAMESPACE: '{{ .Values.app.namespace }}'
-      AI_KEY_SECRET_NAME: '{{ printf "%s-ai-provider-key" .Values.app.name }}'
-      AI_KEY_SECRET_NAMESPACE: '{{ .Values.app.namespace }}'
       EXPORTER_K8S_CLIENT_QPS: "50"
       EXPORTER_K8S_CLIENT_BURST: "100"
       # Orphan snapshot sweep: unreferenced files older than 1h on the PVC. 0 = off.
@@ -251,10 +253,6 @@ services:
       DISCOVERY_K8S_CLIENT_BURST: "200"
       DISCOVERY_ROLLBACK_K8S_CLIENT_QPS: "100"
       DISCOVERY_ROLLBACK_K8S_CLIENT_BURST: "200"
-      # How often the leader dispatches app signals to enrichment. Deliberately
-      # slower than the UI's insights poll: production is expensive (LLM calls),
-      # the read is cheap, so the UI fills in between ticks.
-      INSIGHTS_TICK_INTERVAL_SEC: "300"
       DISCOVERY_INFORMER_RESYNC_SEC: "600"
       DISCOVERY_ROLLBACK_INFORMER_RESYNC_SEC: "600"
       DISCOVERY_INFORMER_RESYNC_JITTER_FRACTION: "0.2"
@@ -295,6 +293,9 @@ services:
       DISCOVERY_AUTO_CLEANUP_EMPTY_CYCLES_REQUIRED: "2"
       DISCOVERY_AUTO_CLEANUP_GRACE_PERIOD_SEC: "0"
       REST_EXPORTER_DURATION_LOG_DEDUP_SEC: "10"
+      INSIGHTS_INDEX_REFRESH_SEC: "15"
+      INSIGHTS_INDEX_RESYNC_SEC: "300"
+      INSIGHTS_STALE_AFTER_SEC: "86400"
     topologySpread:
       enabled: true
       maxSkew: 1
@@ -304,25 +305,48 @@ services:
     # node drains. performance enables them once the floor is above one.
     pdb:
       enabled: false
-  enrichment:
+  analyzer:
     enabled: true
-    name: "enrichment-service"
-    repository: "enrichment"
+    name: "analyzer-service"
+    repository: "analyzer"
     # @ignore
     version: 0.1.5
-    category: "ai-inisghts"
+    category: "ai-insights"
+    # One analysis worker bound to one Ollama slot (OLLAMA_NUM_PARALLEL=1): a
+    # second replica would only queue behind it. Never autoscaled.
+    autoscaling:
+      enabled: false
     env:
       REDIS_POOL_SIZE: "10"
-      # Provider and API key are read from the GlobalConfig CR at runtime, set by
-      # an admin from the UI. Only the non-secret model names live here.
-      OLLAMA_HOST: "http://{{ .Release.Name }}-ollama:11434"
-      OLLAMA_MODEL: "qwen2.5:3b"
-      ANTHROPIC_MODEL: "claude-haiku-4-5-20251001"
-      GROQ_MODEL: "llama-3.3-70b-versatile"
-      GEMINI_MODEL: "gemini-2.5-flash"
-      NUM_WORKERS: "3"
-      METRICS_INTERVAL_S: "60"
-      WORKER_SHUTDOWN_TIMEOUT_S: "30"
+      OLLAMA_HOST: '{{ default (printf "http://%s-ollama:11434" .Release.Name) .Values.app.ollama.runtimeUrl }}'
+      OLLAMA_AUTO_PULL: '{{ .Values.app.ollama.autoPull }}'
+      ANALYZER_MODE: "fast"
+      # = ollama.resources.limits.cpu; never above the node's vCPU.
+      ANALYZER_NUM_THREAD: "2"
+      ANALYZER_NARRATE_TIMEOUT_SEC: "45"
+      ANALYZER_MAX_STEPS: "8"
+      ANALYZER_MAX_TOOL_CALLS: "8"
+      ANALYZER_TOOL_RESULT_MAX_BYTES: "2048"
+      ANALYZER_WALL_SEC: "480"
+      ANALYZER_LOOP_TIMEOUT_SEC: "120"
+      ANALYZER_EMIT_TIMEOUT_SEC: "180"
+      ANALYZER_CHARS_PER_TOKEN: "3.5"
+      ANALYZER_CONTEXT_TOKENS: "4096"  # deep: 8192
+      ANALYZER_QUEUE_MAX: "100"
+      ANALYZER_AUTO_COOLDOWN_SEC: "600"
+      ANALYZER_MANUAL_COOLDOWN_SEC: "60"
+      ANALYZER_CONFIG_POLL_SEC: "30"
+      ANALYZER_REVIEW_INTERVAL_SEC: "7200"  # 0 = no review sweep
+      ANALYZER_REVIEW_TICK_SEC: "120"
+      ANALYZER_REVIEW_APPS_PER_MIN: "20"
+      ANALYZER_REVIEW_WORKLOADS_MAX: "10"
+      ANALYZER_USAGE_MIN_SAMPLES: "12"
+      ANALYZER_USAGE_MIN_SPAN_SEC: "43200"
+      ANALYZER_CHANGE_VELOCITY_PER_DAY: "20"
+      ANALYZER_CHANGE_RISK_MIN_SPAN_SEC: "259200"
+      # -- Namespaces or plan environments matching it count as production.
+      # @default -- `(^\|[-_.])(prod\|production\|prd)($\|[-_.])`
+      ANALYZER_PRODUCTION_PATTERN: '(^|[-_.])(prod|production|prd)($|[-_.])'
     pdb:
       enabled: false
   notifier:
@@ -408,6 +432,17 @@ redis:
     persistence:
       enabled: true
       size: 4Gi
+    # Replaces the nano preset (same requests). Redis never evicts, so the limit must hold every
+    # app's analyzer documents: about 210 MiB at 2 000 apps in the worst case.
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+        ephemeral-storage: 50Mi
+      limits:
+        cpu: 150m
+        memory: 512Mi
+        ephemeral-storage: 2Gi
 
 nats:
   enabled: true
@@ -543,25 +578,50 @@ metrics-server:
       cpu: 200m
       memory: 400Mi
 
+# Analyzer model runtime (app.ollama.enabled). Nothing is pulled at start: the
+# analyzer pulls the model chosen in Settings. Profiles, models, air-gapped: README.
 ollama:
   ollama:
     models:
-      pull:
-      # tested: phi3.5 (HIGH) / llama3.2:3b (LOW, inaccurate) / qwen2.5:3b (MEDIUM, best fit)
-       - qwen2.5:3b
+      # Stays empty: the subchart's start-up pull ignores autoPull and a failed pull crash-loops the pod.
+      pull: []
   persistentVolume:
     enabled: true
-    size: 10Gi
+    size: 10Gi               # 20Gi when trialing 8B models
     # Empty -> cluster default class. Override per env via --set or values overlay.
     storageClass: ""
+    annotations:
+      helm.sh/resource-policy: keep
+  # CPU tiny profile (granite4:350m, 4k context: ~1.1Gi resident, idle CPU). One size for
+  # every app.mode, which cannot reach a subchart: minimal fits one 2 vCPU / 8 GiB node. Others: README.
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1536Mi
+    # No memory limit: Ollama's free-memory check counts page cache inside the
+    # cgroup, so pulled blobs eventually fill any limit and loads are refused.
+    limits:
+      cpu: "2"
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: RuntimeDefault
   extraEnv:
     - name: OLLAMA_NO_CLOUD
       value: "true"
     - name: OLLAMA_CONTEXT_LENGTH
-      value: "2048"
+      value: "4096"
     - name: OLLAMA_KEEP_ALIVE
       value: "-1"
-    - name: OLLAMA_FLASH_ATTENTION
-      value: "true"
     - name: OLLAMA_NUM_PARALLEL
       value: "1"
+    - name: OLLAMA_MAX_LOADED_MODELS
+      value: "1"
+    - name: OLLAMA_MAX_QUEUE
+      value: "8"
+    - name: OLLAMA_FLASH_ATTENTION
+      value: "1"
+    - name: OLLAMA_KV_CACHE_TYPE
+      value: "q8_0"

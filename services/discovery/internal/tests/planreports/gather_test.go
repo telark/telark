@@ -153,7 +153,7 @@ func resolveOnlyA(context.Context, []string) (map[string]policies.ResolvedApp, [
 
 func newGen(store *fakeStore, dyn dynamic.Interface, rdb *redis.Client) (*reports.Generator, *memLogger) {
 	logger := &memLogger{}
-	return reports.NewGenerator(store, dyn, resolveOnlyA, rdb, logger, maxRows), logger
+	return reports.NewGenerator(store, dyn, resolveOnlyA, rdb, logger, maxRows, time.Minute), logger
 }
 
 func ptr(s string) *string { return &s }

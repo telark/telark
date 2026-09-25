@@ -14,7 +14,7 @@ func GetTemplates(w http.ResponseWriter, _ *http.Request) {
 		w,
 		http.StatusOK,
 		response.OperationSuccess,
-		string(messages.SuccessGetRes),
+		string(messages.SuccessListRes),
 		plans.Templates,
 		nil,
 	)

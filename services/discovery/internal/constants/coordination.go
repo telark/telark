@@ -12,7 +12,7 @@ const (
 	StreamMsgFieldEnqueuedAt                     = "enqueuedAt"
 	StreamMsgFieldAttempts                       = "attempts"
 	KeyPrefixLockApp                             = "lock:app:"
-	KeyPrefixLockEnrich                          = "lock:enrich:"
+	KeyPrefixAnalyzerInflight                    = "analyzer:inflight:"
 	KeyPrefixLockGen                             = "lock:gen:"
 	KeyPrefixOpState                             = "ops:"
 	KeyPrefixDedup                               = "dedup:"

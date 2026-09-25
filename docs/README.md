@@ -8,5 +8,5 @@
 
 Service deep dives:
 
-- [Enrichment architecture](../services/enrichment/ARCHITECTURE.md) — AI insights pipeline.
+- [Analyzer architecture](../services/analyzer/ARCHITECTURE.md) — AI insights pipeline.
 - [OIDC / SSO architecture](../services/auth/OIDC.md) — Google SSO admin config and login flow.

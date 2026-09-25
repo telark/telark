@@ -28,6 +28,9 @@ spec:
         - name: Phase
           type: string
           jsonPath: .spec.phase
+        - name: Approval
+          type: string
+          jsonPath: .spec.approval.state
         - name: Severity
           type: string
           jsonPath: .spec.severity
@@ -108,12 +111,38 @@ spec:
                       items:
                         type: string
                       nullable: true
+                    exclusions:
+                      type: object
+                      nullable: true
+                      description: Kinds (any scope) and named resources (applications scope only) this plan never enforces on
+                      properties:
+                        kinds:
+                          type: array
+                          maxItems: 50
+                          nullable: true
+                          items:
+                            type: string
+                            minLength: 1
+                            maxLength: 63
+                        resources:
+                          type: array
+                          maxItems: 200
+                          nullable: true
+                          items:
+                            type: object
+                            required: [kind, name, namespace]
+                            properties:
+                              kind: {type: string, minLength: 1, maxLength: 63}
+                              name: {type: string, minLength: 1, maxLength: 253}
+                              namespace: {type: string, minLength: 1, maxLength: 63}
                   x-kubernetes-validations:
                     - rule: >
                         self.type == 'applications'
                           ? (has(self.applicationIds) && size(self.applicationIds) > 0 && (!has(self.namespaces) || size(self.namespaces) == 0))
                           : (has(self.namespaces) && size(self.namespaces) > 0 && (!has(self.applicationIds) || size(self.applicationIds) == 0))
                       message: "scope.type=applications requires non-empty applicationIds and no namespaces; scope.type=namespaces requires non-empty namespaces and no applicationIds"
+                    - rule: "self.type == 'applications' || !has(self.exclusions) || !has(self.exclusions.resources) || size(self.exclusions.resources) == 0"
+                      message: "scope.exclusions.resources is only allowed when scope.type=applications"
                 policies:
                   type: array
                   description: Ordered list of policy templates applied by this plan
@@ -154,7 +183,7 @@ spec:
                 phase:
                   type: string
                   description: Current lifecycle phase of the plan
-                  enum: [draft, scheduled, active, terminated, canceled, failed]
+                  enum: [draft, scheduled, active, terminated, canceled, failed, pending_approval]
                 reason:
                   type: string
                   description: Human-readable explanation for the current phase (failures or cancellations)
@@ -213,6 +242,61 @@ spec:
                   items:
                     type: string
                     maxLength: 19
+                approvalMode:
+                  type: string
+                  description: Whether the plan deploys without approval; absent means automatic
+                  enum: [automatic, required]
+                approval:
+                  type: object
+                  nullable: true
+                  required:
+                    - state
+                    - requestedBy
+                    - requestedAt
+                  properties:
+                    state:
+                      type: string
+                      enum: [pending, approved, rejected]
+                    requestedBy:
+                      type: string
+                      maxLength: 64
+                    requestedAt:
+                      type: string
+                      format: date-time
+                    decidedBy:
+                      type: string
+                      maxLength: 64
+                      nullable: true
+                    decidedAt:
+                      type: string
+                      format: date-time
+                      nullable: true
+                    comment:
+                      type: string
+                      maxLength: 500
+                      nullable: true
+                    history:
+                      type: array
+                      maxItems: 20
+                      items:
+                        type: object
+                        required:
+                          - event
+                          - by
+                          - at
+                        properties:
+                          event:
+                            type: string
+                            enum: [requested, approved, rejected]
+                          by:
+                            type: string
+                            maxLength: 64
+                          at:
+                            type: string
+                            format: date-time
+                          comment:
+                            type: string
+                            maxLength: 500
                 health:
                   type: string
                   description: Health/drift status of the plan's deployed Kyverno policies

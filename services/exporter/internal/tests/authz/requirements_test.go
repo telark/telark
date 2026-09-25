@@ -103,7 +103,6 @@ func TestProtectionPlansUseTheirOwnScope(t *testing.T) {
 		"GET /api/v1/plans/protection/{id}/get",
 		"POST /api/v1/plans/protection/create",
 		"PATCH /api/v1/plans/protection/{id}/patch",
-		"DELETE /api/v1/plans/protection/{id}/delete",
 	}
 
 	requirements := authz.Requirements()
@@ -116,6 +115,15 @@ func TestProtectionPlansUseTheirOwnScope(t *testing.T) {
 		if requirement.Scope != roledata.ScopeProtectionPlans {
 			t.Errorf("plan route %q uses scope %q, want %q", key, requirement.Scope, roledata.ScopeProtectionPlans)
 		}
+	}
+}
+
+// Users delete through discovery's clear route, which removes the deployed
+// policies first; a session reaching the CR delete would leave them enforcing.
+func TestPlanDeleteIsInternal(t *testing.T) {
+	key := "DELETE /api/v1/plans/protection/{id}/delete"
+	if got := authz.Requirements()[key]; got != xauthz.Internal {
+		t.Errorf("plan route %q = %+v, want Internal", key, got)
 	}
 }
 

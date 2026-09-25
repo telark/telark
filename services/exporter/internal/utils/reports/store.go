@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -144,8 +146,92 @@ func List(root, planID string) ([]reportseps.ReportMeta, error) {
 		}
 		metas = append(metas, meta)
 	}
-	slices.SortFunc(metas, func(a, b reportseps.ReportMeta) int { return strings.Compare(b.GeneratedAt, a.GeneratedAt) })
+	slices.SortFunc(metas, newestFirst)
 	return metas, nil
+}
+
+// GeneratedAt is always UTC RFC3339, so the string order is the time order.
+func newestFirst(a, b reportseps.ReportMeta) int {
+	return strings.Compare(b.GeneratedAt, a.GeneratedAt)
+}
+
+func ParseListFilter(query url.Values) (ListFilter, error) {
+	filter := ListFilter{Trigger: query.Get(reportseps.QueryTrigger), Limit: constants.ReportsListDefaultLimit}
+	for _, raw := range query[reportseps.QueryPlanID] {
+		for id := range strings.SplitSeq(raw, constants.ReportsListSeparator) {
+			if id = strings.TrimSpace(id); id != constants.EmptyString {
+				filter.PlanIDs = append(filter.PlanIDs, id)
+			}
+		}
+	}
+	if filter.Trigger != constants.EmptyString && !slices.Contains(reportseps.Triggers, filter.Trigger) {
+		return filter, ErrBadFilter
+	}
+	var err error
+	if filter.From, err = parseBound(query.Get(reportseps.QueryFrom)); err != nil {
+		return filter, err
+	}
+	if filter.To, err = parseBound(query.Get(reportseps.QueryTo)); err != nil {
+		return filter, err
+	}
+	if raw := query.Get(reportseps.QueryLimit); raw != constants.EmptyString {
+		limit, convErr := strconv.Atoi(raw)
+		if convErr != nil || limit < constants.DefaultIncrementValue {
+			return filter, ErrBadFilter
+		}
+		filter.Limit = min(limit, constants.ReportsListMaxLimit)
+	}
+	return filter, nil
+}
+
+func parseBound(raw string) (time.Time, error) {
+	if raw == constants.EmptyString {
+		return time.Time{}, nil
+	}
+	at, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		return time.Time{}, ErrBadFilter
+	}
+	return at, nil
+}
+
+func (f ListFilter) excludes(meta reportseps.ReportMeta) bool {
+	if f.Trigger != constants.EmptyString && meta.Trigger != f.Trigger {
+		return true
+	}
+	if f.From.IsZero() && f.To.IsZero() {
+		return false
+	}
+	at, err := time.Parse(time.RFC3339, meta.GeneratedAt)
+	return err != nil || (!f.From.IsZero() && at.Before(f.From)) || (!f.To.IsZero() && at.After(f.To))
+}
+
+// Every plan goes through List's meta-only reads, so a plan removed mid-walk
+// reads as empty. Returns the newest filter.Limit matches and the match count.
+func ListAll(root string, filter ListFilter) ([]reportseps.ReportMeta, int, error) {
+	entries, err := os.ReadDir(filepath.Join(root, constants.ReportsPlansSubdir))
+	if errors.Is(err, os.ErrNotExist) {
+		return []reportseps.ReportMeta{}, constants.DefaultInitValue, nil
+	}
+	if err != nil {
+		return nil, constants.DefaultInitValue, err
+	}
+	metas := []reportseps.ReportMeta{}
+	for _, entry := range entries {
+		planID := entry.Name()
+		if !entry.IsDir() || !artifact.IsSafeSegment(planID) ||
+			(len(filter.PlanIDs) > constants.DefaultInitValue && !slices.Contains(filter.PlanIDs, planID)) {
+			continue
+		}
+		planMetas, listErr := List(root, planID)
+		if listErr != nil {
+			continue
+		}
+		metas = append(metas, slices.DeleteFunc(planMetas, filter.excludes)...)
+	}
+	slices.SortFunc(metas, newestFirst)
+	total := len(metas)
+	return metas[:min(total, filter.Limit)], total, nil
 }
 
 func Load(root, planID, reportID, format string) ([]byte, string, error) {

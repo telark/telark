@@ -1,6 +1,7 @@
 package planpatches
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/telark/data/plans"
@@ -9,8 +10,11 @@ import (
 )
 
 const (
-	patchTime  = "now"
-	cancelUser = "user-1"
+	patchTime     = "now"
+	cancelUser    = "user-1"
+	excludedKind  = "ConfigMap"
+	excludedName  = "wa1"
+	excludedSpace = "prod"
 )
 
 func field(t *testing.T, patch map[string]any, name string) string {
@@ -55,4 +59,43 @@ func TestBuildCancelPatchDefaultReason(t *testing.T) {
 
 	given := protection.BuildCancelPatch(cancelUser, "not needed", patchTime)
 	testutil.Equal(t, "given reason", field(t, given, protection.FieldReason), "not needed")
+}
+
+// Merge patch deletes a key set to null, so absent and empty exclusions both clear the stored object.
+func TestExclusionsPatchValueNullWhenEmpty(t *testing.T) {
+	for name, excl := range map[string]*plans.ProtectionPlanScopeExclusions{"nil": nil, "empty": {}} {
+		if got := protection.ExclusionsPatchValue(excl); got != nil {
+			t.Fatalf("%s exclusions = %#v, want nil", name, got)
+		}
+	}
+}
+
+// Merge patch merges objects key by key and replaces arrays, so both arrays are always sent.
+func TestExclusionsPatchValueAlwaysBothKeys(t *testing.T) {
+	resource := plans.ProtectionPlanExcludedResource{Kind: excludedKind, Name: excludedName, Namespace: excludedSpace}
+	cases := []struct {
+		name string
+		in   plans.ProtectionPlanScopeExclusions
+		want map[string]any
+	}{
+		{"kinds only", plans.ProtectionPlanScopeExclusions{Kinds: []string{excludedKind}}, map[string]any{
+			protection.FieldExclusionKinds:     []any{excludedKind},
+			protection.FieldExclusionResources: []any{},
+		}},
+		{"resources only", plans.ProtectionPlanScopeExclusions{Resources: []plans.ProtectionPlanExcludedResource{resource}}, map[string]any{
+			protection.FieldExclusionKinds: []any{},
+			protection.FieldExclusionResources: []any{map[string]any{
+				protection.FieldExclusionKind:      excludedKind,
+				protection.FieldExclusionName:      excludedName,
+				protection.FieldExclusionNamespace: excludedSpace,
+			}},
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := protection.ExclusionsPatchValue(&c.in); !reflect.DeepEqual(got, any(c.want)) {
+				t.Fatalf("patch value = %#v, want %#v", got, c.want)
+			}
+		})
+	}
 }

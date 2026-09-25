@@ -3,7 +3,9 @@ package policies
 import (
 	"context"
 	"fmt"
+	"slices"
 
+	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	"github.com/telark/data/plans"
 	datapolicies "github.com/telark/data/policies"
 	"github.com/telark/discovery/internal/constants"
@@ -86,17 +88,69 @@ func RollbackPatchFailure(
 	_ = applier.DeletePoliciesByLabelAndNames(ctx, plan.ID, deployedNow)
 }
 
-func UnionRenderedNames(kept, deployed []string) []string {
-	seen := make(map[string]struct{}, len(kept)+len(deployed))
-	out := make([]string, constants.DefaultInitValue, len(kept)+len(deployed))
-	for _, n := range kept {
-		if _, ok := seen[n]; ok {
-			continue
-		}
-		seen[n] = struct{}{}
-		out = append(out, n)
+// A full render reproduces the live names, so nothing is deleted here: Run deletes the stale names
+// only after the exporter patch lands, and a failure restores the old render instead.
+func ApplyFullRender(
+	ctx context.Context,
+	applier *Applier,
+	logger DiffLogger,
+	oldPlan, newPlan *plans.ProtectionPlan,
+	resolved map[string]datapolicies.ResolvedApp,
+	msgs DeployErrorMessages,
+) (deployed, kept, stale []string, err error) {
+	if oldPlan.Phase != plans.PhaseActive {
+		return nil, oldPlan.RenderedPolicies, nil, nil
 	}
-	for _, n := range deployed {
+
+	rendered, err := datapolicies.Render(newPlan, resolved, logger)
+	if err != nil {
+		shared.LogDeployFailure(logger, newPlan, "update-render-full", err)
+		return nil, nil, nil, err
+	}
+
+	deployedNames, err := applier.Deploy(ctx, rendered)
+	if err != nil {
+		shared.LogDeployFailure(logger, newPlan, "update-deploy-full", err)
+		RollbackFullRender(ctx, applier, logger, oldPlan, policyNames(rendered), resolved)
+		return nil, nil, nil, fmt.Errorf(msgs.InternalErrorFormat, msgs.GenericDeployFailure)
+	}
+	return deployedNames, nil, subtract(oldPlan.RenderedPolicies, deployedNames), nil
+}
+
+// Best effort on a path that already failed. SSA already overwrote same-named policies with the
+// new content, so the old ones are re-applied, and never a name the CR does not list.
+func RollbackFullRender(
+	ctx context.Context,
+	applier *Applier,
+	logger DiffLogger,
+	oldPlan *plans.ProtectionPlan,
+	attempted []string,
+	resolved map[string]datapolicies.ResolvedApp,
+) {
+	if len(attempted) == constants.DefaultInitValue {
+		return
+	}
+	if err := applier.DeletePoliciesByLabelAndNames(ctx, oldPlan.ID, subtract(attempted, oldPlan.RenderedPolicies)); err != nil {
+		shared.LogDeployFailure(logger, oldPlan, "update-rollback-delete", err)
+	}
+	old, err := datapolicies.Render(oldPlan, resolved, logger)
+	if err != nil {
+		shared.LogDeployFailure(logger, oldPlan, "update-rollback-render", err)
+		return
+	}
+	old = slices.DeleteFunc(old, func(p kyvernov1.Policy) bool {
+		return !slices.Contains(oldPlan.RenderedPolicies, p.Name)
+	})
+	if _, err := applier.Deploy(ctx, old); err != nil {
+		shared.LogDeployFailure(logger, oldPlan, "update-rollback-deploy", err)
+	}
+}
+
+func UnionRenderedNames(kept, deployed []string) []string {
+	all := slices.Concat(kept, deployed)
+	seen := make(map[string]struct{}, len(all))
+	out := make([]string, constants.DefaultInitValue, len(all))
+	for _, n := range all {
 		if _, ok := seen[n]; ok {
 			continue
 		}
@@ -119,4 +173,12 @@ func subtract(all, drop []string) []string {
 		out = append(out, item)
 	}
 	return out
+}
+
+func policyNames(rendered []kyvernov1.Policy) []string {
+	names := make([]string, constants.DefaultInitValue, len(rendered))
+	for i := range rendered {
+		names = append(names, rendered[i].Name)
+	}
+	return names
 }

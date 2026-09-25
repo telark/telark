@@ -40,6 +40,12 @@ func CreatePlanReport() func(http.ResponseWriter, *http.Request) {
 	}
 }
 
+func ListReports() func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		reportsexp.ListReports(w, r.URL.Query())
+	}
+}
+
 func ListPlanReports() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := sharedutils.GetPathParam(w, r, constants.IDParam)

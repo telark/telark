@@ -128,9 +128,6 @@ const (
 	ManifestOrderVerticalPodAutoscaler          = 14
 	DefaultManifestUnknownOrder                 = 99
 	MaxUserIDGenerationAttempts                 = 10
-	AIKeySecretNamespaceEnv                     = "AI_KEY_SECRET_NAMESPACE"
-	AIKeySecretNameEnv                          = "AI_KEY_SECRET_NAME"
-	AIKeySecretField                            = "apiKey"
 	ResourceTypePasskey                         = "passkey"
 	FieldCredentialID                           = "credentialId"
 	FieldUsername                               = "username"
@@ -231,6 +228,9 @@ const (
 	ReportsReportsSubdir           = "reports"
 	ReportsLedgerFile              = "ledger.json"
 	ReportsMaxPerPlan              = 10
+	ReportsListDefaultLimit        = 200
+	ReportsListMaxLimit            = 1000
+	ReportsListSeparator           = ","
 	ReportFileExtension            = ".json"
 	ReportMaxBodyBytes             = 32 << 20
 	ReportsSweepMinAge             = time.Hour

@@ -2,6 +2,7 @@ package planduplicate
 
 import (
 	"fmt"
+	"reflect"
 	"slices"
 	"strconv"
 	"testing"
@@ -22,6 +23,8 @@ const (
 	defaultCopyName       = "Copy of prod-guard"
 	secondCopyName        = "Copy of prod-guard (2)"
 	takenSuffixCeiling    = 200
+	labelApprovalMode     = "approvalMode"
+	requesterID           = "u1"
 )
 
 func strptr(s string) *string { return &s }
@@ -36,7 +39,7 @@ func sourcePlan() *plans.ProtectionPlan {
 		Scope:           plans.ProtectionPlanScope{Type: plans.ScopeTypeNamespaces, Namespaces: []string{"prod"}},
 		Policies:        []plans.ProtectionPlanPolicy{{TemplateID: "block-create"}},
 		TimeRange:       &plans.ProtectionPlanTimeRange{StartAt: "2026-01-01T00:00:00Z", EndAt: "2026-01-02T00:00:00Z"},
-		ParticipantsIDs: []string{"u1"},
+		ParticipantsIDs: []string{requesterID},
 		EnvironmentID:   sourceEnvironmentID,
 		TagIDs:          []string{sourceTagID},
 	}
@@ -150,4 +153,90 @@ func TestUsesDefaultName(t *testing.T) {
 	testutil.Equal(t, "nil", duplicate.UsesDefaultName(planseps.DuplicateProtectionPlanRequest{}), true)
 	testutil.Equal(t, "empty", duplicate.UsesDefaultName(planseps.DuplicateProtectionPlanRequest{Name: strptr("")}), true)
 	testutil.Equal(t, "named", duplicate.UsesDefaultName(planseps.DuplicateProtectionPlanRequest{Name: strptr("x")}), false)
+}
+
+func requiredSource() *plans.ProtectionPlan {
+	source := sourcePlan()
+	source.ApprovalMode = plans.ApprovalModeRequired
+	source.Approval = &plans.ProtectionPlanApproval{State: plans.ApprovalStateApproved, RequestedBy: requesterID}
+	return source
+}
+
+func approvalModeOf(t *testing.T, got *planseps.PrepareProtectionPlanRequest) string {
+	t.Helper()
+	if got.ApprovalMode == nil {
+		t.Fatal("approvalMode should be copied from the source")
+	}
+	return *got.ApprovalMode
+}
+
+// A copy with no overrides keeps the source execution mode.
+func TestBuildRequestCopiesApprovalModeWhenNothingOverridden(t *testing.T) {
+	got := duplicate.BuildRequest(requiredSource(), planseps.DuplicateProtectionPlanRequest{})
+	testutil.Equal(t, labelApprovalMode, approvalModeOf(t, got), plans.ApprovalModeRequired)
+}
+
+// Moving the copy to another environment leaves the mode nil so Prepare re-derives it.
+func TestBuildRequestDropsApprovalModeWhenEnvironmentChanged(t *testing.T) {
+	got := duplicate.BuildRequest(requiredSource(), planseps.DuplicateProtectionPlanRequest{
+		EnvironmentID: strptr(overrideEnvironmentID),
+	})
+	if got.ApprovalMode != nil {
+		t.Fatalf("approvalMode = %q, want nil when the environment changed", *got.ApprovalMode)
+	}
+}
+
+// The UI resends environmentID whenever tags are touched; an unchanged value is not a change.
+func TestBuildRequestKeepsApprovalModeWhenEnvironmentResent(t *testing.T) {
+	got := duplicate.BuildRequest(requiredSource(), planseps.DuplicateProtectionPlanRequest{
+		EnvironmentID: strptr(sourceEnvironmentID),
+		TagIDs:        []string{overrideTagA},
+	})
+	testutil.Equal(t, labelApprovalMode, approvalModeOf(t, got), plans.ApprovalModeRequired)
+}
+
+// An explicit approvalMode override wins even when the environment changes too.
+func TestBuildRequestApprovalModeOverrideWins(t *testing.T) {
+	got := duplicate.BuildRequest(requiredSource(), planseps.DuplicateProtectionPlanRequest{
+		EnvironmentID: strptr(overrideEnvironmentID),
+		ApprovalMode:  strptr(plans.ApprovalModeAutomatic),
+	})
+	testutil.Equal(t, labelApprovalMode, approvalModeOf(t, got), plans.ApprovalModeAutomatic)
+}
+
+// Approval state never crosses into a copy: the Prepare-shaped DTO has no field for it,
+// and a legacy source without a mode yields nil so Prepare derives one.
+func TestBuildRequestNeverCarriesApprovalState(t *testing.T) {
+	if _, has := reflect.TypeOf(planseps.PrepareProtectionPlanRequest{}).FieldByName("Approval"); has {
+		t.Fatal("PrepareProtectionPlanRequest must not carry approval state")
+	}
+	legacy := sourcePlan()
+	legacy.Approval = &plans.ProtectionPlanApproval{State: plans.ApprovalStatePending, RequestedBy: requesterID}
+	got := duplicate.BuildRequest(legacy, planseps.DuplicateProtectionPlanRequest{})
+	if got.ApprovalMode != nil {
+		t.Fatalf("approvalMode = %q, want nil for a source without a mode", *got.ApprovalMode)
+	}
+}
+
+// The copy inherits the source exclusions by value, never the source pointer.
+func TestBuildRequestCopiesExclusions(t *testing.T) {
+	source := sourcePlan()
+	source.Scope = plans.ProtectionPlanScope{
+		Type:           plans.ScopeTypeApplications,
+		ApplicationIDs: []string{"app-1"},
+		Exclusions: &plans.ProtectionPlanScopeExclusions{
+			Kinds:     []string{"ConfigMap"},
+			Resources: []plans.ProtectionPlanExcludedResource{{Kind: "Deployment", Name: "wa1", Namespace: "prod"}},
+		},
+	}
+	got := duplicate.BuildRequest(source, planseps.DuplicateProtectionPlanRequest{})
+	testutil.Equal(t, "exclusions", plans.ExclusionsEqual(got.Scope.Exclusions, source.Scope.Exclusions), true)
+	if got.Scope.Exclusions == source.Scope.Exclusions {
+		t.Fatal("exclusions must be copied, not share the source pointer")
+	}
+
+	none := duplicate.BuildRequest(sourcePlan(), planseps.DuplicateProtectionPlanRequest{})
+	if none.Scope.Exclusions != nil {
+		t.Fatalf("exclusions = %+v, want nil for a source without exclusions", none.Scope.Exclusions)
+	}
 }

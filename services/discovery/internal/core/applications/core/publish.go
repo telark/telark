@@ -10,6 +10,7 @@ import (
 	"github.com/telark/discovery/internal/config"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/applications/history/diff"
+	"github.com/telark/discovery/internal/core/applications/insights"
 	"github.com/telark/discovery/internal/core/applications/snapshot"
 	"github.com/telark/discovery/internal/publisher"
 	natscore "github.com/telark/x-ware/nats/core"
@@ -28,7 +29,8 @@ func PublishApplications(natsClient *natscore.NATSClient, apps []application.App
 		}
 		snapshot.NormalizeApplicationSnapshotTakenAt(app)
 		payload := applicationPayload(app)
-		if i >= len(outcomes) || outcomes[i] != diff.OutcomeAuthored {
+		authored := i < len(outcomes) && outcomes[i] == diff.OutcomeAuthored
+		if !authored {
 			stripUnauthoredHistory(payload)
 		}
 		params := publisher.PublishUpdateParams{
@@ -43,6 +45,9 @@ func PublishApplications(natsClient *natscore.NATSClient, apps []application.App
 			lastErr = publisher.PublishUpdate(params, natsClient)
 			if lastErr == nil {
 				app.CRStatus = application.CRStatusPublished
+				if authored {
+					insights.Enqueue(app)
+				}
 				break
 			}
 			if attempt < attemptMax {

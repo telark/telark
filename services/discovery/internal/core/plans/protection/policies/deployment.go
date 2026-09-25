@@ -39,7 +39,7 @@ func renderForCombinations(
 		Name:      plan.Name,
 		CreatedBy: plan.CreatedBy,
 		Mode:      plan.Mode,
-		Scope:     plans.ProtectionPlanScope{Type: plan.Scope.Type},
+		Scope:     plans.ProtectionPlanScope{Type: plan.Scope.Type, Exclusions: plan.Scope.Exclusions},
 		Policies:  policiesSubset,
 	}
 	if plan.Scope.Type == plans.ScopeTypeApplications {

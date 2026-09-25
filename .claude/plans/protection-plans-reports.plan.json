@@ -1,0 +1,1162 @@
+{
+ "status": "FINAL, revision 5 (2026-09-23); supersedes revision 4 of this file and protection-plans-reports.plan.v1-superseded.md. Every critical/high finding of the revision-3 review is folded in, plus every medium and every low the author agreed with (see 'Revision log (revision 3 → 4)'); revision 5 closes the two fix-verifier findings against revision 4 (see 'Revision log (revision 4 → 5)'). Written from the current working trees, re-verified 2026-09-23.",
+ "treeState": "telark branch e2e/set_plans_feature_ready_for_mvp_launch @ 7ead02d, 129 porcelain entries (repo-root-relative paths); 42 under services/exporter, 54 under services/discovery. The environments-tags work is NOT committed: it is STAGED (index) — services/exporter/internal/authz/guard.go (+20/−4, categorydata.ScopePlanEnvironments/ScopePlanTags), discovery svc.go/wire.go/violations.go/controller.go, charts values.yaml/VALUES.md, the plan files under .claude/plans (A). Part A perimeter (utils/snapshot, exporters/snapshot, handlers/snapshot, managers, routes, authz, main.go, constants) has an EMPTY worktree-vs-index diff (`git diff --name-only -- <perimeter>` prints nothing) but a NON-empty index (`git status --porcelain <perimeter>` prints `M  services/exporter/internal/authz/guard.go`) — every perimeter check in this plan is therefore worktree-vs-index (`git diff`, never `git status`). internal/rest main @ 4fea536 == v0.14.4 with 12 STAGED entries (RetentionWindow, Go 1.27, mappers/payload.go reflect.Pointer rename + tests/unit/mappers/payload_test.go); mappers.MapToJSONPayload keys a field by its json tag and an untagged field lands on key \"\" (payload.go:11-45, parseJSONTag). internal/data main @ 36ba327 (= v1.14.8+1, untagged) now has 6 STAGED entries (plans/protectionplan.go EnvironmentID/TagIDs, category builtins, two tests) — environments-tags work, NOT touched by this plan. dashboard-ui @ 03383306 with 52 porcelain entries, 29 under features/plans/protection (incl. A PlanTaxonomyFields.tsx, usePlanTaxonomies.ts, PlanTaxonomyPage.tsx). release-manager/helm/app values.yaml and README.md are dirty. Verified code facts this revision relies on: health/repair.go:29-43 repairs (REDEPLOYS missing policies) whenever the plan re-reads as active at the source (activeAtSource :58-64) and is reachable from the status route on ANY replica (handlers/plans/protection/status.go → health.Check → ComputeAndRepair); svc.go Terminate (:355-365) and Cancel (:178-200) run CleanupByPlanID then the ctx-less PatchRawOrError; controller.go:69-88 processOnce transitions plans SEQUENTIALLY; data/plans/protectionplan.go: TimeRange, StartedAt, TerminatedAt, Reason, HealthCheckedAt are pointers; violations.go:36 RetentionWindow = \"1h\" (string), :110 Page sorts newest-first and caps, :148 Collect uses the caller ctx, :206 buildViolation matches involvedObject.name only; exporters/snapshot/gc.go:21-39 StartSnapshotGC returns when SNAPSHOT_GC_INTERVAL_SEC <= 0 and :41-61 gcTickAllowed gates the tick on a Redis lock (hostname value, TTL interval/2); handlers/rollback/controller.go:280-297 lockRollback = single Acquire with uuid.NewString(), busy → busy error; kcorek8s.NewDynamicClientWithRateLimit(qps, burst) is the per-concern client precedent (rollback controller.go:110-118, DISCOVERY_ROLLBACK_K8S_CLIENT_QPS/BURST in values.yaml:245-246); rest shared.Client.Create = MapToJSONPayload + POST (client.go:82-89), executeRequest(method, endpoint, payload any) json.Marshals any payload (utils.go:150) but is unexported; dashboard-ui health-interceptor.ts isHealthFailure counts every status >= 500 (FAILURE_THRESHOLD = 5 opens the discovery circuit); x-ware cors sets no ExposedHeaders; miniredis and google/uuid are in discovery go.mod, miniredis in exporter go.mod. Sequencing with the parallel environments-tags plan: it shares 7 files with this plan (rest endpoints/plans/types.go, discovery svc.go and README.md, UI Content.tsx, protectionPlans.ts, models/index.ts, permissionEngine.tsx) and its work is staged, not committed — see A0's precondition.",
+ "approach": "PART A extracts exactly four primitives a second on-volume store needs into services/exporter/internal/utils/artifact: WriteAtomic(path, write func(io.Writer) error) (Stage, error) returning the RAW cause plus the stage it failed at, IsWithinBase, IsSafeSegment, and TickAllowed(ctx, rdb, key, ttl) (the Redis-gated GC tick). The snapshot originals (paths.go, persist.go, gc.go gcTickAllowed) become one-line delegates with identical names, signatures, returned errors and log lines, so request.go/storage.go/file.go/def.go and the five staged snapshot test files are untouched and ARE the behaviour pin. The Part A gate (A3) checks the perimeter as a worktree-vs-index diff (the index holds the user's staged environments-tags work and is never asserted empty), test/lint parity against the baseline A0 records, and writes the Part A diff-stat into the workflow journal; V4(a) re-checks that stat (or, if the user committed Part A meanwhile, an empty diff against HEAD) — no scratchpad manifest. PART B: discovery owns the data and rendering; the exporter is a validated byte store on a SECOND PVC (<fullname>-exporter-reports-pvc, REPORTS_PATH=/reports, own route tree reports/plans/*), rendered from the SAME pvc.yaml template as the snapshots claim (one claims list, snapshots document proven byte-identical), mirrored in the release-manager deployment chart. One atomic file per report (/reports/plans/<planID>/reports/<reportID>.json = {meta, files{html,md,json,csv}}, meta FIRST so List streams only the meta prefix); ONE ledger file per plan (/reports/plans/<planID>/ledger.json, Run stored inside; a run mismatch starts empty); a replayed report id answers 200 with the stored meta; exporters/reports.StartReportsGC is its OWN goroutine (own lock key, recover, same SNAPSHOT_GC_INTERVAL_SEC — documented coupling) that removes report directories of plans whose CR no longer exists and stale temp files. The Events-TTL landmine is closed structurally: a leader-gated checkpoint loop (PROTECTION_PLAN_REPORT_CHECKPOINT_SEC, default 900 s, clamped to [60, 1800] s — always below the 1 h Event TTL) merges live PolicyViolation Events into the ledger through its OWN rate-limited dynamic client (per-concern budget, rollback precedent); the merge is time-fenced to [StartedAt, TerminatedAt] and deduplicated by Event UID; EVERY report generation first merges live Events IN MEMORY (so a report is never less complete than the ledger plus what the cluster still holds), and only the leader loop and the boundary capture PERSIST the merged ledger, each under a single Redis NX Acquire (uuid value, busy → skip the write, never skip the merge). Manual Generate is read-only and works after the plan ended: within the retention window it merges live Events for ledger.RenderedPolicies (rows ≤ TerminatedAt) — the recovery path when a boundary capture failed. The boundary capture runs AFTER the terminal patch in svc.Terminate and svc.Cancel — never between cleanup and the patch, because health.repairIfDrifted (not leader-gated, reachable from the status route on any replica) redeploys policies onto any plan that still reads active — and it is ASYNCHRONOUS: reports.Generator.CaptureAsync copies the in-memory plan (which still holds RenderedPolicies/Health), stamps TerminatedAt/By/Phase from the trigger, and runs Generate in a goroutine under a detached 10 s timeout, a recover, and a single capture slot (captures serialize; they never compete with manual renders for the 2-slot manual semaphore). Terminate/Cancel latency and the controller pass are unchanged; no ctx guard is added (recorded as a separate follow-up). Generate and Checkpoint run inside a recover so a panic in gather/render is an error, never a crash-loop of the sequential controller. Report traffic never enters the exporter circuit breaker (direct rest client calls; no ExecuteExporter, no state gate); the checkpoint loop stops at the first exporter failure. Report size is self-bounding (RenderWithinBudget fits the request under 16 MiB by dropping oldest rows, truncated flag); the ledger is bounded by PROTECTION_PLAN_REPORT_MAX_VIOLATIONS × 512-rune messages. Manual renders are bounded by a 2-slot semaphore: overflow → 429 + Retry-After (not 503: the dashboard's own health breaker counts every ≥ 500 from discovery and would blank the UI after five busy answers). Wire format: the ledger crosses the exporter boundary as pre-marshalled JSON (rest shared.Client.CreateJSON(endpoint, json.RawMessage) — never through the reflection mapper) and every DTO carries explicit camelCase json tags, pinned by round-trip tests against the real mapper and the real client. Four stdlib formats (HTML with print stylesheet = the PDF path, Markdown, JSON, CSV), zero new Go dependencies, no CRD change, no data-module change, no new deny actions, no Redux, no job table, no user-name lookups. Exactly four settings: app.persistence.reportsSize, REPORTS_PATH, PROTECTION_PLAN_REPORT_MAX_VIOLATIONS, PROTECTION_PLAN_REPORT_CHECKPOINT_SEC; every other knob is a constant. The UI downloads via Client<Blob>(exporterApiClient, ..., {responseType:'blob'}) with the session token in the X-Session-Token header only, and the Reports card is always rendered (sibling hooks are ungated; the exporter's Read requirement is the guard). Order: Part A (A0 baseline+precondition → A1 → A2 → A3 gate) → rest DTOs → chart PVC (both charts) → exporter store → exporter routes → rest client → discovery client → domain → boundary hook → checkpoint loop → handler → UI → docs → verification.",
+ "decisions": [
+  {
+   "question": "Where is the generic seam and what shape does it take?",
+   "choice": "One new package services/exporter/internal/utils/artifact (artifact.go + types.go): WriteAtomic(path string, write func(io.Writer) error) (Stage, error) where Stage ∈ {StageNone, StageTempCreate, StageTempWrite, StageTempClose, StageRename} and the returned error is the RAW cause (never wrapped); IsWithinBase(target, base string) bool; IsSafeSegment(id string) bool; TickAllowed(ctx context.Context, rdb *redis.Client, key string, ttl time.Duration) bool (the Redis-gated periodic-sweep gate lifted verbatim from exporters/snapshot/gc.go gcTickAllowed, keyed by name). Temp naming uses constants.SnapshotTempSuffix internally. Root path is always an explicit parameter; no Store type, no registry, no interface.",
+   "why": "Caller census (verified): outside utils/snapshot only def.go:40 WriteSnapshotJSON, :151 FormattedFileSize, :213/:539 IsWithinBase are called; inside, request.go:109/:158, storage.go:214/:217, file.go:21 call unqualified; gcTickAllowed is called once (gc.go:34). Delegating wrappers with the same names keep every one of those files at zero diff. Returning (stage, raw err) keeps the four ErrSnapshot*Context log lines and the error passed to LogAndSendResponse byte-identical. TickAllowed is lifted (revision 4) so the reports sweep does not copy a 12-line lock gate, per C3."
+  },
+  {
+   "question": "What does the C3 'scope identifier' map to? (explicit question for the user — default recorded)",
+   "choice": "A scope is a NAMED SET of five things, not a type: {root env + default (SNAPSHOTS_PATH → /snapshots | REPORTS_PATH → /reports), PVC helper (telark.exporterSnapshotsPvcName | telark.exporterReportsPvcName) + size key (app.persistence.size | reportsSize), mount path (= root), route prefix (snapshots/* | reports/plans/*), GC lock key (exporter:snapshot:gc | exporter:reports:gc)}. Both scopes run over the shared mechanism = package artifact (WriteAtomic, IsWithinBase, IsSafeSegment, TickAllowed) + the single pvc.yaml claims template. NOT shared (deliberately, ~10 lines each): envs/reports.go InitReportsPath/GetReportsPath and main.go initReportsConfig (env parsing in the snapshot shape), and the reports store's own layout functions. The existing envs.ScopeDefinition{Name, Namespaced} registry stays what it is: the snapshot sub-tree list under ONE root; it cannot express a second root (C2), so it is not reused. USER OVERRIDE: if you want a `Store{Root, Perm, LockKey}` value both scopes instantiate, say so; the plan then adds it to package artifact in A1 and both envs files construct one.",
+   "why": "Revision-3 review: the plan answered 'nothing named scope' to a user-fixed constraint. This records the mapping explicitly and puts the one remaining design choice (a tiny Store value vs two 10-line env files) to the user instead of deciding it silently."
+  },
+  {
+   "question": "Who renders the document?",
+   "choice": "Discovery gathers and renders all four formats in memory (core/plans/protection/reports); the exporter stores and serves bytes.",
+   "why": "Discovery owns the plan lifecycle and the Events read path; the exporter cannot import rest clients and must not learn plan semantics."
+  },
+  {
+   "question": "How does the report cover more than the last hour of Events (the retention landmine)?",
+   "choice": "A leader-gated checkpoint loop (controllers/plans/protection/checkpoint.go; interval from PROTECTION_PLAN_REPORT_CHECKPOINT_SEC, default 900 s, clamped to [ReportCheckpointMinSec = 60, ReportCheckpointMaxSec = 1800] with a log line when clamped; one catch-up run on leadership start) merges live Events into ONE ledger per plan stored by the exporter at /reports/plans/<planID>/ledger.json (Run stored inside; when Run != RunKey(plan) the ledger starts empty and is overwritten — the previous run is already preserved in its final report). Merge = time fence [plan.StartedAt, plan.TerminatedAt-if-set] on Timestamp, dedup by Event UID (new EventUID field on ProtectionPlanViolation), CapMessage at 512 runes, then violations.Page(rows, max) newest-first with truncated = total > max. The ledger also stores RenderedPolicies (set on each persisted merge) and one LedgerCheckpoint{At, Health, ViolationsSeen} per merge that ran Collect. Event LISTs use the Generator's OWN dynamic client (kcorek8s.NewDynamicClientWithRateLimit with the rollback budget constants) so the checkpoint burst on leadership acquisition never starves CleanupByPlanID/Deploy on the applier's client; each plan's Checkpoint runs under context.WithTimeout(ctx, DefaultReportCaptureTimeout); the loop breaks at the first exporter failure. EVERY Generate (boundary and manual) = load ledger → Merge live IN MEMORY → render from the merged ledger; only the leader loop and the boundary capture PERSIST (single Redis NX Acquire, key lock:reports:ledger:<planID>, value uuid.NewString(), TTL DefaultLockTTL; busy → LogLedgerLocked and skip the write only). Post-end: when TerminatedAt is set and now − TerminatedAt < violations.RetentionWindowDuration, Merge uses ledger.RenderedPolicies (plan.RenderedPolicies is blank after the terminal patch) and keeps rows ≤ TerminatedAt — so a manual report generated within the hour after a FAILED boundary capture is still complete. Coverage lists checkpoint count, first/last checkpoint, every gap longer than the retention window, and the trailing gap.",
+   "why": "Boundary-only capture covers the last hour. Revision-3 review: (1) the lock-busy branch and the TerminatedAt early-return threw away recoverable data; merging in memory is free because the live rows are already read; (2) name-only filtering attributed the previous run's Events to a reactivated run — the time fence closes it; (3) three writers needed a wait loop; with manual Generate read-only there are two writers (leader loop on the leader, boundary capture on whichever replica handled Cancel), one Acquire + uuid (rollback precedent) is enough and a lost update costs at most seconds of Events in the post-end ledger while the final report itself is complete; (4) per-run ledger files were dead data after Reactivate. USER DECISION (default = PVC ledger): a Redis hash keyed by EventUID (HSET ledger:<plan> <uid> <row> + a meta key, capped by HLEN) would remove the two ledger routes, two rest methods, two wrappers, the lock and the read-modify-write — but Redis is not today the system of record for durable data; say 'redis ledger' to switch. USER OVERRIDE 2: drop B9 and the ledger halves of B5/B7/B8 to accept a one-hour ceiling."
+  },
+  {
+   "question": "When is a report generated, and where in Terminate/Cancel?",
+   "choice": "Both: automatically in svc.Terminate and svc.Cancel AFTER the terminal patch succeeds (active + started plans only), and on demand via POST plans/protection/{id}/reports/generate for any plan that is not draft/scheduled AND has StartedAt set. Order in both methods: CleanupByPlanID(ctx) (as today) → PatchRawOrError terminal patch (as today; on error return as today) → s.reports.CaptureAsync(plan, now, actor, reason, trigger) → (Cancel) the final Get. NO ctx.Err() guard is added anywhere.",
+   "why": "CRITICAL from the revision-3 review: health/repair.go:29-43 redeploys missing policies whenever the plan still reads active at the source, is NOT leader-gated and is reachable from the status route on any replica; a capture placed between cleanup and the patch stretched that window from milliseconds to 10 s and orphaned Enforce policies after endAt/cancel. Nothing the capture needs requires the CR to read active: it renders from the in-memory copy (RenderedPolicies, Health, TimeRange) and from Events, which outlive Policies. Running it asynchronously after the patch also removes the N × 10 s stall of later activations in the same sequential controller pass and the Cancel latency growth (the UI cancel timeout change is gone). The ctx guard was a changed teardown behaviour riding inside a reports feature (it aborted after a SUCCESSFUL cleanup when the deadline passed) — cut, and listed as a separate follow-up with its own reproducing test."
+  },
+  {
+   "question": "Sync or async, how is the boundary capture bounded, and what does the UI show on failure?",
+   "choice": "Asynchronous and hard-bounded in one place: reports.Generator.CaptureAsync(plan *plans.ProtectionPlan, endedAt, actor, reason, trigger string) <-chan struct{} copies *plan by value, sets TerminatedAt=&endedAt, TerminatedBy=&actor, Phase (TriggerEnd → PhaseTerminated with ReasonExpired; TriggerCancel → PhaseCanceled with the user reason), returns immediately, and in a goroutine: acquire the single capture slot (g.captureSlot chan struct{} of size 1, blocking — captures serialize, never time out waiting), cctx := context.WithTimeout(context.Background(), constants.DefaultReportCaptureTimeout = 10 s) (DETACHED from the caller ctx), Generate(cctx, &copy, actor, trigger), log LogReportCaptured/LogReportCaptureFailed, release, close(done). Generate itself runs under a recover (a panic becomes ErrReportPanic). The rest ReportClient's http.Client timeout equals the capture bound and violations.Collect takes cctx, so nothing inside the capture outlives it by more than one HTTP timeout. Manual generate runs on the handler's detached 30 s ProtectionPlanLifecycleTimeout context. Failure = nothing stored (single atomic file) + message.error in the UI; no pending row ever exists. The returned done channel exists for tests; svc ignores it.",
+   "why": "The capture must not delay the terminal patch (see above) and must not block the sequential controller; a bounded goroutine after the patch is the smallest shape that does both. A capture slot instead of the manual semaphore: two Generate clicks could otherwise hold both slots for 10 s and starve the one report that cannot be regenerated with full data (captures are already serial — one Terminate at a time, one Cancel per request). The recover closes the crash-loop the review found (pointer fields on never-started/canceled plans)."
+  },
+  {
+   "question": "Can report traffic affect the exporter circuit breaker?",
+   "choice": "No, because it never enters it. clients.ReportClient calls the rest reports client DIRECTLY (no circuitbreaker.ExecuteExporter, no NotCounted) and maps the response with the pure ClassifyReportResponse. No read-only state gate either (breakerClosed and its test are cut): during an exporter outage a report call costs at most one 10 s HTTP timeout, the boundary is already bounded by CaptureAsync, and CheckpointReports breaks at the first exporter failure so an outage never costs N × 10 s.",
+   "why": "In half-open state the breaker allows exactly one probe (CircuitBreakerHalfOpenMaxProbes = 1); any wrapped report call would take it and a report 200 would close the breaker. Not wrapping is the only isolation; the state gate was the most complex part of B6 for the price of one timeout."
+  },
+  {
+   "question": "Storage layout, atomicity, read cost and orphan cleanup on the reports PVC?",
+   "choice": "One JSON file per report written by artifact.WriteAtomic: /reports/plans/<planID>/reports/<reportID>.json = {\"meta\": …, \"files\": {html,md,json,csv}} with meta FIRST; ONE ledger at /reports/plans/<planID>/ledger.json. List = ReadDir + ReadMeta(io.Reader) which token-streams to the meta value and STOPS. Download reads one file and serves one field with Content-Type, X-Content-Type-Options: nosniff and Content-Security-Policy: sandbox (no Content-Disposition, no ServeContent — the UI builds the filename and CORS exposes no headers). GC: the exporter's DeletePlanByID removes /reports/plans/<planID> after the CR delete succeeds AND exporters/reports.StartReportsGC — its OWN goroutine started from main.go, ticking at envmanager.GetSnapshotGCInterval() (no new env; SNAPSHOT_GC_INTERVAL_SEC <= 0 disables BOTH sweeps — documented), gated by artifact.TickAllowed(ctx, rdb, constants.ReportsGCLockKey, interval/SnapshotGCLockTTLDivisor), body wrapped in a recover — runs RunReportsGC: lists ProtectionPlan CRs (live = CR names; never sweeps on a failed or empty list) and calls reportsutil.SweepOrphans(root, live, ReportsSweepMinAge = 1 h) which removes every /reports/plans/<id> not in live whose mtime is older than the age gate AND every *.tmp older than the age gate under live plan directories.",
+   "why": "A single rename makes the whole report appear or not at all. Guideline §6 'Ship the GC with the write path'. Revision-3 review: wiring the sweep into StartSnapshotGC's tick put a Part B edit into the recovery-path GC file, lengthened its tick with EFS RemoveAll, and let a reports panic kill the snapshot GC goroutine; an own goroutine with the shared TickAllowed gate keeps exporters/snapshot/gc.go untouched in Part B. Crashed writes inside a live plan directory left *.tmp files forever; the sweep now removes them past the age gate."
+  },
+  {
+   "question": "Report identity and replay semantics?",
+   "choice": "reportID = <runKey>-<trigger>[-<stamp>], runKey = plan.StartedAt parsed with globalshared.DefaultTimeFormat and formatted 20060102T150405Z (StartedAt nil is rejected before Generate: ManualAllowed and CaptureAsync both require it; an unparsable value is an error); trigger ∈ {end,cancel,manual}, stamp = generation time compact for manual only. The exporter answers a replayed id with 200 and the stored meta, never overwriting.",
+   "why": "Reactivate reuses deterministic policy names and nulls terminatedAt/By, so planID alone is ambiguous; an abandoned late write after a capture timeout is harmless. The CreatedAt fallback is gone: never-started plans have nothing to report and produced a nil-pointer path in gather."
+  },
+  {
+   "question": "How is report size bounded for every preset?",
+   "choice": "Self-bounding at render time: reports.RenderWithinBudget(doc, constants.ReportRequestBudgetBytes = 16 MiB) renders, measures len(json.Marshal(CreatePlanReportRequest)), and if over budget keeps the newest len(rows)*budget/size*9/10 rows, sets Coverage.Truncated and Coverage.RowsOmitted, and re-renders (at most reports.RenderFitAttempts = 4, else error). The ledger is bounded separately: PROTECTION_PLAN_REPORT_MAX_VIOLATIONS (default 5000, minimal 2000, NO performance override) rows × MaxMessageRunes 512 is proven < 32 MiB by a test with worst-case messages.",
+   "why": "A fixed row count cannot be proven under the body limit (every row is emitted four times and encoding/json escapes <, > and &). Fitting to the budget makes the bound independent of presets."
+  },
+  {
+   "question": "Retention of reports?",
+   "choice": "Keep the newest constants.ReportsMaxPerPlan = 10 manual reports per plan by meta.generatedAt (constant, no env); boundary reports (end/cancel, at most one per run) are never pruned.",
+   "why": "Lexical pruning by id would drop a boundary report before older manual ones. Nobody asked for the limit to be tunable."
+  },
+  {
+   "question": "Formats and PDF?",
+   "choice": "HTML (self-contained, inline CSS, @media print stylesheet; the browser's Print command is the PDF path and the UI shows PRINT_HINT), Markdown, JSON (the ReportDocument), CSV (admission-decision rows). No native PDF. Escaping: html/template for HTML; Markdown cells go through html.EscapeString AND pipe/newline escaping; CSV cells whose first rune is one of = + - @ \\t \\r are prefixed with a single quote; encoding/csv quotes. Content-Type per format lives in EXPORTER constants (constants.ReportContentTypes), not in rest.",
+   "why": "Both runtime images are FROM scratch with CGO off and no fonts; every PDF path is a new dependency. Event messages are cluster-controlled free text. ContentTypes is used by one handler, so it is not shared API."
+  },
+  {
+   "question": "Who may generate, list and download, and what about user identities in the document?",
+   "choice": "Generate: authz.Write(roledata.ScopeProtectionPlans) on discovery — identical to Cancel. List/download: authz.Read(roledata.ScopeProtectionPlans) on the exporter — identical to the discovery violations route. Create + ledger put/get: authz.Internal. Identities: the document carries RAW user ids and NO display names; the UI list row resolves generatedBy through its users store. Recorded follow-up: reports must adopt the same Denyable action as the violations route the day the 'view violations' deny is wired (today that deny is unwired on discovery too, so reports do not widen a live gap, only a latent one).",
+   "why": "Resolving names needs Read(ScopeUsers) while download needs only Read(ScopeProtectionPlans). USER OVERRIDE: add a name lookup later and raise the download requirement to Read(ScopeUsers) as well."
+  },
+  {
+   "question": "Is a CRD field needed?",
+   "choice": "No. The report list is the PVC directory; the plan CR is untouched.",
+   "why": "Avoids the strict-structural-schema prune landmine, a telark-crds release and docs/CRDS.md changes."
+  },
+  {
+   "question": "How is the boundary hook made testable when Service holds a concrete exporter client?",
+   "choice": "It is not made testable through Service. Service.exporter stays *clients.ProtectionPlanClient; no PlanStore interface. All logic worth testing lives in package reports: CaptureAsync (bounded, recovered, serialized, returns a done channel), ManualAllowed(plan) (phase + StartedAt gate), Merge/Checkpoint/Generate (fake ReportStore, fake dynamic client, miniredis). Terminate/Cancel/GenerateReport each gain a few lines whose ORDER is checked by V4(b), not by a unit test.",
+   "why": "Turning four staged user files into interfaces existed only so a boundary test could build a Service with fakes. With the capture after the patch and asynchronous, the order carries no safety weight beyond 'after the patch', which V4 reads."
+  },
+  {
+   "question": "Concurrency bound on rendering, and what status when busy?",
+   "choice": "Generator holds a buffered channel of reports.MaxConcurrentRenders = 2 for MANUAL renders only (non-blocking try: full → reports.ErrRenderBusy, which the handler answers as 429 Too Many Requests with Retry-After: reports.RenderBusyRetryAfterSec (5)), plus the separate single capture slot for boundary captures. The UI branches on status === 429 alone (no header read) and disables Generate while a request is in flight.",
+   "why": "Guideline §6 asks for a semaphore with 503 + Retry-After; 503 is deliberately NOT used here because dashboard-ui's health-interceptor counts every discovery status >= 500 towards FAILURE_THRESHOLD = 5 and then suppresses EVERY discovery request — five busy answers would blank the UI. 429 is outside that range, semantically exact, and readable cross-origin in dev (Retry-After is not: x-ware CORS exposes no headers). Recorded deviation from §6 with a user override. Exporter-failure 503s from Generate still count, like every other proxied discovery route today (pre-existing)."
+  },
+  {
+   "question": "Exporter 4xx surfacing as 503 through discovery?",
+   "choice": "ClassifyReportResponse maps exporter 400/413 to validation errors (400 via StatusForErr); 5xx/transport/nil stay ExporterError (503). No 422 mapping. Nil response → constants.ErrReportNilResponse (its own message, never the application-patch one).",
+   "why": "StatusForErr maps every ExporterError to 503; a caller mistake must not read as an outage; a misleading log constant was a review finding."
+  },
+  {
+   "question": "Blob download in dashboard-ui (no precedent)?",
+   "choice": "Client<Blob>(exporterApiClient, `${DOWNLOAD(planId).path}?${URLSearchParams({report, format})}`, {method:'GET', responseType:'blob', timeout}) → URL.createObjectURL → temporary <a download=filename> click → revokeObjectURL on a later tick (setTimeout(…, OBJECT_URL_REVOKE_DELAY_MS = 1000)); filename `${plan.name}-${report.id}.${format}` built client-side; a definite 404 shows DOWNLOAD_MISSING and refreshes the list, anything else shows DOWNLOAD_ERROR.",
+   "why": "Client() forwards the full AxiosRequestConfig; the session token stays in the interceptor header; the URL carries only planId/report/format. Revoking synchronously after click() can cancel the download in Firefox/Safari."
+  },
+  {
+   "question": "Second PVC shape in the charts?",
+   "choice": "charts/telark: pvc.yaml becomes a range over a two-entry claims list (snapshots: telark.exporterSnapshotsPvcName / app.persistence.size default 1Gi; reports: new helper telark.exporterReportsPvcName / app.persistence.reportsSize default 2Gi), same enabled gate, same $sc handling, same derived accessMode; one new key app.persistence.reportsSize (2Gi; minimal 512Mi; performance 10Gi) in values.schema.json; values-driven volume + mount + REPORTS_PATH env; discovery env PROTECTION_PLAN_REPORT_MAX_VIOLATIONS (5000; minimal 2000) and PROTECTION_PLAN_REPORT_CHECKPOINT_SEC (900; minimal 1800). release-manager/helm/app: its exporter/base/pvc.yaml ranges the same two claims with that chart's `{{ .Values.app.name }}-exporter-<x>-pvc` naming; app.persistence.reportsSize; the same env/volume/mount entries.",
+   "why": "Both claims mount in the same exporter pod so they need the same RWX/RWO answer and the same storage guard; one template is the C3-honest shape and the byte-identical diff on the snapshots document is the safety gate. release-manager is what the release workflow deploys."
+  },
+  {
+   "question": "Which knobs are tunables and which are constants?",
+   "choice": "Tunables (Helm values → env, sized by app.mode): app.persistence.reportsSize, REPORTS_PATH, PROTECTION_PLAN_REPORT_MAX_VIOLATIONS (ledger/memory bound), PROTECTION_PLAN_REPORT_CHECKPOINT_SEC (the one interval whose right value depends on a per-cluster apiserver setting, --event-ttl; clamped to [60, 1800] s so it can never exceed the default 1 h retention). Constants: capture timeout 10 s, reports kept per plan 10, manual render slots 2, capture slot 1, lock TTL (DefaultLockTTL), retry-after 5 s. The checkpoint loop's Event LISTs reuse the rollback controller's client budget constants (DISCOVERY_ROLLBACK_K8S_CLIENT_QPS/BURST via dconfig.RollbackK8sClientRateLimit()) rather than adding a fifth setting.",
+   "why": "Guideline §1 / §10.4 and the standing rule: refresh intervals and per-cluster sizes are Helm values; a constant interval cannot follow a non-default --event-ttl. USER OVERRIDE: say 'constant interval' to drop PROTECTION_PLAN_REPORT_CHECKPOINT_SEC and its clamp, or 'own reports budget' to add dedicated QPS/BURST envs."
+  },
+  {
+   "question": "Does the report include application changes, snapshots and rollbacks that happened in the protected scope during the plan? (explicit decision)",
+   "choice": "NO by default. Sections come from the ProtectionPlan CR, the run ledger and PolicyViolation Events only. The Appendix states that application change history, snapshots and rollbacks are recorded on the Application CRs / change history and are not part of this document.",
+   "why": "Those records belong to other flows (Application CR spec.snapshots, change-history streams) and reading them means resolving every in-scope application through the exporter at capture time — a scope and load decision the user never asked for. USER OVERRIDE: 'include app activity' adds a section 7b sourced from the applications client (snapshots/rollbacks entries within [startedAt, terminatedAt]) in a follow-up step after B7."
+  },
+  {
+   "question": "Vendor name in the document?",
+   "choice": "A single constant in discovery reports/constants.go holds the engine name; Scrub() replaces it case-insensitively with 'policy engine' in every free-text field before templating. render_test feeds a mixed-case message and asserts absence in all four outputs.",
+   "why": "Event messages are produced by the engine and are cluster-controlled; a template-only guarantee is not a guarantee."
+  }
+ ],
+ "reportContents": [
+  {
+   "section": "1. Cover and summary",
+   "source": "ProtectionPlan CR (name, id, description, severity, priority, mode label Audit/Enforce, timeMode, timeRange, phase + reason at generation), meta (generatedAt/by raw id, trigger, run window)",
+   "survivesTermination": true,
+   "note": "A boundary report renders from the in-memory copy stamped by CaptureAsync (TerminatedAt/By, Phase terminated|canceled, reason ReasonExpired|user reason) — the same values the terminal patch wrote."
+  },
+  {
+   "section": "2. Coverage and provenance (mandatory in every format, right under the cover)",
+   "source": "Computed in gather: retentionWindow (violations.RetentionWindow), checkpoint interval, checkpoint count, first/last checkpoint, gaps > retention (StartedAt→first, consecutive, last→end where end = terminatedAt-or-generatedAt and a checkpoint after end counts as end), truncated flag + rowsOmitted + row cap, policiesLiveAtCapture (document-level only, not in meta), unresolvedApplications, provenance table section→{live at capture | stored on plan | from ledger | not available}",
+   "survivesTermination": true,
+   "note": "Fixed sentences from constants.go. Post-end manual report adds the 'policies were removed when the plan ended; records come from the run ledger plus the cluster's remaining records' sentence. Counts are floors: the cluster deduplicates repeated identical decisions. Messages longer than 512 runes are truncated with an ellipsis (stated)."
+  },
+  {
+   "section": "3. Timeline",
+   "source": "CR audit fields createdAt/By, startedAt/By, lastUpdatedAt/By, terminatedAt/By, participantsIDs — RAW user ids, no name lookup",
+   "survivesTermination": true,
+   "note": "Reactivate nulls terminatedAt/By/reason; the report is the durable record of that run."
+  },
+  {
+   "section": "4. Protected scope",
+   "source": "CR scope.type, namespaces, applicationIds; for application-scoped plans namespaces resolved via applications.Resolver, LENIENT: missing apps are listed as unresolved and gather continues",
+   "survivesTermination": true,
+   "note": "Unlike violations.List, the report degrades and records the gap in section 2."
+  },
+  {
+   "section": "5. Policy set",
+   "source": "CR spec.policies (templateID + params) joined with renderedPolicies (from the in-memory plan at the boundary, else ledger.RenderedPolicies) and the last healthDetail row (present/ready/failureAction)",
+   "survivesTermination": false,
+   "note": "renderedPolicies is blanked by every terminal patch → captured at the boundary AND persisted in the ledger on every persisted merge, so a post-end report still lists the rendered policy names; healthDetail/healthCheckedAt survive on the CR."
+  },
+  {
+   "section": "6. Health",
+   "source": "CR health + healthCheckedAt + ledger checkpoints[].health timeline",
+   "survivesTermination": false,
+   "note": "health is 'unknown' after any terminal patch → captured at the boundary; the ledger keeps the per-checkpoint value so a health timeline survives."
+  },
+  {
+   "section": "7. Admission decisions (what happened)",
+   "source": "The ledger AFTER Merge folded violations.Collect(ctx, ownDyn, namespaces, names, '') into it — names = plan.RenderedPolicies if non-empty else ledger.RenderedPolicies; rows fenced to [startedAt, terminatedAt]; dedup by EventUID; messages capped at 512 runes; violations.Page newest-first capped at PROTECTION_PLAN_REPORT_MAX_VIOLATIONS with truncated=true; aggregates: total, by result, by policy/rule, by namespace, by resource kind, first/last timestamp, distinct resources; full table timestamp/result/policy/rule/kind/namespace/name/message; rows beyond the 16 MiB request budget are dropped oldest-first (rowsOmitted)",
+   "survivesTermination": false,
+   "note": "Live Events are ~1 h TTL; the ledger is what survives; every generation merges what the cluster still holds, so a post-end manual report is never less complete than the final report and recovers the trailing window when a boundary capture failed. No requester identity exists on Events (stated). Messages are scrubbed of the vendor name and escaped per format."
+  },
+  {
+   "section": "8. Appendix",
+   "source": "Static: glossary (Audit vs Enforce, admission decision), rendered policy names, plan id, report id, report schema version, generator = product name, the 'application changes/snapshots/rollbacks are not part of this document' sentence",
+   "survivesTermination": true,
+   "note": "No vendor name anywhere; the generator string is the product name."
+  }
+ ],
+ "steps": [
+  {
+   "id": "A0",
+   "title": "Part A precondition + baseline (env-tags residue, tests, lint, perimeter recorded — never asserted empty)",
+   "part": "A-refactor",
+   "repo": "telark/exporter",
+   "files": [
+    "/Users/houssem/Desktop/Github/telark/services/exporter"
+   ],
+   "change": "Read-only; writes only into the workflow journal. All git commands use `/usr/bin/git -C /Users/houssem/Desktop/Github/telark` and REPO-ROOT-relative paths. (1) PRECONDITION — environments-tags residue: the parallel environments-tags plan's work is STAGED, not committed (HEAD 7ead02d). Require `git diff --name-only -- <the 7 shared files>` (rest endpoints/plans/types.go is checked with `-C /Users/houssem/Desktop/Github/internal/rest`; the UI files with `-C /Users/houssem/Desktop/dashboard-ui`) to print NOTHING, i.e. every shared file is either committed or fully staged with no unstaged residue. If anything prints, STOP and report 'stage or commit the environments-tags work first' — do not stage, stash, reset or commit anything yourself. A committed environments-tags plan also satisfies this check. (2) BASELINE: in /Users/houssem/Desktop/Github/telark/services/exporter run `rtk proxy \"go test ./... 2>&1 | tail -40\"` and `golangci-lint run` (project config, no flags) and record the number of `ok` packages (2026-09-23: 24 ok, 0 FAIL) and the lint issue count (0). (3) PERIMETER RECORDING: record verbatim the outputs of `git diff --name-only -- services/exporter/internal/utils/snapshot services/exporter/internal/exporters/snapshot services/exporter/internal/handlers/snapshot services/exporter/internal/managers services/exporter/internal/routes services/exporter/internal/authz services/exporter/main.go services/exporter/internal/constants` (EXPECTED empty — the worktree matches the index; today it is empty) and `git status --porcelain -- services/exporter/internal/utils/snapshot services/exporter/internal/exporters/snapshot services/exporter/internal/handlers/snapshot services/exporter/internal/managers services/exporter/internal/routes services/exporter/internal/authz services/exporter/main.go services/exporter/internal/constants` (EXPECTED NON-empty: `M  services/exporter/internal/authz/guard.go` is the user's staged environments-tags edit; it is INFORMATION, never a failure). Also record `git diff --stat -- services/exporter/internal/tests/snapshot services/exporter/internal/tests/snapshotapi` (expected EMPTY; those five test files are STAGED user work — never edit, restage or reset them). Also record `git status --porcelain -uall -- services/exporter/internal/utils/artifact services/exporter/internal/tests/artifact` (EXPECTED empty — the artifact layer does not exist yet; A3 and V4(a) count the NEW files with this same command because `git diff` never lists untracked files and plain `git status` collapses an untracked directory to one `?? <dir>/` line). (4) REPO COUNTS for V2/V4(q): record `git status --porcelain | wc -l` for telark, internal/rest, internal/data, dashboard-ui and release-manager (2026-09-23: 129 / 12 / 6 / 52 / 2). The journal holds these numbers; A2, A3, V2 and V4 compare against THEM, never against constants in this plan.",
+   "testFirst": {
+    "file": "/Users/houssem/Desktop/Github/telark/services/exporter/internal/tests/snapshot",
+    "names": [
+     "TestIsWithinBase",
+     "TestValidateSnapshotIdentity",
+     "TestLoadSnapshotData",
+     "TestConcurrentWritesNeverLeaveAPartialSnapshot",
+     "TestWriteLeavesNoTempFileBehind"
+    ],
+    "red": "n/a (precondition + baseline recording)",
+    "green": "recorded: precondition PASS (no unstaged residue on the 7 shared files), <N> ok / 0 FAIL / 0 lint issues, unstaged perimeter set = {} (empty), staged perimeter set recorded, artifact -uall set = {} (empty), five repo counts recorded"
+   },
+   "verify": "cd /Users/houssem/Desktop/Github/telark/services/exporter && rtk proxy \"go test ./... 2>&1 | grep -c '^ok'\" && golangci-lint run && /usr/bin/git -C /Users/houssem/Desktop/Github/telark diff --name-only -- services/exporter/internal/utils/snapshot services/exporter/internal/exporters/snapshot services/exporter/internal/handlers/snapshot services/exporter/internal/managers services/exporter/internal/routes services/exporter/internal/authz services/exporter/main.go services/exporter/internal/constants | wc -l   # prints 0 ; /usr/bin/git -C /Users/houssem/Desktop/Github/telark diff --name-only -- services/exporter/internal/authz/guard.go /Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/svc.go /Users/houssem/Desktop/Github/telark/services/discovery/README.md | wc -l   # prints 0 (staged is fine, unstaged residue is not)",
+   "dependsOn": [],
+   "parallelGroup": "a-baseline",
+   "route": {
+    "model": "claude-opus-5-5",
+    "effort": "low",
+    "priority": "P4",
+    "criteria": [],
+    "why": "Fully specified inventory whose output is a set of numbers and file lists checked by tools; no M-criterion."
+   }
+  },
+  {
+   "id": "A1",
+   "title": "Create the generic artifact layer (WriteAtomic with stage + raw cause, IsWithinBase, IsSafeSegment, TickAllowed)",
+   "part": "A-refactor",
+   "repo": "telark/exporter",
+   "files": [
+    "/Users/houssem/Desktop/Github/telark/services/exporter/internal/utils/artifact/artifact.go",
+    "/Users/houssem/Desktop/Github/telark/services/exporter/internal/utils/artifact/types.go",
+    "/Users/houssem/Desktop/Github/telark/services/exporter/internal/tests/artifact/artifact_test.go"
+   ],
+   "change": "NEW package artifact, two files. types.go: `type Stage int` with `const (StageNone Stage = iota; StageTempCreate; StageTempWrite; StageTempClose; StageRename)` — the only type in the package. artifact.go (no logger, no new constants): (1) `func WriteAtomic(path string, write func(io.Writer) error) (Stage, error)`: exactly the skeleton of utils/snapshot/persist.go:17-43 — `os.CreateTemp(filepath.Dir(path), filepath.Base(path)+constants.SnapshotTempSuffix)` (existing constant \".*.tmp\", so on-disk temp naming is byte-identical and gc.go:70 isSweepable still matches), call write(f), f.Close(), os.Rename(tmp, path), `_ = os.Remove(tmpPath)` on every failure after CreateTemp; each failure returns (StageX, err) with err the RAW error from the failing call — NEVER wrapped, never a sentinel; success returns (StageNone, nil). (2) `func IsWithinBase(targetPath string, basePath string) bool` — body of paths.go:14-15 verbatim with a package const `baseSeparatorShift = 1`. (3) `func IsSafeSegment(id string) bool` — `clean := filepath.Base(id); return id != constants.EmptyString && clean == id && clean != \".\" && clean != \"..\"` (paths.go:63-64 semantics). (4) `func TickAllowed(ctx context.Context, rdb *redis.Client, key string, ttl time.Duration) bool` — the body of exporters/snapshot/gc.go:47-61 with the key and TTL as parameters and rdb passed in: `if ctx.Err() != nil { return false }; if rdb == nil { return true }; hostname, _ := os.Hostname(); acquired, err := stream.NewLockClient(rdb).Acquire(ctx, key, hostname, ttl); if ctx.Err() != nil { return false }; return err != nil || acquired` (imports github.com/redis/go-redis/v9 and github.com/telark/x-ware/redis/stream exactly as gc.go does; the hostname value and the 'Redis error → sweep anyway' semantics are preserved on purpose). Nothing else in the exporter is touched; constants/config.go is NOT edited.",
+   "testFirst": {
+    "file": "/Users/houssem/Desktop/Github/telark/services/exporter/internal/tests/artifact/artifact_test.go",
+    "names": [
+     "TestWriteAtomicWriterErrorRemovesTempAndReportsStage",
+     "TestWriteAtomicRenameOntoNonEmptyDirReportsRenameStage",
+     "TestWriteAtomicTempNameMatchesSweepSuffix",
+     "TestIsSafeSegment",
+     "TestTickAllowedNilRedisAllowsAndCancelledCtxDenies",
+     "TestTickAllowedSecondCallerWithinTTLIsDenied"
+    ],
+    "red": "package artifact does not exist; `go test ./internal/tests/artifact/...` fails to compile",
+    "green": "all six pass. Writer-error case: write returns sentinelErr → stage == artifact.StageTempWrite, errors.Is(err, sentinelErr) (raw cause), and filepath.Glob(dir+\"/*.tmp\") is empty. Rename case: create a NON-EMPTY directory at `path` first (os.MkdirAll(path/child)); WriteAtomic then fails at os.Rename → stage == StageRename, err is the raw *os.LinkError (errors.As), temp removed. Temp-suffix case: inside the write callback glob filepath.Dir(path)+\"/*.tmp\" and assert exactly one match whose base starts with filepath.Base(path). IsSafeSegment: \"\", \".\", \"..\", \"a/b\", \"../x\" → false; \"a\", \"20260101T000000Z-end\" → true. TickAllowed: (nil rdb, live ctx) → true; (nil rdb, cancelled ctx) → false; with miniredis (already in exporter go.mod, the shape tests/snapshot/gc_test.go uses if any, else miniredis.RunT): first call with key k and ttl 1 min → true, second call same key → false, a different key → true. IsWithinBase and concurrency are NOT re-tested here: tests/snapshot/logic_test.go:159 and persist_test.go:20 pin them through the delegates."
+   },
+   "verify": "cd /Users/houssem/Desktop/Github/telark/services/exporter && rtk proxy \"go test ./internal/tests/artifact/... ./internal/tests/snapshot/... ./internal/tests/snapshotapi/...\" && golangci-lint run",
+   "dependsOn": [
+    "A0"
+   ],
+   "parallelGroup": "a-artifact",
+   "route": {
+    "model": "claude-fable-5-1",
+    "effort": "default",
+    "priority": "P3",
+    "criteria": [
+     "M5"
+    ],
+    "why": "Introduces the shared artifact mechanism both stores adopt — the routing doc's own example 'Extract the generic parts of utils/snapshot into a shared artifact package consumed by two scopes → P3 (M5)'."
+   }
+  },
+  {
+   "id": "A2",
+   "title": "Snapshot originals delegate to artifact (byte-identical errors, log lines and GC gating)",
+   "part": "A-refactor",
+   "repo": "telark/exporter",
+   "files": [
+    "/Users/houssem/Desktop/Github/telark/services/exporter/internal/utils/snapshot/paths.go",
+    "/Users/houssem/Desktop/Github/telark/services/exporter/internal/utils/snapshot/persist.go",
+    "/Users/houssem/Desktop/Github/telark/services/exporter/internal/utils/snapshot/types.go",
+    "/Users/houssem/Desktop/Github/telark/services/exporter/internal/exporters/snapshot/gc.go"
+   ],
+   "change": "paths.go: `IsWithinBase` body becomes `return artifact.IsWithinBase(targetPath, basePath)` (signature, name, exported-ness unchanged so request.go:158, def.go:213 and def.go:539 stay byte-identical); `ValidateSnapshotIdentity` keeps its two empty checks and BOTH error constants and replaces lines 63-66 with `if !artifact.IsSafeSegment(id) { return errors.New(string(constants.ErrSnapshotIDSimpleRequired)) }`; BuildSnapshotDir/BuildSnapshotPath/APISnapshotPath UNTOUCHED (V%d.json codec and the absolute \"path\" response key at def.go:136 are the Application-CR contract). persist.go: `WriteSnapshotJSON(path, id string, body map[string]any) error` keeps its signature and header comment; body becomes `stage, err := artifact.WriteAtomic(path, func(w io.Writer) error { return json.NewEncoder(w).Encode(body) }); if err == nil { return nil }` then a `switch stage` that logs the SAME constants.ErrSnapshotTempCreateContext / ErrSnapshotTempWriteContext / ErrSnapshotTempCloseContext / ErrSnapshotRenameContext line with (id, path, err) exactly as today, and `return err` — err is the raw os error, so every log line and the error reaching exporters/snapshot/def.go:40-49 are byte-identical. types.go: delete the `baseSeparatorShift = 1` line only (now unused). exporters/snapshot/gc.go: `gcTickAllowed(ctx, interval)` keeps its name, signature, comment and its single call site (:34); its body becomes ONE line `return artifact.TickAllowed(ctx, exprdb.Get(), constants.SnapshotGCLockKey, interval/constants.SnapshotGCLockTTLDivisor)`; drop the now-unused `os` and `stream` imports from gc.go ONLY if nothing else in the file uses them (RunSnapshotGC/RemoveSnapshotFiles may use os — check; do not touch any other function). Everything else in utils/snapshot, exporters/snapshot/*, handlers/snapshot/*, managers/envs/*, routes, authz, main.go, constants: ZERO worktree-vs-index diff. Do NOT edit the five staged test files under tests/snapshot and tests/snapshotapi, and do NOT add a snapshot-level test.",
+   "testFirst": {
+    "file": "/Users/houssem/Desktop/Github/telark/services/exporter/internal/tests/snapshot/persist_test.go",
+    "names": [
+     "TestConcurrentWritesNeverLeaveAPartialSnapshot",
+     "TestWriteLeavesNoTempFileBehind",
+     "TestIsWithinBase",
+     "TestValidateSnapshotIdentity",
+     "TestCreateSnapshot"
+    ],
+    "red": "n/a — these tests exist and are green before the edit; they are the pin, they do not drive",
+    "green": "after the edit: all five snapshot test files green UNMODIFIED, tests/artifact green; `git diff -- services/exporter/internal/utils/snapshot/persist.go` shows the four constants.ErrSnapshot*Context references still present and `return err` returning the WriteAtomic error unchanged; `git diff -- services/exporter/internal/exporters/snapshot/gc.go` touches only the gcTickAllowed body (and unused imports) — StartSnapshotGC, RunSnapshotGC, referencedSnapshotPaths, collectSnapshotPaths have zero diff"
+   },
+   "verify": "cd /Users/houssem/Desktop/Github/telark/services/exporter && rtk proxy \"go test ./...\" && golangci-lint run && /usr/bin/git -C /Users/houssem/Desktop/Github/telark diff --name-only -- services/exporter/internal/utils/snapshot services/exporter/internal/exporters/snapshot services/exporter/internal/handlers/snapshot services/exporter/internal/managers services/exporter/internal/routes services/exporter/internal/authz services/exporter/main.go services/exporter/internal/constants | sort   # prints EXACTLY four lines: services/exporter/internal/exporters/snapshot/gc.go, services/exporter/internal/utils/snapshot/paths.go, .../persist.go, .../types.go (worktree-vs-index; the staged guard.go is NOT listed by `git diff` and must not be)",
+   "dependsOn": [
+    "A1"
+   ],
+   "parallelGroup": "a-delegate",
+   "route": {
+    "model": "claude-fable-5-1",
+    "effort": "default",
+    "priority": "P3",
+    "criteria": [
+     "M5"
+    ],
+    "why": "Second half of the M5 extraction and it edits the rollback read/write path and the snapshot GC gate; a wrong delegation strands snapshot paths that Application CRs reference."
+   }
+  },
+  {
+   "id": "A3",
+   "title": "PART A GATE: worktree-vs-index perimeter diff, test parity, lint parity, Part A diff-stat recorded (must pass before any Part B file exists)",
+   "part": "A-refactor",
+   "repo": "telark/exporter",
+   "files": [
+    "/Users/houssem/Desktop/Github/telark/services/exporter"
+   ],
+   "change": "Read-only adversarial check; writes only into the workflow journal (NO scratchpad manifest, NO patch file — a scratchpad is session-bound and V4 may run days later). All git commands run with `-C /Users/houssem/Desktop/Github/telark` and compare REPO-ROOT-relative paths; every perimeter assertion is `git diff` (worktree vs index) because the index holds the user's staged environments-tags work (guard.go) and is never asserted empty. (1) PERIMETER: `git diff --name-only -- services/exporter/internal/utils/snapshot services/exporter/internal/exporters/snapshot services/exporter/internal/handlers/snapshot services/exporter/internal/managers services/exporter/internal/routes services/exporter/internal/authz services/exporter/main.go services/exporter/internal/constants` lists exactly the four Part A files (exporters/snapshot/gc.go, utils/snapshot/paths.go, persist.go, types.go) and nothing else; `git status --porcelain -- services/exporter/internal/utils/snapshot services/exporter/internal/exporters/snapshot services/exporter/internal/handlers/snapshot services/exporter/internal/managers services/exporter/internal/routes services/exporter/internal/authz services/exporter/main.go services/exporter/internal/constants` equals A0's recorded staged set PLUS those four ` M` lines — nothing else appeared; `git diff --stat -- services/exporter/internal/tests/snapshot services/exporter/internal/tests/snapshotapi` is EMPTY; `git status --porcelain -uall -- services/exporter/internal/utils/artifact services/exporter/internal/tests/artifact` lists exactly three `?? ` FILE lines (artifact.go, types.go, artifact_test.go; `-uall` is required — without it an untracked directory collapses to one `?? <dir>/` line). (2) TEST PARITY: `rtk proxy \"go test ./... 2>&1\"` shows A0's ok-count + 1 (tests/artifact) and 0 FAIL. (3) LINT PARITY: `golangci-lint run` = 0 issues. (4) `git diff -- services/exporter/internal/utils/snapshot/paths.go services/exporter/internal/utils/snapshot/persist.go services/exporter/internal/exporters/snapshot/gc.go` shows no signature change, no change to BuildSnapshotDir/BuildSnapshotPath/APISnapshotPath, the four ErrSnapshot*Context log constants still referenced with (id, path, err), `return err` unchanged, and gc.go's diff confined to gcTickAllowed's body and imports. (5) RECORD: write TWO entries VERBATIM into the workflow journal: 'partA-stat' = `git diff --stat -- services/exporter/internal/utils/snapshot services/exporter/internal/exporters/snapshot/gc.go` (the 4 MODIFIED files — `git diff` never lists untracked files) and 'partA-new' = `git status --porcelain -uall -- services/exporter/internal/utils/artifact services/exporter/internal/tests/artifact` (the 3 NEW files as `?? ` lines) — V4(a) re-runs the same two commands and compares (or, if the user has committed Part A by then, requires `git diff HEAD --stat` on the partA-stat paths to be empty and the partA-new command to print nothing). Report PASS/FAIL per check; on any FAIL stop the workflow. Part A is its own commit (user-owned).",
+   "testFirst": {
+    "file": "/Users/houssem/Desktop/Github/telark/services/exporter/internal/tests",
+    "names": [
+     "(existing suite unmodified)",
+     "TestWriteAtomicWriterErrorRemovesTempAndReportsStage",
+     "TestTickAllowedSecondCallerWithinTTLIsDenied"
+    ],
+    "red": "n/a (gate)",
+    "green": "all five checks PASS; partA-stat recorded listing exactly 4 modified paths and partA-new exactly 3 `?? ` file paths"
+   },
+   "verify": "cd /Users/houssem/Desktop/Github/telark/services/exporter && rtk proxy \"go test ./... 2>&1 | grep -E '^(ok|FAIL|---)' | sort | uniq -c\" && golangci-lint run && /usr/bin/git -C /Users/houssem/Desktop/Github/telark diff --name-only -- services/exporter/internal/utils/snapshot services/exporter/internal/exporters/snapshot services/exporter/internal/handlers/snapshot services/exporter/internal/managers services/exporter/internal/routes services/exporter/internal/authz services/exporter/main.go services/exporter/internal/constants | wc -l   # prints 4 ; /usr/bin/git -C /Users/houssem/Desktop/Github/telark diff --stat -- services/exporter/internal/tests/snapshot services/exporter/internal/tests/snapshotapi | wc -l   # prints 0 ; /usr/bin/git -C /Users/houssem/Desktop/Github/telark status --porcelain -uall -- services/exporter/internal/utils/artifact services/exporter/internal/tests/artifact | wc -l   # prints 3",
+   "dependsOn": [
+    "A2"
+   ],
+   "parallelGroup": "a-gate",
+   "route": {
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "priority": "P4",
+    "criteria": [],
+    "why": "Exists to catch a mistake (behaviour drift on the recovery path); read-only, no M-criterion."
+   }
+  },
+  {
+   "id": "B2a",
+   "title": "rest: report endpoint constants and DTOs with explicit json tags, CreateJSON on the shared client, EventUID on violations, discovery generate endpoint",
+   "part": "B-feature",
+   "repo": "internal/rest",
+   "files": [
+    "/Users/houssem/Desktop/Github/internal/rest/endpoints/reports/def.go",
+    "/Users/houssem/Desktop/Github/internal/rest/endpoints/reports/types.go",
+    "/Users/houssem/Desktop/Github/internal/rest/endpoints/plans/def.go",
+    "/Users/houssem/Desktop/Github/internal/rest/endpoints/plans/types.go",
+    "/Users/houssem/Desktop/Github/internal/rest/clients/shared/client.go",
+    "/Users/houssem/Desktop/Github/internal/rest/tests/endpoints/reports/types_test.go",
+    "/Users/houssem/Desktop/Github/internal/rest/tests/clients/shared/createjson_test.go"
+   ],
+   "change": "NEW endpoints/reports/def.go: `CreatePlanReport base.Endpoint = \"reports/plans/create\"` (POST), `ListPlanReports = \"reports/plans/{id}/get\"` (GET), `DownloadPlanReport = \"reports/plans/{id}/download\"` (GET), `PutPlanReportLedger = \"reports/plans/{id}/ledger/put\"` (POST), `GetPlanReportLedger = \"reports/plans/{id}/ledger/get\"` (GET). NO run parameter anywhere (one ledger per plan). NEW endpoints/reports/types.go: format consts `FormatHTML=\"html\", FormatMarkdown=\"md\", FormatJSON=\"json\", FormatCSV=\"csv\"`, `Formats = []string{...}` in that order, trigger consts `TriggerEnd=\"end\", TriggerCancel=\"cancel\", TriggerManual=\"manual\"`, query names `QueryReport=\"report\", QueryFormat=\"format\"` (NO QueryRun; NO ContentTypes — those live in exporter constants); `type ReportMeta struct { ID string `json:\"id\"`; PlanID string `json:\"planId\"`; Trigger string `json:\"trigger\"`; GeneratedAt string `json:\"generatedAt\"`; GeneratedBy string `json:\"generatedBy\"`; ViolationsTotal int `json:\"violationsTotal\"`; Truncated bool `json:\"truncated\"` }` (NO PoliciesIntact, NO PlanName/Run/PhaseAtGeneration/SizeBytes/Formats); `type CreatePlanReportRequest struct { Meta ReportMeta `json:\"meta\"`; Files map[string]string `json:\"files\"` }` — EVERY field tagged: restmapper.MapToJSONPayload keys fields by json tag and an untagged field collapses onto key \"\" (payload.go:11-45). NO ledger types in rest (opaque JSON; discovery owns the type). clients/shared/client.go: add ONE exported method `func (c *Client) CreateJSON(endpoint base.Endpoint, body json.RawMessage) *response.GenericResponse { return c.executeRequest(base.Post, endpoint, body) }` — executeRequest already json.Marshals any payload (utils.go:150) and json.RawMessage marshals verbatim, so the caller's bytes go on the wire untouched by the reflection mapper. endpoints/plans/def.go: add `GenerateProtectionPlanReport base.Endpoint = \"plans/protection/{id}/reports/generate\"` to the discovery block. endpoints/plans/types.go (STAGED-modified and shared with the environments-tags plan — re-read at step start, layer on top by symbol): add `EventUID string `json:\"eventUID,omitempty\"`` to ProtectionPlanViolation (additive). Lands on top of the 12 staged rest files; USER tags rest afterwards (after B2b).",
+   "testFirst": {
+    "file": "/Users/houssem/Desktop/Github/internal/rest/tests/endpoints/reports/types_test.go",
+    "names": [
+     "TestReportWireKeysAreCamelCaseAndComplete",
+     "TestCreateJSONPostsBodyVerbatim"
+    ],
+    "red": "package endpoints/reports does not exist and Client.CreateJSON does not exist; tests fail to compile",
+    "green": "TestReportWireKeysAreCamelCaseAndComplete: restmapper.MapToJSONPayload(CreatePlanReportRequest{Meta: ReportMeta{ID:\"a\", PlanID:\"p\"}, Files: map[string]string{\"html\":\"<x>\"}}) has EXACTLY the keys {meta, files} and NO \"\" key, and json.Marshal of the meta value has keys {id, planId, trigger, generatedAt, generatedBy, violationsTotal, truncated}. TestCreateJSONPostsBodyVerbatim (tests/clients/shared/createjson_test.go): httptest server receives the exact bytes `{\"planId\":\"p\",\"n\":1}` for CreateJSON(endpoint, json.RawMessage(...)) with X-Service-Token set, and the Content-Type is application/json."
+   },
+   "verify": "cd /Users/houssem/Desktop/Github/internal/rest && rtk proxy \"go test ./...\" && golangci-lint run",
+   "dependsOn": [
+    "A3"
+   ],
+   "parallelGroup": "shared",
+   "route": {
+    "model": "claude-fable-5-1",
+    "effort": "default",
+    "priority": "P3",
+    "criteria": [
+     "M1"
+    ],
+    "why": "Route contract + exported DTOs and a new exported method of the shared rest package consumed by exporter, discovery and the UI."
+   }
+  },
+  {
+   "id": "B3",
+   "title": "chart (charts/telark): both exporter claims from one pvc.yaml, helper, values, schema, presets, env, mounts",
+   "part": "B-feature",
+   "repo": "telark/charts",
+   "files": [
+    "/Users/houssem/Desktop/Github/telark/charts/telark/templates/_helpers.tpl",
+    "/Users/houssem/Desktop/Github/telark/charts/telark/templates/workloads/pvc.yaml",
+    "/Users/houssem/Desktop/Github/telark/charts/telark/values.yaml",
+    "/Users/houssem/Desktop/Github/telark/charts/telark/values.schema.json",
+    "/Users/houssem/Desktop/Github/telark/charts/telark/modes/minimal.yaml",
+    "/Users/houssem/Desktop/Github/telark/charts/telark/modes/performance.yaml"
+   ],
+   "change": "BEFORE editing, save the current render: `rtk proxy \"helm template t /Users/houssem/Desktop/Github/telark/charts/telark --set app.persistence.storageClass=efs-sc\"` → extract the PersistentVolumeClaim document into the scratchpad (pvc-before.yaml). _helpers.tpl: after telark.exporterSnapshotsPvcName (:85-87, UNTOUCHED) add `{{- define \"telark.exporterReportsPvcName\" -}}{{- printf \"%s-exporter-reports-pvc\" (include \"telark.fullname\" .) -}}{{- end -}}`. templates/workloads/pvc.yaml: keep the `$service`/`$values`/`$serviceConfig`/enabled gate/`$sc` header; replace the single document with `{{- $claims := list (dict \"name\" (include \"telark.exporterSnapshotsPvcName\" $) \"size\" ($values.app.persistence.size | default \"1Gi\")) (dict \"name\" (include \"telark.exporterReportsPvcName\" $) \"size\" ($values.app.persistence.reportsSize | default \"2Gi\")) }}` then `{{- range $claims }}` emitting `---` + the SAME document body as today with `name: {{ .name }}` and `storage: {{ .size }}` (accessModes, labels, storageClassName branches unchanged, `$` used for context). NO pvc-reports.yaml. values.yaml (STAGED-modified; edit by key, never by line): app.persistence gains `reportsSize: 2Gi` and the header comment becomes 'Storage for the exporter PVCs (snapshots, reports).'; services.exporter.env gains `REPORTS_PATH: &reportsPath \"/reports\"`; services.exporter.volumes gains `{name: reports-storage, persistentVolumeClaim: {claimName: '{{ include \"telark.exporterReportsPvcName\" . }}'}}`; services.exporter.volumeMounts gains `{name: reports-storage, path: *reportsPath}`; services.discovery.env gains `PROTECTION_PLAN_REPORT_MAX_VIOLATIONS: \"5000\"` and `PROTECTION_PLAN_REPORT_CHECKPOINT_SEC: \"900\"` next to PROTECTION_PLAN_TICK_INTERVAL_SEC. NO REPORTS_MAX_PER_PLAN, NO PROTECTION_PLAN_REPORT_CAPTURE_TIMEOUT_SEC (constants in code). values.schema.json app.persistence.properties (additionalProperties:false) gains `\"reportsSize\": { \"type\": \"string\" }`. modes/minimal.yaml: persistence `reportsSize: 512Mi`, discovery env `PROTECTION_PLAN_REPORT_MAX_VIOLATIONS: \"2000\"` and `PROTECTION_PLAN_REPORT_CHECKPOINT_SEC: \"1800\"`; modes/performance.yaml: `reportsSize: 10Gi` ONLY. _storage_guard.tpl and _deployment.tpl unchanged. No per-service resources, no .Chart.Name, no literal 'telark' in names.",
+   "testFirst": {
+    "file": "/Users/houssem/Desktop/Github/telark/charts/telark",
+    "names": [
+     "helm-render-assertions (run as the test)"
+    ],
+    "red": "before: `helm template t /Users/houssem/Desktop/Github/telark/charts/telark --set app.persistence.reportsSize=2Gi` fails schema validation (unknown key)",
+    "green": "after: `helm lint` clean; the render with `--set app.persistence.storageClass=efs-sc` has TWO PersistentVolumeClaim documents — the …-exporter-snapshots-pvc document diffed against pvc-before.yaml is EMPTY (byte-identical), the …-exporter-reports-pvc document has ReadWriteMany, 2Gi, storageClassName efs-sc — and an exporter Deployment with mounts at /snapshots and /reports and env REPORTS_PATH=/reports; the discovery Deployment env has PROTECTION_PLAN_REPORT_MAX_VIOLATIONS=5000 and PROTECTION_PLAN_REPORT_CHECKPOINT_SEC=900; `--set app.singleNode=true` → both RWO; `--set app.mode=minimal` → 1Gi/512Mi, 2000, 1800; `--set app.mode=performance` → 50Gi/10Gi, 5000, 900; `--set app.persistence.bogus=1` still fails schema; `--set app.persistence.enabled=false` renders zero PVCs"
+   },
+   "verify": "helm lint /Users/houssem/Desktop/Github/telark/charts/telark && rtk proxy \"helm template t /Users/houssem/Desktop/Github/telark/charts/telark --set app.persistence.storageClass=efs-sc | grep -c 'kind: PersistentVolumeClaim'\"   # prints 2; plus the byte-identical diff of the snapshots document and the singleNode/minimal/performance/bogus/disabled renders above",
+   "dependsOn": [
+    "A3"
+   ],
+   "parallelGroup": "shared",
+   "route": {
+    "model": "claude-fable-5-1",
+    "effort": "default",
+    "priority": "P3",
+    "criteria": [
+     "M1",
+     "M2"
+    ],
+    "why": "Helm values schema is a contract (M1) and the second claim defines where persisted data lives (M2); the shared template edit touches the snapshots claim."
+   }
+  },
+  {
+   "id": "B3R",
+   "title": "chart (release-manager/helm/app, the deployed chart): both claims from its pvc.yaml, env, volume, mount",
+   "part": "B-feature",
+   "repo": "telark/charts",
+   "files": [
+    "/Users/houssem/Desktop/Github/release-manager/helm/app/templates/exporter/base/pvc.yaml",
+    "/Users/houssem/Desktop/Github/release-manager/helm/app/values.yaml"
+   ],
+   "change": "Separate git repo /Users/houssem/Desktop/Github/release-manager (telark-core-chart; deployed by .github/workflows/trigger-build-release.yaml:134). values.yaml and README.md there are DIRTY user files — re-read, edit by key, never reset. Save the current render's PVC document first (scratchpad pvc-rm-before.yaml). templates/exporter/base/pvc.yaml: same header; replace the single document with a range over `list (dict \"name\" (printf \"%s-exporter-snapshots-pvc\" $values.app.name) \"size\" ($values.app.persistence.size | default \"1Gi\")) (dict \"name\" (printf \"%s-exporter-reports-pvc\" $values.app.name) \"size\" ($values.app.persistence.reportsSize | default \"2Gi\"))` emitting `---` + today's body with `name: {{ .name }}` / `storage: {{ .size }}` (that chart's own app.name naming). values.yaml: app.persistence gains `reportsSize: 2Gi` and its header comment (:104-105 'single telark-owned PVC') becomes 'Storage for the exporter PVCs (snapshots, reports).'; services.exporter.env gains `REPORTS_PATH: \"/reports\"`; services.exporter.volumes gains `{name: reports-storage, persistentVolumeClaim: {claimName: '{{ .Values.app.name }}-exporter-reports-pvc'}}`; services.exporter.volumeMounts gains `{name: reports-storage, path: /reports}`; services.discovery.env gains `PROTECTION_PLAN_REPORT_MAX_VIOLATIONS: \"5000\"` and `PROTECTION_PLAN_REPORT_CHECKPOINT_SEC: \"900\"` next to PROTECTION_PLAN_TICK_INTERVAL_SEC. Do NOT bump services.*.version. If a values.schema.json exists there, add reportsSize (none found 2026-09-23).",
+   "testFirst": {
+    "file": "/Users/houssem/Desktop/Github/release-manager/helm/app",
+    "names": [
+     "helm-render-assertions (run as the test)"
+    ],
+    "red": "before: the render has one PersistentVolumeClaim",
+    "green": "after: `helm lint` clean; TWO PersistentVolumeClaims (the snapshots document byte-identical to pvc-rm-before.yaml; <app.name>-exporter-reports-pvc 2Gi); the exporter Deployment mounts /snapshots and /reports with env REPORTS_PATH=/reports; the discovery Deployment env has both PROTECTION_PLAN_REPORT_* entries"
+   },
+   "verify": "helm lint /Users/houssem/Desktop/Github/release-manager/helm/app && rtk proxy \"helm template t /Users/houssem/Desktop/Github/release-manager/helm/app -f /Users/houssem/Desktop/Github/release-manager/helm/app/values.yaml | grep -c 'kind: PersistentVolumeClaim'\"   # prints 2",
+   "dependsOn": [
+    "A3"
+   ],
+   "parallelGroup": "shared",
+   "route": {
+    "model": "claude-fable-5-1",
+    "effort": "default",
+    "priority": "P3",
+    "criteria": [
+     "M1",
+     "M2"
+    ],
+    "why": "Defines where the persisted reports live on the deployed cluster (M2) through that chart's values contract (M1)."
+   }
+  },
+  {
+   "id": "B4",
+   "title": "exporter: REPORTS_PATH env + single-file report store and one-per-plan ledger on the reports PVC (meta-first, streaming List, orphan + temp sweep primitive)",
+   "part": "B-feature",
+   "repo": "telark/exporter",
+   "files": [
+    "/Users/houssem/Desktop/Github/telark/services/exporter/internal/constants/config.go",
+    "/Users/houssem/Desktop/Github/telark/services/exporter/internal/constants/logs.go",
+    "/Users/houssem/Desktop/Github/telark/services/exporter/internal/managers/envs/reports.go",
+    "/Users/houssem/Desktop/Github/telark/services/exporter/internal/utils/reports/store.go",
+    "/Users/houssem/Desktop/Github/telark/services/exporter/internal/utils/reports/types.go",
+    "/Users/houssem/Desktop/Github/telark/services/exporter/main.go",
+    "/Users/houssem/Desktop/Github/telark/services/exporter/internal/tests/reports/store_test.go"
+   ],
+   "change": "constants/config.go (configuration values ONLY): `ReportsPathEnv=\"REPORTS_PATH\"`, `DefaultReportsPath=\"/reports\"`, `ReportsPlansSubdir=\"plans\"`, `ReportsReportsSubdir=\"reports\"`, `ReportsLedgerFile=\"ledger.json\"`, `ReportsMaxPerPlan=10` (constant — no env), `ReportFileExtension=\".json\"`, `ReportMaxBodyBytes=32<<20`, `ReportsSweepMinAge=time.Hour`, `ReportsGCLockKey=\"exporter:reports:gc\"`, `ReportContentTypes = map[string]string{reportseps.FormatHTML:\"text/html; charset=utf-8\", FormatMarkdown:\"text/markdown; charset=utf-8\", FormatJSON:\"application/json\", FormatCSV:\"text/csv; charset=utf-8\"}`, `HeaderContentTypeOptions=\"X-Content-Type-Options\"`, `ContentTypeOptionsNoSniff=\"nosniff\"`, `HeaderCSP=\"Content-Security-Policy\"`, `CSPSandbox=\"sandbox\"` (reuse any existing header constants if present — grep first). Query names come from reportseps.QueryReport/QueryFormat. constants/logs.go (typed errors.Error / messages.Message next to the snapshot ones): `InfReportsPathConfigured`, `ErrReportsRootCreateFailed` (\"reports root create failed path=%s error=%v\"), ONE `ErrReportWriteFailed` (\"report write failed stage=%d id=%s path=%s error=%v\"), `ErrReportNotFound`, `ErrReportBadFormat`, `ErrReportBadID`, `ErrReportBodyTooLarge`, `ErrReportInvalidLedger`, `WarnReportsSweepListFailed`, `WarnReportsGCPanic` (\"reports gc panic recovered: %v\"), `InfReportsSwept` (\"reports sweep removed=%d temps=%d scanned=%d\"), `InfReportsGCDisabled`. NEW managers/envs/reports.go: package-level `reportsPath = constants.DefaultReportsPath`; `InitReportsPath() string` in the envs/snapshots.go:29-40 shape (trim, fallback to default); `GetReportsPath()`. No enabled flag. NEW utils/reports/types.go: `type StoredReport struct { Meta reportseps.ReportMeta `json:\"meta\"`; Files map[string]string `json:\"files\"` }` — Meta FIRST so it is the first JSON member on disk; `ErrBadFormat`, `ErrBadID`, `ErrInvalidLedger`. NEW utils/reports/store.go, every function takes root explicitly: `PlanDir(root, planID)`, `ReportPath(root, planID, reportID)` = filepath.Join(root, plans, planID, reports, reportID+\".json\"), `LedgerPath(root, planID)` = filepath.Join(PlanDir, ReportsLedgerFile); `ReadMeta(r io.Reader) (reportseps.ReportMeta, error)`: json.NewDecoder, expect Delim('{'), then the key token \"meta\" (error if the first key is anything else), dec.Decode(&meta), RETURN — never reads files; `Create(root string, req reportseps.CreatePlanReportRequest) (reportseps.ReportMeta, bool, error)`: reject unless artifact.IsSafeSegment(req.Meta.PlanID) && artifact.IsSafeSegment(req.Meta.ID) && every Files key ∈ reportseps.Formats && len(Files)==len(Formats) && artifact.IsWithinBase(ReportPath, root); if the file exists → open + ReadMeta, return (meta, replayed=true, nil) WITHOUT writing; else MkdirAll(dir, constants.SnapshotDirPerm), `stage, err := artifact.WriteAtomic(path, json encoder of StoredReport{Meta, Files})` → on error log ErrReportWriteFailed(stage, id, path, err) and return err; then prune(root, planID): ReadDir the reports dir, ReadMeta each *.json, among Trigger==manual keep the newest constants.ReportsMaxPerPlan by GeneratedAt and os.Remove the rest (ignore ErrNotExist), never touch end/cancel; `List(root, planID) ([]reportseps.ReportMeta, error)`: ReadDir (ErrNotExist → empty), open + ReadMeta each .json (skip unreadable and *.tmp), sort GeneratedAt desc; `Load(root, planID, reportID, format) ([]byte, string, error)`: validate ids + format ∈ Formats, IsWithinBase guard, ReadFile, decode StoredReport, return ([]byte(Files[format]), constants.ReportContentTypes[format], nil) or os.ErrNotExist; `PutLedger(root, planID string, body []byte) error`: IsSafeSegment, json.Valid(body) else ErrInvalidLedger, MkdirAll, WriteAtomic raw bytes (log ErrReportWriteFailed on error); `GetLedger(root, planID) ([]byte, error)`: guard + ReadFile; `RemovePlanReports(root, planID) error`: IsSafeSegment + IsWithinBase(PlanDir, root) then os.RemoveAll(PlanDir) (ErrNotExist → nil, idempotent); `SweepOrphans(root string, live map[string]struct{}, minAge time.Duration) (removed, temps, scanned int)`: ReadDir(root/plans); for each dir entry NOT in live whose ModTime is older than now-minAge → os.RemoveAll; for each dir entry IN live → glob `<dir>/*.tmp` and `<dir>/reports/*.tmp` and os.Remove every match older than now-minAge (temps++); never touches root or root/plans themselves. main.go: `initReportsConfig()` after initSnapshotsConfig() at :41 — InitReportsPath, `if err := os.MkdirAll(<root>/plans, SnapshotDirPerm); err != nil { lg.Error(ErrReportsRootCreateFailed) }` and continue (exactly the initSnapshotsConfig shape — no disabled flag; writes then fail with 500 and discovery logs a capture failure); log InfReportsPathConfigured. Nothing imported from utils/snapshot.",
+   "testFirst": {
+    "file": "/Users/houssem/Desktop/Github/telark/services/exporter/internal/tests/reports/store_test.go",
+    "names": [
+     "TestCreateWritesOneFileAndListSeesIt",
+     "TestCreateReplaySameIDReturnsStoredMetaWithoutRewrite",
+     "TestCreateRejectsTraversalIDsAndUnknownFormat",
+     "TestPruneKeepsNewestManualAndNeverPrunesBoundary",
+     "TestLoadServesFormatBytesAndRefusesOutsideRoot",
+     "TestLedgerPutGetRoundTripAndRejectsInvalidJSON",
+     "TestRemovePlanReportsRemovesOnlyThatPlanAndIsIdempotent",
+     "TestSweepOrphansRemovesOnlyOldUnreferencedPlanDirsAndOldTemps",
+     "TestConcurrentCreatesLeaveNoTemp",
+     "TestReadMetaStopsBeforeFiles",
+     "TestStoredReportMetaIsFirstMember"
+    ],
+    "red": "package utils/reports does not exist; test fails to compile (uses t.Setenv(constants.ReportsPathEnv, t.TempDir()) + envs.InitReportsPath() like gc_test.go:22-28)",
+    "green": "all pass; replay test asserts mtime unchanged and meta equal; prune test writes 12 manual + 1 end + 1 cancel and asserts 10 newest manual + both boundary remain; traversal test asserts no directory was created for planID '..' or reportID 'a/b'; RemovePlanReports twice → nil both times; SweepOrphans with dirs {live-new, orphan-new, orphan-old(mtime -2h via os.Chtimes)} plus a 2 h-old `x.json.123.tmp` and a fresh `y.json.456.tmp` inside live-new/reports, live={live-new}, minAge 1h → removes only orphan-old and the old temp, returns (1, 1, 3), the fresh temp survives; TestReadMetaStopsBeforeFiles wraps a 20 MiB StoredReport JSON in a byte-counting io.Reader and asserts ReadMeta returns the meta with fewer than 64 KiB read; TestStoredReportMetaIsFirstMember asserts json.Marshal(StoredReport) starts with `{\"meta\":`; ledger round-trip uses LedgerPath(root, planID) with no run"
+   },
+   "verify": "cd /Users/houssem/Desktop/Github/telark/services/exporter && rtk proxy \"go test ./internal/tests/reports/... ./internal/tests/artifact/...\" && golangci-lint run",
+   "dependsOn": [
+    "B2a",
+    "B3"
+   ],
+   "parallelGroup": "exporter-store",
+   "route": {
+    "model": "claude-fable-5-1",
+    "effort": "default",
+    "priority": "P3",
+    "criteria": [
+     "M2"
+    ],
+    "why": "Defines the on-volume layout of a new persisted artefact class, its member order (a read contract), its replay/prune semantics and its orphan/temp sweep."
+   }
+  },
+  {
+   "id": "B5",
+   "title": "exporter: report exporter + handlers + routes + authz + delete-with-plan + own reports GC goroutine (snapshot gc.go untouched)",
+   "part": "B-feature",
+   "repo": "telark/exporter",
+   "files": [
+    "/Users/houssem/Desktop/Github/telark/services/exporter/internal/exporters/reports/def.go",
+    "/Users/houssem/Desktop/Github/telark/services/exporter/internal/exporters/reports/gc.go",
+    "/Users/houssem/Desktop/Github/telark/services/exporter/internal/handlers/reports/handler.go",
+    "/Users/houssem/Desktop/Github/telark/services/exporter/internal/routes/base.go",
+    "/Users/houssem/Desktop/Github/telark/services/exporter/internal/authz/requirements.go",
+    "/Users/houssem/Desktop/Github/telark/services/exporter/internal/handlers/plans/protection/handler.go",
+    "/Users/houssem/Desktop/Github/telark/services/exporter/main.go",
+    "/Users/houssem/Desktop/Github/telark/services/exporter/internal/tests/reportsapi/handler_test.go",
+    "/Users/houssem/Desktop/Github/telark/services/exporter/internal/tests/reportsapi/gc_test.go",
+    "/Users/houssem/Desktop/Github/telark/services/exporter/internal/tests/authz/reports_test.go"
+   ],
+   "change": "NEW exporters/reports/def.go (package reports, `var lg`; NO enabled check). `CreatePlanReport(w, body []byte)`: json.Unmarshal into reportseps.CreatePlanReportRequest (400 on decode error), store.Create(envmanager.GetReportsPath(), req) → 400 on ErrBadID/ErrBadFormat, 500 on write error, 200 with data=meta (fresh and replayed); `ListPlanReports(w, planID)` → 200 data=[]ReportMeta (empty slice, never null); `DownloadPlanReport(w, planID, reportID, format string)`: store.Load → 400 ErrBadFormat/ErrBadID, 404 os.ErrNotExist, 500 other; on success set `Content-Type: <contentType>`, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox`, `w.WriteHeader(200)`, `w.Write(data)` — the body is fully in memory before any header is written; NO Content-Disposition, NO http.ServeContent; `PutPlanReportLedger(w, planID string, body []byte)` → store.PutLedger, 400 on ErrBadID/ErrInvalidLedger, 200; `GetPlanReportLedger(w, planID)` → store.GetLedger, 404 on ErrNotExist, else responseutils.LogAndSendResponse(w, 200, OperationSuccess, msg, json.RawMessage(bytes), nil). NEW exporters/reports/gc.go: `StartReportsGC(ctx context.Context)`: `interval := envmanager.GetSnapshotGCInterval(); if interval <= constants.DefaultInitValue { lg.Info(InfReportsGCDisabled); return }` (shared knob — SNAPSHOT_GC_INTERVAL_SEC <= 0 disables both sweeps, documented in D1); ticker loop identical in shape to StartSnapshotGC but gated by `artifact.TickAllowed(ctx, exprdb.Get(), constants.ReportsGCLockKey, interval/constants.SnapshotGCLockTTLDivisor)` and calling `runGuarded()` = `defer func() { if r := recover(); r != nil { lg.Warn(WarnReportsGCPanic, r) } }(); RunReportsGC()`. `RunReportsGC()`: `result := api.ListCustomResources(plansmd.ProtectionPlanMetadata)` (the referencedSnapshotPaths shape, exporters/snapshot/gc.go:84-99); on non-200/invalid → lg.Warn(WarnReportsSweepListFailed) and return; `live[list.Items[i].GetName()] = struct{}{}` (the CR name IS the plan id — handlers/plans/protection/handler.go:140; NO ExtractFromUnstructured, no decode); if live is empty → return; `removed, temps, scanned := reportsutil.SweepOrphans(envmanager.GetReportsPath(), live, constants.ReportsSweepMinAge)`; lg.Info(InfReportsSwept). Expose the seam `SweepWith(live map[string]struct{})` (exported, the part after the LIST) for gc_test. exporters/snapshot/gc.go: NOT TOUCHED in this step (Part A owns its only change). main.go: `go reportsexp.StartReportsGC(gcCtx)` right after `go snapshotexp.StartSnapshotGC(gcCtx)`. NEW handlers/reports/handler.go: thin like handlers/snapshot/handler.go — wrap r.Body with http.MaxBytesReader(w, r.Body, constants.ReportMaxBodyBytes) and io.ReadAll (413 via sharedutils.LogByStatusAndSend on *http.MaxBytesError), sharedutils.GetPathParam(constants.IDParam), r.URL.Query().Get(reportseps.QueryReport / QueryFormat). routes/base.go: `reportRoutes()` appended after snapshotRoutes in InitRoutes with five PLAIN `router.CreateRoute(method, endpoint, handler)` entries — (base.Post, CreatePlanReport), (base.Get, ListPlanReports), (base.Get, DownloadPlanReport), (base.Post, PutPlanReportLedger), (base.Get, GetPlanReportLedger) — exactly like protectionPlanRoutes (:104-112); NO performance.NewDynamicOptimizedHandlerFunc. authz/requirements.go: `addReports(r)` called after addSnapshots: Create/PutLedger/GetLedger = authz.Internal; ListPlanReports and DownloadPlanReport = authz.Read(roledata.ScopeProtectionPlans); NO Denyable, NO new action strings; rules_test.go and the STAGED tests/authz/requirements_test.go are NOT edited (the new tests/authz/reports_test.go alone pins the five requirements). handlers/plans/protection/handler.go DeletePlanByID: after `result.Status == http.StatusOK` call `reportsutil.RemovePlanReports(envmanager.GetReportsPath(), planID)` and log a warning on error (the sweep is the retry).",
+   "testFirst": {
+    "file": "/Users/houssem/Desktop/Github/telark/services/exporter/internal/tests/reportsapi/handler_test.go",
+    "names": [
+     "TestCreateThenListThenDownloadEachFormat",
+     "TestCreateReplayReturns200WithStoredMeta",
+     "TestDownloadUnknownFormat400MissingReport404",
+     "TestDownloadSetsNoSniffAndSandboxCSP",
+     "TestBodyOverLimit413",
+     "TestLedgerPutGetRoundTripAnd404",
+     "TestDeletePlanRemovesItsReports",
+     "TestReportsGCSweepsOnlyUnreferencedOldPlans",
+     "TestReportsGCSkipsOnEmptyOrFailedList",
+     "TestReportsGCTickSurvivesPanic",
+     "TestRequirementsCoverEveryRoute"
+    ],
+    "red": "handlers/reports does not exist; test fails to compile; TestRequirementsCoverEveryRoute fails as soon as routes exist without requirements",
+    "green": "httptest through handlers/reports with the withID helper (tests/snapshotapi/handler_test.go:23-25) and t.Setenv REPORTS_PATH: create 200 → list has 1 → download html/md/json/csv each 200 with the right Content-Type, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox`, body == the stored text, and NO Content-Disposition header; second create with the same id → 200 and identical meta, file mtime unchanged; format=pdf → 400; unknown report → 404; 33 MiB body → 413; ledger POST/GET round-trip on reports/plans/<id>/ledger/{put,get}, unknown plan → 404; DeletePlanByID via the plan handler test harness (or a store-level RemovePlanReports test plus a code-read note) leaves no /reports/plans/<id> dir; gc_test drives SweepWith and asserts only old unreferenced dirs vanish and nothing vanishes for an empty set; TestReportsGCTickSurvivesPanic calls runGuarded with an injected panicking sweep (exported test seam `RunGuardedWith(fn func())`) and asserts no panic escapes; tests/authz/reports_test.go pins Create/PutLedger/GetLedger = AccessInternal and the two GETs = Read on ScopeProtectionPlans with an empty Rule; all tests/authz green"
+   },
+   "verify": "cd /Users/houssem/Desktop/Github/telark/services/exporter && rtk proxy \"go test ./...\" && golangci-lint run && /usr/bin/git -C /Users/houssem/Desktop/Github/telark diff --stat -- services/exporter/internal/exporters/snapshot/gc.go   # identical to the A3 journal entry (gcTickAllowed delegation only)",
+   "dependsOn": [
+    "B4"
+   ],
+   "parallelGroup": "exporter-routes",
+   "route": {
+    "model": "claude-fable-5-1",
+    "effort": "default",
+    "priority": "P3",
+    "criteria": [
+     "M1",
+     "M3"
+    ],
+    "why": "New route tree (contract) and its authz requirements including Internal-only writes."
+   }
+  },
+  {
+   "id": "B2b",
+   "title": "rest: exporter reports HTTP client (after the receiving handlers exist) — ledger as pre-marshalled JSON",
+   "part": "B-feature",
+   "repo": "internal/rest",
+   "files": [
+    "/Users/houssem/Desktop/Github/internal/rest/clients/reports/client.go",
+    "/Users/houssem/Desktop/Github/internal/rest/tests/clients/reports/client_test.go"
+   ],
+   "change": "NEW clients/reports/client.go: `type Client struct{*shared.Client}`, `NewClient()` = shared.New(base.Exporter) and `NewClientWithConfig(cfg *shared.ClientConfig)` = shared.NewWithConfig(base.Exporter, cfg) (plans/protection/client.go shape). `CreatePlanReport(req reportseps.CreatePlanReportRequest) *response.GenericResponse { return c.Create(eps.CreatePlanReport, req) }` (every field of req is json-tagged — B2a). `PutLedger(planID string, ledger json.RawMessage) *response.GenericResponse`: `c.WithParams(map[string]string{constants.IDParam: planID}).CreateJSON(eps.PutPlanReportLedger, ledger)` — the caller's bytes go on the wire verbatim; NO run query. `GetLedger(planID string) (json.RawMessage, error)` via shared.GetTyped[json.RawMessage] on the WithParams client (404 → shared.ErrNotFound by parseSingleResponse). NO ListByPlan, NO download client (the UI calls the exporter directly). Calls take no ctx (rest builds requests with http.NewRequest); the http.Client timeout from ClientConfig is the bound. USER tags rest after this step.",
+   "testFirst": {
+    "file": "/Users/houssem/Desktop/Github/internal/rest/tests/clients/reports/client_test.go",
+    "names": [
+     "TestCreatePostsEnvelopeWithServiceToken",
+     "TestGetLedgerMapsNotFound",
+     "TestPutLedgerPostsRawBytesVerbatim"
+    ],
+    "red": "package clients/reports does not exist; test fails to compile",
+    "green": "httptest server asserts POST /api/v1/reports/plans/create carries X-Service-Token and a body whose meta.planId and files map round-trip; GetLedger 404 → errors.Is(err, shared.ErrNotFound); PutLedger(\"p1\", json.RawMessage(`{\"planId\":\"p1\",\"run\":\"r\",\"checkpoints\":[{\"at\":\"t\",\"health\":\"healthy\",\"violationsSeen\":1}],\"violations\":[]}`)) is a POST to /api/v1/reports/plans/p1/ledger/put with NO query string and a body byte-equal to the input (bytes.Equal on the server side after reading)"
+   },
+   "verify": "cd /Users/houssem/Desktop/Github/internal/rest && rtk proxy \"go test ./...\" && golangci-lint run",
+   "dependsOn": [
+    "B5"
+   ],
+   "parallelGroup": "rest-client",
+   "route": {
+    "model": "claude-fable-5-1",
+    "effort": "default",
+    "priority": "P3",
+    "criteria": [
+     "M1"
+    ],
+    "why": "Exported API of the shared rest package; consumed by discovery."
+   }
+  },
+  {
+   "id": "B6",
+   "title": "discovery: reports client wrapper — direct rest calls (no breaker wrapper, no state gate), 4xx→validation, report-specific error constants",
+   "part": "B-feature",
+   "repo": "telark/discovery",
+   "files": [
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/clients/reports.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/constants/errors.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/constants/config.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/planreports/client_test.go"
+   ],
+   "change": "NEW clients/reports.go. `type ReportClient struct{ client *reportsclient.Client }`; `NewReportClient()` via `reportsclient.NewClientWithConfig(&shared.ClientConfig{Timeout: constants.DefaultReportCaptureTimeout})` (snapshots.go:29-34 shape) — the HTTP timeout IS the capture bound. Report calls are NEVER wrapped in circuitbreaker.ExecuteExporter (they must never take the single half-open probe slot nor record a result on the breaker that guards CreateSnapshot) and there is NO breaker state check either (breakerClosed/ErrReportsBreakerNotClosed do not exist). `ClassifyReportResponse(resp *response.GenericResponse) error` (exported pure mapper): nil → wrapExporter(errors.New(string(constants.ErrReportNilResponse))); 200 → nil; 400/413 → `validation.Invalidf(string(constants.ErrReportRejected), resp.Message)` (400 through StatusForErr); anything else → wrapExporter(fmt.Errorf(string(constants.ErrRestCallFailed), resp.Status, resp.Message)) (503). Methods (no ctx — the rest client has none): `Create(req reportseps.CreatePlanReportRequest) (*reportseps.ReportMeta, error)` → client.CreatePlanReport, ClassifyReportResponse, decode resp.Data into ReportMeta; `PutLedger(planID string, ledger json.RawMessage) error` → client.PutLedger, ClassifyReportResponse; `GetLedger(planID string) (json.RawMessage, error)` → client.GetLedger; errors.Is(err, shared.ErrNotFound) → (nil, nil); other errors → wrapExporter(err). constants/errors.go += `ErrReportRejected` (\"exporter rejected the report: %s\"), `ErrReportNilResponse` (\"report call returned nil response\"), `ErrCreateReportFailed`, `ErrPutLedgerFailed`, `ErrReportPanic` (\"report generation panicked: %v\"). constants/config.go += `DefaultReportCaptureTimeout = 10 * time.Second`, `EnvReportMaxViolations = \"PROTECTION_PLAN_REPORT_MAX_VIOLATIONS\"`, `DefaultReportMaxViolations = 5000`, `EnvReportCheckpointSec = \"PROTECTION_PLAN_REPORT_CHECKPOINT_SEC\"`, `DefaultReportCheckpointSec = 900`, `ReportCheckpointMinSec = 60`, `ReportCheckpointMaxSec = 1800`, `ReportRequestBudgetBytes = 16 << 20` (half the exporter's ReportMaxBodyBytes), `KeyPrefixReportLedgerLock = \"lock:reports:ledger:\"`. NO ReportLedgerLockWait, NO ReportLedgerLockRetryDelay, NO capture-timeout env.",
+   "testFirst": {
+    "file": "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/planreports/client_test.go",
+    "names": [
+     "TestClassifyReportResponseMaps4xxToValidationAnd5xxToExporterError",
+     "TestReportClientNeverTouchesTheExporterBreaker",
+     "TestGetLedgerNotFoundIsNilNil",
+     "TestPutLedgerRoundTripsRealLedgerBytes"
+    ],
+    "red": "clients.ReportClient / ClassifyReportResponse do not exist; test fails to compile",
+    "green": "ClassifyReportResponse: 400 → validation.IsValidation(err); 413 → validation; 500 → clients.IsExporterFailure(err); nil → IsExporterFailure with the ErrReportNilResponse text. Breaker test: `circuitbreaker.GetManager().Reset(DependencyExporter)`; point a ReportClient at an httptest server answering 500 five times → each Create returns IsExporterFailure AND `GetState(DependencyExporter) == StateClosed` afterwards (the breaker never saw the calls); Reset at the end. GetLedger fed shared.ErrNotFound → (nil, nil). TestPutLedgerRoundTripsRealLedgerBytes: an httptest server stores the POST body; PutLedger(\"p1\", bytes) then the server body bytes.Equal the input."
+   },
+   "verify": "cd /Users/houssem/Desktop/Github/telark/services/discovery && rtk proxy \"go test ./internal/tests/planreports/... ./internal/tests/circuitbreaker/...\" && golangci-lint run && /usr/bin/grep -c 'ExecuteExporter\\|NotCounted\\|GetState' internal/clients/reports.go   # prints 0",
+   "dependsOn": [
+    "B2b"
+   ],
+   "parallelGroup": "discovery-client",
+   "route": {
+    "model": "claude-opus-5-5",
+    "effort": "medium",
+    "priority": "P4",
+    "criteria": [],
+    "why": "Single-service wrapper following clients/snapshots.go; fully specified but not purely mechanical (error mapping and constants)."
+   }
+  },
+  {
+   "id": "B7",
+   "title": "discovery: reports domain — time-fenced in-memory merge, lock-gated persist (uuid), recover, gather (raw ids), render (fit-to-budget, CSV/MD escaping), manual semaphore + capture slot, CaptureAsync",
+   "part": "B-feature",
+   "repo": "telark/discovery",
+   "files": [
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/reports/types.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/reports/gather.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/reports/ledger.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/reports/render.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/reports/generate.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/reports/constants.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/reports/templates/report.html.tmpl",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/reports/templates/report.md.tmpl",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/violations/violations.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/planreports/gather_test.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/planreports/render_test.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/planreports/ledger_test.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/planreports/generate_test.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/planviolations/retention_test.go"
+   ],
+   "change": "violations.go (STAGED-modified; layer on top, by symbol): buildViolation sets `EventUID: string(event.GetUID())`; add the companion constant `RetentionWindowDuration = time.Hour` next to RetentionWindow (a test pins time.ParseDuration(RetentionWindow) == RetentionWindowDuration). NEW package reports. types.go (ALL types of the package): `type ReportStore interface { Create(req reportseps.CreatePlanReportRequest) (*reportseps.ReportMeta, error); PutLedger(planID string, ledger json.RawMessage) error; GetLedger(planID string) (json.RawMessage, error) }` (satisfied by *clients.ReportClient and the test fake); `type PlanReportLedger struct { PlanID string `json:\"planId\"`; Run string `json:\"run\"`; UpdatedAt string `json:\"updatedAt\"`; RenderedPolicies []string `json:\"renderedPolicies\"`; Checkpoints []LedgerCheckpoint `json:\"checkpoints\"`; Violations []planseps.ProtectionPlanViolation `json:\"violations\"`; Truncated bool `json:\"truncated\"` }`, `type LedgerCheckpoint struct { At string `json:\"at\"`; Health string `json:\"health\"`; ViolationsSeen int `json:\"violationsSeen\"` }` — EVERY field tagged camelCase (planseps = github.com/telark/rest/endpoints/plans); `type Generator struct { store ReportStore; dyn dynamic.Interface; resolveApps applications.Resolver; rdb *redis.Client; clock func() time.Time; logger Logger; maxViolations int; sem chan struct{}; captureSlot chan struct{} }` + `NewGenerator(store, dyn, resolveApps, rdb, logger, maxViolations)` (sem = make(chan struct{}, MaxConcurrentRenders); captureSlot = make(chan struct{}, 1)); `type ReportDocument struct` with the eight sections (Cover, Coverage{RetentionWindow, CheckpointInterval string, Checkpoints int, FirstCheckpoint, LastCheckpoint string, Gaps []Gap, Truncated bool, RowsOmitted int, RowCap int, PoliciesLiveAtCapture bool, UnresolvedApplications []string, Provenance []ProvenanceRow}, Timeline (raw ids), Scope, Policies []PolicyBlock, Health{Value, CheckedAt, Timeline []LedgerCheckpoint}, Decisions{Aggregates, Rows []planseps.ProtectionPlanViolation}, Appendix); `var ErrRenderBusy = errors.New(...)`. constants.go: `RunKeyLayout = \"20060102T150405Z\"`, `MaxMessageRunes = 512`, `MessageEllipsis = \"…\"`, `MaxConcurrentRenders = 2`, `RenderBusyRetryAfterSec = 5`, `RenderFitAttempts = 4`, the single `engineName` constant and `EngineReplacement = \"policy engine\"`, `ErrReportInvalidPhase`, `ErrReportNotStarted` (\"plan %s has not started; nothing to report\"), every section title / fixed sentence / provenance label (passed to both templates as data; includes the 'application changes, snapshots and rollbacks are not part of this document' appendix sentence), log formats (LogReportCaptured, LogReportCaptureFailed, LogReportReplayed, LogCheckpointFailed, LogLedgerWriteFailed, LogLedgerLocked, LogReportPanic). ledger.go: `RunKey(plan) (string, error)` (StartedAt REQUIRED — nil → error; parsed with globalshared.DefaultTimeFormat, formatted RunKeyLayout; parse failure → error); `CapMessage(s string) string` (≤ MaxMessageRunes runes else truncated + MessageEllipsis); `withinRun(ts string, plan) bool` = ts >= *plan.StartedAt && (plan.TerminatedAt == nil || ts <= *plan.TerminatedAt) (RFC3339 strings compare lexically); `Merge(existing, live []planseps.ProtectionPlanViolation, plan *plans.ProtectionPlan, max int) (rows []…, truncated bool)` — into a map keyed by EventUID (rows with an empty EventUID are keyed by Timestamp+Policy+Rule+Namespace+Name), skipping every live row for which !withinRun, CapMessage on every row, then `total, page := violations.Page(rows, max)`; truncated = total > max (no hand-written sort/cap); `loadLedger(plan) *PlanReportLedger`: GetLedger → json.Unmarshal (nil/invalid → empty {PlanID, Run}); if ledger.Run != RunKey(plan) → empty {PlanID, Run} (previous run is preserved in its final report); `policyNames(plan, ledger)` = plan.RenderedPolicies if non-empty else ledger.RenderedPolicies; `mergeLive(ctx, plan, ledger) *PlanReportLedger` (IN MEMORY, never writes): names := policyNames; skip Collect when names is empty, or when plan.TerminatedAt != nil && g.clock().Sub(terminatedAt) >= violations.RetentionWindowDuration; else namespaces := resolveLenient; live := violations.Collect(ctx, g.dyn, namespaces, names, \"\"); ledger.Violations, ledger.Truncated = Merge(ledger.Violations, live, plan, g.maxViolations); ledger.RenderedPolicies = names; append LedgerCheckpoint{At: now, Health: plan.Health, ViolationsSeen: len(live)}; ledger.UpdatedAt = now; return ledger; `persist(ctx, ledger)`: if g.rdb != nil → `lock := stream.NewLockClient(g.rdb); key := constants.KeyPrefixReportLedgerLock + planID; value := uuid.NewString(); acquired, err := lock.Acquire(ctx, key, value, constants.DefaultLockTTL)`; err or !acquired → log LogLedgerLocked and RETURN (skip the write only; single Acquire, no wait loop); acquired → defer lock.Release(context.Background(), key, value); bytes := json.Marshal(ledger); `if err := g.store.PutLedger(planID, bytes); err != nil { log LogLedgerWriteFailed }`; `Checkpoint(ctx, plan) (*PlanReportLedger, error)` = guarded(loadLedger → mergeLive → persist) — the leader loop's call. gather.go: `Gather(plan, ledger, actor, trigger, generatedAt) (*ReportDocument, error)`: resolveLenient (missing apps → UnresolvedApplications), Decisions.Rows = ledger.Violations, aggregates, end := *plan.TerminatedAt if set else generatedAt, coverage gaps = every interval longer than RetentionWindowDuration among StartedAt→first checkpoint, consecutive checkpoints, last checkpoint→end (a checkpoint At > end counts as At = end; zero checkpoints → one gap StartedAt→end), PoliciesLiveAtCapture = len(plan.RenderedPolicies) > 0, rendered policy names = policyNames(plan, ledger), RowCap = maxViolations, Timeline holds RAW ids, Scrub() over Description, Reason, every Message/Rule; provenance rows derived from the same booleans. render.go: `Render(doc) (map[string]string, error)` — html via html/template parsed once from `//go:embed templates/*` (funcs fmtTime, join, resultClass), md via text/template with a `cell` func that applies html.EscapeString THEN escapes '|' and newlines, json via json.MarshalIndent(doc), csv via encoding/csv with `csvCell(s)`: if the first rune is one of = + - @ \\t \\r prefix a single quote; `RenderWithinBudget(doc, budget int) (files map[string]string, err)`: loop up to RenderFitAttempts: files := Render(doc); size := len(json.Marshal(reportseps.CreatePlanReportRequest{Meta: metaOf(doc), Files: files})); if size <= budget return; keep := len(rows) * budget / size * 9 / 10; drop rows beyond keep (rows are newest-first), doc.Coverage.Truncated = true, doc.Coverage.RowsOmitted += dropped; after the loop still over budget → error. generate.go: `guarded(fn func() error) (err error)` = `defer func() { if r := recover(); r != nil { g.logger.Error(LogReportPanic); err = fmt.Errorf(string(constants.ErrReportPanic), r) } }(); return fn()`; `Generate(ctx, plan, actor, trigger) (*reportseps.ReportMeta, error)` runs its body inside guarded: `if trigger == TriggerManual { select { case g.sem <- struct{}{}: default: return nil, ErrRenderBusy }; defer release }` (boundary triggers do NOT take sem — captures hold captureSlot instead); run := RunKey(plan); ledger := loadLedger; ledger = mergeLive(ctx, plan, ledger); `if trigger != TriggerManual { g.persist(ctx, ledger) }` (manual is READ-ONLY: never PutLedger); doc := Gather; files := RenderWithinBudget(doc, constants.ReportRequestBudgetBytes); store.Create(CreatePlanReportRequest{Meta{ID: run+\"-\"+trigger[+\"-\"+now.Format(RunKeyLayout) for manual], PlanID, Trigger, GeneratedAt, GeneratedBy: actor, ViolationsTotal, Truncated}, Files}). `CaptureAsync(plan *plans.ProtectionPlan, endedAt, actor, reason, trigger string) <-chan struct{}`: `done := make(chan struct{}); if plan.Phase != plans.PhaseActive || plan.StartedAt == nil { close(done); return done }`; `p := *plan; p.TerminatedAt = &endedAt; p.TerminatedBy = &actor; p.Health = plan.Health` and Phase/Reason: TriggerEnd → PhaseTerminated + protection ReasonExpired (pass the reason string in from svc: the caller supplies `reason`), TriggerCancel → PhaseCanceled + reason; `go func() { defer close(done); g.captureSlot <- struct{}{}; defer func() { <-g.captureSlot }(); cctx, cancel := context.WithTimeout(context.Background(), constants.DefaultReportCaptureTimeout); defer cancel(); if _, err := g.Generate(cctx, &p, actor, trigger); err != nil { log LogReportCaptureFailed } else { log LogReportCaptured } }()`; return done — never blocks the caller, never panics (Generate is guarded). `ManualAllowed(plan *plans.ProtectionPlan) error`: draft or scheduled → validation.Invalidf(ErrReportInvalidPhase, phase); StartedAt == nil → validation.Invalidf(ErrReportNotStarted, plan.ID); else nil. HTML: self-contained, inline CSS, summary tiles, zebra tables, `@media print` rules, light print surface; no external assets, no vendor name.",
+   "testFirst": {
+    "file": "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/planreports/gather_test.go",
+    "names": [
+     "TestGenerateMergesLiveThenRendersFromMergedLedger",
+     "TestGenerateBoundaryPersistsLedgerAndManualNeverWrites",
+     "TestGenerateRendersWhenLedgerWriteFails",
+     "TestGenerateManualAfterEndMergesLiveRowsUpToTerminatedAt",
+     "TestMergeFencesRowsToRunWindowDropsPreviousRunEvents",
+     "TestMergeDedupsByEventUIDCapsMessagesUsesPage",
+     "TestLoadLedgerStartsEmptyOnRunMismatch",
+     "TestPersistSkipsWriteWhenLockHeldAndUsesUUIDValue",
+     "TestGeneratePanicInRenderBecomesErrorNotCrash",
+     "TestCaptureAsyncSkipsUnstartedPlans",
+     "TestCaptureAsyncSerializesAndNeverTakesManualSemaphore",
+     "TestGatherActivePlanPopulatesAllSections",
+     "TestGatherTerminatedPlanUsesLedgerPoliciesAndMarksRemoved",
+     "TestGatherFlagsTrailingGapAfterLastCheckpoint",
+     "TestGatherDegradesOnMissingApplication",
+     "TestGatherTimelineHoldsRawIDs",
+     "TestRenderAllFormatsNonEmptyAndEscaped",
+     "TestRenderNeverContainsVendorName",
+     "TestRenderWithinBudgetFitsEveryPresetWorstCase",
+     "TestLedgerMaxRowsWorstCaseUnderBodyLimit",
+     "TestLedgerJSONRoundTripsThroughRealMapperAndKeysAreCamelCase",
+     "TestRunKeyRequiresStartedAtAndErrorsOnGarbage",
+     "TestGenerateManualBusyReturnsErrRenderBusy",
+     "TestManualAllowedRejectsDraftScheduledAndUnstarted",
+     "TestRetentionWindowDurationMatchesString"
+    ],
+    "red": "package reports does not exist; tests fail to compile (dynamicfake + eventGVR setup copied from tests/planviolations/violations_test.go:55-61; fake ReportStore records calls and stored ledger bytes; miniredis.RunT for rdb, nil rdb where the lock is irrelevant)",
+    "green": "Generate on an active plan with a stored ledger of 2 old violations and 1 new live Event in-window → boundary trigger: the fake store sees exactly one PutLedger whose bytes unmarshal to 3 violations, one new checkpoint, RenderedPolicies == plan.RenderedPolicies, BEFORE one Create whose files[json] decodes to 3 rows; manual trigger on the same fixture → ZERO PutLedger calls and a Create with 3 rows; with PutLedger failing the boundary Create still carries 3 rows; post-end manual: plan.TerminatedAt = now−10 min, RenderedPolicies empty, ledger {RenderedPolicies [p1], 1 row}, live Events: one at TerminatedAt−1 min, one at TerminatedAt+1 min → Rows == 2 (the late one excluded), no PutLedger, post-end sentence present; fence test: a live Event stamped before plan.StartedAt (previous run) is dropped, one after StartedAt kept; Merge caps a 2000-rune message to 512 + ellipsis and returns truncated=true for max=1 with 2 rows; ledger with Run 'old' and plan StartedAt mapping to 'new' → loadLedger returns an empty ledger with Run 'new'; lock test (miniredis): pre-set key lock:reports:ledger:<id> → persist logs LogLedgerLocked and PutLedger is not called; with the key free, the value written to Redis parses as a uuid and differs between two persists; panic test: a fake store whose Create panics → Generate returns an error wrapping ErrReportPanic and the test process is alive; CaptureAsync on a scheduled plan and on an active plan with StartedAt nil → done closes immediately and zero store calls (NO blocks-forever case and NO timeout seam: Generator has no timeout field and ReportStore methods take no ctx, so a blocking fake could never be unblocked; the real calls are bounded by the ReportClient HTTP timeout (B6) plus the context.WithTimeout(DefaultReportCaptureTimeout) in CaptureAsync, read in V4); two CaptureAsync calls with a store that blocks 300 ms → the second Create starts after the first ends (serialized) and a concurrent manual Generate with both sem slots free succeeds (captures never consume sem); the real-mapper test marshals a full PlanReportLedger with json.Marshal, asserts top-level keys {planId, run, updatedAt, renderedPolicies, checkpoints, violations, truncated} and a checkpoint's keys {at, health, violationsSeen}, and feeds the same struct through restmapper.MapToJSONPayload asserting NO \"\" key; budget test: for maxViolations ∈ {2000, 5000} build rows whose Message is 512 runes of `<&\"` and whose other fields are 64 chars, call RenderWithinBudget(doc, 16 MiB) and assert len(json.Marshal(req)) < 16 MiB and Coverage.Truncated when rows were dropped, and that 5000 REALISTIC rows (200 plain chars) are NOT truncated; 5000 worst-case rows → len(json.Marshal(ledger)) < 32 MiB; escape + vendor tests as before (HTML `&lt;script&gt;`, CSV cell quoted AND starting with `'=`, Markdown `&lt;b&gt;`; mixed-case engine name absent from all four outputs); RunKey(StartedAt nil) → error; manual Generate with both sem slots held → ErrRenderBusy in < 100 ms; ManualAllowed: draft, scheduled → validation; active with StartedAt nil → validation with the ErrReportNotStarted text; time.ParseDuration(violations.RetentionWindow) == violations.RetentionWindowDuration"
+   },
+   "verify": "cd /Users/houssem/Desktop/Github/telark/services/discovery && rtk proxy \"go test ./internal/tests/planreports/... ./internal/tests/planviolations/...\" && golangci-lint run",
+   "dependsOn": [
+    "B6"
+   ],
+   "parallelGroup": "discovery-domain",
+   "route": {
+    "model": "claude-fable-5-1",
+    "effort": "default",
+    "priority": "P3",
+    "criteria": [
+     "M1",
+     "M2",
+     "M4"
+    ],
+    "why": "Defines the persisted ledger's merge/fence/dedup/lock semantics and the persisted report document (M2), adds EventUID to the violations API payload (M1), and the lock-gated persist is multi-replica behaviour (M4)."
+   }
+  },
+  {
+   "id": "B8",
+   "title": "discovery: capture-at-boundary AFTER the terminal patch (async, recovered), GenerateReport, CheckpointReports (per-plan timeout + recover, break on exporter failure), own Event-LIST client, wiring",
+   "part": "B-feature",
+   "repo": "telark/discovery",
+   "files": [
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/svc.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/wire.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/core/plans/protection/constants.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/planreports/boundary_test.go"
+   ],
+   "change": "svc.go and wire.go are STAGED-modified (svc.go is also shared with the environments-tags plan): re-read at step start, edit by symbol name, layer on top, never reset. NO PlanStore interface: Service.exporter stays `*clients.ProtectionPlanClient`; update/orchestrator.go, handlers/plans/protection/update.go, violations.go Deps and cancel.go are NOT touched. Service gains one field `reports *reports.Generator`; `NewService(applier, resolveApps, exporter, dyn, listNamespaces, reportsGen *reports.Generator, logger)` (wire.go:26 is the only caller — update it; no setter). wire.go BuildService: `maxViolations` from os.Getenv(constants.EnvReportMaxViolations) (Atoi; ≤ 0 or unparsable → constants.DefaultReportMaxViolations); `qps, burst := dconfig.RollbackK8sClientRateLimit(); reportsDyn, err := kcorek8s.NewDynamicClientWithRateLimit(qps, burst)` (the rollback controller precedent, controller.go:110-118 — the checkpoint burst on leadership acquisition must never share the applier's client budget with CleanupByPlanID/Deploy; on error return it); `gen := reports.NewGenerator(clients.NewReportClient(), reportsDyn, resolver, rdb, logger, maxViolations)`; pass gen to NewService. TERMINATE (svc.go, currently :355-365) becomes, in this exact order: (1) CleanupByPlanID(ctx) with today's log; (2) the existing `PatchRawOrError(SystemActor, plan.ID, BuildTerminatePatch(now))` — on error `return err` as today; (3) `s.reports.CaptureAsync(plan, now, SystemActor, ReasonExpired, reportseps.TriggerEnd)` (return value ignored) — plan is the in-memory copy that still holds RenderedPolicies/Health; (4) the LogPlanTerminated line. CANCEL (currently :178-200) likewise: Get → cancellable check → CleanupByPlanID(ctx) → PatchRawOrError(BuildCancelPatch(userID, reason, now)) (on error return as today) → `s.reports.CaptureAsync(plan, now, userID, reason, reportseps.TriggerCancel)` → the final Get. The capture is NEVER before the terminal patch (health/repair.go:29-43 redeploys policies onto any plan that still reads active, from any replica) and NEVER before cleanup; NO `ctx.Err()` guard is added (pre-existing teardown behaviour unchanged — separate follow-up). NEW `func (s *Service) GenerateReport(ctx context.Context, userID, planID string) (*reportseps.ReportMeta, error)`: plan := s.exporter.Get; `if err := reports.ManualAllowed(plan); err != nil { return nil, err }`; return s.reports.Generate(ctx, plan, userID, reportseps.TriggerManual) (ErrRenderBusy passes through untouched for the handler). NEW `func (s *Service) CheckpointReports(ctx context.Context, planList []plans.ProtectionPlan)`: for each plan with Phase active, StartedAt != nil and TerminatedAt == nil → `pctx, cancel := context.WithTimeout(ctx, constants.DefaultReportCaptureTimeout); _, err := s.reports.Checkpoint(pctx, &planList[i]); cancel()`; on error log LogCheckpointFailed; `if clients.IsExporterFailure(err) { break }` (an exporter outage costs one timeout, not N); sequential. constants.go (package protection): `ErrReportBusy errors.Error = \"a report is already being generated; retry shortly\"` and log formats. Clear/Activate/Update/repair: no hook.",
+   "testFirst": {
+    "file": "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/planreports/boundary_test.go",
+    "names": [
+     "TestCheckpointReportsSkipsInactiveAndTerminated",
+     "TestCheckpointReportsBreaksOnFirstExporterFailure",
+     "TestGenerateReportPhaseGate"
+    ],
+    "red": "Service.CheckpointReports / GenerateReport / the NewService signature do not exist; test fails to compile",
+    "green": "CheckpointReports over [active+started, active+TerminatedAt set, scheduled, terminated, active+StartedAt nil] → exactly one Checkpoint call (the fake store sees one GetLedger for the first plan only); with a store whose GetLedger returns an exporter failure and three eligible plans → exactly one GetLedger (break); NO blocks-forever case (no timeout seam exists and ReportStore methods take no ctx — the per-plan context.WithTimeout(ctx, DefaultReportCaptureTimeout) and the ReportClient HTTP timeout bound the real calls, read in V4); the phase gate is covered by reports.ManualAllowed tests (B7) — GenerateReport itself is three lines read in V4. The Terminate/Cancel ORDER (cleanup → patch → CaptureAsync) is V4 review item (b), not a unit test: Service holds a concrete exporter client by decision. tests/planpatches, tests/planctl, tests/planhandlers unchanged and green"
+   },
+   "verify": "cd /Users/houssem/Desktop/Github/telark/services/discovery && rtk proxy \"go test ./...\" && golangci-lint run && /usr/bin/grep -n 'CaptureAsync\\|CleanupByPlanID\\|PatchRawOrError\\|ctx.Err()' internal/core/plans/protection/svc.go   # in both Terminate and Cancel: CleanupByPlanID, then PatchRawOrError, then CaptureAsync; ctx.Err() appears nowhere new",
+   "dependsOn": [
+    "B7"
+   ],
+   "parallelGroup": "discovery-hook",
+   "route": {
+    "model": "claude-fable-5-1",
+    "effort": "default",
+    "priority": "P3",
+    "criteria": [
+     "M2",
+     "M4"
+    ],
+    "why": "The routing doc's own example: 'Add durable violation capture to the plan-teardown path in discovery and persist it via the exporter → P3 (M2, M4)'; it edits the product's teardown path."
+   }
+  },
+  {
+   "id": "B9",
+   "title": "discovery: leader-gated checkpoint loop (interval from PROTECTION_PLAN_REPORT_CHECKPOINT_SEC, clamped below the Event TTL)",
+   "part": "B-feature",
+   "repo": "telark/discovery",
+   "files": [
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/controllers/plans/protection/checkpoint.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/config/reports.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/main.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/planctl/checkpoint_test.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/config/reports_test.go"
+   ],
+   "change": "NEW internal/config/reports.go (package config, next to the rollback budget readers): `ReportCheckpointInterval() (time.Duration, bool)` — reads constants.EnvReportCheckpointSec; empty/unparsable → DefaultReportCheckpointSec; clamps to [ReportCheckpointMinSec, ReportCheckpointMaxSec] and returns clamped=true when it changed the value. NEW controllers/plans/protection/checkpoint.go (same package as controller.go; controller.go and tests/planctl/boundary_test.go UNTOUCHED): `type CheckpointService interface { ListAllPlans() ([]plans.ProtectionPlan, error); CheckpointReports(ctx context.Context, planList []plans.ProtectionPlan) }`; `type CheckpointController struct { service CheckpointService; logger Logger; interval time.Duration }`; `NewCheckpointController(service, logger, interval time.Duration)`; `Run(ctx)`: run once immediately (catch-up on leadership acquisition), then time.NewTicker(interval) until ctx.Done; each run: ListAllPlans (log and skip on error) → service.CheckpointReports(ctx, planList). main.go startProtectionPlanLeaderGated: `interval, clamped := config.ReportCheckpointInterval(); if clamped { lg.Warn(WarnReportCheckpointClamped) }; lg.Info(InfReportCheckpointInterval)` then after `leadergate.Start(ctx, ctrl, leaderElectionForInformers)` add `leadergate.Start(ctx, protectionctrl.NewCheckpointController(svc, lg, interval), leaderElectionForInformers)` (log constants in constants/logs — grep the existing file name). Load note: one LIST of plans + per active plan M namespace Event LISTs per interval on the Generator's OWN rate-limited client (B8), sequential, each bounded by DefaultReportCaptureTimeout, loop breaks on the first exporter failure. USER OVERRIDE: dropping this step leaves a one-hour ceiling that the coverage section already prints.",
+   "testFirst": {
+    "file": "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/planctl/checkpoint_test.go",
+    "names": [
+     "TestCheckpointRunsOnStartThenOnInterval",
+     "TestCheckpointStopsOnContextCancel",
+     "TestReportCheckpointIntervalDefaultsAndClamps"
+    ],
+    "red": "CheckpointController / config.ReportCheckpointInterval do not exist; tests fail to compile",
+    "green": "a fake CheckpointService counts calls: with interval 20 ms, after 70 ms the count is >= 3 and the first call happened before the first tick; cancelling ctx stops further calls; config test (t.Setenv): unset → 900 s, clamped=false; \"30\" → 60 s, clamped=true; \"7200\" → 1800 s, clamped=true; \"abc\" → 900 s; \"600\" → 600 s"
+   },
+   "verify": "cd /Users/houssem/Desktop/Github/telark/services/discovery && rtk proxy \"go test ./internal/tests/planctl/... ./internal/tests/config/...\" && golangci-lint run",
+   "dependsOn": [
+    "B8"
+   ],
+   "parallelGroup": "discovery-checkpoint",
+   "route": {
+    "model": "claude-fable-5-1",
+    "effort": "default",
+    "priority": "P3",
+    "criteria": [
+     "M2"
+    ],
+    "why": "The durable half of the routing doc's example (persisting violation capture via the exporter on a schedule): it decides what survives the Event TTL."
+   }
+  },
+  {
+   "id": "B10",
+   "title": "discovery: generate-report handler (429 + Retry-After when busy), route, authz (plain Write)",
+   "part": "B-feature",
+   "repo": "telark/discovery",
+   "files": [
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/handlers/plans/protection/report.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/routes/routes.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/authz/requirements.go",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/planhandlers/report_test.go"
+   ],
+   "change": "NEW handlers/plans/protection/report.go `GenerateReport(w, r)` = Cancel's shape (cancel.go:16-57): readyService; X-User-ID required (401 with protection.ErrUserMissing); planID via shared.GetPathParam(constants.IDPathParam); `ctx, cancel := context.WithTimeout(context.Background(), constants.ProtectionPlanLifecycleTimeout)` (detached); meta, err := svc.GenerateReport(ctx, userID, planID); `if errors.Is(err, reports.ErrRenderBusy) { w.Header().Set(constants.HeaderRetryAfter, strconv.Itoa(reports.RenderBusyRetryAfterSec)); respondError(w, http.StatusTooManyRequests, protection.ErrReportBusy, err); return }` (429, NOT 503 — dashboard-ui's health breaker counts every >= 500 from discovery); other err → respondDomainError (404 ErrPlanNotFound, 400 validation incl. exporter 4xx and the not-started/phase gates, 503 ExporterError); 200 with messages.SuccessCreateRes and data=meta. Exported pure helper in report.go `ReportErrorStatus(err error) (status int, retryAfterSec int)` used by the handler and tested directly (the ONE test seam; no service-injection seam). errors.go: NOT in this step's files (StatusForErr unchanged; ErrRenderBusy is handled before it). routes.go: `router.CreateRoute(base.Post, planseps.GenerateProtectionPlanReport, protectionplanhandler.GenerateReport)` in the protection block. authz/requirements.go addPlans: `r[router.Key(base.Post, planseps.GenerateProtectionPlanReport)] = authz.Write(roledata.ScopeProtectionPlans)` — the same requirement as CancelProtectionPlan; no Denyable, no new action.",
+   "testFirst": {
+    "file": "/Users/houssem/Desktop/Github/telark/services/discovery/internal/tests/planhandlers/report_test.go",
+    "names": [
+     "TestGenerateReportRequiresUserHeader",
+     "TestReportErrorStatusMapsBusyTo429WithRetryAfter",
+     "TestRequirementsCoverEveryRoute",
+     "TestDestructiveRoutesRequireWriteAccess"
+    ],
+    "red": "handler does not exist; tests/authz TestRequirementsCoverEveryRoute fails once the route is registered without a requirement",
+    "green": "missing X-User-ID → 401; ReportErrorStatus(reports.ErrRenderBusy) → (429, 5); ReportErrorStatus(validation error) → (400, 0); ReportErrorStatus(exporter failure) → (503, 0); discovery tests/authz green with the new route registered as Write"
+   },
+   "verify": "cd /Users/houssem/Desktop/Github/telark/services/discovery && rtk proxy \"go test ./internal/tests/planhandlers/... ./internal/tests/authz/...\" && golangci-lint run",
+   "dependsOn": [
+    "B9"
+   ],
+   "parallelGroup": "discovery-handler",
+   "route": {
+    "model": "claude-fable-5-1",
+    "effort": "default",
+    "priority": "P3",
+    "criteria": [
+     "M1"
+    ],
+    "why": "New route contract consumed by the dashboard; its authz requirement is registered at the session-token edge and pinned by the coverage tests. Serialized after B9 (same Go module) so neither step's verify can see the other's half-finished edit."
+   }
+  },
+  {
+   "id": "U1",
+   "title": "dashboard-ui: models, strings, endpoints, timeouts (no permission-catalog changes, no cancel timeout change)",
+   "part": "B-feature",
+   "repo": "dashboard-ui",
+   "files": [
+    "/Users/houssem/Desktop/dashboard-ui/src/features/plans/protection/models/index.ts",
+    "/Users/houssem/Desktop/dashboard-ui/src/features/plans/protection/constants/protectionPlans.ts",
+    "/Users/houssem/Desktop/dashboard-ui/src/constants/rest/paths.ts",
+    "/Users/houssem/Desktop/dashboard-ui/src/constants/rest/endpoints.ts"
+   ],
+   "change": "models/index.ts and constants/protectionPlans.ts are dirty user work AND shared with the environments-tags plan — re-read at step start, layer on top by symbol. models/index.ts: `export type PlanReportFormat = 'html' | 'md' | 'json' | 'csv'`, `export type PlanReportTrigger = 'end' | 'cancel' | 'manual'`, `export interface PlanReportMeta { id: string; planId: string; trigger: PlanReportTrigger; generatedAt: string; generatedBy: string; violationsTotal: number; truncated: boolean }` (NO policiesIntact). constants/protectionPlans.ts: DETAIL_PAGE.SECTIONS += `REPORTS_TITLE: 'Reports'`, `REPORTS_DESCRIPTION: 'Documents describing what happened in the cluster while this plan was in effect. A final report is captured automatically when a plan ends.'`; new `LABELS.REPORTS` block: GENERATE 'Generate report', GENERATING 'Generating…', REFRESH 'Refresh', TRIGGER_LABELS {end:'Final', cancel:'Final (canceled)', manual:'On demand'}, GENERATED_AT 'Generated', GENERATED_BY 'By', DECISIONS 'Admission decisions', TRUNCATED 'capped', PRINT_HINT 'Open the HTML report and use your browser's Print to save it as PDF.', NOT_STARTED_HINT 'Reports become available once the plan has started.', EMPTY_DRAFT 'Reports become available once the plan starts.', EMPTY_ACTIVE 'No reports yet. Generate one now, or wait for the final report captured when the plan ends.', EMPTY_ENDED 'No report was captured for this plan.', LOAD_ERROR 'Could not load reports.', GENERATE_SUCCESS 'Report generated.', GENERATE_ERROR 'Could not generate the report.', GENERATE_BUSY 'A report is already being generated. Try again in a moment.', DOWNLOAD_ERROR 'Could not download the report.', DOWNLOAD_MISSING 'This report file is no longer available.' (NO NO_RECORDS, NO SIZE, NO NO_PERMISSION); `REPORT_FORMATS: ReadonlyArray<{ key: PlanReportFormat; label: string }>` = html 'HTML', md 'Markdown', json 'JSON', csv 'CSV'; `REPORT_GENERATE_TIMEOUT_MS = 35_000`, `REPORT_DOWNLOAD_TIMEOUT_MS = 60_000`, `OBJECT_URL_REVOKE_DELAY_MS = 1_000`, `REPORT_BUSY_STATUS = 429` (or reuse HTTP_STATUS.TOO_MANY_REQUESTS if it exists — grep src/constants first). NO PLAN_CANCEL_TIMEOUT_MS (the capture is asynchronous; Cancel latency is unchanged). paths.ts: PLANS_PATHS.PROTECTION += `REPORTS_GENERATE: (id) => `plans/protection/${id}/reports/generate``; new `REPORTS_PATHS = { PLANS: { LIST: (id) => `reports/plans/${id}/get`, DOWNLOAD: (id) => `reports/plans/${id}/download` } }`. endpoints.ts: PROTECTION_PLANS += `REPORTS_GENERATE: (id) => ({ path, method: 'POST' })`; new `REPORTS: { PLANS: { LIST, DOWNLOAD } }` (GET). permissionEngine.tsx and scopeRules.ts NOT edited: the UI reuses ACTION_PERMISSIONS.protectionPlans.cancel for the Generate button only. No string names the engine.",
+   "testFirst": {
+    "file": "/Users/houssem/Desktop/dashboard-ui/src",
+    "names": [
+     "npm run check-all"
+    ],
+    "red": "n/a (no UI test infra: 0 test files); type-check is the check",
+    "green": "`npm run check-all` zero errors; `/usr/bin/grep -rin kyverno src/features/plans` returns nothing"
+   },
+   "verify": "cd /Users/houssem/Desktop/dashboard-ui && npm run check-all",
+   "dependsOn": [
+    "B10"
+   ],
+   "parallelGroup": "ui-constants",
+   "route": {
+    "model": "claude-opus-5-5",
+    "effort": "medium",
+    "priority": "P4",
+    "criteria": [],
+    "why": "Constants/types/endpoint edits in one repo with no contract or permission-vocabulary change; type-check is the check."
+   }
+  },
+  {
+   "id": "U2",
+   "title": "dashboard-ui: reports clients — list, generate (429 = busy), first blob download (deferred revoke)",
+   "part": "B-feature",
+   "repo": "dashboard-ui",
+   "files": [
+    "/Users/houssem/Desktop/dashboard-ui/src/features/plans/protection/clients/reports.ts",
+    "/Users/houssem/Desktop/dashboard-ui/src/features/plans/protection/clients/index.ts"
+   ],
+   "change": "NEW clients/reports.ts. `fetchPlanReports(planId): Promise<PlanReportMeta[]>` = `(await Client<ApiResponse<PlanReportMeta[]>>(exporterApiClient, Endpoints.REPORTS.PLANS.LIST(planId).path, { method: 'GET' })).data` (session token via the interceptor, instances.ts:45-51). `generatePlanReport(planId, userId): Promise<PlanReportMeta>` = Client on discoveryApiClient, POST Endpoints.PROTECTION_PLANS.REPORTS_GENERATE(planId).path, `headers: { [HTTP_HEADERS.CUSTOM.USER_ID]: userId }` (cancel.ts shape), `timeout: REPORT_GENERATE_TIMEOUT_MS`. `isReportBusy(error: unknown): boolean` = `(error as ExtendedAxiosError)?.response?.status === REPORT_BUSY_STATUS` (status only — Retry-After is not readable cross-origin and is not needed). `downloadPlanReport(planId, report: PlanReportMeta, format: PlanReportFormat, filename: string): Promise<void>`: `const qs = new URLSearchParams({ report: report.id, format }).toString(); const blob = await Client<Blob>(exporterApiClient, `${Endpoints.REPORTS.PLANS.DOWNLOAD(planId).path}?${qs}`, { method: 'GET', responseType: 'blob', timeout: REPORT_DOWNLOAD_TIMEOUT_MS }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); window.setTimeout(() => URL.revokeObjectURL(url), OBJECT_URL_REVOKE_DELAY_MS);` (revoke on a later tick — a synchronous revoke can cancel the download in Firefox/Safari). Filename is built by the caller as `${plan.name}-${report.id}.${format}`. `isReportFileMissing(error: unknown): boolean` = `(error as ExtendedAxiosError)?.normalized?.isNotFound === true`. No token in any URL; no response headers read; no console.*. clients/index.ts re-exports the five functions. cancel.ts is NOT edited.",
+   "testFirst": {
+    "file": "/Users/houssem/Desktop/dashboard-ui/src",
+    "names": [
+     "npm run check-all"
+    ],
+    "red": "n/a (no UI test infra); type-check is the check",
+    "green": "zero errors; manual: DevTools Network shows the download request with X-Session-Token as a REQUEST HEADER only and a URL whose query holds only report and format; each of the four formats saves a file that opens"
+   },
+   "verify": "cd /Users/houssem/Desktop/dashboard-ui && npm run check-all && /usr/bin/grep -n 'token' src/features/plans/protection/clients/reports.ts | wc -l   # prints 0",
+   "dependsOn": [
+    "U1"
+   ],
+   "parallelGroup": "ui-clients",
+   "route": {
+    "model": "claude-fable-5-1",
+    "effort": "default",
+    "priority": "P3",
+    "criteria": [
+     "M3"
+    ],
+    "why": "Token handling on the first blob-download path in the repo; a token leaking into a URL is the exact regression the product already suffered."
+   }
+  },
+  {
+   "id": "U3",
+   "title": "dashboard-ui: usePlanReports hook (local state, no Redux, ungated like its siblings)",
+   "part": "B-feature",
+   "repo": "dashboard-ui",
+   "files": [
+    "/Users/houssem/Desktop/dashboard-ui/src/features/plans/protection/hooks/usePlanReports.ts"
+   ],
+   "change": "NEW hooks/usePlanReports.ts mirroring usePlanHealth.ts:13-46 (useState data/loading/error/reloadKey, effect with a `cancelled` flag, `revision` dependency) with signature `usePlanReports(planId: string, revision: string)` — NO enabled flag (usePlanHealth/usePlanViolations are called ungated in Content.tsx:93-95; the exporter's Read requirement is the guard); plus `generating: boolean`, `downloading: string | null` (\"<reportId>:<format>\"), `generate(userId): Promise<void>` (guard: return immediately if generating; setGenerating, generatePlanReport, on success prepend the returned meta and message.success(PPC.LABELS.REPORTS.GENERATE_SUCCESS) via AntdApp.useApp(); on failure: isReportBusy → message.warning(GENERATE_BUSY), else message.error(serverMessage ?? GENERATE_ERROR)), `download(report, format, filename): Promise<void>` (setDownloading, downloadPlanReport; isReportFileMissing → message.error(DOWNLOAD_MISSING) and refresh(); else message.error(DOWNLOAD_ERROR); logger.warn for the swallowed error), `refresh()`. Exported result type `UsePlanReportsResult`. Load errors map to LOAD_ERROR. No slice, no thunks.",
+   "testFirst": {
+    "file": "/Users/houssem/Desktop/dashboard-ui/src",
+    "names": [
+     "npm run check-all"
+    ],
+    "red": "n/a (no UI test infra)",
+    "green": "zero errors; no console.*; no `any`"
+   },
+   "verify": "cd /Users/houssem/Desktop/dashboard-ui && npm run check-all",
+   "dependsOn": [
+    "U2"
+   ],
+   "parallelGroup": "ui-hook",
+   "route": {
+    "model": "claude-opus-5-5",
+    "effort": "medium",
+    "priority": "P4",
+    "criteria": [],
+    "why": "Single-feature hook following the sibling usePlanHealth pattern; no contract or security surface."
+   }
+  },
+  {
+   "id": "U4",
+   "title": "dashboard-ui: ReportsSection component + always-rendered Reports card in Content.tsx",
+   "part": "B-feature",
+   "repo": "dashboard-ui",
+   "files": [
+    "/Users/houssem/Desktop/dashboard-ui/src/features/plans/protection/components/details/ReportsSection.tsx",
+    "/Users/houssem/Desktop/dashboard-ui/src/features/plans/protection/pages/details/Content.tsx"
+   ],
+   "change": "NEW components/details/ReportsSection.tsx, presentational sibling of ViolationsSection.tsx: props `{ data: PlanReportMeta[] | null; loading; error; downloading; phase: PlanPhase; planName: string; users: RootState['users']['users']; onDownload(report, format, filename) }`. States: loading spinner (same as ViolationsSection), error block, phase-dependent empty state (draft/scheduled → EMPTY_DRAFT; active → EMPTY_ACTIVE; terminated/canceled/failed → EMPTY_ENDED), rows as a hand-rolled list (ApplicationSnapshotRow style): trigger tag (end/cancel → DEFAULT_COLORS.SUCCESS tint, manual → neutral text colour), generatedAt formatted, generatedBy resolved through the users map ('System' for 'system'), violationsTotal with a small TRUNCATED tag when truncated (NO NO_RECORDS tag), and one small antd Button per REPORT_FORMATS entry (loading when downloading === `${id}:${key}`), the HTML button wrapped in a Tooltip with PRINT_HINT. NO size column. Colours from DEFAULT_COLORS/theme tokens only, no hex, no box-shadow. Content.tsx (dirty user work AND shared with the environments-tags plan — re-read at step start, layer on top by symbol): `canGenerateReport = usePermission(ACTION_PERMISSIONS.protectionPlans.cancel …)` (NO canViewReports); `const reports = usePlanReports(plan.id, `${plan.phase}:${plan.lastUpdatedAt ?? ''}`)`; after the Violations SettingsCard add one SettingsCard REPORTS_TITLE/REPORTS_DESCRIPTION, ALWAYS rendered (like the Violations card), headerAction = Generate button (antd Button type='primary', icon FileTextOutlined, loading={reports.generating}, disabled when phase is draft/scheduled OR !plan.startedAt OR !canGenerateReport — mirrors the server's ManualAllowed; tooltip NOT_STARTED_HINT when disabled for the started reason, onClick → reports.generate(getCurrentUser()?.id)) + the same round ReloadOutlined refresh with COMPACT_REFRESH_BUTTON_STYLE. Body = <ReportsSection …/> with onDownload building filename `${plan.name}-${report.id}.${format}`.",
+   "testFirst": {
+    "file": "/Users/houssem/Desktop/dashboard-ui/src",
+    "names": [
+     "npm run check-all"
+    ],
+    "red": "n/a (no UI test infra)",
+    "green": "zero errors; ask the user for a screenshot (never open a browser) of the card in an active plan (Generate enabled, empty state), after Generate (one 'On demand' row with four buttons), and in a terminated plan (one 'Final' row); a ReadOnly role sees the card without Generate; a canceled-while-scheduled plan shows Generate disabled"
+   },
+   "verify": "cd /Users/houssem/Desktop/dashboard-ui && npm run check-all",
+   "dependsOn": [
+    "U3"
+   ],
+   "parallelGroup": "ui-section",
+   "route": {
+    "model": "claude-opus-5-5",
+    "effort": "medium",
+    "priority": "P4",
+    "criteria": [],
+    "why": "Presentational component + wiring following ViolationsSection; no contract or security surface (backend authz is the guard)."
+   }
+  },
+  {
+   "id": "D1",
+   "title": "docs: chart README, VALUES.md (helm-docs), INSTALL.md, root README, architecture, PUBLISHING, service READMEs, release-manager chart README",
+   "part": "B-feature",
+   "repo": "docs",
+   "files": [
+    "/Users/houssem/Desktop/Github/telark/charts/telark/README.md",
+    "/Users/houssem/Desktop/Github/telark/charts/telark/VALUES.md",
+    "/Users/houssem/Desktop/Github/telark/docs/INSTALL.md",
+    "/Users/houssem/Desktop/Github/telark/README.md",
+    "/Users/houssem/Desktop/Github/telark/docs/architecture.md",
+    "/Users/houssem/Desktop/Github/telark/docs/PUBLISHING.md",
+    "/Users/houssem/Desktop/Github/telark/services/exporter/README.md",
+    "/Users/houssem/Desktop/Github/telark/services/discovery/README.md",
+    "/Users/houssem/Desktop/Github/release-manager/helm/app/README.md"
+   ],
+   "change": "charts/telark/README.md: persistence table gains `app.persistence.reportsSize` (`2Gi`, minimal 512Mi, performance 10Gi, 'exporter reports PVC'); the exporter env table gains REPORTS_PATH (/reports) and the SNAPSHOT_GC_INTERVAL_SEC row gains 'also drives the reports orphan sweep; 0 disables both'; the discovery env table gains PROTECTION_PLAN_REPORT_MAX_VIOLATIONS (5000; minimal 2000 — bounds the per-plan ledger; rows beyond the report's size budget are dropped oldest-first and flagged) and PROTECTION_PLAN_REPORT_CHECKPOINT_SEC (900; minimal 1800; clamped to 60–1800 so it always stays below the 1 h Event retention); a short 'Protection plan reports' paragraph: two PVCs rendered from one template, both follow app.persistence.storageClass/accessMode, a final report is captured asynchronously right after a plan ends (after its policies are removed and its phase is recorded), checkpoints keep records past the 1 h Event retention, on-demand reports merge what the cluster still holds, reports are deleted with the plan and swept if the plan CR disappears, at most 10 on-demand reports are kept per plan, formats HTML/Markdown/JSON/CSV, PDF via the browser's print, the document shows user ids not names, busy → HTTP 429 + Retry-After. Do NOT touch the SNAPSHOTS_PVC_NAME row. VALUES.md: regenerate with helm-docs (STAGED file — regenerate on top). docs/INSTALL.md: prerequisite line and the values table mention the second (reports) claim and that the ReadWriteMany requirement applies to both; upgrade note: the new claim binds on rollout AND 'do not upgrade with --reuse-values: the reports volume, mount and REPORTS_PATH / PROTECTION_PLAN_REPORT_* entries arrive only with the new chart defaults; with --reuse-values the exporter logs a reports-root error at start and every report write fails'; the pre-existing hazard that volumes render even when app.persistence.enabled=false is mentioned. README.md:65 prerequisite: 'for the exporter snapshot and report volumes'. docs/architecture.md: add a 'Reports PVC' node next to 'Snapshots PVC' (:28) with an `EXP -->|reports| RPVC` edge (:53) and include it in the store class (:62). docs/PUBLISHING.md:63: 'two exporter replicas share both exporter volumes'. services/exporter/README.md Configuration + API: REPORTS_PATH, the five reports routes and their authz (Internal ×3, Read ×2), the download security headers, the reports GC goroutine (own lock key, shares SNAPSHOT_GC_INTERVAL_SEC), Layout (utils/artifact incl. TickAllowed, utils/reports, exporters/reports). services/discovery/README.md (STAGED-modified and shared with the environments-tags plan — re-read, layer on top) Responsibilities + Configuration + API: boundary capture (asynchronous, after the terminal patch, 10 s bound, serialized), checkpoint loop (PROTECTION_PLAN_REPORT_CHECKPOINT_SEC, own rate-limited client reusing DISCOVERY_ROLLBACK_K8S_CLIENT_QPS/BURST), generate route (Write, 429 + Retry-After when two manual renders are in flight, 400 for never-started plans), PROTECTION_PLAN_REPORT_MAX_VIOLATIONS. release-manager/helm/app/README.md (DIRTY user file — re-read, layer on top): persistence table gains `app.persistence.reportsSize` and 'Provision exporter snapshot PVC' (:17) becomes 'Provision the exporter snapshot and report PVCs'. docs/CRDS.md unchanged (stated in the PR). No vendor name, no literal 'telark' where app.name is meant.",
+   "testFirst": {
+    "file": "/Users/houssem/Desktop/Github/telark/charts/telark/VALUES.md",
+    "names": [
+     "helm-docs regeneration diff"
+    ],
+    "red": "before: `helm-docs --dry-run` output differs from VALUES.md (reportsSize missing)",
+    "green": "after: `helm-docs` produces no further diff; grep -c reportsSize on charts/telark/README.md and release-manager/helm/app/README.md >= 1 each; grep -c CHECKPOINT_SEC charts/telark/README.md >= 1; grep -c 'reuse-values' docs/INSTALL.md >= 1; grep -c 'Reports PVC' docs/architecture.md >= 1; grep -in kyverno on all nine files returns nothing new"
+   },
+   "verify": "cd /Users/houssem/Desktop/Github/telark/charts/telark && helm-docs && /usr/bin/git -C /Users/houssem/Desktop/Github/telark diff --stat -- charts/telark/VALUES.md && /usr/bin/grep -c REPORTS_PATH README.md /Users/houssem/Desktop/Github/telark/services/exporter/README.md && /usr/bin/grep -c 'Reports PVC' /Users/houssem/Desktop/Github/telark/docs/architecture.md && /usr/bin/grep -c reportsSize /Users/houssem/Desktop/Github/release-manager/helm/app/README.md",
+   "dependsOn": [
+    "B3",
+    "B3R",
+    "B5",
+    "B9",
+    "B10"
+   ],
+   "parallelGroup": "docs",
+   "route": {
+    "model": "claude-opus-5-5",
+    "effort": "medium",
+    "priority": "P4",
+    "criteria": [],
+    "why": "Documentation; the generated part is tool-checked but the prose is not, so medium."
+   }
+  },
+  {
+   "id": "V1",
+   "title": "verify: shared module + exporter + discovery — go test, golangci-lint, CI coverage ratchet",
+   "part": "verify",
+   "repo": "telark/exporter",
+   "files": [
+    "/Users/houssem/Desktop/Github/internal/rest",
+    "/Users/houssem/Desktop/Github/telark/services/exporter",
+    "/Users/houssem/Desktop/Github/telark/services/discovery"
+   ],
+   "change": "Run, in order, in each of internal/rest, services/exporter, services/discovery: `rtk proxy \"go test ./... 2>&1 | grep -E '^(ok|FAIL|---)' | sort | uniq -c\"` and `golangci-lint run` with the checked-in config (no --no-config, no //nolint anywhere in the diff). COVERAGE RATCHET (.github/workflows/ci.yaml:36-37): in services/exporter and services/discovery run `go test -coverpkg=./... -coverprofile=<scratchpad>/<svc>.cov ./...` and `go tool cover -func | tail -1`; require total ≥ 52 % (exporter) and ≥ 35 % (discovery). internal/data is NOT part of this feature (its 6 staged entries are environments-tags work — untouched). `GOWORK=off go build ./...` in exporter and discovery is EXPECTED to fail until the user tags rest and bumps pins — record as expected. Any FAIL, lint issue or coverage below the floor stops the workflow.",
+   "testFirst": {
+    "file": "/Users/houssem/Desktop/Github/telark/services/exporter",
+    "names": [
+     "all suites"
+    ],
+    "red": "n/a",
+    "green": "0 FAIL, 0 lint issues in all three modules; coverage ≥ floors"
+   },
+   "verify": "for d in /Users/houssem/Desktop/Github/internal/rest /Users/houssem/Desktop/Github/telark/services/exporter /Users/houssem/Desktop/Github/telark/services/discovery; do (cd $d && rtk proxy \"go test ./... 2>&1 | grep -c FAIL\" && golangci-lint run); done",
+   "dependsOn": [
+    "B9",
+    "B10"
+   ],
+   "parallelGroup": "verify-go",
+   "route": {
+    "model": "claude-opus-5-5",
+    "effort": "low",
+    "priority": "P4",
+    "criteria": [],
+    "why": "Fully specified command sequence whose output is checked by tools."
+   }
+  },
+  {
+   "id": "V2",
+   "title": "verify: dashboard-ui check-all",
+   "part": "verify",
+   "repo": "dashboard-ui",
+   "files": [
+    "/Users/houssem/Desktop/dashboard-ui"
+   ],
+   "change": "Run `npm run check-all` (type-check + lint) and require zero errors (warnings OK, no eslint-disable added: `git diff | grep -c eslint-disable` prints 0). Confirm `git status --porcelain | wc -l` equals A0's recorded dashboard-ui count plus exactly the new files this plan creates (clients/reports.ts, hooks/usePlanReports.ts, components/details/ReportsSection.tsx) — nothing reset, nothing staged by the workflow.",
+   "testFirst": {
+    "file": "/Users/houssem/Desktop/dashboard-ui",
+    "names": [
+     "npm run check-all"
+    ],
+    "red": "n/a",
+    "green": "zero errors"
+   },
+   "verify": "cd /Users/houssem/Desktop/dashboard-ui && npm run check-all && /usr/bin/git diff | /usr/bin/grep -c eslint-disable",
+   "dependsOn": [
+    "U4"
+   ],
+   "parallelGroup": "verify-ui",
+   "route": {
+    "model": "claude-opus-5-5",
+    "effort": "low",
+    "priority": "P4",
+    "criteria": [],
+    "why": "Fully specified and tool-checked."
+   }
+  },
+  {
+   "id": "V4",
+   "title": "verify: adversarial review of the whole change against this plan (includes the security pass: tokens, vendor name, Internal routes, breaker isolation, capture order)",
+   "part": "verify",
+   "repo": "telark/exporter",
+   "files": [
+    "/Users/houssem/Desktop/Github/telark",
+    "/Users/houssem/Desktop/Github/internal/rest",
+    "/Users/houssem/Desktop/dashboard-ui",
+    "/Users/houssem/Desktop/Github/release-manager/helm/app"
+   ],
+   "change": "Read-only adversarial review of the full diff across telark, internal/rest, release-manager and dashboard-ui against THIS plan. Must specifically try to refute: (a) Part A integrity — `git -C /Users/houssem/Desktop/Github/telark diff --stat -- services/exporter/internal/utils/snapshot services/exporter/internal/exporters/snapshot/gc.go` equals the 'partA-stat' journal entry from A3 and `git -C /Users/houssem/Desktop/Github/telark status --porcelain -uall -- services/exporter/internal/utils/artifact services/exporter/internal/tests/artifact` equals 'partA-new' (the same two commands as A3(5)); if the user has committed Part A meanwhile (`git log -1 --oneline -- services/exporter/internal/utils/artifact` non-empty), require `git diff HEAD --stat` on the partA-stat paths to be EMPTY and the partA-new command to print nothing instead; no Part B step's file list names any of those seven paths (static check against this plan); the five snapshot test files are unmodified and green; any signature change, any change to the V%d.json codec or the \"path\" key, any wrapped error reaching a snapshot log line; (b) in BOTH Terminate and Cancel the order is CleanupByPlanID(ctx) → PatchRawOrError(terminal patch) → CaptureAsync(in-memory plan, now, actor, reason, trigger); CaptureAsync is never before the patch and never before cleanup; NO ctx.Err() guard was added; cancel.go and update/orchestrator.go are untouched; Service.exporter is still the concrete client; CaptureAsync stamps TerminatedAt/By/Phase/Reason on a COPY and returns without blocking; Generate runs under recover; (c) replay returns 200 + stored meta and never rewrites; (d) prune never removes end/cancel reports; the sweep never runs on an empty/failed CR list, honours the age gate, builds live from GetName(), removes old *.tmp under live plans, runs in exporters/reports.StartReportsGC (own goroutine, own lock key ReportsGCLockKey, recover) and exporters/snapshot/gc.go carries ONLY the Part A gcTickAllowed delegation; (e) AUTHZ: exporter Create/PutLedger/GetLedger are Internal, list/download plain Read, generate plain Write, every new route is in the requirements map, no new rule strings (`grep -rn protectionplanreport` over exporter/discovery/dashboard-ui src → 0), `go test ./internal/tests/authz/...` green in both services, tests/authz/requirements_test.go (staged) untouched; (f) BREAKER: clients/reports.go contains NO ExecuteExporter, NO NotCounted, NO GetState; run `-run TestReportClientNeverTouchesTheExporterBreaker -v`; no report path calls AuthzClient or guardedExporterGet; (g) LEDGER: Merge fences rows to [StartedAt, TerminatedAt], dedups by EventUID, caps messages at 512 runes, uses violations.Page; mergeLive runs on EVERY Generate and post-end within RetentionWindowDuration using ledger.RenderedPolicies; manual Generate never calls PutLedger; persist is a single Acquire with uuid.NewString() and skips only the write when busy; loadLedger resets on Run mismatch; one ledger file per plan, no run query anywhere (`grep -rn QueryRun` → 0); run `-run 'TestMergeFencesRowsToRunWindowDropsPreviousRunEvents|TestGenerateManualAfterEndMergesLiveRowsUpToTerminatedAt|TestLedgerJSONRoundTripsThroughRealMapperAndKeysAreCamelCase' -v`; (h) the checkpoint interval comes from config.ReportCheckpointInterval() clamped to [60, 1800] s, Run fires once on start, each plan bounded by DefaultReportCaptureTimeout, loop breaks on the first exporter failure, Event LISTs go through the Generator's own NewDynamicClientWithRateLimit client (wire.go), NOT the applier's dyn; (i) List uses ReadMeta and never decodes files; StoredReport.Meta is the first member; Download sets Content-Type + nosniff + CSP sandbox only and writes after the full read; no ServeContent, no Content-Disposition, no performance wrapper on report routes; (j) SIZE: RenderWithinBudget is called with ReportRequestBudgetBytes (16 MiB) and the exporter limit is 32 MiB; run `-run 'TestRenderWithinBudgetFitsEveryPresetWorstCase|TestLedgerMaxRowsWorstCaseUnderBodyLimit' -v`; the 2-slot manual semaphore and the 1-slot capture slot exist; busy → 429 + Retry-After (grep the handler for StatusTooManyRequests and for the absence of StatusServiceUnavailable on the busy branch); (k) TOKENS: grep the UI diff for 'token' in paths.ts, endpoints.ts, clients/reports.ts → none; every new rest endpoint constant has no token-shaped segment; the exporter download handler reads nothing from the query but report/format; `grep -rn 'X-Session-Token' dashboard-ui/src/features/plans/protection` → nothing; (l) VENDOR: `grep -rin kyverno` over discovery reports/, the two templates and dashboard-ui/src/features/plans/protection returns ONLY the single constants.go definition; run `-run TestRenderNeverContainsVendorName -v`; (m) ESCAPING: render_test asserts HTML escaping, the CSV formula prefix and Markdown html-escaping; (n) IDENTITIES: no users client, no GetUserByID and no display-name field anywhere under reports/; (o) UI: the card is always rendered, the hook has no enabled flag, Generate is disabled for draft/scheduled and for plans without startedAt, isReportBusy checks status 429 only, revokeObjectURL is deferred, cancel.ts is unchanged, the row shows no size and no NO_RECORDS tag; (p) SETTINGS: exactly four new settings across both charts (reportsSize, REPORTS_PATH, PROTECTION_PLAN_REPORT_MAX_VIOLATIONS, PROTECTION_PLAN_REPORT_CHECKPOINT_SEC) — no REPORTS_MAX_PER_PLAN, no CAPTURE_TIMEOUT_SEC, no reports GC env; the snapshots PVC document renders byte-identical in both charts; (q) no staged user file was reset (`git -C telark diff --cached --stat` still lists the pre-existing staged set incl. authz/guard.go; the five repo porcelain counts grew only by this plan's new files) and the environments-tags edits to the 7 shared files survived; (r) no version bump, build, push, tag or deploy happened in any of the five repos; (s) docs updated per D1 incl. README.md, architecture.md, PUBLISHING.md, release-manager README, the --reuse-values note and the GC-interval coupling; (t) PANIC SAFETY: run `-run 'TestGeneratePanicInRenderBecomesErrorNotCrash|TestReportsGCTickSurvivesPanic' -v`; CheckpointReports and CaptureAsync reach Generate/Checkpoint only through guarded(); (u) WIRE: every field of ReportMeta, CreatePlanReportRequest, PlanReportLedger and LedgerCheckpoint carries a json tag; PutLedger sends json.RawMessage through CreateJSON; run `-run 'TestReportWireKeysAreCamelCaseAndComplete|TestPutLedgerRoundTripsRealLedgerBytes' -v`. Output: a list of findings with file:line evidence and severity; any critical/high finding stops the workflow.",
+   "testFirst": {
+    "file": "/Users/houssem/Desktop/Github/telark",
+    "names": [
+     "(review)",
+     "TestRenderNeverContainsVendorName",
+     "TestReportClientNeverTouchesTheExporterBreaker",
+     "TestRenderWithinBudgetFitsEveryPresetWorstCase",
+     "TestCaptureAsyncSkipsUnstartedPlans",
+     "TestGeneratePanicInRenderBecomesErrorNotCrash",
+     "TestMergeFencesRowsToRunWindowDropsPreviousRunEvents"
+    ],
+    "red": "n/a",
+    "green": "no critical/high findings; partA-stat and partA-new match (or Part A committed, diff vs HEAD empty and the -uall listing empty)"
+   },
+   "verify": "cd /Users/houssem/Desktop/Github/telark && /usr/bin/git diff --stat -- services/exporter/internal/utils/snapshot services/exporter/internal/exporters/snapshot/gc.go && /usr/bin/git status --porcelain -uall -- services/exporter/internal/utils/artifact services/exporter/internal/tests/artifact && /usr/bin/grep -rin kyverno services/discovery/internal/core/plans/protection/reports /Users/houssem/Desktop/dashboard-ui/src/features/plans/protection | /usr/bin/grep -vc 'constants.go'   # prints 0 ; /usr/bin/grep -c 'ExecuteExporter\\|NotCounted\\|GetState' services/discovery/internal/clients/reports.go   # prints 0 ; /usr/bin/grep -c 'ctx.Err()' services/discovery/internal/core/plans/protection/svc.go   # unchanged from HEAD+index ; review report produced",
+   "dependsOn": [
+    "V1",
+    "V2",
+    "D1"
+   ],
+   "parallelGroup": "verify-review",
+   "route": {
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "priority": "P4",
+    "criteria": [],
+    "why": "Adversarial verification; read-only; exists to catch mistakes on the recovery path, the security boundaries, the capture order and the Part A pin."
+   }
+  }
+ ],
+ "docs": [
+  "/Users/houssem/Desktop/Github/telark/charts/telark/README.md — persistence table (reportsSize), exporter env (REPORTS_PATH; SNAPSHOT_GC_INTERVAL_SEC also drives the reports sweep), discovery env (PROTECTION_PLAN_REPORT_MAX_VIOLATIONS, PROTECTION_PLAN_REPORT_CHECKPOINT_SEC), 'Protection plan reports' paragraph; SNAPSHOTS_PVC_NAME row untouched",
+  "/Users/houssem/Desktop/Github/telark/charts/telark/VALUES.md — regenerated with helm-docs (staged file; regenerate on top)",
+  "/Users/houssem/Desktop/Github/telark/docs/INSTALL.md — second exporter PVC, ReadWriteMany applies to both claims, values table rows, upgrade note (new claim binds on rollout; never --reuse-values for this upgrade), the pre-existing persistence.enabled=false hazard",
+  "/Users/houssem/Desktop/Github/telark/README.md — prerequisite line covers both exporter volumes",
+  "/Users/houssem/Desktop/Github/telark/docs/architecture.md — Reports PVC node and edge in the diagram",
+  "/Users/houssem/Desktop/Github/telark/docs/PUBLISHING.md — the two-replica note covers both exporter volumes",
+  "/Users/houssem/Desktop/Github/telark/services/exporter/README.md — Configuration (REPORTS_PATH), API (five reports routes + authz + download headers), GC (own reports sweep goroutine, shared interval), Layout (utils/artifact incl. TickAllowed, utils/reports, exporters/reports)",
+  "/Users/houssem/Desktop/Github/telark/services/discovery/README.md — Responsibilities (async boundary capture after the terminal patch, merge-then-render, checkpoint loop on its own client budget), Configuration (PROTECTION_PLAN_REPORT_MAX_VIOLATIONS, PROTECTION_PLAN_REPORT_CHECKPOINT_SEC), API (generate route, Write, 429 + Retry-After, 400 for never-started plans)",
+  "/Users/houssem/Desktop/Github/release-manager/helm/app/README.md — persistence table (reportsSize), PVC wording covers both claims (dirty user file; layer on top)",
+  "/Users/houssem/Desktop/Github/telark/docs/CRDS.md — unchanged (no CRD change); stated in the PR"
+ ],
+ "userOwnedFollowUps": [
+  "Stage-or-commit the environments-tags work before A0 runs (A0 fails on any UNSTAGED residue in the 7 shared files; staged is fine). Recommended: commit the index (env-tags) as its own commit, so this plan's edits are the only unstaged changes and the Part A / reports commits stay separable.",
+  "Commit Part A on its own (A0–A3) before any Part B file exists; A3's journal diff-stat is the machine check either way (V4(a) accepts a committed Part A).",
+  "Release chain, in order: tag internal/rest after B2b (carries the 12 staged files incl. RetentionWindow + B2a/B2b; no data-module change by this plan — the 6 staged data entries are environments-tags work), then bump the rest pin in services/exporter and services/discovery go.mod. CI builds with GOWORK=off; workspace green ≠ CI green until the pin moves.",
+  "DECISION: keep the PVC-backed checkpoint ledger (default) vs a Redis hash keyed by EventUID (removes 2 routes, 2 rest methods, 2 wrappers, the lock and the read-modify-write; makes Redis a durable store) vs dropping B9 for a one-hour ceiling. Say 'redis ledger' or 'no checkpoints' to switch.",
+  "DECISION: PROTECTION_PLAN_REPORT_CHECKPOINT_SEC is a Helm tunable (default). Say 'constant interval' to make it a constant; say 'own reports budget' to add dedicated QPS/BURST envs instead of reusing DISCOVERY_ROLLBACK_K8S_CLIENT_QPS/BURST for the checkpoint LISTs.",
+  "DECISION: busy answer is 429 + Retry-After (default, because the dashboard's health breaker counts every discovery >= 500). Say '503' to follow guideline §6 literally — then U2/U3 must also add a per-request health opt-out header in dashboard-ui's health-interceptor.",
+  "DECISION: the C3 scope identifier is a named set (env/root, PVC helper, mount, route prefix, lock key) over the shared artifact package + shared pvc.yaml; the two ~10-line env files are not shared. Say 'store value' to add a tiny artifact.Store{Root, Perm, LockKey} both scopes instantiate.",
+  "DECISION: application changes, snapshots and rollbacks during the plan are NOT in the report (default). Say 'include app activity' for a follow-up section sourced from the applications client.",
+  "Decide whether reports should resolve user display names (would require Read(ScopeUsers) on list/download); default = raw ids.",
+  "Separate defect, own reproducing test, NOT in this plan: a cancelled ctx (leadership lost / SIGTERM / handler timeout) makes CleanupByPlanID fail at once and the ctx-less PatchRawOrError then blanks renderedPolicies with policies still enforcing (svc.go Terminate/Cancel). The right guard is `cleanupErr != nil && ctx.Err() != nil`, not ctx.Err() alone.",
+  "When the 'view protection plan violations' deny is wired on discovery, the exporter list/download report routes must adopt the same Denyable action (reports embed the violations) — recorded here so the deny does not silently stay bypassable through /reports.",
+  "Build/push/deploy after the pins land (release-manager values from B3R ride the normal release); upgrade WITHOUT --reuse-values; live smoke: terminate a plan and confirm a 'Final' report row appears within ~15 s with decisions and that the plan's phase read terminated BEFORE the report's generatedAt; cancel a plan and confirm the response returns as fast as before; generate a report 10 minutes after the end and confirm its rows match the final report; download each format; check exporter access logs show no token in any /reports URL; check the exporter log for InfReportsPathConfigured (not ErrReportsRootCreateFailed); delete a plan with kubectl and confirm its report directory is swept after the age gate; hit Generate twice concurrently from two sessions and confirm a 429 does not trip the UI's discovery breaker.",
+  "Deny rules for protection-plan actions remain the pre-existing follow-up (DEFAULT_AREAS gap; four existing plan deny actions unwired on discovery).",
+  "Decide on native PDF (fpdf-class dependency + embedded font) if a customer needs unattended PDF; today PDF = browser print of the HTML.",
+  "Tune PROTECTION_PLAN_REPORT_MAX_VIOLATIONS / PROTECTION_PLAN_REPORT_CHECKPOINT_SEC / app.persistence.reportsSize per cluster in release-manager values; the capture timeout (10 s), reports kept per plan (10), manual render slots (2) and the single capture slot are constants — promote one to a value only if a cluster needs it."
+ ],
+ "outOfScope": [
+  "Native PDF rendering and any new Go dependency.",
+  "Any change to internal/data (no new role actions) and any change to x-ware or kcore.",
+  "User display names in the document (raw ids by decision).",
+  "Application change history, snapshots and rollbacks of in-scope applications during the plan (explicit decision; user override available).",
+  "Reports storage panel / reports infos route / multi-root storage stats (storageStats stays a snapshot singleton).",
+  "A per-plan List cache: with meta-first streaming a List reads a few KB per file.",
+  "Adding protection-plans to the role editor DEFAULT_AREAS and enforcing the four pre-existing unwired plan deny actions; wiring a reports deny (recorded follow-up).",
+  "The ctx-cancel teardown defect in Terminate/Cancel (recorded follow-up with its own test; no ctx guard ships here).",
+  "Capturing a report on mid-plan Update/repair policy removals (Events for removed policies drop out; stated in the coverage section).",
+  "Recording Event count/series (repeat denials) — counts are floors, stated in coverage.",
+  "Per-report delete route, bulk export, cross-plan reports page.",
+  "A Redis-backed ledger (user decision; default PVC).",
+  "Tunables for the capture timeout, reports-per-plan cap, render concurrency and a separate reports GC interval (constants / shared knob until a cluster needs otherwise).",
+  "A separate circuit-breaker dependency or state gate for report traffic (report calls bypass the breaker entirely).",
+  "A per-request health-breaker opt-out in dashboard-ui (unneeded with 429).",
+  "Pre-existing issues noticed on the way, left alone: charts/telark/README.md SNAPSHOTS_PVC_NAME default drift; dead ParseCreatePayload (payload.go); unconditional exporter volume rendering when persistence.enabled=false; the 'all' literal in Content.tsx:92-99; FormatBytes stays in storage.go; CleanupByPlanID failures for non-ctx reasons still fall through to the terminal patch (pre-existing); exporter-failure 503s from any proxied discovery route count toward the UI's discovery breaker (pre-existing).",
+  "Any release, tag, pin bump, build, push, helm apply or deploy (user-owned)."
+ ],
+ "risks": [
+  "Tree entanglement: svc.go, wire.go, violations.go, charts/telark/values.yaml and VALUES.md, rest endpoints/plans/types.go, exporter authz/guard.go (staged, NOT edited by this plan), release-manager values.yaml/README.md and 29 UI files under plans/protection are STAGED/dirty user work; 7 of them are also edited by the environments-tags plan, whose work is staged but not committed. A0 refuses to start on unstaged residue in those 7 files; implementers re-read shared files at step start, edit by symbol name and never stage/stash/reset.",
+  "CI builds with GOWORK=off against pinned tags; discovery already depends on unreleased rest (RetentionWindow); this feature adds rest work (B2a/B2b incl. shared.Client.CreateJSON). Until the user tags and bumps, CI is red by construction — V1 records GOWORK=off failures as expected.",
+  "The boundary capture is asynchronous: a final report appears a few seconds (up to ~10 s + queueing behind other captures) after the plan reads terminated/canceled; the UI's revision key (phase:lastUpdatedAt) triggers one list fetch at the phase change, so the user may need Refresh to see the row. If discovery restarts inside that window the capture is lost — a manual Generate within the hour recovers the trailing rows from live Events (mergeLive post-end), later ones render from the ledger only (coverage states the gap).",
+  "Captures serialize on one slot: N plans ending on the same boundary queue N goroutines (each holding only a plan copy until it runs); the last final report lands ~N × (render time) later; the leader's checkpoint loop and manual renders are unaffected (separate semaphore).",
+  "Two writers on one ledger (leader loop; boundary capture on whichever replica handled Cancel) are serialized by a single NX Acquire; a busy lock skips one write, never the merge — worst case the post-end ledger misses seconds of Events that the final report (rendered from the merged in-memory ledger) still contains.",
+  "Checkpoint load: N active plans × M namespaces field-selected Event LISTs per interval plus two exporter round-trips and one Redis lock per plan, sequential, on the Generator's own rate-limited client (rollback budget constants). A leader gap longer than the Event TTL loses records; the report lists the gap and never fabricates.",
+  "Event TTL is assumed to be the apiserver default (violations.RetentionWindow = 1 h); a cluster with a shorter --event-ttl must lower PROTECTION_PLAN_REPORT_CHECKPOINT_SEC (clamp floor 60 s); the post-end recovery merge also assumes the 1 h window.",
+  "The reports sweep shares SNAPSHOT_GC_INTERVAL_SEC: setting it to 0 disables both sweeps (documented). Each reports sweep is one CR LIST + a directory walk with RemoveAll on EFS, in its own goroutine under its own lock key, so it never lengthens the snapshot tick.",
+  "Two exporter replicas on RWX: List may observe a file only after its atomic rename; concurrent prunes race on os.Remove of the same oldest manual file — ENOENT ignored.",
+  "helm --reuse-values keeps the OLD exporter volumes/env lists (values-driven), so the reports mount and REPORTS_PATH never arrive: the exporter logs ErrReportsRootCreateFailed at start and every report write fails with 500, which discovery logs as capture failures — the breaker is unaffected because report calls never enter it. Documented in INSTALL.md.",
+  "Deterministic manual ids use a per-second stamp: two Generate clicks within one second replay the first — acceptable (the hook also ignores a click while one is in flight).",
+  "RenderWithinBudget may re-render up to four times for a pathological ledger; realistic ledgers fit on the first pass (asserted).",
+  "HTML template escaping covers cluster-controlled names; Markdown html-escapes and pipe-escapes; CSV is quoted and formula-guarded; the vendor scrub covers Event messages/rules/reason/description — anything else cluster-supplied that reaches a template must go through Scrub(). Download responses carry nosniff + CSP sandbox as defence in depth (header-only auth already prevents direct navigation).",
+  "Download decodes one whole StoredReport (≤ 16 MiB on disk by the budget) into memory per click; List never does (meta streaming).",
+  "values.schema.json is strict on app.persistence: forgetting reportsSize fails every render that sets it — covered by B3's negative/positive render checks.",
+  "Busy answers are 429, outside the UI's health-failure range; exporter-failure 503s from Generate still count toward the dashboard's discovery breaker exactly like every other proxied route today (pre-existing behaviour, listed out of scope).",
+  "Deleted plans lose their reports (matches snapshot-on-app-delete); the sweep also removes reports of plans deleted outside the API after 1 h. Export before Clear is the documented procedure."
+ ],
+ "revisionLog": [
+  "**[high] B7/B8/V4 — the timeout tests could not be written** — `NewGeneratorWithTimeout` was named only in a B7 test sentence: no step created it, Generator has no timeout field, CaptureAsync hard-codes DefaultReportCaptureTimeout, the B8 seam would have lived in Service (out of a Generator seam's reach) and ReportStore methods take no ctx, so a blocks-forever fake could never be unblocked and TestCaptureAsyncSkipsUnstartedAndReturnsWithinTimeout / TestCheckpointReportsBoundsEachPlanByCaptureTimeout would hang. Chose the smaller fix (no seam): the blocks-forever cases are dropped; B7's test is now TestCaptureAsyncSkipsUnstartedPlans (unstarted plan skipped, zero store calls), B8's TestCheckpointReportsBoundsEachPlanByCaptureTimeout is removed, panic-becomes-error stays (TestGeneratePanicInRenderBecomesErrorNotCrash). The real calls are bounded by the ReportClient HTTP timeout (B6) plus context.WithTimeout(DefaultReportCaptureTimeout) in CaptureAsync and CheckpointReports, read in V4; V4's test list renamed to match. B6 is unchanged (its methods already take no ctx, matching the rest client).",
+  "**[high] A3/A0/V4(a) — the Part A gate miscounted untracked files** — `git diff --stat` never lists untracked files (4 paths, never 7) and plain `git status --porcelain <dir>` prints one `?? <dir>/` line, not three files. A3(5) now records two journal entries: 'partA-stat' = `git diff --stat` over the modified paths (4) and 'partA-new' = `git status --porcelain -uall` over the two artifact dirs (3 `?? ` file lines); A3(1) and its Verify use `-uall`; A0 records the same `-uall` listing as an empty baseline; V4(a) and its Verify re-run the same two commands (committed case: diff vs HEAD empty AND the -uall listing empty).",
+  "**[critical] B8 — capture between cleanup and the terminal patch let health.repairIfDrifted redeploy the just-deleted policies (orphaned Enforce policies after endAt/cancel)** — Order is now CleanupByPlanID → terminal patch → CaptureAsync in both Terminate and Cancel; the capture renders from a COPY of the in-memory plan (RenderedPolicies/Health intact, TerminatedAt/By/Phase/Reason stamped from the trigger) in a goroutine under a detached 10 s timeout, a recover and a single capture slot. The ctx.Err() guard is CUT (it changed teardown behaviour and aborted after a successful cleanup; listed as a separate follow-up). PLAN_CANCEL_TIMEOUT_MS and the cancel.ts edit are gone. V4(b) checks the new order and the absence of any new ctx.Err(). The Decisions 'when/where' and 'sync vs async' entries are rewritten; Risks describe the async window.",
+  "**[critical] A0/A2/A3 — the perimeter check asserted `git status --porcelain` empty on a tree whose index holds the user's staged environments-tags edit (authz/guard.go), so Part A halted at step 1; the 'env-tags committed first' precondition was unmet and unverified; tree-state numbers were stale** — Every perimeter assertion is now a worktree-vs-index `git diff --name-only` (A0 expects {} and records the staged set as information; A2 expects exactly the four Part A files; A3 the same plus the staged set unchanged). A0 gained a PRECONDITION that fails only on UNSTAGED residue in the 7 shared files (staged or committed both pass) and records the five repo porcelain counts that V2/V4(q) compare against (no constants). The tree-state header is re-verified (129/42/54, rest 12 staged, data 6 staged, UI 52/29, guard.go +20/−4).",
+  "**[high] B7/B2a/B6 — untagged ledger/request structs collapsed onto key \"\" through restmapper.MapToJSONPayload (every checkpoint silently lost)** — Every field of ReportMeta, CreatePlanReportRequest, PlanReportLedger and LedgerCheckpoint now carries an explicit camelCase json tag; the ledger crosses the wire as json.RawMessage through a new shared.Client.CreateJSON(endpoint, json.RawMessage) that bypasses the reflection mapper (B2a); the rest ReportClient.PutLedger takes json.RawMessage (B2b/B6). Tests: TestReportWireKeysAreCamelCaseAndComplete (real mapper, no \"\" key), TestCreateJSONPostsBodyVerbatim, TestPutLedgerRoundTripsRealLedgerBytes (httptest, bytes.Equal), TestLedgerJSONRoundTripsThroughRealMapperAndKeysAreCamelCase; V4(u).",
+  "**[high] B7/B8/B9 — no recover around Generate/Checkpoint; a nil-pointer panic in gather/render would crash-loop the sequential controller** — Generate and Checkpoint run inside guarded() (recover → ErrReportPanic error); CaptureAsync's goroutine only calls Generate; RunKey/ManualAllowed/CaptureAsync reject StartedAt == nil so the pointer paths are never entered. Tests: TestGeneratePanicInRenderBecomesErrorNotCrash, TestReportsGCTickSurvivesPanic (exporter sweep goroutine also recovers); V4(t).",
+  "**[medium] B8 — synchronous capture inside the sequential controller pass delayed later activations by N × 10 s** — resolved by the asynchronous post-patch capture (above); the controller pass is unchanged.",
+  "**[medium] B7 — final interval lost when the lock was busy or TerminatedAt was set; a failed boundary capture left an EMPTY post-end report** — mergeLive now runs on EVERY Generate in memory (the lock gates only PutLedger); post-end it uses ledger.RenderedPolicies while now − TerminatedAt < RetentionWindowDuration and keeps rows ≤ TerminatedAt. Test TestGenerateManualAfterEndMergesLiveRowsUpToTerminatedAt.",
+  "**[medium] B7 — name-only merge attributed the previous run's Events to a reactivated run** — Merge fences rows to [StartedAt, TerminatedAt]. Test TestMergeFencesRowsToRunWindowDropsPreviousRunEvents.",
+  "**[medium] U2/U3/B10 — busy/exporter 503s counted toward the dashboard's discovery health breaker; Retry-After unreadable cross-origin** — the busy answer is 429 + Retry-After (recorded deviation from guideline §6 with a user override); isReportBusy checks status 429 only; the hook ignores clicks while generating. Exporter-failure 503s remain pre-existing behaviour (out of scope).",
+  "**[medium] B5 — reports sweep inside StartSnapshotGC's tick (Part B edit to the recovery GC file, shared failure domain, ExtractFromUnstructured misuse)** — exporters/reports.StartReportsGC is its own goroutine (main.go), gated by artifact.TickAllowed with its own lock key, wrapped in recover, sharing SNAPSHOT_GC_INTERVAL_SEC (documented coupling); TickAllowed is lifted from gcTickAllowed in Part A (A1/A2) so nothing is duplicated and exporters/snapshot/gc.go is untouched in Part B; live set = CR names via GetName().",
+  "**[medium] A3/V4(a) — session-bound scratchpad manifest/patch and a check that turned false once Part A was committed** — manifest and patch dropped; A3 records the Part A diff-stat in the workflow journal; V4(a) compares against it, or requires an empty diff vs HEAD when Part A is already committed, plus the static 'no Part B step lists a Part A file' check.",
+  "**[medium] B6/B9 — hard-coded checkpoint interval contradicted the tunables rule; checkpoint LISTs shared the applier's client budget** — PROTECTION_PLAN_REPORT_CHECKPOINT_SEC (900; minimal 1800; clamped to [60, 1800]) via config.ReportCheckpointInterval() in both charts; the Generator gets its own kcorek8s.NewDynamicClientWithRateLimit client reusing the rollback budget constants (per-concern budget, guideline §2); each plan's Checkpoint is bounded by DefaultReportCaptureTimeout and the loop breaks at the first exporter failure. Recorded as an explicit user decision with overrides.",
+  "**[medium] Report contents — application snapshots/rollbacks/change history silently excluded** — explicit Decision (default: excluded; appendix sentence says so) with a user override; listed in Out of scope.",
+  "**[medium] Decisions — C3 scope identifier answered 'nothing named scope' and recorded duplication without asking** — the scope is now defined as a named set over the shared artifact package + shared pvc.yaml; the one remaining choice (tiny Store value vs two 10-line env files) is an explicit user question with the default recorded.",
+  "**[medium] B8 — the ctx.Err() guard was a changed product behaviour riding inside a reports feature** — cut; listed as a separate follow-up with the correct condition.",
+  "**[medium] B7 — manual Generate wrote shared state, forcing a wait loop and hostname lock values** — manual Generate is read-only; writers are the leader loop and the boundary capture; persist = single Acquire with uuid.NewString(); ReportLedgerLockWait/RetryDelay and the retry loop are deleted. Test TestPersistSkipsWriteWhenLockHeldAndUsesUUIDValue.",
+  "**[medium] B7 — the final capture competed with manual renders for the 2-slot semaphore** — captures use their own single capture slot and never touch sem. Test TestCaptureAsyncSerializesAndNeverTakesManualSemaphore.",
+  "**[medium] B2a/B4/B5/B2b/B6/B7 — per-run ledger files were dead data after Reactivate** — one ledger per plan (ledger.json, Run inside; mismatch → start empty); QueryRun, the run parameters, LedgerPath's run argument and the ledgers/ subdirectory are gone.",
+  "**[medium] B7/B8 — Redis-backed ledger alternative never surfaced** — added as a user decision next to the PVC ledger (default PVC).",
+  "**[low] B6 — breaker state gate was the most complex part of B6 for one saved timeout** — breakerClosed, ErrReportsBreakerNotClosed and its test are cut; the loop-break on exporter failure replaces it. TestReportClientNeverTouchesTheExporterBreaker asserts the state stays Closed after five report failures.",
+  "**[low] U1/U3/U4 — unrequested canViewReports gate and enabled flag** — removed; the card is always rendered and the hook mirrors usePlanViolations; only canGenerateReport remains.",
+  "**[low] U2/U3 — isReportBusy depended on an unreadable header** — status-only check (429).",
+  "**[low] B2a/U1/U4 — PoliciesIntact in meta misread on post-end reports** — removed from ReportMeta, the UI model and the NO_RECORDS string/tag; the document's Coverage keeps policiesLiveAtCapture.",
+  "**[low] B2a — ContentTypes exported from rest; literal-only tests** — ContentTypes moved to exporter constants; the rest test now checks the real mapper output instead of literals.",
+  "**[low] B5 — authz requirement pinned twice** — only the new tests/authz/reports_test.go; the staged requirements_test.go is untouched.",
+  "**[low] B7 — Merge re-implemented Page** — Merge = dedup map + CapMessage + violations.Page.",
+  "**[low] B5 — RunReportsGC decoded every plan** — live set from GetName().",
+  "**[low] B9 — unbounded per-plan Checkpoint ctx** — context.WithTimeout(ctx, DefaultReportCaptureTimeout) per plan.",
+  "**[low] B7/B8 — ManualAllowed accepted never-started plans** — ManualAllowed(plan) rejects StartedAt == nil (400 ErrReportNotStarted); CaptureAsync skips them; the UI disables Generate without startedAt (NOT_STARTED_HINT).",
+  "**[low] B10/B8/B6 — ErrReportBusy undefined, misleading nil-response constant, two test seams** — ErrReportBusy in core/plans/protection/constants.go (B8), ErrReportNilResponse in discovery constants/errors.go (B6), errors.go removed from B10's files, the single seam is the exported ReportErrorStatus helper.",
+  "**[low] B7 — RetentionWindow is a string** — companion RetentionWindowDuration = time.Hour in violations.go with a parity test.",
+  "**[low] B4 — temp files inside live plan directories never removed** — SweepOrphans removes *.tmp older than the age gate under live plans (returns removed, temps, scanned).",
+  "**[low] U2 — synchronous revokeObjectURL** — deferred via setTimeout(OBJECT_URL_REVOKE_DELAY_MS).",
+  "**[low] B5 — download served text/html without nosniff/CSP** — X-Content-Type-Options: nosniff and Content-Security-Policy: sandbox on every download; test TestDownloadSetsNoSniffAndSandboxCSP.",
+  "**[low] U4/B5 — reports widen the latent violations-deny gap** — recorded as a follow-up (adopt the same Denyable action when the deny is wired).",
+  "**[low] B9/B10 — parallel steps in one Go module with module-wide verifies** — B10 now depends on B9 (serialized); B9/B10 verifies are scoped to their packages, V1 runs module-wide.",
+  "**[low] B6 (breaker half-open test unobservable via GetState)** — moot: the gate and its test are gone.",
+  "**[low] B5 (sweep placement 'keep the one-line hook')** — declined in favour of the own-goroutine fix above; the coupling note it asked for is in D1 anyway.",
+  "**[low] A0 'merge into A1'** — declined: A0 now also carries the precondition and the repo-count recording, which must run before any file changes; it stays a separate opus-low step."
+ ],
+ "onV1": "Kept from v1 (verified right): the caller census idea, the wrapper-not-delete seam, the byte-identical snapshots PVC name, the rest → services release order. Rejected: capture-before-CleanupByPlanID and (revision 3's) capture-before-the-terminal-patch — revision 4 captures asynchronously AFTER the patch because health repair redeploys policies onto any plan that still reads active; deleting IsWithinBase from package snapshot (request.go:158 calls it unqualified); the violations-only sidecar (renderedPolicies and health are also blanked); the missing rest clients/reports package and circular step 13/14; the builtin.go grant pattern that does not exist; a Redux slice for a one-list panel; the 'unfinished lint' tree remarks; the go.work worktree baseline. Judge mustFixes applied in revision 1 and kept: perimeter gate excluding the staged test dirs (now a worktree-vs-index diff); retry model corrected; 200-on-replay; single-file atomic storage; vendor scrub in code; 4xx→400 mapping; whole-run coverage via the checkpoint ledger (user may drop it for a documented one-hour ceiling)."
+}

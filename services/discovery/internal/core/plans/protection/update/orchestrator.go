@@ -15,6 +15,7 @@ import (
 	protpolicies "github.com/telark/discovery/internal/core/plans/protection/policies"
 	"github.com/telark/discovery/internal/core/plans/protection/validation"
 	planseps "github.com/telark/rest/endpoints/plans"
+	restmapper "github.com/telark/rest/mappers"
 )
 
 type (
@@ -27,6 +28,8 @@ type (
 		Clock          func() time.Time
 		// The patch blanks health; this restamps it without waiting for a controller tick.
 		StampHealth func(planID string)
+		// Called after a material edit of a pending plan re-requests approval.
+		NotifyApprovers func(*plans.ProtectionPlan)
 	}
 )
 
@@ -47,6 +50,11 @@ func Run(
 	}
 
 	newPolicies := toPolicies(req.Policies)
+	material := MaterialChange(plan, req, newPolicies)
+	fullRender := exclusionsChanged(plan.Scope, req.Scope)
+	if protection.RequiresApproval(plan) && approvedPhase(plan.Phase) && material {
+		return nil, validation.Invalid(string(protection.ErrApprovedPlanMaterialEdit))
+	}
 	policyDiff := diffPolicies(plan.Policies, newPolicies)
 	targetDiff := diffTargets(scopeTargets(plan), newTargets(req.Scope))
 
@@ -55,23 +63,7 @@ func Run(
 		return nil, err
 	}
 
-	deployCombos := append(
-		protpolicies.Combinations(newPolicies, targetDiff.Added),
-		protpolicies.Combinations(policyDiff.Added, targetDiff.Unchanged)...,
-	)
-	removeCombos := append(
-		protpolicies.Combinations(plan.Policies, targetDiff.Removed),
-		protpolicies.Combinations(policyDiff.Removed, targetDiff.Unchanged)...,
-	)
-
-	deployed, kept, err := protpolicies.ApplyClusterDiff(
-		ctx, deps.Applier, deps.Logger, plan,
-		deployCombos, removeCombos, resolved, req.Mode,
-		protpolicies.DeployErrorMessages{
-			GenericDeployFailure: deployFailureGeneric,
-			InternalErrorFormat:  string(ErrInternal),
-		},
-	)
+	deployed, kept, stale, err := applyCluster(ctx, deps, plan, req, newPolicies, policyDiff, targetDiff, resolved, fullRender)
 	if err != nil {
 		return nil, err
 	}
@@ -83,14 +75,132 @@ func Run(
 		return plan, nil
 	}
 
-	if err := deps.Exporter.PatchOrError(userID, planID, patch); err != nil {
-		protpolicies.RollbackPatchFailure(ctx, deps.Applier, deps.Logger, plan, deployed)
+	reRequest := plan.Phase == plans.PhasePendingApproval && material
+	if err := applyPatch(deps, plan, userID, now, patch, reRequest); err != nil {
+		rollbackCluster(ctx, deps, plan, deployed, resolved, fullRender)
 		return nil, fmt.Errorf(string(ErrPartial), planID)
 	}
-	if plan.Phase == plans.PhaseActive && deps.StampHealth != nil {
-		deps.StampHealth(planID)
+	if err := deps.Applier.DeletePoliciesByLabelAndNames(ctx, plan.ID, stale); err != nil {
+		deps.Logger.Error(fmt.Sprintf(protection.LogStaleDeleteFailed, plan.ID, err))
 	}
-	return deps.Exporter.Get(planID)
+	return afterPatch(deps, plan, reRequest)
+}
+
+// An exclusions change is content under the same names, which the combos diff never re-renders,
+// so it deploys the whole new plan instead.
+func applyCluster(
+	ctx context.Context,
+	deps Deps,
+	plan *plans.ProtectionPlan,
+	req *planseps.PrepareProtectionPlanRequest,
+	newPolicies []plans.ProtectionPlanPolicy,
+	policyDiff PolicyDiff,
+	targetDiff TargetDiff,
+	resolved map[string]policies.ResolvedApp,
+	fullRender bool,
+) (deployed, kept, stale []string, err error) {
+	msgs := protpolicies.DeployErrorMessages{
+		GenericDeployFailure: deployFailureGeneric,
+		InternalErrorFormat:  string(ErrInternal),
+	}
+	if fullRender {
+		return protpolicies.ApplyFullRender(ctx, deps.Applier, deps.Logger, plan, renderTarget(plan, req, newPolicies), resolved, msgs)
+	}
+	deployCombos := append(
+		protpolicies.Combinations(newPolicies, targetDiff.Added),
+		protpolicies.Combinations(policyDiff.Added, targetDiff.Unchanged)...,
+	)
+	removeCombos := append(
+		protpolicies.Combinations(plan.Policies, targetDiff.Removed),
+		protpolicies.Combinations(policyDiff.Removed, targetDiff.Unchanged)...,
+	)
+	deployed, kept, err = protpolicies.ApplyClusterDiff(
+		ctx, deps.Applier, deps.Logger, plan,
+		deployCombos, removeCombos, resolved, req.Mode, msgs,
+	)
+	return deployed, kept, nil, err
+}
+
+// Never RollbackPatchFailure after a full render: it deletes every deployed name, and a full
+// render deploys every live policy of the plan.
+func rollbackCluster(
+	ctx context.Context,
+	deps Deps,
+	plan *plans.ProtectionPlan,
+	deployed []string,
+	resolved map[string]policies.ResolvedApp,
+	fullRender bool,
+) {
+	if fullRender {
+		protpolicies.RollbackFullRender(ctx, deps.Applier, deps.Logger, plan, deployed, resolved)
+		return
+	}
+	protpolicies.RollbackPatchFailure(ctx, deps.Applier, deps.Logger, plan, deployed)
+}
+
+func renderTarget(
+	plan *plans.ProtectionPlan,
+	req *planseps.PrepareProtectionPlanRequest,
+	newPolicies []plans.ProtectionPlanPolicy,
+) *plans.ProtectionPlan {
+	target := *plan
+	target.Scope = plans.ProtectionPlanScope{
+		Type:           plan.Scope.Type,
+		ApplicationIDs: req.Scope.ApplicationIDs,
+		Namespaces:     req.Scope.Namespaces,
+		Exclusions:     effectiveExclusions(plan.Scope, req.Scope),
+	}
+	target.Policies = newPolicies
+	target.Mode = req.Mode
+	return &target
+}
+
+func afterPatch(deps Deps, plan *plans.ProtectionPlan, reRequest bool) (*plans.ProtectionPlan, error) {
+	if plan.Phase == plans.PhaseActive && deps.StampHealth != nil {
+		deps.StampHealth(plan.ID)
+	}
+	updated, err := deps.Exporter.Get(plan.ID)
+	if err != nil {
+		return nil, err
+	}
+	if reRequest && deps.NotifyApprovers != nil {
+		deps.NotifyApprovers(updated)
+	}
+	return updated, nil
+}
+
+// A material edit of a pending plan resets the approval request in the same patch,
+// so an approver can never act on a version they did not see.
+func applyPatch(
+	deps Deps,
+	plan *plans.ProtectionPlan,
+	userID, now string,
+	patch planseps.PatchProtectionPlanRequest,
+	reRequest bool,
+) error {
+	if !reRequest && patch.Scope == nil {
+		return deps.Exporter.PatchOrError(userID, plan.ID, patch)
+	}
+	body, err := restmapper.MapToJSONPayload(patch)
+	if err != nil {
+		return err
+	}
+	if scope, ok := body[protection.FieldScope].(map[string]any); ok && patch.Scope != nil {
+		scope[protection.FieldScopeExclusions] = protection.ExclusionsPatchValue(patch.Scope.Exclusions)
+	}
+	if reRequest {
+		body[protection.FieldApproval] = protection.ApprovalPatchValue(protection.NewApprovalRequest(userID, now, plan.Approval))
+	}
+	return deps.Exporter.PatchRawOrError(userID, plan.ID, body)
+}
+
+func ApprovalModeChanged(plan *plans.ProtectionPlan, req *planseps.PrepareProtectionPlanRequest) bool {
+	return req.ApprovalMode != nil &&
+		protection.EffectiveApprovalMode(*req.ApprovalMode) != protection.EffectiveApprovalMode(plan.ApprovalMode)
+}
+
+func approvedPhase(phase string) bool {
+	return phase == plans.PhaseActive || phase == plans.PhaseScheduled
 }
 
 func validateRequest(
@@ -105,6 +215,9 @@ func validateRequest(
 	if req.Scope.Type != plan.Scope.Type {
 		return validation.Invalidf(fmtRawString, ErrScopeTypeChange)
 	}
+	if ApprovalModeChanged(plan, req) {
+		return validation.Invalid(string(protection.ErrApprovalModeImmutable))
+	}
 	if err := validation.Fields(req); err != nil {
 		return err
 	}
@@ -112,6 +225,9 @@ func validateRequest(
 		return err
 	}
 	if err := validation.NamespaceScope(ctx, req.Scope.Type, req.Scope.Namespaces, deps.ListNamespaces); err != nil {
+		return err
+	}
+	if err := validation.Exclusions(req.Scope); err != nil {
 		return err
 	}
 	if err := validatePolicies(req.Policies, req.Scope.Type); err != nil {
@@ -158,6 +274,7 @@ func resolveTargets(
 func updatable(phase string) bool {
 	return phase == plans.PhaseActive ||
 		phase == plans.PhaseScheduled ||
+		phase == plans.PhasePendingApproval ||
 		phase == plans.PhaseFailed ||
 		phase == plans.PhaseDraft
 }

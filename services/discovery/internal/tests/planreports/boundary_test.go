@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/telark/data/plans"
 	"github.com/telark/discovery/internal/clients"
@@ -54,8 +55,8 @@ func (s *countingStore) ledgerGets() []string {
 
 func newService(store *countingStore) (*protection.Service, *memLogger) {
 	logger := &memLogger{}
-	gen := reports.NewGenerator(store, fakeDyn(), resolveOnlyA, nil, logger, maxRows)
-	return protection.NewService(nil, resolveOnlyA, nil, fakeDyn(), nil, gen, logger), logger
+	gen := reports.NewGenerator(store, fakeDyn(), resolveOnlyA, nil, logger, maxRows, time.Minute)
+	return protection.NewService(nil, resolveOnlyA, nil, fakeDyn(), nil, gen, logger, nil), logger
 }
 
 func planIn(id, phase string) plans.ProtectionPlan {

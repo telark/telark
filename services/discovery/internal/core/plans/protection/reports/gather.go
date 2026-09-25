@@ -112,7 +112,7 @@ func (g *Generator) coverage(plan *plans.ProtectionPlan, ledger *PlanReportLedge
 	live := len(plan.RenderedPolicies) > constants.DefaultInitValue
 	section := CoverageSection{
 		RetentionWindow:        violations.RetentionWindow,
-		CheckpointInterval:     checkpointInterval(ledger.Checkpoints),
+		CheckpointInterval:     g.checkpointEvery.String(),
 		Checkpoints:            len(ledger.Checkpoints),
 		Gaps:                   gaps(plan, ledger, end),
 		Truncated:              ledger.Truncated,
@@ -161,22 +161,6 @@ func provenance(live bool, ledger *PlanReportLedger) []ProvenanceRow {
 		{Section: TitleHealth, Source: policySource},
 		{Section: TitleDecisions, Source: decisions},
 	}
-}
-
-// The interval is not configured on the generator; the smallest spacing between checkpoints is what
-// the ledger actually observed.
-func checkpointInterval(checkpoints []LedgerCheckpoint) string {
-	var shortest time.Duration
-	for i := constants.DefaultAddValue; i < len(checkpoints); i++ {
-		gap, ok := between(checkpoints[i-constants.DefaultAddValue].At, checkpoints[i].At)
-		if ok && (shortest == constants.DefaultInitValue || gap < shortest) {
-			shortest = gap
-		}
-	}
-	if shortest == constants.DefaultInitValue {
-		return NotAvailable
-	}
-	return shortest.String()
 }
 
 func between(from, to string) (time.Duration, bool) {

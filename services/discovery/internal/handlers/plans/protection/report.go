@@ -50,7 +50,7 @@ func GenerateReport(w http.ResponseWriter, r *http.Request) {
 		w,
 		http.StatusOK,
 		response.OperationSuccess,
-		string(messages.SuccessCreateRes),
+		string(messages.SuccessRecordResCreated),
 		meta,
 		nil,
 	)

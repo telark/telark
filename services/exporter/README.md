@@ -13,7 +13,7 @@ flowchart LR
   subgraph peers["Callers"]
     AUTH(auth)
     DISC(discovery)
-    ENR(enrichment)
+    ANA(analyzer)
     NTF(notifier)
   end
 
@@ -28,7 +28,7 @@ flowchart LR
   PVC[("Snapshots PVC")]
   REDIS[("Redis")]
 
-  AUTH & DISC & ENR & NTF -->|REST| RT
+  AUTH & DISC & ANA & NTF -->|REST| RT
   KC -->|list · get · patch| K8S
   EX -->|manifests| PVC
   H -->|change events| REDIS
@@ -38,7 +38,7 @@ flowchart LR
   classDef peer fill:#f1f5f9,stroke:#94a3b8,stroke-width:1.5px,color:#334155;
   class RT,H,EX,SEED,KC svc;
   class K8S,PVC,REDIS store;
-  class AUTH,DISC,ENR,NTF peer;
+  class AUTH,DISC,ANA,NTF peer;
 ```
 
 ## Responsibilities
@@ -93,6 +93,24 @@ groups, roles, users, globalconfig), `plans/*` (protection plans), `classificati
 `auth/*` (sessions, passkeys), `snapshots/*`, and `notifications/*`. Liveness/readiness
 at `/api/v1/status/{live,ready}`.
 
+Protection plan create/patch refuse (403) lifecycle, approval and material keys from
+session identities; only Internal callers (discovery) may write them: `approvalMode`,
+`approval`, `phase`, `renderedPolicies`, `startedAt`, `startedBy`, `terminatedAt`,
+`terminatedBy`, `reason`, `health`, `healthCheckedAt`, `healthDetail`, `policies`, `scope` (including its nested
+`exclusions`), `mode`, `timeMode`, `timeRange`. This keeps approval (`pending_approval`) and phase changes
+on discovery's gated routes.
+
+Protection plan routes (`{id}` = plan name). Deny rules are `protection-plans.<action>.deny`
+entries a custom role lists; built-in roles list none.
+
+| Route | Authz | Purpose |
+|---|---|---|
+| `GET plans/protection/get` | Read, deny `viewprotectionplans` | List plans |
+| `GET plans/protection/{id}/get` | Read, deny `viewprotectionplans` | Read one plan |
+| `POST plans/protection/create` | Write, deny `createprotectionplan` | Create (discovery; sessions cannot send lifecycle or material keys) |
+| `PATCH plans/protection/{id}/patch` | Write, deny `editprotectionplan` | Patch (sessions: metadata keys only) |
+| `DELETE plans/protection/{id}/delete` | Internal | Delete the CR; users delete through discovery's `clear`, which removes deployed policies first |
+
 Protection plan reports (`{id}` = plan name):
 
 | Route | Authz | Purpose |
@@ -100,10 +118,15 @@ Protection plan reports (`{id}` = plan name):
 | `POST reports/plans/create` | Internal | Store a rendered report (called by discovery) |
 | `POST reports/plans/{id}/ledger/put` | Internal | Replace the plan's report ledger |
 | `GET reports/plans/{id}/ledger/get` | Internal | Read the plan's report ledger |
-| `GET reports/plans/{id}/get` | Read (protection plans) | List the plan's reports |
-| `GET reports/plans/{id}/download?report=&format=` | Read (protection plans) | Download one report as `html`, `md`, `json` or `csv` |
+| `GET reports/get?planId=&trigger=&from=&to=&limit=` | Read (protection plans), deny `viewprotectionplanreports` | List report metadata across all plans, newest first. Optional filters: `planId` (repeatable or comma list), `trigger` (`manual`, `cancel`, `end`), `from`/`to` (RFC3339, on `generatedAt`). `limit` defaults to 200, max 1000; `X-Total-Count` holds the match count before the limit |
+| `GET reports/plans/{id}/get` | Read (protection plans), deny `viewprotectionplanreports` | List the plan's reports |
+| `GET reports/plans/{id}/download?report=&format=` | Read (protection plans), deny `downloadprotectionplanreport` | Download one report as `html`, `md`, `json` or `csv` |
 
 Downloads carry `X-Content-Type-Options: nosniff` and `Content-Security-Policy: sandbox`, and are served inline (no `Content-Disposition`). Reports are removed when their plan is deleted.
+
+Environment and tag categories (`plan-environments`, `plan-tags`) follow the `protection-plans`
+scope: create needs Contributor (deny `addprotectionplancategory`), edit and delete need Owner
+(deny `editprotectionplancategory` / `deleteprotectionplancategory`).
 
 ## Build & run
 

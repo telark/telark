@@ -143,29 +143,39 @@ func addSnapshots(r map[string]authz.Requirement) {
 	r[router.Key(base.Delete, snapshotendpoints.DeleteSnapshot)] = authz.Own(roledata.ScopeApplications)
 }
 
-// Reports are written by discovery at a plan boundary; users only read them,
-// under the same scope as the plan they describe.
+// Reports are written by discovery at a plan boundary; users read them under
+// the plan scope, and listing and downloading can each be withheld.
 func addReports(r map[string]authz.Requirement) {
 	r[router.Key(base.Post, reportsendpoints.CreatePlanReport)] = authz.Internal
 	r[router.Key(base.Post, reportsendpoints.PutPlanReportLedger)] = authz.Internal
 	r[router.Key(base.Get, reportsendpoints.GetPlanReportLedger)] = authz.Internal
-	r[router.Key(base.Get, reportsendpoints.ListPlanReports)] = authz.Read(roledata.ScopeProtectionPlans)
-	r[router.Key(base.Get, reportsendpoints.DownloadPlanReport)] = authz.Read(roledata.ScopeProtectionPlans)
+	r[router.Key(base.Get, reportsendpoints.ListPlanReports)] = authz.Denyable(
+		authz.Read(roledata.ScopeProtectionPlans), roledata.ActionViewProtectionPlanReports,
+	)
+	r[router.Key(base.Get, reportsendpoints.ListReports)] = authz.Denyable(
+		authz.Read(roledata.ScopeProtectionPlans), roledata.ActionViewProtectionPlanReports,
+	)
+	r[router.Key(base.Get, reportsendpoints.DownloadPlanReport)] = authz.Denyable(
+		authz.Read(roledata.ScopeProtectionPlans), roledata.ActionDownloadProtectionPlanReport,
+	)
 }
 
 // Their own feature: managing an application does not imply managing its plans.
 func addPlans(r map[string]authz.Requirement) {
-	r[router.Key(base.Get, plansendpoints.ListProtectionPlans)] = authz.Read(roledata.ScopeProtectionPlans)
-	r[router.Key(base.Get, plansendpoints.GetProtectionPlanByID)] = authz.Read(roledata.ScopeProtectionPlans)
+	r[router.Key(base.Get, plansendpoints.ListProtectionPlans)] = authz.Denyable(
+		authz.Read(roledata.ScopeProtectionPlans), roledata.ActionViewProtectionPlans,
+	)
+	r[router.Key(base.Get, plansendpoints.GetProtectionPlanByID)] = authz.Denyable(
+		authz.Read(roledata.ScopeProtectionPlans), roledata.ActionViewProtectionPlans,
+	)
 	r[router.Key(base.Post, plansendpoints.CreateProtectionPlan)] = authz.Denyable(
 		authz.Write(roledata.ScopeProtectionPlans), roledata.ActionCreateProtectionPlan,
 	)
 	r[router.Key(base.Patch, plansendpoints.PatchProtectionPlanByID)] = authz.Denyable(
 		authz.Write(roledata.ScopeProtectionPlans), roledata.ActionEditProtectionPlan,
 	)
-	r[router.Key(base.Delete, plansendpoints.DeleteProtectionPlanByID)] = authz.Denyable(
-		authz.Own(roledata.ScopeProtectionPlans), roledata.ActionDeleteProtectionPlan,
-	)
+	// Users delete through discovery's clear route, which removes the deployed policies first.
+	r[router.Key(base.Delete, plansendpoints.DeleteProtectionPlanByID)] = authz.Internal
 }
 
 // Every user reaches their own, whatever scopes their roles carry.

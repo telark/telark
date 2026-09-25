@@ -137,46 +137,6 @@ func TestGuardGlobalConfigPatchLeavesUngovernedFieldsOpen(t *testing.T) {
 	}
 }
 
-// The key now lives in a Secret and is added to the response only when this
-// gate allows it, so the gate is what keeps it from ReadOnly users.
-func TestMayControlAIInsightsDeniesBelowOwner(t *testing.T) {
-	levels := []roledata.PermissionLevel{
-		roledata.PermissionLevelReadOnly,
-		roledata.PermissionLevelContributor,
-	}
-
-	for _, level := range levels {
-		t.Run(string(level), func(t *testing.T) {
-			if authz.MayControlAIInsights(patchRequest(settingsIdentity(level))) {
-				t.Errorf("%s user would receive the provider API key", level)
-			}
-		})
-	}
-}
-
-func TestMayControlAIInsightsAllowsOwner(t *testing.T) {
-	if !authz.MayControlAIInsights(patchRequest(settingsIdentity(roledata.PermissionLevelOwner))) {
-		t.Error("owner cannot read the key they are allowed to change")
-	}
-}
-
-// Withholding the AI action must withhold the key it protects.
-func TestMayControlAIInsightsHonoursDenyRule(t *testing.T) {
-	rule := xauthz.RuleKey(roledata.ScopeSettings, roledata.ActionControlAIInsights)
-
-	if authz.MayControlAIInsights(patchRequest(settingsIdentity(roledata.PermissionLevelAdmin, rule))) {
-		t.Error("a user denied AI insights would receive the key")
-	}
-}
-
-func TestMayControlAIInsightsDeniesWithoutIdentity(t *testing.T) {
-	r := httptest.NewRequest(http.MethodGet, "/v1/resources/globalconfig/get", nil)
-
-	if authz.MayControlAIInsights(r) {
-		t.Error("a request carrying no identity would receive the key")
-	}
-}
-
 func TestGuardGlobalConfigPatchDeniesWithoutIdentity(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPatch, "/v1/resources/globalconfig/patch", nil)

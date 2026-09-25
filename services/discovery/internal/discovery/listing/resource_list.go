@@ -12,6 +12,23 @@ import (
 
 var InformersCache func(context.Context, []string) ([]kcoregroup.ResourceRef, bool)
 
+var AppNamespacesCache func(ctx context.Context, appName string) []string
+
+// A path listing only some of an app's namespaces publishes it without the
+// rest, and every later per-app path lists only what the stored app still holds.
+func AppNamespaces(ctx context.Context, appName string, known []string) []string {
+	out := slices.Clone(known)
+	if AppNamespacesCache == nil {
+		return out
+	}
+	for _, ns := range AppNamespacesCache(ctx, appName) {
+		if !slices.Contains(out, ns) {
+			out = append(out, ns)
+		}
+	}
+	return out
+}
+
 // Exclusions are applied at this boundary so both the informer-cache fast path and the
 // live-list fallback honor them; empty input means "all namespaces", expanded explicitly.
 func Resources(ctx context.Context, namespaces []string) ([]kcoregroup.ResourceRef, error) {

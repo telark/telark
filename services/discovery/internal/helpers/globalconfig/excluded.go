@@ -32,3 +32,8 @@ func FetchExcludedNamespaces(ctx context.Context) []string {
 	out, _ := ExcludedNamespaces(ctx)
 	return out
 }
+
+// Test seam: installs the list the sync loop would otherwise load from GlobalConfig.
+func SetExcludedForTest(namespaces []string) {
+	excludedCache.Store(namespaces)
+}

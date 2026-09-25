@@ -12,7 +12,7 @@ services:
     portForward:
       enabled: true
       localPort: 8004
-  enrichment:
+  analyzer:
     portForward:
       enabled: true
       localPort: 8007

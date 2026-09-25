@@ -10,8 +10,8 @@ telark's custom resources are defined by the `telark-crds` chart. The group suff
 | `GroupAsResource` | `groupsasresources` | An access group in the role model. |
 | `RoleAsResource` | `rolesasresources` | A role: scopes granted and denials, at a level. |
 | `UserAsResource` | `usersasresources` | A user in the role model. |
-| `GlobalConfig` | `globalconfigs` | Cluster-wide settings (AI provider/keys, OIDC) set from the UI at runtime. |
-| `ProtectionPlan` | `protectionplans` | Policy templates bound to a scope and a time window; transitions scheduled → active → terminated; carries optional metadata environmentID / tagIDs (category ids, at most 20 tags). |
+| `GlobalConfig` | `globalconfigs` | Cluster-wide settings set from the UI at runtime: local analyzer `spec.ai` = {enabled, model, autoAnalyze} (written by Owners via Settings; `model` is a local analyzer model tag, default `granite4:350m`; deep mode additionally requires the tools capability), OIDC. |
+| `ProtectionPlan` | `protectionplans` | Policy templates bound to a scope and a time window; transitions pending_approval → scheduled → active → terminated; carries optional metadata environmentID / tagIDs (category ids, at most 20 tags); `approvalMode` (`automatic` \| `required`, absent = automatic; defaults to `required` for the Production environment) and `approval` (state, requester, decider, comment, bounded history; written only by discovery); `scope.exclusions` (kinds for both scope types, named resources for the applications scope only) narrows enforcement without changing policy names. |
 
 ## Group `auth.<name>`
 

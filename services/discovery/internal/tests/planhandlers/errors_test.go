@@ -8,12 +8,15 @@ import (
 
 	"github.com/telark/discovery/internal/circuitbreaker"
 	"github.com/telark/discovery/internal/clients"
+	"github.com/telark/discovery/internal/core/plans/protection"
 	"github.com/telark/discovery/internal/core/plans/protection/validation"
 	handlers "github.com/telark/discovery/internal/handlers/plans/protection"
 	"github.com/telark/discovery/internal/tests/testutil"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
+
+const wrapDecide = "decide: %w"
 
 // Every domain failure carries its own type, so the status comes from the error itself and
 // never from matching its message.
@@ -30,6 +33,9 @@ func TestStatusForErr(t *testing.T) {
 		{"wrapped validation", fmt.Errorf("prepare: %w", validation.ErrPoliciesRequired), http.StatusBadRequest},
 		{"breaker open", fmt.Errorf("list plans: %w", circuitbreaker.ErrOpen), http.StatusServiceUnavailable},
 		{"cluster error", fmt.Errorf("apply: %w", k8sErr), http.StatusServiceUnavailable},
+		{"self decision", fmt.Errorf(wrapDecide, protection.ErrDecisionSelf), http.StatusForbidden},
+		{"not pending", fmt.Errorf(wrapDecide, protection.ErrDecisionNotPending), http.StatusConflict},
+		{"stale", fmt.Errorf(wrapDecide, protection.ErrDecisionStale), http.StatusConflict},
 		{"unknown", errors.New("boom"), http.StatusInternalServerError},
 	}
 	for _, c := range cases {

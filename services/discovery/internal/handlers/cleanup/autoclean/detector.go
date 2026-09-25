@@ -97,7 +97,7 @@ func (d *Detector) evaluateApp(ctx context.Context, app *appresource.Application
 		railNoForceSync(ctx, d.rdb, name),
 		railNoCoalesceBuffer(ctx, d.rdb, name),
 		railNoGenerationLock(ctx, d.rdb, name),
-		railNoEnrichmentLock(ctx, d.rdb, name),
+		railNoAnalyzerInflight(ctx, d.rdb, name),
 		railCleanupCooldown(ctx, d.rdb, name),
 	}
 	for _, r := range rails {

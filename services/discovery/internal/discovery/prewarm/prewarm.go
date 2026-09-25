@@ -31,7 +31,7 @@ func PrewarmDiscovery(ctx context.Context, rdb *redis.Client) {
 		return
 	}
 	lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
-	lg.Info(string(constants.InfoPrewarmEnrichmentStarted))
+	lg.Info(string(constants.InfoPrewarmCacheStarted))
 	runPrewarmWithSupervision(ctx, rdb)
 }
 

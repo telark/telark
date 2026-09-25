@@ -119,12 +119,6 @@ const (
 	ErrGlobalConfigInvalidType  errors.Error = "invalid global config type"
 	ErrGlobalConfigInvalidReply errors.Error = "invalid global config response type"
 
-	// AI provider key
-	ErrAIKeyPersistFailed     errors.Error = "failed to persist the AI provider key"
-	ErrAIKeyClientUnavailable errors.Error = "ai key store: kubernetes client unavailable: %v"
-	ErrAIKeyReadFailed        errors.Error = "ai key store: failed to read secret: %v"
-	ErrAIKeyWriteFailed       errors.Error = "ai key store: failed to write secret: %v"
-
 	// User Session
 	ErrSessionListFormatInvalid         errors.Error = "invalid session list format"
 	ErrSessionFieldRequired             errors.Error = "session field is required"
@@ -241,6 +235,7 @@ const (
 	ErrReportBadID             errors.Error     = "report or plan id is not a safe path segment"
 	ErrReportBodyTooLarge      errors.Error     = "report body exceeds the size limit"
 	ErrReportInvalidLedger     errors.Error     = "report ledger is not valid JSON"
+	ErrReportBadFilter         errors.Error     = "report list filter is invalid"
 	WarnReportsSweepListFailed messages.Message = "reports sweep skipped: %v"
 	WarnReportsGCPanic         messages.Message = "reports gc panic recovered: %v"
 	InfReportsSwept            messages.Message = "reports sweep removed=%d temps=%d scanned=%d"

@@ -17,7 +17,7 @@ updates:
     open-pull-requests-limit: 5
 
   - package-ecosystem: pip
-    directory: /services/enrichment
+    directory: /services/analyzer
     schedule:
       interval: weekly
     groups:
@@ -30,7 +30,7 @@ updates:
       - /services/discovery
       - /services/exporter
       - /services/notifier
-      - /services/enrichment
+      - /services/analyzer
     schedule:
       interval: weekly
 

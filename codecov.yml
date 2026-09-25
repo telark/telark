@@ -26,8 +26,8 @@ flags:
     paths: [services/exporter]
   notifier:
     paths: [services/notifier]
-  enrichment:
-    paths: [services/enrichment]
+  analyzer:
+    paths: [services/analyzer]
 
 comment:
   layout: "reach, diff, flags"

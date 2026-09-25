@@ -2,27 +2,36 @@ package shared
 
 import (
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/telark/x-ware/shared"
 )
 
+const (
+	envKeyString   = "TEST_KEY"
+	envKeyInt      = "TEST_INT"
+	msgNoError     = "Expected no error, got %v"
+	wantEnvInt     = 42
+	wantDefaultInt = 10
+)
+
 func TestGetEnvString_WithValue(t *testing.T) {
-	if err := os.Setenv("TEST_KEY", "test_value"); err != nil {
+	if err := os.Setenv(envKeyString, "test_value"); err != nil {
 		t.Fatalf("Failed to set environment variable: %v", err)
 	}
 	defer func() {
-		if err := os.Unsetenv("TEST_KEY"); err != nil {
+		if err := os.Unsetenv(envKeyString); err != nil {
 			t.Errorf("Failed to unset environment variable: %v", err)
 		}
 	}()
 
 	value, err := shared.GetEnvString(shared.EnvConfig{
-		Key:      "TEST_KEY",
+		Key:      envKeyString,
 		Required: true,
 	})
 	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
+		t.Errorf(msgNoError, err)
 	}
 	if value != "test_value" {
 		t.Errorf("Expected 'test_value', got %s", value)
@@ -36,7 +45,7 @@ func TestGetEnvString_WithDefault(t *testing.T) {
 		Required:     false,
 	})
 	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
+		t.Errorf(msgNoError, err)
 	}
 	if value != "default_value" {
 		t.Errorf("Expected 'default_value', got %s", value)
@@ -55,37 +64,37 @@ func TestGetEnvString_Required(t *testing.T) {
 }
 
 func TestGetEnvInt_WithValue(t *testing.T) {
-	if err := os.Setenv("TEST_INT", "42"); err != nil {
+	if err := os.Setenv(envKeyInt, strconv.Itoa(wantEnvInt)); err != nil {
 		t.Fatalf("Failed to set environment variable: %v", err)
 	}
 	defer func() {
-		if err := os.Unsetenv("TEST_INT"); err != nil {
+		if err := os.Unsetenv(envKeyInt); err != nil {
 			t.Errorf("Failed to unset environment variable: %v", err)
 		}
 	}()
 
 	value, err := shared.GetEnvInt(shared.EnvConfig{
-		Key:      "TEST_INT",
+		Key:      envKeyInt,
 		Required: true,
 	})
 	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
+		t.Errorf(msgNoError, err)
 	}
-	if value != 42 {
-		t.Errorf("Expected 42, got %d", value)
+	if value != wantEnvInt {
+		t.Errorf("Expected %d, got %d", wantEnvInt, value)
 	}
 }
 
 func TestGetEnvInt_WithDefault(t *testing.T) {
 	value, err := shared.GetEnvInt(shared.EnvConfig{
 		Key:          "NON_EXISTENT_INT",
-		DefaultValue: "10",
+		DefaultValue: strconv.Itoa(wantDefaultInt),
 		Required:     false,
 	})
 	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
+		t.Errorf(msgNoError, err)
 	}
-	if value != 10 {
-		t.Errorf("Expected 10, got %d", value)
+	if value != wantDefaultInt {
+		t.Errorf("Expected %d, got %d", wantDefaultInt, value)
 	}
 }

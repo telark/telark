@@ -12,11 +12,6 @@ import (
 
 const defaultRetryIntervalSeconds = 5
 
-type logger interface {
-	Error(string)
-	Info(string)
-}
-
 var (
 	clientMu sync.RWMutex
 	clientV  *natscore.NATSClient
@@ -42,7 +37,7 @@ func NewClientWithRetry(
 	ctx context.Context,
 	dial func() (*natscore.NATSClient, error),
 	cfg RetryConfig,
-	lg logger,
+	lg shared.Logger,
 ) *natscore.NATSClient {
 	clientMu.RLock()
 	if isHealthy(clientV) {
@@ -79,7 +74,7 @@ func NewClientWithRetry(
 		MaxWaitMsg: string(constants.ErrNatsInitMaxWaitExceeded),
 		RetryMsg:   string(constants.ErrNatsInitRetrying),
 	})
-	// Giving up must leave a stale-but-unhealthy clientV in place, as before.
+	// Giving up must leave a stale-but-unhealthy clientV in place.
 	if c == nil {
 		return nil
 	}

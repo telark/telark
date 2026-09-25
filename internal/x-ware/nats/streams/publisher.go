@@ -17,6 +17,5 @@ func PublishMessage(c *core.NATSClient, subj string, data []byte) (
 	}
 
 	msgID := core.GenerateMessageID(subj, data)
-	ack, err := c.JetStream.Publish(subj, data, nats.MsgId(msgID))
-	return ack, err
+	return c.JetStream.Publish(subj, data, nats.MsgId(msgID))
 }

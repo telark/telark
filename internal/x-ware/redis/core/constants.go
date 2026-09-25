@@ -28,9 +28,8 @@ const (
 		"deduplication: %v"
 	ErrRedisSetError errors.Error = "redis SET error for marking event " +
 		"as processed: %v"
-	ErrRedisPingError errors.Error = "redis ping failed: %v"
-	ErrStringFormat   errors.Error = "%s"
-	// Health check error constants
+	ErrRedisPingError                     errors.Error = "redis ping failed: %v"
+	ErrStringFormat                       errors.Error = "%s"
 	ErrRedisHealthCheckPingError          errors.Error = "health check failed - ping error: %v"
 	ErrRedisHealthCheckSetError           errors.Error = "health check failed - set operation error: %v"
 	ErrRedisHealthCheckDelError           errors.Error = "health check failed - del operation error: %v"

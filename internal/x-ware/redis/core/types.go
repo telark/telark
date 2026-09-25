@@ -18,9 +18,8 @@ type (
 		DB       int
 	}
 	RedisManager struct {
-		client *RedisClient
-		mu     sync.RWMutex
-		// Context is used for client lifecycle management
+		client      *RedisClient
+		mu          sync.RWMutex
 		ctx         context.Context //nolint:containedctx
 		cancel      context.CancelFunc
 		isConnected bool

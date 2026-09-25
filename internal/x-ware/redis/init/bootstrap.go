@@ -26,4 +26,3 @@ func (b *BootstrapState) Reset() {
 	}
 	b.ready.Store(false)
 }
-

@@ -7,7 +7,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/telark/x-ware/constants"
 	"github.com/telark/x-ware/shared"
+)
+
+const (
+	lastIndexOffset     = 1
+	wantDialsImmediate  = 1
+	wantDialsAfterRetry = 3
+	wantRetryLogs       = 2
+	wantClosedClients   = 1
+	wantMaxWaitErrors   = 1
+	maxWaitWindow       = 10 * time.Millisecond
+	sleepCancelWindow   = 20 * time.Millisecond
 )
 
 type conn struct {
@@ -33,7 +45,7 @@ func (l *recordingLogger) Info(msg string) {
 	l.infos = append(l.infos, msg)
 }
 
-func (l *recordingLogger) counts() (int, int) {
+func (l *recordingLogger) counts() (errCount, infoCount int) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return len(l.errors), len(l.infos)
@@ -50,7 +62,7 @@ func (s *dialScript) dial() (*conn, error) {
 	i := s.calls
 	s.calls++
 	if i >= len(s.conns) {
-		i = len(s.conns) - 1
+		i = len(s.conns) - lastIndexOffset
 	}
 	var err error
 	if i < len(s.errs) {
@@ -89,10 +101,10 @@ func TestConnectWithRetry_ImmediateSuccess(t *testing.T) {
 	if got != good {
 		t.Fatalf("expected the dialed client, got %v", got)
 	}
-	if s.calls != 1 {
-		t.Errorf("expected 1 dial, got %d", s.calls)
+	if s.calls != wantDialsImmediate {
+		t.Errorf("expected %d dial, got %d", wantDialsImmediate, s.calls)
 	}
-	if errCount, infoCount := lg.counts(); errCount != 0 || infoCount != 0 {
+	if errCount, infoCount := lg.counts(); errCount != constants.ZeroValue || infoCount != constants.ZeroValue {
 		t.Errorf("expected no logs, got %d errors and %d infos", errCount, infoCount)
 	}
 }
@@ -112,11 +124,11 @@ func TestConnectWithRetry_SucceedsAfterRetries(t *testing.T) {
 	if got != good {
 		t.Fatalf("expected the healthy client, got %v", got)
 	}
-	if s.calls != 3 {
-		t.Errorf("expected 3 dials, got %d", s.calls)
+	if s.calls != wantDialsAfterRetry {
+		t.Errorf("expected %d dials, got %d", wantDialsAfterRetry, s.calls)
 	}
-	if _, infoCount := lg.counts(); infoCount != 2 {
-		t.Errorf("expected 2 retry logs, got %d", infoCount)
+	if _, infoCount := lg.counts(); infoCount != wantRetryLogs {
+		t.Errorf("expected %d retry logs, got %d", wantRetryLogs, infoCount)
 	}
 	if good.closed {
 		t.Error("the returned client must not be closed")
@@ -131,7 +143,7 @@ func TestConnectWithRetry_ClosesHalfOpenClientBeforeRetrying(t *testing.T) {
 	if got := shared.ConnectWithRetry(t.Context(), policy(s, nil)); got != good {
 		t.Fatalf("expected the healthy client, got %v", got)
 	}
-	if len(s.closed) != 1 || s.closed[0] != halfOpen {
+	if len(s.closed) != wantClosedClients || s.closed[constants.FirstIndex] != halfOpen {
 		t.Fatalf("expected the half-open client to be closed once, got %d closes", len(s.closed))
 	}
 	if !halfOpen.closed {
@@ -143,16 +155,16 @@ func TestConnectWithRetry_GivesUpOnMaxWait(t *testing.T) {
 	s := &dialScript{conns: []*conn{{}}}
 	lg := &recordingLogger{}
 	p := policy(s, lg)
-	p.MaxWait = 10 * time.Millisecond
+	p.MaxWait = maxWaitWindow
 
 	if got := shared.ConnectWithRetry(t.Context(), p); got != nil {
 		t.Fatalf("expected nil after max wait, got %v", got)
 	}
-	if errCount, _ := lg.counts(); errCount != 1 {
-		t.Errorf("expected 1 max-wait error log, got %d", errCount)
+	if errCount, _ := lg.counts(); errCount != wantMaxWaitErrors {
+		t.Errorf("expected %d max-wait error log, got %d", wantMaxWaitErrors, errCount)
 	}
-	if lg.errors[0] != "max wait 0s" {
-		t.Errorf("unexpected max-wait message: %q", lg.errors[0])
+	if lg.errors[constants.FirstIndex] != "max wait 0s" {
+		t.Errorf("unexpected max-wait message: %q", lg.errors[constants.FirstIndex])
 	}
 }
 
@@ -162,9 +174,9 @@ func TestConnectWithRetry_StopsOnCancelledContext(t *testing.T) {
 	cancel()
 
 	if got := shared.ConnectWithRetry(ctx, policy(s, nil)); got != nil {
-		t.Fatalf("expected nil for a cancelled context, got %v", got)
+		t.Fatalf("expected nil for a canceled context, got %v", got)
 	}
-	if s.calls != 0 {
+	if s.calls != constants.ZeroValue {
 		t.Errorf("expected no dial attempt, got %d", s.calls)
 	}
 }
@@ -174,7 +186,7 @@ func TestConnectWithRetry_StopsWhenContextEndsDuringSleep(t *testing.T) {
 	p := policy(s, nil)
 	p.Interval = time.Minute
 
-	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), sleepCancelWindow)
 	defer cancel()
 
 	start := time.Now()

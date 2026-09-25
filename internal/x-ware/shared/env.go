@@ -4,11 +4,8 @@ import (
 	"errors"
 	"os"
 	"strconv"
-)
 
-const (
-	emptyString = ""
-	defaultInt  = 0
+	"github.com/telark/x-ware/constants"
 )
 
 type EnvConfig struct {
@@ -20,9 +17,9 @@ type EnvConfig struct {
 
 func GetEnvString(config EnvConfig) (string, error) {
 	value := os.Getenv(config.Key)
-	if value == emptyString {
+	if value == constants.EmptyString {
 		if config.Required {
-			return emptyString, errors.New(config.ErrorMsg)
+			return constants.EmptyString, errors.New(config.ErrorMsg)
 		}
 		return config.DefaultValue, nil
 	}
@@ -31,25 +28,25 @@ func GetEnvString(config EnvConfig) (string, error) {
 
 func GetEnvInt(config EnvConfig) (int, error) {
 	value := os.Getenv(config.Key)
-	if value == emptyString {
+	if value == constants.EmptyString {
 		if config.Required {
-			return defaultInt, errors.New(config.ErrorMsg)
+			return constants.ZeroValue, errors.New(config.ErrorMsg)
 		}
-		if config.DefaultValue != emptyString {
+		if config.DefaultValue != constants.EmptyString {
 			return strconv.Atoi(config.DefaultValue)
 		}
-		return defaultInt, nil
+		return constants.ZeroValue, nil
 	}
 	return strconv.Atoi(value)
 }
 
 func GetEnvBool(config EnvConfig) (bool, error) {
 	value := os.Getenv(config.Key)
-	if value == emptyString {
+	if value == constants.EmptyString {
 		if config.Required {
 			return false, errors.New(config.ErrorMsg)
 		}
-		if config.DefaultValue != emptyString {
+		if config.DefaultValue != constants.EmptyString {
 			return strconv.ParseBool(config.DefaultValue)
 		}
 		return false, nil

@@ -17,7 +17,7 @@ func SetWithVersion(
 	if version == constants.EmptyString {
 		return set(key, value, ttl)
 	}
-	versionedKey := key + ":" + version
+	versionedKey := key + KeyDelimiter + version
 	if err := set(versionedKey, value, ttl); err != nil {
 		return err
 	}

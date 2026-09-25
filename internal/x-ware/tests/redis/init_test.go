@@ -10,12 +10,19 @@ import (
 	redisinit "github.com/telark/x-ware/redis/init"
 )
 
+const (
+	fastTimeout       = 20 * time.Millisecond
+	shortTimeout      = 10 * time.Millisecond
+	maxWaitWindow     = 50 * time.Millisecond
+	concurrentCallers = 8
+)
+
 // 127.0.0.1:1 is reserved and refuses instantly, so every ping fails fast.
 func dialUnreachable() (*redisv9.Client, error) {
 	return redisv9.NewClient(&redisv9.Options{
 		Addr:        "127.0.0.1:1",
 		MaxRetries:  -1,
-		DialTimeout: 20 * time.Millisecond,
+		DialTimeout: fastTimeout,
 	}), nil
 }
 
@@ -42,8 +49,8 @@ func TestRedisNewClientWithRetry_GivesUpOnMaxWait(t *testing.T) {
 
 	cfg := redisinit.RetryConfig{
 		RetryInterval: time.Millisecond,
-		MaxWait:       50 * time.Millisecond,
-		PingTimeout:   20 * time.Millisecond,
+		MaxWait:       maxWaitWindow,
+		PingTimeout:   fastTimeout,
 	}
 
 	if c := redisinit.NewClientWithRetry(t.Context(), dialUnreachable, cfg, nil); c != nil {
@@ -60,24 +67,20 @@ func TestRedisNewClientWithRetry_ConcurrentCallers(t *testing.T) {
 
 	cfg := redisinit.RetryConfig{
 		RetryInterval: time.Millisecond,
-		MaxWait:       20 * time.Millisecond,
-		PingTimeout:   10 * time.Millisecond,
+		MaxWait:       fastTimeout,
+		PingTimeout:   shortTimeout,
 	}
 
 	var wg sync.WaitGroup
-	for range 8 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range concurrentCallers {
+		wg.Go(func() {
 			if c := redisinit.NewClientWithRetry(t.Context(), dialUnreachable, cfg, nil); c != nil {
 				t.Errorf("expected nil when redis never becomes reachable, got %v", c)
 			}
-		}()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		})
+		wg.Go(func() {
 			_ = redisinit.Client()
-		}()
+		})
 	}
 	wg.Wait()
 

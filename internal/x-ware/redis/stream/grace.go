@@ -31,11 +31,11 @@ func (c *GraceClient) SetScaleGrace(
 	if err != nil {
 		return err
 	}
-	return c.redis.Set(ctx, "grace:scale:"+appName, data, ttl).Err()
+	return c.redis.Set(ctx, scaleGraceKeyPrefix+appName, data, ttl).Err()
 }
 
 func (c *GraceClient) GetScaleGrace(ctx context.Context, appName string) (*ScaleGrace, error) {
-	data, err := c.redis.Get(ctx, "grace:scale:"+appName).Result()
+	data, err := c.redis.Get(ctx, scaleGraceKeyPrefix+appName).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return nil, nil

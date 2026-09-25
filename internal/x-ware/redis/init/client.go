@@ -5,20 +5,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/telark/x-ware/constants"
 	"github.com/telark/x-ware/shared"
-	"github.com/redis/go-redis/v9"
 )
 
 const (
 	defaultRetryIntervalSeconds = 5
 	defaultPingTimeoutSeconds   = 3
 )
-
-type logger interface {
-	Error(string)
-	Info(string)
-}
 
 var (
 	clientMu sync.RWMutex
@@ -64,7 +59,7 @@ func NewClientWithRetry(
 	ctx context.Context,
 	dial func() (*redis.Client, error),
 	cfg RetryConfig,
-	lg logger,
+	lg shared.Logger,
 ) *redis.Client {
 	clientMu.RLock()
 	if clientV != nil {
@@ -80,10 +75,7 @@ func NewClientWithRetry(
 	if clientV != nil {
 		return clientV
 	}
-	if ctx == nil {
-		return nil
-	}
-	if dial == nil {
+	if ctx == nil || dial == nil {
 		return nil
 	}
 	if cfg.RetryInterval <= constants.ZeroValue {

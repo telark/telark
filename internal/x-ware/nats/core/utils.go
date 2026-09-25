@@ -19,7 +19,7 @@ const (
 )
 
 func (*BaseSubscriber) ValidateMessage(m *nats.Msg) error {
-	if m == nil || len(m.Data) == emptyDataLength || m.Data == nil {
+	if m == nil || len(m.Data) == emptyDataLength {
 		return fmt.Errorf("%s", errors.ErrNatsEmptyMsgData)
 	}
 	return nil

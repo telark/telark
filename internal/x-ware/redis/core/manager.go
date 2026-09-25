@@ -126,7 +126,6 @@ func (rm *RedisManager) GetConnectionStatus() (bool, error) {
 	return err == nil, err
 }
 
-// GetPoolStats returns detailed connection pool statistics
 func (rm *RedisManager) GetPoolStats() (*PoolStats, error) {
 	if rm.client == nil || rm.client.Client == nil {
 		return nil, fmt.Errorf(string(ErrStringFormat), ErrRedisClientNotConnected)
@@ -146,12 +145,10 @@ func (rm *RedisManager) HealthCheck(ctx context.Context) error {
 		return fmt.Errorf(string(ErrStringFormat), ErrRedisClientNotConnected)
 	}
 
-	// Perform a ping to check basic connectivity
 	if err := rm.client.Client.Ping(ctx).Err(); err != nil {
 		return fmt.Errorf(string(ErrRedisHealthCheckPingError), err)
 	}
 
-	// Check if we can perform basic operations
 	if err := rm.client.Client.Set(ctx, healthCheckKey, "ok", time.Second).Err(); err != nil {
 		return fmt.Errorf(string(ErrRedisHealthCheckSetError), err)
 	}
@@ -180,7 +177,7 @@ func (rm *RedisManager) GetConnectionInfo() (*ConnectionInfo, error) {
 
 	clientName, err := rm.client.Client.ClientGetName(rm.ctx).Result()
 	if err != nil {
-		clientName = "" // Client name might not be set
+		clientName = DefaultEmptyString // Client name might not be set
 	}
 
 	return &ConnectionInfo{

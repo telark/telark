@@ -19,6 +19,8 @@ const (
 	testPublicKey    = "status:liveness"
 	testInternalKey  = "session:create"
 	testAuthedKey    = "permissions:get"
+	spoofedUserID    = "u-99999-9999-9999"
+	msgStatusWant    = "status = %d, want %d"
 )
 
 var testRule = authz.RuleKey(roledata.ScopeUsers, "edituser")
@@ -32,10 +34,10 @@ type stubResolver struct {
 
 func (s stubResolver) UserIDForToken(token string) (string, error) {
 	if s.userErr != nil {
-		return "", s.userErr
+		return dataconstants.EmptyString, s.userErr
 	}
 	if token != testSessionToken {
-		return "", authz.ErrNotFound
+		return dataconstants.EmptyString, authz.ErrNotFound
 	}
 	return s.userID, nil
 }
@@ -51,7 +53,7 @@ var errStub = &stubError{}
 
 type stubError struct{}
 
-func (e *stubError) Error() string { return "stub" }
+func (*stubError) Error() string { return "stub" }
 
 func levels(scope string, level roledata.PermissionLevel) map[string]roledata.PermissionLevel {
 	return map[string]roledata.PermissionLevel{scope: level}
@@ -116,7 +118,7 @@ func TestNewRejectsIncompleteConfig(t *testing.T) {
 		"nil resolver":     func(c *authz.Config) { c.Resolver = nil },
 		"nil requirements": func(c *authz.Config) { c.Requirements = nil },
 		"nil route key":    func(c *authz.Config) { c.RouteKey = nil },
-		"empty token":      func(c *authz.Config) { c.ServiceToken = "" },
+		"empty token":      func(c *authz.Config) { c.ServiceToken = dataconstants.EmptyString },
 	}
 
 	for name, mutate := range tests {
@@ -138,7 +140,7 @@ func TestUnmappedRouteIsDenied(t *testing.T) {
 	rec, got := serve(t, config, r)
 
 	if rec.Code != http.StatusForbidden {
-		t.Errorf("status = %d, want %d", rec.Code, http.StatusForbidden)
+		t.Errorf(msgStatusWant, rec.Code, http.StatusForbidden)
 	}
 	if got.called {
 		t.Error("handler ran for an unmapped route; default-deny is broken")
@@ -149,7 +151,7 @@ func TestMissingSessionTokenIsUnauthorized(t *testing.T) {
 	rec, got := serve(t, newTestConfig(stubResolver{}), request(testRouteKey))
 
 	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+		t.Errorf(msgStatusWant, rec.Code, http.StatusUnauthorized)
 	}
 	if got.called {
 		t.Error("handler ran without a session token")
@@ -163,7 +165,7 @@ func TestInvalidSessionTokenIsUnauthorized(t *testing.T) {
 	rec, got := serve(t, newTestConfig(stubResolver{userID: testUserID}), r)
 
 	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+		t.Errorf(msgStatusWant, rec.Code, http.StatusUnauthorized)
 	}
 	if got.called {
 		t.Error("handler ran with an invalid session token")
@@ -194,7 +196,7 @@ func TestResolverErrorsAreVerdictsOrOutages(t *testing.T) {
 			rec, got := serve(t, newTestConfig(tc.resolver), r)
 
 			if rec.Code != tc.want {
-				t.Errorf("status = %d, want %d", rec.Code, tc.want)
+				t.Errorf(msgStatusWant, rec.Code, tc.want)
 			}
 			if got.called {
 				t.Error("handler ran despite a resolver failure")
@@ -214,7 +216,7 @@ func TestInsufficientLevelIsForbidden(t *testing.T) {
 	rec, got := serve(t, newTestConfig(resolver), r)
 
 	if rec.Code != http.StatusForbidden {
-		t.Errorf("status = %d, want %d", rec.Code, http.StatusForbidden)
+		t.Errorf(msgStatusWant, rec.Code, http.StatusForbidden)
 	}
 	if got.called {
 		t.Error("ReadOnly identity reached a Contributor route")
@@ -232,7 +234,7 @@ func TestSufficientLevelIsAllowed(t *testing.T) {
 	rec, got := serve(t, newTestConfig(resolver), r)
 
 	if rec.Code != http.StatusOK {
-		t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+		t.Errorf(msgStatusWant, rec.Code, http.StatusOK)
 	}
 	if !got.called {
 		t.Fatal("handler did not run for an authorized request")
@@ -271,7 +273,7 @@ func TestDenyRuleBeatsGrantedLevel(t *testing.T) {
 	rec, got := serve(t, newTestConfig(resolver), r)
 
 	if rec.Code != http.StatusForbidden {
-		t.Errorf("status = %d, want %d", rec.Code, http.StatusForbidden)
+		t.Errorf(msgStatusWant, rec.Code, http.StatusForbidden)
 	}
 	if got.called {
 		t.Error("deny rule did not override the granted level")
@@ -296,7 +298,7 @@ func TestUnrelatedDenyRuleDoesNotBlockScope(t *testing.T) {
 	rec, got := serve(t, newTestConfig(resolver), r)
 
 	if rec.Code != http.StatusOK {
-		t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+		t.Errorf(msgStatusWant, rec.Code, http.StatusOK)
 	}
 	if !got.called {
 		t.Error("a deny rule for a different action blocked this one")
@@ -320,25 +322,25 @@ func TestClientSuppliedUserIDIsOverwritten(t *testing.T) {
 	}
 	r := request(testRouteKey)
 	r.Header.Set(dataconstants.HeaderSessionToken, testSessionToken)
-	r.Header.Set(dataconstants.HeaderUserID, "u-99999-9999-9999")
+	r.Header.Set(dataconstants.HeaderUserID, spoofedUserID)
 	r.Header.Set(dataconstants.HeaderUsername, "attacker")
 	r.Header.Set(dataconstants.HeaderEmail, "attacker@example.com")
 
 	_, got := serve(t, newTestConfig(resolver), r)
 
 	if got.userID != testUserID {
-		t.Errorf("forwarded user = %q, want %q (spoofed header honoured)", got.userID, testUserID)
+		t.Errorf("forwarded user = %q, want %q (spoofed header honored)", got.userID, testUserID)
 	}
 }
 
 func TestSpoofedHeadersStrippedOnDeniedRequest(t *testing.T) {
 	r := request(testRouteKey)
-	r.Header.Set(dataconstants.HeaderUserID, "u-99999-9999-9999")
+	r.Header.Set(dataconstants.HeaderUserID, spoofedUserID)
 
 	rec, got := serve(t, newTestConfig(stubResolver{}), r)
 
 	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+		t.Errorf(msgStatusWant, rec.Code, http.StatusUnauthorized)
 	}
 	if got.called {
 		t.Error("spoofed X-User-ID alone reached the handler")
@@ -349,7 +351,7 @@ func TestPublicRouteSkipsAuthentication(t *testing.T) {
 	rec, got := serve(t, newTestConfig(stubResolver{}), request(testPublicKey))
 
 	if rec.Code != http.StatusOK {
-		t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+		t.Errorf(msgStatusWant, rec.Code, http.StatusOK)
 	}
 	if !got.called {
 		t.Error("public route did not reach the handler; probes would fail")
@@ -358,11 +360,11 @@ func TestPublicRouteSkipsAuthentication(t *testing.T) {
 
 func TestPublicRouteStillStripsSpoofedHeaders(t *testing.T) {
 	r := request(testPublicKey)
-	r.Header.Set(dataconstants.HeaderUserID, "u-99999-9999-9999")
+	r.Header.Set(dataconstants.HeaderUserID, spoofedUserID)
 
 	_, got := serve(t, newTestConfig(stubResolver{}), r)
 
-	if got.userID != "" {
+	if got.userID != dataconstants.EmptyString {
 		t.Errorf("public route forwarded spoofed user %q", got.userID)
 	}
 }
@@ -374,7 +376,7 @@ func TestInternalRouteRequiresServiceToken(t *testing.T) {
 	rec, got := serve(t, newTestConfig(stubResolver{userID: testUserID}), r)
 
 	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+		t.Errorf(msgStatusWant, rec.Code, http.StatusUnauthorized)
 	}
 	if got.called {
 		t.Error("a user session reached an internal-only route")
@@ -388,7 +390,7 @@ func TestValidServiceTokenAllowsInternalRoute(t *testing.T) {
 	rec, got := serve(t, newTestConfig(stubResolver{}), r)
 
 	if rec.Code != http.StatusOK {
-		t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+		t.Errorf(msgStatusWant, rec.Code, http.StatusOK)
 	}
 	if !got.identity.Internal {
 		t.Error("identity not marked internal")
@@ -402,14 +404,14 @@ func TestWrongServiceTokenIsUnauthorized(t *testing.T) {
 	rec, got := serve(t, newTestConfig(stubResolver{}), r)
 
 	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+		t.Errorf(msgStatusWant, rec.Code, http.StatusUnauthorized)
 	}
 	if got.called {
 		t.Error("handler ran with a wrong service token")
 	}
 }
 
-// A peer service acts on a user's behalf, so its claimed X-User-ID is honoured
+// A peer service acts on a user's behalf, so its claimed X-User-ID is honored
 // only once the service token proves the caller is a peer.
 func TestInternalCallerKeepsClaimedUserID(t *testing.T) {
 	r := request(testInternalKey)
@@ -430,7 +432,7 @@ func TestServiceTokenBypassesScopeCheck(t *testing.T) {
 	rec, got := serve(t, newTestConfig(stubResolver{}), r)
 
 	if rec.Code != http.StatusOK {
-		t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+		t.Errorf(msgStatusWant, rec.Code, http.StatusOK)
 	}
 	if !got.identity.Internal {
 		t.Error("identity not marked internal on a scoped route")
@@ -447,7 +449,7 @@ func TestAuthenticatedRouteNeedsNoScope(t *testing.T) {
 	rec, got := serve(t, newTestConfig(resolver), r)
 
 	if rec.Code != http.StatusOK {
-		t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+		t.Errorf(msgStatusWant, rec.Code, http.StatusOK)
 	}
 	if got.identity.UserID != testUserID {
 		t.Errorf("identity user = %q, want %q", got.identity.UserID, testUserID)
@@ -458,115 +460,115 @@ func TestAuthenticatedRouteStillNeedsSession(t *testing.T) {
 	rec, got := serve(t, newTestConfig(stubResolver{}), request(testAuthedKey))
 
 	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+		t.Errorf(msgStatusWant, rec.Code, http.StatusUnauthorized)
 	}
 	if got.called {
 		t.Error("authenticated route ran without a session")
 	}
 }
 
-func TestAllows(t *testing.T) {
-	tests := []struct {
-		name   string
-		grants authz.Grants
-		req    authz.Requirement
-		want   bool
-	}{
-		{
-			name:   "no grants at all",
-			grants: authz.Grants{},
-			req:    authz.Requirement{Scope: roledata.ScopeUsers, MinLevel: roledata.PermissionLevelReadOnly},
-			want:   false,
+var allowsTests = []struct {
+	name   string
+	grants authz.Grants
+	req    authz.Requirement
+	want   bool
+}{
+	{
+		name:   "no grants at all",
+		grants: authz.Grants{},
+		req:    authz.Requirement{Scope: roledata.ScopeUsers, MinLevel: roledata.PermissionLevelReadOnly},
+		want:   false,
+	},
+	{
+		name:   "unrelated scope only",
+		grants: authz.Grants{Levels: levels(roledata.ScopeRoles, roledata.PermissionLevelAdmin)},
+		req:    authz.Requirement{Scope: roledata.ScopeUsers, MinLevel: roledata.PermissionLevelReadOnly},
+		want:   false,
+	},
+	{
+		name:   "exact level matches",
+		grants: authz.Grants{Levels: levels(roledata.ScopeUsers, roledata.PermissionLevelContributor)},
+		req:    authz.Requirement{Scope: roledata.ScopeUsers, MinLevel: roledata.PermissionLevelContributor},
+		want:   true,
+	},
+	{
+		name:   "higher level covers lower",
+		grants: authz.Grants{Levels: levels(roledata.ScopeUsers, roledata.PermissionLevelAdmin)},
+		req:    authz.Requirement{Scope: roledata.ScopeUsers, MinLevel: roledata.PermissionLevelReadOnly},
+		want:   true,
+	},
+	{
+		name:   "lower level does not cover higher",
+		grants: authz.Grants{Levels: levels(roledata.ScopeUsers, roledata.PermissionLevelContributor)},
+		req:    authz.Requirement{Scope: roledata.ScopeUsers, MinLevel: roledata.PermissionLevelOwner},
+		want:   false,
+	},
+	{
+		name: "exact scope wins over wildcard",
+		grants: authz.Grants{Levels: map[string]roledata.PermissionLevel{
+			roledata.ScopeAll:   roledata.PermissionLevelAdmin,
+			roledata.ScopeUsers: roledata.PermissionLevelReadOnly,
+		}},
+		req:  authz.Requirement{Scope: roledata.ScopeUsers, MinLevel: roledata.PermissionLevelOwner},
+		want: false,
+	},
+	{
+		name:   "unknown granted level never allows",
+		grants: authz.Grants{Levels: levels(roledata.ScopeUsers, roledata.PermissionLevel("Superuser"))},
+		req:    authz.Requirement{Scope: roledata.ScopeUsers, MinLevel: roledata.PermissionLevelReadOnly},
+		want:   false,
+	},
+	{
+		name:   "unknown required level never allows",
+		grants: authz.Grants{Levels: levels(roledata.ScopeUsers, roledata.PermissionLevelAdmin)},
+		req:    authz.Requirement{Scope: roledata.ScopeUsers, MinLevel: roledata.PermissionLevel("Bogus")},
+		want:   false,
+	},
+	{
+		name:   "empty required level never allows",
+		grants: authz.Grants{Levels: levels(roledata.ScopeUsers, roledata.PermissionLevelAdmin)},
+		req:    authz.Requirement{Scope: roledata.ScopeUsers},
+		want:   false,
+	},
+	{
+		name: "deny rule on the wildcard scope blocks the action",
+		grants: authz.Grants{
+			Levels: levels(roledata.ScopeAll, roledata.PermissionLevelAdmin),
+			Denied: map[string][]string{roledata.ScopeAll: {testRule}},
 		},
-		{
-			name:   "unrelated scope only",
-			grants: authz.Grants{Levels: levels(roledata.ScopeRoles, roledata.PermissionLevelAdmin)},
-			req:    authz.Requirement{Scope: roledata.ScopeUsers, MinLevel: roledata.PermissionLevelReadOnly},
-			want:   false,
+		req: authz.Requirement{
+			Scope:    roledata.ScopeUsers,
+			MinLevel: roledata.PermissionLevelReadOnly,
+			Rule:     testRule,
 		},
-		{
-			name:   "exact level matches",
-			grants: authz.Grants{Levels: levels(roledata.ScopeUsers, roledata.PermissionLevelContributor)},
-			req:    authz.Requirement{Scope: roledata.ScopeUsers, MinLevel: roledata.PermissionLevelContributor},
-			want:   true,
+		want: false,
+	},
+	{
+		name: "deny rule is ignored when the route declares none",
+		grants: authz.Grants{
+			Levels: levels(roledata.ScopeUsers, roledata.PermissionLevelOwner),
+			Denied: map[string][]string{roledata.ScopeUsers: {testRule}},
 		},
-		{
-			name:   "higher level covers lower",
-			grants: authz.Grants{Levels: levels(roledata.ScopeUsers, roledata.PermissionLevelAdmin)},
-			req:    authz.Requirement{Scope: roledata.ScopeUsers, MinLevel: roledata.PermissionLevelReadOnly},
-			want:   true,
+		req:  authz.Requirement{Scope: roledata.ScopeUsers, MinLevel: roledata.PermissionLevelReadOnly},
+		want: true,
+	},
+	{
+		name: "deny rule for another scope does not apply",
+		grants: authz.Grants{
+			Levels: levels(roledata.ScopeUsers, roledata.PermissionLevelOwner),
+			Denied: map[string][]string{roledata.ScopeRoles: {testRule}},
 		},
-		{
-			name:   "lower level does not cover higher",
-			grants: authz.Grants{Levels: levels(roledata.ScopeUsers, roledata.PermissionLevelContributor)},
-			req:    authz.Requirement{Scope: roledata.ScopeUsers, MinLevel: roledata.PermissionLevelOwner},
-			want:   false,
+		req: authz.Requirement{
+			Scope:    roledata.ScopeUsers,
+			MinLevel: roledata.PermissionLevelReadOnly,
+			Rule:     testRule,
 		},
-		{
-			name: "exact scope wins over wildcard",
-			grants: authz.Grants{Levels: map[string]roledata.PermissionLevel{
-				roledata.ScopeAll:   roledata.PermissionLevelAdmin,
-				roledata.ScopeUsers: roledata.PermissionLevelReadOnly,
-			}},
-			req:  authz.Requirement{Scope: roledata.ScopeUsers, MinLevel: roledata.PermissionLevelOwner},
-			want: false,
-		},
-		{
-			name:   "unknown granted level never allows",
-			grants: authz.Grants{Levels: levels(roledata.ScopeUsers, roledata.PermissionLevel("Superuser"))},
-			req:    authz.Requirement{Scope: roledata.ScopeUsers, MinLevel: roledata.PermissionLevelReadOnly},
-			want:   false,
-		},
-		{
-			name:   "unknown required level never allows",
-			grants: authz.Grants{Levels: levels(roledata.ScopeUsers, roledata.PermissionLevelAdmin)},
-			req:    authz.Requirement{Scope: roledata.ScopeUsers, MinLevel: roledata.PermissionLevel("Bogus")},
-			want:   false,
-		},
-		{
-			name:   "empty required level never allows",
-			grants: authz.Grants{Levels: levels(roledata.ScopeUsers, roledata.PermissionLevelAdmin)},
-			req:    authz.Requirement{Scope: roledata.ScopeUsers},
-			want:   false,
-		},
-		{
-			name: "deny rule on the wildcard scope blocks the action",
-			grants: authz.Grants{
-				Levels: levels(roledata.ScopeAll, roledata.PermissionLevelAdmin),
-				Denied: map[string][]string{roledata.ScopeAll: {testRule}},
-			},
-			req: authz.Requirement{
-				Scope:    roledata.ScopeUsers,
-				MinLevel: roledata.PermissionLevelReadOnly,
-				Rule:     testRule,
-			},
-			want: false,
-		},
-		{
-			name: "deny rule is ignored when the route declares none",
-			grants: authz.Grants{
-				Levels: levels(roledata.ScopeUsers, roledata.PermissionLevelOwner),
-				Denied: map[string][]string{roledata.ScopeUsers: {testRule}},
-			},
-			req:  authz.Requirement{Scope: roledata.ScopeUsers, MinLevel: roledata.PermissionLevelReadOnly},
-			want: true,
-		},
-		{
-			name: "deny rule for another scope does not apply",
-			grants: authz.Grants{
-				Levels: levels(roledata.ScopeUsers, roledata.PermissionLevelOwner),
-				Denied: map[string][]string{roledata.ScopeRoles: {testRule}},
-			},
-			req: authz.Requirement{
-				Scope:    roledata.ScopeUsers,
-				MinLevel: roledata.PermissionLevelReadOnly,
-				Rule:     testRule,
-			},
-			want: true,
-		},
-	}
+		want: true,
+	},
+}
 
-	for _, tt := range tests {
+func TestAllows(t *testing.T) {
+	for _, tt := range allowsTests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := authz.Allows(authz.Identity{Grants: tt.grants}, tt.req)
 			if got != tt.want {
@@ -584,10 +586,30 @@ func TestMergeLevelKeepsStrongest(t *testing.T) {
 		want       roledata.PermissionLevel
 		startEmpty bool
 	}{
-		{name: "first grant wins", candidate: roledata.PermissionLevelReadOnly, want: roledata.PermissionLevelReadOnly, startEmpty: true},
-		{name: "stronger replaces", start: roledata.PermissionLevelReadOnly, candidate: roledata.PermissionLevelOwner, want: roledata.PermissionLevelOwner},
-		{name: "weaker ignored", start: roledata.PermissionLevelOwner, candidate: roledata.PermissionLevelReadOnly, want: roledata.PermissionLevelOwner},
-		{name: "unknown ignored", start: roledata.PermissionLevelReadOnly, candidate: roledata.PermissionLevel("Nope"), want: roledata.PermissionLevelReadOnly},
+		{
+			name:       "first grant wins",
+			candidate:  roledata.PermissionLevelReadOnly,
+			want:       roledata.PermissionLevelReadOnly,
+			startEmpty: true,
+		},
+		{
+			name:      "stronger replaces",
+			start:     roledata.PermissionLevelReadOnly,
+			candidate: roledata.PermissionLevelOwner,
+			want:      roledata.PermissionLevelOwner,
+		},
+		{
+			name:      "weaker ignored",
+			start:     roledata.PermissionLevelOwner,
+			candidate: roledata.PermissionLevelReadOnly,
+			want:      roledata.PermissionLevelOwner,
+		},
+		{
+			name:      "unknown ignored",
+			start:     roledata.PermissionLevelReadOnly,
+			candidate: roledata.PermissionLevel("Nope"),
+			want:      roledata.PermissionLevelReadOnly,
+		},
 	}
 
 	for _, tt := range tests {

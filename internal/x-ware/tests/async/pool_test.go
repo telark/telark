@@ -8,6 +8,15 @@ import (
 	"time"
 
 	"github.com/telark/x-ware/async"
+	"github.com/telark/x-ware/constants"
+)
+
+const (
+	poolSizeSingle = 1
+	poolSizePair   = 2
+	burstSize      = 5
+	wantRanTasks   = 1
+	shortDeadline  = 20 * time.Millisecond
 )
 
 type recorder struct {
@@ -37,7 +46,7 @@ func newPool(size int, log async.Logger) *async.Pool {
 }
 
 func TestDispatchRunsWork(t *testing.T) {
-	pool := newPool(2, &recorder{})
+	pool := newPool(poolSizePair, &recorder{})
 	var ran atomic.Bool
 
 	pool.Dispatch(func(context.Context) { ran.Store(true) })
@@ -51,8 +60,8 @@ func TestDispatchRunsWork(t *testing.T) {
 // The task's context carries the deadline; work that honors it stops on time.
 func TestDispatchGivesTaskADeadline(t *testing.T) {
 	pool := async.New(async.Config{
-		Size:         1,
-		TaskTimeout:  20 * time.Millisecond,
+		Size:         poolSizeSingle,
+		TaskTimeout:  shortDeadline,
 		DrainTimeout: time.Second,
 		Logger:       &recorder{},
 	})
@@ -78,7 +87,7 @@ func TestDispatchGivesTaskADeadline(t *testing.T) {
 // unlimited goroutines.
 func TestDispatchDropsWhenFull(t *testing.T) {
 	log := &recorder{}
-	pool := newPool(1, log)
+	pool := newPool(poolSizeSingle, log)
 	release := make(chan struct{})
 	var ran atomic.Int32
 
@@ -86,17 +95,17 @@ func TestDispatchDropsWhenFull(t *testing.T) {
 		<-release
 		ran.Add(1)
 	})
-	for range 5 {
+	for range burstSize {
 		pool.Dispatch(func(context.Context) { ran.Add(1) })
 	}
 
 	close(release)
 	pool.Drain()
 
-	if got := ran.Load(); got != 1 {
-		t.Errorf("ran %d tasks, want 1: the pool did not bound concurrency", got)
+	if got := ran.Load(); got != wantRanTasks {
+		t.Errorf("ran %d tasks, want %d: the pool did not bound concurrency", got, wantRanTasks)
 	}
-	if log.count() == 0 {
+	if log.count() == constants.ZeroValue {
 		t.Error("dropped tasks passed silently")
 	}
 }
@@ -105,9 +114,9 @@ func TestDispatchDropsWhenFull(t *testing.T) {
 func TestDrainGivesUpOnStuckWork(t *testing.T) {
 	log := &recorder{}
 	pool := async.New(async.Config{
-		Size:         1,
+		Size:         poolSizeSingle,
 		TaskTimeout:  time.Minute,
-		DrainTimeout: 20 * time.Millisecond,
+		DrainTimeout: shortDeadline,
 		Logger:       log,
 	})
 	release := make(chan struct{})
@@ -127,7 +136,7 @@ func TestDrainGivesUpOnStuckWork(t *testing.T) {
 		t.Fatal("Drain hung on a task that ignores its context")
 	}
 
-	if log.count() == 0 {
+	if log.count() == constants.ZeroValue {
 		t.Error("drain timeout passed silently")
 	}
 }
@@ -140,12 +149,20 @@ func TestDispatchOnNilPoolIsSafe(t *testing.T) {
 }
 
 func TestNoLoggerIsSafe(t *testing.T) {
-	pool := newPool(1, nil)
+	pool := newPool(poolSizeSingle, nil)
 	release := make(chan struct{})
+	var ran atomic.Bool
 
-	pool.Dispatch(func(context.Context) { <-release })
+	pool.Dispatch(func(context.Context) {
+		<-release
+		ran.Store(true)
+	})
 	pool.Dispatch(func(context.Context) {})
 
 	close(release)
 	pool.Drain()
+
+	if !ran.Load() {
+		t.Error("work never ran; the nil-logger drop path broke dispatch")
+	}
 }

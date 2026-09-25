@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/telark/x-ware/shared"
 	"github.com/redis/go-redis/v9"
+	"github.com/telark/x-ware/shared"
 )
 
 func getBasicConfig() (*BasicConfig, error) {

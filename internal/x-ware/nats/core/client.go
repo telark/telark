@@ -25,8 +25,6 @@ func InitClient(ctx context.Context, host, user, password string) (
 		Port:     Client,
 	}
 
-	var client *NATSClient
-
 	operation := func() (*NATSClient, error) {
 		return initJetStreamClient(config)
 	}

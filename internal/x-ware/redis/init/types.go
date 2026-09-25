@@ -7,4 +7,3 @@ type RetryConfig struct {
 	MaxWait       time.Duration
 	PingTimeout   time.Duration
 }
-

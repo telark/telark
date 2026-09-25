@@ -38,9 +38,8 @@ type (
 		ProcessTimeout time.Duration
 	}
 	NatsManager struct {
-		client *NATSClient
-		mu     sync.RWMutex
-		// Context is used for client lifecycle management
+		client      *NATSClient
+		mu          sync.RWMutex
 		ctx         context.Context //nolint:containedctx
 		cancel      context.CancelFunc
 		isConnected bool

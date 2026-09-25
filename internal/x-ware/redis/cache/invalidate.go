@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	"github.com/telark/x-ware/constants"
@@ -11,12 +12,9 @@ const defaultScanBatchSize = 1000
 
 func IsAction(action string, actions []string) bool {
 	a := strings.ToLower(action)
-	for _, x := range actions {
-		if strings.Contains(a, strings.ToLower(x)) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(actions, func(x string) bool {
+		return strings.Contains(a, strings.ToLower(x))
+	})
 }
 
 func IsModifyingAction(action string, modifyingActions []string) bool {

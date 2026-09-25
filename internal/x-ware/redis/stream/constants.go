@@ -24,4 +24,5 @@ const (
 	ElectionDefaultTTL                         = 15 * time.Second
 	ElectionRenewInterval                      = 5 * time.Second
 	LockReleaseFailedMessage      errors.Error = "lock release failed after %d attempts: %s"
+	scaleGraceKeyPrefix                        = "grace:scale:"
 )

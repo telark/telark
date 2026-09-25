@@ -3,6 +3,7 @@ package policies
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
@@ -29,6 +30,7 @@ func Render(plan *plans.ProtectionPlan, resolved map[string]ResolvedApp, logger 
 
 	out := make([]kyvernov1.Policy, constants.DefaultInitValue, len(scopes)*len(plan.Policies))
 	for _, scope := range scopes {
+		exclusions := ExclusionFilters(plan.Scope.Exclusions, scope.Namespace)
 		for _, entry := range plan.Policies {
 			renderer, ok := GetRenderer(entry.TemplateID)
 			if !ok {
@@ -39,30 +41,25 @@ func Render(plan *plans.ProtectionPlan, resolved map[string]ResolvedApp, logger 
 				return nil, fmt.Errorf("policies: render template %q: %w", entry.TemplateID, rerr)
 			}
 			if pol == nil {
-				logSkippedTemplate(logger, plan.ID, entry.TemplateID, scope)
+				if logger != nil {
+					logger.Info(fmt.Sprintf(
+						"template %s skipped for plan %s namespace=%s apps=%v: no matching application resources",
+						entry.TemplateID, plan.ID, scope.Namespace, scope.ApplicationIDs,
+					))
+				}
 				continue
 			}
+			applyExclusions(pol, exclusions)
 			out = append(out, *pol)
 		}
 	}
 	return out, nil
 }
 
-func logSkippedTemplate(logger Logger, planID, templateID string, scope ScopeSpec) {
-	if logger == nil {
-		return
-	}
-	logger.Info(fmt.Sprintf(
-		"template %s skipped for plan %s namespace=%s apps=%v: no matching application resources",
-		templateID, planID, scope.Namespace, scope.ApplicationIDs,
-	))
-}
-
 func buildScopes(plan *plans.ProtectionPlan, resolved map[string]ResolvedApp) ([]ScopeSpec, error) {
 	switch plan.Scope.Type {
 	case plans.ScopeTypeNamespaces:
-		nss := append([]string(nil), plan.Scope.Namespaces...)
-		slices.Sort(nss)
+		nss := slices.Sorted(slices.Values(plan.Scope.Namespaces))
 		out := make([]ScopeSpec, constants.DefaultInitValue, len(nss))
 		for _, ns := range nss {
 			out = append(out, ScopeSpec{Namespace: ns})
@@ -82,11 +79,7 @@ func buildScopes(plan *plans.ProtectionPlan, resolved map[string]ResolvedApp) ([
 			resourcesByNS[ra.Namespace] = append(resourcesByNS[ra.Namespace], ra.Resources...)
 			claimsByNS[ra.Namespace] = append(claimsByNS[ra.Namespace], ra.VolumeClaims...)
 		}
-		nss := make([]string, constants.DefaultInitValue, len(grouped))
-		for ns := range grouped {
-			nss = append(nss, ns)
-		}
-		slices.Sort(nss)
+		nss := slices.Sorted(maps.Keys(grouped))
 		out := make([]ScopeSpec, constants.DefaultInitValue, len(nss))
 		for _, ns := range nss {
 			apps := grouped[ns]

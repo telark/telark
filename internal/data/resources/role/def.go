@@ -83,6 +83,7 @@ const (
 	ScopeRoles           = "roles"
 	ScopeSettings        = "settings"
 	ScopeProtectionPlans = "protection-plans"
+	ScopeInsights        = "insights"
 )
 
 type Protection struct {

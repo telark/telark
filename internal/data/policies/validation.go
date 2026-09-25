@@ -10,18 +10,10 @@ import (
 const (
 	maxK8sNameBytes        = 63
 	planIDExampleLength    = 16
-	scopeHashFixedLength   = 8
 	separatorLengthSegment = 1
 )
 
-// ValidateCatalog validates the template catalog against the renderer registry. It enforces:
-//   - every catalog entry has a matching registered renderer
-//   - every catalog entry declares a non-empty Code
-//   - every Code is unique across the catalog
-//   - every renderer's TemplateCode matches the catalog Code
-//   - the maximum produced Kyverno Policy name fits in K8s 63-byte DNS label budget
-//
-// Returns the first violation found (empty string when all checks pass).
+// Returns the first violation found, or an empty string when the catalog is consistent.
 func ValidateCatalog() string {
 	codes := map[string]string{}
 	longestCode := constants.EmptyString
@@ -57,5 +49,5 @@ func ValidateCatalog() string {
 }
 
 func projectedNameLength(code string) int {
-	return len("telark-") + planIDExampleLength + separatorLengthSegment + len(code) + separatorLengthSegment + scopeHashFixedLength
+	return len("telark-") + planIDExampleLength + separatorLengthSegment + len(code) + separatorLengthSegment + scopeHashLength
 }

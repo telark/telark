@@ -6,7 +6,6 @@ import (
 	"github.com/telark/data/constants"
 )
 
-// paramStringSlice extracts a non-empty []string from a free-form params map.
 func paramStringSlice(params map[string]any, key string) ([]string, error) {
 	raw, ok := params[key]
 	if !ok || raw == nil {

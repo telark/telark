@@ -132,28 +132,22 @@ type ResponseData struct {
 
 const (
 	// CRStatus is the status of the Application CR (created via NATS/notifier).
-	CRStatusPending   = "Pending"
-	CRStatusPublished = "Published"
-	CRStatusCreated   = "Created"
-	CRStatusFailed    = "Failed"
-
-	// ChangeClass
-	ChangeClassTopology   = "topology"
-	ChangeClassDeployment = "deployment"
-	ChangeClassScaling    = "scaling"
-	ChangeClassConfig     = "config"
-	ChangeClassResources  = "resources"
-	ChangeClassDrift      = "drift"
-	ChangeClassIncident   = "incident"
-	ChangeClassRecovery   = "recovery"
-	ChangeClassInitial    = "initial"
-
-	// Severity
-	SeverityCritical = "critical"
-	SeverityHigh     = "high"
-	SeverityMedium   = "medium"
-
-	// ForceSync phases
+	CRStatusPending         = "Pending"
+	CRStatusPublished       = "Published"
+	CRStatusCreated         = "Created"
+	CRStatusFailed          = "Failed"
+	ChangeClassTopology     = "topology"
+	ChangeClassDeployment   = "deployment"
+	ChangeClassScaling      = "scaling"
+	ChangeClassConfig       = "config"
+	ChangeClassResources    = "resources"
+	ChangeClassDrift        = "drift"
+	ChangeClassIncident     = "incident"
+	ChangeClassRecovery     = "recovery"
+	ChangeClassInitial      = "initial"
+	SeverityCritical        = "critical"
+	SeverityHigh            = "high"
+	SeverityMedium          = "medium"
 	ForceSyncPhaseQueued    = "queued"
 	ForceSyncPhaseRunning   = "running"
 	ForceSyncPhaseCompleted = "completed"

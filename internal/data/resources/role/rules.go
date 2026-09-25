@@ -52,6 +52,11 @@ const (
 )
 
 const (
+	ActionAnalyzeInsights = "analyzeinsights"
+	ActionTriageInsights  = "triageinsights"
+)
+
+const (
 	ActionViewProtectionPlanViolations = "viewprotectionplanviolations"
 	ActionCreateProtectionPlan         = "createprotectionplan"
 	ActionEditProtectionPlan           = "editprotectionplan"
@@ -59,4 +64,13 @@ const (
 	ActionDuplicateProtectionPlan      = "duplicateprotectionplan"
 	ActionReactivateProtectionPlan     = "reactivateprotectionplan"
 	ActionDeleteProtectionPlan         = "deleteprotectionplan"
+	ActionApproveProtectionPlan        = "approveprotectionplan"
+	ActionViewProtectionPlans          = "viewprotectionplans"
+	ActionRejectProtectionPlan         = "rejectprotectionplan"
+	ActionGenerateProtectionPlanReport = "generateprotectionplanreport"
+	ActionViewProtectionPlanReports    = "viewprotectionplanreports"
+	ActionDownloadProtectionPlanReport = "downloadprotectionplanreport"
+	ActionAddProtectionPlanCategory    = "addprotectionplancategory"
+	ActionEditProtectionPlanCategory   = "editprotectionplancategory"
+	ActionDeleteProtectionPlanCategory = "deleteprotectionplancategory"
 )

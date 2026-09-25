@@ -38,6 +38,7 @@ func TestBuiltinRoleScopes(t *testing.T) {
 		role.ScopeRoles,
 		role.ScopeSettings,
 		role.ScopeProtectionPlans,
+		role.ScopeInsights,
 	}
 	uniform := map[string]role.PermissionLevel{
 		constants.RoleIDOwner:       role.PermissionLevelOwner,
@@ -141,5 +142,43 @@ func TestBuiltinRoleProtectionNotShared(t *testing.T) {
 			t.Errorf("roles %s and %s share one Protection pointer", other, r.Name)
 		}
 		seen[r.Protection] = r.Name
+	}
+}
+
+func TestBuiltinPlanTaxonomies(t *testing.T) {
+	wantIDs := []string{
+		constants.CategoryIDEnvProduction,
+		constants.CategoryIDEnvStaging,
+		constants.CategoryIDEnvDevelopment,
+		constants.CategoryIDTagCompliance,
+		constants.CategoryIDTagSecurity,
+		constants.CategoryIDTagBaseline,
+	}
+	wantScopes := []string{
+		category.ScopePlanEnvironments,
+		category.ScopePlanEnvironments,
+		category.ScopePlanEnvironments,
+		category.ScopePlanTags,
+		category.ScopePlanTags,
+		category.ScopePlanTags,
+	}
+
+	var gotIDs, gotScopes []string
+	for _, c := range category.BuiltinCategories {
+		if c.Scope != category.ScopePlanEnvironments && c.Scope != category.ScopePlanTags {
+			continue
+		}
+		if c.Type != category.CategoryTypeBuiltIn {
+			t.Errorf("taxonomy %s has type %q, want %q", c.ID, c.Type, category.CategoryTypeBuiltIn)
+		}
+		gotIDs = append(gotIDs, c.ID)
+		gotScopes = append(gotScopes, c.Scope)
+	}
+
+	if !slices.Equal(gotIDs, wantIDs) {
+		t.Errorf("taxonomy IDs = %v, want %v", gotIDs, wantIDs)
+	}
+	if !slices.Equal(gotScopes, wantScopes) {
+		t.Errorf("taxonomy scopes = %v, want %v", gotScopes, wantScopes)
 	}
 }

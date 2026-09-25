@@ -9,6 +9,7 @@ import (
 
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	"github.com/telark/data/constants"
+	"github.com/telark/data/plans"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -109,19 +110,8 @@ func PolicyName(planID, templateCode string, scope ScopeSpec) string {
 func scopeSuffix(scope ScopeSpec) string {
 	apps := append([]string(nil), scope.ApplicationIDs...)
 	slices.Sort(apps)
-	h := sha256.Sum256([]byte(scope.Namespace + "\x00" + joinSorted(apps)))
+	h := sha256.Sum256([]byte(scope.Namespace + "\x00" + strings.Join(apps, ",")))
 	return hex.EncodeToString(h[:])[:scopeHashLength]
-}
-
-func joinSorted(items []string) string {
-	var out strings.Builder
-	for i, s := range items {
-		if i > constants.DefaultInitValue {
-			out.WriteString(",")
-		}
-		out.WriteString(s)
-	}
-	return out.String()
 }
 
 func PolicyMeta(meta RenderMeta, templateID, templateCode string, scope ScopeSpec) metav1.ObjectMeta {
@@ -141,7 +131,7 @@ func PolicyMeta(meta RenderMeta, templateID, templateCode string, scope ScopeSpe
 }
 
 func FailureAction(mode string) kyvernov1.ValidationFailureAction {
-	if mode == "enforce" {
+	if mode == plans.ModeEnforce {
 		return kyvernov1.Enforce
 	}
 	return kyvernov1.Audit
@@ -209,11 +199,9 @@ func BuildIdentityMatch(scope ScopeSpec, kinds, ops []string) (kyvernov1.MatchRe
 		return match, ok
 	}
 	rd := kyvernov1.ResourceDescription{
-		Kinds:    append([]string(nil), AppIdentityKinds...),
-		Selector: selector,
-	}
-	for _, op := range ops {
-		rd.Operations = append(rd.Operations, kyvernov1.AdmissionOperation(op))
+		Kinds:      append([]string(nil), AppIdentityKinds...),
+		Selector:   selector,
+		Operations: admissionOps(ops),
 	}
 	if !ok {
 		return kyvernov1.MatchResources{Any: kyvernov1.ResourceFilters{{ResourceDescription: rd}}}, true
@@ -229,22 +217,29 @@ func MatchNamed(kinds, ops, names []string) (kyvernov1.MatchResources, bool) {
 		return kyvernov1.MatchResources{}, false
 	}
 	rd := kyvernov1.ResourceDescription{
-		Kinds: append([]string(nil), kinds...),
-		Names: append([]string(nil), names...),
-	}
-	for _, op := range ops {
-		rd.Operations = append(rd.Operations, kyvernov1.AdmissionOperation(op))
+		Kinds:      append([]string(nil), kinds...),
+		Names:      append([]string(nil), names...),
+		Operations: admissionOps(ops),
 	}
 	return kyvernov1.MatchResources{Any: kyvernov1.ResourceFilters{{ResourceDescription: rd}}}, true
 }
 
+func admissionOps(ops []string) []kyvernov1.AdmissionOperation {
+	if len(ops) == constants.DefaultInitValue {
+		return nil
+	}
+	out := make([]kyvernov1.AdmissionOperation, constants.DefaultInitValue, len(ops))
+	for _, op := range ops {
+		out = append(out, kyvernov1.AdmissionOperation(op))
+	}
+	return out
+}
+
 func MatchAllAny(kinds []string, ops []string, appIDs []string) kyvernov1.MatchResources {
 	rd := kyvernov1.ResourceDescription{
-		Kinds:    append([]string(nil), kinds...),
-		Selector: AppScopeSelector(appIDs),
-	}
-	for _, op := range ops {
-		rd.Operations = append(rd.Operations, kyvernov1.AdmissionOperation(op))
+		Kinds:      append([]string(nil), kinds...),
+		Selector:   AppScopeSelector(appIDs),
+		Operations: admissionOps(ops),
 	}
 	return kyvernov1.MatchResources{
 		Any: kyvernov1.ResourceFilters{
@@ -279,8 +274,6 @@ func baseKind(kind string) string {
 	return kind[:idx]
 }
 
-// BuildMatch returns the Kyverno match block for a rule. For namespace scope it matches
-// kinds + ops cluster-wide within the policy's namespace (unchanged behavior).
 func BuildMatch(scope ScopeSpec, kinds []string, ops []string) (kyvernov1.MatchResources, bool) {
 	if len(scope.ApplicationIDs) == constants.DefaultInitValue {
 		return MatchAllAny(kinds, ops, nil), true
@@ -303,11 +296,9 @@ func BuildMatch(scope ScopeSpec, kinds []string, ops []string) (kyvernov1.MatchR
 		// `match.any[].resources.namespaces[]` on namespaced Policy. Scope comes
 		// from ObjectMeta.Namespace on the Policy itself.
 		rd := kyvernov1.ResourceDescription{
-			Kinds: []string{k},
-			Names: append([]string(nil), names...),
-		}
-		for _, op := range ops {
-			rd.Operations = append(rd.Operations, kyvernov1.AdmissionOperation(op))
+			Kinds:      []string{k},
+			Names:      append([]string(nil), names...),
+			Operations: admissionOps(ops),
 		}
 		filters = append(filters, kyvernov1.ResourceFilter{ResourceDescription: rd})
 	}
@@ -349,7 +340,6 @@ func intersectKinds(requested []string, grouped map[string][]string) []string {
 	return out
 }
 
-// SingleRuleSpec describes the per-template inputs to RenderSingleRulePolicy.
 type SingleRuleSpec struct {
 	TemplateID   string
 	TemplateCode string
@@ -373,9 +363,6 @@ func excludeFor(controllers bool) *kyvernov1.MatchResources {
 	return ExcludePlatformWrites()
 }
 
-// RenderSingleRulePolicy is the canonical builder for templates that emit one Kyverno rule. It
-// owns the BuildMatch + PolicyShell + exclusion wiring so each template only declares
-// its own kinds/ops/message/deny.
 func RenderSingleRulePolicy(meta RenderMeta, scope ScopeSpec, spec SingleRuleSpec) *kyvernov1.Policy {
 	build := BuildMatch
 	if spec.MatchAppIdentity {

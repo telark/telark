@@ -1,12 +1,13 @@
 package plans
 
 const (
-	PhaseActive     = "active"
-	PhaseCanceled   = "canceled"
-	PhaseDraft      = "draft"
-	PhaseFailed     = "failed"
-	PhaseScheduled  = "scheduled"
-	PhaseTerminated = "terminated"
+	PhaseActive          = "active"
+	PhaseCanceled        = "canceled"
+	PhaseDraft           = "draft"
+	PhaseFailed          = "failed"
+	PhasePendingApproval = "pending_approval"
+	PhaseScheduled       = "scheduled"
+	PhaseTerminated      = "terminated"
 
 	SeverityCritical = "critical"
 	SeverityHigh     = "high"
@@ -26,12 +27,44 @@ const (
 	HealthHealthy  = "healthy"
 	HealthDrifted  = "drifted"
 	HealthDegraded = "degraded"
+
+	ApprovalModeAutomatic = "automatic"
+	ApprovalModeRequired  = "required"
+
+	ApprovalStatePending  = "pending"
+	ApprovalStateApproved = "approved"
+	ApprovalStateRejected = "rejected"
+
+	ApprovalEventRequested = "requested"
+	ApprovalEventApproved  = "approved"
+	ApprovalEventRejected  = "rejected"
+
+	ApprovalHistoryMax = 20
+
+	ExclusionKindsMax           = 50
+	ExclusionResourcesMax       = 200
+	ExclusionKindMaxLength      = 63
+	ExclusionNameMaxLength      = 253
+	ExclusionNamespaceMaxLength = 63
+	SubresourceSeparator        = "/"
 )
 
 type ProtectionPlanScope struct {
-	Type           string   `json:"type"`
-	ApplicationIDs []string `json:"applicationIds,omitempty"`
-	Namespaces     []string `json:"namespaces,omitempty"`
+	Type           string                         `json:"type"`
+	ApplicationIDs []string                       `json:"applicationIds,omitempty"`
+	Namespaces     []string                       `json:"namespaces,omitempty"`
+	Exclusions     *ProtectionPlanScopeExclusions `json:"exclusions,omitempty"`
+}
+
+type ProtectionPlanScopeExclusions struct {
+	Kinds     []string                         `json:"kinds,omitempty"`
+	Resources []ProtectionPlanExcludedResource `json:"resources,omitempty"`
+}
+
+type ProtectionPlanExcludedResource struct {
+	Kind      string `json:"kind"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
 }
 
 type ProtectionPlanPolicy struct {
@@ -50,6 +83,23 @@ type ProtectionPlanHealthDetail struct {
 	Present       bool   `json:"present"`
 	Ready         bool   `json:"ready"`
 	FailureAction string `json:"failureAction"`
+}
+
+type ProtectionPlanApprovalEvent struct {
+	Event   string  `json:"event"`
+	By      string  `json:"by"`
+	At      string  `json:"at"`
+	Comment *string `json:"comment,omitempty"`
+}
+
+type ProtectionPlanApproval struct {
+	State       string                        `json:"state"`
+	RequestedBy string                        `json:"requestedBy"`
+	RequestedAt string                        `json:"requestedAt"`
+	DecidedBy   *string                       `json:"decidedBy,omitempty"`
+	DecidedAt   *string                       `json:"decidedAt,omitempty"`
+	Comment     *string                       `json:"comment,omitempty"`
+	History     []ProtectionPlanApprovalEvent `json:"history,omitempty"`
 }
 
 type ProtectionPlan struct {
@@ -75,6 +125,10 @@ type ProtectionPlan struct {
 	TerminatedAt     *string                      `json:"terminatedAt,omitempty"`
 	TerminatedBy     *string                      `json:"terminatedBy,omitempty"`
 	ParticipantsIDs  []string                     `json:"participantsIDs"`
+	EnvironmentID    string                       `json:"environmentID,omitempty"`
+	TagIDs           []string                     `json:"tagIDs,omitempty"`
+	ApprovalMode     string                       `json:"approvalMode,omitempty"`
+	Approval         *ProtectionPlanApproval      `json:"approval,omitempty"`
 	Health           string                       `json:"health"`
 	HealthCheckedAt  *string                      `json:"healthCheckedAt,omitempty"`
 	HealthDetail     []ProtectionPlanHealthDetail `json:"healthDetail,omitempty"`

@@ -7,7 +7,8 @@ const (
 	FieldSnapshots          = "snapshots"
 	FieldCluster            = "cluster"
 	FieldOIDC               = "oidc"
-	FieldAPIKey             = "apiKey"
+	FieldAIModel            = "model"
+	FieldAIAutoAnalyze      = "autoAnalyze"
 )
 
 type GlobalConfig struct {
@@ -24,9 +25,9 @@ type UserSettings struct {
 }
 
 type AIConfig struct {
-	Enabled  bool   `json:"enabled"`
-	Provider string `json:"provider"`
-	APIKey   string `json:"apiKey,omitempty"`
+	Enabled     bool   `json:"enabled"`
+	Model       string `json:"model"`
+	AutoAnalyze bool   `json:"autoAnalyze"`
 }
 
 type Cluster struct {

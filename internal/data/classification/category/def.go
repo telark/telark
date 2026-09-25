@@ -5,11 +5,11 @@ type CategoryAsClassification struct {
 }
 
 type Category struct {
-	ID           string      `json:"id"`
-	Name         string      `json:"name"`
-	Scope        string      `json:"scope"`
+	ID           string       `json:"id"`
+	Name         string       `json:"name"`
+	Scope        string       `json:"scope"`
 	Type         CategoryType `json:"type"`
-	CreationDate string      `json:"creationDate"`
+	CreationDate string       `json:"creationDate"`
 }
 
 type CategoryType string
@@ -19,3 +19,7 @@ const (
 	CategoryTypeCustom  CategoryType = "custom"
 )
 
+const (
+	ScopePlanEnvironments = "plan-environments"
+	ScopePlanTags         = "plan-tags"
+)

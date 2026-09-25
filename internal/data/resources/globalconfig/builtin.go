@@ -20,7 +20,7 @@ func DefaultGlobalConfig() GlobalConfig {
 			FetchIntervalSeconds: constants.DefaultFetchIntervalSeconds,
 		},
 		Snapshots: SnapshotsConfig{MaxPerApp: constants.DefaultSnapshotsMaxPerApp},
-		AI:        AIConfig{},
+		AI:        AIConfig{Enabled: true, Model: constants.DefaultAnalyzerModel, AutoAnalyze: false},
 		Cluster:   Cluster{},
 		OIDC:      OIDCConfig{},
 	}

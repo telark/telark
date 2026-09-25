@@ -43,6 +43,48 @@ var BuiltinCategories = []Category{
 		Type:         CategoryTypeBuiltIn,
 		CreationDate: constants.BuiltinCreationDate,
 	},
+	{
+		ID:           constants.CategoryIDEnvProduction,
+		Name:         "Production",
+		Scope:        ScopePlanEnvironments,
+		Type:         CategoryTypeBuiltIn,
+		CreationDate: constants.BuiltinCreationDate,
+	},
+	{
+		ID:           constants.CategoryIDEnvStaging,
+		Name:         "Staging",
+		Scope:        ScopePlanEnvironments,
+		Type:         CategoryTypeBuiltIn,
+		CreationDate: constants.BuiltinCreationDate,
+	},
+	{
+		ID:           constants.CategoryIDEnvDevelopment,
+		Name:         "Development",
+		Scope:        ScopePlanEnvironments,
+		Type:         CategoryTypeBuiltIn,
+		CreationDate: constants.BuiltinCreationDate,
+	},
+	{
+		ID:           constants.CategoryIDTagCompliance,
+		Name:         "Compliance",
+		Scope:        ScopePlanTags,
+		Type:         CategoryTypeBuiltIn,
+		CreationDate: constants.BuiltinCreationDate,
+	},
+	{
+		ID:           constants.CategoryIDTagSecurity,
+		Name:         "Security",
+		Scope:        ScopePlanTags,
+		Type:         CategoryTypeBuiltIn,
+		CreationDate: constants.BuiltinCreationDate,
+	},
+	{
+		ID:           constants.CategoryIDTagBaseline,
+		Name:         "Baseline",
+		Scope:        ScopePlanTags,
+		Type:         CategoryTypeBuiltIn,
+		CreationDate: constants.BuiltinCreationDate,
+	},
 }
 
 // Built-ins and user-created categories share one resource. Built-ins are restored to

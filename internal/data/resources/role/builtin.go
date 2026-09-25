@@ -18,6 +18,7 @@ var builtinScopes = []string{
 	ScopeRoles,
 	ScopeSettings,
 	ScopeProtectionPlans,
+	ScopeInsights,
 }
 
 func builtinProtection() *Protection {

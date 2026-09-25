@@ -1,55 +1,62 @@
 package insights
 
-// Signal is the per-application input discovery derives from an Application CRD
-// and hands to the enrichment service.
-type Signal struct {
-	Name          string   `json:"name"`
-	Namespace     string   `json:"namespace"`
-	Images        []string `json:"images"`
-	Ports         []int    `json:"ports"`
-	EnvVarKeys    []string `json:"envVarKeys"`
-	ResourceKinds []string `json:"resourceKinds"`
-	HasIngress    bool     `json:"hasIngress"`
-	HasPVC        bool     `json:"hasPVC"`
+const (
+	TriggerManual   = "manual"
+	TriggerIncident = "incident"
+	TriggerRecovery = "recovery"
 
-	// HA / health
-	Replicas      int    `json:"replicas"`
-	ReadyReplicas int    `json:"readyReplicas"`
-	HealthStatus  string `json:"healthStatus"`
+	RuntimeStateAbsent       = "absent"
+	RuntimeStateUnreachable  = "unreachable"
+	RuntimeStateModelMissing = "model_missing"
+	RuntimeStatePulling      = "pulling"
+	RuntimeStateUnsupported  = "unsupported"
+	RuntimeStateReady        = "ready"
 
-	// posture
-	WorkloadKinds    []string `json:"workloadKinds"`
-	HasService       bool     `json:"hasService"`
-	HasHPA           bool     `json:"hasHPA"`
-	HasNetworkPolicy bool     `json:"hasNetworkPolicy"`
+	ModeFast = "fast"
+	ModeDeep = "deep"
+)
 
-	// config source
-	SecretRefs    []string `json:"secretRefs"`
-	ConfigMapRefs []string `json:"configMapRefs"`
-
-	// managed
-	ManagedBy string `json:"managedBy"`
-	Chart     string `json:"chart"`
-
-	// stability
-	ChangeVelocityPerDay float64 `json:"changeVelocityPerDay"`
-	Incidents            int     `json:"incidents"`
-	Recoveries           int     `json:"recoveries"`
-
-	// per-workload compact usage
-	Workloads []WorkloadSignal `json:"workloads"`
+type Job struct {
+	Namespace  string `json:"namespace"`
+	Name       string `json:"name"`
+	Trigger    string `json:"trigger"`
+	Generation int    `json:"generation"`
 }
 
-type WorkloadSignal struct {
-	Name      string `json:"name"`
-	Kind      string `json:"kind"`
-	Replicas  int    `json:"replicas"`
-	QoS       string `json:"qos"`
-	CPU       string `json:"cpu"`
-	Memory    string `json:"memory"`
-	LimitsSet bool   `json:"limitsSet"`
+type AnalyzeResponse struct {
+	RunID  string `json:"runId"`
+	Status string `json:"status"`
 }
 
-type DispatchRequest struct {
-	Items []Signal `json:"items"`
+type RuntimeStatus struct {
+	State    string        `json:"state"`
+	Model    string        `json:"model"`
+	Reason   string        `json:"reason"`
+	Mode     string        `json:"mode"`
+	AutoPull bool          `json:"autoPull"`
+	Pull     *PullProgress `json:"pull,omitempty"`
+}
+
+type PullProgress struct {
+	Model     string `json:"model"`
+	Status    string `json:"status"`
+	Completed int64  `json:"completed"`
+	Total     int64  `json:"total"`
+}
+
+type TriageRequest struct {
+	Action string `json:"action"`
+}
+
+type ValidateModelRequest struct {
+	Model string `json:"model"`
+}
+
+type ValidateModelResponse struct {
+	OK           bool     `json:"ok"`
+	Model        string   `json:"model"`
+	License      string   `json:"license"`
+	Warning      string   `json:"warning"`
+	Reason       string   `json:"reason"`
+	Capabilities []string `json:"capabilities"`
 }

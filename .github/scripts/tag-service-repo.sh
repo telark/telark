@@ -5,6 +5,19 @@ cd "$SERVICE_PATH"
 git config user.name "github-actions"
 git config user.email "action@github.com"
 
+# The release step rewrote the package version; commit it so the tag points at
+# the exact source the image was built from.
+changed=()
+for f in package.json package-lock.json; do
+  [ -f "$f" ] && [ -n "$(git status --porcelain -- "$f")" ] && changed+=("$f")
+done
+if [ "${#changed[@]}" -gt 0 ]; then
+  git add -- "${changed[@]}"
+  git commit -m "chore(release): v${SERVICE_VERSION}"
+  git pull --rebase origin "$BRANCH"
+  git push origin "HEAD:${BRANCH}"
+fi
+
 last_commit_short=$(git rev-parse --short HEAD)
 last_commit_message=$(git log -1 --pretty=format:"%s")
 last_commit_author=$(git log -1 --pretty=format:"%an")

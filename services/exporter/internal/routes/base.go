@@ -117,6 +117,7 @@ func protectionPlanRoutes() []router.Route {
 func reportRoutes() []router.Route {
 	return []router.Route{
 		router.CreateRoute(base.Post, reportsendpoints.CreatePlanReport, reportshandler.CreatePlanReport()),
+		router.CreateRoute(base.Get, reportsendpoints.ListReports, reportshandler.ListReports()),
 		router.CreateRoute(base.Get, reportsendpoints.ListPlanReports, reportshandler.ListPlanReports()),
 		router.CreateRoute(base.Get, reportsendpoints.DownloadPlanReport, reportshandler.DownloadPlanReport()),
 		router.CreateRoute(base.Post, reportsendpoints.PutPlanReportLedger, reportshandler.PutPlanReportLedger()),

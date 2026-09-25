@@ -3,6 +3,7 @@ package planhealth
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/telark/data/plans"
 	dpolicies "github.com/telark/data/policies"
@@ -134,4 +135,21 @@ func TestToPatch(t *testing.T) {
 	}, "now")
 	testutil.Equal(t, "detail rows", len(withDetail.HealthDetail), constants.DefaultAddValue)
 	testutil.Equal(t, "detail name", withDetail.HealthDetail[0].PolicyName, healthPolicy)
+}
+
+// Every non-active transition already stores health=unknown, so a status poll on such a plan
+// must not PATCH it again: that only churned lastUpdatedAt/By=system on every poll.
+func TestCheckSkipsPatchForNonActive(t *testing.T) {
+	store := &fakePlanStore{phase: plans.PhaseCanceled}
+	deps := health.Deps{
+		Exporter: store,
+		Logger:   &recordingLogger{},
+		Clock:    func() time.Time { return time.Unix(0, 0).UTC() },
+	}
+
+	plan, res, err := health.Check(context.Background(), deps, healthPolicy)
+	testutil.Equal(t, labelErr, err, nil)
+	testutil.Equal(t, "result health", res.Health, plans.HealthUnknown)
+	testutil.Equal(t, "plan health", plan.Health, plans.HealthUnknown)
+	testutil.Equal(t, "patched health", store.health(healthPolicy), constants.EmptyString)
 }

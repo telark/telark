@@ -21,6 +21,7 @@ const (
 
 const (
 	ErrAuthzGlobalConfigDenied    = "you do not have permission to change this setting"
+	ErrAuthzPlanLifecycleDenied   = "lifecycle, approval and policy fields of a protection plan are managed by the platform"
 	ErrAuthzPrivilegedFieldDenied = "you do not have permission to change this user's roles, groups or status"
 	ErrAuthzSelfPrivilegeChange   = "you cannot change your own roles, groups or status"
 	ErrAuthzNotSessionOwner       = "you can only access your own sessions"
@@ -28,6 +29,12 @@ const (
 	ErrAuthzCategoryScopeDenied   = "you do not have permission to manage categories for this scope"
 	ErrAuthzUnknownCategoryScope  = "this category scope is not recognized"
 	ErrRoleDeletionPrevented      = "this role is protected and cannot be deleted"
+)
+
+const (
+	CategoryOpCreate = "create"
+	CategoryOpEdit   = "edit"
+	CategoryOpDelete = "delete"
 )
 
 const (

@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
+	"strconv"
 
 	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/messages"
@@ -49,6 +51,21 @@ func ListPlanReports(w http.ResponseWriter, planID string) {
 	responseutils.LogAndSendResponse(w, http.StatusOK, response.OperationSuccess, string(messages.SuccessListRes), metas, nil)
 }
 
+func ListReports(w http.ResponseWriter, query url.Values) {
+	filter, err := reportsutil.ParseListFilter(query)
+	if err != nil {
+		sendStoreError(w, err, dataerrors.ErrListRes, constants.ReportsPlansSubdir)
+		return
+	}
+	metas, total, err := reportsutil.ListAll(envmanager.GetReportsPath(), filter)
+	if err != nil {
+		sendStoreError(w, err, dataerrors.ErrListRes, constants.ReportsPlansSubdir)
+		return
+	}
+	w.Header().Set(reportseps.HeaderTotalCount, strconv.Itoa(total))
+	responseutils.LogAndSendResponse(w, http.StatusOK, response.OperationSuccess, string(messages.SuccessListRes), metas, nil)
+}
+
 // The whole body is in memory before any header goes out, so a read failure
 // still yields a clean error envelope instead of a truncated document.
 func DownloadPlanReport(w http.ResponseWriter, planID, reportID, format string) {
@@ -85,7 +102,8 @@ func GetPlanReportLedger(w http.ResponseWriter, planID string) {
 
 func sendStoreError(w http.ResponseWriter, err error, failure dataerrors.Error, id string) {
 	switch {
-	case errors.Is(err, reportsutil.ErrBadID), errors.Is(err, reportsutil.ErrBadFormat), errors.Is(err, reportsutil.ErrInvalidLedger):
+	case errors.Is(err, reportsutil.ErrBadID), errors.Is(err, reportsutil.ErrBadFormat), errors.Is(err, reportsutil.ErrInvalidLedger),
+		errors.Is(err, reportsutil.ErrBadFilter):
 		sharedutils.LogByStatusAndSend(w, http.StatusBadRequest, response.OperationError, err.Error(), nil, err)
 	case errors.Is(err, os.ErrNotExist):
 		sharedutils.LogByStatusAndSend(w, http.StatusNotFound, response.OperationNotFound, string(constants.ErrReportNotFound), nil, err)

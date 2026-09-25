@@ -70,6 +70,18 @@ runs:
         build_type: ${{ inputs.build_type }}
         values_file_path: ${{ inputs.values_file }}
 
+    # Before the build: the UI bakes package.json's version into its bundle, so
+    # the image, the tag and the source repo must all carry the bumped version.
+    - name: Sync source package.json version
+      if: ${{ inputs.source_repo_path != '' }}
+      shell: bash
+      working-directory: ${{ inputs.source_repo_path }}
+      env:
+        VERSION: ${{ steps.service_data.outputs.service_new_version }}
+      run: |
+        [ -f package.json ] || exit 0
+        npm version "$VERSION" --no-git-tag-version --allow-same-version
+
     - name: Read image config from helm values
       id: image
       uses: ./release/.github/actions/helm-image-config

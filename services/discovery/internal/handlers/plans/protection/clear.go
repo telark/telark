@@ -39,7 +39,7 @@ func Clear(w http.ResponseWriter, r *http.Request) {
 		w,
 		http.StatusOK,
 		response.OperationSuccess,
-		string(messages.SuccessDeleteRes),
+		planMessage(messages.SuccessDeleteRes, planID),
 		nil,
 		nil,
 	)

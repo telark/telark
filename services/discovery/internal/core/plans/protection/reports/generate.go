@@ -21,17 +21,19 @@ func NewGenerator(
 	rdb *redis.Client,
 	logger Logger,
 	maxViolations int,
+	checkpointEvery time.Duration,
 ) *Generator {
 	return &Generator{
-		store:         store,
-		dyn:           dyn,
-		resolveApps:   resolveApps,
-		rdb:           rdb,
-		clock:         func() time.Time { return time.Now().UTC() },
-		logger:        logger,
-		maxViolations: maxViolations,
-		sem:           make(chan struct{}, MaxConcurrentRenders),
-		captureSlot:   make(chan struct{}, CaptureSlots),
+		store:           store,
+		dyn:             dyn,
+		resolveApps:     resolveApps,
+		rdb:             rdb,
+		clock:           func() time.Time { return time.Now().UTC() },
+		logger:          logger,
+		maxViolations:   maxViolations,
+		checkpointEvery: checkpointEvery,
+		sem:             make(chan struct{}, MaxConcurrentRenders),
+		captureSlot:     make(chan struct{}, CaptureSlots),
 	}
 }
 

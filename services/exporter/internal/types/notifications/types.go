@@ -24,6 +24,8 @@ const (
 	TypeRollbackCompleted      = "rollback.completed"
 	TypeRoleChanged            = "role.changed"
 	TypeGroupMembershipChanged = "group.membership.changed"
+	TypePlanApprovalRequested  = "plan.approval.requested"
+	TypePlanApprovalDecided    = "plan.approval.decided"
 )
 
 const (

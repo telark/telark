@@ -4,8 +4,11 @@ import (
 	"context"
 	"sync"
 
+	"github.com/telark/discovery/internal/constants"
 	applicationscore "github.com/telark/discovery/internal/core/applications/core"
 	appsnapshot "github.com/telark/discovery/internal/core/applications/snapshot"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/tools/cache"
 )
 
 var globalM *Manager
@@ -40,6 +43,17 @@ func Global() *Manager {
 	informerMu.Lock()
 	defer informerMu.Unlock()
 	return globalM
+}
+
+// Test seam: installs, as Run would, a manager whose informer cache holds objs.
+func UseCacheForTest(objs ...*unstructured.Unstructured) {
+	inf := cache.NewSharedIndexInformerWithOptions(&cache.ListWatch{}, &unstructured.Unstructured{}, cache.SharedIndexInformerOptions{})
+	for _, obj := range objs {
+		_ = inf.GetIndexer().Add(obj)
+	}
+	informerMu.Lock()
+	globalM = &Manager{informers: map[string]cache.SharedIndexInformer{constants.EmptyString: inf}}
+	informerMu.Unlock()
 }
 
 // CancelAppCoalesce flushes any buffered pre-state for appName, then clears

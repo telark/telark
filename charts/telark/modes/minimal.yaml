@@ -46,9 +46,9 @@ services:
       PROTECTION_PLAN_REPORT_CHECKPOINT_SEC: "1800"
     pdb:
       enabled: false
-  enrichment:
+  analyzer:
     env:
-      NUM_WORKERS: "1"
+      ANALYZER_REVIEW_APPS_PER_MIN: "10"
     pdb:
       enabled: false
   notifier:

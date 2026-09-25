@@ -40,6 +40,7 @@ type Service struct {
 	reports        *reports.Generator
 	clock          func() time.Time
 	logger         Logger
+	notifier       *ApprovalNotifier
 }
 
 func NewService(
@@ -50,6 +51,7 @@ func NewService(
 	listNamespaces validation.NamespaceLister,
 	reportsGen *reports.Generator,
 	logger Logger,
+	notifier *ApprovalNotifier,
 ) *Service {
 	return &Service{
 		applier:        applier,
@@ -60,6 +62,7 @@ func NewService(
 		reports:        reportsGen,
 		clock:          func() time.Time { return time.Now().UTC() },
 		logger:         logger,
+		notifier:       notifier,
 	}
 }
 
@@ -69,6 +72,7 @@ func (s *Service) ResolveApps() applications.Resolver         { return s.resolve
 func (s *Service) ListNamespaces() validation.NamespaceLister { return s.listNamespaces }
 func (s *Service) AppLogger() Logger                          { return s.logger }
 func (s *Service) Clock() time.Time                           { return s.clock() }
+func (s *Service) Notifier() *ApprovalNotifier                { return s.notifier }
 
 func (s *Service) HealthCheck(ctx context.Context, planID string) (*plans.ProtectionPlan, health.Result, error) {
 	return health.Check(ctx, s.healthDeps(), planID)
@@ -162,7 +166,7 @@ func (s *Service) Prepare(
 	}
 
 	plan := s.buildPlan(planID, userID, req)
-	s.assignInitialPhase(plan)
+	InitialPhase(plan, s.clock())
 
 	if shouldRender(plan) {
 		if err := s.renderAndDeploy(ctx, plan, resolved); err != nil {
@@ -176,6 +180,10 @@ func (s *Service) Prepare(
 	}
 	if plan.Phase == plans.PhaseActive {
 		s.StampFirstHealth(plan.ID)
+	}
+	if plan.Phase == plans.PhasePendingApproval {
+		s.logger.Info(fmt.Sprintf(LogPlanParked, plan.ID, userID))
+		s.notifier.RequestApproval(plan)
 	}
 	return plan, nil
 }
@@ -232,6 +240,9 @@ func (s *Service) Reactivate(ctx context.Context, userID, planID string) (*plans
 	if expired {
 		return nil, validation.Invalid(string(ErrReactivateExpired))
 	}
+	if RequiresApproval(plan) {
+		return s.park(userID, planID, plan, now)
+	}
 
 	plan.Phase = phase
 	plan.RenderedPolicies = nil
@@ -245,6 +256,123 @@ func (s *Service) Reactivate(ctx context.Context, userID, planID string) (*plans
 		return nil, err
 	}
 	return s.exporter.Get(planID)
+}
+
+// Nothing is deployed for a required plan until an approver decides.
+func (s *Service) park(userID, planID string, plan *plans.ProtectionPlan, now time.Time) (*plans.ProtectionPlan, error) {
+	nowStr := now.Format(globalshared.DefaultTimeFormat)
+	if err := s.exporter.PatchRawOrError(userID, planID, BuildPendingPatch(plan, userID, nowStr)); err != nil {
+		return nil, err
+	}
+	parked, err := s.exporter.Get(planID)
+	if err != nil {
+		return nil, err
+	}
+	s.logger.Info(fmt.Sprintf(LogPlanParked, planID, userID))
+	s.notifier.RequestApproval(parked)
+	return parked, nil
+}
+
+func (s *Service) Decide(
+	ctx context.Context,
+	userID, planID string,
+	req planseps.DecideProtectionPlanRequest,
+) (*plans.ProtectionPlan, error) {
+	plan, err := s.exporter.Get(planID)
+	if err != nil {
+		return nil, err
+	}
+	if err := ValidateDecision(plan, userID, req); err != nil {
+		return nil, err
+	}
+	if req.Decision == DecisionRejected {
+		return s.reject(ctx, userID, plan, req.Comment)
+	}
+	return s.approve(ctx, userID, plan, req)
+}
+
+func (s *Service) reject(
+	ctx context.Context,
+	userID string,
+	plan *plans.ProtectionPlan,
+	comment *string,
+) (*plans.ProtectionPlan, error) {
+	if err := s.applier.CleanupByPlanID(ctx, plan.ID); err != nil {
+		s.logger.Error(fmt.Sprintf("protection-plan reject cleanup failed plan=%s err=%v", plan.ID, err))
+	}
+	now := s.clock().Format(globalshared.DefaultTimeFormat)
+	if err := s.exporter.PatchRawOrError(userID, plan.ID, BuildRejectPatch(plan, userID, *comment, now)); err != nil {
+		return nil, err
+	}
+	s.logger.Info(fmt.Sprintf(LogPlanRejected, plan.ID, userID))
+	s.notifier.Decided(plan, DecisionRejected, comment)
+	return s.exporter.Get(plan.ID)
+}
+
+func (s *Service) approve(
+	ctx context.Context,
+	userID string,
+	plan *plans.ProtectionPlan,
+	req planseps.DecideProtectionPlanRequest,
+) (*plans.ProtectionPlan, error) {
+	if err := validation.NamespaceScope(ctx, plan.Scope.Type, plan.Scope.Namespaces, s.listNamespaces); err != nil {
+		return nil, err
+	}
+	resolved, err := s.resolveScopeForPlan(ctx, plan)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateTemplatesForPlan(plan); err != nil {
+		return nil, err
+	}
+
+	now := s.clock()
+	phase, expired := computeReactivatePhase(plan, now)
+	if expired {
+		return nil, validation.Invalid(string(ErrReactivateExpired))
+	}
+	plan.Phase = phase
+	plan.RenderedPolicies = nil
+	active := phase == plans.PhaseActive
+	if active {
+		if err := s.renderAndDeploy(ctx, plan, resolved); err != nil {
+			return nil, err
+		}
+		if err := s.confirmStillPending(ctx, plan.ID, req.RequestedAt); err != nil {
+			return nil, err
+		}
+	}
+
+	nowStr := now.Format(globalshared.DefaultTimeFormat)
+	if err := s.exporter.PatchRawOrError(userID, plan.ID, BuildApprovePatch(plan, phase, userID, req.Comment, nowStr)); err != nil {
+		if active {
+			_ = s.applier.CleanupByPlanID(ctx, plan.ID)
+		}
+		return nil, err
+	}
+	if active {
+		s.StampFirstHealth(plan.ID)
+	}
+	s.logger.Info(fmt.Sprintf(LogPlanApproved, plan.ID, userID, phase))
+	s.notifier.Decided(plan, DecisionApproved, req.Comment)
+	return s.exporter.Get(plan.ID)
+}
+
+// Defense in depth behind the handler lock: a controller expiry or a material edit that
+// landed between the approver's read and the deploy must not leave policies applied.
+func (s *Service) confirmStillPending(ctx context.Context, planID, requestedAt string) error {
+	current, err := s.exporter.Get(planID)
+	switch {
+	case err != nil:
+	case current.Phase != plans.PhasePendingApproval || current.Approval == nil:
+		err = ErrDecisionNotPending
+	case current.Approval.RequestedAt != requestedAt:
+		err = ErrDecisionStale
+	default:
+		return nil
+	}
+	_ = s.applier.CleanupByPlanID(ctx, planID)
+	return err
 }
 
 func (s *Service) persistReactivate(
@@ -282,29 +410,7 @@ func computeReactivatePhase(plan *plans.ProtectionPlan, now time.Time) (string, 
 }
 
 func buildReactivatePatch(plan *plans.ProtectionPlan, userID string, now time.Time) map[string]any {
-	nowStr := now.Format(globalshared.DefaultTimeFormat)
-	rendered := plan.RenderedPolicies
-	if rendered == nil {
-		rendered = []string{}
-	}
-	patch := map[string]any{
-		FieldPhase:            plan.Phase,
-		FieldReason:           nil,
-		FieldRenderedPolicies: rendered,
-		FieldTerminatedAt:     nil,
-		FieldTerminatedBy:     nil,
-		FieldLastUpdatedAt:    nowStr,
-		FieldLastUpdatedBy:    userID,
-		FieldHealth:           plans.HealthUnknown,
-	}
-	if plan.Phase == plans.PhaseActive {
-		patch[FieldStartedAt] = nowStr
-		patch[FieldStartedBy] = userID
-	} else {
-		patch[FieldStartedAt] = nil
-		patch[FieldStartedBy] = nil
-	}
-	return patch
+	return reactivateShape(plan.Phase, plan.RenderedPolicies, userID, now.Format(globalshared.DefaultTimeFormat))
 }
 
 func validateTemplatesForPlan(plan *plans.ProtectionPlan) error {
@@ -320,7 +426,17 @@ func validateTemplatesForPlan(plan *plans.ProtectionPlan) error {
 	return nil
 }
 
-func (s *Service) Activate(ctx context.Context, plan *plans.ProtectionPlan) error {
+// Re-reads before deploying: the controller's snapshot may predate a re-park or cancel.
+func (s *Service) Activate(ctx context.Context, snapshot *plans.ProtectionPlan) error {
+	plan, err := s.exporter.Get(snapshot.ID)
+	if err != nil {
+		return err
+	}
+	if !Activatable(plan) {
+		s.logger.Info(fmt.Sprintf(LogActivateSkippedStale, plan.ID, plan.Phase))
+		return nil
+	}
+
 	resolved, err := s.resolveScopeForPlan(ctx, plan)
 	if err != nil {
 		shared.LogDeployFailure(s.logger, plan, "activate-resolve-scope", err)
@@ -425,6 +541,7 @@ func (s *Service) buildPlan(
 		Type:           req.Scope.Type,
 		ApplicationIDs: req.Scope.ApplicationIDs,
 		Namespaces:     req.Scope.Namespaces,
+		Exclusions:     plans.NormalizeExclusions(req.Scope.Exclusions),
 	}
 	plan := &plans.ProtectionPlan{
 		ID:              planID,
@@ -448,22 +565,8 @@ func (s *Service) buildPlan(
 	if req.EnvironmentID != nil {
 		plan.EnvironmentID = *req.EnvironmentID
 	}
+	plan.ApprovalMode = ResolveApprovalMode(req.ApprovalMode, plan.EnvironmentID)
 	return plan
-}
-
-func (s *Service) assignInitialPhase(plan *plans.ProtectionPlan) {
-	now := s.clock()
-	if plan.TimeMode == plans.TimeModeTimeRange && plan.TimeRange != nil {
-		startAt, err := time.Parse(time.RFC3339, plan.TimeRange.StartAt)
-		if err == nil && startAt.After(now) {
-			plan.Phase = plans.PhaseScheduled
-			return
-		}
-	}
-	plan.Phase = plans.PhaseActive
-	nowStr := now.Format(globalshared.DefaultTimeFormat)
-	plan.StartedAt = &nowStr
-	plan.StartedBy = &plan.CreatedBy
 }
 
 func (s *Service) renderAndDeploy(
@@ -585,7 +688,10 @@ func (s *Service) resolveScopeForPlan(
 }
 
 func cancellable(phase string) bool {
-	return phase == plans.PhaseActive || phase == plans.PhaseScheduled || phase == plans.PhaseFailed
+	return phase == plans.PhaseActive ||
+		phase == plans.PhaseScheduled ||
+		phase == plans.PhaseFailed ||
+		phase == plans.PhasePendingApproval
 }
 
 func reactivatable(phase string) bool {
@@ -624,6 +730,7 @@ func toCreateRequest(plan *plans.ProtectionPlan) planseps.CreateProtectionPlanRe
 			Type:           plan.Scope.Type,
 			ApplicationIDs: plan.Scope.ApplicationIDs,
 			Namespaces:     plan.Scope.Namespaces,
+			Exclusions:     plan.Scope.Exclusions,
 		},
 		Policies:         toPolicyRequests(plan.Policies),
 		Mode:             plan.Mode,
@@ -643,6 +750,8 @@ func toCreateRequest(plan *plans.ProtectionPlan) planseps.CreateProtectionPlanRe
 		ParticipantsIDs:  plan.ParticipantsIDs,
 		EnvironmentID:    plan.EnvironmentID,
 		TagIDs:           plan.TagIDs,
+		ApprovalMode:     plan.ApprovalMode,
+		Approval:         toApprovalRequest(plan.Approval),
 		Health:           plan.Health,
 		HealthCheckedAt:  plan.HealthCheckedAt,
 		HealthDetail:     health.ToDetailRequests(plan.HealthDetail),
@@ -655,6 +764,25 @@ func toPolicyRequests(items []plans.ProtectionPlanPolicy) []planseps.PolicyReque
 		out = append(out, planseps.PolicyRequest{TemplateID: item.TemplateID, Params: item.Params})
 	}
 	return out
+}
+
+func toApprovalRequest(a *plans.ProtectionPlanApproval) *planseps.ApprovalRequest {
+	if a == nil {
+		return nil
+	}
+	history := make([]planseps.ApprovalEventRequest, constants.DefaultInitValue, len(a.History))
+	for _, e := range a.History {
+		history = append(history, planseps.ApprovalEventRequest{Event: e.Event, By: e.By, At: e.At, Comment: e.Comment})
+	}
+	return &planseps.ApprovalRequest{
+		State:       a.State,
+		RequestedBy: a.RequestedBy,
+		RequestedAt: a.RequestedAt,
+		DecidedBy:   a.DecidedBy,
+		DecidedAt:   a.DecidedAt,
+		Comment:     a.Comment,
+		History:     history,
+	}
 }
 
 func fromTimeRange(tr *plans.ProtectionPlanTimeRange) *planseps.TimeRangeRequest {

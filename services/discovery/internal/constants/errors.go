@@ -24,8 +24,6 @@ const (
 	// API Errors
 	ErrPatchApplicationReturnedNilResponse errors.Error = "patch application returned nil response"
 	ErrPatchApplicationFailed              errors.Error = "patch application failed: status=%d message=%s"
-	ErrDispatchInsightsNilResponse         errors.Error = "insights dispatch returned nil response"
-	ErrDispatchInsightsFailed              errors.Error = "insights dispatch failed: status=%d message=%s"
 	ErrNotificationEmitFailed              errors.Error = "emit notification: status=%d message=%s"
 	ErrRestCallFailed                      errors.Error = "rest call failed: status=%d message=%s"
 
@@ -41,7 +39,7 @@ const (
 	ErrPutLedgerFailed    errors.Error = "put report ledger failed: %v"
 	ErrReportPanic        errors.Error = "report generation panicked: %v"
 
-	// Enrichment Pre-warming
+	// Discovery Pre-warming
 	ErrPrewarmListNamespaces         errors.Error = "pre-warming: failed to list namespaces: %v"
 	ErrPrewarmListResources          errors.Error = "pre-warming: failed to list resources: %v"
 	ErrPrewarmUnexpectedResponseData errors.Error = "pre-warming: unexpected applications response data type"
@@ -162,4 +160,5 @@ const (
 	ErrAppResetLeaderForwardFailed        errors.Error = "reset forward to leader %s failed: %v"
 	ErrAppResetLeaderForwardStatus        errors.Error = "reset forward to leader returned status %d: %s"
 	ErrExcludedNamespacesUnavailable      errors.Error = "excluded namespaces unavailable: %v"
+	ErrInsightsQueryInvalid               errors.Error = "invalid value for query parameter %q"
 )

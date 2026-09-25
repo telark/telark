@@ -24,17 +24,17 @@ const (
 )
 
 const (
-	RailResourcesEmpty    = "resources_empty"
-	RailNamespaceExists   = "namespace_exists"
-	RailNamespaceIncluded = "namespace_included"
-	RailNoActiveRollback  = "no_active_rollback"
-	RailNoForceSync       = "no_force_sync"
-	RailNoCoalesceBuffer  = "no_coalesce_buffer"
-	RailNoGenerationLock  = "no_generation_lock"
-	RailNoEnrichmentLock  = "no_enrichment_lock"
-	RailSustainedAbsence  = "sustained_absence"
-	RailGracePeriod       = "grace_period"
-	RailCleanupCooldown   = "cleanup_cooldown"
+	RailResourcesEmpty     = "resources_empty"
+	RailNamespaceExists    = "namespace_exists"
+	RailNamespaceIncluded  = "namespace_included"
+	RailNoActiveRollback   = "no_active_rollback"
+	RailNoForceSync        = "no_force_sync"
+	RailNoCoalesceBuffer   = "no_coalesce_buffer"
+	RailNoGenerationLock   = "no_generation_lock"
+	RailNoAnalyzerInflight = "no_analyzer_inflight"
+	RailSustainedAbsence   = "sustained_absence"
+	RailGracePeriod        = "grace_period"
+	RailCleanupCooldown    = "cleanup_cooldown"
 )
 
 const (

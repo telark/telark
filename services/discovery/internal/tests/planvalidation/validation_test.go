@@ -3,6 +3,7 @@ package planvalidation
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -26,9 +27,20 @@ const (
 	prodGuardID           = "pp-1"
 	validEndAt            = "2026-01-02T00:00:00Z"
 	kubeSystemNamespace   = "kube-system"
+	excludedKind          = "ConfigMap"
+	excludedName          = "wa1"
+	subresourceKind       = "Deployment/scale"
 )
 
 func strptr(s string) *string { return &s }
+
+func excludedResource() plans.ProtectionPlanExcludedResource {
+	return plans.ProtectionPlanExcludedResource{Kind: excludedKind, Name: excludedName, Namespace: appNamespace}
+}
+
+func resourceExclusions() *plans.ProtectionPlanScopeExclusions {
+	return &plans.ProtectionPlanScopeExclusions{Resources: []plans.ProtectionPlanExcludedResource{excludedResource()}}
+}
 
 // Scope accepts exactly one populated side that matches its type and rejects
 // missing, crossed, or unknown scopes.
@@ -49,6 +61,9 @@ func TestScope(t *testing.T) {
 		{"namespaces crossed", planseps.ScopeRequest{
 			Type: plans.ScopeTypeNamespaces, Namespaces: []string{crossedNamespace}, ApplicationIDs: []string{"a"},
 		}, validation.ErrScopeUnion},
+		{"namespaces with exclusion resources", planseps.ScopeRequest{
+			Type: plans.ScopeTypeNamespaces, Namespaces: []string{"ns1"}, Exclusions: resourceExclusions(),
+		}, validation.ErrExclusionResourcesScope},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -118,6 +133,72 @@ func TestPrepareRequest(t *testing.T) {
 	}
 	if validation.PrepareRequest(badPolicies) == nil {
 		t.Fatal("missing policies should fail PrepareRequest")
+	}
+
+	badExclusions := *valid
+	badExclusions.Scope.Exclusions = &plans.ProtectionPlanScopeExclusions{Kinds: []string{subresourceKind}}
+	if err := validation.PrepareRequest(&badExclusions); !errors.Is(err, validation.ErrExclusionKindInvalid) {
+		t.Fatalf("subresource exclusion kind = %v, want ErrExclusionKindInvalid", err)
+	}
+}
+
+// Exclusions bounds kinds and resources like the CRD and allows resources only on applications scope.
+func TestExclusions(t *testing.T) {
+	apps := func(e *plans.ProtectionPlanScopeExclusions) planseps.ScopeRequest {
+		return planseps.ScopeRequest{Type: plans.ScopeTypeApplications, ApplicationIDs: []string{applicationID}, Exclusions: e}
+	}
+	namespaces := func(e *plans.ProtectionPlanScopeExclusions) planseps.ScopeRequest {
+		return planseps.ScopeRequest{Type: plans.ScopeTypeNamespaces, Namespaces: []string{appNamespace}, Exclusions: e}
+	}
+	kinds := func(k ...string) *plans.ProtectionPlanScopeExclusions {
+		return &plans.ProtectionPlanScopeExclusions{Kinds: k}
+	}
+	noNamespace := excludedResource()
+	noNamespace.Namespace = constants.EmptyString
+	cases := []struct {
+		name  string
+		scope planseps.ScopeRequest
+		ok    bool
+		want  error
+	}{
+		{"nil", namespaces(nil), true, nil},
+		{"kinds on namespaces", namespaces(kinds(excludedKind)), true, nil},
+		{"resources on applications", apps(resourceExclusions()), true, nil},
+		{"resources on namespaces", namespaces(resourceExclusions()), false, validation.ErrExclusionResourcesScope},
+		{"too many kinds", apps(kinds(slices.Repeat([]string{excludedKind}, plans.ExclusionKindsMax+1)...)), false, nil},
+		{"subresource kind", apps(kinds(subresourceKind)), false, validation.ErrExclusionKindInvalid},
+		{"empty kind", apps(kinds(" ")), false, validation.ErrExclusionKindInvalid},
+		{"resource without namespace", apps(&plans.ProtectionPlanScopeExclusions{
+			Resources: []plans.ProtectionPlanExcludedResource{noNamespace},
+		}), false, validation.ErrExclusionResourceInvalid},
+		{"resource with subresource kind", apps(&plans.ProtectionPlanScopeExclusions{
+			Resources: []plans.ProtectionPlanExcludedResource{{Kind: subresourceKind, Name: "web", Namespace: "shop"}},
+		}), false, validation.ErrExclusionResourceInvalid},
+		{"resource kind too long", apps(&plans.ProtectionPlanScopeExclusions{
+			Resources: []plans.ProtectionPlanExcludedResource{
+				{Kind: strings.Repeat("k", plans.ExclusionKindMaxLength+1), Name: "web", Namespace: "shop"},
+			},
+		}), false, validation.ErrExclusionResourceInvalid},
+		{"resource namespace too long", apps(&plans.ProtectionPlanScopeExclusions{
+			Resources: []plans.ProtectionPlanExcludedResource{
+				{Kind: excludedKind, Name: "web", Namespace: strings.Repeat("n", plans.ExclusionNamespaceMaxLength+1)},
+			},
+		}), false, validation.ErrExclusionResourceInvalid},
+		{"too many resources", apps(&plans.ProtectionPlanScopeExclusions{
+			Resources: slices.Repeat([]plans.ProtectionPlanExcludedResource{excludedResource()}, plans.ExclusionResourcesMax+1),
+		}), false, nil},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := validation.Exclusions(c.scope)
+			testutil.Equal(t, "ok", err == nil, c.ok)
+			if !c.ok {
+				testutil.Equal(t, "typed", validation.IsValidation(err), true)
+			}
+			if c.want != nil && !errors.Is(err, c.want) {
+				t.Fatalf("Exclusions(%s) = %v, want %v", c.name, err, c.want)
+			}
+		})
 	}
 }
 
@@ -244,6 +325,36 @@ func TestUniqueName(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			err := validation.UniqueName(existing, c.candidate, c.excludeID)
+			testutil.Equal(t, "ok", err == nil, c.ok)
+			if !c.ok {
+				testutil.Equal(t, "typed", validation.IsValidation(err), true)
+			}
+		})
+	}
+}
+
+// Fields accepts only the two execution modes the CRD enum allows.
+func TestFieldsRejectsUnknownApprovalMode(t *testing.T) {
+	cases := []struct {
+		name string
+		mode *string
+		ok   bool
+	}{
+		{"absent", nil, true},
+		{"automatic", strptr(plans.ApprovalModeAutomatic), true},
+		{"required", strptr(plans.ApprovalModeRequired), true},
+		{"manual", strptr("manual"), false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := &planseps.PrepareProtectionPlanRequest{
+				Name:         "plan",
+				Severity:     plans.SeverityLow,
+				Mode:         plans.ModeAudit,
+				TimeMode:     plans.TimeModePermanent,
+				ApprovalMode: c.mode,
+			}
+			err := validation.Fields(req)
 			testutil.Equal(t, "ok", err == nil, c.ok)
 			if !c.ok {
 				testutil.Equal(t, "typed", validation.IsValidation(err), true)

@@ -27,7 +27,7 @@ body:
         - chart
         - exporter
         - discovery
-        - enrichment
+        - analyzer
         - auth
         - notifier
         - docs

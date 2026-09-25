@@ -13,7 +13,7 @@ import (
 
 const containerPort = 8080
 
-// With every input served by the informer manifest cache the enrichment
+// With every input served by the informer manifest cache the enriched
 // fields come out populated without any kind fetcher running: there is no
 // Kubernetes client here, so a fetcher would have returned nothing.
 func TestDiscoverInputsSkipsFetchersOnCacheHit(t *testing.T) {

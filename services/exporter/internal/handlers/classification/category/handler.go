@@ -8,7 +8,6 @@ import (
 	categorydata "github.com/telark/data/classification/category"
 	"github.com/telark/data/messages"
 	metadata "github.com/telark/data/metadata/classification"
-	roledata "github.com/telark/data/resources/role"
 	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/cache"
 	"github.com/telark/exporter/internal/constants"
@@ -45,7 +44,7 @@ func CreateCategoryResourceWithCacheInvalidation(optimizer *performance.Optimize
 			return
 		}
 
-		if !authz.GuardCategoryScope(w, r, category.Scope, roledata.PermissionLevelContributor) {
+		if !authz.GuardCategoryScope(w, r, category.Scope, constants.CategoryOpCreate) {
 			return
 		}
 
@@ -221,7 +220,7 @@ func PatchCategoryByIDWithCacheInvalidation(optimizer *performance.Optimizer) fu
 			return
 		}
 
-		if !authz.GuardCategoryScope(w, r, oldScope, roledata.PermissionLevelOwner) {
+		if !authz.GuardCategoryScope(w, r, oldScope, constants.CategoryOpEdit) {
 			return
 		}
 
@@ -239,7 +238,7 @@ func PatchCategoryByIDWithCacheInvalidation(optimizer *performance.Optimizer) fu
 		// is moving into, or it would be a way to write into a scope the caller
 		// does not hold.
 		if newScope != constants.EmptyString && newScope != oldScope {
-			if !authz.GuardCategoryScope(w, r, newScope, roledata.PermissionLevelOwner) {
+			if !authz.GuardCategoryScope(w, r, newScope, constants.CategoryOpEdit) {
 				return
 			}
 		}
@@ -264,7 +263,7 @@ func DeleteCategoryByIDWithCacheInvalidation(optimizer *performance.Optimizer) f
 			return
 		}
 
-		if !authz.GuardCategoryScope(w, r, deletedScope, roledata.PermissionLevelOwner) {
+		if !authz.GuardCategoryScope(w, r, deletedScope, constants.CategoryOpDelete) {
 			return
 		}
 

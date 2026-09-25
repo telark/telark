@@ -81,6 +81,15 @@
             "pullSecrets": { "type": "array" }
           }
         },
+        "ollama": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "autoPull": { "type": "boolean" },
+            "runtimeUrl": { "type": "string" }
+          }
+        },
         "persistence": {
           "type": "object",
           "additionalProperties": false,

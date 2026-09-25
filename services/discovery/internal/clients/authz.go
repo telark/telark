@@ -50,3 +50,9 @@ func (c *AuthzClient) GetRoleByID(roleID string) (*roleresource.RoleAsResource, 
 		return c.roles.GetRoleByID(roleID)
 	})
 }
+
+func (c *AuthzClient) GetAllUsers() ([]*userresource.UserAsResource, error) {
+	return guardedExporterGet(func() ([]*userresource.UserAsResource, error) {
+		return c.users.GetAllUsers()
+	})
+}

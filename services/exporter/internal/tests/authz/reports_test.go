@@ -5,19 +5,25 @@ import (
 
 	roledata "github.com/telark/data/resources/role"
 	"github.com/telark/exporter/internal/authz"
-	"github.com/telark/exporter/internal/constants"
 	xauthz "github.com/telark/x-ware/authz"
 )
 
-// Create and the ledger routes are reached by discovery only; list and
-// download follow the plan read scope like the discovery violations route.
+// Create and the ledger routes are reached by discovery only; both lists and download
+// follow the plan read scope, each with its own deny rule.
 func TestReportRoutesRequirements(t *testing.T) {
 	expected := map[string]xauthz.Requirement{
 		"POST /api/v1/reports/plans/create":          xauthz.Internal,
 		"POST /api/v1/reports/plans/{id}/ledger/put": xauthz.Internal,
 		"GET /api/v1/reports/plans/{id}/ledger/get":  xauthz.Internal,
-		"GET /api/v1/reports/plans/{id}/get":         xauthz.Read(roledata.ScopeProtectionPlans),
-		"GET /api/v1/reports/plans/{id}/download":    xauthz.Read(roledata.ScopeProtectionPlans),
+		"GET /api/v1/reports/get": xauthz.Denyable(
+			xauthz.Read(roledata.ScopeProtectionPlans), roledata.ActionViewProtectionPlanReports,
+		),
+		"GET /api/v1/reports/plans/{id}/get": xauthz.Denyable(
+			xauthz.Read(roledata.ScopeProtectionPlans), roledata.ActionViewProtectionPlanReports,
+		),
+		"GET /api/v1/reports/plans/{id}/download": xauthz.Denyable(
+			xauthz.Read(roledata.ScopeProtectionPlans), roledata.ActionDownloadProtectionPlanReport,
+		),
 	}
 
 	requirements := authz.Requirements()
@@ -29,9 +35,6 @@ func TestReportRoutesRequirements(t *testing.T) {
 		}
 		if got != want {
 			t.Errorf("report route %q = %+v, want %+v", key, got, want)
-		}
-		if got.Rule != constants.EmptyString {
-			t.Errorf("report route %q carries rule %q, want none", key, got.Rule)
 		}
 	}
 }

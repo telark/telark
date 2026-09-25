@@ -23,6 +23,10 @@ func StatusForErr(err error) int {
 		return http.StatusOK
 	case errors.Is(err, clients.ErrPlanNotFound):
 		return http.StatusNotFound
+	case errors.Is(err, protection.ErrDecisionSelf):
+		return http.StatusForbidden
+	case errors.Is(err, protection.ErrDecisionNotPending), errors.Is(err, protection.ErrDecisionStale):
+		return http.StatusConflict
 	case validation.IsValidation(err):
 		return http.StatusBadRequest
 	case circuitbreaker.IsOpen(err), clients.IsExporterFailure(err), isClusterError(err):

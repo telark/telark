@@ -49,9 +49,9 @@ services:
     pdb:
       enabled: true
       minAvailable: 1
-  enrichment:
+  analyzer:
     env:
-      NUM_WORKERS: "6"
+      ANALYZER_REVIEW_APPS_PER_MIN: "60"
     pdb:
       enabled: true
       minAvailable: 1

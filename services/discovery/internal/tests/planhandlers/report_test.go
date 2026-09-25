@@ -23,7 +23,7 @@ import (
 )
 
 func TestGenerateReportRequiresUserHeader(t *testing.T) {
-	handlers.InitService(protection.NewService(nil, nil, nil, nil, nil, nil, nil))
+	handlers.InitService(protection.NewService(nil, nil, nil, nil, nil, nil, nil, nil))
 	t.Cleanup(func() { handlers.InitService(nil) })
 
 	rec := httptest.NewRecorder()

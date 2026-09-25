@@ -57,6 +57,7 @@ func BuildRequest(
 		tags = overrides.TagIDs
 	}
 	return &planseps.PrepareProtectionPlanRequest{
+		ApprovalMode:    resolveApprovalMode(source, overrides),
 		Name:            resolveName(source.Name, overrides.Name),
 		Description:     source.Description,
 		Severity:        source.Severity,
@@ -89,6 +90,24 @@ func resolveTimeRange(
 	return &planseps.TimeRangeRequest{StartAt: source.StartAt, EndAt: source.EndAt}
 }
 
+// The UI sends environmentID whenever tags are touched, so "sent" is not "changed";
+// nil hands the derivation back to Prepare.
+func resolveApprovalMode(
+	source *plans.ProtectionPlan,
+	overrides planseps.DuplicateProtectionPlanRequest,
+) *string {
+	if overrides.ApprovalMode != nil {
+		return overrides.ApprovalMode
+	}
+	if source.ApprovalMode == constants.EmptyString {
+		return nil
+	}
+	if overrides.EnvironmentID != nil && *overrides.EnvironmentID != source.EnvironmentID {
+		return nil
+	}
+	return &source.ApprovalMode
+}
+
 func resolveName(sourceName string, override *string) string {
 	if override != nil && *override != constants.EmptyString {
 		return *override
@@ -101,6 +120,7 @@ func toScopeRequest(scope plans.ProtectionPlanScope) planseps.ScopeRequest {
 		Type:           scope.Type,
 		ApplicationIDs: scope.ApplicationIDs,
 		Namespaces:     scope.Namespaces,
+		Exclusions:     plans.NormalizeExclusions(scope.Exclusions),
 	}
 }
 

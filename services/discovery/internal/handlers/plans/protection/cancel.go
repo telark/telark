@@ -41,6 +41,12 @@ func Cancel(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), constants.ProtectionPlanLifecycleTimeout)
 	defer cancel()
 
+	release, ok := lockPlanDecision(ctx, w, planID)
+	if !ok {
+		return
+	}
+	defer release()
+
 	plan, err := svc.Cancel(ctx, userID, planID, reason)
 	if err != nil {
 		respondDomainError(w, err)
@@ -50,7 +56,7 @@ func Cancel(w http.ResponseWriter, r *http.Request) {
 		w,
 		http.StatusOK,
 		response.OperationSuccess,
-		string(messages.SuccessUpdateRes),
+		planMessage(messages.SuccessUpdateRes, planID),
 		plan,
 		nil,
 	)

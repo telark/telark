@@ -209,7 +209,7 @@ Everything is set on the one command line with `--set key=value`. Re-pass the sa
 | Flag | Default | Description |
 |---|---|---|
 | `app.mode` | `standard` | Size every telark service: `minimal` \| `standard` \| `performance` (see [Sizing modes](#sizing-modes)) |
-| `app.name` | `telark` | App identity / resource-name prefix (also the CRD group, `erpi.<name>`) |
+| `app.name` | `telark` | Resource-name prefix. The CRD group is always `telark.io` ([ADR 0003](adr/0003-constant-api-group-telark-io.md)) |
 | `app.namespace` | `telark` | Install namespace. Must match the release namespace (`-n`): the subcharts follow `-n`, so a mismatch splits redis/nats away from the services that address them by bare name |
 | `app.image.registry` | `telark` | Registry / org hosting the service images |
 | `app.image.pullPolicy` | `Always` | Image pull policy |
@@ -266,7 +266,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 
 ### CRD write guard
 
-telark's custom resources (users, roles, sessions, passkeys) are its authorization data. The guard (`app.crdGuard`, a ValidatingAdmissionPolicy, on and enforcing by default) rejects writes to them from anything but the owning service accounts, so edit rights on the `telark` namespace do not turn into telark Admin. Break-glass identities go in `app.crdGuard.extraAllowedUsers`, for example `--set 'app.crdGuard.extraAllowedUsers={system:serviceaccount:ops:breakglass}'`. `--set app.crdGuard.enforce=false` only audits (logs and allows) and `--set app.crdGuard.enabled=false` removes the guard; the install notes warn when it is off.
+telark's custom resources (users, roles, sessions, passkeys) are its authorization data. The guard (`app.crdGuard`, a ValidatingAdmissionPolicy, on and enforcing by default) rejects writes to every `telark.io` resource and subresource from anything but the owning service accounts (discovery may write only `applications/status`), and a second policy does the same for the OIDC trust Secret `telark-oidc-trust-secret`, so edit rights on the `telark` namespace do not turn into telark Admin. Break-glass identities go in `app.crdGuard.extraAllowedUsers`, for example `--set 'app.crdGuard.extraAllowedUsers={system:serviceaccount:ops:breakglass}'`. `--set app.crdGuard.enforce=false` only audits (logs and allows) and `--set app.crdGuard.enabled=false` removes the guard; the install notes warn when it is off.
 
 ### Network policies
 
@@ -314,6 +314,16 @@ kubectl create secret generic telark-nats-consumer -n telark \
 --set app.serviceToken.existingSecret=telark-service-token \
 --set nats.existingSecrets.publisher=telark-nats-publisher \
 --set nats.existingSecrets.consumer=telark-nats-consumer
+```
+
+The OIDC trust Secret (the optional Google JWK set, key `googleJwkJson`) is rendered the same way: with `lookup` returning nothing, every sync would empty it. Create it yourself and point the chart at it; the exporter updates it when an Admin saves the JWK set in the dashboard, so the CRD write guard and the exporter's RBAC cover the name you pass:
+
+```sh
+kubectl create secret generic telark-oidc-trust -n telark --from-literal=googleJwkJson=''
+```
+
+```sh
+--set app.auth.oidc.existingSecret=telark-oidc-trust
 ```
 
 The generated Secrets carry `helm.sh/resource-policy: keep`, so an uninstall never drops them.
@@ -417,6 +427,44 @@ Re-pass the same `--set` / `-f` flags used at install: Helm does not remember th
 
 **Upgrading to the chart that adds protection plan reports:** the exporter gains a second claim, `telark-exporter-reports-pvc`, which binds on rollout with the same class and access mode as the snapshot claim. Do not upgrade with `--reuse-values`: the reports volume, mount and the `REPORTS_PATH` / `PROTECTION_PLAN_REPORT_*` entries arrive only with the new chart defaults; with `--reuse-values` the exporter logs a reports-root error at start and every report write fails. Note that the exporter volumes render even when `app.persistence.enabled=false` (pre-existing behaviour), so the pods then wait on claims nobody provisions.
 
+### Upgrading from 0.4 or older
+
+Chart 0.5 moves every CRD to the single group `telark.io` with new kinds, field names and the Kyverno label `telark.io/protection-plan` ([ADR 0003](adr/0003-constant-api-group-telark-io.md), [CRD reference](CRDS.md)). There is no in-place migration: tear the old install down and reinstall. Every telark object is deleted, so everyone signs in again, passkey users re-enrol, and custom roles, groups, categories, protection plans and settings are re-created by hand. OIDC users are provisioned again on first sign-in but lose their role and group assignments.
+
+```sh
+# 1. Remove the admission policies of the old protection plans (the new discovery does not see the old label)
+kubectl delete policies.kyverno.io -A -l telark.erpi/protection-plan
+
+# 2. Optional: export the old objects for reference while re-creating them
+for r in applicationsasresources.erpi.telark protectionplans.erpi.telark globalconfigs.erpi.telark \
+         usersasresources.erpi.telark groupsasresources.erpi.telark rolesasresources.erpi.telark \
+         categoriesasclassifications.classification.telark; do
+  kubectl get "$r" -n telark -o yaml > "old-$r.yaml"
+done
+
+# 3. Uninstall the release
+helm uninstall telark -n telark
+
+# 4. Clear the cleanup finalizers, then delete the nine old CRDs and their objects
+for r in usersasresources.erpi.telark groupsasresources.erpi.telark rolesasresources.erpi.telark; do
+  kubectl get "$r" -n telark -o name | xargs -r -I{} kubectl patch {} -n telark --type merge -p '{"metadata":{"finalizers":null}}'
+done
+kubectl delete crd \
+  applicationsasresources.erpi.telark protectionplans.erpi.telark globalconfigs.erpi.telark \
+  usersasresources.erpi.telark groupsasresources.erpi.telark rolesasresources.erpi.telark \
+  userpasskeys.auth.telark usersessions.auth.telark \
+  categoriesasclassifications.classification.telark
+```
+
+Then install as in [1. Install](#1-install), with the same flags as before, and enrol the first admin with break-glass as in [2. First admin](#2-first-admin):
+
+```sh
+kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email jane.doe@example.com --enroll
+# open https://<dashboard-host>/register?enroll=<token>
+```
+
+The admin then sends enroll links to the other passkey users and re-creates roles, groups and categories. With a cluster-less render, also create the OIDC trust Secret ([GitOps](#gitops-cluster-less-renders)). Afterwards, address telark objects by their fully qualified names (`kubectl get applications.telark.io -n telark`) or short names (`tapp`, `tplan`, `tuser`, …), especially when Argo CD is installed: its `applications.argoproj.io` answers to a plain `kubectl get applications`.
+
 ## Uninstall
 
 ```sh
@@ -444,7 +492,7 @@ done
 kubectl delete crd -l app.kubernetes.io/part-of=telark
 
 # 3. Only with an external policy engine (app.kyverno.enabled=false): leftover plan policies
-kubectl delete policies.kyverno.io -A -l telark.erpi/protection-plan
+kubectl delete policies.kyverno.io -A -l telark.io/protection-plan
 
 # 4. Remaining volumes and the kept Secrets
 kubectl delete namespace telark

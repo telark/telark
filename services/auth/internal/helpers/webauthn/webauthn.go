@@ -151,7 +151,7 @@ func requestScheme(r *http.Request) string {
 	return constants.SchemeHTTP
 }
 
-func ConvertPasskeysToCredentials(passkeys []*authdata.UserPasskey) []webauthn.Credential {
+func ConvertPasskeysToCredentials(passkeys []*authdata.Passkey) []webauthn.Credential {
 	credentials := make([]webauthn.Credential, constants.InitialCapacity, len(passkeys))
 	for _, pk := range passkeys {
 		if pk == nil {

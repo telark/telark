@@ -19,7 +19,7 @@ func members(userIDs ...string) map[string]any {
 	for _, id := range userIDs {
 		ids = append(ids, id)
 	}
-	return map[string]any{constants.FieldAssignedUsersIDs: ids}
+	return map[string]any{constants.FieldUserRefs: ids}
 }
 
 func withoutGroupRule(action string) xauthz.Identity {
@@ -37,7 +37,7 @@ func groupsOf(groupIDs ...string) map[string]any {
 	for _, id := range groupIDs {
 		ids = append(ids, id)
 	}
-	return map[string]any{constants.FieldAssignedGroupsIDs: ids}
+	return map[string]any{constants.FieldGroupRefs: ids}
 }
 
 // Seen live: a Contributor added himself to a group holding a stronger role,
@@ -70,7 +70,7 @@ func TestGuardGroupMembersPatchRules(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			got := authz.GuardGroupMembersPatch(w, requestAs(tt.identity), &groupdata.GroupAsResource{AssignedUsersIDs: tt.existing}, tt.body)
+			got := authz.GuardGroupMembersPatch(w, requestAs(tt.identity), &groupdata.Group{UserRefs: tt.existing}, tt.body)
 			if got != tt.want {
 				t.Fatalf("GuardGroupMembersPatch = %v, want %v (%d %s)", got, tt.want, w.Code, w.Body.String())
 			}
@@ -89,7 +89,7 @@ func TestGuardUserPatchAppliesRemoveRules(t *testing.T) {
 	noAdd := withoutGroupRule(roledata.ActionAddUserToGroup)
 	noRemove := withoutGroupRule(roledata.ActionRemoveUserFromGroup)
 	roleID, groupID := roleUsersOwner, groupPlain
-	holder := &userdata.UserAsResource{ID: victimID, AssignedRolesIDs: []*string{&roleID}, AssignedGroupsIDs: []*string{&groupID}}
+	holder := &userdata.User{ID: victimID, RoleRefs: []*string{&roleID}, GroupRefs: []*string{&groupID}}
 
 	tests := []struct {
 		name     string

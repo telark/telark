@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 
 	"github.com/telark/data/messages"
-	plansmeta "github.com/telark/data/metadata/plans"
+	plansmeta "github.com/telark/data/metadata/v1alpha1"
 
 	"github.com/telark/discovery/internal/coordination"
 	"github.com/telark/discovery/internal/core/plans/protection"

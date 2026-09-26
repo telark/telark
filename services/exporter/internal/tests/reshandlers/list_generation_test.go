@@ -10,7 +10,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/redis/go-redis/v9"
 	basemetadata "github.com/telark/data/metadata/base"
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/cache"
 	"github.com/telark/exporter/internal/constants"
 	resshared "github.com/telark/exporter/internal/handlers/resources/shared"
@@ -35,7 +35,7 @@ func namedReq(method string) *http.Request {
 // A second bump inside the coalescing window leaves the dirty flag behind, so
 // the first reader after the window pays a spurious full rebuild.
 func TestOneListGenerationBumpPerWrite(t *testing.T) {
-	md := metadata.ApplicationAsResourceMetadata
+	md := metadata.ApplicationMetadata
 	cases := []struct {
 		name         string
 		resourceType string

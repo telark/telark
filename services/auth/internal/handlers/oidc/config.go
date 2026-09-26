@@ -10,7 +10,7 @@ import (
 	"github.com/telark/auth/internal/constants"
 	oidchelper "github.com/telark/auth/internal/helpers/oidc"
 	"github.com/telark/auth/internal/helpers/shared"
-	globalconfigresource "github.com/telark/data/resources/globalconfig"
+	telarkconfigresource "github.com/telark/data/resources/telarkconfig"
 )
 
 // Validated here, not at the exporter: a config that cannot authenticate anyone must not
@@ -23,7 +23,7 @@ func SetConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req globalconfigresource.OIDCConfig
+	var req telarkconfigresource.OIDCConfig
 	if err := shared.DecodeRequestBody(r, &req); err != nil {
 		shared.SendErrorResponse(w, http.StatusBadRequest, err)
 		return
@@ -34,8 +34,8 @@ func SetConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := clients.GetGlobalConfigClient().PatchGlobalConfig(map[string]any{
-		globalconfigresource.FieldOIDC: req,
+	resp := clients.GetConfigClient().PatchConfig(map[string]any{
+		telarkconfigresource.FieldOIDC: req,
 	})
 	if resp == nil || resp.Status != http.StatusOK {
 		status := constants.DefaultInitValue
@@ -45,6 +45,10 @@ func SetConfig(w http.ResponseWriter, r *http.Request) {
 		err := fmt.Errorf(string(constants.ErrOIDCConfigSaveFailed), status)
 		shared.HandleError(w, err, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	if req.GoogleJWKJSON != constants.EmptyString {
+		oidchelper.PinTrustJWK(req.GoogleJWKJSON)
 	}
 
 	lg.Info(string(constants.SuccessOIDCConfigUpdated))

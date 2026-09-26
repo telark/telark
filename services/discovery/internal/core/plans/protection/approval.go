@@ -23,8 +23,8 @@ var (
 
 // The gate must not be one the requester can lower: Production always requires approval, and a
 // client-sent mode weaker than the derived one counts only from an Owner.
-func ResolveApprovalMode(req *string, environmentID string, callerOwner bool) string {
-	derived := DerivedApprovalMode(environmentID)
+func ResolveApprovalMode(req *string, environmentRef string, callerOwner bool) string {
+	derived := DerivedApprovalMode(environmentRef)
 	if derived == plans.ApprovalModeRequired || req == nil {
 		return derived
 	}
@@ -34,8 +34,8 @@ func ResolveApprovalMode(req *string, environmentID string, callerOwner bool) st
 	return derived
 }
 
-func DerivedApprovalMode(environmentID string) string {
-	if environmentID == dataconstants.CategoryIDEnvProduction {
+func DerivedApprovalMode(environmentRef string) string {
+	if environmentRef == dataconstants.CategoryIDEnvProduction {
 		return plans.ApprovalModeRequired
 	}
 	return plans.ApprovalModeAutomatic

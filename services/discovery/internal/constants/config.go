@@ -19,7 +19,7 @@ const (
 	NatsPublishMaxRetryDelay        = 30 * time.Second
 	ClusterVersionPatchMaxAttempts  = 5
 	ClusterVersionPatchRetryBackoff = 5 * time.Second
-	GlobalConfigReadyRetryBackoff   = 5 * time.Second
+	TelarkConfigReadyRetryBackoff   = 5 * time.Second
 	DefaultQueueSize                = 100
 	DefaultAddValue                 = 1
 	DefaultInitValue                = 0
@@ -106,7 +106,6 @@ const (
 	PlanLockTTL               = 2 * ProtectionPlanDeployTimeout
 	PlanLockHeartbeatInterval = ProtectionPlanDeployTimeout / 3
 	CategoryReadTimeout       = 10 * time.Second
-	CategoryScopeParam        = "{scope}"
 	// Plan and rollback bodies are small JSON documents; anything larger is refused.
 	MaxRequestBodyBytes = 1 << 20
 	// The forward runs inside AppResetHandlerTimeout; this bounds the leader's own answer.

@@ -15,7 +15,7 @@ const (
 	DefaultCoalesceBufferMaxEntries          = 2000
 	DefaultInformerFlushRatePerSec           = 20
 	DefaultInformerResyncJitterFraction      = 0.2
-	GlobalConfigExcludedPollSec              = 1
+	TelarkConfigExcludedPollSec              = 1
 	InformerSlowHandlerThreshold             = 500 * time.Millisecond
 	InformerEventAdd                         = "add"
 	InformerEventUpdate                      = "update"

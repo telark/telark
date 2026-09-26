@@ -27,10 +27,10 @@ type exporterStub struct {
 }
 
 func (s exporterStub) RoundTrip(r *http.Request) (*http.Response, error) {
-	if strings.Contains(r.URL.Path, "/sessions/") {
+	if strings.HasSuffix(r.URL.Path, "/api/v1/auth/sessions/self") {
 		return s.session()
 	}
-	return envelope(http.StatusOK, userresource.UserAsResource{ID: "uid"})
+	return envelope(http.StatusOK, userresource.User{ID: "uid"})
 }
 
 func envelope(status int, data any) (*http.Response, error) {
@@ -42,7 +42,7 @@ func envelope(status int, data any) (*http.Response, error) {
 }
 
 func liveSession() (*http.Response, error) {
-	return envelope(http.StatusOK, authdata.UserSession{
+	return envelope(http.StatusOK, authdata.Session{
 		UserID:           "uid",
 		ExpiresTimestamp: time.Now().UTC().Add(time.Hour).Format(constants.TimeFormatRFC3339),
 	})
@@ -109,17 +109,17 @@ func (permissionsStub) RoundTrip(r *http.Request) (*http.Response, error) {
 	deleting := "2026-01-01T00:00:00Z"
 	badExpiry := "not-a-date"
 	switch {
-	case strings.Contains(r.URL.Path, "/sessions/"):
+	case strings.HasSuffix(r.URL.Path, "/api/v1/auth/sessions/self"):
 		return liveSession()
-	case strings.Contains(r.URL.Path, "/roles/r-bad/"):
-		return envelope(http.StatusOK, roledata.RoleAsResource{ID: "r-bad", Status: roledata.RoleStatusActive,
+	case strings.Contains(r.URL.Path, "/accessroles/r-bad"):
+		return envelope(http.StatusOK, roledata.AccessRole{ID: "r-bad", Status: roledata.RoleStatusActive,
 			Validity: &roledata.Validity{Type: roledata.ValidityTypeTemporary, ExpiresAt: &badExpiry}})
-	case strings.Contains(r.URL.Path, "/roles/r-gone/"):
-		return envelope(http.StatusOK, roledata.RoleAsResource{ID: "r-gone", Status: roledata.RoleStatusActive,
+	case strings.Contains(r.URL.Path, "/accessroles/r-gone"):
+		return envelope(http.StatusOK, roledata.AccessRole{ID: "r-gone", Status: roledata.RoleStatusActive,
 			DeletionTimestamp: &deleting})
 	default:
 		bad, gone := "r-bad", "r-gone"
-		return envelope(http.StatusOK, userresource.UserAsResource{ID: "uid", AssignedRolesIDs: []*string{&bad, &gone}})
+		return envelope(http.StatusOK, userresource.User{ID: "uid", RoleRefs: []*string{&bad, &gone}})
 	}
 }
 
@@ -127,7 +127,7 @@ func (permissionsStub) RoundTrip(r *http.Request) (*http.Response, error) {
 // a role being deleted is not listed at all.
 func TestGetPermissionsMatchesAuthzRules(t *testing.T) {
 	stubExporter(t, permissionsStub{})
-	for _, c := range []*http.Client{clients.GetRoleClient().GetHTTPClient()} {
+	for _, c := range []*http.Client{clients.GetAccessRoleClient().GetHTTPClient()} {
 		previous := c.Transport
 		c.Transport = permissionsStub{}
 		t.Cleanup(func() { c.Transport = previous })

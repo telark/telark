@@ -16,8 +16,8 @@ import (
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/discovery/cache"
 	"github.com/telark/discovery/internal/handlers/insights"
-	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
 	redishelper "github.com/telark/discovery/internal/helpers/redis"
+	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
 	"github.com/telark/discovery/internal/tests/testutil"
 )
 
@@ -64,7 +64,7 @@ func TestMain(m *testing.M) {
 func reset(t *testing.T, excluded []string) {
 	t.Helper()
 	mr.FlushAll()
-	gcfghelper.SetExcludedForTest(excluded)
+	tcfghelper.SetExcludedForTest(excluded)
 }
 
 func read(t *testing.T, apps string) insights.Response {

@@ -10,7 +10,7 @@ import (
 	"slices"
 
 	basemetadata "github.com/telark/data/metadata/base"
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/data/resources/application"
 	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/constants"
@@ -34,11 +34,11 @@ import (
 var lg = constants.GetLogger(constants.PrefixMain)
 
 func CreateApplicationResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
-	return shared.CreateResourceWithCacheInvalidation(optimizer, metadata.ApplicationAsResourceMetadata, constants.ResourceApplication)
+	return shared.CreateResourceWithCacheInvalidation(optimizer, metadata.ApplicationMetadata, constants.ResourceApplication)
 }
 
 func GetApplicationResourceWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {
-	return shared.GetResourceWithCacheInvalidation(metadata.ApplicationAsResourceMetadata)
+	return shared.GetResourceWithCacheInvalidation(metadata.ApplicationMetadata)
 }
 
 func ListApplicationResourcesWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {
@@ -49,7 +49,7 @@ func ListApplicationResourcesWithCacheInvalidation() func(http.ResponseWriter, *
 }
 
 func PatchApplicationResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
-	patch := shared.PatchResourceWithCacheInvalidation(optimizer, metadata.ApplicationAsResourceMetadata, constants.ResourceApplication)
+	patch := shared.PatchResourceWithCacheInvalidation(optimizer, metadata.ApplicationMetadata, constants.ResourceApplication)
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !guardEditableFields(w, r) {
 			return
@@ -184,7 +184,7 @@ func replaceRequestBody(r *http.Request, patch map[string]any) {
 func DeleteApplicationResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
 	return shared.DeleteResourceWithCacheInvalidation(
 		optimizer,
-		metadata.ApplicationAsResourceMetadata,
+		metadata.ApplicationMetadata,
 		constants.ResourceApplication,
 		deleteApplicationAndSnapshots,
 	)
@@ -199,7 +199,7 @@ func deleteApplicationAndSnapshots(w http.ResponseWriter, md basemetadata.Metada
 }
 
 func applicationGone(name string) bool {
-	return k8serrors.IsNotFound(api.GetCustomResourceByName(name, metadata.ApplicationAsResourceMetadata).Error)
+	return k8serrors.IsNotFound(api.GetCustomResourceByName(name, metadata.ApplicationMetadata).Error)
 }
 
 func snapshotPaths(snaps []application.ApplicationSnapshot) []string {
@@ -259,7 +259,7 @@ func GetRollback() func(http.ResponseWriter, *http.Request) {
 }
 
 func getApplicationSpec(name string) (*application.Application, error) {
-	result := api.GetCustomResourceByName(name, metadata.ApplicationAsResourceMetadata)
+	result := api.GetCustomResourceByName(name, metadata.ApplicationMetadata)
 	if status := sharedutils.StatusForResult(result); status != http.StatusOK {
 		return nil, &sharedutils.UpstreamError{Status: status, Err: result.Error}
 	}
@@ -267,12 +267,12 @@ func getApplicationSpec(name string) (*application.Application, error) {
 	if !ok {
 		return nil, errors.New("invalid crd type")
 	}
-	specMap, ok := cr.Object["spec"].(map[string]any)
-	if !ok {
+	view := sharedutils.ToView(cr)
+	if view == nil {
 		return nil, errors.New("missing spec")
 	}
 	var spec application.Application
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(specMap, &spec); err != nil {
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(view, &spec); err != nil {
 		return nil, err
 	}
 	return &spec, nil

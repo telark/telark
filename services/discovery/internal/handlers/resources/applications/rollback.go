@@ -321,11 +321,8 @@ type patchErr struct {
 }
 
 func patchRollbacks(c *clients.ExporterClient, name string, rollbacks []applicationmodel.RollbackEntry) *patchErr {
-	patchBody := map[string]any{
-		"spec": map[string]any{
-			"rollbacks": rollbacks,
-		},
-	}
+	// A view key: the exporter routes it to .status, where rollbacks live.
+	patchBody := map[string]any{constants.RollbackRollbacksKey: rollbacks}
 	if err := c.PatchApplicationByNameOrError(name, patchBody); err != nil {
 		return &patchErr{status: http.StatusInternalServerError, msg: err.Error()}
 	}

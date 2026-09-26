@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/exporters/generics"
 	exportshared "github.com/telark/exporter/internal/exporters/shared"
@@ -36,7 +36,7 @@ func expectError(t *testing.T, w *httptest.ResponseRecorder, name string) {
 // With no cluster reachable, every generic CRD operation must surface an error
 // response instead of a success.
 func TestGenericCRDOperations(t *testing.T) {
-	md := metadata.RoleAsResourceMetadata
+	md := metadata.AccessRoleMetadata
 	spec := map[string]any{constants.SpecField: map[string]any{"name": testResourceName}}
 
 	rec := httptest.NewRecorder()
@@ -65,7 +65,7 @@ func TestGenericCRDOperations(t *testing.T) {
 }
 
 func TestSharedExporterOperations(t *testing.T) {
-	md := metadata.RoleAsResourceMetadata
+	md := metadata.AccessRoleMetadata
 
 	create := httptest.NewRecorder()
 	exportshared.CreateResource(create, md, testResourceName, map[string]any{"name": testResourceName})
@@ -82,7 +82,7 @@ func TestSharedExporterOperations(t *testing.T) {
 
 // The parse error used to reach the caller as "…request body: %v: <cause>".
 func TestMalformedBodyMessageIsFormatted(t *testing.T) {
-	md := metadata.ApplicationAsResourceMetadata
+	md := metadata.ApplicationMetadata
 	tests := []struct {
 		name string
 		call func(http.ResponseWriter, *http.Request)
@@ -102,7 +102,7 @@ func TestMalformedBodyMessageIsFormatted(t *testing.T) {
 
 // An empty name is a client error, rejected before the API server is reached.
 func TestGenericEmptyNameIsBadRequest(t *testing.T) {
-	md := metadata.RoleAsResourceMetadata
+	md := metadata.AccessRoleMetadata
 
 	get := httptest.NewRecorder()
 	generics.GenericGetCustomResource(get, constants.EmptyString, md)

@@ -47,7 +47,7 @@ flowchart LR
   SWEEP -->|apps, protection plans| EXP
   WORKER -->|fast: one narration · deep: tool loop + emit| OLLAMA
   WORKER -->|fast: two SETs · deep: one SET · review: one SET| DOC
-  WORKER -->|GlobalConfig ai| EXP
+  WORKER -->|TelarkConfig ai| EXP
   DISC -->|windowed read · index| DOC
   UI -->|insights| DISC
   UI -->|analyze · runtime · SSE| API
@@ -251,7 +251,7 @@ the fit check, at most 3 insights per run and 4 evidence refs per insight.
 
 `GET …/runtime` reports one of `absent` (no Ollama at `OLLAMA_HOST`), `unreachable`, `model_missing`,
 `pulling` (with progress), `unsupported` (deep mode only: the model has no tool calling) or `ready`, plus
-`mode` (`fast` | `deep`), `autoPull` and `enabled` (GlobalConfig `ai.enabled`, for users who may read insights
+`mode` (`fast` | `deep`), `autoPull` and `enabled` (TelarkConfig `ai.enabled`, for users who may read insights
 but not the settings). The state is re-checked every `ANALYZER_CONFIG_POLL_SEC` and pushed as `runtime.changed`
 (same fields); readiness never depends on it. Fast mode needs only an installed model:
 `validate` answers `model_lacks_tools` in deep mode only.
@@ -300,7 +300,7 @@ an hour with nothing pending.
 | `constants.py` | Every literal, including the frozen contract mirrored from `internal/data` and `internal/rest` |
 | `models.py` | Pydantic mirrors of the Go contract (same JSON names) and the analyzer's own models |
 | `helpers.py` | Redis key builders (Go `DocumentKey` format), time helpers, quantities, label selectors, image references, probe signatures |
-| `exporter.py` | The only exporter client: GlobalConfig `ai` + `excludedNamespaces`, application reads, the app list, protection plans, plan environments |
+| `exporter.py` | The only exporter client: TelarkConfig `ai` + `excludedNamespaces`, application reads, the app list, protection plans, plan environments |
 | `insights.py` | Insight document store (document + `analyzer:index`), the incident and recommendation lifecycles, triage |
 | `analyzer.py` | fast: gather + rules, narration; deep: tool loop, EMIT, fit check, wall/EMIT reserve, failure mapping |
 | `rules.py` | Fast mode's detector: candidate insights from the tool results (pure) |
@@ -322,16 +322,16 @@ an hour with nothing pending.
   Kubernetes client or agent framework.
 - **Infrastructure:** Redis (job stream, insight documents, the `analyzer:index` ZSET, the `analyzer:usage`
   and `analyzer:review` hashes, in-flight and cooldown keys), Ollama.
-- **Peers:** reads GlobalConfig, applications, protection plans and plan environments from **exporter**
+- **Peers:** reads TelarkConfig, applications, protection plans and plan environments from **exporter**
   (HTTP + service token); checks sessions with **auth-service**; reads workloads, pods, events, Services,
   PodDisruptionBudgets, HorizontalPodAutoscalers and NetworkPolicies from the **Kubernetes API** (GET only,
   the pod's service account); **discovery** appends jobs and serves the documents and the Insights page.
 
 ## Configuration
 
-Whether the analyzer runs, the model, `autoAnalyze` and the excluded namespaces live in `GlobalConfig`
+Whether the analyzer runs, the model, `autoAnalyze` and the excluded namespaces live in `TelarkConfig`
 (Settings), polled every `ANALYZER_CONFIG_POLL_SEC`. A fresh install seeds `ai.enabled: true`,
-`model: granite4:350m`, `autoAnalyze: false`; an existing GlobalConfig is never rewritten. Env holds endpoints
+`model: granite4:350m`, `autoAnalyze: false`; an existing TelarkConfig is never rewritten. Env holds endpoints
 and caps. Full reference:
 [chart README](../../charts/telark/README.md#servicesanalyzerenv).
 
@@ -362,7 +362,7 @@ and caps. Full reference:
 | `ANALYZER_QUEUE_MAX` | `100` | Stream backlog above which manual analyze answers 429 |
 | `ANALYZER_AUTO_COOLDOWN_SEC` | `600` | Per-app cooldown of incident jobs |
 | `ANALYZER_MANUAL_COOLDOWN_SEC` | `60` | Per-app cooldown of manual analyze |
-| `ANALYZER_CONFIG_POLL_SEC` | `30` | GlobalConfig and runtime re-check interval |
+| `ANALYZER_CONFIG_POLL_SEC` | `30` | TelarkConfig and runtime re-check interval |
 | `ANALYZER_REVIEW_INTERVAL_SEC` | `7200` | Re-review an unchanged app after this long; `0` turns the sweep off |
 | `ANALYZER_REVIEW_TICK_SEC` | `120` | Sweep tick |
 | `ANALYZER_REVIEW_APPS_PER_MIN` | `20` | Sweep pace (apps reviewed per minute) |

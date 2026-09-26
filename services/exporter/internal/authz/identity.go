@@ -12,7 +12,7 @@ import (
 
 // Whoever sets a user's mailbox or login identity can sign in as that user, so
 // identities are linked only by services and email and username only by their owner.
-func guardIdentityFields(w http.ResponseWriter, identity xauthz.Identity, existing *userdata.UserAsResource, body map[string]any) bool {
+func guardIdentityFields(w http.ResponseWriter, identity xauthz.Identity, existing *userdata.User, body map[string]any) bool {
 	if !guardIdentitiesField(w, existing.Identities, body) {
 		return false
 	}
@@ -33,7 +33,7 @@ func guardIdentitiesField(w http.ResponseWriter, existing []*userdata.UserIdenti
 	if !present {
 		return true
 	}
-	patched, err := sharedutils.ExtractStructFromBody[userdata.UserAsResource](map[string]any{constants.FieldIdentities: raw})
+	patched, err := sharedutils.ExtractStructFromBody[userdata.User](map[string]any{constants.FieldIdentities: raw})
 	if err == nil && slices.EqualFunc(existing, patched.Identities, sameIdentity) {
 		return true
 	}

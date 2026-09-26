@@ -84,7 +84,7 @@ func registerStartBody(r *http.Request) (email, enrollToken string, err error) {
 
 // A caller who proved an identity (session or enrollment token) registers for
 // that user: the body may repeat its email or omit it, never name another account.
-func ownUser(userID, email string) (*userresource.UserAsResource, error) {
+func ownUser(userID, email string) (*userresource.User, error) {
 	user, err := GetUserByIDWithErrorHandling(userID)
 	if err != nil {
 		return nil, err
@@ -98,7 +98,7 @@ func ownUser(userID, email string) (*userresource.UserAsResource, error) {
 // A bare email proves nothing, so it may only open a brand-new account: an
 // existing one needs a session or an enrollment token, and a bootstrap email is
 // enrolled by the operator (break-glass), never by whoever claims it first.
-func userForEmail(email string) (*userresource.UserAsResource, error) {
+func userForEmail(email string) (*userresource.User, error) {
 	if err := shared.ValidateEmail(email); err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func userForEmail(email string) (*userresource.UserAsResource, error) {
 // Strongest proof wins: session, then one-time enrollment token (reported as
 // enrolled so the session-less finish may add to an account with passkeys), then email.
 func GetUserForRegistrationStart(r *http.Request) (
-	user *userresource.UserAsResource, userID string, enrolled bool, err error,
+	user *userresource.User, userID string, enrolled bool, err error,
 ) {
 	sessionUserID, sessionErr := ValidateSessionFromRequest(r)
 	email, enrollToken, err := registerStartBody(r)
@@ -159,7 +159,7 @@ func GetUserForRegistrationStart(r *http.Request) (
 // finish only the signed ceremony (ceremonyOwner) can name the user.
 func GetUserForRegistration(
 	r *http.Request, ceremonyOwner func(*http.Request) (string, bool, error),
-) (*userresource.UserAsResource, string, error) {
+) (*userresource.User, string, error) {
 	sessionUserID, sessionErr := ValidateSessionFromRequest(r)
 	if sessionErr == nil {
 		user, err := GetUserByIDWithErrorHandling(sessionUserID)
@@ -192,7 +192,7 @@ func GetUserForRegistration(
 
 func AttachPasskeyIdentity(
 	userID string,
-	user *userresource.UserAsResource,
+	user *userresource.User,
 	credential *webauthnlib.Credential,
 ) error {
 	credIDStr := base64.RawURLEncoding.EncodeToString(credential.ID)
@@ -224,13 +224,13 @@ func CreatePasskeyFromCredential(
 	credential *webauthnlib.Credential,
 	deviceName, deviceType string,
 	backupEligible, backupState bool,
-) *authdata.UserPasskey {
+) *authdata.Passkey {
 	credIDStr := base64.RawURLEncoding.EncodeToString(credential.ID)
 	pubKeyStr := base64.StdEncoding.EncodeToString(credential.PublicKey)
 	now := time.Now().UTC()
 	creationTime := now.Format(constants.TimeFormatRFC3339)
 	lastUsedTime := now.Format(constants.TimeFormatRFC3339)
-	return &authdata.UserPasskey{
+	return &authdata.Passkey{
 		UserID:            userID,
 		CredentialID:      credIDStr,
 		PublicKey:         pubKeyStr,
@@ -243,7 +243,7 @@ func CreatePasskeyFromCredential(
 	}
 }
 
-func CreatePasskey(userID string, passkey *authdata.UserPasskey) (any, error) {
+func CreatePasskey(userID string, passkey *authdata.Passkey) (any, error) {
 	passkeyClient := clients.GetPasskeyClient()
 	resp := passkeyClient.CreatePasskeyByUser(userID, passkey)
 	if resp.Status >= constants.HTTPBadRequest {

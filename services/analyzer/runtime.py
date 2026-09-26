@@ -92,7 +92,7 @@ class Runtime:
         return state
 
     def set_enabled(self, enabled: bool) -> None:
-        """GlobalConfig ai.enabled, for the users who may read the runtime but not the settings."""
+        """TelarkConfig ai.enabled, for the users who may read the runtime but not the settings."""
         if self.status.enabled != enabled:
             self.status.enabled = enabled
             self._publish_changed()

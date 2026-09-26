@@ -97,8 +97,8 @@ func TestEnforceScopeNeedsOwner(t *testing.T) {
 	testutil.Equal(t, "contributor owns", validation.CallerOwnsPlans(contributor), false)
 }
 
-func TestEnvironmentIDMustBeInTheCatalog(t *testing.T) {
-	known := func() ([]string, error) { return []string{taxonomyEnvironmentID, stagingEnvID}, nil }
+func TestEnvironmentRefMustBeInTheCatalog(t *testing.T) {
+	known := func() ([]string, error) { return []string{taxonomyEnvironmentRef, stagingEnvID}, nil }
 	down := func() ([]string, error) { return nil, errors.New(catalogError) }
 	cases := []struct {
 		name        string
@@ -115,7 +115,7 @@ func TestEnvironmentIDMustBeInTheCatalog(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			err := validation.EnvironmentID(c.id, c.list)
+			err := validation.EnvironmentRef(c.id, c.list)
 			testutil.Equal(t, "invalid", validation.IsValidation(err), c.invalid)
 			testutil.Equal(t, "unavailable", validation.IsUnavailable(err), c.unavailable)
 		})

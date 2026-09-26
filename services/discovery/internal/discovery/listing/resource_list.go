@@ -5,7 +5,7 @@ import (
 	"slices"
 
 	"github.com/telark/discovery/internal/constants"
-	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
+	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
 	kcorecore "github.com/telark/kcore/resources/core"
 	kcoregroup "github.com/telark/kcore/resources/group"
 )
@@ -59,7 +59,7 @@ func allNonExcludedNamespaces(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	excluded, err := gcfghelper.ExcludedNamespaces(ctx)
+	excluded, err := tcfghelper.ExcludedNamespaces(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func allNonExcludedNamespaces(ctx context.Context) ([]string, error) {
 }
 
 func filterExcludedNamespaces(ctx context.Context, namespaces []string) ([]string, error) {
-	excluded, err := gcfghelper.ExcludedNamespaces(ctx)
+	excluded, err := tcfghelper.ExcludedNamespaces(ctx)
 	if err != nil {
 		return nil, err
 	}

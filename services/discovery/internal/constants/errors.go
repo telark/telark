@@ -107,7 +107,7 @@ const (
 	ErrRollbackAPIVersionNotServed       errors.Error = "rollback validation failed: apiVersion %s " +
 		"for kind %s is not served"
 	ErrRollbackDryRunFailed       errors.Error = "rollback validation failed during dry-run apply: %v"
-	ErrRollbackMarshalPatchFailed errors.Error = "failed to marshal rollback patch: %v"
+	ErrRollbackStatusWriteFailed  errors.Error = "application status write returned %d: %v"
 	ErrRollbackInterruptedRestart errors.Error = "rollback interrupted by service restart"
 	ErrRollbackLockBusy           errors.Error = "rollback lock busy"
 	// Losing this patch is what leaves the entry in_progress until the stale

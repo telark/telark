@@ -37,10 +37,10 @@ func acceptScopes() map[string]datapolicies.ScopeSpec {
 	return map[string]datapolicies.ScopeSpec{
 		"namespaces": {Namespace: acceptNamespace},
 		"applications": {
-			Namespace:      acceptNamespace,
-			ApplicationIDs: []string{acceptApp},
-			AppResources:   refs,
-			VolumeClaims:   []string{"pvc-a", "data-wa1-*"},
+			Namespace:       acceptNamespace,
+			ApplicationRefs: []string{acceptApp},
+			AppResources:    refs,
+			VolumeClaims:    []string{"pvc-a", "data-wa1-*"},
 		},
 	}
 }
@@ -125,7 +125,7 @@ func acceptPlan(templateID, scopeType string) (*plans.ProtectionPlan, map[string
 		plan.Scope.Namespaces = []string{acceptNamespace}
 		return plan, nil
 	}
-	plan.Scope.ApplicationIDs = []string{acceptApp}
+	plan.Scope.ApplicationRefs = []string{acceptApp}
 	plan.Scope.Exclusions.Resources = []plans.ProtectionPlanExcludedResource{
 		{Kind: kindDeployment, Name: acceptApp, Namespace: acceptNamespace},
 	}

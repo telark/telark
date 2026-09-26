@@ -17,24 +17,24 @@ import (
 )
 
 const (
-	stagingEnvironmentID = "cat-00002-0001-0002"
-	requester            = "user-req"
-	approver             = "user-app"
-	requestedAt          = "2026-01-01T00:00:00Z"
-	decidedAt            = "2026-01-02T00:00:00Z"
-	commentText          = "looks fine"
-	approvalPatchKeys    = 7
-	overflowHistoryLen   = plans.ApprovalHistoryMax + 1
-	pastStart            = "2020-01-01T00:00:00Z"
-	futureStart          = "2999-01-01T00:00:00Z"
-	futureEnd            = "2999-01-02T00:00:00Z"
-	singleEvent          = 1
-	labelState           = "state"
-	labelLastEvent       = "last event"
-	labelDecidedBy       = "decidedBy"
-	labelHistoryLen      = "history len"
-	labelPhase           = "phase"
-	labelRequestedBy     = "requestedBy"
+	stagingEnvironmentRef = "cat-00002-0001-0002"
+	requester             = "user-req"
+	approver              = "user-app"
+	requestedAt           = "2026-01-01T00:00:00Z"
+	decidedAt             = "2026-01-02T00:00:00Z"
+	commentText           = "looks fine"
+	approvalPatchKeys     = 7
+	overflowHistoryLen    = plans.ApprovalHistoryMax + 1
+	pastStart             = "2020-01-01T00:00:00Z"
+	futureStart           = "2999-01-01T00:00:00Z"
+	futureEnd             = "2999-01-02T00:00:00Z"
+	singleEvent           = 1
+	labelState            = "state"
+	labelLastEvent        = "last event"
+	labelDecidedBy        = "decidedBy"
+	labelHistoryLen       = "history len"
+	labelPhase            = "phase"
+	labelRequestedBy      = "requestedBy"
 )
 
 var testNow = time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
@@ -101,11 +101,11 @@ func TestResolveApprovalMode(t *testing.T) {
 	}{
 		{"contributor automatic on production", automatic, prod, false, plans.ApprovalModeRequired},
 		{"owner automatic on production", automatic, prod, true, plans.ApprovalModeRequired},
-		{"contributor required on staging", required, stagingEnvironmentID, false, plans.ApprovalModeRequired},
-		{"contributor automatic on staging", automatic, stagingEnvironmentID, false, plans.ApprovalModeAutomatic},
-		{"owner required on staging", required, stagingEnvironmentID, true, plans.ApprovalModeRequired},
+		{"contributor required on staging", required, stagingEnvironmentRef, false, plans.ApprovalModeRequired},
+		{"contributor automatic on staging", automatic, stagingEnvironmentRef, false, plans.ApprovalModeAutomatic},
+		{"owner required on staging", required, stagingEnvironmentRef, true, plans.ApprovalModeRequired},
 		{"nil on production derives required", nil, prod, false, plans.ApprovalModeRequired},
-		{"nil on staging derives automatic", nil, stagingEnvironmentID, false, plans.ApprovalModeAutomatic},
+		{"nil on staging derives automatic", nil, stagingEnvironmentRef, false, plans.ApprovalModeAutomatic},
 		{"nil without environment derives automatic", nil, constants.EmptyString, false, plans.ApprovalModeAutomatic},
 	}
 	for _, c := range cases {
@@ -393,9 +393,9 @@ func TestValidateDecision(t *testing.T) {
 // parked for an approver instead of deploying on the spot.
 func TestContributorAutomaticOnProductionIsParked(t *testing.T) {
 	plan := &plans.ProtectionPlan{
-		CreatedBy:     requester,
-		EnvironmentID: dataconstants.CategoryIDEnvProduction,
-		ApprovalMode:  protection.ResolveApprovalMode(strptr(plans.ApprovalModeAutomatic), dataconstants.CategoryIDEnvProduction, false),
+		CreatedBy:      requester,
+		EnvironmentRef: dataconstants.CategoryIDEnvProduction,
+		ApprovalMode:   protection.ResolveApprovalMode(strptr(plans.ApprovalModeAutomatic), dataconstants.CategoryIDEnvProduction, false),
 	}
 	protection.InitialPhase(plan, testNow)
 	testutil.Equal(t, labelPhase, plan.Phase, plans.PhasePendingApproval)

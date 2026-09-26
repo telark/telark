@@ -81,13 +81,17 @@ Full reference: [chart README](../../charts/telark/README.md#servicesauthenv). K
 | `BOOTSTRAP_ADMINS` | — | Comma-joined admin emails granted Admin on first login |
 | `GOOGLE_CLIENT_ID` | — | Google OAuth client id |
 | `EGRESS_ALLOWED` | `true` | `false` = offline JWKS from `GOOGLE_OIDC_JWK_JSON` |
+| `OIDC_TRUST_FILE` | `/etc/telark/oidc/googleJwkJson` | Pasted Google JWK set, mounted from the Secret `telark-oidc-trust-secret`; re-read when it changes |
 | `REDIS_DB` | `1` | Redis DB index |
 
 ## API
 
-REST under `/api/v1/auth/` — login `start`/`finish`, `logout`, passkey CRUD, OIDC login,
-and permissions; status probes at `/api/v1/status/{live,ready}`. All passkey and
-session-scoped calls require the `X-Session-Token` header.
+REST under `/api/v1/auth/` — login `start`/`finish`, `logout`, passkeys (`GET`/`POST auth/passkeys`,
+`GET`/`PATCH`/`DELETE auth/passkeys/{credentialId}`, `auth/passkeys/enroll-link`), OIDC login and
+config, permissions, and the deletion cascade (`DELETE auth/{users,groups,accessroles}/{id}`); status
+probes at `/api/v1/status/{live,ready}`. All passkey and session-scoped calls require the
+`X-Session-Token` header. auth stores passkeys and sessions (`Passkey`, `Session` CRs) through the
+exporter's `internal/auth/*` routes.
 
 ## Build & run
 

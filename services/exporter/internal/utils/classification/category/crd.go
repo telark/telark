@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"slices"
 
-	metadata "github.com/telark/data/metadata/classification"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/constants"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/kcore/crds/api"
@@ -18,12 +18,12 @@ func CreateCategoriesCRDWithFirstCategory(firstCategory map[string]any) error {
 	}
 
 	template := sharedutils.ConvertToCRDTemplate(
-		metadata.CategoryAsClassificationMetadata,
+		metadata.CategoryMetadata,
 		constants.CategoriesCRDName,
 		initialSpec,
 	)
 
-	createResult := api.CreateCustomResource(template, metadata.CategoryAsClassificationMetadata)
+	createResult := api.CreateCustomResourceWithStatus(template, metadata.CategoryMetadata)
 	if createResult.Error != nil || createResult.Status != http.StatusOK {
 		return fmt.Errorf(string(constants.ErrFailedToCreateCategoriesCRD), createResult.Error)
 	}
@@ -40,8 +40,8 @@ func UpdateCategoriesInCRD(categories []map[string]any) error {
 		constants.SpecField: spec,
 	}
 
-	patchResult := api.PatchCustomResource(
-		metadata.CategoryAsClassificationMetadata,
+	patchResult := sharedutils.PatchCustomResource(
+		metadata.CategoryMetadata,
 		constants.CategoriesCRDName,
 		specPatchData,
 	)
@@ -68,7 +68,7 @@ func AddCategoryToCRD(newCategory map[string]any) error {
 	return UpdateCategoriesInCRD(categories)
 }
 
-func UpdateCategoryInCRD(categoryID string, updatedCategory map[string]any) error {
+func UpdateCategoryInCRD(catID string, updatedCategory map[string]any) error {
 	crd, err := GetCategoriesCRD()
 	if err != nil {
 		return err
@@ -79,7 +79,7 @@ func UpdateCategoryInCRD(categoryID string, updatedCategory map[string]any) erro
 		return err
 	}
 
-	i := slices.IndexFunc(categories, hasID(categoryID))
+	i := slices.IndexFunc(categories, hasID(catID))
 	if i < constants.DefaultInitValue {
 		return errors.New(string(constants.ErrCategoryNotFound))
 	}
@@ -88,7 +88,7 @@ func UpdateCategoryInCRD(categoryID string, updatedCategory map[string]any) erro
 	return UpdateCategoriesInCRD(categories)
 }
 
-func DeleteCategoryFromCRD(categoryID string) error {
+func DeleteCategoryFromCRD(catID string) error {
 	crd, err := GetCategoriesCRD()
 	if err != nil {
 		return err
@@ -99,7 +99,7 @@ func DeleteCategoryFromCRD(categoryID string) error {
 		return err
 	}
 
-	remaining := slices.DeleteFunc(categories, hasID(categoryID))
+	remaining := slices.DeleteFunc(categories, hasID(catID))
 	if len(remaining) == len(categories) {
 		return errors.New(string(constants.ErrCategoryNotFound))
 	}

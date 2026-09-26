@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/gorilla/mux"
 	"github.com/redis/go-redis/v9"
 	dataconstants "github.com/telark/data/constants"
 	"github.com/telark/exporter/internal/authz"
@@ -22,16 +21,16 @@ import (
 
 const primedSessions = `[{"userId":"u-10000-0000-0001","ipAddress":"203.0.113.7"}]`
 
-// A list primed by its owner used to be served from the path-keyed cache before
+// A list primed by its owner used to be served from the subject-keyed cache before
 // the owner check, so any session could read another user's devices and IPs.
 func TestSessionListIsNotServedFromCacheToAnotherUser(t *testing.T) {
 	mr := miniredis.RunT(t)
 	optimizer := performance.NewOptimizer(redis.NewClient(&redis.Options{Addr: mr.Addr()}))
 	t.Cleanup(optimizer.Close)
 
-	path := pathFor(authendpoints.GetAllSessionsByUser)
-	keyed := mux.SetURLVars(httptest.NewRequest(http.MethodGet, path, nil), map[string]string{constants.UserIDParam: subjectUserID})
-	key := cache.NewSubjectListCacheKeyFunc(optimizer, constants.ResourceUserSession, cache.SubjectFromPathParam(constants.UserIDParam))(keyed)
+	path := pathFor(authendpoints.GetAllSessionsByUser) + "?" + authendpoints.QuerySessionUser + "=" + subjectUserID
+	keyed := httptest.NewRequest(http.MethodGet, path, nil)
+	key := cache.NewQueryListCacheKeyFunc(optimizer, constants.ResourceUserSession, authendpoints.QuerySessionUser)(keyed)
 	optimizer.Set(key, primedSessions)
 
 	middleware, err := xauthz.New(xauthz.Config{

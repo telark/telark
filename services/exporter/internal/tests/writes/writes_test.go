@@ -1,0 +1,347 @@
+package writes
+
+import (
+	"encoding/base64"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/telark/data/metadata/base"
+	"github.com/telark/data/metadata/v1alpha1"
+	roledata "github.com/telark/data/resources/role"
+	"github.com/telark/data/resources/telarkconfig"
+	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/exporter/internal/exporters/generics"
+	confighandler "github.com/telark/exporter/internal/handlers/config"
+	"github.com/telark/exporter/internal/startup"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
+	xauthz "github.com/telark/x-ware/authz"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+)
+
+const (
+	jwk      = `{"keys":[{"kid":"k1"}]}`
+	oldJWK   = `{"keys":[]}`
+	patchFmt = "%s: patch status = %d, body %s"
+)
+
+func mustView(t *testing.T, obj *unstructured.Unstructured) map[string]any {
+	t.Helper()
+	out, err := sharedutils.FilterData(obj)
+	if err != nil {
+		t.Fatal(err)
+	}
+	single, ok := out.(*unstructured.Unstructured)
+	if !ok {
+		t.Fatalf("FilterData returned %T", out)
+	}
+	return single.Object
+}
+
+// The CRDs carry no spec.id: the REST view names a record by metadata.name.
+func TestViewInjectsIDFromMetadataName(t *testing.T) {
+	view := mustView(t, object(v1alpha1.UserMetadata, userID, map[string]any{keyName: newName}, nil))
+	if view[keyID] != userID {
+		t.Fatalf("view id = %v, want %q", view[keyID], userID)
+	}
+
+	list, err := sharedutils.FilterData(&unstructured.UnstructuredList{Items: []unstructured.Unstructured{
+		*object(v1alpha1.UserMetadata, userID, map[string]any{keyID: forgedID}, nil),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := list.(*unstructured.UnstructuredList).Items
+	if items[firstItem].Object[keyID] != userID {
+		t.Fatalf("list item id = %v, want metadata.name %q over a stored spec.id", items[firstItem].Object[keyID], userID)
+	}
+}
+
+// Plans and applications project status flat; the config projects it under cluster.
+func TestViewProjectsStatusPerKind(t *testing.T) {
+	plan := mustView(t, object(v1alpha1.ProtectionPlanMetadata, planID,
+		map[string]any{keyName: planID}, map[string]any{keyPhase: phaseActive}))
+	if plan[keyPhase] != phaseActive {
+		t.Errorf("plan phase = %v, want %q", plan[keyPhase], phaseActive)
+	}
+
+	cluster := map[string]any{keyVersion: "1.31"}
+	config := mustView(t, object(v1alpha1.TelarkConfigMetadata, v1alpha1.TelarkConfigSingleton,
+		map[string]any{}, map[string]any{keyCluster: cluster}))
+	if got, ok := config[keyCluster].(map[string]any); !ok || got[keyVersion] != cluster[keyVersion] {
+		t.Errorf("config cluster = %v, want %v", config[keyCluster], cluster)
+	}
+
+	user := mustView(t, object(v1alpha1.UserMetadata, userID,
+		map[string]any{keyStatus: map[string]any{keyPhase: phaseActive}}, nil))
+	if _, ok := user[keyStatus].(map[string]any); !ok {
+		t.Errorf("user status (kept in spec) = %v, want the spec object", user[keyStatus])
+	}
+}
+
+func patchApp(t *testing.T, spec map[string]any) {
+	t.Helper()
+	w := httptest.NewRecorder()
+	generics.GenericPatchCustomResource(w, v1alpha1.ApplicationMetadata, appName, map[string]any{constants.SpecField: spec})
+	if w.Code != http.StatusOK {
+		t.Fatalf(patchFmt, t.Name(), w.Code, w.Body.String())
+	}
+}
+
+// A status key merged into the main resource is dropped by the API server
+// without an error, so it must only ever travel to /status.
+func TestPatchSendsStatusKeysOnlyToStatus(t *testing.T) {
+	client := installFake(t, crSeed(v1alpha1.ApplicationMetadata,
+		object(v1alpha1.ApplicationMetadata, appName, map[string]any{keyName: appName}, nil)))
+
+	patchApp(t, map[string]any{keyDisplayName: newName, keyHealth: healthOK, keyID: forgedID})
+
+	var main, status int
+	for _, w := range writes(t, client) {
+		switch w.subresource {
+		case subStatus:
+			status++
+			if section(w, keyStatus)[keyHealth] != healthOK {
+				t.Errorf(missingKeyFmt, t.Name(), keyHealth, subStatus, w.body)
+			}
+			if _, found := w.body[keySpec]; found {
+				t.Errorf(unexpectedKeyFmt, t.Name(), keySpec, subStatus, w.body)
+			}
+		default:
+			main++
+			spec := section(w, keySpec)
+			for _, key := range []string{keyHealth, keyID} {
+				if _, found := spec[key]; found {
+					t.Errorf(unexpectedKeyFmt, t.Name(), key, keySpec, w.body)
+				}
+			}
+			if spec[keyDisplayName] != newName {
+				t.Errorf(missingKeyFmt, t.Name(), keyDisplayName, keySpec, w.body)
+			}
+		}
+	}
+	if main != constants.DefaultIncrementValue || status != constants.DefaultIncrementValue {
+		t.Fatalf("main patches = %d, status patches = %d, want one each", main, status)
+	}
+
+	stored := stored(t, client, v1alpha1.ApplicationMetadata, appName)
+	if health, _, _ := unstructured.NestedString(stored.Object, keyStatus, keyHealth); health != healthOK {
+		t.Errorf("stored status.health = %q, want %q", health, healthOK)
+	}
+}
+
+func TestStatusOnlyPatchSkipsTheMainResource(t *testing.T) {
+	client := installFake(t, crSeed(v1alpha1.ApplicationMetadata,
+		object(v1alpha1.ApplicationMetadata, appName, map[string]any{keyName: appName}, nil)))
+
+	patchApp(t, map[string]any{keyHealth: healthOK})
+
+	for _, w := range writes(t, client) {
+		if w.subresource != subStatus {
+			t.Errorf("status-only patch also wrote the main resource: %v", w.body)
+		}
+	}
+}
+
+// Create drops .status when the CRD has a status subresource, so the projected
+// keys are written by a second call.
+func TestCreateWritesStatusThroughTheSubresource(t *testing.T) {
+	client := installFake(t)
+
+	w := httptest.NewRecorder()
+	generics.GenericCreateCustomResource(w, v1alpha1.ProtectionPlanMetadata, planID,
+		map[string]any{keyID: planID, keyName: planID, keyPhase: phaseActive})
+	if w.Code != http.StatusOK {
+		t.Fatalf("create status = %d, body %s", w.Code, w.Body.String())
+	}
+
+	var created, statusPatched bool
+	for _, wr := range writes(t, client) {
+		switch {
+		case wr.subresource == subStatus:
+			statusPatched = section(wr, keyStatus)[keyPhase] == phaseActive
+		case section(wr, keySpec) != nil:
+			created = true
+			for _, key := range []string{keyID, keyPhase} {
+				if _, found := section(wr, keySpec)[key]; found {
+					t.Errorf(unexpectedKeyFmt, t.Name(), key, keySpec, wr.body)
+				}
+			}
+		default:
+		}
+	}
+	if !created || !statusPatched {
+		t.Fatalf("created = %v, status patched = %v, want both", created, statusPatched)
+	}
+	if !strings.Contains(w.Body.String(), `"id":"`+planID+`"`) {
+		t.Errorf("create response lacks the view id: %s", w.Body.String())
+	}
+}
+
+// id is metadata.name; a spec.id would be pruned by the schema, and trusting one
+// would let a body rename the record it describes.
+func TestNoIDInAnySpecWrite(t *testing.T) {
+	for _, md := range []base.Metadata{
+		v1alpha1.UserMetadata, v1alpha1.GroupMetadata, v1alpha1.AccessRoleMetadata,
+		v1alpha1.ProtectionPlanMetadata, v1alpha1.ApplicationMetadata,
+	} {
+		t.Run(md.Kind, func(t *testing.T) {
+			client := installFake(t)
+			create := httptest.NewRecorder()
+			generics.GenericCreateCustomResource(create, md, userID, map[string]any{keyID: forgedID, keyName: newName})
+			patch := httptest.NewRecorder()
+			generics.GenericPatchCustomResource(patch, md, userID,
+				map[string]any{constants.SpecField: map[string]any{keyID: forgedID, keyName: newName}})
+			if create.Code != http.StatusOK || patch.Code != http.StatusOK {
+				t.Fatalf("create = %d, patch = %d", create.Code, patch.Code)
+			}
+
+			for _, w := range writes(t, client) {
+				if _, found := section(w, keySpec)[keyID]; found {
+					t.Errorf(unexpectedKeyFmt, md.Kind, keyID, keySpec, w.body)
+				}
+			}
+		})
+	}
+}
+
+// The default config's cluster block is status, so the seed must write it
+// through the subresource; built-in roles are created by name with no spec.id.
+func TestSeedCreatesTheDefaultConfigAndBuiltinRoles(t *testing.T) {
+	client := installFake(t)
+
+	startup.SeedBuiltins()
+
+	var roles, configCreates, configStatus int
+	for _, w := range writes(t, client) {
+		if _, found := section(w, keySpec)[keyID]; found {
+			t.Errorf(unexpectedKeyFmt, w.resource, keyID, keySpec, w.body)
+		}
+		switch {
+		case w.resource == v1alpha1.PluralAccessRoles && w.subresource == constants.EmptyString:
+			roles++
+		case w.resource == v1alpha1.PluralTelarkConfigs && w.subresource == subStatus:
+			configStatus++
+			assertKey(t, w, keyStatus, keyCluster, true)
+		case w.resource == v1alpha1.PluralTelarkConfigs:
+			configCreates++
+			if w.name != v1alpha1.TelarkConfigSingleton {
+				t.Errorf("config created as %q, want %q", w.name, v1alpha1.TelarkConfigSingleton)
+			}
+			assertKey(t, w, keySpec, keyCluster, false)
+		default:
+		}
+	}
+	if roles != len(roledata.BuiltinRoles) {
+		t.Errorf("built-in roles created = %d, want %d", roles, len(roledata.BuiltinRoles))
+	}
+	if configCreates != constants.DefaultIncrementValue || configStatus != constants.DefaultIncrementValue {
+		t.Errorf("config creates = %d, status writes = %d, want one each", configCreates, configStatus)
+	}
+}
+
+func assertKey(t *testing.T, w write, sectionKey, key string, want bool) {
+	t.Helper()
+	if _, found := section(w, sectionKey)[key]; found != want {
+		t.Errorf("%s: %s.%s present = %v, want %v: %v", w.resource, sectionKey, key, found, want, w.body)
+	}
+}
+
+func trustSecret(value string) seed {
+	return seed{gvr: secretGVR, obj: &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": secretVer,
+		"kind":       secretKind,
+		"metadata":   map[string]any{keyName: secretName, "namespace": v1alpha1.TelarkConfigMetadata.Namespace},
+		keyData:      map[string]any{telarkconfig.OIDCSecretKey: base64.StdEncoding.EncodeToString([]byte(value))},
+	}}}
+}
+
+func defaultConfig() seed {
+	md := v1alpha1.TelarkConfigMetadata
+	return crSeed(md, object(md, v1alpha1.TelarkConfigSingleton,
+		map[string]any{keyOIDC: map[string]any{"enabled": false}}, nil))
+}
+
+func serveConfig(t *testing.T, handler http.HandlerFunc, method, body string) map[string]any {
+	t.Helper()
+	r := httptest.NewRequest(method, "/api/v1/config", strings.NewReader(body))
+	r = r.WithContext(xauthz.WithIdentity(r.Context(), xauthz.Identity{Internal: true}))
+	w := httptest.NewRecorder()
+	handler(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("%s config = %d, body %s", method, w.Code, w.Body.String())
+	}
+	var envelope struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	return envelope.Data
+}
+
+func viewJWK(view map[string]any) any {
+	return section(write{body: view}, keyOIDC)[telarkconfig.OIDCSecretKey]
+}
+
+// The JWK goes to the trust Secret auth mounts, never into the CR, and the
+// response still shows it where the UI reads it.
+func TestConfigPatchWritesTheJWKToTheSecret(t *testing.T) {
+	client := installFake(t, defaultConfig(), trustSecret(oldJWK))
+
+	view := serveConfig(t, confighandler.PatchConfig(), http.MethodPatch,
+		`{"oidc":{"enabled":true,"`+telarkconfig.OIDCSecretKey+`":`+jsonString(t, jwk)+`}}`)
+
+	var secretWrites int
+	for _, w := range writes(t, client) {
+		if w.resource == secretPlural {
+			secretWrites++
+			encoded := section(w, keyData)[telarkconfig.OIDCSecretKey]
+			if encoded != base64.StdEncoding.EncodeToString([]byte(jwk)) {
+				t.Errorf("secret data = %v, want the encoded JWK", encoded)
+			}
+			continue
+		}
+		if strings.Contains(string(mustJSON(t, w.body)), telarkconfig.OIDCSecretKey) {
+			t.Errorf("the JWK reached the CR: %v", w.body)
+		}
+	}
+	if secretWrites != constants.DefaultIncrementValue {
+		t.Fatalf("secret writes = %d, want 1", secretWrites)
+	}
+	if viewJWK(view) != jwk {
+		t.Errorf("response JWK = %v, want %q", viewJWK(view), jwk)
+	}
+	if enabled, isBool := section(write{body: view}, keyOIDC)[keyEnabled].(bool); !isBool || !enabled {
+		t.Errorf("the other oidc fields were not written: %v", view[keyOIDC])
+	}
+}
+
+func TestConfigGetMergesTheJWK(t *testing.T) {
+	installFake(t, defaultConfig(), trustSecret(jwk))
+
+	view := serveConfig(t, confighandler.GetConfig(), http.MethodGet, constants.EmptyString)
+
+	if viewJWK(view) != jwk {
+		t.Errorf("GET config JWK = %v, want the Secret's %q", viewJWK(view), jwk)
+	}
+	if view[keyID] != v1alpha1.TelarkConfigSingleton {
+		t.Errorf("config id = %v, want %q", view[keyID], v1alpha1.TelarkConfigSingleton)
+	}
+}
+
+func jsonString(t *testing.T, s string) string {
+	t.Helper()
+	return string(mustJSON(t, s))
+}
+
+func mustJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	out, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}

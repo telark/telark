@@ -23,7 +23,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 
 `app.mode` sizes telark's own services; the subcharts (redis/nats/kyverno/metrics-server/ollama) ship fixed production-grade defaults owned by the chart, identical in every mode. Capacity, measured 2026-09-18: `minimal` handles a few hundred applications; `standard` was verified at 2 000 applications (three discovery replicas, rediscovery of a deleted 100-app namespace ≈ 3.5 min); `performance` is for clusters beyond that. Full guide: [docs/INSTALL.md](../../docs/INSTALL.md).
 
-**Upgrade order:** when CRDs are managed out of band (`crds.enabled=false`), upgrade `telark-crds` before `telark`: the protection plan `pending_approval` phase and approval fields are rejected by an older CRD, and an older CRD silently prunes `scope.exclusions`, `environmentID` and `tagIDs`. Older dashboard bundles show pending plans with a raw label and no Cancel (Owners can Clear).
+**Upgrade order:** when CRDs are managed out of band (`crds.enabled=false`), upgrade `telark-crds` before `telark`: the protection plan `pending_approval` phase and approval fields are rejected by an older CRD, and an older CRD silently prunes `scope.exclusions`, `environmentRef` and `tagRefs`. Older dashboard bundles show pending plans with a raw label and no Cancel (Owners can Clear).
 
 ## Values reference
 
@@ -61,8 +61,8 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | `app.image.pullSecrets` | `[]` | Pull secrets (public images need none; set for a private registry) |
 | `app.kyverno.enabled` | `true` | Install kyverno subchart |
 | `app.kyverno.failOpen` | `true` | Kyverno webhooks fail open (`failurePolicy: Ignore`), so enforce plans are best-effort while Kyverno is down. Must equal `kyverno.features.forceFailurePolicyIgnore.enabled`; the render fails otherwise. See [Policy engine fail-open](../../docs/INSTALL.md#policy-engine-fail-open) |
-| `app.crdGuard.enabled` / `enforce` | `true` / `true` | ValidatingAdmissionPolicy: only the owning service accounts may write telark CRs (`enforce: false` audits). See [CRD write guard](../../docs/INSTALL.md#crd-write-guard) |
-| `app.crdGuard.extraAllowedUsers` | `[]` | Break-glass usernames also allowed to write telark CRs |
+| `app.crdGuard.enabled` / `enforce` | `true` / `true` | ValidatingAdmissionPolicy: only the owning service accounts may write telark CRs (`telark.io`, including `/status`), and only the exporter may change the key in the OIDC trust Secret (`enforce: false` audits). See [CRD write guard](../../docs/INSTALL.md#crd-write-guard) |
+| `app.crdGuard.extraAllowedUsers` | `[]` | Break-glass usernames also allowed to write telark CRs and the OIDC trust Secret |
 | `app.networkPolicy.enabled` | `true` | Ingress NetworkPolicies: default deny for telark pods, APIs only from telark pods, dashboard from anywhere, NATS 4222 only from discovery and notifier. Needs an enforcing CNI. See [Network policies](../../docs/INSTALL.md#network-policies) |
 | `app.serviceToken.value` | `""` | Service token; empty = generated on install, read back on upgrade |
 | `app.serviceToken.existingSecret` | `""` | Secret (key `token`) you manage instead of the generated one, for cluster-less renders. See [GitOps](../../docs/INSTALL.md#gitops-cluster-less-renders) |
@@ -88,14 +88,11 @@ The exporter mounts two PVCs rendered from one template (snapshots and reports);
 
 #### `app.auth.oidc`
 
-Google OIDC config. Consumed by both the auth-service (env) and the bootstrap chart's `GlobalConfig` CR.
+The Google client id, the OIDC flag and the egress switch are runtime settings on the TelarkConfig CR (Settings in the dashboard). The pinned signing keys used when egress is not allowed live in a Secret (`<fullname>-oidc-trust-secret`, key `googleJwkJson`): the exporter writes it when an admin saves the keys, auth reads it from a read-only volume and picks up a change within about a minute. The chart renders it empty and reads it back on upgrade; only the exporter (and `app.crdGuard.extraAllowedUsers`) may change the key while `app.crdGuard.enabled` is on.
 
 | Key | Default | Description |
 |---|---|---|
-| `app.auth.oidc.enabled` | `true` | Feature flag exposed via `GlobalConfig.spec.oidc.enabled`. |
-| `app.auth.oidc.googleClientID` | `""` | Google OAuth2 client id. Empty by default — set your own per install (an operator can also set it at runtime from the UI, stored in `GlobalConfig.spec.oidc.googleClientID`). |
-| `app.auth.oidc.egressAllowed` | `"true"` | `"true"` = backend fetches Google JWKS dynamically (needs egress to `googleapis.com`). `"false"` = offline mode using `googleJwkJson`. |
-| `app.auth.oidc.googleJwkJson` | `""` | Pasted content of `https://www.googleapis.com/oauth2/v3/certs`. Used only when `egressAllowed: "false"`. Rotate every 24–48h. |
+| `app.auth.oidc.existingSecret` | `""` | Secret (key `googleJwkJson`) you manage instead of the chart-rendered one, for cluster-less renders; the exporter needs it to exist and the guard lets others create it only with an empty key. See [GitOps](../../docs/INSTALL.md#gitops-cluster-less-renders) |
 
 #### `app.auth.passkey`
 
@@ -234,6 +231,7 @@ Image tags are `services.<svc>.version` in `values.yaml`, bumped by the release 
 | `SNAPSHOT_GC_INTERVAL_SEC` | `3600` | Sweep the snapshot PVC for files no Application CR references and older than 1 h (`minimal` 7200, `performance` 900; `0` = off). One replica sweeps per interval. Also drives the reports orphan sweep; `0` disables both |
 | `REPORTS_PATH` | `/reports` | Filesystem mount path for protection plan report files |
 | `BOOTSTRAP_ADMINS` | `{{ join "," .Values.app.auth.bootstrap.admins }}` (tpl) | Same list as auth; a session may not create or edit a user with one of these emails (403), see [First admin](../../docs/INSTALL.md#2-first-admin) |
+| `OIDC_TRUST_SECRET_NAME` | `{{ include "telark.oidcTrustSecretName" . }}` (tpl) | Secret the exporter writes the pinned OIDC keys to; follows `app.auth.oidc.existingSecret` |
 
 `services.exporter.envFromConfigMap.CA_BUNDLE` → configmap `telark-ca-bundle`, key `ca.crt` (trusted CA bundle).
 
@@ -329,7 +327,7 @@ Insights page index (see [Insights page](#insights-page)):
 
 #### `services.analyzer.env`
 
-The analyzer's on/off switch, model and auto-analyze setting live on the GlobalConfig CR (set in Settings; a fresh install seeds it on, with `granite4:350m` and auto-analyze off, and an existing CR is never rewritten); only runtime limits live here. Probes use the shared `/api/v1/status/{live,ready}` paths; readiness fails while Redis is unreachable.
+The analyzer's on/off switch, model and auto-analyze setting live on the TelarkConfig CR (set in Settings; a fresh install seeds it on, with `granite4:350m` and auto-analyze off, and an existing CR is never rewritten); only runtime limits live here. Probes use the shared `/api/v1/status/{live,ready}` paths; readiness fails while Redis is unreachable.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -415,7 +413,7 @@ A rule fires only when its reads were complete; a failed or truncated read neith
 
 The dashboard's Insights page lists incidents and recommendations of every app: discovery filters and pages them in a fixed order (`GET /api/v1/insights/get`, Read on insights, excluded namespaces hidden) and the dashboard sorts and groups them. Each discovery replica keeps an in-memory index refreshed every `INSIGHTS_INDEX_REFRESH_SEC` from the analyzer's index key, so requests never touch Redis; the page stays readable while the analyzer is off. Until the first load the route answers 503. Environments come from the protection plans that cover each app.
 
-**Rollout:** release `internal/data` and `internal/rest`, then deploy discovery with the bumped pins (an older discovery drops the new card fields and shows recommendations as incidents), then the analyzer image, then the dashboard. Upgrade `telark-crds` before `telark` (an older CRD prunes `ai.model` and `ai.autoAnalyze`), and upgrade the chart and the analyzer image together: an older analyzer ignores the new variables but runs its tool loop in the 4k context. A pre-upgrade hook Job deletes the old AI provider key Secret `telark-ai-provider-key`; no manual step. Existing GlobalConfig CRs keep their model (e.g. `qwen3:4b`) until changed in Settings; switch to `granite4:350m` on CPU nodes. Dashboard bundles older than this release show an empty insights panel until upgraded.
+**Rollout:** release `internal/data` and `internal/rest`, then deploy discovery with the bumped pins (an older discovery drops the new card fields and shows recommendations as incidents), then the analyzer image, then the dashboard. Upgrade `telark-crds` before `telark` (an older CRD prunes `ai.model` and `ai.autoAnalyze`), and upgrade the chart and the analyzer image together: an older analyzer ignores the new variables but runs its tool loop in the 4k context. A pre-upgrade hook Job deletes the old AI provider key Secret `telark-ai-provider-key`; no manual step. Existing TelarkConfig CRs keep their model (e.g. `qwen3:4b`) until changed in Settings; switch to `granite4:350m` on CPU nodes. Dashboard bundles older than this release show an empty insights panel until upgraded.
 
 #### `services.notifier.env`
 
@@ -454,13 +452,11 @@ WebAuthn / passkey (templated from `app.auth.passkey`):
 | `CHALLENGE_TIMEOUT` | inline (`"60"`) | Challenge TTL (seconds) |
 | `SESSION_EXPIRY` | inline (`"24"`) | Session TTL (hours) |
 
-Google OIDC (templated from `app.auth.oidc`):
+OIDC trust keys (mounted from the Secret named by `app.auth.oidc.existingSecret`, else `<fullname>-oidc-trust-secret`):
 
-| Variable | Source | Description |
+| Variable | Default | Description |
 |---|---|---|
-| `GOOGLE_CLIENT_ID` | `{{ .Values.app.auth.oidc.googleClientID }}` | Google OAuth client id |
-| `EGRESS_ALLOWED` | `{{ .Values.app.auth.oidc.egressAllowed }}` | `"true"` = backend fetches JWKS dynamically (needs egress to googleapis.com). `"false"` = offline mode using `GOOGLE_OIDC_JWK_JSON`. |
-| `GOOGLE_OIDC_JWK_JSON` | `{{ .Values.app.auth.oidc.googleJwkJson }}` | Pasted JWK content for offline mode (rotate every 24–48h) |
+| `OIDC_TRUST_FILE` | `/etc/telark/oidc/googleJwkJson` | Pinned Google JWK set, re-read when it changes; used when the TelarkConfig disallows egress |
 
 Cleanup controllers + queue:
 

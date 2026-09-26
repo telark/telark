@@ -55,7 +55,7 @@ func TestHiddenUsers(t *testing.T) {
 	users := fakeUsers()
 	tests := []struct {
 		name string
-		user *userdata.UserAsResource
+		user *userdata.User
 		want bool
 	}{
 		{"plain owner", users[userPlain], false},
@@ -83,18 +83,11 @@ func TestGuardHiddenUserAnswersNotFoundToRestrictedCallers(t *testing.T) {
 	if authz.GuardHiddenUser(w, requestAs(owner), users[userAdmin]) || w.Code != http.StatusNotFound {
 		t.Fatalf("owner reading an admin: got %d, want 404", w.Code)
 	}
-	w = httptest.NewRecorder()
-	if authz.GuardHiddenUserID(w, requestAs(owner), userBootstrap) || w.Code != http.StatusNotFound {
-		t.Fatalf("owner resolving a bootstrap id: got %d, want 404", w.Code)
-	}
 	if !authz.GuardHiddenUser(httptest.NewRecorder(), requestAs(owner), users[userPlain]) {
 		t.Fatal("owner reading a plain user refused")
 	}
 	if !authz.GuardHiddenUser(httptest.NewRecorder(), requestAs(allAdmin()), users[userBootstrap]) {
 		t.Fatal("admin reading a bootstrap account refused")
-	}
-	if !authz.GuardHiddenUserID(httptest.NewRecorder(), requestAs(owner), unknownID) {
-		t.Fatal("unknown id must fall through to the route lookup")
 	}
 }
 
@@ -109,7 +102,7 @@ func TestGuardUserTarget(t *testing.T) {
 	tests := []struct {
 		name     string
 		identity xauthz.Identity
-		target   *userdata.UserAsResource
+		target   *userdata.User
 		body     map[string]any
 		deleting bool
 		want     bool

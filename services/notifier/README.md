@@ -2,7 +2,7 @@
 
 The event-driven reconciler for application state. Notifier subscribes to the
 `telark.applications.*` NATS JetStream and persists each event to the
-`ApplicationAsResource` CR **through exporter's REST API** (upsert on update). A delete
+`Application` CR (`applications.telark.io`) **through exporter's REST API** (upsert on update). A delete
 calls **discovery's application reset**, which clears the app's Redis state and deletes
 the CR and its snapshot files through exporter. This decouples discovery (which only
 publishes) from the single CR writer (exporter), so application identity stays
@@ -46,8 +46,8 @@ flowchart LR
 ## Responsibilities
 
 - Subscribe to the `telark.applications.*` JetStream (creates the streams on start).
-- On **update**: patch the named `ApplicationAsResource` via exporter; on `404`, create it (upsert).
-- On **delete**: reset the named application via discovery (`POST …/applications/{name}/reset`, authenticated with the service token). `200` and `404` (already gone) ack; a status the reset may later succeed on (`5xx`, `409`, no answer) is NAK'd for redelivery; any other refusal is acked and logged.
+- On **update**: patch the named `Application` via exporter (`PATCH applications/{name}`); on `404`, create it (`POST applications`, upsert).
+- On **delete**: reset the named application via discovery (`POST /api/v1/applications/{name}/reset`, authenticated with the service token). `200` and `404` (already gone) ack; a status the reset may later succeed on (`5xx`, `409`, no answer) is NAK'd for redelivery; any other refusal is acked and logged.
 - Ack every message with structured logging; malformed messages are acked-and-logged, not redelivered forever.
 - Expose a minimal HTTP status server whose readiness reflects live NATS connectivity.
 

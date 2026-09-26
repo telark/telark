@@ -12,16 +12,16 @@ import (
 // follow the plan read scope, each with its own deny rule.
 func TestReportRoutesRequirements(t *testing.T) {
 	expected := map[string]xauthz.Requirement{
-		"POST /api/v1/reports/plans/create":          xauthz.Internal,
-		"POST /api/v1/reports/plans/{id}/ledger/put": xauthz.Internal,
-		"GET /api/v1/reports/plans/{id}/ledger/get":  xauthz.Internal,
-		"GET /api/v1/reports/get": xauthz.Denyable(
+		"POST /api/v1/internal/reports":                    xauthz.Internal,
+		"PUT /api/v1/internal/protectionplans/{id}/ledger": xauthz.Internal,
+		"GET /api/v1/internal/protectionplans/{id}/ledger": xauthz.Internal,
+		"GET /api/v1/reports": xauthz.Denyable(
 			xauthz.Read(roledata.ScopeProtectionPlans), roledata.ActionViewProtectionPlanReports,
 		),
-		"GET /api/v1/reports/plans/{id}/get": xauthz.Denyable(
+		"GET /api/v1/protectionplans/{id}/reports": xauthz.Denyable(
 			xauthz.Read(roledata.ScopeProtectionPlans), roledata.ActionViewProtectionPlanReports,
 		),
-		"GET /api/v1/reports/plans/{id}/download": xauthz.Denyable(
+		"GET /api/v1/protectionplans/{id}/reports/download": xauthz.Denyable(
 			xauthz.Read(roledata.ScopeProtectionPlans), roledata.ActionDownloadProtectionPlanReport,
 		),
 	}

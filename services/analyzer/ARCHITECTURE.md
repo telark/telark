@@ -102,7 +102,7 @@ same code checks and merges them. On a small CPU node this takes minutes.
   `internal/data/resources/application/insights.go`, `internal/rest/endpoints/insights`);
   `constants.py` and `models.py` mirror it with identical names.
 - **exporter-service is the only service that reads/writes cluster config** (the
-  `GlobalConfig` CR). The analyzer reads it through exporter with the service
+  `TelarkConfig` CR). The analyzer reads it through exporter with the service
   token, never from environment variables.
 - **Read-only by construction**: the tools and the review only issue `GET`s, and the
   analyzer's RBAC grants get/list on pods, events, workloads, Services,

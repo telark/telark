@@ -7,7 +7,7 @@ import (
 
 	"github.com/telark/data/errors"
 	"github.com/telark/data/messages"
-	plansmd "github.com/telark/data/metadata/plans"
+	plansmd "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/data/plans"
 	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/constants"

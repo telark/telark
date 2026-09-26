@@ -96,6 +96,8 @@ app:
       name: "Dashboard App"
       origin: ""  # required with ingress/gateway; empty follows the request Origin
       selfRegistration: "false"  # gates passkey registration only; OIDC users unaffected
+    oidc:
+      existingSecret: ""  # GitOps: your Secret with key googleJwkJson; empty = chart-managed
 
   # Optional subcharts. Their config lives in the Subcharts section below.
   kyverno:
@@ -233,6 +235,7 @@ services:
       # Orphan snapshot sweep: unreferenced files older than 1h on the PVC. 0 = off.
       SNAPSHOT_GC_INTERVAL_SEC: "3600"
       BOOTSTRAP_ADMINS: '{{ join "," .Values.app.auth.bootstrap.admins }}'
+      OIDC_TRUST_SECRET_NAME: '{{ include "telark.oidcTrustSecretName" . }}'
     volumes:
       - name: snapshots-storage
         persistentVolumeClaim:
@@ -412,6 +415,15 @@ services:
       CLEANUP_MAX_CONCURRENT_PATCHES: "4"
       RECONCILE_BACKOFF_INITIAL_SECONDS: "5"
       RECONCILE_BACKOFF_MAX_SECONDS: "300"
+      OIDC_TRUST_FILE: "/etc/telark/oidc/googleJwkJson"
+    volumes:
+      - name: oidc-trust
+        secret:
+          name: '{{ include "telark.oidcTrustSecretName" . }}'
+    volumeMounts:
+      - name: oidc-trust
+        path: /etc/telark/oidc
+        readOnly: true
     pdb:
       enabled: false
   ui:

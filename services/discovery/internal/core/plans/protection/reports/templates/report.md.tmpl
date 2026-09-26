@@ -45,7 +45,7 @@ Report {{cell .Doc.Cover.ReportID}} · generated {{fmtTime .Doc.Cover.GeneratedA
 | Started | {{fmtTime .Doc.Timeline.StartedAt}} | {{cell .Doc.Timeline.StartedBy}} |
 | Last updated | {{fmtTime .Doc.Timeline.LastUpdatedAt}} | {{cell .Doc.Timeline.LastUpdatedBy}} |
 | Terminated | {{fmtTime .Doc.Timeline.TerminatedAt}} | {{cell .Doc.Timeline.TerminatedBy}} |
-| Participants | {{cell (join .Doc.Timeline.ParticipantsIDs)}} | |
+| Participants | {{cell (join .Doc.Timeline.ParticipantRefs)}} | |
 
 ## {{.L.TitleScope}}
 
@@ -53,7 +53,7 @@ Report {{cell .Doc.Cover.ReportID}} · generated {{fmtTime .Doc.Cover.GeneratedA
 |---|---|
 | Type | {{cell .Doc.Scope.Type}} |
 | Namespaces | {{cell (join .Doc.Scope.Namespaces)}} |
-| Applications | {{cell (join .Doc.Scope.ApplicationIDs)}} |
+| Applications | {{cell (join .Doc.Scope.ApplicationRefs)}} |
 
 ## {{.L.TitlePolicies}}
 

@@ -14,7 +14,6 @@ const (
 	SessionTokenBytes             = 32
 	HeaderSessionToken            = "X-Session-Token"
 	HeaderUserID                  = "X-User-ID"
-	HeaderCredentialID            = "X-Credential-ID"
 	HeaderDeviceName              = "X-Device-Name"
 	HeaderDeviceType              = "X-Device-Type"
 	HeaderContentType             = "Content-Type"
@@ -22,6 +21,7 @@ const (
 	HeaderForwardedHost           = "X-Forwarded-Host"
 	HeaderForwardedProto          = "X-Forwarded-Proto"
 	IDPathParam                   = "id"
+	CredentialIDPathParam         = "credentialId"
 	ContentTypeJSON               = "application/json"
 	EmptyString                   = ""
 	ColonSeparator                = ":"
@@ -75,6 +75,8 @@ const (
 	EnvBootstrapAdmins            = "BOOTSTRAP_ADMINS"
 	EnvSelfRegistrationEnabled    = "SELF_REGISTRATION_ENABLED"
 	EnvReplicaID                  = "HOSTNAME"
+	EnvOIDCTrustFile              = "OIDC_TRUST_FILE"
+	DefaultOIDCTrustFile          = "/etc/telark/oidc/googleJwkJson"
 	StandaloneReplicaID           = "standalone"
 
 	BuiltInRoleAdmin    = "r-00000-0000-0001"
@@ -164,7 +166,7 @@ const (
 	CleanupFieldAttempts      = "attempts"
 	CleanupRequestedBySweeper = "sweeper"
 
-	SpecFieldAssignedUsersIDs  = "assignedUsersIDs"
-	SpecFieldAssignedRolesIDs  = "assignedRolesIDs"
-	SpecFieldAssignedGroupsIDs = "assignedGroupsIDs"
+	SpecFieldUserRefs  = "userRefs"
+	SpecFieldRoleRefs  = "roleRefs"
+	SpecFieldGroupRefs = "groupRefs"
 )

@@ -172,7 +172,7 @@ func (s *Service) Prepare(
 		return nil, err
 	}
 
-	resolved, err := s.resolveScope(ctx, req.Scope.Type, req.Scope.ApplicationIDs)
+	resolved, err := s.resolveScope(ctx, req.Scope.Type, req.Scope.ApplicationRefs)
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +212,7 @@ func (s *Service) validatePrepare(ctx context.Context, req *planseps.PrepareProt
 	if err := validation.EnforceScope(ctx, req.Scope.Type, req.Mode); err != nil {
 		return err
 	}
-	if err := validation.EnvironmentID(req.EnvironmentID, s.environments); err != nil {
+	if err := validation.EnvironmentRef(req.EnvironmentRef, s.environments); err != nil {
 		return err
 	}
 	return validation.NamespaceScope(ctx, req.Scope.Type, req.Scope.Namespaces, s.listNamespaces)
@@ -258,7 +258,7 @@ func (s *Service) Reactivate(ctx context.Context, userID, planID string) (*plans
 		return nil, err
 	}
 
-	resolved, err := s.resolveScope(ctx, plan.Scope.Type, plan.Scope.ApplicationIDs)
+	resolved, err := s.resolveScope(ctx, plan.Scope.Type, plan.Scope.ApplicationRefs)
 	if err != nil {
 		return nil, err
 	}
@@ -348,7 +348,7 @@ func (s *Service) approve(
 	if err := validation.NamespaceScope(ctx, plan.Scope.Type, plan.Scope.Namespaces, s.listNamespaces); err != nil {
 		return nil, err
 	}
-	resolved, err := s.resolveScope(ctx, plan.Scope.Type, plan.Scope.ApplicationIDs)
+	resolved, err := s.resolveScope(ctx, plan.Scope.Type, plan.Scope.ApplicationRefs)
 	if err != nil {
 		return nil, err
 	}
@@ -468,7 +468,7 @@ func (s *Service) Activate(ctx context.Context, snapshot *plans.ProtectionPlan) 
 		return nil
 	}
 
-	resolved, err := s.resolveScope(ctx, plan.Scope.Type, plan.Scope.ApplicationIDs)
+	resolved, err := s.resolveScope(ctx, plan.Scope.Type, plan.Scope.ApplicationRefs)
 	if err != nil {
 		shared.LogDeployFailure(s.logger, plan, "activate-resolve-scope", err)
 		return s.markFailedRemote(plan, err.Error())
@@ -572,10 +572,10 @@ func (s *Service) buildPlan(
 ) *plans.ProtectionPlan {
 	now := s.clock().Format(globalshared.DefaultTimeFormat)
 	scope := plans.ProtectionPlanScope{
-		Type:           req.Scope.Type,
-		ApplicationIDs: req.Scope.ApplicationIDs,
-		Namespaces:     req.Scope.Namespaces,
-		Exclusions:     plans.NormalizeExclusions(req.Scope.Exclusions),
+		Type:            req.Scope.Type,
+		ApplicationRefs: req.Scope.ApplicationRefs,
+		Namespaces:      req.Scope.Namespaces,
+		Exclusions:      plans.NormalizeExclusions(req.Scope.Exclusions),
 	}
 	plan := &plans.ProtectionPlan{
 		ID:              planID,
@@ -588,18 +588,18 @@ func (s *Service) buildPlan(
 		Mode:            req.Mode,
 		TimeMode:        req.TimeMode,
 		TimeRange:       toTimeRange(req.TimeRange),
-		ParticipantsIDs: req.ParticipantsIDs,
-		TagIDs:          req.TagIDs,
+		ParticipantRefs: req.ParticipantRefs,
+		TagRefs:         req.TagRefs,
 		CreatedAt:       now,
 		CreatedBy:       userID,
 		LastUpdatedAt:   now,
 		LastUpdatedBy:   userID,
 		Health:          plans.HealthUnknown,
 	}
-	if req.EnvironmentID != nil {
-		plan.EnvironmentID = *req.EnvironmentID
+	if req.EnvironmentRef != nil {
+		plan.EnvironmentRef = *req.EnvironmentRef
 	}
-	plan.ApprovalMode = ResolveApprovalMode(req.ApprovalMode, plan.EnvironmentID, callerOwner)
+	plan.ApprovalMode = ResolveApprovalMode(req.ApprovalMode, plan.EnvironmentRef, callerOwner)
 	return plan
 }
 
@@ -752,10 +752,10 @@ func toCreateRequest(plan *plans.ProtectionPlan) planseps.CreateProtectionPlanRe
 		Severity:    plan.Severity,
 		Priority:    plan.Priority,
 		Scope: planseps.ScopeRequest{
-			Type:           plan.Scope.Type,
-			ApplicationIDs: plan.Scope.ApplicationIDs,
-			Namespaces:     plan.Scope.Namespaces,
-			Exclusions:     plan.Scope.Exclusions,
+			Type:            plan.Scope.Type,
+			ApplicationRefs: plan.Scope.ApplicationRefs,
+			Namespaces:      plan.Scope.Namespaces,
+			Exclusions:      plan.Scope.Exclusions,
 		},
 		Policies:         toPolicyRequests(plan.Policies),
 		Mode:             plan.Mode,
@@ -772,9 +772,9 @@ func toCreateRequest(plan *plans.ProtectionPlan) planseps.CreateProtectionPlanRe
 		StartedBy:        plan.StartedBy,
 		TerminatedAt:     plan.TerminatedAt,
 		TerminatedBy:     plan.TerminatedBy,
-		ParticipantsIDs:  plan.ParticipantsIDs,
-		EnvironmentID:    plan.EnvironmentID,
-		TagIDs:           plan.TagIDs,
+		ParticipantRefs:  plan.ParticipantRefs,
+		EnvironmentRef:   plan.EnvironmentRef,
+		TagRefs:          plan.TagRefs,
 		ApprovalMode:     plan.ApprovalMode,
 		Approval:         toApprovalRequest(plan.Approval),
 		Health:           plan.Health,

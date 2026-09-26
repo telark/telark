@@ -12,7 +12,8 @@
   (dict "apiGroups" (list "autoscaling") "resources" (list "horizontalpodautoscalers") "verbs" (list "get" "create" "update"))
   (dict "apiGroups" (list "autoscaling.k8s.io") "resources" (list "verticalpodautoscalers") "verbs" (list "get" "list" "watch"))
   (dict "apiGroups" (list "autoscaling.k8s.io") "resources" (list "verticalpodautoscalers") "verbs" (list "get" "create" "update"))
-  (dict "apiGroups" (list (printf "erpi.%s" .Values.app.name)) "resources" (list "applicationsasresources") "verbs" (list "get" "list" "watch" "patch"))
+  (dict "apiGroups" (list (include "telark.apiGroup" $)) "resources" (list "applications") "verbs" (list "get" "list" "watch"))
+  (dict "apiGroups" (list (include "telark.apiGroup" $)) "resources" (list "applications/status") "verbs" (list "patch"))
   (dict "apiGroups" (list "metrics.k8s.io") "resources" (list "pods") "verbs" (list "get" "list"))
   (dict "apiGroups" (list "kyverno.io") "resources" (list "policies") "verbs" (list "create" "get" "list" "delete" "patch"))
 )) }}

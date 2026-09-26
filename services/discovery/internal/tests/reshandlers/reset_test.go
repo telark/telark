@@ -127,7 +127,7 @@ func TestResetAndSyncOfUnknownApplicationAre404(t *testing.T) {
 // the forward must dial the address the leader advertised with its heartbeat.
 func TestLeaderResetURLUsesAdvertisedAddress(t *testing.T) {
 	got := applications.LeaderResetURL("10.0.1.7", shopApp)
-	testutil.Equal(t, "forward url", got, "http://10.0.1.7:8080/api/v1/resources/applications/shop/reset")
+	testutil.Equal(t, "forward url", got, "http://10.0.1.7:8080/api/v1/applications/shop/reset")
 }
 
 const (

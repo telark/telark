@@ -223,9 +223,9 @@ func TestLegacyDocumentSkipped(t *testing.T) {
 }
 
 func plan(phase, env, scopeType string, targets ...string) plans.ProtectionPlan {
-	p := plans.ProtectionPlan{Phase: phase, EnvironmentID: env, Scope: plans.ProtectionPlanScope{Type: scopeType}}
+	p := plans.ProtectionPlan{Phase: phase, EnvironmentRef: env, Scope: plans.ProtectionPlanScope{Type: scopeType}}
 	if scopeType == plans.ScopeTypeApplications {
-		p.Scope.ApplicationIDs = targets
+		p.Scope.ApplicationRefs = targets
 	} else {
 		p.Scope.Namespaces = targets
 	}

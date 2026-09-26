@@ -30,33 +30,33 @@ func TestMembershipIsCappedByTheGroupsRoles(t *testing.T) {
 		want  bool
 	}{
 		{"user side: join admin group", func(w http.ResponseWriter) bool {
-			return authz.GuardUserPatch(w, requestAs(owner), &userdata.UserAsResource{ID: victimID}, groupsOf(groupAdmin))
+			return authz.GuardUserPatch(w, requestAs(owner), &userdata.User{ID: victimID}, groupsOf(groupAdmin))
 		}, false},
 		{"user side: join group within level", func(w http.ResponseWriter) bool {
-			return authz.GuardUserPatch(w, requestAs(owner), &userdata.UserAsResource{ID: victimID}, groupsOf(groupPlain))
+			return authz.GuardUserPatch(w, requestAs(owner), &userdata.User{ID: victimID}, groupsOf(groupPlain))
 		}, true},
 		{"user side: already a member", func(w http.ResponseWriter) bool {
-			existing := &userdata.UserAsResource{ID: victimID, AssignedGroupsIDs: ptrs([]string{groupAdmin})}
+			existing := &userdata.User{ID: victimID, GroupRefs: ptrs([]string{groupAdmin})}
 			return authz.GuardUserPatch(w, requestAs(owner), existing, groupsOf(groupAdmin))
 		}, true},
 		{"user create: in admin group", func(w http.ResponseWriter) bool {
 			return authz.GuardUserCreate(w, requestAs(owner), groupsOf(groupAdmin))
 		}, false},
 		{"group side: add member to admin group", func(w http.ResponseWriter) bool {
-			group := &groupdata.GroupAsResource{AssignedRolesIDs: []string{roleAllAdmin}}
+			group := &groupdata.Group{RoleRefs: []string{roleAllAdmin}}
 			return authz.GuardGroupMembersPatch(w, requestAs(owner), group, members(victimID))
 		}, false},
 		{"group side: add member to group within level", func(w http.ResponseWriter) bool {
-			group := &groupdata.GroupAsResource{AssignedRolesIDs: []string{roleUsersOwner}}
+			group := &groupdata.Group{RoleRefs: []string{roleUsersOwner}}
 			return authz.GuardGroupMembersPatch(w, requestAs(owner), group, members(victimID))
 		}, true},
 		{"group create: admin role and a member", func(w http.ResponseWriter) bool {
 			body := members(victimID)
-			body[constants.FieldAssignedRolesIDs] = []any{roleAllAdmin}
-			return authz.GuardGroupMembersPatch(w, requestAs(owner), &groupdata.GroupAsResource{}, body)
+			body[constants.FieldRoleRefs] = []any{roleAllAdmin}
+			return authz.GuardGroupMembersPatch(w, requestAs(owner), &groupdata.Group{}, body)
 		}, false},
 		{"group side: removing a member is not capped", func(w http.ResponseWriter) bool {
-			group := &groupdata.GroupAsResource{AssignedRolesIDs: []string{roleAllAdmin}, AssignedUsersIDs: []string{victimID}}
+			group := &groupdata.Group{RoleRefs: []string{roleAllAdmin}, UserRefs: []string{victimID}}
 			return authz.GuardGroupMembersPatch(w, requestAs(owner), group, members())
 		}, true},
 	}

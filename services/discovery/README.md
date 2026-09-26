@@ -6,9 +6,9 @@ classifies the change, snapshots the manifests, and publishes the result. It als
 the **protection-plan** lifecycle and the **rollback** path. Every replica cooperates
 over Redis so the work stays correct and non-duplicated at scale.
 
-Discovery never writes the `ApplicationAsResource` CR directly — it publishes to NATS and
-lets [notifier](../notifier) persist through [exporter](../exporter). Exporter remains the
-single CR writer.
+Discovery never creates or edits the `Application` CR (`applications.telark.io`) itself — it
+publishes to NATS and lets [notifier](../notifier) persist through [exporter](../exporter). The one
+exception is the rollback controller, which patches the `applications/status` subresource directly.
 
 ## Architecture
 
@@ -54,10 +54,10 @@ flowchart LR
 - **Discover:** watch workloads via `kcore` informers and group them into applications by label derivation. The grouping label value names the Application CR, so it is lowercased with `_` as `-`; a value that still is not a DNS-1123 subdomain is skipped and logged once. CronJob and Job pod specs feed images, ports, env keys and config/secret refs like the other workload kinds.
 - **Diff & classify:** compare the live app to the last stored spec (from exporter) and resolve overlapping signals into a single change class. An entry's `detectedAt`/`changedBy` come from the `telark.io/last-modified-*` annotations only when the informer flush saw the annotation change with the write; a `/scale` write (annotation unchanged), a health-only change (a readiness move is nobody's write) and a tick-recorded change carry the detection time and no author. Manifest-level change text names the object as `namespace/Kind/name`, so a multi-namespace app's changes are told apart.
 - **Snapshot:** on each material change, read and sanitize the workload manifests and store them through exporter — the audit trail and rollback targets. The pre-image comes from the informer's old object; a health-only change (readiness moved, manifests unchanged) snapshots the live manifests, so a recovery is never left unrecorded. Any other change the tick sees without a pre-image (a resource that joined while discovery was down) waits two ticks for the informer flush and is then recorded against the live state, so the CR never stays stale. Snapshot entries carry the class and severity of the change they precede.
-- **Publish:** emit `telark.applications.{update,delete}` to NATS; notifier persists the CR via exporter on update and calls this service's application reset on delete (the reset deletes the CR through exporter, and clears the app's Redis state; a re-discovered app also starts from a clean state). `POST .../{name}/reset` and `POST .../{name}/sync` answer 404 for an application the store does not hold. A non-leader replica forwards a reset to the leader only after the Kubernetes API confirms the address advertised in Redis is the leader pod's IP and that pod carries its own component label; the forward carries this replica's service token and the verified `X-User-ID`, never the caller's headers, and only the status, `Content-Type` and body come back. The `analyze/*` namespace lists refuse excluded namespaces and the release namespace (403), and refuse every namespace while the excluded list has never loaded (503).
+- **Publish:** emit `telark.applications.{update,delete}` to NATS; notifier persists the CR via exporter on update and calls this service's application reset on delete (the reset deletes the CR through exporter, and clears the app's Redis state; a re-discovered app also starts from a clean state). `POST applications/{name}/reset` and `POST applications/{name}/sync` answer 404 for an application the store does not hold. A non-leader replica forwards a reset to the leader only after the Kubernetes API confirms the address advertised in Redis is the leader pod's IP and that pod carries its own component label; the forward carries this replica's service token and the verified `X-User-ID`, never the caller's headers, and only the status, `Content-Type` and body come back. The `cluster/namespaces/*` lists refuse excluded namespaces and the release namespace (403), and refuse every namespace while the excluded list has never loaded (503).
 - **Trigger:** on an authored incident/recovery change-log entry, XADD a job to `insights:jobs` (best effort, off the publish path once the exporter serves that generation, at most 5 s later); the windowed insights read (`GET insights/applications?apps=`, at most 100 keys, 400 above) filters by excludedNamespaces: it skips apps whose document namespace is excluded and drops cards whose workload namespace (`params.namespace`, else the document's) is excluded, keeping the stored `version`.
-- **Insights list:** keep a per-replica row index of every app's insight cards for the cluster-wide list (`GET insights/get`), fed from the `analyzer:index` ZSET; no Redis on the request path.
-- **Protect:** drive the protection-plan lifecycle (`pending_approval → scheduled → active → terminated`); while active, deploy admission policies for the plan's scope (one policy per template and namespace, so an application spanning several namespaces is covered in each) and verify their health against live cluster state. Plans that require approval are parked in `pending_approval` until an approver decides; nothing is deployed while pending. Validation rejects a window that has already ended, targets in the release namespace or in GlobalConfig `excludedNamespaces` (the policy engine skips them), and a template listed twice; repeated targets are deduplicated. Plan names are unique (case- and whitespace-insensitive): a name already taken is a 409 on create, duplicate and rename, and a per-name lock (`lock:plan-name:<name>`) makes parallel creates or renames of one name yield one winner and a 409 for the rest. Unknown template params are rejected. Every phase is editable: an edit that moves the window recomputes the phase (a scheduled plan made permanent or whose start has passed deploys at once; an active plan given a future start withdraws its policies and waits for the controller), a rename re-renders the live policies, and an edit of a canceled or terminated plan is stored and takes effect on reactivation. Rules exempt the engine's own `Policy`, `PolicyReport` and `EphemeralReport` writes; audit-mode messages read "would be blocked". Every rendered policy carries a `telark.erpi/render-hash` annotation; the health pass compares it with a fresh render and redeploys a policy whose content differs (or that predates the annotation), so an upgrade of the renderer re-renders active plans on the next tick without a cancel and reactivate. An application that vanished from an app-scope plan is skipped, as violations and reports do, rather than failing the repair every tick.
+- **Insights list:** keep a per-replica row index of every app's insight cards for the cluster-wide list (`GET insights`), fed from the `analyzer:index` ZSET; no Redis on the request path.
+- **Protect:** drive the protection-plan lifecycle (`pending_approval → scheduled → active → terminated`); while active, deploy admission policies for the plan's scope (one policy per template and namespace, so an application spanning several namespaces is covered in each) and verify their health against live cluster state. Plans that require approval are parked in `pending_approval` until an approver decides; nothing is deployed while pending. Validation rejects a window that has already ended, targets in the release namespace or in TelarkConfig `excludedNamespaces` (the policy engine skips them), and a template listed twice; repeated targets are deduplicated. Plan names are unique (case- and whitespace-insensitive): a name already taken is a 409 on create, duplicate and rename, and a per-name lock (`lock:plan-name:<name>`) makes parallel creates or renames of one name yield one winner and a 409 for the rest. Unknown template params are rejected. Every phase is editable: an edit that moves the window recomputes the phase (a scheduled plan made permanent or whose start has passed deploys at once; an active plan given a future start withdraws its policies and waits for the controller), a rename re-renders the live policies, and an edit of a canceled or terminated plan is stored and takes effect on reactivation. Rules exempt the engine's own `Policy`, `PolicyReport` and `EphemeralReport` writes; audit-mode messages read "would be blocked". Every rendered policy carries a `telark.io/render-hash` annotation; the health pass compares it with a fresh render and redeploys a policy whose content differs (or that predates the annotation), so an upgrade of the renderer re-renders active plans on the next tick without a cancel and reactivate. An application that vanished from an app-scope plan is skipped, as violations and reports do, rather than failing the repair every tick.
 - **Rollback:** replace the app's objects with a chosen snapshot under explicit intent, with controller-driven status; `triggeredBy` is the authenticated caller.
 - **Report:** render protection plan reports (HTML, Markdown, JSON, CSV) and store them through exporter. A final report is captured asynchronously right after a plan ends — after the terminal patch removes its policies and records its phase — bounded at 10 s and serialized. A checkpoint loop (`PROTECTION_PLAN_REPORT_CHECKPOINT_SEC`) merges live violation Events into the plan's ledger before the 1 h Event retention drops them, on its own rate-limited K8s client that reuses `DISCOVERY_ROLLBACK_K8S_CLIENT_QPS` / `_BURST`. On-demand reports merge the ledger with what the cluster still holds, then render.
 
@@ -183,16 +183,18 @@ force-sync, auto-cleanup, the insights row index (`INSIGHTS_INDEX_REFRESH_SEC`, 
 
 ## API
 
-REST under `/api/v1/` — `analyze/*` (namespace workloads/resources), `resources/*`
-(applications), `plans/*` (protection plans), `rollback` intents, and
-`/api/v1/status/{live,ready}`. Plan bodies accept optional `environmentID` and `tagIDs`
+REST under `/api/v1/` — `cluster/namespaces` and `cluster/namespaces/{ns}/{workloads,resources}`,
+`applications/{name}/{sync,reset}`, `applications/{name}/rollbacks` (trigger) and
+`applications/{name}/rollbacks/{rollbackId}/abort`, `discovery/status`, `policytemplates`,
+`protectionplans/prepare` and `protectionplans/{id}/{cancel,duplicate,reactivate,clear,decision,revise,status,violations,reports}`,
+`insights`, and `/api/v1/status/{live,ready}`. Plan bodies accept optional `environmentRef` and `tagRefs`
 (category ids, metadata only); omitting them on update keeps the stored values, sending
 `""` / `[]` clears them; a duplicate copies them unless the request overrides them.
-`POST plans/protection/{id}/reports/generate` renders an on-demand report (Write access; deny `generateprotectionplanreport`):
+`POST protectionplans/{id}/reports` renders an on-demand report (Write access; deny `generateprotectionplanreport`):
 400 for a plan that never started, 429 with `Retry-After` when two on-demand renders are
 already in flight.
 
-Insights list: `GET insights/get` (Read on `insights`, like the per-app read) serves every
+Insights list: `GET insights` (Read on `insights`, like the per-app read) serves every
 app's insight cards from a per-replica row index. Every `INSIGHTS_INDEX_REFRESH_SEC` the index
 reads the `analyzer:index` members written since its newest score (minus 5 s) and MGETs, in
 batches of 200, only the documents whose score moved; every `INSIGHTS_INDEX_RESYNC_SEC` it walks
@@ -226,7 +228,7 @@ index, the query, the excluded namespaces and each row turning stale; `If-None-M
 304. 400 names the invalid parameter; 503 with `Retry-After: 5` until the replica's first index
 load (or while the excluded namespaces are unknown).
 
-Namespaces: `GET analyze/namespaces/get` feeds the namespace filter of both the Applications and
+Namespaces: `GET cluster/namespaces` feeds the namespace filter of both the Applications and
 the Insights pages, so Read on `applications` or on `insights` reaches it. A route requirement
 names one scope, so the middleware checks only the session and the handler checks the two scopes
 (403 otherwise).
@@ -235,8 +237,8 @@ Approval: `approvalMode` (`automatic` | `required`) is accepted on prepare and d
 derived server-side: the Production environment is always `required`, elsewhere the default is
 `automatic`, `required` is honoured from anyone and `automatic` only from an Owner on
 `protection-plans`. It is then immutable on update, and an edit may not move an `automatic`
-plan into Production. `environmentID` must be a `plan-environments` category (400 otherwise, 503
-when the catalogue cannot be read). `POST plans/protection/{id}/decide` with
+plan into Production. `environmentRef` must be a `plan-environments` category (400 otherwise, 503
+when the catalogue cannot be read). `POST protectionplans/{id}/decision` with
 `{decision: approved|rejected, comment?, requestedAt}` decides a `pending_approval` plan
 (Owner on `protection-plans`; the `approveprotectionplan` and `rejectprotectionplan` deny rules withhold approving and rejecting separately): the
 requester, and anyone who reactivated or materially edited the plan since its last approval,
@@ -261,7 +263,7 @@ update, an absent `exclusions` key leaves the stored value untouched; `{}` clear
 Permissions: every plan route is gated on the `protection-plans` scope, and a custom role can
 withhold each action with the deny rule `protection-plans.<action>.deny` (built-in roles carry
 none). Templates and status: Read, `viewprotectionplans`. Violations: Read,
-`viewprotectionplanviolations`. Prepare: Write, `createprotectionplan`. Update, which covers
+`viewprotectionplanviolations`. Prepare: Write, `createprotectionplan`. Revise (`POST protectionplans/{id}/revise`), which covers
 every field including options added later: Write, `editprotectionplan`. Duplicate, reactivate,
 cancel: Write, `duplicateprotectionplan` / `reactivateprotectionplan` / `cancelprotectionplan`.
 Reports generate: Write, `generateprotectionplanreport`. Clear (delete): Owner,

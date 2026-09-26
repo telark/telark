@@ -10,14 +10,14 @@ import (
 	"github.com/telark/auth/internal/constants"
 	"github.com/telark/auth/internal/helpers/shared"
 	userresource "github.com/telark/data/resources/user"
-	userclient "github.com/telark/rest/clients/resources/users"
+	userclient "github.com/telark/rest/clients/users"
 )
 
 var jitLg = constants.GetLogger(constants.LoggerPrefixAuthService)
 
 func JitProvisionUserByEmail(
 	userClient *userclient.Client, email string,
-) (*userresource.UserAsResource, error) {
+) (*userresource.User, error) {
 	if !config.IsSelfRegistrationEnabled() {
 		jitLg.Info(fmt.Sprintf(string(constants.LogJITSelfRegistrationBlock), shared.IdentityHash(email)))
 		return nil, errors.New(string(constants.ErrSelfRegistrationDisabled))
@@ -45,20 +45,20 @@ func JitProvisionUserByEmail(
 
 // Self-registration verifies nothing about the email, so the account starts
 // ReadOnly; Admin and the bootstrap marker come only from a verified identity.
-func buildJitUser(email, username string) *userresource.UserAsResource {
+func buildJitUser(email, username string) *userresource.User {
 	roleID := constants.BuiltInRoleReadOnly
-	return &userresource.UserAsResource{
-		Username:         username,
-		Fullname:         BuildFullnameFromEmail(email),
-		Email:            email,
-		CreationDate:     time.Now().UTC().Format(time.RFC3339),
-		Status:           userresource.UserStatus{Phase: string(userresource.AccountPhaseActive)},
-		AssignedRolesIDs: []*string{&roleID},
+	return &userresource.User{
+		Username:     username,
+		Fullname:     BuildFullnameFromEmail(email),
+		Email:        email,
+		CreationDate: time.Now().UTC().Format(time.RFC3339),
+		Status:       userresource.UserStatus{Phase: string(userresource.AccountPhaseActive)},
+		RoleRefs:     []*string{&roleID},
 	}
 }
 
-func RepairRoleIfMissing(user *userresource.UserAsResource, userClient *userclient.Client, roleID string) {
-	if len(user.AssignedRolesIDs) != constants.DefaultInitValue {
+func RepairRoleIfMissing(user *userresource.User, userClient *userclient.Client, roleID string) {
+	if len(user.RoleRefs) != constants.DefaultInitValue {
 		return
 	}
 	if err := RepairMissingRole(user, userClient, roleID); err != nil {

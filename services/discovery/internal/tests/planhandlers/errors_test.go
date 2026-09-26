@@ -46,7 +46,7 @@ func TestStatusForErr(t *testing.T) {
 		{"name in flight", fmt.Errorf("prepare: %w", protection.ErrNameInFlight), http.StatusConflict},
 		{"excluded list unavailable", fmt.Errorf(wrapPrepare, &validation.UnavailableError{Msg: "down"}), http.StatusServiceUnavailable},
 		{"enforce needs owner", fmt.Errorf(wrapPrepare, validation.ErrEnforceNeedsOwner), http.StatusForbidden},
-		{"unknown environment", validation.EnvironmentID(strptr("cat-9"), func() ([]string, error) { return nil, nil }), http.StatusBadRequest},
+		{"unknown environment", validation.EnvironmentRef(strptr("cat-9"), func() ([]string, error) { return nil, nil }), http.StatusBadRequest},
 		{"unknown", errors.New("boom"), http.StatusInternalServerError},
 	}
 	for _, c := range cases {

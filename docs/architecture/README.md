@@ -22,16 +22,16 @@ Shared modules: `data` (CRD types, constants, errors, plan templates and Kyverno
 ## Service-to-service calls
 
 - Every `rest` client targets `http://telark-<service>-service:8080/api/v1/<endpoint>` (`rest/base/def.go`); the analyzer's defaults are the same host names (`services/analyzer/constants.py`). The chart passes no service URLs, so the service names are fixed by `app.name`.
-- All `rest` clients call the exporter, except `ResetApplicationByName`, which calls discovery (`rest/clients/resources/applications/client.go`).
+- All `rest` clients call the exporter, except `ResetApplicationByName`, which calls discovery (`rest/clients/applications/client.go`).
 - Every client sends the service token (`X-Service-Token`), so service calls are Internal ([security](../security/README.md#service-token)).
 
 ```
-auth      -> exporter   sessions, passkeys, users, groups, roles, global config
-discovery -> exporter   applications, snapshots, plans, reports and ledgers, notifications, global config, sessions/users/groups/roles (authz)
+auth      -> exporter   sessions, passkeys, users, groups, access roles, config
+discovery -> exporter   applications, snapshots, plans, reports and ledgers, notifications, config, sessions/users/groups/access roles (authz)
 notifier  -> exporter   application patch / create
 notifier  -> discovery  application reset
 analyzer  -> auth       GET /api/v1/auth/permissions (every user request)
-analyzer  -> exporter   global config, applications, plans, categories (read)
+analyzer  -> exporter   config, applications, plans, categories (read)
 ```
 
 discovery reaches the exporter through the wrappers in `services/discovery/internal/clients/*.go` (timeouts, circuit breaker).
@@ -52,39 +52,39 @@ discovery reaches the exporter through the wrappers in `services/discovery/inter
 | exporter | `notif:user:*`, `notif:item:*` | per-user in-app notifications |
 | exporter | authz generation and signed grant entries | grants cache ([security](../security/README.md#where-each-service-resolves-sessions-and-grants)) |
 | exporter | `exporter:snapshot:gc`, `exporter:reports:gc`, list-cache generations | GC tick locks, list cache |
-| auth | `auth:webauthn:challenge:*`, `auth:oidc:nonce:*`, `auth:oidc:jwks:google`, `auth:passkey:enroll-token:*`, `auth:cleanup:<users\|groups\|roles>` | login ceremonies and the deletion cleanup streams |
+| auth | `auth:webauthn:challenge:*`, `auth:oidc:nonce:*`, `auth:oidc:jwks:google`, `auth:passkey:enroll-token:*`, `auth:cleanup:<users\|groups\|accessroles>` | login ceremonies and the deletion cleanup streams |
 
 Constants: `services/<svc>/internal/constants/` (discovery `coordination.go`, `forcesync.go`; auth `config.go`; exporter `config.go`, `authz.go`), `services/analyzer/constants.py`.
 
 ## Kubernetes access
 
 - discovery runs `kcore` informers over the application workload kinds on every replica; the coalesced flush and the leader loops (plan controller, report checkpoint, rollback controller) run on the leader only (`services/discovery/internal/coordination/leadergate/`).
-- The exporter mirrors `ApplicationAsResource` and `UserSession` CRs with informers and writes every telark CR. discovery also patches `ApplicationAsResource` directly, from the rollback controller (`services/discovery/internal/handlers/rollback/controller.go`, `patchSpec`).
+- The exporter mirrors `Application` and `Session` CRs with informers and writes every telark CR. discovery also patches `applications/status` directly, from the rollback controller (`services/discovery/internal/handlers/rollback/controller.go`).
 - The analyzer issues read-only `GET`s with its ServiceAccount token.
 - auth and notifier never call the Kubernetes API.
 - RBAC per service: [security](../security/README.md#kubernetes-privileges).
 
 ## Flows
 
-**Application discovery.** discovery derives applications from workload labels (`services/discovery/internal/discovery/derivation/`), merges them across namespaces, diffs against the stored application, and publishes `telark.applications.update`. notifier patches the `ApplicationAsResource` through the exporter and creates it on 404. Authored incident and recovery changes also `XADD` a job to `insights:jobs`.
+**Application discovery.** discovery derives applications from workload labels (`services/discovery/internal/discovery/derivation/`), merges them across namespaces, diffs against the stored application, and publishes `telark.applications.update`. notifier patches the `Application` through the exporter and creates it on 404. Authored incident and recovery changes also `XADD` a job to `insights:jobs`.
 
 **Change history, snapshots and rollback.** On a material change discovery stores sanitized pre-change manifests through the exporter, which writes them to the snapshots volume (`/snapshots/apps/<app>/<ns>/V<generation>.json`, `services/exporter/internal/utils/snapshot/paths.go`). A rollback request appends an intent through the exporter; the leader's rollback controller fetches the snapshot, writes the objects back (create, or update to replace; `services/discovery/internal/handlers/rollback/replace.go`) and patches the rollback status on the CR ([discovery README](../../services/discovery/README.md#rollback)).
 
 **Application delete.** discovery's reset (`POST .../applications/{name}/reset`, from auto-cleanup or the API) clears the app's Redis state and deletes the CR through the exporter, which deletes its snapshot files.
 
-**Insights.** The analyzer consumes `insights:jobs`, investigates with the local model and read-only tools, writes `analyzer:<ns>:<name>` and indexes it, and streams updates over SSE (`GET /api/v1/insights/events`, in-process broadcaster). The UI reads insight lists through discovery (`insights/applications`, `insights/get`) and asks the analyzer for analyze, triage, runtime and events. Details: [analyzer ARCHITECTURE.md](../../services/analyzer/ARCHITECTURE.md).
+**Insights.** The analyzer consumes `insights:jobs`, investigates with the local model and read-only tools, writes `analyzer:<ns>:<name>` and indexes it, and streams updates over SSE (`GET /api/v1/insights/events`, in-process broadcaster). The UI reads insight lists through discovery (`insights/applications`, `insights`) and asks the analyzer for analyze, triage, runtime and events. Details: [analyzer ARCHITECTURE.md](../../services/analyzer/ARCHITECTURE.md).
 
 **Protection plans.** [protection-plans.md](protection-plans.md).
 
-**Sign-in.** The UI calls auth; auth verifies the passkey assertion or Google ID token, then creates the `UserSession` through the exporter and returns the token. Every later API call carries `X-Session-Token`; each service resolves it as described in [security](../security/README.md#authentication).
+**Sign-in.** The UI calls auth; auth verifies the passkey assertion or Google ID token, then creates the `Session` through the exporter and returns the token. Every later API call carries `X-Session-Token`; each service resolves it as described in [security](../security/README.md#authentication).
 
-**User, group and role deletion.** auth's cleanup route runs the deletion guard, deletes through the exporter (a finalizer keeps the record), and queues a job on `auth:cleanup:<kind>`. The cleanup reconciler deletes a deleted user's sessions, strips back-references from other records, then removes the finalizer (`services/auth/internal/controllers/cleanup/`, [auth README](../../services/auth/README.md)).
+**User, group and access-role deletion.** auth's `DELETE auth/{users,groups,accessroles}/{id}` route runs the deletion guard, deletes through the exporter (a finalizer keeps the record), and queues a job on `auth:cleanup:<kind>`. The cleanup reconciler deletes a deleted user's sessions, strips back-references from other records, then removes the finalizer (`services/auth/internal/controllers/cleanup/`, [auth README](../../services/auth/README.md)).
 
 ## Startup and health
 
 | Service | Order in `main` | Probes (`/api/v1/status/...`) |
 |---|---|---|
-| exporter | snapshot and report directories → Redis → seed built-ins (roles upserted, categories merged, `GlobalConfig` only if absent) → GC loops → application and session informers → authz → HTTP | `live`, `ready` (Redis and the application mirror synced) |
+| exporter | snapshot and report directories → Redis → seed built-ins (access roles upserted, categories merged, `TelarkConfig` `default` only if absent) → GC loops → application and session informers → authz → HTTP | `live`, `ready` (Redis and the application mirror synced) |
 | discovery | authz → HTTP server with a self-supervisor → async bootstrap: Redis, consumer group, informers, insights index, leader loop, consumer, force sync, rollback, plans, auto-cleanup | `live`, `ready` (fails only on Redis; bootstrap, exporter breaker and Kubernetes report degraded) |
 | auth | subcommand dispatch → config and bootstrap-admin check → WebAuthn → Redis → cleanup system → authz → HTTP | `health`, `ready`, `live` |
 | notifier | Redis → NATS (creates the streams) → status server | `live`, `ready` (NATS connected) |
@@ -97,6 +97,6 @@ All listen on 8080 in the cluster.
 Checked against the code; the service READMEs are fixed separately:
 
 - The discovery and notifier READMEs describe a `telark.applications.delete` NATS flow; nothing publishes it.
-- The discovery and exporter READMEs say the exporter is the only writer of `ApplicationAsResource`; the rollback controller patches it directly.
-- The auth README says sessions live in Redis and that a cleanup controller sweeps expired ones; sessions are `UserSession` CRs written through the exporter, an expired one is refused on use, and expired sessions are deleted per user when that user gets a new session (`services/exporter/internal/utils/auth/session/cleanup.go`).
+- The discovery and exporter READMEs say the exporter is the only writer of `Application`; the rollback controller patches its status directly.
+- The auth README says sessions live in Redis and that a cleanup controller sweeps expired ones; sessions are `Session` CRs written through the exporter, an expired one is refused on use, and expired sessions are deleted per user when that user gets a new session (`services/exporter/internal/utils/auth/session/cleanup.go`).
 - The exporter README's "change notifications on Redis" are per-user in-app notifications.

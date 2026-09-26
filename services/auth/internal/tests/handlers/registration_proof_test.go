@@ -28,25 +28,25 @@ const (
 // exist, anything else is unknown; passkey lookups fail when asked to.
 type proofStub struct {
 	passkeyFailure bool
-	created        []userresource.UserAsResource
+	created        []userresource.User
 }
 
 func (s *proofStub) RoundTrip(r *http.Request) (*http.Response, error) {
 	switch {
-	case strings.Contains(r.URL.Path, "/sessions/"):
+	case strings.HasSuffix(r.URL.Path, "/api/v1/auth/sessions/self"):
 		return envelope(http.StatusNotFound, nil)
 	case strings.Contains(r.URL.Path, "passkeys"):
 		if s.passkeyFailure {
 			return envelope(http.StatusInternalServerError, nil)
 		}
 		return envelope(http.StatusOK, map[string]any{"items": []any{}})
-	case strings.Contains(r.URL.Path, "findbyemail") && strings.Contains(r.URL.Path, "new"):
+	case strings.Contains(r.URL.Path, "by-email") && strings.Contains(r.URL.Path, "new"):
 		if len(s.created) == constants.DefaultInitValue {
 			return envelope(http.StatusNotFound, nil)
 		}
 		return envelope(http.StatusOK, s.created[constants.DefaultInitValue])
 	case r.Method == http.MethodPost:
-		var user userresource.UserAsResource
+		var user userresource.User
 		if err := decodeInto(r, &user); err != nil {
 			return nil, err
 		}
@@ -54,7 +54,7 @@ func (s *proofStub) RoundTrip(r *http.Request) (*http.Response, error) {
 		s.created = append(s.created, user)
 		return envelope(http.StatusCreated, user)
 	default:
-		return envelope(http.StatusOK, userresource.UserAsResource{ID: "uid", Email: "a@b.com"})
+		return envelope(http.StatusOK, userresource.User{ID: "uid", Email: "a@b.com"})
 	}
 }
 
@@ -97,8 +97,8 @@ func TestRegisterStartProofRules(t *testing.T) {
 				t.Fatalf("created users = %d, want 1", len(stub.created))
 			}
 			created := stub.created[constants.DefaultInitValue]
-			if created.Bootstrap || len(created.AssignedRolesIDs) != constants.DefaultIncrementValue ||
-				*created.AssignedRolesIDs[constants.DefaultInitValue] != constants.BuiltInRoleReadOnly {
+			if created.Bootstrap || len(created.RoleRefs) != constants.DefaultIncrementValue ||
+				*created.RoleRefs[constants.DefaultInitValue] != constants.BuiltInRoleReadOnly {
 				t.Fatalf("self-registered user must be ReadOnly without the bootstrap marker, got %+v", created)
 			}
 		})

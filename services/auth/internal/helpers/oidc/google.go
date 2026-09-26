@@ -14,7 +14,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/telark/auth/internal/constants"
-	globalconfigresource "github.com/telark/data/resources/globalconfig"
+	telarkconfigresource "github.com/telark/data/resources/telarkconfig"
 )
 
 type jwk struct {
@@ -59,13 +59,13 @@ func (s *keyStore) stop() {
 	s.stopOnce.Do(func() { close(s.stopRefresh) })
 }
 
-func (s *keyStore) matches(oidc globalconfigresource.OIDCConfig) bool {
+func (s *keyStore) matches(oidc telarkconfigresource.OIDCConfig) bool {
 	return s.egressMode == oidc.EgressAllowed && s.staticJSON == oidc.GoogleJWKJSON
 }
 
 // Rebuilt whenever the admin changes the trust settings, so a key rotation takes
 // effect on the next login rather than on the next restart.
-func getStore(oidc globalconfigresource.OIDCConfig) (*keyStore, error) {
+func getStore(oidc telarkconfigresource.OIDCConfig) (*keyStore, error) {
 	storeMu.Lock()
 	defer storeMu.Unlock()
 
@@ -237,7 +237,7 @@ func buildRSAPublicKey(nB64, eB64 string) (*rsa.PublicKey, error) {
 	return &rsa.PublicKey{N: n, E: int(e.Int64())}, nil
 }
 
-func ValidateGoogleIDToken(rawToken string, oidc globalconfigresource.OIDCConfig) (*GoogleClaims, error) {
+func ValidateGoogleIDToken(rawToken string, oidc telarkconfigresource.OIDCConfig) (*GoogleClaims, error) {
 	s, err := getStore(oidc)
 	if err != nil {
 		return nil, err

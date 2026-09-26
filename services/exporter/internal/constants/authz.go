@@ -20,7 +20,7 @@ const (
 )
 
 const (
-	ErrAuthzGlobalConfigDenied        = "you do not have permission to change this setting"
+	ErrAuthzConfigDenied              = "you do not have permission to change this setting"
 	ErrAuthzPlanLifecycleDenied       = "lifecycle, approval and policy fields of a protection plan are managed by the platform"
 	ErrAuthzPrivilegedFieldDenied     = "you do not have permission to change this user's roles, groups or status"
 	ErrAuthzSelfPrivilegeChange       = "you cannot change your own roles, groups or status"

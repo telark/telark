@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"slices"
 
-	metadata "github.com/telark/data/metadata/classification"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/kcore/crds/api"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -17,7 +17,7 @@ var (
 )
 
 func GetCategoriesCRD() (*unstructured.Unstructured, error) {
-	categoriesResource := api.GetCustomResourceByName(constants.CategoriesCRDName, metadata.CategoryAsClassificationMetadata)
+	categoriesResource := api.GetCustomResourceByName(constants.CategoriesCRDName, metadata.CategoryMetadata)
 	if categoriesResource.Error != nil || categoriesResource.Status != http.StatusOK {
 		return nil, ErrCategoriesCRDNotFound
 	}
@@ -51,7 +51,7 @@ func ExtractCategoriesList(crd *unstructured.Unstructured) ([]map[string]any, er
 	return result, nil
 }
 
-func FindCategoryByID(categoryID string) (map[string]any, error) {
+func FindCategoryByID(catID string) (map[string]any, error) {
 	crd, err := GetCategoriesCRD()
 	if err != nil {
 		return nil, err
@@ -62,17 +62,17 @@ func FindCategoryByID(categoryID string) (map[string]any, error) {
 		return nil, err
 	}
 
-	if i := slices.IndexFunc(categories, hasID(categoryID)); i >= constants.DefaultInitValue {
+	if i := slices.IndexFunc(categories, hasID(catID)); i >= constants.DefaultInitValue {
 		return categories[i], nil
 	}
 
 	return nil, ErrCategoryNotFound
 }
 
-func hasID(categoryID string) func(map[string]any) bool {
+func hasID(catID string) func(map[string]any) bool {
 	return func(cat map[string]any) bool {
 		id, ok := cat[constants.FieldID].(string)
-		return ok && id == categoryID
+		return ok && id == catID
 	}
 }
 
@@ -106,8 +106,8 @@ func GetAllCategories() ([]map[string]any, error) {
 	return ExtractCategoriesList(crd)
 }
 
-func FindCategoryByIDOrRespond(w http.ResponseWriter, categoryID string) (map[string]any, bool) {
-	category, err := FindCategoryByID(categoryID)
+func FindCategoryByIDOrRespond(w http.ResponseWriter, catID string) (map[string]any, bool) {
+	category, err := FindCategoryByID(catID)
 	if err != nil {
 		handleCategoryError(w, err)
 		return nil, false
@@ -115,8 +115,8 @@ func FindCategoryByIDOrRespond(w http.ResponseWriter, categoryID string) (map[st
 	return category, true
 }
 
-func GetCategoryWithScope(w http.ResponseWriter, categoryID string) (map[string]any, string, bool) {
-	category, ok := FindCategoryByIDOrRespond(w, categoryID)
+func GetCategoryWithScope(w http.ResponseWriter, catID string) (map[string]any, string, bool) {
+	category, ok := FindCategoryByIDOrRespond(w, catID)
 	if !ok {
 		return nil, constants.EmptyString, false
 	}

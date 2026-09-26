@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/constants"
 	envmanager "github.com/telark/exporter/internal/managers/envs"
 	exprdb "github.com/telark/exporter/internal/redis"
@@ -70,7 +70,7 @@ func RunSnapshotGC() {
 // Refs come from the live API, never the cached list route: a stale blob would
 // turn into deletions.
 func referencedSnapshotPaths() (map[string]struct{}, error) {
-	result := api.ListCustomResources(metadata.ApplicationAsResourceMetadata)
+	result := api.ListCustomResources(metadata.ApplicationMetadata)
 	if result.Status != http.StatusOK || result.Error != nil {
 		return nil, fmt.Errorf(string(constants.ErrSnapshotGCListFailed), result.Status, result.Error)
 	}
@@ -86,7 +86,7 @@ func referencedSnapshotPaths() (map[string]struct{}, error) {
 }
 
 func collectSnapshotPaths(obj map[string]any, into map[string]struct{}) {
-	snaps, _, _ := unstructured.NestedSlice(obj, constants.SpecField, constants.FieldSnapshots)
+	snaps, _, _ := unstructured.NestedSlice(obj, constants.FieldStatus, constants.FieldSnapshots)
 	for _, raw := range snaps {
 		entry, isMap := raw.(map[string]any)
 		if !isMap {

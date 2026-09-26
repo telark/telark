@@ -632,7 +632,7 @@ async def review_loop(state, sleep: Sleep = asyncio.sleep) -> None:
 
 
 async def config_poll(state, sleep: Sleep = asyncio.sleep) -> None:
-    """Every ANALYZER_CONFIG_POLL_SEC: refresh GlobalConfig, re-check the runtime for its model and, while the analyzer
+    """Every ANALYZER_CONFIG_POLL_SEC: refresh TelarkConfig, re-check the runtime for its model and, while the analyzer
     is enabled, pull that model if it is missing and autoPull is on (a fresh install then needs no Settings step)."""
     while True:
         try:

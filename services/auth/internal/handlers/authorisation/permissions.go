@@ -36,8 +36,8 @@ func resolveUserPermissions(userID string) (*PermissionsResponse, error) {
 		return nil, err
 	}
 
-	roleMap := collectDirectRoles(user.AssignedRolesIDs)
-	collectInheritedRoles(user.AssignedGroupsIDs, roleMap)
+	roleMap := collectDirectRoles(user.RoleRefs)
+	collectInheritedRoles(user.GroupRefs, roleMap)
 
 	resolvedRoles := resolveRoles(roleMap)
 	return &PermissionsResponse{UserID: userID, Roles: resolvedRoles}, nil
@@ -69,17 +69,17 @@ func collectInheritedRoles(assignedGroupIDs []*string, roleMap map[string][]Role
 		if group.DeletionTimestamp != nil {
 			continue
 		}
-		for _, rid := range group.AssignedRolesIDs {
+		for _, rid := range group.RoleRefs {
 			roleMap[rid] = append(roleMap[rid], RoleSource{Kind: constants.RoleSourceInherited, GroupID: groupID})
 		}
 	}
 }
 
 func resolveRoles(roleMap map[string][]RoleSource) []ResolvedRole {
-	roleClient := clients.GetRoleClient()
+	roleClient := clients.GetAccessRoleClient()
 	resolvedRoles := make([]ResolvedRole, constants.DefaultInitValue, len(roleMap))
 	for roleID, sources := range roleMap {
-		role, err := roleClient.GetRoleByID(roleID)
+		role, err := roleClient.GetAccessRoleByID(roleID)
 		if err != nil {
 			lg.Error(fmt.Sprintf(string(constants.ErrFailedLoadRole), roleID, err))
 			continue
@@ -112,7 +112,7 @@ func buildResolvedScopes(sps []roleresource.ScopeAndPermissions) []ResolvedScope
 	return scopes
 }
 
-func isRoleExpired(role *roleresource.RoleAsResource) bool {
+func isRoleExpired(role *roleresource.AccessRole) bool {
 	if role.Validity == nil {
 		return false
 	}

@@ -23,17 +23,17 @@ type registerStub struct {
 
 func (s registerStub) RoundTrip(r *http.Request) (*http.Response, error) {
 	switch {
-	case strings.Contains(r.URL.Path, "/sessions/"):
+	case strings.HasSuffix(r.URL.Path, "/api/v1/auth/sessions/self"):
 		if !s.session {
 			return envelope(http.StatusNotFound, nil)
 		}
 		return liveSession()
 	case strings.Contains(r.URL.Path, "passkeys"):
 		return envelope(http.StatusOK, map[string]any{
-			"items": []*authdata.UserPasskey{{UserID: "uid", CredentialID: "cred"}},
+			"items": []*authdata.Passkey{{UserID: "uid", CredentialID: "cred"}},
 		})
 	default:
-		return envelope(http.StatusOK, userresource.UserAsResource{ID: "uid", Email: "a@b.com"})
+		return envelope(http.StatusOK, userresource.User{ID: "uid", Email: "a@b.com"})
 	}
 }
 

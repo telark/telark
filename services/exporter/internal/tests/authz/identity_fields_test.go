@@ -12,8 +12,8 @@ import (
 	xauthz "github.com/telark/x-ware/authz"
 )
 
-func linkedTarget(id string) *userdata.UserAsResource {
-	return &userdata.UserAsResource{
+func linkedTarget(id string) *userdata.User {
+	return &userdata.User{
 		ID: id, Email: "jane.doe@example.com", Username: "jane",
 		Identities: []*userdata.UserIdentity{{Provider: "google", Issuer: "https://accounts.google.com", Subject: "111"}},
 	}
@@ -36,14 +36,14 @@ func TestGuardUserPatchIdentityFields(t *testing.T) {
 		want     bool
 	}{
 		{"owner rewrites identities beside a role edit", owner, victimID,
-			map[string]any{constants.FieldAssignedRolesIDs: existingRoles, constants.FieldIdentities: identitiesBody("attacker")}, false},
+			map[string]any{constants.FieldRoleRefs: existingRoles, constants.FieldIdentities: identitiesBody("attacker")}, false},
 		{"owner rewrites email beside a role edit", owner, victimID,
-			map[string]any{constants.FieldAssignedRolesIDs: existingRoles, constants.FieldEmail: "attacker@example.com"}, false},
+			map[string]any{constants.FieldRoleRefs: existingRoles, constants.FieldEmail: "attacker@example.com"}, false},
 		{"owner rewrites username beside a role edit", owner, victimID,
-			map[string]any{constants.FieldAssignedRolesIDs: existingRoles, constants.FieldUsername: "attacker"}, false},
+			map[string]any{constants.FieldRoleRefs: existingRoles, constants.FieldUsername: "attacker"}, false},
 		{"owner echoes unchanged identity fields", owner, victimID,
 			map[string]any{
-				constants.FieldAssignedRolesIDs: existingRoles, constants.FieldEmail: "jane.doe@example.com",
+				constants.FieldRoleRefs: existingRoles, constants.FieldEmail: "jane.doe@example.com",
 				constants.FieldIdentities: identitiesBody("111"),
 			}, true},
 		{"self changes email", self, callerID, map[string]any{constants.FieldEmail: "new@example.com"}, true},

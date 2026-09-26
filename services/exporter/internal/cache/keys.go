@@ -3,7 +3,6 @@ package cache
 import (
 	"net/http"
 
-	"github.com/gorilla/mux"
 	"github.com/telark/exporter/internal/constants"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	rediscache "github.com/telark/x-ware/redis/cache"
@@ -65,6 +64,15 @@ func NewViewListCacheKeyFunc(generations ListGenerationReader, resourceType stri
 	}
 }
 
+// A filtered list is its own blob: served for the unfiltered route (or another
+// filter value) it would hide items, so the query value is part of the key.
+func NewQueryListCacheKeyFunc(generations ListGenerationReader, resourceType string, param string) func(r *http.Request) string {
+	return func(r *http.Request) string {
+		subject := subjectSegment(param, r.URL.Query().Get(param))
+		return generateListKey(resourceType, generations.ListGeneration(resourceType), subject)
+	}
+}
+
 // A subject-less key would be shared by every caller of the route, so a request
 // whose subject cannot be read gets no key and therefore bypasses the cache.
 func NewSubjectListCacheKeyFunc(
@@ -78,12 +86,6 @@ func NewSubjectListCacheKeyFunc(
 			return constants.EmptyString
 		}
 		return generateListKey(resourceType, generations.ListGeneration(resourceType), subjectID)
-	}
-}
-
-func SubjectFromPathParam(param string) SubjectFunc {
-	return func(r *http.Request) string {
-		return subjectSegment(param, mux.Vars(r)[param])
 	}
 }
 

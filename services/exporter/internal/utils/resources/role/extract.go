@@ -8,13 +8,13 @@ import (
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
 )
 
-func ExtractRoleSpecFromRequestBody(body map[string]any) (*roledata.RoleAsResource, error) {
+func ExtractRoleSpecFromRequestBody(body map[string]any) (*roledata.AccessRole, error) {
 	// Remove priority and version from body - these are computed server-side
 	delete(body, constants.FieldPriority)
 	delete(body, constants.FieldVersion)
 	normalizeRules(body)
 
-	role, err := sharedutils.ExtractStructFromBodyIgnoringID[roledata.RoleAsResource](body)
+	role, err := sharedutils.ExtractStructFromBodyIgnoringID[roledata.AccessRole](body)
 	if err != nil {
 		return nil, err
 	}

@@ -10,7 +10,7 @@ import (
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/handlers/analyze/resources"
 	"github.com/telark/discovery/internal/handlers/analyze/workloads"
-	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
+	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
 	"github.com/telark/discovery/internal/tests/testutil"
 )
 
@@ -33,7 +33,7 @@ func TestAnalyzeListsFailClosedWithoutExcludedList(t *testing.T) {
 }
 
 func TestAnalyzeListsRefuseExcludedNamespaces(t *testing.T) {
-	gcfghelper.SetExcludedForTest([]string{kubeSystem})
+	tcfghelper.SetExcludedForTest([]string{kubeSystem})
 	ctx := context.Background()
 	testutil.Equal(t, "resources", list(ctx, resources.ListNamespaceResources), http.StatusForbidden)
 	testutil.Equal(t, "workloads", list(ctx, workloads.ListNamespaceWorkloads), http.StatusForbidden)

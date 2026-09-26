@@ -7,7 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func ValidateSessionExpiration(resource *unstructured.Unstructured) (*authdata.UserSession, error) {
+func ValidateSessionExpiration(resource *unstructured.Unstructured) (*authdata.Session, error) {
 	session, err := UnstructuredToSession(resource)
 	if err != nil {
 		return nil, err

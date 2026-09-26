@@ -69,13 +69,20 @@ are two modes, controlled by one setting:
 
 ## Notes for developers
 
-- All SSO settings live in one place: `GlobalConfig.oidc`
-  (`enabled`, `googleClientID`, `egressAllowed`, `googleJwkJson`). auth-service is
-  the only service that reads and validates it, and it re-reads per login — so
-  changes take effect without a restart.
+- SSO settings live in the `TelarkConfig` CR named `default`, under `oidc`
+  (`enabled`, `googleClientID`, `egressAllowed`). The pasted key set
+  (`googleJwkJson`) is the trust anchor, so it lives apart in the Secret
+  `telark-oidc-trust-secret` (key `googleJwkJson`, or the Secret named by
+  `app.auth.oidc.existingSecret`), guarded by its own admission policy.
+  auth-service reads it as a mounted file (`OIDC_TRUST_FILE`) and re-reads the
+  settings per login, so changes take effect without a restart; other auth
+  replicas see a new key set after the kubelet sync (about a minute).
+  `GET /api/v1/config` on the exporter returns the key set merged back under
+  `oidc.googleJwkJson`.
 - Endpoints: `GET /auth/config` is **public** (returns only the client ID, which is
   not a secret); `PATCH /auth/oidc/config` saves settings and is guarded by
   `editoidcconfig = settings:Admin`; `POST /auth/oidc/google/callback` handles the
   token from step 3.
-- auth-service writes the settings to `GlobalConfig` through exporter-service using
-  a service token; the route's Admin check is what enforces authorization.
+- auth-service validates the settings and writes them with `PATCH /api/v1/config`
+  on exporter-service using a service token (the exporter puts the key set in
+  the Secret and the rest in the CR); the route's Admin check is what enforces authorization.

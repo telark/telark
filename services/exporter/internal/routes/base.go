@@ -8,13 +8,13 @@ import (
 	"github.com/telark/exporter/internal/constants"
 	passkeyhandler "github.com/telark/exporter/internal/handlers/auth/passkey"
 	sessionhandler "github.com/telark/exporter/internal/handlers/auth/session"
-	categoryhandler "github.com/telark/exporter/internal/handlers/classification/category"
+	categoryhandler "github.com/telark/exporter/internal/handlers/categories"
+	confighandler "github.com/telark/exporter/internal/handlers/config"
 	notificationhandler "github.com/telark/exporter/internal/handlers/notifications"
 	planshandler "github.com/telark/exporter/internal/handlers/plans/protection"
 	reportshandler "github.com/telark/exporter/internal/handlers/reports"
 	applicationhandler "github.com/telark/exporter/internal/handlers/resources/application"
 	cleanuphandler "github.com/telark/exporter/internal/handlers/resources/cleanup"
-	globalconfighandler "github.com/telark/exporter/internal/handlers/resources/globalconfig"
 	grouphandler "github.com/telark/exporter/internal/handlers/resources/group"
 	rolehandler "github.com/telark/exporter/internal/handlers/resources/role"
 	userhandler "github.com/telark/exporter/internal/handlers/resources/user"
@@ -22,19 +22,19 @@ import (
 	statushandler "github.com/telark/exporter/internal/handlers/status"
 	"github.com/telark/exporter/internal/utils/performance"
 	"github.com/telark/rest/base"
+	roleendpoints "github.com/telark/rest/endpoints/accessroles"
+	applicationendpoints "github.com/telark/rest/endpoints/applications"
 	authendpoints "github.com/telark/rest/endpoints/auth"
-	categoryendpoints "github.com/telark/rest/endpoints/classification/category"
+	categoryendpoints "github.com/telark/rest/endpoints/categories"
+	cleanupendpoints "github.com/telark/rest/endpoints/cleanup"
+	configendpoints "github.com/telark/rest/endpoints/config"
+	groupendpoints "github.com/telark/rest/endpoints/groups"
 	notificationsendpoints "github.com/telark/rest/endpoints/notifications"
 	plansendpoints "github.com/telark/rest/endpoints/plans"
 	reportsendpoints "github.com/telark/rest/endpoints/reports"
-	applicationendpoints "github.com/telark/rest/endpoints/resources/applications"
-	cleanupendpoints "github.com/telark/rest/endpoints/resources/cleanup"
-	globalconfigendpoints "github.com/telark/rest/endpoints/resources/globalconfig"
-	groupendpoints "github.com/telark/rest/endpoints/resources/groups"
-	roleendpoints "github.com/telark/rest/endpoints/resources/roles"
-	userendpoints "github.com/telark/rest/endpoints/resources/users"
 	snapshotendpoints "github.com/telark/rest/endpoints/snapshots"
 	statusendpoints "github.com/telark/rest/endpoints/status"
+	userendpoints "github.com/telark/rest/endpoints/users"
 	"github.com/telark/rest/router"
 )
 
@@ -73,7 +73,7 @@ func subjectListCachedRoute(
 func InitRoutes(optimizer *performance.Optimizer) []router.Route {
 	routes := make([]router.Route, constants.DefaultInitValue, constants.DefaultRoutesCount)
 	routes = append(routes, applicationRoutes(optimizer)...)
-	routes = append(routes, globalConfigRoutes()...)
+	routes = append(routes, configRoutes()...)
 	routes = append(routes, userRoutes(optimizer)...)
 	routes = append(routes, groupRoutes(optimizer)...)
 	routes = append(routes, roleRoutes(optimizer)...)
@@ -91,8 +91,8 @@ func InitRoutes(optimizer *performance.Optimizer) []router.Route {
 
 func cleanupRoutes() []router.Route {
 	return []router.Route{
-		router.CreateRoute(base.Patch, cleanupendpoints.AddFinalizer, cleanuphandler.AddFinalizer),
-		router.CreateRoute(base.Patch, cleanupendpoints.RemoveFinalizer, cleanuphandler.RemoveFinalizer),
+		router.CreateRoute(base.Update, cleanupendpoints.AddFinalizer, cleanuphandler.AddFinalizer),
+		router.CreateRoute(base.Delete, cleanupendpoints.RemoveFinalizer, cleanuphandler.RemoveFinalizer),
 		router.CreateRoute(base.Get, cleanupendpoints.GetCleanupViewByID, cleanuphandler.GetCleanupViewByID),
 		router.CreateRoute(base.Get, cleanupendpoints.ListCleanupViews, cleanuphandler.ListCleanupViews),
 	}
@@ -121,7 +121,7 @@ func reportRoutes() []router.Route {
 		router.CreateRoute(base.Get, reportsendpoints.ListReports, reportshandler.ListReports()),
 		router.CreateRoute(base.Get, reportsendpoints.ListPlanReports, reportshandler.ListPlanReports()),
 		router.CreateRoute(base.Get, reportsendpoints.DownloadPlanReport, reportshandler.DownloadPlanReport()),
-		router.CreateRoute(base.Post, reportsendpoints.PutPlanReportLedger, reportshandler.PutPlanReportLedger()),
+		router.CreateRoute(base.Update, reportsendpoints.PutPlanReportLedger, reportshandler.PutPlanReportLedger()),
 		router.CreateRoute(base.Get, reportsendpoints.GetPlanReportLedger, reportshandler.GetPlanReportLedger()),
 	}
 }
@@ -130,16 +130,16 @@ func notificationRoutes() []router.Route {
 	return []router.Route{
 		router.CreateRoute(base.Post, notificationsendpoints.Emit, notificationhandler.Emit()),
 		router.CreateRoute(base.Get, notificationsendpoints.List, notificationhandler.List()),
-		router.CreateRoute(base.Patch, notificationsendpoints.MarkRead, notificationhandler.MarkRead()),
+		router.CreateRoute(base.Post, notificationsendpoints.MarkRead, notificationhandler.MarkRead()),
 		router.CreateRoute(base.Post, notificationsendpoints.MarkAllRead, notificationhandler.MarkAllRead()),
 		router.CreateRoute(base.Delete, notificationsendpoints.Clear, notificationhandler.Clear()),
 	}
 }
 
-func globalConfigRoutes() []router.Route {
+func configRoutes() []router.Route {
 	return []router.Route{
-		router.CreateRoute(base.Get, globalconfigendpoints.GetGlobalConfig, globalconfighandler.GetGlobalConfig()),
-		router.CreateRoute(base.Patch, globalconfigendpoints.PatchGlobalConfig, globalconfighandler.PatchGlobalConfig()),
+		router.CreateRoute(base.Get, configendpoints.GetConfig, confighandler.GetConfig()),
+		router.CreateRoute(base.Patch, configendpoints.PatchConfig, confighandler.PatchConfig()),
 	}
 }
 
@@ -295,18 +295,26 @@ func sessionRoutes(optimizer *performance.Optimizer) []router.Route {
 		// Uncached: a hit would be served before the handler's owner check runs.
 		router.CreateRoute(base.Get, authendpoints.GetAllSessionsByUser,
 			sessionhandler.ListSessionsByUserWithCacheInvalidation()),
-		router.CreateRoute(base.Get, authendpoints.GetSessionByToken,
-			sessionhandler.GetSessionByToken()),
-		router.CreateRoute(base.Patch, authendpoints.PatchSessionByToken,
+		router.CreateRoute(base.Get, authendpoints.GetSelfSession,
+			sessionhandler.GetSelfSession()),
+		router.CreateRoute(base.Patch, authendpoints.PatchSelfSession,
 			performance.NewDynamicOptimizedHandlerFunc(
-				sessionhandler.PatchSessionByTokenWithCacheInvalidation(optimizer),
+				sessionhandler.PatchSelfSessionWithCacheInvalidation(optimizer),
 				constants.ResourceUserSession,
 				constants.OpPatch,
 			),
 		),
-		router.CreateRoute(base.Delete, authendpoints.DeleteSessionByToken,
+		router.CreateRoute(base.Delete, authendpoints.DeleteSelfSession,
 			performance.NewDynamicOptimizedHandlerFunc(
-				sessionhandler.DeleteSessionByTokenWithCacheInvalidation(optimizer),
+				sessionhandler.DeleteSelfSessionWithCacheInvalidation(optimizer),
+				constants.ResourceUserSession,
+				constants.OpDelete,
+			),
+		),
+		// After the self route: mux takes the first match, and "self" also fits {name}.
+		router.CreateRoute(base.Delete, authendpoints.DeleteSessionByName,
+			performance.NewDynamicOptimizedHandlerFunc(
+				sessionhandler.DeleteSessionByNameWithCacheInvalidation(optimizer),
 				constants.ResourceUserSession,
 				constants.OpDelete,
 			),
@@ -326,8 +334,8 @@ func categoryRoutes(optimizer *performance.Optimizer) []router.Route {
 		router.CreateRoute(base.Get, categoryendpoints.GetAllCategories,
 			performance.NewCachedListHandlerFunc(
 				optimizer,
-				categoryhandler.ListAllCategoriesWithCacheInvalidation(),
-				cache.NewListCacheKeyFunc(optimizer, constants.ResourceCategory),
+				categoryhandler.ListCategoriesWithCacheInvalidation(),
+				cache.NewQueryListCacheKeyFunc(optimizer, constants.ResourceCategory, categoryendpoints.QueryScope),
 				constants.ResourceCategory,
 				constants.OpList,
 			)),
@@ -335,14 +343,6 @@ func categoryRoutes(optimizer *performance.Optimizer) []router.Route {
 			performance.NewCachedListHandlerFunc(
 				optimizer,
 				categoryhandler.GetCategoryByIDWithCacheInvalidation(),
-				cache.NewGetCacheKeyFunc(constants.ResourceCategory),
-				constants.ResourceCategory,
-				constants.OpGet,
-			)),
-		router.CreateRoute(base.Get, categoryendpoints.GetCategoriesByScope,
-			performance.NewCachedListHandlerFunc(
-				optimizer,
-				categoryhandler.GetCategoriesByScopeWithCacheInvalidation(),
 				cache.NewGetCacheKeyFunc(constants.ResourceCategory),
 				constants.ResourceCategory,
 				constants.OpGet,
@@ -366,7 +366,7 @@ func categoryRoutes(optimizer *performance.Optimizer) []router.Route {
 
 func roleQueryRoutes(optimizer *performance.Optimizer) []router.Route {
 	return []router.Route{
-		router.CreateRoute(base.Get, roleendpoints.GetAllRoles,
+		router.CreateRoute(base.Get, roleendpoints.GetAllAccessRoles,
 			performance.NewCachedListHandlerFunc(
 				optimizer,
 				rolehandler.ListRoleResourcesWithCacheInvalidation(),
@@ -374,7 +374,7 @@ func roleQueryRoutes(optimizer *performance.Optimizer) []router.Route {
 				constants.ResourceRole,
 				constants.OpList,
 			)),
-		router.CreateRoute(base.Get, roleendpoints.GetRoleByID,
+		router.CreateRoute(base.Get, roleendpoints.GetAccessRoleByID,
 			performance.NewCachedListHandlerFunc(
 				optimizer,
 				rolehandler.GetRoleByIDWithCacheInvalidation(),
@@ -382,57 +382,27 @@ func roleQueryRoutes(optimizer *performance.Optimizer) []router.Route {
 				constants.ResourceRole,
 				constants.OpGet,
 			)),
-		router.CreateRoute(base.Get, roleendpoints.GetRoleByUserID,
-			performance.NewCachedListHandlerFunc(
-				optimizer,
-				rolehandler.GetRoleByUserIDWithCacheInvalidation(),
-				exporterauthz.RestrictedKey(cache.NewGetCacheKeyFunc(constants.ResourceRole)),
-				constants.ResourceRole,
-				constants.OpGet,
-			)),
-		router.CreateRoute(base.Get, roleendpoints.GetRolesByUserID,
-			performance.NewCachedListHandlerFunc(
-				optimizer,
-				rolehandler.ListRolesByUserIDWithCacheInvalidation(),
-				exporterauthz.RestrictedKey(cache.NewSubjectListCacheKeyFunc(
-					optimizer, constants.ResourceRole, cache.SubjectFromPathParam(constants.UserIDParam),
-				)),
-				constants.ResourceRole,
-				constants.OpList,
-			)),
-		router.CreateRoute(base.Get, roleendpoints.GetRoleByGroupID,
-			performance.NewCachedListHandlerFunc(
-				optimizer,
-				rolehandler.GetRoleByGroupIDWithCacheInvalidation(),
-				cache.NewGetCacheKeyFunc(constants.ResourceRole),
-				constants.ResourceRole,
-				constants.OpGet,
-			)),
-		subjectListCachedRoute(optimizer, roleendpoints.GetRolesByGroupID,
-			rolehandler.ListRolesByGroupIDWithCacheInvalidation(),
-			constants.ResourceRole,
-			cache.SubjectFromPathParam(constants.GroupIDParam)),
 	}
 }
 
 func roleRoutes(optimizer *performance.Optimizer) []router.Route {
 	routes := roleQueryRoutes(optimizer)
 	return append(routes,
-		router.CreateRoute(base.Post, roleendpoints.CreateRole,
+		router.CreateRoute(base.Post, roleendpoints.CreateAccessRole,
 			performance.NewDynamicOptimizedHandlerFunc(
 				rolehandler.CreateRoleResourceWithCacheInvalidation(optimizer),
 				constants.ResourceRole,
 				constants.OpCreate,
 			),
 		),
-		router.CreateRoute(base.Patch, roleendpoints.PatchRoleByID,
+		router.CreateRoute(base.Patch, roleendpoints.PatchAccessRoleByID,
 			performance.NewDynamicOptimizedHandlerFunc(
 				rolehandler.PatchRoleByIDWithCacheInvalidation(optimizer),
 				constants.ResourceRole,
 				constants.OpPatch,
 			),
 		),
-		router.CreateRoute(base.Delete, roleendpoints.DeleteRoleByID,
+		router.CreateRoute(base.Delete, roleendpoints.DeleteAccessRoleByID,
 			performance.NewDynamicOptimizedHandlerFunc(
 				rolehandler.DeleteRoleByIDWithCacheInvalidation(optimizer),
 				constants.ResourceRole,

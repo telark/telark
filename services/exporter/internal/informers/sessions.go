@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	authmetadata "github.com/telark/data/metadata/auth"
+	authmetadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/kcore/k8sclient"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -32,7 +32,7 @@ func GetSession(name string) (*unstructured.Unstructured, bool) {
 	if !SessionsSynced() {
 		return nil, false
 	}
-	key := fmt.Sprintf(constants.InformerKeyFormat, authmetadata.UserSessionMetadata.Namespace, name)
+	key := fmt.Sprintf(constants.InformerKeyFormat, authmetadata.SessionMetadata.Namespace, name)
 	obj, exists, err := sessions.Load().Store.GetByKey(key)
 	if err != nil || !exists {
 		return nil, false
@@ -52,7 +52,7 @@ func StartSessions(ctx context.Context) {
 
 func RunSessions(ctx context.Context, dyn dynamic.Interface) {
 	runMirror(ctx, dyn, mirror{
-		md:        authmetadata.UserSessionMetadata,
+		md:        authmetadata.SessionMetadata,
 		install:   UseSessions,
 		synced:    constants.InfSessionInformerSynced,
 		notSynced: constants.WarnSessionInformerNotSynced,

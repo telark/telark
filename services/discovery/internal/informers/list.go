@@ -7,7 +7,7 @@ import (
 
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/discovery/derivation"
-	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
+	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
 	kcoregroup "github.com/telark/kcore/resources/group"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/tools/cache"
@@ -35,7 +35,7 @@ func (m *Manager) listRefsInNamespaces(
 	if m == nil || len(nsSet) == constants.DefaultInitValue {
 		return nil, false
 	}
-	excluded := gcfghelper.FetchExcludedNamespaces(ctx)
+	excluded := tcfghelper.FetchExcludedNamespaces(ctx)
 	m.informersMu.RLock()
 	defer m.informersMu.RUnlock()
 	if len(m.informers) == constants.DefaultInitValue {
@@ -92,7 +92,7 @@ func (m *Manager) namespacesOfApp(ctx context.Context, appName string) []string 
 	if m == nil || appName == constants.EmptyString {
 		return nil
 	}
-	excluded := gcfghelper.FetchExcludedNamespaces(ctx)
+	excluded := tcfghelper.FetchExcludedNamespaces(ctx)
 	found := make(map[string]struct{})
 	m.informersMu.RLock()
 	defer m.informersMu.RUnlock()

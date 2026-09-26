@@ -128,10 +128,10 @@ func TestCreateUser(t *testing.T) {
 func TestConvertPasskeysToCredentials(t *testing.T) {
 	testutil.Equal(t, "empty", len(webauthnhelper.ConvertPasskeysToCredentials(nil)), constants.DefaultInitValue)
 	testutil.Equal(t, "all nil", len(webauthnhelper.ConvertPasskeysToCredentials(
-		[]*authdata.UserPasskey{nil, nil})), constants.DefaultInitValue)
+		[]*authdata.Passkey{nil, nil})), constants.DefaultInitValue)
 
-	valid := &authdata.UserPasskey{CredentialID: testCredB64, PublicKey: "AAAA"}
-	got := webauthnhelper.ConvertPasskeysToCredentials([]*authdata.UserPasskey{nil, valid})
+	valid := &authdata.Passkey{CredentialID: testCredB64, PublicKey: "AAAA"}
+	got := webauthnhelper.ConvertPasskeysToCredentials([]*authdata.Passkey{nil, valid})
 	testutil.Equal(t, "one valid", len(got), constants.DefaultIncrementValue)
 }
 
@@ -177,7 +177,7 @@ func TestExtractBackupFlagsFromAttestation(t *testing.T) {
 // Stored flags must match what the login presents; a mismatch on a known
 // credential is rejected, an unknown credential is ignored.
 func TestValidateBackupFlags(t *testing.T) {
-	passkeys := []*authdata.UserPasskey{
+	passkeys := []*authdata.Passkey{
 		nil,
 		{CredentialID: testCredID, BackupEligible: true, BackupState: false},
 	}
@@ -445,7 +445,7 @@ func TestValidateBackupFlagsFromRequest(t *testing.T) {
 		t.Fatalf("malformed body should be a no-op: %v", err)
 	}
 
-	mismatch := []*authdata.UserPasskey{{CredentialID: testCredB64, BackupEligible: false, BackupState: false}}
+	mismatch := []*authdata.Passkey{{CredentialID: testCredB64, BackupEligible: false, BackupState: false}}
 	if err := webauthnhelper.ValidateBackupFlagsFromRequest(body, mismatch); err == nil {
 		t.Fatal("flag mismatch should be rejected")
 	}

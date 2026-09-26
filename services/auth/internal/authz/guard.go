@@ -83,7 +83,7 @@ func adminOnAll(userID string) (bool, error) {
 
 type activeSource struct{ clientSource }
 
-func (s activeSource) User(userID string) (*userdata.UserAsResource, error) {
+func (s activeSource) User(userID string) (*userdata.User, error) {
 	user, err := s.clientSource.User(userID)
 	if err != nil {
 		return nil, err

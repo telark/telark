@@ -4,13 +4,14 @@ A protection plan binds policy templates to a scope and a time window. discovery
 
 ## The resource
 
-`ProtectionPlan` (`erpi.telark`, namespaced; Go type in `data/plans/protectionplan.go`, schema in `charts/telark-crds/templates/crds/plans/protectionplan.yaml`):
+`ProtectionPlan` (`protectionplans.telark.io`, `v1alpha1`, namespaced, short name `tplan`; Go type in `data/plans/protectionplan.go`, schema in `charts/telark-crds/templates/crds/protectionplans.yaml`). The plan's name is its `metadata.name`; the REST view returns it as `id`, and flattens `.status` into the top level.
 
-- `scope`: `applications` (application ids) or `namespaces`, with optional `exclusions` (kinds for both scope types, named resources for the applications scope only).
+- `scope`: `applications` (`applicationRefs`, application names) or `namespaces`, with optional `exclusions` (kinds for both scope types, named resources for the applications scope only).
 - `policies`: template ids and params. The nine templates are in `data/plans/templates.go` (block create, update, delete, image tags, image types, replica scaling, storage changes, workload config mount changes, config/secret resource changes).
 - `mode`: `audit` or `enforce`. `timeMode`: `permanent` or `time_range` with `timeRange`.
 - `approvalMode`: `automatic` or `required`; `approval` (state, requester, decider, comment, history), written only by discovery.
-- `phase`, `renderedPolicies`, `health`, `healthDetail`, start and termination stamps, environment and tag category ids.
+- `environmentRef`, `tagRefs` (category ids) and `participantRefs`.
+- Status subresource: `phase`, `reason`, `conditions` (`Ready`, `Approved`, `PoliciesHealthy`), `observedGeneration`, `renderedPolicies`, `health`, `healthDetail`, start and termination stamps, and `approval`.
 
 ## Lifecycle
 
@@ -29,23 +30,23 @@ Phases: `draft`, `pending_approval`, `scheduled`, `active`, `terminated`, `cance
 | `canceled`, `terminated`, `failed` | re-enters the lifecycle | user reactivate | `Reactivate` (`reactivatable`) |
 | `scheduled` | `failed` | activation fails (scope resolution, render or deploy) | `Activate` → `markFailedRemote` |
 
-- **Approval mode** is derived server-side (`ResolveApprovalMode`): the Production environment category is always `required`; elsewhere the default is `automatic`, a client-sent `required` is honoured, and a client-sent `automatic` counts only from an Owner on `protectionplans`. `environmentID` must name a `plan-environments` category (unknown: 400; catalogue unreadable: 503), and an edit may not move an `automatic` plan into Production. Nobody who put the current spec up for approval since the last approval may decide it: the creator, a reactivator and every material editor are recorded as `requested` events in the approval history (`ApprovalRequesters`, `RecordEditor`), and a decision must name the pending request it answers (`ValidateDecision` in `approval.go`).
+- **Approval mode** is derived server-side (`ResolveApprovalMode`): the Production environment category is always `required`; elsewhere the default is `automatic`, a client-sent `required` is honoured, and a client-sent `automatic` counts only from an Owner on `protectionplans`. `environmentRef` must name a `plan-environments` category (unknown: 400; catalogue unreadable: 503), and an edit may not move an `automatic` plan into Production. Nobody who put the current spec up for approval since the last approval may decide it: the creator, a reactivator and every material editor are recorded as `requested` events in the approval history (`ApprovalRequesters`, `RecordEditor`), and a decision must name the pending request it answers (`ValidateDecision` in `approval.go`).
 - **Per-plan lock** `lock:plan-decision:<id>` serializes decide, update, cancel, reactivate and clear. It and the name lock are held with a heartbeat (`PlanLockTTL`, twice the deploy budget, extended every third of it), so a slow exporter cannot let the lock expire under its holder.
 - **Controller**: runs on the discovery leader, every `PROTECTION_PLAN_TICK_INTERVAL_SEC` (default 31 s) plus a timer armed on the next window edge.
 - **Names** are unique, case- and whitespace-insensitively, under a Redis lock `lock:plan-name:<name>` (409 on conflict).
-- Validation rejects windows already over, targets in the release namespace or in `GlobalConfig.excludedNamespaces` (fail closed: while the excluded list has never loaded, a namespaces-scope create, edit or reactivation answers 503), duplicate templates, unknown params, and `{{` or `}}` in the name or description. `enforce` mode on a `namespaces` scope needs Owner on `protectionplans` (403 otherwise); a Contributor may create audit-mode namespace plans and enforce-mode application plans ([discovery README](../../services/discovery/README.md#responsibilities), Protect).
+- Validation rejects windows already over, targets in the release namespace or in `TelarkConfig.excludedNamespaces` (fail closed: while the excluded list has never loaded, a namespaces-scope create, edit or reactivation answers 503), duplicate templates, unknown params, and `{{` or `}}` in the name or description. `enforce` mode on a `namespaces` scope needs Owner on `protectionplans` (403 otherwise); a Contributor may create audit-mode namespace plans and enforce-mode application plans ([discovery README](../../services/discovery/README.md#responsibilities), Protect).
 
 ## Admission policies
 
 - `Render` (`data/policies/renderer.go`) produces namespaced Kyverno `Policy` objects (never `ClusterPolicy`: a namespaced policy can't reference cluster-scoped kinds) per scope namespace and template, with the plan's exclusions applied.
-- Name `telark-<plan id>-<template code>-<8 hex of sha256(namespace + application ids)>`; labels `telark.erpi/protection-plan`, `telark.erpi/template-id`, `telark.erpi/managed-by=telark`; annotations `telark.erpi/plan-name`, `created-by`, `render-hash` (`data/policies/shared.go`).
+- Name `telark-<plan id>-<template code>-<8 hex of sha256(namespace + application ids)>`; labels `telark.io/protection-plan`, `telark.io/template-id`, `app.kubernetes.io/managed-by=telark`; annotations `telark.io/plan-name`, `telark.io/created-by`, `telark.io/render-hash` (`data/policies/shared.go`).
 - `validationFailureAction` follows the plan `mode`; audit messages read "would be blocked". Kyverno substitutes `{{ }}` variables in `validate.message`, so the message names the generated plan id only; the user-chosen name appears only in the `plan-name` annotation, which is not substituted.
 - Applied with server-side apply, field manager `telark-protection-plans`, forced (`discovery/core/plans/protection/policies/applier.go`); mode changes are merge patches; deletion selects by the plan label (`CleanupByPlanID`).
 - Kyverno runs with `forceFailurePolicyIgnore`, so when its webhook is down, requests are admitted even for enforcing plans ([security](../security/README.md#kubernetes-privileges)).
 
 ## Health and violations
 
-- On every tick the health pass lists the managed policies once and compares each with a fresh render: a missing or not-ready policy is `degraded`, a content difference (by `render-hash`) is `drifted` and is redeployed (`discovery/core/plans/protection/health/`). Repair runs only there (and once after a deploy); the status route (`GET .../status`, Read) is compute-only: it neither repairs nor persists health.
+- On every tick the health pass lists the managed policies once and compares each with a fresh render: a missing or not-ready policy is `degraded`, a content difference (by `render-hash`) is `drifted` and is redeployed (`discovery/core/plans/protection/health/`). Repair runs only there (and once after a deploy); the status route (`GET protectionplans/{id}/status`, Read) is compute-only: it neither repairs nor persists health.
 - The same pass sweeps orphans: a managed policy whose plan is gone or not `active`, and older than `OrphanGracePeriod` (four deploy budgets, so a create or approval still in flight is left alone), is deleted.
 - Violations are Kubernetes Events with `reason=PolicyViolation` on the plan's policies (`discovery/core/plans/protection/violations/violations.go`). Events are pruned after the API server's event TTL, so `RetentionWindow` is 1 h.
 - `CleanupByPlanID` runs on cancel, terminate, reject, clear, failed deployment and edits that withdraw policies, and the rendered-policy list is then blanked. Cancel, terminate and reject patch the phase first and clean up after, so a failed patch never leaves an "active" plan enforcing nothing; a failed cleanup is left to the orphan sweep. A finished plan therefore reports zero live violations; its history lives only in reports ([AGENTS.md](../../AGENTS.md#go-services), Known pitfall).

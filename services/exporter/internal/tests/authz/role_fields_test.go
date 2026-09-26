@@ -19,16 +19,16 @@ const (
 // effect, exactly like writing them; a body without those fields is not capped.
 func TestGuardPatchedRoleLevels(t *testing.T) {
 	rolesContributor := levels(roledata.ScopeRoles, roledata.PermissionLevelContributor)
-	above := &roledata.RoleAsResource{ScopesAndPermissions: []roledata.ScopeAndPermissions{
+	above := &roledata.AccessRole{ScopesAndPermissions: []roledata.ScopeAndPermissions{
 		{Scope: roledata.ScopeAll, Level: roledata.PermissionLevelAdmin},
 	}}
-	within := &roledata.RoleAsResource{ScopesAndPermissions: []roledata.ScopeAndPermissions{
+	within := &roledata.AccessRole{ScopesAndPermissions: []roledata.ScopeAndPermissions{
 		{Scope: roledata.ScopeRoles, Level: roledata.PermissionLevelReadOnly},
 	}}
 	tests := []struct {
 		name     string
 		identity xauthz.Identity
-		merged   *roledata.RoleAsResource
+		merged   *roledata.AccessRole
 		body     map[string]any
 		want     bool
 	}{
@@ -53,11 +53,11 @@ func TestGuardPatchedRoleLevels(t *testing.T) {
 // can edit or delete.
 func TestGuardRoleReservedFields(t *testing.T) {
 	admin := levels(roledata.ScopeAll, roledata.PermissionLevelAdmin)
-	protected := &roledata.RoleAsResource{Protection: &roledata.Protection{PreventDeletion: true}}
+	protected := &roledata.AccessRole{Protection: &roledata.Protection{PreventDeletion: true}}
 	tests := []struct {
 		name     string
 		identity xauthz.Identity
-		existing *roledata.RoleAsResource
+		existing *roledata.AccessRole
 		body     map[string]any
 		want     bool
 	}{
@@ -67,7 +67,7 @@ func TestGuardRoleReservedFields(t *testing.T) {
 		{"create with all flags off", admin, nil, map[string]any{constants.FieldProtection: map[string]any{preventDeletion: false}}, true},
 		{"patch drops protection", admin, protected, map[string]any{constants.FieldProtection: map[string]any{}}, false},
 		{"patch echoes protection", admin, protected, map[string]any{constants.FieldProtection: map[string]any{preventDeletion: true}}, true},
-		{"patch to built-in", admin, &roledata.RoleAsResource{}, map[string]any{constants.FieldType: string(roledata.RoleTypeBuiltIn)}, false},
+		{"patch to built-in", admin, &roledata.AccessRole{}, map[string]any{constants.FieldType: string(roledata.RoleTypeBuiltIn)}, false},
 		{"internal seeds built-in", internalIdentity, nil, map[string]any{
 			constants.FieldType: string(roledata.RoleTypeBuiltIn), constants.FieldProtection: map[string]any{preventDeletion: true},
 		}, true},

@@ -14,11 +14,11 @@ const (
 	// Startup seeding
 	InfSeedStarting          messages.Message = "[startup] reconciling built-in resources"
 	InfSeedCategoriesMerged  messages.Message = "[startup] reconciled %d built-in categories"
-	InfSeedGlobalConfigOK    messages.Message = "[startup] created global config"
-	InfSeedGlobalConfigKept  messages.Message = "[startup] global config already exists, left untouched"
+	InfSeedTelarkConfigOK    messages.Message = "[startup] created the default TelarkConfig"
+	InfSeedTelarkConfigKept  messages.Message = "[startup] the default TelarkConfig already exists, left untouched"
 	ErrSeedRoleFailed        errors.Error     = "[startup] failed to reconcile built-in role %s: %v"
 	ErrSeedCategoriesFailed  errors.Error     = "[startup] failed to reconcile built-in categories: %v"
-	ErrSeedGlobalConfigFail  errors.Error     = "[startup] failed to create global config: %v"
+	ErrSeedTelarkConfigFail  errors.Error     = "[startup] failed to create the default TelarkConfig: %v"
 	ErrSeedExistsCheckFailed errors.Error     = "[startup] failed to check whether %s exists: %v"
 	ErrSeedSpecEncodeFailed  errors.Error     = "[startup] failed to encode %s spec: %v"
 
@@ -99,9 +99,8 @@ const (
 	// Role
 	ErrRoleNotFound                     errors.Error = "role not found"
 	ErrRoleNameCannotBeEmpty            errors.Error = "role name cannot be empty"
-	ErrFailedToListRoles                errors.Error = "failed to list roles: %v"
 	ErrRoleDescriptionRequired          errors.Error = "description is required"
-	ErrRoleCategoryIDRequired           errors.Error = "categoryID is required"
+	ErrRoleCategoryRefRequired          errors.Error = "catID is required"
 	ErrRoleScopesAndPermissionsRequired errors.Error = "scopesAndPermissions is required"
 	ErrRoleValidityRequired             errors.Error = "validity is required"
 	ErrRoleProtectionRequired           errors.Error = "protection is required"
@@ -123,10 +122,10 @@ const (
 	ErrCategoryNameAlreadyExists   errors.Error = "a category with this name already exists in this scope"
 
 	// Global config
-	ErrGlobalConfigPatchFailed  errors.Error = "failed to patch global config"
-	ErrGlobalConfigInvalidType  errors.Error = "invalid global config type"
-	ErrGlobalConfigInvalidReply errors.Error = "invalid global config response type"
-	ErrGlobalConfigInvalidField errors.Error = "invalid global config value for %s"
+	ErrConfigPatchFailed  errors.Error = "failed to patch config"
+	ErrConfigInvalidType  errors.Error = "invalid config type"
+	ErrConfigInvalidReply errors.Error = "invalid config response type"
+	ErrConfigInvalidField errors.Error = "invalid config value for %s"
 
 	// Application
 	ErrApplicationDisplayNameTooLong errors.Error = "displayName must be at most %d characters"
@@ -141,8 +140,9 @@ const (
 	ErrSessionExpired                   errors.Error = "session has expired"
 	ErrSessionExpiresInPast             errors.Error = "expiresAt must be in the future"
 	ErrSessionNotFound                  errors.Error = "session not found"
-	ErrSessionSelfRefWithoutToken       errors.Error = "session ref self requires X-Session-Token"
-	ErrSessionRefNotAName               errors.Error = "session ref must be a session name or self"
+	ErrSessionSelfRefWithoutToken       errors.Error = "the self session requires X-Session-Token"
+	ErrSessionRefNotAName               errors.Error = "X-Session-Token must carry a session token or a session name"
+	ErrSessionNameInvalid               errors.Error = "the path must name a session (session-<sha256>)"
 	ErrSessionPatchOnlyExpiresTimestamp errors.Error = "patch operation only allows updating expiresTimestamp field"
 	ErrFailedToUnmarshalSession         errors.Error = "failed to unmarshal session: %v"
 

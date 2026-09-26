@@ -7,7 +7,7 @@ import (
 
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/plans/protection/validation"
-	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
+	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 )
@@ -57,7 +57,7 @@ func NamesFromList[T any](
 func NamespaceListable(w http.ResponseWriter, r *http.Request, namespace string) bool {
 	ctx, cancel := context.WithTimeout(r.Context(), constants.InsightsReadTimeout)
 	defer cancel()
-	excluded, err := gcfghelper.ExcludedNamespaces(ctx)
+	excluded, err := tcfghelper.ExcludedNamespaces(ctx)
 	if err != nil {
 		responseutils.LogAndSendResponse(w, http.StatusServiceUnavailable, response.OperationError, err.Error(), nil, err)
 		return false

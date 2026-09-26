@@ -50,51 +50,51 @@ func baseRequest(plan *plans.ProtectionPlan) *planseps.PrepareProtectionPlanRequ
 // An explicit "" / [] is a real clear: both keys are emitted as non-nil empties.
 func TestBuildPatchTaxonomyClear(t *testing.T) {
 	plan := basePlan()
-	plan.EnvironmentID = envA
-	plan.TagIDs = []string{tagA, tagB}
+	plan.EnvironmentRef = envA
+	plan.TagRefs = []string{tagA, tagB}
 	req := baseRequest(plan)
-	req.EnvironmentID = strptr("")
-	req.TagIDs = []string{}
+	req.EnvironmentRef = strptr("")
+	req.TagRefs = []string{}
 
 	patch, changed := update.BuildPatch(plan, req, plan.Policies, nil, userID, now)
 	testutil.Equal(t, nameChanged, changed, true)
-	if patch.TagIDs == nil {
-		t.Fatal("tagIDs should be a non-nil empty slice on clear")
+	if patch.TagRefs == nil {
+		t.Fatal("tagRefs should be a non-nil empty slice on clear")
 	}
-	testutil.Equal(t, "tagIDs len", len(*patch.TagIDs), constants.DefaultInitValue)
-	if patch.EnvironmentID == nil {
-		t.Fatal("environmentID should be a non-nil empty string on clear")
+	testutil.Equal(t, "tagRefs len", len(*patch.TagRefs), constants.DefaultInitValue)
+	if patch.EnvironmentRef == nil {
+		t.Fatal("environmentRef should be a non-nil empty string on clear")
 	}
-	testutil.Equal(t, "environmentID", *patch.EnvironmentID, "")
+	testutil.Equal(t, "environmentRef", *patch.EnvironmentRef, "")
 }
 
 // A request without the keys keeps the stored values and reports no change.
 func TestBuildPatchTaxonomyAbsentKeeps(t *testing.T) {
 	plan := basePlan()
-	plan.TagIDs = []string{tagA}
+	plan.TagRefs = []string{tagA}
 	req := baseRequest(plan)
 
 	patch, changed := update.BuildPatch(plan, req, plan.Policies, plan.RenderedPolicies, userID, now)
 	testutil.Equal(t, nameChanged, changed, false)
-	if patch.TagIDs != nil {
-		t.Fatalf("tagIDs should stay nil when absent, got %v", *patch.TagIDs)
+	if patch.TagRefs != nil {
+		t.Fatalf("tagRefs should stay nil when absent, got %v", *patch.TagRefs)
 	}
-	if patch.EnvironmentID != nil {
-		t.Fatalf("environmentID should stay nil when absent, got %q", *patch.EnvironmentID)
+	if patch.EnvironmentRef != nil {
+		t.Fatalf("environmentRef should stay nil when absent, got %q", *patch.EnvironmentRef)
 	}
 }
 
 func TestBuildPatchTaxonomySet(t *testing.T) {
 	plan := basePlan()
 	req := baseRequest(plan)
-	req.EnvironmentID = strptr(envA)
+	req.EnvironmentRef = strptr(envA)
 
 	patch, changed := update.BuildPatch(plan, req, plan.Policies, nil, userID, now)
 	testutil.Equal(t, nameChanged, changed, true)
-	if patch.EnvironmentID == nil {
-		t.Fatal("environmentID should be set")
+	if patch.EnvironmentRef == nil {
+		t.Fatal("environmentRef should be set")
 	}
-	testutil.Equal(t, "environmentID", *patch.EnvironmentID, envA)
+	testutil.Equal(t, "environmentRef", *patch.EnvironmentRef, envA)
 }
 
 func TestBuildPatchNeverEmitsApprovalKeys(t *testing.T) {

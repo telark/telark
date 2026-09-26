@@ -41,7 +41,7 @@ func TestBreakGlassMarksBootstrapAdmin(t *testing.T) {
 	const email = "admin@x.com"
 	t.Setenv(constants.EnvBootstrapAdmins, email)
 	adminRole := constants.BuiltInRoleAdmin
-	user := userresource.UserAsResource{ID: "u-1", Email: email, AssignedRolesIDs: []*string{&adminRole}}
+	user := userresource.User{ID: "u-1", Email: email, RoleRefs: []*string{&adminRole}}
 	var patches []map[string]any
 	testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPatch {
@@ -58,7 +58,7 @@ func TestBreakGlassMarksBootstrapAdmin(t *testing.T) {
 	testutil.Equal(t, "patches", len(patches), constants.DefaultIncrementValue)
 	first := patches[constants.DefaultInitValue]
 	testutil.Equal[any](t, "marker", first[constants.UserFieldBootstrap], true)
-	testutil.Equal[any](t, "roles left alone (Admin already held)", first[constants.SpecFieldAssignedRolesIDs], nil)
+	testutil.Equal[any](t, "roles left alone (Admin already held)", first[constants.SpecFieldRoleRefs], nil)
 
 	user.Bootstrap = true
 	testutil.Equal(t, "exit when complete", breakglass.Run([]string{"--email", email}), constants.DefaultInitValue)
@@ -72,11 +72,11 @@ func TestBreakGlassEnrollCreatesAdmin(t *testing.T) {
 	const email = "root@x.com"
 	t.Setenv(constants.EnvBootstrapAdmins, email)
 	testutil.RedisEnv(t)
-	var created *userresource.UserAsResource
+	var created *userresource.User
 	testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodPost:
-			var user userresource.UserAsResource
+			var user userresource.User
 			_ = json.NewDecoder(r.Body).Decode(&user)
 			user.ID = "u-root"
 			created = &user
@@ -92,7 +92,7 @@ func TestBreakGlassEnrollCreatesAdmin(t *testing.T) {
 
 	testutil.Equal(t, "exit without --enroll", breakglass.Run([]string{"--email", email}), constants.ExitCodeError)
 	testutil.Equal(t, "exit with --enroll", breakglass.Run([]string{"--email", email, "--enroll"}), constants.DefaultInitValue)
-	if created == nil || !created.Bootstrap || !authhelper.HasAdminRole(created.AssignedRolesIDs) {
+	if created == nil || !created.Bootstrap || !authhelper.HasAdminRole(created.RoleRefs) {
 		t.Fatalf("created = %+v, want Admin with the bootstrap marker", created)
 	}
 }

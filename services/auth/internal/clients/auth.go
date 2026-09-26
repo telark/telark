@@ -3,27 +3,27 @@ package clients
 import (
 	"sync"
 
+	accessroleclient "github.com/telark/rest/clients/accessroles"
 	passkeyclient "github.com/telark/rest/clients/auth/passkey"
 	sessionclient "github.com/telark/rest/clients/auth/session"
-	globalconfigclient "github.com/telark/rest/clients/resources/globalconfig"
-	groupclient "github.com/telark/rest/clients/resources/groups"
-	roleclient "github.com/telark/rest/clients/resources/roles"
-	userclient "github.com/telark/rest/clients/resources/users"
+	configclient "github.com/telark/rest/clients/config"
+	groupclient "github.com/telark/rest/clients/groups"
+	userclient "github.com/telark/rest/clients/users"
 )
 
 var (
-	passkeyClientInstance      *passkeyclient.Client
-	sessionClientInstance      *sessionclient.Client
-	userClientInstance         *userclient.Client
-	groupClientInstance        *groupclient.Client
-	roleClientInstance         *roleclient.Client
-	globalConfigClientInstance *globalconfigclient.Client
-	passkeyOnce                sync.Once
-	sessionOnce                sync.Once
-	userOnce                   sync.Once
-	groupOnce                  sync.Once
-	roleOnce                   sync.Once
-	globalConfigOnce           sync.Once
+	passkeyClientInstance    *passkeyclient.Client
+	sessionClientInstance    *sessionclient.Client
+	userClientInstance       *userclient.Client
+	groupClientInstance      *groupclient.Client
+	accessRoleClientInstance *accessroleclient.Client
+	configClientInstance     *configclient.Client
+	passkeyOnce              sync.Once
+	sessionOnce              sync.Once
+	userOnce                 sync.Once
+	groupOnce                sync.Once
+	accessRoleOnce           sync.Once
+	configOnce               sync.Once
 )
 
 func GetPasskeyClient() *passkeyclient.Client {
@@ -54,16 +54,16 @@ func GetGroupClient() *groupclient.Client {
 	return groupClientInstance
 }
 
-func GetRoleClient() *roleclient.Client {
-	roleOnce.Do(func() {
-		roleClientInstance = roleclient.NewClient()
+func GetAccessRoleClient() *accessroleclient.Client {
+	accessRoleOnce.Do(func() {
+		accessRoleClientInstance = accessroleclient.NewClient()
 	})
-	return roleClientInstance
+	return accessRoleClientInstance
 }
 
-func GetGlobalConfigClient() *globalconfigclient.Client {
-	globalConfigOnce.Do(func() {
-		globalConfigClientInstance = globalconfigclient.NewClient()
+func GetConfigClient() *configclient.Client {
+	configOnce.Do(func() {
+		configClientInstance = configclient.NewClient()
 	})
-	return globalConfigClientInstance
+	return configClientInstance
 }

@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	dataerrors "github.com/telark/data/errors"
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/constants"
 	resourcesshared "github.com/telark/exporter/internal/utils/resources/shared"
 	"github.com/telark/kcore/crds/api"
@@ -19,7 +19,7 @@ import (
 var ErrUserNotFound = errors.New(string(constants.ErrUserNotFound))
 
 func listUsers() (*unstructured.UnstructuredList, error) {
-	result := api.ListCustomResources(metadata.UserAsResourceMetadata)
+	result := api.ListCustomResources(metadata.UserMetadata)
 	if result.Error != nil {
 		return nil, fmt.Errorf(string(constants.ErrFailedToListUsers), result.Error)
 	}
@@ -130,5 +130,5 @@ func FindUserByIdentityOrRespond(w http.ResponseWriter, provider, issuer, subjec
 }
 
 func FindUserByIDOrRespond(w http.ResponseWriter, userID string) (*unstructured.Unstructured, bool) {
-	return resourcesshared.FindResourceByIDOrRespond(w, userID, metadata.UserAsResourceMetadata, constants.ErrUserNotFound)
+	return resourcesshared.FindResourceByIDOrRespond(w, userID, metadata.UserMetadata, constants.ErrUserNotFound)
 }

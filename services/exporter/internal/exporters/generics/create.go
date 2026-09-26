@@ -93,12 +93,12 @@ func createWithQuotaRetry(
 	k8sCreateSem <- struct{}{}
 	defer func() { <-k8sCreateSem }()
 
-	result := api.CreateCustomResource(template, md)
+	result := api.CreateCustomResourceWithStatus(template, md)
 	for attempt := constants.DefaultIncrementValue; attempt < maxCreateAttempts &&
 		result.Status != http.StatusOK && result.Error != nil &&
 		strings.Contains(result.Error.Error(), quotaTimeoutMsg); attempt++ {
 		time.Sleep(createRetryDelay)
-		result = api.CreateCustomResource(template, md)
+		result = api.CreateCustomResourceWithStatus(template, md)
 	}
 	return result
 }

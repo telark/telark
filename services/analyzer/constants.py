@@ -115,7 +115,7 @@ EVENT_RUNTIME_CHANGED = "runtime.changed"
 EVENT_RUNTIME_PULL = "runtime.pull"
 EVENT_RESYNC = "resync"
 
-# Must stay identical to spec.ai.model's pattern in the GlobalConfig CRD.
+# Must stay identical to spec.ai.model's pattern in the TelarkConfig CRD.
 MODEL_NAME_PATTERN = r"^[a-z0-9][a-z0-9._-]*(:[a-z0-9._-]+)?$"
 
 # internal/data/insights/types.go:3-14
@@ -303,7 +303,7 @@ ASGI_SCOPE_HTTP = "http"
 ASGI_MESSAGE_HTTP_REQUEST = "http.request"
 ASGI_FIELD_BODY = "body"
 MSG_BODY_TOO_LARGE = "request body too large"
-# The CRD caps GlobalConfig spec.ai.model at the same length.
+# The CRD caps TelarkConfig spec.ai.model at the same length.
 MODEL_NAME_MAX_LENGTH = 128
 
 LOG_ANALYZE_FAILED = "analyze: storage unavailable: {}"
@@ -329,23 +329,23 @@ SSE_MAX_STREAMS_PER_USER = 8
 # -----------------------------------------------------------------------------
 # Exporter (the sole CRD reader), called with the service token
 # -----------------------------------------------------------------------------
-GLOBALCONFIG_PATH = "/api/v1/resources/globalconfig/get"
-APPLICATION_GET_PATH = "/api/v1/resources/applications/{name}/get"
-APPLICATIONS_LIST_PATH = "/api/v1/resources/applications/get"
-PLANS_LIST_PATH = "/api/v1/plans/protection/get"
-PLAN_ENVIRONMENTS_PATH = "/api/v1/classification/categories/scope/plan-environments/get"
+CONFIG_PATH = "/api/v1/config"
+APPLICATION_GET_PATH = "/api/v1/applications/{name}"
+APPLICATIONS_LIST_PATH = "/api/v1/applications"
+PLANS_LIST_PATH = "/api/v1/protectionplans"
+PLAN_ENVIRONMENTS_PATH = "/api/v1/categories?scope=plan-environments"
 PARAM_VIEW = "view"
 VIEW_SUMMARY = "summary"
 FIELD_ITEMS = "items"
 EXPORTER_TIMEOUT_S = 5.0
 # The full app list at 2 000 apps takes seconds; the 5 s read timeout would skip every sweep tick.
 EXPORTER_LIST_TIMEOUT_S = 30.0
-GLOBALCONFIG_FIELD_AI = "ai"
-GLOBALCONFIG_FIELD_EXCLUDED_NAMESPACES = "excludedNamespaces"
+CONFIG_FIELD_AI = "ai"
+CONFIG_FIELD_EXCLUDED_NAMESPACES = "excludedNamespaces"
 AI_FIELD_ENABLED = "enabled"
 AI_FIELD_MODEL = "model"
 AI_FIELD_AUTO_ANALYZE = "autoAnalyze"
-LOG_GLOBALCONFIG_FETCH_FAILED = "failed to read the analyzer config from GlobalConfig, keeping the last good value: {}"
+LOG_CONFIG_FETCH_FAILED = "failed to read the analyzer config from TelarkConfig, keeping the last good value: {}"
 
 # -----------------------------------------------------------------------------
 # Ollama runtime (an external runtime: no service token, no envelope)

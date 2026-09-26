@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	authmetadata "github.com/telark/data/metadata/auth"
+	authmetadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/exporters/generics"
 	sessionutils "github.com/telark/exporter/internal/utils/auth/session"
@@ -39,7 +39,7 @@ func PatchSessionByToken(w http.ResponseWriter, token string, patchData map[stri
 	lock.Lock()
 	defer lock.Unlock()
 
-	generics.GenericPatchCustomResource(w, authmetadata.UserSessionMetadata, sessionName, specPatchData)
+	generics.GenericPatchCustomResource(w, authmetadata.SessionMetadata, sessionName, specPatchData)
 }
 
 func validateAndExtractExpiresTimestamp(patchData map[string]any) (string, error) {

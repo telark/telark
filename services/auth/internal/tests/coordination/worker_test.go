@@ -54,7 +54,7 @@ func TestManagerDrainsFailingJobToDLQ(t *testing.T) {
 	cfg := fastConfig()
 	resourceType := finalizers.ResourceTypeUsers
 	stream := cleanup.NewStreamOps(xwareredis.NewStreamClient(rdb), resourceType, cfg.StreamMaxLen, cfg.XClaimMinIdle)
-	enqueueJob(t, stream,"u1")
+	enqueueJob(t, stream, "u1")
 
 	m := cleanup.NewManager(cfg, resourceType, stream, cleanup.NewDedup(rdb, cfg.DedupTTL), newReconciler(cfg), testReplicaID)
 	m.Start(context.Background())
@@ -74,7 +74,7 @@ func TestManagerReclaimsStalePendingJob(t *testing.T) {
 	cfg.XClaimMinIdle = testCallTimeout
 	resourceType := finalizers.ResourceTypeUsers
 	stream := cleanup.NewStreamOps(xwareredis.NewStreamClient(rdb), resourceType, cfg.StreamMaxLen, cfg.XClaimMinIdle)
-	enqueueJob(t, stream,"u3")
+	enqueueJob(t, stream, "u3")
 
 	deadConsumer := workerNameFor("replica-dead")
 	if msgs, err := stream.Read(context.Background(), deadConsumer); err != nil || len(msgs) != constants.DefaultIncrementValue {
@@ -101,7 +101,7 @@ func TestManagerBacksOffBetweenAttempts(t *testing.T) {
 	cfg.BackoffMax = time.Second
 	resourceType := finalizers.ResourceTypeUsers
 	stream := cleanup.NewStreamOps(xwareredis.NewStreamClient(rdb), resourceType, cfg.StreamMaxLen, cfg.XClaimMinIdle)
-	enqueueJob(t, stream,"u4")
+	enqueueJob(t, stream, "u4")
 
 	start := time.Now()
 	m := cleanup.NewManager(cfg, resourceType, stream, cleanup.NewDedup(rdb, cfg.DedupTTL), newReconciler(cfg), testReplicaID)
@@ -125,7 +125,7 @@ func TestLeaderLoopStartsManagers(t *testing.T) {
 	cfg := fastConfig()
 	resourceType := finalizers.ResourceTypeUsers
 	stream := cleanup.NewStreamOps(xwareredis.NewStreamClient(rdb), resourceType, cfg.StreamMaxLen, cfg.XClaimMinIdle)
-	enqueueJob(t, stream,"u2")
+	enqueueJob(t, stream, "u2")
 
 	m := cleanup.NewManager(cfg, resourceType, stream, cleanup.NewDedup(rdb, cfg.DedupTTL), newReconciler(cfg), testReplicaID)
 	loop := cleanup.NewLeaderLoop(nil, []*cleanup.Manager{m}, nil, 5*time.Millisecond)

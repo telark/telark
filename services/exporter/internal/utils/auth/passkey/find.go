@@ -3,7 +3,7 @@ package passkey
 import (
 	"errors"
 
-	authmetadata "github.com/telark/data/metadata/auth"
+	authmetadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/constants"
 	authshared "github.com/telark/exporter/internal/utils/auth/shared"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
@@ -12,7 +12,7 @@ import (
 
 func FindPasskeyByCredentialID(credentialID string) (*unstructured.Unstructured, error) {
 	return sharedutils.FindResourceBySpecField(
-		authmetadata.UserPasskeyMetadata,
+		authmetadata.PasskeyMetadata,
 		constants.ErrPasskeyListFormatInvalid,
 		constants.FieldCredentialID,
 		credentialID,
@@ -22,7 +22,7 @@ func FindPasskeyByCredentialID(credentialID string) (*unstructured.Unstructured,
 
 func FindPasskeysByUserID(userID string) ([]unstructured.Unstructured, error) {
 	return authshared.FindResourcesByUserID(
-		authmetadata.UserPasskeyMetadata,
+		authmetadata.PasskeyMetadata,
 		constants.ErrPasskeyListFormatInvalid,
 		userID,
 	)

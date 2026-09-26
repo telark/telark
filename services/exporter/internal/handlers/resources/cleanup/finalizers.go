@@ -64,7 +64,7 @@ func mutateFinalizer(w http.ResponseWriter, r *http.Request, op finalizerMutatio
 	}
 
 	patch := map[string]any{constants.MetadataField: map[string]any{constants.FieldFinalizers: next}}
-	patchResult := api.PatchCustomResource(target.Metadata, id, patch)
+	patchResult := sharedutils.PatchCustomResource(target.Metadata, id, patch)
 	if patchResult.Status != http.StatusOK {
 		responseutils.LogAndSendResponse(w, patchResult.Status, response.OperationError,
 			patchResult.Message, nil, patchResult.Error)

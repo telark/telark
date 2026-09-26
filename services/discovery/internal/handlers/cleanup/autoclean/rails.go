@@ -8,7 +8,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	appresource "github.com/telark/data/resources/application"
 	"github.com/telark/discovery/internal/constants"
-	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
+	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -100,7 +100,7 @@ func railNamespaceIncluded(ctx context.Context, app *appresource.Application) ra
 	if app == nil {
 		return pass(constants.RailNamespaceIncluded)
 	}
-	excluded := gcfghelper.FetchExcludedNamespaces(ctx)
+	excluded := tcfghelper.FetchExcludedNamespaces(ctx)
 	if len(excluded) == constants.DefaultInitValue {
 		return pass(constants.RailNamespaceIncluded)
 	}

@@ -19,9 +19,9 @@ spec:
   # or a rule errors. Audit only, never Enforce.
   validationFailureAction: Audit
   rules:
-    {{- $by := printf "%s.io/last-modified-by" .Values.app.name }}
-    {{- $at := printf "%s.io/last-modified-at" .Values.app.name }}
-    {{- $op := printf "%s.io/last-modified-operation" .Values.app.name }}
+    {{- $by := "telark.io/last-modified-by" }}
+    {{- $at := "telark.io/last-modified-at" }}
+    {{- $op := "telark.io/last-modified-operation" }}
     {{- $annotations := "{{ request.object.metadata.annotations || `{}` | length(@) }}" }}
     # JSON6902 adds, not patchStrategicMerge: a strategic merge re-serialises the whole object and
     # collapses list entries that share a merge key (duplicate env names) in user workloads.

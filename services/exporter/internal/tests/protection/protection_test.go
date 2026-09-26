@@ -28,7 +28,7 @@ const (
 func scope(scopeType string, appIDs any, namespaces any) map[string]any {
 	inner := map[string]any{constants.FieldScopeType: scopeType}
 	if appIDs != nil {
-		inner[constants.FieldScopeAppIDs] = appIDs
+		inner[constants.FieldScopeAppRefs] = appIDs
 	}
 	if namespaces != nil {
 		inner[constants.FieldScopeNamespaces] = namespaces
@@ -106,7 +106,7 @@ func TestValidate(t *testing.T) {
 		{"no policies", func(p *plans.ProtectionPlan) { p.Policies = nil }},
 		{"bad scope type", func(p *plans.ProtectionPlan) { p.Scope.Type = unknownScopeType }},
 		{"namespace scope with app ids", func(p *plans.ProtectionPlan) {
-			p.Scope = plans.ProtectionPlanScope{Type: constants.ScopeTypeNamespaces, Namespaces: []string{"n"}, ApplicationIDs: []string{"a"}}
+			p.Scope = plans.ProtectionPlanScope{Type: constants.ScopeTypeNamespaces, Namespaces: []string{"n"}, ApplicationRefs: []string{"a"}}
 		}},
 	}
 	for _, tt := range tests {
@@ -129,7 +129,7 @@ func validPlan() *plans.ProtectionPlan {
 		ID:       testPlanID,
 		Name:     "plan",
 		Policies: []plans.ProtectionPlanPolicy{{TemplateID: "t"}},
-		Scope:    plans.ProtectionPlanScope{Type: constants.ScopeTypeApplications, ApplicationIDs: []string{testAppID}},
+		Scope:    plans.ProtectionPlanScope{Type: constants.ScopeTypeApplications, ApplicationRefs: []string{testAppID}},
 	}
 }
 

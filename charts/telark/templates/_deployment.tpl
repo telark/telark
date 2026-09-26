@@ -224,7 +224,7 @@ spec:
           {{- end }}
           {{- if $volume.secret }}
           secret:
-            secretName: {{ $volume.secret.name }}
+            secretName: {{ tpl ($volume.secret.name | toString) $root }}
           {{- end }}
           {{- if hasKey $volume "emptyDir" }}
           emptyDir: {{ $volume.emptyDir | default dict | toJson }}

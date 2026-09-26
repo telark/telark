@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	authmetadata "github.com/telark/data/metadata/auth"
+	authmetadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/utils/concurrency"
 	"github.com/telark/kcore/crds/api"
@@ -51,5 +51,5 @@ func deleteSession(name string) kshared.KubernetesAPIData {
 	lock := concurrency.GetLock(name)
 	lock.Lock()
 	defer lock.Unlock()
-	return api.DeleteCustomResourceByName(name, authmetadata.UserSessionMetadata)
+	return api.DeleteCustomResourceByName(name, authmetadata.SessionMetadata)
 }

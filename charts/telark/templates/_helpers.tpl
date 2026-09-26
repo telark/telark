@@ -126,6 +126,15 @@ otherwise the chart-generated one. Call with the root context.
 {{- default (printf "%s-service-token-secret" .Values.app.name) .Values.app.serviceToken.existingSecret -}}
 {{- end -}}
 
+{{- define "telark.oidcTrustSecretName" -}}
+{{- default (printf "%s-oidc-trust-secret" (include "telark.fullname" .)) .Values.app.auth.oidc.existingSecret -}}
+{{- end -}}
+
+{{/* Constant, not derived from app.name: the Go services hardcode it. */}}
+{{- define "telark.apiGroup" -}}
+telark.io
+{{- end -}}
+
 {{/*
 Secret holding one NATS user's credentials (publisher or consumer):
 nats.existingSecrets.<user> when set, otherwise the chart-generated one.

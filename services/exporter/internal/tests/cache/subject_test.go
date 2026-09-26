@@ -8,11 +8,11 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/gorilla/mux"
 	"github.com/redis/go-redis/v9"
 	"github.com/telark/exporter/internal/cache"
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/utils/performance"
+	categoryendpoints "github.com/telark/rest/endpoints/categories"
 )
 
 const (
@@ -40,14 +40,9 @@ func echoSubjectHandler(subject func(*http.Request) string) http.HandlerFunc {
 	}
 }
 
-func pathRequest(param string, value string) *http.Request {
+func headerRequest(value string) *http.Request {
 	r := httptest.NewRequest(http.MethodGet, listPath, nil)
-	return mux.SetURLVars(r, map[string]string{param: value})
-}
-
-func headerRequest(header string, value string) *http.Request {
-	r := httptest.NewRequest(http.MethodGet, listPath, nil)
-	r.Header.Set(header, value)
+	r.Header.Set(constants.HeaderUserID, value)
 	return r
 }
 
@@ -61,28 +56,10 @@ func TestPerSubjectListCacheIsNotSharedAcrossSubjects(t *testing.T) {
 		request      func(value string) *http.Request
 	}{
 		{
-			name:         "sessions by user",
-			resourceType: constants.ResourceUserSession,
-			subject:      cache.SubjectFromPathParam(constants.UserIDParam),
-			request:      func(v string) *http.Request { return pathRequest(constants.UserIDParam, v) },
-		},
-		{
-			name:         "roles by user",
-			resourceType: constants.ResourceRole,
-			subject:      cache.SubjectFromPathParam(constants.UserIDParam),
-			request:      func(v string) *http.Request { return pathRequest(constants.UserIDParam, v) },
-		},
-		{
-			name:         "roles by group",
-			resourceType: constants.ResourceRole,
-			subject:      cache.SubjectFromPathParam(constants.GroupIDParam),
-			request:      func(v string) *http.Request { return pathRequest(constants.GroupIDParam, v) },
-		},
-		{
 			name:         "passkeys by user",
 			resourceType: constants.ResourceUserPasskey,
 			subject:      cache.SubjectFromHeader(constants.HeaderUserID),
-			request:      func(v string) *http.Request { return headerRequest(constants.HeaderUserID, v) },
+			request:      headerRequest,
 		},
 	}
 
@@ -155,7 +132,7 @@ func TestListInvalidationReachesPerSubjectEntries(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			o := newOptimizer(t)
 			calls := constants.DefaultInitValue
-			subject := cache.SubjectFromPathParam(constants.UserIDParam)
+			subject := cache.SubjectFromHeader(constants.HeaderUserID)
 			handler := performance.NewCachedListHandlerFunc(
 				o,
 				countingHandler(&calls),
@@ -164,14 +141,14 @@ func TestListInvalidationReachesPerSubjectEntries(t *testing.T) {
 				constants.OpList,
 			)
 
-			handler(httptest.NewRecorder(), pathRequest(constants.UserIDParam, subjectA))
-			handler(httptest.NewRecorder(), pathRequest(constants.UserIDParam, subjectA))
+			handler(httptest.NewRecorder(), headerRequest(subjectA))
+			handler(httptest.NewRecorder(), headerRequest(subjectA))
 			if calls != wantOneCall {
 				t.Fatalf("handler ran %d times, want %d — the second read was not cached", calls, wantOneCall)
 			}
 
 			tt.invalidate(o)
-			handler(httptest.NewRecorder(), pathRequest(constants.UserIDParam, subjectA))
+			handler(httptest.NewRecorder(), headerRequest(subjectA))
 			if calls != wantTwoCalls {
 				t.Errorf("handler ran %d times, want %d — the per-subject entry survived invalidation", calls, wantTwoCalls)
 			}
@@ -186,7 +163,7 @@ func TestUnresolvableSubjectIsNeverCached(t *testing.T) {
 	handler := performance.NewCachedListHandlerFunc(
 		o,
 		countingHandler(&calls),
-		cache.NewSubjectListCacheKeyFunc(o, constants.ResourceUserSession, cache.SubjectFromPathParam(constants.UserIDParam)),
+		cache.NewSubjectListCacheKeyFunc(o, constants.ResourceUserSession, cache.SubjectFromHeader(constants.HeaderUserID)),
 		constants.ResourceUserSession,
 		constants.OpList,
 	)
@@ -237,29 +214,29 @@ func TestListCacheKeysCarryTheirSubject(t *testing.T) {
 			name:    "global list has no subject",
 			keyFunc: cache.NewListCacheKeyFunc(gen, constants.ResourceRole),
 			request: httptest.NewRequest(http.MethodGet, listPath, nil),
-			want:    "list:roles:7",
-		},
-		{
-			name:    "user subject",
-			keyFunc: cache.NewSubjectListCacheKeyFunc(gen, constants.ResourceRole, cache.SubjectFromPathParam(constants.UserIDParam)),
-			request: pathRequest(constants.UserIDParam, subjectA),
-			want:    "list:roles:7:userId:" + subjectA,
-		},
-		{
-			name:    "group subject",
-			keyFunc: cache.NewSubjectListCacheKeyFunc(gen, constants.ResourceRole, cache.SubjectFromPathParam(constants.GroupIDParam)),
-			request: pathRequest(constants.GroupIDParam, subjectA),
-			want:    "list:roles:7:groupId:" + subjectA,
+			want:    "list:accessroles:7",
 		},
 		{
 			name:    "header subject",
 			keyFunc: cache.NewSubjectListCacheKeyFunc(gen, constants.ResourceUserPasskey, cache.SubjectFromHeader(constants.HeaderUserID)),
-			request: headerRequest(constants.HeaderUserID, subjectA),
+			request: headerRequest(subjectA),
 			want:    "list:user-passkeys:7:X-User-ID:" + subjectA,
 		},
 		{
+			name:    "unfiltered query list shares the plain list key",
+			keyFunc: cache.NewQueryListCacheKeyFunc(gen, constants.ResourceCategory, categoryendpoints.QueryScope),
+			request: httptest.NewRequest(http.MethodGet, listPath, nil),
+			want:    "list:categories:7",
+		},
+		{
+			name:    "query value is part of the key",
+			keyFunc: cache.NewQueryListCacheKeyFunc(gen, constants.ResourceCategory, categoryendpoints.QueryScope),
+			request: httptest.NewRequest(http.MethodGet, listPath+"?scope=groups", nil),
+			want:    "list:categories:7:scope:groups",
+		},
+		{
 			name:    "missing subject yields no key at all",
-			keyFunc: cache.NewSubjectListCacheKeyFunc(gen, constants.ResourceUserSession, cache.SubjectFromPathParam(constants.UserIDParam)),
+			keyFunc: cache.NewSubjectListCacheKeyFunc(gen, constants.ResourceUserSession, cache.SubjectFromHeader(constants.HeaderUserID)),
 			request: httptest.NewRequest(http.MethodGet, listPath, nil),
 			want:    constants.EmptyString,
 		},

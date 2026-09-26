@@ -101,6 +101,13 @@
                 "origin": { "type": "string" },
                 "selfRegistration": { "enum": ["true", "false", true, false] }
               }
+            },
+            "oidc": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "existingSecret": { "type": "string" }
+              }
             }
           }
         },

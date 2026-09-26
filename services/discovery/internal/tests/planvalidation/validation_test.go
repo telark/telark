@@ -16,26 +16,26 @@ import (
 )
 
 const (
-	taxonomyEnvironmentID = "cat-00002-0001-0001"
-	taxonomyTagID         = "cat-00003-0001-0001"
-	taxonomyTagB          = "cat-00003-0001-0002"
-	validStartAt          = "2026-01-01T00:00:00Z"
-	applicationID         = "a1"
-	crossedNamespace      = "n"
-	validCase             = "valid"
-	appNamespace          = "app"
-	prodGuardName         = "Prod Guard"
-	prodGuardID           = "pp-1"
-	validEndAt            = "2026-01-02T00:00:00Z"
-	kubeSystemNamespace   = "kube-system"
-	excludedKind          = "ConfigMap"
-	excludedName          = "wa1"
-	subresourceKind       = "Deployment/scale"
-	tplBlockCreate        = "block-create"
-	tplBlockImageTags     = "block-image-tags"
-	paramTags             = "tags"
-	tagLatest             = "latest"
-	ownNamespace          = "telark"
+	taxonomyEnvironmentRef = "cat-00002-0001-0001"
+	taxonomyTagID          = "cat-00003-0001-0001"
+	taxonomyTagB           = "cat-00003-0001-0002"
+	validStartAt           = "2026-01-01T00:00:00Z"
+	applicationID          = "a1"
+	crossedNamespace       = "n"
+	validCase              = "valid"
+	appNamespace           = "app"
+	prodGuardName          = "Prod Guard"
+	prodGuardID            = "pp-1"
+	validEndAt             = "2026-01-02T00:00:00Z"
+	kubeSystemNamespace    = "kube-system"
+	excludedKind           = "ConfigMap"
+	excludedName           = "wa1"
+	subresourceKind        = "Deployment/scale"
+	tplBlockCreate         = "block-create"
+	tplBlockImageTags      = "block-image-tags"
+	paramTags              = "tags"
+	tagLatest              = "latest"
+	ownNamespace           = "telark"
 )
 
 var (
@@ -61,16 +61,16 @@ func TestScope(t *testing.T) {
 		scope planseps.ScopeRequest
 		want  error
 	}{
-		{"apps ok", planseps.ScopeRequest{Type: plans.ScopeTypeApplications, ApplicationIDs: []string{applicationID}}, nil},
+		{"apps ok", planseps.ScopeRequest{Type: plans.ScopeTypeApplications, ApplicationRefs: []string{applicationID}}, nil},
 		{"namespaces ok", planseps.ScopeRequest{Type: plans.ScopeTypeNamespaces, Namespaces: []string{"ns1"}}, nil},
 		{"unknown type", planseps.ScopeRequest{Type: "bogus"}, validation.ErrInvalidScope},
 		{"apps empty", planseps.ScopeRequest{Type: plans.ScopeTypeApplications}, validation.ErrScopeUnion},
 		{"apps crossed", planseps.ScopeRequest{
-			Type: plans.ScopeTypeApplications, ApplicationIDs: []string{"a"}, Namespaces: []string{crossedNamespace},
+			Type: plans.ScopeTypeApplications, ApplicationRefs: []string{"a"}, Namespaces: []string{crossedNamespace},
 		}, validation.ErrScopeUnion},
 		{"namespaces empty", planseps.ScopeRequest{Type: plans.ScopeTypeNamespaces}, validation.ErrScopeUnion},
 		{"namespaces crossed", planseps.ScopeRequest{
-			Type: plans.ScopeTypeNamespaces, Namespaces: []string{crossedNamespace}, ApplicationIDs: []string{"a"},
+			Type: plans.ScopeTypeNamespaces, Namespaces: []string{crossedNamespace}, ApplicationRefs: []string{"a"},
 		}, validation.ErrScopeUnion},
 		{"namespaces with exclusion resources", planseps.ScopeRequest{
 			Type: plans.ScopeTypeNamespaces, Namespaces: []string{"ns1"}, Exclusions: resourceExclusions(),
@@ -137,9 +137,9 @@ func TestTimeRange(t *testing.T) {
 func TestNormalize(t *testing.T) {
 	req := &planseps.PrepareProtectionPlanRequest{
 		Scope: planseps.ScopeRequest{
-			Type:           plans.ScopeTypeNamespaces,
-			Namespaces:     []string{"b", appNamespace, "b"},
-			ApplicationIDs: []string{applicationID, applicationID},
+			Type:            plans.ScopeTypeNamespaces,
+			Namespaces:      []string{"b", appNamespace, "b"},
+			ApplicationRefs: []string{applicationID, applicationID},
 		},
 		Policies: []planseps.PolicyRequest{
 			{TemplateID: tplBlockCreate},
@@ -152,8 +152,8 @@ func TestNormalize(t *testing.T) {
 	if !slices.Equal(req.Scope.Namespaces, []string{appNamespace, "b"}) {
 		t.Fatalf("namespaces = %v", req.Scope.Namespaces)
 	}
-	if !slices.Equal(req.Scope.ApplicationIDs, []string{applicationID}) {
-		t.Fatalf("applicationIds = %v", req.Scope.ApplicationIDs)
+	if !slices.Equal(req.Scope.ApplicationRefs, []string{applicationID}) {
+		t.Fatalf("applicationRefs = %v", req.Scope.ApplicationRefs)
 	}
 	testutil.Equal(t, "policies", len(req.Policies), constants.TwoValue)
 }
@@ -173,7 +173,7 @@ func TestPrepareRequest(t *testing.T) {
 		Name:     "p",
 		Severity: plans.SeverityHigh,
 		Mode:     plans.ModeEnforce,
-		Scope:    planseps.ScopeRequest{Type: plans.ScopeTypeApplications, ApplicationIDs: []string{applicationID}},
+		Scope:    planseps.ScopeRequest{Type: plans.ScopeTypeApplications, ApplicationRefs: []string{applicationID}},
 		Policies: []planseps.PolicyRequest{{TemplateID: "block-create"}},
 		TimeMode: plans.TimeModeTimeRange,
 		TimeRange: &planseps.TimeRangeRequest{
@@ -192,7 +192,7 @@ func TestPrepareRequest(t *testing.T) {
 	}
 
 	badPolicies := &planseps.PrepareProtectionPlanRequest{
-		Scope: planseps.ScopeRequest{Type: plans.ScopeTypeApplications, ApplicationIDs: []string{applicationID}},
+		Scope: planseps.ScopeRequest{Type: plans.ScopeTypeApplications, ApplicationRefs: []string{applicationID}},
 	}
 	if validation.PrepareRequest(badPolicies, beforeWindow) == nil {
 		t.Fatal("missing policies should fail PrepareRequest")
@@ -208,7 +208,7 @@ func TestPrepareRequest(t *testing.T) {
 // Exclusions bounds kinds and resources like the CRD and allows resources only on applications scope.
 func TestExclusions(t *testing.T) {
 	apps := func(e *plans.ProtectionPlanScopeExclusions) planseps.ScopeRequest {
-		return planseps.ScopeRequest{Type: plans.ScopeTypeApplications, ApplicationIDs: []string{applicationID}, Exclusions: e}
+		return planseps.ScopeRequest{Type: plans.ScopeTypeApplications, ApplicationRefs: []string{applicationID}, Exclusions: e}
 	}
 	namespaces := func(e *plans.ProtectionPlanScopeExclusions) planseps.ScopeRequest {
 		return planseps.ScopeRequest{Type: plans.ScopeTypeNamespaces, Namespaces: []string{appNamespace}, Exclusions: e}
@@ -271,7 +271,7 @@ func TestFields(t *testing.T) {
 	longName := strings.Repeat(crossedNamespace, validation.NameMaxLength+1)
 	longDescription := strings.Repeat("d", validation.DescriptionMaxLength+1)
 	longTaxonomyID := strings.Repeat("t", validation.TaxonomyIDMaxLength+1)
-	tooManyTags := make([]string, validation.TagIDsMax+1)
+	tooManyTags := make([]string, validation.TagRefsMax+1)
 	for i := range tooManyTags {
 		tooManyTags[i] = fmt.Sprintf("cat-00003-0001-%04d", i)
 	}
@@ -293,15 +293,15 @@ func TestFields(t *testing.T) {
 		{"priority too high", func(r *planseps.PrepareProtectionPlanRequest) {
 			r.Priority = validation.PriorityMax + constants.DefaultAddValue
 		}, false},
-		{"nil taxonomy ok", func(r *planseps.PrepareProtectionPlanRequest) { r.EnvironmentID = nil; r.TagIDs = nil }, true},
-		{"environmentID too long", func(r *planseps.PrepareProtectionPlanRequest) { r.EnvironmentID = &longTaxonomyID }, false},
-		{"empty environmentID ok", func(r *planseps.PrepareProtectionPlanRequest) { r.EnvironmentID = strptr("") }, true},
-		{"tag id too long", func(r *planseps.PrepareProtectionPlanRequest) { r.TagIDs = []string{longTaxonomyID} }, false},
-		{"too many tag ids", func(r *planseps.PrepareProtectionPlanRequest) { r.TagIDs = tooManyTags }, false},
-		{"duplicate tag ids", func(r *planseps.PrepareProtectionPlanRequest) { r.TagIDs = []string{taxonomyTagID, taxonomyTagID} }, false},
+		{"nil taxonomy ok", func(r *planseps.PrepareProtectionPlanRequest) { r.EnvironmentRef = nil; r.TagRefs = nil }, true},
+		{"environmentRef too long", func(r *planseps.PrepareProtectionPlanRequest) { r.EnvironmentRef = &longTaxonomyID }, false},
+		{"empty environmentRef ok", func(r *planseps.PrepareProtectionPlanRequest) { r.EnvironmentRef = strptr("") }, true},
+		{"tag id too long", func(r *planseps.PrepareProtectionPlanRequest) { r.TagRefs = []string{longTaxonomyID} }, false},
+		{"too many tag ids", func(r *planseps.PrepareProtectionPlanRequest) { r.TagRefs = tooManyTags }, false},
+		{"duplicate tag ids", func(r *planseps.PrepareProtectionPlanRequest) { r.TagRefs = []string{taxonomyTagID, taxonomyTagID} }, false},
 		{"valid taxonomy", func(r *planseps.PrepareProtectionPlanRequest) {
-			r.EnvironmentID = strptr(taxonomyEnvironmentID)
-			r.TagIDs = []string{taxonomyTagID, taxonomyTagB}
+			r.EnvironmentRef = strptr(taxonomyEnvironmentRef)
+			r.TagRefs = []string{taxonomyTagID, taxonomyTagB}
 		}, true},
 	}
 	for _, c := range cases {

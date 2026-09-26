@@ -35,6 +35,7 @@ Kubernetes: `>=1.30.0-0`
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | app.auth.bootstrap.admins | list | `[]` |  |
+| app.auth.oidc.existingSecret | string | `""` |  |
 | app.auth.passkey.id | string | `""` |  |
 | app.auth.passkey.name | string | `"Dashboard App"` |  |
 | app.auth.passkey.origin | string | `""` |  |
@@ -292,6 +293,7 @@ Kubernetes: `>=1.30.0-0`
 | services.auth.env.CLEANUP_WORKERS_PER_TYPE | string | `"2"` |  |
 | services.auth.env.CLEANUP_XCLAIM_MIN_IDLE_SECONDS | string | `"60"` |  |
 | services.auth.env.CORS_ALLOWED_ORIGINS | string | `""` |  |
+| services.auth.env.OIDC_TRUST_FILE | string | `"/etc/telark/oidc/googleJwkJson"` |  |
 | services.auth.env.RECONCILE_BACKOFF_INITIAL_SECONDS | string | `"5"` |  |
 | services.auth.env.RECONCILE_BACKOFF_MAX_SECONDS | string | `"300"` |  |
 | services.auth.env.RECONCILE_PASS_DEADLINE_SECONDS | string | `"30"` |  |
@@ -309,6 +311,11 @@ Kubernetes: `>=1.30.0-0`
 | services.auth.pdb.enabled | bool | `false` |  |
 | services.auth.repository | string | `"auth"` |  |
 | services.auth.terminationGracePeriodSec | int | `30` |  |
+| services.auth.volumeMounts[0].name | string | `"oidc-trust"` |  |
+| services.auth.volumeMounts[0].path | string | `"/etc/telark/oidc"` |  |
+| services.auth.volumeMounts[0].readOnly | bool | `true` |  |
+| services.auth.volumes[0].name | string | `"oidc-trust"` |  |
+| services.auth.volumes[0].secret.name | string | `"{{ include \"telark.oidcTrustSecretName\" . }}"` |  |
 | services.discovery.category | string | `"sync"` |  |
 | services.discovery.enabled | bool | `true` |  |
 | services.discovery.env.COORDINATION_BATCH_BLOCK_SEC | string | `"2"` |  |
@@ -375,6 +382,7 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.env.CORS_ALLOWED_ORIGINS | string | `""` |  |
 | services.exporter.env.EXPORTER_K8S_CLIENT_BURST | string | `"100"` |  |
 | services.exporter.env.EXPORTER_K8S_CLIENT_QPS | string | `"50"` |  |
+| services.exporter.env.OIDC_TRUST_SECRET_NAME | string | `"{{ include \"telark.oidcTrustSecretName\" . }}"` |  |
 | services.exporter.env.REPORTS_PATH | string | `"/reports"` |  |
 | services.exporter.env.SNAPSHOTS_PATH | string | `"/snapshots"` |  |
 | services.exporter.env.SNAPSHOTS_PVC_NAME | string | `"{{ include \"telark.exporterSnapshotsPvcName\" . }}"` |  |

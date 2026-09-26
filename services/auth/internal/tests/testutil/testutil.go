@@ -1,10 +1,13 @@
 package testutil
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/gorilla/mux"
 	"github.com/redis/go-redis/v9"
+	"github.com/telark/auth/internal/constants"
 )
 
 // Code that dials Redis through x-ware resolves REDIS_HOST/REDIS_PORT from env.
@@ -29,4 +32,9 @@ func Equal[T comparable](t *testing.T, name string, got, want T) {
 	if got != want {
 		t.Fatalf("%s = %v, want %v", name, got, want)
 	}
+}
+
+// Handlers called directly skip the router, so the path variable it would set is set here.
+func WithCredentialID(r *http.Request, credentialID string) *http.Request {
+	return mux.SetURLVars(r, map[string]string{constants.CredentialIDPathParam: credentialID})
 }

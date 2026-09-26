@@ -17,7 +17,7 @@ import (
 	authhelper "github.com/telark/auth/internal/helpers/auth"
 	redishelper "github.com/telark/auth/internal/helpers/redis"
 	userresource "github.com/telark/data/resources/user"
-	userclient "github.com/telark/rest/clients/resources/users"
+	userclient "github.com/telark/rest/clients/users"
 )
 
 // Operator-run, so the email is trusted; a BOOTSTRAP_ADMINS address also gets the
@@ -73,20 +73,20 @@ func printEnrollToken(userID, email string) int {
 	return constants.DefaultInitValue
 }
 
-func createAdmin(userClient *userclient.Client, email string) (*userresource.UserAsResource, error) {
+func createAdmin(userClient *userclient.Client, email string) (*userresource.User, error) {
 	username, err := authhelper.BuildUsername(email)
 	if err != nil {
 		return nil, err
 	}
 	adminID := constants.BuiltInRoleAdmin
-	resp := userClient.CreateUser(&userresource.UserAsResource{
-		Username:         username,
-		Fullname:         authhelper.BuildFullnameFromEmail(email),
-		Email:            email,
-		CreationDate:     time.Now().UTC().Format(time.RFC3339),
-		Status:           userresource.UserStatus{Phase: string(userresource.AccountPhaseActive)},
-		AssignedRolesIDs: []*string{&adminID},
-		Bootstrap:        config.IsBootstrapAdmin(email),
+	resp := userClient.CreateUser(&userresource.User{
+		Username:     username,
+		Fullname:     authhelper.BuildFullnameFromEmail(email),
+		Email:        email,
+		CreationDate: time.Now().UTC().Format(time.RFC3339),
+		Status:       userresource.UserStatus{Phase: string(userresource.AccountPhaseActive)},
+		RoleRefs:     []*string{&adminID},
+		Bootstrap:    config.IsBootstrapAdmin(email),
 	})
 	if resp.Status != http.StatusCreated && resp.Status != http.StatusOK {
 		return nil, fmt.Errorf(string(constants.ErrBreakGlassCreateFailed), resp.Status, resp.Message)
@@ -98,11 +98,11 @@ func createAdmin(userClient *userclient.Client, email string) (*userresource.Use
 	return user, nil
 }
 
-func promote(userClient *userclient.Client, user *userresource.UserAsResource, normalized string) int {
+func promote(userClient *userclient.Client, user *userresource.User, normalized string) int {
 	patch := map[string]any{}
-	if !authhelper.HasAdminRole(user.AssignedRolesIDs) {
+	if !authhelper.HasAdminRole(user.RoleRefs) {
 		adminID := constants.BuiltInRoleAdmin
-		patch[constants.SpecFieldAssignedRolesIDs] = append(slices.Clone(user.AssignedRolesIDs), &adminID)
+		patch[constants.SpecFieldRoleRefs] = append(slices.Clone(user.RoleRefs), &adminID)
 	}
 	if config.IsBootstrapAdmin(normalized) && !user.Bootstrap {
 		patch[constants.UserFieldBootstrap] = true

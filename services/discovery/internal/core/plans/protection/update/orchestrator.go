@@ -231,10 +231,10 @@ func RenderTarget(
 	target := *plan
 	target.Name = req.Name
 	target.Scope = plans.ProtectionPlanScope{
-		Type:           plan.Scope.Type,
-		ApplicationIDs: req.Scope.ApplicationIDs,
-		Namespaces:     req.Scope.Namespaces,
-		Exclusions:     effectiveExclusions(plan.Scope, req.Scope),
+		Type:            plan.Scope.Type,
+		ApplicationRefs: req.Scope.ApplicationRefs,
+		Namespaces:      req.Scope.Namespaces,
+		Exclusions:      effectiveExclusions(plan.Scope, req.Scope),
 	}
 	target.Policies = newPolicies
 	target.Mode = req.Mode
@@ -291,8 +291,8 @@ func applyPatch(
 // Moving an automatic plan into an environment that derives required would label it with a
 // gate it never passed.
 func EnvironmentRaisesApproval(plan *plans.ProtectionPlan, req *planseps.PrepareProtectionPlanRequest) bool {
-	return req.EnvironmentID != nil && *req.EnvironmentID != plan.EnvironmentID && !protection.RequiresApproval(plan) &&
-		protection.DerivedApprovalMode(*req.EnvironmentID) == plans.ApprovalModeRequired
+	return req.EnvironmentRef != nil && *req.EnvironmentRef != plan.EnvironmentRef && !protection.RequiresApproval(plan) &&
+		protection.DerivedApprovalMode(*req.EnvironmentRef) == plans.ApprovalModeRequired
 }
 
 func ApprovalModeChanged(plan *plans.ProtectionPlan, req *planseps.PrepareProtectionPlanRequest) bool {
@@ -354,7 +354,7 @@ func callerFields(ctx context.Context, req *planseps.PrepareProtectionPlanReques
 	if err := validation.EnforceScope(ctx, req.Scope.Type, req.Mode); err != nil {
 		return err
 	}
-	return validation.EnvironmentID(req.EnvironmentID, deps.Environments)
+	return validation.EnvironmentRef(req.EnvironmentRef, deps.Environments)
 }
 
 func ensureNameAvailable(deps Deps, plan *plans.ProtectionPlan, name string) error {
@@ -389,14 +389,14 @@ func resolveTargets(
 
 func newTargets(scope planseps.ScopeRequest) []string {
 	if scope.Type == plans.ScopeTypeApplications {
-		return append([]string(nil), scope.ApplicationIDs...)
+		return append([]string(nil), scope.ApplicationRefs...)
 	}
 	return append([]string(nil), scope.Namespaces...)
 }
 
 func scopeTargets(plan *plans.ProtectionPlan) []string {
 	if plan.Scope.Type == plans.ScopeTypeApplications {
-		return append([]string(nil), plan.Scope.ApplicationIDs...)
+		return append([]string(nil), plan.Scope.ApplicationRefs...)
 	}
 	return append([]string(nil), plan.Scope.Namespaces...)
 }

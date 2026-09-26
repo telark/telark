@@ -48,7 +48,7 @@ func BuildService(kubeClient *kubernetes.Clientset, rdb *redis.Client, logger Lo
 		Logger:      logger,
 	}
 	svc := NewService(applier, resolver, exporter, dyn, ListClusterNamespaces, gen, logger, notifier)
-	svc.environments = clients.NewCategoryClient().PlanEnvironmentIDs
+	svc.environments = clients.NewCategoryClient().PlanEnvironmentRefs
 	if rdb != nil {
 		svc.names = NewNameLocks(xwareredis.NewLockClient(rdb))
 	}

@@ -10,7 +10,7 @@ import (
 	responseutils "github.com/telark/rest/utils/response"
 )
 
-func GetExistingRoleForPatch(w http.ResponseWriter, roleID string) (*roledata.RoleAsResource, bool) {
+func GetExistingRoleForPatch(w http.ResponseWriter, roleID string) (*roledata.AccessRole, bool) {
 	existingResource, ok := FindRoleByIDOrRespond(w, roleID)
 	if !ok {
 		return nil, false
@@ -33,7 +33,7 @@ func GetExistingRoleForPatch(w http.ResponseWriter, roleID string) (*roledata.Ro
 	return existingRole, true
 }
 
-func ExtractAndMergeRoleForPatch(existingRole *roledata.RoleAsResource, body map[string]any, w http.ResponseWriter) (*roledata.RoleAsResource, bool) {
+func ExtractAndMergeRoleForPatch(existingRole *roledata.AccessRole, body map[string]any, w http.ResponseWriter) (*roledata.AccessRole, bool) {
 	delete(body, constants.FieldPriority)
 	delete(body, constants.FieldVersion)
 	newRole, err := ExtractRoleSpecFromRequestBody(body)

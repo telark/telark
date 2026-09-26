@@ -29,11 +29,11 @@ func TestCreateRejectsCaseVariantPrivilegedKeys(t *testing.T) {
 		body    string
 	}{
 		{"group roles", grouphandler.CreateGroupResourceWithCacheInvalidation(o),
-			`{"name":"g","description":"d","categoryID":"c","AssignedRolesIDs":["role-admin"]}`},
+			`{"name":"g","description":"d","categoryRef":"c","RoleRefs":["role-admin"]}`},
 		{"group members", grouphandler.CreateGroupResourceWithCacheInvalidation(o),
-			`{"name":"g","description":"d","categoryID":"c","ASSIGNEDUSERSIDS":["u1"]}`},
+			`{"name":"g","description":"d","categoryRef":"c","ASSIGNEDUSERSIDS":["u1"]}`},
 		{"user roles", userhandler.CreateUserResourceWithCacheInvalidation(o),
-			`{"username":"x","email":"x@example.com","AssignedRolesIDs":["role-admin"]}`},
+			`{"username":"x","email":"x@example.com","RoleRefs":["role-admin"]}`},
 		{"user bootstrap", userhandler.CreateUserResourceWithCacheInvalidation(o),
 			`{"username":"x","email":"x@example.com","Bootstrap":true}`},
 		{"user identities", userhandler.CreateUserResourceWithCacheInvalidation(o),

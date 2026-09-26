@@ -170,7 +170,7 @@ class ValidateModelResponse(BaseModel):
 
 
 class AnalyzerConfig(BaseModel):
-    """GlobalConfig spec.ai plus excludedNamespaces, as the analyzer needs them."""
+    """TelarkConfig spec.ai plus excludedNamespaces, as the analyzer needs them."""
 
     enabled: bool = False
     model: str = DEFAULT_ANALYZER_MODEL

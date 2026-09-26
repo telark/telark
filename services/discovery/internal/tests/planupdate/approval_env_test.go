@@ -23,18 +23,18 @@ func TestEnvironmentRaisesApproval(t *testing.T) {
 		env    *string
 		want   bool
 	}{
-		{"automatic staging moved to production", plans.ProtectionPlan{EnvironmentID: stagingEnv}, &stagingProd, true},
+		{"automatic staging moved to production", plans.ProtectionPlan{EnvironmentRef: stagingEnv}, &stagingProd, true},
 		{
 			"required plan moved to production",
-			plans.ProtectionPlan{EnvironmentID: stagingEnv, ApprovalMode: plans.ApprovalModeRequired},
+			plans.ProtectionPlan{EnvironmentRef: stagingEnv, ApprovalMode: plans.ApprovalModeRequired},
 			&stagingProd, false,
 		},
-		{"environment unchanged", plans.ProtectionPlan{EnvironmentID: prod}, &stagingProd, false},
-		{"environment not sent", plans.ProtectionPlan{EnvironmentID: stagingEnv}, nil, false},
+		{"environment unchanged", plans.ProtectionPlan{EnvironmentRef: prod}, &stagingProd, false},
+		{"environment not sent", plans.ProtectionPlan{EnvironmentRef: stagingEnv}, nil, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			req := &planseps.PrepareProtectionPlanRequest{EnvironmentID: c.env}
+			req := &planseps.PrepareProtectionPlanRequest{EnvironmentRef: c.env}
 			testutil.Equal(t, "raises", update.EnvironmentRaisesApproval(&c.stored, req), c.want)
 		})
 	}

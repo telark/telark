@@ -133,6 +133,7 @@ const (
 	ErrOIDCClientIDRequired      errors.Error = "googleClientID is required when OIDC is enabled"
 	ErrOIDCTrustSourceRequired   errors.Error = "OIDC requires either egressAllowed or a pinned googleJwkJson"
 	ErrOIDCJWKUnreachable        errors.Error = "provider signing keys are unreachable: %v"
+	ErrOIDCTrustFileRead         errors.Error = "failed to read the OIDC trust file: %v"
 	ErrOIDCNonceInvalid          errors.Error = "OIDC nonce is invalid or has already been used"
 	ErrOIDCNonceStoreFailed      errors.Error = "failed to store OIDC nonce: %v"
 	ErrOIDCIdentityLookupFailed  errors.Error = "user identity lookup failed for identityHash=%s: %v"

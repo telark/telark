@@ -107,7 +107,7 @@ func ValidateAndPrepareCategory(category *categorydata.Category, w http.Response
 		category.Type = categorydata.CategoryTypeCustom
 	}
 
-	categoryID, err := GenerateUniqueCategoryID()
+	catID, err := GenerateUniqueCategoryID()
 	if err != nil {
 		responseutils.LogAndSendResponse(
 			w,
@@ -119,7 +119,7 @@ func ValidateAndPrepareCategory(category *categorydata.Category, w http.Response
 		)
 		return err
 	}
-	category.ID = categoryID
+	category.ID = catID
 
 	return nil
 }

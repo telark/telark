@@ -86,14 +86,14 @@ func (x *Index) SetEnvironments(list []plans.ProtectionPlan) {
 	byApp, byNS := map[string][]string{}, map[string][]string{}
 	for i := range list {
 		plan := &list[i]
-		if plan.EnvironmentID == constants.EmptyString || !slices.Contains(livePlanPhases, plan.Phase) {
+		if plan.EnvironmentRef == constants.EmptyString || !slices.Contains(livePlanPhases, plan.Phase) {
 			continue
 		}
 		switch plan.Scope.Type {
 		case plans.ScopeTypeApplications:
-			addEnvironment(byApp, plan.Scope.ApplicationIDs, plan.EnvironmentID)
+			addEnvironment(byApp, plan.Scope.ApplicationRefs, plan.EnvironmentRef)
 		case plans.ScopeTypeNamespaces:
-			addEnvironment(byNS, plan.Scope.Namespaces, plan.EnvironmentID)
+			addEnvironment(byNS, plan.Scope.Namespaces, plan.EnvironmentRef)
 		default:
 			continue
 		}
@@ -109,9 +109,9 @@ func (x *Index) SetEnvironments(list []plans.ProtectionPlan) {
 	x.version++
 }
 
-func addEnvironment(into map[string][]string, keys []string, environmentID string) {
+func addEnvironment(into map[string][]string, keys []string, environmentRef string) {
 	for _, key := range keys {
-		into[key] = append(into[key], environmentID)
+		into[key] = append(into[key], environmentRef)
 	}
 }
 

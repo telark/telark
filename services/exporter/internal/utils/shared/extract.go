@@ -25,6 +25,16 @@ func GetPathParam(w http.ResponseWriter, r *http.Request, param string) (string,
 	return requestutils.PathParam(w, r, param)
 }
 
+func GetQueryParam(w http.ResponseWriter, r *http.Request, param string) (string, error) {
+	value := r.URL.Query().Get(param)
+	if value == constants.EmptyString {
+		msg := fmt.Sprintf(string(dataerrors.ErrRestRequiredParam), param)
+		responseutils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationUnprocessed, msg, nil, nil)
+		return constants.EmptyString, errors.New(msg)
+	}
+	return value, nil
+}
+
 func GetSpec(w http.ResponseWriter, r *http.Request) (map[string]any, error) {
 	spec, err := requestutils.ParseRequestBody(r)
 	if err != nil {
@@ -53,11 +63,9 @@ func ExtractResourceNameFromRequest(r *http.Request) string {
 			return name
 		}
 	}
+	// Every by-name route ends with the name, so the last segment is the resource.
 	pathParts := strings.Split(r.URL.Path, "/")
-	if len(pathParts) >= constants.IndexSecondLastElementOffset {
-		return pathParts[len(pathParts)-constants.IndexSecondLastElementOffset]
-	}
-	return constants.EmptyString
+	return pathParts[len(pathParts)-constants.IndexLastElementOffset]
 }
 
 func LogAndReturnError(w http.ResponseWriter, statusCode int, errorMessage string, err error) {

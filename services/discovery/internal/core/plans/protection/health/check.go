@@ -122,7 +122,7 @@ func ReconcileForActive(ctx context.Context, deps Deps, planList []plans.Protect
 	// One application resolve for the pass, like the one LIST above: the fresh render every
 	// active plan is compared against must not cost one application read per plan per tick.
 	resolveCtx, cancelResolve := context.WithTimeout(ctx, time.Duration(CheckTimeoutSeconds)*time.Second)
-	resolved, resolveErr := resolveApps(resolveCtx, deps, activeApplicationIDs(planList))
+	resolved, resolveErr := resolveApps(resolveCtx, deps, activeApplicationRefs(planList))
 	cancelResolve()
 	if resolveErr != nil {
 		deps.Logger.Error(fmt.Sprintf(logResolveFailedFmt, resolveErr))
@@ -182,11 +182,11 @@ func orphanPolicies(
 	return refs
 }
 
-func activeApplicationIDs(planList []plans.ProtectionPlan) []string {
+func activeApplicationRefs(planList []plans.ProtectionPlan) []string {
 	var ids []string
 	for i := range planList {
 		if planList[i].Phase == plans.PhaseActive {
-			ids = append(ids, planApplicationIDs(&planList[i])...)
+			ids = append(ids, planApplicationRefs(&planList[i])...)
 		}
 	}
 	return slices.Compact(slices.Sorted(slices.Values(ids)))

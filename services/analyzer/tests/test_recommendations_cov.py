@@ -146,7 +146,7 @@ def prod(plans=(), ns="shop-prod", image=IMAGE, envs=None):
 
 def plan(phase="active", mode="enforce", scope=None, **kw):
     return {"id": f"p-{phase}-{mode}", "name": f"plan-{mode}", "phase": phase, "mode": mode,
-            "scope": scope or {"type": "applications", "applicationIds": ["web"]}, **kw}
+            "scope": scope or {"type": "applications", "applicationRefs": ["web"]}, **kw}
 
 
 def skew(second_image):
@@ -506,7 +506,7 @@ def test_production_boost_severity():
     assert [(e.type, e.ref) for e in _one(two, "protection.production_uncovered").evidence] == [
         ("object", "object:Namespace/shop-prod")]
     # A covering plan's environment named like production makes a non-prod namespace production too.
-    envd = prod([plan(environmentID="e1", mode="audit")], ns="shop", envs={"e1": "Production"})
+    envd = prod([plan(environmentRef="e1", mode="audit")], ns="shop", envs={"e1": "Production"})
     assert "protection.production_audit_only" in {f.reason for f in R.evaluate(envd, NOW)[0]}
     # An HPA minimum decides the effective replica count.
     assert "reliability.single_replica" not in _reasons(build([workload(replicas=1)], hpas=[hpa(min_replicas=2)]))
@@ -528,7 +528,7 @@ def test_production_is_judged_per_workload_namespace():
     assert single == {"shop-dev": "info", "shop-prod": "warning"}
     assert [f.namespace for f in findings if f.reason == "images.digest_not_pinned_production"] == ["shop-prod"]
     # A plan whose environment is production and whose scope reaches the dev namespace makes it production too.
-    scoped = plan(environmentID="e1", scope={"type": "namespaces", "namespaces": ["shop-dev"]})
+    scoped = plan(environmentRef="e1", scope={"type": "namespaces", "namespaces": ["shop-dev"]})
     findings = R.evaluate(_dev_and_prod([scoped], envs={"e1": "Production"}), NOW)[0]
     assert {f.namespace for f in findings if f.reason == "images.digest_not_pinned_production"} == {
         "shop-dev", "shop-prod"}
@@ -659,12 +659,12 @@ def test_protection_coverage():
     workloads = [("shop-prod", "deployment", "web")]
     ns_plan = plan(scope={"type": "namespaces", "namespaces": ["shop-prod"]})
     assert R.covering_plans([ns_plan], "web", ["shop-prod"], workloads) == [ns_plan]
-    excluded = plan(scope={"type": "applications", "applicationIds": ["web"], "exclusions": {"kinds": ["Deployment"]}})
+    excluded = plan(scope={"type": "applications", "applicationRefs": ["web"], "exclusions": {"kinds": ["Deployment"]}})
     assert R.covering_plans([excluded], "web", ["shop-prod"], workloads) == []
-    by_name = plan(scope={"type": "applications", "applicationIds": ["web"], "exclusions": {
+    by_name = plan(scope={"type": "applications", "applicationRefs": ["web"], "exclusions": {
         "resources": [{"kind": "Deployment", "name": "web", "namespace": "shop-prod"}]}})
     assert R.covering_plans([by_name], "web", ["shop-prod"], workloads) == []
-    for other in (plan(phase="terminated"), plan(scope={"type": "applications", "applicationIds": ["api"]}),
+    for other in (plan(phase="terminated"), plan(scope={"type": "applications", "applicationRefs": ["api"]}),
                   plan(scope={"type": "bogus"})):
         assert R.covering_plans([other], "web", ["shop-prod"], workloads) == []
     assert "protection.production_uncovered" in _reasons(prod([plan(phase="draft")]))

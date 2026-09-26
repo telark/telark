@@ -10,19 +10,21 @@ import (
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/routes"
 	"github.com/telark/rest/base"
-	analyzeps "github.com/telark/rest/endpoints/analyze"
+	clustereps "github.com/telark/rest/endpoints/cluster"
 	insightseps "github.com/telark/rest/endpoints/insights"
 	planseps "github.com/telark/rest/endpoints/plans"
 	"github.com/telark/rest/router"
 	xauthz "github.com/telark/x-ware/authz"
 )
 
+const routeKeySeparator = " "
+
 func TestRequirementsCoverEveryRoute(t *testing.T) {
 	requirements := authz.Requirements()
 
 	var missing []string
 	for _, route := range routes.Routes {
-		key := route.Method + " " + route.Pattern
+		key := route.Method + routeKeySeparator + route.Pattern
 		if _, found := requirements[key]; !found {
 			missing = append(missing, key)
 		}
@@ -39,7 +41,7 @@ func TestRequirementsCoverEveryRoute(t *testing.T) {
 func TestNoRequirementWithoutRoute(t *testing.T) {
 	registered := map[string]bool{}
 	for _, route := range routes.Routes {
-		registered[route.Method+" "+route.Pattern] = true
+		registered[route.Method+routeKeySeparator+route.Pattern] = true
 	}
 
 	for key := range authz.Requirements() {
@@ -67,7 +69,7 @@ func TestOnlyProbesArePublic(t *testing.T) {
 // Nothing here acts on the caller's own record, so nothing here may skip the
 // scope check. The namespaces handler checks its two scopes itself (NamespacesAllowed).
 func TestNoRouteSkipsScopeCheck(t *testing.T) {
-	handlerChecked := router.Key(base.Get, analyzeps.GetAllNamespaces)
+	handlerChecked := router.Key(base.Get, clustereps.GetAllNamespaces)
 	if got := authz.Requirements()[handlerChecked]; got != xauthz.Authenticated {
 		t.Errorf("route %q requirement = %+v, want session-only so an insights reader reaches the handler", handlerChecked, got)
 	}
@@ -137,10 +139,10 @@ func TestScopedRequirementsAreComplete(t *testing.T) {
 // The routes that mutate live cluster state must never be readable-level.
 func TestDestructiveRoutesRequireWriteAccess(t *testing.T) {
 	destructive := []string{
-		"POST /api/v1/resources/applications/{name}/rollbacks/trigger",
-		"POST /api/v1/resources/applications/{name}/rollbacks/{rollbackId}/abort",
-		"POST /api/v1/resources/applications/{name}/sync",
-		"POST /api/v1/resources/applications/{name}/reset",
+		"POST /api/v1/applications/{name}/rollbacks",
+		"POST /api/v1/applications/{name}/rollbacks/{rollbackId}/abort",
+		"POST /api/v1/applications/{name}/sync",
+		"POST /api/v1/applications/{name}/reset",
 	}
 
 	requirements := authz.Requirements()
@@ -196,16 +198,16 @@ func TestDecideRouteIsOwnerWithPerDecisionRules(t *testing.T) {
 // side must fail here.
 func TestPlanRuleKeysMatchDashboardVocabulary(t *testing.T) {
 	want := map[string]string{
-		"GET /api/v1/plans/protection/templates":              "protection-plans.viewprotectionplans.deny",
-		"GET /api/v1/plans/protection/{id}/status":            "protection-plans.viewprotectionplans.deny",
-		"GET /api/v1/plans/protection/{id}/violations":        "protection-plans.viewprotectionplanviolations.deny",
-		"POST /api/v1/plans/protection/prepare":               "protection-plans.createprotectionplan.deny",
-		"POST /api/v1/plans/protection/{id}/update":           "protection-plans.editprotectionplan.deny",
-		"POST /api/v1/plans/protection/{id}/duplicate":        "protection-plans.duplicateprotectionplan.deny",
-		"POST /api/v1/plans/protection/{id}/reactivate":       "protection-plans.reactivateprotectionplan.deny",
-		"POST /api/v1/plans/protection/{id}/cancel":           "protection-plans.cancelprotectionplan.deny",
-		"POST /api/v1/plans/protection/{id}/reports/generate": "protection-plans.generateprotectionplanreport.deny",
-		"DELETE /api/v1/plans/protection/{id}/clear":          "protection-plans.deleteprotectionplan.deny",
+		"GET /api/v1/policytemplates":                  "protection-plans.viewprotectionplans.deny",
+		"GET /api/v1/protectionplans/{id}/status":      "protection-plans.viewprotectionplans.deny",
+		"GET /api/v1/protectionplans/{id}/violations":  "protection-plans.viewprotectionplanviolations.deny",
+		"POST /api/v1/protectionplans/prepare":         "protection-plans.createprotectionplan.deny",
+		"POST /api/v1/protectionplans/{id}/revise":     "protection-plans.editprotectionplan.deny",
+		"POST /api/v1/protectionplans/{id}/duplicate":  "protection-plans.duplicateprotectionplan.deny",
+		"POST /api/v1/protectionplans/{id}/reactivate": "protection-plans.reactivateprotectionplan.deny",
+		"POST /api/v1/protectionplans/{id}/cancel":     "protection-plans.cancelprotectionplan.deny",
+		"POST /api/v1/protectionplans/{id}/reports":    "protection-plans.generateprotectionplanreport.deny",
+		"DELETE /api/v1/protectionplans/{id}/clear":    "protection-plans.deleteprotectionplan.deny",
 	}
 
 	requirements := authz.Requirements()
@@ -296,5 +298,91 @@ func TestRequestAllows(t *testing.T) {
 				t.Errorf("reject allowed = %v, want %v", got, c.wantRejection)
 			}
 		})
+	}
+}
+
+// The route table is the public contract the dashboard and the analyzer call, so
+// it is pinned literally in both directions: no route disappears or renames
+// silently, and no route appears without a line here.
+var wantRouteTable = map[string]xauthz.Requirement{
+	"GET /api/v1/status/live":  xauthz.Public,
+	"GET /api/v1/status/ready": xauthz.Public,
+
+	"GET /api/v1/cluster/namespaces":                       xauthz.Authenticated,
+	"GET /api/v1/cluster/namespaces/{namespace}/workloads": xauthz.Read(roledata.ScopeApplications),
+	"GET /api/v1/cluster/namespaces/{namespace}/resources": xauthz.Read(roledata.ScopeApplications),
+
+	"GET /api/v1/discovery/status": xauthz.Read(roledata.ScopeApplications),
+	"POST /api/v1/applications/{name}/rollbacks": xauthz.Denyable(
+		xauthz.Write(roledata.ScopeApplications), roledata.ActionRollbackApplication),
+	"POST /api/v1/applications/{name}/rollbacks/{rollbackId}/abort": xauthz.Denyable(
+		xauthz.Write(roledata.ScopeApplications), roledata.ActionRollbackApplication),
+	"POST /api/v1/applications/{name}/sync": xauthz.Denyable(
+		xauthz.Write(roledata.ScopeApplications), roledata.ActionForceApplicationSync),
+	"POST /api/v1/applications/{name}/reset": xauthz.Denyable(
+		xauthz.Own(roledata.ScopeApplications), roledata.ActionDeleteApplication),
+
+	"GET /api/v1/insights/applications": xauthz.Read(roledata.ScopeInsights),
+	"GET /api/v1/insights":              xauthz.Read(roledata.ScopeInsights),
+
+	"GET /api/v1/policytemplates": xauthz.Denyable(
+		xauthz.Read(roledata.ScopeProtectionPlans), roledata.ActionViewProtectionPlans),
+	"GET /api/v1/protectionplans/{id}/status": xauthz.Denyable(
+		xauthz.Read(roledata.ScopeProtectionPlans), roledata.ActionViewProtectionPlans),
+	"GET /api/v1/protectionplans/{id}/violations": xauthz.Denyable(
+		xauthz.Read(roledata.ScopeProtectionPlans), roledata.ActionViewProtectionPlanViolations),
+	"POST /api/v1/protectionplans/prepare": xauthz.Denyable(
+		xauthz.Write(roledata.ScopeProtectionPlans), roledata.ActionCreateProtectionPlan),
+	"POST /api/v1/protectionplans/{id}/cancel": xauthz.Denyable(
+		xauthz.Write(roledata.ScopeProtectionPlans), roledata.ActionCancelProtectionPlan),
+	"POST /api/v1/protectionplans/{id}/duplicate": xauthz.Denyable(
+		xauthz.Write(roledata.ScopeProtectionPlans), roledata.ActionDuplicateProtectionPlan),
+	"POST /api/v1/protectionplans/{id}/reactivate": xauthz.Denyable(
+		xauthz.Write(roledata.ScopeProtectionPlans), roledata.ActionReactivateProtectionPlan),
+	"POST /api/v1/protectionplans/{id}/revise": xauthz.Denyable(
+		xauthz.Write(roledata.ScopeProtectionPlans), roledata.ActionEditProtectionPlan),
+	"POST /api/v1/protectionplans/{id}/decision": xauthz.Own(roledata.ScopeProtectionPlans),
+	"POST /api/v1/protectionplans/{id}/reports": xauthz.Denyable(
+		xauthz.Write(roledata.ScopeProtectionPlans), roledata.ActionGenerateProtectionPlanReport),
+	"DELETE /api/v1/protectionplans/{id}/clear": xauthz.Denyable(
+		xauthz.Own(roledata.ScopeProtectionPlans), roledata.ActionDeleteProtectionPlan),
+}
+
+func TestRouteTableMatchesContract(t *testing.T) {
+	requirements := authz.Requirements()
+	registered := map[string]bool{}
+	for _, route := range routes.Routes {
+		registered[route.Method+routeKeySeparator+route.Pattern] = true
+	}
+
+	for key, want := range wantRouteTable {
+		if !registered[key] {
+			t.Errorf("contract route %q is not registered", key)
+		}
+		if got, found := requirements[key]; !found || got != want {
+			t.Errorf("route %q requirement = %+v (found %v), want %+v", key, got, found, want)
+		}
+	}
+	for key := range registered {
+		if _, found := wantRouteTable[key]; !found {
+			t.Errorf("registered route %q is missing from the contract table", key)
+		}
+	}
+	for key := range requirements {
+		if _, found := wantRouteTable[key]; !found {
+			t.Errorf("requirement %q is missing from the contract table", key)
+		}
+	}
+}
+
+// The old verb-suffixed and resources/-prefixed paths must not survive as aliases.
+func TestNoLegacyRoutePaths(t *testing.T) {
+	legacy := []string{"/resources/", "/plans/protection", "/analyze/", "/get", "/create", "/update", "/decide", "/trigger", "/generate"}
+	for _, route := range routes.Routes {
+		for _, fragment := range legacy {
+			if strings.Contains(route.Pattern, fragment) {
+				t.Errorf("route %s %s keeps the legacy fragment %q", route.Method, route.Pattern, fragment)
+			}
+		}
 	}
 }

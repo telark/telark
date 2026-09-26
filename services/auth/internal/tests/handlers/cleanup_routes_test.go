@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -14,6 +15,7 @@ import (
 	restconstants "github.com/telark/rest/constants"
 	autheps "github.com/telark/rest/endpoints/auth"
 	"github.com/telark/rest/router"
+	xauthz "github.com/telark/x-ware/authz"
 )
 
 // Routed through the real mux, so the id is read under the name the route
@@ -40,9 +42,9 @@ func deleteRoleCleanup(t *testing.T, exporterStatus int, exporterBody string) (i
 		w.WriteHeader(exporterStatus)
 		_, _ = w.Write([]byte(exporterBody))
 	}))
-	endpoint := autheps.DeleteRoleCleanup
+	endpoint := autheps.DeleteAccessRoleCleanup
 	mux := router.NewRouter([]router.Route{
-		router.CreateRoute(base.Delete, endpoint, cleanuphandler.DeleteRole),
+		router.CreateRoute(base.Delete, endpoint, cleanuphandler.DeleteAccessRole),
 	})
 	path := strings.Replace(router.Pattern(endpoint), restconstants.IDParam, "r-1", constants.DefaultIncrementValue)
 	rec := httptest.NewRecorder()
@@ -74,4 +76,35 @@ func TestDeleteCleanupAnswersNotFoundWhenGone(t *testing.T) {
 	code, msg := deleteRoleCleanup(t, http.StatusNotFound, `{"status":404,"message":"`+gone+`"}`)
 	testutil.Equal(t, "status", code, http.StatusNotFound)
 	testutil.Equal(t, "message", msg, gone)
+}
+
+// Each auth cleanup path deletes through the exporter's plain resource path.
+func TestCleanupRoutesDeleteThroughExporterPaths(t *testing.T) {
+	cases := []struct {
+		endpoint base.Endpoint
+		handler  http.HandlerFunc
+		path     string
+		exporter string
+	}{
+		{autheps.DeleteUserCleanup, cleanuphandler.DeleteUser, "/api/v1/auth/users/x-1", "/api/v1/users/x-1"},
+		{autheps.DeleteGroupCleanup, cleanuphandler.DeleteGroup, "/api/v1/auth/groups/x-1", "/api/v1/groups/x-1"},
+		{autheps.DeleteAccessRoleCleanup, cleanuphandler.DeleteAccessRole, "/api/v1/auth/accessroles/x-1", "/api/v1/accessroles/x-1"},
+	}
+	for _, c := range cases {
+		t.Run(c.path, func(t *testing.T) {
+			var seen []string
+			testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				seen = append(seen, r.Method+" "+r.URL.Path)
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"status":404,"message":"gone"}`))
+			}))
+			mux := router.NewRouter([]router.Route{router.CreateRoute(base.Delete, c.endpoint, c.handler)})
+			rec := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodDelete, c.path, nil)
+			mux.ServeHTTP(rec, r.WithContext(xauthz.WithIdentity(r.Context(), xauthz.Identity{Internal: true})))
+			if !slices.Contains(seen, http.MethodDelete+" "+c.exporter) {
+				t.Fatalf("exporter calls = %v, want DELETE %s", seen, c.exporter)
+			}
+		})
+	}
 }

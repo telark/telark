@@ -1,10 +1,14 @@
 package worker
 
 import (
+	"fmt"
 	"sync"
 
+	globallogger "github.com/telark/data/logger"
 	"github.com/telark/kcore/constants"
 )
+
+var logger = globallogger.NewCustomLogger(constants.LoggerPrefixWorkerPool)
 
 type WorkerPool struct {
 	sem chan struct{}
@@ -28,6 +32,12 @@ func (wp *WorkerPool) Submit(task func()) {
 		defer func() {
 			<-wp.sem
 			wp.wg.Done()
+		}()
+		// One task's panic must not take down the process that submitted it.
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Error(fmt.Sprintf(string(constants.ErrWorkerTaskPanicked), r))
+			}
 		}()
 		task()
 	}()

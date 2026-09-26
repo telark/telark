@@ -43,7 +43,7 @@ func renderForCombinations(
 		Policies:  policiesSubset,
 	}
 	if plan.Scope.Type == plans.ScopeTypeApplications {
-		subPlan.Scope.ApplicationIDs = targets
+		subPlan.Scope.ApplicationRefs = targets
 	} else {
 		subPlan.Scope.Namespaces = targets
 	}
@@ -125,9 +125,9 @@ func scopesForTarget(
 	out := make([]datapolicies.ScopeSpec, constants.DefaultInitValue, len(ra.Namespaces))
 	for _, ns := range ra.Namespaces {
 		out = append(out, datapolicies.ScopeSpec{
-			Namespace:      ns,
-			ApplicationIDs: []string{target},
-			AppResources:   ra.Resources,
+			Namespace:       ns,
+			ApplicationRefs: []string{target},
+			AppResources:    ra.Resources,
 		})
 	}
 	return out, nil

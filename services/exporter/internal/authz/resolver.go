@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	authmetadata "github.com/telark/data/metadata/auth"
+	authmetadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/informers"
 	sessionutils "github.com/telark/exporter/internal/utils/auth/session"
@@ -42,7 +42,10 @@ func (*Resolver) GrantsForUser(userID string) (authz.Grants, error) {
 
 	// Read once, before collecting: a generation bumped mid-collection must
 	// leave the entry under the old generation, where nothing reads it.
-	gen := generation(ctx)
+	gen, trusted := generation(ctx)
+	if !trusted {
+		return collectGrants(userID)
+	}
 	if grants, ok := cachedGrants(ctx, gen, userID); ok {
 		return grants, nil
 	}
@@ -62,7 +65,7 @@ func sessionRecord(name string) (*unstructured.Unstructured, error) {
 	if resource, found := informers.GetSession(name); found {
 		return resource, nil
 	}
-	return getByName(name, authmetadata.UserSessionMetadata)
+	return getByName(name, authmetadata.SessionMetadata)
 }
 
 func fmtLog(format string, args ...any) string {

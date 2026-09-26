@@ -32,8 +32,8 @@ func userWithLevel(level roledata.PermissionLevel) xauthz.Identity {
 	}
 }
 
-func target(userID string) *userdata.UserAsResource {
-	return &userdata.UserAsResource{ID: userID}
+func target(userID string) *userdata.User {
+	return &userdata.User{ID: userID}
 }
 
 func profileEdit() map[string]any {
@@ -41,7 +41,7 @@ func profileEdit() map[string]any {
 }
 
 func rolePromotion() map[string]any {
-	return map[string]any{constants.FieldAssignedRolesIDs: []any{adminID}}
+	return map[string]any{constants.FieldRoleRefs: []any{adminID}}
 }
 
 // The escalation this whole layer exists to stop.
@@ -129,8 +129,8 @@ func TestGuardUserPatchBlocksProfileEditOnAnotherUser(t *testing.T) {
 
 func TestGuardUserPatchBlocksEveryPrivilegedField(t *testing.T) {
 	fields := []string{
-		constants.FieldAssignedRolesIDs,
-		constants.FieldAssignedGroupsIDs,
+		constants.FieldRoleRefs,
+		constants.FieldGroupRefs,
 		constants.FieldStatus,
 	}
 
@@ -150,7 +150,7 @@ func TestGuardUserPatchBlocksEveryPrivilegedField(t *testing.T) {
 func TestGuardUserPatchBlocksMixedBody(t *testing.T) {
 	w := httptest.NewRecorder()
 	body := profileEdit()
-	body[constants.FieldAssignedRolesIDs] = []any{adminID}
+	body[constants.FieldRoleRefs] = []any{adminID}
 
 	if authz.GuardUserPatch(w, requestAs(userWithLevel(roledata.PermissionLevelOwner)), target(callerID), body) {
 		t.Error("privilege change hidden in a profile edit was allowed")
@@ -211,14 +211,14 @@ func TestGuardSelfUserDeniesWithoutIdentity(t *testing.T) {
 func TestGuardRoleDeletion(t *testing.T) {
 	tests := []struct {
 		name string
-		role *roledata.RoleAsResource
+		role *roledata.AccessRole
 		want bool
 	}{
-		{"no protection block", &roledata.RoleAsResource{}, true},
-		{"deletion allowed", &roledata.RoleAsResource{Protection: &roledata.Protection{}}, true},
+		{"no protection block", &roledata.AccessRole{}, true},
+		{"deletion allowed", &roledata.AccessRole{Protection: &roledata.Protection{}}, true},
 		{
 			name: "deletion prevented",
-			role: &roledata.RoleAsResource{Protection: &roledata.Protection{PreventDeletion: true}},
+			role: &roledata.AccessRole{Protection: &roledata.Protection{PreventDeletion: true}},
 			want: false,
 		},
 	}

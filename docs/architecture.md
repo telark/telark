@@ -49,7 +49,7 @@ flowchart LR
   KYV -->|admit / reject| K8S
 
   ANL -->|jobs · insights| REDIS
-  ANL -->|GlobalConfig| EXP
+  ANL -->|TelarkConfig| EXP
   ANL -->|permissions| AUTH
   ANL --> LLM
   ANL -->|GET workloads · events| K8S
@@ -80,7 +80,7 @@ Each service's own README carries a focused diagram of its internals: [auth](../
 | `discovery` | Go | Groups workloads into applications; runs the leader-elected reconcile loop; drives protection-plan lifecycle, approvals and reports. |
 | `analyzer` | Python / FastAPI | Local analyzer: investigates incidents with a local model over read-only cluster tools; writes findings to Redis; streams updates to the UI (SSE). |
 | `auth` | Go | Passkey (WebAuthn) + Google OIDC login; session and role reconciliation. |
-| `notifier` | Go | Consumes discovery's application events from NATS and upserts the `ApplicationAsResource` CRs through `exporter`. |
+| `notifier` | Go | Consumes discovery's application events from NATS and upserts the `Application` CRs through `exporter`. |
 | `ui` | — | Dashboard SPA (separate repo; the chart ships only the image reference). |
 
 ## Shared infrastructure (subcharts)
@@ -89,7 +89,7 @@ Each service's own README carries a focused diagram of its internals: [auth](../
 
 ## Data flow (high level)
 
-1. `discovery` watches workloads, groups them into applications and publishes each change as `telark.applications.update` on NATS; `notifier` upserts the `ApplicationAsResource` through `exporter`, which writes every telark custom resource.
+1. `discovery` watches workloads, groups them into applications and publishes each change as `telark.applications.update` on NATS; `notifier` upserts the `Application` through `exporter`, which writes every telark custom resource.
 2. When a change is an incident or a recovery, `discovery` appends an analysis job to the Redis stream `insights:jobs`.
 3. `analyzer` (when enabled) consumes the job, investigates with a local model over read-only tools, writes the findings to Redis and streams updates to the UI; the UI reads the insights through `discovery`.
 4. Protection plans transition `pending_approval → scheduled → active → terminated` (the approval step only when the plan requires it); while active, admission policies are deployed for the scope minus its exclusions, and their health is verified against live cluster state. `discovery` renders plan reports and `exporter` stores them on the reports volume.
@@ -97,7 +97,7 @@ Each service's own README carries a focused diagram of its internals: [auth](../
 
 ## Identity
 
-The app identity is a single value, `app.name` (default `telark`), shared by both charts and hardcoded in the API groups the Go services watch (`erpi.telark`, `auth.telark`, `classification.telark`). See [ADR 0002](adr/0002-app-name-is-the-identity-source-of-truth.md).
+Every telark CRD is in the constant API group `telark.io` (version `v1alpha1`), and labels, annotations and finalizers use the `telark.io/` domain. `app.name` (default `telark`) only prefixes object names in both charts. See [ADR 0003](adr/0003-constant-api-group-telark-io.md) and the [CRD reference](CRDS.md).
 
 ## Deeper references
 

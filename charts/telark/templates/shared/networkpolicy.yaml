@@ -1,0 +1,116 @@
+{{/*
+Ingress isolation for telark's own pods and NATS. Policies are additive: the
+default deny selects every telark pod, the allows below open only what each
+needs. The dashboard is the one entry point from outside the release (Ingress,
+Gateway or port-forward); the APIs take traffic from telark pods only. Egress
+stays open: the services reach the API server, the OIDC issuer and each other.
+Redis and Ollama carry their own policies (redis subchart, ollama-networkpolicy).
+*/}}
+{{- if .Values.app.networkPolicy.enabled }}
+{{- $selector := include "telark.selectorLabels" (dict "root" .) }}
+{{- $ui := .Values.services.ui.name }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "telark.fullname" . }}-default-deny
+  namespace: {{ .Values.app.namespace }}
+  labels:
+    {{- include "telark.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- $selector | nindent 6 }}
+  policyTypes:
+    - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "telark.fullname" . }}-api
+  namespace: {{ .Values.app.namespace }}
+  labels:
+    {{- include "telark.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- $selector | nindent 6 }}
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: NotIn
+        values: [{{ $ui | quote }}]
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- $selector | nindent 14 }}
+      ports:
+        - port: http
+          protocol: TCP
+{{- if .Values.services.ui.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "telark.fullname" . }}-ui
+  namespace: {{ .Values.app.namespace }}
+  labels:
+    {{- include "telark.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "telark.selectorLabels" (dict "root" . "component" $ui) | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: http
+          protocol: TCP
+{{- end }}
+{{- if .Values.nats.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "telark.fullname" . }}-nats
+  namespace: {{ .Values.app.namespace }}
+  labels:
+    {{- include "telark.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nats
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: nats
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes:
+    - Ingress
+  ingress:
+    {{- $clients := list }}
+    {{- range $name, $svc := .Values.services }}
+    {{- if and $svc.enabled (dig "useNatsCreds" false $svc) }}
+    {{- $clients = append $clients $svc.name }}
+    {{- end }}
+    {{- end }}
+    {{- if $clients }}
+    - from:
+        {{- range $clients }}
+        - podSelector:
+            matchLabels:
+              {{- include "telark.selectorLabels" (dict "root" $ "component" .) | nindent 14 }}
+        {{- end }}
+      ports:
+        - port: 4222
+          protocol: TCP
+    {{- end }}
+    # Route traffic between NATS replicas, should the server ever be clustered.
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: nats
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - port: 6222
+          protocol: TCP
+{{- end }}
+{{- end }}

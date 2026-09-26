@@ -46,7 +46,7 @@ var reportRoutes = []string{
 	router.Key(http.MethodPost, reportseps.CreatePlanReport),
 	router.Key(http.MethodGet, reportseps.ListPlanReports),
 	router.Key(http.MethodGet, reportseps.DownloadPlanReport),
-	router.Key(http.MethodPost, reportseps.PutPlanReportLedger),
+	router.Key(http.MethodPut, reportseps.PutPlanReportLedger),
 	router.Key(http.MethodGet, reportseps.GetPlanReportLedger),
 }
 
@@ -241,7 +241,7 @@ func TestLedgerPutGetRoundTripAnd404(t *testing.T) {
 	}
 
 	put := httptest.NewRecorder()
-	reportshandler.PutPlanReportLedger()(put, withID(httptest.NewRequest(http.MethodPost, routePath, strings.NewReader(ledgerBody))))
+	reportshandler.PutPlanReportLedger()(put, withID(httptest.NewRequest(http.MethodPut, routePath, strings.NewReader(ledgerBody))))
 	if put.Code != http.StatusOK {
 		t.Fatalf(statusFmt, "ledger put", put.Code, http.StatusOK)
 	}

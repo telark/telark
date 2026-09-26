@@ -6,7 +6,7 @@ import (
 
 	"github.com/telark/data/errors"
 	"github.com/telark/data/messages"
-	authmetadata "github.com/telark/data/metadata/auth"
+	authmetadata "github.com/telark/data/metadata/v1alpha1"
 	sessionutils "github.com/telark/exporter/internal/utils/auth/session"
 	"github.com/telark/exporter/internal/utils/concurrency"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
@@ -27,7 +27,7 @@ func DeleteSessionByToken(w http.ResponseWriter, token string) {
 	lock.Lock()
 	defer lock.Unlock()
 
-	deleteResult := api.DeleteCustomResourceByName(sessionName, authmetadata.UserSessionMetadata)
+	deleteResult := api.DeleteCustomResourceByName(sessionName, authmetadata.SessionMetadata)
 	if deleteResult.Status != http.StatusOK {
 		errorMsg := sharedutils.GenerateResourceError(errors.ErrDeleteRes, sessionName, deleteResult.Error)
 		responseutils.LogAndSendResponse(

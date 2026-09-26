@@ -10,7 +10,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/redis/go-redis/v9"
 	"github.com/telark/exporter/internal/constants"
-	categoryhandler "github.com/telark/exporter/internal/handlers/classification/category"
+	categoryhandler "github.com/telark/exporter/internal/handlers/categories"
 	protectionhandler "github.com/telark/exporter/internal/handlers/plans/protection"
 	grouphandler "github.com/telark/exporter/internal/handlers/resources/group"
 	rolehandler "github.com/telark/exporter/internal/handlers/resources/role"
@@ -87,7 +87,7 @@ func TestCategoryHandlers(t *testing.T) {
 	o := newOptimizer(t)
 	assertErrorResponse(t, categoryhandler.CreateCategoryResourceWithCacheInvalidation(o), postJSON(), "CreateCategory")
 	assertErrorResponse(t, categoryhandler.GetCategoryByIDWithCacheInvalidation(), idReq(testCategoryID), "GetCategoryByID")
-	assertErrorResponse(t, categoryhandler.ListAllCategoriesWithCacheInvalidation(), idReq(testCategoryID), "ListCategories")
+	assertErrorResponse(t, categoryhandler.ListCategoriesWithCacheInvalidation(), idReq(testCategoryID), "ListCategories")
 	assertErrorResponse(t, categoryhandler.PatchCategoryByIDWithCacheInvalidation(o), idReq(testCategoryID), "PatchCategory")
 	assertErrorResponse(t, categoryhandler.DeleteCategoryByIDWithCacheInvalidation(o), idReq(testCategoryID), "DeleteCategory")
 }

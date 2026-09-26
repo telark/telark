@@ -14,7 +14,7 @@ import (
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/applications/history/manifestdiff"
 	historyshared "github.com/telark/discovery/internal/core/applications/history/shared"
-	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
+	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
 	kcoredynamic "github.com/telark/kcore/informers/dynamic"
 	kcorefactory "github.com/telark/kcore/informers/factory"
 	"github.com/telark/kcore/k8sclient"
@@ -99,7 +99,7 @@ func (m *Manager) run(ctx context.Context) {
 	}
 	m.watchGVRs = gvrs
 	go m.watchLeaderResume(ctx)
-	nsTick := time.NewTicker(time.Duration(constants.GlobalConfigExcludedPollSec) * time.Second)
+	nsTick := time.NewTicker(time.Duration(constants.TelarkConfigExcludedPollSec) * time.Second)
 	defer nsTick.Stop()
 	appsTick := time.NewTicker(constants.InformerKnownAppsRefresh)
 	defer appsTick.Stop()
@@ -411,7 +411,7 @@ func namespaceExcluded(ctx context.Context, ns string) bool {
 	if ns == constants.EmptyString {
 		return true
 	}
-	return slices.Contains(gcfghelper.FetchExcludedNamespaces(ctx), ns)
+	return slices.Contains(tcfghelper.FetchExcludedNamespaces(ctx), ns)
 }
 
 // eventLag measures how long the API server change waited before this handler

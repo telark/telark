@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	plansmd "github.com/telark/data/metadata/plans"
+	plansmd "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/constants"
 	envmanager "github.com/telark/exporter/internal/managers/envs"
 	exprdb "github.com/telark/exporter/internal/redis"

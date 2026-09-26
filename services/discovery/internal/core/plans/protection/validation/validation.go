@@ -12,9 +12,11 @@ import (
 	"time"
 
 	"github.com/telark/data/plans"
+	roledata "github.com/telark/data/resources/role"
 	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/helpers/globalconfig"
+	"github.com/telark/discovery/internal/helpers/telarkconfig"
 	planseps "github.com/telark/rest/endpoints/plans"
+	xauthz "github.com/telark/x-ware/authz"
 )
 
 // ValidationError marks a caller-fixable request so handlers can answer 400
@@ -45,16 +47,41 @@ func IsConflict(err error) bool {
 	return errors.As(err, &target)
 }
 
+// UnavailableError marks a check that could not load what it compares against; it fails closed
+// with a 503 instead of passing vacuously.
+type UnavailableError struct{ Msg string }
+
+func (e *UnavailableError) Error() string { return e.Msg }
+
+func IsUnavailable(err error) bool {
+	var target *UnavailableError
+	return errors.As(err, &target)
+}
+
+type ForbiddenError struct{ Msg string }
+
+func (e *ForbiddenError) Error() string { return e.Msg }
+
+func IsForbidden(err error) bool {
+	var target *ForbiddenError
+	return errors.As(err, &target)
+}
+
 var (
 	ErrInvalidScope = Invalid("scope.type must be applications or namespaces")
 	ErrScopeUnion   = Invalid(
-		"scope.type=applications requires applicationIds; scope.type=namespaces requires namespaces",
+		"scope.type=applications requires applicationRefs; scope.type=namespaces requires namespaces",
 	)
 	ErrInvalidTimeRange  = Invalid("timeRange.endAt must be after timeRange.startAt")
 	ErrTimeRangeRequired = Invalid("timeRange is required when timeMode is time_range")
 	ErrTimeRangeFormat   = Invalid("timeRange.startAt and timeRange.endAt must be RFC3339 timestamps")
 	ErrTimeRangeElapsed  = Invalid("timeRange.endAt is in the past; the plan window has already ended")
 	ErrPoliciesRequired  = Invalid("at least one policy is required")
+
+	ErrTemplateSyntax    = Invalid("name and description must not contain '{{' or '}}'")
+	ErrEnforceNeedsOwner = &ForbiddenError{
+		Msg: "enforce mode on a namespaces scope requires the Owner level on protection plans; use audit mode",
+	}
 
 	ErrExclusionResourcesScope  = Invalid("scope.exclusions.resources is only allowed when scope.type=applications")
 	ErrExclusionKindInvalid     = Invalid("scope.exclusions.kinds entries must be non-empty base kinds without '/'")
@@ -66,31 +93,37 @@ const (
 	NameMaxLength        = 64
 	DescriptionMaxLength = 512
 	TaxonomyIDMaxLength  = 19
-	TagIDsMax            = 20
+	TagRefsMax           = 20
 	PriorityMin          = -100
 	PriorityMax          = 100
 )
 
 const (
-	fmtUnknownTemplate      = "unknown template id: %s"
-	fmtTemplateScope        = "template %q does not support scope %q"
-	fmtInvalidParams        = "template %q params invalid: %v"
-	fmtInvalidName          = "name must be between 1 and %d characters"
-	fmtInvalidDescription   = "description must be at most %d characters"
-	fmtInvalidSeverity      = "severity must be one of %v"
-	fmtInvalidMode          = "mode must be one of %v"
-	fmtInvalidTimeMode      = "timeMode must be one of %v"
-	fmtInvalidApprovalMode  = "approvalMode must be one of %v"
-	fmtInvalidPriority      = "priority must be between %d and %d"
-	fmtExcludedNamespaces   = "namespaces are excluded from discovery: %v"
-	fmtPlatformNamespaces   = "namespaces are reserved by the platform and ignored by the policy engine: %v"
-	fmtDuplicateTemplate    = "template %q is listed more than once with different params"
-	fmtMissingNamespaces    = "namespaces not found in cluster: %v"
-	fmtDuplicateName        = "a protection plan named %q already exists"
-	fmtInvalidEnvironmentID = "environmentID must be at most %d characters"
-	fmtInvalidTagID         = "tagIDs[%d] must be at most %d characters"
-	fmtTooManyTagIDs        = "tagIDs must have at most %d entries"
-	msgDuplicateTagIDs      = "tagIDs must not contain duplicates"
+	fmtUnknownTemplate       = "unknown template id: %s"
+	fmtTemplateScope         = "template %q does not support scope %q"
+	fmtInvalidParams         = "template %q params invalid: %v"
+	fmtInvalidName           = "name must be between 1 and %d characters"
+	fmtInvalidDescription    = "description must be at most %d characters"
+	fmtInvalidSeverity       = "severity must be one of %v"
+	fmtInvalidMode           = "mode must be one of %v"
+	fmtInvalidTimeMode       = "timeMode must be one of %v"
+	fmtInvalidApprovalMode   = "approvalMode must be one of %v"
+	fmtInvalidPriority       = "priority must be between %d and %d"
+	fmtExcludedNamespaces    = "namespaces are excluded from discovery: %v"
+	fmtPlatformNamespaces    = "namespaces are reserved by the platform and ignored by the policy engine: %v"
+	fmtDuplicateTemplate     = "template %q is listed more than once with different params"
+	fmtMissingNamespaces     = "namespaces not found in cluster: %v"
+	fmtDuplicateName         = "a protection plan named %q already exists"
+	fmtInvalidEnvironmentRef = "environmentRef must be at most %d characters"
+	fmtInvalidTagID          = "tagRefs[%d] must be at most %d characters"
+	fmtTooManyTagRefs        = "tagRefs must have at most %d entries"
+	msgDuplicateTagRefs      = "tagRefs must not contain duplicates"
+
+	fmtUnknownEnvironmentRef = "environmentRef %q is not a known plan environment"
+	fmtExcludedUnavailable   = "excluded namespaces unavailable: %v"
+	fmtEnvironmentsUnavail   = "plan environments unavailable: %v"
+	templateOpen             = "{{"
+	templateClose            = "}}"
 
 	fmtTooManyExclusionKinds     = "scope.exclusions.kinds: at most %d"
 	fmtTooManyExclusionResources = "scope.exclusions.resources: at most %d"
@@ -134,7 +167,7 @@ func PrepareRequest(req *planseps.PrepareProtectionPlanRequest, now time.Time) e
 // Repeated targets or identical policies would render the same policy name twice.
 func Normalize(req *planseps.PrepareProtectionPlanRequest) {
 	req.Scope.Namespaces = dedupe(req.Scope.Namespaces)
-	req.Scope.ApplicationIDs = dedupe(req.Scope.ApplicationIDs)
+	req.Scope.ApplicationRefs = dedupe(req.Scope.ApplicationRefs)
 	seen := map[string]struct{}{}
 	req.Policies = slices.DeleteFunc(req.Policies, func(p planseps.PolicyRequest) bool {
 		key := p.TemplateID + policyKeySep + paramsKey(p.Params)
@@ -163,12 +196,8 @@ func paramsKey(params map[string]any) string {
 
 // Mirrors the CRD schema so a rejected plan never reaches the Kyverno deploy.
 func Fields(req *planseps.PrepareProtectionPlanRequest) error {
-	name := strings.TrimSpace(req.Name)
-	if len(name) == constants.DefaultInitValue || len(name) > NameMaxLength {
-		return Invalidf(fmtInvalidName, NameMaxLength)
-	}
-	if req.Description != nil && len(*req.Description) > DescriptionMaxLength {
-		return Invalidf(fmtInvalidDescription, DescriptionMaxLength)
+	if err := textFields(req); err != nil {
+		return err
 	}
 	if !slices.Contains(allowedSeverities, req.Severity) {
 		return Invalidf(fmtInvalidSeverity, allowedSeverities)
@@ -188,20 +217,39 @@ func Fields(req *planseps.PrepareProtectionPlanRequest) error {
 	return taxonomyFields(req)
 }
 
+func textFields(req *planseps.PrepareProtectionPlanRequest) error {
+	name := strings.TrimSpace(req.Name)
+	if len(name) == constants.DefaultInitValue || len(name) > NameMaxLength {
+		return Invalidf(fmtInvalidName, NameMaxLength)
+	}
+	if req.Description != nil && len(*req.Description) > DescriptionMaxLength {
+		return Invalidf(fmtInvalidDescription, DescriptionMaxLength)
+	}
+	if HasTemplateSyntax(req.Name) || (req.Description != nil && HasTemplateSyntax(*req.Description)) {
+		return ErrTemplateSyntax
+	}
+	return nil
+}
+
+// Kyverno substitutes {{ }} in the policy fields it renders; no user text may carry it.
+func HasTemplateSyntax(value string) bool {
+	return strings.Contains(value, templateOpen) || strings.Contains(value, templateClose)
+}
+
 func taxonomyFields(req *planseps.PrepareProtectionPlanRequest) error {
-	if req.EnvironmentID != nil && len(*req.EnvironmentID) > TaxonomyIDMaxLength {
-		return Invalidf(fmtInvalidEnvironmentID, TaxonomyIDMaxLength)
+	if req.EnvironmentRef != nil && len(*req.EnvironmentRef) > TaxonomyIDMaxLength {
+		return Invalidf(fmtInvalidEnvironmentRef, TaxonomyIDMaxLength)
 	}
-	if len(req.TagIDs) > TagIDsMax {
-		return Invalidf(fmtTooManyTagIDs, TagIDsMax)
+	if len(req.TagRefs) > TagRefsMax {
+		return Invalidf(fmtTooManyTagRefs, TagRefsMax)
 	}
-	for i, tag := range req.TagIDs {
+	for i, tag := range req.TagRefs {
 		if len(tag) > TaxonomyIDMaxLength {
 			return Invalidf(fmtInvalidTagID, i, TaxonomyIDMaxLength)
 		}
 	}
-	if len(slices.Compact(slices.Sorted(slices.Values(req.TagIDs)))) != len(req.TagIDs) {
-		return Invalid(msgDuplicateTagIDs)
+	if len(slices.Compact(slices.Sorted(slices.Values(req.TagRefs)))) != len(req.TagRefs) {
+		return Invalid(msgDuplicateTagRefs)
 	}
 	return nil
 }
@@ -209,14 +257,14 @@ func taxonomyFields(req *planseps.PrepareProtectionPlanRequest) error {
 func Scope(scope planseps.ScopeRequest) error {
 	switch scope.Type {
 	case plans.ScopeTypeApplications:
-		appsEmpty := len(scope.ApplicationIDs) == constants.DefaultInitValue
+		appsEmpty := len(scope.ApplicationRefs) == constants.DefaultInitValue
 		namespacesPresent := len(scope.Namespaces) > constants.DefaultInitValue
 		if appsEmpty || namespacesPresent {
 			return ErrScopeUnion
 		}
 	case plans.ScopeTypeNamespaces:
 		namespacesEmpty := len(scope.Namespaces) == constants.DefaultInitValue
-		appsPresent := len(scope.ApplicationIDs) > constants.DefaultInitValue
+		appsPresent := len(scope.ApplicationRefs) > constants.DefaultInitValue
 		if namespacesEmpty || appsPresent {
 			return ErrScopeUnion
 		}
@@ -271,7 +319,11 @@ func NamespaceScope(ctx context.Context, scopeType string, namespaces []string, 
 	if scopeType != plans.ScopeTypeNamespaces {
 		return nil
 	}
-	if err := ExcludedNamespaces(namespaces, globalconfig.FetchExcludedNamespaces(ctx)); err != nil {
+	excluded, err := telarkconfig.ExcludedNamespaces(ctx)
+	if err != nil {
+		return &UnavailableError{Msg: fmt.Sprintf(fmtExcludedUnavailable, err)}
+	}
+	if err := ExcludedNamespaces(namespaces, excluded); err != nil {
 		return err
 	}
 	if err := PlatformNamespaces(namespaces, OwnNamespace()); err != nil {
@@ -327,12 +379,47 @@ func OwnNamespace() string {
 
 // Namespaces the policy engine never evaluates: a plan targeting them would look healthy while
 // enforcing nothing.
-func IgnoredNamespaces(ctx context.Context) []string {
-	ignored := slices.Clone(globalconfig.FetchExcludedNamespaces(ctx))
+func IgnoredNamespaces(ctx context.Context) ([]string, error) {
+	excluded, err := telarkconfig.ExcludedNamespaces(ctx)
+	if err != nil {
+		return nil, &UnavailableError{Msg: fmt.Sprintf(fmtExcludedUnavailable, err)}
+	}
+	ignored := slices.Clone(excluded)
 	if own := OwnNamespace(); own != constants.EmptyString {
 		ignored = append(ignored, own)
 	}
-	return ignored
+	return ignored, nil
+}
+
+// Internal peers pass, as they do in the route middleware.
+func CallerOwnsPlans(ctx context.Context) bool {
+	identity, ok := xauthz.FromContext(ctx)
+	return ok && (identity.Internal || xauthz.Allows(identity, xauthz.Own(roledata.ScopeProtectionPlans)))
+}
+
+// An enforce plan on a namespace freezes every workload in it, not only the caller's own.
+func EnforceScope(ctx context.Context, scopeType, mode string) error {
+	if scopeType == plans.ScopeTypeNamespaces && mode == plans.ModeEnforce && !CallerOwnsPlans(ctx) {
+		return ErrEnforceNeedsOwner
+	}
+	return nil
+}
+
+type EnvironmentLister func() ([]string, error)
+
+// A nil lister (standalone bootstrap, unit tests) skips the check; production always wires one.
+func EnvironmentRef(environmentRef *string, list EnvironmentLister) error {
+	if environmentRef == nil || *environmentRef == constants.EmptyString || list == nil {
+		return nil
+	}
+	known, err := list()
+	if err != nil {
+		return &UnavailableError{Msg: fmt.Sprintf(fmtEnvironmentsUnavail, err)}
+	}
+	if !slices.Contains(known, *environmentRef) {
+		return Invalidf(fmtUnknownEnvironmentRef, *environmentRef)
+	}
+	return nil
 }
 
 func NormalizeName(name string) string {

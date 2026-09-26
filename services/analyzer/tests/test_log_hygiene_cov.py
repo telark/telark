@@ -15,6 +15,7 @@ _GUARDED_MODULES = [
     "helpers.py",
     "insights.py",
     "api_server.py",
+    "authz.py",
     "exporter.py",
     "providers/ollama.py",
     "tools/__init__.py",

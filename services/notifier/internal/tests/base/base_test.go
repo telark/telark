@@ -454,3 +454,38 @@ func TestCreateConsumerConvergesExistingDurable(t *testing.T) {
 	}
 	testutil.Equal(t, "ack wait", info.Config.AckWait, natstreams.StreamAckWait)
 }
+
+// A panicking handler must not take its worker down: the next message for the
+// same application, queued on that worker, is still handled.
+func TestWorkerSurvivesPanickingHandler(t *testing.T) {
+	c := natsWithStreams(t)
+	s := base.NewBaseSubscriber(natscore.Applications, shared.Application)
+
+	applied := make(chan float64, dispatched)
+	s.SetHandlerCallback(func(m *nats.Msg, _ natscore.Action) error {
+		var msg natscore.Message
+		if err := json.Unmarshal(m.Data, &msg); err != nil {
+			return err
+		}
+		seq, ok := msg.Data.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected payload %T", msg.Data)
+		}
+		if seq == firstSeq {
+			panic("poison message")
+		}
+		applied <- seq
+		return nil
+	})
+	subscribe(t, s, c)
+
+	s.Dispatch(jsMsg(firstSeq))
+	s.Dispatch(jsMsg(secondSeq))
+
+	select {
+	case v := <-applied:
+		testutil.Equal(t, "applied after panic", v, float64(secondSeq))
+	case <-time.After(5 * time.Second):
+		t.Fatal("worker died with the panicking handler")
+	}
+}

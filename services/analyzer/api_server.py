@@ -6,21 +6,22 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import AbstractAsyncContextManager
 
-from fastapi import Depends, FastAPI, Request, status
+from fastapi import Depends, FastAPI, Header, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 from redis import RedisError
 from starlette.exceptions import HTTPException
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 import exporter
 from app_logger import logger
 from authz import require_any
-from config import ANALYZER_QUEUE_MAX, OLLAMA_AUTO_PULL
+from config import ANALYZER_QUEUE_MAX, CORS_ALLOWED_ORIGINS, OLLAMA_AUTO_PULL
 from constants import (
     ACTION_ANALYZE_INSIGHTS,
     ACTION_CONTROL_AI_INSIGHTS,
@@ -31,12 +32,16 @@ from constants import (
     API_ERROR_COOLDOWN_ACTIVE,
     API_ERROR_INVALID_APP,
     API_ERROR_INVALID_REQUEST,
+    API_ERROR_MODEL_NOT_ALLOWED,
     API_ERROR_QUEUE_FULL,
+    API_ERROR_TOO_MANY_STREAMS,
     APP_KEY_SEPARATOR,
     APPS_SEPARATOR,
+    ASGI_FIELD_BODY,
+    ASGI_MESSAGE_HTTP_REQUEST,
+    ASGI_SCOPE_HTTP,
     CORS_ALLOWED_HEADERS,
     CORS_ALLOWED_METHODS,
-    CORS_ALLOWED_ORIGIN,
     CORS_MAX_AGE_S,
     DNS1123_LABEL_PATTERN,
     ENVELOPE_CODE,
@@ -51,11 +56,14 @@ from constants import (
     FIELD_NAME,
     FIELD_NAMESPACE,
     FIELD_TRIGGER,
+    HEADER_CONTENT_LENGTH,
+    HEADER_SESSION_TOKEN,
     LOG_ANALYZE_FAILED,
     LOG_QUEUED_NOT_STAMPED,
     LOG_TRIAGE_FAILED,
     METHOD_GET,
     METHOD_POST,
+    MSG_BODY_TOO_LARGE,
     MODE_DEEP,
     MODEL_NAME_PATTERN,
     OPERATION_ERROR,
@@ -66,6 +74,7 @@ from constants import (
     PROBE_KEY_SERVICE,
     PROBE_KEY_STATUS,
     READY_PING_TIMEOUT_S,
+    REQUEST_BODY_MAX_BYTES,
     REVIEW_ID_PREFIX,
     RUN_ERROR_APP_NOT_FOUND,
     RUN_ERROR_MODEL_NOT_INSTALLED,
@@ -88,6 +97,7 @@ from constants import (
     SSE_MEDIA_TYPE,
     SSE_PING,
     SSE_PING_S,
+    SSE_RECHECK_S,
     STATUS_ALIVE,
     STATUS_LIVE_PATH,
     STATUS_NOT_READY,
@@ -107,6 +117,7 @@ from exporter import AppNotFound, ExporterUnavailable
 from helpers import app_ref, inflight_key, now_rfc3339, primary_namespace
 from insights import TriageError, apply_triage, mark_queued
 from models import AnalyzeResponse, AppInsights, Subscription, TriageRequest, ValidateModelRequest
+from runtime import pull_allowed
 
 # (method, path) -> alternatives, any one of which admits the caller. Each is (scope, min level, denyable
 # action): an x-ware Read/Write/Own/Denyable requirement. The status probes are public and absent on purpose.
@@ -157,7 +168,7 @@ def _error(status_code: int, code: str) -> JSONResponse:
     return envelope(status_code, {ENVELOPE_CODE: code})
 
 
-def _valid_app(namespace: str, name: str) -> bool:
+def valid_app(namespace: str, name: str) -> bool:
     return bool(re.fullmatch(DNS1123_LABEL_PATTERN, namespace) and re.fullmatch(DNS1123_LABEL_PATTERN, name))
 
 
@@ -171,17 +182,65 @@ def parse_apps(raw: str, excluded: list[str]) -> set[str]:
     return kept
 
 
-async def event_stream(broadcaster: Broadcaster, sub: Subscription, ping_s: float = SSE_PING_S) -> AsyncIterator[str]:
-    """The SSE relay of one subscription. Starlette cancels it on client disconnect; finally unsubscribes."""
+class BodyLimit:
+    """Refuses a request body over max_bytes before FastAPI buffers it (it reads the body before the session check)."""
+
+    def __init__(self, app: ASGIApp, max_bytes: int = REQUEST_BODY_MAX_BYTES) -> None:
+        self.app = app
+        self.max_bytes = max_bytes
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != ASGI_SCOPE_HTTP:
+            await self.app(scope, receive, send)
+            return
+        length = dict(scope["headers"]).get(HEADER_CONTENT_LENGTH)
+        if length is not None and (not length.isdigit() or int(length) > self.max_bytes):
+            await envelope(status.HTTP_413_CONTENT_TOO_LARGE, message=MSG_BODY_TOO_LARGE)(scope, receive, send)
+            return
+        received = 0
+
+        async def limited() -> Message:
+            nonlocal received
+            message = await receive()
+            if message["type"] == ASGI_MESSAGE_HTTP_REQUEST:
+                received += len(message.get(ASGI_FIELD_BODY, b""))
+                # An HTTPException: FastAPI turns any other error raised while reading the body into a 400.
+                if received > self.max_bytes:
+                    raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, MSG_BODY_TOO_LARGE)
+            return message
+
+        await self.app(scope, limited, send)
+
+
+async def _still_allowed(recheck: Callable[[], Awaitable[object]]) -> bool:
+    """False once auth-service refuses the session or its grants; an auth outage keeps the stream open."""
+    try:
+        await recheck()
+    except HTTPException as e:
+        return e.status_code not in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)
+    return True
+
+
+async def event_stream(broadcaster: Broadcaster, sub: Subscription, ping_s: float = SSE_PING_S,
+                       recheck: Callable[[], Awaitable[object]] | None = None,
+                       recheck_s: float = SSE_RECHECK_S) -> AsyncIterator[str]:
+    """The SSE relay of one subscription. Starlette cancels it on client disconnect; finally unsubscribes.
+
+    recheck re-runs the route's guard every recheck_s: a logout, suspension or role removal ends the stream."""
+    loop = asyncio.get_running_loop()
+    checked_at = loop.time()
     try:
         yield SSE_CONNECTED
         while True:
             try:
                 name, data = await asyncio.wait_for(sub.queue.get(), ping_s)
             except TimeoutError:
-                yield SSE_PING
-                continue
-            yield SSE_EVENT_TEMPLATE.format(name=name, data=json.dumps(data))
+                name = None
+            if recheck is not None and loop.time() - checked_at >= recheck_s:
+                if not await _still_allowed(recheck):
+                    return
+                checked_at = loop.time()
+            yield SSE_PING if name is None else SSE_EVENT_TEMPLATE.format(name=name, data=json.dumps(data))
     finally:
         broadcaster.unsubscribe(sub)
 
@@ -263,17 +322,22 @@ async def _triage(state, namespace: str, name: str, iid: str, action: str, user_
 def create_app(
     redis_client,
     lifespan: Callable[[FastAPI], AbstractAsyncContextManager[None]] | None = None,
+    cors_origins: list[str] = CORS_ALLOWED_ORIGINS,
 ) -> FastAPI:
-    app = FastAPI(lifespan=lifespan)
+    # No interactive docs or schema: /api/analyzer/ is reachable through the UI without a session.
+    app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.redis = redis_client
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[CORS_ALLOWED_ORIGIN],
-        allow_credentials=False,
-        allow_methods=CORS_ALLOWED_METHODS,
-        allow_headers=CORS_ALLOWED_HEADERS,
-        max_age=CORS_MAX_AGE_S,
-    )
+    if cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=cors_origins,
+            allow_credentials=False,
+            allow_methods=CORS_ALLOWED_METHODS,
+            allow_headers=CORS_ALLOWED_HEADERS,
+            max_age=CORS_MAX_AGE_S,
+        )
+    # Added last, so it is the outermost layer.
+    app.add_middleware(BodyLimit)
 
     @app.exception_handler(HTTPException)
     async def http_error(request: Request, exc: HTTPException) -> JSONResponse:
@@ -311,7 +375,7 @@ def create_app(
 
     @app.post(ANALYZE_PATH, dependencies=guard(METHOD_POST, ANALYZE_PATH))
     async def analyze(namespace: str, name: str) -> JSONResponse:
-        if not _valid_app(namespace, name):
+        if not valid_app(namespace, name):
             return _error(status.HTTP_400_BAD_REQUEST, API_ERROR_INVALID_APP)
         try:
             return await _analyze(app.state, namespace, name)
@@ -322,7 +386,7 @@ def create_app(
     @app.post(TRIAGE_PATH, dependencies=guard(METHOD_POST, TRIAGE_PATH))
     async def triage(namespace: str, name: str, id: str, body: TriageRequest,
                      user_id: str | None = Depends(guards[(METHOD_POST, TRIAGE_PATH)])) -> JSONResponse:
-        if not _valid_app(namespace, name):
+        if not valid_app(namespace, name):
             return _error(status.HTTP_400_BAD_REQUEST, API_ERROR_INVALID_APP)
         try:
             return await _triage(app.state, namespace, name, id, body.action, user_id or "")
@@ -331,10 +395,19 @@ def create_app(
             return _error(status.HTTP_503_SERVICE_UNAVAILABLE, RUN_ERROR_STORAGE_UNAVAILABLE)
 
     @app.get(EVENTS_PATH, dependencies=guard(METHOD_GET, EVENTS_PATH))
-    async def events(apps: str = "") -> StreamingResponse:
+    async def events(apps: str = "",
+                     session_token: str | None = Header(default=None, alias=HEADER_SESSION_TOKEN),
+                     user_id: str | None = Depends(guards[(METHOD_GET, EVENTS_PATH)])) -> Response:
         broadcaster = app.state.broadcaster
-        sub = broadcaster.subscribe(parse_apps(apps, exporter.current().excludedNamespaces))
-        return StreamingResponse(event_stream(broadcaster, sub), media_type=SSE_MEDIA_TYPE, headers=SSE_HEADERS)
+        sub = broadcaster.subscribe(parse_apps(apps, exporter.current().excludedNamespaces), user_id or "")
+        if sub is None:
+            return _error(status.HTTP_429_TOO_MANY_REQUESTS, API_ERROR_TOO_MANY_STREAMS)
+
+        async def recheck() -> str:
+            return await guards[(METHOD_GET, EVENTS_PATH)](session_token)
+
+        return StreamingResponse(event_stream(broadcaster, sub, recheck=recheck), media_type=SSE_MEDIA_TYPE,
+                                 headers=SSE_HEADERS)
 
     @app.get(RUNTIME_PATH, dependencies=guard(METHOD_GET, RUNTIME_PATH))
     async def runtime_status() -> JSONResponse:
@@ -352,6 +425,8 @@ def create_app(
     async def pull_model(body: ValidateModelRequest) -> JSONResponse:
         if not re.fullmatch(MODEL_NAME_PATTERN, body.model):
             return _error(status.HTTP_400_BAD_REQUEST, VALIDATE_REASON_INVALID_MODEL_NAME)
+        if not pull_allowed(body.model):
+            return _error(status.HTTP_400_BAD_REQUEST, API_ERROR_MODEL_NOT_ALLOWED)
         if not OLLAMA_AUTO_PULL:
             return _error(status.HTTP_409_CONFLICT, API_ERROR_AUTO_PULL_DISABLED)
         # A no-op while a pull runs: the answer is then that pull's status.

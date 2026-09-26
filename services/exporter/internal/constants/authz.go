@@ -20,7 +20,7 @@ const (
 )
 
 const (
-	ErrAuthzGlobalConfigDenied        = "you do not have permission to change this setting"
+	ErrAuthzConfigDenied              = "you do not have permission to change this setting"
 	ErrAuthzPlanLifecycleDenied       = "lifecycle, approval and policy fields of a protection plan are managed by the platform"
 	ErrAuthzPrivilegedFieldDenied     = "you do not have permission to change this user's roles, groups or status"
 	ErrAuthzSelfPrivilegeChange       = "you cannot change your own roles, groups or status"
@@ -59,4 +59,32 @@ const (
 	LogAuthzGrantsCacheReadFailed  = "authz: failed to read grants cache: %v"
 	LogAuthzGrantsCacheWriteFailed = "authz: failed to write grants cache: %v"
 	LogAuthzGenerationBumpFailed   = "authz: failed to bump grants generation: %v"
+)
+
+const (
+	JSONTagKey          = "json"
+	JSONTagSkip         = "-"
+	JSONTagOptionSep    = ","
+	BodyFieldPathSep    = "."
+	ErrBodyFieldUnknown = "request body field %q is not recognized (field names are case-sensitive)"
+)
+
+const (
+	ErrAuthzIdentitiesReserved     = "login identities are linked by the platform, not edited"
+	ErrAuthzIdentityFieldOwnerOnly = "only the account owner may change their email or username"
+)
+
+const (
+	FieldRules                = "rules"
+	FieldProtection           = "protection"
+	ErrAuthzRoleReservedField = "built-in type and protection flags of a role are managed by the platform"
+)
+
+// Changing any of these can put a role's levels back into effect.
+var RoleLevelFields = []string{FieldScopesAndPermissions, FieldStatus, FieldValidity}
+
+const (
+	GenerationBase = 10
+	GenerationBits = 64
+	NoExpiration   = 0
 )

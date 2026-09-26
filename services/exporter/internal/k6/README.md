@@ -67,7 +67,7 @@ MAX_RPS=10000 k6/cluster/run.sh stress
 
 In-scope: 51 routes (full inventory in [`TEST_PLAN.md`](./TEST_PLAN.md)).
 
-Out of scope: notifications (R8–R12), challenges (R50–R52), routes needing `X-User-ID`/`X-Credential-ID` (R3, R6, R58–R62), R18/R27/R64/R65 (need external seeds), soak activation.
+Out of scope: notifications (R8–R12), challenges (R50–R52), routes needing `X-User-ID` or a passkey credential id (R3, R6, R58–R62), R18/R27/R64/R65 (need external seeds), soak activation.
 
 ## Watch for in stdout
 
@@ -84,9 +84,8 @@ Each scenario validated via `k6 inspect`. Adding `k6/` does not break `go build 
 
 Every synthesized resource starts with `k6-`:
 ```sh
-for kind in protectionplans userasresources groupasresources roleasresources \
-            categories applications usersessions snapshots; do
-  kubectl -n telark get "$kind" -o name 2>/dev/null | grep '/k6-' \
+for kind in protectionplans users groups accessroles categories applications sessions; do
+  kubectl -n telark get "$kind.telark.io" -o name 2>/dev/null | grep '/k6-' \
     | xargs -r kubectl -n telark delete
 done
 ```

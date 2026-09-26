@@ -160,9 +160,9 @@ func TestFilterDataList(t *testing.T) {
 }
 
 func TestConvertToCRDTemplate(t *testing.T) {
-	md := basemeta.Metadata{BaseGroup: "erpi.telark", Kind: "Role", Version: "v1alpha1"}
+	md := basemeta.Metadata{BaseGroup: "telark.io", Kind: "AccessRole", Version: "v1alpha1"}
 	tmpl := sharedutils.ConvertToCRDTemplate(md, testAppName, map[string]any{valueX: constants.DefaultIncrementValue})
-	if tmpl.Object["apiVersion"] != "erpi.telark/v1alpha1" || tmpl.Object["kind"] != "Role" {
+	if tmpl.Object["apiVersion"] != "telark.io/v1alpha1" || tmpl.Object["kind"] != "AccessRole" {
 		t.Errorf("bad envelope: %v", tmpl.Object)
 	}
 	withFin := sharedutils.ConvertToCRDTemplateWithFinalizers(md, testAppName, map[string]any{}, []string{"f1"})

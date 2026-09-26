@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/telark/exporter/internal/constants"
 	passkeyutil "github.com/telark/exporter/internal/utils/auth/passkey"
 	sessionutil "github.com/telark/exporter/internal/utils/auth/session"
@@ -46,12 +47,12 @@ func TestExtractPatchFields(t *testing.T) {
 func TestExtractPasskeyRequestParams(t *testing.T) {
 	missing := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{}`))
 	if _, _, _, ok := passkeyutil.ExtractPasskeyRequestParams(httptest.NewRecorder(), missing); ok {
-		t.Error("request without headers accepted")
+		t.Error("request without user header or credential id accepted")
 	}
 
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"deviceName":"n"}`))
 	r.Header.Set(constants.HeaderUserID, testUserID)
-	r.Header.Set(constants.HeaderCredentialID, testCredentialID)
+	r = mux.SetURLVars(r, map[string]string{constants.CredentialIDParam: testCredentialID})
 	userID, credID, body, ok := passkeyutil.ExtractPasskeyRequestParams(httptest.NewRecorder(), r)
 	if !ok || userID != testUserID || credID != testCredentialID || body == nil {
 		t.Errorf("valid request rejected: ok=%v userID=%q credID=%q", ok, userID, credID)

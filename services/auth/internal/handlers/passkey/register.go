@@ -16,9 +16,12 @@ func registerStartStatus(err error) int {
 	case shared.IsError(err, constants.ErrUserNotFound):
 		return http.StatusNotFound
 	case shared.IsError(err, constants.ErrUserAlreadyHasPasskeys),
+		shared.IsError(err, constants.ErrRegistrationNeedsProof),
 		shared.IsError(err, constants.ErrEnrollTokenInvalid):
 		return http.StatusUnauthorized
-	case shared.IsError(err, constants.ErrRegisterEmailMismatch):
+	case shared.IsError(err, constants.ErrRegisterEmailMismatch),
+		shared.IsError(err, constants.ErrReservedEmail),
+		shared.IsError(err, constants.ErrSelfRegistrationDisabled):
 		return http.StatusForbidden
 	default:
 		return http.StatusBadRequest

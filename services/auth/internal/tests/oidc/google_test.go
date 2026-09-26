@@ -8,7 +8,7 @@ import (
 
 	"github.com/telark/auth/internal/helpers/oidc"
 	"github.com/telark/auth/internal/tests/testutil"
-	globalconfigresource "github.com/telark/data/resources/globalconfig"
+	telarkconfigresource "github.com/telark/data/resources/telarkconfig"
 )
 
 const (
@@ -30,14 +30,14 @@ func TestLoadConfigFailsClosed(t *testing.T) {
 func TestValidateGoogleIDTokenOffline(t *testing.T) {
 	t.Cleanup(oidc.StopJWKSRefresh)
 
-	badKeys := globalconfigresource.OIDCConfig{
+	badKeys := telarkconfigresource.OIDCConfig{
 		Enabled: true, GoogleClientID: testClientID, EgressAllowed: false, GoogleJWKJSON: "not-json",
 	}
 	if _, err := oidc.ValidateGoogleIDToken("header.claims.sig", badKeys); err == nil {
 		t.Fatal("unparseable JWK set should fail store construction")
 	}
 
-	emptyKeys := globalconfigresource.OIDCConfig{
+	emptyKeys := telarkconfigresource.OIDCConfig{
 		Enabled: true, GoogleClientID: testClientID, EgressAllowed: false, GoogleJWKJSON: "{}",
 	}
 	_, err := oidc.ValidateGoogleIDToken("not-a-jwt", emptyKeys)
@@ -52,7 +52,7 @@ func TestValidateGoogleIDTokenStaticKeys(t *testing.T) {
 	n := base64.RawURLEncoding.EncodeToString(bytes.Repeat([]byte{0xAB}, rsaModulusBytes))
 	jwks := fmt.Sprintf(
 		`{"keys":[{"kty":"RSA","use":"sig","kid":"k1","alg":"RS256","n":%q,"e":"AQAB"}]}`, n)
-	cfg := globalconfigresource.OIDCConfig{
+	cfg := telarkconfigresource.OIDCConfig{
 		Enabled: true, GoogleClientID: testClientID, EgressAllowed: false, GoogleJWKJSON: jwks,
 	}
 

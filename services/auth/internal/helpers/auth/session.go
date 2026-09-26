@@ -54,8 +54,8 @@ func ExtractSessionToken(r *http.Request) (string, error) {
 }
 
 func ExtractCredentialID(r *http.Request) (string, error) {
-	credID := r.Header.Get(constants.HeaderCredentialID)
-	if credID == constants.EmptyString {
+	credID, err := shared.GetPathParam(r, constants.CredentialIDPathParam)
+	if err != nil || credID == constants.EmptyString {
 		return constants.EmptyString, errors.New(string(constants.ErrMissingCredentialID))
 	}
 	return credID, nil
@@ -121,7 +121,7 @@ func CreateUserSession(userID string, meta *authdata.DeviceMetadata) (string, er
 
 	expiresAt := time.Now().UTC().Add(time.Duration(cfg.WebAuthn.SessionExpiry) * time.Hour)
 
-	session := &authdata.UserSession{
+	session := &authdata.Session{
 		SessionToken:     sessionToken,
 		UserID:           userID,
 		CreatedTimestamp: time.Now().UTC().Format(constants.TimeFormatRFC3339),

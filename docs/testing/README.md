@@ -132,7 +132,7 @@ kubectl -n telark get pods
 helm test telark -n telark
 ```
 
-`helm test` (`charts/telark/templates/tests/test-connection.yaml`) calls `/api/v1/status/ready` on every enabled service that has a health check (the UI has none) and checks that the `erpi.telark` API group is served.
+`helm test` (`charts/telark/templates/tests/test-connection.yaml`) calls `/api/v1/status/ready` on every enabled service that has a health check (the UI has none) and checks that the `telark.io` API group is served.
 
 ### Calling the APIs
 
@@ -153,12 +153,12 @@ curl -fsS -H "X-Session-Token: $TOKEN" localhost:8004/api/v1/<route>
 A protection plan crosses every layer. After each step, check the layer below instead of trusting the status code:
 
 1. **UI → discovery.** Create and start a plan from the UI, or through the discovery plan routes with a session token. Expect a 2xx and the plan in the list.
-2. **discovery → exporter → CRD.** `kubectl -n telark get protectionplans.erpi.telark -o yaml` shows the plan, its phase and the fields the UI sent. A field accepted by the API but missing here was pruned by the CRD schema ([AGENTS.md](../../AGENTS.md#go-services), CRDs).
-3. **discovery → Kyverno.** While the plan is active, `kubectl get policies.kyverno.io -A -l telark.erpi/protection-plan=<plan-id>` lists its namespaced Kyverno `Policy` objects.
+2. **discovery → exporter → CRD.** `kubectl -n telark get protectionplans.telark.io -o yaml` shows the plan, its fields under `spec` and its phase under `.status`. A field accepted by the API but missing here was pruned by the CRD schema ([AGENTS.md](../../AGENTS.md#go-services), CRDs).
+3. **discovery → Kyverno.** While the plan is active, `kubectl get policies.kyverno.io -A -l telark.io/protection-plan=<plan-id>` lists its namespaced Kyverno `Policy` objects.
 4. **Admission.** Make a change one of the plan's templates blocks and expect the API server to reject it when the plan enforces (audit mode only records it). Violations are read from Kubernetes Events, which expire; see [Protection plans](../architecture/protection-plans.md).
 5. **Terminate or cancel.** The label query from step 3 returns nothing, and the finished plan reports zero violations, by design.
 
-Other flows follow the same pattern: applications land in `applicationsasresources.erpi.telark`; users, groups and roles in `usersasresources`, `groupsasresources` and `rolesasresources` (same group); analyzer insights in Redis ([architecture](../architecture/README.md)). Judge latency from inside the cluster, because `kubectl` exec-auth from a laptop adds seconds to every call.
+Other flows follow the same pattern: applications land in `applications.telark.io`; users, groups and access roles in `users.telark.io`, `groups.telark.io` and `accessroles.telark.io` (`kubectl get telark -n telark` lists them all); analyzer insights in Redis ([architecture](../architecture/README.md)). Judge latency from inside the cluster, because `kubectl` exec-auth from a laptop adds seconds to every call.
 
 ### Dashboard UI
 

@@ -75,9 +75,9 @@ func TestGuardPlanLifecyclePassesPlainFields(t *testing.T) {
 		"description":     "desc",
 		"severity":        "high",
 		"priority":        "p1",
-		"participantsIDs": []any{callerID},
-		"environmentID":   "cat-00002-0001-0001",
-		"tagIDs":          []any{},
+		"participantRefs": []any{callerID},
+		"environmentRef":  "cat-00002-0001-0001",
+		"tagRefs":         []any{},
 	}
 	w := httptest.NewRecorder()
 

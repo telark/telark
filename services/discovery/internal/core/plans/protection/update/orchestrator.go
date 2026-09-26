@@ -25,6 +25,7 @@ type (
 		Exporter       *clients.ProtectionPlanClient
 		ResolveApps    applications.Resolver
 		ListNamespaces validation.NamespaceLister
+		Environments   validation.EnvironmentLister
 		Logger         protection.Logger
 		Clock          func() time.Time
 		// The patch blanks health; this restamps it without waiting for a controller tick.
@@ -79,7 +80,7 @@ func apply(
 	newPolicies []plans.ProtectionPlanPolicy,
 	clock time.Time,
 ) (*plans.ProtectionPlan, error) {
-	// The plan name is baked into every rule message and annotation.
+	// The plan name is baked into every policy annotation.
 	fullRender := exclusionsChanged(plan.Scope, req.Scope) || plan.Name != req.Name
 	targetDiff := diffTargets(scopeTargets(plan), newTargets(req.Scope))
 	resolved, err := resolveTargets(ctx, deps.ResolveApps, plan.Scope.Type, allTargets(targetDiff))
@@ -100,8 +101,9 @@ func apply(
 		return plan, nil
 	}
 
-	reRequest := plan.Phase == plans.PhasePendingApproval && MaterialChange(plan, req, newPolicies)
-	if err := applyPatch(deps, plan, userID, now, patch, reRequest, park); err != nil {
+	material := MaterialChange(plan, req, newPolicies)
+	reRequest := plan.Phase == plans.PhasePendingApproval && material
+	if err := applyPatch(deps, plan, userID, now, patch, reRequest || recordsEditor(plan, material), park); err != nil {
 		rollbackCluster(ctx, deps, plan, deployed, resolved, fullRender)
 		return nil, fmt.Errorf(string(ErrPartial), plan.ID)
 	}
@@ -229,10 +231,10 @@ func RenderTarget(
 	target := *plan
 	target.Name = req.Name
 	target.Scope = plans.ProtectionPlanScope{
-		Type:           plan.Scope.Type,
-		ApplicationIDs: req.Scope.ApplicationIDs,
-		Namespaces:     req.Scope.Namespaces,
-		Exclusions:     effectiveExclusions(plan.Scope, req.Scope),
+		Type:            plan.Scope.Type,
+		ApplicationRefs: req.Scope.ApplicationRefs,
+		Namespaces:      req.Scope.Namespaces,
+		Exclusions:      effectiveExclusions(plan.Scope, req.Scope),
 	}
 	target.Policies = newPolicies
 	target.Mode = req.Mode
@@ -253,16 +255,17 @@ func afterPatch(deps Deps, plan *plans.ProtectionPlan, reRequest bool) (*plans.P
 	return updated, nil
 }
 
-// A material edit of a pending plan resets the approval request in the same patch,
-// so an approver can never act on a version they did not see.
+// A material edit of a pending plan resets the approval request in the same patch, so an
+// approver can never act on a version they did not see; of any other unapproved required plan
+// it records the editor, who then cannot approve its reactivation.
 func applyPatch(
 	deps Deps,
 	plan *plans.ProtectionPlan,
 	userID, now string,
 	patch planseps.PatchProtectionPlanRequest,
-	reRequest, park bool,
+	approvalTouched, park bool,
 ) error {
-	if !reRequest && !park && patch.Scope == nil {
+	if !approvalTouched && !park && patch.Scope == nil {
 		return deps.Exporter.PatchOrError(userID, plan.ID, patch)
 	}
 	body, err := restmapper.MapToJSONPayload(patch)
@@ -272,8 +275,12 @@ func applyPatch(
 	if scope, ok := body[protection.FieldScope].(map[string]any); ok && patch.Scope != nil {
 		scope[protection.FieldScopeExclusions] = protection.ExclusionsPatchValue(patch.Scope.Exclusions)
 	}
-	if reRequest {
+	switch {
+	case !approvalTouched:
+	case plan.Phase == plans.PhasePendingApproval:
 		body[protection.FieldApproval] = protection.ApprovalPatchValue(protection.NewApprovalRequest(userID, now, plan.Approval))
+	default:
+		body[protection.FieldApproval] = protection.ApprovalPatchValue(protection.RecordEditor(plan.Approval, userID, now))
 	}
 	if park {
 		maps.Copy(body, protection.BuildScheduledPatch(userID, now))
@@ -281,9 +288,21 @@ func applyPatch(
 	return deps.Exporter.PatchRawOrError(userID, plan.ID, body)
 }
 
+// Moving an automatic plan into an environment that derives required would label it with a
+// gate it never passed.
+func EnvironmentRaisesApproval(plan *plans.ProtectionPlan, req *planseps.PrepareProtectionPlanRequest) bool {
+	return req.EnvironmentRef != nil && *req.EnvironmentRef != plan.EnvironmentRef && !protection.RequiresApproval(plan) &&
+		protection.DerivedApprovalMode(*req.EnvironmentRef) == plans.ApprovalModeRequired
+}
+
 func ApprovalModeChanged(plan *plans.ProtectionPlan, req *planseps.PrepareProtectionPlanRequest) bool {
 	return req.ApprovalMode != nil &&
 		protection.EffectiveApprovalMode(*req.ApprovalMode) != protection.EffectiveApprovalMode(plan.ApprovalMode)
+}
+
+func recordsEditor(plan *plans.ProtectionPlan, material bool) bool {
+	return material && plan.Approval != nil && protection.RequiresApproval(plan) &&
+		plan.Phase != plans.PhasePendingApproval && !approvedPhase(plan.Phase)
 }
 
 func approvedPhase(phase string) bool {
@@ -302,11 +321,14 @@ func validateRequest(
 	if req.Scope.Type != plan.Scope.Type {
 		return validation.Invalidf(fmtRawString, ErrScopeTypeChange)
 	}
-	if ApprovalModeChanged(plan, req) {
+	if ApprovalModeChanged(plan, req) || EnvironmentRaisesApproval(plan, req) {
 		return validation.Invalid(string(protection.ErrApprovalModeImmutable))
 	}
 	validation.Normalize(req)
 	if err := validation.Fields(req); err != nil {
+		return err
+	}
+	if err := callerFields(ctx, req, deps); err != nil {
 		return err
 	}
 	if err := validation.NamespaceScope(ctx, req.Scope.Type, req.Scope.Namespaces, deps.ListNamespaces); err != nil {
@@ -326,6 +348,13 @@ func validateRequest(
 		return validation.TimeRangeOpen(req.TimeRange, now)
 	}
 	return validation.TimeRange(req.TimeRange)
+}
+
+func callerFields(ctx context.Context, req *planseps.PrepareProtectionPlanRequest, deps Deps) error {
+	if err := validation.EnforceScope(ctx, req.Scope.Type, req.Mode); err != nil {
+		return err
+	}
+	return validation.EnvironmentRef(req.EnvironmentRef, deps.Environments)
 }
 
 func ensureNameAvailable(deps Deps, plan *plans.ProtectionPlan, name string) error {
@@ -360,14 +389,14 @@ func resolveTargets(
 
 func newTargets(scope planseps.ScopeRequest) []string {
 	if scope.Type == plans.ScopeTypeApplications {
-		return append([]string(nil), scope.ApplicationIDs...)
+		return append([]string(nil), scope.ApplicationRefs...)
 	}
 	return append([]string(nil), scope.Namespaces...)
 }
 
 func scopeTargets(plan *plans.ProtectionPlan) []string {
 	if plan.Scope.Type == plans.ScopeTypeApplications {
-		return append([]string(nil), plan.Scope.ApplicationIDs...)
+		return append([]string(nil), plan.Scope.ApplicationRefs...)
 	}
 	return append([]string(nil), plan.Scope.Namespaces...)
 }

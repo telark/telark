@@ -11,8 +11,8 @@ import (
 
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/insightsindex"
-	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
 	redishelper "github.com/telark/discovery/internal/helpers/redis"
+	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 )
@@ -44,7 +44,7 @@ func ListInsights(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), constants.InsightsReadTimeout)
 	defer cancel()
 	// Fails closed: a cluster-wide list must never leak the namespaces the product hides.
-	excluded, err := gcfghelper.ExcludedNamespaces(ctx)
+	excluded, err := tcfghelper.ExcludedNamespaces(ctx)
 	if err != nil {
 		notReady(w)
 		return

@@ -22,25 +22,25 @@ const (
 
 func TestExtractSpecsDedupeIDs(t *testing.T) {
 	user, err := userutil.ExtractUserSpecFromRequestBody(map[string]any{
-		constants.FieldAssignedRolesIDs:  []any{roleOne, roleOne, roleTwo},
-		constants.FieldAssignedGroupsIDs: []any{memberA, memberA},
+		constants.FieldRoleRefs:  []any{roleOne, roleOne, roleTwo},
+		constants.FieldGroupRefs: []any{memberA, memberA},
 	})
 	if err != nil {
 		t.Fatalf("err %v", err)
 	}
-	if len(user.AssignedRolesIDs) != wantReplacedIDs || len(user.AssignedGroupsIDs) != constants.DefaultIncrementValue {
-		t.Errorf("user ids not deduplicated: %d roles, %d groups", len(user.AssignedRolesIDs), len(user.AssignedGroupsIDs))
+	if len(user.RoleRefs) != wantReplacedIDs || len(user.GroupRefs) != constants.DefaultIncrementValue {
+		t.Errorf("user ids not deduplicated: %d roles, %d groups", len(user.RoleRefs), len(user.GroupRefs))
 	}
 
 	group, err := grouputil.ExtractGroupSpecFromRequestBody(map[string]any{
-		constants.FieldAssignedUsersIDs: []any{memberA, memberB, memberA},
-		constants.FieldAssignedRolesIDs: []any{},
+		constants.FieldUserRefs: []any{memberA, memberB, memberA},
+		constants.FieldRoleRefs: []any{},
 	})
 	if err != nil {
 		t.Fatalf("err %v", err)
 	}
-	if !slices.Equal(group.AssignedUsersIDs, []string{memberA, memberB}) || group.AssignedRolesIDs == nil {
-		t.Errorf("group ids not deduplicated or initialized: %v %v", group.AssignedUsersIDs, group.AssignedRolesIDs)
+	if !slices.Equal(group.UserRefs, []string{memberA, memberB}) || group.RoleRefs == nil {
+		t.Errorf("group ids not deduplicated or initialized: %v %v", group.UserRefs, group.RoleRefs)
 	}
 }
 
@@ -60,15 +60,15 @@ func TestEmailNormalization(t *testing.T) {
 
 func TestStripMembers(t *testing.T) {
 	group := &unstructured.Unstructured{Object: map[string]any{constants.SpecField: map[string]any{
-		constants.FieldAssignedUsersIDs: []any{memberA, memberB},
+		constants.FieldUserRefs: []any{memberA, memberB},
 	}}}
 	grouputil.StripMembers(group, map[string]bool{memberB: true})
-	members, _, _ := unstructured.NestedStringSlice(group.Object, constants.SpecField, constants.FieldAssignedUsersIDs)
+	members, _, _ := unstructured.NestedStringSlice(group.Object, constants.SpecField, constants.FieldUserRefs)
 	if !slices.Equal(members, []string{memberA}) {
 		t.Fatalf("members = %v, want hidden member stripped", members)
 	}
 	grouputil.StripMembers(group, nil)
-	members, _, _ = unstructured.NestedStringSlice(group.Object, constants.SpecField, constants.FieldAssignedUsersIDs)
+	members, _, _ = unstructured.NestedStringSlice(group.Object, constants.SpecField, constants.FieldUserRefs)
 	if !slices.Equal(members, []string{memberA}) {
 		t.Fatalf("members = %v, want untouched with nothing to hide", members)
 	}

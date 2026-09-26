@@ -13,7 +13,7 @@ import (
 	serviceapp "github.com/telark/discovery/internal/core/applications/core"
 	"github.com/telark/discovery/internal/discovery/listing"
 	discoveryshared "github.com/telark/discovery/internal/discovery/shared"
-	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
+	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
 	"github.com/telark/kcore/resources/core"
 	xwareredis "github.com/telark/x-ware/redis/stream"
 )
@@ -68,7 +68,7 @@ func RunPrewarmLeaderLoop(
 // Without this, namespaces and workloads created after startup are only picked up
 // by a restart, a leadership change or a force-sync.
 func prewarmInterval(ctx context.Context) time.Duration {
-	secs := gcfghelper.FetchIntervalSeconds(ctx)
+	secs := tcfghelper.FetchIntervalSeconds(ctx)
 	if secs <= constants.DefaultInitValue {
 		return constants.PrewarmDefaultInterval
 	}
@@ -149,7 +149,7 @@ func enqueueApplicationBatch(ctx context.Context, coord *CoordinationBundle, rdb
 	}
 
 	cycleTS := time.Now().UTC().Truncate(time.Minute).Format(time.RFC3339)
-	excluded := gcfghelper.FetchExcludedNamespaces(ctx)
+	excluded := tcfghelper.FetchExcludedNamespaces(ctx)
 	var enqueued, skipped int
 
 	for _, app := range apps {

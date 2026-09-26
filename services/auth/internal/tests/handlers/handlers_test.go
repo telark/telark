@@ -18,6 +18,7 @@ import (
 	oidchandler "github.com/telark/auth/internal/handlers/oidc"
 	passkeyhandler "github.com/telark/auth/internal/handlers/passkey"
 	redishelper "github.com/telark/auth/internal/helpers/redis"
+	"github.com/telark/auth/internal/tests/testutil"
 )
 
 const (
@@ -48,8 +49,7 @@ type handlerFunc func(http.ResponseWriter, *http.Request)
 
 func withSession(r *http.Request) *http.Request {
 	r.Header.Set(constants.HeaderSessionToken, "token")
-	r.Header.Set(constants.HeaderCredentialID, "cred")
-	return r
+	return testutil.WithCredentialID(r, "cred")
 }
 
 func jsonReq(body string) *http.Request {
@@ -61,8 +61,7 @@ func jsonReq(body string) *http.Request {
 func orphanCleanupReq() *http.Request {
 	r := jsonReq(`{"forceLastDelete":true,"cleanupOrphaned":true}`)
 	r.Header.Set(constants.HeaderUserID, "uid")
-	r.Header.Set(constants.HeaderCredentialID, "cred")
-	return r
+	return testutil.WithCredentialID(r, "cred")
 }
 
 // Without a reachable backend (and no valid session), every guarded handler
@@ -89,7 +88,7 @@ func TestHandlersFailClosed(t *testing.T) {
 		{"permissions no session", authzhandler.GetPermissions, jsonReq(emptyJSON)},
 		{"delete user no id", cleanuphandler.DeleteUser, jsonReq(emptyJSON)},
 		{"delete group no id", cleanuphandler.DeleteGroup, jsonReq(emptyJSON)},
-		{"delete role no id", cleanuphandler.DeleteRole, jsonReq(emptyJSON)},
+		{"delete role no id", cleanuphandler.DeleteAccessRole, jsonReq(emptyJSON)},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

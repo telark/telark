@@ -6,7 +6,7 @@ import (
 
 	"github.com/telark/data/errors"
 	"github.com/telark/data/messages"
-	authmetadata "github.com/telark/data/metadata/auth"
+	authmetadata "github.com/telark/data/metadata/v1alpha1"
 	passkeyutils "github.com/telark/exporter/internal/utils/auth/passkey"
 	"github.com/telark/exporter/internal/utils/concurrency"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
@@ -33,7 +33,7 @@ func DeletePasskeyByCredentialID(w http.ResponseWriter, credentialID string, use
 	lock.Lock()
 	defer lock.Unlock()
 
-	deleteResult := api.DeleteCustomResourceByName(passkeyName, authmetadata.UserPasskeyMetadata)
+	deleteResult := api.DeleteCustomResourceByName(passkeyName, authmetadata.PasskeyMetadata)
 	if deleteResult.Status != http.StatusOK {
 		errorMsg := sharedutils.GenerateResourceError(errors.ErrDeleteRes, passkeyName, deleteResult.Error)
 		responseutils.LogAndSendResponse(

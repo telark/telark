@@ -22,7 +22,7 @@ func LogDeployFailure(logger ErrorLogger, plan *plans.ProtectionPlan, phase stri
 
 func ScopeTargetSummary(plan *plans.ProtectionPlan) string {
 	if plan.Scope.Type == plans.ScopeTypeApplications {
-		return fmt.Sprintf("apps=%v", plan.Scope.ApplicationIDs)
+		return fmt.Sprintf("apps=%v", plan.Scope.ApplicationRefs)
 	}
 	return fmt.Sprintf("namespaces=%v", plan.Scope.Namespaces)
 }

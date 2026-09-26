@@ -121,13 +121,13 @@ type TimelineSection struct {
 	LastUpdatedBy   string   `json:"lastUpdatedBy"`
 	TerminatedAt    string   `json:"terminatedAt"`
 	TerminatedBy    string   `json:"terminatedBy"`
-	ParticipantsIDs []string `json:"participantsIDs"`
+	ParticipantRefs []string `json:"participantRefs"`
 }
 
 type ScopeSection struct {
-	Type           string   `json:"type"`
-	Namespaces     []string `json:"namespaces"`
-	ApplicationIDs []string `json:"applicationIds"`
+	Type            string   `json:"type"`
+	Namespaces      []string `json:"namespaces"`
+	ApplicationRefs []string `json:"applicationRefs"`
 }
 
 type PolicyBlock struct {

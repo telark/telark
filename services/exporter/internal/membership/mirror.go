@@ -8,7 +8,7 @@ import (
 	"slices"
 
 	metadatabase "github.com/telark/data/metadata/base"
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/utils/concurrency"
@@ -27,11 +27,11 @@ var lg = constants.GetLogger(constants.PrefixMain)
 // leaves that record untouched and the same request can simply be retried:
 // every write here is a no-op once applied.
 func MirrorUserGroups(ctx context.Context, optimizer *performance.Optimizer, userID string, added, removed []string) error {
-	return mirror(ctx, optimizer, metadata.GroupAsResourceMetadata, constants.FieldAssignedUsersIDs, userID, added, removed)
+	return mirror(ctx, optimizer, metadata.GroupMetadata, constants.FieldUserRefs, userID, added, removed)
 }
 
 func MirrorGroupMembers(ctx context.Context, optimizer *performance.Optimizer, groupID string, added, removed []string) error {
-	return mirror(ctx, optimizer, metadata.UserAsResourceMetadata, constants.FieldAssignedGroupsIDs, groupID, added, removed)
+	return mirror(ctx, optimizer, metadata.UserMetadata, constants.FieldGroupRefs, groupID, added, removed)
 }
 
 func mirror(ctx context.Context, optimizer *performance.Optimizer, md metadatabase.Metadata, field, member string, added, removed []string) error {
@@ -80,7 +80,7 @@ func setMember(ctx context.Context, optimizer *performance.Optimizer, md metadat
 func patchList(ctx context.Context, optimizer *performance.Optimizer, md metadatabase.Metadata, field, id string, list []string) error {
 	spec := map[string]any{field: list}
 	resourcesshared.AddLastUpdateDateToPatchBody(spec)
-	patch := api.PatchCustomResource(md, id, map[string]any{constants.SpecField: spec})
+	patch := sharedutils.PatchCustomResource(md, id, map[string]any{constants.SpecField: spec})
 	if patch.Status != http.StatusOK {
 		return fmt.Errorf(string(constants.ErrMembershipMirrorFailed), id, patch.Error)
 	}
@@ -100,7 +100,7 @@ func WithMember(current []string, member string, present bool) (next []string, c
 }
 
 func invalidate(ctx context.Context, optimizer *performance.Optimizer, md metadatabase.Metadata, id string) {
-	if md.Kind == metadata.UserAsResourceMetadata.Kind {
+	if md.Kind == metadata.UserMetadata.Kind {
 		userutils.InvalidateUserCaches(optimizer, id)
 		authz.ForgetUserGrants(ctx, id)
 		return

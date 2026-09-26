@@ -9,8 +9,10 @@ import (
 	"github.com/telark/auth/internal/authz"
 	"github.com/telark/auth/internal/constants"
 	passkeyhandler "github.com/telark/auth/internal/handlers/passkey"
+	authhelper "github.com/telark/auth/internal/helpers/auth"
 	"github.com/telark/auth/internal/tests/testutil"
 	"github.com/telark/rest/base"
+	restconstants "github.com/telark/rest/constants"
 	autheps "github.com/telark/rest/endpoints/auth"
 	"github.com/telark/rest/router"
 	xauthz "github.com/telark/x-ware/authz"
@@ -26,8 +28,11 @@ const (
 	plainBody      = `{"forceLastDelete":true}`
 )
 
-func deleteRequest(body string, identity *xauthz.Identity, headers map[string]string) *http.Request {
+func deleteRequest(body string, identity *xauthz.Identity, headers map[string]string, credential string) *http.Request {
 	r := httptest.NewRequest(http.MethodDelete, "/", strings.NewReader(body))
+	if credential != "" {
+		r = testutil.WithCredentialID(r, credential)
+	}
 	r.Header.Set(constants.HeaderContentType, constants.ContentTypeJSON)
 	for name, value := range headers {
 		r.Header.Set(name, value)
@@ -39,11 +44,12 @@ func deleteRequest(body string, identity *xauthz.Identity, headers map[string]st
 }
 
 type deleteCase struct {
-	name     string
-	body     string
-	identity *xauthz.Identity
-	headers  map[string]string
-	want     int
+	name       string
+	body       string
+	identity   *xauthz.Identity
+	headers    map[string]string
+	credential string
+	want       int
 }
 
 var orphanCleanupCases = []deleteCase{
@@ -51,10 +57,10 @@ var orphanCleanupCases = []deleteCase{
 		name: "unauthenticated caller cannot name another user",
 		body: orphanBody,
 		headers: map[string]string{
-			constants.HeaderUserID:       victimUserID,
-			constants.HeaderCredentialID: credentialID,
+			constants.HeaderUserID: victimUserID,
 		},
-		want: http.StatusUnauthorized,
+		credential: credentialID,
+		want:       http.StatusUnauthorized,
 	},
 	{
 		name:     "session user cannot name another user",
@@ -62,27 +68,27 @@ var orphanCleanupCases = []deleteCase{
 		identity: &xauthz.Identity{UserID: attackerUserID},
 		headers: map[string]string{
 			constants.HeaderUserID:       victimUserID,
-			constants.HeaderCredentialID: credentialID,
 			constants.HeaderSessionToken: sessionToken,
 		},
-		want: http.StatusServiceUnavailable,
+		credential: credentialID,
+		want:       http.StatusServiceUnavailable,
 	},
 	{
 		name:     "internal caller may clean up an orphan",
 		body:     orphanBody,
 		identity: &xauthz.Identity{Internal: true},
 		headers: map[string]string{
-			constants.HeaderUserID:       victimUserID,
-			constants.HeaderCredentialID: credentialID,
+			constants.HeaderUserID: victimUserID,
 		},
-		want: http.StatusInternalServerError,
+		credential: credentialID,
+		want:       http.StatusInternalServerError,
 	},
 	{
-		name:     "internal caller without a user id",
-		body:     orphanBody,
-		identity: &xauthz.Identity{Internal: true},
-		headers:  map[string]string{constants.HeaderCredentialID: credentialID},
-		want:     http.StatusBadRequest,
+		name:       "internal caller without a user id",
+		body:       orphanBody,
+		identity:   &xauthz.Identity{Internal: true},
+		credential: credentialID,
+		want:       http.StatusBadRequest,
 	},
 	{
 		name:     "internal caller without a credential id",
@@ -92,11 +98,11 @@ var orphanCleanupCases = []deleteCase{
 		want:     http.StatusBadRequest,
 	},
 	{
-		name:     "ordinary delete still validates the session",
-		body:     plainBody,
-		identity: &xauthz.Identity{UserID: attackerUserID},
-		headers:  map[string]string{constants.HeaderCredentialID: credentialID},
-		want:     http.StatusUnauthorized,
+		name:       "ordinary delete still validates the session",
+		body:       plainBody,
+		identity:   &xauthz.Identity{UserID: attackerUserID},
+		credential: credentialID,
+		want:       http.StatusUnauthorized,
 	},
 }
 
@@ -107,7 +113,7 @@ func TestDeletePasskeyOrphanCleanupBindsToIdentity(t *testing.T) {
 	for _, c := range orphanCleanupCases {
 		t.Run(c.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			passkeyhandler.DeletePasskey(rec, deleteRequest(c.body, c.identity, c.headers))
+			passkeyhandler.DeletePasskey(rec, deleteRequest(c.body, c.identity, c.headers, c.credential))
 			testutil.Equal(t, "status", rec.Code, c.want)
 		})
 	}
@@ -128,8 +134,10 @@ func TestDeletePasskeyRouteReplacesSpoofedUserID(t *testing.T) {
 
 	var seenUserID string
 	var seenInternal bool
+	var seenCredential string
 	probe := func(_ http.ResponseWriter, r *http.Request) {
 		seenUserID = r.Header.Get(constants.HeaderUserID)
+		seenCredential, _ = authhelper.ExtractCredentialID(r)
 		identity, _ := xauthz.FromContext(r.Context())
 		seenInternal = identity.Internal
 	}
@@ -149,12 +157,12 @@ func TestDeletePasskeyRouteReplacesSpoofedUserID(t *testing.T) {
 
 	r := deleteRequest(orphanBody, nil, map[string]string{
 		constants.HeaderUserID:       victimUserID,
-		constants.HeaderCredentialID: credentialID,
 		constants.HeaderSessionToken: sessionToken,
-	})
-	r.URL.Path = router.Pattern(endpoint)
+	}, "")
+	r.URL.Path = strings.ReplaceAll(router.Pattern(endpoint), restconstants.CredentialIDParam, credentialID)
 	mux.ServeHTTP(httptest.NewRecorder(), r)
 
 	testutil.Equal(t, "user id seen by handler", seenUserID, attackerUserID)
 	testutil.Equal(t, "internal", seenInternal, false)
+	testutil.Equal(t, "credential id from path", seenCredential, credentialID)
 }

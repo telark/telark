@@ -6,7 +6,7 @@ import (
 	roleconstants "github.com/telark/exporter/internal/utils/compute/role/constants"
 )
 
-func Calculate(role *roledata.RoleAsResource) int {
+func Calculate(role *roledata.AccessRole) int {
 	if len(role.ScopesAndPermissions) == constants.DefaultInitValue {
 		return constants.DefaultInitValue
 	}

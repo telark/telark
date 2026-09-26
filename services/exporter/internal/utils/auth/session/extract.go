@@ -8,8 +8,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func ExtractSessionSpec(body map[string]any, userID string) (*authdata.UserSession, string, error) {
-	session, err := sharedutils.ExtractStructFromBody[authdata.UserSession](body)
+func ExtractSessionSpec(body map[string]any, userID string) (*authdata.Session, string, error) {
+	session, err := sharedutils.ExtractStructFromBody[authdata.Session](body)
 	if err != nil {
 		return nil, constants.EmptyString, err
 	}
@@ -24,7 +24,7 @@ func ExtractSessionSpec(body map[string]any, userID string) (*authdata.UserSessi
 	return session, sessionName, nil
 }
 
-func validateSessionFields(session *authdata.UserSession, userID string) error {
+func validateSessionFields(session *authdata.Session, userID string) error {
 	if err := sharedutils.ValidateRequiredField(session.SessionToken, string(constants.ErrSessionFieldRequired)); err != nil {
 		return err
 	}
@@ -40,8 +40,8 @@ func validateSessionFields(session *authdata.UserSession, userID string) error {
 	return nil
 }
 
-func UnstructuredToSession(resource *unstructured.Unstructured) (*authdata.UserSession, error) {
-	return sharedutils.UnstructuredToStruct[authdata.UserSession](
+func UnstructuredToSession(resource *unstructured.Unstructured) (*authdata.Session, error) {
+	return sharedutils.UnstructuredToStruct[authdata.Session](
 		resource,
 		constants.ErrSessionSpecNotFound,
 		constants.ErrSessionSpecInvalid,

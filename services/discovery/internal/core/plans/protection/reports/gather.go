@@ -63,7 +63,7 @@ func (g *Generator) Gather(
 		Cover:     cover(plan, reportID, actor, trigger, at, end),
 		Coverage:  g.coverage(plan, ledger, end, unresolved),
 		Timeline:  timeline(plan),
-		Scope:     ScopeSection{Type: plan.Scope.Type, Namespaces: namespaces, ApplicationIDs: plan.Scope.ApplicationIDs},
+		Scope:     ScopeSection{Type: plan.Scope.Type, Namespaces: namespaces, ApplicationRefs: plan.Scope.ApplicationRefs},
 		Policies:  policyBlocks(plan, names),
 		Health:    HealthSection{Value: plan.Health, CheckedAt: deref(plan.HealthCheckedAt), Timeline: ledger.Checkpoints},
 		Decisions: DecisionsSection{Aggregates: aggregate(rows), Rows: rows},
@@ -203,7 +203,7 @@ func timeline(plan *plans.ProtectionPlan) TimelineSection {
 		LastUpdatedBy:   plan.LastUpdatedBy,
 		TerminatedAt:    deref(plan.TerminatedAt),
 		TerminatedBy:    deref(plan.TerminatedBy),
-		ParticipantsIDs: plan.ParticipantsIDs,
+		ParticipantRefs: plan.ParticipantRefs,
 	}
 }
 

@@ -37,7 +37,7 @@ func ExtractBackupFlagsFromAuthenticatorData(authenticatorDataB64 string) (
 func ValidateBackupFlags(
 	credIDStr string,
 	loginBackupEligible, loginBackupState bool,
-	passkeys []*authdata.UserPasskey,
+	passkeys []*authdata.Passkey,
 ) error {
 	for i := range passkeys {
 		if passkeys[i] != nil && passkeys[i].CredentialID == credIDStr {
@@ -80,7 +80,7 @@ func CreateSessionData(
 
 func ValidateBackupFlagsFromRequest(
 	bodyBytes []byte,
-	passkeys []*authdata.UserPasskey,
+	passkeys []*authdata.Passkey,
 ) error {
 	var credMap map[string]any
 	if err := json.Unmarshal(bodyBytes, &credMap); err != nil {
@@ -183,7 +183,7 @@ func VerifyCredential(
 	challenge *authdata.AuthChallenge,
 	webAuthnUser *User,
 	credentials []webauthn.Credential,
-	passkeys []*authdata.UserPasskey,
+	passkeys []*authdata.Passkey,
 	r *http.Request,
 ) (*webauthn.Credential, error) {
 	wa, err := GetWebAuthnFor(r)

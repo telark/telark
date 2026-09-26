@@ -98,7 +98,7 @@ def require_any(*requirements: tuple[str, str, str | None]):
         except HTTPException:
             raise
         except Exception as exc:  # noqa: BLE001 - any failure must deny, not allow
-            logger.warning(LOG_AUTHZ_RESOLVE_FAILED.format(error=exc))
+            logger.warning(LOG_AUTHZ_RESOLVE_FAILED, type(exc).__name__)
             raise HTTPException(
                 status.HTTP_503_SERVICE_UNAVAILABLE, MSG_AUTHZ_UNAVAILABLE
             ) from exc

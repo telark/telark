@@ -34,7 +34,7 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), constants.ProtectionPlanDeployTimeout)
+	ctx, cancel := context.WithTimeout(detached(r), constants.ProtectionPlanDeployTimeout)
 	defer cancel()
 
 	release, ok := lockPlanDecision(ctx, w, planID)
@@ -64,6 +64,7 @@ func buildUpdateDeps(svc *protection.Service) update.Deps {
 		Exporter:        svc.Exporter(),
 		ResolveApps:     svc.ResolveApps(),
 		ListNamespaces:  svc.ListNamespaces(),
+		Environments:    svc.Environments(),
 		Logger:          svc.AppLogger(),
 		Clock:           svc.Clock,
 		StampHealth:     svc.StampFirstHealth,

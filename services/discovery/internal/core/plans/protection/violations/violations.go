@@ -127,11 +127,11 @@ func resolvePlanNamespaces(
 		return plan.Scope.Namespaces, nil
 	}
 	// Lenient like the report ledger: a deleted application must not hide the others' violations.
-	resolved, _, err := deps.ResolveApps(ctx, plan.Scope.ApplicationIDs)
+	resolved, _, err := deps.ResolveApps(ctx, plan.Scope.ApplicationRefs)
 	if err != nil {
 		return nil, err
 	}
-	return applications.Namespaces(resolved, plan.Scope.ApplicationIDs), nil
+	return applications.Namespaces(resolved, plan.Scope.ApplicationRefs), nil
 }
 
 // Collect reads the Kyverno PolicyViolation events raised against the plan's rendered

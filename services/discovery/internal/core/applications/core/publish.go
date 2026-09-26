@@ -44,7 +44,7 @@ func PublishApplications(natsClient *natscore.NATSClient, apps []application.App
 		for attempt := constants.DefaultAddValue; attempt <= attemptMax; attempt++ {
 			lastErr = publisher.PublishUpdate(params, natsClient)
 			if lastErr == nil {
-				app.CRStatus = application.CRStatusPublished
+				MarkPublished(app)
 				if authored {
 					insights.Enqueue(app)
 				}
@@ -55,7 +55,7 @@ func PublishApplications(natsClient *natscore.NATSClient, apps []application.App
 			}
 		}
 		if lastErr != nil {
-			app.CRStatus = application.CRStatusFailed
+			MarkPublishFailed(app)
 			constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(
 				fmt.Sprintf(string(constants.WarnApplicationPublishFailed), app.Name, attemptMax, lastErr))
 		}

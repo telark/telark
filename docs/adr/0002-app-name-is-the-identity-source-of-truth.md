@@ -4,7 +4,7 @@ Date: 2026-07-19
 
 ## Status
 
-Accepted
+Superseded by [ADR 0003](0003-constant-api-group-telark-io.md): the CRD API groups no longer derive from `app.name`; the resource-name rules below still apply.
 
 ## Context
 

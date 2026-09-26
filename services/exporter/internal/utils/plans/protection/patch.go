@@ -20,7 +20,7 @@ func ValidatePatchScope(body map[string]any) error {
 	if !ok {
 		return errors.New(string(constants.ErrProtectionPlanInvalidScope))
 	}
-	apps := stringSlice(scope[constants.FieldScopeAppIDs])
+	apps := stringSlice(scope[constants.FieldScopeAppRefs])
 	namespaces := stringSlice(scope[constants.FieldScopeNamespaces])
 	return validateScope(scopeType, len(apps), len(namespaces), hasExclusionResources(scope))
 }

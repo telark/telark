@@ -16,12 +16,12 @@ import (
 
 var lg = constants.GetLogger(constants.LoggerPrefixHelper)
 
-type UserRetrievalFunc func(string) (*userresource.UserAsResource, error)
+type UserRetrievalFunc func(string) (*userresource.User, error)
 
 func GetUserWithErrorHandling(
 	identifier string,
 	retrievalFunc UserRetrievalFunc,
-) (*userresource.UserAsResource, error) {
+) (*userresource.User, error) {
 	user, err := retrievalFunc(identifier)
 	if err != nil {
 		if errors.Is(err, restshared.ErrNotFound) {
@@ -39,12 +39,12 @@ func GetUserWithErrorHandling(
 	return user, nil
 }
 
-func GetUserByIDWithErrorHandling(userID string) (*userresource.UserAsResource, error) {
+func GetUserByIDWithErrorHandling(userID string) (*userresource.User, error) {
 	userClient := clients.GetUserClient()
 	return GetUserWithErrorHandling(userID, userClient.GetUserByID)
 }
 
-func GetUserAndPasskeys(email string) (*userresource.UserAsResource, []*authdata.UserPasskey, error) {
+func GetUserAndPasskeys(email string) (*userresource.User, []*authdata.Passkey, error) {
 	userClient := clients.GetUserClient()
 	user, err := GetUserWithErrorHandling(email, userClient.GetUserByEmail)
 	if err != nil {

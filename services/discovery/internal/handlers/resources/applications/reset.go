@@ -5,20 +5,24 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/redis/go-redis/v9"
+	dataconstants "github.com/telark/data/constants"
 	"github.com/telark/discovery/internal/clients"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/coordination"
+	"github.com/telark/discovery/internal/core/plans/protection/validation"
 	redishelper "github.com/telark/discovery/internal/helpers/redis"
 	sharedhelper "github.com/telark/discovery/internal/helpers/shared"
+	kcorek8s "github.com/telark/kcore/k8sclient"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
+	xauthz "github.com/telark/x-ware/authz"
 )
 
 func ResetApplication(w http.ResponseWriter, r *http.Request) {
@@ -104,6 +108,12 @@ func forwardResetToLeaderIfNeeded(ctx context.Context, rdb *redis.Client, w http
 	return true
 }
 
+var leaderForwardClient = &http.Client{
+	Timeout: constants.AppResetForwardTimeout,
+	// A redirect would carry the service token to wherever the answer points.
+	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+}
+
 func proxyResetRequestToLeader(
 	ctx context.Context,
 	rdb *redis.Client,
@@ -112,17 +122,16 @@ func proxyResetRequestToLeader(
 	name string,
 	leaderID string,
 ) error {
-	targetURL, err := LeaderResetURL(ctx, rdb, leaderID, name)
-	if err != nil {
-		return err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, nil)
+	addr, err := verifiedLeaderAddress(ctx, rdb, leaderID)
 	if err != nil {
 		return fmt.Errorf(string(constants.ErrAppResetLeaderForwardFailed), leaderID, err)
 	}
-	req.Header = r.Header.Clone()
+	req, err := BuildLeaderResetRequest(ctx, r, LeaderResetURL(addr, name))
+	if err != nil {
+		return fmt.Errorf(string(constants.ErrAppResetLeaderForwardFailed), leaderID, err)
+	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := leaderForwardClient.Do(req)
 	if err != nil {
 		return fmt.Errorf(string(constants.ErrAppResetLeaderForwardFailed), leaderID, err)
 	}
@@ -130,7 +139,7 @@ func proxyResetRequestToLeader(
 		_ = resp.Body.Close()
 	}()
 
-	body, readErr := io.ReadAll(resp.Body)
+	body, readErr := io.ReadAll(io.LimitReader(resp.Body, constants.MaxRequestBodyBytes))
 	if readErr != nil {
 		return fmt.Errorf(string(constants.ErrAppResetLeaderForwardFailed), leaderID, readErr)
 	}
@@ -138,23 +147,50 @@ func proxyResetRequestToLeader(
 		return fmt.Errorf(string(constants.ErrAppResetLeaderForwardStatus), resp.StatusCode, string(body))
 	}
 
-	maps.Copy(w.Header(), resp.Header)
+	if contentType := resp.Header.Get(constants.HeaderContentType); contentType != constants.EmptyString {
+		w.Header().Set(constants.HeaderContentType, contentType)
+	}
 	w.WriteHeader(resp.StatusCode)
 	_, _ = w.Write(body)
 	return nil
 }
 
-func LeaderResetURL(ctx context.Context, rdb *redis.Client, leaderID, name string) (string, error) {
-	addr := coordination.ReplicaAddress(ctx, rdb, leaderID)
-	if addr == constants.EmptyString {
-		return constants.EmptyString, errors.New(string(constants.ErrForceSyncLeaderNotAvailable))
+func verifiedLeaderAddress(ctx context.Context, rdb *redis.Client, leaderID string) (string, error) {
+	namespace := validation.OwnNamespace()
+	if namespace == constants.EmptyString {
+		return constants.EmptyString, errors.New(string(constants.ErrLeaderNamespaceUnknown))
 	}
+	kube, err := kcorek8s.InitKubernetesClient()
+	if err != nil {
+		return constants.EmptyString, err
+	}
+	_, selfID := getCoordinationBundle()
+	return coordination.VerifiedReplicaAddress(ctx, rdb, kube.CoreV1().Pods(namespace), selfID, leaderID)
+}
+
+// Never the inbound headers: the caller's session or service token must not travel to an address
+// that came from Redis. The leader gets this replica's own service token and the verified caller.
+func BuildLeaderResetRequest(ctx context.Context, r *http.Request, targetURL string) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, http.NoBody)
+	if err != nil {
+		return nil, err
+	}
+	if token := strings.TrimSpace(os.Getenv(dataconstants.EnvServiceToken)); token != constants.EmptyString {
+		req.Header.Set(dataconstants.HeaderServiceToken, token)
+	}
+	if identity, ok := xauthz.FromContext(r.Context()); ok && identity.UserID != constants.EmptyString {
+		req.Header.Set(constants.HeaderUserID, identity.UserID)
+	}
+	return req, nil
+}
+
+func LeaderResetURL(addr, name string) string {
 	u := &url.URL{
 		Scheme: constants.HTTPScheme,
 		Host:   net.JoinHostPort(addr, constants.MainPort),
 		Path:   fmt.Sprintf(constants.ResetProxyPathFormat, url.PathEscape(strings.TrimSpace(name))),
 	}
-	return u.String(), nil
+	return u.String()
 }
 
 func shouldSkipReset(ctx context.Context, rdb *redis.Client, name string) bool {

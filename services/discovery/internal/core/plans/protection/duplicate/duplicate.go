@@ -48,13 +48,13 @@ func BuildRequest(
 	if overrides.TimeMode != nil {
 		timeMode = *overrides.TimeMode
 	}
-	env := source.EnvironmentID
-	if overrides.EnvironmentID != nil {
-		env = *overrides.EnvironmentID
+	env := source.EnvironmentRef
+	if overrides.EnvironmentRef != nil {
+		env = *overrides.EnvironmentRef
 	}
-	tags := source.TagIDs
-	if overrides.TagIDs != nil {
-		tags = overrides.TagIDs
+	tags := source.TagRefs
+	if overrides.TagRefs != nil {
+		tags = overrides.TagRefs
 	}
 	return &planseps.PrepareProtectionPlanRequest{
 		ApprovalMode:    resolveApprovalMode(source, overrides),
@@ -67,9 +67,9 @@ func BuildRequest(
 		Mode:            source.Mode,
 		TimeMode:        timeMode,
 		TimeRange:       resolveTimeRange(timeMode, overrides.TimeRange, source.TimeRange),
-		ParticipantsIDs: source.ParticipantsIDs,
-		EnvironmentID:   &env,
-		TagIDs:          tags,
+		ParticipantRefs: source.ParticipantRefs,
+		EnvironmentRef:  &env,
+		TagRefs:         tags,
 	}
 }
 
@@ -90,7 +90,7 @@ func resolveTimeRange(
 	return &planseps.TimeRangeRequest{StartAt: source.StartAt, EndAt: source.EndAt}
 }
 
-// The UI sends environmentID whenever tags are touched, so "sent" is not "changed";
+// The UI sends environmentRef whenever tags are touched, so "sent" is not "changed";
 // nil hands the derivation back to Prepare.
 func resolveApprovalMode(
 	source *plans.ProtectionPlan,
@@ -102,7 +102,7 @@ func resolveApprovalMode(
 	if source.ApprovalMode == constants.EmptyString {
 		return nil
 	}
-	if overrides.EnvironmentID != nil && *overrides.EnvironmentID != source.EnvironmentID {
+	if overrides.EnvironmentRef != nil && *overrides.EnvironmentRef != source.EnvironmentRef {
 		return nil
 	}
 	return &source.ApprovalMode
@@ -117,10 +117,10 @@ func resolveName(sourceName string, override *string) string {
 
 func toScopeRequest(scope plans.ProtectionPlanScope) planseps.ScopeRequest {
 	return planseps.ScopeRequest{
-		Type:           scope.Type,
-		ApplicationIDs: scope.ApplicationIDs,
-		Namespaces:     scope.Namespaces,
-		Exclusions:     plans.NormalizeExclusions(scope.Exclusions),
+		Type:            scope.Type,
+		ApplicationRefs: scope.ApplicationRefs,
+		Namespaces:      scope.Namespaces,
+		Exclusions:      plans.NormalizeExclusions(scope.Exclusions),
 	}
 }
 

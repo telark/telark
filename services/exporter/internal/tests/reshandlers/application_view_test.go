@@ -32,13 +32,13 @@ var (
 	summaryKept   = []string{`"name":"app-1"`, `"score"`, `"generation":2`, `"changeLog"`}
 )
 
-func applicationSpec(name string) map[string]any {
+// Observed state lives in .status; the list view projects it flat next to the spec.
+func applicationStatus() map[string]any {
 	return map[string]any{
-		constants.NameParam: name,
-		"resources":         []any{map[string]any{"kind": "Deployment"}},
-		"snapshots":         []any{map[string]any{"path": "/snapshots/apps/id/ns/V1.json"}},
-		"rollbacks":         []any{map[string]any{"id": "rb-1"}},
-		"metrics":           map[string]any{"score": testScore, "workloads": []any{map[string]any{constants.NameParam: "w"}}},
+		"resources": []any{map[string]any{"kind": "Deployment"}},
+		"snapshots": []any{map[string]any{"path": "/snapshots/apps/id/ns/V1.json"}},
+		"rollbacks": []any{map[string]any{"id": "rb-1"}},
+		"metrics":   map[string]any{"score": testScore, "workloads": []any{map[string]any{constants.NameParam: "w"}}},
 		"history": map[string]any{
 			"generation": testHistoryGeneration,
 			"changeLog":  []any{map[string]any{"generation": testHistoryGeneration, "changes": []any{map[string]any{"field": "x"}}}},
@@ -47,9 +47,7 @@ func applicationSpec(name string) map[string]any {
 }
 
 func applicationList() *unstructured.UnstructuredList {
-	return &unstructured.UnstructuredList{Items: []unstructured.Unstructured{{Object: map[string]any{
-		constants.SpecField: applicationSpec(testAppName),
-	}}}}
+	return &unstructured.UnstructuredList{Items: []unstructured.Unstructured{*storedApplication(testAppName)}}
 }
 
 func applicationViewInner(w http.ResponseWriter, r *http.Request) {
@@ -59,10 +57,11 @@ func applicationViewInner(w http.ResponseWriter, r *http.Request) {
 
 func storedApplication(name string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion":        "erpi.telark/v1alpha1",
-		"kind":              "ApplicationAsResource",
+		"apiVersion":        "telark.io/v1alpha1",
+		"kind":              "Application",
 		"metadata":          map[string]any{constants.NameParam: name, "namespace": "telark"},
-		constants.SpecField: applicationSpec(name),
+		constants.SpecField: map[string]any{constants.NameParam: name},
+		"status":            applicationStatus(),
 	}}
 }
 
@@ -88,7 +87,7 @@ func assertKeys(t *testing.T, view string, body string, keys []string, want bool
 }
 
 // Nothing here can reach an apiserver, so a 200 proves both views were rendered
-// from the store; the stored spec must come out of the summary pruning
+// from the store; the stored object must come out of the summary pruning
 // untouched, and a fresh read must still go to the apiserver.
 func TestApplicationListServedFromInformerStore(t *testing.T) {
 	app := storedApplication(testAppName)
@@ -108,12 +107,12 @@ func TestApplicationListServedFromInformerStore(t *testing.T) {
 	}
 	assertKeys(t, constants.ViewFull, full.Body.String(), append(summaryPruned, summaryKept...), true)
 
-	spec, ok := app.Object[constants.SpecField].(map[string]any)
+	status, ok := app.Object["status"].(map[string]any)
 	if !ok {
-		t.Fatal("stored application lost its spec map")
+		t.Fatal("stored application lost its status map")
 	}
-	if _, kept := spec["resources"]; !kept {
-		t.Error("summary pruning mutated the stored spec")
+	if _, kept := status["resources"]; !kept {
+		t.Error("summary pruning mutated the stored status")
 	}
 
 	rec := httptest.NewRecorder()

@@ -31,7 +31,7 @@ func GenericPatchCustomResource(w http.ResponseWriter, md metadata.Metadata, nam
 	}
 
 	if exists {
-		result := api.PatchCustomResource(md, name, patchData)
+		result := sharedutils.PatchCustomResource(md, name, patchData)
 		if result.Status != http.StatusOK {
 			errorMsg := sharedutils.GenerateResourceError(globalerrors.ErrUpdateRes, name, result.Error)
 			sharedutils.LogByStatusAndSend(w, result.Status, response.OperationError, errorMsg, nil, result.Error)

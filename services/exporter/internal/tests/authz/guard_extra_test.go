@@ -83,13 +83,15 @@ func denied(id xauthz.Identity, scope, rule string) xauthz.Identity {
 // category actions; nothing passes through from a grant on the taxonomy name itself.
 func TestGuardCategoryScopePlanTaxonomies(t *testing.T) {
 	contributor, owner := roledata.PermissionLevelContributor, roledata.PermissionLevelOwner
-	plans, groups := roledata.ScopeProtectionPlans, roledata.ScopeGroups
+	plans, groups, roles := roledata.ScopeProtectionPlans, roledata.ScopeGroups, roledata.ScopeRoles
 	environments, tags := categorydata.ScopePlanEnvironments, categorydata.ScopePlanTags
 	create, edit, remove := constants.CategoryOpCreate, constants.CategoryOpEdit, constants.CategoryOpDelete
 	ownerDenied := func(action string) xauthz.Identity {
 		return denied(levels(plans, owner), plans, xauthz.RuleKey(plans, action))
 	}
 	groupOwnerNoEdit := denied(levels(groups, owner), groups, xauthz.RuleKey(groups, roledata.ActionEditGroupCategory))
+	groupOwnerNoDelete := denied(levels(groups, owner), groups, xauthz.RuleKey(groups, roledata.ActionDeleteGroupCategory))
+	roleOwnerNoDelete := denied(levels(roles, owner), roles, xauthz.RuleKey(roles, roledata.ActionDeleteRoleCategory))
 	tests := []struct {
 		name      string
 		id        xauthz.Identity
@@ -109,7 +111,9 @@ func TestGuardCategoryScopePlanTaxonomies(t *testing.T) {
 		{"plan create deny no longer governs taxonomies", ownerDenied(roledata.ActionCreateProtectionPlan), tags, create, true},
 		{"groups grant does not pass through", levels(groups, owner), environments, create, false},
 		{"groups category still governed by groups", levels(groups, contributor), groups, create, true},
-		{"groups delete still checks the group edit rule", groupOwnerNoEdit, groups, remove, false},
+		{"group edit deny spares group category delete", groupOwnerNoEdit, groups, remove, true},
+		{"group delete deny bites group category delete", groupOwnerNoDelete, groups, remove, false},
+		{"role delete deny bites role category delete", roleOwnerNoDelete, roles, remove, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

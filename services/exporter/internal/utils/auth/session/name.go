@@ -18,28 +18,21 @@ func ResolveSessionRef(ref string) string {
 	return authdata.SessionRef(ref)
 }
 
-// The ref in the path is a session name or the self ref; self resolves to the
-// caller's own token from the header, so a browser never has to derive the
-// digest (crypto.subtle is unavailable on plain http) nor put its token in a URL.
-// A raw token in the path is refused so it can never reach an access log again.
+// The self session is named by the X-Session-Token header, never by the path: the
+// UI sends its raw token and peers send the session name, and SessionRef maps both
+// to the name, so neither a token nor its digest reaches a URL or an access log.
 func RefFromRequest(w http.ResponseWriter, r *http.Request) (string, bool) {
-	ref, err := sharedutils.GetPathParam(w, r, constants.TokenParam)
-	if err != nil {
-		return dataconstants.EmptyString, false
-	}
-	if authdata.IsSessionName(ref) {
-		return ref, true
-	}
-	if ref != authdata.SessionRefSelf {
-		sharedutils.LogByStatusAndSend(w, http.StatusBadRequest, response.OperationError,
-			string(constants.ErrSessionRefNotAName), nil, nil)
-		return dataconstants.EmptyString, false
-	}
-	token := r.Header.Get(dataconstants.HeaderSessionToken)
-	if token == dataconstants.EmptyString {
+	header := r.Header.Get(dataconstants.HeaderSessionToken)
+	if header == dataconstants.EmptyString {
 		sharedutils.LogByStatusAndSend(w, http.StatusBadRequest, response.OperationError,
 			string(constants.ErrSessionSelfRefWithoutToken), nil, nil)
 		return dataconstants.EmptyString, false
 	}
-	return token, true
+	ref := authdata.SessionRef(header)
+	if ref == authdata.SessionRefSelf {
+		sharedutils.LogByStatusAndSend(w, http.StatusBadRequest, response.OperationError,
+			string(constants.ErrSessionRefNotAName), nil, nil)
+		return dataconstants.EmptyString, false
+	}
+	return ref, true
 }

@@ -134,14 +134,14 @@ func TestExtractUserSpecDefaults(t *testing.T) {
 	if user.Status.Phase != string(userdata.AccountPhaseActive) {
 		t.Errorf("phase default = %q, want active", user.Status.Phase)
 	}
-	if user.AssignedRolesIDs == nil || user.AssignedGroupsIDs == nil {
+	if user.RoleRefs == nil || user.GroupRefs == nil {
 		t.Error("assigned id slices not initialized")
 	}
 }
 
 func TestMergeUserAndPreparePatchBody(t *testing.T) {
-	existing := &userdata.UserAsResource{Username: nameOld, Fullname: "old-full", Email: "old@e.io"}
-	next := &userdata.UserAsResource{Username: nameNew}
+	existing := &userdata.User{Username: nameOld, Fullname: "old-full", Email: "old@e.io"}
+	next := &userdata.User{Username: nameNew}
 	body := map[string]any{constants.UsernameParam: nameNew}
 	merged := userutil.MergeUserAndPreparePatchBody(existing, next, body)
 	if merged.Username != nameNew {
@@ -154,8 +154,8 @@ func TestMergeUserAndPreparePatchBody(t *testing.T) {
 }
 
 func TestMergeUserSettingsIntoPatchBody(t *testing.T) {
-	existing := &userdata.UserAsResource{Username: "u", Avatar: &userdata.Avatar{Style: "s", Seed: valueX}}
-	next := &userdata.UserAsResource{Settings: &userdata.UserSettings{Timezone: testTimezone, Region: testRegion}}
+	existing := &userdata.User{Username: "u", Avatar: &userdata.Avatar{Style: "s", Seed: valueX}}
+	next := &userdata.User{Settings: &userdata.UserSettings{Timezone: testTimezone, Region: testRegion}}
 	body := map[string]any{settingsKey: map[string]any{"timezone": testTimezone, "region": testRegion}}
 	merged := userutil.MergeUserAndPreparePatchBody(existing, next, body)
 	if merged.Settings == nil || merged.Settings.Timezone != testTimezone || merged.Settings.Region != testRegion {
@@ -170,7 +170,7 @@ func TestMergeUserSettingsIntoPatchBody(t *testing.T) {
 }
 
 func TestExtractAndMergeUserForPatch(t *testing.T) {
-	existing := &userdata.UserAsResource{Username: nameOld}
+	existing := &userdata.User{Username: nameOld}
 	body := map[string]any{"fullname": "New Name"}
 	rec := httptest.NewRecorder()
 	if !userutil.ExtractAndMergeUserForPatch(existing, body, rec) {
@@ -180,7 +180,7 @@ func TestExtractAndMergeUserForPatch(t *testing.T) {
 
 // An unchanged username must never trigger the cluster uniqueness lookup.
 func TestExtractAndMergeUserForPatchSkipsUsernameCheckWhenUnchanged(t *testing.T) {
-	existing := &userdata.UserAsResource{Username: nameOld}
+	existing := &userdata.User{Username: nameOld}
 	body := map[string]any{constants.UsernameParam: nameOld}
 	rec := httptest.NewRecorder()
 	if !userutil.ExtractAndMergeUserForPatch(existing, body, rec) {
@@ -194,7 +194,7 @@ func TestUserValidationEmptyUsername(t *testing.T) {
 	}
 	// No identities + empty username fails before any cluster call.
 	rec := httptest.NewRecorder()
-	if err := userutil.ValidateAndPrepareUser(&userdata.UserAsResource{}, rec); err == nil {
+	if err := userutil.ValidateAndPrepareUser(&userdata.User{}, rec); err == nil {
 		t.Error("empty username user accepted")
 	}
 }
@@ -216,15 +216,15 @@ func TestExtractGroupSpecInitializesIDs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err %v", err)
 	}
-	if group.AssignedUsersIDs == nil || group.AssignedRolesIDs == nil {
+	if group.UserRefs == nil || group.RoleRefs == nil {
 		t.Error("group id slices not initialized")
 	}
 }
 
 func TestMergeGroupAndPreparePatchBody(t *testing.T) {
 	created := "creator"
-	existing := &groupdata.GroupAsResource{Name: nameOld, Description: "old-d", CategoryID: "c"}
-	next := &groupdata.GroupAsResource{Name: nameNew, CreatedBy: &created}
+	existing := &groupdata.Group{Name: nameOld, Description: "old-d", CategoryRef: "c"}
+	next := &groupdata.Group{Name: nameNew, CreatedBy: &created}
 	body := map[string]any{}
 	merged := grouputil.MergeGroupAndPreparePatchBody(existing, next, body)
 	if merged.Name != nameNew || merged.Description != "old-d" {
@@ -236,8 +236,8 @@ func TestMergeGroupAndPreparePatchBody(t *testing.T) {
 }
 
 func TestExtractAndMergeGroupForPatch(t *testing.T) {
-	existing := &groupdata.GroupAsResource{Name: nameOld}
-	body := map[string]any{constants.NameParam: "renamed", "assignedUsersIDs": []any{testUserID}}
+	existing := &groupdata.Group{Name: nameOld}
+	body := map[string]any{constants.NameParam: "renamed", "userRefs": []any{testUserID}}
 	rec := httptest.NewRecorder()
 	if !grouputil.ExtractAndMergeGroupForPatch(existing, body, rec) {
 		t.Fatal("ExtractAndMergeGroupForPatch returned false")
@@ -246,7 +246,7 @@ func TestExtractAndMergeGroupForPatch(t *testing.T) {
 
 func TestGroupValidationEmptyName(t *testing.T) {
 	rec := httptest.NewRecorder()
-	if err := grouputil.ValidateAndPrepareGroup(&groupdata.GroupAsResource{}, rec); err == nil {
+	if err := grouputil.ValidateAndPrepareGroup(&groupdata.Group{}, rec); err == nil {
 		t.Error("empty group name accepted")
 	}
 }

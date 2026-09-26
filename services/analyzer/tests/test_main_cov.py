@@ -286,6 +286,17 @@ def test_no_pull_when_disabled(monkeypatch):
     assert env.state.runtime.status.state == "ready"
 
 
+def test_job_with_invalid_app_is_acked_unread(monkeypatch):
+    env = Env(monkeypatch)
+    key = "analyzer:x:foo/get?"
+    env.redis.store[key] = "{}"
+    env.add("manual", name="foo/get?", namespace="x")
+    env.add("manual", namespace="Shop")
+    env.consume()
+    assert env.backlog() == (0, {})
+    assert env.runs == [] and env.events() == [] and key in env.redis.store
+
+
 def test_acked_jobs_leave_stream(monkeypatch):
     env = Env(monkeypatch)
     env.add("manual")

@@ -28,3 +28,17 @@ func TestResourceRegistry(t *testing.T) {
 	targets := cleanupctrl.DefaultTargets()
 	testutil.Equal(t, "targets match registered types", len(targets), len(types))
 }
+
+// The type names key the Redis cleanup streams and the exporter's cleanup/{type}
+// routes, so the access-role type is "accessroles" and "roles" is gone.
+func TestRegisteredTypeNames(t *testing.T) {
+	types := cleanupctrl.RegisteredResourceTypes()
+	for _, want := range []string{"users", "groups", "accessroles"} {
+		if _, ok := cleanupctrl.GetResourceOps(want); !ok {
+			t.Errorf("type %q not registered (have %v)", want, types)
+		}
+	}
+	if _, ok := cleanupctrl.GetResourceOps("roles"); ok {
+		t.Error("retired type \"roles\" still registered")
+	}
+}

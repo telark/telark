@@ -17,7 +17,7 @@ const (
 	ResourceUser            = "users"
 	ResourceGroup           = "groups"
 	ResourceCategory        = "categories"
-	ResourceRole            = "roles"
+	ResourceRole            = "accessroles"
 	ResourceApplication     = "applications"
 	ResourceUserSession     = "user-sessions"
 	ResourceUserPasskey     = "user-passkeys"
@@ -38,8 +38,7 @@ const (
 	UsernameParam           = "username"
 	EmailParam              = "email"
 	UserIDParam             = "userId"
-	GroupIDParam            = "groupId"
-	TokenParam              = "token"
+	CredentialIDParam       = "credentialId"
 	SpecField               = "spec"
 	MetadataField           = "metadata"
 	ResourceVersionField    = "resourceVersion"
@@ -89,7 +88,6 @@ const (
 	CacheScanCount                       int64  = 100
 	CacheScanCursorEnd                   uint64 = 0
 	IndexLastElementOffset                      = 1
-	IndexSecondLastElementOffset                = 2
 	DefaultChannelBufferSize                    = 1
 	DefaultLastPasskeyCount                     = 1
 	DefaultInitValue                            = 0
@@ -112,7 +110,7 @@ const (
 	SnapshotBytesPerKilobyte                    = 1024
 	SnapshotKilobytesPerMegabyte                = 1024
 	SnapshotPercentScale                        = 100
-	GlobalConfigResourceName                    = "global-config"
+	TelarkConfigResourceName                    = "default"
 	ManifestOrderServiceAccount                 = 1
 	ManifestOrderConfigMap                      = 2
 	ManifestOrderSecret                         = 3
@@ -176,18 +174,15 @@ const (
 	FieldAPIVersion                             = "apiVersion"
 	FieldKind                                   = "kind"
 	CategoriesCRDName                           = "categories"
-	FieldUserIDs                                = "userIDs"
-	FieldGroupIDs                               = "groupIDs"
-	FieldAssignedTo                             = "assignedTo"
 	FieldFinalizers                             = "finalizers"
 	FieldPriority                               = "priority"
 	FieldVersion                                = "version"
 	FieldValidity                               = "validity"
 	FieldAutoRevoke                             = "autoRevoke"
 	FieldExpiresTimestamp                       = "expiresTimestamp"
-	FieldAssignedUsersIDs                       = "assignedUsersIDs"
-	FieldAssignedRolesIDs                       = "assignedRolesIDs"
-	FieldAssignedGroupsIDs                      = "assignedGroupsIDs"
+	FieldUserRefs                               = "userRefs"
+	FieldRoleRefs                               = "roleRefs"
+	FieldGroupRefs                              = "groupRefs"
 	FieldDeletionTimestamp                      = "deletionTimestamp"
 	FieldBootstrap                              = "bootstrap"
 	FieldDisplayName                            = "displayName"
@@ -198,7 +193,6 @@ const (
 	ListSeparator                               = ", "
 	CommaSeparator                              = ","
 	HeaderUserID                                = "X-User-ID"
-	HeaderCredentialID                          = "X-Credential-ID"
 	SnapshotsPathEnv                            = "SNAPSHOTS_PATH"
 	SnapshotsMaxVersionsEnv                     = "SNAPSHOTS_MAX_VERSIONS"
 	SnapshotsPVCNameEnv                         = "SNAPSHOTS_PVC_NAME"

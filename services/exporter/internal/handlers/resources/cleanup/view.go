@@ -33,7 +33,7 @@ func collectRefs(obj map[string]any, refKeys []string, hidden map[string]bool) m
 	out := make(map[string][]string, len(refKeys))
 	for _, key := range refKeys {
 		refs := readStringList(spec[key])
-		if key == constants.FieldAssignedUsersIDs {
+		if key == constants.FieldUserRefs {
 			refs = slices.DeleteFunc(refs, func(id string) bool { return hidden[id] })
 		}
 		out[key] = refs

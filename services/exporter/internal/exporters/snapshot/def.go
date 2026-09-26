@@ -354,7 +354,7 @@ func writeYAMLManifest(w http.ResponseWriter, id string, generation int, items [
 	var buf bytes.Buffer
 	for i, item := range items {
 		if i > constants.DefaultInitValue {
-			buf.WriteString("---\n")
+			_, _ = buf.WriteString("---\n")
 		}
 		out, err := yaml.Marshal(item)
 		if err != nil {
@@ -367,9 +367,9 @@ func writeYAMLManifest(w http.ResponseWriter, id string, generation int, items [
 			)
 			return
 		}
-		buf.Write(out)
+		_, _ = buf.Write(out)
 		if len(out) > constants.DefaultInitValue && out[len(out)-constants.IndexLastElementOffset] != '\n' {
-			buf.WriteByte('\n')
+			_ = buf.WriteByte('\n')
 		}
 	}
 

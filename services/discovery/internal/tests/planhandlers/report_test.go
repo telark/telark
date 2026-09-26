@@ -27,7 +27,7 @@ func TestGenerateReportRequiresUserHeader(t *testing.T) {
 	t.Cleanup(func() { handlers.InitService(nil) })
 
 	rec := httptest.NewRecorder()
-	handlers.GenerateReport(rec, httptest.NewRequest(http.MethodPost, "/api/v1/plans/protection/plan-a/reports/generate", nil))
+	handlers.GenerateReport(rec, httptest.NewRequest(http.MethodPost, "/api/v1/protectionplans/plan-a/reports", nil))
 
 	testutil.Equal(t, "status", rec.Code, http.StatusUnauthorized)
 }

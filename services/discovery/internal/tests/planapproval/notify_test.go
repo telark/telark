@@ -68,10 +68,10 @@ func (l *errLogger) Error(msg string) {
 	l.errs = append(l.errs, msg)
 }
 
-func users(ids ...string) []*userresource.UserAsResource {
-	out := make([]*userresource.UserAsResource, len(ids))
+func users(ids ...string) []*userresource.User {
+	out := make([]*userresource.User, len(ids))
 	for i, id := range ids {
-		out[i] = &userresource.UserAsResource{ID: id}
+		out[i] = &userresource.User{ID: id}
 	}
 	return out
 }
@@ -96,7 +96,7 @@ func grantsFor(userID string) (xauthz.Grants, error) {
 func newNotifier(rec *emitRecorder, log *errLogger, ids ...string) *protection.ApprovalNotifier {
 	async.Init()
 	return &protection.ApprovalNotifier{
-		ListUsers:   func() ([]*userresource.UserAsResource, error) { return users(ids...), nil },
+		ListUsers:   func() ([]*userresource.User, error) { return users(ids...), nil },
 		Grants:      grantsFor,
 		Emit:        rec.emit,
 		Requirement: discoveryauthz.ApprovePlanRequirement(),

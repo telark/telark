@@ -9,7 +9,7 @@ import (
 	"slices"
 
 	metadatabase "github.com/telark/data/metadata/base"
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/utils/concurrency"
@@ -24,20 +24,20 @@ import (
 // grants, so groups are aligned to it and nobody's access changes.
 // ponytail: two replicas booting together both run it; the patches are idempotent.
 func Reconcile(ctx context.Context, optimizer *performance.Optimizer) {
-	userGroups, err := listSide(metadata.UserAsResourceMetadata, constants.FieldAssignedGroupsIDs)
+	userGroups, err := listSide(metadata.UserMetadata, constants.FieldGroupRefs)
 	if err != nil {
 		lg.Error(fmt.Sprintf(string(constants.ErrMembershipReconcileFailed), err))
 		return
 	}
-	groupMembers, err := listSide(metadata.GroupAsResourceMetadata, constants.FieldAssignedUsersIDs)
+	groupMembers, err := listSide(metadata.GroupMetadata, constants.FieldUserRefs)
 	if err != nil {
 		lg.Error(fmt.Sprintf(string(constants.ErrMembershipReconcileFailed), err))
 		return
 	}
 
 	users, groups := Plan(userGroups, groupMembers)
-	apply(ctx, optimizer, metadata.UserAsResourceMetadata, constants.FieldAssignedGroupsIDs, users)
-	apply(ctx, optimizer, metadata.GroupAsResourceMetadata, constants.FieldAssignedUsersIDs, groups)
+	apply(ctx, optimizer, metadata.UserMetadata, constants.FieldGroupRefs, users)
+	apply(ctx, optimizer, metadata.GroupMetadata, constants.FieldUserRefs, groups)
 	if len(users) > constants.DefaultInitValue {
 		authz.BumpGeneration(ctx)
 	}

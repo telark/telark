@@ -12,7 +12,7 @@ import (
 	"github.com/telark/discovery/internal/discovery/derivation"
 	"github.com/telark/discovery/internal/discovery/listing"
 	discoveryshared "github.com/telark/discovery/internal/discovery/shared"
-	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
+	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
 	"github.com/telark/discovery/internal/informers"
 	"github.com/telark/discovery/internal/tests/testutil"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -73,7 +73,7 @@ func skewObjects(namespace string) []*unstructured.Unstructured {
 
 func useCluster(t *testing.T, excluded []string, extra ...*unstructured.Unstructured) cache.Indexer {
 	t.Helper()
-	gcfghelper.SetExcludedForTest(excluded)
+	tcfghelper.SetExcludedForTest(excluded)
 	idx := informers.UseCacheForTest(slices.Concat(
 		skewObjects(jobNamespace),
 		skewObjects(otherNamespace),
@@ -86,7 +86,7 @@ func useCluster(t *testing.T, excluded []string, extra ...*unstructured.Unstruct
 		listing.InformersCache = nil
 		listing.AppNamespacesCache = nil
 		informers.UseCacheForTest()
-		gcfghelper.SetExcludedForTest([]string{})
+		tcfghelper.SetExcludedForTest([]string{})
 	})
 	return idx
 }
@@ -96,7 +96,7 @@ func fullPass(ctx context.Context, idx cache.Indexer, app string) []string {
 	if app == constants.EmptyString {
 		return nil
 	}
-	excluded := gcfghelper.FetchExcludedNamespaces(ctx)
+	excluded := tcfghelper.FetchExcludedNamespaces(ctx)
 	found := make(map[string]struct{})
 	for _, it := range idx.List() {
 		u, ok := it.(*unstructured.Unstructured)
@@ -192,7 +192,7 @@ func benchObjects(others int) []*unstructured.Unstructured {
 // Per-call cost must not grow with the number of other apps in the cache.
 func BenchmarkAppNamespaces(b *testing.B) {
 	ctx := context.Background()
-	gcfghelper.SetExcludedForTest([]string{})
+	tcfghelper.SetExcludedForTest([]string{})
 	b.Cleanup(func() { informers.UseCacheForTest() })
 	for _, others := range []int{benchOthersSmall, benchOthersLarge} {
 		idx := informers.UseCacheForTest(benchObjects(others)...)

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/informers"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -18,7 +18,7 @@ import (
 const wantNamespacedApps = 2
 
 func application(name string, namespace string) *unstructured.Unstructured {
-	md := metadata.ApplicationAsResourceMetadata
+	md := metadata.ApplicationMetadata
 	return &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": md.GetAPIVersion(),
 		"kind":       md.Kind,
@@ -32,7 +32,7 @@ func application(name string, namespace string) *unstructured.Unstructured {
 // through the resource client because the fake would otherwise guess the
 // plural from the kind and miss the irregular one the CRD uses.
 func TestRunApplicationsServesTheStoreOnceSynced(t *testing.T) {
-	md := metadata.ApplicationAsResourceMetadata
+	md := metadata.ApplicationMetadata
 	gvr := schema.GroupVersionResource{Group: md.BaseGroup, Version: md.Version, Resource: md.Plural}
 	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(
 		runtime.NewScheme(), map[schema.GroupVersionResource]string{gvr: md.Kind + "List"},

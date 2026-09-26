@@ -12,10 +12,10 @@ func StripMembers(resource *unstructured.Unstructured, hidden map[string]bool) {
 	if len(hidden) == constants.DefaultInitValue {
 		return
 	}
-	members, found, _ := unstructured.NestedStringSlice(resource.Object, constants.SpecField, constants.FieldAssignedUsersIDs)
+	members, found, _ := unstructured.NestedStringSlice(resource.Object, constants.SpecField, constants.FieldUserRefs)
 	if !found {
 		return
 	}
 	kept := slices.DeleteFunc(members, func(id string) bool { return hidden[id] })
-	_ = unstructured.SetNestedStringSlice(resource.Object, kept, constants.SpecField, constants.FieldAssignedUsersIDs)
+	_ = unstructured.SetNestedStringSlice(resource.Object, kept, constants.SpecField, constants.FieldUserRefs)
 }

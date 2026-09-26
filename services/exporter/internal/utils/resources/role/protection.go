@@ -10,7 +10,7 @@ import (
 	responseutils "github.com/telark/rest/utils/response"
 )
 
-func ValidateProtectionFlags(existingRole *roledata.RoleAsResource, body map[string]any, w http.ResponseWriter) bool {
+func ValidateProtectionFlags(existingRole *roledata.AccessRole, body map[string]any, w http.ResponseWriter) bool {
 	if existingRole.Protection == nil {
 		return true
 	}

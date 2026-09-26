@@ -31,7 +31,7 @@ func (c *Client) CreateUser(user *userresource.UserAsResource) *response.Generic
 
 func (c *Client) GetUserByID(id string) (*userresource.UserAsResource, error) {
 	byID := c.WithParams(map[string]string{constants.IDParam: id})
-	return shared.GetTyped[userresource.UserAsResource](byID, eps.GetUserByID)
+	return shared.GetTypedNoCache[userresource.UserAsResource](byID, eps.GetUserByID)
 }
 
 func (c *Client) GetUserByUsername(username string) (*userresource.UserAsResource, error) {

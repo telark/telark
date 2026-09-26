@@ -19,11 +19,13 @@ const (
 	ErrValidationFailed              errors.Error = "validation failed: %v"
 	ErrEndpointCall                  errors.Error = "%s %s: %v"
 	HTTPStatus                       errors.Error = "HTTP %d: %s"
+	ErrRequestBodyTooLarge           errors.Error = "request body too large"
 	DefaultHTTPPort                               = 80
 	DefaultHTTPSPort                              = 443
 	DefaultTimeout                                = 30
 	HTTPErrorCode                                 = 400
 	HTTPServerErrorCode                           = 500
+	PeerServerErrorMessage                        = "upstream service error"
 	ReplaceCount                                  = 1
 	EmptySliceLength                              = 0
 	FirstIndex                                    = 0

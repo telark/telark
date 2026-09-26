@@ -28,7 +28,7 @@ func (c *Client) CreateRole(role *roleresource.RoleAsResource) *response.Generic
 
 func (c *Client) GetRoleByID(id string) (*roleresource.RoleAsResource, error) {
 	byID := c.WithParams(map[string]string{constants.IDParam: id})
-	return shared.GetTyped[roleresource.RoleAsResource](byID, eps.GetRoleByID)
+	return shared.GetTypedNoCache[roleresource.RoleAsResource](byID, eps.GetRoleByID)
 }
 
 func (c *Client) GetAllRoles() ([]*roleresource.RoleAsResource, error) {

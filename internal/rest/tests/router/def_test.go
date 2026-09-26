@@ -52,3 +52,18 @@ func TestCreateRoute(t *testing.T) {
 		t.Errorf("CreateRoute() pattern = %v, want %v", route.Pattern, "/api/v1/test")
 	}
 }
+
+func TestTrailingSlashIsNotRedirected(t *testing.T) {
+	handler := router.NewRouter([]router.Route{
+		router.CreateRoute(base.Post, "items/create", func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}),
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/items/create/", http.NoBody)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("trailing slash: got %d, want %d (a 301 would replay the POST as a GET)", rr.Code, http.StatusNotFound)
+	}
+}

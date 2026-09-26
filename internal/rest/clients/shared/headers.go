@@ -5,6 +5,7 @@ import (
 
 	"github.com/telark/data/errors"
 	"github.com/telark/rest/base"
+	"github.com/telark/rest/constants"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 )
@@ -67,4 +68,12 @@ func GetRawJSONWithHeaders[T any](
 	}
 
 	return parseRawJSONResponse[T](result)
+}
+
+// Grant sources: the exporter's response cache sits in Redis, which is untrusted,
+// so a record that feeds an authorization decision is always read from the API server.
+func GetTypedNoCache[T any](client *Client, endpoint base.Endpoint) (*T, error) {
+	return GetWithHeaders[T](client, endpoint, map[string]string{
+		constants.HeaderCacheControl: constants.CacheControlNoCache,
+	})
 }

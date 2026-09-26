@@ -51,7 +51,7 @@ func (c *Client) ListSessionRefsByUser(userID string) ([]string, error) {
 }
 
 func (c *Client) GetSessionByToken(token string) (*authdata.UserSession, error) {
-	return shared.GetTyped[authdata.UserSession](c.withToken(token), eps.GetSessionByToken)
+	return shared.GetTypedNoCache[authdata.UserSession](c.withToken(token), eps.GetSessionByToken)
 }
 
 func (c *Client) PatchSessionByToken(token string, body map[string]any) *response.GenericResponse {

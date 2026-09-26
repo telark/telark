@@ -28,7 +28,7 @@ func (c *Client) CreateGroup(group *groupresource.GroupAsResource) *response.Gen
 
 func (c *Client) GetGroupByID(id string) (*groupresource.GroupAsResource, error) {
 	byID := c.WithParams(map[string]string{constants.IDParam: id})
-	return shared.GetTyped[groupresource.GroupAsResource](byID, eps.GetGroupByID)
+	return shared.GetTypedNoCache[groupresource.GroupAsResource](byID, eps.GetGroupByID)
 }
 
 func (c *Client) GetAllGroups() ([]*groupresource.GroupAsResource, error) {

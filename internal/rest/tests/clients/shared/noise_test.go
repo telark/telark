@@ -14,21 +14,22 @@ import (
 )
 
 const (
-	peerBody       = `{"status":500,"message":"peer-body-must-not-be-logged"}`
-	okBody         = `{"status":200,"operation":"Success"}`
-	levelDebug     = "[DEBUG]"
-	levelWarning   = "[WARNING]"
-	levelError     = "[ERROR]"
-	statusField    = "status=%d"
-	methodField    = "method=%s"
-	wantSilent     = "a successful call must log nothing, got: %q"
-	wantOneLine    = "one failure must produce exactly one log line, got %d: %q"
-	wantField      = "log line lost %q, a failure is no longer diagnosable: %s"
-	wantNoBody     = "the peer response body reached the log: %s"
-	wantInMessage  = "the response body must still reach the caller, got %q"
-	wantLevel      = "expected level %s for this outcome, got: %s"
-	unwantedLevels = "expected no %s for a routine %d, got: %s"
-	singleLogLine  = 1
+	peerBody         = `{"status":500,"message":"peer-body-must-not-be-logged"}`
+	clientErrBody    = `{"status":400,"message":"field x is invalid"}`
+	okBody           = `{"status":200,"operation":"Success"}`
+	levelDebug       = "[DEBUG]"
+	levelWarning     = "[WARNING]"
+	levelError       = "[ERROR]"
+	statusField      = "status=%d"
+	methodField      = "method=%s"
+	wantSilent       = "a successful call must log nothing, got: %q"
+	wantOneLine      = "one failure must produce exactly one log line, got %d: %q"
+	wantField        = "log line lost %q, a failure is no longer diagnosable: %s"
+	wantNoBody       = "the peer response body reached the log: %s"
+	wantNotInMessage = "a 5xx peer body must not reach the caller, got %q"
+	wantLevel        = "expected level %s for this outcome, got: %s"
+	unwantedLevels   = "expected no %s for a routine %d, got: %s"
+	singleLogLine    = 1
 )
 
 func respondWith(status int, body string) roundTripFunc {
@@ -62,7 +63,7 @@ func TestSuccessfulCallLogsNothing(t *testing.T) {
 	}
 }
 
-func TestServerErrorLogsOnceAndKeepsTheBodyOutOfTheLog(t *testing.T) {
+func TestServerErrorLogsOnceAndKeepsTheBodyOutOfLogAndMessage(t *testing.T) {
 	client := session.NewClient()
 	client.GetHTTPClient().Transport = respondWith(http.StatusInternalServerError, peerBody)
 
@@ -87,8 +88,8 @@ func TestServerErrorLogsOnceAndKeepsTheBodyOutOfTheLog(t *testing.T) {
 	if strings.Contains(logged, peerBody) {
 		t.Errorf(wantNoBody, logged)
 	}
-	if !strings.Contains(message, peerBody) {
-		t.Errorf(wantInMessage, message)
+	if strings.Contains(message, peerBody) {
+		t.Errorf(wantNotInMessage, message)
 	}
 }
 
@@ -127,5 +128,15 @@ func TestTransportFailureStaysAtWarn(t *testing.T) {
 	}
 	if !strings.Contains(logged, levelWarning) {
 		t.Errorf(wantLevel, levelWarning, logged)
+	}
+}
+
+func TestClientErrorKeepsThePeerMessage(t *testing.T) {
+	client := session.NewClient()
+	client.GetHTTPClient().Transport = respondWith(http.StatusBadRequest, clientErrBody)
+
+	message := client.DeleteSessionByToken(secretToken).Message
+	if !strings.Contains(message, clientErrBody) {
+		t.Errorf("a 4xx peer message must reach the caller, got %q", message)
 	}
 }

@@ -33,6 +33,8 @@ func lifecycleBodies() map[string]map[string]any {
 		"approvalMode": {"approvalMode": "automatic"},
 		"reason":       {"reason": "forged"},
 		"healthDetail": {"healthDetail": []any{}},
+		// Renames go through discovery's update, which keeps names unique.
+		"name": {"name": "taken"},
 	}
 }
 
@@ -70,7 +72,6 @@ func TestGuardPlanLifecycleSessionDeniedOnMaterialKeys(t *testing.T) {
 
 func TestGuardPlanLifecyclePassesPlainFields(t *testing.T) {
 	body := map[string]any{
-		"name":            "plan",
 		"description":     "desc",
 		"severity":        "high",
 		"priority":        "p1",

@@ -10,6 +10,7 @@ import (
 	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
 	kcoregroup "github.com/telark/kcore/resources/group"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/tools/cache"
 )
 
 func TryListResourcesInNamespaces(ctx context.Context, namespaces []string) ([]kcoregroup.ResourceRef, bool) {
@@ -65,8 +66,28 @@ func AppNamespaces(ctx context.Context, appName string) []string {
 	return Global().namespacesOfApp(ctx, appName)
 }
 
-// Grouping names an app after its objects' identity labels, across namespaces.
-// ponytail: one full cache pass per call; index objects by app key if that shows at thousands of apps.
+// Synced informers indexing no object of the app: its resources were relabelled or
+// deleted while their namespace lives, and nothing republishes the CR with zero resources.
+func AppVanished(ctx context.Context, appName string) bool {
+	m := Global()
+	return m != nil && m.informersSynced() && len(m.namespacesOfApp(ctx, appName)) == constants.DefaultInitValue
+}
+
+// Grouping names an app after its objects' identity labels, across namespaces;
+// the store indexes them by that key, so a lookup touches only the app's objects.
+func appIndexers() cache.Indexers {
+	return cache.Indexers{constants.InformerAppIndex: func(obj any) ([]string, error) {
+		u, ok := obj.(*unstructured.Unstructured)
+		if !ok || u == nil {
+			return nil, nil
+		}
+		if key := derivation.AppKey(u.GetLabels()); key != constants.EmptyString {
+			return []string{key}, nil
+		}
+		return nil, nil
+	}}
+}
+
 func (m *Manager) namespacesOfApp(ctx context.Context, appName string) []string {
 	if m == nil || appName == constants.EmptyString {
 		return nil
@@ -76,9 +97,10 @@ func (m *Manager) namespacesOfApp(ctx context.Context, appName string) []string 
 	m.informersMu.RLock()
 	defer m.informersMu.RUnlock()
 	for _, inf := range m.informers {
-		for _, it := range inf.GetIndexer().List() {
+		objs, _ := inf.GetIndexer().ByIndex(constants.InformerAppIndex, appName)
+		for _, it := range objs {
 			u, ok := it.(*unstructured.Unstructured)
-			if ok && u != nil && derivation.AppKey(u.GetLabels()) == appName && !slices.Contains(excluded, u.GetNamespace()) {
+			if ok && u != nil && !slices.Contains(excluded, u.GetNamespace()) {
 				found[u.GetNamespace()] = struct{}{}
 			}
 		}

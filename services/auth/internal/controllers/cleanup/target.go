@@ -23,6 +23,10 @@ var targetRefs = map[string][]refSpec{
 	},
 }
 
+var targetPurges = map[string]PurgeFn{
+	finalizers.ResourceTypeUsers: purgeUserSessions,
+}
+
 func DefaultTargets() map[string]Target {
 	out := make(map[string]Target, len(targetRefs))
 	for _, resourceType := range RegisteredResourceTypes() {
@@ -50,6 +54,7 @@ func buildTarget(resourceType string) Target {
 	return Target{
 		ResourceType:    resourceType,
 		Finalizer:       ops.Finalizer,
+		Purge:           targetPurges[resourceType],
 		BackRefs:        backRefs,
 		RemoveFinalizer: ops.RemoveFinalizer,
 	}

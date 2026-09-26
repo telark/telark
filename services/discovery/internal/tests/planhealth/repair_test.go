@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	"github.com/telark/data/plans"
 	dpolicies "github.com/telark/data/policies"
 	_ "github.com/telark/data/policies/templates" // registers the renderers Render needs
@@ -32,6 +34,11 @@ const (
 	policyKind         = "Policy"
 	policyResource     = "policy"
 	repairPlanNS       = "prod"
+	goneNS             = "gone"
+	aliveApp           = "alive"
+	doomedApp          = "doomed"
+	kindDeployment     = "Deployment"
+	guardPlan          = "guard"
 	rogueName          = "pol-rogue"
 	reconcilePlanCount = 3
 )
@@ -57,7 +64,8 @@ func policyMapper() meta.RESTMapper {
 }
 
 // The fake tracker rejects a server-side apply for an object that does not exist yet, so the
-// create half of SSA is emulated here.
+// create half of SSA is emulated here; the update half keeps the status the way the status
+// subresource does on a real apply.
 func withApplyCreate(dyn *dynamicfake.FakeDynamicClient) *dynamicfake.FakeDynamicClient {
 	dyn.PrependReactor("patch", protpolicies.KyvernoPolicyGVR.Resource, func(action k8stesting.Action) (bool, runtime.Object, error) {
 		patch, ok := action.(k8stesting.PatchAction)
@@ -69,6 +77,13 @@ func withApplyCreate(dyn *dynamicfake.FakeDynamicClient) *dynamicfake.FakeDynami
 			return true, nil, err
 		}
 		if err := dyn.Tracker().Create(protpolicies.KyvernoPolicyGVR, obj, patch.GetNamespace()); err != nil {
+			existing, getErr := dyn.Tracker().Get(protpolicies.KyvernoPolicyGVR, patch.GetNamespace(), patch.GetName())
+			if getErr != nil {
+				return true, nil, getErr
+			}
+			if status, ok := existing.(*unstructured.Unstructured).Object["status"]; ok {
+				obj.Object["status"] = status
+			}
 			return true, nil, dyn.Tracker().Update(protpolicies.KyvernoPolicyGVR, obj, patch.GetNamespace())
 		}
 		return true, obj, nil
@@ -123,7 +138,7 @@ func renderedPlan(t *testing.T, phase string) (*plans.ProtectionPlan, string) {
 	t.Helper()
 	plan := &plans.ProtectionPlan{
 		ID:       "pp-abc-1234-5678",
-		Name:     "guard",
+		Name:     guardPlan,
 		Phase:    phase,
 		Mode:     plans.ModeEnforce,
 		Scope:    plans.ProtectionPlanScope{Type: plans.ScopeTypeNamespaces, Namespaces: []string{repairPlanNS}},
@@ -269,6 +284,159 @@ func TestComputeAndRepairReportsPhaseReadFailure(t *testing.T) {
 
 	testutil.Equal(t, "policy not resurrected", getPolicy(t, dyn, policyName) == nil, true)
 	testutil.Equal(t, "failure logged", len(logger.errors), constants.DefaultAddValue)
+}
+
+func resolvedApp(name, namespace string) dpolicies.ResolvedApp {
+	return dpolicies.ResolvedApp{
+		Namespaces: []string{namespace},
+		Resources:  []dpolicies.ApplicationResourceRef{{Kind: kindDeployment, Name: name, Namespace: namespace}},
+	}
+}
+
+func liveObject(t *testing.T, pol *kyvernov1.Policy, ready bool) *unstructured.Unstructured {
+	t.Helper()
+	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(pol)
+	if err != nil {
+		t.Fatalf("to unstructured: %v", err)
+	}
+	live := &unstructured.Unstructured{Object: obj}
+	if ready {
+		live.Object["status"] = map[string]any{"conditions": []any{map[string]any{"type": "Ready", "status": "True"}}}
+	}
+	return live
+}
+
+// A policy left behind by an older renderer (no render hash, or one from another plan revision)
+// is present, ready and in the right mode, yet its content is not what the plan renders now.
+// The regression: health called it healthy, so an upgrade never re-rendered active plans.
+func TestComputeAndRepairRedeploysStalePolicies(t *testing.T) {
+	cases := []struct {
+		name string
+		hash string
+	}{
+		{"pre-upgrade policy without a hash", constants.EmptyString},
+		{"policy from another plan revision", "0000"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			plan, policyName := renderedPlan(t, plans.PhaseActive)
+			old := kyvernoPolicy(policyName, plan.ID, modeEnforce, true)
+			if c.hash != constants.EmptyString {
+				old.SetAnnotations(map[string]string{dpolicies.AnnotationRenderHash: c.hash})
+			}
+			dyn := withApplyCreate(fakeDyn(old))
+			logger := &recordingLogger{}
+			deps := repairDeps(dyn, logger)
+
+			before, err := health.Compute(context.Background(), deps, plan)
+			testutil.Equal(t, labelErr, err, nil)
+			if !slices.Equal(before.Stale, []string{policyName}) {
+				t.Fatalf("stale before = %v, want [%s]", before.Stale, policyName)
+			}
+			testutil.Equal(t, "health before", before.Health, plans.HealthDrifted)
+
+			after, err := health.ComputeAndRepair(context.Background(), deps, plan)
+			testutil.Equal(t, labelErr, err, nil)
+			testutil.Equal(t, "errors", len(logger.errors), constants.DefaultInitValue)
+			testutil.Equal(t, "health after", after.Health, plans.HealthHealthy)
+			testutil.Equal(t, "stale after", len(after.Stale), constants.DefaultInitValue)
+
+			fresh, err := dpolicies.Render(plan, nil, nil)
+			testutil.Equal(t, "render", err, nil)
+			want := fresh[constants.DefaultInitValue].Annotations[dpolicies.AnnotationRenderHash]
+			testutil.Equal(t, "live hash", getPolicy(t, dyn, policyName).GetAnnotations()[dpolicies.AnnotationRenderHash], want)
+		})
+	}
+}
+
+// The regression: an application deleted with its namespace made every tick fail the repair
+// with "applications not found" and left the plan drifted for good. Its policy is neither drift
+// nor repairable, so the check covers the applications that are still there.
+func TestComputeAndRepairSkipsVanishedApplication(t *testing.T) {
+	both := map[string]dpolicies.ResolvedApp{
+		aliveApp:  resolvedApp(aliveApp, repairPlanNS),
+		doomedApp: resolvedApp(doomedApp, goneNS),
+	}
+	plan := &plans.ProtectionPlan{
+		ID:       "pp-abc-1234-9999",
+		Name:     guardPlan,
+		Phase:    plans.PhaseActive,
+		Mode:     plans.ModeAudit,
+		Scope:    plans.ProtectionPlanScope{Type: plans.ScopeTypeApplications, ApplicationIDs: []string{aliveApp, doomedApp}},
+		Policies: []plans.ProtectionPlanPolicy{{TemplateID: "block-update"}},
+	}
+	rendered, err := dpolicies.Render(plan, both, nil)
+	testutil.Equal(t, "render", err, nil)
+	testutil.Equal(t, "one policy per application", len(rendered), len(both))
+	for i := range rendered {
+		plan.RenderedPolicies = append(plan.RenderedPolicies, rendered[i].Name)
+	}
+	alive := slices.IndexFunc(rendered, func(p kyvernov1.Policy) bool { return p.Namespace == repairPlanNS })
+
+	dyn := withApplyCreate(fakeDyn(liveObject(t, &rendered[alive], true)))
+	logger := &recordingLogger{}
+	deps := repairDeps(dyn, logger)
+	deps.ResolveApps = func(context.Context, []string) (map[string]dpolicies.ResolvedApp, []string, error) {
+		return map[string]dpolicies.ResolvedApp{aliveApp: both[aliveApp]}, []string{doomedApp}, nil
+	}
+
+	result, err := health.ComputeAndRepair(context.Background(), deps, plan)
+	testutil.Equal(t, labelErr, err, nil)
+	if len(logger.errors)+len(logger.infos) > constants.DefaultInitValue {
+		t.Fatalf("vanished application logged: %v %v", logger.errors, logger.infos)
+	}
+	testutil.Equal(t, labelHealth, result.Health, plans.HealthHealthy)
+	testutil.Equal(t, "rows", len(result.Policies), constants.DefaultAddValue)
+	testutil.Equal(t, "row", result.Policies[constants.DefaultInitValue].Name, rendered[alive].Name)
+}
+
+// A plan activated by a renderer that covered only an application's first namespace lists one
+// policy; the current renderer produces one per namespace. The regression: the second one was
+// never deployed and health stayed healthy, so only cancel and reactivate closed the gap.
+func TestComputeAndRepairDeploysPoliciesTheRenderNowProduces(t *testing.T) {
+	app := dpolicies.ResolvedApp{
+		Namespaces: []string{repairPlanNS, goneNS},
+		Resources: []dpolicies.ApplicationResourceRef{
+			{Kind: kindDeployment, Name: aliveApp, Namespace: repairPlanNS},
+			{Kind: kindDeployment, Name: aliveApp, Namespace: goneNS},
+		},
+	}
+	plan := &plans.ProtectionPlan{
+		ID:       "pp-abc-1234-7777",
+		Name:     guardPlan,
+		Phase:    plans.PhaseActive,
+		Mode:     plans.ModeEnforce,
+		Scope:    plans.ProtectionPlanScope{Type: plans.ScopeTypeApplications, ApplicationIDs: []string{aliveApp}},
+		Policies: []plans.ProtectionPlanPolicy{{TemplateID: "block-update"}},
+	}
+	resolved := map[string]dpolicies.ResolvedApp{aliveApp: app}
+	rendered, err := dpolicies.Render(plan, resolved, nil)
+	testutil.Equal(t, "render", err, nil)
+	testutil.Equal(t, "one policy per namespace", len(rendered), len(app.Namespaces))
+	first := slices.IndexFunc(rendered, func(p kyvernov1.Policy) bool { return p.Namespace == repairPlanNS })
+	second := rendered[len(rendered)-constants.DefaultAddValue-first]
+	plan.RenderedPolicies = []string{rendered[first].Name}
+
+	dyn := withApplyCreate(fakeDyn(liveObject(t, &rendered[first], true)))
+	logger := &recordingLogger{}
+	deps := repairDeps(dyn, logger)
+	deps.ResolveApps = func(context.Context, []string) (map[string]dpolicies.ResolvedApp, []string, error) {
+		return resolved, nil, nil
+	}
+
+	result, err := health.ComputeAndRepair(context.Background(), deps, plan)
+	testutil.Equal(t, labelErr, err, nil)
+	testutil.Equal(t, "errors", len(logger.errors), constants.DefaultInitValue)
+	// Kyverno has not stamped Ready on the new policy yet, so the pass reads degraded, not drifted.
+	testutil.Equal(t, "added after repair", len(result.Added), constants.DefaultInitValue)
+	testutil.Equal(t, "missing after repair", len(result.Missing), constants.DefaultInitValue)
+	if !slices.Equal(result.Rendered, []string{rendered[first].Name, second.Name}) {
+		t.Fatalf("rendered set = %v, want both namespaces", result.Rendered)
+	}
+	testutil.Equal(t, "second namespace patched", len(health.ToPatch(result, "now").RenderedPolicies), len(app.Namespaces))
+	got, err := dyn.Resource(protpolicies.KyvernoPolicyGVR).Namespace(goneNS).Get(context.Background(), second.Name, metav1.GetOptions{})
+	testutil.Equal(t, "second policy deployed", err, nil)
+	testutil.Equal(t, "second policy hash", got.GetAnnotations()[dpolicies.AnnotationRenderHash], second.Annotations[dpolicies.AnnotationRenderHash])
 }
 
 // The reconcile pass reads the cluster once for every plan it covers: a per-plan selector

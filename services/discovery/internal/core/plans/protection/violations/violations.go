@@ -2,13 +2,11 @@ package violations
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 
-	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/plans"
 	"github.com/telark/discovery/internal/clients"
 	"github.com/telark/discovery/internal/constants"
@@ -47,8 +45,6 @@ const (
 	fieldKind      = "kind"
 	fieldName      = "name"
 	fieldNamespace = "namespace"
-
-	errMissingApplications dataerrors.Error = "applications not found: %v"
 )
 
 var (
@@ -130,18 +126,12 @@ func resolvePlanNamespaces(
 	if plan.Scope.Type == plans.ScopeTypeNamespaces {
 		return plan.Scope.Namespaces, nil
 	}
-	resolved, missing, err := deps.ResolveApps(ctx, plan.Scope.ApplicationIDs)
+	// Lenient like the report ledger: a deleted application must not hide the others' violations.
+	resolved, _, err := deps.ResolveApps(ctx, plan.Scope.ApplicationIDs)
 	if err != nil {
 		return nil, err
 	}
-	if len(missing) > constants.DefaultInitValue {
-		return nil, fmt.Errorf(string(errMissingApplications), missing)
-	}
-	out := make([]string, constants.DefaultInitValue, len(resolved))
-	for _, ra := range resolved {
-		out = append(out, ra.Namespace)
-	}
-	return out, nil
+	return applications.Namespaces(resolved, plan.Scope.ApplicationIDs), nil
 }
 
 // Collect reads the Kyverno PolicyViolation events raised against the plan's rendered
@@ -159,7 +149,6 @@ func Collect(
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(constants.ViolationListConcurrency)
 	for i := range namespaces {
-		i := i
 		ns := namespaces[i]
 		g.Go(func() error {
 			events, err := listViolationEvents(gctx, dyn, ns)

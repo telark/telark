@@ -2,6 +2,7 @@ package insights
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -33,6 +34,11 @@ type Response struct {
 
 func GetApplicationsInsights(w http.ResponseWriter, r *http.Request) {
 	keys := parseAppKeys(r.URL.Query().Get(appsParam))
+	if len(keys) > constants.InsightsReadMaxApps {
+		responseutils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationError,
+			fmt.Sprintf(string(constants.ErrInsightsTooManyApps), constants.InsightsReadMaxApps), nil, nil)
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), constants.InsightsReadTimeout)
 	defer cancel()

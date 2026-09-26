@@ -12,8 +12,9 @@ func ToPatch(result Result, now string) planseps.PatchProtectionPlanRequest {
 	health := result.Health
 	checked := now
 	patch := planseps.PatchProtectionPlanRequest{
-		Health:          &health,
-		HealthCheckedAt: &checked,
+		Health:           &health,
+		HealthCheckedAt:  &checked,
+		RenderedPolicies: result.Rendered,
 	}
 	if len(result.Detail) > constants.DefaultInitValue {
 		patch.HealthDetail = ToDetailRequests(result.Detail)

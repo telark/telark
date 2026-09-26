@@ -148,7 +148,7 @@ func (l *memLogger) has(sub string) bool {
 }
 
 func resolveOnlyA(context.Context, []string) (map[string]policies.ResolvedApp, []string, error) {
-	return map[string]policies.ResolvedApp{appA: {Namespace: planNS}}, []string{appB}, nil
+	return map[string]policies.ResolvedApp{appA: {Namespaces: []string{planNS}}}, []string{appB}, nil
 }
 
 func newGen(store *fakeStore, dyn dynamic.Interface, rdb *redis.Client) (*reports.Generator, *memLogger) {

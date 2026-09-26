@@ -4,7 +4,9 @@ import (
 	"net/http"
 
 	globalerrors "github.com/telark/data/errors"
+	metadata "github.com/telark/data/metadata/resources"
 	resourcesshared "github.com/telark/data/resources/shared"
+	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/constants"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/kcore/crds/api"
@@ -24,7 +26,7 @@ func GetCleanupViewByID(w http.ResponseWriter, r *http.Request) {
 	}
 	result := api.GetCustomResourceByName(id, target.Metadata)
 	if result.Status != http.StatusOK {
-		responseutils.LogAndSendResponse(w, result.Status, response.OperationError,
+		responseutils.LogAndSendResponse(w, sharedutils.StatusForResult(result), response.OperationError,
 			result.Message, nil, result.Error)
 		return
 	}
@@ -34,9 +36,32 @@ func GetCleanupViewByID(w http.ResponseWriter, r *http.Request) {
 			response.OperationError, string(globalerrors.ErrGetRes), nil, nil)
 		return
 	}
-	view := projectCleanupView(obj, target.RefKeys)
+	hidden, ok := hiddenUsers(w, r)
+	if !ok {
+		return
+	}
+	if hidden[obj.GetName()] && target.Metadata.Kind == metadata.UserAsResourceMetadata.Kind {
+		responseutils.LogAndSendResponse(w, http.StatusNotFound, response.OperationNotFound, string(constants.ErrUserNotFound), nil, nil)
+		return
+	}
+	view := projectCleanupView(obj, target.RefKeys, hidden)
 	responseutils.LogAndSendResponse(w, http.StatusOK, response.OperationSuccess,
 		messageViewProjected, view, nil)
+}
+
+// The views name users by id and list group members; a restricted caller
+// sees administrators in neither. nil means nothing to hide.
+func hiddenUsers(w http.ResponseWriter, r *http.Request) (map[string]bool, bool) {
+	if !authz.Restricted(r) {
+		return nil, true
+	}
+	hidden, err := authz.HiddenUserIDs()
+	if err != nil {
+		responseutils.LogAndSendResponse(w, http.StatusServiceUnavailable, response.OperationUnavailable,
+			string(constants.ErrResourceLookupFailed), nil, err)
+		return nil, false
+	}
+	return hidden, true
 }
 
 func ListCleanupViews(w http.ResponseWriter, r *http.Request) {
@@ -56,9 +81,16 @@ func ListCleanupViews(w http.ResponseWriter, r *http.Request) {
 			response.OperationError, string(globalerrors.ErrGetRes), nil, nil)
 		return
 	}
+	hidden, ok := hiddenUsers(w, r)
+	if !ok {
+		return
+	}
 	views := make([]resourcesshared.CleanupView, constants.DefaultInitValue, len(list.Items))
 	for i := range list.Items {
-		views = append(views, projectCleanupView(&list.Items[i], target.RefKeys))
+		if hidden[list.Items[i].GetName()] && target.Metadata.Kind == metadata.UserAsResourceMetadata.Kind {
+			continue
+		}
+		views = append(views, projectCleanupView(&list.Items[i], target.RefKeys, hidden))
 	}
 	responseutils.LogAndSendResponse(w, http.StatusOK, response.OperationSuccess,
 		messageViewsProjected, cleanupViewsResponse{Items: views}, nil)

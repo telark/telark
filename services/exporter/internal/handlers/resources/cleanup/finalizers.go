@@ -43,7 +43,8 @@ func mutateFinalizer(w http.ResponseWriter, r *http.Request, op finalizerMutatio
 
 	getResult := api.GetCustomResourceByName(id, target.Metadata)
 	if getResult.Status != http.StatusOK {
-		responseutils.LogAndSendResponse(w, getResult.Status, response.OperationError,
+		// A record that is already gone is done, not a failure to retry.
+		responseutils.LogAndSendResponse(w, sharedutils.StatusForResult(getResult), response.OperationError,
 			getResult.Message, nil, getResult.Error)
 		return
 	}

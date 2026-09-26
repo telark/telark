@@ -50,9 +50,6 @@ func TestKeys(t *testing.T) {
 	if cache.GenerateKey(constants.ResourceUser, constants.OpList, constants.EmptyString) == constants.EmptyString {
 		t.Fatal("GenerateKey returned empty")
 	}
-	if cache.GenerateGetKey("/api/v1/resources/users", testUserID) == constants.EmptyString {
-		t.Fatal("GenerateGetKey returned empty")
-	}
 	if cache.ValidateCacheKey(constants.EmptyString) {
 		t.Fatal("empty key validated as ok")
 	}

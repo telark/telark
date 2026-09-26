@@ -95,7 +95,7 @@ func computeRemovalNames(
 	}
 	names := make([]string, constants.DefaultInitValue, len(combos))
 	for _, c := range combos {
-		scope, err := scopeForTarget(plan.Scope.Type, c.Target, resolved)
+		scopes, err := scopesForTarget(plan.Scope.Type, c.Target, resolved)
 		if err != nil {
 			return nil, err
 		}
@@ -103,25 +103,32 @@ func computeRemovalNames(
 		if !ok {
 			return nil, fmt.Errorf("policies: no renderer registered for template %q", c.Policy.TemplateID)
 		}
-		names = append(names, datapolicies.PolicyName(plan.ID, r.TemplateCode(), scope))
+		for _, scope := range scopes {
+			names = append(names, datapolicies.PolicyName(plan.ID, r.TemplateCode(), scope))
+		}
 	}
 	return names, nil
 }
 
-func scopeForTarget(
+// One scope per namespace the target spans, mirroring what Render produces for it.
+func scopesForTarget(
 	scopeType, target string,
 	resolved map[string]datapolicies.ResolvedApp,
-) (datapolicies.ScopeSpec, error) {
+) ([]datapolicies.ScopeSpec, error) {
 	if scopeType == plans.ScopeTypeNamespaces {
-		return datapolicies.ScopeSpec{Namespace: target}, nil
+		return []datapolicies.ScopeSpec{{Namespace: target}}, nil
 	}
 	ra, ok := resolved[target]
-	if !ok || ra.Namespace == constants.EmptyString {
-		return datapolicies.ScopeSpec{}, fmt.Errorf("application %q has no resolved namespace", target)
+	if !ok || len(ra.Namespaces) == constants.DefaultInitValue {
+		return nil, fmt.Errorf("application %q has no resolved namespace", target)
 	}
-	return datapolicies.ScopeSpec{
-		Namespace:      ra.Namespace,
-		ApplicationIDs: []string{target},
-		AppResources:   ra.Resources,
-	}, nil
+	out := make([]datapolicies.ScopeSpec, constants.DefaultInitValue, len(ra.Namespaces))
+	for _, ns := range ra.Namespaces {
+		out = append(out, datapolicies.ScopeSpec{
+			Namespace:      ns,
+			ApplicationIDs: []string{target},
+			AppResources:   ra.Resources,
+		})
+	}
+	return out, nil
 }

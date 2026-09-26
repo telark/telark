@@ -38,10 +38,14 @@ func okHandler(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte(`{"data":{"x":1}}`))
 }
 
+func keyFunc(r *http.Request) string {
+	return "cache:" + r.URL.Path + "?" + r.URL.RawQuery
+}
+
 func TestCachedListHandlerMissThenHit(t *testing.T) {
 	o := newOptimizer(t)
 	handler := performance.NewCachedListHandlerFunc(
-		o, okHandler, performance.KeyFunc, constants.ResourceApplication, constants.OpList,
+		o, okHandler, keyFunc, constants.ResourceApplication, constants.OpList,
 	)
 
 	req := httptest.NewRequest(http.MethodGet, "/applications?x=1", nil)
@@ -65,7 +69,7 @@ func TestCachedListHandlerSkipsNon200(t *testing.T) {
 		_, _ = w.Write([]byte("boom"))
 	}
 	handler := performance.NewCachedListHandlerFunc(
-		o, failing, performance.KeyFunc, constants.ResourceApplication, constants.OpList,
+		o, failing, keyFunc, constants.ResourceApplication, constants.OpList,
 	)
 	rec := httptest.NewRecorder()
 	handler(rec, httptest.NewRequest(http.MethodGet, "/applications", nil))
@@ -75,9 +79,8 @@ func TestCachedListHandlerSkipsNon200(t *testing.T) {
 }
 
 func TestOptimizedHandler(t *testing.T) {
-	o := newOptimizer(t)
 	handler := performance.NewDynamicOptimizedHandlerFunc(
-		o, okHandler, constants.ResourceApplication, constants.OpGet,
+		okHandler, constants.ResourceApplication, constants.OpGet,
 	)
 	rec := httptest.NewRecorder()
 	handler(rec, httptest.NewRequest(http.MethodGet, "/applications/a1", nil))

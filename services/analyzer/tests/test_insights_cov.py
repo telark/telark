@@ -99,6 +99,30 @@ def test_update_writes_only_on_change():
     asyncio.run(go())
 
 
+def test_rebuilt_document_version_never_goes_back(monkeypatch):
+    # Live (X-1): a lost document restarted at version 0, so an open panel holding v5 ignored the rebuilt one.
+    monkeypatch.setattr("insights.epoch_ms", lambda: 1_790_000_000_000)
+
+    def bump(d):
+        d.version += 1
+        return True
+
+    async def go():
+        fake = FakeRedis()
+        store = InsightStore(fake)
+        await store.put("shop", "api", _doc())
+        before = (await store.update("shop", "api", bump))[0].version
+        assert before == 4
+        await store.delete("shop", "api")
+        rebuilt, _ = await store.update("shop", "api", bump)
+        assert rebuilt.version == 1_790_000_000_001 > before
+        # An unchanged read of a missing document writes nothing.
+        await store.delete("shop", "api")
+        assert (await store.update("shop", "api", lambda d: False))[1] is False and KEY not in fake.store
+
+    asyncio.run(go())
+
+
 def test_inflight_is_held_and_released_by_holder_only():
     async def go():
         fake = FakeRedis()

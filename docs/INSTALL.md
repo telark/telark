@@ -38,6 +38,8 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 
 Set `app.auth.bootstrap.admins` before install (or upgrade after). Those emails receive the Admin role on first OIDC login; with passkey self-registration off, this is the only path to a first admin.
 
+Bootstrap accounts belong to the chart: the API refuses to delete them, only they may edit their own record, and no dashboard user can create or rename a user to one of these emails (the exporter receives the same list as `BOOTSTRAP_ADMINS`). Only a bootstrap account may delete or suspend another administrator, and non-administrators never see administrator accounts at all.
+
 ## 3. Verify
 
 ```sh
@@ -243,7 +245,7 @@ AI insights run on an in-cluster model runtime (ollama, installed by default), s
 
 Larger profiles (CPU 4 vCPU, GPU / deep), model licences and the air-gapped procedure are in the chart README, [Analyzer runtime (ollama)](../charts/telark/README.md#analyzer-runtime-ollama).
 
-**Recommendations:** the analyzer also reviews each app's setup (replicas, disruption budgets, resources, autoscaling, images, network policies, protection plans) and shows recommendation cards; a sweep re-reviews every app every 2 hours (`services.analyzer.env.ANALYZER_REVIEW_INTERVAL_SEC`, `0` disables it) at 20 apps/min (10 in `minimal`, 60 in `performance`). The reviews need read-only access to Services, PodDisruptionBudgets, HorizontalPodAutoscalers and NetworkPolicies, which the chart grants the analyzer ClusterRole (`get`, `list`; nothing else, no writes). Apps count as production when a namespace or a covering plan's environment matches `services.analyzer.env.ANALYZER_PRODUCTION_PATTERN` (default `(^|[-_.])(prod|production|prd)($|[-_.])`, case-insensitive); set it to your own naming, for example `--set-string 'services.analyzer.env.ANALYZER_PRODUCTION_PATTERN=^live-'`. Details in the chart README, [Recommendations](../charts/telark/README.md#recommendations); the dashboard lists every app's cards on its Insights page, see [Insights page](../charts/telark/README.md#insights-page).
+**Recommendations:** the analyzer also reviews each app's setup (replicas, disruption budgets, resources, autoscaling, images, network policies, protection plans) and shows recommendation cards; a sweep re-reviews every app every 2 hours (`services.analyzer.env.ANALYZER_REVIEW_INTERVAL_SEC`, `0` disables it) at 20 apps/min (10 in `minimal`, 60 in `performance`). The reviews need read-only access to Services, PodDisruptionBudgets, HorizontalPodAutoscalers and NetworkPolicies, which the chart grants the analyzer ClusterRole (`get`, `list`; nothing else, no writes). Apps count as production when a namespace or a covering plan's environment matches `services.analyzer.env.ANALYZER_PRODUCTION_PATTERN` (default `(^|[-_.])(prod|production|prd)($|[-_.])`, case-insensitive); set it to your own naming, for example `--set-string 'services.analyzer.env.ANALYZER_PRODUCTION_PATTERN=^live-'`. Per-workload rules (single replica, missing disruption budget, image digest pinning) judge each workload by its own namespace, so the dev namespace of a multi-namespace app is not held to production rules. Details in the chart README, [Recommendations](../charts/telark/README.md#recommendations); the dashboard lists every app's cards on its Insights page, see [Insights page](../charts/telark/README.md#insights-page).
 
 ## Autoscaling (HPA)
 

@@ -13,17 +13,18 @@ func GetTimeoutForResource(resourceType, operation string) time.Duration {
 		}
 	}
 
-	fallback := map[string]time.Duration{
-		string(constants.OpCreate): DefaultTimeoutConfig.CreateTimeout,
-		string(constants.OpGet):    DefaultTimeoutConfig.GetTimeout,
-		string(constants.OpList):   DefaultTimeoutConfig.ListTimeout,
-		string(constants.OpUpdate): DefaultTimeoutConfig.UpdateTimeout,
-		string(constants.OpPatch):  DefaultTimeoutConfig.PatchTimeout,
-		string(constants.OpDelete): DefaultTimeoutConfig.DeleteTimeout,
+	switch operation {
+	case constants.OpCreate:
+		return DefaultTimeoutConfig.CreateTimeout
+	case constants.OpList:
+		return DefaultTimeoutConfig.ListTimeout
+	case constants.OpUpdate:
+		return DefaultTimeoutConfig.UpdateTimeout
+	case constants.OpPatch:
+		return DefaultTimeoutConfig.PatchTimeout
+	case constants.OpDelete:
+		return DefaultTimeoutConfig.DeleteTimeout
+	default:
+		return DefaultTimeoutConfig.GetTimeout
 	}
-
-	if t, ok := fallback[operation]; ok {
-		return t
-	}
-	return DefaultTimeoutConfig.GetTimeout
 }

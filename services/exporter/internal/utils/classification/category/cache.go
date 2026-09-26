@@ -7,7 +7,6 @@ import (
 )
 
 func InvalidateCategoryCaches(optimizer *performance.Optimizer) {
-	cache.InvalidateListCache(optimizer, constants.ResourceCategory)
 	cache.InvalidateAllResourceCaches(optimizer, constants.ResourceCategory)
 
 	categories, err := GetAllCategories()

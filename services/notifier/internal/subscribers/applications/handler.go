@@ -13,10 +13,11 @@ import (
 	resourceshared "github.com/telark/data/resources/shared"
 	"github.com/telark/notifier/internal/constants"
 	"github.com/telark/notifier/internal/subscribers/base"
+	restconstants "github.com/telark/rest/constants"
+	"github.com/telark/rest/response"
 	natscore "github.com/telark/x-ware/nats/core"
 )
 
-// If application CR does not exist yet, create it using the full payload (upsert behavior).
 func (s *ApplicationSubscriber) handleUpdate(m *nats.Msg) error {
 	msg, dataMap, err := parseNatsMessageToMap(m)
 	if err != nil {
@@ -36,55 +37,51 @@ func (s *ApplicationSubscriber) handleUpdate(m *nats.Msg) error {
 		return base.AckWithLog(m, m.Subject, err.Error(), true)
 	}
 
-	client := s.client
-	patchResp := &base.GenericResponseAdapter{Resp: client.PatchApplicationByName(resourceName, patchBody)}
-	if patchResp.GetStatus() == http.StatusOK {
-		_ = base.AckWithLog(m, m.Subject, fmt.Sprintf(string(messages.SuccessNatsPatchApplication), resourceName), false)
-		return nil
-	}
-
-	if patchResp.GetStatus() == http.StatusNotFound {
+	resp := &base.GenericResponseAdapter{Resp: s.client.PatchApplicationByName(resourceName, patchBody)}
+	if resp.GetStatus() == http.StatusNotFound {
 		app, err := mapToApplication(dataMap, resourceName)
 		if err != nil {
 			return base.AckWithLog(m, m.Subject, err.Error(), true)
 		}
-
-		createResp := &base.GenericResponseAdapter{Resp: client.CreateApplication(&app)}
-		if createResp.GetStatus() == http.StatusOK {
-			_ = base.AckWithLog(m, m.Subject, fmt.Sprintf(string(messages.SuccessNatsPatchApplication), resourceName), false)
-			return nil
-		}
-		logMsg := fmt.Sprintf(
-			string(errors.ErrNatsFailedToPatchApplication),
-			resourceName,
-			createResp.GetMessage(),
-		)
-		if base.TransientStatus(createResp.GetStatus()) {
-			return s.NakWithLog(m, m.Subject, logMsg)
-		}
-		return base.AckWithLog(m, m.Subject, logMsg, true)
+		resp = &base.GenericResponseAdapter{Resp: s.client.CreateApplication(&app)}
+	}
+	if resp.GetStatus() == http.StatusOK {
+		_ = base.AckWithLog(m, m.Subject, fmt.Sprintf(string(messages.SuccessNatsPatchApplication), resourceName), false)
+		return nil
 	}
 
-	logMsg := fmt.Sprintf(
-		string(errors.ErrNatsFailedToPatchApplication),
-		resourceName,
-		patchResp.GetMessage(),
-	)
-	if base.TransientStatus(patchResp.GetStatus()) {
+	logMsg := fmt.Sprintf(string(errors.ErrNatsFailedToPatchApplication), resourceName, resp.GetMessage())
+	if base.TransientStatus(resp.GetStatus()) {
 		return s.NakWithLog(m, m.Subject, logMsg)
 	}
 	return base.AckWithLog(m, m.Subject, logMsg, true)
 }
 
+// Discovery's reset owns the cleanup: its Redis state plus the exporter delete of the CR and snapshots.
 func (s *ApplicationSubscriber) handleDelete(m *nats.Msg) error {
-	return base.ExecuteDeleteHandler(
+	return s.ExecuteDeleteHandler(
 		m,
-		func(resourceName string) base.GenericResponse {
-			return &base.GenericResponseAdapter{Resp: s.client.DeleteApplicationByName(resourceName)}
-		},
+		s.resetApplication,
 		string(messages.SuccessNatsDeleteApplication),
 		string(errors.ErrNatsFailedToDeleteApplication),
 	)
+}
+
+func (s *ApplicationSubscriber) resetApplication(name string) base.GenericResponse {
+	resp, err := s.client.ResetApplicationByName(name)
+	if err != nil {
+		resp = &response.GenericResponse{Status: statusFromError(err), Message: err.Error()}
+	}
+	return &base.GenericResponseAdapter{Resp: resp}
+}
+
+// The client folds a non-200 answer into ErrUnexpectedStatus; any other error
+// had no HTTP answer at all and maps to 0, which is transient.
+func statusFromError(err error) int {
+	status := constants.DefaultInitValue
+	var detail string
+	_, _ = fmt.Sscanf(err.Error(), string(restconstants.ErrUnexpectedStatus), &status, &detail)
+	return status
 }
 
 func parseNatsMessageToMap(m *nats.Msg) (*natscore.Message, map[string]any, error) {

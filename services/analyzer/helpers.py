@@ -76,6 +76,14 @@ def stream_id_ms(msg_id: str) -> int:
     return int(msg_id.split(STREAM_ID_SEPARATOR, 1)[0])
 
 
+def iso_epoch(value) -> float | None:
+    """Seconds since the epoch of an RFC3339 value; None when absent or unparseable."""
+    try:
+        return datetime.fromisoformat(str(value)).timestamp() if value else None
+    except ValueError:
+        return None
+
+
 # ---- Quantities (Kubernetes quantities and the kcore usage strings: '%dm' / '%.2f' cores, '%.2f' + B|Ki|Mi|Gi) ----
 def _quantity(q: str | None, suffixes: dict[str, float]) -> float | None:
     if not isinstance(q, str) or not (m := re.fullmatch(QUANTITY_PATTERN, q.strip())):
@@ -129,13 +137,18 @@ def selector_matches(selector: dict | None, labels: dict | None) -> bool:
 
 
 # ---- Image references ----------------------------------------------------------------------------------------
+def is_registry_host(first: str) -> bool:
+    """Docker reference rule: the first path component is a registry when it has a dot, a port or is localhost."""
+    return DOMAIN_MARKERS[0] in first or DOMAIN_MARKERS[1] in first or first == LOCALHOST
+
+
 def image_parts(image: str | None) -> tuple[str, str, str, str] | None:
     """(registry, repository, tag, digest) by the Docker reference rules; None for an invalid reference."""
     if not image or not re.fullmatch(IMAGE_REFERENCE_PATTERN, image):
         return None
     name, _, digest = image.partition(DIGEST_SEPARATOR)
     first, sep, rest = name.partition("/")
-    if sep and (DOMAIN_MARKERS[0] in first or DOMAIN_MARKERS[1] in first or first == LOCALHOST):
+    if sep and is_registry_host(first):
         registry, path = first, rest
     else:
         registry, path = DEFAULT_REGISTRY, name

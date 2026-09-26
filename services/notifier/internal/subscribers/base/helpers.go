@@ -12,10 +12,8 @@ import (
 	"github.com/telark/notifier/internal/constants"
 )
 
-// NakWithLog hands the message back to JetStream for redelivery: acking a
-// transient downstream failure dropped the publish and froze the application
-// behind the generation the leader had already recorded. The dedup entry goes
-// too, or the redelivery would be skipped as a duplicate of this attempt.
+// Acking a transient failure froze the application behind the generation the leader already recorded.
+// The dedup entry goes too, or the redelivery would be skipped as a duplicate of this attempt.
 func (s *BaseSubscriber) NakWithLog(m *nats.Msg, subject, logMsg string) error {
 	logger.GetLogger(constants.PrefixManagerSubscriber).Error(logMsg)
 	s.processedMessages.Delete(s.generateMessageKey(m))
@@ -61,19 +59,14 @@ func extractResourceName(resourceNameFromMsg string, dataMap map[string]any) str
 func BuildPatchBodyFromScope(scope string, dataMap map[string]any,
 	resourceNameKey string, resourceNameFromMsg string,
 ) (map[string]any, string, error) {
-	resourceName := extractResourceName(resourceNameFromMsg, dataMap)
-	var patchSpec map[string]any
-
-	switch scope {
-	case string(shared.ApplicationSpecScope):
-		patchSpec = dataMap
-	default:
+	if scope != string(shared.ApplicationSpecScope) {
 		return nil, constants.EmptyString, fmt.Errorf(string(errors.ErrNatsUnknownScope), scope)
 	}
 
+	resourceName := extractResourceName(resourceNameFromMsg, dataMap)
 	if resourceName == constants.EmptyString {
 		return nil, constants.EmptyString, fmt.Errorf(string(errors.ErrNatsCouldNotDetermineResNameFromData), resourceNameKey)
 	}
 
-	return map[string]any{constants.FieldSpecKey: patchSpec}, resourceName, nil
+	return map[string]any{constants.FieldSpecKey: dataMap}, resourceName, nil
 }

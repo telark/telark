@@ -21,9 +21,8 @@ func GenerateReport(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	userID := r.Header.Get(constants.HeaderUserID)
-	if userID == constants.EmptyString {
-		respondError(w, http.StatusUnauthorized, protection.ErrUserMissing, nil)
+	userID, ok := requireUser(w, r)
+	if !ok {
 		return
 	}
 

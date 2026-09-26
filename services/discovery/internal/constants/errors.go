@@ -36,7 +36,6 @@ const (
 	ErrReportRejected     errors.Error = "exporter rejected the report: %s"
 	ErrReportNilResponse  errors.Error = "report call returned nil response"
 	ErrCreateReportFailed errors.Error = "create report failed: %v"
-	ErrPutLedgerFailed    errors.Error = "put report ledger failed: %v"
 	ErrReportPanic        errors.Error = "report generation panicked: %v"
 
 	// Discovery Pre-warming
@@ -121,9 +120,12 @@ const (
 	ErrRollbackNotPending              errors.Error = "rollback already in progress; cannot abort"
 	ErrRollbackTerminal                errors.Error = "rollback is in terminal state"
 	ErrAbortUserRequired               errors.Error = "abort requires a user (X-User-ID header)"
+	ErrRollbackUserRequired            errors.Error = "rollback requires a user (X-User-ID header)"
+	ErrRollbackReplaceFailed           errors.Error = "replace %s/%s: %w"
 	ErrRollbackCoordinationUnavailable errors.Error = "rollback coordination unavailable"
 	ErrRollbackTargetNotOlder          errors.Error = "snapshotGeneration cannot exceed the current generation %d"
 	ErrRollbackSnapshotMissing         errors.Error = "no snapshot stored for generation %d"
+	ErrRollbackSnapshotIncomplete      errors.Error = "snapshot for generation %d does not cover namespace %s; pick a newer generation"
 
 	// Auto-cleanup detector errors
 	ErrAutoCleanupListAppsFailed   errors.Error = "[auto-cleanup] list applications failed: %v"
@@ -161,4 +163,5 @@ const (
 	ErrAppResetLeaderForwardStatus        errors.Error = "reset forward to leader returned status %d: %s"
 	ErrExcludedNamespacesUnavailable      errors.Error = "excluded namespaces unavailable: %v"
 	ErrInsightsQueryInvalid               errors.Error = "invalid value for query parameter %q"
+	ErrInsightsTooManyApps                errors.Error = "query parameter apps names more than %d applications"
 )

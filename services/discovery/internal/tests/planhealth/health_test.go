@@ -65,12 +65,12 @@ func activePlan(policies ...string) *plans.ProtectionPlan {
 // without ever consulting the cluster.
 func TestComputeShortCircuits(t *testing.T) {
 	pending := &plans.ProtectionPlan{Phase: "pending"}
-	res, err := health.Compute(context.Background(), nil, pending)
+	res, err := health.Compute(context.Background(), health.Deps{}, pending)
 	testutil.Equal(t, "pending err", err, nil)
 	testutil.Equal(t, "pending health", res.Health, plans.HealthUnknown)
 
 	empty := activePlan()
-	res, err = health.Compute(context.Background(), nil, empty)
+	res, err = health.Compute(context.Background(), health.Deps{}, empty)
 	testutil.Equal(t, "empty err", err, nil)
 	testutil.Equal(t, "empty health", res.Health, plans.HealthDrifted)
 }
@@ -80,7 +80,7 @@ func TestComputeShortCircuits(t *testing.T) {
 func TestComputeHealthy(t *testing.T) {
 	plan := activePlan(healthPolicy)
 	dyn := fakeDyn(kyvernoPolicy(healthPolicy, plan.ID, modeEnforce, true))
-	res, err := health.Compute(context.Background(), dyn, plan)
+	res, err := health.Compute(context.Background(), health.Deps{Dyn: dyn}, plan)
 	testutil.Equal(t, labelErr, err, nil)
 	testutil.Equal(t, labelHealth, res.Health, plans.HealthHealthy)
 	testutil.Equal(t, "policies", len(res.Policies), constants.DefaultAddValue)
@@ -91,7 +91,7 @@ func TestComputeHealthy(t *testing.T) {
 func TestComputeDegraded(t *testing.T) {
 	plan := activePlan(healthPolicy)
 	dyn := fakeDyn(kyvernoPolicy(healthPolicy, plan.ID, modeEnforce, false))
-	res, err := health.Compute(context.Background(), dyn, plan)
+	res, err := health.Compute(context.Background(), health.Deps{Dyn: dyn}, plan)
 	testutil.Equal(t, labelErr, err, nil)
 	testutil.Equal(t, labelHealth, res.Health, plans.HealthDegraded)
 }
@@ -100,7 +100,7 @@ func TestComputeDegraded(t *testing.T) {
 // missing.
 func TestComputeDriftedMissing(t *testing.T) {
 	plan := activePlan(healthPolicy)
-	res, err := health.Compute(context.Background(), fakeDyn(), plan)
+	res, err := health.Compute(context.Background(), health.Deps{Dyn: fakeDyn()}, plan)
 	testutil.Equal(t, labelErr, err, nil)
 	testutil.Equal(t, labelHealth, res.Health, plans.HealthDrifted)
 	testutil.Equal(t, "missing", len(res.Missing), constants.DefaultAddValue)
@@ -114,7 +114,7 @@ func TestComputeDriftedUnexpected(t *testing.T) {
 		kyvernoPolicy(healthPolicy, plan.ID, modeEnforce, true),
 		kyvernoPolicy(rogueName, plan.ID, modeEnforce, true),
 	)
-	res, err := health.Compute(context.Background(), dyn, plan)
+	res, err := health.Compute(context.Background(), health.Deps{Dyn: dyn}, plan)
 	testutil.Equal(t, labelErr, err, nil)
 	testutil.Equal(t, labelHealth, res.Health, plans.HealthDrifted)
 	testutil.Equal(t, "unexpected", len(res.Unexpected), constants.DefaultAddValue)

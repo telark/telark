@@ -34,6 +34,13 @@ func ResetApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if app, getErr := clients.NewExporterClient().GetApplicationByNameFresh(name); getErr != nil || app == nil {
+		responseutils.LogAndSendResponse(
+			w, http.StatusNotFound, response.OperationNotFound, string(constants.MsgApplicationNotFound), nil, getErr,
+		)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), constants.AppResetHandlerTimeout)
 	defer cancel()
 
@@ -192,17 +199,19 @@ func sendResetResponse(w http.ResponseWriter, name string) {
 }
 
 func deleteRedisByPatterns(ctx context.Context, rdb *redis.Client, appName string) {
+	// Exact keys or delimited prefixes only: `<app>*` also matched an app named `<app>-2`.
 	patterns := []string{
-		constants.ForceSyncStateKeyPrefix + appName + constants.Wildcard,
-		constants.KeyPrefixLockApp + appName + constants.Wildcard,
+		constants.ForceSyncStateKeyPrefix + appName,
+		constants.KeyPrefixLockApp + appName,
 		constants.KeyPrefixDedup + appName + constants.ColonSeparator + constants.Wildcard,
-		constants.KeyPrefixGraceScale + appName + constants.Wildcard,
-		constants.KeyPrefixIncidentState + appName + constants.Wildcard,
+		constants.KeyPrefixGraceScale + appName,
+		constants.KeyPrefixIncidentState + appName,
 		constants.KeyPrefixOpState + appName + constants.ColonSeparator + constants.Wildcard,
 		constants.KeyPrefixCoalesceBuffer + appName,
 		constants.KeyPrefixHistoryRecorded + appName,
 		constants.KeyPrefixHistoryPost + appName,
 		constants.KeyPrefixHistoryFloor + appName,
+		constants.KeyPrefixHistoryDeferred + appName,
 		constants.KeyPrefixSnapshotPending + appName,
 		constants.KeyPrefixLockGen + appName + constants.ColonSeparator + constants.Wildcard,
 		constants.ForceSyncDedupKeyPrefix + appName,

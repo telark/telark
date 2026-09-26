@@ -9,6 +9,7 @@ import (
 	"github.com/telark/auth/internal/constants"
 	"github.com/telark/auth/internal/helpers/shared"
 	authdata "github.com/telark/data/auth"
+	dataerrors "github.com/telark/data/errors"
 	userresource "github.com/telark/data/resources/user"
 	restshared "github.com/telark/rest/clients/shared"
 )
@@ -25,6 +26,9 @@ func GetUserWithErrorHandling(
 	if err != nil {
 		if errors.Is(err, restshared.ErrNotFound) {
 			return nil, errors.New(string(constants.ErrUserNotFound))
+		}
+		if errors.Is(err, restshared.ErrGone) {
+			return nil, errors.New(string(dataerrors.ErrAuthzUserNotActive))
 		}
 		lg.Error(fmt.Sprintf(string(constants.ErrFailedGetUser), shared.IdentityHash(identifier), err))
 		return nil, shared.ErrBackendUnavailable

@@ -2,10 +2,13 @@ package validation
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/telark/data/plans"
@@ -31,13 +34,27 @@ func IsValidation(err error) bool {
 	return errors.As(err, &target)
 }
 
+// ConflictError marks a request that clashes with existing state (a taken name), which is a
+// 409, not a malformed request.
+type ConflictError struct{ Msg string }
+
+func (e *ConflictError) Error() string { return e.Msg }
+
+func IsConflict(err error) bool {
+	var target *ConflictError
+	return errors.As(err, &target)
+}
+
 var (
 	ErrInvalidScope = Invalid("scope.type must be applications or namespaces")
 	ErrScopeUnion   = Invalid(
 		"scope.type=applications requires applicationIds; scope.type=namespaces requires namespaces",
 	)
-	ErrInvalidTimeRange = Invalid("timeRange.endAt must be after timeRange.startAt")
-	ErrPoliciesRequired = Invalid("at least one policy is required")
+	ErrInvalidTimeRange  = Invalid("timeRange.endAt must be after timeRange.startAt")
+	ErrTimeRangeRequired = Invalid("timeRange is required when timeMode is time_range")
+	ErrTimeRangeFormat   = Invalid("timeRange.startAt and timeRange.endAt must be RFC3339 timestamps")
+	ErrTimeRangeElapsed  = Invalid("timeRange.endAt is in the past; the plan window has already ended")
+	ErrPoliciesRequired  = Invalid("at least one policy is required")
 
 	ErrExclusionResourcesScope  = Invalid("scope.exclusions.resources is only allowed when scope.type=applications")
 	ErrExclusionKindInvalid     = Invalid("scope.exclusions.kinds entries must be non-empty base kinds without '/'")
@@ -66,6 +83,8 @@ const (
 	fmtInvalidApprovalMode  = "approvalMode must be one of %v"
 	fmtInvalidPriority      = "priority must be between %d and %d"
 	fmtExcludedNamespaces   = "namespaces are excluded from discovery: %v"
+	fmtPlatformNamespaces   = "namespaces are reserved by the platform and ignored by the policy engine: %v"
+	fmtDuplicateTemplate    = "template %q is listed more than once with different params"
 	fmtMissingNamespaces    = "namespaces not found in cluster: %v"
 	fmtDuplicateName        = "a protection plan named %q already exists"
 	fmtInvalidEnvironmentID = "environmentID must be at most %d characters"
@@ -75,6 +94,15 @@ const (
 
 	fmtTooManyExclusionKinds     = "scope.exclusions.kinds: at most %d"
 	fmtTooManyExclusionResources = "scope.exclusions.resources: at most %d"
+
+	// The pod's own namespace is the release namespace, which Kyverno's resourceFilters skip.
+	ownNamespaceFile = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+	policyKeySep     = "\x00"
+)
+
+var (
+	ownNamespaceOnce sync.Once
+	ownNamespace     string
 )
 
 var (
@@ -86,7 +114,8 @@ var (
 	allowedApprovalModes = []string{plans.ApprovalModeAutomatic, plans.ApprovalModeRequired}
 )
 
-func PrepareRequest(req *planseps.PrepareProtectionPlanRequest) error {
+func PrepareRequest(req *planseps.PrepareProtectionPlanRequest, now time.Time) error {
+	Normalize(req)
 	if err := Fields(req); err != nil {
 		return err
 	}
@@ -97,9 +126,39 @@ func PrepareRequest(req *planseps.PrepareProtectionPlanRequest) error {
 		return err
 	}
 	if req.TimeMode == plans.TimeModeTimeRange {
-		return TimeRange(req.TimeRange)
+		return TimeRangeOpen(req.TimeRange, now)
 	}
 	return nil
+}
+
+// Repeated targets or identical policies would render the same policy name twice.
+func Normalize(req *planseps.PrepareProtectionPlanRequest) {
+	req.Scope.Namespaces = dedupe(req.Scope.Namespaces)
+	req.Scope.ApplicationIDs = dedupe(req.Scope.ApplicationIDs)
+	seen := map[string]struct{}{}
+	req.Policies = slices.DeleteFunc(req.Policies, func(p planseps.PolicyRequest) bool {
+		key := p.TemplateID + policyKeySep + paramsKey(p.Params)
+		if _, dup := seen[key]; dup {
+			return true
+		}
+		seen[key] = struct{}{}
+		return false
+	})
+}
+
+func dedupe(items []string) []string {
+	if items == nil {
+		return nil
+	}
+	return slices.Compact(slices.Sorted(slices.Values(items)))
+}
+
+func paramsKey(params map[string]any) string {
+	raw, err := json.Marshal(params)
+	if err != nil {
+		return constants.EmptyString
+	}
+	return string(raw)
 }
 
 // Mirrors the CRD schema so a rejected plan never reaches the Kyverno deploy.
@@ -206,15 +265,16 @@ func invalidExcludedResource(r plans.ProtectionPlanExcludedResource) bool {
 
 type NamespaceLister func(ctx context.Context) ([]string, error)
 
-// NamespaceScope fails closed: a namespace discovery ignores can never be covered
-// by a plan, so it is rejected at the edge instead of silently protecting nothing.
-// A namespace absent from the cluster is a caller error, not the transient apply
-// failure it would otherwise surface as.
+// Fails closed: an excluded namespace can never be covered, and a missing one is a caller error,
+// so both are rejected at the edge instead of silently protecting nothing or failing at apply.
 func NamespaceScope(ctx context.Context, scopeType string, namespaces []string, list NamespaceLister) error {
 	if scopeType != plans.ScopeTypeNamespaces {
 		return nil
 	}
 	if err := ExcludedNamespaces(namespaces, globalconfig.FetchExcludedNamespaces(ctx)); err != nil {
+		return err
+	}
+	if err := PlatformNamespaces(namespaces, OwnNamespace()); err != nil {
 		return err
 	}
 	if list == nil {
@@ -247,6 +307,34 @@ func ExcludedNamespaces(namespaces, excluded []string) error {
 	return nil
 }
 
+func PlatformNamespaces(namespaces []string, own string) error {
+	if own != constants.EmptyString && slices.Contains(namespaces, own) {
+		return Invalidf(fmtPlatformNamespaces, []string{own})
+	}
+	return nil
+}
+
+// Empty outside a cluster, which disables the check rather than failing every plan.
+func OwnNamespace() string {
+	ownNamespaceOnce.Do(func() {
+		raw, err := os.ReadFile(ownNamespaceFile)
+		if err == nil {
+			ownNamespace = strings.TrimSpace(string(raw))
+		}
+	})
+	return ownNamespace
+}
+
+// Namespaces the policy engine never evaluates: a plan targeting them would look healthy while
+// enforcing nothing.
+func IgnoredNamespaces(ctx context.Context) []string {
+	ignored := slices.Clone(globalconfig.FetchExcludedNamespaces(ctx))
+	if own := OwnNamespace(); own != constants.EmptyString {
+		ignored = append(ignored, own)
+	}
+	return ignored
+}
+
 func NormalizeName(name string) string {
 	return strings.ToLower(strings.TrimSpace(name))
 }
@@ -258,7 +346,7 @@ func UniqueName(existing []plans.ProtectionPlan, name, excludeID string) error {
 			continue
 		}
 		if NormalizeName(existing[i].Name) == wanted {
-			return Invalidf(fmtDuplicateName, strings.TrimSpace(name))
+			return &ConflictError{Msg: fmt.Sprintf(fmtDuplicateName, strings.TrimSpace(name))}
 		}
 	}
 	return nil
@@ -267,6 +355,9 @@ func UniqueName(existing []plans.ProtectionPlan, name, excludeID string) error {
 func Policies(items []planseps.PolicyRequest, scopeType string) error {
 	if len(items) == constants.DefaultInitValue {
 		return ErrPoliciesRequired
+	}
+	if err := DuplicateTemplates(items); err != nil {
+		return err
 	}
 	for _, p := range items {
 		tpl, ok := plans.GetTemplate(p.TemplateID)
@@ -283,6 +374,17 @@ func Policies(items []planseps.PolicyRequest, scopeType string) error {
 	return nil
 }
 
+// Params are not part of the policy name, so two entries of one template would render the same
+// name and the second would silently overwrite the first.
+func DuplicateTemplates(items []planseps.PolicyRequest) error {
+	for i, p := range items {
+		if slices.ContainsFunc(items[:i], func(o planseps.PolicyRequest) bool { return o.TemplateID == p.TemplateID }) {
+			return Invalidf(fmtDuplicateTemplate, p.TemplateID)
+		}
+	}
+	return nil
+}
+
 func TemplateSupports(tpl *plans.Template, scopeType string) bool {
 	return slices.ContainsFunc(tpl.SupportedScopes, func(s plans.ScopeSupport) bool {
 		return string(s) == scopeType
@@ -291,12 +393,27 @@ func TemplateSupports(tpl *plans.Template, scopeType string) bool {
 
 func TimeRange(tr *planseps.TimeRangeRequest) error {
 	if tr == nil {
-		return ErrInvalidTimeRange
+		return ErrTimeRangeRequired
 	}
 	start, errStart := time.Parse(time.RFC3339, tr.StartAt)
 	end, errEnd := time.Parse(time.RFC3339, tr.EndAt)
-	if errStart != nil || errEnd != nil || !end.After(start) {
+	if errStart != nil || errEnd != nil {
+		return ErrTimeRangeFormat
+	}
+	if !end.After(start) {
 		return ErrInvalidTimeRange
+	}
+	return nil
+}
+
+// A window that has already ended would activate and terminate on the next tick.
+func TimeRangeOpen(tr *planseps.TimeRangeRequest, now time.Time) error {
+	if err := TimeRange(tr); err != nil {
+		return err
+	}
+	end, _ := time.Parse(time.RFC3339, tr.EndAt)
+	if !end.After(now) {
+		return ErrTimeRangeElapsed
 	}
 	return nil
 }

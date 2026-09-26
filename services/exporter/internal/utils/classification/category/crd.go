@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 
 	metadata "github.com/telark/data/metadata/classification"
 	"github.com/telark/exporter/internal/constants"
@@ -78,18 +79,11 @@ func UpdateCategoryInCRD(categoryID string, updatedCategory map[string]any) erro
 		return err
 	}
 
-	found := false
-	for i, cat := range categories {
-		if id, ok := cat[constants.FieldID].(string); ok && id == categoryID {
-			categories[i] = updatedCategory
-			found = true
-			break
-		}
-	}
-
-	if !found {
+	i := slices.IndexFunc(categories, hasID(categoryID))
+	if i < constants.DefaultInitValue {
 		return errors.New(string(constants.ErrCategoryNotFound))
 	}
+	categories[i] = updatedCategory
 
 	return UpdateCategoriesInCRD(categories)
 }
@@ -105,19 +99,10 @@ func DeleteCategoryFromCRD(categoryID string) error {
 		return err
 	}
 
-	found := false
-	newCategories := make([]map[string]any, constants.DefaultInitValue, len(categories))
-	for _, cat := range categories {
-		if id, ok := cat[constants.FieldID].(string); ok && id == categoryID {
-			found = true
-			continue
-		}
-		newCategories = append(newCategories, cat)
-	}
-
-	if !found {
+	remaining := slices.DeleteFunc(categories, hasID(categoryID))
+	if len(remaining) == len(categories) {
 		return errors.New(string(constants.ErrCategoryNotFound))
 	}
 
-	return UpdateCategoriesInCRD(newCategories)
+	return UpdateCategoriesInCRD(remaining)
 }

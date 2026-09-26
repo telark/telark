@@ -7,6 +7,8 @@ import (
 
 const (
 	SystemActor              = "system"
+	KeyPrefixLockPlanName    = "lock:plan-name:"
+	fmtWrappedErr            = "%w: %v"
 	ReasonCanceledByUser     = "Canceled by user."
 	ReasonExpired            = "Plan window ended."
 	QueryParamLimit          = "limit"
@@ -47,11 +49,13 @@ const (
 	LogPlanParked            = "protection-plan awaiting approval plan=%s requestedBy=%s"
 	LogActivateSkippedStale  = "protection-plan activate skipped plan=%s phase=%s (no longer activatable)"
 	LogStaleDeleteFailed     = "protection-plan update stale delete failed plan=%s err=%v"
+	LogCleanupFailed         = "protection-plan %s cleanup failed plan=%s err=%v"
 )
 
 const (
 	ErrUserMissing            errors.Error = "X-User-ID header is required"
 	ErrMissingApplications    errors.Error = "applications not found: %v"
+	ErrIgnoredApplications    errors.Error = "applications live only in namespaces the policy engine ignores: %v"
 	ErrCancelInvalidPhase     errors.Error = "plan in phase %q cannot be canceled"
 	ErrReactivateInvalidPhase errors.Error = "plan in phase %q cannot be reactivated"
 	ErrReactivateExpired      errors.Error = "plan time range has fully elapsed;" +
@@ -73,5 +77,6 @@ const (
 	ErrApprovedPlanMaterialEdit    errors.Error = "an approved plan cannot be materially edited;" +
 		" duplicate the plan, or cancel and reactivate it to re-request approval"
 	ErrPlanDecisionInFlight        errors.Error = "a decision on this plan is already in progress; retry shortly"
+	ErrPlanNameInFlight            errors.Error = "a plan with this name is being created or renamed; retry shortly"
 	ErrPlanCoordinationUnavailable errors.Error = "plan coordination unavailable"
 )

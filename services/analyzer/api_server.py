@@ -33,7 +33,6 @@ from constants import (
     API_ERROR_INVALID_REQUEST,
     API_ERROR_QUEUE_FULL,
     APP_KEY_SEPARATOR,
-    APP_REF_TEMPLATE,
     APPS_SEPARATOR,
     CORS_ALLOWED_HEADERS,
     CORS_ALLOWED_METHODS,
@@ -126,7 +125,6 @@ ROUTE_REQUIREMENTS: dict[tuple[str, str], tuple[tuple[str, str, str | None], ...
     (METHOD_POST, TRIAGE_PATH): ((SCOPE_INSIGHTS, PERMISSION_LEVEL_CONTRIBUTOR, ACTION_TRIAGE_INSIGHTS),),
 }
 
-# TriageError code -> HTTP status.
 _TRIAGE_STATUS = {
     TRIAGE_ERROR_NOT_FOUND: status.HTTP_404_NOT_FOUND,
     TRIAGE_ERROR_INVALID: status.HTTP_409_CONFLICT,
@@ -157,6 +155,10 @@ def envelope(status_code: int, data: BaseModel | dict | None = None, message: st
 
 def _error(status_code: int, code: str) -> JSONResponse:
     return envelope(status_code, {ENVELOPE_CODE: code})
+
+
+def _valid_app(namespace: str, name: str) -> bool:
+    return bool(re.fullmatch(DNS1123_LABEL_PATTERN, namespace) and re.fullmatch(DNS1123_LABEL_PATTERN, name))
 
 
 def parse_apps(raw: str, excluded: list[str]) -> set[str]:
@@ -224,11 +226,8 @@ async def _analyze(state, namespace: str, name: str) -> JSONResponse:
         logger.warning(LOG_QUEUED_NOT_STAMPED, type(e).__name__)
     else:
         if wrote:
-            state.broadcaster.publish(
-                EVENT_ANALYSIS_QUEUED,
-                APP_REF_TEMPLATE.format(namespace=namespace, name=name),
-                dict(runId=run_id, trigger=TRIGGER_MANUAL, version=doc.version),
-            )
+            state.broadcaster.publish(EVENT_ANALYSIS_QUEUED, app_ref(namespace, name),
+                                      dict(runId=run_id, trigger=TRIGGER_MANUAL, version=doc.version))
     return envelope(status.HTTP_202_ACCEPTED, AnalyzeResponse(runId=run_id, status=RUN_STATUS_QUEUED))
 
 
@@ -312,7 +311,7 @@ def create_app(
 
     @app.post(ANALYZE_PATH, dependencies=guard(METHOD_POST, ANALYZE_PATH))
     async def analyze(namespace: str, name: str) -> JSONResponse:
-        if not (re.fullmatch(DNS1123_LABEL_PATTERN, namespace) and re.fullmatch(DNS1123_LABEL_PATTERN, name)):
+        if not _valid_app(namespace, name):
             return _error(status.HTTP_400_BAD_REQUEST, API_ERROR_INVALID_APP)
         try:
             return await _analyze(app.state, namespace, name)
@@ -323,7 +322,7 @@ def create_app(
     @app.post(TRIAGE_PATH, dependencies=guard(METHOD_POST, TRIAGE_PATH))
     async def triage(namespace: str, name: str, id: str, body: TriageRequest,
                      user_id: str | None = Depends(guards[(METHOD_POST, TRIAGE_PATH)])) -> JSONResponse:
-        if not (re.fullmatch(DNS1123_LABEL_PATTERN, namespace) and re.fullmatch(DNS1123_LABEL_PATTERN, name)):
+        if not _valid_app(namespace, name):
             return _error(status.HTTP_400_BAD_REQUEST, API_ERROR_INVALID_APP)
         try:
             return await _triage(app.state, namespace, name, id, body.action, user_id or "")

@@ -1,8 +1,8 @@
 """Model runtime state: the one place that probes Ollama and pulls models.
 
 check() never pulls. start_pull has exactly two callers: ensure_model (the
-worker's run path and the config poll) and the runtime/pull route. Every change of state, model or
-reason publishes runtime.changed.
+worker's run path and the config poll) and the runtime/pull route. Every change of state, model,
+reason or enabled publishes runtime.changed.
 """
 
 from __future__ import annotations
@@ -72,14 +72,24 @@ class Runtime:
     def pulling(self) -> bool:
         return self.pull_task is not None and not self.pull_task.done()
 
+    def _publish_changed(self) -> None:
+        s = self.status
+        # The UI replaces its runtime object with this payload, so it carries every status field.
+        self._events.publish(EVENT_RUNTIME_CHANGED, "", dict(
+            state=s.state, model=s.model, reason=s.reason, mode=s.mode, autoPull=s.autoPull, enabled=s.enabled))
+
     def _set(self, state: str, model: str, reason: str) -> str:
         s = self.status
         if (s.state, s.model, s.reason) != (state, model, reason):
             s.state, s.model, s.reason = state, model, reason
-            # The UI replaces its runtime object with this payload, so it carries every status field.
-            self._events.publish(EVENT_RUNTIME_CHANGED, "", dict(
-                state=state, model=model, reason=reason, mode=s.mode, autoPull=s.autoPull))
+            self._publish_changed()
         return state
+
+    def set_enabled(self, enabled: bool) -> None:
+        """GlobalConfig ai.enabled, for the users who may read the runtime but not the settings."""
+        if self.status.enabled != enabled:
+            self.status.enabled = enabled
+            self._publish_changed()
 
     async def _probe(self, model: str) -> tuple[str, str, list[str]]:
         """(state, reason, capabilities); a pull's error stays the reason while its model is missing."""

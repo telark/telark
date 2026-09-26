@@ -201,14 +201,6 @@ func userHandle(userID string) string {
 	return fmt.Sprintf(constants.UserHandleFormat, userID, suffix[:maxSuffixLen])
 }
 
-func ExtractBaseUserID(uniqueUserHandle string) string {
-	parts := strings.Split(uniqueUserHandle, constants.ColonSeparator)
-	if len(parts) > constants.DefaultInitValue {
-		return parts[constants.DefaultInitValue]
-	}
-	return uniqueUserHandle
-}
-
 func StartRegistration(
 	userID, username, fullname string,
 	existingCredentials []webauthn.Credential,

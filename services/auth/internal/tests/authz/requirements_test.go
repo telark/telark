@@ -95,6 +95,33 @@ func TestOIDCConfigRequiresAdmin(t *testing.T) {
 	}
 }
 
+// The cleanup handler deletes through the exporter with the service token, which
+// the exporter's guard waves through, so the delete deny rules only bite here.
+func TestCleanupDeletesHonourDenyRules(t *testing.T) {
+	cases := []struct {
+		endpoint      base.Endpoint
+		scope, action string
+	}{
+		{autheps.DeleteUserCleanup, roledata.ScopeUsers, roledata.ActionDeleteUser},
+		{autheps.DeleteGroupCleanup, roledata.ScopeGroups, roledata.ActionDeleteGroup},
+		{autheps.DeleteRoleCleanup, roledata.ScopeRoles, roledata.ActionDeleteRole},
+	}
+	requirements := authz.Requirements()
+	for _, c := range cases {
+		key := router.Key(base.Delete, c.endpoint)
+		requirement, found := requirements[key]
+		if !found {
+			t.Fatalf("no requirement for %q", key)
+		}
+		if requirement.Scope != c.scope || requirement.MinLevel != roledata.PermissionLevelOwner {
+			t.Errorf("%s: scope/level = %q/%q, want %q/Owner", key, requirement.Scope, requirement.MinLevel, c.scope)
+		}
+		if want := xauthz.RuleKey(c.scope, c.action); requirement.Rule != want {
+			t.Errorf("%s: rule = %q, want %q", key, requirement.Rule, want)
+		}
+	}
+}
+
 func TestScopedRequirementsAreComplete(t *testing.T) {
 	for key, requirement := range authz.Requirements() {
 		if requirement.Access != xauthz.AccessScoped {

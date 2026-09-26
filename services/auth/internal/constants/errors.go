@@ -7,7 +7,6 @@ const (
 	ErrInternalServerError errors.Error = "internal server error"
 
 	// Authentication Errors
-	ErrInvalidUsername        errors.Error = "invalid username"
 	ErrInvalidEmail           errors.Error = "invalid email"
 	ErrUserNotFound           errors.Error = "user not found"
 	ErrUserAlreadyHasPasskeys errors.Error = "user already has passkeys. please login first"
@@ -73,6 +72,11 @@ const (
 	ErrBootstrapNoAdminsAndNoSelfReg errors.Error = "bootstrap config must have at least one admin when self-registration is disabled"
 	ErrSelfRegistrationDisabled      errors.Error = "self-registration is disabled. contact your administrator"
 
+	// User Deletion Errors
+	ErrCleanupSelfDelete          errors.Error = "you cannot delete your own account"
+	ErrCleanupBootstrapManaged    errors.Error = "this user is managed by the chart and cannot be deleted"
+	ErrCleanupAdminNeedsBootstrap errors.Error = "only a bootstrap administrator can delete an administrator"
+
 	// Validation Errors
 	ErrMissingRequiredFields         errors.Error = "credentialId, publicKey, deviceName and deviceType are required"
 	ErrFailedGetConfig               errors.Error = "failed to get config: %v"
@@ -102,7 +106,6 @@ const (
 	ErrFailedDecodeExpectedChallenge          errors.Error = "failed to decode expected challenge: %v"
 	ErrChallengeMismatch                      errors.Error = "challenge mismatch"
 	ErrMissingOriginInClientData              errors.Error = "missing origin in clientDataJSON"
-	ErrUserAlreadyHasPasskeysPleaseLoginFirst errors.Error = "user already has passkeys. please login first"
 
 	// OIDC Errors
 	ErrOIDCNotConfigured         errors.Error = "OIDC is not configured"
@@ -132,6 +135,7 @@ const (
 	ErrOIDCJWKSCacheFailed       errors.Error = "failed to cache JWKS in Redis: %v"
 	ErrOIDCJWKSBadStatus         errors.Error = "JWKS endpoint returned status %d"
 	ErrOIDCTokenInvalidDetail    errors.Error = "token invalid"
+	ErrOIDCEmailAmbiguous        errors.Error = "more than one user holds this email; contact your administrator"
 
 	// Redis Errors
 	ErrRedisClientUnavailable errors.Error = "redis client is not available — check REDIS_HOST and REDIS_PORT"

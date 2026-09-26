@@ -2,10 +2,13 @@ package oidc
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	globalconfigresource "github.com/telark/data/resources/globalconfig"
+	userresource "github.com/telark/data/resources/user"
 
+	oidchandler "github.com/telark/auth/internal/handlers/oidc"
 	"github.com/telark/auth/internal/helpers/oidc"
 	redishelper "github.com/telark/auth/internal/helpers/redis"
 	"github.com/telark/auth/internal/tests/testutil"
@@ -49,6 +52,35 @@ func TestValidate(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			testutil.Equal(t, "err", oidc.Validate(c.cfg) != nil, c.wantErr)
+		})
+	}
+}
+
+// A Google identity is attached by email only when exactly one user carries it;
+// two candidates refuse rather than bind the identity to whichever came first.
+func TestUserForEmail(t *testing.T) {
+	const email = "jane.doe@example.com"
+	jane := &userresource.UserAsResource{ID: "u-1", Email: email}
+	twin := &userresource.UserAsResource{ID: "u-2", Email: "Jane.Doe@example.com"}
+	other := &userresource.UserAsResource{ID: "u-3", Email: "other@example.com"}
+
+	cases := []struct {
+		name    string
+		users   []*userresource.UserAsResource
+		want    *userresource.UserAsResource
+		wantErr error
+	}{
+		{"none", []*userresource.UserAsResource{other, nil}, nil, nil},
+		{"one, case-insensitive", []*userresource.UserAsResource{other, twin}, twin, nil},
+		{"two", []*userresource.UserAsResource{jane, twin, other}, nil, oidchandler.ErrEmailAmbiguous},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := oidchandler.UserForEmail(c.users, email)
+			if !errors.Is(err, c.wantErr) {
+				t.Fatalf("err = %v, want %v", err, c.wantErr)
+			}
+			testutil.Equal(t, "user", got, c.want)
 		})
 	}
 }

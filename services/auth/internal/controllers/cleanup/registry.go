@@ -2,8 +2,11 @@ package cleanup
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 
 	authclients "github.com/telark/auth/internal/clients"
+	"github.com/telark/auth/internal/constants"
 	"github.com/telark/data/resources/finalizers"
 	resourcesshared "github.com/telark/data/resources/shared"
 	"github.com/telark/rest/response"
@@ -100,4 +103,24 @@ func removeGroupFinalizer(_ context.Context, id, name string) *response.GenericR
 
 func removeRoleFinalizer(_ context.Context, id, name string) *response.GenericResponse {
 	return authclients.GetRoleClient().RemoveFinalizer(id, name)
+}
+
+// A session already gone counts as purged; any other failure requeues the job.
+func purgeUserSessions(userID string) error {
+	client := authclients.GetSessionClient()
+	refs, err := client.ListSessionRefsByUser(userID)
+	if err != nil {
+		return fmt.Errorf(string(constants.ErrCleanupListSessionsFailed), userID, err)
+	}
+	for _, ref := range refs {
+		resp := client.DeleteSessionByToken(ref)
+		if resp == nil || (resp.Status != http.StatusOK && resp.Status != http.StatusNotFound) {
+			status := constants.DefaultInitValue
+			if resp != nil {
+				status = resp.Status
+			}
+			return fmt.Errorf(string(constants.ErrCleanupDeleteSessionFailed), userID, ref, status)
+		}
+	}
+	return nil
 }

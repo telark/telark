@@ -110,8 +110,10 @@ func addCategories(r map[string]authz.Requirement) {
 	r[router.Key(base.Delete, categoryendpoints.DeleteCategoryByID)] = authz.Authenticated
 }
 
+// Applications are discovered, not authored: the notifier creates them and
+// users delete through discovery's reset, which also purges its Redis state.
 func addApplications(r map[string]authz.Requirement) {
-	r[router.Key(base.Post, applicationendpoints.CreateApplication)] = authz.Write(roledata.ScopeApplications)
+	r[router.Key(base.Post, applicationendpoints.CreateApplication)] = authz.Internal
 	r[router.Key(base.Get, applicationendpoints.GetAllApplications)] = authz.Read(roledata.ScopeApplications)
 	r[router.Key(base.Get, applicationendpoints.GetApplicationByName)] = authz.Read(roledata.ScopeApplications)
 	r[router.Key(base.Get, applicationendpoints.GetRollbacks)] = authz.Denyable(
@@ -123,25 +125,28 @@ func addApplications(r map[string]authz.Requirement) {
 	r[router.Key(base.Patch, applicationendpoints.PatchApplicationByName)] = authz.Denyable(
 		authz.Write(roledata.ScopeApplications), roledata.ActionEditApplication,
 	)
-	r[router.Key(base.Delete, applicationendpoints.DeleteApplicationByName)] = authz.Denyable(
-		authz.Own(roledata.ScopeApplications), roledata.ActionDeleteApplication,
-	)
+	r[router.Key(base.Delete, applicationendpoints.DeleteApplicationByName)] = authz.Internal
 }
 
-// Snapshots are taken of applications, so they follow the applications scope.
+// Snapshots are taken of applications, so reads follow the applications scope;
+// only discovery writes or discards them.
 func addSnapshots(r map[string]authz.Requirement) {
-	r[router.Key(base.Post, snapshotendpoints.CreateSnapshot)] = authz.Write(roledata.ScopeApplications)
+	r[router.Key(base.Post, snapshotendpoints.CreateSnapshot)] = authz.Internal
 	r[router.Key(base.Get, snapshotendpoints.GetSnapshot)] = authz.Denyable(
 		authz.Read(roledata.ScopeApplications), roledata.ActionViewApplicationsSnapshots,
 	)
 	r[router.Key(base.Get, snapshotendpoints.GetSnapshotInfos)] = authz.Denyable(
 		authz.Read(roledata.ScopeApplications), roledata.ActionViewApplicationsSnapshots,
 	)
-	r[router.Key(base.Get, snapshotendpoints.GetSnapshotManifest)] = authz.Denyable(
-		authz.Read(roledata.ScopeApplications), roledata.ActionViewApplicationSnapshotManifest,
-	)
-	r[router.Key(base.Delete, snapshotendpoints.DeleteSnapshot)] = authz.Own(roledata.ScopeApplications)
+	r[router.Key(base.Get, snapshotendpoints.GetSnapshotManifest)] = snapshotManifestView
+	r[router.Key(base.Delete, snapshotendpoints.DeleteSnapshot)] = authz.Internal
 }
+
+// The snapshot body carries the manifests too, so GuardSnapshotManifestView
+// holds its GET route to this same rule.
+var snapshotManifestView = authz.Denyable(
+	authz.Read(roledata.ScopeApplications), roledata.ActionViewApplicationSnapshotManifest,
+)
 
 // Reports are written by discovery at a plan boundary; users read them under
 // the plan scope, and listing and downloading can each be withheld.

@@ -36,15 +36,18 @@ func TestNormalizeApplicationSnapshotTakenAt(t *testing.T) {
 }
 
 // Merge concatenates, orders by (generation, namespace) and keeps only the most
-// recent maxVersions entries.
+// recent maxVersions generations, every namespace of each: pruning by file left
+// a multi-namespace generation half present and a rollback restored one namespace.
 func TestMergeSnapshots(t *testing.T) {
 	existing := []appresource.ApplicationSnapshot{
 		{Generation: constants.DefaultAddValue, Namespace: entryA}, {Generation: constants.TwoValue, Namespace: entryB},
+		{Generation: constants.TwoValue, Namespace: entryA},
 	}
 	fresh := []appresource.ApplicationSnapshot{{Generation: constants.ThreeValue, Namespace: "c"}}
 	merged := snapshot.MergeSnapshots(existing, fresh, constants.TwoValue)
-	testutil.Equal(t, "capped", len(merged), constants.TwoValue)
-	testutil.Equal(t, "oldest dropped", merged[0].Generation, constants.TwoValue)
+	testutil.Equal(t, "two generations kept", len(merged), constants.ThreeValue)
+	testutil.Equal(t, "oldest generation dropped", merged[0].Generation, constants.TwoValue)
+	testutil.Equal(t, "generation kept whole", len(snapshot.NamespacesForGeneration(merged, constants.TwoValue)), constants.TwoValue)
 }
 
 // Namespaces for a generation are unique and sorted; a non-positive generation

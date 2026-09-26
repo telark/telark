@@ -11,10 +11,8 @@ import (
 	globalconfigresource "github.com/telark/data/resources/globalconfig"
 )
 
-// Validated here rather than at the exporter: reaching the provider and parsing its
-// keys is this service's job, and a config that cannot authenticate anyone must not
-// reach storage. The exporter's guard is bypassed on this hop because the call
-// carries the service token, so the route requirement is what enforces Admin.
+// Validated here, not at the exporter: a config that cannot authenticate anyone must not
+// reach storage, and this hop carries the service token so the route requirement enforces Admin.
 func SetConfig(w http.ResponseWriter, r *http.Request) {
 	var req globalconfigresource.OIDCConfig
 	if err := shared.DecodeRequestBody(r, &req); err != nil {

@@ -69,8 +69,9 @@ def test_each_transition_publishes_once():
     assert [name for name, _ in events] == ["runtime.changed"] * len(states)
     assert [data["state"] for _, data in events] == states
     assert events[0][1] == {"state": "absent", "model": MODEL, "reason": "ConnectError", "mode": "deep",
-                            "autoPull": True}
-    assert events[-1][1] == {"state": "ready", "model": MODEL, "reason": "", "mode": "deep", "autoPull": True}
+                            "autoPull": True, "enabled": False}
+    assert events[-1][1] == {"state": "ready", "model": MODEL, "reason": "", "mode": "deep", "autoPull": True,
+                             "enabled": False}
     assert rt.status.model == MODEL
     # check never pulls.
     assert fake.count("/api/pull") == 0
@@ -267,7 +268,8 @@ def test_status_carries_mode_and_autopull(monkeypatch):
         return rt.status.model_dump()
 
     before, _, _ = _run(FakeOllama(), scenario, mode="fast")
-    assert before == {"state": "unreachable", "model": "", "reason": "", "mode": "fast", "autoPull": False}
+    assert before == {"state": "unreachable", "model": "", "reason": "", "mode": "fast", "autoPull": False,
+                      "enabled": False}
 
 
 def test_runtime_changed_carries_mode_and_autopull():
@@ -283,6 +285,20 @@ def test_runtime_changed_carries_mode_and_autopull():
     assert [d["state"] for d in changed] == ["model_missing", "pulling", "ready"]
     # The UI replaces its runtime object with this payload: without them the fields would vanish.
     assert all((d["mode"], d["autoPull"]) == ("fast", True) for d in changed)
+
+
+def test_enabled_change_publishes_once():
+    async def scenario(rt):
+        rt.set_enabled(True)
+        rt.set_enabled(True)
+        rt.set_enabled(False)
+        return rt.status.enabled
+
+    enabled, _, events = _run(FakeOllama(), scenario, mode="fast")
+    assert enabled is False
+    assert [(name, data["enabled"]) for name, data in events] == [("runtime.changed", True),
+                                                                  ("runtime.changed", False)]
+    assert events[0][1]["mode"] == "fast"
 
 
 def test_validate_fast_ok_without_tools():

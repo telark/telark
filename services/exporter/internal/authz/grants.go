@@ -21,6 +21,13 @@ import (
 // calling its own API back over the network.
 type crdSource struct{}
 
+var source authz.GrantSource = crdSource{}
+
+// Tests have no apiserver; nothing else swaps the source.
+func UseGrantSource(s authz.GrantSource) {
+	source = s
+}
+
 func (crdSource) User(userID string) (*userdata.UserAsResource, error) {
 	return decode[userdata.UserAsResource](getByName(userID, metadata.UserAsResourceMetadata))
 }
@@ -53,10 +60,13 @@ func getByName(name string, md base.Metadata) (*unstructured.Unstructured, error
 	return resource, nil
 }
 
+// Deletion is held open by the cleanup finalizer, so the record still reads;
+// CollectGrants sees the projected timestamp and treats the record as gone.
 func decode[T any](resource *unstructured.Unstructured, err error) (*T, error) {
 	if err != nil {
 		return nil, err
 	}
+	sharedutils.ProjectDeletionTimestamp(resource)
 	return sharedutils.UnstructuredToStruct[T](
 		resource,
 		dataerrors.ErrGetRes,
@@ -66,5 +76,5 @@ func decode[T any](resource *unstructured.Unstructured, err error) (*T, error) {
 }
 
 func collectGrants(userID string) (authz.Grants, error) {
-	return authz.CollectGrants(crdSource{}, lg, userID)
+	return authz.CollectGrants(source, lg, userID)
 }

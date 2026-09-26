@@ -48,8 +48,27 @@ func CreateCategoryResourceWithCacheInvalidation(optimizer *performance.Optimize
 			return
 		}
 
+		if !rejectBuiltinType(w, string(category.Type)) {
+			return
+		}
+
 		createCategoryResource(w, category, optimizer)
 	}
+}
+
+func rejectBuiltinType(w http.ResponseWriter, categoryType string) bool {
+	if categoryType != string(categorydata.CategoryTypeBuiltIn) {
+		return true
+	}
+	responseutils.LogAndSendResponse(
+		w,
+		http.StatusBadRequest,
+		response.OperationError,
+		string(constants.ErrCategoryBuiltInTypeReserved),
+		nil,
+		nil,
+	)
+	return false
 }
 
 func createCategoryResource(w http.ResponseWriter, category *categorydata.Category, optimizer *performance.Optimizer) {
@@ -64,6 +83,10 @@ func createCategoryResource(w http.ResponseWriter, category *categorydata.Catego
 	lock := concurrency.GetLock(constants.CategoriesCRDName)
 	lock.Lock()
 	defer lock.Unlock()
+
+	if !categoryutils.EnsureNameAvailable(w, category.Scope, category.Name, category.ID) {
+		return
+	}
 
 	if err := categoryutils.AddCategoryToCRD(categoryMap); err != nil {
 		responseutils.LogAndSendResponse(
@@ -182,6 +205,12 @@ func patchCategoryResource(
 	lock.Lock()
 	defer lock.Unlock()
 
+	scope := categoryutils.StringField(updatedCategory, constants.FieldScope)
+	name := categoryutils.StringField(updatedCategory, constants.FieldName)
+	if !categoryutils.EnsureNameAvailable(w, scope, name, categoryID) {
+		return
+	}
+
 	if err := categoryutils.UpdateCategoryInCRD(categoryID, updatedCategory); err != nil {
 		responseutils.LogAndSendResponse(
 			w,
@@ -229,10 +258,11 @@ func PatchCategoryByIDWithCacheInvalidation(optimizer *performance.Optimizer) fu
 			return
 		}
 
-		var newScope string
-		if scope, ok := body[constants.FieldScope].(string); ok {
-			newScope = scope
+		if !rejectBuiltin(w, categoryID) || !rejectBuiltinType(w, categoryutils.StringField(body, constants.FieldType)) {
+			return
 		}
+
+		newScope := categoryutils.StringField(body, constants.FieldScope)
 
 		// Moving a category between scopes needs the same right on the scope it
 		// is moving into, or it would be a way to write into a scope the caller
@@ -251,6 +281,22 @@ func PatchCategoryByIDWithCacheInvalidation(optimizer *performance.Optimizer) fu
 	}
 }
 
+// The UI hides edit and delete for built-ins; the seed restores them anyway.
+func rejectBuiltin(w http.ResponseWriter, categoryID string) bool {
+	if !categoryutils.IsBuiltinCategory(categoryID) {
+		return true
+	}
+	responseutils.LogAndSendResponse(
+		w,
+		http.StatusBadRequest,
+		response.OperationError,
+		string(constants.ErrCategoryBuiltInImmutable),
+		nil,
+		nil,
+	)
+	return false
+}
+
 func DeleteCategoryByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		categoryID, err := sharedutils.GetPathParam(w, r, constants.IDParam)
@@ -264,6 +310,10 @@ func DeleteCategoryByIDWithCacheInvalidation(optimizer *performance.Optimizer) f
 		}
 
 		if !authz.GuardCategoryScope(w, r, deletedScope, constants.CategoryOpDelete) {
+			return
+		}
+
+		if !rejectBuiltin(w, categoryID) {
 			return
 		}
 

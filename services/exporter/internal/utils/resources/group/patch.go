@@ -18,6 +18,7 @@ func GetExistingGroupForPatch(w http.ResponseWriter, groupID string) (*groupdata
 		return nil, false
 	}
 
+	sharedutils.ProjectDeletionTimestamp(existingResource)
 	existingGroup, err := ExtractGroupFromUnstructured(existingResource)
 	if err != nil {
 		responseutils.LogAndSendResponse(

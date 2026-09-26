@@ -97,7 +97,8 @@ Protection plan create/patch refuse (403) lifecycle, approval and material keys 
 session identities; only Internal callers (discovery) may write them: `approvalMode`,
 `approval`, `phase`, `renderedPolicies`, `startedAt`, `startedBy`, `terminatedAt`,
 `terminatedBy`, `reason`, `health`, `healthCheckedAt`, `healthDetail`, `policies`, `scope` (including its nested
-`exclusions`), `mode`, `timeMode`, `timeRange`. This keeps approval (`pending_approval`) and phase changes
+`exclusions`), `mode`, `timeMode`, `timeRange`, `name` (renames go through discovery's `update`, which keeps
+names unique). This keeps approval (`pending_approval`) and phase changes
 on discovery's gated routes.
 
 Protection plan routes (`{id}` = plan name). Deny rules are `protection-plans.<action>.deny`
@@ -126,7 +127,71 @@ Downloads carry `X-Content-Type-Options: nosniff` and `Content-Security-Policy: 
 
 Environment and tag categories (`plan-environments`, `plan-tags`) follow the `protection-plans`
 scope: create needs Contributor (deny `addprotectionplancategory`), edit and delete need Owner
-(deny `editprotectionplancategory` / `deleteprotectionplancategory`).
+(deny `editprotectionplancategory` / `deleteprotectionplancategory`). For every category scope,
+built-in categories cannot be patched or deleted and `type: built-in` cannot be set (400); a name
+already used in the scope, compared trimmed and case-insensitively, is refused (409).
+
+Applications and snapshots: `POST resources/applications/create`, `DELETE resources/applications/{name}/delete`,
+`POST snapshots/create` and `DELETE snapshots/{id}/delete` are Internal (the notifier and discovery; users
+delete an application through discovery's `reset`, which also purges its Redis state). Session callers of
+`PATCH resources/applications/{name}/patch` may set only `displayName` (at most 200 characters) and
+`description` (at most 1000); any other spec key answers 403 and an over-long value 400. Internal callers
+keep full access.
+
+Global config (`PATCH resources/globalconfig/patch`) is checked per field: `excludedNamespaces` and
+`userSettings` need settings Contributor (deny `editdiscoveryconfig`), `snapshots` Contributor
+(deny `editsnapshotstorage`), `ai` Owner (deny `controlaiinsights`), `oidc` Admin (deny `editoidcconfig`),
+and `cluster` is Internal (written by discovery). A value the CRD schema rejects answers 400 naming the
+field, for example `invalid global config value for spec.ai.model`.
+
+Users, groups and roles: creating a user with roles, groups or a status applies the same rules as
+patching them (users Owner + `attachroletouser`, groups Owner + `addusertogroup`, users Admin +
+`suspenduser`); attaching or removing a group's roles needs groups Owner plus `attachroletogroup` /
+`removerolefromgroup` (a group create carrying roles is gated like an attach); a role create or patch may not grant a scope level above the caller's own on that
+scope (an `ALL` grant counts for every scope), and a role whose `protection.preventModification` is set
+refuses every patch. The same cap applies to assigning a role: a user create or patch and a group create or
+patch answer 403 naming the role and scope when a role being added grants a level above the caller's own
+(deny rules on that role do not count; roles already held or being removed are not checked). Internal
+callers are exempt.
+
+Roles and groups on a user are diffed against the stored lists: an addition needs `attachroletouser` /
+`addusertogroup`, a removal `removerolefromuser` / `removeuserfromgroup`, each with users or groups Owner.
+A group's `assignedUsersIDs` is gated the same way (groups Owner plus the add or remove rule, never on
+oneself). Ids that do not resolve to a live user, group or role answer 400 naming them, and lists are
+deduplicated on write.
+
+Group membership is stored on both sides and grants read only the user side, so the exporter keeps them
+consistent: a group create or patch that changes `assignedUsersIDs` updates each affected user's
+`assignedGroupsIDs`, and a user create or patch that changes `assignedGroupsIDs` updates each group's
+member list. The counterparts are written first, one at a time under their own lock, and the caller's
+own record last; a failure answers 500 with the record that could not be updated and the caller's
+record unchanged, so the same request can be retried (every mirror write is a no-op once applied).
+Affected users' cached grants are dropped. On boot, one pass over all users and groups aligns the
+group side to the user side, which is what grants: a group gains the users that name it and loses the
+ones that don't, and user lists lose duplicates and groups that no longer exist. Nobody's access changes.
+
+Deleting a user (`DELETE resources/users/{id}/delete`) purges the user's sessions at once and, while the
+cleanup finalizer still holds the record, the user grants nothing and `GET resources/users/{id}` answers
+410, so peers resolving grants over HTTP deny as well. A user, group or role whose `deletionTimestamp`
+is set grants nothing anywhere (`deletionTimestamp` is projected into the typed reads and the GET
+responses) and refuses every PATCH from a session with 410; the cleanup cascade (service token) still
+patches it. Finalizer removal and cleanup views of a record that is already gone answer 404.
+
+A user's `email` is unique like the username (case-insensitive, trimmed): a duplicate answers 409.
+
+Administrators (Admin on `ALL` through an active role, directly or via a live group) and bootstrap
+accounts (`spec.bootstrap: true`, written only with the service token; a session sending the field gets
+403) are hidden from every caller who is not an administrator or a service: the users list omits them,
+`GET` by id, username, email or identity answers 404, group member lists and cleanup views omit their
+ids, and roles-by-user answers 404. Such callers take the uncached path. Bootstrap accounts cannot be
+deleted through the API, only they may edit their own record (any other caller gets 403), and a session
+may not create or rename a user to an email listed in `BOOTSTRAP_ADMINS` (403). Another administrator
+is deleted or suspended only by a bootstrap account (403 otherwise). Nobody may delete their own
+account (403).
+
+Snapshot reads (`GET snapshots/{id}/get` and `/manifest`) mask every `Secret` `data` and `stringData`
+value with `[redacted]` for session callers; the stored file and Internal callers (the rollback
+controller) keep the real values. Both routes are withheld by `viewapplicationsnapshotmanifest`.
 
 ## Build & run
 

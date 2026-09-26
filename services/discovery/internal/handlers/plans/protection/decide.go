@@ -2,8 +2,6 @@ package protection
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"net/http"
 
 	dataerrors "github.com/telark/data/errors"
@@ -22,9 +20,8 @@ func Decide(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	userID := r.Header.Get(constants.HeaderUserID)
-	if userID == constants.EmptyString {
-		respondError(w, http.StatusUnauthorized, protection.ErrUserMissing, nil)
+	userID, ok := requireUser(w, r)
+	if !ok {
 		return
 	}
 
@@ -34,9 +31,7 @@ func Decide(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req planseps.DecideProtectionPlanRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		msg := fmt.Sprintf(string(protection.ErrRequestBody), err)
-		respondError(w, http.StatusBadRequest, dataerrors.Error(msg), err)
+	if !decodeBody(w, r, &req) {
 		return
 	}
 

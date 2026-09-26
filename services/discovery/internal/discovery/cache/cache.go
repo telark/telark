@@ -39,11 +39,11 @@ func Decode(key, raw string) *application.AppInsights {
 	lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
 	var doc application.AppInsights
 	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
-		lg.Warn(fmt.Sprintf(MsgCacheDeserializeFailed, key, err, raw))
+		lg.Warn(fmt.Sprintf(MsgCacheDeserializeFailed, key, err, len(raw)))
 		return nil
 	}
 	if doc.Version == constants.DefaultInitValue && doc.LastRun.Status == constants.EmptyString {
-		lg.Warn(fmt.Sprintf(MsgCacheDeserializeFailed, key, MsgLegacyDocument, raw))
+		lg.Warn(fmt.Sprintf(MsgCacheDeserializeFailed, key, MsgLegacyDocument, len(raw)))
 		return nil
 	}
 	return &doc

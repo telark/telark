@@ -162,7 +162,7 @@ func enqueueApplicationBatch(ctx context.Context, coord *CoordinationBundle, rdb
 			skipped++
 			continue
 		}
-		cycleID := app.Name + ":" + cycleTS
+		cycleID := app.Name + constants.ColonSeparator + cycleTS
 		if err := publishAndSetState(ctx, coord, app.Name, ns, cycleID); err != nil {
 			lg.Error(fmt.Sprintf(string(constants.ErrEnqueueFailed), app.Name, err))
 			_ = coord.Dedup.Release(ctx, app.Name, cycleTS)

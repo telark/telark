@@ -2,8 +2,6 @@ package rollback
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +15,7 @@ import (
 	"github.com/telark/discovery/internal/clients"
 	dconfig "github.com/telark/discovery/internal/config"
 	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/core/applications/history/diff"
 	"github.com/telark/discovery/internal/helpers/async"
 	redishelper "github.com/telark/discovery/internal/helpers/redis"
 	notifclient "github.com/telark/rest/clients/notifications"
@@ -33,11 +32,9 @@ import (
 
 	kcorefactory "github.com/telark/kcore/informers/factory"
 	kcorek8s "github.com/telark/kcore/k8sclient"
-	kcoreapply "github.com/telark/kcore/ops/apply"
 )
 
 const (
-	hashPrefixLen       = 8
 	unknownKindRank     = 99
 	invalidIndex        = -1
 	splitPathPartsLimit = 2
@@ -246,7 +243,7 @@ func (c *Controller) processPending(
 		return nil
 	}
 
-	if err := c.validateAndApplyRollback(procCtx, manifest, ns, name, spec, idx); err != nil {
+	if err := c.validateAndApplyRollback(procCtx, manifest, ns, name, spec, idx, pending); err != nil {
 		return nil
 	}
 	return c.finalizeRollbackSuccess(procCtx, ns, name, spec, pending, idx)
@@ -303,13 +300,14 @@ func (c *Controller) validateAndApplyRollback(
 	ns, name string,
 	spec *application.Application,
 	idx int,
+	pending *application.RollbackEntry,
 ) error {
 	sorted := withoutJobRuns(sortManifestForApply(manifest), name)
 	if err := c.validateRollbackManifest(ctx, sorted); err != nil {
 		c.failRollback(ctx, ns, name, spec, idx, err.Error())
 		return err
 	}
-	markRollbackApplying(ctx, name)
+	markRollbackApplying(ctx, name, pending)
 	if err := c.applyAllWithRetry(ctx, sorted); err != nil {
 		c.failRollback(ctx, ns, name, spec, idx, fmt.Sprintf(string(constants.ErrRollbackApplyFailed), err))
 		return err
@@ -341,7 +339,7 @@ func (c *Controller) finalizeRollbackSuccess(
 }
 
 func (c *Controller) emitRollbackSuccess(pending *application.RollbackEntry, appName string) {
-	if pending == nil || pending.TriggeredBy == "" {
+	if pending == nil || pending.TriggeredBy == constants.EmptyString {
 		return
 	}
 	message := fmt.Sprintf(string(constants.NotifRollbackCompletedFormat), appName, pending.TargetGeneration)
@@ -350,7 +348,7 @@ func (c *Controller) emitRollbackSuccess(pending *application.RollbackEntry, app
 }
 
 func (c *Controller) emitRollbackFailure(pending *application.RollbackEntry, appName, errMsg string) {
-	if pending == nil || pending.TriggeredBy == "" {
+	if pending == nil || pending.TriggeredBy == constants.EmptyString {
 		return
 	}
 	message := fmt.Sprintf(string(constants.NotifRollbackFailedFormat), appName, pending.TargetGeneration, errMsg)
@@ -405,11 +403,8 @@ func (c *Controller) failRollback(
 	}
 }
 
-// RecordWithRetry runs record on a context detached from ctx's cancellation: a
-// blown process deadline is itself a common reason a rollback failed, and the
-// failure still has to reach the CR. Retries are bounded by attempt count, and
-// each patch keeps its own timeout, so the detached context cannot outlive the
-// retry budget.
+// Detached from ctx's cancellation: a blown process deadline is itself a common reason a
+// rollback failed, and the failure still has to reach the CR. Bounded by attempts and one timeout.
 func RecordWithRetry(ctx context.Context, record func(context.Context) error) error {
 	recordCtx, cancel := context.WithTimeout(
 		context.WithoutCancel(ctx),
@@ -496,10 +491,8 @@ func (c *Controller) failStaleInProgress(
 	return false, nil
 }
 
-// StaleSweepErrorMsg keeps a reason that is already on the entry. The sweep is a
-// last resort for entries nothing ever wrote back to; replacing a recorded
-// failure with the generic restart text would destroy the only copy of it.
-// An empty return leaves the stored error untouched.
+// Empty (leave the stored error untouched) when a reason is already recorded: the sweep is a
+// last resort, and the generic restart text would destroy the only copy of a real failure.
 func StaleSweepErrorMsg(recorded string) string {
 	if strings.TrimSpace(recorded) != constants.EmptyString {
 		return constants.EmptyString
@@ -550,12 +543,11 @@ func (c *Controller) patchRollbackStatus(
 		updated[idx].CompletedAt = opts.CompletedAt
 	}
 
-	patch := map[string]any{
-		constants.RollbackSpecKey: map[string]any{
-			constants.RollbackRollbacksKey: updated,
-		},
-	}
-	data, err := jsonBytes(patch)
+	return c.patchSpec(ctx, ns, name, map[string]any{constants.RollbackRollbacksKey: updated})
+}
+
+func (c *Controller) patchSpec(ctx context.Context, ns, name string, spec map[string]any) error {
+	data, err := json.Marshal(map[string]any{constants.RollbackSpecKey: spec})
 	if err != nil {
 		return fmt.Errorf(string(constants.ErrRollbackMarshalPatchFailed), err)
 	}
@@ -568,35 +560,13 @@ func (c *Controller) patchRollbackStatus(
 }
 
 func (c *Controller) applyAll(ctx context.Context, resources []unstructured.Unstructured) error {
-	return kcoreapply.ApplyUnstructuredServerSide(
-		ctx,
-		c.dyn,
-		c.mapper,
-		resources,
-		kcoreapply.ServerSideApplyOptions{
-			FieldManager: constants.RollbackFieldManager,
-			Force:        true,
-			DryRun:       false,
-		},
-		func(kind, name, namespace string) {
-			logger.Info(fmt.Sprintf(string(constants.InfoRollbackApplied), kind, name, namespace))
-		},
-	)
+	return ReplaceUnstructured(ctx, c.dyn, c.mapper, resources, false, func(kind, name, namespace string) {
+		logger.Info(fmt.Sprintf(string(constants.InfoRollbackApplied), kind, name, namespace))
+	})
 }
 
 func (c *Controller) dryRunApplyAll(ctx context.Context, resources []unstructured.Unstructured) error {
-	return kcoreapply.ApplyUnstructuredServerSide(
-		ctx,
-		c.dyn,
-		c.mapper,
-		resources,
-		kcoreapply.ServerSideApplyOptions{
-			FieldManager: constants.RollbackFieldManager,
-			Force:        true,
-			DryRun:       true,
-		},
-		nil,
-	)
+	return ReplaceUnstructured(ctx, c.dyn, c.mapper, resources, true, nil)
 }
 
 func (c *Controller) validateRollbackManifest(ctx context.Context, resources []unstructured.Unstructured) error {
@@ -696,7 +666,7 @@ func (c *Controller) appendHistoryChangeLog(
 ) error {
 	gen := nextChangeLogGeneration(spec.History.ChangeLog, spec.History.Generation)
 	now := time.Now().UTC().Format(time.RFC3339)
-	fingerprint := shortHash(entry.ID)
+	fingerprint := diff.RollbackFingerprint(entry.ID)
 	newValue := entry.TargetSnapshotID
 
 	ch := application.ChangeLogEntry{
@@ -721,26 +691,14 @@ func (c *Controller) appendHistoryChangeLog(
 	}
 
 	updated := append(slices.Clone(spec.History.ChangeLog), ch)
-	patch := map[string]any{
-		constants.RollbackSpecKey: map[string]any{
-			constants.RollbackHistoryKey: map[string]any{
-				constants.RollbackChangeLogKey: updated,
-				// The diff derives its next generation from this field alone, so leaving it
-				// behind makes the next diff-authored entry reuse gen.
-				constants.RollbackGenerationKey: gen,
-			},
+	return c.patchSpec(ctx, ns, name, map[string]any{
+		constants.RollbackHistoryKey: map[string]any{
+			constants.RollbackChangeLogKey: updated,
+			// The diff derives its next generation from this field alone, so leaving it
+			// behind makes the next diff-authored entry reuse gen.
+			constants.RollbackGenerationKey: gen,
 		},
-	}
-	data, err := jsonBytes(patch)
-	if err != nil {
-		return fmt.Errorf(string(constants.ErrRollbackMarshalPatchFailed), err)
-	}
-	patchCtx, cancel := context.WithTimeout(ctx, constants.RollbackPatchTimeout)
-	defer cancel()
-	_, err = c.dyn.Resource(crdGVR).
-		Namespace(ns).
-		Patch(patchCtx, name, types.MergePatchType, data, metav1.PatchOptions{})
-	return err
+	})
 }
 
 func extractSpec(cr *unstructured.Unstructured) (*application.Application, error) {
@@ -780,12 +738,11 @@ func findPending(rollbacks []application.RollbackEntry) (*application.RollbackEn
 }
 
 func splitKey(key string) (ns string, name string, ok bool) {
-	for i := range key {
-		if key[i] == '/' {
-			return key[:i], key[i+constants.DefaultAddValue:], true
-		}
+	ns, name, ok = strings.Cut(key, constants.PathSeparator)
+	if !ok {
+		return constants.EmptyString, constants.EmptyString, false
 	}
-	return constants.EmptyString, constants.EmptyString, false
+	return ns, name, true
 }
 
 func nextChangeLogGeneration(list []application.ChangeLogEntry, current int) int {
@@ -796,15 +753,6 @@ func nextChangeLogGeneration(list []application.ChangeLogEntry, current int) int
 		}
 	}
 	return maxGen + constants.DefaultAddValue
-}
-
-func shortHash(s string) string {
-	sum := sha256.Sum256([]byte(s))
-	return hex.EncodeToString(sum[:])[:hashPrefixLen]
-}
-
-func jsonBytes(v any) ([]byte, error) {
-	return json.Marshal(v)
 }
 
 func scopeFromSnapshotPath(path string) string {
@@ -823,12 +771,21 @@ func scopeFromSnapshotPath(path string) string {
 	return strings.TrimSpace(parts[constants.DefaultInitValue])
 }
 
-func markRollbackApplying(ctx context.Context, appName string) {
+func markRollbackApplying(ctx context.Context, appName string, pending *application.RollbackEntry) {
 	rdb := redishelper.NewRedisClient()
 	if rdb == nil {
 		return
 	}
-	_ = rdb.Set(ctx, constants.KeyPrefixRollbackApplying+appName, constants.DefaultAddValue, constants.RollbackApplyingTTL).Err()
+	raw, err := json.Marshal(diff.RollbackMarker{
+		ID:               pending.ID,
+		TargetGeneration: pending.TargetGeneration,
+		TargetSnapshotID: pending.TargetSnapshotID,
+		TriggeredBy:      pending.TriggeredBy,
+	})
+	if err != nil {
+		return
+	}
+	_ = rdb.Set(ctx, constants.KeyPrefixRollbackApplying+appName, raw, constants.RollbackApplyingTTL).Err()
 }
 
 // withoutJobRuns drops Job manifests: re-applying a finished or deleted Job

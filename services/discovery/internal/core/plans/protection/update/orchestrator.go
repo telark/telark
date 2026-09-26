@@ -3,6 +3,7 @@ package update
 import (
 	"context"
 	"fmt"
+	"maps"
 	"time"
 
 	"github.com/telark/data/plans"
@@ -30,6 +31,10 @@ type (
 		StampHealth func(planID string)
 		// Called after a material edit of a pending plan re-requests approval.
 		NotifyApprovers func(*plans.ProtectionPlan)
+		// Serializes a rename with parallel creates of the same name.
+		LockName func(ctx context.Context, name string) (func(), error)
+		// Deploys a scheduled plan whose edited window starts now; the controller's activate path.
+		Activate func(ctx context.Context, plan *plans.ProtectionPlan) error
 	}
 )
 
@@ -45,67 +50,145 @@ func Run(
 	if err != nil {
 		return nil, err
 	}
-	if err := validateRequest(ctx, plan, req, deps); err != nil {
+	clock := deps.Clock()
+	if err := validateRequest(ctx, plan, req, deps, clock); err != nil {
+		return nil, err
+	}
+	release, err := lockRename(ctx, deps, plan, req.Name)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	if err := ensureNameAvailable(deps, plan, req.Name); err != nil {
 		return nil, err
 	}
 
 	newPolicies := toPolicies(req.Policies)
-	material := MaterialChange(plan, req, newPolicies)
-	fullRender := exclusionsChanged(plan.Scope, req.Scope)
-	if protection.RequiresApproval(plan) && approvedPhase(plan.Phase) && material {
+	if protection.RequiresApproval(plan) && approvedPhase(plan.Phase) && MaterialChange(plan, req, newPolicies) {
 		return nil, validation.Invalid(string(protection.ErrApprovedPlanMaterialEdit))
 	}
-	policyDiff := diffPolicies(plan.Policies, newPolicies)
-	targetDiff := diffTargets(scopeTargets(plan), newTargets(req.Scope))
+	return apply(ctx, deps, userID, plan, req, newPolicies, clock)
+}
 
+func apply(
+	ctx context.Context,
+	deps Deps,
+	userID string,
+	plan *plans.ProtectionPlan,
+	req *planseps.PrepareProtectionPlanRequest,
+	newPolicies []plans.ProtectionPlanPolicy,
+	clock time.Time,
+) (*plans.ProtectionPlan, error) {
+	// The plan name is baked into every rule message and annotation.
+	fullRender := exclusionsChanged(plan.Scope, req.Scope) || plan.Name != req.Name
+	targetDiff := diffTargets(scopeTargets(plan), newTargets(req.Scope))
 	resolved, err := resolveTargets(ctx, deps.ResolveApps, plan.Scope.Type, allTargets(targetDiff))
 	if err != nil {
 		return nil, err
 	}
 
-	deployed, kept, stale, err := applyCluster(ctx, deps, plan, req, newPolicies, policyDiff, targetDiff, resolved, fullRender)
+	park := plan.Phase == plans.PhaseActive && TargetPhase(plan, req, clock) == plans.PhaseScheduled
+	deployed, kept, stale, err := applyCluster(ctx, deps, plan, req, newPolicies, targetDiff, resolved, fullRender, park)
 	if err != nil {
 		return nil, err
 	}
 
 	rendered := protpolicies.UnionRenderedNames(kept, deployed)
-	now := deps.Clock().Format(globalshared.DefaultTimeFormat)
+	now := clock.Format(globalshared.DefaultTimeFormat)
 	patch, changed := BuildPatch(plan, req, newPolicies, rendered, userID, now)
-	if !changed {
+	if !changed && !park {
 		return plan, nil
 	}
 
-	reRequest := plan.Phase == plans.PhasePendingApproval && material
-	if err := applyPatch(deps, plan, userID, now, patch, reRequest); err != nil {
+	reRequest := plan.Phase == plans.PhasePendingApproval && MaterialChange(plan, req, newPolicies)
+	if err := applyPatch(deps, plan, userID, now, patch, reRequest, park); err != nil {
 		rollbackCluster(ctx, deps, plan, deployed, resolved, fullRender)
-		return nil, fmt.Errorf(string(ErrPartial), planID)
+		return nil, fmt.Errorf(string(ErrPartial), plan.ID)
 	}
 	if err := deps.Applier.DeletePoliciesByLabelAndNames(ctx, plan.ID, stale); err != nil {
 		deps.Logger.Error(fmt.Sprintf(protection.LogStaleDeleteFailed, plan.ID, err))
 	}
+	if park {
+		plan.Phase = plans.PhaseScheduled
+	}
+	return settlePhase(ctx, deps, plan, req, clock, reRequest)
+}
+
+// A scheduled plan whose edited window starts now goes through the controller's activate path.
+func settlePhase(
+	ctx context.Context,
+	deps Deps,
+	plan *plans.ProtectionPlan,
+	req *planseps.PrepareProtectionPlanRequest,
+	now time.Time,
+	reRequest bool,
+) (*plans.ProtectionPlan, error) {
+	if plan.Phase == plans.PhaseScheduled && TargetPhase(plan, req, now) == plans.PhaseActive {
+		if err := deps.Activate(ctx, plan); err != nil {
+			return nil, err
+		}
+	}
 	return afterPatch(deps, plan, reRequest)
 }
 
+// The phase the edited window puts a scheduled or active plan in; other phases keep their own.
+// An unchanged elapsed window is left to the controller to terminate.
+func TargetPhase(plan *plans.ProtectionPlan, req *planseps.PrepareProtectionPlanRequest, now time.Time) string {
+	if plan.Phase != plans.PhaseActive && plan.Phase != plans.PhaseScheduled {
+		return plan.Phase
+	}
+	target := *plan
+	target.TimeMode = req.TimeMode
+	target.TimeRange = nil
+	if req.TimeRange != nil {
+		target.TimeRange = &plans.ProtectionPlanTimeRange{StartAt: req.TimeRange.StartAt, EndAt: req.TimeRange.EndAt}
+	}
+	phase, expired := protection.WindowPhase(&target, now)
+	if expired {
+		return plan.Phase
+	}
+	return phase
+}
+
+func lockRename(
+	ctx context.Context,
+	deps Deps,
+	plan *plans.ProtectionPlan,
+	name string,
+) (func(), error) {
+	if deps.LockName == nil || validation.NormalizeName(name) == validation.NormalizeName(plan.Name) {
+		return func() {}, nil
+	}
+	return deps.LockName(ctx, name)
+}
+
 // An exclusions change is content under the same names, which the combos diff never re-renders,
-// so it deploys the whole new plan instead.
+// so it deploys the whole new plan instead. Parking withdraws everything: the plan enforces
+// nothing until its new window starts.
 func applyCluster(
 	ctx context.Context,
 	deps Deps,
 	plan *plans.ProtectionPlan,
 	req *planseps.PrepareProtectionPlanRequest,
 	newPolicies []plans.ProtectionPlanPolicy,
-	policyDiff PolicyDiff,
 	targetDiff TargetDiff,
 	resolved map[string]policies.ResolvedApp,
-	fullRender bool,
+	fullRender, park bool,
 ) (deployed, kept, stale []string, err error) {
+	if park {
+		if err := deps.Applier.CleanupByPlanID(ctx, plan.ID); err != nil {
+			deps.Logger.Error(fmt.Sprintf(protection.LogCleanupFailed, stagePark, plan.ID, err))
+		}
+		return nil, nil, nil, nil
+	}
 	msgs := protpolicies.DeployErrorMessages{
 		GenericDeployFailure: deployFailureGeneric,
 		InternalErrorFormat:  string(ErrInternal),
 	}
 	if fullRender {
-		return protpolicies.ApplyFullRender(ctx, deps.Applier, deps.Logger, plan, renderTarget(plan, req, newPolicies), resolved, msgs)
+		return protpolicies.ApplyFullRender(ctx, deps.Applier, deps.Logger, plan, RenderTarget(plan, req, newPolicies), resolved, msgs)
 	}
+	policyDiff := diffPolicies(plan.Policies, newPolicies)
 	deployCombos := append(
 		protpolicies.Combinations(newPolicies, targetDiff.Added),
 		protpolicies.Combinations(policyDiff.Added, targetDiff.Unchanged)...,
@@ -138,12 +221,13 @@ func rollbackCluster(
 	protpolicies.RollbackPatchFailure(ctx, deps.Applier, deps.Logger, plan, deployed)
 }
 
-func renderTarget(
+func RenderTarget(
 	plan *plans.ProtectionPlan,
 	req *planseps.PrepareProtectionPlanRequest,
 	newPolicies []plans.ProtectionPlanPolicy,
 ) *plans.ProtectionPlan {
 	target := *plan
+	target.Name = req.Name
 	target.Scope = plans.ProtectionPlanScope{
 		Type:           plan.Scope.Type,
 		ApplicationIDs: req.Scope.ApplicationIDs,
@@ -176,9 +260,9 @@ func applyPatch(
 	plan *plans.ProtectionPlan,
 	userID, now string,
 	patch planseps.PatchProtectionPlanRequest,
-	reRequest bool,
+	reRequest, park bool,
 ) error {
-	if !reRequest && patch.Scope == nil {
+	if !reRequest && !park && patch.Scope == nil {
 		return deps.Exporter.PatchOrError(userID, plan.ID, patch)
 	}
 	body, err := restmapper.MapToJSONPayload(patch)
@@ -190,6 +274,9 @@ func applyPatch(
 	}
 	if reRequest {
 		body[protection.FieldApproval] = protection.ApprovalPatchValue(protection.NewApprovalRequest(userID, now, plan.Approval))
+	}
+	if park {
+		maps.Copy(body, protection.BuildScheduledPatch(userID, now))
 	}
 	return deps.Exporter.PatchRawOrError(userID, plan.ID, body)
 }
@@ -203,25 +290,23 @@ func approvedPhase(phase string) bool {
 	return phase == plans.PhaseActive || phase == plans.PhaseScheduled
 }
 
+// Every phase is editable: a canceled or terminated plan has no cluster state, so the edit only
+// re-renders once it is reactivated.
 func validateRequest(
 	ctx context.Context,
 	plan *plans.ProtectionPlan,
 	req *planseps.PrepareProtectionPlanRequest,
 	deps Deps,
+	now time.Time,
 ) error {
-	if !updatable(plan.Phase) {
-		return validation.Invalidf(fmtRawString, ErrInvalidPhase)
-	}
 	if req.Scope.Type != plan.Scope.Type {
 		return validation.Invalidf(fmtRawString, ErrScopeTypeChange)
 	}
 	if ApprovalModeChanged(plan, req) {
 		return validation.Invalid(string(protection.ErrApprovalModeImmutable))
 	}
+	validation.Normalize(req)
 	if err := validation.Fields(req); err != nil {
-		return err
-	}
-	if err := ensureNameAvailable(deps, plan, req.Name); err != nil {
 		return err
 	}
 	if err := validation.NamespaceScope(ctx, req.Scope.Type, req.Scope.Namespaces, deps.ListNamespaces); err != nil {
@@ -233,12 +318,14 @@ func validateRequest(
 	if err := validatePolicies(req.Policies, req.Scope.Type); err != nil {
 		return validation.Invalidf(string(ErrInvalidPolicies), err)
 	}
-	if req.TimeMode == plans.TimeModeTimeRange {
-		if err := validateTimeRange(req.TimeRange); err != nil {
-			return err
-		}
+	if req.TimeMode != plans.TimeModeTimeRange {
+		return nil
 	}
-	return nil
+	// Only a newly set window has to be open: a finished plan can still be renamed as it is.
+	if plan.TimeMode != req.TimeMode || !timeRangeEqual(plan.TimeRange, req.TimeRange) {
+		return validation.TimeRangeOpen(req.TimeRange, now)
+	}
+	return validation.TimeRange(req.TimeRange)
 }
 
 func ensureNameAvailable(deps Deps, plan *plans.ProtectionPlan, name string) error {
@@ -269,14 +356,6 @@ func resolveTargets(
 		return nil, validation.Invalidf(string(ErrMissingApplications), missing)
 	}
 	return resolved, nil
-}
-
-func updatable(phase string) bool {
-	return phase == plans.PhaseActive ||
-		phase == plans.PhaseScheduled ||
-		phase == plans.PhasePendingApproval ||
-		phase == plans.PhaseFailed ||
-		phase == plans.PhaseDraft
 }
 
 func newTargets(scope planseps.ScopeRequest) []string {

@@ -41,8 +41,8 @@ def _emitted(subject="deployment/api", kind="crashloop", severity="warning", ref
                           evidence=[EvidenceRef(type="workload", ref=r) for r in refs], **fields)
 
 
-def _insight(subject="deployment/api", status="open", last_seen=EARLIER, **kw):
-    return Insight(id=insights.insight_id("shop", "api", subject, "shop"), kind="crashloop", subject=subject,
+def _insight(subject="deployment/api", status="open", last_seen=EARLIER, kind="crashloop", **kw):
+    return Insight(id=insights.insight_id("shop", "api", subject, "shop"), kind=kind, subject=subject,
                    status=status, firstSeenAt=EARLIER, lastSeenAt=last_seen, runs=1, **kw)
 
 
@@ -206,6 +206,24 @@ def test_resolve_observed_ready():
     run.status_cache[("shop", "deployment/api")] = _ready(waiting="CrashLoopBackOff")
     doc = AppInsights(insights=[_insight(), _insight(subject="daemonset/x")])
     assert insights.resolve_observed(doc, run, NOW, set()) == []
+
+
+def test_paused_workload_resolves_its_rollout_cards():
+    # Live (e2e-i-ops): the rule stopped firing on a paused Deployment, but its old card stayed open 0/2 forever.
+    run = _run()
+    run.status_cache[("shop", "deployment/api")] = {**_ready(ready=0), "paused": True}
+    for kind in ("rollout_stuck", "config_change_regression", "other"):
+        doc = AppInsights(insights=[_insight(kind=kind)])
+        assert insights.resolve_observed(doc, run, NOW, set()) == [doc.insights[0].id], kind
+    # Pausing does not stop a pod symptom: those kinds still need every replica ready.
+    for kind in ("crashloop", "oom", "image_pull", "scheduling", "probe_failure", "resource_pressure"):
+        assert insights.resolve_observed(AppInsights(insights=[_insight(kind=kind)]), run, NOW, set()) == [], kind
+    # A waiting pod or a newer warning keeps even a rollout card open.
+    run.status_cache[("shop", "deployment/api")] = {**_ready(ready=0, waiting="CrashLoopBackOff"), "paused": True}
+    assert insights.resolve_observed(AppInsights(insights=[_insight(kind="rollout_stuck")]), run, NOW, set()) == []
+    run.status_cache[("shop", "deployment/api")] = {**_ready(ready=0), "paused": True}
+    run.events_cache.append({"reason": "BackOff", "object": "Pod/api-7d9fb-x2k4q", "last": NOW, "namespace": "shop"})
+    assert insights.resolve_observed(AppInsights(insights=[_insight(kind="rollout_stuck")]), run, NOW, set()) == []
 
 
 def test_gone_workload_resolves_and_emits_nothing():

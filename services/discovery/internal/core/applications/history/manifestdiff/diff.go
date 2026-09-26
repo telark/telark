@@ -47,7 +47,7 @@ func Changes(pairs []ManifestPair) []application.ApplicationChange {
 		if p.Old == nil || p.New == nil {
 			continue
 		}
-		kind, name := p.New.GetKind(), p.New.GetName()
+		kind, target := p.New.GetKind(), changeTarget(p.New)
 		var rows []diffRow
 		for _, root := range diffRoots(p) {
 			walk(root.oldValue, root.newValue, root.path, &rows)
@@ -59,7 +59,7 @@ func Changes(pairs []ManifestPair) []application.ApplicationChange {
 			if kind == kindSecret {
 				redactSecretRow(&r)
 			}
-			out = append(out, toChange(kind, name, r))
+			out = append(out, toChange(target, r))
 		}
 	}
 	return out
@@ -72,7 +72,7 @@ type diffRoot struct {
 }
 
 func diffRoots(p ManifestPair) []diffRoot {
-	oldObj, newObj := comparable(p.Old), comparable(p.New)
+	oldObj, newObj := applyClean(p.Old), applyClean(p.New)
 	oldMeta := objectMap(oldObj[rootMetadata])
 	newMeta := objectMap(newObj[rootMetadata])
 	return []diffRoot{
@@ -87,13 +87,9 @@ func diffRoots(p ManifestPair) []diffRoot {
 	}
 }
 
-// A snapshot holds the apply-clean copy kcore writes (server defaults such as
-// terminationMessagePath, the rollout-restart stamp, Service and PVC
-// bookkeeping dropped); a live informer object is raw. Both sides are cleaned
-// the same way before comparing, so a snapshot laid back as a pre-image diffs
-// empty against an unchanged object instead of listing every stripped field
-// as added. What kcore drops for apply is by definition not a manifest change.
-func comparable(u *unstructured.Unstructured) map[string]any {
+// A snapshot is the apply-clean copy kcore writes while a live informer object is raw; cleaning
+// both sides keeps a snapshot laid back as a pre-image from listing every stripped field as added.
+func applyClean(u *unstructured.Unstructured) map[string]any {
 	obj := u.DeepCopy().Object
 	kcoremanifest.CleanManifestForApply(obj)
 	if u.GetKind() == kindService {
@@ -245,25 +241,13 @@ func walkMaps(oldMap, newMap map[string]any, path string, out *[]diffRow) {
 	for k := range newMap {
 		keys[k] = struct{}{}
 	}
-	for _, k := range slices.Sorted(mapKeys(keys)) {
+	for _, k := range slices.Sorted(maps.Keys(keys)) {
 		walk(oldMap[k], newMap[k], joinPath(path, k), out)
 	}
 }
 
-func mapKeys(m map[string]struct{}) func(yield func(string) bool) {
-	return func(yield func(string) bool) {
-		for k := range m {
-			if !yield(k) {
-				return
-			}
-		}
-	}
-}
-
-// walkLists diffs lists item by item. Lists of named objects (containers,
-// ports, env, volumes) are matched by name so a reorder is not a change and a
-// changed item keeps a stable path; other lists are compared positionally and
-// reported whole when their length differs.
+// Lists of named objects (containers, ports, env, volumes) are matched by name so a reorder is
+// not a change; other lists are compared positionally and reported whole when their length differs.
 func walkLists(oldList, newList []any, path string, out *[]diffRow) {
 	oldByName, oldNamed := namedItems(oldList)
 	newByName, newNamed := namedItems(newList)
@@ -275,7 +259,7 @@ func walkLists(oldList, newList []any, path string, out *[]diffRow) {
 		for n := range newByName {
 			names[n] = struct{}{}
 		}
-		for _, n := range slices.Sorted(mapKeys(names)) {
+		for _, n := range slices.Sorted(maps.Keys(names)) {
 			walk(oldByName[n], newByName[n], path+indexOpen+n+indexClose, out)
 		}
 		return
@@ -357,8 +341,16 @@ func isCuratedPath(kind, path string) bool {
 	return false
 }
 
-func toChange(kind, name string, r diffRow) application.ApplicationChange {
-	target := kind + kindNameSep + name
+// An app spanning namespaces can hold the same Kind/name twice; the namespace tells them apart.
+func changeTarget(u *unstructured.Unstructured) string {
+	target := u.GetKind() + kindNameSep + u.GetName()
+	if ns := u.GetNamespace(); ns != constants.EmptyString {
+		return ns + kindNameSep + target
+	}
+	return target
+}
+
+func toChange(target string, r diffRow) application.ApplicationChange {
 	var desc string
 	switch r.changeType {
 	case changes.ChangeTypeAdded:

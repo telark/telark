@@ -29,7 +29,7 @@ func ValidateProtectionFlags(existingRole *roledata.RoleAsResource, body map[str
 		return false
 	}
 
-	_, isScopeChange := body["scopesAndPermissions"]
+	_, isScopeChange := body[constants.FieldScopesAndPermissions]
 	if isScopeChange && protection.PreventScopeChanges {
 		responseutils.LogAndSendResponse(
 			w,

@@ -33,13 +33,6 @@ func TestGetTimeoutForResource(t *testing.T) {
 	}
 }
 
-func TestKeyFunc(t *testing.T) {
-	r := httptest.NewRequest(http.MethodGet, "/resources?limit=10", nil)
-	if got := performance.KeyFunc(r); got != "cache:/resources?limit=10" {
-		t.Errorf("KeyFunc = %q", got)
-	}
-}
-
 func serveList(handler http.HandlerFunc, target string) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
 	handler(rec, httptest.NewRequest(http.MethodGet, target, nil))

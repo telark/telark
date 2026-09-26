@@ -2,7 +2,6 @@ package cache
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/telark/exporter/internal/constants"
@@ -108,15 +107,6 @@ func NewGetCacheKeyFunc(resourceType string) func(r *http.Request) string {
 		name := sharedutils.ExtractResourceNameFromRequest(r)
 		return GenerateKey(resourceType, constants.OpGet, name)
 	}
-}
-
-func GenerateGetKey(endpoint string, name string) string {
-	parts := strings.Split(endpoint, "/")
-	if len(parts) == constants.DefaultInitValue {
-		return constants.EmptyString
-	}
-	resourceType := parts[len(parts)-constants.IndexLastElementOffset]
-	return GenerateKey(resourceType, constants.OpGet, name)
 }
 
 func ValidateCacheKey(key string) bool {

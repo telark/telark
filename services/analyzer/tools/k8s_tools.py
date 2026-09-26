@@ -35,6 +35,7 @@ from constants import (
     K8S_WORKLOAD_PATH,
     POD_PHASE_PENDING,
     PODS_MAX,
+    REASON_FAILED_SCHEDULING,
     REF_EVENT,
     REF_WORKLOAD,
     REPLICASET_NAME_PATTERN,
@@ -42,6 +43,7 @@ from constants import (
     RESOURCE_MEMORY,
     RFC3339_FORMAT,
     SA_TOKEN_PATH,
+    SELECTOR_SEPARATOR,
     STATEFULSET_POD_NAME_PATTERN,
     SUBJECT_SEPARATOR,
     SUBJECT_TEMPLATE,
@@ -57,6 +59,7 @@ KEY_PODS = "pods"
 KEY_EVENTS = "events"
 KEY_LIMITS = "limits"
 KEY_PENDING = "pending"
+KEY_PAUSED = "paused"
 KEY_FULL_IMAGES = "fullImages"
 KEY_WAITING_MESSAGE = "waitingMessage"
 KEY_DISRUPTION = "disruption"
@@ -144,7 +147,7 @@ async def get_workload_status(run: Run, args: WorkloadArgs, k8s: K8s) -> tuple[d
     items: list[dict] = []
     # No matchLabels: an empty selector would list every pod of the namespace.
     if labels:
-        selector = ",".join(f"{k}={v}" for k, v in labels.items())
+        selector = SELECTOR_SEPARATOR.join(f"{k}={v}" for k, v in labels.items())
         body = await k8s.get(K8S_PODS_PATH.format(namespace=namespace), {K8S_PARAM_LABEL_SELECTOR: selector})
         items = body.get("items") or []
     pods = sorted((_pod_summary(p) for p in items), key=lambda p: p["restarts"], reverse=True)
@@ -167,6 +170,7 @@ async def get_workload_status(run: Run, args: WorkloadArgs, k8s: K8s) -> tuple[d
     run.status_cache[key] = {
         **payload, KEY_PODS: pods[:PODS_MAX],
         KEY_PENDING: sum(p["phase"] == POD_PHASE_PENDING for p in pods),
+        KEY_PAUSED: bool(spec.get("paused")),
         KEY_FULL_IMAGES: {c.get("name"): c.get("image") or "" for c in containers},
     }
     run.spec_cache[key] = obj
@@ -192,17 +196,28 @@ def workload_matchers(kind: str, name: str) -> list[tuple[str, re.Pattern]]:
     return out
 
 
+def owned_event(event: dict, namespace: str, matchers: list[tuple[str, re.Pattern]]) -> bool:
+    """A cached event of the workload (or an object it owns) in `namespace`."""
+    kind, _, name = (event.get("object") or "").partition(SUBJECT_SEPARATOR)
+    return event.get(KEY_NAMESPACE) == namespace and any(kind == k and pattern.match(name) for k, pattern in matchers)
+
+
 def stale_pod_event(status: dict | None, items: list[dict] | None, event: dict, now: datetime) -> bool:
-    """For a fully ready workload, a pod event that is history rather than a symptom: its pod no longer exists (a
-    replaced pod's leftover, for example the BackOff of the pod a fix rolled away), or its pod became Ready after
-    the event last occurred (a start-up blip) and no restarted container of it is younger than
+    """A pod event that is history rather than a symptom. A FailedScheduling event whose pod has a node since, or no
+    longer exists, whatever the workload's readiness. For a fully ready workload, any event whose pod no longer
+    exists (a replaced pod's leftover, for example the BackOff of the pod a fix rolled away), or whose pod became
+    Ready after the event last occurred (a start-up blip) and no restarted container of it is younger than
     RECOVERED_MIN_UPTIME_S (a crash loop's container is Ready for the seconds it runs between two back-offs)."""
-    if status is None or items is None or status["ready"] < status["desired"]:
+    if status is None or items is None:
         return False
     kind, _, name = event["object"].partition(SUBJECT_SEPARATOR)
     if kind != K8S_KIND_POD:
         return False
     pod = next((p for p in items if (p.get("metadata") or {}).get("name") == name), None)
+    if event.get("reason") == REASON_FAILED_SCHEDULING:
+        return pod is None or bool((pod.get("spec") or {}).get("nodeName"))
+    if status["ready"] < status["desired"]:
+        return False
     if pod is None:
         return True
     pod_status = pod.get("status") or {}

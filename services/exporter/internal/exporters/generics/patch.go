@@ -25,7 +25,8 @@ func GenericPatchCustomResource(w http.ResponseWriter, md metadata.Metadata, nam
 
 	exists, err := api.CheckCustomResourceExistsByName(name, md)
 	if err != nil {
-		sharedutils.LogByStatusAndSend(w, http.StatusBadRequest, response.OperationError, string(globalerrors.ErrCheckResExistence), nil, err)
+		status := sharedutils.StatusForK8sError(err)
+		sharedutils.LogByStatusAndSend(w, status, response.OperationError, string(globalerrors.ErrCheckResExistence), nil, err)
 		return
 	}
 

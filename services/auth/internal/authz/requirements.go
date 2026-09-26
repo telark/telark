@@ -21,9 +21,8 @@ func Requirements() map[string]authz.Requirement {
 	return requirements
 }
 
-// The exporter writes this config, but its own guard sees a service token on the way
-// in and stands aside, so this line is the whole authorization for changing who can
-// authenticate. It must stay in step with the exporter's globalConfigFields entry.
+// The exporter's guard stands aside for the service token, so this line is the whole
+// authorization for changing who can authenticate; keep in step with its globalConfigFields.
 func addIdentityProvider(r map[string]authz.Requirement) {
 	r[router.Key(base.Patch, autheps.OIDCConfig)] = authz.Denyable(
 		authz.Administer(roledata.ScopeSettings),
@@ -66,9 +65,13 @@ func addSelfService(r map[string]authz.Requirement) {
 	r[router.Key(base.Post, autheps.CreatePasskeyEnrollLink)] = authz.Authenticated
 }
 
-// Cascading deletes of a principal and everything attached to it.
+// Cascading deletes. The handler reaches the exporter with the service token, which
+// its guard waves through, so the delete deny rules are enforced here or nowhere.
 func addCleanup(r map[string]authz.Requirement) {
-	r[router.Key(base.Delete, autheps.DeleteUserCleanup)] = authz.Own(roledata.ScopeUsers)
-	r[router.Key(base.Delete, autheps.DeleteGroupCleanup)] = authz.Own(roledata.ScopeGroups)
-	r[router.Key(base.Delete, autheps.DeleteRoleCleanup)] = authz.Own(roledata.ScopeRoles)
+	r[router.Key(base.Delete, autheps.DeleteUserCleanup)] = authz.Denyable(
+		authz.Own(roledata.ScopeUsers), roledata.ActionDeleteUser)
+	r[router.Key(base.Delete, autheps.DeleteGroupCleanup)] = authz.Denyable(
+		authz.Own(roledata.ScopeGroups), roledata.ActionDeleteGroup)
+	r[router.Key(base.Delete, autheps.DeleteRoleCleanup)] = authz.Denyable(
+		authz.Own(roledata.ScopeRoles), roledata.ActionDeleteRole)
 }

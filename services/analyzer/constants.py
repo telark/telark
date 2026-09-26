@@ -109,6 +109,7 @@ EVENT_ANALYSIS_FINISHED = "analysis.finished"
 EVENT_INSIGHT_CREATED = "insight.created"
 EVENT_INSIGHT_UPDATED = "insight.updated"
 EVENT_INSIGHT_RESOLVED = "insight.resolved"
+EVENT_REVIEW_FINISHED = "review.finished"
 EVENT_RUNTIME_CHANGED = "runtime.changed"
 EVENT_RUNTIME_PULL = "runtime.pull"
 EVENT_RESYNC = "resync"
@@ -138,6 +139,8 @@ INSIGHT_KIND_ROLLOUT_STUCK = "rollout_stuck"
 INSIGHT_KIND_CONFIG_CHANGE_REGRESSION = "config_change_regression"
 INSIGHT_KIND_RESOURCE_PRESSURE = "resource_pressure"
 INSIGHT_KIND_OTHER = "other"
+# The kinds that stand for a replica shortfall itself, which a paused rollout makes intentional.
+PAUSED_RESOLVES_KINDS = (INSIGHT_KIND_ROLLOUT_STUCK, INSIGHT_KIND_CONFIG_CHANGE_REGRESSION, INSIGHT_KIND_OTHER)
 
 CONFIDENCE_LOW = "low"
 CONFIDENCE_MEDIUM = "medium"
@@ -167,17 +170,6 @@ EVIDENCE_TYPE_PLAN = "plan"
 
 INSIGHT_CATEGORY_INCIDENT = "incident"
 INSIGHT_CATEGORY_RECOMMENDATION = "recommendation"
-
-RECOMMENDATION_KIND_RELIABILITY = "reliability"
-RECOMMENDATION_KIND_RESOURCES = "resources"
-RECOMMENDATION_KIND_SCALING = "scaling"
-RECOMMENDATION_KIND_SECURITY = "security"
-RECOMMENDATION_KIND_IMAGES = "images"
-RECOMMENDATION_KIND_CONFIG = "config"
-RECOMMENDATION_KIND_NETWORKING = "networking"
-RECOMMENDATION_KIND_CHANGE_RISK = "change_risk"
-RECOMMENDATION_KIND_PROTECTION = "protection"
-RECOMMENDATION_KIND_CONSISTENCY = "consistency"
 
 TRIAGE_STATE_ACKNOWLEDGED = "acknowledged"
 TRIAGE_STATE_DISMISSED = "dismissed"
@@ -404,6 +396,7 @@ PERMISSIONS_FIELD_USER_ID = "userID"
 PERMISSIONS_FIELD_ROLES = "roles"
 
 MSG_AUTHZ_MISSING_SESSION = "a session token is required"
+MSG_AUTHZ_INVALID_SESSION = "the session is invalid or has expired"
 MSG_AUTHZ_FORBIDDEN = "you do not have permission to perform this action"
 MSG_AUTHZ_UNAVAILABLE = "unable to verify permissions"
 
@@ -601,10 +594,7 @@ CONDITION_PROGRESSING = "Progressing"
 CONDITION_FALSE = "False"
 CONDITION_READY = "Ready"
 RECOVERED_MIN_UPTIME_S = 60
-ROLLOUT_INCOMPLETE = "incomplete"
-UNKNOWN_VALUE = "unknown"
 NONE_VALUE = "none"
-IMAGES_SEPARATOR = ", "
 FACT_TEMPLATE = "{}: {}"
 FACT_WHAT = "what"
 CORRELATION_TEMPLATE = "{minutes} min after change gen {generation}"
@@ -713,18 +703,23 @@ CHANGE_FIELD_REASONS = {
     "serviceMapping": "config_change_regression.config", "ingressRule": "config_change_regression.config",
 }
 CHANGE_FIELD_RESOURCE_PREFIXES = ("requests", "limits")
+# Discovery's synthetic field on an incident entry: the symptom, never the cause.
+CHANGE_FIELD_HEALTH = "health"
 CHANGE_REASON_RESOURCES = "config_change_regression.resources"
 CHANGE_REASON_OTHER = "config_change_regression.other"
 WARNING_REASONS_MAX = 3
 WARNING_REASONS_SEPARATOR = ", "
-# Every param key an incident may carry (D3): values are cut to MAX_INSIGHT_PARAM_LENGTH, at most MAX_INSIGHT_PARAMS.
+# Every param key an incident may carry: values are cut to MAX_INSIGHT_PARAM_LENGTH, at most MAX_INSIGHT_PARAMS.
 INCIDENT_PARAM_KEYS = (
     "workload", "namespace", "pod", "container", "image", "registry", "exitCode", "lastReason", "restarts",
     "ready", "desired", "pending", "message", "probe", "failure", "port", "status", "timeout", "count", "limit",
     "updated", "generation", "change", "warnings", "reasons",
 )
 PARAM_ELLIPSIS = "\u2026"
-# D3: title '{workload} {state}: {what}', summary '{impact} {detail}{change}'.
+# Derived placeholder -> (singular, plural), chosen by the restarts count.
+RESTART_PLURALS = {"restartsNoun": ("restart", "restarts"), "timesNoun": ("time", "times")}
+RESTARTS_SINGULAR = "1"
+# title '{workload} {state}: {what}', summary '{impact} {detail}{change}'.
 STATE_DOWN = "is down"
 STATE_DEGRADED = "is degraded"
 TITLE_WITH_STATE = "{workload} {state}: {what}"
@@ -742,7 +737,7 @@ INCIDENT_DETAIL_VARIANTS = {
         "scheduling.node_affinity", "scheduling.pod_anti_affinity", "scheduling.topology_spread", "scheduling.volume",
         "scheduling.too_many_pods", "scheduling.host_ports", "scheduling.other")},
 }
-# reason -> (what, detail): the 52 incident sub-reasons (plan Feature B table).
+# reason -> (what, detail): the 52 incident sub-reasons.
 INCIDENT_TEXT = {
     "image_pull.not_found": ("image not found",
         "Pod {pod} cannot pull {image}: the registry has no such tag or repository."),
@@ -759,35 +754,35 @@ INCIDENT_TEXT = {
         "Pod {pod} cannot pull {image}: the registry is rate-limiting pulls."),
     "image_pull.other": ("image pull failing", "Pod {pod} cannot pull {image}: {message}."),
     "crashloop.probe_kill": ("restarted by its {probe} probe",
-        "Container {container} in pod {pod} fails its {probe} probe and was restarted {restarts} times: "
+        "Container {container} in pod {pod} fails its {probe} probe and was restarted {restarts} {timesNoun}: "
         "{failureText}."),
     "crashloop.init_failure": ("init container failing",
         "Init container {container} in pod {pod} fails (exit code {exitCode}), so the main containers never "
         "start."),
     "crashloop.start_error": ("start command cannot run",
-        "Container {container} in pod {pod} cannot run its start command (StartError), {restarts} restarts."),
+        "Container {container} in pod {pod} cannot run its start command (StartError), {restarts} {restartsNoun}."),
     "crashloop.exit_0": ("container exits right after starting",
-        "Container {container} in pod {pod} finished with exit code 0 and was restarted {restarts} times."),
+        "Container {container} in pod {pod} finished with exit code 0 and was restarted {restarts} {timesNoun}."),
     "crashloop.exit_1": ("application error",
-        "Container {container} in pod {pod} exits with code 1 (application error), {restarts} restarts."),
+        "Container {container} in pod {pod} exits with code 1 (application error), {restarts} {restartsNoun}."),
     "crashloop.exit_126": ("command not executable",
         "Container {container} in pod {pod} exits with code 126: the start command exists but cannot be "
         "executed."),
     "crashloop.exit_127": ("command not found",
         "Container {container} in pod {pod} exits with code 127: the start command was not found in the image."),
     "crashloop.exit_137": ("killed (SIGKILL)",
-        "Container {container} in pod {pod} was killed with SIGKILL (exit code 137), {restarts} restarts; no "
+        "Container {container} in pod {pod} was killed with SIGKILL (exit code 137), {restarts} {restartsNoun}; no "
         "out-of-memory report was recorded."),
     "crashloop.exit_139": ("segmentation fault",
         "Container {container} in pod {pod} crashed with a segmentation fault (exit code 139), {restarts} "
-        "restarts."),
+        "{restartsNoun}."),
     "crashloop.exit_143": ("stopped by SIGTERM",
-        "Container {container} in pod {pod} was stopped with SIGTERM (exit code 143), {restarts} restarts."),
+        "Container {container} in pod {pod} was stopped with SIGTERM (exit code 143), {restarts} {restartsNoun}."),
     "crashloop.exit_other": ("crash-looping",
-        "Container {container} in pod {pod} exits with code {exitCode} ({lastReason}), {restarts} restarts."),
+        "Container {container} in pod {pod} exits with code {exitCode} ({lastReason}), {restarts} {restartsNoun}."),
     "oom.limit": ("out of memory",
         "Container {container} in pod {pod} used more than its {limit} memory limit and was killed (OOMKilled), "
-        "{restarts} restarts."),
+        "{restarts} {restartsNoun}."),
     "oom.node": ("node ran out of memory",
         "Pod {pod} was killed because node memory ran out; container {container} has no memory limit."),
     "probe_failure.readiness": ("failing readiness checks",
@@ -894,7 +889,7 @@ REVIEW_WALL_S = 20
 USAGE_KEY = "analyzer:usage"
 REVIEW_KEY = "analyzer:review"
 USAGE_SAMPLES_MAX = 48
-# Input families (plan Feature A): a rule fires, and resolves, only when all of its families are complete.
+# Input families: a rule fires, and resolves, only when all of its families are complete.
 FAMILY_WORKLOADS = "W"
 FAMILY_SERVICES = "S"
 FAMILY_PDBS = "P"
@@ -1025,7 +1020,7 @@ PROBE_PORT_HANDLERS = ("httpGet", "tcpSocket")
 PROBE_SUFFIX = "Probe"
 # Params that move with every usage sample: they refresh the text but never make a card 'updated'.
 VOLATILE_PARAMS = ("usage", "samples", "suggested", "velocity", "restarts")
-# reason -> (title, summary): the 60 v1 rules (plan Feature A catalog + S9b).
+# reason -> (title, summary): the 60 v1 rules.
 RECOMMENDATION_TEXT = {
     "reliability.single_replica": ("{workload} runs a single replica",
         "{workload} runs 1 replica, so a restart, a node drain or a rollout leaves it unavailable."),
@@ -1044,8 +1039,8 @@ RECOMMENDATION_TEXT = {
         "Container {containers} of {workload} uses one check for both probes, so a slow dependency makes the "
         "kubelet restart pods instead of only taking them out of traffic."),
     "reliability.no_startup_probe": ("{workload} is restarted while starting",
-        "Container {containers} of {workload} fails its liveness probe and was restarted {restarts} times; a slow "
-        "start is the usual cause."),
+        "Container {containers} of {workload} fails its liveness probe and was restarted {restarts} {timesNoun}; a "
+        "slow start is the usual cause."),
     "reliability.replicas_same_node": ("All replicas of {workload} run on one node",
         "All {replicas} replicas of {workload} run on node {node}, so losing that node stops the workload."),
     "reliability.rollout_all_at_once": ("{workload} stops all replicas on every rollout",
@@ -1140,7 +1135,6 @@ RECOMMENDATION_TEXT = {
         "blocked."),
     "consistency.image_skew": ("{workload} runs different images across namespaces",
         "{workload} runs {images} in {namespaces}; if this is not a staged rollout, one namespace is behind."),
-    # S9b: 16 more v1 rules (60 in total).
     "reliability.revision_history_zero": ("{workload} keeps no rollout history",
         "{workload} sets revisionHistoryLimit to 0, so Kubernetes keeps no previous ReplicaSet to roll back to."),
     "reliability.deployment_paused": ("{workload}'s rollouts are paused",
@@ -1199,6 +1193,15 @@ READ_BLOCK_MS = 2000
 CLAIM_INTERVAL_S = 60
 CLAIM_MIN_IDLE_MS = 600000
 CLAIM_COUNT = 10
+# Consumers of past pods: removed once idle this long with nothing pending (a live one reads every READ_BLOCK_MS).
+CONSUMER_MAX_IDLE_MS = 3600000
+CONSUMER_FIELD_NAME = "name"
+CONSUMER_FIELD_PENDING = "pending"
+CONSUMER_FIELD_IDLE = "idle"
+# Discovery enqueues an automatic job before exporter holds the entry that triggered it: re-read the app this many
+# times, this far apart, until its history reaches the job's generation.
+APP_CATCHUP_ATTEMPTS = 3
+APP_CATCHUP_INTERVAL_S = 1.0
 WORKER_BACKOFF_S = 15
 MS_PER_S = 1000
 # The SSE subscription key of an app: '<namespace>/<name>', as ?apps= carries it.

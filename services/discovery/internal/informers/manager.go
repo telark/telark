@@ -3,6 +3,7 @@ package informers
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -150,6 +151,7 @@ func (m *Manager) attachInformer(
 	gvr schema.GroupVersionResource,
 ) cache.SharedIndexInformer {
 	inf := factory.ForResource(gvr).Informer()
+	_ = inf.AddIndexers(appIndexers())
 	_ = inf.SetWatchErrorHandler(func(_ *cache.Reflector, err error) {
 		constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(
 			fmt.Sprintf(string(constants.WarnInformerWatchError), ns, gvr.Resource, err),
@@ -265,12 +267,10 @@ func (m *Manager) onUpdate(oldObj, newObj any) {
 	}
 	key := resourceKey(newU)
 	lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
-	rep, repFound, _ := unstructured.NestedInt64(oldU.Object, "spec", "replicas")
-	var repv any
+	rep, repFound, _ := unstructured.NestedInt64(oldU.Object, constants.K8sObjectFieldSpec, constants.K8sObjectFieldReplicas)
+	var repv any = constants.DashSeparator
 	if repFound {
 		repv = rep
-	} else {
-		repv = "-"
 	}
 	lg.Info(fmt.Sprintf(
 		string(constants.InfoInformerOldObjectCaptured),
@@ -411,13 +411,7 @@ func namespaceExcluded(ctx context.Context, ns string) bool {
 	if ns == constants.EmptyString {
 		return true
 	}
-	ex := gcfghelper.FetchExcludedNamespaces(ctx)
-	for i := range ex {
-		if ex[i] == ns {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(gcfghelper.FetchExcludedNamespaces(ctx), ns)
 }
 
 // eventLag measures how long the API server change waited before this handler

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/telark/exporter/internal/constants"
@@ -15,6 +16,12 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+)
+
+const (
+	globalConfigName = "global-config"
+	retryAfterSecs   = 1
 )
 
 var globalConfigGR = schema.GroupResource{Group: "telark.io", Resource: "globalconfigs"}
@@ -55,6 +62,45 @@ func TestStatusForResult(t *testing.T) {
 				t.Fatalf("StatusForResult = %d, want %d", got, tc.want)
 			}
 		})
+	}
+}
+
+// An existence check that fails for any reason but NotFound must not read as
+// "gone": the caller gets the real upstream status, 503 for a transport fault.
+func TestStatusForK8sError(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{"empty name", k8serrors.NewBadRequest("resource name cannot be empty"), http.StatusBadRequest},
+		{"forbidden", k8serrors.NewForbidden(globalConfigGR, globalConfigName, errors.New("rbac")), http.StatusForbidden},
+		{"throttled", k8serrors.NewTooManyRequests("throttled", retryAfterSecs), http.StatusTooManyRequests},
+		{"client deadline", fmt.Errorf("get: %w", context.DeadlineExceeded), http.StatusServiceUnavailable},
+	}
+	for _, tc := range cases {
+		if got := sharedutils.StatusForK8sError(tc.err); got != tc.want {
+			t.Errorf("%s: StatusForK8sError = %d, want %d", tc.name, got, tc.want)
+		}
+	}
+}
+
+// A schema rejection names the offending fields and nothing else: the API
+// server's validation text carries the regex and the raw value.
+func TestInvalidFieldsNamesCauses(t *testing.T) {
+	invalid := k8serrors.NewInvalid(schema.GroupKind{Group: "telark.io", Kind: "GlobalConfig"}, globalConfigName, field.ErrorList{
+		field.Invalid(field.NewPath("spec", "ai", "model"), "Bad Model!", "should match '^[a-z]+$'"),
+		field.Invalid(field.NewPath("spec", "ai", "model"), "Bad Model!", "too long"),
+		field.Required(field.NewPath("spec", "oidc", "issuer"), ""),
+	})
+	if got, want := globalconfighandler.InvalidFields(invalid), "spec.ai.model, spec.oidc.issuer"; got != want {
+		t.Fatalf("InvalidFields = %q, want %q", got, want)
+	}
+	if strings.Contains(globalconfighandler.InvalidFields(invalid), "Bad Model") {
+		t.Fatal("raw value leaked")
+	}
+	if got := globalconfighandler.InvalidFields(errors.New("boom")); got != constants.SpecField {
+		t.Fatalf("non-status error = %q, want %q", got, constants.SpecField)
 	}
 }
 

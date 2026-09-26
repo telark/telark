@@ -46,3 +46,18 @@ func TestAppKeyNamesTheGroup(t *testing.T) {
 	}
 	testutil.Equal(t, "unlabeled", derivation.AppKey(nil), constants.EmptyString)
 }
+
+// A label value carries case and underscores a CR name cannot; the key names the
+// CR, so it is lowercased with underscores as dashes for every identity signal.
+func TestAppKeyIsNamedLikeACR(t *testing.T) {
+	const raw = "e2e-a-Special_Name.v2"
+	const key = "e2e-a-special-name.v2"
+	for name, labels := range map[string]map[string]string{
+		"name label":     {labelName: raw},
+		"part-of label":  {labelPartOf: raw},
+		"instance label": {labelComponent: componentValue, labelInstance: raw + "-release"},
+		"legacy label":   {labelLegacyApp: raw},
+	} {
+		testutil.Equal(t, name, derivation.AppKey(labels), key)
+	}
+}

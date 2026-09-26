@@ -49,10 +49,13 @@ flowchart TB
    **manual** one. There is no timer.
 2. The analyzer's single worker picks up one job at a time. It skips jobs that are
    too old (30 min), already running, still cooling down, or automatic while
-   `autoAnalyze` is off, and records why on the app's document. A job that finds a
-   background review of its app waits for it to finish (at most 20 s).
+   `autoAnalyze` is off; a skipped **manual** run records why on the app's document,
+   an automatic one leaves it untouched. A job that finds a background review of its
+   app waits for it to finish (at most 20 s).
 3. It reads the analyzer settings (enabled, model, autoAnalyze, excluded
-   namespaces) and the application from exporter-service.
+   namespaces) and the application from exporter-service. An incident job re-reads
+   the application for a couple of seconds until it holds the change that triggered
+   the job; if it never does, the insight cites no change rather than an older one.
 4. It reads the app with four read-only tools (app overview, change history,
    recent warning events, the status of up to three workloads), within fixed caps.
 5. Detection rules turn what it read into at most three insights (crash loop, out of
@@ -91,8 +94,9 @@ same code checks and merges them. On a small CPU node this takes minutes.
 
 - **Redis is shared** by discovery and the analyzer on **DB 0** (auth uses DB 1).
   The stream is `insights:jobs` (group `analyzer`); each app's document is
-  `analyzer:<namespace>:<name>` (TTL 7 days; every review and triage write bumps its
-  `version`); in-flight and cooldown keys use the
+  `analyzer:<namespace>:<name>` (TTL 7 days; every run, review and triage write bumps its
+  `version`, and a new or lost document starts from the clock in unix ms); in-flight and
+  cooldown keys use the
   `analyzer:inflight:` and `analyzer:cooldown:{manual,auto}:` prefixes.
 - **The contract is frozen in Go** (`internal/data/insights`,
   `internal/data/resources/application/insights.go`, `internal/rest/endpoints/insights`);

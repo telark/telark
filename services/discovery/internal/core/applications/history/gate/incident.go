@@ -114,27 +114,18 @@ func filterIncidentRecoveryDuplicates(
 		return appChanges
 	}
 
+	ongoing := state == constants.IncidentStateValueIncident
 	out := make([]application.ApplicationChange, constants.DefaultInitValue, len(appChanges))
 	for _, c := range appChanges {
-		if c.Field != changes.ChangeFieldHealth {
-			out = append(out, c)
-			continue
-		}
-		if healthChangeIsToBad(&c) {
-			if state == constants.IncidentStateValueIncident && freshIsUnhealthy(fresh) {
+		if c.Field == changes.ChangeFieldHealth {
+			if healthChangeIsToBad(&c) && ongoing && freshIsUnhealthy(fresh) {
 				lg.Info(fmt.Sprintf(string(constants.InfoIncidentOngoingSkippingDuplicate), fresh.Name))
 				continue
 			}
-			out = append(out, c)
-			continue
-		}
-		if healthChangeIsRecovery(&c) {
-			if state != constants.IncidentStateValueIncident {
+			if healthChangeIsRecovery(&c) && !ongoing {
 				lg.Info(fmt.Sprintf(string(constants.InfoRecoverySkippingAlreadyHealthy), fresh.Name))
 				continue
 			}
-			out = append(out, c)
-			continue
 		}
 		out = append(out, c)
 	}

@@ -9,16 +9,11 @@ import (
 type contextKey string
 
 const (
-	PoolSizeK8sClient     = 5
-	PoolSizeDynamicClient = 5
-	PoolSizeWorker        = 10
-	QueueSizeWorker       = 100
-	MaxConcurrentRequests = 50
-	RequestIDLength       = 8
-	RequestIDFormat       = "20060102150405"
-	RequestIDKey          = "requestID"
-	Charset               = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	MaxResponseSize       = 10 * 1024 * 1024 // 10MB limit
+	RequestIDLength = 8
+	RequestIDFormat = "20060102150405"
+	RequestIDKey    = "requestID"
+	Charset         = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	MaxResponseSize = 10 * 1024 * 1024
 )
 
 var RequestIDCtxKey = contextKey(RequestIDKey)

@@ -27,7 +27,3 @@ func GenerateRandomBytes(n int) ([]byte, error) {
 func Base64URLEncode(data []byte) string {
 	return base64.RawURLEncoding.EncodeToString(data)
 }
-
-func Base64URLDecode(s string) ([]byte, error) {
-	return base64.RawURLEncoding.DecodeString(s)
-}

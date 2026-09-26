@@ -15,9 +15,7 @@ import (
 func SharedExecuteHandler(
 	m *nats.Msg,
 	action natscore.Action,
-	resourceKey string,
 	getHandler func(natscore.Action) func(*nats.Msg) error,
-	transformData func([]byte) ([]byte, error),
 ) error {
 	handler := getHandler(action)
 	logger.GetLogger(constants.PrefixManagerSubscriber).Debug(fmt.Sprintf(
@@ -32,26 +30,6 @@ func SharedExecuteHandler(
 		return fmt.Errorf(string(errors.ErrNatsFailedToUnmarshalMsgData), err)
 	}
 
-	if action == natscore.Delete {
-		return handler(m)
-	}
-
-	dataBytes, err := json.Marshal(msg.Data)
-	if err != nil {
-		return fmt.Errorf(string(errors.ErrNatsFailedToMarshalMsgData), err)
-	}
-
-	var transformed []byte
-	if transformData != nil {
-		transformed, err = transformData(dataBytes)
-		if err != nil {
-			return fmt.Errorf("%s: %w", errors.ErrNatsConvertMsgData, err)
-		}
-	} else {
-		transformed = dataBytes
-	}
-
-	natscore.SetParsedMessageHeader(m, resourceKey, string(transformed))
 	return handler(m)
 }
 

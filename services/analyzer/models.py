@@ -151,6 +151,7 @@ class RuntimeStatus(_OmitEmpty):
     reason: str = ""
     mode: str = ""
     autoPull: bool = False
+    enabled: bool = False
     pull: PullProgress | None = None
 
 
@@ -249,6 +250,8 @@ class Run:
     name: str
     app: dict
     excluded: list[str]
+    # The job's generation: a newest change older than it is not the one that triggered the job.
+    min_generation: int = 0
     # (namespace, '<kind>/<name>') -> (kind, name, namespace); workloads in excluded namespaces never bind.
     workloads: dict[tuple[str, str], tuple[str, str, str]] = field(init=False)
     refs: set[str] = field(default_factory=set)

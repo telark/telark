@@ -5,9 +5,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-// ManifestPair is one object before (informer-captured oldObject) and after
-// (informer cache) a change. Either side nil means the pair is skipped: adds
-// and deletes are already reported as topology changes.
+// Either side nil skips the pair: adds and deletes are already reported as topology changes.
 type ManifestPair struct {
 	Old *unstructured.Unstructured
 	New *unstructured.Unstructured
@@ -57,14 +55,11 @@ var noisyAnnotations = []string{
 	constants.AnnotationLastModifiedOperation,
 }
 
-// Service defaults the API server fills in; the exporter strips them from the
-// snapshot manifests it serves (utils/snapshot/sanitize.go), so a stored copy
-// only compares equal to a live Service without them.
+// API-server defaults the exporter strips from served snapshot manifests (utils/snapshot/sanitize.go),
+// so a stored copy only compares equal to a live Service without them.
 var servedServiceSpecStripped = []string{"internalTrafficPolicy", "ipFamilies", "ipFamilyPolicy", "sessionAffinity"}
 
-// Paths already reported by the curated summary checks (replicas, images,
-// ports, env keys, config/secret refs, resources, service mappings, ingress
-// rules). The generic layer skips them so a change is never listed twice.
+// Paths the curated summary checks already report; skipped here so a change is never listed twice.
 var curatedPathSuffixes = []string{
 	"].image",
 	"].ports",

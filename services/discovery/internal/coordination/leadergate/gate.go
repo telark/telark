@@ -8,15 +8,12 @@ import (
 	"github.com/telark/discovery/internal/constants"
 )
 
-// Runnable is a long-lived loop that should run only while this replica leads.
 type Runnable interface {
 	Run(ctx context.Context)
 }
 
-// Start runs r for exactly as long as isLeader stays true, and stops it the
-// moment leadership is lost — so a background reconcile driven by this never runs
-// on two replicas at once. It returns immediately; the gating happens in a
-// goroutine that lives until ctx is canceled.
+// r runs for exactly as long as isLeader stays true and is canceled the moment leadership
+// is lost, so a loop driven by this never runs on two replicas at once.
 func Start(ctx context.Context, r Runnable, isLeader func(context.Context) bool) {
 	go run(ctx, r, isLeader)
 }

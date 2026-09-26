@@ -1,4 +1,4 @@
-"""Incident sub-reasons and the server-rendered title/summary (Feature B), and the recommendations' texts.
+"""Incident sub-reasons and the server-rendered title/summary, and the recommendations' texts.
 
 Pure: `classify` reads exactly what the fast path gathered (the status payload with its
 in-memory extras, the owned warning events with their untruncated text) and names the
@@ -25,7 +25,6 @@ from constants import (
     CRASHLOOP_MARKER,
     CREATE_CONTAINER_ERROR_REASONS,
     DEFAULT_REGISTRY,
-    DOMAIN_MARKERS,
     EVICTION_MARKER,
     EVICTION_MARKERS,
     EVICTION_OTHER,
@@ -50,7 +49,6 @@ from constants import (
     INSIGHT_KIND_RESOURCE_PRESSURE,
     INSIGHT_KIND_ROLLOUT_STUCK,
     INSIGHT_KIND_SCHEDULING,
-    LOCALHOST,
     MAX_INSIGHT_PARAMS,
     MAX_INSIGHT_PARAM_LENGTH,
     MAX_INSIGHT_SUMMARY_LENGTH,
@@ -85,7 +83,9 @@ from constants import (
     REASON_START_ERROR,
     REASON_UNHEALTHY,
     RECOMMENDATION_TEXT,
+    RESTART_PLURALS,
     RESTARTING_PROBES,
+    RESTARTS_SINGULAR,
     ROOT_MODE_TEXT,
     RPC_ERROR_PREFIX_PATTERN,
     SCHEDULING_AVAILABLE_MARKER,
@@ -104,7 +104,7 @@ from constants import (
     WARNING_REASONS_MAX,
     WARNING_REASONS_SEPARATOR,
 )
-from helpers import image_parts
+from helpers import image_parts, is_registry_host
 from tools.k8s_tools import KEY_DISRUPTION, KEY_FULL_IMAGES, KEY_FULL_MESSAGE, KEY_PENDING, KEY_WAITING_MESSAGE
 
 Params = dict[str, object]
@@ -158,9 +158,7 @@ def registry_of(image: str) -> str:
     if parts := image_parts(image):
         return parts[0]
     first, sep, _rest = image.partition("/")
-    if sep and (DOMAIN_MARKERS[0] in first or DOMAIN_MARKERS[1] in first or first == LOCALHOST):
-        return first
-    return DEFAULT_REGISTRY
+    return first if sep and is_registry_host(first) else DEFAULT_REGISTRY
 
 
 def probe_of(event: dict) -> str | None:
@@ -411,8 +409,15 @@ def fill(templates: tuple[str, ...], values: dict[str, str]) -> str:
     return pick(templates, values).format_map(values)
 
 
+def _plurals(params: dict[str, str]) -> dict[str, str]:
+    if (restarts := params.get("restarts")) is None:
+        return dict(params)
+    form = int(str(restarts) != RESTARTS_SINGULAR)
+    return {**params, **{key: forms[form] for key, forms in RESTART_PLURALS.items()}}
+
+
 def _derived(params: dict[str, str]) -> dict[str, str]:
-    values = dict(params)
+    values = _plurals(params)
     if failure := params.get("failure"):
         detail = params.get("message", "")
         if m := re.match(PROBE_MESSAGE_PATTERN, detail, re.IGNORECASE):
@@ -436,7 +441,7 @@ def _state(status: dict | None) -> str:
 
 def render_incident(reason: str, params: dict[str, str], workload: str, status: dict | None,
                     change_sentence: str) -> tuple[str, str]:
-    """(title, summary) per D3: '{workload} {state}: {what}' and '{impact} {detail}{change}'."""
+    """(title, summary): '{workload} {state}: {what}' and '{impact} {detail}{change}'."""
     phrase = what(reason, params)
     values = {**_derived(params), "workload": workload, "whatSentence": phrase[:1].upper() + phrase[1:]}
     state = _state(status)
@@ -454,7 +459,7 @@ def render_incident(reason: str, params: dict[str, str], workload: str, status: 
 
 def render_recommendation(reason: str, params: dict[str, str]) -> tuple[str, str]:
     """(title, summary) of a recommendation: exact template text, never narrated."""
-    values = dict(params)
+    values = _plurals(params)
     if mode := params.get("mode"):
         values["modeText"] = ROOT_MODE_TEXT[mode]
     title, summary = RECOMMENDATION_TEXT[reason]

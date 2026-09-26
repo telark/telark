@@ -14,9 +14,8 @@ import (
 	"github.com/telark/rest/response"
 )
 
-// ReportClient deliberately bypasses the exporter circuit breaker: report calls must never
-// take its half-open probe slot nor record results on the breaker that guards CreateSnapshot.
-// The HTTP timeout is the capture bound.
+// Bypasses the exporter circuit breaker on purpose: a report call must never take its half-open
+// probe slot nor record results on the breaker that guards CreateSnapshot.
 type ReportClient struct {
 	client *reportsclient.Client
 }

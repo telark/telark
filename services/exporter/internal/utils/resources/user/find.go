@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	dataerrors "github.com/telark/data/errors"
 	metadata "github.com/telark/data/metadata/resources"
@@ -31,7 +32,7 @@ func listUsers() (*unstructured.UnstructuredList, error) {
 	return list, nil
 }
 
-func findUserBySpecField(field string, value string) (*unstructured.Unstructured, error) {
+func findUserBySpecField(field string, matches func(string) bool) (*unstructured.Unstructured, error) {
 	list, err := listUsers()
 	if err != nil {
 		return nil, err
@@ -42,7 +43,7 @@ func findUserBySpecField(field string, value string) (*unstructured.Unstructured
 		if !exists {
 			continue
 		}
-		if current, ok := spec[field].(string); ok && current == value {
+		if current, ok := spec[field].(string); ok && matches(current) {
 			return &list.Items[i], nil
 		}
 	}
@@ -51,11 +52,17 @@ func findUserBySpecField(field string, value string) (*unstructured.Unstructured
 }
 
 func FindUserByUsername(username string) (*unstructured.Unstructured, error) {
-	return findUserBySpecField(constants.FieldUsername, username)
+	return findUserBySpecField(constants.FieldUsername, func(current string) bool { return current == username })
 }
 
+// Mailboxes are case-insensitive, and a login by email must land on one account.
 func FindUserByEmail(email string) (*unstructured.Unstructured, error) {
-	return findUserBySpecField(constants.FieldEmail, email)
+	want := NormalizeEmail(email)
+	return findUserBySpecField(constants.FieldEmail, func(current string) bool { return NormalizeEmail(current) == want })
+}
+
+func NormalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
 }
 
 func FindUserByIdentity(provider, issuer, subject string) (*unstructured.Unstructured, error) {

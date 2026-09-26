@@ -98,6 +98,18 @@ func GetStatusCodeForAuthError(err error) int {
 	return http.StatusUnauthorized
 }
 
+// A refused session is a verdict on the account, not a fault.
+func GetStatusCodeForSessionError(err error) int {
+	switch {
+	case IsError(err, dataerrors.ErrAuthzUserNotActive):
+		return http.StatusForbidden
+	case IsError(err, constants.ErrUserNotFound):
+		return http.StatusNotFound
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
 func GetStatusCodeForWebAuthnError(err error, fallback int) int {
 	if IsError(err, constants.ErrOriginNotAllowed) {
 		return http.StatusBadRequest

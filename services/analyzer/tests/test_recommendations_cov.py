@@ -514,6 +514,44 @@ def test_production_boost_severity():
         "hpa"] == "web"
 
 
+def _dev_and_prod(plans=(), envs=None):
+    dev, prd = (workload(replicas=1, containers=[container(image="nginxinc/nginx-unprivileged:1.27")])
+                for _ in range(2))
+    dev["metadata"]["namespace"], prd["metadata"]["namespace"] = "shop-dev", "shop-prod"
+    return build([dev, prd], ns="shop-dev", namespaces=["shop-dev", "shop-prod"], plans=list(plans), envs=envs)
+
+
+def test_production_is_judged_per_workload_namespace():
+    # Live (e2e-shop-dev): the dev workloads of an app that also spans a prod namespace were treated as production.
+    findings = R.evaluate(_dev_and_prod([plan()]), NOW)[0]
+    single = {f.namespace: f.severity for f in findings if f.reason == "reliability.single_replica"}
+    assert single == {"shop-dev": "info", "shop-prod": "warning"}
+    assert [f.namespace for f in findings if f.reason == "images.digest_not_pinned_production"] == ["shop-prod"]
+    # A plan whose environment is production and whose scope reaches the dev namespace makes it production too.
+    scoped = plan(environmentID="e1", scope={"type": "namespaces", "namespaces": ["shop-dev"]})
+    findings = R.evaluate(_dev_and_prod([scoped], envs={"e1": "Production"}), NOW)[0]
+    assert {f.namespace for f in findings if f.reason == "images.digest_not_pinned_production"} == {
+        "shop-dev", "shop-prod"}
+
+
+def test_no_readiness_probe_without_declared_ports():
+    # Live (seed apps): a Service targets port 80 of a container that declares no port.
+    undeclared = c_with(readinessProbe=None, ports=[])
+    assert _one(undeclared, "reliability.no_readiness_probe").params["containers"] == "app"
+    # A sidecar that declares another port does not hide the undeclared server.
+    sidecar = container("proxy", ports=[{"name": "admin", "containerPort": 15000}])
+    two = build([workload(containers=[container(readinessProbe=None, ports=[]), sidecar])])
+    assert _one(two, "reliability.no_readiness_probe").params["containers"] == "app"
+    # A container that declares ports none of which the Service targets is not the one it reaches.
+    other = c_with(readinessProbe=None, ports=[{"name": "metrics", "containerPort": 9090}])
+    assert "reliability.no_readiness_probe" not in _reasons(other)
+
+
+def test_paused_deployment_is_info():
+    # A paused rollout is no incident: at most this info card says so.
+    assert _one(build([edit_spec(paused=True)]), "reliability.deployment_paused").severity == "info"
+
+
 def test_suggestions_rounded_and_floored():
     f = _one(used(10, 60 * MI), "resources.memory_near_limit")
     assert f.params["limit"] == "64Mi" and f.params["usage"] == "60Mi" and f.params["samples"] == "13"

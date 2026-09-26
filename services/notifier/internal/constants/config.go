@@ -27,5 +27,7 @@ const (
 	ApplyWorkerCount             = 8
 	ApplyWorkerQueueSize         = 32
 	DrainTimeoutSeconds          = 20
+	DedupWindowSeconds           = 10
+	FetchErrorBackoffMillis      = 500
 	EnvApplyWorkers              = "NOTIFIER_APPLY_WORKERS"
 )

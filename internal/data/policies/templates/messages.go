@@ -30,8 +30,10 @@ const (
 // An audit plan admits the request, so its message must not claim it was blocked.
 var auditReplacer = strings.NewReplacer(enforceSingular, auditWording, enforcePlural, auditWording)
 
+// Kyverno substitutes {{ }} variables in validate.message, so only the generated plan ID
+// goes here; the user-chosen name stays in the plan-name annotation, which is not substituted.
 func blockMessage(meta policies.RenderMeta, format string) string {
-	msg := fmt.Sprintf(format, meta.PlanName)
+	msg := fmt.Sprintf(format, meta.PlanID)
 	if meta.Mode == plans.ModeAudit {
 		return auditReplacer.Replace(msg)
 	}

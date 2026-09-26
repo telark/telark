@@ -51,7 +51,11 @@ flowchart TB
 2. The user signs in with Google and gets a Google token.
 3. The login page sends that token to auth-service.
 4. auth-service checks the token really came from Google.
-5. If it's valid, auth-service creates a Telark session and the user is logged in.
+5. If it's valid, auth-service finds the user by the token's subject. On a first
+   login it attaches the Google identity to the one user whose email matches, or
+   creates a user when none does; two users with that email are refused (409).
+   A user being deleted or whose account is not active gets no session (403).
+   Otherwise auth-service creates a Telark session and the user is logged in.
 
 ## How auth-service trusts Google (the important part)
 

@@ -3,17 +3,17 @@ package health
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	"github.com/telark/data/plans"
-	"github.com/telark/data/policies"
 	"github.com/telark/discovery/internal/constants"
 )
 
 // Reporting drift is not enough: a plan whose policies were deleted or flipped to Audit
 // protects nothing, so every active check repairs the cluster before storing the health.
 func ComputeAndRepair(ctx context.Context, deps Deps, plan *plans.ProtectionPlan) (Result, error) {
-	result, err := Compute(ctx, deps.Dyn, plan)
+	result, err := Compute(ctx, deps, plan)
 	if err != nil {
 		return Result{}, err
 	}
@@ -46,11 +46,17 @@ func repairIfDrifted(
 		deps.Logger.Error(formatErr(stageRepair, plan.ID, repairErr))
 		return result, nil
 	}
-	deps.Logger.Info(fmt.Sprintf(logRepairedFmt, plan.ID, outcome.redeployed, outcome.repatched, outcome.removed))
+	deps.Logger.Info(fmt.Sprintf(logRepairedFmt, plan.ID, outcome.redeployed, outcome.repatched, outcome.removed, outcome.added))
+	if len(outcome.added) > constants.DefaultInitValue {
+		plan.RenderedPolicies = slices.Concat(plan.RenderedPolicies, outcome.added)
+	}
 
-	repaired, err := Compute(ctx, deps.Dyn, plan)
+	repaired, err := Compute(ctx, deps, plan)
 	if err != nil {
 		return result, nil
+	}
+	if len(outcome.added) > constants.DefaultInitValue {
+		repaired.Rendered = plan.RenderedPolicies
 	}
 	return repaired, nil
 }
@@ -64,7 +70,8 @@ func activeAtSource(deps Deps, planID string) (bool, error) {
 }
 
 func needsRepair(result Result) bool {
-	return len(result.Missing)+len(result.Mismatched)+len(result.Unexpected) > constants.DefaultInitValue
+	return len(result.Missing)+len(result.Mismatched)+len(result.Unexpected)+len(result.Stale)+len(result.Added) >
+		constants.DefaultInitValue
 }
 
 func repair(
@@ -74,11 +81,13 @@ func repair(
 	result Result,
 ) (repairOutcome, error) {
 	outcome := repairOutcome{}
-	if len(result.Missing) > constants.DefaultInitValue {
-		if err := redeploy(ctx, deps, plan, result.Missing); err != nil {
+	redeploy := slices.Concat(result.Missing, result.Stale)
+	if len(redeploy)+len(result.Added) > constants.DefaultInitValue {
+		if err := deployCurrent(ctx, deps, result, slices.Concat(redeploy, result.Added)); err != nil {
 			return outcome, err
 		}
-		outcome.redeployed = result.Missing
+		outcome.redeployed = redeploy
+		outcome.added = result.Added
 	}
 	if len(result.Mismatched) > constants.DefaultInitValue {
 		if err := deps.Applier.PatchPoliciesMode(ctx, plan.ID, plan.Mode); err != nil {
@@ -95,40 +104,16 @@ func repair(
 	return outcome, nil
 }
 
-func redeploy(ctx context.Context, deps Deps, plan *plans.ProtectionPlan, names []string) error {
-	resolved, err := resolvePlanScope(ctx, deps, plan)
-	if err != nil {
-		return err
+func deployCurrent(ctx context.Context, deps Deps, result Result, names []string) error {
+	if result.current == nil {
+		return fmt.Errorf(fmtRenderUnavailable, result.renderErr)
 	}
-	rendered, err := policies.Render(plan, resolved, deps.Logger)
-	if err != nil {
-		return err
-	}
-	wanted := indexNames(names)
-	selected := make([]kyvernov1.Policy, constants.DefaultInitValue, len(rendered))
-	for i := range rendered {
-		if _, ok := wanted[rendered[i].Name]; ok {
-			selected = append(selected, rendered[i])
+	selected := make([]kyvernov1.Policy, constants.DefaultInitValue, len(names))
+	for _, name := range names {
+		if pol, ok := result.current[name]; ok {
+			selected = append(selected, pol)
 		}
 	}
-	_, err = deps.Applier.Deploy(ctx, selected)
+	_, err := deps.Applier.Deploy(ctx, selected)
 	return err
-}
-
-func resolvePlanScope(
-	ctx context.Context,
-	deps Deps,
-	plan *plans.ProtectionPlan,
-) (map[string]policies.ResolvedApp, error) {
-	if plan.Scope.Type != plans.ScopeTypeApplications {
-		return nil, nil
-	}
-	resolved, missing, err := deps.ResolveApps(ctx, plan.Scope.ApplicationIDs)
-	if err != nil {
-		return nil, err
-	}
-	if len(missing) > constants.DefaultInitValue {
-		return nil, fmt.Errorf(errMissingAppsFmt, missing)
-	}
-	return resolved, nil
 }

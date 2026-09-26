@@ -11,6 +11,7 @@ import (
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/exporters/generics"
 	exportshared "github.com/telark/exporter/internal/exporters/shared"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 )
 
 const testResourceName = "n1"
@@ -70,10 +71,6 @@ func TestSharedExporterOperations(t *testing.T) {
 	exportshared.CreateResource(create, md, testResourceName, map[string]any{"name": testResourceName})
 	expectError(t, create, "CreateResource")
 
-	getUnique := httptest.NewRecorder()
-	exportshared.GetUniqueResourceFromList(getUnique, md)
-	expectError(t, getUnique, "GetUniqueResourceFromList")
-
 	del := httptest.NewRecorder()
 	exportshared.DeleteResource(del, md, testResourceName)
 	expectError(t, del, "DeleteResource")
@@ -81,4 +78,40 @@ func TestSharedExporterOperations(t *testing.T) {
 	patch := httptest.NewRecorder()
 	exportshared.PatchResource(patch, namedReq(`{"name":"n1"}`), md)
 	expectError(t, patch, "PatchResource")
+}
+
+// The parse error used to reach the caller as "…request body: %v: <cause>".
+func TestMalformedBodyMessageIsFormatted(t *testing.T) {
+	md := metadata.ApplicationAsResourceMetadata
+	tests := []struct {
+		name string
+		call func(http.ResponseWriter, *http.Request)
+	}{
+		{"PatchResource", func(w http.ResponseWriter, r *http.Request) { exportshared.PatchResource(w, r, md) }},
+		{"GetSpec", func(w http.ResponseWriter, r *http.Request) { _, _ = sharedutils.GetSpec(w, r) }},
+	}
+	for _, tt := range tests {
+		rec := httptest.NewRecorder()
+		tt.call(rec, namedReq(`{not json`))
+		body := rec.Body.String()
+		if rec.Code != http.StatusUnprocessableEntity || strings.Contains(body, "%v") || !strings.Contains(body, "invalid character") {
+			t.Errorf("%s: code = %d body = %s, want 422 with the formatted cause", tt.name, rec.Code, body)
+		}
+	}
+}
+
+// An empty name is a client error, rejected before the API server is reached.
+func TestGenericEmptyNameIsBadRequest(t *testing.T) {
+	md := metadata.RoleAsResourceMetadata
+
+	get := httptest.NewRecorder()
+	generics.GenericGetCustomResource(get, constants.EmptyString, md)
+	patch := httptest.NewRecorder()
+	generics.GenericPatchCustomResource(patch, md, constants.EmptyString, map[string]any{constants.SpecField: map[string]any{}})
+
+	for name, rec := range map[string]*httptest.ResponseRecorder{"GenericGet": get, "GenericPatch": patch} {
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("%s: code = %d, want %d", name, rec.Code, http.StatusBadRequest)
+		}
+	}
 }

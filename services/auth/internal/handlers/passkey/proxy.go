@@ -131,9 +131,8 @@ func UpdatePasskey(w http.ResponseWriter, r *http.Request) {
 	shared.SendJSONResponse(w, http.StatusOK, data)
 }
 
-// Orphan cleanup names a user who cannot produce a session, so only a peer
-// service may name one. Every other caller is bound to its own session: a
-// request header can never decide whose credential is deleted.
+// Only a peer service may name the user (orphan cleanup has no session); every
+// other caller is bound to its own session, never to a request header.
 func resolveDeleteTarget(r *http.Request, cleanupOrphaned bool) (userID, credentialID string, status int, err error) {
 	identity, found := xauthz.FromContext(r.Context())
 	if !cleanupOrphaned || !found || !identity.Internal {

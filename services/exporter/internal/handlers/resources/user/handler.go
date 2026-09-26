@@ -14,8 +14,9 @@ import (
 	"github.com/telark/exporter/internal/cache"
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/exporters/generics"
-	"github.com/telark/exporter/internal/handlers/resources/shared"
+	"github.com/telark/exporter/internal/membership"
 	notiftypes "github.com/telark/exporter/internal/types/notifications"
+	sessionutils "github.com/telark/exporter/internal/utils/auth/session"
 	"github.com/telark/exporter/internal/utils/concurrency"
 	notifdispatch "github.com/telark/exporter/internal/utils/notifications"
 	"github.com/telark/exporter/internal/utils/performance"
@@ -25,12 +26,19 @@ import (
 	"github.com/telark/kcore/crds/api"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
+
+var lg = constants.GetLogger(constants.PrefixMain)
 
 func CreateUserResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := sharedutils.GetSpec(w, r)
 		if err != nil {
+			return
+		}
+
+		if !authz.GuardUserCreate(w, r, body) {
 			return
 		}
 
@@ -47,12 +55,33 @@ func CreateUserResourceWithCacheInvalidation(optimizer *performance.Optimizer) f
 			return
 		}
 
+		if !authz.GuardReservedEmail(w, r, user.Email) {
+			return
+		}
 		if err := userutils.ValidateAndPrepareUser(user, w); err != nil {
+			return
+		}
+
+		roleIDs, groupIDs := notifdispatch.Deref(user.AssignedRolesIDs), notifdispatch.Deref(user.AssignedGroupsIDs)
+		if !authz.GuardReferencedIDs(w, constants.ResourceRole, roleIDs) ||
+			!authz.GuardReferencedIDs(w, constants.ResourceGroup, groupIDs) {
+			return
+		}
+		if !mirrorGroups(w, r, optimizer, user.ID, groupIDs, nil) {
 			return
 		}
 
 		createUserResource(w, user, optimizer)
 	}
+}
+
+// Counterparts first: see membership.MirrorUserGroups.
+func mirrorGroups(w http.ResponseWriter, r *http.Request, optimizer *performance.Optimizer, userID string, added, removed []string) bool {
+	if err := membership.MirrorUserGroups(r.Context(), optimizer, userID, added, removed); err != nil {
+		responseutils.LogAndSendResponse(w, http.StatusInternalServerError, response.OperationError, err.Error(), nil, err)
+		return false
+	}
+	return true
 }
 
 func createUserResource(w http.ResponseWriter, user *userdata.UserAsResource, optimizer *performance.Optimizer) {
@@ -81,7 +110,6 @@ func createUserResource(w http.ResponseWriter, user *userdata.UserAsResource, op
 		[]string{finalizers.UserCleanup},
 	)
 
-	cache.SmartInvalidateListCache(optimizer, constants.ResourceUser, string(constants.OpCreate))
 	cache.InvalidateAllResourceCaches(optimizer, constants.ResourceUser)
 }
 
@@ -93,12 +121,32 @@ func GetUserByIDWithCacheInvalidation() func(http.ResponseWriter, *http.Request)
 		}
 
 		resource, ok := userutils.FindUserByIDOrRespond(w, userID)
-		if !ok {
+		if !ok || !visibleUser(w, r, resource) {
+			return
+		}
+
+		// Peers resolve grants through this route: a user held only by the
+		// cleanup finalizer must read as gone, not as an active account.
+		if resource.GetDeletionTimestamp() != nil {
+			responseutils.LogAndSendResponse(w, http.StatusGone, response.OperationError, string(constants.ErrUserBeingDeleted), nil, nil)
 			return
 		}
 
 		resourcesshared.SendFilteredResourceResponse(w, resource)
 	}
+}
+
+// A restricted caller must not learn that an administrator exists: the record
+// answers 404 exactly like a missing one.
+func visibleUser(w http.ResponseWriter, r *http.Request, resource *unstructured.Unstructured) bool {
+	user, err := userutils.ExtractUserFromUnstructured(resource)
+	if err != nil || user == nil {
+		responseutils.LogAndSendResponse(
+			w, http.StatusInternalServerError, response.OperationError, string(errors.ErrRestUnmarshalResourceToJSON), nil, err,
+		)
+		return false
+	}
+	return authz.GuardHiddenUser(w, r, user)
 }
 
 func GetUserByUsernameWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {
@@ -109,7 +157,7 @@ func GetUserByUsernameWithCacheInvalidation() func(http.ResponseWriter, *http.Re
 		}
 
 		resource, ok := userutils.FindUserByUsernameOrRespond(w, username)
-		if !ok {
+		if !ok || !visibleUser(w, r, resource) {
 			return
 		}
 
@@ -125,7 +173,7 @@ func GetUserByEmailWithCacheInvalidation() func(http.ResponseWriter, *http.Reque
 		}
 
 		resource, ok := userutils.FindUserByEmailOrRespond(w, email)
-		if !ok {
+		if !ok || !visibleUser(w, r, resource) {
 			return
 		}
 
@@ -147,7 +195,7 @@ func GetUserByIdentityWithCacheInvalidation() func(http.ResponseWriter, *http.Re
 		}
 
 		resource, ok := userutils.FindUserByIdentityOrRespond(w, provider, issuer, subject)
-		if !ok {
+		if !ok || !visibleUser(w, r, resource) {
 			return
 		}
 
@@ -156,7 +204,17 @@ func GetUserByIdentityWithCacheInvalidation() func(http.ResponseWriter, *http.Re
 }
 
 func ListUserResourcesWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {
-	return shared.ListResourceWithCacheInvalidation(metadata.UserAsResourceMetadata)
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !authz.Restricted(r) {
+			generics.GenericListCustomResources(w, metadata.UserAsResourceMetadata)
+			return
+		}
+		hidden := authz.HiddenUsers()
+		generics.GenericListCustomResourcesKeeping(w, metadata.UserAsResourceMetadata, func(item *unstructured.Unstructured) bool {
+			user, err := userutils.ExtractUserFromUnstructured(item)
+			return err == nil && user != nil && !hidden(user)
+		})
+	}
 }
 
 func PatchUserByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
@@ -176,7 +234,8 @@ func PatchUserByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(h
 			return
 		}
 
-		if !authz.GuardUserPatch(w, r, userID, body) {
+		addedGroups, removedGroups, ok := guardUserPatch(w, r, existingUser, body)
+		if !ok {
 			return
 		}
 
@@ -187,25 +246,53 @@ func PatchUserByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(h
 			return
 		}
 
-		resourcesshared.AddLastUpdateDateToPatchBody(body)
-
-		specPatchData := map[string]any{
-			constants.SpecField: body,
+		if !mirrorGroups(w, r, optimizer, userID, addedGroups, removedGroups) {
+			return
 		}
-
-		lock := concurrency.GetLock(userID)
-		lock.Lock()
-		defer lock.Unlock()
-
-		rc := sharedutils.NewResponseCapture(w)
-		generics.GenericPatchCustomResource(rc, metadata.UserAsResourceMetadata, userID, specPatchData)
-		userutils.InvalidateUserCaches(optimizer, userID)
-		authz.ForgetUserGrants(r.Context(), userID)
-
-		if rc.Status() == http.StatusOK && rolesPatched {
+		if patchUserResource(w, r, userID, body, optimizer) && rolesPatched {
 			emitRoleChanged(userID, oldRoles, body)
 		}
 	}
+}
+
+func guardUserPatch(
+	w http.ResponseWriter, r *http.Request, existing *userdata.UserAsResource, body map[string]any,
+) (addedGroups, removedGroups []string, ok bool) {
+	if !authz.GuardUserTarget(w, r, existing, body, false) ||
+		!authz.GuardNotTerminating(w, r, existing.DeletionTimestamp) ||
+		!authz.GuardUserPatch(w, r, existing, body) {
+		return nil, nil, false
+	}
+	if email, provided := body[constants.FieldEmail].(string); provided && !authz.GuardReservedEmail(w, r, email) {
+		return nil, nil, false
+	}
+
+	newRoles := notifdispatch.ExtractNewRoleIDsFromBody(body, constants.FieldAssignedRolesIDs)
+	addedRoles, _ := notifdispatch.DiffPtrStringSlices(existing.AssignedRolesIDs, newRoles)
+	newGroups := notifdispatch.ExtractNewRoleIDsFromBody(body, constants.FieldAssignedGroupsIDs)
+	addedGroups, removedGroups = notifdispatch.DiffPtrStringSlices(existing.AssignedGroupsIDs, newGroups)
+	if !authz.GuardReferencedIDs(w, constants.ResourceRole, addedRoles) ||
+		!authz.GuardReferencedIDs(w, constants.ResourceGroup, addedGroups) {
+		return nil, nil, false
+	}
+	return addedGroups, removedGroups, true
+}
+
+func patchUserResource(w http.ResponseWriter, r *http.Request, userID string, body map[string]any, optimizer *performance.Optimizer) bool {
+	resourcesshared.AddLastUpdateDateToPatchBody(body)
+	specPatchData := map[string]any{
+		constants.SpecField: body,
+	}
+
+	lock := concurrency.GetLock(userID)
+	lock.Lock()
+	defer lock.Unlock()
+
+	rc := sharedutils.NewResponseCapture(w)
+	generics.GenericPatchCustomResource(rc, metadata.UserAsResourceMetadata, userID, specPatchData)
+	userutils.InvalidateUserCaches(optimizer, userID)
+	authz.ForgetUserGrants(r.Context(), userID)
+	return rc.Status() == http.StatusOK
 }
 
 func emitRoleChanged(userID string, oldRoles []*string, body map[string]any) {
@@ -246,8 +333,8 @@ func DeleteUserByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 			return
 		}
 
-		_, ok := userutils.FindUserByIDOrRespond(w, userID)
-		if !ok {
+		existingUser, ok := userutils.GetExistingUserForPatch(w, userID)
+		if !ok || !authz.GuardUserTarget(w, r, existingUser, nil, true) {
 			return
 		}
 
@@ -258,6 +345,10 @@ func DeleteUserByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 		defer lock.Unlock()
 
 		deleteResult := api.DeleteCustomResourceByName(userID, metadata.UserAsResourceMetadata)
+		// A request racing the delete may have refilled both caches; forgetting
+		// again under the lock is what makes the revocation immediate.
+		userutils.InvalidateUserCaches(optimizer, userID)
+		authz.ForgetUserGrants(r.Context(), userID)
 		if deleteResult.Status != http.StatusOK {
 			errorMsg := sharedutils.GenerateResourceError(errors.ErrDeleteRes, userID, deleteResult.Error)
 			responseutils.LogAndSendResponse(
@@ -269,6 +360,12 @@ func DeleteUserByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 				deleteResult.Error,
 			)
 			return
+		}
+
+		// The finalizer keeps the record until the cleanup sweeper runs; the
+		// sessions go now so revocation does not wait for it.
+		if err := sessionutils.PurgeSessionsForUser(userID); err != nil {
+			lg.Warn(fmt.Sprintf(string(constants.WarnUserSessionsPurgeFailed), userID, err))
 		}
 
 		msg := fmt.Sprintf(string(messages.SuccessDeleteRes), userID, metadata.UserAsResourceMetadata.Kind)

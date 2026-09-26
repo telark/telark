@@ -2,7 +2,10 @@ package listing
 
 import (
 	"context"
+	"maps"
 	"slices"
+	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/telark/discovery/internal/constants"
@@ -13,6 +16,7 @@ import (
 	"github.com/telark/discovery/internal/informers"
 	"github.com/telark/discovery/internal/tests/testutil"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/tools/cache"
 )
 
 const (
@@ -21,8 +25,15 @@ const (
 	otherNamespace   = "recs-lab-prod"
 	neighborApp      = "cart"
 	neighborNS       = "shop"
+	thirdApp         = "billing"
+	missingApp       = "ghost"
 	labelAppName     = "app.kubernetes.io/name"
 	objectsPerNS     = 4
+	concurrentWrites = 2000
+	benchOthersSmall = 100
+	benchOthersLarge = 10000
+	benchFullPass    = "fullpass-"
+	benchIndexed     = "indexed-"
 	kindDeployment   = "Deployment"
 	kindService      = "Service"
 	kindSA           = "ServiceAccount"
@@ -60,13 +71,14 @@ func skewObjects(namespace string) []*unstructured.Unstructured {
 	}
 }
 
-func useCluster(t *testing.T, excluded []string) {
+func useCluster(t *testing.T, excluded []string, extra ...*unstructured.Unstructured) cache.Indexer {
 	t.Helper()
 	gcfghelper.SetExcludedForTest(excluded)
-	informers.UseCacheForTest(slices.Concat(
+	idx := informers.UseCacheForTest(slices.Concat(
 		skewObjects(jobNamespace),
 		skewObjects(otherNamespace),
 		[]*unstructured.Unstructured{object(kindDeployment, neighborNS, neighborApp, neighborApp)},
+		extra,
 	)...)
 	listing.InformersCache = informers.TryListResourcesInNamespaces
 	listing.AppNamespacesCache = informers.AppNamespaces
@@ -76,6 +88,125 @@ func useCluster(t *testing.T, excluded []string) {
 		informers.UseCacheForTest()
 		gcfghelper.SetExcludedForTest([]string{})
 	})
+	return idx
+}
+
+// The full cache pass the app index replaced; the reference every lookup must match.
+func fullPass(ctx context.Context, idx cache.Indexer, app string) []string {
+	if app == constants.EmptyString {
+		return nil
+	}
+	excluded := gcfghelper.FetchExcludedNamespaces(ctx)
+	found := make(map[string]struct{})
+	for _, it := range idx.List() {
+		u, ok := it.(*unstructured.Unstructured)
+		if ok && derivation.AppKey(u.GetLabels()) == app && !slices.Contains(excluded, u.GetNamespace()) {
+			found[u.GetNamespace()] = struct{}{}
+		}
+	}
+	return slices.Sorted(maps.Keys(found))
+}
+
+func assertMatchesFullPass(ctx context.Context, t *testing.T, idx cache.Indexer) {
+	t.Helper()
+	for _, app := range []string{appName, neighborApp, thirdApp, missingApp, constants.EmptyString} {
+		got, want := informers.AppNamespaces(ctx, app), fullPass(ctx, idx, app)
+		if !slices.Equal(got, want) {
+			t.Fatalf("app %q: indexed %v, full pass %v", app, got, want)
+		}
+	}
+}
+
+// Every mutation the informer store sees (a label moving an object between apps,
+// a delete emptying a namespace, a label losing its identity) must keep the
+// index equal to a full pass, with an excluded namespace filtered on both sides.
+func TestAppNamespacesMatchesFullPassAcrossCacheChanges(t *testing.T) {
+	ctx := context.Background()
+	idx := useCluster(t, []string{neighborNS},
+		object(kindDeployment, jobNamespace, neighborApp, neighborApp),
+		object(kindDeployment, neighborNS, thirdApp, thirdApp),
+	)
+	steps := []struct {
+		name   string
+		mutate func() error
+		app    string
+		want   []string
+	}{
+		{name: "initial", mutate: func() error { return nil },
+			app: appName, want: []string{jobNamespace, otherNamespace}},
+		{name: "label moves an object to another app",
+			mutate: func() error { return idx.Update(object(kindDeployment, jobNamespace, neighborApp, thirdApp)) },
+			app:    thirdApp, want: []string{jobNamespace}},
+		{name: "deletes empty a namespace", mutate: func() error {
+			for _, obj := range skewObjects(otherNamespace) {
+				if err := idx.Delete(obj); err != nil {
+					return err
+				}
+			}
+			return nil
+		}, app: appName, want: []string{jobNamespace}},
+		{name: "label loses its identity",
+			mutate: func() error { return idx.Update(object(kindDeployment, jobNamespace, neighborApp, constants.EmptyString)) },
+			app:    thirdApp, want: nil},
+	}
+	for _, step := range steps {
+		if err := step.mutate(); err != nil {
+			t.Fatalf("%s: %v", step.name, err)
+		}
+		got := informers.AppNamespaces(ctx, step.app)
+		if !slices.Equal(got, step.want) {
+			t.Fatalf("%s: app %q = %v, want %v", step.name, step.app, got, step.want)
+		}
+		assertMatchesFullPass(ctx, t, idx)
+	}
+}
+
+func TestAppNamespacesUnderConcurrentCacheWrites(t *testing.T) {
+	ctx := context.Background()
+	idx := useCluster(t, []string{})
+	apps := []string{neighborApp, thirdApp}
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		for i := range concurrentWrites {
+			_ = idx.Update(object(kindDeployment, jobNamespace, neighborApp, apps[i%constants.TwoValue]))
+		}
+	})
+	wg.Go(func() {
+		for range concurrentWrites {
+			informers.AppNamespaces(ctx, appName)
+		}
+	})
+	wg.Wait()
+	assertMatchesFullPass(ctx, t, idx)
+}
+
+func benchObjects(others int) []*unstructured.Unstructured {
+	objs := slices.Concat(skewObjects(jobNamespace), skewObjects(otherNamespace))
+	for i := range others {
+		name := neighborApp + strconv.Itoa(i)
+		objs = append(objs, object(kindDeployment, neighborNS, name, name))
+	}
+	return objs
+}
+
+// Per-call cost must not grow with the number of other apps in the cache.
+func BenchmarkAppNamespaces(b *testing.B) {
+	ctx := context.Background()
+	gcfghelper.SetExcludedForTest([]string{})
+	b.Cleanup(func() { informers.UseCacheForTest() })
+	for _, others := range []int{benchOthersSmall, benchOthersLarge} {
+		idx := informers.UseCacheForTest(benchObjects(others)...)
+		b.Run(benchIndexed+strconv.Itoa(others), func(b *testing.B) {
+			for b.Loop() {
+				informers.AppNamespaces(ctx, appName)
+			}
+		})
+		b.Run(benchFullPass+strconv.Itoa(others), func(b *testing.B) {
+			for b.Loop() {
+				fullPass(ctx, idx, appName)
+			}
+		})
+	}
 }
 
 // A per-app job carries one namespace of its app (F2: rl-skew in recs-lab and

@@ -1,12 +1,15 @@
 package session
 
 import (
+	"errors"
+	"net/http"
 	"time"
 
 	authmetadata "github.com/telark/data/metadata/auth"
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/utils/concurrency"
 	"github.com/telark/kcore/crds/api"
+	kshared "github.com/telark/kcore/shared"
 )
 
 // Called before creating a new session to keep the CRD count bounded,
@@ -26,10 +29,27 @@ func PurgeExpiredSessionsForUser(userID string) {
 		if err != nil || !now.After(expiresAt) {
 			continue
 		}
-		name := sessions[i].GetName()
-		lock := concurrency.GetLock(name)
-		lock.Lock()
-		api.DeleteCustomResourceByName(name, authmetadata.UserSessionMetadata)
-		lock.Unlock()
+		deleteSession(sessions[i].GetName())
 	}
+}
+
+func PurgeSessionsForUser(userID string) error {
+	sessions, err := FindSessionsByUserID(userID)
+	if err != nil {
+		return err
+	}
+	errs := make([]error, constants.DefaultInitValue, len(sessions))
+	for i := range sessions {
+		if result := deleteSession(sessions[i].GetName()); result.Status != http.StatusOK && result.Status != http.StatusNotFound {
+			errs = append(errs, result.Error)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func deleteSession(name string) kshared.KubernetesAPIData {
+	lock := concurrency.GetLock(name)
+	lock.Lock()
+	defer lock.Unlock()
+	return api.DeleteCustomResourceByName(name, authmetadata.UserSessionMetadata)
 }

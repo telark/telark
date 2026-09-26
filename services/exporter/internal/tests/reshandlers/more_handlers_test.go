@@ -1,10 +1,12 @@
 package reshandlers
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/telark/exporter/internal/constants"
@@ -41,6 +43,34 @@ func TestApplicationHandlers(t *testing.T) {
 		varsReq(http.MethodDelete, constants.EmptyString), "DeleteApplication")
 	assertErrorResponse(t, apphandler.GetRollbacks(), varsReq(http.MethodGet, constants.EmptyString), "GetRollbacks")
 	assertErrorResponse(t, apphandler.GetRollback(), varsReq(http.MethodGet, constants.EmptyString), "GetRollback")
+}
+
+// Long enough for a fire-and-forget goroutine to reach the transport.
+const outboundWindow = 300 * time.Millisecond
+
+type recordingTransport chan string
+
+func (r recordingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	r <- req.URL.String()
+	return nil, errors.New("outbound call")
+}
+
+// The exporter owns the CR and never calls another service: a DELETE that called
+// back into discovery's reset looped, since that reset is what calls this DELETE.
+func TestDeleteApplicationMakesNoOutboundCall(t *testing.T) {
+	calls := make(recordingTransport, constants.DefaultChannelBufferSize)
+	original := http.DefaultTransport
+	http.DefaultTransport = calls
+	t.Cleanup(func() { http.DefaultTransport = original })
+
+	assertErrorResponse(t, apphandler.DeleteApplicationResourceWithCacheInvalidation(newOptimizer(t)),
+		varsReq(http.MethodDelete, constants.EmptyString), "DeleteApplication")
+
+	select {
+	case url := <-calls:
+		t.Fatalf("DELETE called %s", url)
+	case <-time.After(outboundWindow):
+	}
 }
 
 func TestGlobalConfigHandlers(t *testing.T) {

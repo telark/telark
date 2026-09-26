@@ -93,6 +93,21 @@ func TestProbeChangeInsideNamedContainer(t *testing.T) {
 	}
 }
 
+// An app spanning namespaces can hold the same Kind/name in each: the target names the namespace.
+func TestNamespacedTargetNamesTheNamespace(t *testing.T) {
+	old := deployment(constants.DefaultAddValue, image1, probePeriod, []any{"a"}, nil)
+	cur := deployment(constants.DefaultAddValue, image1, probePeriodChanged, []any{"a"}, nil)
+	old.SetNamespace("prod")
+	cur.SetNamespace("prod")
+	c := single(t, run(old, cur), "probe")
+	if c.Field != "prod/Deployment/web spec.template.spec.containers[app].livenessProbe.periodSeconds" {
+		t.Fatalf("field: %s", c.Field)
+	}
+	if !strings.HasPrefix(c.Description, "prod/Deployment/web: ") || !changes.IsWorkloadTemplateField(c.Field) {
+		t.Fatalf(unexpectedChangeFmt, c)
+	}
+}
+
 func TestCuratedPathsAndStatusAreSkipped(t *testing.T) {
 	old := deployment(constants.DefaultAddValue, image1, probePeriod, []any{"a"}, nil)
 	cur := deployment(constants.ThreeValue, "img:2", probePeriod, []any{"a"}, nil)

@@ -17,7 +17,6 @@ const (
 	HeaderCredentialID            = "X-Credential-ID"
 	HeaderDeviceName              = "X-Device-Name"
 	HeaderDeviceType              = "X-Device-Type"
-	HeaderEmail                   = "X-Email"
 	HeaderContentType             = "Content-Type"
 	HeaderOrigin                  = "Origin"
 	HeaderForwardedHost           = "X-Forwarded-Host"
@@ -146,6 +145,7 @@ const (
 	DefaultCleanupBackoffMaxSeconds      = 300
 	DefaultBackfillBatchSize             = 10
 	DefaultBackfillBatchPauseMS          = 100
+	CleanupDLQMaxLen               int64 = 1000
 
 	CleanupStreamPrefix    = "auth:cleanup:"
 	CleanupDLQStreamPrefix = "auth:cleanup:dlq:"

@@ -16,6 +16,7 @@ import (
 	snapshotexp "github.com/telark/exporter/internal/exporters/snapshot"
 	"github.com/telark/exporter/internal/informers"
 	envmanager "github.com/telark/exporter/internal/managers/envs"
+	"github.com/telark/exporter/internal/membership"
 	exprdb "github.com/telark/exporter/internal/redis"
 	"github.com/telark/exporter/internal/routes"
 	"github.com/telark/exporter/internal/startup"
@@ -43,6 +44,7 @@ func main() {
 	initSnapshotsConfig()
 	initReportsConfig()
 	lg.Info(fmt.Sprintf(string(constants.InfListRenderConcurrencyConfigured), envmanager.InitListRenderConcurrency()))
+	envmanager.InitBootstrapAdmins()
 	optimizer := performance.NewOptimizer(initConnectivity())
 	startup.SeedBuiltins()
 	async.Init()
@@ -52,6 +54,7 @@ func main() {
 	go snaputil.StartStorageStatsRefresher(gcCtx)
 	go informers.StartApplications(gcCtx)
 	go informers.StartSessions(gcCtx)
+	go membership.Reconcile(gcCtx, optimizer)
 
 	authzMiddleware, err := xauthz.NewFromEnv(exporterauthz.NewResolver(), exporterauthz.Requirements())
 	if err != nil {

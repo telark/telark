@@ -345,6 +345,7 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.autoscaling.enabled | bool | `false` |  |
 | services.exporter.category | string | `"export"` |  |
 | services.exporter.enabled | bool | `true` |  |
+| services.exporter.env.BOOTSTRAP_ADMINS | string | `"{{ join \",\" .Values.app.auth.bootstrap.admins }}"` |  |
 | services.exporter.env.EXPORTER_K8S_CLIENT_BURST | string | `"100"` |  |
 | services.exporter.env.EXPORTER_K8S_CLIENT_QPS | string | `"50"` |  |
 | services.exporter.env.REPORTS_PATH | string | `"/reports"` |  |

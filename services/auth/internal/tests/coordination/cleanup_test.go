@@ -77,6 +77,24 @@ func TestStreamOps(t *testing.T) {
 	}
 }
 
+// The dead-letter stream is capped: a probe hammering a nonexistent id cannot
+// grow it without bound.
+func TestDLQIsBounded(t *testing.T) {
+	rdb, _ := testutil.RedisClient(t)
+	ops := cleanup.NewStreamOps(xwareredis.NewStreamClient(rdb), testResourceType, testStreamMaxLen, time.Minute)
+	ctx := context.Background()
+
+	overflow := constants.CleanupDLQMaxLen + testStreamMaxLen
+	for i := int64(constants.DefaultInitValue); i < overflow; i++ {
+		if err := ops.PublishDLQ(ctx, map[string]any{"reason": "exhausted"}); err != nil {
+			t.Fatalf("PublishDLQ #%d: %v", i, err)
+		}
+	}
+	if got := rdb.XLen(ctx, constants.CleanupDLQStreamPrefix+testResourceType).Val(); got > constants.CleanupDLQMaxLen {
+		t.Fatalf("DLQ length = %d, want at most %d", got, constants.CleanupDLQMaxLen)
+	}
+}
+
 // Ingress is the enqueue front door: a new resource is claimed + streamed, a
 // second request for the same resource is de-duplicated to the incumbent job,
 // and an unknown resource type is rejected.

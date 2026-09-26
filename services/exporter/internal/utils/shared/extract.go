@@ -26,7 +26,8 @@ func GetPathParam(w http.ResponseWriter, r *http.Request, param string) (string,
 func GetSpec(w http.ResponseWriter, r *http.Request) (map[string]any, error) {
 	spec, err := requestutils.ParseRequestBody(r)
 	if err != nil {
-		LogAndReturnError(w, http.StatusUnprocessableEntity, string(dataerrors.ErrRestParseRequestBody), err)
+		msg := fmt.Sprintf(string(dataerrors.ErrRestParseRequestBody), err)
+		responseutils.LogAndSendResponse(w, http.StatusUnprocessableEntity, response.OperationError, msg, nil, err)
 		return nil, err
 	}
 	return spec, nil
@@ -38,15 +39,6 @@ func ExtractResourceNameFromRequestBody(spec map[string]any) string {
 	}
 
 	return constants.EmptyString
-}
-
-func ExtractMapValue(data map[string]any, key string) (map[string]any, bool) {
-	if value, ok := data[key]; ok {
-		if mapValue, isMap := value.(map[string]any); isMap {
-			return mapValue, true
-		}
-	}
-	return nil, false
 }
 
 func ExtractResourceNameFromRequest(r *http.Request) string {
@@ -120,7 +112,7 @@ func GetHeader(w http.ResponseWriter, r *http.Request, headerName string) (strin
 	if headerValue == constants.EmptyString {
 		msg := fmt.Sprintf(string(dataerrors.ErrRestRequiredParam), headerName)
 		responseutils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationUnprocessed, msg, nil, nil)
-		return constants.EmptyString, fmt.Errorf("%s", msg)
+		return constants.EmptyString, errors.New(msg)
 	}
 
 	return headerValue, nil

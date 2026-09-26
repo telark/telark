@@ -14,9 +14,6 @@ func computeDerivedMetrics(app *application.Application) application.DerivedMetr
 		return emptyDerivedMetrics(constants.DefaultInitValue)
 	}
 	log := app.History.ChangeLog
-	if log == nil {
-		return emptyDerivedMetrics(len(app.Snapshots))
-	}
 	if len(log) == constants.DefaultInitValue {
 		return emptyDerivedMetrics(len(app.Snapshots))
 	}

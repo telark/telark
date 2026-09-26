@@ -75,6 +75,13 @@ func (m *Manager) runWorker(ctx context.Context, consumer string) {
 }
 
 func (m *Manager) consumeOnce(ctx context.Context, consumer string) {
+	stale, err := m.stream.Reclaim(ctx, consumer)
+	if err != nil && ctx.Err() == nil {
+		lg.Error(fmt.Sprintf(string(constants.ErrCleanupReclaimFailed), m.resourceType, err))
+	}
+	for _, msg := range stale {
+		m.guardedProcess(ctx, msg)
+	}
 	msgs, err := m.stream.Read(ctx, consumer)
 	if err != nil {
 		if ctx.Err() != nil {
@@ -111,7 +118,7 @@ func (m *Manager) processJob(ctx context.Context, msg redis.XMessage, job Job) {
 		m.finalizeSuccess(msg, job)
 		return
 	}
-	m.finalizeFailure(msg, job, err)
+	m.finalizeFailure(ctx, msg, job, err)
 }
 
 func (m *Manager) finalizeSuccess(msg redis.XMessage, job Job) {
@@ -120,22 +127,40 @@ func (m *Manager) finalizeSuccess(msg redis.XMessage, job Job) {
 	m.ackAndRelease(ctx, msg, job, constants.CleanupStepAck, constants.CleanupStepRelease)
 }
 
-func (m *Manager) finalizeFailure(msg redis.XMessage, job Job, workErr error) {
+func (m *Manager) finalizeFailure(ctx context.Context, msg redis.XMessage, job Job, workErr error) {
 	attempts := job.Attempts + constants.DefaultIncrementValue
 	if attempts >= m.cfg.JobMaxAttempts {
 		m.moveToDLQ(msg, job, attempts, workErr)
 		return
 	}
+	// The entry stays pending through the backoff: a crash here hands it to
+	// Reclaim instead of parking it behind the dedup key until that expires.
+	m.wg.Go(func() {
+		sleepWithCtx(ctx, m.backoff(attempts))
+		m.requeue(msg, job.requeued(attempts))
+	})
+}
+
+func (m *Manager) requeue(msg redis.XMessage, job Job) {
 	ctx, cancel := m.cleanupCtx()
 	defer cancel()
-	fields := jobFields(job.requeued(attempts))
-	if _, err := m.stream.Enqueue(ctx, fields); err != nil {
+	if _, err := m.stream.Enqueue(ctx, jobFields(job)); err != nil {
 		lg.Error(fmt.Sprintf(string(constants.ErrCleanupEnqueueFailed),
 			job.ResourceType, job.ResourceID, err))
 	}
 	if err := m.stream.Ack(ctx, msg.ID); err != nil {
 		lg.Error(fmt.Sprintf(string(constants.ErrCleanupAckAfterRequeueFail), msg.ID, err))
 	}
+}
+
+// Capped by the reclaim threshold so a retry waiting its turn is never taken
+// for a stale entry and run twice.
+func (m *Manager) backoff(attempts int) time.Duration {
+	d := m.cfg.BackoffInitial
+	for i := constants.DefaultIncrementValue; i < attempts && d < m.cfg.BackoffMax; i++ {
+		d += d
+	}
+	return min(d, m.cfg.BackoffMax, m.cfg.XClaimMinIdle)
 }
 
 func (m *Manager) moveToDLQ(msg redis.XMessage, job Job, attempts int, workErr error) {

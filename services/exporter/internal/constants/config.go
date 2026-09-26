@@ -62,6 +62,7 @@ const (
 	// generation, so an entry stops being read the moment the list changes.
 	ListBlobLocalEntries     = 4
 	ListRenderConcurrencyEnv = "EXPORTER_LIST_RENDER_CONCURRENCY"
+	BootstrapAdminsEnv       = "BOOTSTRAP_ADMINS"
 	// A full list is megabytes of marshal buffer; beyond this many renders at
 	// once a request is refused rather than queued.
 	DefaultListRenderConcurrency                = 2
@@ -106,7 +107,7 @@ const (
 	PrefixStartup                               = "Startup: "
 	PrefixShared                                = "Shared: "
 	LogMessageWithError                         = "%s: %v"
-	MaxHeaderBytes                              = 1 << 20 // 1MB
+	MaxHeaderBytes                              = 1 << 20
 	DefaultRoutesCount                          = 35
 	SnapshotBytesPerKilobyte                    = 1024
 	SnapshotKilobytesPerMegabyte                = 1024
@@ -174,7 +175,6 @@ const (
 	FieldPath                                   = "path"
 	FieldAPIVersion                             = "apiVersion"
 	FieldKind                                   = "kind"
-	FieldItemsManifest                          = "items"
 	CategoriesCRDName                           = "categories"
 	FieldUserIDs                                = "userIDs"
 	FieldGroupIDs                               = "groupIDs"
@@ -188,6 +188,15 @@ const (
 	FieldAssignedUsersIDs                       = "assignedUsersIDs"
 	FieldAssignedRolesIDs                       = "assignedRolesIDs"
 	FieldAssignedGroupsIDs                      = "assignedGroupsIDs"
+	FieldDeletionTimestamp                      = "deletionTimestamp"
+	FieldBootstrap                              = "bootstrap"
+	FieldDisplayName                            = "displayName"
+	FieldDescription                            = "description"
+	FieldScopesAndPermissions                   = "scopesAndPermissions"
+	MaxApplicationDisplayNameLength             = 200
+	MaxApplicationDescriptionLength             = 1000
+	ListSeparator                               = ", "
+	CommaSeparator                              = ","
 	HeaderUserID                                = "X-User-ID"
 	HeaderCredentialID                          = "X-Credential-ID"
 	SnapshotsPathEnv                            = "SNAPSHOTS_PATH"
@@ -242,11 +251,10 @@ const (
 	ContentTypeHTML                = "text/html; charset=utf-8"
 	ContentTypeMarkdown            = "text/markdown; charset=utf-8"
 	ContentTypeCSV                 = "text/csv; charset=utf-8"
-	KubernetesListAPIVersion       = "v1"
-	KubernetesListKind             = "List"
 	KindServiceAccount             = "ServiceAccount"
 	KindConfigMap                  = "ConfigMap"
 	KindSecret                     = "Secret"
+	SecretValueRedacted            = "[redacted]"
 	KindPersistentVolumeClaim      = "PersistentVolumeClaim"
 	KindService                    = "Service"
 	KindNetworkPolicy              = "NetworkPolicy"

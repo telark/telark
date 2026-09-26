@@ -5,6 +5,7 @@ import (
 
 	roledata "github.com/telark/data/resources/role"
 	"github.com/telark/exporter/internal/constants"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 )
@@ -15,6 +16,7 @@ func GetExistingRoleForPatch(w http.ResponseWriter, roleID string) (*roledata.Ro
 		return nil, false
 	}
 
+	sharedutils.ProjectDeletionTimestamp(existingResource)
 	existingRole, err := ExtractRoleFromUnstructured(existingResource)
 	if err != nil {
 		responseutils.LogAndSendResponse(
@@ -29,10 +31,6 @@ func GetExistingRoleForPatch(w http.ResponseWriter, roleID string) (*roledata.Ro
 	}
 
 	return existingRole, true
-}
-
-func ValidatePatchRequest(existingRole *roledata.RoleAsResource, body map[string]any, w http.ResponseWriter) bool {
-	return ValidateProtectionFlags(existingRole, body, w)
 }
 
 func ExtractAndMergeRoleForPatch(existingRole *roledata.RoleAsResource, body map[string]any, w http.ResponseWriter) bool {

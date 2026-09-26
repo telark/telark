@@ -12,16 +12,17 @@ import (
 	basemetadata "github.com/telark/data/metadata/base"
 	metadata "github.com/telark/data/metadata/resources"
 	"github.com/telark/data/resources/application"
+	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/constants"
 	applicationexp "github.com/telark/exporter/internal/exporters/application"
 	sharedexp "github.com/telark/exporter/internal/exporters/shared"
 	snapshotexp "github.com/telark/exporter/internal/exporters/snapshot"
 	"github.com/telark/exporter/internal/handlers/resources/shared"
 	"github.com/telark/exporter/internal/utils/performance"
+	applicationutils "github.com/telark/exporter/internal/utils/resources/application"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/kcore/crds/api"
 	"github.com/telark/rest/base"
-	appclient "github.com/telark/rest/clients/resources/applications"
 	restconstants "github.com/telark/rest/constants"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
@@ -29,6 +30,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 )
+
+var lg = constants.GetLogger(constants.PrefixMain)
 
 func CreateApplicationResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
 	return shared.CreateResourceWithCacheInvalidation(optimizer, metadata.ApplicationAsResourceMetadata, constants.ResourceApplication)
@@ -48,9 +51,32 @@ func ListApplicationResourcesWithCacheInvalidation() func(http.ResponseWriter, *
 func PatchApplicationResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
 	patch := shared.PatchResourceWithCacheInvalidation(optimizer, metadata.ApplicationAsResourceMetadata, constants.ResourceApplication)
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !guardEditableFields(w, r) {
+			return
+		}
 		guardHistoryRegression(r)
 		patch(w, r)
 	}
+}
+
+// An unparsable body is left to the downstream handler, which reports it.
+func guardEditableFields(w http.ResponseWriter, r *http.Request) bool {
+	patch, target, ok := readPatchTarget(r)
+	if !ok {
+		return true
+	}
+	if !authz.GuardApplicationPatch(w, r, patch, target) {
+		return false
+	}
+	if spec, lifted := applicationutils.LiftEditableFields(patch); lifted {
+		target = spec
+		replaceRequestBody(r, patch)
+	}
+	if err := applicationutils.ValidateEditableFields(target); err != nil {
+		sharedutils.LogByStatusAndSend(w, http.StatusBadRequest, response.OperationError, err.Error(), nil, err)
+		return false
+	}
+	return true
 }
 
 // guardHistoryRegression drops history and snapshots from a patch that is behind
@@ -67,9 +93,7 @@ func guardHistoryRegression(r *http.Request) {
 	name := sharedutils.ExtractResourceNameFromRequest(r)
 	stored, err := getApplicationSpec(name)
 	if err != nil || stored == nil {
-		constants.GetLogger(constants.PrefixMain).Warn(fmt.Sprintf(
-			string(constants.WarnApplicationHistoryGuardSkipped), name, err,
-		))
+		lg.Warn(fmt.Sprintf(string(constants.WarnApplicationHistoryGuardSkipped), name, err))
 		return
 	}
 	incomingGen, regressed := historyRegressed(incomingHistory, stored.History)
@@ -79,7 +103,7 @@ func guardHistoryRegression(r *http.Request) {
 	orphans := droppedSnapshotPaths(target, stored)
 	delete(target, constants.FieldHistory)
 	delete(target, constants.FieldSnapshots)
-	constants.GetLogger(constants.PrefixMain).Warn(fmt.Sprintf(
+	lg.Warn(fmt.Sprintf(
 		string(constants.WarnApplicationHistoryRegressionRejected), name, incomingGen, stored.History.Generation,
 	))
 	replaceRequestBody(r, patch)
@@ -162,19 +186,16 @@ func DeleteApplicationResourceWithCacheInvalidation(optimizer *performance.Optim
 		optimizer,
 		metadata.ApplicationAsResourceMetadata,
 		constants.ResourceApplication,
-		deleteApplicationAndTriggerReset,
+		deleteApplicationAndSnapshots,
 	)
 }
 
-func deleteApplicationAndTriggerReset(w http.ResponseWriter, md basemetadata.Metadata, resourceName string) {
+func deleteApplicationAndSnapshots(w http.ResponseWriter, md basemetadata.Metadata, resourceName string) {
 	spec, _ := getApplicationSpec(resourceName)
 	sharedexp.DeleteResource(w, md, resourceName)
 	if spec != nil && applicationGone(resourceName) {
 		snapshotexp.RemoveSnapshotFiles(snapshotPaths(spec.Snapshots))
 	}
-	go func(appName string) {
-		_, _ = appclient.NewClient().ResetApplicationByName(appName)
-	}(resourceName)
 }
 
 func applicationGone(name string) bool {
@@ -203,13 +224,7 @@ func GetRollbacks() func(http.ResponseWriter, *http.Request) {
 
 		out := slices.Clone(spec.Rollbacks)
 		slices.SortFunc(out, func(a, b application.RollbackEntry) int {
-			if a.TriggeredAt.After(b.TriggeredAt) {
-				return -1
-			}
-			if a.TriggeredAt.Before(b.TriggeredAt) {
-				return 1
-			}
-			return 0
+			return b.TriggeredAt.Compare(a.TriggeredAt)
 		})
 		if out == nil {
 			out = []application.RollbackEntry{}

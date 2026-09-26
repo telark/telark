@@ -20,7 +20,6 @@ func TestRuleKeysMatchDashboardVocabulary(t *testing.T) {
 		"GET /api/v1/snapshots/{id}/get":                          "applications.viewapplicationssnapshots.deny",
 		"GET /api/v1/snapshots/{id}/manifest":                     "applications.viewapplicationsnapshotmanifest.deny",
 		"PATCH /api/v1/resources/applications/{name}/patch":       "applications.editapplication.deny",
-		"DELETE /api/v1/resources/applications/{name}/delete":     "applications.deleteapplication.deny",
 		"POST /api/v1/resources/users/create":                     "users.createuser.deny",
 		"DELETE /api/v1/resources/users/{id}/delete":              "users.deleteuser.deny",
 		"POST /api/v1/resources/groups/create":                    "groups.creategroup.deny",

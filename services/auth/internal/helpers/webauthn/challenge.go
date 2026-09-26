@@ -1,12 +1,10 @@
 package webauthn
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
@@ -85,11 +83,10 @@ func storeCeremonyOwner(prefix, challenge, userID string) error {
 }
 
 func RegistrationChallengeOwner(r *http.Request) (userID string, enrolled bool, err error) {
-	bodyBytes, err := io.ReadAll(r.Body)
+	bodyBytes, err := ReadAndRestoreRequestBody(r)
 	if err != nil {
-		return constants.EmptyString, false, fmt.Errorf(string(constants.ErrFailedReadRequestBody), err.Error())
+		return constants.EmptyString, false, err
 	}
-	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	_, clientDataJSONB64, _, err := extractRegistrationData(bodyBytes)
 	if err != nil {

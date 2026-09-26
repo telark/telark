@@ -23,6 +23,8 @@ var PlanLifecycleFields = []string{
 	"approvalMode", "approval", "phase", "renderedPolicies", "startedAt", "startedBy",
 	"terminatedAt", "terminatedBy", "reason", "health", "healthCheckedAt", "healthDetail",
 	"policies", FieldScope, "mode", "timeMode", "timeRange",
+	// The name is the plan's identity: discovery's update route keeps it unique.
+	FieldName,
 }
 
 const (

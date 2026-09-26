@@ -6,22 +6,21 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"github.com/telark/data/resources/application"
+	"github.com/telark/discovery/internal/core/applications/history/diff"
 	"github.com/telark/discovery/internal/core/applications/history/manifestdiff"
 	natscore "github.com/telark/x-ware/nats/core"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 type GetApplicationsOptions struct {
 	NatsClient *natscore.NATSClient
-	// GetStoredApplication fetches the current Application CR state by name (e.g. from exporter API).
-	// (nil, nil) means the application does not exist yet and gets a new-app history (generation 1).
-	// An error means the state is unknown: the application is skipped entirely so a transient
-	// exporter outage can never reset stored history.
+	// (nil, nil) is a new application (generation 1); an error skips the application entirely so
+	// a transient exporter outage can never reset stored history.
 	GetStoredApplication func(name string) (*application.Application, error)
 	CreateSnapshot       func(id string, scope string, namespace string, generation int, manifest any) (string, error)
-	// DeleteSnapshot removes a snapshot file from exporter snapshot storage. Used to take back files
-	// written ahead of a diff that then authored nothing. When nil, those files are left in place.
+	// Takes back files written ahead of a diff that then authored nothing; nil leaves them in place.
 	DeleteSnapshot func(id string, scope string, namespace string, generation int) error
 	// When set, "pre-change" snapshots reflect the previous known state instead of the live one.
 	GetSnapshotManifest func(
@@ -31,25 +30,23 @@ type GetApplicationsOptions struct {
 		namespace string,
 		generation int,
 	) ([]unstructured.Unstructured, error)
-	// RedisClient enables scaling grace and incident/recovery deduplication for change history (optional).
+	// Optional; enables scaling grace and incident/recovery deduplication for change history.
 	RedisClient                  *redis.Client
 	PrewrittenSnapshotAppName    string
 	PrewrittenSnapshotGeneration int
 	PrewrittenSnapshots          []application.ApplicationSnapshot
-	// ManifestPairs are the informer-captured before/after objects behind a coalescing
-	// flush; the generic manifest diff reports every field change between them.
+	// Informer-captured before/after objects behind a coalescing flush; the generic manifest
+	// diff reports every field change between them.
 	ManifestPairs []manifestdiff.ManifestPair
-	// FromCoalescingFlush marks calls from the informer coalescing flush path. When true, snapshot
-	// fallback writes and best-effort backfill are suppressed; the valid pre-change manifest source
-	// is the prewritten snapshot from oldObj (when provided).
+	// Suppresses snapshot fallback writes and best-effort backfill: the only valid pre-change
+	// manifest source on this path is the prewritten snapshot from oldObj.
 	FromCoalescingFlush bool
-	// FromForceSync marks calls from the coordination force-sync handler (leader-only full reconcile).
-	// Diff/snapshot behavior uses this to avoid contending on per-generation processing locks held
-	// elsewhere on that path.
+	// Keeps the diff off the per-generation processing locks the force-sync path already holds.
 	FromForceSync bool
-	// DeriveOnly returns grouped applications with health and nothing else: no
-	// history diff, no snapshots, no metrics, no publish. The leader tick uses it
-	// to enumerate apps; per-app consumer jobs do the expensive work.
+	// Set while a rollback applies: the flush records its writes as that rollback's entry.
+	Rollback *diff.RollbackMarker
+	// Grouped applications with health and nothing else (no diff, snapshots, metrics or publish):
+	// the leader tick only enumerates apps, per-app consumer jobs do the expensive work.
 	DeriveOnly bool
 }
 
@@ -103,6 +100,12 @@ type enrichResult struct {
 	secretRefs      []string
 	serviceMappings []string
 	ingressRules    []string
+}
+
+type metaObject interface {
+	GetName() string
+	GetAnnotations() map[string]string
+	GetCreationTimestamp() metav1.Time
 }
 
 // API response

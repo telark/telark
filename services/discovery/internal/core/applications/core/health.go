@@ -2,12 +2,14 @@ package core
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/telark/data/resources/application"
 	"github.com/telark/discovery/internal/constants"
 	appshared "github.com/telark/discovery/internal/core/applications/shared"
 	"github.com/telark/kcore/resources/workload"
 	k8sbatchv1 "k8s.io/api/batch/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func ComputeHealth(app *application.Application) application.Health {
@@ -238,10 +240,7 @@ func healthFromJob(j *k8sbatchv1.Job) application.Health {
 }
 
 func ownedByAppCronJob(j *k8sbatchv1.Job, cronNames map[string]bool) bool {
-	for _, o := range j.OwnerReferences {
-		if o.Kind == appshared.KindCronJob && cronNames[o.Name] {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(j.OwnerReferences, func(o metav1.OwnerReference) bool {
+		return o.Kind == appshared.KindCronJob && cronNames[o.Name]
+	})
 }

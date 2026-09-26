@@ -43,17 +43,6 @@ func TestExtractPatchFields(t *testing.T) {
 	}
 }
 
-func TestUnstructuredToPasskey(t *testing.T) {
-	res := &unstructured.Unstructured{Object: map[string]any{"spec": map[string]any{"credentialId": testCredentialID}}}
-	pk, err := passkeyutil.UnstructuredToPasskey(res)
-	if err != nil || pk.CredentialID != testCredentialID {
-		t.Fatalf("UnstructuredToPasskey = %+v, err %v", pk, err)
-	}
-	if _, err := passkeyutil.UnstructuredToPasskey(&unstructured.Unstructured{Object: map[string]any{}}); err == nil {
-		t.Error("missing spec accepted")
-	}
-}
-
 func TestExtractPasskeyRequestParams(t *testing.T) {
 	missing := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{}`))
 	if _, _, _, ok := passkeyutil.ExtractPasskeyRequestParams(httptest.NewRecorder(), missing); ok {

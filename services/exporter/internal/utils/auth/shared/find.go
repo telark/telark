@@ -1,31 +1,15 @@
 package shared
 
 import (
-	"errors"
 	"net/http"
 
 	dataerrors "github.com/telark/data/errors"
 	metadata "github.com/telark/data/metadata/base"
 	"github.com/telark/exporter/internal/constants"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
-	"github.com/telark/kcore/crds/api"
 	"github.com/telark/rest/response"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
-
-func ListResources(resourceMetadata metadata.Metadata, listFormatErr dataerrors.Error) (*unstructured.UnstructuredList, error) {
-	result := api.ListCustomResources(resourceMetadata)
-	if result.Error != nil {
-		return nil, result.Error
-	}
-
-	list, ok := result.Data.(*unstructured.UnstructuredList)
-	if !ok {
-		return nil, errors.New(string(listFormatErr))
-	}
-
-	return list, nil
-}
 
 func FilterResourcesByUserID(list *unstructured.UnstructuredList, userID string) []unstructured.Unstructured {
 	var resources []unstructured.Unstructured
@@ -44,7 +28,7 @@ func FindResourcesByUserID(
 	listFormatErr dataerrors.Error,
 	userID string,
 ) ([]unstructured.Unstructured, error) {
-	list, err := ListResources(resourceMetadata, listFormatErr)
+	list, err := sharedutils.ListResources(resourceMetadata, listFormatErr)
 	if err != nil {
 		return nil, err
 	}

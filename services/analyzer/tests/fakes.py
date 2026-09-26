@@ -24,6 +24,8 @@ class FakeRedis:
         self.streams: dict[str, list[tuple[str, dict]]] = {}
         # (stream, group) -> {"last": last delivered id, "pending": {id: (consumer, delivered_ms)}}
         self.groups: dict[tuple[str, str], dict] = {}
+        # (stream, group) -> {consumer: clock_ms of its last read or claim}
+        self.consumers: dict[tuple[str, str], dict[str, int]] = {}
         self.clock_ms = 0
         self.ping_error: Exception | None = None
         self._seq = 0
@@ -82,6 +84,7 @@ class FakeRedis:
     async def xreadgroup(self, groupname, consumername, streams, count=None, block=None):
         out = []
         for name in streams:
+            self.consumers.setdefault((name, groupname), {})[consumername] = self.clock_ms
             group = self.groups[(name, groupname)]
             ids = [i for i, _ in self.streams.get(name, [])]
             start = ids.index(group["last"]) + 1 if group["last"] in ids else 0
@@ -104,6 +107,7 @@ class FakeRedis:
         return len(entries) - len(kept)
 
     async def xautoclaim(self, name, groupname, consumername, min_idle_time, start_id="0-0", count=None):
+        self.consumers.setdefault((name, groupname), {})[consumername] = self.clock_ms
         pending = self.groups[(name, groupname)]["pending"]
         entries = dict(self.streams.get(name, []))
         claimed, deleted = [], []
@@ -117,6 +121,19 @@ class FakeRedis:
             pending[msg_id] = (consumername, self.clock_ms)
             claimed.append((msg_id, entries[msg_id]))
         return ["0-0", claimed, deleted]
+
+    async def xinfo_consumers(self, name, groupname):
+        pending = self.groups[(name, groupname)]["pending"].values()
+        return [{"name": c, "pending": sum(owner == c for owner, _ in pending), "idle": self.clock_ms - seen}
+                for c, seen in self.consumers.get((name, groupname), {}).items()]
+
+    async def xgroup_delconsumer(self, name, groupname, consumername):
+        group = self.groups[(name, groupname)]
+        mine = [i for i, (owner, _) in group["pending"].items() if owner == consumername]
+        for msg_id in mine:
+            group["pending"].pop(msg_id)
+        self.consumers.get((name, groupname), {}).pop(consumername, None)
+        return len(mine)
 
     async def hget(self, name, key):
         return self.hashes.get(name, {}).get(key)

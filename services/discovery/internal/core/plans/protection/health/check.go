@@ -3,6 +3,7 @@ package health
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/telark/data/plans"
@@ -96,6 +97,15 @@ func ReconcileForActive(ctx context.Context, deps Deps, planList []plans.Protect
 		return
 	}
 
+	// One application resolve for the pass, like the one LIST above: the fresh render every
+	// active plan is compared against must not cost one application read per plan per tick.
+	resolveCtx, cancelResolve := context.WithTimeout(ctx, time.Duration(CheckTimeoutSeconds)*time.Second)
+	resolved, resolveErr := resolveApps(resolveCtx, deps, activeApplicationIDs(planList))
+	cancelResolve()
+	if resolveErr != nil {
+		deps.Logger.Error(fmt.Sprintf(logResolveFailedFmt, resolveErr))
+	}
+
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(constants.HealthReconcileConcurrency)
 	for i := range planList {
@@ -104,18 +114,28 @@ func ReconcileForActive(ctx context.Context, deps Deps, planList []plans.Protect
 			continue
 		}
 		g.Go(func() error {
-			reconcileOne(gctx, deps, plan, snapshot[plan.ID])
+			reconcileOne(gctx, deps, plan, computeFrom(plan, snapshot[plan.ID], resolved, resolveErr))
 			return nil
 		})
 	}
 	_ = g.Wait()
 }
 
-func reconcileOne(ctx context.Context, deps Deps, plan *plans.ProtectionPlan, snapshot map[string]policySnapshot) {
+func activeApplicationIDs(planList []plans.ProtectionPlan) []string {
+	var ids []string
+	for i := range planList {
+		if planList[i].Phase == plans.PhaseActive {
+			ids = append(ids, planApplicationIDs(&planList[i])...)
+		}
+	}
+	return slices.Compact(slices.Sorted(slices.Values(ids)))
+}
+
+func reconcileOne(ctx context.Context, deps Deps, plan *plans.ProtectionPlan, computed Result) {
 	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(CheckTimeoutSeconds)*time.Second)
 	defer cancel()
 
-	result, err := repairIfDrifted(checkCtx, deps, plan, computeFrom(plan, snapshot))
+	result, err := repairIfDrifted(checkCtx, deps, plan, computed)
 	if err != nil {
 		deps.Logger.Error(formatErr("compute", plan.ID, err))
 		return

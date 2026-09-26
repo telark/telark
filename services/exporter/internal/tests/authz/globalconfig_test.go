@@ -44,6 +44,9 @@ func TestGuardGlobalConfigPatchLevelPerField(t *testing.T) {
 		{"owner cannot touch oidc", roledata.PermissionLevelOwner, globalconfigresource.FieldOIDC, false},
 		{"admin edits oidc", roledata.PermissionLevelAdmin, globalconfigresource.FieldOIDC, true},
 		{"readonly edits nothing", roledata.PermissionLevelReadOnly, globalconfigresource.FieldExcludedNamespaces, false},
+		{"contributor edits fetch interval", roledata.PermissionLevelContributor, globalconfigresource.FieldUserSettings, true},
+		{"readonly cannot touch fetch interval", roledata.PermissionLevelReadOnly, globalconfigresource.FieldUserSettings, false},
+		{"admin cannot touch cluster", roledata.PermissionLevelAdmin, globalconfigresource.FieldCluster, false},
 	}
 
 	for _, tt := range tests {
@@ -74,6 +77,7 @@ func TestGuardGlobalConfigPatchHonoursDenyRules(t *testing.T) {
 		{"discovery config denied", globalconfigresource.FieldExcludedNamespaces, roledata.ActionEditDiscoveryConfig, roledata.PermissionLevelOwner},
 		{"snapshot storage denied", globalconfigresource.FieldSnapshots, roledata.ActionEditSnapshotStorage, roledata.PermissionLevelOwner},
 		{"ai insights denied", globalconfigresource.FieldAI, roledata.ActionControlAIInsights, roledata.PermissionLevelOwner},
+		{"fetch interval denied", globalconfigresource.FieldUserSettings, roledata.ActionEditDiscoveryConfig, roledata.PermissionLevelOwner},
 	}
 
 	for _, tt := range tests {
@@ -115,23 +119,21 @@ func TestGuardGlobalConfigPatchChecksEveryFieldPresent(t *testing.T) {
 	}
 }
 
-// The reported cluster version is not a privilege, so a user holding no scope
-// at all must still be able to set it.
-func TestGuardGlobalConfigPatchLeavesUngovernedFieldsOpen(t *testing.T) {
-	tests := []struct {
-		name string
-		spec map[string]any
-	}{
-		{"cluster version", map[string]any{globalconfigresource.FieldCluster: map[string]any{"version": "1.31"}}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+// The cluster version is reported by discovery; a session, even one holding
+// Admin on ALL, never writes it.
+func TestGuardGlobalConfigPatchClusterIsInternalOnly(t *testing.T) {
+	spec := map[string]any{globalconfigresource.FieldCluster: map[string]any{"version": "1.31"}}
+	for name, identity := range map[string]xauthz.Identity{
+		"no scopes":    {UserID: callerID},
+		"admin on all": levels(roledata.ScopeAll, roledata.PermissionLevelAdmin),
+	} {
+		t.Run(name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			noScopes := xauthz.Identity{UserID: callerID}
-
-			if !authz.GuardGlobalConfigPatch(w, patchRequest(noScopes), tt.spec) {
-				t.Error("a user with no scopes was refused a setting that is not a privilege")
+			if authz.GuardGlobalConfigPatch(w, patchRequest(identity), spec) {
+				t.Error("a session wrote the cluster version")
+			}
+			if w.Code != http.StatusForbidden {
+				t.Errorf("status = %d, want %d", w.Code, http.StatusForbidden)
 			}
 		})
 	}

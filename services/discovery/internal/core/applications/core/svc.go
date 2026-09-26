@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -20,6 +21,7 @@ import (
 	discoveryshared "github.com/telark/discovery/internal/discovery/shared"
 	"github.com/telark/kcore/resources/workload"
 	"github.com/telark/rest/response"
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // applyHistoryFromDiff returns, per application, what the diff did with the
@@ -104,14 +106,15 @@ func buildDiffOpts(app *application.Application, opts GetApplicationsOptions) *d
 		return nil
 	}
 	dopts := &diff.DiffOptions{
+		ManifestPairs:       opts.ManifestPairs,
 		FromCoalescingFlush: opts.FromCoalescingFlush,
 		FromForceSync:       opts.FromForceSync,
 		DeleteSnapshot:      opts.DeleteSnapshot,
+		Rollback:            opts.Rollback,
 	}
 	if hasPrewritten {
 		dopts.PrewrittenGeneration = opts.PrewrittenSnapshotGeneration
 		dopts.PrewrittenSnapshots = opts.PrewrittenSnapshots
-		dopts.ManifestPairs = opts.ManifestPairs
 	}
 	return dopts
 }
@@ -190,6 +193,9 @@ func buildApplications(
 	order := discoveryshared.OrderedGroupNames(withGroups)
 	out := make([]application.Application, constants.DefaultInitValue, len(order))
 	for _, name := range order {
+		if !validAppName(name) {
+			continue
+		}
 		resources := byApp[name]
 		var stored *application.Application
 		if opts.GetStoredApplication != nil {
@@ -207,6 +213,21 @@ func buildApplications(
 		out = append(out, buildApplication(name, resources, stored))
 	}
 	return out
+}
+
+var invalidAppNamesWarned sync.Map
+
+// The exporter refuses a CR whose name is not a DNS-1123 subdomain; publishing one anyway
+// looped a 422 and an orphan baseline snapshot every tick.
+func validAppName(name string) bool {
+	if len(validation.IsDNS1123Subdomain(name)) == constants.DefaultInitValue {
+		return true
+	}
+	if _, warned := invalidAppNamesWarned.LoadOrStore(name, struct{}{}); !warned {
+		constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(
+			fmt.Sprintf(string(constants.WarnHistoryAppNameInvalid), name))
+	}
+	return false
 }
 
 func aggregateFromResources(resources []derivation.ResourceWithGroup) resourceAggregate {
@@ -272,7 +293,7 @@ func aggregateLastModified(agg *resourceAggregate, r derivation.ResourceWithGrou
 	if r.LastModifiedAt.IsZero() {
 		return
 	}
-	key := r.Namespace + "/" + r.Kind + "/" + r.Name
+	key := r.Namespace + constants.PathSeparator + r.Kind + constants.PathSeparator + r.Name
 	if agg.lastModifiedAt.IsZero() ||
 		r.LastModifiedAt.After(agg.lastModifiedAt) ||
 		(r.LastModifiedAt.Equal(agg.lastModifiedAt) &&

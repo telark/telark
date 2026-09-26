@@ -29,13 +29,13 @@ func JitProvisionUserByEmail(
 	resp := userClient.CreateUser(buildJitUser(email, username))
 	switch resp.Status {
 	case http.StatusCreated, http.StatusOK:
-		return resolveExistingByEmail(userClient, email)
+		return GetUserWithErrorHandling(email, userClient.GetUserByEmail)
 	case http.StatusConflict:
-		existing, fetchErr := resolveExistingByEmail(userClient, email)
+		existing, fetchErr := GetUserWithErrorHandling(email, userClient.GetUserByEmail)
 		if fetchErr != nil {
 			return nil, fetchErr
 		}
-		repairRoleIfMissingByEmail(existing, userClient, email)
+		RepairRoleIfMissing(existing, userClient, email)
 		return existing, nil
 	default:
 		return nil, fmt.Errorf(string(constants.ErrFailedCreateUser),
@@ -52,18 +52,11 @@ func buildJitUser(email, username string) *userresource.UserAsResource {
 		CreationDate:     time.Now().UTC().Format(time.RFC3339),
 		Status:           userresource.UserStatus{Phase: string(userresource.AccountPhaseActive)},
 		AssignedRolesIDs: []*string{&roleID},
+		Bootstrap:        config.IsBootstrapAdmin(email),
 	}
 }
 
-func resolveExistingByEmail(
-	userClient *userclient.Client, email string,
-) (*userresource.UserAsResource, error) {
-	return GetUserWithErrorHandling(email, userClient.GetUserByEmail)
-}
-
-func repairRoleIfMissingByEmail(
-	user *userresource.UserAsResource, userClient *userclient.Client, email string,
-) {
+func RepairRoleIfMissing(user *userresource.UserAsResource, userClient *userclient.Client, email string) {
 	if len(user.AssignedRolesIDs) != constants.DefaultInitValue {
 		return
 	}

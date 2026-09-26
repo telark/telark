@@ -103,10 +103,8 @@ const (
 		"app=%s emptyCycles=%d firstEmptySeenAt=%s snapshotCount=%d namespaces=%s"
 	LogAutoCleanupFiring messages.Message = "[auto-cleanup] firing: " +
 		"app=%s emptyCycles=%d firstEmptySeenAt=%s snapshotCount=%d namespaces=%s"
-	LogAutoCleanupDone               messages.Message = "[auto-cleanup] done: app=%s elapsedMs=%d"
-	LogAutoCleanupStreakReset        messages.Message = "[auto-cleanup] streak reset: app=%s rail=%s"
-	LogAutoCleanupAppGoneRedisOrphan messages.Message = "[auto-cleanup] app already gone from exporter, " +
-		"clearing residual redis state: app=%s"
+	LogAutoCleanupDone        messages.Message = "[auto-cleanup] done: app=%s elapsedMs=%d"
+	LogAutoCleanupStreakReset messages.Message = "[auto-cleanup] streak reset: app=%s rail=%s"
 
 	// Cleanup
 	LogAppResetStarted   messages.Message = "[reset] Application reset started: %s"
@@ -140,8 +138,13 @@ const (
 	WarnInformersFlushFailed           messages.Message = "[informers] flush for %s failed: %v"
 	WarnInformersFlushStaleStored      messages.Message = "[informers] flush for %s deferred: stored generation %d is behind published %d"
 	InfoInformersFlushResult           messages.Message = "[informers] flush for %s: generation %d -> %d, publish=%s"
-	InfoInformersFlushRollbackDropped  messages.Message = "[informers] flush for %s dropped: rollback applying"
+	InfoInformersFlushRollback         messages.Message = "[informers] flush for %s records rollback %s at generation %d"
 	InfoHistoryChangeDeferred          messages.Message = "[history] %s: %d change(s) have no pre-image, deferred to the informer flush"
+	InfoHistoryHealthOnlyLiveSnapshot  messages.Message = "[history] %s: health-only change, live manifests snapshotted as pre-image"
+	InfoHistoryDeferredConverged       messages.Message = "[history] %s: change set deferred for %d ticks without a pre-image, " +
+		"recorded against the live state"
+	WarnHistoryAppNameInvalid          messages.Message = "[history] %s: grouping label is not a valid DNS-1123 name, application skipped"
+	WarnInsightsStoreBehind            messages.Message = "[insights] %s: store still behind generation %d after %s, enqueuing anyway"
 	WarnInformersFlushTargetMissing    messages.Message = "[informers] flush for %s: derivation returned %d applications, target missing"
 	LogInformersReconcileBackfill      messages.Message = "[informers] reconcile: %d app(s) baselined from their newest snapshot"
 	InfoInformersReconcileDrift        messages.Message = "[informers] reconcile %s: %s changed while unobserved, flush scheduled from snapshot %s"

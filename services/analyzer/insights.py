@@ -41,6 +41,7 @@ from constants import (
     MAX_RECOMMENDATIONS_PER_APP,
     MIN_REFS_FOR_CONFIDENCE,
     MS_PER_S,
+    PAUSED_RESOLVES_KINDS,
     RECOMMENDATION_ID_TEMPLATE,
     RESOLVED_RETENTION_S,
     RFC3339_FORMAT,
@@ -64,7 +65,7 @@ from helpers import app_ref, cooldown_auto_key, cooldown_manual_key, document_ke
 from messages import render_recommendation
 from models import AppInsights, Emitted, Insight, InsightTriage, LastRun, MergeStats, RecStats, Run, to_json
 from recommendations import card_key
-from tools.k8s_tools import KEY_NAMESPACE, KEY_PODS, stale_pod_event, workload_matchers
+from tools.k8s_tools import KEY_PAUSED, KEY_PODS, owned_event, stale_pod_event, workload_matchers
 
 _ACTIVE = (INSIGHT_STATUS_OPEN, INSIGHT_STATUS_UPDATED)
 _PENDING = (RUN_STATUS_QUEUED, RUN_STATUS_RUNNING)
@@ -114,6 +115,9 @@ class InsightStore:
         # ponytail: in-process lock, correct because the analyzer is one replica on one event loop; WATCH/MULTI if replicas > 1.
         async with self._lock:
             doc = await self.get(namespace, name)
+            # A new or lost document counts on from the clock: a rebuilt one never drops below a version a panel holds.
+            if doc.version == 0:
+                doc.version = epoch_ms()
             changed = fn(doc)
             if changed:
                 await self.put(namespace, name, doc)
@@ -283,23 +287,21 @@ def _observed_recovered(card: Insight, run: Run, now: datetime) -> bool:
     if key in run.gone:
         return True
     status = run.status_cache.get(key)
-    if status is None or status["ready"] != status["desired"]:
+    if status is None:
+        return False
+    # A paused rollout waits on purpose (rules.evaluate raises none of these kinds on it); a pod symptom does not.
+    intentional = status.get(KEY_PAUSED) and card.kind in PAUSED_RESOLVES_KINDS
+    if status["ready"] != status["desired"] and not intentional:
         return False
     if any(pod["waitingReason"] for pod in status[KEY_PODS]):
         return False
     kind, name, namespace = run.workloads[key]
     matchers = workload_matchers(kind, name)
     items = run.pods_cache.get(key)
-    for event in run.events_cache:
-        # Both sides use RFC3339_FORMAT (UTC, fixed width): string order is time order.
-        if (event[KEY_NAMESPACE] != namespace or event["last"] <= card.lastSeenAt
-                or stale_pod_event(status, items, event, now)):
-            continue
-        # Cached events carry no type (warningsOnly may be off): any newer event of the workload blocks.
-        obj_kind, _, obj_name = event["object"].partition(SUBJECT_SEPARATOR)
-        if any(obj_kind == k and pattern.match(obj_name) for k, pattern in matchers):
-            return False
-    return True
+    # Cached events carry no type (warningsOnly may be off): any newer event of the workload blocks.
+    # Both sides use RFC3339_FORMAT (UTC, fixed width): string order is time order.
+    return not any(event["last"] > card.lastSeenAt and owned_event(event, namespace, matchers)
+                   and not stale_pod_event(status, items, event, now) for event in run.events_cache)
 
 
 def resolve_observed(doc: AppInsights, run: Run, now: str, skip: set[str]) -> list[str]:
@@ -326,7 +328,7 @@ def stamp_review(doc: AppInsights, now: str) -> None:
     doc.version += 1
 
 
-# ---- recommendations (D14) and triage (D15) -------------------------------------------------------------------
+# ---- recommendations and triage -------------------------------------------------------------------------------
 def recommendation_id(namespace: str, name: str, key: str, reason: str, workload_namespace: str) -> str:
     raw = RECOMMENDATION_ID_TEMPLATE.format(namespace=namespace, name=name, subject=key, reason=reason,
                                             workload_namespace=workload_namespace)
@@ -360,7 +362,7 @@ def merge_recommendations(doc: AppInsights, findings: list, evaluated: set[tuple
     cards = {c.id: c for c in doc.insights if c.category == INSIGHT_CATEGORY_RECOMMENDATION}
     ids = [recommendation_id(namespace, name, f.key, f.reason, f.namespace) for f in findings]
     found = set(ids)
-    ranked =[iid for iid, f in zip(ids, findings) if not _stays_dismissed(cards.get(iid), f)]
+    ranked = [iid for iid, f in zip(ids, findings) if not _stays_dismissed(cards.get(iid), f)]
     # Past the cap a card is removed, not resolved: it is still true, and comes back once there is room.
     overflow = set(ranked[MAX_RECOMMENDATIONS_PER_APP:])
     doc.insights = [c for c in doc.insights if c.id not in overflow]

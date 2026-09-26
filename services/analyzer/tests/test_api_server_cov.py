@@ -403,7 +403,10 @@ def test_runtime_get(monkeypatch):
     assert r.status_code == 200
     assert r.json() == {"status": 200, "operation": "Success",
                         "data": {"state": "ready", "model": "qwen3:4b", "reason": "", "mode": "deep",
-                                 "autoPull": True}}
+                                 "autoPull": True, "enabled": False}}
+    # ai.enabled reaches insights readers who cannot read the settings.
+    env.api.state.runtime.set_enabled(True)
+    assert env.client.get(RUNTIME).json()["data"]["enabled"] is True
 
 
 def test_validate_codes(monkeypatch):
@@ -460,7 +463,7 @@ def test_pull(monkeypatch):
     r = env.client.post(PULL, json={"model": "qwen2.5:7b"})
     assert r.status_code == 202
     assert r.json()["data"] == {"state": "pulling", "model": "qwen2.5:7b", "reason": "", "mode": "deep",
-                                "autoPull": True}
+                                "autoPull": True, "enabled": False}
     assert started == ["qwen2.5:7b"]
 
 

@@ -9,8 +9,8 @@ const (
 	RollbackStatusFailed     = "failed"
 	RollbackStatusAborted    = "aborted"
 
-	// Marker set while a rollback applies manifests; informer flushes drop the
-	// resulting changes so history keeps the single rollback entry.
+	// Marker set while a rollback applies manifests, holding the rollback entry; the
+	// informer flush folds the resulting changes and their pre-image into that entry.
 	KeyPrefixRollbackApplying = "rollback:applying:"
 	RollbackApplyingTTL       = 60 * time.Second
 	// Serializes trigger/abort read-check-write across replicas.
@@ -45,9 +45,8 @@ const (
 	EnvDiscoveryRollbackInformerResync = "DISCOVERY_ROLLBACK_INFORMER_RESYNC_SEC"
 	DefaultRollbackWorkers             = 4
 	EnvDiscoveryRollbackWorkers        = "DISCOVERY_ROLLBACK_WORKERS"
-	// The controller's own client budget, sized like the shared one: informer and
-	// prewarm traffic must not queue a rollback's apply calls, and the bucket must
-	// not be the thing that slows a batch of rollbacks down.
+	// The controller's own client budget, sized like the shared one: informer and prewarm
+	// traffic must not queue a rollback's apply calls, nor the bucket slow a batch of rollbacks.
 	DefaultRollbackK8sClientQPS        = 50
 	DefaultRollbackK8sClientBurst      = 100
 	EnvDiscoveryRollbackK8sClientQPS   = "DISCOVERY_ROLLBACK_K8S_CLIENT_QPS"
@@ -69,6 +68,7 @@ const (
 	ClientRateLimiterWaitErrorSubstr = "client rate limiter Wait"
 
 	// Rollback change log.
+	RollbackFingerprintLen           = 8
 	RollbackChangeClass              = "rollback"
 	RollbackSeverityLow              = "low"
 	RollbackChangeType               = "rollback"

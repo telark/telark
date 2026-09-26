@@ -2,9 +2,11 @@
 
 The event-driven reconciler for application state. Notifier subscribes to the
 `telark.applications.*` NATS JetStream and persists each event to the
-`ApplicationAsResource` CR **through exporter's REST API** — upsert on update,
-remove on delete. This decouples discovery (which only publishes) from the single
-CR writer (exporter), so application identity stays consistent under load.
+`ApplicationAsResource` CR **through exporter's REST API** (upsert on update). A delete
+calls **discovery's application reset**, which clears the app's Redis state and deletes
+the CR and its snapshot files through exporter. This decouples discovery (which only
+publishes) from the single CR writer (exporter), so application identity stays
+consistent under load.
 
 ## Architecture
 
@@ -21,11 +23,14 @@ flowchart LR
   end
 
   EXP(exporter)
+  RESET(discovery reset)
   REDIS[("Redis")]
 
   DISC -->|publish| NATS
   NATS -->|deliver| MGR
-  ACT -->|PATCH · CREATE · DELETE| EXP
+  ACT -->|PATCH · CREATE| EXP
+  ACT -->|POST reset| RESET
+  RESET -->|DELETE| EXP
   notifier -.heartbeat.-> REDIS
 
   classDef svc fill:#eef2ff,stroke:#6366f1,stroke-width:1.5px,color:#312e81;
@@ -34,7 +39,7 @@ flowchart LR
   classDef store fill:#fff7ed,stroke:#f59e0b,stroke-width:1.5px,color:#92400e;
   class MGR,SUB,ACT,ST svc;
   class NATS infra;
-  class DISC,EXP peer;
+  class DISC,EXP,RESET peer;
   class REDIS store;
 ```
 
@@ -42,7 +47,7 @@ flowchart LR
 
 - Subscribe to the `telark.applications.*` JetStream (creates the streams on start).
 - On **update**: patch the named `ApplicationAsResource` via exporter; on `404`, create it (upsert).
-- On **delete**: delete the named application via exporter.
+- On **delete**: reset the named application via discovery (`POST …/applications/{name}/reset`, authenticated with the service token). `200` and `404` (already gone) ack; a status the reset may later succeed on (`5xx`, `409`, no answer) is NAK'd for redelivery; any other refusal is acked and logged.
 - Ack every message with structured logging; malformed messages are acked-and-logged, not redelivered forever.
 - Expose a minimal HTTP status server whose readiness reflects live NATS connectivity.
 
@@ -58,9 +63,9 @@ flowchart LR
 
 ## Dependencies
 
-- **Internal modules:** `data` (Application types, messages), `rest` (exporter client, router, server), `x-ware` (NATS core/streams, Redis).
+- **Internal modules:** `data` (Application types, messages), `rest` (applications client for exporter and discovery, router, server), `x-ware` (NATS core/streams, Redis).
 - **Infrastructure:** NATS JetStream (subscribe), Redis (connectivity heartbeat).
-- **Peers:** publishes nothing; consumes from **discovery** (via NATS) and writes through **exporter** (via REST). No `kcore` — notifier never touches the K8s API directly.
+- **Peers:** publishes nothing; consumes from **discovery** (via NATS), writes through **exporter** and resets deleted applications through **discovery** (via REST). No `kcore` — notifier never touches the K8s API directly.
 
 ## Configuration
 

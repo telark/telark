@@ -79,7 +79,8 @@ func TestExecuteDeleteHandler(t *testing.T) {
 				called, gotName = true, name
 				return testutil.Resp{Status: c.status, Message: "boom"}
 			}
-			_ = base.ExecuteDeleteHandler(c.msg, df, "deleted %s", "delete %s failed: %s")
+			s := base.NewBaseSubscriber(natscore.Applications, shared.Application)
+			_ = s.ExecuteDeleteHandler(c.msg, df, "deleted %s", "delete %s failed: %s")
 			testutil.Equal(t, "called", called, c.wantCalled)
 			testutil.Equal(t, "name", gotName, c.wantName)
 		})
@@ -87,8 +88,7 @@ func TestExecuteDeleteHandler(t *testing.T) {
 }
 
 // SharedExecuteHandler routes by action and only forwards to the resource
-// handler once the payload is parsed; a transform failure is swallowed (acked)
-// so the message is not redelivered forever.
+// handler once the payload is parsed.
 func TestSharedExecuteHandler(t *testing.T) {
 	msg := func() *nats.Msg {
 		return testutil.Msg(appSubject, &natscore.Message{Data: map[string]any{"k": "v"}})
@@ -97,15 +97,12 @@ func TestSharedExecuteHandler(t *testing.T) {
 		name        string
 		msg         *nats.Msg
 		action      natscore.Action
-		transform   func([]byte) ([]byte, error)
 		wantHandled bool
 	}{
-		{"delete forwards", msg(), natscore.Delete, nil, true},
-		{"update passthrough", msg(), natscore.Update, nil, true},
-		{"update transformed", msg(), natscore.Update, func(b []byte) ([]byte, error) { return b, nil }, true},
-		{"transform error swallowed", msg(), natscore.Update, func(_ []byte) ([]byte, error) { return nil, errors.New("x") }, false},
-		{"no parsed header", testutil.Msg(appSubject, nil), natscore.Update, nil, false},
-		{"malformed header", testutil.HeaderMsg(appSubject, malformedJSON), natscore.Update, nil, false},
+		{"delete forwards", msg(), natscore.Delete, true},
+		{"update forwards", msg(), natscore.Update, true},
+		{"no parsed header", testutil.Msg(appSubject, nil), natscore.Update, false},
+		{"malformed header", testutil.HeaderMsg(appSubject, malformedJSON), natscore.Update, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -113,7 +110,7 @@ func TestSharedExecuteHandler(t *testing.T) {
 			getHandler := func(_ natscore.Action) func(*nats.Msg) error {
 				return func(_ *nats.Msg) error { handled = true; return nil }
 			}
-			_ = base.SharedExecuteHandler(c.msg, c.action, "app", getHandler, c.transform)
+			_ = base.SharedExecuteHandler(c.msg, c.action, getHandler)
 			testutil.Equal(t, "handled", handled, c.wantHandled)
 		})
 	}

@@ -529,6 +529,7 @@ def test_workload_status_limits_and_caches():
     assert all("waitingMessage" not in p and "disruption" not in p for p in body["pods"]), "private facts stay out"
     cached = run.status_cache[("shop", "deployment/api")]
     assert cached["pending"] == 2 and cached["fullImages"] == {"api": "registry.io/team/api:1.2.3", "side": "busybox"}
+    assert cached["paused"] is False and "paused" not in body
     assert any(p["waitingMessage"] == "rpc error: pull access denied" for p in cached["pods"])
     spec = run.spec_cache[("shop", "deployment/api")]
     assert spec is not None and spec["spec"]["replicas"] == 2

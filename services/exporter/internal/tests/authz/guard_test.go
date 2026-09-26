@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	roledata "github.com/telark/data/resources/role"
+	userdata "github.com/telark/data/resources/user"
 	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/constants"
 	xauthz "github.com/telark/x-ware/authz"
@@ -31,6 +32,10 @@ func userWithLevel(level roledata.PermissionLevel) xauthz.Identity {
 	}
 }
 
+func target(userID string) *userdata.UserAsResource {
+	return &userdata.UserAsResource{ID: userID}
+}
+
 func profileEdit() map[string]any {
 	return map[string]any{constants.FieldName: "New Name"}
 }
@@ -52,7 +57,7 @@ func TestGuardUserPatchBlocksSelfPromotion(t *testing.T) {
 		t.Run(string(level), func(t *testing.T) {
 			w := httptest.NewRecorder()
 
-			allowed := authz.GuardUserPatch(w, requestAs(userWithLevel(level)), callerID, rolePromotion())
+			allowed := authz.GuardUserPatch(w, requestAs(userWithLevel(level)), target(callerID), rolePromotion())
 
 			if allowed {
 				t.Fatalf("%s user promoted itself", level)
@@ -74,7 +79,7 @@ func TestGuardUserPatchBlocksPrivilegeEditBelowOwner(t *testing.T) {
 		t.Run(string(level), func(t *testing.T) {
 			w := httptest.NewRecorder()
 
-			allowed := authz.GuardUserPatch(w, requestAs(userWithLevel(level)), victimID, rolePromotion())
+			allowed := authz.GuardUserPatch(w, requestAs(userWithLevel(level)), target(victimID), rolePromotion())
 
 			if allowed {
 				t.Fatalf("%s user granted roles to another user", level)
@@ -89,7 +94,7 @@ func TestGuardUserPatchBlocksPrivilegeEditBelowOwner(t *testing.T) {
 func TestGuardUserPatchAllowsOwnerToGrantOthers(t *testing.T) {
 	w := httptest.NewRecorder()
 
-	allowed := authz.GuardUserPatch(w, requestAs(userWithLevel(roledata.PermissionLevelOwner)), victimID, rolePromotion())
+	allowed := authz.GuardUserPatch(w, requestAs(userWithLevel(roledata.PermissionLevelOwner)), target(victimID), rolePromotion())
 
 	if !allowed {
 		t.Error("owner could not assign roles to another user")
@@ -100,7 +105,7 @@ func TestGuardUserPatchAllowsOwnerToGrantOthers(t *testing.T) {
 func TestGuardUserPatchAllowsOwnProfileEdit(t *testing.T) {
 	w := httptest.NewRecorder()
 
-	allowed := authz.GuardUserPatch(w, requestAs(userWithLevel(roledata.PermissionLevelReadOnly)), callerID, profileEdit())
+	allowed := authz.GuardUserPatch(w, requestAs(userWithLevel(roledata.PermissionLevelReadOnly)), target(callerID), profileEdit())
 
 	if !allowed {
 		t.Error("read-only user could not edit its own profile")
@@ -112,7 +117,7 @@ func TestGuardUserPatchAllowsOwnProfileEdit(t *testing.T) {
 func TestGuardUserPatchBlocksProfileEditOnAnotherUser(t *testing.T) {
 	w := httptest.NewRecorder()
 
-	allowed := authz.GuardUserPatch(w, requestAs(userWithLevel(roledata.PermissionLevelAdmin)), victimID, profileEdit())
+	allowed := authz.GuardUserPatch(w, requestAs(userWithLevel(roledata.PermissionLevelAdmin)), target(victimID), profileEdit())
 
 	if allowed {
 		t.Error("a caller edited another user's profile fields")
@@ -134,7 +139,7 @@ func TestGuardUserPatchBlocksEveryPrivilegedField(t *testing.T) {
 			w := httptest.NewRecorder()
 			body := map[string]any{field: "anything"}
 
-			if authz.GuardUserPatch(w, requestAs(userWithLevel(roledata.PermissionLevelAdmin)), callerID, body) {
+			if authz.GuardUserPatch(w, requestAs(userWithLevel(roledata.PermissionLevelAdmin)), target(callerID), body) {
 				t.Errorf("%q was editable on self", field)
 			}
 		})
@@ -147,7 +152,7 @@ func TestGuardUserPatchBlocksMixedBody(t *testing.T) {
 	body := profileEdit()
 	body[constants.FieldAssignedRolesIDs] = []any{adminID}
 
-	if authz.GuardUserPatch(w, requestAs(userWithLevel(roledata.PermissionLevelOwner)), callerID, body) {
+	if authz.GuardUserPatch(w, requestAs(userWithLevel(roledata.PermissionLevelOwner)), target(callerID), body) {
 		t.Error("privilege change hidden in a profile edit was allowed")
 	}
 }
@@ -156,7 +161,7 @@ func TestGuardUserPatchDeniesWithoutIdentity(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPatch, "/v1/users/"+callerID, nil)
 
-	if authz.GuardUserPatch(w, r, victimID, rolePromotion()) {
+	if authz.GuardUserPatch(w, r, target(victimID), rolePromotion()) {
 		t.Error("privilege change allowed with no identity in context")
 	}
 }
@@ -166,7 +171,7 @@ func TestGuardUserPatchAllowsInternalCaller(t *testing.T) {
 	w := httptest.NewRecorder()
 	identity := xauthz.Identity{Internal: true}
 
-	if !authz.GuardUserPatch(w, requestAs(identity), callerID, rolePromotion()) {
+	if !authz.GuardUserPatch(w, requestAs(identity), target(callerID), rolePromotion()) {
 		t.Error("internal caller was blocked")
 	}
 }

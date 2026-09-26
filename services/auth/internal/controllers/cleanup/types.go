@@ -14,7 +14,10 @@ type (
 	PatchFn           func(ctx context.Context, id string, body map[string]any) *response.GenericResponse
 	AddFinalizerFn    func(ctx context.Context, id, finalizer string) *response.GenericResponse
 	RemoveFinalizerFn func(ctx context.Context, id, finalizer string) *response.GenericResponse
-	BackRef           struct {
+	// Owned records that die with the target, run before the back-references so
+	// access is revoked first; nil when the target owns nothing.
+	PurgeFn func(id string) error
+	BackRef struct {
 		ResourceType string
 		ArrayField   string
 		List         ListFn
@@ -23,6 +26,7 @@ type (
 	Target struct {
 		ResourceType    string
 		Finalizer       string
+		Purge           PurgeFn
 		BackRefs        []BackRef
 		RemoveFinalizer RemoveFinalizerFn
 	}

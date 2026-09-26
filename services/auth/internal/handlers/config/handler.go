@@ -9,9 +9,8 @@ import (
 	"github.com/telark/auth/internal/helpers/shared"
 )
 
-// Read before any session exists, so it carries only what the browser needs to draw
-// the login form. It stays answerable when the config is unreachable: the page falls
-// back to passkey login rather than failing to render.
+// Unauthenticated, so it carries only what the login form needs; an unreachable
+// config degrades to passkey-only rather than failing the page.
 func GetConfig(w http.ResponseWriter, _ *http.Request) {
 	data := map[string]any{
 		constants.JSONKeySelfRegEnabled: authconfig.IsSelfRegistrationEnabled(),

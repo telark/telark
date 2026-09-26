@@ -33,7 +33,7 @@ func GetRequiredQueryParam(w http.ResponseWriter, r *http.Request, param string)
 func GetOptionalQueryParam(r *http.Request, param string) (value string, ok bool) {
 	v := r.URL.Query().Get(param)
 	if v == constants.EmptyString {
-		return "", false
+		return constants.EmptyString, false
 	}
 	return v, true
 }

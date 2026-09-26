@@ -78,17 +78,9 @@ func knownAppKeysByNamespace(groups map[groupKey][]ResourceInput) map[string][]s
 	for key := range groups {
 		nsKeys[key.namespace] = append(nsKeys[key.namespace], key.appKey)
 	}
-	for ns := range nsKeys {
-		seen := make(map[string]bool)
-		list := make([]string, constants.DefaultInitValue, len(nsKeys[ns]))
-		for _, k := range nsKeys[ns] {
-			if !seen[k] {
-				seen[k] = true
-				list = append(list, k)
-			}
-		}
+	for ns, list := range nsKeys {
 		slices.Sort(list)
-		nsKeys[ns] = list
+		nsKeys[ns] = slices.Compact(list)
 	}
 	return nsKeys
 }
@@ -130,10 +122,10 @@ func extractOneIdentity(r *ResourceInput) identityResult {
 		return identityResult{signal: signalUnidentified, identified: false}
 	}
 	if v := r.Labels[labelAppName]; v != constants.EmptyString {
-		return identityResult{appKey: v, signal: signalAppName, identified: true}
+		return identityResult{appKey: appKeyFromLabel(v), signal: signalAppName, identified: true}
 	}
 	if v := r.Labels[labelPartOf]; v != constants.EmptyString {
-		return identityResult{appKey: v, signal: signalPartOf, identified: true}
+		return identityResult{appKey: appKeyFromLabel(v), signal: signalPartOf, identified: true}
 	}
 	comp := r.Labels[labelComponent]
 	inst := r.Labels[labelInstance]
@@ -142,12 +134,16 @@ func extractOneIdentity(r *ResourceInput) identityResult {
 		if strings.HasSuffix(inst, releaseSuffix) {
 			key = strings.TrimSuffix(inst, releaseSuffix)
 		}
-		return identityResult{appKey: key, signal: signalComponent, identified: true}
+		return identityResult{appKey: appKeyFromLabel(key), signal: signalComponent, identified: true}
 	}
 	if v := r.Labels[labelAppLegacy]; v != constants.EmptyString {
-		return identityResult{appKey: v, signal: signalAppLegacy, identified: true}
+		return identityResult{appKey: appKeyFromLabel(v), signal: signalAppLegacy, identified: true}
 	}
 	return identityResult{signal: signalUnidentified, identified: false}
+}
+
+func appKeyFromLabel(value string) string {
+	return strings.ToLower(strings.ReplaceAll(value, appKeyUnderscore, appKeyDash))
 }
 
 func AppKey(labels map[string]string) string {

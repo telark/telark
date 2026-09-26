@@ -138,7 +138,7 @@ func createSnapshotResponse(snap *restsnapshot.CreateSnapshotPayload, namespaced
 	}
 }
 
-func ReadSnapshot(w http.ResponseWriter, id string, scope string, namespace string, generation string) {
+func ReadSnapshot(w http.ResponseWriter, id string, scope string, namespace string, generation string, redactSecrets bool) {
 	target, ok := validateAndResolvePath(w, id, scope, namespace, generation)
 	if !ok {
 		return
@@ -146,6 +146,10 @@ func ReadSnapshot(w http.ResponseWriter, id string, scope string, namespace stri
 
 	data, ok := readSnapshotData(w, id, target.Path)
 	if !ok {
+		return
+	}
+
+	if redactSecrets && !redactSnapshotSecrets(w, data) {
 		return
 	}
 
@@ -173,6 +177,24 @@ func ReadSnapshot(w http.ResponseWriter, id string, scope string, namespace stri
 		resp,
 		nil,
 	)
+}
+
+// The items are the stored maps themselves, so masking them masks the response.
+// A manifest that cannot be walked is not sent to a session at all.
+func redactSnapshotSecrets(w http.ResponseWriter, data map[string]any) bool {
+	items, ok := snaputil.BuildKubernetesItems(data)
+	if !ok {
+		sendManifestError(
+			w,
+			http.StatusInternalServerError,
+			string(constants.OperationInternalServerError),
+			string(constants.ErrSnapshotManifestBuildFailed),
+			nil,
+		)
+		return false
+	}
+	snaputil.RedactSecrets(items)
+	return true
 }
 
 func RemoveSnapshot(w http.ResponseWriter, id string, scope string, namespace string, generation string) {
@@ -270,10 +292,6 @@ func sendSnapshotDeleted(w http.ResponseWriter, id string, scope string, target 
 	)
 }
 
-func ReadSnapshotManifest(w http.ResponseWriter, id string, scope string, namespace string, generation string) {
-	ReadSnapshotManifestWithAccept(w, id, scope, namespace, generation, constants.EmptyString)
-}
-
 func ReadSnapshotManifestWithAccept(
 	w http.ResponseWriter,
 	id string,
@@ -281,6 +299,7 @@ func ReadSnapshotManifestWithAccept(
 	namespace string,
 	generation string,
 	accept string,
+	redactSecrets bool,
 ) {
 	target, ok := validateAndResolveManifestPath(w, id, scope, namespace, generation)
 	if !ok {
@@ -305,6 +324,9 @@ func ReadSnapshotManifestWithAccept(
 	}
 
 	items = snaputil.SanitizeManifest(items)
+	if redactSecrets {
+		snaputil.RedactSecrets(items)
+	}
 
 	if wantsYAML(accept) {
 		writeYAMLManifest(w, id, target.Generation, items)
@@ -328,8 +350,6 @@ func wantsYAML(accept string) bool {
 	return strings.Contains(accept, "yaml") || strings.Contains(accept, "yml")
 }
 
-const lastIndexOffset = 1
-
 func writeYAMLManifest(w http.ResponseWriter, id string, generation int, items []map[string]any) {
 	var buf bytes.Buffer
 	for i, item := range items {
@@ -348,7 +368,7 @@ func writeYAMLManifest(w http.ResponseWriter, id string, generation int, items [
 			return
 		}
 		buf.Write(out)
-		if len(out) > constants.DefaultInitValue && out[len(out)-lastIndexOffset] != '\n' {
+		if len(out) > constants.DefaultInitValue && out[len(out)-constants.IndexLastElementOffset] != '\n' {
 			buf.WriteByte('\n')
 		}
 	}

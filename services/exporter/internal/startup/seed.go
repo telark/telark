@@ -1,6 +1,7 @@
 package startup
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -156,7 +157,7 @@ func resultError(status int, err error) error {
 		return err
 	}
 	if status != http.StatusOK {
-		return fmt.Errorf("%s", http.StatusText(status))
+		return errors.New(http.StatusText(status))
 	}
 	return nil
 }

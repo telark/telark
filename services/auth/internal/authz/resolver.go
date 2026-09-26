@@ -13,10 +13,8 @@ import (
 
 var lg = constants.GetLogger(constants.LoggerPrefixHandler)
 
-// This service does not own the records, so it reads them through the
-// exporter's API like any other peer. The raw clients are used rather than the
-// helpers, which fold a missing record and an unreachable exporter into one
-// error the middleware could not tell apart.
+// Raw clients, not the helpers: those fold a missing record and an unreachable
+// exporter into one error the middleware could not tell apart.
 type clientSource struct{}
 
 func (clientSource) User(userID string) (*userdata.UserAsResource, error) {

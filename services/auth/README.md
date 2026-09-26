@@ -43,11 +43,13 @@ flowchart LR
 ## Responsibilities
 
 - **Passkey auth:** WebAuthn registration and assertion (login start/finish), passkey CRUD.
-- **Google OIDC:** token verification against Google's JWKS — fetched live (`EGRESS_ALLOWED=true`) or from a pasted key set for air-gapped clusters. Full admin-config + login flow: **[OIDC.md](OIDC.md)**.
-- **Sessions:** issue, validate (`X-Session-Token`), and expire; a cleanup controller sweeps expired sessions and challenges.
-- **Role model:** reconcile authorization resources; grant the Admin role to `BOOTSTRAP_ADMINS` on first login.
+- **Google OIDC:** token verification against Google's JWKS — fetched live (`EGRESS_ALLOWED=true`) or from a pasted key set for air-gapped clusters. The token's subject picks the user; a first login with no stored subject attaches the identity by email only when exactly one user carries that email (409 otherwise). Full admin-config + login flow: **[OIDC.md](OIDC.md)**.
+- **Sessions:** issue, validate (`X-Session-Token`), and expire; a cleanup controller sweeps expired sessions and challenges. A session the exporter reports as expired (410) answers 401, never 503; only an unreachable exporter is an outage. No login path mints a session for a user being deleted or whose account is not active (403).
+- **Cleanup cascade:** deleting a user, group or role through the cleanup API clears every back-reference before the finalizer is dropped; a user's sessions are deleted first, so revoked access does not outlive the deletion. The route requires Owner on the scope and honours the `deleteuser` / `deletegroup` / `deleterole` deny rules; an id the exporter no longer has answers 404. A failed pass is retried with exponential backoff (`RECONCILE_BACKOFF_INITIAL_SECONDS` doubling up to `RECONCILE_BACKOFF_MAX_SECONDS`, capped by `CLEANUP_XCLAIM_MIN_IDLE_SECONDS`), a job whose worker died is reclaimed once it has idled past that threshold, and the dead-letter stream is capped at 1000 entries.
+- **User deletion rules:** a user never deletes their own account; bootstrap users (`bootstrap: true` on the user record) are never deleted through the API (403); an administrator (Admin on ALL, direct or via a group, suspended or not) is deleted only by a bootstrap user (403 otherwise); a caller below Admin targeting either is answered 404. Internal callers are not gated.
+- **Role model:** reconcile authorization resources; grant the Admin role to `BOOTSTRAP_ADMINS` on first login and mark the record `bootstrap: true` (both re-applied on every login when missing).
 - **Provisioning policy:** `SELF_REGISTRATION_ENABLED` gates the passkey path only — OIDC users are always auto-provisioned.
-- **Ops subcommands:** `backfill` (migrate/seed auth data) and `breakglass` (emergency admin access) via the binary's `cmd` dispatch.
+- **Ops subcommands:** `backfill-finalizers` (migrate/seed auth data) and `break-glass --email <email>` (emergency admin access; a `BOOTSTRAP_ADMINS` address also gets `bootstrap: true`, the operator-run way to mark a bootstrap user created before the marker existed) via the binary's `cmd` dispatch.
 
 ## Layout
 

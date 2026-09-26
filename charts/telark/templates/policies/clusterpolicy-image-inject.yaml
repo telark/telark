@@ -19,8 +19,14 @@ spec:
   # or a rule errors. Audit only, never Enforce.
   validationFailureAction: Audit
   rules:
-    - name: inject-last-modified-by
-      match:
+    {{- $by := printf "%s.io/last-modified-by" .Values.app.name }}
+    {{- $at := printf "%s.io/last-modified-at" .Values.app.name }}
+    {{- $op := printf "%s.io/last-modified-operation" .Values.app.name }}
+    {{- $annotations := "{{ request.object.metadata.annotations || `{}` | length(@) }}" }}
+    # JSON6902 adds, not patchStrategicMerge: a strategic merge re-serialises the whole object and
+    # collapses list entries that share a merge key (duplicate env names) in user workloads.
+    - name: inject-last-modified-new-annotations
+      match: &match
         any:
           - resources:
               kinds:
@@ -29,7 +35,7 @@ spec:
               # Kyverno supports wildcards in `kinds` and `namespaces`.
               namespaces:
                 - "*"
-      exclude:
+      exclude: &exclude
         any:
           - resources:
               namespaces:
@@ -39,11 +45,37 @@ spec:
                 - kube-system
                 - kube-public
                 - kube-node-lease
+      # A JSON pointer cannot add a key to a missing map: this rule creates it.
+      preconditions:
+        all:
+          - key: {{ $annotations | quote }}
+            operator: Equals
+            value: 0
       mutate:
-        patchStrategicMerge:
-          metadata:
-            annotations:
-              {{ printf "%s.io/last-modified-by" .Values.app.name }}: {{ "{{ request.userInfo.username }}" | quote }}
-              {{ printf "%s.io/last-modified-at" .Values.app.name }}: {{ "{{ time_now_utc() }}" | quote }}
-              {{ printf "%s.io/last-modified-operation" .Values.app.name }}: {{ "{{ request.operation }}" | quote }}
+        patchesJson6902: |-
+          - op: add
+            path: /metadata/annotations
+            value:
+              {{ $by }}: {{ "{{ request.userInfo.username }}" | quote }}
+              {{ $at }}: {{ "{{ time_now_utc() }}" | quote }}
+              {{ $op }}: {{ "{{ request.operation }}" | quote }}
+    - name: inject-last-modified-by
+      match: *match
+      exclude: *exclude
+      preconditions:
+        all:
+          - key: {{ $annotations | quote }}
+            operator: GreaterThan
+            value: 0
+      mutate:
+        patchesJson6902: |-
+          - op: add
+            path: /metadata/annotations/{{ $by | replace "/" "~1" }}
+            value: {{ "{{ request.userInfo.username }}" | quote }}
+          - op: add
+            path: /metadata/annotations/{{ $at | replace "/" "~1" }}
+            value: {{ "{{ time_now_utc() }}" | quote }}
+          - op: add
+            path: /metadata/annotations/{{ $op | replace "/" "~1" }}
+            value: {{ "{{ request.operation }}" | quote }}
 {{- end }}

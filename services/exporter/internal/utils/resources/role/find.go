@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 
 	dataerrors "github.com/telark/data/errors"
 	metadata "github.com/telark/data/metadata/resources"
@@ -105,11 +106,11 @@ func findAllRolesByAssignedTo(field string, id string) ([]*unstructured.Unstruct
 			continue
 		}
 
-		for _, itemID := range ids {
-			if idStr, ok := itemID.(string); ok && idStr == id {
-				matched = append(matched, item)
-				break
-			}
+		if slices.ContainsFunc(ids, func(itemID any) bool {
+			idStr, isString := itemID.(string)
+			return isString && idStr == id
+		}) {
+			matched = append(matched, item)
 		}
 	}
 

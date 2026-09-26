@@ -15,14 +15,6 @@ import (
 	"github.com/telark/rest/response"
 )
 
-const (
-	StatusField        = "status"
-	DesiredField       = "desired"
-	UnknownStatus      = "unknown"
-	LastHeartbeatField = "last_heartbeat"
-	HeartbeatZero      = 0
-)
-
 var Liveness = statushandler.NewProbeHandler(
 	constants.StatusReadinessEp,
 	nil,

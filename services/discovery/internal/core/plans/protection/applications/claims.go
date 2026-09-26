@@ -32,9 +32,8 @@ const (
 	claimOrdinalWildcard = "*"
 )
 
-// ClaimReader returns the PersistentVolumeClaim names an application's workloads mount. A PVC is
-// referenced, not owned, so it is absent from the application's resource set and has to be read
-// from the workloads themselves.
+// A PVC is referenced, not owned, so it is absent from the application's resource set and has
+// to be read from the workloads that mount it.
 type ClaimReader func(ctx context.Context, resources []applicationmodel.Resource) []string
 
 var workloadGVRs = map[string]schema.GroupVersionResource{

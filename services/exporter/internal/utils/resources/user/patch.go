@@ -19,6 +19,7 @@ func GetExistingUserForPatch(w http.ResponseWriter, userID string) (*userdata.Us
 		return nil, false
 	}
 
+	sharedutils.ProjectDeletionTimestamp(existingResource)
 	existingUser, err := ExtractUserFromUnstructured(existingResource)
 	if err != nil {
 		responseutils.LogAndSendResponse(
@@ -55,6 +56,11 @@ func ExtractAndMergeUserForPatch(existingUser *userdata.UserAsResource, body map
 
 	if _, provided := body[constants.FieldUsername]; provided {
 		if !CheckUsernameChangeAllowed(existingUser.Username, newUser.Username, w) {
+			return false
+		}
+	}
+	if _, provided := body[constants.FieldEmail]; provided {
+		if !CheckEmailChangeAllowed(existingUser.Email, newUser.Email, w) {
 			return false
 		}
 	}

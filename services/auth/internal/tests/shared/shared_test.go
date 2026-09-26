@@ -2,6 +2,7 @@ package shared
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -12,15 +13,6 @@ import (
 )
 
 const randomBytesLen = 16
-
-func TestValidateUsername(t *testing.T) {
-	if err := shared.ValidateUsername("alice"); err != nil {
-		t.Fatalf("valid username rejected: %v", err)
-	}
-	if shared.ValidateUsername(constants.EmptyString) == nil {
-		t.Fatal("empty username accepted")
-	}
-}
 
 // Email validation must reject empties and malformed addresses — the login flow
 // keys accounts on a real address.
@@ -54,12 +46,9 @@ func TestTokenHelpers(t *testing.T) {
 		t.Fatalf("GenerateRandomBytes = %v (len %d)", err, len(raw))
 	}
 	enc := shared.Base64URLEncode(raw)
-	dec, err := shared.Base64URLDecode(enc)
+	dec, err := base64.RawURLEncoding.DecodeString(enc)
 	if err != nil || !bytes.Equal(dec, raw) {
 		t.Fatalf("base64url round-trip failed: %v", err)
-	}
-	if _, err := shared.Base64URLDecode("!!!not-base64!!!"); err == nil {
-		t.Fatal("invalid base64url decoded without error")
 	}
 }
 

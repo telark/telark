@@ -136,27 +136,6 @@ func TestBuildKubernetesItems(t *testing.T) {
 	}
 }
 
-func TestBuildKubernetesListPayload(t *testing.T) {
-	valid := map[string]any{
-		constants.FieldManifest: map[string]any{
-			constants.FieldResources: []any{map[string]any{constants.FieldManifest: map[string]any{constants.FieldKind: kindService}}},
-		},
-	}
-	payload, ok := snaputil.BuildKubernetesListPayload(valid)
-	if !ok {
-		t.Fatal("BuildKubernetesListPayload ok=false, want true")
-	}
-	if payload["apiVersion"] != "v1" || payload[constants.FieldKind] != "List" {
-		t.Errorf("payload envelope wrong: %v", payload)
-	}
-	if _, ok := payload["items"].([]map[string]any); !ok {
-		t.Errorf("items missing from payload: %v", payload)
-	}
-	if _, ok := snaputil.BuildKubernetesListPayload(map[string]any{}); ok {
-		t.Error("empty snapshot produced a payload")
-	}
-}
-
 func TestIsWithinBase(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -218,69 +197,6 @@ func TestValidateSnapshotIdentity(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestParseCreatePayload(t *testing.T) {
-	base := func() map[string]any {
-		return map[string]any{
-			constants.IDParam: testAppID, constants.ScopeParam: constants.SnapshotsAppsSubdir,
-			constants.FieldManifest:   map[string]any{valueX: constants.DefaultIncrementValue},
-			constants.GenerationParam: float64(gen2), constants.NamespaceParam: " ns ",
-		}
-	}
-	t.Run(caseValid, func(t *testing.T) {
-		got, err := snaputil.ParseCreatePayload(base())
-		if err != nil {
-			t.Fatalf("unexpected err: %v", err)
-		}
-		if got.ID != testAppID || got.Scope != constants.SnapshotsAppsSubdir || got.Namespace != testNamespace || got.Generation != gen2 {
-			t.Errorf("payload = %+v", got)
-		}
-	})
-
-	mutate := map[string]func(m map[string]any){
-		"missing id":       func(m map[string]any) { delete(m, constants.IDParam) },
-		"id not string":    func(m map[string]any) { m[constants.IDParam] = constants.DefaultIncrementValue },
-		"empty id":         func(m map[string]any) { m[constants.IDParam] = constants.EmptyString },
-		"missing scope":    func(m map[string]any) { delete(m, constants.ScopeParam) },
-		"scope not string": func(m map[string]any) { m[constants.ScopeParam] = constants.DefaultIncrementValue },
-		"empty scope":      func(m map[string]any) { m[constants.ScopeParam] = constants.EmptyString },
-		"missing manifest": func(m map[string]any) { delete(m, constants.FieldManifest) },
-		"nil manifest":     func(m map[string]any) { m[constants.FieldManifest] = nil },
-		"missing gen":      func(m map[string]any) { delete(m, constants.GenerationParam) },
-		"zero gen":         func(m map[string]any) { m[constants.GenerationParam] = float64(constants.DefaultInitValue) },
-		"fractional gen":   func(m map[string]any) { m[constants.GenerationParam] = float64(fractionalGen) },
-		"bad string gen":   func(m map[string]any) { m[constants.GenerationParam] = "abc" },
-		"unsupported gen":  func(m map[string]any) { m[constants.GenerationParam] = []int{constants.DefaultIncrementValue} },
-	}
-	for name, mut := range mutate {
-		t.Run(name, func(t *testing.T) {
-			m := base()
-			mut(m)
-			if _, err := snaputil.ParseCreatePayload(m); err == nil {
-				t.Errorf("%s: expected error", name)
-			}
-		})
-	}
-
-	t.Run("gen as int and int64 and string", func(t *testing.T) {
-		for _, v := range []any{int(3), int64(4), "5"} {
-			m := base()
-			m[constants.GenerationParam] = v
-			if _, err := snaputil.ParseCreatePayload(m); err != nil {
-				t.Errorf("generation %v(%T) rejected: %v", v, v, err)
-			}
-		}
-	})
-
-	t.Run("namespace not string defaults empty", func(t *testing.T) {
-		m := base()
-		m[constants.NamespaceParam] = 42
-		got, err := snaputil.ParseCreatePayload(m)
-		if err != nil || got.Namespace != constants.EmptyString {
-			t.Errorf("non-string namespace: got %q err %v", got.Namespace, err)
-		}
-	})
 }
 
 func TestParseCreateSnapshotRequest(t *testing.T) {

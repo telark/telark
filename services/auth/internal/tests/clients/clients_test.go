@@ -32,11 +32,3 @@ func TestClientSingletons(t *testing.T) {
 		})
 	}
 }
-
-// NewAuthClients bundles the individual singletons into one struct.
-func TestNewAuthClients(t *testing.T) {
-	ac := clients.NewAuthClients()
-	if ac.Passkey == nil || ac.Session == nil || ac.User == nil || ac.Group == nil || ac.Role == nil {
-		t.Fatalf("NewAuthClients left a nil client: %+v", ac)
-	}
-}

@@ -13,7 +13,6 @@ const (
 	DefaultIdleTimeout              = 120 * time.Second
 	PanicRecoveryDelay              = 5 * time.Second
 	HighLoadBackoff                 = 2
-	MaxRetryAttempts                = 10
 	RetryBackoff                    = 1
 	NatsPublishMaxRetries           = 10
 	NatsPublishRetryDelay           = 500 * time.Millisecond
@@ -97,31 +96,22 @@ const (
 	IDPathParam         = "id"
 	RollbackIDPathParam = "rollbackId"
 
-	// ProtectionPlanDeployTimeout bounds the K8s server-side-apply phase when
-	// preparing or updating a protection plan. Detached from the HTTP request
-	// context so the apply is not aborted if the caller disconnects mid-flight.
-	ProtectionPlanDeployTimeout = 30 * time.Second
-
-	// ProtectionPlanLifecycleTimeout bounds Cancel / Clear / Reactivate /
-	// Duplicate handlers. Destructive K8s + exporter sequences must run to
-	// completion even if the HTTP caller disconnects.
+	// Plan deploy and lifecycle handlers run detached from the request context: a destructive
+	// K8s + exporter sequence must finish even if the HTTP caller disconnects mid-flight.
+	ProtectionPlanDeployTimeout    = 30 * time.Second
 	ProtectionPlanLifecycleTimeout = 30 * time.Second
-
-	// AppResetHandlerTimeout bounds the per-app destructive reset
-	// (Redis SCAN/DEL fan-out + snapshot directory removal + exporter delete).
-	AppResetHandlerTimeout = 30 * time.Second
-
-	// InsightsReadTimeout bounds the windowed cache reads behind the insights read
-	// route. Short: these are a handful of Redis GETs for one page of apps.
+	AppResetHandlerTimeout         = 30 * time.Second
+	// A handful of Redis GETs for one page of apps.
 	InsightsReadTimeout = 5 * time.Second
-
-	// InsightsTriggerTimeout bounds the best-effort analyzer job XADD on the
-	// publish path, so a slow Redis never stalls publishing.
+	// Best-effort analyzer job XADD on the publish path; a slow Redis must never stall publishing.
 	InsightsTriggerTimeout = 2 * time.Second
-
-	// NATSConnectTimeout bounds NATS dial-with-retry for fetching the shared
-	// publisher client.
-	NATSConnectTimeout = 30 * time.Second
+	// The UI reads one app per call; the cap only bounds hand-built requests.
+	InsightsReadMaxApps = 100
+	// The publish is async through NATS and the notifier: the job waits, off the
+	// publish path, until the exporter serves the entry's generation.
+	InsightsEnqueueStoreWaitAttempts = 10
+	InsightsEnqueueStorePollInterval = 500 * time.Millisecond
+	NATSConnectTimeout               = 30 * time.Second
 )
 
 // Insights row index: a per-replica read cache behind the cluster-wide insights list.

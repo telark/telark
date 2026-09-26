@@ -24,8 +24,8 @@ func ExtractUserSpecFromRequestBody(body map[string]any) (*userdata.UserAsResour
 		user.Status.Phase = string(userdata.AccountPhaseActive)
 	}
 
-	resourcesshared.InitializeIDs(&user.AssignedRolesIDs)
-	resourcesshared.InitializeIDs(&user.AssignedGroupsIDs)
+	user.AssignedRolesIDs = resourcesshared.DedupePtrIDs(user.AssignedRolesIDs)
+	user.AssignedGroupsIDs = resourcesshared.DedupePtrIDs(user.AssignedGroupsIDs)
 
 	return user, nil
 }

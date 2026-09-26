@@ -10,6 +10,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/telark/exporter/internal/constants"
 	snaphandler "github.com/telark/exporter/internal/handlers/snapshot"
+	xauthz "github.com/telark/x-ware/authz"
 )
 
 func snapQuery() string {
@@ -44,8 +45,9 @@ func TestSnapshotReadHandlers(t *testing.T) {
 	setRoot(t)
 	createOK(t)
 
+	// The snapshot body is held to the manifest-view rule, so it needs a caller.
 	get := httptest.NewRecorder()
-	snaphandler.GetSnapshot()(get, withID(httptest.NewRequest(http.MethodGet, "/snapshots/app-1"+snapQuery(), nil), testAppID))
+	snaphandler.GetSnapshot()(get, getAs(xauthz.Identity{Internal: true}))
 	if get.Code != http.StatusOK {
 		t.Errorf("get handler code = %d, want 200", get.Code)
 	}

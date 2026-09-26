@@ -41,8 +41,19 @@ def _patch_resp(monkeypatch, resp):
 # ---- _resolve --------------------------------------------------------------
 def test_resolve_401(monkeypatch):
     _patch_resp(monkeypatch, _resp(401))
-    with pytest.raises(HTTPException):
+    with pytest.raises(HTTPException) as e:
         asyncio.run(AZ._resolve("t"))
+    assert e.value.status_code == 401
+    assert e.value.detail == AZ.MSG_AUTHZ_INVALID_SESSION != AZ.MSG_AUTHZ_MISSING_SESSION
+
+
+def test_resolve_403_is_forbidden(monkeypatch):
+    # auth-service answers 403 for a suspended or deleted user: a verdict, not an outage.
+    _patch_resp(monkeypatch, _resp(403))
+    with pytest.raises(HTTPException) as e:
+        asyncio.run(AZ._resolve("t"))
+    assert e.value.status_code == 403
+    assert e.value.detail == AZ.MSG_AUTHZ_FORBIDDEN
 
 
 def test_resolve_ok(monkeypatch):

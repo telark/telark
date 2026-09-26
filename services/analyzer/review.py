@@ -16,7 +16,6 @@ import json
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
 
 import httpx
 from redis import RedisError
@@ -59,7 +58,7 @@ from constants import (
 )
 from config import ANALYZER_REVIEW_WORKLOADS_MAX, ANALYZER_USAGE_MIN_SAMPLES, ANALYZER_USAGE_MIN_SPAN_SEC
 from exporter import ExporterUnavailable
-from helpers import parse_cpu_milli, parse_mem_bytes
+from helpers import app_ref, iso_epoch, parse_cpu_milli, parse_mem_bytes
 from models import AppInsights, Run
 from tools.app_tools import app_namespaces
 from tools.k8s_tools import K8s, K8sError
@@ -191,22 +190,15 @@ async def _selector_pods(inputs: ReviewInputs, reader: _Reader, excluded: list[s
         selector = ((service or {}).get("spec") or {}).get("selector") or {}
         if not selector:
             continue
-        query = SELECTOR_SEPARATOR.join(f"{k}={v}" for k, v in selector.items())
         body = await reader.get(K8S_PODS_PATH.format(namespace=namespace),
-                                {K8S_PARAM_LABEL_SELECTOR: query, K8S_PARAM_LIMIT: 1})
+                                {K8S_PARAM_LABEL_SELECTOR: selector_string({"matchLabels": selector}),
+                                 K8S_PARAM_LIMIT: 1})
         inputs.selector_pods[(namespace, name)] = None if body is None else len(body.get("items") or [])
-
-
-def _epoch(value: str | None) -> float | None:
-    try:
-        return datetime.fromisoformat(value).timestamp() if value else None
-    except ValueError:
-        return None
 
 
 def _sample(usage: dict) -> dict | None:
     """One sample of a workload: per container, the max over its instances; None when nothing parses."""
-    t = _epoch(usage.get("timestamp"))
+    t = iso_epoch(usage.get("timestamp"))
     if not usage.get("available") or t is None:
         return None
     containers: dict[str, dict] = {}
@@ -269,7 +261,7 @@ async def gather(app: dict, doc: AppInsights, run: Run, k8s: K8s | None, exporte
     except ExporterUnavailable:
         pass
     try:
-        inputs.usage = await record_usage(redis, f"{run.namespace}/{run.name}", app)
+        inputs.usage = await record_usage(redis, app_ref(run.namespace, run.name), app)
         inputs.complete.add(FAMILY_USAGE)
     except (RedisError, ValueError):
         pass

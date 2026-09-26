@@ -16,6 +16,7 @@ import (
 	"github.com/telark/discovery/internal/core/plans/protection/reports"
 	kcorek8s "github.com/telark/kcore/k8sclient"
 	kcorecore "github.com/telark/kcore/resources/core"
+	xwareredis "github.com/telark/x-ware/redis/stream"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -46,7 +47,11 @@ func BuildService(kubeClient *kubernetes.Clientset, rdb *redis.Client, logger Lo
 		Requirement: discoveryauthz.ApprovePlanRequirement(),
 		Logger:      logger,
 	}
-	return NewService(applier, resolver, exporter, dyn, ListClusterNamespaces, gen, logger, notifier), nil
+	svc := NewService(applier, resolver, exporter, dyn, ListClusterNamespaces, gen, logger, notifier)
+	if rdb != nil {
+		svc.names = NewNameLocks(xwareredis.NewLockClient(rdb))
+	}
+	return svc, nil
 }
 
 func reportMaxViolations() int {

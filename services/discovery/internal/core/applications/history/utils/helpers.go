@@ -20,9 +20,7 @@ func ResourceKey(kind, name string) string {
 }
 
 func StrPtr(s string) *string {
-	p := new(string)
-	*p = s
-	return p
+	return &s
 }
 
 func StrconvInt(n int) string {

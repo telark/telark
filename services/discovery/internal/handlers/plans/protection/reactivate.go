@@ -6,7 +6,6 @@ import (
 
 	"github.com/telark/data/messages"
 	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection"
 	"github.com/telark/discovery/internal/helpers/shared"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
@@ -17,9 +16,8 @@ func Reactivate(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	userID := r.Header.Get(constants.HeaderUserID)
-	if userID == constants.EmptyString {
-		respondError(w, http.StatusUnauthorized, protection.ErrUserMissing, nil)
+	userID, ok := requireUser(w, r)
+	if !ok {
 		return
 	}
 

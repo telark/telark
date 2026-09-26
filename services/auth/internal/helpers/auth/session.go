@@ -10,6 +10,8 @@ import (
 	"github.com/telark/auth/internal/constants"
 	"github.com/telark/auth/internal/helpers/shared"
 	authdata "github.com/telark/data/auth"
+	dataerrors "github.com/telark/data/errors"
+	userresource "github.com/telark/data/resources/user"
 	restshared "github.com/telark/rest/clients/shared"
 )
 
@@ -24,6 +26,9 @@ func ValidateSession(sessionToken string) (string, error) {
 		lg.Warn(fmt.Sprintf(string(constants.ErrFailedGetSession), err))
 		if errors.Is(err, restshared.ErrNotFound) {
 			return constants.EmptyString, errors.New(string(constants.ErrSessionNotFound))
+		}
+		if errors.Is(err, restshared.ErrGone) {
+			return constants.EmptyString, errors.New(string(constants.ErrSessionExpired))
 		}
 		return constants.EmptyString, shared.ErrBackendUnavailable
 	}
@@ -92,7 +97,17 @@ func UpdateUserLastLogin(userID, phase string) {
 	}
 }
 
+// Every login path ends here, so this is where a terminating (410) or
+// non-active account is refused a session.
 func CreateUserSession(userID string, meta *authdata.DeviceMetadata) (string, error) {
+	user, err := GetUserByIDWithErrorHandling(userID)
+	if err != nil {
+		return constants.EmptyString, err
+	}
+	if userresource.AccountPhase(user.Status.Phase) != userresource.AccountPhaseActive {
+		return constants.EmptyString, errors.New(string(dataerrors.ErrAuthzUserNotActive))
+	}
+
 	sessionClient := clients.GetSessionClient()
 	cfg, err := shared.GetCachedConfig()
 	if err != nil {

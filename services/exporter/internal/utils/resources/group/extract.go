@@ -12,7 +12,7 @@ func ExtractGroupSpecFromRequestBody(body map[string]any) (*groupdata.GroupAsRes
 		return nil, err
 	}
 
-	resourcesshared.InitializeIDs(&group.AssignedUsersIDs)
-	resourcesshared.InitializeIDs(&group.AssignedRolesIDs)
+	group.AssignedUsersIDs = resourcesshared.DedupeIDs(group.AssignedUsersIDs)
+	group.AssignedRolesIDs = resourcesshared.DedupeIDs(group.AssignedRolesIDs)
 	return group, nil
 }

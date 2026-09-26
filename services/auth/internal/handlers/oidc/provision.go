@@ -2,52 +2,62 @@ package oidc
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
 	authhelper "github.com/telark/auth/internal/helpers/auth"
 	oidchelper "github.com/telark/auth/internal/helpers/oidc"
 	"github.com/telark/auth/internal/helpers/shared"
 	userresource "github.com/telark/data/resources/user"
 	userclient "github.com/telark/rest/clients/resources/users"
+	restshared "github.com/telark/rest/clients/shared"
 )
 
-func promoteBootstrapAdmin(user *userresource.UserAsResource, userClient *userclient.Client) {
-	if authhelper.HasAdminRole(user.AssignedRolesIDs) {
-		return
-	}
-	adminID := constants.BuiltInRoleAdmin
-	roles := make([]*string, constants.InitialCapacity, len(user.AssignedRolesIDs)+constants.DefaultIncrementValue)
-	roles = append(roles, user.AssignedRolesIDs...)
-	roles = append(roles, &adminID)
-	resp := userClient.PatchUserByID(user.ID, map[string]any{constants.SpecFieldAssignedRolesIDs: roles})
-	identityHash := shared.IdentityHash(user.Email)
-	if resp.Status != http.StatusOK {
-		lg.Error(fmt.Sprintf(string(constants.ErrOIDCAdminPromotionFailed), identityHash, resp.Status))
-		return
-	}
-	lg.Info(fmt.Sprintf(string(constants.LogOIDCAdminPromoted), identityHash))
-}
+var ErrEmailAmbiguous = errors.New(string(constants.ErrOIDCEmailAmbiguous))
 
 func isNotFoundError(err error) bool {
-	return err != nil && strings.Contains(err.Error(), constants.NotFoundStatusMarker)
+	return errors.Is(err, restshared.ErrNotFound) ||
+		(err != nil && strings.Contains(err.Error(), constants.NotFoundStatusMarker))
 }
 
+// Reached only when no user carries the token's subject. Attaching by email binds
+// the identity for good, so it happens only when the email names exactly one user.
 func jitProvisionUser(
 	userClient *userclient.Client, claims *oidchelper.GoogleClaims,
 ) (*userresource.UserAsResource, error) {
-	existing, err := userClient.GetUserByEmail(claims.Email)
-	if err == nil && existing != nil {
-		return attachGoogleIdentity(userClient, existing, claims)
-	}
-	if err != nil && !isNotFoundError(err) {
+	users, err := userClient.GetAllUsers()
+	if err != nil {
 		return nil, fmt.Errorf(string(constants.ErrOIDCEmailLookupFailed),
 			shared.IdentityHash(claims.Email), err)
 	}
+	existing, err := UserForEmail(users, claims.Email)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		return attachGoogleIdentity(userClient, existing, claims)
+	}
 	return createNewOIDCUser(userClient, claims)
+}
+
+func UserForEmail(users []*userresource.UserAsResource, email string) (*userresource.UserAsResource, error) {
+	matches := slices.DeleteFunc(slices.Clone(users), func(u *userresource.UserAsResource) bool {
+		return u == nil || !strings.EqualFold(u.Email, email)
+	})
+	switch len(matches) {
+	case constants.DefaultInitValue:
+		return nil, nil
+	case constants.DefaultIncrementValue:
+		return matches[constants.DefaultInitValue], nil
+	default:
+		return nil, ErrEmailAmbiguous
+	}
 }
 
 func attachGoogleIdentity(
@@ -106,6 +116,7 @@ func buildOIDCUser(claims *oidchelper.GoogleClaims, username string) *userresour
 		CreationDate:     time.Now().UTC().Format(time.RFC3339),
 		Status:           userresource.UserStatus{Phase: string(userresource.AccountPhaseActive)},
 		AssignedRolesIDs: []*string{&roleID},
+		Bootstrap:        config.IsBootstrapAdmin(claims.Email),
 		Identities: []*userresource.UserIdentity{
 			{
 				Provider: constants.IdentityProviderGoogle,
@@ -136,17 +147,6 @@ func fetchAndRepairIdentity(
 	if fetchErr != nil || existing == nil {
 		return nil, fmt.Errorf(string(constants.ErrOIDCPostCreateLookup), fetchErr)
 	}
-	repairRoleIfMissing(existing, userClient, claims.Email)
+	authhelper.RepairRoleIfMissing(existing, userClient, claims.Email)
 	return existing, nil
-}
-
-func repairRoleIfMissing(user *userresource.UserAsResource, userClient *userclient.Client, email string) {
-	if len(user.AssignedRolesIDs) != constants.DefaultInitValue {
-		return
-	}
-	if err := authhelper.RepairMissingRole(user, userClient, email); err != nil {
-		lg.Error(err.Error())
-		return
-	}
-	lg.Info(fmt.Sprintf(string(constants.LogJIT409RoleRepair), shared.IdentityHash(email)))
 }

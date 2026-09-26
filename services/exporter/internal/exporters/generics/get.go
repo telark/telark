@@ -79,7 +79,22 @@ func sendFilteredResourceResponse(w http.ResponseWriter, resource *unstructured.
 }
 
 func GenericListCustomResources(w http.ResponseWriter, resourceMetadata metadata.Metadata) {
+	GenericListCustomResourcesKeeping(w, resourceMetadata, nil)
+}
+
+// keep sees each raw item before filtering and may edit it; false drops it.
+func GenericListCustomResourcesKeeping(w http.ResponseWriter, resourceMetadata metadata.Metadata, keep func(*unstructured.Unstructured) bool) {
 	result := api.ListCustomResources(resourceMetadata)
+
+	if list, ok := result.Data.(*unstructured.UnstructuredList); ok && keep != nil {
+		kept := list.Items[:constants.DefaultInitValue]
+		for i := range list.Items {
+			if keep(&list.Items[i]) {
+				kept = append(kept, list.Items[i])
+			}
+		}
+		list.Items = kept
+	}
 
 	filteredList, err := sharedutils.FilterData(result.Data)
 	if err != nil {

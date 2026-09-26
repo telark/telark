@@ -225,6 +225,7 @@ services:
       EXPORTER_K8S_CLIENT_BURST: "100"
       # Orphan snapshot sweep: unreferenced files older than 1h on the PVC. 0 = off.
       SNAPSHOT_GC_INTERVAL_SEC: "3600"
+      BOOTSTRAP_ADMINS: '{{ join "," .Values.app.auth.bootstrap.admins }}'
     volumes:
       - name: snapshots-storage
         persistentVolumeClaim:

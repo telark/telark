@@ -23,10 +23,7 @@ func GroupByWorkloadAnchor(resources []ResourceInput) []ResourceWithGroup {
 	groups = removeAnchorless(groups)
 	out := flattenGroups(groups)
 	slices.SortFunc(out, func(a, b ResourceWithGroup) int {
-		if c := cmp.Compare(a.Namespace, b.Namespace); c != 0 {
-			return c
-		}
-		return cmp.Compare(a.Group, b.Group)
+		return cmp.Or(cmp.Compare(a.Namespace, b.Namespace), cmp.Compare(a.Group, b.Group))
 	})
 	return out
 }
@@ -135,7 +132,7 @@ func tryAttachViaNameContains(
 		if len(appKey) > bestLen {
 			bestLen = len(appKey)
 			bestKey = appKey
-		} else if len(appKey) == bestLen && (bestKey == "" || appKey < bestKey) {
+		} else if len(appKey) == bestLen && (bestKey == constants.EmptyString || appKey < bestKey) {
 			bestKey = appKey
 		}
 	}

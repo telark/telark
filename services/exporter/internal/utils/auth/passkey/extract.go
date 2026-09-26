@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 
 	authdata "github.com/telark/data/auth"
 	dataerrors "github.com/telark/data/errors"
@@ -80,10 +81,10 @@ func checkCredentialIDUniqueness(credentialID string, userID string) error {
 		return fmt.Errorf(string(constants.ErrFailedToListResources), constants.ResourceTypePasskey, err)
 	}
 
-	for _, existingPasskey := range passkeys {
-		if isDuplicateCredentialID(existingPasskey, credentialID) {
-			return errors.New(string(constants.ErrPasskeyCredentialIDAlreadyExists))
-		}
+	if slices.ContainsFunc(passkeys, func(existing unstructured.Unstructured) bool {
+		return isDuplicateCredentialID(existing, credentialID)
+	}) {
+		return errors.New(string(constants.ErrPasskeyCredentialIDAlreadyExists))
 	}
 
 	return nil
@@ -101,15 +102,6 @@ func isDuplicateCredentialID(existingPasskey unstructured.Unstructured, credenti
 	}
 
 	return existingCredentialID == credentialID
-}
-
-func UnstructuredToPasskey(resource *unstructured.Unstructured) (*authdata.UserPasskey, error) {
-	return sharedutils.UnstructuredToStruct[authdata.UserPasskey](
-		resource,
-		constants.ErrPasskeySpecNotFound,
-		constants.ErrPasskeySpecInvalid,
-		constants.ErrFailedToUnmarshalPasskey,
-	)
 }
 
 func ExtractPatchFields(body map[string]any) (map[string]any, error) {

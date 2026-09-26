@@ -4,12 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"net/http"
 
-	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -33,8 +29,8 @@ func filterList(list *unstructured.UnstructuredList) (*unstructured.Unstructured
 		Items: []unstructured.Unstructured{},
 	}
 
-	for _, item := range list.Items {
-		spec, exists := item.Object[constants.SpecField]
+	for i := range list.Items {
+		spec, exists := list.Items[i].Object[constants.SpecField]
 		if !exists {
 			continue
 		}
@@ -45,7 +41,7 @@ func filterList(list *unstructured.UnstructuredList) (*unstructured.Unstructured
 		}
 
 		filteredItems.Items = append(filteredItems.Items, unstructured.Unstructured{
-			Object: specMap,
+			Object: withDeletionTimestamp(&list.Items[i], specMap),
 		})
 	}
 
@@ -69,11 +65,25 @@ func filterSingleItem(item *unstructured.Unstructured) (*unstructured.Unstructur
 
 	out := make(map[string]any, len(specMap)+constants.DefaultIncrementValue)
 	maps.Copy(out, specMap)
+	out = withDeletionTimestamp(item, out)
 	if meta := minimalMetadataSubset(item); meta != nil {
 		out[constants.MetadataField] = meta
 	}
 
 	return &unstructured.Unstructured{Object: out}, nil
+}
+
+// Typed readers over HTTP (peers resolving grants) see a terminating record
+// the way the in-process reader does. The input spec is never mutated: list
+// items may come from a shared store.
+func withDeletionTimestamp(item *unstructured.Unstructured, spec map[string]any) map[string]any {
+	stamp, terminating := DeletionStamp(item)
+	if !terminating {
+		return spec
+	}
+	out := maps.Clone(spec)
+	out[constants.FieldDeletionTimestamp] = stamp
+	return out
 }
 
 func minimalMetadataSubset(item *unstructured.Unstructured) map[string]any {
@@ -91,19 +101,4 @@ func minimalMetadataSubset(item *unstructured.Unstructured) map[string]any {
 		return nil
 	}
 	return out
-}
-
-func FilterResourceOrRespond(resource *unstructured.Unstructured) (any, bool) {
-	filteredResource, err := FilterData(resource)
-	if err != nil {
-		responseutils.LogAndReturnResponse(
-			http.StatusInternalServerError,
-			response.OperationError,
-			string(dataerrors.ErrFilterRes),
-			nil,
-			err,
-		)
-		return nil, false
-	}
-	return filteredResource, true
 }

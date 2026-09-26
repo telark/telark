@@ -107,17 +107,14 @@ func TestGetWebAuthnFor(t *testing.T) {
 	}
 }
 
-// CreateUser stamps a "<baseID>:<suffix>" handle, and ExtractBaseUserID recovers
-// the base id — the round-trip login relies on it.
-func TestCreateUserAndExtractBaseUserID(t *testing.T) {
+// CreateUser stamps a "<baseID>:<suffix>" handle.
+func TestCreateUser(t *testing.T) {
 	u := webauthnhelper.CreateUser(testBaseID, "uname", "ufull", nil)
-	if !strings.HasPrefix(string(u.ID), testBaseID) {
+	if !strings.HasPrefix(string(u.ID), testBaseID+constants.ColonSeparator) {
 		t.Fatalf("handle %q does not carry base id", u.ID)
 	}
 	testutil.Equal(t, testName, u.Name, "uname")
 	testutil.Equal(t, testDisplay, u.DisplayName, "ufull")
-	testutil.Equal(t, "base of handle", webauthnhelper.ExtractBaseUserID(string(u.ID)), testBaseID)
-	testutil.Equal(t, "base of plain", webauthnhelper.ExtractBaseUserID("plain"), "plain")
 }
 
 // Conversion skips nil entries, returns an empty (non-nil) slice for no input,
@@ -214,29 +211,6 @@ func TestIsBackupFlagError(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			testutil.Equal(t, "is backup flag err", webauthnhelper.IsBackupFlagError(c.err), c.want)
-		})
-	}
-}
-
-// The credential id is pulled from the assertion body, absent id yields empty,
-// malformed json or bad base64 is an error.
-func TestExtractCredentialIDFromRequest(t *testing.T) {
-	cases := []struct {
-		name    string
-		body    string
-		wantID  string
-		wantErr bool
-	}{
-		{"valid", `{"id":"AQID"}`, testCredB64, false},
-		{"no id", `{"other":1}`, constants.EmptyString, false},
-		{"bad json", `{`, constants.EmptyString, true},
-		{badBase64Case, `{"id":"!!!"}`, constants.EmptyString, true},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			id, _, err := webauthnhelper.ExtractCredentialIDFromRequest([]byte(c.body))
-			testutil.Equal(t, "err", err != nil, c.wantErr)
-			testutil.Equal(t, "id", id, c.wantID)
 		})
 	}
 }

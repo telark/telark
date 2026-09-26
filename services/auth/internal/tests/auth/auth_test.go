@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,8 +14,10 @@ import (
 	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
 	authhelper "github.com/telark/auth/internal/helpers/auth"
+	"github.com/telark/auth/internal/helpers/shared"
 	webauthnhelper "github.com/telark/auth/internal/helpers/webauthn"
 	"github.com/telark/auth/internal/tests/testutil"
+	dataerrors "github.com/telark/data/errors"
 	userresource "github.com/telark/data/resources/user"
 )
 
@@ -250,7 +253,7 @@ func TestGetUserForRegistrationFailClosed(t *testing.T) {
 	}
 
 	noCeremony := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{}"))
-	noCeremony.Header.Set(constants.HeaderEmail, testEmail)
+	noCeremony.Header.Set("X-Email", testEmail)
 	if _, _, err := authhelper.GetUserForRegistration(noCeremony, webauthnhelper.RegistrationChallengeOwner); err == nil {
 		t.Fatal("GetUserForRegistration should fail without a registration ceremony")
 	}
@@ -266,5 +269,69 @@ func TestCreateUserSession(t *testing.T) {
 	token, err := authhelper.CreateUserSession(testUserID, nil)
 	if err == nil && token == "" {
 		t.Fatal("CreateUserSession returned an empty token without an error")
+	}
+}
+
+// The bootstrap admin gets the Admin role and the chart marker on an OIDC login
+// whose verified email is a bootstrap address; a record that already carries both
+// is left alone, and a stored (editable) bootstrap email never promotes on its own.
+func TestEnsureBootstrapAdminIsIdempotent(t *testing.T) {
+	const bootstrapEmail = "Admin@x.com"
+	t.Setenv(constants.EnvBootstrapAdmins, bootstrapEmail)
+	if _, err := config.LoadBootstrapConfig(); err != nil {
+		t.Fatal(err)
+	}
+	var patches []map[string]any
+	testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		patches = append(patches, body)
+		_, _ = w.Write([]byte(`{"status":200}`))
+	}))
+	adminRole := constants.BuiltInRoleAdmin
+	client := clients.GetUserClient()
+
+	authhelper.EnsureBootstrapAdmin(&userresource.UserAsResource{ID: testUserID, Email: bootstrapEmail}, bootstrapEmail, client)
+	testutil.Equal(t, "patches after first login", len(patches), constants.DefaultIncrementValue)
+	first := patches[constants.DefaultInitValue]
+	testutil.Equal[any](t, "marker", first[constants.UserFieldBootstrap], true)
+	if first[constants.SpecFieldAssignedRolesIDs] == nil {
+		t.Fatalf("patch = %v, want the Admin role", first)
+	}
+
+	authhelper.EnsureBootstrapAdmin(&userresource.UserAsResource{
+		ID: testUserID, Email: bootstrapEmail, Bootstrap: true, AssignedRolesIDs: []*string{&adminRole},
+	}, bootstrapEmail, client)
+	authhelper.EnsureBootstrapAdmin(&userresource.UserAsResource{ID: "u-2", Email: testEmail}, testEmail, client)
+	authhelper.EnsureBootstrapAdmin(&userresource.UserAsResource{ID: "u-3", Email: bootstrapEmail}, testEmail, client)
+	testutil.Equal(t, "patches after a complete record, a non-bootstrap user and a stored-only bootstrap email",
+		len(patches), constants.DefaultIncrementValue)
+}
+
+// Every login ends in CreateUserSession, so a user the exporter reports as being
+// deleted (410) or whose account is not active is refused a session there, with a
+// verdict (403) rather than a fault.
+func TestCreateUserSessionRefusesTerminatingOrInactiveUser(t *testing.T) {
+	cases := []struct {
+		name   string
+		status int
+		body   string
+	}{
+		{"terminating", http.StatusGone, `{"status":410,"message":"user is being deleted"}`},
+		{"suspended", http.StatusOK, `{"data":{"id":"uid","status":{"phase":"suspended"}}}`},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(c.status)
+				_, _ = w.Write([]byte(c.body))
+			}))
+			token, err := authhelper.CreateUserSession(testUserID, nil)
+			if err == nil || token != "" {
+				t.Fatalf("CreateUserSession = (%q, %v), want refusal", token, err)
+			}
+			testutil.Equal(t, "message", err.Error(), string(dataerrors.ErrAuthzUserNotActive))
+			testutil.Equal(t, "status", shared.GetStatusCodeForSessionError(err), http.StatusForbidden)
+		})
 	}
 }

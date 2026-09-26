@@ -1,6 +1,6 @@
 # Agent instructions for telark
 
-Rules and workflows for coding agents (Claude Code, Codex, Cursor, Copilot, Gemini and others) working in this repository. This file is canonical: `CLAUDE.md` only imports it, and the skills under `.claude/skills/` hold the step-by-step procedures. [CONVENTIONS.md](CONVENTIONS.md) is the human rulebook for naming, errors, logging and commits. Where a rule is machine-enforced (`.golangci.yml`, `.github/workflows/ci.yaml`, `Makefile`), the enforcing file wins; report drift instead of working around it.
+Rules and workflows for coding agents (Claude Code, Codex, Cursor, Copilot, Gemini and others) working in this repository. This file is canonical for rules: `CLAUDE.md` imports it and adds only a short map of the system for Claude Code, and the skills under `.claude/skills/` hold the step-by-step procedures. [CONVENTIONS.md](CONVENTIONS.md) is the human rulebook for naming, errors, logging and commits. Where a rule is machine-enforced (`.golangci.yml`, `.github/workflows/ci.yaml`, `Makefile`), the enforcing file wins; report drift instead of working around it.
 
 ## Repository map
 
@@ -10,8 +10,8 @@ Rules and workflows for coding agents (Claude Code, Codex, Cursor, Copilot, Gemi
 | `services/analyzer` | The analyzer: a Python/FastAPI service that runs local open-weight models through Ollama |
 | `charts/telark` | Application chart: services, subcharts, sizing presets in `modes/`, and `values.dev.yaml` (local port-forward settings that Helm never loads) |
 | `charts/telark-crds` | CRDs, vendored into `charts/telark` as a `file://` subchart |
-| `docs/` | `INSTALL.md`, `DEVELOPMENT.md` (every make target), `PUBLISHING.md`, `CRDS.md`, architecture, ADRs |
-| `scripts/` | Dev-cluster loop: `local-build-push.sh`, `local-port-forward.sh` |
+| `docs/` | `INSTALL.md`, `DEVELOPMENT.md` (every make target), `PUBLISHING.md`, `CRDS.md`, ADRs; `architecture/`, `security/` and `testing/` for agents and contributors |
+| `scripts/` | Dev-cluster loop: `local-build-push.sh`, `local-port-forward.sh`; git-ignored, so they exist only on the maintainer's machine |
 | `.github/` | CI (`workflows/ci.yaml`), build and release workflows, composite actions in `actions/` and their scripts in `scripts/` |
 | `.claude/` | Feature guidelines, model routing, feature plans (`plans/`), skills (`skills/`) |
 
@@ -19,7 +19,7 @@ Rules and workflows for coding agents (Claude Code, Codex, Cursor, Copilot, Gemi
 
 Outside this repository:
 
-- **Shared Go modules** `github.com/telark/{data,rest,kcore,x-ware}` live in their own private repositories and are pinned in each service's `go.mod`. `go.work` is maintained by the user and may point them at local checkouts; CI ignores it (`GOWORK=off`).
+- **Shared Go modules** `github.com/telark/{data,rest,kcore,x-ware}` live in their own repositories and are pinned in each service's `go.mod`; the Go module proxy serves the pinned versions without credentials. `go.work` is maintained by the user and points them at checkouts on the user's machine; CI ignores it (`GOWORK=off`), and so must any other environment ([docs/testing](docs/testing/README.md#shared-go-modules)).
 - **Dashboard UI**: the `telark/dashboard-ui` repository (stable branch `master`). This repo only references its image (`services.ui`).
 - **Cluster infrastructure**: the `telark/infra` repository (Terraform).
 - **Legacy**: the `release-manager` repository is no longer used. Values, modes, tunables and sizing live in `charts/telark`; ignore older notes that point elsewhere.
@@ -192,6 +192,7 @@ Claude Code discovers these automatically; other agents can open the files direc
 - [CONVENTIONS.md](CONVENTIONS.md): naming, errors, logging, test layout, commits and PRs.
 - [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md): setup and every make target.
 - [docs/INSTALL.md](docs/INSTALL.md), [charts/telark/README.md](charts/telark/README.md), [docs/CRDS.md](docs/CRDS.md), [docs/PUBLISHING.md](docs/PUBLISHING.md).
+- [docs/architecture/](docs/architecture/README.md), [docs/security/](docs/security/README.md) and [docs/testing/](docs/testing/README.md): service relationships and flows, the security model and its invariants, and how to build, test and validate from a fresh clone.
 - [.claude/FEATURE_IMPLEMENTATION_GUIDELINES.md](.claude/FEATURE_IMPLEMENTATION_GUIDELINES.md): how to design and ship a feature so it survives production, with the edge-case checklist and definition of done.
 - [.claude/WORKFLOWS_MODEL_ROUTING.md](.claude/WORKFLOWS_MODEL_ROUTING.md): model and effort routing for sub-agents and workflow scripts, and the lean workflow shape. Two newer rules apply on top of it:
   - A sub-agent may run on Fable for a genuinely hard fix: a cross-service root cause, a concurrency, locking or data-integrity bug, or a fix that already failed once on Opus. Routine checks, API tests and simple fixes stay on Opus. State the reason when you choose Fable.

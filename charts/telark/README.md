@@ -217,6 +217,7 @@ Image tags are `services.<svc>.version` in `values.yaml`, bumped by the release 
 | `EXPORTER_K8S_CLIENT_BURST` | `100` | K8s client burst |
 | `SNAPSHOT_GC_INTERVAL_SEC` | `3600` | Sweep the snapshot PVC for files no Application CR references and older than 1 h (`minimal` 7200, `performance` 900; `0` = off). One replica sweeps per interval. Also drives the reports orphan sweep; `0` disables both |
 | `REPORTS_PATH` | `/reports` | Filesystem mount path for protection plan report files |
+| `BOOTSTRAP_ADMINS` | `{{ join "," .Values.app.auth.bootstrap.admins }}` (tpl) | Same list as auth; a session may not create or edit a user with one of these emails (403), see [First admin](../../docs/INSTALL.md#2-first-admin) |
 
 `services.exporter.envFromConfigMap.CA_BUNDLE` → configmap `telark-ca-bundle`, key `ca.crt` (trusted CA bundle).
 
@@ -341,7 +342,7 @@ The analyzer's on/off switch, model and auto-analyze setting live on the GlobalC
 | `ANALYZER_USAGE_MIN_SPAN_SEC` | `43200` | Time those samples must span |
 | `ANALYZER_CHANGE_VELOCITY_PER_DAY` | `20` | 7-day average changes per day that flags an app as changing very often |
 | `ANALYZER_CHANGE_RISK_MIN_SPAN_SEC` | `259200` | Change history an app needs before change-rate rules apply |
-| `ANALYZER_PRODUCTION_PATTERN` | `(^\|[-_.])(prod\|production\|prd)($\|[-_.])` | Case-insensitive regex; an app is production when a namespace or a covering plan's environment matches it. An invalid regex fails the pod at start |
+| `ANALYZER_PRODUCTION_PATTERN` | `(^\|[-_.])(prod\|production\|prd)($\|[-_.])` | Case-insensitive regex; an app is production when a namespace or a covering plan's environment matches it; per-workload rules (replicas, disruption budget, digest pinning) use the workload's own namespace. An invalid regex fails the pod at start |
 
 RBAC: the analyzer ClusterRole is read-only (`get`, `list`). Besides pods, events and workloads (incident analysis), setup reviews list four kinds per app namespace: `services` (selectors that match no pod, exposure), `policy/poddisruptionbudgets` (missing or blocking budgets), `autoscaling/horizontalpodautoscalers` (autoscaling limits and conflicts) and `networking.k8s.io/networkpolicies` (namespaces without a policy). It never reads ConfigMaps, Secrets, nodes, metrics or RBAC objects, and never writes. With an older chart these lists answer 403: those rule families are skipped (no card created or resolved) and a warning is logged.
 

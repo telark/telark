@@ -6,6 +6,7 @@ import (
 
 	dataerrors "github.com/telark/data/errors"
 	metadata "github.com/telark/data/metadata/base"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/kcore/crds/api"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
@@ -29,7 +30,7 @@ func ValidateResourceOrRespond(
 	notFoundErr dataerrors.Error,
 ) bool {
 	if err := CheckResourceExists(resourceID, md, notFoundErr); err != nil {
-		statusCode := http.StatusBadRequest
+		statusCode := sharedutils.StatusForK8sError(err)
 		if err.Error() == string(notFoundErr) {
 			statusCode = http.StatusNotFound
 		}

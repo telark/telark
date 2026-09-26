@@ -21,11 +21,8 @@ type ListResponse struct {
 }
 
 const (
-	TypeRollbackCompleted      = "rollback.completed"
 	TypeRoleChanged            = "role.changed"
 	TypeGroupMembershipChanged = "group.membership.changed"
-	TypePlanApprovalRequested  = "plan.approval.requested"
-	TypePlanApprovalDecided    = "plan.approval.decided"
 )
 
 const (
@@ -36,25 +33,17 @@ const (
 )
 
 const (
-	MetaKeyTargetID        = "targetId"
-	MetaKeyApplicationID   = "applicationId"
-	MetaKeyApplicationName = "applicationName"
-	MetaKeyStatus          = "status"
-	MetaKeyAddedRoleIDs    = "addedRoleIds"
-	MetaKeyRemovedRoleIDs  = "removedRoleIds"
-	MetaKeyGroupID         = "groupId"
-	MetaKeyGroupName       = "groupName"
-	MetaKeyAction          = "action"
+	MetaKeyTargetID       = "targetId"
+	MetaKeyAddedRoleIDs   = "addedRoleIds"
+	MetaKeyRemovedRoleIDs = "removedRoleIds"
+	MetaKeyGroupID        = "groupId"
+	MetaKeyGroupName      = "groupName"
+	MetaKeyAction         = "action"
 )
 
 const (
 	GroupActionAdded   = "added"
 	GroupActionRemoved = "removed"
-)
-
-const (
-	RollbackStatusSuccess = "success"
-	RollbackStatusFailure = "failure"
 )
 
 const (

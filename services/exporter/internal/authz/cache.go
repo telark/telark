@@ -22,13 +22,12 @@ func generationKey() string {
 	return rediscache.BuildKey(constants.AuthzKeyPrefix, constants.AuthzKeyGeneration)
 }
 
-func cachedGrants(ctx context.Context, userID string) (authz.Grants, bool) {
+func cachedGrants(ctx context.Context, gen, userID string) (authz.Grants, bool) {
 	client := exprdb.Get()
 	if client == nil {
 		return authz.Grants{}, false
 	}
 
-	gen := generation(ctx)
 	raw, err := client.Get(ctx, grantsKey(gen, userID)).Result()
 	if err != nil || raw == constants.EmptyString {
 		return authz.Grants{}, false
@@ -52,7 +51,7 @@ func cachedGrants(ctx context.Context, userID string) (authz.Grants, bool) {
 	return grants, true
 }
 
-func storeGrants(ctx context.Context, userID string, grants authz.Grants) {
+func storeGrants(ctx context.Context, gen, userID string, grants authz.Grants) {
 	client := exprdb.Get()
 	if client == nil {
 		return
@@ -63,8 +62,6 @@ func storeGrants(ctx context.Context, userID string, grants authz.Grants) {
 		lg.Warn(fmtLog(constants.LogAuthzGrantsCacheWriteFailed, err))
 		return
 	}
-
-	gen := generation(ctx)
 
 	// Caching unsigned would be caching something we could not later trust.
 	signed, ok := SignCacheEntry(grantsBinding(gen, userID), string(raw))

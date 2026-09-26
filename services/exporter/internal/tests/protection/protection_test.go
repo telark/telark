@@ -8,7 +8,6 @@ import (
 	"github.com/telark/data/plans"
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/utils/plans/protection"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 const (
@@ -161,18 +160,6 @@ func TestValidateExclusionResourcesNamespacesScope(t *testing.T) {
 				t.Errorf("%s: err=%v, want %v", tt.name, err, tt.wantErr)
 			}
 		})
-	}
-}
-
-func TestExtractFromUnstructured(t *testing.T) {
-	res := &unstructured.Unstructured{Object: map[string]any{"spec": map[string]any{constants.IDParam: testPlanID, "name": "plan"}}}
-	plan, err := protection.ExtractFromUnstructured(res)
-	if err != nil || plan == nil || plan.ID != testPlanID {
-		t.Fatalf("ExtractFromUnstructured = %+v, err %v", plan, err)
-	}
-	empty, err := protection.ExtractFromUnstructured(&unstructured.Unstructured{Object: map[string]any{}})
-	if err != nil || empty != nil {
-		t.Errorf("missing spec should be nil plan, got %+v", empty)
 	}
 }
 

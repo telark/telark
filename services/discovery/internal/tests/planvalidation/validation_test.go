@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/telark/data/plans"
 	"github.com/telark/discovery/internal/constants"
@@ -30,6 +31,16 @@ const (
 	excludedKind          = "ConfigMap"
 	excludedName          = "wa1"
 	subresourceKind       = "Deployment/scale"
+	tplBlockCreate        = "block-create"
+	tplBlockImageTags     = "block-image-tags"
+	paramTags             = "tags"
+	tagLatest             = "latest"
+	ownNamespace          = "telark"
+)
+
+var (
+	beforeWindow = time.Date(2025, time.December, 31, 0, 0, 0, 0, time.UTC)
+	afterWindow  = time.Date(2026, time.January, 3, 0, 0, 0, 0, time.UTC)
 )
 
 func strptr(s string) *string { return &s }
@@ -74,8 +85,8 @@ func TestScope(t *testing.T) {
 	}
 }
 
-// Policies requires at least one item, rejects unknown template ids, and accepts
-// a known template whose scope is supported.
+// Policies requires at least one item, rejects unknown template ids and a template listed
+// twice, and accepts a known template whose scope is supported.
 func TestPolicies(t *testing.T) {
 	if err := validation.Policies(nil, plans.ScopeTypeApplications); !errors.Is(err, validation.ErrPoliciesRequired) {
 		t.Fatalf("empty policies = %v, want ErrPoliciesRequired", err)
@@ -83,28 +94,76 @@ func TestPolicies(t *testing.T) {
 	if err := validation.Policies([]planseps.PolicyRequest{{TemplateID: "no-such-template"}}, plans.ScopeTypeApplications); err == nil {
 		t.Fatal("unknown template should be rejected")
 	}
-	ok := validation.Policies([]planseps.PolicyRequest{{TemplateID: "block-create"}}, plans.ScopeTypeApplications)
+	twice := []planseps.PolicyRequest{
+		{TemplateID: tplBlockImageTags, Params: map[string]any{paramTags: []any{tagLatest}}},
+		{TemplateID: tplBlockImageTags, Params: map[string]any{paramTags: []any{"dev"}}},
+	}
+	if err := validation.Policies(twice, plans.ScopeTypeApplications); !validation.IsValidation(err) {
+		t.Fatalf("template listed twice = %v, want a validation error", err)
+	}
+	ok := validation.Policies([]planseps.PolicyRequest{{TemplateID: tplBlockCreate}}, plans.ScopeTypeApplications)
 	testutil.Equal(t, "known template", ok, nil)
 }
 
-// TimeRange requires a present, parseable window whose end is after its start.
+// TimeRange names what is wrong: absent, unparsable, or inverted; TimeRangeOpen also rejects a
+// window that has already ended.
 func TestTimeRange(t *testing.T) {
 	cases := []struct {
 		name string
 		tr   *planseps.TimeRangeRequest
-		ok   bool
+		want error
 	}{
-		{"nil", nil, false},
-		{"unparseable", &planseps.TimeRangeRequest{StartAt: "x", EndAt: "y"}, false},
-		{"inverted", &planseps.TimeRangeRequest{StartAt: validEndAt, EndAt: validStartAt}, false},
-		{validCase, &planseps.TimeRangeRequest{StartAt: validStartAt, EndAt: validEndAt}, true},
+		{"nil", nil, validation.ErrTimeRangeRequired},
+		{"unparseable", &planseps.TimeRangeRequest{StartAt: "tomorrow", EndAt: "y"}, validation.ErrTimeRangeFormat},
+		{"inverted", &planseps.TimeRangeRequest{StartAt: validEndAt, EndAt: validStartAt}, validation.ErrInvalidTimeRange},
+		{validCase, &planseps.TimeRangeRequest{StartAt: validStartAt, EndAt: validEndAt}, nil},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			err := validation.TimeRange(c.tr)
-			testutil.Equal(t, "ok", err == nil, c.ok)
+			if err := validation.TimeRange(c.tr); !errors.Is(err, c.want) {
+				t.Fatalf("TimeRange(%s) = %v, want %v", c.name, err, c.want)
+			}
 		})
 	}
+	window := &planseps.TimeRangeRequest{StartAt: validStartAt, EndAt: validEndAt}
+	testutil.Equal(t, "open window", validation.TimeRangeOpen(window, beforeWindow), nil)
+	if err := validation.TimeRangeOpen(window, afterWindow); !errors.Is(err, validation.ErrTimeRangeElapsed) {
+		t.Fatalf("elapsed window = %v, want ErrTimeRangeElapsed", err)
+	}
+}
+
+// Repeated targets and identical policies are dropped silently; the CR would otherwise list
+// the same rendered policy twice.
+func TestNormalize(t *testing.T) {
+	req := &planseps.PrepareProtectionPlanRequest{
+		Scope: planseps.ScopeRequest{
+			Type:           plans.ScopeTypeNamespaces,
+			Namespaces:     []string{"b", appNamespace, "b"},
+			ApplicationIDs: []string{applicationID, applicationID},
+		},
+		Policies: []planseps.PolicyRequest{
+			{TemplateID: tplBlockCreate},
+			{TemplateID: tplBlockImageTags, Params: map[string]any{paramTags: []any{tagLatest}}},
+			{TemplateID: tplBlockCreate},
+			{TemplateID: tplBlockImageTags, Params: map[string]any{paramTags: []any{tagLatest}}},
+		},
+	}
+	validation.Normalize(req)
+	if !slices.Equal(req.Scope.Namespaces, []string{appNamespace, "b"}) {
+		t.Fatalf("namespaces = %v", req.Scope.Namespaces)
+	}
+	if !slices.Equal(req.Scope.ApplicationIDs, []string{applicationID}) {
+		t.Fatalf("applicationIds = %v", req.Scope.ApplicationIDs)
+	}
+	testutil.Equal(t, "policies", len(req.Policies), constants.TwoValue)
+}
+
+// The release namespace is skipped by the policy engine, so a plan there protects nothing.
+func TestPlatformNamespaces(t *testing.T) {
+	testutil.Equal(t, "other", validation.PlatformNamespaces([]string{appNamespace}, ownNamespace), nil)
+	testutil.Equal(t, "unknown own", validation.PlatformNamespaces([]string{appNamespace}, constants.EmptyString), nil)
+	err := validation.PlatformNamespaces([]string{appNamespace, ownNamespace}, ownNamespace)
+	testutil.Equal(t, "own rejected", validation.IsValidation(err), true)
 }
 
 // PrepareRequest chains scope, policy and time-range validation, surfacing the
@@ -121,23 +180,27 @@ func TestPrepareRequest(t *testing.T) {
 			StartAt: validStartAt, EndAt: validEndAt,
 		},
 	}
-	testutil.Equal(t, validCase, validation.PrepareRequest(valid), nil)
+	testutil.Equal(t, validCase, validation.PrepareRequest(valid, beforeWindow), nil)
+
+	if err := validation.PrepareRequest(valid, afterWindow); !errors.Is(err, validation.ErrTimeRangeElapsed) {
+		t.Fatalf("elapsed window = %v, want ErrTimeRangeElapsed", err)
+	}
 
 	badScope := &planseps.PrepareProtectionPlanRequest{Scope: planseps.ScopeRequest{Type: "bogus"}}
-	if validation.PrepareRequest(badScope) == nil {
+	if validation.PrepareRequest(badScope, beforeWindow) == nil {
 		t.Fatal("bad scope should fail PrepareRequest")
 	}
 
 	badPolicies := &planseps.PrepareProtectionPlanRequest{
 		Scope: planseps.ScopeRequest{Type: plans.ScopeTypeApplications, ApplicationIDs: []string{applicationID}},
 	}
-	if validation.PrepareRequest(badPolicies) == nil {
+	if validation.PrepareRequest(badPolicies, beforeWindow) == nil {
 		t.Fatal("missing policies should fail PrepareRequest")
 	}
 
 	badExclusions := *valid
 	badExclusions.Scope.Exclusions = &plans.ProtectionPlanScopeExclusions{Kinds: []string{subresourceKind}}
-	if err := validation.PrepareRequest(&badExclusions); !errors.Is(err, validation.ErrExclusionKindInvalid) {
+	if err := validation.PrepareRequest(&badExclusions, beforeWindow); !errors.Is(err, validation.ErrExclusionKindInvalid) {
 		t.Fatalf("subresource exclusion kind = %v, want ErrExclusionKindInvalid", err)
 	}
 }
@@ -307,6 +370,7 @@ func TestMissingNamespaces(t *testing.T) {
 }
 
 // UniqueName compares names case-insensitively after trimming and ignores the plan being edited.
+// A taken name is a conflict (409), not a malformed request.
 func TestUniqueName(t *testing.T) {
 	existing := []plans.ProtectionPlan{{ID: prodGuardID, Name: prodGuardName}, {ID: "pp-2", Name: "Staging"}}
 	cases := []struct {
@@ -327,7 +391,8 @@ func TestUniqueName(t *testing.T) {
 			err := validation.UniqueName(existing, c.candidate, c.excludeID)
 			testutil.Equal(t, "ok", err == nil, c.ok)
 			if !c.ok {
-				testutil.Equal(t, "typed", validation.IsValidation(err), true)
+				testutil.Equal(t, "conflict", validation.IsConflict(err), true)
+				testutil.Equal(t, "not validation", validation.IsValidation(err), false)
 			}
 		})
 	}

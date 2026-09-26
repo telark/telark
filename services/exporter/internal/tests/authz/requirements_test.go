@@ -127,6 +127,23 @@ func TestPlanDeleteIsInternal(t *testing.T) {
 	}
 }
 
+// Applications and their snapshots are authored by discovery and the notifier;
+// a session reaching these would forge state or leave discovery's Redis stale.
+func TestApplicationAuthoringRoutesAreInternal(t *testing.T) {
+	keys := []string{
+		"POST /api/v1/resources/applications/create",
+		"DELETE /api/v1/resources/applications/{name}/delete",
+		"POST /api/v1/snapshots/create",
+		"DELETE /api/v1/snapshots/{id}/delete",
+	}
+	requirements := authz.Requirements()
+	for _, key := range keys {
+		if got := requirements[key]; got != xauthz.Internal {
+			t.Errorf("route %q = %+v, want Internal", key, got)
+		}
+	}
+}
+
 // A scoped rule with no scope or no level can only ever deny, which would be a
 // silent outage rather than a policy.
 func TestScopedRequirementsAreComplete(t *testing.T) {

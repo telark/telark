@@ -3,6 +3,7 @@ package category
 import (
 	"errors"
 	"net/http"
+	"slices"
 
 	metadata "github.com/telark/data/metadata/classification"
 	"github.com/telark/exporter/internal/constants"
@@ -61,13 +62,18 @@ func FindCategoryByID(categoryID string) (map[string]any, error) {
 		return nil, err
 	}
 
-	for _, cat := range categories {
-		if id, ok := cat[constants.FieldID].(string); ok && id == categoryID {
-			return cat, nil
-		}
+	if i := slices.IndexFunc(categories, hasID(categoryID)); i >= constants.DefaultInitValue {
+		return categories[i], nil
 	}
 
 	return nil, ErrCategoryNotFound
+}
+
+func hasID(categoryID string) func(map[string]any) bool {
+	return func(cat map[string]any) bool {
+		id, ok := cat[constants.FieldID].(string)
+		return ok && id == categoryID
+	}
 }
 
 func FindCategoriesByScope(scope string) ([]map[string]any, error) {

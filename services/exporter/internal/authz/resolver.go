@@ -40,7 +40,10 @@ func (*Resolver) UserIDForToken(token string) (string, error) {
 func (*Resolver) GrantsForUser(userID string) (authz.Grants, error) {
 	ctx := context.Background()
 
-	if grants, ok := cachedGrants(ctx, userID); ok {
+	// Read once, before collecting: a generation bumped mid-collection must
+	// leave the entry under the old generation, where nothing reads it.
+	gen := generation(ctx)
+	if grants, ok := cachedGrants(ctx, gen, userID); ok {
 		return grants, nil
 	}
 
@@ -49,7 +52,7 @@ func (*Resolver) GrantsForUser(userID string) (authz.Grants, error) {
 		return authz.Grants{}, err
 	}
 
-	storeGrants(ctx, userID, grants)
+	storeGrants(ctx, gen, userID, grants)
 	return grants, nil
 }
 

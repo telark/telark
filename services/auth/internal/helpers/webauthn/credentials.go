@@ -51,25 +51,6 @@ func ValidateBackupFlags(
 	return nil
 }
 
-func ExtractCredentialIDFromRequest(bodyBytes []byte) (string, []byte, error) {
-	var credMap map[string]any
-	if err := json.Unmarshal(bodyBytes, &credMap); err != nil {
-		return constants.EmptyString, nil, fmt.Errorf(string(constants.ErrFailedParseRequestBody), err)
-	}
-
-	id, ok := credMap[constants.WebAuthnKeyID].(string)
-	if !ok {
-		return constants.EmptyString, nil, nil
-	}
-
-	credIDBytes, err := authhelper.DecodeBase64URLWithFallback(id)
-	if err != nil {
-		return constants.EmptyString, nil, err
-	}
-
-	return base64.RawURLEncoding.EncodeToString(credIDBytes), credIDBytes, nil
-}
-
 func ReadAndRestoreRequestBody(r *http.Request) ([]byte, error) {
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -161,8 +142,7 @@ func HandleBackupFlagError(
 		return nil, fmt.Errorf(string(constants.ErrFailedMarshalCredentialBody), err)
 	}
 
-	// This request is synthetic: it is only handed to ParseCredentialRequestResponse,
-	// which reads the body and headers, and is never sent. A fixed path keeps the
+	// Synthetic request, only parsed and never sent; a fixed path keeps the
 	// caller-controlled URL out of it (gosec G704 / SSRF).
 	credentialOnlyRequest,
 		err := http.NewRequest(r.Method, constants.SyntheticRequestPath, bytes.NewBuffer(credentialOnlyBytes))
@@ -188,20 +168,13 @@ func HandleBackupFlagError(
 		return nil, errors.New(string(constants.ErrCredentialNotFoundInAllowed))
 	}
 
-	return ValidateCredentialManually(credentialResponse, &credentials[idx])
-}
-
-func ValidateCredentialManually(
-	credentialResponse *protocol.ParsedCredentialAssertionData,
-	matchingCred *webauthn.Credential,
-) (*webauthn.Credential, error) {
-	authData := credentialResponse.Response.AuthenticatorData
+	matchingCred := &credentials[idx]
 	return &webauthn.Credential{
 		ID:        matchingCred.ID,
 		PublicKey: matchingCred.PublicKey,
 		Authenticator: webauthn.Authenticator{
 			AAGUID:    matchingCred.Authenticator.AAGUID,
-			SignCount: authData.Counter,
+			SignCount: credentialResponse.Response.AuthenticatorData.Counter,
 		},
 	}, nil
 }

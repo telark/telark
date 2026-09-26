@@ -104,13 +104,8 @@ func decodeCoalescePayload(raw string) (map[string]*unstructured.Unstructured, i
 	return out, p.Deadline, nil
 }
 
-// persistBufferLocked snapshots and writes the current buffer for appName to
-// Redis. Must be called with c.mu held: keeping the SET under the lock
-// serializes concurrent schedule() calls so the Redis copy never lags the
-// in-memory buffer (a stale Redis value would steer the next flush onto a
-// missing entry — see loadFlushBuffer fallback). Only one attempt is made;
-// transient Redis failures self-heal on the next schedule() because the
-// in-memory buffer is also written back here.
+// Called with c.mu held: the SET under the lock keeps the Redis copy from lagging the
+// in-memory buffer (loadFlushBuffer falls back to it). One attempt; the next schedule rewrites it.
 func (c *coalescer) persistBufferLocked(appName string) error {
 	if c.rdb == nil {
 		return nil
@@ -151,8 +146,7 @@ func (c *coalescer) schedule(appName, key string, oldObj *unstructured.Unstructu
 		// nil is an added resource: no pre-image, but the flush still runs.
 		buf[key] = oldObj.DeepCopy()
 	}
-	// Best-effort Redis persist — timer is always set regardless of result so
-	// events are never silently dropped due to transient Redis unavailability.
+	// Best effort: the timer is armed whatever Redis answers, so an event is never dropped.
 	_ = c.persistBufferLocked(appName)
 
 	now := time.Now()
@@ -162,12 +156,10 @@ func (c *coalescer) schedule(appName, key string, oldObj *unstructured.Unstructu
 		first = now
 	}
 
-	// Cap the debounce delay so that a continuously-busy app is forced to flush
-	// once maxWait elapses from the first pending event, preventing indefinite delay.
+	// A continuously busy app is forced to flush once maxWait elapses from its first pending event.
 	maxWaitRemaining := c.maxWait - now.Sub(first)
 	delay := c.window
 	if maxWaitRemaining <= constants.DefaultInitValue {
-		// Max wait exceeded: force flush on next scheduler tick.
 		delay = time.Millisecond
 		delete(c.bufFirstEvent, appName)
 	} else if delay > maxWaitRemaining {

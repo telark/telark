@@ -47,8 +47,16 @@ func MergeSnapshots(
 		}
 		return cmp.Compare(a.Namespace, b.Namespace)
 	})
-	if len(merged) > maxVersions {
-		merged = merged[len(merged)-maxVersions:]
+	// Whole generations: pruning by file left a multi-namespace generation half
+	// present, which a rollback then restored for one namespace only.
+	generations := make([]int, constants.DefaultInitValue, len(merged))
+	for i := range merged {
+		generations = append(generations, merged[i].Generation)
+	}
+	generations = slices.Compact(generations)
+	if len(generations) > maxVersions {
+		oldestKept := generations[len(generations)-maxVersions]
+		merged = slices.DeleteFunc(merged, func(s application.ApplicationSnapshot) bool { return s.Generation < oldestKept })
 	}
 	return merged
 }

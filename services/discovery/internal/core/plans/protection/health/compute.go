@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	"github.com/telark/data/plans"
 	"github.com/telark/data/policies"
 	"github.com/telark/discovery/internal/constants"
@@ -17,22 +18,32 @@ import (
 )
 
 // Plans not in the active phase are unknown: health only means something once policies are deployed.
-func Compute(ctx context.Context, dyn dynamic.Interface, plan *plans.ProtectionPlan) (Result, error) {
+func Compute(ctx context.Context, deps Deps, plan *plans.ProtectionPlan) (Result, error) {
 	if result, done := shortCircuit(plan); done {
 		return result, nil
 	}
-	snapshot, err := listPlanPolicies(ctx, dyn, plan.ID)
+	snapshot, err := listPlanPolicies(ctx, deps.Dyn, plan.ID)
 	if err != nil {
 		return Result{}, err
 	}
-	return classify(plan, snapshot), nil
+	resolved, resolveErr := resolveApps(ctx, deps, planApplicationIDs(plan))
+	return computeFrom(plan, snapshot, resolved, resolveErr), nil
 }
 
-func computeFrom(plan *plans.ProtectionPlan, snapshot map[string]policySnapshot) Result {
+func computeFrom(
+	plan *plans.ProtectionPlan,
+	snapshot map[string]policySnapshot,
+	resolved map[string]policies.ResolvedApp,
+	resolveErr error,
+) Result {
 	if result, done := shortCircuit(plan); done {
 		return result
 	}
-	return classify(plan, snapshot)
+	current, renderErr := renderCurrent(plan, resolved, resolveErr)
+	result := classify(plan, snapshot, current)
+	result.current = current
+	result.renderErr = renderErr
+	return result
 }
 
 func shortCircuit(plan *plans.ProtectionPlan) (Result, bool) {
@@ -43,6 +54,56 @@ func shortCircuit(plan *plans.ProtectionPlan) (Result, bool) {
 		return Result{Health: plans.HealthDrifted}, true
 	}
 	return Result{}, false
+}
+
+// Lenient like violations: a vanished application is left out instead of failing the check.
+func resolveApps(ctx context.Context, deps Deps, ids []string) (map[string]policies.ResolvedApp, error) {
+	if len(ids) == constants.DefaultInitValue {
+		return nil, nil
+	}
+	resolved, _, err := deps.ResolveApps(ctx, ids)
+	return resolved, err
+}
+
+func planApplicationIDs(plan *plans.ProtectionPlan) []string {
+	if plan.Scope.Type != plans.ScopeTypeApplications {
+		return nil
+	}
+	return plan.Scope.ApplicationIDs
+}
+
+// What the current renderer produces for the plan, by policy name. nil when it cannot be known
+// (resolve or render failure), which disables the stale check rather than faking a result.
+func renderCurrent(
+	plan *plans.ProtectionPlan,
+	resolved map[string]policies.ResolvedApp,
+	resolveErr error,
+) (map[string]kyvernov1.Policy, error) {
+	if resolveErr != nil && plan.Scope.Type == plans.ScopeTypeApplications {
+		return nil, resolveErr
+	}
+	rendered, err := policies.Render(renderable(plan, resolved), resolved, nil)
+	if err != nil {
+		return nil, err
+	}
+	current := make(map[string]kyvernov1.Policy, len(rendered))
+	for i := range rendered {
+		current[rendered[i].Name] = rendered[i]
+	}
+	return current, nil
+}
+
+// Applications that vanished, or live only in ignored namespaces, cannot be rendered; their
+// policies come back once discovery lists them again.
+func renderable(plan *plans.ProtectionPlan, resolved map[string]policies.ResolvedApp) *plans.ProtectionPlan {
+	if plan.Scope.Type != plans.ScopeTypeApplications {
+		return plan
+	}
+	target := *plan
+	target.Scope.ApplicationIDs = slices.DeleteFunc(slices.Clone(plan.Scope.ApplicationIDs), func(id string) bool {
+		return len(resolved[id].Namespaces) == constants.DefaultInitValue
+	})
+	return &target
 }
 
 func listPlanPolicies(ctx context.Context, dyn dynamic.Interface, planID string) (map[string]policySnapshot, error) {
@@ -97,20 +158,27 @@ func snapshotOf(item *unstructured.Unstructured) policySnapshot {
 		namespace:     item.GetNamespace(),
 		ready:         readReady(item),
 		failureAction: readFailureAction(item),
+		renderHash:    item.GetAnnotations()[policies.AnnotationRenderHash],
 	}
 }
 
-func classify(plan *plans.ProtectionPlan, snapshot map[string]policySnapshot) Result {
+func classify(plan *plans.ProtectionPlan, snapshot map[string]policySnapshot, current map[string]kyvernov1.Policy) Result {
 	expected := expectedFailureAction(plan.Mode)
 	rendered := indexNames(plan.RenderedPolicies)
 
 	policiesOut := make([]planseps.ProtectionPlanPolicyStatus, constants.DefaultInitValue, len(plan.RenderedPolicies))
 	detailOut := make([]plans.ProtectionPlanHealthDetail, constants.DefaultInitValue, len(plan.RenderedPolicies))
-	var missing, mismatched []string
+	var missing, mismatched, stale []string
 	flags := healthFlags{}
 
 	for _, name := range plan.RenderedPolicies {
 		snap, ok := snapshot[name]
+		fresh, renderable := current[name]
+		// Gone from the cluster and from the render alike: its application vanished with its
+		// namespace. Not drift, and nothing to redeploy; see renderable.
+		if !ok && current != nil && !renderable {
+			continue
+		}
 		var row planseps.ProtectionPlanPolicyStatus
 		if ok {
 			row = presentPolicyStatus(name, snap)
@@ -131,10 +199,15 @@ func classify(plan *plans.ProtectionPlan, snapshot map[string]policySnapshot) Re
 			mismatched = append(mismatched, name)
 			flags.drifted = true
 		}
+		if renderable && snap.renderHash != fresh.Annotations[policies.AnnotationRenderHash] {
+			stale = append(stale, name)
+			flags.drifted = true
+		}
 	}
 
-	unexpected := findUnexpected(snapshot, rendered)
-	if len(unexpected) > constants.DefaultInitValue {
+	unexpected := findUnexpected(snapshot, rendered, current)
+	added := findAdded(current, rendered)
+	if len(unexpected)+len(added) > constants.DefaultInitValue {
 		flags.drifted = true
 	}
 
@@ -145,6 +218,8 @@ func classify(plan *plans.ProtectionPlan, snapshot map[string]policySnapshot) Re
 		Missing:    missing,
 		Mismatched: mismatched,
 		Unexpected: unexpected,
+		Stale:      stale,
+		Added:      added,
 	}
 }
 
@@ -172,14 +247,29 @@ func toHealthDetail(row planseps.ProtectionPlanPolicyStatus) plans.ProtectionPla
 	}
 }
 
-func findUnexpected(snapshot map[string]policySnapshot, rendered map[string]struct{}) []string {
+// A live policy the plan never listed but renders now is Added, not unexpected: deleting it
+// would only have the next pass deploy it again.
+func findUnexpected(snapshot map[string]policySnapshot, rendered map[string]struct{}, current map[string]kyvernov1.Policy) []string {
 	var unexpected []string
 	for name := range snapshot {
-		if _, ok := rendered[name]; !ok {
+		_, listed := rendered[name]
+		_, renders := current[name]
+		if !listed && !renders {
 			unexpected = append(unexpected, name)
 		}
 	}
 	return unexpected
+}
+
+func findAdded(current map[string]kyvernov1.Policy, rendered map[string]struct{}) []string {
+	var added []string
+	for name := range current {
+		if _, ok := rendered[name]; !ok {
+			added = append(added, name)
+		}
+	}
+	slices.Sort(added)
+	return added
 }
 
 func indexNames(names []string) map[string]struct{} {

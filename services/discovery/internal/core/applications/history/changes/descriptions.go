@@ -61,7 +61,7 @@ const (
 )
 
 func ApplicationChangeDescription(c application.ApplicationChange) string {
-	if d := strings.TrimSpace(c.Description); d != "" {
+	if d := strings.TrimSpace(c.Description); d != constants.EmptyString {
 		return ValidApplicationChangeDescription(d)
 	}
 	return ValidApplicationChangeDescription(synthesizeDescription(c))
@@ -206,14 +206,6 @@ func synthByField(c application.ApplicationChange) string {
 		return descTransition(LabelReplicasChanged, deref(c.OldValue), deref(c.NewValue))
 	case ChangeFieldHealth:
 		return descTransition(LabelHealthTransition, deref(c.OldValue), deref(c.NewValue))
-	case ChangeFieldResource:
-		return synthResource(c)
-	case ChangeFieldPort:
-		return synthPort(c)
-	case ChangeFieldEnvVarKey:
-		return synthEnvVarKey(c)
-	case ChangeFieldConfigMapRef, ChangeFieldSecretRef, ChangeFieldServiceMapping, ChangeFieldIngressRule:
-		return synthConfigField(c)
 	case ChangeFieldChartVer:
 		return descTransition(LabelChartVersionUpdated, deref(c.OldValue), deref(c.NewValue))
 	case ChangeFieldResCount:
@@ -221,23 +213,21 @@ func synthByField(c application.ApplicationChange) string {
 	case ChangeFieldRequestsCPU, ChangeFieldRequestsMemory, ChangeFieldLimitsCPU, ChangeFieldLimitsMemory:
 		return synthMetricsBaselineField(c)
 	default:
+		if labels, ok := setFieldLabels[c.Field]; ok {
+			return synthAddedRemoved(c, labels.added, labels.removed)
+		}
 		return constants.EmptyString
 	}
 }
 
-func synthConfigField(c application.ApplicationChange) string {
-	switch c.Field {
-	case ChangeFieldConfigMapRef:
-		return synthConfigMapRef(c)
-	case ChangeFieldSecretRef:
-		return synthSecretRef(c)
-	case ChangeFieldServiceMapping:
-		return synthServiceMapping(c)
-	case ChangeFieldIngressRule:
-		return synthIngressRule(c)
-	default:
-		return constants.EmptyString
-	}
+var setFieldLabels = map[string]struct{ added, removed string }{
+	ChangeFieldResource:       {LabelResourceAdded, LabelResourceRemoved},
+	ChangeFieldPort:           {LabelPortAdded, LabelPortRemoved},
+	ChangeFieldEnvVarKey:      {LabelEnvVarAdded, LabelEnvVarRemoved},
+	ChangeFieldConfigMapRef:   {LabelConfigMapRefAdded, LabelConfigMapRefRemoved},
+	ChangeFieldSecretRef:      {LabelSecretRefAdded, LabelSecretRefRemoved},
+	ChangeFieldServiceMapping: {LabelServiceMappingAdded, LabelServiceMappingRemoved},
+	ChangeFieldIngressRule:    {LabelIngressRuleAdded, LabelIngressRuleRemoved},
 }
 
 func synthMetricsBaselineField(c application.ApplicationChange) string {
@@ -274,78 +264,12 @@ func synthImage(c application.ApplicationChange) string {
 	}
 }
 
-func synthResource(c application.ApplicationChange) string {
+func synthAddedRemoved(c application.ApplicationChange, addedLabel, removedLabel string) string {
 	switch c.ChangeType {
 	case ChangeTypeAdded:
-		return ValidApplicationChangeDescription(LabelResourceAdded + deref(c.NewValue))
+		return ValidApplicationChangeDescription(addedLabel + deref(c.NewValue))
 	case ChangeTypeRemoved:
-		return ValidApplicationChangeDescription(LabelResourceRemoved + deref(c.OldValue))
-	default:
-		return constants.EmptyString
-	}
-}
-
-func synthPort(c application.ApplicationChange) string {
-	switch c.ChangeType {
-	case ChangeTypeAdded:
-		return ValidApplicationChangeDescription(LabelPortAdded + deref(c.NewValue))
-	case ChangeTypeRemoved:
-		return ValidApplicationChangeDescription(LabelPortRemoved + deref(c.OldValue))
-	default:
-		return constants.EmptyString
-	}
-}
-
-func synthEnvVarKey(c application.ApplicationChange) string {
-	switch c.ChangeType {
-	case ChangeTypeAdded:
-		return ValidApplicationChangeDescription(LabelEnvVarAdded + deref(c.NewValue))
-	case ChangeTypeRemoved:
-		return ValidApplicationChangeDescription(LabelEnvVarRemoved + deref(c.OldValue))
-	default:
-		return constants.EmptyString
-	}
-}
-
-func synthConfigMapRef(c application.ApplicationChange) string {
-	switch c.ChangeType {
-	case ChangeTypeAdded:
-		return ValidApplicationChangeDescription(LabelConfigMapRefAdded + deref(c.NewValue))
-	case ChangeTypeRemoved:
-		return ValidApplicationChangeDescription(LabelConfigMapRefRemoved + deref(c.OldValue))
-	default:
-		return constants.EmptyString
-	}
-}
-
-func synthSecretRef(c application.ApplicationChange) string {
-	switch c.ChangeType {
-	case ChangeTypeAdded:
-		return ValidApplicationChangeDescription(LabelSecretRefAdded + deref(c.NewValue))
-	case ChangeTypeRemoved:
-		return ValidApplicationChangeDescription(LabelSecretRefRemoved + deref(c.OldValue))
-	default:
-		return constants.EmptyString
-	}
-}
-
-func synthServiceMapping(c application.ApplicationChange) string {
-	switch c.ChangeType {
-	case ChangeTypeAdded:
-		return ValidApplicationChangeDescription(LabelServiceMappingAdded + deref(c.NewValue))
-	case ChangeTypeRemoved:
-		return ValidApplicationChangeDescription(LabelServiceMappingRemoved + deref(c.OldValue))
-	default:
-		return constants.EmptyString
-	}
-}
-
-func synthIngressRule(c application.ApplicationChange) string {
-	switch c.ChangeType {
-	case ChangeTypeAdded:
-		return ValidApplicationChangeDescription(LabelIngressRuleAdded + deref(c.NewValue))
-	case ChangeTypeRemoved:
-		return ValidApplicationChangeDescription(LabelIngressRuleRemoved + deref(c.OldValue))
+		return ValidApplicationChangeDescription(removedLabel + deref(c.OldValue))
 	default:
 		return constants.EmptyString
 	}

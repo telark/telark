@@ -30,7 +30,6 @@ func CreateResourceWithCacheInvalidation(
 		}
 		sharedexp.CreateResource(w, md, resourceName, spec)
 
-		cache.SmartInvalidateListCache(optimizer, resourceType, string(constants.OpCreate))
 		cache.InvalidateAllResourceCaches(optimizer, resourceType)
 	}
 }
@@ -64,7 +63,6 @@ func PatchResourceWithCacheInvalidation(
 		if resourceName != constants.EmptyString {
 			cache.InvalidateSpecificResourceCache(optimizer, resourceType, resourceName)
 		} else {
-			cache.SmartInvalidateListCache(optimizer, resourceType, string(constants.OpPatch))
 			cache.InvalidateAllResourceCaches(optimizer, resourceType)
 		}
 	}
@@ -89,7 +87,6 @@ func DeleteResourceWithCacheInvalidation(
 		if resourceName != constants.EmptyString {
 			cache.InvalidateSpecificResourceCache(optimizer, resourceType, resourceName)
 		} else {
-			cache.SmartInvalidateListCache(optimizer, resourceType, string(constants.OpDelete))
 			cache.InvalidateAllResourceCaches(optimizer, resourceType)
 		}
 	}

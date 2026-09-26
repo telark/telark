@@ -57,19 +57,6 @@ func TestExtractResourceNameFromRequestBody(t *testing.T) {
 	}
 }
 
-func TestExtractMapValue(t *testing.T) {
-	data := map[string]any{"m": map[string]any{"k": constants.DefaultIncrementValue}, "s": valueX}
-	if _, ok := sharedutils.ExtractMapValue(data, "m"); !ok {
-		t.Error("map value not extracted")
-	}
-	if _, ok := sharedutils.ExtractMapValue(data, "s"); ok {
-		t.Error("non-map value extracted as map")
-	}
-	if _, ok := sharedutils.ExtractMapValue(data, "absent"); ok {
-		t.Error("absent key extracted")
-	}
-}
-
 func TestRemoveAndAddBodyFields(t *testing.T) {
 	body := map[string]any{constants.IDParam: valueX}
 	sharedutils.RemoveIDFromRequestBody(body)
@@ -172,17 +159,6 @@ func TestFilterDataList(t *testing.T) {
 	}
 }
 
-func TestFilterResourceOrRespond(t *testing.T) {
-	valid := &unstructured.Unstructured{Object: map[string]any{constants.SpecField: map[string]any{valueA: constants.DefaultIncrementValue}}}
-	if _, ok := sharedutils.FilterResourceOrRespond(valid); !ok {
-		t.Error("valid resource rejected")
-	}
-	invalid := &unstructured.Unstructured{Object: map[string]any{}}
-	if _, ok := sharedutils.FilterResourceOrRespond(invalid); ok {
-		t.Error("invalid resource accepted")
-	}
-}
-
 func TestConvertToCRDTemplate(t *testing.T) {
 	md := basemeta.Metadata{BaseGroup: "erpi.telark", Kind: "Role", Version: "v1alpha1"}
 	tmpl := sharedutils.ConvertToCRDTemplate(md, testAppName, map[string]any{valueX: constants.DefaultIncrementValue})
@@ -204,10 +180,6 @@ func TestConvertToCRDTemplate(t *testing.T) {
 	}
 	if _, ok := noFinMeta["finalizers"]; ok {
 		t.Error("empty finalizers should be omitted")
-	}
-	bare := sharedutils.ConvertToUnstructuredWithoutManagedFields(map[string]any{valueA: constants.DefaultIncrementValue})
-	if bare.Object[constants.SpecField] == nil {
-		t.Error("spec missing from bare unstructured")
 	}
 }
 

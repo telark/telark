@@ -51,14 +51,14 @@ flowchart LR
 
 ## Responsibilities
 
-- **Discover:** watch workloads via `kcore` informers and group them into applications by label derivation.
-- **Diff & classify:** compare the live app to the last stored spec (from exporter) and resolve overlapping signals into a single change class.
-- **Snapshot:** on each material change, read and sanitize the workload manifests and store them through exporter — the audit trail and rollback targets.
-- **Publish:** emit `telark.applications.{update,delete}` to NATS; notifier persists the CR via exporter.
-- **Trigger:** on an authored incident/recovery change-log entry, XADD a job to `insights:jobs` (best effort); the windowed insights read (`GET insights/applications?apps=`) filters by excludedNamespaces: it skips apps whose document namespace is excluded and drops cards whose workload namespace (`params.namespace`, else the document's) is excluded, keeping the stored `version`.
+- **Discover:** watch workloads via `kcore` informers and group them into applications by label derivation. The grouping label value names the Application CR, so it is lowercased with `_` as `-`; a value that still is not a DNS-1123 subdomain is skipped and logged once. CronJob and Job pod specs feed images, ports, env keys and config/secret refs like the other workload kinds.
+- **Diff & classify:** compare the live app to the last stored spec (from exporter) and resolve overlapping signals into a single change class. An entry's `detectedAt`/`changedBy` come from the `telark.io/last-modified-*` annotations only when the informer flush saw the annotation change with the write; a `/scale` write (annotation unchanged), a health-only change (a readiness move is nobody's write) and a tick-recorded change carry the detection time and no author. Manifest-level change text names the object as `namespace/Kind/name`, so a multi-namespace app's changes are told apart.
+- **Snapshot:** on each material change, read and sanitize the workload manifests and store them through exporter — the audit trail and rollback targets. The pre-image comes from the informer's old object; a health-only change (readiness moved, manifests unchanged) snapshots the live manifests, so a recovery is never left unrecorded. Any other change the tick sees without a pre-image (a resource that joined while discovery was down) waits two ticks for the informer flush and is then recorded against the live state, so the CR never stays stale. Snapshot entries carry the class and severity of the change they precede.
+- **Publish:** emit `telark.applications.{update,delete}` to NATS; notifier persists the CR via exporter on update and calls this service's application reset on delete (the reset deletes the CR through exporter, and clears the app's Redis state; a re-discovered app also starts from a clean state). `POST .../{name}/reset` and `POST .../{name}/sync` answer 404 for an application the store does not hold.
+- **Trigger:** on an authored incident/recovery change-log entry, XADD a job to `insights:jobs` (best effort, off the publish path once the exporter serves that generation, at most 5 s later); the windowed insights read (`GET insights/applications?apps=`, at most 100 keys, 400 above) filters by excludedNamespaces: it skips apps whose document namespace is excluded and drops cards whose workload namespace (`params.namespace`, else the document's) is excluded, keeping the stored `version`.
 - **Insights list:** keep a per-replica row index of every app's insight cards for the cluster-wide list (`GET insights/get`), fed from the `analyzer:index` ZSET; no Redis on the request path.
-- **Protect:** drive the protection-plan lifecycle (`pending_approval → scheduled → active → terminated`); while active, deploy admission policies for the plan's scope and verify their health against live cluster state. Plans that require approval are parked in `pending_approval` until an approver decides; nothing is deployed while pending.
-- **Rollback:** apply a chosen snapshot back to the cluster under explicit intent, with controller-driven status.
+- **Protect:** drive the protection-plan lifecycle (`pending_approval → scheduled → active → terminated`); while active, deploy admission policies for the plan's scope (one policy per template and namespace, so an application spanning several namespaces is covered in each) and verify their health against live cluster state. Plans that require approval are parked in `pending_approval` until an approver decides; nothing is deployed while pending. Validation rejects a window that has already ended, targets in the release namespace or in GlobalConfig `excludedNamespaces` (the policy engine skips them), and a template listed twice; repeated targets are deduplicated. Plan names are unique (case- and whitespace-insensitive): a name already taken is a 409 on create, duplicate and rename, and a per-name lock (`lock:plan-name:<name>`) makes parallel creates or renames of one name yield one winner and a 409 for the rest. Unknown template params are rejected. Every phase is editable: an edit that moves the window recomputes the phase (a scheduled plan made permanent or whose start has passed deploys at once; an active plan given a future start withdraws its policies and waits for the controller), a rename re-renders the live policies, and an edit of a canceled or terminated plan is stored and takes effect on reactivation. Rules exempt the engine's own `Policy`, `PolicyReport` and `EphemeralReport` writes; audit-mode messages read "would be blocked". Every rendered policy carries a `telark.erpi/render-hash` annotation; the health pass compares it with a fresh render and redeploys a policy whose content differs (or that predates the annotation), so an upgrade of the renderer re-renders active plans on the next tick without a cancel and reactivate. An application that vanished from an app-scope plan is skipped, as violations and reports do, rather than failing the repair every tick.
+- **Rollback:** replace the app's objects with a chosen snapshot under explicit intent, with controller-driven status; `triggeredBy` is the authenticated caller.
 - **Report:** render protection plan reports (HTML, Markdown, JSON, CSV) and store them through exporter. A final report is captured asynchronously right after a plan ends — after the terminal patch removes its policies and records its phase — bounded at 10 s and serialized. A checkpoint loop (`PROTECTION_PLAN_REPORT_CHECKPOINT_SEC`) merges live violation Events into the plan's ledger before the 1 h Event retention drops them, on its own rate-limited K8s client that reuses `DISCOVERY_ROLLBACK_K8S_CLIENT_QPS` / `_BURST`. On-demand reports merge the ledger with what the cluster still holds, then render.
 
 ## How change detection works
@@ -121,12 +121,21 @@ An application is grouped by its identity labels across namespaces. A per-app jo
 sync and an informer flush each list every namespace where the informer cache holds an object
 of the app, besides the namespace in the job message or the ones stored on the CR, so a
 multi-namespace app is never rebuilt from part of its namespaces. A namespace-wide refresh
-leaves multi-namespace apps to their per-app job.
+leaves multi-namespace apps to their per-app job. An app whose objects were all relabelled or
+deleted while their namespaces live is no longer republished; auto-cleanup treats it as empty
+once the synced informers index none of its objects.
 
 ## Rollback
 
 Rollback is intent-based: a client appends a pending `rollbacks[]` entry to the Application
-CR (via exporter); the in-cluster controller applies the target snapshot and advances status.
+CR (via exporter); the in-cluster controller replaces each object with the target snapshot
+(a PUT, so fields other managers added after the snapshot go away too) and advances status.
+The controller records the `rollback` change-log entry; the informer flush that sees the
+restored objects completes that same entry with the field changes and the pre-rollback
+snapshot, so a rollback is one entry that can itself be rolled back. A rollback that
+changed nothing leaves no snapshot of its own. Snapshot retention (`snapshots.maxPerApp`)
+keeps whole generations, every namespace of each; a generation whose set does not cover
+one of the app's namespaces is refused as a rollback target with the namespace named.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"fontFamily":"ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif","fontSize":"13px","actorBkg":"#eef2ff","actorBorder":"#6366f1","actorTextColor":"#312e81","actorLineColor":"#cbd5e1","signalColor":"#64748b","signalTextColor":"#334155","noteBkgColor":"#fff7ed","noteBorderColor":"#f59e0b","noteTextColor":"#92400e"},"sequence":{"mirrorActors":false,"messageAlign":"center"}}}%%

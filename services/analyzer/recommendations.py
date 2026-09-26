@@ -1,4 +1,4 @@
-"""The 60 deterministic v1 recommendation rules (Feature A: 44 + S9b's 16). Pure: reads review.ReviewInputs, calls nothing.
+"""The 60 deterministic v1 recommendation rules. Pure: reads review.ReviewInputs, calls nothing.
 
 Each rule declares the input families it needs; it runs only when all of them are
 complete, and returns the keys it evaluated with a finding or None. A key that was
@@ -168,6 +168,7 @@ from helpers import (
     format_mem,
     image_parts,
     is_production,
+    iso_epoch,
     parse_cpu_milli,
     parse_mem_bytes,
     probe_signature,
@@ -176,7 +177,7 @@ from helpers import (
 )
 from models import EvidenceRef
 from review import ReviewInputs, WorkloadInput, sufficient
-from tools.k8s_tools import KEY_NAMESPACE, workload_matchers
+from tools.k8s_tools import owned_event, workload_matchers
 
 
 @dataclass
@@ -336,8 +337,16 @@ def _name(obj: dict) -> str:
     return (obj.get("metadata") or {}).get("name") or ""
 
 
-def _prod_severity(ctx: _Ctx) -> str:
-    return INSIGHT_SEVERITY_WARNING if ctx.production else INSIGHT_SEVERITY_INFO
+def _wl_production(ctx: _Ctx, wl: WorkloadInput) -> bool:
+    """The workload's own namespace, or the environment of a covering plan whose scope reaches that namespace."""
+    envs = [(ctx.inputs.env_names or {}).get(p.get("environmentID"), "") for p in ctx.covering
+            if (p.get("scope") or {}).get("type") != PLAN_SCOPE_NAMESPACES
+            or wl.namespace in ((p.get("scope") or {}).get("namespaces") or [])]
+    return is_production([wl.namespace], envs, ctx.settings.production_pattern)
+
+
+def _prod_severity(ctx: _Ctx, wl: WorkloadInput) -> str:
+    return INSIGHT_SEVERITY_WARNING if _wl_production(ctx, wl) else INSIGHT_SEVERITY_INFO
 
 
 # ---- reliability ---------------------------------------------------------------------------------------------
@@ -348,7 +357,7 @@ def _single_replica(ctx: _Ctx, wl: WorkloadInput) -> Result:
     if minimum != 1:
         return _none(wl)
     refs = [_spec_ref(wl, "replicas")] + ([_object_ref(K8S_KIND_HPA, _name(hpa))] if hpa else [])
-    return _wl_finding("reliability.single_replica", wl, _prod_severity(ctx), CONFIDENCE_HIGH, refs,
+    return _wl_finding("reliability.single_replica", wl, _prod_severity(ctx, wl), CONFIDENCE_HIGH, refs,
                        kind=wl.kind, replicas=minimum, hpa=hpa and _name(hpa))
 
 
@@ -363,7 +372,7 @@ def _no_pdb(ctx: _Ctx, wl: WorkloadInput) -> Result:
     minimum, _hpa_obj = _effective_min(ctx, wl)
     if (minimum or 0) < 2 or _matching_pdbs(ctx, wl):
         return _none(wl)
-    return _wl_finding("reliability.no_pdb", wl, _prod_severity(ctx), CONFIDENCE_HIGH, [_spec_ref(wl, "replicas")],
+    return _wl_finding("reliability.no_pdb", wl, _prod_severity(ctx, wl), CONFIDENCE_HIGH, [_spec_ref(wl, "replicas")],
                        replicas=minimum)
 
 
@@ -412,8 +421,11 @@ def _targets(svc: dict) -> list:
 
 def _no_readiness_probe(ctx: _Ctx, wl: WorkloadInput) -> Result:
     targets = [t for svc in _selecting_services(ctx, wl) for t in _targets(svc)]
-    names = [c.get("name") for c in _containers(wl) if not c.get("readinessProbe")
-             and any(_port_matches(t, c) for t in targets)]
+    served = [c for c in _containers(wl) if any(_port_matches(t, c) for t in targets)]
+    # Ports need not be declared: when none matches, a Service still reaches a container that declares none.
+    if targets and not served:
+        served = [c for c in _containers(wl) if not _declared_ports(c)]
+    names = [c.get("name") for c in served if not c.get("readinessProbe")]
     if not names:
         return _none(wl)
     return _wl_finding("reliability.no_readiness_probe", wl, INSIGHT_SEVERITY_WARNING, CONFIDENCE_HIGH,
@@ -455,7 +467,7 @@ def _no_startup_probe(ctx: _Ctx, wl: WorkloadInput) -> Result:
     since = (ctx.now - timedelta(seconds=NO_STARTUP_WINDOW_S)).strftime(RFC3339_FORMAT)
     matchers = workload_matchers(wl.kind, wl.name)
     events = [e for e in ctx.inputs.events if e.get("reason") == REASON_UNHEALTHY and e.get("last", "") >= since
-              and messages.probe_of(e) == PROBE_LIVENESS and _owned(e, wl.namespace, matchers)]
+              and messages.probe_of(e) == PROBE_LIVENESS and owned_event(e, wl.namespace, matchers)]
     restarts = _restarts(wl)
     if not events or restarts == 0:
         return _none(wl)
@@ -463,11 +475,6 @@ def _no_startup_probe(ctx: _Ctx, wl: WorkloadInput) -> Result:
         EvidenceRef(type=EVIDENCE_TYPE_EVENT, ref=REF_EVENT.format(**events[0]))]
     return _wl_finding("reliability.no_startup_probe", wl, INSIGHT_SEVERITY_WARNING, CONFIDENCE_MEDIUM, refs,
                        containers=_join(names), restarts=restarts)
-
-
-def _owned(event: dict, namespace: str, matchers: list) -> bool:
-    kind, _, name = (event.get("object") or "").partition("/")
-    return event.get(KEY_NAMESPACE) == namespace and any(kind == k and pattern.match(name) for k, pattern in matchers)
 
 
 def _pinned_to_one_host(pod_spec: dict) -> bool:
@@ -712,10 +719,13 @@ def _hpa_bounds(hpa: dict) -> tuple[int, int]:
 
 def _hpa_min_equals_max(ctx: _Ctx, wl: WorkloadInput) -> Result:
     hpa = _hpa(ctx, wl)
-    if hpa is None or _hpa_bounds(hpa)[0] != _hpa_bounds(hpa)[1]:
+    if hpa is None:
+        return _none(wl)
+    low, high = _hpa_bounds(hpa)
+    if low != high:
         return _none(wl)
     return _wl_finding("scaling.hpa_min_equals_max", wl, INSIGHT_SEVERITY_INFO, CONFIDENCE_HIGH,
-                       [_object_ref(K8S_KIND_HPA, _name(hpa))], hpa=_name(hpa), replicas=_hpa_bounds(hpa)[0])
+                       [_object_ref(K8S_KIND_HPA, _name(hpa))], hpa=_name(hpa), replicas=low)
 
 
 def _hpa_missing_requests(ctx: _Ctx, wl: WorkloadInput) -> Result:
@@ -1062,20 +1072,13 @@ def _app_finding(ctx: _Ctx, reason: str, severity: str, confidence: str, evidenc
                                {"app": ctx.app_name, "namespace": ctx.primary, **params}))]
 
 
-def _epoch(value) -> float | None:
-    try:
-        return datetime.fromisoformat(str(value)).timestamp() if value else None
-    except ValueError:
-        return None
-
-
 def _high_velocity(ctx: _Ctx, target) -> Result:
     now = ctx.now.timestamp()
-    first = _epoch(((ctx.inputs.app.get("metrics") or {}).get("derived") or {}).get("firstChangeDetectedAt"))
+    first = iso_epoch(((ctx.inputs.app.get("metrics") or {}).get("derived") or {}).get("firstChangeDetectedAt"))
     if first is None or now - first < ctx.settings.change_risk_min_span_s:
         return [(_app_subject(ctx), None)]
     log = (ctx.inputs.app.get("history") or {}).get("changeLog") or []
-    recent = [e for e in log if e.get("changeClass") and (t := _epoch(e.get("detectedAt"))) is not None
+    recent = [e for e in log if e.get("changeClass") and (t := iso_epoch(e.get("detectedAt"))) is not None
               and t >= now - CHANGE_RATE_WINDOW_S]
     rate = len(recent) / CHANGE_RATE_WINDOW_DAYS
     if rate < ctx.settings.velocity_per_day:
@@ -1089,10 +1092,10 @@ def _high_velocity(ctx: _Ctx, target) -> Result:
 def _frequent_rollbacks(ctx: _Ctx, target) -> Result:
     now = ctx.now.timestamp()
     recent = [r for r in ctx.inputs.app.get("rollbacks") or []
-              if (t := _epoch(r.get("triggeredAt"))) is not None and t >= now - ROLLBACKS_WINDOW_S]
+              if (t := iso_epoch(r.get("triggeredAt"))) is not None and t >= now - ROLLBACKS_WINDOW_S]
     if len(recent) < FREQUENT_ROLLBACKS_MIN:
         return [(_app_subject(ctx), None)]
-    latest = max(recent, key=lambda r: _epoch(r.get("triggeredAt")))
+    latest = max(recent, key=lambda r: iso_epoch(r.get("triggeredAt")))
     ref = EvidenceRef(type=EVIDENCE_TYPE_SNAPSHOT, ref=REF_SNAPSHOT.format(id=latest.get("targetSnapshotId")))
     return _app_finding(ctx, "change_risk.frequent_rollbacks", INSIGHT_SEVERITY_WARNING, CONFIDENCE_HIGH, [ref],
                         rollbacks=len(recent))
@@ -1149,9 +1152,11 @@ def _image_key(image: str) -> tuple:
 
 
 def _image_skew(ctx: _Ctx, wl: WorkloadInput) -> Result:
+    if ctx.inputs.capped:
+        return []
     twins = sorted((w for w in ctx.inputs.workloads.values() if w.subject == wl.subject), key=lambda w: w.namespace)
-    if ctx.inputs.capped or len(twins) < 2:
-        return _none(wl) if len(twins) < 2 and not ctx.inputs.capped else []
+    if len(twins) < 2:
+        return _none(wl)
     # One card per subject, kept by the first namespace.
     if wl is not twins[0]:
         return []
@@ -1165,7 +1170,7 @@ def _image_skew(ctx: _Ctx, wl: WorkloadInput) -> Result:
                        namespaces=_join(w.namespace for w in twins), images=_join(shown))
 
 
-# ---- S9b: 16 more v1 rules ----------------------------------------------------------------------------------
+# ---- v1 rules, continued ------------------------------------------------------------------------------------
 def _revision_history_zero(ctx: _Ctx, wl: WorkloadInput) -> Result:
     if wl.kind != WORKLOAD_DEPLOYMENT or _spec(wl).get("revisionHistoryLimit") != 0:
         return _none(wl)
@@ -1176,7 +1181,7 @@ def _revision_history_zero(ctx: _Ctx, wl: WorkloadInput) -> Result:
 def _deployment_paused(ctx: _Ctx, wl: WorkloadInput) -> Result:
     if wl.kind != WORKLOAD_DEPLOYMENT or _spec(wl).get("paused") is not True:
         return _none(wl)
-    return _wl_finding("reliability.deployment_paused", wl, INSIGHT_SEVERITY_WARNING, CONFIDENCE_HIGH,
+    return _wl_finding("reliability.deployment_paused", wl, INSIGHT_SEVERITY_INFO, CONFIDENCE_HIGH,
                        [_spec_ref(wl, "paused")])
 
 
@@ -1301,7 +1306,7 @@ def _pull_policy_never(ctx: _Ctx, wl: WorkloadInput) -> Result:
 
 
 def _digest_not_pinned_production(ctx: _Ctx, wl: WorkloadInput) -> Result:
-    if not ctx.production:
+    if not _wl_production(ctx, wl):
         return _none(wl)
     # Moving tags are images.mutable_tag; only a version tag without a digest counts here.
     tagged = [c for c in _containers(wl) if (parts := image_parts(c.get("image") or "")) and not parts[3]
@@ -1423,6 +1428,7 @@ RULES: dict[str, Rule] = {
 }
 USAGE_RULES = ("resources.memory_near_limit", "resources.cpu_near_limit", "resources.overprovisioned",
                "resources.underprovisioned")
+_RULE_ORDER = {reason: i for i, reason in enumerate(RULES)}
 
 
 def _app_workloads(inputs: ReviewInputs) -> list[tuple[str, str, str]]:
@@ -1506,6 +1512,5 @@ def evaluate(inputs: ReviewInputs, now: datetime, settings: Settings | None = No
                 evaluated.add((reason, namespace, key))
                 if finding is not None:
                     findings.append(finding)
-    order = list(RULES)
-    findings.sort(key=lambda f: (-SEVERITY_RANK[f.severity], order.index(f.reason)))
+    findings.sort(key=lambda f: (-SEVERITY_RANK[f.severity], _RULE_ORDER[f.reason]))
     return findings, evaluated

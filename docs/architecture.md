@@ -34,6 +34,7 @@ flowchart LR
   UI -->|login| AUTH
   UI -->|REST API| DISC
   UI -->|insights SSE| ANL
+  UI -->|REST API| EXP
 
   AUTH -->|CRDs| EXP
   AUTH --> REDIS
@@ -41,6 +42,7 @@ flowchart LR
   DISC -->|watch| K8S
   DISC -->|read + store| EXP
   DISC -->|publish| NATS --> NTF -->|persist CR| EXP
+  NTF -->|reset on delete| DISC
   DISC -->|XADD insights:jobs| REDIS
   DISC <-->|coordinate| REDIS
   DISC -->|plans| KYV
@@ -48,6 +50,7 @@ flowchart LR
 
   ANL -->|jobs · insights| REDIS
   ANL -->|GlobalConfig| EXP
+  ANL -->|permissions| AUTH
   ANL --> LLM
   ANL -->|GET workloads · events| K8S
 
@@ -73,21 +76,21 @@ Each service's own README carries a focused diagram of its internals: [auth](../
 
 | Service | Language | Responsibility |
 |---|---|---|
-| `exporter` | Go | Owns the CRDs and storage; seeds built-in resources; snapshots cluster state. The only stateful service. |
+| `exporter` | Go | Owns the CRDs and storage; seeds built-in resources; stores workload snapshots and plan reports on its volumes. The only stateful service. |
 | `discovery` | Go | Groups workloads into applications; runs the leader-elected reconcile loop; drives protection-plan lifecycle, approvals and reports. |
 | `analyzer` | Python / FastAPI | Local analyzer: investigates incidents with a local model over read-only cluster tools; writes findings to Redis; streams updates to the UI (SSE). |
 | `auth` | Go | Passkey (WebAuthn) + Google OIDC login; session and role reconciliation. |
-| `notifier` | Go | Notifications. |
+| `notifier` | Go | Consumes discovery's application events from NATS and upserts the `ApplicationAsResource` CRs through `exporter`. |
 | `ui` | — | Dashboard SPA (separate repo; the chart ships only the image reference). |
 
 ## Shared infrastructure (subcharts)
 
-`redis` (coordination, queues, dedup), `nats` (messaging), `kyverno` (admission policy engine), `metrics-server` (HPAs / `kubectl top`), `ollama` (the analyzer's model runtime, on by default; `app.ollama.enabled=false` skips it).
+`redis` (coordination, queues, dedup), `nats` (messaging), `kyverno` (admission policy engine), `metrics-server` (HPAs / `kubectl top`), `vpa` (optional, `vpa.enabled`), `ollama` (the analyzer's model runtime, on by default; `app.ollama.enabled=false` skips it).
 
 ## Data flow (high level)
 
-1. `exporter` watches the cluster and materializes telark custom resources (applications, groups, roles…).
-2. `discovery`'s leader groups workloads into applications and, when a change is an incident or a recovery, appends an analysis job to the Redis stream `insights:jobs`.
+1. `discovery` watches workloads, groups them into applications and publishes each change as `telark.applications.update` on NATS; `notifier` upserts the `ApplicationAsResource` through `exporter`, which writes every telark custom resource.
+2. When a change is an incident or a recovery, `discovery` appends an analysis job to the Redis stream `insights:jobs`.
 3. `analyzer` (when enabled) consumes the job, investigates with a local model over read-only tools, writes the findings to Redis and streams updates to the UI; the UI reads the insights through `discovery`.
 4. Protection plans transition `pending_approval → scheduled → active → terminated` (the approval step only when the plan requires it); while active, admission policies are deployed for the scope minus its exclusions, and their health is verified against live cluster state. `discovery` renders plan reports and `exporter` stores them on the reports volume.
 5. `auth` authenticates operators (passkey/OIDC) and reconciles role custom resources. Each route is gated by the caller's role on its scope, and a custom role can withhold single actions with deny rules (see the [discovery](../services/discovery/README.md#api) and [exporter](../services/exporter/README.md#api) READMEs).
@@ -98,5 +101,9 @@ The app identity is a single value, `app.name` (default `telark`), shared by bot
 
 ## Deeper references
 
+- [Components and flows](architecture/README.md): call graph, Redis and NATS usage, startup, flows
+- [Protection plans](architecture/protection-plans.md): lifecycle, policies, violations, reports
+- [Security model](security/README.md): authentication, authorization, RBAC, invariants
+- [Testing and validation](testing/README.md)
 - [Analyzer architecture](../services/analyzer/ARCHITECTURE.md)
 - [OIDC / SSO architecture](../services/auth/OIDC.md)

@@ -75,10 +75,8 @@ func applicationPayload(app *application.Application) map[string]any {
 	return m
 }
 
-// stripUnauthoredHistory drops history and snapshots from a payload the caller
-// did not author. The CR is written with a JSON merge patch, so omitting the
-// keys leaves the stored values untouched; echoing back a possibly stale read
-// would instead overwrite history authored by a concurrent flush.
+// The CR is written with a JSON merge patch, so omitting the keys leaves the stored values
+// untouched; echoing back a possibly stale read would overwrite a concurrent flush's history.
 func stripUnauthoredHistory(m map[string]any) {
 	delete(m, payloadKeyHistory)
 	delete(m, payloadKeySnapshots)

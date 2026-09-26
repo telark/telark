@@ -10,6 +10,9 @@ const (
 	labelInstance  = "app.kubernetes.io/instance"
 	labelAppLegacy = "app"
 	releaseSuffix  = "-release"
+	// A label value may carry what a CR name cannot; the key is what the CR is named after.
+	appKeyUnderscore = "_"
+	appKeyDash       = "-"
 
 	// noise resources
 	noiseResourceKubeRootCaCrt           = "kube-root-ca.crt"
@@ -25,9 +28,9 @@ const (
 
 	// Signal names for identity resolution (used in debug logging).
 	signalAppName      = labelAppName
-	signalPartOf       = "app.kubernetes.io/part-of"
+	signalPartOf       = labelPartOf
 	signalComponent    = "component+instance"
-	signalAppLegacy    = "app"
+	signalAppLegacy    = labelAppLegacy
 	signalUnidentified = "UNIDENTIFIED"
 
 	// Job runs spawned by a CronJob come and go every schedule tick; the

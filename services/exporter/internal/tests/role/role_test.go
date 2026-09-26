@@ -256,10 +256,10 @@ func TestValidateProtectionFlags(t *testing.T) {
 	}
 }
 
-func TestValidatePatchRequestAndPriorityCap(t *testing.T) {
+func TestProtectionFlagsAndPriorityCap(t *testing.T) {
 	rec := httptest.NewRecorder()
 	existing := &roledata.RoleAsResource{Protection: &roledata.Protection{PreventModification: true}}
-	if roleutil.ValidatePatchRequest(existing, anyChange(), rec) {
+	if roleutil.ValidateProtectionFlags(existing, anyChange(), rec) {
 		t.Error("protected role accepted a modification")
 	}
 

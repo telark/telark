@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"encoding/base64"
 	"regexp"
 	"testing"
 
@@ -23,7 +24,7 @@ func TestSessionTokenCarries256Bits(t *testing.T) {
 		t.Fatalf(generateTokenFailed, err)
 	}
 
-	raw, err := shared.Base64URLDecode(token)
+	raw, err := base64.RawURLEncoding.DecodeString(token)
 	if err != nil {
 		t.Fatalf("token is not base64url: %v", err)
 	}

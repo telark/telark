@@ -2,15 +2,19 @@ package authz
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 
 	categorydata "github.com/telark/data/classification/category"
 	dataerrors "github.com/telark/data/errors"
 	globalconfigresource "github.com/telark/data/resources/globalconfig"
 	roledata "github.com/telark/data/resources/role"
+	userdata "github.com/telark/data/resources/user"
 	"github.com/telark/exporter/internal/constants"
 	sessionutils "github.com/telark/exporter/internal/utils/auth/session"
+	notifdispatch "github.com/telark/exporter/internal/utils/notifications"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
@@ -19,23 +23,51 @@ import (
 
 // Editing what a user may do is a different operation from editing their
 // profile, though both arrive as one PATCH. Scope and level per field come
-// from the product action table.
+// from the product action table; the list fields carry their add and remove
+// rules separately, chosen by what the patch actually changes.
 var privilegedUserFields = map[string]xauthz.Requirement{
-	constants.FieldAssignedRolesIDs: {
-		Scope:    roledata.ScopeUsers,
-		MinLevel: roledata.PermissionLevelOwner,
-		Rule:     xauthz.RuleKey(roledata.ScopeUsers, roledata.ActionAttachRoleToUser),
-	},
-	constants.FieldAssignedGroupsIDs: {
-		Scope:    roledata.ScopeGroups,
-		MinLevel: roledata.PermissionLevelOwner,
-		Rule:     xauthz.RuleKey(roledata.ScopeGroups, roledata.ActionAddUserToGroup),
-	},
+	constants.FieldAssignedRolesIDs:  xauthz.Own(roledata.ScopeUsers),
+	constants.FieldAssignedGroupsIDs: xauthz.Own(roledata.ScopeGroups),
 	constants.FieldStatus: {
 		Scope:    roledata.ScopeUsers,
 		MinLevel: roledata.PermissionLevelAdmin,
 		Rule:     xauthz.RuleKey(roledata.ScopeUsers, roledata.ActionSuspendUser),
 	},
+}
+
+// The add and remove rules of the two membership lists, keyed by field.
+var (
+	addRules = map[string]xauthz.Requirement{
+		constants.FieldAssignedRolesIDs:  xauthz.Denyable(xauthz.Own(roledata.ScopeUsers), roledata.ActionAttachRoleToUser),
+		constants.FieldAssignedGroupsIDs: xauthz.Denyable(xauthz.Own(roledata.ScopeGroups), roledata.ActionAddUserToGroup),
+	}
+	removeRules = map[string]xauthz.Requirement{
+		constants.FieldAssignedRolesIDs:  xauthz.Denyable(xauthz.Own(roledata.ScopeUsers), roledata.ActionRemoveRoleFromUser),
+		constants.FieldAssignedGroupsIDs: xauthz.Denyable(xauthz.Own(roledata.ScopeGroups), roledata.ActionRemoveUserFromGroup),
+	}
+)
+
+// An addition is checked against the add rule and a removal against the remove
+// rule, so a caller denied one is not denied the other.
+func listRequirements(existing *userdata.UserAsResource, body map[string]any) []xauthz.Requirement {
+	current := map[string][]*string{
+		constants.FieldAssignedRolesIDs:  existing.AssignedRolesIDs,
+		constants.FieldAssignedGroupsIDs: existing.AssignedGroupsIDs,
+	}
+	var required []xauthz.Requirement
+	for field := range addRules {
+		if _, present := body[field]; !present {
+			continue
+		}
+		added, removed := notifdispatch.DiffPtrStringSlices(current[field], notifdispatch.ExtractNewRoleIDsFromBody(body, field))
+		if len(added) > constants.DefaultInitValue {
+			required = append(required, addRules[field])
+		}
+		if len(removed) > constants.DefaultInitValue {
+			required = append(required, removeRules[field])
+		}
+	}
+	return required
 }
 
 func callerIdentity(w http.ResponseWriter, r *http.Request) (xauthz.Identity, bool) {
@@ -59,7 +91,7 @@ func denyForbidden(w http.ResponseWriter, message string) {
 
 // GuardUserPatch separates a profile edit from a privilege edit, and refuses
 // anyone editing their own privileges: that is what stops self-promotion.
-func GuardUserPatch(w http.ResponseWriter, r *http.Request, targetUserID string, body map[string]any) bool {
+func GuardUserPatch(w http.ResponseWriter, r *http.Request, existing *userdata.UserAsResource, body map[string]any) bool {
 	identity, ok := callerIdentity(w, r)
 	if !ok {
 		return false
@@ -73,13 +105,54 @@ func GuardUserPatch(w http.ResponseWriter, r *http.Request, targetUserID string,
 	if len(required) == constants.DefaultInitValue {
 		// No privileged field is touched, so this is a profile edit: only the
 		// account owner may make it.
-		if identity.UserID != targetUserID {
+		if identity.UserID != existing.ID {
 			denyForbidden(w, constants.ErrAuthzNotProfileOwner)
 			return false
 		}
 		return true
 	}
 
+	for _, requirement := range append(required, listRequirements(existing, body)...) {
+		if !xauthz.Allows(identity, requirement) {
+			denyForbidden(w, constants.ErrAuthzPrivilegedFieldDenied)
+			return false
+		}
+	}
+
+	if identity.UserID == existing.ID {
+		denyForbidden(w, constants.ErrAuthzSelfPrivilegeChange)
+		return false
+	}
+
+	newRoles := notifdispatch.ExtractNewRoleIDsFromBody(body, constants.FieldAssignedRolesIDs)
+	added, _ := notifdispatch.DiffPtrStringSlices(existing.AssignedRolesIDs, newRoles)
+	return assignedRolesWithinCaller(w, identity, added)
+}
+
+// A new user may carry roles, groups or a status only from a caller who could
+// attach them afterwards; empty lists are what the UI sends for a plain user.
+func GuardUserCreate(w http.ResponseWriter, r *http.Request, body map[string]any) bool {
+	identity, ok := callerIdentity(w, r)
+	if !ok {
+		return false
+	}
+
+	if identity.Internal {
+		return true
+	}
+
+	if _, present := body[constants.FieldBootstrap]; present {
+		denyForbidden(w, constants.ErrAuthzBootstrapFieldReserved)
+		return false
+	}
+
+	privileged := make(map[string]any, len(body))
+	for field, value := range body {
+		if !isEmptyValue(value) {
+			privileged[field] = value
+		}
+	}
+	required := append(requirementsIn(privilegedUserFields, privileged), listRequirements(&userdata.UserAsResource{}, privileged)...)
 	for _, requirement := range required {
 		if !xauthz.Allows(identity, requirement) {
 			denyForbidden(w, constants.ErrAuthzPrivilegedFieldDenied)
@@ -87,9 +160,255 @@ func GuardUserPatch(w http.ResponseWriter, r *http.Request, targetUserID string,
 		}
 	}
 
-	if identity.UserID == targetUserID {
+	return assignedRolesWithinCaller(w, identity, stringsOf(body[constants.FieldAssignedRolesIDs]))
+}
+
+func isEmptyValue(value any) bool {
+	switch v := value.(type) {
+	case nil:
+		return true
+	case string:
+		return v == constants.EmptyString
+	case []any:
+		return len(v) == constants.DefaultInitValue
+	default:
+		return false
+	}
+}
+
+// Attaching or removing a role rewrites the grants of every member, so it is
+// gated like the UI does: groups Owner plus the matching deny rule.
+func GuardGroupRolesPatch(w http.ResponseWriter, r *http.Request, existingRoles []string, body map[string]any) bool {
+	raw, present := body[constants.FieldAssignedRolesIDs]
+	if !present {
+		return true
+	}
+
+	identity, ok := callerIdentity(w, r)
+	if !ok {
+		return false
+	}
+
+	if identity.Internal {
+		return true
+	}
+
+	added, removed := notifdispatch.DiffStringSlices(existingRoles, stringsOf(raw))
+	if len(added) > constants.DefaultInitValue &&
+		!xauthz.Allows(identity, xauthz.Denyable(xauthz.Own(roledata.ScopeGroups), roledata.ActionAttachRoleToGroup)) {
+		denyForbidden(w, constants.ErrAuthzGroupRolesDenied)
+		return false
+	}
+	if len(removed) > constants.DefaultInitValue &&
+		!xauthz.Allows(identity, xauthz.Denyable(xauthz.Own(roledata.ScopeGroups), roledata.ActionRemoveRoleFromGroup)) {
+		denyForbidden(w, constants.ErrAuthzGroupRolesDenied)
+		return false
+	}
+
+	return assignedRolesWithinCaller(w, identity, added)
+}
+
+// Members are gated like the user side of the same membership: groups Owner
+// plus the add or remove rule, and never on oneself.
+func GuardGroupMembersPatch(w http.ResponseWriter, r *http.Request, existingMembers []string, body map[string]any) bool {
+	raw, present := body[constants.FieldAssignedUsersIDs]
+	if !present {
+		return true
+	}
+
+	identity, ok := callerIdentity(w, r)
+	if !ok {
+		return false
+	}
+
+	if identity.Internal {
+		return true
+	}
+
+	added, removed := notifdispatch.DiffStringSlices(existingMembers, stringsOf(raw))
+	if len(added) > constants.DefaultInitValue && !xauthz.Allows(identity, addRules[constants.FieldAssignedGroupsIDs]) {
+		denyForbidden(w, constants.ErrAuthzGroupMembersDenied)
+		return false
+	}
+	if len(removed) > constants.DefaultInitValue && !xauthz.Allows(identity, removeRules[constants.FieldAssignedGroupsIDs]) {
+		denyForbidden(w, constants.ErrAuthzGroupMembersDenied)
+		return false
+	}
+	if slices.Contains(added, identity.UserID) || slices.Contains(removed, identity.UserID) {
 		denyForbidden(w, constants.ErrAuthzSelfPrivilegeChange)
 		return false
+	}
+
+	return true
+}
+
+// A reference must resolve to a live record; one held only by the cleanup
+// finalizer reads as gone. Unreadable records fail closed.
+func GuardReferencedIDs(w http.ResponseWriter, kind string, ids []string) bool {
+	var missing []string
+	for _, id := range ids {
+		deletion, err := lookupDeletion(kind, id)
+		if err != nil && !errors.Is(err, xauthz.ErrNotFound) {
+			responseutils.LogAndSendResponse(
+				w, http.StatusServiceUnavailable, response.OperationUnavailable, string(constants.ErrResourceLookupFailed), nil, err,
+			)
+			return false
+		}
+		if err != nil || deletion != nil {
+			missing = append(missing, id)
+		}
+	}
+	if len(missing) == constants.DefaultInitValue {
+		return true
+	}
+	message := fmt.Sprintf(constants.ErrAuthzUnknownReferences, kind, strings.Join(missing, constants.ListSeparator))
+	responseutils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationError, message, nil, errors.New(message))
+	return false
+}
+
+func lookupDeletion(kind, id string) (*string, error) {
+	switch kind {
+	case constants.ResourceUser:
+		user, err := source.User(id)
+		if err != nil {
+			return nil, err
+		}
+		return user.DeletionTimestamp, nil
+	case constants.ResourceGroup:
+		group, err := source.Group(id)
+		if err != nil {
+			return nil, err
+		}
+		return group.DeletionTimestamp, nil
+	case constants.ResourceRole:
+		role, err := source.Role(id)
+		if err != nil {
+			return nil, err
+		}
+		return role.DeletionTimestamp, nil
+	default:
+		return nil, xauthz.ErrNotFound
+	}
+}
+
+// The cleanup cascade patches terminating records with the service token;
+// everyone else sees them as already gone.
+func GuardNotTerminating(w http.ResponseWriter, r *http.Request, deletionTimestamp *string) bool {
+	if deletionTimestamp == nil {
+		return true
+	}
+
+	identity, ok := callerIdentity(w, r)
+	if !ok {
+		return false
+	}
+
+	if identity.Internal {
+		return true
+	}
+
+	responseutils.LogAndSendResponse(w, http.StatusGone, response.OperationError, constants.ErrAuthzResourceBeingDeleted, nil, nil)
+	return false
+}
+
+// Assigning a role hands out its levels, so it is capped like authoring one.
+// Its deny rules never raise privilege and its status is ignored: an inactive
+// role above the caller could be switched on later by someone else.
+func assignedRolesWithinCaller(w http.ResponseWriter, identity xauthz.Identity, roleIDs []string) bool {
+	for _, roleID := range roleIDs {
+		role, err := source.Role(roleID)
+		if errors.Is(err, xauthz.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			responseutils.LogAndSendResponse(
+				w, http.StatusServiceUnavailable, response.OperationUnavailable, string(constants.ErrResourceLookupFailed), nil, err,
+			)
+			return false
+		}
+		if entry, exceeds := levelAboveCaller(identity.Grants, role.ScopesAndPermissions); exceeds {
+			denyForbidden(w, fmt.Sprintf(constants.ErrAuthzAssignedRoleExceedsCaller, role.Name, entry.Level, entry.Scope))
+			return false
+		}
+	}
+	return true
+}
+
+func stringsOf(raw any) []string {
+	list, isList := raw.([]any)
+	if !isList {
+		return nil
+	}
+	out := make([]string, constants.DefaultInitValue, len(list))
+	for _, item := range list {
+		if s, isString := item.(string); isString {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// A role may grant at most what its author holds on each scope; an ALL grant
+// counts for every scope, so an Admin on ALL can author anything.
+func GuardRoleLevels(w http.ResponseWriter, r *http.Request, scopes []roledata.ScopeAndPermissions) bool {
+	identity, ok := callerIdentity(w, r)
+	if !ok {
+		return false
+	}
+
+	if identity.Internal {
+		return true
+	}
+
+	if _, exceeds := levelAboveCaller(identity.Grants, scopes); exceeds {
+		denyForbidden(w, constants.ErrAuthzRoleLevelExceedsCaller)
+		return false
+	}
+
+	return true
+}
+
+func levelAboveCaller(grants xauthz.Grants, scopes []roledata.ScopeAndPermissions) (roledata.ScopeAndPermissions, bool) {
+	for _, entry := range scopes {
+		if !effectiveLevel(grants, entry.Scope).Covers(entry.Level) {
+			return entry, true
+		}
+	}
+	return roledata.ScopeAndPermissions{}, false
+}
+
+func effectiveLevel(grants xauthz.Grants, scope string) roledata.PermissionLevel {
+	level := grants.Levels[scope]
+	if all := grants.Levels[roledata.ScopeAll]; all.Rank() > level.Rank() {
+		return all
+	}
+	return level
+}
+
+// The UI edits only displayName and description; every other spec field is
+// derived or audit data that only discovery and the notifier may write. The
+// body is the merge patch itself, so keys beside "spec" (metadata) are checked too.
+func GuardApplicationPatch(w http.ResponseWriter, r *http.Request, patch, target map[string]any) bool {
+	identity, ok := callerIdentity(w, r)
+	if !ok {
+		return false
+	}
+
+	if identity.Internal {
+		return true
+	}
+
+	for field := range target {
+		if !slices.Contains(constants.ApplicationUserFields, field) {
+			denyForbidden(w, constants.ErrAuthzApplicationFieldDenied)
+			return false
+		}
+	}
+	for field := range patch {
+		if field != constants.SpecField && !slices.Contains(constants.ApplicationUserFields, field) {
+			denyForbidden(w, constants.ErrAuthzApplicationFieldDenied)
+			return false
+		}
 	}
 
 	return true
@@ -225,6 +544,14 @@ var globalConfigFields = map[string]xauthz.Requirement{
 		MinLevel: roledata.PermissionLevelAdmin,
 		Rule:     xauthz.RuleKey(roledata.ScopeSettings, roledata.ActionEditOIDCConfig),
 	},
+	globalconfigresource.FieldUserSettings: {
+		Scope:    roledata.ScopeSettings,
+		MinLevel: roledata.PermissionLevelContributor,
+		Rule:     xauthz.RuleKey(roledata.ScopeSettings, roledata.ActionEditDiscoveryConfig),
+	},
+	// Written by discovery at startup; no session ever Allows an Internal
+	// requirement, since no level covers its empty MinLevel.
+	globalconfigresource.FieldCluster: xauthz.Internal,
 }
 
 // Fields absent from the table are not privileges and stay open.
@@ -272,6 +599,20 @@ func GuardPlanLifecycle(w http.ResponseWriter, r *http.Request, body map[string]
 	}
 
 	denyForbidden(w, constants.ErrAuthzPlanLifecycleDenied)
+	return false
+}
+
+func GuardSnapshotManifestView(w http.ResponseWriter, r *http.Request) bool {
+	identity, ok := callerIdentity(w, r)
+	if !ok {
+		return false
+	}
+
+	if identity.Internal || xauthz.Allows(identity, snapshotManifestView) {
+		return true
+	}
+
+	denyForbidden(w, constants.ErrAuthzSnapshotManifestDenied)
 	return false
 }
 

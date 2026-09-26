@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/telark/auth/internal/clients"
-	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
 	authhelper "github.com/telark/auth/internal/helpers/auth"
 	oidchelper "github.com/telark/auth/internal/helpers/oidc"
@@ -54,14 +53,12 @@ func GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if config.IsBootstrapAdmin(claims.Email) {
-		promoteBootstrapAdmin(user, clients.GetUserClient())
-	}
+	authhelper.EnsureBootstrapAdmin(user, claims.Email, clients.GetUserClient())
 
 	sessionToken, err := authhelper.CreateUserSession(user.ID, &req.DeviceMetadata)
 	if err != nil {
 		shared.HandleError(w, fmt.Errorf(string(constants.ErrFailedCreateSession), err),
-			http.StatusInternalServerError,
+			shared.GetStatusCodeForSessionError(err),
 			fmt.Sprintf(string(constants.ErrFailedCreateSession), err))
 		return
 	}
@@ -111,9 +108,13 @@ func resolveOIDCUser(w http.ResponseWriter, claims *oidchelper.GoogleClaims) (*u
 	}
 	user, err = jitProvisionUser(userClient, claims)
 	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, ErrEmailAmbiguous) {
+			status = http.StatusConflict
+		}
 		shared.HandleError(w,
 			fmt.Errorf(string(constants.ErrOIDCJITProvisioningFailed), err),
-			http.StatusInternalServerError,
+			status,
 			fmt.Sprintf(string(constants.ErrOIDCJITProvisioningFailed), err))
 		return nil, false
 	}

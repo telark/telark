@@ -44,6 +44,10 @@ func CreateRoleResourceWithCacheInvalidation(optimizer *performance.Optimizer) f
 			return
 		}
 
+		if !authz.GuardRoleLevels(w, r, role.ScopesAndPermissions) {
+			return
+		}
+
 		if err := roleutils.ValidateAndPrepareRole(role, w); err != nil {
 			return
 		}
@@ -91,7 +95,6 @@ func createRoleResource(w http.ResponseWriter, role *roledata.RoleAsResource, op
 		[]string{finalizers.RoleCleanup},
 	)
 
-	cache.SmartInvalidateListCache(optimizer, constants.ResourceRole, string(constants.OpCreate))
 	cache.InvalidateAllResourceCaches(optimizer, constants.ResourceRole)
 }
 
@@ -118,6 +121,9 @@ func GetRoleByUserIDWithCacheInvalidation() func(http.ResponseWriter, *http.Requ
 			return
 		}
 
+		if !authz.GuardHiddenUserID(w, r, userID) {
+			return
+		}
 		resource, ok := roleutils.FindRoleByUserIDOrRespond(w, userID)
 		if !ok {
 			return
@@ -154,6 +160,9 @@ func ListRolesByUserIDWithCacheInvalidation() func(http.ResponseWriter, *http.Re
 			return
 		}
 
+		if !authz.GuardHiddenUserID(w, r, userID) {
+			return
+		}
 		resources, ok := roleutils.ListRolesByUserIDOrRespond(w, userID)
 		if !ok {
 			return
@@ -196,7 +205,12 @@ func PatchRoleByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(h
 			return
 		}
 
-		if !roleutils.ValidatePatchRequest(existingRole, body, w) {
+		if !authz.GuardNotTerminating(w, r, existingRole.DeletionTimestamp) ||
+			!roleutils.ValidateProtectionFlags(existingRole, body, w) {
+			return
+		}
+
+		if !guardPatchedLevels(w, r, body) {
 			return
 		}
 
@@ -210,6 +224,18 @@ func PatchRoleByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(h
 		// targeted for invalidation.
 		authz.BumpGeneration(r.Context())
 	}
+}
+
+func guardPatchedLevels(w http.ResponseWriter, r *http.Request, body map[string]any) bool {
+	if _, patched := body[constants.FieldScopesAndPermissions]; !patched {
+		return true
+	}
+	role, err := sharedutils.ExtractStructFromBody[roledata.RoleAsResource](body)
+	if err != nil {
+		responseutils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationError, err.Error(), nil, err)
+		return false
+	}
+	return authz.GuardRoleLevels(w, r, role.ScopesAndPermissions)
 }
 
 func patchRoleResource(w http.ResponseWriter, roleID string, body map[string]any, optimizer *performance.Optimizer) {
@@ -247,13 +273,13 @@ func DeleteRoleByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 			return
 		}
 
-		resourcesshared.InvalidateResourceCaches(optimizer, constants.ResourceRole, roleID)
-		authz.BumpGeneration(r.Context())
 		lock := concurrency.GetLock(roleID)
 		lock.Lock()
 		defer lock.Unlock()
 
 		deleteResult := api.DeleteCustomResourceByName(roleID, metadata.RoleAsResourceMetadata)
+		resourcesshared.InvalidateResourceCaches(optimizer, constants.ResourceRole, roleID)
+		authz.BumpGeneration(r.Context())
 		if deleteResult.Status != http.StatusOK {
 			errorMsg := sharedutils.GenerateResourceError(errors.ErrDeleteRes, roleID, deleteResult.Error)
 			responseutils.LogAndSendResponse(

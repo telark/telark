@@ -60,6 +60,35 @@ func CheckUsernameChangeAllowed(existingUsername, newUsername string, w http.Res
 	return false
 }
 
+// An empty email is not an identity, so it is never a duplicate.
+func CheckEmailExists(email string) error {
+	if NormalizeEmail(email) == constants.EmptyString {
+		return nil
+	}
+	_, err := FindUserByEmail(email)
+	if err == nil {
+		return errors.New(string(constants.ErrEmailAlreadyExists))
+	}
+	if errors.Is(err, ErrUserNotFound) {
+		return nil
+	}
+	return err
+}
+
+func CheckEmailChangeAllowed(existingEmail, newEmail string, w http.ResponseWriter) bool {
+	if NormalizeEmail(newEmail) == NormalizeEmail(existingEmail) {
+		return true
+	}
+
+	err := CheckEmailExists(newEmail)
+	if err == nil {
+		return true
+	}
+
+	sharedutils.LogByStatusAndSend(w, http.StatusConflict, response.OperationError, err.Error(), nil, err)
+	return false
+}
+
 func CheckIdentityExists(provider, issuer, subject string) error {
 	_, err := FindUserByIdentity(provider, issuer, subject)
 	if err == nil {
@@ -96,6 +125,11 @@ func ValidateAndPrepareUser(user *userdata.UserAsResource, w http.ResponseWriter
 			nil,
 			err,
 		)
+		return err
+	}
+
+	if err := CheckEmailExists(user.Email); err != nil {
+		sharedutils.LogByStatusAndSend(w, http.StatusConflict, response.OperationError, err.Error(), nil, err)
 		return err
 	}
 

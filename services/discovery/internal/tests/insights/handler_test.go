@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"slices"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
@@ -96,6 +98,19 @@ func TestReadDropsExcludedNamespaces(t *testing.T) {
 	testutil.Equal(t, "excluded in results", inResults, false)
 	testutil.Equal(t, "excluded in pending", slices.Contains(got.Pending, hiddenKey), false)
 	testutil.Equal(t, "visible still pending", slices.Contains(got.Pending, visibleKey), true)
+}
+
+// The read is windowed to the apps a page shows; a hand-built request naming
+// hundreds of apps turned into that many sequential Redis reads.
+func TestReadRejectsMoreAppsThanTheCap(t *testing.T) {
+	reset(t, nil)
+	keys := make([]string, constants.DefaultInitValue, constants.InsightsReadMaxApps+constants.DefaultAddValue)
+	for i := range cap(keys) {
+		keys = append(keys, visibleNS+"/"+visibleApp+strconv.Itoa(i))
+	}
+	rec := httptest.NewRecorder()
+	insights.GetApplicationsInsights(rec, httptest.NewRequest(http.MethodGet, "/?apps="+strings.Join(keys, ","), http.NoBody))
+	testutil.Equal(t, "status", rec.Code, http.StatusBadRequest)
 }
 
 func TestReadPendingWhenMissing(t *testing.T) {

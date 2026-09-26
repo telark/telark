@@ -75,20 +75,20 @@ func TestReadSnapshot(t *testing.T) {
 	createOK(t)
 
 	rec := httptest.NewRecorder()
-	expsnap.ReadSnapshot(rec, testAppID, constants.SnapshotsAppsSubdir, testNamespace, testGeneration)
+	expsnap.ReadSnapshot(rec, testAppID, constants.SnapshotsAppsSubdir, testNamespace, testGeneration, true)
 	if rec.Code != http.StatusOK {
 		t.Errorf("ReadSnapshot code = %d, want 200", rec.Code)
 	}
 
 	missing := httptest.NewRecorder()
-	expsnap.ReadSnapshot(missing, "absent", constants.SnapshotsAppsSubdir, testNamespace, testGeneration)
+	expsnap.ReadSnapshot(missing, "absent", constants.SnapshotsAppsSubdir, testNamespace, testGeneration, true)
 	if missing.Code != http.StatusNotFound {
 		t.Errorf("missing read code = %d, want 404", missing.Code)
 	}
 
 	// A traversal id fails identity validation with a 400, not a 404.
 	bad := httptest.NewRecorder()
-	expsnap.ReadSnapshot(bad, "..", constants.SnapshotsAppsSubdir, testNamespace, testGeneration)
+	expsnap.ReadSnapshot(bad, "..", constants.SnapshotsAppsSubdir, testNamespace, testGeneration, true)
 	if bad.Code != http.StatusBadRequest {
 		t.Errorf("invalid id read code = %d, want 400", bad.Code)
 	}
@@ -125,13 +125,15 @@ func TestReadSnapshotManifest(t *testing.T) {
 	createOK(t)
 
 	jsonRec := httptest.NewRecorder()
-	expsnap.ReadSnapshotManifest(jsonRec, testAppID, constants.SnapshotsAppsSubdir, testNamespace, testGeneration)
+	expsnap.ReadSnapshotManifestWithAccept(
+		jsonRec, testAppID, constants.SnapshotsAppsSubdir, testNamespace, testGeneration, constants.EmptyString, true,
+	)
 	if jsonRec.Code != http.StatusOK || jsonRec.Body.Len() == constants.DefaultInitValue {
 		t.Errorf("JSON manifest code = %d len = %d", jsonRec.Code, jsonRec.Body.Len())
 	}
 
 	yamlRec := httptest.NewRecorder()
-	expsnap.ReadSnapshotManifestWithAccept(yamlRec, testAppID, constants.SnapshotsAppsSubdir, testNamespace, "1", "application/yaml")
+	expsnap.ReadSnapshotManifestWithAccept(yamlRec, testAppID, constants.SnapshotsAppsSubdir, testNamespace, "1", "application/yaml", true)
 	if yamlRec.Code != http.StatusOK || yamlRec.Body.Len() == constants.DefaultInitValue {
 		t.Errorf("YAML manifest code = %d len = %d", yamlRec.Code, yamlRec.Body.Len())
 	}
@@ -151,7 +153,7 @@ func TestReadSnapshotManifestBuildFailure(t *testing.T) {
 		t.Fatalf("setup create failed: %d", rec.Code)
 	}
 	man := httptest.NewRecorder()
-	expsnap.ReadSnapshotManifest(man, otherAppID, constants.SnapshotsAppsSubdir, testNamespace, testGeneration)
+	expsnap.ReadSnapshotManifestWithAccept(man, otherAppID, constants.SnapshotsAppsSubdir, testNamespace, testGeneration, constants.EmptyString, true)
 	if man.Code != http.StatusInternalServerError {
 		t.Errorf("unbuildable manifest code = %d, want 500", man.Code)
 	}

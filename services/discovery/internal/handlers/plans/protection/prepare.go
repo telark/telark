@@ -2,15 +2,12 @@ package protection
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 
 	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/messages"
 	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection"
 	planseps "github.com/telark/rest/endpoints/plans"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
@@ -21,16 +18,13 @@ func Prepare(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	userID := r.Header.Get(constants.HeaderUserID)
-	if userID == constants.EmptyString {
-		respondError(w, http.StatusUnauthorized, protection.ErrUserMissing, nil)
+	userID, ok := requireUser(w, r)
+	if !ok {
 		return
 	}
 
 	var req planseps.PrepareProtectionPlanRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		msg := fmt.Sprintf(string(protection.ErrRequestBody), err)
-		respondError(w, http.StatusBadRequest, dataerrors.Error(msg), err)
+	if !decodeBody(w, r, &req) {
 		return
 	}
 

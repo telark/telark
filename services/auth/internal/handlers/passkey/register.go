@@ -3,7 +3,6 @@ package passkey
 import (
 	"net/http"
 
-	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/telark/auth/internal/constants"
 	authhelper "github.com/telark/auth/internal/helpers/auth"
 	"github.com/telark/auth/internal/helpers/shared"
@@ -16,7 +15,7 @@ func registerStartStatus(err error) int {
 	switch {
 	case shared.IsError(err, constants.ErrUserNotFound):
 		return http.StatusNotFound
-	case shared.IsError(err, constants.ErrUserAlreadyHasPasskeysPleaseLoginFirst),
+	case shared.IsError(err, constants.ErrUserAlreadyHasPasskeys),
 		shared.IsError(err, constants.ErrEnrollTokenInvalid):
 		return http.StatusUnauthorized
 	case shared.IsError(err, constants.ErrRegisterEmailMismatch):
@@ -33,8 +32,7 @@ func RegisterStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existingCredentials := []webauthn.Credential{}
-	options, challenge, err := webauthnhelper.StartRegistration(userID, user.Username, user.Fullname, existingCredentials, r)
+	options, challenge, err := webauthnhelper.StartRegistration(userID, user.Username, user.Fullname, nil, r)
 	if err != nil {
 		shared.HandleError(w, err, shared.GetStatusCodeForWebAuthnError(err, http.StatusInternalServerError), err.Error())
 		return

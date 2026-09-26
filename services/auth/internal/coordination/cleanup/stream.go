@@ -61,7 +61,7 @@ func (s *StreamOps) Reclaim(ctx context.Context, consumer string) ([]redis.XMess
 }
 
 func (s *StreamOps) PublishDLQ(ctx context.Context, fields map[string]any) error {
-	_, err := s.client.Publish(ctx, s.dlqStream, fields)
+	_, err := s.client.PublishWithMaxLen(ctx, s.dlqStream, fields, constants.CleanupDLQMaxLen)
 	return err
 }
 

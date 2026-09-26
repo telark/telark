@@ -131,7 +131,7 @@ func acceptPlan(templateID, scopeType string) (*plans.ProtectionPlan, map[string
 	}
 	scope := acceptScopes()[scopeType]
 	return plan, map[string]datapolicies.ResolvedApp{
-		acceptApp: {Namespace: acceptNamespace, Resources: scope.AppResources, VolumeClaims: scope.VolumeClaims},
+		acceptApp: {Namespaces: []string{acceptNamespace}, Resources: scope.AppResources, VolumeClaims: scope.VolumeClaims},
 	}
 }
 

@@ -64,6 +64,9 @@ spec:
                   type: array
                   items:
                     type: string
+                bootstrap:
+                  type: boolean
+                  description: Chart-managed bootstrap administrator; set by services only
                 identities:
                   type: array
                   description: External identity provider links

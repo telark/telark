@@ -5,10 +5,8 @@ import (
 	planseps "github.com/telark/rest/endpoints/plans"
 )
 
-// BuildPatch produces the exporter PATCH request limited to fields that actually changed,
-// plus the always-recomputed renderedPolicies/health/lastUpdated bookkeeping. It NEVER sets
-// id, createdAt/By, phase, startedAt/By, terminatedAt/By, or reason — those are owned by the
-// lifecycle handlers (cancel, reactivate, activate, terminate).
+// Only changed fields plus the recomputed renderedPolicies/health/lastUpdated; phase, reason
+// and the started/terminated stamps belong to the lifecycle handlers and are never set here.
 func BuildPatch(
 	plan *plans.ProtectionPlan,
 	req *planseps.PrepareProtectionPlanRequest,

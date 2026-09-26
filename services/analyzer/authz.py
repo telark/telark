@@ -18,6 +18,7 @@ from constants import (
     HEADER_SESSION_TOKEN,
     LOG_AUTHZ_RESOLVE_FAILED,
     MSG_AUTHZ_FORBIDDEN,
+    MSG_AUTHZ_INVALID_SESSION,
     MSG_AUTHZ_MISSING_SESSION,
     MSG_AUTHZ_UNAVAILABLE,
     PERMISSION_RANKS,
@@ -70,7 +71,10 @@ async def _resolve(session_token: str) -> tuple[str, list[dict]]:
             headers={HEADER_SESSION_TOKEN: session_token},
         )
     if response.status_code == status.HTTP_401_UNAUTHORIZED:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, MSG_AUTHZ_MISSING_SESSION)
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, MSG_AUTHZ_INVALID_SESSION)
+    # auth-service answers 403 for a suspended or deleted user: a verdict, not an outage.
+    if response.status_code == status.HTTP_403_FORBIDDEN:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, MSG_AUTHZ_FORBIDDEN)
     response.raise_for_status()
     # auth-service answers this route with the bare grants object, not the response envelope.
     body = response.json() or {}

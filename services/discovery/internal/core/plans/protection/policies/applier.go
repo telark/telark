@@ -62,25 +62,23 @@ func (a *Applier) Deploy(ctx context.Context, rendered []kyvernov1.Policy) ([]st
 	return names, nil
 }
 
-func (a *Applier) CleanupByPlanID(ctx context.Context, planID string) error {
+func (a *Applier) listByPlan(ctx context.Context, planID string) ([]unstructured.Unstructured, error) {
 	selector := fmt.Sprintf(labelSelectorFormat, datapolicies.LabelPlanID, planID)
 	list, err := a.dyn.Resource(KyvernoPolicyGVR).Namespace(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
 		LabelSelector: selector,
 	})
 	if err != nil {
+		return nil, err
+	}
+	return list.Items, nil
+}
+
+func (a *Applier) CleanupByPlanID(ctx context.Context, planID string) error {
+	items, err := a.listByPlan(ctx, planID)
+	if err != nil {
 		return err
 	}
-
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(constants.PolicyOpConcurrency)
-	for i := range list.Items {
-		item := &list.Items[i]
-		ns, name := item.GetNamespace(), item.GetName()
-		g.Go(func() error {
-			return a.deletePolicy(gctx, ns, name)
-		})
-	}
-	return g.Wait()
+	return a.deletePolicies(ctx, items, nil)
 }
 
 func (a *Applier) DeletePoliciesByLabelAndNames(ctx context.Context, planID string, names []string) error {
@@ -91,19 +89,23 @@ func (a *Applier) DeletePoliciesByLabelAndNames(ctx context.Context, planID stri
 	for _, n := range names {
 		wanted[n] = struct{}{}
 	}
-	selector := fmt.Sprintf(labelSelectorFormat, datapolicies.LabelPlanID, planID)
-	list, err := a.dyn.Resource(KyvernoPolicyGVR).Namespace(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
-		LabelSelector: selector,
-	})
+	items, err := a.listByPlan(ctx, planID)
 	if err != nil {
 		return err
 	}
+	return a.deletePolicies(ctx, items, wanted)
+}
+
+// A nil wanted set deletes every item.
+func (a *Applier) deletePolicies(ctx context.Context, items []unstructured.Unstructured, wanted map[string]struct{}) error {
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(constants.PolicyOpConcurrency)
-	for i := range list.Items {
-		item := &list.Items[i]
-		if _, ok := wanted[item.GetName()]; !ok {
-			continue
+	for i := range items {
+		item := &items[i]
+		if wanted != nil {
+			if _, ok := wanted[item.GetName()]; !ok {
+				continue
+			}
 		}
 		ns, name := item.GetNamespace(), item.GetName()
 		g.Go(func() error {
@@ -115,14 +117,11 @@ func (a *Applier) DeletePoliciesByLabelAndNames(ctx context.Context, planID stri
 
 // Returns the first patch error so the caller can roll back.
 func (a *Applier) PatchPoliciesMode(ctx context.Context, planID, newMode string) error {
-	selector := fmt.Sprintf(labelSelectorFormat, datapolicies.LabelPlanID, planID)
-	list, err := a.dyn.Resource(KyvernoPolicyGVR).Namespace(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
-		LabelSelector: selector,
-	})
+	items, err := a.listByPlan(ctx, planID)
 	if err != nil {
 		return fmt.Errorf("list policies for plan %q: %w", planID, err)
 	}
-	if len(list.Items) == constants.DefaultInitValue {
+	if len(items) == constants.DefaultInitValue {
 		return nil
 	}
 	action := datapolicies.FailureAction(newMode)
@@ -137,8 +136,8 @@ func (a *Applier) PatchPoliciesMode(ctx context.Context, planID, newMode string)
 	}
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(constants.PolicyOpConcurrency)
-	for i := range list.Items {
-		item := &list.Items[i]
+	for i := range items {
+		item := &items[i]
 		ns, name := item.GetNamespace(), item.GetName()
 		g.Go(func() error {
 			if _, err := a.dyn.Resource(KyvernoPolicyGVR).

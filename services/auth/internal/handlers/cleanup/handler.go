@@ -1,9 +1,13 @@
 package cleanup
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
+	"github.com/telark/auth/internal/authz"
 	authclients "github.com/telark/auth/internal/clients"
 	"github.com/telark/auth/internal/constants"
 	coordcleanup "github.com/telark/auth/internal/coordination/cleanup"
@@ -24,20 +28,24 @@ func InitIngress(i *coordcleanup.Ingress) {
 }
 
 func DeleteUser(w http.ResponseWriter, r *http.Request) {
-	handleDelete(w, r, finalizers.ResourceTypeUsers, deleteUserBusiness)
+	handleDelete(w, r, finalizers.ResourceTypeUsers, authclients.GetUserClient().DeleteUserByID, authz.GuardUserDelete)
 }
 
 func DeleteGroup(w http.ResponseWriter, r *http.Request) {
-	handleDelete(w, r, finalizers.ResourceTypeGroups, deleteGroupBusiness)
+	handleDelete(w, r, finalizers.ResourceTypeGroups, authclients.GetGroupClient().DeleteGroupByID, nil)
 }
 
 func DeleteRole(w http.ResponseWriter, r *http.Request) {
-	handleDelete(w, r, finalizers.ResourceTypeRoles, deleteRoleBusiness)
+	handleDelete(w, r, finalizers.ResourceTypeRoles, authclients.GetRoleClient().DeleteRoleByID, nil)
 }
 
-type businessDeleteFn func(id string) *response.GenericResponse
-
-func handleDelete(w http.ResponseWriter, r *http.Request, resourceType string, deleteFn businessDeleteFn) {
+func handleDelete(
+	w http.ResponseWriter,
+	r *http.Request,
+	resourceType string,
+	deleteFn func(id string) *response.GenericResponse,
+	guard func(ctx context.Context, id string) (int, error),
+) {
 	id, err := sharedhelper.GetPathParam(r, constants.IDPathParam)
 	if err != nil || id == constants.EmptyString {
 		msg := fmt.Sprintf(string(dataerrors.ErrRestRequiredParam), constants.IDPathParam)
@@ -46,15 +54,22 @@ func handleDelete(w http.ResponseWriter, r *http.Request, resourceType string, d
 		return
 	}
 
+	if guard != nil {
+		if status, guardErr := guard(r.Context(), id); guardErr != nil {
+			resputils.LogAndSendResponse(w, status, response.OperationError, guardErr.Error(), nil, nil)
+			return
+		}
+	}
+
 	deleteResp := deleteFn(id)
 	if deleteResp == nil {
 		resputils.LogAndSendResponse(w, http.StatusBadGateway, response.OperationError,
 			string(constants.MsgCleanupDeletingInProgress), nil, nil)
 		return
 	}
-	if deleteResp.Status != http.StatusOK && deleteResp.Status != http.StatusNotFound {
+	if deleteResp.Status != http.StatusOK {
 		resputils.LogAndSendResponse(w, deleteResp.Status, response.OperationError,
-			deleteResp.Message, nil, nil)
+			exporterMessage(deleteResp.Message), nil, nil)
 		return
 	}
 
@@ -76,14 +91,16 @@ func handleDelete(w http.ResponseWriter, r *http.Request, resourceType string, d
 		}, nil)
 }
 
-func deleteUserBusiness(id string) *response.GenericResponse {
-	return authclients.GetUserClient().DeleteUserByID(id)
-}
-
-func deleteGroupBusiness(id string) *response.GenericResponse {
-	return authclients.GetGroupClient().DeleteGroupByID(id)
-}
-
-func deleteRoleBusiness(id string) *response.GenericResponse {
-	return authclients.GetRoleClient().DeleteRoleByID(id)
+// The rest client wraps a refused delete as "HTTP <status>: <json body>"; the
+// caller wants the exporter's own message.
+func exporterMessage(wrapped string) string {
+	start := strings.Index(wrapped, constants.JSONObjectStart)
+	if start < constants.DefaultInitValue {
+		return wrapped
+	}
+	var inner response.GenericResponse
+	if err := json.Unmarshal([]byte(wrapped[start:]), &inner); err != nil || inner.Message == constants.EmptyString {
+		return wrapped
+	}
+	return inner.Message
 }

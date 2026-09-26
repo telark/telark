@@ -20,7 +20,6 @@ const (
 	DedupTTL     = 7 * 24 * time.Hour
 	PerUserCap   = 500
 	OpTimeout    = 3 * time.Second
-	listMaxLimit = 200
 	base10       = 10
 	int64BitSize = 64
 	scanBatch    = 100
@@ -209,8 +208,8 @@ func (s *Storage) List(
 	if limit <= constants.DefaultInitValue {
 		limit = notiftypes.DefaultListLimit
 	}
-	if limit > listMaxLimit {
-		limit = listMaxLimit
+	if limit > notiftypes.MaxListLimit {
+		limit = notiftypes.MaxListLimit
 	}
 
 	maxScore := scoreMax

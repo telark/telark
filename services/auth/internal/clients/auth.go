@@ -26,24 +26,6 @@ var (
 	globalConfigOnce           sync.Once
 )
 
-type AuthClients struct {
-	Passkey *passkeyclient.Client
-	Session *sessionclient.Client
-	User    *userclient.Client
-	Group   *groupclient.Client
-	Role    *roleclient.Client
-}
-
-func NewAuthClients() *AuthClients {
-	return &AuthClients{
-		Passkey: GetPasskeyClient(),
-		Session: GetSessionClient(),
-		User:    GetUserClient(),
-		Group:   GetGroupClient(),
-		Role:    GetRoleClient(),
-	}
-}
-
 func GetPasskeyClient() *passkeyclient.Client {
 	passkeyOnce.Do(func() {
 		passkeyClientInstance = passkeyclient.NewClient()

@@ -108,14 +108,13 @@ func userForEmail(email string) (*userresource.UserAsResource, error) {
 
 	hasPasskeys, err := CheckUserHasExistingPasskeys(user.ID)
 	if err == nil && hasPasskeys {
-		return nil, errors.New(string(constants.ErrUserAlreadyHasPasskeysPleaseLoginFirst))
+		return nil, errors.New(string(constants.ErrUserAlreadyHasPasskeys))
 	}
 	return user, nil
 }
 
-// The registrant is resolved from the strongest proof present: a session, then
-// a one-time enrollment token (reported as enrolled so the session-less finish
-// may add to an account that already has passkeys), then a bare email.
+// Strongest proof wins: session, then one-time enrollment token (reported as
+// enrolled so the session-less finish may add to an account with passkeys), then email.
 func GetUserForRegistrationStart(r *http.Request) (
 	user *userresource.UserAsResource, userID string, enrolled bool, err error,
 ) {
@@ -157,10 +156,9 @@ func GetUserForRegistrationStart(r *http.Request) (
 func GetUserForRegistration(
 	r *http.Request, ceremonyOwner func(*http.Request) (string, bool, error),
 ) (*userresource.UserAsResource, string, error) {
-	userClient := clients.GetUserClient()
 	sessionUserID, sessionErr := ValidateSessionFromRequest(r)
 	if sessionErr == nil {
-		user, err := GetUserWithErrorHandling(sessionUserID, userClient.GetUserByID)
+		user, err := GetUserByIDWithErrorHandling(sessionUserID)
 		if err != nil {
 			return nil, constants.EmptyString, err
 		}
@@ -172,7 +170,7 @@ func GetUserForRegistration(
 		return nil, constants.EmptyString, err
 	}
 
-	user, err := GetUserWithErrorHandling(ownerID, userClient.GetUserByID)
+	user, err := GetUserByIDWithErrorHandling(ownerID)
 	if err != nil {
 		return nil, constants.EmptyString, err
 	}

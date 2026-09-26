@@ -90,10 +90,6 @@ func loadConfigInternal() (*Config, error) {
 	return cfg, nil
 }
 
-func GetConfig() (*Config, error) {
-	return LoadConfig()
-}
-
 func getEnvOrDefault(key, defaultValue string) string {
 	if value := os.Getenv(key); value != constants.EmptyString {
 		return value

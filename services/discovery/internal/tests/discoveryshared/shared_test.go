@@ -68,7 +68,7 @@ func TestBuildManaged(t *testing.T) {
 // not collapse to "Report".
 func TestDisplayNames(t *testing.T) {
 	testutil.Equal(t, "display name", shared.BuildDisplayName("demo3-report"), "Demo3 Report")
-	if shared.ToDisplayName("my-service") == constants.EmptyString {
+	if shared.BuildDisplayName("my-service") == constants.EmptyString {
 		t.Fatal("display name is empty")
 	}
 }

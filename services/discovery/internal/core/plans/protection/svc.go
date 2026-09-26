@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/telark/data/plans"
@@ -23,12 +24,18 @@ import (
 	"github.com/telark/discovery/internal/core/plans/protection/violations"
 	planseps "github.com/telark/rest/endpoints/plans"
 	reportseps "github.com/telark/rest/endpoints/reports"
+	xwareredis "github.com/telark/x-ware/redis/stream"
 	"k8s.io/client-go/dynamic"
 )
 
 type Logger interface {
 	Info(msg string)
 	Error(msg string)
+}
+
+type NameLocks struct {
+	client *xwareredis.LockClient
+	local  sync.Map
 }
 
 type Service struct {
@@ -41,6 +48,7 @@ type Service struct {
 	clock          func() time.Time
 	logger         Logger
 	notifier       *ApprovalNotifier
+	names          *NameLocks
 }
 
 func NewService(
@@ -63,6 +71,7 @@ func NewService(
 		clock:          func() time.Time { return time.Now().UTC() },
 		logger:         logger,
 		notifier:       notifier,
+		names:          NewNameLocks(nil),
 	}
 }
 
@@ -73,6 +82,10 @@ func (s *Service) ListNamespaces() validation.NamespaceLister { return s.listNam
 func (s *Service) AppLogger() Logger                          { return s.logger }
 func (s *Service) Clock() time.Time                           { return s.clock() }
 func (s *Service) Notifier() *ApprovalNotifier                { return s.notifier }
+
+func (s *Service) LockName(ctx context.Context, name string) (func(), error) {
+	return s.names.Acquire(ctx, name)
+}
 
 func (s *Service) HealthCheck(ctx context.Context, planID string) (*plans.ProtectionPlan, health.Result, error) {
 	return health.Check(ctx, s.healthDeps(), planID)
@@ -145,17 +158,22 @@ func (s *Service) Prepare(
 	userID string,
 	req *planseps.PrepareProtectionPlanRequest,
 ) (*plans.ProtectionPlan, error) {
-	if err := validation.PrepareRequest(req); err != nil {
+	if err := validation.PrepareRequest(req, s.clock()); err != nil {
 		return nil, err
 	}
 	if err := validation.NamespaceScope(ctx, req.Scope.Type, req.Scope.Namespaces, s.listNamespaces); err != nil {
 		return nil, err
 	}
+	release, err := s.names.Acquire(ctx, req.Name)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	if err := s.ensureNameAvailable(req.Name, constants.EmptyString); err != nil {
 		return nil, err
 	}
 
-	resolved, err := s.resolveScope(ctx, req)
+	resolved, err := s.resolveScope(ctx, req.Scope.Type, req.Scope.ApplicationIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -197,9 +215,7 @@ func (s *Service) Cancel(ctx context.Context, userID, planID, reason string) (*p
 		return nil, validation.Invalidf(string(ErrCancelInvalidPhase), plan.Phase)
 	}
 
-	if err := s.applier.CleanupByPlanID(ctx, planID); err != nil {
-		s.logger.Error(fmt.Sprintf("protection-plan cancel cleanup failed plan=%s err=%v", planID, err))
-	}
+	s.cleanup(ctx, "cancel", planID)
 
 	now := s.clock().Format(globalshared.DefaultTimeFormat)
 	if err := s.exporter.PatchRawOrError(userID, planID, BuildCancelPatch(userID, reason, now)); err != nil {
@@ -226,7 +242,7 @@ func (s *Service) Reactivate(ctx context.Context, userID, planID string) (*plans
 		return nil, err
 	}
 
-	resolved, err := s.resolveScopeForPlan(ctx, plan)
+	resolved, err := s.resolveScope(ctx, plan.Scope.Type, plan.Scope.ApplicationIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +252,7 @@ func (s *Service) Reactivate(ctx context.Context, userID, planID string) (*plans
 	}
 
 	now := s.clock()
-	phase, expired := computeReactivatePhase(plan, now)
+	phase, expired := WindowPhase(plan, now)
 	if expired {
 		return nil, validation.Invalid(string(ErrReactivateExpired))
 	}
@@ -297,9 +313,7 @@ func (s *Service) reject(
 	plan *plans.ProtectionPlan,
 	comment *string,
 ) (*plans.ProtectionPlan, error) {
-	if err := s.applier.CleanupByPlanID(ctx, plan.ID); err != nil {
-		s.logger.Error(fmt.Sprintf("protection-plan reject cleanup failed plan=%s err=%v", plan.ID, err))
-	}
+	s.cleanup(ctx, "reject", plan.ID)
 	now := s.clock().Format(globalshared.DefaultTimeFormat)
 	if err := s.exporter.PatchRawOrError(userID, plan.ID, BuildRejectPatch(plan, userID, *comment, now)); err != nil {
 		return nil, err
@@ -318,7 +332,7 @@ func (s *Service) approve(
 	if err := validation.NamespaceScope(ctx, plan.Scope.Type, plan.Scope.Namespaces, s.listNamespaces); err != nil {
 		return nil, err
 	}
-	resolved, err := s.resolveScopeForPlan(ctx, plan)
+	resolved, err := s.resolveScope(ctx, plan.Scope.Type, plan.Scope.ApplicationIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -327,7 +341,7 @@ func (s *Service) approve(
 	}
 
 	now := s.clock()
-	phase, expired := computeReactivatePhase(plan, now)
+	phase, expired := WindowPhase(plan, now)
 	if expired {
 		return nil, validation.Invalid(string(ErrReactivateExpired))
 	}
@@ -394,7 +408,8 @@ func (s *Service) persistReactivate(
 	return nil
 }
 
-func computeReactivatePhase(plan *plans.ProtectionPlan, now time.Time) (string, bool) {
+// The phase a plan's window puts it in at now, and whether the window has already ended.
+func WindowPhase(plan *plans.ProtectionPlan, now time.Time) (string, bool) {
 	if plan.TimeMode != plans.TimeModeTimeRange || plan.TimeRange == nil {
 		return plans.PhaseActive, false
 	}
@@ -437,7 +452,7 @@ func (s *Service) Activate(ctx context.Context, snapshot *plans.ProtectionPlan) 
 		return nil
 	}
 
-	resolved, err := s.resolveScopeForPlan(ctx, plan)
+	resolved, err := s.resolveScope(ctx, plan.Scope.Type, plan.Scope.ApplicationIDs)
 	if err != nil {
 		shared.LogDeployFailure(s.logger, plan, "activate-resolve-scope", err)
 		return s.markFailedRemote(plan, err.Error())
@@ -475,9 +490,7 @@ func (s *Service) Activate(ctx context.Context, snapshot *plans.ProtectionPlan) 
 }
 
 func (s *Service) Terminate(ctx context.Context, plan *plans.ProtectionPlan) error {
-	if err := s.applier.CleanupByPlanID(ctx, plan.ID); err != nil {
-		s.logger.Error(fmt.Sprintf("protection-plan terminate cleanup failed plan=%s err=%v", plan.ID, err))
-	}
+	s.cleanup(ctx, "terminate", plan.ID)
 
 	now := s.clock().Format(globalshared.DefaultTimeFormat)
 	if err := s.exporter.PatchRawOrError(SystemActor, plan.ID, BuildTerminatePatch(now)); err != nil {
@@ -522,10 +535,15 @@ func (s *Service) Clear(ctx context.Context, planID string) error {
 	if _, err := s.exporter.Get(planID); err != nil {
 		return err
 	}
-	if err := s.applier.CleanupByPlanID(ctx, planID); err != nil {
-		s.logger.Error(fmt.Sprintf("protection-plan clear cleanup failed plan=%s err=%v", planID, err))
-	}
+	s.cleanup(ctx, "clear", planID)
 	return s.exporter.DeleteOrError(planID)
+}
+
+// Cleanup failures are logged, not returned: the lifecycle patch still has to land.
+func (s *Service) cleanup(ctx context.Context, stage, planID string) {
+	if err := s.applier.CleanupByPlanID(ctx, planID); err != nil {
+		s.logger.Error(fmt.Sprintf(LogCleanupFailed, stage, planID, err))
+	}
 }
 
 func (s *Service) ListAllPlans() ([]plans.ProtectionPlan, error) {
@@ -593,9 +611,7 @@ func (s *Service) rollbackOnPersistFailure(ctx context.Context, plan *plans.Prot
 	if len(plan.RenderedPolicies) == constants.DefaultInitValue {
 		return
 	}
-	if err := s.applier.CleanupByPlanID(ctx, plan.ID); err != nil {
-		s.logger.Error(fmt.Sprintf("protection-plan rollback cleanup failed plan=%s err=%v", plan.ID, err))
-	}
+	s.cleanup(ctx, "rollback", plan.ID)
 }
 
 func (s *Service) markFailedRemote(plan *plans.ProtectionPlan, reason string) error {
@@ -642,6 +658,12 @@ func BuildTerminatePatch(now string) map[string]any {
 	}
 }
 
+// An active plan whose edited window now starts in the future is parked until the controller
+// activates it at startAt.
+func BuildScheduledPatch(userID, now string) map[string]any {
+	return reactivateShape(plans.PhaseScheduled, nil, userID, now)
+}
+
 func BuildFailedPatch(reason, now string) map[string]any {
 	return map[string]any{
 		FieldPhase:            plans.PhaseFailed,
@@ -655,34 +677,21 @@ func BuildFailedPatch(reason, now string) map[string]any {
 
 func (s *Service) resolveScope(
 	ctx context.Context,
-	req *planseps.PrepareProtectionPlanRequest,
+	scopeType string,
+	applicationIDs []string,
 ) (map[string]policies.ResolvedApp, error) {
-	if req.Scope.Type != plans.ScopeTypeApplications {
+	if scopeType != plans.ScopeTypeApplications {
 		return nil, nil
 	}
-	resolved, missing, err := s.resolveApps(ctx, req.Scope.ApplicationIDs)
+	resolved, missing, err := s.resolveApps(ctx, applicationIDs)
 	if err != nil {
 		return nil, err
 	}
 	if len(missing) > constants.DefaultInitValue {
 		return nil, validation.Invalidf(string(ErrMissingApplications), missing)
 	}
-	return resolved, nil
-}
-
-func (s *Service) resolveScopeForPlan(
-	ctx context.Context,
-	plan *plans.ProtectionPlan,
-) (map[string]policies.ResolvedApp, error) {
-	if plan.Scope.Type != plans.ScopeTypeApplications {
-		return nil, nil
-	}
-	resolved, missing, err := s.resolveApps(ctx, plan.Scope.ApplicationIDs)
-	if err != nil {
-		return nil, err
-	}
-	if len(missing) > constants.DefaultInitValue {
-		return nil, validation.Invalidf(string(ErrMissingApplications), missing)
+	if ignored := applications.Unprotectable(resolved, applicationIDs); len(ignored) > constants.DefaultInitValue {
+		return nil, validation.Invalidf(string(ErrIgnoredApplications), ignored)
 	}
 	return resolved, nil
 }

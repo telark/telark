@@ -1,7 +1,10 @@
 package globalconfig
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	metadata "github.com/telark/data/metadata/resources"
@@ -10,8 +13,10 @@ import (
 	resourcesutils "github.com/telark/exporter/internal/utils/resources/shared"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/kcore/crds/api"
+	kshared "github.com/telark/kcore/shared"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -41,16 +46,7 @@ func PatchGlobalConfig() func(http.ResponseWriter, *http.Request) {
 		}
 		result := api.PatchCustomResource(metadata.GlobalConfigMetadata, constants.GlobalConfigResourceName, patchBody)
 		if result.Error != nil || result.Status != http.StatusOK {
-			status := http.StatusInternalServerError
-			if isConflictError(result.Message) {
-				status = constants.ConflictStatus
-			}
-			sharedutils.LogAndReturnError(
-				w,
-				status,
-				string(constants.ErrGlobalConfigPatchFailed),
-				result.Error,
-			)
+			respondPatchFailure(w, result)
 			return
 		}
 		res, ok := result.Data.(*unstructured.Unstructured)
@@ -65,8 +61,35 @@ func PatchGlobalConfig() func(http.ResponseWriter, *http.Request) {
 			)
 			return
 		}
-		resourcesutils.SendFilteredResourceResponse(w, res)
+		resourcesutils.SendFilteredPatchResponse(w, res)
 	}
+}
+
+// A schema rejection is the caller's mistake: 400 naming the fields, without
+// the API server's validation text.
+func respondPatchFailure(w http.ResponseWriter, result kshared.KubernetesAPIData) {
+	if k8serrors.IsInvalid(result.Error) {
+		message := fmt.Sprintf(string(constants.ErrGlobalConfigInvalidField), InvalidFields(result.Error))
+		sharedutils.LogByStatusAndSend(w, http.StatusBadRequest, response.OperationError, message, nil, result.Error)
+		return
+	}
+	status := http.StatusInternalServerError
+	if isConflictError(result.Message) {
+		status = constants.ConflictStatus
+	}
+	sharedutils.LogAndReturnError(w, status, string(constants.ErrGlobalConfigPatchFailed), result.Error)
+}
+
+func InvalidFields(err error) string {
+	var apiStatus k8serrors.APIStatus
+	if !errors.As(err, &apiStatus) || apiStatus.Status().Details == nil {
+		return constants.SpecField
+	}
+	fields := make([]string, constants.DefaultInitValue, len(apiStatus.Status().Details.Causes))
+	for _, cause := range apiStatus.Status().Details.Causes {
+		fields = append(fields, cause.Field)
+	}
+	return strings.Join(slices.Compact(slices.Sorted(slices.Values(fields))), constants.ListSeparator)
 }
 
 func extractSpecPatch(body map[string]any) map[string]any {

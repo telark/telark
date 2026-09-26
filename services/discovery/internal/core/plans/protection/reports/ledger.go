@@ -14,6 +14,7 @@ import (
 	"github.com/telark/data/plans"
 	globalshared "github.com/telark/data/shared"
 	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/core/plans/protection/applications"
 	"github.com/telark/discovery/internal/core/plans/protection/violations"
 	planseps "github.com/telark/rest/endpoints/plans"
 	xwareredis "github.com/telark/x-ware/redis/stream"
@@ -149,13 +150,7 @@ func (g *Generator) resolveLenient(
 	if err != nil {
 		return nil, nil, err
 	}
-	namespaces = make([]string, constants.DefaultInitValue, len(resolved))
-	for _, id := range plan.Scope.ApplicationIDs {
-		if app, ok := resolved[id]; ok {
-			namespaces = append(namespaces, app.Namespace)
-		}
-	}
-	return namespaces, missing, nil
+	return applications.Namespaces(resolved, plan.Scope.ApplicationIDs), missing, nil
 }
 
 // One NX acquire, no wait: a busy lock skips only the write, never the merge.

@@ -2,6 +2,7 @@ package informers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"slices"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 	applicationmodel "github.com/telark/data/resources/application"
 	"github.com/telark/discovery/internal/constants"
 	applicationscore "github.com/telark/discovery/internal/core/applications/core"
+	"github.com/telark/discovery/internal/core/applications/history/diff"
 	"github.com/telark/discovery/internal/core/applications/history/manifestdiff"
 	restshared "github.com/telark/rest/clients/shared"
 	"golang.org/x/time/rate"
@@ -50,6 +52,7 @@ const (
 	testDeployKey           = "deploy/app"
 	testKeyName             = "name"
 	testKeyNamespace        = "namespace"
+	testRollbackID          = "rbk-1"
 )
 
 func newTestCoalescer(flush func(string, map[string]*unstructured.Unstructured) error) *coalescer {
@@ -758,14 +761,12 @@ func TestReconcileBoundsBackfillPerTick(t *testing.T) {
 // The rollback's own writes are dropped; the restored objects are what the
 // history describes, so they are recorded as they stand and the next tick
 // sees no drift.
-func TestRollbackDropRecordsRestoredStateWithoutPublishing(t *testing.T) {
+// The rollback's own writes are no longer dropped: the flush carries the marker to
+// the diff, which records them as the rollback entry with the pre-rollback objects
+// as its snapshot; a marker the controller did not write (old "1") is ignored.
+func TestRollbackMarkerFlushRecordsRestoredState(t *testing.T) {
 	s0, s1 := testDeployment(testSeq0, constants.DefaultAddValue), testDeployment(testSeq1, constants.DefaultAddValue)
 	m, mr := testReconcileManager(t, s1)
-	var exporterCalls atomic.Int32
-	m.getStoredApp = func(string) (*applicationmodel.Application, error) {
-		exporterCalls.Add(constants.DefaultAddValue)
-		return nil, restshared.ErrNotFound
-	}
 	m.coalesce = rejectFlush(t)
 	ctx := context.Background()
 	key := resourceKey(s1)
@@ -774,24 +775,34 @@ func TestRollbackDropRecordsRestoredStateWithoutPublishing(t *testing.T) {
 	if err := mr.Set(constants.KeyPrefixRollbackApplying+testAppName, "1"); err != nil {
 		t.Fatal(err)
 	}
-
-	if err := m.flushApp(testAppName, map[string]*unstructured.Unstructured{key: s0}); err != nil {
+	if m.rollbackMarker(ctx, testAppName) != nil {
+		t.Fatal("legacy marker decoded as a rollback")
+	}
+	raw, err := json.Marshal(diff.RollbackMarker{ID: testRollbackID, TriggeredBy: testAppName})
+	if err != nil {
 		t.Fatal(err)
 	}
-	if exporterCalls.Load() != constants.DefaultInitValue {
-		t.Fatal("rollback's own writes reached the exporter")
+	if err := mr.Set(constants.KeyPrefixRollbackApplying+testAppName, string(raw)); err != nil {
+		t.Fatal(err)
 	}
-	if got := mr.HGet(recordedKey(testAppName), key); got != manifestdiff.Fingerprint(s1) {
-		t.Fatalf("restored state not recorded: got %q", got)
+	if got := m.rollbackMarker(ctx, testAppName); got == nil || got.ID != testRollbackID {
+		t.Fatalf("marker not decoded: %+v", got)
 	}
-	if mr.Exists(postKey(testAppName)) {
-		t.Fatal("stale post-image kept across the rollback")
-	}
+	assertFlushReachesExporter(t, m, map[string]*unstructured.Unstructured{key: s0})
+}
 
-	m.reconcileRecorded(ctx, []applicationmodel.Application{testApp()})
-	time.Sleep(testMaxWait)
-	if exporterCalls.Load() != constants.DefaultInitValue {
-		t.Fatal("tick treated the restored state as drift")
+// A readiness move on a manifest the last flush already recorded is the health
+// change the update handler let through: it is flushed against the recorded
+// manifest (live) rather than dropped with the pre-patch object or diffed twice.
+func TestRecordedPreImageKeepsReadinessMovesOnly(t *testing.T) {
+	old := testDeployment(testRev1, constants.DefaultAddValue)
+	if recordedPreImage(old, testDeployment(testRev1, constants.TwoValue)) != nil {
+		t.Fatal("status-only write kept as a pre-image")
+	}
+	live := withStatus(old, "readyReplicas", constants.DefaultAddValue)
+	pre := recordedPreImage(old, live)
+	if pre == nil || manifestdiff.Fingerprint(pre) != manifestdiff.Fingerprint(live) {
+		t.Fatalf("readiness move dropped: %v", pre)
 	}
 }
 

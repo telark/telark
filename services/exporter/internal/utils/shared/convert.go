@@ -4,12 +4,31 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	dataerrors "github.com/telark/data/errors"
 	metadata "github.com/telark/data/metadata/base"
 	"github.com/telark/exporter/internal/constants"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
+
+func DeletionStamp(resource *unstructured.Unstructured) (string, bool) {
+	ts := resource.GetDeletionTimestamp()
+	if ts == nil {
+		return constants.EmptyString, false
+	}
+	return ts.UTC().Format(time.RFC3339), true
+}
+
+// The CRD schema prunes an unknown spec key, so the timestamp only ever exists
+// in memory: a typed read of a freshly fetched record sees it as terminating.
+func ProjectDeletionTimestamp(resource *unstructured.Unstructured) {
+	stamp, terminating := DeletionStamp(resource)
+	spec, ok := resource.Object[constants.SpecField].(map[string]any)
+	if terminating && ok {
+		spec[constants.FieldDeletionTimestamp] = stamp
+	}
+}
 
 func ConvertToCRDTemplate(md metadata.Metadata, name string, spec map[string]any) *unstructured.Unstructured {
 	return buildCRDTemplate(md, map[string]any{constants.FieldName: name}, spec)
@@ -37,10 +56,6 @@ func buildCRDTemplate(md metadata.Metadata, meta, spec map[string]any) *unstruct
 			constants.SpecField:       spec,
 		},
 	}
-}
-
-func ConvertToUnstructuredWithoutManagedFields(spec map[string]any) *unstructured.Unstructured {
-	return &unstructured.Unstructured{Object: map[string]any{constants.SpecField: spec}}
 }
 
 // A resource with no spec is reported as no value rather than an error: callers

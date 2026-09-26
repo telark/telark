@@ -67,13 +67,16 @@ flowchart LR
 1. Jobs arrive on the Redis stream `insights:jobs` (consumer group `analyzer`): discovery appends an
    `incident` or `recovery` job when a publish authored one, and `POST …/analyze` appends a `manual` job.
 2. The worker task reads one job at a time. It drops stale (older than 30 min), in-flight, cooled-down
-   and, for automatic triggers, `autoAnalyze=false` jobs, recording the drop on the document. A job whose
-   app a sweep review holds waits for the review (at most 20 s) instead of being dropped.
+   and, for automatic triggers, `autoAnalyze=false` jobs; only a dropped manual run is recorded on the
+   document. A job whose app a sweep review holds waits for the review (at most 20 s) instead of being
+   dropped. An `incident` job re-reads the Application (3 reads, 1 s apart) until its `history.generation`
+   reaches the job's: discovery enqueues the job before exporter holds the entry that triggered it.
 3. A `recovery` job resolves every open insight in code, with no model call.
 4. Otherwise the run follows `ANALYZER_MODE` (see [How a run works](#how-a-run-works)).
 5. Code validates every insight against what the tools returned this run, merges it into the document
    (dedup id, reopen, code-only resolve, 7-day prune) and writes it with `SET` (TTL 7 days, `version`
-   incremented on every write). One card per workload: the id hashes the app, the workload's kind and
+   incremented on every write; a new or lost document starts from the clock in unix ms, so a rebuilt one
+   never drops below a version an open panel holds). One card per workload: the id hashes the app, the workload's kind and
    name and its namespace, so an app that runs `web` in two namespaces gets a card for each; every card
    names its workload's namespace in `params.namespace` (deep mode: the first app namespace that runs
    the workload). A card written before the id named the namespace moves to the new id the next time
@@ -81,7 +84,8 @@ flowchart LR
    whose namespace is excluded after it was written resolves on the app's next untruncated run, and so
    does one whose workload's status read answers 404 (deleted, while the Application still lists it).
 6. Every step publishes an event to the in-process broadcaster; the SSE endpoint relays it, and the UI
-   refetches the document through discovery whenever an event carries a newer `version`.
+   refetches the document through discovery whenever an event carries a newer `version`. A setup review
+   ends with `review.finished {version}`, since its write moves `lastReviewAt` even when no card changes.
 
 ## How a run works
 
@@ -91,11 +95,20 @@ flowchart LR
    the last 60 min, then the status of at most 3 workloads (those named by events first).
 2. **Rules** (`rules.py`, ms): one candidate per workload, by precedence `oom` > `image_pull` >
    `crashloop` > `scheduling` > `probe_failure` > `resource_pressure` > `rollout_stuck` >
-   `config_change_regression` > `other`, at most 3 per run, with evidence refs and template prose. Pods that
-   cannot create their container or mount a volume keep their `other.*` cause after the rollout deadline. An
-   incident, or a rollout (`deployment`), `config` or `resources` change, in the last 30 min is cited as
-   `gen:<n>` and in the summary. On a fully ready workload, events of a pod that no longer exists or that
-   precede its pod's current Ready state are history: they raise no card and do not block the resolve.
+   `config_change_regression` > `other`, at most 3 per run, with evidence refs and template prose. A workload
+   with no replica ready (of at least one wanted) is critical whatever the kind. A paused Deployment is no
+   incident unless its pods show a symptom (the `reliability.deployment_paused` recommendation says it is
+   paused), and pausing resolves its open `rollout_stuck`, `config_change_regression` and `other` cards on the
+   next run (the shortfall is intentional); a pod-symptom card (`crashloop`, `oom`, …) still waits for every
+   replica. Pods that cannot create their container or mount a volume keep their `other.*` cause after the
+   rollout deadline. An incident, or a rollout (`deployment`), `config` or `resources` change, in the last 30 min is cited as
+   `gen:<n>` and in the summary, naming its first field other than discovery's synthetic `health`; "N min
+   after change" is measured to the incident's start (its earliest matched event), or to the run when no
+   event dates it; an incident job whose change exporter still lacks after the re-reads cites none rather
+   than an older one.
+   A `FailedScheduling` event whose pod has a node since, or no longer exists, is history. On a fully ready
+   workload, events of a pod that no longer exists or that precede its pod's current Ready state are
+   history too: they raise no card and do not block the resolve.
    A pod with a restarted container that has run for less than 60 s has not recovered yet: a crash loop's
    container is Ready for the seconds it runs between two back-offs, so its events still count.
 3. **First write**: the cards are merged and announced (`insight.created` / `insight.updated`); `lastRun`
@@ -179,8 +192,10 @@ dismissed card takes no place under the cap. They are never narrated: the templa
   appends one sample (max over instances) to `analyzer:usage` (≤ 48 per workload); the rules use the p95
   of at least `ANALYZER_USAGE_MIN_SAMPLES` samples over `ANALYZER_USAGE_MIN_SPAN_SEC`.
 - **Production**: an app is production when a namespace, or the environment of a protection plan that
-  covers it, matches `ANALYZER_PRODUCTION_PATTERN`; it raises `single_replica`/`no_pdb` to warning and
-  enables the protection and digest-pinning rules.
+  covers it, matches `ANALYZER_PRODUCTION_PATTERN`; that enables the protection rules. A workload is
+  judged by its own namespace and the environments of the covering plans whose scope reaches it: that
+  raises its `single_replica`/`no_pdb` to warning and enables digest pinning, so the dev namespace of an
+  app that also runs in prod is not treated as production.
 - **Lifecycle**: found → `open`; same facts → only `lastSeenAt` moves; new facts → `updated`; not found
   by a complete review, or about a namespace excluded since → `resolved` (kept 7 days); found again →
   reopened. Measurements that move with every sample (usage, samples, suggestion) refresh the text
@@ -236,8 +251,9 @@ the fit check, at most 3 insights per run and 4 evidence refs per insight.
 
 `GET …/runtime` reports one of `absent` (no Ollama at `OLLAMA_HOST`), `unreachable`, `model_missing`,
 `pulling` (with progress), `unsupported` (deep mode only: the model has no tool calling) or `ready`, plus
-`mode` (`fast` | `deep`) and `autoPull`. The state is re-checked every `ANALYZER_CONFIG_POLL_SEC` and pushed
-as `runtime.changed` (same fields); readiness never depends on it. Fast mode needs only an installed model:
+`mode` (`fast` | `deep`), `autoPull` and `enabled` (GlobalConfig `ai.enabled`, for users who may read insights
+but not the settings). The state is re-checked every `ANALYZER_CONFIG_POLL_SEC` and pushed as `runtime.changed`
+(same fields); readiness never depends on it. Fast mode needs only an installed model:
 `validate` answers `model_lacks_tools` in deep mode only.
 
 ## Modes
@@ -268,7 +284,8 @@ as `runtime.changed` (same fields); readiness never depends on it. Fast mode nee
 | Anything unexpected | `internal_error` |
 
 A `running` lastRun older than 540 s (crash mid-run) is shown as failed by the UI; the pending message is
-reclaimed with `XAUTOCLAIM` on restart.
+reclaimed with `XAUTOCLAIM` on restart. The consumers past pods leave in the group are removed once idle for
+an hour with nothing pending.
 
 ## Layout
 
@@ -356,7 +373,8 @@ and caps. Full reference:
 ## API
 
 Every route but the probes needs `X-Session-Token`; responses use the Go envelope
-`{status, operation, message, data}`.
+`{status, operation, message, data}`. A missing token, or one auth-service rejects (invalid or expired), is
+401; a suspended or deleted user, or a missing grant, is 403; auth-service unreachable is 503.
 
 | Method | Path | Access |
 |---|---|---|

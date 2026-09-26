@@ -218,6 +218,27 @@ def test_scheduling():
     assert (c.kind, c.severity) == ("scheduling", "warning")
 
 
+def test_failed_scheduling_of_a_placed_or_gone_pod_is_history():
+    # Live (e2e-i-probe): the pod waited for a slot, got a node and now fails readiness. The old FailedScheduling
+    # named 'nodes are full' as the cause on a workload that is not ready.
+    scheduling = _event("FailedScheduling", "0/2 nodes are available: 2 Too many pods.")
+    readiness = _event("Unhealthy", "Readiness probe failed: connection refused", count=16)
+    run = _run()
+    run.pods_cache[("shop", "deployment/api")] = [{"metadata": {"name": POD}, "spec": {"nodeName": "n1"}}]
+    c = _one([_status(desired=1, ready=0, pods=[_pod()])], [scheduling, readiness], run=run)
+    assert (c.kind, c.reason, c.severity) == ("probe_failure", "probe_failure.readiness", "critical")
+    assert _ref(scheduling) not in [e.ref for e in c.evidence]
+    # Its pod is gone: history too.
+    run = _run()
+    run.pods_cache[("shop", "deployment/api")] = []
+    assert _one([_status(desired=1, ready=0)], [scheduling], run=run).kind == "other"
+    # Still without a node: the scheduler's report stands.
+    run = _run()
+    run.pods_cache[("shop", "deployment/api")] = [{"metadata": {"name": POD}, "spec": {}}]
+    c = _one([_status(desired=1, ready=0, pods=[_pod(phase="Pending")])], [scheduling, readiness], run=run)
+    assert (c.kind, c.reason) == ("scheduling", "scheduling.too_many_pods")
+
+
 def test_resource_pressure():
     evicted = _event("Evicted", "The node was low on resource: memory.")
     c = _one(events=[evicted])
@@ -281,6 +302,27 @@ def test_rollout_stuck():
     assert (c.kind, c.reason) == ("other", "other.volume_mount")
 
 
+def test_paused_rollout_is_no_incident():
+    # Live (e2e-i-ops): paused from creation, 0/2 updated. It waits on purpose; the recommendation says so.
+    paused = {**_status(desired=2, updated=0, ready=0), "paused": True}
+    assert _eval([paused]) == []
+    # A symptom of its pods still is one.
+    crashing = {**_status(desired=2, updated=0, ready=0, pods=[_pod(restarts=3, waiting="CrashLoopBackOff",
+                                                                     last="Error", code=1)]), "paused": True}
+    assert _one([crashing]).kind == "crashloop"
+
+
+def test_total_outage_is_critical():
+    # Live (missingcm): a missing ConfigMap at 0 ready ranked below the other outages.
+    stuck = _pod(phase="Pending", waiting="CreateContainerConfigError")
+    c = _one([_status(desired=1, updated=1, ready=0, pods=[stuck])])
+    assert (c.kind, c.reason, c.severity) == ("other", "other.container_config_error", "critical")
+    assert c.title.startswith("api is down")
+    # Some replicas still serve, or none is wanted: the rule's own severity.
+    assert _one([_status(desired=2, ready=1, pods=[stuck])]).severity == "warning"
+    assert _eval([_status(desired=0, ready=0)]) == []
+
+
 def test_config_change_regression():
     change = _change(minutes_ago=10, changes=[
         {"field": "envVarKey", "changeType": "updated", "oldValue": "db-a", "newValue": "db-b"}], change_class="config",
@@ -341,6 +383,58 @@ def test_change_correlation_adds_gen_ref_and_fact():
     c = _one([_status(ready=1, pods=[pod])], changes=[_change(changes=[
         {"field": "env.X", "changeType": "added", "oldValue": None, "newValue": "1"}])])
     assert "10 min after change gen 42: env.X none→1" in c.facts
+
+
+def test_correlation_cites_the_cause_not_the_health_field():
+    # Live (L-2b): an incident entry leads with discovery's synthetic health field; the real change follows it.
+    pod = _pod(restarts=5, waiting="CrashLoopBackOff", last="Error", code=1)
+    health = {"field": "health", "changeType": "updated", "oldValue": "healthy", "newValue": "down"}
+    command = {"field": "command[2]", "changeType": "updated", "oldValue": "sleep 36000", "newValue": "exit 1"}
+    c = _one([_status(ready=1, pods=[pod])], changes=[_change(changes=[health, command])])
+    assert "10 min after change gen 42: command[2] sleep 36000→exit 1" in c.facts
+    assert c.params["change"] == "command[2] sleep 36000→exit 1" and "health" not in c.summary
+    # Only the health field: the generation alone.
+    c = _one([_status(ready=1, pods=[pod])], changes=[_change(changes=[health])])
+    assert "10 min after change gen 42" in c.facts and "change" not in c.params
+
+
+def test_correlation_measures_to_the_incident_start():
+    # Live (R3-insights-1): crasher broke 30 s after gen 5, a manual run 5 min later said "5 min after change".
+    pod = _pod(restarts=5, waiting="CrashLoopBackOff", last="Error", code=1)
+    first = datetime.fromtimestamp(NOW.timestamp() - 9 * 60, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    backoff = {**_event("BackOff", f"Back-off restarting failed container api in pod {POD}"), "first": first}
+    c = _one([_status(ready=1, pods=[pod])], [backoff], changes=[_change(minutes_ago=10)])
+    assert "It began 1 min after change gen 42" in c.summary
+    # The earliest matched event counts; one that predates the change reads as 0 min.
+    later = {**_event("BackOff", "Back-off restarting failed container api", count=2), "first": LAST}
+    c = _one([_status(ready=1, pods=[pod])], [later, backoff], changes=[_change(minutes_ago=10)])
+    assert "It began 1 min after change gen 42" in c.summary
+    c = _one([_status(ready=1, pods=[pod])], [backoff], changes=[_change(minutes_ago=1)])
+    assert "It began 0 min after change gen 42" in c.summary
+    # No dated symptom (a regression seen only in the replica count): the run's clock, as before.
+    c = _one([_status(desired=2, ready=1)], overview=DEGRADED, changes=[_change(minutes_ago=10, incident=False,
+                                                                                change_class="config")])
+    assert "It began 10 min after change gen 42" in c.summary
+
+
+def test_correlation_ignores_a_change_older_than_the_job():
+    # Live (L-8): exporter did not hold the triggering entry yet; the newest one was an earlier fix.
+    pod = _pod(restarts=5, waiting="CrashLoopBackOff", last="Error", code=1)
+    run = _run()
+    run.min_generation = 43
+    c = _one([_status(ready=1, pods=[pod])], changes=[_change()], run=run)
+    assert "gen:42" not in [e.ref for e in c.evidence] and "began" not in c.summary
+    run = _run()
+    run.min_generation = 42
+    assert "gen:42" in [e.ref for e in _one([_status(ready=1, pods=[pod])], changes=[_change()], run=run).evidence]
+
+
+def test_one_restart_is_singular():
+    c = _one([_status(ready=1, pods=[_pod(restarts=1, waiting="CrashLoopBackOff", last="Error", code=1)])])
+    assert c.summary.endswith("exits with code 1 (application error), 1 restart.")
+    liveness = _event("Unhealthy", "Liveness probe failed: connection refused", count=2)
+    c = _one([_status(ready=1, pods=[_pod(restarts=1, last="Completed", code=0)])], [liveness])
+    assert "was restarted 1 time:" in c.summary
 
 
 def test_healthy_app_no_candidates():

@@ -47,17 +47,24 @@ from config import (
 )
 from constants import (
     API_HOST,
+    APP_CATCHUP_ATTEMPTS,
+    APP_CATCHUP_INTERVAL_S,
     APP_KEY_SEPARATOR,
     CLAIM_COUNT,
     CLAIM_INTERVAL_S,
     CLAIM_MIN_IDLE_MS,
+    CONSUMER_FIELD_IDLE,
+    CONSUMER_FIELD_NAME,
+    CONSUMER_FIELD_PENDING,
     CONSUMER_GROUP,
+    CONSUMER_MAX_IDLE_MS,
     EVENT_ANALYSIS_FAILED,
     EVENT_ANALYSIS_FINISHED,
     EVENT_ANALYSIS_STARTED,
     EVENT_INSIGHT_CREATED,
     EVENT_INSIGHT_RESOLVED,
     EVENT_INSIGHT_UPDATED,
+    EVENT_REVIEW_FINISHED,
     FAMILIES_SEPARATOR,
     FAMILY_EVENTS,
     FIELD_GENERATION,
@@ -197,12 +204,8 @@ async def _fail(state, job: Job, running: LastRun, code: str, steps: int = 0, to
     _publish(state, EVENT_ANALYSIS_FAILED, job, version=doc.version, runId=running.runId, error=code)
 
 
-def _publish_cards(state, job: Job, doc: AppInsights, batches: tuple[tuple[str, list[str]], ...]) -> None:
-    _publish_app_cards(state, job.namespace, job.name, doc, batches)
-
-
-def _publish_app_cards(state, namespace: str, name: str, doc: AppInsights,
-                       batches: tuple[tuple[str, list[str]], ...]) -> None:
+def _publish_cards(state, namespace: str, name: str, doc: AppInsights,
+                   batches: tuple[tuple[str, list[str]], ...]) -> None:
     status = {card.id: card.status for card in doc.insights}
     for event, ids in batches:
         for iid in ids:
@@ -219,9 +222,9 @@ def _finished(state, job: Job, doc: AppInsights, run_id: str, stats: MergeStats,
 
 def _announce(state, job: Job, doc: AppInsights, run_id: str, stats: MergeStats, resolved: list[str],
               truncated: bool) -> None:
-    _publish_cards(state, job, doc, ((EVENT_INSIGHT_CREATED, stats.created),
-                                     (EVENT_INSIGHT_UPDATED, stats.updated + stats.reopened),
-                                     (EVENT_INSIGHT_RESOLVED, resolved)))
+    _publish_cards(state, job.namespace, job.name, doc, ((EVENT_INSIGHT_CREATED, stats.created),
+                                                         (EVENT_INSIGHT_UPDATED, stats.updated + stats.reopened),
+                                                         (EVENT_INSIGHT_RESOLVED, resolved)))
     _finished(state, job, doc, run_id, stats, resolved, truncated)
 
 
@@ -242,8 +245,8 @@ async def _run_fast(state, job: Job, running: LastRun, cfg: AnalyzerConfig, run:
         stamp_run(doc, running.model_copy())
 
     doc = await _write(state, job, cards)
-    _publish_cards(state, job, doc, ((EVENT_INSIGHT_CREATED, stats.created),
-                                     (EVENT_INSIGHT_UPDATED, stats.updated + stats.reopened)))
+    _publish_cards(state, job.namespace, job.name, doc, ((EVENT_INSIGHT_CREATED, stats.created),
+                                                         (EVENT_INSIGHT_UPDATED, stats.updated + stats.reopened)))
 
     narrate_start = time.monotonic()
     texts: list[tuple[str, str]] = []
@@ -274,7 +277,8 @@ async def _run_fast(state, job: Job, running: LastRun, cfg: AnalyzerConfig, run:
             truncated=run.truncated)))
 
     doc = await _write(state, job, finish)
-    _publish_cards(state, job, doc, ((EVENT_INSIGHT_UPDATED, rewritten), (EVENT_INSIGHT_RESOLVED, resolved)))
+    _publish_cards(state, job.namespace, job.name, doc, ((EVENT_INSIGHT_UPDATED, rewritten),
+                                                         (EVENT_INSIGHT_RESOLVED, resolved)))
     _finished(state, job, doc, running.runId, stats, resolved, run.truncated)
     logger.info(LOG_RUN_TIMINGS, running.runId, timings[TIMING_GATHER], timings[TIMING_RULES], narrate_s,
                 time.monotonic() - start, bool(rewritten), reason)
@@ -303,9 +307,11 @@ async def review_app(state, namespace: str, name: str, app: dict, run: Run, revi
     generation = (app.get("history") or {}).get(FIELD_GENERATION) or 0
     await state.redis.hset(REVIEW_KEY, app_ref(namespace, name),
                            REVIEW_RECORD_TEMPLATE.format(generation=generation, epoch=int(time.time())))
-    _publish_app_cards(state, namespace, name, doc, ((EVENT_INSIGHT_CREATED, stats.created),
-                                                     (EVENT_INSIGHT_UPDATED, stats.updated + stats.reopened),
-                                                     (EVENT_INSIGHT_RESOLVED, stats.resolved)))
+    _publish_cards(state, namespace, name, doc, ((EVENT_INSIGHT_CREATED, stats.created),
+                                                 (EVENT_INSIGHT_UPDATED, stats.updated + stats.reopened),
+                                                 (EVENT_INSIGHT_RESOLVED, stats.resolved)))
+    # The write always bumps the version (lastReviewAt), even when no card changed: announce it.
+    state.broadcaster.publish(EVENT_REVIEW_FINISHED, app_ref(namespace, name), dict(version=doc.version))
     # The review id and counts only: never a namespace, a name or a finding.
     expected = REVIEW_FAMILIES if in_run else REVIEW_FAMILIES - {FAMILY_EVENTS}
     logger.info(LOG_REVIEW, review_id, inputs.gets, len(findings), time.monotonic() - start,
@@ -323,16 +329,30 @@ async def _review_after_run(state, job: Job, app: dict, run: Run, run_id: str) -
         logger.warning(LOG_REVIEW_FAILED, type(e).__name__)
 
 
-async def _run(state, job: Job, running: LastRun, cfg: AnalyzerConfig) -> str:
+async def _get_app(state, name: str, generation: int, sleep: Sleep) -> dict:
+    """The Application, re-read (bounded) until its history reaches `generation`; {} when gone."""
     try:
-        app = await exporter.get_application(state.exporter_client, job.name)
+        app = await exporter.get_application(state.exporter_client, name)
+        for _ in range(APP_CATCHUP_ATTEMPTS - 1):
+            if ((app.get("history") or {}).get(FIELD_GENERATION) or 0) >= generation:
+                break
+            await sleep(APP_CATCHUP_INTERVAL_S)
+            app = await exporter.get_application(state.exporter_client, name)
+        return app
     except AppNotFound:
-        app = {}
+        return {}
+
+
+async def _run(state, job: Job, running: LastRun, cfg: AnalyzerConfig, sleep: Sleep) -> str:
+    # Only an incident job names the change that triggered it; a manual one carries whatever the app held.
+    generation = job.generation if job.trigger == TRIGGER_INCIDENT else 0
+    app = await _get_app(state, job.name, generation, sleep)
     if primary_namespace(app) != job.namespace or job.namespace in cfg.excludedNamespaces:
         await state.store.delete(job.namespace, job.name)
         _publish(state, EVENT_ANALYSIS_FAILED, job, version=0, runId=running.runId, error=RUN_ERROR_APP_NOT_FOUND)
         return RUN_ERROR_APP_NOT_FOUND
-    run = Run(job.namespace, job.name, app, cfg.excludedNamespaces)
+    # Still behind after the re-reads: the rules then cite no change rather than an older one.
+    run = Run(job.namespace, job.name, app, cfg.excludedNamespaces, generation)
 
     def start(doc: AppInsights) -> None:
         if doc.lastRun.runId == running.runId:
@@ -410,7 +430,7 @@ async def execute(state, job: Job, run_id: str, cfg: AnalyzerConfig, sleep: Slee
     running = LastRun(status=RUN_STATUS_RUNNING, trigger=job.trigger, runId=run_id, model=cfg.model,
                       startedAt=now_rfc3339())
     try:
-        return await _run(state, job, running, cfg)
+        return await _run(state, job, running, cfg, sleep)
     except (RedisError, ExporterUnavailable) as e:
         logger.warning(LOG_RUN_FAILED, RUN_ERROR_STORAGE_UNAVAILABLE, type(e).__name__)
         await _fail(state, job, running, RUN_ERROR_STORAGE_UNAVAILABLE)
@@ -471,6 +491,14 @@ async def _ensure_group(r, sleep: Sleep) -> None:
             await sleep(WORKER_BACKOFF_S)
 
 
+async def _drop_dead_consumers(r, live: str) -> None:
+    """Forget the consumers past pods left in the group: nothing pending, idle past CONSUMER_MAX_IDLE_MS."""
+    for c in await r.xinfo_consumers(STREAM_JOBS, CONSUMER_GROUP):
+        name = c[CONSUMER_FIELD_NAME]
+        if name != live and not c[CONSUMER_FIELD_PENDING] and c[CONSUMER_FIELD_IDLE] > CONSUMER_MAX_IDLE_MS:
+            await r.xgroup_delconsumer(STREAM_JOBS, CONSUMER_GROUP, name)
+
+
 async def worker_loop(
     state, sleep: Sleep = asyncio.sleep, clock_ms: Callable[[], int] = _now_ms, consumer: str | None = None
 ) -> None:
@@ -492,6 +520,7 @@ async def worker_loop(
                 reply = await r.xautoclaim(STREAM_JOBS, CONSUMER_GROUP, consumer,
                                            min_idle_time=CLAIM_MIN_IDLE_MS, count=CLAIM_COUNT)
                 await _handle_batch(state, reply[1], cfg, clock_ms, sleep)
+                await _drop_dead_consumers(r, consumer)
             for _stream, entries in await r.xreadgroup(CONSUMER_GROUP, consumer, {STREAM_JOBS: STREAM_NEW_MESSAGES},
                                                        count=READ_COUNT, block=READ_BLOCK_MS):
                 await _handle_batch(state, entries, cfg, clock_ms, sleep)
@@ -603,6 +632,7 @@ async def config_poll(state, sleep: Sleep = asyncio.sleep) -> None:
         try:
             await exporter.refresh(state.exporter_client)
             cfg = exporter.current()
+            state.runtime.set_enabled(cfg.enabled)
             await state.runtime.check(cfg.model)
             if cfg.enabled:
                 state.runtime.ensure_model(cfg.model)

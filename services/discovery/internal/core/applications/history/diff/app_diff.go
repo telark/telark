@@ -2,8 +2,12 @@ package diff
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -26,6 +30,49 @@ type DiffOptions struct {
 	DeleteSnapshot       snapshot.DeleteSnapshotFn
 	FromCoalescingFlush  bool
 	FromForceSync        bool
+	Rollback             *RollbackMarker
+}
+
+// RollbackMarker is what the rollback controller stores under rollback:applying:<app>
+// while it applies a snapshot; the flush that sees its writes records them as that rollback.
+type RollbackMarker struct {
+	ID               string `json:"id"`
+	TargetGeneration int    `json:"targetGeneration"`
+	TargetSnapshotID string `json:"targetSnapshotId"`
+	TriggeredBy      string `json:"triggeredBy"`
+}
+
+func RollbackFingerprint(rollbackID string) string {
+	sum := sha256.Sum256([]byte(rollbackID))
+	return hex.EncodeToString(sum[:])[:constants.RollbackFingerprintLen]
+}
+
+func rollbackOf(diffOpts *DiffOptions) *RollbackMarker {
+	if diffOpts == nil {
+		return nil
+	}
+	return diffOpts.Rollback
+}
+
+// The controller records its entry before the flush sees the restored objects; the
+// flush completes that entry with the changes and their pre-image instead of opening
+// another generation, so a rollback stays one entry that can itself be undone.
+func rollbackEntryToAmend(stored *application.Application, marker *RollbackMarker) *application.ChangeLogEntry {
+	if stored == nil || marker == nil {
+		return nil
+	}
+	last := LastChangeLogEntry(stored.History)
+	if last == nil || last.Generation != stored.History.Generation || last.Fingerprint != RollbackFingerprint(marker.ID) {
+		return nil
+	}
+	return last
+}
+
+func NextGeneration(stored *application.Application, marker *RollbackMarker) int {
+	if rollbackEntryToAmend(stored, marker) != nil {
+		return stored.History.Generation
+	}
+	return CurrentGenerationOrDefault(stored) + constants.DefaultAddValue
 }
 
 // Outcome tells the publisher what the diff did. Deferred means the diff saw
@@ -70,8 +117,10 @@ type snapshotEnsureArgs struct {
 	fresh          *application.Application
 	prev           []application.ApplicationSnapshot
 	nextGen        int
-	changeClass    string
+	class          string
 	severity       string
+	fingerprint    string
+	healthOnly     bool
 	diffOpts       *DiffOptions
 	lg             interface{ Error(string) }
 }
@@ -81,14 +130,7 @@ func ensureSnapshotForGeneration(ctx context.Context, a snapshotEnsureArgs) ([]a
 		a.diffOpts.PrewrittenGeneration == a.nextGen &&
 		len(a.diffOpts.PrewrittenSnapshots) > constants.DefaultInitValue
 	if prewritten {
-		merged := snapshot.MergeSnapshots(a.prev, a.diffOpts.PrewrittenSnapshots, snapshot.MaxSnapshots())
-		snapshot.DiscardSnapshots(snapshot.Pruned(a.prev, merged), a.diffOpts.DeleteSnapshot)
-		if !hasValidSnapshotForGeneration(merged, a.nextGen) {
-			a.lg.Error(fmt.Sprintf(string(constants.ErrSnapshotWriteFailedAbortCRD),
-				a.fresh.Name, "prewritten snapshot missing or invalid"))
-			return a.prev, false
-		}
-		return merged, true
+		return mergePrewrittenSnapshots(a)
 	}
 	if snapshot.HasSnapshotGeneration(a.prev, a.nextGen) {
 		return a.prev, true
@@ -96,8 +138,15 @@ func ensureSnapshotForGeneration(ctx context.Context, a snapshotEnsureArgs) ([]a
 	if coalesceBufferPending(ctx, a.rdb, a.fresh.Name) {
 		return a.prev, false
 	}
+	if a.healthOnly {
+		return liveSnapshotForGeneration(ctx, a, fmt.Sprintf(string(constants.InfoHistoryHealthOnlyLiveSnapshot), a.fresh.Name))
+	}
 	if a.diffOpts == nil {
-		return a.prev, false
+		ticks, exhausted := deferralExhausted(ctx, a.rdb, a.fresh.Name, a.fingerprint)
+		if !exhausted {
+			return a.prev, false
+		}
+		return liveSnapshotForGeneration(ctx, a, fmt.Sprintf(string(constants.InfoHistoryDeferredConverged), a.fresh.Name, ticks))
 	}
 	if a.diffOpts.FromCoalescingFlush {
 		return a.prev, false
@@ -116,6 +165,73 @@ func ensureSnapshotForGeneration(ctx context.Context, a snapshotEnsureArgs) ([]a
 	a.lg.Error(fmt.Sprintf(string(constants.ErrSnapshotWriteFailedAbortCRD),
 		a.fresh.Name, "no informer-captured oldObject available for pre-update snapshot"))
 	return a.prev, false
+}
+
+// Written before the change was classified: stamped here so the snapshot chip matches the entry.
+func mergePrewrittenSnapshots(a snapshotEnsureArgs) ([]application.ApplicationSnapshot, bool) {
+	stamped := slices.Clone(a.diffOpts.PrewrittenSnapshots)
+	for i := range stamped {
+		stamped[i].ChangeClass, stamped[i].Severity = a.class, a.severity
+	}
+	merged := snapshot.MergeSnapshots(a.prev, stamped, snapshot.MaxSnapshots())
+	snapshot.DiscardSnapshots(snapshot.Pruned(a.prev, merged), a.diffOpts.DeleteSnapshot)
+	if !hasValidSnapshotForGeneration(merged, a.nextGen) {
+		a.lg.Error(fmt.Sprintf(string(constants.ErrSnapshotWriteFailedAbortCRD),
+			a.fresh.Name, "prewritten snapshot missing or invalid"))
+		return a.prev, false
+	}
+	return merged, true
+}
+
+// The flush that would author a change seen without a pre-image never comes for a
+// resource that joined while discovery was down; after this many consecutive ticks
+// with the same change set the live state is recorded instead of a stale CR forever.
+func deferralExhausted(ctx context.Context, rdb *redis.Client, appName, fingerprint string) (int, bool) {
+	if ctx == nil || rdb == nil || appName == constants.EmptyString {
+		return constants.DefaultInitValue, false
+	}
+	key := constants.KeyPrefixHistoryDeferred + appName
+	ticks := constants.DefaultAddValue
+	prev, _ := rdb.Get(ctx, key).Result()
+	if fp, n, ok := strings.Cut(prev, constants.ColonSeparator); ok && fp == fingerprint {
+		if parsed, err := strconv.Atoi(n); err == nil {
+			ticks = parsed + constants.DefaultAddValue
+		}
+	}
+	if ticks >= constants.HistoryDeferredMaxTicks {
+		_ = rdb.Del(ctx, key).Err()
+		return ticks, true
+	}
+	_ = rdb.Set(ctx, key, fingerprint+constants.ColonSeparator+strconv.Itoa(ticks), constants.HistoryDeferredTTL).Err()
+	return ticks, false
+}
+
+// A health transition leaves the manifests as recorded, so the live objects are the
+// honest pre-image; deferring it to a flush that never comes kept recovered apps down.
+func liveSnapshotForGeneration(ctx context.Context, a snapshotEnsureArgs, logged string) ([]application.ApplicationSnapshot, bool) {
+	lockKey, acquired := AcquireGenProcessingLock(ctx, a.rdb, a.fresh.Name, a.nextGen)
+	if !acquired {
+		return a.prev, false
+	}
+	defer ReleaseGenProcessingLock(a.rdb, lockKey)
+	snaps, err := snapshot.BuildSnapshotEntriesStrict(
+		ctx, a.createSnapshot, a.fresh, a.nextGen, a.class, a.severity, time.Now().UTC(),
+	)
+	if err != nil {
+		a.lg.Error(fmt.Sprintf(string(constants.ErrSnapshotWriteFailedAbortCRD), a.fresh.Name, err))
+		return a.prev, false
+	}
+	merged := snapshot.MergeSnapshots(a.prev, snaps, snapshot.MaxSnapshots())
+	snapshot.DiscardSnapshots(snapshot.Pruned(a.prev, merged), deleteSnapshotFn(a.diffOpts))
+	constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Info(logged)
+	return merged, hasValidSnapshotForGeneration(merged, a.nextGen)
+}
+
+func healthOnlyChanges(appChanges []application.ApplicationChange) bool {
+	return len(appChanges) > constants.DefaultInitValue &&
+		!slices.ContainsFunc(appChanges, func(c application.ApplicationChange) bool {
+			return c.Field != changes.ChangeFieldHealth
+		})
 }
 
 func NewApplicationHistory() application.ApplicationHistory {
@@ -154,7 +270,7 @@ func DiffApplications(
 	diffOpts *DiffOptions,
 ) (application.ApplicationHistory, []application.ApplicationSnapshot, Outcome) {
 	if stored == nil {
-		return newAppWithBaselineSnapshot(ctx, createSnapshot, fresh)
+		return newAppWithBaselineSnapshot(ctx, createSnapshot, rdb, fresh)
 	}
 	stored = seedBaselineFromPreImage(ctx, getSnapshotManifest, stored, diffOpts)
 	appChanges := changes.CollectChanges(stored, &fresh)
@@ -247,7 +363,9 @@ func handleChange(
 		lg.Warn(fmt.Sprintf(string(constants.WarnSnapshotClassOrSeverityMissing), fresh.Name))
 	}
 
-	nextGen := CurrentGenerationOrDefault(stored) + constants.DefaultAddValue
+	marker := rollbackOf(diffOpts)
+	nextGen := NextGeneration(stored, marker)
+	entryClass, entrySeverity := entryClassAndSeverity(filtered, marker)
 	prev := snapshotsNoChange(stored)
 	prev, ok := ensureSnapshotForGeneration(ctx, snapshotEnsureArgs{
 		createSnapshot: createSnapshot,
@@ -255,8 +373,10 @@ func handleChange(
 		fresh:          fresh,
 		prev:           prev,
 		nextGen:        nextGen,
-		changeClass:    class,
-		severity:       severity,
+		class:          entryClass,
+		severity:       entrySeverity,
+		fingerprint:    changes.ComputeFingerprint(filtered),
+		healthOnly:     healthOnlyChanges(filtered),
 		diffOpts:       diffOpts,
 		lg:             lg,
 	})
@@ -268,9 +388,23 @@ func handleChange(
 		return noChangeHistory(stored), snapshotsNoChange(stored), outcome
 	}
 
-	h := changeHistory(stored, *fresh, filtered, detectedAtOverride)
-	gate.PersistRedisState(ctx, rdb, fresh.Name, LastChangeLogEntry(h))
+	h := changeHistory(stored, *fresh, filtered, changeEntryArgs{
+		nextGen: nextGen, class: entryClass, severity: entrySeverity, detectedAtOverride: detectedAtOverride, diffOpts: diffOpts,
+	})
+	// From this flush's changes alone: an amended rollback entry carries flags of its own.
+	gate.PersistRedisState(ctx, rdb, fresh.Name, &application.ChangeLogEntry{
+		IsIncident: changes.DetectIncident(filtered, class),
+		IsRecovery: changes.DetectRecovery(filtered),
+	})
 	return h, prev, OutcomeAuthored
+}
+
+func entryClassAndSeverity(appChanges []application.ApplicationChange, marker *RollbackMarker) (class, severity string) {
+	if marker != nil {
+		return constants.RollbackChangeClass, constants.RollbackSeverityLow
+	}
+	class = changes.ClassifyChanges(appChanges)
+	return class, changes.DetermineSeverity(class, appChanges)
 }
 
 func CurrentGenerationOrDefault(stored *application.Application) int {
@@ -348,6 +482,11 @@ func shouldBackfillNoChangeSnapshot(
 	if stored == nil || snapshot.HasSnapshotGeneration(snaps, generation) {
 		return false
 	}
+	// A rollback's pre-image is the flush's to write: live already holds the restored state.
+	if last := LastChangeLogEntry(stored.History); last != nil &&
+		last.Generation == generation && last.ChangeClass == constants.RollbackChangeClass {
+		return false
+	}
 	return hasChangeLogForGeneration(stored.History.ChangeLog, generation)
 }
 
@@ -369,48 +508,78 @@ func noChangeHistory(stored *application.Application) application.ApplicationHis
 	}
 }
 
+type changeEntryArgs struct {
+	nextGen            int
+	class              string
+	severity           string
+	detectedAtOverride *time.Time
+	diffOpts           *DiffOptions
+}
+
 func changeHistory(
 	stored *application.Application,
 	fresh application.Application,
 	appChanges []application.ApplicationChange,
-	detectedAtOverride *time.Time,
+	a changeEntryArgs,
 ) application.ApplicationHistory {
-	g := stored.History.Generation
-	if g == constants.DefaultInitValue {
-		g = constants.DefaultAddValue
+	marker := rollbackOf(a.diffOpts)
+	lastModifiedAt, changedBy := fresh.History.LastModifiedAt, fresh.History.LastModifiedBy
+	if !annotationCoversChange(appChanges, a.diffOpts) {
+		lastModifiedAt, changedBy = constants.EmptyString, constants.EmptyString
 	}
-	nextGen := g + constants.DefaultAddValue
-
-	detectedAtTime := resolveDetectedAtTime(fresh.History.LastModifiedAt, detectedAtOverride)
-	class := changes.ClassifyChanges(appChanges)
-
-	existingLog := stored.History.ChangeLog
-	if existingLog == nil {
-		existingLog = []application.ChangeLogEntry{}
-	}
-
-	severity := changes.DetermineSeverity(class, appChanges)
 	entry := application.ChangeLogEntry{
-		Generation:  nextGen,
-		DetectedAt:  utils.FormatAppTime(detectedAtTime),
-		ChangeClass: class,
-		Severity:    severity,
-		ChangedBy:   fresh.History.LastModifiedBy,
+		Generation:  a.nextGen,
+		DetectedAt:  utils.FormatAppTime(resolveDetectedAtTime(lastModifiedAt, a.detectedAtOverride)),
+		ChangeClass: a.class,
+		Severity:    a.severity,
+		ChangedBy:   changedBy,
 		Fingerprint: changes.ComputeFingerprint(appChanges),
-		IsIncident:  changes.DetectIncident(appChanges, class),
+		IsIncident:  changes.DetectIncident(appChanges, a.class),
 		IsRecovery:  changes.DetectRecovery(appChanges),
 		Changes:     appChanges,
 	}
-	newLog := make([]application.ChangeLogEntry, len(existingLog)+constants.DefaultAddValue)
-	copy(newLog, existingLog)
-	newLog[len(existingLog)] = entry
+	if marker != nil {
+		entry.ChangedBy = marker.TriggeredBy
+	}
+	newLog := slices.Clone(stored.History.ChangeLog)
+	if amend := rollbackEntryToAmend(stored, marker); amend != nil {
+		entry = amendRollbackEntry(*amend, entry)
+		newLog = newLog[:len(newLog)-constants.DefaultAddValue]
+	}
+	newLog = append(newLog, entry)
 	return application.ApplicationHistory{
-		Generation:     nextGen,
+		Generation:     a.nextGen,
 		HasDrift:       hasDriftFromChangeLog(newLog),
 		LastModifiedBy: fresh.History.LastModifiedBy,
 		LastModifiedAt: fresh.History.LastModifiedAt,
 		ChangeLog:      newLog,
 	}
+}
+
+// The controller's entry keeps its time, author and fingerprint (a later flush in the
+// same rollback finds it again); the flush adds what the restore changed.
+func amendRollbackEntry(existing, flushed application.ChangeLogEntry) application.ChangeLogEntry {
+	existing.Changes = append(slices.Clone(existing.Changes), flushed.Changes...)
+	existing.IsIncident = existing.IsIncident || flushed.IsIncident
+	existing.IsRecovery = existing.IsRecovery || flushed.IsRecovery
+	return existing
+}
+
+// The last-modified annotation names a change only when the flush saw it land with the
+// write: a readiness move is nobody's write, a tick-authored change has no write to
+// look at, and a /scale write leaves the annotation as it was.
+func annotationCoversChange(appChanges []application.ApplicationChange, diffOpts *DiffOptions) bool {
+	if diffOpts == nil || healthOnlyChanges(appChanges) {
+		return false
+	}
+	return !slices.ContainsFunc(diffOpts.ManifestPairs, unannotatedWrite)
+}
+
+func unannotatedWrite(p manifestdiff.ManifestPair) bool {
+	if p.Old == nil || p.New == nil || manifestdiff.Fingerprint(p.Old) == manifestdiff.Fingerprint(p.New) {
+		return false
+	}
+	return p.Old.GetAnnotations()[constants.AnnotationLastModifiedAt] == p.New.GetAnnotations()[constants.AnnotationLastModifiedAt]
 }
 
 func resolveDetectedAtTime(lastModifiedAt string, override *time.Time) time.Time {
@@ -487,8 +656,10 @@ func normalizeApplicationChangeDescriptions(appChanges []application.Application
 func newAppWithBaselineSnapshot(
 	ctx context.Context,
 	createSnapshot func(id string, scope string, namespace string, generation int, manifest any) (string, error),
+	rdb *redis.Client,
 	fresh application.Application,
 ) (application.ApplicationHistory, []application.ApplicationSnapshot, Outcome) {
+	forgetPreviousIncarnation(ctx, rdb, fresh.Name)
 	h := NewApplicationHistory()
 	takenAt := time.Now().UTC()
 	baseline := snapshot.BuildSnapshotEntries(
@@ -502,4 +673,19 @@ func newAppWithBaselineSnapshot(
 	)
 	merged := snapshot.MergeSnapshots([]application.ApplicationSnapshot{}, baseline, snapshot.MaxSnapshots())
 	return h, merged, OutcomeAuthored
+}
+
+// A CR deleted behind discovery (an exporter DELETE) leaves the floor, incident state
+// and recorded fingerprints of the old incarnation; a generation-1 app inherits none.
+func forgetPreviousIncarnation(ctx context.Context, rdb *redis.Client, appName string) {
+	if ctx == nil || rdb == nil || appName == constants.EmptyString {
+		return
+	}
+	_ = rdb.Del(ctx,
+		constants.KeyPrefixHistoryFloor+appName,
+		constants.KeyPrefixIncidentState+appName,
+		constants.KeyPrefixHistoryRecorded+appName,
+		constants.KeyPrefixHistoryPost+appName,
+		constants.KeyPrefixHistoryDeferred+appName,
+	).Err()
 }

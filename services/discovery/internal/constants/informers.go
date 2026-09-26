@@ -60,8 +60,15 @@ const (
 	InformerFlushMaxRetryDelay       = 5 * time.Minute
 	InformerFlushRetryJitterFraction = 0.2
 	// Outlives a pod restart so a captured oldObject is flushed by the next leader.
-	CoalesceBufferPersistTTL        = 5 * time.Minute
+	CoalesceBufferPersistTTL = 5 * time.Minute
+	// A change the tick sees without an informer pre-image (a resource that joined while
+	// discovery was down) waits this many consecutive ticks for the flush before it is
+	// recorded against the live state; the value is "<fingerprint>:<ticks>".
+	KeyPrefixHistoryDeferred        = "history:deferred:"
+	HistoryDeferredTTL              = 10 * time.Minute
+	HistoryDeferredMaxTicks         = 2
 	InformerNsGVRDelim              = "\x00"
+	InformerAppIndex                = "app"
 	MaxInformerResyncJitterFraction = 0.5
 )
 

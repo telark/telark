@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/telark/auth/internal/constants"
 	cleanuphandler "github.com/telark/auth/internal/handlers/cleanup"
+	"github.com/telark/auth/internal/tests/testutil"
 	"github.com/telark/rest/base"
 	restconstants "github.com/telark/rest/constants"
 	autheps "github.com/telark/rest/endpoints/auth"
@@ -30,4 +32,46 @@ func TestDeleteUserCleanupReadsIDFromRoute(t *testing.T) {
 	if rec.Code == http.StatusBadRequest {
 		t.Fatalf("id path parameter not read: %d %s", rec.Code, rec.Body.String())
 	}
+}
+
+func deleteRoleCleanup(t *testing.T, exporterStatus int, exporterBody string) (int, string) {
+	t.Helper()
+	testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(exporterStatus)
+		_, _ = w.Write([]byte(exporterBody))
+	}))
+	endpoint := autheps.DeleteRoleCleanup
+	mux := router.NewRouter([]router.Route{
+		router.CreateRoute(base.Delete, endpoint, cleanuphandler.DeleteRole),
+	})
+	path := strings.Replace(router.Pattern(endpoint), restconstants.IDParam, "r-1", constants.DefaultIncrementValue)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, path, nil))
+
+	var body struct {
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("response is not JSON: %v: %s", err, rec.Body.String())
+	}
+	return rec.Code, body.Message
+}
+
+// A refused delete reaches the caller with the exporter's own message, not the
+// rest client's "HTTP 403: {...}" wrapper around the raw body.
+func TestDeleteCleanupForwardsExporterMessage(t *testing.T) {
+	const protected = "this role is protected and cannot be deleted"
+	code, msg := deleteRoleCleanup(t, http.StatusForbidden,
+		`{"status":403,"operation":"Forbidden","message":"`+protected+`"}`)
+	testutil.Equal(t, "status", code, http.StatusForbidden)
+	testutil.Equal(t, "message", msg, protected)
+}
+
+// Nothing is left to clean for an object the exporter no longer has, so the
+// caller learns that instead of a "deletion scheduled" for a job bound to fail.
+func TestDeleteCleanupAnswersNotFoundWhenGone(t *testing.T) {
+	const gone = "role not found"
+	code, msg := deleteRoleCleanup(t, http.StatusNotFound, `{"status":404,"message":"`+gone+`"}`)
+	testutil.Equal(t, "status", code, http.StatusNotFound)
+	testutil.Equal(t, "message", msg, gone)
 }

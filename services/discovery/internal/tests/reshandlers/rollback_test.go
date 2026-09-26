@@ -1,7 +1,6 @@
 package reshandlers
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -66,7 +65,7 @@ func TestTriggerRollbackRejectsSecondHolder(t *testing.T) {
 	t.Cleanup(func() { _ = rdb.Close() })
 	bundle := coordination.NewCoordinationBundle(rdb, replicaID, config.LoadCoordinationConfig())
 	applications.SetCoordinationBundle(bundle, replicaID)
-	t.Cleanup(func() { applications.SetCoordinationBundle(nil, "") })
+	t.Cleanup(func() { applications.SetCoordinationBundle(nil, constants.EmptyString) })
 	ctx := context.Background()
 	key := constants.KeyPrefixLockRollback + shopApp
 
@@ -90,7 +89,7 @@ func TestTriggerRollbackRejectsSecondHolder(t *testing.T) {
 // the serialization: a trigger parked mid-request holds the app and a second
 // one is refused with 409 until the first finishes.
 func TestTriggerRollbackWithoutBundleSerializesPerProcess(t *testing.T) {
-	applications.SetCoordinationBundle(nil, "")
+	applications.SetCoordinationBundle(nil, constants.EmptyString)
 	body := &blockingBody{reached: make(chan struct{}), release: make(chan struct{})}
 	done := make(chan int)
 	go func() { done <- triggerRollbackWithBody("cart", body).Code }()
@@ -110,45 +109,68 @@ func TestTriggerRollbackRedisDownIs503(t *testing.T) {
 	t.Cleanup(func() { _ = rdb.Close() })
 	bundle := coordination.NewCoordinationBundle(rdb, replicaID, config.LoadCoordinationConfig())
 	applications.SetCoordinationBundle(bundle, replicaID)
-	t.Cleanup(func() { applications.SetCoordinationBundle(nil, "") })
+	t.Cleanup(func() { applications.SetCoordinationBundle(nil, constants.EmptyString) })
 	mr.Close()
 
 	testutil.Equal(t, "trigger with redis down", triggerRollback(shopApp).Code, http.StatusServiceUnavailable)
 }
 
-func triggerRollbackTo(name string, gen int) *httptest.ResponseRecorder {
-	body := fmt.Sprintf(`{"snapshotGeneration":%d,"triggeredBy":"tester"}`, gen)
-	return triggerRollbackWithBody(name, strings.NewReader(body))
+const (
+	callerID  = "u-caller"
+	spoofedID = "u-spoofed"
+)
+
+type patchedRollbacks struct {
+	Rollbacks []applicationmodel.RollbackEntry `json:"rollbacks"`
+}
+
+type patchedApplication struct {
+	Spec patchedRollbacks `json:"spec"`
+}
+
+func triggerRollbackTo(gen int) *httptest.ResponseRecorder {
+	return triggerRollbackAs(shopApp, gen, callerID)
+}
+
+// The body still carries triggeredBy, as older clients send it; the handler must ignore it.
+func triggerRollbackAs(name string, gen int, userID string) *httptest.ResponseRecorder {
+	body := fmt.Sprintf(`{"snapshotGeneration":%d,"triggeredBy":%q}`, gen, spoofedID)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+	if userID != constants.EmptyString {
+		req.Header.Set(constants.HeaderUserID, userID)
+	}
+	applications.TriggerRollback(rec, mux.SetURLVars(req, map[string]string{constants.NameParam: name}))
+	return rec
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
-// The exporter host is a fixed cluster DNS name, so the stored application is
-// served by swapping the default transport the rest client dials through.
-func stubStoredApplication(t *testing.T, app applicationmodel.Application) {
+// Serves the stored application for every exporter call and hands back the
+// bodies the handler patched, so a test can read what it wrote.
+func stubStoredApplication(t *testing.T, app applicationmodel.Application) *[][]byte {
 	t.Helper()
-	body, err := json.Marshal(map[string]any{"status": http.StatusOK, "data": app})
-	if err != nil {
-		t.Fatal(err)
-	}
-	prev := http.DefaultTransport
-	http.DefaultTransport = roundTripFunc(func(*http.Request) (*http.Response, error) {
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Header:     http.Header{},
-			Body:       io.NopCloser(bytes.NewReader(body)),
-		}, nil
+	patches := &[][]byte{}
+	stubExporter(t, func(r *http.Request) *http.Response {
+		if r.Body != nil && r.Method != http.MethodGet {
+			raw, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			*patches = append(*patches, raw)
+		}
+		return jsonResponse(t, http.StatusOK, storedAnswer(t, app))
 	})
-	t.Cleanup(func() { http.DefaultTransport = prev })
+	return patches
 }
 
 // The snapshot stamped with the current generation is the pre-image of the
 // latest change, so it is the newest valid target; a generation above the
 // current one, or one with no stored snapshot, has nothing to apply.
 func TestTriggerRollbackAcceptsCurrentGenerationRejectsFutureOrMissing(t *testing.T) {
-	applications.SetCoordinationBundle(nil, "")
+	applications.SetCoordinationBundle(nil, constants.EmptyString)
 	stubStoredApplication(t, applicationmodel.Application{
 		Name: shopApp,
 		Snapshots: []applicationmodel.ApplicationSnapshot{
@@ -158,18 +180,63 @@ func TestTriggerRollbackAcceptsCurrentGenerationRejectsFutureOrMissing(t *testin
 		History: applicationmodel.ApplicationHistory{Generation: 3},
 	})
 
-	current := triggerRollbackTo(shopApp, constants.ThreeValue)
+	current := triggerRollbackTo(constants.ThreeValue)
 	testutil.Equal(t, "target equals current", current.Code, http.StatusOK)
 
-	future := triggerRollbackTo(shopApp, futureGeneration)
+	future := triggerRollbackTo(futureGeneration)
 	testutil.Equal(t, "target above current", future.Code, http.StatusBadRequest)
 	testutil.Equal(t, "target above current message",
 		strings.Contains(future.Body.String(), fmt.Sprintf(string(constants.ErrRollbackTargetNotOlder), constants.ThreeValue)), true)
 
-	missing := triggerRollbackTo(shopApp, constants.TwoValue)
+	missing := triggerRollbackTo(constants.TwoValue)
 	testutil.Equal(t, "target with no snapshot", missing.Code, http.StatusBadRequest)
 	testutil.Equal(t, "target with no snapshot message",
 		strings.Contains(missing.Body.String(), fmt.Sprintf(string(constants.ErrRollbackSnapshotMissing), constants.TwoValue)), true)
+}
+
+// A generation whose file for one of the app's namespaces was pruned restored the
+// other namespace only and reported success; the trigger refuses it with a reason.
+func TestTriggerRollbackRefusesGenerationMissingANamespace(t *testing.T) {
+	applications.SetCoordinationBundle(nil, constants.EmptyString)
+	stubStoredApplication(t, applicationmodel.Application{
+		Name:       shopApp,
+		Namespaces: applicationmodel.Namespaces{Items: []applicationmodel.NamespaceEntry{{Name: "ns1"}, {Name: "ns2"}}},
+		Snapshots: []applicationmodel.ApplicationSnapshot{
+			{Generation: constants.TwoValue, ID: "snap-2-ns1", Namespace: "ns1"},
+			{Generation: constants.TwoValue, ID: "snap-2-ns2", Namespace: "ns2"},
+			{Generation: constants.ThreeValue, ID: "snap-3-ns2", Namespace: "ns2"},
+		},
+		History: applicationmodel.ApplicationHistory{Generation: constants.ThreeValue},
+	})
+	partial := triggerRollbackTo(constants.ThreeValue)
+	testutil.Equal(t, "half generation refused", partial.Code, http.StatusBadRequest)
+	testutil.Equal(t, "reason names the namespace",
+		strings.Contains(partial.Body.String(), fmt.Sprintf(string(constants.ErrRollbackSnapshotIncomplete), constants.ThreeValue, "ns1")), true)
+	testutil.Equal(t, "whole generation accepted", triggerRollbackTo(constants.TwoValue).Code, http.StatusOK)
+}
+
+// Any caller allowed to roll back could attribute the rollback (its audit entry
+// and its notification) to another user through the body; the record names the
+// verified caller and a request without one is refused.
+func TestTriggerRollbackTakesTriggeredByFromCaller(t *testing.T) {
+	applications.SetCoordinationBundle(nil, constants.EmptyString)
+	patches := stubStoredApplication(t, applicationmodel.Application{
+		Name:      shopApp,
+		Snapshots: []applicationmodel.ApplicationSnapshot{{Generation: constants.ThreeValue, ID: "snap-3"}},
+		History:   applicationmodel.ApplicationHistory{Generation: constants.ThreeValue},
+	})
+
+	testutil.Equal(t, "no caller", triggerRollbackAs(shopApp, constants.ThreeValue, constants.EmptyString).Code, http.StatusBadRequest)
+	testutil.Equal(t, "nothing patched", len(*patches), constants.DefaultInitValue)
+
+	testutil.Equal(t, "caller", triggerRollbackAs(shopApp, constants.ThreeValue, callerID).Code, http.StatusOK)
+	testutil.Equal(t, "one patch", len(*patches), constants.DefaultAddValue)
+	var patched patchedApplication
+	if err := json.Unmarshal((*patches)[constants.DefaultInitValue], &patched); err != nil {
+		t.Fatal(err)
+	}
+	testutil.Equal(t, "one entry", len(patched.Spec.Rollbacks), constants.DefaultAddValue)
+	testutil.Equal(t, "triggeredBy", patched.Spec.Rollbacks[constants.DefaultInitValue].TriggeredBy, callerID)
 }
 
 const crdApplicationPath = "../../../../../charts/telark-crds/templates/crds/resources/application.yaml"

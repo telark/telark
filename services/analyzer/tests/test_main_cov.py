@@ -276,8 +276,11 @@ def test_no_pull_when_disabled(monkeypatch):
     assert ollama.count("/api/pull") == 1
     doc = env.doc()
     assert (doc.lastRun.status, doc.lastRun.error, doc.lastRun.runId) == ("failed", "model_not_installed", msg)
-    failed = [d for n, d in env.events() if n == "analysis.failed"]
-    assert failed == [{"version": 2, "runId": msg, "error": "model_not_installed", "app": "shop/api"}]
+    events = env.events()
+    (started,) = [d for n, d in events if n == "analysis.started"]
+    failed = [d for n, d in events if n == "analysis.failed"]
+    assert failed == [{"version": started["version"] + 1, "runId": msg, "error": "model_not_installed",
+                       "app": "shop/api"}]
     # The worker pauses while the pull runs, and never reaches /api/chat.
     assert env.sleeps == [ANALYZER_CONFIG_POLL_SEC] and env.runs == []
     assert env.state.runtime.status.state == "ready"
@@ -336,6 +339,47 @@ def test_reclaimed_running_cleared(monkeypatch):
     assert env.backlog() == (0, {}) and env.runs == []
 
 
+def test_dead_consumers_are_forgotten(monkeypatch):
+    # Live: one consumer per past analyzer pod accumulated in the group.
+    env = Env(monkeypatch)
+    asyncio.run(env.redis.xgroup_create(STREAM_JOBS, CONSUMER_GROUP, id="0", mkstream=True))
+    now = constants.CONSUMER_MAX_IDLE_MS + 10
+    env.redis.clock_ms = now
+    env.redis.consumers[(STREAM_JOBS, CONSUMER_GROUP)] = {"gone": 0, "recent": now - 1000, "holding": 0}
+    # A message it still holds keeps a consumer, however idle: deleting it would drop the message.
+    env.redis.groups[(STREAM_JOBS, CONSUMER_GROUP)]["pending"]["1-1"] = ("holding", now)
+    env.consume(now_ms=now)
+    assert set(env.redis.consumers[(STREAM_JOBS, CONSUMER_GROUP)]) == {"w", "recent", "holding"}
+
+
+def _history_at(generation):
+    app = _app("api")
+    app["history"] = {"generation": generation, "changeLog": []}
+    return app
+
+
+@pytest.mark.parametrize(("trigger", "reads", "sleeps", "seen"), [
+    # Live (L-8): discovery enqueued the incident before exporter held its entry.
+    ("incident", [2, 3], 1, (3, 3)),
+    # Never caught up: bounded, and the rules then cite no older change.
+    ("incident", [2, 2, 2], 2, (2, 3)),
+    ("manual", [2], 0, (2, 0)),
+])
+def test_incident_run_waits_for_its_change(monkeypatch, trigger, reads, sleeps, seen):
+    env = Env(monkeypatch)
+    apps = [_history_at(g) for g in reads]
+
+    async def get_application(client, name):
+        return apps.pop(0)
+
+    monkeypatch.setattr(exporter, "get_application", get_application)
+    runs = []
+    env.analysis = lambda job, run: runs.append((run.app["history"]["generation"], run.min_generation)) or Outcome()
+    env.add(trigger)
+    env.consume(max_sleeps=sleeps)
+    assert env.sleeps == [constants.APP_CATCHUP_INTERVAL_S] * sleeps and runs == [seen] and apps == []
+
+
 def test_execute_exception_fails_run(monkeypatch):
     env = Env(monkeypatch)
     first = env.add("manual")
@@ -351,8 +395,10 @@ def test_execute_exception_fails_run(monkeypatch):
 
     assert (env.doc().lastRun.status, env.doc().lastRun.error) == ("failed", "internal_error")
     assert env.doc("analyzer:shop:web").lastRun.status == "done"
-    failed = [d for n, d in env.events() if n == "analysis.failed"]
-    assert failed == [{"version": 2, "runId": first, "error": "internal_error", "app": "shop/api"}]
+    events = env.events()
+    (started, *_) = [d for n, d in events if n == "analysis.started"]
+    failed = [d for n, d in events if n == "analysis.failed"]
+    assert failed == [{"version": started["version"] + 1, "runId": first, "error": "internal_error", "app": "shop/api"}]
     assert "analyzer:inflight:shop:api" not in env.redis.store
     assert env.backlog() == (0, {})
 
@@ -567,6 +613,8 @@ def test_config_poll_pulls_a_missing_model_once(monkeypatch, auto_pull, installe
     env.poll(iterations=3)
     assert ollama.count("/api/pull") == pulls
     assert env.state.runtime.status.state == state
+    # ai.enabled rides on the runtime status for insights readers who cannot read the settings.
+    assert env.state.runtime.status.enabled is True
 
 
 @pytest.mark.parametrize("ca_path", [certifi.where(), "/nonexistent/ca.crt"])
@@ -796,8 +844,10 @@ def test_fast_run_no_candidates_skips_narration(monkeypatch):
     env.consume()
     assert env.ollama.count("/api/chat") == 0 and env.ollama.count("/api/show") == 1
     assert (env.doc().lastRun.status, env.doc().lastRun.steps, env.doc().insights) == ("done", 0, [])
-    assert env.events()[-1] == ("analysis.finished", {"version": 3, "runId": msg, "truncated": False, "created": 0,
-                                                      "updated": 0, "resolved": 0, "app": "shop/api"})
+    events = env.events()
+    assert events[-1] == ("analysis.finished", {"version": events[0][1]["version"] + 2, "runId": msg,
+                                                "truncated": False, "created": 0, "updated": 0, "resolved": 0,
+                                                "app": "shop/api"})
 
 
 def test_fast_worker_runs_while_pulling(monkeypatch):
@@ -866,8 +916,12 @@ def test_run_reviews_after_final_write(monkeypatch):
     (rec,) = [c for c in reviewed.insights if c.category == "recommendation"]
     assert (rec.reason, rec.subject, rec.status) == (REC_REASON, "deployment/api", "open")
     assert env.gathered == [("shop", "api", True, None)]
-    names = [name for name, _ in env.events()]
-    assert names[-2:] == ["analysis.finished", "insight.created"], "analysis.finished is never delayed"
+    events = env.events()
+    names = [name for name, _ in events]
+    assert names[-3:] == ["analysis.finished", "insight.created", "review.finished"], (
+        "analysis.finished is never delayed")
+    # The review's write is announced even when no card changes: the open panel refetches on its version.
+    assert events[-1][1] == {"version": reviewed.version, "app": "shop/api"}
     assert env.redis.zsets["analyzer:index"]["shop/api"] > 0
     assert env.redis.hashes["analyzer:review"]["shop/api"].startswith("3:")
     assert msg in env.redis.docs[-1].lastRun.runId

@@ -2,11 +2,8 @@ package protection
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"net/http"
 
-	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/messages"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/plans/protection"
@@ -22,9 +19,8 @@ func Update(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	userID := r.Header.Get(constants.HeaderUserID)
-	if userID == constants.EmptyString {
-		respondError(w, http.StatusUnauthorized, protection.ErrUserMissing, nil)
+	userID, ok := requireUser(w, r)
+	if !ok {
 		return
 	}
 
@@ -34,9 +30,7 @@ func Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req planseps.PrepareProtectionPlanRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		msg := fmt.Sprintf(string(protection.ErrRequestBody), err)
-		respondError(w, http.StatusBadRequest, dataerrors.Error(msg), err)
+	if !decodeBody(w, r, &req) {
 		return
 	}
 
@@ -74,5 +68,7 @@ func buildUpdateDeps(svc *protection.Service) update.Deps {
 		Clock:           svc.Clock,
 		StampHealth:     svc.StampFirstHealth,
 		NotifyApprovers: svc.Notifier().RequestApproval,
+		LockName:        svc.LockName,
+		Activate:        svc.Activate,
 	}
 }

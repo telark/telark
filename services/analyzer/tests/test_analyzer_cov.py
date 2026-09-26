@@ -373,10 +373,12 @@ class Kube:
         path = request.url.path
         self.paths.append(path)
         if path.endswith("/events"):
+            # lastTimestamp sits on the real clock (the events window); firstTimestamp on the run's (the correlation).
             last = (datetime.now(UTC) - timedelta(minutes=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
             return httpx.Response(200, json={"items": [{
                 "involvedObject": {"kind": "Pod", "name": POD}, "reason": "BackOff", "count": 7,
-                "message": "Back-off restarting failed container api", "lastTimestamp": last}]})
+                "message": "Back-off restarting failed container api", "lastTimestamp": last,
+                "firstTimestamp": NOW.strftime("%Y-%m-%dT%H:%M:%SZ")}]})
         name = path.rsplit("/", 1)[-1]
         if path.endswith("/pods"):
             pods = [{"metadata": {"name": POD}, "status": {"phase": "Running", "containerStatuses": [{

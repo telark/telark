@@ -3,6 +3,7 @@ package health
 import (
 	"time"
 
+	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	"github.com/telark/data/plans"
 	"github.com/telark/discovery/internal/constants"
 	planseps "github.com/telark/rest/endpoints/plans"
@@ -22,9 +23,10 @@ const (
 	stageRepair           = "repair"
 	stagePhaseRecheck     = "phase-recheck"
 	stageFirstCheck       = "first-check"
-	errMissingAppsFmt     = "applications not found: %v"
-	logRepairedFmt        = "protection-plan repaired plan=%s redeployed=%v repatched=%v removed=%v"
+	fmtRenderUnavailable  = "current render unavailable: %w"
+	logRepairedFmt        = "protection-plan repaired plan=%s redeployed=%v repatched=%v removed=%v added=%v"
 	logSnapshotFailedFmt  = "protection-plan health snapshot failed err=%v"
+	logResolveFailedFmt   = "protection-plan health application resolve failed err=%v"
 )
 
 var firstCheckSlots = make(chan struct{}, constants.HealthReconcileConcurrency)
@@ -42,18 +44,29 @@ type Result struct {
 	Missing    []string
 	Mismatched []string
 	Unexpected []string
+	// Present but rendered by an older renderer or plan revision; redeployed like Missing.
+	Stale []string
+	// Rendered now but never listed by the plan (a namespace an older renderer skipped); deployed
+	// and added to the plan's rendered set, which Rendered then carries into the health patch.
+	Added    []string
+	Rendered []string
+	// The render the check compared against, so the repair redeploys exactly that.
+	current   map[string]kyvernov1.Policy
+	renderErr error
 }
 
 type repairOutcome struct {
 	redeployed []string
 	repatched  []string
 	removed    []string
+	added      []string
 }
 
 type policySnapshot struct {
 	namespace     string
 	ready         bool
 	failureAction string
+	renderHash    string
 }
 
 type healthFlags struct {

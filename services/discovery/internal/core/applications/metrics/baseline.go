@@ -66,50 +66,28 @@ func findPrevWorkloadUsage(
 }
 
 func DiffBaseline(prev, curr application.MetricsBaseline) []application.ApplicationChange {
+	fields := []struct {
+		field    string
+		describe func(oldVal, newVal string) string
+		oldVal   string
+		newVal   string
+	}{
+		{changes.ChangeFieldRequestsCPU, changes.DescRequestsCPUChanged, prev.Requests.CPU, curr.Requests.CPU},
+		{changes.ChangeFieldRequestsMemory, changes.DescRequestsMemoryChanged, prev.Requests.Memory, curr.Requests.Memory},
+		{changes.ChangeFieldLimitsCPU, changes.DescLimitsCPUChanged, prev.Limits.CPU, curr.Limits.CPU},
+		{changes.ChangeFieldLimitsMemory, changes.DescLimitsMemoryChanged, prev.Limits.Memory, curr.Limits.Memory},
+	}
 	var appChanges []application.ApplicationChange
-
-	if prev.Requests.CPU != curr.Requests.CPU {
-		oldVal := prev.Requests.CPU
-		newVal := curr.Requests.CPU
+	for _, f := range fields {
+		if f.oldVal == f.newVal {
+			continue
+		}
 		appChanges = append(appChanges, application.ApplicationChange{
-			Field:       changes.ChangeFieldRequestsCPU,
-			Description: changes.DescRequestsCPUChanged(oldVal, newVal),
+			Field:       f.field,
+			Description: f.describe(f.oldVal, f.newVal),
 			ChangeType:  changes.ChangeTypeUpdated,
-			OldValue:    utils.StrPtr(oldVal),
-			NewValue:    utils.StrPtr(newVal),
-		})
-	}
-	if prev.Requests.Memory != curr.Requests.Memory {
-		oldVal := prev.Requests.Memory
-		newVal := curr.Requests.Memory
-		appChanges = append(appChanges, application.ApplicationChange{
-			Field:       changes.ChangeFieldRequestsMemory,
-			Description: changes.DescRequestsMemoryChanged(oldVal, newVal),
-			ChangeType:  changes.ChangeTypeUpdated,
-			OldValue:    utils.StrPtr(oldVal),
-			NewValue:    utils.StrPtr(newVal),
-		})
-	}
-	if prev.Limits.CPU != curr.Limits.CPU {
-		oldVal := prev.Limits.CPU
-		newVal := curr.Limits.CPU
-		appChanges = append(appChanges, application.ApplicationChange{
-			Field:       changes.ChangeFieldLimitsCPU,
-			Description: changes.DescLimitsCPUChanged(oldVal, newVal),
-			ChangeType:  changes.ChangeTypeUpdated,
-			OldValue:    utils.StrPtr(oldVal),
-			NewValue:    utils.StrPtr(newVal),
-		})
-	}
-	if prev.Limits.Memory != curr.Limits.Memory {
-		oldVal := prev.Limits.Memory
-		newVal := curr.Limits.Memory
-		appChanges = append(appChanges, application.ApplicationChange{
-			Field:       changes.ChangeFieldLimitsMemory,
-			Description: changes.DescLimitsMemoryChanged(oldVal, newVal),
-			ChangeType:  changes.ChangeTypeUpdated,
-			OldValue:    utils.StrPtr(oldVal),
-			NewValue:    utils.StrPtr(newVal),
+			OldValue:    utils.StrPtr(f.oldVal),
+			NewValue:    utils.StrPtr(f.newVal),
 		})
 	}
 	return appChanges

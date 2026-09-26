@@ -23,9 +23,8 @@ type (
 	}
 )
 
-// ListenAndSignal serves until the server stops, and turns a stop that is not a
-// graceful close into a shutdown signal: a process whose listener died must not
-// keep running and reporting itself healthy.
+// A listener that dies without a graceful close signals shutdown: the process
+// must not keep running and reporting itself healthy.
 func ListenAndSignal(srv *http.Server, quit QuitFunc, log Logger) {
 	err := srv.ListenAndServe()
 	if err == nil || err == http.ErrServerClosed {

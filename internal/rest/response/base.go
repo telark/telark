@@ -1,6 +1,7 @@
 package response
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -48,40 +49,37 @@ func NewGenericResponse(
 }
 
 func EncodeJSONResponse(w http.ResponseWriter, status int, response *GenericResponse) {
-	w.Header().Set("Content-Type", string(base.JSON))
-	w.WriteHeader(status)
-
 	if response == nil {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-
-	encoder := json.NewEncoder(w)
-	if err := encoder.Encode(response); err != nil {
-		http.Error(
-			w,
-			fmt.Sprintf(string(errors.ErrRestEncodeResponse), err),
-			http.StatusInternalServerError,
-		)
-	}
+	writeJSON(w, status, response)
 }
 
 func EncodeMultiJSONResponse(w http.ResponseWriter, status int, responses []*GenericResponse) {
-	w.Header().Set("Content-Type", string(base.JSON))
-
-	w.WriteHeader(status)
 	if len(responses) == constants.EmptySliceLength {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
+	writeJSON(w, status, responses)
+}
 
-	encoder := json.NewEncoder(w)
-	if err := encoder.Encode(responses); err != nil {
+// Encoding happens before WriteHeader so a failure can still send its own 500.
+func writeJSON(w http.ResponseWriter, status int, payload any) {
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(payload); err != nil {
 		http.Error(
 			w,
 			fmt.Sprintf(string(errors.ErrRestEncodeResponse), err),
 			http.StatusInternalServerError,
 		)
+		return
+	}
+
+	w.Header().Set("Content-Type", string(base.JSON))
+	w.WriteHeader(status)
+	if _, err := w.Write(body.Bytes()); err != nil {
+		base.GetLogger().Warn(fmt.Sprintf(string(errors.ErrRestEncodeResponse), err))
 	}
 }
 

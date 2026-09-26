@@ -15,9 +15,8 @@ type Client struct {
 	params     map[string]string
 }
 
-// Path parameter values are frequently credentials or PII. They are carried
-// beside the endpoint and only merged in when the URL is built, so the
-// base.Endpoint that reaches a log line or an error can only ever be a template.
+// Path parameter values are often credentials or PII: merged in only when the URL
+// is built, so any base.Endpoint reaching a log or error is still a template.
 func (c *Client) WithParams(params map[string]string) *Client {
 	clone := *c
 	clone.params = params

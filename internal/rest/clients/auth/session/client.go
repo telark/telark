@@ -37,6 +37,19 @@ func (c *Client) GetAllSessionsByUser(userID string) ([]*authdata.UserSession, e
 	return shared.GetListTyped[*authdata.UserSession](c.withUser(userID), eps.GetAllSessionsByUser)
 }
 
+// Session names, usable as the token argument of the by-token calls.
+func (c *Client) ListSessionRefsByUser(userID string) ([]string, error) {
+	refs, err := shared.GetListTyped[sessionRef](c.withUser(userID), eps.GetAllSessionsByUser)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, constants.EmptySliceLength, len(refs))
+	for _, ref := range refs {
+		names = append(names, ref.Metadata.Name)
+	}
+	return names, nil
+}
+
 func (c *Client) GetSessionByToken(token string) (*authdata.UserSession, error) {
 	return shared.GetTyped[authdata.UserSession](c.withToken(token), eps.GetSessionByToken)
 }

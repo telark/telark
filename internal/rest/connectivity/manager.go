@@ -2,7 +2,6 @@ package connectivity
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -17,9 +16,8 @@ type ConnectivityManager struct {
 	readyMap map[string]bool
 	started  map[string]bool
 
-	//nolint:containedctx
-	ctx    context.Context
-	cancel context.CancelFunc
+	stop     chan struct{}
+	stopOnce sync.Once
 }
 
 var (
@@ -40,13 +38,11 @@ func Global() *ConnectivityManager {
 }
 
 func New(rdb *redis.Client) *ConnectivityManager {
-	ctx, cancel := context.WithCancel(context.Background())
 	return &ConnectivityManager{
 		rdb:      rdb,
 		readyMap: make(map[string]bool),
 		started:  make(map[string]bool),
-		ctx:      ctx,
-		cancel:   cancel,
+		stop:     make(chan struct{}),
 	}
 }
 
@@ -95,9 +91,7 @@ func (m *ConnectivityManager) Close() {
 	if m == nil {
 		return
 	}
-	if m.cancel != nil {
-		m.cancel()
-	}
+	m.stopOnce.Do(func() { close(m.stop) })
 }
 
 func (m *ConnectivityManager) syncLoop(serviceID string) {
@@ -106,7 +100,7 @@ func (m *ConnectivityManager) syncLoop(serviceID string) {
 
 	for {
 		select {
-		case <-m.ctx.Done():
+		case <-m.stop:
 			return
 		case <-ticker.C:
 			m.syncOnce(serviceID)
@@ -134,5 +128,5 @@ func (m *ConnectivityManager) syncOnce(serviceID string) {
 }
 
 func key(serviceID string) string {
-	return fmt.Sprintf("%s%s", constants.ConnectivityKeyPrefix, serviceID)
+	return constants.ConnectivityKeyPrefix + serviceID
 }

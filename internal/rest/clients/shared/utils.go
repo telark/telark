@@ -29,9 +29,8 @@ func resolveEndpoint(endpoint base.Endpoint, params map[string]string) base.Endp
 	return base.Endpoint(resolved)
 }
 
-// sanitizeEndpoint yields the form safe to expose: the template keeps the path
-// parameters unresolved, and the query string is dropped because callers build
-// it themselves and may embed a user id or an email in it.
+// Safe to expose: path parameters stay unresolved and the query string is
+// dropped, since callers build it themselves and may embed a user id or email.
 func sanitizeEndpoint(endpoint base.Endpoint) base.Endpoint {
 	path, _, _ := strings.Cut(string(endpoint), constants.QuerySeparator)
 	return base.Endpoint(path)
@@ -47,30 +46,6 @@ func redactEndpointError(err error, endpoint base.Endpoint) error {
 	return fmt.Errorf(string(constants.ErrEndpointCall), urlErr.Op, sanitizeEndpoint(endpoint), urlErr.Err)
 }
 
-func buildRequestURL(
-	client *Client,
-	method base.Method,
-	endpoint base.Endpoint,
-	payload []byte,
-) (string, error) {
-	resolved := resolveEndpoint(endpoint, client.params)
-
-	var req base.API
-	if payload != nil {
-		req = requestutils.CreateGenericRequestWithPayload(
-			client.service,
-			base.V1,
-			resolved,
-			payload,
-		)
-	} else {
-		req = requestutils.CreateGenericRequest(
-			method, client.service, base.V1, resolved)
-	}
-
-	return req.GenerateURL()
-}
-
 func buildHTTPRequest(
 	client *Client,
 	method base.Method,
@@ -78,7 +53,8 @@ func buildHTTPRequest(
 	payload []byte,
 	headers map[string]string,
 ) (*http.Request, error) {
-	requestURL, err := buildRequestURL(client, method, endpoint, payload)
+	api := requestutils.CreateGenericRequest(method, client.service, base.V1, resolveEndpoint(endpoint, client.params))
+	requestURL, err := api.GenerateURL()
 	if err != nil {
 		return nil, fmt.Errorf(string(constants.ErrFailedToGenerateRequestURL), err)
 	}
@@ -100,8 +76,8 @@ func buildHTTPRequest(
 	return req, nil
 }
 
-// Sole caller of httpClient.Do: observation, error redaction and body ownership
-// all live here, so no open *http.Response ever reaches a caller.
+// Sole caller of httpClient.Do: the readiness gate, observation, error redaction
+// and body ownership all live here, so no request path can skip any of them.
 func doHTTPRequest(
 	client *Client,
 	method base.Method,
@@ -109,6 +85,12 @@ func doHTTPRequest(
 	payload []byte,
 	headers map[string]string,
 ) (*base.HTTPResult, error) {
+	if mgr := connectivity.Global(); mgr != nil {
+		if !mgr.IsReady(string(client.service)) {
+			return nil, fmt.Errorf(string(constants.ErrConnectivityServiceNotReady), client.service)
+		}
+	}
+
 	req, err := buildHTTPRequest(client, method, endpoint, payload, headers)
 	if err != nil {
 		return nil, err
@@ -138,16 +120,13 @@ func executeHTTPRequest(
 	endpoint base.Endpoint,
 	payload []byte,
 ) (*base.HTTPResult, error) {
-	if mgr := connectivity.Global(); mgr != nil {
-		if !mgr.IsReady(string(client.service)) {
-			return nil, fmt.Errorf(string(constants.ErrConnectivityServiceNotReady), client.service)
-		}
-	}
-
 	return doHTTPRequest(client, method, endpoint, payload, nil)
 }
 
 func marshalToJSON(payload any) ([]byte, error) {
+	if payload == nil {
+		return nil, nil
+	}
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf(string(errors.ErrRestMarshalPayload), err)
@@ -162,65 +141,57 @@ func resultBody(result *base.HTTPResult) ([]byte, error) {
 	return result.Body, nil
 }
 
-// ErrNotFound lets a caller tell "this resource does not exist" from a failed call.
-var ErrNotFound = stderrors.New("resource not found")
+// ErrNotFound lets a caller tell "this resource does not exist" from a failed call;
+// ErrGone that it existed but has lapsed (an expired session), which is a verdict, not an outage.
+var (
+	ErrNotFound = stderrors.New("resource not found")
+	ErrGone     = stderrors.New("resource gone")
+)
 
-func parseSingleResponse[T any](result *base.HTTPResult) (*T, error) {
-	if result.Status == http.StatusNotFound {
-		return nil, ErrNotFound
-	}
+func decodeOKBody(result *base.HTTPResult, out any) error {
 	if result.Status != http.StatusOK {
-		return nil, fmt.Errorf(string(constants.ErrStatus), result.Status)
+		return fmt.Errorf(string(constants.ErrStatus), result.Status)
 	}
 
 	body, err := resultBody(result)
 	if err != nil {
-		return nil, err
+		return err
+	}
+
+	if err := json.Unmarshal(body, out); err != nil {
+		return fmt.Errorf(string(errors.ErrRestUnmarshalResponseToGeneric), err)
+	}
+	return nil
+}
+
+func parseSingleResponse[T any](result *base.HTTPResult) (*T, error) {
+	switch result.Status {
+	case http.StatusNotFound:
+		return nil, ErrNotFound
+	case http.StatusGone:
+		return nil, ErrGone
 	}
 
 	var data singleDataResponse[T]
-
-	if err := json.Unmarshal(body, &data); err != nil {
-		return nil, fmt.Errorf(string(errors.ErrRestUnmarshalResponseToGeneric), err)
+	if err := decodeOKBody(result, &data); err != nil {
+		return nil, err
 	}
-
 	return &data.Data, nil
 }
 
 func parseRawJSONResponse[T any](result *base.HTTPResult) (*T, error) {
-	if result.Status != http.StatusOK {
-		return nil, fmt.Errorf(string(constants.ErrStatus), result.Status)
-	}
-
-	body, err := resultBody(result)
-	if err != nil {
+	var data T
+	if err := decodeOKBody(result, &data); err != nil {
 		return nil, err
 	}
-
-	var data T
-	if err := json.Unmarshal(body, &data); err != nil {
-		return nil, fmt.Errorf(string(errors.ErrRestUnmarshalResponseToGeneric), err)
-	}
-
 	return &data, nil
 }
 
 func parseListResponse[T any](result *base.HTTPResult) ([]T, error) {
-	if result.Status != http.StatusOK {
-		return nil, fmt.Errorf(string(constants.ErrStatus), result.Status)
-	}
-
-	body, err := resultBody(result)
-	if err != nil {
+	var data listDataResponse[T]
+	if err := decodeOKBody(result, &data); err != nil {
 		return nil, err
 	}
-
-	var data listDataResponse[T]
-
-	if err := json.Unmarshal(body, &data); err != nil {
-		return nil, fmt.Errorf(string(errors.ErrRestUnmarshalResponseToGeneric), err)
-	}
-
 	return data.Data.Items, nil
 }
 

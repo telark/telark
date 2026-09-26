@@ -31,13 +31,9 @@ func (c *Client) executeRequest(
 	endpoint base.Endpoint,
 	payload any,
 ) *response.GenericResponse {
-	var jsonPayload []byte
-	var err error
-	if payload != nil {
-		jsonPayload, err = marshalToJSON(payload)
-		if err != nil {
-			return CreateErrorResponse(string(errors.ErrRestMarshalPayload), err)
-		}
+	jsonPayload, err := marshalToJSON(payload)
+	if err != nil {
+		return CreateErrorResponse(string(errors.ErrRestMarshalPayload), err)
 	}
 
 	result, err := executeHTTPRequest(c, method, endpoint, jsonPayload)
@@ -54,13 +50,9 @@ func (c *Client) executeRequestWithError(
 	endpoint base.Endpoint,
 	payload any,
 ) (*response.GenericResponse, error) {
-	var jsonPayload []byte
-	var err error
-	if payload != nil {
-		jsonPayload, err = marshalToJSON(payload)
-		if err != nil {
-			return nil, fmt.Errorf(string(errors.ErrRestMarshalPayload), err)
-		}
+	jsonPayload, err := marshalToJSON(payload)
+	if err != nil {
+		return nil, fmt.Errorf(string(errors.ErrRestMarshalPayload), err)
 	}
 
 	result, err := executeHTTPRequest(c, method, endpoint, jsonPayload)

@@ -16,13 +16,9 @@ func ExecuteRequestWithHeaders(
 	payload any,
 	headers map[string]string,
 ) *response.GenericResponse {
-	var jsonPayload []byte
-	var err error
-	if payload != nil {
-		jsonPayload, err = marshalToJSON(payload)
-		if err != nil {
-			return CreateErrorResponse(string(errors.ErrRestMarshalPayload), err)
-		}
+	jsonPayload, err := marshalToJSON(payload)
+	if err != nil {
+		return CreateErrorResponse(string(errors.ErrRestMarshalPayload), err)
 	}
 
 	result, err := doHTTPRequest(client, method, endpoint, jsonPayload, headers)

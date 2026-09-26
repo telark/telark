@@ -20,7 +20,7 @@ func LogAndSendResponse(
 	err error,
 ) {
 	logMessage(message, err)
-	writeResponse(w, status, operation, message, data)
+	SendResponse(w, status, operation, message, data)
 }
 
 func SendResponse(
@@ -30,7 +30,7 @@ func SendResponse(
 	message string,
 	data any,
 ) {
-	writeResponse(w, status, operation, message, data)
+	response.SendSingleResponse(w, response.NewGenericResponse(status, operation, data, message))
 }
 
 func LogAndReturnResponse(
@@ -41,36 +41,12 @@ func LogAndReturnResponse(
 	err error,
 ) *response.GenericResponse {
 	logMessage(message, err)
-	return createGenericResponse(status, operation, message, data)
+	return response.NewGenericResponse(status, operation, data, message)
 }
 
 func logMessage(message string, err error) {
 	if err != nil {
 		base.GetLogger().Error(fmt.Sprintf("%s: %v", message, err))
-	}
-}
-
-func writeResponse(
-	w http.ResponseWriter,
-	status int,
-	operation response.OperationStatus,
-	message string,
-	data any,
-) {
-	response.SendSingleResponse(w, createGenericResponse(status, operation, message, data))
-}
-
-func createGenericResponse(
-	status int,
-	operation response.OperationStatus,
-	message string,
-	data any,
-) *response.GenericResponse {
-	return &response.GenericResponse{
-		Status:    status,
-		Operation: string(operation),
-		Message:   message,
-		Data:      data,
 	}
 }
 
@@ -89,11 +65,11 @@ func ReadAndParseGenericResponse(result *base.HTTPResult) *response.GenericRespo
 	// Only 200 OK and 202 Accepted are considered success. The peer's body is
 	// still returned to the caller but kept out of the log: it can carry PII.
 	if result.Status != http.StatusOK && result.Status != http.StatusAccepted {
-		return createGenericResponse(
+		return response.NewGenericResponse(
 			result.Status,
 			response.OperationError,
-			fmt.Sprintf(string(constants.HTTPStatus), result.Status, string(body)),
 			nil,
+			fmt.Sprintf(string(constants.HTTPStatus), result.Status, string(body)),
 		)
 	}
 

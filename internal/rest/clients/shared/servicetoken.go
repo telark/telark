@@ -22,10 +22,8 @@ func serviceToken() string {
 	return serviceTokenValue
 }
 
-// applyServiceToken identifies this process to the service it calls, so the
-// receiver authorizes the caller instead of trusting its network position.
-// Absent a token the request goes out unidentified and is refused there, which
-// is the intended outcome: a caller that cannot prove itself gets no access.
+// The receiver authorizes the caller by this token, not by network position;
+// without one the request goes out unidentified and is refused there, on purpose.
 func applyServiceToken(req *http.Request) {
 	token := serviceToken()
 	if token == constants.EmptyString {

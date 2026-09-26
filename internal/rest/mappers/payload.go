@@ -3,6 +3,7 @@ package mappers
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/telark/rest/constants"
@@ -13,9 +14,7 @@ func MapToJSONPayload(input any) (map[string]any, error) {
 		return nil, nil
 	}
 
-	result := make(map[string]any)
 	value := reflect.ValueOf(input)
-
 	if value.Kind() == reflect.Pointer {
 		if value.IsNil() {
 			return nil, nil
@@ -23,6 +22,7 @@ func MapToJSONPayload(input any) (map[string]any, error) {
 		value = value.Elem()
 	}
 
+	result := make(map[string]any)
 	if value.Kind() != reflect.Struct {
 		return result, nil
 	}
@@ -60,17 +60,10 @@ func parseJSONTag(tag string) (string, bool) {
 	}
 
 	parts := strings.Split(tag, ",")
-	fieldName := parts[constants.FirstIndex]
-
-	omitEmpty := false
-	for _, part := range parts[constants.SecondIndex:] {
-		if strings.TrimSpace(part) == constants.OmitEmpty {
-			omitEmpty = true
-			break
-		}
-	}
-
-	return fieldName, omitEmpty
+	omitEmpty := slices.ContainsFunc(parts[constants.SecondIndex:], func(part string) bool {
+		return strings.TrimSpace(part) == constants.OmitEmpty
+	})
+	return parts[constants.FirstIndex], omitEmpty
 }
 
 func isZeroValue(v reflect.Value) bool {
@@ -125,10 +118,6 @@ func processFieldValue(field reflect.Value) (any, error) {
 
 func processSliceValue(field reflect.Value) (any, error) {
 	length := field.Len()
-	if length == constants.EmptySliceLength {
-		return []any{}, nil
-	}
-
 	slice := make([]any, constants.EmptySliceLength, length)
 	for i := range length {
 		elem := field.Index(i)
@@ -143,11 +132,7 @@ func processSliceValue(field reflect.Value) (any, error) {
 }
 
 func processMapValue(field reflect.Value) (any, error) {
-	if field.Len() == constants.EmptySliceLength {
-		return map[string]any{}, nil
-	}
-
-	result := make(map[string]any)
+	result := make(map[string]any, field.Len())
 	iter := field.MapRange()
 	for iter.Next() {
 		key := iter.Key()

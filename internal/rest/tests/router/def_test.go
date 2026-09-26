@@ -35,8 +35,6 @@ func TestNewRouter(t *testing.T) {
 	if rr.Body.String() != expected {
 		t.Errorf("handler returned unexpected body: got %v want %v", rr.Body.String(), expected)
 	}
-
-	t.Log("TestNewRouter passed: Router correctly handled the request and returned the expected response.")
 }
 
 func TestCreateRoute(t *testing.T) {
@@ -53,6 +51,4 @@ func TestCreateRoute(t *testing.T) {
 	if route.Pattern != "/api/v1/test" {
 		t.Errorf("CreateRoute() pattern = %v, want %v", route.Pattern, "/api/v1/test")
 	}
-
-	t.Log("TestCreateRoute passed: Route was created with the correct method and pattern.")
 }

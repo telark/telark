@@ -48,8 +48,7 @@ func Key(method base.Method, endpoint base.Endpoint) string {
 	return buildKey(string(method), Pattern(endpoint))
 }
 
-// KeyFromRequest returns the Key of the route that matched this request. It is
-// only meaningful once mux has matched, so a middleware relying on it must be
+// Only meaningful once mux has matched: a middleware relying on it must be
 // registered with Router.Use rather than wrapped around the router.
 func KeyFromRequest(r *http.Request) string {
 	route := mux.CurrentRoute(r)

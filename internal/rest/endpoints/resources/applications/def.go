@@ -3,7 +3,6 @@ package applications
 import "github.com/telark/rest/base"
 
 const (
-	// Application endpoints
 	CreateApplication       base.Endpoint = "resources/applications/create"
 	GetAllApplications      base.Endpoint = "resources/applications/get"
 	GetApplicationByName    base.Endpoint = "resources/applications/{name}/get"
@@ -13,7 +12,6 @@ const (
 	ResetApplication        base.Endpoint = "resources/applications/{name}/reset"
 	DiscoveryStatus         base.Endpoint = "resources/applications/discovery/status"
 
-	// Rollback endpoints
 	GetRollbacks    base.Endpoint = "resources/applications/{name}/rollbacks/get"
 	GetRollback     base.Endpoint = "resources/applications/{name}/rollbacks/{rollbackId}/get"
 	TriggerRollback base.Endpoint = "resources/applications/{name}/rollbacks/trigger"

@@ -3,7 +3,7 @@ package reports
 import "github.com/telark/rest/base"
 
 const (
-	// Exporter endpoints — one report file per generation, one ledger per plan.
+	// Served by the exporter: one report file per generation, one ledger per plan
 	ListReports         base.Endpoint = "reports/get"
 	CreatePlanReport    base.Endpoint = "reports/plans/create"
 	ListPlanReports     base.Endpoint = "reports/plans/{id}/get"

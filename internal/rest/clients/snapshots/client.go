@@ -89,9 +89,8 @@ func (c *Client) GetSnapshotManifest(
 		return nil, err
 	}
 
-	// encoding/json decodes every number as float64, which unstructured's typed
-	// accessors reject. k8sjson decodes whole numbers as int64, the only numeric
-	// form unstructured.Unstructured.Object is allowed to hold.
+	// encoding/json yields float64 for every number; unstructured's accessors
+	// only accept the int64 that k8sjson produces for whole numbers.
 	var objs []map[string]any
 	if err := k8sjson.Unmarshal(*raw, &objs); err != nil {
 		return nil, fmt.Errorf(string(errors.ErrRestDecodeResponse), err)

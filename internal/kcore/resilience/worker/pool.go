@@ -7,9 +7,8 @@ import (
 )
 
 type WorkerPool struct {
-	workers int
-	sem     chan struct{}
-	wg      sync.WaitGroup
+	sem chan struct{}
+	wg  sync.WaitGroup
 }
 
 func NewWorkerPool(workers int) *WorkerPool {
@@ -17,8 +16,7 @@ func NewWorkerPool(workers int) *WorkerPool {
 		workers = constants.DefaultWorkerPoolSize
 	}
 	return &WorkerPool{
-		workers: workers,
-		sem:     make(chan struct{}, workers),
+		sem: make(chan struct{}, workers),
 	}
 }
 

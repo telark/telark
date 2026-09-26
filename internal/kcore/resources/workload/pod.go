@@ -14,14 +14,14 @@ func GetQualityOfService(namespace string, selectors map[string]string) (string,
 	pods, err := GetPodsBySelectors(namespace, selectors)
 	if err != nil {
 		k8sclient.GetLogger().Error(fmt.Sprintf(string(constants.ErrFailedToGetPodQoS), namespace, err))
-		return "", err
+		return constants.EmptyString, err
 	}
 
 	if len(pods) == constants.EmptySliceLength {
-		return "", nil
+		return constants.EmptyString, nil
 	}
 
-	return string(pods[0].Status.QOSClass), nil
+	return string(pods[constants.EmptySliceLength].Status.QOSClass), nil
 }
 
 func GetPodsBySelectors(namespace string, selectors map[string]string) ([]k8scorev1.Pod, error) {

@@ -12,4 +12,3 @@ func NewDeferredRESTMapper(kubeClient *kubernetes.Clientset) meta.RESTMapper {
 		memory.NewMemCacheClient(kubeClient.Discovery()),
 	)
 }
-

@@ -25,24 +25,15 @@ func GetWorkloadMetrics(
 	namespace string,
 	selectors map[string]string,
 ) (map[string]*metricstypes.ContainerMetrics, error) {
-	if ma == nil || ma.Client == nil {
-		return nil, fmt.Errorf(constants.ErrorFormatString, constants.ErrMetricsAdapterOrClientNil)
-	}
-	if !shared.IsClientAvailable(ma.Client) {
-		return nil, fmt.Errorf("%s", constants.InfoMetricsAPIUnavailable)
-	}
-
-	podMetrics, err := ListPodMetrics(ma.Client, namespace)
+	matchingPods, err := matchingPodMetrics(ma, namespace, selectors)
 	if err != nil {
-		return nil, fmt.Errorf(string(constants.InfoFailedToListPodMetrics), err)
+		return nil, err
 	}
 
 	workloadMetrics := make(map[string]*metricstypes.ContainerMetrics)
-	for _, pm := range podMetrics {
-		if matchesSelectors(pm.PodName, selectors) {
-			for containerName, containerMetrics := range pm.Containers {
-				workloadMetrics[containerName] = &containerMetrics
-			}
+	for _, pm := range matchingPods {
+		for containerName, containerMetrics := range pm.Containers {
+			workloadMetrics[containerName] = &containerMetrics
 		}
 	}
 
@@ -54,11 +45,29 @@ func GetAllPodMetrics(
 	namespace string,
 	selectors map[string]string,
 ) ([]*metricstypes.PodMetrics, error) {
+	matchingPods, err := matchingPodMetrics(ma, namespace, selectors)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(matchingPods) == constants.EmptySliceLength {
+		return nil, fmt.Errorf(constants.ErrorFormatString,
+			constants.ErrNoPodsFoundMatchingSelectors)
+	}
+
+	return matchingPods, nil
+}
+
+func matchingPodMetrics(
+	ma *metricstypes.MetricsAdapter,
+	namespace string,
+	selectors map[string]string,
+) ([]*metricstypes.PodMetrics, error) {
 	if ma == nil || ma.Client == nil {
 		return nil, fmt.Errorf(constants.ErrorFormatString, constants.ErrMetricsAdapterOrClientNil)
 	}
 	if !shared.IsClientAvailable(ma.Client) {
-		return nil, fmt.Errorf("%s", constants.InfoMetricsAPIUnavailable)
+		return nil, fmt.Errorf(constants.ErrorFormatString, constants.InfoMetricsAPIUnavailable)
 	}
 
 	podMetrics, err := ListPodMetrics(ma.Client, namespace)
@@ -72,12 +81,6 @@ func GetAllPodMetrics(
 			matchingPods = append(matchingPods, pm)
 		}
 	}
-
-	if len(matchingPods) == constants.EmptySliceLength {
-		return nil, fmt.Errorf(constants.ErrorFormatString,
-			constants.ErrNoPodsFoundMatchingSelectors)
-	}
-
 	return matchingPods, nil
 }
 

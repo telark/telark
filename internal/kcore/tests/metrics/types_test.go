@@ -30,13 +30,9 @@ func TestPodMetricsStruct(t *testing.T) {
 }
 
 func TestMetricsClientStruct(_ *testing.T) {
-	mc := &metricstypes.MetricsClient{}
-	// Test that the struct can be created
-	_ = mc
+	_ = &metricstypes.MetricsClient{}
 }
 
 func TestMetricsAdapterStruct(_ *testing.T) {
-	ma := &metricstypes.MetricsAdapter{}
-	// Test that the struct can be created
-	_ = ma
+	_ = &metricstypes.MetricsAdapter{}
 }

@@ -12,7 +12,7 @@ import (
 )
 
 func CreateCustomResource(template *unstructured.Unstructured, metadata base.Metadata) shared.KubernetesAPIData {
-	prep := prepare("", metadata, constants.CrdCreateTimeout)
+	prep := prepare(metadata, constants.CrdCreateTimeout)
 	if !prep.ok {
 		return prep.errEnvelope
 	}

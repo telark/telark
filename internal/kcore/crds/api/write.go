@@ -16,7 +16,7 @@ import (
 type writeFn func(ctx context.Context, client dynamic.ResourceInterface) (*unstructured.Unstructured, error)
 
 func performRetryingWrite(name string, metadata base.Metadata, op writeFn) shared.KubernetesAPIData {
-	prep := prepare(name, metadata, constants.CrdPatchTimeout)
+	prep := prepareNamed(name, metadata, constants.CrdPatchTimeout)
 	if !prep.ok {
 		return prep.errEnvelope
 	}

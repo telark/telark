@@ -6,6 +6,7 @@ import (
 	"github.com/telark/kcore/constants"
 	"github.com/telark/kcore/k8sclient"
 	"github.com/telark/kcore/resilience/timeout"
+	"github.com/telark/kcore/shared"
 	k8sappsv1 "k8s.io/api/apps/v1"
 	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -42,10 +43,7 @@ func GetDeploymentStatus(namespace, name string) (bool, error) {
 		return false, err
 	}
 
-	if deployment.Status.AvailableReplicas == constants.DeploymentReadyReplicas {
-		return true, nil
-	}
-	return false, nil
+	return deployment.Status.AvailableReplicas == constants.DeploymentReadyReplicas, nil
 }
 
 func CheckDeploymentExists(namespace, name string) (bool, error) {
@@ -58,8 +56,5 @@ func CheckDeploymentExists(namespace, name string) (bool, error) {
 	defer cancel()
 
 	_, err = client.AppsV1().Deployments(namespace).Get(ctx, name, k8smetav1.GetOptions{})
-	if err != nil {
-		return false, nil
-	}
-	return true, nil
+	return shared.ExistsFromGetError(err)
 }

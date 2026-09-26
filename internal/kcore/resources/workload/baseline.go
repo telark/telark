@@ -133,9 +133,8 @@ type containerResourceStrings struct {
 }
 
 func firstContainerResources(spec *corev1.PodSpec) containerResourceStrings {
-	empty := constants.EmptyString
 	if spec == nil || len(spec.Containers) == constants.EmptySliceLength {
-		return containerResourceStrings{empty, empty, empty, empty, empty}
+		return containerResourceStrings{}
 	}
 	c := spec.Containers[constants.EmptySliceLength]
 	return containerResourceStrings{

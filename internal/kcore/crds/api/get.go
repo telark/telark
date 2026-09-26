@@ -10,7 +10,7 @@ import (
 )
 
 func GetCustomResourceByName(name string, metadata base.Metadata) shared.KubernetesAPIData {
-	prep := prepare(name, metadata, constants.CrdGetTimeout)
+	prep := prepareNamed(name, metadata, constants.CrdGetTimeout)
 	if !prep.ok {
 		return prep.errEnvelope
 	}
@@ -24,7 +24,7 @@ func GetCustomResourceByName(name string, metadata base.Metadata) shared.Kuberne
 }
 
 func ListCustomResources(metadata base.Metadata) shared.KubernetesAPIData {
-	prep := prepare("", metadata, constants.CrdListTimeout)
+	prep := prepare(metadata, constants.CrdListTimeout)
 	if !prep.ok {
 		return prep.errEnvelope
 	}

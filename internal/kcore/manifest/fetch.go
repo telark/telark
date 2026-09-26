@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/telark/kcore/constants"
 	"github.com/telark/kcore/k8sclient"
@@ -27,9 +26,10 @@ var kindToGVR = func() map[string]schema.GroupVersionResource {
 }()
 
 const (
-	defaultManifestTimeout = 20 * time.Second
-	manifestMetadataKey    = "metadata"
-	annotationsKey         = "annotations"
+	manifestMetadataKey = "metadata"
+	annotationsKey      = "annotations"
+	specKey             = "spec"
+	templateKey         = "template"
 )
 
 var (
@@ -59,11 +59,7 @@ func GetRawManifest(
 	if err != nil {
 		return nil, err
 	}
-	timeoutDur := constants.WorkloadGetTimeout
-	if timeoutDur <= constants.ZeroValue {
-		timeoutDur = defaultManifestTimeout
-	}
-	reqCtx, cancel := context.WithTimeout(ctx, timeoutDur)
+	reqCtx, cancel := context.WithTimeout(ctx, constants.WorkloadGetTimeout)
 	defer cancel()
 
 	var obj *unstructured.Unstructured
@@ -97,36 +93,49 @@ func CleanManifestForApply(m map[string]any) {
 		stripServiceForApply(m)
 	case "PersistentVolumeClaim":
 		stripPersistentVolumeClaimForApply(m)
-	case "Deployment", "StatefulSet", "DaemonSet":
-		stripWorkloadTemplateMetadata(m)
-	case "Job":
-		stripJobTemplateMetadata(m)
+	case "Deployment", "StatefulSet", "DaemonSet", "Job":
+		stripPodTemplateMetadata(workloadPodTemplate(m))
 	case "CronJob":
-		stripCronJobTemplateMetadata(m)
+		stripPodTemplateMetadata(cronJobPodTemplate(m))
 	default:
 	}
 
-	stripContainerFieldsFromManifest(m, kind)
+	stripContainerFieldsInPodSpec(podSpecFor(m, kind))
 }
 
 func kindString(m map[string]any) string {
-	v, ok := m["kind"]
+	s, ok := m["kind"].(string)
 	if !ok {
-		return ""
-	}
-	s, ok := v.(string)
-	if !ok {
-		return ""
+		return constants.EmptyString
 	}
 	return s
 }
 
 func mapFrom(v any) map[string]any {
 	m, ok := v.(map[string]any)
-	if !ok || m == nil {
+	if !ok {
 		return nil
 	}
 	return m
+}
+
+func workloadPodTemplate(m map[string]any) map[string]any {
+	return mapFrom(mapFrom(m[specKey])[templateKey])
+}
+
+func cronJobPodTemplate(m map[string]any) map[string]any {
+	return mapFrom(mapFrom(mapFrom(mapFrom(m[specKey])["jobTemplate"])[specKey])[templateKey])
+}
+
+func podSpecFor(m map[string]any, kind string) map[string]any {
+	switch kind {
+	case "Pod":
+		return mapFrom(m[specKey])
+	case "CronJob":
+		return mapFrom(cronJobPodTemplate(m)[specKey])
+	default:
+		return mapFrom(workloadPodTemplate(m)[specKey])
+	}
 }
 
 func stripClusterMetadata(m map[string]any) {
@@ -137,7 +146,6 @@ func stripClusterMetadata(m map[string]any) {
 		return
 	}
 
-	// Cluster-assigned identity fields
 	delete(meta, "managedFields")
 	delete(meta, "resourceVersion")
 	delete(meta, "uid")
@@ -164,7 +172,7 @@ func stripApplyHostileAnnotations(meta map[string]any) {
 }
 
 func stripServiceForApply(m map[string]any) {
-	spec := mapFrom(m["spec"])
+	spec := mapFrom(m[specKey])
 	if spec == nil {
 		return
 	}
@@ -175,7 +183,7 @@ func stripServiceForApply(m map[string]any) {
 }
 
 func stripPersistentVolumeClaimForApply(m map[string]any) {
-	if spec := mapFrom(m["spec"]); spec != nil {
+	if spec := mapFrom(m[specKey]); spec != nil {
 		// Binds to a specific PV — may not exist on target cluster
 		delete(spec, "volumeName")
 	}
@@ -185,43 +193,8 @@ func stripPersistentVolumeClaimForApply(m map[string]any) {
 	}
 }
 
-func stripWorkloadTemplateMetadata(m map[string]any) {
-	spec := mapFrom(m["spec"])
-	if spec == nil {
-		return
-	}
-	stripPodTemplateMetadata(mapFrom(spec["template"]))
-}
-
-func stripJobTemplateMetadata(m map[string]any) {
-	spec := mapFrom(m["spec"])
-	if spec == nil {
-		return
-	}
-	stripPodTemplateMetadata(mapFrom(spec["template"]))
-}
-
-func stripCronJobTemplateMetadata(m map[string]any) {
-	spec := mapFrom(m["spec"])
-	if spec == nil {
-		return
-	}
-	jt := mapFrom(spec["jobTemplate"])
-	if jt == nil {
-		return
-	}
-	js := mapFrom(jt["spec"])
-	if js == nil {
-		return
-	}
-	stripPodTemplateMetadata(mapFrom(js["template"]))
-}
-
 func stripPodTemplateMetadata(tmpl map[string]any) {
-	if tmpl == nil {
-		return
-	}
-	tmeta := mapFrom(tmpl["metadata"])
+	tmeta := mapFrom(tmpl[manifestMetadataKey])
 	if tmeta == nil {
 		return
 	}
@@ -234,47 +207,6 @@ func stripPodTemplateMetadata(tmpl map[string]any) {
 	// Triggers immediate rollout restart on apply — not desired for rollback
 	delete(ann, "kubectl.kubernetes.io/restartedAt")
 	delete(ann, "kubectl.kubernetes.io/last-applied-configuration")
-}
-
-func stripContainerFieldsFromManifest(m map[string]any, kind string) {
-	switch kind {
-	case "Pod":
-		if ps := mapFrom(m["spec"]); ps != nil {
-			stripContainerFieldsInPodSpec(ps)
-		}
-	case "CronJob":
-		spec := mapFrom(m["spec"])
-		if spec == nil {
-			return
-		}
-		jt := mapFrom(spec["jobTemplate"])
-		if jt == nil {
-			return
-		}
-		js := mapFrom(jt["spec"])
-		if js == nil {
-			return
-		}
-		if tmpl := mapFrom(js["template"]); tmpl != nil {
-			if ps := mapFrom(tmpl["spec"]); ps != nil {
-				stripContainerFieldsInPodSpec(ps)
-			}
-		}
-	default:
-		stripContainersFromWorkloadSpec(m)
-	}
-}
-
-func stripContainersFromWorkloadSpec(m map[string]any) {
-	spec := mapFrom(m["spec"])
-	if spec == nil {
-		return
-	}
-	if tmpl := mapFrom(spec["template"]); tmpl != nil {
-		if ps := mapFrom(tmpl["spec"]); ps != nil {
-			stripContainerFieldsInPodSpec(ps)
-		}
-	}
 }
 
 func stripContainerFieldsInPodSpec(podSpec map[string]any) {

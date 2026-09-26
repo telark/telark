@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/telark/kcore/constants"
 	"github.com/telark/kcore/manifest"
 	"github.com/telark/kcore/resilience/retry"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -50,7 +51,7 @@ func ApplyUnstructuredServerSide(
 
 		applyErr := retry.OnTransient(ctx, retry.DefaultApply(), func() error {
 			var doErr error
-			if ns := res.GetNamespace(); ns != "" {
+			if ns := res.GetNamespace(); ns != constants.EmptyString {
 				_, doErr = ri.Namespace(ns).Apply(ctx, res.GetName(), &res, applyOpts)
 			} else {
 				_, doErr = ri.Apply(ctx, res.GetName(), &res, applyOpts)

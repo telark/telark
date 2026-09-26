@@ -43,4 +43,3 @@ func WaitDeploymentReady(
 	}
 	return errors.New("deployment not ready")
 }
-

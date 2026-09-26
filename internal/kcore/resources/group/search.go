@@ -40,14 +40,10 @@ type SearchInput struct {
 	UseSelector   bool
 }
 
-const (
-	metadataField = "metadata"
-)
-
 func ParseSearch(input string) (SearchInput, error) {
 	s := strings.TrimSpace(input)
 	if s == constants.EmptyString {
-		return SearchInput{}, fmt.Errorf("%s", constants.ErrEmptySearchParam)
+		return SearchInput{}, fmt.Errorf(constants.ErrorFormatString, constants.ErrEmptySearchParam)
 	}
 	selectorStr := strings.ReplaceAll(s, ":", "=")
 	if strings.Contains(selectorStr, "=") {
@@ -68,12 +64,9 @@ func ListAllResourcesInNamespaces(namespaces []string) ([]ResourceRef, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(namespaces) == constants.EmptySliceLength {
-		var listErr error
-		namespaces, listErr = listNamespaceNames()
-		if listErr != nil {
-			return nil, listErr
-		}
+	namespaces, err = namespacesOrAll(namespaces)
+	if err != nil {
+		return nil, err
 	}
 	ctx, cancel := timeout.ContextWithTimeoutCause(constants.GroupSearchTimeout)
 	defer cancel()
@@ -82,9 +75,9 @@ func ListAllResourcesInNamespaces(namespaces []string) ([]ResourceRef, error) {
 
 type listJobState struct {
 	sem chan struct{}
-	wg  *sync.WaitGroup
-	mu  *sync.Mutex
-	out *[]ResourceRef
+	wg  sync.WaitGroup
+	mu  sync.Mutex
+	out []ResourceRef
 }
 
 func listAllInNamespaces(
@@ -93,26 +86,16 @@ func listAllInNamespaces(
 	namespaces []string,
 	gvrs []schema.GroupVersionResource,
 ) []ResourceRef {
-	var (
-		mu  sync.Mutex
-		out []ResourceRef
-		wg  sync.WaitGroup
-	)
-	state := &listJobState{
-		sem: make(chan struct{}, constants.GroupSearchMaxConcurrent),
-		wg:  &wg,
-		mu:  &mu,
-		out: &out,
-	}
+	state := &listJobState{sem: make(chan struct{}, constants.GroupSearchMaxConcurrent)}
 	opts := k8smetav1.ListOptions{}
 	for _, ns := range namespaces {
 		for _, gvr := range gvrs {
-			wg.Add(constants.WorkerPoolAddCount)
+			state.wg.Add(constants.WorkerPoolAddCount)
 			go runListJob(ctx, dyn, ns, gvr, opts, state)
 		}
 	}
-	wg.Wait()
-	return out
+	state.wg.Wait()
+	return state.out
 }
 
 func runListJob(
@@ -133,7 +116,7 @@ func runListJob(
 		return
 	}
 	state.mu.Lock()
-	*state.out = append(*state.out, refs...)
+	state.out = append(state.out, refs...)
 	state.mu.Unlock()
 }
 
@@ -174,19 +157,19 @@ func SearchResourcesByLabelOrTextInNamespaces(search string, namespaces []string
 	if err != nil {
 		return nil, err
 	}
-	if len(namespaces) == constants.EmptySliceLength {
-		var listErr error
-		namespaces, listErr = listNamespaceNames()
-		if listErr != nil {
-			return nil, listErr
-		}
+	namespaces, err = namespacesOrAll(namespaces)
+	if err != nil {
+		return nil, err
 	}
 	ctx, cancel := timeout.ContextWithTimeoutCause(constants.GroupSearchTimeout)
 	defer cancel()
 	return collectMatching(ctx, dyn, namespaces, shared.AppGVRs(), in), nil
 }
 
-func listNamespaceNames() ([]string, error) {
+func namespacesOrAll(namespaces []string) ([]string, error) {
+	if len(namespaces) > constants.EmptySliceLength {
+		return namespaces, nil
+	}
 	nsList, err := core.GetAllNamespaces()
 	if err != nil {
 		return nil, err
@@ -239,11 +222,7 @@ func listGVRInNamespace(
 	usedSelector := opts.LabelSelector != constants.EmptyString
 	for i := range list.Items {
 		item := &list.Items[i]
-		if usedSelector {
-			refs = append(refs, toRef(item, namespace, kind))
-			continue
-		}
-		if labelsMatchText(item, searchText) {
+		if usedSelector || labelsMatchText(item, searchText) {
 			refs = append(refs, toRef(item, namespace, kind))
 		}
 	}
@@ -251,14 +230,9 @@ func listGVRInNamespace(
 }
 
 func toRef(u *unstructured.Unstructured, namespace, kind string) ResourceRef {
-	lbls, _, _ := unstructured.NestedStringMap(u.Object, metadataField, "labels")
-	name, _, _ := unstructured.NestedString(u.Object, metadataField, "name")
-	if name == constants.EmptyString {
-		name = u.GetName()
-	}
 	cms, secs := WorkloadConfigRefs(u)
 	return ResourceRef{
-		Namespace: namespace, Kind: kind, Name: name, Labels: lbls, Owners: OwnersOf(u),
+		Namespace: namespace, Kind: kind, Name: u.GetName(), Labels: u.GetLabels(), Owners: OwnersOf(u),
 		ConfigMapRefs: cms, SecretRefs: secs,
 	}
 }
@@ -277,9 +251,8 @@ func OwnersOf(u *unstructured.Unstructured) []OwnerRef {
 }
 
 func labelsMatchText(u *unstructured.Unstructured, text string) bool {
-	lbls, _, _ := unstructured.NestedStringMap(u.Object, metadataField, "labels")
 	lower := strings.ToLower(text)
-	for k, v := range lbls {
+	for k, v := range u.GetLabels() {
 		if strings.Contains(strings.ToLower(k), lower) || strings.Contains(strings.ToLower(v), lower) {
 			return true
 		}

@@ -7,13 +7,6 @@ func UnstructuredWithoutManagedFields(src *unstructured.Unstructured) *unstructu
 		return nil
 	}
 	out := src.DeepCopy()
-	if out == nil || out.Object == nil {
-		return out
-	}
-	meta, ok := out.Object["metadata"].(map[string]any)
-	if !ok || meta == nil {
-		return out
-	}
-	delete(meta, "managedFields")
+	unstructured.RemoveNestedField(out.Object, manifestMetadataKey, "managedFields")
 	return out
 }

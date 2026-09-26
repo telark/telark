@@ -3,6 +3,7 @@ package shared
 import (
 	"github.com/telark/data/errors"
 	"github.com/telark/kcore/constants"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -22,6 +23,17 @@ func CreateKubernetesAPIData(status int, message string, data any, err error) Ku
 		Data:    data,
 		Error:   err,
 	}
+}
+
+// Only NotFound means absent: a timeout, denial or throttle says nothing about existence.
+func ExistsFromGetError(err error) (bool, error) {
+	if err == nil {
+		return true, nil
+	}
+	if k8serrors.IsNotFound(err) {
+		return false, nil
+	}
+	return false, err
 }
 
 func AppGVRs() []schema.GroupVersionResource {

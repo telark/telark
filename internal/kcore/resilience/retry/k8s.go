@@ -18,8 +18,6 @@ type Backoff struct {
 	Cap      time.Duration
 }
 
-// DefaultTransient returns the backoff used for transient K8s GET retries
-// (snapshot fanout, manifest fetch).
 func DefaultTransient() Backoff {
 	return Backoff{
 		Steps:    constants.K8sTransientRetrySteps,
@@ -59,10 +57,8 @@ func IsTransientK8sError(err error) bool {
 	return false
 }
 
-// OnTransient retries fn while IsTransientK8sError(err) is true, up to b.Steps
-// attempts using exponential backoff. The final error (or success) is returned.
-// ctx cancellation aborts the wait early; the in-flight fn call is the caller's
-// responsibility to bind to ctx.
+// OnTransient retries fn while IsTransientK8sError(err) holds, up to b.Steps attempts.
+// ctx cancellation aborts the wait; binding the in-flight fn call to ctx is the caller's job.
 func OnTransient(ctx context.Context, b Backoff, fn func() error) error {
 	wb := wait.Backoff{
 		Steps:    b.Steps,

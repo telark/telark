@@ -10,7 +10,7 @@ import (
 )
 
 func DeleteCustomResourceByName(name string, metadata base.Metadata) shared.KubernetesAPIData {
-	prep := prepare(name, metadata, constants.CrdDeleteTimeout)
+	prep := prepareNamed(name, metadata, constants.CrdDeleteTimeout)
 	if !prep.ok {
 		return prep.errEnvelope
 	}

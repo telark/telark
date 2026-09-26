@@ -4,13 +4,11 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/telark/kcore/constants"
 )
 
-const (
-	float64ParseBitSize = 64
-	minRateLimitValue   = 0
-	emptyString         = ""
-)
+const minRateLimitValue = 0
 
 // RateLimitEnv names the variables a service reads its client rate limit from,
 // and the values to use when they are unset. Each service tunes its own limit,
@@ -36,11 +34,11 @@ func RateLimitFromEnv(env RateLimitEnv) (float32, int) {
 
 func qpsFromEnv(env RateLimitEnv) float64 {
 	raw := strings.TrimSpace(os.Getenv(env.QPSVar))
-	if raw == emptyString {
+	if raw == constants.EmptyString {
 		return env.DefaultQPS
 	}
 
-	value, err := strconv.ParseFloat(raw, float64ParseBitSize)
+	value, err := strconv.ParseFloat(raw, constants.Base64)
 	if err != nil || value <= minRateLimitValue {
 		return env.DefaultQPS
 	}
@@ -50,7 +48,7 @@ func qpsFromEnv(env RateLimitEnv) float64 {
 
 func burstFromEnv(env RateLimitEnv) int {
 	raw := strings.TrimSpace(os.Getenv(env.BurstVar))
-	if raw == emptyString {
+	if raw == constants.EmptyString {
 		return env.DefaultBurst
 	}
 

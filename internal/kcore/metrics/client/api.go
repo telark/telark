@@ -1,7 +1,6 @@
 package client
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/telark/kcore/constants"
@@ -36,10 +35,7 @@ func GetPodMetrics(
 	})
 	if err != nil {
 		if err == circuitbreaker.ErrCircuitBreakerOpen {
-			return nil, fmt.Errorf("%s", constants.InfoMetricsAPICircuitBreakerOpen)
-		}
-		if errors.Is(err, errors.New(string(constants.ErrTimeout))) {
-			return nil, fmt.Errorf(string(constants.ErrFailedToGetPodMetrics), err)
+			return nil, fmt.Errorf(constants.ErrorFormatString, constants.InfoMetricsAPICircuitBreakerOpen)
 		}
 		return nil, fmt.Errorf(string(constants.ErrFailedToGetPodMetrics), err)
 	}
@@ -87,15 +83,15 @@ func ListPodMetrics(mc *metricstypes.MetricsClient, namespace string) ([]*metric
 	})
 	if err != nil {
 		if err == circuitbreaker.ErrCircuitBreakerOpen {
-			return nil, fmt.Errorf("%s", constants.InfoMetricsAPICircuitBreakerOpen)
+			return nil, fmt.Errorf(constants.ErrorFormatString, constants.InfoMetricsAPICircuitBreakerOpen)
 		}
 		return nil, fmt.Errorf(string(constants.InfoFailedToListPodMetrics), err)
 	}
 
 	metricsList := make([]*metricstypes.PodMetrics, constants.EmptySliceLength,
 		len(podMetricsList.Items))
-	for _, pm := range podMetricsList.Items {
-		metricsList = append(metricsList, metricsutils.ConvertToPodMetrics(&pm))
+	for i := range podMetricsList.Items {
+		metricsList = append(metricsList, metricsutils.ConvertToPodMetrics(&podMetricsList.Items[i]))
 	}
 
 	return metricsList, nil

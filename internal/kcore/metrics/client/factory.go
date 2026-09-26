@@ -57,12 +57,12 @@ func createMetricsClient() (*metricsclientset.Clientset, error) {
 		return nil, fmt.Errorf("%s %v", string(errors.ErrK8sCreateConfig), err)
 	}
 
-	metricsClient, err := metricsclientset.NewForConfig(config)
+	client, err := metricsclientset.NewForConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf(string(constants.ErrFailedToCreateMetricsClient), err)
 	}
 
-	return metricsClient, nil
+	return client, nil
 }
 
 func createMetricsClientInstance() *metricstypes.MetricsClient {

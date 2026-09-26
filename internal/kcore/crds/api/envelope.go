@@ -8,7 +8,6 @@ import (
 	"github.com/telark/data/errors"
 	"github.com/telark/data/messages"
 	"github.com/telark/data/metadata/base"
-	"github.com/telark/kcore/constants"
 	crdutils "github.com/telark/kcore/crds/utils"
 	"github.com/telark/kcore/resilience/timeout"
 	"github.com/telark/kcore/shared"
@@ -23,18 +22,20 @@ type preparedCall struct {
 	ok          bool
 }
 
-func prepare(name string, metadata base.Metadata, opTimeout time.Duration) preparedCall {
-	if name != constants.EmptyString {
-		if vErr := crdutils.ValidateResourceName(name); vErr != nil {
-			return preparedCall{
-				errEnvelope: shared.CreateKubernetesAPIData(
-					shared.StatusBadRequest,
-					string(errors.ErrResourceNameCannotBeEmpty),
-					nil, vErr,
-				),
-			}
+func prepareNamed(name string, metadata base.Metadata, opTimeout time.Duration) preparedCall {
+	if vErr := crdutils.ValidateResourceName(name); vErr != nil {
+		return preparedCall{
+			errEnvelope: shared.CreateKubernetesAPIData(
+				shared.StatusBadRequest,
+				string(errors.ErrResourceNameCannotBeEmpty),
+				nil, vErr,
+			),
 		}
 	}
+	return prepare(metadata, opTimeout)
+}
+
+func prepare(metadata base.Metadata, opTimeout time.Duration) preparedCall {
 	client, cErr := crdutils.GetResourceClient(metadata)
 	if cErr != nil {
 		return preparedCall{errEnvelope: shared.HandleClientError(cErr)}

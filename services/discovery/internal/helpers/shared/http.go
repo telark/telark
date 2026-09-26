@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -36,4 +37,11 @@ func GetOptionalQueryParam(r *http.Request, param string) (value string, ok bool
 		return constants.EmptyString, false
 	}
 	return v, true
+}
+
+// Bounded and strict: an oversized body or a field the handler does not know is refused.
+func DecodeJSONStrict(w http.ResponseWriter, r *http.Request, target any) error {
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, constants.MaxRequestBodyBytes))
+	decoder.DisallowUnknownFields()
+	return decoder.Decode(target)
 }

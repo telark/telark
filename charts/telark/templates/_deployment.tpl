@@ -63,13 +63,23 @@ spec:
       priorityClassName: {{ $priorityClass }}
 {{- end }}
       serviceAccountName: {{ include "telark.serviceAccountName" (dict "root" $root "serviceConfig" $serviceConfig) }}
+{{- if hasKey $serviceConfig "automountServiceAccountToken" }}
+      automountServiceAccountToken: {{ $serviceConfig.automountServiceAccountToken }}
+{{- end }}
       {{- include "telark.imagePullSecrets" $root | nindent 6 }}
-{{- if and $includeSecurity $podSecurity.enabled }}
+{{- if $serviceConfig.podSecurityContext }}
+      securityContext:
+        {{- toYaml $serviceConfig.podSecurityContext | nindent 8 }}
+{{- else if and $includeSecurity $podSecurity.enabled }}
       securityContext:
         runAsNonRoot: true
         runAsUser: {{ $podSecurity.runAsUser }}
         runAsGroup: {{ $podSecurity.runAsGroup }}
         fsGroup: {{ $podSecurity.fsGroup }}
+        {{- with $podSecurity.seccompProfile }}
+        seccompProfile:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
 {{- end }}
 {{- if $nodeSelector }}
       nodeSelector:
@@ -109,7 +119,7 @@ spec:
             - name: {{ $values.app.serviceToken.envVar }}
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "telark.fullname" $root }}-service-token-secret
+                  name: {{ include "telark.serviceTokenSecretName" $root }}
                   key: token
             - name: POD_IP
               valueFrom:
@@ -131,13 +141,17 @@ spec:
             - name: {{ $key }}
               value: {{ tpl ($value | toString) $root | quote }}
 {{- end }}
-{{- range $key, $secret := $values.app.shared.natsEnvFromSecret }}
-            - name: {{ $key }}
+{{- $natsSecret := include "telark.natsSecretName" (dict "root" $root "user" $serviceConfig.natsUser) }}
+            - name: NATS_USER
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "telark.fullname" $root }}-{{ $secret.name }}-secret
-                  key: {{ $secret.key }}
-{{- end }}
+                  name: {{ $natsSecret }}
+                  key: username
+            - name: NATS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $natsSecret }}
+                  key: password
 {{- end }}
 {{- range $key, $cm := $serviceConfig.envFromConfigMap }}
             - name: {{ $key }}
@@ -173,7 +187,10 @@ spec:
             timeoutSeconds: {{ $values.app.shared.healthCheck.readinessProbe.timeoutSeconds }}
             failureThreshold: {{ $values.app.shared.healthCheck.readinessProbe.failureThreshold }}
 {{- end }}
-{{- if and $includeSecurity $containerSecurity.enabled }}
+{{- if $serviceConfig.containerSecurityContext }}
+          securityContext:
+            {{- toYaml $serviceConfig.containerSecurityContext | nindent 12 }}
+{{- else if and $includeSecurity $containerSecurity.enabled }}
           securityContext:
             allowPrivilegeEscalation: {{ $containerSecurity.allowPrivilegeEscalation }}
             runAsNonRoot: true
@@ -182,6 +199,10 @@ spec:
             readOnlyRootFilesystem: {{ $containerSecurity.readOnlyRootFilesystem }}
             capabilities:
               drop: {{ $containerSecurity.capabilities.drop | toJson }}
+            {{- with $containerSecurity.seccompProfile }}
+            seccompProfile:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
 {{- end }}
 {{- if $serviceConfig.volumeMounts }}
           volumeMounts:
@@ -204,6 +225,9 @@ spec:
           {{- if $volume.secret }}
           secret:
             secretName: {{ $volume.secret.name }}
+          {{- end }}
+          {{- if hasKey $volume "emptyDir" }}
+          emptyDir: {{ $volume.emptyDir | default dict | toJson }}
           {{- end }}
           {{- if $volume.persistentVolumeClaim }}
           persistentVolumeClaim:

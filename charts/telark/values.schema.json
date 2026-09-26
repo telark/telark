@@ -81,6 +81,37 @@
             "pullSecrets": { "type": "array" }
           }
         },
+        "auth": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "bootstrap": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "admins": { "type": "array", "items": { "type": "string", "format": "email" } }
+              }
+            },
+            "passkey": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "origin": { "type": "string" },
+                "selfRegistration": { "enum": ["true", "false", true, false] }
+              }
+            }
+          }
+        },
+        "kyverno": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "failOpen": { "type": "boolean" }
+          }
+        },
         "ollama": {
           "type": "object",
           "additionalProperties": false,
@@ -88,6 +119,31 @@
             "enabled": { "type": "boolean" },
             "autoPull": { "type": "boolean" },
             "runtimeUrl": { "type": "string" }
+          }
+        },
+        "serviceToken": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "envVar": { "type": "string", "minLength": 1 },
+            "value": { "type": "string" },
+            "existingSecret": { "type": "string" }
+          }
+        },
+        "crdGuard": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "enforce": { "type": "boolean" },
+            "extraAllowedUsers": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "networkPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" }
           }
         },
         "persistence": {
@@ -133,6 +189,10 @@
           "includeSecurity": { "type": "boolean" },
           "useRedis": { "type": "boolean" },
           "useNatsCreds": { "type": "boolean" },
+          "natsUser": { "type": "string", "enum": ["publisher", "consumer"] },
+          "automountServiceAccountToken": { "type": "boolean" },
+          "podSecurityContext": { "type": "object" },
+          "containerSecurityContext": { "type": "object" },
           "nodePort": { "type": "integer" },
           "env": { "type": "object" },
           "pdb": {

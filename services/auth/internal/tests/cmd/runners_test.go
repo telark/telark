@@ -9,6 +9,7 @@ import (
 	"github.com/telark/auth/internal/cmd/breakglass"
 	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
+	authhelper "github.com/telark/auth/internal/helpers/auth"
 	"github.com/telark/auth/internal/tests/testutil"
 	userresource "github.com/telark/data/resources/user"
 )
@@ -62,4 +63,36 @@ func TestBreakGlassMarksBootstrapAdmin(t *testing.T) {
 	user.Bootstrap = true
 	testutil.Equal(t, "exit when complete", breakglass.Run([]string{"--email", email}), constants.DefaultInitValue)
 	testutil.Equal(t, "patches when complete", len(patches), constants.DefaultIncrementValue)
+}
+
+// With --enroll the operator can bootstrap a missing account: the user is created
+// with the Admin role and the bootstrap marker, and a one-time enrollment token
+// is printed, which is the only unauthenticated way into that account.
+func TestBreakGlassEnrollCreatesAdmin(t *testing.T) {
+	const email = "root@x.com"
+	t.Setenv(constants.EnvBootstrapAdmins, email)
+	testutil.RedisEnv(t)
+	var created *userresource.UserAsResource
+	testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost:
+			var user userresource.UserAsResource
+			_ = json.NewDecoder(r.Body).Decode(&user)
+			user.ID = "u-root"
+			created = &user
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": user})
+		case created == nil:
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"status":404}`))
+		default:
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": created})
+		}
+	}))
+
+	testutil.Equal(t, "exit without --enroll", breakglass.Run([]string{"--email", email}), constants.ExitCodeError)
+	testutil.Equal(t, "exit with --enroll", breakglass.Run([]string{"--email", email, "--enroll"}), constants.DefaultInitValue)
+	if created == nil || !created.Bootstrap || !authhelper.HasAdminRole(created.AssignedRolesIDs) {
+		t.Fatalf("created = %+v, want Admin with the bootstrap marker", created)
+	}
 }

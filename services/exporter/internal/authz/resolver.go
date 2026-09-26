@@ -42,7 +42,10 @@ func (*Resolver) GrantsForUser(userID string) (authz.Grants, error) {
 
 	// Read once, before collecting: a generation bumped mid-collection must
 	// leave the entry under the old generation, where nothing reads it.
-	gen := generation(ctx)
+	gen, trusted := generation(ctx)
+	if !trusted {
+		return collectGrants(userID)
+	}
 	if grants, ok := cachedGrants(ctx, gen, userID); ok {
 		return grants, nil
 	}

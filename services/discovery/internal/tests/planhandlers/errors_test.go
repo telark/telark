@@ -18,7 +18,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-const wrapDecide = "decide: %w"
+const (
+	wrapDecide  = "decide: %w"
+	wrapPrepare = "prepare: %w"
+)
 
 // Every domain failure carries its own type, so the status comes from the error itself and
 // never from matching its message.
@@ -41,6 +44,9 @@ func TestStatusForErr(t *testing.T) {
 		{"stale", fmt.Errorf(wrapDecide, protection.ErrDecisionStale), http.StatusConflict},
 		{"name taken", validation.UniqueName(taken, "guard", constants.EmptyString), http.StatusConflict},
 		{"name in flight", fmt.Errorf("prepare: %w", protection.ErrNameInFlight), http.StatusConflict},
+		{"excluded list unavailable", fmt.Errorf(wrapPrepare, &validation.UnavailableError{Msg: "down"}), http.StatusServiceUnavailable},
+		{"enforce needs owner", fmt.Errorf(wrapPrepare, validation.ErrEnforceNeedsOwner), http.StatusForbidden},
+		{"unknown environment", validation.EnvironmentID(strptr("cat-9"), func() ([]string, error) { return nil, nil }), http.StatusBadRequest},
 		{"unknown", errors.New("boom"), http.StatusInternalServerError},
 	}
 	for _, c := range cases {

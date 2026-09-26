@@ -33,6 +33,8 @@ const (
 	labelLastEvent       = "last event"
 	labelDecidedBy       = "decidedBy"
 	labelHistoryLen      = "history len"
+	labelPhase           = "phase"
+	labelRequestedBy     = "requestedBy"
 )
 
 var testNow = time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
@@ -84,27 +86,31 @@ func requireNil(t *testing.T, patch map[string]any, key string) {
 	}
 }
 
+// The requester cannot lower the gate: Production always requires approval, and a client-sent
+// automatic counts only from an Owner. The old "explicit automatic on production wins" case
+// asserted the bypass this replaces.
 func TestResolveApprovalMode(t *testing.T) {
+	automatic, required := strptr(plans.ApprovalModeAutomatic), strptr(plans.ApprovalModeRequired)
+	prod := dataconstants.CategoryIDEnvProduction
 	cases := []struct {
-		name string
-		req  *string
-		env  string
-		want string
+		name  string
+		req   *string
+		env   string
+		owner bool
+		want  string
 	}{
-		{
-			"explicit automatic on production wins",
-			strptr(plans.ApprovalModeAutomatic),
-			dataconstants.CategoryIDEnvProduction,
-			plans.ApprovalModeAutomatic,
-		},
-		{"explicit required on staging wins", strptr(plans.ApprovalModeRequired), stagingEnvironmentID, plans.ApprovalModeRequired},
-		{"nil on production derives required", nil, dataconstants.CategoryIDEnvProduction, plans.ApprovalModeRequired},
-		{"nil on staging derives automatic", nil, stagingEnvironmentID, plans.ApprovalModeAutomatic},
-		{"nil without environment derives automatic", nil, constants.EmptyString, plans.ApprovalModeAutomatic},
+		{"contributor automatic on production", automatic, prod, false, plans.ApprovalModeRequired},
+		{"owner automatic on production", automatic, prod, true, plans.ApprovalModeRequired},
+		{"contributor required on staging", required, stagingEnvironmentID, false, plans.ApprovalModeRequired},
+		{"contributor automatic on staging", automatic, stagingEnvironmentID, false, plans.ApprovalModeAutomatic},
+		{"owner required on staging", required, stagingEnvironmentID, true, plans.ApprovalModeRequired},
+		{"nil on production derives required", nil, prod, false, plans.ApprovalModeRequired},
+		{"nil on staging derives automatic", nil, stagingEnvironmentID, false, plans.ApprovalModeAutomatic},
+		{"nil without environment derives automatic", nil, constants.EmptyString, false, plans.ApprovalModeAutomatic},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			testutil.Equal(t, "mode", protection.ResolveApprovalMode(c.req, c.env), c.want)
+			testutil.Equal(t, "mode", protection.ResolveApprovalMode(c.req, c.env, c.owner), c.want)
 		})
 	}
 	testutil.Equal(t, "effective empty", protection.EffectiveApprovalMode(constants.EmptyString), plans.ApprovalModeAutomatic)
@@ -381,4 +387,86 @@ func TestValidateDecision(t *testing.T) {
 			testutil.Equal(t, "typed error", stderrors.Is(err, c.wantErr), true)
 		})
 	}
+}
+
+// The F2 bypass: a Contributor sending approvalMode=automatic on a Production plan must still be
+// parked for an approver instead of deploying on the spot.
+func TestContributorAutomaticOnProductionIsParked(t *testing.T) {
+	plan := &plans.ProtectionPlan{
+		CreatedBy:     requester,
+		EnvironmentID: dataconstants.CategoryIDEnvProduction,
+		ApprovalMode:  protection.ResolveApprovalMode(strptr(plans.ApprovalModeAutomatic), dataconstants.CategoryIDEnvProduction, false),
+	}
+	protection.InitialPhase(plan, testNow)
+	testutil.Equal(t, labelPhase, plan.Phase, plans.PhasePendingApproval)
+	testutil.Equal(t, "started", plan.StartedAt == nil, true)
+}
+
+func TestApprovalRequestersSinceLastApproval(t *testing.T) {
+	const (
+		reactivator = "user-reactivator"
+		editor      = "user-editor"
+		earlier     = "user-earlier"
+	)
+	cases := []struct {
+		name    string
+		history []plans.ProtectionPlanApprovalEvent
+		blocked []string
+		allowed []string
+	}{
+		{
+			"cancel then reactivation by another user blocks both",
+			[]plans.ProtectionPlanApprovalEvent{
+				{Event: plans.ApprovalEventRequested, By: requester},
+				{Event: plans.ApprovalEventRequested, By: reactivator},
+			},
+			[]string{requester, reactivator},
+			[]string{approver},
+		},
+		{
+			"material edit while canceled blocks the editor",
+			[]plans.ProtectionPlanApprovalEvent{
+				{Event: plans.ApprovalEventRequested, By: requester},
+				{Event: plans.ApprovalEventRejected, By: approver},
+				{Event: plans.ApprovalEventRequested, By: editor},
+				{Event: plans.ApprovalEventRequested, By: reactivator},
+			},
+			[]string{requester, editor, reactivator},
+			[]string{approver},
+		},
+		{
+			"an approval resets the set",
+			[]plans.ProtectionPlanApprovalEvent{
+				{Event: plans.ApprovalEventRequested, By: earlier},
+				{Event: plans.ApprovalEventApproved, By: approver},
+				{Event: plans.ApprovalEventRequested, By: reactivator},
+			},
+			[]string{reactivator},
+			[]string{earlier},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			plan := pendingPlan()
+			plan.Approval.RequestedBy = c.history[len(c.history)-1].By
+			plan.Approval.History = c.history
+			req := planseps.DecideProtectionPlanRequest{Decision: protection.DecisionApproved, RequestedAt: requestedAt}
+			for _, user := range c.blocked {
+				testutil.Equal(t, user+" blocked", stderrors.Is(protection.ValidateDecision(plan, user, req), protection.ErrDecisionSelf), true)
+			}
+			for _, user := range c.allowed {
+				testutil.Equal(t, user+" allowed", protection.ValidateDecision(plan, user, req) == nil, true)
+			}
+		})
+	}
+}
+
+func TestRecordEditorKeepsStateAndAppendsEditor(t *testing.T) {
+	previous := pendingPlan().Approval
+	recorded := protection.RecordEditor(previous, approver, decidedAt)
+	testutil.Equal(t, labelState, recorded.State, previous.State)
+	testutil.Equal(t, labelRequestedBy, recorded.RequestedBy, requester)
+	testutil.Equal(t, labelHistoryLen, len(recorded.History), len(previous.History)+singleEvent)
+	testutil.Equal(t, labelLastEvent, recorded.History[len(recorded.History)-1].By, approver)
+	testutil.Equal(t, "previous untouched", len(previous.History), singleEvent)
 }

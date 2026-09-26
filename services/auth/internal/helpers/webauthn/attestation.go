@@ -2,9 +2,11 @@ package webauthn
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -118,10 +120,15 @@ func parseClientData(clientDataJSONB64 string) (map[string]any, error) {
 	return clientData, nil
 }
 
-func validateClientData(clientDataJSONB64, expectedChallenge string) error {
+// The manual path replaces the library's checks, so it must verify everything
+// the library would: ceremony type, challenge and an allowed origin.
+func validateClientData(clientDataJSONB64, expectedChallenge string, origins []string) error {
 	clientData, err := parseClientData(clientDataJSONB64)
 	if err != nil {
 		return err
+	}
+	if ceremony, ok := clientData[constants.WebAuthnKeyType].(string); !ok || ceremony != constants.WebAuthnTypeCreate {
+		return errors.New(string(constants.ErrClientDataTypeMismatch))
 	}
 
 	challenge, ok := clientData[constants.WebAuthnKeyChallenge].(string)
@@ -143,15 +150,30 @@ func validateClientData(clientDataJSONB64, expectedChallenge string) error {
 		return errors.New(string(constants.ErrChallengeMismatch))
 	}
 
-	if _, ok := clientData[constants.WebAuthnKeyOrigin].(string); !ok {
+	origin, ok := clientData[constants.WebAuthnKeyOrigin].(string)
+	if !ok {
 		return errors.New(string(constants.ErrMissingOriginInClientData))
+	}
+	if !slices.Contains(origins, origin) {
+		return errors.New(string(constants.ErrClientDataOriginNotAllowed))
 	}
 
 	return nil
 }
 
+func validateAuthDataBinding(authData []byte, rpID string) error {
+	rpIDHash := sha256.Sum256([]byte(rpID))
+	if !bytes.Equal(authData[:constants.RPIDHashLength], rpIDHash[:]) {
+		return errors.New(string(constants.ErrRPIDHashMismatch))
+	}
+	if authData[constants.AuthDataOffsetFlags]&constants.UserPresentFlag == constants.DefaultInitValue {
+		return errors.New(string(constants.ErrUserPresenceMissing))
+	}
+	return nil
+}
+
 func ParseAttestationObjectManually(
-	attObjB64, clientDataJSONB64, credentialIDB64, expectedChallenge string,
+	attObjB64, clientDataJSONB64, credentialIDB64, expectedChallenge, rpID string, origins []string,
 ) (credential *webauthn.Credential, backupEligible, backupState bool, err error) {
 	attBytes, err := authhelper.DecodeBase64URLWithFallback(attObjB64)
 	if err != nil {
@@ -186,7 +208,10 @@ func ParseAttestationObjectManually(
 		return nil, false, false, errors.New(string(constants.ErrCredentialIDMismatch))
 	}
 
-	if err := validateClientData(clientDataJSONB64, expectedChallenge); err != nil {
+	if err := validateAuthDataBinding(authData, rpID); err != nil {
+		return nil, false, false, err
+	}
+	if err := validateClientData(clientDataJSONB64, expectedChallenge, origins); err != nil {
 		return nil, false, false, err
 	}
 

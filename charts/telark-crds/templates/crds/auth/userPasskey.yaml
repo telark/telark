@@ -41,9 +41,11 @@ spec:
                 credentialId:
                   type: string
                   description: Unique credential identifier
+                  maxLength: 2048
                 publicKey:
                   type: string
                   description: Public key for passkey authentication
+                  maxLength: 4096
                 deviceName:
                   type: string
                   description: Device name or label for this credential

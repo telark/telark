@@ -103,9 +103,9 @@ func concatWithSeparator(separator string, values ...string) string {
 
 	for i, value := range values {
 		if i > constants.DefaultInitValue {
-			sb.WriteString(separator)
+			_, _ = sb.WriteString(separator)
 		}
-		sb.WriteString(value)
+		_, _ = sb.WriteString(value)
 	}
 	return sb.String()
 }

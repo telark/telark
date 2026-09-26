@@ -141,7 +141,7 @@ func droppedSnapshotPaths(target map[string]any, stored *application.Application
 // direct callers patch fields at the top level. The body is restored for the
 // downstream handler.
 func readPatchTarget(r *http.Request) (patch, target map[string]any, ok bool) {
-	body, err := io.ReadAll(io.LimitReader(r.Body, base.MaxRequestBodySize))
+	body, err := io.ReadAll(http.MaxBytesReader(nil, r.Body, base.MaxRequestBodySize))
 	if err != nil {
 		return nil, nil, false
 	}

@@ -36,7 +36,7 @@ func Cancel(w http.ResponseWriter, r *http.Request) {
 		reason = *req.Reason
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), constants.ProtectionPlanLifecycleTimeout)
+	ctx, cancel := context.WithTimeout(detached(r), constants.ProtectionPlanLifecycleTimeout)
 	defer cancel()
 
 	release, ok := lockPlanDecision(ctx, w, planID)

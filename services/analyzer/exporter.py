@@ -7,6 +7,8 @@ reads the app list (summary view), the protection plans and the plan environment
 
 from __future__ import annotations
 
+from urllib.parse import quote
+
 import httpx
 
 from app_logger import logger
@@ -83,7 +85,7 @@ async def refresh(client: httpx.AsyncClient) -> None:
 
 async def get_application(client: httpx.AsyncClient, name: str) -> dict:
     try:
-        resp = await _get(client, APPLICATION_URL_TEMPLATE.format(name=name))
+        resp = await _get(client, APPLICATION_URL_TEMPLATE.format(name=quote(name, safe="")))
     except httpx.HTTPError as e:
         raise ExporterUnavailable(type(e).__name__) from e
     if resp.status_code == httpx.codes.NOT_FOUND:

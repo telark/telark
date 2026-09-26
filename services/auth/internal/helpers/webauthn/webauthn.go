@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
@@ -30,6 +31,7 @@ var (
 	webAuthnConfig    *config.WebAuthnConfig
 	webAuthnMutex     sync.RWMutex
 	webAuthnInstances sync.Map
+	instanceCount     atomic.Int32
 	lg                = constants.GetLogger(constants.LoggerPrefixHelper)
 )
 
@@ -63,13 +65,18 @@ func GetWebAuthnFor(r *http.Request) (*webauthn.WebAuthn, error) {
 	return instanceFor(cfg, rpID, origins)
 }
 
-// ponytail: unbounded when RP_ID is empty (one entry per distinct Host); pin RP_ID or add an LRU if it ever matters.
+// With RP_ID unset every distinct Host makes an entry, so the cache is dropped
+// once it grows past a small bound rather than letting a client fill memory.
 func instanceFor(cfg *config.WebAuthnConfig, rpID string, origins []string) (*webauthn.WebAuthn, error) {
 	key := rpID + constants.SpaceSeparator + strings.Join(origins, constants.CommaSeparator)
 	if cached, ok := webAuthnInstances.Load(key); ok {
 		if wa, isInstance := cached.(*webauthn.WebAuthn); isInstance {
 			return wa, nil
 		}
+	}
+	if instanceCount.Add(constants.DefaultIncrementValue) > constants.MaxWebAuthnInstances {
+		webAuthnInstances.Clear()
+		instanceCount.Store(constants.DefaultIncrementValue)
 	}
 
 	timeout := webauthn.TimeoutConfig{
@@ -303,7 +310,8 @@ func FinishRegistration(
 
 	if err != nil {
 		credential, backupEligible, backupState, err = ParseAttestationObjectManually(
-			attestationObjB64, clientDataJSONB64, credentialIDB64, challenge.Challenge)
+			attestationObjB64, clientDataJSONB64, credentialIDB64, challenge.Challenge,
+			wa.Config.RPID, wa.Config.RPOrigins)
 		if err != nil {
 			return nil, false, false, fmt.Errorf(string(constants.ErrManualCredentialParsingFailed), err)
 		}

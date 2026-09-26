@@ -28,27 +28,29 @@ Kubernetes: `>=1.30.0-0`
 | https://charts.fairwinds.com/stable | vpa | 5.1.0 |
 | https://helm.otwld.com/ | ollama | 1.50.0 |
 | https://kubernetes-sigs.github.io/metrics-server/ | metrics-server | 3.12.2 |
-| https://kyverno.github.io/kyverno/ | kyverno | 3.7.1 |
+| https://kyverno.github.io/kyverno/ | kyverno | 3.9.1 |
 
 ## Values
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| app.auth.bootstrap.admins[0] | string | `"contact@telark.io"` |  |
+| app.auth.bootstrap.admins | list | `[]` |  |
 | app.auth.passkey.id | string | `""` |  |
 | app.auth.passkey.name | string | `"Dashboard App"` |  |
 | app.auth.passkey.origin | string | `""` |  |
-| app.auth.passkey.selfRegistration | string | `"true"` |  |
-| app.crdGuard.enabled | bool | `false` |  |
-| app.crdGuard.enforce | bool | `false` |  |
+| app.auth.passkey.selfRegistration | string | `"false"` |  |
+| app.crdGuard.enabled | bool | `true` |  |
+| app.crdGuard.enforce | bool | `true` |  |
 | app.crdGuard.extraAllowedUsers | list | `[]` |  |
 | app.image.pullPolicy | string | `"Always"` |  |
 | app.image.pullSecrets | list | `[]` |  |
 | app.image.registry | string | `"telark"` |  |
 | app.kyverno.enabled | bool | `true` |  |
+| app.kyverno.failOpen | bool | `true` |  |
 | app.mode | string | `"standard"` |  |
 | app.name | string | `"telark"` |  |
 | app.namespace | string | `"telark"` |  |
+| app.networkPolicy.enabled | bool | `true` |  |
 | app.ollama.autoPull | bool | `true` |  |
 | app.ollama.enabled | bool | `true` |  |
 | app.ollama.runtimeUrl | string | `""` |  |
@@ -69,6 +71,7 @@ Kubernetes: `>=1.30.0-0`
 | app.serviceDefaults.tolerations | list | `[]` |  |
 | app.serviceDefaults.vpa.updateMode | string | `"Auto"` |  |
 | app.serviceToken.envVar | string | `"TELARK_SERVICE_TOKEN"` |  |
+| app.serviceToken.existingSecret | string | `""` |  |
 | app.serviceToken.value | string | `""` |  |
 | app.shared.containerSecurityContext.allowPrivilegeEscalation | bool | `false` |  |
 | app.shared.containerSecurityContext.capabilities.drop[0] | string | `"ALL"` |  |
@@ -76,6 +79,7 @@ Kubernetes: `>=1.30.0-0`
 | app.shared.containerSecurityContext.readOnlyRootFilesystem | bool | `true` |  |
 | app.shared.containerSecurityContext.runAsGroup | int | `1001` |  |
 | app.shared.containerSecurityContext.runAsUser | int | `1001` |  |
+| app.shared.containerSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | app.shared.healthCheck.livenessProbe.failureThreshold | int | `3` |  |
 | app.shared.healthCheck.livenessProbe.initialDelaySeconds | int | `15` |  |
 | app.shared.healthCheck.livenessProbe.path | string | `"/api/v1/status/live"` |  |
@@ -88,14 +92,11 @@ Kubernetes: `>=1.30.0-0`
 | app.shared.healthCheck.readinessProbe.periodSeconds | int | `5` |  |
 | app.shared.healthCheck.readinessProbe.timeoutSeconds | int | `15` |  |
 | app.shared.nats.NATS_HOST | string | `"{{ .Release.Name }}-nats"` |  |
-| app.shared.natsEnvFromSecret.NATS_PASSWORD.key | string | `"password"` |  |
-| app.shared.natsEnvFromSecret.NATS_PASSWORD.name | string | `"nats"` |  |
-| app.shared.natsEnvFromSecret.NATS_USER.key | string | `"username"` |  |
-| app.shared.natsEnvFromSecret.NATS_USER.name | string | `"nats"` |  |
 | app.shared.podSecurityContext.enabled | bool | `true` |  |
 | app.shared.podSecurityContext.fsGroup | int | `1001` |  |
 | app.shared.podSecurityContext.runAsGroup | int | `1001` |  |
 | app.shared.podSecurityContext.runAsUser | int | `1001` |  |
+| app.shared.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | app.shared.redis.REDIS_HOST | string | `"{{ .Release.Name }}-redis-master"` |  |
 | app.shared.redis.REDIS_PORT | string | `"6379"` |  |
 | app.shared.resources.limits.cpu | string | `"500m"` |  |
@@ -153,8 +154,7 @@ Kubernetes: `>=1.30.0-0`
 | kyverno.reportsController.resources.requests.cpu | string | `"100m"` |  |
 | kyverno.reportsController.resources.requests.memory | string | `"128Mi"` |  |
 | kyverno.webhooksCleanup.enabled | bool | `false` |  |
-| metrics-server.args[0] | string | `"--kubelet-insecure-tls"` |  |
-| metrics-server.args[1] | string | `"--kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname"` |  |
+| metrics-server.args[0] | string | `"--kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname"` |  |
 | metrics-server.enabled | bool | `true` |  |
 | metrics-server.resources.limits.cpu | string | `"200m"` |  |
 | metrics-server.resources.limits.memory | string | `"400Mi"` |  |
@@ -165,15 +165,37 @@ Kubernetes: `>=1.30.0-0`
 | monitoring.serviceMonitor.labels | object | `{}` |  |
 | monitoring.serviceMonitor.path | string | `"/metrics"` |  |
 | nameOverride | string | `""` |  |
-| nats.configuration | string | `"server_name: nats-server\nport: 4222\njetstream {\n  store_dir: \"/data\"\n  max_mem: 1G\n  max_file: 5G\n}\nauthorization {\n  users = [\n    {\n      user: \"nats\",\n      password: $NATS_PASSWORD,\n      permissions: {\n        publish   = [\"telark.applications.*\", \"$JS.ACK.>\", \"$JS.API.>\", \"_INBOX.>\"]\n        subscribe = [\"telark.applications.*\", \"$JS.ACK.>\", \"$JS.API.>\", \"_INBOX.>\"]\n      }\n    }\n  ]\n}\nhttp_port: 8222\n"` |  |
+| nats.configuration | string | `"server_name: nats-server\nport: 4222\njetstream {\n  store_dir: \"/data\"\n  max_mem: 1G\n  max_file: 5G\n}\nauthorization {\n  users = [\n    {\n      user: $NATS_PUBLISHER_USER,\n      password: $NATS_PUBLISHER_PASSWORD,\n      permissions: {\n        publish   = [\"telark.applications.*\"]\n        subscribe = [\"_INBOX.>\"]\n      }\n    },\n    {\n      user: $NATS_CONSUMER_USER,\n      password: $NATS_CONSUMER_PASSWORD,\n      permissions: {\n        publish   = [\"$JS.API.>\", \"$JS.ACK.>\"]\n        subscribe = [\"telark.applications.*\", \"_INBOX.>\"]\n      }\n    }\n  ]\n}\n"` |  |
+| nats.customLivenessProbe.failureThreshold | int | `6` |  |
+| nats.customLivenessProbe.initialDelaySeconds | int | `30` |  |
+| nats.customLivenessProbe.periodSeconds | int | `10` |  |
+| nats.customLivenessProbe.tcpSocket.port | string | `"client"` |  |
+| nats.customLivenessProbe.timeoutSeconds | int | `5` |  |
+| nats.customReadinessProbe.failureThreshold | int | `6` |  |
+| nats.customReadinessProbe.initialDelaySeconds | int | `5` |  |
+| nats.customReadinessProbe.periodSeconds | int | `10` |  |
+| nats.customReadinessProbe.tcpSocket.port | string | `"client"` |  |
+| nats.customReadinessProbe.timeoutSeconds | int | `5` |  |
 | nats.enabled | bool | `true` |  |
-| nats.extraEnvVars[0].name | string | `"NATS_PASSWORD"` |  |
-| nats.extraEnvVars[0].valueFrom.secretKeyRef.key | string | `"password"` |  |
-| nats.extraEnvVars[0].valueFrom.secretKeyRef.name | string | `"telark-nats-secret"` |  |
+| nats.existingSecrets.consumer | string | `""` |  |
+| nats.existingSecrets.publisher | string | `""` |  |
+| nats.extraEnvVars[0].name | string | `"NATS_PUBLISHER_USER"` |  |
+| nats.extraEnvVars[0].valueFrom.secretKeyRef.key | string | `"username"` |  |
+| nats.extraEnvVars[0].valueFrom.secretKeyRef.name | string | `"{{ .Values.existingSecrets.publisher | default \"telark-nats-publisher-secret\" }}"` |  |
+| nats.extraEnvVars[1].name | string | `"NATS_PUBLISHER_PASSWORD"` |  |
+| nats.extraEnvVars[1].valueFrom.secretKeyRef.key | string | `"password"` |  |
+| nats.extraEnvVars[1].valueFrom.secretKeyRef.name | string | `"{{ .Values.existingSecrets.publisher | default \"telark-nats-publisher-secret\" }}"` |  |
+| nats.extraEnvVars[2].name | string | `"NATS_CONSUMER_USER"` |  |
+| nats.extraEnvVars[2].valueFrom.secretKeyRef.key | string | `"username"` |  |
+| nats.extraEnvVars[2].valueFrom.secretKeyRef.name | string | `"{{ .Values.existingSecrets.consumer | default \"telark-nats-consumer-secret\" }}"` |  |
+| nats.extraEnvVars[3].name | string | `"NATS_CONSUMER_PASSWORD"` |  |
+| nats.extraEnvVars[3].valueFrom.secretKeyRef.key | string | `"password"` |  |
+| nats.extraEnvVars[3].valueFrom.secretKeyRef.name | string | `"{{ .Values.existingSecrets.consumer | default \"telark-nats-consumer-secret\" }}"` |  |
 | nats.image.pullPolicy | string | `"IfNotPresent"` |  |
 | nats.image.registry | string | `"docker.io"` |  |
 | nats.image.repository | string | `"nats"` |  |
-| nats.image.tag | string | `"2.12.1-scratch"` |  |
+| nats.image.tag | string | `"2.12.15-scratch"` |  |
+| nats.networkPolicy.enabled | bool | `false` |  |
 | nats.persistence.enabled | bool | `true` |  |
 | nats.persistence.path | string | `"/data"` |  |
 | nats.persistence.size | string | `"4Gi"` |  |
@@ -247,12 +269,14 @@ Kubernetes: `>=1.30.0-0`
 | services.analyzer.env.ANALYZER_USAGE_MIN_SAMPLES | string | `"12"` |  |
 | services.analyzer.env.ANALYZER_USAGE_MIN_SPAN_SEC | string | `"43200"` |  |
 | services.analyzer.env.ANALYZER_WALL_SEC | string | `"480"` |  |
+| services.analyzer.env.CORS_ALLOWED_ORIGINS | string | `""` |  |
 | services.analyzer.env.OLLAMA_AUTO_PULL | string | `"{{ .Values.app.ollama.autoPull }}"` |  |
 | services.analyzer.env.OLLAMA_HOST | string | `"{{ default (printf \"http://%s-ollama:11434\" .Release.Name) .Values.app.ollama.runtimeUrl }}"` |  |
 | services.analyzer.env.REDIS_POOL_SIZE | string | `"10"` |  |
 | services.analyzer.name | string | `"analyzer-service"` |  |
 | services.analyzer.pdb.enabled | bool | `false` |  |
 | services.analyzer.repository | string | `"analyzer"` |  |
+| services.auth.automountServiceAccountToken | bool | `false` |  |
 | services.auth.category | string | `"auth"` |  |
 | services.auth.enabled | bool | `true` |  |
 | services.auth.env.BOOTSTRAP_ADMINS | string | `"{{ join \",\" .Values.app.auth.bootstrap.admins }}"` |  |
@@ -267,6 +291,7 @@ Kubernetes: `>=1.30.0-0`
 | services.auth.env.CLEANUP_SWEEPER_INTERVAL_SECONDS | string | `"60"` |  |
 | services.auth.env.CLEANUP_WORKERS_PER_TYPE | string | `"2"` |  |
 | services.auth.env.CLEANUP_XCLAIM_MIN_IDLE_SECONDS | string | `"60"` |  |
+| services.auth.env.CORS_ALLOWED_ORIGINS | string | `""` |  |
 | services.auth.env.RECONCILE_BACKOFF_INITIAL_SECONDS | string | `"5"` |  |
 | services.auth.env.RECONCILE_BACKOFF_MAX_SECONDS | string | `"300"` |  |
 | services.auth.env.RECONCILE_PASS_DEADLINE_SECONDS | string | `"30"` |  |
@@ -297,6 +322,7 @@ Kubernetes: `>=1.30.0-0`
 | services.discovery.env.COORDINATION_SHUTDOWN_CLEANUP_TIMEOUT_SEC | string | `"45"` |  |
 | services.discovery.env.COORDINATION_STALE_CLAIM_INTERVAL_SEC | string | `"60"` |  |
 | services.discovery.env.COORDINATION_STALE_CLAIM_MIN_IDLE_SEC | string | `"300"` |  |
+| services.discovery.env.CORS_ALLOWED_ORIGINS | string | `""` |  |
 | services.discovery.env.DISCOVERY_AUTO_CLEANUP_CYCLE_INTERVAL_SEC | string | `"60"` |  |
 | services.discovery.env.DISCOVERY_AUTO_CLEANUP_DELETE_ENABLED | string | `"true"` |  |
 | services.discovery.env.DISCOVERY_AUTO_CLEANUP_EMPTY_CYCLES_REQUIRED | string | `"2"` |  |
@@ -333,8 +359,8 @@ Kubernetes: `>=1.30.0-0`
 | services.discovery.env.REST_EXPORTER_DURATION_LOG_ENABLED | string | `"true"` |  |
 | services.discovery.env.SNAPSHOT_WRITE_MAX_ATTEMPTS | string | `"5"` |  |
 | services.discovery.env.SNAPSHOT_WRITE_RETRY_INTERVAL_SEC | string | `"2"` |  |
-| services.discovery.includeSecurity | bool | `false` |  |
 | services.discovery.name | string | `"discovery-service"` |  |
+| services.discovery.natsUser | string | `"publisher"` |  |
 | services.discovery.pdb.enabled | bool | `false` |  |
 | services.discovery.repository | string | `"discovery"` |  |
 | services.discovery.topologySpread.enabled | bool | `true` |  |
@@ -346,6 +372,7 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.category | string | `"export"` |  |
 | services.exporter.enabled | bool | `true` |  |
 | services.exporter.env.BOOTSTRAP_ADMINS | string | `"{{ join \",\" .Values.app.auth.bootstrap.admins }}"` |  |
+| services.exporter.env.CORS_ALLOWED_ORIGINS | string | `""` |  |
 | services.exporter.env.EXPORTER_K8S_CLIENT_BURST | string | `"100"` |  |
 | services.exporter.env.EXPORTER_K8S_CLIENT_QPS | string | `"50"` |  |
 | services.exporter.env.REPORTS_PATH | string | `"/reports"` |  |
@@ -365,21 +392,39 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.volumes[0].persistentVolumeClaim.claimName | string | `"{{ include \"telark.exporterSnapshotsPvcName\" . }}"` |  |
 | services.exporter.volumes[1].name | string | `"reports-storage"` |  |
 | services.exporter.volumes[1].persistentVolumeClaim.claimName | string | `"{{ include \"telark.exporterReportsPvcName\" . }}"` |  |
+| services.notifier.automountServiceAccountToken | bool | `false` |  |
 | services.notifier.category | string | `"notification"` |  |
 | services.notifier.enabled | bool | `true` |  |
 | services.notifier.env.NOTIFIER_APPLY_WORKERS | string | `"8"` |  |
 | services.notifier.name | string | `"notifier-service"` |  |
+| services.notifier.natsUser | string | `"consumer"` |  |
 | services.notifier.pdb.enabled | bool | `false` |  |
 | services.notifier.repository | string | `"notifier"` |  |
 | services.notifier.terminationGracePeriodSec | int | `30` |  |
 | services.notifier.useNatsCreds | bool | `true` |  |
+| services.ui.automountServiceAccountToken | bool | `false` |  |
 | services.ui.category | string | `"ui"` |  |
+| services.ui.containerSecurityContext.allowPrivilegeEscalation | bool | `false` |  |
+| services.ui.containerSecurityContext.capabilities.drop[0] | string | `"ALL"` |  |
+| services.ui.containerSecurityContext.readOnlyRootFilesystem | bool | `true` |  |
 | services.ui.enabled | bool | `true` |  |
 | services.ui.includeHealthCheck | bool | `false` |  |
 | services.ui.includeSecurity | bool | `false` |  |
 | services.ui.name | string | `"ui-service"` |  |
+| services.ui.podSecurityContext.runAsGroup | int | `101` |  |
+| services.ui.podSecurityContext.runAsNonRoot | bool | `true` |  |
+| services.ui.podSecurityContext.runAsUser | int | `101` |  |
+| services.ui.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | services.ui.repository | string | `"ui"` |  |
 | services.ui.terminationGracePeriodSec | int | `30` |  |
 | services.ui.useRedis | bool | `false` |  |
+| services.ui.volumeMounts[0].name | string | `"nginx-cache"` |  |
+| services.ui.volumeMounts[0].path | string | `"/var/cache/nginx"` |  |
+| services.ui.volumeMounts[1].name | string | `"tmp"` |  |
+| services.ui.volumeMounts[1].path | string | `"/tmp"` |  |
+| services.ui.volumes[0].emptyDir | object | `{}` |  |
+| services.ui.volumes[0].name | string | `"nginx-cache"` |  |
+| services.ui.volumes[1].emptyDir | object | `{}` |  |
+| services.ui.volumes[1].name | string | `"tmp"` |  |
 | vpa.enabled | bool | `false` |  |
 

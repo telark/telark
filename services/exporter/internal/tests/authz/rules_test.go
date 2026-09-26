@@ -31,7 +31,6 @@ func TestRuleKeysMatchDashboardVocabulary(t *testing.T) {
 		"GET /api/v1/plans/protection/get":                        "protection-plans.viewprotectionplans.deny",
 		"GET /api/v1/plans/protection/{id}/get":                   "protection-plans.viewprotectionplans.deny",
 		"POST /api/v1/plans/protection/create":                    "protection-plans.createprotectionplan.deny",
-		"PATCH /api/v1/plans/protection/{id}/patch":               "protection-plans.editprotectionplan.deny",
 		"GET /api/v1/reports/plans/{id}/get":                      "protection-plans.viewprotectionplanreports.deny",
 		"GET /api/v1/reports/plans/{id}/download":                 "protection-plans.downloadprotectionplanreport.deny",
 	}

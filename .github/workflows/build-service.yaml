@@ -60,7 +60,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout telark (charts + composite actions)
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: release
           ref: ${{ inputs.branch || 'main' }}
@@ -72,8 +72,6 @@ jobs:
         with:
           working-directory: release/services/${{ inputs.service }}
           cache-key: ${{ inputs.service }}-lint
-          access-user: ${{ secrets.ACCESS_USER }}
-          access-token: ${{ secrets.ACCESS_TOKEN }}
           config-file: release/.golangci.yml
           test: 'false'
 
@@ -89,12 +87,12 @@ jobs:
         working-directory: services/analyzer
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.branch || 'main' }}
 
       - name: Set up Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
           cache: pip
@@ -128,7 +126,7 @@ jobs:
       image_tag: ${{ steps.release.outputs.new_version }}
     steps:
       - name: Checkout telark (charts + composite actions)
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: release
           ref: ${{ inputs.branch || 'main' }}

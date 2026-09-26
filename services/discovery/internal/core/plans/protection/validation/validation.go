@@ -12,9 +12,11 @@ import (
 	"time"
 
 	"github.com/telark/data/plans"
+	roledata "github.com/telark/data/resources/role"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/helpers/globalconfig"
 	planseps "github.com/telark/rest/endpoints/plans"
+	xauthz "github.com/telark/x-ware/authz"
 )
 
 // ValidationError marks a caller-fixable request so handlers can answer 400
@@ -45,6 +47,26 @@ func IsConflict(err error) bool {
 	return errors.As(err, &target)
 }
 
+// UnavailableError marks a check that could not load what it compares against; it fails closed
+// with a 503 instead of passing vacuously.
+type UnavailableError struct{ Msg string }
+
+func (e *UnavailableError) Error() string { return e.Msg }
+
+func IsUnavailable(err error) bool {
+	var target *UnavailableError
+	return errors.As(err, &target)
+}
+
+type ForbiddenError struct{ Msg string }
+
+func (e *ForbiddenError) Error() string { return e.Msg }
+
+func IsForbidden(err error) bool {
+	var target *ForbiddenError
+	return errors.As(err, &target)
+}
+
 var (
 	ErrInvalidScope = Invalid("scope.type must be applications or namespaces")
 	ErrScopeUnion   = Invalid(
@@ -55,6 +77,11 @@ var (
 	ErrTimeRangeFormat   = Invalid("timeRange.startAt and timeRange.endAt must be RFC3339 timestamps")
 	ErrTimeRangeElapsed  = Invalid("timeRange.endAt is in the past; the plan window has already ended")
 	ErrPoliciesRequired  = Invalid("at least one policy is required")
+
+	ErrTemplateSyntax    = Invalid("name and description must not contain '{{' or '}}'")
+	ErrEnforceNeedsOwner = &ForbiddenError{
+		Msg: "enforce mode on a namespaces scope requires the Owner level on protection plans; use audit mode",
+	}
 
 	ErrExclusionResourcesScope  = Invalid("scope.exclusions.resources is only allowed when scope.type=applications")
 	ErrExclusionKindInvalid     = Invalid("scope.exclusions.kinds entries must be non-empty base kinds without '/'")
@@ -91,6 +118,12 @@ const (
 	fmtInvalidTagID         = "tagIDs[%d] must be at most %d characters"
 	fmtTooManyTagIDs        = "tagIDs must have at most %d entries"
 	msgDuplicateTagIDs      = "tagIDs must not contain duplicates"
+
+	fmtUnknownEnvironmentID = "environmentID %q is not a known plan environment"
+	fmtExcludedUnavailable  = "excluded namespaces unavailable: %v"
+	fmtEnvironmentsUnavail  = "plan environments unavailable: %v"
+	templateOpen            = "{{"
+	templateClose           = "}}"
 
 	fmtTooManyExclusionKinds     = "scope.exclusions.kinds: at most %d"
 	fmtTooManyExclusionResources = "scope.exclusions.resources: at most %d"
@@ -163,12 +196,8 @@ func paramsKey(params map[string]any) string {
 
 // Mirrors the CRD schema so a rejected plan never reaches the Kyverno deploy.
 func Fields(req *planseps.PrepareProtectionPlanRequest) error {
-	name := strings.TrimSpace(req.Name)
-	if len(name) == constants.DefaultInitValue || len(name) > NameMaxLength {
-		return Invalidf(fmtInvalidName, NameMaxLength)
-	}
-	if req.Description != nil && len(*req.Description) > DescriptionMaxLength {
-		return Invalidf(fmtInvalidDescription, DescriptionMaxLength)
+	if err := textFields(req); err != nil {
+		return err
 	}
 	if !slices.Contains(allowedSeverities, req.Severity) {
 		return Invalidf(fmtInvalidSeverity, allowedSeverities)
@@ -186,6 +215,25 @@ func Fields(req *planseps.PrepareProtectionPlanRequest) error {
 		return Invalidf(fmtInvalidApprovalMode, allowedApprovalModes)
 	}
 	return taxonomyFields(req)
+}
+
+func textFields(req *planseps.PrepareProtectionPlanRequest) error {
+	name := strings.TrimSpace(req.Name)
+	if len(name) == constants.DefaultInitValue || len(name) > NameMaxLength {
+		return Invalidf(fmtInvalidName, NameMaxLength)
+	}
+	if req.Description != nil && len(*req.Description) > DescriptionMaxLength {
+		return Invalidf(fmtInvalidDescription, DescriptionMaxLength)
+	}
+	if HasTemplateSyntax(req.Name) || (req.Description != nil && HasTemplateSyntax(*req.Description)) {
+		return ErrTemplateSyntax
+	}
+	return nil
+}
+
+// Kyverno substitutes {{ }} in the policy fields it renders; no user text may carry it.
+func HasTemplateSyntax(value string) bool {
+	return strings.Contains(value, templateOpen) || strings.Contains(value, templateClose)
 }
 
 func taxonomyFields(req *planseps.PrepareProtectionPlanRequest) error {
@@ -271,7 +319,11 @@ func NamespaceScope(ctx context.Context, scopeType string, namespaces []string, 
 	if scopeType != plans.ScopeTypeNamespaces {
 		return nil
 	}
-	if err := ExcludedNamespaces(namespaces, globalconfig.FetchExcludedNamespaces(ctx)); err != nil {
+	excluded, err := globalconfig.ExcludedNamespaces(ctx)
+	if err != nil {
+		return &UnavailableError{Msg: fmt.Sprintf(fmtExcludedUnavailable, err)}
+	}
+	if err := ExcludedNamespaces(namespaces, excluded); err != nil {
 		return err
 	}
 	if err := PlatformNamespaces(namespaces, OwnNamespace()); err != nil {
@@ -327,12 +379,47 @@ func OwnNamespace() string {
 
 // Namespaces the policy engine never evaluates: a plan targeting them would look healthy while
 // enforcing nothing.
-func IgnoredNamespaces(ctx context.Context) []string {
-	ignored := slices.Clone(globalconfig.FetchExcludedNamespaces(ctx))
+func IgnoredNamespaces(ctx context.Context) ([]string, error) {
+	excluded, err := globalconfig.ExcludedNamespaces(ctx)
+	if err != nil {
+		return nil, &UnavailableError{Msg: fmt.Sprintf(fmtExcludedUnavailable, err)}
+	}
+	ignored := slices.Clone(excluded)
 	if own := OwnNamespace(); own != constants.EmptyString {
 		ignored = append(ignored, own)
 	}
-	return ignored
+	return ignored, nil
+}
+
+// Internal peers pass, as they do in the route middleware.
+func CallerOwnsPlans(ctx context.Context) bool {
+	identity, ok := xauthz.FromContext(ctx)
+	return ok && (identity.Internal || xauthz.Allows(identity, xauthz.Own(roledata.ScopeProtectionPlans)))
+}
+
+// An enforce plan on a namespace freezes every workload in it, not only the caller's own.
+func EnforceScope(ctx context.Context, scopeType, mode string) error {
+	if scopeType == plans.ScopeTypeNamespaces && mode == plans.ModeEnforce && !CallerOwnsPlans(ctx) {
+		return ErrEnforceNeedsOwner
+	}
+	return nil
+}
+
+type EnvironmentLister func() ([]string, error)
+
+// A nil lister (standalone bootstrap, unit tests) skips the check; production always wires one.
+func EnvironmentID(environmentID *string, list EnvironmentLister) error {
+	if environmentID == nil || *environmentID == constants.EmptyString || list == nil {
+		return nil
+	}
+	known, err := list()
+	if err != nil {
+		return &UnavailableError{Msg: fmt.Sprintf(fmtEnvironmentsUnavail, err)}
+	}
+	if !slices.Contains(known, *environmentID) {
+		return Invalidf(fmtUnknownEnvironmentID, *environmentID)
+	}
+	return nil
 }
 
 func NormalizeName(name string) string {

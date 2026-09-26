@@ -108,6 +108,8 @@ same code checks and merges them. On a small CPU node this takes minutes.
   analyzer's RBAC grants get/list on pods, events, workloads, Services,
   PodDisruptionBudgets, HorizontalPodAutoscalers and NetworkPolicies, nothing else
   (never ConfigMap or Secret contents).
+- **Redis is untrusted**: a stream job whose namespace or name is not a DNS-1123 label is
+  acknowledged and dropped, and the application name is percent-encoded in the exporter URL.
 - **Keys the review adds**: `analyzer:index` (ZSET, member `<ns>/<name>`, score = last
   document write in unix ms, written after the document, removed after it), `analyzer:usage`
   (hash, per app: ≤ 48 usage samples per workload) and `analyzer:review` (hash, per app:

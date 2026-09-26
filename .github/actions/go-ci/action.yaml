@@ -7,12 +7,6 @@ inputs:
   cache-key:
     description: 'Unique cache-key component, e.g. the service or package name'
     required: true
-  access-user:
-    description: 'GitHub user for private module access'
-    required: true
-  access-token:
-    description: 'GitHub token for private module access'
-    required: true
   test:
     description: 'Run go test -race'
     required: false
@@ -34,7 +28,7 @@ runs:
   using: 'composite'
   steps:
     - name: Set up Go
-      uses: actions/setup-go@v7.0.0
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version-file: ${{ inputs.working-directory }}/go.mod
         # Explicit cache below (with restore-keys) instead of setup-go's
@@ -46,7 +40,7 @@ runs:
     # run is cold again. The explicit save below runs with if: always().
     - name: Restore Go build and module cache
       id: go-cache
-      uses: actions/cache/restore@v6.1.0
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         # ~/.cache/golangci-lint is left to golangci-lint-action's own cache.
         path: |
@@ -83,7 +77,7 @@ runs:
 
     - name: Lint
       if: ${{ inputs.lint == 'true' }}
-      uses: golangci/golangci-lint-action@v9.3.0
+      uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
       env:
         GOWORK: "off"
       with:
@@ -100,7 +94,7 @@ runs:
 
     - name: Save Go build and module cache
       if: always() && steps.go-cache.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v6.1.0
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           ~/.cache/go-build

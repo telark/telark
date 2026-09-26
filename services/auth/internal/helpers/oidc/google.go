@@ -1,7 +1,6 @@
 package oidc
 
 import (
-	"context"
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
@@ -15,7 +14,6 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/telark/auth/internal/constants"
-	redishelper "github.com/telark/auth/internal/helpers/redis"
 	globalconfigresource "github.com/telark/data/resources/globalconfig"
 )
 
@@ -136,23 +134,20 @@ func (s *keyStore) refreshOnKidMiss() error {
 }
 
 func (s *keyStore) doRefresh() error {
+	// Keys come straight from the issuer or the admin-supplied set: Redis is
+	// unauthenticated, so a copy cached there could be swapped for an attacker's key.
 	var raw []byte
 
 	if s.egressMode {
-		if cached := loadJWKSFromRedis(); len(cached) > constants.DefaultInitValue {
-			raw = cached
-		} else {
-			fetched, err := fetchJWKS()
-			if err != nil {
-				lg.Warn(fmt.Sprintf(string(constants.ErrOIDCJWKSFetchFailed), err))
-				s.mu.Lock()
-				s.lastRefresh = time.Now()
-				s.mu.Unlock()
-				return nil // keep old keys; fail-safe
-			}
-			saveJWKSToRedis(fetched)
-			raw = fetched
+		fetched, err := fetchJWKS()
+		if err != nil {
+			lg.Warn(fmt.Sprintf(string(constants.ErrOIDCJWKSFetchFailed), err))
+			s.mu.Lock()
+			s.lastRefresh = time.Now()
+			s.mu.Unlock()
+			return nil // keep old keys; fail-safe
 		}
+		raw = fetched
 	} else {
 		raw = []byte(s.staticJSON)
 	}
@@ -187,33 +182,6 @@ func StopJWKSRefresh() {
 	defer storeMu.Unlock()
 	if store != nil {
 		store.stop()
-	}
-}
-
-func loadJWKSFromRedis() []byte {
-	rdb := redishelper.GetClient()
-	if rdb == nil {
-		return nil
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisAsyncWorkerTimeout)
-	defer cancel()
-	val, err := rdb.Get(ctx, constants.RedisKeyJWKS).Bytes()
-	if err != nil {
-		return nil
-	}
-	return val
-}
-
-func saveJWKSToRedis(raw []byte) {
-	rdb := redishelper.GetClient()
-	if rdb == nil {
-		return
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisAsyncWorkerTimeout)
-	defer cancel()
-	if err := rdb.Set(ctx, constants.RedisKeyJWKS, raw,
-		time.Duration(constants.RedisTTLJWKS)*time.Hour).Err(); err != nil {
-		lg.Warn(fmt.Sprintf(string(constants.ErrOIDCJWKSCacheFailed), err))
 	}
 }
 

@@ -38,6 +38,7 @@ ENV_ANALYZER_USAGE_MIN_SPAN_SEC = "ANALYZER_USAGE_MIN_SPAN_SEC"
 ENV_ANALYZER_CHANGE_VELOCITY_PER_DAY = "ANALYZER_CHANGE_VELOCITY_PER_DAY"
 ENV_ANALYZER_CHANGE_RISK_MIN_SPAN_SEC = "ANALYZER_CHANGE_RISK_MIN_SPAN_SEC"
 ENV_ANALYZER_PRODUCTION_PATTERN = "ANALYZER_PRODUCTION_PATTERN"
+ENV_CORS_ALLOWED_ORIGINS = "CORS_ALLOWED_ORIGINS"
 
 DEFAULT_REDIS_HOST = "localhost"
 DEFAULT_REDIS_PORT = "6379"
@@ -264,8 +265,9 @@ STREAM_ID_SEPARATOR = "-"
 # -----------------------------------------------------------------------------
 API_HOST = "0.0.0.0"
 
-# Dev only: behind nginx the UI is same-origin.
-CORS_ALLOWED_ORIGIN = "http://localhost:3000"
+# Dev only: behind nginx the UI is same-origin, so the default (none) adds no CORS headers.
+DEFAULT_CORS_ALLOWED_ORIGINS = ""
+CORS_ORIGINS_SEPARATOR = ","
 CORS_ALLOWED_METHODS = ["GET", "POST", "OPTIONS"]
 CORS_ALLOWED_HEADERS = ["*"]
 CORS_MAX_AGE_S = 600
@@ -291,6 +293,18 @@ API_ERROR_COOLDOWN_ACTIVE = "cooldown_active"
 API_ERROR_QUEUE_FULL = "queue_full"
 API_ERROR_AUTO_PULL_DISABLED = "auto_pull_disabled"
 API_ERROR_INVALID_REQUEST = "invalid_request"
+API_ERROR_MODEL_NOT_ALLOWED = "model_not_allowed"
+API_ERROR_TOO_MANY_STREAMS = "too_many_streams"
+
+# Every request body is a few bytes of JSON; larger ones are refused before FastAPI buffers them.
+REQUEST_BODY_MAX_BYTES = 64 * 1024
+HEADER_CONTENT_LENGTH = b"content-length"
+ASGI_SCOPE_HTTP = "http"
+ASGI_MESSAGE_HTTP_REQUEST = "http.request"
+ASGI_FIELD_BODY = "body"
+MSG_BODY_TOO_LARGE = "request body too large"
+# The CRD caps GlobalConfig spec.ai.model at the same length.
+MODEL_NAME_MAX_LENGTH = 128
 
 LOG_ANALYZE_FAILED = "analyze: storage unavailable: {}"
 LOG_QUEUED_NOT_STAMPED = "analyze: job queued, lastRun not stamped: {}"
@@ -307,6 +321,10 @@ SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 SSE_CONNECTED = ": connected\n\n"
 SSE_PING = ": ping\n\n"
 SSE_EVENT_TEMPLATE = "event: {name}\ndata: {data}\n\n"
+# An open stream re-checks its session this often and ends once auth-service answers 401 or 403.
+SSE_RECHECK_PINGS = 4
+SSE_RECHECK_S = SSE_PING_S * SSE_RECHECK_PINGS
+SSE_MAX_STREAMS_PER_USER = 8
 
 # -----------------------------------------------------------------------------
 # Exporter (the sole CRD reader), called with the service token
@@ -400,7 +418,7 @@ MSG_AUTHZ_INVALID_SESSION = "the session is invalid or has expired"
 MSG_AUTHZ_FORBIDDEN = "you do not have permission to perform this action"
 MSG_AUTHZ_UNAVAILABLE = "unable to verify permissions"
 
-LOG_AUTHZ_RESOLVE_FAILED = "authz: failed to resolve permissions: {error}"
+LOG_AUTHZ_RESOLVE_FAILED = "authz: failed to resolve permissions: {}"
 
 # -----------------------------------------------------------------------------
 # Tools (read-only; arguments are validated by the pydantic models in models.py)
@@ -1246,6 +1264,8 @@ SSE_QUEUE_MAX = 32
 # -----------------------------------------------------------------------------
 PULL_PROGRESS_INTERVAL_S = 1
 LOG_PULL_FAILED = "model pull failed: {}"
+# A pull that outlives this is cancelled; the largest catalogue model is a few GB.
+PULL_DEADLINE_S = 3600
 
 LICENSE_APACHE_2 = "Apache-2.0"
 LICENSE_QWEN_RESEARCH = "Qwen Research (non-commercial)"

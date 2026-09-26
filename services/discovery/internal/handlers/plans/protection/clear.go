@@ -25,8 +25,14 @@ func Clear(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), constants.ProtectionPlanLifecycleTimeout)
+	ctx, cancel := context.WithTimeout(detached(r), constants.ProtectionPlanLifecycleTimeout)
 	defer cancel()
+
+	release, ok := lockPlanDecision(ctx, w, planID)
+	if !ok {
+		return
+	}
+	defer release()
 
 	if err := svc.Clear(ctx, planID); err != nil {
 		respondDomainError(w, err)

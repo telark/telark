@@ -19,7 +19,10 @@ import (
 	restshared "github.com/telark/rest/clients/shared"
 )
 
-var ErrEmailAmbiguous = errors.New(string(constants.ErrOIDCEmailAmbiguous))
+var (
+	ErrEmailAmbiguous    = errors.New(string(constants.ErrOIDCEmailAmbiguous))
+	ErrEmailAlreadyBound = errors.New(string(constants.ErrOIDCEmailAlreadyBound))
+)
 
 func isNotFoundError(err error) bool {
 	return errors.Is(err, restshared.ErrNotFound) ||
@@ -54,6 +57,12 @@ func UserForEmail(users []*userresource.UserAsResource, email string) (*userreso
 	case constants.DefaultInitValue:
 		return nil, nil
 	case constants.DefaultIncrementValue:
+		// The stored email was never verified, so a Google subject binds to it only
+		// while the account has no identity: a passkey account that claimed a
+		// colleague's mailbox must not capture the colleague's first Google login.
+		if len(matches[constants.DefaultInitValue].Identities) > constants.DefaultInitValue {
+			return nil, ErrEmailAlreadyBound
+		}
 		return matches[constants.DefaultInitValue], nil
 	default:
 		return nil, ErrEmailAmbiguous
@@ -147,6 +156,6 @@ func fetchAndRepairIdentity(
 	if fetchErr != nil || existing == nil {
 		return nil, fmt.Errorf(string(constants.ErrOIDCPostCreateLookup), fetchErr)
 	}
-	authhelper.RepairRoleIfMissing(existing, userClient, claims.Email)
+	authhelper.RepairRoleIfMissing(existing, userClient, authhelper.ResolveInitialRoleID(claims.Email))
 	return existing, nil
 }

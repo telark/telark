@@ -42,7 +42,7 @@ func TestGuardGlobalConfigPatchLevelPerField(t *testing.T) {
 		{"contributor cannot touch ai", roledata.PermissionLevelContributor, globalconfigresource.FieldAI, false},
 		{"owner edits ai", roledata.PermissionLevelOwner, globalconfigresource.FieldAI, true},
 		{"owner cannot touch oidc", roledata.PermissionLevelOwner, globalconfigresource.FieldOIDC, false},
-		{"admin edits oidc", roledata.PermissionLevelAdmin, globalconfigresource.FieldOIDC, true},
+		{"settings admin cannot touch oidc", roledata.PermissionLevelAdmin, globalconfigresource.FieldOIDC, false},
 		{"readonly edits nothing", roledata.PermissionLevelReadOnly, globalconfigresource.FieldExcludedNamespaces, false},
 		{"contributor edits fetch interval", roledata.PermissionLevelContributor, globalconfigresource.FieldUserSettings, true},
 		{"readonly cannot touch fetch interval", roledata.PermissionLevelReadOnly, globalconfigresource.FieldUserSettings, false},
@@ -155,5 +155,32 @@ func TestGuardGlobalConfigPatchAllowsInternalCaller(t *testing.T) {
 	spec := map[string]any{globalconfigresource.FieldCluster: map[string]any{"version": "1.31"}}
 	if !authz.GuardGlobalConfigPatch(w, patchRequest(identity), spec) {
 		t.Error("internal caller was blocked")
+	}
+}
+
+// Whoever controls the identity provider can sign in as anyone, so OIDC takes
+// Admin on ALL, and the settings deny rule still bites that Admin.
+func TestGuardGlobalConfigPatchOIDCNeedsAllAdmin(t *testing.T) {
+	oidcRule := xauthz.RuleKey(roledata.ScopeSettings, roledata.ActionEditOIDCConfig)
+	allAdmin := levels(roledata.ScopeAll, roledata.PermissionLevelAdmin)
+	tests := []struct {
+		name     string
+		identity xauthz.Identity
+		want     bool
+	}{
+		{"admin on ALL", allAdmin, true},
+		{"admin on ALL denied the oidc rule", denied(allAdmin, roledata.ScopeSettings, oidcRule), false},
+		{"admin on settings only", settingsIdentity(roledata.PermissionLevelAdmin), false},
+		{"owner on ALL", levels(roledata.ScopeAll, roledata.PermissionLevelOwner), false},
+		{"internal", internalIdentity, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			spec := map[string]any{globalconfigresource.FieldOIDC: map[string]any{"enabled": true}}
+			if got := authz.GuardGlobalConfigPatch(w, patchRequest(tt.identity), spec); got != tt.want {
+				t.Fatalf("GuardGlobalConfigPatch = %v, want %v (%d)", got, tt.want, w.Code)
+			}
+		})
 	}
 }

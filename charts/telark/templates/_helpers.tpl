@@ -117,3 +117,22 @@ imagePullSecrets:
 {{- end }}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Secret holding the service token: app.serviceToken.existingSecret when set,
+otherwise the chart-generated one. Call with the root context.
+*/}}
+{{- define "telark.serviceTokenSecretName" -}}
+{{- default (printf "%s-service-token-secret" .Values.app.name) .Values.app.serviceToken.existingSecret -}}
+{{- end -}}
+
+{{/*
+Secret holding one NATS user's credentials (publisher or consumer):
+nats.existingSecrets.<user> when set, otherwise the chart-generated one.
+  {{- include "telark.natsSecretName" (dict "root" $root "user" "publisher") }}
+*/}}
+{{- define "telark.natsSecretName" -}}
+{{- $user := required "services.<svc>.natsUser must be publisher or consumer when useNatsCreds is true" .user -}}
+{{- $existing := index (.root.Values.nats.existingSecrets | default dict) $user -}}
+{{- default (printf "%s-nats-%s-secret" .root.Values.app.name $user) $existing -}}
+{{- end -}}

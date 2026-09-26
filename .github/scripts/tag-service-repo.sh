@@ -29,15 +29,15 @@ git fetch --tags origin || true
 tag_exists_locally=$(git tag -l "$tag_name" | wc -l)
 tag_exists_remotely=$(git ls-remote --tags origin "$tag_name" | wc -l)
 
-# Tags are immutable, so a re-build of the same version must delete first.
-if [ "$tag_exists_locally" -gt 0 ]; then
-  echo "Tag $tag_name exists locally. Deleting..."
-  git tag -d "$tag_name" || true
+# Tags are immutable provenance: a re-build of a released version must not move
+# its tag, so bump the version instead.
+if [ "$tag_exists_remotely" -gt 0 ]; then
+  echo "::error::Tag $tag_name already exists in the service repository; bump the version instead of re-tagging." >&2
+  exit 1
 fi
 
-if [ "$tag_exists_remotely" -gt 0 ]; then
-  echo "Tag $tag_name exists remotely. Deleting..."
-  git push origin --delete "$tag_name" || true
+if [ "$tag_exists_locally" -gt 0 ]; then
+  git tag -d "$tag_name"
 fi
 
 cat > tag_message.txt << EOF

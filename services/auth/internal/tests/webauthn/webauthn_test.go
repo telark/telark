@@ -3,6 +3,7 @@ package webauthn
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
@@ -50,9 +51,14 @@ const (
 	authDataCap          = 64
 	tooShortAuthDataLen  = 10
 	backupFlagBits       = 0x08 | 0x10
+	userPresentBit       = 0x01
+	testRPID             = "localhost"
+	testOrigin           = "http://localhost:3000"
 	testSignCount        = 5
 	minimalCOSEKey       = 0xA0
 )
+
+var testOrigins = []string{testOrigin}
 
 var pinnedRelyingParty = config.WebAuthnConfig{
 	RPID:             "localhost",
@@ -291,9 +297,10 @@ func buildAttestation(t *testing.T) (attB64, clientDataB64, credIDB64, expectedC
 	t.Helper()
 	credID := []byte(testRawCredID)
 
+	rpIDHash := sha256.Sum256([]byte(testRPID))
 	authData := make([]byte, constants.InitialCapacity, authDataCap)
-	authData = append(authData, make([]byte, rpIDHashLen)...) // rpIdHash
-	authData = append(authData, backupFlagBits)               // flags: backup eligible + state
+	authData = append(authData, rpIDHash[:]...)                // rpIdHash
+	authData = append(authData, backupFlagBits|userPresentBit) // flags: UP + backup eligible + state
 	authData = binary.BigEndian.AppendUint32(authData, testSignCount)
 	authData = append(authData, make([]byte, aaguidLen)...) // AAGUID
 	authData = binary.BigEndian.AppendUint16(authData, uint16(len(testRawCredID)))
@@ -308,8 +315,9 @@ func buildAttestation(t *testing.T) (attB64, clientDataB64, credIDB64, expectedC
 
 	expectedChallenge = base64.RawURLEncoding.EncodeToString([]byte("testchallenge"))
 	cd, err := json.Marshal(map[string]any{
+		"type":      "webauthn.create",
 		"challenge": expectedChallenge,
-		"origin":    "http://localhost:3000",
+		"origin":    testOrigin,
 	})
 	if err != nil {
 		t.Fatalf(jsonMarshalFailed, err)
@@ -323,12 +331,42 @@ func buildAttestation(t *testing.T) (attB64, clientDataB64, credIDB64, expectedC
 // valid "none" attestation when the library path is unavailable.
 func TestParseAttestationObjectManually(t *testing.T) {
 	att, cd, credID, chal := buildAttestation(t)
-	cred, elig, state, err := webauthnhelper.ParseAttestationObjectManually(att, cd, credID, chal)
+	cred, elig, state, err := webauthnhelper.ParseAttestationObjectManually(att, cd, credID, chal, testRPID, testOrigins)
 	if err != nil || cred == nil {
 		t.Fatalf("ParseAttestationObjectManually = (%v, %v)", cred, err)
 	}
 	testutil.Equal(t, "eligible", elig, true)
 	testutil.Equal(t, "state", state, true)
+}
+
+// The manual path checks what the library would: the relying party hash, the
+// user-present flag, the ceremony type and an allowed origin.
+func TestParseAttestationObjectManuallyBinding(t *testing.T) {
+	att, cd, credID, chal := buildAttestation(t)
+	cases := []struct {
+		name    string
+		rpID    string
+		origins []string
+	}{
+		{"other relying party", "evil.example", testOrigins},
+		{"origin not allowed", testRPID, []string{"https://evil.example"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if _, _, _, err := webauthnhelper.ParseAttestationObjectManually(att, cd, credID, chal, c.rpID, c.origins); err == nil {
+				t.Fatal("expected a binding error")
+			}
+		})
+	}
+
+	wrongType, err := json.Marshal(map[string]any{"type": "webauthn.get", "challenge": chal, "origin": testOrigin})
+	if err != nil {
+		t.Fatalf(jsonMarshalFailed, err)
+	}
+	if _, _, _, err := webauthnhelper.ParseAttestationObjectManually(
+		att, base64.RawURLEncoding.EncodeToString(wrongType), credID, chal, testRPID, testOrigins); err == nil {
+		t.Fatal("a non-registration ceremony type must be rejected")
+	}
 }
 
 // Undecodable, non-CBOR, and wrong-format attestations are all rejected.
@@ -348,7 +386,7 @@ func TestParseAttestationObjectManuallyErrors(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			_, _, _, err := webauthnhelper.ParseAttestationObjectManually(
-				c.attB64, constants.EmptyString, constants.EmptyString, "chal")
+				c.attB64, constants.EmptyString, constants.EmptyString, "chal", testRPID, testOrigins)
 			if err == nil {
 				t.Fatal("expected an error")
 			}

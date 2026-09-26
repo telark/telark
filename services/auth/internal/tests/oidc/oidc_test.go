@@ -63,6 +63,8 @@ func TestUserForEmail(t *testing.T) {
 	jane := &userresource.UserAsResource{ID: "u-1", Email: email}
 	twin := &userresource.UserAsResource{ID: "u-2", Email: "Jane.Doe@example.com"}
 	other := &userresource.UserAsResource{ID: "u-3", Email: "other@example.com"}
+	bound := &userresource.UserAsResource{ID: "u-4", Email: email,
+		Identities: []*userresource.UserIdentity{{Provider: "passkey", Subject: "cred"}}}
 
 	cases := []struct {
 		name    string
@@ -73,6 +75,7 @@ func TestUserForEmail(t *testing.T) {
 		{"none", []*userresource.UserAsResource{other, nil}, nil, nil},
 		{"one, case-insensitive", []*userresource.UserAsResource{other, twin}, twin, nil},
 		{"two", []*userresource.UserAsResource{jane, twin, other}, nil, oidchandler.ErrEmailAmbiguous},
+		{"already bound to another identity", []*userresource.UserAsResource{bound, other}, nil, oidchandler.ErrEmailAlreadyBound},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

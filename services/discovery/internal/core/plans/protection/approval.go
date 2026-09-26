@@ -2,6 +2,7 @@ package protection
 
 import (
 	"errors"
+	"slices"
 	"time"
 	"unicode/utf8"
 
@@ -20,10 +21,20 @@ var (
 	ErrDecisionSelf       = errors.New(string(ErrApprovalSelfDecision))
 )
 
-func ResolveApprovalMode(req *string, environmentID string) string {
-	if req != nil {
+// The gate must not be one the requester can lower: Production always requires approval, and a
+// client-sent mode weaker than the derived one counts only from an Owner.
+func ResolveApprovalMode(req *string, environmentID string, callerOwner bool) string {
+	derived := DerivedApprovalMode(environmentID)
+	if derived == plans.ApprovalModeRequired || req == nil {
+		return derived
+	}
+	if *req == plans.ApprovalModeRequired || callerOwner {
 		return *req
 	}
+	return derived
+}
+
+func DerivedApprovalMode(environmentID string) string {
 	if environmentID == dataconstants.CategoryIDEnvProduction {
 		return plans.ApprovalModeRequired
 	}
@@ -156,10 +167,37 @@ func ValidateDecision(plan *plans.ProtectionPlan, deciderID string, req planseps
 	if req.RequestedAt != plan.Approval.RequestedAt {
 		return ErrDecisionStale
 	}
-	if deciderID == plan.Approval.RequestedBy {
+	if slices.Contains(ApprovalRequesters(plan.Approval), deciderID) {
 		return ErrDecisionSelf
 	}
 	return nil
+}
+
+// Everyone who put the current spec up for approval since the last approval: the creator, a
+// reactivator and every material editor, so two users cannot approve each other's changes.
+func ApprovalRequesters(a *plans.ProtectionPlanApproval) []string {
+	if a == nil {
+		return nil
+	}
+	requesters := []string{a.RequestedBy}
+	for i := len(a.History) - constants.DefaultAddValue; i >= constants.DefaultInitValue; i-- {
+		event := a.History[i]
+		if event.Event == plans.ApprovalEventApproved {
+			break
+		}
+		if event.Event == plans.ApprovalEventRequested {
+			requesters = append(requesters, event.By)
+		}
+	}
+	return requesters
+}
+
+// Records a material editor of a required plan that is not awaiting a decision (canceled,
+// failed, terminated), so a later reactivation by someone else keeps them from approving.
+func RecordEditor(previous *plans.ProtectionPlanApproval, editor, now string) *plans.ProtectionPlanApproval {
+	approval := *previous
+	approval.History = AppendApprovalEvent(previous.History, plans.ApprovalEventRequested, editor, now, nil)
+	return &approval
 }
 
 func validateDecisionComment(req planseps.DecideProtectionPlanRequest) error {

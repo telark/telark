@@ -33,7 +33,7 @@ var lg = constants.GetLogger(constants.PrefixMain)
 
 func CreateUserResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := sharedutils.GetSpec(w, r)
+		body, err := sharedutils.GetSpecFor[userdata.UserAsResource](w, r)
 		if err != nil {
 			return
 		}
@@ -229,7 +229,7 @@ func PatchUserByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(h
 			return
 		}
 
-		body, err := sharedutils.GetSpec(w, r)
+		body, err := sharedutils.GetSpecFor[userdata.UserAsResource](w, r)
 		if err != nil {
 			return
 		}

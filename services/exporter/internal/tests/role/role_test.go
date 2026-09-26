@@ -278,8 +278,12 @@ func TestExtractAndMergeRoleForPatch(t *testing.T) {
 	}
 	body := map[string]any{constants.NameParam: "renamed", "description": "d2"}
 	rec := httptest.NewRecorder()
-	if !roleutil.ExtractAndMergeRoleForPatch(existing, body, rec) {
+	merged, ok := roleutil.ExtractAndMergeRoleForPatch(existing, body, rec)
+	if !ok {
 		t.Fatal("ExtractAndMergeRoleForPatch returned false")
+	}
+	if merged.Name != "renamed" {
+		t.Errorf("merged name = %q, want renamed", merged.Name)
 	}
 	if body["priority"] == nil || body["version"] == nil {
 		t.Errorf("patch body missing computed fields: %v", body)

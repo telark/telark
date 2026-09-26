@@ -28,6 +28,8 @@ const (
 	fieldTemplate    = "template"
 	fieldContainers  = "containers"
 	fieldEnv         = "env"
+	appsV1           = "apps/v1"
+	kindReplicaSet   = "ReplicaSet"
 )
 
 var deploymentsGVR = schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
@@ -87,4 +89,37 @@ func TestReplaceUnstructuredRemovesFieldsAddedAfterTheSnapshot(t *testing.T) {
 	testutil.Equal(t, "added env removed", len(containerEnv(t, got)), constants.DefaultInitValue)
 	_, err = ns.Get(context.Background(), missingName, metav1.GetOptions{})
 	testutil.Equal(t, "missing object recreated", err, nil)
+}
+
+// Snapshot owner references are stripped as possibly stale, so the replace keeps the live ones:
+// an operator-owned object must not be orphaned (or collected) by a rollback, and a recreated
+// object must not point at an owner UID that may no longer exist.
+func TestReplaceUnstructuredKeepsLiveOwnerReferences(t *testing.T) {
+	liveOwner := metav1.OwnerReference{APIVersion: appsV1, Kind: kindReplicaSet, Name: "operator", UID: "live-uid"}
+	staleOwner := metav1.OwnerReference{APIVersion: appsV1, Kind: kindReplicaSet, Name: "old", UID: "stale-uid"}
+	live := deployment(replaceName, nil)
+	live.SetOwnerReferences([]metav1.OwnerReference{liveOwner})
+	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(
+		runtime.NewScheme(), map[schema.GroupVersionResource]string{deploymentsGVR: "DeploymentList"}, live,
+	)
+	mapper := meta.NewDefaultRESTMapper(nil)
+	mapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: kindDeployment}, meta.RESTScopeNamespace)
+	existing, recreated := deployment(replaceName, nil), deployment(missingName, nil)
+	existing.SetOwnerReferences([]metav1.OwnerReference{staleOwner})
+	recreated.SetOwnerReferences([]metav1.OwnerReference{staleOwner})
+
+	err := rollback.ReplaceUnstructured(
+		context.Background(), dyn, mapper, []unstructured.Unstructured{*existing, *recreated}, false, nil,
+	)
+	testutil.Equal(t, "replace", err, nil)
+
+	ns := dyn.Resource(deploymentsGVR).Namespace(replaceNamespace)
+	got, err := ns.Get(context.Background(), replaceName, metav1.GetOptions{})
+	testutil.Equal(t, "live read", err, nil)
+	owners := got.GetOwnerReferences()
+	testutil.Equal(t, "owner count", len(owners), constants.DefaultAddValue)
+	testutil.Equal(t, "live owner kept", owners[constants.DefaultInitValue].UID, liveOwner.UID)
+	created, err := ns.Get(context.Background(), missingName, metav1.GetOptions{})
+	testutil.Equal(t, "created read", err, nil)
+	testutil.Equal(t, "created without stale owner", len(created.GetOwnerReferences()), constants.DefaultInitValue)
 }

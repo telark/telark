@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/telark/discovery/internal/constants"
@@ -23,7 +24,7 @@ func NewNameLocks(client *xwareredis.LockClient) *NameLocks {
 }
 
 // Holds the normalized name from the uniqueness check through the write that follows it, so
-// two parallel creates or renames cannot both pass UniqueName. The TTL outlives the deploy budget.
+// two parallel creates or renames cannot both pass UniqueName.
 func (l *NameLocks) Acquire(ctx context.Context, name string) (func(), error) {
 	key := validation.NormalizeName(name)
 	if l.client == nil {
@@ -31,14 +32,39 @@ func (l *NameLocks) Acquire(ctx context.Context, name string) (func(), error) {
 	}
 	redisKey := KeyPrefixLockPlanName + key
 	value := uuid.NewString()
-	acquired, err := l.client.Acquire(ctx, redisKey, value, constants.ProtectionPlanDeployTimeout)
+	acquired, err := l.client.Acquire(ctx, redisKey, value, constants.PlanLockTTL)
 	if err != nil {
 		return nil, fmt.Errorf(fmtWrappedErr, ErrCoordinationUnavailable, err)
 	}
 	if !acquired {
 		return nil, ErrNameInFlight
 	}
-	return func() { _ = l.client.Release(context.Background(), redisKey, value) }, nil
+	return HoldLock(l.client, redisKey, value), nil
+}
+
+// Exporter calls ignore the request deadline, so a holder can outrun any fixed TTL; the heartbeat
+// keeps the lock while the holder lives, and the TTL only frees it after a crash.
+func HoldLock(client *xwareredis.LockClient, key, value string) func() {
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(constants.PlanLockHeartbeatInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-ticker.C:
+				_, _ = client.Extend(context.Background(), key, value, constants.PlanLockTTL)
+			}
+		}
+	}()
+	return func() {
+		close(stop)
+		<-done
+		_ = client.Release(context.Background(), key, value)
+	}
 }
 
 // Without Redis (standalone bootstrap) a per-name mutex keeps two writers of one replica apart.

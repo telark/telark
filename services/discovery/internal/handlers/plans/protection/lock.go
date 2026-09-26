@@ -21,7 +21,7 @@ func lockPlanDecision(ctx context.Context, w http.ResponseWriter, planID string)
 	}
 	key := constants.KeyPrefixLockPlanDecision + planID
 	value := uuid.NewString()
-	acquired, err := coord.Lock.Acquire(ctx, key, value, constants.DefaultLockTTL)
+	acquired, err := coord.Lock.Acquire(ctx, key, value, constants.PlanLockTTL)
 	if err != nil {
 		respondError(w, http.StatusServiceUnavailable, protection.ErrPlanCoordinationUnavailable, err)
 		return nil, false
@@ -30,7 +30,7 @@ func lockPlanDecision(ctx context.Context, w http.ResponseWriter, planID string)
 		respondError(w, http.StatusConflict, protection.ErrPlanDecisionInFlight, nil)
 		return nil, false
 	}
-	return func() { _ = coord.Lock.Release(context.Background(), key, value) }, true
+	return protection.HoldLock(coord.Lock, key, value), true
 }
 
 // Without a bundle (standalone bootstrap, or consumer-group setup failed) the

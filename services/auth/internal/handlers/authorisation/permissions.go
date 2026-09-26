@@ -66,6 +66,9 @@ func collectInheritedRoles(assignedGroupIDs []*string, roleMap map[string][]Role
 			lg.Error(fmt.Sprintf(string(constants.ErrFailedLoadGroup), groupID, err))
 			continue
 		}
+		if group.DeletionTimestamp != nil {
+			continue
+		}
 		for _, rid := range group.AssignedRolesIDs {
 			roleMap[rid] = append(roleMap[rid], RoleSource{Kind: constants.RoleSourceInherited, GroupID: groupID})
 		}
@@ -79,6 +82,9 @@ func resolveRoles(roleMap map[string][]RoleSource) []ResolvedRole {
 		role, err := roleClient.GetRoleByID(roleID)
 		if err != nil {
 			lg.Error(fmt.Sprintf(string(constants.ErrFailedLoadRole), roleID, err))
+			continue
+		}
+		if role.DeletionTimestamp != nil {
 			continue
 		}
 		resolvedRoles = append(resolvedRoles, ResolvedRole{
@@ -116,9 +122,10 @@ func isRoleExpired(role *roleresource.RoleAsResource) bool {
 	if role.Validity.ExpiresAt == nil {
 		return false
 	}
+	// Same rule as x-ware/authz: an unparsable expiry is expired, never permanent.
 	expiry, err := time.Parse(constants.TimeFormatRFC3339, *role.Validity.ExpiresAt)
 	if err != nil {
-		return false
+		return true
 	}
 	return time.Now().After(expiry)
 }

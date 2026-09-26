@@ -92,3 +92,11 @@ func (s activeSource) User(userID string) (*userdata.UserAsResource, error) {
 	active.Status.Phase = string(userdata.AccountPhaseActive)
 	return &active, nil
 }
+
+func CallerIsAdminOnAll(ctx context.Context) bool {
+	caller, ok := authz.FromContext(ctx)
+	if !ok {
+		return false
+	}
+	return caller.Internal || isAdmin(caller.Grants)
+}

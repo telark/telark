@@ -1,7 +1,6 @@
 package protection
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +12,7 @@ import (
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/plans/protection"
 	"github.com/telark/discovery/internal/core/plans/protection/validation"
+	"github.com/telark/discovery/internal/helpers/shared"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
@@ -24,7 +24,7 @@ func StatusForErr(err error) int {
 		return http.StatusOK
 	case errors.Is(err, clients.ErrPlanNotFound):
 		return http.StatusNotFound
-	case errors.Is(err, protection.ErrDecisionSelf):
+	case errors.Is(err, protection.ErrDecisionSelf), validation.IsForbidden(err):
 		return http.StatusForbidden
 	case errors.Is(err, protection.ErrDecisionNotPending), errors.Is(err, protection.ErrDecisionStale),
 		errors.Is(err, protection.ErrNameInFlight), validation.IsConflict(err):
@@ -32,7 +32,7 @@ func StatusForErr(err error) int {
 	case validation.IsValidation(err):
 		return http.StatusBadRequest
 	case circuitbreaker.IsOpen(err), clients.IsExporterFailure(err), isClusterError(err),
-		errors.Is(err, protection.ErrCoordinationUnavailable):
+		errors.Is(err, protection.ErrCoordinationUnavailable), validation.IsUnavailable(err):
 		return http.StatusServiceUnavailable
 	default:
 		return http.StatusInternalServerError
@@ -69,13 +69,13 @@ func requireUser(w http.ResponseWriter, r *http.Request) (string, bool) {
 }
 
 func decodeBody(w http.ResponseWriter, r *http.Request, target any) bool {
-	return acceptBody(w, json.NewDecoder(r.Body).Decode(target))
+	return acceptBody(w, shared.DecodeJSONStrict(w, r, target))
 }
 
 // An absent body is a valid request for the optional-payload routes, so only a malformed one
 // is rejected.
 func decodeOptionalBody(w http.ResponseWriter, r *http.Request, target any) bool {
-	err := json.NewDecoder(r.Body).Decode(target)
+	err := shared.DecodeJSONStrict(w, r, target)
 	if errors.Is(err, io.EOF) {
 		return true
 	}
@@ -86,7 +86,12 @@ func acceptBody(w http.ResponseWriter, err error) bool {
 	if err == nil {
 		return true
 	}
+	status := http.StatusBadRequest
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		status = http.StatusRequestEntityTooLarge
+	}
 	msg := fmt.Sprintf(string(protection.ErrRequestBody), err)
-	respondError(w, http.StatusBadRequest, dataerrors.Error(msg), err)
+	respondError(w, status, dataerrors.Error(msg), err)
 	return false
 }

@@ -25,6 +25,10 @@ spec:
       schema:
         openAPIV3Schema:
           type: object
+          # The name is the token digest the services look sessions up by.
+          x-kubernetes-validations:
+            - rule: self.metadata.name.matches('^session-[0-9a-f]{64}$')
+              message: name must be session-<sha256 hex of the token>
           properties:
             spec:
               type: object

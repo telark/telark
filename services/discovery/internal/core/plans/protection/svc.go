@@ -49,6 +49,7 @@ type Service struct {
 	logger         Logger
 	notifier       *ApprovalNotifier
 	names          *NameLocks
+	environments   validation.EnvironmentLister
 }
 
 func NewService(
@@ -79,6 +80,7 @@ func (s *Service) Applier() *protpolicies.Applier             { return s.applier
 func (s *Service) Exporter() *clients.ProtectionPlanClient    { return s.exporter }
 func (s *Service) ResolveApps() applications.Resolver         { return s.resolveApps }
 func (s *Service) ListNamespaces() validation.NamespaceLister { return s.listNamespaces }
+func (s *Service) Environments() validation.EnvironmentLister { return s.environments }
 func (s *Service) AppLogger() Logger                          { return s.logger }
 func (s *Service) Clock() time.Time                           { return s.clock() }
 func (s *Service) Notifier() *ApprovalNotifier                { return s.notifier }
@@ -88,7 +90,7 @@ func (s *Service) LockName(ctx context.Context, name string) (func(), error) {
 }
 
 func (s *Service) HealthCheck(ctx context.Context, planID string) (*plans.ProtectionPlan, health.Result, error) {
-	return health.Check(ctx, s.healthDeps(), planID)
+	return health.Read(ctx, s.healthDeps(), planID)
 }
 
 func (s *Service) ReconcileHealthForActive(ctx context.Context, planList []plans.ProtectionPlan) {
@@ -158,10 +160,7 @@ func (s *Service) Prepare(
 	userID string,
 	req *planseps.PrepareProtectionPlanRequest,
 ) (*plans.ProtectionPlan, error) {
-	if err := validation.PrepareRequest(req, s.clock()); err != nil {
-		return nil, err
-	}
-	if err := validation.NamespaceScope(ctx, req.Scope.Type, req.Scope.Namespaces, s.listNamespaces); err != nil {
+	if err := s.validatePrepare(ctx, req); err != nil {
 		return nil, err
 	}
 	release, err := s.names.Acquire(ctx, req.Name)
@@ -183,7 +182,7 @@ func (s *Service) Prepare(
 		return nil, fmt.Errorf(string(ErrIDGeneration), err)
 	}
 
-	plan := s.buildPlan(planID, userID, req)
+	plan := s.buildPlan(planID, userID, req, validation.CallerOwnsPlans(ctx))
 	InitialPhase(plan, s.clock())
 
 	if shouldRender(plan) {
@@ -206,6 +205,19 @@ func (s *Service) Prepare(
 	return plan, nil
 }
 
+func (s *Service) validatePrepare(ctx context.Context, req *planseps.PrepareProtectionPlanRequest) error {
+	if err := validation.PrepareRequest(req, s.clock()); err != nil {
+		return err
+	}
+	if err := validation.EnforceScope(ctx, req.Scope.Type, req.Mode); err != nil {
+		return err
+	}
+	if err := validation.EnvironmentID(req.EnvironmentID, s.environments); err != nil {
+		return err
+	}
+	return validation.NamespaceScope(ctx, req.Scope.Type, req.Scope.Namespaces, s.listNamespaces)
+}
+
 func (s *Service) Cancel(ctx context.Context, userID, planID, reason string) (*plans.ProtectionPlan, error) {
 	plan, err := s.exporter.Get(planID)
 	if err != nil {
@@ -215,12 +227,13 @@ func (s *Service) Cancel(ctx context.Context, userID, planID, reason string) (*p
 		return nil, validation.Invalidf(string(ErrCancelInvalidPhase), plan.Phase)
 	}
 
-	s.cleanup(ctx, "cancel", planID)
-
+	// Phase first: a failed patch must not leave an active plan enforcing nothing, while a
+	// failed cleanup after it leaves policies the orphan sweep removes.
 	now := s.clock().Format(globalshared.DefaultTimeFormat)
 	if err := s.exporter.PatchRawOrError(userID, planID, BuildCancelPatch(userID, reason, now)); err != nil {
 		return nil, err
 	}
+	s.cleanup(ctx, "cancel", planID)
 	s.reports.CaptureAsync(plan, now, userID, stringOrDefault(reason, ReasonCanceledByUser), reportseps.TriggerCancel)
 
 	updated, err := s.exporter.Get(planID)
@@ -237,6 +250,9 @@ func (s *Service) Reactivate(ctx context.Context, userID, planID string) (*plans
 	}
 	if !reactivatable(plan.Phase) {
 		return nil, validation.Invalidf(string(ErrReactivateInvalidPhase), plan.Phase)
+	}
+	if err := validation.EnforceScope(ctx, plan.Scope.Type, plan.Mode); err != nil {
+		return nil, err
 	}
 	if err := validation.NamespaceScope(ctx, plan.Scope.Type, plan.Scope.Namespaces, s.listNamespaces); err != nil {
 		return nil, err
@@ -313,11 +329,11 @@ func (s *Service) reject(
 	plan *plans.ProtectionPlan,
 	comment *string,
 ) (*plans.ProtectionPlan, error) {
-	s.cleanup(ctx, "reject", plan.ID)
 	now := s.clock().Format(globalshared.DefaultTimeFormat)
 	if err := s.exporter.PatchRawOrError(userID, plan.ID, BuildRejectPatch(plan, userID, *comment, now)); err != nil {
 		return nil, err
 	}
+	s.cleanup(ctx, "reject", plan.ID)
 	s.logger.Info(fmt.Sprintf(LogPlanRejected, plan.ID, userID))
 	s.notifier.Decided(plan, DecisionRejected, comment)
 	return s.exporter.Get(plan.ID)
@@ -490,12 +506,11 @@ func (s *Service) Activate(ctx context.Context, snapshot *plans.ProtectionPlan) 
 }
 
 func (s *Service) Terminate(ctx context.Context, plan *plans.ProtectionPlan) error {
-	s.cleanup(ctx, "terminate", plan.ID)
-
 	now := s.clock().Format(globalshared.DefaultTimeFormat)
 	if err := s.exporter.PatchRawOrError(SystemActor, plan.ID, BuildTerminatePatch(now)); err != nil {
 		return err
 	}
+	s.cleanup(ctx, "terminate", plan.ID)
 	s.reports.CaptureAsync(plan, now, SystemActor, ReasonExpired, reportseps.TriggerEnd)
 	s.logger.Info(fmt.Sprintf(LogPlanTerminated, plan.ID))
 	return nil
@@ -553,6 +568,7 @@ func (s *Service) ListAllPlans() ([]plans.ProtectionPlan, error) {
 func (s *Service) buildPlan(
 	planID, userID string,
 	req *planseps.PrepareProtectionPlanRequest,
+	callerOwner bool,
 ) *plans.ProtectionPlan {
 	now := s.clock().Format(globalshared.DefaultTimeFormat)
 	scope := plans.ProtectionPlanScope{
@@ -583,7 +599,7 @@ func (s *Service) buildPlan(
 	if req.EnvironmentID != nil {
 		plan.EnvironmentID = *req.EnvironmentID
 	}
-	plan.ApprovalMode = ResolveApprovalMode(req.ApprovalMode, plan.EnvironmentID)
+	plan.ApprovalMode = ResolveApprovalMode(req.ApprovalMode, plan.EnvironmentID, callerOwner)
 	return plan
 }
 

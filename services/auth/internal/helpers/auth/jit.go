@@ -35,7 +35,7 @@ func JitProvisionUserByEmail(
 		if fetchErr != nil {
 			return nil, fetchErr
 		}
-		RepairRoleIfMissing(existing, userClient, email)
+		RepairRoleIfMissing(existing, userClient, constants.BuiltInRoleReadOnly)
 		return existing, nil
 	default:
 		return nil, fmt.Errorf(string(constants.ErrFailedCreateUser),
@@ -43,8 +43,10 @@ func JitProvisionUserByEmail(
 	}
 }
 
+// Self-registration verifies nothing about the email, so the account starts
+// ReadOnly; Admin and the bootstrap marker come only from a verified identity.
 func buildJitUser(email, username string) *userresource.UserAsResource {
-	roleID := ResolveInitialRoleID(email)
+	roleID := constants.BuiltInRoleReadOnly
 	return &userresource.UserAsResource{
 		Username:         username,
 		Fullname:         BuildFullnameFromEmail(email),
@@ -52,17 +54,16 @@ func buildJitUser(email, username string) *userresource.UserAsResource {
 		CreationDate:     time.Now().UTC().Format(time.RFC3339),
 		Status:           userresource.UserStatus{Phase: string(userresource.AccountPhaseActive)},
 		AssignedRolesIDs: []*string{&roleID},
-		Bootstrap:        config.IsBootstrapAdmin(email),
 	}
 }
 
-func RepairRoleIfMissing(user *userresource.UserAsResource, userClient *userclient.Client, email string) {
+func RepairRoleIfMissing(user *userresource.UserAsResource, userClient *userclient.Client, roleID string) {
 	if len(user.AssignedRolesIDs) != constants.DefaultInitValue {
 		return
 	}
-	if err := RepairMissingRole(user, userClient, email); err != nil {
+	if err := RepairMissingRole(user, userClient, roleID); err != nil {
 		jitLg.Error(err.Error())
 		return
 	}
-	jitLg.Info(fmt.Sprintf(string(constants.LogJIT409RoleRepair), shared.IdentityHash(email)))
+	jitLg.Info(fmt.Sprintf(string(constants.LogJIT409RoleRepair), shared.IdentityHash(user.Email)))
 }

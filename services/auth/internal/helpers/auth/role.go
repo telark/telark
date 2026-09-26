@@ -50,14 +50,13 @@ func EnsureBootstrapAdmin(user *userresource.UserAsResource, verifiedEmail strin
 	lg.Info(fmt.Sprintf(string(constants.LogOIDCAdminPromoted), identityHash))
 }
 
-func RepairMissingRole(user *userresource.UserAsResource, userClient *userclient.Client, email string) error {
+func RepairMissingRole(user *userresource.UserAsResource, userClient *userclient.Client, roleID string) error {
 	if len(user.AssignedRolesIDs) > constants.DefaultInitValue {
 		return nil
 	}
-	roleID := ResolveInitialRoleID(email)
 	resp := userClient.PatchUserByID(user.ID, map[string]any{constants.SpecFieldAssignedRolesIDs: []*string{&roleID}})
 	if resp.Status != http.StatusOK {
-		return fmt.Errorf(string(constants.ErrFailedRoleRepair), shared.IdentityHash(email), resp.Status)
+		return fmt.Errorf(string(constants.ErrFailedRoleRepair), shared.IdentityHash(user.Email), resp.Status)
 	}
 	return nil
 }

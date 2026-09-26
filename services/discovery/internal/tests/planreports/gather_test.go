@@ -25,39 +25,39 @@ import (
 )
 
 const (
-	planPolicy    = "telark-pp-a1-b2-c3"
-	planNS        = "pp-ns"
-	startedAt     = "2026-09-20T10:00:00Z"
-	runKey        = "20260920T100000Z"
-	actor         = "user-42"
-	appA          = "app-a"
-	appB          = "app-b"
-	maxRows       = 5000
-	opPut         = "put"
-	opCreate      = "create"
-	minuteStep    = time.Minute
-	blockedDetail = "PersistentVolumeClaim pp-ns/claim: [block-pvc] fail (blocked); pvc mutation blocked"
-	keyAPIVersion = "apiVersion"
-	keyKind       = "kind"
-	keyName       = "name"
-	keyNamespace  = "namespace"
-	comma         = ","
-	uidOne        = "u1"
-	nameCreates   = "creates"
-	nameDocRows   = "doc rows"
-	namePuts      = "puts"
-	nameTruncated = "truncated"
-	zero          = 0
-	one           = 1
-	two           = 2
-	afterOne      = minuteStep
-	afterTwo      = 2 * minuteStep
-	afterThree    = 3 * minuteStep
-	afterFive     = 5 * minuteStep
-	afterTen      = 10 * minuteStep
-	afterThirty   = 30 * minuteStep
-	afterForty    = 40 * minuteStep
-	threeHours    = 3 * time.Hour
+	planPolicy      = "telark-pp-a1-b2-c3"
+	planNS          = "pp-ns"
+	startedAt       = "2026-09-20T10:00:00Z"
+	runKey          = "20260920T100000Z"
+	actor           = "user-42"
+	appA            = "app-a"
+	appB            = "app-b"
+	maxRows         = 5000
+	opPut           = "put"
+	opCreate        = "create"
+	minuteStep      = time.Minute
+	blockedDetail   = "PersistentVolumeClaim pp-ns/claim: [block-pvc] fail (blocked); pvc mutation blocked"
+	keyAPIVersion   = "apiVersion"
+	keyKind         = "kind"
+	keyName         = "name"
+	keyNamespace    = "namespace"
+	comma           = ","
+	uidOne          = "u1"
+	nameCreates     = "creates"
+	nameDocRows     = "doc rows"
+	namePuts        = "puts"
+	nameTruncated   = "truncated"
+	zero            = 0
+	one             = 1
+	two             = 2
+	afterOne        = minuteStep
+	afterTwo        = 2 * minuteStep
+	afterThree      = 3 * minuteStep
+	afterFive       = 5 * minuteStep
+	afterTen        = 10 * minuteStep
+	afterThirty     = 30 * minuteStep
+	afterForty      = 40 * minuteStep
+	threeHourWindow = 3 * time.Hour
 )
 
 var eventGVR = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "events"}
@@ -341,7 +341,7 @@ func TestGatherFlagsTrailingGapAfterLastCheckpoint(t *testing.T) {
 		Run:         runKey,
 		Checkpoints: []reports.LedgerCheckpoint{{At: checkpointAt, Health: plans.HealthHealthy}},
 	}
-	end := stamp(startedAt, threeHours)
+	end := stamp(startedAt, threeHourWindow)
 
 	doc := gather(t, activePlan(), ledger, end)
 

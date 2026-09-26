@@ -176,10 +176,9 @@ func addPlans(r map[string]authz.Requirement) {
 	r[router.Key(base.Post, plansendpoints.CreateProtectionPlan)] = authz.Denyable(
 		authz.Write(roledata.ScopeProtectionPlans), roledata.ActionCreateProtectionPlan,
 	)
-	r[router.Key(base.Patch, plansendpoints.PatchProtectionPlanByID)] = authz.Denyable(
-		authz.Write(roledata.ScopeProtectionPlans), roledata.ActionEditProtectionPlan,
-	)
-	// Users delete through discovery's clear route, which removes the deployed policies first.
+	// Users edit and delete through discovery, which owns the lifecycle and
+	// removes the deployed policies first.
+	r[router.Key(base.Patch, plansendpoints.PatchProtectionPlanByID)] = authz.Internal
 	r[router.Key(base.Delete, plansendpoints.DeleteProtectionPlanByID)] = authz.Internal
 }
 

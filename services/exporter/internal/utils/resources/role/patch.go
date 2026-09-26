@@ -33,7 +33,7 @@ func GetExistingRoleForPatch(w http.ResponseWriter, roleID string) (*roledata.Ro
 	return existingRole, true
 }
 
-func ExtractAndMergeRoleForPatch(existingRole *roledata.RoleAsResource, body map[string]any, w http.ResponseWriter) bool {
+func ExtractAndMergeRoleForPatch(existingRole *roledata.RoleAsResource, body map[string]any, w http.ResponseWriter) (*roledata.RoleAsResource, bool) {
 	delete(body, constants.FieldPriority)
 	delete(body, constants.FieldVersion)
 	newRole, err := ExtractRoleSpecFromRequestBody(body)
@@ -46,15 +46,15 @@ func ExtractAndMergeRoleForPatch(existingRole *roledata.RoleAsResource, body map
 			nil,
 			err,
 		)
-		return false
+		return nil, false
 	}
 
 	mergedRole := MergeRoleAndPreparePatchBody(existingRole, newRole, body)
 	delete(body, constants.FieldCreationDate)
 	if mergedRole.Type != roledata.RoleTypeBuiltIn {
 		if err := ValidatePriorityCapOrRespond(w, mergedRole.Priority); err != nil {
-			return false
+			return nil, false
 		}
 	}
-	return true
+	return mergedRole, true
 }

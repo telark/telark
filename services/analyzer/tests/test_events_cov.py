@@ -8,7 +8,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from constants import EVENT_RESYNC, SSE_QUEUE_MAX  # noqa: E402
+from constants import EVENT_RESYNC, SSE_MAX_STREAMS_PER_USER, SSE_QUEUE_MAX  # noqa: E402
 from events import Broadcaster  # noqa: E402
 
 
@@ -58,3 +58,12 @@ def test_overflow_drains_and_resyncs():
     assert _drain(fast) == [("analysis.finished", {"version": SSE_QUEUE_MAX, "app": "shop/api"})]
     b.publish("analysis.started", "shop/api", {"version": 1})
     assert _drain(slow) == [("analysis.started", {"version": 1, "app": "shop/api"})]
+
+
+def test_subscriptions_are_capped_per_user():
+    b = Broadcaster()
+    subs = [b.subscribe(set(), "u1") for _ in range(SSE_MAX_STREAMS_PER_USER)]
+    assert all(subs) and b.subscribe(set(), "u1") is None
+    assert b.subscribe(set(), "u2") is not None
+    b.unsubscribe(subs[0])
+    assert b.subscribe(set(), "u1") is not None

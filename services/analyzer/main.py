@@ -32,7 +32,7 @@ import analyzer
 import exporter
 import recommendations
 import review
-from api_server import create_app
+from api_server import create_app, valid_app
 from app_logger import configure, logger
 from config import (
     ANALYZER_CONFIG_POLL_SEC,
@@ -46,6 +46,7 @@ from config import (
     REDIS_URL,
 )
 from constants import (
+    API_ERROR_INVALID_APP,
     API_HOST,
     APP_CATCHUP_ATTEMPTS,
     APP_CATCHUP_INTERVAL_S,
@@ -453,6 +454,11 @@ async def handle(state, msg_id: str, fields: dict | None, cfg: AnalyzerConfig, c
     except ValidationError as e:
         # The analyze handler never writes such a message, so no document holds its id.
         logger.warning(LOG_JOB_UNDECODABLE, type(e).__name__)
+        await state.store.ack_job(msg_id)
+        return ""
+    # Redis is untrusted: a planted job must not steer the exporter URL or the document key.
+    if not valid_app(job.namespace, job.name):
+        logger.warning(LOG_JOB_UNDECODABLE, API_ERROR_INVALID_APP)
         await state.store.ack_job(msg_id)
         return ""
     if clock_ms() - stream_id_ms(msg_id) > JOB_MAX_AGE_S * MS_PER_S:

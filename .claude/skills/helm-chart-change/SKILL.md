@@ -32,7 +32,7 @@ If `make deps` reports a missing repository, add the repositories listed in `.gi
 Then read the rendered output you changed, in each mode it affects:
 
 ```sh
-helm template t charts/telark --set app.mode=<mode> --set app.persistence.storageClass=validate > rendered.yaml
+helm template t charts/telark --set 'app.auth.bootstrap.admins={jane.doe@example.com}' --set app.mode=<mode> --set app.persistence.storageClass=validate > rendered.yaml
 grep -c '^# Source:' rendered.yaml
 ```
 

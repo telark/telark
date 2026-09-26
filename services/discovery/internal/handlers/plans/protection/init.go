@@ -1,7 +1,9 @@
 package protection
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"sync/atomic"
 
 	"github.com/telark/data/messages"
@@ -31,4 +33,10 @@ func getCoordinationBundle() *coordination.CoordinationBundle {
 
 func planMessage(msg messages.Message, planID string) string {
 	return fmt.Sprintf(string(msg), planID, plansmeta.ProtectionPlanMetadata.Kind)
+}
+
+// Detached from cancellation so a destructive sequence finishes if the caller disconnects, while
+// keeping the verified identity the plan rules read.
+func detached(r *http.Request) context.Context {
+	return context.WithoutCancel(r.Context())
 }

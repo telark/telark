@@ -71,7 +71,7 @@ flowchart LR
 
 Full reference: [chart README](../../charts/telark/README.md#servicesnotifierenv). Notifier
 has no service-specific env; it inherits `app.shared.redis` and, when
-`useNatsCreds: true`, the `<app.name>-nats-secret` credentials (`NATS_USER` / `NATS_PASSWORD`).
+`useNatsCreds: true`, the NATS consumer credentials from `<app.name>-nats-consumer-secret` (`NATS_USER` / `NATS_PASSWORD`).
 
 ## API
 

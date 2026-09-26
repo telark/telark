@@ -170,7 +170,8 @@ async def _emit(
         payload = ollama.chat_payload(model, messages, tools.SPECS, NUM_PREDICT_EMIT, fmt=EMIT_SCHEMA)
         resp = await _chat(client, payload, min(ANALYZER_EMIT_TIMEOUT_SEC, deadline - clock()), sleep)
         try:
-            return EmitOutput.model_validate_json(resp.message.content).insights
+            decoded = EmitOutput.model_validate_json(resp.message.content).insights
+            return [Emitted.model_validate(e.model_dump()) for e in decoded]
         except ValidationError as e:
             # Error type and location only; the completion itself is never sent back.
             detail = validation_detail(e)

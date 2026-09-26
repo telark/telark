@@ -155,6 +155,7 @@ func listPolicyItems(
 
 func snapshotOf(item *unstructured.Unstructured) policySnapshot {
 	return policySnapshot{
+		created:       item.GetCreationTimestamp().Time,
 		namespace:     item.GetNamespace(),
 		ready:         readReady(item),
 		failureAction: readFailureAction(item),

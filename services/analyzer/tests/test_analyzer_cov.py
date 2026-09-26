@@ -235,6 +235,14 @@ def test_emit_reserve(monkeypatch):
     assert script.timeouts == [80]
 
 
+def test_deep_emit_refuses_reason_and_params(monkeypatch):
+    injected = json.dumps({"insights": [{**INSIGHT, "reason": "x", "params": {"workload": "y" * 5000}}]})
+    script = Ollama(_chat("done"), _chat(injected), _emit(INSIGHT))
+    outcome = _analyze(monkeypatch, script)
+    assert len(script.emits()) == 2
+    assert [(e.reason, e.params) for e in outcome.emitted] == [("", {})]
+
+
 def test_emit_decode_retry(monkeypatch):
     bad = json.dumps({"insights": [{**INSIGHT, "kind": "meltdown"}]})
     script = Ollama(_chat("done"), _chat(bad), _emit(INSIGHT))

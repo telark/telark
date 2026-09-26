@@ -49,6 +49,11 @@ const (
 	AuthDataOffsetCredID          = 55
 	AAGUIDLength                  = 16
 	AttestationFormatNone         = "none"
+	WebAuthnTypeCreate            = "webauthn.create"
+	UserPresentFlag               = 0x01
+	RPIDHashLength                = 32
+	MaxWebAuthnInstances          = 32
+	MaxRequestBodyBytes           = 1 << 20
 	AttStmtKey                    = "attStmt"
 	SignCountShift24              = 24
 	SignCountShift16              = 16
@@ -89,13 +94,11 @@ const (
 	RedisKeyPrefixEnrolledCeremony  = "auth:webauthn:enrolled-ceremony:"
 	RedisKeyPrefixEnrollToken       = "auth:passkey:enroll-token:"
 	RedisKeyPrefixNonce             = "auth:oidc:nonce:"
-	RedisKeyJWKS                    = "auth:oidc:jwks:google"
 
 	// Redis TTLs
 	RedisTTLChallenge        = 60  // seconds — matches WebAuthn ceremony timeout
 	RedisTTLNonce            = 300 // seconds — 5 minutes for OIDC flow
 	RedisTTLEnrollToken      = 600 // seconds — 10 minutes to open the enrollment link on the other host
-	RedisTTLJWKS             = 6   // hours
 	OIDCNonceByteLen         = 32
 	RedisAsyncWorkerPoolSize = 32
 	RedisAsyncWorkerTimeout  = 5 * time.Second
@@ -129,23 +132,23 @@ const (
 	EnvBackfillBatchSize             = "BACKFILL_BATCH_SIZE"
 	EnvBackfillBatchPauseMS          = "BACKFILL_BATCH_PAUSE_MS"
 
-	DefaultReconcileTickSeconds          = 5
-	DefaultReconcilePassDeadlineSeconds  = 30
-	DefaultCleanupWorkersPerType         = 2
-	DefaultCleanupStreamMaxLen           = 10000
-	DefaultCleanupLagAlertThreshold      = 500
-	DefaultCleanupSweeperIntervalSeconds = 60
-	DefaultCleanupJobMaxAttempts         = 5
-	DefaultCleanupDedupTTLSeconds        = 600
-	DefaultCleanupXClaimMinIdleSeconds   = 60
-	DefaultCleanupListTimeoutSeconds     = 10
-	DefaultCleanupPatchTimeoutSeconds    = 5
-	DefaultCleanupMaxConcurrentPatches   = 4
-	DefaultCleanupBackoffInitialSeconds  = 5
-	DefaultCleanupBackoffMaxSeconds      = 300
-	DefaultBackfillBatchSize             = 10
-	DefaultBackfillBatchPauseMS          = 100
-	CleanupDLQMaxLen               int64 = 1000
+	DefaultReconcileTickSeconds                = 5
+	DefaultReconcilePassDeadlineSeconds        = 30
+	DefaultCleanupWorkersPerType               = 2
+	DefaultCleanupStreamMaxLen                 = 10000
+	DefaultCleanupLagAlertThreshold            = 500
+	DefaultCleanupSweeperIntervalSeconds       = 60
+	DefaultCleanupJobMaxAttempts               = 5
+	DefaultCleanupDedupTTLSeconds              = 600
+	DefaultCleanupXClaimMinIdleSeconds         = 60
+	DefaultCleanupListTimeoutSeconds           = 10
+	DefaultCleanupPatchTimeoutSeconds          = 5
+	DefaultCleanupMaxConcurrentPatches         = 4
+	DefaultCleanupBackoffInitialSeconds        = 5
+	DefaultCleanupBackoffMaxSeconds            = 300
+	DefaultBackfillBatchSize                   = 10
+	DefaultBackfillBatchPauseMS                = 100
+	CleanupDLQMaxLen                     int64 = 1000
 
 	CleanupStreamPrefix    = "auth:cleanup:"
 	CleanupDLQStreamPrefix = "auth:cleanup:dlq:"

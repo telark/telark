@@ -25,14 +25,30 @@ spec:
     {{- $annotations := "{{ request.object.metadata.annotations || `{}` | length(@) }}" }}
     # JSON6902 adds, not patchStrategicMerge: a strategic merge re-serialises the whole object and
     # collapses list entries that share a merge key (duplicate env names) in user workloads.
+    # Only the kinds discovery snapshots, minus Secret (Kyverno would see every payload):
+    # a wildcard would route every Lease, EndpointSlice and Event write through Kyverno.
     - name: inject-last-modified-new-annotations
       match: &match
         any:
           - resources:
               kinds:
-                - "*"
+                - apps/v1/Deployment
+                - apps/v1/StatefulSet
+                - apps/v1/DaemonSet
+                - batch/v1/Job
+                - batch/v1/CronJob
+                - v1/ConfigMap
+                - v1/Service
+                - v1/PersistentVolumeClaim
+                - v1/ServiceAccount
+                - networking.k8s.io/v1/Ingress
+                - networking.k8s.io/v1/NetworkPolicy
+                - autoscaling/v2/HorizontalPodAutoscaler
+                {{- /* Kyverno rejects a policy naming a kind the cluster does not serve. */}}
+                {{- if .Capabilities.APIVersions.Has "autoscaling.k8s.io/v1/VerticalPodAutoscaler" }}
+                - autoscaling.k8s.io/v1/VerticalPodAutoscaler
+                {{- end }}
               # Matching on namespaces ensures cluster-scoped resources are not targeted.
-              # Kyverno supports wildcards in `kinds` and `namespaces`.
               namespaces:
                 - "*"
       exclude: &exclude

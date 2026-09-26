@@ -10,6 +10,7 @@ import (
 	categorydata "github.com/telark/data/classification/category"
 	dataerrors "github.com/telark/data/errors"
 	globalconfigresource "github.com/telark/data/resources/globalconfig"
+	groupdata "github.com/telark/data/resources/group"
 	roledata "github.com/telark/data/resources/role"
 	userdata "github.com/telark/data/resources/user"
 	"github.com/telark/exporter/internal/constants"
@@ -101,6 +102,10 @@ func GuardUserPatch(w http.ResponseWriter, r *http.Request, existing *userdata.U
 		return true
 	}
 
+	if !guardIdentityFields(w, identity, existing, body) {
+		return false
+	}
+
 	required := requirementsIn(privilegedUserFields, body)
 	if len(required) == constants.DefaultInitValue {
 		// No privileged field is touched, so this is a profile edit: only the
@@ -124,9 +129,21 @@ func GuardUserPatch(w http.ResponseWriter, r *http.Request, existing *userdata.U
 		return false
 	}
 
+	return addedMembershipsWithinCaller(w, identity, existing, body)
+}
+
+func addedMembershipsWithinCaller(w http.ResponseWriter, identity xauthz.Identity, existing *userdata.UserAsResource, body map[string]any) bool {
 	newRoles := notifdispatch.ExtractNewRoleIDsFromBody(body, constants.FieldAssignedRolesIDs)
-	added, _ := notifdispatch.DiffPtrStringSlices(existing.AssignedRolesIDs, newRoles)
-	return assignedRolesWithinCaller(w, identity, added)
+	addedRoles, _ := notifdispatch.DiffPtrStringSlices(existing.AssignedRolesIDs, newRoles)
+	if !assignedRolesWithinCaller(w, identity, addedRoles) {
+		return false
+	}
+	if _, present := body[constants.FieldAssignedGroupsIDs]; !present {
+		return true
+	}
+	newGroups := notifdispatch.ExtractNewRoleIDsFromBody(body, constants.FieldAssignedGroupsIDs)
+	addedGroups, _ := notifdispatch.DiffPtrStringSlices(existing.AssignedGroupsIDs, newGroups)
+	return groupsWithinCaller(w, identity, addedGroups)
 }
 
 // A new user may carry roles, groups or a status only from a caller who could
@@ -145,6 +162,9 @@ func GuardUserCreate(w http.ResponseWriter, r *http.Request, body map[string]any
 		denyForbidden(w, constants.ErrAuthzBootstrapFieldReserved)
 		return false
 	}
+	if !guardIdentitiesField(w, nil, body) {
+		return false
+	}
 
 	privileged := make(map[string]any, len(body))
 	for field, value := range body {
@@ -160,7 +180,8 @@ func GuardUserCreate(w http.ResponseWriter, r *http.Request, body map[string]any
 		}
 	}
 
-	return assignedRolesWithinCaller(w, identity, stringsOf(body[constants.FieldAssignedRolesIDs]))
+	return assignedRolesWithinCaller(w, identity, stringsOf(body[constants.FieldAssignedRolesIDs])) &&
+		groupsWithinCaller(w, identity, stringsOf(body[constants.FieldAssignedGroupsIDs]))
 }
 
 func isEmptyValue(value any) bool {
@@ -209,8 +230,9 @@ func GuardGroupRolesPatch(w http.ResponseWriter, r *http.Request, existingRoles 
 }
 
 // Members are gated like the user side of the same membership: groups Owner
-// plus the add or remove rule, and never on oneself.
-func GuardGroupMembersPatch(w http.ResponseWriter, r *http.Request, existingMembers []string, body map[string]any) bool {
+// plus the add or remove rule, never on oneself, and a new member receives the
+// group's roles, so those are capped like assigning them directly.
+func GuardGroupMembersPatch(w http.ResponseWriter, r *http.Request, existing *groupdata.GroupAsResource, body map[string]any) bool {
 	raw, present := body[constants.FieldAssignedUsersIDs]
 	if !present {
 		return true
@@ -225,7 +247,7 @@ func GuardGroupMembersPatch(w http.ResponseWriter, r *http.Request, existingMemb
 		return true
 	}
 
-	added, removed := notifdispatch.DiffStringSlices(existingMembers, stringsOf(raw))
+	added, removed := notifdispatch.DiffStringSlices(existing.AssignedUsersIDs, stringsOf(raw))
 	if len(added) > constants.DefaultInitValue && !xauthz.Allows(identity, addRules[constants.FieldAssignedGroupsIDs]) {
 		denyForbidden(w, constants.ErrAuthzGroupMembersDenied)
 		return false
@@ -238,7 +260,34 @@ func GuardGroupMembersPatch(w http.ResponseWriter, r *http.Request, existingMemb
 		denyForbidden(w, constants.ErrAuthzSelfPrivilegeChange)
 		return false
 	}
+	if len(added) == constants.DefaultInitValue {
+		return true
+	}
 
+	roles := existing.AssignedRolesIDs
+	if rawRoles, present := body[constants.FieldAssignedRolesIDs]; present {
+		roles = stringsOf(rawRoles)
+	}
+	return assignedRolesWithinCaller(w, identity, roles)
+}
+
+// Joining a group hands out every role it carries.
+func groupsWithinCaller(w http.ResponseWriter, identity xauthz.Identity, groupIDs []string) bool {
+	for _, groupID := range groupIDs {
+		group, err := source.Group(groupID)
+		if errors.Is(err, xauthz.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			responseutils.LogAndSendResponse(
+				w, http.StatusServiceUnavailable, response.OperationUnavailable, string(constants.ErrResourceLookupFailed), nil, err,
+			)
+			return false
+		}
+		if !assignedRolesWithinCaller(w, identity, group.AssignedRolesIDs) {
+			return false
+		}
+	}
 	return true
 }
 
@@ -368,6 +417,47 @@ func GuardRoleLevels(w http.ResponseWriter, r *http.Request, scopes []roledata.S
 	return true
 }
 
+// Status and validity can switch a role's levels back on, so they are capped
+// like a scope edit, against the role as it will be stored.
+func GuardPatchedRoleLevels(w http.ResponseWriter, r *http.Request, merged *roledata.RoleAsResource, body map[string]any) bool {
+	if !slices.ContainsFunc(constants.RoleLevelFields, func(field string) bool {
+		_, patched := body[field]
+		return patched
+	}) {
+		return true
+	}
+	return GuardRoleLevels(w, r, merged.ScopesAndPermissions)
+}
+
+// A session could otherwise mint a role nobody may edit or delete.
+func GuardRoleReservedFields(w http.ResponseWriter, r *http.Request, existing *roledata.RoleAsResource, body map[string]any) bool {
+	identity, ok := callerIdentity(w, r)
+	if !ok {
+		return false
+	}
+	if identity.Internal {
+		return true
+	}
+	if roleType, present := body[constants.FieldType]; present && roleType == string(roledata.RoleTypeBuiltIn) {
+		denyForbidden(w, constants.ErrAuthzRoleReservedField)
+		return false
+	}
+	raw, present := body[constants.FieldProtection]
+	if !present {
+		return true
+	}
+	current := roledata.Protection{}
+	if existing != nil && existing.Protection != nil {
+		current = *existing.Protection
+	}
+	patched, err := sharedutils.ExtractStructFromBody[roledata.RoleAsResource](map[string]any{constants.FieldProtection: raw})
+	if err == nil && (patched.Protection == nil || *patched.Protection == current) {
+		return true
+	}
+	denyForbidden(w, constants.ErrAuthzRoleReservedField)
+	return false
+}
+
 func levelAboveCaller(grants xauthz.Grants, scopes []roledata.ScopeAndPermissions) (roledata.ScopeAndPermissions, bool) {
 	for _, entry := range scopes {
 		if !effectiveLevel(grants, entry.Scope).Covers(entry.Level) {
@@ -478,13 +568,12 @@ var categoryRequirements = map[string]map[string]xauthz.Requirement{
 	roledata.ScopeGroups: {
 		constants.CategoryOpCreate: xauthz.Denyable(xauthz.Write(roledata.ScopeGroups), roledata.ActionAddGroupCategory),
 		constants.CategoryOpEdit:   xauthz.Denyable(xauthz.Own(roledata.ScopeGroups), roledata.ActionEditGroupCategory),
-		// Deletion checks the edit rule, as it did before operations were keyed.
-		constants.CategoryOpDelete: xauthz.Denyable(xauthz.Own(roledata.ScopeGroups), roledata.ActionEditGroupCategory),
+		constants.CategoryOpDelete: xauthz.Denyable(xauthz.Own(roledata.ScopeGroups), roledata.ActionDeleteGroupCategory),
 	},
 	roledata.ScopeRoles: {
 		constants.CategoryOpCreate: xauthz.Denyable(xauthz.Write(roledata.ScopeRoles), roledata.ActionAddRoleCategory),
 		constants.CategoryOpEdit:   xauthz.Denyable(xauthz.Own(roledata.ScopeRoles), roledata.ActionEditRoleCategory),
-		constants.CategoryOpDelete: xauthz.Denyable(xauthz.Own(roledata.ScopeRoles), roledata.ActionEditRoleCategory),
+		constants.CategoryOpDelete: xauthz.Denyable(xauthz.Own(roledata.ScopeRoles), roledata.ActionDeleteRoleCategory),
 	},
 	categorydata.ScopePlanEnvironments: planCategoryRequirements,
 	categorydata.ScopePlanTags:         planCategoryRequirements,
@@ -554,9 +643,16 @@ var globalConfigFields = map[string]xauthz.Requirement{
 	globalconfigresource.FieldCluster: xauthz.Internal,
 }
 
+// Trusting an identity provider lets whoever controls it sign in as any user,
+// so the OIDC settings also take Admin on every scope, not only on settings.
+var oidcTrust = xauthz.Administer(roledata.ScopeAll)
+
 // Fields absent from the table are not privileges and stay open.
 func GuardGlobalConfigPatch(w http.ResponseWriter, r *http.Request, spec map[string]any) bool {
 	required := requirementsIn(globalConfigFields, spec)
+	if _, present := spec[globalconfigresource.FieldOIDC]; present {
+		required = append(required, oidcTrust)
+	}
 	if len(required) == constants.DefaultInitValue {
 		return true
 	}

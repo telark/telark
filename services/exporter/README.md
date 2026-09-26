@@ -109,7 +109,7 @@ entries a custom role lists; built-in roles list none.
 | `GET plans/protection/get` | Read, deny `viewprotectionplans` | List plans |
 | `GET plans/protection/{id}/get` | Read, deny `viewprotectionplans` | Read one plan |
 | `POST plans/protection/create` | Write, deny `createprotectionplan` | Create (discovery; sessions cannot send lifecycle or material keys) |
-| `PATCH plans/protection/{id}/patch` | Write, deny `editprotectionplan` | Patch (sessions: metadata keys only) |
+| `PATCH plans/protection/{id}/patch` | Internal | Patch the CR; users edit through discovery, which owns the lifecycle |
 | `DELETE plans/protection/{id}/delete` | Internal | Delete the CR; users delete through discovery's `clear`, which removes deployed policies first |
 
 Protection plan reports (`{id}` = plan name):
@@ -140,7 +140,7 @@ keep full access.
 
 Global config (`PATCH resources/globalconfig/patch`) is checked per field: `excludedNamespaces` and
 `userSettings` need settings Contributor (deny `editdiscoveryconfig`), `snapshots` Contributor
-(deny `editsnapshotstorage`), `ai` Owner (deny `controlaiinsights`), `oidc` Admin (deny `editoidcconfig`),
+(deny `editsnapshotstorage`), `ai` Owner (deny `controlaiinsights`), `oidc` Admin on `ALL` (deny `settings.editoidcconfig`),
 and `cluster` is Internal (written by discovery). A value the CRD schema rejects answers 400 naming the
 field, for example `invalid global config value for spec.ai.model`.
 
@@ -151,8 +151,17 @@ patching them (users Owner + `attachroletouser`, groups Owner + `addusertogroup`
 scope (an `ALL` grant counts for every scope), and a role whose `protection.preventModification` is set
 refuses every patch. The same cap applies to assigning a role: a user create or patch and a group create or
 patch answer 403 naming the role and scope when a role being added grants a level above the caller's own
-(deny rules on that role do not count; roles already held or being removed are not checked). Internal
-callers are exempt.
+(deny rules on that role do not count; roles already held or being removed are not checked). Adding a
+member to a group, from the user or the group side, is capped the same way by every role the group
+carries. A role patch touching `status`, `validity` or `scopesAndPermissions` is capped against the
+merged role. Sessions may not set `type: built-in` or change `protection` on a role (403); deny rules
+are stored lower-cased. `identities` on a user is Internal only, and `email` / `username` are changed
+only by the account owner (403 otherwise; resending the stored value is allowed). Internal callers
+are exempt.
+
+Request bodies on the user, group, role, category and protection-plan create and patch routes must use
+the exact JSON field names: an unknown or differently cased key (`AssignedRolesIDs`, `status.Phase`)
+answers 400 before any guard or write runs.
 
 Roles and groups on a user are diffed against the stored lists: an addition needs `attachroletouser` /
 `addusertogroup`, a removal `removerolefromuser` / `removeuserfromgroup`, each with users or groups Owner.

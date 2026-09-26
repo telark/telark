@@ -58,8 +58,8 @@ func cacheMAC(binding, payload string) (string, bool) {
 	bound := sha256.Sum256([]byte(constants.CacheSignatureLabel + binding))
 
 	digest := hmac.New(sha256.New, []byte(key))
-	digest.Write(bound[:])
-	digest.Write([]byte(payload))
+	_, _ = digest.Write(bound[:])
+	_, _ = digest.Write([]byte(payload))
 
 	return hex.EncodeToString(digest.Sum(nil)), true
 }

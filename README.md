@@ -72,8 +72,11 @@ One command from the registry — CRDs, dashboard, and everything else ship with
 
 ```sh
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
-  --set app.persistence.storageClass=<rwx-class>
+  --set app.persistence.storageClass=<rwx-class> \
+  --set 'app.auth.bootstrap.admins={jane.doe@example.com}'
 ```
+
+Use your own email as the first admin; the chart ships none ([First admin](docs/INSTALL.md#2-first-admin)).
 
 Size it for the cluster with one flag (`minimal` · `standard` · `performance`):
 

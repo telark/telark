@@ -26,8 +26,12 @@ import (
 
 func CreateRoleResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := sharedutils.GetSpec(w, r)
+		body, err := sharedutils.GetSpecFor[roledata.RoleAsResource](w, r)
 		if err != nil {
+			return
+		}
+
+		if !authz.GuardRoleReservedFields(w, r, nil, body) {
 			return
 		}
 
@@ -200,21 +204,19 @@ func PatchRoleByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(h
 			return
 		}
 
-		body, err := sharedutils.GetSpec(w, r)
+		body, err := sharedutils.GetSpecFor[roledata.RoleAsResource](w, r)
 		if err != nil {
 			return
 		}
 
 		if !authz.GuardNotTerminating(w, r, existingRole.DeletionTimestamp) ||
-			!roleutils.ValidateProtectionFlags(existingRole, body, w) {
+			!roleutils.ValidateProtectionFlags(existingRole, body, w) ||
+			!authz.GuardRoleReservedFields(w, r, existingRole, body) {
 			return
 		}
 
-		if !guardPatchedLevels(w, r, body) {
-			return
-		}
-
-		if !roleutils.ExtractAndMergeRoleForPatch(existingRole, body, w) {
+		mergedRole, ok := roleutils.ExtractAndMergeRoleForPatch(existingRole, body, w)
+		if !ok || !authz.GuardPatchedRoleLevels(w, r, mergedRole, body) {
 			return
 		}
 
@@ -224,18 +226,6 @@ func PatchRoleByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(h
 		// targeted for invalidation.
 		authz.BumpGeneration(r.Context())
 	}
-}
-
-func guardPatchedLevels(w http.ResponseWriter, r *http.Request, body map[string]any) bool {
-	if _, patched := body[constants.FieldScopesAndPermissions]; !patched {
-		return true
-	}
-	role, err := sharedutils.ExtractStructFromBody[roledata.RoleAsResource](body)
-	if err != nil {
-		responseutils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationError, err.Error(), nil, err)
-		return false
-	}
-	return authz.GuardRoleLevels(w, r, role.ScopesAndPermissions)
 }
 
 func patchRoleResource(w http.ResponseWriter, roleID string, body map[string]any, optimizer *performance.Optimizer) {

@@ -3,7 +3,6 @@ package applications
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -73,6 +72,8 @@ func rollbackActive(r applicationmodel.RollbackEntry) bool {
 // triggeredBy is the verified caller (X-User-ID), never a body field a caller could forge.
 type triggerRollbackBody struct {
 	SnapshotGeneration int `json:"snapshotGeneration"`
+	// Accepted so older clients still decode under DisallowUnknownFields; the caller comes from the verified identity.
+	LegacyTriggeredBy *string `json:"triggeredBy,omitempty"`
 }
 
 type triggerRollbackResponse struct {
@@ -272,7 +273,7 @@ func rollbackCaller(w http.ResponseWriter, r *http.Request) (string, bool) {
 
 func decodeTriggerRollbackBody(w http.ResponseWriter, r *http.Request) (*triggerRollbackBody, bool) {
 	var body triggerRollbackBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := sharedhelper.DecodeJSONStrict(w, r, &body); err != nil {
 		responseutils.LogAndSendResponse(
 			w,
 			http.StatusUnprocessableEntity,

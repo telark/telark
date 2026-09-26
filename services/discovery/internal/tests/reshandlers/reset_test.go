@@ -11,12 +11,18 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/redis/go-redis/v9"
+	dataconstants "github.com/telark/data/constants"
 	applicationmodel "github.com/telark/data/resources/application"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/coordination"
 	"github.com/telark/discovery/internal/handlers/resources/applications"
 	redishelper "github.com/telark/discovery/internal/helpers/redis"
 	"github.com/telark/discovery/internal/tests/testutil"
+	xauthz "github.com/telark/x-ware/authz"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes/fake"
 )
 
 const siblingApp = shopApp + "-2"
@@ -120,19 +126,86 @@ func TestResetAndSyncOfUnknownApplicationAre404(t *testing.T) {
 // A leader ID is a pod name, which no DNS resolves behind a ClusterIP Service;
 // the forward must dial the address the leader advertised with its heartbeat.
 func TestLeaderResetURLUsesAdvertisedAddress(t *testing.T) {
-	mr := testutil.RedisEnv(t)
-	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	defer func() { _ = rdb.Close() }()
-	ctx := context.Background()
-	leaderID := "telark-discovery-service-5d6c4d9d58-b27wn"
+	got := applications.LeaderResetURL("10.0.1.7", shopApp)
+	testutil.Equal(t, "forward url", got, "http://10.0.1.7:8080/api/v1/resources/applications/shop/reset")
+}
 
-	coordination.AdvertiseReplica(ctx, rdb, leaderID, "10.0.1.7")
-	got, err := applications.LeaderResetURL(ctx, rdb, leaderID, shopApp)
+const (
+	selfPodID       = "telark-discovery-service-5d6c4d9d58-aaaaa"
+	leaderPodID     = "telark-discovery-service-5d6c4d9d58-b27wn"
+	leaderIP        = "10.0.1.7"
+	podNamespace    = "telark"
+	discoveryLabel  = "discovery-service"
+	otherComponent  = "redis"
+	attackerAddress = "10.9.9.9"
+	forwardPath     = "/"
+)
+
+func pod(name, component, ip string) *corev1.Pod {
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: podNamespace, Labels: map[string]string{constants.LabelComponent: component}},
+		Status:     corev1.PodStatus{PodIP: ip},
+	}
+}
+
+// Redis is untrusted: its leader address is used only when the API server confirms a discovery
+// pod of that name holds it.
+func TestVerifiedReplicaAddress(t *testing.T) {
+	cases := []struct {
+		name       string
+		advertised string
+		leader     *corev1.Pod
+		wantErr    bool
+	}{
+		{"matching discovery pod", leaderIP, pod(leaderPodID, discoveryLabel, leaderIP), false},
+		{"address not an ip", "evil.example.com", pod(leaderPodID, discoveryLabel, leaderIP), true},
+		{"address of another pod", attackerAddress, pod(leaderPodID, discoveryLabel, leaderIP), true},
+		{"leader not a discovery pod", leaderIP, pod(leaderPodID, otherComponent, leaderIP), true},
+		{"leader pod missing", leaderIP, nil, true},
+		{"nothing advertised", constants.EmptyString, pod(leaderPodID, discoveryLabel, leaderIP), true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			mr := testutil.RedisEnv(t)
+			rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+			defer func() { _ = rdb.Close() }()
+			ctx := context.Background()
+			coordination.AdvertiseReplica(ctx, rdb, leaderPodID, c.advertised)
+			objects := []runtime.Object{pod(selfPodID, discoveryLabel, "10.0.1.8")}
+			if c.leader != nil {
+				objects = append(objects, c.leader)
+			}
+			pods := fake.NewClientset(objects...).CoreV1().Pods(podNamespace)
+			got, err := coordination.VerifiedReplicaAddress(ctx, rdb, pods, selfPodID, leaderPodID)
+			testutil.Equal(t, "error", err != nil, c.wantErr)
+			if !c.wantErr {
+				testutil.Equal(t, "address", got, leaderIP)
+			}
+		})
+	}
+}
+
+// The forward must not relay the caller's credentials: only this replica's service token and
+// the verified caller id reach the leader.
+func TestBuildLeaderResetRequestDropsInboundHeaders(t *testing.T) {
+	const (
+		serviceToken = "replica-service-token"
+		callerID     = "u-verified"
+	)
+	t.Setenv(dataconstants.EnvServiceToken, serviceToken)
+	inbound := httptest.NewRequest(http.MethodPost, forwardPath, http.NoBody)
+	inbound.Header.Set(dataconstants.HeaderSessionToken, "user-session")
+	inbound.Header.Set(dataconstants.HeaderServiceToken, "caller-service-token")
+	inbound.Header.Set(constants.HeaderUserID, "spoofed")
+	inbound.Header.Set("Authorization", "Bearer x")
+	inbound.Header.Set("Cookie", "a=b")
+	inbound = inbound.WithContext(xauthz.WithIdentity(inbound.Context(), xauthz.Identity{UserID: callerID}))
+
+	req, err := applications.BuildLeaderResetRequest(context.Background(), inbound, applications.LeaderResetURL(leaderIP, shopApp))
 	if err != nil {
 		t.Fatal(err)
 	}
-	testutil.Equal(t, "forward url", got, "http://10.0.1.7:8080/api/v1/resources/applications/shop/reset")
-
-	_, err = applications.LeaderResetURL(ctx, rdb, "telark-discovery-service-5d6c4d9d58-zzzzz", shopApp)
-	testutil.Equal(t, "unknown leader rejected", err != nil, true)
+	testutil.Equal(t, "service token", req.Header.Get(dataconstants.HeaderServiceToken), serviceToken)
+	testutil.Equal(t, "user id", req.Header.Get(constants.HeaderUserID), callerID)
+	testutil.Equal(t, "header count", len(req.Header), constants.TwoValue)
 }

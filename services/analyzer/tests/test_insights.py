@@ -107,6 +107,14 @@ def test_validate_same_subject_keeps_higher_severity():
     assert [(e.severity, e.title) for e in valid] == [("critical", "second")]
 
 
+def test_validate_bounds_params():
+    run = _run()
+    e = _emitted(params={"workload": "x" * 500, "injected": "y"})
+    (valid,) = insights.validate([e], run)
+    assert set(valid.params) == {"workload", "namespace"}
+    assert len(valid.params["workload"]) == 120
+
+
 def test_validate_stamps_the_workload_namespace():
     app = {"resources": [{"namespace": "shop-db", "kind": "StatefulSet", "name": "db"},
                          {"namespace": "shop", "kind": "Deployment", "name": "web"},

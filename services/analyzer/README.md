@@ -261,6 +261,8 @@ but not the settings). The state is re-checked every `ANALYZER_CONFIG_POLL_SEC` 
 - **Connected** (`OLLAMA_AUTO_PULL=true`, chart `app.ollama.autoPull=true`): while the analyzer is enabled, a
   missing model is pulled at the first config poll after start and by any run that needs it (the runtime needs
   443 egress for pulls only). A failing pull is retried every poll; only the first failure in a row is logged.
+  Only models of the licence catalogue (`LICENSES` in `constants.py`) are pulled, and a pull still running
+  after an hour is cancelled.
 - **Air-gapped** (`OLLAMA_AUTO_PULL=false`): no pulls, the pull route answers 409 `auto_pull_disabled`; the
   model is pre-loaded on the runtime volume. Fast runs still deliver rule insights without it.
 - **Your own runtime** (chart `app.ollama.runtimeUrl`, which sets `OLLAMA_HOST`): any endpoint that speaks
@@ -345,6 +347,7 @@ and caps. Full reference:
 | `AUTH_SERVICE_URL` | `http://telark-auth-service:8080` | auth-service base URL |
 | `EXPORTER_SERVICE_URL` | `http://telark-exporter-service:8080` | exporter base URL |
 | `TELARK_SERVICE_TOKEN` | — | Service token sent to exporter |
+| `CORS_ALLOWED_ORIGINS` | — | Comma-separated origins that get CORS headers (local dev only, e.g. `http://localhost:3000`); empty adds none |
 | `ANALYZER_MODE` | `fast` | `fast` (rules + one narration) or `deep` (tool loop); anything else fails startup |
 | `ANALYZER_NUM_THREAD` | `2` | `options.num_thread` of every model call: the runtime's CPU limit, never above the node's vCPU |
 | `ANALYZER_NARRATE_TIMEOUT_SEC` | `45` | HTTP timeout of the fast narration |
@@ -375,6 +378,12 @@ and caps. Full reference:
 Every route but the probes needs `X-Session-Token`; responses use the Go envelope
 `{status, operation, message, data}`. A missing token, or one auth-service rejects (invalid or expired), is
 401; a suspended or deleted user, or a missing grant, is 403; auth-service unreachable is 503.
+A request body over 64 KiB is 413 before it is read (FastAPI reads the body before the session check).
+There are no `/docs`, `/redoc` or `/openapi.json` routes. CORS headers are sent only for the origins in
+`CORS_ALLOWED_ORIGINS` (none by default: behind nginx the UI is same-origin).
+
+The SSE stream re-checks its session every minute and ends once auth-service answers 401 or 403 (an auth
+outage keeps it open); a user holds at most 8 streams, the next is 429 `too_many_streams`.
 
 | Method | Path | Access |
 |---|---|---|
@@ -384,7 +393,7 @@ Every route but the probes needs `X-Session-Token`; responses use the Go envelop
 | `GET` | `/api/v1/insights/events?apps=ns/name,…` (SSE) | `insights` ReadOnly or `settings` Owner |
 | `GET` | `/api/v1/insights/runtime` | `insights` ReadOnly or `settings` Owner |
 | `POST` | `/api/v1/insights/runtime/validate` | `settings` Owner, denied by the `settings.controlainsights.deny` rule |
-| `POST` | `/api/v1/insights/runtime/pull` | `settings` Owner, denied by the `settings.controlainsights.deny` rule |
+| `POST` | `/api/v1/insights/runtime/pull` | `settings` Owner, denied by the `settings.controlainsights.deny` rule; 400 `model_not_allowed` for a model outside the licence catalogue (`LICENSES` in `constants.py`) |
 
 ## Build & run
 

@@ -15,6 +15,7 @@ import (
 	"github.com/telark/auth/internal/constants"
 	authzhandler "github.com/telark/auth/internal/handlers/authorisation"
 	authdata "github.com/telark/data/auth"
+	roledata "github.com/telark/data/resources/role"
 	userresource "github.com/telark/data/resources/user"
 	restresponse "github.com/telark/rest/response"
 )
@@ -97,5 +98,53 @@ func TestGetPermissionsSessionOutcomes(t *testing.T) {
 				t.Fatalf("operation = %q, want %q", body.Operation, c.operation)
 			}
 		})
+	}
+}
+
+// permissionsStub serves a user holding one temporary role whose expiry does not
+// parse and one role that is being deleted.
+type permissionsStub struct{}
+
+func (permissionsStub) RoundTrip(r *http.Request) (*http.Response, error) {
+	deleting := "2026-01-01T00:00:00Z"
+	badExpiry := "not-a-date"
+	switch {
+	case strings.Contains(r.URL.Path, "/sessions/"):
+		return liveSession()
+	case strings.Contains(r.URL.Path, "/roles/r-bad/"):
+		return envelope(http.StatusOK, roledata.RoleAsResource{ID: "r-bad", Status: roledata.RoleStatusActive,
+			Validity: &roledata.Validity{Type: roledata.ValidityTypeTemporary, ExpiresAt: &badExpiry}})
+	case strings.Contains(r.URL.Path, "/roles/r-gone/"):
+		return envelope(http.StatusOK, roledata.RoleAsResource{ID: "r-gone", Status: roledata.RoleStatusActive,
+			DeletionTimestamp: &deleting})
+	default:
+		bad, gone := "r-bad", "r-gone"
+		return envelope(http.StatusOK, userresource.UserAsResource{ID: "uid", AssignedRolesIDs: []*string{&bad, &gone}})
+	}
+}
+
+// The permissions view follows x-ware/authz: an unparsable expiry is expired and
+// a role being deleted is not listed at all.
+func TestGetPermissionsMatchesAuthzRules(t *testing.T) {
+	stubExporter(t, permissionsStub{})
+	for _, c := range []*http.Client{clients.GetRoleClient().GetHTTPClient()} {
+		previous := c.Transport
+		c.Transport = permissionsStub{}
+		t.Cleanup(func() { c.Transport = previous })
+	}
+	rec := httptest.NewRecorder()
+	authzhandler.GetPermissions(rec, withSession(httptest.NewRequest(http.MethodGet, "/", nil)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d (body %s)", rec.Code, rec.Body.String())
+	}
+	var resp authzhandler.PermissionsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Roles) != constants.DefaultIncrementValue {
+		t.Fatalf("roles = %+v, want exactly one", resp.Roles)
+	}
+	if only := resp.Roles[constants.DefaultInitValue]; only.RoleID != "r-bad" || !only.IsExpired {
+		t.Fatalf("roles = %+v, want only r-bad marked expired", resp.Roles)
 	}
 }

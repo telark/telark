@@ -29,13 +29,13 @@ import (
 
 func CreateGroupResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := sharedutils.GetSpec(w, r)
+		body, err := sharedutils.GetSpecFor[groupdata.GroupAsResource](w, r)
 		if err != nil {
 			return
 		}
 
 		// A new group may carry roles or members only from a caller who could attach them afterwards.
-		if !authz.GuardGroupRolesPatch(w, r, nil, body) || !authz.GuardGroupMembersPatch(w, r, nil, body) {
+		if !authz.GuardGroupRolesPatch(w, r, nil, body) || !authz.GuardGroupMembersPatch(w, r, &groupdata.GroupAsResource{}, body) {
 			return
 		}
 
@@ -175,7 +175,7 @@ func PatchGroupByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 			return
 		}
 
-		body, err := sharedutils.GetSpec(w, r)
+		body, err := sharedutils.GetSpecFor[groupdata.GroupAsResource](w, r)
 		if err != nil {
 			return
 		}
@@ -211,7 +211,7 @@ func guardGroupPatch(
 ) (addedMembers, removedMembers []string, ok bool) {
 	if !authz.GuardNotTerminating(w, r, existing.DeletionTimestamp) ||
 		!authz.GuardGroupRolesPatch(w, r, existing.AssignedRolesIDs, body) ||
-		!authz.GuardGroupMembersPatch(w, r, existing.AssignedUsersIDs, body) {
+		!authz.GuardGroupMembersPatch(w, r, existing, body) {
 		return nil, nil, false
 	}
 

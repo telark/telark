@@ -31,6 +31,7 @@ from constants import (
     INSIGHT_SEVERITY_WARNING,
     MAX_EVIDENCE_PER_INSIGHT,
     MAX_INSIGHTS_PER_RUN,
+    MODEL_NAME_MAX_LENGTH,
     NARRATE_SUMMARY_MAX,
     NARRATE_TITLE_MAX,
     SSE_QUEUE_MAX,
@@ -156,7 +157,7 @@ class RuntimeStatus(_OmitEmpty):
 
 
 class ValidateModelRequest(BaseModel):
-    model: str
+    model: str = Field(max_length=MODEL_NAME_MAX_LENGTH)
 
 
 class ValidateModelResponse(BaseModel):
@@ -281,8 +282,8 @@ class Run:
                     None)
 
 
-class Emitted(BaseModel):
-    """One insight as the model emits it (the EMIT decode target); the analyzer stamps the rest."""
+class DeepEmitted(BaseModel):
+    """One insight as the model emits it (the deep-mode EMIT decode target); the analyzer stamps the rest."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -303,6 +304,11 @@ class Emitted(BaseModel):
     confidence: Literal[CONFIDENCE_LOW, CONFIDENCE_MEDIUM, CONFIDENCE_HIGH]
     severity: Literal[INSIGHT_SEVERITY_INFO, INSIGHT_SEVERITY_WARNING, INSIGHT_SEVERITY_CRITICAL]
     evidence: list[EvidenceRef] = Field(max_length=MAX_EVIDENCE_PER_INSIGHT)
+
+
+class Emitted(DeepEmitted):
+    """An insight ready for validation: a decoded DeepEmitted, or a rule's output with its reason and params."""
+
     # Set by the rules only (fast mode); a deep-mode insight carries none and the UI uses the kind's text.
     # insights.validate adds params["namespace"], the workload's namespace, in both modes.
     reason: str = ""
@@ -314,7 +320,7 @@ class EmitOutput(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    insights: list[Emitted] = Field(max_length=MAX_INSIGHTS_PER_RUN)
+    insights: list[DeepEmitted] = Field(max_length=MAX_INSIGHTS_PER_RUN)
 
 
 @dataclass
@@ -389,6 +395,7 @@ class Subscription:
     """One SSE connection: the apps it may see and its bounded queue of (event name, data)."""
 
     apps: set[str]
+    user: str = ""
     queue: asyncio.Queue = field(default_factory=lambda: asyncio.Queue(maxsize=SSE_QUEUE_MAX))
 
 

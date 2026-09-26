@@ -95,6 +95,17 @@ def test_service_token_sent(monkeypatch):
     assert seen == ["svc-token", "svc-token"]
 
 
+def test_get_application_percent_encodes_the_name():
+    seen = []
+
+    def handler(request):
+        seen.append(request.url.raw_path)
+        return httpx.Response(200, json=_envelope({}))
+
+    _call(handler, lambda client: exporter.get_application(client, "foo/get?x=1"))
+    assert seen == [b"/api/v1/resources/applications/foo%2Fget%3Fx%3D1/get"]
+
+
 def test_get_application_returns_data():
     def handler(request):
         assert request.url.path == "/api/v1/resources/applications/api/get"

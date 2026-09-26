@@ -63,6 +63,9 @@ func replaceOne(ctx context.Context, ri dynamic.ResourceInterface, res *unstruct
 	}
 	// The live resourceVersion keeps the replace conditional: a write racing it conflicts and is retried.
 	res.SetResourceVersion(live.GetResourceVersion())
+	// The snapshot's owners are stripped as possibly stale; the live ones keep an operator's
+	// object from being orphaned by the full replace.
+	res.SetOwnerReferences(live.GetOwnerReferences())
 	_, err = ri.Update(ctx, res, metav1.UpdateOptions{FieldManager: constants.RollbackFieldManager, DryRun: dryRunOpt})
 	return err
 }

@@ -5,6 +5,7 @@ Run: pytest tests/test_api_server_cov.py
 
 import asyncio
 import os
+from contextlib import asynccontextmanager
 import sys
 from types import SimpleNamespace
 
@@ -453,6 +454,8 @@ def test_pull(monkeypatch):
 
     r = env.client.post(PULL, json={"model": "Bad Name"})
     assert r.status_code == 400 and _code(r) == "invalid_model_name"
+    r = env.client.post(PULL, json={"model": "llama3.1:405b"})
+    assert r.status_code == 400 and _code(r) == "model_not_allowed"
 
     monkeypatch.setattr(A, "OLLAMA_AUTO_PULL", False)
     r = env.client.post(PULL, json={"model": "qwen2.5:7b"})
@@ -482,12 +485,73 @@ def test_pull_while_pulling_returns_the_running_pull(monkeypatch):
 # ---- events ----------------------------------------------------------------------------
 def test_events_route_is_an_sse_stream(monkeypatch):
     env = _env(monkeypatch, excluded=["b"])
-    resp = asyncio.run(_endpoint(env.api, EVENTS)(apps="a/x, b/y"))
+    resp = asyncio.run(_endpoint(env.api, EVENTS)(apps="a/x, b/y", session_token="t", user_id="u1"))
     assert isinstance(resp, StreamingResponse)
     assert resp.media_type == "text/event-stream"
     assert resp.headers["x-accel-buffering"] == "no" and resp.headers["cache-control"] == "no-cache"
     (sub,) = env.state.broadcaster._subs
-    assert sub.apps == {"a/x"}
+    assert (sub.apps, sub.user) == ({"a/x"}, "u1")
+
+
+def test_events_route_caps_streams_per_user_and_rechecks_the_session(monkeypatch):
+    env = _env(monkeypatch)
+    rechecks = []
+    monkeypatch.setattr(A, "event_stream", lambda b, sub, recheck: rechecks.append(recheck) or iter(()))
+    endpoint = _endpoint(env.api, EVENTS)
+    for _ in range(8):
+        assert isinstance(asyncio.run(endpoint(apps="", session_token="t", user_id="u1")), StreamingResponse)
+    r = asyncio.run(endpoint(apps="", session_token="t", user_id="u1"))
+    assert r.status_code == 429 and b"too_many_streams" in r.body
+
+    async def revoked(_token):
+        raise HTTPException(401, "gone")
+
+    monkeypatch.setattr(authz, "_resolve", revoked)
+    with pytest.raises(HTTPException) as e:
+        asyncio.run(rechecks[0]())
+    assert e.value.status_code == 401
+
+
+def test_event_stream_ends_once_the_session_is_refused():
+    async def scenario(outcomes):
+        b = Broadcaster()
+        sub = b.subscribe(set())
+        calls = []
+
+        async def recheck():
+            calls.append(1)
+            outcome = outcomes[len(calls) - 1]
+            if outcome:
+                raise HTTPException(outcome, "x")
+
+        stream = A.event_stream(b, sub, ping_s=0.01, recheck=recheck, recheck_s=0)
+        out = [await anext(stream)]
+        b.publish("runtime.changed", "", {})
+        out.append(await anext(stream))
+        out.append(await anext(stream))
+        with pytest.raises(StopAsyncIteration):
+            await anext(stream)
+        return out, calls, b._subs
+
+    # Allowed, then an auth outage (the stream stays open), then 403: the stream ends and unsubscribes.
+    out, calls, subs = asyncio.run(scenario([None, 503, 403]))
+    assert out == [": connected\n\n", 'event: runtime.changed\ndata: {}\n\n', ": ping\n\n"]
+    assert len(calls) == 3 and not subs
+
+
+def test_docs_and_schema_are_not_served():
+    client = TestClient(A.create_app(FakeRedis()))
+    for path in ("/docs", "/redoc", "/openapi.json"):
+        assert client.get(path).status_code == 404
+
+
+def test_cors_only_for_configured_origins():
+    origin = {"Origin": "http://localhost:3000"}
+    r = TestClient(A.create_app(FakeRedis(), cors_origins=[])).get(STATUS_LIVE_PATH, headers=origin)
+    assert "access-control-allow-origin" not in r.headers
+    r = TestClient(A.create_app(FakeRedis(), cors_origins=["http://localhost:3000"])).get(
+        STATUS_LIVE_PATH, headers=origin)
+    assert r.headers["access-control-allow-origin"] == "http://localhost:3000"
 
 
 def test_parse_apps_like_discovery():
@@ -624,3 +688,47 @@ def test_triage_storage_unavailable_503(monkeypatch):
     env = _triage_env(monkeypatch, app=ExporterUnavailable(503))
     r = env.client.post(TRIAGE.format("r1"), json={"action": "dismiss"})
     assert (r.status_code, _code(r)) == (503, "storage_unavailable")
+
+
+# ---- request body limit ------------------------------------------------------------------------------------------
+def test_body_over_the_limit_is_refused_before_the_session_check(monkeypatch):
+    env = _env(monkeypatch)
+    env.api.dependency_overrides.clear()
+    big = b'{"model": "' + b"a" * (64 * 1024) + b'"}'
+    r = env.client.post(VALIDATE, content=big, headers={"Content-Type": "application/json"})
+    assert r.status_code == 413 and r.json()["message"] == "request body too large"
+    r = env.client.post(VALIDATE, content=b"{}", headers={"Content-Length": "nope"})
+    assert r.status_code == 413
+
+
+def test_chunked_body_over_the_limit_is_cut_while_streaming(monkeypatch):
+    env = _env(monkeypatch)
+
+    def chunks():
+        yield b'{"model": "'
+        for _ in range(80):
+            yield b"a" * 1024
+        yield b'"}'
+
+    r = env.client.post(VALIDATE, content=chunks(), headers={"Content-Type": "application/json"})
+    assert "content-length" not in r.request.headers
+    assert r.status_code == 413 and r.json()["message"] == "request body too large"
+
+
+def test_model_name_length_is_bounded(monkeypatch):
+    env = _env(monkeypatch)
+    r = env.client.post(VALIDATE, json={"model": "a" * 129})
+    assert r.status_code == 400 and _code(r) == "invalid_request"
+
+
+def test_lifespan_passes_through_the_body_limit():
+    started = []
+
+    @asynccontextmanager
+    async def lifespan(_app):
+        started.append(True)
+        yield
+
+    with TestClient(A.create_app(FakeRedis(), lifespan)):
+        pass
+    assert started == [True]

@@ -30,6 +30,7 @@ const (
 	StepFailed                                   = "failed"
 	EnvReplicaID                                 = "HOSTNAME"
 	EnvPodIP                                     = "POD_IP"
+	LabelComponent                               = "app.kubernetes.io/component"
 	EnvCoordinationBatchSize                     = "COORDINATION_BATCH_SIZE"
 	EnvCoordinationBatchBlockSec                 = "COORDINATION_BATCH_BLOCK_SEC"
 	EnvCoordinationMaxRetryAttempts              = "COORDINATION_MAX_RETRY_ATTEMPTS"

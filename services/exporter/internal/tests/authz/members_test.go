@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	groupdata "github.com/telark/data/resources/group"
 	roledata "github.com/telark/data/resources/role"
 	userdata "github.com/telark/data/resources/user"
 	"github.com/telark/exporter/internal/authz"
@@ -69,7 +70,7 @@ func TestGuardGroupMembersPatchRules(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			got := authz.GuardGroupMembersPatch(w, requestAs(tt.identity), tt.existing, tt.body)
+			got := authz.GuardGroupMembersPatch(w, requestAs(tt.identity), &groupdata.GroupAsResource{AssignedUsersIDs: tt.existing}, tt.body)
 			if got != tt.want {
 				t.Fatalf("GuardGroupMembersPatch = %v, want %v (%d %s)", got, tt.want, w.Code, w.Body.String())
 			}

@@ -292,10 +292,9 @@ func sessionRoutes(optimizer *performance.Optimizer) []router.Route {
 				constants.OpCreate,
 			),
 		),
-		subjectListCachedRoute(optimizer, authendpoints.GetAllSessionsByUser,
-			sessionhandler.ListSessionsByUserWithCacheInvalidation(),
-			constants.ResourceUserSession,
-			cache.SubjectFromPathParam(constants.UserIDParam)),
+		// Uncached: a hit would be served before the handler's owner check runs.
+		router.CreateRoute(base.Get, authendpoints.GetAllSessionsByUser,
+			sessionhandler.ListSessionsByUserWithCacheInvalidation()),
 		router.CreateRoute(base.Get, authendpoints.GetSessionByToken,
 			sessionhandler.GetSessionByToken()),
 		router.CreateRoute(base.Patch, authendpoints.PatchSessionByToken,

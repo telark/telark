@@ -30,7 +30,10 @@ func NewRedisResolver(rdb *redis.Client, readClaims ClaimReader) Resolver {
 			index[apps[i].Name] = apps[i]
 		}
 
-		ignored := validation.IgnoredNamespaces(ctx)
+		ignored, err := validation.IgnoredNamespaces(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
 		resolved := make(map[string]policies.ResolvedApp, len(ids))
 		var missing []string
 		for _, id := range ids {

@@ -62,7 +62,7 @@ from constants import (
     VOLATILE_PARAMS,
 )
 from helpers import app_ref, cooldown_auto_key, cooldown_manual_key, document_key, epoch_ms, inflight_key
-from messages import render_recommendation
+from messages import bounded, render_recommendation
 from models import AppInsights, Emitted, Insight, InsightTriage, LastRun, MergeStats, RecStats, Run, to_json
 from recommendations import card_key
 from tools.k8s_tools import KEY_PAUSED, KEY_PODS, owned_event, stale_pod_event, workload_matchers
@@ -196,7 +196,7 @@ def validate(emitted: list[Emitted], run: Run) -> list[Emitted]:
             "confidence": confidence,
             "title": e.title[:MAX_INSIGHT_TITLE_LENGTH],
             "summary": e.summary[:MAX_INSIGHT_SUMMARY_LENGTH],
-            "params": {**e.params, "namespace": key[0]},
+            "params": {**bounded(e.params), "namespace": key[0]},
         })
         held = kept.get(key)
         if held is None or SEVERITY_RANK[candidate.severity] > SEVERITY_RANK[held.severity]:

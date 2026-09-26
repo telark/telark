@@ -5,7 +5,9 @@ mkdir -p /tmp/kubeconform-cache
 # shellcheck disable=SC2086 # RENDER_MODES / K8S_VERSIONS are deliberately space-separated lists
 for mode in $RENDER_MODES; do
   rendered="/tmp/rendered-$mode.yaml"
+  # Placeholder admin: the chart refuses to render without one.
   helm template t "$CHART_PATH" \
+    --set 'app.auth.bootstrap.admins={jane.doe@example.com}' \
     --set app.mode="$mode" \
     --set app.persistence.storageClass="$STORAGE_CLASS" > "$rendered"
 

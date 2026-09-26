@@ -1,20 +1,19 @@
 {{- if $.Values.services.discovery.enabled }}
 {{- include "clusterRole" (dict "service" "discovery" "values" .Values "root" $ "rules" (list
   (dict "apiGroups" (list "") "resources" (list "namespaces" "services" "pods" "events" "configmaps" "secrets" "persistentvolumeclaims" "serviceaccounts") "verbs" (list "get" "list" "watch"))
-  (dict "apiGroups" (list "") "resources" (list "services" "configmaps" "secrets" "persistentvolumeclaims" "serviceaccounts") "verbs" (list "get" "create" "update" "patch"))
+  (dict "apiGroups" (list "") "resources" (list "services" "configmaps" "secrets" "persistentvolumeclaims" "serviceaccounts") "verbs" (list "get" "create" "update"))
   (dict "apiGroups" (list "apps") "resources" (list "deployments" "statefulsets" "daemonsets") "verbs" (list "get" "list" "watch"))
-  (dict "apiGroups" (list "apps") "resources" (list "deployments" "statefulsets" "daemonsets") "verbs" (list "get" "create" "update" "patch"))
+  (dict "apiGroups" (list "apps") "resources" (list "deployments" "statefulsets" "daemonsets") "verbs" (list "get" "create" "update"))
   (dict "apiGroups" (list "batch") "resources" (list "jobs" "cronjobs") "verbs" (list "get" "list" "watch"))
-  (dict "apiGroups" (list "batch") "resources" (list "cronjobs") "verbs" (list "get" "create" "update" "patch"))
+  (dict "apiGroups" (list "batch") "resources" (list "cronjobs") "verbs" (list "get" "create" "update"))
   (dict "apiGroups" (list "networking.k8s.io") "resources" (list "ingresses" "networkpolicies") "verbs" (list "get" "list" "watch"))
-  (dict "apiGroups" (list "networking.k8s.io") "resources" (list "ingresses" "networkpolicies") "verbs" (list "get" "create" "update" "patch"))
+  (dict "apiGroups" (list "networking.k8s.io") "resources" (list "ingresses" "networkpolicies") "verbs" (list "get" "create" "update"))
   (dict "apiGroups" (list "autoscaling") "resources" (list "horizontalpodautoscalers") "verbs" (list "get" "list" "watch"))
-  (dict "apiGroups" (list "autoscaling") "resources" (list "horizontalpodautoscalers") "verbs" (list "get" "create" "update" "patch"))
+  (dict "apiGroups" (list "autoscaling") "resources" (list "horizontalpodautoscalers") "verbs" (list "get" "create" "update"))
   (dict "apiGroups" (list "autoscaling.k8s.io") "resources" (list "verticalpodautoscalers") "verbs" (list "get" "list" "watch"))
-  (dict "apiGroups" (list "autoscaling.k8s.io") "resources" (list "verticalpodautoscalers") "verbs" (list "get" "create" "update" "patch"))
-  (dict "apiGroups" (list "apiextensions.k8s.io") "resources" (list "customresourcedefinitions") "verbs" (list "get" "list"))
-  (dict "apiGroups" (list (printf "erpi.%s" .Values.app.name)) "resources" (list "applicationsasresources") "verbs" (list "get" "list" "watch" "patch" "update"))
-  (dict "apiGroups" (list "metrics.k8s.io") "resources" (list "pods" "nodes") "verbs" (list "get" "list"))
+  (dict "apiGroups" (list "autoscaling.k8s.io") "resources" (list "verticalpodautoscalers") "verbs" (list "get" "create" "update"))
+  (dict "apiGroups" (list (printf "erpi.%s" .Values.app.name)) "resources" (list "applicationsasresources") "verbs" (list "get" "list" "watch" "patch"))
+  (dict "apiGroups" (list "metrics.k8s.io") "resources" (list "pods") "verbs" (list "get" "list"))
   (dict "apiGroups" (list "kyverno.io") "resources" (list "policies") "verbs" (list "create" "get" "list" "delete" "patch"))
 )) }}
 {{- end }}

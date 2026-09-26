@@ -42,7 +42,8 @@ func ValidateAndGetChallenge(userID string) (*authdata.AuthChallenge, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisChallengeOpTimeout)
 	defer cancel()
 
-	val, err := rdb.Get(ctx, key).Result()
+	// Consumed on first read: a failed or replayed assertion must restart the ceremony.
+	val, err := rdb.GetDel(ctx, key).Result()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return nil, errors.New(string(constants.ErrChallengeNotFound))

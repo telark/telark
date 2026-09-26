@@ -35,15 +35,17 @@ Unprefixed paths in this section are under `services/auth/internal/`.
 ### Passkeys (WebAuthn)
 
 - Library `github.com/go-webauthn/webauthn` (`services/auth/go.mod`). Relying-party settings `RP_ID`, `RP_ORIGIN` (comma-separated), `RP_NAME` and `CHALLENGE_TIMEOUT` (`services/auth/internal/config/config.go`). When `RP_ID` or `RP_ORIGIN` is empty, they are derived from the request's forwarded host, host or origin headers (`helpers/webauthn/webauthn.go`); production installs should set both (`app.auth.passkey.id` and `origin` in `charts/telark/values.yaml`).
-- Challenges live in Redis with a short TTL; enrolment links are single-use (Redis `GETDEL`, `helpers/auth/enroll.go`). Credentials are `UserPasskey` CRs written through the exporter's Internal passkey routes.
+- Challenges live in Redis with a short TTL and are consumed on first read (Redis `GETDEL`), so a failed or replayed assertion has to restart the ceremony; enrolment links are single-use the same way (`helpers/auth/enroll.go`). Credentials are `UserPasskey` CRs written through the exporter's Internal passkey routes. When the library declines a registration, the manual attestation path (`helpers/webauthn/attestation.go`) still checks the ceremony type, the challenge, an allowed origin, the relying-party hash and the user-present flag.
+- **Who may open a registration** (`helpers/auth/passkey.go`): a session (own account), a one-time enrolment token, or a bare email that names no existing account. An existing account is never enrolled from a bare email, whether or not it has passkeys, and a passkey lookup that fails counts as "has passkeys". A `BOOTSTRAP_ADMINS` email is refused on the bare-email path: the operator enrols it with `auth break-glass --email <email> --enroll`, which creates the account with the Admin role and prints the enrolment token.
+- The relying-party instance cache is bounded (`MaxWebAuthnInstances`); it is dropped and rebuilt when a burst of distinct hosts fills it.
 - Browsers enable WebAuthn only on `https://` or `http://localhost` origins ([INSTALL.md](../INSTALL.md#access-the-dashboard)).
-- Self-registration is controlled by `SELF_REGISTRATION_ENABLED`; the auth service refuses to start when it is off and no bootstrap admin is configured (`services/auth/internal/config/bootstrap.go`).
+- Self-registration is controlled by `SELF_REGISTRATION_ENABLED` (chart default off); the auth service refuses to start when it is off and no bootstrap admin is configured (`services/auth/internal/config/bootstrap.go`). A self-registered account always starts with the ReadOnly role and without the `bootstrap` marker (`helpers/auth/jit.go`).
 
 ### OIDC (Google)
 
 - Configured at runtime in the `GlobalConfig` CR (`oidc`: enabled, client ID, egress switch, optional JWK set), re-read on every callback. See [services/auth/OIDC.md](../../services/auth/OIDC.md).
-- The UI posts a Google ID token. auth verifies the RSA signature locally against Google's keys (fetched and cached in Redis when egress is allowed, otherwise the configured JWK set), `aud` = client ID, `iss` = `https://accounts.google.com`, `exp`, a single-use nonce from Redis, and `email_verified` (`helpers/oidc/google.go`, `helpers/oidc/nonce.go`, `handlers/oidc/callback.go`). There is no code exchange and no client secret.
-- Users are matched by provider, issuer and subject, then by a unique email; an ambiguous email is refused with 409, and an unknown one creates the user (`handlers/oidc/provision.go`). OIDC provisioning is not gated by `SELF_REGISTRATION_ENABLED`.
+- The UI posts a Google ID token. auth verifies the RSA signature locally against Google's keys (fetched from Google and cached only in process memory when egress is allowed, otherwise the configured JWK set; Redis never holds the trust anchor), `aud` = client ID, `iss` = `https://accounts.google.com`, `exp`, a single-use nonce from Redis, and `email_verified` (`helpers/oidc/google.go`, `helpers/oidc/nonce.go`, `handlers/oidc/callback.go`). There is no code exchange and no client secret. Changing the OIDC settings (`PATCH auth/oidc/config`) needs Admin on `ALL`, not only on `settings`, because whoever controls the trust anchor can mint a login for any user (`handlers/oidc/config.go`).
+- Users are matched by provider, issuer and subject, then by a unique email that belongs to an account with no identity yet; an ambiguous email or one whose account already signs in another way is refused with 409, and an unknown one creates the user (`handlers/oidc/provision.go`). Stored emails are not verified, so a Google subject never attaches to an account that already has a passkey or another provider. OIDC provisioning is not gated by `SELF_REGISTRATION_ENABLED`.
 
 ### Service token
 
@@ -75,11 +77,17 @@ Requirement helpers (`x-ware/authz/requirement.go`): `Read` = ReadOnly, `Write` 
 - `Allows`: **deny first.** If the route's rule key is denied on the route's scope or on `ALL`, the request is refused whatever level any role grants. Then the granted level must cover the required one, taking the stronger of the scope's entry and the `ALL` entry.
 - Deny-rule keys are `<scope>.<action>.deny` in lower case (`x-ware/authz/rule.go`); the action names are in `data/resources/role/rules.go`.
 
+### Peer calls (`rest/clients`)
+
+- Path parameters are `url.PathEscape`d before substitution and the shared client never follows redirects (`rest/clients/shared/{utils,client}.go`), so a crafted name or email cannot steer a service-token call to another route.
+- The user, group, role and session lookups that feed authorization send `Cache-Control: no-cache`, so a planted exporter response-cache entry in Redis cannot change a peer's grants (`rest/clients/shared/headers.go`).
+- Peer 5xx bodies are not relayed to users (`rest/utils/response/def.go`); request bodies over 1 MiB are refused with 413 rather than truncated (`rest/utils/request/def.go`).
+
 ### Where each service resolves sessions and grants
 
 | Service | Session lookup | Grants cache |
 |---|---|---|
-| exporter | `UserSession` informer mirror, API-server fallback (`services/exporter/internal/authz/resolver.go`) | Redis, 60 s, HMAC-SHA256 signed with the service token and bound to the user; role and group changes bump a generation counter that invalidates every entry (`cache.go`, `signing.go`) |
+| exporter | `UserSession` informer mirror, API-server fallback (`services/exporter/internal/authz/resolver.go`) | Redis, 60 s, HMAC-SHA256 signed with the service token and bound to the user, the generation and the issue time; role and group changes bump a generation counter that invalidates every entry. An entry older than 60 s is a miss even if Redis kept it, and a generation lower than one the process has seen is treated as a rollback: the cache is bypassed (`cache.go`, `signing.go`) |
 | discovery | exporter session route | in process, 30 s for sessions and grants, errors never cached (`services/discovery/internal/constants/authz.go`); revocation can take up to 30 s to reach discovery |
 | auth | exporter, no cache (`services/auth/internal/authz/resolver.go`) | none |
 | analyzer | calls auth `GET /api/v1/auth/permissions` on every request, no cache (`services/analyzer/authz.py`) | none |
@@ -91,8 +99,9 @@ The analyzer re-implements the same evaluation in Python (`authz.py`: active and
 Route requirements decide who may call a route; guards decide what the caller may change. The exporter's are in `services/exporter/internal/authz/guard.go` and `visibility.go`, auth's in `services/auth/internal/authz/guard.go`. Examples:
 
 - `GuardApplicationPatch`: users may change only an application's display name and description.
-- `GuardGlobalConfigPatch`: a level per field; OIDC settings need Admin; `cluster` is Internal only.
-- `GuardSelfUser`, `GuardSelfSessionToken`: a user reads and deletes only their own sessions and passkeys.
+- Protection plans: the exporter's plan `PATCH` and `DELETE` routes are Internal; users edit, approve and delete through discovery, which owns the lifecycle. On create, `GuardPlanLifecycle` keeps lifecycle, approval and policy fields away from sessions. In discovery, the approval mode is derived server-side (Production always `required`; a client-sent `automatic` counts only from an Owner), nobody who requested, reactivated or materially edited a plan since its last approval may decide it, `enforce` on a `namespaces` scope needs Owner, and a plan name or description containing `{{` or `}}` is refused; the rendered Kyverno message carries only the plan id, because Kyverno substitutes variables there ([protection plans](../architecture/protection-plans.md#lifecycle)).
+- `GuardGlobalConfigPatch`: a level per field; OIDC settings need Admin on `ALL` (not only on `settings`) and still honour the `settings.editoidcconfig.deny` rule; `cluster` is Internal only.
+- `GuardSelfUser`, `GuardSelfSessionToken`: a user reads and deletes only their own sessions and passkeys. The per-user session list (`GET auth/sessions/{userId}/get`) is not response-cached, because a cache hit would be served before the owner check.
 - `GuardReferencedIDs`: referenced users, groups, roles must exist and not be terminating; a failed lookup refuses.
 - `GuardRoleDeletion` (`preventDeletion`, whoever calls) and `services/exporter/internal/utils/resources/role/protection.go` (`preventModification`, `preventScopeChanges`): the built-in roles set all three.
 - Most guards let Internal callers through, which is why some deny rules can only be enforced at the route (see the comment above `addIdentityProvider` and `addCleanup` in `services/auth/internal/authz/requirements.go`).
@@ -101,16 +110,19 @@ Route requirements decide who may call a route; guards decide what the caller ma
 
 - **Records.** `UserAsResource` (role ids, group ids, account phase, `bootstrap`), `GroupAsResource` (role ids, members), `RoleAsResource` (scope entries, status, validity, protection flags); types in `data/resources/{user,group,role}`. Group membership is stored on both the user and the group; grants read the user side. The exporter writes the other side first, so a failed request can be retried, and once at boot drops memberships that only one side records (`services/exporter/internal/membership/`).
 - **Built-in roles** are re-applied on every exporter start (`services/exporter/internal/startup/seed.go`, `data/resources/role/builtin.go`): Admin (Admin on `ALL`), Owner, Contributor and ReadOnly (that level on every built-in scope), each protected against deletion, modification and scope changes. There are no built-in groups.
-- **New users** get the ReadOnly role, unless their email is in `BOOTSTRAP_ADMINS` (`app.auth.bootstrap.admins`): then the Admin role and `bootstrap: true` (`services/auth/internal/helpers/auth/role.go` and `jit.go`, `services/auth/internal/handlers/oidc/provision.go`). Each OIDC login re-applies both when missing, decided on the email the identity provider verified (`EnsureBootstrapAdmin`). The `auth break-glass --email <email>` subcommand is the operator's emergency path.
+- **New users** get the ReadOnly role. An email in `BOOTSTRAP_ADMINS` (`app.auth.bootstrap.admins`) gets the Admin role and `bootstrap: true` only from a verified identity: an OIDC login (decided on the email the identity provider verified, `EnsureBootstrapAdmin`, re-applied on every login when missing) or the operator's `auth break-glass --email <email> [--enroll]` subcommand (`services/auth/internal/cmd/breakglass`). Passkey self-registration never grants either (`helpers/auth/jit.go`).
 - **Privilege edits** (`GuardUserPatch`, `GuardUserCreate`, `GuardGroupRolesPatch`, `GuardGroupMembersPatch`, `GuardRoleLevels` in `services/exporter/internal/authz/guard.go`):
   - A patch that touches no privileged field is a profile edit, allowed on your own account only.
   - Roles need Owner on `users`, groups Owner on `groups`, account status Admin on `users` plus the `suspenduser` rule; adding and removing each check their own deny rule.
   - Nobody changes their own roles, groups or status, or adds or removes themselves as a group member.
-  - A role you assign or author may not exceed your own level on any scope (`ALL` counts for every scope).
+  - A role you assign or author may not exceed your own level on any scope (`ALL` counts for every scope). Adding a member to a group, from either side, is capped the same way by every role the group carries. A role patch that changes `status`, `validity` or `scopesAndPermissions` is capped against the role as it will be stored, so an inactive or expired role above you can't be switched back on.
   - Creating a user with roles, groups or a status needs the same rights, and the `bootstrap` field can't be set through the API.
+  - Identity fields: `identities` is set only by services (Internal), never from a session; `email` and `username` are changed only by the account owner. Resending the stored value unchanged is allowed.
+  - Sessions can't create or patch a role with `type: built-in` or change its `protection` flags. Deny rules are stored in lower case on write.
+  - Request bodies on the user, group, role, category and protection-plan write routes are refused (400) when a key is not exactly a JSON field name of the record (`CheckCanonicalKeys` in `services/exporter/internal/utils/shared/keys.go`): `encoding/json` matches keys case-insensitively, the guards read exact keys, so a case variant must never reach the decoder.
 - **Administrators and bootstrap accounts** (`services/exporter/internal/authz/visibility.go`, `services/auth/internal/authz/guard.go`):
   - A caller that is neither Internal nor Admin on `ALL` gets 404 for administrator and bootstrap users and doesn't see them in lists; a role or group that can't be read counts as administrative.
-  - Bootstrap accounts are never deleted through the API, only they may edit their own record, and no user may take a `BOOTSTRAP_ADMINS` email (`GuardReservedEmail`).
+  - Bootstrap accounts are never deleted through the API, only they may edit their own record, and no session caller may take a `BOOTSTRAP_ADMINS` email (`GuardReservedEmail`; Internal callers such as auth are exempt, so auth itself refuses a bootstrap email on the bare-email passkey registration path and leaves it to OIDC or `break-glass --enroll`).
   - Only a bootstrap account may delete or suspend another administrator, and nobody deletes their own account.
 - **Deletion** goes through auth's cleanup routes (Owner on the scope plus the `deleteuser`, `deletegroup` or `deleterole` rule). A record being deleted grants nothing and refuses edits (`GuardNotTerminating`, 410); the cleanup cascade purges a deleted user's sessions and strips references to the record before its finalizer is removed (`services/auth/internal/controllers/cleanup/`).
 
@@ -120,19 +132,21 @@ Each service runs under its own ServiceAccount `telark-<service name>-sa`, for e
 
 | Service | Cluster-wide | In the release namespace |
 |---|---|---|
-| discovery | read core workloads, config and Secrets, events, namespaces, apps, batch, networking, HPA/VPA, CRD definitions, metrics; **create/update/patch** Services, ConfigMaps, Secrets, PVCs, ServiceAccounts, Deployments, StatefulSets, DaemonSets, CronJobs, Ingresses, NetworkPolicies, HPAs, VPAs (rollback writes snapshots back with create or update); patch/update `applicationsasresources`; create/get/list/patch/delete Kyverno `policies` | none |
-| exporter | all verbs on `admissionregistration.k8s.io` (no code in the exporter or the shared modules uses it today); create/get/list/delete Kyverno `policies` | all verbs on every resource of the `erpi.`, `auth.` and `classification.` telark groups; PVC get/list/watch/update/patch |
+| discovery | read core workloads, config and Secrets, events, namespaces, apps, batch, networking, HPA/VPA, pod metrics; **create/update** Services, ConfigMaps, Secrets, PVCs, ServiceAccounts, Deployments, StatefulSets, DaemonSets, CronJobs, Ingresses, NetworkPolicies, HPAs, VPAs (rollback writes snapshots back with create or update, never patch); patch `applicationsasresources`; create/get/list/patch/delete Kyverno `policies` (server-side apply) | none |
+| exporter | none (no ClusterRole) | all verbs on every resource of the `erpi.`, `auth.` and `classification.` telark groups; PVC get/list/watch (reads the snapshot volume's capacity) |
 | analyzer | get/list pods, events, services, apps workloads, PDBs, HPAs, NetworkPolicies (read-only) | none |
-| auth, notifier, ui | none (ServiceAccount only) | none |
+| auth, notifier, ui | none (ServiceAccount only, token not mounted) | none |
 
-No service can create RBAC objects, escalate, bind or impersonate. ServiceAccount tokens are mounted in every pod (the chart doesn't set `automountServiceAccountToken`).
+No service can create RBAC objects, escalate, bind or impersonate. Discovery's write rules still cover every namespace, Secrets and ServiceAccounts included (RBAC cannot exclude namespaces), so a compromised discovery pod is close to cluster-admin; it is the one service to protect first. auth, notifier and ui set `automountServiceAccountToken: false` on the pod and the ServiceAccount; the other services mount their token.
 
-- **Pod security** (`templates/_deployment.tpl`, `app.shared.podSecurityContext` and `containerSecurityContext` in `values.yaml`): non-root uid/gid 1001, no privilege escalation, read-only root filesystem, all capabilities dropped. discovery and ui set `includeSecurity: false` and run without these settings.
+- **Pod security** (`templates/_deployment.tpl`, `app.shared.podSecurityContext` and `containerSecurityContext` in `values.yaml`): non-root uid/gid 1001, no privilege escalation, read-only root filesystem, all capabilities dropped, seccomp `RuntimeDefault`, for every service but ui. ui (nginx, uid 101) sets `includeSecurity: false` and its own contexts in `services.ui`: non-root uid 101, no privilege escalation, all capabilities dropped, read-only root filesystem with `emptyDir` on `/var/cache/nginx` and `/tmp`, seccomp `RuntimeDefault`.
 - **Kyverno policies from protection plans** are created only by discovery: namespaced Kyverno `Policy` objects, labelled `telark.erpi/protection-plan=<plan id>`, applied with server-side apply, `Enforce` or `Audit` from the plan (`data/policies/shared.go`, `services/discovery/internal/core/plans/protection/policies/applier.go`). See [protection plans](../architecture/protection-plans.md).
-- **Chart-installed Kyverno policy** `telark-inject-modifier` (`templates/policies/clusterpolicy-image-inject.yaml`): a mutate policy, `failurePolicy: Ignore`, that stamps `telark.io/last-modified-by`, `-at` and `-operation` annotations on namespaced objects outside the telark and system namespaces. It renders only when the Kyverno `ClusterPolicy` API already exists.
-- **Kyverno fails open**: the chart sets `kyverno.features.forceFailurePolicyIgnore.enabled: true`, so when Kyverno's webhook is unavailable, admission (including plan policies in `Enforce`) lets requests through.
-- **CRD write guard** (`templates/policies/crd-admission-policy.yaml`, `app.crdGuard`, off by default): a ValidatingAdmissionPolicy that allows writes to the three telark groups only from the exporter ServiceAccount (and `extraAllowedUsers`), plus discovery for `applicationsasresources`; `enforce: true` denies, otherwise it audits.
-- **Network**: the only NetworkPolicies are Ollama's (ingress from analyzer pods only; egress DNS, plus 443 when `app.ollama.autoPull` is on) and the Redis subchart's (clients labelled `telark-redis-client`). The telark services have none.
+- **Chart-installed Kyverno policy** `telark-inject-modifier` (`templates/policies/clusterpolicy-image-inject.yaml`): a mutate policy, `failurePolicy: Ignore`, that stamps `telark.io/last-modified-by`, `-at` and `-operation` annotations on the kinds discovery snapshots (Secrets excluded, so Kyverno never mutates Secret writes for it), outside the telark and system namespaces. It renders only when the Kyverno `ClusterPolicy` API already exists, so a first install gets it on its first upgrade ([INSTALL.md](../INSTALL.md#last-modified-annotations)).
+- **Kyverno fails open by default** (`app.kyverno.failOpen`, which must equal `kyverno.features.forceFailurePolicyIgnore.enabled`): when Kyverno's webhook is unavailable, admission (including plan policies in `Enforce`) lets requests through. Setting both to `false` makes enforcement fail closed ([INSTALL.md](../INSTALL.md#policy-engine-fail-open)).
+- **CRD write guard** (`templates/policies/crd-admission-policy.yaml`, `app.crdGuard`, on and enforcing by default): a ValidatingAdmissionPolicy that allows writes to the three telark groups only from the exporter ServiceAccount (and `extraAllowedUsers`), plus discovery for `applicationsasresources`; `enforce: false` only audits. The CRD schemas also pin `UserSession` names to `session-<64 hex>` and `UserAsResource` `status.phase` to `active`, `inactive` or `suspended`.
+- **Network** (`templates/shared/networkpolicy.yaml`, `app.networkPolicy.enabled`, on by default): ingress default deny for every telark pod; the service APIs accept only telark pods of the same release; ui accepts any source on its port; NATS accepts discovery and notifier on 4222 only (6222 between NATS pods) and runs no monitoring listener. Ollama's policy admits analyzer pods only (egress DNS, plus 443 when `app.ollama.autoPull` is on), the Redis subchart's admits clients labelled `<release>-redis-client`. Egress is open. None of it applies without a CNI that enforces NetworkPolicy.
+- **NATS users**: discovery connects as the publisher (publish `telark.applications.*`, subscribe `_INBOX.>` for JetStream acks), notifier as the consumer (publish `$JS.API.>` and `$JS.ACK.>`, subscribe `telark.applications.*` and `_INBOX.>`), each from its own Secret.
+- **Chart-generated secrets** (service token, NATS users) carry `helm.sh/resource-policy: keep`; cluster-less renders use `app.serviceToken.existingSecret` and `nats.existingSecrets` instead of `lookup` ([INSTALL.md](../INSTALL.md#gitops-cluster-less-renders)).
 
 ## Invariants
 
@@ -157,7 +171,7 @@ Facts an operator or reviewer should not assume otherwise:
 
 - No request rate limiting or login lockout in any service.
 - Redis runs without authentication; don't enable `redis.auth.enabled` (the services get no password, see SECURITY.md).
-- The CRD write guard is off by default, and the exporter's `admissionregistration.k8s.io` grant would let its ServiceAccount remove it.
-- Kyverno is configured to fail open.
-- No NetworkPolicy isolates the telark services from other pods.
-- CORS in `x-ware/cors` allows only `http://localhost:3000` with credentials.
+- A cluster admin, or anyone who may delete ValidatingAdmissionPolicies, can remove the CRD write guard; no telark ServiceAccount can.
+- Kyverno fails open unless the operator sets `app.kyverno.failOpen=false`.
+- NetworkPolicies restrict ingress only; egress from every telark pod is open.
+- CORS in `x-ware/cors` sends no headers unless `CORS_ALLOWED_ORIGINS` lists origins (never `*`); the dashboard proxies every API on its own origin.

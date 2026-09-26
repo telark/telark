@@ -1,5 +1,7 @@
 package plans
 
+import globalshared "github.com/telark/data/shared"
+
 const (
 	PhaseActive          = "active"
 	PhaseCanceled        = "canceled"
@@ -41,6 +43,10 @@ const (
 
 	ApprovalHistoryMax = 20
 
+	ConditionTypeReady           = "Ready"
+	ConditionTypeApproved        = "Approved"
+	ConditionTypePoliciesHealthy = "PoliciesHealthy"
+
 	ExclusionKindsMax           = 50
 	ExclusionResourcesMax       = 200
 	ExclusionKindMaxLength      = 63
@@ -50,10 +56,10 @@ const (
 )
 
 type ProtectionPlanScope struct {
-	Type           string                         `json:"type"`
-	ApplicationIDs []string                       `json:"applicationIds,omitempty"`
-	Namespaces     []string                       `json:"namespaces,omitempty"`
-	Exclusions     *ProtectionPlanScopeExclusions `json:"exclusions,omitempty"`
+	Type            string                         `json:"type"`
+	ApplicationRefs []string                       `json:"applicationRefs,omitempty"`
+	Namespaces      []string                       `json:"namespaces,omitempty"`
+	Exclusions      *ProtectionPlanScopeExclusions `json:"exclusions,omitempty"`
 }
 
 type ProtectionPlanScopeExclusions struct {
@@ -103,33 +109,35 @@ type ProtectionPlanApproval struct {
 }
 
 type ProtectionPlan struct {
-	ID               string                       `json:"id"`
-	Name             string                       `json:"name"`
-	Description      *string                      `json:"description,omitempty"`
-	Severity         string                       `json:"severity"`
-	Priority         int                          `json:"priority"`
-	Scope            ProtectionPlanScope          `json:"scope"`
-	Policies         []ProtectionPlanPolicy       `json:"policies"`
-	Mode             string                       `json:"mode"`
-	TimeMode         string                       `json:"timeMode"`
-	TimeRange        *ProtectionPlanTimeRange     `json:"timeRange,omitempty"`
-	Phase            string                       `json:"phase"`
-	Reason           *string                      `json:"reason,omitempty"`
-	RenderedPolicies []string                     `json:"renderedPolicies,omitempty"`
-	CreatedAt        string                       `json:"createdAt"`
-	CreatedBy        string                       `json:"createdBy"`
-	LastUpdatedAt    string                       `json:"lastUpdatedAt"`
-	LastUpdatedBy    string                       `json:"lastUpdatedBy"`
-	StartedAt        *string                      `json:"startedAt,omitempty"`
-	StartedBy        *string                      `json:"startedBy,omitempty"`
-	TerminatedAt     *string                      `json:"terminatedAt,omitempty"`
-	TerminatedBy     *string                      `json:"terminatedBy,omitempty"`
-	ParticipantsIDs  []string                     `json:"participantsIDs"`
-	EnvironmentID    string                       `json:"environmentID,omitempty"`
-	TagIDs           []string                     `json:"tagIDs,omitempty"`
-	ApprovalMode     string                       `json:"approvalMode,omitempty"`
-	Approval         *ProtectionPlanApproval      `json:"approval,omitempty"`
-	Health           string                       `json:"health"`
-	HealthCheckedAt  *string                      `json:"healthCheckedAt,omitempty"`
-	HealthDetail     []ProtectionPlanHealthDetail `json:"healthDetail,omitempty"`
+	ID                 string                       `json:"id"`
+	Name               string                       `json:"name"`
+	Description        *string                      `json:"description,omitempty"`
+	Severity           string                       `json:"severity"`
+	Priority           int                          `json:"priority"`
+	Scope              ProtectionPlanScope          `json:"scope"`
+	Policies           []ProtectionPlanPolicy       `json:"policies"`
+	Mode               string                       `json:"mode"`
+	TimeMode           string                       `json:"timeMode"`
+	TimeRange          *ProtectionPlanTimeRange     `json:"timeRange,omitempty"`
+	Phase              string                       `json:"phase"`
+	Reason             *string                      `json:"reason,omitempty"`
+	RenderedPolicies   []string                     `json:"renderedPolicies,omitempty"`
+	CreatedAt          string                       `json:"createdAt"`
+	CreatedBy          string                       `json:"createdBy"`
+	LastUpdatedAt      string                       `json:"lastUpdatedAt"`
+	LastUpdatedBy      string                       `json:"lastUpdatedBy"`
+	StartedAt          *string                      `json:"startedAt,omitempty"`
+	StartedBy          *string                      `json:"startedBy,omitempty"`
+	TerminatedAt       *string                      `json:"terminatedAt,omitempty"`
+	TerminatedBy       *string                      `json:"terminatedBy,omitempty"`
+	ParticipantRefs    []string                     `json:"participantRefs"`
+	EnvironmentRef     string                       `json:"environmentRef,omitempty"`
+	TagRefs            []string                     `json:"tagRefs,omitempty"`
+	ApprovalMode       string                       `json:"approvalMode,omitempty"`
+	Approval           *ProtectionPlanApproval      `json:"approval,omitempty"`
+	Health             string                       `json:"health"`
+	HealthCheckedAt    *string                      `json:"healthCheckedAt,omitempty"`
+	HealthDetail       []ProtectionPlanHealthDetail `json:"healthDetail,omitempty"`
+	Conditions         []globalshared.Condition     `json:"conditions,omitempty"`
+	ObservedGeneration int64                        `json:"observedGeneration,omitempty"`
 }

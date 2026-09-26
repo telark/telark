@@ -63,9 +63,9 @@ func appScope(kinds ...string) policies.ScopeSpec {
 		refs = append(refs, policies.ApplicationResourceRef{Kind: kind, Name: appName, Namespace: planNamespace})
 	}
 	return policies.ScopeSpec{
-		Namespace:      planNamespace,
-		ApplicationIDs: []string{appName},
-		AppResources:   refs,
+		Namespace:       planNamespace,
+		ApplicationRefs: []string{appName},
+		AppResources:    refs,
 	}
 }
 

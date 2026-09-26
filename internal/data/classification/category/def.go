@@ -1,6 +1,6 @@
 package category
 
-type CategoryAsClassification struct {
+type CategorySpec struct {
 	Categories []Category `json:"categories"`
 }
 

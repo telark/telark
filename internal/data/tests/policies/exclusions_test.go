@@ -37,7 +37,7 @@ func renderPlan(t *testing.T, scopeType, templateID string, excl *plans.Protecti
 	if scopeType == scopeNamespaces {
 		plan.Scope.Namespaces = []string{planNamespace}
 	} else {
-		plan.Scope.ApplicationIDs = []string{appName}
+		plan.Scope.ApplicationRefs = []string{appName}
 	}
 	app := allScopes()[scopeApplication]
 	resolved := map[string]policies.ResolvedApp{

@@ -1,13 +1,13 @@
 package role
 
-type RoleAsResource struct {
+type AccessRole struct {
 	ID                   string                `json:"id"`
 	Name                 string                `json:"name"`
 	Description          string                `json:"description"`
 	Version              string                `json:"version"`
 	Type                 RoleType              `json:"type"`
 	Priority             int                   `json:"priority"`
-	CategoryID           string                `json:"categoryID"`
+	CategoryRef          string                `json:"categoryRef"`
 	ScopesAndPermissions []ScopeAndPermissions `json:"scopesAndPermissions"`
 	Protection           *Protection           `json:"protection,omitempty"`
 	Status               RoleStatus            `json:"status"`
@@ -20,11 +20,6 @@ type RoleAsResource struct {
 	DeletedAt            *string               `json:"deletedAt,omitempty"`
 	// Projected from metadata by the owner while the cleanup finalizer holds the record.
 	DeletionTimestamp *string `json:"deletionTimestamp,omitempty"`
-}
-
-type AssignedTo struct {
-	GroupIDs []string `json:"groupIDs,omitempty"`
-	UserIDs  []string `json:"userIDs,omitempty"`
 }
 
 type ScopeAndPermissions struct {

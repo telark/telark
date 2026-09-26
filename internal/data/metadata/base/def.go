@@ -8,19 +8,15 @@ type Metadata struct {
 	Version   string `json:"version"`
 	Plural    string `json:"plural"`
 	Namespace string `json:"namespace"`
+	// View key to status key; an empty status key projects the whole status object.
+	StatusFields map[string]string `json:"statusFields,omitempty"`
+	// Object name of a kind that holds exactly one object in the namespace.
+	Singleton string `json:"singleton,omitempty"`
 }
 
-type (
-	Group   string
-	Version string
-)
-
 const (
-	Erpi           Group   = "erpi.telark"
-	Auth           Group   = "auth.telark"
-	Classification Group   = "classification.telark"
-	Alpha1         Version = "v1alpha1"
-	Alpha2         Version = "v1alpha2"
+	Group    = "telark.io"
+	V1Alpha1 = "v1alpha1"
 )
 
 func (metadata *Metadata) GetAPIVersion() string {

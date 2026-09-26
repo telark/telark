@@ -64,5 +64,7 @@ const (
 	LoggerPrefixK8sMetrics                 = "KubernetesMetrics: "
 	LoggerPrefixK8sManager                 = "KubernetesManager: "
 	LoggerPrefixWorkloadUsage              = "WorkloadUsage: "
+	LoggerPrefixWorkerPool                 = "WorkerPool: "
+	ErrWorkerTaskPanicked     errors.Error = "worker task panicked: %v"
 	ErrTimeout                errors.Error = "operation timed out"
 )

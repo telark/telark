@@ -1,4 +1,4 @@
-package globalconfig
+package telarkconfig
 
 import (
 	"slices"
@@ -13,8 +13,8 @@ var defaultExcludedNamespaces = []string{
 	"kube-node-lease",
 }
 
-func DefaultGlobalConfig() GlobalConfig {
-	return GlobalConfig{
+func DefaultTelarkConfig() TelarkConfig {
+	return TelarkConfig{
 		ExcludedNamespaces: slices.Clone(defaultExcludedNamespaces),
 		UserSettings: UserSettings{
 			FetchIntervalSeconds: constants.DefaultFetchIntervalSeconds,

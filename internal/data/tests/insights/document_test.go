@@ -10,7 +10,7 @@ import (
 	"github.com/telark/data/constants"
 	insightsdata "github.com/telark/data/insights"
 	"github.com/telark/data/resources/application"
-	"github.com/telark/data/resources/globalconfig"
+	"github.com/telark/data/resources/telarkconfig"
 )
 
 const (
@@ -22,7 +22,7 @@ const (
 
 	sampleTimestamp = "2026-09-23T10:00:00Z"
 
-	// Copied from spec.ai.model's pattern in the GlobalConfig CRD.
+	// Copied from spec.ai.model's pattern in the TelarkConfig CRD.
 	crdModelPattern = `^[a-z0-9][a-z0-9._-]*(:[a-z0-9._-]+)?$`
 
 	errMarshal   = "marshal: %v"
@@ -54,9 +54,9 @@ func assertKeys(t *testing.T, what string, v any, want ...string) {
 	}
 }
 
-func TestDefaultGlobalConfigSeedsAnalyzer(t *testing.T) {
-	want := globalconfig.AIConfig{Enabled: true, Model: seededModel, AutoAnalyze: false}
-	if got := globalconfig.DefaultGlobalConfig().AI; got != want {
+func TestDefaultTelarkConfigSeedsAnalyzer(t *testing.T) {
+	want := telarkconfig.AIConfig{Enabled: true, Model: seededModel, AutoAnalyze: false}
+	if got := telarkconfig.DefaultTelarkConfig().AI; got != want {
 		t.Errorf("seeded ai = %+v, want %+v", got, want)
 	}
 }

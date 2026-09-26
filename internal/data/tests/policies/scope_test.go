@@ -37,7 +37,7 @@ func appPlan(mode string) *plans.ProtectionPlan {
 		ID:       multiPlanID,
 		Name:     "freeze",
 		Mode:     mode,
-		Scope:    plans.ProtectionPlanScope{Type: plans.ScopeTypeApplications, ApplicationIDs: []string{appName}},
+		Scope:    plans.ProtectionPlanScope{Type: plans.ScopeTypeApplications, ApplicationRefs: []string{appName}},
 		Policies: []plans.ProtectionPlanPolicy{{TemplateID: tplBlockUpdate}},
 	}
 }
@@ -73,15 +73,12 @@ func TestRenderCoversEveryApplicationNamespace(t *testing.T) {
 	}
 }
 
-// The plan name is part of every rule message, so a rename must change the hash.
 func TestRenderHashFollowsContent(t *testing.T) {
 	enforce, err := policies.Render(appPlan(plans.ModeEnforce), multiNamespaceApp(), nil)
 	if err != nil {
 		t.Fatalf(fmtRenderErr, err)
 	}
-	renamed := appPlan(plans.ModeEnforce)
-	renamed.Name = "freeze-renamed"
-	other, err := policies.Render(renamed, multiNamespaceApp(), nil)
+	other, err := policies.Render(appPlan(plans.ModeAudit), multiNamespaceApp(), nil)
 	if err != nil {
 		t.Fatalf(fmtRenderErr, err)
 	}
@@ -91,7 +88,7 @@ func TestRenderHashFollowsContent(t *testing.T) {
 			t.Fatalf("%s: render hash %q not stamped from the spec", enforce[i].Name, hash)
 		}
 		if got := other[i].Annotations[policies.AnnotationRenderHash]; got == hash {
-			t.Fatalf("%s: rename kept the hash", enforce[i].Name)
+			t.Fatalf("%s: mode change kept the hash", enforce[i].Name)
 		}
 	}
 }
@@ -110,7 +107,7 @@ func TestAuditMessageWording(t *testing.T) {
 			ID:       multiPlanID,
 			Name:     "audit",
 			Mode:     plans.ModeAudit,
-			Scope:    plans.ProtectionPlanScope{Type: plans.ScopeTypeApplications, ApplicationIDs: []string{appName}},
+			Scope:    plans.ProtectionPlanScope{Type: plans.ScopeTypeApplications, ApplicationRefs: []string{appName}},
 			Policies: []plans.ProtectionPlanPolicy{{TemplateID: tpl.ID, Params: templateParams[tpl.ID]}},
 		}
 		app := allScopes()[scopeApplication]

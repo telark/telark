@@ -17,11 +17,11 @@ const (
 	fieldSessionToken = "sessionToken"
 	fieldUserID       = "userId"
 
-	sampleEnvironmentID = "cat-00002-0001-0001"
-	sampleTagID         = "cat-00003-0001-0001"
+	sampleEnvironmentRef = "cat-00002-0001-0001"
+	sampleTagRef         = "cat-00003-0001-0001"
 
-	fieldEnvironmentID = "environmentID"
-	fieldTagIDs        = "tagIDs"
+	fieldEnvironmentRef = "environmentRef"
+	fieldTagRefs        = "tagRefs"
 
 	sampleApproverID      = "user-2"
 	sampleRequestedAt     = "2026-09-23T10:00:00Z"
@@ -56,10 +56,10 @@ func specMap(t *testing.T, v any) map[string]any {
 }
 
 func TestClearedSessionTokenIsNotWrittenToTheSpec(t *testing.T) {
-	spec := specMap(t, authdata.UserSession{UserID: sampleUserID})
+	spec := specMap(t, authdata.Session{UserID: sampleUserID})
 
 	if _, found := spec[fieldSessionToken]; found {
-		t.Errorf("spec carries %q, a key the UserSession CRD no longer declares: %v",
+		t.Errorf("spec carries %q, a key the Session CRD no longer declares: %v",
 			fieldSessionToken, spec)
 	}
 	if spec[fieldUserID] != sampleUserID {
@@ -68,7 +68,7 @@ func TestClearedSessionTokenIsNotWrittenToTheSpec(t *testing.T) {
 }
 
 func TestSessionTokenStillTravelsOnCreate(t *testing.T) {
-	spec := specMap(t, authdata.UserSession{UserID: sampleUserID, SessionToken: sampleToken})
+	spec := specMap(t, authdata.Session{UserID: sampleUserID, SessionToken: sampleToken})
 
 	if spec[fieldSessionToken] != sampleToken {
 		t.Errorf("create payload dropped the session token: %v", spec)
@@ -78,24 +78,24 @@ func TestSessionTokenStillTravelsOnCreate(t *testing.T) {
 func TestProtectionPlanTaxonomyJSONKeys(t *testing.T) {
 	spec := specMap(t, plans.ProtectionPlan{})
 
-	if _, found := spec[fieldEnvironmentID]; found {
-		t.Errorf("zero-value plan must omit %q: %v", fieldEnvironmentID, spec)
+	if _, found := spec[fieldEnvironmentRef]; found {
+		t.Errorf("zero-value plan must omit %q: %v", fieldEnvironmentRef, spec)
 	}
-	if _, found := spec[fieldTagIDs]; found {
-		t.Errorf("zero-value plan must omit %q: %v", fieldTagIDs, spec)
+	if _, found := spec[fieldTagRefs]; found {
+		t.Errorf("zero-value plan must omit %q: %v", fieldTagRefs, spec)
 	}
 
 	spec = specMap(t, plans.ProtectionPlan{
-		EnvironmentID: sampleEnvironmentID,
-		TagIDs:        []string{sampleTagID},
+		EnvironmentRef: sampleEnvironmentRef,
+		TagRefs:        []string{sampleTagRef},
 	})
 
-	if spec[fieldEnvironmentID] != sampleEnvironmentID {
-		t.Errorf("spec lost %q: %v", fieldEnvironmentID, spec)
+	if spec[fieldEnvironmentRef] != sampleEnvironmentRef {
+		t.Errorf("spec lost %q: %v", fieldEnvironmentRef, spec)
 	}
-	tags, ok := spec[fieldTagIDs].([]any)
-	if !ok || !slices.Equal(tags, []any{sampleTagID}) {
-		t.Errorf("spec lost %q: %v", fieldTagIDs, spec)
+	tags, ok := spec[fieldTagRefs].([]any)
+	if !ok || !slices.Equal(tags, []any{sampleTagRef}) {
+		t.Errorf("spec lost %q: %v", fieldTagRefs, spec)
 	}
 }
 
@@ -168,8 +168,8 @@ func TestScopeExclusionsOmittedWhenAbsent(t *testing.T) {
 func TestScopeExclusionsRoundTrip(t *testing.T) {
 	src := plans.ProtectionPlan{
 		Scope: plans.ProtectionPlanScope{
-			Type:           plans.ScopeTypeApplications,
-			ApplicationIDs: []string{sampleAppName},
+			Type:            plans.ScopeTypeApplications,
+			ApplicationRefs: []string{sampleAppName},
 			Exclusions: &plans.ProtectionPlanScopeExclusions{
 				Kinds: []string{sampleExcludedKind},
 				Resources: []plans.ProtectionPlanExcludedResource{

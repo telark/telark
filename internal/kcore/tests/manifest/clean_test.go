@@ -33,7 +33,10 @@ func TestCleanManifestForApplyDropsOwnerReferences(t *testing.T) {
 			m := withOwner(kind)
 			manifest.CleanManifestForApply(m)
 
-			meta, _ := m[fieldMetadata].(map[string]any)
+			meta, ok := m[fieldMetadata].(map[string]any)
+			if !ok {
+				t.Fatalf("metadata missing after cleaning: %v", m)
+			}
 			if _, present := meta[fieldOwnerReferences]; present {
 				t.Fatalf("ownerReferences survived cleaning: %v", meta)
 			}

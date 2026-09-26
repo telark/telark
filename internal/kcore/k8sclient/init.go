@@ -160,3 +160,10 @@ func GetLogger() *globallogger.CustomLogger {
 func init() {
 	configLoader = makeConfigLoader()
 }
+
+// Lets callers (and tests) run kcore's CRD helpers against an injected client.
+func SetDynamicClient(client dynamic.Interface) {
+	mu.Lock()
+	defer mu.Unlock()
+	dynamicClient = client
+}

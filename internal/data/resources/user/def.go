@@ -1,18 +1,18 @@
 package user
 
-type UserAsResource struct {
-	ID                string          `json:"id"`
-	Username          string          `json:"username"`
-	Fullname          string          `json:"fullname"`
-	Email             string          `json:"email"`
-	AssignedRolesIDs  []*string       `json:"assignedRolesIDs,omitempty"`
-	AssignedGroupsIDs []*string       `json:"assignedGroupsIDs,omitempty"`
-	Identities        []*UserIdentity `json:"identities,omitempty"`
-	CreationDate      string          `json:"creationDate"`
-	LastUpdateDate    *string         `json:"lastUpdateDate,omitempty"`
-	Avatar            *Avatar         `json:"avatar,omitempty"`
-	Settings          *UserSettings   `json:"settings,omitempty"`
-	Status            UserStatus      `json:"status"`
+type User struct {
+	ID             string          `json:"id"`
+	Username       string          `json:"username"`
+	Fullname       string          `json:"fullname"`
+	Email          string          `json:"email"`
+	RoleRefs       []*string       `json:"roleRefs,omitempty"`
+	GroupRefs      []*string       `json:"groupRefs,omitempty"`
+	Identities     []*UserIdentity `json:"identities,omitempty"`
+	CreationDate   string          `json:"creationDate"`
+	LastUpdateDate *string         `json:"lastUpdateDate,omitempty"`
+	Avatar         *Avatar         `json:"avatar,omitempty"`
+	Settings       *UserSettings   `json:"settings,omitempty"`
+	Status         UserStatus      `json:"status"`
 	// Chart-managed bootstrap administrator; written by services only.
 	Bootstrap bool `json:"bootstrap,omitempty"`
 	// Projected from metadata by the owner while the cleanup finalizer holds the record.

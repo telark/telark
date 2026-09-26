@@ -65,7 +65,7 @@ func (blockStorageChanges) Render(meta policies.RenderMeta, scope policies.Scope
 // application scope matches the claim names its workloads mount instead.
 // Both scopes cover CREATE so the rule means what the template description promises.
 func pvcMatch(scope policies.ScopeSpec) (kyvernov1.MatchResources, bool) {
-	if len(scope.ApplicationIDs) == constants.DefaultInitValue {
+	if len(scope.ApplicationRefs) == constants.DefaultInitValue {
 		return policies.BuildMatch(scope, kindsPVC, opsCreateUpdateDelete)
 	}
 	return policies.MatchNamed(kindsPVC, opsCreateUpdateDelete, scope.VolumeClaims)

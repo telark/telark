@@ -1,5 +1,7 @@
 package application
 
+import globalshared "github.com/telark/data/shared"
+
 type Application struct {
 	Name            string                `json:"name"`
 	DisplayName     string                `json:"displayName"`
@@ -22,10 +24,12 @@ type Application struct {
 	Snapshots       []ApplicationSnapshot `json:"snapshots"`
 	Rollbacks       []RollbackEntry       `json:"rollbacks,omitempty"`
 	Metrics         ApplicationMetrics    `json:"metrics"`
-	CRStatus        string                `json:"crStatus,omitempty"`
+	Conditions      []Condition           `json:"conditions,omitempty"`
 	History         ApplicationHistory    `json:"history"`
 	LastForceSync   *LastForceSync        `json:"lastForceSync,omitempty"`
 }
+
+type Condition = globalshared.Condition
 
 type LastForceSync struct {
 	JobID       string  `json:"jobId,omitempty"`
@@ -131,11 +135,11 @@ type ResponseData struct {
 }
 
 const (
-	// CRStatus is the status of the Application CR (created via NATS/notifier).
-	CRStatusPending         = "Pending"
-	CRStatusPublished       = "Published"
-	CRStatusCreated         = "Created"
-	CRStatusFailed          = "Failed"
+	// Published tracks the Application CR the notifier creates from the NATS event.
+	ConditionTypePublished  = "Published"
+	ConditionReasonPending  = "Pending"
+	ConditionReasonCreated  = "Created"
+	ConditionReasonFailed   = "Failed"
 	ChangeClassTopology     = "topology"
 	ChangeClassDeployment   = "deployment"
 	ChangeClassScaling      = "scaling"

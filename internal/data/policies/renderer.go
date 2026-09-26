@@ -44,7 +44,7 @@ func Render(plan *plans.ProtectionPlan, resolved map[string]ResolvedApp, logger 
 				if logger != nil {
 					logger.Info(fmt.Sprintf(
 						"template %s skipped for plan %s namespace=%s apps=%v: no matching application resources",
-						entry.TemplateID, plan.ID, scope.Namespace, scope.ApplicationIDs,
+						entry.TemplateID, plan.ID, scope.Namespace, scope.ApplicationRefs,
 					))
 				}
 				continue
@@ -71,7 +71,7 @@ func buildScopes(plan *plans.ProtectionPlan, resolved map[string]ResolvedApp) ([
 		grouped := map[string][]string{}
 		resourcesByNS := map[string][]ApplicationResourceRef{}
 		claimsByNS := map[string][]string{}
-		for _, appID := range plan.Scope.ApplicationIDs {
+		for _, appID := range plan.Scope.ApplicationRefs {
 			ra, ok := resolved[appID]
 			if !ok || len(ra.Namespaces) == constants.DefaultInitValue {
 				return nil, fmt.Errorf("policies: application %q has no resolved namespace", appID)
@@ -91,10 +91,10 @@ func buildScopes(plan *plans.ProtectionPlan, resolved map[string]ResolvedApp) ([
 			claims := claimsByNS[ns]
 			slices.Sort(claims)
 			out = append(out, ScopeSpec{
-				Namespace:      ns,
-				ApplicationIDs: apps,
-				AppResources:   resourcesByNS[ns],
-				VolumeClaims:   slices.Compact(claims),
+				Namespace:       ns,
+				ApplicationRefs: apps,
+				AppResources:    resourcesByNS[ns],
+				VolumeClaims:    slices.Compact(claims),
 			})
 		}
 		return out, nil

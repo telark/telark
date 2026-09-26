@@ -51,4 +51,8 @@ const (
 	Update                    Action = "update"
 	Allow                     Action = "allow"
 	Deny                      Action = "deny"
+
+	ConditionTrue    ConditionStatus = "True"
+	ConditionFalse   ConditionStatus = "False"
+	ConditionUnknown ConditionStatus = "Unknown"
 )

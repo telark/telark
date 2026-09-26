@@ -43,7 +43,7 @@ func uniformPermissions(level PermissionLevel) []ScopeAndPermissions {
 	return permissions
 }
 
-var BuiltinRoles = []RoleAsResource{
+var BuiltinRoles = []AccessRole{
 	{
 		ID:                   constants.RoleIDAdmin,
 		Name:                 "Admin",
@@ -51,7 +51,7 @@ var BuiltinRoles = []RoleAsResource{
 		Version:              builtinVersion,
 		Type:                 RoleTypeBuiltIn,
 		Priority:             builtinPriorityAdmin,
-		CategoryID:           constants.CategoryIDPlatform,
+		CategoryRef:          constants.CategoryIDPlatform,
 		Status:               RoleStatusActive,
 		ScopesAndPermissions: []ScopeAndPermissions{{Scope: ScopeAll, Level: PermissionLevelAdmin}},
 		Protection:           builtinProtection(),
@@ -65,7 +65,7 @@ var BuiltinRoles = []RoleAsResource{
 		Version:              builtinVersion,
 		Type:                 RoleTypeBuiltIn,
 		Priority:             builtinPriorityOwner,
-		CategoryID:           constants.CategoryIDPlatform,
+		CategoryRef:          constants.CategoryIDPlatform,
 		Status:               RoleStatusActive,
 		ScopesAndPermissions: uniformPermissions(PermissionLevelOwner),
 		Protection:           builtinProtection(),
@@ -79,7 +79,7 @@ var BuiltinRoles = []RoleAsResource{
 		Version:              builtinVersion,
 		Type:                 RoleTypeBuiltIn,
 		Priority:             builtinPriorityContributor,
-		CategoryID:           constants.CategoryIDPlatform,
+		CategoryRef:          constants.CategoryIDPlatform,
 		Status:               RoleStatusActive,
 		ScopesAndPermissions: uniformPermissions(PermissionLevelContributor),
 		Protection:           builtinProtection(),
@@ -93,7 +93,7 @@ var BuiltinRoles = []RoleAsResource{
 		Version:              builtinVersion,
 		Type:                 RoleTypeBuiltIn,
 		Priority:             builtinPriorityReadOnly,
-		CategoryID:           constants.CategoryIDPlatform,
+		CategoryRef:          constants.CategoryIDPlatform,
 		Status:               RoleStatusActive,
 		ScopesAndPermissions: uniformPermissions(PermissionLevelReadOnly),
 		Protection:           builtinProtection(),

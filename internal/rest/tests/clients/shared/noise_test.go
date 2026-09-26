@@ -77,7 +77,7 @@ func TestServerErrorLogsOnceAndKeepsTheBodyOutOfLogAndMessage(t *testing.T) {
 		t.Fatalf(wantOneLine, len(lines), logged)
 	}
 	for _, want := range []string{
-		string(authendpoints.DeleteSessionByToken),
+		string(authendpoints.DeleteSelfSession),
 		fmt.Sprintf(statusField, http.StatusInternalServerError),
 		fmt.Sprintf(methodField, http.MethodDelete),
 	} {

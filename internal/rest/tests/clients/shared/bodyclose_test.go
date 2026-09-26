@@ -141,7 +141,7 @@ var closeCases = []closeCase{
 		body:   dataBody,
 		invoke: func(rt http.RoundTripper) {
 			_, _ = shared.GetWithHeaders[map[string]any](
-				sharedWith(rt), authendpoints.GetSessionByToken, nil,
+				sharedWith(rt), authendpoints.GetSelfSession, nil,
 			)
 		},
 	},
@@ -151,7 +151,7 @@ var closeCases = []closeCase{
 		body:   itemsBody,
 		invoke: func(rt http.RoundTripper) {
 			_, _ = shared.GetListWithHeaders[map[string]any](
-				sharedWith(rt), authendpoints.GetSessionByToken, nil,
+				sharedWith(rt), authendpoints.GetSelfSession, nil,
 			)
 		},
 	},
@@ -161,7 +161,7 @@ var closeCases = []closeCase{
 		body:   jsonArrayBody,
 		invoke: func(rt http.RoundTripper) {
 			_, _ = shared.GetRawJSONWithHeaders[json.RawMessage](
-				sharedWith(rt), authendpoints.GetSessionByToken, nil,
+				sharedWith(rt), authendpoints.GetSelfSession, nil,
 			)
 		},
 	},
@@ -171,7 +171,7 @@ var closeCases = []closeCase{
 		body:   okBody,
 		invoke: func(rt http.RoundTripper) {
 			shared.ExecuteRequestWithHeaders(
-				sharedWith(rt), base.Post, authendpoints.GetSessionByToken, nil, nil,
+				sharedWith(rt), base.Post, authendpoints.GetSelfSession, nil, nil,
 			)
 		},
 	},
@@ -180,7 +180,7 @@ var closeCases = []closeCase{
 		status: http.StatusOK,
 		body:   jsonArrayBody,
 		invoke: func(rt http.RoundTripper) {
-			_, _ = sharedWith(rt).PostAndParseGenericResponses(authendpoints.GetSessionByToken)
+			_, _ = sharedWith(rt).PostAndParseGenericResponses(authendpoints.GetSelfSession)
 		},
 	},
 	{
@@ -188,7 +188,7 @@ var closeCases = []closeCase{
 		status: http.StatusInternalServerError,
 		body:   peerBody,
 		invoke: func(rt http.RoundTripper) {
-			_, _ = sharedWith(rt).PostAndParseGenericResponses(authendpoints.GetSessionByToken)
+			_, _ = sharedWith(rt).PostAndParseGenericResponses(authendpoints.GetSelfSession)
 		},
 	},
 	{
@@ -196,7 +196,7 @@ var closeCases = []closeCase{
 		status:  http.StatusOK,
 		readErr: errors.New(readFail),
 		invoke: func(rt http.RoundTripper) {
-			_, _ = sharedWith(rt).PostAndParseGenericResponses(authendpoints.GetSessionByToken)
+			_, _ = sharedWith(rt).PostAndParseGenericResponses(authendpoints.GetSelfSession)
 		},
 	},
 }

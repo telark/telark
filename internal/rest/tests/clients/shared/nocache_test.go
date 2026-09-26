@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/telark/rest/clients/accessroles"
 	"github.com/telark/rest/clients/auth/session"
-	"github.com/telark/rest/clients/resources/groups"
-	"github.com/telark/rest/clients/resources/roles"
-	"github.com/telark/rest/clients/resources/users"
+	"github.com/telark/rest/clients/groups"
+	"github.com/telark/rest/clients/users"
 	"github.com/telark/rest/constants"
 )
 
@@ -28,10 +28,10 @@ func TestGrantSourcesBypassTheResponseCache(t *testing.T) {
 			c.GetHTTPClient().Transport = rt
 			_, _ = c.GetGroupByID(grantSourceID)
 		}},
-		{"role by id", func(rt http.RoundTripper) {
-			c := roles.NewClient()
+		{"access role by id", func(rt http.RoundTripper) {
+			c := accessroles.NewClient()
 			c.GetHTTPClient().Transport = rt
-			_, _ = c.GetRoleByID(grantSourceID)
+			_, _ = c.GetAccessRoleByID(grantSourceID)
 		}},
 		{"session by token", func(rt http.RoundTripper) {
 			c := session.NewClient()

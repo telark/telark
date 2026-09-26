@@ -9,6 +9,6 @@ const (
 	Runtime         base.Endpoint = "insights/runtime"
 	RuntimeValidate base.Endpoint = "insights/runtime/validate"
 	RuntimePull     base.Endpoint = "insights/runtime/pull"
-	List            base.Endpoint = "insights/get"
+	List            base.Endpoint = "insights"
 	Triage          base.Endpoint = "insights/applications/{namespace}/{name}/insights/{id}/triage"
 )

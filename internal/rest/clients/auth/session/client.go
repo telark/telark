@@ -1,7 +1,10 @@
 package session
 
 import (
+	"net/url"
+
 	authdata "github.com/telark/data/auth"
+	dataconstants "github.com/telark/data/constants"
 	"github.com/telark/rest/base"
 	"github.com/telark/rest/clients/shared"
 	"github.com/telark/rest/constants"
@@ -23,23 +26,28 @@ func (c *Client) withUser(userID string) *shared.Client {
 	return c.WithParams(map[string]string{constants.UserIDParam: userID})
 }
 
-// The path carries the session name, never the token: every proxy and
-// access log between here and the exporter would keep the credential otherwise.
-func (c *Client) withToken(token string) *shared.Client {
-	return c.WithParams(map[string]string{constants.TokenParam: authdata.SessionRef(token)})
+func listByUser(userID string) base.Endpoint {
+	query := url.Values{eps.QuerySessionUser: []string{userID}}
+	return base.Endpoint(string(eps.GetAllSessionsByUser) + constants.QuerySeparator + query.Encode())
 }
 
-func (c *Client) CreateSessionByUser(userID string, session *authdata.UserSession) *response.GenericResponse {
+// Only the session name leaves this process: the raw token reaches neither a URL
+// nor the exporter, which resolves the self session from the name in the header.
+func selfHeaders(token string) map[string]string {
+	return map[string]string{dataconstants.HeaderSessionToken: authdata.SessionRef(token)}
+}
+
+func (c *Client) CreateSessionByUser(userID string, session *authdata.Session) *response.GenericResponse {
 	return c.withUser(userID).Create(eps.CreateSessionByUser, session)
 }
 
-func (c *Client) GetAllSessionsByUser(userID string) ([]*authdata.UserSession, error) {
-	return shared.GetListTyped[*authdata.UserSession](c.withUser(userID), eps.GetAllSessionsByUser)
+func (c *Client) GetAllSessionsByUser(userID string) ([]*authdata.Session, error) {
+	return shared.GetListTyped[*authdata.Session](c.Client, listByUser(userID))
 }
 
-// Session names, usable as the token argument of the by-token calls.
+// Session names, usable as the token argument of the self calls.
 func (c *Client) ListSessionRefsByUser(userID string) ([]string, error) {
-	refs, err := shared.GetListTyped[sessionRef](c.withUser(userID), eps.GetAllSessionsByUser)
+	refs, err := shared.GetListTyped[sessionRef](c.Client, listByUser(userID))
 	if err != nil {
 		return nil, err
 	}
@@ -50,14 +58,20 @@ func (c *Client) ListSessionRefsByUser(userID string) ([]string, error) {
 	return names, nil
 }
 
-func (c *Client) GetSessionByToken(token string) (*authdata.UserSession, error) {
-	return shared.GetTypedNoCache[authdata.UserSession](c.withToken(token), eps.GetSessionByToken)
+func (c *Client) GetSessionByToken(token string) (*authdata.Session, error) {
+	headers := selfHeaders(token)
+	headers[constants.HeaderCacheControl] = constants.CacheControlNoCache
+	return shared.GetWithHeaders[authdata.Session](c.Client, eps.GetSelfSession, headers)
 }
 
 func (c *Client) PatchSessionByToken(token string, body map[string]any) *response.GenericResponse {
-	return c.withToken(token).Update(eps.PatchSessionByToken, body)
+	return shared.ExecuteRequestWithHeaders(c.Client, base.Patch, eps.PatchSelfSession, body, selfHeaders(token))
 }
 
 func (c *Client) DeleteSessionByToken(token string) *response.GenericResponse {
-	return c.withToken(token).Delete(eps.DeleteSessionByToken)
+	return shared.ExecuteRequestWithHeaders(c.Client, base.Delete, eps.DeleteSelfSession, nil, selfHeaders(token))
+}
+
+func (c *Client) DeleteSessionByName(name string) *response.GenericResponse {
+	return c.WithParams(map[string]string{constants.NameParam: name}).Delete(eps.DeleteSessionByName)
 }

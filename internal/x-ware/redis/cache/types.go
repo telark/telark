@@ -18,6 +18,8 @@ type KV interface {
 type RedisCache struct {
 	Client *redis.Client
 	TTL    time.Duration
+	// Flush deletes only keys under this prefix; the DB is shared with every other service.
+	KeyPrefix string
 }
 
 type Scanner interface {

@@ -166,3 +166,22 @@ func TestNoLoggerIsSafe(t *testing.T) {
 		t.Error("work never ran; the nil-logger drop path broke dispatch")
 	}
 }
+
+func TestPanickingTaskIsRecoveredAndFreesItsSlot(t *testing.T) {
+	log := &recorder{}
+	pool := newPool(poolSizeSingle, log)
+
+	pool.Dispatch(func(context.Context) { panic("poison task") })
+	pool.Drain()
+
+	var ran atomic.Bool
+	pool.Dispatch(func(context.Context) { ran.Store(true) })
+	pool.Drain()
+
+	if !ran.Load() {
+		t.Fatal("the slot of a panicking task was never released")
+	}
+	if log.count() != wantRanTasks {
+		t.Fatalf("warnings = %d, want one for the panic", log.count())
+	}
+}

@@ -19,20 +19,20 @@ const (
 )
 
 type mapSource struct {
-	users  map[string]*userdata.UserAsResource
-	groups map[string]*groupdata.GroupAsResource
-	roles  map[string]*roledata.RoleAsResource
+	users  map[string]*userdata.User
+	groups map[string]*groupdata.Group
+	roles  map[string]*roledata.AccessRole
 }
 
-func (s mapSource) User(id string) (*userdata.UserAsResource, error) {
+func (s mapSource) User(id string) (*userdata.User, error) {
 	return lookup(s.users, id)
 }
 
-func (s mapSource) Group(id string) (*groupdata.GroupAsResource, error) {
+func (s mapSource) Group(id string) (*groupdata.Group, error) {
 	return lookup(s.groups, id)
 }
 
-func (s mapSource) Role(id string) (*roledata.RoleAsResource, error) {
+func (s mapSource) Role(id string) (*roledata.AccessRole, error) {
 	return lookup(s.roles, id)
 }
 
@@ -44,18 +44,18 @@ func lookup[T any](records map[string]*T, id string) (*T, error) {
 	return record, nil
 }
 
-func activeUser(deletion *string) *userdata.UserAsResource {
+func activeUser(deletion *string) *userdata.User {
 	groupID := grantsGroupID
-	return &userdata.UserAsResource{
+	return &userdata.User{
 		ID:                grantsUserID,
-		AssignedGroupsIDs: []*string{&groupID},
+		GroupRefs:         []*string{&groupID},
 		Status:            userdata.UserStatus{Phase: string(userdata.AccountPhaseActive)},
 		DeletionTimestamp: deletion,
 	}
 }
 
-func ownerRole(deletion *string) *roledata.RoleAsResource {
-	return &roledata.RoleAsResource{
+func ownerRole(deletion *string) *roledata.AccessRole {
+	return &roledata.AccessRole{
 		ID:                   grantsRoleID,
 		Status:               roledata.RoleStatusActive,
 		ScopesAndPermissions: []roledata.ScopeAndPermissions{{Scope: roledata.ScopeUsers, Level: roledata.PermissionLevelOwner}},
@@ -63,11 +63,11 @@ func ownerRole(deletion *string) *roledata.RoleAsResource {
 	}
 }
 
-func sourceWith(user *userdata.UserAsResource, group *groupdata.GroupAsResource, role *roledata.RoleAsResource) mapSource {
+func sourceWith(user *userdata.User, group *groupdata.Group, role *roledata.AccessRole) mapSource {
 	return mapSource{
-		users:  map[string]*userdata.UserAsResource{grantsUserID: user},
-		groups: map[string]*groupdata.GroupAsResource{grantsGroupID: group},
-		roles:  map[string]*roledata.RoleAsResource{grantsRoleID: role},
+		users:  map[string]*userdata.User{grantsUserID: user},
+		groups: map[string]*groupdata.Group{grantsGroupID: group},
+		roles:  map[string]*roledata.AccessRole{grantsRoleID: role},
 	}
 }
 
@@ -75,7 +75,7 @@ func sourceWith(user *userdata.UserAsResource, group *groupdata.GroupAsResource,
 // revocation must not wait for the sweeper to remove the record.
 func TestCollectGrantsIgnoresTerminatingRecords(t *testing.T) {
 	deleted := deletedAt
-	group := &groupdata.GroupAsResource{ID: grantsGroupID, AssignedRolesIDs: []string{grantsRoleID}}
+	group := &groupdata.Group{ID: grantsGroupID, RoleRefs: []string{grantsRoleID}}
 
 	grants, err := authz.CollectGrants(sourceWith(activeUser(nil), group, ownerRole(nil)), nil, grantsUserID)
 	if err != nil || grants.Levels[roledata.ScopeUsers] != roledata.PermissionLevelOwner {
@@ -87,7 +87,7 @@ func TestCollectGrantsIgnoresTerminatingRecords(t *testing.T) {
 		t.Fatalf("terminating user: err = %v, want ErrUserNotActive", err)
 	}
 
-	terminatingGroup := &groupdata.GroupAsResource{ID: grantsGroupID, AssignedRolesIDs: []string{grantsRoleID}, DeletionTimestamp: &deleted}
+	terminatingGroup := &groupdata.Group{ID: grantsGroupID, RoleRefs: []string{grantsRoleID}, DeletionTimestamp: &deleted}
 	grants, err = authz.CollectGrants(sourceWith(activeUser(nil), terminatingGroup, ownerRole(nil)), nil, grantsUserID)
 	if err != nil || len(grants.Levels) != dataconstants.DefaultInitValue {
 		t.Fatalf("terminating group: grants = %+v, err = %v, want none", grants, err)
@@ -104,7 +104,7 @@ func TestDenyRulesMatchRegardlessOfCase(t *testing.T) {
 	rules := []string{"Users.DeleteUser.Deny"}
 	role := ownerRole(nil)
 	role.ScopesAndPermissions[dataconstants.DefaultInitValue].Rules = &rules
-	group := &groupdata.GroupAsResource{ID: grantsGroupID, AssignedRolesIDs: []string{grantsRoleID}}
+	group := &groupdata.Group{ID: grantsGroupID, RoleRefs: []string{grantsRoleID}}
 
 	grants, err := authz.CollectGrants(sourceWith(activeUser(nil), group, role), nil, grantsUserID)
 	if err != nil {

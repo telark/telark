@@ -10,15 +10,15 @@ import (
 )
 
 const (
-	keyEnvironmentID = "environmentID"
-	keyTagIDs        = "tagIDs"
-	keyApproval      = "approval"
-	keyApprovalMode  = "approvalMode"
-	keyHistory       = "history"
-	keyScope         = "scope"
-	keyExclusions    = "exclusions"
-	keyKinds         = "kinds"
-	keyResources     = "resources"
+	keyEnvironmentRef = "environmentRef"
+	keyTagRefs        = "tagRefs"
+	keyApproval       = "approval"
+	keyApprovalMode   = "approvalMode"
+	keyHistory        = "history"
+	keyScope          = "scope"
+	keyExclusions     = "exclusions"
+	keyKinds          = "kinds"
+	keyResources      = "resources"
 
 	sampleApprovalMode  = "required"
 	sampleApprovalState = "pending"
@@ -37,19 +37,19 @@ const (
 func TestPatchTaxonomyClearReachesWire(t *testing.T) {
 	t.Run("empty pointers reach the wire", func(t *testing.T) {
 		empty := constants.EmptyString
-		result := mustPayload(t, plans.PatchProtectionPlanRequest{EnvironmentID: &empty, TagIDs: &[]string{}})
-		if got, ok := result[keyEnvironmentID]; !ok || got != constants.EmptyString {
-			t.Fatalf("expected environmentID %q, got %v (present=%v)", constants.EmptyString, got, ok)
+		result := mustPayload(t, plans.PatchProtectionPlanRequest{EnvironmentRef: &empty, TagRefs: &[]string{}})
+		if got, ok := result[keyEnvironmentRef]; !ok || got != constants.EmptyString {
+			t.Fatalf("expected environmentRef %q, got %v (present=%v)", constants.EmptyString, got, ok)
 		}
-		tags, ok := result[keyTagIDs].([]any)
+		tags, ok := result[keyTagRefs].([]any)
 		if !ok || len(tags) != 0 {
-			t.Fatalf("expected tagIDs as empty []any, got %#v", result[keyTagIDs])
+			t.Fatalf("expected tagRefs as empty []any, got %#v", result[keyTagRefs])
 		}
 	})
 
 	t.Run("nil pointers are omitted", func(t *testing.T) {
 		result := mustPayload(t, plans.PatchProtectionPlanRequest{})
-		for _, key := range []string{keyEnvironmentID, keyTagIDs} {
+		for _, key := range []string{keyEnvironmentRef, keyTagRefs} {
 			if _, ok := result[key]; ok {
 				t.Fatalf("expected %s absent, got %v", key, result[key])
 			}
@@ -117,7 +117,7 @@ func scopePayload(t *testing.T, scope plans.ScopeRequest) map[string]any {
 }
 
 func TestScopeRequestOmitsNilExclusions(t *testing.T) {
-	scope := scopePayload(t, plans.ScopeRequest{Type: dataplans.ScopeTypeApplications, ApplicationIDs: []string{sampleApplicationID}})
+	scope := scopePayload(t, plans.ScopeRequest{Type: dataplans.ScopeTypeApplications, ApplicationRefs: []string{sampleApplicationID}})
 	if _, present := scope[keyExclusions]; present {
 		t.Fatalf("expected exclusions absent, got %v", scope[keyExclusions])
 	}
@@ -125,8 +125,8 @@ func TestScopeRequestOmitsNilExclusions(t *testing.T) {
 
 func TestScopeRequestEmitsNestedExclusions(t *testing.T) {
 	scope := scopePayload(t, plans.ScopeRequest{
-		Type:           dataplans.ScopeTypeApplications,
-		ApplicationIDs: []string{sampleApplicationID},
+		Type:            dataplans.ScopeTypeApplications,
+		ApplicationRefs: []string{sampleApplicationID},
 		Exclusions: &dataplans.ProtectionPlanScopeExclusions{
 			Kinds:     []string{sampleExcludedKind},
 			Resources: []dataplans.ProtectionPlanExcludedResource{{Kind: sampleResourceKind, Name: sampleResourceName, Namespace: sampleResourceNS}},

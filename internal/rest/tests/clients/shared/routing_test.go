@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/telark/rest/base"
-	"github.com/telark/rest/clients/resources/users"
 	"github.com/telark/rest/clients/shared"
-	eps "github.com/telark/rest/endpoints/resources/users"
+	"github.com/telark/rest/clients/users"
+	eps "github.com/telark/rest/endpoints/users"
 	"github.com/telark/rest/router"
 	requestutils "github.com/telark/rest/utils/request"
 )
@@ -18,7 +18,7 @@ const (
 	emailVar       = "email"
 	byEmailRoute   = "by-email"
 	listRoute      = "list"
-	redirectTarget = "/api/v1/resources/users/get"
+	redirectTarget = "/api/v1/users"
 )
 
 type routeLog struct {

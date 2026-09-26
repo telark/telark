@@ -9,7 +9,7 @@ import (
 	"github.com/telark/rest/router"
 )
 
-const testEndpoint base.Endpoint = "resources/users/{id}/patch"
+const testEndpoint base.Endpoint = "users/{id}"
 
 func noopHandler(_ http.ResponseWriter, _ *http.Request) {}
 
@@ -36,7 +36,7 @@ func TestKeyFromRequestMatchesKey(t *testing.T) {
 		})
 	})
 
-	req := httptest.NewRequest(http.MethodPatch, "/api/v1/resources/users/u-1/patch", nil)
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/users/u-1", nil)
 	mux.ServeHTTP(httptest.NewRecorder(), req)
 
 	want := router.Key(base.Patch, testEndpoint)
@@ -56,7 +56,7 @@ func TestKeyFromRequestWithoutMatchIsEmpty(t *testing.T) {
 func TestPatternIsRooted(t *testing.T) {
 	pattern := router.Pattern(testEndpoint)
 
-	if want := "/api/v1/resources/users/{id}/patch"; pattern != want {
+	if want := "/api/v1/users/{id}"; pattern != want {
 		t.Errorf("Pattern() = %q, want %q", pattern, want)
 	}
 }

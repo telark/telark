@@ -29,7 +29,7 @@ func (c *Client) CreatePlanReport(req eps.CreatePlanReportRequest) *response.Gen
 // PutLedger sends the caller's bytes verbatim: the ledger never goes through the reflection mapper.
 func (c *Client) PutLedger(planID string, ledger json.RawMessage) *response.GenericResponse {
 	byPlan := c.WithParams(map[string]string{constants.IDParam: planID})
-	return byPlan.CreateJSON(eps.PutPlanReportLedger, ledger)
+	return shared.ExecuteRequestWithHeaders(byPlan, base.Update, eps.PutPlanReportLedger, ledger, nil)
 }
 
 func (c *Client) GetLedger(planID string) (json.RawMessage, error) {

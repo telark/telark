@@ -26,6 +26,7 @@ const (
 	LockReleaseFailedMessage      errors.Error = "lock release failed after %d attempts: %s"
 	scaleGraceKeyPrefix                        = "grace:scale:"
 	dedupKeyPrefix                             = "dedup:"
+	operationStateKeyPrefix                    = "operation:"
 	dedupValue                                 = "1"
 	keySeparator                               = ":"
 	streamStartID                              = "0"

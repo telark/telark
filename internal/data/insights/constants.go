@@ -25,7 +25,7 @@ const (
 	EventRuntimeChanged           = "runtime.changed"
 	EventRuntimePull              = "runtime.pull"
 	EventResync                   = "resync"
-	// Must stay identical to spec.ai.model's pattern in the GlobalConfig CRD.
+	// Must stay identical to spec.ai.model's pattern in the TelarkConfig CRD.
 	ModelNamePattern = `^[a-z0-9][a-z0-9._-]*(:[a-z0-9._-]+)?$`
 )
 

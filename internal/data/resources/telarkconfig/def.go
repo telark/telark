@@ -1,4 +1,10 @@
-package globalconfig
+package telarkconfig
+
+const (
+	TelarkConfigResourceName = "default"
+	// Key of the OIDC trust Secret that holds the Google JWK set.
+	OIDCSecretKey = "googleJwkJson"
+)
 
 const (
 	FieldExcludedNamespaces = "excludedNamespaces"
@@ -11,7 +17,7 @@ const (
 	FieldAIAutoAnalyze      = "autoAnalyze"
 )
 
-type GlobalConfig struct {
+type TelarkConfig struct {
 	UserSettings       UserSettings    `json:"userSettings"`
 	AI                 AIConfig        `json:"ai"`
 	Cluster            Cluster         `json:"cluster"`
@@ -38,11 +44,11 @@ type SnapshotsConfig struct {
 	MaxPerApp int `json:"maxPerApp"`
 }
 
-// GoogleJWKJSON is the trust anchor for identity tokens when EgressAllowed is false:
-// whoever writes it decides which tokens authenticate.
+// GoogleJWKJSON is the trust anchor for identity tokens when EgressAllowed is false. View only:
+// it lives in the OIDC trust Secret under OIDCSecretKey and is never persisted in the CR.
 type OIDCConfig struct {
 	Enabled        bool   `json:"enabled"`
 	GoogleClientID string `json:"googleClientID"`
 	EgressAllowed  bool   `json:"egressAllowed"`
-	GoogleJWKJSON  string `json:"googleJwkJson"`
+	GoogleJWKJSON  string `json:"googleJwkJson,omitempty"`
 }

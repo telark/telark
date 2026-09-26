@@ -37,7 +37,7 @@ func appPlan(mode string) *plans.ProtectionPlan {
 		ID:       multiPlanID,
 		Name:     "freeze",
 		Mode:     mode,
-		Scope:    plans.ProtectionPlanScope{Type: plans.ScopeTypeApplications, ApplicationIDs: []string{appName}},
+		Scope:    plans.ProtectionPlanScope{Type: plans.ScopeTypeApplications, ApplicationRefs: []string{appName}},
 		Policies: []plans.ProtectionPlanPolicy{{TemplateID: tplBlockUpdate}},
 	}
 }
@@ -107,7 +107,7 @@ func TestAuditMessageWording(t *testing.T) {
 			ID:       multiPlanID,
 			Name:     "audit",
 			Mode:     plans.ModeAudit,
-			Scope:    plans.ProtectionPlanScope{Type: plans.ScopeTypeApplications, ApplicationIDs: []string{appName}},
+			Scope:    plans.ProtectionPlanScope{Type: plans.ScopeTypeApplications, ApplicationRefs: []string{appName}},
 			Policies: []plans.ProtectionPlanPolicy{{TemplateID: tpl.ID, Params: templateParams[tpl.ID]}},
 		}
 		app := allScopes()[scopeApplication]

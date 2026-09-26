@@ -17,16 +17,16 @@ import (
 )
 
 const (
-	LabelPlanID    = "telark.erpi/protection-plan"
-	LabelTemplate  = "telark.erpi/template-id"
-	LabelManagedBy = "telark.erpi/managed-by"
+	LabelPlanID    = "telark.io/protection-plan"
+	LabelTemplate  = "telark.io/template-id"
+	LabelManagedBy = "app.kubernetes.io/managed-by"
 	ManagedByValue = "telark"
 
-	AnnotationPlanName  = "telark.erpi/plan-name"
-	AnnotationCreatedBy = "telark.erpi/created-by"
+	AnnotationPlanName  = "telark.io/plan-name"
+	AnnotationCreatedBy = "telark.io/created-by"
 	// Health compares it with a fresh render, so a policy left behind by an older renderer is
 	// redeployed instead of trusted. Absent on policies rendered before it existed.
-	AnnotationRenderHash = "telark.erpi/render-hash"
+	AnnotationRenderHash = "telark.io/render-hash"
 
 	AppNameLabel = "app.kubernetes.io/name"
 
@@ -110,7 +110,7 @@ func PolicyName(planID, templateCode string, scope ScopeSpec) string {
 }
 
 func scopeSuffix(scope ScopeSpec) string {
-	apps := append([]string(nil), scope.ApplicationIDs...)
+	apps := append([]string(nil), scope.ApplicationRefs...)
 	slices.Sort(apps)
 	h := sha256.Sum256([]byte(scope.Namespace + "\x00" + strings.Join(apps, ",")))
 	return hex.EncodeToString(h[:])[:scopeHashLength]
@@ -192,7 +192,7 @@ func ExcludeControllerWrites() *kyvernov1.MatchResources {
 // and the kinds are AppIdentityKinds, never the caller's, so it only reaches person-created kinds.
 func BuildIdentityMatch(scope ScopeSpec, kinds, ops []string) (kyvernov1.MatchResources, bool) {
 	match, ok := BuildMatch(scope, kinds, ops)
-	selector := AppScopeSelector(scope.ApplicationIDs)
+	selector := AppScopeSelector(scope.ApplicationRefs)
 	if selector == nil {
 		return match, ok
 	}
@@ -267,7 +267,7 @@ func baseKind(kind string) string {
 }
 
 func BuildMatch(scope ScopeSpec, kinds []string, ops []string) (kyvernov1.MatchResources, bool) {
-	if len(scope.ApplicationIDs) == constants.DefaultInitValue {
+	if len(scope.ApplicationRefs) == constants.DefaultInitValue {
 		return MatchAllAny(kinds, ops, nil), true
 	}
 	grouped := groupAppResourcesByKind(scope.AppResources, scope.Namespace)

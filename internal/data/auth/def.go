@@ -7,7 +7,7 @@ type AuthChallenge struct {
 	ExpiresTimestamp string `json:"expiresTimestamp"`
 }
 
-type UserPasskey struct {
+type Passkey struct {
 	UserID            string  `json:"userId"`
 	CredentialID      string  `json:"credentialId"`
 	PublicKey         string  `json:"publicKey"`
@@ -19,7 +19,7 @@ type UserPasskey struct {
 	BackupState       bool    `json:"backupState"`    // Backup State flag from WebAuthn authenticator data
 }
 
-type UserSession struct {
+type Session struct {
 	UserID           string         `json:"userId"`
 	SessionToken     string         `json:"sessionToken,omitempty"`
 	CreatedTimestamp string         `json:"createdTimestamp"`

@@ -18,10 +18,10 @@ type ResolvedApp struct {
 }
 
 type ScopeSpec struct {
-	Namespace      string
-	ApplicationIDs []string
-	AppResources   []ApplicationResourceRef
-	VolumeClaims   []string
+	Namespace       string
+	ApplicationRefs []string
+	AppResources    []ApplicationResourceRef
+	VolumeClaims    []string
 }
 
 type TemplateRenderer interface {

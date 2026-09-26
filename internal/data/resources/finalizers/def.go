@@ -9,5 +9,5 @@ const (
 const (
 	ResourceTypeUsers  = "users"
 	ResourceTypeGroups = "groups"
-	ResourceTypeRoles  = "roles"
+	ResourceTypeRoles  = "accessroles"
 )

@@ -19,9 +19,9 @@ func TestBuiltinRoleCategoriesResolve(t *testing.T) {
 	}
 
 	for _, r := range role.BuiltinRoles {
-		c, ok := known[r.CategoryID]
+		c, ok := known[r.CategoryRef]
 		if !ok {
-			t.Errorf("role %s references unknown category %s", r.Name, r.CategoryID)
+			t.Errorf("role %s references unknown category %s", r.Name, r.CategoryRef)
 			continue
 		}
 		if c.Scope != role.ScopeRoles {

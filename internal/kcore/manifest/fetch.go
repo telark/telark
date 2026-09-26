@@ -152,6 +152,8 @@ func stripClusterMetadata(m map[string]any) {
 	delete(meta, "generation")
 	delete(meta, "selfLink")
 	delete(meta, "creationTimestamp")
+	// An owner UID from the snapshot may no longer exist: the GC would delete the restored object.
+	delete(meta, "ownerReferences")
 
 	stripApplyHostileAnnotations(meta)
 }

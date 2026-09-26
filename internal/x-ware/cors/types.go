@@ -1,8 +1,10 @@
 package cors
 
-var Origins = []string{
-	"http://localhost:3000",
-}
+const (
+	EnvAllowedOrigins     = "CORS_ALLOWED_ORIGINS"
+	allowedOriginsDivider = ","
+	anyOrigin             = "*"
+)
 
 var Methods = []string{
 	"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS",
@@ -10,7 +12,6 @@ var Methods = []string{
 
 var Headers = []string{
 	"Content-Type",
-	"Authorization",
 	"X-Silent-404",
 	"X-Silent-Network",
 	"X-Session-Token",
@@ -19,7 +20,6 @@ var Headers = []string{
 	"X-Device-Type",
 	"X-Username",
 	"X-Email",
-	"X-User-ID",
 	"Accept",
 	"Origin",
 }

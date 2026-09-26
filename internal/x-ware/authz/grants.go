@@ -3,6 +3,7 @@ package authz
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	dataconstants "github.com/telark/data/constants"
@@ -14,9 +15,9 @@ import (
 
 // A host that owns these records reads them directly; one that does not fetches them.
 type GrantSource interface {
-	User(userID string) (*userdata.UserAsResource, error)
-	Group(groupID string) (*groupdata.GroupAsResource, error)
-	Role(roleID string) (*roledata.RoleAsResource, error)
+	User(userID string) (*userdata.User, error)
+	Group(groupID string) (*groupdata.Group, error)
+	Role(roleID string) (*roledata.AccessRole, error)
 }
 
 // A missing role or group is warned and skipped, so one dangling reference cannot lock every user
@@ -58,16 +59,16 @@ func CollectGrants(source GrantSource, log Warner, userID string) (Grants, error
 	return grants, nil
 }
 
-func roleIDsFor(source GrantSource, log Warner, user *userdata.UserAsResource) ([]string, error) {
-	roleIDs := make([]string, dataconstants.DefaultInitValue, len(user.AssignedRolesIDs))
+func roleIDsFor(source GrantSource, log Warner, user *userdata.User) ([]string, error) {
+	roleIDs := make([]string, dataconstants.DefaultInitValue, len(user.RoleRefs))
 
-	for _, roleID := range user.AssignedRolesIDs {
+	for _, roleID := range user.RoleRefs {
 		if roleID != nil {
 			roleIDs = append(roleIDs, *roleID)
 		}
 	}
 
-	for _, groupID := range user.AssignedGroupsIDs {
+	for _, groupID := range user.GroupRefs {
 		if groupID == nil {
 			continue
 		}
@@ -82,7 +83,7 @@ func roleIDsFor(source GrantSource, log Warner, user *userdata.UserAsResource) (
 		if group.DeletionTimestamp != nil {
 			continue
 		}
-		roleIDs = append(roleIDs, group.AssignedRolesIDs...)
+		roleIDs = append(roleIDs, group.RoleRefs...)
 	}
 
 	return roleIDs, nil
@@ -105,14 +106,16 @@ func applyRole(grants *Grants, source GrantSource, log Warner, roleID string) er
 	for _, scope := range role.ScopesAndPermissions {
 		MergeLevel(grants.Levels, scope.Scope, scope.Level)
 		if scope.Rules != nil && len(*scope.Rules) > dataconstants.DefaultInitValue {
-			grants.Denied[scope.Scope] = append(grants.Denied[scope.Scope], *scope.Rules...)
+			for _, rule := range *scope.Rules {
+				grants.Denied[scope.Scope] = append(grants.Denied[scope.Scope], strings.ToLower(rule))
+			}
 		}
 	}
 	return nil
 }
 
 // Only an Active, unexpired role that is not being deleted confers anything.
-func RoleGrantsAccess(role *roledata.RoleAsResource) bool {
+func RoleGrantsAccess(role *roledata.AccessRole) bool {
 	if role.DeletionTimestamp != nil || role.Status != roledata.RoleStatusActive {
 		return false
 	}
@@ -120,7 +123,7 @@ func RoleGrantsAccess(role *roledata.RoleAsResource) bool {
 }
 
 // An unparsable expiry counts as expired, never as permanent.
-func roleExpired(role *roledata.RoleAsResource) bool {
+func roleExpired(role *roledata.AccessRole) bool {
 	if role.Validity == nil || role.Validity.Type != roledata.ValidityTypeTemporary {
 		return false
 	}

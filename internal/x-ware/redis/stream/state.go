@@ -36,11 +36,11 @@ func (c *StateClient) Set(ctx context.Context, state OperationState) error {
 	if err != nil {
 		return err
 	}
-	return c.redis.Set(ctx, state.ID, data, OperationStateTTL).Err()
+	return c.redis.Set(ctx, stateKey(state.ID), data, OperationStateTTL).Err()
 }
 
 func (c *StateClient) Get(ctx context.Context, operationID string) (*OperationState, error) {
-	data, err := c.redis.Get(ctx, operationID).Result()
+	data, err := c.redis.Get(ctx, stateKey(operationID)).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return nil, nil
@@ -65,5 +65,10 @@ func (c *StateClient) UpdateStep(ctx context.Context, operationID, step, status 
 	if err != nil {
 		return err
 	}
-	return c.redis.Set(ctx, operationID, updated, OperationStateTTL).Err()
+	return c.redis.Set(ctx, stateKey(operationID), updated, OperationStateTTL).Err()
+}
+
+// Namespaced so an operation ID can never name, and overwrite, another key in the shared DB.
+func stateKey(operationID string) string {
+	return operationStateKeyPrefix + operationID
 }

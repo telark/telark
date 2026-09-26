@@ -2,6 +2,7 @@ package async
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -10,6 +11,7 @@ const (
 	warnTaskTimedOut  = "async task timed out"
 	warnPoolFull      = "async pool full; task dropped"
 	warnDrainTimedOut = "async drain timed out"
+	warnTaskPanicked  = "async task panicked: %v"
 	asyncDelta        = 1
 )
 
@@ -56,6 +58,12 @@ func (p *Pool) Dispatch(fn func(context.Context)) {
 func (p *Pool) run(fn func(context.Context)) {
 	defer p.wg.Done()
 	defer func() { <-p.sem }()
+	// One task's panic must not take down the process that dispatched it.
+	defer func() {
+		if r := recover(); r != nil {
+			p.warn(fmt.Sprintf(warnTaskPanicked, r))
+		}
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), p.config.TaskTimeout)
 	defer cancel()

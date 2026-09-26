@@ -24,7 +24,7 @@ import (
 func resolveEndpoint(endpoint base.Endpoint, params map[string]string) base.Endpoint {
 	resolved := string(endpoint)
 	for placeholder, value := range params {
-		resolved = strings.Replace(resolved, placeholder, value, constants.ReplaceCount)
+		resolved = strings.Replace(resolved, placeholder, url.PathEscape(value), constants.ReplaceCount)
 	}
 	return base.Endpoint(resolved)
 }

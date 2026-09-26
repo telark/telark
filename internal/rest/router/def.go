@@ -21,7 +21,7 @@ type Route struct {
 }
 
 func NewRouter(routes []Route) *mux.Router {
-	router := mux.NewRouter().StrictSlash(true)
+	router := mux.NewRouter()
 	for _, route := range routes {
 		router.
 			Methods(route.Method).

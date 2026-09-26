@@ -35,7 +35,7 @@ func gatedClient(t *testing.T, calls *int) *shared.Client {
 func TestHeaderGetsFailFastLikeGatedGets(t *testing.T) {
 	calls := withTargetNotReady(t)
 	client := gatedClient(t, calls)
-	endpoint := authendpoints.GetSessionByToken
+	endpoint := authendpoints.GetSelfSession
 
 	_, want := shared.GetTyped[map[string]any](client, endpoint)
 	if want == nil {
@@ -59,7 +59,7 @@ func TestHeaderGetsFailFastLikeGatedGets(t *testing.T) {
 func TestExecuteRequestWithHeadersFailsFastLikeGatedRequests(t *testing.T) {
 	calls := withTargetNotReady(t)
 	client := gatedClient(t, calls)
-	endpoint := authendpoints.GetSessionByToken
+	endpoint := authendpoints.GetSelfSession
 
 	captureStdout(t, func() {
 		want := client.Delete(endpoint)

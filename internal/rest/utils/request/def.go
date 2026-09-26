@@ -12,9 +12,15 @@ import (
 	"github.com/telark/rest/constants"
 )
 
+// ErrRequestBodyTooLarge maps to 413: a truncated body could still parse as valid JSON.
+var ErrRequestBodyTooLarge = errors.New(string(constants.ErrRequestBodyTooLarge))
+
 func ParseRequestBody(r *http.Request) (map[string]any, error) {
-	body, err := io.ReadAll(io.LimitReader(r.Body, base.MaxRequestBodySize))
+	body, err := io.ReadAll(http.MaxBytesReader(nil, r.Body, base.MaxRequestBodySize))
 	if err != nil {
+		if _, tooLarge := errors.AsType[*http.MaxBytesError](err); tooLarge {
+			return nil, ErrRequestBodyTooLarge
+		}
 		return nil, fmt.Errorf(string(globalerrors.ErrRestParseRequestBody), err)
 	}
 

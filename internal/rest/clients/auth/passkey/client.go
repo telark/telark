@@ -5,15 +5,13 @@ import (
 	"github.com/telark/data/errors"
 	"github.com/telark/rest/base"
 	"github.com/telark/rest/clients/shared"
+	"github.com/telark/rest/constants"
 	eps "github.com/telark/rest/endpoints/auth"
 	restmapper "github.com/telark/rest/mappers"
 	"github.com/telark/rest/response"
 )
 
-const (
-	HeaderUserID       = "X-User-ID"
-	HeaderCredentialID = "X-Credential-ID"
-)
+const HeaderUserID = "X-User-ID"
 
 type Client struct {
 	*shared.Client
@@ -25,49 +23,39 @@ func NewClient() *Client {
 	}
 }
 
-func (c *Client) CreatePasskeyByUser(userID string, passkey *authdata.UserPasskey) *response.GenericResponse {
+func (c *Client) withCredential(credentialID string) *shared.Client {
+	return c.WithParams(map[string]string{constants.CredentialIDParam: credentialID})
+}
+
+func (c *Client) CreatePasskeyByUser(userID string, passkey *authdata.Passkey) *response.GenericResponse {
 	mappedPayload, err := restmapper.MapToJSONPayload(passkey)
 	if err != nil {
 		return shared.CreateErrorResponse(string(errors.ErrRestMarshalPayload), err)
 	}
-	headers := map[string]string{
-		HeaderUserID: userID,
-	}
 	return shared.ExecuteRequestWithHeaders(c.Client, base.Post,
 		eps.CreateInternalPasskeyByUser,
 		mappedPayload,
-		headers,
+		userHeaders(userID),
 	)
 }
 
-func (c *Client) GetAllPasskeysByUser(userID string) ([]*authdata.UserPasskey, error) {
-	headers := map[string]string{
-		HeaderUserID: userID,
-	}
-	return shared.GetListWithHeaders[*authdata.UserPasskey](c.Client, eps.GetAllInternalPasskeysByUser, headers)
+func (c *Client) GetAllPasskeysByUser(userID string) ([]*authdata.Passkey, error) {
+	return shared.GetListWithHeaders[*authdata.Passkey](c.Client, eps.GetAllInternalPasskeysByUser, userHeaders(userID))
 }
 
-func (c *Client) GetPasskeyByUserAndCredentialID(userID string, credentialID string) (*authdata.UserPasskey, error) {
-	headers := map[string]string{
-		HeaderUserID:       userID,
-		HeaderCredentialID: credentialID,
-	}
-	return shared.GetWithHeaders[authdata.UserPasskey](
-		c.Client,
+func (c *Client) GetPasskeyByUserAndCredentialID(userID string, credentialID string) (*authdata.Passkey, error) {
+	return shared.GetWithHeaders[authdata.Passkey](
+		c.withCredential(credentialID),
 		eps.GetInternalPasskeyByUserAndCredentialID,
-		headers,
+		userHeaders(userID),
 	)
 }
 
 func (c *Client) PatchPasskeyByUserAndCredentialID(
 	userID string, credentialID string, body map[string]any,
 ) *response.GenericResponse {
-	headers := map[string]string{
-		HeaderUserID:       userID,
-		HeaderCredentialID: credentialID,
-	}
 	return shared.ExecuteRequestWithHeaders(
-		c.Client, base.Patch, eps.PatchInternalPasskeyByUserAndCredentialID, body, headers,
+		c.withCredential(credentialID), base.Patch, eps.PatchInternalPasskeyByUserAndCredentialID, body, userHeaders(userID),
 	)
 }
 
@@ -76,18 +64,18 @@ func (c *Client) DeletePasskeyByUserAndCredentialID(
 	credentialID string,
 	forceLastDelete bool,
 ) *response.GenericResponse {
-	headers := map[string]string{
-		HeaderUserID:       userID,
-		HeaderCredentialID: credentialID,
-	}
 	body := map[string]any{}
 	if forceLastDelete {
 		body["forceLastDelete"] = true
 	}
 	return shared.ExecuteRequestWithHeaders(
-		c.Client, base.Delete,
+		c.withCredential(credentialID), base.Delete,
 		eps.DeleteInternalPasskeyByUserAndCredentialID,
 		body,
-		headers,
+		userHeaders(userID),
 	)
+}
+
+func userHeaders(userID string) map[string]string {
+	return map[string]string{HeaderUserID: userID}
 }

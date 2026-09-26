@@ -16,11 +16,13 @@ func NewDedupClient(r *redis.Client) *DedupClient {
 }
 
 func (c *DedupClient) Guard(ctx context.Context, appName, cycleID string, ttl time.Duration) (bool, error) {
-	key := "dedup:" + appName + ":" + cycleID
-	return c.redis.SetNX(ctx, key, "1", ttl).Result()
+	return c.redis.SetNX(ctx, dedupKey(appName, cycleID), dedupValue, ttl).Result()
 }
 
 func (c *DedupClient) Release(ctx context.Context, appName, cycleID string) error {
-	key := "dedup:" + appName + ":" + cycleID
-	return c.redis.Del(ctx, key).Err()
+	return c.redis.Del(ctx, dedupKey(appName, cycleID)).Err()
+}
+
+func dedupKey(appName, cycleID string) string {
+	return dedupKeyPrefix + appName + keySeparator + cycleID
 }

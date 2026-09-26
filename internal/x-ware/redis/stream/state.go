@@ -55,15 +55,8 @@ func (c *StateClient) Get(ctx context.Context, operationID string) (*OperationSt
 }
 
 func (c *StateClient) UpdateStep(ctx context.Context, operationID, step, status string) error {
-	data, err := c.redis.Get(ctx, operationID).Result()
-	if err != nil {
-		if err == redis.Nil {
-			return nil
-		}
-		return err
-	}
-	var state OperationState
-	if err := json.Unmarshal([]byte(data), &state); err != nil {
+	state, err := c.Get(ctx, operationID)
+	if err != nil || state == nil {
 		return err
 	}
 	state.Step = step

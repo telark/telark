@@ -11,8 +11,6 @@ func TestNewRedisManager(t *testing.T) {
 	if rm == nil {
 		t.Fatal("NewRedisManager returned nil")
 	}
-
-	_ = rm
 }
 
 func TestRedisManager_IsConnected_Initial(t *testing.T) {

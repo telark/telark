@@ -23,7 +23,7 @@ func (c *LockClient) Acquire(ctx context.Context, key, value string, ttl time.Du
 
 func (c *LockClient) Release(ctx context.Context, key, value string) error {
 	for range LockReleaseMaxRetries {
-		err := c.tryRelease(ctx, key, value)
+		_, err := delIfHeld(ctx, c.redis, key, value)
 		if err == nil {
 			return nil
 		}
@@ -36,7 +36,14 @@ func (c *LockClient) Release(ctx context.Context, key, value string) error {
 	return fmt.Errorf(string(LockReleaseFailedMessage), LockReleaseMaxRetries, key)
 }
 
-func (c *LockClient) tryRelease(ctx context.Context, key, value string) error {
+func (c *LockClient) Extend(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
+	return expireIfHeld(ctx, c.redis, key, value, ttl)
+}
+
+// A missing key or one held by someone else is not an error: the caller simply
+// no longer owns it. A WATCH conflict surfaces as redis.TxFailedErr so callers can retry.
+func delIfHeld(ctx context.Context, r *redis.Client, key, value string) (bool, error) {
+	deleted := false
 	txf := func(tx *redis.Tx) error {
 		held, err := tx.Get(ctx, key).Result()
 		if err != nil {
@@ -52,12 +59,13 @@ func (c *LockClient) tryRelease(ctx context.Context, key, value string) error {
 			pipe.Del(ctx, key)
 			return nil
 		})
+		deleted = err == nil
 		return err
 	}
-	return c.redis.Watch(ctx, txf, key)
+	return deleted, r.Watch(ctx, txf, key)
 }
 
-func (c *LockClient) Extend(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
+func expireIfHeld(ctx context.Context, r *redis.Client, key, value string, ttl time.Duration) (bool, error) {
 	txf := func(tx *redis.Tx) error {
 		held, err := tx.Get(ctx, key).Result()
 		if err != nil {
@@ -73,7 +81,7 @@ func (c *LockClient) Extend(ctx context.Context, key, value string, ttl time.Dur
 		return err
 	}
 
-	err := c.redis.Watch(ctx, txf, key)
+	err := r.Watch(ctx, txf, key)
 	if err != nil {
 		if err == redis.Nil || err == redis.TxFailedErr {
 			return false, nil

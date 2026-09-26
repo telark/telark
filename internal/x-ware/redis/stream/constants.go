@@ -25,4 +25,10 @@ const (
 	ElectionRenewInterval                      = 5 * time.Second
 	LockReleaseFailedMessage      errors.Error = "lock release failed after %d attempts: %s"
 	scaleGraceKeyPrefix                        = "grace:scale:"
+	dedupKeyPrefix                             = "dedup:"
+	dedupValue                                 = "1"
+	keySeparator                               = ":"
+	streamStartID                              = "0"
+	autoClaimStartID                           = "0-0"
+	busyGroupErr                               = "busygroup"
 )

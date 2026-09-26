@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v5"
+	"github.com/redis/go-redis/v9"
 )
 
 func NewRedisManager() RedisManagerInterface {
@@ -56,18 +57,26 @@ func (rm *RedisManager) Close() error {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
-	if rm.client != nil && rm.client.Client != nil {
-		if err := rm.client.Client.Close(); err != nil {
-			return fmt.Errorf(string(ErrFailedCloseRedisClient), err)
-		}
-		rm.client = nil
-		rm.isConnected = false
+	if err := rm.closeClient(); err != nil {
+		return err
 	}
 
 	if rm.cancel != nil {
 		rm.cancel()
 	}
 
+	return nil
+}
+
+func (rm *RedisManager) closeClient() error {
+	if rm.client == nil || rm.client.Client == nil {
+		return nil
+	}
+	if err := rm.client.Client.Close(); err != nil {
+		return fmt.Errorf(string(ErrFailedCloseRedisClient), err)
+	}
+	rm.client = nil
+	rm.isConnected = false
 	return nil
 }
 
@@ -99,12 +108,8 @@ func (rm *RedisManager) Reconnect() error {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
-	if rm.client != nil && rm.client.Client != nil {
-		if err := rm.client.Client.Close(); err != nil {
-			return fmt.Errorf(string(ErrFailedCloseRedisClient), err)
-		}
-		rm.client = nil
-		rm.isConnected = false
+	if err := rm.closeClient(); err != nil {
+		return err
 	}
 
 	client, err := rm.InitRedisClient()
@@ -117,21 +122,33 @@ func (rm *RedisManager) Reconnect() error {
 	return nil
 }
 
+func (rm *RedisManager) currentClient() *redis.Client {
+	rm.mu.RLock()
+	defer rm.mu.RUnlock()
+
+	if rm.client == nil {
+		return nil
+	}
+	return rm.client.Client
+}
+
 func (rm *RedisManager) GetConnectionStatus() (bool, error) {
-	if rm.client == nil || rm.client.Client == nil {
+	client := rm.currentClient()
+	if client == nil {
 		return false, nil
 	}
 
-	err := rm.client.Client.Ping(rm.ctx).Err()
+	err := client.Ping(rm.ctx).Err()
 	return err == nil, err
 }
 
 func (rm *RedisManager) GetPoolStats() (*PoolStats, error) {
-	if rm.client == nil || rm.client.Client == nil {
+	client := rm.currentClient()
+	if client == nil {
 		return nil, fmt.Errorf(string(ErrStringFormat), ErrRedisClientNotConnected)
 	}
 
-	stats := rm.client.Client.PoolStats()
+	stats := client.PoolStats()
 	return &PoolStats{
 		TotalConns: stats.TotalConns,
 		IdleConns:  stats.IdleConns,
@@ -141,19 +158,20 @@ func (rm *RedisManager) GetPoolStats() (*PoolStats, error) {
 }
 
 func (rm *RedisManager) HealthCheck(ctx context.Context) error {
-	if rm.client == nil || rm.client.Client == nil {
+	client := rm.currentClient()
+	if client == nil {
 		return fmt.Errorf(string(ErrStringFormat), ErrRedisClientNotConnected)
 	}
 
-	if err := rm.client.Client.Ping(ctx).Err(); err != nil {
+	if err := client.Ping(ctx).Err(); err != nil {
 		return fmt.Errorf(string(ErrRedisHealthCheckPingError), err)
 	}
 
-	if err := rm.client.Client.Set(ctx, healthCheckKey, "ok", time.Second).Err(); err != nil {
+	if err := client.Set(ctx, healthCheckKey, healthCheckValue, time.Second).Err(); err != nil {
 		return fmt.Errorf(string(ErrRedisHealthCheckSetError), err)
 	}
 
-	if err := rm.client.Client.Del(ctx, healthCheckKey).Err(); err != nil {
+	if err := client.Del(ctx, healthCheckKey).Err(); err != nil {
 		return fmt.Errorf(string(ErrRedisHealthCheckDelError), err)
 	}
 
@@ -161,23 +179,24 @@ func (rm *RedisManager) HealthCheck(ctx context.Context) error {
 }
 
 func (rm *RedisManager) GetConnectionInfo() (*ConnectionInfo, error) {
-	if rm.client == nil || rm.client.Client == nil {
+	client := rm.currentClient()
+	if client == nil {
 		return nil, fmt.Errorf(string(ErrStringFormat), ErrRedisClientNotConnected)
 	}
 
-	clientInfo, err := rm.client.Client.ClientInfo(rm.ctx).Result()
+	clientInfo, err := client.ClientInfo(rm.ctx).Result()
 	if err != nil {
 		return nil, fmt.Errorf(string(ErrRedisHealthCheckGetClientInfoError), err)
 	}
 
-	clientID, err := rm.client.Client.ClientID(rm.ctx).Result()
+	clientID, err := client.ClientID(rm.ctx).Result()
 	if err != nil {
 		return nil, fmt.Errorf(string(ErrRedisHealthCheckGetClientIDError), err)
 	}
 
-	clientName, err := rm.client.Client.ClientGetName(rm.ctx).Result()
+	clientName, err := client.ClientGetName(rm.ctx).Result()
 	if err != nil {
-		clientName = DefaultEmptyString // Client name might not be set
+		clientName = DefaultEmptyString
 	}
 
 	return &ConnectionInfo{

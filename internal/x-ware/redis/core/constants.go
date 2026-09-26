@@ -46,17 +46,15 @@ const (
 	DeduplicationValue     = "1"
 	DeduplicationPrefix    = "dedup:"
 	UnknownEventType       = "unknown"
-	existsThreshold        = 0
-	initialIntervalSeconds = 1
-	maxIntervalSeconds     = 30
-	DefaultReadBufferSize  = 524288 // 0.5MiB (524288 bytes)
-	DefaultWriteBufferSize = 524288 // 0.5MiB (524288 bytes)
+	DefaultReadBufferSize  = 524288 // 0.5MiB
+	DefaultWriteBufferSize = 524288 // 0.5MiB
 	DefaultPoolSize        = 10
 	DefaultMinIdleConns    = 0
 	DefaultMaxIdleConns    = 0
-	DefaultConnMaxIdleTime = 30 // 30 minutes
-	DefaultConnMaxLifetime = 0
+	DefaultConnMaxIdleTime = 30 // minutes
+	DefaultConnMaxLifetime = 0  // minutes
 	DefaultEmptyString     = ""
 	DefaultInitValue       = 0
 	healthCheckKey         = "health_check"
+	healthCheckValue       = "ok"
 )

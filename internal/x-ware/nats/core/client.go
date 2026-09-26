@@ -8,13 +8,14 @@ import (
 	"github.com/cenkalti/backoff/v5"
 	"github.com/nats-io/nats.go"
 	"github.com/telark/data/errors"
+	"github.com/telark/x-ware/constants"
 )
 
 func InitClient(ctx context.Context, host, user, password string) (
 	*NATSClient,
 	error,
 ) {
-	if user == "" || password == "" {
+	if user == constants.EmptyString || password == constants.EmptyString {
 		return nil, fmt.Errorf("%s", errors.ErrNatsAuth)
 	}
 

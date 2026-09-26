@@ -33,12 +33,13 @@ func isRuleDenied(grants Grants, req Requirement) bool {
 		slices.Contains(grants.Denied[roledata.ScopeAll], req.Rule)
 }
 
+// Roles are additive across the scope and the ALL wildcard too: the stronger of
+// the two applies, so a ReadOnly entry cannot shadow an Admin grant on ALL.
 func grantedLevel(grants Grants, scope string) (roledata.PermissionLevel, bool) {
-	if level, ok := grants.Levels[scope]; ok {
-		return level, true
+	level, ok := grants.Levels[scope]
+	if all, hasAll := grants.Levels[roledata.ScopeAll]; hasAll && (!ok || all.Rank() > level.Rank()) {
+		return all, true
 	}
-
-	level, ok := grants.Levels[roledata.ScopeAll]
 	return level, ok
 }
 

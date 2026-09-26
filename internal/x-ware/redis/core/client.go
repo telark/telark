@@ -170,7 +170,7 @@ func InitClient() (*RedisClient, error) {
 		MinIdleConns:          poolConfig.MinIdleConns,
 		MaxIdleConns:          poolConfig.MaxIdleConns,
 		ConnMaxIdleTime:       time.Duration(timeoutConfig.ConnMaxIdleTime) * time.Minute,
-		ConnMaxLifetime:       time.Duration(timeoutConfig.ConnMaxLifetime),
+		ConnMaxLifetime:       time.Duration(timeoutConfig.ConnMaxLifetime) * time.Minute,
 		ContextTimeoutEnabled: true,
 		DialTimeout:           5 * time.Second,
 		ReadTimeout:           3 * time.Second,

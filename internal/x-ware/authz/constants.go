@@ -16,14 +16,14 @@ var spoofableHeaders = []string{
 	constants.HeaderEmail,
 }
 
-// A resolver that reached its backend and was refused answers with one of
-// these. Any other error means the backend could not answer, and an outage
-// must never be reported as a revoked session or a missing permission.
+// The verdicts a resolver that reached its backend answers with; any other
+// error is an outage, which must never read as a revoked session or permission.
 var (
 	ErrNotFound       = shared.ErrNotFound
+	ErrGone           = shared.ErrGone
 	ErrSessionExpired = errors.New(string(dataerrors.ErrAuthzSessionExpired))
 	ErrUserNotActive  = errors.New(string(dataerrors.ErrAuthzUserNotActive))
-	verdicts          = []error{ErrNotFound, ErrSessionExpired, ErrUserNotActive}
+	verdicts          = []error{ErrNotFound, ErrGone, ErrSessionExpired, ErrUserNotActive}
 )
 
 const (

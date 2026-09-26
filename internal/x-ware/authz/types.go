@@ -22,9 +22,8 @@ type Requirement struct {
 	Access   Access
 	Scope    string
 	MinLevel roledata.PermissionLevel
-	// Rule is the deny identifier for this action, from RuleKey. A role listing
-	// it in the scope's Rules is refused the action. Leave empty for actions a
-	// role cannot single out.
+	// Deny identifier from RuleKey; a role listing it in the scope's Rules is
+	// refused the action. Empty for actions a role cannot single out.
 	Rule string
 }
 

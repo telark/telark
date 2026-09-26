@@ -18,8 +18,8 @@ func NewStreamClient(r *redis.Client) *StreamClient {
 }
 
 func (c *StreamClient) EnsureConsumerGroup(ctx context.Context, stream, group string) error {
-	err := c.redis.XGroupCreateMkStream(ctx, stream, group, "0").Err()
-	if err != nil && strings.Contains(strings.ToLower(err.Error()), "busygroup") {
+	err := c.redis.XGroupCreateMkStream(ctx, stream, group, streamStartID).Err()
+	if err != nil && strings.Contains(strings.ToLower(err.Error()), busyGroupErr) {
 		return nil
 	}
 	return err
@@ -98,7 +98,7 @@ func (c *StreamClient) ClaimStale(
 		Group:    group,
 		Consumer: consumer,
 		MinIdle:  minIdle,
-		Start:    "0-0",
+		Start:    autoClaimStartID,
 		Count:    count,
 	}).Result()
 	if err != nil {

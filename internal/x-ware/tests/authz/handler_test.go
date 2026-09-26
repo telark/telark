@@ -181,6 +181,7 @@ func TestResolverErrorsAreVerdictsOrOutages(t *testing.T) {
 	}{
 		"session not found":       {stubResolver{userErr: authz.ErrNotFound}, http.StatusUnauthorized},
 		"session expired":         {stubResolver{userErr: authz.ErrSessionExpired}, http.StatusUnauthorized},
+		"session gone upstream":   {stubResolver{userErr: fmt.Errorf("%w: 410", authz.ErrGone)}, http.StatusUnauthorized},
 		"session backend down":    {stubResolver{userErr: errStub}, http.StatusServiceUnavailable},
 		"user not found":          {stubResolver{userID: testUserID, grantsErr: authz.ErrNotFound}, http.StatusForbidden},
 		"user not active":         {stubResolver{userID: testUserID, grantsErr: authz.ErrUserNotActive}, http.StatusForbidden},
@@ -504,12 +505,46 @@ var allowsTests = []struct {
 		want:   false,
 	},
 	{
-		name: "exact scope wins over wildcard",
+		name: "wildcard lifts a weaker exact scope",
 		grants: authz.Grants{Levels: map[string]roledata.PermissionLevel{
 			roledata.ScopeAll:   roledata.PermissionLevelAdmin,
 			roledata.ScopeUsers: roledata.PermissionLevelReadOnly,
 		}},
 		req:  authz.Requirement{Scope: roledata.ScopeUsers, MinLevel: roledata.PermissionLevelOwner},
+		want: true,
+	},
+	{
+		name: "exact scope lifts a weaker wildcard",
+		grants: authz.Grants{Levels: map[string]roledata.PermissionLevel{
+			roledata.ScopeAll:   roledata.PermissionLevelReadOnly,
+			roledata.ScopeUsers: roledata.PermissionLevelAdmin,
+		}},
+		req:  authz.Requirement{Scope: roledata.ScopeUsers, MinLevel: roledata.PermissionLevelOwner},
+		want: true,
+	},
+	{
+		name: "neither scope nor wildcard reaches the level",
+		grants: authz.Grants{Levels: map[string]roledata.PermissionLevel{
+			roledata.ScopeAll:   roledata.PermissionLevelReadOnly,
+			roledata.ScopeUsers: roledata.PermissionLevelContributor,
+		}},
+		req:  authz.Requirement{Scope: roledata.ScopeUsers, MinLevel: roledata.PermissionLevelOwner},
+		want: false,
+	},
+	{
+		name: "deny rule still wins over a lifting wildcard",
+		grants: authz.Grants{
+			Levels: map[string]roledata.PermissionLevel{
+				roledata.ScopeAll:   roledata.PermissionLevelAdmin,
+				roledata.ScopeUsers: roledata.PermissionLevelReadOnly,
+			},
+			Denied: map[string][]string{roledata.ScopeUsers: {testRule}},
+		},
+		req: authz.Requirement{
+			Scope:    roledata.ScopeUsers,
+			MinLevel: roledata.PermissionLevelReadOnly,
+			Rule:     testRule,
+		},
 		want: false,
 	},
 	{

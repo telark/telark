@@ -10,12 +10,14 @@ import (
 	"github.com/telark/data/errors"
 	resourceshared "github.com/telark/data/resources/shared"
 	globalshared "github.com/telark/data/shared"
+	"github.com/telark/x-ware/constants"
 )
 
 const (
 	emptyDataLength  = 0
 	timestampDivisor = 10
 	hashLength       = 16
+	dataHeaderSuffix = "_data"
 )
 
 func (*BaseSubscriber) ValidateMessage(m *nats.Msg) error {
@@ -57,9 +59,8 @@ func GetParsedMessageHeader(m *nats.Msg) string {
 }
 
 func SetParsedMessageHeader(m *nats.Msg, prefix, value string) {
-	if prefix != "" {
-		key := prefix + "_data"
-		m.Header.Set(key, value)
+	if prefix != constants.EmptyString {
+		m.Header.Set(prefix+dataHeaderSuffix, value)
 	} else {
 		m.Header.Set(KeyParsedMessage, value)
 	}

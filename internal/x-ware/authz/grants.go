@@ -19,9 +19,8 @@ type GrantSource interface {
 	Role(roleID string) (*roledata.RoleAsResource, error)
 }
 
-// A missing role or group is skipped, not fatal: one dangling reference must
-// not lock every user out, nor pass silently. An unreachable backend is fatal,
-// or a timeout would quietly shrink the grants into a denial.
+// A missing role or group is warned and skipped, so one dangling reference cannot lock every user
+// out; an unreachable backend stays fatal, or a timeout would quietly shrink the grants into a denial.
 type Warner interface {
 	Warn(message string)
 }
@@ -34,7 +33,9 @@ func CollectGrants(source GrantSource, log Warner, userID string) (Grants, error
 		return Grants{}, err
 	}
 
-	if userdata.AccountPhase(user.Status.Phase) != userdata.AccountPhaseActive {
+	// A record held only by the cleanup finalizer still reads; for authz the
+	// account is gone the moment the deletion timestamp is set.
+	if user.DeletionTimestamp != nil || userdata.AccountPhase(user.Status.Phase) != userdata.AccountPhaseActive {
 		return Grants{}, ErrUserNotActive
 	}
 
@@ -78,6 +79,9 @@ func roleIDsFor(source GrantSource, log Warner, user *userdata.UserAsResource) (
 		if err != nil {
 			return nil, err
 		}
+		if group.DeletionTimestamp != nil {
+			continue
+		}
 		roleIDs = append(roleIDs, group.AssignedRolesIDs...)
 	}
 
@@ -107,9 +111,9 @@ func applyRole(grants *Grants, source GrantSource, log Warner, roleID string) er
 	return nil
 }
 
-// Only an Active, unexpired role confers anything.
+// Only an Active, unexpired role that is not being deleted confers anything.
 func RoleGrantsAccess(role *roledata.RoleAsResource) bool {
-	if role.Status != roledata.RoleStatusActive {
+	if role.DeletionTimestamp != nil || role.Status != roledata.RoleStatusActive {
 		return false
 	}
 	return !roleExpired(role)

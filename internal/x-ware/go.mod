@@ -2,12 +2,16 @@ module github.com/telark/x-ware
 
 go 1.27.1
 
+replace github.com/telark/rest => /Users/houssem/Desktop/Github/internal/rest
+
+replace github.com/telark/data => /Users/houssem/Desktop/Github/internal/data
+
 require (
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/nats-io/nats.go v1.54.0
 	github.com/redis/go-redis/v9 v9.22.0
 	github.com/rs/cors v1.11.1
-	github.com/telark/data v1.14.7
+	github.com/telark/data v1.14.8
 	github.com/telark/rest v0.14.2
 )
 

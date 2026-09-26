@@ -1,8 +1,6 @@
 package templates
 
 import (
-	"fmt"
-
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	"github.com/telark/data/policies"
 )
@@ -23,9 +21,8 @@ func (blockImageTags) Render(meta policies.RenderMeta, scope policies.ScopeSpec,
 	if err != nil {
 		return nil, err
 	}
-	// Matching the raw image string missed `nginx`, which Kubernetes resolves to `nginx:latest`.
-	// Kyverno's parsed image info defaults an untagged reference to `latest` and also knows a
-	// CronJob's deeper pod-template path, so one rule covers every workload kind.
+	// Kyverno's parsed image info defaults an untagged `nginx` to `latest` (the raw string missed
+	// it) and knows a CronJob's deeper pod-template path, so one rule covers every workload kind.
 	deny := policies.DenyWithConditions([]kyvernov1.Condition{
 		policies.MakeCondition(exprImageTags, opAnyIn, tags),
 	})
@@ -35,7 +32,7 @@ func (blockImageTags) Render(meta policies.RenderMeta, scope policies.ScopeSpec,
 		RuleName:     templateBlockImageTags,
 		Kinds:        policies.WorkloadKinds,
 		Ops:          opsCreateUpdate,
-		Message:      fmt.Sprintf(msgBlockImageTags, meta.PlanName),
+		Message:      blockMessage(meta, msgBlockImageTags),
 		Deny:         deny,
 	}), nil
 }

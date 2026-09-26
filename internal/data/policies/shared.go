@@ -3,7 +3,9 @@ package policies
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -22,6 +24,9 @@ const (
 
 	AnnotationPlanName  = "telark.erpi/plan-name"
 	AnnotationCreatedBy = "telark.erpi/created-by"
+	// Health compares it with a fresh render, so a policy left behind by an older renderer is
+	// redeployed instead of trusted. Absent on policies rendered before it existed.
+	AnnotationRenderHash = "telark.erpi/render-hash"
 
 	AppNameLabel = "app.kubernetes.io/name"
 
@@ -39,17 +44,19 @@ const (
 	cronJobRuleSuffix = "-cronjob"
 )
 
-// telark renders namespaced Policy objects, and a namespaced policy may not reference a
-// cluster-scoped kind, so ClusterPolicy cannot appear here even though it is the other half of
-// Kyverno's policy API.
+// A namespaced Policy may not reference a cluster-scoped kind, so ClusterPolicy is absent even
+// though it is the other half of Kyverno's policy API.
 var KyvernoPolicyKinds = []string{"Policy"}
 
-// ControllerSubjects are the in-cluster identities that keep workloads running. They are matched
-// on the authenticated request, not on the object being admitted — unlike a label on the
-// incoming resource, which is data supplied by whoever is making the change. Both forms of
-// kube-controller-manager identity are listed because it authenticates as its own user when
-// --use-service-account-credentials is off and as a per-controller kube-system service account
-// when it is on, and the replacement Pod arrives from whichever is in use.
+// Kyverno's reports controller writes these into the target namespace itself; a wildcard rule
+// would deny them in enforce and flood the violations in audit.
+var KyvernoReportKinds = []string{"PolicyReport", "EphemeralReport"}
+
+var PlatformKinds = slices.Concat(KyvernoPolicyKinds, KyvernoReportKinds)
+
+// Matched on the authenticated identity, which a writer cannot forge the way a resource label can.
+// kube-controller-manager is its own user with --use-service-account-credentials off and a
+// per-controller kube-system service account with it on, so both forms are listed.
 var ControllerSubjects = []rbacv1.Subject{
 	{Kind: rbacv1.UserKind, Name: "system:kube-controller-manager"},
 	{Kind: rbacv1.UserKind, Name: "system:kube-scheduler"},
@@ -66,14 +73,9 @@ var ControllerCreatedKinds = []string{
 	"ControllerRevision",
 }
 
-// AppIdentityKinds are the kinds an application is composed of that a person creates. Every
-// kind a built-in controller creates on its own is absent on purpose: workloads propagate
-// app.kubernetes.io/name onto what they create, so an identity match reaching Pod would deny
-// the replicaset-controller's own CREATE and leave the application unable to replace a pod
-// after an eviction, a node loss or an OOM-kill. Excluded for that reason: Pod, ReplicaSet,
-// ControllerRevision, Job (created by a CronJob) and PersistentVolumeClaim (created from a
-// StatefulSet's volumeClaimTemplates). Every entry is a built-in API so the rendered kind
-// always resolves.
+// Only kinds a person creates, all built-in APIs so the rendered kind always resolves. Workloads
+// propagate app.kubernetes.io/name onto what they create, so reaching a ControllerCreatedKind
+// would deny the replicaset-controller's own CREATE after an eviction, node loss or OOM-kill.
 var AppIdentityKinds = []string{
 	"ConfigMap",
 	"CronJob",
@@ -130,6 +132,15 @@ func PolicyMeta(meta RenderMeta, templateID, templateCode string, scope ScopeSpe
 	}
 }
 
+func RenderHash(pol *kyvernov1.Policy) string {
+	raw, err := json.Marshal(pol.Spec)
+	if err != nil {
+		return constants.EmptyString
+	}
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])
+}
+
 func FailureAction(mode string) kyvernov1.ValidationFailureAction {
 	if mode == plans.ModeEnforce {
 		return kyvernov1.Enforce
@@ -152,31 +163,22 @@ func AppScopeSelector(appIDs []string) *metav1.LabelSelector {
 	}
 }
 
-// ExcludePlatformWrites exempts telark's own rendered policies, so a plan can still deploy and
-// repair its rules in a namespace another plan is freezing. Kind, not label: a Deployment
-// cannot claim to be a Policy, and writing Kyverno policies is already a platform-level
-// privilege that outranks any plan. Every rule carries this.
+// Every rule carries this so a plan can still deploy and repair its rules in a namespace another
+// plan is freezing. Kind, not label: a Deployment cannot claim to be a Policy, and writing
+// Kyverno policies or reports is already a platform-level privilege that outranks any plan.
 func ExcludePlatformWrites() *kyvernov1.MatchResources {
 	return &kyvernov1.MatchResources{
 		Any: kyvernov1.ResourceFilters{
-			{ResourceDescription: kyvernov1.ResourceDescription{Kinds: append([]string(nil), KyvernoPolicyKinds...)}},
+			{ResourceDescription: kyvernov1.ResourceDescription{Kinds: slices.Clone(PlatformKinds)}},
 		},
 	}
 }
 
-// ExcludeControllerWrites additionally exempts the controller identities, and belongs only on
-// rules that reach objects a controller creates or deletes on its own — a replacement Pod, a
-// ReplicaSet during a rollout, a PVC being bound.
-//
-// It must never go on a rule that matches user-authored workload spec or the scale
-// subresource. The HPA controller shares these identities, so a blanket exclusion let
-// `kubectl autoscale` scale a workload straight through a replica freeze.
-//
-// The cut has to be per rule rather than per identity: with
-// --use-service-account-credentials=false the kube-controller-manager runs every controller
-// under the single `system:kube-controller-manager` user, so the HPA and the replicaset
-// controller are literally indistinguishable by subject. Only the rule a write lands on can
-// separate them.
+// Only for rules that reach objects a controller creates or deletes itself (replacement Pod,
+// ReplicaSet in a rollout, PVC being bound), never on user-authored spec or the scale
+// subresource: the HPA controller shares these identities and a blanket exclusion let
+// `kubectl autoscale` through a replica freeze. The cut is per rule because with
+// --use-service-account-credentials=false every controller is the same subject.
 func ExcludeControllerWrites() *kyvernov1.MatchResources {
 	exclude := ExcludePlatformWrites()
 	exclude.Any = append(exclude.Any, kyvernov1.ResourceFilter{
@@ -185,13 +187,9 @@ func ExcludeControllerWrites() *kyvernov1.MatchResources {
 	return exclude
 }
 
-// BuildIdentityMatch adds a filter on the application's identity label to the name-based match.
-// Every name an application owns already exists, so a name-only CREATE rule can block
-// re-creation of a deleted member but never a new resource joining the application. The label
-// selector is only added when the application set is non-empty, so namespace scope is unchanged
-// and a workload set carrying no identity label falls back to the name-only reach rather than
-// matching every resource in the namespace. The kinds are AppIdentityKinds, never the caller's,
-// so the selector can only ever reach resources a person creates.
+// A name-only CREATE rule blocks re-creating a deleted member but never a new resource joining
+// the application, so the identity label is matched too. The selector is bounded to the app set
+// and the kinds are AppIdentityKinds, never the caller's, so it only reaches person-created kinds.
 func BuildIdentityMatch(scope ScopeSpec, kinds, ops []string) (kyvernov1.MatchResources, bool) {
 	match, ok := BuildMatch(scope, kinds, ops)
 	selector := AppScopeSelector(scope.ApplicationIDs)
@@ -249,16 +247,13 @@ func MatchAllAny(kinds []string, ops []string, appIDs []string) kyvernov1.MatchR
 }
 
 const (
-	KindWildcard       = "*"
-	scaleSuffix        = "/scale"
-	subresourceSepRune = '/'
+	KindWildcard = "*"
+	scaleSuffix  = "/scale"
 )
 
-// Kyverno's `*` kind selector does not match subresources, so `kubectl scale` walks straight
-// past a rule that only names the kind. These are enumerated rather than matched as `*/scale`
-// because Kyverno rejects a match entry that mixes `*` with any other kind, and `*/*` would
-// also cover `status`, which kubelet and the built-in controllers write — blocking that is an
-// outage, not a freeze.
+// A `*` kind never matches a subresource, so `kubectl scale` walks past it. Enumerated rather
+// than `*/scale` (Kyverno rejects `*` mixed with another kind) or `*/*` (would deny `status`,
+// which kubelet and the controllers write: an outage, not a freeze).
 var ScaleSubresourceKinds = []string{
 	"Deployment" + scaleSuffix,
 	"StatefulSet" + scaleSuffix,
@@ -267,11 +262,8 @@ var ScaleSubresourceKinds = []string{
 }
 
 func baseKind(kind string) string {
-	idx := strings.IndexRune(kind, subresourceSepRune)
-	if idx < constants.DefaultInitValue {
-		return kind
-	}
-	return kind[:idx]
+	base, _, _ := strings.Cut(kind, plans.SubresourceSeparator)
+	return base
 }
 
 func BuildMatch(scope ScopeSpec, kinds []string, ops []string) (kyvernov1.MatchResources, bool) {
@@ -292,9 +284,8 @@ func BuildMatch(scope ScopeSpec, kinds []string, ops []string) (kyvernov1.MatchR
 		if len(names) == constants.DefaultInitValue {
 			continue
 		}
-		// Namespaced Policy: do NOT set Namespaces. Kyverno admission rejects
-		// `match.any[].resources.namespaces[]` on namespaced Policy. Scope comes
-		// from ObjectMeta.Namespace on the Policy itself.
+		// No Namespaces here: Kyverno rejects `match.any[].resources.namespaces[]` on a namespaced
+		// Policy, whose ObjectMeta.Namespace already scopes it.
 		rd := kyvernov1.ResourceDescription{
 			Kinds:      []string{k},
 			Names:      append([]string(nil), names...),
@@ -324,12 +315,7 @@ func groupAppResourcesByKind(refs []ApplicationResourceRef, namespace string) ma
 
 func intersectKinds(requested []string, grouped map[string][]string) []string {
 	if len(requested) == constants.SingleItem && requested[constants.DefaultInitValue] == KindWildcard {
-		out := make([]string, constants.DefaultInitValue, len(grouped))
-		for k := range grouped {
-			out = append(out, k)
-		}
-		slices.Sort(out)
-		return out
+		return slices.Sorted(maps.Keys(grouped))
 	}
 	out := make([]string, constants.DefaultInitValue, len(requested))
 	for _, k := range requested {
@@ -384,9 +370,8 @@ func RenderSingleRulePolicy(meta RenderMeta, scope ScopeSpec, spec SingleRuleSpe
 	return pol
 }
 
-// Kyverno defaults allowExistingViolations to true, which exempts a workload that already
-// violates the rule from every later update — during a freeze that lets an operator swap one
-// blocked image for another. A protection plan must freeze its worst offenders too.
+// Kyverno defaults allowExistingViolations to true, which would let an already-violating workload
+// keep changing all through the freeze (one blocked image swapped for another).
 func Validation(message string, deny *kyvernov1.Deny) *kyvernov1.Validation {
 	allowExistingViolations := false
 	return &kyvernov1.Validation{
@@ -396,8 +381,7 @@ func Validation(message string, deny *kyvernov1.Deny) *kyvernov1.Validation {
 	}
 }
 
-// PodSpecRuleSpec describes a rule whose deny expression reads a pod spec. Deny takes the
-// pod-spec path because the rule is emitted once per pod-template shape.
+// Deny takes the pod-spec path because the rule is emitted once per pod-template shape.
 type PodSpecRuleSpec struct {
 	TemplateID   string
 	TemplateCode string

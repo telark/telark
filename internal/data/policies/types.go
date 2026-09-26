@@ -9,11 +9,11 @@ type ApplicationResourceRef struct {
 }
 
 type ResolvedApp struct {
-	Namespace string
-	Resources []ApplicationResourceRef
-	// A PersistentVolumeClaim is referenced by an application, not owned by it, so it never
-	// appears in Resources. Carrying the claim names separately keeps storage rules able to
-	// reach them without pulling PVCs into every other application-scoped template.
+	// Every namespace the application spans; each one gets its own rendered policy.
+	Namespaces []string
+	Resources  []ApplicationResourceRef
+	// A PVC is referenced by an application, not owned, so it never appears in Resources; kept
+	// apart so storage rules can reach claims without pulling PVCs into every other template.
 	VolumeClaims []string
 }
 

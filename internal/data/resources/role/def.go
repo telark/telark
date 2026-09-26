@@ -18,6 +18,8 @@ type RoleAsResource struct {
 	LastUpdatedBy        *string               `json:"lastUpdatedBy,omitempty"`
 	DeprecatedAt         *string               `json:"deprecatedAt,omitempty"`
 	DeletedAt            *string               `json:"deletedAt,omitempty"`
+	// Projected from metadata by the owner while the cleanup finalizer holds the record.
+	DeletionTimestamp *string `json:"deletionTimestamp,omitempty"`
 }
 
 type AssignedTo struct {

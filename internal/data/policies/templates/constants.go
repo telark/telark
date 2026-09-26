@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
+	"github.com/telark/data/policies"
 )
 
 const (
@@ -11,7 +12,6 @@ const (
 	opUpdate = "UPDATE"
 	opDelete = "DELETE"
 
-	kindWildcard         = "*"
 	kindDeployment       = "Deployment"
 	kindDeploymentScale  = "Deployment/scale"
 	kindStatefulSet      = "StatefulSet"
@@ -35,7 +35,7 @@ const (
 
 	// %s is the request root (object / oldObject) and %s the pod-spec path, which differs
 	// between CronJob and every other workload kind.
-	exprImagesFmt  = "{{ request.%s.%s.[containers, initContainers, ephemeralContainers][].image }}"
+	exprImagesFmt  = "{{ request.%s.%s." + allContainers + ".image }}"
 	exprVolumesFmt = "{{ request.%s.%s.volumes || `[]` }}"
 	// Whole volume sources, not just the name: items, defaultMode and optional decide which
 	// keys land in the container, and comparing only the name made those changes invisible.
@@ -67,7 +67,7 @@ var (
 	opsCreateUpdate       = []string{opCreate, opUpdate}
 	opsUpdateDelete       = []string{opUpdate, opDelete}
 	opsCreateUpdateDelete = []string{opCreate, opUpdate, opDelete}
-	kindsWildcard         = []string{kindWildcard}
+	kindsWildcard         = []string{policies.KindWildcard}
 	kindsReplicaTarget    = []string{kindDeployment, kindDeploymentScale, kindStatefulSet, kindStatefulSetScale}
 	kindsPVC              = []string{kindPVC}
 	kindsConfigSecret     = []string{kindConfigMap, kindSecret}

@@ -1,8 +1,6 @@
 package templates
 
 import (
-	"fmt"
-
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	"github.com/telark/data/constants"
 	"github.com/telark/data/policies"
@@ -31,7 +29,7 @@ func (blockStorageChanges) Render(meta policies.RenderMeta, scope policies.Scope
 			// updates; denying those leaves a Pending claim unable to ever bind.
 			ExcludeResources: policies.ExcludeControllerWrites(),
 			Validation: policies.Validation(
-				fmt.Sprintf(msgBlockPVCMutation, meta.PlanName),
+				blockMessage(meta, msgBlockPVCMutation),
 				policies.DenyWithConditions([]kyvernov1.Condition{
 					policies.MakeCondition(exprRequestOperation, opIn, opsCreateUpdateDelete),
 				}),
@@ -42,7 +40,7 @@ func (blockStorageChanges) Render(meta policies.RenderMeta, scope policies.Scope
 	rules = append(rules, policies.PodSpecRules(scope, policies.PodSpecRuleSpec{
 		RuleName: ruleWorkloadVolumeChanges,
 		Ops:      opsUpdate,
-		Message:  fmt.Sprintf(msgBlockVolumeChanges, meta.PlanName),
+		Message:  blockMessage(meta, msgBlockVolumeChanges),
 		Deny: func(podSpecPath string) *kyvernov1.Deny {
 			return policies.DenyWithConditions([]kyvernov1.Condition{
 				policies.MakeCondition(
@@ -63,8 +61,8 @@ func (blockStorageChanges) Render(meta policies.RenderMeta, scope policies.Scope
 	return pol, nil
 }
 
-// An application never owns its PersistentVolumeClaims, so the name-filtered application match
-// produced no PVC rule at all; application scope matches the claim names its workloads mount.
+// An application never owns its PVCs, so the name-filtered match rendered no PVC rule at all;
+// application scope matches the claim names its workloads mount instead.
 // Both scopes cover CREATE so the rule means what the template description promises.
 func pvcMatch(scope policies.ScopeSpec) (kyvernov1.MatchResources, bool) {
 	if len(scope.ApplicationIDs) == constants.DefaultInitValue {

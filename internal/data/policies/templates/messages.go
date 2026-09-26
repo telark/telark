@@ -1,5 +1,13 @@
 package templates
 
+import (
+	"fmt"
+	"strings"
+
+	"github.com/telark/data/plans"
+	"github.com/telark/data/policies"
+)
+
 const (
 	msgBlockCreate         = "Resource creation is blocked by protection plan %q."
 	msgBlockUpdate         = "Resource updates are blocked by protection plan %q."
@@ -10,8 +18,22 @@ const (
 	msgBlockPVCMutation    = "PersistentVolumeClaim creation, modification and deletion are blocked by protection plan %q."
 	msgBlockVolumeChanges  = "Workload volume changes are blocked by protection plan %q."
 	msgBlockConfigSecret   = "ConfigMap and Secret changes are blocked by protection plan %q."
-	// The rule compares every volumeMount, not only those backed by a ConfigMap or Secret: a
-	// volumeMount carries no reference to what backs it and JMESPath cannot join it to the
-	// volume list, so the message names the reach the rule actually has.
+	// Names the rule's real reach: a volumeMount carries no reference to what backs it and
+	// JMESPath cannot join it to the volume list, so every volumeMount is compared.
 	msgBlockConfigMountChng = "Workload volume mount or config source changes are blocked by protection plan %q."
+
+	enforceSingular = " is blocked by "
+	enforcePlural   = " are blocked by "
+	auditWording    = " would be blocked by "
 )
+
+// An audit plan admits the request, so its message must not claim it was blocked.
+var auditReplacer = strings.NewReplacer(enforceSingular, auditWording, enforcePlural, auditWording)
+
+func blockMessage(meta policies.RenderMeta, format string) string {
+	msg := fmt.Sprintf(format, meta.PlanName)
+	if meta.Mode == plans.ModeAudit {
+		return auditReplacer.Replace(msg)
+	}
+	return msg
+}

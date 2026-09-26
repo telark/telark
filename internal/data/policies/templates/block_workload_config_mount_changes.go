@@ -1,8 +1,6 @@
 package templates
 
 import (
-	"fmt"
-
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	"github.com/telark/data/policies"
 )
@@ -23,7 +21,7 @@ func (blockMountChanges) Render(meta policies.RenderMeta, scope policies.ScopeSp
 		TemplateCode: codeBlockMountChanges,
 		RuleName:     templateBlockMountChanges,
 		Ops:          opsUpdate,
-		Message:      fmt.Sprintf(msgBlockConfigMountChng, meta.PlanName),
+		Message:      blockMessage(meta, msgBlockConfigMountChng),
 		Deny:         mountChangesDeny,
 	}), nil
 }

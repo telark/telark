@@ -11,4 +11,6 @@ type GroupAsResource struct {
 	LastUpdateDate   *string  `json:"lastUpdateDate,omitempty"`
 	CreatedBy        *string  `json:"createdBy,omitempty"`
 	LastUpdatedBy    *string  `json:"lastUpdatedBy,omitempty"`
+	// Projected from metadata by the owner while the cleanup finalizer holds the record.
+	DeletionTimestamp *string `json:"deletionTimestamp,omitempty"`
 }

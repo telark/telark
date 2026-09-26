@@ -1,8 +1,6 @@
 package templates
 
 import (
-	"fmt"
-
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	"github.com/telark/data/policies"
 )
@@ -27,7 +25,7 @@ func (blockCreate) Render(meta policies.RenderMeta, scope policies.ScopeSpec, _ 
 		RuleName:     templateBlockCreate,
 		Kinds:        kindsWildcard,
 		Ops:          opsCreate,
-		Message:      fmt.Sprintf(msgBlockCreate, meta.PlanName),
+		Message:      blockMessage(meta, msgBlockCreate),
 		Deny:         deny,
 		// Matching only the application's current resource names blocks re-creation of a
 		// deleted member but never a new resource joining the application.

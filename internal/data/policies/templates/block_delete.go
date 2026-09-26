@@ -1,8 +1,6 @@
 package templates
 
 import (
-	"fmt"
-
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	"github.com/telark/data/policies"
 )
@@ -27,7 +25,7 @@ func (blockDelete) Render(meta policies.RenderMeta, scope policies.ScopeSpec, _ 
 		RuleName:     templateBlockDelete,
 		Kinds:        kindsWildcard,
 		Ops:          opsDelete,
-		Message:      fmt.Sprintf(msgBlockDelete, meta.PlanName),
+		Message:      blockMessage(meta, msgBlockDelete),
 		Deny:         deny,
 		// Reaches the Pods, ReplicaSets and PVCs controllers create and delete themselves.
 		ExcludeControllers: true,

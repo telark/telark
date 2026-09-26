@@ -39,22 +39,9 @@ type ResourceValues struct {
 	Memory string `json:"memory"`
 }
 
-const (
-	defaultInitValue = 0
-)
-
 func NewApplicationMetrics() ApplicationMetrics {
 	return ApplicationMetrics{
-		Derived: DerivedMetrics{
-			TotalChanges:         defaultInitValue,
-			ChangesByClass:       map[string]int{},
-			ChangesBySeverity:    map[string]int{},
-			TotalIncidents:       defaultInitValue,
-			TotalRecoveries:      defaultInitValue,
-			SnapshotCount:        defaultInitValue,
-			ChangeVelocityPerDay: defaultInitValue,
-			UniqueFingerprints:   defaultInitValue,
-		},
+		Derived:   DerivedMetrics{ChangesByClass: map[string]int{}, ChangesBySeverity: map[string]int{}},
 		Workloads: []WorkloadUsage{},
 	}
 }

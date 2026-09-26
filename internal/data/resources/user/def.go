@@ -13,6 +13,10 @@ type UserAsResource struct {
 	Avatar            *Avatar         `json:"avatar,omitempty"`
 	Settings          *UserSettings   `json:"settings,omitempty"`
 	Status            UserStatus      `json:"status"`
+	// Chart-managed bootstrap administrator; written by services only.
+	Bootstrap bool `json:"bootstrap,omitempty"`
+	// Projected from metadata by the owner while the cleanup finalizer holds the record.
+	DeletionTimestamp *string `json:"deletionTimestamp,omitempty"`
 }
 
 type UserSettings struct {

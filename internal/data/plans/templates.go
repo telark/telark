@@ -2,6 +2,8 @@ package plans
 
 import (
 	"fmt"
+	"regexp"
+	"slices"
 
 	"github.com/telark/data/constants"
 )
@@ -10,6 +12,11 @@ type ParamType string
 
 const (
 	ParamTypeStringArray ParamType = "string-array"
+
+	// One glob per entry, so whitespace and blanks are rejected rather than matching nothing.
+	PatternImageGlob = `^\S+$`
+	// The Docker image tag grammar.
+	PatternImageTag = `^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$`
 )
 
 type ScopeSupport string
@@ -26,6 +33,8 @@ type ParamSpec struct {
 	Required    bool      `json:"required"`
 	Placeholder string    `json:"placeholder,omitempty"`
 	Description string    `json:"description,omitempty"`
+	// Regular expression every entry of a string-array param must match.
+	Pattern string `json:"pattern,omitempty"`
 }
 
 type Template struct {
@@ -76,6 +85,7 @@ var Templates = []Template{
 				Required:    true,
 				Placeholder: "e.g. */untrusted-repo/*",
 				Description: "Glob patterns for blocked image registries or image names.",
+				Pattern:     PatternImageGlob,
 			},
 		},
 	},
@@ -93,6 +103,7 @@ var Templates = []Template{
 				Required:    true,
 				Placeholder: "e.g. latest, dev, snapshot",
 				Description: "Image tags that are not permitted during the protection window.",
+				Pattern:     PatternImageTag,
 			},
 		},
 	},
@@ -143,7 +154,17 @@ func GetTemplate(id string) (*Template, bool) {
 	return t, ok
 }
 
+var paramPatterns = map[string]*regexp.Regexp{
+	PatternImageGlob: regexp.MustCompile(PatternImageGlob),
+	PatternImageTag:  regexp.MustCompile(PatternImageTag),
+}
+
 func ValidateParams(template *Template, params map[string]any) error {
+	for key := range params {
+		if !slices.ContainsFunc(template.Params, func(spec ParamSpec) bool { return spec.Key == key }) {
+			return fmt.Errorf("param %q is not defined for template %q", key, template.ID)
+		}
+	}
 	for _, spec := range template.Params {
 		if !spec.Required {
 			continue
@@ -152,14 +173,30 @@ func ValidateParams(template *Template, params map[string]any) error {
 		if !exists || val == nil {
 			return fmt.Errorf("param %q is required for template %q", spec.Key, template.ID)
 		}
-		if spec.Type == ParamTypeStringArray {
-			arr, ok := toStringSlice(val)
-			if !ok || len(arr) == constants.DefaultInitValue {
-				return fmt.Errorf("param %q must be a non-empty string array for template %q", spec.Key, template.ID)
-			}
+		if spec.Type != ParamTypeStringArray {
+			continue
+		}
+		arr, ok := toStringSlice(val)
+		if !ok || len(arr) == constants.DefaultInitValue {
+			return fmt.Errorf("param %q must be a non-empty string array for template %q", spec.Key, template.ID)
+		}
+		if err := validateEntries(template, spec, arr); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func validateEntries(template *Template, spec ParamSpec, entries []string) error {
+	pattern, ok := paramPatterns[spec.Pattern]
+	if !ok {
+		return nil
+	}
+	i := slices.IndexFunc(entries, func(entry string) bool { return !pattern.MatchString(entry) })
+	if i < constants.DefaultInitValue {
+		return nil
+	}
+	return fmt.Errorf("param %q entry %q is not valid for template %q", spec.Key, entries[i], template.ID)
 }
 
 func toStringSlice(v any) ([]string, bool) {

@@ -1,8 +1,6 @@
 package templates
 
 import (
-	"fmt"
-
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	"github.com/telark/data/policies"
 )
@@ -27,7 +25,7 @@ func (blockConfigSecretChanges) Render(meta policies.RenderMeta, scope policies.
 		RuleName:     templateBlockConfigSecretChanges,
 		Kinds:        kindsConfigSecret,
 		Ops:          opsUpdateDelete,
-		Message:      fmt.Sprintf(msgBlockConfigSecret, meta.PlanName),
+		Message:      blockMessage(meta, msgBlockConfigSecret),
 		Deny:         deny,
 	}), nil
 }

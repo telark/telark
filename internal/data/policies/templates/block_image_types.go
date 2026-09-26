@@ -1,8 +1,6 @@
 package templates
 
 import (
-	"fmt"
-
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	"github.com/telark/data/policies"
 )
@@ -28,7 +26,7 @@ func (blockImageTypes) Render(meta policies.RenderMeta, scope policies.ScopeSpec
 		TemplateCode: codeBlockImageTypes,
 		RuleName:     templateBlockImageTypes,
 		Ops:          opsCreateUpdate,
-		Message:      fmt.Sprintf(msgBlockImagePatterns, meta.PlanName),
+		Message:      blockMessage(meta, msgBlockImagePatterns),
 		Deny: func(podSpecPath string) *kyvernov1.Deny {
 			return policies.DenyWithConditions([]kyvernov1.Condition{
 				policies.MakeCondition(newExpr(exprImagesFmt, podSpecPath), opAnyIn, patterns),

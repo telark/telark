@@ -89,10 +89,8 @@ func operations(filter kyvernov1.ResourceFilter) []string {
 func ruleMatching(pol *kyvernov1.Policy, kind string) *kyvernov1.Rule {
 	for i := range pol.Spec.Rules {
 		for _, filter := range pol.Spec.Rules[i].MatchResources.Any {
-			for _, k := range filter.Kinds {
-				if k == kind {
-					return &pol.Spec.Rules[i]
-				}
+			if slices.Contains(filter.Kinds, kind) {
+				return &pol.Spec.Rules[i]
 			}
 		}
 	}
@@ -381,7 +379,7 @@ func TestExclusionsCannotExemptAHumanWrite(t *testing.T) {
 		if len(f.Subjects) > constants.DefaultInitValue {
 			continue
 		}
-		if !slices.Equal(f.Kinds, policies.KyvernoPolicyKinds) {
+		if !slices.Equal(f.Kinds, policies.PlatformKinds) {
 			t.Errorf("a resource-only exclusion reaches %v, which exempts it for every writer",
 				f.Kinds)
 		}

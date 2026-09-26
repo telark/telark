@@ -41,7 +41,7 @@ func renderPlan(t *testing.T, scopeType, templateID string, excl *plans.Protecti
 	}
 	app := allScopes()[scopeApplication]
 	resolved := map[string]policies.ResolvedApp{
-		appName: {Namespace: planNamespace, Resources: app.AppResources, VolumeClaims: app.VolumeClaims},
+		appName: {Namespaces: []string{planNamespace}, Resources: app.AppResources, VolumeClaims: app.VolumeClaims},
 	}
 	rendered, err := policies.Render(plan, resolved, nil)
 	if err != nil {
@@ -160,8 +160,8 @@ func TestExclusionFiltersPreservePlatformExclude(t *testing.T) {
 	for i := range pol.Spec.Rules {
 		anyFilters := pol.Spec.Rules[i].ExcludeResources.Any
 		first, last := anyFilters[constants.DefaultInitValue], anyFilters[len(anyFilters)-constants.SingleItem]
-		if !slices.Equal(first.Kinds, policies.KyvernoPolicyKinds) {
-			t.Errorf("rule %s first exclude = %+v, want the platform Policy kinds", pol.Spec.Rules[i].Name, first)
+		if !slices.Equal(first.Kinds, policies.PlatformKinds) {
+			t.Errorf("rule %s first exclude = %+v, want the platform kinds", pol.Spec.Rules[i].Name, first)
 		}
 		if !slices.Equal(last.Kinds, []string{kindConfigMap}) {
 			t.Errorf("rule %s last exclude = %+v, want the plan exclusion", pol.Spec.Rules[i].Name, last)

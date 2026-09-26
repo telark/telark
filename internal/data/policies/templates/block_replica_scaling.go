@@ -1,8 +1,6 @@
 package templates
 
 import (
-	"fmt"
-
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	"github.com/telark/data/policies"
 )
@@ -27,7 +25,7 @@ func (blockReplicaScaling) Render(meta policies.RenderMeta, scope policies.Scope
 		RuleName:     templateBlockReplicaScaling,
 		Kinds:        kindsReplicaTarget,
 		Ops:          opsUpdate,
-		Message:      fmt.Sprintf(msgBlockReplicaScaling, meta.PlanName),
+		Message:      blockMessage(meta, msgBlockReplicaScaling),
 		Deny:         deny,
 	}), nil
 }

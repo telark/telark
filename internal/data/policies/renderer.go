@@ -50,6 +50,7 @@ func Render(plan *plans.ProtectionPlan, resolved map[string]ResolvedApp, logger 
 				continue
 			}
 			applyExclusions(pol, exclusions)
+			pol.Annotations[AnnotationRenderHash] = RenderHash(pol)
 			out = append(out, *pol)
 		}
 	}
@@ -72,12 +73,15 @@ func buildScopes(plan *plans.ProtectionPlan, resolved map[string]ResolvedApp) ([
 		claimsByNS := map[string][]string{}
 		for _, appID := range plan.Scope.ApplicationIDs {
 			ra, ok := resolved[appID]
-			if !ok || ra.Namespace == constants.EmptyString {
+			if !ok || len(ra.Namespaces) == constants.DefaultInitValue {
 				return nil, fmt.Errorf("policies: application %q has no resolved namespace", appID)
 			}
-			grouped[ra.Namespace] = append(grouped[ra.Namespace], appID)
-			resourcesByNS[ra.Namespace] = append(resourcesByNS[ra.Namespace], ra.Resources...)
-			claimsByNS[ra.Namespace] = append(claimsByNS[ra.Namespace], ra.VolumeClaims...)
+			// Resources are filtered per namespace at match time (groupAppResourcesByKind).
+			for _, ns := range ra.Namespaces {
+				grouped[ns] = append(grouped[ns], appID)
+				resourcesByNS[ns] = append(resourcesByNS[ns], ra.Resources...)
+				claimsByNS[ns] = append(claimsByNS[ns], ra.VolumeClaims...)
+			}
 		}
 		nss := slices.Sorted(maps.Keys(grouped))
 		out := make([]ScopeSpec, constants.DefaultInitValue, len(nss))

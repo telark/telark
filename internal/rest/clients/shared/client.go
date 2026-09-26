@@ -20,10 +20,15 @@ func New(service base.Service) *Client {
 
 func NewWithConfig(service base.Service, config *ClientConfig) *Client {
 	return &Client{
-		httpClient: &http.Client{Timeout: config.Timeout},
+		httpClient: &http.Client{Timeout: config.Timeout, CheckRedirect: refuseRedirect},
 		service:    service,
 		config:     config,
 	}
+}
+
+// A redirect would replay the service token against a path the caller never chose.
+func refuseRedirect(*http.Request, []*http.Request) error {
+	return http.ErrUseLastResponse
 }
 
 func (c *Client) executeRequest(

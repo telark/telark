@@ -68,7 +68,7 @@ func (c *Client) MarkRead(ctx context.Context, userID, notificationID string) *r
 	}
 	ep := base.Endpoint(fmt.Sprintf(userIDQueryFormat, eps.MarkRead, url.QueryEscape(userID)))
 	byID := c.WithParams(map[string]string{constants.IDParam: notificationID})
-	return byID.Update(ep, map[string]any{})
+	return shared.ExecuteRequestWithHeaders(byID, base.Post, ep, map[string]any{}, nil)
 }
 
 func (c *Client) MarkAllRead(ctx context.Context, userID string) *response.GenericResponse {

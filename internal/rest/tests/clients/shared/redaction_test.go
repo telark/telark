@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	authdata "github.com/telark/data/auth"
+	dataconstants "github.com/telark/data/constants"
 	"github.com/telark/rest/clients/auth/session"
 	"github.com/telark/rest/clients/notifications"
 	"github.com/telark/rest/constants"
@@ -108,7 +109,7 @@ func TestSessionLookupFailureKeepsTokenOutOfLogs(t *testing.T) {
 			}
 			assertNoLeak(t, "log", secretToken, logged)
 			assertNoLeak(t, "returned error", secretToken, callErr.Error())
-			assertIdentity(t, string(authendpoints.GetSessionByToken), logged)
+			assertIdentity(t, string(authendpoints.GetSelfSession), logged)
 		})
 	}
 }
@@ -124,23 +125,28 @@ func TestSessionDeleteFailureKeepsTokenOutOfLogs(t *testing.T) {
 
 	assertNoLeak(t, "log", secretToken, logged)
 	assertNoLeak(t, "response message", secretToken, resp)
-	assertIdentity(t, string(authendpoints.DeleteSessionByToken), logged)
+	assertIdentity(t, string(authendpoints.DeleteSelfSession), logged)
 }
 
-func TestRequestURLCarriesTheSessionNameNotTheToken(t *testing.T) {
-	var requestedPath string
+func TestSelfSessionSendsTheSessionNameInTheHeaderOnly(t *testing.T) {
+	var requestedURL, sentRef string
 	client := session.NewClient()
 	client.GetHTTPClient().Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
-		requestedPath = r.URL.Path
+		requestedURL = r.URL.String()
+		sentRef = r.Header.Get(dataconstants.HeaderSessionToken)
 		return notFound(r)
 	})
 
 	if _, err := client.GetSessionByToken(secretToken); err == nil {
 		t.Fatal("expected a failure from the session lookup")
 	}
-	assertNoLeak(t, "request path", secretToken, requestedPath)
-	if !strings.Contains(requestedPath, authdata.SessionName(secretToken)) {
-		t.Errorf("the session name must reach the server in the path, got %q", requestedPath)
+	assertNoLeak(t, "request URL", secretToken, requestedURL)
+	assertNoLeak(t, "session header", secretToken, sentRef)
+	if !strings.HasSuffix(requestedURL, string(authendpoints.GetSelfSession)) {
+		t.Errorf("the lookup must address the self session, got %q", requestedURL)
+	}
+	if sentRef != authdata.SessionName(secretToken) {
+		t.Errorf("the header must carry the session name, got %q", sentRef)
 	}
 }
 

@@ -24,9 +24,9 @@ type CreateProtectionPlanRequest struct {
 	StartedBy        *string               `json:"startedBy,omitempty"`
 	TerminatedAt     *string               `json:"terminatedAt,omitempty"`
 	TerminatedBy     *string               `json:"terminatedBy,omitempty"`
-	ParticipantsIDs  []string              `json:"participantsIDs"`
-	EnvironmentID    string                `json:"environmentID,omitempty"`
-	TagIDs           []string              `json:"tagIDs,omitempty"`
+	ParticipantRefs  []string              `json:"participantRefs"`
+	EnvironmentRef   string                `json:"environmentRef,omitempty"`
+	TagRefs          []string              `json:"tagRefs,omitempty"`
 	ApprovalMode     string                `json:"approvalMode,omitempty"`
 	Approval         *ApprovalRequest      `json:"approval,omitempty"`
 	Health           string                `json:"health"`
@@ -69,9 +69,9 @@ type PatchProtectionPlanRequest struct {
 	TimeRange        *TimeRangeRequest     `json:"timeRange,omitempty"`
 	Scope            *ScopeRequest         `json:"scope,omitempty"`
 	Policies         []PolicyRequest       `json:"policies,omitempty"`
-	ParticipantsIDs  []string              `json:"participantsIDs,omitempty"`
-	EnvironmentID    *string               `json:"environmentID,omitempty"`
-	TagIDs           *[]string             `json:"tagIDs,omitempty"`
+	ParticipantRefs  []string              `json:"participantRefs,omitempty"`
+	EnvironmentRef   *string               `json:"environmentRef,omitempty"`
+	TagRefs          *[]string             `json:"tagRefs,omitempty"`
 	Phase            *string               `json:"phase,omitempty"`
 	Reason           *string               `json:"reason,omitempty"`
 	RenderedPolicies []string              `json:"renderedPolicies,omitempty"`
@@ -96,9 +96,9 @@ type PrepareProtectionPlanRequest struct {
 	Mode            string            `json:"mode"`
 	TimeMode        string            `json:"timeMode"`
 	TimeRange       *TimeRangeRequest `json:"timeRange,omitempty"`
-	ParticipantsIDs []string          `json:"participantsIDs"`
-	EnvironmentID   *string           `json:"environmentID,omitempty"`
-	TagIDs          []string          `json:"tagIDs,omitempty"`
+	ParticipantRefs []string          `json:"participantRefs"`
+	EnvironmentRef  *string           `json:"environmentRef,omitempty"`
+	TagRefs         []string          `json:"tagRefs,omitempty"`
 	ApprovalMode    *string           `json:"approvalMode,omitempty"`
 }
 
@@ -117,10 +117,10 @@ type DecideProtectionPlanRequest struct {
 }
 
 type ScopeRequest struct {
-	Type           string                               `json:"type"`
-	ApplicationIDs []string                             `json:"applicationIds,omitempty"`
-	Namespaces     []string                             `json:"namespaces,omitempty"`
-	Exclusions     *plans.ProtectionPlanScopeExclusions `json:"exclusions,omitempty"`
+	Type            string                               `json:"type"`
+	ApplicationRefs []string                             `json:"applicationRefs,omitempty"`
+	Namespaces      []string                             `json:"namespaces,omitempty"`
+	Exclusions      *plans.ProtectionPlanScopeExclusions `json:"exclusions,omitempty"`
 }
 
 type PolicyRequest struct {
@@ -181,10 +181,10 @@ type ProtectionPlanResource struct {
 }
 
 type DuplicateProtectionPlanRequest struct {
-	Name          *string           `json:"name,omitempty"`
-	TimeMode      *string           `json:"timeMode,omitempty"`
-	TimeRange     *TimeRangeRequest `json:"timeRange,omitempty"`
-	EnvironmentID *string           `json:"environmentID,omitempty"`
-	TagIDs        []string          `json:"tagIDs,omitempty"`
-	ApprovalMode  *string           `json:"approvalMode,omitempty"`
+	Name           *string           `json:"name,omitempty"`
+	TimeMode       *string           `json:"timeMode,omitempty"`
+	TimeRange      *TimeRangeRequest `json:"timeRange,omitempty"`
+	EnvironmentRef *string           `json:"environmentRef,omitempty"`
+	TagRefs        []string          `json:"tagRefs,omitempty"`
+	ApprovalMode   *string           `json:"approvalMode,omitempty"`
 }

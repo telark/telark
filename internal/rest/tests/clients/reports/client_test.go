@@ -24,8 +24,8 @@ const (
 	fileHTML         = "<html></html>"
 	okBody           = `{"status":200,"operation":"Success"}`
 	notFoundBody     = `{"status":404,"operation":"Failure"}`
-	createPath       = "/api/v1/reports/plans/create"
-	ledgerPutPath    = "/api/v1/reports/plans/p1/ledger/put"
+	createPath       = "/api/v1/internal/reports"
+	ledgerPath       = "/api/v1/internal/protectionplans/p1/ledger"
 	ledgerBody       = `{"planId":"p1","run":"r","checkpoints":[{"at":"t","health":"healthy","violationsSeen":1}],"violations":[]}`
 )
 
@@ -106,20 +106,20 @@ func TestGetLedgerMapsNotFound(t *testing.T) {
 	if !errors.Is(err, shared.ErrNotFound) {
 		t.Fatalf("expected shared.ErrNotFound, got ledger=%s err=%v", ledger, err)
 	}
-	if got.method != http.MethodGet || got.path != "/api/v1/reports/plans/p1/ledger/get" {
+	if got.method != http.MethodGet || got.path != ledgerPath {
 		t.Fatalf("unexpected request %s %s", got.method, got.path)
 	}
 }
 
-func TestPutLedgerPostsRawBytesVerbatim(t *testing.T) {
+func TestPutLedgerPutsRawBytesVerbatim(t *testing.T) {
 	client, got := serve(t, http.StatusOK, okBody)
 
 	resp := client.PutLedger(planID, json.RawMessage(ledgerBody))
 	if resp == nil || resp.Status != globalshared.StatusOK {
 		t.Fatalf("expected status %d, got %+v", globalshared.StatusOK, resp)
 	}
-	if got.method != http.MethodPost || got.path != ledgerPutPath {
-		t.Fatalf("expected POST %s, got %s %s", ledgerPutPath, got.method, got.path)
+	if got.method != http.MethodPut || got.path != ledgerPath {
+		t.Fatalf("expected PUT %s, got %s %s", ledgerPath, got.method, got.path)
 	}
 	if got.query != "" {
 		t.Fatalf("expected no query string, got %q", got.query)

@@ -62,14 +62,18 @@ func ReadAndParseGenericResponse(result *base.HTTPResult) *response.GenericRespo
 		)
 	}
 
-	// Only 200 OK and 202 Accepted are considered success. The peer's body is
-	// still returned to the caller but kept out of the log: it can carry PII.
+	// Only 200 OK and 202 Accepted are considered success. The peer's body stays
+	// out of the log (it can carry PII), and out of a 5xx message (internal detail).
 	if result.Status != http.StatusOK && result.Status != http.StatusAccepted {
+		detail := string(body)
+		if result.Status >= constants.HTTPServerErrorCode {
+			detail = constants.PeerServerErrorMessage
+		}
 		return response.NewGenericResponse(
 			result.Status,
 			response.OperationError,
 			nil,
-			fmt.Sprintf(string(constants.HTTPStatus), result.Status, string(body)),
+			fmt.Sprintf(string(constants.HTTPStatus), result.Status, detail),
 		)
 	}
 

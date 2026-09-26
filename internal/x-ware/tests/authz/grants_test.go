@@ -98,3 +98,20 @@ func TestCollectGrantsIgnoresTerminatingRecords(t *testing.T) {
 		t.Fatalf("terminating role: grants = %+v, err = %v, want none", grants, err)
 	}
 }
+
+func TestDenyRulesMatchRegardlessOfCase(t *testing.T) {
+	const action = "deleteuser"
+	rules := []string{"Users.DeleteUser.Deny"}
+	role := ownerRole(nil)
+	role.ScopesAndPermissions[dataconstants.DefaultInitValue].Rules = &rules
+	group := &groupdata.GroupAsResource{ID: grantsGroupID, AssignedRolesIDs: []string{grantsRoleID}}
+
+	grants, err := authz.CollectGrants(sourceWith(activeUser(nil), group, role), nil, grantsUserID)
+	if err != nil {
+		t.Fatalf("collect grants: %v", err)
+	}
+	req := authz.Denyable(authz.Own(roledata.ScopeUsers), action)
+	if authz.Allows(authz.Identity{UserID: grantsUserID, Grants: grants}, req) {
+		t.Fatalf("rule %q written with capitals must still deny %q", rules[0], req.Rule)
+	}
+}

@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -37,7 +38,11 @@ func (c *RedisCache) Del(ctx context.Context, keys ...string) (int64, error) {
 }
 
 func (c *RedisCache) Flush(ctx context.Context) error {
-	return c.Client.FlushDB(ctx).Err()
+	if c.KeyPrefix == constants.EmptyString {
+		return errors.New(string(constants.ErrRedisCacheFlushUnscoped))
+	}
+	_, err := DeleteByPattern(ctx, c, c.Del, c.KeyPrefix+constants.RedisKeyWildcard, defaultScanBatchSize)
+	return err
 }
 
 func (c *RedisCache) Close() error {

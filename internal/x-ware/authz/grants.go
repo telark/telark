@@ -3,6 +3,7 @@ package authz
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	dataconstants "github.com/telark/data/constants"
@@ -105,7 +106,9 @@ func applyRole(grants *Grants, source GrantSource, log Warner, roleID string) er
 	for _, scope := range role.ScopesAndPermissions {
 		MergeLevel(grants.Levels, scope.Scope, scope.Level)
 		if scope.Rules != nil && len(*scope.Rules) > dataconstants.DefaultInitValue {
-			grants.Denied[scope.Scope] = append(grants.Denied[scope.Scope], *scope.Rules...)
+			for _, rule := range *scope.Rules {
+				grants.Denied[scope.Scope] = append(grants.Denied[scope.Scope], strings.ToLower(rule))
+			}
 		}
 	}
 	return nil

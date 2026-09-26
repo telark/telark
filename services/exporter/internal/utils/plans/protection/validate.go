@@ -19,7 +19,7 @@ func Validate(plan *plans.ProtectionPlan) error {
 	}
 	scope := plan.Scope
 	hasExclusionResources := scope.Exclusions != nil && len(scope.Exclusions.Resources) > constants.DefaultInitValue
-	return validateScope(scope.Type, len(scope.ApplicationIDs), len(scope.Namespaces), hasExclusionResources)
+	return validateScope(scope.Type, len(scope.ApplicationRefs), len(scope.Namespaces), hasExclusionResources)
 }
 
 func validateScope(scopeType string, appCount, namespaceCount int, hasExclusionResources bool) error {

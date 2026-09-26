@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"slices"
 
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	roledata "github.com/telark/data/resources/role"
 	userdata "github.com/telark/data/resources/user"
 	"github.com/telark/exporter/internal/constants"
@@ -46,13 +46,13 @@ func RestrictedKey(key func(*http.Request) string) func(*http.Request) string {
 // HiddenUsers answers whether a user is an administrator or a bootstrap
 // account, memoising role and group lookups across one request. An unreadable
 // role or group counts as administrative: hiding on doubt leaks nothing.
-func HiddenUsers() func(*userdata.UserAsResource) bool {
+func HiddenUsers() func(*userdata.User) bool {
 	roles := map[string]bool{}
 	groups := map[string]bool{}
-	return func(user *userdata.UserAsResource) bool {
+	return func(user *userdata.User) bool {
 		return user.Bootstrap ||
-			slices.ContainsFunc(user.AssignedRolesIDs, func(id *string) bool { return id != nil && adminRole(roles, *id) }) ||
-			slices.ContainsFunc(user.AssignedGroupsIDs, func(id *string) bool { return id != nil && adminGroup(groups, roles, *id) })
+			slices.ContainsFunc(user.RoleRefs, func(id *string) bool { return id != nil && adminRole(roles, *id) }) ||
+			slices.ContainsFunc(user.GroupRefs, func(id *string) bool { return id != nil && adminGroup(groups, roles, *id) })
 	}
 }
 
@@ -74,7 +74,7 @@ func adminGroup(memo, roles map[string]bool, id string) bool {
 	}
 	group, err := source.Group(id)
 	memo[id] = unreadable(err) || err == nil && group.DeletionTimestamp == nil &&
-		slices.ContainsFunc(group.AssignedRolesIDs, func(roleID string) bool { return adminRole(roles, roleID) })
+		slices.ContainsFunc(group.RoleRefs, func(roleID string) bool { return adminRole(roles, roleID) })
 	return memo[id]
 }
 
@@ -83,7 +83,7 @@ func unreadable(err error) bool {
 }
 
 func HiddenUserIDs() (map[string]bool, error) {
-	result := api.ListCustomResources(metadata.UserAsResourceMetadata)
+	result := api.ListCustomResources(metadata.UserMetadata)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -95,7 +95,7 @@ func HiddenUserIDs() (map[string]bool, error) {
 	hidden := HiddenUsers()
 	ids := map[string]bool{}
 	for i := range list.Items {
-		user, err := decode[userdata.UserAsResource](&list.Items[i], nil)
+		user, err := decode[userdata.User](&list.Items[i], nil)
 		if err == nil && hidden(user) {
 			ids[user.ID] = true
 		}
@@ -105,7 +105,7 @@ func HiddenUserIDs() (map[string]bool, error) {
 
 // GuardHiddenUser answers 404 to a restricted caller asking about an
 // administrator, the same as for an id that does not exist.
-func GuardHiddenUser(w http.ResponseWriter, r *http.Request, user *userdata.UserAsResource) bool {
+func GuardHiddenUser(w http.ResponseWriter, r *http.Request, user *userdata.User) bool {
 	if !Restricted(r) || !HiddenUsers()(user) {
 		return true
 	}
@@ -113,23 +113,11 @@ func GuardHiddenUser(w http.ResponseWriter, r *http.Request, user *userdata.User
 	return false
 }
 
-// An id that does not resolve is left to the route's own lookup to answer.
-func GuardHiddenUserID(w http.ResponseWriter, r *http.Request, userID string) bool {
-	if !Restricted(r) {
-		return true
-	}
-	user, err := source.User(userID)
-	if err != nil {
-		return true
-	}
-	return GuardHiddenUser(w, r, user)
-}
-
 // GuardUserTarget enforces who may act on an administrator: bootstrap accounts
 // are the chart's (only they may edit themselves, nothing deletes them), other
 // administrators are deleted or suspended only by a bootstrap account, and
 // nobody deletes themselves.
-func GuardUserTarget(w http.ResponseWriter, r *http.Request, target *userdata.UserAsResource, body map[string]any, deleting bool) bool {
+func GuardUserTarget(w http.ResponseWriter, r *http.Request, target *userdata.User, body map[string]any, deleting bool) bool {
 	identity, ok := callerIdentity(w, r)
 	if !ok {
 		return false
@@ -157,7 +145,7 @@ func GuardUserTarget(w http.ResponseWriter, r *http.Request, target *userdata.Us
 	return guardAdminTarget(w, identity, target, body, deleting)
 }
 
-func guardAdminTarget(w http.ResponseWriter, identity xauthz.Identity, target *userdata.UserAsResource, body map[string]any, deleting bool) bool {
+func guardAdminTarget(w http.ResponseWriter, identity xauthz.Identity, target *userdata.User, body map[string]any, deleting bool) bool {
 	if target.Bootstrap {
 		denyForbidden(w, constants.ErrAuthzBootstrapManagedByChart)
 		return false

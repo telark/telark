@@ -114,12 +114,12 @@ func TestDecodeBase64URLWithFallback(t *testing.T) {
 	}
 }
 
-// Header extractors return the value when present and a specific error when the
-// header is missing.
+// Extractors return the header or path value when present and a specific error
+// when it is missing; a leftover credential header is not a credential id.
 func TestHeaderExtractors(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, rootPath, nil)
 	r.Header.Set(constants.HeaderSessionToken, "tok")
-	r.Header.Set(constants.HeaderCredentialID, testCredID)
+	r = testutil.WithCredentialID(r, testCredID)
 
 	tok, err := authhelper.ExtractSessionToken(r)
 	testutil.Equal(t, "token", tok, "tok")
@@ -130,6 +130,7 @@ func TestHeaderExtractors(t *testing.T) {
 	testutil.Equal(t, "cred err", err != nil, false)
 
 	empty := httptest.NewRequest(http.MethodGet, rootPath, nil)
+	empty.Header.Set("X-Credential-ID", testCredID)
 	if _, err := authhelper.ExtractSessionToken(empty); err == nil {
 		t.Fatal("missing session token should error")
 	}
@@ -238,7 +239,7 @@ func TestPasskeyMutationsFailClosed(t *testing.T) {
 		t.Fatal("UpdatePasskey should fail with no backend")
 	}
 
-	user := &userresource.UserAsResource{ID: testUserID}
+	user := &userresource.User{ID: testUserID}
 	if err := authhelper.AttachPasskeyIdentity(testUserID, user, &webauthnlib.Credential{ID: []byte{1}}); err == nil {
 		t.Fatal("AttachPasskeyIdentity should fail with no backend")
 	}
@@ -291,19 +292,19 @@ func TestEnsureBootstrapAdminIsIdempotent(t *testing.T) {
 	adminRole := constants.BuiltInRoleAdmin
 	client := clients.GetUserClient()
 
-	authhelper.EnsureBootstrapAdmin(&userresource.UserAsResource{ID: testUserID, Email: bootstrapEmail}, bootstrapEmail, client)
+	authhelper.EnsureBootstrapAdmin(&userresource.User{ID: testUserID, Email: bootstrapEmail}, bootstrapEmail, client)
 	testutil.Equal(t, "patches after first login", len(patches), constants.DefaultIncrementValue)
 	first := patches[constants.DefaultInitValue]
 	testutil.Equal[any](t, "marker", first[constants.UserFieldBootstrap], true)
-	if first[constants.SpecFieldAssignedRolesIDs] == nil {
+	if first[constants.SpecFieldRoleRefs] == nil {
 		t.Fatalf("patch = %v, want the Admin role", first)
 	}
 
-	authhelper.EnsureBootstrapAdmin(&userresource.UserAsResource{
-		ID: testUserID, Email: bootstrapEmail, Bootstrap: true, AssignedRolesIDs: []*string{&adminRole},
+	authhelper.EnsureBootstrapAdmin(&userresource.User{
+		ID: testUserID, Email: bootstrapEmail, Bootstrap: true, RoleRefs: []*string{&adminRole},
 	}, bootstrapEmail, client)
-	authhelper.EnsureBootstrapAdmin(&userresource.UserAsResource{ID: "u-2", Email: testEmail}, testEmail, client)
-	authhelper.EnsureBootstrapAdmin(&userresource.UserAsResource{ID: "u-3", Email: bootstrapEmail}, testEmail, client)
+	authhelper.EnsureBootstrapAdmin(&userresource.User{ID: "u-2", Email: testEmail}, testEmail, client)
+	authhelper.EnsureBootstrapAdmin(&userresource.User{ID: "u-3", Email: bootstrapEmail}, testEmail, client)
 	testutil.Equal(t, "patches after a complete record, a non-bootstrap user and a stored-only bootstrap email",
 		len(patches), constants.DefaultIncrementValue)
 }

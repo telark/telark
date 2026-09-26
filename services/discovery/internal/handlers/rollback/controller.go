@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/data/resources/application"
 	"github.com/telark/discovery/internal/clients"
 	dconfig "github.com/telark/discovery/internal/config"
@@ -24,14 +25,16 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
+	kcoreapi "github.com/telark/kcore/crds/api"
+	crdview "github.com/telark/kcore/crds/view"
 	kcorefactory "github.com/telark/kcore/informers/factory"
 	kcorek8s "github.com/telark/kcore/k8sclient"
+	kcoreshared "github.com/telark/kcore/shared"
 )
 
 const (
@@ -44,9 +47,9 @@ const (
 var errRollbackLockBusy = errors.New(string(constants.ErrRollbackLockBusy))
 
 var crdGVR = schema.GroupVersionResource{
-	Group:    "erpi.telark",
-	Version:  "v1alpha1",
-	Resource: "applicationsasresources",
+	Group:    v1alpha1.ApplicationMetadata.BaseGroup,
+	Version:  v1alpha1.ApplicationMetadata.Version,
+	Resource: v1alpha1.ApplicationMetadata.Plural,
 }
 
 var kindRank = map[string]int{
@@ -196,7 +199,7 @@ func (c *Controller) reconcile(ctx context.Context, key string) error {
 		return err
 	}
 
-	if handled, err := c.failStaleInProgress(ctx, ns, name, spec); err != nil {
+	if handled, err := failStaleInProgress(ctx, name, spec); err != nil {
 		return err
 	} else if handled {
 		return nil
@@ -246,7 +249,7 @@ func (c *Controller) processPending(
 	if err := c.validateAndApplyRollback(procCtx, manifest, ns, name, spec, idx, pending); err != nil {
 		return nil
 	}
-	return c.finalizeRollbackSuccess(procCtx, ns, name, spec, pending, idx)
+	return c.finalizeRollbackSuccess(procCtx, name, spec, pending, idx)
 }
 
 // Holds the key the trigger/abort handlers take, so an abort cannot land
@@ -265,7 +268,7 @@ func (c *Controller) claimPending(
 	if err != nil || spec == nil {
 		return nil, invalidIndex, err
 	}
-	if err := c.patchRollbackStatus(ctx, ns, name, spec, idx, rollbackPatchOpts{
+	if err := patchRollbackStatus(ctx, name, spec, idx, rollbackPatchOpts{
 		Status: constants.RollbackStatusInProgress,
 	}); err != nil {
 		return nil, invalidIndex, fmt.Errorf(string(constants.ErrRollbackStatusPatchFailed), err)
@@ -317,17 +320,17 @@ func (c *Controller) validateAndApplyRollback(
 
 func (c *Controller) finalizeRollbackSuccess(
 	ctx context.Context,
-	ns, name string,
+	name string,
 	spec *application.Application,
 	pending *application.RollbackEntry,
 	idx int,
 ) error {
-	if err := c.appendHistoryChangeLog(ctx, ns, name, spec, pending); err != nil {
+	if err := appendHistoryChangeLog(ctx, name, spec, pending); err != nil {
 		logger.Error(fmt.Sprintf(string(constants.ErrRollbackHistoryAppendFailed), err))
 	}
 
 	now := time.Now().UTC()
-	if err := c.patchRollbackStatus(ctx, ns, name, spec, idx, rollbackPatchOpts{
+	if err := patchRollbackStatus(ctx, name, spec, idx, rollbackPatchOpts{
 		Status:      constants.RollbackStatusSuccess,
 		CompletedAt: &now,
 	}); err != nil {
@@ -393,7 +396,7 @@ func (c *Controller) failRollback(
 		CompletedAt: &now,
 	}
 	err := RecordWithRetry(ctx, func(recordCtx context.Context) error {
-		return c.patchRollbackStatus(recordCtx, ns, name, spec, idx, opts)
+		return patchRollbackStatus(recordCtx, name, spec, idx, opts)
 	})
 	if err != nil {
 		logger.Error(fmt.Sprintf(string(constants.ErrRollbackFailureRecordFailed), ns, name, message, err))
@@ -465,9 +468,9 @@ func (c *Controller) loadRollbackManifest(
 	return out, nil
 }
 
-func (c *Controller) failStaleInProgress(
+func failStaleInProgress(
 	ctx context.Context,
-	ns, name string,
+	name string,
 	spec *application.Application,
 ) (bool, error) {
 	for i := range spec.Rollbacks {
@@ -479,7 +482,7 @@ func (c *Controller) failStaleInProgress(
 			continue
 		}
 		now := time.Now().UTC()
-		if err := c.patchRollbackStatus(ctx, ns, name, spec, i, rollbackPatchOpts{
+		if err := patchRollbackStatus(ctx, name, spec, i, rollbackPatchOpts{
 			Status:      constants.RollbackStatusFailed,
 			ErrorMsg:    StaleSweepErrorMsg(rb.Error),
 			CompletedAt: &now,
@@ -524,9 +527,9 @@ func (c *Controller) refetchAndVerifyPending(
 	return nil, invalidIndex, nil
 }
 
-func (c *Controller) patchRollbackStatus(
+func patchRollbackStatus(
 	ctx context.Context,
-	ns, name string,
+	name string,
 	spec *application.Application,
 	idx int,
 	opts rollbackPatchOpts,
@@ -543,20 +546,21 @@ func (c *Controller) patchRollbackStatus(
 		updated[idx].CompletedAt = opts.CompletedAt
 	}
 
-	return c.patchSpec(ctx, ns, name, map[string]any{constants.RollbackRollbacksKey: updated})
+	return patchStatus(ctx, name, map[string]any{constants.RollbackRollbacksKey: updated})
 }
 
-func (c *Controller) patchSpec(ctx context.Context, ns, name string, spec map[string]any) error {
-	data, err := json.Marshal(map[string]any{constants.RollbackSpecKey: spec})
-	if err != nil {
-		return fmt.Errorf(string(constants.ErrRollbackMarshalPatchFailed), err)
+// Rollbacks and history are observed state: they live under .status, which a
+// main-resource patch would silently drop.
+func patchStatus(ctx context.Context, name string, status map[string]any) error {
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	patchCtx, cancel := context.WithTimeout(ctx, constants.RollbackPatchTimeout)
-	defer cancel()
-	_, err = c.dyn.Resource(crdGVR).
-		Namespace(ns).
-		Patch(patchCtx, name, types.MergePatchType, data, metav1.PatchOptions{})
-	return err
+	res := kcoreapi.PatchCustomResourceStatus(v1alpha1.ApplicationMetadata, name,
+		map[string]any{constants.RollbackStatusKey: status})
+	if res.Status != kcoreshared.StatusOK {
+		return fmt.Errorf(string(constants.ErrRollbackStatusWriteFailed), res.Status, res.Error)
+	}
+	return nil
 }
 
 func (c *Controller) applyAll(ctx context.Context, resources []unstructured.Unstructured) error {
@@ -658,9 +662,9 @@ func (c *Controller) getSnapshotManifestWithRetry(
 	return nil, lastErr
 }
 
-func (c *Controller) appendHistoryChangeLog(
+func appendHistoryChangeLog(
 	ctx context.Context,
-	ns, name string,
+	name string,
 	spec *application.Application,
 	entry *application.RollbackEntry,
 ) error {
@@ -691,7 +695,7 @@ func (c *Controller) appendHistoryChangeLog(
 	}
 
 	updated := append(slices.Clone(spec.History.ChangeLog), ch)
-	return c.patchSpec(ctx, ns, name, map[string]any{
+	return patchStatus(ctx, name, map[string]any{
 		constants.RollbackHistoryKey: map[string]any{
 			constants.RollbackChangeLogKey: updated,
 			// The diff derives its next generation from this field alone, so leaving it
@@ -702,12 +706,12 @@ func (c *Controller) appendHistoryChangeLog(
 }
 
 func extractSpec(cr *unstructured.Unstructured) (*application.Application, error) {
-	specMap, ok := cr.Object[constants.RollbackSpecKey].(map[string]any)
-	if !ok {
+	view := crdview.ToView(cr, v1alpha1.ApplicationMetadata)
+	if view == nil {
 		return nil, errors.New(string(constants.ErrRollbackMissingSpec))
 	}
 	var spec application.Application
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(specMap, &spec); err != nil {
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(view, &spec); err != nil {
 		return nil, err
 	}
 	return &spec, nil

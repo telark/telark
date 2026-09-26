@@ -36,8 +36,8 @@ func resolveUserPermissions(userID string) (*PermissionsResponse, error) {
 		return nil, err
 	}
 
-	roleMap := collectDirectRoles(user.AssignedRolesIDs)
-	collectInheritedRoles(user.AssignedGroupsIDs, roleMap)
+	roleMap := collectDirectRoles(user.RoleRefs)
+	collectInheritedRoles(user.GroupRefs, roleMap)
 
 	resolvedRoles := resolveRoles(roleMap)
 	return &PermissionsResponse{UserID: userID, Roles: resolvedRoles}, nil
@@ -66,19 +66,25 @@ func collectInheritedRoles(assignedGroupIDs []*string, roleMap map[string][]Role
 			lg.Error(fmt.Sprintf(string(constants.ErrFailedLoadGroup), groupID, err))
 			continue
 		}
-		for _, rid := range group.AssignedRolesIDs {
+		if group.DeletionTimestamp != nil {
+			continue
+		}
+		for _, rid := range group.RoleRefs {
 			roleMap[rid] = append(roleMap[rid], RoleSource{Kind: constants.RoleSourceInherited, GroupID: groupID})
 		}
 	}
 }
 
 func resolveRoles(roleMap map[string][]RoleSource) []ResolvedRole {
-	roleClient := clients.GetRoleClient()
+	roleClient := clients.GetAccessRoleClient()
 	resolvedRoles := make([]ResolvedRole, constants.DefaultInitValue, len(roleMap))
 	for roleID, sources := range roleMap {
-		role, err := roleClient.GetRoleByID(roleID)
+		role, err := roleClient.GetAccessRoleByID(roleID)
 		if err != nil {
 			lg.Error(fmt.Sprintf(string(constants.ErrFailedLoadRole), roleID, err))
+			continue
+		}
+		if role.DeletionTimestamp != nil {
 			continue
 		}
 		resolvedRoles = append(resolvedRoles, ResolvedRole{
@@ -106,7 +112,7 @@ func buildResolvedScopes(sps []roleresource.ScopeAndPermissions) []ResolvedScope
 	return scopes
 }
 
-func isRoleExpired(role *roleresource.RoleAsResource) bool {
+func isRoleExpired(role *roleresource.AccessRole) bool {
 	if role.Validity == nil {
 		return false
 	}
@@ -116,9 +122,10 @@ func isRoleExpired(role *roleresource.RoleAsResource) bool {
 	if role.Validity.ExpiresAt == nil {
 		return false
 	}
+	// Same rule as x-ware/authz: an unparsable expiry is expired, never permanent.
 	expiry, err := time.Parse(constants.TimeFormatRFC3339, *role.Validity.ExpiresAt)
 	if err != nil {
-		return false
+		return true
 	}
 	return time.Now().After(expiry)
 }

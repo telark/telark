@@ -54,12 +54,12 @@ func materialCases() []materialCase {
 		}, want: false},
 		{name: "priority", mutate: func(r *planseps.PrepareProtectionPlanRequest) { r.Priority = priorityHigh }, want: false},
 		{name: "participants", mutate: func(r *planseps.PrepareProtectionPlanRequest) {
-			r.ParticipantsIDs = []string{userID}
+			r.ParticipantRefs = []string{userID}
 		}, want: false},
 		{name: "environment", mutate: func(r *planseps.PrepareProtectionPlanRequest) {
-			r.EnvironmentID = strptr(envA)
+			r.EnvironmentRef = strptr(envA)
 		}, want: false},
-		{name: "tags", mutate: func(r *planseps.PrepareProtectionPlanRequest) { r.TagIDs = []string{tagA} }, want: false},
+		{name: "tags", mutate: func(r *planseps.PrepareProtectionPlanRequest) { r.TagRefs = []string{tagA} }, want: false},
 		{name: "exclusions kinds", mutate: func(r *planseps.PrepareProtectionPlanRequest) {
 			r.Scope.Exclusions = &plans.ProtectionPlanScopeExclusions{Kinds: []string{kindConfigMap}}
 		}, want: true},

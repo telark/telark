@@ -96,7 +96,7 @@ function buildOpts(rid) {
     case 'R37': return { pathParams: { id: pathProviders.roleID() } };
     case 'R44': return { body: bodies.categoryCreate() };
     case 'R45': return {};
-    case 'R46': return { pathParams: { id: pathProviders.categoryID() } };
+    case 'R46': return { pathParams: { id: pathProviders.categoryItem() } };
     default: throw new Error(`no opts for ${rid}`);
   }
 }

@@ -235,10 +235,10 @@ func TestWritePreSnapshotsReusesPendingSetUntilPublishLands(t *testing.T) {
 	ctx := context.Background()
 	stored := &applicationmodel.Application{}
 	const nextGen = 2
-	failed := &applicationmodel.Application{CRStatus: applicationmodel.CRStatusFailed}
+	failed := failedApp()
 	landed := &applicationmodel.Application{
-		CRStatus: applicationmodel.CRStatusPublished,
-		History:  applicationmodel.ApplicationHistory{Generation: nextGen},
+		Conditions: publishedApp().Conditions,
+		History:    applicationmodel.ApplicationHistory{Generation: nextGen},
 	}
 
 	var first []applicationmodel.ApplicationSnapshot
@@ -433,7 +433,7 @@ func TestFlushDropsPreImageTheLastFlushAlreadyRecorded(t *testing.T) {
 	ctx := context.Background()
 	r1, r2 := testDeployment(testRev1, constants.DefaultAddValue), testDeployment(testRev2, constants.DefaultAddValue)
 	key := resourceKey(r1)
-	published := &applicationmodel.Application{CRStatus: applicationmodel.CRStatusPublished}
+	published := publishedApp()
 
 	if err := inf.GetIndexer().Add(r2); err != nil {
 		t.Fatal(err)
@@ -527,7 +527,7 @@ func TestReconcileFlushesChangeMissedWhileUnobserved(t *testing.T) {
 		return nil
 	})
 	ctx := context.Background()
-	published := &applicationmodel.Application{CRStatus: applicationmodel.CRStatusPublished}
+	published := publishedApp()
 	m.rememberFlushedManifests(ctx, testAppName, published, []manifestdiff.ManifestPair{{Old: r1, New: r2}})
 	cm2 := testConfigMap("v2")
 	m.rememberFlushedManifests(ctx, testAppName, published, []manifestdiff.ManifestPair{{Old: testConfigMap("v1"), New: cm2}})
@@ -571,7 +571,7 @@ func TestReconcilePrefersRecordedPostImageOverSnapshot(t *testing.T) {
 		return nil
 	})
 	ctx := context.Background()
-	published := &applicationmodel.Application{CRStatus: applicationmodel.CRStatusPublished}
+	published := publishedApp()
 	m.rememberFlushedManifests(ctx, testAppName, published, []manifestdiff.ManifestPair{{Old: r1, New: r2}})
 
 	m.reconcileRecorded(ctx, []applicationmodel.Application{testApp()})
@@ -770,7 +770,7 @@ func TestRollbackMarkerFlushRecordsRestoredState(t *testing.T) {
 	m.coalesce = rejectFlush(t)
 	ctx := context.Background()
 	key := resourceKey(s1)
-	published := &applicationmodel.Application{CRStatus: applicationmodel.CRStatusPublished}
+	published := publishedApp()
 	m.rememberFlushedManifests(ctx, testAppName, published, []manifestdiff.ManifestPair{{Old: s1, New: s0}})
 	if err := mr.Set(constants.KeyPrefixRollbackApplying+testAppName, "1"); err != nil {
 		t.Fatal(err)
@@ -873,11 +873,23 @@ func TestReconcileBaselinesLiveWhenNewestGenerationHasNoPostStamp(t *testing.T) 
 	}
 
 	published := &applicationmodel.Application{
-		CRStatus: applicationmodel.CRStatusPublished,
-		History:  applicationmodel.ApplicationHistory{Generation: constants.TwoValue},
+		Conditions: publishedApp().Conditions,
+		History:    applicationmodel.ApplicationHistory{Generation: constants.TwoValue},
 	}
 	m.rememberFlushedManifests(ctx, testAppName, published, []manifestdiff.ManifestPair{{Old: testConfigMap("v1"), New: testConfigMap("v2")}})
 	if _, gen := m.postImages(ctx, testAppName); gen != constants.TwoValue {
 		t.Fatalf("post hash must carry the flushed generation, got %d", gen)
 	}
+}
+
+func publishedApp() *applicationmodel.Application {
+	app := &applicationmodel.Application{}
+	applicationscore.MarkPublished(app)
+	return app
+}
+
+func failedApp() *applicationmodel.Application {
+	app := &applicationmodel.Application{}
+	applicationscore.MarkPublishFailed(app)
+	return app
 }

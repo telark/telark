@@ -362,7 +362,7 @@ func TestComputeAndRepairSkipsVanishedApplication(t *testing.T) {
 		Name:     guardPlan,
 		Phase:    plans.PhaseActive,
 		Mode:     plans.ModeAudit,
-		Scope:    plans.ProtectionPlanScope{Type: plans.ScopeTypeApplications, ApplicationIDs: []string{aliveApp, doomedApp}},
+		Scope:    plans.ProtectionPlanScope{Type: plans.ScopeTypeApplications, ApplicationRefs: []string{aliveApp, doomedApp}},
 		Policies: []plans.ProtectionPlanPolicy{{TemplateID: "block-update"}},
 	}
 	rendered, err := dpolicies.Render(plan, both, nil)
@@ -406,7 +406,7 @@ func TestComputeAndRepairDeploysPoliciesTheRenderNowProduces(t *testing.T) {
 		Name:     guardPlan,
 		Phase:    plans.PhaseActive,
 		Mode:     plans.ModeEnforce,
-		Scope:    plans.ProtectionPlanScope{Type: plans.ScopeTypeApplications, ApplicationIDs: []string{aliveApp}},
+		Scope:    plans.ProtectionPlanScope{Type: plans.ScopeTypeApplications, ApplicationRefs: []string{aliveApp}},
 		Policies: []plans.ProtectionPlanPolicy{{TemplateID: "block-update"}},
 	}
 	resolved := map[string]dpolicies.ResolvedApp{aliveApp: app}

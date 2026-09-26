@@ -5,7 +5,7 @@ import (
 
 	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/metadata/base"
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	groupdata "github.com/telark/data/resources/group"
 	roledata "github.com/telark/data/resources/role"
 	userdata "github.com/telark/data/resources/user"
@@ -28,16 +28,16 @@ func UseGrantSource(s authz.GrantSource) {
 	source = s
 }
 
-func (crdSource) User(userID string) (*userdata.UserAsResource, error) {
-	return decode[userdata.UserAsResource](getByName(userID, metadata.UserAsResourceMetadata))
+func (crdSource) User(userID string) (*userdata.User, error) {
+	return decode[userdata.User](getByName(userID, metadata.UserMetadata))
 }
 
-func (crdSource) Group(groupID string) (*groupdata.GroupAsResource, error) {
-	return decode[groupdata.GroupAsResource](getByName(groupID, metadata.GroupAsResourceMetadata))
+func (crdSource) Group(groupID string) (*groupdata.Group, error) {
+	return decode[groupdata.Group](getByName(groupID, metadata.GroupMetadata))
 }
 
-func (crdSource) Role(roleID string) (*roledata.RoleAsResource, error) {
-	return decode[roledata.RoleAsResource](getByName(roleID, metadata.RoleAsResourceMetadata))
+func (crdSource) Role(roleID string) (*roledata.AccessRole, error) {
+	return decode[roledata.AccessRole](getByName(roleID, metadata.AccessRoleMetadata))
 }
 
 // The finder utilities fold every failure into "not found"; authz must keep a

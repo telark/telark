@@ -3,11 +3,7 @@ package forcesync
 import appresource "github.com/telark/data/resources/application"
 
 func patchBodyForPhase(block appresource.LastForceSync) map[string]any {
-	return map[string]any{
-		specKey: map[string]any{
-			lastForceSyncKey: block,
-		},
-	}
+	return map[string]any{lastForceSyncKey: block}
 }
 
 func queuedBlock(job Job) appresource.LastForceSync {

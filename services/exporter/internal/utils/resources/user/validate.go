@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	dataerrors "github.com/telark/data/errors"
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	userdata "github.com/telark/data/resources/user"
 	"github.com/telark/exporter/internal/constants"
 	resourcesshared "github.com/telark/exporter/internal/utils/resources/shared"
@@ -15,7 +15,7 @@ import (
 )
 
 func ValidateUserOrRespond(w http.ResponseWriter, userID string) bool {
-	return resourcesshared.ValidateResourceOrRespond(w, userID, metadata.UserAsResourceMetadata, constants.ErrUserNotFound)
+	return resourcesshared.ValidateResourceOrRespond(w, userID, metadata.UserMetadata, constants.ErrUserNotFound)
 }
 
 func CheckUsernameExists(username string) error {
@@ -24,7 +24,7 @@ func CheckUsernameExists(username string) error {
 	}
 
 	exists, err := sharedutils.CheckFieldValueExists(
-		metadata.UserAsResourceMetadata,
+		metadata.UserMetadata,
 		dataerrors.ErrGetRes,
 		constants.FieldUsername,
 		username,
@@ -100,7 +100,7 @@ func CheckIdentityExists(provider, issuer, subject string) error {
 	return err
 }
 
-func ValidateAndPrepareUser(user *userdata.UserAsResource, w http.ResponseWriter) error {
+func ValidateAndPrepareUser(user *userdata.User, w http.ResponseWriter) error {
 	for _, identity := range user.Identities {
 		if identity == nil {
 			continue
@@ -134,7 +134,7 @@ func ValidateAndPrepareUser(user *userdata.UserAsResource, w http.ResponseWriter
 	}
 
 	userID, err := resourcesshared.GenerateUniqueResourceID(
-		metadata.UserAsResourceMetadata,
+		metadata.UserMetadata,
 		constants.UserIDConfig,
 	)
 	if err != nil {

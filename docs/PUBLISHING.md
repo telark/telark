@@ -17,12 +17,15 @@ ever make anything public.
 
 ```sh
 echo "$CR_PAT" | helm registry login ghcr.io -u <your-gh-user> --password-stdin
+echo "$CR_PAT" | cosign login ghcr.io -u <your-gh-user> --password-stdin
 ```
+
+`make publish-charts` signs each chart right after pushing it, like the release workflow, so cosign needs its own login.
 
 ## 2. Package + push
 
 ```sh
-make publish-charts            # build deps, package both charts, push to $REGISTRY
+make publish-charts            # build deps, package both charts, push to $REGISTRY, cosign-sign each
 ```
 
 <details><summary>What that runs</summary>
@@ -36,18 +39,22 @@ helm dependency build charts/telark
 mkdir -p .cr-release
 helm package charts/telark-crds --destination .cr-release
 helm package charts/telark      --destination .cr-release
-for pkg in .cr-release/*.tgz; do helm push "$pkg" oci://ghcr.io/telark/charts; done
+for pkg in .cr-release/*.tgz; do
+  helm push "$pkg" oci://ghcr.io/telark/charts          # prints Digest: sha256:…
+  cosign sign --yes ghcr.io/telark/charts/<chart>@<digest>   # keyless, opens a browser login
+done
 ```
 </details>
 
-`helm push` prints the pushed reference and its `Digest: sha256:…` — keep it for signing.
+The signature is keyless (your OIDC identity, not the CI workflow's); to sign with a key instead, see step 5.
 
 ## 3. Verify the publish
 
 ```sh
 helm show chart oci://ghcr.io/telark/charts/telark --version <version>
 helm pull       oci://ghcr.io/telark/charts/telark --version <version>
-helm template t oci://ghcr.io/telark/charts/telark --version <version>
+helm template t oci://ghcr.io/telark/charts/telark --version <version> \
+  --set 'app.auth.bootstrap.admins={jane.doe@example.com}'
 ```
 
 ## 4. Deploy from the registry
@@ -65,6 +72,7 @@ NS=telark
 helm upgrade --install telark-release oci://ghcr.io/telark/charts/telark --version <version> \
   -n "$NS" --create-namespace \
   --set app.persistence.storageClass=<rwx-class> \
+  --set 'app.auth.bootstrap.admins={jane.doe@example.com}' \
   --wait --timeout 15m
 
 helm test telark-release -n "$NS"    # readiness probe against auth
@@ -116,3 +124,12 @@ Regenerate after any `values.yaml` change — CI fails if it drifts:
 ```sh
 make values-docs
 ```
+
+## Repository settings the workflows rely on
+
+The build and release workflows push version-bump commits to the branch they run from and hold registry credentials, the `ACCESS_TOKEN` PAT and `id-token: write` (cosign). The repository defines no GitHub environments, so nothing in the workflows asks for an approval; these settings are what keep them safe:
+
+- **Protect `main`**: require the CI checks and a CODEOWNERS review on pull requests, block force pushes and deletion. The bump commits are pushed with `GITHUB_TOKEN`, so either allow `github-actions[bot]` to bypass the pull-request rule or move the bumps to a bot branch merged by pull request.
+- **Restrict who can run workflows**: `workflow_dispatch` runs with the repository's secrets from any branch a writer names, so keep write access to maintainers. To require an approval per run, create an environment (Settings → Environments, for example `release`) with required reviewers and add `environment: release` to the build and release jobs.
+- **Tags are immutable**: protect `v*` tags (Settings → Rules → tag ruleset) here and in `telark/dashboard-ui`. A UI build refuses to re-tag an existing `vX.Y.Z` (`.github/scripts/tag-service-repo.sh`), so a rebuild of a released UI version needs a version bump (`patch`) rather than `re-build-current`.
+- **Scope the `ACCESS_TOKEN` PAT** to the repositories it pushes to (`telark/dashboard-ui` and the shared modules) with contents write only; the CI pull-request jobs no longer receive it.

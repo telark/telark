@@ -19,7 +19,7 @@ const (
 	NatsPublishMaxRetryDelay        = 30 * time.Second
 	ClusterVersionPatchMaxAttempts  = 5
 	ClusterVersionPatchRetryBackoff = 5 * time.Second
-	GlobalConfigReadyRetryBackoff   = 5 * time.Second
+	TelarkConfigReadyRetryBackoff   = 5 * time.Second
 	DefaultQueueSize                = 100
 	DefaultAddValue                 = 1
 	DefaultInitValue                = 0
@@ -38,6 +38,7 @@ const (
 	// rest
 	ApplicationJSON   = "application/json"
 	HeaderUserID      = "X-User-ID"
+	HeaderContentType = "Content-Type"
 	HeaderRetryAfter  = "Retry-After"
 	HeaderETag        = "ETag"
 	HeaderIfNoneMatch = "If-None-Match"
@@ -101,6 +102,14 @@ const (
 	ProtectionPlanDeployTimeout    = 30 * time.Second
 	ProtectionPlanLifecycleTimeout = 30 * time.Second
 	AppResetHandlerTimeout         = 30 * time.Second
+	// Heartbeat-extended plan locks: the TTL only has to outlive a stalled holder, never the budget.
+	PlanLockTTL               = 2 * ProtectionPlanDeployTimeout
+	PlanLockHeartbeatInterval = ProtectionPlanDeployTimeout / 3
+	CategoryReadTimeout       = 10 * time.Second
+	// Plan and rollback bodies are small JSON documents; anything larger is refused.
+	MaxRequestBodyBytes = 1 << 20
+	// The forward runs inside AppResetHandlerTimeout; this bounds the leader's own answer.
+	AppResetForwardTimeout = 20 * time.Second
 	// A handful of Redis GETs for one page of apps.
 	InsightsReadTimeout = 5 * time.Second
 	// Best-effort analyzer job XADD on the publish path; a slow Redis must never stall publishing.

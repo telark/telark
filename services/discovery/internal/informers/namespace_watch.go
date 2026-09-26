@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/telark/discovery/internal/constants"
-	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
+	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
 	kcoredynamic "github.com/telark/kcore/informers/dynamic"
 	"github.com/telark/kcore/resources/core"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -21,7 +21,7 @@ func nonExcludedNamespaceNames(ctx context.Context) (map[string]struct{}, error)
 	if err != nil {
 		return nil, err
 	}
-	ex := gcfghelper.FetchExcludedNamespaces(ctx)
+	ex := tcfghelper.FetchExcludedNamespaces(ctx)
 	out := make(map[string]struct{}, len(nsList))
 	for i := range nsList {
 		name := strings.TrimSpace(nsList[i].Name)

@@ -146,11 +146,11 @@ func (g *Generator) resolveLenient(
 	if plan.Scope.Type == plans.ScopeTypeNamespaces {
 		return plan.Scope.Namespaces, nil, nil
 	}
-	resolved, missing, err := g.resolveApps(ctx, plan.Scope.ApplicationIDs)
+	resolved, missing, err := g.resolveApps(ctx, plan.Scope.ApplicationRefs)
 	if err != nil {
 		return nil, nil, err
 	}
-	return applications.Namespaces(resolved, plan.Scope.ApplicationIDs), missing, nil
+	return applications.Namespaces(resolved, plan.Scope.ApplicationRefs), missing, nil
 }
 
 // One NX acquire, no wait: a busy lock skips only the write, never the merge.

@@ -6,7 +6,7 @@ import (
 
 	globalerrors "github.com/telark/data/errors"
 	"github.com/telark/data/messages"
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/informers"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
@@ -24,7 +24,7 @@ func ListApplications(w http.ResponseWriter, view string, fresh bool) {
 		SendApplicationList(w, shared.CreateKubernetesAPIData(shared.StatusOK, string(messages.SuccessListRes), list, nil), view)
 		return
 	}
-	SendApplicationList(w, api.ListCustomResources(metadata.ApplicationAsResourceMetadata), view)
+	SendApplicationList(w, api.ListCustomResources(metadata.ApplicationMetadata), view)
 }
 
 func SendApplicationList(w http.ResponseWriter, result shared.KubernetesAPIData, view string) {

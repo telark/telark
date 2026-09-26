@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	globalerrors "github.com/telark/data/errors"
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	resourcesshared "github.com/telark/data/resources/shared"
 	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/constants"
@@ -40,7 +40,7 @@ func GetCleanupViewByID(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if hidden[obj.GetName()] && target.Metadata.Kind == metadata.UserAsResourceMetadata.Kind {
+	if hidden[obj.GetName()] && target.Metadata.Kind == metadata.UserMetadata.Kind {
 		responseutils.LogAndSendResponse(w, http.StatusNotFound, response.OperationNotFound, string(constants.ErrUserNotFound), nil, nil)
 		return
 	}
@@ -87,7 +87,7 @@ func ListCleanupViews(w http.ResponseWriter, r *http.Request) {
 	}
 	views := make([]resourcesshared.CleanupView, constants.DefaultInitValue, len(list.Items))
 	for i := range list.Items {
-		if hidden[list.Items[i].GetName()] && target.Metadata.Kind == metadata.UserAsResourceMetadata.Kind {
+		if hidden[list.Items[i].GetName()] && target.Metadata.Kind == metadata.UserMetadata.Kind {
 			continue
 		}
 		views = append(views, projectCleanupView(&list.Items[i], target.RefKeys, hidden))

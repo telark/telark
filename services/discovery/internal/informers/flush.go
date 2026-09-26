@@ -167,7 +167,7 @@ func (m *Manager) rememberFlushedManifests(
 	if m.cfg.RDB == nil || len(pairs) == constants.DefaultInitValue {
 		return
 	}
-	if app == nil || app.CRStatus == applicationmodel.CRStatusFailed {
+	if app == nil || applicationscore.IsPublishFailed(app) {
 		return
 	}
 	fields := make(map[string]string, len(pairs))
@@ -310,10 +310,10 @@ func (m *Manager) writePreSnapshots(
 // A failed or unanswered publish leaves the files on disk for the next attempt;
 // anything else either referenced them or already ran the discard.
 func (m *Manager) settlePendingSnapshots(ctx context.Context, appName string, stored, app *applicationmodel.Application) {
-	if app == nil || app.CRStatus == applicationmodel.CRStatusFailed {
+	if app == nil || applicationscore.IsPublishFailed(app) {
 		return
 	}
-	if app.CRStatus == applicationmodel.CRStatusPublished && app.History.Generation > stored.History.Generation {
+	if applicationscore.IsPublished(app) && app.History.Generation > stored.History.Generation {
 		m.rememberPublishedGeneration(ctx, appName, app.History.Generation)
 	}
 	m.forgetPendingSnapshots(ctx, appName)
@@ -376,7 +376,7 @@ func logFlushResult(appName string, stored *applicationmodel.Application, res re
 	}
 	app := &data.Applications[idx]
 	lg.Info(fmt.Sprintf(string(constants.InfoInformersFlushResult),
-		appName, stored.History.Generation, app.History.Generation, app.CRStatus))
+		appName, stored.History.Generation, app.History.Generation, publishedState(app)))
 	return app
 }
 
@@ -454,4 +454,11 @@ func (m *Manager) manifestPairs(buf map[string]*unstructured.Unstructured) []man
 		pairs = append(pairs, manifestdiff.ManifestPair{Old: old.DeepCopy(), New: &unstructured.Unstructured{Object: cur}})
 	}
 	return pairs
+}
+
+func publishedState(app *applicationmodel.Application) string {
+	if c := applicationscore.PublishedCondition(app); c != nil {
+		return c.Reason
+	}
+	return applicationmodel.ConditionReasonPending
 }

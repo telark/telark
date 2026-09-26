@@ -3,7 +3,7 @@ package passkey
 import (
 	"net/http"
 
-	authmetadata "github.com/telark/data/metadata/auth"
+	authmetadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/exporters/generics"
 	passkeyutils "github.com/telark/exporter/internal/utils/auth/passkey"
 	"github.com/telark/exporter/internal/utils/concurrency"
@@ -48,5 +48,5 @@ func CreatePasskeyByUser(w http.ResponseWriter, body map[string]any, userID stri
 	lock.Lock()
 	defer lock.Unlock()
 
-	generics.GenericCreateCustomResource(w, authmetadata.UserPasskeyMetadata, passkeyName, spec)
+	generics.GenericCreateCustomResource(w, authmetadata.PasskeyMetadata, passkeyName, spec)
 }

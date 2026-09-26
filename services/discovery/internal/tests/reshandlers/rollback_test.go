@@ -120,12 +120,9 @@ const (
 	spoofedID = "u-spoofed"
 )
 
-type patchedRollbacks struct {
-	Rollbacks []applicationmodel.RollbackEntry `json:"rollbacks"`
-}
-
 type patchedApplication struct {
-	Spec patchedRollbacks `json:"spec"`
+	Rollbacks []applicationmodel.RollbackEntry `json:"rollbacks"`
+	Spec      map[string]any                   `json:"spec"`
 }
 
 func triggerRollbackTo(gen int) *httptest.ResponseRecorder {
@@ -235,13 +232,14 @@ func TestTriggerRollbackTakesTriggeredByFromCaller(t *testing.T) {
 	if err := json.Unmarshal((*patches)[constants.DefaultInitValue], &patched); err != nil {
 		t.Fatal(err)
 	}
-	testutil.Equal(t, "one entry", len(patched.Spec.Rollbacks), constants.DefaultAddValue)
-	testutil.Equal(t, "triggeredBy", patched.Spec.Rollbacks[constants.DefaultInitValue].TriggeredBy, callerID)
+	testutil.Equal(t, "rollbacks sent as a view key, not under spec", patched.Spec == nil, true)
+	testutil.Equal(t, "one entry", len(patched.Rollbacks), constants.DefaultAddValue)
+	testutil.Equal(t, "triggeredBy", patched.Rollbacks[constants.DefaultInitValue].TriggeredBy, callerID)
 }
 
-const crdApplicationPath = "../../../../../charts/telark-crds/templates/crds/resources/application.yaml"
+const crdApplicationPath = "../../../../../charts/telark-crds/templates/crds/applications.yaml"
 
-// The API server validates spec.rollbacks[].status against the CRD enum, so a
+// The API server validates status.rollbacks[].status against the CRD enum, so a
 // status this service writes but the enum omits makes the patch unpersistable:
 // the abort handler answered 500 and the entry stayed pending.
 func TestRollbackStatusesAreAcceptedByCRDEnum(t *testing.T) {

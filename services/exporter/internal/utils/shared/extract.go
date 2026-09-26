@@ -1,10 +1,12 @@
 package shared
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
@@ -23,11 +25,25 @@ func GetPathParam(w http.ResponseWriter, r *http.Request, param string) (string,
 	return requestutils.PathParam(w, r, param)
 }
 
+func GetQueryParam(w http.ResponseWriter, r *http.Request, param string) (string, error) {
+	value := r.URL.Query().Get(param)
+	if value == constants.EmptyString {
+		msg := fmt.Sprintf(string(dataerrors.ErrRestRequiredParam), param)
+		responseutils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationUnprocessed, msg, nil, nil)
+		return constants.EmptyString, errors.New(msg)
+	}
+	return value, nil
+}
+
 func GetSpec(w http.ResponseWriter, r *http.Request) (map[string]any, error) {
 	spec, err := requestutils.ParseRequestBody(r)
 	if err != nil {
+		status := http.StatusUnprocessableEntity
+		if errors.Is(err, requestutils.ErrRequestBodyTooLarge) {
+			status = http.StatusRequestEntityTooLarge
+		}
 		msg := fmt.Sprintf(string(dataerrors.ErrRestParseRequestBody), err)
-		responseutils.LogAndSendResponse(w, http.StatusUnprocessableEntity, response.OperationError, msg, nil, err)
+		responseutils.LogAndSendResponse(w, status, response.OperationError, msg, nil, err)
 		return nil, err
 	}
 	return spec, nil
@@ -47,11 +63,9 @@ func ExtractResourceNameFromRequest(r *http.Request) string {
 			return name
 		}
 	}
+	// Every by-name route ends with the name, so the last segment is the resource.
 	pathParts := strings.Split(r.URL.Path, "/")
-	if len(pathParts) >= constants.IndexSecondLastElementOffset {
-		return pathParts[len(pathParts)-constants.IndexSecondLastElementOffset]
-	}
-	return constants.EmptyString
+	return pathParts[len(pathParts)-constants.IndexLastElementOffset]
 }
 
 func LogAndReturnError(w http.ResponseWriter, statusCode int, errorMessage string, err error) {
@@ -88,13 +102,18 @@ func AddCreationDateToRequestBody(body map[string]any) {
 }
 
 func ExtractStructFromBody[T any](body map[string]any) (*T, error) {
+	if err := CheckCanonicalKeys[T](body); err != nil {
+		return nil, err
+	}
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
 		return nil, fmt.Errorf(string(dataerrors.ErrRestMarshalPayload), err)
 	}
 
 	var result T
-	if err := json.Unmarshal(bodyBytes, &result); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(bodyBytes))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&result); err != nil {
 		return nil, fmt.Errorf(string(dataerrors.ErrRestUnmarshalRequestBodyToJSON), err)
 	}
 
@@ -103,8 +122,22 @@ func ExtractStructFromBody[T any](body map[string]any) (*T, error) {
 
 func ExtractStructFromBodyIgnoringID[T any](body map[string]any) (*T, error) {
 	RemoveIDFromRequestBody(body)
-	AddCreationDateToRequestBody(body)
+	if _, declared := jsonFields(reflect.TypeFor[T]())[constants.FieldCreationDate]; declared {
+		AddCreationDateToRequestBody(body)
+	}
 	return ExtractStructFromBody[T](body)
+}
+
+func GetSpecFor[T any](w http.ResponseWriter, r *http.Request) (map[string]any, error) {
+	spec, err := GetSpec(w, r)
+	if err != nil {
+		return nil, err
+	}
+	if err := CheckCanonicalKeys[T](spec); err != nil {
+		responseutils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationError, err.Error(), nil, err)
+		return nil, err
+	}
+	return spec, nil
 }
 
 func GetHeader(w http.ResponseWriter, r *http.Request, headerName string) (string, error) {

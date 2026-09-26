@@ -20,7 +20,7 @@ const (
 	RollbackFieldManager = "telark-discovery-service"
 
 	// CRD schema keys.
-	RollbackSpecKey       = "spec"
+	RollbackStatusKey     = "status"
 	RollbackRollbacksKey  = "rollbacks"
 	RollbackHistoryKey    = "history"
 	RollbackChangeLogKey  = "changeLog"

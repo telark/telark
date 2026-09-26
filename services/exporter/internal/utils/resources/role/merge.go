@@ -5,7 +5,7 @@ import (
 	"github.com/telark/exporter/internal/constants"
 )
 
-func MergeRoleAndPreparePatchBody(existingRole, newRole *roledata.RoleAsResource, body map[string]any) *roledata.RoleAsResource {
+func MergeRoleAndPreparePatchBody(existingRole, newRole *roledata.AccessRole, body map[string]any) *roledata.AccessRole {
 	mergedRole := *existingRole
 
 	mergeBasicFields(&mergedRole, newRole)
@@ -16,7 +16,7 @@ func MergeRoleAndPreparePatchBody(existingRole, newRole *roledata.RoleAsResource
 	return &mergedRole
 }
 
-func mergeBasicFields(mergedRole, newRole *roledata.RoleAsResource) {
+func mergeBasicFields(mergedRole, newRole *roledata.AccessRole) {
 	if newRole.Name != constants.EmptyString {
 		mergedRole.Name = newRole.Name
 	}
@@ -26,12 +26,12 @@ func mergeBasicFields(mergedRole, newRole *roledata.RoleAsResource) {
 	if newRole.Description != constants.EmptyString {
 		mergedRole.Description = newRole.Description
 	}
-	if newRole.CategoryID != constants.EmptyString {
-		mergedRole.CategoryID = newRole.CategoryID
+	if newRole.CategoryRef != constants.EmptyString {
+		mergedRole.CategoryRef = newRole.CategoryRef
 	}
 }
 
-func mergeComplexFields(mergedRole, newRole *roledata.RoleAsResource, body map[string]any) {
+func mergeComplexFields(mergedRole, newRole *roledata.AccessRole, body map[string]any) {
 	if len(newRole.ScopesAndPermissions) > constants.DefaultInitValue {
 		mergedRole.ScopesAndPermissions = newRole.ScopesAndPermissions
 	}
@@ -50,7 +50,7 @@ func mergeComplexFields(mergedRole, newRole *roledata.RoleAsResource, body map[s
 	}
 }
 
-func handleValidityAutoRevoke(mergedRole *roledata.RoleAsResource, body map[string]any) {
+func handleValidityAutoRevoke(mergedRole *roledata.AccessRole, body map[string]any) {
 	if mergedRole.Validity != nil && mergedRole.Validity.Type == roledata.ValidityTypeTemporary {
 		if validityBody, ok := body[constants.FieldValidity].(map[string]any); ok {
 			validityBody[constants.FieldAutoRevoke] = mergedRole.Validity.AutoRevoke
@@ -58,7 +58,7 @@ func handleValidityAutoRevoke(mergedRole *roledata.RoleAsResource, body map[stri
 	}
 }
 
-func computePriorityAndVersion(existingRole, mergedRole *roledata.RoleAsResource, body map[string]any) {
+func computePriorityAndVersion(existingRole, mergedRole *roledata.AccessRole, body map[string]any) {
 	ComputeAndSetPriority(mergedRole)
 	body[constants.FieldPriority] = mergedRole.Priority
 

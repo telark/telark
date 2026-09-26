@@ -26,23 +26,23 @@ const (
 	statusPhaseActive = "active"
 )
 
-func inactive(role *roledata.RoleAsResource) *roledata.RoleAsResource {
+func inactive(role *roledata.AccessRole) *roledata.AccessRole {
 	role.Status = roledata.RoleStatusInactive
 	return role
 }
 
-func terminating(role *roledata.RoleAsResource) *roledata.RoleAsResource {
+func terminating(role *roledata.AccessRole) *roledata.AccessRole {
 	deleted := deletedTimestamp
 	role.DeletionTimestamp = &deleted
 	return role
 }
 
-func userHolding(id string, roleIDs, groupIDs []string) *userdata.UserAsResource {
-	return &userdata.UserAsResource{
-		ID:                id,
-		AssignedRolesIDs:  ptrs(roleIDs),
-		AssignedGroupsIDs: ptrs(groupIDs),
-		Status:            userdata.UserStatus{Phase: statusPhaseActive},
+func userHolding(id string, roleIDs, groupIDs []string) *userdata.User {
+	return &userdata.User{
+		ID:        id,
+		RoleRefs:  ptrs(roleIDs),
+		GroupRefs: ptrs(groupIDs),
+		Status:    userdata.UserStatus{Phase: statusPhaseActive},
 	}
 }
 
@@ -54,13 +54,13 @@ func ptrs(ids []string) []*string {
 	return out
 }
 
-func fakeUsers() map[string]*userdata.UserAsResource {
+func fakeUsers() map[string]*userdata.User {
 	deleted := deletedTimestamp
 	bootstrap := userHolding(userBootstrap, []string{roleAllAdmin}, nil)
 	bootstrap.Bootstrap = true
 	gone := userHolding(userTerminating, nil, nil)
 	gone.DeletionTimestamp = &deleted
-	return map[string]*userdata.UserAsResource{
+	return map[string]*userdata.User{
 		callerID:        userHolding(callerID, []string{roleUsersOwner}, nil),
 		victimID:        userHolding(victimID, nil, nil),
 		userPlain:       userHolding(userPlain, []string{roleUsersOwner}, []string{groupPlain}),
@@ -72,12 +72,12 @@ func fakeUsers() map[string]*userdata.UserAsResource {
 	}
 }
 
-func fakeGroups() map[string]*groupdata.GroupAsResource {
+func fakeGroups() map[string]*groupdata.Group {
 	deleted := deletedTimestamp
-	return map[string]*groupdata.GroupAsResource{
-		groupAdmin:       {ID: groupAdmin, AssignedRolesIDs: []string{roleAllAdmin}},
-		groupPlain:       {ID: groupPlain, AssignedRolesIDs: []string{roleUsersOwner}},
+	return map[string]*groupdata.Group{
+		groupAdmin:       {ID: groupAdmin, RoleRefs: []string{roleAllAdmin}},
+		groupPlain:       {ID: groupPlain, RoleRefs: []string{roleUsersOwner}},
 		groupTerminating: {ID: groupTerminating, DeletionTimestamp: &deleted},
-		groupAdminGone:   {ID: groupAdminGone, AssignedRolesIDs: []string{roleAllAdmin}, DeletionTimestamp: &deleted},
+		groupAdminGone:   {ID: groupAdminGone, RoleRefs: []string{roleAllAdmin}, DeletionTimestamp: &deleted},
 	}
 }

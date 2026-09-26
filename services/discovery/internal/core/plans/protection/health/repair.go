@@ -29,9 +29,8 @@ func repairIfDrifted(
 	if plan.Phase != plans.PhaseActive || !needsRepair(result) {
 		return result, nil
 	}
-	// Cancel/Terminate delete the policies before the phase patch lands, and this
-	// path is not leader-gated: without a fresh phase read a concurrent check would
-	// redeploy them onto a plan that is about to become terminal, orphaning them.
+	// The controller's plan list can predate a Cancel or Terminate: without a fresh phase read
+	// the repair would redeploy policies onto a plan that just became terminal, orphaning them.
 	stillActive, err := activeAtSource(deps, plan.ID)
 	if err != nil {
 		deps.Logger.Error(formatErr(stagePhaseRecheck, plan.ID, err))

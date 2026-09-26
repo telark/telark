@@ -1,6 +1,7 @@
 package authz
 
 import (
+	"strings"
 	"testing"
 
 	roledata "github.com/telark/data/resources/role"
@@ -68,25 +69,26 @@ func TestOnlyProbesArePublic(t *testing.T) {
 func TestScopelessRoutesAreGuarded(t *testing.T) {
 	expected := map[string]bool{
 		// Narrowed to the caller by GuardSelfUser / GuardSelfSessionToken.
-		"GET /api/v1/auth/sessions/{userId}/get":             true,
-		"GET /api/v1/auth/sessions/tokens/{token}/get":       true,
-		"DELETE /api/v1/auth/sessions/tokens/{token}/delete": true,
-		"GET /api/v1/notifications/get":                      true,
-		"PATCH /api/v1/notifications/{id}/markasread":        true,
-		"POST /api/v1/notifications/markallread":             true,
-		"DELETE /api/v1/notifications/clear":                 true,
+		"GET /api/v1/auth/sessions":         true,
+		"GET /api/v1/auth/sessions/self":    true,
+		"DELETE /api/v1/auth/sessions/self": true,
+		// Narrowed to the caller's own sessions by GuardOwnSessionName.
+		"DELETE /api/v1/auth/sessions/{name}":  true,
+		"GET /api/v1/notifications":            true,
+		"POST /api/v1/notifications/{id}/read": true,
+		"POST /api/v1/notifications/read":      true,
+		"DELETE /api/v1/notifications":         true,
 		// Narrowed to the category's own scope by GuardCategoryScope.
-		"POST /api/v1/classification/categories/create":        true,
-		"PATCH /api/v1/classification/categories/{id}/patch":   true,
-		"DELETE /api/v1/classification/categories/{id}/delete": true,
-		// Reference data needed to render any list.
-		"GET /api/v1/classification/categories/get":               true,
-		"GET /api/v1/classification/categories/{id}/get":          true,
-		"GET /api/v1/classification/categories/scope/{scope}/get": true,
-		// Narrowed field by field by GuardGlobalConfigPatch.
-		"PATCH /api/v1/resources/globalconfig/patch": true,
+		"POST /api/v1/categories":        true,
+		"PATCH /api/v1/categories/{id}":  true,
+		"DELETE /api/v1/categories/{id}": true,
+		// Reference data needed to render any list (?scope= narrows the list).
+		"GET /api/v1/categories":      true,
+		"GET /api/v1/categories/{id}": true,
+		// Narrowed field by field by GuardConfigPatch.
+		"PATCH /api/v1/config": true,
 		// Narrowed to the profile owner, and per privileged field, by GuardUserPatch.
-		"PATCH /api/v1/resources/users/{id}/patch": true,
+		"PATCH /api/v1/users/{id}": true,
 	}
 
 	for key, requirement := range authz.Requirements() {
@@ -99,10 +101,9 @@ func TestScopelessRoutesAreGuarded(t *testing.T) {
 // Protection plans are their own feature, not part of applications.
 func TestProtectionPlansUseTheirOwnScope(t *testing.T) {
 	planRoutes := []string{
-		"GET /api/v1/plans/protection/get",
-		"GET /api/v1/plans/protection/{id}/get",
-		"POST /api/v1/plans/protection/create",
-		"PATCH /api/v1/plans/protection/{id}/patch",
+		"GET /api/v1/protectionplans",
+		"GET /api/v1/protectionplans/{id}",
+		"POST /api/v1/protectionplans",
 	}
 
 	requirements := authz.Requirements()
@@ -120,10 +121,15 @@ func TestProtectionPlansUseTheirOwnScope(t *testing.T) {
 
 // Users delete through discovery's clear route, which removes the deployed
 // policies first; a session reaching the CR delete would leave them enforcing.
-func TestPlanDeleteIsInternal(t *testing.T) {
-	key := "DELETE /api/v1/plans/protection/{id}/delete"
-	if got := authz.Requirements()[key]; got != xauthz.Internal {
-		t.Errorf("plan route %q = %+v, want Internal", key, got)
+// Edits likewise go through discovery, which owns the plan lifecycle.
+func TestPlanDeleteAndPatchAreInternal(t *testing.T) {
+	for _, key := range []string{
+		"DELETE /api/v1/protectionplans/{id}",
+		"PATCH /api/v1/protectionplans/{id}",
+	} {
+		if got := authz.Requirements()[key]; got != xauthz.Internal {
+			t.Errorf("plan route %q = %+v, want Internal", key, got)
+		}
 	}
 }
 
@@ -131,15 +137,57 @@ func TestPlanDeleteIsInternal(t *testing.T) {
 // a session reaching these would forge state or leave discovery's Redis stale.
 func TestApplicationAuthoringRoutesAreInternal(t *testing.T) {
 	keys := []string{
-		"POST /api/v1/resources/applications/create",
-		"DELETE /api/v1/resources/applications/{name}/delete",
-		"POST /api/v1/snapshots/create",
-		"DELETE /api/v1/snapshots/{id}/delete",
+		"POST /api/v1/applications",
+		"DELETE /api/v1/applications/{name}",
+		"POST /api/v1/internal/snapshots",
+		"DELETE /api/v1/snapshots/{id}",
 	}
 	requirements := authz.Requirements()
 	for _, key := range keys {
 		if got := requirements[key]; got != xauthz.Internal {
-			t.Errorf("route %q = %+v, want Internal", key, got)
+			t.Errorf(wantInternalFmt, key, got)
+		}
+	}
+}
+
+const wantInternalFmt = "route %q = %+v, want Internal"
+
+// The internal/ prefix is the contract peers and the UI's nginx rely on: every
+// route under it is service-only, and a gateway can refuse the whole prefix.
+func TestInternalPrefixRoutesAreInternal(t *testing.T) {
+	var found int
+	for key, requirement := range authz.Requirements() {
+		if !strings.Contains(key, " /api/v1/internal/") {
+			continue
+		}
+		found++
+		if requirement != xauthz.Internal {
+			t.Errorf(wantInternalFmt, key, requirement)
+		}
+	}
+	if found == constants.DefaultInitValue {
+		t.Fatal("no internal/ route found; the scan is broken")
+	}
+}
+
+// Service-only lookups moved under internal/ so no query variant of a user
+// route can share the list route's requirement.
+func TestServiceOnlyRoutesAreInternal(t *testing.T) {
+	for _, key := range []string{
+		"GET /api/v1/internal/users/by-username/{username}",
+		"GET /api/v1/internal/users/by-email/{email}",
+		"GET /api/v1/internal/users/by-identity",
+		"POST /api/v1/internal/auth/users/{userId}/sessions",
+		"PATCH /api/v1/auth/sessions/self",
+		"POST /api/v1/internal/auth/passkeys",
+		"GET /api/v1/internal/auth/passkeys",
+		"GET /api/v1/internal/auth/passkeys/{credentialId}",
+		"PATCH /api/v1/internal/auth/passkeys/{credentialId}",
+		"DELETE /api/v1/internal/auth/passkeys/{credentialId}",
+		"POST /api/v1/internal/notifications",
+	} {
+		if got := authz.Requirements()[key]; got != xauthz.Internal {
+			t.Errorf(wantInternalFmt, key, got)
 		}
 	}
 }

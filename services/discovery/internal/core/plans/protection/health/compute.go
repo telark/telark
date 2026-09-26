@@ -26,7 +26,7 @@ func Compute(ctx context.Context, deps Deps, plan *plans.ProtectionPlan) (Result
 	if err != nil {
 		return Result{}, err
 	}
-	resolved, resolveErr := resolveApps(ctx, deps, planApplicationIDs(plan))
+	resolved, resolveErr := resolveApps(ctx, deps, planApplicationRefs(plan))
 	return computeFrom(plan, snapshot, resolved, resolveErr), nil
 }
 
@@ -65,11 +65,11 @@ func resolveApps(ctx context.Context, deps Deps, ids []string) (map[string]polic
 	return resolved, err
 }
 
-func planApplicationIDs(plan *plans.ProtectionPlan) []string {
+func planApplicationRefs(plan *plans.ProtectionPlan) []string {
 	if plan.Scope.Type != plans.ScopeTypeApplications {
 		return nil
 	}
-	return plan.Scope.ApplicationIDs
+	return plan.Scope.ApplicationRefs
 }
 
 // What the current renderer produces for the plan, by policy name. nil when it cannot be known
@@ -100,7 +100,7 @@ func renderable(plan *plans.ProtectionPlan, resolved map[string]policies.Resolve
 		return plan
 	}
 	target := *plan
-	target.Scope.ApplicationIDs = slices.DeleteFunc(slices.Clone(plan.Scope.ApplicationIDs), func(id string) bool {
+	target.Scope.ApplicationRefs = slices.DeleteFunc(slices.Clone(plan.Scope.ApplicationRefs), func(id string) bool {
 		return len(resolved[id].Namespaces) == constants.DefaultInitValue
 	})
 	return &target
@@ -155,6 +155,7 @@ func listPolicyItems(
 
 func snapshotOf(item *unstructured.Unstructured) policySnapshot {
 	return policySnapshot{
+		created:       item.GetCreationTimestamp().Time,
 		namespace:     item.GetNamespace(),
 		ready:         readReady(item),
 		failureAction: readFailureAction(item),

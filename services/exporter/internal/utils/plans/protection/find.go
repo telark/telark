@@ -3,7 +3,7 @@ package protection
 import (
 	"net/http"
 
-	plansmd "github.com/telark/data/metadata/plans"
+	plansmd "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/constants"
 	resourcesshared "github.com/telark/exporter/internal/utils/resources/shared"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"

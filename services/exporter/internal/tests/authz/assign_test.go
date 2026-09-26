@@ -29,20 +29,20 @@ var errBackend = errors.New("apiserver unreachable")
 // Ids absent from the maps answer not found, like a dangling reference in a CR,
 // so the older tests keep their meaning.
 type fakeSource struct {
-	users  map[string]*userdata.UserAsResource
-	groups map[string]*groupdata.GroupAsResource
-	roles  map[string]*roledata.RoleAsResource
+	users  map[string]*userdata.User
+	groups map[string]*groupdata.Group
+	roles  map[string]*roledata.AccessRole
 }
 
-func (f fakeSource) User(userID string) (*userdata.UserAsResource, error) {
+func (f fakeSource) User(userID string) (*userdata.User, error) {
 	return lookup(f.users, userID)
 }
 
-func (f fakeSource) Group(groupID string) (*groupdata.GroupAsResource, error) {
+func (f fakeSource) Group(groupID string) (*groupdata.Group, error) {
 	return lookup(f.groups, groupID)
 }
 
-func (f fakeSource) Role(roleID string) (*roledata.RoleAsResource, error) {
+func (f fakeSource) Role(roleID string) (*roledata.AccessRole, error) {
 	if roleID == roleUnreadable {
 		return nil, errBackend
 	}
@@ -57,8 +57,8 @@ func lookup[T any](records map[string]*T, id string) (*T, error) {
 	return record, nil
 }
 
-func roleGranting(name, scope string, level roledata.PermissionLevel) *roledata.RoleAsResource {
-	return &roledata.RoleAsResource{
+func roleGranting(name, scope string, level roledata.PermissionLevel) *roledata.AccessRole {
+	return &roledata.AccessRole{
 		Name:                 name,
 		Status:               roledata.RoleStatusActive,
 		ScopesAndPermissions: []roledata.ScopeAndPermissions{{Scope: scope, Level: level}},
@@ -69,7 +69,7 @@ func TestMain(m *testing.M) {
 	authz.UseGrantSource(fakeSource{
 		users:  fakeUsers(),
 		groups: fakeGroups(),
-		roles: map[string]*roledata.RoleAsResource{
+		roles: map[string]*roledata.AccessRole{
 			roleAllReadOnly: roleGranting(roleAllReadName, roledata.ScopeAll, roledata.PermissionLevelReadOnly),
 			roleUsersOwner:  roleGranting("users-owner", roledata.ScopeUsers, roledata.PermissionLevelOwner),
 			roleUsersAdmin:  roleGranting("users-admin", roledata.ScopeUsers, roledata.PermissionLevelAdmin),
@@ -87,7 +87,7 @@ func assigning(roleIDs ...string) map[string]any {
 	for _, id := range roleIDs {
 		ids = append(ids, id)
 	}
-	return map[string]any{constants.FieldAssignedRolesIDs: ids}
+	return map[string]any{constants.FieldRoleRefs: ids}
 }
 
 // The escalation seen live: a users Owner holding nothing outside users handed
@@ -168,7 +168,7 @@ func TestGuardUserPatchCapsOnlyAddedRoles(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			got := authz.GuardUserPatch(w, requestAs(usersOwner), &userdata.UserAsResource{ID: victimID, AssignedRolesIDs: tt.existing}, tt.body)
+			got := authz.GuardUserPatch(w, requestAs(usersOwner), &userdata.User{ID: victimID, RoleRefs: tt.existing}, tt.body)
 			if got != tt.want {
 				t.Fatalf("GuardUserPatch = %v, want %v (%d %s)", got, tt.want, w.Code, w.Body.String())
 			}

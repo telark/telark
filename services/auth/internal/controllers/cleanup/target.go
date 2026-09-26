@@ -12,14 +12,14 @@ type refSpec struct {
 
 var targetRefs = map[string][]refSpec{
 	finalizers.ResourceTypeUsers: {
-		{ResourceType: finalizers.ResourceTypeGroups, ArrayField: constants.SpecFieldAssignedUsersIDs},
+		{ResourceType: finalizers.ResourceTypeGroups, ArrayField: constants.SpecFieldUserRefs},
 	},
 	finalizers.ResourceTypeGroups: {
-		{ResourceType: finalizers.ResourceTypeUsers, ArrayField: constants.SpecFieldAssignedGroupsIDs},
+		{ResourceType: finalizers.ResourceTypeUsers, ArrayField: constants.SpecFieldGroupRefs},
 	},
 	finalizers.ResourceTypeRoles: {
-		{ResourceType: finalizers.ResourceTypeUsers, ArrayField: constants.SpecFieldAssignedRolesIDs},
-		{ResourceType: finalizers.ResourceTypeGroups, ArrayField: constants.SpecFieldAssignedRolesIDs},
+		{ResourceType: finalizers.ResourceTypeUsers, ArrayField: constants.SpecFieldRoleRefs},
+		{ResourceType: finalizers.ResourceTypeGroups, ArrayField: constants.SpecFieldRoleRefs},
 	},
 }
 

@@ -10,7 +10,7 @@ import (
 	authhelper "github.com/telark/auth/internal/helpers/auth"
 	oidchelper "github.com/telark/auth/internal/helpers/oidc"
 	"github.com/telark/auth/internal/helpers/shared"
-	globalconfigresource "github.com/telark/data/resources/globalconfig"
+	telarkconfigresource "github.com/telark/data/resources/telarkconfig"
 	userresource "github.com/telark/data/resources/user"
 )
 
@@ -76,7 +76,7 @@ func GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func isOIDCConfigured(w http.ResponseWriter, oidc globalconfigresource.OIDCConfig) bool {
+func isOIDCConfigured(w http.ResponseWriter, oidc telarkconfigresource.OIDCConfig) bool {
 	if oidchelper.Usable(oidc) {
 		return true
 	}
@@ -94,7 +94,7 @@ func isEmailVerified(w http.ResponseWriter, claims *oidchelper.GoogleClaims) boo
 	return true
 }
 
-func resolveOIDCUser(w http.ResponseWriter, claims *oidchelper.GoogleClaims) (*userresource.UserAsResource, bool) {
+func resolveOIDCUser(w http.ResponseWriter, claims *oidchelper.GoogleClaims) (*userresource.User, bool) {
 	userClient := clients.GetUserClient()
 	user, err := userClient.GetUserByIdentity(constants.IdentityProviderGoogle, claims.Issuer, claims.Subject)
 	if err == nil {

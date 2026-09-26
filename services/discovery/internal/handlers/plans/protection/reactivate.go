@@ -26,8 +26,14 @@ func Reactivate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), constants.ProtectionPlanLifecycleTimeout)
+	ctx, cancel := context.WithTimeout(detached(r), constants.ProtectionPlanLifecycleTimeout)
 	defer cancel()
+
+	release, ok := lockPlanDecision(ctx, w, planID)
+	if !ok {
+		return
+	}
+	defer release()
 
 	plan, err := svc.Reactivate(ctx, userID, planID)
 	if err != nil {

@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	dataerrors "github.com/telark/data/errors"
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	userdata "github.com/telark/data/resources/user"
 	"github.com/telark/exporter/internal/constants"
 	resourcesshared "github.com/telark/exporter/internal/utils/resources/shared"
@@ -14,8 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func ExtractUserSpecFromRequestBody(body map[string]any) (*userdata.UserAsResource, error) {
-	user, err := sharedutils.ExtractStructFromBodyIgnoringID[userdata.UserAsResource](body)
+func ExtractUserSpecFromRequestBody(body map[string]any) (*userdata.User, error) {
+	user, err := sharedutils.ExtractStructFromBodyIgnoringID[userdata.User](body)
 	if err != nil {
 		return nil, err
 	}
@@ -24,14 +24,14 @@ func ExtractUserSpecFromRequestBody(body map[string]any) (*userdata.UserAsResour
 		user.Status.Phase = string(userdata.AccountPhaseActive)
 	}
 
-	user.AssignedRolesIDs = resourcesshared.DedupePtrIDs(user.AssignedRolesIDs)
-	user.AssignedGroupsIDs = resourcesshared.DedupePtrIDs(user.AssignedGroupsIDs)
+	user.RoleRefs = resourcesshared.DedupePtrIDs(user.RoleRefs)
+	user.GroupRefs = resourcesshared.DedupePtrIDs(user.GroupRefs)
 
 	return user, nil
 }
 
 func GetUsernameFromUser(userID string) (string, error) {
-	userResource := api.GetCustomResourceByName(userID, metadata.UserAsResourceMetadata)
+	userResource := api.GetCustomResourceByName(userID, metadata.UserMetadata)
 	if userResource.Error != nil || userResource.Status != http.StatusOK {
 		return constants.EmptyString, errors.New(string(constants.ErrUserNotFound))
 	}
@@ -41,7 +41,7 @@ func GetUsernameFromUser(userID string) (string, error) {
 		return constants.EmptyString, errors.New(string(constants.ErrUserNotFound))
 	}
 
-	userStruct, err := sharedutils.UnstructuredToStruct[userdata.UserAsResource](
+	userStruct, err := sharedutils.UnstructuredToStruct[userdata.User](
 		user,
 		dataerrors.ErrGetRes,
 		dataerrors.ErrGetRes,

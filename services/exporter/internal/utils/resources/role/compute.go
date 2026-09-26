@@ -8,23 +8,23 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func ExtractRoleFromUnstructured(resource *unstructured.Unstructured) (*roledata.RoleAsResource, error) {
-	return sharedutils.SpecToStruct[roledata.RoleAsResource](resource)
+func ExtractRoleFromUnstructured(resource *unstructured.Unstructured) (*roledata.AccessRole, error) {
+	return sharedutils.SpecToStruct[roledata.AccessRole](resource)
 }
 
-func ComputeAndSetPriority(role *roledata.RoleAsResource) {
+func ComputeAndSetPriority(role *roledata.AccessRole) {
 	role.Priority = rolepriority.Calculate(role)
 }
 
-func ComputeAndSetVersion(role *roledata.RoleAsResource) {
+func ComputeAndSetVersion(role *roledata.AccessRole) {
 	role.Version = roleversion.Initialize()
 }
 
-func ComputeAndBumpVersion(role *roledata.RoleAsResource, currentVersion string, changeType roleversion.ChangeType) {
+func ComputeAndBumpVersion(role *roledata.AccessRole, currentVersion string, changeType roleversion.ChangeType) {
 	role.Version = roleversion.Bump(currentVersion, changeType)
 }
 
-func DetectRoleChangeType(existingRole, newRole *roledata.RoleAsResource) roleversion.ChangeType {
+func DetectRoleChangeType(existingRole, newRole *roledata.AccessRole) roleversion.ChangeType {
 	if !scopesEqual(existingRole.ScopesAndPermissions, newRole.ScopesAndPermissions) {
 		return roleversion.ChangeTypeMajor
 	}
@@ -35,7 +35,7 @@ func DetectRoleChangeType(existingRole, newRole *roledata.RoleAsResource) roleve
 	if existingRole.Description != newRole.Description {
 		return roleversion.ChangeTypeMinor
 	}
-	if existingRole.CategoryID != newRole.CategoryID {
+	if existingRole.CategoryRef != newRole.CategoryRef {
 		return roleversion.ChangeTypeMinor
 	}
 

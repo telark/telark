@@ -42,3 +42,11 @@ app.kubernetes.io/instance: {{ .root.Release.Name }}
 app.kubernetes.io/component: {{ . }}
 {{- end }}
 {{- end -}}
+
+{{/*
+API group of every telark CRD. Constant so the Go services and the CRDs never
+disagree; app.name only prefixes object names.
+*/}}
+{{- define "telark.apiGroup" -}}
+telark.io
+{{- end -}}

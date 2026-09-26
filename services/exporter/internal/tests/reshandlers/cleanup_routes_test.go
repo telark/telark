@@ -10,7 +10,7 @@ import (
 	cleanuphandler "github.com/telark/exporter/internal/handlers/resources/cleanup"
 	"github.com/telark/rest/base"
 	restconstants "github.com/telark/rest/constants"
-	cleanupendpoints "github.com/telark/rest/endpoints/resources/cleanup"
+	cleanupendpoints "github.com/telark/rest/endpoints/cleanup"
 	"github.com/telark/rest/router"
 )
 

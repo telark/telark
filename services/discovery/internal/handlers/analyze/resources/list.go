@@ -31,7 +31,7 @@ type NamespaceResourcesResponse struct {
 
 func ListNamespaceResources(w http.ResponseWriter, r *http.Request) {
 	namespace, err := sharedhelper.GetPathParam(w, r, constants.NamespaceParam)
-	if err != nil {
+	if err != nil || !analyzeshared.NamespaceListable(w, r, namespace) {
 		return
 	}
 

@@ -35,9 +35,9 @@ import (
 	applicationhandler "github.com/telark/discovery/internal/handlers/resources/applications"
 	"github.com/telark/discovery/internal/handlers/rollback"
 	"github.com/telark/discovery/internal/helpers/async"
-	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
 	redishelper "github.com/telark/discovery/internal/helpers/redis"
 	sharedhelper "github.com/telark/discovery/internal/helpers/shared"
+	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
 	"github.com/telark/discovery/internal/informers"
 	"github.com/telark/discovery/internal/routes"
 	"github.com/telark/discovery/internal/startup"
@@ -132,9 +132,9 @@ func startMainService() {
 
 	go startServerWithRecovery(server)
 	go startBootstrapWithRecovery()
-	startup.EnsureGlobalConfigReadyAsync(serviceCtx)
+	startup.EnsureTelarkConfigReadyAsync(serviceCtx)
 	startup.PatchClusterVersionAsync(serviceCtx)
-	gcfghelper.StartExcludedNamespacesSync(serviceCtx)
+	tcfghelper.StartExcludedNamespacesSync(serviceCtx)
 }
 
 func startServerWithRecovery(server *http.Server) {

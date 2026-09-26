@@ -6,8 +6,11 @@ Helm chart for [telark](https://telark.io) — a protection gate for your Kubern
 
 ```sh
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
-  --set app.persistence.storageClass=<rwx-class>
+  --set app.persistence.storageClass=<rwx-class> \
+  --set 'app.auth.bootstrap.admins={jane.doe@example.com}'
 ```
+
+Set your own admin email: the chart ships none and refuses to render without one ([First admin](../../docs/INSTALL.md#2-first-admin)).
 
 `standard` and `performance` run two exporter replicas on a shared ReadWriteMany snapshot volume, so name a ReadWriteMany class (`efs-sc` on EKS with the EFS CSI driver); the install fails early without one. On a one-node cluster pass `--set app.singleNode=true` instead — one replica on ReadWriteOnce, any default class works (`minimal` always runs that way).
 
@@ -20,7 +23,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 
 `app.mode` sizes telark's own services; the subcharts (redis/nats/kyverno/metrics-server/ollama) ship fixed production-grade defaults owned by the chart, identical in every mode. Capacity, measured 2026-09-18: `minimal` handles a few hundred applications; `standard` was verified at 2 000 applications (three discovery replicas, rediscovery of a deleted 100-app namespace ≈ 3.5 min); `performance` is for clusters beyond that. Full guide: [docs/INSTALL.md](../../docs/INSTALL.md).
 
-**Upgrade order:** when CRDs are managed out of band (`crds.enabled=false`), upgrade `telark-crds` before `telark`: the protection plan `pending_approval` phase and approval fields are rejected by an older CRD, and an older CRD silently prunes `scope.exclusions`, `environmentID` and `tagIDs`. Older dashboard bundles show pending plans with a raw label and no Cancel (Owners can Clear).
+**Upgrade order:** when CRDs are managed out of band (`crds.enabled=false`), upgrade `telark-crds` before `telark`: the protection plan `pending_approval` phase and approval fields are rejected by an older CRD, and an older CRD silently prunes `scope.exclusions`, `environmentRef` and `tagRefs`. Older dashboard bundles show pending plans with a raw label and no Cancel (Owners can Clear).
 
 ## Values reference
 
@@ -57,6 +60,14 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | `app.image.pullPolicy` | `Always` | Image pull policy for every service container |
 | `app.image.pullSecrets` | `[]` | Pull secrets (public images need none; set for a private registry) |
 | `app.kyverno.enabled` | `true` | Install kyverno subchart |
+| `app.kyverno.failOpen` | `true` | Kyverno webhooks fail open (`failurePolicy: Ignore`), so enforce plans are best-effort while Kyverno is down. Must equal `kyverno.features.forceFailurePolicyIgnore.enabled`; the render fails otherwise. See [Policy engine fail-open](../../docs/INSTALL.md#policy-engine-fail-open) |
+| `app.crdGuard.enabled` / `enforce` | `true` / `true` | ValidatingAdmissionPolicy: only the owning service accounts may write telark CRs (`telark.io`, including `/status`), and only the exporter may change the key in the OIDC trust Secret (`enforce: false` audits). See [CRD write guard](../../docs/INSTALL.md#crd-write-guard) |
+| `app.crdGuard.extraAllowedUsers` | `[]` | Break-glass usernames also allowed to write telark CRs and the OIDC trust Secret |
+| `app.networkPolicy.enabled` | `true` | Ingress NetworkPolicies: default deny for telark pods, APIs only from telark pods, dashboard from anywhere, NATS 4222 only from discovery and notifier. Needs an enforcing CNI. See [Network policies](../../docs/INSTALL.md#network-policies) |
+| `app.serviceToken.value` | `""` | Service token; empty = generated on install, read back on upgrade |
+| `app.serviceToken.existingSecret` | `""` | Secret (key `token`) you manage instead of the generated one, for cluster-less renders. See [GitOps](../../docs/INSTALL.md#gitops-cluster-less-renders) |
+| `nats.existingSecrets.publisher` / `consumer` | `""` | Secrets (keys `username`, `password`) for the NATS publisher (discovery) and consumer (notifier) users instead of the generated `<app.name>-nats-{publisher,consumer}-secret`. See [GitOps](../../docs/INSTALL.md#gitops-cluster-less-renders) |
+| `metrics-server.args` | `--kubelet-preferred-address-types=…` | Kubelet certificates are verified; add `--kubelet-insecure-tls` only where they are self-signed. See [metrics-server kubelet TLS](../../docs/INSTALL.md#metrics-server-kubelet-tls) |
 | `app.ollama.enabled` | `true` | Install the ollama subchart, the local model runtime the analyzer needs; `false` skips it (for example with `app.ollama.runtimeUrl`). Sized once for every mode. See [Analyzer runtime (ollama)](#analyzer-runtime-ollama) |
 | `app.ollama.autoPull` | `true` | Let the analyzer pull a missing model (and allow ollama HTTPS egress); `false` for air-gapped installs |
 | `app.ollama.runtimeUrl` | `""` | Ollama-API endpoint you run yourself (URL only, no key); empty = the subchart. See [Analyzer runtime (ollama)](#analyzer-runtime-ollama) |
@@ -73,18 +84,15 @@ The exporter mounts two PVCs rendered from one template (snapshots and reports);
 
 | Key | Default | Description |
 |---|---|---|
-| `app.auth.bootstrap.admins` | `["contact@telark.io"]` | Admin email list. Each entry receives the Admin role on first OIDC login. Joined with commas → `BOOTSTRAP_ADMINS` env. Required when `app.auth.passkey.selfRegistration` is `"false"`. |
+| `app.auth.bootstrap.admins` | `[]` | Admin email list. An entry gets the Admin role from a verified identity only: its first OIDC login, or `auth break-glass --email <email> --enroll` for a passkey; passkey registration from the login page never grants it. Joined with commas → `BOOTSTRAP_ADMINS` env. Required when `app.auth.passkey.selfRegistration` is `"false"` (the default): the render fails otherwise. See [First admin](../../docs/INSTALL.md#2-first-admin) |
 
 #### `app.auth.oidc`
 
-Google OIDC config. Consumed by both the auth-service (env) and the bootstrap chart's `GlobalConfig` CR.
+The Google client id, the OIDC flag and the egress switch are runtime settings on the TelarkConfig CR (Settings in the dashboard). The pinned signing keys used when egress is not allowed live in a Secret (`<fullname>-oidc-trust-secret`, key `googleJwkJson`): the exporter writes it when an admin saves the keys, auth reads it from a read-only volume and picks up a change within about a minute. The chart renders it empty and reads it back on upgrade; only the exporter (and `app.crdGuard.extraAllowedUsers`) may change the key while `app.crdGuard.enabled` is on.
 
 | Key | Default | Description |
 |---|---|---|
-| `app.auth.oidc.enabled` | `true` | Feature flag exposed via `GlobalConfig.spec.oidc.enabled`. |
-| `app.auth.oidc.googleClientID` | `""` | Google OAuth2 client id. Empty by default — set your own per install (an operator can also set it at runtime from the UI, stored in `GlobalConfig.spec.oidc.googleClientID`). |
-| `app.auth.oidc.egressAllowed` | `"true"` | `"true"` = backend fetches Google JWKS dynamically (needs egress to `googleapis.com`). `"false"` = offline mode using `googleJwkJson`. |
-| `app.auth.oidc.googleJwkJson` | `""` | Pasted content of `https://www.googleapis.com/oauth2/v3/certs`. Used only when `egressAllowed: "false"`. Rotate every 24–48h. |
+| `app.auth.oidc.existingSecret` | `""` | Secret (key `googleJwkJson`) you manage instead of the chart-rendered one, for cluster-less renders; the exporter needs it to exist and the guard lets others create it only with an empty key. See [GitOps](../../docs/INSTALL.md#gitops-cluster-less-renders) |
 
 #### `app.auth.passkey`
 
@@ -92,10 +100,10 @@ WebAuthn relying-party identity + passkey-flow policy. **`selfRegistration` gate
 
 | Key | Default | Description |
 |---|---|---|
-| `app.auth.passkey.id` | `""` | Relying Party identifier. Empty follows the request host (`X-Forwarded-Host`, else `Host`, port stripped), so passkeys work on whichever hostname you open the dashboard on. Pin to your domain in production. Injected as `RP_ID`. |
+| `app.auth.passkey.id` | `""` | Relying Party identifier. Empty follows the request host (`X-Forwarded-Host`, else `Host`, port stripped), so passkeys work on whichever hostname you open the dashboard on. Required (the render fails) with `ingress.enabled` or `gateway.enabled`; pin it in production. Injected as `RP_ID`. |
 | `app.auth.passkey.name` | `"Dashboard App"` | Display name shown by the authenticator (Touch ID prompt, etc.). Injected as `RP_NAME`. |
-| `app.auth.passkey.origin` | `""` | Origin(s) accepted for WebAuthn ceremonies, comma-separated. Empty follows the request `Origin` header, whose host must be the relying party or one of its subdomains. Pin to `https://<domain>` in production. Injected as `RP_ORIGIN`. |
-| `app.auth.passkey.selfRegistration` | `"true"` | `"false"` blocks new passkey registration. Requires at least one `app.auth.bootstrap.admins` entry when disabled. Injected as `SELF_REGISTRATION_ENABLED`. |
+| `app.auth.passkey.origin` | `""` | Origin(s) accepted for WebAuthn ceremonies, comma-separated. Empty follows the request `Origin` header, whose host must be the relying party or one of its subdomains. Required (the render fails) with `ingress.enabled` or `gateway.enabled`; pin to `https://<domain>` in production. Injected as `RP_ORIGIN`. |
+| `app.auth.passkey.selfRegistration` | `"false"` | `"true"` lets anyone who reaches the dashboard register a passkey account (ReadOnly role). Requires at least one `app.auth.bootstrap.admins` entry when `"false"`. Injected as `SELF_REGISTRATION_ENABLED`. |
 
 ### `app.serviceDefaults`
 
@@ -145,6 +153,7 @@ Pod-level config selectively applied via per-service gates.
 |---|---|---|
 | `app.shared.podSecurityContext.enabled` | `true` | Render the pod securityContext |
 | `app.shared.podSecurityContext.runAsUser` / `runAsGroup` / `fsGroup` | `1001` | Non-root identity |
+| `app.shared.podSecurityContext.seccompProfile` / `app.shared.containerSecurityContext.seccompProfile` | `{type: RuntimeDefault}` | Seccomp profile, so the namespace can carry Pod Security `restricted` |
 | `app.shared.containerSecurityContext.enabled` | `true` | Render the container securityContext |
 | `app.shared.containerSecurityContext.allowPrivilegeEscalation` | `false` | Block setuid-style escalation |
 | `app.shared.containerSecurityContext.readOnlyRootFilesystem` | `true` | Mount root FS read-only |
@@ -152,7 +161,7 @@ Pod-level config selectively applied via per-service gates.
 
 **`app.serviceDefaults`** scheduling — `nodeSelector` (`{}`), `tolerations` (`[]`), `affinity` (`{}`); overridable per service.
 
-**`app.shared.natsEnvFromSecret`** + **`app.shared.nats`** — mounted when `useNatsCreds: true` (default false). Secret: `<app.name>-nats-secret`.
+**`app.shared.nats`** + NATS credentials — mounted when `useNatsCreds: true` (default false). The Secret follows the service's `natsUser`: `<app.name>-nats-publisher-secret` (discovery, may only publish `telark.applications.*`) or `<app.name>-nats-consumer-secret` (notifier, JetStream API and acks), or `nats.existingSecrets.<user>`. The NATS server serves no monitoring port; its probes use the client port.
 
 | Variable | Secret key / default | Description |
 |---|---|---|
@@ -178,15 +187,18 @@ Per-service block. Gates default to `true` unless noted.
 | `terminationGracePeriodSec` | `app.serviceDefaults.terminationGracePeriodSec` | Override |
 | `includeResources` | `true` | Apply `app.shared.resources` |
 | `includeHealthCheck` | `true` | Apply `app.shared.healthCheck` |
-| `includeSecurity` | `true` | Apply `app.shared.podSecurityContext` + `app.shared.containerSecurityContext` |
+| `includeSecurity` | `true` | Apply `app.shared.podSecurityContext` + `app.shared.containerSecurityContext` (`ui` sets `false`: nginx runs as uid 101 and gets its own contexts below) |
+| `podSecurityContext` / `containerSecurityContext` | unset | Rendered verbatim instead of the shared contexts; `ui` uses them (uid 101, no privilege escalation, all capabilities dropped, read-only root with `emptyDir` on `/var/cache/nginx` and `/tmp`) |
+| `automountServiceAccountToken` | unset (Kubernetes default: mounted) | `false` on auth, notifier and ui, which never call the Kubernetes API; set on both the pod and its ServiceAccount |
 | `serviceAccount.create` / `serviceAccount.name` / `serviceAccount.annotations` | `create: true` | Per-service ServiceAccount control |
 | `nodeSelector` / `tolerations` / `affinity` | `app.serviceDefaults.*` | Scheduling overrides |
 | `useRedis` | `true` | Mount `app.shared.redis` configmap |
-| `useNatsCreds` | `false` | Mount `app.shared.natsEnvFromSecret` |
+| `useNatsCreds` | `false` | Mount `app.shared.nats` and the NATS credentials of `natsUser` |
+| `natsUser` | unset | `publisher` (discovery) or `consumer` (notifier); required with `useNatsCreds` |
 | `env` | `{}` | Inline env map; values pass through `tpl` against `.Values` |
 | `envFromConfigMap` | `{}` | `valueFrom: configMapKeyRef` map (external configmap) |
 | `envFromSecret` | `{}` | `valueFrom: secretKeyRef` map (secret `<app.name>-<name>-secret`) |
-| `volumes` / `volumeMounts` | `[]` | Pod volumes + mounts |
+| `volumes` / `volumeMounts` | `[]` | Pod volumes (`configMap`, `secret`, `persistentVolumeClaim`, `emptyDir`) + mounts |
 | `pdb.enabled` | varies | PodDisruptionBudget |
 | `autoscaling.enabled` | mode | Per-service HPA (auth/discovery/notifier/ui; never exporter or analyzer). Inherits `app.serviceDefaults.autoscaling.*`; on in `standard` and `performance`, off in `minimal` |
 | `topologySpread.*` | unset | TopologySpreadConstraints |
@@ -210,6 +222,7 @@ Image tags are `services.<svc>.version` in `values.yaml`, bumped by the release 
 
 | Variable | Default | Description |
 |---|---|---|
+| `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated browser origins answered with CORS headers; empty sends none (the dashboard proxies every API on its own origin). See [CORS](../../docs/INSTALL.md#cors) |
 | `SNAPSHOTS_PATH` | `/snapshots` | Filesystem mount path for snapshot files |
 | `SNAPSHOTS_PVC_NAME` | `{{ .Values.app.name }}-exporter-snapshots-pvc` (tpl) | PVC backing snapshot storage |
 | `SNAPSHOTS_PVC_NAMESPACE` | `{{ .Values.app.namespace }}` (tpl) | Namespace of the snapshots PVC |
@@ -218,6 +231,7 @@ Image tags are `services.<svc>.version` in `values.yaml`, bumped by the release 
 | `SNAPSHOT_GC_INTERVAL_SEC` | `3600` | Sweep the snapshot PVC for files no Application CR references and older than 1 h (`minimal` 7200, `performance` 900; `0` = off). One replica sweeps per interval. Also drives the reports orphan sweep; `0` disables both |
 | `REPORTS_PATH` | `/reports` | Filesystem mount path for protection plan report files |
 | `BOOTSTRAP_ADMINS` | `{{ join "," .Values.app.auth.bootstrap.admins }}` (tpl) | Same list as auth; a session may not create or edit a user with one of these emails (403), see [First admin](../../docs/INSTALL.md#2-first-admin) |
+| `OIDC_TRUST_SECRET_NAME` | `{{ include "telark.oidcTrustSecretName" . }}` (tpl) | Secret the exporter writes the pinned OIDC keys to; follows `app.auth.oidc.existingSecret` |
 
 `services.exporter.envFromConfigMap.CA_BUNDLE` → configmap `telark-ca-bundle`, key `ca.crt` (trusted CA bundle).
 
@@ -227,6 +241,7 @@ K8s client + informers:
 
 | Variable | Default | Description |
 |---|---|---|
+| `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated browser origins answered with CORS headers; empty sends none (the dashboard proxies every API on its own origin). See [CORS](../../docs/INSTALL.md#cors) |
 | `DISCOVERY_K8S_CLIENT_QPS` | `100` | K8s client QPS; above 50/100 default to absorb snapshot LIST fanout on busy clusters |
 | `DISCOVERY_K8S_CLIENT_BURST` | `200` | K8s client burst |
 | `DISCOVERY_ROLLBACK_K8S_CLIENT_QPS` | `100` | Rollback controller's own K8s client QPS (its own bucket, sized like the shared one), so informer/prewarm traffic never queues a rollback's apply calls |
@@ -312,12 +327,13 @@ Insights page index (see [Insights page](#insights-page)):
 
 #### `services.analyzer.env`
 
-The analyzer's on/off switch, model and auto-analyze setting live on the GlobalConfig CR (set in Settings; a fresh install seeds it on, with `granite4:350m` and auto-analyze off, and an existing CR is never rewritten); only runtime limits live here. Probes use the shared `/api/v1/status/{live,ready}` paths; readiness fails while Redis is unreachable.
+The analyzer's on/off switch, model and auto-analyze setting live on the TelarkConfig CR (set in Settings; a fresh install seeds it on, with `granite4:350m` and auto-analyze off, and an existing CR is never rewritten); only runtime limits live here. Probes use the shared `/api/v1/status/{live,ready}` paths; readiness fails while Redis is unreachable.
 
 | Variable | Default | Description |
 |---|---|---|
 | `REDIS_POOL_SIZE` | `10` | Redis client connection pool size |
 | `OLLAMA_HOST` | `app.ollama.runtimeUrl`, else `http://<release>-ollama:11434` (tpl) | Model runtime URL |
+| `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated browser origins answered with CORS headers; empty sends none (the dashboard proxies the analyzer on its own origin). See [CORS](../../docs/INSTALL.md#cors) |
 | `OLLAMA_AUTO_PULL` | `{{ .Values.app.ollama.autoPull }}` (tpl) | Pull a missing model on demand |
 | `ANALYZER_MODE` | `fast` | `fast` = rules + one short narration; `deep` = the multi-step tool loop (4+ vCPU or GPU) |
 | `ANALYZER_NUM_THREAD` | `2` | Threads per model request; = `ollama.resources.limits.cpu`, never above the node's vCPU (oversubscription makes a run minutes long) |
@@ -397,7 +413,7 @@ A rule fires only when its reads were complete; a failed or truncated read neith
 
 The dashboard's Insights page lists incidents and recommendations of every app: discovery filters and pages them in a fixed order (`GET /api/v1/insights/get`, Read on insights, excluded namespaces hidden) and the dashboard sorts and groups them. Each discovery replica keeps an in-memory index refreshed every `INSIGHTS_INDEX_REFRESH_SEC` from the analyzer's index key, so requests never touch Redis; the page stays readable while the analyzer is off. Until the first load the route answers 503. Environments come from the protection plans that cover each app.
 
-**Rollout:** release `internal/data` and `internal/rest`, then deploy discovery with the bumped pins (an older discovery drops the new card fields and shows recommendations as incidents), then the analyzer image, then the dashboard. Upgrade `telark-crds` before `telark` (an older CRD prunes `ai.model` and `ai.autoAnalyze`), and upgrade the chart and the analyzer image together: an older analyzer ignores the new variables but runs its tool loop in the 4k context. A pre-upgrade hook Job deletes the old AI provider key Secret `telark-ai-provider-key`; no manual step. Existing GlobalConfig CRs keep their model (e.g. `qwen3:4b`) until changed in Settings; switch to `granite4:350m` on CPU nodes. Dashboard bundles older than this release show an empty insights panel until upgraded.
+**Rollout:** release `internal/data` and `internal/rest`, then deploy discovery with the bumped pins (an older discovery drops the new card fields and shows recommendations as incidents), then the analyzer image, then the dashboard. Upgrade `telark-crds` before `telark` (an older CRD prunes `ai.model` and `ai.autoAnalyze`), and upgrade the chart and the analyzer image together: an older analyzer ignores the new variables but runs its tool loop in the 4k context. A pre-upgrade hook Job deletes the old AI provider key Secret `telark-ai-provider-key`; no manual step. Existing TelarkConfig CRs keep their model (e.g. `qwen3:4b`) until changed in Settings; switch to `granite4:350m` on CPU nodes. Dashboard bundles older than this release show an empty insights panel until upgraded.
 
 #### `services.notifier.env`
 
@@ -405,7 +421,7 @@ The dashboard's Insights page lists incidents and recommendations of every app: 
 |---|---|---|
 | `NOTIFIER_APPLY_WORKERS` | `8` | Concurrent apply workers; an application always maps to the same worker, so its updates stay ordered (`minimal` 2, `performance` 32; max 62) |
 
-Also inherits `app.shared.redis` and `app.shared.natsEnvFromSecret`.
+Also inherits `app.shared.redis`, `app.shared.nats` and the NATS consumer credentials (`natsUser: consumer`).
 
 #### `services.auth.env`
 
@@ -413,6 +429,7 @@ Redis:
 
 | Variable | Default | Description |
 |---|---|---|
+| `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated browser origins answered with CORS headers; empty sends none (the dashboard proxies every API on its own origin). See [CORS](../../docs/INSTALL.md#cors) |
 | `REDIS_DB` | `1` | Redis DB index |
 | `REDIS_RETRY_INTERVAL_SEC` | `2` | Retry backoff base |
 | `REDIS_MAX_WAIT_SEC` | `30` | Total wait cap before failing the Redis op |
@@ -422,7 +439,7 @@ Bootstrap (templated from `app.auth.bootstrap`):
 
 | Variable | Source | Description |
 |---|---|---|
-| `BOOTSTRAP_ADMINS` | `{{ join "," .Values.app.auth.bootstrap.admins }}` | Comma-joined admin email list; recipients get Admin role on first OIDC login |
+| `BOOTSTRAP_ADMINS` | `{{ join "," .Values.app.auth.bootstrap.admins }}` | Comma-joined admin email list; recipients get the Admin role on their first OIDC login or through `break-glass --enroll`, never from passkey self-registration |
 
 WebAuthn / passkey (templated from `app.auth.passkey`):
 
@@ -431,17 +448,15 @@ WebAuthn / passkey (templated from `app.auth.passkey`):
 | `RP_ID` | `{{ .Values.app.auth.passkey.id }}` | Relying Party identifier; empty follows the request host |
 | `RP_NAME` | `{{ .Values.app.auth.passkey.name }}` | Display name shown to the user |
 | `RP_ORIGIN` | `{{ .Values.app.auth.passkey.origin }}` | Allowed origin(s), comma-separated; empty follows the request `Origin` |
-| `SELF_REGISTRATION_ENABLED` | `{{ .Values.app.auth.passkey.selfRegistration }}` | `"false"` blocks new passkey registration. OIDC self-provisioning is always on. |
+| `SELF_REGISTRATION_ENABLED` | `{{ .Values.app.auth.passkey.selfRegistration }}` | `"false"` (default) blocks new passkey registration. OIDC self-provisioning is always on. |
 | `CHALLENGE_TIMEOUT` | inline (`"60"`) | Challenge TTL (seconds) |
 | `SESSION_EXPIRY` | inline (`"24"`) | Session TTL (hours) |
 
-Google OIDC (templated from `app.auth.oidc`):
+OIDC trust keys (mounted from the Secret named by `app.auth.oidc.existingSecret`, else `<fullname>-oidc-trust-secret`):
 
-| Variable | Source | Description |
+| Variable | Default | Description |
 |---|---|---|
-| `GOOGLE_CLIENT_ID` | `{{ .Values.app.auth.oidc.googleClientID }}` | Google OAuth client id |
-| `EGRESS_ALLOWED` | `{{ .Values.app.auth.oidc.egressAllowed }}` | `"true"` = backend fetches JWKS dynamically (needs egress to googleapis.com). `"false"` = offline mode using `GOOGLE_OIDC_JWK_JSON`. |
-| `GOOGLE_OIDC_JWK_JSON` | `{{ .Values.app.auth.oidc.googleJwkJson }}` | Pasted JWK content for offline mode (rotate every 24–48h) |
+| `OIDC_TRUST_FILE` | `/etc/telark/oidc/googleJwkJson` | Pinned Google JWK set, re-read when it changes; used when the TelarkConfig disallows egress |
 
 Cleanup controllers + queue:
 

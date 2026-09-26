@@ -339,7 +339,7 @@ def _name(obj: dict) -> str:
 
 def _wl_production(ctx: _Ctx, wl: WorkloadInput) -> bool:
     """The workload's own namespace, or the environment of a covering plan whose scope reaches that namespace."""
-    envs = [(ctx.inputs.env_names or {}).get(p.get("environmentID"), "") for p in ctx.covering
+    envs = [(ctx.inputs.env_names or {}).get(p.get("environmentRef"), "") for p in ctx.covering
             if (p.get("scope") or {}).get("type") != PLAN_SCOPE_NAMESPACES
             or wl.namespace in ((p.get("scope") or {}).get("namespaces") or [])]
     return is_production([wl.namespace], envs, ctx.settings.production_pattern)
@@ -1118,7 +1118,7 @@ def covering_plans(plans: list[dict], app_name: str, namespaces: list[str], work
         if plan.get("phase") not in phases:
             continue
         if scope.get("type") == PLAN_SCOPE_APPLICATIONS:
-            named = app_name in (scope.get("applicationIds") or [])
+            named = app_name in (scope.get("applicationRefs") or [])
         elif scope.get("type") == PLAN_SCOPE_NAMESPACES:
             named = bool(set(namespaces) & set(scope.get("namespaces") or []))
         else:
@@ -1447,7 +1447,7 @@ def _context(inputs: ReviewInputs, now: datetime, settings: Settings) -> _Ctx:
     env_names: list[str] = []
     if FAMILY_PLANS in inputs.complete:
         ctx.covering = covering_plans(inputs.plans or [], ctx.app_name, inputs.namespaces, _app_workloads(inputs))
-        env_names = [(inputs.env_names or {}).get(p.get("environmentID"), "") for p in ctx.covering]
+        env_names = [(inputs.env_names or {}).get(p.get("environmentRef"), "") for p in ctx.covering]
     ctx.production = is_production(inputs.namespaces, env_names, settings.production_pattern)
     return ctx
 

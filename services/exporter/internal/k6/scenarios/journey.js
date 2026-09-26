@@ -2,7 +2,7 @@
 // Path: constant-arrival-rate (per spec — per-iteration VU model only for smoke + journey).
 
 import exec from 'k6/execution';
-import { request } from '../lib/http.js';
+import { request, sessionHeader } from '../lib/http.js';
 import { checkResponse, captureJSONField } from '../lib/checks.js';
 import { pathProviders, bodies } from '../config/data.js';
 import { buildThresholds } from '../config/thresholds.js';
@@ -54,8 +54,8 @@ function journeySession() {
   const createBody = bodies.sessionCreate(userID);
   const createRes = call('R53', { pathParams: { userId: userID }, body: createBody });
   const token = captureJSONField(createRes, 'sessionToken') || createBody.sessionToken;
-  call('R55', { pathParams: { token } });
-  call('R57', { pathParams: { token }, expectClass: 'delete' });
+  call('R55', { headers: sessionHeader(token) });
+  call('R57', { headers: sessionHeader(token), expectClass: 'delete' });
 }
 
 const JOURNEYS = [journeyUserGroupRole, journeySession];

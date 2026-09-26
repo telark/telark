@@ -1,7 +1,7 @@
 // Smoke: 1 VU, 1 iteration. Every in-scope route hit once with correct wire format.
 // abortOnFail: true on smoke thresholds.
 
-import { request } from '../lib/http.js';
+import { request, sessionHeader } from '../lib/http.js';
 import { checkResponse } from '../lib/checks.js';
 import { pathProviders, queryProviders, bodies } from '../config/data.js';
 import { buildThresholds } from '../config/thresholds.js';
@@ -39,7 +39,7 @@ export default function () {
 
   // ---- global config ----
   smoke('R13', {});
-  smoke('R14', { body: bodies.globalconfigPatch(), expectClass: 'patch' });
+  smoke('R14', { body: bodies.configPatch(), expectClass: 'patch' });
 
   // ---- applications ----
   smoke('R15', { body: bodies.appCreate() });
@@ -70,28 +70,24 @@ export default function () {
   smoke('R35', { body: bodies.roleCreate() });
   smoke('R36', {});
   smoke('R37', { pathParams: { id: pathProviders.roleID() } });
-  smoke('R38', { pathParams: { userId: pathProviders.userID() } });
-  smoke('R39', { pathParams: { userId: pathProviders.userID() } });
-  smoke('R40', { pathParams: { groupId: pathProviders.groupID() } });
-  smoke('R41', { pathParams: { groupId: pathProviders.groupID() } });
   smoke('R42', { pathParams: { id: pathProviders.roleID() }, body: bodies.rolePatch(), expectClass: 'patch' });
   smoke('R43', { pathParams: { id: pathProviders.roleID() }, expectClass: 'delete' });
 
   // ---- categories ----
   smoke('R44', { body: bodies.categoryCreate() });
   smoke('R45', {});
-  smoke('R46', { pathParams: { id: pathProviders.categoryID() } });
+  smoke('R46', { pathParams: { id: pathProviders.categoryItem() } });
   smoke('R47', { pathParams: { scope: pathProviders.categoryScope() } });
-  smoke('R48', { pathParams: { id: pathProviders.categoryID() }, body: bodies.categoryPatch(), expectClass: 'patch' });
-  smoke('R49', { pathParams: { id: pathProviders.categoryID() }, expectClass: 'delete' });
+  smoke('R48', { pathParams: { id: pathProviders.categoryItem() }, body: bodies.categoryPatch(), expectClass: 'patch' });
+  smoke('R49', { pathParams: { id: pathProviders.categoryItem() }, expectClass: 'delete' });
 
   // ---- sessions ----
   const sUserID = pathProviders.userID();
   smoke('R53', { pathParams: { userId: sUserID }, body: bodies.sessionCreate(sUserID) });
   smoke('R54', { pathParams: { userId: sUserID } });
-  smoke('R55', { pathParams: { token: pathProviders.sessionToken() } });
-  smoke('R56', { pathParams: { token: pathProviders.sessionToken() }, body: bodies.sessionPatch(), expectClass: 'patch' });
-  smoke('R57', { pathParams: { token: pathProviders.sessionToken() }, expectClass: 'delete' });
+  smoke('R55', { headers: sessionHeader(pathProviders.sessionToken()) });
+  smoke('R56', { headers: sessionHeader(pathProviders.sessionToken()), body: bodies.sessionPatch(), expectClass: 'patch' });
+  smoke('R57', { headers: sessionHeader(pathProviders.sessionToken()), expectClass: 'delete' });
 
   // ---- snapshots ----
   smoke('R63', { body: bodies.snapshotCreate() });

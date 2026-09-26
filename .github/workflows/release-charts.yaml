@@ -60,22 +60,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0   # full history + tags so git-cliff can build the changelog
 
       - name: Set up Helm
-        uses: azure/setup-helm@v5.0.1
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
 
       - name: Set up Go
-        uses: actions/setup-go@v7.0.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.27"
           # No root go.sum: key the cache on the file that pins helm-docs instead.
           cache-dependency-path: .github/actions/helm-docs-regenerate/action.yaml
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v4.1.2
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
       - name: Resolve registry + selected charts
         id: meta
@@ -145,7 +145,7 @@ jobs:
       # since the git tag itself is created a step later.
       - name: Generate changelog
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump != 'current' && steps.publish.outputs.telark_version != '' }}
-        uses: orhun/git-cliff-action@v4.9.1
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
         with:
           config: cliff.toml
           args: --tag v${{ steps.publish.outputs.telark_version }}
@@ -179,9 +179,10 @@ jobs:
         if: ${{ steps.publish.outputs.telark_version != '' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          TELARK_VERSION: ${{ steps.publish.outputs.telark_version }}
         run: |
           set -euo pipefail
-          v="${{ steps.publish.outputs.telark_version }}"
+          v="$TELARK_VERSION"
           tag="v${v}"
           if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
             echo "tag ${tag} already exists — skipping tag + release"

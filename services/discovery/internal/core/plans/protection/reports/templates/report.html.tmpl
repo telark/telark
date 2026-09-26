@@ -76,7 +76,7 @@ ul{margin:4px 0;padding-left:20px}
 <tr><th>Started</th><td>{{fmtTime .Doc.Timeline.StartedAt}} by {{.Doc.Timeline.StartedBy}}</td></tr>
 <tr><th>Last updated</th><td>{{fmtTime .Doc.Timeline.LastUpdatedAt}} by {{.Doc.Timeline.LastUpdatedBy}}</td></tr>
 <tr><th>Terminated</th><td>{{fmtTime .Doc.Timeline.TerminatedAt}} by {{.Doc.Timeline.TerminatedBy}}</td></tr>
-<tr><th>Participants</th><td>{{join .Doc.Timeline.ParticipantsIDs}}</td></tr>
+<tr><th>Participants</th><td>{{join .Doc.Timeline.ParticipantRefs}}</td></tr>
 </tbody>
 </table>
 
@@ -85,7 +85,7 @@ ul{margin:4px 0;padding-left:20px}
 <tbody>
 <tr><th>Type</th><td>{{.Doc.Scope.Type}}</td></tr>
 <tr><th>Namespaces</th><td>{{join .Doc.Scope.Namespaces}}</td></tr>
-<tr><th>Applications</th><td>{{join .Doc.Scope.ApplicationIDs}}</td></tr>
+<tr><th>Applications</th><td>{{join .Doc.Scope.ApplicationRefs}}</td></tr>
 </tbody>
 </table>
 

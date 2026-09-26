@@ -58,8 +58,8 @@ func applyScalarPatch(
 		patch.TimeMode = &req.TimeMode
 		changed = true
 	}
-	if req.EnvironmentID != nil && plan.EnvironmentID != *req.EnvironmentID {
-		patch.EnvironmentID = req.EnvironmentID
+	if req.EnvironmentRef != nil && plan.EnvironmentRef != *req.EnvironmentRef {
+		patch.EnvironmentRef = req.EnvironmentRef
 		changed = true
 	}
 	return changed
@@ -78,10 +78,10 @@ func applyComplexPatch(
 	}
 	if !scopeTargetsEqual(plan.Scope, req.Scope) || exclusionsChanged(plan.Scope, req.Scope) {
 		patch.Scope = &planseps.ScopeRequest{
-			Type:           req.Scope.Type,
-			ApplicationIDs: req.Scope.ApplicationIDs,
-			Namespaces:     req.Scope.Namespaces,
-			Exclusions:     effectiveExclusions(plan.Scope, req.Scope),
+			Type:            req.Scope.Type,
+			ApplicationRefs: req.Scope.ApplicationRefs,
+			Namespaces:      req.Scope.Namespaces,
+			Exclusions:      effectiveExclusions(plan.Scope, req.Scope),
 		}
 		changed = true
 	}
@@ -89,13 +89,13 @@ func applyComplexPatch(
 		patch.Policies = req.Policies
 		changed = true
 	}
-	if !stringSliceSetEqual(plan.ParticipantsIDs, req.ParticipantsIDs) {
-		patch.ParticipantsIDs = req.ParticipantsIDs
+	if !stringSliceSetEqual(plan.ParticipantRefs, req.ParticipantRefs) {
+		patch.ParticipantRefs = req.ParticipantRefs
 		changed = true
 	}
-	if req.TagIDs != nil && !stringSliceSetEqual(plan.TagIDs, req.TagIDs) {
-		tags := req.TagIDs
-		patch.TagIDs = &tags
+	if req.TagRefs != nil && !stringSliceSetEqual(plan.TagRefs, req.TagRefs) {
+		tags := req.TagRefs
+		patch.TagRefs = &tags
 		changed = true
 	}
 	return changed
@@ -115,7 +115,7 @@ func MaterialChange(
 		exclusionsChanged(plan.Scope, req.Scope)
 }
 
-// Nil request exclusions mean untouched, like TagIDs; a non-nil value replaces them whole.
+// Nil request exclusions mean untouched, like TagRefs; a non-nil value replaces them whole.
 func exclusionsChanged(planScope plans.ProtectionPlanScope, reqScope planseps.ScopeRequest) bool {
 	return reqScope.Exclusions != nil && !plans.ExclusionsEqual(planScope.Exclusions, reqScope.Exclusions)
 }
@@ -157,7 +157,7 @@ func toPatchTimeRange(tr *planseps.TimeRangeRequest) *planseps.TimeRangeRequest 
 
 func scopeTargetsEqual(planScope plans.ProtectionPlanScope, reqScope planseps.ScopeRequest) bool {
 	if planScope.Type == plans.ScopeTypeApplications {
-		return stringSliceSetEqual(planScope.ApplicationIDs, reqScope.ApplicationIDs)
+		return stringSliceSetEqual(planScope.ApplicationRefs, reqScope.ApplicationRefs)
 	}
 	return stringSliceSetEqual(planScope.Namespaces, reqScope.Namespaces)
 }

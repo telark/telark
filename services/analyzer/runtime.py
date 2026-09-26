@@ -24,6 +24,7 @@ from constants import (
     LOG_PULL_FAILED,
     MODE_DEEP,
     MODEL_NAME_PATTERN,
+    PULL_DEADLINE_S,
     PULL_PROGRESS_INTERVAL_S,
     RUN_ERROR_MODEL_NOT_INSTALLED,
     RUNTIME_REASON_TEMPLATE,
@@ -48,6 +49,11 @@ _VALIDATE_REASONS = {
     RUNTIME_STATE_UNSUPPORTED: VALIDATE_REASON_MODEL_LACKS_TOOLS,
     RUNTIME_STATE_READY: "",
 }
+
+
+def pull_allowed(model: str) -> bool:
+    """Only catalogue models are pulled: an arbitrary library model could fill the Ollama volume."""
+    return model in LICENSES
 
 
 class Runtime:
@@ -86,7 +92,7 @@ class Runtime:
         return state
 
     def set_enabled(self, enabled: bool) -> None:
-        """GlobalConfig ai.enabled, for the users who may read the runtime but not the settings."""
+        """TelarkConfig ai.enabled, for the users who may read the runtime but not the settings."""
         if self.status.enabled != enabled:
             self.status.enabled = enabled
             self._publish_changed()
@@ -120,8 +126,9 @@ class Runtime:
         return RUNTIME_STATE_PULLING
 
     def ensure_model(self, model: str) -> None:
-        """Pull the model only when it is missing, autoPull is on and no pull runs."""
-        if self.status.state == RUNTIME_STATE_MODEL_MISSING and OLLAMA_AUTO_PULL and not self.pulling:
+        """Pull the model only when it is missing, in the catalogue, autoPull is on and no pull runs."""
+        if (self.status.state == RUNTIME_STATE_MODEL_MISSING and OLLAMA_AUTO_PULL and not self.pulling
+                and pull_allowed(model)):
             self.start_pull(model)
 
     def start_pull(self, model: str) -> None:
@@ -134,7 +141,8 @@ class Runtime:
 
     async def _pull(self, model: str, quiet: bool = False) -> None:
         try:
-            await ollama.pull(self._client, model, self._on_progress)
+            async with asyncio.timeout(PULL_DEADLINE_S):
+                await ollama.pull(self._client, model, self._on_progress)
         except Exception as e:  # any failure ends the pull; the re-check below reports the state
             if not quiet:
                 logger.warning(LOG_PULL_FAILED, type(e).__name__)

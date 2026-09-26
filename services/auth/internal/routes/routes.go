@@ -50,5 +50,5 @@ var Routes = []router.Route{
 	// Cleanup (async business delete)
 	router.CreateRoute(base.Delete, autheps.DeleteUserCleanup, cleanuphandler.DeleteUser),
 	router.CreateRoute(base.Delete, autheps.DeleteGroupCleanup, cleanuphandler.DeleteGroup),
-	router.CreateRoute(base.Delete, autheps.DeleteRoleCleanup, cleanuphandler.DeleteRole),
+	router.CreateRoute(base.Delete, autheps.DeleteAccessRoleCleanup, cleanuphandler.DeleteAccessRole),
 }

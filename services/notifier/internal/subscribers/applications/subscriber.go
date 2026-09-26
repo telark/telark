@@ -5,7 +5,7 @@ import (
 	appresource "github.com/telark/data/resources/application"
 	resourceshared "github.com/telark/data/resources/shared"
 	"github.com/telark/notifier/internal/subscribers/base"
-	applicationsclient "github.com/telark/rest/clients/resources/applications"
+	applicationsclient "github.com/telark/rest/clients/applications"
 	"github.com/telark/rest/response"
 	natscore "github.com/telark/x-ware/nats/core"
 )

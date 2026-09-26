@@ -15,16 +15,16 @@ import (
 )
 
 const (
-	sourceEnvironmentID   = "cat-00002-0001-0001"
-	overrideEnvironmentID = "cat-00002-0001-0002"
-	sourceTagID           = "cat-00003-0001-0001"
-	overrideTagA          = "cat-00003-0001-0002"
-	overrideTagB          = "cat-00003-0001-0003"
-	defaultCopyName       = "Copy of prod-guard"
-	secondCopyName        = "Copy of prod-guard (2)"
-	takenSuffixCeiling    = 200
-	labelApprovalMode     = "approvalMode"
-	requesterID           = "u1"
+	sourceEnvironmentRef   = "cat-00002-0001-0001"
+	overrideEnvironmentRef = "cat-00002-0001-0002"
+	sourceTagID            = "cat-00003-0001-0001"
+	overrideTagA           = "cat-00003-0001-0002"
+	overrideTagB           = "cat-00003-0001-0003"
+	defaultCopyName        = "Copy of prod-guard"
+	secondCopyName         = "Copy of prod-guard (2)"
+	takenSuffixCeiling     = 200
+	labelApprovalMode      = "approvalMode"
+	requesterID            = "u1"
 )
 
 func strptr(s string) *string { return &s }
@@ -39,9 +39,9 @@ func sourcePlan() *plans.ProtectionPlan {
 		Scope:           plans.ProtectionPlanScope{Type: plans.ScopeTypeNamespaces, Namespaces: []string{"prod"}},
 		Policies:        []plans.ProtectionPlanPolicy{{TemplateID: "block-create"}},
 		TimeRange:       &plans.ProtectionPlanTimeRange{StartAt: "2026-01-01T00:00:00Z", EndAt: "2026-01-02T00:00:00Z"},
-		ParticipantsIDs: []string{requesterID},
-		EnvironmentID:   sourceEnvironmentID,
-		TagIDs:          []string{sourceTagID},
+		ParticipantRefs: []string{requesterID},
+		EnvironmentRef:  sourceEnvironmentRef,
+		TagRefs:         []string{sourceTagID},
 	}
 }
 
@@ -81,32 +81,32 @@ func TestBuildRequestModeSwitchDropsTimeRange(t *testing.T) {
 // A nil override copies the source taxonomy verbatim.
 func TestBuildRequestCopiesTaxonomy(t *testing.T) {
 	got := duplicate.BuildRequest(sourcePlan(), planseps.DuplicateProtectionPlanRequest{})
-	if got.EnvironmentID == nil {
-		t.Fatal("environmentID should be copied from the source")
+	if got.EnvironmentRef == nil {
+		t.Fatal("environmentRef should be copied from the source")
 	}
-	testutil.Equal(t, "environmentID", *got.EnvironmentID, sourceEnvironmentID)
-	testutil.Equal(t, "tagIDs", slices.Equal(got.TagIDs, []string{sourceTagID}), true)
+	testutil.Equal(t, "environmentRef", *got.EnvironmentRef, sourceEnvironmentRef)
+	testutil.Equal(t, "tagRefs", slices.Equal(got.TagRefs, []string{sourceTagID}), true)
 }
 
 // A non-nil override is taken as sent, so an empty override clears rather than
 // falling back to the source.
 func TestBuildRequestTaxonomyOverrides(t *testing.T) {
 	got := duplicate.BuildRequest(sourcePlan(), planseps.DuplicateProtectionPlanRequest{
-		EnvironmentID: strptr(overrideEnvironmentID),
-		TagIDs:        []string{overrideTagA, overrideTagB},
+		EnvironmentRef: strptr(overrideEnvironmentRef),
+		TagRefs:        []string{overrideTagA, overrideTagB},
 	})
-	testutil.Equal(t, "environmentID", *got.EnvironmentID, overrideEnvironmentID)
-	testutil.Equal(t, "tagIDs", slices.Equal(got.TagIDs, []string{overrideTagA, overrideTagB}), true)
+	testutil.Equal(t, "environmentRef", *got.EnvironmentRef, overrideEnvironmentRef)
+	testutil.Equal(t, "tagRefs", slices.Equal(got.TagRefs, []string{overrideTagA, overrideTagB}), true)
 
 	cleared := duplicate.BuildRequest(sourcePlan(), planseps.DuplicateProtectionPlanRequest{
-		EnvironmentID: strptr(""),
-		TagIDs:        []string{},
+		EnvironmentRef: strptr(""),
+		TagRefs:        []string{},
 	})
-	testutil.Equal(t, "cleared environmentID", *cleared.EnvironmentID, "")
-	if cleared.TagIDs == nil {
-		t.Fatal("cleared tagIDs should be a non-nil empty slice")
+	testutil.Equal(t, "cleared environmentRef", *cleared.EnvironmentRef, "")
+	if cleared.TagRefs == nil {
+		t.Fatal("cleared tagRefs should be a non-nil empty slice")
 	}
-	testutil.Equal(t, "cleared tagIDs len", len(cleared.TagIDs), constants.DefaultInitValue)
+	testutil.Equal(t, "cleared tagRefs len", len(cleared.TagRefs), constants.DefaultInitValue)
 }
 
 // AvailableName keeps the default copy name when free and otherwise suffixes it until it is.
@@ -179,18 +179,18 @@ func TestBuildRequestCopiesApprovalModeWhenNothingOverridden(t *testing.T) {
 // Moving the copy to another environment leaves the mode nil so Prepare re-derives it.
 func TestBuildRequestDropsApprovalModeWhenEnvironmentChanged(t *testing.T) {
 	got := duplicate.BuildRequest(requiredSource(), planseps.DuplicateProtectionPlanRequest{
-		EnvironmentID: strptr(overrideEnvironmentID),
+		EnvironmentRef: strptr(overrideEnvironmentRef),
 	})
 	if got.ApprovalMode != nil {
 		t.Fatalf("approvalMode = %q, want nil when the environment changed", *got.ApprovalMode)
 	}
 }
 
-// The UI resends environmentID whenever tags are touched; an unchanged value is not a change.
+// The UI resends environmentRef whenever tags are touched; an unchanged value is not a change.
 func TestBuildRequestKeepsApprovalModeWhenEnvironmentResent(t *testing.T) {
 	got := duplicate.BuildRequest(requiredSource(), planseps.DuplicateProtectionPlanRequest{
-		EnvironmentID: strptr(sourceEnvironmentID),
-		TagIDs:        []string{overrideTagA},
+		EnvironmentRef: strptr(sourceEnvironmentRef),
+		TagRefs:        []string{overrideTagA},
 	})
 	testutil.Equal(t, labelApprovalMode, approvalModeOf(t, got), plans.ApprovalModeRequired)
 }
@@ -198,8 +198,8 @@ func TestBuildRequestKeepsApprovalModeWhenEnvironmentResent(t *testing.T) {
 // An explicit approvalMode override wins even when the environment changes too.
 func TestBuildRequestApprovalModeOverrideWins(t *testing.T) {
 	got := duplicate.BuildRequest(requiredSource(), planseps.DuplicateProtectionPlanRequest{
-		EnvironmentID: strptr(overrideEnvironmentID),
-		ApprovalMode:  strptr(plans.ApprovalModeAutomatic),
+		EnvironmentRef: strptr(overrideEnvironmentRef),
+		ApprovalMode:   strptr(plans.ApprovalModeAutomatic),
 	})
 	testutil.Equal(t, labelApprovalMode, approvalModeOf(t, got), plans.ApprovalModeAutomatic)
 }
@@ -222,8 +222,8 @@ func TestBuildRequestNeverCarriesApprovalState(t *testing.T) {
 func TestBuildRequestCopiesExclusions(t *testing.T) {
 	source := sourcePlan()
 	source.Scope = plans.ProtectionPlanScope{
-		Type:           plans.ScopeTypeApplications,
-		ApplicationIDs: []string{"app-1"},
+		Type:            plans.ScopeTypeApplications,
+		ApplicationRefs: []string{"app-1"},
 		Exclusions: &plans.ProtectionPlanScopeExclusions{
 			Kinds:     []string{"ConfigMap"},
 			Resources: []plans.ProtectionPlanExcludedResource{{Kind: "Deployment", Name: "wa1", Namespace: "prod"}},

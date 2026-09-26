@@ -26,7 +26,7 @@ var Liveness = statushandler.NewProbeHandler(
 
 func Readiness(w http.ResponseWriter, r *http.Request) {
 	// Only Redis gates the probe: it is the one dependency this replica cannot
-	// serve without. Exporter, GlobalConfig and the apiserver fail cluster-wide,
+	// serve without. Exporter, TelarkConfig and the apiserver fail cluster-wide,
 	// so a 503 on them would empty the Service instead of serving degraded.
 	reasons := degradedReasons(r.Context())
 	if !redisReachable(r.Context()) {
@@ -57,8 +57,8 @@ func degradedReasons(ctx context.Context) []string {
 	if !redishelper.IsBootstrapReady() {
 		reasons = append(reasons, constants.ReadinessReasonBootstrap)
 	}
-	if !startup.IsGlobalConfigReady() {
-		reasons = append(reasons, constants.ReadinessReasonGlobalConfig)
+	if !startup.IsTelarkConfigReady() {
+		reasons = append(reasons, constants.ReadinessReasonTelarkConfig)
 	}
 	if circuitbreaker.GetManager().GetState(circuitbreaker.DependencyExporter) == circuitbreaker.StateOpen {
 		reasons = append(reasons, constants.ReadinessReasonExporter)

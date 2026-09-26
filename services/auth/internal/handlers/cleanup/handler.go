@@ -35,8 +35,8 @@ func DeleteGroup(w http.ResponseWriter, r *http.Request) {
 	handleDelete(w, r, finalizers.ResourceTypeGroups, authclients.GetGroupClient().DeleteGroupByID, nil)
 }
 
-func DeleteRole(w http.ResponseWriter, r *http.Request) {
-	handleDelete(w, r, finalizers.ResourceTypeRoles, authclients.GetRoleClient().DeleteRoleByID, nil)
+func DeleteAccessRole(w http.ResponseWriter, r *http.Request) {
+	handleDelete(w, r, finalizers.ResourceTypeRoles, authclients.GetAccessRoleClient().DeleteAccessRoleByID, nil)
 }
 
 func handleDelete(

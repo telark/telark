@@ -30,6 +30,7 @@ const (
 	StepFailed                                   = "failed"
 	EnvReplicaID                                 = "HOSTNAME"
 	EnvPodIP                                     = "POD_IP"
+	LabelComponent                               = "app.kubernetes.io/component"
 	EnvCoordinationBatchSize                     = "COORDINATION_BATCH_SIZE"
 	EnvCoordinationBatchBlockSec                 = "COORDINATION_BATCH_BLOCK_SEC"
 	EnvCoordinationMaxRetryAttempts              = "COORDINATION_MAX_RETRY_ATTEMPTS"
@@ -45,7 +46,7 @@ const (
 	CoordinationElectionResignTimeoutSec         = 5
 	CoordinationBackgroundProcessingSlots        = 4
 	DiscoveryLeaderGatePoll                      = 500 * time.Millisecond
-	// Fallback for the leader's rediscovery cycle when GlobalConfig carries no
+	// Fallback for the leader's rediscovery cycle when TelarkConfig carries no
 	// fetch interval. Operators set the real value through the UI setting.
 	PrewarmDefaultInterval       = 60 * time.Second
 	PrewarmCycleTTL              = 24 * time.Hour

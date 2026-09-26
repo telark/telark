@@ -9,17 +9,18 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	dataconstants "github.com/telark/data/constants"
 	"github.com/telark/exporter/internal/constants"
 	passkeyhandler "github.com/telark/exporter/internal/handlers/auth/passkey"
 	sessionhandler "github.com/telark/exporter/internal/handlers/auth/session"
+	confighandler "github.com/telark/exporter/internal/handlers/config"
 	apphandler "github.com/telark/exporter/internal/handlers/resources/application"
-	globalconfighandler "github.com/telark/exporter/internal/handlers/resources/globalconfig"
 )
 
 // varsReq carries every path var, header and query the auth/resource handlers
 // might read, so each proceeds past request parsing to the (absent) backend.
 func varsReq(method, body string) *http.Request {
-	url := "/x/val?userId=u1&scope=roles&username=n&email=e@x.io"
+	url := "/x/val?user=u1&scope=roles&username=n&email=e@x.io"
 	var r *http.Request
 	if body == constants.EmptyString {
 		r = httptest.NewRequest(method, url, nil)
@@ -27,10 +28,10 @@ func varsReq(method, body string) *http.Request {
 		r = httptest.NewRequest(method, url, strings.NewReader(body))
 	}
 	r.Header.Set(constants.HeaderUserID, testUserID)
-	r.Header.Set(constants.HeaderCredentialID, testCategoryID)
+	r.Header.Set(dataconstants.HeaderSessionToken, "tok")
 	return mux.SetURLVars(r, map[string]string{
-		constants.IDParam: "val", constants.NameParam: "val", constants.UserIDParam: testUserID, constants.GroupIDParam: testGroupID,
-		"credentialId": testCategoryID, constants.TokenParam: "tok", constants.ScopeParam: constants.ResourceRole,
+		constants.IDParam: "val", constants.NameParam: "val", constants.UserIDParam: testUserID,
+		constants.CredentialIDParam: testCategoryID, constants.ScopeParam: constants.ResourceRole,
 	})
 }
 
@@ -73,17 +74,17 @@ func TestDeleteApplicationMakesNoOutboundCall(t *testing.T) {
 	}
 }
 
-func TestGlobalConfigHandlers(t *testing.T) {
-	assertErrorResponse(t, globalconfighandler.GetGlobalConfig(), varsReq(http.MethodGet, constants.EmptyString), "GetGlobalConfig")
+func TestConfigHandlers(t *testing.T) {
+	assertErrorResponse(t, confighandler.GetConfig(), varsReq(http.MethodGet, constants.EmptyString), "GetConfig")
 }
 
 func TestSessionHandlers(t *testing.T) {
 	o := newOptimizer(t)
 	assertErrorResponse(t, sessionhandler.CreateSessionByUserWithCacheInvalidation(o), varsReq(http.MethodPost, emptyJSONBody), "CreateSession")
 	assertErrorResponse(t, sessionhandler.ListSessionsByUserWithCacheInvalidation(), varsReq(http.MethodGet, constants.EmptyString), "ListSessions")
-	assertErrorResponse(t, sessionhandler.GetSessionByToken(), varsReq(http.MethodGet, constants.EmptyString), "GetSessionByToken")
-	assertErrorResponse(t, sessionhandler.PatchSessionByTokenWithCacheInvalidation(o), varsReq(http.MethodPatch, emptyJSONBody), "PatchSession")
-	assertErrorResponse(t, sessionhandler.DeleteSessionByTokenWithCacheInvalidation(o),
+	assertErrorResponse(t, sessionhandler.GetSelfSession(), varsReq(http.MethodGet, constants.EmptyString), "GetSelfSession")
+	assertErrorResponse(t, sessionhandler.PatchSelfSessionWithCacheInvalidation(o), varsReq(http.MethodPatch, emptyJSONBody), "PatchSession")
+	assertErrorResponse(t, sessionhandler.DeleteSelfSessionWithCacheInvalidation(o),
 		varsReq(http.MethodDelete, constants.EmptyString), "DeleteSession")
 }
 

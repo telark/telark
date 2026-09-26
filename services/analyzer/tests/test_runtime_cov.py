@@ -332,3 +332,37 @@ def test_undecodable_runtime_is_unreachable():
         return await rt.check(MODEL), rt.status.reason
 
     assert _run(fake, scenario, mode="fast")[0] == ("unreachable", "JSONDecodeError")
+
+
+def test_ensure_model_pulls_catalogue_models_only(monkeypatch):
+    monkeypatch.setattr(R, "OLLAMA_AUTO_PULL", True)
+    fake = FakeOllama(models=())
+
+    async def scenario(rt):
+        for model in ("llama3.1:405b", MODEL):
+            await rt.check(model)
+            rt.ensure_model(model)
+            if rt.pull_task:
+                await rt.pull_task
+
+    _run(fake, scenario)
+    assert fake.count("/api/pull") == 1
+    assert R.pull_allowed(MODEL) and not R.pull_allowed("llama3.1:405b")
+
+
+def test_pull_past_its_deadline_is_cancelled(monkeypatch):
+    monkeypatch.setattr(R, "PULL_DEADLINE_S", 0.01)
+
+    async def hang(client, model, on_progress):
+        await asyncio.sleep(60)
+
+    monkeypatch.setattr(R.ollama, "pull", hang)
+    fake = FakeOllama(models=())
+
+    async def scenario(rt):
+        rt.start_pull(MODEL)
+        await rt.pull_task
+        return rt.status.state, rt.status.reason
+
+    (state, reason), rt, _ = _run(fake, scenario)
+    assert (state, reason) == ("model_missing", "TimeoutError") and not rt.pulling

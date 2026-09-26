@@ -20,8 +20,8 @@ const (
 	adminID     = "u-admin"
 	ownerID     = "u-owner"
 	plainID     = "u-plain"
-	usersPath   = "/users/findbyid/"
-	rolesPath   = "/roles/"
+	usersPath   = "/v1/users/"
+	rolesPath   = "/v1/accessroles/"
 )
 
 var adminRoleID = constants.BuiltInRoleAdmin
@@ -31,13 +31,13 @@ var adminRoleID = constants.BuiltInRoleAdmin
 func stubDirectory(t *testing.T) {
 	t.Helper()
 	suspended := userresource.UserStatus{Phase: string(userresource.AccountPhaseSuspended)}
-	users := map[string]*userresource.UserAsResource{
-		bootstrapID: {ID: bootstrapID, Bootstrap: true, AssignedRolesIDs: []*string{&adminRoleID}},
-		adminID:     {ID: adminID, AssignedRolesIDs: []*string{&adminRoleID}, Status: suspended},
+	users := map[string]*userresource.User{
+		bootstrapID: {ID: bootstrapID, Bootstrap: true, RoleRefs: []*string{&adminRoleID}},
+		adminID:     {ID: adminID, RoleRefs: []*string{&adminRoleID}, Status: suspended},
 		ownerID:     {ID: ownerID},
 		plainID:     {ID: plainID},
 	}
-	admin := roledata.RoleAsResource{
+	admin := roledata.AccessRole{
 		ID: adminRoleID, Status: roledata.RoleStatusActive,
 		ScopesAndPermissions: []roledata.ScopeAndPermissions{{Scope: roledata.ScopeAll, Level: roledata.PermissionLevelAdmin}},
 	}
@@ -45,7 +45,7 @@ func stubDirectory(t *testing.T) {
 		var payload any
 		switch {
 		case strings.Contains(r.URL.Path, usersPath):
-			id := strings.TrimSuffix(r.URL.Path[strings.Index(r.URL.Path, usersPath)+len(usersPath):], "/get")
+			id := r.URL.Path[strings.Index(r.URL.Path, usersPath)+len(usersPath):]
 			user, ok := users[id]
 			if !ok {
 				w.WriteHeader(http.StatusNotFound)

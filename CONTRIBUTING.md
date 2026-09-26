@@ -59,7 +59,7 @@ Subchart packages (`charts/*/charts/*.tgz`) are git-ignored build artifacts — 
 make deps            # once, or after editing dependencies
 make helm-lint
 make helm-validate   # renders every mode and schema-validates with kubeconform
-helm template t ./charts/telark               # optionally: --set app.mode=<mode>
+helm template t ./charts/telark --set 'app.auth.bootstrap.admins={jane.doe@example.com}'   # optionally: --set app.mode=<mode>
 ```
 
 Do not bump chart or module versions, and do not commit local `replace` directives — releases handle versioning, and the services must build against the published modules.

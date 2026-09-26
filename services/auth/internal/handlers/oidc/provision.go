@@ -15,11 +15,14 @@ import (
 	oidchelper "github.com/telark/auth/internal/helpers/oidc"
 	"github.com/telark/auth/internal/helpers/shared"
 	userresource "github.com/telark/data/resources/user"
-	userclient "github.com/telark/rest/clients/resources/users"
 	restshared "github.com/telark/rest/clients/shared"
+	userclient "github.com/telark/rest/clients/users"
 )
 
-var ErrEmailAmbiguous = errors.New(string(constants.ErrOIDCEmailAmbiguous))
+var (
+	ErrEmailAmbiguous    = errors.New(string(constants.ErrOIDCEmailAmbiguous))
+	ErrEmailAlreadyBound = errors.New(string(constants.ErrOIDCEmailAlreadyBound))
+)
 
 func isNotFoundError(err error) bool {
 	return errors.Is(err, restshared.ErrNotFound) ||
@@ -30,7 +33,7 @@ func isNotFoundError(err error) bool {
 // the identity for good, so it happens only when the email names exactly one user.
 func jitProvisionUser(
 	userClient *userclient.Client, claims *oidchelper.GoogleClaims,
-) (*userresource.UserAsResource, error) {
+) (*userresource.User, error) {
 	users, err := userClient.GetAllUsers()
 	if err != nil {
 		return nil, fmt.Errorf(string(constants.ErrOIDCEmailLookupFailed),
@@ -46,14 +49,20 @@ func jitProvisionUser(
 	return createNewOIDCUser(userClient, claims)
 }
 
-func UserForEmail(users []*userresource.UserAsResource, email string) (*userresource.UserAsResource, error) {
-	matches := slices.DeleteFunc(slices.Clone(users), func(u *userresource.UserAsResource) bool {
+func UserForEmail(users []*userresource.User, email string) (*userresource.User, error) {
+	matches := slices.DeleteFunc(slices.Clone(users), func(u *userresource.User) bool {
 		return u == nil || !strings.EqualFold(u.Email, email)
 	})
 	switch len(matches) {
 	case constants.DefaultInitValue:
 		return nil, nil
 	case constants.DefaultIncrementValue:
+		// The stored email was never verified, so a Google subject binds to it only
+		// while the account has no identity: a passkey account that claimed a
+		// colleague's mailbox must not capture the colleague's first Google login.
+		if len(matches[constants.DefaultInitValue].Identities) > constants.DefaultInitValue {
+			return nil, ErrEmailAlreadyBound
+		}
 		return matches[constants.DefaultInitValue], nil
 	default:
 		return nil, ErrEmailAmbiguous
@@ -62,9 +71,9 @@ func UserForEmail(users []*userresource.UserAsResource, email string) (*userreso
 
 func attachGoogleIdentity(
 	userClient *userclient.Client,
-	user *userresource.UserAsResource,
+	user *userresource.User,
 	claims *oidchelper.GoogleClaims,
-) (*userresource.UserAsResource, error) {
+) (*userresource.User, error) {
 	identity := &userresource.UserIdentity{
 		Provider: constants.IdentityProviderGoogle,
 		Issuer:   claims.Issuer,
@@ -82,7 +91,7 @@ func attachGoogleIdentity(
 
 func createNewOIDCUser(
 	userClient *userclient.Client, claims *oidchelper.GoogleClaims,
-) (*userresource.UserAsResource, error) {
+) (*userresource.User, error) {
 	username, err := authhelper.BuildUsername(claims.Email)
 	if err != nil {
 		return nil, fmt.Errorf(string(constants.ErrOIDCBuildUsernameFailed), err)
@@ -103,20 +112,20 @@ func createNewOIDCUser(
 	}
 }
 
-func buildOIDCUser(claims *oidchelper.GoogleClaims, username string) *userresource.UserAsResource {
+func buildOIDCUser(claims *oidchelper.GoogleClaims, username string) *userresource.User {
 	fullname := claims.Name
 	if fullname == constants.EmptyString {
 		fullname = authhelper.BuildFullnameFromEmail(claims.Email)
 	}
 	roleID := authhelper.ResolveInitialRoleID(claims.Email)
-	return &userresource.UserAsResource{
-		Username:         username,
-		Fullname:         fullname,
-		Email:            claims.Email,
-		CreationDate:     time.Now().UTC().Format(time.RFC3339),
-		Status:           userresource.UserStatus{Phase: string(userresource.AccountPhaseActive)},
-		AssignedRolesIDs: []*string{&roleID},
-		Bootstrap:        config.IsBootstrapAdmin(claims.Email),
+	return &userresource.User{
+		Username:     username,
+		Fullname:     fullname,
+		Email:        claims.Email,
+		CreationDate: time.Now().UTC().Format(time.RFC3339),
+		Status:       userresource.UserStatus{Phase: string(userresource.AccountPhaseActive)},
+		RoleRefs:     []*string{&roleID},
+		Bootstrap:    config.IsBootstrapAdmin(claims.Email),
 		Identities: []*userresource.UserIdentity{
 			{
 				Provider: constants.IdentityProviderGoogle,
@@ -127,12 +136,12 @@ func buildOIDCUser(claims *oidchelper.GoogleClaims, username string) *userresour
 	}
 }
 
-func parseCreatedUser(data any) (*userresource.UserAsResource, bool) {
+func parseCreatedUser(data any) (*userresource.User, bool) {
 	raw, err := json.Marshal(data)
 	if err != nil {
 		return nil, false
 	}
-	var created userresource.UserAsResource
+	var created userresource.User
 	if err := json.Unmarshal(raw, &created); err != nil || created.ID == constants.EmptyString {
 		return nil, false
 	}
@@ -141,12 +150,12 @@ func parseCreatedUser(data any) (*userresource.UserAsResource, bool) {
 
 func fetchAndRepairIdentity(
 	userClient *userclient.Client, claims *oidchelper.GoogleClaims,
-) (*userresource.UserAsResource, error) {
+) (*userresource.User, error) {
 	existing, fetchErr := userClient.GetUserByIdentity(
 		constants.IdentityProviderGoogle, claims.Issuer, claims.Subject)
 	if fetchErr != nil || existing == nil {
 		return nil, fmt.Errorf(string(constants.ErrOIDCPostCreateLookup), fetchErr)
 	}
-	authhelper.RepairRoleIfMissing(existing, userClient, claims.Email)
+	authhelper.RepairRoleIfMissing(existing, userClient, authhelper.ResolveInitialRoleID(claims.Email))
 	return existing, nil
 }

@@ -147,6 +147,14 @@ func (s *BaseSubscriber) HandleMessage(m *nats.Msg) error {
 }
 
 func (s *BaseSubscriber) handleMessageForAck(m *nats.Msg) {
+	// A poison message must not kill the worker; the NAK lets MaxDeliver retire it.
+	defer func() {
+		if r := recover(); r != nil {
+			if err := s.NakWithLog(m, m.Subject, fmt.Sprintf(constants.ErrHandlerPanicked, m.Subject, r)); err != nil {
+				logger.GetLogger(constants.PrefixManagerSubscriber).Error(err.Error())
+			}
+		}
+	}()
 	if err := s.HandleMessage(m); err != nil {
 		logger.GetLogger(constants.PrefixManagerSubscriber).Error(fmt.Sprintf(string(errors.ErrNatsHandleMsg), m.Subject, err))
 		_ = m.Nak(ackWait)

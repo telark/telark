@@ -1,11 +1,13 @@
 """The analyzer's only exporter client (exporter is the sole CRD reader).
 
-Every read carries the service token. The GlobalConfig read keeps the last good
+Every read carries the service token. The TelarkConfig read keeps the last good
 value, so a transient exporter blip never flips a working analyzer off. The review
 reads the app list (summary view), the protection plans and the plan environments.
 """
 
 from __future__ import annotations
+
+from urllib.parse import quote
 
 import httpx
 
@@ -14,7 +16,7 @@ from config import (
     ANALYZER_REVIEW_TICK_SEC,
     APPLICATION_URL_TEMPLATE,
     APPLICATIONS_URL,
-    GLOBALCONFIG_URL,
+    CONFIG_URL,
     PLAN_ENVIRONMENTS_URL,
     PLANS_URL,
     SERVICE_TOKEN,
@@ -28,10 +30,10 @@ from constants import (
     EXPORTER_LIST_TIMEOUT_S,
     EXPORTER_TIMEOUT_S,
     FIELD_ITEMS,
-    GLOBALCONFIG_FIELD_AI,
-    GLOBALCONFIG_FIELD_EXCLUDED_NAMESPACES,
+    CONFIG_FIELD_AI,
+    CONFIG_FIELD_EXCLUDED_NAMESPACES,
     HEADER_SERVICE_TOKEN,
-    LOG_GLOBALCONFIG_FETCH_FAILED,
+    LOG_CONFIG_FETCH_FAILED,
     PARAM_VIEW,
     VIEW_SUMMARY,
 )
@@ -55,16 +57,16 @@ async def _get(client: httpx.AsyncClient, url: str, timeout: float = EXPORTER_TI
 
 
 async def fetch_config(client: httpx.AsyncClient) -> AnalyzerConfig:
-    resp = await _get(client, GLOBALCONFIG_URL)
+    resp = await _get(client, CONFIG_URL)
     resp.raise_for_status()
     data = (resp.json() or {}).get(ENVELOPE_DATA) or {}
-    ai = data.get(GLOBALCONFIG_FIELD_AI) or {}
+    ai = data.get(CONFIG_FIELD_AI) or {}
     return AnalyzerConfig(
         enabled=bool(ai.get(AI_FIELD_ENABLED, False)),
         # An analyzer image newer than the CRD sees the field pruned.
         model=ai.get(AI_FIELD_MODEL) or DEFAULT_ANALYZER_MODEL,
         autoAnalyze=bool(ai.get(AI_FIELD_AUTO_ANALYZE, False)),
-        excludedNamespaces=data.get(GLOBALCONFIG_FIELD_EXCLUDED_NAMESPACES) or [],
+        excludedNamespaces=data.get(CONFIG_FIELD_EXCLUDED_NAMESPACES) or [],
     )
 
 
@@ -78,12 +80,12 @@ async def refresh(client: httpx.AsyncClient) -> None:
     try:
         _current = await fetch_config(client)
     except Exception as e:  # any failure keeps the last good value
-        logger.warning(LOG_GLOBALCONFIG_FETCH_FAILED, type(e).__name__)
+        logger.warning(LOG_CONFIG_FETCH_FAILED, type(e).__name__)
 
 
 async def get_application(client: httpx.AsyncClient, name: str) -> dict:
     try:
-        resp = await _get(client, APPLICATION_URL_TEMPLATE.format(name=name))
+        resp = await _get(client, APPLICATION_URL_TEMPLATE.format(name=quote(name, safe="")))
     except httpx.HTTPError as e:
         raise ExporterUnavailable(type(e).__name__) from e
     if resp.status_code == httpx.codes.NOT_FOUND:

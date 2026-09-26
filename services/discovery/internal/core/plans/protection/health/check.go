@@ -63,6 +63,27 @@ func Check(ctx context.Context, deps Deps, planID string) (*plans.ProtectionPlan
 	return plan, result, nil
 }
 
+// Compute-only for the viewer-facing status route: no repair, no persisted health. Repair runs
+// on the leader tick, so a read can neither amplify cluster writes nor undo a break-glass edit.
+func Read(ctx context.Context, deps Deps, planID string) (*plans.ProtectionPlan, Result, error) {
+	plan, err := deps.Exporter.Get(planID)
+	if err != nil {
+		return nil, Result{}, err
+	}
+	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(CheckTimeoutSeconds)*time.Second)
+	defer cancel()
+	result, err := Compute(checkCtx, deps, plan)
+	if err != nil {
+		return plan, Result{}, err
+	}
+	plan.Health = plans.HealthUnknown
+	if plan.Phase == plans.PhaseActive {
+		plan.Health = result.Health
+		plan.HealthDetail = result.Detail
+	}
+	return plan, result, nil
+}
+
 // A plan that just went active carries no health until the controller's next tick, which shows
 // a fully enforcing plan as unknown for up to the tick interval. One delayed check closes that
 // window; the delay is there because Kyverno has not marked the Policy Ready yet.
@@ -96,11 +117,12 @@ func ReconcileForActive(ctx context.Context, deps Deps, planList []plans.Protect
 		deps.Logger.Error(fmt.Sprintf(logSnapshotFailedFmt, err))
 		return
 	}
+	sweepOrphans(ctx, deps, planList, snapshot)
 
 	// One application resolve for the pass, like the one LIST above: the fresh render every
 	// active plan is compared against must not cost one application read per plan per tick.
 	resolveCtx, cancelResolve := context.WithTimeout(ctx, time.Duration(CheckTimeoutSeconds)*time.Second)
-	resolved, resolveErr := resolveApps(resolveCtx, deps, activeApplicationIDs(planList))
+	resolved, resolveErr := resolveApps(resolveCtx, deps, activeApplicationRefs(planList))
 	cancelResolve()
 	if resolveErr != nil {
 		deps.Logger.Error(fmt.Sprintf(logResolveFailedFmt, resolveErr))
@@ -121,11 +143,50 @@ func ReconcileForActive(ctx context.Context, deps Deps, planList []plans.Protect
 	_ = g.Wait()
 }
 
-func activeApplicationIDs(planList []plans.ProtectionPlan) []string {
+// Policies whose plan is gone or no longer active (a Clear racing a deploy, a cleanup that failed
+// after the phase patch) would otherwise enforce with no plan left to cancel.
+func sweepOrphans(ctx context.Context, deps Deps, planList []plans.ProtectionPlan, snapshot map[string]map[string]policySnapshot) {
+	refs := orphanPolicies(planList, snapshot, deps.Clock())
+	if len(refs) == constants.DefaultInitValue {
+		return
+	}
+	if err := deps.Applier.DeletePoliciesByNamespacedName(ctx, refs); err != nil {
+		deps.Logger.Error(fmt.Sprintf(logOrphanSweepFailFmt, err))
+		return
+	}
+	deps.Logger.Info(fmt.Sprintf(logOrphansSweptFmt, refs))
+}
+
+func orphanPolicies(
+	planList []plans.ProtectionPlan,
+	snapshot map[string]map[string]policySnapshot,
+	now time.Time,
+) []protpolicies.NamespacedName {
+	active := map[string]struct{}{}
+	for i := range planList {
+		if planList[i].Phase == plans.PhaseActive {
+			active[planList[i].ID] = struct{}{}
+		}
+	}
+	var refs []protpolicies.NamespacedName
+	for planID, byName := range snapshot {
+		if _, ok := active[planID]; ok {
+			continue
+		}
+		for name, snap := range byName {
+			if now.Sub(snap.created) >= OrphanGracePeriod {
+				refs = append(refs, protpolicies.NamespacedName{Namespace: snap.namespace, Name: name})
+			}
+		}
+	}
+	return refs
+}
+
+func activeApplicationRefs(planList []plans.ProtectionPlan) []string {
 	var ids []string
 	for i := range planList {
 		if planList[i].Phase == plans.PhaseActive {
-			ids = append(ids, planApplicationIDs(&planList[i])...)
+			ids = append(ids, planApplicationRefs(&planList[i])...)
 		}
 	}
 	return slices.Compact(slices.Sorted(slices.Values(ids)))

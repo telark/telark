@@ -14,7 +14,7 @@ import (
 )
 
 type ApprovalNotifier struct {
-	ListUsers   func() ([]*userresource.UserAsResource, error)
+	ListUsers   func() ([]*userresource.User, error)
 	Grants      func(userID string) (xauthz.Grants, error)
 	Emit        func(ctx context.Context, n notifclient.Notification) error
 	Requirement xauthz.Requirement
@@ -79,8 +79,8 @@ func (n *ApprovalNotifier) Decided(plan *plans.ProtectionPlan, decision string, 
 }
 
 // The id stays as the fallback so a deleted requester is still identifiable.
-func displayName(users []*userresource.UserAsResource, userID string) string {
-	i := slices.IndexFunc(users, func(u *userresource.UserAsResource) bool { return u.ID == userID })
+func displayName(users []*userresource.User, userID string) string {
+	i := slices.IndexFunc(users, func(u *userresource.User) bool { return u.ID == userID })
 	if i == constants.DefaultReturnValue || users[i].Username == constants.EmptyString {
 		return userID
 	}

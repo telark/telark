@@ -42,22 +42,20 @@ jobs:
           - { service: notifier, coverage: 75 }
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Go CI
         uses: ./.github/actions/go-ci
         with:
           working-directory: services/${{ matrix.service }}
           cache-key: ${{ matrix.service }}-${{ matrix.task }}
-          access-user: ${{ secrets.ACCESS_USER }}
-          access-token: ${{ secrets.ACCESS_TOKEN }}
           coverage-threshold: ${{ matrix.coverage }}
           test: ${{ matrix.task == 'test' }}
           lint: ${{ matrix.task == 'lint' }}
 
       - name: Upload coverage to Codecov
         if: ${{ matrix.task == 'test' }}
-        uses: codecov/codecov-action@v7.1.1
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: services/${{ matrix.service }}/coverage.out
@@ -74,10 +72,10 @@ jobs:
         working-directory: services/analyzer
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
           cache: pip
@@ -101,7 +99,7 @@ jobs:
           python -m coverage xml
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v7.1.1
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: services/analyzer/coverage.xml
@@ -115,7 +113,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Helm and Go
         uses: ./.github/actions/setup-helm-go
@@ -130,7 +128,7 @@ jobs:
 
       - name: Lint charts
         run: |
-          helm lint "$CHART_DIR"
+          helm lint "$CHART_DIR" --set 'app.auth.bootstrap.admins={jane.doe@example.com}'
           helm lint "$CRDS_DIR" -f "$CHART_DIR/values.yaml"
 
       # Same command as `make values-docs`, so local + CI never disagree.

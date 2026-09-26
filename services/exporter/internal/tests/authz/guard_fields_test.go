@@ -63,10 +63,10 @@ func TestGuardApplicationPatchSessionLimitedToUserFields(t *testing.T) {
 func TestGuardUserCreatePrivilegedFields(t *testing.T) {
 	contributor := userWithLevel(roledata.PermissionLevelContributor)
 	plain := map[string]any{
-		constants.FieldUsername:          "jane",
-		constants.FieldAssignedRolesIDs:  []any{},
-		constants.FieldAssignedGroupsIDs: []any{},
-		constants.FieldStatus:            constants.EmptyString,
+		constants.FieldUsername:  "jane",
+		constants.FieldRoleRefs:  []any{},
+		constants.FieldGroupRefs: []any{},
+		constants.FieldStatus:    constants.EmptyString,
 	}
 	w := httptest.NewRecorder()
 	if !authz.GuardUserCreate(w, requestAs(contributor), plain) {
@@ -87,9 +87,9 @@ func TestGuardUserCreatePrivilegedFields(t *testing.T) {
 
 func TestGuardGroupRolesPatch(t *testing.T) {
 	existing := []string{roleA}
-	attach := map[string]any{constants.FieldAssignedRolesIDs: []any{roleA, roleB}}
-	remove := map[string]any{constants.FieldAssignedRolesIDs: []any{}}
-	unchanged := map[string]any{constants.FieldAssignedRolesIDs: []any{roleA}, constants.FieldName: "team"}
+	attach := map[string]any{constants.FieldRoleRefs: []any{roleA, roleB}}
+	remove := map[string]any{constants.FieldRoleRefs: []any{}}
+	unchanged := map[string]any{constants.FieldRoleRefs: []any{roleA}, constants.FieldName: "team"}
 
 	tests := []struct {
 		name     string

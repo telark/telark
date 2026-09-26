@@ -2,7 +2,7 @@ package cleanup
 
 import (
 	metadatabase "github.com/telark/data/metadata/base"
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/data/resources/finalizers"
 	"github.com/telark/exporter/internal/constants"
 )
@@ -14,15 +14,15 @@ type resourceTarget struct {
 
 var registry = map[string]resourceTarget{
 	finalizers.ResourceTypeUsers: {
-		Metadata: metadata.UserAsResourceMetadata,
-		RefKeys:  []string{constants.FieldAssignedRolesIDs, constants.FieldAssignedGroupsIDs},
+		Metadata: metadata.UserMetadata,
+		RefKeys:  []string{constants.FieldRoleRefs, constants.FieldGroupRefs},
 	},
 	finalizers.ResourceTypeGroups: {
-		Metadata: metadata.GroupAsResourceMetadata,
-		RefKeys:  []string{constants.FieldAssignedUsersIDs, constants.FieldAssignedRolesIDs},
+		Metadata: metadata.GroupMetadata,
+		RefKeys:  []string{constants.FieldUserRefs, constants.FieldRoleRefs},
 	},
 	finalizers.ResourceTypeRoles: {
-		Metadata: metadata.RoleAsResourceMetadata,
+		Metadata: metadata.AccessRoleMetadata,
 		RefKeys:  nil,
 	},
 }

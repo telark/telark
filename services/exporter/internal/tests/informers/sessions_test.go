@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	authmetadata "github.com/telark/data/metadata/auth"
+	authmetadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/informers"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -16,7 +16,7 @@ import (
 const mirroredSession = "session-a"
 
 func session(name string, userID string) *unstructured.Unstructured {
-	md := authmetadata.UserSessionMetadata
+	md := authmetadata.SessionMetadata
 	return &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": md.GetAPIVersion(),
 		"kind":       md.Kind,
@@ -29,7 +29,7 @@ func session(name string, userID string) *unstructured.Unstructured {
 // namespace is found without an apiserver call, an unknown name is a miss (the
 // resolver then asks the apiserver), and nothing is served before the sync.
 func TestRunSessionsServesRecordsByName(t *testing.T) {
-	md := authmetadata.UserSessionMetadata
+	md := authmetadata.SessionMetadata
 	gvr := schema.GroupVersionResource{Group: md.BaseGroup, Version: md.Version, Resource: md.Plural}
 	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(
 		runtime.NewScheme(), map[schema.GroupVersionResource]string{gvr: md.Kind + "List"},

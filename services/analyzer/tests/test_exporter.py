@@ -1,4 +1,4 @@
-"""Checks for the exporter client: the GlobalConfig AI read and the application GET.
+"""Checks for the exporter client: the TelarkConfig AI read and the application GET.
 
 This decides whether the analyzer runs at all and which model it asks, so a
 parse slip silently disables it or points it at the wrong model.
@@ -95,9 +95,20 @@ def test_service_token_sent(monkeypatch):
     assert seen == ["svc-token", "svc-token"]
 
 
+def test_get_application_percent_encodes_the_name():
+    seen = []
+
+    def handler(request):
+        seen.append(request.url.raw_path)
+        return httpx.Response(200, json=_envelope({}))
+
+    _call(handler, lambda client: exporter.get_application(client, "foo/get?x=1"))
+    assert seen == [b"/api/v1/applications/foo%2Fget%3Fx%3D1"]
+
+
 def test_get_application_returns_data():
     def handler(request):
-        assert request.url.path == "/api/v1/resources/applications/api/get"
+        assert request.url.path == "/api/v1/applications/api"
         return httpx.Response(200, json=_envelope({"name": "api"}))
 
     assert _call(handler, lambda client: exporter.get_application(client, "api")) == {"name": "api"}
@@ -134,9 +145,9 @@ def test_list_applications_summary_view(monkeypatch):
     monkeypatch.setattr(exporter, "SERVICE_TOKEN", "svc-token")
     seen = []
     apps = [{"name": "shop", "history": {"generation": 3}}]
-    handler = _list_handler(seen, {"/api/v1/resources/applications/get": apps})
+    handler = _list_handler(seen, {"/api/v1/applications": apps})
     assert _call(handler, exporter.list_applications) == apps
-    assert seen == [("/api/v1/resources/applications/get", {"view": "summary"}, "svc-token")]
+    assert seen == [("/api/v1/applications", {"view": "summary"}, "svc-token")]
     # Any failure is ExporterUnavailable: a status, a transport error, a body without items.
     for bad in (lambda r: httpx.Response(500), lambda r: httpx.Response(200, json=_envelope({"x": 1})),
                 lambda r: httpx.Response(200, text="not json")):
@@ -153,20 +164,21 @@ def test_list_plans_and_environments_service_token(monkeypatch):
     monkeypatch.setattr(exporter, "SERVICE_TOKEN", "svc-token")
     seen = []
     handler = _list_handler(seen, {
-        "/api/v1/plans/protection/get": [{"id": "p1", "phase": "active"}],
-        "/api/v1/classification/categories/scope/plan-environments/get": [
+        "/api/v1/protectionplans": [{"id": "p1", "phase": "active"}],
+        "/api/v1/categories": [
             {"id": "e1", "name": "Production"}, {"id": "e2"}],
     })
     assert _call(handler, exporter.list_plans) == [{"id": "p1", "phase": "active"}]
     assert _call(handler, exporter.list_environments) == {"e1": "Production", "e2": ""}
     assert [token for _, _, token in seen] == ["svc-token", "svc-token"]
+    assert seen[1][:2] == ("/api/v1/categories", {"scope": "plan-environments"})
 
 
 def test_plans_snapshot_cached_for_tick(monkeypatch):
     monkeypatch.setattr(exporter, "_plans_cache", None)
     seen = []
-    items = {"/api/v1/plans/protection/get": [{"id": "p1"}],
-             "/api/v1/classification/categories/scope/plan-environments/get": [{"id": "e1", "name": "prod"}]}
+    items = {"/api/v1/protectionplans": [{"id": "p1"}],
+             "/api/v1/categories": [{"id": "e1", "name": "prod"}]}
     handler = _list_handler(seen, items)
     first = _call(handler, lambda c: exporter.plans_snapshot(c, 1000.0))
     again = _call(handler, lambda c: exporter.plans_snapshot(c, 1000.0 + exporter.ANALYZER_REVIEW_TICK_SEC - 1))
@@ -175,7 +187,7 @@ def test_plans_snapshot_cached_for_tick(monkeypatch):
     _call(handler, lambda c: exporter.plans_snapshot(c, later))
     assert len(seen) == 4
     # A failure is never cached: the next review reads again.
-    items.pop("/api/v1/plans/protection/get")
+    items.pop("/api/v1/protectionplans")
     with pytest.raises(exporter.ExporterUnavailable):
         _call(handler, lambda c: exporter.plans_snapshot(c, later + 10_000))
     assert exporter._plans_cache[0] == later

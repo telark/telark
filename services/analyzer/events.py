@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 
-from constants import EVENT_RESYNC
+from constants import EVENT_RESYNC, SSE_MAX_STREAMS_PER_USER
 from models import Subscription
 
 
@@ -15,8 +15,11 @@ class Broadcaster:
     def __init__(self) -> None:
         self._subs: set[Subscription] = set()
 
-    def subscribe(self, apps: set[str]) -> Subscription:
-        sub = Subscription(apps=apps)
+    def subscribe(self, apps: set[str], user: str = "") -> Subscription | None:
+        """None once user already holds SSE_MAX_STREAMS_PER_USER subscriptions."""
+        if sum(1 for s in self._subs if s.user == user) >= SSE_MAX_STREAMS_PER_USER:
+            return None
+        sub = Subscription(apps=apps, user=user)
         self._subs.add(sub)
         return sub
 

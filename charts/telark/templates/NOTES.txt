@@ -29,14 +29,31 @@ Reach the auth service directly (dashboard disabled):
 {{- end }}
 
 Next steps:
-  1. Log in with the bootstrap admin ({{ join ", " .Values.app.auth.bootstrap.admins }}).
+{{- if and .Values.app.auth.bootstrap.admins .Values.services.auth.enabled }}
+  1. Enrol the bootstrap admin ({{ first .Values.app.auth.bootstrap.admins }}) with a passkey: run
+       kubectl exec -n {{ .Values.app.namespace }} deploy/{{ include "telark.fullname" . }}-{{ .Values.services.auth.name }} -- ./main break-glass --email {{ first .Values.app.auth.bootstrap.admins }} --enroll
+     and open /register?enroll=<token> on the dashboard within 10 minutes.
+{{- else }}
+  1. Register with a passkey (self-registration is on); no bootstrap admin is configured.
+{{- end }}
   2. Enable SSO from Settings once the platform is up.
 {{- if not .Values.app.crdGuard.enabled }}
-  3. The CRD write guard is OFF. Turn it on (app.crdGuard.enabled=true, enforce=false)
-     to audit, then enforce=true once the audit log is clean.
+  3. WARNING: the CRD write guard is OFF. Anyone with write access to this namespace can
+     grant themselves telark Admin by editing its custom resources. Set app.crdGuard.enabled=true.
 {{- else if not .Values.app.crdGuard.enforce }}
   3. The CRD write guard is in AUDIT mode. Confirm the audit log is clean, then set
      app.crdGuard.enforce=true.
+{{- end }}
+{{- if and .Values.ingress.enabled (not .Values.ingress.tls) }}
+
+WARNING: ingress.tls is empty, so the dashboard and every API behind it are served over
+plain HTTP, session tokens included. Add a TLS block (see docs/INSTALL.md) or terminate TLS
+in front of the Ingress controller.
+{{- end }}
+{{- if not .Values.app.networkPolicy.enabled }}
+
+WARNING: app.networkPolicy.enabled is false: any pod in the cluster can reach the telark
+APIs and NATS.
 {{- end }}
 {{- if not (index .Values "metrics-server" "enabled") }}
 

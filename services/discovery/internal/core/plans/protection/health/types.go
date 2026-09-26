@@ -27,6 +27,11 @@ const (
 	logRepairedFmt        = "protection-plan repaired plan=%s redeployed=%v repatched=%v removed=%v added=%v"
 	logSnapshotFailedFmt  = "protection-plan health snapshot failed err=%v"
 	logResolveFailedFmt   = "protection-plan health application resolve failed err=%v"
+	logOrphansSweptFmt    = "protection-plan orphan sweep removed policies=%v"
+	logOrphanSweepFailFmt = "protection-plan orphan sweep failed err=%v"
+	// Outlives a deploy budget: Prepare and approve deploy before the plan is created or active,
+	// so a younger policy may belong to a write still in flight.
+	OrphanGracePeriod = 4 * constants.ProtectionPlanDeployTimeout
 )
 
 var firstCheckSlots = make(chan struct{}, constants.HealthReconcileConcurrency)
@@ -63,6 +68,7 @@ type repairOutcome struct {
 }
 
 type policySnapshot struct {
+	created       time.Time
 	namespace     string
 	ready         bool
 	failureAction string

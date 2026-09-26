@@ -6,22 +6,7 @@ import (
 	"github.com/telark/exporter/internal/utils/performance"
 )
 
+// Scoped lists (?scope=) share the list generation, so one bump drops them all.
 func InvalidateCategoryCaches(optimizer *performance.Optimizer) {
 	cache.InvalidateAllResourceCaches(optimizer, constants.ResourceCategory)
-
-	categories, err := GetAllCategories()
-	if err != nil {
-		return
-	}
-
-	scopes := make(map[string]bool)
-	for _, cat := range categories {
-		if scope, ok := cat[constants.FieldScope].(string); ok && scope != constants.EmptyString {
-			scopes[scope] = true
-		}
-	}
-
-	for scope := range scopes {
-		cache.InvalidateGetCache(optimizer, constants.ResourceCategory, scope)
-	}
 }

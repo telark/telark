@@ -17,16 +17,16 @@ var lg = constants.GetLogger(constants.LoggerPrefixHandler)
 // exporter into one error the middleware could not tell apart.
 type clientSource struct{}
 
-func (clientSource) User(userID string) (*userdata.UserAsResource, error) {
+func (clientSource) User(userID string) (*userdata.User, error) {
 	return clients.GetUserClient().GetUserByID(userID)
 }
 
-func (clientSource) Group(groupID string) (*groupdata.GroupAsResource, error) {
+func (clientSource) Group(groupID string) (*groupdata.Group, error) {
 	return clients.GetGroupClient().GetGroupByID(groupID)
 }
 
-func (clientSource) Role(roleID string) (*roledata.RoleAsResource, error) {
-	return clients.GetRoleClient().GetRoleByID(roleID)
+func (clientSource) Role(roleID string) (*roledata.AccessRole, error) {
+	return clients.GetAccessRoleClient().GetAccessRoleByID(roleID)
 }
 
 func NewResolver() *authz.BasicResolver {

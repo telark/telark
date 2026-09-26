@@ -11,8 +11,8 @@ import (
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/insightsindex"
 	"github.com/telark/discovery/internal/discovery/cache"
-	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
 	redishelper "github.com/telark/discovery/internal/helpers/redis"
+	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 )
@@ -49,7 +49,7 @@ func GetApplicationsInsights(w http.ResponseWriter, r *http.Request) {
 		Pending: make([]string, constants.DefaultInitValue, len(keys)),
 	}
 
-	excluded := gcfghelper.FetchExcludedNamespaces(ctx)
+	excluded := tcfghelper.FetchExcludedNamespaces(ctx)
 	for _, key := range keys {
 		namespace, name, ok := splitAppKey(key)
 		if !ok || slices.Contains(excluded, namespace) {

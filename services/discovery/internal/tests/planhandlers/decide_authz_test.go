@@ -23,7 +23,7 @@ func decide(t *testing.T, decision string, identity *xauthz.Identity) *httptest.
 	t.Cleanup(func() { handlers.InitService(nil) })
 
 	body := fmt.Sprintf(`{"decision":%q,"comment":"c","requestedAt":"2026-09-23T00:00:00Z"}`, decision)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/plans/protection/plan-a/decide", strings.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/protectionplans/plan-a/decision", strings.NewReader(body))
 	req.Header.Set(constants.HeaderUserID, "u-approver")
 	req = mux.SetURLVars(req, map[string]string{constants.IDPathParam: "plan-a"})
 	if identity != nil {

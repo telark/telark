@@ -3,19 +3,19 @@ package authz
 import (
 	roledata "github.com/telark/data/resources/role"
 	"github.com/telark/rest/base"
+	roleendpoints "github.com/telark/rest/endpoints/accessroles"
+	applicationendpoints "github.com/telark/rest/endpoints/applications"
 	authendpoints "github.com/telark/rest/endpoints/auth"
-	categoryendpoints "github.com/telark/rest/endpoints/classification/category"
+	categoryendpoints "github.com/telark/rest/endpoints/categories"
+	cleanupendpoints "github.com/telark/rest/endpoints/cleanup"
+	configendpoints "github.com/telark/rest/endpoints/config"
+	groupendpoints "github.com/telark/rest/endpoints/groups"
 	notificationsendpoints "github.com/telark/rest/endpoints/notifications"
 	plansendpoints "github.com/telark/rest/endpoints/plans"
 	reportsendpoints "github.com/telark/rest/endpoints/reports"
-	applicationendpoints "github.com/telark/rest/endpoints/resources/applications"
-	cleanupendpoints "github.com/telark/rest/endpoints/resources/cleanup"
-	globalconfigendpoints "github.com/telark/rest/endpoints/resources/globalconfig"
-	groupendpoints "github.com/telark/rest/endpoints/resources/groups"
-	roleendpoints "github.com/telark/rest/endpoints/resources/roles"
-	userendpoints "github.com/telark/rest/endpoints/resources/users"
 	snapshotendpoints "github.com/telark/rest/endpoints/snapshots"
 	statusendpoints "github.com/telark/rest/endpoints/status"
+	userendpoints "github.com/telark/rest/endpoints/users"
 	"github.com/telark/rest/router"
 	"github.com/telark/x-ware/authz"
 )
@@ -34,7 +34,7 @@ func Requirements() map[string]authz.Requirement {
 	addReports(requirements)
 	addPlans(requirements)
 	addNotifications(requirements)
-	addGlobalConfig(requirements)
+	addConfig(requirements)
 	addCleanup(requirements)
 	addSessions(requirements)
 	addPasskeys(requirements)
@@ -54,7 +54,6 @@ func addUsers(r map[string]authz.Requirement) {
 	)
 	r[router.Key(base.Get, userendpoints.GetAllUsers)] = authz.Read(roledata.ScopeUsers)
 	r[router.Key(base.Get, userendpoints.GetUserByID)] = authz.Read(roledata.ScopeUsers)
-	r[router.Key(base.Get, userendpoints.GetUserByEmail)] = authz.Read(roledata.ScopeUsers)
 	// Any signed-in user may edit their own profile, so the route only needs a
 	// session; GuardUserPatch enforces ownership and each privileged field's rule.
 	r[router.Key(base.Patch, userendpoints.PatchUserByID)] = authz.Authenticated
@@ -64,6 +63,7 @@ func addUsers(r map[string]authz.Requirement) {
 
 	// Login resolves an identity before a session exists.
 	r[router.Key(base.Get, userendpoints.GetUserByUsername)] = authz.Internal
+	r[router.Key(base.Get, userendpoints.GetUserByEmail)] = authz.Internal
 	r[router.Key(base.Get, userendpoints.GetUserByIdentity)] = authz.Internal
 }
 
@@ -82,29 +82,24 @@ func addGroups(r map[string]authz.Requirement) {
 }
 
 func addRoles(r map[string]authz.Requirement) {
-	r[router.Key(base.Post, roleendpoints.CreateRole)] = authz.Denyable(
+	r[router.Key(base.Post, roleendpoints.CreateAccessRole)] = authz.Denyable(
 		authz.Write(roledata.ScopeRoles), roledata.ActionCreateRole,
 	)
-	r[router.Key(base.Get, roleendpoints.GetAllRoles)] = authz.Read(roledata.ScopeRoles)
-	r[router.Key(base.Get, roleendpoints.GetRoleByID)] = authz.Read(roledata.ScopeRoles)
-	r[router.Key(base.Get, roleendpoints.GetRoleByUserID)] = authz.Read(roledata.ScopeRoles)
-	r[router.Key(base.Get, roleendpoints.GetRolesByUserID)] = authz.Read(roledata.ScopeRoles)
-	r[router.Key(base.Get, roleendpoints.GetRoleByGroupID)] = authz.Read(roledata.ScopeRoles)
-	r[router.Key(base.Get, roleendpoints.GetRolesByGroupID)] = authz.Read(roledata.ScopeRoles)
-	r[router.Key(base.Patch, roleendpoints.PatchRoleByID)] = authz.Denyable(
+	r[router.Key(base.Get, roleendpoints.GetAllAccessRoles)] = authz.Read(roledata.ScopeRoles)
+	r[router.Key(base.Get, roleendpoints.GetAccessRoleByID)] = authz.Read(roledata.ScopeRoles)
+	r[router.Key(base.Patch, roleendpoints.PatchAccessRoleByID)] = authz.Denyable(
 		authz.Write(roledata.ScopeRoles), roledata.ActionEditRole,
 	)
-	r[router.Key(base.Delete, roleendpoints.DeleteRoleByID)] = authz.Denyable(
+	r[router.Key(base.Delete, roleendpoints.DeleteAccessRoleByID)] = authz.Denyable(
 		authz.Own(roledata.ScopeRoles), roledata.ActionDeleteRole,
 	)
 }
 
-// A category names the scope it classifies, so no route rule fits; writes
+// A category names the scope it classifies (the list also filters by ?scope=), so no route rule fits; writes
 // defer to GuardCategoryScope.
 func addCategories(r map[string]authz.Requirement) {
 	r[router.Key(base.Get, categoryendpoints.GetAllCategories)] = authz.Authenticated
 	r[router.Key(base.Get, categoryendpoints.GetCategoryByID)] = authz.Authenticated
-	r[router.Key(base.Get, categoryendpoints.GetCategoriesByScope)] = authz.Authenticated
 	r[router.Key(base.Post, categoryendpoints.CreateCategory)] = authz.Authenticated
 	r[router.Key(base.Patch, categoryendpoints.PatchCategoryByID)] = authz.Authenticated
 	r[router.Key(base.Delete, categoryendpoints.DeleteCategoryByID)] = authz.Authenticated
@@ -152,7 +147,7 @@ var snapshotManifestView = authz.Denyable(
 // the plan scope, and listing and downloading can each be withheld.
 func addReports(r map[string]authz.Requirement) {
 	r[router.Key(base.Post, reportsendpoints.CreatePlanReport)] = authz.Internal
-	r[router.Key(base.Post, reportsendpoints.PutPlanReportLedger)] = authz.Internal
+	r[router.Key(base.Update, reportsendpoints.PutPlanReportLedger)] = authz.Internal
 	r[router.Key(base.Get, reportsendpoints.GetPlanReportLedger)] = authz.Internal
 	r[router.Key(base.Get, reportsendpoints.ListPlanReports)] = authz.Denyable(
 		authz.Read(roledata.ScopeProtectionPlans), roledata.ActionViewProtectionPlanReports,
@@ -176,17 +171,16 @@ func addPlans(r map[string]authz.Requirement) {
 	r[router.Key(base.Post, plansendpoints.CreateProtectionPlan)] = authz.Denyable(
 		authz.Write(roledata.ScopeProtectionPlans), roledata.ActionCreateProtectionPlan,
 	)
-	r[router.Key(base.Patch, plansendpoints.PatchProtectionPlanByID)] = authz.Denyable(
-		authz.Write(roledata.ScopeProtectionPlans), roledata.ActionEditProtectionPlan,
-	)
-	// Users delete through discovery's clear route, which removes the deployed policies first.
+	// Users edit and delete through discovery, which owns the lifecycle and
+	// removes the deployed policies first.
+	r[router.Key(base.Patch, plansendpoints.PatchProtectionPlanByID)] = authz.Internal
 	r[router.Key(base.Delete, plansendpoints.DeleteProtectionPlanByID)] = authz.Internal
 }
 
 // Every user reaches their own, whatever scopes their roles carry.
 func addNotifications(r map[string]authz.Requirement) {
 	r[router.Key(base.Get, notificationsendpoints.List)] = authz.Authenticated
-	r[router.Key(base.Patch, notificationsendpoints.MarkRead)] = authz.Authenticated
+	r[router.Key(base.Post, notificationsendpoints.MarkRead)] = authz.Authenticated
 	r[router.Key(base.Post, notificationsendpoints.MarkAllRead)] = authz.Authenticated
 	r[router.Key(base.Delete, notificationsendpoints.Clear)] = authz.Authenticated
 
@@ -194,16 +188,16 @@ func addNotifications(r map[string]authz.Requirement) {
 	r[router.Key(base.Post, notificationsendpoints.Emit)] = authz.Internal
 }
 
-// Its parts are not governed alike, so GuardGlobalConfigPatch checks per field.
-func addGlobalConfig(r map[string]authz.Requirement) {
-	r[router.Key(base.Get, globalconfigendpoints.GetGlobalConfig)] = authz.Read(roledata.ScopeSettings)
-	r[router.Key(base.Patch, globalconfigendpoints.PatchGlobalConfig)] = authz.Authenticated
+// Its parts are not governed alike, so GuardConfigPatch checks per field.
+func addConfig(r map[string]authz.Requirement) {
+	r[router.Key(base.Get, configendpoints.GetConfig)] = authz.Read(roledata.ScopeSettings)
+	r[router.Key(base.Patch, configendpoints.PatchConfig)] = authz.Authenticated
 }
 
 // Finalizer edits decide whether a resource can be deleted at all.
 func addCleanup(r map[string]authz.Requirement) {
-	r[router.Key(base.Patch, cleanupendpoints.AddFinalizer)] = authz.Own(roledata.ScopeSettings)
-	r[router.Key(base.Patch, cleanupendpoints.RemoveFinalizer)] = authz.Own(roledata.ScopeSettings)
+	r[router.Key(base.Update, cleanupendpoints.AddFinalizer)] = authz.Own(roledata.ScopeSettings)
+	r[router.Key(base.Delete, cleanupendpoints.RemoveFinalizer)] = authz.Own(roledata.ScopeSettings)
 	r[router.Key(base.Get, cleanupendpoints.GetCleanupViewByID)] = authz.Read(roledata.ScopeSettings)
 	r[router.Key(base.Get, cleanupendpoints.ListCleanupViews)] = authz.Read(roledata.ScopeSettings)
 }
@@ -211,11 +205,12 @@ func addCleanup(r map[string]authz.Requirement) {
 // Not administrative, so no scope; the guards narrow these to the caller.
 func addSessions(r map[string]authz.Requirement) {
 	r[router.Key(base.Get, authendpoints.GetAllSessionsByUser)] = authz.Authenticated
-	r[router.Key(base.Get, authendpoints.GetSessionByToken)] = authz.Authenticated
-	r[router.Key(base.Delete, authendpoints.DeleteSessionByToken)] = authz.Authenticated
+	r[router.Key(base.Get, authendpoints.GetSelfSession)] = authz.Authenticated
+	r[router.Key(base.Delete, authendpoints.DeleteSelfSession)] = authz.Authenticated
+	r[router.Key(base.Delete, authendpoints.DeleteSessionByName)] = authz.Authenticated
 
 	r[router.Key(base.Post, authendpoints.CreateSessionByUser)] = authz.Internal
-	r[router.Key(base.Patch, authendpoints.PatchSessionByToken)] = authz.Internal
+	r[router.Key(base.Patch, authendpoints.PatchSelfSession)] = authz.Internal
 }
 
 // Reached via the passkey proxy, during a ceremony that has no session yet.

@@ -7,7 +7,7 @@ import (
 
 	"github.com/telark/data/errors"
 	"github.com/telark/data/messages"
-	plansmd "github.com/telark/data/metadata/plans"
+	plansmd "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/data/plans"
 	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/constants"
@@ -36,7 +36,7 @@ func CreatePlan() func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		body, err := sharedutils.GetSpec(w, r)
+		body, err := sharedutils.GetSpecFor[plans.ProtectionPlan](w, r)
 		if err != nil {
 			return
 		}
@@ -111,7 +111,7 @@ func PatchPlanByID() func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		body, err := sharedutils.GetSpec(w, r)
+		body, err := sharedutils.GetSpecFor[plans.ProtectionPlan](w, r)
 		if err != nil {
 			return
 		}

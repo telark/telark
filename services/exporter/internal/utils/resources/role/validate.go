@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	roledata "github.com/telark/data/resources/role"
 	"github.com/telark/exporter/internal/constants"
 	roleconstants "github.com/telark/exporter/internal/utils/compute/role/constants"
@@ -14,7 +14,7 @@ import (
 	responseutils "github.com/telark/rest/utils/response"
 )
 
-func ValidateAndPrepareRole(role *roledata.RoleAsResource, w http.ResponseWriter) error {
+func ValidateAndPrepareRole(role *roledata.AccessRole, w http.ResponseWriter) error {
 	if err := validateRoleFields(role, w); err != nil {
 		return err
 	}
@@ -22,7 +22,7 @@ func ValidateAndPrepareRole(role *roledata.RoleAsResource, w http.ResponseWriter
 	return setRoleID(role, w)
 }
 
-func validateRoleFields(role *roledata.RoleAsResource, w http.ResponseWriter) error {
+func validateRoleFields(role *roledata.AccessRole, w http.ResponseWriter) error {
 	if err := validateRoleName(role, w); err != nil {
 		return err
 	}
@@ -34,7 +34,7 @@ func validateRoleFields(role *roledata.RoleAsResource, w http.ResponseWriter) er
 	return validateRoleComplexFields(role, w)
 }
 
-func validateRoleName(role *roledata.RoleAsResource, w http.ResponseWriter) error {
+func validateRoleName(role *roledata.AccessRole, w http.ResponseWriter) error {
 	if err := sharedutils.ValidateRequiredField(role.Name, string(constants.ErrRoleNameCannotBeEmpty)); err != nil {
 		responseutils.LogAndSendResponse(
 			w,
@@ -49,7 +49,7 @@ func validateRoleName(role *roledata.RoleAsResource, w http.ResponseWriter) erro
 	return nil
 }
 
-func validateRoleBasicFields(role *roledata.RoleAsResource, w http.ResponseWriter) error {
+func validateRoleBasicFields(role *roledata.AccessRole, w http.ResponseWriter) error {
 	if role.Description == constants.EmptyString {
 		responseutils.LogAndSendResponse(
 			w,
@@ -62,16 +62,16 @@ func validateRoleBasicFields(role *roledata.RoleAsResource, w http.ResponseWrite
 		return errors.New(string(constants.ErrRoleDescriptionRequired))
 	}
 
-	if role.CategoryID == constants.EmptyString {
+	if role.CategoryRef == constants.EmptyString {
 		responseutils.LogAndSendResponse(
 			w,
 			http.StatusBadRequest,
 			response.OperationError,
-			string(constants.ErrRoleCategoryIDRequired),
+			string(constants.ErrRoleCategoryRefRequired),
 			nil,
 			nil,
 		)
-		return errors.New(string(constants.ErrRoleCategoryIDRequired))
+		return errors.New(string(constants.ErrRoleCategoryRefRequired))
 	}
 
 	if len(role.ScopesAndPermissions) == constants.DefaultInitValue {
@@ -89,7 +89,7 @@ func validateRoleBasicFields(role *roledata.RoleAsResource, w http.ResponseWrite
 	return nil
 }
 
-func validateRoleComplexFields(role *roledata.RoleAsResource, w http.ResponseWriter) error {
+func validateRoleComplexFields(role *roledata.AccessRole, w http.ResponseWriter) error {
 	if role.Validity == nil {
 		responseutils.LogAndSendResponse(
 			w,
@@ -132,9 +132,9 @@ func ValidatePriorityCapOrRespond(w http.ResponseWriter, priority int) error {
 	return nil
 }
 
-func setRoleID(role *roledata.RoleAsResource, w http.ResponseWriter) error {
+func setRoleID(role *roledata.AccessRole, w http.ResponseWriter) error {
 	roleID, err := resourcesshared.GenerateUniqueResourceID(
-		metadata.RoleAsResourceMetadata,
+		metadata.AccessRoleMetadata,
 		constants.RoleIDConfig,
 	)
 	if err != nil {

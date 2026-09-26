@@ -44,7 +44,7 @@ func Decide(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), constants.ProtectionPlanDeployTimeout)
+	ctx, cancel := context.WithTimeout(detached(r), constants.ProtectionPlanDeployTimeout)
 	defer cancel()
 
 	release, ok := lockPlanDecision(ctx, w, planID)

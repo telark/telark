@@ -3,6 +3,9 @@ CHART_DIR    := charts/telark
 CRDS_DIR     := charts/telark-crds
 REGISTRY     ?= oci://ghcr.io/telark/charts
 HELM_DOCS    := go run github.com/norwoodj/helm-docs/cmd/helm-docs@v1.14.2
+# The app chart refuses to render without an admin (templates/_guards.tpl); lint and
+# validation use a placeholder one.
+RENDER_SET   := --set 'app.auth.bootstrap.admins={jane.doe@example.com}'
 
 .PHONY: help build test lint fmt vet helm-lint helm-template helm-validate deps values-docs changelog publish-charts sync check
 
@@ -26,10 +29,10 @@ lint: helm-lint ## golangci-lint per service (shared root .golangci.yml) + helm 
 
 helm-lint: ## Lint both charts
 	helm lint $(CRDS_DIR) -f $(CHART_DIR)/values.yaml
-	helm lint $(CHART_DIR)
+	helm lint $(CHART_DIR) $(RENDER_SET)
 
 helm-template: ## Render the app chart (override sizing with MODE=minimal|performance)
-	helm template t $(CHART_DIR) $(if $(MODE),--set app.mode=$(MODE),)
+	helm template t $(CHART_DIR) $(RENDER_SET) $(if $(MODE),--set app.mode=$(MODE),)
 
 deps: ## Fetch subchart dependencies into charts/*/charts (git-ignored; rebuilt on demand)
 	helm repo add bitnami        https://charts.bitnami.com/bitnami
@@ -46,7 +49,7 @@ K8S_VERSIONS ?= 1.30.0 1.31.0 1.32.0 1.33.0 1.34.0
 helm-validate: deps ## Schema-validate the rendered manifests for every mode and supported k8s version (kubeconform)
 	@mkdir -p /tmp/kubeconform-cache
 	@for m in minimal standard performance; do \
-	  helm template t $(CHART_DIR) --set app.mode=$$m --set app.persistence.storageClass=validate \
+	  helm template t $(CHART_DIR) $(RENDER_SET) --set app.mode=$$m --set app.persistence.storageClass=validate \
 	    > /tmp/rendered-$$m.yaml || exit 1; \
 	  for v in $(K8S_VERSIONS); do \
 	    echo "== kubeconform $$m · k8s $$v =="; \
@@ -69,10 +72,18 @@ values-docs: ## Regenerate each chart's VALUES.md index from values.yaml (helm-d
 changelog: ## Regenerate CHANGELOG.md from conventional commits (git-cliff)
 	git cliff -o CHANGELOG.md
 
-publish-charts: deps ## Package + push both charts to the OCI registry (run `helm registry login ghcr.io` first)
+# Signed like release-charts.yaml, so a manual publish never leaves an unsigned chart in the repo.
+publish-charts: deps ## Package, push and cosign-sign both charts (run `helm registry login ghcr.io` and `cosign login ghcr.io` first)
 	rm -rf .cr-release && mkdir -p .cr-release
 	helm package $(CRDS_DIR)  --destination .cr-release
 	helm package $(CHART_DIR) --destination .cr-release
-	@for pkg in .cr-release/*.tgz; do echo "== push $$pkg =="; helm push "$$pkg" $(REGISTRY); done
+	@for pkg in .cr-release/*.tgz; do echo "== push $$pkg =="; \
+	  helm push "$$pkg" $(REGISTRY) > .cr-release/push.log 2>&1 || { cat .cr-release/push.log; exit 1; }; \
+	  cat .cr-release/push.log; \
+	  digest=$$(awk '/[Dd]igest:/{print $$NF}' .cr-release/push.log); \
+	  name=$$(helm show chart "$$pkg" | awk '/^name:/{print $$2}'); \
+	  [ -n "$$digest" ] || { echo "no digest for $$pkg"; exit 1; }; \
+	  cosign sign --yes "$(patsubst oci://%,%,$(REGISTRY))/$$name@$$digest" || exit 1; \
+	done
 
 check: lint test ## Lint and test everything

@@ -16,7 +16,7 @@ import (
 	"github.com/telark/discovery/internal/discovery/listing"
 	"github.com/telark/discovery/internal/discovery/prewarm"
 	discoveryshared "github.com/telark/discovery/internal/discovery/shared"
-	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
+	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
 )
 
 var errUnexpectedResponseData = errors.New("unexpected response data type")
@@ -61,7 +61,7 @@ func executeSyncHandler(ctx context.Context, rdb *redis.Client, appName string) 
 		return fmt.Errorf(string(constants.ErrStoredApplicationNotFound), err)
 	}
 
-	excluded := gcfghelper.FetchExcludedNamespaces(ctx)
+	excluded := tcfghelper.FetchExcludedNamespaces(ctx)
 	if isStoredAppExcluded(stored, excluded) {
 		return nil
 	}
@@ -177,7 +177,7 @@ func executePrewarmHandler(ctx context.Context, rdb *redis.Client, namespace str
 		return ctx.Err()
 	}
 
-	if isNamespaceExcluded(namespace, gcfghelper.FetchExcludedNamespaces(ctx)) {
+	if isNamespaceExcluded(namespace, tcfghelper.FetchExcludedNamespaces(ctx)) {
 		return nil
 	}
 

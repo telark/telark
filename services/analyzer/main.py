@@ -32,7 +32,7 @@ import analyzer
 import exporter
 import recommendations
 import review
-from api_server import create_app
+from api_server import create_app, valid_app
 from app_logger import configure, logger
 from config import (
     ANALYZER_CONFIG_POLL_SEC,
@@ -46,6 +46,7 @@ from config import (
     REDIS_URL,
 )
 from constants import (
+    API_ERROR_INVALID_APP,
     API_HOST,
     APP_CATCHUP_ATTEMPTS,
     APP_CATCHUP_INTERVAL_S,
@@ -455,6 +456,11 @@ async def handle(state, msg_id: str, fields: dict | None, cfg: AnalyzerConfig, c
         logger.warning(LOG_JOB_UNDECODABLE, type(e).__name__)
         await state.store.ack_job(msg_id)
         return ""
+    # Redis is untrusted: a planted job must not steer the exporter URL or the document key.
+    if not valid_app(job.namespace, job.name):
+        logger.warning(LOG_JOB_UNDECODABLE, API_ERROR_INVALID_APP)
+        await state.store.ack_job(msg_id)
+        return ""
     if clock_ms() - stream_id_ms(msg_id) > JOB_MAX_AGE_S * MS_PER_S:
         code = RUN_ERROR_JOB_EXPIRED
     elif job.trigger != TRIGGER_MANUAL and not cfg.autoAnalyze:
@@ -626,7 +632,7 @@ async def review_loop(state, sleep: Sleep = asyncio.sleep) -> None:
 
 
 async def config_poll(state, sleep: Sleep = asyncio.sleep) -> None:
-    """Every ANALYZER_CONFIG_POLL_SEC: refresh GlobalConfig, re-check the runtime for its model and, while the analyzer
+    """Every ANALYZER_CONFIG_POLL_SEC: refresh TelarkConfig, re-check the runtime for its model and, while the analyzer
     is enabled, pull that model if it is missing and autoPull is on (a fresh install then needs no Settings step)."""
     while True:
         try:

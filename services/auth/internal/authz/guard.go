@@ -83,7 +83,7 @@ func adminOnAll(userID string) (bool, error) {
 
 type activeSource struct{ clientSource }
 
-func (s activeSource) User(userID string) (*userdata.UserAsResource, error) {
+func (s activeSource) User(userID string) (*userdata.User, error) {
 	user, err := s.clientSource.User(userID)
 	if err != nil {
 		return nil, err
@@ -91,4 +91,12 @@ func (s activeSource) User(userID string) (*userdata.UserAsResource, error) {
 	active := *user
 	active.Status.Phase = string(userdata.AccountPhaseActive)
 	return &active, nil
+}
+
+func CallerIsAdminOnAll(ctx context.Context) bool {
+	caller, ok := authz.FromContext(ctx)
+	if !ok {
+		return false
+	}
+	return caller.Internal || isAdmin(caller.Grants)
 }

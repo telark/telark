@@ -47,7 +47,7 @@ flowchart LR
   SWEEP -->|apps, protection plans| EXP
   WORKER -->|fast: one narration · deep: tool loop + emit| OLLAMA
   WORKER -->|fast: two SETs · deep: one SET · review: one SET| DOC
-  WORKER -->|GlobalConfig ai| EXP
+  WORKER -->|TelarkConfig ai| EXP
   DISC -->|windowed read · index| DOC
   UI -->|insights| DISC
   UI -->|analyze · runtime · SSE| API
@@ -251,7 +251,7 @@ the fit check, at most 3 insights per run and 4 evidence refs per insight.
 
 `GET …/runtime` reports one of `absent` (no Ollama at `OLLAMA_HOST`), `unreachable`, `model_missing`,
 `pulling` (with progress), `unsupported` (deep mode only: the model has no tool calling) or `ready`, plus
-`mode` (`fast` | `deep`), `autoPull` and `enabled` (GlobalConfig `ai.enabled`, for users who may read insights
+`mode` (`fast` | `deep`), `autoPull` and `enabled` (TelarkConfig `ai.enabled`, for users who may read insights
 but not the settings). The state is re-checked every `ANALYZER_CONFIG_POLL_SEC` and pushed as `runtime.changed`
 (same fields); readiness never depends on it. Fast mode needs only an installed model:
 `validate` answers `model_lacks_tools` in deep mode only.
@@ -261,6 +261,8 @@ but not the settings). The state is re-checked every `ANALYZER_CONFIG_POLL_SEC` 
 - **Connected** (`OLLAMA_AUTO_PULL=true`, chart `app.ollama.autoPull=true`): while the analyzer is enabled, a
   missing model is pulled at the first config poll after start and by any run that needs it (the runtime needs
   443 egress for pulls only). A failing pull is retried every poll; only the first failure in a row is logged.
+  Only models of the licence catalogue (`LICENSES` in `constants.py`) are pulled, and a pull still running
+  after an hour is cancelled.
 - **Air-gapped** (`OLLAMA_AUTO_PULL=false`): no pulls, the pull route answers 409 `auto_pull_disabled`; the
   model is pre-loaded on the runtime volume. Fast runs still deliver rule insights without it.
 - **Your own runtime** (chart `app.ollama.runtimeUrl`, which sets `OLLAMA_HOST`): any endpoint that speaks
@@ -298,7 +300,7 @@ an hour with nothing pending.
 | `constants.py` | Every literal, including the frozen contract mirrored from `internal/data` and `internal/rest` |
 | `models.py` | Pydantic mirrors of the Go contract (same JSON names) and the analyzer's own models |
 | `helpers.py` | Redis key builders (Go `DocumentKey` format), time helpers, quantities, label selectors, image references, probe signatures |
-| `exporter.py` | The only exporter client: GlobalConfig `ai` + `excludedNamespaces`, application reads, the app list, protection plans, plan environments |
+| `exporter.py` | The only exporter client: TelarkConfig `ai` + `excludedNamespaces`, application reads, the app list, protection plans, plan environments |
 | `insights.py` | Insight document store (document + `analyzer:index`), the incident and recommendation lifecycles, triage |
 | `analyzer.py` | fast: gather + rules, narration; deep: tool loop, EMIT, fit check, wall/EMIT reserve, failure mapping |
 | `rules.py` | Fast mode's detector: candidate insights from the tool results (pure) |
@@ -320,16 +322,16 @@ an hour with nothing pending.
   Kubernetes client or agent framework.
 - **Infrastructure:** Redis (job stream, insight documents, the `analyzer:index` ZSET, the `analyzer:usage`
   and `analyzer:review` hashes, in-flight and cooldown keys), Ollama.
-- **Peers:** reads GlobalConfig, applications, protection plans and plan environments from **exporter**
+- **Peers:** reads TelarkConfig, applications, protection plans and plan environments from **exporter**
   (HTTP + service token); checks sessions with **auth-service**; reads workloads, pods, events, Services,
   PodDisruptionBudgets, HorizontalPodAutoscalers and NetworkPolicies from the **Kubernetes API** (GET only,
   the pod's service account); **discovery** appends jobs and serves the documents and the Insights page.
 
 ## Configuration
 
-Whether the analyzer runs, the model, `autoAnalyze` and the excluded namespaces live in `GlobalConfig`
+Whether the analyzer runs, the model, `autoAnalyze` and the excluded namespaces live in `TelarkConfig`
 (Settings), polled every `ANALYZER_CONFIG_POLL_SEC`. A fresh install seeds `ai.enabled: true`,
-`model: granite4:350m`, `autoAnalyze: false`; an existing GlobalConfig is never rewritten. Env holds endpoints
+`model: granite4:350m`, `autoAnalyze: false`; an existing TelarkConfig is never rewritten. Env holds endpoints
 and caps. Full reference:
 [chart README](../../charts/telark/README.md#servicesanalyzerenv).
 
@@ -345,6 +347,7 @@ and caps. Full reference:
 | `AUTH_SERVICE_URL` | `http://telark-auth-service:8080` | auth-service base URL |
 | `EXPORTER_SERVICE_URL` | `http://telark-exporter-service:8080` | exporter base URL |
 | `TELARK_SERVICE_TOKEN` | — | Service token sent to exporter |
+| `CORS_ALLOWED_ORIGINS` | — | Comma-separated origins that get CORS headers (local dev only, e.g. `http://localhost:3000`); empty adds none |
 | `ANALYZER_MODE` | `fast` | `fast` (rules + one narration) or `deep` (tool loop); anything else fails startup |
 | `ANALYZER_NUM_THREAD` | `2` | `options.num_thread` of every model call: the runtime's CPU limit, never above the node's vCPU |
 | `ANALYZER_NARRATE_TIMEOUT_SEC` | `45` | HTTP timeout of the fast narration |
@@ -359,7 +362,7 @@ and caps. Full reference:
 | `ANALYZER_QUEUE_MAX` | `100` | Stream backlog above which manual analyze answers 429 |
 | `ANALYZER_AUTO_COOLDOWN_SEC` | `600` | Per-app cooldown of incident jobs |
 | `ANALYZER_MANUAL_COOLDOWN_SEC` | `60` | Per-app cooldown of manual analyze |
-| `ANALYZER_CONFIG_POLL_SEC` | `30` | GlobalConfig and runtime re-check interval |
+| `ANALYZER_CONFIG_POLL_SEC` | `30` | TelarkConfig and runtime re-check interval |
 | `ANALYZER_REVIEW_INTERVAL_SEC` | `7200` | Re-review an unchanged app after this long; `0` turns the sweep off |
 | `ANALYZER_REVIEW_TICK_SEC` | `120` | Sweep tick |
 | `ANALYZER_REVIEW_APPS_PER_MIN` | `20` | Sweep pace (apps reviewed per minute) |
@@ -375,6 +378,12 @@ and caps. Full reference:
 Every route but the probes needs `X-Session-Token`; responses use the Go envelope
 `{status, operation, message, data}`. A missing token, or one auth-service rejects (invalid or expired), is
 401; a suspended or deleted user, or a missing grant, is 403; auth-service unreachable is 503.
+A request body over 64 KiB is 413 before it is read (FastAPI reads the body before the session check).
+There are no `/docs`, `/redoc` or `/openapi.json` routes. CORS headers are sent only for the origins in
+`CORS_ALLOWED_ORIGINS` (none by default: behind nginx the UI is same-origin).
+
+The SSE stream re-checks its session every minute and ends once auth-service answers 401 or 403 (an auth
+outage keeps it open); a user holds at most 8 streams, the next is 429 `too_many_streams`.
 
 | Method | Path | Access |
 |---|---|---|
@@ -384,7 +393,7 @@ Every route but the probes needs `X-Session-Token`; responses use the Go envelop
 | `GET` | `/api/v1/insights/events?apps=ns/name,…` (SSE) | `insights` ReadOnly or `settings` Owner |
 | `GET` | `/api/v1/insights/runtime` | `insights` ReadOnly or `settings` Owner |
 | `POST` | `/api/v1/insights/runtime/validate` | `settings` Owner, denied by the `settings.controlainsights.deny` rule |
-| `POST` | `/api/v1/insights/runtime/pull` | `settings` Owner, denied by the `settings.controlainsights.deny` rule |
+| `POST` | `/api/v1/insights/runtime/pull` | `settings` Owner, denied by the `settings.controlainsights.deny` rule; 400 `model_not_allowed` for a model outside the licence catalogue (`LICENSES` in `constants.py`) |
 
 ## Build & run
 

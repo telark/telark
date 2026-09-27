@@ -21,12 +21,9 @@ case "$BUILD_TYPE" in
   patch)
     service_new_version=$(echo "$service_current_version" | awk -F. '{$3+=1;OFS=".";print $1,$2,$3}')
     ;;
-  re-build-current)
-    service_new_version=$service_current_version
-    ;;
   *)
     echo "Invalid version type: $BUILD_TYPE"
-    echo "Valid options: major, minor, patch, re-build-current"
+    echo "Valid options: major, minor, patch"
     exit 1
     ;;
 esac

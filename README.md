@@ -62,7 +62,7 @@ It also reviews every application's setup against 60 rules (reliability, resourc
 
 How it stays trustworthy:
 
-- Findings come from deterministic rules. A small open-weight model only rewrites their wording, and Telark discards any rewrite that drops or invents a fact.
+- By default, findings come from deterministic rules. A small open-weight model only rewrites their wording, and Telark discards any rewrite that drops or invents a fact. An opt-in deep mode, for bigger nodes or a GPU, lets the model investigate with the same read-only tools.
 - It is read-only. It never changes your cluster.
 - The model runs in your cluster through Ollama. No data leaves it, no API key is needed, and it works air-gapped.
 - It is on by default and easy to switch off in Settings. Setup reviews run on their own; incident analysis runs when you click Analyze, or automatically once you enable auto-analyze. The rest of Telark works without it.

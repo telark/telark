@@ -215,7 +215,7 @@ services:
     name: "exporter-service"
     repository: "exporter"
     # @ignore
-    version: 0.0.0
+    version: 0.0.1
     category: "persistence-manager"
     # Two replicas share the snapshot volume, so the chart derives the rest:
     # replicas > 1 → RollingUpdate + ReadWriteMany (needs app.persistence.storageClass

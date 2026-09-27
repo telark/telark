@@ -1,6 +1,6 @@
 # Architecture
 
-Telark is change control for Kubernetes applications. It discovers applications, binds protection plans (policy templates, a scope and a time window) to them, decides at admission what may change them, verifies the result against the live cluster, and records every change with rollback. This page is the one-page overview; [Components and flows](architecture/README.md) has the detail.
+Telark is a protection gate for Kubernetes applications. It discovers applications, binds protection plans (policy templates, a scope and a time window) to them, decides at admission what may change them, verifies the result against the live cluster, and records every change with rollback. This page is the one-page overview; [Components and flows](architecture/README.md) has the detail.
 
 ## System
 

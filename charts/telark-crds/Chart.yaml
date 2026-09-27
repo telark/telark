@@ -1,6 +1,6 @@
 apiVersion: v2
 name: telark-crds
-description: Custom resource definitions for Telark, change control for Kubernetes applications. Bundled by the telark chart, or installed standalone.
+description: Custom resource definitions for Telark, a protection gate for Kubernetes applications. Bundled by the telark chart, or installed standalone.
 type: application
 version: 0.0.1
 appVersion: "1.0"

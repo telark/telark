@@ -1,6 +1,6 @@
 # Telark documentation
 
-Telark is change control for Kubernetes applications. Pick the section that matches what you need.
+Telark is a protection gate for your Kubernetes applications: you decide what can change an app, and when. Pick the section that matches what you need.
 
 ## Get started
 

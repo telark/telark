@@ -2,11 +2,12 @@
   <img src="docs/assets/telark-banner.svg" alt="Telark" width="320">
 </p>
 
-<h3 align="center">Change control for Kubernetes applications</h3>
+<h3 align="center">A protection gate for your Kubernetes applications</h3>
 
 <p align="center">
-  Freeze the apps that matter while you ship, see every change that reached them,<br>
-  and find out why one broke. Self-hosted, in your cluster.
+  Decide what can change an application, and when.<br>
+  Telark holds the line during releases and maintenance windows, shows every change that got through,<br>
+  and tells you why an app broke. Self-hosted, in your cluster.
 </p>
 
 <p align="center">
@@ -28,27 +29,32 @@
 > [!NOTE]
 > Early access. The API is `v1alpha1` and may change before 1.0. Pin a chart version.
 
-## The problem
+## Why Telark
 
-In a shared cluster, anyone with access can change a critical application at any time. Kubernetes RBAC decides *who* may change something, not *when*: it cannot say "nobody touches checkout between 22:00 and 02:00 tonight". So change freezes run on a chat message and good intentions, and one `kubectl delete`, scale-down or image swap in the middle of a release becomes an incident.
+It is 23:40, the release is half out, and someone scales `checkout` to zero from a terminal they forgot was pointed at production. Nobody meant to. Kubernetes allowed it, because RBAC decides *who* may change a workload, never *when*. The freeze you announced in the team channel was a request, not a rule.
 
-When that incident starts, the first question is "what changed?". Answering it means reading events, rollout history and pod status across several workloads while the app is down.
+Then the pages start, and the first question is always the same: what changed? The answer is somewhere in the events, rollout history and pod status of half a dozen workloads, and you are reading them while the app is down.
 
-## What Telark does
+Telark turns that night into a non-event:
 
-Telark groups your workloads into applications and gives each one change control:
-
-| You want to | Telark gives you |
+| Today | With Telark |
 |---|---|
-| Keep an app stable during a release, maintenance window or audit | **Protection plans**: block chosen changes (deletion, scaling, image, config and Secret edits, storage) for an app or namespace, for a time window. Audit first, enforce when ready. Require approval when it matters; Production does by default. |
-| Know the protection is really in place | Plan health checked against the live cluster, every blocked or audited change listed as a violation, and a report when the plan ends. |
-| Find out what changed and undo it | A field-level history of every change to an application, deletions included, with snapshots you can roll back to. |
-| Understand an incident without digging | **Insights**: one card per affected workload with the likely cause, the evidence and the change it followed, plus a review of each app's setup. |
-| Decide who may do what | Passkeys or Google SSO, roles per area, and per-action deny rules such as "may edit plans, may not approve them". |
+| A change freeze is a message in a chat channel | A **protection plan** blocks the changes you name (deletion, scaling, image, config and Secret edits, storage) on an app or namespace, for exactly the window you set. It arms and disarms itself. |
+| You hope nobody edited or removed the safeguards | Telark reads the live cluster, flags drift, lists every blocked or audited change, and keeps a report when the window closes |
+| "What changed?" costs an hour of `kubectl` | Every change to an application is recorded field by field, deletions included, with a snapshot you can roll back to in one click |
+| You piece the incident together from six workloads | **Insights** names the affected workload, the likely cause, the evidence and the change it followed |
+| Access is all or nothing per namespace | Roles per area with per-action rules, such as "may edit plans, may not approve them" |
 
-Everything is enforced at admission by Kyverno, which ships with the chart. You work in a dashboard, not in policy YAML.
+## How it works
 
-### Insights: decision support, not autopilot
+1. **Discover.** Telark groups your workloads into applications on its own. You protect `checkout`, not seventeen Deployments.
+2. **Plan.** Pick the changes to block from ready-made templates, choose the app or namespace and the window, and run it in audit mode first. Add an approval step when it matters; Production requires one by default.
+3. **Enforce.** While the window is open, Kyverno (bundled with the chart) refuses those changes at admission.
+4. **Verify.** Telark checks the live cluster for the policies it expects and reports what was blocked, audited or tampered with.
+
+You work in a dashboard, not in policy YAML.
+
+## Insights: decision support, not autopilot
 
 When an application degrades, Telark reads its events, pod status and recent changes and writes one card per affected workload: crash loop, out of memory, image pull failure, scheduling, failing probes, stuck rollout, or a regression that started right after a config change. Each card cites the evidence and the change it followed, and it resolves itself when the workload recovers.
 

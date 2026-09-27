@@ -1,6 +1,6 @@
 # telark
 
-Helm chart for [Telark](https://telark.io), change control for Kubernetes applications. It installs Telark's services (exporter, discovery, auth, notifier, analyzer and the dashboard) with Kyverno, Redis, NATS, metrics-server and Ollama.
+Helm chart for [Telark](https://telark.io), a protection gate for Kubernetes applications. It installs Telark's services (exporter, discovery, auth, notifier, analyzer and the dashboard) with Kyverno, Redis, NATS, metrics-server and Ollama.
 
 ## Install
 

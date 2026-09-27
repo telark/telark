@@ -10,6 +10,7 @@ Commits follow [Conventional Commits](https://www.conventionalcommits.org).
 - Remove unused inputs from GHA
 - Update services versions manually due to broken workflows (cosign issues)
 - Fix ListCleanupViews parsing by setting views in nested items
+- Remove legacy scripts, remove current-version tagging from GHA files
 
 ### Features
 - Add missing tests for all services to cover at least 30% for coverage and 50% for auth and exporte, add new contributions and conventions rules and optimize the starter kit docs

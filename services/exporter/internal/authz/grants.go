@@ -5,7 +5,7 @@ import (
 
 	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/metadata/base"
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	groupdata "github.com/telark/data/resources/group"
 	roledata "github.com/telark/data/resources/role"
 	userdata "github.com/telark/data/resources/user"
@@ -21,16 +21,23 @@ import (
 // calling its own API back over the network.
 type crdSource struct{}
 
-func (crdSource) User(userID string) (*userdata.UserAsResource, error) {
-	return decode[userdata.UserAsResource](getByName(userID, metadata.UserAsResourceMetadata))
+var source authz.GrantSource = crdSource{}
+
+// Tests have no apiserver; nothing else swaps the source.
+func UseGrantSource(s authz.GrantSource) {
+	source = s
 }
 
-func (crdSource) Group(groupID string) (*groupdata.GroupAsResource, error) {
-	return decode[groupdata.GroupAsResource](getByName(groupID, metadata.GroupAsResourceMetadata))
+func (crdSource) User(userID string) (*userdata.User, error) {
+	return decode[userdata.User](getByName(userID, metadata.UserMetadata))
 }
 
-func (crdSource) Role(roleID string) (*roledata.RoleAsResource, error) {
-	return decode[roledata.RoleAsResource](getByName(roleID, metadata.RoleAsResourceMetadata))
+func (crdSource) Group(groupID string) (*groupdata.Group, error) {
+	return decode[groupdata.Group](getByName(groupID, metadata.GroupMetadata))
+}
+
+func (crdSource) Role(roleID string) (*roledata.AccessRole, error) {
+	return decode[roledata.AccessRole](getByName(roleID, metadata.AccessRoleMetadata))
 }
 
 // The finder utilities fold every failure into "not found"; authz must keep a
@@ -53,10 +60,13 @@ func getByName(name string, md base.Metadata) (*unstructured.Unstructured, error
 	return resource, nil
 }
 
+// Deletion is held open by the cleanup finalizer, so the record still reads;
+// CollectGrants sees the projected timestamp and treats the record as gone.
 func decode[T any](resource *unstructured.Unstructured, err error) (*T, error) {
 	if err != nil {
 		return nil, err
 	}
+	sharedutils.ProjectDeletionTimestamp(resource)
 	return sharedutils.UnstructuredToStruct[T](
 		resource,
 		dataerrors.ErrGetRes,
@@ -66,5 +76,5 @@ func decode[T any](resource *unstructured.Unstructured, err error) (*T, error) {
 }
 
 func collectGrants(userID string) (authz.Grants, error) {
-	return authz.CollectGrants(crdSource{}, lg, userID)
+	return authz.CollectGrants(source, lg, userID)
 }

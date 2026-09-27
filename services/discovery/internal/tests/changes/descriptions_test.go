@@ -9,6 +9,18 @@ import (
 	"github.com/telark/discovery/internal/tests/testutil"
 )
 
+const (
+	imageA1        = "a:1"
+	resourceWeb    = "web"
+	port8080       = "8080"
+	envKeyLog      = "LOG"
+	configMapRef   = "cm"
+	secretRef      = "sec"
+	serviceMapping = "m"
+	ingressRule    = "r"
+	memory2Gi      = "2Gi"
+)
+
 // Every exported description formatter renders a non-empty, trimmed string that
 // embeds the values it was given.
 func TestDescFormatters(t *testing.T) {
@@ -17,29 +29,29 @@ func TestDescFormatters(t *testing.T) {
 		got  string
 		want string
 	}{
-		{"image updated", changes.DescImageUpdated("a:1", "a:2"), "a:2"},
-		{"image added", changes.DescImageAdded("a:1"), "a:1"},
-		{"image removed", changes.DescImageRemoved("a:1"), "a:1"},
-		{"resource added", changes.DescResourceAdded("Deployment", "web"), "web"},
-		{"resource removed", changes.DescResourceRemoved("Deployment", "web"), "web"},
-		{"port added", changes.DescPortAdded("8080"), "8080"},
-		{"port removed", changes.DescPortRemoved("8080"), "8080"},
-		{"env added", changes.DescEnvVarKeyAdded("LOG"), "LOG"},
-		{"env removed", changes.DescEnvVarKeyRemoved("LOG"), "LOG"},
-		{"configmap added", changes.DescConfigMapRefAdded("cm"), "cm"},
-		{"configmap removed", changes.DescConfigMapRefRemoved("cm"), "cm"},
-		{"secret added", changes.DescSecretRefAdded("sec"), "sec"},
-		{"secret removed", changes.DescSecretRefRemoved("sec"), "sec"},
-		{"svc mapping added", changes.DescServiceMappingAdded("m"), "m"},
-		{"svc mapping removed", changes.DescServiceMappingRemoved("m"), "m"},
-		{"ingress added", changes.DescIngressRuleAdded("r"), "r"},
-		{"ingress removed", changes.DescIngressRuleRemoved("r"), "r"},
+		{"image updated", changes.DescImageUpdated(imageA1, "a:2"), "a:2"},
+		{"image added", changes.DescImageAdded(imageA1), imageA1},
+		{"image removed", changes.DescImageRemoved(imageA1), imageA1},
+		{"resource added", changes.DescResourceAdded("Deployment", resourceWeb), resourceWeb},
+		{"resource removed", changes.DescResourceRemoved("Deployment", resourceWeb), resourceWeb},
+		{"port added", changes.DescPortAdded(port8080), port8080},
+		{"port removed", changes.DescPortRemoved(port8080), port8080},
+		{"env added", changes.DescEnvVarKeyAdded(envKeyLog), envKeyLog},
+		{"env removed", changes.DescEnvVarKeyRemoved(envKeyLog), envKeyLog},
+		{"configmap added", changes.DescConfigMapRefAdded(configMapRef), configMapRef},
+		{"configmap removed", changes.DescConfigMapRefRemoved(configMapRef), configMapRef},
+		{"secret added", changes.DescSecretRefAdded(secretRef), secretRef},
+		{"secret removed", changes.DescSecretRefRemoved(secretRef), secretRef},
+		{"svc mapping added", changes.DescServiceMappingAdded(serviceMapping), serviceMapping},
+		{"svc mapping removed", changes.DescServiceMappingRemoved(serviceMapping), serviceMapping},
+		{"ingress added", changes.DescIngressRuleAdded(ingressRule), ingressRule},
+		{"ingress removed", changes.DescIngressRuleRemoved(ingressRule), ingressRule},
 		{"chart version", changes.DescChartVersionUpdated("1.0", "2.0"), "2.0"},
 		{"resource count", changes.DescResourceCountChanged("3", "5"), "5"},
 		{"requests cpu", changes.DescRequestsCPUChanged("100m", "200m"), "200m"},
-		{"requests memory", changes.DescRequestsMemoryChanged("1Gi", "2Gi"), "2Gi"},
+		{"requests memory", changes.DescRequestsMemoryChanged("1Gi", memory2Gi), memory2Gi},
 		{"limits cpu", changes.DescLimitsCPUChanged("1", "2"), "2"},
-		{"limits memory", changes.DescLimitsMemoryChanged("1Gi", "2Gi"), "2Gi"},
+		{"limits memory", changes.DescLimitsMemoryChanged("1Gi", memory2Gi), memory2Gi},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -63,7 +75,7 @@ func TestApplicationChangeDescriptionFallback(t *testing.T) {
 	}
 }
 
-// Removed change types synthesise from the old value across the config-style
+// Removed change types synthesize from the old value across the config-style
 // fields, exercising the removed branches of every synth helper.
 func TestApplicationChangeDescriptionRemovedBranches(t *testing.T) {
 	fields := []string{
@@ -75,13 +87,13 @@ func TestApplicationChangeDescriptionRemovedBranches(t *testing.T) {
 		t.Run(f, func(t *testing.T) {
 			ch := appresource.ApplicationChange{Field: f, ChangeType: changes.ChangeTypeRemoved, OldValue: strptr("old")}
 			if got := changes.ApplicationChangeDescription(ch); got == "" {
-				t.Fatalf("removed %s synthesised empty", f)
+				t.Fatalf("removed %s synthesized empty", f)
 			}
 		})
 	}
 }
 
-// Metrics-baseline fields synthesise a transition string from old/new values.
+// Metrics-baseline fields synthesize a transition string from old/new values.
 func TestApplicationChangeDescriptionMetricsBaseline(t *testing.T) {
 	fields := []string{
 		changes.ChangeFieldRequestsCPU, changes.ChangeFieldRequestsMemory,

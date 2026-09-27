@@ -1,22 +1,29 @@
 package oidc
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
+	"github.com/telark/auth/internal/authz"
 	"github.com/telark/auth/internal/clients"
 	"github.com/telark/auth/internal/constants"
 	oidchelper "github.com/telark/auth/internal/helpers/oidc"
 	"github.com/telark/auth/internal/helpers/shared"
-	globalconfigresource "github.com/telark/data/resources/globalconfig"
+	telarkconfigresource "github.com/telark/data/resources/telarkconfig"
 )
 
-// Validated here rather than at the exporter: reaching the provider and parsing its
-// keys is this service's job, and a config that cannot authenticate anyone must not
-// reach storage. The exporter's guard is bypassed on this hop because the call
-// carries the service token, so the route requirement is what enforces Admin.
+// Validated here, not at the exporter: a config that cannot authenticate anyone must not
+// reach storage, and this hop carries the service token so the route requirement enforces Admin.
+// Whoever controls the identity-provider trust can mint a login for any user, so
+// Admin on the settings scope alone is not enough: the caller must be Admin everywhere.
 func SetConfig(w http.ResponseWriter, r *http.Request) {
-	var req globalconfigresource.OIDCConfig
+	if !authz.CallerIsAdminOnAll(r.Context()) {
+		shared.SendErrorResponse(w, http.StatusForbidden, errors.New(string(constants.ErrOIDCConfigNeedsAdminAll)))
+		return
+	}
+
+	var req telarkconfigresource.OIDCConfig
 	if err := shared.DecodeRequestBody(r, &req); err != nil {
 		shared.SendErrorResponse(w, http.StatusBadRequest, err)
 		return
@@ -27,8 +34,8 @@ func SetConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := clients.GetGlobalConfigClient().PatchGlobalConfig(map[string]any{
-		globalconfigresource.FieldOIDC: req,
+	resp := clients.GetConfigClient().PatchConfig(map[string]any{
+		telarkconfigresource.FieldOIDC: req,
 	})
 	if resp == nil || resp.Status != http.StatusOK {
 		status := constants.DefaultInitValue
@@ -38,6 +45,10 @@ func SetConfig(w http.ResponseWriter, r *http.Request) {
 		err := fmt.Errorf(string(constants.ErrOIDCConfigSaveFailed), status)
 		shared.HandleError(w, err, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	if req.GoogleJWKJSON != constants.EmptyString {
+		oidchelper.PinTrustJWK(req.GoogleJWKJSON)
 	}
 
 	lg.Info(string(constants.SuccessOIDCConfigUpdated))

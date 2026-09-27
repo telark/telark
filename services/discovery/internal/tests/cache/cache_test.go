@@ -6,63 +6,74 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
-	appresource "github.com/telark/data/resources/application"
 	"github.com/telark/discovery/internal/discovery/cache"
 	"github.com/telark/discovery/internal/tests/testutil"
 )
 
-// The cache key must stay lockstep with the Python enrichment writer.
+const (
+	docNamespace = "prod"
+	docApp       = "api"
+
+	docVersion  = 3
+	docSteps    = 4
+	docInsights = 1
+	docRuns     = 2
+)
+
+// The cache key must stay lockstep with the analyzer's document writer.
 func TestCacheKey(t *testing.T) {
-	testutil.Equal(t, "key", cache.CacheKey("prod", "api"), "enrichment:prod:api")
+	testutil.Equal(t, "key", cache.CacheKey(docNamespace, docApp), "analyzer:prod:api")
 }
 
-// FlexTime accepts RFC3339 and rejects garbage.
-func TestFlexTimeUnmarshal(t *testing.T) {
-	var ft cache.FlexTime
-	if err := ft.UnmarshalJSON([]byte(`"2026-01-01T00:00:00Z"`)); err != nil {
-		t.Fatalf("valid time rejected: %v", err)
-	}
-	if err := ft.UnmarshalJSON([]byte(`"not-a-time"`)); err == nil {
-		t.Fatal("garbage time accepted")
-	}
-}
-
-// Insights are stale when missing, when the last-updated stamp is unparseable, or
-// when enrichment predates the last update; fresh otherwise.
-func TestIsStale(t *testing.T) {
-	testutil.Equal(t, "nil insights", cache.IsStale(nil, "2026-01-01T00:00:00Z"), true)
-
-	older := "2026-01-01T00:00:00Z"
-	newer := "2026-06-01T00:00:00Z"
-	stale := &appresource.Insights{EnrichedAt: &older}
-	testutil.Equal(t, "enriched before update", cache.IsStale(stale, newer), true)
-
-	fresh := &appresource.Insights{EnrichedAt: &newer}
-	testutil.Equal(t, "enriched after update", cache.IsStale(fresh, older), false)
-
-	testutil.Equal(t, "bad last-updated", cache.IsStale(fresh, "garbage"), true)
-}
-
-// GetEnrichment tolerates a nil client, a cache miss, and returns parsed insights
-// on a hit.
-func TestGetEnrichment(t *testing.T) {
-	ctx := context.Background()
-	if got, err := cache.GetEnrichment(ctx, nil, "prod", "api"); got != nil || err != nil {
-		t.Fatalf("nil client = %v, %v", got, err)
-	}
-
+func newRedis(t *testing.T) (*miniredis.Miniredis, *redis.Client) {
+	t.Helper()
 	mr := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	defer func() { _ = rdb.Close() }()
+	t.Cleanup(func() { _ = rdb.Close() })
+	return mr, rdb
+}
 
-	if got, _ := cache.GetEnrichment(ctx, rdb, "prod", "missing"); got != nil {
-		t.Fatal("cache miss should yield nil insights")
+func TestGetInsightsNilClientAndMiss(t *testing.T) {
+	ctx := context.Background()
+	if got, err := cache.GetInsights(ctx, nil, docNamespace, docApp); got != nil || err != nil {
+		t.Fatalf("nil client = %v, %v", got, err)
 	}
+	_, rdb := newRedis(t)
+	if got, err := cache.GetInsights(ctx, rdb, docNamespace, "missing"); got != nil || err != nil {
+		t.Fatalf("redis.Nil = %v, %v", got, err)
+	}
+}
 
-	mr.Set(cache.CacheKey("prod", "api"), `{"summary":"web app","enrichedAt":"2026-01-01T00:00:00Z"}`)
-	got, err := cache.GetEnrichment(ctx, rdb, "prod", "api")
+func TestGetInsightsParsesDocument(t *testing.T) {
+	mr, rdb := newRedis(t)
+	doc := `{"version":3,"lastRun":{"status":"succeeded","trigger":"manual","runId":"r1","model":"qwen3:4b","steps":4},` +
+		`"insights":[{"id":"i1","kind":"incident","title":"crash loop","status":"open","runs":2,` +
+		`"evidence":[{"type":"event","ref":"prod/api-1"}]}]}`
+	if err := mr.Set(cache.CacheKey(docNamespace, docApp), doc); err != nil {
+		t.Fatal(err)
+	}
+	got, err := cache.GetInsights(context.Background(), rdb, docNamespace, docApp)
 	if err != nil || got == nil {
-		t.Fatalf("cache hit = %v, %v", got, err)
+		t.Fatalf("hit = %v, %v", got, err)
 	}
-	testutil.Equal(t, "enriched", got.Enriched, true)
+	testutil.Equal(t, "version", got.Version, docVersion)
+	testutil.Equal(t, "status", got.LastRun.Status, "succeeded")
+	testutil.Equal(t, "runId", got.LastRun.RunID, "r1")
+	testutil.Equal(t, "steps", got.LastRun.Steps, docSteps)
+	testutil.Equal(t, "insights", len(got.Insights), docInsights)
+	testutil.Equal(t, "title", got.Insights[0].Title, "crash loop")
+	testutil.Equal(t, "runs", got.Insights[0].Runs, docRuns)
+	testutil.Equal(t, "evidence", got.Insights[0].Evidence[0].Ref, "prod/api-1")
+}
+
+func TestGetInsightsLegacyDocumentIsNil(t *testing.T) {
+	mr, rdb := newRedis(t)
+	legacy := `{"summary":"web app","enrichedAt":"2026-01-01T00:00:00","tech_stack":["go"]}`
+	if err := mr.Set(cache.CacheKey(docNamespace, docApp), legacy); err != nil {
+		t.Fatal(err)
+	}
+	got, err := cache.GetInsights(context.Background(), rdb, docNamespace, docApp)
+	if got != nil || err != nil {
+		t.Fatalf("legacy = %v, %v", got, err)
+	}
 }

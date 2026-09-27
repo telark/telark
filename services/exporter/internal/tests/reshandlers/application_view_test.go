@@ -18,29 +18,36 @@ import (
 	k8scache "k8s.io/client-go/tools/cache"
 )
 
+const (
+	testAppName      = "app-1"
+	applicationsPath = "/applications"
+	summaryViewPath  = applicationsPath + "?view=summary"
+
+	testScore             = 1
+	testHistoryGeneration = 2
+)
+
 var (
 	summaryPruned = []string{`"resources"`, `"snapshots"`, `"rollbacks"`, `"workloads"`, `"changes"`}
 	summaryKept   = []string{`"name":"app-1"`, `"score"`, `"generation":2`, `"changeLog"`}
 )
 
-func applicationSpec(name string) map[string]any {
+// Observed state lives in .status; the list view projects it flat next to the spec.
+func applicationStatus() map[string]any {
 	return map[string]any{
-		"name":      name,
 		"resources": []any{map[string]any{"kind": "Deployment"}},
 		"snapshots": []any{map[string]any{"path": "/snapshots/apps/id/ns/V1.json"}},
 		"rollbacks": []any{map[string]any{"id": "rb-1"}},
-		"metrics":   map[string]any{"score": 1, "workloads": []any{map[string]any{"name": "w"}}},
+		"metrics":   map[string]any{"score": testScore, "workloads": []any{map[string]any{constants.NameParam: "w"}}},
 		"history": map[string]any{
-			"generation": 2,
-			"changeLog":  []any{map[string]any{"generation": 2, "changes": []any{map[string]any{"field": "x"}}}},
+			"generation": testHistoryGeneration,
+			"changeLog":  []any{map[string]any{"generation": testHistoryGeneration, "changes": []any{map[string]any{"field": "x"}}}},
 		},
 	}
 }
 
 func applicationList() *unstructured.UnstructuredList {
-	return &unstructured.UnstructuredList{Items: []unstructured.Unstructured{{Object: map[string]any{
-		"spec": applicationSpec("app-1"),
-	}}}}
+	return &unstructured.UnstructuredList{Items: []unstructured.Unstructured{*storedApplication(testAppName)}}
 }
 
 func applicationViewInner(w http.ResponseWriter, r *http.Request) {
@@ -50,10 +57,11 @@ func applicationViewInner(w http.ResponseWriter, r *http.Request) {
 
 func storedApplication(name string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "erpi.telark/v1alpha1",
-		"kind":       "ApplicationAsResource",
-		"metadata":   map[string]any{"name": name, "namespace": "telark"},
-		"spec":       applicationSpec(name),
+		"apiVersion":        "telark.io/v1alpha1",
+		"kind":              "Application",
+		"metadata":          map[string]any{constants.NameParam: name, "namespace": "telark"},
+		constants.SpecField: map[string]any{constants.NameParam: name},
+		"status":            applicationStatus(),
 	}}
 }
 
@@ -79,33 +87,36 @@ func assertKeys(t *testing.T, view string, body string, keys []string, want bool
 }
 
 // Nothing here can reach an apiserver, so a 200 proves both views were rendered
-// from the store; the stored spec must come out of the summary pruning
+// from the store; the stored object must come out of the summary pruning
 // untouched, and a fresh read must still go to the apiserver.
 func TestApplicationListServedFromInformerStore(t *testing.T) {
-	app := storedApplication("app-1")
+	app := storedApplication(testAppName)
 	useStore(t, true, app)
 	handler := apphandler.ListApplicationResourcesWithCacheInvalidation()
 
-	summary := serveView(handler, "/applications?view=summary", constants.EmptyString)
+	summary := serveView(handler, summaryViewPath, constants.EmptyString)
 	if summary.Code != http.StatusOK {
 		t.Fatalf("summary from store: code = %d, body = %s", summary.Code, summary.Body.String())
 	}
 	assertKeys(t, constants.ViewSummary, summary.Body.String(), summaryPruned, false)
 	assertKeys(t, constants.ViewSummary, summary.Body.String(), summaryKept, true)
 
-	full := serveView(handler, "/applications", constants.EmptyString)
+	full := serveView(handler, applicationsPath, constants.EmptyString)
 	if full.Code != http.StatusOK {
 		t.Fatalf("full from store: code = %d, body = %s", full.Code, full.Body.String())
 	}
 	assertKeys(t, constants.ViewFull, full.Body.String(), append(summaryPruned, summaryKept...), true)
 
-	spec, _ := app.Object["spec"].(map[string]any)
-	if _, kept := spec["resources"]; !kept {
-		t.Error("summary pruning mutated the stored spec")
+	status, ok := app.Object["status"].(map[string]any)
+	if !ok {
+		t.Fatal("stored application lost its status map")
+	}
+	if _, kept := status["resources"]; !kept {
+		t.Error("summary pruning mutated the stored status")
 	}
 
 	rec := httptest.NewRecorder()
-	fresh := httptest.NewRequest(http.MethodGet, "/applications", nil)
+	fresh := httptest.NewRequest(http.MethodGet, applicationsPath, nil)
 	fresh.Header.Set(restconstants.HeaderCacheControl, restconstants.CacheControlNoCache)
 	handler(rec, fresh)
 	if rec.Code == http.StatusOK {
@@ -114,8 +125,8 @@ func TestApplicationListServedFromInformerStore(t *testing.T) {
 }
 
 func TestApplicationListFallsBackBeforeInformerSync(t *testing.T) {
-	useStore(t, false, storedApplication("app-1"))
-	rec := serveView(apphandler.ListApplicationResourcesWithCacheInvalidation(), "/applications", constants.EmptyString)
+	useStore(t, false, storedApplication(testAppName))
+	rec := serveView(apphandler.ListApplicationResourcesWithCacheInvalidation(), applicationsPath, constants.EmptyString)
 	if rec.Code == http.StatusOK {
 		t.Errorf("unsynced store: code = %d, want the apiserver path", rec.Code)
 	}
@@ -138,15 +149,15 @@ func TestApplicationSummaryViewIsCachedApartFromTheFullList(t *testing.T) {
 	keyFunc := cache.NewViewListCacheKeyFunc(o, constants.ResourceApplication)
 	handler := performance.NewCachedListHandlerFunc(o, applicationViewInner, keyFunc, constants.ResourceApplication, constants.OpList)
 
-	summary := serveView(handler, "/applications?view=summary", constants.EmptyString).Body.String()
+	summary := serveView(handler, summaryViewPath, constants.EmptyString).Body.String()
 	assertKeys(t, constants.ViewSummary, summary, summaryPruned, false)
 	assertKeys(t, constants.ViewSummary, summary, summaryKept, true)
 
-	full := serveView(handler, "/applications", constants.EmptyString).Body.String()
+	full := serveView(handler, applicationsPath, constants.EmptyString).Body.String()
 	assertKeys(t, constants.ViewFull, full, append(summaryPruned, summaryKept...), true)
 
-	summaryKey := keyFunc(httptest.NewRequest(http.MethodGet, "/applications?view=summary", nil))
-	fullKey := keyFunc(httptest.NewRequest(http.MethodGet, "/applications", nil))
+	summaryKey := keyFunc(httptest.NewRequest(http.MethodGet, summaryViewPath, nil))
+	fullKey := keyFunc(httptest.NewRequest(http.MethodGet, applicationsPath, nil))
 	if summaryKey == fullKey {
 		t.Fatalf("summary and full views share cache key %q", summaryKey)
 	}
@@ -158,7 +169,7 @@ func TestApplicationListRevalidatesByGeneration(t *testing.T) {
 	o := newOptimizer(t)
 	keyFunc := cache.NewViewListCacheKeyFunc(o, constants.ResourceApplication)
 	handler := performance.NewCachedListHandlerFunc(o, applicationViewInner, keyFunc, constants.ResourceApplication, constants.OpList)
-	summary := "/applications?view=summary"
+	summary := summaryViewPath
 
 	first := serveView(handler, summary, constants.EmptyString)
 	etag := first.Header().Get(constants.HeaderETag)
@@ -170,11 +181,11 @@ func TestApplicationListRevalidatesByGeneration(t *testing.T) {
 	}
 
 	again := serveView(handler, summary, etag)
-	if again.Code != http.StatusNotModified || again.Body.Len() != 0 || again.Header().Get(constants.HeaderETag) != etag {
+	if again.Code != http.StatusNotModified || again.Body.Len() != constants.DefaultInitValue || again.Header().Get(constants.HeaderETag) != etag {
 		t.Fatalf("revalidation: code = %d, body = %d bytes, ETag = %q", again.Code, again.Body.Len(), again.Header().Get(constants.HeaderETag))
 	}
 
-	full := serveView(handler, "/applications", etag)
+	full := serveView(handler, applicationsPath, etag)
 	if full.Code != http.StatusOK || full.Header().Get(constants.HeaderETag) == etag {
 		t.Errorf("full view: code = %d, ETag = %q, want 200 under its own validator", full.Code, full.Header().Get(constants.HeaderETag))
 	}
@@ -205,7 +216,7 @@ func TestValidatorOnlyOnListSuccess(t *testing.T) {
 		o := newOptimizer(t)
 		keyFunc := cache.NewViewListCacheKeyFunc(o, constants.ResourceApplication)
 		handler := performance.NewCachedListHandlerFunc(o, tc.handler, keyFunc, constants.ResourceApplication, tc.operation)
-		rec := serveView(handler, "/applications", constants.EmptyString)
+		rec := serveView(handler, applicationsPath, constants.EmptyString)
 		if rec.Code != tc.code || rec.Header().Get(constants.HeaderETag) != constants.EmptyString {
 			t.Errorf("%s: code = %d, ETag = %q, want %d without a validator", tc.name, rec.Code, rec.Header().Get(constants.HeaderETag), tc.code)
 		}

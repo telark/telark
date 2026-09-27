@@ -12,7 +12,7 @@ import (
 	"github.com/telark/discovery/internal/config"
 	"github.com/telark/discovery/internal/constants"
 	applicationhandler "github.com/telark/discovery/internal/handlers/resources/applications"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"github.com/telark/discovery/internal/informers"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -85,7 +85,7 @@ func (d *Detector) evaluateApp(ctx context.Context, app *appresource.Application
 	lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
 	name := app.Name
 
-	if r := railResourcesEmpty(app); !r.pass && !namespacesGone(ctx, d.kube, app) {
+	if r := railResourcesEmpty(app); !r.pass && !namespacesGone(ctx, d.kube, app) && !informers.AppVanished(ctx, name) {
 		d.handleNonEmpty(ctx, name, r)
 		return
 	}
@@ -97,7 +97,7 @@ func (d *Detector) evaluateApp(ctx context.Context, app *appresource.Application
 		railNoForceSync(ctx, d.rdb, name),
 		railNoCoalesceBuffer(ctx, d.rdb, name),
 		railNoGenerationLock(ctx, d.rdb, name),
-		railNoEnrichmentLock(ctx, d.rdb, name),
+		railNoAnalyzerInflight(ctx, d.rdb, name),
 		railCleanupCooldown(ctx, d.rdb, name),
 	}
 	for _, r := range rails {
@@ -105,9 +105,7 @@ func (d *Detector) evaluateApp(ctx context.Context, app *appresource.Application
 			continue
 		}
 		lg.Info(fmt.Sprintf(string(constants.LogAutoCleanupBlocked), name, r.name, r.reason))
-		// Hard error (Redis/K8s down) → do NOT advance streak; just block.
-		// Soft block (active rollback, etc.) → also don't advance, since the
-		// state isn't "truly empty + idle" yet.
+		// Neither a rail error (Redis/K8s down) nor a soft block advances the streak.
 		return
 	}
 
@@ -116,7 +114,6 @@ func (d *Detector) evaluateApp(ctx context.Context, app *appresource.Application
 
 func (d *Detector) handleNonEmpty(ctx context.Context, appName string, r railResult) {
 	lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
-	// App has resources — reset any prior streak silently unless it was set.
 	s, err := loadStreak(ctx, d.rdb, appName)
 	if err == nil && s.Count > constants.DefaultInitValue {
 		_ = clearStreak(ctx, d.rdb, appName)
@@ -203,27 +200,6 @@ func (d *Detector) fireCleanup(
 		name, time.Since(start).Milliseconds()))
 }
 
-// A 404 means the CRD was already deleted out-of-band; the residual Redis state still has to
-// go through the normal cleanup path.
-func (d *Detector) HandleOrphanIfMissing(ctx context.Context, name string, err error) bool {
-	if !k8serrors.IsNotFound(err) && !isHTTPNotFound(err) {
-		return false
-	}
-	lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
-	lg.Info(fmt.Sprintf(string(constants.LogAutoCleanupAppGoneRedisOrphan), name))
-	if !d.cfg.DeleteEnabled {
-		return true
-	}
-	cctx, cancel := context.WithTimeout(ctx, constants.AppResetHandlerTimeout)
-	defer cancel()
-	if rerr := applicationhandler.RunReset(cctx, d.rdb, name); rerr != nil {
-		lg.Error(fmt.Sprintf(string(constants.ErrAutoCleanupResetFailed), name, rerr))
-		return true
-	}
-	_ = clearStreak(ctx, d.rdb, name)
-	return true
-}
-
 func namespaceNames(app *appresource.Application) string {
 	if app == nil || len(app.Namespaces.Items) == constants.DefaultInitValue {
 		return constants.EmptyString
@@ -233,12 +209,4 @@ func namespaceNames(app *appresource.Application) string {
 		names = append(names, app.Namespaces.Items[i].Name)
 	}
 	return strings.Join(names, ",")
-}
-
-func isHTTPNotFound(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "404") || strings.Contains(strings.ToLower(msg), "not found")
 }

@@ -5,11 +5,13 @@ import (
 	"strings"
 
 	"github.com/telark/data/errors"
+	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/constants"
 	snapshotexp "github.com/telark/exporter/internal/exporters/snapshot"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/rest/response"
 	requestutils "github.com/telark/rest/utils/request"
+	xauthz "github.com/telark/x-ware/authz"
 )
 
 func CreateSnapshot() func(http.ResponseWriter, *http.Request) {
@@ -38,11 +40,22 @@ func GetSnapshot() func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
+		if !authz.GuardSnapshotManifestView(w, r) {
+			return
+		}
+
 		scope := r.URL.Query().Get(constants.ScopeParam)
 		namespace := r.URL.Query().Get(constants.NamespaceParam)
 		generation := r.URL.Query().Get(constants.GenerationParam)
-		snapshotexp.ReadSnapshot(w, id, scope, namespace, generation)
+		snapshotexp.ReadSnapshot(w, id, scope, namespace, generation, redactFor(r))
 	}
+}
+
+// Only a peer holding the service token sees Secret values; a missing identity
+// is treated like a session, so nothing leaks by default.
+func redactFor(r *http.Request) bool {
+	identity, _ := xauthz.FromContext(r.Context())
+	return !identity.Internal
 }
 
 func GetSnapshotManifest() func(http.ResponseWriter, *http.Request) {
@@ -55,7 +68,7 @@ func GetSnapshotManifest() func(http.ResponseWriter, *http.Request) {
 		scope := r.URL.Query().Get(constants.ScopeParam)
 		namespace := r.URL.Query().Get(constants.NamespaceParam)
 		generation := r.URL.Query().Get(constants.GenerationParam)
-		snapshotexp.ReadSnapshotManifestWithAccept(w, id, scope, namespace, generation, strings.TrimSpace(r.Header.Get("Accept")))
+		snapshotexp.ReadSnapshotManifestWithAccept(w, id, scope, namespace, generation, strings.TrimSpace(r.Header.Get("Accept")), redactFor(r))
 	}
 }
 

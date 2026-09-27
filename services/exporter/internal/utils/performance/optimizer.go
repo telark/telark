@@ -3,7 +3,6 @@ package performance
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -118,8 +117,4 @@ func (o *Optimizer) Clear() {
 
 func (o *Optimizer) Close() {
 	_ = o.cache.Close()
-}
-
-func KeyFunc(r *http.Request) string {
-	return "cache:" + r.URL.Path + "?" + r.URL.RawQuery
 }

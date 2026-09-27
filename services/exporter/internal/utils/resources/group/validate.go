@@ -3,7 +3,7 @@ package group
 import (
 	"net/http"
 
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	groupdata "github.com/telark/data/resources/group"
 	"github.com/telark/exporter/internal/constants"
 	resourcesshared "github.com/telark/exporter/internal/utils/resources/shared"
@@ -12,7 +12,7 @@ import (
 	responseutils "github.com/telark/rest/utils/response"
 )
 
-func ValidateAndPrepareGroup(group *groupdata.GroupAsResource, w http.ResponseWriter) error {
+func ValidateAndPrepareGroup(group *groupdata.Group, w http.ResponseWriter) error {
 	if err := sharedutils.ValidateRequiredField(group.Name, string(constants.ErrGroupNameCannotBeEmpty)); err != nil {
 		responseutils.LogAndSendResponse(
 			w,
@@ -26,7 +26,7 @@ func ValidateAndPrepareGroup(group *groupdata.GroupAsResource, w http.ResponseWr
 	}
 
 	groupID, err := resourcesshared.GenerateUniqueResourceID(
-		metadata.GroupAsResourceMetadata,
+		metadata.GroupMetadata,
 		constants.GroupIDConfig,
 	)
 	if err != nil {

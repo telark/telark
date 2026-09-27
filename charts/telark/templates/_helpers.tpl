@@ -87,6 +87,14 @@ claimName, and the SNAPSHOTS_PVC_NAME env. Call with the root context.
 {{- end -}}
 
 {{/*
+Name of the exporter reports PVC. Single source for the PVC itself and the
+volume claimName. Call with the root context.
+*/}}
+{{- define "telark.exporterReportsPvcName" -}}
+{{- printf "%s-exporter-reports-pvc" (include "telark.fullname" .) -}}
+{{- end -}}
+
+{{/*
 imagePullSecrets block from global.imagePullSecrets + app.image.pullSecrets.
 Renders nothing when both are empty (public images pull anonymously).
   {{- include "telark.imagePullSecrets" $root | nindent 6 }}
@@ -108,4 +116,32 @@ imagePullSecrets:
   - name: {{ .name }}
 {{- end }}
 {{- end -}}
+{{- end -}}
+
+{{/*
+Secret holding the service token: app.serviceToken.existingSecret when set,
+otherwise the chart-generated one. Call with the root context.
+*/}}
+{{- define "telark.serviceTokenSecretName" -}}
+{{- default (printf "%s-service-token-secret" .Values.app.name) .Values.app.serviceToken.existingSecret -}}
+{{- end -}}
+
+{{- define "telark.oidcTrustSecretName" -}}
+{{- default (printf "%s-oidc-trust-secret" (include "telark.fullname" .)) .Values.app.auth.oidc.existingSecret -}}
+{{- end -}}
+
+{{/* Constant, not derived from app.name: the Go services hardcode it. */}}
+{{- define "telark.apiGroup" -}}
+telark.io
+{{- end -}}
+
+{{/*
+Secret holding one NATS user's credentials (publisher or consumer):
+nats.existingSecrets.<user> when set, otherwise the chart-generated one.
+  {{- include "telark.natsSecretName" (dict "root" $root "user" "publisher") }}
+*/}}
+{{- define "telark.natsSecretName" -}}
+{{- $user := required "services.<svc>.natsUser must be publisher or consumer when useNatsCreds is true" .user -}}
+{{- $existing := index (.root.Values.nats.existingSecrets | default dict) $user -}}
+{{- default (printf "%s-nats-%s-secret" .root.Values.app.name $user) $existing -}}
 {{- end -}}

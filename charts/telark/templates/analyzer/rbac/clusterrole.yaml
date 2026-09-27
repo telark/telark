@@ -1,0 +1,10 @@
+{{- if $.Values.services.analyzer.enabled }}
+{{- include "clusterRole" (dict "service" "analyzer" "values" .Values "root" $ "rules" (list
+  (dict "apiGroups" (list "") "resources" (list "pods" "events") "verbs" (list "get" "list"))
+  (dict "apiGroups" (list "apps") "resources" (list "deployments" "statefulsets" "daemonsets" "replicasets") "verbs" (list "get" "list"))
+  (dict "apiGroups" (list "") "resources" (list "services") "verbs" (list "get" "list"))
+  (dict "apiGroups" (list "policy") "resources" (list "poddisruptionbudgets") "verbs" (list "get" "list"))
+  (dict "apiGroups" (list "autoscaling") "resources" (list "horizontalpodautoscalers") "verbs" (list "get" "list"))
+  (dict "apiGroups" (list "networking.k8s.io") "resources" (list "networkpolicies") "verbs" (list "get" "list"))
+)) }}
+{{- end }}

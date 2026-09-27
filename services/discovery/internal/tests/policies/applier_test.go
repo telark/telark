@@ -2,9 +2,11 @@ package policies
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	datapolicies "github.com/telark/data/policies"
+	"github.com/telark/discovery/internal/constants"
 	protpolicies "github.com/telark/discovery/internal/core/plans/protection/policies"
 	"github.com/telark/discovery/internal/tests/testutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -13,9 +15,19 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
+	k8stesting "k8s.io/client-go/testing"
 )
 
-func policyObj(name, ns, planID, action string) *unstructured.Unstructured {
+const (
+	planIDOne       = "pp-1"
+	policyNamespace = "prod"
+	policyA         = "pol-a"
+	policyB         = "pol-b"
+	modeEnforce     = "Enforce"
+	labelRemaining  = "remaining"
+)
+
+func policyObj(name, ns, planID string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "kyverno.io/v1",
 		"kind":       "Policy",
@@ -24,7 +36,7 @@ func policyObj(name, ns, planID, action string) *unstructured.Unstructured {
 			"namespace": ns,
 			"labels":    map[string]any{datapolicies.LabelPlanID: planID},
 		},
-		"spec": map[string]any{"validationFailureAction": action},
+		"spec": map[string]any{"validationFailureAction": modeEnforce},
 	}}
 }
 
@@ -48,48 +60,48 @@ func countPolicies(t *testing.T, dyn dynamic.Interface) int {
 // namespaces.
 func TestApplierCleanupByPlanID(t *testing.T) {
 	dyn := applierDyn(
-		policyObj("pol-a", "prod", "pp-1", "Enforce"),
-		policyObj("pol-b", "stage", "pp-1", "Enforce"),
-		policyObj("pol-other", "prod", "pp-2", "Enforce"),
+		policyObj(policyA, policyNamespace, planIDOne),
+		policyObj(policyB, "stage", planIDOne),
+		policyObj("pol-other", policyNamespace, "pp-2"),
 	)
 	applier := protpolicies.NewApplier(dyn, nil)
-	if err := applier.CleanupByPlanID(context.Background(), "pp-1"); err != nil {
+	if err := applier.CleanupByPlanID(context.Background(), planIDOne); err != nil {
 		t.Fatalf("cleanup: %v", err)
 	}
-	testutil.Equal(t, "remaining", countPolicies(t, dyn), 1)
+	testutil.Equal(t, labelRemaining, countPolicies(t, dyn), constants.DefaultAddValue)
 }
 
 // DeletePoliciesByLabelAndNames deletes only the named policies within the plan
 // label, leaving the rest.
 func TestApplierDeleteByLabelAndNames(t *testing.T) {
 	dyn := applierDyn(
-		policyObj("pol-a", "prod", "pp-1", "Enforce"),
-		policyObj("pol-b", "prod", "pp-1", "Enforce"),
-		policyObj("pol-c", "prod", "pp-1", "Enforce"),
+		policyObj(policyA, policyNamespace, planIDOne),
+		policyObj(policyB, policyNamespace, planIDOne),
+		policyObj("pol-c", policyNamespace, planIDOne),
 	)
 	applier := protpolicies.NewApplier(dyn, nil)
-	if err := applier.DeletePoliciesByLabelAndNames(context.Background(), "pp-1", []string{"pol-a", "pol-c"}); err != nil {
+	if err := applier.DeletePoliciesByLabelAndNames(context.Background(), planIDOne, []string{policyA, "pol-c"}); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	testutil.Equal(t, "remaining", countPolicies(t, dyn), 1)
+	testutil.Equal(t, labelRemaining, countPolicies(t, dyn), constants.DefaultAddValue)
 
 	// An empty name list is a no-op.
-	testutil.Equal(t, "noop", applier.DeletePoliciesByLabelAndNames(context.Background(), "pp-1", nil), nil)
+	testutil.Equal(t, "noop", applier.DeletePoliciesByLabelAndNames(context.Background(), planIDOne, nil), nil)
 }
 
-// PatchPoliciesMode rewrites the failure action on every labelled policy.
+// PatchPoliciesMode rewrites the failure action on every labeled policy.
 func TestApplierPatchPoliciesMode(t *testing.T) {
-	dyn := applierDyn(policyObj("pol-a", "prod", "pp-1", "Enforce"))
+	dyn := applierDyn(policyObj(policyA, policyNamespace, planIDOne))
 	applier := protpolicies.NewApplier(dyn, nil)
-	if err := applier.PatchPoliciesMode(context.Background(), "pp-1", "audit"); err != nil {
+	if err := applier.PatchPoliciesMode(context.Background(), planIDOne, "audit"); err != nil {
 		t.Fatalf("patch: %v", err)
 	}
-	got, err := dyn.Resource(protpolicies.KyvernoPolicyGVR).Namespace("prod").Get(context.Background(), "pol-a", metav1.GetOptions{})
+	got, err := dyn.Resource(protpolicies.KyvernoPolicyGVR).Namespace(policyNamespace).Get(context.Background(), policyA, metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
 	action, _, _ := unstructured.NestedString(got.Object, "spec", "validationFailureAction")
-	if action == "Enforce" {
+	if action == modeEnforce {
 		t.Fatalf("failure action was not patched, still %q", action)
 	}
 
@@ -100,15 +112,60 @@ func TestApplierPatchPoliciesMode(t *testing.T) {
 // DeletePoliciesByNamespacedName removes exactly the referenced policies.
 func TestApplierDeleteByNamespacedName(t *testing.T) {
 	dyn := applierDyn(
-		policyObj("pol-a", "prod", "pp-1", "Enforce"),
-		policyObj("pol-b", "stage", "pp-1", "Enforce"),
+		policyObj(policyA, policyNamespace, planIDOne),
+		policyObj(policyB, "stage", planIDOne),
 	)
 	applier := protpolicies.NewApplier(dyn, nil)
 	err := applier.DeletePoliciesByNamespacedName(context.Background(), []protpolicies.NamespacedName{
-		{Namespace: "prod", Name: "pol-a"},
+		{Namespace: policyNamespace, Name: policyA},
 	})
 	if err != nil {
 		t.Fatalf("delete by ns/name: %v", err)
 	}
-	testutil.Equal(t, "remaining", countPolicies(t, dyn), 1)
+	testutil.Equal(t, labelRemaining, countPolicies(t, dyn), constants.DefaultAddValue)
+}
+
+// A delete failure other than NotFound is returned instead of being swallowed, so callers can
+// tell a real cleanup failure from a completed one.
+func TestApplierDeleteErrorsPropagate(t *testing.T) {
+	refs := []protpolicies.NamespacedName{{Namespace: policyNamespace, Name: policyA}}
+	cases := []struct {
+		name  string
+		run   func(*protpolicies.Applier) error
+		fails bool
+	}{
+		{"cleanup by plan", func(a *protpolicies.Applier) error {
+			return a.CleanupByPlanID(context.Background(), planIDOne)
+		}, true},
+		{"delete by label and names", func(a *protpolicies.Applier) error {
+			return a.DeletePoliciesByLabelAndNames(context.Background(), planIDOne, []string{policyA})
+		}, true},
+		{"delete by namespaced name", func(a *protpolicies.Applier) error {
+			return a.DeletePoliciesByNamespacedName(context.Background(), refs)
+		}, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			dyn := applierDyn(policyObj(policyA, policyNamespace, planIDOne))
+			fake, ok := dyn.(*dynamicfake.FakeDynamicClient)
+			if !ok {
+				t.Fatal("fake dynamic client expected")
+			}
+			fake.PrependReactor("delete", "policies", func(k8stesting.Action) (bool, runtime.Object, error) {
+				return true, nil, errors.New("boom")
+			})
+			err := c.run(protpolicies.NewApplier(dyn, nil))
+			testutil.Equal(t, "failed", err != nil, c.fails)
+		})
+	}
+}
+
+// A policy already gone is the state the caller asked for, so NotFound stays a success.
+func TestApplierDeleteIgnoresNotFound(t *testing.T) {
+	dyn := applierDyn()
+	applier := protpolicies.NewApplier(dyn, nil)
+	err := applier.DeletePoliciesByNamespacedName(context.Background(), []protpolicies.NamespacedName{
+		{Namespace: policyNamespace, Name: "absent"},
+	})
+	testutil.Equal(t, "not found ignored", err, nil)
 }

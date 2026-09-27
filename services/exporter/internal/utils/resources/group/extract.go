@@ -6,13 +6,13 @@ import (
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
 )
 
-func ExtractGroupSpecFromRequestBody(body map[string]any) (*groupdata.GroupAsResource, error) {
-	group, err := sharedutils.ExtractStructFromBodyIgnoringID[groupdata.GroupAsResource](body)
+func ExtractGroupSpecFromRequestBody(body map[string]any) (*groupdata.Group, error) {
+	group, err := sharedutils.ExtractStructFromBodyIgnoringID[groupdata.Group](body)
 	if err != nil {
 		return nil, err
 	}
 
-	resourcesshared.InitializeIDs(&group.AssignedUsersIDs)
-	resourcesshared.InitializeIDs(&group.AssignedRolesIDs)
+	group.UserRefs = resourcesshared.DedupeIDs(group.UserRefs)
+	group.RoleRefs = resourcesshared.DedupeIDs(group.RoleRefs)
 	return group, nil
 }

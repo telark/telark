@@ -8,14 +8,20 @@ services:
     portForward:
       enabled: true
       localPort: 8002
+    env:
+      CORS_ALLOWED_ORIGINS: "http://localhost:3000"
   discovery:
     portForward:
       enabled: true
       localPort: 8004
-  enrichment:
+    env:
+      CORS_ALLOWED_ORIGINS: "http://localhost:3000"
+  analyzer:
     portForward:
       enabled: true
       localPort: 8007
+    env:
+      CORS_ALLOWED_ORIGINS: "http://localhost:3000"   # the Vite dev server
   notifier:
     portForward:
       enabled: false
@@ -24,6 +30,8 @@ services:
     portForward:
       enabled: true
       localPort: 8006
+    env:
+      CORS_ALLOWED_ORIGINS: "http://localhost:3000"
   ui:
     portForward:
       enabled: false

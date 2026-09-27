@@ -23,9 +23,9 @@ func TestScope(t *testing.T) {
 		scope   planseps.ScopeRequest
 		wantErr bool
 	}{
-		{"apps valid", planseps.ScopeRequest{Type: apps, ApplicationIDs: []string{"a1"}}, false},
+		{"apps valid", planseps.ScopeRequest{Type: apps, ApplicationRefs: []string{"a1"}}, false},
 		{"apps missing ids", planseps.ScopeRequest{Type: apps}, true},
-		{"apps with namespaces", planseps.ScopeRequest{Type: apps, ApplicationIDs: []string{"a1"}, Namespaces: []string{"n"}}, true},
+		{"apps with namespaces", planseps.ScopeRequest{Type: apps, ApplicationRefs: []string{"a1"}, Namespaces: []string{"n"}}, true},
 		{"namespaces valid", planseps.ScopeRequest{Type: nss, Namespaces: []string{"n"}}, false},
 		{"namespaces missing", planseps.ScopeRequest{Type: nss}, true},
 		{"unknown type", planseps.ScopeRequest{Type: "bogus"}, true},

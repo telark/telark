@@ -14,10 +14,8 @@ const (
 		" please contact your platform administrator."
 )
 
-// UserFacingReason maps a deploy/apply error to a stable, user-friendly explanation. The
-// classification deliberately collapses transient cluster issues into a retryable phrasing and
-// admission webhook rejections into an actionable one — anything else is intentionally vague to
-// avoid leaking internal Kyverno details.
+// Transient cluster issues collapse into a retryable phrasing, admission rejections into an
+// actionable one; anything else stays vague so no internal engine detail leaks to users.
 func UserFacingReason(err error) string {
 	if err == nil {
 		return constants.EmptyString

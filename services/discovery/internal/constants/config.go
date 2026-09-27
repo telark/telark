@@ -13,14 +13,13 @@ const (
 	DefaultIdleTimeout              = 120 * time.Second
 	PanicRecoveryDelay              = 5 * time.Second
 	HighLoadBackoff                 = 2
-	MaxRetryAttempts                = 10
 	RetryBackoff                    = 1
 	NatsPublishMaxRetries           = 10
 	NatsPublishRetryDelay           = 500 * time.Millisecond
 	NatsPublishMaxRetryDelay        = 30 * time.Second
 	ClusterVersionPatchMaxAttempts  = 5
 	ClusterVersionPatchRetryBackoff = 5 * time.Second
-	GlobalConfigReadyRetryBackoff   = 5 * time.Second
+	TelarkConfigReadyRetryBackoff   = 5 * time.Second
 	DefaultQueueSize                = 100
 	DefaultAddValue                 = 1
 	DefaultInitValue                = 0
@@ -33,11 +32,16 @@ const (
 	NamespaceParam                  = "namespace"
 	NamespaceAll                    = "ALL"
 	DefaultLockTTL                  = 30 * time.Second
+	KeyPrefixLockPlanDecision       = "lock:plan-decision:"
 	RemovalStabilizationWindow      = 45 * time.Second
 
 	// rest
-	ApplicationJSON = "application/json"
-	HeaderUserID    = "X-User-ID"
+	ApplicationJSON   = "application/json"
+	HeaderUserID      = "X-User-ID"
+	HeaderContentType = "Content-Type"
+	HeaderRetryAfter  = "Retry-After"
+	HeaderETag        = "ETag"
+	HeaderIfNoneMatch = "If-None-Match"
 
 	// optimization constants
 	StringBuilderSize = 64
@@ -93,27 +97,46 @@ const (
 	IDPathParam         = "id"
 	RollbackIDPathParam = "rollbackId"
 
-	// ProtectionPlanDeployTimeout bounds the K8s server-side-apply phase when
-	// preparing or updating a protection plan. Detached from the HTTP request
-	// context so the apply is not aborted if the caller disconnects mid-flight.
-	ProtectionPlanDeployTimeout = 30 * time.Second
-
-	// ProtectionPlanLifecycleTimeout bounds Cancel / Clear / Reactivate /
-	// Duplicate handlers. Destructive K8s + exporter sequences must run to
-	// completion even if the HTTP caller disconnects.
+	// Plan deploy and lifecycle handlers run detached from the request context: a destructive
+	// K8s + exporter sequence must finish even if the HTTP caller disconnects mid-flight.
+	ProtectionPlanDeployTimeout    = 30 * time.Second
 	ProtectionPlanLifecycleTimeout = 30 * time.Second
-
-	// AppResetHandlerTimeout bounds the per-app destructive reset
-	// (Redis SCAN/DEL fan-out + snapshot directory removal + exporter delete).
-	AppResetHandlerTimeout = 30 * time.Second
-
-	// InsightsReadTimeout bounds the windowed cache reads behind the insights read
-	// route. Short: these are a handful of Redis GETs for one page of apps.
+	AppResetHandlerTimeout         = 30 * time.Second
+	// Heartbeat-extended plan locks: the TTL only has to outlive a stalled holder, never the budget.
+	PlanLockTTL               = 2 * ProtectionPlanDeployTimeout
+	PlanLockHeartbeatInterval = ProtectionPlanDeployTimeout / 3
+	CategoryReadTimeout       = 10 * time.Second
+	// Plan and rollback bodies are small JSON documents; anything larger is refused.
+	MaxRequestBodyBytes = 1 << 20
+	// The forward runs inside AppResetHandlerTimeout; this bounds the leader's own answer.
+	AppResetForwardTimeout = 20 * time.Second
+	// A handful of Redis GETs for one page of apps.
 	InsightsReadTimeout = 5 * time.Second
+	// Best-effort analyzer job XADD on the publish path; a slow Redis must never stall publishing.
+	InsightsTriggerTimeout = 2 * time.Second
+	// The UI reads one app per call; the cap only bounds hand-built requests.
+	InsightsReadMaxApps = 100
+	// The publish is async through NATS and the notifier: the job waits, off the
+	// publish path, until the exporter serves the entry's generation.
+	InsightsEnqueueStoreWaitAttempts = 10
+	InsightsEnqueueStorePollInterval = 500 * time.Millisecond
+	NATSConnectTimeout               = 30 * time.Second
+)
 
-	// NATSConnectTimeout bounds NATS dial-with-retry for fetching the shared
-	// publisher client.
-	NATSConnectTimeout = 30 * time.Second
+// Insights row index: a per-replica read cache behind the cluster-wide insights list.
+const (
+	EnvInsightsIndexRefreshSec     = "INSIGHTS_INDEX_REFRESH_SEC"
+	EnvInsightsIndexResyncSec      = "INSIGHTS_INDEX_RESYNC_SEC"
+	EnvInsightsStaleAfterSec       = "INSIGHTS_STALE_AFTER_SEC"
+	DefaultInsightsIndexRefreshSec = 15
+	DefaultInsightsIndexResyncSec  = 300
+	DefaultInsightsStaleAfterSec   = 86400
+	InsightsIndexBatchSize         = 200
+	// Deltas re-read this far behind the newest score seen, absorbing writes that land out of order.
+	InsightsIndexOverlapMs      = 5000
+	InsightsIndexSyncTimeout    = 30 * time.Second
+	InsightsEnvironmentsRefresh = 60 * time.Second
+	InsightsIndexRetryAfterSec  = 5
 )
 
 // Logger prefixes
@@ -155,6 +178,20 @@ const (
 	CircuitBreakerRestSuccessThreshold    = 2
 	CircuitBreakerRestTimeout             = 30 * time.Second
 	CircuitBreakerHalfOpenMaxProbes       = 1
+)
+
+// Protection plan report constants
+const (
+	DefaultReportCaptureTimeout = 10 * time.Second
+	EnvReportMaxViolations      = "PROTECTION_PLAN_REPORT_MAX_VIOLATIONS"
+	DefaultReportMaxViolations  = 5000
+	EnvReportCheckpointSec      = "PROTECTION_PLAN_REPORT_CHECKPOINT_SEC"
+	DefaultReportCheckpointSec  = 900
+	ReportCheckpointMinSec      = 60
+	ReportCheckpointMaxSec      = 1800
+	// Half the exporter's ReportMaxBodyBytes.
+	ReportRequestBudgetBytes  = 16 << 20
+	KeyPrefixReportLedgerLock = "lock:reports:ledger:"
 )
 
 // Acronym map for display name restoration

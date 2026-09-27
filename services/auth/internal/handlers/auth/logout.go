@@ -40,7 +40,7 @@ func revokeSessionIfPresent(sessionToken string) (userID string, tokenStatus str
 	return session.UserID, resolveTokenStatus(session)
 }
 
-func resolveTokenStatus(session *authdata.UserSession) string {
+func resolveTokenStatus(session *authdata.Session) string {
 	expiresAt, err := time.Parse(constants.TimeFormatRFC3339, session.ExpiresTimestamp)
 	if err != nil || time.Now().After(expiresAt) {
 		return constants.TokenStatusExpired

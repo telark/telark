@@ -28,7 +28,7 @@ func probeReadiness(t *testing.T) (int, status.Diagnostics) {
 	return rec.Code, body.Data
 }
 
-// No exporter answers here, so GlobalConfig never loads: that must surface as
+// No exporter answers here, so TelarkConfig never loads: that must surface as
 // degraded on a 200, not as the 503 that dropped every replica from the Service
 // during the exporter storm. Only Redis going away fails the probe.
 func TestReadinessGatesOnRedisOnly(t *testing.T) {
@@ -42,7 +42,7 @@ func TestReadinessGatesOnRedisOnly(t *testing.T) {
 	code, data := probeReadiness(t)
 	testutil.Equal(t, "status with exporter down", code, http.StatusOK)
 	testutil.Equal(t, "degraded", data.Degraded, true)
-	testutil.Equal(t, "globalconfig reason", slices.Contains(data.Reasons, constants.ReadinessReasonGlobalConfig), true)
+	testutil.Equal(t, "telarkconfig reason", slices.Contains(data.Reasons, constants.ReadinessReasonTelarkConfig), true)
 
 	mr.Close()
 	code, data = probeReadiness(t)

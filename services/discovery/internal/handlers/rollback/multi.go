@@ -12,8 +12,7 @@ import (
 
 var logger = constants.GetLogger(constants.LoggerPrefixRollbackController)
 
-// StartLeaderGated runs the rollback controller on the leader. Client init lives
-// here because it can fail; the leader gating itself is the shared one.
+// Client init lives here because it can fail; the leader gating itself is the shared one.
 func StartLeaderGated(ctx context.Context, isLeader func(context.Context) bool) error {
 	kubeClient, err := k8sclient.InitKubernetesClient()
 	if err != nil {

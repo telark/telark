@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/telark/discovery/internal/circuitbreaker"
+	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/tests/testutil"
 )
 
@@ -21,11 +22,11 @@ func TestBreakerStatsNameReset(t *testing.T) {
 
 	boom := errors.New("boom")
 	_ = cb.Execute(func() error { return boom })
-	if cb.GetStats().FailureCount == 0 {
+	if cb.GetStats().FailureCount == constants.DefaultInitValue {
 		t.Fatal("stats did not record the failure")
 	}
 
 	cb.Reset()
 	testutil.Equal(t, "reset state", cb.GetState(), circuitbreaker.StateClosed)
-	testutil.Equal(t, "reset failures", cb.GetStats().FailureCount, 0)
+	testutil.Equal(t, "reset failures", cb.GetStats().FailureCount, constants.DefaultInitValue)
 }

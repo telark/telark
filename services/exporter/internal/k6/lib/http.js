@@ -13,7 +13,7 @@ export const realFailures = new Rate('real_failures');
 const BUSINESS_EXCLUSIONS = {
   R5:  [404], R7:  [404], R17: [404], R18: [404], R19: [404],
   R24: [404], R25: [404], R26: [404], R27: [404], R32: [404],
-  R37: [404], R38: [404], R40: [404], R46: [404], R55: [404],
+  R37: [404], R46: [404], R55: [404],
   R64: [404], R65: [404],
 };
 
@@ -31,6 +31,11 @@ function isExcluded(routeID, status, scenario) {
     if (tol && tol.indexOf(status) !== -1) return true;
   }
   return false;
+}
+
+// The self session routes read the session from this header, never the path.
+export function sessionHeader(token) {
+  return { 'X-Session-Token': token };
 }
 
 function jsonHeaders(extra) {

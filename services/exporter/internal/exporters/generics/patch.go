@@ -25,12 +25,13 @@ func GenericPatchCustomResource(w http.ResponseWriter, md metadata.Metadata, nam
 
 	exists, err := api.CheckCustomResourceExistsByName(name, md)
 	if err != nil {
-		sharedutils.LogByStatusAndSend(w, http.StatusBadRequest, response.OperationError, string(globalerrors.ErrCheckResExistence), nil, err)
+		status := sharedutils.StatusForK8sError(err)
+		sharedutils.LogByStatusAndSend(w, status, response.OperationError, string(globalerrors.ErrCheckResExistence), nil, err)
 		return
 	}
 
 	if exists {
-		result := api.PatchCustomResource(md, name, patchData)
+		result := sharedutils.PatchCustomResource(md, name, patchData)
 		if result.Status != http.StatusOK {
 			errorMsg := sharedutils.GenerateResourceError(globalerrors.ErrUpdateRes, name, result.Error)
 			sharedutils.LogByStatusAndSend(w, result.Status, response.OperationError, errorMsg, nil, result.Error)

@@ -17,7 +17,7 @@ Single reference. Route inventory, wire format, thresholds, business 4xx, stage 
 
 **Out of scope**:
 - Notifications (R8–R12), challenges (R50–R52).
-- Routes needing `X-User-ID` / `X-Credential-ID` (R3, R6, R58–R62).
+- Routes needing `X-User-ID` or a passkey `{credentialId}` (R3, R6, R58–R62).
 - R18 rollback-by-id, R27 OIDC identity, R64/R65 snapshot get/manifest — need seeds not in code.
 - soak activation (skeleton).
 
@@ -31,55 +31,51 @@ Single reference. Route inventory, wire format, thresholds, business 4xx, stage 
 |---|---|---|---|---|
 | R1 | GET | `/status/live` | `status/health.go:14` | probe |
 | R2 | GET | `/status/ready` | `status/health.go:14` | probe |
-| R4 | GET | `/plans/protection/get` | `plans/protection/handler.go:79` | list |
-| R5 | GET | `/plans/protection/{id}/get` | `plans/protection/handler.go:64` | get-cached |
-| R7 | DELETE | `/plans/protection/{id}/delete` | `plans/protection/handler.go:123` | delete |
-| R13 | GET | `/resources/globalconfig/get` | `resources/globalconfig/handler.go:17` | get |
-| R14 | PATCH | `/resources/globalconfig/patch` | `resources/globalconfig/handler.go:28` | patch |
-| R15 | POST | `/resources/applications/create` | `resources/application/handler.go:25` | create |
-| R16 | GET | `/resources/applications/get` | `resources/application/handler.go` | list |
-| R17 | GET | `/resources/applications/{name}/rollbacks/get` | `resources/application/handler.go` | get |
-| R18 | GET | `/resources/applications/{name}/rollbacks/{rollbackId}/get` | `resources/application/handler.go` | get |
-| R19 | GET | `/resources/applications/{name}/get` | `resources/application/handler.go` | get-cached |
-| R20 | PATCH | `/resources/applications/{name}/patch` | `resources/application/handler.go` | patch |
-| R21 | DELETE | `/resources/applications/{name}/delete` | `resources/application/handler.go` | delete |
-| R22 | POST | `/resources/users/create` | `resources/user/handler.go:28` | create |
-| R23 | GET | `/resources/users/get` | `resources/user/handler.go` | list |
-| R24 | GET | `/resources/users/findbyusername/{username}/get` | `resources/user/handler.go:96` | get-cached |
-| R25 | GET | `/resources/users/findbyemail/{email}/get` | `resources/user/handler.go:112` | get-cached |
-| R26 | GET | `/resources/users/findbyid/{id}/get` | `resources/user/handler.go:80` | get-cached |
-| R27 | GET | `/resources/users/findbyidentity/get` | `resources/user/handler.go:128` | get |
-| R28 | PATCH | `/resources/users/{id}/patch` | `resources/user/handler.go` | patch |
-| R29 | DELETE | `/resources/users/{id}/delete` | `resources/user/handler.go:230` | delete |
-| R30 | POST | `/resources/groups/create` | `resources/group/handler.go:27` | create |
-| R31 | GET | `/resources/groups/get` | `resources/group/handler.go` | list |
-| R32 | GET | `/resources/groups/{id}/get` | `resources/group/handler.go:79` | get-cached |
-| R33 | PATCH | `/resources/groups/{id}/patch` | `resources/group/handler.go:99` | patch |
-| R34 | DELETE | `/resources/groups/{id}/delete` | `resources/group/handler.go:188` | delete |
-| R35 | POST | `/resources/roles/create` | `resources/role/handler.go:25` | create |
-| R36 | GET | `/resources/roles/get` | `resources/role/handler.go` | list |
-| R37 | GET | `/resources/roles/{id}/get` | `resources/role/handler.go:91` | get-cached |
-| R38 | GET | `/resources/roles/findbyuserid/{userId}/get` | `resources/role/handler.go:107` | get-cached |
-| R39 | GET | `/resources/roles/findbyuserid/{userId}/list` | `resources/role/handler.go` | list |
-| R40 | GET | `/resources/roles/findbygroupid/{groupId}/get` | `resources/role/handler.go` | get-cached |
-| R41 | GET | `/resources/roles/findbygroupid/{groupId}/list` | `resources/role/handler.go` | list |
-| R42 | PATCH | `/resources/roles/{id}/patch` | `resources/role/handler.go:175` | patch |
-| R43 | DELETE | `/resources/roles/{id}/delete` | `resources/role/handler.go:218` | delete |
-| R44 | POST | `/classification/categories/create` | `classification/category/handler.go:22` | create |
-| R45 | GET | `/classification/categories/get` | `classification/category/handler.go:112` | list |
-| R46 | GET | `/classification/categories/{id}/get` | `classification/category/handler.go:88` | get-cached |
-| R47 | GET | `/classification/categories/scope/{scope}/get` | `classification/category/handler.go:134` | get |
-| R48 | PATCH | `/classification/categories/{id}/patch` | `classification/category/handler.go:209` | patch |
-| R49 | DELETE | `/classification/categories/{id}/delete` | `classification/category/handler.go:240` | delete |
-| R53 | POST | `/auth/sessions/{userId}/create` | `auth/session/handler.go:17` | create |
-| R54 | GET | `/auth/sessions/{userId}/get` | `auth/session/handler.go:42` | list |
-| R55 | GET | `/auth/sessions/tokens/{token}/get` | `auth/session/handler.go:53` | get |
-| R56 | PATCH | `/auth/sessions/tokens/{token}/patch` | `auth/session/handler.go:64` | patch |
-| R57 | DELETE | `/auth/sessions/tokens/{token}/delete` | `auth/session/handler.go:89` | delete |
-| R63 | POST | `/snapshots/create` | `snapshot/handler.go:16` | create-fs |
-| R64 | GET | `/snapshots/{id}/get` | `snapshot/handler.go:35` | get |
-| R65 | GET | `/snapshots/{id}/manifest` | `snapshot/handler.go:49` | get |
-| R66 | GET | `/snapshots/infos` | `snapshot/handler.go:63` | list-fs |
+| R4 | GET | `/protectionplans` | `plans/protection/handler.go` | list |
+| R5 | GET | `/protectionplans/{id}` | `plans/protection/handler.go` | get-cached |
+| R7 | DELETE | `/protectionplans/{id}` | `plans/protection/handler.go` | delete |
+| R13 | GET | `/config` | `config/handler.go` | get |
+| R14 | PATCH | `/config` | `config/handler.go` | patch |
+| R15 | POST | `/applications` | `resources/application/handler.go` | create |
+| R16 | GET | `/applications` | `resources/application/handler.go` | list |
+| R17 | GET | `/applications/{name}/rollbacks` | `resources/application/handler.go` | get |
+| R18 | GET | `/applications/{name}/rollbacks/{rollbackId}` | `resources/application/handler.go` | get |
+| R19 | GET | `/applications/{name}` | `resources/application/handler.go` | get-cached |
+| R20 | PATCH | `/applications/{name}` | `resources/application/handler.go` | patch |
+| R21 | DELETE | `/applications/{name}` | `resources/application/handler.go` | delete |
+| R22 | POST | `/users` | `resources/user/handler.go` | create |
+| R23 | GET | `/users` | `resources/user/handler.go` | list |
+| R24 | GET | `/internal/users/by-username/{username}` | `resources/user/handler.go` | get-cached |
+| R25 | GET | `/internal/users/by-email/{email}` | `resources/user/handler.go` | get-cached |
+| R26 | GET | `/users/{id}` | `resources/user/handler.go` | get-cached |
+| R27 | GET | `/internal/users/by-identity` | `resources/user/handler.go` | get |
+| R28 | PATCH | `/users/{id}` | `resources/user/handler.go` | patch |
+| R29 | DELETE | `/users/{id}` | `resources/user/handler.go` | delete |
+| R30 | POST | `/groups` | `resources/group/handler.go` | create |
+| R31 | GET | `/groups` | `resources/group/handler.go` | list |
+| R32 | GET | `/groups/{id}` | `resources/group/handler.go` | get-cached |
+| R33 | PATCH | `/groups/{id}` | `resources/group/handler.go` | patch |
+| R34 | DELETE | `/groups/{id}` | `resources/group/handler.go` | delete |
+| R35 | POST | `/accessroles` | `resources/role/handler.go` | create |
+| R36 | GET | `/accessroles` | `resources/role/handler.go` | list |
+| R37 | GET | `/accessroles/{id}` | `resources/role/handler.go` | get-cached |
+| R42 | PATCH | `/accessroles/{id}` | `resources/role/handler.go` | patch |
+| R43 | DELETE | `/accessroles/{id}` | `resources/role/handler.go` | delete |
+| R44 | POST | `/categories` | `categories/handler.go` | create |
+| R45 | GET | `/categories` | `categories/handler.go` | list |
+| R46 | GET | `/categories/{id}` | `categories/handler.go` | get-cached |
+| R47 | GET | `/categories?scope={scope}` | `categories/handler.go` | list |
+| R48 | PATCH | `/categories/{id}` | `categories/handler.go` | patch |
+| R49 | DELETE | `/categories/{id}` | `categories/handler.go` | delete |
+| R53 | POST | `/internal/auth/users/{userId}/sessions` | `auth/session/handler.go` | create |
+| R54 | GET | `/auth/sessions?user={userId}` | `auth/session/handler.go` | list |
+| R55 | GET | `/auth/sessions/self` | `auth/session/handler.go` | get |
+| R56 | PATCH | `/auth/sessions/self` | `auth/session/handler.go` | patch |
+| R57 | DELETE | `/auth/sessions/self` | `auth/session/handler.go` | delete |
+| R63 | POST | `/internal/snapshots` | `snapshot/handler.go` | create-fs |
+| R64 | GET | `/snapshots/{id}` | `snapshot/handler.go` | get |
+| R65 | GET | `/snapshots/{id}/manifest` | `snapshot/handler.go` | get |
+| R66 | GET | `/snapshots` | `snapshot/handler.go` | list-fs |
 
 ## Path / query / header inputs
 
@@ -89,23 +85,23 @@ Single reference. Route inventory, wire format, thresholds, business 4xx, stage 
 | `{name}` | R17–R21 | `constants.NameParam` |
 | `{username}` | R24 | `constants.UsernameParam` |
 | `{email}` | R25 | `constants.EmailParam` |
-| `{userId}` | R38, R39, R53, R54 | `constants.UserIDParam` |
-| `{groupId}` | R40, R41 | `constants.GroupIDParam` |
-| `{token}` | R55, R56, R57 | `constants.TokenParam` |
-| `{scope}` | R47 | `constants.FieldScope` |
+| `{userId}` | R53 | `constants.UserIDParam` |
+| query `user` | R54 | `authendpoints.QuerySessionUser` |
+| header `X-Session-Token` | R55, R56, R57 | raw token or session name |
+| query `scope` | R47 | `categoryendpoints.QueryScope` |
 | `{rollbackId}` | R18 | literal |
 | query `provider/issuer/subject` | R27 | – |
 | query `scope/namespace/generation` | R64, R65 | – |
 | header `Accept` | R65 | – |
 
-No `X-User-ID` / `X-Credential-ID` routes in scope.
+No `X-User-ID` / passkey `{credentialId}` routes in scope.
 
 ## Body shapes (write routes)
 
 All sent with `Content-Type: application/json`. Examples reflect struct + hand-rolled validation (no `validate:"..."` tags exist).
 
 ```js
-// R14 PatchGlobalConfig
+// R14 PatchConfig
 { userSettings: { fetchIntervalSeconds:60 } }
 
 // R15 CreateApplication
@@ -121,13 +117,13 @@ All sent with `Content-Type: application/json`. Examples reflect struct + hand-r
 { fullname:'updated' }
 
 // R30 CreateGroup
-{ id, name, description:'', categoryID:'', assignedUsersIDs:[], assignedRolesIDs:[], creationDate }
+{ id, name, description:'', categoryRef:'', userRefs:[], roleRefs:[], creationDate }
 
 // R33 PatchGroup
 { description:'updated' }
 
 // R35 CreateRole (RoleType = built-in|custom; RoleStatus.Phase = Active|Inactive|Deprecated|Deleted)
-{ id, name, description:'', version:'1.0', type:'custom', priority:1, categoryID:'',
+{ id, name, description:'', version:'1.0', type:'custom', priority:1, categoryRef:'',
   scopesAndPermissions:[], status:{ phase:'Active' }, creationDate }
 
 // R42 PatchRole
@@ -156,7 +152,7 @@ All sent with `Content-Type: application/json`. Examples reflect struct + hand-r
 
 | Code | Routes | Reason |
 |---|---|---|
-| 404 | all reads with seed IDs (R5, R7, R17–R19, R24–R27, R32, R37, R38, R40, R46, R55, R64, R65) | seed miss — expected |
+| 404 | all reads with seed IDs (R5, R7, R17–R19, R24–R27, R32, R37, R46, R55, R64, R65) | seed miss — expected |
 | 409 | all patches (R14, R20, R28, R33, R42, R48, R56) | K8s `resourceVersion` conflict; `ConflictStatus=409` in `constants/config.go` |
 | 503 | all creates (R15, R22, R30, R35, R44, R53, R63) — **stress only** | `k8sCreateSem=10` saturation |
 
@@ -215,7 +211,6 @@ Aggregate error rate: < 0.5% load, < 5% stress, < 0.1% journey/soak.
 | R35 | ✓ | ✓ | – | – | J2 | – |
 | R36 | ✓ | ✓ | ✓ | – | – | ✓ |
 | R37 | ✓ | ✓ | – | – | – | ✓ |
-| R38–R41 | ✓ | – | – | – | – | – |
 | R42, R43 | ✓ | – | – | – | – | – |
 | R44 | ✓ | ✓ | – | – | – | – |
 | R45 | ✓ | ✓ | ✓ | – | – | ✓ |
@@ -237,7 +232,7 @@ Aggregate error rate: < 0.5% load, < 5% stress, < 0.1% journey/soak.
 | ID | Flow |
 |---|---|
 | J2 | R22 → R30 → R35 → R28 → R26 (user + group + role assignment) |
-| J3 | R53 → R55 → R57 (session lifecycle; capture `sessionToken` from R53 response) |
+| J3 | R53 → R55 → R57 (session lifecycle; capture `sessionToken` from R53 response and send it as `X-Session-Token`) |
 
 ---
 

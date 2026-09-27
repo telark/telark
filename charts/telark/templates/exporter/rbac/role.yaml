@@ -1,9 +1,7 @@
 {{- if $.Values.services.exporter.enabled }}
 {{- include "role" (dict "service" "exporter" "values" .Values "root" $ "rules" (list
-  (dict "apiGroups" (list (printf "erpi.%s" .Values.app.name)) "resources" (list "*") "verbs" (list "*"))
-  (dict "apiGroups" (list (printf "auth.%s" .Values.app.name)) "resources" (list "*") "verbs" (list "*"))
-  (dict "apiGroups" (list (printf "classification.%s" .Values.app.name)) "resources" (list "*") "verbs" (list "*"))
-  (dict "apiGroups" (list "") "resources" (list "persistentvolumeclaims") "verbs" (list "get" "list" "watch" "update" "patch"))
-  (dict "apiGroups" (list "") "resources" (list "secrets") "resourceNames" (list (printf "%s-ai-provider-key" .Values.app.name)) "verbs" (list "get" "update"))
+  (dict "apiGroups" (list (include "telark.apiGroup" $)) "resources" (list "*" "*/*") "verbs" (list "*"))
+  (dict "apiGroups" (list "") "resources" (list "persistentvolumeclaims") "verbs" (list "get" "list" "watch"))
+  (dict "apiGroups" (list "") "resources" (list "secrets") "resourceNames" (list (include "telark.oidcTrustSecretName" $)) "verbs" (list "get" "update" "patch"))
 )) }}
 {{- end }}

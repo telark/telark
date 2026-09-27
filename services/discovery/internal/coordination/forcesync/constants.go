@@ -12,7 +12,6 @@ const (
 	readBlockDuration       = constants.ForceSyncReadBlockDuration
 	readBatchCount    int64 = constants.ForceSyncReadBatchCount
 	reclaimMaxCount         = constants.ForceSyncReclaimMaxCount
-	specKey                 = "spec"
 	lastForceSyncKey        = "lastForceSync"
 )
 

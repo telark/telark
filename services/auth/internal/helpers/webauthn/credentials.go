@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/go-webauthn/webauthn/protocol"
@@ -29,17 +30,14 @@ func ExtractBackupFlagsFromAuthenticatorData(authenticatorDataB64 string) (
 		return false, false, errors.New(string(constants.ErrAuthDataTooShort))
 	}
 
-	flags := authDataBytes[constants.AuthDataOffsetFlags]
-	backupEligible = (flags & constants.BackupEligibleFlag) != constants.DefaultInitValue
-	backupState = (flags & constants.BackupStateFlag) != constants.DefaultInitValue
-
+	backupEligible, backupState = backupFlags(authDataBytes)
 	return backupEligible, backupState, nil
 }
 
 func ValidateBackupFlags(
 	credIDStr string,
 	loginBackupEligible, loginBackupState bool,
-	passkeys []*authdata.UserPasskey,
+	passkeys []*authdata.Passkey,
 ) error {
 	for i := range passkeys {
 		if passkeys[i] != nil && passkeys[i].CredentialID == credIDStr {
@@ -51,25 +49,6 @@ func ValidateBackupFlags(
 		}
 	}
 	return nil
-}
-
-func ExtractCredentialIDFromRequest(bodyBytes []byte) (string, []byte, error) {
-	var credMap map[string]any
-	if err := json.Unmarshal(bodyBytes, &credMap); err != nil {
-		return constants.EmptyString, nil, fmt.Errorf(string(constants.ErrFailedParseRequestBody), err)
-	}
-
-	id, ok := credMap[constants.WebAuthnKeyID].(string)
-	if !ok {
-		return constants.EmptyString, nil, nil
-	}
-
-	credIDBytes, err := authhelper.DecodeBase64URLWithFallback(id)
-	if err != nil {
-		return constants.EmptyString, nil, err
-	}
-
-	return base64.RawURLEncoding.EncodeToString(credIDBytes), credIDBytes, nil
 }
 
 func ReadAndRestoreRequestBody(r *http.Request) ([]byte, error) {
@@ -101,7 +80,7 @@ func CreateSessionData(
 
 func ValidateBackupFlagsFromRequest(
 	bodyBytes []byte,
-	passkeys []*authdata.UserPasskey,
+	passkeys []*authdata.Passkey,
 ) error {
 	var credMap map[string]any
 	if err := json.Unmarshal(bodyBytes, &credMap); err != nil {
@@ -163,11 +142,10 @@ func HandleBackupFlagError(
 		return nil, fmt.Errorf(string(constants.ErrFailedMarshalCredentialBody), err)
 	}
 
-	// This request is synthetic: it is only handed to ParseCredentialRequestResponse,
-	// which reads the body and headers, and is never sent. A fixed path keeps the
+	// Synthetic request, only parsed and never sent; a fixed path keeps the
 	// caller-controlled URL out of it (gosec G704 / SSRF).
 	credentialOnlyRequest,
-		err := http.NewRequest(r.Method, "/", bytes.NewBuffer(credentialOnlyBytes))
+		err := http.NewRequest(r.Method, constants.SyntheticRequestPath, bytes.NewBuffer(credentialOnlyBytes))
 	if err != nil {
 		return nil, fmt.Errorf(string(constants.ErrFailedCreateCredentialRequest), err)
 	}
@@ -183,32 +161,20 @@ func HandleBackupFlagError(
 		return nil, err
 	}
 
-	var matchingCred *webauthn.Credential
-	for i := range credentials {
-		if bytes.Equal(credentials[i].ID, credIDBytes) {
-			matchingCred = &credentials[i]
-			break
-		}
-	}
-
-	if matchingCred == nil {
+	idx := slices.IndexFunc(credentials, func(c webauthn.Credential) bool {
+		return bytes.Equal(c.ID, credIDBytes)
+	})
+	if idx < constants.DefaultInitValue {
 		return nil, errors.New(string(constants.ErrCredentialNotFoundInAllowed))
 	}
 
-	return ValidateCredentialManually(credentialResponse, matchingCred)
-}
-
-func ValidateCredentialManually(
-	credentialResponse *protocol.ParsedCredentialAssertionData,
-	matchingCred *webauthn.Credential,
-) (*webauthn.Credential, error) {
-	authData := credentialResponse.Response.AuthenticatorData
+	matchingCred := &credentials[idx]
 	return &webauthn.Credential{
 		ID:        matchingCred.ID,
 		PublicKey: matchingCred.PublicKey,
 		Authenticator: webauthn.Authenticator{
 			AAGUID:    matchingCred.Authenticator.AAGUID,
-			SignCount: authData.Counter,
+			SignCount: credentialResponse.Response.AuthenticatorData.Counter,
 		},
 	}, nil
 }
@@ -217,7 +183,7 @@ func VerifyCredential(
 	challenge *authdata.AuthChallenge,
 	webAuthnUser *User,
 	credentials []webauthn.Credential,
-	passkeys []*authdata.UserPasskey,
+	passkeys []*authdata.Passkey,
 	r *http.Request,
 ) (*webauthn.Credential, error) {
 	wa, err := GetWebAuthnFor(r)

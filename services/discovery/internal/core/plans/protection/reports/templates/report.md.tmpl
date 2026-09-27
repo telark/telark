@@ -1,0 +1,109 @@
+# {{.L.TitleCover}}: {{cell .Doc.Cover.Name}}
+
+Report {{cell .Doc.Cover.ReportID}} · generated {{fmtTime .Doc.Cover.GeneratedAt}} by {{cell .Doc.Cover.GeneratedBy}} · trigger {{cell .Doc.Cover.Trigger}}
+
+| Field | Value |
+|---|---|
+| Plan id | {{cell .Doc.Cover.ID}} |
+| Description | {{cell .Doc.Cover.Description}} |
+| Severity / priority | {{cell .Doc.Cover.Severity}} / {{.Doc.Cover.Priority}} |
+| Mode | {{cell .Doc.Cover.Mode}} |
+| Time mode | {{cell .Doc.Cover.TimeMode}}{{if .Doc.Cover.StartAt}} ({{fmtTime .Doc.Cover.StartAt}} → {{fmtTime .Doc.Cover.EndAt}}){{end}} |
+| Run window | {{fmtTime .Doc.Cover.RunStart}} → {{fmtTime .Doc.Cover.RunEnd}} |
+| Phase at generation | {{cell .Doc.Cover.Phase}} |
+| Reason | {{cell .Doc.Cover.Reason}} |
+| Health | {{cell .Doc.Health.Value}} |
+| Admission decisions | {{.Doc.Decisions.Aggregates.Total}} |
+
+## {{.L.TitleCoverage}}
+
+| Field | Value |
+|---|---|
+| Retention window | {{cell .Doc.Coverage.RetentionWindow}} |
+| Checkpoint interval | {{cell .Doc.Coverage.CheckpointInterval}} |
+| Checkpoints | {{.Doc.Coverage.Checkpoints}} ({{fmtTime .Doc.Coverage.FirstCheckpoint}} → {{fmtTime .Doc.Coverage.LastCheckpoint}}) |
+| Row cap / omitted | {{.Doc.Coverage.RowCap}} / {{.Doc.Coverage.RowsOmitted}}{{if .Doc.Coverage.Truncated}} (truncated){{end}} |
+| Policies live at capture | {{.Doc.Coverage.PoliciesLiveAtCapture}} |
+| Unresolved applications | {{cell (join .Doc.Coverage.UnresolvedApplications)}} |
+{{if .Doc.Coverage.Gaps}}
+| Gap from | Gap to |
+|---|---|
+{{range .Doc.Coverage.Gaps}}| {{fmtTime .From}} | {{fmtTime .To}} |
+{{end}}{{end}}
+| Section | Source |
+|---|---|
+{{range .Doc.Coverage.Provenance}}| {{cell .Section}} | {{cell .Source}} |
+{{end}}
+{{range .Doc.Coverage.Notes}}_{{cell .}}_
+
+{{end}}
+## {{.L.TitleTimeline}}
+
+| Event | At | By |
+|---|---|---|
+| Created | {{fmtTime .Doc.Timeline.CreatedAt}} | {{cell .Doc.Timeline.CreatedBy}} |
+| Started | {{fmtTime .Doc.Timeline.StartedAt}} | {{cell .Doc.Timeline.StartedBy}} |
+| Last updated | {{fmtTime .Doc.Timeline.LastUpdatedAt}} | {{cell .Doc.Timeline.LastUpdatedBy}} |
+| Terminated | {{fmtTime .Doc.Timeline.TerminatedAt}} | {{cell .Doc.Timeline.TerminatedBy}} |
+| Participants | {{cell (join .Doc.Timeline.ParticipantRefs)}} | |
+
+## {{.L.TitleScope}}
+
+| Field | Value |
+|---|---|
+| Type | {{cell .Doc.Scope.Type}} |
+| Namespaces | {{cell (join .Doc.Scope.Namespaces)}} |
+| Applications | {{cell (join .Doc.Scope.ApplicationRefs)}} |
+
+## {{.L.TitlePolicies}}
+
+| Template | Parameters | Rendered policy | Present | Ready | Failure action |
+|---|---|---|---|---|---|
+{{range .Doc.Policies}}| {{cell .TemplateID}} | {{cell .Params}} | {{cell .RenderedName}} | {{.Present}} | {{.Ready}} | {{cell .FailureAction}} |
+{{end}}
+## {{.L.TitleHealth}}
+
+{{cell .Doc.Health.Value}} (checked {{fmtTime .Doc.Health.CheckedAt}})
+{{if .Doc.Health.Timeline}}
+| At | Health | Records seen |
+|---|---|---|
+{{range .Doc.Health.Timeline}}| {{fmtTime .At}} | {{cell .Health}} | {{.ViolationsSeen}} |
+{{end}}{{end}}
+## {{.L.TitleDecisions}}
+
+Total {{.Doc.Decisions.Aggregates.Total}} · distinct resources {{.Doc.Decisions.Aggregates.DistinctResources}} · first {{fmtTime .Doc.Decisions.Aggregates.First}} · last {{fmtTime .Doc.Decisions.Aggregates.Last}}
+
+| By result | Count |
+|---|---|
+{{range .Doc.Decisions.Aggregates.ByResult}}| {{cell .Key}} | {{.Count}} |
+{{end}}
+| By policy / rule | Count |
+|---|---|
+{{range .Doc.Decisions.Aggregates.ByPolicyRule}}| {{cell .Key}} | {{.Count}} |
+{{end}}
+| By namespace | Count |
+|---|---|
+{{range .Doc.Decisions.Aggregates.ByNamespace}}| {{cell .Key}} | {{.Count}} |
+{{end}}
+| By resource kind | Count |
+|---|---|
+{{range .Doc.Decisions.Aggregates.ByKind}}| {{cell .Key}} | {{.Count}} |
+{{end}}
+| Timestamp | Result | Policy | Rule | Kind | Namespace | Name | Message |
+|---|---|---|---|---|---|---|---|
+{{range .Doc.Decisions.Rows}}| {{fmtTime .Timestamp}} | {{cell .Result}} | {{cell .Policy}} | {{cell .Rule}} | {{cell .Resource.Kind}} | {{cell .Resource.Namespace}} | {{cell .Resource.Name}} | {{cell .Message}} |
+{{end}}
+## {{.L.TitleAppendix}}
+
+{{range .Doc.Appendix.Glossary}}- {{cell .}}
+{{end}}
+| Field | Value |
+|---|---|
+| Rendered policies | {{cell (join .Doc.Appendix.RenderedPolicies)}} |
+| Plan id | {{cell .Doc.Appendix.PlanID}} |
+| Report id | {{cell .Doc.Appendix.ReportID}} |
+| Schema version | {{cell .Doc.Appendix.SchemaVersion}} |
+| Generator | {{cell .Doc.Appendix.Generator}} |
+
+{{range .Doc.Appendix.Notes}}_{{cell .}}_
+{{end}}

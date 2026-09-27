@@ -18,30 +18,33 @@ const (
 	InfoCircuitBreakerHalfOpen    messages.Message = "circuit breaker '%s' half-open, testing connection"
 
 	//  Pre-warming
-	InfoPrewarmEnrichmentStarted      messages.Message = "🔥 Pre-warming enrichment cache in background..."
+	InfoPrewarmCacheStarted           messages.Message = "Pre-warming discovery cache in background..."
 	InfoPrewarmFoundApplications      messages.Message = "Pre-warming: found %d applications across %d namespaces"
 	InfoPrewarmComplete               messages.Message = "🔥 Pre-warming complete — totalApps=%d elapsedMs=%d"
 	InfoPrewarmSupervisorShuttingDown messages.Message = "[prewarm] Supervisor shutting down."
 	ErrorPrewarmRecoveredFromPanic    messages.Message = "[prewarm] Recovered from panic: %v"
 	ErrorPrewarmRecoveredFromRunPanic messages.Message = "[prewarm] Recovered from panic in run: %v"
 
-	// Startup: GlobalConfig
-	InfoClusterVersionPatchStarting     messages.Message = "[startup] patching GlobalConfig cluster.version"
-	InfoClusterVersionPatched           messages.Message = "[startup] patched GlobalConfig cluster.version=%s"
-	WarnClusterVersionPatchFailed       messages.Message = "[startup] failed to patch GlobalConfig cluster.version: %v"
-	WarnClusterVersionPatchFailedStatus messages.Message = "[startup] failed to patch GlobalConfig cluster.version, " +
+	// Startup: TelarkConfig
+	InfoClusterVersionPatchStarting     messages.Message = "[startup] patching TelarkConfig cluster.version"
+	InfoClusterVersionPatched           messages.Message = "[startup] patched TelarkConfig cluster.version=%s"
+	WarnClusterVersionPatchFailed       messages.Message = "[startup] failed to patch TelarkConfig cluster.version: %v"
+	WarnClusterVersionPatchFailedStatus messages.Message = "[startup] failed to patch TelarkConfig cluster.version, " +
 		"response=%v"
 	WarnClusterVersionPatchExhausted messages.Message = "[startup] cluster.version patch exhausted all %d attempts: %v"
 
-	// Insights tick
-	InfoInsightsDispatched        messages.Message = "[insights] dispatched %d apps to enrichment"
-	WarnInsightsGlobalConfigRead  messages.Message = "[insights] skipped tick, GlobalConfig read failed: %v"
-	WarnInsightsListApplications  messages.Message = "[insights] skipped tick, listing applications failed: %v"
-	WarnInsightsDispatch          messages.Message = "[insights] dispatch to enrichment failed: %v"
-	InfoInsightsRead              messages.Message = "insights read"
-	WarnGlobalConfigUnavailable   messages.Message = "[startup] GlobalConfig not reachable yet, retrying in %ds: %v"
-	InfoGlobalConfigAvailable     messages.Message = "[startup] GlobalConfig is reachable."
-	WarnExcludedNamespacesRefresh messages.Message = "[globalconfig] failed to refresh ExcludedNamespaces cache: %v"
+	// Insights
+	InfoInsightsRead               messages.Message = "insights read"
+	InfoInsightsListed             messages.Message = "insights listed"
+	InfoInsightsListNotReady       messages.Message = "insights list not ready yet"
+	WarnInsightsIndexSyncFailed    messages.Message = "[insights-index] sync failed: %v"
+	WarnInsightsIndexCatchUpFailed messages.Message = "[insights-index] fresh read served without catching up: %v"
+	WarnInsightsIndexPlansFailed   messages.Message = "[insights-index] plans list failed, keeping the last environments: %v"
+	LogInsightsIndexSynced         messages.Message = "[insights-index] synced full=%t fetched=%d apps=%d rows=%d in %s"
+	WarnInsightsTriggerFailed      messages.Message = "[insights] failed to enqueue analysis job for %s: %v"
+	WarnTelarkConfigUnavailable    messages.Message = "[startup] TelarkConfig not reachable yet, retrying in %ds: %v"
+	InfoTelarkConfigAvailable      messages.Message = "[startup] TelarkConfig is reachable."
+	WarnExcludedNamespacesRefresh  messages.Message = "[telarkconfig] failed to refresh ExcludedNamespaces cache: %v"
 
 	// Startup: Renderer Registry
 	ErrRendererNotRegistered messages.Message = "[startup] no renderer registered for template %q"
@@ -62,6 +65,10 @@ const (
 	InfoRollbackWorkersStarted       messages.Message = "[rollback] started %d workers"
 	InfoRollbackClientBudget         messages.Message = "[rollback] dedicated K8s client budget: %.0f qps, burst %d"
 
+	// Protection Plan Reports
+	WarnReportCheckpointClamped messages.Message = "[reports] checkpoint interval clamped to [%d, %d] seconds"
+	InfReportCheckpointInterval messages.Message = "[reports] checkpoint interval: %s"
+
 	// Rollback Notifications
 	NotifRollbackCompletedTitle  messages.Message = "Rollback completed"
 	NotifRollbackFailedTitle     messages.Message = "Rollback failed"
@@ -69,6 +76,13 @@ const (
 	NotifRollbackCompletedFormat messages.Message = "Rollback of **%s** Application to generation **%d** completed."
 	NotifRollbackFailedFormat    messages.Message = "Rollback of %s to generation %d failed: %s"
 	NotifRollbackAbortedFormat   messages.Message = "Rollback of **%s** Application to generation **%d** was aborted."
+
+	// Plan approval notifications
+	NotifPlanApprovalRequestedTitle  messages.Message = "Protection plan awaiting approval"
+	NotifPlanApprovalRequestedFormat messages.Message = "**%s** was submitted for approval by %s."
+	NotifPlanApprovalDecidedTitle    messages.Message = "Protection plan decision"
+	NotifPlanApprovalDecidedFormat   messages.Message = "**%s** was %s. %s"
+	WarnPlanApprovalNotifyFailed     messages.Message = "[plan-approval] notification failed plan=%s: %v"
 
 	// Rollback HTTP responses
 	MsgRollbackAborted     messages.Message = "rollback aborted"
@@ -89,10 +103,8 @@ const (
 		"app=%s emptyCycles=%d firstEmptySeenAt=%s snapshotCount=%d namespaces=%s"
 	LogAutoCleanupFiring messages.Message = "[auto-cleanup] firing: " +
 		"app=%s emptyCycles=%d firstEmptySeenAt=%s snapshotCount=%d namespaces=%s"
-	LogAutoCleanupDone               messages.Message = "[auto-cleanup] done: app=%s elapsedMs=%d"
-	LogAutoCleanupStreakReset        messages.Message = "[auto-cleanup] streak reset: app=%s rail=%s"
-	LogAutoCleanupAppGoneRedisOrphan messages.Message = "[auto-cleanup] app already gone from exporter, " +
-		"clearing residual redis state: app=%s"
+	LogAutoCleanupDone        messages.Message = "[auto-cleanup] done: app=%s elapsedMs=%d"
+	LogAutoCleanupStreakReset messages.Message = "[auto-cleanup] streak reset: app=%s rail=%s"
 
 	// Cleanup
 	LogAppResetStarted   messages.Message = "[reset] Application reset started: %s"
@@ -119,15 +131,20 @@ const (
 	// Application history — snapshots & incidents
 	InfoInformerOldObjectCaptured messages.Message = "[informers] MODIFIED oldObject captured " +
 		"app=%s kind=%s ns=%s name=%s replicas=%v lag=%s"
-	WarnInformerWatchError             messages.Message = "[informers] watch %s/%s failed: %v"
-	InfoInformerNamespaceSynced        messages.Message = "[informers] namespace %s: %d informers synced in %s"
-	WarnInformerSlowHandler            messages.Message = "[informers] slow handler: ns=%s resource=%s event=%s took %s"
-	WarnInformersFlushRetry            messages.Message = "[informers] flush for %s deferred: %v — retrying in %s"
-	WarnInformersFlushFailed           messages.Message = "[informers] flush for %s failed: %v"
-	WarnInformersFlushStaleStored      messages.Message = "[informers] flush for %s deferred: stored generation %d is behind published %d"
-	InfoInformersFlushResult           messages.Message = "[informers] flush for %s: generation %d -> %d, publish=%s"
-	InfoInformersFlushRollbackDropped  messages.Message = "[informers] flush for %s dropped: rollback applying"
-	InfoHistoryChangeDeferred          messages.Message = "[history] %s: %d change(s) have no pre-image, deferred to the informer flush"
+	WarnInformerWatchError            messages.Message = "[informers] watch %s/%s failed: %v"
+	InfoInformerNamespaceSynced       messages.Message = "[informers] namespace %s: %d informers synced in %s"
+	WarnInformerSlowHandler           messages.Message = "[informers] slow handler: ns=%s resource=%s event=%s took %s"
+	WarnInformersFlushRetry           messages.Message = "[informers] flush for %s deferred: %v — retrying in %s"
+	WarnInformersFlushFailed          messages.Message = "[informers] flush for %s failed: %v"
+	WarnInformersFlushStaleStored     messages.Message = "[informers] flush for %s deferred: stored generation %d is behind published %d"
+	InfoInformersFlushResult          messages.Message = "[informers] flush for %s: generation %d -> %d, publish=%s"
+	InfoInformersFlushRollback        messages.Message = "[informers] flush for %s records rollback %s at generation %d"
+	InfoHistoryChangeDeferred         messages.Message = "[history] %s: %d change(s) have no pre-image, deferred to the informer flush"
+	InfoHistoryHealthOnlyLiveSnapshot messages.Message = "[history] %s: health-only change, live manifests snapshotted as pre-image"
+	InfoHistoryDeferredConverged      messages.Message = "[history] %s: change set deferred for %d ticks without a pre-image, " +
+		"recorded against the live state"
+	WarnHistoryAppNameInvalid          messages.Message = "[history] %s: grouping label is not a valid DNS-1123 name, application skipped"
+	WarnInsightsStoreBehind            messages.Message = "[insights] %s: store still behind generation %d after %s, enqueuing anyway"
 	WarnInformersFlushTargetMissing    messages.Message = "[informers] flush for %s: derivation returned %d applications, target missing"
 	LogInformersReconcileBackfill      messages.Message = "[informers] reconcile: %d app(s) baselined from their newest snapshot"
 	InfoInformersReconcileDrift        messages.Message = "[informers] reconcile %s: %s changed while unobserved, flush scheduled from snapshot %s"

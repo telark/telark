@@ -64,7 +64,7 @@ export const pathProviders = {
   email:        () => pick(seedEmails),
   groupID:      () => pick(seedGroupIDs),
   roleID:       () => pick(seedRoleIDs),
-  categoryID:   () => pick(seedCategoryIDs),
+  categoryItem: () => pick(seedCategoryIDs),
   appName:      () => pick(seedAppNames),
   sessionToken: () => pick(seedSessionTokens),
   snapshotID:   () => pick(seedSnapshotIDs),
@@ -85,8 +85,8 @@ export const queryProviders = {
 // One per write route. Each returns a JSON-serializable object.
 
 export const bodies = {
-  // R14 globalconfig patch — partial spec map
-  globalconfigPatch: () => ({
+  // R14 config patch — partial spec map
+  configPatch: () => ({
     userSettings: {
       fetchIntervalSeconds: 60,
     },
@@ -115,7 +115,7 @@ export const bodies = {
   // R20 app patch — partial map
   appPatch: () => ({ displayName: `${PREFIX} app updated` }),
 
-  // R22 user create — UserAsResource
+  // R22 user create — User
   userCreate: () => {
     const id = uuid();
     return {
@@ -123,8 +123,8 @@ export const bodies = {
       username: `${PREFIX}-${id}`,
       fullname: 'k6 user',
       email: `${id}@k6.test`,
-      assignedRolesIDs: [],
-      assignedGroupsIDs: [],
+      roleRefs: [],
+      groupRefs: [],
       status: { phase: 'active' },
       creationDate: isoNow(),
     };
@@ -133,16 +133,16 @@ export const bodies = {
   // R28 user patch — partial map
   userPatch: () => ({ fullname: 'k6 user updated' }),
 
-  // R30 group create — GroupAsResource
+  // R30 group create — Group
   groupCreate: () => {
     const id = uuid();
     return {
       id: `${PREFIX}-group-${id}`,
       name: `${PREFIX}-group-${id}`,
       description: '',
-      categoryID: '',
-      assignedUsersIDs: [],
-      assignedRolesIDs: [],
+      categoryRef: '',
+      userRefs: [],
+      roleRefs: [],
       creationDate: isoNow(),
     };
   },
@@ -150,7 +150,7 @@ export const bodies = {
   // R33 group patch
   groupPatch: () => ({ description: 'k6 group updated' }),
 
-  // R35 role create — RoleAsResource. RoleStatus.Phase capitalized "Active".
+  // R35 role create — AccessRole. RoleStatus.Phase capitalized "Active".
   roleCreate: () => {
     const id = uuid();
     return {
@@ -160,7 +160,7 @@ export const bodies = {
       version: '1.0',
       type: 'custom',
       priority: 1,
-      categoryID: '',
+      categoryRef: '',
       scopesAndPermissions: [],
       status: { phase: 'Active' },
       creationDate: isoNow(),
@@ -185,7 +185,7 @@ export const bodies = {
   // R48 category patch
   categoryPatch: () => ({ name: `${PREFIX}-cat-renamed` }),
 
-  // R53 session create — UserSession. userId substituted from path.
+  // R53 session create — Session. userId substituted from path.
   sessionCreate: (userId) => ({
     userId: userId,
     sessionToken: `sess-${uuid()}`,

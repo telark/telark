@@ -6,7 +6,7 @@ import (
 	resourcesshared "github.com/telark/exporter/internal/utils/resources/shared"
 )
 
-func MergeGroupAndPreparePatchBody(existingGroup, newGroup *groupdata.GroupAsResource, body map[string]any) *groupdata.GroupAsResource {
+func MergeGroupAndPreparePatchBody(existingGroup, newGroup *groupdata.Group, body map[string]any) *groupdata.Group {
 	mergedGroup := *existingGroup
 
 	if newGroup.Name != constants.EmptyString {
@@ -15,21 +15,21 @@ func MergeGroupAndPreparePatchBody(existingGroup, newGroup *groupdata.GroupAsRes
 	if newGroup.Description != constants.EmptyString {
 		mergedGroup.Description = newGroup.Description
 	}
-	if newGroup.CategoryID != constants.EmptyString {
-		mergedGroup.CategoryID = newGroup.CategoryID
+	if newGroup.CategoryRef != constants.EmptyString {
+		mergedGroup.CategoryRef = newGroup.CategoryRef
 	}
 
 	resourcesshared.ReplaceIDsIfProvided(
 		body,
-		constants.FieldAssignedUsersIDs,
-		newGroup.AssignedUsersIDs,
-		&mergedGroup.AssignedUsersIDs,
+		constants.FieldUserRefs,
+		newGroup.UserRefs,
+		&mergedGroup.UserRefs,
 	)
 	resourcesshared.ReplaceIDsIfProvided(
 		body,
-		constants.FieldAssignedRolesIDs,
-		newGroup.AssignedRolesIDs,
-		&mergedGroup.AssignedRolesIDs,
+		constants.FieldRoleRefs,
+		newGroup.RoleRefs,
+		&mergedGroup.RoleRefs,
 	)
 
 	if newGroup.CreatedBy != nil {

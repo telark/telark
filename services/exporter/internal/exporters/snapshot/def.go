@@ -12,6 +12,7 @@ import (
 
 	"github.com/telark/exporter/internal/constants"
 	envmanager "github.com/telark/exporter/internal/managers/envs"
+	"github.com/telark/exporter/internal/utils/artifact"
 	snaputil "github.com/telark/exporter/internal/utils/snapshot"
 	restsnapshot "github.com/telark/rest/clients/snapshots"
 	"github.com/telark/rest/response"
@@ -137,7 +138,7 @@ func createSnapshotResponse(snap *restsnapshot.CreateSnapshotPayload, namespaced
 	}
 }
 
-func ReadSnapshot(w http.ResponseWriter, id string, scope string, namespace string, generation string) {
+func ReadSnapshot(w http.ResponseWriter, id string, scope string, namespace string, generation string, redactSecrets bool) {
 	target, ok := validateAndResolvePath(w, id, scope, namespace, generation)
 	if !ok {
 		return
@@ -145,6 +146,10 @@ func ReadSnapshot(w http.ResponseWriter, id string, scope string, namespace stri
 
 	data, ok := readSnapshotData(w, id, target.Path)
 	if !ok {
+		return
+	}
+
+	if redactSecrets && !redactSnapshotSecrets(w, data) {
 		return
 	}
 
@@ -172,6 +177,24 @@ func ReadSnapshot(w http.ResponseWriter, id string, scope string, namespace stri
 		resp,
 		nil,
 	)
+}
+
+// The items are the stored maps themselves, so masking them masks the response.
+// A manifest that cannot be walked is not sent to a session at all.
+func redactSnapshotSecrets(w http.ResponseWriter, data map[string]any) bool {
+	items, ok := snaputil.BuildKubernetesItems(data)
+	if !ok {
+		sendManifestError(
+			w,
+			http.StatusInternalServerError,
+			string(constants.OperationInternalServerError),
+			string(constants.ErrSnapshotManifestBuildFailed),
+			nil,
+		)
+		return false
+	}
+	snaputil.RedactSecrets(items)
+	return true
 }
 
 func RemoveSnapshot(w http.ResponseWriter, id string, scope string, namespace string, generation string) {
@@ -210,7 +233,7 @@ func requireExplicitGeneration(w http.ResponseWriter, generation string) bool {
 // namespace reaches BuildSnapshotDir unvalidated, so it can traverse outside the base.
 func ensureWithinSnapshotsBase(w http.ResponseWriter, id string, path string) bool {
 	base := envmanager.GetSnapshotsPath()
-	if snaputil.IsWithinBase(path, base) {
+	if artifact.IsWithinBase(path, base) {
 		return true
 	}
 	lg.Error(fmt.Sprintf(string(constants.ErrSnapshotPathOutsideBaseContext), id, path, base))
@@ -269,10 +292,6 @@ func sendSnapshotDeleted(w http.ResponseWriter, id string, scope string, target 
 	)
 }
 
-func ReadSnapshotManifest(w http.ResponseWriter, id string, scope string, namespace string, generation string) {
-	ReadSnapshotManifestWithAccept(w, id, scope, namespace, generation, constants.EmptyString)
-}
-
 func ReadSnapshotManifestWithAccept(
 	w http.ResponseWriter,
 	id string,
@@ -280,6 +299,7 @@ func ReadSnapshotManifestWithAccept(
 	namespace string,
 	generation string,
 	accept string,
+	redactSecrets bool,
 ) {
 	target, ok := validateAndResolveManifestPath(w, id, scope, namespace, generation)
 	if !ok {
@@ -304,6 +324,9 @@ func ReadSnapshotManifestWithAccept(
 	}
 
 	items = snaputil.SanitizeManifest(items)
+	if redactSecrets {
+		snaputil.RedactSecrets(items)
+	}
 
 	if wantsYAML(accept) {
 		writeYAMLManifest(w, id, target.Generation, items)
@@ -327,13 +350,11 @@ func wantsYAML(accept string) bool {
 	return strings.Contains(accept, "yaml") || strings.Contains(accept, "yml")
 }
 
-const lastIndexOffset = 1
-
 func writeYAMLManifest(w http.ResponseWriter, id string, generation int, items []map[string]any) {
 	var buf bytes.Buffer
 	for i, item := range items {
 		if i > constants.DefaultInitValue {
-			buf.WriteString("---\n")
+			_, _ = buf.WriteString("---\n")
 		}
 		out, err := yaml.Marshal(item)
 		if err != nil {
@@ -346,9 +367,9 @@ func writeYAMLManifest(w http.ResponseWriter, id string, generation int, items [
 			)
 			return
 		}
-		buf.Write(out)
-		if len(out) > constants.DefaultInitValue && out[len(out)-lastIndexOffset] != '\n' {
-			buf.WriteByte('\n')
+		_, _ = buf.Write(out)
+		if len(out) > constants.DefaultInitValue && out[len(out)-constants.IndexLastElementOffset] != '\n' {
+			_ = buf.WriteByte('\n')
 		}
 	}
 
@@ -507,7 +528,7 @@ func ReadSnapshotInfos(w http.ResponseWriter) {
 		constants.FieldTotalSnapshots: infos.TotalSnapshots,
 		constants.FieldUpdatedAt:      infos.UpdatedAt,
 		constants.FieldSnapshotsPath:  envmanager.GetSnapshotsPath(),
-		constants.FieldSnapshotScopes: registeredScopeNames(),
+		constants.FieldSnapshotScopes: snaputil.RegisteredScopeNames(envmanager.GetSnapshotScopes()),
 		constants.FieldPVCName:        envmanager.GetSnapshotsPVCName(),
 		constants.FieldPVCNamespace:   envmanager.GetSnapshotsPVCNamespace(),
 	}
@@ -521,22 +542,11 @@ func ReadSnapshotInfos(w http.ResponseWriter) {
 	)
 }
 
-func registeredScopeNames() []string {
-	scopes := envmanager.GetSnapshotScopes()
-	names := make([]string, constants.DefaultInitValue, len(scopes))
-	for _, scope := range scopes {
-		names = append(names, scope.Name)
-	}
-	return names
-}
-
-// RemoveSnapshotFiles deletes the files behind an application's snapshot
-// references and prunes the id directories they leave empty.
 func RemoveSnapshotFiles(paths []string) (removedDirs int) {
 	base := envmanager.GetSnapshotsPath()
 	for _, path := range paths {
 		id := filepath.Base(filepath.Dir(filepath.Dir(path)))
-		if !snaputil.IsWithinBase(path, base) {
+		if !artifact.IsWithinBase(path, base) {
 			lg.Error(fmt.Sprintf(string(constants.ErrSnapshotPathOutsideBaseContext), id, path, base))
 			continue
 		}

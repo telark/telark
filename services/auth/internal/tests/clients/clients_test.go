@@ -17,8 +17,8 @@ func TestClientSingletons(t *testing.T) {
 		{"session", func() any { return clients.GetSessionClient() }},
 		{"user", func() any { return clients.GetUserClient() }},
 		{"group", func() any { return clients.GetGroupClient() }},
-		{"role", func() any { return clients.GetRoleClient() }},
-		{"global config", func() any { return clients.GetGlobalConfigClient() }},
+		{"role", func() any { return clients.GetAccessRoleClient() }},
+		{"global config", func() any { return clients.GetConfigClient() }},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -30,13 +30,5 @@ func TestClientSingletons(t *testing.T) {
 				t.Fatalf("%s client not memoised", c.name)
 			}
 		})
-	}
-}
-
-// NewAuthClients bundles the individual singletons into one struct.
-func TestNewAuthClients(t *testing.T) {
-	ac := clients.NewAuthClients()
-	if ac.Passkey == nil || ac.Session == nil || ac.User == nil || ac.Group == nil || ac.Role == nil {
-		t.Fatalf("NewAuthClients left a nil client: %+v", ac)
 	}
 }

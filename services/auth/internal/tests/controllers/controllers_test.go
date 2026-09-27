@@ -3,6 +3,7 @@ package controllers
 import (
 	"testing"
 
+	"github.com/telark/auth/internal/constants"
 	cleanupctrl "github.com/telark/auth/internal/controllers/cleanup"
 	"github.com/telark/auth/internal/tests/testutil"
 )
@@ -11,7 +12,7 @@ import (
 // finalizer handling; a target is built for each registered type.
 func TestResourceRegistry(t *testing.T) {
 	types := cleanupctrl.RegisteredResourceTypes()
-	if len(types) == 0 {
+	if len(types) == constants.DefaultInitValue {
 		t.Fatal("no registered resource types")
 	}
 
@@ -26,4 +27,18 @@ func TestResourceRegistry(t *testing.T) {
 
 	targets := cleanupctrl.DefaultTargets()
 	testutil.Equal(t, "targets match registered types", len(targets), len(types))
+}
+
+// The type names key the Redis cleanup streams and the exporter's cleanup/{type}
+// routes, so the access-role type is "accessroles" and "roles" is gone.
+func TestRegisteredTypeNames(t *testing.T) {
+	types := cleanupctrl.RegisteredResourceTypes()
+	for _, want := range []string{"users", "groups", "accessroles"} {
+		if _, ok := cleanupctrl.GetResourceOps(want); !ok {
+			t.Errorf("type %q not registered (have %v)", want, types)
+		}
+	}
+	if _, ok := cleanupctrl.GetResourceOps("roles"); ok {
+		t.Error("retired type \"roles\" still registered")
+	}
 }

@@ -1,16 +1,15 @@
 package startup
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
 	categorydata "github.com/telark/data/classification/category"
-	classificationmeta "github.com/telark/data/metadata/classification"
-	resourcesmeta "github.com/telark/data/metadata/resources"
-
 	basemeta "github.com/telark/data/metadata/base"
-	globalconfigresource "github.com/telark/data/resources/globalconfig"
+	"github.com/telark/data/metadata/v1alpha1"
 	roledata "github.com/telark/data/resources/role"
+	"github.com/telark/data/resources/telarkconfig"
 	"github.com/telark/exporter/internal/constants"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/kcore/crds/api"
@@ -26,7 +25,7 @@ func SeedBuiltins() {
 	lg.Info(string(constants.InfSeedStarting))
 	seedRoles()
 	seedCategories()
-	seedGlobalConfig()
+	seedTelarkConfig()
 }
 
 func seedRoles() {
@@ -37,7 +36,7 @@ func seedRoles() {
 			continue
 		}
 
-		if err := upsert(resourcesmeta.RoleAsResourceMetadata, builtin.ID, spec); err != nil {
+		if err := upsert(v1alpha1.AccessRoleMetadata, builtin.ID, spec); err != nil {
 			lg.Error(fmt.Sprintf(string(constants.ErrSeedRoleFailed), builtin.ID, err))
 			continue
 		}
@@ -47,7 +46,7 @@ func seedRoles() {
 // Built-ins and user-created categories share one resource, so the built-ins are
 // restored in place and everything else is carried across untouched.
 func seedCategories() {
-	md := classificationmeta.CategoryAsClassificationMetadata
+	md := v1alpha1.CategoryMetadata
 
 	existing, err := currentCategories(md)
 	if err != nil {
@@ -55,7 +54,7 @@ func seedCategories() {
 		return
 	}
 
-	spec, err := sharedutils.StructToSpecMap(categorydata.CategoryAsClassification{
+	spec, err := sharedutils.StructToSpecMap(categorydata.CategorySpec{
 		Categories: categorydata.WithBuiltins(existing),
 	})
 	if err != nil {
@@ -88,7 +87,7 @@ func currentCategories(md basemeta.Metadata) ([]categorydata.Category, error) {
 		return nil, nil
 	}
 
-	current, err := sharedutils.UnstructuredToStruct[categorydata.CategoryAsClassification](
+	current, err := sharedutils.UnstructuredToStruct[categorydata.CategorySpec](
 		resource,
 		constants.ErrCategoriesSpecNotFound,
 		constants.ErrCategoriesSpecInvalid,
@@ -103,30 +102,30 @@ func currentCategories(md basemeta.Metadata) ([]categorydata.Category, error) {
 // Created once and never reconciled: cluster version, AI settings, display
 // preferences and the identity provider are all written after creation, and
 // rewriting the defaults would discard them.
-func seedGlobalConfig() {
-	md := resourcesmeta.GlobalConfigMetadata
+func seedTelarkConfig() {
+	md := v1alpha1.TelarkConfigMetadata
 
-	exists, err := api.CheckCustomResourceExistsByName(constants.GlobalConfigResourceName, md)
+	exists, err := api.CheckCustomResourceExistsByName(constants.TelarkConfigResourceName, md)
 	if err != nil {
-		lg.Error(fmt.Sprintf(string(constants.ErrSeedExistsCheckFailed), constants.GlobalConfigResourceName, err))
+		lg.Error(fmt.Sprintf(string(constants.ErrSeedExistsCheckFailed), constants.TelarkConfigResourceName, err))
 		return
 	}
 	if exists {
-		lg.Info(string(constants.InfSeedGlobalConfigKept))
+		lg.Info(string(constants.InfSeedTelarkConfigKept))
 		return
 	}
 
-	spec, err := sharedutils.StructToSpecMap(globalconfigresource.DefaultGlobalConfig())
+	spec, err := sharedutils.StructToSpecMap(telarkconfig.DefaultTelarkConfig())
 	if err != nil {
-		lg.Error(fmt.Sprintf(string(constants.ErrSeedGlobalConfigFail), err))
+		lg.Error(fmt.Sprintf(string(constants.ErrSeedTelarkConfigFail), err))
 		return
 	}
 
-	if err := create(md, constants.GlobalConfigResourceName, spec); err != nil {
-		lg.Error(fmt.Sprintf(string(constants.ErrSeedGlobalConfigFail), err))
+	if err := create(md, constants.TelarkConfigResourceName, spec); err != nil {
+		lg.Error(fmt.Sprintf(string(constants.ErrSeedTelarkConfigFail), err))
 		return
 	}
-	lg.Info(string(constants.InfSeedGlobalConfigOK))
+	lg.Info(string(constants.InfSeedTelarkConfigOK))
 }
 
 func upsert(md basemeta.Metadata, name string, spec map[string]any) error {
@@ -138,12 +137,12 @@ func upsert(md basemeta.Metadata, name string, spec map[string]any) error {
 		return create(md, name, spec)
 	}
 
-	result := api.PatchCustomResource(md, name, map[string]any{constants.SpecField: spec})
+	result := sharedutils.PatchCustomResource(md, name, map[string]any{constants.SpecField: spec})
 	return resultError(result.Status, result.Error)
 }
 
 func create(md basemeta.Metadata, name string, spec map[string]any) error {
-	result := api.CreateCustomResource(sharedutils.ConvertToCRDTemplate(md, name, spec), md)
+	result := api.CreateCustomResourceWithStatus(sharedutils.ConvertToCRDTemplate(md, name, spec), md)
 	// A concurrent replica winning the create is the expected outcome, not a failure.
 	if result.Status == http.StatusConflict {
 		return nil
@@ -156,7 +155,7 @@ func resultError(status int, err error) error {
 		return err
 	}
 	if status != http.StatusOK {
-		return fmt.Errorf("%s", http.StatusText(status))
+		return errors.New(http.StatusText(status))
 	}
 	return nil
 }

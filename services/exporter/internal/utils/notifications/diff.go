@@ -3,10 +3,10 @@ package notifications
 import "github.com/telark/exporter/internal/constants"
 
 func DiffPtrStringSlices(oldVals []*string, newVals []*string) (added, removed []string) {
-	return DiffStringSlices(derefStrings(oldVals), derefStrings(newVals))
+	return DiffStringSlices(Deref(oldVals), Deref(newVals))
 }
 
-func derefStrings(vals []*string) []string {
+func Deref(vals []*string) []string {
 	out := make([]string, constants.DefaultInitValue, len(vals))
 	for _, v := range vals {
 		if v != nil {

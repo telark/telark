@@ -3,13 +3,8 @@ package shared
 import (
 	"errors"
 	"fmt"
-	"maps"
-	"net/http"
 
-	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -24,29 +19,19 @@ func FilterData(item any) (any, error) {
 	}
 }
 
+// List items may come from the informer store, so the view never writes into them.
 func filterList(list *unstructured.UnstructuredList) (*unstructured.UnstructuredList, error) {
 	if list == nil || list.Items == nil {
 		return nil, errors.New(string(constants.ErrInvalidListOrEmptyItems))
 	}
 
 	filteredItems := &unstructured.UnstructuredList{
-		Items: []unstructured.Unstructured{},
+		Items: make([]unstructured.Unstructured, constants.DefaultInitValue, len(list.Items)),
 	}
-
-	for _, item := range list.Items {
-		spec, exists := item.Object[constants.SpecField]
-		if !exists {
-			continue
+	for i := range list.Items {
+		if out := ToView(&list.Items[i]); out != nil {
+			filteredItems.Items = append(filteredItems.Items, unstructured.Unstructured{Object: out})
 		}
-
-		specMap, ok := spec.(map[string]any)
-		if !ok {
-			continue
-		}
-
-		filteredItems.Items = append(filteredItems.Items, unstructured.Unstructured{
-			Object: specMap,
-		})
 	}
 
 	return filteredItems, nil
@@ -61,49 +46,9 @@ func filterSingleItem(item *unstructured.Unstructured) (*unstructured.Unstructur
 	if !exists {
 		return nil, errors.New(string(constants.ErrSpecFieldNotFound))
 	}
-
-	specMap, ok := spec.(map[string]any)
-	if !ok {
+	if _, ok := spec.(map[string]any); !ok {
 		return nil, errors.New(string(constants.ErrSpecIsNotValidMap))
 	}
 
-	out := make(map[string]any, len(specMap)+constants.DefaultIncrementValue)
-	maps.Copy(out, specMap)
-	if meta := minimalMetadataSubset(item); meta != nil {
-		out[constants.MetadataField] = meta
-	}
-
-	return &unstructured.Unstructured{Object: out}, nil
-}
-
-func minimalMetadataSubset(item *unstructured.Unstructured) map[string]any {
-	raw, ok := item.Object[constants.MetadataField].(map[string]any)
-	if !ok || raw == nil {
-		return nil
-	}
-	out := map[string]any{}
-	for _, field := range []string{constants.ResourceVersionField, constants.FieldName, constants.FieldNamespace} {
-		if v, ok := raw[field]; ok {
-			out[field] = v
-		}
-	}
-	if len(out) == constants.DefaultInitValue {
-		return nil
-	}
-	return out
-}
-
-func FilterResourceOrRespond(resource *unstructured.Unstructured) (any, bool) {
-	filteredResource, err := FilterData(resource)
-	if err != nil {
-		responseutils.LogAndReturnResponse(
-			http.StatusInternalServerError,
-			response.OperationError,
-			string(dataerrors.ErrFilterRes),
-			nil,
-			err,
-		)
-		return nil, false
-	}
-	return filteredResource, true
+	return &unstructured.Unstructured{Object: ToView(item)}, nil
 }

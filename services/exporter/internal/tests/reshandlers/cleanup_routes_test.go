@@ -6,10 +6,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/telark/exporter/internal/constants"
 	cleanuphandler "github.com/telark/exporter/internal/handlers/resources/cleanup"
 	"github.com/telark/rest/base"
 	restconstants "github.com/telark/rest/constants"
-	cleanupendpoints "github.com/telark/rest/endpoints/resources/cleanup"
+	cleanupendpoints "github.com/telark/rest/endpoints/cleanup"
 	"github.com/telark/rest/router"
 )
 
@@ -22,7 +23,7 @@ func TestListCleanupViewsReadsTypeFromRoute(t *testing.T) {
 		router.CreateRoute(base.Get, endpoint, cleanuphandler.ListCleanupViews),
 	})
 
-	path := strings.Replace(router.Pattern(endpoint), restconstants.TypeParam, "unknown-type", 1)
+	path := strings.Replace(router.Pattern(endpoint), restconstants.TypeParam, "unknown-type", constants.DefaultIncrementValue)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
 

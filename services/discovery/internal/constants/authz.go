@@ -15,7 +15,7 @@ const (
 	InfServiceNotReady          = "service is: not ready"
 	ReadinessReasonRedis        = "redis unreachable"
 	ReadinessReasonBootstrap    = "bootstrap pending"
-	ReadinessReasonGlobalConfig = "globalconfig not loaded"
+	ReadinessReasonTelarkConfig = "telarkconfig not loaded"
 	ReadinessReasonExporter     = "exporter circuit open"
 	ReadinessReasonKubernetes   = "kubernetes api unreachable"
 )

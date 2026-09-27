@@ -1,51 +1,60 @@
 package snapshotapi
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/telark/exporter/internal/constants"
 	expsnap "github.com/telark/exporter/internal/exporters/snapshot"
 	"github.com/telark/exporter/internal/managers/envs"
+)
+
+const (
+	testAppID      = "app-1"
+	otherAppID     = "app-2"
+	testNamespace  = "ns"
+	testGeneration = "1"
 )
 
 func setRoot(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	t.Setenv("SNAPSHOTS_PATH", dir)
+	t.Setenv(constants.SnapshotsPathEnv, dir)
 	envs.InitSnapshotsPath()
 	return dir
 }
 
-func manifestBody(id, namespace string) map[string]any {
+func manifestBody() map[string]any {
 	return map[string]any{
-		"id":         id,
-		"scope":      "apps",
-		"namespace":  namespace,
-		"generation": float64(1),
-		"manifest": map[string]any{
-			"resources": []any{
-				map[string]any{"manifest": map[string]any{"kind": "Deployment"}},
-				map[string]any{"manifest": map[string]any{"kind": "Service"}},
+		constants.IDParam:         testAppID,
+		constants.ScopeParam:      constants.SnapshotsAppsSubdir,
+		constants.NamespaceParam:  testNamespace,
+		constants.GenerationParam: float64(constants.DefaultIncrementValue),
+		constants.FieldManifest: map[string]any{
+			constants.FieldResources: []any{
+				map[string]any{constants.FieldManifest: map[string]any{"kind": "Deployment"}},
+				map[string]any{constants.FieldManifest: map[string]any{"kind": "Service"}},
 			},
 		},
 	}
 }
 
-func createOK(t *testing.T, id, namespace string) {
+func createOK(t *testing.T) {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	expsnap.CreateSnapshot(rec, manifestBody(id, namespace))
-	if rec.Code != 200 {
+	expsnap.CreateSnapshot(rec, manifestBody())
+	if rec.Code != http.StatusOK {
 		t.Fatalf("CreateSnapshot code = %d, want 200", rec.Code)
 	}
 }
 
 func TestCreateSnapshot(t *testing.T) {
 	root := setRoot(t)
-	createOK(t, "app-1", "ns")
-	if _, err := os.Stat(filepath.Join(root, "apps", "app-1", "ns", "V1.json")); err != nil {
+	createOK(t)
+	if _, err := os.Stat(filepath.Join(root, constants.SnapshotsAppsSubdir, testAppID, testNamespace, "V1.json")); err != nil {
 		t.Errorf("snapshot file not written: %v", err)
 	}
 }
@@ -54,75 +63,78 @@ func TestCreateSnapshotBadRequest(t *testing.T) {
 	setRoot(t)
 	rec := httptest.NewRecorder()
 	// Missing manifest fails request parsing.
-	expsnap.CreateSnapshot(rec, map[string]any{"id": "a", "scope": "apps", "namespace": "ns", "generation": float64(1)})
-	if rec.Code != 400 {
+	expsnap.CreateSnapshot(rec, map[string]any{constants.IDParam: "a", constants.ScopeParam: constants.SnapshotsAppsSubdir,
+		constants.NamespaceParam: testNamespace, constants.GenerationParam: float64(constants.DefaultIncrementValue)})
+	if rec.Code != http.StatusBadRequest {
 		t.Errorf("bad create code = %d, want 400", rec.Code)
 	}
 }
 
 func TestReadSnapshot(t *testing.T) {
 	setRoot(t)
-	createOK(t, "app-1", "ns")
+	createOK(t)
 
 	rec := httptest.NewRecorder()
-	expsnap.ReadSnapshot(rec, "app-1", "apps", "ns", "1")
-	if rec.Code != 200 {
+	expsnap.ReadSnapshot(rec, testAppID, constants.SnapshotsAppsSubdir, testNamespace, testGeneration, true)
+	if rec.Code != http.StatusOK {
 		t.Errorf("ReadSnapshot code = %d, want 200", rec.Code)
 	}
 
 	missing := httptest.NewRecorder()
-	expsnap.ReadSnapshot(missing, "absent", "apps", "ns", "1")
-	if missing.Code != 404 {
+	expsnap.ReadSnapshot(missing, "absent", constants.SnapshotsAppsSubdir, testNamespace, testGeneration, true)
+	if missing.Code != http.StatusNotFound {
 		t.Errorf("missing read code = %d, want 404", missing.Code)
 	}
 
 	// A traversal id fails identity validation with a 400, not a 404.
 	bad := httptest.NewRecorder()
-	expsnap.ReadSnapshot(bad, "..", "apps", "ns", "1")
-	if bad.Code != 400 {
+	expsnap.ReadSnapshot(bad, "..", constants.SnapshotsAppsSubdir, testNamespace, testGeneration, true)
+	if bad.Code != http.StatusBadRequest {
 		t.Errorf("invalid id read code = %d, want 400", bad.Code)
 	}
 }
 
 func TestRemoveSnapshot(t *testing.T) {
 	root := setRoot(t)
-	createOK(t, "app-1", "ns")
+	createOK(t)
 
 	empty := httptest.NewRecorder()
-	expsnap.RemoveSnapshot(empty, "app-1", "apps", "ns", "")
-	if empty.Code != 400 {
+	expsnap.RemoveSnapshot(empty, testAppID, constants.SnapshotsAppsSubdir, testNamespace, constants.EmptyString)
+	if empty.Code != http.StatusBadRequest {
 		t.Errorf("delete without generation code = %d, want 400", empty.Code)
 	}
 
 	rec := httptest.NewRecorder()
-	expsnap.RemoveSnapshot(rec, "app-1", "apps", "ns", "1")
-	if rec.Code != 200 {
+	expsnap.RemoveSnapshot(rec, testAppID, constants.SnapshotsAppsSubdir, testNamespace, testGeneration)
+	if rec.Code != http.StatusOK {
 		t.Fatalf("RemoveSnapshot code = %d, want 200", rec.Code)
 	}
-	if _, err := os.Stat(filepath.Join(root, "apps", "app-1", "ns", "V1.json")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, constants.SnapshotsAppsSubdir, testAppID, testNamespace, "V1.json")); !os.IsNotExist(err) {
 		t.Error("snapshot file survived deletion")
 	}
 
 	gone := httptest.NewRecorder()
-	expsnap.RemoveSnapshot(gone, "app-1", "apps", "ns", "1")
-	if gone.Code != 404 {
+	expsnap.RemoveSnapshot(gone, testAppID, constants.SnapshotsAppsSubdir, testNamespace, testGeneration)
+	if gone.Code != http.StatusNotFound {
 		t.Errorf("second delete code = %d, want 404", gone.Code)
 	}
 }
 
 func TestReadSnapshotManifest(t *testing.T) {
 	setRoot(t)
-	createOK(t, "app-1", "ns")
+	createOK(t)
 
 	jsonRec := httptest.NewRecorder()
-	expsnap.ReadSnapshotManifest(jsonRec, "app-1", "apps", "ns", "1")
-	if jsonRec.Code != 200 || jsonRec.Body.Len() == 0 {
+	expsnap.ReadSnapshotManifestWithAccept(
+		jsonRec, testAppID, constants.SnapshotsAppsSubdir, testNamespace, testGeneration, constants.EmptyString, true,
+	)
+	if jsonRec.Code != http.StatusOK || jsonRec.Body.Len() == constants.DefaultInitValue {
 		t.Errorf("JSON manifest code = %d len = %d", jsonRec.Code, jsonRec.Body.Len())
 	}
 
 	yamlRec := httptest.NewRecorder()
-	expsnap.ReadSnapshotManifestWithAccept(yamlRec, "app-1", "apps", "ns", "1", "application/yaml")
-	if yamlRec.Code != 200 || yamlRec.Body.Len() == 0 {
+	expsnap.ReadSnapshotManifestWithAccept(yamlRec, testAppID, constants.SnapshotsAppsSubdir, testNamespace, "1", "application/yaml", true)
+	if yamlRec.Code != http.StatusOK || yamlRec.Body.Len() == constants.DefaultInitValue {
 		t.Errorf("YAML manifest code = %d len = %d", yamlRec.Code, yamlRec.Body.Len())
 	}
 }
@@ -132,26 +144,27 @@ func TestReadSnapshotManifestBuildFailure(t *testing.T) {
 	// A manifest without a resources list cannot be assembled into a Kubernetes List.
 	rec := httptest.NewRecorder()
 	body := map[string]any{
-		"id": "app-2", "scope": "apps", "namespace": "ns", "generation": float64(1),
-		"manifest": map[string]any{"unexpected": true},
+		constants.IDParam: otherAppID, constants.ScopeParam: constants.SnapshotsAppsSubdir,
+		constants.NamespaceParam: testNamespace, constants.GenerationParam: float64(constants.DefaultIncrementValue),
+		constants.FieldManifest: map[string]any{"unexpected": true},
 	}
 	expsnap.CreateSnapshot(rec, body)
-	if rec.Code != 200 {
+	if rec.Code != http.StatusOK {
 		t.Fatalf("setup create failed: %d", rec.Code)
 	}
 	man := httptest.NewRecorder()
-	expsnap.ReadSnapshotManifest(man, "app-2", "apps", "ns", "1")
-	if man.Code != 500 {
+	expsnap.ReadSnapshotManifestWithAccept(man, otherAppID, constants.SnapshotsAppsSubdir, testNamespace, testGeneration, constants.EmptyString, true)
+	if man.Code != http.StatusInternalServerError {
 		t.Errorf("unbuildable manifest code = %d, want 500", man.Code)
 	}
 }
 
 func TestReadSnapshotInfos(t *testing.T) {
 	setRoot(t)
-	createOK(t, "app-1", "ns")
+	createOK(t)
 	rec := httptest.NewRecorder()
 	expsnap.ReadSnapshotInfos(rec)
-	if rec.Code != 200 {
+	if rec.Code != http.StatusOK {
 		t.Errorf("ReadSnapshotInfos code = %d, want 200", rec.Code)
 	}
 }

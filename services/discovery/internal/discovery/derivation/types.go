@@ -13,8 +13,7 @@ type ResourceInput struct {
 	Name      string
 	Labels    map[string]string
 	CreatedAt time.Time
-	// Populated during `services/application/core.EnrichInputsWithK8s(...)` by reading
-	// the live Kubernetes object's metadata annotations (Kyverno-injected).
+	// Read from the live object's telark.io/last-modified-* annotations (Kyverno-injected).
 	LastModifiedBy  string
 	LastModifiedAt  time.Time
 	LastModifiedOp  string

@@ -14,13 +14,19 @@ const (
 	// Startup seeding
 	InfSeedStarting          messages.Message = "[startup] reconciling built-in resources"
 	InfSeedCategoriesMerged  messages.Message = "[startup] reconciled %d built-in categories"
-	InfSeedGlobalConfigOK    messages.Message = "[startup] created global config"
-	InfSeedGlobalConfigKept  messages.Message = "[startup] global config already exists, left untouched"
+	InfSeedTelarkConfigOK    messages.Message = "[startup] created the default TelarkConfig"
+	InfSeedTelarkConfigKept  messages.Message = "[startup] the default TelarkConfig already exists, left untouched"
 	ErrSeedRoleFailed        errors.Error     = "[startup] failed to reconcile built-in role %s: %v"
 	ErrSeedCategoriesFailed  errors.Error     = "[startup] failed to reconcile built-in categories: %v"
-	ErrSeedGlobalConfigFail  errors.Error     = "[startup] failed to create global config: %v"
+	ErrSeedTelarkConfigFail  errors.Error     = "[startup] failed to create the default TelarkConfig: %v"
 	ErrSeedExistsCheckFailed errors.Error     = "[startup] failed to check whether %s exists: %v"
 	ErrSeedSpecEncodeFailed  errors.Error     = "[startup] failed to encode %s spec: %v"
+
+	// Membership mirroring
+	ErrMembershipMirrorFailed    errors.Error     = "membership of %s could not be updated, retry the request: %v"
+	ErrMembershipReconcileFailed errors.Error     = "[startup] membership reconcile failed: %v"
+	ErrMembershipReconcilePatch  errors.Error     = "[startup] membership reconcile could not patch %s %s: %v"
+	InfMembershipReconciled      messages.Message = "[startup] membership reconcile aligned %d users and %d groups to the user side"
 
 	ErrCategoriesSpecNotFound    errors.Error     = "categories spec not found"
 	ErrCategoriesSpecInvalid     errors.Error     = "categories spec is not an object"
@@ -73,19 +79,18 @@ const (
 	ErrSpecFieldNotFound           errors.Error = "spec field not found"
 	ErrSpecIsNotValidMap           errors.Error = "spec is not a valid map"
 
-	// User ID Generation
-
 	// Auth Challenge
 	ErrChallengeExpired             errors.Error = "challenge has expired"
 	ErrFailedToListResources        errors.Error = "failed to list %s resources: %v"
 	ErrFailedToGenerateResourceName errors.Error = "failed to generate challenge name: %v"
 	ErrFailedToMarshalSpec          errors.Error = "failed to marshal spec: %v"
 	ErrUserNotFound                 errors.Error = "user not found"
+	ErrUserBeingDeleted             errors.Error = "user is being deleted"
+	WarnUserSessionsPurgeFailed     errors.Error = "sessions of deleted user %s not purged, the cleanup sweeper will retry: %v"
 	ErrUsernameAlreadyExists        errors.Error = "user with this username already exists"
 	ErrUsernameCannotBeEmpty        errors.Error = "username cannot be empty"
+	ErrEmailAlreadyExists           errors.Error = "user with this email already exists"
 	ErrIdentityAlreadyExists        errors.Error = "user with this identity already exists"
-
-	// Challenge
 
 	// Group
 	ErrGroupNotFound          errors.Error = "group not found"
@@ -94,9 +99,8 @@ const (
 	// Role
 	ErrRoleNotFound                     errors.Error = "role not found"
 	ErrRoleNameCannotBeEmpty            errors.Error = "role name cannot be empty"
-	ErrFailedToListRoles                errors.Error = "failed to list roles: %v"
 	ErrRoleDescriptionRequired          errors.Error = "description is required"
-	ErrRoleCategoryIDRequired           errors.Error = "categoryID is required"
+	ErrRoleCategoryRefRequired          errors.Error = "catID is required"
 	ErrRoleScopesAndPermissionsRequired errors.Error = "scopesAndPermissions is required"
 	ErrRoleValidityRequired             errors.Error = "validity is required"
 	ErrRoleProtectionRequired           errors.Error = "protection is required"
@@ -113,17 +117,20 @@ const (
 	ErrCategoriesCRDNotFound       errors.Error = "categories CRD not found"
 	ErrFailedToCreateCategoriesCRD errors.Error = "failed to create categories CRD: %v"
 	ErrFailedToUpdateCategoriesCRD errors.Error = "failed to update categories CRD: %v"
+	ErrCategoryBuiltInImmutable    errors.Error = "built-in categories cannot be modified or deleted"
+	ErrCategoryBuiltInTypeReserved errors.Error = "the built-in category type is reserved"
+	ErrCategoryNameAlreadyExists   errors.Error = "a category with this name already exists in this scope"
 
 	// Global config
-	ErrGlobalConfigPatchFailed  errors.Error = "failed to patch global config"
-	ErrGlobalConfigInvalidType  errors.Error = "invalid global config type"
-	ErrGlobalConfigInvalidReply errors.Error = "invalid global config response type"
+	ErrConfigPatchFailed  errors.Error = "failed to patch config"
+	ErrConfigInvalidType  errors.Error = "invalid config type"
+	ErrConfigInvalidReply errors.Error = "invalid config response type"
+	ErrConfigInvalidField errors.Error = "invalid config value for %s"
 
-	// AI provider key
-	ErrAIKeyPersistFailed     errors.Error = "failed to persist the AI provider key"
-	ErrAIKeyClientUnavailable errors.Error = "ai key store: kubernetes client unavailable: %v"
-	ErrAIKeyReadFailed        errors.Error = "ai key store: failed to read secret: %v"
-	ErrAIKeyWriteFailed       errors.Error = "ai key store: failed to write secret: %v"
+	// Application
+	ErrApplicationDisplayNameTooLong errors.Error = "displayName must be at most %d characters"
+	ErrApplicationDescriptionTooLong errors.Error = "description must be at most %d characters"
+	ErrApplicationFieldNotString     errors.Error = "%s must be a string"
 
 	// User Session
 	ErrSessionListFormatInvalid         errors.Error = "invalid session list format"
@@ -133,23 +140,21 @@ const (
 	ErrSessionExpired                   errors.Error = "session has expired"
 	ErrSessionExpiresInPast             errors.Error = "expiresAt must be in the future"
 	ErrSessionNotFound                  errors.Error = "session not found"
-	ErrSessionSelfRefWithoutToken       errors.Error = "session ref self requires X-Session-Token"
-	ErrSessionRefNotAName               errors.Error = "session ref must be a session name or self"
+	ErrSessionSelfRefWithoutToken       errors.Error = "the self session requires X-Session-Token"
+	ErrSessionRefNotAName               errors.Error = "X-Session-Token must carry a session token or a session name"
+	ErrSessionNameInvalid               errors.Error = "the path must name a session (session-<sha256>)"
 	ErrSessionPatchOnlyExpiresTimestamp errors.Error = "patch operation only allows updating expiresTimestamp field"
 	ErrFailedToUnmarshalSession         errors.Error = "failed to unmarshal session: %v"
 
 	// User Passkey
 	ErrPasskeyListFormatInvalid         errors.Error = "invalid passkey list format"
 	ErrPasskeyFieldRequired             errors.Error = "passkey field is required"
-	ErrPasskeySpecNotFound              errors.Error = "passkey spec not found"
-	ErrPasskeySpecInvalid               errors.Error = "invalid passkey spec"
 	ErrPasskeyNotFound                  errors.Error = "passkey not found"
 	ErrPasskeyCredentialIDAlreadyExists errors.Error = "passkey with this credentialId already exists for this user"
 	ErrPasskeyPatchOnlyAllowedFields    errors.Error = "patch operation only allows updating deviceName and lastUsedTimestamp fields"
 	ErrPasskeyInvalidDeviceType         errors.Error = "invalid deviceType %s, must be either 'platform' or 'cross-platform'"
 	ErrPasskeyNotFoundForUser           errors.Error = "passkey not found for user"
 	ErrPasskeyCannotDeleteLast          errors.Error = "cannot delete last passkey for user"
-	ErrFailedToUnmarshalPasskey         errors.Error = "failed to unmarshal passkey: %v"
 
 	// Cert
 	ErrCertCertificateNotYetValid  errors.Error = "certificate not yet valid: %s"
@@ -231,4 +236,19 @@ const (
 	InfSnapshotStatsRefreshConfigured  messages.Message = "SNAPSHOT_STATS_REFRESH_SEC configured: %s"
 	InfSnapshotStatsRefreshDisabled    messages.Message = "snapshot stats refresh disabled: walking per request"
 	InfSnapshotStatsRefreshed          messages.Message = "snapshot stats refreshed: snapshots=%d bytes=%d took=%s"
+
+	// Reports
+	InfReportsPathConfigured   messages.Message = "REPORTS_PATH configured: %s"
+	ErrReportsRootCreateFailed errors.Error     = "reports root create failed path=%s error=%v"
+	ErrReportWriteFailed       errors.Error     = "report write failed stage=%d id=%s path=%s error=%v"
+	ErrReportNotFound          errors.Error     = "report not found"
+	ErrReportBadFormat         errors.Error     = "report format is not supported"
+	ErrReportBadID             errors.Error     = "report or plan id is not a safe path segment"
+	ErrReportBodyTooLarge      errors.Error     = "report body exceeds the size limit"
+	ErrReportInvalidLedger     errors.Error     = "report ledger is not valid JSON"
+	ErrReportBadFilter         errors.Error     = "report list filter is invalid"
+	WarnReportsSweepListFailed messages.Message = "reports sweep skipped: %v"
+	WarnReportsGCPanic         messages.Message = "reports gc panic recovered: %v"
+	InfReportsSwept            messages.Message = "reports sweep removed=%d temps=%d scanned=%d"
+	InfReportsGCDisabled       messages.Message = "reports gc disabled"
 )

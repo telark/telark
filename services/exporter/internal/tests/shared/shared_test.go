@@ -14,53 +14,53 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+const (
+	testAppName = "app-1"
+
+	valueA   = "a"
+	valueX   = "x"
+	valueY   = "y"
+	rootPath = "/"
+
+	notMapSpec = "notmap"
+	errNoSpec  = "no spec"
+	errBadSpec = "bad spec"
+)
+
 func TestValidateRequiredField(t *testing.T) {
-	if err := sharedutils.ValidateRequiredField("", "required"); err == nil {
+	if err := sharedutils.ValidateRequiredField(constants.EmptyString, "required"); err == nil {
 		t.Error("empty value accepted")
 	}
-	if err := sharedutils.ValidateRequiredField("x", "required"); err != nil {
+	if err := sharedutils.ValidateRequiredField(valueX, "required"); err != nil {
 		t.Errorf("non-empty value rejected: %v", err)
 	}
 }
 
 func TestGenerateResourceError(t *testing.T) {
 	format := dataerrors.Error("resource %s failed: %v")
-	withErr := sharedutils.GenerateResourceError(format, "app-1", http.ErrNoCookie)
-	if !strings.Contains(withErr, "app-1") {
+	withErr := sharedutils.GenerateResourceError(format, testAppName, http.ErrNoCookie)
+	if !strings.Contains(withErr, testAppName) {
 		t.Errorf("missing resource name: %q", withErr)
 	}
 	// A nil cause still yields a fully formatted message via the unknown-error fallback.
-	if got := sharedutils.GenerateResourceError(format, "app-1", nil); !strings.Contains(got, "app-1") {
+	if got := sharedutils.GenerateResourceError(format, testAppName, nil); !strings.Contains(got, testAppName) {
 		t.Errorf("nil-error path lost the resource name: %q", got)
 	}
 }
 
 func TestExtractResourceNameFromRequestBody(t *testing.T) {
-	if got := sharedutils.ExtractResourceNameFromRequestBody(map[string]any{"name": "x"}); got != "x" {
+	if got := sharedutils.ExtractResourceNameFromRequestBody(map[string]any{constants.NameParam: valueX}); got != valueX {
 		t.Errorf("got %q, want x", got)
 	}
-	if got := sharedutils.ExtractResourceNameFromRequestBody(map[string]any{}); got != "" {
+	if got := sharedutils.ExtractResourceNameFromRequestBody(map[string]any{}); got != constants.EmptyString {
 		t.Errorf("missing name should be empty, got %q", got)
 	}
 }
 
-func TestExtractMapValue(t *testing.T) {
-	data := map[string]any{"m": map[string]any{"k": 1}, "s": "x"}
-	if _, ok := sharedutils.ExtractMapValue(data, "m"); !ok {
-		t.Error("map value not extracted")
-	}
-	if _, ok := sharedutils.ExtractMapValue(data, "s"); ok {
-		t.Error("non-map value extracted as map")
-	}
-	if _, ok := sharedutils.ExtractMapValue(data, "absent"); ok {
-		t.Error("absent key extracted")
-	}
-}
-
 func TestRemoveAndAddBodyFields(t *testing.T) {
-	body := map[string]any{"id": "x"}
+	body := map[string]any{constants.IDParam: valueX}
 	sharedutils.RemoveIDFromRequestBody(body)
-	if _, ok := body["id"]; ok {
+	if _, ok := body[constants.IDParam]; ok {
 		t.Error("id not removed")
 	}
 	sharedutils.RemoveIDFromRequestBody(nil) // must not panic
@@ -82,39 +82,45 @@ type sample struct {
 }
 
 func TestExtractStructFromBody(t *testing.T) {
-	got, err := sharedutils.ExtractStructFromBody[sample](map[string]any{"name": "x"})
-	if err != nil || got.Name != "x" {
+	got, err := sharedutils.ExtractStructFromBody[sample](map[string]any{constants.NameParam: valueX})
+	if err != nil || got.Name != valueX {
 		t.Fatalf("ExtractStructFromBody = %+v, err %v", got, err)
 	}
-	body := map[string]any{"id": "drop", "name": "y"}
+	body := map[string]any{constants.IDParam: "drop", constants.NameParam: valueY}
 	got, err = sharedutils.ExtractStructFromBodyIgnoringID[sample](body)
-	if err != nil || got.Name != "y" {
+	if err != nil || got.Name != valueY {
 		t.Fatalf("ExtractStructFromBodyIgnoringID = %+v, err %v", got, err)
 	}
-	if _, ok := body["id"]; ok {
+	if _, ok := body[constants.IDParam]; ok {
 		t.Error("id not stripped before extraction")
 	}
 }
 
 func TestFilterDataSingleItem(t *testing.T) {
 	item := &unstructured.Unstructured{Object: map[string]any{
-		"spec": map[string]any{"field": "v"},
-		"metadata": map[string]any{
-			"resourceVersion": "12",
-			"name":            "app-1",
-			"extra":           "dropped",
+		constants.SpecField: map[string]any{"field": "v"},
+		constants.MetadataField: map[string]any{
+			"resourceVersion":   "12",
+			constants.NameParam: testAppName,
+			"extra":             "dropped",
 		},
 	}}
 	out, err := sharedutils.FilterData(item)
 	if err != nil {
 		t.Fatalf("FilterData: %v", err)
 	}
-	res := out.(*unstructured.Unstructured)
+	res, ok := out.(*unstructured.Unstructured)
+	if !ok {
+		t.Fatalf("FilterData returned %T, want a single resource", out)
+	}
 	if res.Object["field"] != "v" {
 		t.Error("spec field not surfaced")
 	}
-	meta := res.Object[constants.MetadataField].(map[string]any)
-	if meta["resourceVersion"] != "12" || meta["name"] != "app-1" {
+	meta, ok := res.Object[constants.MetadataField].(map[string]any)
+	if !ok {
+		t.Fatalf("filtered metadata is %T, want a map", res.Object[constants.MetadataField])
+	}
+	if meta["resourceVersion"] != "12" || meta[constants.NameParam] != testAppName {
 		t.Errorf("metadata subset wrong: %v", meta)
 	}
 	if _, ok := meta["extra"]; ok {
@@ -129,73 +135,70 @@ func TestFilterDataErrors(t *testing.T) {
 	if _, err := sharedutils.FilterData(&unstructured.Unstructured{Object: map[string]any{}}); err == nil {
 		t.Error("item without spec accepted")
 	}
-	if _, err := sharedutils.FilterData(&unstructured.Unstructured{Object: map[string]any{"spec": "notmap"}}); err == nil {
+	if _, err := sharedutils.FilterData(&unstructured.Unstructured{Object: map[string]any{constants.SpecField: notMapSpec}}); err == nil {
 		t.Error("non-map spec accepted")
 	}
 }
 
 func TestFilterDataList(t *testing.T) {
 	list := &unstructured.UnstructuredList{Items: []unstructured.Unstructured{
-		{Object: map[string]any{"spec": map[string]any{"a": 1}}},
+		{Object: map[string]any{constants.SpecField: map[string]any{valueA: constants.DefaultIncrementValue}}},
 		{Object: map[string]any{"nospec": true}},
-		{Object: map[string]any{"spec": "notmap"}},
+		{Object: map[string]any{constants.SpecField: notMapSpec}},
 	}}
 	out, err := sharedutils.FilterData(list)
 	if err != nil {
 		t.Fatalf("FilterData list: %v", err)
 	}
-	filtered := out.(*unstructured.UnstructuredList)
-	if len(filtered.Items) != 1 {
+	filtered, ok := out.(*unstructured.UnstructuredList)
+	if !ok {
+		t.Fatalf("FilterData returned %T, want a list", out)
+	}
+	if len(filtered.Items) != constants.DefaultIncrementValue {
 		t.Errorf("expected 1 valid item, got %d", len(filtered.Items))
 	}
 }
 
-func TestFilterResourceOrRespond(t *testing.T) {
-	valid := &unstructured.Unstructured{Object: map[string]any{"spec": map[string]any{"a": 1}}}
-	if _, ok := sharedutils.FilterResourceOrRespond(valid); !ok {
-		t.Error("valid resource rejected")
-	}
-	invalid := &unstructured.Unstructured{Object: map[string]any{}}
-	if _, ok := sharedutils.FilterResourceOrRespond(invalid); ok {
-		t.Error("invalid resource accepted")
-	}
-}
-
 func TestConvertToCRDTemplate(t *testing.T) {
-	md := basemeta.Metadata{BaseGroup: "erpi.telark", Kind: "Role", Version: "v1alpha1"}
-	tmpl := sharedutils.ConvertToCRDTemplate(md, "app-1", map[string]any{"x": 1})
-	if tmpl.Object["apiVersion"] != "erpi.telark/v1alpha1" || tmpl.Object["kind"] != "Role" {
+	md := basemeta.Metadata{BaseGroup: "telark.io", Kind: "AccessRole", Version: "v1alpha1"}
+	tmpl := sharedutils.ConvertToCRDTemplate(md, testAppName, map[string]any{valueX: constants.DefaultIncrementValue})
+	if tmpl.Object["apiVersion"] != "telark.io/v1alpha1" || tmpl.Object["kind"] != "AccessRole" {
 		t.Errorf("bad envelope: %v", tmpl.Object)
 	}
-	withFin := sharedutils.ConvertToCRDTemplateWithFinalizers(md, "app-1", map[string]any{}, []string{"f1"})
-	meta := withFin.Object["metadata"].(map[string]any)
+	withFin := sharedutils.ConvertToCRDTemplateWithFinalizers(md, testAppName, map[string]any{}, []string{"f1"})
+	meta, ok := withFin.Object[constants.MetadataField].(map[string]any)
+	if !ok {
+		t.Fatalf("template metadata is %T, want a map", withFin.Object[constants.MetadataField])
+	}
 	if meta["finalizers"] == nil {
 		t.Error("finalizers not attached")
 	}
-	noFin := sharedutils.ConvertToCRDTemplateWithFinalizers(md, "app-1", map[string]any{}, nil)
-	if _, ok := noFin.Object["metadata"].(map[string]any)["finalizers"]; ok {
-		t.Error("empty finalizers should be omitted")
+	noFin := sharedutils.ConvertToCRDTemplateWithFinalizers(md, testAppName, map[string]any{}, nil)
+	noFinMeta, ok := noFin.Object[constants.MetadataField].(map[string]any)
+	if !ok {
+		t.Fatalf("template metadata is %T, want a map", noFin.Object[constants.MetadataField])
 	}
-	bare := sharedutils.ConvertToUnstructuredWithoutManagedFields(map[string]any{"a": 1})
-	if bare.Object["spec"] == nil {
-		t.Error("spec missing from bare unstructured")
+	if _, ok := noFinMeta["finalizers"]; ok {
+		t.Error("empty finalizers should be omitted")
 	}
 }
 
 func TestStructAndUnstructuredConversion(t *testing.T) {
-	spec, err := sharedutils.StructToSpecMap(sample{Name: "x"})
-	if err != nil || spec["name"] != "x" {
+	spec, err := sharedutils.StructToSpecMap(sample{Name: valueX})
+	if err != nil || spec[constants.NameParam] != valueX {
 		t.Fatalf("StructToSpecMap = %v, err %v", spec, err)
 	}
-	res := &unstructured.Unstructured{Object: map[string]any{"spec": map[string]any{"name": "y"}}}
-	got, err := sharedutils.UnstructuredToStruct[sample](res, "no spec", "bad spec", "unmarshal %v")
-	if err != nil || got.Name != "y" {
+	res := &unstructured.Unstructured{Object: map[string]any{constants.SpecField: map[string]any{constants.NameParam: valueY}}}
+	got, err := sharedutils.UnstructuredToStruct[sample](res, errNoSpec, errBadSpec, "unmarshal %v")
+	if err != nil || got.Name != valueY {
 		t.Fatalf("UnstructuredToStruct = %+v, err %v", got, err)
 	}
-	if _, err := sharedutils.UnstructuredToStruct[sample](&unstructured.Unstructured{Object: map[string]any{}}, "no spec", "bad spec", "u %v"); err == nil {
+	noSpec := &unstructured.Unstructured{Object: map[string]any{}}
+	if _, err := sharedutils.UnstructuredToStruct[sample](noSpec, errNoSpec, errBadSpec, "u %v"); err == nil {
 		t.Error("missing spec accepted")
 	}
-	if _, err := sharedutils.UnstructuredToStruct[sample](&unstructured.Unstructured{Object: map[string]any{"spec": "notmap"}}, "no spec", "bad spec", "u %v"); err == nil {
+	badSpec := &unstructured.Unstructured{Object: map[string]any{constants.SpecField: notMapSpec}}
+	if _, err := sharedutils.UnstructuredToStruct[sample](badSpec, errNoSpec, errBadSpec, "u %v"); err == nil {
 		t.Error("non-map spec accepted")
 	}
 }
@@ -251,7 +254,7 @@ func TestLogAndReturnError(t *testing.T) {
 }
 
 func TestGetHeader(t *testing.T) {
-	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r := httptest.NewRequest(http.MethodGet, rootPath, nil)
 	r.Header.Set("X-Token", "abc")
 	got, err := sharedutils.GetHeader(httptest.NewRecorder(), r, "X-Token")
 	if err != nil || got != "abc" {
@@ -263,12 +266,12 @@ func TestGetHeader(t *testing.T) {
 }
 
 func TestGetSpec(t *testing.T) {
-	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"a":1}`))
+	r := httptest.NewRequest(http.MethodPost, rootPath, strings.NewReader(`{"a":1}`))
 	spec, err := sharedutils.GetSpec(httptest.NewRecorder(), r)
-	if err != nil || spec["a"] == nil {
+	if err != nil || spec[valueA] == nil {
 		t.Fatalf("GetSpec = %v, err %v", spec, err)
 	}
-	bad := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{not json`))
+	bad := httptest.NewRequest(http.MethodPost, rootPath, strings.NewReader(`{not json`))
 	if _, err := sharedutils.GetSpec(httptest.NewRecorder(), bad); err == nil {
 		t.Error("invalid body accepted")
 	}
@@ -281,7 +284,7 @@ func TestExtractResourceNameFromRequest(t *testing.T) {
 		t.Errorf("mux var name = %q, want foo", got)
 	}
 	plain := httptest.NewRequest(http.MethodGet, "/a/b/c", nil)
-	if got := sharedutils.ExtractResourceNameFromRequest(plain); got == "" {
+	if got := sharedutils.ExtractResourceNameFromRequest(plain); got == constants.EmptyString {
 		t.Error("path fallback returned empty")
 	}
 }

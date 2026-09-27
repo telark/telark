@@ -6,11 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gorilla/mux"
 	authdata "github.com/telark/data/auth"
 	dataconstants "github.com/telark/data/constants"
-	"github.com/telark/exporter/internal/constants"
 	sessionutil "github.com/telark/exporter/internal/utils/auth/session"
+	authendpoints "github.com/telark/rest/endpoints/auth"
 )
 
 // The UI can no longer read session tokens out of the list response, so it
@@ -63,47 +62,52 @@ func TestResolvedNamesStayValidResourceNames(t *testing.T) {
 	}
 }
 
-func selfRequest(token string) *http.Request {
-	r := httptest.NewRequest(http.MethodGet, "/auth/sessions/tokens/self/get", nil)
-	r = mux.SetURLVars(r, map[string]string{constants.TokenParam: authdata.SessionRefSelf})
-	if token != "" {
-		r.Header.Set(dataconstants.HeaderSessionToken, token)
+func selfRequest(header string) *http.Request {
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/auth/sessions/self", nil)
+	if header != "" {
+		r.Header.Set(dataconstants.HeaderSessionToken, header)
 	}
 	return r
 }
 
-func TestRefFromRequestResolvesSelfToTheCallerToken(t *testing.T) {
+// The UI sends its raw token; the name is what every lookup uses.
+func TestRefFromRequestResolvesARawTokenToItsName(t *testing.T) {
 	w := httptest.NewRecorder()
 	ref, ok := sessionutil.RefFromRequest(w, selfRequest(rawToken))
-	if !ok || ref != rawToken {
-		t.Fatalf("self must resolve to the header token, got %q ok=%v", ref, ok)
+	if !ok || ref != sessionutil.SessionName(rawToken) {
+		t.Fatalf("a raw token must resolve to its session name, got %q ok=%v", ref, ok)
 	}
 }
 
-func TestRefFromRequestRejectsSelfWithoutToken(t *testing.T) {
+func TestRefFromRequestRejectsAMissingHeader(t *testing.T) {
 	w := httptest.NewRecorder()
 	if _, ok := sessionutil.RefFromRequest(w, selfRequest("")); ok || w.Code != http.StatusBadRequest {
-		t.Fatalf("self without a token must be a 400, got ok=%v code=%d", ok, w.Code)
+		t.Fatalf("no X-Session-Token must be a 400, got ok=%v code=%d", ok, w.Code)
 	}
 }
 
+// Peers (the auth service) send the session name, never the token.
 func TestRefFromRequestPassesNamesThrough(t *testing.T) {
 	name := sessionutil.SessionName(rawToken)
-	r := httptest.NewRequest(http.MethodGet, "/auth/sessions/tokens/"+name+"/get", nil)
-	r = mux.SetURLVars(r, map[string]string{constants.TokenParam: name})
-	if ref, ok := sessionutil.RefFromRequest(httptest.NewRecorder(), r); !ok || ref != name {
+	if ref, ok := sessionutil.RefFromRequest(httptest.NewRecorder(), selfRequest(name)); !ok || ref != name {
 		t.Fatalf("a name must pass through, got %q ok=%v", ref, ok)
 	}
 }
 
-func TestRefFromRequestRefusesARawToken(t *testing.T) {
-	r := mux.SetURLVars(httptest.NewRequest(http.MethodGet, "/", nil), map[string]string{constants.TokenParam: rawToken})
+func TestRefFromRequestRefusesTheLiteralSelf(t *testing.T) {
 	w := httptest.NewRecorder()
-
-	if _, ok := sessionutil.RefFromRequest(w, r); ok || w.Code != http.StatusBadRequest {
-		t.Fatalf("a raw token in the path must be refused with 400, got ok=%v status=%d", ok, w.Code)
+	if _, ok := sessionutil.RefFromRequest(w, selfRequest(authdata.SessionRefSelf)); ok || w.Code != http.StatusBadRequest {
+		t.Fatalf("a literal self header must be refused with 400, got ok=%v status=%d", ok, w.Code)
 	}
-	if strings.Contains(w.Body.String(), rawToken) {
-		t.Error("the refusal must not echo the token")
+}
+
+// The path never carries a session ref, so the token cannot reach an access log.
+func TestSelfSessionRoutesCarryNoTokenInThePath(t *testing.T) {
+	for _, endpoint := range []string{
+		string(authendpoints.GetSelfSession), string(authendpoints.PatchSelfSession), string(authendpoints.DeleteSelfSession),
+	} {
+		if strings.Contains(endpoint, "{") {
+			t.Errorf("self session route %q takes a path parameter", endpoint)
+		}
 	}
 }

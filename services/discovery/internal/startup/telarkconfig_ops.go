@@ -1,0 +1,68 @@
+package startup
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/telark/data/resources/telarkconfig"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/kcore/resources/server"
+	cfgclient "github.com/telark/rest/clients/config"
+)
+
+func PatchClusterVersionAsync(ctx context.Context) {
+	go func() {
+		lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
+		lg.Info(string(constants.InfoClusterVersionPatchStarting))
+		for attempt := constants.DefaultAddValue; attempt <= constants.ClusterVersionPatchMaxAttempts; attempt++ {
+			if ctx.Err() != nil {
+				return
+			}
+
+			err := doPatchClusterVersion(ctx, lg)
+			if err == nil {
+				return
+			}
+
+			if attempt == constants.ClusterVersionPatchMaxAttempts {
+				lg.Error(fmt.Sprintf(string(constants.WarnClusterVersionPatchExhausted),
+					constants.ClusterVersionPatchMaxAttempts, err))
+				return
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(constants.ClusterVersionPatchRetryBackoff):
+			}
+		}
+	}()
+}
+
+func doPatchClusterVersion(ctx context.Context, lg interface {
+	Info(string)
+	Warn(string)
+	Error(string)
+},
+) error {
+	if !WaitForTelarkConfigReady(ctx) {
+		return ctx.Err()
+	}
+	ver, err := server.GetServerVersion()
+	if err != nil || ver == nil {
+		return fmt.Errorf(string(constants.WarnClusterVersionPatchFailed), err)
+	}
+
+	// A status field: the exporter routes the cluster view key to the TelarkConfig /status.
+	resp := cfgclient.NewClient().PatchConfig(map[string]any{
+		telarkconfig.FieldCluster: telarkconfig.Cluster{Version: ver.GitVersion},
+	})
+	if resp == nil || resp.Status != http.StatusOK {
+		return fmt.Errorf(string(constants.WarnClusterVersionPatchFailedStatus), resp)
+	}
+
+	lg.Info(fmt.Sprintf(string(constants.InfoClusterVersionPatched), ver.GitVersion))
+	return nil
+}

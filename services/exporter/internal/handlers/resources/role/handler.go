@@ -6,7 +6,7 @@ import (
 
 	"github.com/telark/data/errors"
 	"github.com/telark/data/messages"
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/data/resources/finalizers"
 	roledata "github.com/telark/data/resources/role"
 	"github.com/telark/exporter/internal/authz"
@@ -26,8 +26,12 @@ import (
 
 func CreateRoleResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := sharedutils.GetSpec(w, r)
+		body, err := sharedutils.GetSpecFor[roledata.AccessRole](w, r)
 		if err != nil {
+			return
+		}
+
+		if !authz.GuardRoleReservedFields(w, r, nil, body) {
 			return
 		}
 
@@ -41,6 +45,10 @@ func CreateRoleResourceWithCacheInvalidation(optimizer *performance.Optimizer) f
 				nil,
 				err,
 			)
+			return
+		}
+
+		if !authz.GuardRoleLevels(w, r, role.ScopesAndPermissions) {
 			return
 		}
 
@@ -59,7 +67,7 @@ func CreateRoleResourceWithCacheInvalidation(optimizer *performance.Optimizer) f
 	}
 }
 
-func createRoleResource(w http.ResponseWriter, role *roledata.RoleAsResource, optimizer *performance.Optimizer) {
+func createRoleResource(w http.ResponseWriter, role *roledata.AccessRole, optimizer *performance.Optimizer) {
 	spec, err := sharedutils.StructToSpecMap(role)
 	if err != nil {
 		responseutils.LogAndSendResponse(
@@ -73,7 +81,6 @@ func createRoleResource(w http.ResponseWriter, role *roledata.RoleAsResource, op
 		return
 	}
 
-	// Ensure validity.autoRevoke is always present for temporary roles
 	if role.Validity != nil && role.Validity.Type == roledata.ValidityTypeTemporary {
 		if validitySpec, ok := spec[constants.FieldValidity].(map[string]any); ok {
 			validitySpec[constants.FieldAutoRevoke] = role.Validity.AutoRevoke
@@ -86,13 +93,12 @@ func createRoleResource(w http.ResponseWriter, role *roledata.RoleAsResource, op
 
 	generics.GenericCreateCustomResourceWithFinalizers(
 		w,
-		metadata.RoleAsResourceMetadata,
+		metadata.AccessRoleMetadata,
 		role.ID,
 		spec,
 		[]string{finalizers.RoleCleanup},
 	)
 
-	cache.SmartInvalidateListCache(optimizer, constants.ResourceRole, string(constants.OpCreate))
 	cache.InvalidateAllResourceCaches(optimizer, constants.ResourceRole)
 }
 
@@ -112,72 +118,8 @@ func GetRoleByIDWithCacheInvalidation() func(http.ResponseWriter, *http.Request)
 	}
 }
 
-func GetRoleByUserIDWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		userID, err := sharedutils.GetPathParam(w, r, constants.UserIDParam)
-		if err != nil {
-			return
-		}
-
-		resource, ok := roleutils.FindRoleByUserIDOrRespond(w, userID)
-		if !ok {
-			return
-		}
-
-		resourcesshared.SendFilteredResourceResponse(w, resource)
-	}
-}
-
-func GetRoleByGroupIDWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		groupID, err := sharedutils.GetPathParam(w, r, constants.GroupIDParam)
-		if err != nil {
-			return
-		}
-
-		resource, ok := roleutils.FindRoleByGroupIDOrRespond(w, groupID)
-		if !ok {
-			return
-		}
-
-		resourcesshared.SendFilteredResourceResponse(w, resource)
-	}
-}
-
 func ListRoleResourcesWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {
-	return shared.ListResourceWithCacheInvalidation(metadata.RoleAsResourceMetadata)
-}
-
-func ListRolesByUserIDWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		userID, err := sharedutils.GetPathParam(w, r, constants.UserIDParam)
-		if err != nil {
-			return
-		}
-
-		resources, ok := roleutils.ListRolesByUserIDOrRespond(w, userID)
-		if !ok {
-			return
-		}
-
-		resourcesshared.SendFilteredResourcesResponse(w, resources)
-	}
-}
-
-func ListRolesByGroupIDWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		groupID, err := sharedutils.GetPathParam(w, r, constants.GroupIDParam)
-		if err != nil {
-			return
-		}
-
-		resources, ok := roleutils.ListRolesByGroupIDOrRespond(w, groupID)
-		if !ok {
-			return
-		}
-
-		resourcesshared.SendFilteredResourcesResponse(w, resources)
-	}
+	return shared.ListResourceWithCacheInvalidation(metadata.AccessRoleMetadata)
 }
 
 func PatchRoleByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
@@ -192,16 +134,19 @@ func PatchRoleByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(h
 			return
 		}
 
-		body, err := sharedutils.GetSpec(w, r)
+		body, err := sharedutils.GetSpecFor[roledata.AccessRole](w, r)
 		if err != nil {
 			return
 		}
 
-		if !roleutils.ValidatePatchRequest(existingRole, body, w) {
+		if !authz.GuardNotTerminating(w, r, existingRole.DeletionTimestamp) ||
+			!roleutils.ValidateProtectionFlags(existingRole, body, w) ||
+			!authz.GuardRoleReservedFields(w, r, existingRole, body) {
 			return
 		}
 
-		if !roleutils.ExtractAndMergeRoleForPatch(existingRole, body, w) {
+		mergedRole, ok := roleutils.ExtractAndMergeRoleForPatch(existingRole, body, w)
+		if !ok || !authz.GuardPatchedRoleLevels(w, r, mergedRole, body) {
 			return
 		}
 
@@ -223,7 +168,7 @@ func patchRoleResource(w http.ResponseWriter, roleID string, body map[string]any
 	lock.Lock()
 	defer lock.Unlock()
 
-	generics.GenericPatchCustomResource(w, metadata.RoleAsResourceMetadata, roleID, specPatchData)
+	generics.GenericPatchCustomResource(w, metadata.AccessRoleMetadata, roleID, specPatchData)
 	resourcesshared.InvalidateResourceCaches(optimizer, constants.ResourceRole, roleID)
 }
 
@@ -248,13 +193,13 @@ func DeleteRoleByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 			return
 		}
 
-		resourcesshared.InvalidateResourceCaches(optimizer, constants.ResourceRole, roleID)
-		authz.BumpGeneration(r.Context())
 		lock := concurrency.GetLock(roleID)
 		lock.Lock()
 		defer lock.Unlock()
 
-		deleteResult := api.DeleteCustomResourceByName(roleID, metadata.RoleAsResourceMetadata)
+		deleteResult := api.DeleteCustomResourceByName(roleID, metadata.AccessRoleMetadata)
+		resourcesshared.InvalidateResourceCaches(optimizer, constants.ResourceRole, roleID)
+		authz.BumpGeneration(r.Context())
 		if deleteResult.Status != http.StatusOK {
 			errorMsg := sharedutils.GenerateResourceError(errors.ErrDeleteRes, roleID, deleteResult.Error)
 			responseutils.LogAndSendResponse(
@@ -268,7 +213,7 @@ func DeleteRoleByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 			return
 		}
 
-		msg := fmt.Sprintf(string(messages.SuccessDeleteRes), roleID, metadata.RoleAsResourceMetadata.Kind)
+		msg := fmt.Sprintf(string(messages.SuccessDeleteRes), roleID, metadata.AccessRoleMetadata.Kind)
 		responseutils.LogAndSendResponse(
 			w,
 			http.StatusOK,

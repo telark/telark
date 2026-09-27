@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	authmetadata "github.com/telark/data/metadata/auth"
+	authmetadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/utils/auth/shared"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
@@ -20,7 +20,7 @@ func FindSessionByRef(ref string) (*unstructured.Unstructured, error) {
 }
 
 func findSessionByName(name string) (*unstructured.Unstructured, error) {
-	result := api.GetCustomResourceByName(name, authmetadata.UserSessionMetadata)
+	result := api.GetCustomResourceByName(name, authmetadata.SessionMetadata)
 	if err := sharedutils.ErrorForResult(result, constants.ErrSessionNotFound); err != nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func findSessionByName(name string) (*unstructured.Unstructured, error) {
 
 func FindSessionsByUserID(userID string) ([]unstructured.Unstructured, error) {
 	return shared.FindResourcesByUserID(
-		authmetadata.UserSessionMetadata,
+		authmetadata.SessionMetadata,
 		constants.ErrSessionListFormatInvalid,
 		userID,
 	)

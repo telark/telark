@@ -1,0 +1,73 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: categories.{{ include "telark.apiGroup" $ }}
+  labels:
+    {{- include "telark.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: crd
+  annotations:
+    "helm.sh/resource-policy": keep
+spec:
+  group: {{ include "telark.apiGroup" $ }}
+  names:
+    kind: Category
+    plural: categories
+    singular: category
+    shortNames:
+      - tcat
+    categories:
+      - telark
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - categories
+              properties:
+                categories:
+                  type: array
+                  description: List of category definitions
+                  minItems: 1
+                  items:
+                    type: object
+                    required:
+                      - id
+                      - name
+                      - scope
+                      - type
+                      - creationDate
+                    properties:
+                      id:
+                        type: string
+                        description: Unique identifier for the category
+                        pattern: '^cat-[0-9a-f]{5}-[0-9a-f]{4}-[0-9a-f]{4}$'
+                        minLength: 19
+                        maxLength: 19
+                      name:
+                        type: string
+                        description: Name of the category
+                        minLength: 1
+                        maxLength: 100
+                      scope:
+                        type: string
+                        description: Service or resource type that uses this category (groups, roles, plan-environments, plan-tags)
+                        minLength: 1
+                        maxLength: 50
+                      type:
+                        type: string
+                        description: Category type classification
+                        enum:
+                          - built-in
+                          - custom
+                      creationDate:
+                        type: string
+                        description: ISO 8601 timestamp when the category was created
+                        format: date-time
+

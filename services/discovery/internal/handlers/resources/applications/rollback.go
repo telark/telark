@@ -3,7 +3,6 @@ package applications
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -15,6 +14,7 @@ import (
 	applicationmodel "github.com/telark/data/resources/application"
 	"github.com/telark/discovery/internal/clients"
 	"github.com/telark/discovery/internal/constants"
+	appsnapshot "github.com/telark/discovery/internal/core/applications/snapshot"
 	"github.com/telark/discovery/internal/helpers/async"
 	sharedhelper "github.com/telark/discovery/internal/helpers/shared"
 	notifclient "github.com/telark/rest/clients/notifications"
@@ -69,9 +69,11 @@ func rollbackActive(r applicationmodel.RollbackEntry) bool {
 	return r.Status == constants.RollbackStatusPending || r.Status == constants.RollbackStatusInProgress
 }
 
+// triggeredBy is the verified caller (X-User-ID), never a body field a caller could forge.
 type triggerRollbackBody struct {
-	SnapshotGeneration int    `json:"snapshotGeneration"`
-	TriggeredBy        string `json:"triggeredBy"`
+	SnapshotGeneration int `json:"snapshotGeneration"`
+	// Accepted so older clients still decode under DisallowUnknownFields; the caller comes from the verified identity.
+	LegacyTriggeredBy *string `json:"triggeredBy,omitempty"`
 }
 
 type triggerRollbackResponse struct {
@@ -92,6 +94,10 @@ func TriggerRollback(w http.ResponseWriter, r *http.Request) {
 	defer release()
 
 	body, ok := decodeTriggerRollbackBody(w, r)
+	if !ok {
+		return
+	}
+	userID, ok := rollbackCaller(w, r)
 	if !ok {
 		return
 	}
@@ -120,7 +126,7 @@ func TriggerRollback(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, response.OperationError, "failed to generate rollback id", genErr)
 		return
 	}
-	entry := buildRollbackEntry(rollbackID, snap, body.TriggeredBy)
+	entry := buildRollbackEntry(rollbackID, snap, userID)
 
 	updated := slices.Clone(app.Rollbacks)
 	updated = append(updated, entry)
@@ -256,9 +262,18 @@ func findRollbackIndexByID(rollbacks []applicationmodel.RollbackEntry, id string
 	return notFoundIndex
 }
 
+func rollbackCaller(w http.ResponseWriter, r *http.Request) (string, bool) {
+	userID := r.Header.Get(constants.HeaderUserID)
+	if userID == constants.EmptyString {
+		writeError(w, http.StatusBadRequest, response.OperationError, string(constants.ErrRollbackUserRequired), nil)
+		return constants.EmptyString, false
+	}
+	return userID, true
+}
+
 func decodeTriggerRollbackBody(w http.ResponseWriter, r *http.Request) (*triggerRollbackBody, bool) {
 	var body triggerRollbackBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := sharedhelper.DecodeJSONStrict(w, r, &body); err != nil {
 		responseutils.LogAndSendResponse(
 			w,
 			http.StatusUnprocessableEntity,
@@ -275,17 +290,6 @@ func decodeTriggerRollbackBody(w http.ResponseWriter, r *http.Request) (*trigger
 			http.StatusBadRequest,
 			response.OperationError,
 			"snapshotGeneration must be > 0",
-			nil,
-			nil,
-		)
-		return nil, false
-	}
-	if body.TriggeredBy == constants.EmptyString {
-		responseutils.LogAndSendResponse(
-			w,
-			http.StatusBadRequest,
-			response.OperationError,
-			"triggeredBy cannot be empty",
 			nil,
 			nil,
 		)
@@ -317,11 +321,8 @@ type patchErr struct {
 }
 
 func patchRollbacks(c *clients.ExporterClient, name string, rollbacks []applicationmodel.RollbackEntry) *patchErr {
-	patchBody := map[string]any{
-		"spec": map[string]any{
-			"rollbacks": rollbacks,
-		},
-	}
+	// A view key: the exporter routes it to .status, where rollbacks live.
+	patchBody := map[string]any{constants.RollbackRollbacksKey: rollbacks}
 	if err := c.PatchApplicationByNameOrError(name, patchBody); err != nil {
 		return &patchErr{status: http.StatusInternalServerError, msg: err.Error()}
 	}
@@ -338,14 +339,15 @@ func writeError(
 	responseutils.LogAndSendResponse(w, status, op, msg, nil, err)
 }
 
-// Rolling back to the current generation is a no-op apply that still appends
-// history and bumps the generation with no snapshot behind it.
+// A snapshot stamped with generation N is the pre-image of the change that
+// produced N, so the one matching the current generation is the newest valid
+// target (undo the latest change); only a future generation has nothing behind it.
 func validateRollbackTarget(
 	w http.ResponseWriter,
 	app *applicationmodel.Application,
 	gen int,
 ) (*applicationmodel.ApplicationSnapshot, bool) {
-	if gen >= app.History.Generation {
+	if gen > app.History.Generation {
 		writeError(w, http.StatusBadRequest, response.OperationError,
 			fmt.Sprintf(string(constants.ErrRollbackTargetNotOlder), app.History.Generation), nil)
 		return nil, false
@@ -357,6 +359,15 @@ func validateRollbackTarget(
 		writeError(w, http.StatusBadRequest, response.OperationError,
 			fmt.Sprintf(string(constants.ErrRollbackSnapshotMissing), gen), nil)
 		return nil, false
+	}
+	// A set missing one of the app's namespaces restores part of the app and reports success.
+	covered := appsnapshot.NamespacesForGeneration(app.Snapshots, gen)
+	for i := range app.Namespaces.Items {
+		if ns := app.Namespaces.Items[i].Name; ns != constants.EmptyString && !slices.Contains(covered, ns) {
+			writeError(w, http.StatusBadRequest, response.OperationError,
+				fmt.Sprintf(string(constants.ErrRollbackSnapshotIncomplete), gen, ns), nil)
+			return nil, false
+		}
 	}
 	return &app.Snapshots[idx], true
 }

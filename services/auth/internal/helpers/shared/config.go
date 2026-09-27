@@ -9,7 +9,7 @@ import (
 )
 
 func GetCachedConfig() (*config.Config, error) {
-	cfg, err := config.GetConfig()
+	cfg, err := config.LoadConfig()
 	if err != nil {
 		return nil, fmt.Errorf(string(constants.ErrFailedGetConfig), err)
 	}

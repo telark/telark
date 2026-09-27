@@ -10,7 +10,7 @@ import (
 
 	"github.com/telark/data/messages"
 	"github.com/telark/data/metadata/base"
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/constants"
 	kcoredynamic "github.com/telark/kcore/informers/dynamic"
 	"github.com/telark/kcore/k8sclient"
@@ -68,7 +68,7 @@ func StartApplications(ctx context.Context) {
 // timeout passed; until then lists fall back to a LIST.
 func RunApplications(ctx context.Context, dyn dynamic.Interface) {
 	runMirror(ctx, dyn, mirror{
-		md:        metadata.ApplicationAsResourceMetadata,
+		md:        metadata.ApplicationMetadata,
 		install:   Use,
 		synced:    constants.InfApplicationInformerSynced,
 		notSynced: constants.WarnApplicationInformerNotSynced,

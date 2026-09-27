@@ -5,7 +5,7 @@ import (
 	"sync/atomic"
 
 	"github.com/telark/discovery/internal/constants"
-	gcfgclient "github.com/telark/rest/clients/resources/globalconfig"
+	cfgclient "github.com/telark/rest/clients/config"
 )
 
 var (
@@ -14,7 +14,7 @@ var (
 	snapshotsMaxLive atomic.Int64
 )
 
-// Fed by the global-config sync loop so a settings change applies to the next recorded change,
+// Fed by the telarkconfig sync loop so a settings change applies to the next recorded change,
 // not the next restart.
 func SetSnapshotsMaxVersions(n int) {
 	if n >= constants.MinSnapshotsMaxVersions {
@@ -31,7 +31,7 @@ func SnapshotsMaxVersions() int {
 }
 
 func initSnapshotsMaxVersions() {
-	cfg, err := gcfgclient.NewClient().GetGlobalConfig()
+	cfg, err := cfgclient.NewClient().GetConfig()
 	if err != nil || cfg == nil {
 		snapshotsMaxVal = constants.DefaultSnapshotsMaxVersions
 		return

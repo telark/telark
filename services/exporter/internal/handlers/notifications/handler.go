@@ -1,7 +1,6 @@
 package notifications
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 
@@ -38,34 +37,33 @@ func Emit() func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		var n notiftypes.Notification
-		raw, _ := json.Marshal(body)
-		if err := json.Unmarshal(raw, &n); err != nil {
+		n, err := sharedutils.ExtractStructFromBody[notiftypes.Notification](body)
+		if err != nil {
 			respondParseError(w, err)
 			return
 		}
 
-		if err := notiftypes.ValidateForEmit(&n); err != nil {
+		if err := notiftypes.ValidateForEmit(n); err != nil {
 			sharedutils.LogByStatusAndSend(
 				w, http.StatusBadRequest, response.OperationUnprocessed,
 				err.Error(), nil, err,
 			)
 			return
 		}
-		notiftypes.Truncate(&n)
+		notiftypes.Truncate(n)
 
 		storage, err := notifstorage.NewStorage()
 		if err != nil {
 			respondInternal(w, err)
 			return
 		}
-		created, err := storage.Emit(r.Context(), n)
+		created, err := storage.Emit(r.Context(), *n)
 		if err != nil {
 			respondInternal(w, err)
 			return
 		}
 
-		respondData(w, msgEmitted, structAsMap(*created))
+		respondData(w, msgEmitted, structAsMap(created))
 	}
 }
 
@@ -83,7 +81,7 @@ func List() func(http.ResponseWriter, *http.Request) {
 			respondInternal(w, err)
 			return
 		}
-		respondData(w, msgRetrieved, structAsMap(*resp))
+		respondData(w, msgRetrieved, structAsMap(resp))
 	}
 }
 
@@ -180,13 +178,6 @@ func respondInternal(w http.ResponseWriter, err error) {
 }
 
 func structAsMap(v any) map[string]any {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return nil
-	}
-	var m map[string]any
-	if err := json.Unmarshal(b, &m); err != nil {
-		return nil
-	}
+	m, _ := sharedutils.StructToSpecMap(v)
 	return m
 }

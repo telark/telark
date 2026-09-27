@@ -3,7 +3,7 @@ package session
 import (
 	"net/http"
 
-	authmetadata "github.com/telark/data/metadata/auth"
+	authmetadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/exporters/generics"
 	sessionutils "github.com/telark/exporter/internal/utils/auth/session"
 	"github.com/telark/exporter/internal/utils/concurrency"
@@ -45,5 +45,5 @@ func CreateSessionByUser(w http.ResponseWriter, body map[string]any, userID stri
 	lock.Lock()
 	defer lock.Unlock()
 
-	generics.GenericCreateCustomResource(w, authmetadata.UserSessionMetadata, sessionName, spec)
+	generics.GenericCreateCustomResource(w, authmetadata.SessionMetadata, sessionName, spec)
 }

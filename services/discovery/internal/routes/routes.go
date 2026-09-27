@@ -10,20 +10,22 @@ import (
 	applicationhandler "github.com/telark/discovery/internal/handlers/resources/applications"
 	statushandler "github.com/telark/discovery/internal/handlers/status"
 	"github.com/telark/rest/base"
-	analyzeps "github.com/telark/rest/endpoints/analyze"
+	applicationeps "github.com/telark/rest/endpoints/applications"
+	clustereps "github.com/telark/rest/endpoints/cluster"
 	insightseps "github.com/telark/rest/endpoints/insights"
 	planseps "github.com/telark/rest/endpoints/plans"
-	applicationeps "github.com/telark/rest/endpoints/resources/applications"
 	"github.com/telark/rest/router"
 )
 
 var Routes = []router.Route{
-	// Analyze routes
-	router.CreateRoute(base.Get, analyzeps.GetAllWorkloadsByNamespace, workloadslist.ListNamespaceWorkloads),
-	router.CreateRoute(base.Get, analyzeps.GetAllResourcesByNamespace, resourceslist.ListNamespaceResources),
+	// Cluster read routes
+	router.CreateRoute(base.Get, clustereps.GetAllWorkloadsByNamespace, workloadslist.ListNamespaceWorkloads),
+	router.CreateRoute(base.Get, clustereps.GetAllResourcesByNamespace, resourceslist.ListNamespaceResources),
 
 	// Insights read (windowed to the caller's visible apps)
 	router.CreateRoute(base.Get, insightseps.Applications, insightshandler.GetApplicationsInsights),
+	// Cluster-wide insights list (served from the per-replica row index)
+	router.CreateRoute(base.Get, insightseps.List, insightshandler.ListInsights),
 
 	// Application routes
 	router.CreateRoute(base.Post, applicationeps.TriggerRollback, applicationhandler.TriggerRollback),
@@ -33,7 +35,7 @@ var Routes = []router.Route{
 	router.CreateRoute(base.Get, applicationeps.DiscoveryStatus, applicationhandler.DiscoveryStatus),
 
 	// Namespace routes
-	router.CreateRoute(base.Get, analyzeps.GetAllNamespaces, namespacehandler.GetNamespaces),
+	router.CreateRoute(base.Get, clustereps.GetAllNamespaces, namespacehandler.GetNamespaces),
 
 	// Protection plan routes
 	router.CreateRoute(base.Get, planseps.GetProtectionPlanTemplates, protectionplanhandler.GetTemplates),
@@ -44,7 +46,9 @@ var Routes = []router.Route{
 	router.CreateRoute(base.Get, planseps.GetProtectionPlanViolations, protectionplanhandler.Violations),
 	router.CreateRoute(base.Post, planseps.DuplicateProtectionPlan, protectionplanhandler.Duplicate),
 	router.CreateRoute(base.Post, planseps.ReactivateProtectionPlan, protectionplanhandler.Reactivate),
-	router.CreateRoute(base.Post, planseps.UpdateProtectionPlan, protectionplanhandler.Update),
+	router.CreateRoute(base.Post, planseps.ReviseProtectionPlan, protectionplanhandler.Update),
+	router.CreateRoute(base.Post, planseps.DecideProtectionPlan, protectionplanhandler.Decide),
+	router.CreateRoute(base.Post, planseps.GenerateProtectionPlanReport, protectionplanhandler.GenerateReport),
 
 	// Status routes
 	router.CreateRoute(base.Get, constants.StatusReadinessEp, statushandler.Readiness),

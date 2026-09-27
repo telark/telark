@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.L.TitleCover}}: {{.Doc.Cover.Name}}</title>
+<style>
+:root{--bg:whitesmoke;--card:white;--ink:black;--muted:dimgray;--line:gainsboro;--fail:firebrick;--ok:seagreen;--zebra:ghostwhite}
+*{box-sizing:border-box}
+body{margin:0;padding:24px;font:14px/1.5 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+main{max-width:1100px;margin:0 auto}
+h1{font-size:22px;margin:0 0 4px}
+h2{font-size:16px;margin:28px 0 8px;border-bottom:1px solid var(--line);padding-bottom:4px}
+.meta{color:var(--muted)}
+.tiles{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:10px 14px;min-width:150px}
+.tile b{display:block;font-size:20px}
+.tile span{color:var(--muted);font-size:12px}
+table{border-collapse:collapse;width:100%;background:var(--card);font-size:13px;margin-bottom:12px}
+th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top;word-break:break-word}
+th{background:var(--zebra)}
+tbody tr:nth-child(even){background:var(--zebra)}
+.fail{color:var(--fail);font-weight:600}
+.other{color:var(--ok)}
+.note{color:var(--muted);font-style:italic;margin:4px 0}
+ul{margin:4px 0;padding-left:20px}
+@media print{body{background:white;padding:0}.tile,tr{break-inside:avoid}h2{break-after:avoid}}
+</style>
+</head>
+<body>
+<main>
+<h1>{{.L.TitleCover}}: {{.Doc.Cover.Name}}</h1>
+<p class="meta">Report {{.Doc.Cover.ReportID}} · generated {{fmtTime .Doc.Cover.GeneratedAt}} by {{.Doc.Cover.GeneratedBy}} · trigger {{.Doc.Cover.Trigger}}</p>
+<div class="tiles">
+<div class="tile"><b>{{.Doc.Decisions.Aggregates.Total}}</b><span>admission decisions</span></div>
+<div class="tile"><b>{{.Doc.Cover.Mode}}</b><span>mode</span></div>
+<div class="tile"><b>{{.Doc.Cover.Phase}}</b><span>phase at generation</span></div>
+<div class="tile"><b>{{.Doc.Health.Value}}</b><span>health</span></div>
+<div class="tile"><b>{{.Doc.Coverage.Checkpoints}}</b><span>checkpoints</span></div>
+</div>
+<table>
+<tbody>
+<tr><th>Plan id</th><td>{{.Doc.Cover.ID}}</td></tr>
+<tr><th>Description</th><td>{{.Doc.Cover.Description}}</td></tr>
+<tr><th>Severity / priority</th><td>{{.Doc.Cover.Severity}} / {{.Doc.Cover.Priority}}</td></tr>
+<tr><th>Time mode</th><td>{{.Doc.Cover.TimeMode}} {{if .Doc.Cover.StartAt}}({{fmtTime .Doc.Cover.StartAt}} → {{fmtTime .Doc.Cover.EndAt}}){{end}}</td></tr>
+<tr><th>Run window</th><td>{{fmtTime .Doc.Cover.RunStart}} → {{fmtTime .Doc.Cover.RunEnd}}</td></tr>
+<tr><th>Reason</th><td>{{.Doc.Cover.Reason}}</td></tr>
+</tbody>
+</table>
+
+<h2>{{.L.TitleCoverage}}</h2>
+<table>
+<tbody>
+<tr><th>Retention window</th><td>{{.Doc.Coverage.RetentionWindow}}</td></tr>
+<tr><th>Checkpoint interval</th><td>{{.Doc.Coverage.CheckpointInterval}}</td></tr>
+<tr><th>Checkpoints</th><td>{{.Doc.Coverage.Checkpoints}} ({{fmtTime .Doc.Coverage.FirstCheckpoint}} → {{fmtTime .Doc.Coverage.LastCheckpoint}})</td></tr>
+<tr><th>Row cap / omitted</th><td>{{.Doc.Coverage.RowCap}} / {{.Doc.Coverage.RowsOmitted}}{{if .Doc.Coverage.Truncated}} (truncated){{end}}</td></tr>
+<tr><th>Policies live at capture</th><td>{{.Doc.Coverage.PoliciesLiveAtCapture}}</td></tr>
+<tr><th>Unresolved applications</th><td>{{join .Doc.Coverage.UnresolvedApplications}}</td></tr>
+</tbody>
+</table>
+{{if .Doc.Coverage.Gaps}}<table><thead><tr><th>Gap from</th><th>Gap to</th></tr></thead><tbody>
+{{range .Doc.Coverage.Gaps}}<tr><td>{{fmtTime .From}}</td><td>{{fmtTime .To}}</td></tr>
+{{end}}</tbody></table>{{end}}
+<table><thead><tr><th>Section</th><th>Source</th></tr></thead><tbody>
+{{range .Doc.Coverage.Provenance}}<tr><td>{{.Section}}</td><td>{{.Source}}</td></tr>
+{{end}}</tbody></table>
+{{range .Doc.Coverage.Notes}}<p class="note">{{.}}</p>
+{{end}}
+
+<h2>{{.L.TitleTimeline}}</h2>
+<table>
+<tbody>
+<tr><th>Created</th><td>{{fmtTime .Doc.Timeline.CreatedAt}} by {{.Doc.Timeline.CreatedBy}}</td></tr>
+<tr><th>Started</th><td>{{fmtTime .Doc.Timeline.StartedAt}} by {{.Doc.Timeline.StartedBy}}</td></tr>
+<tr><th>Last updated</th><td>{{fmtTime .Doc.Timeline.LastUpdatedAt}} by {{.Doc.Timeline.LastUpdatedBy}}</td></tr>
+<tr><th>Terminated</th><td>{{fmtTime .Doc.Timeline.TerminatedAt}} by {{.Doc.Timeline.TerminatedBy}}</td></tr>
+<tr><th>Participants</th><td>{{join .Doc.Timeline.ParticipantRefs}}</td></tr>
+</tbody>
+</table>
+
+<h2>{{.L.TitleScope}}</h2>
+<table>
+<tbody>
+<tr><th>Type</th><td>{{.Doc.Scope.Type}}</td></tr>
+<tr><th>Namespaces</th><td>{{join .Doc.Scope.Namespaces}}</td></tr>
+<tr><th>Applications</th><td>{{join .Doc.Scope.ApplicationRefs}}</td></tr>
+</tbody>
+</table>
+
+<h2>{{.L.TitlePolicies}}</h2>
+<table>
+<thead><tr><th>Template</th><th>Parameters</th><th>Rendered policy</th><th>Present</th><th>Ready</th><th>Failure action</th></tr></thead>
+<tbody>
+{{range .Doc.Policies}}<tr><td>{{.TemplateID}}</td><td>{{.Params}}</td><td>{{.RenderedName}}</td><td>{{.Present}}</td><td>{{.Ready}}</td><td>{{.FailureAction}}</td></tr>
+{{end}}</tbody>
+</table>
+
+<h2>{{.L.TitleHealth}}</h2>
+<p>{{.Doc.Health.Value}} (checked {{fmtTime .Doc.Health.CheckedAt}})</p>
+{{if .Doc.Health.Timeline}}<table><thead><tr><th>At</th><th>Health</th><th>Records seen</th></tr></thead><tbody>
+{{range .Doc.Health.Timeline}}<tr><td>{{fmtTime .At}}</td><td>{{.Health}}</td><td>{{.ViolationsSeen}}</td></tr>
+{{end}}</tbody></table>{{end}}
+
+<h2>{{.L.TitleDecisions}}</h2>
+<div class="tiles">
+<div class="tile"><b>{{.Doc.Decisions.Aggregates.Total}}</b><span>total</span></div>
+<div class="tile"><b>{{.Doc.Decisions.Aggregates.DistinctResources}}</b><span>distinct resources</span></div>
+<div class="tile"><b>{{fmtTime .Doc.Decisions.Aggregates.First}}</b><span>first</span></div>
+<div class="tile"><b>{{fmtTime .Doc.Decisions.Aggregates.Last}}</b><span>last</span></div>
+</div>
+<table><thead><tr><th>By result</th><th>Count</th></tr></thead><tbody>
+{{range .Doc.Decisions.Aggregates.ByResult}}<tr><td>{{.Key}}</td><td>{{.Count}}</td></tr>
+{{end}}</tbody></table>
+<table><thead><tr><th>By policy / rule</th><th>Count</th></tr></thead><tbody>
+{{range .Doc.Decisions.Aggregates.ByPolicyRule}}<tr><td>{{.Key}}</td><td>{{.Count}}</td></tr>
+{{end}}</tbody></table>
+<table><thead><tr><th>By namespace</th><th>Count</th></tr></thead><tbody>
+{{range .Doc.Decisions.Aggregates.ByNamespace}}<tr><td>{{.Key}}</td><td>{{.Count}}</td></tr>
+{{end}}</tbody></table>
+<table><thead><tr><th>By resource kind</th><th>Count</th></tr></thead><tbody>
+{{range .Doc.Decisions.Aggregates.ByKind}}<tr><td>{{.Key}}</td><td>{{.Count}}</td></tr>
+{{end}}</tbody></table>
+<table>
+<thead><tr><th>Timestamp</th><th>Result</th><th>Policy</th><th>Rule</th><th>Kind</th><th>Namespace</th><th>Name</th><th>Message</th></tr></thead>
+<tbody>
+{{range .Doc.Decisions.Rows}}<tr><td>{{fmtTime .Timestamp}}</td><td class="{{resultClass .Result}}">{{.Result}}</td><td>{{.Policy}}</td><td>{{.Rule}}</td><td>{{.Resource.Kind}}</td><td>{{.Resource.Namespace}}</td><td>{{.Resource.Name}}</td><td>{{.Message}}</td></tr>
+{{end}}</tbody>
+</table>
+
+<h2>{{.L.TitleAppendix}}</h2>
+<ul>
+{{range .Doc.Appendix.Glossary}}<li>{{.}}</li>
+{{end}}</ul>
+<table>
+<tbody>
+<tr><th>Rendered policies</th><td>{{join .Doc.Appendix.RenderedPolicies}}</td></tr>
+<tr><th>Plan id</th><td>{{.Doc.Appendix.PlanID}}</td></tr>
+<tr><th>Report id</th><td>{{.Doc.Appendix.ReportID}}</td></tr>
+<tr><th>Schema version</th><td>{{.Doc.Appendix.SchemaVersion}}</td></tr>
+<tr><th>Generator</th><td>{{.Doc.Appendix.Generator}}</td></tr>
+</tbody>
+</table>
+{{range .Doc.Appendix.Notes}}<p class="note">{{.}}</p>
+{{end}}
+</main>
+</body>
+</html>

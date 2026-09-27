@@ -1,6 +1,7 @@
 package authorisation
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -29,39 +30,31 @@ func GetPermissions(w http.ResponseWriter, r *http.Request) {
 	shared.SendJSONResponse(w, http.StatusOK, resp)
 }
 
-type roleEntry struct {
-	sources []RoleSource
-}
-
 func resolveUserPermissions(userID string) (*PermissionsResponse, error) {
 	user, err := authhelper.GetUserByIDWithErrorHandling(userID)
 	if err != nil {
 		return nil, err
 	}
 
-	roleMap := collectDirectRoles(user.AssignedRolesIDs)
-	collectInheritedRoles(user.AssignedGroupsIDs, roleMap)
+	roleMap := collectDirectRoles(user.RoleRefs)
+	collectInheritedRoles(user.GroupRefs, roleMap)
 
 	resolvedRoles := resolveRoles(roleMap)
 	return &PermissionsResponse{UserID: userID, Roles: resolvedRoles}, nil
 }
 
-func collectDirectRoles(assignedRoleIDs []*string) map[string]*roleEntry {
-	roleMap := make(map[string]*roleEntry)
+func collectDirectRoles(assignedRoleIDs []*string) map[string][]RoleSource {
+	roleMap := make(map[string][]RoleSource)
 	for _, rid := range assignedRoleIDs {
 		if rid == nil {
 			continue
 		}
-		id := *rid
-		if _, exists := roleMap[id]; !exists {
-			roleMap[id] = &roleEntry{}
-		}
-		roleMap[id].sources = append(roleMap[id].sources, RoleSource{Kind: "direct"})
+		roleMap[*rid] = append(roleMap[*rid], RoleSource{Kind: constants.RoleSourceDirect})
 	}
 	return roleMap
 }
 
-func collectInheritedRoles(assignedGroupIDs []*string, roleMap map[string]*roleEntry) {
+func collectInheritedRoles(assignedGroupIDs []*string, roleMap map[string][]RoleSource) {
 	groupClient := clients.GetGroupClient()
 	for _, gidPtr := range assignedGroupIDs {
 		if gidPtr == nil {
@@ -70,25 +63,28 @@ func collectInheritedRoles(assignedGroupIDs []*string, roleMap map[string]*roleE
 		groupID := *gidPtr
 		group, err := groupClient.GetGroupByID(groupID)
 		if err != nil {
-			lg.Error("failed to load group " + groupID + ": " + err.Error())
+			lg.Error(fmt.Sprintf(string(constants.ErrFailedLoadGroup), groupID, err))
 			continue
 		}
-		for _, rid := range group.AssignedRolesIDs {
-			if _, exists := roleMap[rid]; !exists {
-				roleMap[rid] = &roleEntry{}
-			}
-			roleMap[rid].sources = append(roleMap[rid].sources, RoleSource{Kind: "inherited", GroupID: groupID})
+		if group.DeletionTimestamp != nil {
+			continue
+		}
+		for _, rid := range group.RoleRefs {
+			roleMap[rid] = append(roleMap[rid], RoleSource{Kind: constants.RoleSourceInherited, GroupID: groupID})
 		}
 	}
 }
 
-func resolveRoles(roleMap map[string]*roleEntry) []ResolvedRole {
-	roleClient := clients.GetRoleClient()
+func resolveRoles(roleMap map[string][]RoleSource) []ResolvedRole {
+	roleClient := clients.GetAccessRoleClient()
 	resolvedRoles := make([]ResolvedRole, constants.DefaultInitValue, len(roleMap))
-	for roleID, entry := range roleMap {
-		role, err := roleClient.GetRoleByID(roleID)
+	for roleID, sources := range roleMap {
+		role, err := roleClient.GetAccessRoleByID(roleID)
 		if err != nil {
-			lg.Error("failed to load role " + roleID + ": " + err.Error())
+			lg.Error(fmt.Sprintf(string(constants.ErrFailedLoadRole), roleID, err))
+			continue
+		}
+		if role.DeletionTimestamp != nil {
 			continue
 		}
 		resolvedRoles = append(resolvedRoles, ResolvedRole{
@@ -97,7 +93,7 @@ func resolveRoles(roleMap map[string]*roleEntry) []ResolvedRole {
 			Status:    role.Status,
 			Priority:  role.Priority,
 			IsExpired: isRoleExpired(role),
-			Sources:   entry.sources,
+			Sources:   sources,
 			Scopes:    buildResolvedScopes(role.ScopesAndPermissions),
 		})
 	}
@@ -116,7 +112,7 @@ func buildResolvedScopes(sps []roleresource.ScopeAndPermissions) []ResolvedScope
 	return scopes
 }
 
-func isRoleExpired(role *roleresource.RoleAsResource) bool {
+func isRoleExpired(role *roleresource.AccessRole) bool {
 	if role.Validity == nil {
 		return false
 	}
@@ -126,9 +122,10 @@ func isRoleExpired(role *roleresource.RoleAsResource) bool {
 	if role.Validity.ExpiresAt == nil {
 		return false
 	}
+	// Same rule as x-ware/authz: an unparsable expiry is expired, never permanent.
 	expiry, err := time.Parse(constants.TimeFormatRFC3339, *role.Validity.ExpiresAt)
 	if err != nil {
-		return false
+		return true
 	}
 	return time.Now().After(expiry)
 }

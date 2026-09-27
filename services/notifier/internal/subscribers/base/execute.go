@@ -11,15 +11,7 @@ import (
 	natscore "github.com/telark/x-ware/nats/core"
 )
 
-type (
-	DeleteFunc      func(resourceName string) GenericResponse
-	GenericResponse interface {
-		GetStatus() int
-		GetMessage() string
-	}
-)
-
-func ExecuteDeleteHandler(
+func (s *BaseSubscriber) ExecuteDeleteHandler(
 	m *nats.Msg,
 	deleteFunc DeleteFunc,
 	successMsgTmpl string,
@@ -42,8 +34,13 @@ func ExecuteDeleteHandler(
 
 	response := deleteFunc(resourceName)
 
-	if response.GetStatus() != http.StatusOK {
-		return AckWithLog(m, m.Subject, fmt.Sprintf(errorDeleteTmpl, resourceName, response.GetMessage()), true)
+	// A 404 means the resource is already gone, which is what the delete wanted.
+	if status := response.GetStatus(); status != http.StatusOK && status != http.StatusNotFound {
+		logMsg := fmt.Sprintf(errorDeleteTmpl, resourceName, response.GetMessage())
+		if TransientStatus(status) {
+			return s.NakWithLog(m, m.Subject, logMsg)
+		}
+		return AckWithLog(m, m.Subject, logMsg, true)
 	}
 
 	_ = AckWithLog(m, m.Subject, fmt.Sprintf(successMsgTmpl, resourceName), false)

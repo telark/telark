@@ -17,6 +17,7 @@ app:
       enabled: false
   persistence:
     size: 1Gi
+    reportsSize: 512Mi
   shared:
     resources:
       requests:
@@ -41,11 +42,13 @@ services:
       DISCOVERY_K8S_CLIENT_QPS: "50"
       DISCOVERY_K8S_CLIENT_BURST: "100"
       FORCE_SYNC_WORKERS: "2"
+      PROTECTION_PLAN_REPORT_MAX_VIOLATIONS: "2000"
+      PROTECTION_PLAN_REPORT_CHECKPOINT_SEC: "1800"
     pdb:
       enabled: false
-  enrichment:
+  analyzer:
     env:
-      NUM_WORKERS: "1"
+      ANALYZER_REVIEW_APPS_PER_MIN: "10"
     pdb:
       enabled: false
   notifier:

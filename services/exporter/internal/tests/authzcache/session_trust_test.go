@@ -29,7 +29,9 @@ func TestForgedSessionCacheEntryDoesNotAuthenticate(t *testing.T) {
 	t.Cleanup(func() { _ = client.Close() })
 	exprdb.Set(client)
 
-	mr.Set(authzSessionKey(attackerToken), victimUserID)
+	if err := mr.Set(authzSessionKey(attackerToken), victimUserID); err != nil {
+		t.Fatalf("planting the session cache entry: %v", err)
+	}
 
 	userID, err := authz.NewResolver().UserIDForToken(attackerToken)
 	if err == nil {

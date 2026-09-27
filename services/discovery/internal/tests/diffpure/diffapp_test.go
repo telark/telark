@@ -5,9 +5,12 @@ import (
 	"testing"
 
 	appresource "github.com/telark/data/resources/application"
+	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/applications/history/diff"
 	"github.com/telark/discovery/internal/tests/testutil"
 )
+
+const sealedGeneration = 4
 
 // A changed application whose pre-update snapshot is supplied through
 // DiffOptions can seal the next generation: the change path runs to completion,
@@ -15,22 +18,22 @@ import (
 // prewritten-snapshot branch and the change-history builder that the
 // empty-manifest change test cannot reach.
 func TestDiffApplicationsPrewrittenSeal(t *testing.T) {
-	created := 0
+	created := constants.DefaultInitValue
 	stored := &appresource.Application{
 		Name:      "sealed",
-		Resources: []appresource.Resource{{Namespace: "prod", Kind: "Deployment", Name: "api"}},
-		Images:    []string{"nginx:1.0"},
-		History:   appresource.ApplicationHistory{Generation: 3},
+		Resources: []appresource.Resource{{Namespace: diffNamespace, Kind: kindDeployment, Name: workloadAPI}},
+		Images:    []string{diffImage},
+		History:   appresource.ApplicationHistory{Generation: constants.ThreeValue},
 	}
 	fresh := appresource.Application{
 		Name:      "sealed",
-		Resources: []appresource.Resource{{Namespace: "prod", Kind: "Deployment", Name: "api"}},
+		Resources: []appresource.Resource{{Namespace: diffNamespace, Kind: kindDeployment, Name: workloadAPI}},
 		Images:    []string{"nginx:2.0"},
 	}
 	opts := &diff.DiffOptions{
-		PrewrittenGeneration: 4,
+		PrewrittenGeneration: sealedGeneration,
 		PrewrittenSnapshots: []appresource.ApplicationSnapshot{
-			{Generation: 4, ID: "s4", Namespace: "prod", Path: "prod/s4.json"},
+			{Generation: sealedGeneration, ID: "s4", Namespace: diffNamespace, Path: "prod/s4.json"},
 		},
 	}
 	history, snaps, changed := diff.DiffApplications(
@@ -38,11 +41,11 @@ func TestDiffApplicationsPrewrittenSeal(t *testing.T) {
 		newRedis(t), stored, fresh, opts,
 	)
 	testutil.Equal(t, "changed", changed, diff.OutcomeAuthored)
-	testutil.Equal(t, "generation", history.Generation, 4)
-	if len(history.ChangeLog) == 0 {
+	testutil.Equal(t, "generation", history.Generation, sealedGeneration)
+	if len(history.ChangeLog) == constants.DefaultInitValue {
 		t.Fatal("expected a change-log entry after sealing generation 4")
 	}
-	if !hasGeneration(snaps, 4) {
+	if !hasGeneration(snaps, sealedGeneration) {
 		t.Fatalf("sealed snapshots %v missing generation 4", snaps)
 	}
 }
@@ -60,7 +63,7 @@ func healthSealOpts(gen int) *diff.DiffOptions {
 	return &diff.DiffOptions{
 		PrewrittenGeneration: gen,
 		PrewrittenSnapshots: []appresource.ApplicationSnapshot{
-			{Generation: gen, ID: "s", Namespace: "prod", Path: "prod/s.json"},
+			{Generation: gen, ID: "s", Namespace: diffNamespace, Path: "prod/s.json"},
 		},
 	}
 }
@@ -68,11 +71,11 @@ func healthSealOpts(gen int) *diff.DiffOptions {
 // A health transition to "down" is a health-field change that runs the incident
 // gate and seals a new generation.
 func TestDiffApplicationsHealthIncident(t *testing.T) {
-	created := 0
+	created := constants.DefaultInitValue
 	base := appresource.Application{
 		Name:      "health-app",
-		Resources: []appresource.Resource{{Namespace: "prod", Kind: "Deployment", Name: "api"}},
-		History:   appresource.ApplicationHistory{Generation: 3},
+		Resources: []appresource.Resource{{Namespace: diffNamespace, Kind: kindDeployment, Name: workloadAPI}},
+		History:   appresource.ApplicationHistory{Generation: constants.ThreeValue},
 	}
 	stored := base
 	stored.Health = appresource.Health{Status: "healthy"}
@@ -81,10 +84,10 @@ func TestDiffApplicationsHealthIncident(t *testing.T) {
 
 	history, _, changed := diff.DiffApplications(
 		context.Background(), noopBaseline, recordingCreate(&created), emptyManifest,
-		newRedis(t), &stored, fresh, healthSealOpts(4),
+		newRedis(t), &stored, fresh, healthSealOpts(sealedGeneration),
 	)
 	testutil.Equal(t, "changed", changed, diff.OutcomeAuthored)
-	testutil.Equal(t, "generation", history.Generation, 4)
+	testutil.Equal(t, "generation", history.Generation, sealedGeneration)
 }
 
 // A health transition back to "healthy" runs the recovery branch of the gate.
@@ -92,11 +95,11 @@ func TestDiffApplicationsHealthIncident(t *testing.T) {
 // suppressed as a duplicate "already healthy" signal, so no new generation is
 // sealed.
 func TestDiffApplicationsHealthRecovery(t *testing.T) {
-	created := 0
+	created := constants.DefaultInitValue
 	base := appresource.Application{
 		Name:      "recovery-app",
-		Resources: []appresource.Resource{{Namespace: "prod", Kind: "Deployment", Name: "api"}},
-		History:   appresource.ApplicationHistory{Generation: 3},
+		Resources: []appresource.Resource{{Namespace: diffNamespace, Kind: kindDeployment, Name: workloadAPI}},
+		History:   appresource.ApplicationHistory{Generation: constants.ThreeValue},
 	}
 	stored := base
 	stored.Health = appresource.Health{Status: "down"}
@@ -105,8 +108,8 @@ func TestDiffApplicationsHealthRecovery(t *testing.T) {
 
 	history, _, changed := diff.DiffApplications(
 		context.Background(), noopBaseline, recordingCreate(&created), emptyManifest,
-		newRedis(t), &stored, fresh, healthSealOpts(4),
+		newRedis(t), &stored, fresh, healthSealOpts(sealedGeneration),
 	)
 	testutil.Equal(t, "suppressed", changed, diff.OutcomeNoChange)
-	testutil.Equal(t, "generation held", history.Generation, 3)
+	testutil.Equal(t, "generation held", history.Generation, constants.ThreeValue)
 }

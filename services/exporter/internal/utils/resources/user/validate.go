@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	dataerrors "github.com/telark/data/errors"
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	userdata "github.com/telark/data/resources/user"
 	"github.com/telark/exporter/internal/constants"
 	resourcesshared "github.com/telark/exporter/internal/utils/resources/shared"
@@ -15,7 +15,7 @@ import (
 )
 
 func ValidateUserOrRespond(w http.ResponseWriter, userID string) bool {
-	return resourcesshared.ValidateResourceOrRespond(w, userID, metadata.UserAsResourceMetadata, constants.ErrUserNotFound)
+	return resourcesshared.ValidateResourceOrRespond(w, userID, metadata.UserMetadata, constants.ErrUserNotFound)
 }
 
 func CheckUsernameExists(username string) error {
@@ -24,7 +24,7 @@ func CheckUsernameExists(username string) error {
 	}
 
 	exists, err := sharedutils.CheckFieldValueExists(
-		metadata.UserAsResourceMetadata,
+		metadata.UserMetadata,
 		dataerrors.ErrGetRes,
 		constants.FieldUsername,
 		username,
@@ -60,6 +60,35 @@ func CheckUsernameChangeAllowed(existingUsername, newUsername string, w http.Res
 	return false
 }
 
+// An empty email is not an identity, so it is never a duplicate.
+func CheckEmailExists(email string) error {
+	if NormalizeEmail(email) == constants.EmptyString {
+		return nil
+	}
+	_, err := FindUserByEmail(email)
+	if err == nil {
+		return errors.New(string(constants.ErrEmailAlreadyExists))
+	}
+	if errors.Is(err, ErrUserNotFound) {
+		return nil
+	}
+	return err
+}
+
+func CheckEmailChangeAllowed(existingEmail, newEmail string, w http.ResponseWriter) bool {
+	if NormalizeEmail(newEmail) == NormalizeEmail(existingEmail) {
+		return true
+	}
+
+	err := CheckEmailExists(newEmail)
+	if err == nil {
+		return true
+	}
+
+	sharedutils.LogByStatusAndSend(w, http.StatusConflict, response.OperationError, err.Error(), nil, err)
+	return false
+}
+
 func CheckIdentityExists(provider, issuer, subject string) error {
 	_, err := FindUserByIdentity(provider, issuer, subject)
 	if err == nil {
@@ -71,7 +100,7 @@ func CheckIdentityExists(provider, issuer, subject string) error {
 	return err
 }
 
-func ValidateAndPrepareUser(user *userdata.UserAsResource, w http.ResponseWriter) error {
+func ValidateAndPrepareUser(user *userdata.User, w http.ResponseWriter) error {
 	for _, identity := range user.Identities {
 		if identity == nil {
 			continue
@@ -99,8 +128,13 @@ func ValidateAndPrepareUser(user *userdata.UserAsResource, w http.ResponseWriter
 		return err
 	}
 
+	if err := CheckEmailExists(user.Email); err != nil {
+		sharedutils.LogByStatusAndSend(w, http.StatusConflict, response.OperationError, err.Error(), nil, err)
+		return err
+	}
+
 	userID, err := resourcesshared.GenerateUniqueResourceID(
-		metadata.UserAsResourceMetadata,
+		metadata.UserMetadata,
 		constants.UserIDConfig,
 	)
 	if err != nil {

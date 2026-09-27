@@ -4,56 +4,68 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/telark/exporter/internal/constants"
 	notiftypes "github.com/telark/exporter/internal/types/notifications"
 	notifdiff "github.com/telark/exporter/internal/utils/notifications"
+)
+
+const (
+	idA = "a"
+	idB = "b"
+	idC = "c"
+
+	rolesKey = "roles"
+	idsKey   = "ids"
+
+	wantTwoEntries = 2
 )
 
 func ptr(s string) *string { return &s }
 
 func TestDiffStringSlices(t *testing.T) {
-	added, removed := notifdiff.DiffStringSlices([]string{"a", "b"}, []string{"b", "c"})
-	if len(added) != 1 || added[0] != "c" {
+	added, removed := notifdiff.DiffStringSlices([]string{idA, idB}, []string{idB, idC})
+	if len(added) != constants.DefaultIncrementValue || added[constants.DefaultInitValue] != idC {
 		t.Errorf("added = %v, want [c]", added)
 	}
-	if len(removed) != 1 || removed[0] != "a" {
+	if len(removed) != constants.DefaultIncrementValue || removed[constants.DefaultInitValue] != idA {
 		t.Errorf("removed = %v, want [a]", removed)
 	}
 }
 
 func TestDiffPtrStringSlices(t *testing.T) {
-	old := []*string{ptr("a"), nil, ptr("b")}
-	next := []*string{ptr("b"), ptr("c"), nil}
+	old := []*string{ptr(idA), nil, ptr(idB)}
+	next := []*string{ptr(idB), ptr(idC), nil}
 	added, removed := notifdiff.DiffPtrStringSlices(old, next)
-	if len(added) != 1 || added[0] != "c" {
+	if len(added) != constants.DefaultIncrementValue || added[constants.DefaultInitValue] != idC {
 		t.Errorf("added = %v, want [c]", added)
 	}
-	if len(removed) != 1 || removed[0] != "a" {
+	if len(removed) != constants.DefaultIncrementValue || removed[constants.DefaultInitValue] != idA {
 		t.Errorf("removed = %v, want [a]", removed)
 	}
 }
 
 func TestExtractNewRoleIDsFromBody(t *testing.T) {
-	got := notifdiff.ExtractNewRoleIDsFromBody(map[string]any{"roles": []any{"r1", 2, "r2"}}, "roles")
-	if len(got) != 2 || *got[0] != "r1" || *got[1] != "r2" {
+	got := notifdiff.ExtractNewRoleIDsFromBody(map[string]any{rolesKey: []any{"r1", 2, "r2"}}, rolesKey)
+	if len(got) != wantTwoEntries || *got[constants.DefaultInitValue] != "r1" || *got[constants.DefaultIncrementValue] != "r2" {
 		t.Errorf("got %v non-string entries not skipped", got)
 	}
-	if notifdiff.ExtractNewRoleIDsFromBody(map[string]any{}, "roles") != nil {
+	if notifdiff.ExtractNewRoleIDsFromBody(map[string]any{}, rolesKey) != nil {
 		t.Error("absent key should return nil")
 	}
-	if notifdiff.ExtractNewRoleIDsFromBody(map[string]any{"roles": "x"}, "roles") != nil {
+	if notifdiff.ExtractNewRoleIDsFromBody(map[string]any{rolesKey: "x"}, rolesKey) != nil {
 		t.Error("non-slice value should return nil")
 	}
 }
 
 func TestExtractNewStringIDsFromBody(t *testing.T) {
-	if got := notifdiff.ExtractNewStringIDsFromBody(map[string]any{"ids": []string{"a"}}, "ids"); len(got) != 1 {
+	if got := notifdiff.ExtractNewStringIDsFromBody(map[string]any{idsKey: []string{idA}}, idsKey); len(got) != constants.DefaultIncrementValue {
 		t.Errorf("[]string not returned: %v", got)
 	}
-	got := notifdiff.ExtractNewStringIDsFromBody(map[string]any{"ids": []any{"a", 1}}, "ids")
-	if len(got) != 1 || got[0] != "a" {
+	got := notifdiff.ExtractNewStringIDsFromBody(map[string]any{idsKey: []any{idA, 1}}, idsKey)
+	if len(got) != constants.DefaultIncrementValue || got[constants.DefaultInitValue] != idA {
 		t.Errorf("[]any not filtered: %v", got)
 	}
-	if notifdiff.ExtractNewStringIDsFromBody(map[string]any{"ids": 5}, "ids") != nil {
+	if notifdiff.ExtractNewStringIDsFromBody(map[string]any{idsKey: 5}, idsKey) != nil {
 		t.Error("unsupported type should return nil")
 	}
 }
@@ -67,10 +79,10 @@ func TestValidateForEmit(t *testing.T) {
 		name   string
 		mutate func(n *notiftypes.Notification)
 	}{
-		{"no user", func(n *notiftypes.Notification) { n.UserID = "" }},
-		{"no type", func(n *notiftypes.Notification) { n.Type = "" }},
-		{"no title", func(n *notiftypes.Notification) { n.Title = "" }},
-		{"no message", func(n *notiftypes.Notification) { n.Message = "" }},
+		{"no user", func(n *notiftypes.Notification) { n.UserID = constants.EmptyString }},
+		{"no type", func(n *notiftypes.Notification) { n.Type = constants.EmptyString }},
+		{"no title", func(n *notiftypes.Notification) { n.Title = constants.EmptyString }},
+		{"no message", func(n *notiftypes.Notification) { n.Message = constants.EmptyString }},
 		{"bad severity", func(n *notiftypes.Notification) { n.Severity = "nope" }},
 	}
 	for _, tt := range tests {

@@ -1,6 +1,16 @@
 package shared
 
-import "github.com/telark/discovery/internal/constants"
+import (
+	"context"
+	"net/http"
+	"slices"
+
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/core/plans/protection/validation"
+	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
+	"github.com/telark/rest/response"
+	responseutils "github.com/telark/rest/utils/response"
+)
 
 type NameFetcher struct {
 	Dst *[]string
@@ -40,4 +50,23 @@ func NamesFromList[T any](
 		names = append(names, getName(list[i]))
 	}
 	return names, nil
+}
+
+// Fails closed: names in excluded namespaces and in the release namespace (the service token
+// Secret among them) are never listed, and an unknown excluded list refuses every namespace.
+func NamespaceListable(w http.ResponseWriter, r *http.Request, namespace string) bool {
+	ctx, cancel := context.WithTimeout(r.Context(), constants.InsightsReadTimeout)
+	defer cancel()
+	excluded, err := tcfghelper.ExcludedNamespaces(ctx)
+	if err != nil {
+		responseutils.LogAndSendResponse(w, http.StatusServiceUnavailable, response.OperationError, err.Error(), nil, err)
+		return false
+	}
+	if slices.Contains(excluded, namespace) || namespace == validation.OwnNamespace() {
+		responseutils.LogAndSendResponse(
+			w, http.StatusForbidden, response.OperationError, string(constants.ErrNamespaceNotListable), nil, nil,
+		)
+		return false
+	}
+	return true
 }

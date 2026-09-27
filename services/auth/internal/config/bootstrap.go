@@ -1,7 +1,7 @@
 package config
 
 import (
-	"fmt"
+	"errors"
 	"slices"
 	"strings"
 	"sync"
@@ -68,7 +68,7 @@ func parseBootstrapAdmins(raw string) []string {
 		return nil
 	}
 
-	entries := strings.Split(raw, ",")
+	entries := strings.Split(raw, constants.CommaSeparator)
 	admins := make([]string, constants.InitialCapacity, len(entries))
 
 	for _, entry := range entries {
@@ -84,7 +84,7 @@ func parseBootstrapAdmins(raw string) []string {
 
 func validateBootstrapConfig(cfg *BootstrapConfig) error {
 	if len(cfg.BootstrapAdmins) == constants.DefaultInitValue && !cfg.SelfRegistrationEnabled {
-		return fmt.Errorf("%s", constants.ErrBootstrapNoAdminsAndNoSelfReg)
+		return errors.New(string(constants.ErrBootstrapNoAdminsAndNoSelfReg))
 	}
 	return nil
 }

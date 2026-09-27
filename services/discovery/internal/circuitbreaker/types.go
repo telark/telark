@@ -15,15 +15,14 @@ type (
 )
 
 const (
-	StateClosed          State          = "Closed"
-	StateOpen            State          = "Open"
-	StateHalfOpen        State          = "HalfOpen"
-	DependencyRedis      DependencyType = "Redis"
-	DependencyNATS       DependencyType = "NATS"
-	DependencyExporter   DependencyType = "Exporter"
-	DependencyAuth       DependencyType = "Auth"
-	DependencyNotifier   DependencyType = "Notifier"
-	DependencyEnrichment DependencyType = "Enrichment"
+	StateClosed        State          = "Closed"
+	StateOpen          State          = "Open"
+	StateHalfOpen      State          = "HalfOpen"
+	DependencyRedis    DependencyType = "Redis"
+	DependencyNATS     DependencyType = "NATS"
+	DependencyExporter DependencyType = "Exporter"
+	DependencyAuth     DependencyType = "Auth"
+	DependencyNotifier DependencyType = "Notifier"
 )
 
 type openError struct {

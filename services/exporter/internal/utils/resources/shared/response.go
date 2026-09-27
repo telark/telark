@@ -41,7 +41,15 @@ func SendFilteredResourcesResponse(w http.ResponseWriter, resources []*unstructu
 	)
 }
 
+func SendFilteredPatchResponse(w http.ResponseWriter, resource *unstructured.Unstructured) {
+	sendFilteredResource(w, resource, messages.SuccessUpdateRes)
+}
+
 func SendFilteredResourceResponse(w http.ResponseWriter, resource *unstructured.Unstructured) {
+	sendFilteredResource(w, resource, messages.SuccessGetRes)
+}
+
+func sendFilteredResource(w http.ResponseWriter, resource *unstructured.Unstructured, success messages.Message) {
 	filtered, err := sharedutils.FilterData(resource)
 	if err != nil {
 		responseutils.LogAndSendResponse(
@@ -55,6 +63,6 @@ func SendFilteredResourceResponse(w http.ResponseWriter, resource *unstructured.
 		return
 	}
 
-	msg := fmt.Sprintf(string(messages.SuccessGetRes), resource.GetName(), resource.GetKind())
+	msg := fmt.Sprintf(string(success), resource.GetName(), resource.GetKind())
 	responseutils.SendResponse(w, http.StatusOK, response.OperationSuccess, msg, filtered)
 }

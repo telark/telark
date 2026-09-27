@@ -6,9 +6,17 @@ import (
 	"time"
 
 	appresource "github.com/telark/data/resources/application"
+	"github.com/telark/discovery/internal/constants"
 	historyshared "github.com/telark/discovery/internal/core/applications/history/shared"
 	"github.com/telark/discovery/internal/core/applications/snapshot"
 	"github.com/telark/discovery/internal/tests/testutil"
+)
+
+const (
+	snapNamespace  = "prod"
+	keyNamespace   = "namespace"
+	changeClass    = "c"
+	sealGeneration = 5
 )
 
 // With the manifest cache populated (so no cluster fetch happens), the strict
@@ -19,32 +27,32 @@ func TestBuildSnapshotEntriesStrict(t *testing.T) {
 		return map[string]any{
 			"apiVersion": "apps/v1",
 			"kind":       kind,
-			"metadata":   map[string]any{"name": name, "namespace": ns},
+			"metadata":   map[string]any{"name": name, keyNamespace: ns},
 		}, true
 	}
 	t.Cleanup(func() { snapshot.GetManifestFromCache = nil })
 
-	created := 0
+	created := constants.DefaultInitValue
 	createSnap := func(id, _ string, _ string, _ int, _ any) (string, error) {
 		created++
 		return "path/" + id, nil
 	}
 	stored := &appresource.Application{
 		Resources: []appresource.Resource{
-			{Namespace: "prod", Kind: "Deployment", Name: "web"},
-			{Namespace: "prod", Kind: "Service", Name: "web-svc"},
+			{Namespace: snapNamespace, Kind: "Deployment", Name: "web"},
+			{Namespace: snapNamespace, Kind: "Service", Name: "web-svc"},
 		},
 	}
 
 	entries, err := snapshot.BuildSnapshotEntriesStrict(
-		context.Background(), createSnap, stored, 2,
+		context.Background(), createSnap, stored, constants.TwoValue,
 		appresource.ChangeClassDeployment, historyshared.SeverityHigh, time.Now(),
 	)
 	testutil.Equal(t, "err", err, nil)
-	testutil.Equal(t, "one namespace entry", len(entries), 1)
-	testutil.Equal(t, "generation", entries[0].Generation, 2)
-	testutil.Equal(t, "namespace", entries[0].Namespace, "prod")
-	if created == 0 {
+	testutil.Equal(t, "one namespace entry", len(entries), constants.DefaultAddValue)
+	testutil.Equal(t, "generation", entries[0].Generation, constants.TwoValue)
+	testutil.Equal(t, keyNamespace, entries[0].Namespace, snapNamespace)
+	if created == constants.DefaultInitValue {
 		t.Fatal("createSnapshot was never invoked")
 	}
 }
@@ -53,23 +61,23 @@ func TestBuildSnapshotEntriesStrict(t *testing.T) {
 // and returns an empty (non-error) slice when the creator is nil.
 func TestBuildSnapshotEntries(t *testing.T) {
 	snapshot.GetManifestFromCache = func(kind, name, ns string) (map[string]any, bool) {
-		return map[string]any{"kind": kind, "metadata": map[string]any{"name": name, "namespace": ns}}, true
+		return map[string]any{"kind": kind, "metadata": map[string]any{"name": name, keyNamespace: ns}}, true
 	}
 	t.Cleanup(func() { snapshot.GetManifestFromCache = nil })
 
 	createSnap := func(id, _ string, _ string, _ int, _ any) (string, error) { return "path/" + id, nil }
 	stored := &appresource.Application{
-		Resources: []appresource.Resource{{Namespace: "prod", Kind: "Deployment", Name: "web"}},
+		Resources: []appresource.Resource{{Namespace: snapNamespace, Kind: "Deployment", Name: "web"}},
 	}
 	entries := snapshot.BuildSnapshotEntries(
-		context.Background(), createSnap, stored, 5,
+		context.Background(), createSnap, stored, sealGeneration,
 		appresource.ChangeClassDeployment, historyshared.SeverityHigh, time.Now(),
 	)
-	testutil.Equal(t, "entries", len(entries), 1)
-	testutil.Equal(t, "generation", entries[0].Generation, 5)
+	testutil.Equal(t, "entries", len(entries), constants.DefaultAddValue)
+	testutil.Equal(t, "generation", entries[0].Generation, sealGeneration)
 
-	empty := snapshot.BuildSnapshotEntries(context.Background(), nil, stored, 5, "c", historyshared.SeverityHigh, time.Now())
-	testutil.Equal(t, "nil creator empty", len(empty), 0)
+	empty := snapshot.BuildSnapshotEntries(context.Background(), nil, stored, sealGeneration, changeClass, historyshared.SeverityHigh, time.Now())
+	testutil.Equal(t, "nil creator empty", len(empty), constants.DefaultInitValue)
 }
 
 // The strict builder rejects a nil creator and a nil stored application.
@@ -78,10 +86,14 @@ func TestBuildSnapshotEntriesStrictGuards(t *testing.T) {
 	stored := &appresource.Application{}
 	createSnap := func(_ string, _ string, _ string, _ int, _ any) (string, error) { return "p", nil }
 
-	if _, err := snapshot.BuildSnapshotEntriesStrict(ctx, nil, stored, 1, "c", historyshared.SeverityHigh, time.Now()); err == nil {
+	if _, err := snapshot.BuildSnapshotEntriesStrict(
+		ctx, nil, stored, constants.DefaultAddValue, changeClass, historyshared.SeverityHigh, time.Now(),
+	); err == nil {
 		t.Fatal("nil createSnapshot should error")
 	}
-	if _, err := snapshot.BuildSnapshotEntriesStrict(ctx, createSnap, nil, 1, "c", historyshared.SeverityHigh, time.Now()); err == nil {
+	if _, err := snapshot.BuildSnapshotEntriesStrict(
+		ctx, createSnap, nil, constants.DefaultAddValue, changeClass, historyshared.SeverityHigh, time.Now(),
+	); err == nil {
 		t.Fatal("nil stored application should error")
 	}
 }

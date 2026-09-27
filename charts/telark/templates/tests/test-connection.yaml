@@ -1,7 +1,7 @@
 {{- $fullname := include "telark.fullname" . -}}
 {{- $port := .Values.app.serviceDefaults.port -}}
 {{- $readyPath := .Values.app.shared.healthCheck.readinessProbe.path -}}
-{{- $group := printf "erpi.%s" (include "telark.name" .) -}}
+{{- $group := include "telark.apiGroup" . -}}
 apiVersion: v1
 kind: Pod
 metadata:

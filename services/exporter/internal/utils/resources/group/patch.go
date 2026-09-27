@@ -12,12 +12,13 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func GetExistingGroupForPatch(w http.ResponseWriter, groupID string) (*groupdata.GroupAsResource, bool) {
+func GetExistingGroupForPatch(w http.ResponseWriter, groupID string) (*groupdata.Group, bool) {
 	existingResource, ok := FindGroupByIDOrRespond(w, groupID)
 	if !ok {
 		return nil, false
 	}
 
+	sharedutils.ProjectDeletionTimestamp(existingResource)
 	existingGroup, err := ExtractGroupFromUnstructured(existingResource)
 	if err != nil {
 		responseutils.LogAndSendResponse(
@@ -34,11 +35,11 @@ func GetExistingGroupForPatch(w http.ResponseWriter, groupID string) (*groupdata
 	return existingGroup, true
 }
 
-func ExtractGroupFromUnstructured(resource *unstructured.Unstructured) (*groupdata.GroupAsResource, error) {
-	return sharedutils.SpecToStruct[groupdata.GroupAsResource](resource)
+func ExtractGroupFromUnstructured(resource *unstructured.Unstructured) (*groupdata.Group, error) {
+	return sharedutils.SpecToStruct[groupdata.Group](resource)
 }
 
-func ExtractAndMergeGroupForPatch(existingGroup *groupdata.GroupAsResource, body map[string]any, w http.ResponseWriter) bool {
+func ExtractAndMergeGroupForPatch(existingGroup *groupdata.Group, body map[string]any, w http.ResponseWriter) bool {
 	newGroup, err := ExtractGroupSpecFromRequestBody(body)
 	if err != nil {
 		responseutils.LogAndSendResponse(

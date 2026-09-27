@@ -13,64 +13,75 @@ import (
 	"github.com/telark/auth/internal/tests/testutil"
 )
 
+const (
+	appHost   = "app.example.com"
+	appOrigin = "https://app.example.com"
+	rootRPID  = "example.com"
+)
+
+var (
+	followRequest = config.WebAuthnConfig{RPName: rpName, ChallengeTimeout: challengeTimeoutSecs}
+	pinnedID      = config.WebAuthnConfig{RPName: rpName, ChallengeTimeout: challengeTimeoutSecs, RPID: rootRPID}
+	pinnedList    = config.WebAuthnConfig{
+		RPName: rpName, ChallengeTimeout: challengeTimeoutSecs,
+		RPID: rootRPID, RPOrigin: "https://a.example.com, https://b.example.com",
+	}
+)
+
+type relyingPartyCase struct {
+	name          string
+	cfg           config.WebAuthnConfig
+	host          string
+	forwardedHost string
+	origin        string
+	wantRPID      string
+	wantOrigins   []string
+	wantErr       bool
+}
+
+var relyingPartyCases = []relyingPartyCase{
+	{
+		name: "empty config follows host and origin", cfg: followRequest,
+		host: appHost, origin: appOrigin,
+		wantRPID: appHost, wantOrigins: []string{appOrigin},
+	},
+	{
+		name: "empty config prefers X-Forwarded-Host and strips the port", cfg: followRequest,
+		host: "ui:8080", forwardedHost: "app.example.com:3000", origin: "https://app.example.com:3000",
+		wantRPID: appHost, wantOrigins: []string{"https://app.example.com:3000"},
+	},
+	{
+		name: "empty config falls back to scheme and host without Origin", cfg: followRequest,
+		host:     appHost,
+		wantRPID: appHost, wantOrigins: []string{"http://app.example.com"},
+	},
+	{
+		name: "empty config rejects an origin on another host", cfg: followRequest,
+		host: appHost, origin: "https://evil.example.org", wantErr: true,
+	},
+	{
+		name: "pinned id accepts a subdomain origin", cfg: pinnedID,
+		host: appHost, origin: appOrigin,
+		wantRPID: rootRPID, wantOrigins: []string{appOrigin},
+	},
+	{
+		name: "pinned list accepts a listed origin", cfg: pinnedList,
+		host: appHost, origin: "https://b.example.com",
+		wantRPID: rootRPID, wantOrigins: []string{"https://a.example.com", "https://b.example.com"},
+	},
+	{
+		name: "pinned list rejects a foreign origin", cfg: pinnedList,
+		host: appHost, origin: "https://evil.example.org", wantErr: true,
+	},
+}
+
 // With RP_ID / RP_ORIGIN empty the relying party follows the request; a pinned
-// origin list keeps today's behaviour and refuses any other Origin with the
+// origin list keeps today's behavior and refuses any other Origin with the
 // 400-style error. The same (rpID, origin) pair always yields the same instance.
 func TestGetWebAuthnForResolvesRelyingPartyPerRequest(t *testing.T) {
 	t.Cleanup(func() { _ = webauthnhelper.InitWebAuthn(&pinnedRelyingParty) })
 
-	follow := config.WebAuthnConfig{RPName: "Test", ChallengeTimeout: 60}
-	pinnedID := config.WebAuthnConfig{RPName: "Test", ChallengeTimeout: 60, RPID: "example.com"}
-	pinnedList := config.WebAuthnConfig{
-		RPName: "Test", ChallengeTimeout: 60,
-		RPID: "example.com", RPOrigin: "https://a.example.com, https://b.example.com",
-	}
-
-	cases := []struct {
-		name          string
-		cfg           config.WebAuthnConfig
-		host          string
-		forwardedHost string
-		origin        string
-		wantRPID      string
-		wantOrigins   []string
-		wantErr       bool
-	}{
-		{
-			name: "empty config follows host and origin", cfg: follow,
-			host: "app.example.com", origin: "https://app.example.com",
-			wantRPID: "app.example.com", wantOrigins: []string{"https://app.example.com"},
-		},
-		{
-			name: "empty config prefers X-Forwarded-Host and strips the port", cfg: follow,
-			host: "ui:8080", forwardedHost: "app.example.com:3000", origin: "https://app.example.com:3000",
-			wantRPID: "app.example.com", wantOrigins: []string{"https://app.example.com:3000"},
-		},
-		{
-			name: "empty config falls back to scheme and host without Origin", cfg: follow,
-			host:     "app.example.com",
-			wantRPID: "app.example.com", wantOrigins: []string{"http://app.example.com"},
-		},
-		{
-			name: "empty config rejects an origin on another host", cfg: follow,
-			host: "app.example.com", origin: "https://evil.example.org", wantErr: true,
-		},
-		{
-			name: "pinned id accepts a subdomain origin", cfg: pinnedID,
-			host: "app.example.com", origin: "https://app.example.com",
-			wantRPID: "example.com", wantOrigins: []string{"https://app.example.com"},
-		},
-		{
-			name: "pinned list accepts a listed origin", cfg: pinnedList,
-			host: "app.example.com", origin: "https://b.example.com",
-			wantRPID: "example.com", wantOrigins: []string{"https://a.example.com", "https://b.example.com"},
-		},
-		{
-			name: "pinned list rejects a foreign origin", cfg: pinnedList,
-			host: "app.example.com", origin: "https://evil.example.org", wantErr: true,
-		},
-	}
-	for _, c := range cases {
+	for _, c := range relyingPartyCases {
 		t.Run(c.name, func(t *testing.T) {
 			if err := webauthnhelper.InitWebAuthn(&c.cfg); err != nil {
 				t.Fatalf("InitWebAuthn = %v", err)

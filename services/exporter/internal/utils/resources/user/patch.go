@@ -13,12 +13,13 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func GetExistingUserForPatch(w http.ResponseWriter, userID string) (*userdata.UserAsResource, bool) {
+func GetExistingUserForPatch(w http.ResponseWriter, userID string) (*userdata.User, bool) {
 	existingResource, ok := FindUserByIDOrRespond(w, userID)
 	if !ok {
 		return nil, false
 	}
 
+	sharedutils.ProjectDeletionTimestamp(existingResource)
 	existingUser, err := ExtractUserFromUnstructured(existingResource)
 	if err != nil {
 		responseutils.LogAndSendResponse(
@@ -35,11 +36,11 @@ func GetExistingUserForPatch(w http.ResponseWriter, userID string) (*userdata.Us
 	return existingUser, true
 }
 
-func ExtractUserFromUnstructured(resource *unstructured.Unstructured) (*userdata.UserAsResource, error) {
-	return sharedutils.SpecToStruct[userdata.UserAsResource](resource)
+func ExtractUserFromUnstructured(resource *unstructured.Unstructured) (*userdata.User, error) {
+	return sharedutils.SpecToStruct[userdata.User](resource)
 }
 
-func ExtractAndMergeUserForPatch(existingUser *userdata.UserAsResource, body map[string]any, w http.ResponseWriter) bool {
+func ExtractAndMergeUserForPatch(existingUser *userdata.User, body map[string]any, w http.ResponseWriter) bool {
 	newUser, err := ExtractUserSpecFromRequestBody(body)
 	if err != nil {
 		responseutils.LogAndSendResponse(
@@ -58,13 +59,18 @@ func ExtractAndMergeUserForPatch(existingUser *userdata.UserAsResource, body map
 			return false
 		}
 	}
+	if _, provided := body[constants.FieldEmail]; provided {
+		if !CheckEmailChangeAllowed(existingUser.Email, newUser.Email, w) {
+			return false
+		}
+	}
 
 	MergeUserAndPreparePatchBody(existingUser, newUser, body)
 	delete(body, constants.FieldCreationDate)
 	return true
 }
 
-func MergeUserAndPreparePatchBody(existingUser, newUser *userdata.UserAsResource, body map[string]any) *userdata.UserAsResource {
+func MergeUserAndPreparePatchBody(existingUser, newUser *userdata.User, body map[string]any) *userdata.User {
 	mergedUser := *existingUser
 
 	replaceStringIfProvided(body, constants.FieldUsername, newUser.Username, &mergedUser.Username)
@@ -88,15 +94,15 @@ func MergeUserAndPreparePatchBody(existingUser, newUser *userdata.UserAsResource
 
 	resourcesshared.ReplaceIDsIfProvided(
 		body,
-		constants.FieldAssignedRolesIDs,
-		newUser.AssignedRolesIDs,
-		&mergedUser.AssignedRolesIDs,
+		constants.FieldRoleRefs,
+		newUser.RoleRefs,
+		&mergedUser.RoleRefs,
 	)
 	resourcesshared.ReplaceIDsIfProvided(
 		body,
-		constants.FieldAssignedGroupsIDs,
-		newUser.AssignedGroupsIDs,
-		&mergedUser.AssignedGroupsIDs,
+		constants.FieldGroupRefs,
+		newUser.GroupRefs,
+		&mergedUser.GroupRefs,
 	)
 
 	return &mergedUser

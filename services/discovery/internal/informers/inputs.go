@@ -25,6 +25,10 @@ func inputsForApp(
 			nsSet[ns] = struct{}{}
 		}
 	}
+	// The stored list alone never grows: an event in a namespace the store lost would be dropped.
+	for _, ns := range m.namespacesOfApp(ctx, appName) {
+		nsSet[ns] = struct{}{}
+	}
 	if len(nsSet) == constants.DefaultInitValue {
 		return nil
 	}

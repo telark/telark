@@ -17,6 +17,12 @@ import (
 	xauthz "github.com/telark/x-ware/authz"
 )
 
+const (
+	testUserID        = "u1"
+	notificationsPath = "/notifications"
+	selfListPath      = notificationsPath + "?userId=" + testUserID
+)
+
 func setupRedis(t *testing.T) {
 	t.Helper()
 	mr := miniredis.RunT(t)
@@ -33,19 +39,19 @@ func asSelf(userID, url string) *http.Request {
 func TestListHandler(t *testing.T) {
 	setupRedis(t)
 	rec := httptest.NewRecorder()
-	notifhandler.List()(rec, asSelf("u1", "/notifications?userId=u1"))
+	notifhandler.List()(rec, asSelf(testUserID, selfListPath))
 	if rec.Code != http.StatusOK {
 		t.Errorf("list code = %d, want 200", rec.Code)
 	}
 
 	noUser := httptest.NewRecorder()
-	notifhandler.List()(noUser, asSelf("u1", "/notifications"))
+	notifhandler.List()(noUser, asSelf(testUserID, notificationsPath))
 	if noUser.Code != http.StatusBadRequest {
 		t.Errorf("missing userId code = %d, want 400", noUser.Code)
 	}
 
 	forbidden := httptest.NewRecorder()
-	notifhandler.List()(forbidden, asSelf("someone-else", "/notifications?userId=u1"))
+	notifhandler.List()(forbidden, asSelf("someone-else", selfListPath))
 	if forbidden.Code != http.StatusForbidden {
 		t.Errorf("cross-user list code = %d, want 403", forbidden.Code)
 	}
@@ -55,20 +61,20 @@ func TestEmitHandler(t *testing.T) {
 	setupRedis(t)
 	valid := `{"userId":"u1","type":"role.changed","title":"t","message":"m","severity":"info"}`
 	rec := httptest.NewRecorder()
-	notifhandler.Emit()(rec, httptest.NewRequest(http.MethodPost, "/notifications", strings.NewReader(valid)))
+	notifhandler.Emit()(rec, httptest.NewRequest(http.MethodPost, notificationsPath, strings.NewReader(valid)))
 	if rec.Code != http.StatusOK {
 		t.Errorf("emit code = %d, want 200", rec.Code)
 	}
 
 	badBody := httptest.NewRecorder()
-	notifhandler.Emit()(badBody, httptest.NewRequest(http.MethodPost, "/notifications", strings.NewReader("{not json")))
+	notifhandler.Emit()(badBody, httptest.NewRequest(http.MethodPost, notificationsPath, strings.NewReader("{not json")))
 	if badBody.Code != http.StatusUnprocessableEntity {
 		t.Errorf("bad body code = %d, want 422", badBody.Code)
 	}
 
 	invalid := `{"userId":"","type":"t","title":"t","message":"m","severity":"info"}`
 	invalidRec := httptest.NewRecorder()
-	notifhandler.Emit()(invalidRec, httptest.NewRequest(http.MethodPost, "/notifications", strings.NewReader(invalid)))
+	notifhandler.Emit()(invalidRec, httptest.NewRequest(http.MethodPost, notificationsPath, strings.NewReader(invalid)))
 	if invalidRec.Code != http.StatusBadRequest {
 		t.Errorf("invalid notification code = %d, want 400", invalidRec.Code)
 	}
@@ -82,13 +88,13 @@ func TestMarkReadHandler(t *testing.T) {
 		t.Fatal(err)
 	}
 	created, err := storage.Emit(context.Background(), notiftypes.Notification{
-		UserID: "u1", Type: "role.changed", Title: "t", Message: "m", Severity: "info",
+		UserID: testUserID, Type: "role.changed", Title: "t", Message: "m", Severity: "info",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	r := asSelf("u1", "/notifications/"+created.ID+"/read?userId=u1")
+	r := asSelf(testUserID, "/notifications/"+created.ID+"/read?userId=u1")
 	r = mux.SetURLVars(r, map[string]string{"id": created.ID})
 	rec := httptest.NewRecorder()
 	notifhandler.MarkRead()(rec, r)
@@ -101,20 +107,20 @@ func TestMarkAllReadAndClearHandlers(t *testing.T) {
 	setupRedis(t)
 
 	allRead := httptest.NewRecorder()
-	notifhandler.MarkAllRead()(allRead, asSelf("u1", "/notifications/read-all?userId=u1"))
+	notifhandler.MarkAllRead()(allRead, asSelf(testUserID, "/notifications/read-all?userId=u1"))
 	if allRead.Code != http.StatusOK {
 		t.Errorf("markallread code = %d, want 200", allRead.Code)
 	}
 
-	clear := httptest.NewRecorder()
-	notifhandler.Clear()(clear, asSelf("u1", "/notifications?userId=u1"))
-	if clear.Code != http.StatusOK {
-		t.Errorf("clear code = %d, want 200", clear.Code)
+	cleared := httptest.NewRecorder()
+	notifhandler.Clear()(cleared, asSelf(testUserID, selfListPath))
+	if cleared.Code != http.StatusOK {
+		t.Errorf("clear code = %d, want 200", cleared.Code)
 	}
 
 	// Guard rejects a caller acting on another user's notifications.
 	forbidden := httptest.NewRecorder()
-	notifhandler.Clear()(forbidden, asSelf("intruder", "/notifications?userId=u1"))
+	notifhandler.Clear()(forbidden, asSelf("intruder", selfListPath))
 	if forbidden.Code != http.StatusForbidden {
 		t.Errorf("cross-user clear code = %d, want 403", forbidden.Code)
 	}

@@ -1,31 +1,65 @@
 # CRD reference
 
-telark's custom resources are defined by the `telark-crds` chart. The group suffix is the app identity `app.name` (default `telark`); below it is shown as `<name>`. All are kept on uninstall (`helm.sh/resource-policy: keep`); to remove them, follow the [full teardown](INSTALL.md#full-teardown).
+telark's custom resources are defined by the `telark-crds` chart. Every CRD is in the group **`telark.io`**, version **`v1alpha1`**, namespaced in the release namespace, and kept on uninstall (`helm.sh/resource-policy: keep`); to remove them, follow the [full teardown](INSTALL.md#full-teardown). The group is constant ([ADR 0003](adr/0003-constant-api-group-telark-io.md)).
 
-## Group `erpi.<name>`
+`kubectl get telark -n telark` lists every telark object except passkeys and sessions (`kubectl get telark-auth -n telark`). Several plurals collide with other CRDs (Argo CD installs `applications.argoproj.io`), so use the fully qualified name (`applications.telark.io`) or the short name (`tapp`).
 
-| Kind | Plural | Purpose |
+## Kinds
+
+| Kind | Plural (FQ name) | Short | Category | `/status` | Purpose |
+|---|---|---|---|---|---|
+| `Application` | `applications.telark.io` | `tapp` | `telark` | yes | A discovered application: workloads grouped into one unit. Scope target for protection plans. |
+| `ProtectionPlan` | `protectionplans.telark.io` | `tplan` | `telark` | yes | Policy templates bound to a scope and a time window. |
+| `TelarkConfig` | `telarkconfigs.telark.io` | `tcfg` | `telark` | yes | Cluster-wide settings. Singleton: the schema accepts only the name `default`. |
+| `Category` | `categories.telark.io` | `tcat` | `telark` | no | Classification categories. Singleton list: one object named `categories`. |
+| `User` | `users.telark.io` | `tuser` | `telark` | no | A user in the role model. |
+| `Group` | `groups.telark.io` | `tgroup` | `telark` | no | An access group in the role model. |
+| `AccessRole` | `accessroles.telark.io` | `trole` | `telark` | no | A role: scopes granted and denials, at a level. |
+| `Passkey` | `passkeys.telark.io` | `tpk` | `telark-auth` | no | A registered WebAuthn passkey credential. |
+| `Session` | `sessions.telark.io` | `tsess` | `telark-auth` | no | An authenticated session. |
+
+## Identity
+
+The object name (`metadata.name`) is the identity; there is no `spec.id`. The exporter's REST view adds `id` from `metadata.name` on every read and strips `id` on write. References between objects hold names: `roleRefs`, `groupRefs`, `userRefs`, `participantRefs` and `scope.applicationRefs` name objects, while `categoryRef`, `environmentRef` and `tagRefs` name items in the `categories` object (items keep their own `id`, pattern `cat-…`).
+
+## Spec and status
+
+| Kind | `spec` | `.status` |
 |---|---|---|
-| `ApplicationAsResource` | `applicationsasresources` | A discovered application — a group of workloads treated as one unit. Scope target for protection plans. |
-| `GroupAsResource` | `groupsasresources` | An access group in the role model. |
-| `RoleAsResource` | `rolesasresources` | A role: scopes granted and denials, at a level. |
-| `UserAsResource` | `usersasresources` | A user in the role model. |
-| `GlobalConfig` | `globalconfigs` | Cluster-wide settings (AI provider/keys, OIDC) set from the UI at runtime. |
-| `ProtectionPlan` | `protectionplans` | Policy templates bound to a scope and a time window; transitions scheduled → active → terminated. |
+| `Application` | `name`, `displayName`, `description`, `managed` | `health`, `resourceCount`, `namespaces`, `resourceSummary`, `resources`, `images`, `ports`, `envVarKeys`, `configMapRefs`, `secretRefs`, `serviceMappings`, `ingressRules`, `metrics`, `snapshots`, `rollbacks`, `history`, `lastForceSync`, `createdAt`, `lastUpdated`, `conditions` (type `Published`: status `True`/`False`, reason `Pending`, `Created` or `Failed`) |
+| `ProtectionPlan` | `name`, `description`, `severity`, `priority`, `scope` (`type`, `namespaces` or `applicationRefs`, `exclusions`), `policies`, `mode` (`audit` \| `enforce`), `timeMode`, `timeRange`, `approvalMode` (`automatic` \| `required`; absent = automatic; Production defaults to `required`), `participantRefs`, `environmentRef`, `tagRefs` (at most 20), `createdAt/By`, `lastUpdatedAt/By` | `phase`, `reason`, `conditions` (`Ready`, `Approved`, `PoliciesHealthy`), `observedGeneration`, `renderedPolicies`, `health`, `healthCheckedAt`, `healthDetail`, `startedAt/By`, `terminatedAt/By`, `approval` (state, requester, decider, comment, bounded history; written only by discovery) |
+| `TelarkConfig` | `excludedNamespaces`, `userSettings`, `ai` (`enabled`, `model` — a local analyzer model tag, default `granite4:350m` —, `autoAnalyze`), `snapshots`, `oidc` (`enabled`, `googleClientID`, `egressAllowed`) | `cluster.version` |
+| `Category` | `categories[]`: `id`, `name`, `scope` (`groups`, `roles`, `plan-environments`, `plan-tags`), `type`, `creationDate`, … | none |
+| `User` | `username`, `fullname`, `email`, `roleRefs`, `groupRefs`, `bootstrap`, `identities`, `avatar`, `settings`, `status` (`phase`: `active`, `inactive` or `suspended`; `lastLoginAt`) | none (lifecycle stays in `spec.status`) |
+| `Group` | `name`, `description`, `userRefs`, `roleRefs`, `categoryRef`, `createdBy`, `lastUpdatedBy` | none |
+| `AccessRole` | `name`, `version`, `priority`, `categoryRef`, `scopesAndPermissions`, `protection`, `status` (lifecycle), `validity`, `createdBy`, `lastUpdatedBy`, `deprecatedAt`, `deletedAt` | none (lifecycle stays in `spec.status`) |
+| `Passkey` | `userId`, `credentialId` (at most 2 048 characters), `publicKey` (at most 4 096), `deviceName`, `deviceType`, `backupEligible`, `backupState`, timestamps | none |
+| `Session` | `userId`, `createdTimestamp`, `expiresTimestamp`, `ipAddress`, `deviceMetadata`. Named `session-<sha256(token)>` (the schema rejects any other name); the token itself is never stored. | none |
 
-## Group `auth.<name>`
+The status subresource means a write to `spec` never changes `.status` and the reverse: writers send status fields to `/status`. The REST view flattens `.status` into the top level of the object, so API clients see one shape.
 
-| Kind | Plural | Purpose |
-|---|---|---|
-| `UserPasskey` | `userpasskeys` | A registered WebAuthn passkey credential. |
-| `UserSession` | `usersessions` | An active authenticated session. Named `session-<sha256(token)>`; the token itself is never stored. |
+## Field names
 
-## Group `classification.<name>`
+Renamed from the 0.4 schema (values unchanged):
 
-| Kind | Plural | Purpose |
-|---|---|---|
-| `CategoryAsClassification` | `categoriesasclassifications` (short: `cat`) | A classification category applied to applications. |
+| 0.4 | Now |
+|---|---|
+| `assignedRolesIDs`, `assignedGroupsIDs`, `assignedUsersIDs` | `roleRefs`, `groupRefs`, `userRefs` |
+| `categoryID`, `environmentID`, `tagIDs` | `categoryRef`, `environmentRef`, `tagRefs` |
+| `participantsIDs`, `scope.applicationIds` | `participantRefs`, `scope.applicationRefs` |
+| `crStatus` | `status.conditions` (type `Published`) |
+| `spec.id` | removed (`metadata.name`) |
+| `oidc.googleJwkJson` | removed from the CRD (see below) |
+
+## OIDC trust anchor
+
+The optional Google JWK set is not stored in `TelarkConfig`. It lives in the Secret `telark-oidc-trust-secret` (key `googleJwkJson`, at most 64 KiB), which the exporter writes when an Admin saves it and the auth service reads as a mounted file. `GET /api/v1/config` merges it back into `oidc.googleJwkJson`. For cluster-less renders, point `app.auth.oidc.existingSecret` at a Secret you manage ([INSTALL.md](INSTALL.md#gitops-cluster-less-renders)).
+
+## Labels and finalizers
+
+- Kyverno policies rendered for a protection plan carry `telark.io/protection-plan=<plan id>`, `telark.io/template-id` and `app.kubernetes.io/managed-by=telark`, and the annotations `telark.io/plan-name`, `telark.io/created-by` and `telark.io/render-hash`.
+- Users, groups and access roles carry the finalizers `telark.io/user-cleanup`, `telark.io/group-cleanup` and `telark.io/role-cleanup`, which the auth service clears.
 
 ## Ownership
 
-The `exporter` service owns every resource in these groups; `discovery` additionally patches its own `applicationsasresources`. The optional CRD write guard (`app.crdGuard`) restricts direct writes to these groups to the owning service accounts — see [INSTALL.md](INSTALL.md).
+The `exporter` service owns every `telark.io` resource and the OIDC trust Secret; `discovery` additionally patches `applications/status` (rollback records). The CRD write guard (`app.crdGuard`, on and enforcing by default) restricts direct writes to every `telark.io` resource and subresource, and to the OIDC trust Secret, to the owning service accounts; see [INSTALL.md](INSTALL.md#crd-write-guard).

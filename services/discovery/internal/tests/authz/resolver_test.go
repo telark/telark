@@ -6,9 +6,12 @@ import (
 	"testing"
 
 	"github.com/telark/discovery/internal/authz"
+	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/tests/testutil"
 	xauthz "github.com/telark/x-ware/authz"
 )
+
+const loaderCallsUncached = 4
 
 type countingResolver struct {
 	calls int
@@ -31,7 +34,7 @@ func TestResolverCachesWithinTTL(t *testing.T) {
 	inner := &countingResolver{}
 	r := authz.NewCachedResolver(inner)
 
-	for range 2 {
+	for range constants.TwoValue {
 		if _, err := r.UserIDForToken("tok"); err != nil {
 			t.Fatal(err)
 		}
@@ -40,7 +43,7 @@ func TestResolverCachesWithinTTL(t *testing.T) {
 		}
 	}
 
-	testutil.Equal(t, "loader calls", inner.calls, 2)
+	testutil.Equal(t, "loader calls", inner.calls, constants.TwoValue)
 }
 
 // A failure is handed back as-is, so the middleware can still tell a verdict
@@ -49,7 +52,7 @@ func TestResolverPassesErrorsThroughUncached(t *testing.T) {
 	inner := &countingResolver{err: fmt.Errorf("%w: gone", xauthz.ErrNotFound)}
 	r := authz.NewCachedResolver(inner)
 
-	for range 2 {
+	for range constants.TwoValue {
 		if _, err := r.UserIDForToken("tok"); !errors.Is(err, xauthz.ErrNotFound) {
 			t.Fatalf("UserIDForToken error = %v, want ErrNotFound", err)
 		}
@@ -58,5 +61,5 @@ func TestResolverPassesErrorsThroughUncached(t *testing.T) {
 		}
 	}
 
-	testutil.Equal(t, "loader calls", inner.calls, 4)
+	testutil.Equal(t, "loader calls", inner.calls, loaderCallsUncached)
 }

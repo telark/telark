@@ -15,7 +15,7 @@ on:
           - exporter
           - notifier
           - auth
-          - enrichment
+          - analyzer
       image_scan:
         required: false
         type: choice
@@ -53,14 +53,14 @@ jobs:
   # `build` tolerates a skipped gate but not a failed one (see its `if`).
   gate-go:
     name: Gate · Go
-    if: ${{ inputs.service != 'enrichment' }}
+    if: ${{ inputs.service != 'analyzer' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
     steps:
       - name: Checkout telark (charts + composite actions)
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: release
           ref: ${{ inputs.branch || 'main' }}
@@ -71,34 +71,32 @@ jobs:
         uses: ./release/.github/actions/go-ci
         with:
           working-directory: release/services/${{ inputs.service }}
-          cache-key: ${{ inputs.service }}
-          access-user: ${{ secrets.ACCESS_USER }}
-          access-token: ${{ secrets.ACCESS_TOKEN }}
+          cache-key: ${{ inputs.service }}-lint
           config-file: release/.golangci.yml
           test: 'false'
 
-  gate-enrichment:
+  gate-analyzer:
     name: Gate · Python
-    if: ${{ inputs.service == 'enrichment' }}
+    if: ${{ inputs.service == 'analyzer' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
     defaults:
       run:
-        working-directory: services/enrichment
+        working-directory: services/analyzer
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.branch || 'main' }}
 
       - name: Set up Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
           cache: pip
-          cache-dependency-path: services/enrichment/requirements.txt
+          cache-dependency-path: services/analyzer/requirements.txt
 
       - name: Install dependencies
         run: pip install -r requirements.txt pytest pytest-cov
@@ -111,11 +109,11 @@ jobs:
       - name: Test
         run: |
           python -m pytest --cov=. --cov-report= tests/test_*_cov.py -q
-          python -m pytest --cov=. --cov-append --cov-report= tests/test_authz.py tests/test_insights.py tests/test_provider_config.py -q
+          python -m pytest --cov=. --cov-append --cov-report= tests/test_authz.py tests/test_insights.py tests/test_exporter.py -q
           python -m coverage report --fail-under=95
 
   build:
-    needs: [gate-go, gate-enrichment]
+    needs: [gate-go, gate-analyzer]
     # A skipped gate is expected (only one kind runs); a failed or cancelled
     # gate must block the build.
     if: ${{ always() && !failure() && !cancelled() }}
@@ -123,12 +121,13 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: write   # commit the version bump
+      packages: write   # push the image and its signature to ghcr.io
       id-token: write   # cosign keyless image signing (OIDC)
     outputs:
       image_tag: ${{ steps.release.outputs.new_version }}
     steps:
       - name: Checkout telark (charts + composite actions)
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: release
           ref: ${{ inputs.branch || 'main' }}
@@ -143,9 +142,9 @@ jobs:
           context: release/services/${{ inputs.service }}/
           dockerfile: ./release/services/${{ inputs.service }}/Dockerfile
           platforms: linux/amd64,linux/arm64
-          registry_username: ${{ secrets.CONTAINER_REGISTRY_USERNAME }}
-          registry_password: ${{ secrets.CONTAINER_REGISTRY_PASSWORD }}
+          registry_username: ${{ github.actor }}
+          registry_password: ${{ secrets.GITHUB_TOKEN }}
           image_scan: ${{ inputs.image_scan }}
           # Only the Python image runs foreign-arch binaries at build time; the
           # Go images cross-compile.
-          setup_qemu: ${{ inputs.service == 'enrichment' }}
+          setup_qemu: ${{ inputs.service == 'analyzer' }}

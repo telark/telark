@@ -10,6 +10,7 @@ import (
 	"github.com/telark/discovery/internal/config"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/applications/history/diff"
+	"github.com/telark/discovery/internal/core/applications/insights"
 	"github.com/telark/discovery/internal/core/applications/snapshot"
 	"github.com/telark/discovery/internal/publisher"
 	natscore "github.com/telark/x-ware/nats/core"
@@ -28,7 +29,8 @@ func PublishApplications(natsClient *natscore.NATSClient, apps []application.App
 		}
 		snapshot.NormalizeApplicationSnapshotTakenAt(app)
 		payload := applicationPayload(app)
-		if i >= len(outcomes) || outcomes[i] != diff.OutcomeAuthored {
+		authored := i < len(outcomes) && outcomes[i] == diff.OutcomeAuthored
+		if !authored {
 			stripUnauthoredHistory(payload)
 		}
 		params := publisher.PublishUpdateParams{
@@ -42,7 +44,10 @@ func PublishApplications(natsClient *natscore.NATSClient, apps []application.App
 		for attempt := constants.DefaultAddValue; attempt <= attemptMax; attempt++ {
 			lastErr = publisher.PublishUpdate(params, natsClient)
 			if lastErr == nil {
-				app.CRStatus = application.CRStatusPublished
+				MarkPublished(app)
+				if authored {
+					insights.Enqueue(app)
+				}
 				break
 			}
 			if attempt < attemptMax {
@@ -50,7 +55,7 @@ func PublishApplications(natsClient *natscore.NATSClient, apps []application.App
 			}
 		}
 		if lastErr != nil {
-			app.CRStatus = application.CRStatusFailed
+			MarkPublishFailed(app)
 			constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(
 				fmt.Sprintf(string(constants.WarnApplicationPublishFailed), app.Name, attemptMax, lastErr))
 		}
@@ -70,10 +75,8 @@ func applicationPayload(app *application.Application) map[string]any {
 	return m
 }
 
-// stripUnauthoredHistory drops history and snapshots from a payload the caller
-// did not author. The CR is written with a JSON merge patch, so omitting the
-// keys leaves the stored values untouched; echoing back a possibly stale read
-// would instead overwrite history authored by a concurrent flush.
+// The CR is written with a JSON merge patch, so omitting the keys leaves the stored values
+// untouched; echoing back a possibly stale read would overwrite a concurrent flush's history.
 func stripUnauthoredHistory(m map[string]any) {
 	delete(m, payloadKeyHistory)
 	delete(m, payloadKeySnapshots)

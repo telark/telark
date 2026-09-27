@@ -4,19 +4,20 @@ import (
 	"context"
 	"net/http"
 
-	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/messages"
 	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection"
 	"github.com/telark/discovery/internal/helpers/shared"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 )
 
 func Reactivate(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get(constants.HeaderUserID)
-	if userID == constants.EmptyString {
-		respondError(w, http.StatusUnauthorized, protection.ErrUserMissing, nil)
+	svc, ok := readyService(w)
+	if !ok {
+		return
+	}
+	userID, ok := requireUser(w, r)
+	if !ok {
 		return
 	}
 
@@ -25,19 +26,25 @@ func Reactivate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), constants.ProtectionPlanLifecycleTimeout)
+	ctx, cancel := context.WithTimeout(detached(r), constants.ProtectionPlanLifecycleTimeout)
 	defer cancel()
 
-	plan, err := globalService.Reactivate(ctx, userID, planID)
+	release, ok := lockPlanDecision(ctx, w, planID)
+	if !ok {
+		return
+	}
+	defer release()
+
+	plan, err := svc.Reactivate(ctx, userID, planID)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, dataerrors.Error(err.Error()), err)
+		respondDomainError(w, err)
 		return
 	}
 	responseutils.LogAndSendResponse(
 		w,
 		http.StatusOK,
 		response.OperationSuccess,
-		string(messages.SuccessUpdateRes),
+		planMessage(messages.SuccessUpdateRes, planID),
 		plan,
 		nil,
 	)

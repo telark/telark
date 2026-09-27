@@ -76,9 +76,11 @@ linters:
             - [] # DenyList
             - - skip-package-name-checks: true
 run:
-  go: "1.26"
+  go: "1.27"
   # 3m tripped on a cold lint cache (201s); warm runs are well under.
   timeout: 10m
-  tests: false
+  tests: true
 issues:
   max-issues-per-linter: 0
+  # Default is 3: repeated messages get capped, so every reported count is a floor, not a total.
+  max-same-issues: 0

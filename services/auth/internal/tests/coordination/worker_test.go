@@ -14,12 +14,18 @@ import (
 	xwareredis "github.com/telark/x-ware/redis/stream"
 )
 
-// waitForStreamLen polls until a stream reaches at least min entries or the
+const testBackoffInitial = 100 * time.Millisecond
+
+func workerNameFor(replicaID string) string {
+	return constants.CleanupConsumerName + constants.UnderscoreSeparator + replicaID
+}
+
+// waitForDLQ polls until the type's dead-letter stream has an entry or the
 // deadline passes, so the assertions do not race the worker goroutines.
-func waitForStreamLen(rdb *redis.Client, key string, minLen int64) bool {
-	deadline := time.Now().Add(2 * time.Second)
+func waitForDLQ(rdb *redis.Client) bool {
+	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		if rdb.XLen(context.Background(), key).Val() >= minLen {
+		if rdb.XLen(context.Background(), constants.CleanupDLQStreamPrefix+finalizers.ResourceTypeUsers).Val() > constants.DefaultInitValue {
 			return true
 		}
 		time.Sleep(5 * time.Millisecond)
@@ -27,13 +33,13 @@ func waitForStreamLen(rdb *redis.Client, key string, minLen int64) bool {
 	return false
 }
 
-func enqueueJob(t *testing.T, stream *cleanup.StreamOps, resourceType, id string) {
+func enqueueJob(t *testing.T, stream *cleanup.StreamOps, id string) {
 	t.Helper()
 	if err := stream.EnsureGroup(context.Background()); err != nil {
 		t.Fatalf("EnsureGroup: %v", err)
 	}
 	_, err := stream.Enqueue(context.Background(), map[string]any{
-		constants.CleanupFieldResourceType: resourceType,
+		constants.CleanupFieldResourceType: finalizers.ResourceTypeUsers,
 		constants.CleanupFieldResourceID:   id,
 	})
 	if err != nil {
@@ -48,28 +54,80 @@ func TestManagerDrainsFailingJobToDLQ(t *testing.T) {
 	cfg := fastConfig()
 	resourceType := finalizers.ResourceTypeUsers
 	stream := cleanup.NewStreamOps(xwareredis.NewStreamClient(rdb), resourceType, cfg.StreamMaxLen, cfg.XClaimMinIdle)
-	enqueueJob(t, stream, resourceType, "u1")
+	enqueueJob(t, stream, "u1")
 
-	m := cleanup.NewManager(cfg, resourceType, stream, cleanup.NewDedup(rdb, cfg.DedupTTL), newReconciler(cfg), "replica-1")
+	m := cleanup.NewManager(cfg, resourceType, stream, cleanup.NewDedup(rdb, cfg.DedupTTL), newReconciler(cfg), testReplicaID)
 	m.Start(context.Background())
 	defer m.Stop()
 
-	if !waitForStreamLen(rdb, constants.CleanupDLQStreamPrefix+resourceType, 1) {
+	if !waitForDLQ(rdb) {
 		t.Fatal("job never reached the DLQ after exhausting its attempts")
+	}
+}
+
+// A job whose consumer died mid-pass stays pending in the group and is invisible
+// to a plain read; the worker reclaims it once it has idled past the threshold
+// instead of waiting for the dedup key to lapse and the sweeper to re-enqueue.
+func TestManagerReclaimsStalePendingJob(t *testing.T) {
+	rdb, mr := testutil.RedisClient(t)
+	cfg := fastConfig()
+	cfg.XClaimMinIdle = testCallTimeout
+	resourceType := finalizers.ResourceTypeUsers
+	stream := cleanup.NewStreamOps(xwareredis.NewStreamClient(rdb), resourceType, cfg.StreamMaxLen, cfg.XClaimMinIdle)
+	enqueueJob(t, stream, "u3")
+
+	deadConsumer := workerNameFor("replica-dead")
+	if msgs, err := stream.Read(context.Background(), deadConsumer); err != nil || len(msgs) != constants.DefaultIncrementValue {
+		t.Fatalf("dead consumer read = (%d msgs, %v), want the job delivered and left pending", len(msgs), err)
+	}
+	time.Sleep(cfg.XClaimMinIdle + cfg.XClaimMinIdle)
+	mr.FastForward(cfg.XClaimMinIdle + cfg.XClaimMinIdle)
+
+	m := cleanup.NewManager(cfg, resourceType, stream, cleanup.NewDedup(rdb, cfg.DedupTTL), newReconciler(cfg), testReplicaID)
+	m.Start(context.Background())
+	defer m.Stop()
+
+	if !waitForDLQ(rdb) {
+		t.Fatal("pending job was never reclaimed (it never reached the DLQ)")
+	}
+}
+
+// Requeues wait initial, 2x initial, ... (capped) before the next attempt, so a
+// job exhausting three attempts cannot reach the DLQ before the sum of its waits.
+func TestManagerBacksOffBetweenAttempts(t *testing.T) {
+	rdb, _ := testutil.RedisClient(t)
+	cfg := fastConfig()
+	cfg.BackoffInitial = testBackoffInitial
+	cfg.BackoffMax = time.Second
+	resourceType := finalizers.ResourceTypeUsers
+	stream := cleanup.NewStreamOps(xwareredis.NewStreamClient(rdb), resourceType, cfg.StreamMaxLen, cfg.XClaimMinIdle)
+	enqueueJob(t, stream, "u4")
+
+	start := time.Now()
+	m := cleanup.NewManager(cfg, resourceType, stream, cleanup.NewDedup(rdb, cfg.DedupTTL), newReconciler(cfg), testReplicaID)
+	m.Start(context.Background())
+	defer m.Stop()
+
+	if !waitForDLQ(rdb) {
+		t.Fatal("job never reached the DLQ")
+	}
+	minWait := testBackoffInitial + testBackoffInitial + testBackoffInitial // 1x then 2x before the last attempt
+	if elapsed := time.Since(start); elapsed < minWait {
+		t.Fatalf("job reached the DLQ after %v, want at least %v of backoff", elapsed, minWait)
 	}
 }
 
 // A nil election makes the replica the unconditional leader, so the loop starts
 // its managers; the started manager drains the enqueued job to the DLQ, and the
-// loop stops cleanly once its context is cancelled.
+// loop stops cleanly once its context is canceled.
 func TestLeaderLoopStartsManagers(t *testing.T) {
 	rdb, _ := testutil.RedisClient(t)
 	cfg := fastConfig()
 	resourceType := finalizers.ResourceTypeUsers
 	stream := cleanup.NewStreamOps(xwareredis.NewStreamClient(rdb), resourceType, cfg.StreamMaxLen, cfg.XClaimMinIdle)
-	enqueueJob(t, stream, resourceType, "u2")
+	enqueueJob(t, stream, "u2")
 
-	m := cleanup.NewManager(cfg, resourceType, stream, cleanup.NewDedup(rdb, cfg.DedupTTL), newReconciler(cfg), "replica-1")
+	m := cleanup.NewManager(cfg, resourceType, stream, cleanup.NewDedup(rdb, cfg.DedupTTL), newReconciler(cfg), testReplicaID)
 	loop := cleanup.NewLeaderLoop(nil, []*cleanup.Manager{m}, nil, 5*time.Millisecond)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -80,7 +138,7 @@ func TestLeaderLoopStartsManagers(t *testing.T) {
 		close(done)
 	}()
 
-	drained := waitForStreamLen(rdb, constants.CleanupDLQStreamPrefix+resourceType, 1)
+	drained := waitForDLQ(rdb)
 	cancel()
 	<-done
 

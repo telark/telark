@@ -37,7 +37,7 @@ dependencies:
     version: 9.0.28
     repository: https://charts.bitnami.com/bitnami
   - name: kyverno
-    version: 3.7.1
+    version: 3.9.1
     repository: https://kyverno.github.io/kyverno/
     condition: app.kyverno.enabled
   - name: metrics-server

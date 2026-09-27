@@ -2,61 +2,78 @@ package oidc
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
 	authhelper "github.com/telark/auth/internal/helpers/auth"
 	oidchelper "github.com/telark/auth/internal/helpers/oidc"
 	"github.com/telark/auth/internal/helpers/shared"
 	userresource "github.com/telark/data/resources/user"
-	userclient "github.com/telark/rest/clients/resources/users"
+	restshared "github.com/telark/rest/clients/shared"
+	userclient "github.com/telark/rest/clients/users"
 )
 
-func promoteBootstrapAdmin(user *userresource.UserAsResource, userClient *userclient.Client) {
-	for _, rid := range user.AssignedRolesIDs {
-		if rid != nil && *rid == constants.BuiltInRoleAdmin {
-			return
-		}
-	}
-	adminID := constants.BuiltInRoleAdmin
-	roles := make([]*string, constants.InitialCapacity, len(user.AssignedRolesIDs)+1)
-	roles = append(roles, user.AssignedRolesIDs...)
-	roles = append(roles, &adminID)
-	resp := userClient.PatchUserByID(user.ID, map[string]any{"assignedRolesIDs": roles})
-	identityHash := shared.IdentityHash(user.Email)
-	if resp.Status != http.StatusOK {
-		lg.Error(fmt.Sprintf(string(constants.ErrOIDCAdminPromotionFailed), identityHash, resp.Status))
-		return
-	}
-	lg.Info(fmt.Sprintf(string(constants.LogOIDCAdminPromoted), identityHash))
-}
+var (
+	ErrEmailAmbiguous    = errors.New(string(constants.ErrOIDCEmailAmbiguous))
+	ErrEmailAlreadyBound = errors.New(string(constants.ErrOIDCEmailAlreadyBound))
+)
 
 func isNotFoundError(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "status: 404")
+	return errors.Is(err, restshared.ErrNotFound) ||
+		(err != nil && strings.Contains(err.Error(), constants.NotFoundStatusMarker))
 }
 
+// Reached only when no user carries the token's subject. Attaching by email binds
+// the identity for good, so it happens only when the email names exactly one user.
 func jitProvisionUser(
 	userClient *userclient.Client, claims *oidchelper.GoogleClaims,
-) (*userresource.UserAsResource, error) {
-	existing, err := userClient.GetUserByEmail(claims.Email)
-	if err == nil && existing != nil {
-		return attachGoogleIdentity(userClient, existing, claims)
-	}
-	if err != nil && !isNotFoundError(err) {
+) (*userresource.User, error) {
+	users, err := userClient.GetAllUsers()
+	if err != nil {
 		return nil, fmt.Errorf(string(constants.ErrOIDCEmailLookupFailed),
 			shared.IdentityHash(claims.Email), err)
+	}
+	existing, err := UserForEmail(users, claims.Email)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		return attachGoogleIdentity(userClient, existing, claims)
 	}
 	return createNewOIDCUser(userClient, claims)
 }
 
+func UserForEmail(users []*userresource.User, email string) (*userresource.User, error) {
+	matches := slices.DeleteFunc(slices.Clone(users), func(u *userresource.User) bool {
+		return u == nil || !strings.EqualFold(u.Email, email)
+	})
+	switch len(matches) {
+	case constants.DefaultInitValue:
+		return nil, nil
+	case constants.DefaultIncrementValue:
+		// The stored email was never verified, so a Google subject binds to it only
+		// while the account has no identity: a passkey account that claimed a
+		// colleague's mailbox must not capture the colleague's first Google login.
+		if len(matches[constants.DefaultInitValue].Identities) > constants.DefaultInitValue {
+			return nil, ErrEmailAlreadyBound
+		}
+		return matches[constants.DefaultInitValue], nil
+	default:
+		return nil, ErrEmailAmbiguous
+	}
+}
+
 func attachGoogleIdentity(
 	userClient *userclient.Client,
-	user *userresource.UserAsResource,
+	user *userresource.User,
 	claims *oidchelper.GoogleClaims,
-) (*userresource.UserAsResource, error) {
+) (*userresource.User, error) {
 	identity := &userresource.UserIdentity{
 		Provider: constants.IdentityProviderGoogle,
 		Issuer:   claims.Issuer,
@@ -74,10 +91,10 @@ func attachGoogleIdentity(
 
 func createNewOIDCUser(
 	userClient *userclient.Client, claims *oidchelper.GoogleClaims,
-) (*userresource.UserAsResource, error) {
+) (*userresource.User, error) {
 	username, err := authhelper.BuildUsername(claims.Email)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build username: %w", err)
+		return nil, fmt.Errorf(string(constants.ErrOIDCBuildUsernameFailed), err)
 	}
 
 	resp := userClient.CreateUser(buildOIDCUser(claims, username))
@@ -91,23 +108,24 @@ func createNewOIDCUser(
 	case http.StatusConflict:
 		return fetchAndRepairIdentity(userClient, claims)
 	default:
-		return nil, fmt.Errorf("CreateUser returned unexpected status %d: %s", resp.Status, resp.Message)
+		return nil, fmt.Errorf(string(constants.ErrOIDCCreateUserStatus), resp.Status, resp.Message)
 	}
 }
 
-func buildOIDCUser(claims *oidchelper.GoogleClaims, username string) *userresource.UserAsResource {
+func buildOIDCUser(claims *oidchelper.GoogleClaims, username string) *userresource.User {
 	fullname := claims.Name
 	if fullname == constants.EmptyString {
 		fullname = authhelper.BuildFullnameFromEmail(claims.Email)
 	}
 	roleID := authhelper.ResolveInitialRoleID(claims.Email)
-	return &userresource.UserAsResource{
-		Username:         username,
-		Fullname:         fullname,
-		Email:            claims.Email,
-		CreationDate:     time.Now().UTC().Format(time.RFC3339),
-		Status:           userresource.UserStatus{Phase: string(userresource.AccountPhaseActive)},
-		AssignedRolesIDs: []*string{&roleID},
+	return &userresource.User{
+		Username:     username,
+		Fullname:     fullname,
+		Email:        claims.Email,
+		CreationDate: time.Now().UTC().Format(time.RFC3339),
+		Status:       userresource.UserStatus{Phase: string(userresource.AccountPhaseActive)},
+		RoleRefs:     []*string{&roleID},
+		Bootstrap:    config.IsBootstrapAdmin(claims.Email),
 		Identities: []*userresource.UserIdentity{
 			{
 				Provider: constants.IdentityProviderGoogle,
@@ -118,12 +136,12 @@ func buildOIDCUser(claims *oidchelper.GoogleClaims, username string) *userresour
 	}
 }
 
-func parseCreatedUser(data any) (*userresource.UserAsResource, bool) {
+func parseCreatedUser(data any) (*userresource.User, bool) {
 	raw, err := json.Marshal(data)
 	if err != nil {
 		return nil, false
 	}
-	var created userresource.UserAsResource
+	var created userresource.User
 	if err := json.Unmarshal(raw, &created); err != nil || created.ID == constants.EmptyString {
 		return nil, false
 	}
@@ -132,23 +150,12 @@ func parseCreatedUser(data any) (*userresource.UserAsResource, bool) {
 
 func fetchAndRepairIdentity(
 	userClient *userclient.Client, claims *oidchelper.GoogleClaims,
-) (*userresource.UserAsResource, error) {
+) (*userresource.User, error) {
 	existing, fetchErr := userClient.GetUserByIdentity(
 		constants.IdentityProviderGoogle, claims.Issuer, claims.Subject)
 	if fetchErr != nil || existing == nil {
-		return nil, fmt.Errorf("post-create identity lookup failed: %w", fetchErr)
+		return nil, fmt.Errorf(string(constants.ErrOIDCPostCreateLookup), fetchErr)
 	}
-	repairRoleIfMissing(existing, userClient, claims.Email)
+	authhelper.RepairRoleIfMissing(existing, userClient, authhelper.ResolveInitialRoleID(claims.Email))
 	return existing, nil
-}
-
-func repairRoleIfMissing(user *userresource.UserAsResource, userClient *userclient.Client, email string) {
-	if len(user.AssignedRolesIDs) != constants.DefaultInitValue {
-		return
-	}
-	if err := authhelper.RepairMissingRole(user, userClient, email); err != nil {
-		lg.Error(err.Error())
-		return
-	}
-	lg.Info(fmt.Sprintf(string(constants.LogJIT409RoleRepair), shared.IdentityHash(email)))
 }

@@ -1,11 +1,17 @@
-package shared
+package discoveryshared
 
 import (
 	"testing"
 
+	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/discovery/derivation"
 	"github.com/telark/discovery/internal/discovery/shared"
 	"github.com/telark/discovery/internal/tests/testutil"
+)
+
+const (
+	groupB = "b"
+	groupA = "a"
 )
 
 // A comma list is split and trimmed; blank or the sentinel "ALL" means "no
@@ -15,11 +21,11 @@ func TestParseNamespaceList(t *testing.T) {
 		raw  string
 		want int
 	}{
-		{"", 0},
-		{"ALL", 0},
-		{"all", 0},
-		{"a, b ,,c", 3},
-		{" solo ", 1},
+		{"", constants.DefaultInitValue},
+		{"ALL", constants.DefaultInitValue},
+		{"all", constants.DefaultInitValue},
+		{"a, b ,,c", constants.ThreeValue},
+		{" solo ", constants.DefaultAddValue},
 	}
 	for _, c := range cases {
 		testutil.Equal(t, "len:"+c.raw, len(shared.ParseNamespaceList(c.raw)), c.want)
@@ -28,18 +34,18 @@ func TestParseNamespaceList(t *testing.T) {
 
 // Namespace items are sorted by name and carry their resource counts.
 func TestBuildNamespaceItems(t *testing.T) {
-	items := shared.BuildNamespaceItems(map[string]int{"z": 2, "a": 1})
-	if len(items) != 2 || items[0].Name != "a" || items[1].Name != "z" {
+	items := shared.BuildNamespaceItems(map[string]int{"z": 2, groupA: 1})
+	if len(items) != constants.TwoValue || items[constants.DefaultInitValue].Name != groupA || items[constants.DefaultAddValue].Name != "z" {
 		t.Fatalf("items not sorted by name: %+v", items)
 	}
-	testutil.Equal(t, "count", items[0].ResourceCount, 1)
+	testutil.Equal(t, "count", items[0].ResourceCount, constants.DefaultAddValue)
 }
 
 // Kind counts map onto the typed resource summary.
 func TestResourceSummaryFromKindCounts(t *testing.T) {
 	sum := shared.ResourceSummaryFromKindCounts(map[string]int{"Deployment": 3, "Service": 1})
-	testutil.Equal(t, "deployments", sum.Deployment, 3)
-	testutil.Equal(t, "services", sum.Service, 1)
+	testutil.Equal(t, "deployments", sum.Deployment, constants.ThreeValue)
+	testutil.Equal(t, "services", sum.Service, constants.DefaultAddValue)
 }
 
 // Managed source normalises to helm, manual, or unknown; chart and version
@@ -51,7 +57,7 @@ func TestBuildManaged(t *testing.T) {
 		t.Fatal("chart/version should be set")
 	}
 	testutil.Equal(t, "manual.by", shared.BuildManaged("argocd", "", "").By, shared.ManagedManual)
-	unknown := shared.BuildManaged("", "", "")
+	unknown := shared.BuildManaged("", constants.EmptyString, constants.EmptyString)
 	testutil.Equal(t, "unknown.by", unknown.By, shared.ManagedUnknown)
 	if unknown.Chart != nil || unknown.Version != nil {
 		t.Fatal("empty chart/version must stay nil")
@@ -62,7 +68,7 @@ func TestBuildManaged(t *testing.T) {
 // not collapse to "Report".
 func TestDisplayNames(t *testing.T) {
 	testutil.Equal(t, "display name", shared.BuildDisplayName("demo3-report"), "Demo3 Report")
-	if shared.ToDisplayName("my-service") == "" {
+	if shared.BuildDisplayName("my-service") == constants.EmptyString {
 		t.Fatal("display name is empty")
 	}
 }
@@ -70,10 +76,10 @@ func TestDisplayNames(t *testing.T) {
 // Group order follows first appearance and de-duplicates.
 func TestOrderedGroupNames(t *testing.T) {
 	withGroups := []derivation.ResourceWithGroup{
-		{Group: "b"}, {Group: "a"}, {Group: "b"},
+		{Group: groupB}, {Group: groupA}, {Group: groupB},
 	}
 	got := shared.OrderedGroupNames(withGroups)
-	if len(got) != 2 || got[0] != "b" || got[1] != "a" {
+	if len(got) != constants.TwoValue || got[constants.DefaultInitValue] != groupB || got[constants.DefaultAddValue] != groupA {
 		t.Fatalf("order = %v, want [b a]", got)
 	}
 }
@@ -83,6 +89,6 @@ func TestCoalesceAndDerivationInputs(t *testing.T) {
 	if got := shared.CoalesceStrings(nil); got == nil {
 		t.Fatal("nil coalesced to nil")
 	}
-	testutil.Equal(t, "non-nil pass-through", len(shared.CoalesceStrings([]string{"x"})), 1)
-	testutil.Equal(t, "nil refs", len(shared.ToDerivationInputs(nil)), 0)
+	testutil.Equal(t, "non-nil pass-through", len(shared.CoalesceStrings([]string{"x"})), constants.DefaultAddValue)
+	testutil.Equal(t, "nil refs", len(shared.ToDerivationInputs(nil)), constants.DefaultInitValue)
 }

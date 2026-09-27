@@ -15,15 +15,15 @@ import (
 
 var lg = constants.GetLogger(constants.LoggerPrefixAuthz)
 
-func (s clientSource) User(userID string) (*userdata.UserAsResource, error) {
+func (s clientSource) User(userID string) (*userdata.User, error) {
 	return s.client.GetUserByID(userID)
 }
 
-func (s clientSource) Group(groupID string) (*groupdata.GroupAsResource, error) {
+func (s clientSource) Group(groupID string) (*groupdata.Group, error) {
 	return s.client.GetGroupByID(groupID)
 }
 
-func (s clientSource) Role(roleID string) (*roledata.RoleAsResource, error) {
+func (s clientSource) Role(roleID string) (*roledata.AccessRole, error) {
 	return s.client.GetRoleByID(roleID)
 }
 

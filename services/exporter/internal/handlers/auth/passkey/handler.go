@@ -57,7 +57,7 @@ func GetPasskeyByUserAndCredentialIDWithCacheInvalidation() func(http.ResponseWr
 			return
 		}
 
-		credentialID, err := sharedutils.GetHeader(w, r, constants.HeaderCredentialID)
+		credentialID, err := sharedutils.GetPathParam(w, r, constants.CredentialIDParam)
 		if err != nil {
 			return
 		}

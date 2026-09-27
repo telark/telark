@@ -12,10 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-// appGroupFromCache resolves the application group for a K8s resource using
-// the local informer cache instead of live K8s API calls. The cache is
-// guaranteed to be synced before any event handlers fire (HasSynced guard
-// in attachInformer), so this is always safe to call from onAdd/onUpdate.
+// Resolves the group from the informer cache, never the API: the HasSynced guard in
+// attachInformer makes the cache complete before any handler runs.
 func (m *Manager) appGroupFromCache(
 	ctx context.Context,
 	u *unstructured.Unstructured,

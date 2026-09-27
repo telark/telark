@@ -1,0 +1,42 @@
+{{/*
+The model runtime serves the analyzer only: ingress on 11434 from the analyzer
+pods, egress DNS always and HTTPS only when the analyzer may pull models.
+*/}}
+{{- if .Values.app.ollama.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "telark.fullname" . }}-ollama
+  namespace: {{ .Values.app.namespace }}
+  labels:
+    {{- include "telark.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ollama
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ollama
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/component: {{ .Values.services.analyzer.name }}
+      ports:
+        - port: 11434
+          protocol: TCP
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    {{- if .Values.app.ollama.autoPull }}
+    - ports:
+        - port: 443
+          protocol: TCP
+    {{- end }}
+{{- end }}

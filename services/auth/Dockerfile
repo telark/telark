@@ -26,7 +26,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 RUN adduser -D -u 10001 auth-service
 
-FROM alpine:3.24.1
+FROM alpine:3.24.2
 WORKDIR /app
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=build /etc/passwd /etc/passwd

@@ -5,11 +5,9 @@ go 1.27.1
 require (
 	github.com/gorilla/mux v1.8.1
 	github.com/redis/go-redis/v9 v9.22.0
-	github.com/telark/data v1.14.8
+	github.com/telark/data v1.15.0
 	k8s.io/apimachinery v0.37.0
 )
-
-replace github.com/telark/data => /Users/houssem/Desktop/Github/internal/data
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

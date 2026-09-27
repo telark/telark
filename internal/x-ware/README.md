@@ -1,26 +1,21 @@
 # x-ware
 
-Infrastructure adapters and middleware for the [telark](https://telark.io) platform. Redis and NATS clients with resilient init, plus HTTP middleware — the plumbing services share instead of re-implementing.
+Middleware and infrastructure clients shared by the [Telark](https://github.com/telark/telark) services: the authorization layer every API goes through, CORS, and Redis and NATS clients.
 
-## Packages
-
-| Package | What it provides |
-|---|---|
-| `redis` | Redis client with retry init, caching, streams, and key invalidation |
-| `nats` | NATS client with retry init and a core wrapper |
-| `async` | Async / background helpers |
-| `authz` | Authorization middleware |
-| `cors` | CORS middleware |
-| `shared` | Shared helpers |
-| `constants` | Shared constants |
-
-The Redis and NATS clients block-with-backoff until the backend is reachable (`NewClientWithRetry`), so services start cleanly during dependency rollout.
-
-## Install
+This is an internal library of the Telark services. It is public so the services build from the Go module proxy; its API follows Telark's releases and is not versioned for outside use.
 
 ```sh
-export GOPRIVATE=github.com/telark/*   # private until public release
 go get github.com/telark/x-ware
 ```
 
-Consumed by the telark services.
+| Package | Contents |
+|---|---|
+| `authz` | Request authentication (session or service token) and route requirements: levels per scope, deny rules, unmapped routes denied. See the [security model](https://github.com/telark/telark/blob/main/docs/security/README.md) |
+| `cors` | CORS from `CORS_ALLOWED_ORIGINS`; no CORS headers when it is empty |
+| `redis` | Client with retry on start, cache, streams, locks and leader election |
+| `nats` | JetStream client with retry on start |
+| `async`, `shared`, `constants` | Worker pool, helpers, constants |
+
+Clients block with backoff until Redis or NATS is reachable, so services start cleanly while their dependencies roll out.
+
+Depends on [`data`](https://github.com/telark/data) and [`rest`](https://github.com/telark/rest).

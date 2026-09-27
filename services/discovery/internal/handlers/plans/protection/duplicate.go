@@ -2,13 +2,10 @@ package protection
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 
-	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/messages"
 	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection"
 	"github.com/telark/discovery/internal/helpers/shared"
 	planseps "github.com/telark/rest/endpoints/plans"
 	"github.com/telark/rest/response"
@@ -16,9 +13,12 @@ import (
 )
 
 func Duplicate(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get(constants.HeaderUserID)
-	if userID == constants.EmptyString {
-		respondError(w, http.StatusUnauthorized, protection.ErrUserMissing, nil)
+	svc, ok := readyService(w)
+	if !ok {
+		return
+	}
+	userID, ok := requireUser(w, r)
+	if !ok {
 		return
 	}
 
@@ -28,21 +28,23 @@ func Duplicate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req planseps.DuplicateProtectionPlanRequest
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if !decodeOptionalBody(w, r, &req) {
+		return
+	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), constants.ProtectionPlanLifecycleTimeout)
+	ctx, cancel := context.WithTimeout(detached(r), constants.ProtectionPlanLifecycleTimeout)
 	defer cancel()
 
-	plan, err := globalService.Duplicate(ctx, userID, planID, req)
+	plan, err := svc.Duplicate(ctx, userID, planID, req)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, dataerrors.Error(err.Error()), err)
+		respondDomainError(w, err)
 		return
 	}
 	responseutils.LogAndSendResponse(
 		w,
 		http.StatusOK,
 		response.OperationSuccess,
-		string(messages.SuccessCreateRes),
+		planMessage(messages.SuccessCreateRes, plan.ID),
 		plan,
 		nil,
 	)

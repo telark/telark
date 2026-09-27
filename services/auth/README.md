@@ -43,11 +43,13 @@ flowchart LR
 ## Responsibilities
 
 - **Passkey auth:** WebAuthn registration and assertion (login start/finish), passkey CRUD.
-- **Google OIDC:** token verification against Google's JWKS — fetched live (`EGRESS_ALLOWED=true`) or from a pasted key set for air-gapped clusters. Full admin-config + login flow: **[OIDC.md](OIDC.md)**.
-- **Sessions:** issue, validate (`X-Session-Token`), and expire; a cleanup controller sweeps expired sessions and challenges.
-- **Role model:** reconcile authorization resources; grant the Admin role to `BOOTSTRAP_ADMINS` on first login.
-- **Provisioning policy:** `SELF_REGISTRATION_ENABLED` gates the passkey path only — OIDC users are always auto-provisioned.
-- **Ops subcommands:** `backfill` (migrate/seed auth data) and `breakglass` (emergency admin access) via the binary's `cmd` dispatch.
+- **Google OIDC:** token verification against Google's JWKS — fetched live (`EGRESS_ALLOWED=true`) or from a pasted key set for air-gapped clusters. The token's subject picks the user; a first login with no stored subject attaches the identity by email only when exactly one user carries that email (409 otherwise). Full admin-config + login flow: **[OIDC.md](OIDC.md)**.
+- **Sessions:** issue, validate (`X-Session-Token`), and expire; a cleanup controller sweeps expired sessions and challenges. A session the exporter reports as expired (410) answers 401, never 503; only an unreachable exporter is an outage. No login path mints a session for a user being deleted or whose account is not active (403).
+- **Cleanup cascade:** deleting a user, group or role through the cleanup API clears every back-reference before the finalizer is dropped; a user's sessions are deleted first, so revoked access does not outlive the deletion. The route requires Owner on the scope and honours the `deleteuser` / `deletegroup` / `deleterole` deny rules; an id the exporter no longer has answers 404. A failed pass is retried with exponential backoff (`RECONCILE_BACKOFF_INITIAL_SECONDS` doubling up to `RECONCILE_BACKOFF_MAX_SECONDS`, capped by `CLEANUP_XCLAIM_MIN_IDLE_SECONDS`), a job whose worker died is reclaimed once it has idled past that threshold, and the dead-letter stream is capped at 1000 entries.
+- **User deletion rules:** a user never deletes their own account; bootstrap users (`bootstrap: true` on the user record) are never deleted through the API (403); an administrator (Admin on ALL, direct or via a group, suspended or not) is deleted only by a bootstrap user (403 otherwise); a caller below Admin targeting either is answered 404. Internal callers are not gated.
+- **Role model:** reconcile authorization resources; grant the Admin role to `BOOTSTRAP_ADMINS` on first OIDC login and mark the record `bootstrap: true` (both re-applied on every login when missing). Passkey self-registration always creates a ReadOnly account and refuses a `BOOTSTRAP_ADMINS` email.
+- **Provisioning policy:** `SELF_REGISTRATION_ENABLED` gates the passkey path only — OIDC users are always auto-provisioned. A bare email opens a registration only for an account that does not exist yet; an existing account adds a passkey through its session or a one-time enrolment link.
+- **Ops subcommands:** `backfill-finalizers` (migrate/seed auth data) and `break-glass --email <email> [--enroll]` (emergency admin access; `--enroll` creates the account when missing and prints a one-time enrolment token, the operator-run way to enrol the first administrator on a passkey-only install) via the binary's `cmd` dispatch.
 
 ## Layout
 
@@ -74,24 +76,28 @@ Full reference: [chart README](../../charts/telark/README.md#servicesauthenv). K
 | Variable | Default | Description |
 |---|---|---|
 | `RP_ID` / `RP_NAME` / `RP_ORIGIN` | `localhost` / `Dashboard App` / `http://localhost:3000` | WebAuthn relying-party identity |
-| `SELF_REGISTRATION_ENABLED` | `true` | `false` blocks new passkey registration |
+| `SELF_REGISTRATION_ENABLED` | `true` (chart: `false`) | `false` blocks new passkey registration; a self-registered account is always ReadOnly |
 | `CHALLENGE_TIMEOUT` / `SESSION_EXPIRY` | `60` (s) / `24` (h) | Challenge / session TTLs |
 | `BOOTSTRAP_ADMINS` | — | Comma-joined admin emails granted Admin on first login |
 | `GOOGLE_CLIENT_ID` | — | Google OAuth client id |
 | `EGRESS_ALLOWED` | `true` | `false` = offline JWKS from `GOOGLE_OIDC_JWK_JSON` |
+| `OIDC_TRUST_FILE` | `/etc/telark/oidc/googleJwkJson` | Pasted Google JWK set, mounted from the Secret `telark-oidc-trust-secret`; re-read when it changes |
 | `REDIS_DB` | `1` | Redis DB index |
 
 ## API
 
-REST under `/api/v1/auth/` — login `start`/`finish`, `logout`, passkey CRUD, OIDC login,
-and permissions; status probes at `/api/v1/status/{live,ready}`. All passkey and
-session-scoped calls require the `X-Session-Token` header.
+REST under `/api/v1/auth/` — login `start`/`finish`, `logout`, passkeys (`GET`/`POST auth/passkeys`,
+`GET`/`PATCH`/`DELETE auth/passkeys/{credentialId}`, `auth/passkeys/enroll-link`), OIDC login and
+config, permissions, and the deletion cascade (`DELETE auth/{users,groups,accessroles}/{id}`); status
+probes at `/api/v1/status/{live,ready}`. All passkey and session-scoped calls require the
+`X-Session-Token` header. auth stores passkeys and sessions (`Passkey`, `Session` CRs) through the
+exporter's `internal/auth/*` routes.
 
 ## Build & run
 
 ```sh
 go build ./...
-docker build -t telark/auth:<version> .
+docker build -t ghcr.io/telark/auth:<version> .
 ```
 
 Runs in-cluster via the [telark chart](../../charts/telark); see [INSTALL](../../docs/INSTALL.md)

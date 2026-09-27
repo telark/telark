@@ -5,12 +5,29 @@ import (
 	"slices"
 
 	"github.com/telark/discovery/internal/constants"
-	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
+	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
 	kcorecore "github.com/telark/kcore/resources/core"
 	kcoregroup "github.com/telark/kcore/resources/group"
 )
 
 var InformersCache func(context.Context, []string) ([]kcoregroup.ResourceRef, bool)
+
+var AppNamespacesCache func(ctx context.Context, appName string) []string
+
+// A path listing only some of an app's namespaces publishes it without the
+// rest, and every later per-app path lists only what the stored app still holds.
+func AppNamespaces(ctx context.Context, appName string, known []string) []string {
+	out := slices.Clone(known)
+	if AppNamespacesCache == nil {
+		return out
+	}
+	for _, ns := range AppNamespacesCache(ctx, appName) {
+		if !slices.Contains(out, ns) {
+			out = append(out, ns)
+		}
+	}
+	return out
+}
 
 // Exclusions are applied at this boundary so both the informer-cache fast path and the
 // live-list fallback honor them; empty input means "all namespaces", expanded explicitly.
@@ -42,7 +59,7 @@ func allNonExcludedNamespaces(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	excluded, err := gcfghelper.ExcludedNamespaces(ctx)
+	excluded, err := tcfghelper.ExcludedNamespaces(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +78,7 @@ func allNonExcludedNamespaces(ctx context.Context) ([]string, error) {
 }
 
 func filterExcludedNamespaces(ctx context.Context, namespaces []string) ([]string, error) {
-	excluded, err := gcfghelper.ExcludedNamespaces(ctx)
+	excluded, err := tcfghelper.ExcludedNamespaces(ctx)
 	if err != nil {
 		return nil, err
 	}

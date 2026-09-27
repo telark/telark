@@ -8,10 +8,7 @@ import (
 )
 
 func Validate(plan *plans.ProtectionPlan) error {
-	if plan == nil {
-		return errors.New(string(constants.ErrProtectionPlanIDRequired))
-	}
-	if plan.ID == constants.EmptyString {
+	if plan == nil || plan.ID == constants.EmptyString {
 		return errors.New(string(constants.ErrProtectionPlanIDRequired))
 	}
 	if plan.Name == constants.EmptyString {
@@ -20,19 +17,24 @@ func Validate(plan *plans.ProtectionPlan) error {
 	if len(plan.Policies) == constants.DefaultInitValue {
 		return errors.New(string(constants.ErrProtectionPlanPoliciesRequired))
 	}
-	return validateScope(plan.Scope)
+	scope := plan.Scope
+	hasExclusionResources := scope.Exclusions != nil && len(scope.Exclusions.Resources) > constants.DefaultInitValue
+	return validateScope(scope.Type, len(scope.ApplicationRefs), len(scope.Namespaces), hasExclusionResources)
 }
 
-func validateScope(scope plans.ProtectionPlanScope) error {
-	switch scope.Type {
+func validateScope(scopeType string, appCount, namespaceCount int, hasExclusionResources bool) error {
+	switch scopeType {
 	case constants.ScopeTypeApplications:
-		if len(scope.ApplicationIDs) == constants.DefaultInitValue || len(scope.Namespaces) > constants.DefaultInitValue {
+		if appCount == constants.DefaultInitValue || namespaceCount > constants.DefaultInitValue {
 			return errors.New(string(constants.ErrProtectionPlanScopeUnion))
 		}
 		return nil
 	case constants.ScopeTypeNamespaces:
-		if len(scope.Namespaces) == constants.DefaultInitValue || len(scope.ApplicationIDs) > constants.DefaultInitValue {
+		if namespaceCount == constants.DefaultInitValue || appCount > constants.DefaultInitValue {
 			return errors.New(string(constants.ErrProtectionPlanScopeUnion))
+		}
+		if hasExclusionResources {
+			return errors.New(string(constants.ErrProtectionPlanExclusionScope))
 		}
 		return nil
 	default:

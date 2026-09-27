@@ -8,7 +8,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	appresource "github.com/telark/data/resources/application"
 	"github.com/telark/discovery/internal/constants"
-	gcfghelper "github.com/telark/discovery/internal/helpers/globalconfig"
+	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -100,7 +100,7 @@ func railNamespaceIncluded(ctx context.Context, app *appresource.Application) ra
 	if app == nil {
 		return pass(constants.RailNamespaceIncluded)
 	}
-	excluded := gcfghelper.FetchExcludedNamespaces(ctx)
+	excluded := tcfghelper.FetchExcludedNamespaces(ctx)
 	if len(excluded) == constants.DefaultInitValue {
 		return pass(constants.RailNamespaceIncluded)
 	}
@@ -152,9 +152,23 @@ func railNoCoalesceBuffer(ctx context.Context, rdb redis.Cmdable, appName string
 		constants.KeyPrefixCoalesceBuffer+appName)
 }
 
-func railNoEnrichmentLock(ctx context.Context, rdb redis.Cmdable, appName string) railResult {
-	return railRedisKeyAbsent(ctx, rdb, constants.RailNoEnrichmentLock,
-		constants.KeyPrefixLockEnrich+appName)
+// The analyzer keys its run lease by namespace too; the rail only has the app name.
+func railNoAnalyzerInflight(ctx context.Context, rdb redis.Cmdable, appName string) railResult {
+	if rdb == nil {
+		return pass(constants.RailNoAnalyzerInflight)
+	}
+	cctx, cancel := context.WithTimeout(ctx, constants.AutoCleanupRailReadTimeout)
+	defer cancel()
+	pattern := constants.KeyPrefixAnalyzerInflight + "*:" + appName
+	keys, _, err := rdb.Scan(cctx, 0, pattern, 10).Result()
+	if err != nil {
+		return errored(constants.RailNoAnalyzerInflight, err)
+	}
+	if len(keys) > constants.DefaultInitValue {
+		return block(constants.RailNoAnalyzerInflight,
+			fmt.Sprintf("analyzer run(s) in flight: %v", keys))
+	}
+	return pass(constants.RailNoAnalyzerInflight)
 }
 
 // Uses SCAN with pattern: cardinality per app is small (current gen only).

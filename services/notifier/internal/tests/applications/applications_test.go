@@ -2,20 +2,36 @@ package applications
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/nats-io/nats.go"
 	appresource "github.com/telark/data/resources/application"
-	shared "github.com/telark/data/resources/shared"
+	"github.com/telark/data/resources/shared"
 	"github.com/telark/notifier/internal/subscribers/applications"
 	"github.com/telark/notifier/internal/tests/testutil"
+	restconstants "github.com/telark/rest/constants"
 	"github.com/telark/rest/response"
 	natscore "github.com/telark/x-ware/nats/core"
 )
 
+const (
+	updateSubject = "telark.applications.update"
+	deleteSubject = "telark.applications.delete"
+	ackPayload    = "+ACK"
+	nakPayload    = "-NAK"
+	replyWait     = 2 * time.Second
+)
+
 type fakeAppClient struct {
-	patchStatus, createStatus, deleteStatus int
-	patched, created, deleted               bool
+	patchStatus, createStatus int
+	resetResp                 *response.GenericResponse
+	resetErr                  error
+	patched, created, reset   bool
 }
 
 func (f *fakeAppClient) PatchApplicationByName(_ string, _ map[string]any) *response.GenericResponse {
@@ -28,9 +44,13 @@ func (f *fakeAppClient) CreateApplication(_ *appresource.Application) *response.
 	return &response.GenericResponse{Status: f.createStatus}
 }
 
-func (f *fakeAppClient) DeleteApplicationByName(_ string) *response.GenericResponse {
-	f.deleted = true
-	return &response.GenericResponse{Status: f.deleteStatus}
+func (f *fakeAppClient) ResetApplicationByName(_ string) (*response.GenericResponse, error) {
+	f.reset = true
+	return f.resetResp, f.resetErr
+}
+
+func statusErr(status int) error {
+	return fmt.Errorf(string(restconstants.ErrUnexpectedStatus), status, "boom")
 }
 
 func updateMsg() []byte {
@@ -51,8 +71,8 @@ func updateNoScopeMsg() []byte {
 }
 
 // An update patches the application CR; a 404 upgrades to a create (upsert); a
-// backend error is acked-and-logged. A delete removes it. All routed through the
-// injected client so no exporter is needed.
+// backend error is acked-and-logged. A delete resets it through discovery. All
+// routed through the injected client so no exporter or discovery is needed.
 func TestApplicationSubscriberRoutesEvents(t *testing.T) {
 	cases := []struct {
 		name                     string
@@ -60,15 +80,24 @@ func TestApplicationSubscriberRoutesEvents(t *testing.T) {
 		payload                  []byte
 		fake                     fakeAppClient
 		wantPatched, wantCreated bool
-		wantDeleted              bool
+		wantReset                bool
 	}{
-		{"update patched", "telark.applications.update", updateMsg(), fakeAppClient{patchStatus: http.StatusOK}, true, false, false},
-		{"update upserts on 404", "telark.applications.update", updateMsg(), fakeAppClient{patchStatus: http.StatusNotFound, createStatus: http.StatusOK}, true, true, false},
-		{"update backend error acked", "telark.applications.update", updateMsg(), fakeAppClient{patchStatus: http.StatusInternalServerError}, true, false, false},
-		{"update create fails on 404", "telark.applications.update", updateMsg(), fakeAppClient{patchStatus: http.StatusNotFound, createStatus: http.StatusInternalServerError}, true, true, false},
-		{"update missing scope acked", "telark.applications.update", updateNoScopeMsg(), fakeAppClient{}, false, false, false},
-		{"delete removed", "telark.applications.delete", deleteMsg(), fakeAppClient{deleteStatus: http.StatusOK}, false, false, true},
-		{"delete backend error acked", "telark.applications.delete", deleteMsg(), fakeAppClient{deleteStatus: http.StatusInternalServerError}, false, false, true},
+		{"update patched", updateSubject, updateMsg(), fakeAppClient{patchStatus: http.StatusOK}, true, false, false},
+		{
+			"update upserts on 404", updateSubject, updateMsg(),
+			fakeAppClient{patchStatus: http.StatusNotFound, createStatus: http.StatusOK}, true, true, false,
+		},
+		{"update backend error acked", updateSubject, updateMsg(), fakeAppClient{patchStatus: http.StatusInternalServerError}, true, false, false},
+		{
+			"update create fails on 404", updateSubject, updateMsg(),
+			fakeAppClient{patchStatus: http.StatusNotFound, createStatus: http.StatusInternalServerError}, true, true, false,
+		},
+		{"update missing scope acked", updateSubject, updateNoScopeMsg(), fakeAppClient{}, false, false, false},
+		{
+			"delete resets", deleteSubject, deleteMsg(),
+			fakeAppClient{resetResp: &response.GenericResponse{Status: http.StatusOK}}, false, false, true,
+		},
+		{"delete reset error", deleteSubject, deleteMsg(), fakeAppClient{resetErr: statusErr(http.StatusBadGateway)}, false, false, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -82,7 +111,59 @@ func TestApplicationSubscriberRoutesEvents(t *testing.T) {
 
 			testutil.Equal(t, "patched", fake.patched, c.wantPatched)
 			testutil.Equal(t, "created", fake.created, c.wantCreated)
-			testutil.Equal(t, "deleted", fake.deleted, c.wantDeleted)
+			testutil.Equal(t, "reset", fake.reset, c.wantReset)
+		})
+	}
+}
+
+// boundDeleteMsg is a delete whose ack or nak lands on a subject the test reads.
+func boundDeleteMsg(t *testing.T) (*nats.Msg, *nats.Subscription) {
+	t.Helper()
+	c := testutil.NatsServer(t)
+	inbox := nats.NewInbox()
+	replies, err := c.Conn.SubscribeSync(inbox)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bound, err := c.Conn.SubscribeSync(nats.NewInbox())
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := testutil.RawMsg(deleteSubject, deleteMsg())
+	m.Reply, m.Sub = inbox, bound
+	return m, replies
+}
+
+// A gone application is success, a reset that may succeed later (discovery or the
+// exporter down, a timeout) is redelivered, and a refusal is acked and logged.
+func TestDeleteAckNakMapping(t *testing.T) {
+	cases := []struct {
+		name  string
+		fake  fakeAppClient
+		reply string
+	}{
+		{"reset ok", fakeAppClient{resetResp: &response.GenericResponse{Status: http.StatusOK}}, ackPayload},
+		{"already gone", fakeAppClient{resetErr: statusErr(http.StatusNotFound)}, ackPayload},
+		{"exporter delete failed", fakeAppClient{resetErr: statusErr(http.StatusBadGateway)}, nakPayload},
+		{"discovery unavailable", fakeAppClient{resetErr: statusErr(http.StatusServiceUnavailable)}, nakPayload},
+		{"no http answer", fakeAppClient{resetErr: errors.New("context deadline exceeded")}, nakPayload},
+		{"forbidden", fakeAppClient{resetErr: statusErr(http.StatusForbidden)}, ackPayload},
+		{"unauthorized", fakeAppClient{resetErr: statusErr(http.StatusUnauthorized)}, ackPayload},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fake := c.fake
+			sub := applications.NewApplicationSubscriberWithClient(&fake)
+			m, replies := boundDeleteMsg(t)
+
+			_ = sub.ProcessMessage(context.Background(), m)
+
+			reply, err := replies.NextMsg(replyWait)
+			if err != nil {
+				t.Fatalf("no ack or nak: %v", err)
+			}
+			testutil.Equal(t, "reset", fake.reset, true)
+			testutil.Equal(t, "reply", strings.HasPrefix(string(reply.Data), c.reply), true)
 		})
 	}
 }

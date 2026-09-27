@@ -14,6 +14,8 @@ import (
 	natstreams "github.com/telark/x-ware/nats/streams"
 )
 
+const ackWait = nats.AckWait(constants.AckWaitSeconds * time.Second)
+
 func (s *BaseSubscriber) Subscribe(nc *natscore.NATSClient) error {
 	return s.SubscribeWithContext(context.Background(), nc)
 }
@@ -37,7 +39,7 @@ func (s *BaseSubscriber) startWorkers() {
 			last := map[string]uint64{}
 			for m := range ch {
 				if s.isStaleRedelivery(m, last) {
-					_ = m.Ack(nats.AckWait(constants.AckWaitSeconds * time.Second))
+					_ = m.Ack(ackWait)
 					continue
 				}
 				s.handleMessageForAck(m)
@@ -46,9 +48,8 @@ func (s *BaseSubscriber) startWorkers() {
 	}
 }
 
-// Drain expects the Subscribe context to be canceled first: it waits for the
-// fetch loops to stop, then lets the workers finish (and ack) what was already
-// fetched, bounded so shutdown stays under the pod's termination grace period.
+// Expects the Subscribe context canceled first: fetch loops stop, then workers finish (and ack)
+// what was already fetched, bounded so shutdown stays under the pod's termination grace period.
 func (s *BaseSubscriber) Drain() {
 	s.stopOnce.Do(func() {
 		drained := make(chan struct{})
@@ -100,7 +101,7 @@ func (s *BaseSubscriber) fetchAndProcessMessages(ctx context.Context, sub *nats.
 				if err != nats.ErrTimeout {
 					logger.GetLogger(constants.PrefixManagerSubscriber).Error(
 						fmt.Sprintf(constants.ErrNatsFetchMessages, sub.Subject, err))
-					time.Sleep(500 * time.Millisecond)
+					time.Sleep(constants.FetchErrorBackoffMillis * time.Millisecond)
 				}
 				continue
 			}
@@ -137,7 +138,7 @@ func (s *BaseSubscriber) HandleMessage(m *nats.Msg) error {
 
 	msgKey := s.generateMessageKey(m)
 	if s.isDuplicateMessage(msgKey) {
-		_ = m.Ack(nats.AckWait(constants.AckWaitSeconds * time.Second))
+		_ = m.Ack(ackWait)
 		return nil
 	}
 
@@ -146,12 +147,20 @@ func (s *BaseSubscriber) HandleMessage(m *nats.Msg) error {
 }
 
 func (s *BaseSubscriber) handleMessageForAck(m *nats.Msg) {
+	// A poison message must not kill the worker; the NAK lets MaxDeliver retire it.
+	defer func() {
+		if r := recover(); r != nil {
+			if err := s.NakWithLog(m, m.Subject, fmt.Sprintf(constants.ErrHandlerPanicked, m.Subject, r)); err != nil {
+				logger.GetLogger(constants.PrefixManagerSubscriber).Error(err.Error())
+			}
+		}
+	}()
 	if err := s.HandleMessage(m); err != nil {
 		logger.GetLogger(constants.PrefixManagerSubscriber).Error(fmt.Sprintf(string(errors.ErrNatsHandleMsg), m.Subject, err))
-		_ = m.Nak(nats.AckWait(constants.AckWaitSeconds * time.Second))
+		_ = m.Nak(ackWait)
 		return
 	}
-	if err := m.Ack(nats.AckWait(constants.AckWaitSeconds * time.Second)); err != nil &&
+	if err := m.Ack(ackWait); err != nil &&
 		err.Error() != string(errors.ErrNatsMsgAlreadyAcknowledged) {
 		logger.GetLogger(constants.PrefixManagerSubscriber).Error(fmt.Sprintf(string(errors.ErrNatsAckMsg), m.Subject, err))
 	}

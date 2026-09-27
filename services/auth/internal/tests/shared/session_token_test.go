@@ -1,13 +1,18 @@
 package shared
 
 import (
+	"encoding/base64"
 	"regexp"
 	"testing"
 
 	"github.com/telark/auth/internal/helpers/shared"
 )
 
-const sessionTokenBytes = 32
+const (
+	sessionTokenBytes   = 32
+	uniqueTokenSamples  = 100
+	generateTokenFailed = "GenerateSessionToken: %v"
+)
 
 var base64URLAlphabet = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
@@ -16,10 +21,10 @@ var base64URLAlphabet = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 func TestSessionTokenCarries256Bits(t *testing.T) {
 	token, err := shared.GenerateSessionToken()
 	if err != nil {
-		t.Fatalf("GenerateSessionToken: %v", err)
+		t.Fatalf(generateTokenFailed, err)
 	}
 
-	raw, err := shared.Base64URLDecode(token)
+	raw, err := base64.RawURLEncoding.DecodeString(token)
 	if err != nil {
 		t.Fatalf("token is not base64url: %v", err)
 	}
@@ -31,7 +36,7 @@ func TestSessionTokenCarries256Bits(t *testing.T) {
 func TestSessionTokenUsesBase64URLAlphabet(t *testing.T) {
 	token, err := shared.GenerateSessionToken()
 	if err != nil {
-		t.Fatalf("GenerateSessionToken: %v", err)
+		t.Fatalf(generateTokenFailed, err)
 	}
 
 	if !base64URLAlphabet.MatchString(token) {
@@ -42,10 +47,10 @@ func TestSessionTokenUsesBase64URLAlphabet(t *testing.T) {
 func TestSessionTokensAreUnique(t *testing.T) {
 	seen := make(map[string]struct{})
 
-	for range 100 {
+	for range uniqueTokenSamples {
 		token, err := shared.GenerateSessionToken()
 		if err != nil {
-			t.Fatalf("GenerateSessionToken: %v", err)
+			t.Fatalf(generateTokenFailed, err)
 		}
 		if _, dup := seen[token]; dup {
 			t.Fatalf("duplicate session token generated: %q", token)

@@ -7,12 +7,16 @@ import (
 
 	"github.com/telark/data/errors"
 	"github.com/telark/data/messages"
-	plansmd "github.com/telark/data/metadata/plans"
+	plansmd "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/data/plans"
+	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/exporters/generics"
+	envmanager "github.com/telark/exporter/internal/managers/envs"
+	"github.com/telark/exporter/internal/utils/artifact"
 	"github.com/telark/exporter/internal/utils/concurrency"
 	plansutils "github.com/telark/exporter/internal/utils/plans/protection"
+	reportsutil "github.com/telark/exporter/internal/utils/reports"
 	resourcesutils "github.com/telark/exporter/internal/utils/resources/shared"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/kcore/crds/api"
@@ -20,7 +24,10 @@ import (
 	responseutils "github.com/telark/rest/utils/response"
 )
 
-var listMutex sync.Mutex
+var (
+	lg        = constants.GetLogger(constants.PrefixMain)
+	listMutex sync.Mutex
+)
 
 func CreatePlan() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -29,8 +36,12 @@ func CreatePlan() func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		body, err := sharedutils.GetSpec(w, r)
+		body, err := sharedutils.GetSpecFor[plans.ProtectionPlan](w, r)
 		if err != nil {
+			return
+		}
+
+		if !authz.GuardPlanLifecycle(w, r, body) {
 			return
 		}
 
@@ -100,8 +111,12 @@ func PatchPlanByID() func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		body, err := sharedutils.GetSpec(w, r)
+		body, err := sharedutils.GetSpecFor[plans.ProtectionPlan](w, r)
 		if err != nil {
+			return
+		}
+
+		if !authz.GuardPlanLifecycle(w, r, body) {
 			return
 		}
 
@@ -142,6 +157,12 @@ func DeletePlanByID() func(http.ResponseWriter, *http.Request) {
 			errorMsg := sharedutils.GenerateResourceError(errors.ErrDeleteRes, planID, result.Error)
 			responseutils.LogAndSendResponse(w, result.Status, response.OperationError, errorMsg, nil, result.Error)
 			return
+		}
+
+		// The periodic reports sweep is the retry for a failed removal.
+		root := envmanager.GetReportsPath()
+		if rerr := reportsutil.RemovePlanReports(root, planID); rerr != nil {
+			lg.Warn(fmt.Sprintf(string(constants.ErrReportWriteFailed), artifact.StageNone, planID, reportsutil.PlanDir(root, planID), rerr))
 		}
 
 		msg := fmt.Sprintf(string(messages.SuccessDeleteRes), planID, plansmd.ProtectionPlanMetadata.Kind)

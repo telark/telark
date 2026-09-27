@@ -2,40 +2,38 @@ package protection
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 
 	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/messages"
 	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection"
 	planseps "github.com/telark/rest/endpoints/plans"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 )
 
 func Prepare(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get(constants.HeaderUserID)
-	if userID == constants.EmptyString {
-		respondError(w, http.StatusUnauthorized, protection.ErrUserMissing, nil)
+	svc, ok := readyService(w)
+	if !ok {
+		return
+	}
+	userID, ok := requireUser(w, r)
+	if !ok {
 		return
 	}
 
 	var req planseps.PrepareProtectionPlanRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		msg := fmt.Sprintf(string(protection.ErrRequestBody), err)
-		respondError(w, http.StatusBadRequest, dataerrors.Error(msg), err)
+	if !decodeBody(w, r, &req) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), constants.ProtectionPlanDeployTimeout)
+	ctx, cancel := context.WithTimeout(detached(r), constants.ProtectionPlanDeployTimeout)
 	defer cancel()
 
-	plan, err := globalService.Prepare(ctx, userID, &req)
+	plan, err := svc.Prepare(ctx, userID, &req)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, dataerrors.Error(err.Error()), err)
+		respondDomainError(w, err)
 		return
 	}
 
@@ -43,7 +41,7 @@ func Prepare(w http.ResponseWriter, r *http.Request) {
 		w,
 		http.StatusOK,
 		response.OperationSuccess,
-		string(messages.SuccessCreateRes),
+		planMessage(messages.SuccessCreateRes, plan.ID),
 		plan,
 		nil,
 	)

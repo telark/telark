@@ -2,8 +2,11 @@ package cleanup
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 
 	authclients "github.com/telark/auth/internal/clients"
+	"github.com/telark/auth/internal/constants"
 	"github.com/telark/data/resources/finalizers"
 	resourcesshared "github.com/telark/data/resources/shared"
 	"github.com/telark/rest/response"
@@ -47,10 +50,10 @@ var resourceRegistry = map[string]ResourceOps{
 	},
 	finalizers.ResourceTypeRoles: {
 		Finalizer:       finalizers.RoleCleanup,
-		List:            listRoles,
-		Patch:           patchRole,
-		AddFinalizer:    addRoleFinalizer,
-		RemoveFinalizer: removeRoleFinalizer,
+		List:            listAccessRoles,
+		Patch:           patchAccessRole,
+		AddFinalizer:    addAccessRoleFinalizer,
+		RemoveFinalizer: removeAccessRoleFinalizer,
 	},
 }
 
@@ -62,8 +65,8 @@ func listGroups(_ context.Context) ([]*resourcesshared.CleanupView, error) {
 	return authclients.GetGroupClient().ListCleanupViews()
 }
 
-func listRoles(_ context.Context) ([]*resourcesshared.CleanupView, error) {
-	return authclients.GetRoleClient().ListCleanupViews()
+func listAccessRoles(_ context.Context) ([]*resourcesshared.CleanupView, error) {
+	return authclients.GetAccessRoleClient().ListCleanupViews()
 }
 
 func patchUser(_ context.Context, id string, body map[string]any) *response.GenericResponse {
@@ -74,8 +77,8 @@ func patchGroup(_ context.Context, id string, body map[string]any) *response.Gen
 	return authclients.GetGroupClient().PatchGroupByID(id, body)
 }
 
-func patchRole(_ context.Context, id string, body map[string]any) *response.GenericResponse {
-	return authclients.GetRoleClient().PatchRoleByID(id, body)
+func patchAccessRole(_ context.Context, id string, body map[string]any) *response.GenericResponse {
+	return authclients.GetAccessRoleClient().PatchAccessRoleByID(id, body)
 }
 
 func addUserFinalizer(_ context.Context, id, name string) *response.GenericResponse {
@@ -86,8 +89,8 @@ func addGroupFinalizer(_ context.Context, id, name string) *response.GenericResp
 	return authclients.GetGroupClient().AddFinalizer(id, name)
 }
 
-func addRoleFinalizer(_ context.Context, id, name string) *response.GenericResponse {
-	return authclients.GetRoleClient().AddFinalizer(id, name)
+func addAccessRoleFinalizer(_ context.Context, id, name string) *response.GenericResponse {
+	return authclients.GetAccessRoleClient().AddFinalizer(id, name)
 }
 
 func removeUserFinalizer(_ context.Context, id, name string) *response.GenericResponse {
@@ -98,6 +101,26 @@ func removeGroupFinalizer(_ context.Context, id, name string) *response.GenericR
 	return authclients.GetGroupClient().RemoveFinalizer(id, name)
 }
 
-func removeRoleFinalizer(_ context.Context, id, name string) *response.GenericResponse {
-	return authclients.GetRoleClient().RemoveFinalizer(id, name)
+func removeAccessRoleFinalizer(_ context.Context, id, name string) *response.GenericResponse {
+	return authclients.GetAccessRoleClient().RemoveFinalizer(id, name)
+}
+
+// A session already gone counts as purged; any other failure requeues the job.
+func purgeUserSessions(userID string) error {
+	client := authclients.GetSessionClient()
+	refs, err := client.ListSessionRefsByUser(userID)
+	if err != nil {
+		return fmt.Errorf(string(constants.ErrCleanupListSessionsFailed), userID, err)
+	}
+	for _, ref := range refs {
+		resp := client.DeleteSessionByToken(ref)
+		if resp == nil || (resp.Status != http.StatusOK && resp.Status != http.StatusNotFound) {
+			status := constants.DefaultInitValue
+			if resp != nil {
+				status = resp.Status
+			}
+			return fmt.Errorf(string(constants.ErrCleanupDeleteSessionFailed), userID, ref, status)
+		}
+	}
+	return nil
 }

@@ -205,146 +205,54 @@ func diffPorts(stored *application.Application, fresh *application.Application, 
 	}
 }
 
-func diffEnvVarKeys(
-	stored *application.Application,
-	fresh *application.Application,
-	out *[]application.ApplicationChange,
-) {
-	storedSet := utils.SliceToMap(stored.EnvVarKeys)
-	freshSet := utils.SliceToMap(fresh.EnvVarKeys)
-	for _, k := range fresh.EnvVarKeys {
-		if !storedSet[k] {
-			*out = append(*out, application.ApplicationChange{
-				Field:       ChangeFieldEnvVarKey,
-				Description: DescEnvVarKeyAdded(k),
-				ChangeType:  ChangeTypeAdded,
-				NewValue:    utils.StrPtr(k),
-			})
-		}
-	}
-	for _, k := range stored.EnvVarKeys {
-		if !freshSet[k] {
-			*out = append(*out, application.ApplicationChange{
-				Field:       ChangeFieldEnvVarKey,
-				Description: DescEnvVarKeyRemoved(k),
-				ChangeType:  ChangeTypeRemoved,
-				OldValue:    utils.StrPtr(k),
-			})
-		}
-	}
+func diffEnvVarKeys(stored, fresh *application.Application, out *[]application.ApplicationChange) {
+	diffStringSet(stored.EnvVarKeys, fresh.EnvVarKeys, ChangeFieldEnvVarKey, DescEnvVarKeyAdded, DescEnvVarKeyRemoved, out)
 }
 
-func diffConfigMapRefs(
-	stored *application.Application,
-	fresh *application.Application,
-	out *[]application.ApplicationChange,
-) {
-	storedSet := utils.SliceToMap(stored.ConfigMapRefs)
-	freshSet := utils.SliceToMap(fresh.ConfigMapRefs)
-	for _, ref := range fresh.ConfigMapRefs {
-		if !storedSet[ref] {
-			*out = append(*out, application.ApplicationChange{
-				Field:       ChangeFieldConfigMapRef,
-				Description: DescConfigMapRefAdded(ref),
-				ChangeType:  ChangeTypeAdded,
-				NewValue:    utils.StrPtr(ref),
-			})
-		}
-	}
-	for _, ref := range stored.ConfigMapRefs {
-		if !freshSet[ref] {
-			*out = append(*out, application.ApplicationChange{
-				Field:       ChangeFieldConfigMapRef,
-				Description: DescConfigMapRefRemoved(ref),
-				ChangeType:  ChangeTypeRemoved,
-				OldValue:    utils.StrPtr(ref),
-			})
-		}
-	}
+func diffConfigMapRefs(stored, fresh *application.Application, out *[]application.ApplicationChange) {
+	diffStringSet(stored.ConfigMapRefs, fresh.ConfigMapRefs, ChangeFieldConfigMapRef, DescConfigMapRefAdded, DescConfigMapRefRemoved, out)
 }
 
-func diffSecretRefs(
-	stored *application.Application,
-	fresh *application.Application,
-	out *[]application.ApplicationChange,
-) {
-	storedSet := utils.SliceToMap(stored.SecretRefs)
-	freshSet := utils.SliceToMap(fresh.SecretRefs)
-	for _, ref := range fresh.SecretRefs {
-		if !storedSet[ref] {
-			*out = append(*out, application.ApplicationChange{
-				Field:       ChangeFieldSecretRef,
-				Description: DescSecretRefAdded(ref),
-				ChangeType:  ChangeTypeAdded,
-				NewValue:    utils.StrPtr(ref),
-			})
-		}
-	}
-	for _, ref := range stored.SecretRefs {
-		if !freshSet[ref] {
-			*out = append(*out, application.ApplicationChange{
-				Field:       ChangeFieldSecretRef,
-				Description: DescSecretRefRemoved(ref),
-				ChangeType:  ChangeTypeRemoved,
-				OldValue:    utils.StrPtr(ref),
-			})
-		}
-	}
+func diffSecretRefs(stored, fresh *application.Application, out *[]application.ApplicationChange) {
+	diffStringSet(stored.SecretRefs, fresh.SecretRefs, ChangeFieldSecretRef, DescSecretRefAdded, DescSecretRefRemoved, out)
 }
 
-func diffServiceMappings(
-	stored *application.Application,
-	fresh *application.Application,
-	out *[]application.ApplicationChange,
-) {
-	storedSet := utils.SliceToMap(stored.ServiceMappings)
-	freshSet := utils.SliceToMap(fresh.ServiceMappings)
-	for _, mapping := range fresh.ServiceMappings {
-		if !storedSet[mapping] {
-			*out = append(*out, application.ApplicationChange{
-				Field:       ChangeFieldServiceMapping,
-				Description: DescServiceMappingAdded(mapping),
-				ChangeType:  ChangeTypeAdded,
-				NewValue:    utils.StrPtr(mapping),
-			})
-		}
-	}
-	for _, mapping := range stored.ServiceMappings {
-		if !freshSet[mapping] {
-			*out = append(*out, application.ApplicationChange{
-				Field:       ChangeFieldServiceMapping,
-				Description: DescServiceMappingRemoved(mapping),
-				ChangeType:  ChangeTypeRemoved,
-				OldValue:    utils.StrPtr(mapping),
-			})
-		}
-	}
+func diffServiceMappings(stored, fresh *application.Application, out *[]application.ApplicationChange) {
+	diffStringSet(
+		stored.ServiceMappings, fresh.ServiceMappings, ChangeFieldServiceMapping,
+		DescServiceMappingAdded, DescServiceMappingRemoved, out,
+	)
 }
 
-func diffIngressRules(
-	stored *application.Application,
-	fresh *application.Application,
+func diffIngressRules(stored, fresh *application.Application, out *[]application.ApplicationChange) {
+	diffStringSet(stored.IngressRules, fresh.IngressRules, ChangeFieldIngressRule, DescIngressRuleAdded, DescIngressRuleRemoved, out)
+}
+
+func diffStringSet(
+	storedVals, freshVals []string,
+	field string,
+	descAdded, descRemoved func(string) string,
 	out *[]application.ApplicationChange,
 ) {
-	storedSet := utils.SliceToMap(stored.IngressRules)
-	freshSet := utils.SliceToMap(fresh.IngressRules)
-	for _, rule := range fresh.IngressRules {
-		if !storedSet[rule] {
+	storedSet := utils.SliceToMap(storedVals)
+	freshSet := utils.SliceToMap(freshVals)
+	for _, v := range freshVals {
+		if !storedSet[v] {
 			*out = append(*out, application.ApplicationChange{
-				Field:       ChangeFieldIngressRule,
-				Description: DescIngressRuleAdded(rule),
+				Field:       field,
+				Description: descAdded(v),
 				ChangeType:  ChangeTypeAdded,
-				NewValue:    utils.StrPtr(rule),
+				NewValue:    utils.StrPtr(v),
 			})
 		}
 	}
-	for _, rule := range stored.IngressRules {
-		if !freshSet[rule] {
+	for _, v := range storedVals {
+		if !freshSet[v] {
 			*out = append(*out, application.ApplicationChange{
-				Field:       ChangeFieldIngressRule,
-				Description: DescIngressRuleRemoved(rule),
+				Field:       field,
+				Description: descRemoved(v),
 				ChangeType:  ChangeTypeRemoved,
-				OldValue:    utils.StrPtr(rule),
+				OldValue:    utils.StrPtr(v),
 			})
 		}
 	}

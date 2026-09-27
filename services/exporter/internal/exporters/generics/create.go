@@ -14,6 +14,7 @@ import (
 	"github.com/telark/exporter/internal/constants"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/kcore/crds/api"
+	kubeshared "github.com/telark/kcore/shared"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 )
@@ -51,15 +52,7 @@ func runCreateFromTemplate(
 	name string,
 	template *unstructured.Unstructured,
 ) {
-	k8sCreateSem <- struct{}{}
-	result := api.CreateCustomResource(template, md)
-	for attempt := constants.DefaultIncrementValue; attempt < maxCreateAttempts &&
-		result.Status != http.StatusOK && result.Error != nil &&
-		strings.Contains(result.Error.Error(), quotaTimeoutMsg); attempt++ {
-		time.Sleep(createRetryDelay)
-		result = api.CreateCustomResource(template, md)
-	}
-	<-k8sCreateSem
+	result := createWithQuotaRetry(template, md)
 
 	if result.Status == http.StatusConflict {
 		responseutils.LogAndSendResponse(w, http.StatusConflict, response.OperationAlreadyExists, string(globalerrors.ErrResExists), nil, nil)
@@ -67,8 +60,11 @@ func runCreateFromTemplate(
 	}
 
 	if result.Status != http.StatusOK {
+		// kcore stamps every failure 500, which would hide a schema rejection (422) behind a
+		// server error; the Kubernetes status carries the real code.
 		errorMsg := sharedutils.GenerateResourceError(globalerrors.ErrCreateRes, name, result.Error)
-		sharedutils.LogByStatusAndSend(w, result.Status, response.OperationError, errorMsg, nil, result.Error)
+		status := sharedutils.StatusForResult(result)
+		sharedutils.LogByStatusAndSend(w, status, response.OperationError, errorMsg, nil, result.Error)
 		return
 	}
 
@@ -86,4 +82,23 @@ func runCreateFromTemplate(
 	}
 
 	filterAndRespond(w, created, messages.SuccessCreateRes)
+}
+
+// The slot is released with defer: a panic between acquire and release would retire it for the
+// process lifetime, and k8sCreatePoolSize of those deadlock every CRD create.
+func createWithQuotaRetry(
+	template *unstructured.Unstructured,
+	md metadata.Metadata,
+) kubeshared.KubernetesAPIData {
+	k8sCreateSem <- struct{}{}
+	defer func() { <-k8sCreateSem }()
+
+	result := api.CreateCustomResourceWithStatus(template, md)
+	for attempt := constants.DefaultIncrementValue; attempt < maxCreateAttempts &&
+		result.Status != http.StatusOK && result.Error != nil &&
+		strings.Contains(result.Error.Error(), quotaTimeoutMsg); attempt++ {
+		time.Sleep(createRetryDelay)
+		result = api.CreateCustomResourceWithStatus(template, md)
+	}
+	return result
 }

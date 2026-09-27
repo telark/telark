@@ -14,10 +14,8 @@ type retryLogger interface {
 	Warn(string)
 }
 
-// RetryStart keeps calling start until it succeeds. NewClientWithRetry only
-// retries for NatsInitMaxWaitSeconds and then gives up for good, so without this
-// outer loop a NATS outage leaves the service running with no subscribers until
-// someone restarts it by hand.
+// NewClientWithRetry gives up for good after NatsInitMaxWaitSeconds; without this outer loop
+// a NATS outage leaves the service running with no subscribers until someone restarts it by hand.
 func RetryStart(
 	ctx context.Context,
 	start func() error,

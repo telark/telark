@@ -27,9 +27,8 @@ type TimeoutConfig struct {
 type CacheKeyFunc func(r *http.Request) string
 
 type OptimizedHandler struct {
-	optimizer *Optimizer
-	handler   http.HandlerFunc
-	timeout   time.Duration
+	handler http.HandlerFunc
+	timeout time.Duration
 }
 
 type CachedListHandler struct {

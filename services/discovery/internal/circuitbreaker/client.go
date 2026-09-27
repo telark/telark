@@ -12,7 +12,7 @@ var (
 	once     sync.Once
 
 	restDependencies = []DependencyType{
-		DependencyExporter, DependencyAuth, DependencyNotifier, DependencyEnrichment,
+		DependencyExporter, DependencyAuth, DependencyNotifier,
 	}
 )
 
@@ -138,8 +138,4 @@ func ExecuteNATS(operation func() error) error {
 
 func ExecuteExporter(operation func() error) error {
 	return GetManager().Execute(DependencyExporter, operation)
-}
-
-func ExecuteEnrichment(operation func() error) error {
-	return GetManager().Execute(DependencyEnrichment, operation)
 }

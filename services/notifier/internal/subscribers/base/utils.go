@@ -25,9 +25,8 @@ func applyWorkerCount() int {
 	return n
 }
 
-// Same resource name, same worker: one application's messages apply in fetch
-// order. That holds within a topic only; update and delete are separate
-// consumers with separate fetch loops.
+// Same resource name, same worker, so one application's messages apply in fetch order.
+// That holds within a topic only; update and delete are separate consumers with separate fetch loops.
 func (s *BaseSubscriber) Dispatch(m *nats.Msg) {
 	s.workers[s.workerIndex(m)] <- m
 }
@@ -50,9 +49,8 @@ func (*BaseSubscriber) resourceName(m *nats.Msg) string {
 	return msg.ResourceName
 }
 
-// A redelivered copy (AckWait expired or NAK'd) queues behind newer messages
-// for the same application, so applying it would roll the spec back. Messages
-// without JetStream metadata or a resource name are handled as-is.
+// A redelivered copy (AckWait expired or NAK'd) queues behind newer messages for the same application,
+// so applying it would roll the spec back. Messages without JetStream metadata or a resource name pass.
 func (s *BaseSubscriber) isStaleRedelivery(m *nats.Msg, last map[string]uint64) bool {
 	meta, err := m.Metadata()
 	if err != nil {
@@ -73,7 +71,7 @@ func (s *BaseSubscriber) isStaleRedelivery(m *nats.Msg, last map[string]uint64) 
 }
 
 func (*BaseSubscriber) ValidateMessage(m *nats.Msg) error {
-	if strings.HasPrefix(m.Subject, "$JS.ACK.") {
+	if strings.HasPrefix(m.Subject, constants.JetStreamAckPrefix) {
 		logger.GetLogger(constants.PrefixManagerSubscriber).Debug(fmt.Sprintf(string(messages.InfoSkippingAckMessage), m.Subject))
 		return nil
 	}
@@ -109,7 +107,7 @@ func (s *BaseSubscriber) isDuplicateMessage(msgKey string) bool {
 	now := time.Now()
 	s.processedMessages.Range(func(key, value any) bool {
 		if timestamp, ok := value.(time.Time); ok {
-			if now.Sub(timestamp) > 10*time.Second {
+			if now.Sub(timestamp) > constants.DedupWindowSeconds*time.Second {
 				s.processedMessages.Delete(key)
 			}
 		}
@@ -133,7 +131,7 @@ func (*BaseSubscriber) extractAction(subject string) natscore.Action {
 		logger.GetLogger(constants.PrefixManagerSubscriber).Warn(string(errors.ErrNatsInvalidSubject))
 		return constants.EmptyString
 	}
-	return natscore.Action(parts[2])
+	return natscore.Action(parts[constants.SubjectActionIndex])
 }
 
 func (s *BaseSubscriber) SetHandlerCallback(callback func(*nats.Msg, natscore.Action) error) {

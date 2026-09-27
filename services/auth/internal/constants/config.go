@@ -14,15 +14,14 @@ const (
 	SessionTokenBytes             = 32
 	HeaderSessionToken            = "X-Session-Token"
 	HeaderUserID                  = "X-User-ID"
-	HeaderCredentialID            = "X-Credential-ID"
 	HeaderDeviceName              = "X-Device-Name"
 	HeaderDeviceType              = "X-Device-Type"
-	HeaderEmail                   = "X-Email"
 	HeaderContentType             = "Content-Type"
 	HeaderOrigin                  = "Origin"
 	HeaderForwardedHost           = "X-Forwarded-Host"
 	HeaderForwardedProto          = "X-Forwarded-Proto"
 	IDPathParam                   = "id"
+	CredentialIDPathParam         = "credentialId"
 	ContentTypeJSON               = "application/json"
 	EmptyString                   = ""
 	ColonSeparator                = ":"
@@ -50,6 +49,11 @@ const (
 	AuthDataOffsetCredID          = 55
 	AAGUIDLength                  = 16
 	AttestationFormatNone         = "none"
+	WebAuthnTypeCreate            = "webauthn.create"
+	UserPresentFlag               = 0x01
+	RPIDHashLength                = 32
+	MaxWebAuthnInstances          = 32
+	MaxRequestBodyBytes           = 1 << 20
 	AttStmtKey                    = "attStmt"
 	SignCountShift24              = 24
 	SignCountShift16              = 16
@@ -71,6 +75,8 @@ const (
 	EnvBootstrapAdmins            = "BOOTSTRAP_ADMINS"
 	EnvSelfRegistrationEnabled    = "SELF_REGISTRATION_ENABLED"
 	EnvReplicaID                  = "HOSTNAME"
+	EnvOIDCTrustFile              = "OIDC_TRUST_FILE"
+	DefaultOIDCTrustFile          = "/etc/telark/oidc/googleJwkJson"
 	StandaloneReplicaID           = "standalone"
 
 	BuiltInRoleAdmin    = "r-00000-0000-0001"
@@ -90,13 +96,11 @@ const (
 	RedisKeyPrefixEnrolledCeremony  = "auth:webauthn:enrolled-ceremony:"
 	RedisKeyPrefixEnrollToken       = "auth:passkey:enroll-token:"
 	RedisKeyPrefixNonce             = "auth:oidc:nonce:"
-	RedisKeyJWKS                    = "auth:oidc:jwks:google"
 
 	// Redis TTLs
 	RedisTTLChallenge        = 60  // seconds — matches WebAuthn ceremony timeout
 	RedisTTLNonce            = 300 // seconds — 5 minutes for OIDC flow
 	RedisTTLEnrollToken      = 600 // seconds — 10 minutes to open the enrollment link on the other host
-	RedisTTLJWKS             = 6   // hours
 	OIDCNonceByteLen         = 32
 	RedisAsyncWorkerPoolSize = 32
 	RedisAsyncWorkerTimeout  = 5 * time.Second
@@ -130,22 +134,23 @@ const (
 	EnvBackfillBatchSize             = "BACKFILL_BATCH_SIZE"
 	EnvBackfillBatchPauseMS          = "BACKFILL_BATCH_PAUSE_MS"
 
-	DefaultReconcileTickSeconds          = 5
-	DefaultReconcilePassDeadlineSeconds  = 30
-	DefaultCleanupWorkersPerType         = 2
-	DefaultCleanupStreamMaxLen           = 10000
-	DefaultCleanupLagAlertThreshold      = 500
-	DefaultCleanupSweeperIntervalSeconds = 60
-	DefaultCleanupJobMaxAttempts         = 5
-	DefaultCleanupDedupTTLSeconds        = 600
-	DefaultCleanupXClaimMinIdleSeconds   = 60
-	DefaultCleanupListTimeoutSeconds     = 10
-	DefaultCleanupPatchTimeoutSeconds    = 5
-	DefaultCleanupMaxConcurrentPatches   = 4
-	DefaultCleanupBackoffInitialSeconds  = 5
-	DefaultCleanupBackoffMaxSeconds      = 300
-	DefaultBackfillBatchSize             = 10
-	DefaultBackfillBatchPauseMS          = 100
+	DefaultReconcileTickSeconds                = 5
+	DefaultReconcilePassDeadlineSeconds        = 30
+	DefaultCleanupWorkersPerType               = 2
+	DefaultCleanupStreamMaxLen                 = 10000
+	DefaultCleanupLagAlertThreshold            = 500
+	DefaultCleanupSweeperIntervalSeconds       = 60
+	DefaultCleanupJobMaxAttempts               = 5
+	DefaultCleanupDedupTTLSeconds              = 600
+	DefaultCleanupXClaimMinIdleSeconds         = 60
+	DefaultCleanupListTimeoutSeconds           = 10
+	DefaultCleanupPatchTimeoutSeconds          = 5
+	DefaultCleanupMaxConcurrentPatches         = 4
+	DefaultCleanupBackoffInitialSeconds        = 5
+	DefaultCleanupBackoffMaxSeconds            = 300
+	DefaultBackfillBatchSize                   = 10
+	DefaultBackfillBatchPauseMS                = 100
+	CleanupDLQMaxLen                     int64 = 1000
 
 	CleanupStreamPrefix    = "auth:cleanup:"
 	CleanupDLQStreamPrefix = "auth:cleanup:dlq:"
@@ -161,7 +166,7 @@ const (
 	CleanupFieldAttempts      = "attempts"
 	CleanupRequestedBySweeper = "sweeper"
 
-	SpecFieldAssignedUsersIDs  = "assignedUsersIDs"
-	SpecFieldAssignedRolesIDs  = "assignedRolesIDs"
-	SpecFieldAssignedGroupsIDs = "assignedGroupsIDs"
+	SpecFieldUserRefs  = "userRefs"
+	SpecFieldRoleRefs  = "roleRefs"
+	SpecFieldGroupRefs = "groupRefs"
 )

@@ -1,11 +1,9 @@
 package auth
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/telark/auth/internal/constants"
@@ -30,11 +28,7 @@ func LoginStart(w http.ResponseWriter, r *http.Request) {
 
 	user, passkeys, err := auth.GetUserAndPasskeys(req.Email)
 	if err != nil {
-		statusCode := http.StatusInternalServerError
-		if shared.IsError(err, constants.ErrUserNotFound) || shared.IsError(err, constants.ErrNoPasskeysFound) {
-			statusCode = http.StatusNotFound
-		}
-		shared.SendErrorResponse(w, statusCode, err)
+		shared.SendErrorResponse(w, userLookupStatus(err), err)
 		return
 	}
 
@@ -70,12 +64,11 @@ func LoginStart(w http.ResponseWriter, r *http.Request) {
 }
 
 func LoginFinish(w http.ResponseWriter, r *http.Request) {
-	bodyBytes, err := io.ReadAll(r.Body)
+	bodyBytes, err := webauthnhelper.ReadAndRestoreRequestBody(r)
 	if err != nil {
-		shared.SendErrorResponse(w, http.StatusBadRequest, fmt.Errorf(string(constants.ErrFailedReadRequestBody), err))
+		shared.SendErrorResponse(w, http.StatusBadRequest, err)
 		return
 	}
-	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	req, err := extractLoginRequest(bodyBytes)
 	if err != nil {
@@ -85,11 +78,7 @@ func LoginFinish(w http.ResponseWriter, r *http.Request) {
 
 	user, passkeys, err := auth.GetUserAndPasskeys(req.Email)
 	if err != nil {
-		statusCode := http.StatusInternalServerError
-		if shared.IsError(err, constants.ErrUserNotFound) || shared.IsError(err, constants.ErrNoPasskeysFound) {
-			statusCode = http.StatusNotFound
-		}
-		shared.SendErrorResponse(w, statusCode, err)
+		shared.SendErrorResponse(w, userLookupStatus(err), err)
 		return
 	}
 
@@ -116,8 +105,11 @@ func LoginFinish(w http.ResponseWriter, r *http.Request) {
 
 	sessionToken, err := auth.CreateUserSession(user.ID, &req.DeviceMetadata)
 	if err != nil {
-		shared.HandleError(w, errors.New(string(constants.ErrInternalServerError)),
-			http.StatusInternalServerError, err.Error())
+		status := shared.GetStatusCodeForSessionError(err)
+		if status == http.StatusInternalServerError {
+			err = errors.New(string(constants.ErrInternalServerError))
+		}
+		shared.HandleError(w, err, status, err.Error())
 		return
 	}
 
@@ -125,6 +117,13 @@ func LoginFinish(w http.ResponseWriter, r *http.Request) {
 		SessionToken: sessionToken,
 		User:         user,
 	})
+}
+
+func userLookupStatus(err error) int {
+	if shared.IsError(err, constants.ErrUserNotFound) || shared.IsError(err, constants.ErrNoPasskeysFound) {
+		return http.StatusNotFound
+	}
+	return http.StatusInternalServerError
 }
 
 func extractLoginRequest(bodyBytes []byte) (*LoginFinishRequest, error) {

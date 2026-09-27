@@ -214,7 +214,6 @@ func collectSnapshotItems(ctx context.Context, resources []application.Resource)
 	g.SetLimit(constants.SnapshotItemFetchConcurrency)
 	fetchTimeout := config.SnapshotFetchTimeout()
 	for i := range resources {
-		i := i
 		res := resources[i]
 		g.Go(func() error {
 			item := fetchSnapshotItem(gctx, res, fetchTimeout)

@@ -1,10 +1,10 @@
 package oidc
 
 import (
-	"context"
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -14,8 +14,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/telark/auth/internal/constants"
-	redishelper "github.com/telark/auth/internal/helpers/redis"
-	globalconfigresource "github.com/telark/data/resources/globalconfig"
+	telarkconfigresource "github.com/telark/data/resources/telarkconfig"
 )
 
 type jwk struct {
@@ -60,13 +59,13 @@ func (s *keyStore) stop() {
 	s.stopOnce.Do(func() { close(s.stopRefresh) })
 }
 
-func (s *keyStore) matches(oidc globalconfigresource.OIDCConfig) bool {
+func (s *keyStore) matches(oidc telarkconfigresource.OIDCConfig) bool {
 	return s.egressMode == oidc.EgressAllowed && s.staticJSON == oidc.GoogleJWKJSON
 }
 
 // Rebuilt whenever the admin changes the trust settings, so a key rotation takes
 // effect on the next login rather than on the next restart.
-func getStore(oidc globalconfigresource.OIDCConfig) (*keyStore, error) {
+func getStore(oidc telarkconfigresource.OIDCConfig) (*keyStore, error) {
 	storeMu.Lock()
 	defer storeMu.Unlock()
 
@@ -135,23 +134,20 @@ func (s *keyStore) refreshOnKidMiss() error {
 }
 
 func (s *keyStore) doRefresh() error {
+	// Keys come straight from the issuer or the admin-supplied set: Redis is
+	// unauthenticated, so a copy cached there could be swapped for an attacker's key.
 	var raw []byte
 
 	if s.egressMode {
-		if cached := loadJWKSFromRedis(); len(cached) > constants.DefaultInitValue {
-			raw = cached
-		} else {
-			fetched, err := fetchJWKS()
-			if err != nil {
-				lg.Warn(fmt.Sprintf(string(constants.ErrOIDCJWKSFetchFailed), err))
-				s.mu.Lock()
-				s.lastRefresh = time.Now()
-				s.mu.Unlock()
-				return nil // keep old keys; fail-safe
-			}
-			saveJWKSToRedis(fetched)
-			raw = fetched
+		fetched, err := fetchJWKS()
+		if err != nil {
+			lg.Warn(fmt.Sprintf(string(constants.ErrOIDCJWKSFetchFailed), err))
+			s.mu.Lock()
+			s.lastRefresh = time.Now()
+			s.mu.Unlock()
+			return nil // keep old keys; fail-safe
 		}
+		raw = fetched
 	} else {
 		raw = []byte(s.staticJSON)
 	}
@@ -189,33 +185,6 @@ func StopJWKSRefresh() {
 	}
 }
 
-func loadJWKSFromRedis() []byte {
-	rdb := redishelper.GetClient()
-	if rdb == nil {
-		return nil
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisAsyncWorkerTimeout)
-	defer cancel()
-	val, err := rdb.Get(ctx, constants.RedisKeyJWKS).Bytes()
-	if err != nil {
-		return nil
-	}
-	return val
-}
-
-func saveJWKSToRedis(raw []byte) {
-	rdb := redishelper.GetClient()
-	if rdb == nil {
-		return
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisAsyncWorkerTimeout)
-	defer cancel()
-	if err := rdb.Set(ctx, constants.RedisKeyJWKS, raw,
-		time.Duration(constants.RedisTTLJWKS)*time.Hour).Err(); err != nil {
-		lg.Warn(fmt.Sprintf("failed to cache JWKS in Redis: %v", err))
-	}
-}
-
 func fetchJWKS() ([]byte, error) {
 	client := &http.Client{Timeout: constants.OIDCJWKSFetchTimeout}
 	resp, err := client.Get(constants.OIDCJWKSFetchURL)
@@ -228,7 +197,7 @@ func fetchJWKS() ([]byte, error) {
 		}
 	}()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("JWKS endpoint returned status %d", resp.StatusCode)
+		return nil, fmt.Errorf(string(constants.ErrOIDCJWKSBadStatus), resp.StatusCode)
 	}
 	return io.ReadAll(resp.Body)
 }
@@ -268,7 +237,7 @@ func buildRSAPublicKey(nB64, eB64 string) (*rsa.PublicKey, error) {
 	return &rsa.PublicKey{N: n, E: int(e.Int64())}, nil
 }
 
-func ValidateGoogleIDToken(rawToken string, oidc globalconfigresource.OIDCConfig) (*GoogleClaims, error) {
+func ValidateGoogleIDToken(rawToken string, oidc telarkconfigresource.OIDCConfig) (*GoogleClaims, error) {
 	s, err := getStore(oidc)
 	if err != nil {
 		return nil, err
@@ -276,11 +245,11 @@ func ValidateGoogleIDToken(rawToken string, oidc globalconfigresource.OIDCConfig
 
 	token, err := jwt.ParseWithClaims(rawToken, &GoogleClaims{}, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodRSA); !ok {
-			return nil, fmt.Errorf(string(constants.ErrOIDCUnexpectedAlg), t.Header["alg"])
+			return nil, fmt.Errorf(string(constants.ErrOIDCUnexpectedAlg), t.Header[constants.JWTHeaderAlg])
 		}
-		kid, ok := t.Header["kid"].(string)
+		kid, ok := t.Header[constants.JWTHeaderKid].(string)
 		if !ok {
-			return nil, fmt.Errorf(string(constants.ErrOIDCUnknownKid), "")
+			return nil, fmt.Errorf(string(constants.ErrOIDCUnknownKid), constants.EmptyString)
 		}
 		return s.getKey(kid)
 	},
@@ -294,11 +263,11 @@ func ValidateGoogleIDToken(rawToken string, oidc globalconfigresource.OIDCConfig
 
 	claims, ok := token.Claims.(*GoogleClaims)
 	if !ok || !token.Valid {
-		return nil, fmt.Errorf(string(constants.ErrOIDCInvalidToken), "token invalid")
+		return nil, fmt.Errorf(string(constants.ErrOIDCInvalidToken), string(constants.ErrOIDCTokenInvalidDetail))
 	}
 
 	if claims.Email == constants.EmptyString {
-		return nil, fmt.Errorf("%s", string(constants.ErrOIDCMissingEmail))
+		return nil, errors.New(string(constants.ErrOIDCMissingEmail))
 	}
 
 	return claims, nil

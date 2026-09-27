@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"strconv"
 
-	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/messages"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/plans/protection"
@@ -15,6 +14,10 @@ import (
 )
 
 func Violations(w http.ResponseWriter, r *http.Request) {
+	svc, ok := readyService(w)
+	if !ok {
+		return
+	}
 	planID, err := shared.GetPathParam(w, r, constants.IDPathParam)
 	if err != nil {
 		return
@@ -25,16 +28,16 @@ func Violations(w http.ResponseWriter, r *http.Request) {
 		Result: r.URL.Query().Get(protection.QueryParamResult),
 	}
 
-	resp, err := globalService.ListViolations(r.Context(), planID, query)
+	resp, err := svc.ListViolations(r.Context(), planID, query)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, dataerrors.Error(err.Error()), err)
+		respondDomainError(w, err)
 		return
 	}
 	responseutils.LogAndSendResponse(
 		w,
 		http.StatusOK,
 		response.OperationSuccess,
-		string(messages.SuccessGetRes),
+		planMessage(messages.SuccessGetRes, planID),
 		resp,
 		nil,
 	)

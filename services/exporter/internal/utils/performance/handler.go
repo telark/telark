@@ -31,22 +31,17 @@ var (
 	})
 )
 
-func NewOptimizedHandler(optimizer *Optimizer, handler http.HandlerFunc, timeout time.Duration) *OptimizedHandler {
-	return &OptimizedHandler{
-		optimizer: optimizer,
-		handler:   handler,
-		timeout:   timeout,
-	}
+func NewOptimizedHandler(handler http.HandlerFunc, timeout time.Duration) *OptimizedHandler {
+	return &OptimizedHandler{handler: handler, timeout: timeout}
 }
 
 func NewDynamicOptimizedHandlerFunc(
-	optimizer *Optimizer,
 	handler http.HandlerFunc,
 	resourceType string,
 	operation string,
 ) func(http.ResponseWriter, *http.Request) {
 	timeout := GetTimeoutForResource(resourceType, operation)
-	soh := NewOptimizedHandler(optimizer, handler, timeout)
+	soh := NewOptimizedHandler(handler, timeout)
 	return func(w http.ResponseWriter, r *http.Request) {
 		soh.ServeHTTP(w, r)
 	}

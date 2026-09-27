@@ -9,7 +9,7 @@ Thanks for contributing to telark.
 ```
 services/
   auth  discovery  exporter  notifier   Go services (in the go.work workspace)
-  enrichment                            Python / FastAPI service
+  analyzer                              Python / FastAPI service
 charts/
   telark        application chart
   telark-crds   custom resource definitions (bundled as a subchart of telark)
@@ -21,8 +21,8 @@ The Go services depend on shared packages published under `github.com/telark/*` 
 
 ## Prerequisites
 
-- Go 1.26+ (see `go.work` for the exact version), `golangci-lint`, `helm` ≥ 3.
-- Python 3.13+ + `venv` for the enrichment service.
+- Go 1.27+ (see `go.work` for the exact version), `golangci-lint`, `helm` ≥ 3.
+- Python 3.13+ + `venv` for the analyzer service.
 - Docker + a Kubernetes cluster for end-to-end work.
 
 ## Go workspace
@@ -49,7 +49,7 @@ make fmt         # gofmt
 ```
 
 - **Never pass `--no-config` or override linter flags.** A shared root `.golangci.yml` covers every Go service (golangci-lint discovers it by walking up from `services/<svc>`). Fix all errors (warnings are acceptable, errors must be zero, no `//nolint` as a workaround).
-- The enrichment service uses `pytest` inside a virtualenv (`services/enrichment`).
+- The analyzer service uses `pytest` inside a virtualenv (`services/analyzer`).
 
 ## Charts
 
@@ -59,7 +59,7 @@ Subchart packages (`charts/*/charts/*.tgz`) are git-ignored build artifacts — 
 make deps            # once, or after editing dependencies
 make helm-lint
 make helm-validate   # renders every mode and schema-validates with kubeconform
-helm template t ./charts/telark               # optionally: --set app.mode=<mode>
+helm template t ./charts/telark --set 'app.auth.bootstrap.admins={jane.doe@example.com}'   # optionally: --set app.mode=<mode>
 ```
 
 Do not bump chart or module versions, and do not commit local `replace` directives — releases handle versioning, and the services must build against the published modules.

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/google/go-cmp/cmp"
 	applicationmodel "github.com/telark/data/resources/application"
 	"github.com/telark/discovery/internal/constants"
 	applicationscore "github.com/telark/discovery/internal/core/applications/core"
@@ -44,14 +45,6 @@ func (m *Manager) flushApp(appName string, buf map[string]*unstructured.Unstruct
 		}
 	}
 	if buf = m.unrecordedEntries(ctx, appName, buf); len(buf) == constants.DefaultInitValue {
-		return nil
-	}
-	if m.rollbackApplying(ctx, appName) {
-		constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Info(
-			fmt.Sprintf(string(constants.InfoInformersFlushRollbackDropped), appName))
-		// The dropped writes are the rollback's own: the restored objects are
-		// what the history now describes, so they are recorded as they stand.
-		m.rememberRestored(ctx, appName, buf)
 		return nil
 	}
 	if !m.admitFlush(ctx) {
@@ -123,18 +116,35 @@ func (m *Manager) unrecordedEntries(
 		return buf
 	}
 	out := maps.Clone(buf)
-	maps.DeleteFunc(out, func(key string, old *unstructured.Unstructured) bool {
+	for key, old := range out {
 		if old == nil {
-			return false
+			continue
 		}
 		cur, ok := m.getCachedManifest(old.GetKind(), old.GetName(), old.GetNamespace())
 		if !ok {
-			return false
+			continue
 		}
-		fp := manifestdiff.Fingerprint(&unstructured.Unstructured{Object: cur})
-		return fp != constants.EmptyString && fp == recorded[key]
-	})
+		live := &unstructured.Unstructured{Object: cur}
+		if fp := manifestdiff.Fingerprint(live); fp == constants.EmptyString || fp != recorded[key] {
+			continue
+		}
+		if pre := recordedPreImage(old, live); pre == nil {
+			delete(out, key)
+		} else {
+			out[key] = pre
+		}
+	}
 	return out
+}
+
+// What a buffered entry whose live manifest is already recorded still has to flush:
+// nil when the counters ComputeHealth reads did not move either, else the live
+// object, so the readiness move is diffed without re-recording the manifest.
+func recordedPreImage(old, live *unstructured.Unstructured) *unstructured.Unstructured {
+	if cmp.Equal(observedState(old), observedState(live)) {
+		return nil
+	}
+	return live.DeepCopy()
 }
 
 func (m *Manager) recordedFingerprints(ctx context.Context, appName string) map[string]string {
@@ -157,7 +167,7 @@ func (m *Manager) rememberFlushedManifests(
 	if m.cfg.RDB == nil || len(pairs) == constants.DefaultInitValue {
 		return
 	}
-	if app == nil || app.CRStatus == applicationmodel.CRStatusFailed {
+	if app == nil || applicationscore.IsPublishFailed(app) {
 		return
 	}
 	fields := make(map[string]string, len(pairs))
@@ -189,27 +199,6 @@ func (m *Manager) rememberFlushedManifests(
 	_, _ = pipe.Exec(ctx)
 }
 
-func (m *Manager) rememberRestored(ctx context.Context, appName string, buf map[string]*unstructured.Unstructured) {
-	if m.cfg.RDB == nil {
-		return
-	}
-	resources := make([]applicationmodel.Resource, constants.DefaultInitValue, len(buf))
-	for _, old := range buf {
-		if old != nil {
-			resources = append(resources, applicationmodel.Resource{Namespace: old.GetNamespace(), Kind: old.GetKind(), Name: old.GetName()})
-		}
-	}
-	fields := m.liveFingerprints(resources)
-	if len(fields) == constants.DefaultInitValue {
-		return
-	}
-	pipe := m.cfg.RDB.TxPipeline()
-	pipe.HSet(ctx, recordedKey(appName), fields)
-	pipe.Expire(ctx, recordedKey(appName), constants.HistoryRecordedTTL)
-	pipe.Del(ctx, postKey(appName))
-	_, _ = pipe.Exec(ctx)
-}
-
 func recordedKey(appName string) string {
 	return constants.KeyPrefixHistoryRecorded + appName
 }
@@ -231,9 +220,7 @@ func (m *Manager) loadFlushBuffer(appName string) (map[string]*unstructured.Unst
 		return nil, err
 	}
 	if len(buf) == constants.DefaultInitValue {
-		// Fall back to in-memory buffer when Redis has no data (e.g. after a
-		// transient persist failure in schedule). This ensures events are never
-		// silently dropped due to Redis unavailability.
+		// Redis may hold nothing after a transient persist failure; the in-memory copy still does.
 		buf = m.coalesce.inMemBuf(appName)
 	}
 	return buf, nil
@@ -245,7 +232,8 @@ func (m *Manager) applyFlushWithLock(
 	stored *applicationmodel.Application,
 	buf map[string]*unstructured.Unstructured,
 ) error {
-	nextGen := nextSnapshotGeneration(stored)
+	marker := m.rollbackMarker(ctx, appName)
+	nextGen := diff.NextGeneration(stored, marker)
 	lockKey, acquired := diff.AcquireGenProcessingLock(ctx, m.cfg.RDB, appName, nextGen)
 	if !acquired {
 		return errFlushGenLockBusy
@@ -264,14 +252,23 @@ func (m *Manager) applyFlushWithLock(
 		m.coalesce.clearBufferRedis(appName)
 		return errFlushNoInputs
 	}
-	newSnaps, err := m.writePreSnapshots(ctx, appName, stored, nextGen, m.preImageByNamespace(stored, buf), &opts)
-	if err != nil {
-		appsnapshot.DiscardSnapshots(newSnaps, opts.DeleteSnapshot)
-		m.coalesce.clearBufferRedis(appName)
-		return err
+	// A later flush of the same rollback keeps the pre-rollback set already stored for its generation.
+	if !appsnapshot.HasSnapshotGeneration(stored.Snapshots, nextGen) {
+		newSnaps, err := m.writePreSnapshots(ctx, appName, stored, nextGen, m.preImageByNamespace(stored, buf), &opts)
+		if err != nil {
+			appsnapshot.DiscardSnapshots(newSnaps, opts.DeleteSnapshot)
+			m.coalesce.clearBufferRedis(appName)
+			return err
+		}
+		applyFlushOpts(&opts, appName, nextGen, newSnaps)
 	}
-	applyFlushOpts(&opts, appName, nextGen, newSnaps)
+	opts.FromCoalescingFlush = true
 	opts.ManifestPairs = m.manifestPairs(buf)
+	opts.Rollback = marker
+	if marker != nil {
+		constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Info(
+			fmt.Sprintf(string(constants.InfoInformersFlushRollback), appName, marker.ID, nextGen))
+	}
 	res := applicationscore.GetApplications(ctx, m.cfg.RDB, inputs, opts)
 	app := logFlushResult(appName, stored, res)
 	m.settlePendingSnapshots(ctx, appName, stored, app)
@@ -313,10 +310,10 @@ func (m *Manager) writePreSnapshots(
 // A failed or unanswered publish leaves the files on disk for the next attempt;
 // anything else either referenced them or already ran the discard.
 func (m *Manager) settlePendingSnapshots(ctx context.Context, appName string, stored, app *applicationmodel.Application) {
-	if app == nil || app.CRStatus == applicationmodel.CRStatusFailed {
+	if app == nil || applicationscore.IsPublishFailed(app) {
 		return
 	}
-	if app.CRStatus == applicationmodel.CRStatusPublished && app.History.Generation > stored.History.Generation {
+	if applicationscore.IsPublished(app) && app.History.Generation > stored.History.Generation {
 		m.rememberPublishedGeneration(ctx, appName, app.History.Generation)
 	}
 	m.forgetPendingSnapshots(ctx, appName)
@@ -379,7 +376,7 @@ func logFlushResult(appName string, stored *applicationmodel.Application, res re
 	}
 	app := &data.Applications[idx]
 	lg.Info(fmt.Sprintf(string(constants.InfoInformersFlushResult),
-		appName, stored.History.Generation, app.History.Generation, app.CRStatus))
+		appName, stored.History.Generation, app.History.Generation, publishedState(app)))
 	return app
 }
 
@@ -392,7 +389,6 @@ func applyFlushOpts(
 	opts.PrewrittenSnapshotAppName = appName
 	opts.PrewrittenSnapshotGeneration = nextGen
 	opts.PrewrittenSnapshots = newSnaps
-	opts.FromCoalescingFlush = true
 }
 
 // preImageByNamespace completes the buffered old objects with the rest of the
@@ -428,14 +424,21 @@ func (m *Manager) preImageByNamespace(
 	return out
 }
 
-// ponytail: a user change landing inside the 60s rollback window is dropped too;
-// diff against the rollback target if that ever matters.
-func (m *Manager) rollbackApplying(ctx context.Context, appName string) bool {
+// ponytail: a user change landing inside the 60s rollback window is folded into the
+// rollback entry too; diff against the rollback target if that ever matters.
+func (m *Manager) rollbackMarker(ctx context.Context, appName string) *diff.RollbackMarker {
 	if m.cfg.RDB == nil {
-		return false
+		return nil
 	}
-	n, err := m.cfg.RDB.Exists(ctx, constants.KeyPrefixRollbackApplying+appName).Result()
-	return err == nil && n > constants.DefaultInitValue
+	raw, err := m.cfg.RDB.Get(ctx, constants.KeyPrefixRollbackApplying+appName).Bytes()
+	if err != nil {
+		return nil
+	}
+	var marker diff.RollbackMarker
+	if json.Unmarshal(raw, &marker) != nil || marker.ID == constants.EmptyString {
+		return nil
+	}
+	return &marker
 }
 
 func (m *Manager) manifestPairs(buf map[string]*unstructured.Unstructured) []manifestdiff.ManifestPair {
@@ -451,4 +454,11 @@ func (m *Manager) manifestPairs(buf map[string]*unstructured.Unstructured) []man
 		pairs = append(pairs, manifestdiff.ManifestPair{Old: old.DeepCopy(), New: &unstructured.Unstructured{Object: cur}})
 	}
 	return pairs
+}
+
+func publishedState(app *applicationmodel.Application) string {
+	if c := applicationscore.PublishedCondition(app); c != nil {
+		return c.Reason
+	}
+	return applicationmodel.ConditionReasonPending
 }

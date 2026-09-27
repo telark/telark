@@ -6,27 +6,30 @@ import (
 
 	"github.com/telark/auth/internal/clients"
 	"github.com/telark/auth/internal/constants"
-	globalconfigresource "github.com/telark/data/resources/globalconfig"
+	telarkconfigresource "github.com/telark/data/resources/telarkconfig"
 )
 
-func LoadConfig() (globalconfigresource.OIDCConfig, error) {
-	cfg, err := clients.GetGlobalConfigClient().GetGlobalConfig()
+func LoadConfig() (telarkconfigresource.OIDCConfig, error) {
+	cfg, err := clients.GetConfigClient().GetConfig()
 	if err != nil {
-		return globalconfigresource.OIDCConfig{}, fmt.Errorf(string(constants.ErrOIDCConfigLoadFailed), err)
+		return telarkconfigresource.OIDCConfig{}, fmt.Errorf(string(constants.ErrOIDCConfigLoadFailed), err)
 	}
-	return cfg.OIDC, nil
+	// The pinned set lives in the mounted trust Secret, never in the config the exporter returns.
+	oidc := cfg.OIDC
+	oidc.GoogleJWKJSON = TrustJWK()
+	return oidc, nil
 }
 
-func Usable(oidc globalconfigresource.OIDCConfig) bool {
+func Usable(oidc telarkconfigresource.OIDCConfig) bool {
 	if !oidc.Enabled || oidc.GoogleClientID == constants.EmptyString {
 		return false
 	}
 	return oidc.EgressAllowed || oidc.GoogleJWKJSON != constants.EmptyString
 }
 
-// Rejects a config that would break login before it is stored: a disabled block
-// needs no checks, an enabled one must name a client and a reachable trust source.
-func Validate(oidc globalconfigresource.OIDCConfig) error {
+// Rejects a config that would break login before it is stored: an enabled one must name a
+// client and a reachable trust source; offline, an omitted set falls back to the mounted one.
+func Validate(oidc telarkconfigresource.OIDCConfig) error {
 	if !oidc.Enabled {
 		return nil
 	}
@@ -35,15 +38,16 @@ func Validate(oidc globalconfigresource.OIDCConfig) error {
 		return errors.New(string(constants.ErrOIDCClientIDRequired))
 	}
 
-	if !oidc.EgressAllowed && oidc.GoogleJWKJSON == constants.EmptyString {
-		return errors.New(string(constants.ErrOIDCTrustSourceRequired))
+	jwkJSON := oidc.GoogleJWKJSON
+	if !oidc.EgressAllowed && jwkJSON == constants.EmptyString {
+		if jwkJSON = TrustJWK(); jwkJSON == constants.EmptyString {
+			return errors.New(string(constants.ErrOIDCTrustSourceRequired))
+		}
 	}
 
-	if oidc.GoogleJWKJSON != constants.EmptyString {
-		if _, err := parseKeys([]byte(oidc.GoogleJWKJSON)); err != nil {
-			return err
-		}
-		return nil
+	if jwkJSON != constants.EmptyString {
+		_, err := parseKeys([]byte(jwkJSON))
+		return err
 	}
 
 	raw, err := fetchJWKS()

@@ -3,7 +3,7 @@ package passkey
 import (
 	"net/http"
 
-	authmetadata "github.com/telark/data/metadata/auth"
+	authmetadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/exporters/generics"
 	passkeyutils "github.com/telark/exporter/internal/utils/auth/passkey"
@@ -34,5 +34,5 @@ func PatchPasskeyByCredentialID(w http.ResponseWriter, credentialID string, user
 	lock.Lock()
 	defer lock.Unlock()
 
-	generics.GenericPatchCustomResource(w, authmetadata.UserPasskeyMetadata, passkeyName, specPatchData)
+	generics.GenericPatchCustomResource(w, authmetadata.PasskeyMetadata, passkeyName, specPatchData)
 }

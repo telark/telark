@@ -24,12 +24,21 @@ const (
 	// API Errors
 	ErrPatchApplicationReturnedNilResponse errors.Error = "patch application returned nil response"
 	ErrPatchApplicationFailed              errors.Error = "patch application failed: status=%d message=%s"
-	ErrDispatchInsightsNilResponse         errors.Error = "insights dispatch returned nil response"
-	ErrDispatchInsightsFailed              errors.Error = "insights dispatch failed: status=%d message=%s"
 	ErrNotificationEmitFailed              errors.Error = "emit notification: status=%d message=%s"
 	ErrRestCallFailed                      errors.Error = "rest call failed: status=%d message=%s"
 
-	// Enrichment Pre-warming
+	// Protection Plan Exporter Errors
+	ErrCreateProtectionPlanFailed errors.Error = "create protection plan failed: status=%d message=%s"
+	ErrPatchProtectionPlanFailed  errors.Error = "patch protection plan failed: status=%d message=%s"
+	ErrDeleteProtectionPlanFailed errors.Error = "delete protection plan failed: status=%d message=%s"
+
+	// Protection Plan Report Errors
+	ErrReportRejected     errors.Error = "exporter rejected the report: %s"
+	ErrReportNilResponse  errors.Error = "report call returned nil response"
+	ErrCreateReportFailed errors.Error = "create report failed: %v"
+	ErrReportPanic        errors.Error = "report generation panicked: %v"
+
+	// Discovery Pre-warming
 	ErrPrewarmListNamespaces         errors.Error = "pre-warming: failed to list namespaces: %v"
 	ErrPrewarmListResources          errors.Error = "pre-warming: failed to list resources: %v"
 	ErrPrewarmUnexpectedResponseData errors.Error = "pre-warming: unexpected applications response data type"
@@ -98,9 +107,12 @@ const (
 	ErrRollbackAPIVersionNotServed       errors.Error = "rollback validation failed: apiVersion %s " +
 		"for kind %s is not served"
 	ErrRollbackDryRunFailed       errors.Error = "rollback validation failed during dry-run apply: %v"
-	ErrRollbackMarshalPatchFailed errors.Error = "failed to marshal rollback patch: %v"
+	ErrRollbackStatusWriteFailed  errors.Error = "application status write returned %d: %v"
 	ErrRollbackInterruptedRestart errors.Error = "rollback interrupted by service restart"
 	ErrRollbackLockBusy           errors.Error = "rollback lock busy"
+	// Losing this patch is what leaves the entry in_progress until the stale
+	// sweep replaces the real reason, so the reason is logged before it is lost.
+	ErrRollbackFailureRecordFailed errors.Error = "failed to record rollback failure for %s/%s (reason: %s): %v"
 
 	// Rollback Trigger / Abort handler errors
 	ErrRollbackInFlight                errors.Error = "rollback already in progress for this application"
@@ -108,9 +120,12 @@ const (
 	ErrRollbackNotPending              errors.Error = "rollback already in progress; cannot abort"
 	ErrRollbackTerminal                errors.Error = "rollback is in terminal state"
 	ErrAbortUserRequired               errors.Error = "abort requires a user (X-User-ID header)"
+	ErrRollbackUserRequired            errors.Error = "rollback requires a user (X-User-ID header)"
+	ErrRollbackReplaceFailed           errors.Error = "replace %s/%s: %w"
 	ErrRollbackCoordinationUnavailable errors.Error = "rollback coordination unavailable"
-	ErrRollbackTargetNotOlder          errors.Error = "snapshotGeneration must be older than the current generation %d"
+	ErrRollbackTargetNotOlder          errors.Error = "snapshotGeneration cannot exceed the current generation %d"
 	ErrRollbackSnapshotMissing         errors.Error = "no snapshot stored for generation %d"
+	ErrRollbackSnapshotIncomplete      errors.Error = "snapshot for generation %d does not cover namespace %s; pick a newer generation"
 
 	// Auto-cleanup detector errors
 	ErrAutoCleanupListAppsFailed   errors.Error = "[auto-cleanup] list applications failed: %v"
@@ -146,5 +161,11 @@ const (
 	ErrAppResetExporterDeleteFailed       errors.Error = "failed to delete application CRD during reset for %s: %v"
 	ErrAppResetLeaderForwardFailed        errors.Error = "reset forward to leader %s failed: %v"
 	ErrAppResetLeaderForwardStatus        errors.Error = "reset forward to leader returned status %d: %s"
+	ErrNamespaceNotListable               errors.Error = "namespace is hidden from discovery"
+	ErrLeaderAddressInvalid               errors.Error = "leader %s advertised an address that is not an IP: %q"
+	ErrLeaderPodUnverified                errors.Error = "leader %s is not a discovery pod at the advertised address"
+	ErrLeaderNamespaceUnknown             errors.Error = "own namespace unknown; cannot verify the leader pod"
 	ErrExcludedNamespacesUnavailable      errors.Error = "excluded namespaces unavailable: %v"
+	ErrInsightsQueryInvalid               errors.Error = "invalid value for query parameter %q"
+	ErrInsightsTooManyApps                errors.Error = "query parameter apps names more than %d applications"
 )

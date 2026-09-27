@@ -1,0 +1,57 @@
+package planhandlers
+
+import (
+	"errors"
+	"fmt"
+	"net/http"
+	"testing"
+
+	"github.com/telark/data/plans"
+	"github.com/telark/discovery/internal/circuitbreaker"
+	"github.com/telark/discovery/internal/clients"
+	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/core/plans/protection"
+	"github.com/telark/discovery/internal/core/plans/protection/validation"
+	handlers "github.com/telark/discovery/internal/handlers/plans/protection"
+	"github.com/telark/discovery/internal/tests/testutil"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+)
+
+const (
+	wrapDecide  = "decide: %w"
+	wrapPrepare = "prepare: %w"
+)
+
+// Every domain failure carries its own type, so the status comes from the error itself and
+// never from matching its message.
+func TestStatusForErr(t *testing.T) {
+	k8sErr := k8serrors.NewConflict(schema.GroupResource{Group: "kyverno.io", Resource: "policies"}, "pol-a", errors.New("conflict"))
+	taken := []plans.ProtectionPlan{{ID: "pp-1", Name: "guard"}}
+	cases := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{"nil", nil, http.StatusOK},
+		{"not found", fmt.Errorf("get plan: %w", clients.ErrPlanNotFound), http.StatusNotFound},
+		{"validation", validation.Invalid("bad request"), http.StatusBadRequest},
+		{"wrapped validation", fmt.Errorf("prepare: %w", validation.ErrPoliciesRequired), http.StatusBadRequest},
+		{"breaker open", fmt.Errorf("list plans: %w", circuitbreaker.ErrOpen), http.StatusServiceUnavailable},
+		{"cluster error", fmt.Errorf("apply: %w", k8sErr), http.StatusServiceUnavailable},
+		{"self decision", fmt.Errorf(wrapDecide, protection.ErrDecisionSelf), http.StatusForbidden},
+		{"not pending", fmt.Errorf(wrapDecide, protection.ErrDecisionNotPending), http.StatusConflict},
+		{"stale", fmt.Errorf(wrapDecide, protection.ErrDecisionStale), http.StatusConflict},
+		{"name taken", validation.UniqueName(taken, "guard", constants.EmptyString), http.StatusConflict},
+		{"name in flight", fmt.Errorf("prepare: %w", protection.ErrNameInFlight), http.StatusConflict},
+		{"excluded list unavailable", fmt.Errorf(wrapPrepare, &validation.UnavailableError{Msg: "down"}), http.StatusServiceUnavailable},
+		{"enforce needs owner", fmt.Errorf(wrapPrepare, validation.ErrEnforceNeedsOwner), http.StatusForbidden},
+		{"unknown environment", validation.EnvironmentRef(strptr("cat-9"), func() ([]string, error) { return nil, nil }), http.StatusBadRequest},
+		{"unknown", errors.New("boom"), http.StatusInternalServerError},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			testutil.Equal(t, "status", handlers.StatusForErr(c.err), c.want)
+		})
+	}
+}

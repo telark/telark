@@ -6,14 +6,14 @@ import (
 
 	"github.com/telark/data/errors"
 	"github.com/telark/data/messages"
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/data/resources/finalizers"
 	groupdata "github.com/telark/data/resources/group"
 	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/cache"
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/exporters/generics"
-	"github.com/telark/exporter/internal/handlers/resources/shared"
+	"github.com/telark/exporter/internal/membership"
 	notiftypes "github.com/telark/exporter/internal/types/notifications"
 	"github.com/telark/exporter/internal/utils/concurrency"
 	notifdispatch "github.com/telark/exporter/internal/utils/notifications"
@@ -24,12 +24,18 @@ import (
 	"github.com/telark/kcore/crds/api"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 func CreateGroupResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := sharedutils.GetSpec(w, r)
+		body, err := sharedutils.GetSpecFor[groupdata.Group](w, r)
 		if err != nil {
+			return
+		}
+
+		// A new group may carry roles or members only from a caller who could attach them afterwards.
+		if !authz.GuardGroupRolesPatch(w, r, nil, body) || !authz.GuardGroupMembersPatch(w, r, &groupdata.Group{}, body) {
 			return
 		}
 
@@ -50,11 +56,31 @@ func CreateGroupResourceWithCacheInvalidation(optimizer *performance.Optimizer) 
 			return
 		}
 
+		if !authz.GuardReferencedIDs(w, constants.ResourceUser, group.UserRefs) ||
+			!authz.GuardReferencedIDs(w, constants.ResourceRole, group.RoleRefs) {
+			return
+		}
+		if !mirrorMembers(w, r, optimizer, group.ID, group.UserRefs, nil) {
+			return
+		}
+
 		createGroupResource(w, group, optimizer)
+		// The members' grants were retired before the group existed; the next
+		// lookup must see it.
+		authz.BumpGeneration(r.Context())
 	}
 }
 
-func createGroupResource(w http.ResponseWriter, group *groupdata.GroupAsResource, optimizer *performance.Optimizer) {
+// Counterparts first: see membership.MirrorGroupMembers.
+func mirrorMembers(w http.ResponseWriter, r *http.Request, optimizer *performance.Optimizer, groupID string, added, removed []string) bool {
+	if err := membership.MirrorGroupMembers(r.Context(), optimizer, groupID, added, removed); err != nil {
+		responseutils.LogAndSendResponse(w, http.StatusInternalServerError, response.OperationError, err.Error(), nil, err)
+		return false
+	}
+	return true
+}
+
+func createGroupResource(w http.ResponseWriter, group *groupdata.Group, optimizer *performance.Optimizer) {
 	spec, err := sharedutils.StructToSpecMap(group)
 	if err != nil {
 		responseutils.LogAndSendResponse(
@@ -74,13 +100,12 @@ func createGroupResource(w http.ResponseWriter, group *groupdata.GroupAsResource
 
 	generics.GenericCreateCustomResourceWithFinalizers(
 		w,
-		metadata.GroupAsResourceMetadata,
+		metadata.GroupMetadata,
 		group.ID,
 		spec,
 		[]string{finalizers.GroupCleanup},
 	)
 
-	cache.SmartInvalidateListCache(optimizer, constants.ResourceGroup, string(constants.OpCreate))
 	cache.InvalidateAllResourceCaches(optimizer, constants.ResourceGroup)
 }
 
@@ -96,12 +121,46 @@ func GetGroupByIDWithCacheInvalidation() func(http.ResponseWriter, *http.Request
 			return
 		}
 
+		hidden, ok := hiddenMembers(w, r)
+		if !ok {
+			return
+		}
+		grouputils.StripMembers(resource, hidden)
 		resourcesutils.SendFilteredResourceResponse(w, resource)
 	}
 }
 
 func ListGroupResourcesWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {
-	return shared.ListResourceWithCacheInvalidation(metadata.GroupAsResourceMetadata)
+	return func(w http.ResponseWriter, r *http.Request) {
+		hidden, ok := hiddenMembers(w, r)
+		if !ok {
+			return
+		}
+		if hidden == nil {
+			generics.GenericListCustomResources(w, metadata.GroupMetadata)
+			return
+		}
+		generics.GenericListCustomResourcesKeeping(w, metadata.GroupMetadata, func(item *unstructured.Unstructured) bool {
+			grouputils.StripMembers(item, hidden)
+			return true
+		})
+	}
+}
+
+// Administrators are not listed as members to a restricted caller; nil means
+// nothing to strip.
+func hiddenMembers(w http.ResponseWriter, r *http.Request) (map[string]bool, bool) {
+	if !authz.Restricted(r) {
+		return nil, true
+	}
+	hidden, err := authz.HiddenUserIDs()
+	if err != nil {
+		responseutils.LogAndSendResponse(
+			w, http.StatusServiceUnavailable, response.OperationUnavailable, string(constants.ErrResourceLookupFailed), nil, err,
+		)
+		return nil, false
+	}
+	return hidden, true
 }
 
 func PatchGroupByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
@@ -116,19 +175,27 @@ func PatchGroupByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 			return
 		}
 
-		body, err := sharedutils.GetSpec(w, r)
+		body, err := sharedutils.GetSpecFor[groupdata.Group](w, r)
 		if err != nil {
 			return
 		}
 
-		_, membersPatched := body[constants.FieldAssignedUsersIDs]
-		oldMembers := append([]string(nil), existingGroup.AssignedUsersIDs...)
+		addedMembers, removedMembers, ok := guardGroupPatch(w, r, existingGroup, body)
+		if !ok {
+			return
+		}
+
+		_, membersPatched := body[constants.FieldUserRefs]
+		oldMembers := append([]string(nil), existingGroup.UserRefs...)
 		groupName := existingGroup.Name
 
 		if !grouputils.ExtractAndMergeGroupForPatch(existingGroup, body, w) {
 			return
 		}
 
+		if !mirrorMembers(w, r, optimizer, groupID, addedMembers, removedMembers) {
+			return
+		}
 		ok2 := patchGroupResource(w, groupID, body, optimizer)
 		// Membership and role changes both alter the grants of an unknown set
 		// of users, so every cached grant is retired rather than one user's.
@@ -137,6 +204,26 @@ func PatchGroupByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 			emitGroupMembershipChanged(groupID, groupName, oldMembers, body)
 		}
 	}
+}
+
+func guardGroupPatch(
+	w http.ResponseWriter, r *http.Request, existing *groupdata.Group, body map[string]any,
+) (addedMembers, removedMembers []string, ok bool) {
+	if !authz.GuardNotTerminating(w, r, existing.DeletionTimestamp) ||
+		!authz.GuardGroupRolesPatch(w, r, existing.RoleRefs, body) ||
+		!authz.GuardGroupMembersPatch(w, r, existing, body) {
+		return nil, nil, false
+	}
+
+	newMembers := notifdispatch.ExtractNewStringIDsFromBody(body, constants.FieldUserRefs)
+	addedMembers, removedMembers = notifdispatch.DiffStringSlices(existing.UserRefs, newMembers)
+	newRoles := notifdispatch.ExtractNewStringIDsFromBody(body, constants.FieldRoleRefs)
+	addedRoles, _ := notifdispatch.DiffStringSlices(existing.RoleRefs, newRoles)
+	if !authz.GuardReferencedIDs(w, constants.ResourceUser, addedMembers) ||
+		!authz.GuardReferencedIDs(w, constants.ResourceRole, addedRoles) {
+		return nil, nil, false
+	}
+	return addedMembers, removedMembers, true
 }
 
 func patchGroupResource(w http.ResponseWriter, groupID string, body map[string]any, optimizer *performance.Optimizer) bool {
@@ -150,13 +237,13 @@ func patchGroupResource(w http.ResponseWriter, groupID string, body map[string]a
 	defer lock.Unlock()
 
 	rc := sharedutils.NewResponseCapture(w)
-	generics.GenericPatchCustomResource(rc, metadata.GroupAsResourceMetadata, groupID, specPatchData)
+	generics.GenericPatchCustomResource(rc, metadata.GroupMetadata, groupID, specPatchData)
 	resourcesutils.InvalidateResourceCaches(optimizer, constants.ResourceGroup, groupID)
 	return rc.Status() == http.StatusOK
 }
 
 func emitGroupMembershipChanged(groupID, groupName string, oldMembers []string, body map[string]any) {
-	newMembers := notifdispatch.ExtractNewStringIDsFromBody(body, constants.FieldAssignedUsersIDs)
+	newMembers := notifdispatch.ExtractNewStringIDsFromBody(body, constants.FieldUserRefs)
 	added, removed := notifdispatch.DiffStringSlices(oldMembers, newMembers)
 	for _, userID := range added {
 		emitGroupChange(userID, groupID, groupName, notiftypes.GroupActionAdded)
@@ -208,13 +295,13 @@ func DeleteGroupByIDWithCacheInvalidation(optimizer *performance.Optimizer) func
 			return
 		}
 
-		resourcesutils.InvalidateResourceCaches(optimizer, constants.ResourceGroup, groupID)
-		authz.BumpGeneration(r.Context())
 		lock := concurrency.GetLock(groupID)
 		lock.Lock()
 		defer lock.Unlock()
 
-		deleteResult := api.DeleteCustomResourceByName(groupID, metadata.GroupAsResourceMetadata)
+		deleteResult := api.DeleteCustomResourceByName(groupID, metadata.GroupMetadata)
+		resourcesutils.InvalidateResourceCaches(optimizer, constants.ResourceGroup, groupID)
+		authz.BumpGeneration(r.Context())
 		if deleteResult.Status != http.StatusOK {
 			errorMsg := sharedutils.GenerateResourceError(errors.ErrDeleteRes, groupID, deleteResult.Error)
 			responseutils.LogAndSendResponse(
@@ -228,7 +315,7 @@ func DeleteGroupByIDWithCacheInvalidation(optimizer *performance.Optimizer) func
 			return
 		}
 
-		msg := fmt.Sprintf(string(messages.SuccessDeleteRes), groupID, metadata.GroupAsResourceMetadata.Kind)
+		msg := fmt.Sprintf(string(messages.SuccessDeleteRes), groupID, metadata.GroupMetadata.Kind)
 		responseutils.LogAndSendResponse(
 			w,
 			http.StatusOK,

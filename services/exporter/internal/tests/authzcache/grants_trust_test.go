@@ -2,12 +2,16 @@ package authzcache
 
 import (
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
+	dataconstants "github.com/telark/data/constants"
 	roledata "github.com/telark/data/resources/role"
 	"github.com/telark/exporter/internal/authz"
+	"github.com/telark/exporter/internal/constants"
 	exprdb "github.com/telark/exporter/internal/redis"
+	xauthz "github.com/telark/x-ware/authz"
 )
 
 const (
@@ -17,22 +21,27 @@ const (
 
 	// What the cache reads and what it signs, with no generation set yet.
 	grantsCacheKey = "authz:grants:" + grantsUserID
-	grantsBinding  = "grants:" + grantsUserID
-	cachedGrants   = `{"Levels":{"settings":"ReadOnly"}}`
+	laterGen       = "7"
+	earlierGen     = "3"
+	generationKey  = "authz:generation"
+
+	signWithTokenFailed = "SignCacheEntry failed with a service token present"
 )
 
 // Redis is unauthenticated, so a cached grant is attacker-controllable. An
 // entry without a valid signature must be ignored, not obeyed — otherwise
 // anyone able to write one key grants themselves any permission.
 func TestPlantedGrantsAreNotTrusted(t *testing.T) {
-	t.Setenv("TELARK_SERVICE_TOKEN", serviceToken)
+	t.Setenv(dataconstants.EnvServiceToken, serviceToken)
 
 	mr := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
 	exprdb.Set(client)
 
-	mr.Set(grantsCacheKey, plantedGrants)
+	if err := mr.Set(grantsCacheKey, plantedGrants); err != nil {
+		t.Fatalf("planting the cache entry: %v", err)
+	}
 
 	if _, err := authz.NewResolver().GrantsForUser(grantsUserID); err == nil {
 		t.Fatal("planted grants were accepted as this user's permissions")
@@ -42,18 +51,21 @@ func TestPlantedGrantsAreNotTrusted(t *testing.T) {
 // Rejecting a planted entry only proves something if the key it was planted at
 // is the key the cache actually reads, so the same key must work when signed.
 func TestSignedGrantsAtTheCacheKeyAreUsed(t *testing.T) {
-	t.Setenv("TELARK_SERVICE_TOKEN", serviceToken)
+	t.Setenv(dataconstants.EnvServiceToken, serviceToken)
 
 	mr := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
 	exprdb.Set(client)
 
-	signed, ok := authz.SignCacheEntry(grantsBinding, cachedGrants)
+	authz.ResetGenerationFloor()
+	signed, ok := authz.SignGrantsEntry(constants.EmptyString, grantsUserID, readOnlySettings(), time.Now())
 	if !ok {
-		t.Fatal("SignCacheEntry failed with a service token present")
+		t.Fatal(signWithTokenFailed)
 	}
-	mr.Set(grantsCacheKey, signed)
+	if err := mr.Set(grantsCacheKey, signed); err != nil {
+		t.Fatalf("writing the signed cache entry: %v", err)
+	}
 
 	grants, err := authz.NewResolver().GrantsForUser(grantsUserID)
 	if err != nil {
@@ -65,11 +77,11 @@ func TestSignedGrantsAtTheCacheKeyAreUsed(t *testing.T) {
 }
 
 func TestSignedEntryRoundTrips(t *testing.T) {
-	t.Setenv("TELARK_SERVICE_TOKEN", serviceToken)
+	t.Setenv(dataconstants.EnvServiceToken, serviceToken)
 
 	signed, ok := authz.SignCacheEntry(grantsUserID, plantedGrants)
 	if !ok {
-		t.Fatal("SignCacheEntry failed with a service token present")
+		t.Fatal(signWithTokenFailed)
 	}
 
 	payload, ok := authz.VerifyCacheEntry(grantsUserID, signed)
@@ -82,11 +94,11 @@ func TestSignedEntryRoundTrips(t *testing.T) {
 }
 
 func TestTamperedEntryIsRejected(t *testing.T) {
-	t.Setenv("TELARK_SERVICE_TOKEN", serviceToken)
+	t.Setenv(dataconstants.EnvServiceToken, serviceToken)
 
 	signed, ok := authz.SignCacheEntry(grantsUserID, plantedGrants)
 	if !ok {
-		t.Fatal("SignCacheEntry failed with a service token present")
+		t.Fatal(signWithTokenFailed)
 	}
 
 	if _, ok := authz.VerifyCacheEntry(grantsUserID, signed+"x"); ok {
@@ -97,11 +109,11 @@ func TestTamperedEntryIsRejected(t *testing.T) {
 // A signature is bound to the user it was issued for, so an entry cannot be
 // lifted from one user's key to another's.
 func TestSignatureIsBoundToTheUser(t *testing.T) {
-	t.Setenv("TELARK_SERVICE_TOKEN", serviceToken)
+	t.Setenv(dataconstants.EnvServiceToken, serviceToken)
 
 	signed, ok := authz.SignCacheEntry(grantsUserID, plantedGrants)
 	if !ok {
-		t.Fatal("SignCacheEntry failed with a service token present")
+		t.Fatal(signWithTokenFailed)
 	}
 
 	if _, ok := authz.VerifyCacheEntry("u-someone-else", signed); ok {
@@ -112,12 +124,74 @@ func TestSignatureIsBoundToTheUser(t *testing.T) {
 // With no signing key there is nothing to verify against, so the cache must be
 // treated as untrusted rather than trusted blindly.
 func TestUnsignableEntriesAreNotTrusted(t *testing.T) {
-	t.Setenv("TELARK_SERVICE_TOKEN", "")
+	t.Setenv(dataconstants.EnvServiceToken, constants.EmptyString)
 
 	if _, ok := authz.SignCacheEntry(grantsUserID, plantedGrants); ok {
 		t.Error("signing succeeded without a service token")
 	}
 	if _, ok := authz.VerifyCacheEntry(grantsUserID, plantedGrants); ok {
 		t.Error("verification succeeded without a service token")
+	}
+}
+
+func readOnlySettings() xauthz.Grants {
+	return xauthz.Grants{Levels: map[string]roledata.PermissionLevel{roledata.ScopeSettings: roledata.PermissionLevelReadOnly}}
+}
+
+func plantSigned(t *testing.T, mr *miniredis.Miniredis, gen string, issuedAt time.Time) {
+	t.Helper()
+	signed, ok := authz.SignGrantsEntry(gen, grantsUserID, readOnlySettings(), issuedAt)
+	if !ok {
+		t.Fatal(signWithTokenFailed)
+	}
+	key := "authz:grants:" + gen + ":" + grantsUserID
+	if gen == constants.EmptyString {
+		key = grantsCacheKey
+	}
+	if err := mr.Set(key, signed); err != nil {
+		t.Fatalf("planting %s: %v", key, err)
+	}
+}
+
+// Signed entries are copyable out of an unauthenticated Redis; pinning the
+// generation back to theirs, or keeping them past the TTL, must not replay them.
+func TestReplayedGrantsAreNotTrusted(t *testing.T) {
+	t.Setenv(dataconstants.EnvServiceToken, serviceToken)
+	tests := []struct {
+		name     string
+		seen     string
+		replayed string
+		issuedAt time.Time
+		wantUsed bool
+	}{
+		{"current generation, fresh", laterGen, laterGen, time.Now(), true},
+		{"generation rolled back", laterGen, earlierGen, time.Now(), false},
+		{"entry older than the TTL", laterGen, laterGen, time.Now().Add(-2 * constants.AuthzGrantsTTL), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			authz.ResetGenerationFloor()
+			mr := miniredis.RunT(t)
+			client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+			t.Cleanup(func() { _ = client.Close() })
+			exprdb.Set(client)
+
+			plantSigned(t, mr, tt.seen, time.Now())
+			if err := mr.Set(generationKey, tt.seen); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := authz.NewResolver().GrantsForUser(grantsUserID); err != nil {
+				t.Fatalf("priming at generation %s: %v", tt.seen, err)
+			}
+
+			plantSigned(t, mr, tt.replayed, tt.issuedAt)
+			if err := mr.Set(generationKey, tt.replayed); err != nil {
+				t.Fatal(err)
+			}
+			_, err := authz.NewResolver().GrantsForUser(grantsUserID)
+			if used := err == nil; used != tt.wantUsed {
+				t.Fatalf("replayed entry used = %v, want %v (err %v)", used, tt.wantUsed, err)
+			}
+		})
 	}
 }

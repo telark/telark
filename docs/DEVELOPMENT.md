@@ -8,11 +8,11 @@ file is only "what command, when".
 
 | Tool | Needed for | Notes |
 |---|---|---|
-| Go **1.26+** | all Go targets | version pinned in `go.work`; the four Go services share one workspace |
-| `golangci-lint` | `make lint` | uses the shared root `.golangci.yml` (never pass `--no-config`) |
+| Go **1.27.1** | all Go targets | the `go` line of each `services/<svc>/go.mod`; the committed `go.work` is the maintainer's local workspace (see the `GOWORK=off` note below) |
+| `golangci-lint` **v2.13.2** | `make lint` | the version CI pins; uses the shared root `.golangci.yml` (never pass `--no-config`) |
 | `helm` **≥ 3** (OCI) | all `helm-*` targets | |
-| `kubeconform` | `make helm-validate` | schema-validates rendered manifests |
-| Python **3.13+** + `venv` | enrichment tests | `services/enrichment` |
+| `kubeconform` **v0.8.0** | `make helm-validate` | schema-validates rendered manifests |
+| Python **3.13** + `venv` | analyzer tests | `services/analyzer`; the version CI uses |
 | Docker + a cluster | end-to-end work | |
 | `git-cliff` | `make changelog` | changelog generation |
 
@@ -42,7 +42,14 @@ file is only "what command, when".
   service directly: `cd services/<svc> && go test ./...`.
 - **Coverage** is measured cross-package (`go test -coverpkg=./...`) because tests
   live in `internal/tests/*`; CI enforces a per-service floor (see `.github/workflows/ci.yaml`).
+- **`GOWORK=off` outside the maintainer's machine.** The committed `go.work` replaces the
+  shared modules with local absolute paths, so in a fresh clone every workspace-mode Go
+  command fails. Export `GOWORK=off` (what CI does): `make test`, `make lint` and
+  `make check` then work per service; `make build`, `make vet` and `make sync` need the
+  workspace. Details: [testing/README.md](testing/README.md#shared-go-modules).
 - **Chart deps are git-ignored** (`charts/*/charts/*.tgz`) — run `make deps` after a
-  fresh clone before `helm-lint`/`helm-template`/`helm-validate`.
-- **Enrichment (Python)** isn't in the Makefile: `cd services/enrichment && python -m venv .venv && .venv/bin/pip install -r requirements.txt pytest pytest-cov && .venv/bin/python -m pytest`.
+  fresh clone before `helm-lint`/`helm-template`/`helm-validate`. `make deps` doesn't add
+  the `vpa` repository; run `helm repo add vpa https://charts.fairwinds.com/stable` first.
+- **Analyzer (Python)** isn't in the Makefile; its CI-equivalent commands are in
+  [testing/README.md](testing/README.md#analyzer-servicesanalyzer).
 - Chart packaging, signing, and registry publishing: [PUBLISHING.md](PUBLISHING.md).

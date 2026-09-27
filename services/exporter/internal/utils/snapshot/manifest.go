@@ -7,19 +7,6 @@ import (
 	"github.com/telark/exporter/internal/constants"
 )
 
-func BuildKubernetesListPayload(snapshot map[string]any) (map[string]any, bool) {
-	items, ok := BuildKubernetesItems(snapshot)
-	if !ok {
-		return nil, false
-	}
-
-	return map[string]any{
-		constants.FieldAPIVersion:    constants.KubernetesListAPIVersion,
-		constants.FieldKind:          constants.KubernetesListKind,
-		constants.FieldItemsManifest: items,
-	}, true
-}
-
 func BuildKubernetesItems(snapshot map[string]any) ([]map[string]any, bool) {
 	manifestData, ok := snapshot[constants.FieldManifest].(map[string]any)
 	if !ok || manifestData == nil {

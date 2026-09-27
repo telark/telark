@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/telark/auth/internal/authz"
+	"github.com/telark/auth/internal/constants"
 	"github.com/telark/auth/internal/routes"
 	roledata "github.com/telark/data/resources/role"
 	"github.com/telark/rest/base"
@@ -23,7 +24,7 @@ func TestRequirementsCoverEveryRoute(t *testing.T) {
 		}
 	}
 
-	if len(missing) > 0 {
+	if len(missing) > constants.DefaultInitValue {
 		t.Errorf("routes with no authz requirement (%d):", len(missing))
 		for _, key := range missing {
 			t.Errorf("  %s", key)
@@ -48,17 +49,17 @@ func TestNoRequirementWithoutRoute(t *testing.T) {
 // mistake, so the set is pinned here rather than left to review.
 func TestPublicRoutesArePinned(t *testing.T) {
 	allowed := map[string]bool{
-		"GET /api/v1/status/health":               true,
-		"GET /api/v1/status/ready":                true,
-		"GET /api/v1/status/live":                 true,
-		"POST /api/v1/auth/login/start":           true,
-		"POST /api/v1/auth/login/finish":          true,
-		"POST /api/v1/auth/register/start":        true,
-		"POST /api/v1/auth/passkeys/proxy/create": true,
-		"GET /api/v1/auth/config":                 true,
-		"POST /api/v1/auth/logout":                true,
-		"POST /api/v1/auth/oidc/google/callback":  true,
-		"POST /api/v1/auth/oidc/google/nonce":     true,
+		"GET /api/v1/status/health":              true,
+		"GET /api/v1/status/ready":               true,
+		"GET /api/v1/status/live":                true,
+		"POST /api/v1/auth/login/start":          true,
+		"POST /api/v1/auth/login/finish":         true,
+		"POST /api/v1/auth/register/start":       true,
+		"POST /api/v1/auth/passkeys":             true,
+		"GET /api/v1/auth/config":                true,
+		"POST /api/v1/auth/logout":               true,
+		"POST /api/v1/auth/oidc/google/callback": true,
+		"POST /api/v1/auth/oidc/google/nonce":    true,
 	}
 
 	for key, requirement := range authz.Requirements() {
@@ -94,6 +95,33 @@ func TestOIDCConfigRequiresAdmin(t *testing.T) {
 	}
 }
 
+// The cleanup handler deletes through the exporter with the service token, which
+// the exporter's guard waves through, so the delete deny rules only bite here.
+func TestCleanupDeletesHonourDenyRules(t *testing.T) {
+	cases := []struct {
+		endpoint      base.Endpoint
+		scope, action string
+	}{
+		{autheps.DeleteUserCleanup, roledata.ScopeUsers, roledata.ActionDeleteUser},
+		{autheps.DeleteGroupCleanup, roledata.ScopeGroups, roledata.ActionDeleteGroup},
+		{autheps.DeleteAccessRoleCleanup, roledata.ScopeRoles, roledata.ActionDeleteRole},
+	}
+	requirements := authz.Requirements()
+	for _, c := range cases {
+		key := router.Key(base.Delete, c.endpoint)
+		requirement, found := requirements[key]
+		if !found {
+			t.Fatalf("no requirement for %q", key)
+		}
+		if requirement.Scope != c.scope || requirement.MinLevel != roledata.PermissionLevelOwner {
+			t.Errorf("%s: scope/level = %q/%q, want %q/Owner", key, requirement.Scope, requirement.MinLevel, c.scope)
+		}
+		if want := xauthz.RuleKey(c.scope, c.action); requirement.Rule != want {
+			t.Errorf("%s: rule = %q, want %q", key, requirement.Rule, want)
+		}
+	}
+}
+
 func TestScopedRequirementsAreComplete(t *testing.T) {
 	for key, requirement := range authz.Requirements() {
 		if requirement.Access != xauthz.AccessScoped {
@@ -102,8 +130,58 @@ func TestScopedRequirementsAreComplete(t *testing.T) {
 		if requirement.Scope == "" {
 			t.Errorf("route %q is scoped but declares no scope", key)
 		}
-		if requirement.MinLevel.Rank() == 0 {
+		if requirement.MinLevel.Rank() == constants.DefaultInitValue {
 			t.Errorf("route %q declares an unusable level %q", key, requirement.MinLevel)
+		}
+	}
+}
+
+const routeKeySeparator = " "
+
+// The route table is the public contract: the new paths carry the credential id and
+// the resource id in the path, and the retired ones must be gone from routes and map.
+func TestRenamedRoutesArePinned(t *testing.T) {
+	requirements := authz.Requirements()
+	want := map[string]xauthz.Access{
+		"GET /api/v1/auth/passkeys":                   xauthz.AccessAuthenticated,
+		"POST /api/v1/auth/passkeys":                  xauthz.AccessPublic,
+		"GET /api/v1/auth/passkeys/{credentialId}":    xauthz.AccessAuthenticated,
+		"PATCH /api/v1/auth/passkeys/{credentialId}":  xauthz.AccessAuthenticated,
+		"DELETE /api/v1/auth/passkeys/{credentialId}": xauthz.AccessAuthenticated,
+		"POST /api/v1/auth/passkeys/enroll-link":      xauthz.AccessAuthenticated,
+		"DELETE /api/v1/auth/users/{id}":              xauthz.AccessScoped,
+		"DELETE /api/v1/auth/groups/{id}":             xauthz.AccessScoped,
+		"DELETE /api/v1/auth/accessroles/{id}":        xauthz.AccessScoped,
+		"PATCH /api/v1/auth/oidc/config":              xauthz.AccessScoped,
+	}
+	for key, access := range want {
+		requirement, found := requirements[key]
+		if !found {
+			t.Errorf("missing requirement %q", key)
+			continue
+		}
+		if requirement.Access != access {
+			t.Errorf("%s: access = %v, want %v", key, requirement.Access, access)
+		}
+	}
+
+	registered := map[string]bool{}
+	for _, route := range routes.Routes {
+		registered[route.Method+routeKeySeparator+route.Pattern] = true
+	}
+	retired := []string{
+		"GET /api/v1/auth/passkeys/proxy/get",
+		"POST /api/v1/auth/passkeys/proxy/create",
+		"GET /api/v1/auth/passkeys/proxy/single/get",
+		"PATCH /api/v1/auth/passkeys/proxy/patch",
+		"DELETE /api/v1/auth/passkeys/proxy/delete",
+		"DELETE /api/v1/auth/users/{id}/cleanup",
+		"DELETE /api/v1/auth/groups/{id}/cleanup",
+		"DELETE /api/v1/auth/roles/{id}/cleanup",
+	}
+	for _, key := range retired {
+		if _, found := requirements[key]; found || registered[key] {
+			t.Errorf("retired route %q is still served", key)
 		}
 	}
 }

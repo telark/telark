@@ -36,6 +36,13 @@ func (r *Reconciler) ReconcileOne(ctx context.Context, resourceType, id string, 
 	passCtx, cancel := context.WithTimeout(ctx, r.cfg.ReconcilePassDeadline)
 	defer cancel()
 
+	if target.Purge != nil {
+		if err := target.Purge(id); err != nil {
+			r.lg.Error(fmt.Sprintf(string(constants.LogCleanupReconcileFail), resourceType, id, attempts, err))
+			return Outcome{Requeue: true, DurationMS: elapsedMS(start)}, err
+		}
+	}
+
 	patchCount := constants.DefaultInitValue
 	for _, ref := range target.BackRefs {
 		if err := passCtx.Err(); err != nil {

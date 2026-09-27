@@ -30,14 +30,20 @@ env:
   GOWORK: "off"
 
 jobs:
-  build:
+  # test and lint run in parallel: -race builds are not reusable by lint, so one
+  # job paid both compiles back to back (data, cold: 310 s + 202 s).
+  verify:
+    name: Verify · ${{ matrix.task }}
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        task: [test, lint]
     steps:
       - name: Checkout telark repo (for local actions)
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Checkout Package Repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: telark/${{ github.event.inputs.package }}
           token: ${{ secrets.ACCESS_TOKEN }}
@@ -48,9 +54,48 @@ jobs:
         uses: ./.github/actions/go-ci
         with:
           working-directory: package
-          cache-key: ${{ github.event.inputs.package }}
-          access-user: ${{ secrets.ACCESS_USER }}
-          access-token: ${{ secrets.ACCESS_TOKEN }}
+          cache-key: ${{ github.event.inputs.package }}-${{ matrix.task }}
+          test: ${{ matrix.task == 'test' }}
+          lint: ${{ matrix.task == 'lint' }}
+
+      - name: Record verified commit
+        run: git -C package rev-parse HEAD > "verified-${{ matrix.task }}.sha"
+
+      - name: Upload verified commit
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: verified-${{ matrix.task }}
+          path: verified-${{ matrix.task }}.sha
+          retention-days: 1
+
+  build:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Package Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: telark/${{ github.event.inputs.package }}
+          token: ${{ secrets.ACCESS_TOKEN }}
+          path: package
+          ref: ${{ github.event.inputs.branch || 'main' }}
+
+      - name: Download verified commits
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: verified-*
+          merge-multiple: true
+
+      # The branch is re-fetched here; tag only the exact commit both legs verified.
+      - name: Check branch head was verified
+        run: |
+          head=$(git -C package rev-parse HEAD)
+          for f in verified-test.sha verified-lint.sha; do
+            if [ "$(cat "$f")" != "$head" ]; then
+              echo "::error::branch moved during verification ($f != $head) — re-run the release"
+              exit 1
+            fi
+          done
 
       - name: Set up Git
         run: |

@@ -7,11 +7,14 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/constants"
-	generics "github.com/telark/exporter/internal/exporters/generics"
+	"github.com/telark/exporter/internal/exporters/generics"
 	exportshared "github.com/telark/exporter/internal/exporters/shared"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 )
+
+const testResourceName = "n1"
 
 func namedReq(body string) *http.Request {
 	var r *http.Request
@@ -20,7 +23,7 @@ func namedReq(body string) *http.Request {
 	} else {
 		r = httptest.NewRequest(http.MethodPost, "/resource", strings.NewReader(body))
 	}
-	return mux.SetURLVars(r, map[string]string{constants.NameParam: "n1", constants.IDParam: "n1"})
+	return mux.SetURLVars(r, map[string]string{constants.NameParam: testResourceName, constants.IDParam: testResourceName})
 }
 
 func expectError(t *testing.T, w *httptest.ResponseRecorder, name string) {
@@ -33,11 +36,11 @@ func expectError(t *testing.T, w *httptest.ResponseRecorder, name string) {
 // With no cluster reachable, every generic CRD operation must surface an error
 // response instead of a success.
 func TestGenericCRDOperations(t *testing.T) {
-	md := metadata.RoleAsResourceMetadata
-	spec := map[string]any{constants.SpecField: map[string]any{"name": "n1"}}
+	md := metadata.AccessRoleMetadata
+	spec := map[string]any{constants.SpecField: map[string]any{"name": testResourceName}}
 
 	rec := httptest.NewRecorder()
-	generics.GenericGetCustomResource(rec, "n1", md)
+	generics.GenericGetCustomResource(rec, testResourceName, md)
 	expectError(t, rec, "GenericGet")
 
 	list := httptest.NewRecorder()
@@ -45,38 +48,70 @@ func TestGenericCRDOperations(t *testing.T) {
 	expectError(t, list, "GenericList")
 
 	create := httptest.NewRecorder()
-	generics.GenericCreateCustomResource(create, md, "n1", map[string]any{"name": "n1"})
+	generics.GenericCreateCustomResource(create, md, testResourceName, map[string]any{"name": testResourceName})
 	expectError(t, create, "GenericCreate")
 
 	createFin := httptest.NewRecorder()
-	generics.GenericCreateCustomResourceWithFinalizers(createFin, md, "n1", map[string]any{"name": "n1"}, []string{"f"})
+	generics.GenericCreateCustomResourceWithFinalizers(createFin, md, testResourceName, map[string]any{"name": testResourceName}, []string{"f"})
 	expectError(t, createFin, "GenericCreateWithFinalizers")
 
 	patch := httptest.NewRecorder()
-	generics.GenericPatchCustomResource(patch, md, "n1", spec)
+	generics.GenericPatchCustomResource(patch, md, testResourceName, spec)
 	expectError(t, patch, "GenericPatch")
 
 	del := httptest.NewRecorder()
-	generics.GenericDeleteCustomResource(del, md, "n1")
+	generics.GenericDeleteCustomResource(del, md, testResourceName)
 	expectError(t, del, "GenericDelete")
 }
 
 func TestSharedExporterOperations(t *testing.T) {
-	md := metadata.RoleAsResourceMetadata
+	md := metadata.AccessRoleMetadata
 
 	create := httptest.NewRecorder()
-	exportshared.CreateResource(create, md, "n1", map[string]any{"name": "n1"})
+	exportshared.CreateResource(create, md, testResourceName, map[string]any{"name": testResourceName})
 	expectError(t, create, "CreateResource")
 
-	getUnique := httptest.NewRecorder()
-	exportshared.GetUniqueResourceFromList(getUnique, md)
-	expectError(t, getUnique, "GetUniqueResourceFromList")
-
 	del := httptest.NewRecorder()
-	exportshared.DeleteResource(del, md, "n1")
+	exportshared.DeleteResource(del, md, testResourceName)
 	expectError(t, del, "DeleteResource")
 
 	patch := httptest.NewRecorder()
 	exportshared.PatchResource(patch, namedReq(`{"name":"n1"}`), md)
 	expectError(t, patch, "PatchResource")
+}
+
+// The parse error used to reach the caller as "…request body: %v: <cause>".
+func TestMalformedBodyMessageIsFormatted(t *testing.T) {
+	md := metadata.ApplicationMetadata
+	tests := []struct {
+		name string
+		call func(http.ResponseWriter, *http.Request)
+	}{
+		{"PatchResource", func(w http.ResponseWriter, r *http.Request) { exportshared.PatchResource(w, r, md) }},
+		{"GetSpec", func(w http.ResponseWriter, r *http.Request) { _, _ = sharedutils.GetSpec(w, r) }},
+	}
+	for _, tt := range tests {
+		rec := httptest.NewRecorder()
+		tt.call(rec, namedReq(`{not json`))
+		body := rec.Body.String()
+		if rec.Code != http.StatusUnprocessableEntity || strings.Contains(body, "%v") || !strings.Contains(body, "invalid character") {
+			t.Errorf("%s: code = %d body = %s, want 422 with the formatted cause", tt.name, rec.Code, body)
+		}
+	}
+}
+
+// An empty name is a client error, rejected before the API server is reached.
+func TestGenericEmptyNameIsBadRequest(t *testing.T) {
+	md := metadata.AccessRoleMetadata
+
+	get := httptest.NewRecorder()
+	generics.GenericGetCustomResource(get, constants.EmptyString, md)
+	patch := httptest.NewRecorder()
+	generics.GenericPatchCustomResource(patch, md, constants.EmptyString, map[string]any{constants.SpecField: map[string]any{}})
+
+	for name, rec := range map[string]*httptest.ResponseRecorder{"GenericGet": get, "GenericPatch": patch} {
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("%s: code = %d, want %d", name, rec.Code, http.StatusBadRequest)
+		}
+	}
 }

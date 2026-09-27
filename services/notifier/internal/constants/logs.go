@@ -13,4 +13,5 @@ const (
 const (
 	ErrStatusServerShutdown = "status server shutdown failed: %v"
 	ErrNatsFetchMessages    = "failed to fetch messages on topic %s: %v"
+	ErrHandlerPanicked      = "handler panicked on topic %s: %v"
 )

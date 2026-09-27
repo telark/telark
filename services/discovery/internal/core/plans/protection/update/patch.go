@@ -5,11 +5,9 @@ import (
 	planseps "github.com/telark/rest/endpoints/plans"
 )
 
-// buildPatch produces the exporter PATCH request limited to fields that actually changed,
-// plus the always-recomputed renderedPolicies/health/lastUpdated bookkeeping. It NEVER sets
-// id, createdAt/By, phase, startedAt/By, terminatedAt/By, or reason — those are owned by the
-// lifecycle handlers (cancel, reactivate, activate, terminate).
-func buildPatch(
+// Only changed fields plus the recomputed renderedPolicies/health/lastUpdated; phase, reason
+// and the started/terminated stamps belong to the lifecycle handlers and are never set here.
+func BuildPatch(
 	plan *plans.ProtectionPlan,
 	req *planseps.PrepareProtectionPlanRequest,
 	newPolicies []plans.ProtectionPlanPolicy,
@@ -60,6 +58,10 @@ func applyScalarPatch(
 		patch.TimeMode = &req.TimeMode
 		changed = true
 	}
+	if req.EnvironmentRef != nil && plan.EnvironmentRef != *req.EnvironmentRef {
+		patch.EnvironmentRef = req.EnvironmentRef
+		changed = true
+	}
 	return changed
 }
 
@@ -74,11 +76,12 @@ func applyComplexPatch(
 		patch.TimeRange = toPatchTimeRange(req.TimeRange)
 		changed = true
 	}
-	if !scopeTargetsEqual(plan.Scope, req.Scope) {
+	if !scopeTargetsEqual(plan.Scope, req.Scope) || exclusionsChanged(plan.Scope, req.Scope) {
 		patch.Scope = &planseps.ScopeRequest{
-			Type:           req.Scope.Type,
-			ApplicationIDs: req.Scope.ApplicationIDs,
-			Namespaces:     req.Scope.Namespaces,
+			Type:            req.Scope.Type,
+			ApplicationRefs: req.Scope.ApplicationRefs,
+			Namespaces:      req.Scope.Namespaces,
+			Exclusions:      effectiveExclusions(plan.Scope, req.Scope),
 		}
 		changed = true
 	}
@@ -86,11 +89,42 @@ func applyComplexPatch(
 		patch.Policies = req.Policies
 		changed = true
 	}
-	if !stringSliceSetEqual(plan.ParticipantsIDs, req.ParticipantsIDs) {
-		patch.ParticipantsIDs = req.ParticipantsIDs
+	if !stringSliceSetEqual(plan.ParticipantRefs, req.ParticipantRefs) {
+		patch.ParticipantRefs = req.ParticipantRefs
+		changed = true
+	}
+	if req.TagRefs != nil && !stringSliceSetEqual(plan.TagRefs, req.TagRefs) {
+		tags := req.TagRefs
+		patch.TagRefs = &tags
 		changed = true
 	}
 	return changed
+}
+
+// Material = anything that changes what gets rendered or when; kept beside the comparators so they cannot drift.
+func MaterialChange(
+	plan *plans.ProtectionPlan,
+	req *planseps.PrepareProtectionPlanRequest,
+	newPolicies []plans.ProtectionPlanPolicy,
+) bool {
+	return !planPoliciesEqual(plan.Policies, newPolicies) ||
+		!scopeTargetsEqual(plan.Scope, req.Scope) ||
+		plan.Mode != req.Mode ||
+		plan.TimeMode != req.TimeMode ||
+		!timeRangeEqual(plan.TimeRange, req.TimeRange) ||
+		exclusionsChanged(plan.Scope, req.Scope)
+}
+
+// Nil request exclusions mean untouched, like TagRefs; a non-nil value replaces them whole.
+func exclusionsChanged(planScope plans.ProtectionPlanScope, reqScope planseps.ScopeRequest) bool {
+	return reqScope.Exclusions != nil && !plans.ExclusionsEqual(planScope.Exclusions, reqScope.Exclusions)
+}
+
+func effectiveExclusions(planScope plans.ProtectionPlanScope, reqScope planseps.ScopeRequest) *plans.ProtectionPlanScopeExclusions {
+	if reqScope.Exclusions != nil {
+		return plans.NormalizeExclusions(reqScope.Exclusions)
+	}
+	return planScope.Exclusions
 }
 
 func stringPtrEqual(a, b *string) bool {
@@ -123,7 +157,7 @@ func toPatchTimeRange(tr *planseps.TimeRangeRequest) *planseps.TimeRangeRequest 
 
 func scopeTargetsEqual(planScope plans.ProtectionPlanScope, reqScope planseps.ScopeRequest) bool {
 	if planScope.Type == plans.ScopeTypeApplications {
-		return stringSliceSetEqual(planScope.ApplicationIDs, reqScope.ApplicationIDs)
+		return stringSliceSetEqual(planScope.ApplicationRefs, reqScope.ApplicationRefs)
 	}
 	return stringSliceSetEqual(planScope.Namespaces, reqScope.Namespaces)
 }

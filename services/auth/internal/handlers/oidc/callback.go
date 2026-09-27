@@ -6,12 +6,11 @@ import (
 	"net/http"
 
 	"github.com/telark/auth/internal/clients"
-	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
 	authhelper "github.com/telark/auth/internal/helpers/auth"
 	oidchelper "github.com/telark/auth/internal/helpers/oidc"
 	"github.com/telark/auth/internal/helpers/shared"
-	globalconfigresource "github.com/telark/data/resources/globalconfig"
+	telarkconfigresource "github.com/telark/data/resources/telarkconfig"
 	userresource "github.com/telark/data/resources/user"
 )
 
@@ -54,14 +53,12 @@ func GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if config.IsBootstrapAdmin(claims.Email) {
-		promoteBootstrapAdmin(user, clients.GetUserClient())
-	}
+	authhelper.EnsureBootstrapAdmin(user, claims.Email, clients.GetUserClient())
 
 	sessionToken, err := authhelper.CreateUserSession(user.ID, &req.DeviceMetadata)
 	if err != nil {
 		shared.HandleError(w, fmt.Errorf(string(constants.ErrFailedCreateSession), err),
-			http.StatusInternalServerError,
+			shared.GetStatusCodeForSessionError(err),
 			fmt.Sprintf(string(constants.ErrFailedCreateSession), err))
 		return
 	}
@@ -79,7 +76,7 @@ func GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func isOIDCConfigured(w http.ResponseWriter, oidc globalconfigresource.OIDCConfig) bool {
+func isOIDCConfigured(w http.ResponseWriter, oidc telarkconfigresource.OIDCConfig) bool {
 	if oidchelper.Usable(oidc) {
 		return true
 	}
@@ -97,9 +94,9 @@ func isEmailVerified(w http.ResponseWriter, claims *oidchelper.GoogleClaims) boo
 	return true
 }
 
-func resolveOIDCUser(w http.ResponseWriter, claims *oidchelper.GoogleClaims) (*userresource.UserAsResource, bool) {
+func resolveOIDCUser(w http.ResponseWriter, claims *oidchelper.GoogleClaims) (*userresource.User, bool) {
 	userClient := clients.GetUserClient()
-	user, err := userClient.GetUserByIdentity("google", claims.Issuer, claims.Subject)
+	user, err := userClient.GetUserByIdentity(constants.IdentityProviderGoogle, claims.Issuer, claims.Subject)
 	if err == nil {
 		return user, true
 	}
@@ -111,9 +108,13 @@ func resolveOIDCUser(w http.ResponseWriter, claims *oidchelper.GoogleClaims) (*u
 	}
 	user, err = jitProvisionUser(userClient, claims)
 	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, ErrEmailAmbiguous) {
+			status = http.StatusConflict
+		}
 		shared.HandleError(w,
 			fmt.Errorf(string(constants.ErrOIDCJITProvisioningFailed), err),
-			http.StatusInternalServerError,
+			status,
 			fmt.Sprintf(string(constants.ErrOIDCJITProvisioningFailed), err))
 		return nil, false
 	}

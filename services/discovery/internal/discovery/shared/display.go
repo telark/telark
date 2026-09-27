@@ -61,7 +61,3 @@ func restoreAcronyms(s string) string {
 	}
 	return strings.Join(parts, constants.SpaceSeparator)
 }
-
-func ToDisplayName(name string) string {
-	return BuildDisplayName(name)
-}

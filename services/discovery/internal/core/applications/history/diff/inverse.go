@@ -21,7 +21,7 @@ func signatureOf(c application.ApplicationChange) changeKey {
 		return changeKey{
 			field: c.Field,
 			typ:   c.ChangeType,
-			value: derefChangeValue(c.OldValue) + "|" + derefChangeValue(c.NewValue),
+			value: derefChangeValue(c.OldValue) + fieldValueSep + derefChangeValue(c.NewValue),
 		}
 	default:
 		return changeKey{field: c.Field, typ: c.ChangeType}

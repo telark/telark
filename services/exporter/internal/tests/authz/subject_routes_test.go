@@ -2,6 +2,7 @@ package authz
 
 import (
 	"errors"
+	"html"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,7 +15,6 @@ import (
 	"github.com/telark/rest/base"
 	authendpoints "github.com/telark/rest/endpoints/auth"
 	notificationsendpoints "github.com/telark/rest/endpoints/notifications"
-	roleendpoints "github.com/telark/rest/endpoints/resources/roles"
 	"github.com/telark/rest/router"
 	xauthz "github.com/telark/x-ware/authz"
 )
@@ -22,8 +22,7 @@ import (
 const (
 	testServiceToken = "service-token-for-tests"
 
-	subjectUserID  = "u-10000-0000-0001"
-	subjectGroupID = "g-10000-0000-0001"
+	subjectUserID = "u-10000-0000-0001"
 
 	sessionOfSubject  = "session-subject"
 	sessionOfOutsider = "session-outsider"
@@ -54,7 +53,7 @@ type stubResolver struct{}
 func (stubResolver) UserIDForToken(token string) (string, error) {
 	userID, ok := sessionUsers[token]
 	if !ok {
-		return "", errors.New("unknown session")
+		return constants.EmptyString, errors.New("unknown session")
 	}
 	return userID, nil
 }
@@ -67,7 +66,7 @@ func (stubResolver) GrantsForUser(userID string) (xauthz.Grants, error) {
 // verdict and who the handler would have acted for.
 func sentinel(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write([]byte(r.Header.Get(dataconstants.HeaderUserID))); err != nil {
+	if _, err := w.Write([]byte(html.EscapeString(r.Header.Get(dataconstants.HeaderUserID)))); err != nil {
 		panic(err)
 	}
 }
@@ -75,7 +74,7 @@ func sentinel(w http.ResponseWriter, r *http.Request) {
 // The real requirement table over stand-in handlers: the verdict under test is
 // the middleware's, not whatever the production handler would go on to do.
 func guardedRouter(endpoints ...base.Endpoint) (http.Handler, error) {
-	routes := make([]router.Route, 0, len(endpoints))
+	routes := make([]router.Route, constants.DefaultInitValue, len(endpoints))
 	for _, endpoint := range endpoints {
 		routes = append(routes, router.CreateRoute(base.Get, endpoint, sentinel))
 	}
@@ -98,17 +97,13 @@ func guardedRouter(endpoints ...base.Endpoint) (http.Handler, error) {
 func pathFor(endpoint base.Endpoint) string {
 	return strings.NewReplacer(
 		"{"+constants.UserIDParam+"}", subjectUserID,
-		"{"+constants.GroupIDParam+"}", subjectGroupID,
 	).Replace(router.Pattern(endpoint))
 }
 
-// These three routes serve one subject's records off a path parameter or a
-// header. Reading the requirement table proves what is declared; only a request
-// proves what a caller gets.
+// This route serves one subject's records off a header. Reading the requirement
+// table proves what is declared; only a request proves what a caller gets.
 func TestPerSubjectListRoutesRefuseForeignCallers(t *testing.T) {
 	subjectEndpoints := []base.Endpoint{
-		roleendpoints.GetRolesByUserID,
-		roleendpoints.GetRolesByGroupID,
 		authendpoints.GetAllInternalPasskeysByUser,
 	}
 
@@ -124,19 +119,10 @@ func TestPerSubjectListRoutesRefuseForeignCallers(t *testing.T) {
 		internal bool
 		want     int
 	}{
-		{"roles by user: outsider", roleendpoints.GetRolesByUserID, sessionOfOutsider, false, http.StatusForbidden},
-		{"roles by user: the subject", roleendpoints.GetRolesByUserID, sessionOfSubject, false, http.StatusForbidden},
-		{"roles by user: roles reader", roleendpoints.GetRolesByUserID, sessionOfReader, false, http.StatusOK},
-		{"roles by user: internal", roleendpoints.GetRolesByUserID, "", true, http.StatusOK},
-
-		{"roles by group: outsider", roleendpoints.GetRolesByGroupID, sessionOfOutsider, false, http.StatusForbidden},
-		{"roles by group: roles reader", roleendpoints.GetRolesByGroupID, sessionOfReader, false, http.StatusOK},
-		{"roles by group: internal", roleendpoints.GetRolesByGroupID, "", true, http.StatusOK},
-
 		{"passkeys: outsider", authendpoints.GetAllInternalPasskeysByUser, sessionOfOutsider, false, http.StatusUnauthorized},
 		{"passkeys: the subject", authendpoints.GetAllInternalPasskeysByUser, sessionOfSubject, false, http.StatusUnauthorized},
 		{"passkeys: roles reader", authendpoints.GetAllInternalPasskeysByUser, sessionOfReader, false, http.StatusUnauthorized},
-		{"passkeys: internal", authendpoints.GetAllInternalPasskeysByUser, "", true, http.StatusOK},
+		{"passkeys: internal", authendpoints.GetAllInternalPasskeysByUser, constants.EmptyString, true, http.StatusOK},
 	}
 
 	for _, tc := range cases {

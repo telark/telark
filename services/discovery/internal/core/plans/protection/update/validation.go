@@ -3,7 +3,6 @@ package update
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/telark/data/plans"
 	"github.com/telark/discovery/internal/constants"
@@ -17,7 +16,7 @@ const fmtRawString = "%s"
 // surfaces them together so users fix the entire form in a single round-trip.
 func validatePolicies(items []planseps.PolicyRequest, scopeType string) error {
 	if len(items) == constants.DefaultInitValue {
-		return fmt.Errorf(fmtRawString, ErrPoliciesRequired)
+		return validation.Invalidf(fmtRawString, ErrPoliciesRequired)
 	}
 	var errs []string
 	for _, p := range items {
@@ -34,23 +33,11 @@ func validatePolicies(items []planseps.PolicyRequest, scopeType string) error {
 			errs = append(errs, fmt.Sprintf(string(ErrInvalidParams), p.TemplateID, err))
 		}
 	}
+	if err := validation.DuplicateTemplates(items); err != nil {
+		errs = append(errs, err.Error())
+	}
 	if len(errs) > constants.DefaultInitValue {
-		return fmt.Errorf(fmtRawString, strings.Join(errs, "; "))
-	}
-	return nil
-}
-
-func validateTimeRange(tr *planseps.TimeRangeRequest) error {
-	if tr == nil {
-		return fmt.Errorf(fmtRawString, ErrInvalidTimeRange)
-	}
-	start, errStart := time.Parse(time.RFC3339, tr.StartAt)
-	end, errEnd := time.Parse(time.RFC3339, tr.EndAt)
-	if errStart != nil || errEnd != nil {
-		return fmt.Errorf(fmtRawString, ErrInvalidTimeRange)
-	}
-	if !end.After(start) {
-		return fmt.Errorf(fmtRawString, ErrInvalidTimeRange)
+		return validation.Invalidf(fmtRawString, strings.Join(errs, "; "))
 	}
 	return nil
 }

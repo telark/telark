@@ -16,8 +16,7 @@ const (
 	alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
 )
 
-// GeneratePlanID returns a fresh plan identifier matching the CRD's expected pattern
-// `pp-<3>-<4>-<4>` so that the exporter accepts the resource on create.
+// The CRD pattern is `pp-<3>-<4>-<4>`; anything else is rejected on create.
 func GeneratePlanID() (string, error) {
 	first, err := randomChunk(firstChunk)
 	if err != nil {

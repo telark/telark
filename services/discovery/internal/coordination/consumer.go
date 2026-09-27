@@ -175,7 +175,7 @@ func processMessage(
 	}
 
 	lockKey := constants.KeyPrefixLockApp + mf.appName
-	lockValue := replicaID + ":" + mf.cycleID
+	lockValue := replicaID + constants.ColonSeparator + mf.cycleID
 
 	acquired, err := coord.Lock.Acquire(ctx, lockKey, lockValue, coord.Config.LockTTL)
 	if err != nil || !acquired {
@@ -242,7 +242,6 @@ func finalizeSuccess(ctx context.Context, coord *CoordinationBundle, mf messageF
 }
 
 func markPermanentFailure(ctx context.Context, coord *CoordinationBundle, mf messageFields, msgID string) {
-	lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
 	_ = coord.State.UpdateStep(ctx, mf.stateKey, constants.StepFailed, constants.StatusFailed)
 	_ = coord.Stream.Ack(ctx, constants.StreamOperations, constants.ConsumerGroupName, msgID)
 	_ = coord.Dedup.Release(ctx, mf.appName, mf.dedupTS)
@@ -298,7 +297,7 @@ func parseMessageFields(msg redis.XMessage) messageFields {
 }
 
 func extractDedupTS(appName, cycleID string) string {
-	prefix := appName + ":"
+	prefix := appName + constants.ColonSeparator
 	if after, ok := strings.CutPrefix(cycleID, prefix); ok {
 		return after
 	}

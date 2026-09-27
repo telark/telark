@@ -8,6 +8,7 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/telark/discovery/internal/clients"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/coordination/forcesync"
 	sharedhelper "github.com/telark/discovery/internal/helpers/shared"
@@ -24,6 +25,12 @@ func SyncApplication(w http.ResponseWriter, r *http.Request) {
 
 	name, ok := readAppName(w, r)
 	if !ok {
+		return
+	}
+	if app, getErr := clients.NewExporterClient().GetApplicationByNameFresh(name); getErr != nil || app == nil {
+		responseutils.LogAndSendResponse(
+			w, http.StatusNotFound, response.OperationNotFound, string(constants.MsgApplicationNotFound), nil, getErr,
+		)
 		return
 	}
 	ingress := getForceSyncIngress()

@@ -1,17 +1,11 @@
 name: 'Go CI'
-description: 'Set up Go, restore the build + module + lint caches, then test and lint (both compile every package).'
+description: 'Set up Go, restore the build + module cache, then test and/or lint. Run test and lint as separate jobs: -race builds are not reusable by lint, so each gets its own cache-key.'
 inputs:
   working-directory:
     description: 'Directory holding the Go module (contains go.mod)'
     required: true
   cache-key:
     description: 'Unique cache-key component, e.g. the service or package name'
-    required: true
-  access-user:
-    description: 'GitHub user for private module access'
-    required: true
-  access-token:
-    description: 'GitHub token for private module access'
     required: true
   test:
     description: 'Run go test -race'
@@ -34,7 +28,7 @@ runs:
   using: 'composite'
   steps:
     - name: Set up Go
-      uses: actions/setup-go@v7.0.0
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version-file: ${{ inputs.working-directory }}/go.mod
         # Explicit cache below (with restore-keys) instead of setup-go's
@@ -46,15 +40,23 @@ runs:
     # run is cold again. The explicit save below runs with if: always().
     - name: Restore Go build and module cache
       id: go-cache
-      uses: actions/cache/restore@v6.1.0
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
+        # ~/.cache/golangci-lint is left to golangci-lint-action's own cache.
         path: |
           ~/.cache/go-build
           ~/go/pkg/mod
-          ~/.cache/golangci-lint
         key: ${{ runner.os }}-go-${{ inputs.cache-key }}-${{ hashFiles(format('{0}/go.sum', inputs.working-directory), '.golangci.yml') }}
         restore-keys: |
           ${{ runner.os }}-go-${{ inputs.cache-key }}-
+
+    # A restore-keys hit carries every stale build forward, so the cache only ever
+    # grew (discovery 0.9 -> 2.4 GB). Backdate every entry: go re-stamps the ones it
+    # reads, and the trim before save drops the rest.
+    - name: Backdate restored build cache
+      if: ${{ steps.go-cache.outputs.cache-matched-key != '' }}
+      shell: bash
+      run: find ~/.cache/go-build -type f -exec touch -m -d 2000-01-01 {} +
 
     # No separate `go build ./...`: both Test (`go test ./...`) and Lint compile
     # every package, so a standalone build step is a third redundant compile.
@@ -75,22 +77,26 @@ runs:
 
     - name: Lint
       if: ${{ inputs.lint == 'true' }}
-      uses: golangci/golangci-lint-action@v9.3.0
+      uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
       env:
         GOWORK: "off"
       with:
         # Pinned, not `latest`: a linter release can add rules overnight and
         # break an unrelated PR. Bump deliberately, after running it locally.
-        version: v2.11.3
+        version: v2.13.2
         working-directory: ${{ inputs.working-directory }}
         args: --config=${{ github.workspace }}/${{ inputs.config-file }}
 
+    - name: Trim build cache to entries used by this run
+      if: always() && steps.go-cache.outputs.cache-hit != 'true' && steps.go-cache.outputs.cache-matched-key != ''
+      shell: bash
+      run: find ~/.cache/go-build -type f ! -newermt 2000-01-02 -delete
+
     - name: Save Go build and module cache
       if: always() && steps.go-cache.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v6.1.0
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           ~/.cache/go-build
           ~/go/pkg/mod
-          ~/.cache/golangci-lint
         key: ${{ steps.go-cache.outputs.cache-primary-key }}

@@ -13,6 +13,11 @@ import (
 )
 
 type (
+	DeleteFunc      func(resourceName string) GenericResponse
+	GenericResponse interface {
+		GetStatus() int
+		GetMessage() string
+	}
 	GenericResponseAdapter struct {
 		Resp *response.GenericResponse
 	}
@@ -50,9 +55,8 @@ func (s *BaseSubscriber) GetResourceType() shared.Type {
 	return s.resourceType
 }
 
-// ctx is part of the natscore.ResourceSubscriber contract; message handling is synchronous today.
-func (s *BaseSubscriber) ProcessMessage(ctx context.Context, m *nats.Msg) error {
-	_ = ctx
+// The context is part of the natscore.ResourceSubscriber contract; message handling is synchronous today.
+func (s *BaseSubscriber) ProcessMessage(_ context.Context, m *nats.Msg) error {
 	return s.HandleMessage(m)
 }
 

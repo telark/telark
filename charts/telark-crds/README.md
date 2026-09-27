@@ -12,21 +12,31 @@ Only needed when the app is installed with `crds.enabled=false`. From the regist
 helm install telark-crds oci://ghcr.io/telark/charts/telark-crds
 ```
 
-Pulls the latest published version. Override to match a customized app release: `--set app.name=<name> --set app.namespace=<ns>`. From a checkout, `./charts/telark-crds` works in place of the OCI ref.
+Pulls the latest published version. Override to match a customized app release: `--set app.name=<name> --set app.namespace=<ns>` (the API group stays `telark.io`). From a checkout, `./charts/telark-crds` works in place of the OCI ref.
 
 ## Values
 
-This chart holds no config of its own. It reads two keys from the telark chart's values so CRD groups and namespaces match the app release (full index: **[VALUES.md](VALUES.md)**):
+This chart holds no config of its own. It reads two keys from the telark chart's values so labels and namespaces match the app release (full index: **[VALUES.md](VALUES.md)**):
 
 | Key | Description |
 |---|---|
-| `app.name` | App identity; forms the API-group suffix (e.g. `erpi.<name>`) |
+| `app.name` | App identity for labels; the API group is always `telark.io` |
 | `app.namespace` | Namespace the built-in custom resources target |
 
 ## Definitions
 
-| Group | Kinds |
-|---|---|
-| `erpi.<name>` | ApplicationAsResource, GroupAsResource, RoleAsResource, UserAsResource, GlobalConfig, ProtectionPlan |
-| `auth.<name>` | UserPasskey, UserSession |
-| `classification.<name>` | CategoryAsClassification |
+Every CRD is in group `telark.io`, version `v1alpha1`, namespaced. `kubectl get telark` lists the `telark` category; use the full names (`applications.telark.io`) where plurals collide with other CRDs.
+
+| Kind | Plural | Short name | Category | `/status` |
+|---|---|---|---|---|
+| Application | `applications` | `tapp` | `telark` | yes |
+| ProtectionPlan | `protectionplans` | `tplan` | `telark` | yes |
+| TelarkConfig (singleton `default`) | `telarkconfigs` | `tcfg` | `telark` | yes |
+| Category (singleton `categories`) | `categories` | `tcat` | `telark` | no |
+| User | `users` | `tuser` | `telark` | no |
+| Group | `groups` | `tgroup` | `telark` | no |
+| AccessRole | `accessroles` | `trole` | `telark` | no |
+| Passkey | `passkeys` | `tpk` | `telark-auth` | no |
+| Session | `sessions` | `tsess` | `telark-auth` | no |
+
+ProtectionPlan phases (`status.phase`): `draft`, `pending_approval`, `scheduled`, `active`, `terminated`, `canceled`, `failed`. Optional metadata `environmentRef` and `tagRefs` (category ids, at most 20 tags) classify a plan. Optional spec field `approvalMode` (`automatic` | `required`, absent = automatic) and `status.approval` (state, requester, decider, comment, history of at most 20 events) drive plan approval. Optional `scope.exclusions` {kinds[], resources[]{kind,name,namespace}} excludes kinds (any scope) or named resources (applications scope only) from enforcement.

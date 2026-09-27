@@ -42,6 +42,10 @@ func StatusForResult(result kshared.KubernetesAPIData) int {
 	return result.Status
 }
 
+func StatusForK8sError(err error) int {
+	return StatusForResult(kshared.CreateKubernetesAPIData(http.StatusInternalServerError, constants.EmptyString, nil, err))
+}
+
 func ErrorForResult(result kshared.KubernetesAPIData, notFoundErr dataerrors.Error) error {
 	switch status := StatusForResult(result); status {
 	case http.StatusOK:

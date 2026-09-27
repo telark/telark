@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	metadata "github.com/telark/data/metadata/resources"
+	metadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/informers"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -14,8 +14,11 @@ import (
 	k8scache "k8s.io/client-go/tools/cache"
 )
 
+// Two applications live in the watched namespace; a third sits outside it.
+const wantNamespacedApps = 2
+
 func application(name string, namespace string) *unstructured.Unstructured {
-	md := metadata.ApplicationAsResourceMetadata
+	md := metadata.ApplicationMetadata
 	return &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": md.GetAPIVersion(),
 		"kind":       md.Kind,
@@ -29,7 +32,7 @@ func application(name string, namespace string) *unstructured.Unstructured {
 // through the resource client because the fake would otherwise guess the
 // plural from the kind and miss the irregular one the CRD uses.
 func TestRunApplicationsServesTheStoreOnceSynced(t *testing.T) {
-	md := metadata.ApplicationAsResourceMetadata
+	md := metadata.ApplicationMetadata
 	gvr := schema.GroupVersionResource{Group: md.BaseGroup, Version: md.Version, Resource: md.Plural}
 	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(
 		runtime.NewScheme(), map[schema.GroupVersionResource]string{gvr: md.Kind + "List"},
@@ -54,8 +57,8 @@ func TestRunApplicationsServesTheStoreOnceSynced(t *testing.T) {
 	if !ok {
 		t.Fatal("synced store not served")
 	}
-	if len(list.Items) != 2 {
-		t.Fatalf("items = %d, want the 2 from the namespace", len(list.Items))
+	if len(list.Items) != wantNamespacedApps {
+		t.Fatalf("items = %d, want the %d from the namespace", len(list.Items), wantNamespacedApps)
 	}
 	if list.Items[0].GetName() != "alpha" || list.Items[1].GetName() != "beta" {
 		t.Errorf("order = %s, %s, want alpha, beta", list.Items[0].GetName(), list.Items[1].GetName())

@@ -23,34 +23,39 @@ env:
 
 jobs:
   go:
-    name: Go · ${{ matrix.service }}
+    name: Go · ${{ matrix.service }} · ${{ matrix.task }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       # coverage = per-service ratchet floor (just below current); raise as coverage
       # improves. Never lower it — that is the point.
+      # test and lint run as parallel legs: -race builds are not reusable by lint,
+      # so one job paid both compiles back to back (discovery: 483 s + 353 s).
       matrix:
+        service: [auth, discovery, exporter, notifier]
+        task: [test, lint]
         include:
-          - { service: auth, coverage: 53 }
-          - { service: discovery, coverage: 28 }
+          - { service: auth, coverage: 55 }
+          - { service: discovery, coverage: 35 }
           - { service: exporter, coverage: 52 }
           - { service: notifier, coverage: 75 }
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Go CI
         uses: ./.github/actions/go-ci
         with:
           working-directory: services/${{ matrix.service }}
-          cache-key: ${{ matrix.service }}
-          access-user: ${{ secrets.ACCESS_USER }}
-          access-token: ${{ secrets.ACCESS_TOKEN }}
+          cache-key: ${{ matrix.service }}-${{ matrix.task }}
           coverage-threshold: ${{ matrix.coverage }}
+          test: ${{ matrix.task == 'test' }}
+          lint: ${{ matrix.task == 'lint' }}
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v7.0.0
+        if: ${{ matrix.task == 'test' }}
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: services/${{ matrix.service }}/coverage.out
@@ -58,23 +63,23 @@ jobs:
           slug: telark/telark
           fail_ci_if_error: false
 
-  enrichment:
-    name: Python · enrichment
+  analyzer:
+    name: Python · analyzer
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
       run:
-        working-directory: services/enrichment
+        working-directory: services/analyzer
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
           cache: pip
-          cache-dependency-path: services/enrichment/requirements.txt
+          cache-dependency-path: services/analyzer/requirements.txt
 
       - name: Install dependencies
         run: pip install -r requirements.txt pytest pytest-cov
@@ -89,16 +94,16 @@ jobs:
       - name: Test
         run: |
           python -m pytest --cov=. --cov-report= tests/test_*_cov.py -q
-          python -m pytest --cov=. --cov-append --cov-report= tests/test_authz.py tests/test_insights.py tests/test_provider_config.py -q
+          python -m pytest --cov=. --cov-append --cov-report= tests/test_authz.py tests/test_insights.py tests/test_exporter.py -q
           python -m coverage report --fail-under=95
           python -m coverage xml
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v7.0.0
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: services/enrichment/coverage.xml
-          flags: enrichment
+          files: services/analyzer/coverage.xml
+          flags: analyzer
           slug: telark/telark
           fail_ci_if_error: false
 
@@ -108,7 +113,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Helm and Go
         uses: ./.github/actions/setup-helm-go
@@ -123,7 +128,7 @@ jobs:
 
       - name: Lint charts
         run: |
-          helm lint "$CHART_DIR"
+          helm lint "$CHART_DIR" --set 'app.auth.bootstrap.admins={jane.doe@example.com}'
           helm lint "$CRDS_DIR" -f "$CHART_DIR/values.yaml"
 
       # Same command as `make values-docs`, so local + CI never disagree.

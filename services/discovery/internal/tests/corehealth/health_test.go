@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	appresource "github.com/telark/data/resources/application"
+	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/applications/core"
 	"github.com/telark/discovery/internal/tests/testutil"
 )
@@ -19,8 +20,8 @@ func TestComputeHealthNoWorkloads(t *testing.T) {
 	}
 	h := core.ComputeHealth(app)
 	testutil.Equal(t, "status", h.Status, "unknown")
-	testutil.Equal(t, "ready", h.ReadyReplicas, 0)
-	testutil.Equal(t, "total", h.TotalReplicas, 0)
+	testutil.Equal(t, "ready", h.ReadyReplicas, constants.DefaultInitValue)
+	testutil.Equal(t, "total", h.TotalReplicas, constants.DefaultInitValue)
 }
 
 // An application with no resources at all is also unknown.

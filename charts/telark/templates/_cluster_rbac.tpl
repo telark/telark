@@ -17,6 +17,9 @@ metadata:
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
+{{- if hasKey $serviceConfig "automountServiceAccountToken" }}
+automountServiceAccountToken: {{ $serviceConfig.automountServiceAccountToken }}
+{{- end }}
 {{- end }}
 {{- end -}}
 

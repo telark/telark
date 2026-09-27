@@ -2,26 +2,25 @@ package protection
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
-	"slices"
 
-	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/messages"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/plans/protection"
 	"github.com/telark/discovery/internal/core/plans/protection/update"
 	"github.com/telark/discovery/internal/helpers/shared"
-	kcorecore "github.com/telark/kcore/resources/core"
 	planseps "github.com/telark/rest/endpoints/plans"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 )
 
 func Update(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get(constants.HeaderUserID)
-	if userID == constants.EmptyString {
-		respondError(w, http.StatusUnauthorized, protection.ErrUserMissing, nil)
+	svc, ok := readyService(w)
+	if !ok {
+		return
+	}
+	userID, ok := requireUser(w, r)
+	if !ok {
 		return
 	}
 
@@ -31,49 +30,46 @@ func Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req planseps.PrepareProtectionPlanRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, dataerrors.Error(err.Error()), err)
+	if !decodeBody(w, r, &req) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), constants.ProtectionPlanDeployTimeout)
+	ctx, cancel := context.WithTimeout(detached(r), constants.ProtectionPlanDeployTimeout)
 	defer cancel()
 
-	plan, err := update.Run(ctx, buildUpdateDeps(), userID, planID, &req)
+	release, ok := lockPlanDecision(ctx, w, planID)
+	if !ok {
+		return
+	}
+	defer release()
+
+	plan, err := update.Run(ctx, buildUpdateDeps(svc), userID, planID, &req)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, dataerrors.Error(err.Error()), err)
+		respondDomainError(w, err)
 		return
 	}
 	responseutils.LogAndSendResponse(
 		w,
 		http.StatusOK,
 		response.OperationSuccess,
-		string(messages.SuccessUpdateRes),
+		planMessage(messages.SuccessUpdateRes, planID),
 		plan,
 		nil,
 	)
 }
 
-func buildUpdateDeps() update.Deps {
+func buildUpdateDeps(svc *protection.Service) update.Deps {
 	return update.Deps{
-		Applier:        globalService.Applier(),
-		Exporter:       globalService.Exporter(),
-		ResolveApps:    globalService.ResolveApps(),
-		ListNamespaces: listClusterNamespaces,
-		Logger:         globalService.AppLogger(),
-		Clock:          globalService.Clock,
+		Applier:         svc.Applier(),
+		Exporter:        svc.Exporter(),
+		ResolveApps:     svc.ResolveApps(),
+		ListNamespaces:  svc.ListNamespaces(),
+		Environments:    svc.Environments(),
+		Logger:          svc.AppLogger(),
+		Clock:           svc.Clock,
+		StampHealth:     svc.StampFirstHealth,
+		NotifyApprovers: svc.Notifier().RequestApproval,
+		LockName:        svc.LockName,
+		Activate:        svc.Activate,
 	}
-}
-
-func listClusterNamespaces(_ context.Context) ([]string, error) {
-	list, err := kcorecore.GetAllNamespaces()
-	if err != nil {
-		return nil, err
-	}
-	out := make([]string, constants.DefaultInitValue, len(list))
-	for i := range list {
-		out = append(out, list[i].Name)
-	}
-	slices.Sort(out)
-	return out, nil
 }

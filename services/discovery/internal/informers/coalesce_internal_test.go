@@ -2,6 +2,7 @@ package informers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"slices"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 	applicationmodel "github.com/telark/data/resources/application"
 	"github.com/telark/discovery/internal/constants"
 	applicationscore "github.com/telark/discovery/internal/core/applications/core"
+	"github.com/telark/discovery/internal/core/applications/history/diff"
 	"github.com/telark/discovery/internal/core/applications/history/manifestdiff"
 	restshared "github.com/telark/rest/clients/shared"
 	"golang.org/x/time/rate"
@@ -23,14 +25,34 @@ import (
 )
 
 const (
-	testWindow           = 5 * time.Millisecond
-	testMaxWait          = 50 * time.Millisecond
-	testMaxEntries       = 10
-	testSettle           = 500 * time.Millisecond
-	testBusyAttempts     = 3
-	testBackoffWindow    = 100 * time.Millisecond
-	testBackoffDeadline  = 2 * time.Second
-	testRetryDelayProbes = 24
+	testWindow              = 5 * time.Millisecond
+	testMaxWait             = 50 * time.Millisecond
+	testMaxEntries          = 10
+	testSettle              = 500 * time.Millisecond
+	testBusyAttempts        = 3
+	testBackoffWindow       = 100 * time.Millisecond
+	testBackoffDeadline     = 2 * time.Second
+	testRetryDelayProbes    = 24
+	testAppName             = "app"
+	testKindDeployment      = "Deployment"
+	testKeyKind             = "kind"
+	testKeyAPIVersion       = "apiVersion"
+	testKeyMetadata         = "metadata"
+	testNamespaceA          = "ns-a"
+	testResourceName        = "a"
+	testRev1                = "r1"
+	testRev2                = "r2"
+	testRev3                = "r3"
+	testSeq0                = "s0"
+	testSeq1                = "s1"
+	testSnapID1             = "snap-1"
+	testBurstAnnotation     = "stress/burst"
+	testCreatesAfterRewrite = 6
+	testProgressDeadlineSec = 600
+	testDeployKey           = "deploy/app"
+	testKeyName             = "name"
+	testKeyNamespace        = "namespace"
+	testRollbackID          = "rbk-1"
 )
 
 func newTestCoalescer(flush func(string, map[string]*unstructured.Unstructured) error) *coalescer {
@@ -57,10 +79,10 @@ func TestFireFlushRetriesWhileGenLockBusy(t *testing.T) {
 		}
 		return nil
 	})
-	c.schedule("app", "deploy/app", &unstructured.Unstructured{Object: map[string]any{"kind": "Deployment"}})
+	c.schedule(testAppName, testDeployKey, &unstructured.Unstructured{Object: map[string]any{testKeyKind: testKindDeployment}})
 
 	waitFor(t, func() bool {
-		return calls.Load() >= testBusyAttempts && len(c.inMemBuf("app")) == 0
+		return calls.Load() >= testBusyAttempts && len(c.inMemBuf(testAppName)) == 0
 	})
 }
 
@@ -75,10 +97,10 @@ func TestFireFlushRetriesAndKeepsBufferOnTransientErrors(t *testing.T) {
 		}
 		return nil
 	})
-	c.schedule("app", "deploy/app", &unstructured.Unstructured{Object: map[string]any{"kind": "Deployment"}})
+	c.schedule(testAppName, testDeployKey, &unstructured.Unstructured{Object: map[string]any{testKeyKind: testKindDeployment}})
 
 	waitFor(t, func() bool {
-		return calls.Load() >= testBusyAttempts && len(c.inMemBuf("app")) == 0
+		return calls.Load() >= testBusyAttempts && len(c.inMemBuf(testAppName)) == 0
 	})
 }
 
@@ -96,34 +118,34 @@ func TestFlushRearmsOnTransportErrorButDropsWhenStoredNotFound(t *testing.T) {
 		}
 		return m.flushApp(app, buf)
 	})
-	m.coalesce.schedule("app", "deploy/app", &unstructured.Unstructured{Object: map[string]any{"kind": "Deployment"}})
+	m.coalesce.schedule(testAppName, testDeployKey, &unstructured.Unstructured{Object: map[string]any{testKeyKind: testKindDeployment}})
 
 	waitFor(t, func() bool {
-		return calls.Load() == testBusyAttempts && len(m.coalesce.inMemBuf("app")) == 0
+		return calls.Load() == testBusyAttempts && len(m.coalesce.inMemBuf(testAppName)) == 0
 	})
 	time.Sleep(testMaxWait)
 	if got := calls.Load(); got != testBusyAttempts {
 		t.Fatalf("not-found flush re-armed: %d exporter calls, want %d", got, testBusyAttempts)
 	}
-	if shortBuffers.Load() != 0 {
+	if shortBuffers.Load() != constants.DefaultInitValue {
 		t.Fatal("transport-error retry lost the detached buffer")
 	}
 }
 
 func TestScheduleWithoutPreImageStillFlushes(t *testing.T) {
-	var entries atomic.Int32
+	var entries atomic.Int64
 	c := newTestCoalescer(func(_ string, buf map[string]*unstructured.Unstructured) error {
-		entries.Store(int32(len(buf)))
+		entries.Store(int64(len(buf)))
 		return nil
 	})
-	c.schedule("app", "configmap/cfg", nil)
+	c.schedule(testAppName, "configmap/cfg", nil)
 
 	waitFor(t, func() bool { return entries.Load() == 1 })
 }
 
 func TestEventsDuringFlushAreKept(t *testing.T) {
 	release := make(chan struct{})
-	started := make(chan struct{}, 1)
+	started := make(chan struct{}, constants.DefaultAddValue)
 	var calls atomic.Int32
 	c := newTestCoalescer(func(_ string, buf map[string]*unstructured.Unstructured) error {
 		if calls.Add(1) == 1 {
@@ -135,12 +157,12 @@ func TestEventsDuringFlushAreKept(t *testing.T) {
 		}
 		return nil
 	})
-	c.schedule("app", "deploy/a", &unstructured.Unstructured{Object: map[string]any{"kind": "Deployment"}})
+	c.schedule(testAppName, "deploy/a", &unstructured.Unstructured{Object: map[string]any{testKeyKind: testKindDeployment}})
 	<-started
-	c.schedule("app", "deploy/b", &unstructured.Unstructured{Object: map[string]any{"kind": "Service"}})
+	c.schedule(testAppName, "deploy/b", &unstructured.Unstructured{Object: map[string]any{testKeyKind: "Service"}})
 	close(release)
 
-	waitFor(t, func() bool { return calls.Load() == 2 && len(c.inMemBuf("app")) == 0 })
+	waitFor(t, func() bool { return calls.Load() == 2 && len(c.inMemBuf(testAppName)) == 0 })
 }
 
 func TestResumeFlushesPastDeadlineBufferInsteadOfDropping(t *testing.T) {
@@ -152,13 +174,13 @@ func TestResumeFlushesPastDeadlineBufferInsteadOfDropping(t *testing.T) {
 		return nil
 	})
 	buf := map[string]*unstructured.Unstructured{
-		"deploy/app": {Object: map[string]any{"kind": "Deployment"}},
+		testDeployKey: {Object: map[string]any{testKeyKind: testKindDeployment}},
 	}
 	raw, err := encodeCoalescePayload(buf, time.Now().Add(-time.Minute).Unix())
 	if err != nil {
 		t.Fatal(err)
 	}
-	key := coalesceRedisKey("app")
+	key := coalesceRedisKey(testAppName)
 	if err := rdb.Set(context.Background(), key, raw, 0).Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +191,7 @@ func TestResumeFlushesPastDeadlineBufferInsteadOfDropping(t *testing.T) {
 }
 
 func newTestManager(getStored func(string) (*applicationmodel.Application, error)) *Manager {
-	return &Manager{getStoredApp: getStored, flushLimiter: rate.NewLimiter(rate.Inf, 0)}
+	return &Manager{getStoredApp: getStored, flushLimiter: rate.NewLimiter(rate.Inf, constants.DefaultInitValue)}
 }
 
 type fakeSnapshotStore struct {
@@ -178,12 +200,12 @@ type fakeSnapshotStore struct {
 
 func (f *fakeSnapshotStore) opts() applicationscore.GetApplicationsOptions {
 	return applicationscore.GetApplicationsOptions{
-		CreateSnapshot: func(id, scope, namespace string, generation int, manifest any) (string, error) {
-			f.creates.Add(1)
+		CreateSnapshot: func(id, _, _ string, _ int, _ any) (string, error) {
+			f.creates.Add(constants.DefaultAddValue)
 			return "/snapshots/" + id, nil
 		},
-		DeleteSnapshot: func(id, scope, namespace string, generation int) error {
-			f.deletes.Add(1)
+		DeleteSnapshot: func(string, string, string, int) error {
+			f.deletes.Add(constants.DefaultAddValue)
 			return nil
 		},
 	}
@@ -192,15 +214,15 @@ func (f *fakeSnapshotStore) opts() applicationscore.GetApplicationsOptions {
 func testPreImage(replicas int64) map[string][]unstructured.Unstructured {
 	obj := func(kind, ns, name string) unstructured.Unstructured {
 		return unstructured.Unstructured{Object: map[string]any{
-			"apiVersion": "apps/v1",
-			"kind":       kind,
-			"metadata":   map[string]any{"name": name, "namespace": ns},
-			"spec":       map[string]any{"replicas": replicas},
+			testKeyAPIVersion: "apps/v1",
+			testKeyKind:       kind,
+			testKeyMetadata:   map[string]any{testKeyName: name, testKeyNamespace: ns},
+			"spec":            map[string]any{"replicas": replicas},
 		}}
 	}
 	return map[string][]unstructured.Unstructured{
-		"ns-a": {obj("Deployment", "ns-a", "a")},
-		"ns-b": {obj("Deployment", "ns-b", "b")},
+		testNamespaceA: {obj(testKindDeployment, testNamespaceA, testResourceName)},
+		"ns-b":         {obj(testKindDeployment, "ns-b", "b")},
 	}
 }
 
@@ -213,47 +235,55 @@ func TestWritePreSnapshotsReusesPendingSetUntilPublishLands(t *testing.T) {
 	ctx := context.Background()
 	stored := &applicationmodel.Application{}
 	const nextGen = 2
-	failed := &applicationmodel.Application{CRStatus: applicationmodel.CRStatusFailed}
+	failed := failedApp()
 	landed := &applicationmodel.Application{
-		CRStatus: applicationmodel.CRStatusPublished,
-		History:  applicationmodel.ApplicationHistory{Generation: nextGen},
+		Conditions: publishedApp().Conditions,
+		History:    applicationmodel.ApplicationHistory{Generation: nextGen},
 	}
 
 	var first []applicationmodel.ApplicationSnapshot
 	for attempt := range testBusyAttempts {
-		snaps, err := m.writePreSnapshots(ctx, "app", stored, nextGen, testPreImage(1), &opts)
+		snaps, err := m.writePreSnapshots(ctx, testAppName, stored, nextGen, testPreImage(constants.DefaultAddValue), &opts)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if attempt == 0 {
+		if attempt == constants.DefaultInitValue {
 			first = snaps
-		} else if len(snaps) != len(first) || snaps[0].ID != first[0].ID {
+		} else if len(snaps) != len(first) || snaps[constants.DefaultInitValue].ID != first[constants.DefaultInitValue].ID {
 			t.Fatalf("attempt %d wrote a new set instead of reusing the pending one", attempt)
 		}
 		outcome := failed
-		if attempt == testBusyAttempts-1 {
+		if attempt == testBusyAttempts-constants.DefaultAddValue {
 			outcome = landed
 		}
-		m.settlePendingSnapshots(ctx, "app", stored, outcome)
+		m.settlePendingSnapshots(ctx, testAppName, stored, outcome)
 	}
-	if got := store.creates.Load(); got != 2 {
+	if got := store.creates.Load(); got != constants.TwoValue {
 		t.Fatalf("CreateSnapshot called %d times across %d attempts, want once per namespace (2)", got, testBusyAttempts)
 	}
-	if mr.Exists(pendingSnapshotsKey("app")) {
+	if mr.Exists(pendingSnapshotsKey(testAppName)) {
 		t.Fatal("pending record survived a landed publish")
 	}
+	assertContentChangeRewritesPendingSet(t, m, store, stored, failed, nextGen+1)
+}
 
-	if _, err := m.writePreSnapshots(ctx, "app", stored, nextGen+1, testPreImage(1), &opts); err != nil {
+func assertContentChangeRewritesPendingSet(
+	t *testing.T, m *Manager, store *fakeSnapshotStore, stored, failed *applicationmodel.Application, gen int,
+) {
+	t.Helper()
+	ctx := context.Background()
+	opts := store.opts()
+	if _, err := m.writePreSnapshots(ctx, testAppName, stored, gen, testPreImage(constants.DefaultAddValue), &opts); err != nil {
 		t.Fatal(err)
 	}
-	m.settlePendingSnapshots(ctx, "app", stored, failed)
-	if _, err := m.writePreSnapshots(ctx, "app", stored, nextGen+1, testPreImage(2), &opts); err != nil {
+	m.settlePendingSnapshots(ctx, testAppName, stored, failed)
+	if _, err := m.writePreSnapshots(ctx, testAppName, stored, gen, testPreImage(constants.TwoValue), &opts); err != nil {
 		t.Fatal(err)
 	}
-	if got := store.deletes.Load(); got != 2 {
+	if got := store.deletes.Load(); got != constants.TwoValue {
 		t.Fatalf("content change deleted %d old snapshots, want 2", got)
 	}
-	if got := store.creates.Load(); got != 6 {
+	if got := store.creates.Load(); got != testCreatesAfterRewrite {
 		t.Fatalf("CreateSnapshot called %d times, want 6 (2 reused set + 2 stale + 2 rewritten)", got)
 	}
 }
@@ -266,15 +296,17 @@ func TestWritePreSnapshotsForgetsSetTheStoreAlreadyReferences(t *testing.T) {
 	opts := store.opts()
 	ctx := context.Background()
 
-	snaps, err := m.writePreSnapshots(ctx, "app", &applicationmodel.Application{}, 2, testPreImage(1), &opts)
+	snaps, err := m.writePreSnapshots(
+		ctx, testAppName, &applicationmodel.Application{}, constants.TwoValue, testPreImage(constants.DefaultAddValue), &opts,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	stored := &applicationmodel.Application{Snapshots: snaps}
-	if _, err := m.writePreSnapshots(ctx, "app", stored, 3, testPreImage(2), &opts); err != nil {
+	if _, err := m.writePreSnapshots(ctx, testAppName, stored, constants.ThreeValue, testPreImage(constants.TwoValue), &opts); err != nil {
 		t.Fatal(err)
 	}
-	if got := store.deletes.Load(); got != 0 {
+	if got := store.deletes.Load(); got != constants.DefaultInitValue {
 		t.Fatalf("a set the store references was deleted %d times", got)
 	}
 }
@@ -290,7 +322,7 @@ func TestFlushRetryDelayGrowsPerAttemptAndCaps(t *testing.T) {
 			fired <- time.Now()
 			return errors.New("exporter unavailable")
 		})
-	c.schedule("app", "deploy/app", &unstructured.Unstructured{Object: map[string]any{"kind": "Deployment"}})
+	c.schedule(testAppName, testDeployKey, &unstructured.Unstructured{Object: map[string]any{testKeyKind: testKindDeployment}})
 
 	var at [testBusyAttempts]time.Time
 	for i := range at {
@@ -310,7 +342,7 @@ func TestFlushRetryDelayGrowsPerAttemptAndCaps(t *testing.T) {
 			t.Fatalf("retry delay %s exceeds cap %s", last, constants.InformerFlushMaxRetryDelay)
 		}
 	}
-	if last < constants.InformerFlushMaxRetryDelay/2 {
+	if last < constants.InformerFlushMaxRetryDelay/constants.TwoValue {
 		t.Fatalf("retry delay never reached the cap: %s", last)
 	}
 }
@@ -328,13 +360,13 @@ func TestFlushSuccessResetsRetryAttempts(t *testing.T) {
 	attempts := func() int {
 		c.mu.Lock()
 		defer c.mu.Unlock()
-		return c.attempts["app"]
+		return c.attempts[testAppName]
 	}
-	c.schedule("app", "deploy/app", &unstructured.Unstructured{Object: map[string]any{"kind": "Deployment"}})
+	c.schedule(testAppName, testDeployKey, &unstructured.Unstructured{Object: map[string]any{testKeyKind: testKindDeployment}})
 
 	waitFor(t, func() bool { return attempts() == testBusyAttempts-1 })
 	close(release)
-	waitFor(t, func() bool { return attempts() == 0 && len(c.inMemBuf("app")) == 0 })
+	waitFor(t, func() bool { return attempts() == 0 && len(c.inMemBuf(testAppName)) == 0 })
 }
 
 func TestFlushRateLimitedRearmsWithBufferIntactAndNoExporterCall(t *testing.T) {
@@ -343,7 +375,7 @@ func TestFlushRateLimitedRearmsWithBufferIntactAndNoExporterCall(t *testing.T) {
 		exporterCalls.Add(1)
 		return nil, restshared.ErrNotFound
 	})
-	m.flushLimiter = rate.NewLimiter(rate.Every(time.Hour), 1)
+	m.flushLimiter = rate.NewLimiter(rate.Every(time.Hour), constants.DefaultAddValue)
 	m.flushLimiter.Allow()
 	m.coalesce = newCoalescer(testBackoffWindow, testMaxWait, testMaxEntries, nil, nil, nil,
 		func(app string, buf map[string]*unstructured.Unstructured) error {
@@ -355,30 +387,30 @@ func TestFlushRateLimitedRearmsWithBufferIntactAndNoExporterCall(t *testing.T) {
 	rearmed := func() bool {
 		m.coalesce.mu.Lock()
 		defer m.coalesce.mu.Unlock()
-		_, ok := m.coalesce.timers["app"]
+		_, ok := m.coalesce.timers[testAppName]
 		return ok
 	}
-	m.coalesce.schedule("app", "deploy/app", &unstructured.Unstructured{Object: map[string]any{"kind": "Deployment"}})
+	m.coalesce.schedule(testAppName, testDeployKey, &unstructured.Unstructured{Object: map[string]any{testKeyKind: testKindDeployment}})
 
 	waitFor(t, func() bool {
-		return flushes.Load() == 1 && len(m.coalesce.inMemBuf("app")) == 1 && rearmed()
+		return flushes.Load() == 1 && len(m.coalesce.inMemBuf(testAppName)) == 1 && rearmed()
 	})
-	if got := exporterCalls.Load(); got != 0 {
+	if got := exporterCalls.Load(); got != constants.DefaultInitValue {
 		t.Fatalf("rate-limited flush reached the exporter %d times", got)
 	}
 }
 
 func testDeployment(burst string, observedGeneration int64) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "apps/v1",
-		"kind":       "Deployment",
-		"metadata": map[string]any{
-			"name":        "a",
-			"namespace":   "ns-a",
-			"annotations": map[string]any{"stress/burst": burst},
+		testKeyAPIVersion: "apps/v1",
+		testKeyKind:       testKindDeployment,
+		testKeyMetadata: map[string]any{
+			testKeyName:      testResourceName,
+			testKeyNamespace: testNamespaceA,
+			"annotations":    map[string]any{testBurstAnnotation: burst},
 		},
 		// A non-curated integer: a post-image decoded to float64 would diff it against the live int64.
-		"spec":   map[string]any{"replicas": int64(0), "progressDeadlineSeconds": int64(600)},
+		"spec":   map[string]any{"replicas": int64(constants.DefaultInitValue), "progressDeadlineSeconds": int64(testProgressDeadlineSec)},
 		"status": map[string]any{"observedGeneration": observedGeneration},
 	}}
 }
@@ -396,42 +428,42 @@ func TestFlushDropsPreImageTheLastFlushAlreadyRecorded(t *testing.T) {
 	})
 	m.cfg.RDB = rdb
 	m.coalesce = newCoalescer(testWindow, testMaxWait, testMaxEntries, rdb, nil, nil, nil)
-	inf := cache.NewSharedIndexInformer(&cache.ListWatch{}, &unstructured.Unstructured{}, 0, cache.Indexers{})
-	m.informers = map[string]cache.SharedIndexInformer{"ns-a": inf}
+	inf := cache.NewSharedIndexInformer(&cache.ListWatch{}, &unstructured.Unstructured{}, constants.DefaultInitValue, cache.Indexers{})
+	m.informers = map[string]cache.SharedIndexInformer{testNamespaceA: inf}
 	ctx := context.Background()
-	r1, r2 := testDeployment("r1", 1), testDeployment("r2", 1)
+	r1, r2 := testDeployment(testRev1, constants.DefaultAddValue), testDeployment(testRev2, constants.DefaultAddValue)
 	key := resourceKey(r1)
-	published := &applicationmodel.Application{CRStatus: applicationmodel.CRStatusPublished}
+	published := publishedApp()
 
 	if err := inf.GetIndexer().Add(r2); err != nil {
 		t.Fatal(err)
 	}
-	m.rememberFlushedManifests(ctx, "app", published, []manifestdiff.ManifestPair{{Old: r1, New: r2}})
+	m.rememberFlushedManifests(ctx, testAppName, published, []manifestdiff.ManifestPair{{Old: r1, New: r2}})
 
 	// The status write for r2 lands before the stale window flushes; it must not un-record r2.
-	if err := inf.GetIndexer().Update(testDeployment("r2", 2)); err != nil {
+	if err := inf.GetIndexer().Update(testDeployment(testRev2, constants.TwoValue)); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.flushApp("app", map[string]*unstructured.Unstructured{key: r1}); err != nil {
+	if err := m.flushApp(testAppName, map[string]*unstructured.Unstructured{key: r1}); err != nil {
 		t.Fatal(err)
 	}
-	if got := exporterCalls.Load(); got != 0 {
+	if got := exporterCalls.Load(); got != constants.DefaultInitValue {
 		t.Fatalf("already-recorded pre-image reached the exporter %d times", got)
 	}
 
-	if err := inf.GetIndexer().Update(testDeployment("r3", 2)); err != nil {
+	if err := inf.GetIndexer().Update(testDeployment(testRev3, constants.TwoValue)); err != nil {
 		t.Fatal(err)
 	}
-	err := m.flushApp("app", map[string]*unstructured.Unstructured{key: r2})
-	if !errors.Is(err, errFlushStoredMissing) || exporterCalls.Load() != 1 {
+	err := m.flushApp(testAppName, map[string]*unstructured.Unstructured{key: r2})
+	if !errors.Is(err, errFlushStoredMissing) || exporterCalls.Load() != constants.DefaultAddValue {
 		t.Fatalf("real change did not flush: err=%v, exporter calls=%d", err, exporterCalls.Load())
 	}
 }
 
 func testApp() applicationmodel.Application {
 	return applicationmodel.Application{
-		Name:      "app",
-		Resources: []applicationmodel.Resource{{Namespace: "ns-a", Kind: "Deployment", Name: "a"}},
+		Name:      testAppName,
+		Resources: []applicationmodel.Resource{{Namespace: testNamespaceA, Kind: testKindDeployment, Name: testResourceName}},
 	}
 }
 
@@ -440,20 +472,20 @@ func testReconcileManager(t *testing.T, live *unstructured.Unstructured) (*Manag
 	mr := miniredis.RunT(t)
 	m := newTestManager(nil)
 	m.cfg.RDB = redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	inf := cache.NewSharedIndexInformer(&cache.ListWatch{}, &unstructured.Unstructured{}, 0, cache.Indexers{})
+	inf := cache.NewSharedIndexInformer(&cache.ListWatch{}, &unstructured.Unstructured{}, constants.DefaultInitValue, cache.Indexers{})
 	if err := inf.GetIndexer().Add(live); err != nil {
 		t.Fatal(err)
 	}
-	m.informers = map[string]cache.SharedIndexInformer{"ns-a": inf}
+	m.informers = map[string]cache.SharedIndexInformer{testNamespaceA: inf}
 	return m, mr
 }
 
 func testConfigMap(value string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "v1",
-		"kind":       "ConfigMap",
-		"metadata":   map[string]any{"name": "cfg", "namespace": "ns-a"},
-		"data":       map[string]any{"key": value},
+		testKeyAPIVersion: "v1",
+		testKeyKind:       "ConfigMap",
+		testKeyMetadata:   map[string]any{testKeyName: "cfg", testKeyNamespace: testNamespaceA},
+		"data":            map[string]any{"key": value},
 	}}
 }
 
@@ -473,12 +505,14 @@ func awaitFlush(t *testing.T, flushed <-chan map[string]*unstructured.Unstructur
 // diffed empty. A later flush changed only a ConfigMap, so the Deployment has
 // no post-image left and the tick must flush r2 -> r3 from the stored snapshot.
 func TestReconcileFlushesChangeMissedWhileUnobserved(t *testing.T) {
-	r1, r2, r3 := testDeployment("r1", 1), testDeployment("r2", 1), testDeployment("r3", 1)
+	r1 := testDeployment(testRev1, constants.DefaultAddValue)
+	r2 := testDeployment(testRev2, constants.DefaultAddValue)
+	r3 := testDeployment(testRev3, constants.DefaultAddValue)
 	m, mr := testReconcileManager(t, r3)
-	newest := applicationmodel.ApplicationSnapshot{Generation: 2, ID: "snap-2", Namespace: "ns-a"}
+	newest := applicationmodel.ApplicationSnapshot{Generation: constants.TwoValue, ID: "snap-2", Namespace: testNamespaceA}
 	m.getStoredApp = func(string) (*applicationmodel.Application, error) {
 		return &applicationmodel.Application{Snapshots: []applicationmodel.ApplicationSnapshot{
-			{Generation: 1, ID: "snap-1", Namespace: "ns-a"}, newest,
+			{Generation: constants.DefaultAddValue, ID: testSnapID1, Namespace: testNamespaceA}, newest,
 		}}, nil
 	}
 	m.getSnapshotManifest = func(_ context.Context, id, _, _ string, _ int) ([]unstructured.Unstructured, error) {
@@ -487,19 +521,19 @@ func TestReconcileFlushesChangeMissedWhileUnobserved(t *testing.T) {
 		}
 		return []unstructured.Unstructured{*r2}, nil
 	}
-	flushed := make(chan map[string]*unstructured.Unstructured, 1)
+	flushed := make(chan map[string]*unstructured.Unstructured, constants.DefaultAddValue)
 	m.coalesce = newTestCoalescer(func(_ string, buf map[string]*unstructured.Unstructured) error {
 		flushed <- buf
 		return nil
 	})
 	ctx := context.Background()
-	published := &applicationmodel.Application{CRStatus: applicationmodel.CRStatusPublished}
-	m.rememberFlushedManifests(ctx, "app", published, []manifestdiff.ManifestPair{{Old: r1, New: r2}})
+	published := publishedApp()
+	m.rememberFlushedManifests(ctx, testAppName, published, []manifestdiff.ManifestPair{{Old: r1, New: r2}})
 	cm2 := testConfigMap("v2")
-	m.rememberFlushedManifests(ctx, "app", published, []manifestdiff.ManifestPair{{Old: testConfigMap("v1"), New: cm2}})
-	fields, err := mr.HKeys(postKey("app"))
+	m.rememberFlushedManifests(ctx, testAppName, published, []manifestdiff.ManifestPair{{Old: testConfigMap("v1"), New: cm2}})
+	fields, err := mr.HKeys(postKey(testAppName))
 	fields = slices.DeleteFunc(fields, func(f string) bool { return f == constants.HistoryPostGenerationField })
-	if err != nil || len(fields) != 1 || fields[0] != resourceKey(cm2) {
+	if err != nil || len(fields) != constants.DefaultAddValue || fields[constants.DefaultInitValue] != resourceKey(cm2) {
 		t.Fatalf("post-image hash must hold only the last flush's changed resource, got %v (%v)", fields, err)
 	}
 
@@ -507,10 +541,10 @@ func TestReconcileFlushesChangeMissedWhileUnobserved(t *testing.T) {
 
 	buf := awaitFlush(t, flushed)
 	pre := buf[resourceKey(r3)]
-	if len(buf) != 1 || pre == nil || pre.GetAnnotations()["stress/burst"] != "r2" {
+	if len(buf) != constants.DefaultAddValue || pre == nil || pre.GetAnnotations()[testBurstAnnotation] != testRev2 {
 		t.Fatalf("flush pre-image must be the recorded r2, got %v", buf)
 	}
-	if got := manifestdiff.Changes([]manifestdiff.ManifestPair{{Old: pre, New: r3}}); len(got) != 1 {
+	if got := manifestdiff.Changes([]manifestdiff.ManifestPair{{Old: pre, New: r3}}); len(got) != constants.DefaultAddValue {
 		t.Fatalf("expected exactly one history entry (r2 -> r3), got %d: %v", len(got), got)
 	}
 }
@@ -519,7 +553,9 @@ func TestReconcileFlushesChangeMissedWhileUnobserved(t *testing.T) {
 // for it, the recorded post-image r2. The entry must read exactly r2 -> r3,
 // built from the post-image alone: neither the exporter nor the snapshot store is asked.
 func TestReconcilePrefersRecordedPostImageOverSnapshot(t *testing.T) {
-	r1, r2, r3 := testDeployment("r1", 1), testDeployment("r2", 1), testDeployment("r3", 2)
+	r1 := testDeployment(testRev1, constants.DefaultAddValue)
+	r2 := testDeployment(testRev2, constants.DefaultAddValue)
+	r3 := testDeployment(testRev3, constants.TwoValue)
 	m, _ := testReconcileManager(t, r3)
 	m.getStoredApp = func(string) (*applicationmodel.Application, error) {
 		t.Error("stored application consulted")
@@ -529,31 +565,31 @@ func TestReconcilePrefersRecordedPostImageOverSnapshot(t *testing.T) {
 		t.Error("snapshot store consulted")
 		return nil, nil
 	}
-	flushed := make(chan map[string]*unstructured.Unstructured, 1)
+	flushed := make(chan map[string]*unstructured.Unstructured, constants.DefaultAddValue)
 	m.coalesce = newTestCoalescer(func(_ string, buf map[string]*unstructured.Unstructured) error {
 		flushed <- buf
 		return nil
 	})
 	ctx := context.Background()
-	published := &applicationmodel.Application{CRStatus: applicationmodel.CRStatusPublished}
-	m.rememberFlushedManifests(ctx, "app", published, []manifestdiff.ManifestPair{{Old: r1, New: r2}})
+	published := publishedApp()
+	m.rememberFlushedManifests(ctx, testAppName, published, []manifestdiff.ManifestPair{{Old: r1, New: r2}})
 
 	m.reconcileRecorded(ctx, []applicationmodel.Application{testApp()})
 
 	pre := awaitFlush(t, flushed)[resourceKey(r3)]
-	if pre == nil || pre.GetKind() != "Deployment" || pre.GetNamespace() != "ns-a" || pre.GetName() != "a" {
+	if pre == nil || pre.GetKind() != testKindDeployment || pre.GetNamespace() != testNamespaceA || pre.GetName() != testResourceName {
 		t.Fatalf("pre-image must be a whole object, got %v", pre)
 	}
 	got := manifestdiff.Changes([]manifestdiff.ManifestPair{{Old: pre, New: r3}})
-	if len(got) != 1 || !strings.Contains(got[0].Description, "r2 → r3") {
+	if len(got) != constants.DefaultAddValue || !strings.Contains(got[0].Description, "r2 → r3") {
 		t.Fatalf("expected exactly one entry reading r2 -> r3, got %v", got)
 	}
 }
 
 func testStoredApp(snapID string) *applicationmodel.Application {
 	return &applicationmodel.Application{
-		History:   applicationmodel.ApplicationHistory{Generation: 1},
-		Snapshots: []applicationmodel.ApplicationSnapshot{{Generation: 1, ID: snapID, Namespace: "ns-a"}},
+		History:   applicationmodel.ApplicationHistory{Generation: constants.DefaultAddValue},
+		Snapshots: []applicationmodel.ApplicationSnapshot{{Generation: constants.DefaultAddValue, ID: snapID, Namespace: testNamespaceA}},
 	}
 }
 
@@ -571,11 +607,11 @@ func assertFlushReachesExporter(t *testing.T, m *Manager, buf map[string]*unstru
 	t.Helper()
 	var exporterCalls atomic.Int32
 	m.getStoredApp = func(string) (*applicationmodel.Application, error) {
-		exporterCalls.Add(1)
+		exporterCalls.Add(constants.DefaultAddValue)
 		return nil, restshared.ErrNotFound
 	}
-	err := m.flushApp("app", buf)
-	if !errors.Is(err, errFlushStoredMissing) || exporterCalls.Load() != 1 {
+	err := m.flushApp(testAppName, buf)
+	if !errors.Is(err, errFlushStoredMissing) || exporterCalls.Load() != constants.DefaultAddValue {
 		t.Fatalf("flush dropped as already recorded: err=%v exporter calls=%d", err, exporterCalls.Load())
 	}
 }
@@ -583,15 +619,15 @@ func assertFlushReachesExporter(t *testing.T, m *Manager, buf map[string]*unstru
 // The newest snapshot already holds the live state: the baseline comes from
 // it and nothing is published; a fully recorded app then costs nothing.
 func TestReconcileBaselinesUnrecordedAppsWithoutPublishing(t *testing.T) {
-	r3 := testDeployment("r3", 1)
+	r3 := testDeployment(testRev3, constants.DefaultAddValue)
 	m, mr := testReconcileManager(t, r3)
 	var exporterCalls, snapshotReads atomic.Int32
 	m.getStoredApp = func(string) (*applicationmodel.Application, error) {
-		exporterCalls.Add(1)
-		return testStoredApp("snap-1"), nil
+		exporterCalls.Add(constants.DefaultAddValue)
+		return testStoredApp(testSnapID1), nil
 	}
 	m.getSnapshotManifest = func(context.Context, string, string, string, int) ([]unstructured.Unstructured, error) {
-		snapshotReads.Add(1)
+		snapshotReads.Add(constants.DefaultAddValue)
 		return []unstructured.Unstructured{*r3}, nil
 	}
 	m.coalesce = rejectFlush(t)
@@ -599,23 +635,24 @@ func TestReconcileBaselinesUnrecordedAppsWithoutPublishing(t *testing.T) {
 	apps := []applicationmodel.Application{testApp()}
 
 	m.reconcileRecorded(ctx, apps)
-	key := recordedKey("app")
+	key := recordedKey(testAppName)
 	if got := mr.HGet(key, resourceKey(r3)); got != manifestdiff.Fingerprint(r3) {
 		t.Fatalf("first-seen app not baselined: got %q", got)
 	}
-	if mr.TTL(key) <= 0 {
+	if mr.TTL(key) <= constants.DefaultInitValue {
 		t.Fatal("baseline written without a TTL")
 	}
-	if exporterCalls.Load() != 1 || snapshotReads.Load() != 1 {
+	if exporterCalls.Load() != constants.DefaultAddValue || snapshotReads.Load() != constants.DefaultAddValue {
 		t.Fatalf("baseline read the store %d times and the snapshot %d times, want once each",
 			exporterCalls.Load(), snapshotReads.Load())
 	}
 
 	m.reconcileRecorded(ctx, apps)
 	time.Sleep(testMaxWait)
-	if exporterCalls.Load() != 1 || snapshotReads.Load() != 1 || len(m.coalesce.inMemBuf("app")) != 0 {
+	if exporterCalls.Load() != constants.DefaultAddValue || snapshotReads.Load() != constants.DefaultAddValue ||
+		len(m.coalesce.inMemBuf(testAppName)) != constants.DefaultInitValue {
 		t.Fatalf("live == recorded still did work: exporter=%d snapshots=%d buffered=%d",
-			exporterCalls.Load(), snapshotReads.Load(), len(m.coalesce.inMemBuf("app")))
+			exporterCalls.Load(), snapshotReads.Load(), len(m.coalesce.inMemBuf(testAppName)))
 	}
 }
 
@@ -624,13 +661,13 @@ func TestReconcileBaselinesUnrecordedAppsWithoutPublishing(t *testing.T) {
 // the live object, the recorded fingerprint equalled s1 and the flush dropped
 // its s0 pre-image as already recorded: 30 of 100 apps lost the change.
 func TestReconcileBaselinesFromSnapshotNotLiveObject(t *testing.T) {
-	s0, s1 := testDeployment("s0", 1), testDeployment("s1", 1)
+	s0, s1 := testDeployment(testSeq0, constants.DefaultAddValue), testDeployment(testSeq1, constants.DefaultAddValue)
 	m, mr := testReconcileManager(t, s1)
-	m.getStoredApp = func(string) (*applicationmodel.Application, error) { return testStoredApp("snap-1"), nil }
+	m.getStoredApp = func(string) (*applicationmodel.Application, error) { return testStoredApp(testSnapID1), nil }
 	m.getSnapshotManifest = func(context.Context, string, string, string, int) ([]unstructured.Unstructured, error) {
 		return []unstructured.Unstructured{*s0}, nil
 	}
-	flushed := make(chan map[string]*unstructured.Unstructured, 1)
+	flushed := make(chan map[string]*unstructured.Unstructured, constants.DefaultAddValue)
 	m.coalesce = newTestCoalescer(func(_ string, buf map[string]*unstructured.Unstructured) error {
 		flushed <- buf
 		return nil
@@ -639,12 +676,12 @@ func TestReconcileBaselinesFromSnapshotNotLiveObject(t *testing.T) {
 
 	m.reconcileRecorded(context.Background(), []applicationmodel.Application{testApp()})
 
-	if got := mr.HGet(recordedKey("app"), key); got != manifestdiff.Fingerprint(s0) {
+	if got := mr.HGet(recordedKey(testAppName), key); got != manifestdiff.Fingerprint(s0) {
 		t.Fatalf("baseline must be the snapshot state s0, got %q", got)
 	}
 	// Without any event (a blind window) the tick itself synthesizes s0 -> s1.
 	pre := awaitFlush(t, flushed)[key]
-	if pre == nil || pre.GetAnnotations()["stress/burst"] != "s0" {
+	if pre == nil || pre.GetAnnotations()[testBurstAnnotation] != testSeq0 {
 		t.Fatalf("synthesized flush pre-image must be s0, got %v", pre)
 	}
 	// The event's own flush, carrying s0, must publish rather than be dropped.
@@ -652,7 +689,7 @@ func TestReconcileBaselinesFromSnapshotNotLiveObject(t *testing.T) {
 }
 
 func TestReconcileLeavesUnpublishedAppUnrecorded(t *testing.T) {
-	s0, s1 := testDeployment("s0", 1), testDeployment("s1", 1)
+	s0, s1 := testDeployment(testSeq0, constants.DefaultAddValue), testDeployment(testSeq1, constants.DefaultAddValue)
 	for name, stored := range map[string]*applicationmodel.Application{"not stored": nil, "no snapshot": {}} {
 		t.Run(name, func(t *testing.T) {
 			m, mr := testReconcileManager(t, s1)
@@ -671,8 +708,8 @@ func TestReconcileLeavesUnpublishedAppUnrecorded(t *testing.T) {
 
 			m.reconcileRecorded(context.Background(), []applicationmodel.Application{testApp()})
 
-			if mr.Exists(recordedKey("app")) {
-				t.Fatalf("never-published app baselined: %q", mr.HGet(recordedKey("app"), key))
+			if mr.Exists(recordedKey(testAppName)) {
+				t.Fatalf("never-published app baselined: %q", mr.HGet(recordedKey(testAppName), key))
 			}
 			assertFlushReachesExporter(t, m, map[string]*unstructured.Unstructured{key: s0})
 		})
@@ -681,26 +718,26 @@ func TestReconcileLeavesUnpublishedAppUnrecorded(t *testing.T) {
 
 func TestReconcileBoundsBackfillPerTick(t *testing.T) {
 	const total = constants.InformerReconcileBackfillPerTick + 1
-	m, _ := testReconcileManager(t, testDeployment("s0", 1))
-	apps := make([]applicationmodel.Application, 0, total)
+	m, _ := testReconcileManager(t, testDeployment(testSeq0, constants.DefaultAddValue))
+	apps := make([]applicationmodel.Application, constants.DefaultInitValue, total)
 	for i := range total {
-		obj := testDeployment("s0", 1)
-		obj.SetName("a" + strconv.Itoa(i))
-		if err := m.informers["ns-a"].GetIndexer().Add(obj); err != nil {
+		obj := testDeployment(testSeq0, constants.DefaultAddValue)
+		obj.SetName(testResourceName + strconv.Itoa(i))
+		if err := m.informers[testNamespaceA].GetIndexer().Add(obj); err != nil {
 			t.Fatal(err)
 		}
 		apps = append(apps, applicationmodel.Application{
 			Name:      obj.GetName(),
-			Resources: []applicationmodel.Resource{{Namespace: "ns-a", Kind: "Deployment", Name: obj.GetName()}},
+			Resources: []applicationmodel.Resource{{Namespace: testNamespaceA, Kind: testKindDeployment, Name: obj.GetName()}},
 		})
 	}
 	var storedReads atomic.Int32
 	m.getStoredApp = func(name string) (*applicationmodel.Application, error) {
-		storedReads.Add(1)
+		storedReads.Add(constants.DefaultAddValue)
 		return testStoredApp(name), nil
 	}
 	m.getSnapshotManifest = func(_ context.Context, id, _, _ string, _ int) ([]unstructured.Unstructured, error) {
-		obj := testDeployment("s0", 1)
+		obj := testDeployment(testSeq0, constants.DefaultAddValue)
 		obj.SetName(id)
 		return []unstructured.Unstructured{*obj}, nil
 	}
@@ -724,40 +761,48 @@ func TestReconcileBoundsBackfillPerTick(t *testing.T) {
 // The rollback's own writes are dropped; the restored objects are what the
 // history describes, so they are recorded as they stand and the next tick
 // sees no drift.
-func TestRollbackDropRecordsRestoredStateWithoutPublishing(t *testing.T) {
-	s0, s1 := testDeployment("s0", 1), testDeployment("s1", 1)
+// The rollback's own writes are no longer dropped: the flush carries the marker to
+// the diff, which records them as the rollback entry with the pre-rollback objects
+// as its snapshot; a marker the controller did not write (old "1") is ignored.
+func TestRollbackMarkerFlushRecordsRestoredState(t *testing.T) {
+	s0, s1 := testDeployment(testSeq0, constants.DefaultAddValue), testDeployment(testSeq1, constants.DefaultAddValue)
 	m, mr := testReconcileManager(t, s1)
-	var exporterCalls atomic.Int32
-	m.getStoredApp = func(string) (*applicationmodel.Application, error) {
-		exporterCalls.Add(1)
-		return nil, restshared.ErrNotFound
-	}
 	m.coalesce = rejectFlush(t)
 	ctx := context.Background()
 	key := resourceKey(s1)
-	published := &applicationmodel.Application{CRStatus: applicationmodel.CRStatusPublished}
-	m.rememberFlushedManifests(ctx, "app", published, []manifestdiff.ManifestPair{{Old: s1, New: s0}})
-	if err := mr.Set(constants.KeyPrefixRollbackApplying+"app", "1"); err != nil {
+	published := publishedApp()
+	m.rememberFlushedManifests(ctx, testAppName, published, []manifestdiff.ManifestPair{{Old: s1, New: s0}})
+	if err := mr.Set(constants.KeyPrefixRollbackApplying+testAppName, "1"); err != nil {
 		t.Fatal(err)
 	}
-
-	if err := m.flushApp("app", map[string]*unstructured.Unstructured{key: s0}); err != nil {
+	if m.rollbackMarker(ctx, testAppName) != nil {
+		t.Fatal("legacy marker decoded as a rollback")
+	}
+	raw, err := json.Marshal(diff.RollbackMarker{ID: testRollbackID, TriggeredBy: testAppName})
+	if err != nil {
 		t.Fatal(err)
 	}
-	if exporterCalls.Load() != 0 {
-		t.Fatal("rollback's own writes reached the exporter")
+	if err := mr.Set(constants.KeyPrefixRollbackApplying+testAppName, string(raw)); err != nil {
+		t.Fatal(err)
 	}
-	if got := mr.HGet(recordedKey("app"), key); got != manifestdiff.Fingerprint(s1) {
-		t.Fatalf("restored state not recorded: got %q", got)
+	if got := m.rollbackMarker(ctx, testAppName); got == nil || got.ID != testRollbackID {
+		t.Fatalf("marker not decoded: %+v", got)
 	}
-	if mr.Exists(postKey("app")) {
-		t.Fatal("stale post-image kept across the rollback")
-	}
+	assertFlushReachesExporter(t, m, map[string]*unstructured.Unstructured{key: s0})
+}
 
-	m.reconcileRecorded(ctx, []applicationmodel.Application{testApp()})
-	time.Sleep(testMaxWait)
-	if exporterCalls.Load() != 0 {
-		t.Fatal("tick treated the restored state as drift")
+// A readiness move on a manifest the last flush already recorded is the health
+// change the update handler let through: it is flushed against the recorded
+// manifest (live) rather than dropped with the pre-patch object or diffed twice.
+func TestRecordedPreImageKeepsReadinessMovesOnly(t *testing.T) {
+	old := testDeployment(testRev1, constants.DefaultAddValue)
+	if recordedPreImage(old, testDeployment(testRev1, constants.TwoValue)) != nil {
+		t.Fatal("status-only write kept as a pre-image")
+	}
+	live := withStatus(old, "readyReplicas", constants.DefaultAddValue)
+	pre := recordedPreImage(old, live)
+	if pre == nil || manifestdiff.Fingerprint(pre) != manifestdiff.Fingerprint(live) {
+		t.Fatalf("readiness move dropped: %v", pre)
 	}
 }
 
@@ -768,14 +813,14 @@ func withStatus(u *unstructured.Unstructured, field string, value int64) *unstru
 }
 
 func TestStatusOnlyUpdateIsResyncArtifact(t *testing.T) {
-	old, statusWrite := testDeployment("r3", 2), testDeployment("r3", 3)
+	old, statusWrite := testDeployment(testRev3, constants.TwoValue), testDeployment(testRev3, constants.ThreeValue)
 	if !isResyncArtifact(old, statusWrite) {
 		t.Fatal("observedGeneration write treated as a change")
 	}
-	if isResyncArtifact(old, withStatus(old, "readyReplicas", 1)) {
+	if isResyncArtifact(old, withStatus(old, "readyReplicas", constants.DefaultAddValue)) {
 		t.Fatal("readiness change treated as an artifact")
 	}
-	if isResyncArtifact(testDeployment("r2", 2), old) {
+	if isResyncArtifact(testDeployment(testRev2, constants.TwoValue), old) {
 		t.Fatal("annotation change treated as an artifact")
 	}
 	m := newTestManager(nil)
@@ -785,7 +830,7 @@ func TestStatusOnlyUpdateIsResyncArtifact(t *testing.T) {
 	})
 	m.onUpdate(old, statusWrite)
 	time.Sleep(testMaxWait)
-	if len(m.coalesce.inMemBuf("app")) != 0 {
+	if len(m.coalesce.inMemBuf(testAppName)) != constants.DefaultInitValue {
 		t.Fatal("status-only update was buffered")
 	}
 }
@@ -795,40 +840,56 @@ func TestStatusOnlyUpdateIsResyncArtifact(t *testing.T) {
 // whether r2 is the change already published or one that went unobserved. The
 // tick must record live and publish nothing rather than re-publish r1 -> r2.
 func TestReconcileBaselinesLiveWhenNewestGenerationHasNoPostStamp(t *testing.T) {
-	r1, r2 := testDeployment("r1", 1), testDeployment("r2", 1)
+	r1, r2 := testDeployment(testRev1, constants.DefaultAddValue), testDeployment(testRev2, constants.DefaultAddValue)
 	m, mr := testReconcileManager(t, r2)
 	var snapshotReads atomic.Int32
 	m.getStoredApp = func(string) (*applicationmodel.Application, error) {
 		return &applicationmodel.Application{
-			History: applicationmodel.ApplicationHistory{Generation: 2},
+			History: applicationmodel.ApplicationHistory{Generation: constants.TwoValue},
 			Snapshots: []applicationmodel.ApplicationSnapshot{
-				{Generation: 1, ID: "snap-1", Namespace: "ns-a"}, {Generation: 2, ID: "snap-2", Namespace: "ns-a"},
+				{Generation: constants.DefaultAddValue, ID: testSnapID1, Namespace: testNamespaceA},
+				{Generation: constants.TwoValue, ID: "snap-2", Namespace: testNamespaceA},
 			},
 		}, nil
 	}
 	m.getSnapshotManifest = func(context.Context, string, string, string, int) ([]unstructured.Unstructured, error) {
-		snapshotReads.Add(1)
+		snapshotReads.Add(constants.DefaultAddValue)
 		return []unstructured.Unstructured{*r1}, nil
 	}
 	m.coalesce = rejectFlush(t)
 	ctx := context.Background()
-	if err := m.cfg.RDB.HSet(ctx, recordedKey("app"), resourceKey(r1), "stale-fingerprint").Err(); err != nil {
+	if err := m.cfg.RDB.HSet(ctx, recordedKey(testAppName), resourceKey(r1), "stale-fingerprint").Err(); err != nil {
 		t.Fatal(err)
 	}
 
 	m.reconcileRecorded(ctx, []applicationmodel.Application{testApp()})
 	time.Sleep(testMaxWait)
 
-	if got := mr.HGet(recordedKey("app"), resourceKey(r2)); got != manifestdiff.Fingerprint(r2) {
+	if got := mr.HGet(recordedKey(testAppName), resourceKey(r2)); got != manifestdiff.Fingerprint(r2) {
 		t.Fatalf("live must be recorded as the baseline, got %q", got)
 	}
-	if snapshotReads.Load() != 0 || len(m.coalesce.inMemBuf("app")) != 0 {
-		t.Fatalf("stale snapshot must not be read (%d) nor flushed (%d buffered)", snapshotReads.Load(), len(m.coalesce.inMemBuf("app")))
+	if snapshotReads.Load() != constants.DefaultInitValue || len(m.coalesce.inMemBuf(testAppName)) != constants.DefaultInitValue {
+		t.Fatalf("stale snapshot must not be read (%d) nor flushed (%d buffered)", snapshotReads.Load(), len(m.coalesce.inMemBuf(testAppName)))
 	}
 
-	published := &applicationmodel.Application{CRStatus: applicationmodel.CRStatusPublished, History: applicationmodel.ApplicationHistory{Generation: 2}}
-	m.rememberFlushedManifests(ctx, "app", published, []manifestdiff.ManifestPair{{Old: testConfigMap("v1"), New: testConfigMap("v2")}})
-	if _, gen := m.postImages(ctx, "app"); gen != 2 {
+	published := &applicationmodel.Application{
+		Conditions: publishedApp().Conditions,
+		History:    applicationmodel.ApplicationHistory{Generation: constants.TwoValue},
+	}
+	m.rememberFlushedManifests(ctx, testAppName, published, []manifestdiff.ManifestPair{{Old: testConfigMap("v1"), New: testConfigMap("v2")}})
+	if _, gen := m.postImages(ctx, testAppName); gen != constants.TwoValue {
 		t.Fatalf("post hash must carry the flushed generation, got %d", gen)
 	}
+}
+
+func publishedApp() *applicationmodel.Application {
+	app := &applicationmodel.Application{}
+	applicationscore.MarkPublished(app)
+	return app
+}
+
+func failedApp() *applicationmodel.Application {
+	app := &applicationmodel.Application{}
+	applicationscore.MarkPublishFailed(app)
+	return app
 }

@@ -37,7 +37,6 @@ type retentionFile struct {
 }
 
 const (
-	baseSeparatorShift    = 1
 	latestGenerationValue = constants.SnapshotLatestGenerationValue
 	generationRequiredMsg = string(constants.ErrSnapshotGenerationRequired)
 )

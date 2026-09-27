@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	authmetadata "github.com/telark/data/metadata/auth"
+	authmetadata "github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/informers"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -13,8 +13,10 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 )
 
+const mirroredSession = "session-a"
+
 func session(name string, userID string) *unstructured.Unstructured {
-	md := authmetadata.UserSessionMetadata
+	md := authmetadata.SessionMetadata
 	return &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": md.GetAPIVersion(),
 		"kind":       md.Kind,
@@ -27,7 +29,7 @@ func session(name string, userID string) *unstructured.Unstructured {
 // namespace is found without an apiserver call, an unknown name is a miss (the
 // resolver then asks the apiserver), and nothing is served before the sync.
 func TestRunSessionsServesRecordsByName(t *testing.T) {
-	md := authmetadata.UserSessionMetadata
+	md := authmetadata.SessionMetadata
 	gvr := schema.GroupVersionResource{Group: md.BaseGroup, Version: md.Version, Resource: md.Plural}
 	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(
 		runtime.NewScheme(), map[schema.GroupVersionResource]string{gvr: md.Kind + "List"},
@@ -35,10 +37,10 @@ func TestRunSessionsServesRecordsByName(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	t.Cleanup(func() { informers.UseSessions(nil, nil) })
-	if _, found := informers.GetSession("session-a"); found || informers.SessionsSynced() {
+	if _, found := informers.GetSession(mirroredSession); found || informers.SessionsSynced() {
 		t.Fatal("nothing must be served before the informer synced")
 	}
-	if _, err := dyn.Resource(gvr).Namespace(md.Namespace).Create(ctx, session("session-a", "u-1"), metav1.CreateOptions{}); err != nil {
+	if _, err := dyn.Resource(gvr).Namespace(md.Namespace).Create(ctx, session(mirroredSession, "u-1"), metav1.CreateOptions{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -47,8 +49,8 @@ func TestRunSessionsServesRecordsByName(t *testing.T) {
 	if !informers.SessionsSynced() {
 		t.Fatal("informer did not sync")
 	}
-	got, found := informers.GetSession("session-a")
-	if !found || got.GetName() != "session-a" {
+	got, found := informers.GetSession(mirroredSession)
+	if !found || got.GetName() != mirroredSession {
 		t.Fatalf("session-a not served from the mirror: found=%v", found)
 	}
 	if _, found := informers.GetSession("session-b"); found {

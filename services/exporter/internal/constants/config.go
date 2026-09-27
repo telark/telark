@@ -1,6 +1,10 @@
 package constants
 
-import "time"
+import (
+	"time"
+
+	reportseps "github.com/telark/rest/endpoints/reports"
+)
 
 const (
 	OpCreate                = "create"
@@ -13,7 +17,7 @@ const (
 	ResourceUser            = "users"
 	ResourceGroup           = "groups"
 	ResourceCategory        = "categories"
-	ResourceRole            = "roles"
+	ResourceRole            = "accessroles"
 	ResourceApplication     = "applications"
 	ResourceUserSession     = "user-sessions"
 	ResourceUserPasskey     = "user-passkeys"
@@ -34,8 +38,7 @@ const (
 	UsernameParam           = "username"
 	EmailParam              = "email"
 	UserIDParam             = "userId"
-	GroupIDParam            = "groupId"
-	TokenParam              = "token"
+	CredentialIDParam       = "credentialId"
 	SpecField               = "spec"
 	MetadataField           = "metadata"
 	ResourceVersionField    = "resourceVersion"
@@ -43,6 +46,7 @@ const (
 	ConflictMessageFragment = "the object has been modified"
 	AllowedEnvVarPattern    = `^[A-Z_][A-Z0-9_]*$`
 	MaxEnvVarLength         = 8192
+	CertNotBeforeClockSkew  = 5 * time.Minute
 	CacheKeyPrefix          = "cache"
 	CacheGenerationSegment  = "generation"
 	CacheTTL                = 5 * time.Minute
@@ -57,6 +61,7 @@ const (
 	// generation, so an entry stops being read the moment the list changes.
 	ListBlobLocalEntries     = 4
 	ListRenderConcurrencyEnv = "EXPORTER_LIST_RENDER_CONCURRENCY"
+	BootstrapAdminsEnv       = "BOOTSTRAP_ADMINS"
 	// A full list is megabytes of marshal buffer; beyond this many renders at
 	// once a request is refused rather than queued.
 	DefaultListRenderConcurrency                = 2
@@ -83,7 +88,6 @@ const (
 	CacheScanCount                       int64  = 100
 	CacheScanCursorEnd                   uint64 = 0
 	IndexLastElementOffset                      = 1
-	IndexSecondLastElementOffset                = 2
 	DefaultChannelBufferSize                    = 1
 	DefaultLastPasskeyCount                     = 1
 	DefaultInitValue                            = 0
@@ -101,12 +105,12 @@ const (
 	PrefixStartup                               = "Startup: "
 	PrefixShared                                = "Shared: "
 	LogMessageWithError                         = "%s: %v"
-	MaxHeaderBytes                              = 1 << 20 // 1MB
+	MaxHeaderBytes                              = 1 << 20
 	DefaultRoutesCount                          = 35
 	SnapshotBytesPerKilobyte                    = 1024
 	SnapshotKilobytesPerMegabyte                = 1024
 	SnapshotPercentScale                        = 100
-	GlobalConfigResourceName                    = "global-config"
+	TelarkConfigResourceName                    = "default"
 	ManifestOrderServiceAccount                 = 1
 	ManifestOrderConfigMap                      = 2
 	ManifestOrderSecret                         = 3
@@ -123,9 +127,6 @@ const (
 	ManifestOrderVerticalPodAutoscaler          = 14
 	DefaultManifestUnknownOrder                 = 99
 	MaxUserIDGenerationAttempts                 = 10
-	AIKeySecretNamespaceEnv                     = "AI_KEY_SECRET_NAMESPACE"
-	AIKeySecretNameEnv                          = "AI_KEY_SECRET_NAME"
-	AIKeySecretField                            = "apiKey"
 	ResourceTypePasskey                         = "passkey"
 	FieldCredentialID                           = "credentialId"
 	FieldUsername                               = "username"
@@ -172,22 +173,26 @@ const (
 	FieldPath                                   = "path"
 	FieldAPIVersion                             = "apiVersion"
 	FieldKind                                   = "kind"
-	FieldItemsManifest                          = "items"
 	CategoriesCRDName                           = "categories"
-	FieldUserIDs                                = "userIDs"
-	FieldGroupIDs                               = "groupIDs"
-	FieldAssignedTo                             = "assignedTo"
 	FieldFinalizers                             = "finalizers"
 	FieldPriority                               = "priority"
 	FieldVersion                                = "version"
 	FieldValidity                               = "validity"
 	FieldAutoRevoke                             = "autoRevoke"
 	FieldExpiresTimestamp                       = "expiresTimestamp"
-	FieldAssignedUsersIDs                       = "assignedUsersIDs"
-	FieldAssignedRolesIDs                       = "assignedRolesIDs"
-	FieldAssignedGroupsIDs                      = "assignedGroupsIDs"
+	FieldUserRefs                               = "userRefs"
+	FieldRoleRefs                               = "roleRefs"
+	FieldGroupRefs                              = "groupRefs"
+	FieldDeletionTimestamp                      = "deletionTimestamp"
+	FieldBootstrap                              = "bootstrap"
+	FieldDisplayName                            = "displayName"
+	FieldDescription                            = "description"
+	FieldScopesAndPermissions                   = "scopesAndPermissions"
+	MaxApplicationDisplayNameLength             = 200
+	MaxApplicationDescriptionLength             = 1000
+	ListSeparator                               = ", "
+	CommaSeparator                              = ","
 	HeaderUserID                                = "X-User-ID"
-	HeaderCredentialID                          = "X-Credential-ID"
 	SnapshotsPathEnv                            = "SNAPSHOTS_PATH"
 	SnapshotsMaxVersionsEnv                     = "SNAPSHOTS_MAX_VERSIONS"
 	SnapshotsPVCNameEnv                         = "SNAPSHOTS_PVC_NAME"
@@ -207,6 +212,8 @@ const (
 	DefaultSnapshotsPVCName                     = "telark-exporter-snapshots-pvc"
 	DefaultSnapshotsPVCNamespace                = "telark"
 	SnapshotFileExtension                       = ".json"
+	SnapshotFilePrefix                          = "V"
+	SnapshotFileNameTemplate                    = SnapshotFilePrefix + "%d" + SnapshotFileExtension
 	SnapshotRollbackFilenameSuffix              = "-rollback.json"
 	HeaderContentDisposition                    = "Content-Disposition"
 	HeaderContentType                           = "Content-Type"
@@ -218,11 +225,30 @@ const (
 	// files greppable.
 	SnapshotTempSuffix             = ".*.tmp"
 	SnapshotGenerationMinValue     = 1
-	KubernetesListAPIVersion       = "v1"
-	KubernetesListKind             = "List"
+	ReportsPathEnv                 = "REPORTS_PATH"
+	DefaultReportsPath             = "/reports"
+	ReportsPlansSubdir             = "plans"
+	ReportsReportsSubdir           = "reports"
+	ReportsLedgerFile              = "ledger.json"
+	ReportsMaxPerPlan              = 10
+	ReportsListDefaultLimit        = 200
+	ReportsListMaxLimit            = 1000
+	ReportsListSeparator           = ","
+	ReportFileExtension            = ".json"
+	ReportMaxBodyBytes             = 32 << 20
+	ReportsSweepMinAge             = time.Hour
+	ReportsGCLockKey               = "exporter:reports:gc"
+	HeaderContentTypeOptions       = "X-Content-Type-Options"
+	ContentTypeOptionsNoSniff      = "nosniff"
+	HeaderCSP                      = "Content-Security-Policy"
+	CSPSandbox                     = "sandbox"
+	ContentTypeHTML                = "text/html; charset=utf-8"
+	ContentTypeMarkdown            = "text/markdown; charset=utf-8"
+	ContentTypeCSV                 = "text/csv; charset=utf-8"
 	KindServiceAccount             = "ServiceAccount"
 	KindConfigMap                  = "ConfigMap"
 	KindSecret                     = "Secret"
+	SecretValueRedacted            = "[redacted]"
 	KindPersistentVolumeClaim      = "PersistentVolumeClaim"
 	KindService                    = "Service"
 	KindNetworkPolicy              = "NetworkPolicy"
@@ -238,3 +264,10 @@ const (
 	PasskeyDeviceTypeCrossPlatform = "cross-platform"
 	UnknownValue                   = "unknown"
 )
+
+var ReportContentTypes = map[string]string{
+	reportseps.FormatHTML:     ContentTypeHTML,
+	reportseps.FormatMarkdown: ContentTypeMarkdown,
+	reportseps.FormatJSON:     ContentTypeJSON,
+	reportseps.FormatCSV:      ContentTypeCSV,
+}

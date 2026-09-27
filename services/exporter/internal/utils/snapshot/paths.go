@@ -3,17 +3,12 @@ package snapshot
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/telark/exporter/internal/constants"
 	envmanager "github.com/telark/exporter/internal/managers/envs"
+	"github.com/telark/exporter/internal/utils/artifact"
 )
-
-func IsWithinBase(targetPath string, basePath string) bool {
-	return len(targetPath) > len(basePath) &&
-		targetPath[:len(basePath)+baseSeparatorShift] == basePath+string(os.PathSeparator)
-}
 
 func BuildSnapshotDir(
 	snapshotsPath string,
@@ -36,20 +31,9 @@ func BuildSnapshotPath(
 	generation int,
 	namespaced bool,
 ) string {
-	if namespaced {
-		return filepath.Join(
-			snapshotsPath,
-			scope,
-			id,
-			namespace,
-			fmt.Sprintf("V%d.json", generation),
-		)
-	}
 	return filepath.Join(
-		snapshotsPath,
-		scope,
-		id,
-		fmt.Sprintf("V%d.json", generation),
+		BuildSnapshotDir(snapshotsPath, scope, id, namespace, namespaced),
+		fmt.Sprintf(constants.SnapshotFileNameTemplate, generation),
 	)
 }
 
@@ -60,8 +44,7 @@ func ValidateSnapshotIdentity(id string, scope string) error {
 	if scope == constants.EmptyString {
 		return errors.New(string(constants.ErrSnapshotScopeSimpleRequired))
 	}
-	cleanID := filepath.Base(id)
-	if cleanID == "." || cleanID == ".." || cleanID != id {
+	if !artifact.IsSafeSegment(id) {
 		return errors.New(string(constants.ErrSnapshotIDSimpleRequired))
 	}
 	return nil

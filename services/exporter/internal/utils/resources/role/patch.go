@@ -5,16 +5,18 @@ import (
 
 	roledata "github.com/telark/data/resources/role"
 	"github.com/telark/exporter/internal/constants"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 )
 
-func GetExistingRoleForPatch(w http.ResponseWriter, roleID string) (*roledata.RoleAsResource, bool) {
+func GetExistingRoleForPatch(w http.ResponseWriter, roleID string) (*roledata.AccessRole, bool) {
 	existingResource, ok := FindRoleByIDOrRespond(w, roleID)
 	if !ok {
 		return nil, false
 	}
 
+	sharedutils.ProjectDeletionTimestamp(existingResource)
 	existingRole, err := ExtractRoleFromUnstructured(existingResource)
 	if err != nil {
 		responseutils.LogAndSendResponse(
@@ -31,11 +33,7 @@ func GetExistingRoleForPatch(w http.ResponseWriter, roleID string) (*roledata.Ro
 	return existingRole, true
 }
 
-func ValidatePatchRequest(existingRole *roledata.RoleAsResource, body map[string]any, w http.ResponseWriter) bool {
-	return ValidateProtectionFlags(existingRole, body, w)
-}
-
-func ExtractAndMergeRoleForPatch(existingRole *roledata.RoleAsResource, body map[string]any, w http.ResponseWriter) bool {
+func ExtractAndMergeRoleForPatch(existingRole *roledata.AccessRole, body map[string]any, w http.ResponseWriter) (*roledata.AccessRole, bool) {
 	delete(body, constants.FieldPriority)
 	delete(body, constants.FieldVersion)
 	newRole, err := ExtractRoleSpecFromRequestBody(body)
@@ -48,15 +46,15 @@ func ExtractAndMergeRoleForPatch(existingRole *roledata.RoleAsResource, body map
 			nil,
 			err,
 		)
-		return false
+		return nil, false
 	}
 
 	mergedRole := MergeRoleAndPreparePatchBody(existingRole, newRole, body)
 	delete(body, constants.FieldCreationDate)
 	if mergedRole.Type != roledata.RoleTypeBuiltIn {
 		if err := ValidatePriorityCapOrRespond(w, mergedRole.Priority); err != nil {
-			return false
+			return nil, false
 		}
 	}
-	return true
+	return mergedRole, true
 }

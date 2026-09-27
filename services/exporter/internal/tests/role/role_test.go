@@ -5,10 +5,35 @@ import (
 	"testing"
 
 	roledata "github.com/telark/data/resources/role"
-	priority "github.com/telark/exporter/internal/utils/compute/role/priority"
-	version "github.com/telark/exporter/internal/utils/compute/role/version"
+	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/exporter/internal/utils/compute/role/priority"
+	"github.com/telark/exporter/internal/utils/compute/role/version"
 	roleutil "github.com/telark/exporter/internal/utils/resources/role"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+)
+
+const (
+	versionSeed    = "v1.2.3"
+	versionInitial = "v1.0.0"
+	versionDefault = "v1.0.1"
+
+	// Outside the ChangeType enum: Bump must leave the version alone.
+	unknownChangeType = 99
+
+	priorityCustomAdmin  = 401
+	priorityTwoScopes    = 402
+	priorityBuiltInAdmin = 10401
+	priorityInRange      = 5
+	priorityOverCap      = 10000
+
+	testRoleName = "r"
+	nameNew      = "new"
+	testCategory = "c"
+	testDesc     = "d"
+
+	fieldX          = "x"
+	fieldValidity   = "validity"
+	fieldAutoRevoke = "autoRevoke"
 )
 
 func adminScope() []roledata.ScopeAndPermissions {
@@ -22,14 +47,14 @@ func TestVersionBump(t *testing.T) {
 		change  version.ChangeType
 		want    string
 	}{
-		{"major", "v1.2.3", version.ChangeTypeMajor, "v2.0.0"},
-		{"minor", "v1.2.3", version.ChangeTypeMinor, "v1.3.0"},
-		{"patch", "v1.2.3", version.ChangeTypePatch, "v1.2.4"},
-		{"empty defaults to v1", "", version.ChangeTypePatch, "v1.0.1"},
+		{"major", versionSeed, version.ChangeTypeMajor, "v2.0.0"},
+		{"minor", versionSeed, version.ChangeTypeMinor, "v1.3.0"},
+		{"patch", versionSeed, version.ChangeTypePatch, "v1.2.4"},
+		{"empty defaults to v1", constants.EmptyString, version.ChangeTypePatch, versionDefault},
 		{"no v prefix", "2.3.4", version.ChangeTypeMajor, "v3.0.0"},
-		{"single part", "v1", version.ChangeTypePatch, "v1.0.1"},
-		{"non-numeric parts", "vX.Y.Z", version.ChangeTypePatch, "v1.0.1"},
-		{"unknown change type is a no-op", "v1.2.3", version.ChangeType(99), "v1.2.3"},
+		{"single part", "v1", version.ChangeTypePatch, versionDefault},
+		{"non-numeric parts", "vX.Y.Z", version.ChangeTypePatch, versionDefault},
+		{"unknown change type is a no-op", versionSeed, version.ChangeType(unknownChangeType), versionSeed},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -38,7 +63,7 @@ func TestVersionBump(t *testing.T) {
 			}
 		})
 	}
-	if version.Initialize() != "v1.0.0" {
+	if version.Initialize() != versionInitial {
 		t.Errorf("Initialize = %q, want v1.0.0", version.Initialize())
 	}
 }
@@ -46,25 +71,25 @@ func TestVersionBump(t *testing.T) {
 func TestPriorityCalculate(t *testing.T) {
 	tests := []struct {
 		name string
-		role *roledata.RoleAsResource
+		role *roledata.AccessRole
 		want int
 	}{
-		{"no scopes", &roledata.RoleAsResource{}, 0},
-		{"custom admin single scope", &roledata.RoleAsResource{
+		{"no scopes", &roledata.AccessRole{}, constants.DefaultInitValue},
+		{"custom admin single scope", &roledata.AccessRole{
 			Type:                 roledata.RoleTypeCustom,
 			ScopesAndPermissions: adminScope(),
-		}, 401},
-		{"two scopes uses max weight", &roledata.RoleAsResource{
+		}, priorityCustomAdmin},
+		{"two scopes uses max weight", &roledata.AccessRole{
 			Type: roledata.RoleTypeCustom,
 			ScopesAndPermissions: []roledata.ScopeAndPermissions{
 				{Scope: "users", Level: roledata.PermissionLevelReadOnly},
 				{Scope: "roles", Level: roledata.PermissionLevelAdmin},
 			},
-		}, 402},
-		{"built-in gets boost", &roledata.RoleAsResource{
+		}, priorityTwoScopes},
+		{"built-in gets boost", &roledata.AccessRole{
 			Type:                 roledata.RoleTypeBuiltIn,
 			ScopesAndPermissions: adminScope(),
-		}, 10401},
+		}, priorityBuiltInAdmin},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -76,7 +101,7 @@ func TestPriorityCalculate(t *testing.T) {
 }
 
 func TestExtractRoleFromUnstructured(t *testing.T) {
-	res := &unstructured.Unstructured{Object: map[string]any{"spec": map[string]any{"name": "r1", "type": "custom"}}}
+	res := &unstructured.Unstructured{Object: map[string]any{"spec": map[string]any{constants.NameParam: "r1", "type": "custom"}}}
 	role, err := roleutil.ExtractRoleFromUnstructured(res)
 	if err != nil || role == nil || role.Name != "r1" {
 		t.Fatalf("ExtractRoleFromUnstructured = %+v, err %v", role, err)
@@ -89,26 +114,26 @@ func TestExtractRoleFromUnstructured(t *testing.T) {
 }
 
 func TestDetectRoleChangeType(t *testing.T) {
-	base := func() *roledata.RoleAsResource {
-		return &roledata.RoleAsResource{
+	base := func() *roledata.AccessRole {
+		return &roledata.AccessRole{
 			Type:                 roledata.RoleTypeCustom,
-			Description:          "d",
-			CategoryID:           "c",
+			Description:          testDesc,
+			CategoryRef:          testCategory,
 			ScopesAndPermissions: adminScope(),
 		}
 	}
 	tests := []struct {
 		name   string
-		mutate func(r *roledata.RoleAsResource)
+		mutate func(r *roledata.AccessRole)
 		want   version.ChangeType
 	}{
-		{"scope change is major", func(r *roledata.RoleAsResource) {
+		{"scope change is major", func(r *roledata.AccessRole) {
 			r.ScopesAndPermissions = []roledata.ScopeAndPermissions{{Scope: "roles", Level: roledata.PermissionLevelOwner}}
 		}, version.ChangeTypeMajor},
-		{"type change is major", func(r *roledata.RoleAsResource) { r.Type = roledata.RoleTypeBuiltIn }, version.ChangeTypeMajor},
-		{"description change is minor", func(r *roledata.RoleAsResource) { r.Description = "new" }, version.ChangeTypeMinor},
-		{"category change is minor", func(r *roledata.RoleAsResource) { r.CategoryID = "new" }, version.ChangeTypeMinor},
-		{"metadata-only change is patch", func(r *roledata.RoleAsResource) { r.Status = roledata.RoleStatusInactive }, version.ChangeTypePatch},
+		{"type change is major", func(r *roledata.AccessRole) { r.Type = roledata.RoleTypeBuiltIn }, version.ChangeTypeMajor},
+		{"description change is minor", func(r *roledata.AccessRole) { r.Description = nameNew }, version.ChangeTypeMinor},
+		{"category change is minor", func(r *roledata.AccessRole) { r.CategoryRef = nameNew }, version.ChangeTypeMinor},
+		{"metadata-only change is patch", func(r *roledata.AccessRole) { r.Status = roledata.RoleStatusInactive }, version.ChangeTypePatch},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -122,35 +147,35 @@ func TestDetectRoleChangeType(t *testing.T) {
 }
 
 func TestComputeAndSetHelpers(t *testing.T) {
-	role := &roledata.RoleAsResource{Type: roledata.RoleTypeCustom, ScopesAndPermissions: adminScope()}
+	role := &roledata.AccessRole{Type: roledata.RoleTypeCustom, ScopesAndPermissions: adminScope()}
 	roleutil.ComputeAndSetPriority(role)
-	if role.Priority != 401 {
-		t.Errorf("priority = %d, want 401", role.Priority)
+	if role.Priority != priorityCustomAdmin {
+		t.Errorf("priority = %d, want %d", role.Priority, priorityCustomAdmin)
 	}
 	roleutil.ComputeAndSetVersion(role)
-	if role.Version != "v1.0.0" {
+	if role.Version != versionInitial {
 		t.Errorf("version = %q, want v1.0.0", role.Version)
 	}
-	roleutil.ComputeAndBumpVersion(role, "v1.0.0", version.ChangeTypeMinor)
+	roleutil.ComputeAndBumpVersion(role, versionInitial, version.ChangeTypeMinor)
 	if role.Version != "v1.1.0" {
 		t.Errorf("bumped version = %q, want v1.1.0", role.Version)
 	}
 }
 
 func TestMergeRoleAndPreparePatchBody(t *testing.T) {
-	existing := &roledata.RoleAsResource{
-		Name: "old", Type: roledata.RoleTypeCustom, Description: "old-desc", CategoryID: "c",
-		ScopesAndPermissions: adminScope(), Version: "v1.0.0",
+	existing := &roledata.AccessRole{
+		Name: "old", Type: roledata.RoleTypeCustom, Description: "old-desc", CategoryRef: testCategory,
+		ScopesAndPermissions: adminScope(), Version: versionInitial,
 	}
-	next := &roledata.RoleAsResource{Name: "new", Description: "new-desc"}
+	next := &roledata.AccessRole{Name: nameNew, Description: "new-desc"}
 	body := map[string]any{}
 	merged := roleutil.MergeRoleAndPreparePatchBody(existing, next, body)
-	if merged.Name != "new" || merged.Description != "new-desc" {
+	if merged.Name != nameNew || merged.Description != "new-desc" {
 		t.Errorf("merge did not apply new fields: %+v", merged)
 	}
 	// Category was not supplied, so the existing value must survive.
-	if merged.CategoryID != "c" {
-		t.Errorf("category clobbered: %q", merged.CategoryID)
+	if merged.CategoryRef != testCategory {
+		t.Errorf("category clobbered: %q", merged.CategoryRef)
 	}
 	if body["priority"] == nil || body["version"] == nil {
 		t.Errorf("patch body missing computed fields: %v", body)
@@ -158,22 +183,25 @@ func TestMergeRoleAndPreparePatchBody(t *testing.T) {
 }
 
 func TestMergeAutoRevoke(t *testing.T) {
-	existing := &roledata.RoleAsResource{
-		Name: "r", Type: roledata.RoleTypeCustom, Description: "d", CategoryID: "c",
-		ScopesAndPermissions: adminScope(), Version: "v1.0.0",
+	existing := &roledata.AccessRole{
+		Name: testRoleName, Type: roledata.RoleTypeCustom, Description: testDesc, CategoryRef: testCategory,
+		ScopesAndPermissions: adminScope(), Version: versionInitial,
 		Validity: &roledata.Validity{Type: roledata.ValidityTypeTemporary, AutoRevoke: true},
 	}
-	next := &roledata.RoleAsResource{}
-	body := map[string]any{"validity": map[string]any{}}
+	next := &roledata.AccessRole{}
+	body := map[string]any{fieldValidity: map[string]any{}}
 	roleutil.MergeRoleAndPreparePatchBody(existing, next, body)
-	validityBody := body["validity"].(map[string]any)
-	if validityBody["autoRevoke"] != true {
+	validityBody, ok := body[fieldValidity].(map[string]any)
+	if !ok {
+		t.Fatalf("validity patch body is not a map: %v", body[fieldValidity])
+	}
+	if autoRevoke, isBool := validityBody[fieldAutoRevoke].(bool); !isBool || !autoRevoke {
 		t.Errorf("temporary validity did not propagate autoRevoke: %v", validityBody)
 	}
 }
 
 func TestExtractRoleSpecFromRequestBodyDefaults(t *testing.T) {
-	role, err := roleutil.ExtractRoleSpecFromRequestBody(map[string]any{"name": "r"})
+	role, err := roleutil.ExtractRoleSpecFromRequestBody(map[string]any{constants.NameParam: testRoleName})
 	if err != nil {
 		t.Fatalf("err %v", err)
 	}
@@ -188,17 +216,35 @@ func TestExtractRoleSpecFromRequestBodyDefaults(t *testing.T) {
 	}
 }
 
+func anyChange() map[string]any {
+	return map[string]any{fieldX: constants.DefaultIncrementValue}
+}
+
 func TestValidateProtectionFlags(t *testing.T) {
 	tests := []struct {
 		name     string
-		existing *roledata.RoleAsResource
+		existing *roledata.AccessRole
 		body     map[string]any
 		wantOK   bool
 	}{
-		{"nil protection allows", &roledata.RoleAsResource{}, map[string]any{"x": 1}, true},
-		{"modification blocked", &roledata.RoleAsResource{Protection: &roledata.Protection{PreventModification: true}}, map[string]any{"x": 1}, false},
-		{"scope change blocked", &roledata.RoleAsResource{Protection: &roledata.Protection{PreventScopeChanges: true}}, map[string]any{"scopesAndPermissions": 1}, false},
-		{"allowed change", &roledata.RoleAsResource{Protection: &roledata.Protection{}}, map[string]any{"x": 1}, true},
+		{
+			name: "nil protection allows", existing: &roledata.AccessRole{},
+			body: anyChange(), wantOK: true,
+		},
+		{
+			name:     "modification blocked",
+			existing: &roledata.AccessRole{Protection: &roledata.Protection{PreventModification: true}},
+			body:     anyChange(), wantOK: false,
+		},
+		{
+			name:     "scope change blocked",
+			existing: &roledata.AccessRole{Protection: &roledata.Protection{PreventScopeChanges: true}},
+			body:     map[string]any{"scopesAndPermissions": constants.DefaultIncrementValue}, wantOK: false,
+		},
+		{
+			name: "allowed change", existing: &roledata.AccessRole{Protection: &roledata.Protection{}},
+			body: anyChange(), wantOK: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -210,30 +256,34 @@ func TestValidateProtectionFlags(t *testing.T) {
 	}
 }
 
-func TestValidatePatchRequestAndPriorityCap(t *testing.T) {
+func TestProtectionFlagsAndPriorityCap(t *testing.T) {
 	rec := httptest.NewRecorder()
-	existing := &roledata.RoleAsResource{Protection: &roledata.Protection{PreventModification: true}}
-	if roleutil.ValidatePatchRequest(existing, map[string]any{"x": 1}, rec) {
+	existing := &roledata.AccessRole{Protection: &roledata.Protection{PreventModification: true}}
+	if roleutil.ValidateProtectionFlags(existing, anyChange(), rec) {
 		t.Error("protected role accepted a modification")
 	}
 
-	if err := roleutil.ValidatePriorityCapOrRespond(httptest.NewRecorder(), 5); err != nil {
+	if err := roleutil.ValidatePriorityCapOrRespond(httptest.NewRecorder(), priorityInRange); err != nil {
 		t.Errorf("in-range priority rejected: %v", err)
 	}
-	if err := roleutil.ValidatePriorityCapOrRespond(httptest.NewRecorder(), 10000); err == nil {
+	if err := roleutil.ValidatePriorityCapOrRespond(httptest.NewRecorder(), priorityOverCap); err == nil {
 		t.Error("over-cap priority accepted")
 	}
 }
 
 func TestExtractAndMergeRoleForPatch(t *testing.T) {
-	existing := &roledata.RoleAsResource{
-		Name: "old", Type: roledata.RoleTypeCustom, Description: "d", CategoryID: "c",
-		ScopesAndPermissions: adminScope(), Version: "v1.0.0",
+	existing := &roledata.AccessRole{
+		Name: "old", Type: roledata.RoleTypeCustom, Description: testDesc, CategoryRef: testCategory,
+		ScopesAndPermissions: adminScope(), Version: versionInitial,
 	}
-	body := map[string]any{"name": "renamed", "description": "d2"}
+	body := map[string]any{constants.NameParam: "renamed", "description": "d2"}
 	rec := httptest.NewRecorder()
-	if !roleutil.ExtractAndMergeRoleForPatch(existing, body, rec) {
+	merged, ok := roleutil.ExtractAndMergeRoleForPatch(existing, body, rec)
+	if !ok {
 		t.Fatal("ExtractAndMergeRoleForPatch returned false")
+	}
+	if merged.Name != "renamed" {
+		t.Errorf("merged name = %q, want renamed", merged.Name)
 	}
 	if body["priority"] == nil || body["version"] == nil {
 		t.Errorf("patch body missing computed fields: %v", body)
@@ -241,9 +291,9 @@ func TestExtractAndMergeRoleForPatch(t *testing.T) {
 }
 
 func TestValidateAndPrepareRoleFailures(t *testing.T) {
-	valid := func() *roledata.RoleAsResource {
-		return &roledata.RoleAsResource{
-			Name: "r", Description: "d", CategoryID: "c",
+	valid := func() *roledata.AccessRole {
+		return &roledata.AccessRole{
+			Name: testRoleName, Description: testDesc, CategoryRef: testCategory,
 			ScopesAndPermissions: adminScope(),
 			Validity:             &roledata.Validity{Type: roledata.ValidityTypePermanent},
 			Protection:           &roledata.Protection{},
@@ -251,14 +301,14 @@ func TestValidateAndPrepareRoleFailures(t *testing.T) {
 	}
 	tests := []struct {
 		name   string
-		mutate func(r *roledata.RoleAsResource)
+		mutate func(r *roledata.AccessRole)
 	}{
-		{"missing name", func(r *roledata.RoleAsResource) { r.Name = "" }},
-		{"missing description", func(r *roledata.RoleAsResource) { r.Description = "" }},
-		{"missing category", func(r *roledata.RoleAsResource) { r.CategoryID = "" }},
-		{"missing scopes", func(r *roledata.RoleAsResource) { r.ScopesAndPermissions = nil }},
-		{"missing validity", func(r *roledata.RoleAsResource) { r.Validity = nil }},
-		{"missing protection", func(r *roledata.RoleAsResource) { r.Protection = nil }},
+		{"missing name", func(r *roledata.AccessRole) { r.Name = constants.EmptyString }},
+		{"missing description", func(r *roledata.AccessRole) { r.Description = constants.EmptyString }},
+		{"missing category", func(r *roledata.AccessRole) { r.CategoryRef = constants.EmptyString }},
+		{"missing scopes", func(r *roledata.AccessRole) { r.ScopesAndPermissions = nil }},
+		{"missing validity", func(r *roledata.AccessRole) { r.Validity = nil }},
+		{"missing protection", func(r *roledata.AccessRole) { r.Protection = nil }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -22,6 +22,6 @@ Commits follow [Conventional Commits](https://www.conventionalcommits.org).
 - Add missing tests for all services to cover at least 30% for coverage and 50% for auth and exporte, add new contributions and conventions rules and optimize the starter kit docs
 
 ### [MAJOR]
-- Adjsut OIDC pipeline flow to relay on ui actions instead of injected envs,migrate enrichment shape to async to store data in redis and add new stable routes, migrate built-in CRDs instances to new seeder logic managed by exporter, enhance services quality and remove dead code with deep cleanup.
+- Adjsut OIDC pipeline flow to relay on ui actions instead of injected envs,migrate analyzer shape to async to store data in redis and add new stable routes, migrate built-in CRDs instances to new seeder logic managed by exporter, enhance services quality and remove dead code with deep cleanup.
 - Re-structure helm charts org and apply community standards
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 
 	authdata "github.com/telark/data/auth"
 	dataerrors "github.com/telark/data/errors"
@@ -15,8 +16,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func ExtractPasskeySpec(body map[string]any, userID string) (*authdata.UserPasskey, string, error) {
-	passkey, err := sharedutils.ExtractStructFromBody[authdata.UserPasskey](body)
+func ExtractPasskeySpec(body map[string]any, userID string) (*authdata.Passkey, string, error) {
+	passkey, err := sharedutils.ExtractStructFromBody[authdata.Passkey](body)
 	if err != nil {
 		return nil, constants.EmptyString, err
 	}
@@ -33,7 +34,7 @@ func ExtractPasskeySpec(body map[string]any, userID string) (*authdata.UserPassk
 	return passkey, passkeyName, nil
 }
 
-func validatePasskeyFields(passkey *authdata.UserPasskey, userID string) error {
+func validatePasskeyFields(passkey *authdata.Passkey, userID string) error {
 	if err := validateRequiredPasskeyFields(passkey); err != nil {
 		return err
 	}
@@ -51,7 +52,7 @@ func validatePasskeyFields(passkey *authdata.UserPasskey, userID string) error {
 	return nil
 }
 
-func validateRequiredPasskeyFields(passkey *authdata.UserPasskey) error {
+func validateRequiredPasskeyFields(passkey *authdata.Passkey) error {
 	if err := sharedutils.ValidateRequiredField(passkey.CredentialID, string(constants.ErrPasskeyFieldRequired)); err != nil {
 		return err
 	}
@@ -80,10 +81,10 @@ func checkCredentialIDUniqueness(credentialID string, userID string) error {
 		return fmt.Errorf(string(constants.ErrFailedToListResources), constants.ResourceTypePasskey, err)
 	}
 
-	for _, existingPasskey := range passkeys {
-		if isDuplicateCredentialID(existingPasskey, credentialID) {
-			return errors.New(string(constants.ErrPasskeyCredentialIDAlreadyExists))
-		}
+	if slices.ContainsFunc(passkeys, func(existing unstructured.Unstructured) bool {
+		return isDuplicateCredentialID(existing, credentialID)
+	}) {
+		return errors.New(string(constants.ErrPasskeyCredentialIDAlreadyExists))
 	}
 
 	return nil
@@ -101,15 +102,6 @@ func isDuplicateCredentialID(existingPasskey unstructured.Unstructured, credenti
 	}
 
 	return existingCredentialID == credentialID
-}
-
-func UnstructuredToPasskey(resource *unstructured.Unstructured) (*authdata.UserPasskey, error) {
-	return sharedutils.UnstructuredToStruct[authdata.UserPasskey](
-		resource,
-		constants.ErrPasskeySpecNotFound,
-		constants.ErrPasskeySpecInvalid,
-		constants.ErrFailedToUnmarshalPasskey,
-	)
 }
 
 func ExtractPatchFields(body map[string]any) (map[string]any, error) {
@@ -139,7 +131,7 @@ func ExtractPasskeyRequestParams(w http.ResponseWriter, r *http.Request) (
 		return constants.EmptyString, constants.EmptyString, nil, false
 	}
 
-	credentialID, err = sharedutils.GetHeader(w, r, constants.HeaderCredentialID)
+	credentialID, err = sharedutils.GetPathParam(w, r, constants.CredentialIDParam)
 	if err != nil {
 		return constants.EmptyString, constants.EmptyString, nil, false
 	}

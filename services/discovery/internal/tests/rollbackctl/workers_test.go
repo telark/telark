@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/handlers/rollback"
 	"github.com/telark/discovery/internal/tests/testutil"
 	"k8s.io/client-go/util/workqueue"
@@ -32,18 +33,17 @@ func TestRunWorkersDrainsKeysConcurrently(t *testing.T) {
 	arrived := make(chan struct{}, keys)
 	release := make(chan struct{})
 	var processed atomic.Int32
-	handler := func(context.Context, string) error {
-		arrived <- struct{}{}
-		<-release
-		processed.Add(1)
-		return nil
-	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := make(chan struct{})
 	go func() {
-		rollback.RunWorkers(ctx, queue, workers, handler)
+		rollback.RunWorkers(ctx, queue, workers, func(context.Context, string) error {
+			arrived <- struct{}{}
+			<-release
+			processed.Add(constants.DefaultAddValue)
+			return nil
+		})
 		close(done)
 	}()
 

@@ -10,7 +10,7 @@ echo "🏗️  Platforms: $PLATFORMS"
 build_cmd=(docker buildx build)
 
 # GitHub Actions cache, scoped per service so images stay out of the
-# public registry (no cache-* tags on Docker Hub).
+# public registry (no cache-* tags on GHCR).
 if [[ "$CACHE_ENABLED" == "true" ]]; then
   build_cmd+=(
     "--cache-from=type=gha,scope=$SERVICE_NAME"

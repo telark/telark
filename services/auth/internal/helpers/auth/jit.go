@@ -10,14 +10,14 @@ import (
 	"github.com/telark/auth/internal/constants"
 	"github.com/telark/auth/internal/helpers/shared"
 	userresource "github.com/telark/data/resources/user"
-	userclient "github.com/telark/rest/clients/resources/users"
+	userclient "github.com/telark/rest/clients/users"
 )
 
 var jitLg = constants.GetLogger(constants.LoggerPrefixAuthService)
 
 func JitProvisionUserByEmail(
 	userClient *userclient.Client, email string,
-) (*userresource.UserAsResource, error) {
+) (*userresource.User, error) {
 	if !config.IsSelfRegistrationEnabled() {
 		jitLg.Info(fmt.Sprintf(string(constants.LogJITSelfRegistrationBlock), shared.IdentityHash(email)))
 		return nil, errors.New(string(constants.ErrSelfRegistrationDisabled))
@@ -29,13 +29,13 @@ func JitProvisionUserByEmail(
 	resp := userClient.CreateUser(buildJitUser(email, username))
 	switch resp.Status {
 	case http.StatusCreated, http.StatusOK:
-		return resolveExistingByEmail(userClient, email)
+		return GetUserWithErrorHandling(email, userClient.GetUserByEmail)
 	case http.StatusConflict:
-		existing, fetchErr := resolveExistingByEmail(userClient, email)
+		existing, fetchErr := GetUserWithErrorHandling(email, userClient.GetUserByEmail)
 		if fetchErr != nil {
 			return nil, fetchErr
 		}
-		repairRoleIfMissingByEmail(existing, userClient, email)
+		RepairRoleIfMissing(existing, userClient, constants.BuiltInRoleReadOnly)
 		return existing, nil
 	default:
 		return nil, fmt.Errorf(string(constants.ErrFailedCreateUser),
@@ -43,33 +43,27 @@ func JitProvisionUserByEmail(
 	}
 }
 
-func buildJitUser(email, username string) *userresource.UserAsResource {
-	roleID := ResolveInitialRoleID(email)
-	return &userresource.UserAsResource{
-		Username:         username,
-		Fullname:         BuildFullnameFromEmail(email),
-		Email:            email,
-		CreationDate:     time.Now().UTC().Format(time.RFC3339),
-		Status:           userresource.UserStatus{Phase: string(userresource.AccountPhaseActive)},
-		AssignedRolesIDs: []*string{&roleID},
+// Self-registration verifies nothing about the email, so the account starts
+// ReadOnly; Admin and the bootstrap marker come only from a verified identity.
+func buildJitUser(email, username string) *userresource.User {
+	roleID := constants.BuiltInRoleReadOnly
+	return &userresource.User{
+		Username:     username,
+		Fullname:     BuildFullnameFromEmail(email),
+		Email:        email,
+		CreationDate: time.Now().UTC().Format(time.RFC3339),
+		Status:       userresource.UserStatus{Phase: string(userresource.AccountPhaseActive)},
+		RoleRefs:     []*string{&roleID},
 	}
 }
 
-func resolveExistingByEmail(
-	userClient *userclient.Client, email string,
-) (*userresource.UserAsResource, error) {
-	return GetUserWithErrorHandling(email, userClient.GetUserByEmail)
-}
-
-func repairRoleIfMissingByEmail(
-	user *userresource.UserAsResource, userClient *userclient.Client, email string,
-) {
-	if len(user.AssignedRolesIDs) != constants.DefaultInitValue {
+func RepairRoleIfMissing(user *userresource.User, userClient *userclient.Client, roleID string) {
+	if len(user.RoleRefs) != constants.DefaultInitValue {
 		return
 	}
-	if err := RepairMissingRole(user, userClient, email); err != nil {
+	if err := RepairMissingRole(user, userClient, roleID); err != nil {
 		jitLg.Error(err.Error())
 		return
 	}
-	jitLg.Info(fmt.Sprintf(string(constants.LogJIT409RoleRepair), shared.IdentityHash(email)))
+	jitLg.Info(fmt.Sprintf(string(constants.LogJIT409RoleRepair), shared.IdentityHash(user.Email)))
 }

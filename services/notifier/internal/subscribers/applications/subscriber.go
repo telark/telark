@@ -1,23 +1,21 @@
 package applications
 
 import (
-	"strings"
-
 	"github.com/nats-io/nats.go"
 	appresource "github.com/telark/data/resources/application"
 	resourceshared "github.com/telark/data/resources/shared"
 	"github.com/telark/notifier/internal/subscribers/base"
-	applicationsclient "github.com/telark/rest/clients/resources/applications"
+	applicationsclient "github.com/telark/rest/clients/applications"
 	"github.com/telark/rest/response"
 	natscore "github.com/telark/x-ware/nats/core"
 )
 
-// Narrow slice of the exporter client so tests can inject a fake and cover
-// patch / create-on-404 / delete without a live exporter.
+// Narrow slice of the applications client so tests can inject a fake and cover
+// patch / create-on-404 against the exporter and reset against discovery.
 type AppClient interface {
 	PatchApplicationByName(name string, body map[string]any) *response.GenericResponse
 	CreateApplication(app *appresource.Application) *response.GenericResponse
-	DeleteApplicationByName(name string) *response.GenericResponse
+	ResetApplicationByName(name string) (*response.GenericResponse, error)
 }
 
 type ApplicationSubscriber struct {
@@ -41,11 +39,5 @@ func NewApplicationSubscriberWithClient(client AppClient) *ApplicationSubscriber
 }
 
 func (s *ApplicationSubscriber) executeHandler(m *nats.Msg, action natscore.Action) error {
-	return base.SharedExecuteHandler(
-		m,
-		action,
-		strings.ToLower(string(resourceshared.Application)),
-		s.getHandler,
-		nil,
-	)
+	return base.SharedExecuteHandler(m, action, s.getHandler)
 }

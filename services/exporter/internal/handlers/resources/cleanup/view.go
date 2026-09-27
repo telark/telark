@@ -1,6 +1,7 @@
 package cleanup
 
 import (
+	"slices"
 	"time"
 
 	resourcesshared "github.com/telark/data/resources/shared"
@@ -8,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func projectCleanupView(obj *unstructured.Unstructured, refKeys []string) resourcesshared.CleanupView {
+func projectCleanupView(obj *unstructured.Unstructured, refKeys []string, hidden map[string]bool) resourcesshared.CleanupView {
 	view := resourcesshared.CleanupView{
 		Name:            obj.GetName(),
 		ResourceVersion: obj.GetResourceVersion(),
@@ -19,19 +20,23 @@ func projectCleanupView(obj *unstructured.Unstructured, refKeys []string) resour
 		view.DeletionTimestamp = &s
 	}
 	if len(refKeys) > constants.DefaultInitValue {
-		view.Refs = collectRefs(obj.Object, refKeys)
+		view.Refs = collectRefs(obj.Object, refKeys, hidden)
 	}
 	return view
 }
 
-func collectRefs(obj map[string]any, refKeys []string) map[string][]string {
+func collectRefs(obj map[string]any, refKeys []string, hidden map[string]bool) map[string][]string {
 	spec, ok := obj[constants.SpecField].(map[string]any)
 	if !ok {
 		return nil
 	}
 	out := make(map[string][]string, len(refKeys))
 	for _, key := range refKeys {
-		out[key] = readStringList(spec[key])
+		refs := readStringList(spec[key])
+		if key == constants.FieldUserRefs {
+			refs = slices.DeleteFunc(refs, func(id string) bool { return hidden[id] })
+		}
+		out[key] = refs
 	}
 	return out
 }

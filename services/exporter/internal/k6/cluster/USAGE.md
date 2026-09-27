@@ -89,9 +89,8 @@ Ctrl-C in the terminal. Job is deleted automatically via `trap`.
 Every synthesized resource starts with `k6-`. Bulk delete:
 
 ```sh
-for kind in protectionplans userasresources groupasresources roleasresources \
-            categories applications usersessions snapshots; do
-  kubectl -n telark get "$kind" -o name 2>/dev/null | grep '/k6-' \
+for kind in protectionplans users groups accessroles categories applications sessions; do
+  kubectl -n telark get "$kind.telark.io" -o name 2>/dev/null | grep '/k6-' \
     | xargs -r kubectl -n telark delete
 done
 ```

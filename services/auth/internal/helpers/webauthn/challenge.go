@@ -1,12 +1,10 @@
 package webauthn
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
@@ -44,7 +42,8 @@ func ValidateAndGetChallenge(userID string) (*authdata.AuthChallenge, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisChallengeOpTimeout)
 	defer cancel()
 
-	val, err := rdb.Get(ctx, key).Result()
+	// Consumed on first read: a failed or replayed assertion must restart the ceremony.
+	val, err := rdb.GetDel(ctx, key).Result()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return nil, errors.New(string(constants.ErrChallengeNotFound))
@@ -57,31 +56,21 @@ func ValidateAndGetChallenge(userID string) (*authdata.AuthChallenge, error) {
 // A registration finish that carries no session is bound to its ceremony by the
 // challenge the authenticator signed, never by a caller-supplied identity header.
 func StoreRegistrationChallengeOwner(challenge, userID string) error {
-	rdb := redishelper.GetClient()
-	if rdb == nil {
-		return errors.New(string(constants.ErrRedisClientUnavailable))
-	}
-	key, err := registrationOwnerKey(challenge)
-	if err != nil {
-		return err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisChallengeOpTimeout)
-	defer cancel()
-
-	if err := rdb.Set(ctx, key, userID, time.Duration(constants.RedisTTLChallenge)*time.Second).Err(); err != nil {
-		return fmt.Errorf(string(constants.ErrFailedCreateChallenge), err.Error())
-	}
-	return nil
+	return storeCeremonyOwner(constants.RedisKeyPrefixRegistrationOwner, challenge, userID)
 }
 
 // An enrolled ceremony was opened with a one-time enrollment token, so its
 // session-less finish may add a passkey to an account that already has some.
 func StoreEnrolledCeremony(challenge, userID string) error {
+	return storeCeremonyOwner(constants.RedisKeyPrefixEnrolledCeremony, challenge, userID)
+}
+
+func storeCeremonyOwner(prefix, challenge, userID string) error {
 	rdb := redishelper.GetClient()
 	if rdb == nil {
 		return errors.New(string(constants.ErrRedisClientUnavailable))
 	}
-	key, err := enrolledCeremonyKey(challenge)
+	key, err := ceremonyKey(prefix, challenge)
 	if err != nil {
 		return err
 	}
@@ -95,11 +84,10 @@ func StoreEnrolledCeremony(challenge, userID string) error {
 }
 
 func RegistrationChallengeOwner(r *http.Request) (userID string, enrolled bool, err error) {
-	bodyBytes, err := io.ReadAll(r.Body)
+	bodyBytes, err := ReadAndRestoreRequestBody(r)
 	if err != nil {
-		return constants.EmptyString, false, fmt.Errorf(string(constants.ErrFailedReadRequestBody), err.Error())
+		return constants.EmptyString, false, err
 	}
-	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	_, clientDataJSONB64, _, err := extractRegistrationData(bodyBytes)
 	if err != nil {

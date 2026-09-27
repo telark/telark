@@ -3,13 +3,12 @@ package update
 import "github.com/telark/data/errors"
 
 const (
-	ErrInvalidPhase    errors.Error = "Cannot edit a canceled or terminated plan. Reactivate it first"
+	stagePark = "park"
+
 	ErrScopeTypeChange errors.Error = "Scope type cannot be changed." +
 		" Cancel and recreate the plan instead"
 	ErrMissingApplications errors.Error = "applications not found: %v"
-	ErrMissingNamespaces   errors.Error = "namespaces not found in cluster: %v"
 	ErrInvalidPolicies     errors.Error = "policy validation failed: %v"
-	ErrInvalidTimeRange    errors.Error = "timeRange.endAt must be after timeRange.startAt"
 	ErrUnknownTemplate     errors.Error = "unknown template id: %s"
 	ErrTemplateScope       errors.Error = "template %q does not support scope %q"
 	ErrInvalidParams       errors.Error = "template %q params invalid: %v"

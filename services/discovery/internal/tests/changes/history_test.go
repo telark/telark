@@ -4,8 +4,19 @@ import (
 	"testing"
 
 	appresource "github.com/telark/data/resources/application"
+	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/applications/history/changes"
 	"github.com/telark/discovery/internal/tests/testutil"
+)
+
+const (
+	historyNamespace      = "prod"
+	statusDown            = "down"
+	portHTTP              = 80
+	degradedTotalReplicas = 5
+	minChangeCount        = 12
+	portHTTPS             = 443
+	statusHealthy         = "healthy"
 )
 
 func strptr(s string) *string { return &s }
@@ -19,39 +30,39 @@ func TestCollectChangesEveryField(t *testing.T) {
 	stored := &appresource.Application{
 		Name:            "shop",
 		Images:          []string{"nginx:1.0"},
-		Ports:           []int{80},
+		Ports:           []int{portHTTP},
 		EnvVarKeys:      []string{"A"},
 		ConfigMapRefs:   []string{"cm1"},
 		SecretRefs:      []string{"s1"},
 		ServiceMappings: []string{"svc1"},
 		IngressRules:    []string{"ing1"},
 		Resources: []appresource.Resource{
-			{Namespace: "prod", Kind: "Deployment", Name: "shop-api"},
-			{Namespace: "prod", Kind: "Service", Name: "shop-svc"},
+			{Namespace: historyNamespace, Kind: "Deployment", Name: "shop-api"},
+			{Namespace: historyNamespace, Kind: "Service", Name: "shop-svc"},
 		},
-		Health:  appresource.Health{Status: "healthy", ReadyReplicas: 3, TotalReplicas: 3},
+		Health:  appresource.Health{Status: statusHealthy, ReadyReplicas: constants.ThreeValue, TotalReplicas: constants.ThreeValue},
 		Managed: appresource.Managed{By: "helm", Version: &ver1},
 	}
 	fresh := &appresource.Application{
 		Name:            "shop",
 		Images:          []string{"nginx:2.0"},
-		Ports:           []int{80, 443},
+		Ports:           []int{portHTTP, portHTTPS},
 		EnvVarKeys:      []string{"A", "B"},
 		ConfigMapRefs:   []string{"cm2"},
 		SecretRefs:      []string{"s2"},
 		ServiceMappings: []string{"svc2"},
 		IngressRules:    []string{"ing2"},
 		Resources: []appresource.Resource{
-			{Namespace: "prod", Kind: "Deployment", Name: "shop-api"},
-			{Namespace: "prod", Kind: "Service", Name: "shop-svc"},
-			{Namespace: "prod", Kind: "ConfigMap", Name: "shop-cfg"},
+			{Namespace: historyNamespace, Kind: "Deployment", Name: "shop-api"},
+			{Namespace: historyNamespace, Kind: "Service", Name: "shop-svc"},
+			{Namespace: historyNamespace, Kind: "ConfigMap", Name: "shop-cfg"},
 		},
-		Health:  appresource.Health{Status: "down", ReadyReplicas: 0, TotalReplicas: 5},
+		Health:  appresource.Health{Status: statusDown, ReadyReplicas: constants.DefaultInitValue, TotalReplicas: degradedTotalReplicas},
 		Managed: appresource.Managed{By: "helm", Version: &ver2},
 	}
 
 	got := changes.CollectChanges(stored, fresh)
-	if len(got) < 12 {
+	if len(got) < minChangeCount {
 		t.Fatalf("expected a change for each differing field, got %d", len(got))
 	}
 	known := map[string]bool{
@@ -75,7 +86,7 @@ func TestCollectChangesEveryField(t *testing.T) {
 func TestClassifySeverityIncidentRecovery(t *testing.T) {
 	toDown := []appresource.ApplicationChange{{
 		Field: changes.ChangeFieldHealth, ChangeType: changes.ChangeTypeUpdated,
-		OldValue: strptr("healthy"), NewValue: strptr("down"),
+		OldValue: strptr(statusHealthy), NewValue: strptr(statusDown),
 	}}
 	class := changes.ClassifyChanges(toDown)
 	if class != appresource.ChangeClassIncident {
@@ -90,7 +101,7 @@ func TestClassifySeverityIncidentRecovery(t *testing.T) {
 
 	toHealthy := []appresource.ApplicationChange{{
 		Field: changes.ChangeFieldHealth, ChangeType: changes.ChangeTypeUpdated,
-		OldValue: strptr("down"), NewValue: strptr("healthy"),
+		OldValue: strptr(statusDown), NewValue: strptr(statusHealthy),
 	}}
 	if !changes.DetectRecovery(toHealthy) {
 		t.Fatal("down->healthy not detected as recovery")
@@ -103,14 +114,14 @@ func TestClassifySeverityIncidentRecovery(t *testing.T) {
 // The fingerprint is empty for no changes, stable for the same set regardless of
 // order, and differs when the set differs.
 func TestComputeFingerprint(t *testing.T) {
-	if fp := changes.ComputeFingerprint(nil); fp != "" {
+	if fp := changes.ComputeFingerprint(nil); fp != constants.EmptyString {
 		t.Fatalf("empty change set fingerprint = %q, want empty", fp)
 	}
 	a := []appresource.ApplicationChange{
 		{Field: changes.ChangeFieldImage, ChangeType: changes.ChangeTypeAdded, NewValue: strptr("x")},
 		{Field: changes.ChangeFieldPort, ChangeType: changes.ChangeTypeAdded, NewValue: strptr("80")},
 	}
-	reordered := []appresource.ApplicationChange{a[1], a[0]}
+	reordered := []appresource.ApplicationChange{a[constants.DefaultAddValue], a[constants.DefaultInitValue]}
 	if changes.ComputeFingerprint(a) != changes.ComputeFingerprint(reordered) {
 		t.Fatal("fingerprint is order-sensitive")
 	}
@@ -122,7 +133,7 @@ func TestComputeFingerprint(t *testing.T) {
 	}
 }
 
-// With no explicit description, the description is synthesised from the field and
+// With no explicit description, the description is synthesized from the field and
 // change type; every field/type pair yields a non-empty string except a few
 // no-op combinations, and the validator collapses whitespace and truncates.
 func TestApplicationChangeDescriptionSynthesised(t *testing.T) {
@@ -151,7 +162,7 @@ func TestApplicationChangeDescriptionSynthesised(t *testing.T) {
 				OldValue: strptr("old"), NewValue: strptr("new"),
 			}
 			if got := changes.ApplicationChangeDescription(ch); got == "" {
-				t.Errorf("synthesised description is empty for %s/%s", c.field, c.typ)
+				t.Errorf("synthesized description is empty for %s/%s", c.field, c.typ)
 			}
 		})
 	}
@@ -162,5 +173,5 @@ func TestApplicationChangeDescriptionSynthesised(t *testing.T) {
 func TestApplicationChangeDescriptionExplicit(t *testing.T) {
 	ch := appresource.ApplicationChange{Field: changes.ChangeFieldImage, Description: "  a   b  "}
 	testutil.Equal(t, "normalised", changes.ApplicationChangeDescription(ch), "a b")
-	testutil.Equal(t, "blank", changes.ValidApplicationChangeDescription("   "), "")
+	testutil.Equal(t, "blank", changes.ValidApplicationChangeDescription("   "), constants.EmptyString)
 }

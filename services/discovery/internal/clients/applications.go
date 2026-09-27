@@ -5,7 +5,7 @@ import (
 
 	appresource "github.com/telark/data/resources/application"
 	"github.com/telark/discovery/internal/constants"
-	applicationsclient "github.com/telark/rest/clients/resources/applications"
+	applicationsclient "github.com/telark/rest/clients/applications"
 	"github.com/telark/rest/clients/shared"
 	"github.com/telark/rest/response"
 )

@@ -8,7 +8,7 @@ the enforcing file is named — that file wins if this doc ever drifts.
 ```
 services/
   auth  discovery  exporter  notifier    Go services (github.com/telark/<svc>), one go.work
-  enrichment                             Python / FastAPI service
+  analyzer                               Python / FastAPI service
 charts/
   telark                                 application chart (services + subcharts + telark-crds)
   telark-crds                            CRDs, bundled as a subchart of telark
@@ -69,7 +69,7 @@ Beyond the linter (from `services/*/CLAUDE.md`):
 
 - `errcheck` is on — never drop an error. Wrap with context on the way up; return, don't
   panic, in request/reconcile paths.
-- Use the service's structured logger (e.g. enrichment's `app_logger.py`); don't `fmt.Print`
+- Use the service's structured logger (e.g. analyzer's `app_logger.py`); don't `fmt.Print`
   / `print()` for diagnostics in service code.
 
 ## Testing
@@ -81,7 +81,7 @@ Beyond the linter (from `services/*/CLAUDE.md`):
   Don't weaken an existing test to make a change pass — if it asserts wrong behavior, flag it.
 - **Gate:** CI enforces a per-service coverage **ratchet floor** (`.github/workflows/ci.yaml`);
   raise it as coverage improves, never lower it.
-- **Python (enrichment):** `pytest`; stub-based suites (`test_*_cov.py`) run in a separate
+- **Python (analyzer):** `pytest`; stub-based suites (`test_*_cov.py`) run in a separate
   process from real-dependency suites; `python -m compileall` is the syntax gate. *(No
   ruff/black/flake8 config exists today — formatting is by convention.)*
 

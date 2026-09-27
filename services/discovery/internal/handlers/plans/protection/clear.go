@@ -4,19 +4,19 @@ import (
 	"context"
 	"net/http"
 
-	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/messages"
 	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection"
 	"github.com/telark/discovery/internal/helpers/shared"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
 )
 
 func Clear(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get(constants.HeaderUserID)
-	if userID == constants.EmptyString {
-		respondError(w, http.StatusUnauthorized, protection.ErrUserMissing, nil)
+	svc, ok := readyService(w)
+	if !ok {
+		return
+	}
+	if _, ok = requireUser(w, r); !ok {
 		return
 	}
 
@@ -25,18 +25,24 @@ func Clear(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), constants.ProtectionPlanLifecycleTimeout)
+	ctx, cancel := context.WithTimeout(detached(r), constants.ProtectionPlanLifecycleTimeout)
 	defer cancel()
 
-	if err := globalService.Clear(ctx, planID); err != nil {
-		respondError(w, http.StatusInternalServerError, dataerrors.Error(err.Error()), err)
+	release, ok := lockPlanDecision(ctx, w, planID)
+	if !ok {
+		return
+	}
+	defer release()
+
+	if err := svc.Clear(ctx, planID); err != nil {
+		respondDomainError(w, err)
 		return
 	}
 	responseutils.LogAndSendResponse(
 		w,
 		http.StatusOK,
 		response.OperationSuccess,
-		string(messages.SuccessDeleteRes),
+		planMessage(messages.SuccessDeleteRes, planID),
 		nil,
 		nil,
 	)

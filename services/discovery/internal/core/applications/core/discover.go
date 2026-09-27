@@ -17,6 +17,8 @@ import (
 	"github.com/telark/kcore/resources/networking"
 	"github.com/telark/kcore/resources/workload"
 	"golang.org/x/sync/errgroup"
+	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -145,7 +147,6 @@ func buildEnrichCache(ctx context.Context, inputs []derivation.ResourceInput) ma
 	var mu sync.Mutex
 	g, gctx := errgroup.WithContext(ctx)
 	for nk := range seen {
-		nk := nk
 		g.Go(func() error {
 			results := fetchByNamespaceKind(gctx, nk.ns, nk.kind)
 			mu.Lock()
@@ -176,8 +177,13 @@ func enrichFromCachedManifest(kind, name, ns string) (enrichResult, bool) {
 	u := unstructured.Unstructured{Object: obj}
 	res := baseEnrichResult(u.GetAnnotations(), u.GetCreationTimestamp().Time)
 	switch kind {
-	case appshared.KindDeployment, appshared.KindStatefulSet, appshared.KindDaemonSet:
-		res.spec = podSpecFromUnstructured(&u)
+	case appshared.KindDeployment, appshared.KindStatefulSet, appshared.KindDaemonSet, appshared.KindJob:
+		res.spec = podSpecFromUnstructured(&u, constants.K8sObjectFieldSpec, constants.K8sObjectFieldTemplate, constants.K8sObjectFieldSpec)
+	case appshared.KindCronJob:
+		res.spec = podSpecFromUnstructured(&u,
+			constants.K8sObjectFieldSpec, constants.K8sObjectFieldJobTemplate,
+			constants.K8sObjectFieldSpec, constants.K8sObjectFieldTemplate, constants.K8sObjectFieldSpec,
+		)
 	case appshared.KindService:
 		var s corev1.Service
 		if runtime.DefaultUnstructuredConverter.FromUnstructured(obj, &s) == nil {
@@ -193,10 +199,8 @@ func enrichFromCachedManifest(kind, name, ns string) (enrichResult, bool) {
 	return res, true
 }
 
-func podSpecFromUnstructured(u *unstructured.Unstructured) *corev1.PodSpec {
-	m, found, err := unstructured.NestedMap(
-		u.Object, constants.K8sObjectFieldSpec, constants.K8sObjectFieldTemplate, constants.K8sObjectFieldSpec,
-	)
+func podSpecFromUnstructured(u *unstructured.Unstructured, path ...string) *corev1.PodSpec {
+	m, found, err := unstructured.NestedMap(u.Object, path...)
 	if err != nil || !found {
 		return nil
 	}
@@ -229,19 +233,29 @@ func fetchByNamespaceKind(ctx context.Context, ns, kind string) map[string]enric
 type kindFetcher func(ns string) map[string]enrichResult
 
 var kindFetchers = map[string]kindFetcher{
-	appshared.KindDeployment:              fetchDeploymentsByNs,
-	appshared.KindStatefulSet:             fetchStatefulSetsByNs,
-	appshared.KindDaemonSet:               fetchDaemonSetsByNs,
-	appshared.KindJob:                     fetchJobsByNs,
-	appshared.KindCronJob:                 fetchCronJobsByNs,
-	appshared.KindService:                 fetchServicesByNs,
-	appshared.KindConfigMap:               fetchConfigMapsByNs,
-	appshared.KindSecret:                  fetchSecretsByNs,
-	appshared.KindServiceAccount:          fetchServiceAccountsByNs,
-	appshared.KindPersistentVolumeClaim:   fetchPVCsByNs,
-	appshared.KindNetworkPolicy:           fetchNetworkPoliciesByNs,
-	appshared.KindIngress:                 fetchIngressesByNs,
-	appshared.KindHorizontalPodAutoscaler: fetchHPAsByNs,
+	appshared.KindDeployment: enrichByNs(workload.GetDeploymentsByNamespace, func(d *appsv1.Deployment, r *enrichResult) {
+		r.spec = podSpecCopy(d.Spec.Template.Spec)
+	}),
+	appshared.KindStatefulSet: enrichByNs(workload.GetStatefulSetsByNamespace, func(s *appsv1.StatefulSet, r *enrichResult) {
+		r.spec = podSpecCopy(s.Spec.Template.Spec)
+	}),
+	appshared.KindDaemonSet: enrichByNs(workload.GetDaemonSetsByNamespace, func(d *appsv1.DaemonSet, r *enrichResult) {
+		r.spec = podSpecCopy(d.Spec.Template.Spec)
+	}),
+	appshared.KindJob: enrichByNs(workload.GetJobsByNamespace, func(j *batchv1.Job, r *enrichResult) {
+		r.spec = podSpecCopy(j.Spec.Template.Spec)
+	}),
+	appshared.KindCronJob: enrichByNs(workload.GetCronJobsByNamespace, func(c *batchv1.CronJob, r *enrichResult) {
+		r.spec = podSpecCopy(c.Spec.JobTemplate.Spec.Template.Spec)
+	}),
+	appshared.KindService:                 enrichByNs(networking.GetServicesByNamespace, serviceMappingsOf),
+	appshared.KindConfigMap:               enrichByNs(core.GetConfigMapsByNamespace, nil),
+	appshared.KindSecret:                  enrichByNs(core.GetSecretsByNamespace, nil),
+	appshared.KindServiceAccount:          enrichByNs(core.GetServiceAccountsByNamespace, nil),
+	appshared.KindPersistentVolumeClaim:   enrichByNs(core.GetPersistentVolumeClaimsByNamespace, nil),
+	appshared.KindNetworkPolicy:           enrichByNs(networking.GetNetworkPoliciesByNamespace, nil),
+	appshared.KindIngress:                 enrichByNs(networking.GetIngressesByNamespace, ingressRulesOf),
+	appshared.KindHorizontalPodAutoscaler: enrichByNs(autoscaling.GetHorizontalPodAutoscalersByNamespace, nil),
 }
 
 func fetchByNamespaceKindSync(ns, kind string) map[string]enrichResult {
@@ -251,186 +265,38 @@ func fetchByNamespaceKindSync(ns, kind string) map[string]enrichResult {
 	return nil
 }
 
-func fetchDeploymentsByNs(ns string) map[string]enrichResult {
-	list, err := workload.GetDeploymentsByNamespace(ns)
-	if err != nil {
-		return nil
+func enrichByNs[T any, PT interface {
+	*T
+	metaObject
+}](list func(string) ([]T, error), extra func(PT, *enrichResult)) kindFetcher {
+	return func(ns string) map[string]enrichResult {
+		items, err := list(ns)
+		if err != nil {
+			return nil
+		}
+		out := make(map[string]enrichResult, len(items))
+		for i := range items {
+			item := PT(&items[i])
+			r := baseEnrichResult(item.GetAnnotations(), item.GetCreationTimestamp().Time)
+			if extra != nil {
+				extra(item, &r)
+			}
+			out[item.GetName()] = r
+		}
+		return out
 	}
-	out := make(map[string]enrichResult, len(list))
-	for i := range list {
-		d := &list[i]
-		spec := d.Spec.Template.Spec
-		r := baseEnrichResult(d.Annotations, d.CreationTimestamp.Time)
-		r.spec = &spec
-		out[d.Name] = r
-	}
-	return out
 }
 
-func fetchStatefulSetsByNs(ns string) map[string]enrichResult {
-	list, err := workload.GetStatefulSetsByNamespace(ns)
-	if err != nil {
-		return nil
-	}
-	out := make(map[string]enrichResult, len(list))
-	for i := range list {
-		s := &list[i]
-		spec := s.Spec.Template.Spec
-		r := baseEnrichResult(s.Annotations, s.CreationTimestamp.Time)
-		r.spec = &spec
-		out[s.Name] = r
-	}
-	return out
+func podSpecCopy(spec corev1.PodSpec) *corev1.PodSpec {
+	return &spec
 }
 
-func fetchDaemonSetsByNs(ns string) map[string]enrichResult {
-	list, err := workload.GetDaemonSetsByNamespace(ns)
-	if err != nil {
-		return nil
-	}
-	out := make(map[string]enrichResult, len(list))
-	for i := range list {
-		d := &list[i]
-		spec := d.Spec.Template.Spec
-		r := baseEnrichResult(d.Annotations, d.CreationTimestamp.Time)
-		r.spec = &spec
-		out[d.Name] = r
-	}
-	return out
+func serviceMappingsOf(s *corev1.Service, r *enrichResult) {
+	r.serviceMappings = extractServiceMappings(s)
 }
 
-func fetchJobsByNs(ns string) map[string]enrichResult {
-	list, err := workload.GetJobsByNamespace(ns)
-	if err != nil {
-		return nil
-	}
-	out := make(map[string]enrichResult, len(list))
-	for i := range list {
-		j := &list[i]
-		out[j.Name] = baseEnrichResult(j.Annotations, j.CreationTimestamp.Time)
-	}
-	return out
-}
-
-func fetchCronJobsByNs(ns string) map[string]enrichResult {
-	list, err := workload.GetCronJobsByNamespace(ns)
-	if err != nil {
-		return nil
-	}
-	out := make(map[string]enrichResult, len(list))
-	for i := range list {
-		c := &list[i]
-		out[c.Name] = baseEnrichResult(c.Annotations, c.CreationTimestamp.Time)
-	}
-	return out
-}
-
-func fetchServicesByNs(ns string) map[string]enrichResult {
-	list, err := networking.GetServicesByNamespace(ns)
-	if err != nil {
-		return nil
-	}
-	out := make(map[string]enrichResult, len(list))
-	for i := range list {
-		s := &list[i]
-		r := baseEnrichResult(s.Annotations, s.CreationTimestamp.Time)
-		r.serviceMappings = extractServiceMappings(s)
-		out[s.Name] = r
-	}
-	return out
-}
-
-func fetchConfigMapsByNs(ns string) map[string]enrichResult {
-	list, err := core.GetConfigMapsByNamespace(ns)
-	if err != nil {
-		return nil
-	}
-	out := make(map[string]enrichResult, len(list))
-	for i := range list {
-		c := &list[i]
-		out[c.Name] = baseEnrichResult(c.Annotations, c.CreationTimestamp.Time)
-	}
-	return out
-}
-
-func fetchSecretsByNs(ns string) map[string]enrichResult {
-	list, err := core.GetSecretsByNamespace(ns)
-	if err != nil {
-		return nil
-	}
-	out := make(map[string]enrichResult, len(list))
-	for i := range list {
-		s := &list[i]
-		out[s.Name] = baseEnrichResult(s.Annotations, s.CreationTimestamp.Time)
-	}
-	return out
-}
-
-func fetchServiceAccountsByNs(ns string) map[string]enrichResult {
-	list, err := core.GetServiceAccountsByNamespace(ns)
-	if err != nil {
-		return nil
-	}
-	out := make(map[string]enrichResult, len(list))
-	for i := range list {
-		s := &list[i]
-		out[s.Name] = baseEnrichResult(s.Annotations, s.CreationTimestamp.Time)
-	}
-	return out
-}
-
-func fetchPVCsByNs(ns string) map[string]enrichResult {
-	list, err := core.GetPersistentVolumeClaimsByNamespace(ns)
-	if err != nil {
-		return nil
-	}
-	out := make(map[string]enrichResult, len(list))
-	for i := range list {
-		p := &list[i]
-		out[p.Name] = baseEnrichResult(p.Annotations, p.CreationTimestamp.Time)
-	}
-	return out
-}
-
-func fetchNetworkPoliciesByNs(ns string) map[string]enrichResult {
-	list, err := networking.GetNetworkPoliciesByNamespace(ns)
-	if err != nil {
-		return nil
-	}
-	out := make(map[string]enrichResult, len(list))
-	for i := range list {
-		n := &list[i]
-		out[n.Name] = baseEnrichResult(n.Annotations, n.CreationTimestamp.Time)
-	}
-	return out
-}
-
-func fetchIngressesByNs(ns string) map[string]enrichResult {
-	list, err := networking.GetIngressesByNamespace(ns)
-	if err != nil {
-		return nil
-	}
-	out := make(map[string]enrichResult, len(list))
-	for i := range list {
-		ing := &list[i]
-		r := baseEnrichResult(ing.Annotations, ing.CreationTimestamp.Time)
-		r.ingressRules = extractIngressRules(ing)
-		out[ing.Name] = r
-	}
-	return out
-}
-
-func fetchHPAsByNs(ns string) map[string]enrichResult {
-	list, err := autoscaling.GetHorizontalPodAutoscalersByNamespace(ns)
-	if err != nil {
-		return nil
-	}
-	out := make(map[string]enrichResult, len(list))
-	for i := range list {
-		h := &list[i]
-		out[h.Name] = baseEnrichResult(h.Annotations, h.CreationTimestamp.Time)
-	}
-	return out
+func ingressRulesOf(ing *networkingv1.Ingress, r *enrichResult) {
+	r.ingressRules = extractIngressRules(ing)
 }
 
 func extractImages(spec *corev1.PodSpec) []string {

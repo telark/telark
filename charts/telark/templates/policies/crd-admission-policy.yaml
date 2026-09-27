@@ -4,7 +4,7 @@ which level, and what each role is denied. The services enforce that model on
 their APIs, but the resources sit in the cluster, so anyone with edit rights on
 this namespace could rewrite them and skip the services entirely.
 
-This refuses writes to those groups from anything but the service accounts that
+This refuses writes to that group from anything but the service accounts that
 own them. It is admission-side only: no webhook pod, so refusing costs no
 availability, and Deny cannot be coupled to a controller's health.
 
@@ -19,8 +19,8 @@ rather than a side effect of holding namespace edit.
 {{- $discovery := printf "system:serviceaccount:%s:%s" $ns (include "telark.serviceAccountName" (dict "root" $ "serviceConfig" $.Values.services.discovery)) }}
 {{/*
 The exporter owns every one of these resources. Discovery owns nothing outright:
-it only patches its own applications, so it is admitted for that resource alone
-rather than for the group. Widening it to the group would state that discovery
+it only patches the status of applications, so it is admitted for that
+subresource alone rather than for the group. Widening it to the group would state that discovery
 may rewrite sessions, passkeys and roles, which is not true and must not become
 true by accident.
 */}}
@@ -37,14 +37,13 @@ spec:
   failurePolicy: Fail
   matchConstraints:
     resourceRules:
-      # Named groups only. A wildcard here would put every resource in the
-      # cluster behind this allow list.
+      # The named group only. A wildcard here would put every resource in the
+      # cluster behind this allow list. "*/*" covers resources and /status; the API
+      # server rejects "*" next to it.
       - apiGroups:
-          - erpi.{{ $.Values.app.name }}
-          - auth.{{ $.Values.app.name }}
-          - classification.{{ $.Values.app.name }}
+          - {{ include "telark.apiGroup" $ }}
         apiVersions: ["*"]
-        resources: ["*"]
+        resources: ["*/*"]
         operations: ["CREATE", "UPDATE", "DELETE"]
   variables:
     # Quoted: every expression here is CEL source, and unquoted these would parse
@@ -54,11 +53,11 @@ spec:
     - name: ownersApplications
       expression: {{ toJson $ownersApplications | squote }}
     # The allow list narrows to the resource being written, so admitting discovery
-    # for its own applications does not admit it for sessions, passkeys or roles.
+    # for application status does not admit it for specs, sessions, passkeys or roles.
+    # subResource is absent on plain writes, so it needs has().
     - name: allowed
       expression: >-
-        request.resource.group == '{{ printf "erpi.%s" $.Values.app.name }}'
-        && request.resource.resource == 'applicationsasresources'
+        request.resource.resource == 'applications' && has(request.subResource) && request.subResource == 'status'
         ? variables.ownersApplications : variables.ownersAll
   validations:
     # userInfo is set by the API server from the authenticated request, so it is
@@ -77,6 +76,68 @@ metadata:
     app.kubernetes.io/component: security
 spec:
   policyName: {{ $.Values.app.name }}-crd-guard
+  validationActions:
+    {{- if $.Values.app.crdGuard.enforce }}
+    - Deny
+    {{- else }}
+    - Audit
+    {{- end }}
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: {{ $ns }}
+---
+{{- /*
+The OIDC trust Secret pins the keys identity tokens are verified against, so
+writing it mints logins; namespace edit can write Secrets, hence this guard.
+*/}}
+{{- $oidcSecret := include "telark.oidcTrustSecretName" $ }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: {{ $.Values.app.name }}-oidc-trust-guard
+  labels:
+    {{- include "telark.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: security
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["secrets"]
+        resourceNames: [{{ $oidcSecret | quote }}]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+  variables:
+    - name: allowed
+      expression: {{ toJson $ownersAll | squote }}
+    - name: hadKey
+      expression: "oldObject != null && has(oldObject.data) && 'googleJwkJson' in oldObject.data"
+    - name: hasKey
+      expression: "object != null && has(object.data) && 'googleJwkJson' in object.data"
+    # Helm re-renders the looked-up value on upgrade, so a write that leaves the
+    # key as it is (or creates it empty) is not a trust change and stays allowed.
+    - name: keyUnchanged
+      expression: >-
+        variables.hadKey
+        ? (variables.hasKey && object.data.googleJwkJson == oldObject.data.googleJwkJson)
+        : (!variables.hasKey || size(object.data.googleJwkJson) == 0)
+  validations:
+    - expression: >-
+        request.userInfo.username in variables.allowed
+        || (request.operation != 'DELETE' && variables.keyUnchanged)
+      reason: Forbidden
+      messageExpression: '"the OIDC trust keys are reserved to {{ $.Values.app.name }}; set them through its API"'
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: {{ $.Values.app.name }}-oidc-trust-guard-binding
+  labels:
+    {{- include "telark.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: security
+spec:
+  policyName: {{ $.Values.app.name }}-oidc-trust-guard
   validationActions:
     {{- if $.Values.app.crdGuard.enforce }}
     - Deny

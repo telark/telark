@@ -5,6 +5,7 @@ import (
 
 	roledata "github.com/telark/data/resources/role"
 	"github.com/telark/exporter/internal/authz"
+	"github.com/telark/exporter/internal/constants"
 	xauthz "github.com/telark/x-ware/authz"
 )
 
@@ -15,19 +16,23 @@ import (
 // coincidence.
 func TestRuleKeysMatchDashboardVocabulary(t *testing.T) {
 	expected := map[string]string{
-		"GET /api/v1/resources/applications/{name}/rollbacks/get": "applications.viewapplicationsrollbacks.deny",
-		"GET /api/v1/snapshots/{id}/get":                          "applications.viewapplicationssnapshots.deny",
-		"GET /api/v1/snapshots/{id}/manifest":                     "applications.viewapplicationsnapshotmanifest.deny",
-		"PATCH /api/v1/resources/applications/{name}/patch":       "applications.editapplication.deny",
-		"DELETE /api/v1/resources/applications/{name}/delete":     "applications.deleteapplication.deny",
-		"POST /api/v1/resources/users/create":                     "users.createuser.deny",
-		"DELETE /api/v1/resources/users/{id}/delete":              "users.deleteuser.deny",
-		"POST /api/v1/resources/groups/create":                    "groups.creategroup.deny",
-		"PATCH /api/v1/resources/groups/{id}/patch":               "groups.editgroup.deny",
-		"DELETE /api/v1/resources/groups/{id}/delete":             "groups.deletegroup.deny",
-		"POST /api/v1/resources/roles/create":                     "roles.createrole.deny",
-		"PATCH /api/v1/resources/roles/{id}/patch":                "roles.editrole.deny",
-		"DELETE /api/v1/resources/roles/{id}/delete":              "roles.deleterole.deny",
+		"GET /api/v1/applications/{name}/rollbacks":         "applications.viewapplicationsrollbacks.deny",
+		"GET /api/v1/snapshots/{id}":                        "applications.viewapplicationssnapshots.deny",
+		"GET /api/v1/snapshots/{id}/manifest":               "applications.viewapplicationsnapshotmanifest.deny",
+		"PATCH /api/v1/applications/{name}":                 "applications.editapplication.deny",
+		"POST /api/v1/users":                                "users.createuser.deny",
+		"DELETE /api/v1/users/{id}":                         "users.deleteuser.deny",
+		"POST /api/v1/groups":                               "groups.creategroup.deny",
+		"PATCH /api/v1/groups/{id}":                         "groups.editgroup.deny",
+		"DELETE /api/v1/groups/{id}":                        "groups.deletegroup.deny",
+		"POST /api/v1/accessroles":                          "roles.createrole.deny",
+		"PATCH /api/v1/accessroles/{id}":                    "roles.editrole.deny",
+		"DELETE /api/v1/accessroles/{id}":                   "roles.deleterole.deny",
+		"GET /api/v1/protectionplans":                       "protection-plans.viewprotectionplans.deny",
+		"GET /api/v1/protectionplans/{id}":                  "protection-plans.viewprotectionplans.deny",
+		"POST /api/v1/protectionplans":                      "protection-plans.createprotectionplan.deny",
+		"GET /api/v1/protectionplans/{id}/reports":          "protection-plans.viewprotectionplanreports.deny",
+		"GET /api/v1/protectionplans/{id}/reports/download": "protection-plans.downloadprotectionplanreport.deny",
 	}
 
 	requirements := authz.Requirements()
@@ -51,7 +56,7 @@ func TestRulesBelongToTheirOwnScope(t *testing.T) {
 			continue
 		}
 		want := xauthz.RuleKey(requirement.Scope, "")
-		prefix := want[:len(requirement.Scope)+1]
+		prefix := want[:len(requirement.Scope)+constants.DefaultIncrementValue]
 		if len(requirement.Rule) < len(prefix) || requirement.Rule[:len(prefix)] != prefix {
 			t.Errorf("route %q declares rule %q outside its scope %q", key, requirement.Rule, requirement.Scope)
 		}

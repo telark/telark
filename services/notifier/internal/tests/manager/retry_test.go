@@ -7,14 +7,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/telark/notifier/internal/constants"
 	"github.com/telark/notifier/internal/subscribers/manager"
 	"github.com/telark/notifier/internal/tests/testutil"
 )
 
 const (
 	testRetryInterval = 5 * time.Millisecond
+	zeroInterval      = time.Duration(0)
 	testCancelWait    = 50 * time.Millisecond
 	failTwice         = 2
+	neverFail         = 0
+	oneAttempt        = 1
+	retryStartFailFmt = "RetryStart: %v"
+	startAttempts     = "start attempts"
 )
 
 var errStartFailed = errors.New("nats unavailable")
@@ -23,7 +29,7 @@ var errStartFailed = errors.New("nats unavailable")
 // outage that heals while the service keeps running.
 func flakyStart(n int32, calls *atomic.Int32) func() error {
 	return func() error {
-		if calls.Add(1) <= n {
+		if calls.Add(constants.DefaultAdd) <= n {
 			return errStartFailed
 		}
 		return nil
@@ -40,9 +46,9 @@ func TestRetryStartRetriesUntilSuccess(t *testing.T) {
 	defer cancel()
 
 	if err := manager.RetryStart(ctx, flakyStart(failTwice, &calls), testRetryInterval, nil); err != nil {
-		t.Fatalf("RetryStart: %v", err)
+		t.Fatalf(retryStartFailFmt, err)
 	}
-	testutil.Equal(t, "start attempts", calls.Load(), failTwice+1)
+	testutil.Equal(t, startAttempts, calls.Load(), failTwice+oneAttempt)
 }
 
 // A Start that succeeds first time must not be retried.
@@ -51,22 +57,22 @@ func TestRetryStartStopsAfterFirstSuccess(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testCancelWait)
 	defer cancel()
 
-	if err := manager.RetryStart(ctx, flakyStart(0, &calls), testRetryInterval, nil); err != nil {
-		t.Fatalf("RetryStart: %v", err)
+	if err := manager.RetryStart(ctx, flakyStart(neverFail, &calls), testRetryInterval, nil); err != nil {
+		t.Fatalf(retryStartFailFmt, err)
 	}
-	testutil.Equal(t, "start attempts", calls.Load(), 1)
+	testutil.Equal(t, startAttempts, calls.Load(), oneAttempt)
 }
 
 // Shutdown must win over the retry loop: a permanently failing Start has to
-// stop when the context is cancelled, not spin forever and block exit.
+// stop when the context is canceled, not spin forever and block exit.
 func TestRetryStartStopsOnContextCancel(t *testing.T) {
 	var calls atomic.Int32
-	alwaysFails := func() error { calls.Add(1); return errStartFailed }
+	alwaysFails := func() error { calls.Add(constants.DefaultAdd); return errStartFailed }
 
 	ctx, cancel := context.WithTimeout(context.Background(), testCancelWait)
 	defer cancel()
 
-	done := make(chan error, 1)
+	done := make(chan error, oneAttempt)
 	go func() { done <- manager.RetryStart(ctx, alwaysFails, testRetryInterval, nil) }()
 
 	select {
@@ -77,7 +83,7 @@ func TestRetryStartStopsOnContextCancel(t *testing.T) {
 	case <-time.After(testCancelWait * 10):
 		t.Fatal("RetryStart did not stop after context cancellation")
 	}
-	if calls.Load() == 0 {
+	if calls.Load() == neverFail {
 		t.Fatal("RetryStart never called start")
 	}
 }
@@ -88,8 +94,8 @@ type recordingLogger struct {
 	warns atomic.Int32
 }
 
-func (l *recordingLogger) Error(string) { l.errs.Add(1) }
-func (l *recordingLogger) Warn(string)  { l.warns.Add(1) }
+func (l *recordingLogger) Error(string) { l.errs.Add(constants.DefaultAdd) }
+func (l *recordingLogger) Warn(string)  { l.warns.Add(constants.DefaultAdd) }
 
 // Every failed attempt must tell the operator what broke and that a retry is
 // coming — otherwise a stuck notifier looks identical to a healthy one.
@@ -100,7 +106,7 @@ func TestRetryStartLogsEachFailedAttempt(t *testing.T) {
 	defer cancel()
 
 	if err := manager.RetryStart(ctx, flakyStart(failTwice, &calls), testRetryInterval, lg); err != nil {
-		t.Fatalf("RetryStart: %v", err)
+		t.Fatalf(retryStartFailFmt, err)
 	}
 	testutil.Equal(t, "error logs", lg.errs.Load(), failTwice)
 	testutil.Equal(t, "retry warnings", lg.warns.Load(), failTwice)
@@ -113,20 +119,20 @@ func TestRetryStartDefaultsNonPositiveInterval(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testCancelWait)
 	defer cancel()
 
-	if err := manager.RetryStart(ctx, flakyStart(0, &calls), 0, nil); err != nil {
-		t.Fatalf("RetryStart: %v", err)
+	if err := manager.RetryStart(ctx, flakyStart(neverFail, &calls), zeroInterval, nil); err != nil {
+		t.Fatalf(retryStartFailFmt, err)
 	}
-	testutil.Equal(t, "start attempts", calls.Load(), 1)
+	testutil.Equal(t, startAttempts, calls.Load(), oneAttempt)
 }
 
-// An already-cancelled context must not trigger a connection attempt at all.
+// An already-canceled context must not trigger a connection attempt at all.
 func TestRetryStartHonoursCancelledContext(t *testing.T) {
 	var calls atomic.Int32
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	if err := manager.RetryStart(ctx, flakyStart(0, &calls), testRetryInterval, nil); !errors.Is(err, context.Canceled) {
+	if err := manager.RetryStart(ctx, flakyStart(neverFail, &calls), testRetryInterval, nil); !errors.Is(err, context.Canceled) {
 		t.Fatalf("RetryStart err = %v, want context.Canceled", err)
 	}
-	testutil.Equal(t, "start attempts", calls.Load(), 0)
+	testutil.Equal(t, startAttempts, calls.Load(), neverFail)
 }

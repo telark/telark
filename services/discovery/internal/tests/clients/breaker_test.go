@@ -104,7 +104,7 @@ func TestCreateSnapshotStopsRetryingWhenOpen(t *testing.T) {
 	}
 
 	start := time.Now()
-	path, err := clients.NewSnapshotClient().CreateSnapshotAndReturnPath("id", "scope", "ns", 1, nil)
+	path, err := clients.NewSnapshotClient().CreateSnapshotAndReturnPath("id", "scope", "ns", constants.DefaultAddValue, nil)
 	elapsed := time.Since(start)
 
 	if !circuitbreaker.IsOpen(err) {

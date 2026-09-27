@@ -3,16 +3,18 @@ package routes
 import (
 	"net/http"
 
+	exporterauthz "github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/cache"
 	"github.com/telark/exporter/internal/constants"
 	passkeyhandler "github.com/telark/exporter/internal/handlers/auth/passkey"
 	sessionhandler "github.com/telark/exporter/internal/handlers/auth/session"
-	categoryhandler "github.com/telark/exporter/internal/handlers/classification/category"
+	categoryhandler "github.com/telark/exporter/internal/handlers/categories"
+	confighandler "github.com/telark/exporter/internal/handlers/config"
 	notificationhandler "github.com/telark/exporter/internal/handlers/notifications"
 	planshandler "github.com/telark/exporter/internal/handlers/plans/protection"
+	reportshandler "github.com/telark/exporter/internal/handlers/reports"
 	applicationhandler "github.com/telark/exporter/internal/handlers/resources/application"
 	cleanuphandler "github.com/telark/exporter/internal/handlers/resources/cleanup"
-	globalconfighandler "github.com/telark/exporter/internal/handlers/resources/globalconfig"
 	grouphandler "github.com/telark/exporter/internal/handlers/resources/group"
 	rolehandler "github.com/telark/exporter/internal/handlers/resources/role"
 	userhandler "github.com/telark/exporter/internal/handlers/resources/user"
@@ -20,18 +22,19 @@ import (
 	statushandler "github.com/telark/exporter/internal/handlers/status"
 	"github.com/telark/exporter/internal/utils/performance"
 	"github.com/telark/rest/base"
+	roleendpoints "github.com/telark/rest/endpoints/accessroles"
+	applicationendpoints "github.com/telark/rest/endpoints/applications"
 	authendpoints "github.com/telark/rest/endpoints/auth"
-	categoryendpoints "github.com/telark/rest/endpoints/classification/category"
+	categoryendpoints "github.com/telark/rest/endpoints/categories"
+	cleanupendpoints "github.com/telark/rest/endpoints/cleanup"
+	configendpoints "github.com/telark/rest/endpoints/config"
+	groupendpoints "github.com/telark/rest/endpoints/groups"
 	notificationsendpoints "github.com/telark/rest/endpoints/notifications"
 	plansendpoints "github.com/telark/rest/endpoints/plans"
-	applicationendpoints "github.com/telark/rest/endpoints/resources/applications"
-	cleanupendpoints "github.com/telark/rest/endpoints/resources/cleanup"
-	globalconfigendpoints "github.com/telark/rest/endpoints/resources/globalconfig"
-	groupendpoints "github.com/telark/rest/endpoints/resources/groups"
-	roleendpoints "github.com/telark/rest/endpoints/resources/roles"
-	userendpoints "github.com/telark/rest/endpoints/resources/users"
+	reportsendpoints "github.com/telark/rest/endpoints/reports"
 	snapshotendpoints "github.com/telark/rest/endpoints/snapshots"
 	statusendpoints "github.com/telark/rest/endpoints/status"
+	userendpoints "github.com/telark/rest/endpoints/users"
 	"github.com/telark/rest/router"
 )
 
@@ -44,7 +47,7 @@ func userResourceCachedGetRoute(
 		performance.NewCachedListHandlerFunc(
 			optimizer,
 			handler,
-			cache.NewGetCacheKeyFunc(constants.ResourceUser),
+			exporterauthz.RestrictedKey(cache.NewGetCacheKeyFunc(constants.ResourceUser)),
 			constants.ResourceUser,
 			constants.OpGet,
 		))
@@ -70,14 +73,15 @@ func subjectListCachedRoute(
 func InitRoutes(optimizer *performance.Optimizer) []router.Route {
 	routes := make([]router.Route, constants.DefaultInitValue, constants.DefaultRoutesCount)
 	routes = append(routes, applicationRoutes(optimizer)...)
-	routes = append(routes, globalConfigRoutes()...)
+	routes = append(routes, configRoutes()...)
 	routes = append(routes, userRoutes(optimizer)...)
 	routes = append(routes, groupRoutes(optimizer)...)
 	routes = append(routes, roleRoutes(optimizer)...)
 	routes = append(routes, categoryRoutes(optimizer)...)
 	routes = append(routes, sessionRoutes(optimizer)...)
 	routes = append(routes, passkeyRoutes(optimizer)...)
-	routes = append(routes, snapshotRoutes(optimizer)...)
+	routes = append(routes, snapshotRoutes()...)
+	routes = append(routes, reportRoutes()...)
 	routes = append(routes, notificationRoutes()...)
 	routes = append(routes, protectionPlanRoutes()...)
 	routes = append(routes, statusRoutes()...)
@@ -87,8 +91,8 @@ func InitRoutes(optimizer *performance.Optimizer) []router.Route {
 
 func cleanupRoutes() []router.Route {
 	return []router.Route{
-		router.CreateRoute(base.Patch, cleanupendpoints.AddFinalizer, cleanuphandler.AddFinalizer),
-		router.CreateRoute(base.Patch, cleanupendpoints.RemoveFinalizer, cleanuphandler.RemoveFinalizer),
+		router.CreateRoute(base.Update, cleanupendpoints.AddFinalizer, cleanuphandler.AddFinalizer),
+		router.CreateRoute(base.Delete, cleanupendpoints.RemoveFinalizer, cleanuphandler.RemoveFinalizer),
 		router.CreateRoute(base.Get, cleanupendpoints.GetCleanupViewByID, cleanuphandler.GetCleanupViewByID),
 		router.CreateRoute(base.Get, cleanupendpoints.ListCleanupViews, cleanuphandler.ListCleanupViews),
 	}
@@ -111,20 +115,31 @@ func protectionPlanRoutes() []router.Route {
 	}
 }
 
+func reportRoutes() []router.Route {
+	return []router.Route{
+		router.CreateRoute(base.Post, reportsendpoints.CreatePlanReport, reportshandler.CreatePlanReport()),
+		router.CreateRoute(base.Get, reportsendpoints.ListReports, reportshandler.ListReports()),
+		router.CreateRoute(base.Get, reportsendpoints.ListPlanReports, reportshandler.ListPlanReports()),
+		router.CreateRoute(base.Get, reportsendpoints.DownloadPlanReport, reportshandler.DownloadPlanReport()),
+		router.CreateRoute(base.Update, reportsendpoints.PutPlanReportLedger, reportshandler.PutPlanReportLedger()),
+		router.CreateRoute(base.Get, reportsendpoints.GetPlanReportLedger, reportshandler.GetPlanReportLedger()),
+	}
+}
+
 func notificationRoutes() []router.Route {
 	return []router.Route{
 		router.CreateRoute(base.Post, notificationsendpoints.Emit, notificationhandler.Emit()),
 		router.CreateRoute(base.Get, notificationsendpoints.List, notificationhandler.List()),
-		router.CreateRoute(base.Patch, notificationsendpoints.MarkRead, notificationhandler.MarkRead()),
+		router.CreateRoute(base.Post, notificationsendpoints.MarkRead, notificationhandler.MarkRead()),
 		router.CreateRoute(base.Post, notificationsendpoints.MarkAllRead, notificationhandler.MarkAllRead()),
 		router.CreateRoute(base.Delete, notificationsendpoints.Clear, notificationhandler.Clear()),
 	}
 }
 
-func globalConfigRoutes() []router.Route {
+func configRoutes() []router.Route {
 	return []router.Route{
-		router.CreateRoute(base.Get, globalconfigendpoints.GetGlobalConfig, globalconfighandler.GetGlobalConfig()),
-		router.CreateRoute(base.Patch, globalconfigendpoints.PatchGlobalConfig, globalconfighandler.PatchGlobalConfig()),
+		router.CreateRoute(base.Get, configendpoints.GetConfig, confighandler.GetConfig()),
+		router.CreateRoute(base.Patch, configendpoints.PatchConfig, confighandler.PatchConfig()),
 	}
 }
 
@@ -132,7 +147,6 @@ func applicationRoutes(optimizer *performance.Optimizer) []router.Route {
 	return []router.Route{
 		router.CreateRoute(base.Post, applicationendpoints.CreateApplication,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				applicationhandler.CreateApplicationResourceWithCacheInvalidation(optimizer),
 				constants.ResourceApplication,
 				constants.OpCreate,
@@ -148,7 +162,6 @@ func applicationRoutes(optimizer *performance.Optimizer) []router.Route {
 			)),
 		router.CreateRoute(base.Get, applicationendpoints.GetRollbacks,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				applicationhandler.GetRollbacks(),
 				constants.ResourceApplication,
 				constants.OpGet,
@@ -156,7 +169,6 @@ func applicationRoutes(optimizer *performance.Optimizer) []router.Route {
 		),
 		router.CreateRoute(base.Get, applicationendpoints.GetRollback,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				applicationhandler.GetRollback(),
 				constants.ResourceApplication,
 				constants.OpGet,
@@ -172,7 +184,6 @@ func applicationRoutes(optimizer *performance.Optimizer) []router.Route {
 			)),
 		router.CreateRoute(base.Patch, applicationendpoints.PatchApplicationByName,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				applicationhandler.PatchApplicationResourceWithCacheInvalidation(optimizer),
 				constants.ResourceApplication,
 				constants.OpPatch,
@@ -180,7 +191,6 @@ func applicationRoutes(optimizer *performance.Optimizer) []router.Route {
 		),
 		router.CreateRoute(base.Delete, applicationendpoints.DeleteApplicationByName,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				applicationhandler.DeleteApplicationResourceWithCacheInvalidation(optimizer),
 				constants.ResourceApplication,
 				constants.OpDelete,
@@ -193,7 +203,6 @@ func userRoutes(optimizer *performance.Optimizer) []router.Route {
 	return []router.Route{
 		router.CreateRoute(base.Post, userendpoints.CreateUser,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				userhandler.CreateUserResourceWithCacheInvalidation(optimizer),
 				constants.ResourceUser,
 				constants.OpCreate,
@@ -203,7 +212,7 @@ func userRoutes(optimizer *performance.Optimizer) []router.Route {
 			performance.NewCachedListHandlerFunc(
 				optimizer,
 				userhandler.ListUserResourcesWithCacheInvalidation(),
-				cache.NewListCacheKeyFunc(optimizer, constants.ResourceUser),
+				exporterauthz.RestrictedKey(cache.NewListCacheKeyFunc(optimizer, constants.ResourceUser)),
 				constants.ResourceUser,
 				constants.OpList,
 			)),
@@ -217,7 +226,6 @@ func userRoutes(optimizer *performance.Optimizer) []router.Route {
 			userhandler.GetUserByIdentityWithCacheInvalidation()),
 		router.CreateRoute(base.Patch, userendpoints.PatchUserByID,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				userhandler.PatchUserByIDWithCacheInvalidation(optimizer),
 				constants.ResourceUser,
 				constants.OpPatch,
@@ -225,7 +233,6 @@ func userRoutes(optimizer *performance.Optimizer) []router.Route {
 		),
 		router.CreateRoute(base.Delete, userendpoints.DeleteUserByID,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				userhandler.DeleteUserByIDWithCacheInvalidation(optimizer),
 				constants.ResourceUser,
 				constants.OpDelete,
@@ -238,7 +245,6 @@ func groupRoutes(optimizer *performance.Optimizer) []router.Route {
 	return []router.Route{
 		router.CreateRoute(base.Post, groupendpoints.CreateGroup,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				grouphandler.CreateGroupResourceWithCacheInvalidation(optimizer),
 				constants.ResourceGroup,
 				constants.OpCreate,
@@ -248,7 +254,7 @@ func groupRoutes(optimizer *performance.Optimizer) []router.Route {
 			performance.NewCachedListHandlerFunc(
 				optimizer,
 				grouphandler.ListGroupResourcesWithCacheInvalidation(),
-				cache.NewListCacheKeyFunc(optimizer, constants.ResourceGroup),
+				exporterauthz.RestrictedKey(cache.NewListCacheKeyFunc(optimizer, constants.ResourceGroup)),
 				constants.ResourceGroup,
 				constants.OpList,
 			)),
@@ -256,13 +262,12 @@ func groupRoutes(optimizer *performance.Optimizer) []router.Route {
 			performance.NewCachedListHandlerFunc(
 				optimizer,
 				grouphandler.GetGroupByIDWithCacheInvalidation(),
-				cache.NewGetCacheKeyFunc(constants.ResourceGroup),
+				exporterauthz.RestrictedKey(cache.NewGetCacheKeyFunc(constants.ResourceGroup)),
 				constants.ResourceGroup,
 				constants.OpGet,
 			)),
 		router.CreateRoute(base.Patch, groupendpoints.PatchGroupByID,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				grouphandler.PatchGroupByIDWithCacheInvalidation(optimizer),
 				constants.ResourceGroup,
 				constants.OpPatch,
@@ -270,7 +275,6 @@ func groupRoutes(optimizer *performance.Optimizer) []router.Route {
 		),
 		router.CreateRoute(base.Delete, groupendpoints.DeleteGroupByID,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				grouphandler.DeleteGroupByIDWithCacheInvalidation(optimizer),
 				constants.ResourceGroup,
 				constants.OpDelete,
@@ -283,30 +287,34 @@ func sessionRoutes(optimizer *performance.Optimizer) []router.Route {
 	return []router.Route{
 		router.CreateRoute(base.Post, authendpoints.CreateSessionByUser,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				sessionhandler.CreateSessionByUserWithCacheInvalidation(optimizer),
 				constants.ResourceUserSession,
 				constants.OpCreate,
 			),
 		),
-		subjectListCachedRoute(optimizer, authendpoints.GetAllSessionsByUser,
-			sessionhandler.ListSessionsByUserWithCacheInvalidation(),
-			constants.ResourceUserSession,
-			cache.SubjectFromPathParam(constants.UserIDParam)),
-		router.CreateRoute(base.Get, authendpoints.GetSessionByToken,
-			sessionhandler.GetSessionByToken()),
-		router.CreateRoute(base.Patch, authendpoints.PatchSessionByToken,
+		// Uncached: a hit would be served before the handler's owner check runs.
+		router.CreateRoute(base.Get, authendpoints.GetAllSessionsByUser,
+			sessionhandler.ListSessionsByUserWithCacheInvalidation()),
+		router.CreateRoute(base.Get, authendpoints.GetSelfSession,
+			sessionhandler.GetSelfSession()),
+		router.CreateRoute(base.Patch, authendpoints.PatchSelfSession,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
-				sessionhandler.PatchSessionByTokenWithCacheInvalidation(optimizer),
+				sessionhandler.PatchSelfSessionWithCacheInvalidation(optimizer),
 				constants.ResourceUserSession,
 				constants.OpPatch,
 			),
 		),
-		router.CreateRoute(base.Delete, authendpoints.DeleteSessionByToken,
+		router.CreateRoute(base.Delete, authendpoints.DeleteSelfSession,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
-				sessionhandler.DeleteSessionByTokenWithCacheInvalidation(optimizer),
+				sessionhandler.DeleteSelfSessionWithCacheInvalidation(optimizer),
+				constants.ResourceUserSession,
+				constants.OpDelete,
+			),
+		),
+		// After the self route: mux takes the first match, and "self" also fits {name}.
+		router.CreateRoute(base.Delete, authendpoints.DeleteSessionByName,
+			performance.NewDynamicOptimizedHandlerFunc(
+				sessionhandler.DeleteSessionByNameWithCacheInvalidation(optimizer),
 				constants.ResourceUserSession,
 				constants.OpDelete,
 			),
@@ -318,7 +326,6 @@ func categoryRoutes(optimizer *performance.Optimizer) []router.Route {
 	return []router.Route{
 		router.CreateRoute(base.Post, categoryendpoints.CreateCategory,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				categoryhandler.CreateCategoryResourceWithCacheInvalidation(optimizer),
 				constants.ResourceCategory,
 				constants.OpCreate,
@@ -327,8 +334,8 @@ func categoryRoutes(optimizer *performance.Optimizer) []router.Route {
 		router.CreateRoute(base.Get, categoryendpoints.GetAllCategories,
 			performance.NewCachedListHandlerFunc(
 				optimizer,
-				categoryhandler.ListAllCategoriesWithCacheInvalidation(),
-				cache.NewListCacheKeyFunc(optimizer, constants.ResourceCategory),
+				categoryhandler.ListCategoriesWithCacheInvalidation(),
+				cache.NewQueryListCacheKeyFunc(optimizer, constants.ResourceCategory, categoryendpoints.QueryScope),
 				constants.ResourceCategory,
 				constants.OpList,
 			)),
@@ -340,17 +347,8 @@ func categoryRoutes(optimizer *performance.Optimizer) []router.Route {
 				constants.ResourceCategory,
 				constants.OpGet,
 			)),
-		router.CreateRoute(base.Get, categoryendpoints.GetCategoriesByScope,
-			performance.NewCachedListHandlerFunc(
-				optimizer,
-				categoryhandler.GetCategoriesByScopeWithCacheInvalidation(),
-				cache.NewGetCacheKeyFunc(constants.ResourceCategory),
-				constants.ResourceCategory,
-				constants.OpGet,
-			)),
 		router.CreateRoute(base.Patch, categoryendpoints.PatchCategoryByID,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				categoryhandler.PatchCategoryByIDWithCacheInvalidation(optimizer),
 				constants.ResourceCategory,
 				constants.OpPatch,
@@ -358,7 +356,6 @@ func categoryRoutes(optimizer *performance.Optimizer) []router.Route {
 		),
 		router.CreateRoute(base.Delete, categoryendpoints.DeleteCategoryByID,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				categoryhandler.DeleteCategoryByIDWithCacheInvalidation(optimizer),
 				constants.ResourceCategory,
 				constants.OpDelete,
@@ -369,7 +366,7 @@ func categoryRoutes(optimizer *performance.Optimizer) []router.Route {
 
 func roleQueryRoutes(optimizer *performance.Optimizer) []router.Route {
 	return []router.Route{
-		router.CreateRoute(base.Get, roleendpoints.GetAllRoles,
+		router.CreateRoute(base.Get, roleendpoints.GetAllAccessRoles,
 			performance.NewCachedListHandlerFunc(
 				optimizer,
 				rolehandler.ListRoleResourcesWithCacheInvalidation(),
@@ -377,7 +374,7 @@ func roleQueryRoutes(optimizer *performance.Optimizer) []router.Route {
 				constants.ResourceRole,
 				constants.OpList,
 			)),
-		router.CreateRoute(base.Get, roleendpoints.GetRoleByID,
+		router.CreateRoute(base.Get, roleendpoints.GetAccessRoleByID,
 			performance.NewCachedListHandlerFunc(
 				optimizer,
 				rolehandler.GetRoleByIDWithCacheInvalidation(),
@@ -385,55 +382,28 @@ func roleQueryRoutes(optimizer *performance.Optimizer) []router.Route {
 				constants.ResourceRole,
 				constants.OpGet,
 			)),
-		router.CreateRoute(base.Get, roleendpoints.GetRoleByUserID,
-			performance.NewCachedListHandlerFunc(
-				optimizer,
-				rolehandler.GetRoleByUserIDWithCacheInvalidation(),
-				cache.NewGetCacheKeyFunc(constants.ResourceRole),
-				constants.ResourceRole,
-				constants.OpGet,
-			)),
-		subjectListCachedRoute(optimizer, roleendpoints.GetRolesByUserID,
-			rolehandler.ListRolesByUserIDWithCacheInvalidation(),
-			constants.ResourceRole,
-			cache.SubjectFromPathParam(constants.UserIDParam)),
-		router.CreateRoute(base.Get, roleendpoints.GetRoleByGroupID,
-			performance.NewCachedListHandlerFunc(
-				optimizer,
-				rolehandler.GetRoleByGroupIDWithCacheInvalidation(),
-				cache.NewGetCacheKeyFunc(constants.ResourceRole),
-				constants.ResourceRole,
-				constants.OpGet,
-			)),
-		subjectListCachedRoute(optimizer, roleendpoints.GetRolesByGroupID,
-			rolehandler.ListRolesByGroupIDWithCacheInvalidation(),
-			constants.ResourceRole,
-			cache.SubjectFromPathParam(constants.GroupIDParam)),
 	}
 }
 
 func roleRoutes(optimizer *performance.Optimizer) []router.Route {
 	routes := roleQueryRoutes(optimizer)
 	return append(routes,
-		router.CreateRoute(base.Post, roleendpoints.CreateRole,
+		router.CreateRoute(base.Post, roleendpoints.CreateAccessRole,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				rolehandler.CreateRoleResourceWithCacheInvalidation(optimizer),
 				constants.ResourceRole,
 				constants.OpCreate,
 			),
 		),
-		router.CreateRoute(base.Patch, roleendpoints.PatchRoleByID,
+		router.CreateRoute(base.Patch, roleendpoints.PatchAccessRoleByID,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				rolehandler.PatchRoleByIDWithCacheInvalidation(optimizer),
 				constants.ResourceRole,
 				constants.OpPatch,
 			),
 		),
-		router.CreateRoute(base.Delete, roleendpoints.DeleteRoleByID,
+		router.CreateRoute(base.Delete, roleendpoints.DeleteAccessRoleByID,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				rolehandler.DeleteRoleByIDWithCacheInvalidation(optimizer),
 				constants.ResourceRole,
 				constants.OpDelete,
@@ -446,7 +416,6 @@ func passkeyRoutes(optimizer *performance.Optimizer) []router.Route {
 	return []router.Route{
 		router.CreateRoute(base.Post, authendpoints.CreateInternalPasskeyByUser,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				passkeyhandler.CreatePasskeyByUserWithCacheInvalidation(optimizer),
 				constants.ResourceUserPasskey,
 				constants.OpCreate,
@@ -460,7 +429,6 @@ func passkeyRoutes(optimizer *performance.Optimizer) []router.Route {
 			passkeyhandler.GetPasskeyByUserAndCredentialIDWithCacheInvalidation()),
 		router.CreateRoute(base.Patch, authendpoints.PatchInternalPasskeyByUserAndCredentialID,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				passkeyhandler.PatchPasskeyByUserAndCredentialIDWithCacheInvalidation(optimizer),
 				constants.ResourceUserPasskey,
 				constants.OpPatch,
@@ -468,7 +436,6 @@ func passkeyRoutes(optimizer *performance.Optimizer) []router.Route {
 		),
 		router.CreateRoute(base.Delete, authendpoints.DeleteInternalPasskeyByUserAndCredentialID,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				passkeyhandler.DeletePasskeyByUserAndCredentialIDWithCacheInvalidation(optimizer),
 				constants.ResourceUserPasskey,
 				constants.OpDelete,
@@ -477,11 +444,10 @@ func passkeyRoutes(optimizer *performance.Optimizer) []router.Route {
 	}
 }
 
-func snapshotRoutes(optimizer *performance.Optimizer) []router.Route {
+func snapshotRoutes() []router.Route {
 	return []router.Route{
 		router.CreateRoute(base.Post, snapshotendpoints.CreateSnapshot,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				snapshothandler.CreateSnapshot(),
 				constants.ResourceSnapshot,
 				constants.OpCreate,
@@ -489,7 +455,6 @@ func snapshotRoutes(optimizer *performance.Optimizer) []router.Route {
 		),
 		router.CreateRoute(base.Get, snapshotendpoints.GetSnapshot,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				snapshothandler.GetSnapshot(),
 				constants.ResourceSnapshot,
 				constants.OpGet,
@@ -497,7 +462,6 @@ func snapshotRoutes(optimizer *performance.Optimizer) []router.Route {
 		),
 		router.CreateRoute(base.Get, snapshotendpoints.GetSnapshotManifest,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				snapshothandler.GetSnapshotManifest(),
 				constants.ResourceSnapshot,
 				constants.OpGet,
@@ -505,7 +469,6 @@ func snapshotRoutes(optimizer *performance.Optimizer) []router.Route {
 		),
 		router.CreateRoute(base.Get, snapshotendpoints.GetSnapshotInfos,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				snapshothandler.GetSnapshotInfos(),
 				constants.ResourceSnapshot,
 				constants.OpGet,
@@ -513,7 +476,6 @@ func snapshotRoutes(optimizer *performance.Optimizer) []router.Route {
 		),
 		router.CreateRoute(base.Delete, snapshotendpoints.DeleteSnapshot,
 			performance.NewDynamicOptimizedHandlerFunc(
-				optimizer,
 				snapshothandler.DeleteSnapshot(),
 				constants.ResourceSnapshot,
 				constants.OpDelete,

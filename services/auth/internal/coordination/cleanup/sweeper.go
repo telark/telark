@@ -3,6 +3,7 @@ package cleanup
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/telark/auth/internal/config"
@@ -40,10 +41,36 @@ func (s *Sweeper) tick(parent context.Context) {
 		return
 	}
 	for _, v := range views {
-		if v == nil || !v.IsDeleting() || !v.HasFinalizer(ops.Finalizer) {
+		if v == nil {
 			continue
 		}
-		s.enqueue(parent, v.Name)
+		if v.IsDeleting() {
+			if v.HasFinalizer(ops.Finalizer) {
+				s.enqueue(parent, v.Name)
+			}
+			continue
+		}
+		// The uninstall hook strips finalizers so a full teardown never hangs; a reinstall
+		// that kept the data gets them back here.
+		if !v.HasFinalizer(ops.Finalizer) {
+			s.restoreFinalizer(parent, ops, v.Name)
+		}
+	}
+}
+
+func (s *Sweeper) restoreFinalizer(parent context.Context, ops cleanupctrl.ResourceOps, id string) {
+	ctx, cancel := context.WithTimeout(parent, s.cfg.PatchTimeout)
+	defer cancel()
+	status := constants.DefaultInitValue
+	if resp := ops.AddFinalizer(ctx, id, ops.Finalizer); resp != nil {
+		status = resp.Status
+	}
+	switch status {
+	case http.StatusOK:
+		lg.Info(fmt.Sprintf(string(constants.LogCleanupFinalizerRestored), s.resourceType, id))
+	case http.StatusNotFound:
+	default:
+		lg.Error(fmt.Sprintf(string(constants.ErrCleanupAddFinalizerFailed), s.resourceType, id, status))
 	}
 }
 

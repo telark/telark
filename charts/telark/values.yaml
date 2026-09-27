@@ -105,6 +105,8 @@ app:
     # true: admission never blocks while Kyverno is down, so enforce plans are best-effort.
     # Must equal kyverno.features.forceFailurePolicyIgnore.enabled (the render checks).
     failOpen: true
+  # Runs the uninstall hooks (stop auth + Kyverno, clear finalizers and webhooks); mirror it when air-gapped.
+  kubectlImage: registry.k8s.io/kubectl:v1.37.1@sha256:b7cab618e281b1ee7484e7b706a96e2135fbb6e072c2a573a7dab4e87d7f2385
   # Local model runtime for the analyzer; autoPull=false for air-gapped, see README.
   ollama:
     enabled: true
@@ -595,6 +597,7 @@ kyverno:
   features:
     forceFailurePolicyIgnore:
       enabled: true
+  # Broken as a subchart; templates/policies/kyverno-webhook-cleanup.yaml does its job.
   webhooksCleanup:
     enabled: false
   admissionController:

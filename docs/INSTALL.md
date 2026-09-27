@@ -450,7 +450,7 @@ helm uninstall telark -n telark
 
 # 4. Clear the cleanup finalizers, then delete the nine old CRDs and their objects
 for r in usersasresources.erpi.telark groupsasresources.erpi.telark rolesasresources.erpi.telark; do
-  kubectl get "$r" -n telark -o name | xargs -r -I{} kubectl patch {} -n telark --type merge -p '{"metadata":{"finalizers":null}}'
+  kubectl get "$r" -n telark -o name | xargs -r -P 16 -I{} kubectl patch {} -n telark --type merge -p '{"metadata":{"finalizers":null}}'
 done
 kubectl delete crd \
   applicationsasresources.erpi.telark protectionplans.erpi.telark globalconfigs.erpi.telark \
@@ -474,31 +474,26 @@ The admin then sends enroll links to the other passkey users and re-creates role
 helm uninstall telark -n telark
 ```
 
-This removes every telark service **and the exporter's snapshot and report PVCs** — back them up first if you need them. CRDs and custom resources are **not** removed (they carry `helm.sh/resource-policy: keep`), nor are the service-token and NATS Secrets, the redis/NATS volumes or the analyzer model volume (ollama), so a reinstall picks up where you left off.
+This removes every telark service, the bundled policy engine with its webhooks and plan policies (pre-delete hooks run `app.kubectlImage`, which air-gapped clusters must mirror), **and the exporter's snapshot and report PVCs** — back them up first if you need them. Your data stays: the CRDs and custom resources (users, roles, plans, …), the service-token, NATS and OIDC Secrets, the redis/NATS volumes and the analyzer model volume (ollama), so a reinstall picks up where you left off. Let in-progress rollbacks finish first.
 
-Before uninstalling, cancel active protection plans (so their admission policies are removed) and let in-progress rollbacks finish.
+With an external policy engine (`app.kyverno.enabled=false`), also remove the plan policies, which would otherwise keep enforcing:
+
+```sh
+kubectl delete policies.kyverno.io -A -l telark.io/protection-plan
+```
 
 ### Full teardown
 
-Run after `helm uninstall`, **in this order**. Deleting the CRDs or namespace first hangs in `Terminating`: users, groups and roles carry `telark.io/*-cleanup` finalizers that only the (now removed) auth service clears. Those finalizers only tidy references between telark resources, which this teardown deletes anyway, so clearing them is safe.
+To also delete all telark data, run after `helm uninstall` (about 15 seconds):
 
 ```sh
-# 1. Clear the cleanup finalizers
-for crd in $(kubectl get crd -l app.kubernetes.io/part-of=telark -o name | cut -d/ -f2); do
-  kubectl get "$crd" -A -o jsonpath='{range .items[*]}{.metadata.namespace} {.metadata.name}{"\n"}{end}' |
-    while read -r ns name; do
-      kubectl patch "$crd" "$name" -n "$ns" --type merge -p '{"metadata":{"finalizers":null}}'
-    done
-done
-
-# 2. Delete the CRDs — this deletes every telark custom resource
 kubectl delete crd -l app.kubernetes.io/part-of=telark
-
-# 3. Only with an external policy engine (app.kyverno.enabled=false): leftover plan policies
-kubectl delete policies.kyverno.io -A -l telark.io/protection-plan
-
-# 4. Remaining volumes and the kept Secrets
 kubectl delete namespace telark
 ```
 
-Already stuck in `Terminating`? Run step 1; the pending deletions complete on their own.
+`helm uninstall` already cleared the cleanup finalizers on users, groups and roles; a reinstall that keeps the data restores them within a minute. If the uninstall ran with `--no-hooks` and the deletions hang in `Terminating`, clear them by hand and they finish on their own:
+
+```sh
+kubectl get users.telark.io,groups.telark.io,accessroles.telark.io -n telark -o name |
+  xargs -r -P 16 -I{} kubectl patch -n telark {} --type merge -p '{"metadata":{"finalizers":null}}'
+```

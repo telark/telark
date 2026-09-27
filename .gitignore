@@ -15,6 +15,7 @@ charts/releases/
 charts/*/charts
 
 # Local AI-agent working notes (plans, TDD evidence)
+.claude
 
 # Local-only workspace overlay (machine-specific paths; CI uses the pinned versions)
 go.work.local

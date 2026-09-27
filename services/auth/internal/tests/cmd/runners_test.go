@@ -3,14 +3,18 @@ package cmd
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/telark/auth/internal/cmd/backfill"
 	"github.com/telark/auth/internal/cmd/breakglass"
+	"github.com/telark/auth/internal/cmd/uninstall"
 	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
+	cleanupctrl "github.com/telark/auth/internal/controllers/cleanup"
 	authhelper "github.com/telark/auth/internal/helpers/auth"
 	"github.com/telark/auth/internal/tests/testutil"
+	"github.com/telark/data/resources/finalizers"
 	userresource "github.com/telark/data/resources/user"
 )
 
@@ -94,5 +98,32 @@ func TestBreakGlassEnrollCreatesAdmin(t *testing.T) {
 	testutil.Equal(t, "exit with --enroll", breakglass.Run([]string{"--email", email, "--enroll"}), constants.DefaultInitValue)
 	if created == nil || !created.Bootstrap || !authhelper.HasAdminRole(created.RoleRefs) {
 		t.Fatalf("created = %+v, want Admin with the bootstrap marker", created)
+	}
+}
+
+// remove-finalizers clears the cleanup finalizer from every resource that carries
+// it, for each registered type, and skips the ones without it.
+func TestRemoveFinalizers(t *testing.T) {
+	views := []map[string]any{
+		{"name": "held", "finalizers": []string{finalizers.UserCleanup, finalizers.GroupCleanup, finalizers.RoleCleanup}},
+		{"name": "free"},
+	}
+	var removed []string
+	testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"items": views}})
+			return
+		}
+		removed = append(removed, r.Method+" "+r.URL.Path)
+		_, _ = w.Write([]byte(`{"status":200}`))
+	}))
+
+	uninstall.RemoveFinalizers(constants.GetLogger(constants.LoggerPrefixCleanup))
+
+	testutil.Equal(t, "removals", len(removed), len(cleanupctrl.RegisteredResourceTypes()))
+	for _, call := range removed {
+		if !strings.HasPrefix(call, http.MethodDelete) || !strings.Contains(call, "held") {
+			t.Fatalf("unexpected call %q", call)
+		}
 	}
 }

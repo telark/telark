@@ -60,6 +60,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | `app.image.registry` | `ghcr.io/telark` | Registry and namespace hosting the per-service repos |
 | `app.image.pullPolicy` | `Always` | Image pull policy for every service container |
 | `app.image.pullSecrets` | `[]` | Pull secrets (public images need none; set for a private registry) |
+| `app.kubectlImage` | `registry.k8s.io/kubectl:v1.37.1@sha256:…` | kubectl image of the uninstall hooks that stop auth and Kyverno and clear their finalizers and webhooks ([Uninstall](../../docs/INSTALL.md#uninstall)); mirror it for air-gapped installs |
 | `app.kyverno.enabled` | `true` | Install kyverno subchart |
 | `app.kyverno.failOpen` | `true` | Kyverno webhooks fail open (`failurePolicy: Ignore`), so enforce plans are best-effort while Kyverno is down. Must equal `kyverno.features.forceFailurePolicyIgnore.enabled`; the render fails otherwise. See [Policy engine fail-open](../../docs/INSTALL.md#policy-engine-fail-open) |
 | `app.crdGuard.enabled` / `enforce` | `true` / `true` | ValidatingAdmissionPolicy: only the owning service accounts may write telark CRs (`telark.io`, including `/status`), and only the exporter may change the key in the OIDC trust Secret (`enforce: false` audits). See [CRD write guard](../../docs/INSTALL.md#crd-write-guard) |

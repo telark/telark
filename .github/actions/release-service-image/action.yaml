@@ -5,7 +5,7 @@ inputs:
     description: 'Name of the service (the key under .services in the chart values)'
     required: true
   build_type:
-    description: 'Type of version bump (patch, minor, major, re-build-current)'
+    description: 'Type of version bump (patch, minor, major)'
     required: true
   values_file:
     description: 'Path to the Helm values.yaml file'

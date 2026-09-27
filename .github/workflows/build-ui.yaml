@@ -28,7 +28,6 @@ on:
         type: choice
         description: Service Build Type
         options:
-          - re-build-current
           - patch
           - minor
           - major

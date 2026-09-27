@@ -1,28 +1,19 @@
 # rest
 
-HTTP toolkit for service-to-service REST in the [telark](https://telark.io) platform. Typed clients, a server harness, routing, and response envelopes — so services call each other the same way everywhere.
+The HTTP layer shared by the [Telark](https://github.com/telark/telark) services: endpoint definitions for the `/api/v1` API, typed clients for service-to-service calls, the router and the response envelope.
 
-## Packages
-
-| Package | What it provides |
-|---|---|
-| `clients` | Typed clients for calling other telark services |
-| `endpoints` | Endpoint path definitions |
-| `base` | Service base URLs |
-| `router` | Route registration |
-| `handlers` | Handler helpers |
-| `response` | Typed response envelopes (e.g. `GenericResponse`) |
-| `mappers` | DTO / model mapping |
-| `server` | Server lifecycle (signal handling, listen loop) |
-| `connectivity` | Health and reachability checks |
-| `utils` | Shared helpers |
-| `constants` | Shared constants |
-
-## Install
+This is an internal library of the Telark services. It is public so the services build from the Go module proxy; its API follows Telark's releases and is not versioned for outside use.
 
 ```sh
-export GOPRIVATE=github.com/telark/*   # private until public release
 go get github.com/telark/rest
 ```
 
-Depends on [`data`](https://github.com/telark/data); consumed by the telark services.
+| Package | Contents |
+|---|---|
+| `endpoints` | Every route path and request/response type, one package per resource (`applications`, `protectionplans` in `plans`, `users`, `groups`, `accessroles`, `categories`, `config`, `reports`, `snapshots`, `notifications`, `cluster`, `insights`, `auth`, `cleanup`, `status`) |
+| `clients` | Typed clients for the same resources, with the service token attached, path parameters escaped and redirects refused |
+| `router` | Route registration and the method-plus-path key the authorization layer uses |
+| `response`, `handlers`, `mappers`, `utils` | Response envelope, handler helpers, payload mapping, request parsing with a 1 MiB body cap |
+| `server`, `connectivity`, `base`, `constants` | Server lifecycle, peer readiness, service base URLs, constants |
+
+Depends on [`data`](https://github.com/telark/data).

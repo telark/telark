@@ -1,28 +1,22 @@
 # data
 
-Shared domain types and models for the [telark](https://telark.io) platform. The single source of truth for the data shapes exchanged between services — CRDs, protection plans, insights, auth, and errors.
+The shared data model of [Telark](https://github.com/telark/telark): the Go types behind every `telark.io/v1alpha1` custom resource, the protection-plan model, the Kyverno policy templates, and the constants and errors the services agree on.
 
-## Packages
-
-| Package | What it holds |
-|---|---|
-| `resources` | Application / Group / Role / User custom-resource types |
-| `plans` | Protection-plan types and lifecycle states |
-| `classification` | Classification / category types |
-| `insights` | AI insight types — grounded signals, risks, suggestions |
-| `auth` | Passkey, session, and OIDC models |
-| `messages` | Event and message payloads |
-| `metadata` | Shared metadata types |
-| `policies` | Policy-model types |
-| `errors` | `errors.Error` — a string-typed error for constant error values |
-| `logger` | Logging helpers |
-| `constants` | Shared constants |
-
-## Install
+This is an internal library of the Telark services. It is public so the services build from the Go module proxy; its API follows Telark's releases and is not versioned for outside use.
 
 ```sh
-export GOPRIVATE=github.com/telark/*   # private until public release
 go get github.com/telark/data
 ```
 
-Consumed by the telark services and the other shared packages (`rest`, `x-ware`, `kcore`).
+| Package | Contents |
+|---|---|
+| `metadata/v1alpha1` | Group, version, kind, plural and status projection of the nine CRDs |
+| `resources` | `Application`, `User`, `Group`, `AccessRole`, `TelarkConfig` and finalizers |
+| `plans` | `ProtectionPlan`, phases, approval and scope |
+| `policies` | Policy templates rendered into namespaced Kyverno `Policy` objects, plus their labels |
+| `classification` | `Category` (environments, tags, group and role categories) |
+| `auth` | `Passkey`, `Session`, session naming |
+| `insights` | Insight and recommendation documents written by the analyzer |
+| `messages`, `errors`, `logger`, `constants`, `shared` | Event payloads, typed errors, logging and shared constants such as `Condition` |
+
+Used by [`rest`](https://github.com/telark/rest), [`kcore`](https://github.com/telark/kcore), [`x-ware`](https://github.com/telark/x-ware) and the Telark services.

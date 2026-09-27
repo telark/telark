@@ -45,7 +45,7 @@ Kubernetes: `>=1.30.0-0`
 | app.crdGuard.extraAllowedUsers | list | `[]` |  |
 | app.image.pullPolicy | string | `"Always"` |  |
 | app.image.pullSecrets | list | `[]` |  |
-| app.image.registry | string | `"telark"` |  |
+| app.image.registry | string | `"ghcr.io/telark"` |  |
 | app.kyverno.enabled | bool | `true` |  |
 | app.kyverno.failOpen | bool | `true` |  |
 | app.mode | string | `"standard"` |  |
@@ -233,6 +233,7 @@ Kubernetes: `>=1.30.0-0`
 | ollama.securityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | redis.architecture | string | `"standalone"` |  |
 | redis.auth.enabled | bool | `false` |  |
+| redis.image.digest | string | `"sha256:33a5a129cadcc5dfa294e5a1fe622efcbe3774a8b85c731ac14d0532877b7d16"` |  |
 | redis.master.persistence.enabled | bool | `true` |  |
 | redis.master.persistence.size | string | `"4Gi"` |  |
 | redis.master.resources.limits.cpu | string | `"150m"` |  |

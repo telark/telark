@@ -19,7 +19,7 @@ Deploy only when the user asked for it or started a redeploy loop. Inside that l
   kubectl -n telark get deploy telark-<name> -o jsonpath='{.spec.template.spec.containers[0].image}'
   ```
 
-  `<name>` is `services.<svc>.name` (for example `discovery-service`). If the tags differ, the branch lags main's version bumps and the deploy would silently change nothing. Ask; don't merge or rebase.
+  `<name>` is `services.<svc>.name` (for example `discovery-service`). If the tags differ, the branch lags main's version bumps and the deploy would silently change nothing. Ask; don't merge or rebase. If only the registry differs from `app.image.registry`, upgrade the chart from the checkout (below) before restarting, or the restart re-pulls the old image.
 - **Cluster.** `kubectl config current-context` and `kubectl get nodes`. If the cluster is unreachable, ask the user whether it's up. Capacity and node changes go through the infra repository, never through `aws` or `eksctl` against the cluster.
 
 ## Go services
@@ -30,7 +30,7 @@ scripts/local-build-push.sh discovery exporter   # names or numbers; -s detects 
 
 - Builds each service from its own Dockerfile, pushes `<app.image.registry>/<repository>:<version>` and restarts the deployment. `-l` only builds, `-n` skips the restart. Per-service logs go to a temporary directory the script prints.
 - When a local checkout of a shared module (`../internal/<module>`, or `INTERNAL_DIR`) differs from the version a service pins, the script swaps it in inside a temporary build context, so unreleased shared-module changes ship without touching `go.mod`.
-- Needs a running Docker daemon logged in to the registry, plus `yq`, `kubectl`, `go`, `rsync` and `git`.
+- Needs a running Docker daemon logged in to `ghcr.io` (`docker login ghcr.io` with a classic PAT that has `write:packages`), plus `yq`, `kubectl`, `go`, `rsync` and `git`.
 
 ## Analyzer (services/analyzer)
 

@@ -38,11 +38,12 @@ spec:
   matchConstraints:
     resourceRules:
       # The named group only. A wildcard here would put every resource in the
-      # cluster behind this allow list. "*" skips subresources, so "*/*" covers /status.
+      # cluster behind this allow list. "*/*" covers resources and /status; the API
+      # server rejects "*" next to it.
       - apiGroups:
           - {{ include "telark.apiGroup" $ }}
         apiVersions: ["*"]
-        resources: ["*", "*/*"]
+        resources: ["*/*"]
         operations: ["CREATE", "UPDATE", "DELETE"]
   variables:
     # Quoted: every expression here is CEL source, and unquoted these would parse
@@ -53,9 +54,10 @@ spec:
       expression: {{ toJson $ownersApplications | squote }}
     # The allow list narrows to the resource being written, so admitting discovery
     # for application status does not admit it for specs, sessions, passkeys or roles.
+    # subResource is absent on plain writes, so it needs has().
     - name: allowed
       expression: >-
-        request.resource.resource == 'applications' && request.subResource == 'status'
+        request.resource.resource == 'applications' && has(request.subResource) && request.subResource == 'status'
         ? variables.ownersApplications : variables.ownersAll
   validations:
     # userInfo is set by the API server from the authenticated request, so it is

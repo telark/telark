@@ -78,8 +78,8 @@ app:
 
   # Container images. Full ref per service: <registry>/<service.repository>:<service.version>.
   image:
-    # Docker Hub namespace (account/org) that hosts the per-service repos.
-    registry: "telark"
+    # Registry and namespace (GHCR org) that host the per-service repos.
+    registry: "ghcr.io/telark"
     pullPolicy: "Always"        # re-build-current re-pulls the same tag, so never IfNotPresent
     # Public images pull anonymously. Add pull secrets here (or via
     # global.imagePullSecrets) only for a private registry/mirror.
@@ -215,7 +215,7 @@ services:
     name: "exporter-service"
     repository: "exporter"
     # @ignore
-    version: 4.1.0
+    version: 2.1.0
     category: "export"
     # Two replicas share the snapshot volume, so the chart derives the rest:
     # replicas > 1 → RollingUpdate + ReadWriteMany (needs app.persistence.storageClass
@@ -431,7 +431,7 @@ services:
     name: "ui-service"
     repository: "ui"
     # @ignore
-    version: 1.0.0
+    version: v0.2.2
     category: "ui"
     terminationGracePeriodSec: 30
     # Static assets behind nginx: it serves no /api/v1/status route, so probes
@@ -471,6 +471,9 @@ services:
 
 redis:
   architecture: standalone
+  # Bitnami publishes only :latest for free, so the digest pins one build of it.
+  image:
+    digest: sha256:33a5a129cadcc5dfa294e5a1fe622efcbe3774a8b85c731ac14d0532877b7d16
   auth:
     enabled: false
   # Redis runs without auth, so the network is the only boundary: ingress is

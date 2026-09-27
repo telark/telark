@@ -12,9 +12,9 @@ inputs:
     description: 'Tag for the Docker image'
     required: true
   container_registry_name:
-    description: 'Container registry namespace (Docker Hub account/org)'
+    description: 'Container registry and namespace (e.g. ghcr.io/telark)'
     required: true
-    default: 'telark'
+    default: 'ghcr.io/telark'
   container_registry_repo_name:
     description: 'Per-service image repository name (e.g. exporter)'
     required: true

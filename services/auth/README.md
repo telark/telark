@@ -97,7 +97,7 @@ exporter's `internal/auth/*` routes.
 
 ```sh
 go build ./...
-docker build -t telark/auth:<version> .
+docker build -t ghcr.io/telark/auth:<version> .
 ```
 
 Runs in-cluster via the [telark chart](../../charts/telark); see [INSTALL](../../docs/INSTALL.md)

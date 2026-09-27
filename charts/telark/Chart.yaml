@@ -27,8 +27,8 @@ dependencies:
   # ref. resource-policy:keep on each CRD means they survive uninstall. GitOps that
   # pre-applies CRDs sets crds.enabled=false.
   - name: telark-crds
-    version: ">= 0.0.0"
-    repository: "file://../telark-crds"
+    version: "0.0.1"
+    repository: "oci://ghcr.io/telark/charts"
     condition: crds.enabled
   - name: redis
     version: 23.0.10

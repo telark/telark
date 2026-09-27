@@ -1,25 +1,21 @@
 # kcore
 
-Kubernetes building blocks for the [telark](https://telark.io) platform. Dynamic informers, CRD helpers, metrics, and health — the k8s plumbing services share instead of re-implementing.
+Kubernetes building blocks shared by the [Telark](https://github.com/telark/telark) services: client setup, dynamic informers, custom-resource reads and writes (including the status subresource), manifests for snapshots and rollback, and metrics.
 
-## Packages
-
-| Package | What it provides |
-|---|---|
-| `informers` | Dynamic informers for watching and reacting to k8s resources |
-| `crds` | Custom-resource helpers and utilities |
-| `resources` | Resource adapters and typed access |
-| `metrics` | Metrics collection over the k8s metrics APIs |
-| `health` | Health and reachability checks |
-| `manifest` | Manifest parsing and helpers |
-| `shared` | Shared helpers |
-| `constants` | Constants and formatting helpers |
-
-## Install
+This is an internal library of the Telark services. It is public so the services build from the Go module proxy; its API follows Telark's releases and is not versioned for outside use.
 
 ```sh
-export GOPRIVATE=github.com/telark/*   # private until public release
 go get github.com/telark/kcore
 ```
 
-Consumed by the telark services (notably `discovery` and `exporter`).
+| Package | Contents |
+|---|---|
+| `k8sclient` | In-cluster clients with rate limits |
+| `informers` | Dynamic informers and listers |
+| `crds` | Custom-resource CRUD, status subresource writes, and `view` (API view of a CR: spec, projected status, `id` from `metadata.name`) |
+| `manifest` | Fetch and clean manifests for snapshots and rollback |
+| `resources`, `ops` | Typed access to core Kubernetes resources and write operations |
+| `metrics` | Pod metrics from metrics-server |
+| `resilience`, `health`, `shared`, `constants` | Retries, worker pools, health checks, helpers |
+
+Depends on [`data`](https://github.com/telark/data).

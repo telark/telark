@@ -1,6 +1,6 @@
 # Testing and validation
 
-How to build, test and validate telark from a fresh clone, locally or in a Claude Code cloud session. `.github/workflows/ci.yaml` is the merge gate and the source of truth for versions, test lists and coverage floors; when this page and CI disagree, CI wins.
+How to build, test and validate Telark from a fresh clone, locally or in a Claude Code cloud session. `.github/workflows/ci.yaml` is the merge gate and the source of truth for versions, test lists and coverage floors; when this page and CI disagree, CI wins.
 
 ## What runs where
 

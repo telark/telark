@@ -1,18 +1,18 @@
 # telark-crds
 
-Custom resource definitions for [telark](https://telark.io). These ship **with** the `telark` chart as a subchart, so a normal `helm install telark` already includes them. Install this chart on its own only when managing CRDs out of band (e.g. GitOps, with `--set crds.enabled=false` on the app).
+Custom resource definitions for [Telark](https://telark.io), change control for Kubernetes applications. The `telark` chart already bundles this chart as a subchart, so a normal `helm install telark` includes the CRDs. Install it on its own only when you manage CRDs out of band, for example with GitOps, and set `crds.enabled=false` on the `telark` chart.
 
-CRDs are cluster-scoped and carry `helm.sh/resource-policy: keep`, so they survive an uninstall of this release — removing them is the [full teardown](https://github.com/telark/telark/blob/main/docs/INSTALL.md#full-teardown). The `telark` chart reconciles the resources these definitions describe.
+The CRDs carry `helm.sh/resource-policy: keep`, so they survive an uninstall. Removing them is part of the [full teardown](https://github.com/telark/telark/blob/main/docs/INSTALL.md#full-teardown). Field-level reference: [CRD reference](https://github.com/telark/telark/blob/main/docs/CRDS.md).
 
 ## Standalone install
 
-Only needed when the app is installed with `crds.enabled=false`. From the registry (uses the chart defaults, `app.name: telark`):
+From the registry, with the chart defaults (`app.name: telark`):
 
 ```sh
 helm install telark-crds oci://ghcr.io/telark/charts/telark-crds
 ```
 
-Pulls the latest published version. Override to match a customized app release: `--set app.name=<name> --set app.namespace=<ns>` (the API group stays `telark.io`). From a checkout, `./charts/telark-crds` works in place of the OCI ref.
+This pulls the latest published version. To match a customized app release, pass `--set app.name=<name> --set app.namespace=<ns>` (the API group stays `telark.io`). From a checkout, `./charts/telark-crds` works in place of the OCI ref.
 
 ## Values
 

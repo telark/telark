@@ -1,6 +1,6 @@
 apiVersion: v2
 name: telark
-description: A protection gate for your Kubernetes workloads — discover your applications, then decide what can change them, and when
+description: Change control for Kubernetes applications. Freeze the apps that matter while you ship, see every change that reached them, and find out why one broke.
 type: application
 version: 0.0.1
 appVersion: "1.0"

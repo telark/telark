@@ -1,17 +1,38 @@
-# telark docs
+# Telark documentation
 
-- [Architecture](architecture.md) — services, data flow, subcharts.
-  - [Components and flows](architecture/README.md) — call graph, Redis/NATS, startup, cross-service flows.
-  - [Protection plans](architecture/protection-plans.md) — lifecycle, Kyverno policies, violations, reports.
-- [Security model](security/README.md) — authentication, authorization, RBAC, trust boundaries, invariants.
-- [Testing and validation](testing/README.md) — tool versions, build and test commands, CI parity, cluster checks.
-- [Development](DEVELOPMENT.md) — make targets.
-- [Install guide](INSTALL.md) — prerequisites, CRDs, app, sizing modes, verification.
-- [CRD reference](CRDS.md) — custom resource groups and kinds.
-- [Architecture decisions](adr/) — ADRs.
-- [Publishing](PUBLISHING.md) — package, push, sign, and register the Helm charts (OCI / GHCR).
+Telark is change control for Kubernetes applications. Pick the section that matches what you need.
 
-Service deep dives:
+## Get started
 
-- [Analyzer architecture](../services/analyzer/ARCHITECTURE.md) — AI insights pipeline.
-- [OIDC / SSO architecture](../services/auth/OIDC.md) — Google SSO admin config and login flow.
+- [Getting started](getting-started.md): install, sign in, protect a first application and see a violation, in about 10 minutes.
+
+## Concepts
+
+- [Concepts](concepts.md): applications, protection plans, change history and rollback, Insights, and access control.
+
+## Install and configure
+
+- [Install and configure](INSTALL.md): prerequisites, sizing modes, exposing the dashboard, first admin, networking, GitOps, upgrades and uninstall.
+- [Chart README](../charts/telark/README.md): chart values explained, analyzer runtime profiles and air-gapped models.
+- [CRD chart](../charts/telark-crds/README.md): installing the CRDs on their own.
+- [Login and SSO](../services/auth/OIDC.md): turning on Google sign-in.
+
+## Reference
+
+- [Chart values](../charts/telark/VALUES.md): every value, generated from `values.yaml`.
+- [Custom resources](CRDS.md): the `telark.io/v1alpha1` kinds, fields, labels and finalizers.
+- [Security policy](../SECURITY.md): reporting vulnerabilities, supported versions, hardening notes.
+
+## Internals
+
+For contributors and reviewers.
+
+- [Architecture](architecture.md): services, data flow and subcharts on one page.
+  - [Components and flows](architecture/README.md): call graph, Redis and NATS usage, startup and cross-service flows.
+  - [Protection plans](architecture/protection-plans.md): lifecycle, Kyverno policies, health, violations and reports.
+- [Security model](security/README.md): authentication, authorization, RBAC, trust boundaries and invariants.
+- [Architecture decisions](adr/): ADRs.
+- [Testing and validation](testing/README.md): tool versions, build and test commands, CI parity and cluster checks.
+- [Development](DEVELOPMENT.md): make targets.
+- [Publishing](PUBLISHING.md): packaging, signing and pushing the Helm charts.
+- Service READMEs: [discovery](../services/discovery/README.md), [exporter](../services/exporter/README.md), [auth](../services/auth/README.md), [notifier](../services/notifier/README.md), [analyzer](../services/analyzer/README.md) and [how the analyzer works](../services/analyzer/ARCHITECTURE.md).

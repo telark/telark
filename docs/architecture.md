@@ -1,6 +1,6 @@
 # Architecture
 
-telark is a control plane for **protection plans** over Kubernetes workloads: discover applications, bind policy templates to a scope and a window, decide what may change them at admission, and verify the running state against the cluster.
+Telark is change control for Kubernetes applications. It discovers applications, binds protection plans (policy templates, a scope and a time window) to them, decides at admission what may change them, verifies the result against the live cluster, and records every change with rollback. This page is the one-page overview; [Components and flows](architecture/README.md) has the detail.
 
 ## System
 
@@ -78,9 +78,9 @@ Each service's own README carries a focused diagram of its internals: [auth](../
 |---|---|---|
 | `exporter` | Go | Owns the CRDs and storage; seeds built-in resources; stores workload snapshots and plan reports on its volumes. The only stateful service. |
 | `discovery` | Go | Groups workloads into applications; runs the leader-elected reconcile loop; drives protection-plan lifecycle, approvals and reports. |
-| `analyzer` | Python / FastAPI | Local analyzer: investigates incidents with a local model over read-only cluster tools; writes findings to Redis; streams updates to the UI (SSE). |
+| `analyzer` | Python / FastAPI | Insights: explains incidents and reviews each app's setup with deterministic rules over read-only cluster reads; a local model rewrites incident wording; writes findings to Redis and streams updates to the UI (SSE). |
 | `auth` | Go | Passkey (WebAuthn) + Google OIDC login; session and role reconciliation. |
-| `notifier` | Go | Consumes discovery's application events from NATS and upserts the `Application` CRs through `exporter`. |
+| `notifier` | Go | Consumes discovery's application events from NATS and upserts the `Application` CRs through `exporter`; on a delete, calls discovery's application reset. |
 | `ui` | — | Dashboard SPA (separate repo; the chart ships only the image reference). |
 
 ## Shared infrastructure (subcharts)
@@ -97,7 +97,7 @@ Each service's own README carries a focused diagram of its internals: [auth](../
 
 ## Identity
 
-Every telark CRD is in the constant API group `telark.io` (version `v1alpha1`), and labels, annotations and finalizers use the `telark.io/` domain. `app.name` (default `telark`) only prefixes object names in both charts. See [ADR 0003](adr/0003-constant-api-group-telark-io.md) and the [CRD reference](CRDS.md).
+Every Telark CRD is in the constant API group `telark.io` (version `v1alpha1`), and labels, annotations and finalizers use the `telark.io/` domain. `app.name` (default `telark`) only prefixes object names in both charts. See [ADR 0003](adr/0003-constant-api-group-telark-io.md) and the [CRD reference](CRDS.md).
 
 ## Deeper references
 

@@ -1,6 +1,6 @@
 # Governance
 
-How telark is run and how you move up the contributor ladder. Modeled on the
+How Telark is run and how you move up the contributor ladder. Modeled on the
 [CNCF contributor ladder](https://github.com/cncf/project-template/blob/main/CONTRIBUTOR_LADDER.md).
 All participation is bound by the [Code of Conduct](CODE_OF_CONDUCT.md).
 
@@ -10,8 +10,8 @@ They can be changed by maintainer consensus (see *Changing this document*).
 ## Roles
 
 ### Contributor
-Anyone who opens an issue, comments, reviews, or sends a pull request. No approval
-needed — just follow [CONTRIBUTING.md](CONTRIBUTING.md).
+Anyone who opens an issue, comments, reviews or sends a pull request. No approval
+is needed; follow [CONTRIBUTING.md](CONTRIBUTING.md).
 
 - **Rights:** open issues/PRs, comment, review (non-binding).
 - **Expectations:** follow the Code of Conduct and the conventions in
@@ -25,7 +25,7 @@ Trusted to give meaningful review on a defined area (a `CODEOWNERS` subtree, e.g
   - **≥ 8 merged, non-trivial PRs** to that area, over **≥ 2 months** of activity.
   - Demonstrated understanding of the area in review comments and PRs.
   - Nominated by a Maintainer via a PR adding them to `CODEOWNERS`.
-- **Approval:** lazy consensus of Maintainers — merged if no Maintainer objects
+- **Approval:** lazy consensus of Maintainers: merged if no Maintainer objects
   within **5 business days**.
 - **Rights:** listed in `CODEOWNERS` for the area; their review counts toward the
   approval a PR needs. Cannot merge.
@@ -78,6 +78,6 @@ Amendments are PRs to `GOVERNANCE.md` and require majority approval of Maintaine
 
 | Name | GitHub | Areas |
 |---|---|---|
-| telark | [@hourki](https://github.com/hourki) | all (`CODEOWNERS`) — founding maintainer |
+| telark | [@hourki](https://github.com/hourki) | all (`CODEOWNERS`), founding maintainer |
 
 *Emeritus:* none.

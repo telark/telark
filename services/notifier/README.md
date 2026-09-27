@@ -1,11 +1,10 @@
 # notifier service
 
-The event-driven reconciler for application state. Notifier subscribes to the
-`telark.applications.*` NATS JetStream and persists each event to the
-`Application` CR (`applications.telark.io`) **through exporter's REST API** (upsert on update). A delete
-calls **discovery's application reset**, which clears the app's Redis state and deletes
-the CR and its snapshot files through exporter. This decouples discovery (which only
-publishes) from the single CR writer (exporter), so application identity stays
+The notifier service keeps the `Application` CRs in step with what discovery sees. It consumes
+the `telark.applications.*` events discovery publishes on NATS JetStream and upserts the
+`Application` CR (`applications.telark.io`) through exporter's REST API. A delete calls
+discovery's application reset, which clears the app's Redis state and deletes the CR and its
+snapshot files through exporter. Discovery only publishes and exporter does the writes, so application identity stays
 consistent under load.
 
 ## Architecture
@@ -65,7 +64,7 @@ flowchart LR
 
 - **Internal modules:** `data` (Application types, messages), `rest` (applications client for exporter and discovery, router, server), `x-ware` (NATS core/streams, Redis).
 - **Infrastructure:** NATS JetStream (subscribe), Redis (connectivity heartbeat).
-- **Peers:** publishes nothing; consumes from **discovery** (via NATS), writes through **exporter** and resets deleted applications through **discovery** (via REST). No `kcore` — notifier never touches the K8s API directly.
+- **Peers:** publishes nothing; consumes from **discovery** (via NATS), writes through **exporter** and resets deleted applications through **discovery** (via REST). No `kcore`: notifier never touches the K8s API directly.
 
 ## Configuration
 
@@ -75,7 +74,7 @@ has no service-specific env; it inherits `app.shared.redis` and, when
 
 ## API
 
-No REST business API. The status server serves `/api/v1/status/{live,ready}` — readiness
+No REST business API. The status server serves `/api/v1/status/{live,ready}`; readiness
 returns healthy only while the NATS subscriber is connected.
 
 ## Build & run

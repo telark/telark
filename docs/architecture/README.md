@@ -6,7 +6,7 @@ How the services depend on each other and how data and control move between them
 
 | Component | Runtime | State it owns | Calls |
 |---|---|---|---|
-| exporter | Go | every telark CR (through the Kubernetes API), snapshot and report volumes, in-app notifications and the authz cache in Redis | Kubernetes API only; no other service |
+| exporter | Go | every Telark CR (through the Kubernetes API), snapshot and report volumes, in-app notifications and the authz cache in Redis | Kubernetes API only; no other service |
 | discovery | Go | Redis coordination keys, insights row index (in memory) | exporter; Kubernetes API (informers, rollback writes, Kyverno policies); NATS publish; Redis |
 | auth | Go | WebAuthn challenges, OIDC nonces and JWKS, enrolment tokens, cleanup streams (Redis DB 1) | exporter; Google (optional); Redis |
 | notifier | Go | none | exporter, discovery (reset); NATS consume; Redis heartbeat |
@@ -59,7 +59,7 @@ Constants: `services/<svc>/internal/constants/` (discovery `coordination.go`, `f
 ## Kubernetes access
 
 - discovery runs `kcore` informers over the application workload kinds on every replica; the coalesced flush and the leader loops (plan controller, report checkpoint, rollback controller) run on the leader only (`services/discovery/internal/coordination/leadergate/`).
-- The exporter mirrors `Application` and `Session` CRs with informers and writes every telark CR. discovery also patches `applications/status` directly, from the rollback controller (`services/discovery/internal/handlers/rollback/controller.go`).
+- The exporter mirrors `Application` and `Session` CRs with informers and writes every Telark CR. discovery also patches `applications/status` directly, from the rollback controller (`services/discovery/internal/handlers/rollback/controller.go`).
 - The analyzer issues read-only `GET`s with its ServiceAccount token.
 - auth and notifier never call the Kubernetes API.
 - RBAC per service: [security](../security/README.md#kubernetes-privileges).
@@ -97,6 +97,3 @@ All listen on 8080 in the cluster.
 Checked against the code; the service READMEs are fixed separately:
 
 - The discovery and notifier READMEs describe a `telark.applications.delete` NATS flow; nothing publishes it.
-- The discovery and exporter READMEs say the exporter is the only writer of `Application`; the rollback controller patches its status directly.
-- The auth README says sessions live in Redis and that a cleanup controller sweeps expired ones; sessions are `Session` CRs written through the exporter, an expired one is refused on use, and expired sessions are deleted per user when that user gets a new session (`services/exporter/internal/utils/auth/session/cleanup.go`).
-- The exporter README's "change notifications on Redis" are per-user in-app notifications.

@@ -1,7 +1,8 @@
-# Login & Single Sign-On — How it works
+# Login and single sign-on
 
-How signing in with Google works in Telark. There are two separate flows: an
-**admin turns SSO on** (letters A–C), and then a **user signs in** (numbers 1–5).
+How Google sign-in works in Telark, for admins setting it up and for contributors. There
+are two flows: an admin turns SSO on (letters A–C), then a user signs in (numbers 1–5).
+Passkey sign-in and the first admin are covered in [First admin](../../docs/INSTALL.md#2-first-admin).
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"fontFamily":"ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif","fontSize":"13px","lineColor":"#94a3b8","primaryColor":"#eef2ff","primaryBorderColor":"#6366f1","primaryTextColor":"#312e81","edgeLabelBackground":"#ffffff","clusterBkg":"#f8fafc","clusterBorder":"#e2e8f0"},"flowchart":{"curve":"basis","htmlLabels":true,"nodeSpacing":46,"rankSpacing":54,"padding":12}}}%%
@@ -38,11 +39,11 @@ flowchart TB
 
 ## Turning SSO on (admin)
 
-- **A** — An admin fills in the SSO settings (Google client ID, etc.) on the
-  Settings → SSO page. Only an admin can do this.
-- **B** — **auth-service** checks the settings are usable before saving them
-  (a broken config that can't sign anyone in must never be stored).
-- **C** — auth-service saves the settings through **exporter-service**.
+- **A.** An admin fills in the SSO settings (Google client ID and the options below) on
+  Settings → Single Sign-On. It needs Admin on `ALL`.
+- **B.** auth-service checks that the settings are usable before saving them, so a
+  configuration that can't sign anyone in is never stored.
+- **C.** auth-service saves the settings through exporter-service.
 
 ## Signing in (user)
 
@@ -57,7 +58,7 @@ flowchart TB
    A user being deleted or whose account is not active gets no session (403).
    Otherwise auth-service creates a Telark session and the user is logged in.
 
-## How auth-service trusts Google (the important part)
+## How auth-service trusts Google
 
 To check a Google token in step 4, auth-service needs Google's public keys. There
 are two modes, controlled by one setting:
@@ -80,8 +81,8 @@ are two modes, controlled by one setting:
   `GET /api/v1/config` on the exporter returns the key set merged back under
   `oidc.googleJwkJson`.
 - Endpoints: `GET /auth/config` is **public** (returns only the client ID, which is
-  not a secret); `PATCH /auth/oidc/config` saves settings and is guarded by
-  `editoidcconfig = settings:Admin`; `POST /auth/oidc/google/callback` handles the
+  not a secret); `PATCH /auth/oidc/config` saves settings and needs Admin on `ALL` (not only on
+  `settings`), subject to the `settings.editoidcconfig.deny` rule; `POST /auth/oidc/google/callback` handles the
   token from step 3.
 - auth-service validates the settings and writes them with `PATCH /api/v1/config`
   on exporter-service using a service token (the exporter puts the key set in

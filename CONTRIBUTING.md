@@ -1,8 +1,10 @@
 # Contributing
 
-Thanks for contributing to telark.
+Thanks for contributing to Telark. Start with these three documents:
 
-**Start here:** [CONVENTIONS.md](CONVENTIONS.md) — the rulebook · [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — every command · [GOVERNANCE.md](GOVERNANCE.md) — roles & the contributor ladder.
+- [CONVENTIONS.md](CONVENTIONS.md): naming, errors, logging, tests and commits.
+- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md): every make target and when to use it.
+- [GOVERNANCE.md](GOVERNANCE.md): roles and the contributor ladder.
 
 ## Repository layout
 
@@ -14,66 +16,65 @@ charts/
   telark        application chart
   telark-crds   custom resource definitions (bundled as a subchart of telark)
 .github/        CI and release workflows
-docs/           architecture, install guide, CRD reference, ADRs
+docs/           user guides, reference, architecture, security, testing, ADRs
 ```
 
-The Go services depend on shared packages published under `github.com/telark/*` (`data`, `rest`, `x-ware`, `kcore`) — ordinary module dependencies, pinned in each service's `go.mod`.
+The Go services depend on the shared modules `github.com/telark/{data,rest,x-ware,kcore}`, ordinary module dependencies pinned in each service's `go.mod`.
 
 ## Prerequisites
 
-- Go 1.27+ (see `go.work` for the exact version), `golangci-lint`, `helm` ≥ 3.
-- Python 3.13+ + `venv` for the analyzer service.
-- Docker + a Kubernetes cluster for end-to-end work.
+- Go 1.27+ (the exact version is the `go` line of each `services/<svc>/go.mod`), `golangci-lint`, `helm` 3.
+- Python 3.13+ and `venv` for the analyzer.
+- Docker and a Kubernetes cluster for end-to-end work.
+
+Exact tool versions and install commands: [docs/testing](docs/testing/README.md#fresh-environment).
 
 ## Go workspace
 
-The four Go services live in a single `go.work`; it holds only those four. They build against the published `github.com/telark/*` modules at the versions pinned in each `go.mod` — there are no `replace` directives.
+The four Go services share one `go.work`. It points the shared modules at the maintainer's local checkouts, so on any other machine export `GOWORK=off` first and run Go commands from `services/<svc>`, as CI does. The services then build against the published modules at the versions pinned in each `go.mod`. Details: [Shared Go modules](docs/testing/README.md#shared-go-modules).
 
-Build the whole workspace rather than tidying a single service — a standalone `go mod tidy` re-resolves the shared `github.com/telark/*` modules:
-
-```sh
-go build ./...        # from the repo root, uses the workspace
-go work sync
-```
+Don't run a standalone `go mod tidy` in one service: it re-resolves the shared modules.
 
 ## Build, lint, test
 
-A `Makefile` wraps the common flows — full target reference in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md):
+The `Makefile` wraps the common flows; the full reference is [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ```sh
-make build       # go build across the workspace
+export GOWORK=off
 make lint        # golangci-lint per Go service (shared root .golangci.yml) + helm lint
-make test        # go test per module
+make test        # go test per service
 make helm-lint   # lint both charts
 make fmt         # gofmt
 ```
 
-- **Never pass `--no-config` or override linter flags.** A shared root `.golangci.yml` covers every Go service (golangci-lint discovers it by walking up from `services/<svc>`). Fix all errors (warnings are acceptable, errors must be zero, no `//nolint` as a workaround).
-- The analyzer service uses `pytest` inside a virtualenv (`services/analyzer`).
+- Run golangci-lint with the shared root `.golangci.yml`; never pass `--no-config` or override flags. Errors must be zero, and `//nolint` is not a fix.
+- The analyzer uses `pytest` in a virtualenv. Its commands are in [docs/testing](docs/testing/README.md#analyzer-servicesanalyzer).
 
 ## Charts
 
-Subchart packages (`charts/*/charts/*.tgz`) are git-ignored build artifacts — fetch them once with `make deps` (Chart.lock is committed). After any chart change:
+Subchart packages (`charts/*/charts/*.tgz`) are git-ignored build artifacts; `Chart.lock` is committed. After any chart change:
 
 ```sh
+helm repo add vpa https://charts.fairwinds.com/stable   # once; make deps doesn't add it
 make deps            # once, or after editing dependencies
 make helm-lint
 make helm-validate   # renders every mode and schema-validates with kubeconform
 helm template t ./charts/telark --set 'app.auth.bootstrap.admins={jane.doe@example.com}'   # optionally: --set app.mode=<mode>
 ```
 
-Do not bump chart or module versions, and do not commit local `replace` directives — releases handle versioning, and the services must build against the published modules.
+- After changing `values.yaml`, run `make values-docs` to refresh each chart's `VALUES.md`; CI fails if it drifts.
+- Don't bump chart or module versions, and don't commit `replace` directives. Releases handle versioning, and the services must build against the published modules.
+- `CHANGELOG.md` is generated from Conventional Commits by the release workflow; preview it with `make changelog`.
+- Packaging, pushing and signing the charts: [docs/PUBLISHING.md](docs/PUBLISHING.md).
 
-After changing `values.yaml`, run `make values-docs` to refresh each chart's `VALUES.md` (CI fails if it drifts). `CHANGELOG.md` is generated from Conventional Commits by the release workflow — preview it with `make changelog`. Packaging, pushing, and signing the charts is covered in [docs/PUBLISHING.md](docs/PUBLISHING.md).
+## Commits and pull requests
 
-## Commits & PRs
+Full rules: [CONVENTIONS.md](CONVENTIONS.md#commits-branches-prs). Who can approve and merge: [GOVERNANCE.md](GOVERNANCE.md).
 
-Full rules: [CONVENTIONS.md](CONVENTIONS.md#commits-branches-prs) · who can approve/merge: [GOVERNANCE.md](GOVERNANCE.md).
-
-- Conventional-commit style subjects (`feat:`, `fix:`, `chore:`, `docs:`…), ≤ 50 chars, imperative.
-- Keep changes surgical; every changed line should trace to the stated goal.
-- Open a PR against `main`; fill in the template; ensure CI is green.
+- Conventional Commit subjects (`feat:`, `fix:`, `chore:`, `docs:`), at most 50 characters, imperative.
+- Keep changes surgical: every changed line should trace to the stated goal.
+- Open the pull request against `main`, fill in the template, and make sure CI is green.
 
 ## License
 
-By contributing you agree your contributions are licensed under the [Elastic License 2.0](LICENSE.md).
+By contributing, you agree that your contributions are licensed under the [Elastic License 2.0](LICENSE.md).

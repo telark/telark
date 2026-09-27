@@ -1,12 +1,11 @@
 # discovery service
 
-The engine that turns raw workloads into protected applications. Discovery watches the
-cluster, groups workloads into **applications**, diffs each against its last stored spec,
-classifies the change, snapshots the manifests, and publishes the result. It also runs
-the **protection-plan** lifecycle and the **rollback** path. Every replica cooperates
-over Redis so the work stays correct and non-duplicated at scale.
+The discovery service turns workloads into applications and keeps their history. It watches
+the cluster, groups workloads into applications, records each change and a snapshot of the
+manifests, and runs rollbacks. It also drives the protection-plan lifecycle: approvals, the
+Kyverno policies, health checks, violations and reports. Replicas share the work over Redis.
 
-Discovery never creates or edits the `Application` CR (`applications.telark.io`) itself — it
+Discovery never creates or edits the `Application` CR (`applications.telark.io`) itself: it
 publishes to NATS and lets [notifier](../notifier) persist through [exporter](../exporter). The one
 exception is the rollback controller, which patches the `applications/status` subresource directly.
 
@@ -53,13 +52,13 @@ flowchart LR
 
 - **Discover:** watch workloads via `kcore` informers and group them into applications by label derivation. The grouping label value names the Application CR, so it is lowercased with `_` as `-`; a value that still is not a DNS-1123 subdomain is skipped and logged once. CronJob and Job pod specs feed images, ports, env keys and config/secret refs like the other workload kinds.
 - **Diff & classify:** compare the live app to the last stored spec (from exporter) and resolve overlapping signals into a single change class. An entry's `detectedAt`/`changedBy` come from the `telark.io/last-modified-*` annotations only when the informer flush saw the annotation change with the write; a `/scale` write (annotation unchanged), a health-only change (a readiness move is nobody's write) and a tick-recorded change carry the detection time and no author. Manifest-level change text names the object as `namespace/Kind/name`, so a multi-namespace app's changes are told apart.
-- **Snapshot:** on each material change, read and sanitize the workload manifests and store them through exporter — the audit trail and rollback targets. The pre-image comes from the informer's old object; a health-only change (readiness moved, manifests unchanged) snapshots the live manifests, so a recovery is never left unrecorded. Any other change the tick sees without a pre-image (a resource that joined while discovery was down) waits two ticks for the informer flush and is then recorded against the live state, so the CR never stays stale. Snapshot entries carry the class and severity of the change they precede.
+- **Snapshot:** on each material change, read and sanitize the workload manifests and store them through exporter, as the audit trail and rollback targets. The pre-image comes from the informer's old object; a health-only change (readiness moved, manifests unchanged) snapshots the live manifests, so a recovery is never left unrecorded. Any other change the tick sees without a pre-image (a resource that joined while discovery was down) waits two ticks for the informer flush and is then recorded against the live state, so the CR never stays stale. Snapshot entries carry the class and severity of the change they precede.
 - **Publish:** emit `telark.applications.{update,delete}` to NATS; notifier persists the CR via exporter on update and calls this service's application reset on delete (the reset deletes the CR through exporter, and clears the app's Redis state; a re-discovered app also starts from a clean state). `POST applications/{name}/reset` and `POST applications/{name}/sync` answer 404 for an application the store does not hold. A non-leader replica forwards a reset to the leader only after the Kubernetes API confirms the address advertised in Redis is the leader pod's IP and that pod carries its own component label; the forward carries this replica's service token and the verified `X-User-ID`, never the caller's headers, and only the status, `Content-Type` and body come back. The `cluster/namespaces/*` lists refuse excluded namespaces and the release namespace (403), and refuse every namespace while the excluded list has never loaded (503).
 - **Trigger:** on an authored incident/recovery change-log entry, XADD a job to `insights:jobs` (best effort, off the publish path once the exporter serves that generation, at most 5 s later); the windowed insights read (`GET insights/applications?apps=`, at most 100 keys, 400 above) filters by excludedNamespaces: it skips apps whose document namespace is excluded and drops cards whose workload namespace (`params.namespace`, else the document's) is excluded, keeping the stored `version`.
 - **Insights list:** keep a per-replica row index of every app's insight cards for the cluster-wide list (`GET insights`), fed from the `analyzer:index` ZSET; no Redis on the request path.
 - **Protect:** drive the protection-plan lifecycle (`pending_approval → scheduled → active → terminated`); while active, deploy admission policies for the plan's scope (one policy per template and namespace, so an application spanning several namespaces is covered in each) and verify their health against live cluster state. Plans that require approval are parked in `pending_approval` until an approver decides; nothing is deployed while pending. Validation rejects a window that has already ended, targets in the release namespace or in TelarkConfig `excludedNamespaces` (the policy engine skips them), and a template listed twice; repeated targets are deduplicated. Plan names are unique (case- and whitespace-insensitive): a name already taken is a 409 on create, duplicate and rename, and a per-name lock (`lock:plan-name:<name>`) makes parallel creates or renames of one name yield one winner and a 409 for the rest. Unknown template params are rejected. Every phase is editable: an edit that moves the window recomputes the phase (a scheduled plan made permanent or whose start has passed deploys at once; an active plan given a future start withdraws its policies and waits for the controller), a rename re-renders the live policies, and an edit of a canceled or terminated plan is stored and takes effect on reactivation. Rules exempt the engine's own `Policy`, `PolicyReport` and `EphemeralReport` writes; audit-mode messages read "would be blocked". Every rendered policy carries a `telark.io/render-hash` annotation; the health pass compares it with a fresh render and redeploys a policy whose content differs (or that predates the annotation), so an upgrade of the renderer re-renders active plans on the next tick without a cancel and reactivate. An application that vanished from an app-scope plan is skipped, as violations and reports do, rather than failing the repair every tick.
 - **Rollback:** replace the app's objects with a chosen snapshot under explicit intent, with controller-driven status; `triggeredBy` is the authenticated caller.
-- **Report:** render protection plan reports (HTML, Markdown, JSON, CSV) and store them through exporter. A final report is captured asynchronously right after a plan ends — after the terminal patch removes its policies and records its phase — bounded at 10 s and serialized. A checkpoint loop (`PROTECTION_PLAN_REPORT_CHECKPOINT_SEC`) merges live violation Events into the plan's ledger before the 1 h Event retention drops them, on its own rate-limited K8s client that reuses `DISCOVERY_ROLLBACK_K8S_CLIENT_QPS` / `_BURST`. On-demand reports merge the ledger with what the cluster still holds, then render.
+- **Report:** render protection plan reports (HTML, Markdown, JSON, CSV) and store them through exporter. A final report is captured asynchronously right after a plan ends (after the terminal patch removes its policies and records its phase), bounded at 10 s and serialized. A checkpoint loop (`PROTECTION_PLAN_REPORT_CHECKPOINT_SEC`) merges live violation Events into the plan's ledger before the 1 h Event retention drops them, on its own rate-limited K8s client that reuses `DISCOVERY_ROLLBACK_K8S_CLIENT_QPS` / `_BURST`. On-demand reports merge the ledger with what the cluster still holds, then render.
 
 ## How change detection works
 
@@ -82,7 +81,7 @@ version, resource membership, and counts. Overlapping signals collapse into one
 
 ## Distributed coordination
 
-Redis coordinates the replicas — it never carries application payloads (that is REST +
+Redis coordinates the replicas; it never carries application payloads (that is REST +
 NATS). One leader enqueues work; workers consume a stream under a consumer group, each
 holding a per-app lock.
 
@@ -176,14 +175,14 @@ sequenceDiagram
 ## Configuration
 
 Discovery is the most tunable service. The full, authoritative env reference lives in the
-[chart README](../../charts/telark/README.md#servicesdiscoveryenv) — K8s client rate limits,
+[chart README](../../charts/telark/README.md#servicesdiscoveryenv): K8s client rate limits,
 informer resync/coalescing, coordination TTLs, snapshot writer, protection-plan tick,
 force-sync, auto-cleanup, the insights row index (`INSIGHTS_INDEX_REFRESH_SEC`, default `15`; `INSIGHTS_INDEX_RESYNC_SEC`, default `300`; `INSIGHTS_STALE_AFTER_SEC`, default `86400`), and protection plan reports (`PROTECTION_PLAN_REPORT_MAX_VIOLATIONS`, default `5000`, bounds the per-plan ledger; `PROTECTION_PLAN_REPORT_CHECKPOINT_SEC`, default `900`, clamped to 60–1800). Per-cluster sizing comes from the
 [install mode](../../docs/INSTALL.md#sizing-modes) (`--set app.mode`), not this service's defaults.
 
 ## API
 
-REST under `/api/v1/` — `cluster/namespaces` and `cluster/namespaces/{ns}/{workloads,resources}`,
+REST under `/api/v1/`: `cluster/namespaces` and `cluster/namespaces/{ns}/{workloads,resources}`,
 `applications/{name}/{sync,reset}`, `applications/{name}/rollbacks` (trigger) and
 `applications/{name}/rollbacks/{rollbackId}/abort`, `discovery/status`, `policytemplates`,
 `protectionplans/prepare` and `protectionplans/{id}/{cancel,duplicate,reactivate,clear,decision,revise,status,violations,reports}`,

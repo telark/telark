@@ -14,10 +14,10 @@ Closes #
 
 ## Checklist
 
-- [ ] Change is scoped — every changed line traces to the goal above.
+- [ ] The change is scoped: every changed line traces to the goal above.
 - [ ] `make lint` passes (golangci per service, zero errors; no `//nolint` workarounds).
 - [ ] `make test` passes.
-- [ ] Chart changes: `make helm-lint` clean; `helm template` renders.
+- [ ] Chart changes: `make helm-lint` is clean, `helm template` renders, and `make values-docs` shows no drift.
 - [ ] No chart/module version bumps; no committed `replace` directives.
 - [ ] Docs updated if behavior or values changed.
 

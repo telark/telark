@@ -1,6 +1,6 @@
 # Security model
 
-How telark authenticates people and services, authorizes each request, and what it may do in the cluster. Every statement points at the code that implements it; when the code changes, this page changes in the same diff. Vulnerability reporting is in [SECURITY.md](../../SECURITY.md).
+How Telark authenticates people and services, authorizes each request, and what it may do in the cluster. Every statement points at the code that implements it; when the code changes, this page changes in the same diff. Vulnerability reporting is in [SECURITY.md](../../SECURITY.md).
 
 Paths starting `x-ware/`, `data/` or `rest/` are in the shared Go modules `github.com/telark/{x-ware,data,rest}`, which live in their own repositories (pinned in each service's `go.mod`).
 
@@ -11,7 +11,7 @@ Paths starting `x-ware/`, `data/` or `rest/` are in the shared Go modules `githu
 | Browser → auth, discovery, exporter, analyzer | session token in the `X-Session-Token` header | `x-ware/authz/handler.go` in every Go service; `services/analyzer/authz.py` |
 | Service → service | shared service token in the `X-Service-Token` header | the same middleware (constant-time compare) |
 | Service → Kubernetes API | the service's own ServiceAccount | chart RBAC, see [Kubernetes privileges](#kubernetes-privileges) |
-| Anyone → telark CRDs directly | Kubernetes identity | CRD write guard (`app.crdGuard`), on and enforcing by default |
+| Anyone → Telark CRDs directly | Kubernetes identity | CRD write guard (`app.crdGuard`), on and enforcing by default |
 | Workload changes → cluster | Kubernetes identity | Kyverno policies rendered from active protection plans |
 | Services → Redis | none (Redis runs without auth) | treated as untrusted: authorization cache entries are HMAC-signed |
 | discovery, notifier → NATS | user and password from a chart-generated Secret | NATS server authorization in `charts/telark/values.yaml` (`nats:`) |
@@ -144,7 +144,7 @@ No service can create RBAC objects, escalate, bind or impersonate. Discovery's w
 - **Chart-installed Kyverno policy** `telark-inject-modifier` (`templates/policies/clusterpolicy-image-inject.yaml`): a mutate policy, `failurePolicy: Ignore`, that stamps `telark.io/last-modified-by`, `-at` and `-operation` annotations on the kinds discovery snapshots (Secrets excluded, so Kyverno never mutates Secret writes for it), outside the telark and system namespaces. It renders only when the Kyverno `ClusterPolicy` API already exists, so a first install gets it on its first upgrade ([INSTALL.md](../INSTALL.md#last-modified-annotations)).
 - **Kyverno fails open by default** (`app.kyverno.failOpen`, which must equal `kyverno.features.forceFailurePolicyIgnore.enabled`): when Kyverno's webhook is unavailable, admission (including plan policies in `Enforce`) lets requests through. Setting both to `false` makes enforcement fail closed ([INSTALL.md](../INSTALL.md#policy-engine-fail-open)).
 - **CRD write guard** (`templates/policies/crd-admission-policy.yaml`, `app.crdGuard`, on and enforcing by default): a ValidatingAdmissionPolicy that matches every resource and subresource of `telark.io` (`*/*`, which covers status writes too) and allows writes only from the exporter ServiceAccount (and `extraAllowedUsers`), plus discovery for `applications` with subresource `status`. A second policy guards the Secret `telark-oidc-trust-secret` by name, so namespace `edit` rights (which include Secrets) cannot plant a JWK set and mint OIDC logins. `enforce: false` only audits. The CRD schemas also pin `Session` names to `session-<64 hex>` and `User` `spec.status.phase` to `active`, `inactive` or `suspended`.
-- **Network** (`templates/shared/networkpolicy.yaml`, `app.networkPolicy.enabled`, on by default): ingress default deny for every telark pod; the service APIs accept only telark pods of the same release; ui accepts any source on its port; NATS accepts discovery and notifier on 4222 only (6222 between NATS pods) and runs no monitoring listener. Ollama's policy admits analyzer pods only (egress DNS, plus 443 when `app.ollama.autoPull` is on), the Redis subchart's admits clients labelled `<release>-redis-client`. Egress is open. None of it applies without a CNI that enforces NetworkPolicy.
+- **Network** (`templates/shared/networkpolicy.yaml`, `app.networkPolicy.enabled`, on by default): ingress default deny for every Telark pod; the service APIs accept only telark pods of the same release; ui accepts any source on its port; NATS accepts discovery and notifier on 4222 only (6222 between NATS pods) and runs no monitoring listener. Ollama's policy admits analyzer pods only (egress DNS, plus 443 when `app.ollama.autoPull` is on), the Redis subchart's admits clients labelled `<release>-redis-client`. Egress is open. None of it applies without a CNI that enforces NetworkPolicy.
 - **NATS users**: discovery connects as the publisher (publish `telark.applications.*`, subscribe `_INBOX.>` for JetStream acks), notifier as the consumer (publish `$JS.API.>` and `$JS.ACK.>`, subscribe `telark.applications.*` and `_INBOX.>`), each from its own Secret.
 - **Chart-generated secrets** (service token, NATS users) carry `helm.sh/resource-policy: keep`; cluster-less renders use `app.serviceToken.existingSecret` and `nats.existingSecrets` instead of `lookup` ([INSTALL.md](../INSTALL.md#gitops-cluster-less-renders)).
 
@@ -160,7 +160,7 @@ Never bypass, weaken or work around these. A change that needs to is a design ch
 6. **Session tokens are never stored or put in a URL**; only `session-<sha256>` names and `self` are (`data/auth/session.go`, `services/exporter/internal/utils/auth/session/name.go`).
 7. **Redis is untrusted.** Any cached value that drives an authorization decision is signed and verified (`services/exporter/internal/authz/signing.go`); an unsigned or mismatched entry is a miss, never a grant.
 8. **An outage is not a denial and not a grant.** Resolver failures return 503 (`denialFor`); discovery never caches errors.
-9. **The exporter is the only writer of telark CRDs** (discovery may patch `applications/status`); other services go through the exporter's HTTP API with `rest` clients ([AGENTS.md](../../AGENTS.md#go-services)).
+9. **The exporter is the only writer of Telark CRDs** (discovery may patch `applications/status`); other services go through the exporter's HTTP API with `rest` clients ([AGENTS.md](../../AGENTS.md#go-services)).
 10. **Guards run for user callers on every write path**: role levels you can grant are capped at your own, role protection flags hold for everyone, referenced ids must exist.
 11. **The analyzer stays local**: open-weight models through Ollama only, no provider API keys, egress only in connected mode ([AGENTS.md](../../AGENTS.md#analyzer-python)).
 12. **CRD schema first.** A field added to a Go type before the CRD schema is silently pruned, which can drop security-relevant data such as role rules ([AGENTS.md](../../AGENTS.md#go-services)).
@@ -171,7 +171,7 @@ Facts an operator or reviewer should not assume otherwise:
 
 - No request rate limiting or login lockout in any service.
 - Redis runs without authentication; don't enable `redis.auth.enabled` (the services get no password, see SECURITY.md).
-- A cluster admin, or anyone who may delete ValidatingAdmissionPolicies, can remove the CRD write guard; no telark ServiceAccount can.
+- A cluster admin, or anyone who may delete ValidatingAdmissionPolicies, can remove the CRD write guard; no Telark ServiceAccount can.
 - Kyverno fails open unless the operator sets `app.kyverno.failOpen=false`.
-- NetworkPolicies restrict ingress only; egress from every telark pod is open.
+- NetworkPolicies restrict ingress only; egress from every Telark pod is open.
 - CORS in `x-ware/cors` sends no headers unless `CORS_ALLOWED_ORIGINS` lists origins (never `*`); the dashboard proxies every API on its own origin.

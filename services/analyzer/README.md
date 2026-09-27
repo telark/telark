@@ -1,7 +1,11 @@
 # analyzer service
 
-Read-only incident analysis and setup recommendations for discovered applications, with a
-free, open-weight model served by Ollama (no provider, no API key). One asyncio worker task
+The analyzer powers Telark's Insights page. It explains why an application is unhealthy and
+reviews each application's setup, reading the cluster read-only and running a free, open-weight
+model through Ollama in the cluster (no provider, no API key). This README is for contributors
+and operators tuning it; the user-level overview is in [Concepts](../../docs/concepts.md#insights).
+
+One asyncio worker task
 consumes analysis jobs from a Redis stream, reads the app with four typed, capped, read-only
 tools, and writes one document per app that the Insights page reads. In the default **fast**
 mode deterministic rules decide every insight and the model only rewrites its title and

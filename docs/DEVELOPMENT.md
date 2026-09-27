@@ -1,8 +1,7 @@
 # Development
 
-Local development commands. The root `Makefile` is the entry point — `make help`
-lists every target. Conventions live in [CONVENTIONS.md](../CONVENTIONS.md); this
-file is only "what command, when".
+Which command to run, and when. The root `Makefile` is the entry point: `make help`
+lists every target. Conventions are in [CONVENTIONS.md](../CONVENTIONS.md).
 
 ## Prerequisites
 
@@ -28,7 +27,7 @@ file is only "what command, when".
 | `make lint` | `golangci-lint run` per service **+** `make helm-lint` | before every PR | golangci-lint, helm |
 | `make helm-lint` | `helm lint` on `telark-crds` (with app values) and `telark` | after any chart change | helm |
 | `make helm-template` | Render the app chart; `MODE=minimal\|standard\|performance` optional | inspect rendered manifests | helm, `make deps` |
-| `make deps` | `helm repo add` + `helm dependency build` — fetches the git-ignored subchart `.tgz` | once, or after editing chart deps | helm |
+| `make deps` | `helm repo add` + `helm dependency build`; fetches the git-ignored subchart `.tgz` | once, or after editing chart deps | helm |
 | `make helm-validate` | Renders every mode and pipes to `kubeconform` (schema validation) | after any chart change | kubeconform, `make deps` |
 | `make values-docs` | Regenerates each chart's `VALUES.md` via `helm-docs` | after editing any `values.yaml` (CI fails on drift) | Go (runs helm-docs via `go run`) |
 | `make changelog` | Regenerates `CHANGELOG.md` from Conventional Commits (`git-cliff`) | preview release notes | git-cliff |
@@ -47,7 +46,7 @@ file is only "what command, when".
   command fails. Export `GOWORK=off` (what CI does): `make test`, `make lint` and
   `make check` then work per service; `make build`, `make vet` and `make sync` need the
   workspace. Details: [testing/README.md](testing/README.md#shared-go-modules).
-- **Chart deps are git-ignored** (`charts/*/charts/*.tgz`) — run `make deps` after a
+- **Chart deps are git-ignored** (`charts/*/charts/*.tgz`). Run `make deps` after a
   fresh clone before `helm-lint`/`helm-template`/`helm-validate`. `make deps` doesn't add
   the `vpa` repository; run `helm repo add vpa https://charts.fairwinds.com/stable` first.
 - **Analyzer (Python)** isn't in the Makefile; its CI-equivalent commands are in

@@ -1,8 +1,9 @@
-# Local analyzer — How it works
+# How the analyzer works
 
-Telark analyzes an application when something goes wrong with it. Detection rules
-decide what is wrong; a small free model that runs inside the cluster only rewrites
-the wording. This is a simple map of the pieces and the order things happen in.
+The analyzer produces the cards on Telark's Insights page. When an application goes wrong,
+detection rules decide what is wrong and a small free model running inside the cluster only
+rewrites the wording. This page maps the pieces and the order things happen in; the
+[analyzer README](README.md) has the full reference.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"fontFamily":"ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif","fontSize":"13px","lineColor":"#94a3b8","primaryColor":"#eef2ff","primaryBorderColor":"#6366f1","primaryTextColor":"#312e81","edgeLabelBackground":"#ffffff","clusterBkg":"#f8fafc","clusterBorder":"#e2e8f0"},"flowchart":{"curve":"basis","htmlLabels":true,"nodeSpacing":46,"rankSpacing":54,"padding":12}}}%%

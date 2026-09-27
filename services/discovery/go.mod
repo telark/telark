@@ -10,10 +10,10 @@ require (
 	github.com/kyverno/kyverno v1.19.1
 	github.com/nats-io/nats.go v1.54.0
 	github.com/redis/go-redis/v9 v9.22.0
-	github.com/telark/data v1.14.8
-	github.com/telark/kcore v0.7.1
-	github.com/telark/rest v0.14.4
-	github.com/telark/x-ware v0.4.0
+	github.com/telark/data v1.15.0
+	github.com/telark/kcore v0.7.3
+	github.com/telark/rest v0.15.0
+	github.com/telark/x-ware v0.4.1
 	golang.org/x/sync v0.23.0
 	golang.org/x/time v0.16.0
 	k8s.io/api v0.37.0

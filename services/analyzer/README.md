@@ -404,7 +404,7 @@ python main.py                       # API + worker on one event loop; needs Red
 python -m pytest --cov=. --cov-report= tests/test_*_cov.py -q
 python -m pytest --cov=. --cov-append --cov-report= tests/test_authz.py tests/test_insights.py tests/test_exporter.py -q
 python -m coverage report --fail-under=95
-docker build -t telark/analyzer:<version> .
+docker build -t ghcr.io/telark/analyzer:<version> .
 ```
 
 Outside a pod the two Kubernetes tools answer `k8s_unavailable`. The tests need neither Redis nor Ollama:

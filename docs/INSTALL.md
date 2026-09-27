@@ -211,7 +211,7 @@ Everything is set on the one command line with `--set key=value`. Re-pass the sa
 | `app.mode` | `standard` | Size every telark service: `minimal` \| `standard` \| `performance` (see [Sizing modes](#sizing-modes)) |
 | `app.name` | `telark` | Resource-name prefix. The CRD group is always `telark.io` ([ADR 0003](adr/0003-constant-api-group-telark-io.md)) |
 | `app.namespace` | `telark` | Install namespace. Must match the release namespace (`-n`): the subcharts follow `-n`, so a mismatch splits redis/nats away from the services that address them by bare name |
-| `app.image.registry` | `telark` | Registry / org hosting the service images |
+| `app.image.registry` | `ghcr.io/telark` | Registry / org hosting the service images |
 | `app.image.pullPolicy` | `Always` | Image pull policy |
 | `app.image.pullSecrets` | `[]` | Image pull secrets for a private registry |
 | `app.persistence.size` | `10Gi` | Exporter snapshot PVC size |
@@ -241,6 +241,7 @@ Bundled dependencies ship production-grade defaults sized for every mode, so you
 | `app.ollama.runtimeUrl` | `""` | Ollama-API endpoint you run yourself (URL only, no key); empty = the bundled runtime |
 | `metrics-server.enabled` | `true` | Install metrics-server; `false` if the cluster already ships one |
 | `redis.architecture` | `standalone` | `replication` for a replicated redis |
+| `redis.image.digest` | pinned | Bitnami publishes only `bitnami/redis:latest`, so the chart pins one build by digest. To take a newer build, resolve the current digest (`docker buildx imagetools inspect bitnami/redis:latest`) and pass `--set redis.image.digest=sha256:<digest>` |
 | `redis.master.persistence.size` | `4Gi` | Redis PVC size |
 | `redis.master.resources.limits.memory` | `512Mi` | Redis memory limit (requests `100m` / `128Mi`); see the sizing note below |
 | `nats.persistence.size` | `4Gi` | NATS JetStream PVC size |
@@ -426,6 +427,8 @@ Re-pass the same `--set` / `-f` flags used at install: Helm does not remember th
 **From chart 0.2.1 or older, or when switching modes:** those releases run one exporter replica on a ReadWriteOnce claim, and Kubernetes cannot change a bound claim's access mode or class. Add `--set app.singleNode=true` to keep that claim (one replica, Recreate). To move to two replicas on ReadWriteMany, uninstall, delete the `telark-exporter-snapshots-pvc` claim (snapshots are lost — copy `/snapshots` off the pod first if you need them), then reinstall with `--set app.persistence.storageClass=<rwx-class>`. The same applies when switching between `minimal` and `standard`/`performance`, or toggling `app.singleNode`.
 
 **Upgrading to the chart that adds protection plan reports:** the exporter gains a second claim, `telark-exporter-reports-pvc`, which binds on rollout with the same class and access mode as the snapshot claim. Do not upgrade with `--reuse-values`: the reports volume, mount and the `REPORTS_PATH` / `PROTECTION_PLAN_REPORT_*` entries arrive only with the new chart defaults; with `--reuse-values` the exporter logs a reports-root error at start and every report write fails. Note that the exporter volumes render even when `app.persistence.enabled=false` (pre-existing behaviour), so the pods then wait on claims nobody provisions.
+
+**Upgrading to the chart that pulls from GHCR:** the service images move from Docker Hub (`telark/<service>`) to `ghcr.io/telark/<service>`, with the same names and tags. Do not upgrade with `--reuse-values`, which keeps the old `app.image.registry`. Nodes behind an egress allowlist need `ghcr.io` and `pkg-containers.githubusercontent.com`; a mirror re-syncs from `ghcr.io/telark`.
 
 ### Upgrading from 0.4 or older
 

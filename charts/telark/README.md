@@ -46,6 +46,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | `ingress.className` / `host` / `path` / `pathType` / `tls` / `annotations` | see values | Ingress routing + TLS |
 | `gateway.enabled` | `false` | Gateway API `HTTPRoute` for the dashboard, the alternative to the Ingress (routes to `gateway.service`, default `ui`). See [docs/INSTALL.md](../../docs/INSTALL.md#access-the-dashboard) |
 | `gateway.parentRefs` / `hostnames` / `annotations` | `[]` / `[]` / `{}` | Gateways to attach to (entries take `name`, `namespace`, `sectionName`), hostnames the route matches, HTTPRoute annotations |
+| `redis.image.digest` | `sha256:33a5a129…` | Pins the Redis image (`bitnami/redis`, which publishes only `latest`) to one build. See [docs/INSTALL.md](../../docs/INSTALL.md#subcharts) |
 | `redis.master.resources` | requests `100m` / `128Mi`, limits `150m` / `512Mi` | Redis sizing, identical in every mode; replaces the subchart's `nano` preset. Redis never evicts, so raise the memory limit beyond 2 000 applications. See [docs/INSTALL.md](../../docs/INSTALL.md#subcharts) |
 
 ### `app`
@@ -56,7 +57,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | `app.namespace` | `telark` | Install namespace; bootstrap CRs land here. Must match the release namespace (`-n`) — the subcharts follow `-n`, so a mismatch splits redis/nats away from the services |
 | `app.mode` | `standard` | Sizes every telark service (replicas, resources, rate limits, PDBs). `minimal` \| `standard` \| `performance`. Subcharts keep production-grade defaults across all modes. |
 | `app.singleNode` | `false` | One-node cluster: the exporter runs 1 replica on ReadWriteOnce instead of 2 on ReadWriteMany, so no RWX class is needed. Update strategy and PVC access mode are derived from the exporter replica count, never set by hand |
-| `app.image.registry` | _(namespace)_ | Docker Hub namespace (account/org) hosting the per-service repos |
+| `app.image.registry` | `ghcr.io/telark` | Registry and namespace hosting the per-service repos |
 | `app.image.pullPolicy` | `Always` | Image pull policy for every service container |
 | `app.image.pullSecrets` | `[]` | Pull secrets (public images need none; set for a private registry) |
 | `app.kyverno.enabled` | `true` | Install kyverno subchart |

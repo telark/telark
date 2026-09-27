@@ -276,7 +276,7 @@ rules (tests/authz TestEveryPlanRouteIsDenyable).
 
 ```sh
 go build ./...
-docker build -t telark/discovery:<version> .
+docker build -t ghcr.io/telark/discovery:<version> .
 ```
 
 Runs in-cluster via the [telark chart](../../charts/telark); see [INSTALL](../../docs/INSTALL.md)

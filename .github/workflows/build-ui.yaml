@@ -82,6 +82,7 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: write   # commit the version bump
+      packages: write   # push the image and its signature to ghcr.io
       id-token: write   # cosign keyless image signing (OIDC)
     outputs:
       image_tag: ${{ steps.release.outputs.new_version }}
@@ -112,8 +113,8 @@ jobs:
           context: service
           dockerfile: ./service/Dockerfile
           platforms: linux/amd64
-          registry_username: ${{ secrets.CONTAINER_REGISTRY_USERNAME }}
-          registry_password: ${{ secrets.CONTAINER_REGISTRY_PASSWORD }}
+          registry_username: ${{ github.actor }}
+          registry_password: ${{ secrets.GITHUB_TOKEN }}
           image_scan: ${{ inputs.image_scan }}
           source_repo_path: service
           source_repo_branch: ${{ inputs.ui_branch || 'master' }}

@@ -27,9 +27,8 @@ on:
       bump:
         description: "Semver bump applied to the chart version (base = Chart.yaml)"
         type: choice
-        default: current
+        default: patch
         options:
-          - current   # publish the version already in Chart.yaml
           - patch
           - minor
           - major
@@ -144,7 +143,7 @@ jobs:
       # Commits). --tag labels the just-bumped commits under the release version,
       # since the git tag itself is created a step later.
       - name: Generate changelog
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump != 'current' && steps.publish.outputs.telark_version != '' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && steps.publish.outputs.telark_version != '' }}
         uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
         with:
           config: cliff.toml
@@ -153,11 +152,11 @@ jobs:
           OUTPUT: CHANGELOG.md
 
       - name: Regenerate VALUES.md
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump != 'current' }}
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         uses: ./.github/actions/helm-docs-regenerate
 
       - name: Commit version bumps
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump != 'current' }}
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           set -euo pipefail
           # Same command as `make values-docs` and the CI drift check — regenerated

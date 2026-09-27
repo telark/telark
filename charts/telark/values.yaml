@@ -80,7 +80,7 @@ app:
   image:
     # Registry and namespace (GHCR org) that host the per-service repos.
     registry: "ghcr.io/telark"
-    pullPolicy: "Always"        # re-build-current re-pulls the same tag, so never IfNotPresent
+    pullPolicy: "Always"        # dev builds re-push the same tag, so never IfNotPresent
     # Public images pull anonymously. Add pull secrets here (or via
     # global.imagePullSecrets) only for a private registry/mirror.
     pullSecrets: []

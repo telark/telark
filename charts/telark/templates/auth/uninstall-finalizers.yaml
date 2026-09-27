@@ -1,0 +1,112 @@
+{{- /*
+Users, groups and roles carry cleanup finalizers that only auth clears, so once the release
+is gone deleting the CRDs or namespace would hang. Auth is stopped first, or its leader
+sweeper restores them; on a reinstall that kept the data, the sweeper puts them back.
+*/}}
+{{- $ns := .Values.app.namespace }}
+{{- $name := printf "%s-uninstall-finalizers" (include "telark.fullname" .) }}
+{{- $auth := .Values.services.auth }}
+{{- $authDeployment := printf "%s-%s" (include "telark.fullname" .) $auth.name }}
+{{- $authPods := include "telark.selectorLabels" (dict "root" . "component" $auth.name) | fromYaml }}
+{{- $authSelector := list }}
+{{- range $k, $v := $authPods }}{{ $authSelector = append $authSelector (printf "%s=%s" $k $v) }}{{ end }}
+{{- $securityContext := dict "allowPrivilegeEscalation" false "readOnlyRootFilesystem" true "capabilities" (dict "drop" (list "ALL")) }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "telark.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "telark.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: [{{ $authDeployment | quote }}]
+    verbs: ["get"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    resourceNames: [{{ $authDeployment | quote }}]
+    verbs: ["get", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "telark.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $ns }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "telark.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        {{- /* The API NetworkPolicy admits only this release's pods, and the last step calls the exporter. */}}
+        {{- include "telark.selectorLabels" (dict "root" .) | nindent 8 }}
+    spec:
+      serviceAccountName: {{ $name }}
+      automountServiceAccountToken: true
+      restartPolicy: Never
+      {{- include "telark.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: stop-auth
+          image: {{ .Values.app.kubectlImage }}
+          args: ["scale", "deployment", {{ $authDeployment | quote }}, "-n", {{ $ns | quote }}, "--replicas=0", "--cache-dir=/tmp"]
+          securityContext: {{- toYaml $securityContext | nindent 12 }}
+          volumeMounts: [{ name: tmp, mountPath: /tmp }]
+        - name: wait-for-auth
+          image: {{ .Values.app.kubectlImage }}
+          args: ["wait", "--for=delete", "pod", "-n", {{ $ns | quote }}, "-l", {{ join "," $authSelector | quote }}, "--timeout=120s", "--cache-dir=/tmp"]
+          securityContext: {{- toYaml $securityContext | nindent 12 }}
+          volumeMounts: [{ name: tmp, mountPath: /tmp }]
+      containers:
+        - name: remove-finalizers
+          image: {{ .Values.app.image.registry }}/{{ $auth.repository }}:{{ $auth.version }}
+          imagePullPolicy: {{ .Values.app.image.pullPolicy | default "Always" }}
+          args: ["remove-finalizers"]
+          env:
+            - name: {{ .Values.app.serviceToken.envVar }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "telark.serviceTokenSecretName" . }}
+                  key: token
+          securityContext: {{- toYaml $securityContext | nindent 12 }}
+      volumes:
+        - name: tmp
+          emptyDir: {}

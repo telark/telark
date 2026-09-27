@@ -46,6 +46,7 @@ Kubernetes: `>=1.30.0-0`
 | app.image.pullPolicy | string | `"Always"` |  |
 | app.image.pullSecrets | list | `[]` |  |
 | app.image.registry | string | `"ghcr.io/telark"` |  |
+| app.kubectlImage | string | `"registry.k8s.io/kubectl:v1.37.1@sha256:b7cab618e281b1ee7484e7b706a96e2135fbb6e072c2a573a7dab4e87d7f2385"` |  |
 | app.kyverno.enabled | bool | `true` |  |
 | app.kyverno.failOpen | bool | `true` |  |
 | app.mode | string | `"standard"` |  |

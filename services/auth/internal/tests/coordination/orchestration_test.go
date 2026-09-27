@@ -2,6 +2,10 @@ package coordination
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -11,6 +15,7 @@ import (
 	"github.com/telark/auth/internal/coordination/cleanup"
 	"github.com/telark/auth/internal/tests/testutil"
 	"github.com/telark/data/resources/finalizers"
+	resourcesshared "github.com/telark/data/resources/shared"
 	xwareredis "github.com/telark/x-ware/redis/stream"
 )
 
@@ -94,4 +99,48 @@ func TestSweeperRun(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Millisecond)
 	defer cancel()
 	sweeper.Run(ctx) // synchronous; returns when ctx expires
+}
+
+// A live resource that lost its cleanup finalizer (the uninstall hook strips them)
+// gets it back from the sweeper; one that still has it, or is being deleted, is left alone.
+func TestSweeperRestoresMissingFinalizer(t *testing.T) {
+	rdb, _ := testutil.RedisClient(t)
+	cfg := fastConfig()
+	cfg.ListTimeout, cfg.PatchTimeout = time.Second, time.Second
+	deleting := "2026-01-01T00:00:00Z"
+	views := []resourcesshared.CleanupView{
+		{Name: "stripped"},
+		{Name: "kept", Finalizers: []string{finalizers.UserCleanup}},
+		{Name: "gone", DeletionTimestamp: &deleting},
+	}
+	var mu sync.Mutex
+	var restored []string
+	testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"items": views}})
+			return
+		}
+		mu.Lock()
+		restored = append(restored, r.URL.Path)
+		mu.Unlock()
+		_, _ = w.Write([]byte(`{"status":200}`))
+	}))
+	stream := cleanup.NewStreamOps(xwareredis.NewStreamClient(rdb), finalizers.ResourceTypeUsers, cfg.StreamMaxLen, cfg.XClaimMinIdle)
+	ingress := cleanup.NewIngress(map[string]*cleanup.StreamOps{finalizers.ResourceTypeUsers: stream}, cleanup.NewDedup(rdb, cfg.DedupTTL))
+	sweeper := cleanup.NewSweeper(cfg, finalizers.ResourceTypeUsers, ingress)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	sweeper.Run(ctx) // several ticks; the stub never changes, so each tick restores again
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(restored) == constants.DefaultInitValue {
+		t.Fatal("no finalizer restored")
+	}
+	for _, path := range restored {
+		if !strings.Contains(path, "stripped") {
+			t.Fatalf("restored %v, want only the stripped resource", restored)
+		}
+	}
 }

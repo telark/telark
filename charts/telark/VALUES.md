@@ -22,13 +22,13 @@ Kubernetes: `>=1.30.0-0`
 
 | Repository | Name | Version |
 |------------|------|---------|
-| file://../telark-crds | telark-crds | >= 0.0.0 |
 | https://charts.bitnami.com/bitnami | nats | 9.0.28 |
 | https://charts.bitnami.com/bitnami | redis | 23.0.10 |
 | https://charts.fairwinds.com/stable | vpa | 5.1.0 |
 | https://helm.otwld.com/ | ollama | 1.50.0 |
 | https://kubernetes-sigs.github.io/metrics-server/ | metrics-server | 3.12.2 |
 | https://kyverno.github.io/kyverno/ | kyverno | 3.9.1 |
+| oci://ghcr.io/telark/charts | telark-crds | 0.0.1 |
 
 ## Values
 

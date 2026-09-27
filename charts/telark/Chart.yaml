@@ -2,8 +2,8 @@ apiVersion: v2
 name: telark
 description: A protection gate for your Kubernetes workloads — discover your applications, then decide what can change them, and when
 type: application
-version: 0.4.0
-appVersion: "2.0"
+version: 0.1.3
+appVersion: "1.0"
 home: https://telark.io
 sources:
   - https://github.com/telark/telark

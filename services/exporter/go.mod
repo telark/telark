@@ -7,10 +7,10 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/redis/go-redis/v9 v9.22.0
-	github.com/telark/data v1.14.8
-	github.com/telark/kcore v0.7.1
-	github.com/telark/rest v0.14.4
-	github.com/telark/x-ware v0.4.0
+	github.com/telark/data v1.15.0
+	github.com/telark/kcore v0.7.3
+	github.com/telark/rest v0.15.0
+	github.com/telark/x-ware v0.4.1
 	k8s.io/apimachinery v0.37.0
 	k8s.io/client-go v0.37.0
 	sigs.k8s.io/yaml v1.6.0

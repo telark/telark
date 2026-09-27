@@ -99,7 +99,7 @@ jobs:
         env:
           COSIGN_YES: "true"
           REGISTRY_USER: ${{ github.actor }}
-          REGISTRY_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           registry="${{ steps.meta.outputs.registry }}"

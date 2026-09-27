@@ -1,6 +1,6 @@
 # telark
 
-![Version: 0.1.3](https://img.shields.io/badge/Version-0.1.3-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0](https://img.shields.io/badge/AppVersion-1.0-informational?style=flat-square)
+![Version: 0.0.0](https://img.shields.io/badge/Version-0.0.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0](https://img.shields.io/badge/AppVersion-1.0-informational?style=flat-square)
 
 A protection gate for your Kubernetes workloads — discover your applications, then decide what can change them, and when
 
@@ -317,7 +317,7 @@ Kubernetes: `>=1.30.0-0`
 | services.auth.volumeMounts[0].readOnly | bool | `true` |  |
 | services.auth.volumes[0].name | string | `"oidc-trust"` |  |
 | services.auth.volumes[0].secret.name | string | `"{{ include \"telark.oidcTrustSecretName\" . }}"` |  |
-| services.discovery.category | string | `"sync"` |  |
+| services.discovery.category | string | `"discovery"` |  |
 | services.discovery.enabled | bool | `true` |  |
 | services.discovery.env.COORDINATION_BATCH_BLOCK_SEC | string | `"2"` |  |
 | services.discovery.env.COORDINATION_BATCH_SIZE | string | `"10"` |  |
@@ -377,7 +377,7 @@ Kubernetes: `>=1.30.0-0`
 | services.discovery.topologySpread.whenUnsatisfiable | string | `"ScheduleAnyway"` |  |
 | services.discovery.useNatsCreds | bool | `true` |  |
 | services.exporter.autoscaling.enabled | bool | `false` |  |
-| services.exporter.category | string | `"export"` |  |
+| services.exporter.category | string | `"persistence-manager"` |  |
 | services.exporter.enabled | bool | `true` |  |
 | services.exporter.env.BOOTSTRAP_ADMINS | string | `"{{ join \",\" .Values.app.auth.bootstrap.admins }}"` |  |
 | services.exporter.env.CORS_ALLOWED_ORIGINS | string | `""` |  |
@@ -402,7 +402,7 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.volumes[1].name | string | `"reports-storage"` |  |
 | services.exporter.volumes[1].persistentVolumeClaim.claimName | string | `"{{ include \"telark.exporterReportsPvcName\" . }}"` |  |
 | services.notifier.automountServiceAccountToken | bool | `false` |  |
-| services.notifier.category | string | `"notification"` |  |
+| services.notifier.category | string | `"event-streaming"` |  |
 | services.notifier.enabled | bool | `true` |  |
 | services.notifier.env.NOTIFIER_APPLY_WORKERS | string | `"8"` |  |
 | services.notifier.name | string | `"notifier-service"` |  |

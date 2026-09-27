@@ -384,7 +384,7 @@ services:
     name: "auth-service"
     repository: "auth"
     # @ignore
-    version: 0.0.0
+    version: 0.0.1
     category: "auth"
     terminationGracePeriodSec: 30
     automountServiceAccountToken: false

@@ -81,7 +81,7 @@ Each service's own README carries a focused diagram of its internals: [auth](../
 | `analyzer` | Python / FastAPI | Insights: explains incidents and reviews each app's setup with deterministic rules over read-only cluster reads; a local model rewrites incident wording; writes findings to Redis and streams updates to the UI (SSE). |
 | `auth` | Go | Passkey (WebAuthn) + Google OIDC login; session and role reconciliation. |
 | `notifier` | Go | Consumes discovery's application events from NATS and upserts the `Application` CRs through `exporter`; on a delete, calls discovery's application reset. |
-| `ui` | — | Dashboard SPA (separate repo; the chart ships only the image reference). |
+| `ui` | React / TypeScript | Dashboard SPA (separate repo; the chart ships only the image reference). |
 
 ## Shared infrastructure (subcharts)
 

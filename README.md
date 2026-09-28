@@ -1,155 +1,112 @@
 <p align="center">
-  <img src="docs/assets/telark-banner.svg" alt="telark" width="320">
+  <img src="docs/assets/telark-banner.svg" alt="Telark" width="320">
+</p>
+
+<h3 align="center">A protection gate for your Kubernetes applications</h3>
+
+<p align="center">
+  Decide what can change an application, and when.<br>
+  Telark holds the line during releases and maintenance windows, shows every change that got through,<br>
+  and tells you why an app broke. Self-hosted, in your cluster.
 </p>
 
 <p align="center">
-  <b>A protection gate for your Kubernetes workloads.</b><br>
-  Discover your applications, then decide what can change them — and when.
-</p>
-
-<!-- TODO: add a hero screenshot / demo GIF of the dashboard here, e.g.
-<p align="center"><img src="docs/assets/dashboard.png" alt="telark dashboard" width="820"></p>
--->
-
-<p align="center">
-  <a href="https://telark.io">Website</a> ·
-  <a href="docs/INSTALL.md">Install</a> ·
+  <a href="docs/getting-started.md"><b>Get started</b></a> ·
   <a href="docs/">Docs</a> ·
-  <a href="https://github.com/telark/telark/discussions">Discussions</a> ·
-  <a href="https://github.com/telark/telark/issues">Issues</a>
+  <a href="https://telark.io">Website</a> ·
+  <a href="https://github.com/telark/telark/discussions">Discussions</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/telark/telark/actions/workflows/ci.yaml"><img src="https://github.com/telark/telark/actions/workflows/ci.yaml/badge.svg" alt="CI"></a>
-  <!-- Replace CODECOV_BADGE_TOKEN with the graph token from codecov.io → repo Settings → Badges & Graphs. Private repos need it; if you make the badge public, drop the ?token=… part. -->
-  <a href="https://codecov.io/gh/telark/telark"><img src="https://codecov.io/gh/telark/telark/graph/badge.svg?token=CODECOV_BADGE_TOKEN" alt="Coverage"></a>
   <a href="https://github.com/telark/telark/releases"><img src="https://img.shields.io/github/v/release/telark/telark?sort=semver&color=2f6feb" alt="Release"></a>
-  <img src="https://img.shields.io/badge/Kubernetes-%E2%89%A51.30-326ce5?logo=kubernetes&logoColor=white" alt="Kubernetes >= 1.30">
-  <img src="https://img.shields.io/badge/Helm-OCI-0f1689?logo=helm&logoColor=white" alt="Helm OCI chart">
-  <img src="https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white" alt="Go 1.27">
+  <img src="https://img.shields.io/badge/Kubernetes-%E2%89%A51.30-326ce5?logo=kubernetes&logoColor=white" alt="Kubernetes 1.30+">
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-Elastic--2.0-2f6feb.svg" alt="License: Elastic-2.0"></a>
 </p>
 
+<!-- Add a dashboard screenshot here once published: docs/assets/dashboard.png -->
+
 > [!NOTE]
-> **Early access.** telark is under active development toward its first stable release — chart and APIs may still change. Pin a chart version for production installs.
+> Early access. The API is `v1alpha1` and may change before 1.0. Pin a chart version.
 
----
+## Why Telark
 
-## Why telark
+It is 23:40, the release is half out, and someone scales `checkout` to zero from a terminal they forgot was pointed at production. Nobody meant to. Kubernetes allowed it, because RBAC decides *who* may change a workload, never *when*. The freeze you announced in the team channel was a request, not a rule.
 
-Kubernetes gives everyone with cluster access the power to change anything, at any time. During a maintenance window, a risky deploy, or a test run, that is exactly what you do **not** want.
+Then the pages start, and the first question is always the same: what changed? The answer is somewhere in the events, rollout history and pod status of half a dozen workloads, and you are reading them while the app is down.
 
-telark puts a **time-scoped protection gate** around the workloads that matter. A stray `kubectl delete`, an accidental scale-down, or an unreviewed image swap simply does not go through until you say so — decided at admission, and verified against the live cluster, not assumed from "the write succeeded".
+Telark turns that night into a non-event:
 
-No new mental model, no YAML archaeology: discover your apps, pick what to protect, open a window.
-
-## What you get
-
-- **Application-aware protection** — telark groups raw workloads into *applications* automatically. Protect "checkout", not seventeen Deployments.
-- **Time-bounded windows** — freeze a scope from 22:00 to 02:00 tonight; it arms and disarms itself on schedule.
-- **Ready-made policy templates** — block deletion, replica scaling, image patterns/tags, storage changes, ConfigMap/Secret edits, and more. Run in **audit** first, flip to **enforce** when you trust it.
-- **Cluster-truth health** — telark reads the cluster to confirm the protection you asked for is the protection actually running. Drift, missing policies, and tampering are surfaced.
-- **Environments, tags & approvals** — classify plans by environment and tags. A plan either applies automatically or waits for an approver; plans in the Production environment require approval by default.
-- **Scope exclusions** — leave specific kinds (any scope) or named resources (application scope) out of a plan's enforcement.
-- **Plan reports** — generate, list and download a plan's report (HTML, Markdown, JSON, CSV); a final report is captured when an active plan ends or is canceled.
-- **Fine-grained permissions** — every plan action (view, create, edit, duplicate, cancel, reactivate, delete, approve, reject, reports, categories) can be withheld from a custom role with its own deny rule.
-- **Change history & rollback** — every change to an application is recorded field by field, deletions included, with a pre-change snapshot you can roll back to from the dashboard.
-- **Local analyzer** — optional on-cluster incident analysis with a local model (Ollama) over read-only cluster tools; no data leaves the cluster. The runtime installs with the chart; turn the analyzer on in Settings.
-- **Modern auth** — passkeys and Google SSO, with a built-in role model.
+| Today | With Telark |
+|---|---|
+| A change freeze is a message in a chat channel | A **protection plan** blocks the changes you name (deletion, scaling, image, config and Secret edits, storage) on an app or namespace, for exactly the window you set. It arms and disarms itself. |
+| You hope nobody edited or removed the safeguards | Telark reads the live cluster, flags drift, lists every blocked or audited change, and keeps a report when the window closes |
+| "What changed?" costs an hour of `kubectl` | Every change to an application is recorded field by field, deletions included, with a snapshot you can roll back to in one click |
+| You piece the incident together from six workloads | **Insights** names the affected workload, the likely cause, the evidence and the change it followed |
+| Access is all or nothing per namespace | Roles per area with per-action rules, such as "may edit plans, may not approve them" |
 
 ## How it works
 
-1. **Discover** — workloads are grouped into applications in real time.
-2. **Plan** — bind policy templates to a scope and a window; run now or schedule.
-3. **Enforce** — while a plan is active, admission decisions protect its scope.
-4. **Verify** — health is computed from live cluster state, not from the API's word for it.
+1. **Discover.** Telark groups your workloads into applications on its own. You protect `checkout`, not seventeen Deployments.
+2. **Plan.** Pick the changes to block from ready-made templates, choose the app or namespace and the window, and run it in audit mode first. Add an approval step when it matters; Production requires one by default.
+3. **Enforce.** While the window is open, Kyverno (bundled with the chart) refuses those changes at admission.
+4. **Verify.** Telark checks the live cluster for the policies it expects and reports what was blocked, audited or tampered with.
+
+You work in a dashboard, not in policy YAML.
+
+## Insights: decision support, not autopilot
+
+When an application degrades, Telark reads its events, pod status and recent changes and writes one card per affected workload: crash loop, out of memory, image pull failure, scheduling, failing probes, stuck rollout, or a regression that started right after a config change. Each card cites the evidence and the change it followed, and it resolves itself when the workload recovers.
+
+It also reviews every application's setup against 60 rules (reliability, resources, scaling, security, images, config, networking, change risk, protection, consistency) and lists what to fix, such as a single replica with no disruption budget in production.
+
+How it stays trustworthy:
+
+- By default, findings come from deterministic rules. A small open-weight model only rewrites their wording, and Telark discards any rewrite that drops or invents a fact. An opt-in deep mode, for bigger nodes or a GPU, lets the model investigate with the same read-only tools.
+- It is read-only. It never changes your cluster.
+- The model runs in your cluster through Ollama. No data leaves it, no API key is needed, and it works air-gapped.
+- It is on by default and easy to switch off in Settings. Setup reviews run on their own; incident analysis runs when you click Analyze, or automatically once you enable auto-analyze. The rest of Telark works without it.
 
 ## Quick start
 
-> **Prerequisites:** Kubernetes ≥ 1.30 (1.33+ recommended), Helm 3, and a ReadWriteMany StorageClass for the exporter snapshot and report volumes (`efs-sc` on EKS). One-node cluster? Pass `--set app.singleNode=true` and any default class works.
-
-One command from the registry — CRDs, dashboard, and everything else ship with the chart:
+You need Kubernetes 1.30+, Helm 3, and a ReadWriteMany StorageClass (`efs-sc` on EKS). On a single-node cluster, add `--set app.singleNode=true` and any class works.
 
 ```sh
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
   --set app.persistence.storageClass=<rwx-class> \
-  --set 'app.auth.bootstrap.admins={jane.doe@example.com}'
+  --set 'app.auth.bootstrap.admins={you@example.com}'
 ```
 
-Use your own email as the first admin; the chart ships none ([First admin](docs/INSTALL.md#2-first-admin)).
-
-Size it for the cluster with one flag (`minimal` · `standard` · `performance`):
+Enrol yourself as the first admin and open the dashboard:
 
 ```sh
-helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
-  --set app.mode=performance
-```
-
-Then reach the dashboard:
-
-```sh
+kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email you@example.com --enroll
 kubectl port-forward -n telark svc/telark-ui-service 3000:8080
-# open http://localhost:3000
+# open http://localhost:3000/register?enroll=<token printed above>
 ```
 
-Full walkthrough, sizing, autoscaling, monitoring and ingress: **[docs/INSTALL.md](docs/INSTALL.md)**.
-
-## Architecture
-
-Six services plus shared infrastructure, all shipped by one Helm chart:
-
-| Service | Role |
-|---|---|
-| `exporter` | Owns the CRDs/storage; seeds built-ins; snapshots cluster state |
-| `discovery` | Groups workloads into applications; drives protection-plan reconciliation |
-| `analyzer` | Local analyzer (Python/FastAPI) |
-| `auth` | Passkey + Google OIDC login, sessions, roles |
-| `notifier` | Notifications |
-| `ui` | Dashboard SPA, deployed by default (image built from a separate repo) |
-
-Bundled subcharts: redis, nats, kyverno, metrics-server, ollama. Deep dive in **[docs/architecture.md](docs/architecture.md)**.
-
-## Kubernetes compatibility
-
-telark installs on **Kubernetes 1.30 or newer** (enforced by the chart's `kubeVersion`) and emits only **GA** APIs (`apps/v1`, `autoscaling/v2`, `networking.k8s.io/v1`, `policy/v1`, `apiextensions.k8s.io/v1`, `admissionregistration.k8s.io/v1`), so newer releases work as they ship.
-
-| Tier | Kubernetes | Meaning |
-|---|---|---|
-| **Supported** | **1.33+** — the minors under [upstream support](https://kubernetes.io/releases/version-skew-policy/) | tested target; bugs fixed here |
-| **Best-effort** | **1.30 – 1.32** | fully functional (every API is GA), but older / less-tested and possibly EOL upstream |
-
-Managed distros: EKS · GKE · AKS · OpenShift. The floor is 1.30 because the optional `crdGuard` uses ValidatingAdmissionPolicy (GA in 1.30); the bundled policy engine (kyverno) only needs 1.25.
-
-Every CI run schema-validates the rendered chart against **1.30 through 1.34** in all three sizing modes (`make helm-validate` runs the same matrix locally). The check fails if the chart's `kubeVersion` floor is ever raised without adding that version to the matrix, so the floor in the table above cannot drift away from what is actually tested. Extending the matrix upwards as new minors ship is a manual step.
+From there: your applications appear on their own; create a protection plan in audit mode to see what it would block. The [getting started guide](docs/getting-started.md) walks through it in about ten minutes.
 
 ## Documentation
 
 | | |
 |---|---|
-| 🚀 [Install guide](docs/INSTALL.md) | Install, sizing modes, autoscaling, monitoring, ingress |
-| 🏗️ [Architecture](docs/architecture.md) | Services, data flow, admission model |
-| 📦 [CRD reference](docs/CRDS.md) | Custom resources telark installs |
-| 🧭 [ADRs](docs/adr/) | Architecture decision records |
-| ⚙️ [Chart values](charts/telark/VALUES.md) | Every configurable value |
-| 🛠️ [Development](docs/DEVELOPMENT.md) | Make targets, local build/test |
-| 📐 [Conventions](CONVENTIONS.md) | Code, naming, testing, AI-agent workflow |
-| 🏛️ [Governance](GOVERNANCE.md) | Roles & the contributor ladder |
+| [Getting started](docs/getting-started.md) | Install, first login, first protection plan |
+| [Concepts](docs/concepts.md) | Applications, protection plans, insights, access control |
+| [Install and configure](docs/INSTALL.md) | Sizing, exposure, SSO, networking, upgrades, uninstall |
+| [Chart values](charts/telark/VALUES.md) | Every configurable value |
+| [Custom resources](docs/CRDS.md) | The `telark.io` API |
+| [Architecture](docs/architecture.md) | Services and data flow |
+| [Security model](docs/security/README.md) | Authentication, authorization, trust boundaries |
 
-## Community & support
+## Compatibility
 
-- 💬 **Questions & ideas** — [GitHub Discussions](https://github.com/telark/telark/discussions)
-- 🐛 **Bugs & feature requests** — [Issues](https://github.com/telark/telark/issues)
-- 🤝 **Code of Conduct** — [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
-- 🌐 **Website** — [telark.io](https://telark.io) · reach us at `contact@telark.io`
+Kubernetes 1.30 or newer; 1.33+ is the tested target. Only GA Kubernetes APIs are used. Runs on EKS, GKE, AKS and OpenShift. The chart bundles Kyverno, Redis, NATS, metrics-server and Ollama.
 
-## Contributing
+## Community
 
-Contributions are welcome. The repo is a Go workspace (services + shared internal packages) plus a Python service and the Helm charts. Start with **[CONTRIBUTING.md](CONTRIBUTING.md)**, the rulebook in **[CONVENTIONS.md](CONVENTIONS.md)**, and roles/promotion in **[GOVERNANCE.md](GOVERNANCE.md)**.
-
-## Security
-
-Found a vulnerability? Please report it **privately** — see **[SECURITY.md](SECURITY.md)**. Do not open a public issue for security reports.
+Questions and ideas go to [Discussions](https://github.com/telark/telark/discussions), bugs to [Issues](https://github.com/telark/telark/issues). To contribute, start with [CONTRIBUTING.md](CONTRIBUTING.md). Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ## License
 
-telark is **source-available** under the [Elastic License 2.0](LICENSE.md): free to use, copy, modify, and self-host — you may not provide it to others as a managed service, or remove the license/keys. See the license for the exact terms.
+Source-available under the [Elastic License 2.0](LICENSE.md). You may use, modify and self-host Telark; you may not offer it to others as a managed service.

@@ -1,16 +1,16 @@
 # Publishing the Helm charts
 
-telark ships two charts — `telark` (app) and `telark-crds` — as **OCI artifacts** in
-GitHub Container Registry: `oci://ghcr.io/telark/charts`. GHCR packages are **private by
-default**, so the steps below test the full private publish/pull/deploy path before you
-ever make anything public.
+Telark ships two charts, `telark` (the app) and `telark-crds`, as OCI artifacts in
+GitHub Container Registry: `oci://ghcr.io/telark/charts`. GHCR packages are private by
+default, so the steps below test the full private publish, pull and deploy path before
+anything is made public.
 
 - **Automated:** tag `vX.Y.Z` (or run *Release · Publish Charts*) → CI packages, pushes, and **cosign-signs** both charts. See [`.github/workflows/release-charts.yaml`](../.github/workflows/release-charts.yaml).
 - **Manual:** the commands here, for testing a publish from your machine.
 
 ## Prerequisites
 
-- `helm` ≥ 3.8 (OCI is GA), `cosign`, and — for ArtifactHub — `oras`.
+- `helm` ≥ 3.8 (OCI is GA), `cosign`, and `oras` for ArtifactHub.
 - A GitHub PAT (classic) with **`write:packages`** and **`read:packages`**, exported as `CR_PAT`.
 
 ## 1. Log in to the registry
@@ -65,7 +65,7 @@ subchart DNS (`{{ .Release.Name }}-redis-master`, `-nats`, `-ollama`) resolves.
 ```sh
 NS=telark
 
-# App: services, subcharts, and CRDs — all ship in the chart (telark-crds is a
+# App: services, subcharts and CRDs all ship in the chart (telark-crds is a
 # subchart). NATS config inlined; size with --set app.mode=<mode>. standard runs
 # two exporter replicas that share both exporter volumes, so name a ReadWriteMany
 # class (or --set app.singleNode=true on a one-node test cluster).
@@ -119,7 +119,7 @@ ArtifactHub auto-detects the cosign signatures and shows the charts as **Signed*
 ## Values docs
 
 Each chart carries an auto-generated `VALUES.md` (exhaustive key/type/default index).
-Regenerate after any `values.yaml` change — CI fails if it drifts:
+Regenerate it after any `values.yaml` change; CI fails if it drifts:
 
 ```sh
 make values-docs

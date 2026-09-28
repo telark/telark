@@ -1,9 +1,10 @@
 # exporter service
 
-The platform's system-of-record. Exporter owns every telark custom resource, seeds
-the built-ins, snapshots live cluster state to disk, and serves the REST API that all
-other services call to read and write CRDs. It is the **only stateful service** — it
-holds the snapshots PVC and is the single writer of Telark CRs on the cluster.
+The exporter is Telark's system of record. It owns every Telark custom resource, seeds the
+built-in roles, categories and `TelarkConfig`, stores application snapshots and protection plan
+reports on its volumes, and serves the REST API the other services use to read and write them.
+It is the only stateful service and the only writer of Telark CRs (discovery also patches
+`applications/status`).
 
 ## Architecture
 
@@ -43,12 +44,12 @@ flowchart LR
 
 ## Responsibilities
 
-- Own the Telark CRDs (group `telark.io`, see [CRDS.md](../../docs/CRDS.md)) and the OIDC trust Secret — the single service that reads and writes them on the cluster. Reads return a view with `id` = `metadata.name` and `.status` flattened into the top level; writes strip `id` and send status fields to the `/status` subresource of `Application`, `ProtectionPlan` and `TelarkConfig`.
+- Own the Telark CRDs (group `telark.io`, see [CRDS.md](../../docs/CRDS.md)) and the OIDC trust Secret, the single service that reads and writes them on the cluster. Reads return a view with `id` = `metadata.name` and `.status` flattened into the top level; writes strip `id` and send status fields to the `/status` subresource of `Application`, `ProtectionPlan` and `TelarkConfig`.
 - Seed built-in resources (access roles, categories, the `TelarkConfig` named `default`) on startup.
 - Store and serve **snapshots** of workload manifests for audit, comparison, and rollback targets, on a PersistentVolume.
 - Store and serve **protection plan reports** (rendered by discovery) and each plan's report ledger on a second PersistentVolume; a reports GC goroutine (own Redis lock key, one replica per tick, shares `SNAPSHOT_GC_INTERVAL_SEC`) sweeps report directories whose plan CR no longer exists.
 - Expose the REST surface every other service consumes for CRD operations.
-- Emit change notifications on Redis for downstream consumers.
+- Store per-user in-app notifications in Redis.
 
 ## Layout
 
@@ -62,7 +63,7 @@ flowchart LR
 | `internal/utils/reports` | Reports store on the reports volume (per-plan directory, ledger, retention of 10 on-demand reports) |
 | `internal/startup` | `SeedBuiltins` and boot wiring |
 | `internal/managers/{envs,certs}` | Env resolution, CA-bundle / TLS material |
-| `internal/redis/notifications` | Change-event publishing |
+| `internal/redis/notifications` | Per-user in-app notifications |
 | `internal/cache` · `internal/utils/*` | Compute, concurrency, snapshot helpers |
 | `internal/authz` | Per-route authorization requirements |
 
@@ -70,7 +71,7 @@ flowchart LR
 
 - **Internal modules:** `data` (CRD types), `kcore` (dynamic informers / client), `rest` (router + server), `x-ware` (Redis, authz, CORS).
 - **Infrastructure:** Kubernetes API (CRD storage), a snapshots **PVC**, Redis.
-- **Peers:** none upstream — exporter is the backend the other services depend on.
+- **Peers:** none upstream; exporter is the backend the other services depend on.
 
 ## Configuration
 

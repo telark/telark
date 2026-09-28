@@ -1,8 +1,8 @@
 # CRD reference
 
-telark's custom resources are defined by the `telark-crds` chart. Every CRD is in the group **`telark.io`**, version **`v1alpha1`**, namespaced in the release namespace, and kept on uninstall (`helm.sh/resource-policy: keep`); to remove them, follow the [full teardown](INSTALL.md#full-teardown). The group is constant ([ADR 0003](adr/0003-constant-api-group-telark-io.md)).
+Telark's custom resources are defined by the `telark-crds` chart. Every CRD is in the group **`telark.io`**, version **`v1alpha1`**, namespaced in the release namespace, and kept on uninstall (`helm.sh/resource-policy: keep`); to remove them, follow the [full teardown](INSTALL.md#full-teardown). The group is constant ([ADR 0003](adr/0003-constant-api-group-telark-io.md)).
 
-`kubectl get telark -n telark` lists every telark object except passkeys and sessions (`kubectl get telark-auth -n telark`). Several plurals collide with other CRDs (Argo CD installs `applications.argoproj.io`), so use the fully qualified name (`applications.telark.io`) or the short name (`tapp`).
+`kubectl get telark -n telark` lists every Telark object except passkeys and sessions (`kubectl get telark-auth -n telark`). Several plurals collide with other CRDs (Argo CD installs `applications.argoproj.io`), so use the fully qualified name (`applications.telark.io`) or the short name (`tapp`).
 
 ## Kinds
 
@@ -28,7 +28,7 @@ The object name (`metadata.name`) is the identity; there is no `spec.id`. The ex
 |---|---|---|
 | `Application` | `name`, `displayName`, `description`, `managed` | `health`, `resourceCount`, `namespaces`, `resourceSummary`, `resources`, `images`, `ports`, `envVarKeys`, `configMapRefs`, `secretRefs`, `serviceMappings`, `ingressRules`, `metrics`, `snapshots`, `rollbacks`, `history`, `lastForceSync`, `createdAt`, `lastUpdated`, `conditions` (type `Published`: status `True`/`False`, reason `Pending`, `Created` or `Failed`) |
 | `ProtectionPlan` | `name`, `description`, `severity`, `priority`, `scope` (`type`, `namespaces` or `applicationRefs`, `exclusions`), `policies`, `mode` (`audit` \| `enforce`), `timeMode`, `timeRange`, `approvalMode` (`automatic` \| `required`; absent = automatic; Production defaults to `required`), `participantRefs`, `environmentRef`, `tagRefs` (at most 20), `createdAt/By`, `lastUpdatedAt/By` | `phase`, `reason`, `conditions` (`Ready`, `Approved`, `PoliciesHealthy`), `observedGeneration`, `renderedPolicies`, `health`, `healthCheckedAt`, `healthDetail`, `startedAt/By`, `terminatedAt/By`, `approval` (state, requester, decider, comment, bounded history; written only by discovery) |
-| `TelarkConfig` | `excludedNamespaces`, `userSettings`, `ai` (`enabled`, `model` — a local analyzer model tag, default `granite4:350m` —, `autoAnalyze`), `snapshots`, `oidc` (`enabled`, `googleClientID`, `egressAllowed`) | `cluster.version` |
+| `TelarkConfig` | `excludedNamespaces`, `userSettings`, `ai` (`enabled`, `model`: a local analyzer model tag, default `granite4:350m`; `autoAnalyze`), `snapshots`, `oidc` (`enabled`, `googleClientID`, `egressAllowed`) | `cluster.version` |
 | `Category` | `categories[]`: `id`, `name`, `scope` (`groups`, `roles`, `plan-environments`, `plan-tags`), `type`, `creationDate`, … | none |
 | `User` | `username`, `fullname`, `email`, `roleRefs`, `groupRefs`, `bootstrap`, `identities`, `avatar`, `settings`, `status` (`phase`: `active`, `inactive` or `suspended`; `lastLoginAt`) | none (lifecycle stays in `spec.status`) |
 | `Group` | `name`, `description`, `userRefs`, `roleRefs`, `categoryRef`, `createdBy`, `lastUpdatedBy` | none |

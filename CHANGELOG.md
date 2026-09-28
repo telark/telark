@@ -3,14 +3,16 @@
 All notable changes to telark are documented here.
 Commits follow [Conventional Commits](https://www.conventionalcommits.org).
 
-## [0.0.1] - 2026-09-27
+## [0.0.2] - 2026-09-28
 
 ### Bug Fixes
 - Adjust ui config and remove leftovers in docs
 - Remove unused inputs from GHA
 - Update services versions manually due to broken workflows (cosign issues)
 - Fix ListCleanupViews parsing by setting views in nested items
-- Remove legacy scripts, remove current-version tagging from GHA files
+
+### Documentation
+- Product-led README, getting started and concepts; tighten every… (#56)
 
 ### Features
 - Add missing tests for all services to cover at least 30% for coverage and 50% for auth and exporte, add new contributions and conventions rules and optimize the starter kit docs

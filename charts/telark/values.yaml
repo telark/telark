@@ -433,7 +433,7 @@ services:
     name: "ui-service"
     repository: "ui"
     # @ignore
-    version: 0.0.1
+    version: 0.0.2
     category: "ui"
     terminationGracePeriodSec: 30
     # Static assets behind nginx: it serves no /api/v1/status route, so probes

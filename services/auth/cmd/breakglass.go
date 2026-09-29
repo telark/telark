@@ -1,4 +1,4 @@
-package breakglass
+package cmd
 
 import (
 	"context"
@@ -22,7 +22,7 @@ import (
 
 // Operator-run, so the email is trusted; a BOOTSTRAP_ADMINS address also gets the
 // chart marker, which is how a bootstrap user created before it existed is marked.
-func Run(args []string) int {
+func RunBreakGlass(args []string) int {
 	fs := flag.NewFlagSet(constants.BreakGlassFlagSet, flag.ExitOnError)
 	email := fs.String(constants.BreakGlassFlagEmail, constants.EmptyString, constants.BreakGlassFlagEmailUsage)
 	enroll := fs.Bool(constants.BreakGlassFlagEnroll, false, constants.BreakGlassFlagEnrollUsage)
@@ -57,8 +57,6 @@ func Run(args []string) int {
 	return printEnrollToken(user.ID, normalized)
 }
 
-// The only unauthenticated way into an existing account is this operator-minted
-// token, which is why self-registration never grants Admin or the bootstrap marker.
 func printEnrollToken(userID, email string) int {
 	if redishelper.NewRedisClientWithRetry(context.Background()) == nil {
 		_, _ = fmt.Fprintf(os.Stderr, constants.BreakGlassEnrollFailed, errors.New(string(constants.ErrRedisClientUnavailable)))

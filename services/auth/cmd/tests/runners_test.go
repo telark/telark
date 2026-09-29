@@ -1,4 +1,4 @@
-package cmd
+package tests
 
 import (
 	"encoding/json"
@@ -6,9 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/telark/auth/internal/cmd/backfill"
-	"github.com/telark/auth/internal/cmd/breakglass"
-	"github.com/telark/auth/internal/cmd/uninstall"
+	"github.com/telark/auth/cmd"
 	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
 	cleanupctrl "github.com/telark/auth/internal/controllers/cleanup"
@@ -18,29 +16,22 @@ import (
 	userresource "github.com/telark/data/resources/user"
 )
 
-// The backfill runner walks every registered resource type; with no backend the
-// first list call fails and the run aborts with that error.
 func TestBackfillRunFailsClosed(t *testing.T) {
 	lg := constants.GetLogger(constants.LoggerPrefixCleanup)
-	if err := backfill.Run(config.LoadBackfillConfig(), lg); err == nil {
+	if err := cmd.RunBackFill(config.LoadBackfillConfig(), lg); err == nil {
 		t.Fatal("backfill Run should fail with no backend")
 	}
 }
 
-// break-glass rejects a missing email and, given one, fails when the user cannot
-// be looked up — both return the error exit code.
 func TestBreakGlassRun(t *testing.T) {
-	if code := breakglass.Run(nil); code != constants.ExitCodeError {
+	if code := cmd.RunBreakGlass(nil); code != constants.ExitCodeError {
 		t.Fatalf("break-glass with no email = %d, want %d", code, constants.ExitCodeError)
 	}
-	if code := breakglass.Run([]string{"--email", "nobody@example.com"}); code != constants.ExitCodeError {
+	if code := cmd.RunBreakGlass([]string{"--email", "nobody@example.com"}); code != constants.ExitCodeError {
 		t.Fatalf("break-glass with unreachable backend = %d, want %d", code, constants.ExitCodeError)
 	}
 }
 
-// Run by an operator, break-glass is the trusted path that marks a bootstrap
-// admin created before the marker existed: an Admin user whose email is in
-// BOOTSTRAP_ADMINS gets `bootstrap: true`; a record already carrying it is left alone.
 func TestBreakGlassMarksBootstrapAdmin(t *testing.T) {
 	const email = "admin@x.com"
 	t.Setenv(constants.EnvBootstrapAdmins, email)
@@ -58,20 +49,17 @@ func TestBreakGlassMarksBootstrapAdmin(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"data": user})
 	}))
 
-	testutil.Equal(t, "exit", breakglass.Run([]string{"--email", email}), constants.DefaultInitValue)
+	testutil.Equal(t, "exit", cmd.RunBreakGlass([]string{"--email", email}), constants.DefaultInitValue)
 	testutil.Equal(t, "patches", len(patches), constants.DefaultIncrementValue)
 	first := patches[constants.DefaultInitValue]
-	testutil.Equal[any](t, "marker", first[constants.UserFieldBootstrap], true)
-	testutil.Equal[any](t, "roles left alone (Admin already held)", first[constants.SpecFieldRoleRefs], nil)
+	testutil.Equal(t, "marker", first[constants.UserFieldBootstrap], true)
+	testutil.Equal(t, "roles left alone (Admin already held)", first[constants.SpecFieldRoleRefs], nil)
 
 	user.Bootstrap = true
-	testutil.Equal(t, "exit when complete", breakglass.Run([]string{"--email", email}), constants.DefaultInitValue)
+	testutil.Equal(t, "exit when complete", cmd.RunBreakGlass([]string{"--email", email}), constants.DefaultInitValue)
 	testutil.Equal(t, "patches when complete", len(patches), constants.DefaultIncrementValue)
 }
 
-// With --enroll the operator can bootstrap a missing account: the user is created
-// with the Admin role and the bootstrap marker, and a one-time enrollment token
-// is printed, which is the only unauthenticated way into that account.
 func TestBreakGlassEnrollCreatesAdmin(t *testing.T) {
 	const email = "root@x.com"
 	t.Setenv(constants.EnvBootstrapAdmins, email)
@@ -94,15 +82,13 @@ func TestBreakGlassEnrollCreatesAdmin(t *testing.T) {
 		}
 	}))
 
-	testutil.Equal(t, "exit without --enroll", breakglass.Run([]string{"--email", email}), constants.ExitCodeError)
-	testutil.Equal(t, "exit with --enroll", breakglass.Run([]string{"--email", email, "--enroll"}), constants.DefaultInitValue)
+	testutil.Equal(t, "exit without --enroll", cmd.RunBreakGlass([]string{"--email", email}), constants.ExitCodeError)
+	testutil.Equal(t, "exit with --enroll", cmd.RunBreakGlass([]string{"--email", email, "--enroll"}), constants.DefaultInitValue)
 	if created == nil || !created.Bootstrap || !authhelper.HasAdminRole(created.RoleRefs) {
 		t.Fatalf("created = %+v, want Admin with the bootstrap marker", created)
 	}
 }
 
-// remove-finalizers clears the cleanup finalizer from every resource that carries
-// it, for each registered type, and skips the ones without it.
 func TestRemoveFinalizers(t *testing.T) {
 	views := []map[string]any{
 		{"name": "held", "finalizers": []string{finalizers.UserCleanup, finalizers.GroupCleanup, finalizers.RoleCleanup}},
@@ -118,7 +104,7 @@ func TestRemoveFinalizers(t *testing.T) {
 		_, _ = w.Write([]byte(`{"status":200}`))
 	}))
 
-	uninstall.RemoveFinalizers(constants.GetLogger(constants.LoggerPrefixCleanup))
+	cmd.RemoveFinalizers(constants.GetLogger(constants.LoggerPrefixCleanup))
 
 	testutil.Equal(t, "removals", len(removed), len(cleanupctrl.RegisteredResourceTypes()))
 	for _, call := range removed {

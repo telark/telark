@@ -1,4 +1,4 @@
-package backfill
+package cmd
 
 import (
 	"context"
@@ -19,7 +19,7 @@ type stats struct {
 	skipped int
 }
 
-func Run(cfg config.BackfillConfig, lg *logger.CustomLogger) error {
+func RunBackFill(cfg config.BackfillConfig, lg *logger.CustomLogger) error {
 	lg.Info(fmt.Sprintf(
 		string(constants.LogBackfillFinalizersStarted),
 		cfg.BatchSize, cfg.BatchPause.Milliseconds(),

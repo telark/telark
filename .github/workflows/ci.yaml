@@ -36,9 +36,9 @@ jobs:
         service: [auth, discovery, exporter, notifier]
         task: [test, lint]
         include:
-          - { service: auth, coverage: 55 }
-          - { service: discovery, coverage: 35 }
-          - { service: exporter, coverage: 52 }
+          - { service: auth, coverage: 60 }
+          - { service: discovery, coverage: 50 }
+          - { service: exporter, coverage: 55 }
           - { service: notifier, coverage: 75 }
     steps:
       - name: Checkout

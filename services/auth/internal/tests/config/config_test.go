@@ -7,25 +7,25 @@ import (
 	"github.com/telark/auth/internal/constants"
 )
 
-// Bootstrap admins are normalised (trimmed + lowercased) and de-duplicated from
-// a comma list, and IsBootstrapAdmin matches case-insensitively — the admin
-// grant on first login depends on this exact matching.
+// The bootstrap admin is one email, normalised (trimmed + lowercased), and
+// IsBootstrapAdmin matches it case-insensitively; a comma list is not split.
 func TestLoadBootstrapConfig(t *testing.T) {
 	cases := []struct {
 		name     string
-		admins   string
+		admin    string
 		selfReg  string
 		wantErr  bool
 		wantSelf bool
 		isAdmin  bool
 	}{
-		{"admins with self-reg", " A@x.com , b@X.com ", "true", false, true, true},
-		{"no admins, self-reg on", "", "true", false, true, false},
-		{"no admins, self-reg off is invalid", "", "false", true, false, false},
+		{"admin with self-reg off", " A@x.com ", "false", false, false, true},
+		{"list is one unmatched value", "a@x.com,b@x.com", "true", false, true, false},
+		{"no admin, self-reg on", "", "true", false, true, false},
+		{"no admin, self-reg off is invalid", "", "false", true, false, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			t.Setenv(constants.EnvBootstrapAdmins, c.admins)
+			t.Setenv(constants.EnvBootstrapAdmin, c.admin)
 			t.Setenv(constants.EnvSelfRegistrationEnabled, c.selfReg)
 
 			_, err := config.LoadBootstrapConfig()
@@ -50,7 +50,7 @@ func TestLoadBootstrapConfig(t *testing.T) {
 func TestBootstrapDefaultsWhenUnloaded(t *testing.T) {
 	// A prior subtest may have loaded config; this only asserts the accessors do
 	// not panic and return booleans, exercising the nil-safe branches.
-	if config.IsBootstrapAdmin("nobody@x.com") {
+	if config.IsBootstrapAdmin("nobody@x.com") || config.IsBootstrapAdmin(constants.EmptyString) {
 		t.Fatal("unlisted email reported as bootstrap admin")
 	}
 	_ = config.IsSelfRegistrationEnabled()

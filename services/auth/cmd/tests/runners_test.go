@@ -34,7 +34,7 @@ func TestBreakGlassRun(t *testing.T) {
 
 func TestBreakGlassMarksBootstrapAdmin(t *testing.T) {
 	const email = "admin@x.com"
-	t.Setenv(constants.EnvBootstrapAdmins, email)
+	t.Setenv(constants.EnvBootstrapAdmin, email)
 	adminRole := constants.BuiltInRoleAdmin
 	user := userresource.User{ID: "u-1", Email: email, RoleRefs: []*string{&adminRole}}
 	var patches []map[string]any
@@ -62,7 +62,7 @@ func TestBreakGlassMarksBootstrapAdmin(t *testing.T) {
 
 func TestBreakGlassEnrollCreatesAdmin(t *testing.T) {
 	const email = "root@x.com"
-	t.Setenv(constants.EnvBootstrapAdmins, email)
+	t.Setenv(constants.EnvBootstrapAdmin, email)
 	testutil.RedisEnv(t)
 	var created *userresource.User
 	testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

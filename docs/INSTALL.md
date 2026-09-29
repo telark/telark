@@ -13,10 +13,10 @@ This guide installs Telark with the defaults first, then covers exposure, sizing
 ```sh
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
   --set app.persistence.storageClass=<rwx-class> \
-  --set 'app.auth.bootstrap.admins={jane.doe@example.com}'
+  --set app.auth.bootstrap.admin=test@example.com
 ```
 
-- Replace `jane.doe@example.com` with your own email ([First admin](#2-first-admin)). The chart ships no admin and refuses to render without one.
+- Replace `test@example.com` with your own email ([First admin](#2-first-admin)). The chart ships no admin and refuses to render without one.
 - In `standard` and `performance`, the install fails early without a storage class, because a ReadWriteMany claim against block storage never binds. On a one-node cluster pass `--set app.singleNode=true` instead of the class.
 - The command installs everything: the CRDs, NATS configuration and `standard` sizing all ship in the chart. The CRDs are cluster-scoped and kept on uninstall (`resource-policy: keep`). If you manage CRDs out of band (a GitOps tool applies them first), add `--set crds.enabled=false`.
 - From a checkout, `./charts/telark` works in place of the OCI reference.
@@ -25,26 +25,28 @@ The examples below leave out the class and admin flags. Keep yours on every comm
 
 ## 2. First admin
 
-`app.auth.bootstrap.admins` is empty by default and passkey self-registration (`app.auth.passkey.selfRegistration`) is `"false"`. With neither, nobody could sign in, so the chart fails the render and the auth service refuses to start until you set at least one admin email:
+Telark has exactly one bootstrap admin: the email in `app.auth.bootstrap.admin`. It is empty by default and passkey self-registration (`app.auth.passkey.selfRegistration`) is `"false"`. With neither, nobody could sign in, so the chart fails the render and the auth service refuses to start until you set it:
 
 ```sh
---set 'app.auth.bootstrap.admins={jane.doe@example.com,john.doe@example.com}'
+--set app.auth.bootstrap.admin=test@example.com
 ```
 
-These emails get the Admin role only from a verified identity: their first Google SSO sign-in (the identity provider verified the email), or an enrolment you start yourself. Registering a passkey from the login page never grants Admin, and a bootstrap email cannot be registered there at all.
-
-To enrol the first admin with a passkey (no SSO yet), run the auth service's break-glass command and open the link within 10 minutes:
+The bootstrap admin holds the built-in Admin role (Admin on `ALL`) and nothing more. It is created and recovered only with the auth service's break-glass command, which enrols a passkey: run it and open the link within 10 minutes:
 
 ```sh
-kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email jane.doe@example.com --enroll
+kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email test@example.com --enroll
 # open https://<dashboard-host>/register?enroll=<token>
 ```
 
-With the default port-forward, the host is `http://localhost:3000`. The admin then sends enrolment links to other passkey users.
+With the default port-forward, the host is `http://localhost:3000`. Run the same command again to recover the account, for example after losing its passkey.
+
+Google SSO and passkey self-registration never grant Admin: a new account always starts as ReadOnly, even when its email is the bootstrap email, and the bootstrap email cannot be registered from the login page at all.
+
+Next, give at least two regular users the Admin role (directly or through a group), so the platform never depends on one person. Enable SSO in Settings, or turn on self-registration, so those users can create their accounts, then grant them Admin on the Users page. Regular admins are ordinary users: any Admin on `ALL` can suspend, demote or delete them. The API refuses a change that would leave no active Admin (409), and nobody can delete their own account.
 
 `app.auth.passkey.selfRegistration="true"` lets anyone who reaches the dashboard create a ReadOnly account. Leave it off unless only people you trust can reach the dashboard.
 
-Bootstrap accounts belong to the chart. The API refuses to delete them, only they may edit their own record, and no dashboard user can create or rename a user to one of these emails (the exporter receives the same list as `BOOTSTRAP_ADMINS`). Only a bootstrap account may delete or suspend another administrator, and non-administrators never see administrator accounts.
+The bootstrap account belongs to the chart. The API refuses to delete or suspend it, only it may edit its own record, and no dashboard user can create or rename a user to its email (the exporter receives the same email as `BOOTSTRAP_ADMIN`). Non-administrators never see administrator accounts.
 
 ## 3. Verify
 
@@ -250,7 +252,7 @@ Set values with `--set key=value`. Helm does not remember them across upgrades, 
 | `app.singleNode` | `false` | One-node cluster: the exporter runs 1 replica on ReadWriteOnce, so no ReadWriteMany class is needed. Access mode and update strategy follow the replica count automatically |
 | `app.crdGuard.enabled` | `true` | Admission guard: only the owning service accounts may write Telark CRs ([CRD write guard](#crd-write-guard)) |
 | `app.crdGuard.enforce` | `true` | With the guard on, `false` audits and `true` rejects |
-| `app.auth.bootstrap.admins` | `[]` | Emails granted Admin on first verified sign-in; required while self-registration is off ([First admin](#2-first-admin)) |
+| `app.auth.bootstrap.admin` | `""` | The one bootstrap admin's email, enrolled with break-glass; required while self-registration is off ([First admin](#2-first-admin)) |
 | `app.auth.passkey.selfRegistration` | `"false"` | `"true"` lets anyone who reaches the dashboard register a passkey account |
 | `app.auth.passkey.id` / `origin` | `""` | WebAuthn relying party; required with `ingress.enabled` or `gateway.enabled` ([Passkeys and HTTPS](#passkeys-and-https)) |
 | `app.networkPolicy.enabled` | `true` | Ingress NetworkPolicies for the Telark pods and NATS ([Network policies](#network-policies)) |
@@ -292,7 +294,7 @@ Example:
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
   --set app.mode=performance \
   --set app.persistence.storageClass=efs \
-  --set 'app.auth.bootstrap.admins={jane.doe@example.com}'
+  --set app.auth.bootstrap.admin=test@example.com
 ```
 
 ## Analyzer runtime
@@ -488,7 +490,7 @@ Pass the same `--set` and `-f` flags you used at install: Helm does not remember
 
 ### Version notes
 
-- **Chart with the security defaults.** `app.auth.bootstrap.admins` no longer defaults to a vendor address and self-registration is off, so pass your admin email (the render fails without one). The CRD write guard now enforces, NetworkPolicies restrict ingress to the Telark APIs and NATS, and NATS moves from one shared user to a publisher (discovery) and a consumer (notifier) with new Secrets, so the NATS server and both clients restart during the rollout. With an Ingress or Gateway, pin `app.auth.passkey.id` and `origin` too.
+- **Chart with the security defaults.** `app.auth.bootstrap.admin` has no default and self-registration is off, so pass your admin email (the render fails without one). The CRD write guard now enforces, NetworkPolicies restrict ingress to the Telark APIs and NATS, and NATS moves from one shared user to a publisher (discovery) and a consumer (notifier) with new Secrets, so the NATS server and both clients restart during the rollout. With an Ingress or Gateway, pin `app.auth.passkey.id` and `origin` too.
 - **From chart 0.2.1 or older, or when switching modes.** Those releases run one exporter replica on a ReadWriteOnce claim, and Kubernetes cannot change a bound claim's access mode or class. Add `--set app.singleNode=true` to keep that claim (one replica, Recreate). To move to two replicas on ReadWriteMany, uninstall, delete the `telark-exporter-snapshots-pvc` claim (snapshots are lost; copy `/snapshots` off the pod first if you need them), then reinstall with `--set app.persistence.storageClass=<rwx-class>`. The same applies when switching between `minimal` and `standard`/`performance`, or toggling `app.singleNode`.
 - **Chart that adds protection plan reports.** The exporter gains a second claim, `telark-exporter-reports-pvc`, which binds on rollout with the same class and access mode as the snapshot claim. Do not upgrade with `--reuse-values`: the reports volume, mount and the `REPORTS_PATH` / `PROTECTION_PLAN_REPORT_*` entries arrive only with the new chart defaults; with `--reuse-values` the exporter logs a reports-root error at start and every report write fails. The exporter volumes render even when `app.persistence.enabled=false`, so the pods then wait on claims nobody provisions.
 - **Chart that pulls from GHCR.** The service images move from Docker Hub (`telark/<service>`) to `ghcr.io/telark/<service>`, with the same names and tags. Do not upgrade with `--reuse-values`, which keeps the old `app.image.registry`. Nodes behind an egress allowlist need `ghcr.io` and `pkg-containers.githubusercontent.com`; a mirror re-syncs from `ghcr.io/telark`.
@@ -526,11 +528,11 @@ kubectl delete crd \
 Then install as in [1. Install](#1-install), with the same flags as before, and enrol the first admin with break-glass as in [2. First admin](#2-first-admin):
 
 ```sh
-kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email jane.doe@example.com --enroll
+kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email test@example.com --enroll
 # open https://<dashboard-host>/register?enroll=<token>
 ```
 
-The admin then sends enrolment links to the other passkey users and re-creates roles, groups and categories. With a cluster-less render, also create the OIDC trust Secret ([GitOps](#gitops-cluster-less-renders)). Afterwards, address Telark objects by their fully qualified names (`kubectl get applications.telark.io -n telark`) or short names (`tapp`, `tplan`, `tuser`, …), especially when Argo CD is installed: its `applications.argoproj.io` answers to a plain `kubectl get applications`.
+The admin then grants Admin to at least two regular users once they have signed in, and re-creates roles, groups and categories. With a cluster-less render, also create the OIDC trust Secret ([GitOps](#gitops-cluster-less-renders)). Afterwards, address Telark objects by their fully qualified names (`kubectl get applications.telark.io -n telark`) or short names (`tapp`, `tplan`, `tuser`, …), especially when Argo CD is installed: its `applications.argoproj.io` answers to a plain `kubectl get applications`.
 
 ## Uninstall
 

@@ -53,8 +53,6 @@ func GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authhelper.EnsureBootstrapAdmin(user, claims.Email, clients.GetUserClient())
-
 	sessionToken, err := authhelper.CreateUserSession(user.ID, &req.DeviceMetadata)
 	if err != nil {
 		shared.HandleError(w, fmt.Errorf(string(constants.ErrFailedCreateSession), err),
@@ -109,7 +107,7 @@ func resolveOIDCUser(w http.ResponseWriter, claims *oidchelper.GoogleClaims) (*u
 	user, err = jitProvisionUser(userClient, claims)
 	if err != nil {
 		status := http.StatusInternalServerError
-		if errors.Is(err, ErrEmailAmbiguous) {
+		if errors.Is(err, ErrEmailAmbiguous) || errors.Is(err, ErrEmailAlreadyBound) {
 			status = http.StatusConflict
 		}
 		shared.HandleError(w,

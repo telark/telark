@@ -54,7 +54,7 @@ func main() {
 		os.Exit(constants.ExitCodeError)
 	}
 	lg.Info(fmt.Sprintf(string(constants.LogBootstrapConfig),
-		bootstrapCfg.SelfRegistrationEnabled, len(bootstrapCfg.BootstrapAdmins)))
+		bootstrapCfg.SelfRegistrationEnabled, bootstrapCfg.BootstrapAdmin != constants.EmptyString))
 
 	if err := webauthn.InitWebAuthn(&cfg.WebAuthn); err != nil {
 		lg.Error(fmt.Sprintf(string(constants.ErrWebAuthnSetupFailed), err))

@@ -220,7 +220,8 @@ func guardGroupPatch(
 	newRoles := notifdispatch.ExtractNewStringIDsFromBody(body, constants.FieldRoleRefs)
 	addedRoles, _ := notifdispatch.DiffStringSlices(existing.RoleRefs, newRoles)
 	if !authz.GuardReferencedIDs(w, constants.ResourceUser, addedMembers) ||
-		!authz.GuardReferencedIDs(w, constants.ResourceRole, addedRoles) {
+		!authz.GuardReferencedIDs(w, constants.ResourceRole, addedRoles) ||
+		!authz.GuardGroupPatchLastAdmin(w, existing, body, removedMembers) {
 		return nil, nil, false
 	}
 	return addedMembers, removedMembers, true
@@ -291,7 +292,7 @@ func DeleteGroupByIDWithCacheInvalidation(optimizer *performance.Optimizer) func
 		}
 
 		_, ok := grouputils.FindGroupByIDOrRespond(w, groupID)
-		if !ok {
+		if !ok || !authz.GuardGroupDeleteLastAdmin(w, groupID) {
 			return
 		}
 

@@ -34,7 +34,7 @@ Kubernetes: `>=1.30.0-0`
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| app.auth.bootstrap.admins | list | `[]` |  |
+| app.auth.bootstrap.admin | string | `""` |  |
 | app.auth.oidc.existingSecret | string | `""` |  |
 | app.auth.passkey.id | string | `""` |  |
 | app.auth.passkey.name | string | `"Dashboard App"` |  |
@@ -282,7 +282,7 @@ Kubernetes: `>=1.30.0-0`
 | services.auth.automountServiceAccountToken | bool | `false` |  |
 | services.auth.category | string | `"auth"` |  |
 | services.auth.enabled | bool | `true` |  |
-| services.auth.env.BOOTSTRAP_ADMINS | string | `"{{ join \",\" .Values.app.auth.bootstrap.admins }}"` |  |
+| services.auth.env.BOOTSTRAP_ADMIN | string | `"{{ .Values.app.auth.bootstrap.admin }}"` |  |
 | services.auth.env.CHALLENGE_TIMEOUT | string | `"60"` |  |
 | services.auth.env.CLEANUP_DEDUP_TTL_SECONDS | string | `"600"` |  |
 | services.auth.env.CLEANUP_JOB_MAX_ATTEMPTS | string | `"5"` |  |
@@ -380,7 +380,7 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.autoscaling.enabled | bool | `false` |  |
 | services.exporter.category | string | `"persistence-manager"` |  |
 | services.exporter.enabled | bool | `true` |  |
-| services.exporter.env.BOOTSTRAP_ADMINS | string | `"{{ join \",\" .Values.app.auth.bootstrap.admins }}"` |  |
+| services.exporter.env.BOOTSTRAP_ADMIN | string | `"{{ .Values.app.auth.bootstrap.admin }}"` |  |
 | services.exporter.env.CORS_ALLOWED_ORIGINS | string | `""` |  |
 | services.exporter.env.EXPORTER_K8S_CLIENT_BURST | string | `"100"` |  |
 | services.exporter.env.EXPORTER_K8S_CLIENT_QPS | string | `"50"` |  |

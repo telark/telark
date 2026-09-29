@@ -54,7 +54,10 @@ flowchart TB
 4. auth-service checks the token really came from Google.
 5. If it's valid, auth-service finds the user by the token's subject. On a first
    login it attaches the Google identity to the one user whose email matches, or
-   creates a user when none does; two users with that email are refused (409).
+   creates a user when none does; two users with that email are refused (409), and
+   so is the bootstrap admin's email, which only ever signs in with its passkey.
+   A created user always gets the ReadOnly role, even with the bootstrap email:
+   SSO never grants Admin or the `bootstrap` marker (only `break-glass` does).
    A user being deleted or whose account is not active gets no session (403).
    Otherwise auth-service creates a Telark session and the user is logged in.
 

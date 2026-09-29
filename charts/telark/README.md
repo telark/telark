@@ -7,7 +7,7 @@ Helm chart for [Telark](https://telark.io), a protection gate for Kubernetes app
 ```sh
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
   --set app.persistence.storageClass=<rwx-class> \
-  --set 'app.auth.bootstrap.admins={jane.doe@example.com}'
+  --set app.auth.bootstrap.admin=test@example.com
 ```
 
 Set your own admin email; the chart ships none and refuses to render without one. Name a ReadWriteMany StorageClass, or pass `--set app.singleNode=true` on a one-node cluster. Prerequisites, first sign-in, exposure, sizing modes, upgrades and uninstall are in the [install guide](../../docs/INSTALL.md); a guided first run is in [Getting started](../../docs/getting-started.md).
@@ -79,7 +79,7 @@ The exporter mounts two PVCs rendered from one template (snapshots and reports);
 
 | Key | Default | Description |
 |---|---|---|
-| `app.auth.bootstrap.admins` | `[]` | Admin email list. An entry gets the Admin role from a verified identity only: its first OIDC login, or `auth break-glass --email <email> --enroll` for a passkey; passkey registration from the login page never grants it. Joined with commas → `BOOTSTRAP_ADMINS` env. Required when `app.auth.passkey.selfRegistration` is `"false"` (the default): the render fails otherwise. See [First admin](../../docs/INSTALL.md#2-first-admin) |
+| `app.auth.bootstrap.admin` | `""` | The one bootstrap admin's email. The account is created and recovered only with `auth break-glass --email <email> --enroll` (passkey) and holds the built-in Admin role; Google sign-in and passkey self-registration never grant Admin, even to this email. → `BOOTSTRAP_ADMIN` env. Required when `app.auth.passkey.selfRegistration` is `"false"` (the default): the render fails otherwise. See [First admin](../../docs/INSTALL.md#2-first-admin) |
 
 #### `app.auth.oidc`
 
@@ -98,7 +98,7 @@ WebAuthn relying-party identity + passkey-flow policy. **`selfRegistration` gate
 | `app.auth.passkey.id` | `""` | Relying Party identifier. Empty follows the request host (`X-Forwarded-Host`, else `Host`, port stripped), so passkeys work on whichever hostname you open the dashboard on. Required (the render fails) with `ingress.enabled` or `gateway.enabled`; pin it in production. Injected as `RP_ID`. |
 | `app.auth.passkey.name` | `"Dashboard App"` | Display name shown by the authenticator (Touch ID prompt, etc.). Injected as `RP_NAME`. |
 | `app.auth.passkey.origin` | `""` | Origin(s) accepted for WebAuthn ceremonies, comma-separated. Empty follows the request `Origin` header, whose host must be the relying party or one of its subdomains. Required (the render fails) with `ingress.enabled` or `gateway.enabled`; pin to `https://<domain>` in production. Injected as `RP_ORIGIN`. |
-| `app.auth.passkey.selfRegistration` | `"false"` | `"true"` lets anyone who reaches the dashboard register a passkey account (ReadOnly role). Requires at least one `app.auth.bootstrap.admins` entry when `"false"`. Injected as `SELF_REGISTRATION_ENABLED`. |
+| `app.auth.passkey.selfRegistration` | `"false"` | `"true"` lets anyone who reaches the dashboard register a passkey account (ReadOnly role). Requires `app.auth.bootstrap.admin` when `"false"`. Injected as `SELF_REGISTRATION_ENABLED`. |
 
 ### `app.serviceDefaults`
 
@@ -225,7 +225,7 @@ Image tags are `services.<svc>.version` in `values.yaml`, bumped by the release 
 | `EXPORTER_K8S_CLIENT_BURST` | `100` | K8s client burst |
 | `SNAPSHOT_GC_INTERVAL_SEC` | `3600` | Sweep the snapshot PVC for files no Application CR references and older than 1 h (`minimal` 7200, `performance` 900; `0` = off). One replica sweeps per interval. Also drives the reports orphan sweep; `0` disables both |
 | `REPORTS_PATH` | `/reports` | Filesystem mount path for protection plan report files |
-| `BOOTSTRAP_ADMINS` | `{{ join "," .Values.app.auth.bootstrap.admins }}` (tpl) | Same list as auth; a session may not create or edit a user with one of these emails (403), see [First admin](../../docs/INSTALL.md#2-first-admin) |
+| `BOOTSTRAP_ADMIN` | `{{ .Values.app.auth.bootstrap.admin }}` (tpl) | Same email as auth; a session may not create or edit a user with it (403), see [First admin](../../docs/INSTALL.md#2-first-admin) |
 | `OIDC_TRUST_SECRET_NAME` | `{{ include "telark.oidcTrustSecretName" . }}` (tpl) | Secret the exporter writes the pinned OIDC keys to; follows `app.auth.oidc.existingSecret` |
 
 `services.exporter.envFromConfigMap.CA_BUNDLE` → configmap `telark-ca-bundle`, key `ca.crt` (trusted CA bundle).
@@ -434,7 +434,7 @@ Bootstrap (templated from `app.auth.bootstrap`):
 
 | Variable | Source | Description |
 |---|---|---|
-| `BOOTSTRAP_ADMINS` | `{{ join "," .Values.app.auth.bootstrap.admins }}` | Comma-joined admin email list; recipients get the Admin role on their first OIDC login or through `break-glass --enroll`, never from passkey self-registration |
+| `BOOTSTRAP_ADMIN` | `{{ .Values.app.auth.bootstrap.admin }}` | The bootstrap admin's email; `break-glass --enroll` marks it `bootstrap: true`, and it is refused on bare-email passkey registration. OIDC and self-registration never grant it Admin |
 
 WebAuthn / passkey (templated from `app.auth.passkey`):
 

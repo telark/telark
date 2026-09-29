@@ -272,7 +272,8 @@ func guardUserPatch(
 	newGroups := notifdispatch.ExtractNewRoleIDsFromBody(body, constants.FieldGroupRefs)
 	addedGroups, removedGroups = notifdispatch.DiffPtrStringSlices(existing.GroupRefs, newGroups)
 	if !authz.GuardReferencedIDs(w, constants.ResourceRole, addedRoles) ||
-		!authz.GuardReferencedIDs(w, constants.ResourceGroup, addedGroups) {
+		!authz.GuardReferencedIDs(w, constants.ResourceGroup, addedGroups) ||
+		!authz.GuardUserPatchLastAdmin(w, existing, body) {
 		return nil, nil, false
 	}
 	return addedGroups, removedGroups, true
@@ -334,7 +335,7 @@ func DeleteUserByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 		}
 
 		existingUser, ok := userutils.GetExistingUserForPatch(w, userID)
-		if !ok || !authz.GuardUserTarget(w, r, existingUser, nil, true) {
+		if !ok || !authz.GuardUserTarget(w, r, existingUser, nil, true) || !authz.GuardUserDeleteLastAdmin(w, existingUser) {
 			return
 		}
 

@@ -75,13 +75,13 @@ You need Kubernetes 1.30+, Helm 3, and a ReadWriteMany StorageClass (`efs-sc` on
 ```sh
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
   --set app.persistence.storageClass=<rwx-class> \
-  --set 'app.auth.bootstrap.admins={you@example.com}'
+  --set app.auth.bootstrap.admin=test@example.com
 ```
 
 Enrol yourself as the first admin and open the dashboard:
 
 ```sh
-kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email you@example.com --enroll
+kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email test@example.com --enroll
 kubectl port-forward -n telark svc/telark-ui-service 3000:8080
 # open http://localhost:3000/register?enroll=<token printed above>
 ```

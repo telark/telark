@@ -77,9 +77,9 @@ func (c caller) ctx() context.Context {
 	return xauthz.WithIdentity(context.Background(), xauthz.Identity{UserID: c.userID, Internal: c.internal, Grants: grants})
 }
 
-// Bootstrap users are never deleted through the API, administrators only by a
-// bootstrap user, and a caller below Admin is not told an administrator exists.
-// A suspended administrator is still one. Internal callers are not gated.
+// Bootstrap users are never deleted through the API, any Admin on ALL may delete
+// another administrator, and a caller below Admin is not told one exists. A
+// suspended administrator is still one. Internal callers are not gated.
 func TestGuardUserDelete(t *testing.T) {
 	stubDirectory(t)
 	owner := caller{userID: ownerID, level: roledata.PermissionLevelOwner}
@@ -94,7 +94,7 @@ func TestGuardUserDelete(t *testing.T) {
 		{"owner targets admin", owner, adminID, http.StatusNotFound},
 		{"owner targets bootstrap", owner, bootstrapID, http.StatusNotFound},
 		{"admin targets bootstrap", caller{userID: adminID, level: roledata.PermissionLevelAdmin}, bootstrapID, http.StatusForbidden},
-		{"admin targets admin", caller{userID: plainID, level: roledata.PermissionLevelAdmin}, adminID, http.StatusForbidden},
+		{"admin deletes admin", caller{userID: plainID, level: roledata.PermissionLevelAdmin}, adminID, http.StatusOK},
 		{"bootstrap deletes admin", caller{userID: bootstrapID, level: roledata.PermissionLevelAdmin}, adminID, http.StatusOK},
 		{"missing target", owner, "u-none", http.StatusNotFound},
 		{"internal", caller{internal: true}, bootstrapID, http.StatusOK},

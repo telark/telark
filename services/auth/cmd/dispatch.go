@@ -1,9 +1,6 @@
 package cmd
 
 import (
-	"github.com/telark/auth/internal/cmd/backfill"
-	"github.com/telark/auth/internal/cmd/breakglass"
-	"github.com/telark/auth/internal/cmd/uninstall"
 	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
 )
@@ -17,7 +14,7 @@ const (
 type runner func(args []string) int
 
 var registry = map[string]runner{
-	SubcommandBreakGlass:         breakglass.Run,
+	SubcommandBreakGlass:         RunBreakGlass,
 	SubcommandBackfillFinalizers: backfillRunner,
 	SubcommandRemoveFinalizers:   removeFinalizersRunner,
 }
@@ -37,13 +34,13 @@ func Dispatch(args []string) (handled bool, exitCode int) {
 func backfillRunner(_ []string) int {
 	cfg := config.LoadBackfillConfig()
 	lg := constants.GetLogger(constants.LoggerPrefixCleanup)
-	if err := backfill.Run(cfg, lg); err != nil {
+	if err := RunBackFill(cfg, lg); err != nil {
 		return constants.ExitCodeError
 	}
 	return constants.DefaultInitValue
 }
 
 func removeFinalizersRunner(_ []string) int {
-	uninstall.RemoveFinalizers(constants.GetLogger(constants.LoggerPrefixCleanup))
+	RemoveFinalizers(constants.GetLogger(constants.LoggerPrefixCleanup))
 	return constants.DefaultInitValue
 }

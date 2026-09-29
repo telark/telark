@@ -11,8 +11,8 @@ import (
 	"time"
 
 	goredis "github.com/redis/go-redis/v9"
+	"github.com/telark/auth/cmd"
 	authauthz "github.com/telark/auth/internal/authz"
-	"github.com/telark/auth/internal/cmd"
 	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
 	cleanupctrl "github.com/telark/auth/internal/controllers/cleanup"
@@ -119,7 +119,8 @@ func startServerWithRecovery(server *http.Server, port string) {
 			panicRecoveryAttempts++
 			if panicRecoveryAttempts >= constants.MaxPanicRecoveryAttempts {
 				lg.Error(fmt.Sprintf(
-					string(constants.ErrMaxPanicRecoveryAttemptsReached), constants.MaxPanicRecoveryAttempts))
+					string(constants.ErrMaxPanicRecoveryAttemptsReached), constants.MaxPanicRecoveryAttempts,
+				))
 				quit := getQuitChannel()
 				if quit != nil {
 					select {

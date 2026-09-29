@@ -1,14 +1,12 @@
-package cmd
+package tests
 
 import (
 	"testing"
 
-	"github.com/telark/auth/internal/cmd"
+	"github.com/telark/auth/cmd"
 	"github.com/telark/auth/internal/tests/testutil"
 )
 
-// Dispatch only claims an invocation when the first arg names a known
-// subcommand; otherwise it hands control back to the normal service boot.
 func TestDispatch(t *testing.T) {
 	cases := []struct {
 		name        string

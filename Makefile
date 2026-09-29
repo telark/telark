@@ -3,6 +3,8 @@ CHART_DIR    := charts/telark
 CRDS_DIR     := charts/telark-crds
 REGISTRY     ?= oci://ghcr.io/telark/charts
 HELM_DOCS    := go run github.com/norwoodj/helm-docs/cmd/helm-docs@v1.14.2
+GOLANGCI_CONFIG := $(CURDIR)/.golangci.yml
+
 # The app chart refuses to render without an admin (templates/_guards.tpl); lint and
 # validation use a placeholder one.
 RENDER_SET   := --set 'app.auth.bootstrap.admins={jane.doe@example.com}'
@@ -24,8 +26,28 @@ fmt: ## Format the Go services
 test: ## Run Go tests per module
 	@for s in $(GO_SERVICES); do echo "== test $$s =="; (cd services/$$s && go test ./...) || exit 1; done
 
-lint: helm-lint ## golangci-lint per service (shared root .golangci.yml) + helm lint
-	@for s in $(GO_SERVICES); do echo "== lint $$s =="; (cd services/$$s && golangci-lint run) || exit 1; done
+lint: helm-lint ## Run golangci-lint for all services, or one service with SERVICE=<name>
+	@if [ -n "$(SERVICE)" ]; then \
+		found=0; \
+		for s in $(GO_SERVICES); do \
+			if [ "$$s" = "$(SERVICE)" ]; then \
+				found=1; \
+				echo "== lint $$s =="; \
+				(cd services/$$s && golangci-lint run --config "$(GOLANGCI_CONFIG)") || exit 1; \
+				break; \
+			fi; \
+		done; \
+		if [ "$$found" -eq 0 ]; then \
+			echo "ERROR: unknown SERVICE='$(SERVICE)'"; \
+			echo "Valid services: $(GO_SERVICES)"; \
+			exit 2; \
+		fi; \
+	else \
+		for s in $(GO_SERVICES); do \
+			echo "== lint $$s =="; \
+			(cd services/$$s && golangci-lint run --config "$(GOLANGCI_CONFIG)") || exit 1; \
+		done; \
+	fi
 
 helm-lint: ## Lint both charts
 	helm lint $(CRDS_DIR) -f $(CHART_DIR)/values.yaml

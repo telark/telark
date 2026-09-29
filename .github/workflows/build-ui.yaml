@@ -16,7 +16,7 @@ on:
       ui_branch:
         required: false
         type: string
-        description: dashboard-ui branch to build the image from (blank = master)
+        description: dashboard-ui branch to build the image from (blank = main)
         default: ""
       branch:
         required: false
@@ -59,7 +59,7 @@ jobs:
           repository: telark/dashboard-ui
           token: ${{ secrets.ACCESS_TOKEN }}
           path: service
-          ref: ${{ inputs.ui_branch || 'master' }}
+          ref: ${{ inputs.ui_branch || 'main' }}
 
       # Node 24 = the version the UI Dockerfile builds with.
       - name: Set up Node
@@ -98,7 +98,7 @@ jobs:
           repository: telark/dashboard-ui
           token: ${{ secrets.ACCESS_TOKEN }}
           path: service
-          ref: ${{ inputs.ui_branch || 'master' }}
+          ref: ${{ inputs.ui_branch || 'main' }}
 
       # The UI image is amd64-only; the cluster runs it on amd64 nodes, and
       # nothing foreign-arch runs at build time, so QEMU stays off.
@@ -116,4 +116,4 @@ jobs:
           registry_password: ${{ secrets.GITHUB_TOKEN }}
           image_scan: ${{ inputs.image_scan }}
           source_repo_path: service
-          source_repo_branch: ${{ inputs.ui_branch || 'master' }}
+          source_repo_branch: ${{ inputs.ui_branch || 'main' }}

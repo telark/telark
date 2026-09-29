@@ -162,4 +162,4 @@ Other flows follow the same pattern: applications land in `applications.telark.i
 
 ### Dashboard UI
 
-The UI is the separate `telark/dashboard-ui` repository (stable branch `master`); this repository only references its image (`services.ui` in `charts/telark/values.yaml`). UI checks run in that repository.
+The UI is the separate `telark/dashboard-ui` repository (stable branch `main`); this repository only references its image (`services.ui` in `charts/telark/values.yaml`). UI checks run in that repository.

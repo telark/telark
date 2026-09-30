@@ -185,18 +185,28 @@ func GuardUserTarget(w http.ResponseWriter, r *http.Request, target *userdata.Us
 	return true
 }
 
-// A session may not claim the bootstrap administrator's mailbox: break-glass
-// grants Admin and the bootstrap marker to whichever account holds it.
-func GuardReservedEmail(w http.ResponseWriter, r *http.Request, email string) bool {
+// The bootstrap account and the BOOTSTRAP_ADMIN mailbox stay together (break-glass finds the account by it):
+// a session moves neither another account onto it nor the bootstrap account off it. target is nil on create.
+func GuardReservedEmail(w http.ResponseWriter, r *http.Request, target *userdata.User, email string) bool {
 	identity, ok := callerIdentity(w, r)
 	if !ok {
 		return false
 	}
-	bootstrap := envmanager.GetBootstrapAdmin()
-	if identity.Internal || bootstrap == constants.EmptyString || bootstrap != userutils.NormalizeEmail(email) {
+	normalized := userutils.NormalizeEmail(email)
+	if identity.Internal || target != nil && normalized == userutils.NormalizeEmail(target.Email) {
 		return true
 	}
-	denyForbidden(w, constants.ErrAuthzBootstrapEmailReserved)
+	bootstrap := envmanager.GetBootstrapAdmin()
+	reserved := bootstrap != constants.EmptyString && normalized == bootstrap
+	bootstrapTarget := target != nil && target.Bootstrap
+	switch {
+	case bootstrapTarget && !reserved:
+		denyForbidden(w, constants.ErrAuthzBootstrapEmailLocked)
+	case reserved && !bootstrapTarget:
+		denyForbidden(w, constants.ErrAuthzBootstrapEmailReserved)
+	default:
+		return true
+	}
 	return false
 }
 

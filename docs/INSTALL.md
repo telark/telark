@@ -46,7 +46,7 @@ Next, give at least two regular users the Admin role (directly or through a grou
 
 `app.auth.passkey.selfRegistration="true"` lets anyone who reaches the dashboard create a ReadOnly account. Leave it off unless only people you trust can reach the dashboard.
 
-The bootstrap account belongs to the chart. The API refuses to delete or suspend it, only it may edit its own record, and no dashboard user can create or rename a user to its email (the exporter receives the same email as `BOOTSTRAP_ADMIN`). Non-administrators never see administrator accounts.
+The bootstrap account belongs to the chart. The API refuses to delete or suspend it, only it may edit its own record, and its email stays `app.auth.bootstrap.admin`: no dashboard user can create a user with that email, move another account onto it, or change the bootstrap account's email (the exporter receives the same email as `BOOTSTRAP_ADMIN`). Non-administrators never see administrator accounts.
 
 ## 3. Verify
 

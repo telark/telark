@@ -57,7 +57,7 @@ func CreateUserResourceWithCacheInvalidation(optimizer *performance.Optimizer) f
 			return
 		}
 
-		if !authz.GuardReservedEmail(w, r, user.Email) {
+		if !authz.GuardReservedEmail(w, r, nil, user.Email) {
 			return
 		}
 		if err := userutils.ValidateAndPrepareUser(user, w); err != nil {
@@ -299,7 +299,7 @@ func guardUserPatch(
 		!authz.GuardUserPatch(w, r, existing, body) {
 		return nil, nil, false
 	}
-	if email, provided := body[constants.FieldEmail].(string); provided && !authz.GuardReservedEmail(w, r, email) {
+	if email, provided := body[constants.FieldEmail].(string); provided && !authz.GuardReservedEmail(w, r, existing, email) {
 		return nil, nil, false
 	}
 

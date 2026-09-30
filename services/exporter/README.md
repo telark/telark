@@ -220,7 +220,8 @@ name their actors. Any signed-in caller also reads their own record (`GET users/
 scope; anyone else's needs ReadOnly on `users`, and a missing id answers the same 403. Bootstrap accounts cannot be
 deleted through the API, only they may edit their own record (any other caller gets 403, a group
 create or patch adding or removing one included), and a session
-may not create or rename a user to the `BOOTSTRAP_ADMIN` email (403). Any Admin on `ALL` may delete or
+may not create a user with the `BOOTSTRAP_ADMIN` email, move another account onto it, or move the
+bootstrap account off it (403); an unchanged email is always accepted. Any Admin on `ALL` may delete or
 suspend another administrator, but a user delete, suspension or `roleRefs`/`groupRefs` change, and a
 group delete, `roleRefs` change or member removal, that would leave no active user holding Admin on
 `ALL` answers 409, whoever calls. Nobody may delete their own account (403).

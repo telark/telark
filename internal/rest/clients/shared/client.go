@@ -1,0 +1,146 @@
+package shared
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+
+	"github.com/telark/data/errors"
+	globalshared "github.com/telark/data/shared"
+	"github.com/telark/rest/base"
+	"github.com/telark/rest/constants"
+	restmapper "github.com/telark/rest/mappers"
+	"github.com/telark/rest/response"
+	responseutils "github.com/telark/rest/utils/response"
+)
+
+func New(service base.Service) *Client {
+	return NewWithConfig(service, DefaultClientConfig())
+}
+
+func NewWithConfig(service base.Service, config *ClientConfig) *Client {
+	return &Client{
+		httpClient: &http.Client{Timeout: config.Timeout, CheckRedirect: refuseRedirect},
+		service:    service,
+		config:     config,
+	}
+}
+
+// A redirect would replay the service token against a path the caller never chose.
+func refuseRedirect(*http.Request, []*http.Request) error {
+	return http.ErrUseLastResponse
+}
+
+func (c *Client) executeRequest(
+	method base.Method,
+	endpoint base.Endpoint,
+	payload any,
+) *response.GenericResponse {
+	jsonPayload, err := marshalToJSON(payload)
+	if err != nil {
+		return CreateErrorResponse(string(errors.ErrRestMarshalPayload), err)
+	}
+
+	result, err := executeHTTPRequest(c, method, endpoint, jsonPayload)
+	if err != nil {
+		msg := fmt.Sprintf(string(errors.ErrCreateRes), "", err)
+		return errorResponse(c.service, msg, err)
+	}
+
+	return responseutils.ReadAndParseGenericResponse(result)
+}
+
+func (c *Client) executeRequestWithError(
+	method base.Method,
+	endpoint base.Endpoint,
+	payload any,
+) (*response.GenericResponse, error) {
+	jsonPayload, err := marshalToJSON(payload)
+	if err != nil {
+		return nil, fmt.Errorf(string(errors.ErrRestMarshalPayload), err)
+	}
+
+	result, err := executeHTTPRequest(c, method, endpoint, jsonPayload)
+	if err != nil {
+		return nil, err
+	}
+
+	apiResponse := responseutils.ReadAndParseGenericResponse(result)
+	if apiResponse.Status != globalshared.StatusOK {
+		return nil, fmt.Errorf(
+			string(constants.ErrUnexpectedStatus),
+			apiResponse.Status,
+			apiResponse.Message,
+		)
+	}
+
+	return apiResponse, nil
+}
+
+func (c *Client) Create(endpoint base.Endpoint, resource any) *response.GenericResponse {
+	mappedPayload, err := restmapper.MapToJSONPayload(resource)
+	if err != nil {
+		return CreateErrorResponse(string(errors.ErrRestMarshalPayload), err)
+	}
+
+	return c.executeRequest(base.Post, endpoint, mappedPayload)
+}
+
+// CreateJSON posts the caller's bytes verbatim, bypassing the reflection mapper.
+func (c *Client) CreateJSON(endpoint base.Endpoint, body json.RawMessage) *response.GenericResponse {
+	return c.executeRequest(base.Post, endpoint, body)
+}
+
+func (c *Client) Update(
+	endpoint base.Endpoint,
+	body map[string]any,
+) *response.GenericResponse {
+	return c.executeRequest(base.Patch, endpoint, body)
+}
+
+func (c *Client) Get(endpoint base.Endpoint) (*response.GenericResponse, error) {
+	return c.executeRequestWithError(base.Get, endpoint, nil)
+}
+
+func (c *Client) Post(endpoint base.Endpoint) (*response.GenericResponse, error) {
+	return c.executeRequestWithError(base.Post, endpoint, nil)
+}
+
+func (c *Client) Delete(endpoint base.Endpoint) *response.GenericResponse {
+	return c.executeRequest(base.Delete, endpoint, nil)
+}
+
+func (c *Client) PostAndParseGenericResponses(endpoint base.Endpoint) ([]response.GenericResponse, error) {
+	result, err := executeHTTPRequest(c, base.Post, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseGenericResponseSlice(result)
+}
+
+func GetTyped[T any](client *Client, endpoint base.Endpoint) (*T, error) {
+	result, err := executeHTTPRequest(client, base.Get, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseSingleResponse[T](result)
+}
+
+func GetListTyped[T any](client *Client, endpoint base.Endpoint) ([]T, error) {
+	result, err := executeHTTPRequest(client, base.Get, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseListResponse[T](result)
+}
+
+func (c *Client) GetService() base.Service {
+	return c.service
+}
+
+func (c *Client) GetHTTPClient() *http.Client {
+	return c.httpClient
+}

@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/telark/exporter/internal/cache"
-	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/cache"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 const (

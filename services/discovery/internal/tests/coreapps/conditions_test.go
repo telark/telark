@@ -3,11 +3,11 @@ package coreapps
 import (
 	"testing"
 
-	"github.com/telark/data/resources/application"
-	datashared "github.com/telark/data/shared"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/applications/core"
-	"github.com/telark/discovery/internal/tests/testutil"
+	"github.com/telark/telark/internal/data/resources/application"
+	datashared "github.com/telark/telark/internal/data/shared"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/applications/core"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 // One Published entry per application, flipped in place rather than appended.

@@ -8,11 +8,10 @@ WORKDIR /app
 
 RUN apk add --no-cache ca-certificates
 
+# No `go mod download`: go.mod lists every service's dependencies; go build fetches only this one's.
 COPY go.mod go.sum ./
-RUN --mount=type=cache,target=/go/pkg/mod \
-    go mod download
-
-COPY . .
+COPY internal internal
+COPY services/discovery services/discovery
 
 ENV GOEXPERIMENT=jsonv2 \
     GOMAXPROCS=0
@@ -22,7 +21,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
         -ldflags="-w -s -extldflags '-static'" \
         -trimpath \
         -buildvcs=false \
-        -o main .
+        -o main ./services/discovery
 
 RUN adduser -D -u 10001 discovery
 

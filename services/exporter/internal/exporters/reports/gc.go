@@ -6,13 +6,13 @@ import (
 	"net/http"
 	"time"
 
-	plansmd "github.com/telark/data/metadata/v1alpha1"
-	"github.com/telark/exporter/internal/constants"
-	envmanager "github.com/telark/exporter/internal/managers/envs"
-	exprdb "github.com/telark/exporter/internal/redis"
-	"github.com/telark/exporter/internal/utils/artifact"
-	reportsutil "github.com/telark/exporter/internal/utils/reports"
-	"github.com/telark/kcore/crds/api"
+	plansmd "github.com/telark/telark/internal/data/metadata/v1alpha1"
+	"github.com/telark/telark/internal/kcore/crds/api"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	envmanager "github.com/telark/telark/services/exporter/internal/managers/envs"
+	exprdb "github.com/telark/telark/services/exporter/internal/redis"
+	"github.com/telark/telark/services/exporter/internal/utils/artifact"
+	reportsutil "github.com/telark/telark/services/exporter/internal/utils/reports"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

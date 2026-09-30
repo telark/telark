@@ -8,15 +8,15 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
-	dataconstants "github.com/telark/data/constants"
-	"github.com/telark/exporter/internal/authz"
-	"github.com/telark/exporter/internal/cache"
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/exporter/internal/routes"
-	"github.com/telark/exporter/internal/utils/performance"
-	authendpoints "github.com/telark/rest/endpoints/auth"
-	"github.com/telark/rest/router"
-	xauthz "github.com/telark/x-ware/authz"
+	dataconstants "github.com/telark/telark/internal/data/constants"
+	authendpoints "github.com/telark/telark/internal/rest/endpoints/auth"
+	"github.com/telark/telark/internal/rest/router"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/exporter/internal/authz"
+	"github.com/telark/telark/services/exporter/internal/cache"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/routes"
+	"github.com/telark/telark/services/exporter/internal/utils/performance"
 )
 
 const primedSessions = `[{"userId":"u-10000-0000-0001","ipAddress":"203.0.113.7"}]`

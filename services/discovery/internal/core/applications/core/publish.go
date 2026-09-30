@@ -6,15 +6,15 @@ import (
 	"slices"
 	"time"
 
-	"github.com/telark/data/resources/application"
-	resourceshared "github.com/telark/data/resources/shared"
-	"github.com/telark/discovery/internal/config"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/applications/history/diff"
-	"github.com/telark/discovery/internal/core/applications/insights"
-	"github.com/telark/discovery/internal/core/applications/snapshot"
-	"github.com/telark/discovery/internal/publisher"
-	natscore "github.com/telark/x-ware/nats/core"
+	"github.com/telark/telark/internal/data/resources/application"
+	resourceshared "github.com/telark/telark/internal/data/resources/shared"
+	natscore "github.com/telark/telark/internal/x-ware/nats/core"
+	"github.com/telark/telark/services/discovery/internal/config"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/applications/history/diff"
+	"github.com/telark/telark/services/discovery/internal/core/applications/insights"
+	"github.com/telark/telark/services/discovery/internal/core/applications/snapshot"
+	"github.com/telark/telark/services/discovery/internal/publisher"
 )
 
 func PublishApplications(natsClient *natscore.NATSClient, apps []application.Application, outcomes []diff.Outcome) {

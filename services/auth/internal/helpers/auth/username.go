@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/telark/auth/internal/constants"
+	"github.com/telark/telark/services/auth/internal/constants"
 )
 
 var usernameClean = regexp.MustCompile(constants.UsernameInvalidChars)

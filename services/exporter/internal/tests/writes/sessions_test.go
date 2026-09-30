@@ -7,14 +7,14 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
-	authdata "github.com/telark/data/auth"
-	dataconstants "github.com/telark/data/constants"
-	"github.com/telark/data/metadata/v1alpha1"
-	"github.com/telark/exporter/internal/authz"
-	"github.com/telark/exporter/internal/routes"
-	"github.com/telark/exporter/internal/utils/performance"
-	"github.com/telark/rest/router"
-	xauthz "github.com/telark/x-ware/authz"
+	authdata "github.com/telark/telark/internal/data/auth"
+	dataconstants "github.com/telark/telark/internal/data/constants"
+	"github.com/telark/telark/internal/data/metadata/v1alpha1"
+	"github.com/telark/telark/internal/rest/router"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/exporter/internal/authz"
+	"github.com/telark/telark/services/exporter/internal/routes"
+	"github.com/telark/telark/services/exporter/internal/utils/performance"
 )
 
 const (

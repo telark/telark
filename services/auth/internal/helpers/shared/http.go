@@ -8,11 +8,11 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/telark/auth/internal/constants"
-	dataerrors "github.com/telark/data/errors"
-	restresponse "github.com/telark/rest/response"
-	requestutils "github.com/telark/rest/utils/request"
-	responseutils "github.com/telark/rest/utils/response"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	restresponse "github.com/telark/telark/internal/rest/response"
+	requestutils "github.com/telark/telark/internal/rest/utils/request"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	"github.com/telark/telark/services/auth/internal/constants"
 )
 
 var (

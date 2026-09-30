@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"slices"
 
-	metadata "github.com/telark/data/metadata/v1alpha1"
-	"github.com/telark/exporter/internal/constants"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
-	"github.com/telark/kcore/crds/api"
+	metadata "github.com/telark/telark/internal/data/metadata/v1alpha1"
+	"github.com/telark/telark/internal/kcore/crds/api"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 func CreateCategoriesCRDWithFirstCategory(firstCategory map[string]any) error {

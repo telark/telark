@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/exporter/internal/constants"
-	reportsexp "github.com/telark/exporter/internal/exporters/reports"
-	reportsutil "github.com/telark/exporter/internal/utils/reports"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	reportsexp "github.com/telark/telark/services/exporter/internal/exporters/reports"
+	reportsutil "github.com/telark/telark/services/exporter/internal/utils/reports"
 )
 
 const (

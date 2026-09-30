@@ -1,10 +1,10 @@
 package clients
 
 import (
-	"github.com/telark/data/classification/category"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/rest/clients/categories"
-	"github.com/telark/rest/clients/shared"
+	"github.com/telark/telark/internal/data/classification/category"
+	"github.com/telark/telark/internal/rest/clients/categories"
+	"github.com/telark/telark/internal/rest/clients/shared"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 type CategoryClient struct {

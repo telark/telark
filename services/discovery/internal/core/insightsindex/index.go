@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	insightsdata "github.com/telark/data/insights"
-	"github.com/telark/data/plans"
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/discovery/cache"
+	insightsdata "github.com/telark/telark/internal/data/insights"
+	"github.com/telark/telark/internal/data/plans"
+	"github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/discovery/cache"
 )
 
 func New(settings Settings) *Index {

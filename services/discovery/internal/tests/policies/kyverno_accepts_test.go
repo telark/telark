@@ -5,10 +5,10 @@ import (
 
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	kyvernovalidation "github.com/kyverno/kyverno/pkg/validation/policy"
-	"github.com/telark/data/plans"
-	datapolicies "github.com/telark/data/policies"
-	_ "github.com/telark/data/policies/templates" // registers every renderer
-	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/telark/internal/data/plans"
+	datapolicies "github.com/telark/telark/internal/data/policies"
+	_ "github.com/telark/telark/internal/data/policies/templates" // registers every renderer
+	"github.com/telark/telark/services/discovery/internal/constants"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 

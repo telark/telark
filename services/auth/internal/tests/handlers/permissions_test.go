@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/auth/internal/clients"
-	"github.com/telark/auth/internal/constants"
-	authzhandler "github.com/telark/auth/internal/handlers/authorisation"
-	authdata "github.com/telark/data/auth"
-	roledata "github.com/telark/data/resources/role"
-	userresource "github.com/telark/data/resources/user"
-	restresponse "github.com/telark/rest/response"
+	authdata "github.com/telark/telark/internal/data/auth"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	userresource "github.com/telark/telark/internal/data/resources/user"
+	restresponse "github.com/telark/telark/internal/rest/response"
+	"github.com/telark/telark/services/auth/internal/clients"
+	"github.com/telark/telark/services/auth/internal/constants"
+	authzhandler "github.com/telark/telark/services/auth/internal/handlers/authorisation"
 )
 
 // exporterStub answers the session lookup as configured and every other

@@ -7,8 +7,8 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/exporter/internal/utils/performance"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/utils/performance"
 )
 
 func newOptimizer(t *testing.T) *performance.Optimizer {

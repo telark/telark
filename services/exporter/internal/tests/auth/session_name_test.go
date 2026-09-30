@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	sessionutil "github.com/telark/exporter/internal/utils/auth/session"
+	sessionutil "github.com/telark/telark/services/exporter/internal/utils/auth/session"
 )
 
 const (

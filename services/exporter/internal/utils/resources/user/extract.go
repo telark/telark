@@ -4,13 +4,13 @@ import (
 	"errors"
 	"net/http"
 
-	dataerrors "github.com/telark/data/errors"
-	metadata "github.com/telark/data/metadata/v1alpha1"
-	userdata "github.com/telark/data/resources/user"
-	"github.com/telark/exporter/internal/constants"
-	resourcesshared "github.com/telark/exporter/internal/utils/resources/shared"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
-	"github.com/telark/kcore/crds/api"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	metadata "github.com/telark/telark/internal/data/metadata/v1alpha1"
+	userdata "github.com/telark/telark/internal/data/resources/user"
+	"github.com/telark/telark/internal/kcore/crds/api"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	resourcesshared "github.com/telark/telark/services/exporter/internal/utils/resources/shared"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

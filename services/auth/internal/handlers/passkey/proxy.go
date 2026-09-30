@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/telark/auth/internal/clients"
-	"github.com/telark/auth/internal/constants"
-	authhelper "github.com/telark/auth/internal/helpers/auth"
-	"github.com/telark/auth/internal/helpers/shared"
-	webauthnhelper "github.com/telark/auth/internal/helpers/webauthn"
-	xauthz "github.com/telark/x-ware/authz"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/auth/internal/clients"
+	"github.com/telark/telark/services/auth/internal/constants"
+	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
+	"github.com/telark/telark/services/auth/internal/helpers/shared"
+	webauthnhelper "github.com/telark/telark/services/auth/internal/helpers/webauthn"
 )
 
 func GetPasskeys(w http.ResponseWriter, r *http.Request) {

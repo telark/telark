@@ -8,10 +8,10 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/exporter/internal/constants"
-	exprdb "github.com/telark/exporter/internal/redis"
-	notifstorage "github.com/telark/exporter/internal/redis/notifications"
-	notiftypes "github.com/telark/exporter/internal/types/notifications"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	exprdb "github.com/telark/telark/services/exporter/internal/redis"
+	notifstorage "github.com/telark/telark/services/exporter/internal/redis/notifications"
+	notiftypes "github.com/telark/telark/services/exporter/internal/types/notifications"
 )
 
 const (

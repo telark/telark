@@ -3,8 +3,8 @@ package shared
 import (
 	"fmt"
 
-	dataerrors "github.com/telark/data/errors"
-	"github.com/telark/exporter/internal/constants"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 func GenerateResourceError(errFormat dataerrors.Error, resourceName string, err error) string {

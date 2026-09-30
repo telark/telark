@@ -11,13 +11,13 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
-	"github.com/telark/data/plans"
-	globalshared "github.com/telark/data/shared"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection/applications"
-	"github.com/telark/discovery/internal/core/plans/protection/violations"
-	planseps "github.com/telark/rest/endpoints/plans"
-	xwareredis "github.com/telark/x-ware/redis/stream"
+	"github.com/telark/telark/internal/data/plans"
+	globalshared "github.com/telark/telark/internal/data/shared"
+	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
+	xwareredis "github.com/telark/telark/internal/x-ware/redis/stream"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/applications"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/violations"
 )
 
 func RunKey(plan *plans.ProtectionPlan) (string, error) {

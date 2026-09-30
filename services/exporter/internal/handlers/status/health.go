@@ -4,14 +4,14 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/exporter/internal/informers"
-	exprdb "github.com/telark/exporter/internal/redis"
-	kcoreconst "github.com/telark/kcore/constants"
-	"github.com/telark/kcore/health"
-	statuseps "github.com/telark/rest/endpoints/status"
-	statushandler "github.com/telark/rest/handlers/status"
-	"github.com/telark/rest/response"
+	kcoreconst "github.com/telark/telark/internal/kcore/constants"
+	"github.com/telark/telark/internal/kcore/health"
+	statuseps "github.com/telark/telark/internal/rest/endpoints/status"
+	statushandler "github.com/telark/telark/internal/rest/handlers/status"
+	"github.com/telark/telark/internal/rest/response"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/informers"
+	exprdb "github.com/telark/telark/services/exporter/internal/redis"
 )
 
 var Liveness = statushandler.NewProbeHandler(

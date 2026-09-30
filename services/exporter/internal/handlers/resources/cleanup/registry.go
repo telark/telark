@@ -1,10 +1,10 @@
 package cleanup
 
 import (
-	metadatabase "github.com/telark/data/metadata/base"
-	metadata "github.com/telark/data/metadata/v1alpha1"
-	"github.com/telark/data/resources/finalizers"
-	"github.com/telark/exporter/internal/constants"
+	metadatabase "github.com/telark/telark/internal/data/metadata/base"
+	metadata "github.com/telark/telark/internal/data/metadata/v1alpha1"
+	"github.com/telark/telark/internal/data/resources/finalizers"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 type resourceTarget struct {

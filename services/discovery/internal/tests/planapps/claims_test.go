@@ -5,13 +5,13 @@ import (
 	"slices"
 	"testing"
 
-	applicationmodel "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/core/plans/protection/applications"
+	applicationmodel "github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/applications"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 
-	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/constants"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

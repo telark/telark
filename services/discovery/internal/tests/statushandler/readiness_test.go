@@ -8,11 +8,11 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/telark/discovery/internal/config"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/handlers/status"
-	redishelper "github.com/telark/discovery/internal/helpers/redis"
-	"github.com/telark/discovery/internal/tests/testutil"
+	"github.com/telark/telark/services/discovery/internal/config"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/handlers/status"
+	redishelper "github.com/telark/telark/services/discovery/internal/helpers/redis"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 func probeReadiness(t *testing.T) (int, status.Diagnostics) {

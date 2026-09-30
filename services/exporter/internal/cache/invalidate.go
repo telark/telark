@@ -3,8 +3,8 @@ package cache
 import (
 	"fmt"
 
-	"github.com/telark/exporter/internal/constants"
-	rediscache "github.com/telark/x-ware/redis/cache"
+	rediscache "github.com/telark/telark/internal/x-ware/redis/cache"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 var lg = constants.GetLogger(constants.PrefixCache)

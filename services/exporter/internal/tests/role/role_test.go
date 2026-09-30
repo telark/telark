@@ -4,11 +4,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/exporter/internal/utils/compute/role/priority"
-	"github.com/telark/exporter/internal/utils/compute/role/version"
-	roleutil "github.com/telark/exporter/internal/utils/resources/role"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/utils/compute/role/priority"
+	"github.com/telark/telark/services/exporter/internal/utils/compute/role/version"
+	roleutil "github.com/telark/telark/services/exporter/internal/utils/resources/role"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

@@ -10,11 +10,11 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
-	insightsdata "github.com/telark/data/insights"
-	"github.com/telark/data/plans"
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/core/insightsindex"
-	"github.com/telark/discovery/internal/tests/testutil"
+	insightsdata "github.com/telark/telark/internal/data/insights"
+	"github.com/telark/telark/internal/data/plans"
+	"github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/core/insightsindex"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const (

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/telark/discovery/internal/config"
-	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/config"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 func NewMaintenance(cfg config.ForceSyncConfig, stream *StreamOps) *Maintenance {

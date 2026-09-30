@@ -11,10 +11,10 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/applications/history/changes"
-	kcoremanifest "github.com/telark/kcore/manifest"
+	"github.com/telark/telark/internal/data/resources/application"
+	kcoremanifest "github.com/telark/telark/internal/kcore/manifest"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/applications/history/changes"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

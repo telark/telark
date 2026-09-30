@@ -3,7 +3,7 @@ package shared
 import (
 	"slices"
 
-	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 // Order is kept so a list reads back the way it was sent.

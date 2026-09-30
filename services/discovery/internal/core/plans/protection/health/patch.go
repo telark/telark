@@ -1,9 +1,9 @@
 package health
 
 import (
-	"github.com/telark/data/plans"
-	"github.com/telark/discovery/internal/constants"
-	planseps "github.com/telark/rest/endpoints/plans"
+	"github.com/telark/telark/internal/data/plans"
+	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 // Detail rows are attached only when present, so an early-failure path cannot blow away an

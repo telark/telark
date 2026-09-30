@@ -7,32 +7,34 @@ the enforcing file is named — that file wins if this doc ever drifts.
 
 ```
 services/
-  auth  discovery  exporter  notifier    Go services (github.com/telark/<svc>), one go.work
+  auth  discovery  exporter  notifier    Go services (packages of the root Go module)
   analyzer                               Python / FastAPI service
 charts/
   telark                                 application chart (services + subcharts + telark-crds)
   telark-crds                            CRDs, bundled as a subchart of telark
+internal/
+  data  rest  kcore  x-ware              shared Go packages used by the services
 docs/                                    architecture, install, CRDs, ADRs, this + dev docs
 .github/                                 CI, release, deploy workflows + composite actions
-Makefile  go.work  .golangci.yml  cliff.toml  codecov.yml
+Makefile  go.mod  .golangci.yml  cliff.toml  codecov.yml
 ```
 
 Each Go service: `services/<svc>/main.go` + `internal/` split into single-purpose
 packages — observed set: `constants config routes handlers clients helpers
-controllers coordination authz cmd tests`. Module path is `github.com/telark/<svc>`.
+controllers coordination authz cmd tests`. Import path is `github.com/telark/telark/services/<svc>`.
 
-**Shared Go packages** (`data`, `rest`, `x-ware`, `kcore`) live **outside this repo**
-as private `github.com/telark/*` modules, pinned in each service's `go.mod` — ordinary
-dependencies, **no `replace` directives**. The **UI** is a **separate repo**; only its
-built image is referenced here (`services.ui`).
+**Shared Go packages** (`data`, `rest`, `x-ware`, `kcore`) live in `internal/` of the
+same module (`github.com/telark/telark`, one root `go.mod`, **no `go.work`, no `replace`
+directives**), so a change to one lands together with its callers. The **UI** is a
+**separate repo**; only its built image is referenced here (`services.ui`).
 
 ## Go
 
-Enforced by the shared root [`.golangci.yml`](.golangci.yml) (golangci-lint v2, discovered
-by walking up from `services/<svc>`; **never** pass `--no-config` or `//nolint` as a
+Enforced by the shared root [`.golangci.yml`](.golangci.yml) (golangci-lint v2, run from
+the repo root per service and package; **never** pass `--no-config` or `//nolint` as a
 workaround). Hard limits: **cyclomatic complexity ≤ 12** (`gocyclo`), **function length
 ≤ 60 lines** (`funlen`), `revive` all-rules, plus `errcheck gosec dupl unparam prealloc
-bodyclose staticcheck` and more. `run.tests: false` — lint targets non-test code.
+bodyclose staticcheck` and more. `run.tests: true` — lint covers test code too.
 
 Beyond the linter (from `services/*/CLAUDE.md`):
 
@@ -94,8 +96,8 @@ Beyond the linter (from `services/*/CLAUDE.md`):
 - Fill in the PR template, keep changes surgical (every changed line traces to the goal),
   and land with green CI + the required `CODEOWNERS`/maintainer review
   (see [GOVERNANCE.md](GOVERNANCE.md)).
-- Do **not** bump chart or module versions in a feature PR, and do not commit `replace`
-  directives — releases own versioning.
+- Do **not** bump chart or service versions in a feature PR, and do not add `replace`
+  directives or a `go.work` — releases own versioning.
 
 ## Helm charts
 
@@ -133,9 +135,8 @@ Development here is often driven by LLM coding agents. An agent must:
   raw proxy) so results aren't silently cut.
 
 **Never:**
-- Edit a shared `github.com/telark/*` package from a consuming service (change it upstream
-  first), or add service-specific logic to a shared package.
-- Bump chart/module versions, add/remove `replace` directives, or hand-edit `VALUES.md`.
+- Add service-specific logic to a shared package in `internal/`.
+- Bump chart/service versions, add `replace` directives or a `go.work`, or hand-edit `VALUES.md`.
 - Commit, push, or tag — humans own git.
 - Touch another service's directory when scoped to one, or weaken existing tests to pass.
 - Commit secrets, or relax a linter/gate to make something pass.

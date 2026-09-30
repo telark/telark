@@ -5,11 +5,11 @@ import (
 	"slices"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/data/policies"
-	applicationmodel "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/coordination"
-	"github.com/telark/discovery/internal/core/plans/protection/validation"
+	"github.com/telark/telark/internal/data/policies"
+	applicationmodel "github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/coordination"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/validation"
 )
 
 // Returns the resolved subset and the IDs that could not be located, so callers can surface a

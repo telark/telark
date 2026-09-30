@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	authdata "github.com/telark/data/auth"
-	dataconstants "github.com/telark/data/constants"
-	sessionutil "github.com/telark/exporter/internal/utils/auth/session"
-	authendpoints "github.com/telark/rest/endpoints/auth"
+	authdata "github.com/telark/telark/internal/data/auth"
+	dataconstants "github.com/telark/telark/internal/data/constants"
+	authendpoints "github.com/telark/telark/internal/rest/endpoints/auth"
+	sessionutil "github.com/telark/telark/services/exporter/internal/utils/auth/session"
 )
 
 // The UI can no longer read session tokens out of the list response, so it

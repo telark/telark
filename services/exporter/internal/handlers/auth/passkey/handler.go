@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/telark/data/errors"
-	"github.com/telark/exporter/internal/constants"
-	passkeyexp "github.com/telark/exporter/internal/exporters/auth/passkey"
-	passkeyutils "github.com/telark/exporter/internal/utils/auth/passkey"
-	authutils "github.com/telark/exporter/internal/utils/auth/shared"
-	"github.com/telark/exporter/internal/utils/performance"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
-	"github.com/telark/rest/response"
-	requestutils "github.com/telark/rest/utils/request"
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/rest/response"
+	requestutils "github.com/telark/telark/internal/rest/utils/request"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	passkeyexp "github.com/telark/telark/services/exporter/internal/exporters/auth/passkey"
+	passkeyutils "github.com/telark/telark/services/exporter/internal/utils/auth/passkey"
+	authutils "github.com/telark/telark/services/exporter/internal/utils/auth/shared"
+	"github.com/telark/telark/services/exporter/internal/utils/performance"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 func CreatePasskeyByUserWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {

@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"net/http"
 
-	authclients "github.com/telark/auth/internal/clients"
-	"github.com/telark/auth/internal/constants"
-	"github.com/telark/data/resources/finalizers"
-	resourcesshared "github.com/telark/data/resources/shared"
-	"github.com/telark/rest/response"
+	"github.com/telark/telark/internal/data/resources/finalizers"
+	resourcesshared "github.com/telark/telark/internal/data/resources/shared"
+	"github.com/telark/telark/internal/rest/response"
+	authclients "github.com/telark/telark/services/auth/internal/clients"
+	"github.com/telark/telark/services/auth/internal/constants"
 )
 
 type ResourceOps struct {

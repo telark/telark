@@ -6,9 +6,9 @@ import (
 	"net/http"
 
 	"github.com/nats-io/nats.go"
-	"github.com/telark/data/errors"
-	"github.com/telark/notifier/internal/constants"
-	natscore "github.com/telark/x-ware/nats/core"
+	"github.com/telark/telark/internal/data/errors"
+	natscore "github.com/telark/telark/internal/x-ware/nats/core"
+	"github.com/telark/telark/services/notifier/internal/constants"
 )
 
 func (s *BaseSubscriber) ExecuteDeleteHandler(

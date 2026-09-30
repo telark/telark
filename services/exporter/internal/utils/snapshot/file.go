@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 func FormattedFileSize(path string, id string) string {

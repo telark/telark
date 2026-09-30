@@ -1,20 +1,20 @@
 package routes
 
 import (
-	"github.com/telark/discovery/internal/constants"
-	resourceslist "github.com/telark/discovery/internal/handlers/analyze/resources"
-	workloadslist "github.com/telark/discovery/internal/handlers/analyze/workloads"
-	insightshandler "github.com/telark/discovery/internal/handlers/insights"
-	namespacehandler "github.com/telark/discovery/internal/handlers/namespaces"
-	protectionplanhandler "github.com/telark/discovery/internal/handlers/plans/protection"
-	applicationhandler "github.com/telark/discovery/internal/handlers/resources/applications"
-	statushandler "github.com/telark/discovery/internal/handlers/status"
-	"github.com/telark/rest/base"
-	applicationeps "github.com/telark/rest/endpoints/applications"
-	clustereps "github.com/telark/rest/endpoints/cluster"
-	insightseps "github.com/telark/rest/endpoints/insights"
-	planseps "github.com/telark/rest/endpoints/plans"
-	"github.com/telark/rest/router"
+	"github.com/telark/telark/internal/rest/base"
+	applicationeps "github.com/telark/telark/internal/rest/endpoints/applications"
+	clustereps "github.com/telark/telark/internal/rest/endpoints/cluster"
+	insightseps "github.com/telark/telark/internal/rest/endpoints/insights"
+	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
+	"github.com/telark/telark/internal/rest/router"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	resourceslist "github.com/telark/telark/services/discovery/internal/handlers/analyze/resources"
+	workloadslist "github.com/telark/telark/services/discovery/internal/handlers/analyze/workloads"
+	insightshandler "github.com/telark/telark/services/discovery/internal/handlers/insights"
+	namespacehandler "github.com/telark/telark/services/discovery/internal/handlers/namespaces"
+	protectionplanhandler "github.com/telark/telark/services/discovery/internal/handlers/plans/protection"
+	applicationhandler "github.com/telark/telark/services/discovery/internal/handlers/resources/applications"
+	statushandler "github.com/telark/telark/services/discovery/internal/handlers/status"
 )
 
 var Routes = []router.Route{

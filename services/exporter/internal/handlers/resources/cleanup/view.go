@@ -4,8 +4,8 @@ import (
 	"slices"
 	"time"
 
-	resourcesshared "github.com/telark/data/resources/shared"
-	"github.com/telark/exporter/internal/constants"
+	resourcesshared "github.com/telark/telark/internal/data/resources/shared"
+	"github.com/telark/telark/services/exporter/internal/constants"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/telark/data/plans"
-	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/helpers/telarkconfig"
-	planseps "github.com/telark/rest/endpoints/plans"
-	xauthz "github.com/telark/x-ware/authz"
+	"github.com/telark/telark/internal/data/plans"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/helpers/telarkconfig"
 )
 
 // ValidationError marks a caller-fixable request so handlers can answer 400

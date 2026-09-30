@@ -1,8 +1,8 @@
 package protection
 
 import (
-	"github.com/telark/data/errors"
-	"github.com/telark/data/plans"
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/data/plans"
 )
 
 const (

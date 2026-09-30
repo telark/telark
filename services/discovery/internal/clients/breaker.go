@@ -8,11 +8,11 @@ import (
 	"net/http"
 	"strings"
 
-	dataerrors "github.com/telark/data/errors"
-	"github.com/telark/discovery/internal/circuitbreaker"
-	"github.com/telark/discovery/internal/constants"
-	restconstants "github.com/telark/rest/constants"
-	"github.com/telark/rest/response"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	restconstants "github.com/telark/telark/internal/rest/constants"
+	"github.com/telark/telark/internal/rest/response"
+	"github.com/telark/telark/services/discovery/internal/circuitbreaker"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 var connectivityNotReadyPrefix, _, _ = strings.Cut(

@@ -3,9 +3,9 @@ package shared
 import (
 	"fmt"
 
-	"github.com/telark/auth/internal/config"
-	"github.com/telark/auth/internal/constants"
-	"github.com/telark/data/errors"
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/services/auth/internal/config"
+	"github.com/telark/telark/services/auth/internal/constants"
 )
 
 func GetCachedConfig() (*config.Config, error) {

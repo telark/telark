@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"sync/atomic"
 
-	"github.com/telark/data/messages"
-	plansmeta "github.com/telark/data/metadata/v1alpha1"
+	"github.com/telark/telark/internal/data/messages"
+	plansmeta "github.com/telark/telark/internal/data/metadata/v1alpha1"
 
-	"github.com/telark/discovery/internal/coordination"
-	"github.com/telark/discovery/internal/core/plans/protection"
+	"github.com/telark/telark/services/discovery/internal/coordination"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection"
 )
 
 // The bootstrap goroutine publishes and re-publishes the service while the HTTP server

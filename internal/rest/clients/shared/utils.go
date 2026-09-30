@@ -1,0 +1,235 @@
+package shared
+
+import (
+	"bytes"
+	"encoding/json"
+	stderrors "errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/telark/telark/internal/data/errors"
+	globalshared "github.com/telark/telark/internal/data/shared"
+	"github.com/telark/telark/internal/rest/base"
+	"github.com/telark/telark/internal/rest/connectivity"
+	"github.com/telark/telark/internal/rest/constants"
+	"github.com/telark/telark/internal/rest/response"
+	requestutils "github.com/telark/telark/internal/rest/utils/request"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+)
+
+func resolveEndpoint(endpoint base.Endpoint, params map[string]string) base.Endpoint {
+	resolved := string(endpoint)
+	for placeholder, value := range params {
+		resolved = strings.Replace(resolved, placeholder, url.PathEscape(value), constants.ReplaceCount)
+	}
+	return base.Endpoint(resolved)
+}
+
+// Safe to expose: path parameters stay unresolved and the query string is
+// dropped, since callers build it themselves and may embed a user id or email.
+func sanitizeEndpoint(endpoint base.Endpoint) base.Endpoint {
+	path, _, _ := strings.Cut(string(endpoint), constants.QuerySeparator)
+	return base.Endpoint(path)
+}
+
+// A *url.Error embeds the full request URL, so any error escaping an HTTP call
+// carries every resolved path parameter with it unless it is rebuilt here.
+func redactEndpointError(err error, endpoint base.Endpoint) error {
+	var urlErr *url.Error
+	if !stderrors.As(err, &urlErr) {
+		return err
+	}
+	return fmt.Errorf(string(constants.ErrEndpointCall), urlErr.Op, sanitizeEndpoint(endpoint), urlErr.Err)
+}
+
+func buildHTTPRequest(
+	client *Client,
+	method base.Method,
+	endpoint base.Endpoint,
+	payload []byte,
+	headers map[string]string,
+) (*http.Request, error) {
+	api := requestutils.CreateGenericRequest(method, client.service, base.V1, resolveEndpoint(endpoint, client.params))
+	requestURL, err := api.GenerateURL()
+	if err != nil {
+		return nil, fmt.Errorf(string(constants.ErrFailedToGenerateRequestURL), err)
+	}
+
+	req, err := http.NewRequest(string(method), requestURL, bytes.NewBuffer(payload))
+	if err != nil {
+		return nil, fmt.Errorf(
+			string(constants.ErrFailedToCreateHTTPRequest), redactEndpointError(err, endpoint),
+		)
+	}
+
+	if payload != nil {
+		req.Header.Set("Content-Type", string(base.JSON))
+	}
+	applyServiceToken(req)
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+	return req, nil
+}
+
+// Sole caller of httpClient.Do: the readiness gate, observation, error redaction
+// and body ownership all live here, so no request path can skip any of them.
+func doHTTPRequest(
+	client *Client,
+	method base.Method,
+	endpoint base.Endpoint,
+	payload []byte,
+	headers map[string]string,
+) (*base.HTTPResult, error) {
+	if mgr := connectivity.Global(); mgr != nil {
+		if !mgr.IsReady(string(client.service)) {
+			return nil, fmt.Errorf(string(constants.ErrConnectivityServiceNotReady), client.service)
+		}
+	}
+
+	req, err := buildHTTPRequest(client, method, endpoint, payload, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	start := time.Now()
+	resp, doErr := client.httpClient.Do(req)
+	observeExporterCall(client.service, method, endpoint, resp, doErr, time.Since(start))
+	if doErr != nil {
+		return nil, redactEndpointError(doErr, endpoint)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			base.GetLogger().Warn(
+				fmt.Sprintf(string(constants.ErrFailedToCloseResponseBody), closeErr),
+			)
+		}
+	}()
+
+	body, readErr := io.ReadAll(resp.Body)
+	return &base.HTTPResult{Status: resp.StatusCode, Body: body, ReadErr: readErr}, nil
+}
+
+func executeHTTPRequest(
+	client *Client,
+	method base.Method,
+	endpoint base.Endpoint,
+	payload []byte,
+) (*base.HTTPResult, error) {
+	return doHTTPRequest(client, method, endpoint, payload, nil)
+}
+
+func marshalToJSON(payload any) ([]byte, error) {
+	if payload == nil {
+		return nil, nil
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf(string(errors.ErrRestMarshalPayload), err)
+	}
+	return data, nil
+}
+
+func resultBody(result *base.HTTPResult) ([]byte, error) {
+	if result.ReadErr != nil {
+		return nil, fmt.Errorf(string(errors.ErrRestReadResponseBody), result.ReadErr)
+	}
+	return result.Body, nil
+}
+
+// ErrNotFound lets a caller tell "this resource does not exist" from a failed call;
+// ErrGone that it existed but has lapsed (an expired session), which is a verdict, not an outage.
+var (
+	ErrNotFound = stderrors.New("resource not found")
+	ErrGone     = stderrors.New("resource gone")
+)
+
+func decodeOKBody(result *base.HTTPResult, out any) error {
+	if result.Status != http.StatusOK {
+		return fmt.Errorf(string(constants.ErrStatus), result.Status)
+	}
+
+	body, err := resultBody(result)
+	if err != nil {
+		return err
+	}
+
+	if err := json.Unmarshal(body, out); err != nil {
+		return fmt.Errorf(string(errors.ErrRestUnmarshalResponseToGeneric), err)
+	}
+	return nil
+}
+
+func parseSingleResponse[T any](result *base.HTTPResult) (*T, error) {
+	switch result.Status {
+	case http.StatusNotFound:
+		return nil, ErrNotFound
+	case http.StatusGone:
+		return nil, ErrGone
+	}
+
+	var data singleDataResponse[T]
+	if err := decodeOKBody(result, &data); err != nil {
+		return nil, err
+	}
+	return &data.Data, nil
+}
+
+func parseRawJSONResponse[T any](result *base.HTTPResult) (*T, error) {
+	var data T
+	if err := decodeOKBody(result, &data); err != nil {
+		return nil, err
+	}
+	return &data, nil
+}
+
+func parseListResponse[T any](result *base.HTTPResult) ([]T, error) {
+	var data listDataResponse[T]
+	if err := decodeOKBody(result, &data); err != nil {
+		return nil, err
+	}
+	return data.Data.Items, nil
+}
+
+func parseGenericResponseSlice(result *base.HTTPResult) ([]response.GenericResponse, error) {
+	if result.Status >= constants.HTTPErrorCode {
+		return nil, fmt.Errorf(string(constants.HTTPStatus), result.Status, string(result.Body))
+	}
+
+	body, err := resultBody(result)
+	if err != nil {
+		return nil, err
+	}
+
+	var apiResponses []response.GenericResponse
+	if err := json.Unmarshal(body, &apiResponses); err != nil {
+		return nil, fmt.Errorf(string(errors.ErrRestUnmarshalResponseToGeneric), err)
+	}
+
+	return apiResponses, nil
+}
+
+// doHTTPRequest already records every call it observes, so logging the same
+// failure again here would report it twice.
+func errorResponse(service base.Service, message string, err error) *response.GenericResponse {
+	if isExporterDurationLogActive(service) {
+		return response.NewGenericResponse(
+			globalshared.StatusInternalServerError, response.OperationError, nil, message,
+		)
+	}
+	return CreateErrorResponse(message, err)
+}
+
+func CreateErrorResponse(message string, err error) *response.GenericResponse {
+	return responseutils.LogAndReturnResponse(
+		globalshared.StatusInternalServerError,
+		response.OperationError,
+		message,
+		nil,
+		err,
+	)
+}

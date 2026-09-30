@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/telark/auth/internal/clients"
-	"github.com/telark/auth/internal/constants"
-	"github.com/telark/auth/internal/helpers/shared"
-	authdata "github.com/telark/data/auth"
-	dataerrors "github.com/telark/data/errors"
-	userresource "github.com/telark/data/resources/user"
-	restshared "github.com/telark/rest/clients/shared"
+	authdata "github.com/telark/telark/internal/data/auth"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	userresource "github.com/telark/telark/internal/data/resources/user"
+	restshared "github.com/telark/telark/internal/rest/clients/shared"
+	"github.com/telark/telark/services/auth/internal/clients"
+	"github.com/telark/telark/services/auth/internal/constants"
+	"github.com/telark/telark/services/auth/internal/helpers/shared"
 )
 
 var lg = constants.GetLogger(constants.LoggerPrefixHelper)

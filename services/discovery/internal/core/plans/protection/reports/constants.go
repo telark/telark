@@ -1,6 +1,6 @@
 package reports
 
-import "github.com/telark/data/errors"
+import "github.com/telark/telark/internal/data/errors"
 
 const (
 	RunKeyLayout            = "20060102T150405Z"

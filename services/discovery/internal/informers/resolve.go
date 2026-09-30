@@ -4,11 +4,11 @@ import (
 	"context"
 	"slices"
 
-	applicationmodel "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/discovery/derivation"
-	discoveryshared "github.com/telark/discovery/internal/discovery/shared"
-	kcoregroup "github.com/telark/kcore/resources/group"
+	applicationmodel "github.com/telark/telark/internal/data/resources/application"
+	kcoregroup "github.com/telark/telark/internal/kcore/resources/group"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/discovery/derivation"
+	discoveryshared "github.com/telark/telark/services/discovery/internal/discovery/shared"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

@@ -9,16 +9,16 @@ import (
 	"os"
 	"strconv"
 
-	dataerrors "github.com/telark/data/errors"
-	"github.com/telark/data/messages"
-	"github.com/telark/exporter/internal/constants"
-	envmanager "github.com/telark/exporter/internal/managers/envs"
-	"github.com/telark/exporter/internal/utils/artifact"
-	reportsutil "github.com/telark/exporter/internal/utils/reports"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
-	reportseps "github.com/telark/rest/endpoints/reports"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/data/messages"
+	reportseps "github.com/telark/telark/internal/rest/endpoints/reports"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	envmanager "github.com/telark/telark/services/exporter/internal/managers/envs"
+	"github.com/telark/telark/services/exporter/internal/utils/artifact"
+	reportsutil "github.com/telark/telark/services/exporter/internal/utils/reports"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 var lg = constants.GetLogger(constants.PrefixMain)

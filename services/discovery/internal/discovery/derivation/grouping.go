@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 func GroupByWorkloadAnchor(resources []ResourceInput) []ResourceWithGroup {

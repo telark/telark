@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"slices"
 
-	dataerrors "github.com/telark/data/errors"
-	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 func ValidateProtectionFlags(existingRole *roledata.AccessRole, body map[string]any, w http.ResponseWriter) bool {

@@ -4,9 +4,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/telark/discovery/internal/circuitbreaker"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/tests/testutil"
+	"github.com/telark/telark/services/discovery/internal/circuitbreaker"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 // A named breaker reports its name, tracks failure/success counts through Stats,

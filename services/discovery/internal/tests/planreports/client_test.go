@@ -9,12 +9,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/telark/discovery/internal/circuitbreaker"
-	"github.com/telark/discovery/internal/clients"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection/validation"
-	reportseps "github.com/telark/rest/endpoints/reports"
-	"github.com/telark/rest/response"
+	reportseps "github.com/telark/telark/internal/rest/endpoints/reports"
+	"github.com/telark/telark/internal/rest/response"
+	"github.com/telark/telark/services/discovery/internal/circuitbreaker"
+	"github.com/telark/telark/services/discovery/internal/clients"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/validation"
 )
 
 const (

@@ -3,7 +3,7 @@ package shared
 import (
 	"fmt"
 
-	"github.com/telark/data/plans"
+	"github.com/telark/telark/internal/data/plans"
 )
 
 type ErrorLogger interface {

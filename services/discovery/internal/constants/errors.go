@@ -1,7 +1,7 @@
 package constants
 
 import (
-	"github.com/telark/data/errors"
+	"github.com/telark/telark/internal/data/errors"
 )
 
 const (

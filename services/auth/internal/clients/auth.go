@@ -3,12 +3,12 @@ package clients
 import (
 	"sync"
 
-	accessroleclient "github.com/telark/rest/clients/accessroles"
-	passkeyclient "github.com/telark/rest/clients/auth/passkey"
-	sessionclient "github.com/telark/rest/clients/auth/session"
-	configclient "github.com/telark/rest/clients/config"
-	groupclient "github.com/telark/rest/clients/groups"
-	userclient "github.com/telark/rest/clients/users"
+	accessroleclient "github.com/telark/telark/internal/rest/clients/accessroles"
+	passkeyclient "github.com/telark/telark/internal/rest/clients/auth/passkey"
+	sessionclient "github.com/telark/telark/internal/rest/clients/auth/session"
+	configclient "github.com/telark/telark/internal/rest/clients/config"
+	groupclient "github.com/telark/telark/internal/rest/clients/groups"
+	userclient "github.com/telark/telark/internal/rest/clients/users"
 )
 
 var (

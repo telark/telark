@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/helpers/logdedup"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/helpers/logdedup"
 )
 
 const (

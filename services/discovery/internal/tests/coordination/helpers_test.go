@@ -4,9 +4,9 @@ import (
 	"testing"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/coordination"
-	"github.com/telark/discovery/internal/tests/testutil"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/coordination"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const (

@@ -3,11 +3,11 @@ package applications
 import (
 	"net/http"
 
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/coordination"
-	redishelper "github.com/telark/discovery/internal/helpers/redis"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/coordination"
+	redishelper "github.com/telark/telark/services/discovery/internal/helpers/redis"
 )
 
 func DiscoveryStatus(w http.ResponseWriter, r *http.Request) {

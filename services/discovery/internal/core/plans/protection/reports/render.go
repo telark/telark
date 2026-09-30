@@ -12,10 +12,10 @@ import (
 	texttemplate "text/template"
 	"time"
 
-	globalshared "github.com/telark/data/shared"
-	"github.com/telark/discovery/internal/constants"
-	planseps "github.com/telark/rest/endpoints/plans"
-	reportseps "github.com/telark/rest/endpoints/reports"
+	globalshared "github.com/telark/telark/internal/data/shared"
+	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
+	reportseps "github.com/telark/telark/internal/rest/endpoints/reports"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 //go:embed templates/*

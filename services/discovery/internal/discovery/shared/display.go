@@ -3,7 +3,7 @@ package shared
 import (
 	"strings"
 
-	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 func BuildDisplayName(groupKey string) string {

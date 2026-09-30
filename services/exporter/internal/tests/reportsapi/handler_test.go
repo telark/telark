@@ -10,15 +10,15 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
-	"github.com/telark/exporter/internal/authz"
-	"github.com/telark/exporter/internal/constants"
-	reportshandler "github.com/telark/exporter/internal/handlers/reports"
-	"github.com/telark/exporter/internal/managers/envs"
-	"github.com/telark/exporter/internal/routes"
-	"github.com/telark/exporter/internal/utils/performance"
-	reportsutil "github.com/telark/exporter/internal/utils/reports"
-	reportseps "github.com/telark/rest/endpoints/reports"
-	"github.com/telark/rest/router"
+	reportseps "github.com/telark/telark/internal/rest/endpoints/reports"
+	"github.com/telark/telark/internal/rest/router"
+	"github.com/telark/telark/services/exporter/internal/authz"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	reportshandler "github.com/telark/telark/services/exporter/internal/handlers/reports"
+	"github.com/telark/telark/services/exporter/internal/managers/envs"
+	"github.com/telark/telark/services/exporter/internal/routes"
+	"github.com/telark/telark/services/exporter/internal/utils/performance"
+	reportsutil "github.com/telark/telark/services/exporter/internal/utils/reports"
 )
 
 const (

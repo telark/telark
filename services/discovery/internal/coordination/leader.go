@@ -8,14 +8,14 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	applicationmodel "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
-	serviceapp "github.com/telark/discovery/internal/core/applications/core"
-	"github.com/telark/discovery/internal/discovery/listing"
-	discoveryshared "github.com/telark/discovery/internal/discovery/shared"
-	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
-	"github.com/telark/kcore/resources/core"
-	xwareredis "github.com/telark/x-ware/redis/stream"
+	applicationmodel "github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/internal/kcore/resources/core"
+	xwareredis "github.com/telark/telark/internal/x-ware/redis/stream"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	serviceapp "github.com/telark/telark/services/discovery/internal/core/applications/core"
+	"github.com/telark/telark/services/discovery/internal/discovery/listing"
+	discoveryshared "github.com/telark/telark/services/discovery/internal/discovery/shared"
+	tcfghelper "github.com/telark/telark/services/discovery/internal/helpers/telarkconfig"
 )
 
 var prewarmBatchRunning atomic.Bool

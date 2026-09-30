@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"slices"
 
-	dataerrors "github.com/telark/data/errors"
-	discoveryauthz "github.com/telark/discovery/internal/authz"
-	"github.com/telark/discovery/internal/constants"
-	kcorecore "github.com/telark/kcore/resources/core"
-	"github.com/telark/rest/response"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	kcorecore "github.com/telark/telark/internal/kcore/resources/core"
+	"github.com/telark/telark/internal/rest/response"
+	discoveryauthz "github.com/telark/telark/services/discovery/internal/authz"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 func GetNamespaces(w http.ResponseWriter, r *http.Request) {

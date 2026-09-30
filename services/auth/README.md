@@ -100,8 +100,9 @@ stores passkeys and sessions (`Passkey`, `Session` CRs) through the exporter's `
 ## Build & run
 
 ```sh
-go build ./...
-docker build -t ghcr.io/telark/auth:<version> .
+# from the repo root: the image builds the service together with internal/
+go build ./services/auth
+docker build -f services/auth/Dockerfile -t ghcr.io/telark/auth:<version> .
 ```
 
 Runs in-cluster via the [telark chart](../../charts/telark); see [INSTALL](../../docs/INSTALL.md)

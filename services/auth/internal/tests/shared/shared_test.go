@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/telark/auth/internal/constants"
-	"github.com/telark/auth/internal/helpers/shared"
-	requestutils "github.com/telark/rest/utils/request"
+	requestutils "github.com/telark/telark/internal/rest/utils/request"
+	"github.com/telark/telark/services/auth/internal/constants"
+	"github.com/telark/telark/services/auth/internal/helpers/shared"
 )
 
 const (

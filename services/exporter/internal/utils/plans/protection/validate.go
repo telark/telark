@@ -3,8 +3,8 @@ package protection
 import (
 	"errors"
 
-	"github.com/telark/data/plans"
-	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/telark/internal/data/plans"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 func Validate(plan *plans.ProtectionPlan) error {

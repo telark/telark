@@ -1,13 +1,7 @@
-# Dependabot. The github.com/telark/* shared modules are public and resolve from
-# the Go module proxy like any other dependency.
 version: 2
 updates:
   - package-ecosystem: gomod
-    directories:
-      - /services/auth
-      - /services/discovery
-      - /services/exporter
-      - /services/notifier
+    directory: /
     schedule:
       interval: weekly
     groups:

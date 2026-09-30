@@ -1,14 +1,14 @@
 package clients
 
 import (
-	authdata "github.com/telark/data/auth"
-	groupresource "github.com/telark/data/resources/group"
-	roleresource "github.com/telark/data/resources/role"
-	userresource "github.com/telark/data/resources/user"
-	roleclient "github.com/telark/rest/clients/accessroles"
-	sessionclient "github.com/telark/rest/clients/auth/session"
-	groupclient "github.com/telark/rest/clients/groups"
-	userclient "github.com/telark/rest/clients/users"
+	authdata "github.com/telark/telark/internal/data/auth"
+	groupresource "github.com/telark/telark/internal/data/resources/group"
+	roleresource "github.com/telark/telark/internal/data/resources/role"
+	userresource "github.com/telark/telark/internal/data/resources/user"
+	roleclient "github.com/telark/telark/internal/rest/clients/accessroles"
+	sessionclient "github.com/telark/telark/internal/rest/clients/auth/session"
+	groupclient "github.com/telark/telark/internal/rest/clients/groups"
+	userclient "github.com/telark/telark/internal/rest/clients/users"
 )
 
 type AuthzClient struct {

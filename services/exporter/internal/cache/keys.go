@@ -3,9 +3,9 @@ package cache
 import (
 	"net/http"
 
-	"github.com/telark/exporter/internal/constants"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
-	rediscache "github.com/telark/x-ware/redis/cache"
+	rediscache "github.com/telark/telark/internal/x-ware/redis/cache"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 type SubjectFunc func(r *http.Request) string

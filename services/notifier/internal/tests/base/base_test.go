@@ -11,13 +11,13 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
-	"github.com/telark/data/resources/shared"
-	"github.com/telark/notifier/internal/constants"
-	"github.com/telark/notifier/internal/subscribers/base"
-	"github.com/telark/notifier/internal/tests/testutil"
-	"github.com/telark/rest/response"
-	natscore "github.com/telark/x-ware/nats/core"
-	natstreams "github.com/telark/x-ware/nats/streams"
+	"github.com/telark/telark/internal/data/resources/shared"
+	"github.com/telark/telark/internal/rest/response"
+	natscore "github.com/telark/telark/internal/x-ware/nats/core"
+	natstreams "github.com/telark/telark/internal/x-ware/nats/streams"
+	"github.com/telark/telark/services/notifier/internal/constants"
+	"github.com/telark/telark/services/notifier/internal/subscribers/base"
+	"github.com/telark/telark/services/notifier/internal/tests/testutil"
 )
 
 const (

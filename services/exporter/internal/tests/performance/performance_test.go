@@ -15,14 +15,14 @@ import (
 	"testing"
 	"time"
 
-	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/exporter/internal/authz"
-	"github.com/telark/exporter/internal/cache"
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/exporter/internal/utils/performance"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
-	xauthz "github.com/telark/x-ware/authz"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/exporter/internal/authz"
+	"github.com/telark/telark/services/exporter/internal/cache"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/utils/performance"
 )
 
 const (

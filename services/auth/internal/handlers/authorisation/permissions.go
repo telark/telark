@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/telark/auth/internal/clients"
-	"github.com/telark/auth/internal/constants"
-	authhelper "github.com/telark/auth/internal/helpers/auth"
-	"github.com/telark/auth/internal/helpers/shared"
-	roleresource "github.com/telark/data/resources/role"
+	roleresource "github.com/telark/telark/internal/data/resources/role"
+	"github.com/telark/telark/services/auth/internal/clients"
+	"github.com/telark/telark/services/auth/internal/constants"
+	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
+	"github.com/telark/telark/services/auth/internal/helpers/shared"
 )
 
 var lg = constants.GetLogger(constants.LoggerPrefixHandler)

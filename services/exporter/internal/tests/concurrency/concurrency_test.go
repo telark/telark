@@ -4,8 +4,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/exporter/internal/utils/concurrency"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/utils/concurrency"
 )
 
 const contendingGoroutines = 50

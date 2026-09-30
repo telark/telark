@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/telark/exporter/internal/constants"
-	envmanager "github.com/telark/exporter/internal/managers/envs"
-	"github.com/telark/kcore/resources/core"
+	"github.com/telark/telark/internal/kcore/resources/core"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	envmanager "github.com/telark/telark/services/exporter/internal/managers/envs"
 )
 
 type SnapshotStorageMetrics struct {

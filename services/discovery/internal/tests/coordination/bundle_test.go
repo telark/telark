@@ -5,8 +5,8 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/discovery/internal/config"
-	"github.com/telark/discovery/internal/coordination"
+	"github.com/telark/telark/services/discovery/internal/config"
+	"github.com/telark/telark/services/discovery/internal/coordination"
 )
 
 // The bundle wires one of every Redis coordination client off a single

@@ -3,9 +3,9 @@ package historyshared
 import (
 	"testing"
 
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/applications/history/shared"
-	"github.com/telark/discovery/internal/tests/testutil"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/applications/history/shared"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 // Only the four known severities are valid.

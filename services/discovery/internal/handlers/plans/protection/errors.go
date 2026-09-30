@@ -6,13 +6,13 @@ import (
 	"io"
 	"net/http"
 
-	dataerrors "github.com/telark/data/errors"
-	"github.com/telark/discovery/internal/circuitbreaker"
-	"github.com/telark/discovery/internal/clients"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection"
-	"github.com/telark/discovery/internal/core/plans/protection/validation"
-	"github.com/telark/discovery/internal/helpers/shared"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/services/discovery/internal/circuitbreaker"
+	"github.com/telark/telark/services/discovery/internal/clients"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/validation"
+	"github.com/telark/telark/services/discovery/internal/helpers/shared"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 )
 

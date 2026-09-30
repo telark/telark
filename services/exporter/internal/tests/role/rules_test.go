@@ -3,8 +3,8 @@ package role
 import (
 	"testing"
 
-	"github.com/telark/exporter/internal/constants"
-	roleutil "github.com/telark/exporter/internal/utils/resources/role"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	roleutil "github.com/telark/telark/services/exporter/internal/utils/resources/role"
 )
 
 const (

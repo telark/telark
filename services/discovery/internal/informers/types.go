@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/redis/go-redis/v9"
-	applicationmodel "github.com/telark/data/resources/application"
+	applicationmodel "github.com/telark/telark/internal/data/resources/application"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

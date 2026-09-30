@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/handlers/rollback"
-	"github.com/telark/discovery/internal/tests/testutil"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/handlers/rollback"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 // A blown process deadline is itself a common reason a rollback failed, so the

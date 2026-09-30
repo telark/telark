@@ -10,11 +10,11 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gorilla/mux"
 	"github.com/redis/go-redis/v9"
-	notifhandler "github.com/telark/exporter/internal/handlers/notifications"
-	exprdb "github.com/telark/exporter/internal/redis"
-	notifstorage "github.com/telark/exporter/internal/redis/notifications"
-	notiftypes "github.com/telark/exporter/internal/types/notifications"
-	xauthz "github.com/telark/x-ware/authz"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	notifhandler "github.com/telark/telark/services/exporter/internal/handlers/notifications"
+	exprdb "github.com/telark/telark/services/exporter/internal/redis"
+	notifstorage "github.com/telark/telark/services/exporter/internal/redis/notifications"
+	notiftypes "github.com/telark/telark/services/exporter/internal/types/notifications"
 )
 
 const (

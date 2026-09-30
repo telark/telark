@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/telark/exporter/internal/constants"
-	notiftypes "github.com/telark/exporter/internal/types/notifications"
-	notifdiff "github.com/telark/exporter/internal/utils/notifications"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	notiftypes "github.com/telark/telark/services/exporter/internal/types/notifications"
+	notifdiff "github.com/telark/telark/services/exporter/internal/utils/notifications"
 )
 
 const (

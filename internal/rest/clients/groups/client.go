@@ -1,0 +1,62 @@
+package groups
+
+import (
+	"github.com/telark/telark/internal/data/resources/finalizers"
+	groupresource "github.com/telark/telark/internal/data/resources/group"
+	resourcesshared "github.com/telark/telark/internal/data/resources/shared"
+	"github.com/telark/telark/internal/rest/base"
+	cleanupclient "github.com/telark/telark/internal/rest/clients/cleanup"
+	"github.com/telark/telark/internal/rest/clients/shared"
+	"github.com/telark/telark/internal/rest/constants"
+	eps "github.com/telark/telark/internal/rest/endpoints/groups"
+	"github.com/telark/telark/internal/rest/response"
+)
+
+type Client struct {
+	*shared.Client
+}
+
+func NewClient() *Client {
+	return &Client{
+		Client: shared.New(base.Exporter),
+	}
+}
+
+func (c *Client) CreateGroup(group *groupresource.Group) *response.GenericResponse {
+	return c.Create(eps.CreateGroup, group)
+}
+
+func (c *Client) GetGroupByID(id string) (*groupresource.Group, error) {
+	byID := c.WithParams(map[string]string{constants.IDParam: id})
+	return shared.GetTypedNoCache[groupresource.Group](byID, eps.GetGroupByID)
+}
+
+func (c *Client) GetAllGroups() ([]*groupresource.Group, error) {
+	return shared.GetListTyped[*groupresource.Group](c.Client, eps.GetAllGroups)
+}
+
+func (c *Client) PatchGroupByID(id string, body map[string]any) *response.GenericResponse {
+	byID := c.WithParams(map[string]string{constants.IDParam: id})
+	return byID.Update(eps.PatchGroupByID, body)
+}
+
+func (c *Client) DeleteGroupByID(id string) *response.GenericResponse {
+	byID := c.WithParams(map[string]string{constants.IDParam: id})
+	return byID.Delete(eps.DeleteGroupByID)
+}
+
+func (c *Client) GetCleanupViewByID(id string) (*resourcesshared.CleanupView, error) {
+	return cleanupclient.GetCleanupViewByID(c.Client, finalizers.ResourceTypeGroups, id)
+}
+
+func (c *Client) ListCleanupViews() ([]*resourcesshared.CleanupView, error) {
+	return cleanupclient.ListCleanupViews(c.Client, finalizers.ResourceTypeGroups)
+}
+
+func (c *Client) AddFinalizer(id, name string) *response.GenericResponse {
+	return cleanupclient.AddFinalizer(c.Client, finalizers.ResourceTypeGroups, id, name)
+}
+
+func (c *Client) RemoveFinalizer(id, name string) *response.GenericResponse {
+	return cleanupclient.RemoveFinalizer(c.Client, finalizers.ResourceTypeGroups, id, name)
+}

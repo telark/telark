@@ -11,13 +11,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/telark/auth/internal/clients"
-	"github.com/telark/auth/internal/config"
-	"github.com/telark/auth/internal/constants"
-	authhelper "github.com/telark/auth/internal/helpers/auth"
-	redishelper "github.com/telark/auth/internal/helpers/redis"
-	userresource "github.com/telark/data/resources/user"
-	userclient "github.com/telark/rest/clients/users"
+	userresource "github.com/telark/telark/internal/data/resources/user"
+	userclient "github.com/telark/telark/internal/rest/clients/users"
+	"github.com/telark/telark/services/auth/internal/clients"
+	"github.com/telark/telark/services/auth/internal/config"
+	"github.com/telark/telark/services/auth/internal/constants"
+	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
+	redishelper "github.com/telark/telark/services/auth/internal/helpers/redis"
 )
 
 // Operator-run, so the email is trusted; the BOOTSTRAP_ADMIN address also gets the

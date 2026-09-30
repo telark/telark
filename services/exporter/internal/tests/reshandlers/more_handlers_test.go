@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	dataconstants "github.com/telark/data/constants"
-	"github.com/telark/exporter/internal/constants"
-	passkeyhandler "github.com/telark/exporter/internal/handlers/auth/passkey"
-	sessionhandler "github.com/telark/exporter/internal/handlers/auth/session"
-	confighandler "github.com/telark/exporter/internal/handlers/config"
-	apphandler "github.com/telark/exporter/internal/handlers/resources/application"
+	dataconstants "github.com/telark/telark/internal/data/constants"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	passkeyhandler "github.com/telark/telark/services/exporter/internal/handlers/auth/passkey"
+	sessionhandler "github.com/telark/telark/services/exporter/internal/handlers/auth/session"
+	confighandler "github.com/telark/telark/services/exporter/internal/handlers/config"
+	apphandler "github.com/telark/telark/services/exporter/internal/handlers/resources/application"
 )
 
 // varsReq carries every path var, header and query the auth/resource handlers

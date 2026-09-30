@@ -6,14 +6,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/telark/auth/cmd"
-	"github.com/telark/auth/internal/config"
-	"github.com/telark/auth/internal/constants"
-	cleanupctrl "github.com/telark/auth/internal/controllers/cleanup"
-	authhelper "github.com/telark/auth/internal/helpers/auth"
-	"github.com/telark/auth/internal/tests/testutil"
-	"github.com/telark/data/resources/finalizers"
-	userresource "github.com/telark/data/resources/user"
+	"github.com/telark/telark/internal/data/resources/finalizers"
+	userresource "github.com/telark/telark/internal/data/resources/user"
+	"github.com/telark/telark/services/auth/cmd"
+	"github.com/telark/telark/services/auth/internal/config"
+	"github.com/telark/telark/services/auth/internal/constants"
+	cleanupctrl "github.com/telark/telark/services/auth/internal/controllers/cleanup"
+	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
+	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
 func TestBackfillRunFailsClosed(t *testing.T) {

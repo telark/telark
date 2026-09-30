@@ -3,9 +3,9 @@ package oidc
 import (
 	"encoding/json"
 
-	authdata "github.com/telark/data/auth"
-	telarkconfigresource "github.com/telark/data/resources/telarkconfig"
-	userresource "github.com/telark/data/resources/user"
+	authdata "github.com/telark/telark/internal/data/auth"
+	telarkconfigresource "github.com/telark/telark/internal/data/resources/telarkconfig"
+	userresource "github.com/telark/telark/internal/data/resources/user"
 )
 
 type CallbackRequest struct {

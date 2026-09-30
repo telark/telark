@@ -2,7 +2,7 @@ package webauthn
 
 import (
 	"github.com/go-webauthn/webauthn/webauthn"
-	"github.com/telark/auth/internal/constants"
+	"github.com/telark/telark/services/auth/internal/constants"
 )
 
 type User struct {

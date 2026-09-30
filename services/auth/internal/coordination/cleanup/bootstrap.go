@@ -5,11 +5,11 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/auth/internal/config"
-	"github.com/telark/auth/internal/constants"
-	cleanupctrl "github.com/telark/auth/internal/controllers/cleanup"
-	"github.com/telark/data/resources/finalizers"
-	xwareredis "github.com/telark/x-ware/redis/stream"
+	"github.com/telark/telark/internal/data/resources/finalizers"
+	xwareredis "github.com/telark/telark/internal/x-ware/redis/stream"
+	"github.com/telark/telark/services/auth/internal/config"
+	"github.com/telark/telark/services/auth/internal/constants"
+	cleanupctrl "github.com/telark/telark/services/auth/internal/controllers/cleanup"
 )
 
 func Bootstrap(

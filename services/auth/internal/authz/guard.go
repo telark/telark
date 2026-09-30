@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/telark/auth/internal/constants"
-	dataerrors "github.com/telark/data/errors"
-	roledata "github.com/telark/data/resources/role"
-	userdata "github.com/telark/data/resources/user"
-	"github.com/telark/x-ware/authz"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	userdata "github.com/telark/telark/internal/data/resources/user"
+	"github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/auth/internal/constants"
 )
 
 // Bootstrap users are never deleted through the API, and a caller below Admin is

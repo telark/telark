@@ -19,7 +19,7 @@ A control plane for **protection plans** over Kubernetes workloads. It groups wo
 | `analyzer` | Python/FastAPI | Local incident analysis with an open-weight model (Ollama) over read-only cluster tools; insights in Redis; SSE to the UI | `services/analyzer/README.md`, `ARCHITECTURE.md` |
 | `ui` | (separate repo) | Dashboard SPA, `telark/dashboard-ui`; this repo ships only its image reference | none |
 
-Shared Go modules `github.com/telark/{data,rest,kcore,x-ware}` are separate repositories pinned in each `go.mod`: `data` holds CRD types, constants and Kyverno policy rendering, `rest` the HTTP clients, endpoints and router, `kcore` Kubernetes client helpers, `x-ware` the authorization middleware, CORS, Redis and NATS helpers. Subcharts: Redis, NATS JetStream, Kyverno, metrics-server, VPA (optional), Ollama.
+Shared Go packages `internal/{data,rest,kcore,x-ware}` live in the same module as the services (`github.com/telark/telark`, one root `go.mod`): `data` holds CRD types, constants and Kyverno policy rendering, `rest` the HTTP clients, endpoints and router, `kcore` Kubernetes client helpers, `x-ware` the authorization middleware, CORS, Redis and NATS helpers. Subcharts: Redis, NATS JetStream, Kyverno, metrics-server, VPA (optional), Ollama.
 
 Detail: [docs/architecture/](docs/architecture/README.md).
 
@@ -53,18 +53,15 @@ Phases `draft`, `pending_approval`, `scheduled`, `active`, `terminated`, `cancel
 
 ## Build, test, validate
 
-Cloud sessions and any machine other than the maintainer's: **`export GOWORK=off`** first. The committed `go.work` points the shared modules at the maintainer's local paths, so workspace-mode Go commands fail elsewhere. The shared modules download from the public Go proxy without credentials.
+All Go commands run from the repository root; there is no `go.work` and no `replace` directive, so every machine and CI build the same way.
 
 ```sh
-export GOWORK=off
-cd services/<svc> && go build ./... && go vet ./... && go test -race ./... && golangci-lint run
+go build ./... && go vet ./... && go test -race ./... && golangci-lint run ./services/<svc>/...   # lint one service or ./internal/<pkg>/... at a time
 helm repo add vpa https://charts.fairwinds.com/stable && make deps && make helm-lint && make helm-validate && make values-docs
 # analyzer: see docs/testing (Python 3.13 venv, two pytest runs, coverage >= 95)
 ```
 
-Tool versions (Go 1.27.1, golangci-lint v2.13.2, kubeconform v0.8.0, Python 3.13), install commands, CI coverage floors and cluster validation (UI → API → backend → Kubernetes): [docs/testing/](docs/testing/README.md). No cluster is available in a cloud session; unit tests, lint, Helm lint and render, kubeconform and the analyzer suite all run without one.
-
-`GOWORK=off` can fail with `undefined` shared-module symbols when a service uses an unreleased local change of a shared module. That is expected until the module is released and the pin bumped (the user's job); report it, don't add `replace` directives or edit `go.work`.
+Tool versions (Go 1.27.1, golangci-lint v2.14.0, kubeconform v0.8.0, Python 3.13), install commands, CI coverage floors and cluster validation (UI → API → backend → Kubernetes): [docs/testing/](docs/testing/README.md). No cluster is available in a cloud session; unit tests, lint, Helm lint and render, kubeconform and the analyzer suite all run without one.
 
 ## Before you call something done
 

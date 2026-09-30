@@ -7,7 +7,7 @@ GOLANGCI_CONFIG := $(CURDIR)/.golangci.yml
 
 # The app chart refuses to render without an admin (templates/_guards.tpl); lint and
 # validation use a placeholder one.
-RENDER_SET   := --set 'app.auth.bootstrap.admins={jane.doe@example.com}'
+RENDER_SET   := --set app.auth.bootstrap.admin=test@example.com
 
 .PHONY: help build test lint fmt vet helm-lint helm-template helm-validate deps values-docs changelog publish-charts sync check
 

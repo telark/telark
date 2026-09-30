@@ -119,8 +119,8 @@ func TestGuardUserTarget(t *testing.T) {
 		{"owner deletes bootstrap", as(userPlain, owner), users[userBootstrap], nil, true, false, http.StatusNotFound},
 		{"owner patches plain user", as(userPlain, owner), users[victimID], rolePromotion(), false, true, http.StatusOK},
 		{"admin patches bootstrap", regularAdmin, users[userBootstrap], profileEdit(), false, false, http.StatusForbidden},
-		{"admin deletes admin", regularAdmin, users[userGroupAdmin], nil, true, false, http.StatusForbidden},
-		{"admin suspends admin", regularAdmin, users[userGroupAdmin], suspend, false, false, http.StatusForbidden},
+		{"admin deletes admin", regularAdmin, users[userGroupAdmin], nil, true, true, http.StatusOK},
+		{"admin suspends admin", regularAdmin, users[userGroupAdmin], suspend, false, true, http.StatusOK},
 		{"admin changes admin roles", regularAdmin, users[userGroupAdmin], rolePromotion(), false, true, http.StatusOK},
 		{"admin deletes plain user", regularAdmin, users[userPlain], nil, true, true, http.StatusOK},
 		{"bootstrap deletes admin", bootstrap, users[userAdmin], nil, true, true, http.StatusOK},
@@ -151,15 +151,21 @@ func TestGuardUserCreateRefusesBootstrapFlag(t *testing.T) {
 }
 
 func TestGuardReservedEmail(t *testing.T) {
-	t.Setenv(constants.BootstrapAdminsEnv, " Root@Example.com ,ops@example.com")
-	envmanager.InitBootstrapAdmins()
+	t.Setenv(constants.BootstrapAdminEnv, " Root@Example.com ")
+	envmanager.InitBootstrapAdmin()
 
 	w := httptest.NewRecorder()
 	expectForbidden(t, w, authz.GuardReservedEmail(w, requestAs(allAdmin()), "root@example.com"), "session claiming a bootstrap mailbox")
-	if !authz.GuardReservedEmail(httptest.NewRecorder(), requestAs(allAdmin()), "jane.doe@example.com") {
+	if !authz.GuardReservedEmail(httptest.NewRecorder(), requestAs(allAdmin()), "test@example.com") {
 		t.Fatal("ordinary mailbox refused")
 	}
-	if !authz.GuardReservedEmail(httptest.NewRecorder(), requestAs(internalIdentity), "ops@example.com") {
+	if !authz.GuardReservedEmail(httptest.NewRecorder(), requestAs(internalIdentity), "root@example.com") {
 		t.Fatal("service provisioning a bootstrap mailbox refused")
+	}
+
+	t.Setenv(constants.BootstrapAdminEnv, constants.EmptyString)
+	envmanager.InitBootstrapAdmin()
+	if !authz.GuardReservedEmail(httptest.NewRecorder(), requestAs(allAdmin()), constants.EmptyString) {
+		t.Fatal("unset bootstrap admin reserved the empty email")
 	}
 }

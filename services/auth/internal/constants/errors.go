@@ -75,13 +75,12 @@ const (
 	ErrFailedLoadBootstrapConfig errors.Error = "failed to load bootstrap configuration: %v"
 
 	// Bootstrap Configuration Errors
-	ErrBootstrapNoAdminsAndNoSelfReg errors.Error = "bootstrap config must have at least one admin when self-registration is disabled"
-	ErrSelfRegistrationDisabled      errors.Error = "self-registration is disabled. contact your administrator"
+	ErrBootstrapNoAdminAndNoSelfReg errors.Error = "bootstrap config must set the admin email when self-registration is disabled"
+	ErrSelfRegistrationDisabled     errors.Error = "self-registration is disabled. contact your administrator"
 
 	// User Deletion Errors
-	ErrCleanupSelfDelete          errors.Error = "you cannot delete your own account"
-	ErrCleanupBootstrapManaged    errors.Error = "this user is managed by the chart and cannot be deleted"
-	ErrCleanupAdminNeedsBootstrap errors.Error = "only a bootstrap administrator can delete an administrator"
+	ErrCleanupSelfDelete       errors.Error = "you cannot delete your own account"
+	ErrCleanupBootstrapManaged errors.Error = "this user is managed by the chart and cannot be deleted"
 
 	// Validation Errors
 	ErrMissingRequiredFields         errors.Error = "credentialId, publicKey, deviceName and deviceType are required"
@@ -138,7 +137,6 @@ const (
 	ErrOIDCNonceStoreFailed      errors.Error = "failed to store OIDC nonce: %v"
 	ErrOIDCIdentityLookupFailed  errors.Error = "user identity lookup failed for identityHash=%s: %v"
 	ErrOIDCEmailLookupFailed     errors.Error = "email lookup failed for identityHash=%s: %v"
-	ErrOIDCAdminPromotionFailed  errors.Error = "failed to promote bootstrap admin identityHash=%s: status %d"
 	ErrOIDCBuildUsernameFailed   errors.Error = "failed to build username: %w"
 	ErrOIDCCreateUserStatus      errors.Error = "CreateUser returned unexpected status %d: %s"
 	ErrOIDCPostCreateLookup      errors.Error = "post-create identity lookup failed: %w"

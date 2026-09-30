@@ -62,7 +62,7 @@ func (s *proofStub) RoundTrip(r *http.Request) (*http.Response, error) {
 // needs a session or an enrollment link, a bootstrap email is reserved for the
 // operator, and a passkey lookup that failed never reads as "no passkeys".
 func TestRegisterStartProofRules(t *testing.T) {
-	t.Setenv(constants.EnvBootstrapAdmins, bootstrapEmail)
+	t.Setenv(constants.EnvBootstrapAdmin, bootstrapEmail)
 	t.Setenv(constants.EnvSelfRegistrationEnabled, "true")
 	if _, err := config.LoadBootstrapConfig(); err != nil {
 		t.Fatalf("LoadBootstrapConfig: %v", err)

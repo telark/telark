@@ -61,7 +61,7 @@ const (
 	// generation, so an entry stops being read the moment the list changes.
 	ListBlobLocalEntries     = 4
 	ListRenderConcurrencyEnv = "EXPORTER_LIST_RENDER_CONCURRENCY"
-	BootstrapAdminsEnv       = "BOOTSTRAP_ADMINS"
+	BootstrapAdminEnv        = "BOOTSTRAP_ADMIN"
 	// A full list is megabytes of marshal buffer; beyond this many renders at
 	// once a request is refused rather than queued.
 	DefaultListRenderConcurrency                = 2
@@ -191,7 +191,6 @@ const (
 	MaxApplicationDisplayNameLength             = 200
 	MaxApplicationDescriptionLength             = 1000
 	ListSeparator                               = ", "
-	CommaSeparator                              = ","
 	HeaderUserID                                = "X-User-ID"
 	SnapshotsPathEnv                            = "SNAPSHOTS_PATH"
 	SnapshotsMaxVersionsEnv                     = "SNAPSHOTS_MAX_VERSIONS"

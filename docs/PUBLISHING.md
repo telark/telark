@@ -54,7 +54,7 @@ The signature is keyless (your OIDC identity, not the CI workflow's); to sign wi
 helm show chart oci://ghcr.io/telark/charts/telark --version <version>
 helm pull       oci://ghcr.io/telark/charts/telark --version <version>
 helm template t oci://ghcr.io/telark/charts/telark --version <version> \
-  --set 'app.auth.bootstrap.admins={jane.doe@example.com}'
+  --set app.auth.bootstrap.admin=test@example.com
 ```
 
 ## 4. Deploy from the registry
@@ -72,7 +72,7 @@ NS=telark
 helm upgrade --install telark-release oci://ghcr.io/telark/charts/telark --version <version> \
   -n "$NS" --create-namespace \
   --set app.persistence.storageClass=<rwx-class> \
-  --set 'app.auth.bootstrap.admins={jane.doe@example.com}' \
+  --set app.auth.bootstrap.admin=test@example.com \
   --wait --timeout 15m
 
 helm test telark-release -n "$NS"    # readiness probe against auth

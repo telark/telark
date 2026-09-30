@@ -89,7 +89,7 @@
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "admins": { "type": "array", "items": { "type": "string", "format": "email" } }
+                "admin": { "type": "string", "anyOf": [{ "const": "" }, { "format": "email" }] }
               }
             },
             "passkey": {

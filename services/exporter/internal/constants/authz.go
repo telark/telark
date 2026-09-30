@@ -36,7 +36,7 @@ const (
 	ErrAuthzResourceBeingDeleted      = "this resource is being deleted and can no longer be changed"
 	ErrAuthzBootstrapManagedByChart   = "this account is a bootstrap administrator managed by the chart"
 	ErrAuthzBootstrapFieldReserved    = "the bootstrap flag is managed by the chart"
-	ErrAuthzAdminNeedsBootstrap       = "only a bootstrap administrator may delete or suspend an administrator"
+	ErrAuthzLastAdmin                 = "this change would leave no active administrator: grant Admin on ALL to another active user first"
 	ErrAuthzSelfDelete                = "you cannot delete your own account"
 	ErrAuthzBootstrapEmailReserved    = "this email belongs to a bootstrap administrator managed by the chart"
 	ErrAuthzRoleLevelExceedsCaller    = "a role cannot grant a level above your own on that scope"
@@ -82,6 +82,9 @@ const (
 
 // Changing any of these can put a role's levels back into effect.
 var RoleLevelFields = []string{FieldScopesAndPermissions, FieldStatus, FieldValidity}
+
+// Changing any of these can take a user's administrator rights away.
+var AdminFields = []string{FieldStatus, FieldRoleRefs, FieldGroupRefs}
 
 const (
 	GenerationBase = 10

@@ -29,4 +29,4 @@ Telark is pre-1.0. Only the latest released chart/app version receives security 
 - Images are public and pull anonymously; the chart ships no registry credentials. For a private registry/mirror, supply pull secrets via `app.image.pullSecrets` / `global.imagePullSecrets`.
 - The CRD write guard (`app.crdGuard`) is on and enforcing by default. Telark's custom resources are its authorization data, so the guard is the boundary between namespace edit rights and telark Admin: keep it enforcing, and put break-glass identities in `app.crdGuard.extraAllowedUsers` rather than turning it off.
 - The chart renders ingress NetworkPolicies for the Telark services and NATS (`app.networkPolicy.enabled`); like Redis's, they need a CNI that enforces NetworkPolicy.
-- The chart ships no bootstrap admin and no self-registration: set `app.auth.bootstrap.admins` to your own address at install and enrol it right away ([First admin](docs/INSTALL.md#2-first-admin)).
+- The chart ships no bootstrap admin and no self-registration: set `app.auth.bootstrap.admin` to your own address at install and enrol it right away ([First admin](docs/INSTALL.md#2-first-admin)).

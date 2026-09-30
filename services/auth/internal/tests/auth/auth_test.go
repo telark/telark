@@ -2,7 +2,6 @@ package auth
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,7 +10,6 @@ import (
 	webauthnlib "github.com/go-webauthn/webauthn/webauthn"
 
 	"github.com/telark/auth/internal/clients"
-	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
 	authhelper "github.com/telark/auth/internal/helpers/auth"
 	"github.com/telark/auth/internal/helpers/shared"
@@ -73,19 +71,6 @@ func TestBuildUsername(t *testing.T) {
 	if len(got) > constants.UsernameMaxLocalLen+separatorLen+hexCharsPerByte*constants.UsernameRandomBytes {
 		t.Fatalf("local part not truncated: %q", got)
 	}
-}
-
-// The first-login role is Admin for a configured bootstrap admin and read-only
-// for everyone else.
-func TestResolveInitialRoleID(t *testing.T) {
-	t.Setenv(constants.EnvBootstrapAdmins, "admin@x.com")
-	t.Setenv(constants.EnvSelfRegistrationEnabled, "true")
-	if _, err := config.LoadBootstrapConfig(); err != nil {
-		t.Fatalf("LoadBootstrapConfig = %v", err)
-	}
-
-	testutil.Equal(t, "admin", authhelper.ResolveInitialRoleID("admin@x.com"), constants.BuiltInRoleAdmin)
-	testutil.Equal(t, "reader", authhelper.ResolveInitialRoleID("nobody@x.com"), constants.BuiltInRoleReadOnly)
 }
 
 // The decoder accepts raw-url tokens and falls back to standard base64 (with
@@ -271,42 +256,6 @@ func TestCreateUserSession(t *testing.T) {
 	if err == nil && token == "" {
 		t.Fatal("CreateUserSession returned an empty token without an error")
 	}
-}
-
-// The bootstrap admin gets the Admin role and the chart marker on an OIDC login
-// whose verified email is a bootstrap address; a record that already carries both
-// is left alone, and a stored (editable) bootstrap email never promotes on its own.
-func TestEnsureBootstrapAdminIsIdempotent(t *testing.T) {
-	const bootstrapEmail = "Admin@x.com"
-	t.Setenv(constants.EnvBootstrapAdmins, bootstrapEmail)
-	if _, err := config.LoadBootstrapConfig(); err != nil {
-		t.Fatal(err)
-	}
-	var patches []map[string]any
-	testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var body map[string]any
-		_ = json.NewDecoder(r.Body).Decode(&body)
-		patches = append(patches, body)
-		_, _ = w.Write([]byte(`{"status":200}`))
-	}))
-	adminRole := constants.BuiltInRoleAdmin
-	client := clients.GetUserClient()
-
-	authhelper.EnsureBootstrapAdmin(&userresource.User{ID: testUserID, Email: bootstrapEmail}, bootstrapEmail, client)
-	testutil.Equal(t, "patches after first login", len(patches), constants.DefaultIncrementValue)
-	first := patches[constants.DefaultInitValue]
-	testutil.Equal[any](t, "marker", first[constants.UserFieldBootstrap], true)
-	if first[constants.SpecFieldRoleRefs] == nil {
-		t.Fatalf("patch = %v, want the Admin role", first)
-	}
-
-	authhelper.EnsureBootstrapAdmin(&userresource.User{
-		ID: testUserID, Email: bootstrapEmail, Bootstrap: true, RoleRefs: []*string{&adminRole},
-	}, bootstrapEmail, client)
-	authhelper.EnsureBootstrapAdmin(&userresource.User{ID: "u-2", Email: testEmail}, testEmail, client)
-	authhelper.EnsureBootstrapAdmin(&userresource.User{ID: "u-3", Email: bootstrapEmail}, testEmail, client)
-	testutil.Equal(t, "patches after a complete record, a non-bootstrap user and a stored-only bootstrap email",
-		len(patches), constants.DefaultIncrementValue)
 }
 
 // Every login ends in CreateUserSession, so a user the exporter reports as being

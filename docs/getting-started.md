@@ -15,12 +15,12 @@ You need:
 
 ## 1. Install Telark
 
-Replace `<rwx-class>` with your StorageClass and `you@example.com` with your email:
+Replace `<rwx-class>` with your StorageClass and `test@example.com` with your email:
 
 ```sh
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
   --set app.persistence.storageClass=<rwx-class> \
-  --set 'app.auth.bootstrap.admins={you@example.com}'
+  --set app.auth.bootstrap.admin=test@example.com
 ```
 
 On a single-node cluster, replace the first `--set` line with `--set app.singleNode=true`.
@@ -39,10 +39,10 @@ You should see every pod `Running` and the test `Succeeded`. The first start pul
 Passkey self-registration is off by default, so the first admin enrols with a one-time token. Create it with the auth service's break-glass command, using the email you passed at install:
 
 ```sh
-kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email you@example.com --enroll
+kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email test@example.com --enroll
 ```
 
-You should see a line like `enrollment token for you@example.com (expires …): <token>`. The token is valid for 10 minutes.
+You should see a line like `enrollment token for test@example.com (expires …): <token>`. The token is valid for 10 minutes.
 
 Forward the dashboard to your machine and leave the command running:
 

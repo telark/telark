@@ -44,7 +44,7 @@ func main() {
 	initSnapshotsConfig()
 	initReportsConfig()
 	lg.Info(fmt.Sprintf(string(constants.InfListRenderConcurrencyConfigured), envmanager.InitListRenderConcurrency()))
-	envmanager.InitBootstrapAdmins()
+	envmanager.InitBootstrapAdmin()
 	optimizer := performance.NewOptimizer(initConnectivity())
 	startup.SeedBuiltins()
 	async.Init()

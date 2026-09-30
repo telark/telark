@@ -72,7 +72,7 @@ const (
 	EnvRPOrigin                   = "RP_ORIGIN"
 	EnvChallengeTimeout           = "CHALLENGE_TIMEOUT"
 	EnvSessionExpiry              = "SESSION_EXPIRY"
-	EnvBootstrapAdmins            = "BOOTSTRAP_ADMINS"
+	EnvBootstrapAdmin             = "BOOTSTRAP_ADMIN"
 	EnvSelfRegistrationEnabled    = "SELF_REGISTRATION_ENABLED"
 	EnvReplicaID                  = "HOSTNAME"
 	EnvOIDCTrustFile              = "OIDC_TRUST_FILE"

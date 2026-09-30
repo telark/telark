@@ -6,11 +6,13 @@ import (
 	"slices"
 
 	metadata "github.com/telark/data/metadata/v1alpha1"
+	groupdata "github.com/telark/data/resources/group"
 	roledata "github.com/telark/data/resources/role"
 	userdata "github.com/telark/data/resources/user"
 	"github.com/telark/exporter/internal/constants"
 	envmanager "github.com/telark/exporter/internal/managers/envs"
 	userutils "github.com/telark/exporter/internal/utils/resources/user"
+	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	"github.com/telark/kcore/crds/api"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
@@ -47,8 +49,10 @@ func RestrictedKey(key func(*http.Request) string) func(*http.Request) string {
 // account, memoising role and group lookups across one request. An unreadable
 // role or group counts as administrative: hiding on doubt leaks nothing.
 func HiddenUsers() func(*userdata.User) bool {
-	roles := map[string]bool{}
-	groups := map[string]bool{}
+	return hiddenBy(map[string]bool{}, map[string]bool{})
+}
+
+func hiddenBy(roles, groups map[string]bool) func(*userdata.User) bool {
 	return func(user *userdata.User) bool {
 		return user.Bootstrap ||
 			slices.ContainsFunc(user.RoleRefs, func(id *string) bool { return id != nil && adminRole(roles, *id) }) ||
@@ -83,6 +87,22 @@ func unreadable(err error) bool {
 }
 
 func HiddenUserIDs() (map[string]bool, error) {
+	users, err := listUsers()
+	if err != nil {
+		return nil, err
+	}
+
+	hidden := HiddenUsers()
+	ids := map[string]bool{}
+	for _, user := range users {
+		if hidden(user) {
+			ids[user.ID] = true
+		}
+	}
+	return ids, nil
+}
+
+func listUsers() ([]*userdata.User, error) {
 	result := api.ListCustomResources(metadata.UserMetadata)
 	if result.Error != nil {
 		return nil, result.Error
@@ -92,15 +112,13 @@ func HiddenUserIDs() (map[string]bool, error) {
 		return nil, errors.New(string(constants.ErrInvalidResourceTypeReturned))
 	}
 
-	hidden := HiddenUsers()
-	ids := map[string]bool{}
+	users := make([]*userdata.User, constants.DefaultInitValue, len(list.Items))
 	for i := range list.Items {
-		user, err := decode[userdata.User](&list.Items[i], nil)
-		if err == nil && hidden(user) {
-			ids[user.ID] = true
+		if user, err := decode[userdata.User](&list.Items[i], nil); err == nil {
+			users = append(users, user)
 		}
 	}
-	return ids, nil
+	return users, nil
 }
 
 // GuardHiddenUser answers 404 to a restricted caller asking about an
@@ -114,8 +132,7 @@ func GuardHiddenUser(w http.ResponseWriter, r *http.Request, user *userdata.User
 }
 
 // GuardUserTarget enforces who may act on an administrator: bootstrap accounts
-// are the chart's (only they may edit themselves, nothing deletes them), other
-// administrators are deleted or suspended only by a bootstrap account, and
+// are the chart's (only they may edit themselves, nothing deletes them), and
 // nobody deletes themselves.
 func GuardUserTarget(w http.ResponseWriter, r *http.Request, target *userdata.User, body map[string]any, deleting bool) bool {
 	identity, ok := callerIdentity(w, r)
@@ -142,37 +159,127 @@ func GuardUserTarget(w http.ResponseWriter, r *http.Request, target *userdata.Us
 		}
 		return !deleting
 	}
-	return guardAdminTarget(w, identity, target, body, deleting)
-}
-
-func guardAdminTarget(w http.ResponseWriter, identity xauthz.Identity, target *userdata.User, body map[string]any, deleting bool) bool {
 	if target.Bootstrap {
 		denyForbidden(w, constants.ErrAuthzBootstrapManagedByChart)
-		return false
-	}
-	_, statusChange := body[constants.FieldStatus]
-	if (deleting || statusChange) && HiddenUsers()(target) && !callerIsBootstrap(identity) {
-		denyForbidden(w, constants.ErrAuthzAdminNeedsBootstrap)
 		return false
 	}
 	return true
 }
 
-// A session may not claim a bootstrap administrator's mailbox: auth promotes
-// whoever logs in with it.
+// A session may not claim the bootstrap administrator's mailbox: break-glass
+// grants Admin and the bootstrap marker to whichever account holds it.
 func GuardReservedEmail(w http.ResponseWriter, r *http.Request, email string) bool {
 	identity, ok := callerIdentity(w, r)
 	if !ok {
 		return false
 	}
-	if identity.Internal || !slices.Contains(envmanager.GetBootstrapAdmins(), userutils.NormalizeEmail(email)) {
+	bootstrap := envmanager.GetBootstrapAdmin()
+	if identity.Internal || bootstrap == constants.EmptyString || bootstrap != userutils.NormalizeEmail(email) {
 		return true
 	}
 	denyForbidden(w, constants.ErrAuthzBootstrapEmailReserved)
 	return false
 }
 
-func callerIsBootstrap(identity xauthz.Identity) bool {
-	caller, err := source.User(identity.UserID)
-	return err == nil && caller.Bootstrap
+func GuardUserPatchLastAdmin(w http.ResponseWriter, existing *userdata.User, body map[string]any) bool {
+	if !slices.ContainsFunc(constants.AdminFields, func(field string) bool {
+		_, patched := body[field]
+		return patched
+	}) {
+		return true
+	}
+	patched, err := sharedutils.ExtractStructFromBody[userdata.User](body)
+	if err != nil {
+		responseutils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationError, err.Error(), nil, err)
+		return false
+	}
+	after := *existing
+	if _, present := body[constants.FieldStatus]; present {
+		after.Status = patched.Status
+	}
+	if _, present := body[constants.FieldRoleRefs]; present {
+		after.RoleRefs = patched.RoleRefs
+	}
+	if _, present := body[constants.FieldGroupRefs]; present {
+		after.GroupRefs = patched.GroupRefs
+	}
+	// Only a change that takes an active admin's rights away needs the user list.
+	admin := HiddenUsers()
+	if !activeAdmin(admin, existing) || activeAdmin(admin, &after) {
+		return true
+	}
+	return guardLastAdmin(w, replacing(existing.ID, &after), nil)
+}
+
+func GuardUserDeleteLastAdmin(w http.ResponseWriter, target *userdata.User) bool {
+	if !activeAdmin(HiddenUsers(), target) {
+		return true
+	}
+	return guardLastAdmin(w, replacing(target.ID, nil), nil)
+}
+
+func GuardGroupPatchLastAdmin(w http.ResponseWriter, existing *groupdata.Group, body map[string]any, removedMembers []string) bool {
+	raw, rolesPatched := body[constants.FieldRoleRefs]
+	if !rolesPatched && len(removedMembers) == constants.DefaultInitValue {
+		return true
+	}
+	after := *existing
+	if rolesPatched {
+		after.RoleRefs = stringsOf(raw)
+	}
+	return guardGroupLastAdmin(w, &after, removedMembers)
+}
+
+// A deleted group grants nothing, as if it had no roles.
+func GuardGroupDeleteLastAdmin(w http.ResponseWriter, groupID string) bool {
+	return guardGroupLastAdmin(w, &groupdata.Group{ID: groupID}, nil)
+}
+
+func guardGroupLastAdmin(w http.ResponseWriter, after *groupdata.Group, removedMembers []string) bool {
+	return guardLastAdmin(w, func(user *userdata.User) *userdata.User {
+		if !slices.Contains(removedMembers, user.ID) {
+			return user
+		}
+		left := *user
+		left.GroupRefs = slices.DeleteFunc(slices.Clone(user.GroupRefs), func(id *string) bool { return id != nil && *id == after.ID })
+		return &left
+	}, after)
+}
+
+func replacing(userID string, after *userdata.User) func(*userdata.User) *userdata.User {
+	return func(user *userdata.User) *userdata.User {
+		if user.ID == userID {
+			return after
+		}
+		return user
+	}
+}
+
+// Refuses (409) a change leaving no active administrator; edit returns each user as the change leaves it (nil once deleted).
+// ponytail: check-then-act, two concurrent removals of the last two admins can both pass; a global lock would close it.
+func guardLastAdmin(w http.ResponseWriter, edit func(*userdata.User) *userdata.User, group *groupdata.Group) bool {
+	users, err := listUsers()
+	if err != nil {
+		responseutils.LogAndSendResponse(
+			w, http.StatusServiceUnavailable, response.OperationUnavailable, string(constants.ErrResourceLookupFailed), nil, err,
+		)
+		return false
+	}
+	roles, groups := map[string]bool{}, map[string]bool{}
+	before := hiddenBy(roles, map[string]bool{})
+	if group != nil {
+		groups[group.ID] = slices.ContainsFunc(group.RoleRefs, func(roleID string) bool { return adminRole(roles, roleID) })
+	}
+	after := hiddenBy(roles, groups)
+	if slices.ContainsFunc(users, func(user *userdata.User) bool { return activeAdmin(after, edit(user)) }) ||
+		!slices.ContainsFunc(users, func(user *userdata.User) bool { return activeAdmin(before, user) }) {
+		return true
+	}
+	responseutils.LogAndSendResponse(w, http.StatusConflict, response.OperationError, constants.ErrAuthzLastAdmin, nil, nil)
+	return false
+}
+
+func activeAdmin(admin func(*userdata.User) bool, user *userdata.User) bool {
+	return user != nil && user.DeletionTimestamp == nil &&
+		userdata.AccountPhase(user.Status.Phase) == userdata.AccountPhaseActive && admin(user)
 }

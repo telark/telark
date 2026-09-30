@@ -128,7 +128,7 @@ jobs:
 
       - name: Lint charts
         run: |
-          helm lint "$CHART_DIR" --set 'app.auth.bootstrap.admins={jane.doe@example.com}'
+          helm lint "$CHART_DIR" --set app.auth.bootstrap.admin=test@example.com
           helm lint "$CRDS_DIR" -f "$CHART_DIR/values.yaml"
 
       # Same command as `make values-docs`, so local + CI never disagree.

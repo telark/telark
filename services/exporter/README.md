@@ -204,9 +204,10 @@ accounts (`spec.bootstrap: true`, written only with the service token; a session
 `GET` by id, username, email or identity answers 404, group member lists and cleanup views omit their
 ids. Such callers take the uncached path. Bootstrap accounts cannot be
 deleted through the API, only they may edit their own record (any other caller gets 403), and a session
-may not create or rename a user to an email listed in `BOOTSTRAP_ADMINS` (403). Another administrator
-is deleted or suspended only by a bootstrap account (403 otherwise). Nobody may delete their own
-account (403).
+may not create or rename a user to the `BOOTSTRAP_ADMIN` email (403). Any Admin on `ALL` may delete or
+suspend another administrator, but a user delete, suspension or `roleRefs`/`groupRefs` change, and a
+group delete, `roleRefs` change or member removal, that would leave no active user holding Admin on
+`ALL` answers 409, whoever calls. Nobody may delete their own account (403).
 
 Snapshot reads (`GET snapshots/{id}` and `/manifest`) mask every `Secret` `data` and `stringData`
 value with `[redacted]` for session callers; the stored file and Internal callers (the rollback

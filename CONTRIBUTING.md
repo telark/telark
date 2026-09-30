@@ -59,7 +59,7 @@ helm repo add vpa https://charts.fairwinds.com/stable   # once; make deps doesn'
 make deps            # once, or after editing dependencies
 make helm-lint
 make helm-validate   # renders every mode and schema-validates with kubeconform
-helm template t ./charts/telark --set 'app.auth.bootstrap.admins={jane.doe@example.com}'   # optionally: --set app.mode=<mode>
+helm template t ./charts/telark --set app.auth.bootstrap.admin=test@example.com   # optionally: --set app.mode=<mode>
 ```
 
 - After changing `values.yaml`, run `make values-docs` to refresh each chart's `VALUES.md`; CI fails if it drifts.

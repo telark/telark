@@ -12,8 +12,8 @@ import (
 	"github.com/telark/x-ware/authz"
 )
 
-// Administrators are deleted only by a bootstrap user, bootstrap users never through
-// the API, and a caller below Admin is told such an account does not exist.
+// Bootstrap users are never deleted through the API, and a caller below Admin is
+// told an administrator account does not exist.
 func GuardUserDelete(ctx context.Context, targetID string) (int, error) {
 	caller, ok := authz.FromContext(ctx)
 	if !ok {
@@ -49,13 +49,6 @@ func guardProtectedTarget(caller authz.Identity, targetBootstrap bool) (int, err
 	}
 	if targetBootstrap {
 		return http.StatusForbidden, errors.New(string(constants.ErrCleanupBootstrapManaged))
-	}
-	callerRecord, err := clientSource{}.User(caller.UserID)
-	if err != nil {
-		return userLookupFailure(err)
-	}
-	if !callerRecord.Bootstrap {
-		return http.StatusForbidden, errors.New(string(constants.ErrCleanupAdminNeedsBootstrap))
 	}
 	return http.StatusOK, nil
 }

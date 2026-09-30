@@ -20,7 +20,7 @@ import (
 	userclient "github.com/telark/rest/clients/users"
 )
 
-// Operator-run, so the email is trusted; a BOOTSTRAP_ADMINS address also gets the
+// Operator-run, so the email is trusted; the BOOTSTRAP_ADMIN address also gets the
 // chart marker, which is how a bootstrap user created before it existed is marked.
 func RunBreakGlass(args []string) int {
 	fs := flag.NewFlagSet(constants.BreakGlassFlagSet, flag.ExitOnError)

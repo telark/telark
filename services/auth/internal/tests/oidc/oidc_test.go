@@ -8,6 +8,8 @@ import (
 	telarkconfigresource "github.com/telark/data/resources/telarkconfig"
 	userresource "github.com/telark/data/resources/user"
 
+	"github.com/telark/auth/internal/config"
+	"github.com/telark/auth/internal/constants"
 	oidchandler "github.com/telark/auth/internal/handlers/oidc"
 	"github.com/telark/auth/internal/helpers/oidc"
 	redishelper "github.com/telark/auth/internal/helpers/redis"
@@ -60,12 +62,13 @@ func TestValidate(t *testing.T) {
 // A Google identity is attached by email only when exactly one user carries it;
 // two candidates refuse rather than bind the identity to whichever came first.
 func TestUserForEmail(t *testing.T) {
-	const email = "jane.doe@example.com"
+	const email = "test@example.com"
 	jane := &userresource.User{ID: "u-1", Email: email}
-	twin := &userresource.User{ID: "u-2", Email: "Jane.Doe@example.com"}
+	twin := &userresource.User{ID: "u-2", Email: "Test@Example.com"}
 	other := &userresource.User{ID: "u-3", Email: "other@example.com"}
 	bound := &userresource.User{ID: "u-4", Email: email,
 		Identities: []*userresource.UserIdentity{{Provider: "passkey", Subject: "cred"}}}
+	bootstrap := &userresource.User{ID: "u-5", Email: email, Bootstrap: true}
 
 	cases := []struct {
 		name    string
@@ -77,6 +80,7 @@ func TestUserForEmail(t *testing.T) {
 		{"one, case-insensitive", []*userresource.User{other, twin}, twin, nil},
 		{"two", []*userresource.User{jane, twin, other}, nil, oidchandler.ErrEmailAmbiguous},
 		{"already bound to another identity", []*userresource.User{bound, other}, nil, oidchandler.ErrEmailAlreadyBound},
+		{"bootstrap admin, even before its passkey", []*userresource.User{bootstrap, other}, nil, oidchandler.ErrEmailAlreadyBound},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -87,6 +91,23 @@ func TestUserForEmail(t *testing.T) {
 			testutil.Equal(t, "user", got, c.want)
 		})
 	}
+}
+
+// SSO never grants Admin or the bootstrap marker, not even to the bootstrap email:
+// that account is created and recovered only through break-glass.
+func TestBuildOIDCUserIsReadOnlyForTheBootstrapEmail(t *testing.T) {
+	const email = "test@example.com"
+	t.Setenv(constants.EnvBootstrapAdmin, email)
+	if _, err := config.LoadBootstrapConfig(); err != nil {
+		t.Fatalf("LoadBootstrapConfig: %v", err)
+	}
+	claims := &oidc.GoogleClaims{Email: "Test@Example.com"}
+	claims.Subject = "sub"
+
+	user := oidchandler.BuildOIDCUser(claims, "test")
+	testutil.Equal(t, "bootstrap", user.Bootstrap, false)
+	testutil.Equal(t, "roles", len(user.RoleRefs), constants.DefaultIncrementValue)
+	testutil.Equal(t, "role", *user.RoleRefs[constants.DefaultInitValue], constants.BuiltInRoleReadOnly)
 }
 
 // A nonce is single-use: generated + stored in Redis, verified once, then gone.

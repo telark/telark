@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
 	authhelper "github.com/telark/auth/internal/helpers/auth"
 	oidchelper "github.com/telark/auth/internal/helpers/oidc"
@@ -60,7 +59,9 @@ func UserForEmail(users []*userresource.User, email string) (*userresource.User,
 		// The stored email was never verified, so a Google subject binds to it only
 		// while the account has no identity: a passkey account that claimed a
 		// colleague's mailbox must not capture the colleague's first Google login.
-		if len(matches[constants.DefaultInitValue].Identities) > constants.DefaultInitValue {
+		// The bootstrap admin signs in with a passkey only, so an IdP email claim never reaches Admin.
+		if matches[constants.DefaultInitValue].Bootstrap ||
+			len(matches[constants.DefaultInitValue].Identities) > constants.DefaultInitValue {
 			return nil, ErrEmailAlreadyBound
 		}
 		return matches[constants.DefaultInitValue], nil
@@ -97,7 +98,7 @@ func createNewOIDCUser(
 		return nil, fmt.Errorf(string(constants.ErrOIDCBuildUsernameFailed), err)
 	}
 
-	resp := userClient.CreateUser(buildOIDCUser(claims, username))
+	resp := userClient.CreateUser(BuildOIDCUser(claims, username))
 
 	switch resp.Status {
 	case http.StatusCreated, http.StatusOK:
@@ -112,12 +113,12 @@ func createNewOIDCUser(
 	}
 }
 
-func buildOIDCUser(claims *oidchelper.GoogleClaims, username string) *userresource.User {
+func BuildOIDCUser(claims *oidchelper.GoogleClaims, username string) *userresource.User {
 	fullname := claims.Name
 	if fullname == constants.EmptyString {
 		fullname = authhelper.BuildFullnameFromEmail(claims.Email)
 	}
-	roleID := authhelper.ResolveInitialRoleID(claims.Email)
+	roleID := constants.BuiltInRoleReadOnly
 	return &userresource.User{
 		Username:     username,
 		Fullname:     fullname,
@@ -125,7 +126,6 @@ func buildOIDCUser(claims *oidchelper.GoogleClaims, username string) *userresour
 		CreationDate: time.Now().UTC().Format(time.RFC3339),
 		Status:       userresource.UserStatus{Phase: string(userresource.AccountPhaseActive)},
 		RoleRefs:     []*string{&roleID},
-		Bootstrap:    config.IsBootstrapAdmin(claims.Email),
 		Identities: []*userresource.UserIdentity{
 			{
 				Provider: constants.IdentityProviderGoogle,
@@ -156,6 +156,6 @@ func fetchAndRepairIdentity(
 	if fetchErr != nil || existing == nil {
 		return nil, fmt.Errorf(string(constants.ErrOIDCPostCreateLookup), fetchErr)
 	}
-	authhelper.RepairRoleIfMissing(existing, userClient, authhelper.ResolveInitialRoleID(claims.Email))
+	authhelper.RepairRoleIfMissing(existing, userClient, constants.BuiltInRoleReadOnly)
 	return existing, nil
 }

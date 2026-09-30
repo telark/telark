@@ -2,7 +2,6 @@ package config
 
 import (
 	"errors"
-	"slices"
 	"strings"
 	"sync"
 
@@ -10,7 +9,7 @@ import (
 )
 
 type BootstrapConfig struct {
-	BootstrapAdmins         []string
+	BootstrapAdmin          string
 	SelfRegistrationEnabled bool
 }
 
@@ -20,11 +19,11 @@ var (
 )
 
 func LoadBootstrapConfig() (*BootstrapConfig, error) {
-	admins := parseBootstrapAdmins(getEnvOrDefault(constants.EnvBootstrapAdmins, constants.EmptyString))
+	admin := normalizeEmail(getEnvOrDefault(constants.EnvBootstrapAdmin, constants.EmptyString))
 	selfRegEnabled := getEnvAsBool(constants.EnvSelfRegistrationEnabled, true)
 
 	cfg := &BootstrapConfig{
-		BootstrapAdmins:         admins,
+		BootstrapAdmin:          admin,
 		SelfRegistrationEnabled: selfRegEnabled,
 	}
 
@@ -51,8 +50,7 @@ func IsBootstrapAdmin(email string) bool {
 	if cfg == nil {
 		return false
 	}
-	normalizedEmail := strings.ToLower(email)
-	return slices.Contains(cfg.BootstrapAdmins, normalizedEmail)
+	return cfg.BootstrapAdmin != constants.EmptyString && normalizeEmail(email) == cfg.BootstrapAdmin
 }
 
 func IsSelfRegistrationEnabled() bool {
@@ -63,28 +61,13 @@ func IsSelfRegistrationEnabled() bool {
 	return cfg.SelfRegistrationEnabled
 }
 
-func parseBootstrapAdmins(raw string) []string {
-	if raw == constants.EmptyString {
-		return nil
-	}
-
-	entries := strings.Split(raw, constants.CommaSeparator)
-	admins := make([]string, constants.InitialCapacity, len(entries))
-
-	for _, entry := range entries {
-		entry = strings.ToLower(strings.TrimSpace(entry))
-		if entry == constants.EmptyString {
-			continue
-		}
-		admins = append(admins, entry)
-	}
-
-	return admins
+func normalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
 }
 
 func validateBootstrapConfig(cfg *BootstrapConfig) error {
-	if len(cfg.BootstrapAdmins) == constants.DefaultInitValue && !cfg.SelfRegistrationEnabled {
-		return errors.New(string(constants.ErrBootstrapNoAdminsAndNoSelfReg))
+	if cfg.BootstrapAdmin == constants.EmptyString && !cfg.SelfRegistrationEnabled {
+		return errors.New(string(constants.ErrBootstrapNoAdminAndNoSelfReg))
 	}
 	return nil
 }

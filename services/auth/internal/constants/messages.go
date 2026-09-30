@@ -18,7 +18,6 @@ const (
 	SuccessOIDCNonceGenerated messages.Message = "nonce generated successfully"
 	SuccessOIDCConfigUpdated  messages.Message = "OIDC configuration updated successfully"
 	LogOIDCLoginAccepted      messages.Message = "OIDC login accepted: identityHash=%s"
-	LogOIDCAdminPromoted      messages.Message = "bootstrap admin promoted: identityHash=%s"
 
 	// JIT Provisioning Messages
 	LogJIT409RoleRepair         messages.Message = "409 conflict: repaired missing role for identityHash=%s"
@@ -27,7 +26,7 @@ const (
 		"user identityHash=%s via email match"
 
 	// Bootstrap Config Messages
-	LogBootstrapConfig messages.Message = "bootstrap config: selfRegistrationEnabled=%v bootstrapAdmins=%d"
+	LogBootstrapConfig messages.Message = "bootstrap config: selfRegistrationEnabled=%v bootstrapAdminSet=%v"
 
 	// Logout Log Messages
 	LogLogoutAttempted messages.Message = "logout attempted: identityHash=%s tokenStatus=%s"

@@ -129,21 +129,27 @@ func GuardUserPatch(w http.ResponseWriter, r *http.Request, existing *userdata.U
 		return false
 	}
 
-	return addedMembershipsWithinCaller(w, identity, existing, body)
+	return membershipsWithinCaller(w, identity, existing, body)
 }
 
-func addedMembershipsWithinCaller(w http.ResponseWriter, identity xauthz.Identity, existing *userdata.User, body map[string]any) bool {
-	newRoles := notifdispatch.ExtractNewRoleIDsFromBody(body, constants.FieldRoleRefs)
-	addedRoles, _ := notifdispatch.DiffPtrStringSlices(existing.RoleRefs, newRoles)
-	if !assignedRolesWithinCaller(w, identity, addedRoles) {
-		return false
+// Taking a role or group away is capped like handing it out, so nobody strips
+// grants above their own level.
+func membershipsWithinCaller(w http.ResponseWriter, identity xauthz.Identity, existing *userdata.User, body map[string]any) bool {
+	if _, present := body[constants.FieldRoleRefs]; present {
+		newRoles := notifdispatch.ExtractNewRoleIDsFromBody(body, constants.FieldRoleRefs)
+		addedRoles, removedRoles := notifdispatch.DiffPtrStringSlices(existing.RoleRefs, newRoles)
+		if !rolesWithinCaller(w, identity, addedRoles, constants.ErrAuthzAssignedRoleExceedsCaller) ||
+			!rolesWithinCaller(w, identity, removedRoles, constants.ErrAuthzRemovedRoleExceedsCaller) {
+			return false
+		}
 	}
 	if _, present := body[constants.FieldGroupRefs]; !present {
 		return true
 	}
 	newGroups := notifdispatch.ExtractNewRoleIDsFromBody(body, constants.FieldGroupRefs)
-	addedGroups, _ := notifdispatch.DiffPtrStringSlices(existing.GroupRefs, newGroups)
-	return groupsWithinCaller(w, identity, addedGroups)
+	addedGroups, removedGroups := notifdispatch.DiffPtrStringSlices(existing.GroupRefs, newGroups)
+	return groupsWithinCaller(w, identity, addedGroups, constants.ErrAuthzAssignedRoleExceedsCaller) &&
+		groupsWithinCaller(w, identity, removedGroups, constants.ErrAuthzRemovedRoleExceedsCaller)
 }
 
 // A new user may carry roles, groups or a status only from a caller who could
@@ -180,8 +186,8 @@ func GuardUserCreate(w http.ResponseWriter, r *http.Request, body map[string]any
 		}
 	}
 
-	return assignedRolesWithinCaller(w, identity, stringsOf(body[constants.FieldRoleRefs])) &&
-		groupsWithinCaller(w, identity, stringsOf(body[constants.FieldGroupRefs]))
+	return rolesWithinCaller(w, identity, stringsOf(body[constants.FieldRoleRefs]), constants.ErrAuthzAssignedRoleExceedsCaller) &&
+		groupsWithinCaller(w, identity, stringsOf(body[constants.FieldGroupRefs]), constants.ErrAuthzAssignedRoleExceedsCaller)
 }
 
 func isEmptyValue(value any) bool {
@@ -226,12 +232,13 @@ func GuardGroupRolesPatch(w http.ResponseWriter, r *http.Request, existingRoles 
 		return false
 	}
 
-	return assignedRolesWithinCaller(w, identity, added)
+	return rolesWithinCaller(w, identity, added, constants.ErrAuthzAssignedRoleExceedsCaller) &&
+		rolesWithinCaller(w, identity, removed, constants.ErrAuthzRemovedRoleExceedsCaller)
 }
 
 // Members are gated like the user side of the same membership: groups Owner
-// plus the add or remove rule, never on oneself, and a new member receives the
-// group's roles, so those are capped like assigning them directly.
+// plus the add or remove rule, never on oneself, and a member gains or loses
+// the group's roles, so those are capped both ways.
 func GuardGroupMembersPatch(w http.ResponseWriter, r *http.Request, existing *groupdata.Group, body map[string]any) bool {
 	raw, present := body[constants.FieldUserRefs]
 	if !present {
@@ -260,6 +267,40 @@ func GuardGroupMembersPatch(w http.ResponseWriter, r *http.Request, existing *gr
 		denyForbidden(w, constants.ErrAuthzSelfPrivilegeChange)
 		return false
 	}
+	// A restricted caller never sees a bootstrap account: GuardMemberIDs answers it as unknown.
+	if isAdmin(identity.Grants) && !noBootstrapMembers(w, slices.Concat(added, removed)) {
+		return false
+	}
+	return memberRolesWithinCaller(w, identity, existing, body, added, removed)
+}
+
+func noBootstrapMembers(w http.ResponseWriter, userIDs []string) bool {
+	for _, userID := range userIDs {
+		user, err := source.User(userID)
+		if errors.Is(err, xauthz.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			responseutils.LogAndSendResponse(
+				w, http.StatusServiceUnavailable, response.OperationUnavailable, string(constants.ErrResourceLookupFailed), nil, err,
+			)
+			return false
+		}
+		if user.Bootstrap {
+			denyForbidden(w, constants.ErrAuthzBootstrapManagedByChart)
+			return false
+		}
+	}
+	return true
+}
+
+func memberRolesWithinCaller(
+	w http.ResponseWriter, identity xauthz.Identity, existing *groupdata.Group, body map[string]any, added, removed []string,
+) bool {
+	if len(removed) > constants.DefaultInitValue &&
+		!rolesWithinCaller(w, identity, existing.RoleRefs, constants.ErrAuthzRemovedRoleExceedsCaller) {
+		return false
+	}
 	if len(added) == constants.DefaultInitValue {
 		return true
 	}
@@ -268,11 +309,11 @@ func GuardGroupMembersPatch(w http.ResponseWriter, r *http.Request, existing *gr
 	if rawRoles, present := body[constants.FieldRoleRefs]; present {
 		roles = stringsOf(rawRoles)
 	}
-	return assignedRolesWithinCaller(w, identity, roles)
+	return rolesWithinCaller(w, identity, roles, constants.ErrAuthzAssignedRoleExceedsCaller)
 }
 
-// Joining a group hands out every role it carries.
-func groupsWithinCaller(w http.ResponseWriter, identity xauthz.Identity, groupIDs []string) bool {
+// Joining a group hands out every role it carries, and leaving it takes them away.
+func groupsWithinCaller(w http.ResponseWriter, identity xauthz.Identity, groupIDs []string, denial string) bool {
 	for _, groupID := range groupIDs {
 		group, err := source.Group(groupID)
 		if errors.Is(err, xauthz.ErrNotFound) {
@@ -284,7 +325,7 @@ func groupsWithinCaller(w http.ResponseWriter, identity xauthz.Identity, groupID
 			)
 			return false
 		}
-		if !assignedRolesWithinCaller(w, identity, group.RoleRefs) {
+		if !rolesWithinCaller(w, identity, group.RoleRefs, denial) {
 			return false
 		}
 	}
@@ -294,6 +335,16 @@ func groupsWithinCaller(w http.ResponseWriter, identity xauthz.Identity, groupID
 // A reference must resolve to a live record; one held only by the cleanup
 // finalizer reads as gone. Unreadable records fail closed.
 func GuardReferencedIDs(w http.ResponseWriter, kind string, ids []string) bool {
+	return guardReferences(w, kind, ids, nil)
+}
+
+// A member hidden from the caller answers exactly like an unknown id, so adding
+// one cannot probe whether an administrator exists.
+func GuardMemberIDs(w http.ResponseWriter, hidden map[string]bool, ids []string) bool {
+	return guardReferences(w, constants.ResourceUser, ids, hidden)
+}
+
+func guardReferences(w http.ResponseWriter, kind string, ids []string, hidden map[string]bool) bool {
 	var missing []string
 	for _, id := range ids {
 		deletion, err := lookupDeletion(kind, id)
@@ -303,7 +354,7 @@ func GuardReferencedIDs(w http.ResponseWriter, kind string, ids []string) bool {
 			)
 			return false
 		}
-		if err != nil || deletion != nil {
+		if err != nil || deletion != nil || hidden[id] {
 			missing = append(missing, id)
 		}
 	}
@@ -363,7 +414,7 @@ func GuardNotTerminating(w http.ResponseWriter, r *http.Request, deletionTimesta
 // Assigning a role hands out its levels, so it is capped like authoring one.
 // Its deny rules never raise privilege and its status is ignored: an inactive
 // role above the caller could be switched on later by someone else.
-func assignedRolesWithinCaller(w http.ResponseWriter, identity xauthz.Identity, roleIDs []string) bool {
+func rolesWithinCaller(w http.ResponseWriter, identity xauthz.Identity, roleIDs []string, denial string) bool {
 	for _, roleID := range roleIDs {
 		role, err := source.Role(roleID)
 		if errors.Is(err, xauthz.ErrNotFound) {
@@ -375,12 +426,37 @@ func assignedRolesWithinCaller(w http.ResponseWriter, identity xauthz.Identity, 
 			)
 			return false
 		}
-		if entry, exceeds := levelAboveCaller(identity.Grants, role.ScopesAndPermissions); exceeds {
-			denyForbidden(w, fmt.Sprintf(constants.ErrAuthzAssignedRoleExceedsCaller, role.Name, entry.Level, entry.Scope))
+		if !roleWithinCaller(w, identity, role, denial) {
 			return false
 		}
 	}
 	return true
+}
+
+func roleWithinCaller(w http.ResponseWriter, identity xauthz.Identity, role *roledata.AccessRole, denial string) bool {
+	entry, exceeds := levelAboveCaller(identity.Grants, role.ScopesAndPermissions)
+	if exceeds {
+		denyForbidden(w, fmt.Sprintf(denial, role.Name, entry.Level, entry.Scope))
+	}
+	return !exceeds
+}
+
+// Deleting a role, or editing its levels, takes them from every holder.
+func GuardRoleWithinCaller(w http.ResponseWriter, r *http.Request, role *roledata.AccessRole) bool {
+	identity, ok := callerIdentity(w, r)
+	if !ok {
+		return false
+	}
+	return identity.Internal || roleWithinCaller(w, identity, role, constants.ErrAuthzRemovedRoleExceedsCaller)
+}
+
+// Deleting a group takes its roles from every member.
+func GuardGroupRolesWithinCaller(w http.ResponseWriter, r *http.Request, group *groupdata.Group) bool {
+	identity, ok := callerIdentity(w, r)
+	if !ok {
+		return false
+	}
+	return identity.Internal || rolesWithinCaller(w, identity, group.RoleRefs, constants.ErrAuthzRemovedRoleExceedsCaller)
 }
 
 func stringsOf(raw any) []string {
@@ -417,19 +493,20 @@ func GuardRoleLevels(w http.ResponseWriter, r *http.Request, scopes []roledata.S
 	return true
 }
 
-// Status and validity can switch a role's levels back on, so they are capped
-// like a scope edit, against the role as it will be stored.
-func GuardPatchedRoleLevels(w http.ResponseWriter, r *http.Request, merged *roledata.AccessRole, body map[string]any) bool {
+// Status and validity can switch a role's levels back on or off, so they are
+// capped like a scope edit, against the role as stored and as it will be stored.
+func GuardPatchedRoleLevels(w http.ResponseWriter, r *http.Request, existing, merged *roledata.AccessRole, body map[string]any) bool {
 	if !slices.ContainsFunc(constants.RoleLevelFields, func(field string) bool {
 		_, patched := body[field]
 		return patched
 	}) {
 		return true
 	}
-	return GuardRoleLevels(w, r, merged.ScopesAndPermissions)
+	return GuardRoleWithinCaller(w, r, existing) && GuardRoleLevels(w, r, merged.ScopesAndPermissions)
 }
 
-// A session could otherwise mint a role nobody may edit or delete.
+// A session could otherwise mint a built-in role, or lock others out of a
+// custom role it did not create.
 func GuardRoleReservedFields(w http.ResponseWriter, r *http.Request, existing *roledata.AccessRole, body map[string]any) bool {
 	identity, ok := callerIdentity(w, r)
 	if !ok {
@@ -450,12 +527,31 @@ func GuardRoleReservedFields(w http.ResponseWriter, r *http.Request, existing *r
 	if existing != nil && existing.Protection != nil {
 		current = *existing.Protection
 	}
+	// A null protection clears every flag, exactly like {}.
+	if raw == nil {
+		raw = map[string]any{}
+	}
 	patched, err := sharedutils.ExtractStructFromBody[roledata.AccessRole](map[string]any{constants.FieldProtection: raw})
-	if err == nil && (patched.Protection == nil || *patched.Protection == current) {
+	if err == nil && *patched.Protection == current {
 		return true
 	}
-	denyForbidden(w, constants.ErrAuthzRoleReservedField)
-	return false
+	return guardProtectionChange(w, identity, existing)
+}
+
+// Whoever creates a role is its creator, so a create may set protection.
+func guardProtectionChange(w http.ResponseWriter, identity xauthz.Identity, existing *roledata.AccessRole) bool {
+	switch {
+	case existing == nil:
+		return true
+	case existing.Type == roledata.RoleTypeBuiltIn:
+		denyForbidden(w, constants.ErrAuthzRoleReservedField)
+		return false
+	case isAdmin(identity.Grants) || (existing.CreatedBy != nil && *existing.CreatedBy == identity.UserID):
+		return true
+	default:
+		denyForbidden(w, constants.ErrAuthzRoleProtectionDenied)
+		return false
+	}
 }
 
 func levelAboveCaller(grants xauthz.Grants, scopes []roledata.ScopeAndPermissions) (roledata.ScopeAndPermissions, bool) {
@@ -662,14 +758,15 @@ var configFields = map[string]xauthz.Requirement{
 // so the OIDC settings also take Admin on every scope, not only on settings.
 var oidcTrust = xauthz.Administer(roledata.ScopeAll)
 
-// Fields absent from the table are not privileges and stay open.
+// A patch touching no governed field still answers with the whole config, so
+// it takes the read permission GET does.
 func GuardConfigPatch(w http.ResponseWriter, r *http.Request, spec map[string]any) bool {
 	required := requirementsIn(configFields, spec)
 	if _, present := spec[telarkconfig.FieldOIDC]; present {
 		required = append(required, oidcTrust)
 	}
 	if len(required) == constants.DefaultInitValue {
-		return true
+		required = append(required, xauthz.Read(roledata.ScopeSettings))
 	}
 
 	identity, ok := callerIdentity(w, r)
@@ -714,16 +811,25 @@ func GuardPlanLifecycle(w http.ResponseWriter, r *http.Request, body map[string]
 }
 
 func GuardSnapshotManifestView(w http.ResponseWriter, r *http.Request) bool {
+	return guardSnapshotRead(w, r, snapshotManifestView, constants.ErrAuthzSnapshotManifestDenied)
+}
+
+// The manifest route checks the manifest rule, so this holds it to the snapshot rule as well.
+func GuardSnapshotView(w http.ResponseWriter, r *http.Request) bool {
+	return guardSnapshotRead(w, r, snapshotView, constants.ErrAuthzSnapshotViewDenied)
+}
+
+func guardSnapshotRead(w http.ResponseWriter, r *http.Request, requirement xauthz.Requirement, denial string) bool {
 	identity, ok := callerIdentity(w, r)
 	if !ok {
 		return false
 	}
 
-	if identity.Internal || xauthz.Allows(identity, snapshotManifestView) {
+	if identity.Internal || xauthz.Allows(identity, requirement) {
 		return true
 	}
 
-	denyForbidden(w, constants.ErrAuthzSnapshotManifestDenied)
+	denyForbidden(w, denial)
 	return false
 }
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -33,6 +34,8 @@ type coalescer struct {
 	timers        map[string]*time.Timer
 	attempts      map[string]int // consecutive failed flushes, drives the retry backoff
 	inflight      map[string]struct{}
+	held          map[string]map[string]*unstructured.Unstructured // pre-images of a no-inputs drop, for one window
+	heldTimers    map[string]*time.Timer
 	flush         func(string, map[string]*unstructured.Unstructured) error
 }
 
@@ -57,6 +60,8 @@ func newCoalescer(
 		timers:        make(map[string]*time.Timer),
 		attempts:      make(map[string]int),
 		inflight:      make(map[string]struct{}),
+		held:          make(map[string]map[string]*unstructured.Unstructured),
+		heldTimers:    make(map[string]*time.Timer),
 		flush:         flush,
 	}
 }
@@ -146,6 +151,10 @@ func (c *coalescer) schedule(appName, key string, oldObj *unstructured.Unstructu
 		// nil is an added resource: no pre-image, but the flush still runs.
 		buf[key] = oldObj.DeepCopy()
 	}
+	if dropped, ok := c.held[appName]; ok {
+		maps.Copy(buf, dropped)
+		c.releaseHeldLocked(appName)
+	}
 	// Best effort: the timer is armed whatever Redis answers, so an event is never dropped.
 	_ = c.persistBufferLocked(appName)
 
@@ -201,6 +210,7 @@ func (c *coalescer) fireFlush(appName string) {
 		constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Warn(
 			fmt.Sprintf(string(constants.WarnInformersFlushFailed), appName, err),
 		)
+		c.discardUnlessPending(appName, flushing, errors.Is(err, errFlushNoInputs))
 		return
 	}
 	c.restoreBuffer(appName, flushing)
@@ -233,6 +243,47 @@ func (c *coalescer) restoreBuffer(appName string, flushing map[string]*unstructu
 		c.buf[appName][key] = obj
 	}
 	_ = c.persistBufferLocked(appName)
+}
+
+// Events landing during the flush, or up to one window after a no-inputs drop, inherit its pre-images:
+// a delete and recreate straddling the drop otherwise diffs the recreated object against itself.
+func (c *coalescer) discardUnlessPending(appName string, flushing map[string]*unstructured.Unstructured, hold bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if fresh := c.buf[appName]; len(fresh) > constants.DefaultInitValue {
+		maps.Copy(fresh, flushing)
+		_ = c.persistBufferLocked(appName)
+		return
+	}
+	if hold && len(flushing) > constants.DefaultInitValue {
+		c.holdLocked(appName, flushing)
+	}
+	if c.rdb != nil {
+		_ = c.rdb.Del(c.ctx(), coalesceRedisKey(appName), pendingSnapshotsKey(appName)).Err()
+	}
+}
+
+func (c *coalescer) holdLocked(appName string, dropped map[string]*unstructured.Unstructured) {
+	c.releaseHeldLocked(appName)
+	c.held[appName] = dropped
+	var expiry *time.Timer
+	expiry = time.AfterFunc(c.window, func() {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		// A timer that fired while a newer hold replaced this one must not release it.
+		if c.heldTimers[appName] == expiry {
+			c.releaseHeldLocked(appName)
+		}
+	})
+	c.heldTimers[appName] = expiry
+}
+
+func (c *coalescer) releaseHeldLocked(appName string) {
+	if t, ok := c.heldTimers[appName]; ok {
+		t.Stop()
+	}
+	delete(c.held, appName)
+	delete(c.heldTimers, appName)
 }
 
 // retryDelay doubles per consecutive failure so a storm of dirty apps drains
@@ -309,6 +360,7 @@ func (c *coalescer) clearBufferRedis(appName string) {
 		t.Stop()
 		delete(c.timers, appName)
 	}
+	c.releaseHeldLocked(appName)
 	rdb := c.rdb
 	c.mu.Unlock()
 	if rdb != nil {

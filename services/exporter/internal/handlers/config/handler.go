@@ -3,12 +3,14 @@ package config
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
 
 	"github.com/telark/data/messages"
 	metadata "github.com/telark/data/metadata/v1alpha1"
+	"github.com/telark/data/resources/telarkconfig"
 	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/constants"
 	"github.com/telark/exporter/internal/oidctrust"
@@ -45,6 +47,9 @@ func PatchConfig() func(http.ResponseWriter, *http.Request) {
 		}
 		specPatch := extractSpecPatch(body)
 		if !authz.GuardConfigPatch(w, r, specPatch) {
+			return
+		}
+		if !canonicalSpecKeys(w, specPatch) {
 			return
 		}
 		jwk, ok := writeJWK(w, specPatch)
@@ -131,7 +136,12 @@ func InvalidFields(err error) string {
 	}
 	fields := make([]string, constants.DefaultInitValue, len(apiStatus.Status().Details.Causes))
 	for _, cause := range apiStatus.Status().Details.Causes {
-		fields = append(fields, cause.Field)
+		if cause.Field != constants.EmptyString && cause.Field != constants.NilFieldPath {
+			fields = append(fields, cause.Field)
+		}
+	}
+	if len(fields) == constants.DefaultInitValue {
+		return constants.SpecField
 	}
 	return strings.Join(slices.Compact(slices.Sorted(slices.Values(fields))), constants.ListSeparator)
 }
@@ -142,6 +152,17 @@ func extractSpecPatch(body map[string]any) map[string]any {
 		return specPatch
 	}
 	return body
+}
+
+// An unwrapped body carries its metadata beside the spec fields.
+func canonicalSpecKeys(w http.ResponseWriter, specPatch map[string]any) bool {
+	keys := maps.Clone(specPatch)
+	delete(keys, constants.MetadataField)
+	if err := sharedutils.CheckCanonicalKeys[telarkconfig.TelarkConfig](keys); err != nil {
+		sharedutils.LogByStatusAndSend(w, http.StatusBadRequest, response.OperationError, err.Error(), nil, err)
+		return false
+	}
+	return true
 }
 
 func extractMetadataPatch(spec map[string]any) (map[string]any, bool) {

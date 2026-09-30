@@ -54,7 +54,7 @@ func TestValidate(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			testutil.Equal(t, "err", oidc.Validate(c.cfg) != nil, c.wantErr)
+			testutil.Equal(t, "err", oidc.Validate(c.cfg, false) != nil, c.wantErr)
 		})
 	}
 }
@@ -63,7 +63,7 @@ func TestValidate(t *testing.T) {
 // two candidates refuse rather than bind the identity to whichever came first.
 func TestUserForEmail(t *testing.T) {
 	const email = "test@example.com"
-	jane := &userresource.User{ID: "u-1", Email: email}
+	first := &userresource.User{ID: "u-1", Email: email}
 	twin := &userresource.User{ID: "u-2", Email: "Test@Example.com"}
 	other := &userresource.User{ID: "u-3", Email: "other@example.com"}
 	bound := &userresource.User{ID: "u-4", Email: email,
@@ -78,9 +78,9 @@ func TestUserForEmail(t *testing.T) {
 	}{
 		{"none", []*userresource.User{other, nil}, nil, nil},
 		{"one, case-insensitive", []*userresource.User{other, twin}, twin, nil},
-		{"two", []*userresource.User{jane, twin, other}, nil, oidchandler.ErrEmailAmbiguous},
+		{"two", []*userresource.User{first, twin, other}, nil, oidchandler.ErrEmailAmbiguous},
 		{"already bound to another identity", []*userresource.User{bound, other}, nil, oidchandler.ErrEmailAlreadyBound},
-		{"bootstrap admin, even before its passkey", []*userresource.User{bootstrap, other}, nil, oidchandler.ErrEmailAlreadyBound},
+		{"bootstrap admin is reserved, even before its passkey", []*userresource.User{bootstrap, other}, nil, oidchandler.ErrEmailReserved},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

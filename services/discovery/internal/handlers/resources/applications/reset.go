@@ -16,9 +16,9 @@ import (
 	"github.com/telark/discovery/internal/clients"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/coordination"
-	"github.com/telark/discovery/internal/core/plans/protection/validation"
 	redishelper "github.com/telark/discovery/internal/helpers/redis"
 	sharedhelper "github.com/telark/discovery/internal/helpers/shared"
+	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
 	kcorek8s "github.com/telark/kcore/k8sclient"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
@@ -156,7 +156,7 @@ func proxyResetRequestToLeader(
 }
 
 func verifiedLeaderAddress(ctx context.Context, rdb *redis.Client, leaderID string) (string, error) {
-	namespace := validation.OwnNamespace()
+	namespace := tcfghelper.OwnNamespace()
 	if namespace == constants.EmptyString {
 		return constants.EmptyString, errors.New(string(constants.ErrLeaderNamespaceUnknown))
 	}

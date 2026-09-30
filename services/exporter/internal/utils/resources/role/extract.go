@@ -23,6 +23,10 @@ func ExtractRoleSpecFromRequestBody(body map[string]any) (*roledata.AccessRole, 
 		role.Status = roledata.RoleStatusActive
 	}
 
+	if role.Type == constants.EmptyString {
+		role.Type = roledata.RoleTypeCustom
+	}
+
 	if role.Validity == nil {
 		role.Validity = &roledata.Validity{
 			Type: roledata.ValidityTypePermanent,

@@ -1,0 +1,41 @@
+name: 'SemVer Bump'
+description: 'Increment a semantic version by patch, minor or major. The only version arithmetic in the workflows.'
+inputs:
+  version:
+    description: 'Current version; a leading v, a pre-release suffix and build metadata are accepted'
+    required: true
+  bump:
+    description: 'Type of version bump (patch, minor, major)'
+    required: true
+
+outputs:
+  next_version:
+    description: 'The incremented version, without a v prefix'
+    value: ${{ steps.next.outputs.next_version }}
+
+runs:
+  using: 'composite'
+  steps:
+    # node-semver's inc: 1.2.3-rc.1 + patch = 1.2.3, and build metadata is dropped.
+    # lenient=false fails the step on a version that isn't SemVer.
+    - name: Increment version
+      id: semver
+      uses: madhead/semver-utils@4cf918affe9106ea59f86c6250e5ec4570ac4389 # v5.0.0
+      with:
+        version: ${{ inputs.version }}
+        lenient: false
+
+    - name: Select bump
+      id: next
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        BUMP: ${{ inputs.bump }}
+        NEXT: ${{ steps.semver.outputs[format('inc-{0}', inputs.bump)] }}
+      run: |
+        case "$BUMP" in
+          patch|minor|major) ;;
+          *) echo "::error::Invalid bump '$BUMP' (valid: patch, minor, major)"; exit 1 ;;
+        esac
+        echo "$VERSION -> $NEXT ($BUMP)"
+        echo "next_version=$NEXT" >> "$GITHUB_OUTPUT"

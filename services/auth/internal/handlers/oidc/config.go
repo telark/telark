@@ -1,6 +1,7 @@
 package oidc
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -23,13 +24,20 @@ func SetConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req telarkconfigresource.OIDCConfig
+	var req SetConfigRequest
 	if err := shared.DecodeRequestBody(r, &req); err != nil {
 		shared.SendErrorResponse(w, http.StatusBadRequest, err)
 		return
 	}
+	jwkGiven := req.GoogleJWKJSON != nil
+	if jwkGiven {
+		if err := json.Unmarshal(req.GoogleJWKJSON, &req.OIDCConfig.GoogleJWKJSON); err != nil {
+			shared.SendErrorResponse(w, http.StatusBadRequest, fmt.Errorf(string(constants.ErrFailedDecodeRequest), err))
+			return
+		}
+	}
 
-	if err := oidchelper.Validate(req); err != nil {
+	if err := oidchelper.Validate(req.OIDCConfig, jwkGiven); err != nil {
 		shared.SendErrorResponse(w, http.StatusBadRequest, err)
 		return
 	}
@@ -47,10 +55,10 @@ func SetConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.GoogleJWKJSON != constants.EmptyString {
-		oidchelper.PinTrustJWK(req.GoogleJWKJSON)
+	if jwkGiven {
+		oidchelper.PinTrustJWK(req.OIDCConfig.GoogleJWKJSON)
 	}
 
 	lg.Info(string(constants.SuccessOIDCConfigUpdated))
-	shared.SendSuccessResponse(w, string(constants.SuccessOIDCConfigUpdated), req)
+	shared.SendSuccessResponse(w, string(constants.SuccessOIDCConfigUpdated), req.OIDCConfig)
 }

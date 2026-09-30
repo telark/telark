@@ -18,6 +18,7 @@ const (
 	SuccessOIDCNonceGenerated messages.Message = "nonce generated successfully"
 	SuccessOIDCConfigUpdated  messages.Message = "OIDC configuration updated successfully"
 	LogOIDCLoginAccepted      messages.Message = "OIDC login accepted: identityHash=%s"
+	LogOIDCBootstrapRefused   messages.Message = "OIDC login refused for the bootstrap admin: identityHash=%s"
 
 	// JIT Provisioning Messages
 	LogJIT409RoleRepair         messages.Message = "409 conflict: repaired missing role for identityHash=%s"
@@ -59,6 +60,7 @@ const (
 	ErrRemoveFinalizersListFailed messages.Message = "[remove-finalizers] list failed: type=%s err=%v"
 	LogCleanupManagerStarted      messages.Message = "[cleanup] manager started: workersPerType=%d"
 	LogCleanupManagerStopped      messages.Message = "[cleanup] manager stopped"
+	LogCleanupEnvInvalid          messages.Message = "[cleanup] %s must be a positive integer, using the default %d"
 	LogBackfillFinalizersStarted  messages.Message = "[backfill] finalizers started: batchSize=%d pauseMs=%d"
 	LogBackfillFinalizersDone     messages.Message = "[backfill] finalizers done: scanned=%d patched=%d skipped=%d"
 	ErrCleanupEnqueueFailed       messages.Message = "[cleanup] enqueue failed: type=%s id=%s err=%v"
@@ -68,6 +70,8 @@ const (
 	ErrCleanupRemoveFinalizerFail messages.Message = "[cleanup] remove finalizer failed: type=%s id=%s status=%d"
 	ErrCleanupListSessionsFailed  messages.Message = "[cleanup] list sessions failed: id=%s err=%v"
 	ErrCleanupDeleteSessionFailed messages.Message = "[cleanup] delete session failed: id=%s ref=%s status=%d"
+	ErrCleanupListPasskeysFailed  messages.Message = "[cleanup] list passkeys failed: id=%s err=%v"
+	ErrCleanupDeletePasskeyFailed messages.Message = "[cleanup] delete passkey failed: id=%s status=%d"
 	ErrCleanupStreamReadFailed    messages.Message = "[cleanup] stream read failed: type=%s err=%v"
 	ErrCleanupReclaimFailed       messages.Message = "[cleanup] reclaim of stale pending jobs failed: type=%s err=%v"
 	ErrCleanupSweeperListFailed   messages.Message = "[cleanup] sweeper list failed: type=%s err=%v"

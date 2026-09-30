@@ -53,6 +53,8 @@ const (
 	testKeyName             = "name"
 	testKeyNamespace        = "namespace"
 	testRollbackID          = "rbk-1"
+	testDeletedVersion      = "10"
+	testRecreatedVersion    = "20"
 )
 
 func newTestCoalescer(flush func(string, map[string]*unstructured.Unstructured) error) *coalescer {
@@ -892,4 +894,120 @@ func failedApp() *applicationmodel.Application {
 	app := &applicationmodel.Application{}
 	applicationscore.MarkPublishFailed(app)
 	return app
+}
+
+// Each flush hands its buffer to before first, which may block it or end it as a no-inputs drop:
+// reaching that drop through the real flush waits on NATS.
+func newDropTestCoalescer(window time.Duration, before func(map[string]*unstructured.Unstructured) (noInputs bool)) *coalescer {
+	m := newTestManager(func(string) (*applicationmodel.Application, error) { return nil, restshared.ErrNotFound })
+	m.coalesce = newCoalescer(window, window, testMaxEntries, nil, nil, nil,
+		func(app string, buf map[string]*unstructured.Unstructured) error {
+			if before(buf) {
+				return errFlushNoInputs
+			}
+			return m.flushApp(app, buf)
+		})
+	return m.coalesce
+}
+
+func testWorkload(version string) *unstructured.Unstructured {
+	u := &unstructured.Unstructured{}
+	u.SetKind(testKindDeployment)
+	u.SetResourceVersion(version)
+	return u
+}
+
+// A recreate landing while the delete's flush found no inputs (or no stored app yet) was wiped
+// with that flush, and its timer with it; it now flushes on its own, carrying the delete's pre-image.
+func TestEventsDuringDroppedFlushInheritItsPreImages(t *testing.T) {
+	for name, noInputs := range map[string]bool{"stored missing": false, "no inputs": true} {
+		t.Run(name, func(t *testing.T) {
+			release := make(chan struct{})
+			started := make(chan struct{}, constants.DefaultAddValue)
+			next := make(chan map[string]*unstructured.Unstructured, constants.DefaultAddValue)
+			first := true
+			c := newDropTestCoalescer(testWindow, func(buf map[string]*unstructured.Unstructured) bool {
+				if !first {
+					next <- buf
+					return false
+				}
+				first = false
+				started <- struct{}{}
+				<-release
+				return noInputs
+			})
+			c.schedule(testAppName, testDeployKey, testWorkload(testDeletedVersion))
+			<-started
+			c.schedule(testAppName, testDeployKey, nil)
+			close(release)
+
+			select {
+			case buf := <-next:
+				if got := buf[testDeployKey]; got == nil || got.GetResourceVersion() != testDeletedVersion {
+					t.Fatalf("recreate flushed without the deleted pre-image: %v", got)
+				}
+			case <-time.After(testSettle):
+				t.Fatal("recreate never flushed")
+			}
+		})
+	}
+}
+
+// The recreate's first event landing just after the delete's flush was dropped for lack of
+// inputs opened a buffer without the deleted pre-image, so its flush snapshotted the live object.
+func TestRecreateAfterNoInputsDropInheritsTheDeletedPreImage(t *testing.T) {
+	cases := []struct {
+		name     string
+		noInputs bool
+		recreate *unstructured.Unstructured
+		inherits bool
+	}{
+		{name: "added after no inputs", noInputs: true, inherits: true},
+		{name: "modified after no inputs", noInputs: true, recreate: testWorkload(testRecreatedVersion), inherits: true},
+		// No stored app means no history to keep: nothing is held.
+		{name: "added after stored missing"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var next map[string]*unstructured.Unstructured
+			dropped := false
+			c := newDropTestCoalescer(time.Hour, func(buf map[string]*unstructured.Unstructured) bool {
+				if dropped {
+					next = buf
+					return true
+				}
+				dropped = true
+				return tc.noInputs
+			})
+			c.schedule(testAppName, testDeployKey, testWorkload(testDeletedVersion))
+			c.fireFlush(testAppName)
+			c.schedule(testAppName, testDeployKey, tc.recreate)
+			c.fireFlush(testAppName)
+			pre := next[testDeployKey]
+			if got := pre != nil && pre.GetResourceVersion() == testDeletedVersion; got != tc.inherits {
+				t.Fatalf("deleted pre-image flushed = %v, want %v", got, tc.inherits)
+			}
+		})
+	}
+}
+
+// Held pre-images are kept for one window only: a recreate arriving later flushes on its own.
+func TestNoInputsDropHoldsPreImagesForOneWindow(t *testing.T) {
+	flushed := make(chan map[string]*unstructured.Unstructured, constants.TwoValue)
+	c := newDropTestCoalescer(testWindow, func(buf map[string]*unstructured.Unstructured) bool {
+		flushed <- buf
+		return true
+	})
+	c.schedule(testAppName, testDeployKey, testWorkload(testDeletedVersion))
+	<-flushed
+	time.Sleep(testSettle)
+	c.schedule(testAppName, testDeployKey, nil)
+	select {
+	case buf := <-flushed:
+		if buf[testDeployKey] != nil {
+			t.Fatalf("expired pre-image still flushed: %v", buf[testDeployKey])
+		}
+	case <-time.After(testSettle):
+		t.Fatal("recreate never flushed")
+	}
 }

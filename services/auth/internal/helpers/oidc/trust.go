@@ -18,16 +18,17 @@ var (
 	trustModTime   time.Time
 	trustSize      int64
 	trustJSON      string
+	pinned         bool
 	pinnedJSON     string
 	pinnedAtModify time.Time
 )
 
 // The kubelet refreshes the mounted Secret about a minute after the exporter writes
-// it, so a set validated here wins until the file's mtime moves past the one it saw.
+// it, so a set validated here (or cleared, "") wins until the file's mtime moves past the one it saw.
 func PinTrustJWK(jwkJSON string) {
 	trustMu.Lock()
 	defer trustMu.Unlock()
-	pinnedJSON = jwkJSON
+	pinned, pinnedJSON = true, jwkJSON
 	pinnedAtModify = statModTime()
 }
 
@@ -53,11 +54,11 @@ func TrustJWK() string {
 		trustModTime, trustSize, trustJSON = info.ModTime(), info.Size(), strings.TrimSpace(string(raw))
 	}
 
-	if pinnedJSON != constants.EmptyString {
+	if pinned {
 		if trustModTime.Equal(pinnedAtModify) {
 			return pinnedJSON
 		}
-		pinnedJSON = constants.EmptyString
+		pinned, pinnedJSON = false, constants.EmptyString
 	}
 	return trustJSON
 }

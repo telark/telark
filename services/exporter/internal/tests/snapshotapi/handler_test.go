@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
+	roledata "github.com/telark/data/resources/role"
 	"github.com/telark/exporter/internal/constants"
 	snaphandler "github.com/telark/exporter/internal/handlers/snapshot"
 	xauthz "github.com/telark/x-ware/authz"
@@ -45,7 +46,7 @@ func TestSnapshotReadHandlers(t *testing.T) {
 	setRoot(t)
 	createOK(t)
 
-	// The snapshot body is held to the manifest-view rule, so it needs a caller.
+	// The snapshot body and the manifest are each held to the other's rule too, so both need a caller.
 	get := httptest.NewRecorder()
 	snaphandler.GetSnapshot()(get, getAs(xauthz.Identity{Internal: true}))
 	if get.Code != http.StatusOK {
@@ -53,7 +54,7 @@ func TestSnapshotReadHandlers(t *testing.T) {
 	}
 
 	man := httptest.NewRecorder()
-	snaphandler.GetSnapshotManifest()(man, withID(httptest.NewRequest(http.MethodGet, "/snapshots/app-1/manifest"+snapQuery(), nil), testAppID))
+	snaphandler.GetSnapshotManifest()(man, getAs(xauthz.Identity{Internal: true}))
 	if man.Code != http.StatusOK {
 		t.Errorf("manifest handler code = %d, want 200", man.Code)
 	}
@@ -72,5 +73,38 @@ func TestDeleteSnapshotHandler(t *testing.T) {
 	snaphandler.DeleteSnapshot()(rec, withID(httptest.NewRequest(http.MethodDelete, "/snapshots/app-1"+snapQuery(), nil), testAppID))
 	if rec.Code != http.StatusOK {
 		t.Errorf("delete handler code = %d, want 200", rec.Code)
+	}
+}
+
+// Seen live: a deny on viewing snapshots still let the manifest download; the
+// manifest rule itself is the route's.
+func TestGetSnapshotManifestHonoursSnapshotDeny(t *testing.T) {
+	setRoot(t)
+	createOK(t)
+	reader := xauthz.Identity{UserID: "u1", Grants: xauthz.Grants{
+		Levels: map[string]roledata.PermissionLevel{roledata.ScopeApplications: roledata.PermissionLevelReadOnly},
+	}}
+	tests := []struct {
+		name   string
+		action string
+		want   int
+	}{
+		{"snapshots denied", roledata.ActionViewApplicationsSnapshots, http.StatusForbidden},
+		{"nothing denied", constants.EmptyString, http.StatusOK},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			identity := reader
+			if tt.action != constants.EmptyString {
+				identity.Grants.Denied = map[string][]string{roledata.ScopeApplications: {
+					xauthz.RuleKey(roledata.ScopeApplications, tt.action),
+				}}
+			}
+			rec := httptest.NewRecorder()
+			snaphandler.GetSnapshotManifest()(rec, getAs(identity))
+			if rec.Code != tt.want {
+				t.Fatalf("manifest code = %d, want %d: %s", rec.Code, tt.want, rec.Body.String())
+			}
+		})
 	}
 }

@@ -6,7 +6,6 @@ import (
 	"slices"
 
 	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection/validation"
 	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
 	"github.com/telark/rest/response"
 	responseutils "github.com/telark/rest/utils/response"
@@ -62,7 +61,7 @@ func NamespaceListable(w http.ResponseWriter, r *http.Request, namespace string)
 		responseutils.LogAndSendResponse(w, http.StatusServiceUnavailable, response.OperationError, err.Error(), nil, err)
 		return false
 	}
-	if slices.Contains(excluded, namespace) || namespace == validation.OwnNamespace() {
+	if slices.Contains(excluded, namespace) || namespace == tcfghelper.OwnNamespace() {
 		responseutils.LogAndSendResponse(
 			w, http.StatusForbidden, response.OperationError, string(constants.ErrNamespaceNotListable), nil, nil,
 		)

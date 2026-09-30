@@ -9,7 +9,7 @@ Passkey sign-in and the first admin are covered in [First admin](../../docs/INST
 flowchart TB
     admin(["Admin"]):::actor
     user(["User"]):::actor
-    settings("Settings → SSO<br/>web UI"):::client
+    settings("Settings → Single Sign-On<br/>web UI"):::client
     login("Login page<br/>web UI"):::client
 
     subgraph cluster["Inside the Kubernetes cluster"]
@@ -40,7 +40,9 @@ flowchart TB
 ## Turning SSO on (admin)
 
 - **A.** An admin fills in the SSO settings (Google client ID and the options below) on
-  Settings → Single Sign-On. It needs Admin on `ALL`.
+  Settings → Single Sign-On. It needs Admin on `ALL`. In the Google OAuth client, register
+  `https://<host>/auth/google/callback` as an authorized redirect URI: the dashboard sends it
+  as `redirect_uri`.
 - **B.** auth-service checks that the settings are usable before saving them, so a
   configuration that can't sign anyone in is never stored.
 - **C.** auth-service saves the settings through exporter-service.
@@ -53,9 +55,12 @@ flowchart TB
 3. The login page sends that token to auth-service.
 4. auth-service checks the token really came from Google.
 5. If it's valid, auth-service finds the user by the token's subject. On a first
-   login it attaches the Google identity to the one user whose email matches, or
-   creates a user when none does; two users with that email are refused (409), and
-   so is the bootstrap admin's email, which only ever signs in with its passkey.
+   login it attaches the Google identity to the one user whose email matches, if
+   that account has no identity yet, or creates a user when none does; two users
+   with that email, or an account that already signs in another way, are refused
+   (409). The bootstrap admin only ever signs in with its passkey: a login that
+   resolves to it, by its email or by a Google identity bound to it before it was
+   promoted, is refused (403).
    A created user always gets the ReadOnly role, even with the bootstrap email:
    SSO never grants Admin or the `bootstrap` marker (only `break-glass` does).
    A user being deleted or whose account is not active gets no session (403).
@@ -83,8 +88,14 @@ are two modes, controlled by one setting:
   replicas see a new key set after the kubelet sync (about a minute).
   `GET /api/v1/config` on the exporter returns the key set merged back under
   `oidc.googleJwkJson`.
-- Endpoints: `GET /auth/config` is **public** (returns only the client ID, which is
-  not a secret); `PATCH /auth/oidc/config` saves settings and needs Admin on `ALL` (not only on
+- Clearing the key set: send `"googleJwkJson": ""` (or `null`) in
+  `PATCH /auth/oidc/config`. The exporter empties the Secret key, and the replica that
+  handled the request stops trusting the old set at once (others after the kubelet
+  sync). Omitting the key keeps the stored set. Once cleared, an enabled
+  configuration with `egressAllowed = false` is refused (400) until a new set is sent.
+- Endpoints: `GET /auth/config` is **public** and returns `selfRegistrationEnabled`,
+  `oidcEnabled` and, only when SSO is usable, `googleClientID` (not a secret);
+  `PATCH /auth/oidc/config` saves settings and needs Admin on `ALL` (not only on
   `settings`), subject to the `settings.editoidcconfig.deny` rule; `POST /auth/oidc/google/callback` handles the
   token from step 3.
 - auth-service validates the settings and writes them with `PATCH /api/v1/config`

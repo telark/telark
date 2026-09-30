@@ -2,10 +2,8 @@ package cleanup
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/telark/auth/internal/authz"
 	authclients "github.com/telark/auth/internal/clients"
@@ -14,6 +12,12 @@ import (
 	sharedhelper "github.com/telark/auth/internal/helpers/shared"
 	dataerrors "github.com/telark/data/errors"
 	"github.com/telark/data/resources/finalizers"
+	"github.com/telark/rest/base"
+	restshared "github.com/telark/rest/clients/shared"
+	restconstants "github.com/telark/rest/constants"
+	accessroleeps "github.com/telark/rest/endpoints/accessroles"
+	groupeps "github.com/telark/rest/endpoints/groups"
+	usereps "github.com/telark/rest/endpoints/users"
 	"github.com/telark/rest/response"
 	resputils "github.com/telark/rest/utils/response"
 )
@@ -28,22 +32,24 @@ func InitIngress(i *coordcleanup.Ingress) {
 }
 
 func DeleteUser(w http.ResponseWriter, r *http.Request) {
-	handleDelete(w, r, finalizers.ResourceTypeUsers, authclients.GetUserClient().DeleteUserByID, authz.GuardUserDelete)
+	handleDelete(w, r, finalizers.ResourceTypeUsers, authclients.GetUserClient().Client, usereps.DeleteUserByID, authz.GuardUserDelete)
 }
 
 func DeleteGroup(w http.ResponseWriter, r *http.Request) {
-	handleDelete(w, r, finalizers.ResourceTypeGroups, authclients.GetGroupClient().DeleteGroupByID, nil)
+	handleDelete(w, r, finalizers.ResourceTypeGroups, authclients.GetGroupClient().Client, groupeps.DeleteGroupByID, authz.GuardGroupDelete)
 }
 
 func DeleteAccessRole(w http.ResponseWriter, r *http.Request) {
-	handleDelete(w, r, finalizers.ResourceTypeRoles, authclients.GetAccessRoleClient().DeleteAccessRoleByID, nil)
+	handleDelete(w, r, finalizers.ResourceTypeRoles,
+		authclients.GetAccessRoleClient().Client, accessroleeps.DeleteAccessRoleByID, authz.GuardRoleDelete)
 }
 
 func handleDelete(
 	w http.ResponseWriter,
 	r *http.Request,
 	resourceType string,
-	deleteFn func(id string) *response.GenericResponse,
+	client *restshared.Client,
+	endpoint base.Endpoint,
 	guard func(ctx context.Context, id string) (int, error),
 ) {
 	id, err := sharedhelper.GetPathParam(r, constants.IDPathParam)
@@ -54,14 +60,15 @@ func handleDelete(
 		return
 	}
 
-	if guard != nil {
-		if status, guardErr := guard(r.Context(), id); guardErr != nil {
-			resputils.LogAndSendResponse(w, status, response.OperationError, guardErr.Error(), nil, nil)
-			return
-		}
+	if status, guardErr := guard(r.Context(), id); guardErr != nil {
+		resputils.LogAndSendResponse(w, status, response.OperationError, guardErr.Error(), nil, nil)
+		return
 	}
 
-	deleteResp := deleteFn(id)
+	// The exporter stamps the audit actor from this header; without it the stored editor stays.
+	userID := r.Header.Get(constants.HeaderUserID)
+	byID := client.WithParams(map[string]string{restconstants.IDParam: id})
+	deleteResp := restshared.ExecuteRequestWithHeaders(byID, base.Delete, endpoint, nil, map[string]string{constants.HeaderUserID: userID})
 	if deleteResp == nil {
 		resputils.LogAndSendResponse(w, http.StatusBadGateway, response.OperationError,
 			string(constants.MsgCleanupDeletingInProgress), nil, nil)
@@ -69,7 +76,7 @@ func handleDelete(
 	}
 	if deleteResp.Status != http.StatusOK {
 		resputils.LogAndSendResponse(w, deleteResp.Status, response.OperationError,
-			exporterMessage(deleteResp.Message), nil, nil)
+			sharedhelper.ExporterMessage(deleteResp.Message), nil, nil)
 		return
 	}
 
@@ -77,7 +84,7 @@ func handleDelete(
 		_, enqErr := ingressInstance.Enqueue(r.Context(), coordcleanup.EnqueueRequest{
 			ResourceType: resourceType,
 			ResourceID:   id,
-			RequestedBy:  r.Header.Get(constants.HeaderUserID),
+			RequestedBy:  userID,
 		})
 		if enqErr != nil {
 			lg.Warn(enqErr.Error())
@@ -89,18 +96,4 @@ func handleDelete(
 			constants.IDPathParam:              id,
 			constants.CleanupFieldResourceType: resourceType,
 		}, nil)
-}
-
-// The rest client wraps a refused delete as "HTTP <status>: <json body>"; the
-// caller wants the exporter's own message.
-func exporterMessage(wrapped string) string {
-	start := strings.Index(wrapped, constants.JSONObjectStart)
-	if start < constants.DefaultInitValue {
-		return wrapped
-	}
-	var inner response.GenericResponse
-	if err := json.Unmarshal([]byte(wrapped[start:]), &inner); err != nil || inner.Message == constants.EmptyString {
-		return wrapped
-	}
-	return inner.Message
 }

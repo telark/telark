@@ -11,6 +11,7 @@ import (
 	"github.com/telark/auth/internal/constants"
 	cleanuphandler "github.com/telark/auth/internal/handlers/cleanup"
 	"github.com/telark/auth/internal/tests/testutil"
+	roledata "github.com/telark/data/resources/role"
 	"github.com/telark/rest/base"
 	restconstants "github.com/telark/rest/constants"
 	autheps "github.com/telark/rest/endpoints/auth"
@@ -48,7 +49,8 @@ func deleteRoleCleanup(t *testing.T, exporterStatus int, exporterBody string) (i
 	})
 	path := strings.Replace(router.Pattern(endpoint), restconstants.IDParam, "r-1", constants.DefaultIncrementValue)
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, path, nil))
+	r := httptest.NewRequest(http.MethodDelete, path, nil)
+	mux.ServeHTTP(rec, r.WithContext(xauthz.WithIdentity(r.Context(), xauthz.Identity{Internal: true})))
 
 	var body struct {
 		Message string `json:"message"`
@@ -105,6 +107,70 @@ func TestCleanupRoutesDeleteThroughExporterPaths(t *testing.T) {
 			if !slices.Contains(seen, http.MethodDelete+" "+c.exporter) {
 				t.Fatalf("exporter calls = %v, want DELETE %s", seen, c.exporter)
 			}
+		})
+	}
+}
+
+// The exporter stamps a soft delete's lastUpdatedBy from the forwarded caller,
+// so the delete must not arrive as an anonymous service call.
+func TestCleanupDeletesForwardTheCaller(t *testing.T) {
+	const deleter = "u-deleter"
+	for _, c := range []struct {
+		endpoint base.Endpoint
+		handler  http.HandlerFunc
+		path     string
+	}{
+		{autheps.DeleteUserCleanup, cleanuphandler.DeleteUser, "/api/v1/auth/users/x-1"},
+		{autheps.DeleteGroupCleanup, cleanuphandler.DeleteGroup, "/api/v1/auth/groups/x-1"},
+		{autheps.DeleteAccessRoleCleanup, cleanuphandler.DeleteAccessRole, "/api/v1/auth/accessroles/x-1"},
+	} {
+		t.Run(c.path, func(t *testing.T) {
+			var forwarded []string
+			testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				forwarded = append(forwarded, r.Header.Get(constants.HeaderUserID))
+				_, _ = w.Write([]byte(`{"status":200}`))
+			}))
+			mux := router.NewRouter([]router.Route{router.CreateRoute(base.Delete, c.endpoint, c.handler)})
+			r := httptest.NewRequest(http.MethodDelete, c.path, nil)
+			r.Header.Set(constants.HeaderUserID, deleter)
+			mux.ServeHTTP(httptest.NewRecorder(), r.WithContext(xauthz.WithIdentity(r.Context(), xauthz.Identity{UserID: deleter, Internal: true})))
+			testutil.Equal(t, "forwarded callers", strings.Join(forwarded, ","), deleter)
+		})
+	}
+}
+
+// A session below the role's levels is refused before the exporter delete runs;
+// auth deletes as an internal caller, so the exporter cannot cap it.
+func TestDeleteRoleAndGroupCleanupAreCapped(t *testing.T) {
+	cases := []struct {
+		endpoint base.Endpoint
+		handler  http.HandlerFunc
+		path     string
+	}{
+		{autheps.DeleteGroupCleanup, cleanuphandler.DeleteGroup, "/api/v1/auth/groups/g-1"},
+		{autheps.DeleteAccessRoleCleanup, cleanuphandler.DeleteAccessRole, "/api/v1/auth/accessroles/r-admin"},
+	}
+	for _, c := range cases {
+		t.Run(c.path, func(t *testing.T) {
+			var deletes int
+			testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodDelete {
+					deletes++
+				}
+				data := `{"id":"r-admin","name":"Admin","scopesAndPermissions":[{"scope":"ALL","level":"Admin"}]}`
+				if strings.Contains(r.URL.Path, "/groups/") {
+					data = `{"id":"g-1","roleRefs":["r-admin"]}`
+				}
+				_, _ = w.Write([]byte(`{"data":` + data + `}`))
+			}))
+			mux := router.NewRouter([]router.Route{router.CreateRoute(base.Delete, c.endpoint, c.handler)})
+			rec := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodDelete, c.path, nil)
+			levels := map[string]roledata.PermissionLevel{roledata.ScopeAll: roledata.PermissionLevelOwner}
+			owner := xauthz.Identity{UserID: "u-owner", Grants: xauthz.Grants{Levels: levels}}
+			mux.ServeHTTP(rec, r.WithContext(xauthz.WithIdentity(r.Context(), owner)))
+			testutil.Equal(t, "status", rec.Code, http.StatusForbidden)
+			testutil.Equal(t, "exporter deletes", deletes, 0)
 		})
 	}
 }

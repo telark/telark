@@ -7,6 +7,7 @@ import (
 	appresource "github.com/telark/data/resources/application"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/core/applications/history/diff"
+	appshared "github.com/telark/discovery/internal/core/applications/shared"
 	"github.com/telark/discovery/internal/tests/testutil"
 )
 
@@ -112,4 +113,52 @@ func TestDiffApplicationsHealthRecovery(t *testing.T) {
 	)
 	testutil.Equal(t, "suppressed", changed, diff.OutcomeNoChange)
 	testutil.Equal(t, "generation held", history.Generation, constants.ThreeValue)
+}
+
+// An app already down when discovery first sees it had no health transition to diff, so it
+// never got an incident, and its later recovery was dropped for lack of incident state.
+func TestDiffApplicationsBornDownRecordsIncidentAndRecovery(t *testing.T) {
+	cases := []struct {
+		health       string
+		wantIncident bool
+	}{
+		{appshared.HealthStatusDown, true},
+		{appshared.HealthStatusDegraded, false},
+		{appshared.HealthStatusHealthy, false},
+	}
+	for _, c := range cases {
+		t.Run(c.health, func(t *testing.T) {
+			created := constants.DefaultInitValue
+			rdb := newRedis(t)
+			fresh := appresource.Application{
+				Name:      "born-" + c.health,
+				Resources: []appresource.Resource{{Namespace: diffNamespace, Kind: kindDeployment, Name: workloadAPI}},
+				Health:    appresource.Health{Status: c.health},
+			}
+			history, _, outcome := diff.DiffApplications(
+				context.Background(), noopBaseline, recordingCreate(&created), emptyManifest, rdb, nil, fresh, nil,
+			)
+			testutil.Equal(t, "authored", outcome, diff.OutcomeAuthored)
+			testutil.Equal(t, "generation", history.Generation, constants.DefaultAddValue)
+			testutil.Equal(t, "incident entry", len(history.ChangeLog) == constants.DefaultAddValue, c.wantIncident)
+			if !c.wantIncident {
+				return
+			}
+			entry := history.ChangeLog[constants.DefaultInitValue]
+			testutil.Equal(t, "entry generation", entry.Generation, constants.DefaultAddValue)
+			testutil.Equal(t, "is incident", entry.IsIncident, true)
+			testutil.Equal(t, "class", entry.ChangeClass, appresource.ChangeClassIncident)
+
+			stored := fresh
+			stored.History = history
+			recovered := fresh
+			recovered.Health = appresource.Health{Status: appshared.HealthStatusHealthy}
+			next, _, outcome := diff.DiffApplications(
+				context.Background(), noopBaseline, recordingCreate(&created), emptyManifest,
+				rdb, &stored, recovered, healthSealOpts(constants.TwoValue),
+			)
+			testutil.Equal(t, "recovery authored", outcome, diff.OutcomeAuthored)
+			testutil.Equal(t, "recovery entry", diff.LastChangeLogEntry(next).IsRecovery, true)
+		})
+	}
 }

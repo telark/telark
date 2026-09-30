@@ -151,8 +151,8 @@ func SnapshotNotFoundMessage(id string, scope string, namespace string, generati
 	)
 }
 
-func ContentDispositionFilename(id string, generation int) string {
-	fileName := fmt.Sprintf("%s-G%d%s", id, generation, constants.SnapshotRollbackFilenameSuffix)
+func ContentDispositionFilename(id string, generation int, suffix string) string {
+	fileName := fmt.Sprintf("%s-G%d%s", id, generation, suffix)
 
 	return fmt.Sprintf(constants.ContentDispositionAttachmentTemplate, fileName)
 }

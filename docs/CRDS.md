@@ -53,7 +53,7 @@ Renamed from the 0.4 schema (values unchanged):
 
 ## OIDC trust anchor
 
-The optional Google JWK set is not stored in `TelarkConfig`. It lives in the Secret `telark-oidc-trust-secret` (key `googleJwkJson`, at most 64 KiB), which the exporter writes when an Admin saves it and the auth service reads as a mounted file. `GET /api/v1/config` merges it back into `oidc.googleJwkJson`. For cluster-less renders, point `app.auth.oidc.existingSecret` at a Secret you manage ([INSTALL.md](INSTALL.md#gitops-cluster-less-renders)).
+The optional Google JWK set is not stored in `TelarkConfig`. It lives in the Secret `telark-oidc-trust-secret` (key `googleJwkJson`), which the exporter writes when an Admin saves it and the auth service reads as a mounted file. `GET /api/v1/config` merges it back into `oidc.googleJwkJson`. For cluster-less renders, point `app.auth.oidc.existingSecret` at a Secret you manage ([INSTALL.md](INSTALL.md#gitops-cluster-less-renders)).
 
 ## Labels and finalizers
 

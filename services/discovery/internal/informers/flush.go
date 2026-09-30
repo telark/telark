@@ -55,7 +55,6 @@ func (m *Manager) flushApp(appName string, buf map[string]*unstructured.Unstruct
 		return err
 	}
 	if stored == nil {
-		m.coalesce.clearBufferRedis(appName)
 		m.forgetRecorded(ctx, appName)
 		return errFlushStoredMissing
 	}
@@ -249,7 +248,6 @@ func (m *Manager) applyFlushWithLock(
 	// Resolved before any file is written: bailing after writePreSnapshots orphans them.
 	inputs := inputsForApp(ctx, m, stored, appName)
 	if len(inputs) == constants.DefaultInitValue {
-		m.coalesce.clearBufferRedis(appName)
 		return errFlushNoInputs
 	}
 	// A later flush of the same rollback keeps the pre-rollback set already stored for its generation.
@@ -257,7 +255,9 @@ func (m *Manager) applyFlushWithLock(
 		newSnaps, err := m.writePreSnapshots(ctx, appName, stored, nextGen, m.preImageByNamespace(stored, buf), &opts)
 		if err != nil {
 			appsnapshot.DiscardSnapshots(newSnaps, opts.DeleteSnapshot)
-			m.coalesce.clearBufferRedis(appName)
+			// Only this flush's state: events that landed meanwhile keep their buffer and timer.
+			m.forgetPendingSnapshots(ctx, appName)
+			m.coalesce.discardUnlessPending(appName, nil, false)
 			return err
 		}
 		applyFlushOpts(&opts, appName, nextGen, newSnaps)

@@ -68,9 +68,9 @@ func GenericPatchCustomResource(w http.ResponseWriter, md metadata.Metadata, nam
 func sendInvalidPatchBodyResponse(w http.ResponseWriter) {
 	responseutils.LogAndSendResponse(
 		w,
-		http.StatusInternalServerError,
+		http.StatusBadRequest,
 		response.OperationUnprocessed,
-		string(globalerrors.ErrRestParseRequestBody),
+		string(globalerrors.ErrRestEmptyRequestBody),
 		nil,
 		nil,
 	)

@@ -1,10 +1,13 @@
 package config
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/telark/auth/internal/constants"
 )
+
+var lg = constants.GetLogger(constants.LoggerPrefixCleanup)
 
 type CleanupConfig struct {
 	ReconcileTick         time.Duration
@@ -69,8 +72,14 @@ func LoadBackfillConfig() BackfillConfig {
 	}
 }
 
+// Every knob here is a count, size or interval: zero would stop the workers, panic
+// the sweeper's ticker or dead-letter every job, so only a positive value is taken.
 func envInt(key string, def int) int {
-	raw, _ := getEnvAsInt64OrDefault(key, int64(def))
+	raw, err := getEnvAsInt64OrDefault(key, int64(def))
+	if err != nil || raw <= constants.DefaultInitValue {
+		lg.Warn(fmt.Sprintf(string(constants.LogCleanupEnvInvalid), key, def))
+		return def
+	}
 	return int(raw)
 }
 

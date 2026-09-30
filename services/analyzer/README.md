@@ -105,14 +105,19 @@ flowchart LR
    paused), and pausing resolves its open `rollout_stuck`, `config_change_regression` and `other` cards on the
    next run (the shortfall is intentional); a pod-symptom card (`crashloop`, `oom`, …) still waits for every
    replica. Pods that cannot create their container or mount a volume keep their `other.*` cause after the
-   rollout deadline. An incident, or a rollout (`deployment`), `config` or `resources` change, in the last 30 min is cited as
-   `gen:<n>` and in the summary, naming its first field other than discovery's synthetic `health`; "N min
+   rollout deadline. The newest incident, or rollout (`deployment`), `config` or `resources` change, in the last 30 min
+   and no later than 1 min after the incident's start (a change made after it began is never its cause), nor newer
+   than the app's newest incident entry when no recovery followed it (an edit made during an outage, even one
+   whose new pods date the symptom, did not cause it), is cited as
+   `gen:<n>` and in the summary, naming its first field other than discovery's synthetic `health` (an entry
+   with only `health`, such as the one for an app first seen down, is no change and is never cited); "N min
    after change" is measured to the incident's start (its earliest matched event), or to the run when no
    event dates it; an incident job whose change exporter still lacks after the re-reads cites none rather
    than an older one.
-   A `FailedScheduling` event whose pod has a node since, or no longer exists, is history. On a fully ready
-   workload, events of a pod that no longer exists or that precede its pod's current Ready state are
-   history too: they raise no card and do not block the resolve.
+   Events of a pod that no longer exists (a replaced pod's leftover) and a `FailedScheduling` event whose
+   pod has a node since are history, whatever the workload's readiness. On a fully ready workload, events
+   that precede their pod's current Ready state are history too: they raise no card, date no incident and
+   do not block the resolve.
    A pod with a restarted container that has run for less than 60 s has not recovered yet: a crash loop's
    container is Ready for the seconds it runs between two back-offs, so its events still count.
 3. **First write**: the cards are merged and announced (`insight.created` / `insight.updated`); `lastRun`

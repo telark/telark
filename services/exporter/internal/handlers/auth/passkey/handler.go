@@ -1,6 +1,7 @@
 package passkey
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/telark/data/errors"
@@ -27,7 +28,7 @@ func CreatePasskeyByUserWithCacheInvalidation(optimizer *performance.Optimizer) 
 				w,
 				http.StatusUnprocessableEntity,
 				response.OperationUnprocessed,
-				string(errors.ErrRestParseRequestBody),
+				fmt.Sprintf(string(errors.ErrRestParseRequestBody), err),
 				nil,
 				err,
 			)

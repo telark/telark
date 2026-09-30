@@ -1,6 +1,7 @@
 package session
 
 import (
+	"fmt"
 	"net/http"
 
 	authdata "github.com/telark/data/auth"
@@ -30,7 +31,7 @@ func CreateSessionByUserWithCacheInvalidation(optimizer *performance.Optimizer) 
 				w,
 				http.StatusUnprocessableEntity,
 				response.OperationUnprocessed,
-				string(errors.ErrRestParseRequestBody),
+				fmt.Sprintf(string(errors.ErrRestParseRequestBody), err),
 				nil,
 				err,
 			)
@@ -85,7 +86,7 @@ func PatchSelfSessionWithCacheInvalidation(optimizer *performance.Optimizer) fun
 				w,
 				http.StatusUnprocessableEntity,
 				response.OperationUnprocessed,
-				string(errors.ErrRestParseRequestBody),
+				fmt.Sprintf(string(errors.ErrRestParseRequestBody), err),
 				nil,
 				err,
 			)

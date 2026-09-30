@@ -31,6 +31,9 @@ const (
 	testCategory = "c"
 	testDesc     = "d"
 
+	versionMinorBump = "v1.1.0"
+	fieldDescription = "description"
+
 	fieldX          = "x"
 	fieldValidity   = "validity"
 	fieldAutoRevoke = "autoRevoke"
@@ -208,6 +211,9 @@ func TestExtractRoleSpecFromRequestBodyDefaults(t *testing.T) {
 	if role.Status != roledata.RoleStatusActive {
 		t.Errorf("status default = %q", role.Status)
 	}
+	if role.Type != roledata.RoleTypeCustom {
+		t.Errorf("type default = %q, want custom", role.Type)
+	}
 	if role.Validity == nil || role.Validity.Type != roledata.ValidityTypePermanent {
 		t.Errorf("validity default wrong: %+v", role.Validity)
 	}
@@ -220,6 +226,25 @@ func anyChange() map[string]any {
 	return map[string]any{fieldX: constants.DefaultIncrementValue}
 }
 
+func nameLocked() *roledata.AccessRole {
+	return &roledata.AccessRole{Name: testRoleName, Protection: &roledata.Protection{LockName: true}}
+}
+
+func rename() map[string]any {
+	return map[string]any{constants.FieldName: nameNew}
+}
+
+func frozen() *roledata.AccessRole {
+	return &roledata.AccessRole{Protection: &roledata.Protection{PreventModification: true}}
+}
+
+func withProtection(body map[string]any, flag string, value bool) map[string]any {
+	body[constants.FieldProtection] = map[string]any{flag: value}
+	return body
+}
+
+// A lock blocks the change it names unless the same patch lifts it; lifting a
+// lock is a protection change, judged by the authz guard, not here.
 func TestValidateProtectionFlags(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -245,6 +270,17 @@ func TestValidateProtectionFlags(t *testing.T) {
 			name: "allowed change", existing: &roledata.AccessRole{Protection: &roledata.Protection{}},
 			body: anyChange(), wantOK: true,
 		},
+		{"name locked", nameLocked(), rename(), false},
+		{"locked name echoed", nameLocked(), map[string]any{constants.FieldName: testRoleName}, true},
+		{"name lock lifted in the same patch", nameLocked(), withProtection(rename(), constants.FieldLockName, false), true},
+		{
+			"category locked", &roledata.AccessRole{CategoryRef: testCategory, Protection: &roledata.Protection{LockCategory: true}},
+			map[string]any{constants.FieldCategoryRef: nameNew}, false,
+		},
+		{"protection-only edit of a frozen role", frozen(), withProtection(map[string]any{}, constants.FieldLockName, true), true},
+		{"freeze lifted in the same patch", frozen(), withProtection(anyChange(), constants.FieldPreventModification, false), true},
+		{"other flag lifted, freeze kept", frozen(), withProtection(anyChange(), constants.FieldLockName, false), false},
+		{"null protection lifts every lock", frozen(), map[string]any{fieldX: nameNew, constants.FieldProtection: nil}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -287,6 +323,22 @@ func TestExtractAndMergeRoleForPatch(t *testing.T) {
 	}
 	if body["priority"] == nil || body["version"] == nil {
 		t.Errorf("patch body missing computed fields: %v", body)
+	}
+}
+
+// A patch that omits type keeps the stored one: read as "", it gave a built-in
+// role the custom priority cap (400) and a major version bump.
+func TestPatchWithoutTypeKeepsTheStoredType(t *testing.T) {
+	existing := &roledata.AccessRole{
+		Name: testRoleName, Type: roledata.RoleTypeBuiltIn, Description: testDesc, CategoryRef: testCategory,
+		ScopesAndPermissions: adminScope(), Version: versionInitial,
+	}
+	merged, ok := roleutil.ExtractAndMergeRoleForPatch(existing, map[string]any{fieldDescription: nameNew}, httptest.NewRecorder())
+	if !ok {
+		t.Fatal("built-in role patch refused")
+	}
+	if merged.Type != roledata.RoleTypeBuiltIn || merged.Version != versionMinorBump {
+		t.Errorf("type %q version %q, want built-in %s", merged.Type, merged.Version, versionMinorBump)
 	}
 }
 

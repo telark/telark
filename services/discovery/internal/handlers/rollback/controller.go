@@ -1,6 +1,7 @@
 package rollback
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -199,7 +200,7 @@ func (c *Controller) reconcile(ctx context.Context, key string) error {
 		return err
 	}
 
-	if handled, err := failStaleInProgress(ctx, name, spec); err != nil {
+	if handled, err := c.FailStaleInProgress(ctx, name, spec); err != nil {
 		return err
 	} else if handled {
 		return nil
@@ -249,7 +250,7 @@ func (c *Controller) processPending(
 	if err := c.validateAndApplyRollback(procCtx, manifest, ns, name, spec, idx, pending); err != nil {
 		return nil
 	}
-	return c.finalizeRollbackSuccess(procCtx, name, spec, pending, idx)
+	return c.FinalizeRollbackSuccess(procCtx, name, spec, pending, idx)
 }
 
 // Holds the key the trigger/abort handlers take, so an abort cannot land
@@ -318,7 +319,7 @@ func (c *Controller) validateAndApplyRollback(
 	return nil
 }
 
-func (c *Controller) finalizeRollbackSuccess(
+func (c *Controller) FinalizeRollbackSuccess(
 	ctx context.Context,
 	name string,
 	spec *application.Application,
@@ -330,9 +331,11 @@ func (c *Controller) finalizeRollbackSuccess(
 	}
 
 	now := time.Now().UTC()
+	restored := pending.TargetGeneration
 	if err := patchRollbackStatus(ctx, name, spec, idx, rollbackPatchOpts{
-		Status:      constants.RollbackStatusSuccess,
-		CompletedAt: &now,
+		Status:             constants.RollbackStatusSuccess,
+		CompletedAt:        &now,
+		RestoredGeneration: &restored,
 	}); err != nil {
 		return err
 	}
@@ -371,7 +374,7 @@ func (c *Controller) dispatchRollbackNotif(
 		Severity: severity,
 		Metadata: map[string]any{
 			notifclient.MetaKeyTargetID:        pending.ID,
-			notifclient.MetaKeyApplicationID:   pending.ID,
+			notifclient.MetaKeyApplicationID:   appName,
 			notifclient.MetaKeyApplicationName: appName,
 			notifclient.MetaKeyStatus:          status,
 		},
@@ -468,7 +471,7 @@ func (c *Controller) loadRollbackManifest(
 	return out, nil
 }
 
-func failStaleInProgress(
+func (c *Controller) FailStaleInProgress(
 	ctx context.Context,
 	name string,
 	spec *application.Application,
@@ -482,13 +485,15 @@ func failStaleInProgress(
 			continue
 		}
 		now := time.Now().UTC()
+		msg := StaleSweepErrorMsg(rb.Error)
 		if err := patchRollbackStatus(ctx, name, spec, i, rollbackPatchOpts{
 			Status:      constants.RollbackStatusFailed,
-			ErrorMsg:    StaleSweepErrorMsg(rb.Error),
+			ErrorMsg:    msg,
 			CompletedAt: &now,
 		}); err != nil {
 			return true, err
 		}
+		c.emitRollbackFailure(&spec.Rollbacks[i], name, cmp.Or(msg, rb.Error))
 		return true, nil
 	}
 	return false, nil
@@ -544,6 +549,9 @@ func patchRollbackStatus(
 	}
 	if opts.CompletedAt != nil {
 		updated[idx].CompletedAt = opts.CompletedAt
+	}
+	if opts.RestoredGeneration != nil {
+		updated[idx].RestoredGeneration = opts.RestoredGeneration
 	}
 
 	return patchStatus(ctx, name, map[string]any{constants.RollbackRollbacksKey: updated})

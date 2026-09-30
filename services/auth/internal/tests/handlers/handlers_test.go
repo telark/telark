@@ -101,6 +101,24 @@ func TestHandlersFailClosed(t *testing.T) {
 	}
 }
 
+// A body over the cap is refused with 413 wherever it is read, before any lookup.
+func TestOversizedBodyIsRefused(t *testing.T) {
+	body := `{"email":"` + strings.Repeat("a", constants.MaxRequestBodyBytes) + `"}`
+	cases := map[string]handlerFunc{
+		"login start":    authhandler.LoginStart,
+		"login finish":   authhandler.LoginFinish,
+		"register start": passkeyhandler.RegisterStart,
+		"create passkey": passkeyhandler.CreatePasskey,
+	}
+	for name, handler := range cases {
+		t.Run(name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			handler(rec, jsonReq(body))
+			testutil.Equal(t, "status", rec.Code, http.StatusRequestEntityTooLarge)
+		})
+	}
+}
+
 // Handlers that must answer even without a session or backend still return 200:
 // logout is idempotent, the public config degrades gracefully, and the nonce is
 // served from Redis.

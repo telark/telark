@@ -3,6 +3,7 @@ package authz
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/telark/auth/internal/constants"
@@ -41,6 +42,61 @@ func GuardUserDelete(ctx context.Context, targetID string) (int, error) {
 		return http.StatusOK, nil
 	}
 	return guardProtectedTarget(caller, target.Bootstrap)
+}
+
+// Deleting a role takes its levels from every holder, so it is capped like
+// authoring one: each level must be within the caller's own on that scope or ALL.
+func GuardRoleDelete(ctx context.Context, roleID string) (int, error) {
+	caller, ok := authz.FromContext(ctx)
+	if !ok {
+		return http.StatusUnauthorized, errors.New(string(dataerrors.ErrAuthzIdentityMissing))
+	}
+	if caller.Internal {
+		return http.StatusOK, nil
+	}
+	return rolesWithinCaller(caller, []string{roleID})
+}
+
+// Deleting a group takes its roles from every member.
+func GuardGroupDelete(ctx context.Context, groupID string) (int, error) {
+	caller, ok := authz.FromContext(ctx)
+	if !ok {
+		return http.StatusUnauthorized, errors.New(string(dataerrors.ErrAuthzIdentityMissing))
+	}
+	if caller.Internal {
+		return http.StatusOK, nil
+	}
+	group, err := clientSource{}.Group(groupID)
+	if err != nil {
+		return removedLookupFailure(err)
+	}
+	return rolesWithinCaller(caller, group.RoleRefs)
+}
+
+func rolesWithinCaller(caller authz.Identity, roleIDs []string) (int, error) {
+	for _, roleID := range roleIDs {
+		role, err := clientSource{}.Role(roleID)
+		if err != nil {
+			if status, lookupErr := removedLookupFailure(err); lookupErr != nil {
+				return status, lookupErr
+			}
+			continue
+		}
+		for _, entry := range role.ScopesAndPermissions {
+			if !authz.Allows(caller, authz.Requirement{Scope: entry.Scope, MinLevel: entry.Level}) {
+				return http.StatusForbidden, fmt.Errorf(string(constants.ErrAuthzRemovedRoleExceedsCaller), role.Name, entry.Level, entry.Scope)
+			}
+		}
+	}
+	return http.StatusOK, nil
+}
+
+// A record already gone takes nothing away from anyone; any other failure is an outage.
+func removedLookupFailure(err error) (int, error) {
+	if errors.Is(err, authz.ErrNotFound) || errors.Is(err, authz.ErrGone) {
+		return http.StatusOK, nil
+	}
+	return http.StatusServiceUnavailable, errors.New(string(dataerrors.ErrAuthzResolverUnavailable))
 }
 
 func guardProtectedTarget(caller authz.Identity, targetBootstrap bool) (int, error) {

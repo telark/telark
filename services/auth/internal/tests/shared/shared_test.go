@@ -4,15 +4,21 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/telark/auth/internal/constants"
 	"github.com/telark/auth/internal/helpers/shared"
+	requestutils "github.com/telark/rest/utils/request"
 )
 
-const randomBytesLen = 16
+const (
+	randomBytesLen = 16
+	testPath       = "/"
+)
 
 // Email validation must reject empties and malformed addresses — the login flow
 // keys accounts on a real address.
@@ -98,14 +104,23 @@ func TestResponseHelpers(t *testing.T) {
 
 func TestDecodeRequestBody(t *testing.T) {
 	var out map[string]string
-	ok := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"a":"b"}`))
+	ok := httptest.NewRequest(http.MethodPost, testPath, bytes.NewBufferString(`{"a":"b"}`))
 	if err := shared.DecodeRequestBody(ok, &out); err != nil || out["a"] != "b" {
 		t.Fatalf("decode valid body = %v, out=%v", err, out)
 	}
-	bad := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{bad`))
+	bad := httptest.NewRequest(http.MethodPost, testPath, bytes.NewBufferString(`{bad`))
 	if shared.DecodeRequestBody(bad, &out) == nil {
 		t.Fatal("malformed body decoded without error")
 	}
+
+	huge := httptest.NewRequest(http.MethodPost, testPath, strings.NewReader(`{"a":"`+strings.Repeat("b", constants.MaxRequestBodyBytes)+`"}`))
+	err := shared.DecodeRequestBody(huge, &out)
+	if !errors.Is(err, requestutils.ErrRequestBodyTooLarge) {
+		t.Fatalf("oversized body err = %v, want %v", err, requestutils.ErrRequestBodyTooLarge)
+	}
+	w := httptest.NewRecorder()
+	shared.SendErrorResponse(w, http.StatusBadRequest, err)
+	assertJSON(t, w, http.StatusRequestEntityTooLarge, constants.JSONKeyError, true)
 }
 
 // Auth errors map to 400 only for a missing credential id; everything else is a

@@ -153,6 +153,13 @@
             "enabled": { "type": "boolean" }
           }
         },
+        "selfMonitoring": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" }
+          }
+        },
         "persistence": {
           "type": "object",
           "additionalProperties": false,
@@ -196,6 +203,7 @@
           "includeSecurity": { "type": "boolean" },
           "useRedis": { "type": "boolean" },
           "useNatsCreds": { "type": "boolean" },
+          "serviceToken": { "type": "boolean" },
           "natsUser": { "type": "string", "enum": ["publisher", "consumer"] },
           "automountServiceAccountToken": { "type": "boolean" },
           "podSecurityContext": { "type": "object" },

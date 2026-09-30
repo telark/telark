@@ -127,20 +127,22 @@ func addApplications(r map[string]authz.Requirement) {
 // only discovery writes or discards them.
 func addSnapshots(r map[string]authz.Requirement) {
 	r[router.Key(base.Post, snapshotendpoints.CreateSnapshot)] = authz.Internal
-	r[router.Key(base.Get, snapshotendpoints.GetSnapshot)] = authz.Denyable(
-		authz.Read(roledata.ScopeApplications), roledata.ActionViewApplicationsSnapshots,
-	)
-	r[router.Key(base.Get, snapshotendpoints.GetSnapshotInfos)] = authz.Denyable(
-		authz.Read(roledata.ScopeApplications), roledata.ActionViewApplicationsSnapshots,
-	)
+	r[router.Key(base.Get, snapshotendpoints.GetSnapshot)] = snapshotView
+	r[router.Key(base.Get, snapshotendpoints.GetSnapshotInfos)] = snapshotView
 	r[router.Key(base.Get, snapshotendpoints.GetSnapshotManifest)] = snapshotManifestView
 	r[router.Key(base.Delete, snapshotendpoints.DeleteSnapshot)] = authz.Internal
 }
 
-// The snapshot body carries the manifests too, so GuardSnapshotManifestView
-// holds its GET route to this same rule.
-var snapshotManifestView = authz.Denyable(
-	authz.Read(roledata.ScopeApplications), roledata.ActionViewApplicationSnapshotManifest,
+// The snapshot body carries the manifests and the manifest is part of the
+// snapshot, so GuardSnapshotManifestView and GuardSnapshotView hold each GET
+// route to the other's rule too.
+var (
+	snapshotView = authz.Denyable(
+		authz.Read(roledata.ScopeApplications), roledata.ActionViewApplicationsSnapshots,
+	)
+	snapshotManifestView = authz.Denyable(
+		authz.Read(roledata.ScopeApplications), roledata.ActionViewApplicationSnapshotManifest,
+	)
 )
 
 // Reports are written by discovery at a plan boundary; users read them under
@@ -183,6 +185,7 @@ func addNotifications(r map[string]authz.Requirement) {
 	r[router.Key(base.Post, notificationsendpoints.MarkRead)] = authz.Authenticated
 	r[router.Key(base.Post, notificationsendpoints.MarkAllRead)] = authz.Authenticated
 	r[router.Key(base.Delete, notificationsendpoints.Clear)] = authz.Authenticated
+	r[router.Key(base.Delete, notificationsendpoints.Delete)] = authz.Authenticated
 
 	// Emitted by peer services reacting to cluster events, not by users.
 	r[router.Key(base.Post, notificationsendpoints.Emit)] = authz.Internal
@@ -194,10 +197,11 @@ func addConfig(r map[string]authz.Requirement) {
 	r[router.Key(base.Patch, configendpoints.PatchConfig)] = authz.Authenticated
 }
 
-// Finalizer edits decide whether a resource can be deleted at all.
+// Finalizer edits decide whether a resource can be deleted at all, so only
+// auth's cleanup cascade makes them.
 func addCleanup(r map[string]authz.Requirement) {
-	r[router.Key(base.Update, cleanupendpoints.AddFinalizer)] = authz.Own(roledata.ScopeSettings)
-	r[router.Key(base.Delete, cleanupendpoints.RemoveFinalizer)] = authz.Own(roledata.ScopeSettings)
+	r[router.Key(base.Update, cleanupendpoints.AddFinalizer)] = authz.Internal
+	r[router.Key(base.Delete, cleanupendpoints.RemoveFinalizer)] = authz.Internal
 	r[router.Key(base.Get, cleanupendpoints.GetCleanupViewByID)] = authz.Read(roledata.ScopeSettings)
 	r[router.Key(base.Get, cleanupendpoints.ListCleanupViews)] = authz.Read(roledata.ScopeSettings)
 }

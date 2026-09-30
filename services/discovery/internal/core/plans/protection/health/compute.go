@@ -12,8 +12,10 @@ import (
 	"github.com/telark/discovery/internal/constants"
 	protpolicies "github.com/telark/discovery/internal/core/plans/protection/policies"
 	planseps "github.com/telark/rest/endpoints/plans"
+	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
 )
 
@@ -160,6 +162,7 @@ func snapshotOf(item *unstructured.Unstructured) policySnapshot {
 		ready:         readReady(item),
 		failureAction: readFailureAction(item),
 		renderHash:    item.GetAnnotations()[policies.AnnotationRenderHash],
+		rules:         readRules(item),
 	}
 }
 
@@ -200,7 +203,7 @@ func classify(plan *plans.ProtectionPlan, snapshot map[string]policySnapshot, cu
 			mismatched = append(mismatched, name)
 			flags.drifted = true
 		}
-		if renderable && snap.renderHash != fresh.Annotations[policies.AnnotationRenderHash] {
+		if renderable && outdated(snap, fresh) {
 			stale = append(stale, name)
 			flags.drifted = true
 		}
@@ -222,6 +225,13 @@ func classify(plan *plans.ProtectionPlan, snapshot map[string]policySnapshot, cu
 		Stale:      stale,
 		Added:      added,
 	}
+}
+
+// A hand edit can keep the render-hash annotation, so the rules are compared too: an added field
+// (a rule-level failureAction, an extra exclude) is drift as much as an edited one.
+func outdated(snap policySnapshot, fresh kyvernov1.Policy) bool {
+	return snap.renderHash != fresh.Annotations[policies.AnnotationRenderHash] ||
+		!equality.Semantic.DeepEqual(renderedRules(fresh.Spec.Rules), snap.rules)
 }
 
 func presentPolicyStatus(name string, snap policySnapshot) planseps.ProtectionPlanPolicyStatus {
@@ -315,4 +325,44 @@ func readFailureAction(obj *unstructured.Unstructured) string {
 		return constants.EmptyString
 	}
 	return value
+}
+
+func readRules(obj *unstructured.Unstructured) []kyvernov1.Rule {
+	rules, found, err := unstructured.NestedFieldNoCopy(obj.Object, fieldSpec, fieldRules)
+	if err != nil || !found {
+		return nil
+	}
+	return comparableRules(map[string]any{fieldRules: rules})
+}
+
+// The render goes through the converter the way the live copy does, so both compare alike.
+func renderedRules(rules []kyvernov1.Rule) []kyvernov1.Rule {
+	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&kyvernov1.Spec{Rules: rules})
+	if err != nil {
+		return nil
+	}
+	return comparableRules(spec)
+}
+
+func comparableRules(spec map[string]any) []kyvernov1.Rule {
+	var out kyvernov1.Spec
+	if runtime.DefaultUnstructuredConverter.FromUnstructured(spec, &out) != nil {
+		return nil
+	}
+	for i := range out.Rules {
+		out.Rules[i].SkipBackgroundRequests = withoutEngineDefault(out.Rules[i].SkipBackgroundRequests)
+		if v := out.Rules[i].Validation; v != nil {
+			v.AllowExistingViolations = withoutEngineDefault(v.AllowExistingViolations)
+		}
+	}
+	return out.Rules
+}
+
+// The policy engine's CRD defaults both flags to true; an explicit false (the render's
+// allowExistingViolations) is kept, so flipping it back to true is drift.
+func withoutEngineDefault(flag *bool) *bool {
+	if flag != nil && *flag {
+		return nil
+	}
+	return flag
 }

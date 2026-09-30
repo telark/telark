@@ -31,7 +31,7 @@ Telark has exactly one bootstrap admin: the email in `app.auth.bootstrap.admin`.
 --set app.auth.bootstrap.admin=test@example.com
 ```
 
-The bootstrap admin holds the built-in Admin role (Admin on `ALL`) and nothing more. It is created and recovered only with the auth service's break-glass command, which enrols a passkey: run it and open the link within 10 minutes:
+The bootstrap admin holds the built-in Admin role (Admin on `ALL`) and nothing more. It is created and recovered only with the auth service's break-glass command, which enrols a passkey: run it and open the registration page with the token it prints within 10 minutes:
 
 ```sh
 kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email test@example.com --enroll
@@ -42,7 +42,7 @@ With the default port-forward, the host is `http://localhost:3000`. Run the same
 
 Google SSO and passkey self-registration never grant Admin: a new account always starts as ReadOnly, even when its email is the bootstrap email, and the bootstrap email cannot be registered from the login page at all.
 
-Next, give at least two regular users the Admin role (directly or through a group), so the platform never depends on one person. Enable SSO in Settings, or turn on self-registration, so those users can create their accounts, then grant them Admin on the Users page. Regular admins are ordinary users: any Admin on `ALL` can suspend, demote or delete them. The API refuses a change that would leave no active Admin (409), and nobody can delete their own account.
+Next, give at least two regular users the Admin role (directly or through a group), so the platform never depends on one person. Enable SSO in Settings, or turn on self-registration, so those users can create their accounts, then grant them Admin on the Users page. For Google SSO, register `https://<dashboard-host>/auth/google/callback` as an authorized redirect URI of your Google OAuth client ([Login and SSO](../services/auth/OIDC.md)). Regular admins are ordinary users: any Admin on `ALL` can suspend, demote or delete them. The API refuses a change that would leave no active Admin (409), and nobody can delete their own account.
 
 `app.auth.passkey.selfRegistration="true"` lets anyone who reaches the dashboard create a ReadOnly account. Leave it off unless only people you trust can reach the dashboard.
 
@@ -52,7 +52,6 @@ The bootstrap account belongs to the chart. The API refuses to delete or suspend
 
 ```sh
 kubectl get pods -n telark -l app.kubernetes.io/instance=telark
-helm test telark -n telark      # readiness probe against the auth service
 ```
 
 ## Access the dashboard
@@ -255,6 +254,7 @@ Set values with `--set key=value`. Helm does not remember them across upgrades, 
 | `app.auth.bootstrap.admin` | `""` | The one bootstrap admin's email, enrolled with break-glass; required while self-registration is off ([First admin](#2-first-admin)) |
 | `app.auth.passkey.selfRegistration` | `"false"` | `"true"` lets anyone who reaches the dashboard register a passkey account |
 | `app.auth.passkey.id` / `origin` | `""` | WebAuthn relying party; required with `ingress.enabled` or `gateway.enabled` ([Passkeys and HTTPS](#passkeys-and-https)) |
+| `app.selfMonitoring.enabled` | `false` | `true` shows Telark's own namespace under Applications ([Self-monitoring](#self-monitoring)) |
 | `app.networkPolicy.enabled` | `true` | Ingress NetworkPolicies for the Telark pods and NATS ([Network policies](#network-policies)) |
 | `app.serviceToken.existingSecret` | `""` | Secret (key `token`) you manage instead of the generated service token ([GitOps](#gitops-cluster-less-renders)) |
 | `services.<svc>.env.CORS_ALLOWED_ORIGINS` | `""` | Comma-separated browser origins the exporter, discovery, auth and analyzer answer with CORS headers ([CORS](#cors)) |
@@ -348,9 +348,21 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 
 Set the same keys under `app.serviceDefaults.autoscaling` to change the default for every service at once. When a service autoscales, Helm stops managing its replica count (`spec.replicas` is omitted) so the HPA and Helm don't conflict.
 
+## Self-monitoring
+
+By default, discovery skips the release namespace, so Telark's own components (the Telark services, Redis, NATS, Ollama, Kyverno and metrics-server) never show under Applications. To discover and show them like any application:
+
+```sh
+--set app.selfMonitoring.enabled=true
+```
+
+- The value maps to discovery's `SELF_MONITORING_ENABLED` env var (default `false`).
+- While it is off, auto-cleanup removes Application CRs already created in that namespace (for example while it was on). That needs `DISCOVERY_AUTO_CLEANUP_ENABLED` and `DISCOVERY_AUTO_CLEANUP_DELETE_ENABLED` (both `"true"` in the chart by default) and takes about two cleanup cycles.
+- Protection plans can never target the release namespace, whatever the value.
+
 ## Monitoring (Prometheus)
 
-The chart can create a ServiceMonitor (Prometheus Operator) that scrapes every service's `/metrics`. It is off by default because it needs the Prometheus Operator CRDs already in the cluster (for example from kube-prometheus-stack).
+No Telark service serves a Prometheus `/metrics` endpoint yet, so keep the ServiceMonitor off: it would scrape nothing. The chart can create one (Prometheus Operator) for the day the services expose `/metrics`; it also needs the Prometheus Operator CRDs already in the cluster (for example from kube-prometheus-stack).
 
 ```sh
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
@@ -367,7 +379,7 @@ Prometheus only picks up a ServiceMonitor whose labels match its `serviceMonitor
 | `monitoring.serviceMonitor.path` | `/metrics` | Scrape path |
 | `monitoring.serviceMonitor.interval` | `30s` | Scrape interval |
 
-The monitor selects every Telark service (`app.kubernetes.io/part-of: telark`) on the `http` port; the services must expose `/metrics` there for scraping to return data. With [network policies](#network-policies) on, a Prometheus outside the namespace also needs an allow rule.
+The monitor selects every Telark service (`app.kubernetes.io/part-of: telark`) on the `http` port; none serves `/metrics` there today, so scraping returns no data. With [network policies](#network-policies) on, a Prometheus outside the namespace also needs an allow rule.
 
 ## Security and cluster integration
 
@@ -375,7 +387,7 @@ These settings have safe defaults. Read them before a production install, or whe
 
 ### CRD write guard
 
-Telark's custom resources (users, roles, sessions, passkeys) are its authorization data. The guard (`app.crdGuard`, a ValidatingAdmissionPolicy, on and enforcing by default) rejects writes to every `telark.io` resource and subresource from anything but the owning service accounts (discovery may write only `applications/status`). A second policy does the same for the OIDC trust Secret `telark-oidc-trust-secret`. As a result, edit rights on the `telark` namespace do not turn into Telark Admin.
+Telark's custom resources (users, roles, sessions, passkeys) are its authorization data. The guard (`app.crdGuard`, a ValidatingAdmissionPolicy, on and enforcing by default) rejects writes to every `telark.io` resource and subresource from anything but the owning service accounts (discovery may write only `applications/status`). A second policy does the same for the OIDC trust Secret `telark-oidc-trust-secret`. The guard applies in every namespace. As a result, edit rights on any namespace (including `telark`) do not turn into Telark Admin.
 
 - Break-glass identities go in `app.crdGuard.extraAllowedUsers`, for example `--set 'app.crdGuard.extraAllowedUsers={system:serviceaccount:ops:breakglass}'`.
 - `--set app.crdGuard.enforce=false` only audits (logs and allows).
@@ -388,7 +400,7 @@ With `app.networkPolicy.enabled=true` (default) the chart renders ingress Networ
 - A default deny for every Telark pod.
 - The exporter, discovery, auth, analyzer and notifier APIs accept traffic only from Telark pods of the same release.
 - The dashboard (`ui`) accepts traffic on its port from anywhere, because the ingress controller, Gateway or port-forward reaches it from outside the release.
-- NATS accepts clients only from discovery and notifier on 4222, and serves no monitoring port.
+- NATS accepts clients only from discovery and notifier on 4222, and serves no monitoring port (the NATS Services still list 8222).
 - Redis and Ollama keep their own policies. Egress is not restricted: the services talk to the Kubernetes API, the OIDC issuer and each other.
 
 NetworkPolicies do nothing without a CNI that enforces them (Calico, Cilium, a cloud provider's policy add-on). Check yours before relying on them.
@@ -455,7 +467,7 @@ kubectl create secret generic telark-nats-consumer -n telark \
 --set nats.existingSecrets.consumer=telark-nats-consumer
 ```
 
-The OIDC trust Secret (the optional Google JWK set, key `googleJwkJson`) is rendered the same way, so every sync would empty it. Create it yourself and point the chart at it. The exporter updates it when an Admin saves the JWK set in the dashboard, and the CRD write guard and the exporter's RBAC cover the name you pass:
+The OIDC trust Secret (the optional Google JWK set, key `googleJwkJson`) is rendered the same way, so every sync would empty it. Create it yourself and point the chart at it. The exporter updates it when an Admin saves the JWK set in the dashboard (saving `googleJwkJson: ""` clears it), and the CRD write guard and the exporter's RBAC cover the name you pass:
 
 ```sh
 kubectl create secret generic telark-oidc-trust -n telark --from-literal=googleJwkJson=''
@@ -472,7 +484,7 @@ The generated Secrets carry `helm.sh/resource-policy: keep`, so an uninstall nev
 The bundled metrics-server verifies kubelet serving certificates. Where kubelets use self-signed certificates (kind, minikube, some bare-metal installs) it cannot scrape, and HPAs stay at `<unknown>`. There, and only there, add the flag:
 
 ```sh
---set 'metrics-server.args={--kubelet-insecure-tls,--kubelet-preferred-address-types=InternalIP\,ExternalIP\,Hostname}'
+--set 'metrics-server.args={--kubelet-insecure-tls}'
 ```
 
 ### CORS
@@ -490,49 +502,8 @@ Pass the same `--set` and `-f` flags you used at install: Helm does not remember
 
 ### Version notes
 
-- **Chart with the security defaults.** `app.auth.bootstrap.admin` has no default and self-registration is off, so pass your admin email (the render fails without one). The CRD write guard now enforces, NetworkPolicies restrict ingress to the Telark APIs and NATS, and NATS moves from one shared user to a publisher (discovery) and a consumer (notifier) with new Secrets, so the NATS server and both clients restart during the rollout. With an Ingress or Gateway, pin `app.auth.passkey.id` and `origin` too.
-- **From chart 0.2.1 or older, or when switching modes.** Those releases run one exporter replica on a ReadWriteOnce claim, and Kubernetes cannot change a bound claim's access mode or class. Add `--set app.singleNode=true` to keep that claim (one replica, Recreate). To move to two replicas on ReadWriteMany, uninstall, delete the `telark-exporter-snapshots-pvc` claim (snapshots are lost; copy `/snapshots` off the pod first if you need them), then reinstall with `--set app.persistence.storageClass=<rwx-class>`. The same applies when switching between `minimal` and `standard`/`performance`, or toggling `app.singleNode`.
-- **Chart that adds protection plan reports.** The exporter gains a second claim, `telark-exporter-reports-pvc`, which binds on rollout with the same class and access mode as the snapshot claim. Do not upgrade with `--reuse-values`: the reports volume, mount and the `REPORTS_PATH` / `PROTECTION_PLAN_REPORT_*` entries arrive only with the new chart defaults; with `--reuse-values` the exporter logs a reports-root error at start and every report write fails. The exporter volumes render even when `app.persistence.enabled=false`, so the pods then wait on claims nobody provisions.
-- **Chart that pulls from GHCR.** The service images move from Docker Hub (`telark/<service>`) to `ghcr.io/telark/<service>`, with the same names and tags. Do not upgrade with `--reuse-values`, which keeps the old `app.image.registry`. Nodes behind an egress allowlist need `ghcr.io` and `pkg-containers.githubusercontent.com`; a mirror re-syncs from `ghcr.io/telark`.
+- **When switching modes.** A single-node install runs one exporter replica on a ReadWriteOnce claim, and Kubernetes cannot change a bound claim's access mode or class. Add `--set app.singleNode=true` to keep that claim (one replica, Recreate). To move to two replicas on ReadWriteMany, uninstall, delete the `telark-exporter-snapshots-pvc` claim (snapshots are lost; copy `/snapshots` off the pod first if you need them), then reinstall with `--set app.persistence.storageClass=<rwx-class>`. The same applies when switching between `minimal` and `standard`/`performance`, or toggling `app.singleNode`.
 - **CRDs managed out of band** (`crds.enabled=false`): upgrade `telark-crds` before `telark` ([chart README](../charts/telark/README.md#upgrade-order)).
-
-### Upgrading from 0.4 or older
-
-Chart 0.5 moves every CRD to the single group `telark.io` with new kinds, field names and the Kyverno label `telark.io/protection-plan` ([ADR 0003](adr/0003-constant-api-group-telark-io.md), [CRD reference](CRDS.md)). There is no in-place migration: tear the old install down and reinstall. Every Telark object is deleted, so everyone signs in again, passkey users re-enrol, and custom roles, groups, categories, protection plans and settings are re-created by hand. OIDC users are provisioned again on first sign-in but lose their role and group assignments.
-
-```sh
-# 1. Remove the admission policies of the old protection plans (the new discovery does not see the old label)
-kubectl delete policies.kyverno.io -A -l telark.erpi/protection-plan
-
-# 2. Optional: export the old objects for reference while re-creating them
-for r in applicationsasresources.erpi.telark protectionplans.erpi.telark globalconfigs.erpi.telark \
-         usersasresources.erpi.telark groupsasresources.erpi.telark rolesasresources.erpi.telark \
-         categoriesasclassifications.classification.telark; do
-  kubectl get "$r" -n telark -o yaml > "old-$r.yaml"
-done
-
-# 3. Uninstall the release
-helm uninstall telark -n telark
-
-# 4. Clear the cleanup finalizers, then delete the nine old CRDs and their objects
-for r in usersasresources.erpi.telark groupsasresources.erpi.telark rolesasresources.erpi.telark; do
-  kubectl get "$r" -n telark -o name | xargs -r -P 16 -I{} kubectl patch {} -n telark --type merge -p '{"metadata":{"finalizers":null}}'
-done
-kubectl delete crd \
-  applicationsasresources.erpi.telark protectionplans.erpi.telark globalconfigs.erpi.telark \
-  usersasresources.erpi.telark groupsasresources.erpi.telark rolesasresources.erpi.telark \
-  userpasskeys.auth.telark usersessions.auth.telark \
-  categoriesasclassifications.classification.telark
-```
-
-Then install as in [1. Install](#1-install), with the same flags as before, and enrol the first admin with break-glass as in [2. First admin](#2-first-admin):
-
-```sh
-kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email test@example.com --enroll
-# open https://<dashboard-host>/register?enroll=<token>
-```
-
-The admin then grants Admin to at least two regular users once they have signed in, and re-creates roles, groups and categories. With a cluster-less render, also create the OIDC trust Secret ([GitOps](#gitops-cluster-less-renders)). Afterwards, address Telark objects by their fully qualified names (`kubectl get applications.telark.io -n telark`) or short names (`tapp`, `tplan`, `tuser`, …), especially when Argo CD is installed: its `applications.argoproj.io` answers to a plain `kubectl get applications`.
 
 ## Uninstall
 
@@ -561,7 +532,13 @@ kubectl delete crd -l app.kubernetes.io/part-of=telark
 kubectl delete namespace telark
 ```
 
-`helm uninstall` already cleared the cleanup finalizers on users, groups and roles; a reinstall that keeps the data restores them within a minute. If the uninstall ran with `--no-hooks` and deletions hang in `Terminating`, clear the finalizers by hand and they finish on their own:
+`helm uninstall` already cleared the cleanup finalizers on users, groups and roles; a reinstall that keeps the data restores them within a minute. If the uninstall ran with `--no-hooks`, the bundled policy engine's webhooks stay behind and keep intercepting API writes; delete them:
+
+```sh
+kubectl delete validatingwebhookconfigurations,mutatingwebhookconfigurations -l webhook.kyverno.io/managed-by=kyverno
+```
+
+A `--no-hooks` uninstall also leaves the finalizers, so deletions hang in `Terminating`; clear them by hand and they finish on their own:
 
 ```sh
 kubectl get users.telark.io,groups.telark.io,accessroles.telark.io -n telark -o name |

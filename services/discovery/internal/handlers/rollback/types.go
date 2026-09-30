@@ -18,7 +18,8 @@ type Controller struct {
 }
 
 type rollbackPatchOpts struct {
-	Status      string
-	ErrorMsg    string
-	CompletedAt *time.Time
+	Status             string
+	ErrorMsg           string
+	CompletedAt        *time.Time
+	RestoredGeneration *int
 }

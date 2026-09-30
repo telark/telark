@@ -32,7 +32,9 @@ func filterCancelledScalarChanges(
 	if getManifest == nil || fresh == nil {
 		return appChanges
 	}
-	preReplicas, preImages, sawWorkload := extractWorkloadStateFromSnapshots(ctx, getManifest, dopts)
+	// Images have no counterpart: a workload whose pre-image the flush lost is snapshotted live, so a
+	// match with fresh dropped a real change and the no-change publish made it the CR baseline.
+	preReplicas, sawWorkload := extractWorkloadStateFromSnapshots(ctx, getManifest, dopts)
 	out := make([]application.ApplicationChange, constants.DefaultInitValue, len(appChanges))
 	for i := range appChanges {
 		c := appChanges[i]
@@ -40,10 +42,6 @@ func filterCancelledScalarChanges(
 			preReplicas == int64(fresh.Health.TotalReplicas) {
 			constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Info(fmt.Sprintf(
 				string(constants.InfoHistoryReplicaChangeCancelled), fresh.Name, preReplicas, fresh.Health.TotalReplicas))
-			continue
-		}
-		if c.Field == changes.ChangeFieldImage && len(preImages) > constants.DefaultInitValue &&
-			imageSetMatchesFresh(preImages, fresh.Images) {
 			continue
 		}
 		out = append(out, c)
@@ -61,9 +59,8 @@ func extractWorkloadStateFromSnapshots(
 		generation int,
 	) ([]unstructured.Unstructured, error),
 	dopts *DiffOptions,
-) (replicas int64, images map[string]struct{}, sawWorkload bool) {
+) (replicas int64, sawWorkload bool) {
 	scope := config.DefaultSnapshotScope()
-	images = make(map[string]struct{})
 	for i := range dopts.PrewrittenSnapshots {
 		s := dopts.PrewrittenSnapshots[i]
 		id := strings.TrimSpace(s.ID)
@@ -81,16 +78,11 @@ func extractWorkloadStateFromSnapshots(
 			case appshared.KindDeployment, appshared.KindStatefulSet, appshared.KindDaemonSet:
 				sawWorkload = true
 				replicas += replicaCountFromWorkload(u)
-				for _, img := range imagesFromPodTemplate(u) {
-					if img != constants.EmptyString {
-						images[img] = struct{}{}
-					}
-				}
 			default:
 			}
 		}
 	}
-	return replicas, images, sawWorkload
+	return replicas, sawWorkload
 }
 
 func replicaCountFromWorkload(u *unstructured.Unstructured) int64 {
@@ -138,28 +130,6 @@ func imagesFromPodTemplate(u *unstructured.Unstructured) []string {
 	return out
 }
 
-func imageSetMatchesFresh(pre map[string]struct{}, fresh []string) bool {
-	if len(pre) == constants.DefaultInitValue {
-		return false
-	}
-	freshSet := make(map[string]struct{}, len(fresh))
-	for i := range fresh {
-		t := strings.TrimSpace(fresh[i])
-		if t != constants.EmptyString {
-			freshSet[t] = struct{}{}
-		}
-	}
-	if len(pre) != len(freshSet) {
-		return false
-	}
-	for img := range pre {
-		if _, ok := freshSet[img]; !ok {
-			return false
-		}
-	}
-	return true
-}
-
 // seedBaselineFromPreImage diffs replicas against the state captured before the
 // change rather than the CR, which a concurrent consumer publish may already
 // have refreshed to the post-change value.
@@ -179,7 +149,7 @@ func seedBaselineFromPreImage(
 	if dopts == nil || len(dopts.PrewrittenSnapshots) == constants.DefaultInitValue || getManifest == nil {
 		return stored
 	}
-	replicas, _, sawWorkload := extractWorkloadStateFromSnapshots(ctx, getManifest, dopts)
+	replicas, sawWorkload := extractWorkloadStateFromSnapshots(ctx, getManifest, dopts)
 	if !sawWorkload {
 		return stored
 	}

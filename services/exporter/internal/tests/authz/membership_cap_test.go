@@ -21,7 +21,8 @@ func groupsAndUsersOwner() xauthz.Identity {
 }
 
 // Joining a group hands out its roles, so an Owner on groups could otherwise
-// make an accomplice Admin by adding them to an administrators' group.
+// make an accomplice Admin by adding them to an administrators' group; leaving
+// it takes them away, so the same cap stops stripping an administrator.
 func TestMembershipIsCappedByTheGroupsRoles(t *testing.T) {
 	owner := groupsAndUsersOwner()
 	tests := []struct {
@@ -55,9 +56,21 @@ func TestMembershipIsCappedByTheGroupsRoles(t *testing.T) {
 			body[constants.FieldRoleRefs] = []any{roleAllAdmin}
 			return authz.GuardGroupMembersPatch(w, requestAs(owner), &groupdata.Group{}, body)
 		}, false},
-		{"group side: removing a member is not capped", func(w http.ResponseWriter) bool {
+		{"group side: remove member from admin group", func(w http.ResponseWriter) bool {
 			group := &groupdata.Group{RoleRefs: []string{roleAllAdmin}, UserRefs: []string{victimID}}
 			return authz.GuardGroupMembersPatch(w, requestAs(owner), group, members())
+		}, false},
+		{"group side: remove member from group within level", func(w http.ResponseWriter) bool {
+			group := &groupdata.Group{RoleRefs: []string{roleUsersOwner}, UserRefs: []string{victimID}}
+			return authz.GuardGroupMembersPatch(w, requestAs(owner), group, members())
+		}, true},
+		{"user side: leave admin group", func(w http.ResponseWriter) bool {
+			existing := &userdata.User{ID: victimID, GroupRefs: ptrs([]string{groupAdmin})}
+			return authz.GuardUserPatch(w, requestAs(owner), existing, groupsOf())
+		}, false},
+		{"user side: admin on ALL removes from admin group", func(w http.ResponseWriter) bool {
+			existing := &userdata.User{ID: victimID, GroupRefs: ptrs([]string{groupAdmin})}
+			return authz.GuardUserPatch(w, requestAs(as(callerID, allAdmin())), existing, groupsOf())
 		}, true},
 	}
 	for _, tt := range tests {

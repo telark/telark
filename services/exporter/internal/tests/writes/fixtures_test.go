@@ -86,7 +86,7 @@ func installFake(t *testing.T, seeds ...seed) *dynamicfake.FakeDynamicClient {
 	for _, md := range []base.Metadata{
 		v1alpha1.ApplicationMetadata, v1alpha1.ProtectionPlanMetadata, v1alpha1.TelarkConfigMetadata,
 		v1alpha1.CategoryMetadata, v1alpha1.UserMetadata, v1alpha1.GroupMetadata, v1alpha1.AccessRoleMetadata,
-		v1alpha1.SessionMetadata,
+		v1alpha1.SessionMetadata, v1alpha1.PasskeyMetadata,
 	} {
 		listKinds[gvrOf(md)] = md.Kind + listSuffix
 	}

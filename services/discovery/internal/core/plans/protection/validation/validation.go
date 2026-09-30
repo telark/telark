@@ -5,10 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/telark/data/plans"
@@ -128,14 +126,7 @@ const (
 	fmtTooManyExclusionKinds     = "scope.exclusions.kinds: at most %d"
 	fmtTooManyExclusionResources = "scope.exclusions.resources: at most %d"
 
-	// The pod's own namespace is the release namespace, which Kyverno's resourceFilters skip.
-	ownNamespaceFile = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
-	policyKeySep     = "\x00"
-)
-
-var (
-	ownNamespaceOnce sync.Once
-	ownNamespace     string
+	policyKeySep = "\x00"
 )
 
 var (
@@ -323,10 +314,12 @@ func NamespaceScope(ctx context.Context, scopeType string, namespaces []string, 
 	if err != nil {
 		return &UnavailableError{Msg: fmt.Sprintf(fmtExcludedUnavailable, err)}
 	}
-	if err := ExcludedNamespaces(namespaces, excluded); err != nil {
+	// Platform first: with self-monitoring off the release namespace is excluded too, and the
+	// reserved-namespace message is the one that tells the caller why.
+	if err := PlatformNamespaces(namespaces, telarkconfig.OwnNamespace()); err != nil {
 		return err
 	}
-	if err := PlatformNamespaces(namespaces, OwnNamespace()); err != nil {
+	if err := ExcludedNamespaces(namespaces, excluded); err != nil {
 		return err
 	}
 	if list == nil {
@@ -366,17 +359,6 @@ func PlatformNamespaces(namespaces []string, own string) error {
 	return nil
 }
 
-// Empty outside a cluster, which disables the check rather than failing every plan.
-func OwnNamespace() string {
-	ownNamespaceOnce.Do(func() {
-		raw, err := os.ReadFile(ownNamespaceFile)
-		if err == nil {
-			ownNamespace = strings.TrimSpace(string(raw))
-		}
-	})
-	return ownNamespace
-}
-
 // Namespaces the policy engine never evaluates: a plan targeting them would look healthy while
 // enforcing nothing.
 func IgnoredNamespaces(ctx context.Context) ([]string, error) {
@@ -385,7 +367,7 @@ func IgnoredNamespaces(ctx context.Context) ([]string, error) {
 		return nil, &UnavailableError{Msg: fmt.Sprintf(fmtExcludedUnavailable, err)}
 	}
 	ignored := slices.Clone(excluded)
-	if own := OwnNamespace(); own != constants.EmptyString {
+	if own := telarkconfig.OwnNamespace(); own != constants.EmptyString && !slices.Contains(ignored, own) {
 		ignored = append(ignored, own)
 	}
 	return ignored, nil

@@ -10,6 +10,7 @@
 {{- $includeSecurity := dig "includeSecurity" true $serviceConfig -}}
 {{- $useRedis := dig "useRedis" true $serviceConfig -}}
 {{- $useNatsCreds := dig "useNatsCreds" false $serviceConfig -}}
+{{- $serviceToken := dig "serviceToken" true $serviceConfig -}}
 {{- $replicas := default $serviceDefaults.replicas $serviceConfig.replicas | default 1 -}}
 {{- $autoscaling := mergeOverwrite (deepCopy ($serviceDefaults.autoscaling | default dict)) ($serviceConfig.autoscaling | default dict) -}}
 {{- $port := default $serviceDefaults.port $serviceConfig.port | default 8080 -}}
@@ -115,16 +116,21 @@ spec:
             - containerPort: {{ $port }}
               name: http
           env:
-            {{/* Every service authenticates its peers, so this is never optional. */}}
+{{- if $serviceToken }}
             - name: {{ $values.app.serviceToken.envVar }}
               valueFrom:
                 secretKeyRef:
                   name: {{ include "telark.serviceTokenSecretName" $root }}
                   key: token
+{{- end }}
             - name: POD_IP
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
 {{- range $key, $value := $serviceConfig.env }}
             - name: {{ $key }}
               value: {{ tpl (printf "%v" $value) $root | quote }}

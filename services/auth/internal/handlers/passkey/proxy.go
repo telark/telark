@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/telark/auth/internal/clients"
 	"github.com/telark/auth/internal/constants"
@@ -57,7 +56,19 @@ func CreatePasskey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A self-registration is saved only now that its credential verified.
+	rollback := func() {}
+	if user.ID == constants.EmptyString {
+		if user, err = authhelper.CreatePendingUser(user); err != nil {
+			shared.SendErrorResponse(w, registrationStatus(err), err)
+			return
+		}
+		userID = user.ID
+		rollback = func() { authhelper.DiscardPendingUser(userID) }
+	}
+
 	if err := authhelper.AttachPasskeyIdentity(userID, user, credential); err != nil {
+		rollback()
 		shared.HandleError(w, errors.New(string(constants.ErrInternalServerError)),
 			http.StatusInternalServerError, err.Error())
 		return
@@ -68,13 +79,8 @@ func CreatePasskey(w http.ResponseWriter, r *http.Request) {
 
 	data, err := authhelper.CreatePasskey(userID, passkey)
 	if err != nil {
-		var conflictErr *authhelper.ConflictError
-		if errors.As(err, &conflictErr) {
-			shared.SendErrorResponse(w, http.StatusConflict, err)
-			return
-		}
-		shared.HandleError(w, errors.New(string(constants.ErrInternalServerError)),
-			http.StatusInternalServerError, err.Error())
+		rollback()
+		sendProxyError(w, err)
 		return
 	}
 
@@ -123,8 +129,7 @@ func UpdatePasskey(w http.ResponseWriter, r *http.Request) {
 
 	data, err := authhelper.UpdatePasskey(userID, credentialID, updateData)
 	if err != nil {
-		shared.HandleError(w, errors.New(string(constants.ErrInternalServerError)),
-			http.StatusInternalServerError, err.Error())
+		sendProxyError(w, err)
 		return
 	}
 
@@ -175,14 +180,21 @@ func DeletePasskey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := authhelper.DeletePasskey(userID, credentialID, forceLastDelete); err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), string(constants.ErrPasskeyNotFound)) {
-			shared.SendErrorResponse(w, http.StatusNotFound, errors.New(string(constants.ErrPasskeyNotFound)))
-			return
-		}
-		shared.HandleError(w, errors.New(string(constants.ErrInternalServerError)),
-			http.StatusInternalServerError, err.Error())
+		sendProxyError(w, err)
 		return
 	}
 
 	shared.SendSuccessResponse(w, string(constants.SuccessPasskeyDeleted), nil)
+}
+
+// A 4xx is the exporter's verdict on this request and is relayed as is; a 5xx
+// stays an opaque internal error.
+func sendProxyError(w http.ResponseWriter, err error) {
+	proxyErr, ok := errors.AsType[*authhelper.ProxyError](err)
+	if ok && proxyErr.Status < http.StatusInternalServerError {
+		shared.SendErrorResponse(w, proxyErr.Status, err)
+		return
+	}
+	shared.HandleError(w, errors.New(string(constants.ErrInternalServerError)),
+		http.StatusInternalServerError, fmt.Sprintf(string(constants.ErrFailedProxyRequest), err))
 }

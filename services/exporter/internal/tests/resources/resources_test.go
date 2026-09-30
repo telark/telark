@@ -11,6 +11,7 @@ import (
 	grouputil "github.com/telark/exporter/internal/utils/resources/group"
 	resshared "github.com/telark/exporter/internal/utils/resources/shared"
 	userutil "github.com/telark/exporter/internal/utils/resources/user"
+	xauthz "github.com/telark/x-ware/authz"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -230,8 +231,8 @@ func TestMergeGroupAndPreparePatchBody(t *testing.T) {
 	if merged.Name != nameNew || merged.Description != "old-d" {
 		t.Errorf("merge wrong: %+v", merged)
 	}
-	if body["createdBy"] != "creator" {
-		t.Errorf("createdBy not written to body: %v", body["createdBy"])
+	if forged, written := body["createdBy"]; written {
+		t.Errorf("a body createdBy must not reach the patch: %v", forged)
 	}
 }
 
@@ -248,5 +249,34 @@ func TestGroupValidationEmptyName(t *testing.T) {
 	rec := httptest.NewRecorder()
 	if err := grouputil.ValidateAndPrepareGroup(&groupdata.Group{}, rec); err == nil {
 		t.Error("empty group name accepted")
+	}
+}
+
+// Audit actors are the authenticated caller: a body value never survives, and a
+// service call naming no user leaves the stored actors alone.
+func TestStampAudit(t *testing.T) {
+	caller := xauthz.Identity{UserID: testUserID}
+	tests := []struct {
+		name                     string
+		identity                 xauthz.Identity
+		stamp                    func(*http.Request, map[string]any)
+		wantCreated, wantUpdated any
+	}{
+		{"create", caller, resshared.StampCreateAudit, testUserID, testUserID},
+		{"patch", caller, resshared.StampPatchAudit, nil, testUserID},
+		{"service call naming no user", xauthz.Identity{Internal: true}, resshared.StampCreateAudit, nil, nil},
+		{"service call forwarding its caller", xauthz.Identity{Internal: true, UserID: testUserID}, resshared.StampPatchAudit, nil, testUserID},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
+			r = r.WithContext(xauthz.WithIdentity(r.Context(), tt.identity))
+			body := map[string]any{constants.FieldCreatedBy: valueX, constants.FieldLastUpdatedBy: valueX}
+			tt.stamp(r, body)
+			created, updated := body[constants.FieldCreatedBy], body[constants.FieldLastUpdatedBy]
+			if created != tt.wantCreated || updated != tt.wantUpdated {
+				t.Errorf("audit = %v / %v, want %v / %v", created, updated, tt.wantCreated, tt.wantUpdated)
+			}
+		})
 	}
 }

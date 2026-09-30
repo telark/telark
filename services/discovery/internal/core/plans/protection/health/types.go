@@ -20,6 +20,8 @@ const (
 	kyvernoStatusTrue     = "True"
 	kyvernoActionEnforce  = "Enforce"
 	kyvernoActionAudit    = "Audit"
+	fieldSpec             = "spec"
+	fieldRules            = "rules"
 	stageRepair           = "repair"
 	stagePhaseRecheck     = "phase-recheck"
 	stageFirstCheck       = "first-check"
@@ -73,6 +75,7 @@ type policySnapshot struct {
 	ready         bool
 	failureAction string
 	renderHash    string
+	rules         []kyvernov1.Rule
 }
 
 type healthFlags struct {

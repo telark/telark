@@ -2,6 +2,8 @@ package notifstorage
 
 import (
 	"context"
+	"errors"
+	"sync"
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
@@ -13,12 +15,17 @@ import (
 )
 
 const (
-	testUserID = "u1"
+	testUserID  = "u1"
+	otherUserID = "u2"
+	testTarget  = "tgt"
 
 	listLimit      = 10
 	oversizedLimit = 100000
 
 	seededNotifications = 3
+	concurrentCallers   = 32
+	unreadBeforeDelete  = 2
+	unreadAfterDelete   = 1
 )
 
 func newStorage(t *testing.T) *notifstorage.Storage {
@@ -160,5 +167,107 @@ func TestListLimitBounds(t *testing.T) {
 	}
 	if _, err := s.List(ctx, testUserID, oversizedLimit, constants.EmptyString); err != nil {
 		t.Errorf("capped-limit list failed: %v", err)
+	}
+}
+
+// Two tabs marking the same notification read at once decremented the unread count twice.
+func TestConcurrentMarkReadCountsOnce(t *testing.T) {
+	ctx := context.Background()
+	s := newStorage(t)
+	target, err := s.Emit(ctx, notif())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Emit(ctx, notif()); err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	for range concurrentCallers {
+		wg.Go(func() {
+			if err := s.MarkRead(ctx, testUserID, target.ID); err != nil {
+				t.Errorf("MarkRead: %v", err)
+			}
+		})
+	}
+	wg.Wait()
+	list, _ := s.List(ctx, testUserID, listLimit, constants.EmptyString)
+	if list.UnreadCount != constants.DefaultIncrementValue {
+		t.Errorf("unread = %d after concurrent MarkRead, want 1", list.UnreadCount)
+	}
+}
+
+func TestDelete(t *testing.T) {
+	ctx := context.Background()
+	s := newStorage(t)
+	unread, err := s.Emit(ctx, notif())
+	if err != nil {
+		t.Fatal(err)
+	}
+	read, err := s.Emit(ctx, notif())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MarkRead(ctx, testUserID, read.ID); err != nil {
+		t.Fatal(err)
+	}
+	kept, err := s.Emit(ctx, notif())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		name, userID, id string
+		wantErr          error
+		wantUnread       int
+	}{
+		{name: "someone else's", userID: otherUserID, id: unread.ID, wantErr: notifstorage.ErrNotificationNotFound, wantUnread: unreadBeforeDelete},
+		{name: "unread", userID: testUserID, id: unread.ID, wantUnread: unreadAfterDelete},
+		{name: "already deleted", userID: testUserID, id: unread.ID, wantErr: notifstorage.ErrNotificationNotFound, wantUnread: unreadAfterDelete},
+		{name: "read", userID: testUserID, id: read.ID, wantUnread: unreadAfterDelete},
+	}
+	for _, tc := range cases {
+		if err := s.Delete(ctx, tc.userID, tc.id); !errors.Is(err, tc.wantErr) {
+			t.Fatalf("%s: Delete err = %v, want %v", tc.name, err, tc.wantErr)
+		}
+		list, _ := s.List(ctx, testUserID, listLimit, constants.EmptyString)
+		if list.UnreadCount != tc.wantUnread {
+			t.Errorf("%s: unread = %d, want %d", tc.name, list.UnreadCount, tc.wantUnread)
+		}
+	}
+	list, _ := s.List(ctx, testUserID, listLimit, constants.EmptyString)
+	if len(list.Items) != constants.DefaultIncrementValue || list.Items[constants.DefaultInitValue].ID != kept.ID {
+		t.Errorf("after deletes: %+v, want only %s", list.Items, kept.ID)
+	}
+}
+
+// A deduplicated re-emit racing the delete of the notification it updates must leave either
+// a whole notification or none, with the unread count matching what the list shows.
+func TestConcurrentDedupEmitAndDeleteStayConsistent(t *testing.T) {
+	ctx := context.Background()
+	s := newStorage(t)
+	n := notif()
+	n.Metadata = map[string]any{notiftypes.MetaKeyTargetID: testTarget}
+	for range concurrentCallers {
+		created, err := s.Emit(ctx, n)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var wg sync.WaitGroup
+		wg.Go(func() { _, _ = s.Emit(ctx, n) })
+		wg.Go(func() { _ = s.Delete(ctx, testUserID, created.ID) })
+		wg.Wait()
+	}
+	list, _ := s.List(ctx, testUserID, oversizedLimit, constants.EmptyString)
+	unread := constants.DefaultInitValue
+	for _, item := range list.Items {
+		if item.ID == constants.EmptyString || item.UserID != testUserID {
+			t.Fatalf("partial notification listed: %+v", item)
+		}
+		if item.ReadAt == nil {
+			unread++
+		}
+	}
+	if list.UnreadCount != unread {
+		t.Errorf("unread = %d, list shows %d unread", list.UnreadCount, unread)
 	}
 }

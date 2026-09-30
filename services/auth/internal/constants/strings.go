@@ -65,7 +65,7 @@ const (
 	BreakGlassFlagEmailUsage      = "Email of the user to promote to Admin"
 	BreakGlassFlagEnroll          = "enroll"
 	BreakGlassFlagEnrollUsage     = "Create the user when missing and print a one-time passkey enrollment token"
-	BreakGlassUsage               = "usage: auth break-glass --email <email> [--enroll]"
+	BreakGlassUsage               = "usage: ./main break-glass --email <email> [--enroll]"
 	BreakGlassUserNotFound        = "user not found: %s\n"
 	BreakGlassCreated             = "created %s with the Admin role\n"
 	BreakGlassCreateFailed        = "create failed: status %d: %s\n"

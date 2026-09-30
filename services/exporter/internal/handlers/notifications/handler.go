@@ -1,6 +1,7 @@
 package notifications
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -22,6 +23,7 @@ const (
 	msgEmitted       = "notification emitted"
 	msgRetrieved     = "notifications retrieved"
 	msgMarkedRead    = "notification marked read"
+	msgDeleted       = "notification deleted"
 	msgAllMarkedRead = "all notifications marked read"
 	msgCleared       = "notifications cleared"
 	msgUserIDMissing = "userId required"
@@ -97,10 +99,29 @@ func MarkRead() func(http.ResponseWriter, *http.Request) {
 		}
 
 		if err := storage.MarkRead(r.Context(), userID, notificationID); err != nil {
-			respondInternal(w, err)
+			respondItemError(w, err)
 			return
 		}
 		respondData(w, msgMarkedRead, nil)
+	}
+}
+
+func Delete() func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		notificationID, err := sharedutils.GetPathParam(w, r, constants.IDParam)
+		if err != nil {
+			return
+		}
+		userID, storage, ok := userStorage(w, r)
+		if !ok {
+			return
+		}
+
+		if err := storage.Delete(r.Context(), userID, notificationID); err != nil {
+			respondItemError(w, err)
+			return
+		}
+		respondData(w, msgDeleted, nil)
 	}
 }
 
@@ -157,6 +178,16 @@ func userStorage(w http.ResponseWriter, r *http.Request) (string, *notifstorage.
 
 func respondData(w http.ResponseWriter, msg string, data any) {
 	responseutils.LogAndSendResponse(w, http.StatusOK, response.OperationSuccess, msg, data, nil)
+}
+
+// An unknown id and someone else's answer alike, so ids can't be probed.
+func respondItemError(w http.ResponseWriter, err error) {
+	if errors.Is(err, notifstorage.ErrNotificationNotFound) {
+		responseutils.LogAndSendResponse(w, http.StatusNotFound, response.OperationNotFound,
+			string(constants.ErrNotificationNotFound), nil, nil)
+		return
+	}
+	respondInternal(w, err)
 }
 
 func respondBadRequest(w http.ResponseWriter) {

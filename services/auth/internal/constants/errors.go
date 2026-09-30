@@ -16,7 +16,6 @@ const (
 	ErrReservedEmail           errors.Error = "this email is reserved for an administrator. ask the operator to enroll it"
 	ErrBreakGlassCreateFailed  errors.Error = "create failed: status %d: %s"
 	ErrBreakGlassUserNotFound  errors.Error = "user not found: %s"
-	ErrRequestBodyTooLarge     errors.Error = "request body too large"
 	ErrOIDCConfigNeedsAdminAll errors.Error = "changing the identity provider requires Admin on every scope"
 	ErrNoPasskeysFound         errors.Error = "no passkeys found for user"
 	ErrChallengeNotFound       errors.Error = "challenge not found"
@@ -34,14 +33,18 @@ const (
 	// Client Errors
 	ErrFailedGetUser          errors.Error = "failed to get user identityHash=%s: %v"
 	ErrFailedCreateUser       errors.Error = "failed to create user identityHash=%s: status %d: %s"
+	ErrFailedDiscardUser      errors.Error = "failed to delete unfinished self-registration identityHash=%s"
 	ErrFailedRoleRepair       errors.Error = "failed to repair missing role for identityHash=%s: status %d"
 	ErrFailedAttachIdentity   errors.Error = "failed to attach identity to identityHash=%s: status %d"
+	ErrFailedDetachIdentity   errors.Error = "failed to detach passkey identity from identityHash=%s: %v"
 	ErrFailedGetPasskeys      errors.Error = "failed to get passkeys: %s"
 	ErrFailedCreateChallenge  errors.Error = "failed to create challenge: %s"
 	ErrFailedGetChallenge     errors.Error = "failed to get challenge: %s"
 	ErrFailedDeleteChallenge  errors.Error = "failed to delete challenge: %s"
 	ErrFailedStoreEnrollToken errors.Error = "failed to store enrollment token: %s"
 	ErrFailedGetEnrollToken   errors.Error = "failed to get enrollment token: %s"
+	ErrFailedStorePendingUser errors.Error = "failed to store pending registration: %s"
+	ErrFailedGetPendingUser   errors.Error = "failed to get pending registration: %s"
 	ErrFailedCreateSession    errors.Error = "failed to create session: %s"
 	ErrFailedGetSession       errors.Error = "failed to get session: %s"
 	ErrFailedDeleteSession    errors.Error = "failed to delete session: %s"
@@ -81,6 +84,10 @@ const (
 	// User Deletion Errors
 	ErrCleanupSelfDelete       errors.Error = "you cannot delete your own account"
 	ErrCleanupBootstrapManaged errors.Error = "this user is managed by the chart and cannot be deleted"
+
+	// Role and Group Deletion Errors
+	ErrAuthzRemovedRoleExceedsCaller errors.Error = "role %s cannot be changed, removed or deleted: " +
+		"it grants %s on %s, above your own level on that scope"
 
 	// Validation Errors
 	ErrMissingRequiredFields         errors.Error = "credentialId, publicKey, deviceName and deviceType are required"

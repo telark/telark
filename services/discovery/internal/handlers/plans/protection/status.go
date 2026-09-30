@@ -35,6 +35,9 @@ func Status(w http.ResponseWriter, r *http.Request) {
 		Drift: planseps.ProtectionPlanDrift{
 			Missing:    result.Missing,
 			Unexpected: result.Unexpected,
+			Mismatched: result.Mismatched,
+			Stale:      result.Stale,
+			Added:      result.Added,
 		},
 	}
 	responseutils.LogAndSendResponse(

@@ -29,16 +29,47 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    # Inputs reach the script through env, never string interpolation, so a
+    # Inputs reach the scripts through env, never string interpolation, so a
     # value carrying shell syntax cannot escape into the command.
+    - name: Read Service Version
+      id: current
+      shell: bash
+      env:
+        SERVICE: ${{ inputs.service }}
+        VALUES_FILE_PATH: ${{ inputs.values_file_path }}
+      run: |
+        set -euo pipefail
+        # Convert kebab-case to camelCase (e.g. "demo-demo" -> "demoDemo"); the Helm
+        # values key is camelCase while the workflow input is kebab-case.
+        if [[ "$SERVICE" == *"-"* ]]; then
+          service_name=$(echo "$SERVICE" | awk -F'-' '{for (i=2; i<=NF; i++) $i=toupper(substr($i,1,1)) substr($i,2)} 1' OFS='')
+        else
+          service_name="$SERVICE"
+        fi
+        {
+          echo "service_name=$service_name"
+          echo "service_current_version=$(SERVICE_NAME="$service_name" yq '.services[strenv(SERVICE_NAME)].version' "$VALUES_FILE_PATH")"
+        } >> "$GITHUB_OUTPUT"
+
+    # A local `uses:` inside a composite action resolves against the workspace
+    # root, so the telark checkout path is baked in (as in release-service-image).
+    - name: Calculate Service Version
+      id: next
+      uses: ./release/.github/actions/semver-bump
+      with:
+        version: ${{ steps.current.outputs.service_current_version }}
+        bump: ${{ inputs.build_type }}
+
     - name: Bump Service Version
       id: bump_version
       shell: bash
       env:
-        SERVICE: ${{ inputs.service }}
+        SERVICE_NAME: ${{ steps.current.outputs.service_name }}
+        SERVICE_CURRENT_VERSION: ${{ steps.current.outputs.service_current_version }}
+        SERVICE_NEW_VERSION: ${{ steps.next.outputs.next_version }}
         BUILD_TYPE: ${{ inputs.build_type }}
         VALUES_FILE_PATH: ${{ inputs.values_file_path }}
         # .github/actions/<name> -> up two -> .github -> scripts. Anchored on
         # action_path, not the workspace, so it resolves under any checkout path.
         SCRIPT_DIR: ${{ github.action_path }}/../../scripts
-      run: bash "$SCRIPT_DIR/bump-service-version.sh"
+      run: bash "$SCRIPT_DIR/set-service-version.sh"

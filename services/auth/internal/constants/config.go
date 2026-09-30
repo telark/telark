@@ -79,6 +79,8 @@ const (
 	DefaultOIDCTrustFile          = "/etc/telark/oidc/googleJwkJson"
 	StandaloneReplicaID           = "standalone"
 
+	DefaultSelfRegistrationEnabled = false
+
 	BuiltInRoleAdmin    = "r-00000-0000-0001"
 	BuiltInRoleReadOnly = "r-00000-0000-0004"
 
@@ -95,6 +97,7 @@ const (
 	RedisKeyPrefixRegistrationOwner = "auth:webauthn:registration-owner:"
 	RedisKeyPrefixEnrolledCeremony  = "auth:webauthn:enrolled-ceremony:"
 	RedisKeyPrefixEnrollToken       = "auth:passkey:enroll-token:"
+	RedisKeyPrefixPendingUser       = "auth:webauthn:pending-user:"
 	RedisKeyPrefixNonce             = "auth:oidc:nonce:"
 
 	// Redis TTLs

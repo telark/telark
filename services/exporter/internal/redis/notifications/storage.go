@@ -23,6 +23,7 @@ const (
 	base10       = 10
 	int64BitSize = 64
 	scanBatch    = 100
+	watchRetries = 5
 
 	fieldID        = "id"
 	fieldUserID    = "userId"
@@ -49,6 +50,8 @@ type Storage struct {
 }
 
 var ErrRedisUnavailable = errors.New("notifications: redis client not available")
+
+var ErrNotificationNotFound = errors.New(string(constants.ErrNotificationNotFound))
 
 func NewStorage() (*Storage, error) {
 	rdb := exprdb.Get()
@@ -87,14 +90,6 @@ func (s *Storage) tryUpdateUnread(
 	id string,
 ) (*notiftypes.Notification, bool, error) {
 	itemK := itemKey(id)
-	existing, err := s.rdb.HGetAll(ctx, itemK).Result()
-	if err != nil {
-		return nil, false, fmt.Errorf("hgetall existing: %w", err)
-	}
-	if len(existing) == constants.DefaultInitValue || existing[fieldReadAt] != constants.EmptyString {
-		return nil, false, nil
-	}
-
 	now := time.Now().UTC()
 	createdMs := now.UnixMilli()
 	metaJSON, err := marshalMeta(n.Metadata)
@@ -102,21 +97,30 @@ func (s *Storage) tryUpdateUnread(
 		return nil, false, err
 	}
 
-	pipe := s.rdb.TxPipeline()
-	pipe.HSet(ctx, itemK, map[string]any{
-		fieldTitle:     n.Title,
-		fieldMessage:   n.Message,
-		fieldSeverity:  n.Severity,
-		fieldMetadata:  metaJSON,
-		fieldCreatedAt: createdMs,
+	unread := false
+	err = s.updateOwned(ctx, n.UserID, id, func(pipe redis.Pipeliner, fields map[string]string) {
+		unread = fields[fieldReadAt] == constants.EmptyString
+		if !unread {
+			return
+		}
+		pipe.HSet(ctx, itemK, map[string]any{
+			fieldTitle:     n.Title,
+			fieldMessage:   n.Message,
+			fieldSeverity:  n.Severity,
+			fieldMetadata:  metaJSON,
+			fieldCreatedAt: createdMs,
+		})
+		pipe.Expire(ctx, itemK, UnreadTTL)
+		pipe.ZAdd(ctx, itemsKey(n.UserID), redis.Z{Score: float64(createdMs), Member: id})
+		if targetID := metaString(n.Metadata, notiftypes.MetaKeyTargetID); targetID != constants.EmptyString {
+			pipe.Set(ctx, dedupKey(n.UserID, n.Type, targetID), id, DedupTTL)
+		}
 	})
-	pipe.Expire(ctx, itemK, UnreadTTL)
-	pipe.ZAdd(ctx, itemsKey(n.UserID), redis.Z{Score: float64(createdMs), Member: id})
-	if targetID := metaString(n.Metadata, notiftypes.MetaKeyTargetID); targetID != constants.EmptyString {
-		pipe.Set(ctx, dedupKey(n.UserID, n.Type, targetID), id, DedupTTL)
+	if errors.Is(err, ErrNotificationNotFound) || (err == nil && !unread) {
+		return nil, false, nil
 	}
-	if _, err := pipe.Exec(ctx); err != nil {
-		return nil, false, fmt.Errorf("dedup update pipeline: %w", err)
+	if err != nil {
+		return nil, false, fmt.Errorf("dedup update: %w", err)
 	}
 
 	updated := n
@@ -266,26 +270,57 @@ func (s *Storage) MarkRead(ctx context.Context, userID, notificationID string) e
 	defer cancel()
 
 	itemK := itemKey(notificationID)
-	fields, err := s.rdb.HGetAll(ctx, itemK).Result()
-	if err != nil {
-		return fmt.Errorf("hgetall: %w", err)
-	}
-	if len(fields) == constants.DefaultInitValue || fields[fieldUserID] != userID {
-		return nil
-	}
-	if fields[fieldReadAt] != constants.EmptyString {
-		return nil
-	}
+	return s.updateOwned(ctx, userID, notificationID, func(pipe redis.Pipeliner, fields map[string]string) {
+		if fields[fieldReadAt] != constants.EmptyString {
+			return
+		}
+		pipe.HSet(ctx, itemK, fieldReadAt, time.Now().UTC().Format(time.RFC3339))
+		pipe.Expire(ctx, itemK, ReadTTL)
+		pipe.Decr(ctx, unreadCountKey(userID))
+	})
+}
 
-	now := time.Now().UTC().Format(time.RFC3339)
-	pipe := s.rdb.TxPipeline()
-	pipe.HSet(ctx, itemK, fieldReadAt, now)
-	pipe.Expire(ctx, itemK, ReadTTL)
-	pipe.Decr(ctx, unreadCountKey(userID))
-	if _, err := pipe.Exec(ctx); err != nil {
-		return fmt.Errorf("markread pipeline: %w", err)
+func (s *Storage) Delete(ctx context.Context, userID, notificationID string) error {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	return s.updateOwned(ctx, userID, notificationID, func(pipe redis.Pipeliner, fields map[string]string) {
+		pipe.Del(ctx, itemKey(notificationID))
+		pipe.ZRem(ctx, itemsKey(userID), notificationID)
+		if fields[fieldReadAt] == constants.EmptyString {
+			pipe.Decr(ctx, unreadCountKey(userID))
+		}
+	})
+}
+
+// The unread count follows each item's read state, so a change reads the item under WATCH and
+// retries when a concurrent change to it commits first; otherwise both would count it.
+func (s *Storage) updateOwned(
+	ctx context.Context,
+	userID, id string,
+	queue func(redis.Pipeliner, map[string]string),
+) error {
+	itemK := itemKey(id)
+	for range watchRetries {
+		err := s.rdb.Watch(ctx, func(tx *redis.Tx) error {
+			fields, err := tx.HGetAll(ctx, itemK).Result()
+			if err != nil {
+				return fmt.Errorf("hgetall: %w", err)
+			}
+			if len(fields) == constants.DefaultInitValue || fields[fieldUserID] != userID {
+				return ErrNotificationNotFound
+			}
+			_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+				queue(pipe, fields)
+				return nil
+			})
+			return err
+		}, itemK)
+		if !errors.Is(err, redis.TxFailedErr) {
+			return err
+		}
 	}
-	return nil
+	return fmt.Errorf("update %s: %w", id, redis.TxFailedErr)
 }
 
 func (s *Storage) MarkAllRead(ctx context.Context, userID string) error {

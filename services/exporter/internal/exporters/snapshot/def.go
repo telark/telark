@@ -336,7 +336,7 @@ func ReadSnapshotManifestWithAccept(
 	w.Header().Set(constants.HeaderContentType, constants.ContentTypeJSON)
 	w.Header().Set(
 		constants.HeaderContentDisposition,
-		snaputil.ContentDispositionFilename(id, target.Generation),
+		snaputil.ContentDispositionFilename(id, target.Generation, constants.SnapshotRollbackFilenameSuffix),
 	)
 	w.WriteHeader(http.StatusOK)
 
@@ -376,7 +376,7 @@ func writeYAMLManifest(w http.ResponseWriter, id string, generation int, items [
 	w.Header().Set(constants.HeaderContentType, "application/yaml")
 	w.Header().Set(
 		constants.HeaderContentDisposition,
-		snaputil.ContentDispositionFilename(id, generation),
+		snaputil.ContentDispositionFilename(id, generation, constants.SnapshotRollbackYAMLFilenameSuffix),
 	)
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(buf.Bytes()); err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"slices"
 	"time"
 
 	"github.com/telark/data/plans"
@@ -14,8 +15,10 @@ import (
 	"github.com/telark/discovery/internal/core/plans/protection"
 	"github.com/telark/discovery/internal/core/plans/protection/applications"
 	protpolicies "github.com/telark/discovery/internal/core/plans/protection/policies"
+	"github.com/telark/discovery/internal/core/plans/protection/reports"
 	"github.com/telark/discovery/internal/core/plans/protection/validation"
 	planseps "github.com/telark/rest/endpoints/plans"
+	reportseps "github.com/telark/rest/endpoints/reports"
 	restmapper "github.com/telark/rest/mappers"
 )
 
@@ -36,6 +39,10 @@ type (
 		LockName func(ctx context.Context, name string) (func(), error)
 		// Deploys a scheduled plan whose edited window starts now; the controller's activate path.
 		Activate func(ctx context.Context, plan *plans.ProtectionPlan) error
+		// A park ends the run like a cancel does, so it gets the same end report.
+		CaptureRun func(plan *plans.ProtectionPlan, endedAt, actor, reason, trigger string) <-chan struct{}
+		// Reports collect denials only for the plan's current policies, so withdrawn ones go in first.
+		Checkpoint func(ctx context.Context, plan *plans.ProtectionPlan) (*reports.PlanReportLedger, error)
 	}
 )
 
@@ -83,12 +90,14 @@ func apply(
 	// The plan name is baked into every policy annotation.
 	fullRender := exclusionsChanged(plan.Scope, req.Scope) || plan.Name != req.Name
 	targetDiff := diffTargets(scopeTargets(plan), newTargets(req.Scope))
-	resolved, err := resolveTargets(ctx, deps.ResolveApps, plan.Scope.Type, allTargets(targetDiff))
+	targetPhase := TargetPhase(plan, req, clock)
+	resolved, rerender, err := resolveTargets(ctx, deps.ResolveApps, plan, &targetDiff, targetPhase)
 	if err != nil {
 		return nil, err
 	}
+	fullRender = fullRender || rerender
 
-	park := plan.Phase == plans.PhaseActive && TargetPhase(plan, req, clock) == plans.PhaseScheduled
+	park := plan.Phase == plans.PhaseActive && targetPhase == plans.PhaseScheduled
 	deployed, kept, stale, err := applyCluster(ctx, deps, plan, req, newPolicies, targetDiff, resolved, fullRender, park)
 	if err != nil {
 		return nil, err
@@ -104,16 +113,31 @@ func apply(
 	material := MaterialChange(plan, req, newPolicies)
 	reRequest := plan.Phase == plans.PhasePendingApproval && material
 	if err := applyPatch(deps, plan, userID, now, patch, reRequest || recordsEditor(plan, material), park); err != nil {
-		rollbackCluster(ctx, deps, plan, deployed, resolved, fullRender)
+		rollbackCluster(ctx, deps, plan, req.Mode, deployed, resolved, fullRender)
 		return nil, fmt.Errorf(string(ErrPartial), plan.ID)
+	}
+	withdraw(ctx, deps, plan, stale)
+	if park {
+		deps.CaptureRun(plan, now, userID, protection.ReasonParked, reportseps.TriggerEnd)
+		plan.Phase = plans.PhaseScheduled
+	}
+	return settlePhase(ctx, deps, plan, req, clock, reRequest)
+}
+
+// plan still lists the withdrawn names, so the checkpoint keeps their denials for the run report.
+func withdraw(ctx context.Context, deps Deps, plan *plans.ProtectionPlan, stale []string) {
+	if len(stale) == constants.DefaultInitValue {
+		return
+	}
+	cctx, cancel := context.WithTimeout(ctx, constants.DefaultReportCaptureTimeout)
+	_, err := deps.Checkpoint(cctx, plan)
+	cancel()
+	if err != nil {
+		deps.Logger.Error(fmt.Sprintf(reports.LogCheckpointFailed, plan.ID, err))
 	}
 	if err := deps.Applier.DeletePoliciesByLabelAndNames(ctx, plan.ID, stale); err != nil {
 		deps.Logger.Error(fmt.Sprintf(protection.LogStaleDeleteFailed, plan.ID, err))
 	}
-	if park {
-		plan.Phase = plans.PhaseScheduled
-	}
-	return settlePhase(ctx, deps, plan, req, clock, reRequest)
 }
 
 // A scheduled plan whose edited window starts now goes through the controller's activate path.
@@ -188,7 +212,13 @@ func applyCluster(
 		InternalErrorFormat:  string(ErrInternal),
 	}
 	if fullRender {
-		return protpolicies.ApplyFullRender(ctx, deps.Applier, deps.Logger, plan, RenderTarget(plan, req, newPolicies), resolved, msgs)
+		target := RenderTarget(plan, req, newPolicies)
+		// A vanished application renders nothing; its old policies go as stale.
+		target.Scope.ApplicationRefs = slices.DeleteFunc(slices.Clone(target.Scope.ApplicationRefs), func(id string) bool {
+			_, ok := resolved[id]
+			return !ok
+		})
+		return protpolicies.ApplyFullRender(ctx, deps.Applier, deps.Logger, plan, target, resolved, msgs)
 	}
 	policyDiff := diffPolicies(plan.Policies, newPolicies)
 	deployCombos := append(
@@ -199,11 +229,10 @@ func applyCluster(
 		protpolicies.Combinations(plan.Policies, targetDiff.Removed),
 		protpolicies.Combinations(policyDiff.Removed, targetDiff.Unchanged)...,
 	)
-	deployed, kept, err = protpolicies.ApplyClusterDiff(
+	return protpolicies.ApplyClusterDiff(
 		ctx, deps.Applier, deps.Logger, plan,
 		deployCombos, removeCombos, resolved, req.Mode, msgs,
 	)
-	return deployed, kept, nil, err
 }
 
 // Never RollbackPatchFailure after a full render: it deletes every deployed name, and a full
@@ -212,6 +241,7 @@ func rollbackCluster(
 	ctx context.Context,
 	deps Deps,
 	plan *plans.ProtectionPlan,
+	newMode string,
 	deployed []string,
 	resolved map[string]policies.ResolvedApp,
 	fullRender bool,
@@ -220,7 +250,7 @@ func rollbackCluster(
 		protpolicies.RollbackFullRender(ctx, deps.Applier, deps.Logger, plan, deployed, resolved)
 		return
 	}
-	protpolicies.RollbackPatchFailure(ctx, deps.Applier, deps.Logger, plan, deployed)
+	protpolicies.RollbackPatchFailure(ctx, deps.Applier, deps.Logger, plan, deployed, newMode)
 }
 
 func RenderTarget(
@@ -331,10 +361,10 @@ func validateRequest(
 	if err := callerFields(ctx, req, deps); err != nil {
 		return err
 	}
-	if err := validation.NamespaceScope(ctx, req.Scope.Type, req.Scope.Namespaces, deps.ListNamespaces); err != nil {
+	if err := validation.Scope(req.Scope); err != nil {
 		return err
 	}
-	if err := validation.Exclusions(req.Scope); err != nil {
+	if err := validation.NamespaceScope(ctx, req.Scope.Type, req.Scope.Namespaces, deps.ListNamespaces); err != nil {
 		return err
 	}
 	if err := validatePolicies(req.Policies, req.Scope.Type); err != nil {
@@ -368,23 +398,42 @@ func ensureNameAvailable(deps Deps, plan *plans.ProtectionPlan, name string) err
 	return validation.UniqueName(existing, name, plan.ID)
 }
 
+// An added target has to exist in every phase; beyond that only what the edit deploys does: every
+// target of a scheduled plan it activates. A vanished kept target is dropped from the diff.
 func resolveTargets(
 	ctx context.Context,
 	resolveApps applications.Resolver,
-	scopeType string,
-	targets []string,
-) (map[string]policies.ResolvedApp, error) {
-	if scopeType != plans.ScopeTypeApplications || len(targets) == constants.DefaultInitValue {
-		return nil, nil
+	plan *plans.ProtectionPlan,
+	diff *TargetDiff,
+	targetPhase string,
+) (resolved map[string]policies.ResolvedApp, fullRender bool, err error) {
+	deploys := targetPhase == plans.PhaseActive
+	targets := diff.Added
+	if deploys {
+		targets = allTargets(*diff)
+	}
+	if plan.Scope.Type != plans.ScopeTypeApplications || len(targets) == constants.DefaultInitValue {
+		return nil, false, nil
 	}
 	resolved, missing, err := resolveApps(ctx, targets)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	if len(missing) > constants.DefaultInitValue {
-		return nil, validation.Invalidf(string(ErrMissingApplications), missing)
+	required := slices.Clone(diff.Added)
+	if deploys && plan.Phase != plans.PhaseActive {
+		required = slices.Concat(diff.Added, diff.Unchanged)
 	}
-	return resolved, nil
+	vanished := func(id string) bool { return slices.Contains(missing, id) }
+	if blocking := slices.DeleteFunc(required, func(id string) bool { return !vanished(id) }); len(blocking) > constants.DefaultInitValue {
+		return nil, false, validation.Invalidf(string(ErrMissingApplications), blocking)
+	}
+	if !deploys {
+		return nil, false, nil
+	}
+	diff.Unchanged = slices.DeleteFunc(diff.Unchanged, vanished)
+	// A vanished removed target has no namespace left to name its policies by; a full render
+	// withdraws every live name it does not reproduce.
+	return resolved, slices.ContainsFunc(diff.Removed, vanished), nil
 }
 
 func newTargets(scope planseps.ScopeRequest) []string {

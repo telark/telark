@@ -199,7 +199,7 @@ func fetchJWKS() ([]byte, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf(string(constants.ErrOIDCJWKSBadStatus), resp.StatusCode)
 	}
-	return io.ReadAll(resp.Body)
+	return io.ReadAll(io.LimitReader(resp.Body, constants.MaxRequestBodyBytes))
 }
 
 func parseKeys(raw []byte) (map[string]*rsa.PublicKey, error) {

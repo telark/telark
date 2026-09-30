@@ -2,15 +2,19 @@ package diffpure
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
 	appresource "github.com/telark/data/resources/application"
 	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/discovery/internal/core/applications/history/changes"
 	"github.com/telark/discovery/internal/core/applications/history/diff"
+	"github.com/telark/discovery/internal/core/applications/history/manifestdiff"
 	historyshared "github.com/telark/discovery/internal/core/applications/history/shared"
 	"github.com/telark/discovery/internal/core/applications/snapshot"
 	"github.com/telark/discovery/internal/tests/testutil"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 const (
@@ -23,6 +27,12 @@ const (
 	httpPort        = 8080
 	outcomeField    = "outcome"
 	generationField = "generation"
+)
+
+const (
+	deletedImage     = "registry.k8s.io/pause:3.9"
+	recreatedImage   = "registry.k8s.io/pause:3.10"
+	preImageSnapshot = "snap-pre"
 )
 
 func serveManifestsFromCache(t *testing.T) {
@@ -212,4 +222,72 @@ func TestDiffApplicationsNewAppForgetsPreviousIncarnation(t *testing.T) {
 		testutil.Equal(t, key+" read", err, nil)
 		testutil.Equal(t, key+" purged", n, int64(constants.DefaultInitValue))
 	}
+}
+
+func deploymentRunning(image string) unstructured.Unstructured {
+	u := unstructured.Unstructured{Object: map[string]any{}}
+	u.SetKind(kindDeployment)
+	u.SetName(workloadAPI)
+	u.SetNamespace(diffNamespace)
+	_ = unstructured.SetNestedField(u.Object, int64(constants.DefaultAddValue),
+		constants.K8sObjectFieldSpec, constants.K8sObjectFieldReplicas)
+	_ = unstructured.SetNestedSlice(u.Object, []any{map[string]any{constants.K8sObjectFieldImage: image}},
+		constants.K8sObjectFieldSpec, constants.K8sObjectFieldTemplate, constants.K8sObjectFieldSpec, constants.K8sObjectFieldContainers)
+	return u
+}
+
+func flushOpts(generation int, preImage unstructured.Unstructured, pairs []manifestdiff.ManifestPair) (
+	*diff.DiffOptions,
+	func(context.Context, string, string, string, int) ([]unstructured.Unstructured, error),
+) {
+	opts := &diff.DiffOptions{
+		FromCoalescingFlush:  true,
+		PrewrittenGeneration: generation,
+		PrewrittenSnapshots: []appresource.ApplicationSnapshot{
+			{Generation: generation, ID: preImageSnapshot, Namespace: diffNamespace, Path: preImageSnapshot},
+		},
+		ManifestPairs: pairs,
+	}
+	manifest := func(context.Context, string, string, string, int) ([]unstructured.Unstructured, error) {
+		return []unstructured.Unstructured{preImage}, nil
+	}
+	return opts, manifest
+}
+
+// A recreate whose delete pre-image never reached the flush snapshots the live object; its
+// image matching fresh read as a change undone within the window, the no-change publish moved
+// the CR to the new image, and the reconcile's flush from the older snapshot then found nothing.
+func TestFlushWithoutPreImageRecordsTheImageChangeOnce(t *testing.T) {
+	ctx := context.Background()
+	rdb := newRedis(t)
+	created := constants.DefaultInitValue
+	health := appresource.Health{TotalReplicas: constants.DefaultAddValue}
+	stored := appresource.Application{
+		Name:      diffAppName,
+		Resources: []appresource.Resource{{Namespace: diffNamespace, Kind: kindDeployment, Name: workloadAPI}},
+		Images:    []string{deletedImage},
+		Health:    health,
+		History:   appresource.ApplicationHistory{Generation: constants.DefaultAddValue},
+	}
+	fresh := stored
+	fresh.Images = []string{recreatedImage}
+	fresh.History = appresource.ApplicationHistory{}
+
+	opts, live := flushOpts(constants.TwoValue, deploymentRunning(recreatedImage), nil)
+	history, snaps, _ := diff.DiffApplications(ctx, noopBaseline, recordingCreate(&created), live, rdb, &stored, fresh, opts)
+	published := fresh
+	published.History, published.Snapshots = history, snaps
+
+	old, cur := deploymentRunning(deletedImage), deploymentRunning(recreatedImage)
+	opts, fromSnapshot := flushOpts(history.Generation+constants.DefaultAddValue, old,
+		[]manifestdiff.ManifestPair{{Old: &old, New: &cur}})
+	history, _, _ = diff.DiffApplications(ctx, noopBaseline, recordingCreate(&created), fromSnapshot, rdb, &published, fresh, opts)
+
+	recorded := constants.DefaultInitValue
+	for _, entry := range history.ChangeLog {
+		recorded += len(slices.DeleteFunc(slices.Clone(entry.Changes), func(c appresource.ApplicationChange) bool {
+			return c.Field != changes.ChangeFieldImage
+		}))
+	}
+	testutil.Equal(t, "image changes recorded", recorded, constants.DefaultAddValue)
 }

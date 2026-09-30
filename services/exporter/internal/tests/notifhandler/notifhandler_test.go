@@ -101,6 +101,51 @@ func TestMarkReadHandler(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Errorf("markread code = %d, want 200", rec.Code)
 	}
+
+	cases := []struct{ name, userID, id string }{
+		{"unknown id", testUserID, "missing"},
+		{"another user's id", "u2", created.ID},
+	}
+	for _, tc := range cases {
+		r := mux.SetURLVars(asSelf(tc.userID, notificationsPath+"/"+tc.id+"/read?userId="+tc.userID), map[string]string{"id": tc.id})
+		rec := httptest.NewRecorder()
+		notifhandler.MarkRead()(rec, r)
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("%s: markread code = %d, want 404", tc.name, rec.Code)
+		}
+	}
+}
+
+func TestDeleteHandler(t *testing.T) {
+	setupRedis(t)
+	storage, err := notifstorage.NewStorage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, err := storage.Emit(context.Background(), notiftypes.Notification{
+		UserID: testUserID, Type: "role.changed", Title: "t", Message: "m", Severity: "info",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		name, userID, id string
+		want             int
+	}{
+		{"another user's id", "u2", created.ID, http.StatusNotFound},
+		{"own", testUserID, created.ID, http.StatusOK},
+		{"already deleted", testUserID, created.ID, http.StatusNotFound},
+		{"unknown id", testUserID, "missing", http.StatusNotFound},
+	}
+	for _, tc := range cases {
+		r := mux.SetURLVars(asSelf(tc.userID, notificationsPath+"/"+tc.id+"?userId="+tc.userID), map[string]string{"id": tc.id})
+		rec := httptest.NewRecorder()
+		notifhandler.Delete()(rec, r)
+		if rec.Code != tc.want {
+			t.Errorf("%s: delete code = %d, want %d", tc.name, rec.Code, tc.want)
+		}
+	}
 }
 
 func TestMarkAllReadAndClearHandlers(t *testing.T) {

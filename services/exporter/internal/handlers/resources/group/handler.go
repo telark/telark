@@ -3,6 +3,7 @@ package group
 import (
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/telark/data/errors"
 	"github.com/telark/data/messages"
@@ -39,6 +40,7 @@ func CreateGroupResourceWithCacheInvalidation(optimizer *performance.Optimizer) 
 			return
 		}
 
+		resourcesutils.StampCreateAudit(r, body)
 		group, err := grouputils.ExtractGroupSpecFromRequestBody(body)
 		if err != nil {
 			responseutils.LogAndSendResponse(
@@ -56,7 +58,8 @@ func CreateGroupResourceWithCacheInvalidation(optimizer *performance.Optimizer) 
 			return
 		}
 
-		if !authz.GuardReferencedIDs(w, constants.ResourceUser, group.UserRefs) ||
+		hidden, ok := hiddenMembers(w, r)
+		if !ok || !authz.GuardMemberIDs(w, hidden, group.UserRefs) ||
 			!authz.GuardReferencedIDs(w, constants.ResourceRole, group.RoleRefs) {
 			return
 		}
@@ -189,6 +192,7 @@ func PatchGroupByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 		oldMembers := append([]string(nil), existingGroup.UserRefs...)
 		groupName := existingGroup.Name
 
+		resourcesutils.StampPatchAudit(r, body)
 		if !grouputils.ExtractAndMergeGroupForPatch(existingGroup, body, w) {
 			return
 		}
@@ -206,24 +210,40 @@ func PatchGroupByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 	}
 }
 
+// A restricted caller edits the member list they were shown: every check sees
+// the hidden members as absent, and the write keeps them.
 func guardGroupPatch(
 	w http.ResponseWriter, r *http.Request, existing *groupdata.Group, body map[string]any,
 ) (addedMembers, removedMembers []string, ok bool) {
+	var hidden map[string]bool
+	_, membersPatched := body[constants.FieldUserRefs]
+	if membersPatched {
+		if hidden, ok = hiddenMembers(w, r); !ok {
+			return nil, nil, false
+		}
+	}
+	shown := *existing
+	shown.UserRefs = slices.DeleteFunc(slices.Clone(existing.UserRefs), func(id string) bool { return hidden[id] })
+
 	if !authz.GuardNotTerminating(w, r, existing.DeletionTimestamp) ||
 		!authz.GuardGroupRolesPatch(w, r, existing.RoleRefs, body) ||
-		!authz.GuardGroupMembersPatch(w, r, existing, body) {
+		!authz.GuardGroupMembersPatch(w, r, &shown, body) {
 		return nil, nil, false
 	}
 
-	newMembers := notifdispatch.ExtractNewStringIDsFromBody(body, constants.FieldUserRefs)
-	addedMembers, removedMembers = notifdispatch.DiffStringSlices(existing.UserRefs, newMembers)
+	// An absent userRefs would diff as every member removed.
+	if membersPatched {
+		newMembers := notifdispatch.ExtractNewStringIDsFromBody(body, constants.FieldUserRefs)
+		addedMembers, removedMembers = notifdispatch.DiffStringSlices(shown.UserRefs, newMembers)
+	}
 	newRoles := notifdispatch.ExtractNewStringIDsFromBody(body, constants.FieldRoleRefs)
 	addedRoles, _ := notifdispatch.DiffStringSlices(existing.RoleRefs, newRoles)
-	if !authz.GuardReferencedIDs(w, constants.ResourceUser, addedMembers) ||
+	if !authz.GuardMemberIDs(w, hidden, addedMembers) ||
 		!authz.GuardReferencedIDs(w, constants.ResourceRole, addedRoles) ||
 		!authz.GuardGroupPatchLastAdmin(w, existing, body, removedMembers) {
 		return nil, nil, false
 	}
+	grouputils.KeepHiddenMembers(body, existing.UserRefs, hidden)
 	return addedMembers, removedMembers, true
 }
 
@@ -291,8 +311,8 @@ func DeleteGroupByIDWithCacheInvalidation(optimizer *performance.Optimizer) func
 			return
 		}
 
-		_, ok := grouputils.FindGroupByIDOrRespond(w, groupID)
-		if !ok || !authz.GuardGroupDeleteLastAdmin(w, groupID) {
+		existingGroup, ok := grouputils.GetExistingGroupForPatch(w, groupID)
+		if !ok || !authz.GuardGroupRolesWithinCaller(w, r, existingGroup) || !authz.GuardGroupDeleteLastAdmin(w, groupID) {
 			return
 		}
 

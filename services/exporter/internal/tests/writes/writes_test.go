@@ -25,6 +25,10 @@ const (
 	jwk      = `{"keys":[{"kid":"k1"}]}`
 	oldJWK   = `{"keys":[]}`
 	patchFmt = "%s: patch status = %d, body %s"
+
+	appPath    = "/api/v1/applications/" + appName
+	keyLabels  = "labels"
+	rollbackID = "rb-1"
 )
 
 func mustView(t *testing.T, obj *unstructured.Unstructured) map[string]any {
@@ -142,6 +146,65 @@ func TestStatusOnlyPatchSkipsTheMainResource(t *testing.T) {
 		if w.subresource != subStatus {
 			t.Errorf("status-only patch also wrote the main resource: %v", w.body)
 		}
+	}
+}
+
+// Discovery patches rollbacks and lastForceSync beside spec, not inside it.
+func TestTopLevelStatusKeysReachTheStatusSubresource(t *testing.T) {
+	internal := xauthz.Identity{Internal: true}
+	appOwner := xauthz.Identity{UserID: callerID, Grants: xauthz.Grants{
+		Levels: map[string]roledata.PermissionLevel{roledata.ScopeApplications: roledata.PermissionLevelOwner},
+	}}
+	none, one := constants.DefaultInitValue, constants.DefaultIncrementValue
+	cases := []struct {
+		name         string
+		caller       xauthz.Identity
+		body         map[string]any
+		code         int
+		statusKey    string
+		mainWrites   int
+		statusWrites int
+	}{
+		{"rollbacks", internal, map[string]any{v1alpha1.StatusRollbacks: []any{map[string]any{keyID: rollbackID}}},
+			http.StatusOK, v1alpha1.StatusRollbacks, none, one},
+		{"lastForceSync", internal, map[string]any{v1alpha1.StatusLastForceSync: map[string]any{keyPhase: phaseActive}},
+			http.StatusOK, v1alpha1.StatusLastForceSync, none, one},
+		{"root only", internal, map[string]any{constants.MetadataField: map[string]any{keyLabels: map[string]any{keyName: newName}}},
+			http.StatusOK, constants.EmptyString, one, none},
+		{"forged by a session", appOwner, map[string]any{v1alpha1.StatusRollbacks: []any{}},
+			http.StatusForbidden, constants.EmptyString, none, none},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := installFake(t, crSeed(v1alpha1.ApplicationMetadata,
+				object(v1alpha1.ApplicationMetadata, appName, map[string]any{keyName: appName}, nil)))
+
+			w := patchAs(t, tc.caller, appPath, jsonBody(t, tc.body))
+			if w.Code != tc.code {
+				t.Fatalf(patchFmt, tc.name, w.Code, w.Body.String())
+			}
+
+			var main, status int
+			for _, wr := range writes(t, client) {
+				if wr.subresource != subStatus {
+					main++
+					continue
+				}
+				status++
+				if _, found := section(wr, keyStatus)[tc.statusKey]; !found {
+					t.Errorf(missingKeyFmt, tc.name, tc.statusKey, subStatus, wr.body)
+				}
+			}
+			if main != tc.mainWrites || status != tc.statusWrites {
+				t.Fatalf("main patches = %d, status patches = %d, want %d and %d", main, status, tc.mainWrites, tc.statusWrites)
+			}
+			if tc.statusKey != constants.EmptyString {
+				obj := stored(t, client, v1alpha1.ApplicationMetadata, appName)
+				if _, found, _ := unstructured.NestedFieldNoCopy(obj.Object, keyStatus, tc.statusKey); !found {
+					t.Errorf("stored status lacks %q", tc.statusKey)
+				}
+			}
+		})
 	}
 }
 

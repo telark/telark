@@ -243,7 +243,7 @@ func emitRollbackAborted(entry *applicationmodel.RollbackEntry, appName, aborted
 		Severity: notifclient.SeverityWarning,
 		Metadata: map[string]any{
 			notifclient.MetaKeyTargetID:        entry.ID,
-			notifclient.MetaKeyApplicationID:   entry.ID,
+			notifclient.MetaKeyApplicationID:   appName,
 			notifclient.MetaKeyApplicationName: appName,
 			notifclient.MetaKeyStatus:          notifclient.RollbackStatusAborted,
 		},

@@ -23,9 +23,9 @@ maintainers:
 kubeVersion: ">=1.30.0-0"
 dependencies:
   # CRDs ship with the app so a single `helm install` covers everything. Kept as a
-  # standalone versioned chart (published to OCI too); vendored here via a local
-  # ref. resource-policy:keep on each CRD means they survive uninstall. GitOps that
-  # pre-applies CRDs sets crds.enabled=false.
+  # standalone versioned chart, pulled from OCI by exact version (local CRD edits
+  # need a release + re-pin). resource-policy:keep on each CRD means they survive
+  # uninstall. GitOps that pre-applies CRDs sets crds.enabled=false.
   - name: telark-crds
     version: "0.0.1"
     repository: "oci://ghcr.io/telark/charts"

@@ -111,17 +111,18 @@ func TestValidateOfflineUsesTheTrustFile(t *testing.T) {
 	path := trustFile(t)
 	offline := telarkconfigresource.OIDCConfig{Enabled: true, GoogleClientID: clientID}
 
-	testutil.Equal(t, "no source", oidc.Validate(offline) != nil, true)
+	testutil.Equal(t, "no source", oidc.Validate(offline, false) != nil, true)
 
 	writeTrust(t, path, validJWKS(kidOld), firstWrite)
-	testutil.Equal(t, "file source", oidc.Validate(offline) != nil, false)
+	testutil.Equal(t, "file source", oidc.Validate(offline, false) != nil, false)
+	testutil.Equal(t, "cleared set ignores the file", oidc.Validate(offline, true) != nil, true)
 
 	writeTrust(t, path, contentBroken, secondWrite)
-	testutil.Equal(t, "broken file", oidc.Validate(offline) != nil, true)
+	testutil.Equal(t, "broken file", oidc.Validate(offline, false) != nil, true)
 
 	withSet := offline
 	withSet.GoogleJWKJSON = validJWKS(kidNew)
-	testutil.Equal(t, "request set wins", oidc.Validate(withSet) != nil, false)
+	testutil.Equal(t, "request set wins", oidc.Validate(withSet, true) != nil, false)
 }
 
 type exporterRecorder struct {
@@ -149,10 +150,15 @@ func (e *exporterRecorder) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (e *exporterRecorder) sentJWK(t *testing.T) any {
 	t.Helper()
+	return e.sentOIDC(t, oneCall)[jwkKey]
+}
+
+func (e *exporterRecorder) sentOIDC(t *testing.T, patches int) map[string]any {
+	t.Helper()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	testutil.Equal(t, "patches", len(e.patches), oneCall)
-	spec, ok := e.patches[constants.DefaultInitValue][specKey].(map[string]any)
+	testutil.Equal(t, "patches", len(e.patches), patches)
+	spec, ok := e.patches[patches-oneCall][specKey].(map[string]any)
 	if !ok {
 		t.Fatalf("patch has no spec: %v", e.patches)
 	}
@@ -160,7 +166,7 @@ func (e *exporterRecorder) sentJWK(t *testing.T) any {
 	if !ok {
 		t.Fatalf("patch has no oidc block: %v", spec)
 	}
-	return sent[jwkKey]
+	return sent
 }
 
 // Flags come from the exporter; the key set only from the mounted file.
@@ -189,7 +195,11 @@ func TestLoadConfigTakesTheKeySetFromTheFile(t *testing.T) {
 
 func setConfig(ctx context.Context, cfg telarkconfigresource.OIDCConfig) int {
 	body, _ := json.Marshal(cfg)
-	r := httptest.NewRequest(http.MethodPatch, configPath, bytes.NewReader(body)).WithContext(ctx)
+	return setConfigBody(ctx, string(body))
+}
+
+func setConfigBody(ctx context.Context, body string) int {
+	r := httptest.NewRequest(http.MethodPatch, configPath, strings.NewReader(body)).WithContext(ctx)
 	r.Header.Set(constants.HeaderContentType, constants.ContentTypeJSON)
 	rec := httptest.NewRecorder()
 	oidchandler.SetConfig(rec, r)
@@ -216,4 +226,30 @@ func TestSetConfigPatchesAndPinsTheValidatedSet(t *testing.T) {
 	testutil.Equal(t, "invalid set refused", status, http.StatusBadRequest)
 	testutil.Equal(t, "nothing more stored", backend.sentJWK(t), any(validJWKS(kidNew)))
 	testutil.Equal(t, "pin kept", oidc.TrustJWK(), validJWKS(kidNew))
+}
+
+// "" (or null) clears the trust set: the exporter is told to drop it, this replica stops
+// trusting the still-mounted file at once, and an offline config can no longer lean on it.
+// An omitted key keeps the stored set.
+func TestSetConfigClearsTheTrustSet(t *testing.T) {
+	path := trustFile(t)
+	writeTrust(t, path, validJWKS(kidOld), firstWrite)
+	backend := &exporterRecorder{}
+	testutil.StubBackend(t, backend)
+	admin := xauthz.Grants{Levels: map[string]roledata.PermissionLevel{roledata.ScopeAll: roledata.PermissionLevelAdmin}}
+	ctx := xauthz.WithIdentity(context.Background(), xauthz.Identity{UserID: adminUserID, Grants: admin})
+
+	status := setConfigBody(ctx, `{"enabled":true,"googleClientID":"id","egressAllowed":false}`)
+	testutil.Equal(t, "omitted key", status, http.StatusOK)
+	_, present := backend.sentOIDC(t, firstWrite)[jwkKey]
+	testutil.Equal(t, "omitted key not sent", present, false)
+	testutil.Equal(t, "file still trusted", oidc.TrustJWK(), validJWKS(kidOld))
+
+	status = setConfigBody(ctx, `{"enabled":false,"googleClientID":"id","googleJwkJson":""}`)
+	testutil.Equal(t, "clear", status, http.StatusOK)
+	testutil.Equal(t, "clear sent", backend.sentOIDC(t, secondWrite)[jwkKey], any(constants.EmptyString))
+	testutil.Equal(t, "stale file no longer trusted", oidc.TrustJWK(), constants.EmptyString)
+
+	status = setConfigBody(ctx, `{"enabled":true,"googleClientID":"id","googleJwkJson":null}`)
+	testutil.Equal(t, "offline with the set cleared", status, http.StatusBadRequest)
 }

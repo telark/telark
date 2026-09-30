@@ -56,3 +56,36 @@ func TestCreateRejectsCaseVariantPrivilegedKeys(t *testing.T) {
 		})
 	}
 }
+
+// A null or empty id used to be dropped silently, creating the account with less than was asked.
+func TestCreateRejectsInvalidRefIDs(t *testing.T) {
+	o := newOptimizer(t)
+	admin := xauthz.Identity{UserID: testUserID, Grants: xauthz.Grants{
+		Levels: map[string]roledata.PermissionLevel{roledata.ScopeAll: roledata.PermissionLevelAdmin},
+	}}
+	tests := []struct {
+		name    string
+		handler http.HandlerFunc
+		body    string
+	}{
+		{"user null role", userhandler.CreateUserResourceWithCacheInvalidation(o),
+			`{"username":"x","email":"test@example.com","roleRefs":[null]}`},
+		{"user empty group", userhandler.CreateUserResourceWithCacheInvalidation(o),
+			`{"username":"x","email":"test@example.com","groupRefs":[""]}`},
+		{"group null member", grouphandler.CreateGroupResourceWithCacheInvalidation(o),
+			`{"name":"g","description":"d","categoryRef":"c","userRefs":[null]}`},
+		{"group numeric role", grouphandler.CreateGroupResourceWithCacheInvalidation(o),
+			`{"name":"g","description":"d","categoryRef":"c","roleRefs":[1]}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := varsReq(http.MethodPost, tt.body)
+			r = r.WithContext(xauthz.WithIdentity(r.Context(), admin))
+			rec := httptest.NewRecorder()
+			tt.handler(rec, r)
+			if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "every id must be a non-empty string") {
+				t.Fatalf("code = %d body %q, want 400 naming the refs", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}

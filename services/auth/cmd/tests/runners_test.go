@@ -60,6 +60,45 @@ func TestBreakGlassMarksBootstrapAdmin(t *testing.T) {
 	testutil.Equal(t, "patches when complete", len(patches), constants.DefaultIncrementValue)
 }
 
+// Every account break-glass promotes loses a Google identity bound while it was an
+// ordinary account, and keeps its passkeys.
+func TestBreakGlassStripsGoogleFromPromotedAccounts(t *testing.T) {
+	const email = "test@example.com"
+	t.Setenv(constants.EnvBootstrapAdmin, email)
+	passkey := &userresource.UserIdentity{Provider: constants.IdentityProviderPasskey, Subject: "cred"}
+	google := &userresource.UserIdentity{Provider: constants.IdentityProviderGoogle, Subject: "sub"}
+	cases := []struct {
+		name  string
+		email string
+		want  []*userresource.UserIdentity
+	}{
+		{"bootstrap admin", email, []*userresource.UserIdentity{passkey}},
+		{"other account", "other@example.com", []*userresource.UserIdentity{passkey}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			user := userresource.User{ID: "u-1", Email: c.email, Identities: []*userresource.UserIdentity{google, passkey}}
+			var patches []map[string]any
+			testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPatch {
+					var body map[string]any
+					_ = json.NewDecoder(r.Body).Decode(&body)
+					patches = append(patches, body)
+					_, _ = w.Write([]byte(`{"status":200}`))
+					return
+				}
+				_ = json.NewEncoder(w).Encode(map[string]any{"data": user})
+			}))
+
+			testutil.Equal(t, "exit", cmd.RunBreakGlass([]string{"--email", c.email}), constants.DefaultInitValue)
+			testutil.Equal(t, "patches", len(patches), constants.DefaultIncrementValue)
+			got, _ := json.Marshal(patches[constants.DefaultInitValue][constants.UserFieldIdentities])
+			want, _ := json.Marshal(c.want)
+			testutil.Equal(t, "identities", string(got), string(want))
+		})
+	}
+}
+
 func TestBreakGlassEnrollCreatesAdmin(t *testing.T) {
 	const email = "root@x.com"
 	t.Setenv(constants.EnvBootstrapAdmin, email)

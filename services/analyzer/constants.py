@@ -590,6 +590,8 @@ FAST_STATUS_MAX = 3
 FAST_HISTORY_LIMIT = 5
 FAST_EVENTS_SINCE_MIN = 60
 CHANGE_CORRELATION_WINDOW_S = 1800
+# A change counts as the cause only up to this long after the incident's first event (event vs write clocks).
+CHANGE_CORRELATION_SKEW_S = 60
 S_PER_MINUTE = 60
 # The discovery change classes that alter what runs: an image rollout, config or resource limits. Scaling,
 # topology, drift and the initial snapshot are never cited as a cause.

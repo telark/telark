@@ -13,6 +13,7 @@ import (
 	confighandler "github.com/telark/exporter/internal/handlers/config"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
 	kshared "github.com/telark/kcore/shared"
+	xauthz "github.com/telark/x-ware/authz"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -92,6 +93,7 @@ func TestInvalidFieldsNamesCauses(t *testing.T) {
 		field.Invalid(field.NewPath("spec", "ai", "model"), "Bad Model!", "should match '^[a-z]+$'"),
 		field.Invalid(field.NewPath("spec", "ai", "model"), "Bad Model!", "too long"),
 		field.Required(field.NewPath("spec", "oidc", "issuer"), ""),
+		field.Invalid(nil, "x", "root-level cause"),
 	})
 	if got, want := confighandler.InvalidFields(invalid), "spec.ai.model, spec.oidc.issuer"; got != want {
 		t.Fatalf("InvalidFields = %q, want %q", got, want)
@@ -101,6 +103,34 @@ func TestInvalidFieldsNamesCauses(t *testing.T) {
 	}
 	if got := confighandler.InvalidFields(errors.New("boom")); got != constants.SpecField {
 		t.Fatalf("non-status error = %q, want %q", got, constants.SpecField)
+	}
+	rootOnly := k8serrors.NewInvalid(schema.GroupKind{Group: "telark.io", Kind: "TelarkConfig"}, configName, field.ErrorList{
+		field.Invalid(nil, "x", "root-level cause"),
+	})
+	if got := confighandler.InvalidFields(rootOnly); got != constants.SpecField {
+		t.Fatalf("root-only causes = %q, want %q", got, constants.SpecField)
+	}
+}
+
+// A key the config does not declare would be pruned by the API server and answered 200.
+func TestPatchConfigRejectsUnknownKeys(t *testing.T) {
+	cases := []struct {
+		body    string
+		refused bool
+	}{
+		{`{"foo":1}`, true},
+		{`{"spec":{"snapshots":{"maxPerAp":3}}}`, true},
+		{`{"snapshots":{"maxPerApp":3},"metadata":{"resourceVersion":"1"}}`, false},
+		{`{"spec":{"oidc":{"googleJwkJson":""}},"metadata":{"resourceVersion":"1"}}`, false},
+	}
+	for _, tc := range cases {
+		r := httptest.NewRequest(http.MethodPatch, "/config", strings.NewReader(tc.body))
+		r = r.WithContext(xauthz.WithIdentity(r.Context(), xauthz.Identity{Internal: true}))
+		rec := httptest.NewRecorder()
+		confighandler.PatchConfig()(rec, r)
+		if (rec.Code == http.StatusBadRequest) != tc.refused {
+			t.Errorf("%s: code = %d, refused want %v", tc.body, rec.Code, tc.refused)
+		}
 	}
 }
 

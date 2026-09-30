@@ -40,5 +40,6 @@ func FindPasskeyByCredentialIDAndUserID(credentialID string, userID string) (*un
 		}
 	}
 
-	return nil, errors.New(string(constants.ErrPasskeyNotFoundForUser))
+	// Another account's passkey answers exactly like an unknown one: no ownership oracle.
+	return nil, errors.New(string(constants.ErrPasskeyNotFound))
 }

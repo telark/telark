@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/telark/x-ware/constants"
+	"github.com/telark/telark/internal/x-ware/constants"
 )
 
 type Logger interface {

@@ -6,8 +6,8 @@ import (
 	"slices"
 	"testing"
 
-	authdata "github.com/telark/data/auth"
-	"github.com/telark/data/plans"
+	authdata "github.com/telark/telark/internal/data/auth"
+	"github.com/telark/telark/internal/data/plans"
 )
 
 const (

@@ -5,12 +5,12 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/telark/data/metadata/base"
-	"github.com/telark/data/metadata/v1alpha1"
-	"github.com/telark/data/policies"
-	"github.com/telark/data/resources/finalizers"
-	"github.com/telark/data/resources/telarkconfig"
-	globalshared "github.com/telark/data/shared"
+	"github.com/telark/telark/internal/data/metadata/base"
+	"github.com/telark/telark/internal/data/metadata/v1alpha1"
+	"github.com/telark/telark/internal/data/policies"
+	"github.com/telark/telark/internal/data/resources/finalizers"
+	"github.com/telark/telark/internal/data/resources/telarkconfig"
+	globalshared "github.com/telark/telark/internal/data/shared"
 )
 
 const (

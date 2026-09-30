@@ -6,8 +6,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/telark/rest/endpoints/reports"
-	"github.com/telark/rest/mappers"
+	"github.com/telark/telark/internal/rest/endpoints/reports"
+	"github.com/telark/telark/internal/rest/mappers"
 )
 
 const (

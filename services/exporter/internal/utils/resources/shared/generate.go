@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	metadata "github.com/telark/data/metadata/base"
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/kcore/crds/api"
+	metadata "github.com/telark/telark/internal/data/metadata/base"
+	"github.com/telark/telark/internal/kcore/crds/api"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 func GenerateUniqueResourceID(

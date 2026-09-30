@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	dataconstants "github.com/telark/data/constants"
-	dataerrors "github.com/telark/data/errors"
-	groupdata "github.com/telark/data/resources/group"
-	roledata "github.com/telark/data/resources/role"
-	userdata "github.com/telark/data/resources/user"
+	dataconstants "github.com/telark/telark/internal/data/constants"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	groupdata "github.com/telark/telark/internal/data/resources/group"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	userdata "github.com/telark/telark/internal/data/resources/user"
 )
 
 // A host that owns these records reads them directly; one that does not fetches them.

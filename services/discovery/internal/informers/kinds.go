@@ -3,8 +3,8 @@ package informers
 import (
 	"slices"
 
-	"github.com/telark/discovery/internal/constants"
-	kcoreshared "github.com/telark/kcore/shared"
+	kcoreshared "github.com/telark/telark/internal/kcore/shared"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 // Every application kind, not only the kinds current apps use: the informer cache

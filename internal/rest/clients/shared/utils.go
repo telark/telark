@@ -11,14 +11,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/telark/data/errors"
-	globalshared "github.com/telark/data/shared"
-	"github.com/telark/rest/base"
-	"github.com/telark/rest/connectivity"
-	"github.com/telark/rest/constants"
-	"github.com/telark/rest/response"
-	requestutils "github.com/telark/rest/utils/request"
-	responseutils "github.com/telark/rest/utils/response"
+	"github.com/telark/telark/internal/data/errors"
+	globalshared "github.com/telark/telark/internal/data/shared"
+	"github.com/telark/telark/internal/rest/base"
+	"github.com/telark/telark/internal/rest/connectivity"
+	"github.com/telark/telark/internal/rest/constants"
+	"github.com/telark/telark/internal/rest/response"
+	requestutils "github.com/telark/telark/internal/rest/utils/request"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
 )
 
 func resolveEndpoint(endpoint base.Endpoint, params map[string]string) base.Endpoint {

@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/data/plans"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection/applications"
-	"github.com/telark/discovery/internal/core/plans/protection/validation"
-	reportseps "github.com/telark/rest/endpoints/reports"
+	"github.com/telark/telark/internal/data/plans"
+	reportseps "github.com/telark/telark/internal/rest/endpoints/reports"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/applications"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/validation"
 	"k8s.io/client-go/dynamic"
 )
 

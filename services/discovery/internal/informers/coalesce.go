@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/discovery/internal/constants"
-	kcorefactory "github.com/telark/kcore/informers/factory"
+	kcorefactory "github.com/telark/telark/internal/kcore/informers/factory"
+	"github.com/telark/telark/services/discovery/internal/constants"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

@@ -10,8 +10,8 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/go-webauthn/webauthn/webauthn"
-	"github.com/telark/auth/internal/constants"
-	authhelper "github.com/telark/auth/internal/helpers/auth"
+	"github.com/telark/telark/services/auth/internal/constants"
+	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
 )
 
 func ExtractBackupFlagsFromAttestation(attObjB64 string) (backupEligible, backupState bool) {

@@ -3,7 +3,7 @@ package cache
 import (
 	"strings"
 
-	"github.com/telark/x-ware/constants"
+	"github.com/telark/telark/internal/x-ware/constants"
 )
 
 const KeyDelimiter = ":"

@@ -16,13 +16,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/auth/internal/constants"
-	oidchandler "github.com/telark/auth/internal/handlers/oidc"
-	"github.com/telark/auth/internal/helpers/oidc"
-	"github.com/telark/auth/internal/tests/testutil"
-	roledata "github.com/telark/data/resources/role"
-	telarkconfigresource "github.com/telark/data/resources/telarkconfig"
-	xauthz "github.com/telark/x-ware/authz"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	telarkconfigresource "github.com/telark/telark/internal/data/resources/telarkconfig"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/auth/internal/constants"
+	oidchandler "github.com/telark/telark/services/auth/internal/handlers/oidc"
+	"github.com/telark/telark/services/auth/internal/helpers/oidc"
+	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
 const (

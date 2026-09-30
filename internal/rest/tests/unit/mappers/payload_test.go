@@ -3,10 +3,10 @@ package mappers_test
 import (
 	"testing"
 
-	dataplans "github.com/telark/data/plans"
-	"github.com/telark/rest/constants"
-	"github.com/telark/rest/endpoints/plans"
-	"github.com/telark/rest/mappers"
+	dataplans "github.com/telark/telark/internal/data/plans"
+	"github.com/telark/telark/internal/rest/constants"
+	"github.com/telark/telark/internal/rest/endpoints/plans"
+	"github.com/telark/telark/internal/rest/mappers"
 )
 
 const (

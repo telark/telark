@@ -6,12 +6,12 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
-	dataconstants "github.com/telark/data/constants"
-	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/exporter/internal/authz"
-	"github.com/telark/exporter/internal/constants"
-	exprdb "github.com/telark/exporter/internal/redis"
-	xauthz "github.com/telark/x-ware/authz"
+	dataconstants "github.com/telark/telark/internal/data/constants"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/exporter/internal/authz"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	exprdb "github.com/telark/telark/services/exporter/internal/redis"
 )
 
 const (

@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/telark/auth/internal/clients"
-	"github.com/telark/auth/internal/constants"
-	telarkconfigresource "github.com/telark/data/resources/telarkconfig"
+	telarkconfigresource "github.com/telark/telark/internal/data/resources/telarkconfig"
+	"github.com/telark/telark/services/auth/internal/clients"
+	"github.com/telark/telark/services/auth/internal/constants"
 )
 
 func LoadConfig() (telarkconfigresource.OIDCConfig, error) {

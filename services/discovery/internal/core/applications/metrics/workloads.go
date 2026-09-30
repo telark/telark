@@ -1,10 +1,10 @@
 package metrics
 
 import (
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
-	kcoremetrics "github.com/telark/kcore/metrics"
-	"github.com/telark/kcore/resources/workload"
+	"github.com/telark/telark/internal/data/resources/application"
+	kcoremetrics "github.com/telark/telark/internal/kcore/metrics"
+	"github.com/telark/telark/internal/kcore/resources/workload"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 func PopulateApplicationMetrics(app *application.Application) {

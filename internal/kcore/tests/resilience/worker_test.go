@@ -4,7 +4,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/telark/kcore/resilience/worker"
+	"github.com/telark/telark/internal/kcore/resilience/worker"
 )
 
 const singleWorker = 1

@@ -230,8 +230,9 @@ controller) keep the real values. Both routes are withheld by `viewapplicationss
 ## Build & run
 
 ```sh
-go build ./...                 # from the repo root (uses go.work)
-docker build -t ghcr.io/telark/exporter:<version> .
+# from the repo root: the image builds the service together with internal/
+go build ./services/exporter
+docker build -f services/exporter/Dockerfile -t ghcr.io/telark/exporter:<version> .
 ```
 
 Runs in-cluster via the [telark chart](../../charts/telark); see [INSTALL](../../docs/INSTALL.md)

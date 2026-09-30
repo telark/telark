@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/auth/internal/clients"
-	"github.com/telark/auth/internal/config"
-	"github.com/telark/auth/internal/constants"
-	redishelper "github.com/telark/auth/internal/helpers/redis"
-	"github.com/telark/auth/internal/helpers/shared"
-	userresource "github.com/telark/data/resources/user"
-	userclient "github.com/telark/rest/clients/users"
+	userresource "github.com/telark/telark/internal/data/resources/user"
+	userclient "github.com/telark/telark/internal/rest/clients/users"
+	"github.com/telark/telark/services/auth/internal/clients"
+	"github.com/telark/telark/services/auth/internal/config"
+	"github.com/telark/telark/services/auth/internal/constants"
+	redishelper "github.com/telark/telark/services/auth/internal/helpers/redis"
+	"github.com/telark/telark/services/auth/internal/helpers/shared"
 )
 
 var jitLg = constants.GetLogger(constants.LoggerPrefixAuthService)

@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/telark/rest/base"
-	"github.com/telark/rest/constants"
+	"github.com/telark/telark/internal/rest/base"
+	"github.com/telark/telark/internal/rest/constants"
 )
 
 const (

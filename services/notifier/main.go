@@ -7,15 +7,15 @@ import (
 	"time"
 
 	goredis "github.com/redis/go-redis/v9"
-	"github.com/telark/data/logger"
-	"github.com/telark/data/messages"
-	"github.com/telark/notifier/internal/constants"
-	"github.com/telark/notifier/internal/status"
-	"github.com/telark/notifier/internal/subscribers/manager"
-	"github.com/telark/rest/connectivity"
-	restserver "github.com/telark/rest/server"
-	rediscore "github.com/telark/x-ware/redis/core"
-	redisinit "github.com/telark/x-ware/redis/init"
+	"github.com/telark/telark/internal/data/logger"
+	"github.com/telark/telark/internal/data/messages"
+	"github.com/telark/telark/internal/rest/connectivity"
+	restserver "github.com/telark/telark/internal/rest/server"
+	rediscore "github.com/telark/telark/internal/x-ware/redis/core"
+	redisinit "github.com/telark/telark/internal/x-ware/redis/init"
+	"github.com/telark/telark/services/notifier/internal/constants"
+	"github.com/telark/telark/services/notifier/internal/status"
+	"github.com/telark/telark/services/notifier/internal/subscribers/manager"
 )
 
 var getQuitChannel = restserver.SignalQuit()
@@ -45,12 +45,13 @@ func main() {
 
 	m := manager.NewManager()
 	go func() {
-		if err := manager.RetryStart(
+		err := manager.RetryStart(
 			ctx,
 			m.Start,
 			constants.NatsStartRetrySeconds*time.Second,
 			lg,
-		); err != nil {
+		)
+		if err != nil {
 			return
 		}
 		if conn := connectivity.Global(); conn != nil {

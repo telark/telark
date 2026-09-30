@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/core/insightsindex"
-	"github.com/telark/discovery/internal/tests/testutil"
+	"github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/core/insightsindex"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const (

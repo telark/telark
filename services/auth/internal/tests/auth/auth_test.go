@@ -9,14 +9,14 @@ import (
 
 	webauthnlib "github.com/go-webauthn/webauthn/webauthn"
 
-	"github.com/telark/auth/internal/config"
-	"github.com/telark/auth/internal/constants"
-	authhelper "github.com/telark/auth/internal/helpers/auth"
-	"github.com/telark/auth/internal/helpers/shared"
-	webauthnhelper "github.com/telark/auth/internal/helpers/webauthn"
-	"github.com/telark/auth/internal/tests/testutil"
-	dataerrors "github.com/telark/data/errors"
-	userresource "github.com/telark/data/resources/user"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	userresource "github.com/telark/telark/internal/data/resources/user"
+	"github.com/telark/telark/services/auth/internal/config"
+	"github.com/telark/telark/services/auth/internal/constants"
+	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
+	"github.com/telark/telark/services/auth/internal/helpers/shared"
+	webauthnhelper "github.com/telark/telark/services/auth/internal/helpers/webauthn"
+	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
 const (

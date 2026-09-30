@@ -1,8 +1,8 @@
 package shared
 
 import (
-	"github.com/telark/data/errors"
-	"github.com/telark/kcore/constants"
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/kcore/constants"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )

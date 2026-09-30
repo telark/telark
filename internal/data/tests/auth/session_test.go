@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/telark/data/auth"
+	"github.com/telark/telark/internal/data/auth"
 )
 
 const rawToken = "iTHIL0HaTt08283iQEWPnhQ5b2x80_KcT8t1c_DTuRk"

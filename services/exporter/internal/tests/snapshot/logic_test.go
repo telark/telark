@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/exporter/internal/managers/envs"
-	"github.com/telark/exporter/internal/utils/artifact"
-	snaputil "github.com/telark/exporter/internal/utils/snapshot"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/managers/envs"
+	"github.com/telark/telark/services/exporter/internal/utils/artifact"
+	snaputil "github.com/telark/telark/services/exporter/internal/utils/snapshot"
 )
 
 const (

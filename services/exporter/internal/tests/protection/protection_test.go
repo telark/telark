@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/telark/data/plans"
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/exporter/internal/utils/plans/protection"
+	"github.com/telark/telark/internal/data/plans"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/utils/plans/protection"
 )
 
 const (

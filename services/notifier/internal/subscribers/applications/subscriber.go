@@ -2,12 +2,12 @@ package applications
 
 import (
 	"github.com/nats-io/nats.go"
-	appresource "github.com/telark/data/resources/application"
-	resourceshared "github.com/telark/data/resources/shared"
-	"github.com/telark/notifier/internal/subscribers/base"
-	applicationsclient "github.com/telark/rest/clients/applications"
-	"github.com/telark/rest/response"
-	natscore "github.com/telark/x-ware/nats/core"
+	appresource "github.com/telark/telark/internal/data/resources/application"
+	resourceshared "github.com/telark/telark/internal/data/resources/shared"
+	applicationsclient "github.com/telark/telark/internal/rest/clients/applications"
+	"github.com/telark/telark/internal/rest/response"
+	natscore "github.com/telark/telark/internal/x-ware/nats/core"
+	"github.com/telark/telark/services/notifier/internal/subscribers/base"
 )
 
 // Narrow slice of the applications client so tests can inject a fake and cover

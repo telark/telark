@@ -4,9 +4,9 @@ import (
 	"time"
 
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
-	"github.com/telark/data/plans"
-	"github.com/telark/discovery/internal/constants"
-	planseps "github.com/telark/rest/endpoints/plans"
+	"github.com/telark/telark/internal/data/plans"
+	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 const (

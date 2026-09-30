@@ -7,13 +7,13 @@ import (
 	"path/filepath"
 	"time"
 
-	metadata "github.com/telark/data/metadata/v1alpha1"
-	"github.com/telark/exporter/internal/constants"
-	envmanager "github.com/telark/exporter/internal/managers/envs"
-	exprdb "github.com/telark/exporter/internal/redis"
-	"github.com/telark/exporter/internal/utils/artifact"
-	snaputil "github.com/telark/exporter/internal/utils/snapshot"
-	"github.com/telark/kcore/crds/api"
+	metadata "github.com/telark/telark/internal/data/metadata/v1alpha1"
+	"github.com/telark/telark/internal/kcore/crds/api"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	envmanager "github.com/telark/telark/services/exporter/internal/managers/envs"
+	exprdb "github.com/telark/telark/services/exporter/internal/redis"
+	"github.com/telark/telark/services/exporter/internal/utils/artifact"
+	snaputil "github.com/telark/telark/services/exporter/internal/utils/snapshot"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/telark/notifier/internal/constants"
+	"github.com/telark/telark/services/notifier/internal/constants"
 )
 
 const serviceRoot = "../../.."

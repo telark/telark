@@ -1,15 +1,15 @@
 package groups
 
 import (
-	"github.com/telark/data/resources/finalizers"
-	groupresource "github.com/telark/data/resources/group"
-	resourcesshared "github.com/telark/data/resources/shared"
-	"github.com/telark/rest/base"
-	cleanupclient "github.com/telark/rest/clients/cleanup"
-	"github.com/telark/rest/clients/shared"
-	"github.com/telark/rest/constants"
-	eps "github.com/telark/rest/endpoints/groups"
-	"github.com/telark/rest/response"
+	"github.com/telark/telark/internal/data/resources/finalizers"
+	groupresource "github.com/telark/telark/internal/data/resources/group"
+	resourcesshared "github.com/telark/telark/internal/data/resources/shared"
+	"github.com/telark/telark/internal/rest/base"
+	cleanupclient "github.com/telark/telark/internal/rest/clients/cleanup"
+	"github.com/telark/telark/internal/rest/clients/shared"
+	"github.com/telark/telark/internal/rest/constants"
+	eps "github.com/telark/telark/internal/rest/endpoints/groups"
+	"github.com/telark/telark/internal/rest/response"
 )
 
 type Client struct {

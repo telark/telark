@@ -7,11 +7,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	dataerrors "github.com/telark/data/errors"
-	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/discovery/internal/handlers/namespaces"
-	"github.com/telark/discovery/internal/tests/testutil"
-	xauthz "github.com/telark/x-ware/authz"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/discovery/internal/handlers/namespaces"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 // Only the refusals run here: an allowed call lists namespaces from a live cluster.

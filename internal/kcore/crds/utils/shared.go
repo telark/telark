@@ -1,10 +1,10 @@
 package utils
 
 import (
-	"github.com/telark/data/errors"
-	"github.com/telark/data/metadata/base"
-	"github.com/telark/kcore/constants"
-	"github.com/telark/kcore/k8sclient"
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/data/metadata/base"
+	"github.com/telark/telark/internal/kcore/constants"
+	"github.com/telark/telark/internal/kcore/k8sclient"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/dynamic"
 )

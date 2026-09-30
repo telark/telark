@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/rest/response"
-	requestutils "github.com/telark/rest/utils/request"
-	responseutils "github.com/telark/rest/utils/response"
+	"github.com/telark/telark/internal/rest/response"
+	requestutils "github.com/telark/telark/internal/rest/utils/request"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 func GetPathParam(w http.ResponseWriter, r *http.Request, param string) (string, error) {

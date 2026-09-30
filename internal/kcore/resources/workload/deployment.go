@@ -3,10 +3,10 @@ package workload
 import (
 	"fmt"
 
-	"github.com/telark/kcore/constants"
-	"github.com/telark/kcore/k8sclient"
-	"github.com/telark/kcore/resilience/timeout"
-	"github.com/telark/kcore/shared"
+	"github.com/telark/telark/internal/kcore/constants"
+	"github.com/telark/telark/internal/kcore/k8sclient"
+	"github.com/telark/telark/internal/kcore/resilience/timeout"
+	"github.com/telark/telark/internal/kcore/shared"
 	k8sappsv1 "k8s.io/api/apps/v1"
 	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/telark/rest/clients/shared"
+	"github.com/telark/telark/internal/rest/clients/shared"
 )
 
 const sessionRefsBody = `{"data":{"items":[{"userId":"u1","metadata":{"name":"session-a"}},{"userId":"u1","metadata":{"name":"session-b"}}]}}`

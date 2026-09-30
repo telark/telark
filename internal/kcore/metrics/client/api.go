@@ -3,12 +3,12 @@ package client
 import (
 	"fmt"
 
-	"github.com/telark/kcore/constants"
-	"github.com/telark/kcore/metrics/metricstypes"
-	"github.com/telark/kcore/metrics/metricsutils"
-	"github.com/telark/kcore/metrics/shared"
-	"github.com/telark/kcore/resilience/circuitbreaker"
-	"github.com/telark/kcore/resilience/timeout"
+	"github.com/telark/telark/internal/kcore/constants"
+	"github.com/telark/telark/internal/kcore/metrics/metricstypes"
+	"github.com/telark/telark/internal/kcore/metrics/metricsutils"
+	"github.com/telark/telark/internal/kcore/metrics/shared"
+	"github.com/telark/telark/internal/kcore/resilience/circuitbreaker"
+	"github.com/telark/telark/internal/kcore/resilience/timeout"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 )

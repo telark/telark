@@ -3,9 +3,9 @@ package nats
 import (
 	"context"
 
-	"github.com/telark/discovery/internal/constants"
-	natscore "github.com/telark/x-ware/nats/core"
-	natsinit "github.com/telark/x-ware/nats/init"
+	natscore "github.com/telark/telark/internal/x-ware/nats/core"
+	natsinit "github.com/telark/telark/internal/x-ware/nats/init"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 var natsManager natscore.NatsManagerInterface

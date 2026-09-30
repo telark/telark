@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
-	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/exporter/internal/constants"
-	snaphandler "github.com/telark/exporter/internal/handlers/snapshot"
-	xauthz "github.com/telark/x-ware/authz"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	snaphandler "github.com/telark/telark/services/exporter/internal/handlers/snapshot"
 )
 
 func snapQuery() string {

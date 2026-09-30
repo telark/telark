@@ -3,13 +3,13 @@ package session
 import (
 	"net/url"
 
-	authdata "github.com/telark/data/auth"
-	dataconstants "github.com/telark/data/constants"
-	"github.com/telark/rest/base"
-	"github.com/telark/rest/clients/shared"
-	"github.com/telark/rest/constants"
-	eps "github.com/telark/rest/endpoints/auth"
-	"github.com/telark/rest/response"
+	authdata "github.com/telark/telark/internal/data/auth"
+	dataconstants "github.com/telark/telark/internal/data/constants"
+	"github.com/telark/telark/internal/rest/base"
+	"github.com/telark/telark/internal/rest/clients/shared"
+	"github.com/telark/telark/internal/rest/constants"
+	eps "github.com/telark/telark/internal/rest/endpoints/auth"
+	"github.com/telark/telark/internal/rest/response"
 )
 
 type Client struct {

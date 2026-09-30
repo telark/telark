@@ -6,8 +6,8 @@ How to build, test and validate Telark from a fresh clone, locally or in a Claud
 
 | Check | Needs | Without a cluster | CI job |
 |---|---|---|---|
-| Go build, vet, unit tests (per service) | Go | yes | `go`, test leg |
-| `golangci-lint` (per service) | golangci-lint | yes | `go`, lint leg |
+| Go build, vet, unit tests (per service and shared package) | Go | yes | `go`, test leg |
+| `golangci-lint` (per service and shared package) | golangci-lint | yes | `go`, lint leg |
 | Helm lint, `VALUES.md` drift, kubeconform | Helm, Go (for helm-docs), kubeconform, network access to chart repos and schemas | yes | `helm` |
 | Analyzer syntax check, pytest, coverage | Python 3.13 | yes | `analyzer` |
 | Pod readiness, API calls, UI flows, admission behaviour | a cluster with the chart installed | no | none |
@@ -18,8 +18,8 @@ Cloud sessions have no cluster, no registry login and no dashboard UI checkout. 
 
 | Tool | Version | Pinned in |
 |---|---|---|
-| Go | 1.27.1 | the `go` line of every `services/<svc>/go.mod` (CI: `setup-go` with `go-version-file`) |
-| golangci-lint | v2.13.2 | `.github/actions/go-ci/action.yaml` |
+| Go | 1.27.1 | the `go` line of the root `go.mod` (CI: `setup-go` with `go-version-file`) |
+| golangci-lint | v2.14.0 | `.github/actions/go-ci/action.yaml` |
 | kubeconform | v0.8.0 | `.github/actions/helm-kubeconform-validate/action.yaml` |
 | helm-docs | v1.14.2 | `Makefile` (`HELM_DOCS`, run with `go run`; nothing to install) |
 | Helm | not pinned; CI installs the latest release (`azure/setup-helm`) | any Helm ≥ 3 with OCI support; checked with v4.3.0 |
@@ -33,7 +33,7 @@ curl -fsSL https://go.dev/dl/go1.27.1.linux-amd64.tar.gz | sudo tar -C /usr/loca
 export PATH=/usr/local/go/bin:$HOME/go/bin:$PATH
 
 # golangci-lint, the version CI pins
-curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b "$(go env GOPATH)/bin" v2.13.2
+curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b "$(go env GOPATH)/bin" v2.14.0
 
 # kubeconform, as CI installs it (or: go install github.com/yannh/kubeconform/cmd/kubeconform@v0.8.0)
 curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz | sudo tar -xz -C /usr/local/bin kubeconform
@@ -44,37 +44,31 @@ curl -fsSL https://get.helm.sh/helm-v4.3.0-linux-amd64.tar.gz | sudo tar -xz -C 
 
 Python 3.13: use the image's `python3.13` if there is one, otherwise `uv venv --python 3.13 --seed <dir>` downloads it.
 
-## Shared Go modules
+## Go module
 
-- The shared modules `github.com/telark/{data,rest,kcore,x-ware}` are separate repositories, pinned in each service's `go.mod`. Their repositories are public, and the default `GOPROXY` (`proxy.golang.org`) serves the pinned versions, so fetching them needs no `GOPRIVATE`, token or git credential.
-- The committed `go.work` replaces those modules with absolute paths on the maintainer's machine. Anywhere else, every workspace-mode Go command fails with `reading .../go.mod: no such file or directory`.
-- So outside the maintainer's machine, run Go commands from `services/<svc>` with `GOWORK=off`, as CI does. `make test` and `make lint` work with `GOWORK=off` exported because they `cd` into each service. `make build`, `make vet` and `make sync` run at the repository root, where only the workspace provides a module, so they fail there.
-- Don't edit `go.work`, add `replace` directives or bump module pins ([AGENTS.md](../../AGENTS.md#releases-and-versions)).
-
-**Expected failure.** Service code can use a shared-module symbol that exists only in the maintainer's unreleased local checkout. The workspace build is then green, and `GOWORK=off` fails with `undefined: ...` or `... has no field or method ...` on a shared-module type. The service is not where that gets fixed: the module has to be released and the pin bumped, which is the user's job. Report it and continue with the services that build.
+All Go code is one module, `github.com/telark/telark` (the root `go.mod`): the services in `services/<svc>` and the shared packages in `internal/{data,rest,kcore,x-ware}`. There is no `go.work` and no `replace` directive, so Go commands run from the repository root the same way on every machine and in CI.
 
 ## Commands
 
-### Go services (`auth`, `discovery`, `exporter`, `notifier`)
+### Go services (`auth`, `discovery`, `exporter`, `notifier`) and shared packages
 
-From `services/<svc>`:
+From the repository root:
 
 ```sh
-export GOWORK=off
 go build ./...
 go vet ./...
 go test -race ./...
-golangci-lint run          # finds the root .golangci.yml by walking up; never --no-config
+golangci-lint run ./services/<svc>/...   # or ./internal/<pkg>/...; uses the root .golangci.yml, never --no-config
 ```
 
-CI's test leg, with the floor from the `go` job matrix (auth 55, discovery 35, exporter 52, notifier 75):
+CI's test leg for a service, with the floor from the `go` job matrix (auth 60, discovery 50, exporter 55, notifier 75; the shared packages have none):
 
 ```sh
-GOWORK=off go test -race -coverpkg=./... -coverprofile=coverage.out ./...
+go test -race -coverpkg=./services/<svc>/... -coverprofile=coverage.out ./services/<svc>/...
 go tool cover -func=coverage.out | tail -1
 ```
 
-- Tests live in `internal/tests/<area>/` as separate packages, so only `-coverpkg=./...` coverage means anything.
+- Tests live in `internal/tests/<area>/` (`tests/<area>/` in a shared package) as separate packages, so only `-coverpkg` coverage over the service's packages means anything.
 - The test helpers (`internal/tests/testutil`) use miniredis and an embedded NATS server; no Redis, NATS or cluster is needed.
 - golangci-lint refuses to start while another golangci-lint holds its lock (`parallel golangci-lint is running`); lint services one after another.
 - The full procedure and what to report: the `go-service-change-gate` skill.
@@ -114,8 +108,8 @@ The stub-based `test_*_cov.py` suites replace `sys.modules` entries, so they run
 ### Everything at once
 
 ```sh
-export GOWORK=off PATH="$HOME/go/bin:$PATH"
-make check             # golangci-lint and go test for the four services, plus make helm-lint (after make deps)
+export PATH="$HOME/go/bin:$PATH"
+make check             # golangci-lint per service and shared package, go test for the module, plus make helm-lint (after make deps)
 make helm-validate
 ```
 

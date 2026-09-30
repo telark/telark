@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/telark/data/errors"
-	metadata "github.com/telark/data/metadata/base"
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/exporter/internal/exporters/generics"
-	"github.com/telark/exporter/internal/utils/concurrency"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
+	"github.com/telark/telark/internal/data/errors"
+	metadata "github.com/telark/telark/internal/data/metadata/base"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/exporters/generics"
+	"github.com/telark/telark/services/exporter/internal/utils/concurrency"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 func PatchResource(w http.ResponseWriter, r *http.Request, resourceMetadata metadata.Metadata) {

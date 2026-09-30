@@ -1,6 +1,6 @@
 package accessroles
 
-import "github.com/telark/rest/base"
+import "github.com/telark/telark/internal/rest/base"
 
 const (
 	CreateAccessRole     base.Endpoint = "accessroles"

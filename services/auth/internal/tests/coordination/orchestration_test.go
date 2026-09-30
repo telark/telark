@@ -9,14 +9,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/auth/internal/config"
-	"github.com/telark/auth/internal/constants"
-	cleanupctrl "github.com/telark/auth/internal/controllers/cleanup"
-	"github.com/telark/auth/internal/coordination/cleanup"
-	"github.com/telark/auth/internal/tests/testutil"
-	"github.com/telark/data/resources/finalizers"
-	resourcesshared "github.com/telark/data/resources/shared"
-	xwareredis "github.com/telark/x-ware/redis/stream"
+	"github.com/telark/telark/internal/data/resources/finalizers"
+	resourcesshared "github.com/telark/telark/internal/data/resources/shared"
+	xwareredis "github.com/telark/telark/internal/x-ware/redis/stream"
+	"github.com/telark/telark/services/auth/internal/config"
+	"github.com/telark/telark/services/auth/internal/constants"
+	cleanupctrl "github.com/telark/telark/services/auth/internal/controllers/cleanup"
+	"github.com/telark/telark/services/auth/internal/coordination/cleanup"
+	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
 const (

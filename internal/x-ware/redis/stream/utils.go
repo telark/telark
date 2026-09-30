@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/x-ware/constants"
+	"github.com/telark/telark/internal/x-ware/constants"
 )
 
 func (c *StateClient) SetValue(ctx context.Context, key, value string, ttl time.Duration) error {

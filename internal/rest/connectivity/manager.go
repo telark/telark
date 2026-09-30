@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/rest/constants"
+	"github.com/telark/telark/internal/rest/constants"
 )
 
 type ConnectivityManager struct {

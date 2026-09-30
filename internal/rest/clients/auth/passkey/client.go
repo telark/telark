@@ -1,14 +1,14 @@
 package passkey
 
 import (
-	authdata "github.com/telark/data/auth"
-	"github.com/telark/data/errors"
-	"github.com/telark/rest/base"
-	"github.com/telark/rest/clients/shared"
-	"github.com/telark/rest/constants"
-	eps "github.com/telark/rest/endpoints/auth"
-	restmapper "github.com/telark/rest/mappers"
-	"github.com/telark/rest/response"
+	authdata "github.com/telark/telark/internal/data/auth"
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/rest/base"
+	"github.com/telark/telark/internal/rest/clients/shared"
+	"github.com/telark/telark/internal/rest/constants"
+	eps "github.com/telark/telark/internal/rest/endpoints/auth"
+	restmapper "github.com/telark/telark/internal/rest/mappers"
+	"github.com/telark/telark/internal/rest/response"
 )
 
 const HeaderUserID = "X-User-ID"

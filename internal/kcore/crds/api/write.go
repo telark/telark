@@ -3,11 +3,11 @@ package api
 import (
 	"context"
 
-	"github.com/telark/data/errors"
-	"github.com/telark/data/messages"
-	"github.com/telark/data/metadata/base"
-	"github.com/telark/kcore/constants"
-	"github.com/telark/kcore/shared"
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/data/messages"
+	"github.com/telark/telark/internal/data/metadata/base"
+	"github.com/telark/telark/internal/kcore/constants"
+	"github.com/telark/telark/internal/kcore/shared"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -35,11 +35,12 @@ func performWrite(
 	defer prep.cancel()
 
 	var resource *unstructured.Unstructured
-	if rErr := retry.OnError(backoff, retriable, func() error {
+	rErr := retry.OnError(backoff, retriable, func() error {
 		var opErr error
 		resource, opErr = op(prep.ctx, prep.client)
 		return opErr
-	}); rErr != nil {
+	})
+	if rErr != nil {
 		return errorEnvelope(errors.ErrUpdateRes, name, rErr)
 	}
 	return okEnvelope(messages.SuccessUpdateRes, name, metadata.Kind, resource)

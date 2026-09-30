@@ -1,9 +1,9 @@
 package status
 
 import (
-	"github.com/telark/auth/internal/constants"
-	statuseps "github.com/telark/rest/endpoints/status"
-	statushandler "github.com/telark/rest/handlers/status"
+	statuseps "github.com/telark/telark/internal/rest/endpoints/status"
+	statushandler "github.com/telark/telark/internal/rest/handlers/status"
+	"github.com/telark/telark/services/auth/internal/constants"
 )
 
 // One handler serves all three probes: health and liveness always succeed, and

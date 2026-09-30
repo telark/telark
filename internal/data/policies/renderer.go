@@ -7,8 +7,8 @@ import (
 	"slices"
 
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
-	"github.com/telark/data/constants"
-	"github.com/telark/data/plans"
+	"github.com/telark/telark/internal/data/constants"
+	"github.com/telark/telark/internal/data/plans"
 )
 
 func Render(plan *plans.ProtectionPlan, resolved map[string]ResolvedApp, logger Logger) ([]kyvernov1.Policy, error) {

@@ -3,7 +3,7 @@ package manifest
 import (
 	"testing"
 
-	"github.com/telark/kcore/manifest"
+	"github.com/telark/telark/internal/kcore/manifest"
 )
 
 const (

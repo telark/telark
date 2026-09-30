@@ -5,10 +5,10 @@ import (
 	"sync"
 
 	redisv9 "github.com/redis/go-redis/v9"
-	"github.com/telark/auth/internal/config"
-	"github.com/telark/auth/internal/constants"
-	rediscore "github.com/telark/x-ware/redis/core"
-	redisinit "github.com/telark/x-ware/redis/init"
+	rediscore "github.com/telark/telark/internal/x-ware/redis/core"
+	redisinit "github.com/telark/telark/internal/x-ware/redis/init"
+	"github.com/telark/telark/services/auth/internal/config"
+	"github.com/telark/telark/services/auth/internal/constants"
 )
 
 var (

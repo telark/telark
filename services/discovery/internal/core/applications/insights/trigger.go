@@ -8,11 +8,11 @@ import (
 	"time"
 
 	goredis "github.com/redis/go-redis/v9"
-	insightsdata "github.com/telark/data/insights"
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/clients"
-	"github.com/telark/discovery/internal/constants"
-	xwareredis "github.com/telark/x-ware/redis/stream"
+	insightsdata "github.com/telark/telark/internal/data/insights"
+	"github.com/telark/telark/internal/data/resources/application"
+	xwareredis "github.com/telark/telark/internal/x-ware/redis/stream"
+	"github.com/telark/telark/services/discovery/internal/clients"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 // Default stays nil until Init runs, which turns Enqueue into a no-op.

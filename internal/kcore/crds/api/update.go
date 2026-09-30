@@ -3,8 +3,8 @@ package api
 import (
 	"context"
 
-	"github.com/telark/data/metadata/base"
-	"github.com/telark/kcore/shared"
+	"github.com/telark/telark/internal/data/metadata/base"
+	"github.com/telark/telark/internal/kcore/shared"
 	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"

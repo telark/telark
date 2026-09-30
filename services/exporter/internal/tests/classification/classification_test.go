@@ -4,9 +4,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	categorydata "github.com/telark/data/classification/category"
-	"github.com/telark/exporter/internal/constants"
-	categoryutil "github.com/telark/exporter/internal/utils/classification/category"
+	categorydata "github.com/telark/telark/internal/data/classification/category"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	categoryutil "github.com/telark/telark/services/exporter/internal/utils/classification/category"
 )
 
 func TestExtractCategorySpecFromRequestBody(t *testing.T) {

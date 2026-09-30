@@ -80,8 +80,9 @@ returns healthy only while the NATS subscriber is connected.
 ## Build & run
 
 ```sh
-go build ./...
-docker build -t ghcr.io/telark/notifier:<version> .
+# from the repo root: the image builds the service together with internal/
+go build ./services/notifier
+docker build -f services/notifier/Dockerfile -t ghcr.io/telark/notifier:<version> .
 ```
 
 Runs in-cluster via the [telark chart](../../charts/telark); see [INSTALL](../../docs/INSTALL.md)

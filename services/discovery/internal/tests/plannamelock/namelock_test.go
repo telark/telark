@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/telark/discovery/internal/core/plans/protection"
-	"github.com/telark/discovery/internal/tests/testutil"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const planName = "Prod Guard"

@@ -52,7 +52,8 @@ trim = true
 conventional_commits = true
 filter_unconventional = true
 split_commits = false
-protect_breaking_commits = true
+# The first commit parser already files breaking commits; true would only let them bypass .cliffignore.
+protect_breaking_commits = false
 filter_commits = false
 tag_pattern = "v[0-9].*"
 topo_order = false

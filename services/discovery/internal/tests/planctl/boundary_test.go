@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/data/plans"
-	"github.com/telark/discovery/internal/constants"
-	protectionctl "github.com/telark/discovery/internal/controllers/plans/protection"
-	"github.com/telark/discovery/internal/tests/testutil"
+	"github.com/telark/telark/internal/data/plans"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	protectionctl "github.com/telark/telark/services/discovery/internal/controllers/plans/protection"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const (

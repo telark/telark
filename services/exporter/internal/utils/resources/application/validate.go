@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"unicode/utf8"
 
-	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 // Mirrors the CRD type and maxLength so a caller gets a 400 with the field named

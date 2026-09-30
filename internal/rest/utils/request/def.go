@@ -7,9 +7,9 @@ import (
 	"io"
 	"net/http"
 
-	globalerrors "github.com/telark/data/errors"
-	"github.com/telark/rest/base"
-	"github.com/telark/rest/constants"
+	globalerrors "github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/rest/base"
+	"github.com/telark/telark/internal/rest/constants"
 )
 
 // ErrRequestBodyTooLarge maps to 413: a truncated body could still parse as valid JSON.

@@ -3,7 +3,7 @@ package authz
 import (
 	"testing"
 
-	"github.com/telark/auth/internal/authz"
+	"github.com/telark/telark/services/auth/internal/authz"
 )
 
 // NewResolver wires the client-backed record source into the shared basic

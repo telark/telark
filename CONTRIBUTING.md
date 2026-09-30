@@ -10,8 +10,10 @@ Thanks for contributing to Telark. Start with these three documents:
 
 ```
 services/
-  auth  discovery  exporter  notifier   Go services (in the go.work workspace)
+  auth  discovery  exporter  notifier   Go services
   analyzer                              Python / FastAPI service
+internal/
+  data  rest  kcore  x-ware             shared Go packages
 charts/
   telark        application chart
   telark-crds   custom resource definitions (bundled as a subchart of telark)
@@ -19,30 +21,23 @@ charts/
 docs/           user guides, reference, architecture, security, testing, ADRs
 ```
 
-The Go services depend on the shared modules `github.com/telark/{data,rest,x-ware,kcore}`, ordinary module dependencies pinned in each service's `go.mod`.
+All Go code is one module, `github.com/telark/telark` (the root `go.mod`): the services import the shared packages in `internal/` directly, so a change to one lands together with its callers.
 
 ## Prerequisites
 
-- Go 1.27+ (the exact version is the `go` line of each `services/<svc>/go.mod`), `golangci-lint`, `helm` 3.
+- Go 1.27+ (the exact version is the `go` line of the root `go.mod`), `golangci-lint`, `helm` 3.
 - Python 3.13+ and `venv` for the analyzer.
 - Docker and a Kubernetes cluster for end-to-end work.
 
 Exact tool versions and install commands: [docs/testing](docs/testing/README.md#fresh-environment).
-
-## Go workspace
-
-The four Go services share one `go.work`. It points the shared modules at the maintainer's local checkouts, so on any other machine export `GOWORK=off` first and run Go commands from `services/<svc>`, as CI does. The services then build against the published modules at the versions pinned in each `go.mod`. Details: [Shared Go modules](docs/testing/README.md#shared-go-modules).
-
-Don't run a standalone `go mod tidy` in one service: it re-resolves the shared modules.
 
 ## Build, lint, test
 
 The `Makefile` wraps the common flows; the full reference is [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ```sh
-export GOWORK=off
-make lint        # golangci-lint per Go service (shared root .golangci.yml) + helm lint
-make test        # go test per service
+make lint        # golangci-lint per Go service and package (shared root .golangci.yml) + helm lint
+make test        # go test for the whole module
 make helm-lint   # lint both charts
 make fmt         # gofmt
 ```

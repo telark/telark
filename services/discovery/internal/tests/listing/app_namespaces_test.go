@@ -8,13 +8,13 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/discovery/derivation"
-	"github.com/telark/discovery/internal/discovery/listing"
-	discoveryshared "github.com/telark/discovery/internal/discovery/shared"
-	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
-	"github.com/telark/discovery/internal/informers"
-	"github.com/telark/discovery/internal/tests/testutil"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/discovery/derivation"
+	"github.com/telark/telark/services/discovery/internal/discovery/listing"
+	discoveryshared "github.com/telark/telark/services/discovery/internal/discovery/shared"
+	tcfghelper "github.com/telark/telark/services/discovery/internal/helpers/telarkconfig"
+	"github.com/telark/telark/services/discovery/internal/informers"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/tools/cache"
 )
@@ -146,8 +146,10 @@ func TestAppNamespacesMatchesFullPassAcrossCacheChanges(t *testing.T) {
 			return nil
 		}, app: appName, want: []string{jobNamespace}},
 		{name: "label loses its identity",
-			mutate: func() error { return idx.Update(object(kindDeployment, jobNamespace, neighborApp, constants.EmptyString)) },
-			app:    thirdApp, want: nil},
+			mutate: func() error {
+				return idx.Update(object(kindDeployment, jobNamespace, neighborApp, constants.EmptyString))
+			},
+			app: thirdApp, want: nil},
 	}
 	for _, step := range steps {
 		if err := step.mutate(); err != nil {

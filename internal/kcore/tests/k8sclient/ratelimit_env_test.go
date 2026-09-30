@@ -3,7 +3,7 @@ package k8sclient
 import (
 	"testing"
 
-	"github.com/telark/kcore/k8sclient"
+	"github.com/telark/telark/internal/kcore/k8sclient"
 )
 
 // A dedicated client reads its budget like the shared one: unset or unusable

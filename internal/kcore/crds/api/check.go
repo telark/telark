@@ -1,11 +1,11 @@
 package api
 
 import (
-	"github.com/telark/data/metadata/base"
-	"github.com/telark/kcore/constants"
-	crdutils "github.com/telark/kcore/crds/utils"
-	"github.com/telark/kcore/resilience/timeout"
-	"github.com/telark/kcore/shared"
+	"github.com/telark/telark/internal/data/metadata/base"
+	"github.com/telark/telark/internal/kcore/constants"
+	crdutils "github.com/telark/telark/internal/kcore/crds/utils"
+	"github.com/telark/telark/internal/kcore/resilience/timeout"
+	"github.com/telark/telark/internal/kcore/shared"
 	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

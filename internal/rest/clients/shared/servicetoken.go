@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	dataconstants "github.com/telark/data/constants"
-	"github.com/telark/rest/constants"
+	dataconstants "github.com/telark/telark/internal/data/constants"
+	"github.com/telark/telark/internal/rest/constants"
 )
 
 var (

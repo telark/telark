@@ -1,8 +1,8 @@
 package cleanup
 
 import (
-	"github.com/telark/auth/internal/constants"
-	"github.com/telark/data/resources/finalizers"
+	"github.com/telark/telark/internal/data/resources/finalizers"
+	"github.com/telark/telark/services/auth/internal/constants"
 )
 
 type refSpec struct {

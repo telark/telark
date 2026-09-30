@@ -1,6 +1,6 @@
 package notifications
 
-import "github.com/telark/rest/base"
+import "github.com/telark/telark/internal/rest/base"
 
 const (
 	Emit        base.Endpoint = "internal/notifications"

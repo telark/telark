@@ -1,8 +1,8 @@
 package insights
 
 import (
-	"github.com/telark/data/resources/application"
-	xwareredis "github.com/telark/x-ware/redis/stream"
+	"github.com/telark/telark/internal/data/resources/application"
+	xwareredis "github.com/telark/telark/internal/x-ware/redis/stream"
 )
 
 type Logger interface {

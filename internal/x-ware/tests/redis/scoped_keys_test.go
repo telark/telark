@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	goredis "github.com/redis/go-redis/v9"
-	"github.com/telark/x-ware/redis/cache"
-	"github.com/telark/x-ware/redis/stream"
+	"github.com/telark/telark/internal/x-ware/redis/cache"
+	"github.com/telark/telark/internal/x-ware/redis/stream"
 )
 
 const (

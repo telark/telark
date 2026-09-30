@@ -6,8 +6,8 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection"
 )
 
 var localPlanDecisionLocks sync.Map

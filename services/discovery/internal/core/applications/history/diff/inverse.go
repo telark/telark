@@ -1,8 +1,8 @@
 package diff
 
 import (
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/core/applications/history/changes"
+	"github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/core/applications/history/changes"
 )
 
 type changeKey struct {

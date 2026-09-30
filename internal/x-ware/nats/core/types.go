@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
-	resourceshared "github.com/telark/data/resources/shared"
+	resourceshared "github.com/telark/telark/internal/data/resources/shared"
 )
 
 type (

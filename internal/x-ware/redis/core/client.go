@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/x-ware/shared"
+	"github.com/telark/telark/internal/x-ware/shared"
 )
 
 func getBasicConfig() (*BasicConfig, error) {

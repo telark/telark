@@ -3,7 +3,7 @@ package role
 import (
 	"testing"
 
-	roledata "github.com/telark/data/resources/role"
+	roledata "github.com/telark/telark/internal/data/resources/role"
 )
 
 // Saved custom roles store these strings inside <scope>.<action>.deny, so renaming a

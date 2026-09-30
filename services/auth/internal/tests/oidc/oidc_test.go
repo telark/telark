@@ -5,15 +5,15 @@ import (
 	"errors"
 	"testing"
 
-	telarkconfigresource "github.com/telark/data/resources/telarkconfig"
-	userresource "github.com/telark/data/resources/user"
+	telarkconfigresource "github.com/telark/telark/internal/data/resources/telarkconfig"
+	userresource "github.com/telark/telark/internal/data/resources/user"
 
-	"github.com/telark/auth/internal/config"
-	"github.com/telark/auth/internal/constants"
-	oidchandler "github.com/telark/auth/internal/handlers/oidc"
-	"github.com/telark/auth/internal/helpers/oidc"
-	redishelper "github.com/telark/auth/internal/helpers/redis"
-	"github.com/telark/auth/internal/tests/testutil"
+	"github.com/telark/telark/services/auth/internal/config"
+	"github.com/telark/telark/services/auth/internal/constants"
+	oidchandler "github.com/telark/telark/services/auth/internal/handlers/oidc"
+	"github.com/telark/telark/services/auth/internal/helpers/oidc"
+	redishelper "github.com/telark/telark/services/auth/internal/helpers/redis"
+	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
 const clientID = "id"

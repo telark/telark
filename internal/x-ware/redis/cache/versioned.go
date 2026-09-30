@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/telark/x-ware/constants"
+	"github.com/telark/telark/internal/x-ware/constants"
 )
 
 func SetWithVersion(

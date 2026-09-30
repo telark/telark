@@ -1,6 +1,6 @@
 # Architecture: components and flows
 
-How the services depend on each other and how data and control move between them. The one-page overview with the system diagram is [../architecture.md](../architecture.md); each service README has its internals; this page is the cross-service map. Paths starting `data/`, `rest/`, `kcore/` or `x-ware/` are in the shared Go modules (separate repositories, pinned in each service's `go.mod`).
+How the services depend on each other and how data and control move between them. The one-page overview with the system diagram is [../architecture.md](../architecture.md); each service README has its internals; this page is the cross-service map. Paths starting `data/`, `rest/`, `kcore/` or `x-ware/` are in the shared Go packages under `internal/`.
 
 ## Components
 

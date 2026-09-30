@@ -4,7 +4,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 func BuildKubernetesItems(snapshot map[string]any) ([]map[string]any, bool) {

@@ -3,9 +3,9 @@ package core
 import (
 	"fmt"
 
-	"github.com/telark/kcore/constants"
-	"github.com/telark/kcore/k8sclient"
-	"github.com/telark/kcore/resilience/timeout"
+	"github.com/telark/telark/internal/kcore/constants"
+	"github.com/telark/telark/internal/kcore/k8sclient"
+	"github.com/telark/telark/internal/kcore/resilience/timeout"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

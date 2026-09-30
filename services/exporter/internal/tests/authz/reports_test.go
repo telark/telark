@@ -3,9 +3,9 @@ package authz
 import (
 	"testing"
 
-	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/exporter/internal/authz"
-	xauthz "github.com/telark/x-ware/authz"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/exporter/internal/authz"
 )
 
 // Create and the ledger routes are reached by discovery only; both lists and download

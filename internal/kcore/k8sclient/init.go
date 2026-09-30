@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/telark/data/errors"
-	globallogger "github.com/telark/data/logger"
-	"github.com/telark/kcore/constants"
+	"github.com/telark/telark/internal/data/errors"
+	globallogger "github.com/telark/telark/internal/data/logger"
+	"github.com/telark/telark/internal/kcore/constants"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"

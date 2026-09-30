@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	appresource "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
-	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
+	appresource "github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	tcfghelper "github.com/telark/telark/services/discovery/internal/helpers/telarkconfig"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -148,8 +148,7 @@ func railRedisKeyAbsent(
 }
 
 func railNoForceSync(ctx context.Context, rdb redis.Cmdable, appName string) railResult {
-	if r := railRedisKeyAbsent(ctx, rdb, constants.RailNoForceSync,
-		constants.KeyPrefixLockApp+appName); !r.pass {
+	if r := railRedisKeyAbsent(ctx, rdb, constants.RailNoForceSync, constants.KeyPrefixLockApp+appName); !r.pass {
 		return r
 	}
 	return railRedisKeyAbsent(ctx, rdb, constants.RailNoForceSync,

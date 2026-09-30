@@ -1,12 +1,12 @@
 package applications
 
 import (
-	appresource "github.com/telark/data/resources/application"
-	"github.com/telark/rest/base"
-	"github.com/telark/rest/clients/shared"
-	"github.com/telark/rest/constants"
-	eps "github.com/telark/rest/endpoints/applications"
-	"github.com/telark/rest/response"
+	appresource "github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/internal/rest/base"
+	"github.com/telark/telark/internal/rest/clients/shared"
+	"github.com/telark/telark/internal/rest/constants"
+	eps "github.com/telark/telark/internal/rest/endpoints/applications"
+	"github.com/telark/telark/internal/rest/response"
 )
 
 type Client struct {

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/x-ware/constants"
-	"github.com/telark/x-ware/shared"
+	"github.com/telark/telark/internal/x-ware/constants"
+	"github.com/telark/telark/internal/x-ware/shared"
 )
 
 const (

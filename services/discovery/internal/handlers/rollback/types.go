@@ -3,7 +3,7 @@ package rollback
 import (
 	"time"
 
-	"github.com/telark/discovery/internal/clients"
+	"github.com/telark/telark/services/discovery/internal/clients"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"

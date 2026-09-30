@@ -3,11 +3,11 @@ package shared
 import (
 	"fmt"
 
-	"github.com/telark/data/errors"
-	"github.com/telark/rest/base"
-	"github.com/telark/rest/constants"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/rest/base"
+	"github.com/telark/telark/internal/rest/constants"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
 )
 
 func ExecuteRequestWithHeaders(

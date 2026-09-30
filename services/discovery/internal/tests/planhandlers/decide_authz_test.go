@@ -8,13 +8,13 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
-	dataerrors "github.com/telark/data/errors"
-	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection"
-	handlers "github.com/telark/discovery/internal/handlers/plans/protection"
-	"github.com/telark/discovery/internal/tests/testutil"
-	xauthz "github.com/telark/x-ware/authz"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection"
+	handlers "github.com/telark/telark/services/discovery/internal/handlers/plans/protection"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 func decide(t *testing.T, decision string, identity *xauthz.Identity) *httptest.ResponseRecorder {

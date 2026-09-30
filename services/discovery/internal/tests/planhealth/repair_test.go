@@ -11,14 +11,14 @@ import (
 	"time"
 
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
-	"github.com/telark/data/plans"
-	dpolicies "github.com/telark/data/policies"
-	_ "github.com/telark/data/policies/templates" // registers the renderers Render needs
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection/health"
-	protpolicies "github.com/telark/discovery/internal/core/plans/protection/policies"
-	"github.com/telark/discovery/internal/tests/testutil"
-	planseps "github.com/telark/rest/endpoints/plans"
+	"github.com/telark/telark/internal/data/plans"
+	dpolicies "github.com/telark/telark/internal/data/policies"
+	_ "github.com/telark/telark/internal/data/policies/templates" // registers the renderers Render needs
+	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/health"
+	protpolicies "github.com/telark/telark/services/discovery/internal/core/plans/protection/policies"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"

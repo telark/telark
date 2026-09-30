@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/telark/data/plans"
-	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/telark/internal/data/plans"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 const (

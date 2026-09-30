@@ -8,15 +8,15 @@ import (
 	"strings"
 	"testing"
 
-	dataconstants "github.com/telark/data/constants"
-	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/exporter/internal/authz"
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/rest/base"
-	authendpoints "github.com/telark/rest/endpoints/auth"
-	notificationsendpoints "github.com/telark/rest/endpoints/notifications"
-	"github.com/telark/rest/router"
-	xauthz "github.com/telark/x-ware/authz"
+	dataconstants "github.com/telark/telark/internal/data/constants"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	"github.com/telark/telark/internal/rest/base"
+	authendpoints "github.com/telark/telark/internal/rest/endpoints/auth"
+	notificationsendpoints "github.com/telark/telark/internal/rest/endpoints/notifications"
+	"github.com/telark/telark/internal/rest/router"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/exporter/internal/authz"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 const (

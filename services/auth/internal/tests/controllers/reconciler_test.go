@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/auth/internal/config"
-	"github.com/telark/auth/internal/constants"
-	cleanupctrl "github.com/telark/auth/internal/controllers/cleanup"
-	resourcesshared "github.com/telark/data/resources/shared"
-	"github.com/telark/rest/response"
+	resourcesshared "github.com/telark/telark/internal/data/resources/shared"
+	"github.com/telark/telark/internal/rest/response"
+	"github.com/telark/telark/services/auth/internal/config"
+	"github.com/telark/telark/services/auth/internal/constants"
+	cleanupctrl "github.com/telark/telark/services/auth/internal/controllers/cleanup"
 )
 
 const (

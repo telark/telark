@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/kcore/informers/factory"
+	"github.com/telark/telark/internal/kcore/informers/factory"
 )
 
 func TestCreateInformerFactory_NilClient(t *testing.T) {

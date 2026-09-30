@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"slices"
 
-	"github.com/telark/data/constants"
+	"github.com/telark/telark/internal/data/constants"
 )
 
 type ParamType string

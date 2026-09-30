@@ -7,12 +7,12 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
-	metadata "github.com/telark/data/metadata/v1alpha1"
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/exporter/internal/exporters/generics"
-	exportshared "github.com/telark/exporter/internal/exporters/shared"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
-	"github.com/telark/rest/base"
+	metadata "github.com/telark/telark/internal/data/metadata/v1alpha1"
+	"github.com/telark/telark/internal/rest/base"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/exporters/generics"
+	exportshared "github.com/telark/telark/services/exporter/internal/exporters/shared"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 const testResourceName = "n1"

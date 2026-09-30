@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"github.com/telark/auth/internal/constants"
+	"github.com/telark/telark/services/auth/internal/constants"
 )
 
 func GenerateSessionToken() (string, error) {

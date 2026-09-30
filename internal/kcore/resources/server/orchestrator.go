@@ -3,8 +3,8 @@ package server
 import (
 	"fmt"
 
-	"github.com/telark/kcore/constants"
-	"github.com/telark/kcore/k8sclient"
+	"github.com/telark/telark/internal/kcore/constants"
+	"github.com/telark/telark/internal/kcore/k8sclient"
 	"k8s.io/apimachinery/pkg/version"
 )
 

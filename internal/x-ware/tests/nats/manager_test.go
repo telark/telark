@@ -3,7 +3,7 @@ package nats
 import (
 	"testing"
 
-	"github.com/telark/x-ware/nats/core"
+	"github.com/telark/telark/internal/x-ware/nats/core"
 )
 
 func TestNewNatsManager(t *testing.T) {

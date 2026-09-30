@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/telark/auth/internal/clients"
-	"github.com/telark/auth/internal/constants"
-	authhelper "github.com/telark/auth/internal/helpers/auth"
-	"github.com/telark/auth/internal/helpers/shared"
-	authdata "github.com/telark/data/auth"
+	authdata "github.com/telark/telark/internal/data/auth"
+	"github.com/telark/telark/services/auth/internal/clients"
+	"github.com/telark/telark/services/auth/internal/constants"
+	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
+	"github.com/telark/telark/services/auth/internal/helpers/shared"
 )
 
 func Logout(w http.ResponseWriter, r *http.Request) {

@@ -10,11 +10,11 @@ import (
 	"os"
 	"testing"
 
-	dataconstants "github.com/telark/data/constants"
-	globalshared "github.com/telark/data/shared"
-	reportsclient "github.com/telark/rest/clients/reports"
-	"github.com/telark/rest/clients/shared"
-	reportseps "github.com/telark/rest/endpoints/reports"
+	dataconstants "github.com/telark/telark/internal/data/constants"
+	globalshared "github.com/telark/telark/internal/data/shared"
+	reportsclient "github.com/telark/telark/internal/rest/clients/reports"
+	"github.com/telark/telark/internal/rest/clients/shared"
+	reportseps "github.com/telark/telark/internal/rest/endpoints/reports"
 )
 
 const (

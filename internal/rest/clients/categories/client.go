@@ -3,11 +3,11 @@ package categories
 import (
 	"net/url"
 
-	"github.com/telark/data/classification/category"
-	"github.com/telark/rest/base"
-	"github.com/telark/rest/clients/shared"
-	"github.com/telark/rest/constants"
-	eps "github.com/telark/rest/endpoints/categories"
+	"github.com/telark/telark/internal/data/classification/category"
+	"github.com/telark/telark/internal/rest/base"
+	"github.com/telark/telark/internal/rest/clients/shared"
+	"github.com/telark/telark/internal/rest/constants"
+	eps "github.com/telark/telark/internal/rest/endpoints/categories"
 )
 
 type Client struct {

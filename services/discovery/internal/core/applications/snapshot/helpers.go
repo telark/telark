@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/config"
-	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/config"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 func MaxSnapshots() int {

@@ -3,9 +3,9 @@ package protection
 import (
 	"time"
 
-	"github.com/telark/data/plans"
-	globalshared "github.com/telark/data/shared"
-	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/telark/internal/data/plans"
+	globalshared "github.com/telark/telark/internal/data/shared"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 func ApplyCreateAudit(plan *plans.ProtectionPlan, userID string) {

@@ -1,8 +1,8 @@
 package update
 
 import (
-	"github.com/telark/data/plans"
-	planseps "github.com/telark/rest/endpoints/plans"
+	"github.com/telark/telark/internal/data/plans"
+	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
 )
 
 // Only changed fields plus the recomputed renderedPolicies/health/lastUpdated; phase, reason

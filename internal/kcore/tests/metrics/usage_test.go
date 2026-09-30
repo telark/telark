@@ -3,7 +3,7 @@ package metrics
 import (
 	"testing"
 
-	"github.com/telark/kcore/metrics"
+	"github.com/telark/telark/internal/kcore/metrics"
 )
 
 func TestGetWorkloadQualityOfService_EmptyNamespace(t *testing.T) {

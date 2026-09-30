@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection/validation"
-	reportsclient "github.com/telark/rest/clients/reports"
-	"github.com/telark/rest/clients/shared"
-	reportseps "github.com/telark/rest/endpoints/reports"
-	"github.com/telark/rest/response"
+	reportsclient "github.com/telark/telark/internal/rest/clients/reports"
+	"github.com/telark/telark/internal/rest/clients/shared"
+	reportseps "github.com/telark/telark/internal/rest/endpoints/reports"
+	"github.com/telark/telark/internal/rest/response"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/validation"
 )
 
 // Bypasses the exporter circuit breaker on purpose: a report call must never take its half-open

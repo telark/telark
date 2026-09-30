@@ -4,8 +4,8 @@ import (
 	"maps"
 	"time"
 
-	"github.com/telark/data/metadata/base"
-	"github.com/telark/kcore/constants"
+	"github.com/telark/telark/internal/data/metadata/base"
+	"github.com/telark/telark/internal/kcore/constants"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

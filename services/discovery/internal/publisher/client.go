@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
-	"github.com/telark/data/errors"
-	"github.com/telark/discovery/internal/circuitbreaker"
-	"github.com/telark/discovery/internal/constants"
-	natscore "github.com/telark/x-ware/nats/core"
-	natstreams "github.com/telark/x-ware/nats/streams"
+	"github.com/telark/telark/internal/data/errors"
+	natscore "github.com/telark/telark/internal/x-ware/nats/core"
+	natstreams "github.com/telark/telark/internal/x-ware/nats/streams"
+	"github.com/telark/telark/services/discovery/internal/circuitbreaker"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 var (

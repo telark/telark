@@ -1,6 +1,6 @@
 package plans
 
-import "github.com/telark/data/plans"
+import "github.com/telark/telark/internal/data/plans"
 
 type CreateProtectionPlanRequest struct {
 	ID               string                `json:"id"`

@@ -3,7 +3,7 @@ package authz
 import (
 	"net/http"
 
-	roledata "github.com/telark/data/resources/role"
+	roledata "github.com/telark/telark/internal/data/resources/role"
 )
 
 type (

@@ -3,8 +3,8 @@ package metrics
 import (
 	"testing"
 
-	"github.com/telark/kcore/constants"
-	"github.com/telark/kcore/metrics/metricsutils"
+	"github.com/telark/telark/internal/kcore/constants"
+	"github.com/telark/telark/internal/kcore/metrics/metricsutils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 )

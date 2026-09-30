@@ -1,8 +1,8 @@
 package protection
 
 import (
-	"github.com/telark/data/plans"
-	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/telark/internal/data/plans"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 // Both arrays are always present because merge patch replaces arrays but merges objects, and nil

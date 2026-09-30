@@ -16,6 +16,6 @@ runs:
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: ${{ inputs.go-version }}
-        # No root go.sum, so the default cache never restored and `go run helm-docs`
-        # rebuilt every run (25-35 s). Key it on the file that pins helm-docs.
+        # Keyed on the file that pins helm-docs, the only thing `go run` builds here,
+        # so the cache survives module dependency bumps (a cold build costs 25-35 s).
         cache-dependency-path: .github/actions/helm-docs-regenerate/action.yaml

@@ -10,8 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/telark/rest/base"
-	"github.com/telark/rest/constants"
+	"github.com/telark/telark/internal/rest/base"
+	"github.com/telark/telark/internal/rest/constants"
 )
 
 type debounceEntry struct {

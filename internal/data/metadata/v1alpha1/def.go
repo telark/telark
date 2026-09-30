@@ -1,8 +1,8 @@
 package v1alpha1
 
 import (
-	"github.com/telark/data/metadata/base"
-	globalshared "github.com/telark/data/shared"
+	"github.com/telark/telark/internal/data/metadata/base"
+	globalshared "github.com/telark/telark/internal/data/shared"
 )
 
 const (

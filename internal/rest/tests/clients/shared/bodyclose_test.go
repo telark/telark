@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/telark/rest/base"
-	"github.com/telark/rest/clients/auth/session"
-	"github.com/telark/rest/clients/shared"
-	authendpoints "github.com/telark/rest/endpoints/auth"
+	"github.com/telark/telark/internal/rest/base"
+	"github.com/telark/telark/internal/rest/clients/auth/session"
+	"github.com/telark/telark/internal/rest/clients/shared"
+	authendpoints "github.com/telark/telark/internal/rest/endpoints/auth"
 )
 
 const (

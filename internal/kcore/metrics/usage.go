@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/telark/data/logger"
-	usage "github.com/telark/data/resources/application"
-	globalshared "github.com/telark/data/shared"
-	"github.com/telark/kcore/constants"
-	"github.com/telark/kcore/metrics/client"
-	"github.com/telark/kcore/metrics/metricstypes"
-	"github.com/telark/kcore/metrics/metricsutils"
-	"github.com/telark/kcore/resources/workload"
+	"github.com/telark/telark/internal/data/logger"
+	usage "github.com/telark/telark/internal/data/resources/application"
+	globalshared "github.com/telark/telark/internal/data/shared"
+	"github.com/telark/telark/internal/kcore/constants"
+	"github.com/telark/telark/internal/kcore/metrics/client"
+	"github.com/telark/telark/internal/kcore/metrics/metricstypes"
+	"github.com/telark/telark/internal/kcore/metrics/metricsutils"
+	"github.com/telark/telark/internal/kcore/resources/workload"
 )
 
 var usageLogger = logger.NewCustomLogger(constants.LoggerPrefixWorkloadUsage)

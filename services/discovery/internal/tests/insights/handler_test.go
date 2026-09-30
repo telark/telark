@@ -12,13 +12,13 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/discovery/cache"
-	"github.com/telark/discovery/internal/handlers/insights"
-	redishelper "github.com/telark/discovery/internal/helpers/redis"
-	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
-	"github.com/telark/discovery/internal/tests/testutil"
+	"github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/discovery/cache"
+	"github.com/telark/telark/services/discovery/internal/handlers/insights"
+	redishelper "github.com/telark/telark/services/discovery/internal/helpers/redis"
+	tcfghelper "github.com/telark/telark/services/discovery/internal/helpers/telarkconfig"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const (

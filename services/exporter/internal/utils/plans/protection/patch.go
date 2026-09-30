@@ -3,7 +3,7 @@ package protection
 import (
 	"errors"
 
-	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 func ValidatePatchScope(body map[string]any) error {

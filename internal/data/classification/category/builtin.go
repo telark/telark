@@ -3,8 +3,8 @@ package category
 import (
 	"slices"
 
-	"github.com/telark/data/constants"
-	"github.com/telark/data/resources/role"
+	"github.com/telark/telark/internal/data/constants"
+	"github.com/telark/telark/internal/data/resources/role"
 )
 
 var BuiltinCategories = []Category{

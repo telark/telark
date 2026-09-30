@@ -1,9 +1,9 @@
 package session
 
 import (
-	authdata "github.com/telark/data/auth"
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/exporter/internal/utils/auth/shared"
+	authdata "github.com/telark/telark/internal/data/auth"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/utils/auth/shared"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/telark/auth/internal/config"
-	"github.com/telark/auth/internal/constants"
-	cleanupctrl "github.com/telark/auth/internal/controllers/cleanup"
-	"github.com/telark/data/logger"
-	resourcesshared "github.com/telark/data/resources/shared"
+	"github.com/telark/telark/internal/data/logger"
+	resourcesshared "github.com/telark/telark/internal/data/resources/shared"
+	"github.com/telark/telark/services/auth/internal/config"
+	"github.com/telark/telark/services/auth/internal/constants"
+	cleanupctrl "github.com/telark/telark/services/auth/internal/controllers/cleanup"
 )
 
 type stats struct {

@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/telark/rest/response"
+	"github.com/telark/telark/internal/rest/response"
 )
 
 const (

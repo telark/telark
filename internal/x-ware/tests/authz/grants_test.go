@@ -4,11 +4,11 @@ import (
 	"errors"
 	"testing"
 
-	dataconstants "github.com/telark/data/constants"
-	groupdata "github.com/telark/data/resources/group"
-	roledata "github.com/telark/data/resources/role"
-	userdata "github.com/telark/data/resources/user"
-	"github.com/telark/x-ware/authz"
+	dataconstants "github.com/telark/telark/internal/data/constants"
+	groupdata "github.com/telark/telark/internal/data/resources/group"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	userdata "github.com/telark/telark/internal/data/resources/user"
+	"github.com/telark/telark/internal/x-ware/authz"
 )
 
 const (

@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/telark/kcore/constants"
+	"github.com/telark/telark/internal/kcore/constants"
 )
 
 func ParseCPU(cpuStr string) int64 {

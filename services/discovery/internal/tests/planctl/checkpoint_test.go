@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/data/plans"
-	protectionctl "github.com/telark/discovery/internal/controllers/plans/protection"
+	"github.com/telark/telark/internal/data/plans"
+	protectionctl "github.com/telark/telark/services/discovery/internal/controllers/plans/protection"
 )
 
 const (

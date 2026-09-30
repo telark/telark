@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/telark/data/errors"
-	metadata "github.com/telark/data/metadata/base"
-	"github.com/telark/exporter/internal/cache"
-	"github.com/telark/exporter/internal/constants"
-	sharedexp "github.com/telark/exporter/internal/exporters/shared"
-	"github.com/telark/exporter/internal/utils/performance"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
+	"github.com/telark/telark/internal/data/errors"
+	metadata "github.com/telark/telark/internal/data/metadata/base"
+	"github.com/telark/telark/services/exporter/internal/cache"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	sharedexp "github.com/telark/telark/services/exporter/internal/exporters/shared"
+	"github.com/telark/telark/services/exporter/internal/utils/performance"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 func CreateResourceWithCacheInvalidation(

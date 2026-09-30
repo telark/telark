@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
-	"github.com/telark/data/errors"
-	resourceshared "github.com/telark/data/resources/shared"
-	globalshared "github.com/telark/data/shared"
-	"github.com/telark/x-ware/constants"
+	"github.com/telark/telark/internal/data/errors"
+	resourceshared "github.com/telark/telark/internal/data/resources/shared"
+	globalshared "github.com/telark/telark/internal/data/shared"
+	"github.com/telark/telark/internal/x-ware/constants"
 )
 
 const (

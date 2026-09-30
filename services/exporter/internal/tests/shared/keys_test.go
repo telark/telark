@@ -3,9 +3,9 @@ package shared
 import (
 	"testing"
 
-	roledata "github.com/telark/data/resources/role"
-	userdata "github.com/telark/data/resources/user"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	userdata "github.com/telark/telark/internal/data/resources/user"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 type embeddedBase struct {

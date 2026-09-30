@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/x-ware/constants"
-	"github.com/telark/x-ware/redis/core"
+	"github.com/telark/telark/internal/x-ware/constants"
+	"github.com/telark/telark/internal/x-ware/redis/core"
 )
 
 func NewCacheFromClient(client *redis.Client, ttl time.Duration) *RedisCache {

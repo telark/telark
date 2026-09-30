@@ -5,7 +5,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/telark/x-ware/constants"
+	"github.com/telark/telark/internal/x-ware/constants"
 )
 
 type EnvConfig struct {

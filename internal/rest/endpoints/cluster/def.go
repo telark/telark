@@ -1,6 +1,6 @@
 package cluster
 
-import "github.com/telark/rest/base"
+import "github.com/telark/telark/internal/rest/base"
 
 const (
 	GetAllWorkloadsByNamespace base.Endpoint = "cluster/namespaces/{namespace}/workloads"

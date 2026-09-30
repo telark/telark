@@ -4,10 +4,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/telark/data/logger"
-	"github.com/telark/kcore/constants"
-	"github.com/telark/kcore/resilience/circuitbreaker"
-	"github.com/telark/kcore/resilience/ratelimiting"
+	"github.com/telark/telark/internal/data/logger"
+	"github.com/telark/telark/internal/kcore/constants"
+	"github.com/telark/telark/internal/kcore/resilience/circuitbreaker"
+	"github.com/telark/telark/internal/kcore/resilience/ratelimiting"
 	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 

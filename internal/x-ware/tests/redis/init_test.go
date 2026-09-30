@@ -7,7 +7,7 @@ import (
 	"time"
 
 	redisv9 "github.com/redis/go-redis/v9"
-	redisinit "github.com/telark/x-ware/redis/init"
+	redisinit "github.com/telark/telark/internal/x-ware/redis/init"
 )
 
 const (

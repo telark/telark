@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/telark/exporter/internal/constants"
-	restconstants "github.com/telark/rest/constants"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	restconstants "github.com/telark/telark/internal/rest/constants"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 var (

@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/handlers/rollback"
-	"github.com/telark/discovery/internal/tests/testutil"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/handlers/rollback"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 	"k8s.io/client-go/util/workqueue"
 )
 

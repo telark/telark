@@ -3,7 +3,7 @@ package templates
 import (
 	"fmt"
 
-	"github.com/telark/data/constants"
+	"github.com/telark/telark/internal/data/constants"
 )
 
 func paramStringSlice(params map[string]any, key string) ([]string, error) {

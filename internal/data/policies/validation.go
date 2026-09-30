@@ -3,8 +3,8 @@ package policies
 import (
 	"fmt"
 
-	"github.com/telark/data/constants"
-	"github.com/telark/data/plans"
+	"github.com/telark/telark/internal/data/constants"
+	"github.com/telark/telark/internal/data/plans"
 )
 
 const (

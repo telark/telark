@@ -3,7 +3,7 @@ package metricsutils
 import (
 	"fmt"
 
-	"github.com/telark/kcore/constants"
+	"github.com/telark/telark/internal/kcore/constants"
 )
 
 func FormatCPU(milliValue int64) string {

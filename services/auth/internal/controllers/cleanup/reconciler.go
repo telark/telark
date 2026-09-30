@@ -9,10 +9,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/telark/auth/internal/config"
-	"github.com/telark/auth/internal/constants"
-	"github.com/telark/data/logger"
-	resourcesshared "github.com/telark/data/resources/shared"
+	"github.com/telark/telark/internal/data/logger"
+	resourcesshared "github.com/telark/telark/internal/data/resources/shared"
+	"github.com/telark/telark/services/auth/internal/config"
+	"github.com/telark/telark/services/auth/internal/constants"
 )
 
 func NewReconciler(cfg config.CleanupConfig, targets map[string]Target, lg *logger.CustomLogger) *Reconciler {

@@ -7,12 +7,12 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/telark/data/errors"
-	"github.com/telark/rest/base"
-	"github.com/telark/rest/clients/shared"
-	"github.com/telark/rest/constants"
-	eps "github.com/telark/rest/endpoints/snapshots"
-	"github.com/telark/rest/response"
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/rest/base"
+	"github.com/telark/telark/internal/rest/clients/shared"
+	"github.com/telark/telark/internal/rest/constants"
+	eps "github.com/telark/telark/internal/rest/endpoints/snapshots"
+	"github.com/telark/telark/internal/rest/response"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8sjson "k8s.io/apimachinery/pkg/util/json"
 )

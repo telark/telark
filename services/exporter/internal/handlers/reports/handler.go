@@ -6,12 +6,12 @@ import (
 	"io"
 	"net/http"
 
-	dataerrors "github.com/telark/data/errors"
-	"github.com/telark/exporter/internal/constants"
-	reportsexp "github.com/telark/exporter/internal/exporters/reports"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
-	reportseps "github.com/telark/rest/endpoints/reports"
-	"github.com/telark/rest/response"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	reportseps "github.com/telark/telark/internal/rest/endpoints/reports"
+	"github.com/telark/telark/internal/rest/response"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	reportsexp "github.com/telark/telark/services/exporter/internal/exporters/reports"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 func readBody(w http.ResponseWriter, r *http.Request) ([]byte, bool) {

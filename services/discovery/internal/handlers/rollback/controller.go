@@ -12,16 +12,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/telark/data/metadata/v1alpha1"
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/clients"
-	dconfig "github.com/telark/discovery/internal/config"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/applications/history/diff"
-	"github.com/telark/discovery/internal/helpers/async"
-	redishelper "github.com/telark/discovery/internal/helpers/redis"
-	notifclient "github.com/telark/rest/clients/notifications"
-	xwareredis "github.com/telark/x-ware/redis/stream"
+	"github.com/telark/telark/internal/data/metadata/v1alpha1"
+	"github.com/telark/telark/internal/data/resources/application"
+	notifclient "github.com/telark/telark/internal/rest/clients/notifications"
+	xwareredis "github.com/telark/telark/internal/x-ware/redis/stream"
+	"github.com/telark/telark/services/discovery/internal/clients"
+	dconfig "github.com/telark/telark/services/discovery/internal/config"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/applications/history/diff"
+	"github.com/telark/telark/services/discovery/internal/helpers/async"
+	redishelper "github.com/telark/telark/services/discovery/internal/helpers/redis"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -31,11 +31,11 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	kcoreapi "github.com/telark/kcore/crds/api"
-	crdview "github.com/telark/kcore/crds/view"
-	kcorefactory "github.com/telark/kcore/informers/factory"
-	kcorek8s "github.com/telark/kcore/k8sclient"
-	kcoreshared "github.com/telark/kcore/shared"
+	kcoreapi "github.com/telark/telark/internal/kcore/crds/api"
+	crdview "github.com/telark/telark/internal/kcore/crds/view"
+	kcorefactory "github.com/telark/telark/internal/kcore/informers/factory"
+	kcorek8s "github.com/telark/telark/internal/kcore/k8sclient"
+	kcoreshared "github.com/telark/telark/internal/kcore/shared"
 )
 
 const (
@@ -269,9 +269,7 @@ func (c *Controller) claimPending(
 	if err != nil || spec == nil {
 		return nil, invalidIndex, err
 	}
-	if err := patchRollbackStatus(ctx, name, spec, idx, rollbackPatchOpts{
-		Status: constants.RollbackStatusInProgress,
-	}); err != nil {
+	if err := patchRollbackStatus(ctx, name, spec, idx, rollbackPatchOpts{Status: constants.RollbackStatusInProgress}); err != nil {
 		return nil, invalidIndex, fmt.Errorf(string(constants.ErrRollbackStatusPatchFailed), err)
 	}
 	return spec, idx, nil
@@ -332,11 +330,12 @@ func (c *Controller) FinalizeRollbackSuccess(
 
 	now := time.Now().UTC()
 	restored := pending.TargetGeneration
-	if err := patchRollbackStatus(ctx, name, spec, idx, rollbackPatchOpts{
+	err := patchRollbackStatus(ctx, name, spec, idx, rollbackPatchOpts{
 		Status:             constants.RollbackStatusSuccess,
 		CompletedAt:        &now,
 		RestoredGeneration: &restored,
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 
@@ -486,11 +485,12 @@ func (c *Controller) FailStaleInProgress(
 		}
 		now := time.Now().UTC()
 		msg := StaleSweepErrorMsg(rb.Error)
-		if err := patchRollbackStatus(ctx, name, spec, i, rollbackPatchOpts{
+		err := patchRollbackStatus(ctx, name, spec, i, rollbackPatchOpts{
 			Status:      constants.RollbackStatusFailed,
 			ErrorMsg:    msg,
 			CompletedAt: &now,
-		}); err != nil {
+		})
+		if err != nil {
 			return true, err
 		}
 		c.emitRollbackFailure(&spec.Rollbacks[i], name, cmp.Or(msg, rb.Error))

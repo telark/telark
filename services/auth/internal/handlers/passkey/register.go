@@ -3,10 +3,10 @@ package passkey
 import (
 	"net/http"
 
-	"github.com/telark/auth/internal/constants"
-	authhelper "github.com/telark/auth/internal/helpers/auth"
-	"github.com/telark/auth/internal/helpers/shared"
-	webauthnhelper "github.com/telark/auth/internal/helpers/webauthn"
+	"github.com/telark/telark/services/auth/internal/constants"
+	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
+	"github.com/telark/telark/services/auth/internal/helpers/shared"
+	webauthnhelper "github.com/telark/telark/services/auth/internal/helpers/webauthn"
 )
 
 var lg = constants.GetLogger(constants.LoggerPrefixHandler)

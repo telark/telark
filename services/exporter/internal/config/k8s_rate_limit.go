@@ -1,8 +1,8 @@
 package config
 
 import (
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/kcore/k8sclient"
+	"github.com/telark/telark/internal/kcore/k8sclient"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 func ApplyKubernetesRESTRateLimit() {

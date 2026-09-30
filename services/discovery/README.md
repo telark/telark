@@ -274,8 +274,9 @@ rules (tests/authz TestEveryPlanRouteIsDenyable).
 ## Build & run
 
 ```sh
-go build ./...
-docker build -t ghcr.io/telark/discovery:<version> .
+# from the repo root: the image builds the service together with internal/
+go build ./services/discovery
+docker build -f services/discovery/Dockerfile -t ghcr.io/telark/discovery:<version> .
 ```
 
 Runs in-cluster via the [telark chart](../../charts/telark); see [INSTALL](../../docs/INSTALL.md)

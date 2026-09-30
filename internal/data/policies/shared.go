@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
-	"github.com/telark/data/constants"
-	"github.com/telark/data/plans"
+	"github.com/telark/telark/internal/data/constants"
+	"github.com/telark/telark/internal/data/plans"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

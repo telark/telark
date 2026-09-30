@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/telark/notifier/internal/constants"
-	"github.com/telark/rest/base"
-	statuseps "github.com/telark/rest/endpoints/status"
-	statushandler "github.com/telark/rest/handlers/status"
-	"github.com/telark/rest/router"
+	"github.com/telark/telark/internal/rest/base"
+	statuseps "github.com/telark/telark/internal/rest/endpoints/status"
+	statushandler "github.com/telark/telark/internal/rest/handlers/status"
+	"github.com/telark/telark/internal/rest/router"
+	"github.com/telark/telark/services/notifier/internal/constants"
 )
 
 func NewServer(connected func() bool) *http.Server {

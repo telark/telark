@@ -9,13 +9,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/telark/auth/internal/constants"
-	authhelper "github.com/telark/auth/internal/helpers/auth"
-	oidchelper "github.com/telark/auth/internal/helpers/oidc"
-	"github.com/telark/auth/internal/helpers/shared"
-	userresource "github.com/telark/data/resources/user"
-	restshared "github.com/telark/rest/clients/shared"
-	userclient "github.com/telark/rest/clients/users"
+	userresource "github.com/telark/telark/internal/data/resources/user"
+	restshared "github.com/telark/telark/internal/rest/clients/shared"
+	userclient "github.com/telark/telark/internal/rest/clients/users"
+	"github.com/telark/telark/services/auth/internal/constants"
+	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
+	oidchelper "github.com/telark/telark/services/auth/internal/helpers/oidc"
+	"github.com/telark/telark/services/auth/internal/helpers/shared"
 )
 
 var (

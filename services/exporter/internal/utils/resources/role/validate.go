@@ -4,14 +4,14 @@ import (
 	"errors"
 	"net/http"
 
-	metadata "github.com/telark/data/metadata/v1alpha1"
-	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/exporter/internal/constants"
-	roleconstants "github.com/telark/exporter/internal/utils/compute/role/constants"
-	resourcesshared "github.com/telark/exporter/internal/utils/resources/shared"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	metadata "github.com/telark/telark/internal/data/metadata/v1alpha1"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	roleconstants "github.com/telark/telark/services/exporter/internal/utils/compute/role/constants"
+	resourcesshared "github.com/telark/telark/services/exporter/internal/utils/resources/shared"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 func ValidateAndPrepareRole(role *roledata.AccessRole, w http.ResponseWriter) error {

@@ -7,14 +7,14 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	globalerrors "github.com/telark/data/errors"
-	"github.com/telark/data/messages"
-	metadata "github.com/telark/data/metadata/base"
-	"github.com/telark/exporter/internal/constants"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
-	"github.com/telark/kcore/crds/api"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	globalerrors "github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/data/messages"
+	metadata "github.com/telark/telark/internal/data/metadata/base"
+	"github.com/telark/telark/internal/kcore/crds/api"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 func GenericPatchCustomResource(w http.ResponseWriter, md metadata.Metadata, name string, patchData map[string]any) {

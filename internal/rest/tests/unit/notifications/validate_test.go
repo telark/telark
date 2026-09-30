@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/telark/rest/clients/notifications"
-	"github.com/telark/rest/constants"
+	"github.com/telark/telark/internal/rest/clients/notifications"
+	"github.com/telark/telark/internal/rest/constants"
 )
 
 func validNotification() notifications.Notification {

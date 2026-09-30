@@ -1,6 +1,6 @@
 package role
 
-import "github.com/telark/data/constants"
+import "github.com/telark/telark/internal/data/constants"
 
 const builtinVersion = "v1.0.0"
 

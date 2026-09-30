@@ -3,10 +3,10 @@ package manager
 import (
 	"testing"
 
-	"github.com/telark/notifier/internal/subscribers/applications"
-	"github.com/telark/notifier/internal/subscribers/manager"
-	"github.com/telark/notifier/internal/tests/testutil"
-	natscore "github.com/telark/x-ware/nats/core"
+	natscore "github.com/telark/telark/internal/x-ware/nats/core"
+	"github.com/telark/telark/services/notifier/internal/subscribers/applications"
+	"github.com/telark/telark/services/notifier/internal/subscribers/manager"
+	"github.com/telark/telark/services/notifier/internal/tests/testutil"
 )
 
 type fakeNatsManager struct{ c *natscore.NATSClient }

@@ -2,8 +2,8 @@ package policies
 
 import (
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
-	"github.com/telark/data/constants"
-	"github.com/telark/data/plans"
+	"github.com/telark/telark/internal/data/constants"
+	"github.com/telark/telark/internal/data/plans"
 )
 
 // Resources outside the namespace are dropped: a namespaced Policy cannot reach them anyway.

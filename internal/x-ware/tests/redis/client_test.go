@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/x-ware/redis/core"
+	"github.com/telark/telark/internal/x-ware/redis/core"
 )
 
 const (

@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/discovery/internal/circuitbreaker"
-	"github.com/telark/discovery/internal/clients"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/rest/response"
+	"github.com/telark/telark/internal/rest/response"
+	"github.com/telark/telark/services/discovery/internal/circuitbreaker"
+	"github.com/telark/telark/services/discovery/internal/clients"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 const failuresPastThreshold = constants.CircuitBreakerRestFailureThreshold * 4

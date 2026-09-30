@@ -3,8 +3,8 @@ package server
 import (
 	"strings"
 
-	"github.com/telark/kcore/constants"
-	coreclient "github.com/telark/kcore/resources/core"
+	"github.com/telark/telark/internal/kcore/constants"
+	coreclient "github.com/telark/telark/internal/kcore/resources/core"
 	k8scorev1 "k8s.io/api/core/v1"
 )
 

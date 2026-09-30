@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/x-ware/constants"
+	"github.com/telark/telark/internal/x-ware/constants"
 )
 
 type ElectionClient struct {

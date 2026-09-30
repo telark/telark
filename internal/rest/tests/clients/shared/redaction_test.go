@@ -9,13 +9,13 @@ import (
 	"strings"
 	"testing"
 
-	authdata "github.com/telark/data/auth"
-	dataconstants "github.com/telark/data/constants"
-	"github.com/telark/rest/clients/auth/session"
-	"github.com/telark/rest/clients/notifications"
-	"github.com/telark/rest/constants"
-	authendpoints "github.com/telark/rest/endpoints/auth"
-	notifendpoints "github.com/telark/rest/endpoints/notifications"
+	authdata "github.com/telark/telark/internal/data/auth"
+	dataconstants "github.com/telark/telark/internal/data/constants"
+	"github.com/telark/telark/internal/rest/clients/auth/session"
+	"github.com/telark/telark/internal/rest/clients/notifications"
+	"github.com/telark/telark/internal/rest/constants"
+	authendpoints "github.com/telark/telark/internal/rest/endpoints/auth"
+	notifendpoints "github.com/telark/telark/internal/rest/endpoints/notifications"
 )
 
 const (

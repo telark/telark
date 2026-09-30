@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/telark/auth/internal/constants"
+	"github.com/telark/telark/services/auth/internal/constants"
 )
 
 const asyncWorkerDelta = 1

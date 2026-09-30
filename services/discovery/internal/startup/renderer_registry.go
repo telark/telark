@@ -3,10 +3,10 @@ package startup
 import (
 	"fmt"
 
-	"github.com/telark/data/plans"
-	"github.com/telark/data/policies"
-	_ "github.com/telark/data/policies/templates" // registers all TemplateRenderers via init()
-	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/telark/internal/data/plans"
+	"github.com/telark/telark/internal/data/policies"
+	_ "github.com/telark/telark/internal/data/policies/templates" // registers all TemplateRenderers via init()
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 // Enforces a renderer per catalog entry, code uniqueness and the 63-byte K8s name budget;

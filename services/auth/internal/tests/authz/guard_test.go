@@ -8,13 +8,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/telark/auth/internal/authz"
-	"github.com/telark/auth/internal/constants"
-	"github.com/telark/auth/internal/tests/testutil"
-	groupdata "github.com/telark/data/resources/group"
-	roledata "github.com/telark/data/resources/role"
-	userresource "github.com/telark/data/resources/user"
-	xauthz "github.com/telark/x-ware/authz"
+	groupdata "github.com/telark/telark/internal/data/resources/group"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	userresource "github.com/telark/telark/internal/data/resources/user"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/auth/internal/authz"
+	"github.com/telark/telark/services/auth/internal/constants"
+	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
 const (

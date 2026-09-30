@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
-	appshared "github.com/telark/discovery/internal/core/applications/shared"
-	"github.com/telark/kcore/resources/workload"
+	"github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/internal/kcore/resources/workload"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	appshared "github.com/telark/telark/services/discovery/internal/core/applications/shared"
 	k8sbatchv1 "k8s.io/api/batch/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

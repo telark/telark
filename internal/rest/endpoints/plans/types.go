@@ -152,6 +152,9 @@ type ProtectionPlanPolicyStatus struct {
 type ProtectionPlanDrift struct {
 	Missing    []string `json:"missing"`
 	Unexpected []string `json:"unexpected"`
+	Mismatched []string `json:"mismatched,omitempty"`
+	Stale      []string `json:"stale,omitempty"`
+	Added      []string `json:"added,omitempty"`
 }
 
 // RetentionWindow tells the caller how far back the underlying record reaches, so an

@@ -89,7 +89,11 @@ func MergeUserAndPreparePatchBody(existingUser, newUser *userdata.User, body map
 
 	if _, provided := body[constants.FieldStatus]; provided {
 		mergedUser.Status = newUser.Status
-		body[constants.FieldStatus] = newUser.Status
+		if StatusKeepsPhase(body) {
+			mergedUser.Status.Phase = existingUser.Status.Phase
+		} else {
+			body[constants.FieldStatus] = newUser.Status
+		}
 	}
 
 	resourcesshared.ReplaceIDsIfProvided(
@@ -106,6 +110,14 @@ func MergeUserAndPreparePatchBody(existingUser, newUser *userdata.User, body map
 	)
 
 	return &mergedUser
+}
+
+// A status without a phase (a login's last-login stamp) goes out as sent, so the
+// merge patch leaves the stored phase alone instead of defaulting it to active.
+func StatusKeepsPhase(body map[string]any) bool {
+	status, isMap := body[constants.FieldStatus].(map[string]any)
+	_, phaseSet := status[constants.FieldPhase]
+	return isMap && !phaseSet
 }
 
 func replaceStringIfProvided(body map[string]any, key string, newValue string, target *string) {

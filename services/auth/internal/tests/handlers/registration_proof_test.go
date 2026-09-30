@@ -250,11 +250,15 @@ const (
 	callbackKid      = "k-callback"
 	callbackSubject  = "sub-callback"
 	rsaKeyBits       = 2048
+	suspendedEmail   = "test@example.com"
+	// The UI matches these phrases, so they are pinned here rather than read from constants.
+	bootstrapRefusal = "bootstrap administrator signs in with a passkey"
+	suspendedRefusal = "account is suspended"
 )
 
 // callbackExporter serves what a Google login reads: the OIDC config, the
-// subject lookup (bound when byIdentity is set) and the user list an email
-// match scans; it counts every write, since a refused login makes none.
+// subject lookup (bound when byIdentity is set, and that user by id) and the user
+// list an email match scans; it counts every write, since a refused login makes none.
 type callbackExporter struct {
 	byIdentity *userresource.User
 	users      []*userresource.User
@@ -275,6 +279,8 @@ func (e *callbackExporter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		reply(http.StatusNotFound, nil)
 	case strings.Contains(r.URL.Path, "by-identity"):
 		reply(http.StatusOK, e.byIdentity)
+	case e.byIdentity != nil && strings.HasSuffix(r.URL.Path, "/users/"+e.byIdentity.ID):
+		reply(http.StatusOK, e.byIdentity)
 	case r.Method == http.MethodGet:
 		reply(http.StatusOK, map[string]any{"items": e.users})
 	default:
@@ -285,8 +291,8 @@ func (e *callbackExporter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Signs a Google-shaped ID token for bootstrapEmail with a key the mounted trust file pins.
-func signedCallbackBody(t *testing.T) string {
+// Signs a Google-shaped ID token for email with a key the mounted trust file pins.
+func signedCallbackBody(t *testing.T, email string) string {
 	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, rsaKeyBits)
 	if err != nil {
@@ -306,7 +312,7 @@ func signedCallbackBody(t *testing.T) string {
 		t.Fatalf("nonce: %v", err)
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, oidchelper.GoogleClaims{
-		Email: bootstrapEmail, EmailVerified: true, Nonce: nonce,
+		Email: email, EmailVerified: true, Nonce: nonce,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer: constants.GoogleIssuer, Subject: callbackSubject,
 			Audience: jwt.ClaimStrings{callbackClientID}, ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
@@ -339,12 +345,29 @@ func TestGoogleCallbackRefusesTheBootstrapAdmin(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			testutil.StubBackend(t, c.backend)
 			rec := httptest.NewRecorder()
-			oidchandler.GoogleCallback(rec, jsonReq(signedCallbackBody(t)))
+			oidchandler.GoogleCallback(rec, jsonReq(signedCallbackBody(t, bootstrapEmail)))
 			testutil.Equal(t, "status", rec.Code, http.StatusForbidden)
-			testutil.Equal(t, "message", strings.Contains(rec.Body.String(), string(constants.ErrReservedEmail)), true)
+			testutil.Equal(t, "message", strings.Contains(rec.Body.String(), bootstrapRefusal), true)
 			c.backend.mu.Lock()
 			defer c.backend.mu.Unlock()
 			testutil.Equal(t, "writes", c.backend.writes, constants.DefaultInitValue)
 		})
 	}
+}
+
+// Suspension is named only after Google vouched for the caller, and the refused
+// login gets no session.
+func TestGoogleCallbackRefusesASuspendedAccount(t *testing.T) {
+	backend := &callbackExporter{byIdentity: &userresource.User{ID: "u-susp", Email: suspendedEmail,
+		Status: userresource.UserStatus{Phase: string(userresource.AccountPhaseSuspended)},
+		Identities: []*userresource.UserIdentity{{Provider: constants.IdentityProviderGoogle,
+			Issuer: constants.GoogleIssuer, Subject: callbackSubject}}}}
+	testutil.StubBackend(t, backend)
+	rec := httptest.NewRecorder()
+	oidchandler.GoogleCallback(rec, jsonReq(signedCallbackBody(t, suspendedEmail)))
+	testutil.Equal(t, "status", rec.Code, http.StatusForbidden)
+	testutil.Equal(t, "message", strings.Contains(rec.Body.String(), suspendedRefusal), true)
+	backend.mu.Lock()
+	defer backend.mu.Unlock()
+	testutil.Equal(t, "writes", backend.writes, constants.DefaultInitValue)
 }

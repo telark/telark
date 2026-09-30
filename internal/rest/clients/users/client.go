@@ -39,9 +39,11 @@ func (c *Client) GetUserByUsername(username string) (*userresource.User, error) 
 	return shared.GetTyped[userresource.User](c.WithParams(params), eps.GetUserByUsername)
 }
 
+// Logins pick the account by email; the exporter's cached copy is keyed by the
+// typed address, which a user write does not invalidate.
 func (c *Client) GetUserByEmail(email string) (*userresource.User, error) {
 	params := map[string]string{constants.EmailParam: email}
-	return shared.GetTyped[userresource.User](c.WithParams(params), eps.GetUserByEmail)
+	return shared.GetTypedNoCache[userresource.User](c.WithParams(params), eps.GetUserByEmail)
 }
 
 func (c *Client) GetUserByIdentity(provider, issuer, subject string) (*userresource.User, error) {

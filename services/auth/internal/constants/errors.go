@@ -9,6 +9,7 @@ const (
 	// Authentication Errors
 	ErrInvalidEmail            errors.Error = "invalid email"
 	ErrUserNotFound            errors.Error = "user not found"
+	ErrUserSuspended           errors.Error = "user account is suspended"
 	ErrUserAlreadyHasPasskeys  errors.Error = "user already has passkeys. please login first"
 	ErrRegisterEmailMismatch   errors.Error = "email does not belong to the signed-in user"
 	ErrEnrollTokenInvalid      errors.Error = "invalid or expired enrollment token"
@@ -153,6 +154,7 @@ const (
 	ErrOIDCTokenInvalidDetail    errors.Error = "token invalid"
 	ErrOIDCEmailAmbiguous        errors.Error = "more than one user holds this email; contact your administrator"
 	ErrOIDCEmailAlreadyBound     errors.Error = "this email belongs to an account that already signs in another way; contact your administrator"
+	ErrOIDCBootstrapPasskeyOnly  errors.Error = "the bootstrap administrator signs in with a passkey"
 
 	// Redis Errors
 	ErrRedisClientUnavailable errors.Error = "redis client is not available — check REDIS_HOST and REDIS_PORT"

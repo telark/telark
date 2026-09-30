@@ -61,9 +61,9 @@ func GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	capturedUserID, capturedPhase := user.ID, user.Status.Phase
+	capturedUserID := user.ID
 	authhelper.Dispatch(func() {
-		authhelper.UpdateUserLastLogin(capturedUserID, capturedPhase)
+		authhelper.UpdateUserLastLogin(capturedUserID)
 	})
 
 	lg.Info(fmt.Sprintf(string(constants.LogOIDCLoginAccepted), shared.IdentityHash(claims.Subject)))

@@ -142,6 +142,7 @@ const (
 	FieldAvatar                                 = "avatar"
 	FieldSettings                               = "settings"
 	FieldStatus                                 = "status"
+	FieldPhase                                  = "phase"
 	FieldID                                     = "id"
 	FieldGeneration                             = "generation"
 	FieldName                                   = "name"

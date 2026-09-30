@@ -21,6 +21,7 @@ const (
 	storedRoleID  = "r-00002-0000-0002"
 	storedGroupID = "ug-00003-0000-0003"
 	originalActor = "u-00012-0000-0012"
+	statusUserID  = "u-0000f-0000-0006"
 	rolesPath     = "/api/v1/accessroles"
 	groupsPath    = "/api/v1/groups"
 	keyCreatedBy  = "createdBy"
@@ -121,6 +122,76 @@ func TestUserPatchWithoutGroupsKeepsMemberships(t *testing.T) {
 			}
 			if members := storedList(t, client, v1alpha1.GroupMetadata, mixedGroupID, keyUserRefs); !slices.Contains(members, plainUser) {
 				t.Errorf("group lost the member: %v", members)
+			}
+		})
+	}
+}
+
+// Seen live: a deleted user stayed in its groups' member lists, and a deleted group in
+// its members' groupRefs, until auth's cleanup sweep ran 45-60 s later.
+func TestDeleteStripsTheOtherSide(t *testing.T) {
+	tests := []struct {
+		name, path    string
+		identity      xauthz.Identity
+		md            base.Metadata
+		holder, field string
+		want          []string
+	}{
+		{"user", usersPrefix + plainUser, adminCaller(), v1alpha1.GroupMetadata, mixedGroupID, keyUserRefs, []string{adminA}},
+		{"group", groupsPrefix + mixedGroupID, adminCaller(), v1alpha1.UserMetadata, plainUser, keyGroupRefs, nil},
+		{"group, by a caller the member is hidden from", groupsPrefix + mixedGroupID, restrictedCaller(),
+			v1alpha1.UserMetadata, adminA, keyGroupRefs, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := mixedDirectory(t)
+			if w := serveAs(t, tt.identity, http.MethodDelete, tt.path, constants.EmptyString); w.Code != http.StatusOK {
+				t.Fatalf("delete = %d %s", w.Code, w.Body.String())
+			}
+			if refs := storedList(t, client, tt.md, tt.holder, tt.field); !slices.Equal(refs, tt.want) {
+				t.Errorf("%s %s = %v, want %v", tt.holder, tt.field, refs, tt.want)
+			}
+		})
+	}
+}
+
+func statusUser(t *testing.T, phase string, stamp *string) seed {
+	t.Helper()
+	user := userRecord(statusUserID, nil, nil, false)
+	user.Status.Phase, user.Status.LastLoginAt = phase, stamp
+	return crSeedOf(t, v1alpha1.UserMetadata, statusUserID, user)
+}
+
+// The stamp and the phase have different writers: a login's last-login stamp never
+// moves the phase an admin set meanwhile, and a phase change keeps the stamp.
+func TestLastLoginStampAndPhaseStayApart(t *testing.T) {
+	stamp := stampTime
+	tests := []struct {
+		name, id string
+		seeds    func(t *testing.T) []seed
+		caller   xauthz.Identity
+		body     map[string]any
+		phase    string
+	}{
+		{"stamp on a suspended account", statusUserID, func(t *testing.T) []seed {
+			return []seed{statusUser(t, phaseSuspended, nil)}
+		}, xauthz.Identity{Internal: true}, lastLoginStamp(), phaseSuspended},
+		{"stamp on the only admin", adminA, func(t *testing.T) []seed {
+			return []seed{adminUser(t, adminA, []string{adminRoleID}, nil, false)}
+		}, xauthz.Identity{Internal: true}, lastLoginStamp(), phaseActive},
+		{"suspension of a stamped account", statusUserID, func(t *testing.T) []seed {
+			return []seed{statusUser(t, phaseActive, &stamp)}
+		}, adminCaller(), suspend(), phaseSuspended},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := adminDirectory(t, tt.seeds(t)...)
+			if w := patchAs(t, tt.caller, usersPrefix+tt.id, jsonBody(t, tt.body)); w.Code != http.StatusOK {
+				t.Fatalf("patch = %d %s", w.Code, w.Body.String())
+			}
+			status, _, err := unstructured.NestedStringMap(storedSpec(t, client, v1alpha1.UserMetadata, tt.id), keyStatus)
+			if err != nil || status[keyPhase] != tt.phase || status[keyLastLoginAt] != stampTime {
+				t.Fatalf("stored status = %v (%v), want phase %s and lastLoginAt %s", status, err, tt.phase, stampTime)
 			}
 		})
 	}

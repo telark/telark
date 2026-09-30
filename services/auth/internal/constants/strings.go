@@ -45,7 +45,6 @@ const (
 	UserFieldIdentities           = "identities"
 	UserFieldBootstrap            = "bootstrap"
 	UserFieldStatus               = "status"
-	UserStatusFieldPhase          = "phase"
 	UserStatusFieldLastLoginAt    = "lastLoginAt"
 	IdentityHashLength            = 8
 	IdentityHashUnknown           = "unknown"

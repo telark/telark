@@ -223,7 +223,7 @@ func GuardUserPatchLastAdmin(w http.ResponseWriter, existing *userdata.User, bod
 		return false
 	}
 	after := *existing
-	if _, present := body[constants.FieldStatus]; present {
+	if _, present := body[constants.FieldStatus]; present && !userutils.StatusKeepsPhase(body) {
 		after.Status = patched.Status
 	}
 	if _, present := body[constants.FieldRoleRefs]; present {

@@ -88,6 +88,7 @@ const (
 	ErrUserBeingDeleted             errors.Error = "user is being deleted"
 	WarnUserSessionsPurgeFailed     errors.Error = "sessions of deleted user %s not purged, the cleanup sweeper will retry: %v"
 	WarnUserPasskeysPurgeFailed     errors.Error = "passkeys of deleted user %s not purged: %v"
+	WarnMembershipsNotStripped      errors.Error = "memberships of deleted %s %s not stripped, the cleanup sweeper will retry: %v"
 	ErrUsernameAlreadyExists        errors.Error = "user with this username already exists"
 	ErrUsernameCannotBeEmpty        errors.Error = "username cannot be empty"
 	ErrEmailAlreadyExists           errors.Error = "user with this email already exists"

@@ -96,10 +96,9 @@ func LoginFinish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	capturedUserID, capturedCredID, capturedPhase := user.ID, credential.ID, user.Status.Phase
+	capturedUserID, capturedCredID := user.ID, credential.ID
 	auth.Dispatch(func() {
 		_ = auth.UpdatePasskeyLastUsed(capturedUserID, capturedCredID)
-		auth.UpdateUserLastLogin(capturedUserID, capturedPhase)
 		webauthnhelper.CleanupChallenge(capturedUserID)
 	})
 
@@ -112,6 +111,9 @@ func LoginFinish(w http.ResponseWriter, r *http.Request) {
 		shared.HandleError(w, err, status, err.Error())
 		return
 	}
+
+	// A refused login is no login: the stamp waits for the session, as on the Google path.
+	auth.Dispatch(func() { auth.UpdateUserLastLogin(capturedUserID) })
 
 	shared.SendJSONResponse(w, http.StatusOK, LoginFinishResponse{
 		SessionToken: sessionToken,

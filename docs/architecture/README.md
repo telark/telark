@@ -78,7 +78,7 @@ Constants: `services/<svc>/internal/constants/` (discovery `coordination.go`, `f
 
 **Sign-in.** The UI calls auth; auth verifies the passkey assertion or Google ID token, then creates the `Session` through the exporter and returns the token. Every later API call carries `X-Session-Token`; each service resolves it as described in [security](../security/README.md#authentication).
 
-**User, group and access-role deletion.** auth's `DELETE auth/{users,groups,accessroles}/{id}` route runs the deletion guard, deletes through the exporter (a finalizer keeps the record), and queues a job on `auth:cleanup:<kind>`. The cleanup reconciler deletes a deleted user's sessions, strips back-references from other records, then removes the finalizer (`services/auth/internal/controllers/cleanup/`, [auth README](../../services/auth/README.md)).
+**User, group and access-role deletion.** auth's `DELETE auth/{users,groups,accessroles}/{id}` route runs the deletion guard, deletes through the exporter (a finalizer keeps the record), and queues a job on `auth:cleanup:<kind>`. The cleanup reconciler deletes a deleted user's sessions, strips back-references from other records, then removes the finalizer (`services/auth/internal/controllers/cleanup/`, [auth README](../../services/auth/README.md)). The exporter's delete already strips group membership on the other side, so for membership the reconciler is the backstop.
 
 ## Startup and health
 

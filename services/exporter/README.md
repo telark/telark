@@ -180,7 +180,8 @@ are exempt.
 
 Request bodies on the user, group, role, category and protection-plan create and patch routes must use
 the exact JSON field names: an unknown or differently cased key (`RoleRefs`, `status.Phase`)
-answers 400 before any guard or write runs.
+answers 400 before any guard or write runs. A user patch whose `status` omits `phase` (auth's
+last-login stamp) keeps the stored phase; only a `phase` that is sent changes it.
 
 Roles and groups on a user are diffed against the stored lists: an addition needs `attachroletouser` /
 `addusertogroup`, a removal `removerolefromuser` / `removeuserfromgroup`, each with users or groups Owner.
@@ -194,6 +195,8 @@ consistent: a group create or patch that changes `userRefs` updates each affecte
 member list. The counterparts are written first, one at a time under their own lock, and the caller's
 own record last; a failure answers 500 with the record that could not be updated and the caller's
 record unchanged, so the same request can be retried (every mirror write is a no-op once applied).
+A user or group delete strips the deleted record from the other side right after the delete; if
+that write fails, auth's cleanup sweep, which holds the finalizer, removes it.
 Affected users' cached grants are dropped. On boot, one pass over all users and groups aligns the
 group side to the user side, which is what grants: a group gains the users that name it and loses the
 ones that don't, and user lists lose duplicates and groups that no longer exist. Nobody's access changes.

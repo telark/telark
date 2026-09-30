@@ -25,6 +25,8 @@ const (
 	bootstrapUser  = "u-0000d-0000-0004"
 	plainUser      = "u-0000e-0000-0005"
 	phaseSuspended = "suspended"
+	keyLastLoginAt = "lastLoginAt"
+	stampTime      = "2026-09-30T12:00:00Z"
 	keyRoleRefs    = "roleRefs"
 	keyGroupRefs   = "groupRefs"
 	keyFullname    = "fullname"
@@ -85,6 +87,10 @@ func suspend() map[string]any {
 	return map[string]any{constants.FieldStatus: map[string]any{keyPhase: phaseSuspended}}
 }
 
+func lastLoginStamp() map[string]any {
+	return map[string]any{constants.FieldStatus: map[string]any{keyLastLoginAt: stampTime}}
+}
+
 type lastAdminCase struct {
 	name  string
 	users func(t *testing.T) []seed
@@ -108,6 +114,10 @@ func lastAdminCases() []lastAdminCase {
 			func(w http.ResponseWriter) bool { return authz.GuardUserDeleteLastAdmin(w, directAdmin()) }, false},
 		{"suspend the last admin", func(t *testing.T) []seed { return []seed{direct(t)} },
 			func(w http.ResponseWriter) bool { return authz.GuardUserPatchLastAdmin(w, directAdmin(), suspend()) }, false},
+		{"stamp the last admin's login", func(t *testing.T) []seed { return []seed{direct(t)} },
+			func(w http.ResponseWriter) bool {
+				return authz.GuardUserPatchLastAdmin(w, directAdmin(), lastLoginStamp())
+			}, true},
 		{"demote the last admin", func(t *testing.T) []seed { return []seed{direct(t)} },
 			func(w http.ResponseWriter) bool {
 				return authz.GuardUserPatchLastAdmin(w, directAdmin(), map[string]any{keyRoleRefs: []any{}})

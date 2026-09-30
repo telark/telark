@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/rs/cors"
-	"github.com/telark/x-ware/constants"
+	"github.com/telark/telark/internal/x-ware/constants"
 )
 
 // No configured origin means same-origin only: the handler passes requests

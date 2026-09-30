@@ -4,8 +4,8 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/telark/data/errors"
-	"github.com/telark/data/metadata/v1alpha1"
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/data/metadata/v1alpha1"
 )
 
 const (

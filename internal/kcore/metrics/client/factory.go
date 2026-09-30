@@ -5,11 +5,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/telark/data/errors"
-	"github.com/telark/kcore/constants"
-	"github.com/telark/kcore/metrics/metricstypes"
-	"github.com/telark/kcore/resilience/circuitbreaker"
-	"github.com/telark/kcore/resilience/ratelimiting"
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/kcore/constants"
+	"github.com/telark/telark/internal/kcore/metrics/metricstypes"
+	"github.com/telark/telark/internal/kcore/resilience/circuitbreaker"
+	"github.com/telark/telark/internal/kcore/resilience/ratelimiting"
 	"k8s.io/client-go/rest"
 	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 )

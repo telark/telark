@@ -3,8 +3,8 @@ package snapshot
 import (
 	"testing"
 
-	"github.com/telark/exporter/internal/constants"
-	snaputil "github.com/telark/exporter/internal/utils/snapshot"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	snaputil "github.com/telark/telark/services/exporter/internal/utils/snapshot"
 )
 
 const (

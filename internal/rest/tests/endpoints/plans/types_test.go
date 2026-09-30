@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/telark/rest/endpoints/plans"
+	"github.com/telark/telark/internal/rest/endpoints/plans"
 )
 
 const (

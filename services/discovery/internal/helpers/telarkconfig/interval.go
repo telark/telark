@@ -3,9 +3,9 @@ package telarkconfig
 import (
 	"context"
 
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/startup"
-	cfgclient "github.com/telark/rest/clients/config"
+	cfgclient "github.com/telark/telark/internal/rest/clients/config"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/startup"
 )
 
 func FetchIntervalSeconds(ctx context.Context) int {

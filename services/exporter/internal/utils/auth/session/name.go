@@ -3,11 +3,11 @@ package session
 import (
 	"net/http"
 
-	authdata "github.com/telark/data/auth"
-	dataconstants "github.com/telark/data/constants"
-	"github.com/telark/exporter/internal/constants"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
-	"github.com/telark/rest/response"
+	authdata "github.com/telark/telark/internal/data/auth"
+	dataconstants "github.com/telark/telark/internal/data/constants"
+	"github.com/telark/telark/internal/rest/response"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 func SessionName(token string) string {

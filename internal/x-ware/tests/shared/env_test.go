@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/telark/x-ware/shared"
+	"github.com/telark/telark/internal/x-ware/shared"
 )
 
 const (

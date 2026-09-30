@@ -7,12 +7,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/telark/auth/internal/config"
-	"github.com/telark/auth/internal/constants"
-	passkeyhandler "github.com/telark/auth/internal/handlers/passkey"
-	webauthnhelper "github.com/telark/auth/internal/helpers/webauthn"
-	authdata "github.com/telark/data/auth"
-	userresource "github.com/telark/data/resources/user"
+	authdata "github.com/telark/telark/internal/data/auth"
+	userresource "github.com/telark/telark/internal/data/resources/user"
+	"github.com/telark/telark/services/auth/internal/config"
+	"github.com/telark/telark/services/auth/internal/constants"
+	passkeyhandler "github.com/telark/telark/services/auth/internal/handlers/passkey"
+	webauthnhelper "github.com/telark/telark/services/auth/internal/helpers/webauthn"
 )
 
 // registerStub backs an account that already holds a passkey: the session

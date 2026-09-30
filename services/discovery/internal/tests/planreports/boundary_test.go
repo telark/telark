@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/data/plans"
-	"github.com/telark/discovery/internal/clients"
-	"github.com/telark/discovery/internal/core/plans/protection"
-	"github.com/telark/discovery/internal/core/plans/protection/reports"
-	"github.com/telark/discovery/internal/tests/testutil"
-	"github.com/telark/rest/response"
+	"github.com/telark/telark/internal/data/plans"
+	"github.com/telark/telark/internal/rest/response"
+	"github.com/telark/telark/services/discovery/internal/clients"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/reports"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const (

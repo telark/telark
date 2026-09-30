@@ -1,6 +1,6 @@
 package auth
 
-import "github.com/telark/rest/base"
+import "github.com/telark/telark/internal/rest/base"
 
 const (
 	StartLogin    base.Endpoint = "auth/login/start"

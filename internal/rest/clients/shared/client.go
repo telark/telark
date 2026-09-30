@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/telark/data/errors"
-	globalshared "github.com/telark/data/shared"
-	"github.com/telark/rest/base"
-	"github.com/telark/rest/constants"
-	restmapper "github.com/telark/rest/mappers"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	"github.com/telark/telark/internal/data/errors"
+	globalshared "github.com/telark/telark/internal/data/shared"
+	"github.com/telark/telark/internal/rest/base"
+	"github.com/telark/telark/internal/rest/constants"
+	restmapper "github.com/telark/telark/internal/rest/mappers"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
 )
 
 func New(service base.Service) *Client {

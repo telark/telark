@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/telark/data/plans"
-	userresource "github.com/telark/data/resources/user"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/helpers/async"
-	notifclient "github.com/telark/rest/clients/notifications"
-	xauthz "github.com/telark/x-ware/authz"
+	"github.com/telark/telark/internal/data/plans"
+	userresource "github.com/telark/telark/internal/data/resources/user"
+	notifclient "github.com/telark/telark/internal/rest/clients/notifications"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/helpers/async"
 )
 
 type ApprovalNotifier struct {

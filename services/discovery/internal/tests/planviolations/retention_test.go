@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/discovery/internal/core/plans/protection/violations"
-	"github.com/telark/discovery/internal/tests/testutil"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/violations"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 // The API advertises the window as a string; the report merge fences on the duration.

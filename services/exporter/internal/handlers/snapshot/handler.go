@@ -5,14 +5,14 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/telark/data/errors"
-	"github.com/telark/exporter/internal/authz"
-	"github.com/telark/exporter/internal/constants"
-	snapshotexp "github.com/telark/exporter/internal/exporters/snapshot"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
-	"github.com/telark/rest/response"
-	requestutils "github.com/telark/rest/utils/request"
-	xauthz "github.com/telark/x-ware/authz"
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/rest/response"
+	requestutils "github.com/telark/telark/internal/rest/utils/request"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/exporter/internal/authz"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	snapshotexp "github.com/telark/telark/services/exporter/internal/exporters/snapshot"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 func CreateSnapshot() func(http.ResponseWriter, *http.Request) {

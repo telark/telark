@@ -3,8 +3,8 @@ package tests
 import (
 	"testing"
 
-	"github.com/telark/auth/cmd"
-	"github.com/telark/auth/internal/tests/testutil"
+	"github.com/telark/telark/services/auth/cmd"
+	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
 func TestDispatch(t *testing.T) {

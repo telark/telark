@@ -5,13 +5,13 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/telark/data/plans"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection"
-	"github.com/telark/discovery/internal/core/plans/protection/update"
-	"github.com/telark/discovery/internal/tests/testutil"
-	planseps "github.com/telark/rest/endpoints/plans"
-	restmapper "github.com/telark/rest/mappers"
+	"github.com/telark/telark/internal/data/plans"
+	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
+	restmapper "github.com/telark/telark/internal/rest/mappers"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/update"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const (

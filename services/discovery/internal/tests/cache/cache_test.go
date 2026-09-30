@@ -6,8 +6,8 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/discovery/internal/discovery/cache"
-	"github.com/telark/discovery/internal/tests/testutil"
+	"github.com/telark/telark/services/discovery/internal/discovery/cache"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const (

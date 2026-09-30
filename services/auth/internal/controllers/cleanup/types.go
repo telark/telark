@@ -3,10 +3,10 @@ package cleanup
 import (
 	"context"
 
-	"github.com/telark/auth/internal/config"
-	"github.com/telark/data/logger"
-	resourcesshared "github.com/telark/data/resources/shared"
-	"github.com/telark/rest/response"
+	"github.com/telark/telark/internal/data/logger"
+	resourcesshared "github.com/telark/telark/internal/data/resources/shared"
+	"github.com/telark/telark/internal/rest/response"
+	"github.com/telark/telark/services/auth/internal/config"
 )
 
 type (

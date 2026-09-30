@@ -12,12 +12,12 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/data/plans"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection/reports"
-	"github.com/telark/discovery/internal/tests/testutil"
-	planseps "github.com/telark/rest/endpoints/plans"
-	restmapper "github.com/telark/rest/mappers"
+	"github.com/telark/telark/internal/data/plans"
+	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
+	restmapper "github.com/telark/telark/internal/rest/mappers"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/reports"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const (

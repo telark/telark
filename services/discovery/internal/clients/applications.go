@@ -3,11 +3,11 @@ package clients
 import (
 	"time"
 
-	appresource "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
-	applicationsclient "github.com/telark/rest/clients/applications"
-	"github.com/telark/rest/clients/shared"
-	"github.com/telark/rest/response"
+	appresource "github.com/telark/telark/internal/data/resources/application"
+	applicationsclient "github.com/telark/telark/internal/rest/clients/applications"
+	"github.com/telark/telark/internal/rest/clients/shared"
+	"github.com/telark/telark/internal/rest/response"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 const (

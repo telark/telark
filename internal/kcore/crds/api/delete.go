@@ -1,11 +1,11 @@
 package api
 
 import (
-	"github.com/telark/data/errors"
-	"github.com/telark/data/messages"
-	"github.com/telark/data/metadata/base"
-	"github.com/telark/kcore/constants"
-	"github.com/telark/kcore/shared"
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/data/messages"
+	"github.com/telark/telark/internal/data/metadata/base"
+	"github.com/telark/telark/internal/kcore/constants"
+	"github.com/telark/telark/internal/kcore/shared"
 	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

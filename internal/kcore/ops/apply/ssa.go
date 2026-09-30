@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/telark/kcore/constants"
-	"github.com/telark/kcore/manifest"
-	"github.com/telark/kcore/resilience/retry"
+	"github.com/telark/telark/internal/kcore/constants"
+	"github.com/telark/telark/internal/kcore/manifest"
+	"github.com/telark/telark/internal/kcore/resilience/retry"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"

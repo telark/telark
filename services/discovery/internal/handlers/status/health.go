@@ -4,15 +4,15 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/telark/discovery/internal/circuitbreaker"
-	"github.com/telark/discovery/internal/config"
-	"github.com/telark/discovery/internal/constants"
-	redishelper "github.com/telark/discovery/internal/helpers/redis"
-	"github.com/telark/discovery/internal/startup"
-	kcoreconst "github.com/telark/kcore/constants"
-	"github.com/telark/kcore/health"
-	statushandler "github.com/telark/rest/handlers/status"
-	"github.com/telark/rest/response"
+	kcoreconst "github.com/telark/telark/internal/kcore/constants"
+	"github.com/telark/telark/internal/kcore/health"
+	statushandler "github.com/telark/telark/internal/rest/handlers/status"
+	"github.com/telark/telark/internal/rest/response"
+	"github.com/telark/telark/services/discovery/internal/circuitbreaker"
+	"github.com/telark/telark/services/discovery/internal/config"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	redishelper "github.com/telark/telark/services/discovery/internal/helpers/redis"
+	"github.com/telark/telark/services/discovery/internal/startup"
 )
 
 var Liveness = statushandler.NewProbeHandler(

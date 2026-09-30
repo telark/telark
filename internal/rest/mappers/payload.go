@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/telark/rest/constants"
+	"github.com/telark/telark/internal/rest/constants"
 )
 
 func MapToJSONPayload(input any) (map[string]any, error) {

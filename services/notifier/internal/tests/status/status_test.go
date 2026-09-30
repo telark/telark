@@ -5,10 +5,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/telark/notifier/internal/status"
-	"github.com/telark/notifier/internal/tests/testutil"
-	"github.com/telark/rest/base"
-	statuseps "github.com/telark/rest/endpoints/status"
+	"github.com/telark/telark/internal/rest/base"
+	statuseps "github.com/telark/telark/internal/rest/endpoints/status"
+	"github.com/telark/telark/services/notifier/internal/status"
+	"github.com/telark/telark/services/notifier/internal/tests/testutil"
 )
 
 func path(ep base.Endpoint) string {

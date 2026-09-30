@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	appresource "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
-	historyshared "github.com/telark/discovery/internal/core/applications/history/shared"
-	"github.com/telark/discovery/internal/core/applications/snapshot"
-	"github.com/telark/discovery/internal/tests/testutil"
+	appresource "github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	historyshared "github.com/telark/telark/services/discovery/internal/core/applications/history/shared"
+	"github.com/telark/telark/services/discovery/internal/core/applications/snapshot"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const (
@@ -86,14 +86,16 @@ func TestBuildSnapshotEntriesStrictGuards(t *testing.T) {
 	stored := &appresource.Application{}
 	createSnap := func(_ string, _ string, _ string, _ int, _ any) (string, error) { return "p", nil }
 
-	if _, err := snapshot.BuildSnapshotEntriesStrict(
+	_, err := snapshot.BuildSnapshotEntriesStrict(
 		ctx, nil, stored, constants.DefaultAddValue, changeClass, historyshared.SeverityHigh, time.Now(),
-	); err == nil {
+	)
+	if err == nil {
 		t.Fatal("nil createSnapshot should error")
 	}
-	if _, err := snapshot.BuildSnapshotEntriesStrict(
+	_, err = snapshot.BuildSnapshotEntriesStrict(
 		ctx, createSnap, nil, constants.DefaultAddValue, changeClass, historyshared.SeverityHigh, time.Now(),
-	); err == nil {
+	)
+	if err == nil {
 		t.Fatal("nil stored application should error")
 	}
 }

@@ -3,7 +3,7 @@ package plans
 import (
 	"testing"
 
-	"github.com/telark/data/plans"
+	"github.com/telark/telark/internal/data/plans"
 )
 
 const (

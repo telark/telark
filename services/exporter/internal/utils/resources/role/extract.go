@@ -3,9 +3,9 @@ package role
 import (
 	"strings"
 
-	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/exporter/internal/constants"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 func ExtractRoleSpecFromRequestBody(body map[string]any) (*roledata.AccessRole, error) {

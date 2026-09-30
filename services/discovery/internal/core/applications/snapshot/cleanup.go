@@ -3,9 +3,9 @@ package snapshot
 import (
 	"fmt"
 
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/config"
-	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/config"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 type DeleteSnapshotFn func(id string, scope string, namespace string, generation int) error

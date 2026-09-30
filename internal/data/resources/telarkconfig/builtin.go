@@ -3,7 +3,7 @@ package telarkconfig
 import (
 	"slices"
 
-	"github.com/telark/data/constants"
+	"github.com/telark/telark/internal/data/constants"
 )
 
 var defaultExcludedNamespaces = []string{

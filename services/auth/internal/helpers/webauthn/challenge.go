@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/auth/internal/constants"
-	authhelper "github.com/telark/auth/internal/helpers/auth"
-	redishelper "github.com/telark/auth/internal/helpers/redis"
-	authdata "github.com/telark/data/auth"
+	authdata "github.com/telark/telark/internal/data/auth"
+	"github.com/telark/telark/services/auth/internal/constants"
+	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
+	redishelper "github.com/telark/telark/services/auth/internal/helpers/redis"
 )
 
 func StoreChallenge(userID string, challenge string) error {
@@ -26,8 +26,7 @@ func StoreChallenge(userID string, challenge string) error {
 
 	// A new start supersedes a pending ceremony: the old challenge can no longer
 	// finish, and the user is not locked out until the previous one expires.
-	if err := rdb.Set(ctx, key, challenge,
-		time.Duration(constants.RedisTTLChallenge)*time.Second).Err(); err != nil {
+	if err := rdb.Set(ctx, key, challenge, time.Duration(constants.RedisTTLChallenge)*time.Second).Err(); err != nil {
 		return fmt.Errorf(string(constants.ErrFailedCreateChallenge), err.Error())
 	}
 	return nil

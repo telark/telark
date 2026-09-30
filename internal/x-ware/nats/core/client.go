@@ -7,8 +7,8 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 	"github.com/nats-io/nats.go"
-	"github.com/telark/data/errors"
-	"github.com/telark/x-ware/constants"
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/x-ware/constants"
 )
 
 func InitClient(ctx context.Context, host, user, password string) (

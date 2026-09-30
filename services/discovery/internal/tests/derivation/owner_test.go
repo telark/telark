@@ -3,8 +3,8 @@ package derivation
 import (
 	"testing"
 
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/discovery/derivation"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/discovery/derivation"
 )
 
 // Unlabeled resources are attached to a labeled workload by walking their

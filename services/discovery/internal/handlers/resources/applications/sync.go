@@ -8,12 +8,12 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/telark/discovery/internal/clients"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/coordination/forcesync"
-	sharedhelper "github.com/telark/discovery/internal/helpers/shared"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	"github.com/telark/telark/services/discovery/internal/clients"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/coordination/forcesync"
+	sharedhelper "github.com/telark/telark/services/discovery/internal/helpers/shared"
 )
 
 func SyncApplication(w http.ResponseWriter, r *http.Request) {

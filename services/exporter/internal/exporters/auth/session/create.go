@@ -3,13 +3,13 @@ package session
 import (
 	"net/http"
 
-	authmetadata "github.com/telark/data/metadata/v1alpha1"
-	"github.com/telark/exporter/internal/exporters/generics"
-	sessionutils "github.com/telark/exporter/internal/utils/auth/session"
-	"github.com/telark/exporter/internal/utils/concurrency"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	authmetadata "github.com/telark/telark/internal/data/metadata/v1alpha1"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	"github.com/telark/telark/services/exporter/internal/exporters/generics"
+	sessionutils "github.com/telark/telark/services/exporter/internal/utils/auth/session"
+	"github.com/telark/telark/services/exporter/internal/utils/concurrency"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 func CreateSessionByUser(w http.ResponseWriter, body map[string]any, userID string) {

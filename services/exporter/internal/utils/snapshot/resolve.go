@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 func parseGenerationFilename(name string) (int, bool) {

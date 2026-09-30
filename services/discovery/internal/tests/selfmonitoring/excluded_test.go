@@ -6,13 +6,13 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/telark/data/plans"
-	appresource "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection/validation"
-	"github.com/telark/discovery/internal/handlers/cleanup/autoclean"
-	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
-	"github.com/telark/discovery/internal/tests/testutil"
+	"github.com/telark/telark/internal/data/plans"
+	appresource "github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/validation"
+	"github.com/telark/telark/services/discovery/internal/handlers/cleanup/autoclean"
+	tcfghelper "github.com/telark/telark/services/discovery/internal/helpers/telarkconfig"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const (

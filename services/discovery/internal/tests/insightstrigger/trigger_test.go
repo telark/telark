@@ -8,11 +8,11 @@ import (
 	"time"
 
 	goredis "github.com/redis/go-redis/v9"
-	insightsdata "github.com/telark/data/insights"
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/applications/insights"
-	"github.com/telark/discovery/internal/tests/testutil"
+	insightsdata "github.com/telark/telark/internal/data/insights"
+	"github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/applications/insights"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const (

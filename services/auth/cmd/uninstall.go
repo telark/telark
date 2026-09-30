@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/telark/auth/internal/constants"
-	cleanupctrl "github.com/telark/auth/internal/controllers/cleanup"
-	"github.com/telark/data/logger"
+	"github.com/telark/telark/internal/data/logger"
+	"github.com/telark/telark/services/auth/internal/constants"
+	cleanupctrl "github.com/telark/telark/services/auth/internal/controllers/cleanup"
 )
 
 // Best effort: a failure must not block the uninstall, and the leader sweeper

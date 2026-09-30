@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/telark/rest/clients/accessroles"
-	"github.com/telark/rest/clients/auth/session"
-	"github.com/telark/rest/clients/groups"
-	"github.com/telark/rest/clients/users"
-	"github.com/telark/rest/constants"
+	"github.com/telark/telark/internal/rest/clients/accessroles"
+	"github.com/telark/telark/internal/rest/clients/auth/session"
+	"github.com/telark/telark/internal/rest/clients/groups"
+	"github.com/telark/telark/internal/rest/clients/users"
+	"github.com/telark/telark/internal/rest/constants"
 )
 
 const grantSourceID = "id-1"

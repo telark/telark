@@ -1,8 +1,8 @@
 package insightsindex
 
 import (
-	"github.com/telark/data/plans"
-	"github.com/telark/data/resources/application"
+	"github.com/telark/telark/internal/data/plans"
+	"github.com/telark/telark/internal/data/resources/application"
 )
 
 const (

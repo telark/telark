@@ -6,12 +6,12 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/telark/rest/base"
-	"github.com/telark/rest/clients/shared"
-	"github.com/telark/rest/clients/users"
-	eps "github.com/telark/rest/endpoints/users"
-	"github.com/telark/rest/router"
-	requestutils "github.com/telark/rest/utils/request"
+	"github.com/telark/telark/internal/rest/base"
+	"github.com/telark/telark/internal/rest/clients/shared"
+	"github.com/telark/telark/internal/rest/clients/users"
+	eps "github.com/telark/telark/internal/rest/endpoints/users"
+	"github.com/telark/telark/internal/rest/router"
+	requestutils "github.com/telark/telark/internal/rest/utils/request"
 )
 
 const (

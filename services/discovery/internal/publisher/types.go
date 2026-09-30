@@ -1,8 +1,8 @@
 package publisher
 
 import (
-	resourceshared "github.com/telark/data/resources/shared"
-	natscore "github.com/telark/x-ware/nats/core"
+	resourceshared "github.com/telark/telark/internal/data/resources/shared"
+	natscore "github.com/telark/telark/internal/x-ware/nats/core"
 )
 
 type PublishUpdateParams struct {

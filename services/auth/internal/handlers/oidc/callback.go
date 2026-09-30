@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/telark/auth/internal/clients"
-	"github.com/telark/auth/internal/constants"
-	authhelper "github.com/telark/auth/internal/helpers/auth"
-	oidchelper "github.com/telark/auth/internal/helpers/oidc"
-	"github.com/telark/auth/internal/helpers/shared"
-	telarkconfigresource "github.com/telark/data/resources/telarkconfig"
-	userresource "github.com/telark/data/resources/user"
+	telarkconfigresource "github.com/telark/telark/internal/data/resources/telarkconfig"
+	userresource "github.com/telark/telark/internal/data/resources/user"
+	"github.com/telark/telark/services/auth/internal/clients"
+	"github.com/telark/telark/services/auth/internal/constants"
+	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
+	oidchelper "github.com/telark/telark/services/auth/internal/helpers/oidc"
+	"github.com/telark/telark/services/auth/internal/helpers/shared"
 )
 
 var lg = constants.GetLogger(constants.LoggerPrefixOIDC)

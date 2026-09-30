@@ -1,6 +1,6 @@
 package application
 
-import globalshared "github.com/telark/data/shared"
+import globalshared "github.com/telark/telark/internal/data/shared"
 
 type Application struct {
 	Name            string                `json:"name"`

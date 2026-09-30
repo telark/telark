@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/telark/exporter/internal/constants"
-	expsnap "github.com/telark/exporter/internal/exporters/snapshot"
-	"github.com/telark/exporter/internal/managers/envs"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	expsnap "github.com/telark/telark/services/exporter/internal/exporters/snapshot"
+	"github.com/telark/telark/services/exporter/internal/managers/envs"
 )
 
 const (

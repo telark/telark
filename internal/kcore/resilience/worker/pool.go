@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"sync"
 
-	globallogger "github.com/telark/data/logger"
-	"github.com/telark/kcore/constants"
+	globallogger "github.com/telark/telark/internal/data/logger"
+	"github.com/telark/telark/internal/kcore/constants"
 )
 
 var logger = globallogger.NewCustomLogger(constants.LoggerPrefixWorkerPool)

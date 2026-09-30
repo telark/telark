@@ -1,6 +1,6 @@
 package authz
 
-import roledata "github.com/telark/data/resources/role"
+import roledata "github.com/telark/telark/internal/data/resources/role"
 
 var (
 	// For endpoints infrastructure calls without a session, such as probes.

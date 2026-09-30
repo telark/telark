@@ -2,11 +2,7 @@
 
 Kubernetes building blocks shared by the [Telark](https://github.com/telark/telark) services: client setup, dynamic informers, custom-resource reads and writes (including the status subresource), manifests for snapshots and rollback, and metrics.
 
-This is an internal library of the Telark services. It is public so the services build from the Go module proxy; its API follows Telark's releases and is not versioned for outside use.
-
-```sh
-go get github.com/telark/kcore
-```
+An internal package of the Telark Go module (`github.com/telark/telark/internal/kcore`): only the Telark services import it, and it changes together with them.
 
 | Package | Contents |
 |---|---|
@@ -18,4 +14,4 @@ go get github.com/telark/kcore
 | `metrics` | Pod metrics from metrics-server |
 | `resilience`, `health`, `shared`, `constants` | Retries, worker pools, health checks, helpers |
 
-Depends on [`data`](https://github.com/telark/data).
+Depends on [`data`](../data).

@@ -2,11 +2,7 @@
 
 The HTTP layer shared by the [Telark](https://github.com/telark/telark) services: endpoint definitions for the `/api/v1` API, typed clients for service-to-service calls, the router and the response envelope.
 
-This is an internal library of the Telark services. It is public so the services build from the Go module proxy; its API follows Telark's releases and is not versioned for outside use.
-
-```sh
-go get github.com/telark/rest
-```
+An internal package of the Telark Go module (`github.com/telark/telark/internal/rest`): only the Telark services import it, and it changes together with them.
 
 | Package | Contents |
 |---|---|
@@ -16,4 +12,4 @@ go get github.com/telark/rest
 | `response`, `handlers`, `mappers`, `utils` | Response envelope, handler helpers, payload mapping, request parsing with a 1 MiB body cap |
 | `server`, `connectivity`, `base`, `constants` | Server lifecycle, peer readiness, service base URLs, constants |
 
-Depends on [`data`](https://github.com/telark/data).
+Depends on [`data`](../data).

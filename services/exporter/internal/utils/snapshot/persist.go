@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/exporter/internal/utils/artifact"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/utils/artifact"
 )
 
 func WriteSnapshotJSON(path string, id string, body map[string]any) error {

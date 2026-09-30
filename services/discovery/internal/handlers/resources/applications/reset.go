@@ -12,17 +12,17 @@ import (
 	"strings"
 
 	"github.com/redis/go-redis/v9"
-	dataconstants "github.com/telark/data/constants"
-	"github.com/telark/discovery/internal/clients"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/coordination"
-	redishelper "github.com/telark/discovery/internal/helpers/redis"
-	sharedhelper "github.com/telark/discovery/internal/helpers/shared"
-	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
-	kcorek8s "github.com/telark/kcore/k8sclient"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
-	xauthz "github.com/telark/x-ware/authz"
+	dataconstants "github.com/telark/telark/internal/data/constants"
+	kcorek8s "github.com/telark/telark/internal/kcore/k8sclient"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/discovery/internal/clients"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/coordination"
+	redishelper "github.com/telark/telark/services/discovery/internal/helpers/redis"
+	sharedhelper "github.com/telark/telark/services/discovery/internal/helpers/shared"
+	tcfghelper "github.com/telark/telark/services/discovery/internal/helpers/telarkconfig"
 )
 
 func ResetApplication(w http.ResponseWriter, r *http.Request) {

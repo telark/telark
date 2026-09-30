@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/telark/auth/internal/constants"
+	"github.com/telark/telark/services/auth/internal/constants"
 )
 
 type BootstrapConfig struct {

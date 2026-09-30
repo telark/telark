@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	dataconstants "github.com/telark/data/constants"
-	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/x-ware/authz"
+	dataconstants "github.com/telark/telark/internal/data/constants"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	"github.com/telark/telark/internal/x-ware/authz"
 )
 
 const (

@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/telark/x-ware/constants"
-	natscore "github.com/telark/x-ware/nats/core"
-	"github.com/telark/x-ware/shared"
+	"github.com/telark/telark/internal/x-ware/constants"
+	natscore "github.com/telark/telark/internal/x-ware/nats/core"
+	"github.com/telark/telark/internal/x-ware/shared"
 )
 
 const defaultRetryIntervalSeconds = 5

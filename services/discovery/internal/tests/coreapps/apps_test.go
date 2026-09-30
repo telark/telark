@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	appresource "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/applications/core"
-	"github.com/telark/discovery/internal/discovery/prewarm"
+	appresource "github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/applications/core"
+	"github.com/telark/telark/services/discovery/internal/discovery/prewarm"
 )
 
 // With no derivation inputs there are no applications to assemble, so the

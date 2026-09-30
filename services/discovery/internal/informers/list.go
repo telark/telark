@@ -5,10 +5,10 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/discovery/derivation"
-	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
-	kcoregroup "github.com/telark/kcore/resources/group"
+	kcoregroup "github.com/telark/telark/internal/kcore/resources/group"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/discovery/derivation"
+	tcfghelper "github.com/telark/telark/services/discovery/internal/helpers/telarkconfig"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/tools/cache"
 )

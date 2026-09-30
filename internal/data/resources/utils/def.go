@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/telark/data/shared"
+	"github.com/telark/telark/internal/data/shared"
 )
 
 func GenerateName(sourceName string, sourceType string) string {

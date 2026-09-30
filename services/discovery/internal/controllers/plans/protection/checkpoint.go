@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/telark/data/plans"
+	"github.com/telark/telark/internal/data/plans"
 )
 
 const logCheckpointListFailed = "protection-plan checkpoint list failed: %v"

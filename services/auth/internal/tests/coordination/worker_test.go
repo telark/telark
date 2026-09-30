@@ -7,11 +7,11 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/telark/auth/internal/constants"
-	"github.com/telark/auth/internal/coordination/cleanup"
-	"github.com/telark/auth/internal/tests/testutil"
-	"github.com/telark/data/resources/finalizers"
-	xwareredis "github.com/telark/x-ware/redis/stream"
+	"github.com/telark/telark/internal/data/resources/finalizers"
+	xwareredis "github.com/telark/telark/internal/x-ware/redis/stream"
+	"github.com/telark/telark/services/auth/internal/constants"
+	"github.com/telark/telark/services/auth/internal/coordination/cleanup"
+	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
 const testBackoffInitial = 100 * time.Millisecond

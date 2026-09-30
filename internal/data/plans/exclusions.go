@@ -4,7 +4,7 @@ import (
 	"cmp"
 	"slices"
 
-	"github.com/telark/data/constants"
+	"github.com/telark/telark/internal/data/constants"
 )
 
 // NormalizeExclusions returns a sorted, de-duplicated copy that never aliases e, or nil when

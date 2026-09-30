@@ -4,8 +4,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/telark/data/policies"
-	"github.com/telark/discovery/internal/core/plans/protection/applications"
+	"github.com/telark/telark/internal/data/policies"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/applications"
 )
 
 const (

@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"slices"
 
-	"github.com/telark/auth/internal/constants"
-	"github.com/telark/auth/internal/helpers/shared"
-	userresource "github.com/telark/data/resources/user"
-	userclient "github.com/telark/rest/clients/users"
+	userresource "github.com/telark/telark/internal/data/resources/user"
+	userclient "github.com/telark/telark/internal/rest/clients/users"
+	"github.com/telark/telark/services/auth/internal/constants"
+	"github.com/telark/telark/services/auth/internal/helpers/shared"
 )
 
 func HasAdminRole(roleIDs []*string) bool {

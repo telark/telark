@@ -1,12 +1,12 @@
 package authz
 
 import (
-	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/rest/base"
-	autheps "github.com/telark/rest/endpoints/auth"
-	statuseps "github.com/telark/rest/endpoints/status"
-	"github.com/telark/rest/router"
-	"github.com/telark/x-ware/authz"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	"github.com/telark/telark/internal/rest/base"
+	autheps "github.com/telark/telark/internal/rest/endpoints/auth"
+	statuseps "github.com/telark/telark/internal/rest/endpoints/status"
+	"github.com/telark/telark/internal/rest/router"
+	"github.com/telark/telark/internal/x-ware/authz"
 )
 
 func Requirements() map[string]authz.Requirement {

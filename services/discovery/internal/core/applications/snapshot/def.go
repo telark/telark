@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/config"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/applications/history/shared"
-	appshared "github.com/telark/discovery/internal/core/applications/shared"
-	kcoremanifest "github.com/telark/kcore/manifest"
+	"github.com/telark/telark/internal/data/resources/application"
+	kcoremanifest "github.com/telark/telark/internal/kcore/manifest"
+	"github.com/telark/telark/services/discovery/internal/config"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/applications/history/shared"
+	appshared "github.com/telark/telark/services/discovery/internal/core/applications/shared"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )

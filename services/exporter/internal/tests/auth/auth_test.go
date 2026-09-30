@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/telark/exporter/internal/constants"
-	passkeyutil "github.com/telark/exporter/internal/utils/auth/passkey"
-	sessionutil "github.com/telark/exporter/internal/utils/auth/session"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	passkeyutil "github.com/telark/telark/services/exporter/internal/utils/auth/passkey"
+	sessionutil "github.com/telark/telark/services/exporter/internal/utils/auth/session"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

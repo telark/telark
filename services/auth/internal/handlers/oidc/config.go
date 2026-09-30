@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/telark/auth/internal/authz"
-	"github.com/telark/auth/internal/clients"
-	"github.com/telark/auth/internal/constants"
-	oidchelper "github.com/telark/auth/internal/helpers/oidc"
-	"github.com/telark/auth/internal/helpers/shared"
-	telarkconfigresource "github.com/telark/data/resources/telarkconfig"
+	telarkconfigresource "github.com/telark/telark/internal/data/resources/telarkconfig"
+	"github.com/telark/telark/services/auth/internal/authz"
+	"github.com/telark/telark/services/auth/internal/clients"
+	"github.com/telark/telark/services/auth/internal/constants"
+	oidchelper "github.com/telark/telark/services/auth/internal/helpers/oidc"
+	"github.com/telark/telark/services/auth/internal/helpers/shared"
 )
 
 // Validated here, not at the exporter: a config that cannot authenticate anyone must not

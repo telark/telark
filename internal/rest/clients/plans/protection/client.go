@@ -1,13 +1,13 @@
 package protection
 
 import (
-	"github.com/telark/data/plans"
-	"github.com/telark/rest/base"
-	"github.com/telark/rest/clients/shared"
-	"github.com/telark/rest/constants"
-	eps "github.com/telark/rest/endpoints/plans"
-	restmapper "github.com/telark/rest/mappers"
-	"github.com/telark/rest/response"
+	"github.com/telark/telark/internal/data/plans"
+	"github.com/telark/telark/internal/rest/base"
+	"github.com/telark/telark/internal/rest/clients/shared"
+	"github.com/telark/telark/internal/rest/constants"
+	eps "github.com/telark/telark/internal/rest/endpoints/plans"
+	restmapper "github.com/telark/telark/internal/rest/mappers"
+	"github.com/telark/telark/internal/rest/response"
 )
 
 const HeaderUserID = "X-User-ID"

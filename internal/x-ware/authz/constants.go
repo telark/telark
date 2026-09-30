@@ -3,9 +3,9 @@ package authz
 import (
 	"errors"
 
-	"github.com/telark/data/constants"
-	dataerrors "github.com/telark/data/errors"
-	"github.com/telark/rest/clients/shared"
+	"github.com/telark/telark/internal/data/constants"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/rest/clients/shared"
 )
 
 // Stripped from every request before routing: they name an identity, so a

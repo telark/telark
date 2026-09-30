@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/telark/data/errors"
-	"github.com/telark/rest/base"
-	"github.com/telark/rest/constants"
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/rest/base"
+	"github.com/telark/telark/internal/rest/constants"
 )
 
 type OperationStatus string

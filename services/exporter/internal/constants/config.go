@@ -3,7 +3,7 @@ package constants
 import (
 	"time"
 
-	reportseps "github.com/telark/rest/endpoints/reports"
+	reportseps "github.com/telark/telark/internal/rest/endpoints/reports"
 )
 
 const (

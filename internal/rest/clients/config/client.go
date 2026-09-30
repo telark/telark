@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/telark/data/resources/telarkconfig"
-	"github.com/telark/rest/base"
-	"github.com/telark/rest/clients/shared"
-	"github.com/telark/rest/constants"
-	eps "github.com/telark/rest/endpoints/config"
-	"github.com/telark/rest/response"
+	"github.com/telark/telark/internal/data/resources/telarkconfig"
+	"github.com/telark/telark/internal/rest/base"
+	"github.com/telark/telark/internal/rest/clients/shared"
+	"github.com/telark/telark/internal/rest/constants"
+	eps "github.com/telark/telark/internal/rest/endpoints/config"
+	"github.com/telark/telark/internal/rest/response"
 )
 
 type Client struct {

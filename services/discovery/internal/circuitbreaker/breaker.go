@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 var (

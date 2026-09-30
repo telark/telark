@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/telark/exporter/internal/constants"
-	applicationutil "github.com/telark/exporter/internal/utils/resources/application"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	applicationutil "github.com/telark/telark/services/exporter/internal/utils/resources/application"
 )
 
 const (

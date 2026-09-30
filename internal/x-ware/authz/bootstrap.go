@@ -6,9 +6,9 @@ import (
 	"os"
 	"strings"
 
-	dataconstants "github.com/telark/data/constants"
-	dataerrors "github.com/telark/data/errors"
-	"github.com/telark/rest/router"
+	dataconstants "github.com/telark/telark/internal/data/constants"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/rest/router"
 )
 
 func NewFromEnv(resolver Resolver, requirements map[string]Requirement) (func(http.Handler) http.Handler, error) {

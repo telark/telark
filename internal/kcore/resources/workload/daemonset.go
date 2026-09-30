@@ -1,8 +1,8 @@
 package workload
 
 import (
-	"github.com/telark/kcore/constants"
-	"github.com/telark/kcore/k8sclient"
+	"github.com/telark/telark/internal/kcore/constants"
+	"github.com/telark/telark/internal/kcore/k8sclient"
 	k8sappsv1 "k8s.io/api/apps/v1"
 )
 

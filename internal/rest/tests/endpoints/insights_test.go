@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/telark/rest/base"
-	"github.com/telark/rest/endpoints/insights"
+	"github.com/telark/telark/internal/rest/base"
+	"github.com/telark/telark/internal/rest/endpoints/insights"
 )
 
 const (

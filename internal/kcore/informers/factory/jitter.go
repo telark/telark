@@ -4,7 +4,7 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"github.com/telark/kcore/constants"
+	"github.com/telark/telark/internal/kcore/constants"
 )
 
 // JitteredResync returns base perturbed by ±(base*fraction) so multiple replicas

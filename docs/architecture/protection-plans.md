@@ -1,6 +1,6 @@
 # Protection plans
 
-A protection plan binds policy templates to a scope and a time window. This page is for contributors and reviewers; the user-level explanation is in [Concepts](../concepts.md#protection-plans). discovery owns the lifecycle and the Kyverno policies; the exporter stores the `ProtectionPlan` CR and the reports. Paths starting `data/` are in the shared `github.com/telark/data` module; `discovery/` is `services/discovery/internal/`.
+A protection plan binds policy templates to a scope and a time window. This page is for contributors and reviewers; the user-level explanation is in [Concepts](../concepts.md#protection-plans). discovery owns the lifecycle and the Kyverno policies; the exporter stores the `ProtectionPlan` CR and the reports. Paths starting `data/` are in the shared package `internal/data/`; `discovery/` is `services/discovery/internal/`.
 
 ## The resource
 

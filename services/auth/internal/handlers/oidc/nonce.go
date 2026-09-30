@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/telark/auth/internal/constants"
-	oidchelper "github.com/telark/auth/internal/helpers/oidc"
-	"github.com/telark/auth/internal/helpers/shared"
+	"github.com/telark/telark/services/auth/internal/constants"
+	oidchelper "github.com/telark/telark/services/auth/internal/helpers/oidc"
+	"github.com/telark/telark/services/auth/internal/helpers/shared"
 )
 
 func GetNonce(w http.ResponseWriter, _ *http.Request) {

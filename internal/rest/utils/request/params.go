@@ -5,10 +5,10 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	globalerrors "github.com/telark/data/errors"
-	"github.com/telark/rest/constants"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	globalerrors "github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/rest/constants"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
 )
 
 func PathParam(w http.ResponseWriter, r *http.Request, param string) (string, error) {

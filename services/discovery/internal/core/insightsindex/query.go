@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 func ParseQuery(values url.Values) (Query, error) {

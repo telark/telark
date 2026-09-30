@@ -6,7 +6,8 @@ Rules and workflows for coding agents (Claude Code, Codex, Cursor, Copilot, Gemi
 
 | Path | Contents |
 |---|---|
-| `services/auth`, `services/discovery`, `services/exporter`, `services/notifier` | Go services (module `github.com/telark/<svc>`): `main.go` plus single-purpose packages under `internal/`; tests under `internal/tests/<area>/` |
+| `services/auth`, `services/discovery`, `services/exporter`, `services/notifier` | Go services (packages of the root module `github.com/telark/telark`): `main.go` plus single-purpose packages under `internal/`; tests under `internal/tests/<area>/` |
+| `internal/data`, `internal/rest`, `internal/kcore`, `internal/x-ware` | Shared Go packages the services import; tests under `tests/<area>/` |
 | `services/analyzer` | The analyzer: a Python/FastAPI service that runs local open-weight models through Ollama |
 | `charts/telark` | Application chart: services, subcharts, sizing presets in `modes/`, and `values.dev.yaml` (local port-forward settings that Helm never loads) |
 | `charts/telark-crds` | CRDs, a standalone chart published to OCI; `charts/telark` depends on it by exact version (re-pinned by `release-charts` on `chart=both`) |
@@ -19,8 +20,7 @@ Rules and workflows for coding agents (Claude Code, Codex, Cursor, Copilot, Gemi
 
 Outside this repository:
 
-- **Shared Go modules** `github.com/telark/{data,rest,kcore,x-ware}` live in their own repositories and are pinned in each service's `go.mod`; the Go module proxy serves the pinned versions without credentials. `go.work` is maintained by the user and points them at checkouts on the user's machine; CI ignores it (`GOWORK=off`), and so must any other environment ([docs/testing](docs/testing/README.md#shared-go-modules)).
-- **Dashboard UI**: the `telark/dashboard-ui` repository (stable branch `master`). This repo only references its image (`services.ui`).
+- **Dashboard UI**: the `telark/dashboard-ui` repository (stable branch `main`). This repo only references its image (`services.ui`).
 - **Cluster infrastructure**: the `telark/infra` repository (Terraform).
 - **Legacy**: the `release-manager` repository is no longer used. Values, modes, tunables and sizing live in `charts/telark`; ignore older notes that point elsewhere.
 
@@ -96,7 +96,7 @@ Verify each step against its success criterion before moving on. Strong success 
 - The exporter owns CRD operations and the storage behind them; other services reach them over HTTP through `rest` clients. The exporter implements those handlers itself and never calls a `rest` client (reusing the module's request and response types is fine), since calling itself over HTTP would be a circular dependency.
 - For a new cross-service domain, build in this order: endpoint constants and types in `rest` (`endpoints/<domain>/`), handlers in the owning service wired to its routes, the `rest` client (`clients/<domain>/`), then the callers. A client without a server is dead code, and the handler defines the wire contract.
 - Discovery uses `rest` clients only through wrappers in `services/discovery/internal/clients/<domain>.go` (see `applications.go`), which hold its timeouts, circuit breaker and error classification. A few older call sites construct clients directly; don't extend that pattern.
-- Shared modules change upstream first: edit `data`, `rest`, `kcore` or `x-ware` in its own repository, release it, then bump the consumer. No service-specific logic in a shared module. New Kubernetes client logic (informers, dynamic watchers, listers, informer factories) belongs in `kcore`; read it first, it likely has what you need.
+- The shared packages `internal/{data,rest,kcore,x-ware}` belong to the same module as the services, so a change to one lands in the same diff as its callers. No service-specific logic in a shared package. New Kubernetes client logic (informers, dynamic watchers, listers, informer factories) belongs in `kcore`; read it first, it likely has what you need.
 
 **Code**
 
@@ -119,8 +119,8 @@ Verify each step against its success criterion before moving on. Strong success 
 
 **Tests and verification**
 
-- Tests live under `services/<svc>/internal/tests/<area>/` as separate packages, table-driven, reusing the `testutil` helpers. Don't add `*_test.go` or `*_internal_test.go` files beside production code. Production packages stay test-free, and each service's tests sit in one tree. Never add test seams to production code: no `*ForTest` functions and no exported setters or constructors that exist only for tests or mutate package state. Test through the exported API production already uses; export an unexported function only when production calls it the same way. The one in-package test file is discovery's `coalesce_internal_test.go`.
-- Before calling a Go change done, run the `go-service-change-gate` skill: build, vet and test, the `GOWORK=off` check CI runs, and `golangci-lint run` last with zero errors. A green workspace build is not a green CI build, because CI resolves shared modules from the `go.mod` pins.
+- Tests live under `services/<svc>/internal/tests/<area>/` (`internal/<pkg>/tests/<area>/` for a shared package) as separate packages, table-driven, reusing the `testutil` helpers. Don't add `*_test.go` or `*_internal_test.go` files beside production code. Production packages stay test-free, and each service's tests sit in one tree. Never add test seams to production code: no `*ForTest` functions and no exported setters or constructors that exist only for tests or mutate package state. Test through the exported API production already uses; export an unexported function only when production calls it the same way. The one in-package test file is discovery's `coalesce_internal_test.go`.
+- Before calling a Go change done, run the `go-service-change-gate` skill: build, vet and test across the module, and `golangci-lint run` per service and shared package last, with zero errors.
 
 **Known pitfall**
 
@@ -157,9 +157,8 @@ The analyzer is `services/analyzer` (chart key `services.analyzer`, image `analy
 
 ## CI and GitHub Actions
 
-- `.github/workflows/ci.yaml` is the merge gate: per Go service, a `test` leg (`go test -race` with a coverage floor) and a `lint` leg, both with `GOWORK=off`; the `analyzer` job (syntax check, pytest, coverage floor); and the Helm job (dependency build, lint of both charts, `VALUES.md` drift check, kubeconform across modes). Build and release workflows run on demand (`workflow_dispatch`; chart publishing also runs on a `v*` tag).
+- `.github/workflows/ci.yaml` is the merge gate: per Go service and shared package, a `test` leg (`go test -race`, with a coverage floor for the services) and a `lint` leg, both run from the module root; the `analyzer` job (syntax check, pytest, coverage floor); and the Helm job (dependency build, lint of both charts, `VALUES.md` drift check, kubeconform across modes). Build and release workflows run on demand (`workflow_dispatch`; chart publishing also runs on a `v*` tag).
 - Coverage floors are a ratchet: raise them as coverage improves, never lower them.
-- Service code that uses a symbol present only in an unreleased local checkout of a shared module builds in the workspace and fails in CI. Releasing that module and bumping the pin is a prerequisite, and it is the user's job; say so in your report.
 - Any edit under `.github/`, or to a pinned tool version, follows the `github-actions-edit` skill: pin every action to its latest released tag and audit all `uses:` lines, not only the ones you touched. Stale action majors run on deprecated Node runtimes and fill every run with warnings.
 
 ## Releases and versions
@@ -167,7 +166,7 @@ The analyzer is `services/analyzer` (chart key `services.analyzer`, image `analy
 - `main` is the stable trunk, and PRs target it. Check the current branch before editing or building: an old feature branch can lag main's version bumps, so a build from it pushes to a stale tag while the cluster keeps running the newer one, and the deploy silently does nothing. If you're not on `main` and the task doesn't say which branch to use, ask. Don't merge, rebase or switch branches on the user's behalf.
 - Humans own git: don't commit, push or tag unless asked.
 - Don't edit `services.<svc>.version` in `charts/telark/values.yaml` or the versions in `Chart.yaml`; the build and release workflows bump them. Don't build or push images, publish charts or apply changes to a cluster unless asked: "fix the bug" means code, chart values and docs. When a change needs a new image to take effect, or live verification you weren't asked to deploy for, say so in your report.
-- `go.work` (including its `replace` directives), releasing shared modules and bumping their pins in `go.mod`, and `git push` are the user's work. Don't do them, offer them or report them as blockers. `go.work.sum` changes on its own during workspace builds and lint runs; leave it as it is. Don't commit `replace` directives in a `go.mod`.
+- All Go code is one module with one root `go.mod`: don't add a `go.work`, a nested `go.mod` or `replace` directives. `git push` is the user's work.
 - Third-party dependency updates (for example `go-redis` or `nats.go`) are ordinary work when the user asks for them.
 - Commit messages follow Conventional Commits ([CONVENTIONS.md](CONVENTIONS.md#commits-branches-prs)).
 

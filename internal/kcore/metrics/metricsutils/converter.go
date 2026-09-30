@@ -1,7 +1,7 @@
 package metricsutils
 
 import (
-	"github.com/telark/kcore/metrics/metricstypes"
+	"github.com/telark/telark/internal/kcore/metrics/metricstypes"
 	k8smetrics "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 )
 

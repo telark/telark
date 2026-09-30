@@ -6,12 +6,12 @@ import (
 	"time"
 	"unicode/utf8"
 
-	dataconstants "github.com/telark/data/constants"
-	"github.com/telark/data/plans"
-	globalshared "github.com/telark/data/shared"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection/validation"
-	planseps "github.com/telark/rest/endpoints/plans"
+	dataconstants "github.com/telark/telark/internal/data/constants"
+	"github.com/telark/telark/internal/data/plans"
+	globalshared "github.com/telark/telark/internal/data/shared"
+	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/validation"
 )
 
 // Sentinels for the non-400 decision outcomes so the handler can map them with errors.Is.

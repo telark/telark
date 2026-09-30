@@ -1,6 +1,6 @@
 package forcesync
 
-import appresource "github.com/telark/data/resources/application"
+import appresource "github.com/telark/telark/internal/data/resources/application"
 
 func patchBodyForPhase(block appresource.LastForceSync) map[string]any {
 	return map[string]any{lastForceSyncKey: block}

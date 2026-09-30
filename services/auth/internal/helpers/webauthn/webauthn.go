@@ -20,11 +20,11 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/google/uuid"
-	"github.com/telark/auth/internal/config"
-	"github.com/telark/auth/internal/constants"
-	authhelper "github.com/telark/auth/internal/helpers/auth"
-	sharedhelper "github.com/telark/auth/internal/helpers/shared"
-	authdata "github.com/telark/data/auth"
+	authdata "github.com/telark/telark/internal/data/auth"
+	"github.com/telark/telark/services/auth/internal/config"
+	"github.com/telark/telark/services/auth/internal/constants"
+	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
+	sharedhelper "github.com/telark/telark/services/auth/internal/helpers/shared"
 )
 
 var (

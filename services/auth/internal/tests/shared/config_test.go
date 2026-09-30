@@ -3,7 +3,7 @@ package shared
 import (
 	"testing"
 
-	"github.com/telark/auth/internal/helpers/shared"
+	"github.com/telark/telark/services/auth/internal/helpers/shared"
 )
 
 // The cached config is built from the WebAuthn relying-party environment and

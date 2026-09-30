@@ -2,7 +2,7 @@ package streams
 
 import (
 	"github.com/nats-io/nats.go"
-	"github.com/telark/x-ware/nats/core"
+	"github.com/telark/telark/internal/x-ware/nats/core"
 )
 
 func SubscribeToTopicWithQueue(

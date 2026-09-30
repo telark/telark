@@ -3,9 +3,9 @@ package metrics
 import (
 	"testing"
 
-	"github.com/telark/kcore/metrics/metricstypes"
-	"github.com/telark/kcore/metrics/shared"
-	"github.com/telark/kcore/resilience/ratelimiting"
+	"github.com/telark/telark/internal/kcore/metrics/metricstypes"
+	"github.com/telark/telark/internal/kcore/metrics/shared"
+	"github.com/telark/telark/internal/kcore/resilience/ratelimiting"
 )
 
 func TestIsClientAvailable_Nil(t *testing.T) {

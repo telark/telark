@@ -8,15 +8,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/telark/auth/internal/constants"
-	cleanuphandler "github.com/telark/auth/internal/handlers/cleanup"
-	"github.com/telark/auth/internal/tests/testutil"
-	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/rest/base"
-	restconstants "github.com/telark/rest/constants"
-	autheps "github.com/telark/rest/endpoints/auth"
-	"github.com/telark/rest/router"
-	xauthz "github.com/telark/x-ware/authz"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	"github.com/telark/telark/internal/rest/base"
+	restconstants "github.com/telark/telark/internal/rest/constants"
+	autheps "github.com/telark/telark/internal/rest/endpoints/auth"
+	"github.com/telark/telark/internal/rest/router"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/auth/internal/constants"
+	cleanuphandler "github.com/telark/telark/services/auth/internal/handlers/cleanup"
+	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
 // Routed through the real mux, so the id is read under the name the route

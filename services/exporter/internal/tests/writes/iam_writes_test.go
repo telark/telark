@@ -5,11 +5,11 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/telark/data/metadata/base"
-	"github.com/telark/data/metadata/v1alpha1"
-	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/exporter/internal/constants"
-	xauthz "github.com/telark/x-ware/authz"
+	"github.com/telark/telark/internal/data/metadata/base"
+	"github.com/telark/telark/internal/data/metadata/v1alpha1"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/exporter/internal/constants"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 )

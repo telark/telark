@@ -3,7 +3,7 @@ package envs
 import (
 	"strconv"
 
-	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 var listRenderConcurrency = constants.DefaultListRenderConcurrency

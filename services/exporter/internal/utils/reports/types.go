@@ -4,8 +4,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/telark/exporter/internal/constants"
-	reportseps "github.com/telark/rest/endpoints/reports"
+	reportseps "github.com/telark/telark/internal/rest/endpoints/reports"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 var (

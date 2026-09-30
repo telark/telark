@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/mail"
 
-	"github.com/telark/auth/internal/constants"
+	"github.com/telark/telark/services/auth/internal/constants"
 )
 
 func ValidateEmail(email string) error {

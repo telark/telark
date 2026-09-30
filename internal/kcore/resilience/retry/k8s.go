@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/telark/kcore/constants"
+	"github.com/telark/telark/internal/kcore/constants"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
 )

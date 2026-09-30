@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/telark/x-ware/constants"
+	"github.com/telark/telark/internal/x-ware/constants"
 )
 
 const defaultScanBatchSize = 1000

@@ -3,8 +3,8 @@ package metrics
 import (
 	"testing"
 
-	"github.com/telark/kcore/constants"
-	"github.com/telark/kcore/metrics/metricstypes"
+	"github.com/telark/telark/internal/kcore/constants"
+	"github.com/telark/telark/internal/kcore/metrics/metricstypes"
 )
 
 func TestContainerMetricsStruct(t *testing.T) {

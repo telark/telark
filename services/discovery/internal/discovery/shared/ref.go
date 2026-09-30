@@ -1,9 +1,9 @@
 package shared
 
 import (
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/discovery/derivation"
-	kcoregroup "github.com/telark/kcore/resources/group"
+	kcoregroup "github.com/telark/telark/internal/kcore/resources/group"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/discovery/derivation"
 )
 
 func ToDerivationInputs(refs []kcoregroup.ResourceRef) []derivation.ResourceInput {

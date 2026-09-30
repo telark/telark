@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/telark/kcore/constants"
+	"github.com/telark/telark/internal/kcore/constants"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 )

@@ -6,12 +6,12 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
-	"github.com/telark/data/errors"
-	"github.com/telark/data/logger"
-	"github.com/telark/data/messages"
-	"github.com/telark/notifier/internal/constants"
-	natscore "github.com/telark/x-ware/nats/core"
-	natstreams "github.com/telark/x-ware/nats/streams"
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/data/logger"
+	"github.com/telark/telark/internal/data/messages"
+	natscore "github.com/telark/telark/internal/x-ware/nats/core"
+	natstreams "github.com/telark/telark/internal/x-ware/nats/streams"
+	"github.com/telark/telark/services/notifier/internal/constants"
 )
 
 const ackWait = nats.AckWait(constants.AckWaitSeconds * time.Second)

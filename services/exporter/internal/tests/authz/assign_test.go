@@ -7,12 +7,12 @@ import (
 	"strings"
 	"testing"
 
-	groupdata "github.com/telark/data/resources/group"
-	roledata "github.com/telark/data/resources/role"
-	userdata "github.com/telark/data/resources/user"
-	"github.com/telark/exporter/internal/authz"
-	"github.com/telark/exporter/internal/constants"
-	xauthz "github.com/telark/x-ware/authz"
+	groupdata "github.com/telark/telark/internal/data/resources/group"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	userdata "github.com/telark/telark/internal/data/resources/user"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/exporter/internal/authz"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 const (

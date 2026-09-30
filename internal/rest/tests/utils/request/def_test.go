@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/telark/rest/base"
-	"github.com/telark/rest/utils/request"
+	"github.com/telark/telark/internal/rest/base"
+	"github.com/telark/telark/internal/rest/utils/request"
 )
 
 const validJSONBody = `{"key": "value"}`

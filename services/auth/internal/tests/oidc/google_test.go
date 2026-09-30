@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/telark/auth/internal/helpers/oidc"
-	"github.com/telark/auth/internal/tests/testutil"
-	telarkconfigresource "github.com/telark/data/resources/telarkconfig"
+	telarkconfigresource "github.com/telark/telark/internal/data/resources/telarkconfig"
+	"github.com/telark/telark/services/auth/internal/helpers/oidc"
+	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
 const (

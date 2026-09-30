@@ -3,9 +3,9 @@ package shared
 import (
 	"errors"
 
-	dataerrors "github.com/telark/data/errors"
-	metadata "github.com/telark/data/metadata/base"
-	"github.com/telark/exporter/internal/constants"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	metadata "github.com/telark/telark/internal/data/metadata/base"
+	"github.com/telark/telark/services/exporter/internal/constants"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

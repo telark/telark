@@ -4,13 +4,13 @@ import (
 	"errors"
 	"net/http"
 
-	authmetadata "github.com/telark/data/metadata/v1alpha1"
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/exporter/internal/exporters/generics"
-	sessionutils "github.com/telark/exporter/internal/utils/auth/session"
-	authutils "github.com/telark/exporter/internal/utils/auth/shared"
-	"github.com/telark/exporter/internal/utils/concurrency"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
+	authmetadata "github.com/telark/telark/internal/data/metadata/v1alpha1"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/exporters/generics"
+	sessionutils "github.com/telark/telark/services/exporter/internal/utils/auth/session"
+	authutils "github.com/telark/telark/services/exporter/internal/utils/auth/shared"
+	"github.com/telark/telark/services/exporter/internal/utils/concurrency"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 func PatchSessionByToken(w http.ResponseWriter, token string, patchData map[string]any) {

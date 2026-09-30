@@ -6,15 +6,15 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/telark/data/plans"
-	roledata "github.com/telark/data/resources/role"
-	userresource "github.com/telark/data/resources/user"
-	discoveryauthz "github.com/telark/discovery/internal/authz"
-	"github.com/telark/discovery/internal/core/plans/protection"
-	"github.com/telark/discovery/internal/helpers/async"
-	"github.com/telark/discovery/internal/tests/testutil"
-	notifclient "github.com/telark/rest/clients/notifications"
-	xauthz "github.com/telark/x-ware/authz"
+	"github.com/telark/telark/internal/data/plans"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	userresource "github.com/telark/telark/internal/data/resources/user"
+	notifclient "github.com/telark/telark/internal/rest/clients/notifications"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	discoveryauthz "github.com/telark/telark/services/discovery/internal/authz"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection"
+	"github.com/telark/telark/services/discovery/internal/helpers/async"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const (

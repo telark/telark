@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/telark/auth/internal/helpers/shared"
+	"github.com/telark/telark/services/auth/internal/helpers/shared"
 )
 
 const (

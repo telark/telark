@@ -4,7 +4,7 @@ import (
 	"strconv"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 var lg = constants.GetLogger(constants.LoggerPrefixDiscoveryManager)

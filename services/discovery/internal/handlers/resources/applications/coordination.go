@@ -3,8 +3,8 @@ package applications
 import (
 	"sync"
 
-	"github.com/telark/discovery/internal/coordination"
-	"github.com/telark/discovery/internal/coordination/forcesync"
+	"github.com/telark/telark/services/discovery/internal/coordination"
+	"github.com/telark/telark/services/discovery/internal/coordination/forcesync"
 )
 
 var (

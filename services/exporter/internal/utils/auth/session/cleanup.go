@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"time"
 
-	authmetadata "github.com/telark/data/metadata/v1alpha1"
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/exporter/internal/utils/concurrency"
-	"github.com/telark/kcore/crds/api"
-	kshared "github.com/telark/kcore/shared"
+	authmetadata "github.com/telark/telark/internal/data/metadata/v1alpha1"
+	"github.com/telark/telark/internal/kcore/crds/api"
+	kshared "github.com/telark/telark/internal/kcore/shared"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/utils/concurrency"
 )
 
 // Called before creating a new session to keep the CRD count bounded,

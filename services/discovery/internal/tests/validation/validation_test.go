@@ -3,10 +3,10 @@ package validation
 import (
 	"testing"
 
-	"github.com/telark/data/plans"
-	"github.com/telark/discovery/internal/core/plans/protection/validation"
-	"github.com/telark/discovery/internal/tests/testutil"
-	planseps "github.com/telark/rest/endpoints/plans"
+	"github.com/telark/telark/internal/data/plans"
+	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/validation"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 var (

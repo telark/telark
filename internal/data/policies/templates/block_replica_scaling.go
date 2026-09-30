@@ -2,7 +2,7 @@ package templates
 
 import (
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
-	"github.com/telark/data/policies"
+	"github.com/telark/telark/internal/data/policies"
 )
 
 const (

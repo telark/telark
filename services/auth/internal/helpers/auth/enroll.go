@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/auth/internal/constants"
-	redishelper "github.com/telark/auth/internal/helpers/redis"
-	"github.com/telark/auth/internal/helpers/shared"
+	"github.com/telark/telark/services/auth/internal/constants"
+	redishelper "github.com/telark/telark/services/auth/internal/helpers/redis"
+	"github.com/telark/telark/services/auth/internal/helpers/shared"
 )
 
 func enrollTokenKey(token string) string {

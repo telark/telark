@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"net/http"
 
-	dataerrors "github.com/telark/data/errors"
-	"github.com/telark/exporter/internal/constants"
-	kshared "github.com/telark/kcore/shared"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	kshared "github.com/telark/telark/internal/kcore/shared"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	"github.com/telark/telark/services/exporter/internal/constants"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 )
 

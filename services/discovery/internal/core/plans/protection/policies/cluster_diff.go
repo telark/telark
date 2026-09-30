@@ -6,10 +6,10 @@ import (
 	"slices"
 
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
-	"github.com/telark/data/plans"
-	datapolicies "github.com/telark/data/policies"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection/shared"
+	"github.com/telark/telark/internal/data/plans"
+	datapolicies "github.com/telark/telark/internal/data/policies"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/shared"
 )
 
 type DiffLogger interface {

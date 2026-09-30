@@ -7,13 +7,13 @@ import (
 	"strings"
 	"testing"
 
-	authdata "github.com/telark/data/auth"
-	dataconstants "github.com/telark/data/constants"
-	"github.com/telark/rest/clients/auth/passkey"
-	"github.com/telark/rest/clients/auth/session"
-	"github.com/telark/rest/clients/categories"
-	"github.com/telark/rest/clients/groups"
-	"github.com/telark/rest/clients/notifications"
+	authdata "github.com/telark/telark/internal/data/auth"
+	dataconstants "github.com/telark/telark/internal/data/constants"
+	"github.com/telark/telark/internal/rest/clients/auth/passkey"
+	"github.com/telark/telark/internal/rest/clients/auth/session"
+	"github.com/telark/telark/internal/rest/clients/categories"
+	"github.com/telark/telark/internal/rest/clients/groups"
+	"github.com/telark/telark/internal/rest/clients/notifications"
 )
 
 const (

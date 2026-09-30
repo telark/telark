@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/telark/x-ware/cors"
+	"github.com/telark/telark/internal/x-ware/cors"
 )
 
 const (

@@ -5,7 +5,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 type processingTask struct {

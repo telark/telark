@@ -4,9 +4,9 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/telark/data/classification/category"
-	"github.com/telark/data/constants"
-	"github.com/telark/data/resources/role"
+	"github.com/telark/telark/internal/data/classification/category"
+	"github.com/telark/telark/internal/data/constants"
+	"github.com/telark/telark/internal/data/resources/role"
 )
 
 func TestBuiltinRoleCategoriesResolve(t *testing.T) {

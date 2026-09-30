@@ -3,8 +3,8 @@ package authz
 import (
 	"slices"
 
-	dataconstants "github.com/telark/data/constants"
-	roledata "github.com/telark/data/resources/role"
+	dataconstants "github.com/telark/telark/internal/data/constants"
+	roledata "github.com/telark/telark/internal/data/resources/role"
 )
 
 // Deny is checked before level, so withholding one action does not depend on

@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"slices"
 
-	userdata "github.com/telark/data/resources/user"
-	"github.com/telark/exporter/internal/constants"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
-	xauthz "github.com/telark/x-ware/authz"
+	userdata "github.com/telark/telark/internal/data/resources/user"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 // Whoever sets a user's mailbox or login identity can sign in as that user, so

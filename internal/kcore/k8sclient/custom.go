@@ -3,8 +3,8 @@ package k8sclient
 import (
 	"fmt"
 
-	"github.com/telark/data/metadata/base"
-	"github.com/telark/kcore/constants"
+	"github.com/telark/telark/internal/data/metadata/base"
+	"github.com/telark/telark/internal/kcore/constants"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 )

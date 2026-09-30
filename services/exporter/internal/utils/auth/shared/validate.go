@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	dataerrors "github.com/telark/data/errors"
-	"github.com/telark/exporter/internal/constants"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 func ValidateExpiresAt(expiresAt string, pastError dataerrors.Error) error {

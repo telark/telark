@@ -1,6 +1,6 @@
 package constants
 
-import "github.com/telark/data/errors"
+import "github.com/telark/telark/internal/data/errors"
 
 const (
 	ErrRedisInitRetrying        errors.Error = "[redis] Redis not ready, retrying in %ds (elapsed: %ds)"

@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/telark/kcore/resources/group"
+	"github.com/telark/telark/internal/kcore/resources/group"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

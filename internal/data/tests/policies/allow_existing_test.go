@@ -4,10 +4,10 @@ import (
 	"testing"
 
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
-	"github.com/telark/data/constants"
-	"github.com/telark/data/plans"
-	"github.com/telark/data/policies"
-	_ "github.com/telark/data/policies/templates" // registers every renderer
+	"github.com/telark/telark/internal/data/constants"
+	"github.com/telark/telark/internal/data/plans"
+	"github.com/telark/telark/internal/data/policies"
+	_ "github.com/telark/telark/internal/data/policies/templates" // registers every renderer
 )
 
 // Params the two parameterised templates require; the rest render without any.

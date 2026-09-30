@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/telark/auth/internal/constants"
-	telarkconfigresource "github.com/telark/data/resources/telarkconfig"
+	telarkconfigresource "github.com/telark/telark/internal/data/resources/telarkconfig"
+	"github.com/telark/telark/services/auth/internal/constants"
 )
 
 type jwk struct {

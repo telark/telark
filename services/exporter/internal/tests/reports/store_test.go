@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/exporter/internal/managers/envs"
-	reportsutil "github.com/telark/exporter/internal/utils/reports"
-	reportseps "github.com/telark/rest/endpoints/reports"
+	reportseps "github.com/telark/telark/internal/rest/endpoints/reports"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/managers/envs"
+	reportsutil "github.com/telark/telark/services/exporter/internal/utils/reports"
 )
 
 const (

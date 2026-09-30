@@ -3,7 +3,7 @@ package derivation
 import (
 	"testing"
 
-	"github.com/telark/discovery/internal/discovery/derivation"
+	"github.com/telark/telark/services/discovery/internal/discovery/derivation"
 )
 
 const (

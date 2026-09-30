@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/discovery/internal/core/applications/history/utils"
-	"github.com/telark/discovery/internal/tests/testutil"
+	"github.com/telark/telark/services/discovery/internal/core/applications/history/utils"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const strconvSample = 42

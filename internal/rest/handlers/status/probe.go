@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/telark/rest/response"
+	"github.com/telark/telark/internal/rest/response"
 )
 
 type (

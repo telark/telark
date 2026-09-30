@@ -4,9 +4,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/telark/data/resources/application"
-	datashared "github.com/telark/data/shared"
-	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/telark/internal/data/resources/application"
+	datashared "github.com/telark/telark/internal/data/shared"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 func MarkPublished(app *application.Application) {

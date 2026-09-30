@@ -5,11 +5,11 @@ import (
 	"sync"
 
 	redisv9 "github.com/redis/go-redis/v9"
-	cb "github.com/telark/discovery/internal/circuitbreaker"
-	"github.com/telark/discovery/internal/config"
-	"github.com/telark/discovery/internal/constants"
-	rediscore "github.com/telark/x-ware/redis/core"
-	redisinit "github.com/telark/x-ware/redis/init"
+	rediscore "github.com/telark/telark/internal/x-ware/redis/core"
+	redisinit "github.com/telark/telark/internal/x-ware/redis/init"
+	cb "github.com/telark/telark/services/discovery/internal/circuitbreaker"
+	"github.com/telark/telark/services/discovery/internal/config"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 var (

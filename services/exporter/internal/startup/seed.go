@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"net/http"
 
-	categorydata "github.com/telark/data/classification/category"
-	basemeta "github.com/telark/data/metadata/base"
-	"github.com/telark/data/metadata/v1alpha1"
-	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/data/resources/telarkconfig"
-	"github.com/telark/exporter/internal/constants"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
-	"github.com/telark/kcore/crds/api"
+	categorydata "github.com/telark/telark/internal/data/classification/category"
+	basemeta "github.com/telark/telark/internal/data/metadata/base"
+	"github.com/telark/telark/internal/data/metadata/v1alpha1"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	"github.com/telark/telark/internal/data/resources/telarkconfig"
+	"github.com/telark/telark/internal/kcore/crds/api"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

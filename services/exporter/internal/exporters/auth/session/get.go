@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"net/http"
 
-	dataerrors "github.com/telark/data/errors"
-	"github.com/telark/data/messages"
-	sessionutils "github.com/telark/exporter/internal/utils/auth/session"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/data/messages"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	sessionutils "github.com/telark/telark/services/exporter/internal/utils/auth/session"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 func GetSessionByToken(w http.ResponseWriter, token string) {

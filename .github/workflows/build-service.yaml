@@ -69,7 +69,8 @@ jobs:
       - name: Go lint gate
         uses: ./release/.github/actions/go-ci
         with:
-          working-directory: release/services/${{ inputs.service }}
+          working-directory: release
+          packages: ./services/${{ inputs.service }}/...
           cache-key: ${{ inputs.service }}-lint
           config-file: release/.golangci.yml
           test: 'false'
@@ -138,7 +139,8 @@ jobs:
           service: ${{ inputs.service }}
           build_type: ${{ inputs.build_type }}
           values_file: ${{ env.CHART_VALUES }}
-          context: release/services/${{ inputs.service }}/
+          # Go images build from the module root; the analyzer from its own directory.
+          context: ${{ inputs.service == 'analyzer' && 'release/services/analyzer/' || 'release/' }}
           dockerfile: ./release/services/${{ inputs.service }}/Dockerfile
           platforms: linux/amd64,linux/arm64
           registry_username: ${{ github.actor }}

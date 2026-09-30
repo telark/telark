@@ -3,10 +3,10 @@ package config
 import (
 	"net/http"
 
-	authconfig "github.com/telark/auth/internal/config"
-	"github.com/telark/auth/internal/constants"
-	oidchelper "github.com/telark/auth/internal/helpers/oidc"
-	"github.com/telark/auth/internal/helpers/shared"
+	authconfig "github.com/telark/telark/services/auth/internal/config"
+	"github.com/telark/telark/services/auth/internal/constants"
+	oidchelper "github.com/telark/telark/services/auth/internal/helpers/oidc"
+	"github.com/telark/telark/services/auth/internal/helpers/shared"
 )
 
 // Unauthenticated, so it carries only what the login form needs; an unreachable

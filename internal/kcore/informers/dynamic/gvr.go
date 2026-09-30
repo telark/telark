@@ -1,7 +1,7 @@
 package dynamic
 
 import (
-	"github.com/telark/kcore/constants"
+	"github.com/telark/telark/internal/kcore/constants"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"

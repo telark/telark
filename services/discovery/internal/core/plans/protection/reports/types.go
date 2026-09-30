@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/discovery/internal/core/plans/protection/applications"
-	planseps "github.com/telark/rest/endpoints/plans"
-	reportseps "github.com/telark/rest/endpoints/reports"
+	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
+	reportseps "github.com/telark/telark/internal/rest/endpoints/reports"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/applications"
 	"k8s.io/client-go/dynamic"
 )
 

@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/auth/internal/constants"
-	"github.com/telark/auth/internal/coordination/cleanup"
-	"github.com/telark/auth/internal/tests/testutil"
-	xwareredis "github.com/telark/x-ware/redis/stream"
+	xwareredis "github.com/telark/telark/internal/x-ware/redis/stream"
+	"github.com/telark/telark/services/auth/internal/constants"
+	"github.com/telark/telark/services/auth/internal/coordination/cleanup"
+	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
 const (

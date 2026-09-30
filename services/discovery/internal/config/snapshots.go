@@ -4,8 +4,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/telark/discovery/internal/constants"
-	cfgclient "github.com/telark/rest/clients/config"
+	cfgclient "github.com/telark/telark/internal/rest/clients/config"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 var (

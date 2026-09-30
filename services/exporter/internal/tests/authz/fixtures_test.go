@@ -1,9 +1,9 @@
 package authz
 
 import (
-	groupdata "github.com/telark/data/resources/group"
-	roledata "github.com/telark/data/resources/role"
-	userdata "github.com/telark/data/resources/user"
+	groupdata "github.com/telark/telark/internal/data/resources/group"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	userdata "github.com/telark/telark/internal/data/resources/user"
 )
 
 const (

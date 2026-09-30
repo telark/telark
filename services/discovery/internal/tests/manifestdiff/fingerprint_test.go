@@ -3,9 +3,9 @@ package manifestdiff_test
 import (
 	"testing"
 
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/applications/history/manifestdiff"
-	kcoremanifest "github.com/telark/kcore/manifest"
+	kcoremanifest "github.com/telark/telark/internal/kcore/manifest"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/applications/history/manifestdiff"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

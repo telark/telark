@@ -3,9 +3,9 @@ package shared
 import (
 	"net/http"
 
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 func HandleValidationError(w http.ResponseWriter, err error) {

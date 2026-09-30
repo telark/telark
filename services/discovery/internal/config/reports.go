@@ -3,7 +3,7 @@ package config
 import (
 	"time"
 
-	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 func ReportCheckpointInterval() (time.Duration, bool) {

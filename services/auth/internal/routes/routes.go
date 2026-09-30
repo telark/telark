@@ -1,17 +1,17 @@
 package routes
 
 import (
-	authhandler "github.com/telark/auth/internal/handlers/auth"
-	authorisationhandler "github.com/telark/auth/internal/handlers/authorisation"
-	cleanuphandler "github.com/telark/auth/internal/handlers/cleanup"
-	confighandler "github.com/telark/auth/internal/handlers/config"
-	oidchandler "github.com/telark/auth/internal/handlers/oidc"
-	passkeyhandler "github.com/telark/auth/internal/handlers/passkey"
-	statushandler "github.com/telark/auth/internal/handlers/status"
-	"github.com/telark/rest/base"
-	autheps "github.com/telark/rest/endpoints/auth"
-	statuseps "github.com/telark/rest/endpoints/status"
-	"github.com/telark/rest/router"
+	"github.com/telark/telark/internal/rest/base"
+	autheps "github.com/telark/telark/internal/rest/endpoints/auth"
+	statuseps "github.com/telark/telark/internal/rest/endpoints/status"
+	"github.com/telark/telark/internal/rest/router"
+	authhandler "github.com/telark/telark/services/auth/internal/handlers/auth"
+	authorisationhandler "github.com/telark/telark/services/auth/internal/handlers/authorisation"
+	cleanuphandler "github.com/telark/telark/services/auth/internal/handlers/cleanup"
+	confighandler "github.com/telark/telark/services/auth/internal/handlers/config"
+	oidchandler "github.com/telark/telark/services/auth/internal/handlers/oidc"
+	passkeyhandler "github.com/telark/telark/services/auth/internal/handlers/passkey"
+	statushandler "github.com/telark/telark/services/auth/internal/handlers/status"
 )
 
 var Routes = []router.Route{

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/kcore/crds/view"
+	"github.com/telark/telark/internal/kcore/crds/view"
 	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )

@@ -5,11 +5,11 @@ import (
 	"fmt"
 
 	"github.com/nats-io/nats.go"
-	"github.com/telark/data/errors"
-	"github.com/telark/data/logger"
-	"github.com/telark/data/messages"
-	"github.com/telark/notifier/internal/constants"
-	natscore "github.com/telark/x-ware/nats/core"
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/data/logger"
+	"github.com/telark/telark/internal/data/messages"
+	natscore "github.com/telark/telark/internal/x-ware/nats/core"
+	"github.com/telark/telark/services/notifier/internal/constants"
 )
 
 func SharedExecuteHandler(

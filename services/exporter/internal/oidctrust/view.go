@@ -4,8 +4,8 @@ import (
 	"errors"
 	"maps"
 
-	"github.com/telark/data/resources/telarkconfig"
-	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/telark/internal/data/resources/telarkconfig"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 // Removes oidc.googleJwkJson from a config patch so it never reaches the CR; an

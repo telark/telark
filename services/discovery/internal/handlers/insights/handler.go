@@ -7,14 +7,14 @@ import (
 	"slices"
 	"strings"
 
-	appresource "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/insightsindex"
-	"github.com/telark/discovery/internal/discovery/cache"
-	redishelper "github.com/telark/discovery/internal/helpers/redis"
-	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	appresource "github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/insightsindex"
+	"github.com/telark/telark/services/discovery/internal/discovery/cache"
+	redishelper "github.com/telark/telark/services/discovery/internal/helpers/redis"
+	tcfghelper "github.com/telark/telark/services/discovery/internal/helpers/telarkconfig"
 )
 
 const (

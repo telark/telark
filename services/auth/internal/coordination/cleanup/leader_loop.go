@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/telark/auth/internal/constants"
-	xwareredis "github.com/telark/x-ware/redis/stream"
+	xwareredis "github.com/telark/telark/internal/x-ware/redis/stream"
+	"github.com/telark/telark/services/auth/internal/constants"
 )
 
 func NewLeaderLoop(

@@ -19,12 +19,12 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 
-	"github.com/telark/auth/internal/config"
-	"github.com/telark/auth/internal/constants"
-	redishelper "github.com/telark/auth/internal/helpers/redis"
-	webauthnhelper "github.com/telark/auth/internal/helpers/webauthn"
-	"github.com/telark/auth/internal/tests/testutil"
-	authdata "github.com/telark/data/auth"
+	authdata "github.com/telark/telark/internal/data/auth"
+	"github.com/telark/telark/services/auth/internal/config"
+	"github.com/telark/telark/services/auth/internal/constants"
+	redishelper "github.com/telark/telark/services/auth/internal/helpers/redis"
+	webauthnhelper "github.com/telark/telark/services/auth/internal/helpers/webauthn"
+	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
 const (
@@ -363,8 +363,9 @@ func TestParseAttestationObjectManuallyBinding(t *testing.T) {
 	if err != nil {
 		t.Fatalf(jsonMarshalFailed, err)
 	}
-	if _, _, _, err := webauthnhelper.ParseAttestationObjectManually(
-		att, base64.RawURLEncoding.EncodeToString(wrongType), credID, chal, testRPID, testOrigins); err == nil {
+	_, _, _, err = webauthnhelper.ParseAttestationObjectManually(
+		att, base64.RawURLEncoding.EncodeToString(wrongType), credID, chal, testRPID, testOrigins)
+	if err == nil {
 		t.Fatal("a non-registration ceremony type must be rejected")
 	}
 }

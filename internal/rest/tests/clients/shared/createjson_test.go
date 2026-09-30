@@ -8,10 +8,10 @@ import (
 	"os"
 	"testing"
 
-	dataconstants "github.com/telark/data/constants"
-	"github.com/telark/rest/base"
-	"github.com/telark/rest/clients/shared"
-	"github.com/telark/rest/endpoints/reports"
+	dataconstants "github.com/telark/telark/internal/data/constants"
+	"github.com/telark/telark/internal/rest/base"
+	"github.com/telark/telark/internal/rest/clients/shared"
+	"github.com/telark/telark/internal/rest/endpoints/reports"
 )
 
 const (

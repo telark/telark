@@ -9,14 +9,14 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gorilla/mux"
 	"github.com/redis/go-redis/v9"
-	basemetadata "github.com/telark/data/metadata/base"
-	metadata "github.com/telark/data/metadata/v1alpha1"
-	"github.com/telark/exporter/internal/cache"
-	"github.com/telark/exporter/internal/constants"
-	resshared "github.com/telark/exporter/internal/handlers/resources/shared"
-	authshared "github.com/telark/exporter/internal/utils/auth/shared"
-	categoryutils "github.com/telark/exporter/internal/utils/classification/category"
-	"github.com/telark/exporter/internal/utils/performance"
+	basemetadata "github.com/telark/telark/internal/data/metadata/base"
+	metadata "github.com/telark/telark/internal/data/metadata/v1alpha1"
+	"github.com/telark/telark/services/exporter/internal/cache"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	resshared "github.com/telark/telark/services/exporter/internal/handlers/resources/shared"
+	authshared "github.com/telark/telark/services/exporter/internal/utils/auth/shared"
+	categoryutils "github.com/telark/telark/services/exporter/internal/utils/classification/category"
+	"github.com/telark/telark/services/exporter/internal/utils/performance"
 )
 
 const (

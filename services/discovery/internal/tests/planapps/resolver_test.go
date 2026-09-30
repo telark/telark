@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection/applications"
-	"github.com/telark/discovery/internal/tests/testutil"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/applications"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 // NewRedisResolver returns a resolver bound to the client. A nil claim reader is the

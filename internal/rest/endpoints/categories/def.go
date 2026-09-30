@@ -1,6 +1,6 @@
 package categories
 
-import "github.com/telark/rest/base"
+import "github.com/telark/telark/internal/rest/base"
 
 const (
 	CreateCategory     base.Endpoint = "categories"

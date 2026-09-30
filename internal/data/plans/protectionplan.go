@@ -1,6 +1,6 @@
 package plans
 
-import globalshared "github.com/telark/data/shared"
+import globalshared "github.com/telark/telark/internal/data/shared"
 
 const (
 	PhaseActive          = "active"

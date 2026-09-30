@@ -6,12 +6,12 @@ import (
 	"strconv"
 	"testing"
 
-	roledata "github.com/telark/data/resources/role"
-	userdata "github.com/telark/data/resources/user"
-	"github.com/telark/exporter/internal/authz"
-	"github.com/telark/exporter/internal/constants"
-	envmanager "github.com/telark/exporter/internal/managers/envs"
-	xauthz "github.com/telark/x-ware/authz"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	userdata "github.com/telark/telark/internal/data/resources/user"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/exporter/internal/authz"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	envmanager "github.com/telark/telark/services/exporter/internal/managers/envs"
 )
 
 const cacheKey = "users:list:1"

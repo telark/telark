@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/notifier/internal/constants"
-	"github.com/telark/notifier/internal/subscribers/manager"
-	"github.com/telark/notifier/internal/tests/testutil"
+	"github.com/telark/telark/services/notifier/internal/constants"
+	"github.com/telark/telark/services/notifier/internal/subscribers/manager"
+	"github.com/telark/telark/services/notifier/internal/tests/testutil"
 )
 
 const (

@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/data/plans"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection/reports"
-	"github.com/telark/discovery/internal/core/plans/protection/validation"
-	"github.com/telark/discovery/internal/tests/testutil"
-	reportseps "github.com/telark/rest/endpoints/reports"
+	"github.com/telark/telark/internal/data/plans"
+	reportseps "github.com/telark/telark/internal/rest/endpoints/reports"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/reports"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/validation"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 )
 

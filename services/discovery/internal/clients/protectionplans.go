@@ -6,14 +6,14 @@ import (
 	"strings"
 	"time"
 
-	dataerrors "github.com/telark/data/errors"
-	"github.com/telark/data/plans"
-	protectionclient "github.com/telark/rest/clients/plans/protection"
-	"github.com/telark/rest/clients/shared"
-	planseps "github.com/telark/rest/endpoints/plans"
-	"github.com/telark/rest/response"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/data/plans"
+	protectionclient "github.com/telark/telark/internal/rest/clients/plans/protection"
+	"github.com/telark/telark/internal/rest/clients/shared"
+	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
+	"github.com/telark/telark/internal/rest/response"
 
-	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 const (

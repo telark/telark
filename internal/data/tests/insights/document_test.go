@@ -7,10 +7,10 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/telark/data/constants"
-	insightsdata "github.com/telark/data/insights"
-	"github.com/telark/data/resources/application"
-	"github.com/telark/data/resources/telarkconfig"
+	"github.com/telark/telark/internal/data/constants"
+	insightsdata "github.com/telark/telark/internal/data/insights"
+	"github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/internal/data/resources/telarkconfig"
 )
 
 const (

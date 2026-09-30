@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/exporter/internal/constants"
-	exprdb "github.com/telark/exporter/internal/redis"
-	"github.com/telark/x-ware/authz"
-	rediscache "github.com/telark/x-ware/redis/cache"
+	"github.com/telark/telark/internal/x-ware/authz"
+	rediscache "github.com/telark/telark/internal/x-ware/redis/cache"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	exprdb "github.com/telark/telark/services/exporter/internal/redis"
 )
 
 var generationFloor atomic.Int64

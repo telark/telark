@@ -9,12 +9,12 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/coordination"
-	"github.com/telark/discovery/internal/core/plans/protection"
-	handlers "github.com/telark/discovery/internal/handlers/plans/protection"
-	"github.com/telark/discovery/internal/tests/testutil"
-	xwareredis "github.com/telark/x-ware/redis/stream"
+	xwareredis "github.com/telark/telark/internal/x-ware/redis/stream"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/coordination"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection"
+	handlers "github.com/telark/telark/services/discovery/internal/handlers/plans/protection"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const (

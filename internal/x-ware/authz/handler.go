@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"slices"
 
-	dataconstants "github.com/telark/data/constants"
-	dataerrors "github.com/telark/data/errors"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	dataconstants "github.com/telark/telark/internal/data/constants"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
 )
 
 type middleware struct {

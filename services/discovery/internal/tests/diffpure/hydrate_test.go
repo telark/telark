@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/applications/history/diff"
-	"github.com/telark/discovery/internal/tests/testutil"
+	"github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/applications/history/diff"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

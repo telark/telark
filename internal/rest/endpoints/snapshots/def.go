@@ -1,6 +1,6 @@
 package snapshots
 
-import "github.com/telark/rest/base"
+import "github.com/telark/telark/internal/rest/base"
 
 const (
 	CreateSnapshot      base.Endpoint = "internal/snapshots"

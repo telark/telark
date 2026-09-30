@@ -9,10 +9,10 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/exporter/internal/cache"
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/exporter/internal/utils/performance"
-	categoryendpoints "github.com/telark/rest/endpoints/categories"
+	categoryendpoints "github.com/telark/telark/internal/rest/endpoints/categories"
+	"github.com/telark/telark/services/exporter/internal/cache"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/utils/performance"
 )
 
 const (

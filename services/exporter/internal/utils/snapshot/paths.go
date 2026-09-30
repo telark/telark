@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/telark/exporter/internal/constants"
-	envmanager "github.com/telark/exporter/internal/managers/envs"
-	"github.com/telark/exporter/internal/utils/artifact"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	envmanager "github.com/telark/telark/services/exporter/internal/managers/envs"
+	"github.com/telark/telark/services/exporter/internal/utils/artifact"
 )
 
 func BuildSnapshotDir(

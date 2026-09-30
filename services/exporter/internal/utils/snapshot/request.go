@@ -9,11 +9,11 @@ import (
 	"strconv"
 	"strings"
 
-	derrs "github.com/telark/data/errors"
-	"github.com/telark/exporter/internal/constants"
-	envmanager "github.com/telark/exporter/internal/managers/envs"
-	"github.com/telark/exporter/internal/utils/artifact"
-	restsnapshot "github.com/telark/rest/clients/snapshots"
+	derrs "github.com/telark/telark/internal/data/errors"
+	restsnapshot "github.com/telark/telark/internal/rest/clients/snapshots"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	envmanager "github.com/telark/telark/services/exporter/internal/managers/envs"
+	"github.com/telark/telark/services/exporter/internal/utils/artifact"
 )
 
 func ParseCreateSnapshotRequest(body map[string]any) (*restsnapshot.CreateSnapshotPayload, error) {

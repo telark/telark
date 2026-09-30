@@ -1,6 +1,6 @@
 package constants
 
-import "github.com/telark/data/logger"
+import "github.com/telark/telark/internal/data/logger"
 
 const (
 	LoggerPrefixAuthService = "auth-service"

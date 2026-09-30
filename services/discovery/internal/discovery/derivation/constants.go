@@ -1,6 +1,6 @@
 package derivation
 
-import kcoreshared "github.com/telark/kcore/shared"
+import kcoreshared "github.com/telark/telark/internal/kcore/shared"
 
 const (
 	// K8s common labels (https://kubernetes.io/docs/concepts/overview/working-with-objects/common-labels/)

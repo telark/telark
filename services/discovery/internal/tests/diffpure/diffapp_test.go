@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	appresource "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/applications/history/diff"
-	appshared "github.com/telark/discovery/internal/core/applications/shared"
-	"github.com/telark/discovery/internal/tests/testutil"
+	appresource "github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/applications/history/diff"
+	appshared "github.com/telark/telark/services/discovery/internal/core/applications/shared"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const sealedGeneration = 4

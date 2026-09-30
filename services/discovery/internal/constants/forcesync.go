@@ -3,8 +3,8 @@ package constants
 import (
 	"time"
 
-	"github.com/telark/data/errors"
-	"github.com/telark/data/messages"
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/data/messages"
 )
 
 const (

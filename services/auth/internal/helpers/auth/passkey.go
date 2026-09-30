@@ -10,12 +10,12 @@ import (
 	"time"
 
 	webauthnlib "github.com/go-webauthn/webauthn/webauthn"
-	"github.com/telark/auth/internal/clients"
-	"github.com/telark/auth/internal/config"
-	"github.com/telark/auth/internal/constants"
-	"github.com/telark/auth/internal/helpers/shared"
-	authdata "github.com/telark/data/auth"
-	userresource "github.com/telark/data/resources/user"
+	authdata "github.com/telark/telark/internal/data/auth"
+	userresource "github.com/telark/telark/internal/data/resources/user"
+	"github.com/telark/telark/services/auth/internal/clients"
+	"github.com/telark/telark/services/auth/internal/config"
+	"github.com/telark/telark/services/auth/internal/constants"
+	"github.com/telark/telark/services/auth/internal/helpers/shared"
 )
 
 // The exporter's own status and message, so a handler can relay a refusal

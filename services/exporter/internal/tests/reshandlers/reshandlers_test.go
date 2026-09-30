@@ -9,13 +9,13 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gorilla/mux"
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/exporter/internal/constants"
-	categoryhandler "github.com/telark/exporter/internal/handlers/categories"
-	protectionhandler "github.com/telark/exporter/internal/handlers/plans/protection"
-	grouphandler "github.com/telark/exporter/internal/handlers/resources/group"
-	rolehandler "github.com/telark/exporter/internal/handlers/resources/role"
-	userhandler "github.com/telark/exporter/internal/handlers/resources/user"
-	"github.com/telark/exporter/internal/utils/performance"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	categoryhandler "github.com/telark/telark/services/exporter/internal/handlers/categories"
+	protectionhandler "github.com/telark/telark/services/exporter/internal/handlers/plans/protection"
+	grouphandler "github.com/telark/telark/services/exporter/internal/handlers/resources/group"
+	rolehandler "github.com/telark/telark/services/exporter/internal/handlers/resources/role"
+	userhandler "github.com/telark/telark/services/exporter/internal/handlers/resources/user"
+	"github.com/telark/telark/services/exporter/internal/utils/performance"
 )
 
 const (

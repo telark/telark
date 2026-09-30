@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 func setToSlice(m map[string]bool) []string {

@@ -10,15 +10,15 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 
-	"github.com/telark/auth/internal/constants"
-	authhandler "github.com/telark/auth/internal/handlers/auth"
-	authzhandler "github.com/telark/auth/internal/handlers/authorisation"
-	cleanuphandler "github.com/telark/auth/internal/handlers/cleanup"
-	confighandler "github.com/telark/auth/internal/handlers/config"
-	oidchandler "github.com/telark/auth/internal/handlers/oidc"
-	passkeyhandler "github.com/telark/auth/internal/handlers/passkey"
-	redishelper "github.com/telark/auth/internal/helpers/redis"
-	"github.com/telark/auth/internal/tests/testutil"
+	"github.com/telark/telark/services/auth/internal/constants"
+	authhandler "github.com/telark/telark/services/auth/internal/handlers/auth"
+	authzhandler "github.com/telark/telark/services/auth/internal/handlers/authorisation"
+	cleanuphandler "github.com/telark/telark/services/auth/internal/handlers/cleanup"
+	confighandler "github.com/telark/telark/services/auth/internal/handlers/config"
+	oidchandler "github.com/telark/telark/services/auth/internal/handlers/oidc"
+	passkeyhandler "github.com/telark/telark/services/auth/internal/handlers/passkey"
+	redishelper "github.com/telark/telark/services/auth/internal/helpers/redis"
+	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
 const (

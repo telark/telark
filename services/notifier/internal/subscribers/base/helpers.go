@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
-	"github.com/telark/data/errors"
-	"github.com/telark/data/logger"
-	"github.com/telark/data/resources/shared"
-	"github.com/telark/notifier/internal/constants"
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/data/logger"
+	"github.com/telark/telark/internal/data/resources/shared"
+	"github.com/telark/telark/services/notifier/internal/constants"
 )
 
 // Acking a transient failure froze the application behind the generation the leader already recorded.

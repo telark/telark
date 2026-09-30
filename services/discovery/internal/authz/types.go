@@ -4,8 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/telark/discovery/internal/clients"
-	"github.com/telark/x-ware/authz"
+	"github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/discovery/internal/clients"
 )
 
 type clientSource struct {

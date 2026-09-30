@@ -5,12 +5,12 @@ import (
 	"errors"
 	"net/http"
 
-	dataerrors "github.com/telark/data/errors"
-	"github.com/telark/data/messages"
-	"github.com/telark/discovery/internal/constants"
-	planseps "github.com/telark/rest/endpoints/plans"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/data/messages"
+	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 func Prepare(w http.ResponseWriter, r *http.Request) {

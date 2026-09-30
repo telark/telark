@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	authmetadata "github.com/telark/data/metadata/v1alpha1"
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/kcore/k8sclient"
+	authmetadata "github.com/telark/telark/internal/data/metadata/v1alpha1"
+	"github.com/telark/telark/internal/kcore/k8sclient"
+	"github.com/telark/telark/services/exporter/internal/constants"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"
 	k8scache "k8s.io/client-go/tools/cache"

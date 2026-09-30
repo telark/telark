@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	authmetadata "github.com/telark/data/metadata/v1alpha1"
-	"github.com/telark/exporter/internal/informers"
+	authmetadata "github.com/telark/telark/internal/data/metadata/v1alpha1"
+	"github.com/telark/telark/services/exporter/internal/informers"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"

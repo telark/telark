@@ -6,10 +6,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/telark/data/metadata/v1alpha1"
-	"github.com/telark/exporter/internal/constants"
-	passkeyexporter "github.com/telark/exporter/internal/exporters/auth/passkey"
-	passkeyutils "github.com/telark/exporter/internal/utils/auth/passkey"
+	"github.com/telark/telark/internal/data/metadata/v1alpha1"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	passkeyexporter "github.com/telark/telark/services/exporter/internal/exporters/auth/passkey"
+	passkeyutils "github.com/telark/telark/services/exporter/internal/utils/auth/passkey"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

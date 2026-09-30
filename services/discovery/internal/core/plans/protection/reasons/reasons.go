@@ -3,7 +3,7 @@ package reasons
 import (
 	"strings"
 
-	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/constants"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 

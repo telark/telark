@@ -1,0 +1,31 @@
+# The Go service images build from the repository root; the analyzer builds
+# from services/analyzer with its own .dockerignore.
+.git
+**/.gitignore
+.dockerignore
+**/Dockerfile
+**/.env
+**/.env.*
+
+# Docs
+**/*.md
+
+# Tests, coverage and build artifacts
+**/tests/
+**/testdata/
+**/*_test.go
+**/coverage.*
+**/*.out
+**/*.coverprofile
+**/*.prof
+**/*.test
+
+# IDE and editor files
+**/.idea/
+**/.vscode/
+**/.cursor/
+**/.claude/
+**/*.iml
+**/*.sublime*
+**/*.swp
+**/.DS_Store

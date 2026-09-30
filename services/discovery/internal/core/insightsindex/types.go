@@ -4,8 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/telark/data/plans"
-	"github.com/telark/data/resources/application"
+	"github.com/telark/telark/internal/data/plans"
+	"github.com/telark/telark/internal/data/resources/application"
 )
 
 // One insight card, flattened for the cluster-wide list; the full card stays in the app's document.

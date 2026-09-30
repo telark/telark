@@ -4,10 +4,10 @@ import (
 	"errors"
 	"net/http"
 
-	authmetadata "github.com/telark/data/metadata/v1alpha1"
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/exporter/internal/utils/concurrency"
-	"github.com/telark/kcore/crds/api"
+	authmetadata "github.com/telark/telark/internal/data/metadata/v1alpha1"
+	"github.com/telark/telark/internal/kcore/crds/api"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/utils/concurrency"
 )
 
 func PurgePasskeysForUser(userID string) error {

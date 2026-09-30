@@ -3,11 +3,11 @@ package duplicate
 import (
 	"fmt"
 
-	"github.com/telark/data/errors"
-	"github.com/telark/data/plans"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection/validation"
-	planseps "github.com/telark/rest/endpoints/plans"
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/data/plans"
+	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/validation"
 )
 
 const (

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/coordination/leadergate"
-	"github.com/telark/kcore/k8sclient"
+	"github.com/telark/telark/internal/kcore/k8sclient"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/coordination/leadergate"
 )
 
 var logger = constants.GetLogger(constants.LoggerPrefixRollbackController)

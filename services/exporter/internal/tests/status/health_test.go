@@ -9,11 +9,11 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/exporter/internal/constants"
-	statushandler "github.com/telark/exporter/internal/handlers/status"
-	"github.com/telark/exporter/internal/informers"
-	exprdb "github.com/telark/exporter/internal/redis"
-	"github.com/telark/rest/response"
+	"github.com/telark/telark/internal/rest/response"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	statushandler "github.com/telark/telark/services/exporter/internal/handlers/status"
+	"github.com/telark/telark/services/exporter/internal/informers"
+	exprdb "github.com/telark/telark/services/exporter/internal/redis"
 	k8scache "k8s.io/client-go/tools/cache"
 )
 

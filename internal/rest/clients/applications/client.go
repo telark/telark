@@ -1,0 +1,65 @@
+package applications
+
+import (
+	appresource "github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/internal/rest/base"
+	"github.com/telark/telark/internal/rest/clients/shared"
+	"github.com/telark/telark/internal/rest/constants"
+	eps "github.com/telark/telark/internal/rest/endpoints/applications"
+	"github.com/telark/telark/internal/rest/response"
+)
+
+type Client struct {
+	*shared.Client
+}
+
+func NewClient() *Client {
+	return &Client{
+		Client: shared.New(base.Exporter),
+	}
+}
+
+func NewClientWithConfig(cfg *shared.ClientConfig) *Client {
+	return &Client{
+		Client: shared.NewWithConfig(base.Exporter, cfg),
+	}
+}
+
+func (c *Client) CreateApplication(app *appresource.Application) *response.GenericResponse {
+	return c.Create(eps.CreateApplication, app)
+}
+
+func (c *Client) GetApplicationByName(name string) (*appresource.Application, error) {
+	return shared.GetTyped[appresource.Application](byName(c.Client, name), eps.GetApplicationByName)
+}
+
+// GetApplicationByNameFresh bypasses the exporter's read cache; a caller that
+// derives the next generation from the stored copy must never see a stale one.
+func (c *Client) GetApplicationByNameFresh(name string) (*appresource.Application, error) {
+	return shared.GetWithHeaders[appresource.Application](
+		byName(c.Client, name),
+		eps.GetApplicationByName,
+		map[string]string{constants.HeaderCacheControl: constants.CacheControlNoCache},
+	)
+}
+
+func (c *Client) GetAllApplications() ([]*appresource.Application, error) {
+	return shared.GetListTyped[*appresource.Application](c.Client, eps.GetAllApplications)
+}
+
+func (c *Client) PatchApplicationByName(name string, body map[string]any) *response.GenericResponse {
+	return byName(c.Client, name).Update(eps.PatchApplicationByName, body)
+}
+
+func (c *Client) DeleteApplicationByName(name string) *response.GenericResponse {
+	return byName(c.Client, name).Delete(eps.DeleteApplicationByName)
+}
+
+func (*Client) ResetApplicationByName(name string) (*response.GenericResponse, error) {
+	discoveryClient := shared.New(base.Discovery)
+	return byName(discoveryClient, name).Post(eps.ResetApplication)
+}
+
+func byName(c *shared.Client, name string) *shared.Client {
+	return c.WithParams(map[string]string{constants.NameParam: name})
+}

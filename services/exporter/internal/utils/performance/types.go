@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/telark/exporter/internal/constants"
-	envmanager "github.com/telark/exporter/internal/managers/envs"
-	rediscache "github.com/telark/x-ware/redis/cache"
+	rediscache "github.com/telark/telark/internal/x-ware/redis/cache"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	envmanager "github.com/telark/telark/services/exporter/internal/managers/envs"
 )
 
 type Optimizer struct {

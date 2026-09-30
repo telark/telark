@@ -3,13 +3,13 @@ package user
 import (
 	"net/http"
 
-	dataerrors "github.com/telark/data/errors"
-	userdata "github.com/telark/data/resources/user"
-	"github.com/telark/exporter/internal/constants"
-	resourcesshared "github.com/telark/exporter/internal/utils/resources/shared"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	userdata "github.com/telark/telark/internal/data/resources/user"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	resourcesshared "github.com/telark/telark/services/exporter/internal/utils/resources/shared"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

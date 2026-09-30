@@ -3,10 +3,10 @@ package metrics
 import (
 	"testing"
 
-	appresource "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/applications/metrics"
-	"github.com/telark/discovery/internal/tests/testutil"
+	appresource "github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/applications/metrics"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const cpuRequest = "100m"

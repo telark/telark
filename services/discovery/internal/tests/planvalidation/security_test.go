@@ -5,13 +5,13 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/telark/data/plans"
-	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection/validation"
-	"github.com/telark/discovery/internal/tests/testutil"
-	planseps "github.com/telark/rest/endpoints/plans"
-	xauthz "github.com/telark/x-ware/authz"
+	"github.com/telark/telark/internal/data/plans"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/validation"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const (

@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/telark/data/resources/telarkconfig"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/kcore/resources/server"
-	cfgclient "github.com/telark/rest/clients/config"
+	"github.com/telark/telark/internal/data/resources/telarkconfig"
+	"github.com/telark/telark/internal/kcore/resources/server"
+	cfgclient "github.com/telark/telark/internal/rest/clients/config"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 func PatchClusterVersionAsync(ctx context.Context) {

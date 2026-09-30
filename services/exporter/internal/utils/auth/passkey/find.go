@@ -3,10 +3,10 @@ package passkey
 import (
 	"errors"
 
-	authmetadata "github.com/telark/data/metadata/v1alpha1"
-	"github.com/telark/exporter/internal/constants"
-	authshared "github.com/telark/exporter/internal/utils/auth/shared"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
+	authmetadata "github.com/telark/telark/internal/data/metadata/v1alpha1"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	authshared "github.com/telark/telark/services/exporter/internal/utils/auth/shared"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

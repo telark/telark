@@ -5,9 +5,9 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/telark/exporter/internal/constants"
-	grouputil "github.com/telark/exporter/internal/utils/resources/group"
-	userutil "github.com/telark/exporter/internal/utils/resources/user"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	grouputil "github.com/telark/telark/services/exporter/internal/utils/resources/group"
+	userutil "github.com/telark/telark/services/exporter/internal/utils/resources/user"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

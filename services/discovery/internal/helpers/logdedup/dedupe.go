@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 const DefaultWindow = 30 * time.Second

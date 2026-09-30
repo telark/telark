@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 
-	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 const idByteLen = 16

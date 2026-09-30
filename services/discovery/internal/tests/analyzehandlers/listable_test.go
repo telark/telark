@@ -7,11 +7,11 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/handlers/analyze/resources"
-	"github.com/telark/discovery/internal/handlers/analyze/workloads"
-	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
-	"github.com/telark/discovery/internal/tests/testutil"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/handlers/analyze/resources"
+	"github.com/telark/telark/services/discovery/internal/handlers/analyze/workloads"
+	tcfghelper "github.com/telark/telark/services/discovery/internal/helpers/telarkconfig"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const kubeSystem = "kube-system"

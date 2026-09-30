@@ -4,9 +4,9 @@ import (
 	"context"
 	"sync"
 
-	"github.com/telark/discovery/internal/constants"
-	applicationscore "github.com/telark/discovery/internal/core/applications/core"
-	appsnapshot "github.com/telark/discovery/internal/core/applications/snapshot"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	applicationscore "github.com/telark/telark/services/discovery/internal/core/applications/core"
+	appsnapshot "github.com/telark/telark/services/discovery/internal/core/applications/snapshot"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/tools/cache"
 )

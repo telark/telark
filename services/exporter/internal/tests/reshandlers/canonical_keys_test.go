@@ -6,12 +6,12 @@ import (
 	"strings"
 	"testing"
 
-	roledata "github.com/telark/data/resources/role"
-	protectionhandler "github.com/telark/exporter/internal/handlers/plans/protection"
-	grouphandler "github.com/telark/exporter/internal/handlers/resources/group"
-	rolehandler "github.com/telark/exporter/internal/handlers/resources/role"
-	userhandler "github.com/telark/exporter/internal/handlers/resources/user"
-	xauthz "github.com/telark/x-ware/authz"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	protectionhandler "github.com/telark/telark/services/exporter/internal/handlers/plans/protection"
+	grouphandler "github.com/telark/telark/services/exporter/internal/handlers/resources/group"
+	rolehandler "github.com/telark/telark/services/exporter/internal/handlers/resources/role"
+	userhandler "github.com/telark/telark/services/exporter/internal/handlers/resources/user"
 )
 
 const keyRejected = "is not recognized"

@@ -7,9 +7,9 @@ import (
 	"fmt"
 
 	"github.com/redis/go-redis/v9"
-	insightsdata "github.com/telark/data/insights"
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
+	insightsdata "github.com/telark/telark/internal/data/insights"
+	"github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 func CacheKey(namespace, name string) string {

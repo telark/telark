@@ -8,10 +8,10 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/discovery/internal/config"
-	"github.com/telark/discovery/internal/coordination/forcesync"
-	"github.com/telark/discovery/internal/tests/testutil"
-	xwareredis "github.com/telark/x-ware/redis/stream"
+	xwareredis "github.com/telark/telark/internal/x-ware/redis/stream"
+	"github.com/telark/telark/services/discovery/internal/config"
+	"github.com/telark/telark/services/discovery/internal/coordination/forcesync"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const streamAppName = "shop"

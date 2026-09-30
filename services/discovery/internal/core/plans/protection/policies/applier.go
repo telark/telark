@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
-	datapolicies "github.com/telark/data/policies"
-	"github.com/telark/discovery/internal/constants"
-	kcoreapply "github.com/telark/kcore/ops/apply"
+	datapolicies "github.com/telark/telark/internal/data/policies"
+	kcoreapply "github.com/telark/telark/internal/kcore/ops/apply"
+	"github.com/telark/telark/services/discovery/internal/constants"
 	"golang.org/x/sync/errgroup"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -140,11 +140,12 @@ func (a *Applier) PatchPoliciesMode(ctx context.Context, planID, newMode string)
 		item := &items[i]
 		ns, name := item.GetNamespace(), item.GetName()
 		g.Go(func() error {
-			if _, err := a.dyn.Resource(KyvernoPolicyGVR).
+			_, err := a.dyn.Resource(KyvernoPolicyGVR).
 				Namespace(ns).
 				Patch(gctx, name, types.MergePatchType, body, metav1.PatchOptions{
 					FieldManager: FieldManager,
-				}); err != nil {
+				})
+			if err != nil {
 				return fmt.Errorf("patch policy %s/%s mode: %w", ns, name, err)
 			}
 			return nil

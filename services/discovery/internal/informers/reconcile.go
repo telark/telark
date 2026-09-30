@@ -7,10 +7,10 @@ import (
 	"strconv"
 
 	"github.com/redis/go-redis/v9"
-	applicationmodel "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/config"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/applications/history/manifestdiff"
+	applicationmodel "github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/config"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/applications/history/manifestdiff"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	utiljson "k8s.io/apimachinery/pkg/util/json"
 )

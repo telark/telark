@@ -1,6 +1,6 @@
 package shared
 
-import "github.com/telark/data/resources/application"
+import "github.com/telark/telark/internal/data/resources/application"
 
 func ResourceSummaryFromKindCounts(kindCounts map[string]int) application.ResourceSummary {
 	return application.ResourceSummary{

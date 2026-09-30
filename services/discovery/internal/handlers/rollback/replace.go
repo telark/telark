@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/telark/discovery/internal/constants"
-	kcoremanifest "github.com/telark/kcore/manifest"
-	"github.com/telark/kcore/resilience/retry"
+	kcoremanifest "github.com/telark/telark/internal/kcore/manifest"
+	"github.com/telark/telark/internal/kcore/resilience/retry"
+	"github.com/telark/telark/services/discovery/internal/constants"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,9 +36,10 @@ func ReplaceUnstructured(
 		if ns := res.GetNamespace(); ns != constants.EmptyString {
 			ri = dyn.Resource(mapping.Resource).Namespace(ns)
 		}
-		if err := retry.OnTransient(ctx, retry.DefaultApply(), func() error {
+		err = retry.OnTransient(ctx, retry.DefaultApply(), func() error {
 			return replaceOne(ctx, ri, &res, dryRun)
-		}); err != nil {
+		})
+		if err != nil {
 			return fmt.Errorf(string(constants.ErrRollbackReplaceFailed), res.GetKind(), res.GetName(), err)
 		}
 		if onReplaced != nil {

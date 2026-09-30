@@ -1,0 +1,23 @@
+package api
+
+import (
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/data/messages"
+	"github.com/telark/telark/internal/data/metadata/base"
+	"github.com/telark/telark/internal/kcore/constants"
+	"github.com/telark/telark/internal/kcore/shared"
+	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+func DeleteCustomResourceByName(name string, metadata base.Metadata) shared.KubernetesAPIData {
+	prep := prepareNamed(name, metadata, constants.CrdDeleteTimeout)
+	if !prep.ok {
+		return prep.errEnvelope
+	}
+	defer prep.cancel()
+
+	if err := prep.client.Delete(prep.ctx, name, k8smetav1.DeleteOptions{}); err != nil {
+		return errorEnvelope(errors.ErrDeleteRes, name, err)
+	}
+	return okEnvelope(messages.SuccessDeleteRes, name, metadata.Kind, nil)
+}

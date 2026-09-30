@@ -1,4 +1,6 @@
 GO_SERVICES := auth discovery exporter notifier
+GO_PACKAGES := data rest kcore x-ware
+GO_DIRS      := $(addprefix services/,$(GO_SERVICES)) $(addprefix internal/,$(GO_PACKAGES))
 CHART_DIR    := charts/telark
 CRDS_DIR     := charts/telark-crds
 REGISTRY     ?= oci://ghcr.io/telark/charts
@@ -9,43 +11,43 @@ GOLANGCI_CONFIG := $(CURDIR)/.golangci.yml
 # validation use a placeholder one.
 RENDER_SET   := --set app.auth.bootstrap.admin=test@example.com
 
-.PHONY: help build test lint fmt vet helm-lint helm-template helm-validate deps values-docs changelog publish-charts sync check
+.PHONY: help build test lint fmt vet helm-lint helm-template helm-validate deps values-docs changelog publish-charts check
 
 help: ## List targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-14s %s\n", $$1, $$2}'
 
-build: ## Build the Go workspace
+build: ## Build the Go module
 	go build ./...
 
-vet: ## go vet the workspace
+vet: ## go vet the Go module
 	go vet ./...
 
-fmt: ## Format the Go services
-	gofmt -w services
+fmt: ## Format the Go code
+	gofmt -w services internal
 
-test: ## Run Go tests per module
-	@for s in $(GO_SERVICES); do echo "== test $$s =="; (cd services/$$s && go test ./...) || exit 1; done
+test: ## Run the Go tests
+	go test ./...
 
-lint: helm-lint ## Run golangci-lint for all services, or one service with SERVICE=<name>
+lint: helm-lint ## Run golangci-lint per service and package, or for one with SERVICE=<name>
 	@if [ -n "$(SERVICE)" ]; then \
 		found=0; \
-		for s in $(GO_SERVICES); do \
-			if [ "$$s" = "$(SERVICE)" ]; then \
+		for d in $(GO_DIRS); do \
+			if [ "$${d##*/}" = "$(SERVICE)" ]; then \
 				found=1; \
-				echo "== lint $$s =="; \
-				(cd services/$$s && golangci-lint run --config "$(GOLANGCI_CONFIG)") || exit 1; \
+				echo "== lint $$d =="; \
+				golangci-lint run --config "$(GOLANGCI_CONFIG)" ./$$d/... || exit 1; \
 				break; \
 			fi; \
 		done; \
 		if [ "$$found" -eq 0 ]; then \
 			echo "ERROR: unknown SERVICE='$(SERVICE)'"; \
-			echo "Valid services: $(GO_SERVICES)"; \
+			echo "Valid names: $(GO_SERVICES) $(GO_PACKAGES)"; \
 			exit 2; \
 		fi; \
 	else \
-		for s in $(GO_SERVICES); do \
-			echo "== lint $$s =="; \
-			(cd services/$$s && golangci-lint run --config "$(GOLANGCI_CONFIG)") || exit 1; \
+		for d in $(GO_DIRS); do \
+			echo "== lint $$d =="; \
+			golangci-lint run --config "$(GOLANGCI_CONFIG)" ./$$d/... || exit 1; \
 		done; \
 	fi
 
@@ -84,9 +86,6 @@ helm-validate: deps ## Schema-validate the rendered manifests for every mode and
 	      || exit 1; \
 	  done; \
 	done
-
-sync: ## Sync the Go workspace
-	go work sync
 
 values-docs: ## Regenerate each chart's VALUES.md index from values.yaml (helm-docs)
 	$(HELM_DOCS) --chart-search-root charts --output-file VALUES.md

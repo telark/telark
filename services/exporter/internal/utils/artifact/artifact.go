@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/x-ware/redis/stream"
+	"github.com/telark/telark/internal/x-ware/redis/stream"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 const baseSeparatorShift = 1

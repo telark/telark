@@ -1,0 +1,72 @@
+package core
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/cenkalti/backoff/v5"
+	"github.com/nats-io/nats.go"
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/x-ware/constants"
+)
+
+func InitClient(ctx context.Context, host, user, password string) (
+	*NATSClient,
+	error,
+) {
+	if user == constants.EmptyString || password == constants.EmptyString {
+		return nil, fmt.Errorf("%s", errors.ErrNatsAuth)
+	}
+
+	config := natsConfig{
+		Host:     host,
+		User:     user,
+		Password: password,
+		Port:     Client,
+	}
+
+	operation := func() (*NATSClient, error) {
+		return initJetStreamClient(config)
+	}
+
+	client, err := backoff.Retry(
+		ctx, operation,
+		backoff.WithMaxElapsedTime(
+			time.Duration(DefaultConnectionTimeout)*time.Second,
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf(string(errors.ErrNatsConnectionFailed), err)
+	}
+	return client, nil
+}
+
+func initJetStreamClient(natsConfig natsConfig) (*NATSClient, error) {
+	url := GetNATSClientURL(natsConfig.Host)
+
+	nc, err := nats.Connect(url,
+		nats.UserInfo(natsConfig.User, natsConfig.Password),
+		nats.MaxReconnects(unlimitedReconnects))
+	if err != nil {
+		return nil, fmt.Errorf(string(errors.ErrNatsConnectionFailed), err)
+	}
+
+	js, err := nc.JetStream()
+	if err != nil {
+		nc.Close()
+		return nil, fmt.Errorf(string(errors.ErrNatsCreateJetstreamContext),
+			err)
+	}
+
+	return &NATSClient{
+		Conn:      nc,
+		JetStream: js,
+	}, nil
+}
+
+func (c *NATSClient) Close() {
+	if c.Conn != nil {
+		c.Conn.Close()
+	}
+}

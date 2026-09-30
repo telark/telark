@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/telark/discovery/internal/constants"
-	analyzeshared "github.com/telark/discovery/internal/handlers/analyze/shared"
-	sharedhelper "github.com/telark/discovery/internal/helpers/shared"
-	"github.com/telark/kcore/resources/workload"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	"github.com/telark/telark/internal/kcore/resources/workload"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	analyzeshared "github.com/telark/telark/services/discovery/internal/handlers/analyze/shared"
+	sharedhelper "github.com/telark/telark/services/discovery/internal/helpers/shared"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 )

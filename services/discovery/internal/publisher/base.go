@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"runtime/debug"
 
-	"github.com/telark/data/errors"
-	resourceshared "github.com/telark/data/resources/shared"
-	"github.com/telark/discovery/internal/constants"
-	natscore "github.com/telark/x-ware/nats/core"
+	"github.com/telark/telark/internal/data/errors"
+	resourceshared "github.com/telark/telark/internal/data/resources/shared"
+	natscore "github.com/telark/telark/internal/x-ware/nats/core"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 func PublishUpdate(

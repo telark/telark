@@ -5,13 +5,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	groupdata "github.com/telark/data/resources/group"
-	userdata "github.com/telark/data/resources/user"
-	"github.com/telark/exporter/internal/constants"
-	grouputil "github.com/telark/exporter/internal/utils/resources/group"
-	resshared "github.com/telark/exporter/internal/utils/resources/shared"
-	userutil "github.com/telark/exporter/internal/utils/resources/user"
-	xauthz "github.com/telark/x-ware/authz"
+	groupdata "github.com/telark/telark/internal/data/resources/group"
+	userdata "github.com/telark/telark/internal/data/resources/user"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	grouputil "github.com/telark/telark/services/exporter/internal/utils/resources/group"
+	resshared "github.com/telark/telark/services/exporter/internal/utils/resources/shared"
+	userutil "github.com/telark/telark/services/exporter/internal/utils/resources/user"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

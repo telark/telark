@@ -1,10 +1,10 @@
 package role
 
 import (
-	roledata "github.com/telark/data/resources/role"
-	rolepriority "github.com/telark/exporter/internal/utils/compute/role/priority"
-	roleversion "github.com/telark/exporter/internal/utils/compute/role/version"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	rolepriority "github.com/telark/telark/services/exporter/internal/utils/compute/role/priority"
+	roleversion "github.com/telark/telark/services/exporter/internal/utils/compute/role/version"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

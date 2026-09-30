@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 func genProcessingLockKey(appName string, generation int) string {

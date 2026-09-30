@@ -11,15 +11,15 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	applicationmodel "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/clients"
-	"github.com/telark/discovery/internal/constants"
-	appsnapshot "github.com/telark/discovery/internal/core/applications/snapshot"
-	"github.com/telark/discovery/internal/helpers/async"
-	sharedhelper "github.com/telark/discovery/internal/helpers/shared"
-	notifclient "github.com/telark/rest/clients/notifications"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	applicationmodel "github.com/telark/telark/internal/data/resources/application"
+	notifclient "github.com/telark/telark/internal/rest/clients/notifications"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	"github.com/telark/telark/services/discovery/internal/clients"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	appsnapshot "github.com/telark/telark/services/discovery/internal/core/applications/snapshot"
+	"github.com/telark/telark/services/discovery/internal/helpers/async"
+	sharedhelper "github.com/telark/telark/services/discovery/internal/helpers/shared"
 )
 
 const (

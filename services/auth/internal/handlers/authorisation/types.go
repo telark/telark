@@ -1,6 +1,6 @@
 package authorisation
 
-import roleresource "github.com/telark/data/resources/role"
+import roleresource "github.com/telark/telark/internal/data/resources/role"
 
 type RoleSource struct {
 	Kind    string `json:"kind"`              // "direct" or "inherited"

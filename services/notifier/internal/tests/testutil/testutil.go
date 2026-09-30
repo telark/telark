@@ -6,7 +6,7 @@ import (
 
 	natssrvtest "github.com/nats-io/nats-server/v2/test"
 	"github.com/nats-io/nats.go"
-	natscore "github.com/telark/x-ware/nats/core"
+	natscore "github.com/telark/telark/internal/x-ware/nats/core"
 )
 
 // randomPort asks the embedded NATS server to bind an ephemeral port.

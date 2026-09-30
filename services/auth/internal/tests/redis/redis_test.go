@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	authredis "github.com/telark/auth/internal/helpers/redis"
-	"github.com/telark/auth/internal/tests/testutil"
+	authredis "github.com/telark/telark/services/auth/internal/helpers/redis"
+	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
 // NewRedisClientWithRetry dials the env-configured Redis and caches it; against

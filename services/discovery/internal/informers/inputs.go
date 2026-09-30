@@ -3,10 +3,10 @@ package informers
 import (
 	"context"
 
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/discovery/derivation"
-	discoveryshared "github.com/telark/discovery/internal/discovery/shared"
+	"github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/discovery/derivation"
+	discoveryshared "github.com/telark/telark/services/discovery/internal/discovery/shared"
 )
 
 func inputsForApp(

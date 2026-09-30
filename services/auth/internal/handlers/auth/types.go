@@ -2,7 +2,7 @@ package auth
 
 import (
 	"github.com/go-webauthn/webauthn/protocol"
-	authdata "github.com/telark/data/auth"
+	authdata "github.com/telark/telark/internal/data/auth"
 )
 
 type (

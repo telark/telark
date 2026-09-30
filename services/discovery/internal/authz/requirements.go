@@ -3,15 +3,15 @@ package authz
 import (
 	"context"
 
-	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/rest/base"
-	applicationeps "github.com/telark/rest/endpoints/applications"
-	clustereps "github.com/telark/rest/endpoints/cluster"
-	insightseps "github.com/telark/rest/endpoints/insights"
-	planseps "github.com/telark/rest/endpoints/plans"
-	"github.com/telark/rest/router"
-	"github.com/telark/x-ware/authz"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	"github.com/telark/telark/internal/rest/base"
+	applicationeps "github.com/telark/telark/internal/rest/endpoints/applications"
+	clustereps "github.com/telark/telark/internal/rest/endpoints/cluster"
+	insightseps "github.com/telark/telark/internal/rest/endpoints/insights"
+	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
+	"github.com/telark/telark/internal/rest/router"
+	"github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 func Requirements() map[string]authz.Requirement {

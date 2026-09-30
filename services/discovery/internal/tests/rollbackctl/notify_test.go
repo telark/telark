@@ -10,14 +10,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/data/metadata/v1alpha1"
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/handlers/rollback"
-	"github.com/telark/discovery/internal/helpers/async"
-	"github.com/telark/discovery/internal/tests/testutil"
-	"github.com/telark/kcore/k8sclient"
-	notifclient "github.com/telark/rest/clients/notifications"
+	"github.com/telark/telark/internal/data/metadata/v1alpha1"
+	"github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/internal/kcore/k8sclient"
+	notifclient "github.com/telark/telark/internal/rest/clients/notifications"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/handlers/rollback"
+	"github.com/telark/telark/services/discovery/internal/helpers/async"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -161,8 +161,9 @@ func TestFinalizeRollbackSuccessRecordsRestoredGeneration(t *testing.T) {
 	})
 
 	pending := spec.Rollbacks[constants.DefaultInitValue]
-	if err := rollback.NewController(nil).FinalizeRollbackSuccess(
-		context.Background(), shopApp, spec, &pending, constants.DefaultInitValue); err != nil {
+	err := rollback.NewController(nil).FinalizeRollbackSuccess(
+		context.Background(), shopApp, spec, &pending, constants.DefaultInitValue)
+	if err != nil {
 		t.Fatal(err)
 	}
 	stored := storedRollback(t, client)

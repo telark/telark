@@ -10,13 +10,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/telark/exporter/internal/constants"
-	envmanager "github.com/telark/exporter/internal/managers/envs"
-	"github.com/telark/exporter/internal/utils/artifact"
-	snaputil "github.com/telark/exporter/internal/utils/snapshot"
-	restsnapshot "github.com/telark/rest/clients/snapshots"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	restsnapshot "github.com/telark/telark/internal/rest/clients/snapshots"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	envmanager "github.com/telark/telark/services/exporter/internal/managers/envs"
+	"github.com/telark/telark/services/exporter/internal/utils/artifact"
+	snaputil "github.com/telark/telark/services/exporter/internal/utils/snapshot"
 	"sigs.k8s.io/yaml"
 )
 
@@ -50,14 +50,15 @@ func CreateSnapshot(w http.ResponseWriter, body map[string]any) {
 		return
 	}
 
-	if retErr := snaputil.ApplyRetentionPolicy(
+	retErr := snaputil.ApplyRetentionPolicy(
 		envmanager.GetSnapshotsPath(),
 		snap.Scope,
 		snap.ID,
 		snap.Namespace,
 		namespaced,
 		envmanager.GetSnapshotsMaxVersions(),
-	); retErr != nil {
+	)
+	if retErr != nil {
 		lg.Warn(fmt.Sprintf(string(constants.ErrSnapshotRetentionPolicyFailed),
 			snap.Scope,
 			snap.ID,

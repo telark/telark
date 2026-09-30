@@ -6,11 +6,11 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/telark/auth/internal/config"
-	"github.com/telark/auth/internal/constants"
-	"github.com/telark/auth/internal/helpers/shared"
-	webauthnhelper "github.com/telark/auth/internal/helpers/webauthn"
-	"github.com/telark/auth/internal/tests/testutil"
+	"github.com/telark/telark/services/auth/internal/config"
+	"github.com/telark/telark/services/auth/internal/constants"
+	"github.com/telark/telark/services/auth/internal/helpers/shared"
+	webauthnhelper "github.com/telark/telark/services/auth/internal/helpers/webauthn"
+	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
 const (

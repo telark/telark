@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/config"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/applications/history/changes"
-	appshared "github.com/telark/discovery/internal/core/applications/shared"
+	"github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/config"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/applications/history/changes"
+	appshared "github.com/telark/telark/services/discovery/internal/core/applications/shared"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

@@ -7,10 +7,10 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
-	dataerrors "github.com/telark/data/errors"
-	basemeta "github.com/telark/data/metadata/base"
-	"github.com/telark/exporter/internal/constants"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	basemeta "github.com/telark/telark/internal/data/metadata/base"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

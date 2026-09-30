@@ -4,9 +4,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/telark/auth/internal/constants"
-	authhelper "github.com/telark/auth/internal/helpers/auth"
-	"github.com/telark/auth/internal/helpers/shared"
+	"github.com/telark/telark/services/auth/internal/constants"
+	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
+	"github.com/telark/telark/services/auth/internal/helpers/shared"
 )
 
 func CreateEnrollLink(w http.ResponseWriter, r *http.Request) {

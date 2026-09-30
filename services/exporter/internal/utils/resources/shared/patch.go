@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/telark/exporter/internal/constants"
-	xauthz "github.com/telark/x-ware/authz"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 func AddLastUpdateDateToPatchBody(body map[string]any) {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/telark/discovery/internal/constants"
-	xasync "github.com/telark/x-ware/async"
+	xasync "github.com/telark/telark/internal/x-ware/async"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 const (

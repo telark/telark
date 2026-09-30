@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"net/http"
 
-	dataerrors "github.com/telark/data/errors"
-	"github.com/telark/data/messages"
-	passkeyutils "github.com/telark/exporter/internal/utils/auth/passkey"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	dataerrors "github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/data/messages"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	passkeyutils "github.com/telark/telark/services/exporter/internal/utils/auth/passkey"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 func GetPasskeyByCredentialID(w http.ResponseWriter, credentialID string, userID string) {

@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"net/http"
 
-	globalerrors "github.com/telark/data/errors"
-	"github.com/telark/data/messages"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	globalerrors "github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/data/messages"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

@@ -6,10 +6,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/applications/history/shared"
-	appshared "github.com/telark/discovery/internal/core/applications/shared"
+	"github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/applications/history/shared"
+	appshared "github.com/telark/telark/services/discovery/internal/core/applications/shared"
 )
 
 func ClassifyChanges(changes []application.ApplicationChange) string {

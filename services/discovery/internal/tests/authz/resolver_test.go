@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/telark/discovery/internal/authz"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/tests/testutil"
-	xauthz "github.com/telark/x-ware/authz"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/discovery/internal/authz"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const loaderCallsUncached = 4

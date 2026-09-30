@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/telark/data/errors"
-	"github.com/telark/notifier/internal/constants"
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/services/notifier/internal/constants"
 )
 
 type retryLogger interface {

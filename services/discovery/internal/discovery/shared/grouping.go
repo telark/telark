@@ -1,6 +1,6 @@
 package shared
 
-import "github.com/telark/discovery/internal/discovery/derivation"
+import "github.com/telark/telark/services/discovery/internal/discovery/derivation"
 
 func OrderedGroupNames(withGroups []derivation.ResourceWithGroup) []string {
 	seen := make(map[string]bool)

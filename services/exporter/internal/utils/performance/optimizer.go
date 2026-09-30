@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/telark/exporter/internal/cache"
-	"github.com/telark/exporter/internal/constants"
-	rediscache "github.com/telark/x-ware/redis/cache"
+	rediscache "github.com/telark/telark/internal/x-ware/redis/cache"
+	"github.com/telark/telark/services/exporter/internal/cache"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 // Shares the pool initConnectivity already dialed with retry, so startup no
@@ -72,8 +72,9 @@ func (o *Optimizer) ListGeneration(resourceType string) string {
 func (o *Optimizer) BumpListGeneration(resourceType string) {
 	ctx := context.Background()
 	if !o.openBumpWindow(ctx, resourceType) {
-		if err := o.cache.Client.Set(ctx, cache.ListGenerationDirtyKey(resourceType),
-			constants.DefaultIncrementValue, constants.ListCacheDirtyTTL).Err(); err != nil {
+		err := o.cache.Client.Set(ctx, cache.ListGenerationDirtyKey(resourceType),
+			constants.DefaultIncrementValue, constants.ListCacheDirtyTTL).Err()
+		if err != nil {
 			lg.Error(fmt.Sprintf(string(constants.ErrCacheGenerationBumpFailed), resourceType, err))
 		}
 		return

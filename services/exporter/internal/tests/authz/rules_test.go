@@ -3,10 +3,10 @@ package authz
 import (
 	"testing"
 
-	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/exporter/internal/authz"
-	"github.com/telark/exporter/internal/constants"
-	xauthz "github.com/telark/x-ware/authz"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/exporter/internal/authz"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 // The dashboard writes deny rules as "<scope>.<action>.deny" (formatRuleKey in

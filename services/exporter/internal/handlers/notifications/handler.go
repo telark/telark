@@ -5,14 +5,14 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/telark/exporter/internal/authz"
-	"github.com/telark/exporter/internal/constants"
-	notifstorage "github.com/telark/exporter/internal/redis/notifications"
-	notiftypes "github.com/telark/exporter/internal/types/notifications"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
-	"github.com/telark/rest/response"
-	requestutils "github.com/telark/rest/utils/request"
-	responseutils "github.com/telark/rest/utils/response"
+	"github.com/telark/telark/internal/rest/response"
+	requestutils "github.com/telark/telark/internal/rest/utils/request"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	"github.com/telark/telark/services/exporter/internal/authz"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	notifstorage "github.com/telark/telark/services/exporter/internal/redis/notifications"
+	notiftypes "github.com/telark/telark/services/exporter/internal/types/notifications"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 const (

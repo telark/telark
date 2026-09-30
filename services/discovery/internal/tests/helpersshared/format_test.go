@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/helpers/shared"
-	"github.com/telark/discovery/internal/tests/testutil"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/helpers/shared"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const (

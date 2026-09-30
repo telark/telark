@@ -1,6 +1,6 @@
 package constants
 
-import "github.com/telark/data/messages"
+import "github.com/telark/telark/internal/data/messages"
 
 const (
 	InfoStatusReady             messages.Message = "notifier connected"

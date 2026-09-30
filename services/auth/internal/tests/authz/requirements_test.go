@@ -3,14 +3,14 @@ package authz
 import (
 	"testing"
 
-	"github.com/telark/auth/internal/authz"
-	"github.com/telark/auth/internal/constants"
-	"github.com/telark/auth/internal/routes"
-	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/rest/base"
-	autheps "github.com/telark/rest/endpoints/auth"
-	"github.com/telark/rest/router"
-	xauthz "github.com/telark/x-ware/authz"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	"github.com/telark/telark/internal/rest/base"
+	autheps "github.com/telark/telark/internal/rest/endpoints/auth"
+	"github.com/telark/telark/internal/rest/router"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/auth/internal/authz"
+	"github.com/telark/telark/services/auth/internal/constants"
+	"github.com/telark/telark/services/auth/internal/routes"
 )
 
 func TestRequirementsCoverEveryRoute(t *testing.T) {

@@ -3,7 +3,7 @@ package clients
 import (
 	"testing"
 
-	"github.com/telark/auth/internal/clients"
+	"github.com/telark/telark/services/auth/internal/clients"
 )
 
 // Every resource client is a lazily-built singleton: the getter never returns

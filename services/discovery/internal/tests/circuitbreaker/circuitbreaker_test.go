@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/discovery/internal/circuitbreaker"
+	"github.com/telark/telark/services/discovery/internal/circuitbreaker"
 )
 
 // New applies safe defaults for any unset config field so a zero-value config

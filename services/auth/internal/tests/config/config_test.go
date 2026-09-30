@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/telark/auth/internal/config"
-	"github.com/telark/auth/internal/constants"
+	"github.com/telark/telark/services/auth/internal/config"
+	"github.com/telark/telark/services/auth/internal/constants"
 )
 
 // The bootstrap admin is one email, normalised (trimmed + lowercased), and

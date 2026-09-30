@@ -3,6 +3,10 @@ description: 'Set up Go, restore the build + module cache, then test and/or lint
 inputs:
   working-directory:
     description: 'Directory holding the Go module (contains go.mod)'
+    required: false
+    default: '.'
+  packages:
+    description: 'Package pattern to test and lint, relative to working-directory (e.g. ./services/auth/...)'
     required: true
   cache-key:
     description: 'Unique cache-key component, e.g. the service or package name'
@@ -67,9 +71,7 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       env:
         COVERAGE_THRESHOLD: ${{ inputs.coverage-threshold }}
-        # Set here, not per caller: the repo has a tracked go.work (and a
-        # gitignored go.work.local), and CI must resolve from go.mod alone.
-        GOWORK: "off"
+        PACKAGES: ${{ inputs.packages }}
         # action_path is absolute, so this still resolves from working-directory.
         # .github/actions/<name> -> up two -> .github -> scripts.
         SCRIPT_DIR: ${{ github.action_path }}/../../scripts
@@ -78,14 +80,12 @@ runs:
     - name: Lint
       if: ${{ inputs.lint == 'true' }}
       uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
-      env:
-        GOWORK: "off"
       with:
         # Pinned, not `latest`: a linter release can add rules overnight and
         # break an unrelated PR. Bump deliberately, after running it locally.
-        version: v2.13.2
+        version: v2.14.0
         working-directory: ${{ inputs.working-directory }}
-        args: --config=${{ github.workspace }}/${{ inputs.config-file }}
+        args: --config=${{ github.workspace }}/${{ inputs.config-file }} ${{ inputs.packages }}
 
     - name: Trim build cache to entries used by this run
       if: always() && steps.go-cache.outputs.cache-hit != 'true' && steps.go-cache.outputs.cache-matched-key != ''

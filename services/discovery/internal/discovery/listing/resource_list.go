@@ -4,10 +4,10 @@ import (
 	"context"
 	"slices"
 
-	"github.com/telark/discovery/internal/constants"
-	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
-	kcorecore "github.com/telark/kcore/resources/core"
-	kcoregroup "github.com/telark/kcore/resources/group"
+	kcorecore "github.com/telark/telark/internal/kcore/resources/core"
+	kcoregroup "github.com/telark/telark/internal/kcore/resources/group"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	tcfghelper "github.com/telark/telark/services/discovery/internal/helpers/telarkconfig"
 )
 
 var InformersCache func(context.Context, []string) ([]kcoregroup.ResourceRef, bool)

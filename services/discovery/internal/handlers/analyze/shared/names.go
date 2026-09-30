@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"slices"
 
-	"github.com/telark/discovery/internal/constants"
-	tcfghelper "github.com/telark/discovery/internal/helpers/telarkconfig"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	tcfghelper "github.com/telark/telark/services/discovery/internal/helpers/telarkconfig"
 )
 
 type NameFetcher struct {

@@ -3,13 +3,13 @@ package passkey
 import (
 	"net/http"
 
-	"github.com/telark/data/messages"
-	"github.com/telark/exporter/internal/constants"
-	passkeyutils "github.com/telark/exporter/internal/utils/auth/passkey"
-	userutils "github.com/telark/exporter/internal/utils/resources/user"
-	sharedutils "github.com/telark/exporter/internal/utils/shared"
-	"github.com/telark/rest/response"
-	responseutils "github.com/telark/rest/utils/response"
+	"github.com/telark/telark/internal/data/messages"
+	"github.com/telark/telark/internal/rest/response"
+	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	passkeyutils "github.com/telark/telark/services/exporter/internal/utils/auth/passkey"
+	userutils "github.com/telark/telark/services/exporter/internal/utils/resources/user"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 func ListPasskeysByUser(w http.ResponseWriter, userID string) {

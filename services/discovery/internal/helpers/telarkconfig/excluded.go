@@ -6,10 +6,10 @@ import (
 	"os"
 	"slices"
 
-	"github.com/telark/discovery/internal/config"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/startup"
-	cfgclient "github.com/telark/rest/clients/config"
+	cfgclient "github.com/telark/telark/internal/rest/clients/config"
+	"github.com/telark/telark/services/discovery/internal/config"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/startup"
 )
 
 // The last successful read wins over a failed refresh; only a list that was

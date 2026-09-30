@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	dataconstants "github.com/telark/data/constants"
-	"github.com/telark/data/errors"
-	"github.com/telark/data/plans"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection"
-	"github.com/telark/discovery/internal/core/plans/protection/validation"
-	"github.com/telark/discovery/internal/tests/testutil"
-	planseps "github.com/telark/rest/endpoints/plans"
+	dataconstants "github.com/telark/telark/internal/data/constants"
+	"github.com/telark/telark/internal/data/errors"
+	"github.com/telark/telark/internal/data/plans"
+	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/validation"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 const (

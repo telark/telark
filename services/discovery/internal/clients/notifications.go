@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/telark/discovery/internal/constants"
-	notifclient "github.com/telark/rest/clients/notifications"
-	"github.com/telark/rest/clients/shared"
-	"github.com/telark/rest/response"
+	notifclient "github.com/telark/telark/internal/rest/clients/notifications"
+	"github.com/telark/telark/internal/rest/clients/shared"
+	"github.com/telark/telark/internal/rest/response"
+	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 const notifEmitTimeout = 3 * time.Second

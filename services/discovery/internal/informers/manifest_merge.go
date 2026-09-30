@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/config"
-	"github.com/telark/discovery/internal/constants"
-	historyshared "github.com/telark/discovery/internal/core/applications/history/shared"
-	appsnapshot "github.com/telark/discovery/internal/core/applications/snapshot"
+	"github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/config"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	historyshared "github.com/telark/telark/services/discovery/internal/core/applications/history/shared"
+	appsnapshot "github.com/telark/telark/services/discovery/internal/core/applications/snapshot"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

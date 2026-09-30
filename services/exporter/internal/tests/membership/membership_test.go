@@ -4,8 +4,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/exporter/internal/membership"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/membership"
 )
 
 const (

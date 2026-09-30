@@ -4,8 +4,8 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/telark/discovery/internal/core/plans/protection/ids"
-	"github.com/telark/discovery/internal/tests/testutil"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/ids"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
 var planIDPattern = regexp.MustCompile(`^pp-[a-z0-9]{3}-[a-z0-9]{4}-[a-z0-9]{4}$`)

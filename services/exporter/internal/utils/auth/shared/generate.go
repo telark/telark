@@ -5,8 +5,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/telark/exporter/internal/constants"
-	userutils "github.com/telark/exporter/internal/utils/resources/user"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	userutils "github.com/telark/telark/services/exporter/internal/utils/resources/user"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

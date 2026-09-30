@@ -3,8 +3,8 @@ package applications
 import (
 	"context"
 
-	applicationmodel "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/constants"
+	applicationmodel "github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/constants"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"

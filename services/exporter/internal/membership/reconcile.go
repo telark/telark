@@ -8,14 +8,14 @@ import (
 	"net/http"
 	"slices"
 
-	metadatabase "github.com/telark/data/metadata/base"
-	metadata "github.com/telark/data/metadata/v1alpha1"
-	"github.com/telark/exporter/internal/authz"
-	"github.com/telark/exporter/internal/constants"
-	"github.com/telark/exporter/internal/utils/concurrency"
-	"github.com/telark/exporter/internal/utils/performance"
-	resourcesshared "github.com/telark/exporter/internal/utils/resources/shared"
-	"github.com/telark/kcore/crds/api"
+	metadatabase "github.com/telark/telark/internal/data/metadata/base"
+	metadata "github.com/telark/telark/internal/data/metadata/v1alpha1"
+	"github.com/telark/telark/internal/kcore/crds/api"
+	"github.com/telark/telark/services/exporter/internal/authz"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/utils/concurrency"
+	"github.com/telark/telark/services/exporter/internal/utils/performance"
+	resourcesshared "github.com/telark/telark/services/exporter/internal/utils/resources/shared"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/telark/data/plans"
-	globalshared "github.com/telark/data/shared"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/discovery/internal/core/plans/protection/violations"
-	planseps "github.com/telark/rest/endpoints/plans"
-	reportseps "github.com/telark/rest/endpoints/reports"
+	"github.com/telark/telark/internal/data/plans"
+	globalshared "github.com/telark/telark/internal/data/shared"
+	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
+	reportseps "github.com/telark/telark/internal/rest/endpoints/reports"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/violations"
 )
 
 var enginePattern = regexp.MustCompile("(?i)" + regexp.QuoteMeta(engineName))

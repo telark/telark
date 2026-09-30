@@ -7,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/telark/auth/internal/constants"
-	cleanupctrl "github.com/telark/auth/internal/controllers/cleanup"
-	"github.com/telark/auth/internal/tests/testutil"
-	authdata "github.com/telark/data/auth"
-	"github.com/telark/data/resources/finalizers"
+	authdata "github.com/telark/telark/internal/data/auth"
+	"github.com/telark/telark/internal/data/resources/finalizers"
+	"github.com/telark/telark/services/auth/internal/constants"
+	cleanupctrl "github.com/telark/telark/services/auth/internal/controllers/cleanup"
+	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
 // The cleanup registry is the source of truth for which resource types have

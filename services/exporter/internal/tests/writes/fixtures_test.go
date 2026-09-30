@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/telark/data/metadata/base"
-	"github.com/telark/data/metadata/v1alpha1"
-	"github.com/telark/kcore/k8sclient"
+	"github.com/telark/telark/internal/data/metadata/base"
+	"github.com/telark/telark/internal/data/metadata/v1alpha1"
+	"github.com/telark/telark/internal/kcore/k8sclient"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"

@@ -8,11 +8,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/telark/discovery/internal/circuitbreaker"
-	"github.com/telark/discovery/internal/config"
-	"github.com/telark/discovery/internal/constants"
-	"github.com/telark/rest/clients/shared"
-	snapshotsclient "github.com/telark/rest/clients/snapshots"
+	"github.com/telark/telark/internal/rest/clients/shared"
+	snapshotsclient "github.com/telark/telark/internal/rest/clients/snapshots"
+	"github.com/telark/telark/services/discovery/internal/circuitbreaker"
+	"github.com/telark/telark/services/discovery/internal/config"
+	"github.com/telark/telark/services/discovery/internal/constants"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

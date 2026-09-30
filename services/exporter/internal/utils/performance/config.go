@@ -3,7 +3,7 @@ package performance
 import (
 	"time"
 
-	"github.com/telark/exporter/internal/constants"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 type contextKey string

@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	appresource "github.com/telark/data/resources/application"
-	"github.com/telark/discovery/internal/clients"
-	"github.com/telark/discovery/internal/config"
-	"github.com/telark/discovery/internal/constants"
-	applicationhandler "github.com/telark/discovery/internal/handlers/resources/applications"
-	"github.com/telark/discovery/internal/informers"
+	appresource "github.com/telark/telark/internal/data/resources/application"
+	"github.com/telark/telark/services/discovery/internal/clients"
+	"github.com/telark/telark/services/discovery/internal/config"
+	"github.com/telark/telark/services/discovery/internal/constants"
+	applicationhandler "github.com/telark/telark/services/discovery/internal/handlers/resources/applications"
+	"github.com/telark/telark/services/discovery/internal/informers"
 	"k8s.io/client-go/kubernetes"
 )
 

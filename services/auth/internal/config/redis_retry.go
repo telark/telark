@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/telark/auth/internal/constants"
+	"github.com/telark/telark/services/auth/internal/constants"
 )
 
 func RedisDialRetryInterval() time.Duration {

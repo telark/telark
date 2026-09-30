@@ -5,11 +5,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	roledata "github.com/telark/data/resources/role"
-	"github.com/telark/data/resources/telarkconfig"
-	"github.com/telark/exporter/internal/authz"
-	"github.com/telark/exporter/internal/constants"
-	xauthz "github.com/telark/x-ware/authz"
+	roledata "github.com/telark/telark/internal/data/resources/role"
+	"github.com/telark/telark/internal/data/resources/telarkconfig"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	"github.com/telark/telark/services/exporter/internal/authz"
+	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
 func settingsIdentity(level roledata.PermissionLevel, denied ...string) xauthz.Identity {

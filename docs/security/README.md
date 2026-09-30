@@ -2,7 +2,7 @@
 
 How Telark authenticates people and services, authorizes each request, and what it may do in the cluster. Every statement points at the code that implements it; when the code changes, this page changes in the same diff. Vulnerability reporting is in [SECURITY.md](../../SECURITY.md).
 
-Paths starting `x-ware/`, `data/` or `rest/` are in the shared Go modules `github.com/telark/{x-ware,data,rest}`, which live in their own repositories (pinned in each service's `go.mod`).
+Paths starting `x-ware/`, `data/` or `rest/` are in the shared Go packages under `internal/` (`internal/x-ware/`, `internal/data/`, `internal/rest/`).
 
 ## Trust boundaries
 
@@ -34,7 +34,7 @@ Unprefixed paths in this section are under `services/auth/internal/`. Every auth
 
 ### Passkeys (WebAuthn)
 
-- Library `github.com/go-webauthn/webauthn` (`services/auth/go.mod`). Relying-party settings `RP_ID`, `RP_ORIGIN` (comma-separated), `RP_NAME` and `CHALLENGE_TIMEOUT` (`services/auth/internal/config/config.go`). When `RP_ID` or `RP_ORIGIN` is empty, they are derived from the request's forwarded host, host or origin headers (`helpers/webauthn/webauthn.go`); production installs should set both (`app.auth.passkey.id` and `origin` in `charts/telark/values.yaml`).
+- Library `github.com/go-webauthn/webauthn` (root `go.mod`). Relying-party settings `RP_ID`, `RP_ORIGIN` (comma-separated), `RP_NAME` and `CHALLENGE_TIMEOUT` (`services/auth/internal/config/config.go`). When `RP_ID` or `RP_ORIGIN` is empty, they are derived from the request's forwarded host, host or origin headers (`helpers/webauthn/webauthn.go`); production installs should set both (`app.auth.passkey.id` and `origin` in `charts/telark/values.yaml`).
 - Challenges live in Redis with a short TTL and are consumed on first read (Redis `GETDEL`), so a failed or replayed assertion has to restart the ceremony; enrolment links are single-use the same way (`helpers/auth/enroll.go`). Credentials are `Passkey` CRs written through the exporter's Internal passkey routes (`internal/auth/passkeys`); users reach their own through auth's `auth/passkeys/{credentialId}`. When the library declines a registration, the manual attestation path (`helpers/webauthn/attestation.go`) still checks the ceremony type, the challenge, an allowed origin, the relying-party hash and the user-present flag.
 - **Who may open a registration** (`helpers/auth/passkey.go`): a session (own account), a one-time enrolment token, or a bare email that names no existing account; that account is created only when the registration finishes. An existing account is never enrolled from a bare email, whether or not it has passkeys, and a passkey lookup that fails counts as "has passkeys". The `BOOTSTRAP_ADMIN` email is refused on the bare-email path: the operator enrols it with `./main break-glass --email <email> --enroll`, which creates the account with the Admin role and prints the enrolment token.
 - The relying-party instance cache is bounded (`MaxWebAuthnInstances`); it is dropped and rebuilt when a burst of distinct hosts fills it.

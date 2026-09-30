@@ -71,5 +71,7 @@ func buildUpdateDeps(svc *protection.Service) update.Deps {
 		NotifyApprovers: svc.Notifier().RequestApproval,
 		LockName:        svc.LockName,
 		Activate:        svc.Activate,
+		CaptureRun:      svc.Reports().CaptureAsync,
+		Checkpoint:      svc.Reports().Checkpoint,
 	}
 }

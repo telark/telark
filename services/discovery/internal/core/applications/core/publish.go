@@ -3,6 +3,7 @@ package core
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/telark/data/resources/application"
@@ -28,7 +29,7 @@ func PublishApplications(natsClient *natscore.NATSClient, apps []application.App
 			continue
 		}
 		snapshot.NormalizeApplicationSnapshotTakenAt(app)
-		payload := applicationPayload(app)
+		payload := PublishedPayload(app)
 		authored := i < len(outcomes) && outcomes[i] == diff.OutcomeAuthored
 		if !authored {
 			stripUnauthoredHistory(payload)
@@ -60,6 +61,15 @@ func PublishApplications(natsClient *natscore.NATSClient, apps []application.App
 				fmt.Sprintf(string(constants.WarnApplicationPublishFailed), app.Name, attemptMax, lastErr))
 		}
 	}
+}
+
+// The payload lands only if this publish succeeds, so it carries Published=True up front;
+// app keeps its in-memory condition for the flush gates until the outcome is known.
+func PublishedPayload(app *application.Application) map[string]any {
+	marked := *app
+	marked.Conditions = slices.Clone(app.Conditions)
+	MarkPublished(&marked)
+	return applicationPayload(&marked)
 }
 
 func applicationPayload(app *application.Application) map[string]any {

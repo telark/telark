@@ -12,6 +12,7 @@ import (
 	"github.com/telark/exporter/internal/exporters/generics"
 	exportshared "github.com/telark/exporter/internal/exporters/shared"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
+	"github.com/telark/rest/base"
 )
 
 const testResourceName = "n1"
@@ -112,6 +113,25 @@ func TestGenericEmptyNameIsBadRequest(t *testing.T) {
 	for name, rec := range map[string]*httptest.ResponseRecorder{"GenericGet": get, "GenericPatch": patch} {
 		if rec.Code != http.StatusBadRequest {
 			t.Errorf("%s: code = %d, want %d", name, rec.Code, http.StatusBadRequest)
+		}
+	}
+}
+
+func TestPatchBodyErrors(t *testing.T) {
+	md := metadata.ApplicationMetadata
+	tests := []struct {
+		name string
+		body string
+		want int
+	}{
+		{"empty object", "{}", http.StatusBadRequest},
+		{"over the limit", `{"a":"` + strings.Repeat("x", int(base.MaxRequestBodySize)) + `"}`, http.StatusRequestEntityTooLarge},
+	}
+	for _, tt := range tests {
+		rec := httptest.NewRecorder()
+		exportshared.PatchResource(rec, namedReq(tt.body), md)
+		if rec.Code != tt.want || strings.Contains(rec.Body.String(), "%v") {
+			t.Errorf("%s: code = %d body = %s, want %d with no verb", tt.name, rec.Code, rec.Body.String(), tt.want)
 		}
 	}
 }

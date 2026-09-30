@@ -29,10 +29,9 @@ The chart installs Telark's services together with Kyverno, Redis, NATS, metrics
 
 ```sh
 kubectl get pods -n telark -l app.kubernetes.io/instance=telark
-helm test telark -n telark
 ```
 
-You should see every pod `Running` and the test `Succeeded`. The first start pulls several images, so allow a few minutes.
+You should see every pod `Running` and `READY`. The first start pulls several images, so allow a few minutes.
 
 ## 2. Sign in as the first admin
 

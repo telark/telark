@@ -38,23 +38,18 @@ func DiffStringSlices(oldVals, newVals []string) (added, removed []string) {
 	return added, removed
 }
 
+// The user PATCH merge rewrites the body's refs to []*string before the notification reads it.
 func ExtractNewRoleIDsFromBody(body map[string]any, key string) []*string {
-	raw, ok := body[key]
-	if !ok || raw == nil {
+	if ptrs, ok := body[key].([]*string); ok {
+		return ptrs
+	}
+	ids := ExtractNewStringIDsFromBody(body, key)
+	if ids == nil {
 		return nil
 	}
-	arr, ok := raw.([]any)
-	if !ok {
-		return nil
-	}
-	out := make([]*string, constants.DefaultInitValue, len(arr))
-	for _, v := range arr {
-		s, ok := v.(string)
-		if !ok {
-			continue
-		}
-		sCopy := s
-		out = append(out, &sCopy)
+	out := make([]*string, constants.DefaultInitValue, len(ids))
+	for _, s := range ids {
+		out = append(out, &s)
 	}
 	return out
 }

@@ -4,11 +4,13 @@ import (
 	"errors"
 	"net/http"
 	"slices"
+	"strings"
 
 	metadata "github.com/telark/data/metadata/v1alpha1"
 	groupdata "github.com/telark/data/resources/group"
 	roledata "github.com/telark/data/resources/role"
 	userdata "github.com/telark/data/resources/user"
+	"github.com/telark/exporter/internal/cache"
 	"github.com/telark/exporter/internal/constants"
 	envmanager "github.com/telark/exporter/internal/managers/envs"
 	userutils "github.com/telark/exporter/internal/utils/resources/user"
@@ -42,6 +44,23 @@ func RestrictedKey(key func(*http.Request) string) func(*http.Request) string {
 			return constants.EmptyString
 		}
 		return key(r)
+	}
+}
+
+// Every restricted caller sees the same filtered list, so they share one entry
+// and one render. Who is hidden follows users, groups and roles, so each moves the key.
+func RestrictedListKey(generations cache.ListGenerationReader, key func(*http.Request) string) func(*http.Request) string {
+	return func(r *http.Request) string {
+		shared := key(r)
+		if shared == constants.EmptyString || !Restricted(r) {
+			return shared
+		}
+		return strings.Join([]string{
+			shared, constants.CacheRestrictedSegment,
+			generations.ListGeneration(constants.ResourceUser),
+			generations.ListGeneration(constants.ResourceGroup),
+			generations.ListGeneration(constants.ResourceRole),
+		}, constants.CacheKeySeparator)
 	}
 }
 

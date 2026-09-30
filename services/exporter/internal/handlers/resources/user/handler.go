@@ -16,6 +16,7 @@ import (
 	"github.com/telark/exporter/internal/exporters/generics"
 	"github.com/telark/exporter/internal/membership"
 	notiftypes "github.com/telark/exporter/internal/types/notifications"
+	passkeyutils "github.com/telark/exporter/internal/utils/auth/passkey"
 	sessionutils "github.com/telark/exporter/internal/utils/auth/session"
 	"github.com/telark/exporter/internal/utils/concurrency"
 	notifdispatch "github.com/telark/exporter/internal/utils/notifications"
@@ -224,8 +225,10 @@ func PatchUserByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(h
 			return
 		}
 
+		// Judged before the body, so a hidden administrator answers 404 like a
+		// missing id, not 400 for a malformed body.
 		existingUser, ok := userutils.GetExistingUserForPatch(w, userID)
-		if !ok {
+		if !ok || !authz.GuardUserTarget(w, r, existingUser, nil, false) {
 			return
 		}
 
@@ -269,8 +272,11 @@ func guardUserPatch(
 
 	newRoles := notifdispatch.ExtractNewRoleIDsFromBody(body, constants.FieldRoleRefs)
 	addedRoles, _ := notifdispatch.DiffPtrStringSlices(existing.RoleRefs, newRoles)
-	newGroups := notifdispatch.ExtractNewRoleIDsFromBody(body, constants.FieldGroupRefs)
-	addedGroups, removedGroups = notifdispatch.DiffPtrStringSlices(existing.GroupRefs, newGroups)
+	// An absent groupRefs would diff as every group left.
+	if _, groupsPatched := body[constants.FieldGroupRefs]; groupsPatched {
+		newGroups := notifdispatch.ExtractNewRoleIDsFromBody(body, constants.FieldGroupRefs)
+		addedGroups, removedGroups = notifdispatch.DiffPtrStringSlices(existing.GroupRefs, newGroups)
+	}
 	if !authz.GuardReferencedIDs(w, constants.ResourceRole, addedRoles) ||
 		!authz.GuardReferencedIDs(w, constants.ResourceGroup, addedGroups) ||
 		!authz.GuardUserPatchLastAdmin(w, existing, body) {
@@ -367,6 +373,9 @@ func DeleteUserByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 		// sessions go now so revocation does not wait for it.
 		if err := sessionutils.PurgeSessionsForUser(userID); err != nil {
 			lg.Warn(fmt.Sprintf(string(constants.WarnUserSessionsPurgeFailed), userID, err))
+		}
+		if err := passkeyutils.PurgePasskeysForUser(userID); err != nil {
+			lg.Warn(fmt.Sprintf(string(constants.WarnUserPasskeysPurgeFailed), userID, err))
 		}
 
 		msg := fmt.Sprintf(string(messages.SuccessDeleteRes), userID, metadata.UserMetadata.Kind)

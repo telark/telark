@@ -16,8 +16,8 @@ const (
 	roleTwo  = "r-00002-0000-0002"
 	memberA  = "u-0000a-0000-000a"
 	memberB  = "u-0000b-0000-000b"
-	emailOld = "Jane.Doe@Example.com"
-	emailNew = " jane.doe@example.com "
+	emailOld = "Test@Example.com"
+	emailNew = " test@example.com "
 )
 
 func TestExtractSpecsDedupeIDs(t *testing.T) {

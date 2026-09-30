@@ -78,6 +78,7 @@ func TestScopelessRoutesAreGuarded(t *testing.T) {
 		"POST /api/v1/notifications/{id}/read": true,
 		"POST /api/v1/notifications/read":      true,
 		"DELETE /api/v1/notifications":         true,
+		"DELETE /api/v1/notifications/{id}":    true,
 		// Narrowed to the category's own scope by GuardCategoryScope.
 		"POST /api/v1/categories":        true,
 		"PATCH /api/v1/categories/{id}":  true,
@@ -185,6 +186,19 @@ func TestServiceOnlyRoutesAreInternal(t *testing.T) {
 		"PATCH /api/v1/internal/auth/passkeys/{credentialId}",
 		"DELETE /api/v1/internal/auth/passkeys/{credentialId}",
 		"POST /api/v1/internal/notifications",
+	} {
+		if got := authz.Requirements()[key]; got != xauthz.Internal {
+			t.Errorf(wantInternalFmt, key, got)
+		}
+	}
+}
+
+// Only auth's cleanup cascade sets finalizers: a session could pin a record
+// forever, or drop one and skip the cascade.
+func TestFinalizerRoutesAreInternal(t *testing.T) {
+	for _, key := range []string{
+		"PUT /api/v1/cleanup/{type}/{id}/finalizer",
+		"DELETE /api/v1/cleanup/{type}/{id}/finalizer",
 	} {
 		if got := authz.Requirements()[key]; got != xauthz.Internal {
 			t.Errorf(wantInternalFmt, key, got)

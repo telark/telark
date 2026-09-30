@@ -5,7 +5,11 @@ GitHub Container Registry: `oci://ghcr.io/telark/charts`. GHCR packages are priv
 default, so the steps below test the full private publish, pull and deploy path before
 anything is made public.
 
-- **Automated:** tag `vX.Y.Z` (or run *Release · Publish Charts*) → CI packages, pushes, and **cosign-signs** both charts. See [`.github/workflows/release-charts.yaml`](../.github/workflows/release-charts.yaml).
+- **Automated:** run *Release · Publish Charts* with `chart` (`both`, `telark`, `telark-crds`) and `bump` (`patch`, `minor`, `major`). Don't edit the versions in `Chart.yaml` first: the workflow bumps each selected chart from its own current version, writes it to `Chart.yaml`, packages, pushes and **cosign-signs** it (telark-crds first), then commits the change. A version already in the registry fails the run before anything is pushed. See [`.github/workflows/release-charts.yaml`](../.github/workflows/release-charts.yaml).
+  - `appVersion` is the Telark release: telark's follows its new `version`, and telark-crds takes the same value when released with telark (`chart=both`). A CRD-only release keeps telark-crds' `appVersion`.
+  - On `chart=both`, telark's `telark-crds` dependency and `Chart.lock` move to the new CRD version in the same commit, so the app chart bundles those CRDs. A telark-only release keeps the pin.
+  - Only telark is tagged (`v<version>`) and gets a GitHub Release. `release_type` only picks the release kind (`auto`: a pre-release when the version has a suffix such as `-rc.1`) and never changes the version. The release notes and `CHANGELOG.md` both come from [`cliff.toml`](../cliff.toml).
+  - Pushing a `vX.Y.Z` tag yourself publishes both charts at their current `Chart.yaml` versions, without a bump.
 - **Manual:** the commands here, for testing a publish from your machine.
 
 ## Prerequisites
@@ -74,8 +78,6 @@ helm upgrade --install telark-release oci://ghcr.io/telark/charts/telark --versi
   --set app.persistence.storageClass=<rwx-class> \
   --set app.auth.bootstrap.admin=test@example.com \
   --wait --timeout 15m
-
-helm test telark-release -n "$NS"    # readiness probe against auth
 ```
 
 ## 5. Sign with cosign

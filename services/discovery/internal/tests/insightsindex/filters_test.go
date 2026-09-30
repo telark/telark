@@ -61,8 +61,13 @@ func TestWorkloadNamespaceEnvironments(t *testing.T) {
 	assertIDs(t, "row environments", f.list(t, byID+idProdCard).Items[firstItem].Environments, envProd)
 	testutil.Equal(t, "document row untagged", len(f.list(t, byID+idDevCard).Items[firstItem].Environments), wantNone)
 
+	// A namespace plan protects that namespace's workloads only, not a card about another namespace.
 	f.idx.SetEnvironments([]plans.ProtectionPlan{plan(plans.PhaseActive, envStage, plans.ScopeTypeNamespaces, nsShopDev)})
-	assertIDs(t, "document namespace plan tags every row", sortedIDs(f.list(t, "environment="+envStage)), idDevCard, idProdCard)
+	assertIDs(t, "document namespace plan tags its own workloads", ids(f.list(t, "environment="+envStage)), idDevCard)
+	testutil.Equal(t, "other-namespace row untagged", len(f.list(t, byID+idProdCard).Items[firstItem].Environments), wantNone)
+
+	f.idx.SetEnvironments([]plans.ProtectionPlan{plan(plans.PhaseActive, envStage, plans.ScopeTypeApplications, appCart)})
+	assertIDs(t, "application plan tags every row", sortedIDs(f.list(t, "environment="+envStage)), idDevCard, idProdCard)
 }
 
 func TestAppAndIDFilters(t *testing.T) {

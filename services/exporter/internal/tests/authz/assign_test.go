@@ -147,9 +147,9 @@ func TestGuardAssignedRoleLookupFailureFailsClosed(t *testing.T) {
 	}
 }
 
-// Only what the patch adds is capped: a role the user already holds, or one
-// being removed, was granted by someone entitled to.
-func TestGuardUserPatchCapsOnlyAddedRoles(t *testing.T) {
+// What the patch adds or removes is capped; a role the user keeps was granted
+// by someone entitled to.
+func TestGuardUserPatchCapsAddedAndRemovedRoles(t *testing.T) {
 	usersOwner := levels(roledata.ScopeUsers, roledata.PermissionLevelOwner)
 	allReadOnly := roleAllReadOnly
 	existing := []*string{&allReadOnly}
@@ -161,7 +161,8 @@ func TestGuardUserPatchCapsOnlyAddedRoles(t *testing.T) {
 		want     bool
 	}{
 		{"keeps ALL read-only, adds users owner", existing, assigning(roleAllReadOnly, roleUsersOwner), true},
-		{"removes ALL read-only", existing, assigning(), true},
+		{"removes ALL read-only", existing, assigning(), false},
+		{"removes users owner", ptrs([]string{roleUsersOwner}), assigning(), true},
 		{"adds ALL read-only", nil, assigning(roleAllReadOnly), false},
 		{"swaps ALL read-only for users admin", existing, assigning(roleUsersAdmin), false},
 	}
@@ -191,7 +192,10 @@ func TestGuardGroupRolesCapsAttachedRoles(t *testing.T) {
 		{"groups owner attaches apps owner", groupsOwner, nil, assigning(roleAppsOwner), false},
 		{"groups and apps owner attaches apps owner", groupsAndAppsOwner, nil, assigning(roleAppsOwner), true},
 		{"groups owner keeps apps owner already attached", groupsOwner, []string{roleAppsOwner}, assigning(roleAppsOwner, roleA), true},
-		{"groups owner detaches apps owner", groupsOwner, []string{roleAppsOwner}, assigning(), true},
+		{"groups owner detaches apps owner", groupsOwner, []string{roleAppsOwner}, assigning(), false},
+		{"groups and apps owner detaches apps owner", groupsAndAppsOwner, []string{roleAppsOwner}, assigning(), true},
+		{"groups owner detaches ALL admin", groupsOwner, []string{roleAllAdmin}, assigning(), false},
+		{"admin on ALL detaches ALL admin", allAdmin(), []string{roleAllAdmin}, assigning(), true},
 		{"create with ALL read-only", groupsOwner, nil, assigning(roleAllReadOnly), false},
 		{"internal", internalIdentity, nil, assigning(roleAllReadOnly), true},
 	}
@@ -201,6 +205,33 @@ func TestGuardGroupRolesCapsAttachedRoles(t *testing.T) {
 			got := authz.GuardGroupRolesPatch(w, requestAs(tt.identity), tt.existing, tt.body)
 			if got != tt.want {
 				t.Fatalf("GuardGroupRolesPatch = %v, want %v (%d %s)", got, tt.want, w.Code, w.Body.String())
+			}
+		})
+	}
+}
+
+// Deleting a group takes its roles from every member, so it is capped like detaching them.
+func TestGuardGroupRolesWithinCaller(t *testing.T) {
+	groups := fakeGroups()
+	tests := []struct {
+		name     string
+		identity xauthz.Identity
+		group    *groupdata.Group
+		want     bool
+	}{
+		{"groups owner deletes admin group", levels(roledata.ScopeGroups, roledata.PermissionLevelOwner), groups[groupAdmin], false},
+		{"groups and users owner deletes users owner group", groupsAndUsersOwner(), groups[groupPlain], true},
+		{"admin on ALL deletes admin group", allAdmin(), groups[groupAdmin], true},
+		{"internal deletes admin group", internalIdentity, groups[groupAdmin], true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			if got := authz.GuardGroupRolesWithinCaller(w, requestAs(tt.identity), tt.group); got != tt.want {
+				t.Fatalf("GuardGroupRolesWithinCaller = %v, want %v (%d %s)", got, tt.want, w.Code, w.Body.String())
+			}
+			if !tt.want && w.Code != http.StatusForbidden {
+				t.Fatalf("status = %d, want 403", w.Code)
 			}
 		})
 	}

@@ -191,3 +191,32 @@ func TestGuardConfigPatchOIDCNeedsAllAdmin(t *testing.T) {
 		}
 	}
 }
+
+// Seen live: PATCH config {} answered 200 with the whole config, OIDC client id
+// and trust set included, to callers GET config refuses.
+func TestGuardConfigPatchWithoutGovernedFieldNeedsRead(t *testing.T) {
+	tests := []struct {
+		name     string
+		identity xauthz.Identity
+		want     bool
+	}{
+		{"no settings scope", levels(roledata.ScopeApplications, roledata.PermissionLevelOwner), false},
+		{"no scopes", xauthz.Identity{UserID: callerID}, false},
+		{"settings read-only", settingsIdentity(roledata.PermissionLevelReadOnly), true},
+		{"admin on ALL", allAdmin(), true},
+		{"internal", internalIdentity, true},
+	}
+	for _, tt := range tests {
+		for bodyName, spec := range map[string]map[string]any{"empty": {}, "unknown key": {"foo": true}} {
+			t.Run(tt.name+"/"+bodyName, func(t *testing.T) {
+				w := httptest.NewRecorder()
+				if got := authz.GuardConfigPatch(w, patchRequest(tt.identity), spec); got != tt.want {
+					t.Fatalf("GuardConfigPatch = %v, want %v (%d)", got, tt.want, w.Code)
+				}
+				if !tt.want && w.Code != http.StatusForbidden {
+					t.Fatalf("status = %d, want %d", w.Code, http.StatusForbidden)
+				}
+			})
+		}
+	}
+}

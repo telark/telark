@@ -20,7 +20,7 @@ var (
 
 func LoadBootstrapConfig() (*BootstrapConfig, error) {
 	admin := normalizeEmail(getEnvOrDefault(constants.EnvBootstrapAdmin, constants.EmptyString))
-	selfRegEnabled := getEnvAsBool(constants.EnvSelfRegistrationEnabled, true)
+	selfRegEnabled := getEnvAsBool(constants.EnvSelfRegistrationEnabled, constants.DefaultSelfRegistrationEnabled)
 
 	cfg := &BootstrapConfig{
 		BootstrapAdmin:          admin,
@@ -56,7 +56,7 @@ func IsBootstrapAdmin(email string) bool {
 func IsSelfRegistrationEnabled() bool {
 	cfg := GetBootstrapConfig()
 	if cfg == nil {
-		return true
+		return constants.DefaultSelfRegistrationEnabled
 	}
 	return cfg.SelfRegistrationEnabled
 }

@@ -203,10 +203,10 @@ def owned_event(event: dict, namespace: str, matchers: list[tuple[str, re.Patter
 
 
 def stale_pod_event(status: dict | None, items: list[dict] | None, event: dict, now: datetime) -> bool:
-    """A pod event that is history rather than a symptom. A FailedScheduling event whose pod has a node since, or no
-    longer exists, whatever the workload's readiness. For a fully ready workload, any event whose pod no longer
-    exists (a replaced pod's leftover, for example the BackOff of the pod a fix rolled away), or whose pod became
-    Ready after the event last occurred (a start-up blip) and no restarted container of it is younger than
+    """A pod event that is history rather than a symptom. Whatever the workload's readiness: any event whose pod no
+    longer exists (a replaced pod's leftover, for example the BackOff of the pod a fix or a re-break rolled away),
+    and a FailedScheduling event whose pod has a node since. For a fully ready workload, also an event whose pod
+    became Ready after the event last occurred (a start-up blip) and no restarted container of it is younger than
     RECOVERED_MIN_UPTIME_S (a crash loop's container is Ready for the seconds it runs between two back-offs)."""
     if status is None or items is None:
         return False
@@ -214,12 +214,12 @@ def stale_pod_event(status: dict | None, items: list[dict] | None, event: dict, 
     if kind != K8S_KIND_POD:
         return False
     pod = next((p for p in items if (p.get("metadata") or {}).get("name") == name), None)
-    if event.get("reason") == REASON_FAILED_SCHEDULING:
-        return pod is None or bool((pod.get("spec") or {}).get("nodeName"))
-    if status["ready"] < status["desired"]:
-        return False
     if pod is None:
         return True
+    if event.get("reason") == REASON_FAILED_SCHEDULING:
+        return bool((pod.get("spec") or {}).get("nodeName"))
+    if status["ready"] < status["desired"]:
+        return False
     pod_status = pod.get("status") or {}
     ready = next((c for c in pod_status.get("conditions") or [] if c.get("type") == CONDITION_READY), {})
     # Both sides are RFC3339 UTC timestamps of the same width: string order is time order.

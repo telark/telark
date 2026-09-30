@@ -1,16 +1,21 @@
 package passkey
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/telark/auth/internal/authz"
 	"github.com/telark/auth/internal/constants"
 	passkeyhandler "github.com/telark/auth/internal/handlers/passkey"
 	authhelper "github.com/telark/auth/internal/helpers/auth"
 	"github.com/telark/auth/internal/tests/testutil"
+	authdata "github.com/telark/data/auth"
+	userresource "github.com/telark/data/resources/user"
 	"github.com/telark/rest/base"
 	restconstants "github.com/telark/rest/constants"
 	autheps "github.com/telark/rest/endpoints/auth"
@@ -26,6 +31,7 @@ const (
 	serviceToken   = "service-token"
 	orphanBody     = `{"forceLastDelete":true,"cleanupOrphaned":true}`
 	plainBody      = `{"forceLastDelete":true}`
+	oneCall        = 1
 )
 
 func deleteRequest(body string, identity *xauthz.Identity, headers map[string]string, credential string) *http.Request {
@@ -165,4 +171,122 @@ func TestDeletePasskeyRouteReplacesSpoofedUserID(t *testing.T) {
 	testutil.Equal(t, "user id seen by handler", seenUserID, attackerUserID)
 	testutil.Equal(t, "internal", seenInternal, false)
 	testutil.Equal(t, "credential id from path", seenCredential, credentialID)
+}
+
+const (
+	ownerUserID       = "owner-user"
+	otherCredentialID = "other-credential"
+	lastPasskeyMsg    = "cannot delete last passkey"
+	notFoundMsg       = "passkey not found"
+	sessionsPath      = "/auth/sessions/self"
+	passkeysPath      = "/internal/auth/passkeys/"
+	usersPath         = "/users/"
+)
+
+// passkeyExporter answers the session, passkey and user calls a passkey
+// handler makes, and records the identities the delete path patches back.
+type passkeyExporter struct {
+	status  int
+	message string
+	user    userresource.User
+	mu      sync.Mutex
+	patched []any
+}
+
+func writeEnvelope(w http.ResponseWriter, status int, message string, data any) {
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]any{"status": status, "message": message, "data": data})
+}
+
+func (e *passkeyExporter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	switch {
+	case strings.HasSuffix(r.URL.Path, sessionsPath):
+		writeEnvelope(w, http.StatusOK, constants.EmptyString, authdata.Session{
+			UserID:           ownerUserID,
+			ExpiresTimestamp: time.Now().UTC().Add(time.Hour).Format(constants.TimeFormatRFC3339),
+		})
+	case strings.Contains(r.URL.Path, passkeysPath):
+		writeEnvelope(w, e.status, e.message, nil)
+	case strings.Contains(r.URL.Path, usersPath) && r.Method == http.MethodPatch:
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		e.mu.Lock()
+		e.patched = append(e.patched, body[constants.UserFieldIdentities])
+		e.mu.Unlock()
+		writeEnvelope(w, http.StatusOK, constants.EmptyString, nil)
+	default:
+		writeEnvelope(w, http.StatusOK, constants.EmptyString, e.user)
+	}
+}
+
+func sessionRequest(method, body string) *http.Request {
+	r := httptest.NewRequest(method, "/", strings.NewReader(body))
+	r.Header.Set(constants.HeaderContentType, constants.ContentTypeJSON)
+	r.Header.Set(constants.HeaderSessionToken, sessionToken)
+	return testutil.WithCredentialID(r, credentialID)
+}
+
+func responseMessage(t *testing.T, rec *httptest.ResponseRecorder) string {
+	t.Helper()
+	var body struct {
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("response not JSON: %v", err)
+	}
+	return body.Message
+}
+
+// The exporter's refusal reaches the caller with its own status and reason:
+// an unknown credential is 404 on PATCH and DELETE, the last passkey is 400.
+func TestPasskeyProxyRelaysExporterRefusals(t *testing.T) {
+	cases := []struct {
+		name    string
+		method  string
+		status  int
+		message string
+	}{
+		{"patch unknown credential", http.MethodPatch, http.StatusNotFound, notFoundMsg},
+		{"delete unknown credential", http.MethodDelete, http.StatusNotFound, notFoundMsg},
+		{"delete last passkey", http.MethodDelete, http.StatusBadRequest, lastPasskeyMsg},
+		{"exporter failure stays opaque", http.MethodDelete, http.StatusInternalServerError,
+			string(constants.ErrInternalServerError)},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			testutil.StubBackend(t, &passkeyExporter{status: c.status, message: c.message})
+			rec := httptest.NewRecorder()
+			if c.method == http.MethodPatch {
+				passkeyhandler.UpdatePasskey(rec, sessionRequest(c.method, `{"deviceName":"laptop"}`))
+			} else {
+				passkeyhandler.DeletePasskey(rec, sessionRequest(c.method, constants.EmptyString))
+			}
+			testutil.Equal(t, "status", rec.Code, c.status)
+			testutil.Equal(t, "message", responseMessage(t, rec), c.message)
+		})
+	}
+}
+
+// Deleting a passkey drops the identity it was registered with and nothing else.
+func TestDeletePasskeyDetachesItsIdentity(t *testing.T) {
+	backend := &passkeyExporter{status: http.StatusOK, user: userresource.User{ID: ownerUserID, Identities: []*userresource.UserIdentity{
+		{Provider: constants.IdentityProviderPasskey, Subject: credentialID},
+		{Provider: constants.IdentityProviderPasskey, Subject: otherCredentialID},
+		{Provider: constants.IdentityProviderGoogle, Subject: credentialID},
+	}}}
+	testutil.StubBackend(t, backend)
+
+	rec := httptest.NewRecorder()
+	passkeyhandler.DeletePasskey(rec, sessionRequest(http.MethodDelete, constants.EmptyString))
+	testutil.Equal(t, "status", rec.Code, http.StatusOK)
+
+	backend.mu.Lock()
+	defer backend.mu.Unlock()
+	testutil.Equal(t, "identity patches", len(backend.patched), oneCall)
+	kept, _ := json.Marshal(backend.patched[0])
+	want, _ := json.Marshal([]*userresource.UserIdentity{
+		{Provider: constants.IdentityProviderPasskey, Subject: otherCredentialID},
+		{Provider: constants.IdentityProviderGoogle, Subject: credentialID},
+	})
+	testutil.Equal(t, "kept identities", string(kept), string(want))
 }

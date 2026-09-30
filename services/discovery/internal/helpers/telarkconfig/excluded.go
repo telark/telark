@@ -3,7 +3,10 @@ package telarkconfig
 import (
 	"context"
 	"fmt"
+	"os"
+	"slices"
 
+	"github.com/telark/discovery/internal/config"
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/startup"
 	cfgclient "github.com/telark/rest/clients/config"
@@ -13,7 +16,7 @@ import (
 // never loaded is reported as unavailable, so callers can fail closed.
 func ExcludedNamespaces(ctx context.Context) ([]string, error) {
 	if out, ok := excludedCache.Load().([]string); ok {
-		return out, nil
+		return withHiddenOwnNamespace(out), nil
 	}
 	if !startup.WaitForTelarkConfigReady(ctx) {
 		return nil, fmt.Errorf(string(constants.ErrExcludedNamespacesUnavailable), ctx.Err())
@@ -23,7 +26,7 @@ func ExcludedNamespaces(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf(string(constants.ErrExcludedNamespacesUnavailable), err)
 	}
 	excludedCache.Store(cfg.ExcludedNamespaces)
-	return cfg.ExcludedNamespaces, nil
+	return withHiddenOwnNamespace(cfg.ExcludedNamespaces), nil
 }
 
 // Informer and rail call sites keep treating an unknown list as empty; the
@@ -31,6 +34,28 @@ func ExcludedNamespaces(ctx context.Context) ([]string, error) {
 func FetchExcludedNamespaces(ctx context.Context) []string {
 	out, _ := ExcludedNamespaces(ctx)
 	return out
+}
+
+func withHiddenOwnNamespace(excluded []string) []string {
+	own := HiddenOwnNamespace()
+	if own == constants.EmptyString || slices.Contains(excluded, own) {
+		return excluded
+	}
+	return append(slices.Clone(excluded), own)
+}
+
+// Telark's own components (its services, redis, nats, ollama, the policy engine) are not
+// applications unless the operator opts into self-monitoring.
+func HiddenOwnNamespace() string {
+	if config.SelfMonitoringEnabled() {
+		return constants.EmptyString
+	}
+	return OwnNamespace()
+}
+
+// Empty outside a cluster, which disables every own-namespace check rather than failing them.
+func OwnNamespace() string {
+	return os.Getenv(constants.EnvPodNamespace)
 }
 
 // Test seam: installs the list the sync loop would otherwise load from TelarkConfig.

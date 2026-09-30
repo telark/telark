@@ -63,7 +63,7 @@ func TestGuardApplicationPatchSessionLimitedToUserFields(t *testing.T) {
 func TestGuardUserCreatePrivilegedFields(t *testing.T) {
 	contributor := userWithLevel(roledata.PermissionLevelContributor)
 	plain := map[string]any{
-		constants.FieldUsername:  "jane",
+		constants.FieldUsername:  "testuser",
 		constants.FieldRoleRefs:  []any{},
 		constants.FieldGroupRefs: []any{},
 		constants.FieldStatus:    constants.EmptyString,

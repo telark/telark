@@ -20,7 +20,9 @@ import (
 	"github.com/telark/discovery/internal/constants"
 	"github.com/telark/discovery/internal/coordination"
 	"github.com/telark/discovery/internal/handlers/resources/applications"
+	"github.com/telark/discovery/internal/helpers/async"
 	"github.com/telark/discovery/internal/tests/testutil"
+	notifclient "github.com/telark/rest/clients/notifications"
 )
 
 const (
@@ -116,8 +118,9 @@ func TestTriggerRollbackRedisDownIs503(t *testing.T) {
 }
 
 const (
-	callerID  = "u-caller"
-	spoofedID = "u-spoofed"
+	callerID          = "u-caller"
+	spoofedID         = "u-spoofed"
+	pendingRollbackID = "rb-pending"
 )
 
 type patchedApplication struct {
@@ -235,6 +238,35 @@ func TestTriggerRollbackTakesTriggeredByFromCaller(t *testing.T) {
 	testutil.Equal(t, "rollbacks sent as a view key, not under spec", patched.Spec == nil, true)
 	testutil.Equal(t, "one entry", len(patched.Rollbacks), constants.DefaultAddValue)
 	testutil.Equal(t, "triggeredBy", patched.Rollbacks[constants.DefaultInitValue].TriggeredBy, callerID)
+}
+
+// The abort notification's applicationId held the rollback id, so a consumer that
+// resolves the application from it found nothing.
+func TestAbortRollbackNotifiesWithApplicationName(t *testing.T) {
+	applications.SetCoordinationBundle(nil, constants.EmptyString)
+	async.Init()
+	bodies := stubStoredApplication(t, applicationmodel.Application{
+		Name:      shopApp,
+		Rollbacks: []applicationmodel.RollbackEntry{{ID: pendingRollbackID, Status: constants.RollbackStatusPending}},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, constants.PathSeparator, http.NoBody)
+	req.Header.Set(constants.HeaderUserID, callerID)
+	applications.AbortRollback(rec, mux.SetURLVars(req, map[string]string{
+		constants.NameParam:           shopApp,
+		constants.RollbackIDPathParam: pendingRollbackID,
+	}))
+	testutil.Equal(t, "abort", rec.Code, http.StatusOK)
+
+	async.Drain()
+	testutil.Equal(t, "patch then notification", len(*bodies), constants.TwoValue)
+	var sent notifclient.Notification
+	if err := json.Unmarshal((*bodies)[constants.DefaultAddValue], &sent); err != nil {
+		t.Fatal(err)
+	}
+	testutil.Equal(t, "applicationId", sent.Metadata[notifclient.MetaKeyApplicationID], any(shopApp))
+	testutil.Equal(t, "targetId", sent.Metadata[notifclient.MetaKeyTargetID], any(pendingRollbackID))
 }
 
 const crdApplicationPath = "../../../../../charts/telark-crds/templates/crds/applications.yaml"

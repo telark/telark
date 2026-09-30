@@ -25,5 +25,5 @@ Under ADR 0002 the CRD groups were derived from `app.name` (three groups: `erpi.
 - Renaming the app no longer touches API groups, so a second install with a different `app.name` shares the same CRDs (one install per cluster remains the supported layout).
 - One group removes group-level isolation; the CRD write guard therefore matches every resource and subresource of `telark.io` (`*` and `*/*`) and admits discovery only for `applications/status`.
 - The plurals `applications`, `users`, `groups`, `sessions` and `categories` collide with other CRDs (Argo CD's `applications.argoproj.io`, for example). Docs and scripts use fully qualified names (`applications.telark.io`) or the short names (`tapp`, `tuser`, …).
-- The change is not upgradable in place: old CRDs, objects and `telark.erpi/*`-labelled Kyverno policies must be removed and the chart reinstalled ([INSTALL.md, Upgrading from 0.4 or older](../INSTALL.md#upgrading-from-04-or-older)). Users re-enrol passkeys and roles and groups are re-created.
+- The change is not upgradable in place: old CRDs, objects and `telark.erpi/*`-labelled Kyverno policies must be removed and the chart reinstalled. Users re-enrol passkeys and roles and groups are re-created.
 - The Google JWK set moves out of the config CR into the Secret `telark-oidc-trust-secret`, guarded by its own admission policy.

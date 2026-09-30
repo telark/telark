@@ -1,13 +1,18 @@
 package auth
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+	"github.com/telark/auth/internal/clients"
 	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
+	redishelper "github.com/telark/auth/internal/helpers/redis"
 	"github.com/telark/auth/internal/helpers/shared"
 	userresource "github.com/telark/data/resources/user"
 	userclient "github.com/telark/rest/clients/users"
@@ -15,31 +20,94 @@ import (
 
 var jitLg = constants.GetLogger(constants.LoggerPrefixAuthService)
 
-func JitProvisionUserByEmail(
-	userClient *userclient.Client, email string,
-) (*userresource.User, error) {
+func checkSelfRegistration(email string) error {
 	if !config.IsSelfRegistrationEnabled() {
 		jitLg.Info(fmt.Sprintf(string(constants.LogJITSelfRegistrationBlock), shared.IdentityHash(email)))
-		return nil, errors.New(string(constants.ErrSelfRegistrationDisabled))
+		return errors.New(string(constants.ErrSelfRegistrationDisabled))
+	}
+	return nil
+}
+
+func pendingUserKey(id string) string {
+	return constants.RedisKeyPrefixPendingUser + id
+}
+
+// Self-registration creates the account only once the passkey ceremony verifies:
+// start parks the unsaved user under a random ID, so an abandoned start leaves nothing behind.
+func storePendingUser(email string) (*userresource.User, string, error) {
+	if err := checkSelfRegistration(email); err != nil {
+		return nil, constants.EmptyString, err
 	}
 	username, err := BuildUsername(email)
 	if err != nil {
+		return nil, constants.EmptyString, err
+	}
+	user := buildJitUser(email, username)
+	raw, err := json.Marshal(user)
+	if err != nil {
+		return nil, constants.EmptyString, fmt.Errorf(string(constants.ErrFailedStorePendingUser), err.Error())
+	}
+	rdb := redishelper.GetClient()
+	if rdb == nil {
+		return nil, constants.EmptyString, errors.New(string(constants.ErrRedisClientUnavailable))
+	}
+	id, err := shared.GenerateSessionToken()
+	if err != nil {
+		return nil, constants.EmptyString, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisChallengeOpTimeout)
+	defer cancel()
+	if err := rdb.Set(ctx, pendingUserKey(id), raw, time.Duration(constants.RedisTTLChallenge)*time.Second).Err(); err != nil {
+		return nil, constants.EmptyString, fmt.Errorf(string(constants.ErrFailedStorePendingUser), err.Error())
+	}
+	return user, id, nil
+}
+
+func pendingUser(id string) (*userresource.User, bool, error) {
+	rdb := redishelper.GetClient()
+	if rdb == nil {
+		return nil, false, errors.New(string(constants.ErrRedisClientUnavailable))
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisChallengeOpTimeout)
+	defer cancel()
+	raw, err := rdb.Get(ctx, pendingUserKey(id)).Bytes()
+	if errors.Is(err, redis.Nil) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf(string(constants.ErrFailedGetPendingUser), err.Error())
+	}
+	var user userresource.User
+	if err := json.Unmarshal(raw, &user); err != nil {
+		return nil, false, fmt.Errorf(string(constants.ErrFailedGetPendingUser), err.Error())
+	}
+	return &user, true, nil
+}
+
+// A 409 means the email was taken after start: an existing account is never handed
+// to a bare-email ceremony, only to a session or an enrollment token.
+func CreatePendingUser(user *userresource.User) (*userresource.User, error) {
+	if err := checkSelfRegistration(user.Email); err != nil {
 		return nil, err
 	}
-	resp := userClient.CreateUser(buildJitUser(email, username))
+	userClient := clients.GetUserClient()
+	resp := userClient.CreateUser(user)
 	switch resp.Status {
 	case http.StatusCreated, http.StatusOK:
-		return GetUserWithErrorHandling(email, userClient.GetUserByEmail)
+		return GetUserWithErrorHandling(user.Email, userClient.GetUserByEmail)
 	case http.StatusConflict:
-		existing, fetchErr := GetUserWithErrorHandling(email, userClient.GetUserByEmail)
-		if fetchErr != nil {
-			return nil, fetchErr
-		}
-		RepairRoleIfMissing(existing, userClient, constants.BuiltInRoleReadOnly)
-		return existing, nil
+		return nil, errors.New(string(constants.ErrRegistrationNeedsProof))
 	default:
 		return nil, fmt.Errorf(string(constants.ErrFailedCreateUser),
-			shared.IdentityHash(email), resp.Status, resp.Message)
+			shared.IdentityHash(user.Email), resp.Status, resp.Message)
+	}
+}
+
+// A self-registration is all-or-nothing: an account whose passkey could not be
+// saved is deleted again.
+func DiscardPendingUser(userID string) {
+	if resp := clients.GetUserClient().DeleteUserByID(userID); resp == nil || resp.Status != http.StatusOK {
+		jitLg.Error(fmt.Sprintf(string(constants.ErrFailedDiscardUser), shared.IdentityHash(userID)))
 	}
 }
 

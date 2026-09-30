@@ -55,6 +55,15 @@ func TestExtractNewRoleIDsFromBody(t *testing.T) {
 	if notifdiff.ExtractNewRoleIDsFromBody(map[string]any{rolesKey: "x"}, rolesKey) != nil {
 		t.Error("non-slice value should return nil")
 	}
+	merged := notifdiff.ExtractNewRoleIDsFromBody(map[string]any{rolesKey: []*string{ptr(idA), ptr(idB)}}, rolesKey)
+	added, removed := notifdiff.DiffPtrStringSlices([]*string{ptr(idA)}, merged)
+	if len(added) != constants.DefaultIncrementValue || added[constants.DefaultInitValue] != idB || len(removed) != constants.DefaultInitValue {
+		t.Errorf("merged []*string body: added %v removed %v, want added [b] removed []", added, removed)
+	}
+	typed := notifdiff.ExtractNewRoleIDsFromBody(map[string]any{rolesKey: []string{idA, idB}}, rolesKey)
+	if len(typed) != wantTwoEntries || *typed[constants.DefaultIncrementValue] != idB {
+		t.Errorf("[]string body: got %v", typed)
+	}
 }
 
 func TestExtractNewStringIDsFromBody(t *testing.T) {

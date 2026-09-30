@@ -105,6 +105,13 @@ func promote(userClient *userclient.Client, user *userresource.User, normalized 
 	if config.IsBootstrapAdmin(normalized) && !user.Bootstrap {
 		patch[constants.UserFieldBootstrap] = true
 	}
+	// Admin granted on the operator's word keeps only passkeys: no OIDC binding survives the promotion.
+	kept := slices.DeleteFunc(slices.Clone(user.Identities), func(identity *userresource.UserIdentity) bool {
+		return identity == nil || identity.Provider != constants.IdentityProviderPasskey
+	})
+	if len(kept) != len(user.Identities) {
+		patch[constants.UserFieldIdentities] = kept
+	}
 	if len(patch) == constants.DefaultInitValue {
 		_, _ = fmt.Printf(constants.BreakGlassAlreadyAdmin, normalized)
 		return constants.DefaultInitValue

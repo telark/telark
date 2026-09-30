@@ -11,12 +11,11 @@ import (
 
 var lg = constants.GetLogger(constants.LoggerPrefixHandler)
 
-func registerStartStatus(err error) int {
+func registrationStatus(err error) int {
 	switch {
 	case shared.IsError(err, constants.ErrUserNotFound):
 		return http.StatusNotFound
-	case shared.IsError(err, constants.ErrUserAlreadyHasPasskeys),
-		shared.IsError(err, constants.ErrRegistrationNeedsProof),
+	case shared.IsError(err, constants.ErrRegistrationNeedsProof),
 		shared.IsError(err, constants.ErrEnrollTokenInvalid):
 		return http.StatusUnauthorized
 	case shared.IsError(err, constants.ErrRegisterEmailMismatch),
@@ -31,7 +30,7 @@ func registerStartStatus(err error) int {
 func RegisterStart(w http.ResponseWriter, r *http.Request) {
 	user, userID, enrolled, err := authhelper.GetUserForRegistrationStart(r)
 	if err != nil {
-		shared.SendErrorResponse(w, registerStartStatus(err), err)
+		shared.SendErrorResponse(w, registrationStatus(err), err)
 		return
 	}
 

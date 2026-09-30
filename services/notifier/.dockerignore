@@ -1,28 +1,33 @@
-configurator*
-.DS_Store
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-
-# Test binary, built with `go test -c`
-*.test
-
-# Code coverage profiles and other test artifacts
-*.out
-coverage.*
-*.coverprofile
-profile.cov
-
-# Go workspace file
+# **/ patterns also match the _local/ shared-module copies that
+# scripts/local-build-push.sh adds to its temporary build context.
+.git
+.gitignore
+.dockerignore
+Dockerfile
 go.work
 go.work.sum
-
-# env file
 .env
+.env.*
 
-# Editor/IDE
+# Docs
+**/*.md
+
+# Tests, coverage and build artifacts
+**/tests/
+**/testdata/
+**/*_test.go
+coverage.*
+**/*.out
+*.coverprofile
+*.prof
+*.test
+
+# IDE and editor files
 .idea/
 .vscode/
-.cursor
+.cursor/
+.claude/
+*.iml
+*.sublime*
+*.swp
+.DS_Store

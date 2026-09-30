@@ -233,6 +233,7 @@ func TestHandleValidationError(t *testing.T) {
 		{"generic", http.ErrNoCookie, http.StatusBadRequest},
 		{"challenge expired", newErr(string(constants.ErrChallengeExpired)), http.StatusGone},
 		{"session expired", newErr(string(constants.ErrSessionExpired)), http.StatusGone},
+		{"passkey not found", newErr(string(constants.ErrPasskeyNotFound)), http.StatusNotFound},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

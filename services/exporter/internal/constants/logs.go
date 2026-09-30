@@ -44,7 +44,7 @@ const (
 	InfOptimizerCacheMiss                 messages.Message = "⚠️ [CACHE MISS] RequestID: %s, Cache Key: %s"
 	InfOptimizerCacheStoreSkipped         messages.Message = "⚠️ [CACHE STORE SKIPPED] RequestID: %s, Status Code: %d"
 	ErrOptimizerCacheStoreError           errors.Error     = "❌ [CACHE STORE ERROR] RequestID: %s, Error: %v"
-	ErrOptimizerResponseSizeLimitExceeded errors.Error     = "❌ [RESPONSE SIZE_LIMIT_EXC] Response size limit exceeded (%d bytes), stopping capture"
+	ErrOptimizerResponseSizeLimitExceeded errors.Error     = "❌ [RESPONSE SIZE_LIMIT_EXC] Response size limit exceeded (%d bytes), not caching"
 	ErrOptimizerRenderBusy                errors.Error     = "list render capacity exhausted, retry later"
 	WarnOptimizerRenderRefused            messages.Message = "⚠️ [RENDER REFUSED] RequestID: %s, Cache Key: %s"
 	InfListRenderConcurrencyConfigured    messages.Message = "EXPORTER_LIST_RENDER_CONCURRENCY configured: %d"
@@ -87,6 +87,7 @@ const (
 	ErrUserNotFound                 errors.Error = "user not found"
 	ErrUserBeingDeleted             errors.Error = "user is being deleted"
 	WarnUserSessionsPurgeFailed     errors.Error = "sessions of deleted user %s not purged, the cleanup sweeper will retry: %v"
+	WarnUserPasskeysPurgeFailed     errors.Error = "passkeys of deleted user %s not purged: %v"
 	ErrUsernameAlreadyExists        errors.Error = "user with this username already exists"
 	ErrUsernameCannotBeEmpty        errors.Error = "username cannot be empty"
 	ErrEmailAlreadyExists           errors.Error = "user with this email already exists"
@@ -106,6 +107,8 @@ const (
 	ErrRoleProtectionRequired           errors.Error = "protection is required"
 	ErrRoleModificationPrevented        errors.Error = "role modification is prevented by protection flags"
 	ErrRoleScopeChangesPrevented        errors.Error = "scope changes are prevented by protection flags"
+	ErrRoleNameLocked                   errors.Error = "the role name is locked by protection flags"
+	ErrRoleCategoryLocked               errors.Error = "the role category is locked by protection flags"
 	ErrRoleExtractData                  errors.Error = "failed to extract role data"
 	ErrRolePriorityExceedsLimit         errors.Error = "role priority must be less than the built-in role priority boost"
 
@@ -153,8 +156,10 @@ const (
 	ErrPasskeyCredentialIDAlreadyExists errors.Error = "passkey with this credentialId already exists for this user"
 	ErrPasskeyPatchOnlyAllowedFields    errors.Error = "patch operation only allows updating deviceName and lastUsedTimestamp fields"
 	ErrPasskeyInvalidDeviceType         errors.Error = "invalid deviceType %s, must be either 'platform' or 'cross-platform'"
-	ErrPasskeyNotFoundForUser           errors.Error = "passkey not found for user"
 	ErrPasskeyCannotDeleteLast          errors.Error = "cannot delete last passkey for user"
+
+	// Notifications
+	ErrNotificationNotFound errors.Error = "notification not found"
 
 	// Cert
 	ErrCertCertificateNotYetValid  errors.Error = "certificate not yet valid: %s"

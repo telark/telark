@@ -19,6 +19,7 @@ import (
 	historyshared "github.com/telark/discovery/internal/core/applications/history/shared"
 	"github.com/telark/discovery/internal/core/applications/history/utils"
 	"github.com/telark/discovery/internal/core/applications/metrics"
+	appshared "github.com/telark/discovery/internal/core/applications/shared"
 	"github.com/telark/discovery/internal/core/applications/snapshot"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -662,6 +663,10 @@ func newAppWithBaselineSnapshot(
 	forgetPreviousIncarnation(ctx, rdb, fresh.Name)
 	h := NewApplicationHistory()
 	takenAt := time.Now().UTC()
+	if entry := bornDownEntry(&fresh, takenAt); entry != nil {
+		h.ChangeLog = append(h.ChangeLog, *entry)
+		gate.PersistRedisState(ctx, rdb, fresh.Name, entry)
+	}
 	baseline := snapshot.BuildSnapshotEntries(
 		ctx,
 		createSnapshot,
@@ -673,6 +678,31 @@ func newAppWithBaselineSnapshot(
 	)
 	merged := snapshot.MergeSnapshots([]application.ApplicationSnapshot{}, baseline, snapshot.MaxSnapshots())
 	return h, merged, OutcomeAuthored
+}
+
+// A first-seen app has no stored health to diff against, so an outage from birth would never
+// be recorded; degraded-at-birth is left out, as the grace gate does not see this entry.
+func bornDownEntry(fresh *application.Application, detectedAt time.Time) *application.ChangeLogEntry {
+	if fresh.Health.Status != appshared.HealthStatusDown {
+		return nil
+	}
+	down := fresh.Health.Status
+	health := []application.ApplicationChange{{
+		Field:       changes.ChangeFieldHealth,
+		Description: changes.DescHealthTransition(constants.EmptyString, down),
+		ChangeType:  changes.ChangeTypeUpdated,
+		NewValue:    &down,
+	}}
+	class := changes.ClassifyChanges(health)
+	return &application.ChangeLogEntry{
+		Generation:  constants.DefaultAddValue,
+		DetectedAt:  utils.FormatAppTime(detectedAt),
+		ChangeClass: class,
+		Severity:    changes.DetermineSeverity(class, health),
+		Fingerprint: changes.ComputeFingerprint(health),
+		IsIncident:  changes.DetectIncident(health, class),
+		Changes:     health,
+	}
 }
 
 // A CR deleted behind discovery (an exporter DELETE) leaves the floor, incident state

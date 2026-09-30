@@ -1,6 +1,8 @@
 package shared
 
 import (
+	"maps"
+
 	"github.com/telark/data/metadata/base"
 	"github.com/telark/data/metadata/v1alpha1"
 	"github.com/telark/exporter/internal/constants"
@@ -32,21 +34,23 @@ func ToView(resource *unstructured.Unstructured) map[string]any {
 	return view.ToView(resource, MetadataForKind(resource.GetKind()))
 }
 
-// Splits a {spec, metadata} payload so projected status keys reach the /status
-// subresource: a merge patch on the main resource silently drops them.
+// Projected status keys, in spec or at the top level (discovery's rollbacks), must reach
+// the /status subresource: a merge patch on the main resource silently drops them.
 func PatchCustomResource(md base.Metadata, name string, payload map[string]any) kubeshared.KubernetesAPIData {
-	var body map[string]any
+	body := map[string]any{}
 	if specBody, isMap := payload[constants.SpecField].(map[string]any); isMap {
-		body = specBody
+		body = maps.Clone(specBody)
 	}
-	spec, status := view.SplitPatch(md, body)
-
 	main := make(map[string]any, len(payload))
 	for key, value := range payload {
-		if key != constants.SpecField {
+		if _, projected := md.StatusFields[key]; projected {
+			body[key] = value
+		} else if key != constants.SpecField {
 			main[key] = value
 		}
 	}
+	spec, status := view.SplitPatch(md, body)
+
 	if _, hasSpec := payload[constants.SpecField]; hasSpec {
 		main[constants.SpecField] = spec
 	}

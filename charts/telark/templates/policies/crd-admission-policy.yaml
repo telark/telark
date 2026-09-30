@@ -2,7 +2,7 @@
 Telark's own custom resources carry the role model: who holds which scope, at
 which level, and what each role is denied. The services enforce that model on
 their APIs, but the resources sit in the cluster, so anyone with edit rights on
-this namespace could rewrite them and skip the services entirely.
+a namespace could write them there and skip the services entirely.
 
 This refuses writes to that group from anything but the service accounts that
 own them. It is admission-side only: no webhook pod, so refusing costs no
@@ -82,10 +82,7 @@ spec:
     {{- else }}
     - Audit
     {{- end }}
-  matchResources:
-    namespaceSelector:
-      matchLabels:
-        kubernetes.io/metadata.name: {{ $ns }}
+  # No namespaceSelector: discovery reads applications cluster-wide, so a write in any namespace must be refused.
 ---
 {{- /*
 The OIDC trust Secret pins the keys identity tokens are verified against, so

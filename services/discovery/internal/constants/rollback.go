@@ -16,7 +16,7 @@ const (
 	// Serializes trigger/abort read-check-write across replicas.
 	KeyPrefixLockRollback = "lock:rollback:"
 
-	// Server-side apply.
+	// Field manager recorded on the rollback Create/Update writes.
 	RollbackFieldManager = "telark-discovery-service"
 
 	// CRD schema keys.

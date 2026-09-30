@@ -140,6 +140,10 @@ app:
   networkPolicy:
     enabled: true
 
+  # true: discovery also shows Telark's own namespace (its services, redis, nats, ollama) as applications.
+  selfMonitoring:
+    enabled: false
+
   # Per-service defaults. Override any key on a services.<svc> block.
   serviceDefaults:
     port: 8080
@@ -234,6 +238,7 @@ services:
       SNAPSHOTS_PVC_NAMESPACE: '{{ .Values.app.namespace }}'
       EXPORTER_K8S_CLIENT_QPS: "50"
       EXPORTER_K8S_CLIENT_BURST: "100"
+      EXPORTER_LIST_RENDER_CONCURRENCY: "2"
       # Orphan snapshot sweep: unreferenced files older than 1h on the PVC. 0 = off.
       SNAPSHOT_GC_INTERVAL_SEC: "3600"
       BOOTSTRAP_ADMIN: '{{ .Values.app.auth.bootstrap.admin }}'
@@ -310,6 +315,7 @@ services:
       INSIGHTS_INDEX_REFRESH_SEC: "15"
       INSIGHTS_INDEX_RESYNC_SEC: "300"
       INSIGHTS_STALE_AFTER_SEC: "86400"
+      SELF_MONITORING_ENABLED: '{{ .Values.app.selfMonitoring.enabled }}'
     topologySpread:
       enabled: true
       maxSkew: 1
@@ -442,6 +448,7 @@ services:
     # nginx runs as its own uid 101, not the shared 1001, so it gets its own contexts.
     includeSecurity: false
     useRedis: false
+    serviceToken: false      # nginx only proxies browser calls; it never calls a service itself
     automountServiceAccountToken: false
     podSecurityContext:
       runAsNonRoot: true
@@ -586,10 +593,6 @@ nats:
     enabled: true
     path: /data
     size: 4Gi
-  securityContext:
-    runAsUser: 1000
-    runAsGroup: 1000
-    fsGroup: 1000
 
 kyverno:
   namespaceOverride: "telark"
@@ -670,8 +673,7 @@ metrics-server:
   enabled: true
   # Add --kubelet-insecure-tls only for kind/minikube-style clusters whose kubelet
   # certificates are self-signed (see INSTALL).
-  args:
-    - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+  args: []
   resources:
     requests:
       cpu: 100m

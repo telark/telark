@@ -142,7 +142,7 @@ func ExtractPasskeyRequestParams(w http.ResponseWriter, r *http.Request) (
 			w,
 			http.StatusUnprocessableEntity,
 			response.OperationUnprocessed,
-			string(dataerrors.ErrRestParseRequestBody),
+			fmt.Sprintf(string(dataerrors.ErrRestParseRequestBody), err),
 			nil,
 			err,
 		)

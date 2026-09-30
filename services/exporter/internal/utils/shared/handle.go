@@ -14,6 +14,9 @@ func HandleValidationError(w http.ResponseWriter, err error) {
 	if errStr == string(constants.ErrChallengeExpired) || errStr == string(constants.ErrSessionExpired) {
 		statusCode = http.StatusGone
 	}
+	if errStr == string(constants.ErrPasskeyNotFound) {
+		statusCode = http.StatusNotFound
+	}
 	responseutils.LogAndSendResponse(
 		w,
 		statusCode,

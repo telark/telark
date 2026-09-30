@@ -85,6 +85,7 @@ Full reference: [chart README](../../charts/telark/README.md#servicesexporterenv
 | `REPORTS_PATH` | `/reports` | Mount path for protection plan report files (the reports PVC) |
 | `SNAPSHOT_GC_INTERVAL_SEC` | `3600` | Snapshot sweep interval; also drives the reports orphan sweep (`0` disables both) |
 | `EXPORTER_K8S_CLIENT_QPS` / `_BURST` | `50` / `100` | K8s client rate limits, sized for CRD-write fan-out |
+| `EXPORTER_LIST_RENDER_CONCURRENCY` | `2` | List renders at once per list route; requests for the same list share one render |
 | `CA_BUNDLE` | configmap `<app.name>-ca-bundle` | Trusted CA bundle (`ca.crt`) |
 | `OIDC_TRUST_SECRET_NAME` | `telark-oidc-trust-secret` | Secret whose `googleJwkJson` key holds the Google JWK set (chart: `app.auth.oidc.existingSecret` or the chart-managed one) |
 
@@ -96,7 +97,8 @@ REST under `/api/v1/`, one collection per resource with HTTP verbs (no `/get`, `
 live under `internal/` (`internal/users/by-{username,email,identity}`, `internal/reports`,
 `internal/protectionplans/{id}/ledger`, `internal/snapshots`, `internal/notifications`,
 `internal/auth/users/{userId}/sessions`, `internal/auth/passkeys`), and cleanup views and
-finalizers under `cleanup/{type}` (`{type}` is `users`, `groups` or `accessroles`).
+finalizers under `cleanup/{type}` (`{type}` is `users`, `groups` or `accessroles`; finalizer writes are
+service-only).
 `auth/sessions/self` (GET, PATCH internal, DELETE) is the session named by `X-Session-Token` (a raw
 token from the UI or a session name from a peer); `DELETE auth/sessions/{name}` revokes another of the
 caller's own sessions and answers 404 for anyone else's.
@@ -152,20 +154,27 @@ Config (`PATCH config`, the `TelarkConfig` named `default`) is checked per field
 (deny `editsnapshotstorage`), `ai` Owner (deny `controlaiinsights`), `oidc` Admin on `ALL` (deny `settings.editoidcconfig`),
 and `cluster` is Internal (written by discovery, stored in `.status`). `oidc.googleJwkJson` is written to the
 Secret `telark-oidc-trust-secret` (or `app.auth.oidc.existingSecret`), not the CR, and `GET config` merges it
-back. A value the CRD schema rejects answers 400 naming the field, for example `spec.ai.model`.
+back. A patch naming none of these fields needs settings ReadOnly, like `GET config`, since it answers
+with the whole config. A value the CRD schema rejects answers 400 naming the field, for example `spec.ai.model`.
 
 Users, groups and access roles: creating a user with roles, groups or a status applies the same rules as
 patching them (users Owner + `attachroletouser`, groups Owner + `addusertogroup`, users Admin +
 `suspenduser`); attaching or removing a group's roles needs groups Owner plus `attachroletogroup` /
 `removerolefromgroup` (a group create carrying roles is gated like an attach); a role create or patch may not grant a scope level above the caller's own on that
-scope (an `ALL` grant counts for every scope), and a role whose `protection.preventModification` is set
-refuses every patch. The same cap applies to assigning a role: a user create or patch and a group create or
+scope (an `ALL` grant counts for every scope). Role protection flags answer 403: `preventModification`
+refuses any patch beyond `protection`, and `preventScopeChanges`, `lockName` and `lockCategory` refuse a
+change to `scopesAndPermissions`, `name` and `categoryRef`, unless the same patch lifts that flag. The same cap applies to assigning a role: a user create or patch and a group create or
 patch answer 403 naming the role and scope when a role being added grants a level above the caller's own
-(deny rules on that role do not count; roles already held or being removed are not checked). Adding a
-member to a group, from the user or the group side, is capped the same way by every role the group
-carries. A role patch touching `status`, `validity` or `scopesAndPermissions` is capped against the
-merged role. Sessions may not set `type: built-in` or change `protection` on a role (403); deny rules
-are stored lower-cased. `identities` on a user is Internal only, and `email` / `username` are changed
+(deny rules on that role do not count; roles already held are not checked). Taking a role away is
+capped the same way: removing it from a user, detaching it from a group, and deleting it or a group
+carrying it. Adding or removing a group member, from the user or the group side, is capped by every
+role the group carries. A role patch touching `status`, `validity` or `scopesAndPermissions` is capped
+against the stored and the merged role. Sessions may not set `type: built-in` or change a built-in role's
+`protection` (403); a custom role's `protection` is set by its creator at create and changed afterwards
+only by its creator or an Admin on ALL (403 otherwise). A role created without `type` is `custom`.
+`createdBy` and `lastUpdatedBy` of roles and groups are stamped from the caller; body values are
+ignored. Deleting a role with `protection.softDelete` keeps it with `status: Deleted` and `deletedAt`,
+so it grants nothing; `preventDeletion` refuses the delete (403). Deny rules are stored lower-cased. `identities` on a user is Internal only, and `email` / `username` are changed
 only by the account owner (403 otherwise; resending the stored value is allowed). Internal callers
 are exempt.
 
@@ -202,8 +211,12 @@ Administrators (Admin on `ALL` through an active role, directly or via a live gr
 accounts (`spec.bootstrap: true`, written only with the service token; a session sending the field gets
 403) are hidden from every caller who is not an administrator or a service: the users list omits them,
 `GET` by id, username, email or identity answers 404, group member lists and cleanup views omit their
-ids. Such callers take the uncached path. Bootstrap accounts cannot be
-deleted through the API, only they may edit their own record (any other caller gets 403), and a session
+ids. A group patch keeps the hidden members, and naming one answers 400 like an unknown id; a user
+patch of one answers 404 before its body is read. Such callers share one cached, coalesced users list and one
+groups list (`RestrictedListKey`, keyed also by the users, groups and roles list generations); their single-record
+GETs stay uncached. Bootstrap accounts cannot be
+deleted through the API, only they may edit their own record (any other caller gets 403, a group
+create or patch adding or removing one included), and a session
 may not create or rename a user to the `BOOTSTRAP_ADMIN` email (403). Any Admin on `ALL` may delete or
 suspend another administrator, but a user delete, suspension or `roleRefs`/`groupRefs` change, and a
 group delete, `roleRefs` change or member removal, that would leave no active user holding Admin on
@@ -211,7 +224,8 @@ group delete, `roleRefs` change or member removal, that would leave no active us
 
 Snapshot reads (`GET snapshots/{id}` and `/manifest`) mask every `Secret` `data` and `stringData`
 value with `[redacted]` for session callers; the stored file and Internal callers (the rollback
-controller) keep the real values. Both routes are withheld by `viewapplicationsnapshotmanifest`.
+controller) keep the real values. Both routes are withheld by `viewapplicationssnapshots` and by
+`viewapplicationsnapshotmanifest`.
 
 ## Build & run
 

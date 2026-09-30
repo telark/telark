@@ -1,6 +1,7 @@
 package snapshot
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -22,7 +23,7 @@ func CreateSnapshot() func(http.ResponseWriter, *http.Request) {
 				w,
 				http.StatusUnprocessableEntity,
 				response.OperationUnprocessed,
-				string(errors.ErrRestParseRequestBody),
+				fmt.Sprintf(string(errors.ErrRestParseRequestBody), err),
 				nil,
 				err,
 			)
@@ -62,6 +63,10 @@ func GetSnapshotManifest() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := sharedutils.GetPathParam(w, r, constants.IDParam)
 		if err != nil {
+			return
+		}
+
+		if !authz.GuardSnapshotView(w, r) {
 			return
 		}
 

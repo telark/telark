@@ -32,7 +32,7 @@ The tables below explain the values that matter. The generated index of every ke
 | `commonAnnotations` | `{}` | Annotations added to every resource |
 | `global.imagePullSecrets` | `[]` | Pull secrets merged into every pod |
 | `crds.enabled` | `true` | Install CRDs (the telark-crds subchart) with the app; `false` to manage them out of band |
-| `monitoring.serviceMonitor.enabled` | `false` | Emit a Prometheus-Operator ServiceMonitor for the services' `/metrics`. See [docs/INSTALL.md](../../docs/INSTALL.md#monitoring-prometheus) |
+| `monitoring.serviceMonitor.enabled` | `false` | Emit a Prometheus-Operator ServiceMonitor for the services' `/metrics`. No service serves `/metrics` yet; keep it off. See [docs/INSTALL.md](../../docs/INSTALL.md#monitoring-prometheus) |
 | `monitoring.serviceMonitor.labels` | `{}` | Labels matching Prometheus's `serviceMonitorSelector` (usually `release: <name>`) |
 | `monitoring.serviceMonitor.path` / `interval` | `/metrics` / `30s` | Scrape path / interval |
 | `ingress.enabled` | `false` | Ingress for the dashboard (routes to `ingress.service`, default `ui`). See [docs/INSTALL.md](../../docs/INSTALL.md#access-the-dashboard) |
@@ -59,10 +59,11 @@ The tables below explain the values that matter. The generated index of every ke
 | `app.crdGuard.enabled` / `enforce` | `true` / `true` | ValidatingAdmissionPolicy: only the owning service accounts may write Telark CRs (`telark.io`, including `/status`), and only the exporter may change the key in the OIDC trust Secret (`enforce: false` audits). See [CRD write guard](../../docs/INSTALL.md#crd-write-guard) |
 | `app.crdGuard.extraAllowedUsers` | `[]` | Break-glass usernames also allowed to write Telark CRs and the OIDC trust Secret |
 | `app.networkPolicy.enabled` | `true` | Ingress NetworkPolicies: default deny for Telark pods, APIs only from Telark pods, dashboard from anywhere, NATS 4222 only from discovery and notifier. Needs an enforcing CNI. See [Network policies](../../docs/INSTALL.md#network-policies) |
+| `app.selfMonitoring.enabled` | `false` | `false`: discovery skips Telark's own namespace (its services, Redis, NATS, Ollama, Kyverno, metrics-server), so none of it shows under Applications, and Application CRs already created there are cleaned up. `true`: they are discovered and shown like any application. Plans can never target that namespace either way. → `SELF_MONITORING_ENABLED` on discovery. See [Self-monitoring](../../docs/INSTALL.md#self-monitoring) |
 | `app.serviceToken.value` | `""` | Service token; empty = generated on install, read back on upgrade |
 | `app.serviceToken.existingSecret` | `""` | Secret (key `token`) you manage instead of the generated one, for cluster-less renders. See [GitOps](../../docs/INSTALL.md#gitops-cluster-less-renders) |
 | `nats.existingSecrets.publisher` / `consumer` | `""` | Secrets (keys `username`, `password`) for the NATS publisher (discovery) and consumer (notifier) users instead of the generated `<app.name>-nats-{publisher,consumer}-secret`. See [GitOps](../../docs/INSTALL.md#gitops-cluster-less-renders) |
-| `metrics-server.args` | `--kubelet-preferred-address-types=…` | Kubelet certificates are verified; add `--kubelet-insecure-tls` only where they are self-signed. See [metrics-server kubelet TLS](../../docs/INSTALL.md#metrics-server-kubelet-tls) |
+| `metrics-server.args` | `[]` | Flags added after the subchart's `defaultArgs` (which already set `--kubelet-preferred-address-types`). Kubelet certificates are verified; add `--kubelet-insecure-tls` only where they are self-signed. See [metrics-server kubelet TLS](../../docs/INSTALL.md#metrics-server-kubelet-tls) |
 | `app.ollama.enabled` | `true` | Install the ollama subchart, the local model runtime the analyzer needs; `false` skips it (for example with `app.ollama.runtimeUrl`). Sized once for every mode. See [Analyzer runtime (ollama)](#analyzer-runtime-ollama) |
 | `app.ollama.autoPull` | `true` | Let the analyzer pull a missing model (and allow ollama HTTPS egress); `false` for air-gapped installs |
 | `app.ollama.runtimeUrl` | `""` | Ollama-API endpoint you run yourself (URL only, no key); empty = the subchart. See [Analyzer runtime (ollama)](#analyzer-runtime-ollama) |
@@ -79,7 +80,7 @@ The exporter mounts two PVCs rendered from one template (snapshots and reports);
 
 | Key | Default | Description |
 |---|---|---|
-| `app.auth.bootstrap.admin` | `""` | The one bootstrap admin's email. The account is created and recovered only with `auth break-glass --email <email> --enroll` (passkey) and holds the built-in Admin role; Google sign-in and passkey self-registration never grant Admin, even to this email. → `BOOTSTRAP_ADMIN` env. Required when `app.auth.passkey.selfRegistration` is `"false"` (the default): the render fails otherwise. See [First admin](../../docs/INSTALL.md#2-first-admin) |
+| `app.auth.bootstrap.admin` | `""` | The one bootstrap admin's email. The account is created and recovered only with `./main break-glass --email <email> --enroll` (passkey) and holds the built-in Admin role; Google sign-in and passkey self-registration never grant Admin, even to this email. → `BOOTSTRAP_ADMIN` env. Required when `app.auth.passkey.selfRegistration` is `"false"` (the default): the render fails otherwise. See [First admin](../../docs/INSTALL.md#2-first-admin) |
 
 #### `app.auth.oidc`
 
@@ -185,6 +186,7 @@ Per-service block. Gates default to `true` unless noted.
 | `includeSecurity` | `true` | Apply `app.shared.podSecurityContext` + `app.shared.containerSecurityContext` (`ui` sets `false`: nginx runs as uid 101 and gets its own contexts below) |
 | `podSecurityContext` / `containerSecurityContext` | unset | Rendered verbatim instead of the shared contexts; `ui` uses them (uid 101, no privilege escalation, all capabilities dropped, read-only root with `emptyDir` on `/var/cache/nginx` and `/tmp`) |
 | `automountServiceAccountToken` | unset (Kubernetes default: mounted) | `false` on auth, notifier and ui, which never call the Kubernetes API; set on both the pod and its ServiceAccount |
+| `serviceToken` | `true` | Inject the shared service token as `TELARK_SERVICE_TOKEN`; `false` on ui, whose nginx only proxies browser calls and never calls a service itself |
 | `serviceAccount.create` / `serviceAccount.name` / `serviceAccount.annotations` | `create: true` | Per-service ServiceAccount control |
 | `nodeSelector` / `tolerations` / `affinity` | `app.serviceDefaults.*` | Scheduling overrides |
 | `useRedis` | `true` | Mount `app.shared.redis` configmap |
@@ -223,6 +225,7 @@ Image tags are `services.<svc>.version` in `values.yaml`, bumped by the release 
 | `SNAPSHOTS_PVC_NAMESPACE` | `{{ .Values.app.namespace }}` (tpl) | Namespace of the snapshots PVC |
 | `EXPORTER_K8S_CLIENT_QPS` | `50` | K8s client QPS; sized for CRD-write fanout (10× client-go default) |
 | `EXPORTER_K8S_CLIENT_BURST` | `100` | K8s client burst |
+| `EXPORTER_LIST_RENDER_CONCURRENCY` | `2` | List renders running at once per list route. Concurrent requests for the same list share one render; a request waits for a slot up to its 20 s list deadline, then gets 503 with `Retry-After` |
 | `SNAPSHOT_GC_INTERVAL_SEC` | `3600` | Sweep the snapshot PVC for files no Application CR references and older than 1 h (`minimal` 7200, `performance` 900; `0` = off). One replica sweeps per interval. Also drives the reports orphan sweep; `0` disables both |
 | `REPORTS_PATH` | `/reports` | Filesystem mount path for protection plan report files |
 | `BOOTSTRAP_ADMIN` | `{{ .Values.app.auth.bootstrap.admin }}` (tpl) | Same email as auth; a session may not create or edit a user with it (403), see [First admin](../../docs/INSTALL.md#2-first-admin) |
@@ -311,6 +314,7 @@ Misc:
 |---|---|---|
 | `REST_EXPORTER_DURATION_LOG_ENABLED` | `"true"` | Log REST → exporter call durations |
 | `REST_EXPORTER_DURATION_LOG_DEDUP_SEC` | `10` | Dedup window for the duration logs |
+| `SELF_MONITORING_ENABLED` | `{{ .Values.app.selfMonitoring.enabled }}` (tpl) | Set from `app.selfMonitoring.enabled`; `false` excludes Telark's own namespace from discovery. See [Self-monitoring](../../docs/INSTALL.md#self-monitoring) |
 
 Insights page index (see [Insights page](#insights-page)):
 

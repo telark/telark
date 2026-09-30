@@ -72,6 +72,9 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout telark repo (for local actions)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Checkout Package Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -119,27 +122,21 @@ jobs:
           echo "Found latest release tag: $latest_tag"
           echo "latest_tag=$latest_tag" >> "$GITHUB_OUTPUT"
 
+      - name: Calculate next version
+        id: next
+        uses: ./.github/actions/semver-bump
+        with:
+          version: ${{ steps.get_tag.outputs.latest_tag }}
+          bump: ${{ github.event.inputs.build_type || 'patch' }}
+
       - name: Bump version
         id: bump
         env:
-          LATEST_TAG: ${{ steps.get_tag.outputs.latest_tag }}
-          BUILD_TYPE: ${{ github.event.inputs.build_type || 'patch' }}
+          NEXT_VERSION: ${{ steps.next.outputs.next_version }}
           SOURCE_BRANCH: ${{ github.event.inputs.branch || 'main' }}
         run: |
           cd package
-          version=${LATEST_TAG#v}
-          IFS='.' read -r major minor patch <<< "$version"
-
-          case "$BUILD_TYPE" in
-            major)
-              major=$((major + 1)); minor=0; patch=0 ;;
-            minor)
-              minor=$((minor + 1)); patch=0 ;;
-            patch|*)
-              patch=$((patch + 1)) ;;
-          esac
-
-          new_tag="v${major}.${minor}.${patch}"
+          new_tag="v${NEXT_VERSION}"
 
           # Anything off main is a pre-release: semver ranks it below the plain
           # version and `go get @latest` skips it, so it cannot become the

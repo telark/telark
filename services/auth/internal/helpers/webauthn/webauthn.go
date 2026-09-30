@@ -289,9 +289,9 @@ func FinishRegistration(
 		return nil, false, false, errors.New(string(constants.ErrChallengeNotFound))
 	}
 
-	bodyBytes, err := io.ReadAll(r.Body)
+	bodyBytes, err := sharedhelper.ReadRequestBody(r)
 	if err != nil {
-		return nil, false, false, fmt.Errorf(string(constants.ErrFailedReadRequestBody), err)
+		return nil, false, false, err
 	}
 
 	attestationObjB64, clientDataJSONB64, credentialIDB64, err := extractRegistrationData(bodyBytes)

@@ -10,9 +10,6 @@ import (
 	"github.com/telark/exporter/internal/exporters/generics"
 	"github.com/telark/exporter/internal/utils/concurrency"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
-	"github.com/telark/rest/response"
-	requestutils "github.com/telark/rest/utils/request"
-	responseutils "github.com/telark/rest/utils/response"
 )
 
 func PatchResource(w http.ResponseWriter, r *http.Request, resourceMetadata metadata.Metadata) {
@@ -23,10 +20,8 @@ func PatchResource(w http.ResponseWriter, r *http.Request, resourceMetadata meta
 		return
 	}
 
-	patchData, err := requestutils.ParseRequestBody(r)
+	patchData, err := sharedutils.GetSpec(w, r)
 	if err != nil {
-		msg := fmt.Sprintf(string(errors.ErrRestParseRequestBody), err)
-		responseutils.LogAndSendResponse(w, http.StatusUnprocessableEntity, response.OperationError, msg, nil, err)
 		return
 	}
 

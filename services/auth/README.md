@@ -42,12 +42,13 @@ flowchart LR
 ## Responsibilities
 
 - **Passkey auth:** WebAuthn registration and assertion (login start/finish), passkey CRUD.
-- **Google OIDC:** token verification against Google's JWKS, fetched live (`EGRESS_ALLOWED=true`) or from a pasted key set for air-gapped clusters. The token's subject picks the user; a first login with no stored subject attaches the identity by email only when exactly one user carries that email (409 otherwise). Full admin-config + login flow: **[OIDC.md](OIDC.md)**.
+- **Google OIDC:** token verification against Google's JWKS, fetched live (`egressAllowed` in the TelarkConfig `oidc` block) or from a pasted key set for air-gapped clusters (`OIDC_TRUST_FILE`). The token's subject picks the user; a first login with no stored subject attaches the identity by email only when exactly one user carries that email and that account has no identity yet (409 otherwise). A login that resolves to the bootstrap admin, by subject or by email, is refused (403). Full admin-config + login flow: **[OIDC.md](OIDC.md)**.
 - **Sessions:** issue and validate (`X-Session-Token`); sessions are `Session` CRs written through exporter. An expired session is refused on use, and a user's expired sessions are deleted when that user gets a new session; there is no global sweeper. A session the exporter reports as expired (410) answers 401, never 503; only an unreachable exporter is an outage. No login path mints a session for a user being deleted or whose account is not active (403).
-- **Cleanup cascade:** deleting a user, group or role through the cleanup API clears every back-reference before the finalizer is dropped; a user's sessions are deleted first, so revoked access does not outlive the deletion. The route requires Owner on the scope and honours the `deleteuser` / `deletegroup` / `deleterole` deny rules; an id the exporter no longer has answers 404. A failed pass is retried with exponential backoff (`RECONCILE_BACKOFF_INITIAL_SECONDS` doubling up to `RECONCILE_BACKOFF_MAX_SECONDS`, capped by `CLEANUP_XCLAIM_MIN_IDLE_SECONDS`), a job whose worker died is reclaimed once it has idled past that threshold, and the dead-letter stream is capped at 1000 entries.
+- **Cleanup cascade:** deleting a user, group or role through the cleanup API clears every back-reference before the finalizer is dropped; a user's sessions and passkeys are deleted first, so revoked access does not outlive the deletion. The route requires Owner on the scope and honours the `deleteuser` / `deletegroup` / `deleterole` deny rules; an id the exporter no longer has answers 404. A failed pass is retried with exponential backoff (`RECONCILE_BACKOFF_INITIAL_SECONDS` doubling up to `RECONCILE_BACKOFF_MAX_SECONDS`, capped by `CLEANUP_XCLAIM_MIN_IDLE_SECONDS`), a job whose worker died is reclaimed once it has idled past that threshold, and the dead-letter stream is capped at 1000 entries.
 - **User deletion rules:** a user never deletes their own account; bootstrap users (`bootstrap: true` on the user record) are never deleted through the API (403); a caller below Admin targeting either a bootstrap user or an administrator (Admin on ALL, direct or via a group, suspended or not) is answered 404; any other Admin may delete an administrator. Internal callers are not gated here; the exporter refuses (409) a delete that would leave no active Admin.
-- **Role model:** reconcile authorization resources. OIDC and passkey self-registration always create a ReadOnly account without the `bootstrap` marker, even for the `BOOTSTRAP_ADMIN` email; bare-email passkey registration refuses that email. Only `break-glass` grants the bootstrap admin its Admin role and marker.
-- **Provisioning policy:** `SELF_REGISTRATION_ENABLED` gates the passkey path only; OIDC users are always auto-provisioned. A bare email opens a registration only for an account that does not exist yet; an existing account adds a passkey through its session or a one-time enrolment link.
+- **Role and group deletion rules:** deleting a role, or a group, takes its levels from every holder, so each level of the role (or of every role the group assigns) must be within the caller's own on that scope or on ALL; otherwise 403 (`role <name> cannot be changed, removed or deleted: it grants <level> on <scope>, above your own level on that scope`). An Admin on ALL may delete any role or group. A role or group already gone passes to the exporter (404); internal callers are not gated here.
+- **Role model:** reconcile authorization resources. OIDC and passkey self-registration always create a ReadOnly account without the `bootstrap` marker, even for the `BOOTSTRAP_ADMIN` email; bare-email passkey registration refuses that email. Only `break-glass` grants the bootstrap admin its Admin role and marker, and it drops any non-passkey identity from every account it promotes, so no OIDC binding survives: the bootstrap admin signs in with a passkey only.
+- **Provisioning policy:** `SELF_REGISTRATION_ENABLED` gates the passkey path only; OIDC users are always auto-provisioned. A bare email opens a registration only for an account that does not exist yet, and that account is created only when the ceremony finishes with a verified passkey (an abandoned start leaves nothing behind); an existing account adds a passkey through its session or a one-time enrolment link.
 - **Ops subcommands:** `backfill-finalizers` (migrate/seed auth data) and `break-glass --email <email> [--enroll]` (emergency admin access; `--enroll` creates the account when missing and prints a one-time enrolment token, the operator-run way to enrol the first administrator on a passkey-only install) via the binary's `cmd` dispatch.
 
 ## Layout
@@ -57,9 +58,9 @@ flowchart LR
 | `internal/routes` | HTTP route registration |
 | `internal/handlers/{auth,passkey,oidc,authorisation,config,cleanup,status}` | Request handlers per domain |
 | `internal/helpers/{webauthn,oidc,auth,redis,shared}` | WebAuthn/OIDC logic, Redis access, shared helpers |
-| `internal/controllers/cleanup` · `internal/coordination/cleanup` | Deletion cleanup reconciler (sessions and back-references of deleted users, groups and roles) + its coordination |
+| `internal/controllers/cleanup` · `internal/coordination/cleanup` | Deletion cleanup reconciler (sessions, passkeys and back-references of deleted users, groups and roles) + its coordination |
 | `internal/clients` | Exporter REST client wrappers |
-| `internal/cmd/{backfill,breakglass}` | CLI subcommands |
+| `cmd` | CLI subcommands ([cmd/README.md](cmd/README.md)) |
 | `internal/authz` | Per-route authorization requirements |
 
 ## Dependencies
@@ -74,23 +75,27 @@ Full reference: [chart README](../../charts/telark/README.md#servicesauthenv). K
 
 | Variable | Default | Description |
 |---|---|---|
-| `RP_ID` / `RP_NAME` / `RP_ORIGIN` | `localhost` / `Dashboard App` / `http://localhost:3000` | WebAuthn relying-party identity |
-| `SELF_REGISTRATION_ENABLED` | `true` (chart: `false`) | `false` blocks new passkey registration; a self-registered account is always ReadOnly |
+| `RP_NAME` | — (required) | WebAuthn relying-party display name |
+| `RP_ID` / `RP_ORIGIN` | — | WebAuthn relying-party id / allowed origins; when empty, both are resolved from the request host |
+| `SELF_REGISTRATION_ENABLED` | `false` | `true` allows new passkey registration by bare email; a self-registered account is always ReadOnly |
 | `CHALLENGE_TIMEOUT` / `SESSION_EXPIRY` | `60` (s) / `24` (h) | Challenge / session TTLs |
 | `BOOTSTRAP_ADMIN` | — | The bootstrap admin's email, enrolled and recovered with `break-glass --enroll` |
-| `GOOGLE_CLIENT_ID` | — | Google OAuth client id |
-| `EGRESS_ALLOWED` | `true` | `false` = offline JWKS from `GOOGLE_OIDC_JWK_JSON` |
 | `OIDC_TRUST_FILE` | `/etc/telark/oidc/googleJwkJson` | Pasted Google JWK set, mounted from the Secret `telark-oidc-trust-secret`; re-read when it changes |
-| `REDIS_DB` | `1` | Redis DB index |
+| `REDIS_DB` | `0` (chart: `1`) | Redis DB index |
+
+The Google client id and the egress mode are not env vars: they live in the TelarkConfig `oidc` block, set through `PATCH auth/oidc/config` ([OIDC.md](OIDC.md)). The cleanup tunables (`RECONCILE_*`, `CLEANUP_*`, `BACKFILL_*`) take positive integers; a malformed, zero or negative value falls back to its default with a warning.
 
 ## API
 
 REST under `/api/v1/auth/`: login `start`/`finish`, `logout`, passkeys (`GET`/`POST auth/passkeys`,
 `GET`/`PATCH`/`DELETE auth/passkeys/{credentialId}`, `auth/passkeys/enroll-link`), OIDC login and
 config, permissions, and the deletion cascade (`DELETE auth/{users,groups,accessroles}/{id}`); status
-probes at `/api/v1/status/{live,ready}`. All passkey and session-scoped calls require the
-`X-Session-Token` header. auth stores passkeys and sessions (`Passkey`, `Session` CRs) through the
-exporter's `internal/auth/*` routes.
+probes at `/api/v1/status/{live,ready}`. Passkey and session-scoped calls require the
+`X-Session-Token` header, except `POST auth/passkeys`, which also finishes a registration opened
+by `register/start` (with an enrolment token or a bare email) and requires `X-Device-Name` and
+`X-Device-Type`. `PATCH`/`DELETE auth/passkeys/{credentialId}` relay the exporter's refusal: 404
+for an unknown credential or another account's (indistinguishable), 400 for the last passkey. A request body over 1 MiB answers 413. auth
+stores passkeys and sessions (`Passkey`, `Session` CRs) through the exporter's `internal/auth/*` routes.
 
 ## Build & run
 

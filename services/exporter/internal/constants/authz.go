@@ -41,7 +41,9 @@ const (
 	ErrAuthzBootstrapEmailReserved    = "this email belongs to a bootstrap administrator managed by the chart"
 	ErrAuthzRoleLevelExceedsCaller    = "a role cannot grant a level above your own on that scope"
 	ErrAuthzAssignedRoleExceedsCaller = "role %s cannot be assigned: it grants %s on %s, above your own level on that scope"
+	ErrAuthzRemovedRoleExceedsCaller  = "role %s cannot be changed, removed or deleted: it grants %s on %s, above your own level on that scope"
 	ErrAuthzSnapshotManifestDenied    = "you do not have permission to view snapshot manifests"
+	ErrAuthzSnapshotViewDenied        = "you do not have permission to view snapshots"
 )
 
 // The application fields a session may patch; everything else is written by
@@ -67,6 +69,7 @@ const (
 	JSONTagOptionSep    = ","
 	BodyFieldPathSep    = "."
 	ErrBodyFieldUnknown = "request body field %q is not recognized (field names are case-sensitive)"
+	ErrBodyRefIDInvalid = "invalid %s: every id must be a non-empty string"
 )
 
 const (
@@ -75,9 +78,16 @@ const (
 )
 
 const (
-	FieldRules                = "rules"
-	FieldProtection           = "protection"
-	ErrAuthzRoleReservedField = "built-in type and protection flags of a role are managed by the platform"
+	FieldRules                   = "rules"
+	FieldProtection              = "protection"
+	FieldCategoryRef             = "categoryRef"
+	FieldDeletedAt               = "deletedAt"
+	FieldPreventModification     = "preventModification"
+	FieldPreventScopeChanges     = "preventScopeChanges"
+	FieldLockName                = "lockName"
+	FieldLockCategory            = "lockCategory"
+	ErrAuthzRoleReservedField    = "built-in type and protection flags of a role are managed by the platform"
+	ErrAuthzRoleProtectionDenied = "only the role's creator or an administrator on ALL can change its protection"
 )
 
 // Changing any of these can put a role's levels back into effect.
@@ -85,6 +95,8 @@ var RoleLevelFields = []string{FieldScopesAndPermissions, FieldStatus, FieldVali
 
 // Changing any of these can take a user's administrator rights away.
 var AdminFields = []string{FieldStatus, FieldRoleRefs, FieldGroupRefs}
+
+var RefFields = []string{FieldUserRefs, FieldRoleRefs, FieldGroupRefs}
 
 const (
 	GenerationBase = 10

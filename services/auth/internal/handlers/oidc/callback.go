@@ -96,7 +96,7 @@ func resolveOIDCUser(w http.ResponseWriter, claims *oidchelper.GoogleClaims) (*u
 	userClient := clients.GetUserClient()
 	user, err := userClient.GetUserByIdentity(constants.IdentityProviderGoogle, claims.Issuer, claims.Subject)
 	if err == nil {
-		return user, true
+		return refuseBootstrap(w, user)
 	}
 	if !isNotFoundError(err) {
 		shared.HandleError(w, err, http.StatusInternalServerError,
@@ -105,6 +105,10 @@ func resolveOIDCUser(w http.ResponseWriter, claims *oidchelper.GoogleClaims) (*u
 		return nil, false
 	}
 	user, err = jitProvisionUser(userClient, claims)
+	if errors.Is(err, ErrEmailReserved) {
+		refuseReserved(w, claims.Email)
+		return nil, false
+	}
 	if err != nil {
 		status := http.StatusInternalServerError
 		if errors.Is(err, ErrEmailAmbiguous) || errors.Is(err, ErrEmailAlreadyBound) {
@@ -116,5 +120,20 @@ func resolveOIDCUser(w http.ResponseWriter, claims *oidchelper.GoogleClaims) (*u
 			fmt.Sprintf(string(constants.ErrOIDCJITProvisioningFailed), err))
 		return nil, false
 	}
-	return user, true
+	return refuseBootstrap(w, user)
+}
+
+// Every Google login resolves here, by subject or by email: the bootstrap admin
+// signs in with a passkey only, so an identity bound to it before it was promoted never logs in.
+func refuseBootstrap(w http.ResponseWriter, user *userresource.User) (*userresource.User, bool) {
+	if !user.Bootstrap {
+		return user, true
+	}
+	refuseReserved(w, user.Email)
+	return nil, false
+}
+
+func refuseReserved(w http.ResponseWriter, email string) {
+	shared.HandleError(w, ErrEmailReserved, http.StatusForbidden,
+		fmt.Sprintf(string(constants.LogOIDCBootstrapRefused), shared.IdentityHash(email)))
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -17,12 +18,19 @@ import (
 	userresource "github.com/telark/data/resources/user"
 )
 
-type ConflictError struct {
+// The exporter's own status and message, so a handler can relay a refusal
+// (not found, last passkey, conflict) instead of flattening it into a 500.
+type ProxyError struct {
+	Status  int
 	Message string
 }
 
-func (e *ConflictError) Error() string {
+func (e *ProxyError) Error() string {
 	return e.Message
+}
+
+func proxyError(status int, wrapped string) error {
+	return &ProxyError{Status: status, Message: shared.ExporterMessage(wrapped)}
 }
 
 func UpdatePasskeyLastUsed(userID string, credentialID []byte) error {
@@ -98,23 +106,23 @@ func ownUser(userID, email string) (*userresource.User, error) {
 // A bare email proves nothing, so it may only open a brand-new account: an
 // existing one needs a session or an enrollment token, and a bootstrap email is
 // enrolled by the operator (break-glass), never by whoever claims it first.
-func userForEmail(email string) (*userresource.User, error) {
+func userForEmail(email string) (*userresource.User, string, error) {
 	if err := shared.ValidateEmail(email); err != nil {
-		return nil, err
+		return nil, constants.EmptyString, err
 	}
 	if config.IsBootstrapAdmin(email) {
-		return nil, errors.New(string(constants.ErrReservedEmail))
+		return nil, constants.EmptyString, errors.New(string(constants.ErrReservedEmail))
 	}
 
 	userClient := clients.GetUserClient()
 	_, err := GetUserWithErrorHandling(email, userClient.GetUserByEmail)
 	if err == nil {
-		return nil, errors.New(string(constants.ErrRegistrationNeedsProof))
+		return nil, constants.EmptyString, errors.New(string(constants.ErrRegistrationNeedsProof))
 	}
 	if !shared.IsError(err, constants.ErrUserNotFound) {
-		return nil, err
+		return nil, constants.EmptyString, err
 	}
-	return JitProvisionUserByEmail(userClient, email)
+	return storePendingUser(email)
 }
 
 // Strongest proof wins: session, then one-time enrollment token (reported as
@@ -148,11 +156,11 @@ func GetUserForRegistrationStart(r *http.Request) (
 		return user, userID, true, nil
 	}
 
-	user, err = userForEmail(email)
+	user, userID, err = userForEmail(email)
 	if err != nil {
 		return nil, constants.EmptyString, false, err
 	}
-	return user, user.ID, false, nil
+	return user, userID, false, nil
 }
 
 // The identity headers are stripped by the authz layer, so for a session-less
@@ -172,6 +180,13 @@ func GetUserForRegistration(
 	ownerID, enrolled, err := ceremonyOwner(r)
 	if err != nil {
 		return nil, constants.EmptyString, err
+	}
+	pending, found, err := pendingUser(ownerID)
+	if err != nil {
+		return nil, constants.EmptyString, err
+	}
+	if found {
+		return pending, ownerID, nil
 	}
 
 	user, err := GetUserByIDWithErrorHandling(ownerID)
@@ -247,10 +262,7 @@ func CreatePasskey(userID string, passkey *authdata.Passkey) (any, error) {
 	passkeyClient := clients.GetPasskeyClient()
 	resp := passkeyClient.CreatePasskeyByUser(userID, passkey)
 	if resp.Status >= constants.HTTPBadRequest {
-		if resp.Status == http.StatusConflict {
-			return nil, &ConflictError{Message: resp.Message}
-		}
-		return nil, fmt.Errorf(string(constants.ErrFailedProxyRequest), resp.Message)
+		return nil, proxyError(resp.Status, resp.Message)
 	}
 	return resp.Data, nil
 }
@@ -259,16 +271,41 @@ func UpdatePasskey(userID, credentialID string, updateData map[string]any) (any,
 	passkeyClient := clients.GetPasskeyClient()
 	resp := passkeyClient.PatchPasskeyByUserAndCredentialID(userID, credentialID, updateData)
 	if resp.Status >= constants.HTTPBadRequest {
-		return nil, fmt.Errorf(string(constants.ErrFailedProxyRequest), resp.Message)
+		return nil, proxyError(resp.Status, resp.Message)
 	}
 	return resp.Data, nil
 }
 
+// Both the user's own delete and the orphan cleanup come through here, so the
+// identity the passkey was registered with is dropped in one place.
 func DeletePasskey(userID, credentialID string, forceLastDelete bool) error {
 	passkeyClient := clients.GetPasskeyClient()
 	resp := passkeyClient.DeletePasskeyByUserAndCredentialID(userID, credentialID, forceLastDelete)
 	if resp.Status >= constants.HTTPBadRequest {
-		return fmt.Errorf(string(constants.ErrFailedProxyRequest), resp.Message)
+		return proxyError(resp.Status, resp.Message)
 	}
+	detachPasskeyIdentity(userID, credentialID)
 	return nil
+}
+
+// The passkey is already gone, so a failed detach is logged rather than reported:
+// the stale identity only keeps a later Google sign-in from attaching by email.
+func detachPasskeyIdentity(userID, credentialID string) {
+	user, err := GetUserByIDWithErrorHandling(userID)
+	if err != nil {
+		if !shared.IsError(err, constants.ErrUserNotFound) {
+			lg.Warn(fmt.Sprintf(string(constants.ErrFailedDetachIdentity), shared.IdentityHash(userID), err))
+		}
+		return
+	}
+	kept := slices.DeleteFunc(slices.Clone(user.Identities), func(identity *userresource.UserIdentity) bool {
+		return identity != nil && identity.Provider == constants.IdentityProviderPasskey && identity.Subject == credentialID
+	})
+	if len(kept) == len(user.Identities) {
+		return
+	}
+	resp := clients.GetUserClient().PatchUserByID(userID, map[string]any{constants.UserFieldIdentities: kept})
+	if resp.Status != http.StatusOK {
+		lg.Warn(fmt.Sprintf(string(constants.ErrFailedDetachIdentity), shared.IdentityHash(userID), resp.Status))
+	}
 }

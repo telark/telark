@@ -377,9 +377,9 @@ def test_change_correlation_adds_gen_ref_and_fact():
         c = _one([_status(ready=1, pods=[pod])], changes=[change])
         assert "gen:42" not in [e.ref for e in c.evidence] and "began" not in c.summary
 
-    # An entry without field changes still correlates; missing values read as none.
+    # An entry without field changes changed nothing: no correlation. Missing values read as none.
     c = _one([_status(ready=1, pods=[pod])], changes=[_change(changes=[])])
-    assert "10 min after change gen 42" in c.facts
+    assert "gen:42" not in [e.ref for e in c.evidence] and "began" not in c.summary
     c = _one([_status(ready=1, pods=[pod])], changes=[_change(changes=[
         {"field": "env.X", "changeType": "added", "oldValue": None, "newValue": "1"}])])
     assert "10 min after change gen 42: env.X none→1" in c.facts
@@ -393,9 +393,9 @@ def test_correlation_cites_the_cause_not_the_health_field():
     c = _one([_status(ready=1, pods=[pod])], changes=[_change(changes=[health, command])])
     assert "10 min after change gen 42: command[2] sleep 36000→exit 1" in c.facts
     assert c.params["change"] == "command[2] sleep 36000→exit 1" and "health" not in c.summary
-    # Only the health field: the generation alone.
+    # Only the health field (the app went down with no write): nothing to cite.
     c = _one([_status(ready=1, pods=[pod])], changes=[_change(changes=[health])])
-    assert "10 min after change gen 42" in c.facts and "change" not in c.params
+    assert "gen:42" not in [e.ref for e in c.evidence] and "began" not in c.summary and "generation" not in c.params
 
 
 def test_correlation_measures_to_the_incident_start():
@@ -405,16 +405,99 @@ def test_correlation_measures_to_the_incident_start():
     backoff = {**_event("BackOff", f"Back-off restarting failed container api in pod {POD}"), "first": first}
     c = _one([_status(ready=1, pods=[pod])], [backoff], changes=[_change(minutes_ago=10)])
     assert "It began 1 min after change gen 42" in c.summary
-    # The earliest matched event counts; one that predates the change reads as 0 min.
+    # The earliest matched event counts; one that predates the change by clock skew only reads as 0 min.
     later = {**_event("BackOff", "Back-off restarting failed container api", count=2), "first": LAST}
     c = _one([_status(ready=1, pods=[pod])], [later, backoff], changes=[_change(minutes_ago=10)])
     assert "It began 1 min after change gen 42" in c.summary
-    c = _one([_status(ready=1, pods=[pod])], [backoff], changes=[_change(minutes_ago=1)])
+    c = _one([_status(ready=1, pods=[pod])], [backoff], changes=[_change(minutes_ago=8.5)])
     assert "It began 0 min after change gen 42" in c.summary
     # No dated symptom (a regression seen only in the replica count): the run's clock, as before.
     c = _one([_status(desired=2, ready=1)], overview=DEGRADED, changes=[_change(minutes_ago=10, incident=False,
                                                                                 change_class="config")])
     assert "It began 10 min after change gen 42" in c.summary
+
+
+def test_correlation_skips_a_change_made_after_the_incident_began():
+    # Live (F8-c): crash-looping since gen 2, then paused (gen 3); the pause was cited as the cause.
+    pod = _pod(restarts=5, waiting="CrashLoopBackOff", last="Error", code=1)
+    first = datetime.fromtimestamp(NOW.timestamp() - 9 * 60, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    backoff = {**_event("BackOff", f"Back-off restarting failed container api in pod {POD}"), "first": first}
+    pause = _change(minutes_ago=3, generation=43, incident=False, change_class="deployment",
+                    changes=[{"field": "spec.paused", "changeType": "updated", "newValue": "true"}])
+    c = _one([_status(ready=0, pods=[pod])], [backoff], changes=[pause, _change(minutes_ago=10)])
+    refs = [e.ref for e in c.evidence]
+    assert "gen:42" in refs and "gen:43" not in refs and c.params["generation"] == "42"
+    assert "It began 1 min after change gen 42" in c.summary and "paused" not in c.summary
+    # Nothing precedes the incident: no cause at all.
+    c = _one([_status(ready=0, pods=[pod])], [backoff], changes=[pause])
+    assert "gen:43" not in [e.ref for e in c.evidence] and "began" not in c.summary and "generation" not in c.params
+
+
+def test_correlation_cites_the_re_break_not_the_earlier_fix():
+    # Live (L-6): fixed at gen 4, re-broken at gen 5; the new pods' events start seconds after gen 5.
+    pod = _pod(restarts=1, waiting="CrashLoopBackOff", last="Error", code=1)
+    fix = _change(minutes_ago=10, generation=4, incident=False, change_class="deployment")
+    rebreak = _change(minutes_ago=2.1, generation=5)
+    backoff = _event("BackOff", f"Back-off restarting failed container api in pod {POD}")
+    c = _one([_status(ready=1, pods=[pod])], [backoff], changes=[rebreak, fix])
+    assert c.params["generation"] == "5" and "It began 0 min after change gen 5" in c.summary
+
+
+def test_correlation_ignores_the_backoff_of_a_replaced_pod():
+    # Live (L-6 retest): a Recreate re-break at gen 9 left the gen-4 pod's BackOff (12 min old) in the event window;
+    # it dated the incident before gen 9, so the re-break was never cited.
+    new = "api-6c5d4-zx9vw"
+    first = datetime.fromtimestamp(NOW.timestamp() - 12 * 60, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    old = {**_event("BackOff", f"Back-off restarting failed container api in pod {POD}"), "first": first}
+    command = {"field": "command[2]", "changeType": "updated", "oldValue": "sleep 36000", "newValue": "exit 1"}
+    rebreak = _change(minutes_ago=2.1, generation=9, change_class="incident", changes=[command])
+    fresh = _event("BackOff", f"Back-off restarting failed container api in pod {new}", obj=f"Pod/{new}")
+    crashing = _pod(name=new, restarts=1, waiting="CrashLoopBackOff", last="Error", code=1)
+    # The new pod crash-loops (dated by its own BackOff), or has not crashed yet (the live run: the run's clock).
+    for pod, events, kind, minutes in ((crashing, [old, fresh], "crashloop", 0),
+                                       (_pod(name=new, phase="Pending"), [old], "config_change_regression", 2)):
+        run = _run()
+        run.min_generation = 9
+        run.pods_cache[("shop", "deployment/api")] = [{"metadata": {"name": new}}]
+        c = _one([_status(desired=1, ready=0, pods=[pod])], events, changes=[rebreak], run=run)
+        assert (c.kind, c.severity, c.params["generation"]) == (kind, "critical", "9")
+        assert f"It began {minutes} min after change gen 9: command[2]" in c.summary
+        assert _ref(old) not in [e.ref for e in c.evidence]
+
+
+def test_born_down_workload_cites_no_change():
+    # Live (D1-N1): discovery's gen-1 entry for an app first seen down holds only health none→down.
+    born = _change(minutes_ago=0.2, generation=1, change_class="incident", changes=[
+        {"field": "health", "changeType": "updated", "oldValue": None, "newValue": "down"}])
+    run = _run()
+    run.min_generation = 1
+    stuck = _pod(phase="Pending", waiting="CreateContainerConfigError")
+    c = _one([_status(desired=1, ready=0, pods=[stuck])], changes=[born], run=run)
+    assert (c.kind, c.reason, c.severity) == ("other", "other.container_config_error", "critical")
+    assert "gen:1" not in [e.ref for e in c.evidence] and "change" not in c.summary and "generation" not in c.params
+
+
+def test_a_change_made_during_an_open_outage_is_not_its_cause():
+    health = {"field": "health", "changeType": "updated", "oldValue": None, "newValue": "down"}
+    env = {"field": "envVarKey", "changeType": "updated", "oldValue": "a", "newValue": "b"}
+    edit = _change(minutes_ago=5, generation=2, incident=False, change_class="config", changes=[env])
+    # Born down (gen 1), then edited while still down, no dated symptom: the edit is no regression.
+    born = _change(minutes_ago=20, generation=1, change_class="incident", changes=[health])
+    stuck = _pod(phase="Pending", waiting="CreateContainerConfigError")
+    c = _one([_status(desired=1, ready=0, pods=[stuck])], changes=[edit, born])
+    assert (c.kind, c.reason) == ("other", "other.container_config_error") and "change" not in c.summary
+    # Broken at gen 4, a failed fix at gen 5 replaced the pod: the new pod's BackOff postdates gen 5; gen 4 is cited.
+    command = {"field": "command[2]", "changeType": "updated", "oldValue": "sleep 36000", "newValue": "exit 1"}
+    broke = _change(minutes_ago=10, generation=4, change_class="incident", changes=[health, command])
+    attempt = _change(minutes_ago=3, generation=5, incident=False, change_class="deployment")
+    crashing = _pod(restarts=1, waiting="CrashLoopBackOff", last="Error", code=1)
+    backoff = _event("BackOff", f"Back-off restarting failed container api in pod {POD}")
+    c = _one([_status(desired=1, ready=0, pods=[crashing])], [backoff], changes=[attempt, broke])
+    assert c.params["generation"] == "4" and "gen:5" not in [e.ref for e in c.evidence]
+    # A recovery closed the outage: a later change is a cause again.
+    recovered = {**_change(minutes_ago=6, generation=3, incident=False, change_class="recovery"), "isRecovery": True}
+    c = _one([_status(desired=2, ready=1)], overview=DEGRADED, changes=[edit, recovered, born])
+    assert (c.kind, c.params["generation"]) == ("config_change_regression", "2")
 
 
 def test_correlation_ignores_a_change_older_than_the_job():

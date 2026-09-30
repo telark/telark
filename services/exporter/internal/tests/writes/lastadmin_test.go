@@ -13,6 +13,7 @@ import (
 	"github.com/telark/exporter/internal/authz"
 	"github.com/telark/exporter/internal/constants"
 	sharedutils "github.com/telark/exporter/internal/utils/shared"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 )
 
 const (
@@ -54,14 +55,14 @@ func adminUser(t *testing.T, id string, roles, groups []string, bootstrap bool) 
 	return crSeedOf(t, v1alpha1.UserMetadata, id, userRecord(id, roles, groups, bootstrap))
 }
 
-func adminDirectory(t *testing.T, users ...seed) {
+func adminDirectory(t *testing.T, users ...seed) *dynamicfake.FakeDynamicClient {
 	t.Helper()
 	role := roledata.AccessRole{
 		Status:               roledata.RoleStatusActive,
 		ScopesAndPermissions: []roledata.ScopeAndPermissions{{Scope: roledata.ScopeAll, Level: roledata.PermissionLevelAdmin}},
 	}
 	group := groupdata.Group{RoleRefs: []string{adminRoleID}, UserRefs: []string{groupAdminUser}}
-	installFake(t, append(users,
+	return installFake(t, append(users,
 		crSeedOf(t, v1alpha1.AccessRoleMetadata, adminRoleID, role),
 		crSeedOf(t, v1alpha1.GroupMetadata, adminGroupID, group),
 		adminUser(t, plainUser, nil, nil, false),
@@ -137,7 +138,9 @@ func lastAdminCases() []lastAdminCase {
 			return []seed{direct(t), adminUser(t, groupAdminUser, nil, []string{adminGroupID}, false)}
 		}, func(w http.ResponseWriter) bool { return authz.GuardGroupDeleteLastAdmin(w, adminGroupID) }, true},
 		{"no admin to lose", func(*testing.T) []seed { return nil },
-			func(w http.ResponseWriter) bool { return authz.GuardUserDeleteLastAdmin(w, userRecord(plainUser, nil, nil, false)) }, true},
+			func(w http.ResponseWriter) bool {
+				return authz.GuardUserDeleteLastAdmin(w, userRecord(plainUser, nil, nil, false))
+			}, true},
 	}
 }
 

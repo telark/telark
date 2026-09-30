@@ -3,6 +3,7 @@ package authz
 import (
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	roledata "github.com/telark/data/resources/role"
@@ -46,6 +47,39 @@ func TestRestricted(t *testing.T) {
 				t.Fatalf("cache key blanked = %v, want %v", blanked, tt.want)
 			}
 		})
+	}
+}
+
+type generations map[string]string
+
+func (g generations) ListGeneration(resourceType string) string { return g[resourceType] }
+
+// Restricted callers share one entry apart from the full list; a write to any
+// input of who is hidden moves it.
+func TestRestrictedListKey(t *testing.T) {
+	gens := generations{}
+	key := authz.RestrictedListKey(gens, func(*http.Request) string { return cacheKey })
+	owner := requestAs(levels(roledata.ScopeUsers, roledata.PermissionLevelOwner))
+	reader := requestAs(as(userPlain, levels(roledata.ScopeUsers, roledata.PermissionLevelReadOnly)))
+
+	if key(requestAs(allAdmin())) != cacheKey || key(requestAs(internalIdentity)) != cacheKey {
+		t.Fatal("an unrestricted caller left the full list entry")
+	}
+	restricted := key(owner)
+	if restricted == constants.EmptyString || restricted == cacheKey || key(reader) != restricted {
+		t.Fatalf("restricted keys = %q, %q, want one entry apart from %q", restricted, key(reader), cacheKey)
+	}
+	for _, resourceType := range []string{constants.ResourceUser, constants.ResourceGroup, constants.ResourceRole} {
+		gens[resourceType] = strconv.Itoa(len(gens) + constants.DefaultIncrementValue)
+		moved := key(owner)
+		if moved == restricted {
+			t.Fatalf("a %s write left the restricted key at %q", resourceType, moved)
+		}
+		restricted = moved
+	}
+	blank := authz.RestrictedListKey(gens, func(*http.Request) string { return constants.EmptyString })
+	if got := blank(owner); got != constants.EmptyString {
+		t.Fatalf("uncacheable request got key %q", got)
 	}
 }
 

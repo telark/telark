@@ -60,6 +60,7 @@ Kubernetes: `>=1.30.0-0`
 | app.persistence.reportsSize | string | `"2Gi"` |  |
 | app.persistence.size | string | `"10Gi"` |  |
 | app.persistence.storageClass | string | `""` |  |
+| app.selfMonitoring.enabled | bool | `false` |  |
 | app.serviceDefaults.affinity | object | `{}` |  |
 | app.serviceDefaults.autoscaling.enabled | bool | `true` |  |
 | app.serviceDefaults.autoscaling.maxReplicas | int | `3` |  |
@@ -156,7 +157,7 @@ Kubernetes: `>=1.30.0-0`
 | kyverno.reportsController.resources.requests.cpu | string | `"100m"` |  |
 | kyverno.reportsController.resources.requests.memory | string | `"128Mi"` |  |
 | kyverno.webhooksCleanup.enabled | bool | `false` |  |
-| metrics-server.args[0] | string | `"--kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname"` |  |
+| metrics-server.args | list | `[]` |  |
 | metrics-server.enabled | bool | `true` |  |
 | metrics-server.resources.limits.cpu | string | `"200m"` |  |
 | metrics-server.resources.limits.memory | string | `"400Mi"` |  |
@@ -201,9 +202,6 @@ Kubernetes: `>=1.30.0-0`
 | nats.persistence.enabled | bool | `true` |  |
 | nats.persistence.path | string | `"/data"` |  |
 | nats.persistence.size | string | `"4Gi"` |  |
-| nats.securityContext.fsGroup | int | `1000` |  |
-| nats.securityContext.runAsGroup | int | `1000` |  |
-| nats.securityContext.runAsUser | int | `1000` |  |
 | nats.service.type | string | `"ClusterIP"` |  |
 | ollama.extraEnv[0].name | string | `"OLLAMA_NO_CLOUD"` |  |
 | ollama.extraEnv[0].value | string | `"true"` |  |
@@ -366,6 +364,7 @@ Kubernetes: `>=1.30.0-0`
 | services.discovery.env.REDIS_RETRY_INTERVAL_SEC | string | `"5"` |  |
 | services.discovery.env.REST_EXPORTER_DURATION_LOG_DEDUP_SEC | string | `"10"` |  |
 | services.discovery.env.REST_EXPORTER_DURATION_LOG_ENABLED | string | `"true"` |  |
+| services.discovery.env.SELF_MONITORING_ENABLED | string | `"{{ .Values.app.selfMonitoring.enabled }}"` |  |
 | services.discovery.env.SNAPSHOT_WRITE_MAX_ATTEMPTS | string | `"5"` |  |
 | services.discovery.env.SNAPSHOT_WRITE_RETRY_INTERVAL_SEC | string | `"2"` |  |
 | services.discovery.name | string | `"discovery-service"` |  |
@@ -384,6 +383,7 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.env.CORS_ALLOWED_ORIGINS | string | `""` |  |
 | services.exporter.env.EXPORTER_K8S_CLIENT_BURST | string | `"100"` |  |
 | services.exporter.env.EXPORTER_K8S_CLIENT_QPS | string | `"50"` |  |
+| services.exporter.env.EXPORTER_LIST_RENDER_CONCURRENCY | string | `"2"` |  |
 | services.exporter.env.OIDC_TRUST_SECRET_NAME | string | `"{{ include \"telark.oidcTrustSecretName\" . }}"` |  |
 | services.exporter.env.REPORTS_PATH | string | `"/reports"` |  |
 | services.exporter.env.SNAPSHOTS_PATH | string | `"/snapshots"` |  |
@@ -426,6 +426,7 @@ Kubernetes: `>=1.30.0-0`
 | services.ui.podSecurityContext.runAsUser | int | `101` |  |
 | services.ui.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | services.ui.repository | string | `"ui"` |  |
+| services.ui.serviceToken | bool | `false` |  |
 | services.ui.terminationGracePeriodSec | int | `30` |  |
 | services.ui.useRedis | bool | `false` |  |
 | services.ui.volumeMounts[0].name | string | `"nginx-cache"` |  |

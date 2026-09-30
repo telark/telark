@@ -85,7 +85,8 @@ func (d *Detector) evaluateApp(ctx context.Context, app *appresource.Application
 	lg := constants.GetLogger(constants.LoggerPrefixDiscoveryManager)
 	name := app.Name
 
-	if r := railResourcesEmpty(app); !r.pass && !namespacesGone(ctx, d.kube, app) && !informers.AppVanished(ctx, name) {
+	if r := railResourcesEmpty(app); !r.pass && !HiddenPlatformApp(app) && !namespacesGone(ctx, d.kube, app) &&
+		!informers.AppVanished(ctx, name) {
 		d.handleNonEmpty(ctx, name, r)
 		return
 	}

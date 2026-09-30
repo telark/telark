@@ -21,6 +21,7 @@ import (
 var (
 	ErrEmailAmbiguous    = errors.New(string(constants.ErrOIDCEmailAmbiguous))
 	ErrEmailAlreadyBound = errors.New(string(constants.ErrOIDCEmailAlreadyBound))
+	ErrEmailReserved     = errors.New(string(constants.ErrReservedEmail))
 )
 
 func isNotFoundError(err error) bool {
@@ -56,12 +57,13 @@ func UserForEmail(users []*userresource.User, email string) (*userresource.User,
 	case constants.DefaultInitValue:
 		return nil, nil
 	case constants.DefaultIncrementValue:
+		if matches[constants.DefaultInitValue].Bootstrap {
+			return nil, ErrEmailReserved
+		}
 		// The stored email was never verified, so a Google subject binds to it only
 		// while the account has no identity: a passkey account that claimed a
 		// colleague's mailbox must not capture the colleague's first Google login.
-		// The bootstrap admin signs in with a passkey only, so an IdP email claim never reaches Admin.
-		if matches[constants.DefaultInitValue].Bootstrap ||
-			len(matches[constants.DefaultInitValue].Identities) > constants.DefaultInitValue {
+		if len(matches[constants.DefaultInitValue].Identities) > constants.DefaultInitValue {
 			return nil, ErrEmailAlreadyBound
 		}
 		return matches[constants.DefaultInitValue], nil

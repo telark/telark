@@ -9,7 +9,7 @@ import (
 
 	webauthnlib "github.com/go-webauthn/webauthn/webauthn"
 
-	"github.com/telark/auth/internal/clients"
+	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
 	authhelper "github.com/telark/auth/internal/helpers/auth"
 	"github.com/telark/auth/internal/helpers/shared"
@@ -143,9 +143,9 @@ func TestValidateDeviceHeaders(t *testing.T) {
 	}
 }
 
-// The 409 conflict carrier surfaces the upstream message verbatim.
-func TestConflictError(t *testing.T) {
-	err := &authhelper.ConflictError{Message: "already exists"}
+// The exporter's refusal is carried with its status and its message verbatim.
+func TestProxyError(t *testing.T) {
+	err := &authhelper.ProxyError{Status: http.StatusConflict, Message: "already exists"}
 	testutil.Equal(t, "message", err.Error(), "already exists")
 }
 
@@ -196,8 +196,13 @@ func TestClientHelpersFailClosed(t *testing.T) {
 	if _, err := authhelper.CheckUserHasExistingPasskeys(testUserID); err == nil {
 		t.Fatal("CheckUserHasExistingPasskeys should fail with no backend")
 	}
-	if _, err := authhelper.JitProvisionUserByEmail(clients.GetUserClient(), testEmail); err == nil {
-		t.Fatal("JitProvisionUserByEmail should fail with no backend")
+	t.Setenv(constants.EnvSelfRegistrationEnabled, "true")
+	t.Setenv(constants.EnvBootstrapAdmin, constants.EmptyString)
+	if _, err := config.LoadBootstrapConfig(); err != nil {
+		t.Fatalf("LoadBootstrapConfig: %v", err)
+	}
+	if _, err := authhelper.CreatePendingUser(&userresource.User{Email: testEmail}); err == nil {
+		t.Fatal("CreatePendingUser should fail with no backend")
 	}
 	if err := authhelper.UpdatePasskeyLastUsed(testUserID, []byte{1, 2, 3}); err == nil {
 		t.Fatal("UpdatePasskeyLastUsed should fail with no backend")

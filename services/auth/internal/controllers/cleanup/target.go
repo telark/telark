@@ -24,7 +24,7 @@ var targetRefs = map[string][]refSpec{
 }
 
 var targetPurges = map[string]PurgeFn{
-	finalizers.ResourceTypeUsers: purgeUserSessions,
+	finalizers.ResourceTypeUsers: purgeUser,
 }
 
 func DefaultTargets() map[string]Target {

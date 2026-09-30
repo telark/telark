@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/telark/auth/internal/constants"
 	dataerrors "github.com/telark/data/errors"
@@ -35,6 +36,9 @@ func SendErrorResponse(w http.ResponseWriter, statusCode int, err error) {
 	if errors.Is(err, ErrBackendUnavailable) {
 		responseutils.SendResponse(w, http.StatusServiceUnavailable, restresponse.OperationUnavailable, err.Error(), nil)
 		return
+	}
+	if errors.Is(err, requestutils.ErrRequestBodyTooLarge) {
+		statusCode = http.StatusRequestEntityTooLarge
 	}
 
 	const responseSize = 2
@@ -68,9 +72,9 @@ func DecodeRequestBody(r *http.Request, v any) error {
 		}
 	}()
 
-	body, err := io.ReadAll(r.Body)
+	body, err := ReadRequestBody(r)
 	if err != nil {
-		return fmt.Errorf(string(constants.ErrFailedReadRequestBody), err)
+		return err
 	}
 
 	if err := json.Unmarshal(body, v); err != nil {
@@ -78,6 +82,33 @@ func DecodeRequestBody(r *http.Request, v any) error {
 	}
 
 	return nil
+}
+
+// Every request body is read through here, so no caller can be made to buffer
+// more than the cap; a truncated body could still parse as valid JSON.
+func ReadRequestBody(r *http.Request) ([]byte, error) {
+	body, err := io.ReadAll(http.MaxBytesReader(nil, r.Body, constants.MaxRequestBodyBytes))
+	if _, tooLarge := errors.AsType[*http.MaxBytesError](err); tooLarge {
+		return nil, requestutils.ErrRequestBodyTooLarge
+	}
+	if err != nil {
+		return nil, fmt.Errorf(string(constants.ErrFailedReadRequestBody), err)
+	}
+	return body, nil
+}
+
+// The rest client wraps a refused call as "HTTP <status>: <json body>"; the
+// caller wants the exporter's own message.
+func ExporterMessage(wrapped string) string {
+	start := strings.Index(wrapped, constants.JSONObjectStart)
+	if start < constants.DefaultInitValue {
+		return wrapped
+	}
+	var inner restresponse.GenericResponse
+	if err := json.Unmarshal([]byte(wrapped[start:]), &inner); err != nil || inner.Message == constants.EmptyString {
+		return wrapped
+	}
+	return inner.Message
 }
 
 func GetPathParam(r *http.Request, param string) (string, error) {

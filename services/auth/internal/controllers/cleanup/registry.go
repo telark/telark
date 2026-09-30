@@ -124,3 +124,33 @@ func purgeUserSessions(userID string) error {
 	}
 	return nil
 }
+
+// Passkeys go with the account; one already gone counts as purged, any other failure requeues.
+func purgeUserPasskeys(userID string) error {
+	client := authclients.GetPasskeyClient()
+	passkeys, err := client.GetAllPasskeysByUser(userID)
+	if err != nil {
+		return fmt.Errorf(string(constants.ErrCleanupListPasskeysFailed), userID, err)
+	}
+	for _, passkey := range passkeys {
+		if passkey == nil {
+			continue
+		}
+		resp := client.DeletePasskeyByUserAndCredentialID(userID, passkey.CredentialID, true)
+		if resp == nil || (resp.Status != http.StatusOK && resp.Status != http.StatusNotFound) {
+			status := constants.DefaultInitValue
+			if resp != nil {
+				status = resp.Status
+			}
+			return fmt.Errorf(string(constants.ErrCleanupDeletePasskeyFailed), userID, status)
+		}
+	}
+	return nil
+}
+
+func purgeUser(userID string) error {
+	if err := purgeUserSessions(userID); err != nil {
+		return err
+	}
+	return purgeUserPasskeys(userID)
+}

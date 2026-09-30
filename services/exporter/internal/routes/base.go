@@ -133,6 +133,7 @@ func notificationRoutes() []router.Route {
 		router.CreateRoute(base.Post, notificationsendpoints.MarkRead, notificationhandler.MarkRead()),
 		router.CreateRoute(base.Post, notificationsendpoints.MarkAllRead, notificationhandler.MarkAllRead()),
 		router.CreateRoute(base.Delete, notificationsendpoints.Clear, notificationhandler.Clear()),
+		router.CreateRoute(base.Delete, notificationsendpoints.Delete, notificationhandler.Delete()),
 	}
 }
 
@@ -212,7 +213,7 @@ func userRoutes(optimizer *performance.Optimizer) []router.Route {
 			performance.NewCachedListHandlerFunc(
 				optimizer,
 				userhandler.ListUserResourcesWithCacheInvalidation(),
-				exporterauthz.RestrictedKey(cache.NewListCacheKeyFunc(optimizer, constants.ResourceUser)),
+				exporterauthz.RestrictedListKey(optimizer, cache.NewListCacheKeyFunc(optimizer, constants.ResourceUser)),
 				constants.ResourceUser,
 				constants.OpList,
 			)),
@@ -254,7 +255,7 @@ func groupRoutes(optimizer *performance.Optimizer) []router.Route {
 			performance.NewCachedListHandlerFunc(
 				optimizer,
 				grouphandler.ListGroupResourcesWithCacheInvalidation(),
-				exporterauthz.RestrictedKey(cache.NewListCacheKeyFunc(optimizer, constants.ResourceGroup)),
+				exporterauthz.RestrictedListKey(optimizer, cache.NewListCacheKeyFunc(optimizer, constants.ResourceGroup)),
 				constants.ResourceGroup,
 				constants.OpList,
 			)),

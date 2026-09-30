@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gorilla/mux"
 	"github.com/telark/exporter/internal/cache"
 	"github.com/telark/exporter/internal/constants"
 	applicationexp "github.com/telark/exporter/internal/exporters/application"
@@ -13,6 +14,7 @@ import (
 	"github.com/telark/exporter/internal/informers"
 	"github.com/telark/exporter/internal/utils/performance"
 	"github.com/telark/kcore/shared"
+	"github.com/telark/rest/base"
 	restconstants "github.com/telark/rest/constants"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8scache "k8s.io/client-go/tools/cache"
@@ -220,5 +222,17 @@ func TestValidatorOnlyOnListSuccess(t *testing.T) {
 		if rec.Code != tc.code || rec.Header().Get(constants.HeaderETag) != constants.EmptyString {
 			t.Errorf("%s: code = %d, ETag = %q, want %d without a validator", tc.name, rec.Code, rec.Header().Get(constants.HeaderETag), tc.code)
 		}
+	}
+}
+
+// The editable-field guard reads the body first; an oversized one must still reach the downstream parser whole.
+func TestApplicationPatchOverLimitIsTooLarge(t *testing.T) {
+	body := `{"description":"` + strings.Repeat("x", int(base.MaxRequestBodySize)) + `"}`
+	r := httptest.NewRequest(http.MethodPatch, applicationsPath, strings.NewReader(body))
+	r = mux.SetURLVars(r, map[string]string{constants.NameParam: testAppName})
+	rec := httptest.NewRecorder()
+	apphandler.PatchApplicationResourceWithCacheInvalidation(newOptimizer(t))(rec, r)
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("code = %d, want %d", rec.Code, http.StatusRequestEntityTooLarge)
 	}
 }

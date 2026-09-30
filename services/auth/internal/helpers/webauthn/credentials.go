@@ -15,6 +15,7 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/telark/auth/internal/constants"
 	authhelper "github.com/telark/auth/internal/helpers/auth"
+	sharedhelper "github.com/telark/auth/internal/helpers/shared"
 	authdata "github.com/telark/data/auth"
 )
 
@@ -52,9 +53,9 @@ func ValidateBackupFlags(
 }
 
 func ReadAndRestoreRequestBody(r *http.Request) ([]byte, error) {
-	bodyBytes, err := io.ReadAll(r.Body)
+	bodyBytes, err := sharedhelper.ReadRequestBody(r)
 	if err != nil {
-		return nil, fmt.Errorf(string(constants.ErrFailedReadRequestBody), err)
+		return nil, err
 	}
 	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 	return bodyBytes, nil

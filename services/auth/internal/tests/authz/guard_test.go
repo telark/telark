@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"path"
 	"strings"
 	"testing"
 
 	"github.com/telark/auth/internal/authz"
 	"github.com/telark/auth/internal/constants"
 	"github.com/telark/auth/internal/tests/testutil"
+	groupdata "github.com/telark/data/resources/group"
 	roledata "github.com/telark/data/resources/role"
 	userresource "github.com/telark/data/resources/user"
 	xauthz "github.com/telark/x-ware/authz"
@@ -67,13 +69,18 @@ type caller struct {
 	level     roledata.PermissionLevel
 	internal  bool
 	anonymous bool
+	scope     string
 }
 
 func (c caller) ctx() context.Context {
 	if c.anonymous {
 		return context.Background()
 	}
-	grants := xauthz.Grants{Levels: map[string]roledata.PermissionLevel{roledata.ScopeAll: c.level}}
+	scope := roledata.ScopeAll
+	if c.scope != "" {
+		scope = c.scope
+	}
+	grants := xauthz.Grants{Levels: map[string]roledata.PermissionLevel{scope: c.level}}
 	return xauthz.WithIdentity(context.Background(), xauthz.Identity{UserID: c.userID, Internal: c.internal, Grants: grants})
 }
 
@@ -103,6 +110,90 @@ func TestGuardUserDelete(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			status, err := authz.GuardUserDelete(c.caller.ctx(), c.target)
+			testutil.Equal(t, "status", status, c.wantStatus)
+			testutil.Equal(t, "refused", err != nil, c.wantStatus != http.StatusOK)
+		})
+	}
+}
+
+const (
+	appsOwnerRole = "r-apps-owner"
+	appsReadRole  = "r-apps-read"
+	downRole      = "r-down"
+	missingID     = "x-none"
+	appsGroup     = "g-apps"
+	adminGroup    = "g-admin"
+	downGroup     = "g-down"
+)
+
+// Roles and groups served by id the way the exporter serves single-resource
+// reads; unknown ids answer 404 and the "down" role 500.
+func stubRolesAndGroups(t *testing.T) {
+	t.Helper()
+	role := func(id, scope string, level roledata.PermissionLevel) roledata.AccessRole {
+		return roledata.AccessRole{ID: id, Name: id, ScopesAndPermissions: []roledata.ScopeAndPermissions{{Scope: scope, Level: level}}}
+	}
+	records := map[string]any{
+		adminRoleID:   role(adminRoleID, roledata.ScopeAll, roledata.PermissionLevelAdmin),
+		appsOwnerRole: role(appsOwnerRole, roledata.ScopeApplications, roledata.PermissionLevelOwner),
+		appsReadRole:  role(appsReadRole, roledata.ScopeApplications, roledata.PermissionLevelReadOnly),
+		appsGroup:     groupdata.Group{ID: appsGroup, RoleRefs: []string{appsReadRole, missingID}},
+		adminGroup:    groupdata.Group{ID: adminGroup, RoleRefs: []string{appsReadRole, adminRoleID}},
+		downGroup:     groupdata.Group{ID: downGroup, RoleRefs: []string{downRole}},
+	}
+	testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := path.Base(r.URL.Path)
+		if id == downRole {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		record, ok := records[id]
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": record})
+	}))
+}
+
+// Deleting a role or group takes its levels from every holder, so each level
+// must be within the caller's own on that scope or on ALL; Admin on ALL passes.
+func TestGuardRoleAndGroupDelete(t *testing.T) {
+	stubRolesAndGroups(t)
+	admin := caller{userID: adminID, level: roledata.PermissionLevelAdmin}
+	ownerOnAll := caller{userID: ownerID, level: roledata.PermissionLevelOwner}
+	appsOwner := caller{userID: plainID, level: roledata.PermissionLevelOwner, scope: roledata.ScopeApplications}
+	appsContributor := caller{userID: plainID, level: roledata.PermissionLevelContributor, scope: roledata.ScopeApplications}
+	appsReader := caller{userID: plainID, level: roledata.PermissionLevelReadOnly, scope: roledata.ScopeApplications}
+	internal := caller{internal: true}
+	anonymous := caller{anonymous: true}
+	cases := []struct {
+		name       string
+		guard      func(context.Context, string) (int, error)
+		caller     caller
+		target     string
+		wantStatus int
+	}{
+		{"owner on ALL deletes the Admin role", authz.GuardRoleDelete, ownerOnAll, adminRoleID, http.StatusForbidden},
+		{"admin deletes the Admin role", authz.GuardRoleDelete, admin, adminRoleID, http.StatusOK},
+		{"apps owner deletes an apps owner role", authz.GuardRoleDelete, appsOwner, appsOwnerRole, http.StatusOK},
+		{"apps contributor deletes an apps owner role", authz.GuardRoleDelete, appsContributor, appsOwnerRole, http.StatusForbidden},
+		{"owner on ALL deletes an apps owner role", authz.GuardRoleDelete, ownerOnAll, appsOwnerRole, http.StatusOK},
+		{"missing role", authz.GuardRoleDelete, ownerOnAll, missingID, http.StatusOK},
+		{"role lookup down", authz.GuardRoleDelete, ownerOnAll, downRole, http.StatusServiceUnavailable},
+		{"internal deletes the Admin role", authz.GuardRoleDelete, internal, adminRoleID, http.StatusOK},
+		{"no identity", authz.GuardRoleDelete, anonymous, appsReadRole, http.StatusUnauthorized},
+		{"owner on ALL deletes a group holding Admin", authz.GuardGroupDelete, ownerOnAll, adminGroup, http.StatusForbidden},
+		{"admin deletes a group holding Admin", authz.GuardGroupDelete, admin, adminGroup, http.StatusOK},
+		{"apps reader deletes a group with a missing role", authz.GuardGroupDelete, appsReader, appsGroup, http.StatusOK},
+		{"missing group", authz.GuardGroupDelete, ownerOnAll, missingID, http.StatusOK},
+		{"group role lookup down", authz.GuardGroupDelete, ownerOnAll, downGroup, http.StatusServiceUnavailable},
+		{"internal deletes a group holding Admin", authz.GuardGroupDelete, internal, adminGroup, http.StatusOK},
+		{"no identity on group", authz.GuardGroupDelete, anonymous, appsGroup, http.StatusUnauthorized},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			status, err := c.guard(c.caller.ctx(), c.target)
 			testutil.Equal(t, "status", status, c.wantStatus)
 			testutil.Equal(t, "refused", err != nil, c.wantStatus != http.StatusOK)
 		})

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 
@@ -19,6 +20,16 @@ var (
 // so a key that is not exactly a JSON name of T is refused before anything else sees it.
 func CheckCanonicalKeys[T any](body map[string]any) error {
 	return checkKeys(body, reflect.TypeFor[T](), constants.EmptyString)
+}
+
+func CheckRefIDs(body map[string]any) error {
+	for _, key := range constants.RefFields {
+		ids, isList := body[key].([]any)
+		if isList && slices.ContainsFunc(ids, func(id any) bool { s, isString := id.(string); return !isString || s == constants.EmptyString }) {
+			return fmt.Errorf(constants.ErrBodyRefIDInvalid, key)
+		}
+	}
+	return nil
 }
 
 func checkKeys(value any, t reflect.Type, path string) error {

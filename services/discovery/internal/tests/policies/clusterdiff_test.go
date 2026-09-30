@@ -51,12 +51,13 @@ func diffMsgs() protpolicies.DeployErrorMessages {
 func TestApplyClusterDiffInactivePlan(t *testing.T) {
 	plan := &plans.ProtectionPlan{ID: planIDOne, Phase: "pending", Mode: plans.ModeEnforce, RenderedPolicies: []string{policyA}}
 	applier := protpolicies.NewApplier(applierDyn(), nil)
-	deployed, kept, err := protpolicies.ApplyClusterDiff(
+	deployed, kept, stale, err := protpolicies.ApplyClusterDiff(
 		context.Background(), applier, noopDiffLogger{}, plan, nil, nil, nil, plan.Mode, diffMsgs(),
 	)
 	testutil.Equal(t, "err", err, nil)
 	testutil.Equal(t, "nothing deployed", len(deployed), constants.DefaultInitValue)
 	testutil.Equal(t, "kept rendered", len(kept), constants.DefaultAddValue)
+	testutil.Equal(t, "nothing stale", len(stale), constants.DefaultInitValue)
 }
 
 // An active plan with no deploy or remove combos and an unchanged mode keeps the
@@ -64,12 +65,46 @@ func TestApplyClusterDiffInactivePlan(t *testing.T) {
 func TestApplyClusterDiffNoCombos(t *testing.T) {
 	plan := &plans.ProtectionPlan{ID: planIDOne, Phase: plans.PhaseActive, Mode: plans.ModeEnforce, RenderedPolicies: []string{policyA, policyB}}
 	applier := protpolicies.NewApplier(applierDyn(policyObj(policyA, policyNamespace, planIDOne)), nil)
-	deployed, kept, err := protpolicies.ApplyClusterDiff(
+	deployed, kept, stale, err := protpolicies.ApplyClusterDiff(
 		context.Background(), applier, noopDiffLogger{}, plan, nil, nil, nil, plan.Mode, diffMsgs(),
 	)
 	testutil.Equal(t, "err", err, nil)
 	testutil.Equal(t, "nothing deployed", len(deployed), constants.DefaultInitValue)
 	testutil.Equal(t, "kept both", len(kept), constants.TwoValue)
+	testutil.Equal(t, "nothing stale", len(stale), constants.DefaultInitValue)
+}
+
+// The regression: removals were deleted before the exporter patch, so a refused patch left the
+// plan without them until the next tick. They now come back as stale and stay live; a name the
+// edit renders again is never stale.
+func TestApplyClusterDiffDefersRemovals(t *testing.T) {
+	name := renderedName(t, fullRenderPlan(plans.PhaseActive))
+	plan := fullRenderPlan(plans.PhaseActive, name, policyA)
+	removed := protpolicies.Combinations(plan.Policies, plan.Scope.Namespaces)
+	cases := []struct {
+		name       string
+		deploy     []protpolicies.PolicyTargetCombo
+		wantStale  []string
+		wantKept   []string
+		wantDeploy int
+	}{
+		{"removed name deferred", nil, []string{name}, []string{policyA}, constants.DefaultInitValue},
+		{"re-rendered name kept", removed, []string{}, []string{name, policyA}, constants.DefaultAddValue},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			applier, fake, _ := recordingApplier(t, constants.DefaultInitValue, policyObj(name, policyNamespace, planIDOne))
+			deployed, kept, stale, err := protpolicies.ApplyClusterDiff(
+				context.Background(), applier, noopDiffLogger{}, plan, c.deploy, removed, nil, plan.Mode, diffMsgs(),
+			)
+			testutil.Equal(t, labelNoErr, err, nil)
+			testutil.Equal(t, "deployed", len(deployed), c.wantDeploy)
+			if !slices.Equal(stale, c.wantStale) || !slices.Equal(kept, c.wantKept) {
+				t.Fatalf("stale=%v kept=%v, want %v %v", stale, kept, c.wantStale, c.wantKept)
+			}
+			testutil.Equal(t, "removal still live", slices.Equal(livePolicyNames(t, fake), []string{name}), true)
+		})
+	}
 }
 
 // RollbackPatchFailure is a no-op when nothing was deployed, and deletes the
@@ -79,11 +114,30 @@ func TestRollbackPatchFailure(t *testing.T) {
 	dyn := applierDyn(policyObj(policyA, policyNamespace, planIDOne))
 	applier := protpolicies.NewApplier(dyn, nil)
 
-	protpolicies.RollbackPatchFailure(context.Background(), applier, noopDiffLogger{}, plan, nil)
+	protpolicies.RollbackPatchFailure(context.Background(), applier, noopDiffLogger{}, plan, nil, plan.Mode)
 	testutil.Equal(t, "noop keeps policy", countPolicies(t, dyn), constants.DefaultAddValue)
 
-	protpolicies.RollbackPatchFailure(context.Background(), applier, noopDiffLogger{}, plan, []string{policyA})
+	protpolicies.RollbackPatchFailure(context.Background(), applier, noopDiffLogger{}, plan, []string{policyA}, plan.Mode)
 	testutil.Equal(t, "rolled back", countPolicies(t, dyn), constants.DefaultInitValue)
+}
+
+// The regression: the diff path switched the live mode before the exporter patch and a refused
+// patch left it switched until the next tick.
+func TestRollbackPatchFailureRestoresMode(t *testing.T) {
+	plan := &plans.ProtectionPlan{ID: planIDOne, Mode: plans.ModeEnforce}
+	dyn := applierDyn(policyObj(policyA, policyNamespace, planIDOne))
+	applier := protpolicies.NewApplier(dyn, nil)
+	if err := applier.PatchPoliciesMode(context.Background(), planIDOne, plans.ModeAudit); err != nil {
+		t.Fatalf("patch: %v", err)
+	}
+
+	protpolicies.RollbackPatchFailure(context.Background(), applier, noopDiffLogger{}, plan, nil, plans.ModeAudit)
+	got, err := dyn.Resource(protpolicies.KyvernoPolicyGVR).Namespace(policyNamespace).Get(context.Background(), policyA, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	action, _, _ := unstructured.NestedString(got.Object, "spec", "validationFailureAction")
+	testutil.Equal(t, "failure action", action, modeEnforce)
 }
 
 type applyRecorder struct {
@@ -288,7 +342,7 @@ func TestRollbackFullRenderKeepsExisting(t *testing.T) {
 func TestRenderForCombinationsCarriesExclusions(t *testing.T) {
 	plan := withExclusions(fullRenderPlan(plans.PhaseActive))
 	applier, _, rec := recordingApplier(t, constants.DefaultInitValue)
-	deployed, _, err := protpolicies.ApplyClusterDiff(
+	deployed, _, _, err := protpolicies.ApplyClusterDiff(
 		context.Background(), applier, noopDiffLogger{}, plan,
 		protpolicies.Combinations(plan.Policies, plan.Scope.Namespaces), nil, nil, plan.Mode, diffMsgs(),
 	)

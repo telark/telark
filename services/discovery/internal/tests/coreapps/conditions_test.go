@@ -29,3 +29,19 @@ func TestPublishedCondition(t *testing.T) {
 	testutil.Equal(t, "type", app.Conditions[constants.DefaultInitValue].Type, application.ConditionTypePublished)
 	testutil.Equal(t, "created reason", app.Conditions[constants.DefaultInitValue].Reason, application.ConditionReasonCreated)
 }
+
+// The payload was built before MarkPublished, so no CR ever carried the condition and the
+// UI Published row never rendered; app itself must still read unpublished until the outcome.
+func TestPublishedPayloadCarriesCondition(t *testing.T) {
+	app := &application.Application{Name: "shop"}
+	payload := core.PublishedPayload(app)
+
+	conditions, ok := payload["conditions"].([]any)
+	testutil.Equal(t, "payload has conditions", ok, true)
+	testutil.Equal(t, "one condition", len(conditions), constants.DefaultAddValue)
+	published, ok := conditions[constants.DefaultInitValue].(map[string]any)
+	testutil.Equal(t, "condition is an object", ok, true)
+	testutil.Equal(t, "type", published["type"], any(application.ConditionTypePublished))
+	testutil.Equal(t, "status", published["status"], any(string(datashared.ConditionTrue)))
+	testutil.Equal(t, "in-memory app untouched", core.PublishedCondition(app) == nil, true)
+}

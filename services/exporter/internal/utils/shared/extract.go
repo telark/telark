@@ -133,7 +133,11 @@ func GetSpecFor[T any](w http.ResponseWriter, r *http.Request) (map[string]any, 
 	if err != nil {
 		return nil, err
 	}
-	if err := CheckCanonicalKeys[T](spec); err != nil {
+	err = CheckCanonicalKeys[T](spec)
+	if err == nil {
+		err = CheckRefIDs(spec)
+	}
+	if err != nil {
 		responseutils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationError, err.Error(), nil, err)
 		return nil, err
 	}

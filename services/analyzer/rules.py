@@ -7,10 +7,12 @@ severity, confidence and evidence; the narration may only rephrase title/summary
 
 from __future__ import annotations
 
+import math
 import re
 from datetime import datetime
 
 from constants import (
+    CHANGE_CORRELATION_SKEW_S,
     CHANGE_CORRELATION_WINDOW_S,
     CHANGE_FIELD_HEALTH,
     CHANGE_PARAM_TEMPLATE,
@@ -180,16 +182,25 @@ def _rollout_stuck(status: dict | None, pods: list[dict], events: list[dict]) ->
 _SYMPTOM_RULES = (_oom, _image_pull, _crashloop, _scheduling, _probe_failure, _resource_pressure, _rollout_stuck)
 
 
-def _recent_change(history: dict, now: datetime, min_generation: int) -> dict | None:
-    """The newest entry when it is an incident or a rollout/config/resources change inside the window, and not
-    older than min_generation (the change that triggered the job): {generation, at, field, change, detail}."""
-    entries = history.get(KEY_CHANGES) or []
-    if not entries:
-        return None
-    entry = entries[0]
-    if (entry.get("generation") or 0) < min_generation:
+def _outage_generation(entries: list[dict]) -> float:
+    # A pod replaced by a later edit dates no outage: only the history says the app was already unhealthy then.
+    # Only the fetched entries count, so an outage older than FAST_HISTORY_LIMIT entries is unbounded.
+    marker = max((e for e in entries if e.get("isIncident") or e.get("isRecovery")),
+                 key=lambda e: e.get("generation") or 0, default={})
+    return (marker.get("generation") or 0) if marker.get("isIncident") else math.inf
+
+
+def _recent_change(entry: dict, now: datetime, min_generation: int, max_generation: float) -> dict | None:
+    """The entry when it is an incident or a rollout/config/resources change inside the window, not older than
+    min_generation (the change that triggered the job) and not newer than max_generation (the incident entry of
+    an outage no recovery closed yet): {generation, at, field, change, detail}."""
+    if not min_generation <= (entry.get("generation") or 0) <= max_generation:
         return None
     if not (entry.get("isIncident") or entry.get("changeClass") in CORRELATED_CHANGE_CLASSES):
+        return None
+    # Health alone is no change: discovery's entry for an app first seen down, or one that went down untouched.
+    first = next((c for c in entry.get(KEY_CHANGES) or [] if c.get("field") != CHANGE_FIELD_HEALTH), None)
+    if first is None:
         return None
     try:
         at = datetime.fromisoformat(entry.get("detectedAt") or "")
@@ -197,25 +208,29 @@ def _recent_change(history: dict, now: datetime, min_generation: int) -> dict | 
         return None
     if (now - at).total_seconds() > CHANGE_CORRELATION_WINDOW_S:
         return None
-    change = {"generation": entry.get("generation"), "at": at, "field": "", "change": "", "detail": ""}
-    if first := next((c for c in entry.get(KEY_CHANGES) or [] if c.get("field") != CHANGE_FIELD_HEALTH), None):
-        values = dict(field=first.get("field"), old=first.get("oldValue") or NONE_VALUE,
-                      new=first.get("newValue") or NONE_VALUE)
-        change.update(field=first.get("field") or "", change=CHANGE_PARAM_TEMPLATE.format(**values),
-                      detail=CORRELATION_DETAIL_TEMPLATE.format(**values))
-    return change
+    values = dict(field=first.get("field"), old=first.get("oldValue") or NONE_VALUE,
+                  new=first.get("newValue") or NONE_VALUE)
+    return {"generation": entry.get("generation"), "at": at, "field": first.get("field") or "",
+            "change": CHANGE_PARAM_TEMPLATE.format(**values), "detail": CORRELATION_DETAIL_TEMPLATE.format(**values)}
 
 
-def _correlation_fact(change: dict, matches: list, now: datetime) -> str:
-    # Measured to the incident's start: the earliest matched event, else this run (a manual run may be minutes late).
+def _started(matches: list, now: datetime) -> datetime:
+    # The incident's start: the earliest matched event, else this run (a manual run may be minutes late).
     firsts = [e["first"] for m in matches for e in m[3]]
-    started = datetime.fromisoformat(min(firsts)) if firsts else now
+    return datetime.fromisoformat(min(firsts)) if firsts else now
+
+
+def _cause(changes: list[dict], started: datetime) -> dict | None:
+    return next((c for c in changes if (c["at"] - started).total_seconds() <= CHANGE_CORRELATION_SKEW_S), None)
+
+
+def _correlation_fact(change: dict, started: datetime) -> str:
     minutes = max(0, int((started - change["at"]).total_seconds() // S_PER_MINUTE))
     return CORRELATION_TEMPLATE.format(minutes=minutes, generation=change["generation"]) + change["detail"]
 
 
 def _candidate(run: Run, key: tuple[str, str], status: dict | None, evs: list[dict], matches: list,
-               change: dict | None, now: datetime) -> Candidate:
+               change: dict | None, started: datetime) -> Candidate:
     kind, severity, confidence, _events = matches[0]
     # A total outage is critical whatever the rule's own severity.
     if status and status["desired"] > 0 and status["ready"] == 0:
@@ -232,7 +247,7 @@ def _candidate(run: Run, key: tuple[str, str], status: dict | None, evs: list[di
     pods = status[KEY_PODS] if status else []
     reason, params = messages.classify(kind, status, pods, evs, (status or {}).get(KEY_LIMITS), correlated)
     params = messages.bounded({"workload": name, "namespace": namespace, **params})
-    fact = _correlation_fact(correlated, matches, now) if correlated else ""
+    fact = _correlation_fact(correlated, started) if correlated else ""
     sentence = CORRELATION_SUFFIX_TEMPLATE.format(fact) if correlated else ""
     title, summary = messages.render_incident(reason, params, name, status, sentence)
     facts = [FACT_TEMPLATE.format(FACT_WHAT, messages.what(reason, params))]
@@ -246,7 +261,9 @@ def _candidate(run: Run, key: tuple[str, str], status: dict | None, evs: list[di
 def evaluate(run: Run, overview: dict, history: dict, statuses: dict[str, dict], events: list[dict],
              now: datetime) -> list[Candidate]:
     """At most MAX_INSIGHTS_PER_RUN candidates, one per workload, most severe first."""
-    change = _recent_change(history, now, run.min_generation)
+    entries = history.get(KEY_CHANGES) or []
+    outage = _outage_generation(entries)
+    changes = [c for e in entries if (c := _recent_change(e, now, run.min_generation, outage))]
     health = overview.get("health") or {}
     app_degraded = (health.get("ready") or 0) < (health.get("total") or 0)
     out = []
@@ -262,12 +279,14 @@ def evaluate(run: Run, overview: dict, history: dict, statuses: dict[str, dict],
         else:
             degraded = app_degraded and len(run.workloads) == 1
         matches = [m for rule in _SYMPTOM_RULES if (m := rule(status, status[KEY_PODS] if status else [], evs))]
+        started = _started(matches, now)
+        change = _cause(changes, started)
         if not matches and degraded and change:
             matches = [(INSIGHT_KIND_CONFIG_CHANGE_REGRESSION, INSIGHT_SEVERITY_WARNING, CONFIDENCE_MEDIUM, [])]
         if not matches and (degraded or evs):
             matches = [(INSIGHT_KIND_OTHER, INSIGHT_SEVERITY_WARNING, CONFIDENCE_LOW, evs)]
         if matches:
-            out.append(_candidate(run, key, status, evs, matches, change, now))
+            out.append(_candidate(run, key, status, evs, matches, change, started))
     out.sort(key=lambda c: SEVERITY_RANK[c.severity], reverse=True)
     return out[:MAX_INSIGHTS_PER_RUN]
 

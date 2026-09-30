@@ -63,10 +63,9 @@ const (
 	ListRenderConcurrencyEnv = "EXPORTER_LIST_RENDER_CONCURRENCY"
 	BootstrapAdminEnv        = "BOOTSTRAP_ADMIN"
 	// A full list is megabytes of marshal buffer; beyond this many renders at
-	// once a request is refused rather than queued.
+	// once a request queues for a slot until its own deadline.
 	DefaultListRenderConcurrency                = 2
 	MinListRenderConcurrency                    = 1
-	ListRenderWait                              = 2 * time.Second
 	ListRenderRetryAfter                        = "2"
 	HeaderRetryAfter                            = "Retry-After"
 	HeaderContentLength                         = "Content-Length"
@@ -82,6 +81,7 @@ const (
 	PrefixInformers                             = "Informers: "
 	CacheWindowSegment                          = "window"
 	CacheDirtySegment                           = "dirty"
+	CacheRestrictedSegment                      = "restricted"
 	CacheKeySeparator                           = ":"
 	DefaultPort                                 = 8080
 	EmptyString                                 = ""
@@ -191,6 +191,7 @@ const (
 	MaxApplicationDisplayNameLength             = 200
 	MaxApplicationDescriptionLength             = 1000
 	ListSeparator                               = ", "
+	NilFieldPath                                = "<nil>"
 	HeaderUserID                                = "X-User-ID"
 	SnapshotsPathEnv                            = "SNAPSHOTS_PATH"
 	SnapshotsMaxVersionsEnv                     = "SNAPSHOTS_MAX_VERSIONS"
@@ -214,6 +215,7 @@ const (
 	SnapshotFilePrefix                          = "V"
 	SnapshotFileNameTemplate                    = SnapshotFilePrefix + "%d" + SnapshotFileExtension
 	SnapshotRollbackFilenameSuffix              = "-rollback.json"
+	SnapshotRollbackYAMLFilenameSuffix          = "-rollback.yaml"
 	HeaderContentDisposition                    = "Content-Disposition"
 	HeaderContentType                           = "Content-Type"
 	ContentTypeJSON                             = "application/json"

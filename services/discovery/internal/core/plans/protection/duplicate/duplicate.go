@@ -43,6 +43,7 @@ func AvailableName(base string, existing []plans.ProtectionPlan) (string, error)
 func BuildRequest(
 	source *plans.ProtectionPlan,
 	overrides planseps.DuplicateProtectionPlanRequest,
+	callerOwner bool,
 ) *planseps.PrepareProtectionPlanRequest {
 	timeMode := source.TimeMode
 	if overrides.TimeMode != nil {
@@ -57,7 +58,7 @@ func BuildRequest(
 		tags = overrides.TagRefs
 	}
 	return &planseps.PrepareProtectionPlanRequest{
-		ApprovalMode:    resolveApprovalMode(source, overrides),
+		ApprovalMode:    resolveApprovalMode(source, overrides, callerOwner),
 		Name:            resolveName(source.Name, overrides.Name),
 		Description:     source.Description,
 		Severity:        source.Severity,
@@ -91,11 +92,15 @@ func resolveTimeRange(
 }
 
 // The UI sends environmentRef whenever tags are touched, so "sent" is not "changed";
-// nil hands the derivation back to Prepare.
+// nil hands the derivation back to Prepare. Only an Owner may relax a required source.
 func resolveApprovalMode(
 	source *plans.ProtectionPlan,
 	overrides planseps.DuplicateProtectionPlanRequest,
+	callerOwner bool,
 ) *string {
+	if source.ApprovalMode == plans.ApprovalModeRequired && !callerOwner {
+		return &source.ApprovalMode
+	}
 	if overrides.ApprovalMode != nil {
 		return overrides.ApprovalMode
 	}

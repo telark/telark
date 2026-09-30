@@ -3,6 +3,7 @@ package autoclean
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -97,7 +98,7 @@ func namespacesGone(ctx context.Context, kube *kubernetes.Clientset, app *appres
 }
 
 func railNamespaceIncluded(ctx context.Context, app *appresource.Application) railResult {
-	if app == nil {
+	if app == nil || HiddenPlatformApp(app) {
 		return pass(constants.RailNamespaceIncluded)
 	}
 	excluded := tcfghelper.FetchExcludedNamespaces(ctx)
@@ -116,6 +117,14 @@ func railNamespaceIncluded(ctx context.Context, app *appresource.Application) ra
 		}
 	}
 	return pass(constants.RailNamespaceIncluded)
+}
+
+// Hidden, not vanished: with self-monitoring off, Telark's own components keep their resources,
+// so their stored CRs are purged without waiting for those to empty.
+func HiddenPlatformApp(app *appresource.Application) bool {
+	own := tcfghelper.HiddenOwnNamespace()
+	return own != constants.EmptyString && len(app.Namespaces.Items) > constants.DefaultInitValue &&
+		!slices.ContainsFunc(app.Namespaces.Items, func(n appresource.NamespaceEntry) bool { return n.Name != own })
 }
 
 func railRedisKeyAbsent(

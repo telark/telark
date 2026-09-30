@@ -8,19 +8,20 @@ import (
 func MergeRoleAndPreparePatchBody(existingRole, newRole *roledata.AccessRole, body map[string]any) *roledata.AccessRole {
 	mergedRole := *existingRole
 
-	mergeBasicFields(&mergedRole, newRole)
-	mergeComplexFields(&mergedRole, newRole, body)
+	mergeBasicFields(&mergedRole, newRole, body)
+	mergeComplexFields(&mergedRole, newRole)
 	handleValidityAutoRevoke(&mergedRole, body)
 	computePriorityAndVersion(existingRole, &mergedRole, body)
 
 	return &mergedRole
 }
 
-func mergeBasicFields(mergedRole, newRole *roledata.AccessRole) {
+func mergeBasicFields(mergedRole, newRole *roledata.AccessRole, body map[string]any) {
 	if newRole.Name != constants.EmptyString {
 		mergedRole.Name = newRole.Name
 	}
-	if newRole.Type != roledata.RoleTypeBuiltIn {
+	// newRole.Type is defaulted when the body omits it; the stored type stays.
+	if _, typed := body[constants.FieldType]; typed && newRole.Type != roledata.RoleTypeBuiltIn {
 		mergedRole.Type = newRole.Type
 	}
 	if newRole.Description != constants.EmptyString {
@@ -31,7 +32,7 @@ func mergeBasicFields(mergedRole, newRole *roledata.AccessRole) {
 	}
 }
 
-func mergeComplexFields(mergedRole, newRole *roledata.AccessRole, body map[string]any) {
+func mergeComplexFields(mergedRole, newRole *roledata.AccessRole) {
 	if len(newRole.ScopesAndPermissions) > constants.DefaultInitValue {
 		mergedRole.ScopesAndPermissions = newRole.ScopesAndPermissions
 	}
@@ -43,10 +44,6 @@ func mergeComplexFields(mergedRole, newRole *roledata.AccessRole, body map[strin
 	}
 	if newRole.Status != roledata.RoleStatusActive {
 		mergedRole.Status = newRole.Status
-	}
-	if newRole.LastUpdatedBy != nil {
-		mergedRole.LastUpdatedBy = newRole.LastUpdatedBy
-		body[constants.FieldLastUpdatedBy] = *newRole.LastUpdatedBy
 	}
 }
 

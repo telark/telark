@@ -1,7 +1,9 @@
 package config
 
 import (
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/telark/auth/internal/config"
 	"github.com/telark/auth/internal/constants"
@@ -22,6 +24,8 @@ func TestLoadBootstrapConfig(t *testing.T) {
 		{"list is one unmatched value", "a@x.com,b@x.com", "true", false, true, false},
 		{"no admin, self-reg on", "", "true", false, true, false},
 		{"no admin, self-reg off is invalid", "", "false", true, false, false},
+		{"self-reg unset defaults off", "a@x.com", constants.EmptyString, false, false, true},
+		{"no admin, self-reg unset is invalid", constants.EmptyString, constants.EmptyString, true, false, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -45,8 +49,7 @@ func TestLoadBootstrapConfig(t *testing.T) {
 	}
 }
 
-// A never-loaded bootstrap config must fail safe: no admin, self-registration
-// permitted (the pre-load default).
+// A never-loaded bootstrap config must fail safe: no admin, self-registration off.
 func TestBootstrapDefaultsWhenUnloaded(t *testing.T) {
 	// A prior subtest may have loaded config; this only asserts the accessors do
 	// not panic and return booleans, exercising the nil-safe branches.
@@ -68,6 +71,26 @@ func TestLoadCleanupAndBackfillConfig(t *testing.T) {
 	back := config.LoadBackfillConfig()
 	if back.BatchSize <= constants.DefaultInitValue {
 		t.Fatalf("backfill batch size not positive: %d", back.BatchSize)
+	}
+}
+
+// A malformed, zero or negative knob falls back to its default instead of stopping
+// the workers, panicking the sweeper's ticker or dead-lettering every job.
+func TestLoadCleanupConfigRejectsNonPositiveValues(t *testing.T) {
+	const customConcurrentPatches = 7
+	t.Setenv(constants.EnvCleanupWorkersPerType, "abc")
+	t.Setenv(constants.EnvCleanupSweeperIntervalSeconds, "0")
+	t.Setenv(constants.EnvCleanupJobMaxAttempts, "-3")
+	t.Setenv(constants.EnvCleanupMaxConcurrentPatches, strconv.Itoa(customConcurrentPatches))
+
+	clean := config.LoadCleanupConfig()
+	if clean.WorkersPerType != constants.DefaultCleanupWorkersPerType ||
+		clean.SweeperInterval != constants.DefaultCleanupSweeperIntervalSeconds*time.Second ||
+		clean.JobMaxAttempts != constants.DefaultCleanupJobMaxAttempts {
+		t.Fatalf("invalid values not replaced by defaults: %+v", clean)
+	}
+	if clean.MaxConcurrentPatches != customConcurrentPatches {
+		t.Fatalf("valid value = %d, want %d", clean.MaxConcurrentPatches, customConcurrentPatches)
 	}
 }
 

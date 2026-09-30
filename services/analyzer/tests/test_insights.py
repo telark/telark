@@ -232,6 +232,9 @@ def test_paused_workload_resolves_its_rollout_cards():
     run.status_cache[("shop", "deployment/api")] = {**_ready(ready=0), "paused": True}
     run.events_cache.append({"reason": "BackOff", "object": "Pod/api-7d9fb-x2k4q", "last": NOW, "namespace": "shop"})
     assert insights.resolve_observed(AppInsights(insights=[_insight(kind="rollout_stuck")]), run, NOW, set()) == []
+    # That warning's pod no longer exists (a replaced pod's leftover): it no longer blocks.
+    run.pods_cache[("shop", "deployment/api")] = [{"metadata": {"name": "api-6c5d4-new01"}}]
+    assert insights.resolve_observed(AppInsights(insights=[_insight(kind="rollout_stuck")]), run, NOW, set()) != []
 
 
 def test_gone_workload_resolves_and_emits_nothing():

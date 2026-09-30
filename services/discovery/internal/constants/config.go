@@ -139,6 +139,14 @@ const (
 	InsightsIndexRetryAfterSec  = 5
 )
 
+// Self-monitoring off (the default) adds the release namespace to the excluded namespaces.
+const (
+	EnvSelfMonitoringEnabled     = "SELF_MONITORING_ENABLED"
+	DefaultSelfMonitoringEnabled = false
+	// The pod's own namespace (Downward API) is the release namespace, which Kyverno's resourceFilters skip.
+	EnvPodNamespace = "POD_NAMESPACE"
+)
+
 // Logger prefixes
 const (
 	LoggerPrefixDiscoveryManager   = "DiscoveryManager: "

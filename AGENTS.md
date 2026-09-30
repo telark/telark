@@ -9,7 +9,7 @@ Rules and workflows for coding agents (Claude Code, Codex, Cursor, Copilot, Gemi
 | `services/auth`, `services/discovery`, `services/exporter`, `services/notifier` | Go services (module `github.com/telark/<svc>`): `main.go` plus single-purpose packages under `internal/`; tests under `internal/tests/<area>/` |
 | `services/analyzer` | The analyzer: a Python/FastAPI service that runs local open-weight models through Ollama |
 | `charts/telark` | Application chart: services, subcharts, sizing presets in `modes/`, and `values.dev.yaml` (local port-forward settings that Helm never loads) |
-| `charts/telark-crds` | CRDs, vendored into `charts/telark` as a `file://` subchart |
+| `charts/telark-crds` | CRDs, a standalone chart published to OCI; `charts/telark` depends on it by exact version (re-pinned by `release-charts` on `chart=both`) |
 | `docs/` | `INSTALL.md`, `DEVELOPMENT.md` (every make target), `PUBLISHING.md`, `CRDS.md`, ADRs; `architecture/`, `security/` and `testing/` for agents and contributors |
 | `scripts/` | Dev-cluster loop: `local-build-push.sh`, `local-port-forward.sh`; git-ignored, so they exist only on the maintainer's machine |
 | `.github/` | CI (`workflows/ci.yaml`), build and release workflows, composite actions in `actions/` and their scripts in `scripts/` |
@@ -119,7 +119,7 @@ Verify each step against its success criterion before moving on. Strong success 
 
 **Tests and verification**
 
-- Tests live under `services/<svc>/internal/tests/<area>/` as separate packages, table-driven, reusing the `testutil` helpers. Don't add `*_test.go` or `*_internal_test.go` files beside production code; when a test needs an unexported symbol, expose a small exported helper or test through the exported surface. Production packages stay test-free, and each service's tests sit in one tree.
+- Tests live under `services/<svc>/internal/tests/<area>/` as separate packages, table-driven, reusing the `testutil` helpers. Don't add `*_test.go` or `*_internal_test.go` files beside production code. Production packages stay test-free, and each service's tests sit in one tree. Never add test seams to production code: no `*ForTest` functions and no exported setters or constructors that exist only for tests or mutate package state. Test through the exported API production already uses; export an unexported function only when production calls it the same way. The one in-package test file is discovery's `coalesce_internal_test.go`.
 - Before calling a Go change done, run the `go-service-change-gate` skill: build, vet and test, the `GOWORK=off` check CI runs, and `golangci-lint run` last with zero errors. A green workspace build is not a green CI build, because CI resolves shared modules from the `go.mod` pins.
 
 **Known pitfall**

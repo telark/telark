@@ -293,16 +293,14 @@ func resolvedApp(name, namespace string) dpolicies.ResolvedApp {
 	}
 }
 
-func liveObject(t *testing.T, pol *kyvernov1.Policy, ready bool) *unstructured.Unstructured {
+func liveObject(t *testing.T, pol *kyvernov1.Policy) *unstructured.Unstructured {
 	t.Helper()
 	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(pol)
 	if err != nil {
 		t.Fatalf("to unstructured: %v", err)
 	}
 	live := &unstructured.Unstructured{Object: obj}
-	if ready {
-		live.Object["status"] = map[string]any{"conditions": []any{map[string]any{"type": "Ready", "status": "True"}}}
-	}
+	live.Object["status"] = map[string]any{"conditions": []any{map[string]any{"type": "Ready", "status": "True"}}}
 	return live
 }
 
@@ -373,7 +371,7 @@ func TestComputeAndRepairSkipsVanishedApplication(t *testing.T) {
 	}
 	alive := slices.IndexFunc(rendered, func(p kyvernov1.Policy) bool { return p.Namespace == repairPlanNS })
 
-	dyn := withApplyCreate(fakeDyn(liveObject(t, &rendered[alive], true)))
+	dyn := withApplyCreate(fakeDyn(liveObject(t, &rendered[alive])))
 	logger := &recordingLogger{}
 	deps := repairDeps(dyn, logger)
 	deps.ResolveApps = func(context.Context, []string) (map[string]dpolicies.ResolvedApp, []string, error) {
@@ -417,7 +415,7 @@ func TestComputeAndRepairDeploysPoliciesTheRenderNowProduces(t *testing.T) {
 	second := rendered[len(rendered)-constants.DefaultAddValue-first]
 	plan.RenderedPolicies = []string{rendered[first].Name}
 
-	dyn := withApplyCreate(fakeDyn(liveObject(t, &rendered[first], true)))
+	dyn := withApplyCreate(fakeDyn(liveObject(t, &rendered[first])))
 	logger := &recordingLogger{}
 	deps := repairDeps(dyn, logger)
 	deps.ResolveApps = func(context.Context, []string) (map[string]dpolicies.ResolvedApp, []string, error) {

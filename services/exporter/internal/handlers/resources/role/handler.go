@@ -3,6 +3,7 @@ package role
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/telark/data/errors"
 	"github.com/telark/data/messages"
@@ -35,6 +36,7 @@ func CreateRoleResourceWithCacheInvalidation(optimizer *performance.Optimizer) f
 			return
 		}
 
+		resourcesshared.StampCreateAudit(r, body)
 		role, err := roleutils.ExtractRoleSpecFromRequestBody(body)
 		if err != nil {
 			responseutils.LogAndSendResponse(
@@ -145,8 +147,9 @@ func PatchRoleByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(h
 			return
 		}
 
+		resourcesshared.StampPatchAudit(r, body)
 		mergedRole, ok := roleutils.ExtractAndMergeRoleForPatch(existingRole, body, w)
-		if !ok || !authz.GuardPatchedRoleLevels(w, r, mergedRole, body) {
+		if !ok || !authz.GuardPatchedRoleLevels(w, r, existingRole, mergedRole, body) {
 			return
 		}
 
@@ -189,7 +192,11 @@ func DeleteRoleByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 			return
 		}
 
-		if !authz.GuardRoleDeletion(w, existingRole) {
+		if !authz.GuardRoleDeletion(w, existingRole) || !authz.GuardRoleWithinCaller(w, r, existingRole) {
+			return
+		}
+		if existingRole.Protection != nil && existingRole.Protection.SoftDelete {
+			softDeleteRole(w, r, roleID, optimizer)
 			return
 		}
 
@@ -223,4 +230,15 @@ func DeleteRoleByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 			nil,
 		)
 	}
+}
+
+// The record stays for history; grants count only Active roles, so it grants nothing.
+func softDeleteRole(w http.ResponseWriter, r *http.Request, roleID string, optimizer *performance.Optimizer) {
+	body := map[string]any{
+		constants.FieldStatus:    string(roledata.RoleStatusDeleted),
+		constants.FieldDeletedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	resourcesshared.StampPatchAudit(r, body)
+	patchRoleResource(w, roleID, body, optimizer)
+	authz.BumpGeneration(r.Context())
 }

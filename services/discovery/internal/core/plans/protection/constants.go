@@ -11,6 +11,7 @@ const (
 	fmtWrappedErr            = "%w: %v"
 	ReasonCanceledByUser     = "Canceled by user."
 	ReasonExpired            = "Plan window ended."
+	ReasonParked             = "Plan parked by an edit."
 	QueryParamLimit          = "limit"
 	QueryParamResult         = "result"
 	FieldPhase               = "phase"

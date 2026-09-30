@@ -22,7 +22,8 @@ type DeployErrorMessages struct {
 	InternalErrorFormat  string
 }
 
-// Order is deploy → mode-patch → delete so coverage never dips during the window.
+// Order is deploy → mode-patch. The removed names come back as stale, deleted only once the exporter
+// patch lands, so coverage never dips during the window and a refused patch leaves them live.
 func ApplyClusterDiff(
 	ctx context.Context,
 	applier *Applier,
@@ -32,43 +33,40 @@ func ApplyClusterDiff(
 	resolved map[string]datapolicies.ResolvedApp,
 	newMode string,
 	msgs DeployErrorMessages,
-) (deployed, kept []string, err error) {
+) (deployed, kept, stale []string, err error) {
 	if plan.Phase != plans.PhaseActive {
-		return nil, plan.RenderedPolicies, nil
+		return nil, plan.RenderedPolicies, nil, nil
+	}
+
+	removeNames, err := computeRemovalNames(plan, removeCombos, resolved)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 
 	rendered, err := renderCombos(plan, deployCombos, resolved, logger)
 	if err != nil {
 		shared.LogDeployFailure(logger, plan, "update-render", err)
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	deployedNames, err := applier.Deploy(ctx, rendered)
 	if err != nil {
 		shared.LogDeployFailure(logger, plan, "update-deploy", err)
 		_ = applier.DeletePoliciesByNamespacedName(ctx, renderedPolicyRefs(rendered))
-		return nil, nil, fmt.Errorf(msgs.InternalErrorFormat, msgs.GenericDeployFailure)
+		return nil, nil, nil, fmt.Errorf(msgs.InternalErrorFormat, msgs.GenericDeployFailure)
 	}
 
 	if newMode != plan.Mode {
 		if err := applier.PatchPoliciesMode(ctx, plan.ID, newMode); err != nil {
 			shared.LogDeployFailure(logger, plan, "update-mode-patch", err)
 			_ = applier.DeletePoliciesByNamespacedName(ctx, renderedPolicyRefs(rendered))
-			return nil, nil, fmt.Errorf(msgs.InternalErrorFormat, msgs.GenericDeployFailure)
+			return nil, nil, nil, fmt.Errorf(msgs.InternalErrorFormat, msgs.GenericDeployFailure)
 		}
 	}
 
-	removeNames, err := computeRemovalNames(plan, removeCombos, resolved)
-	if err != nil {
-		_ = applier.DeletePoliciesByNamespacedName(ctx, renderedPolicyRefs(rendered))
-		return nil, nil, err
-	}
-	if err := applier.DeletePoliciesByLabelAndNames(ctx, plan.ID, removeNames); err != nil {
-		logger.Error(fmt.Sprintf("protection-plan update remove failed plan=%s err=%v", plan.ID, err))
-	}
-
-	kept = subtract(plan.RenderedPolicies, removeNames)
-	return deployedNames, kept, nil
+	// A template re-added with other params renders under its old name: that one stays.
+	stale = subtract(removeNames, deployedNames)
+	return deployedNames, subtract(plan.RenderedPolicies, stale), stale, nil
 }
 
 func RollbackPatchFailure(
@@ -77,15 +75,21 @@ func RollbackPatchFailure(
 	logger DiffLogger,
 	plan *plans.ProtectionPlan,
 	deployedNow []string,
+	newMode string,
 ) {
-	if len(deployedNow) == constants.DefaultInitValue {
+	if len(deployedNow) > constants.DefaultInitValue {
+		logger.Error(fmt.Sprintf(
+			"protection-plan update CRD patch failed; rolling back cluster changes plan=%s deployed=%d",
+			plan.ID, len(deployedNow),
+		))
+		_ = applier.DeletePoliciesByLabelAndNames(ctx, plan.ID, deployedNow)
+	}
+	if newMode == plan.Mode {
 		return
 	}
-	logger.Error(fmt.Sprintf(
-		"protection-plan update CRD patch failed; rolling back cluster changes plan=%s deployed=%d",
-		plan.ID, len(deployedNow),
-	))
-	_ = applier.DeletePoliciesByLabelAndNames(ctx, plan.ID, deployedNow)
+	if err := applier.PatchPoliciesMode(ctx, plan.ID, plan.Mode); err != nil {
+		shared.LogDeployFailure(logger, plan, "update-rollback-mode", err)
+	}
 }
 
 // A full render reproduces the live names, so nothing is deleted here: Run deletes the stale names

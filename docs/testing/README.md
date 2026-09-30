@@ -10,7 +10,7 @@ How to build, test and validate Telark from a fresh clone, locally or in a Claud
 | `golangci-lint` (per service) | golangci-lint | yes | `go`, lint leg |
 | Helm lint, `VALUES.md` drift, kubeconform | Helm, Go (for helm-docs), kubeconform, network access to chart repos and schemas | yes | `helm` |
 | Analyzer syntax check, pytest, coverage | Python 3.13 | yes | `analyzer` |
-| `helm test`, API calls, UI flows, admission behaviour | a cluster with the chart installed | no | none |
+| Pod readiness, API calls, UI flows, admission behaviour | a cluster with the chart installed | no | none |
 
 Cloud sessions have no cluster, no registry login and no dashboard UI checkout. Every row except the last runs there; the last row is manual work on a cluster (see [Cluster validation](#cluster-validation)).
 
@@ -129,10 +129,9 @@ This needs a Kubernetes cluster (≥ 1.30) with the chart installed, which a clo
 
 ```sh
 kubectl -n telark get pods
-helm test telark -n telark
 ```
 
-`helm test` (`charts/telark/templates/tests/test-connection.yaml`) calls `/api/v1/status/ready` on every enabled service that has a health check (the UI has none) and checks that the `telark.io` API group is served.
+Every pod should be `Running` and `READY`: every service with a health check (all but the UI) is ready only once `/api/v1/status/ready` answers.
 
 ### Calling the APIs
 

@@ -157,7 +157,6 @@ func (x *Index) rowMatches(q *Query, row *Row, excluded []string) bool {
 	}
 	return q.Environment == constants.EmptyString ||
 		slices.Contains(x.envByApp[row.App], q.Environment) ||
-		slices.Contains(x.envByNS[row.Namespace], q.Environment) ||
 		slices.Contains(x.envByNS[row.WorkloadNamespace], q.Environment)
 }
 
@@ -225,9 +224,9 @@ func (x *Index) items(q *Query, matched []*Row, nowMs int64) []Row {
 }
 
 func (x *Index) environments(row *Row) []string {
-	byApp, byNS, byWorkloadNS := x.envByApp[row.App], x.envByNS[row.Namespace], x.envByNS[row.WorkloadNamespace]
-	out := make([]string, constants.DefaultInitValue, len(byApp)+len(byNS)+len(byWorkloadNS))
-	out = append(append(append(out, byApp...), byNS...), byWorkloadNS...)
+	byApp, byWorkloadNS := x.envByApp[row.App], x.envByNS[row.WorkloadNamespace]
+	out := make([]string, constants.DefaultInitValue, len(byApp)+len(byWorkloadNS))
+	out = append(append(out, byApp...), byWorkloadNS...)
 	slices.Sort(out)
 	return slices.Compact(out)
 }

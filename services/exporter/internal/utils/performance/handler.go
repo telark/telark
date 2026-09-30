@@ -94,7 +94,7 @@ func (clh *CachedListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	if clh.serveCached(w, requestID, cacheKey) {
+	if clh.serveCached(w, requestID, cacheKey) != nil {
 		return
 	}
 
@@ -102,14 +102,17 @@ func (clh *CachedListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	clh.executeHandler(w, r, requestID, cacheKey)
 }
 
-func (clh *CachedListHandler) serveCached(w http.ResponseWriter, requestID string, cacheKey string) bool {
+func (clh *CachedListHandler) serveCached(w http.ResponseWriter, requestID string, cacheKey string) []byte {
 	blob, ok := clh.cachedBlob(cacheKey)
-	if !ok {
-		return false
+	if ok {
+		serveBlob(w, requestID, cacheKey, blob)
 	}
+	return blob
+}
+
+func serveBlob(w http.ResponseWriter, requestID string, cacheKey string, blob []byte) {
 	lg.Info(fmt.Sprintf(string(constants.InfOptimizerCacheHit), requestID, cacheKey))
 	writeCachedEnvelope(w, blob)
-	return true
 }
 
 // The blob is the data field's JSON, validated when it was stored; it goes out
@@ -153,15 +156,15 @@ func (clh *CachedListHandler) etag(cacheKey string) string {
 	return constants.WeakETagPrefix + strconv.Quote(cacheKey)
 }
 
-func (clh *CachedListHandler) inflightLock(cacheKey string) *sync.Mutex {
+func (clh *CachedListHandler) joinFlight(cacheKey string) (*listFlight, bool) {
 	clh.inflightMu.Lock()
 	defer clh.inflightMu.Unlock()
-	if lock, ok := clh.inflight[cacheKey]; ok {
-		return lock
+	if flight, ok := clh.inflight[cacheKey]; ok {
+		return flight, false
 	}
-	lock := &sync.Mutex{}
-	clh.inflight[cacheKey] = lock
-	return lock
+	flight := &listFlight{done: make(chan struct{})}
+	clh.inflight[cacheKey] = flight
+	return flight, true
 }
 
 func (clh *CachedListHandler) inflightRelease(cacheKey string) {
@@ -171,24 +174,45 @@ func (clh *CachedListHandler) inflightRelease(cacheKey string) {
 }
 
 func (clh *CachedListHandler) executeHandler(w http.ResponseWriter, r *http.Request, requestID string, cacheKey string) {
-	if cacheKey != constants.EmptyString {
-		// Ten concurrent misses on a 1 MB list must not mean ten rebuilds: the
-		// first caller builds and stores, the others wait and serve the copy.
-		lock := clh.inflightLock(cacheKey)
-		lock.Lock()
-		defer lock.Unlock()
-		defer clh.inflightRelease(cacheKey)
-		if clh.serveCached(w, requestID, cacheKey) {
+	if cacheKey == constants.EmptyString {
+		clh.render(w, r, requestID, cacheKey)
+		return
+	}
+	// Ten concurrent misses on a 1 MB list must not mean ten rebuilds. A render
+	// with nothing to share (an error, a refusal) hands the key to the next waiter.
+	for {
+		flight, leader := clh.joinFlight(cacheKey)
+		if leader {
+			clh.lead(w, r, requestID, cacheKey, flight)
+			return
+		}
+		select {
+		case <-flight.done:
+		case <-r.Context().Done():
+			refuseRender(w, requestID, cacheKey)
+			return
+		}
+		if flight.blob != nil {
+			serveBlob(w, requestID, cacheKey, flight.blob)
 			return
 		}
 	}
+}
+
+// Deferred so a panicking render still frees its waiters; the entry goes before
+// done closes, so a woken waiter never rejoins a finished flight.
+func (clh *CachedListHandler) lead(w http.ResponseWriter, r *http.Request, requestID string, cacheKey string, flight *listFlight) {
+	defer close(flight.done)
+	defer clh.inflightRelease(cacheKey)
+	if flight.blob = clh.serveCached(w, requestID, cacheKey); flight.blob == nil {
+		flight.blob = clh.render(w, r, requestID, cacheKey)
+	}
+}
+
+func (clh *CachedListHandler) render(w http.ResponseWriter, r *http.Request, requestID string, cacheKey string) []byte {
 	if !clh.acquireRender(r.Context()) {
-		lg.Warn(fmt.Sprintf(string(constants.WarnOptimizerRenderRefused), requestID, cacheKey))
-		w.Header().Del(constants.HeaderETag)
-		w.Header().Set(constants.HeaderRetryAfter, constants.ListRenderRetryAfter)
-		responseutils.LogAndSendResponse(w, http.StatusServiceUnavailable, response.OperationUnavailable,
-			string(constants.ErrOptimizerRenderBusy), nil, nil)
-		return
+		refuseRender(w, requestID, cacheKey)
+		return nil
 	}
 	defer clh.releaseRender()
 	responseCapture := &responseCaptureWriter{
@@ -199,27 +223,35 @@ func (clh *CachedListHandler) executeHandler(w http.ResponseWriter, r *http.Requ
 
 	clh.handler(responseCapture, r)
 
-	if responseCapture.statusCode == http.StatusOK {
-		storeResponseInCache(clh, r, responseCapture, cacheKey, requestID)
-	} else {
+	if responseCapture.statusCode != http.StatusOK {
 		lg.Info(fmt.Sprintf(string(constants.InfOptimizerCacheStoreSkipped), requestID, responseCapture.statusCode))
+		return nil
 	}
+	return storeResponseInCache(clh, r, responseCapture, cacheKey, requestID)
 }
 
-// Waits ListRenderWait for a render slot: a request that would only queue
-// behind the running renders is refused with Retry-After instead. Single
-// resource reads are never bounded, so their handler has no slots.
+func refuseRender(w http.ResponseWriter, requestID string, cacheKey string) {
+	lg.Warn(fmt.Sprintf(string(constants.WarnOptimizerRenderRefused), requestID, cacheKey))
+	w.Header().Del(constants.HeaderETag)
+	w.Header().Set(constants.HeaderRetryAfter, constants.ListRenderRetryAfter)
+	responseutils.LogAndSendResponse(w, http.StatusServiceUnavailable, response.OperationUnavailable,
+		string(constants.ErrOptimizerRenderBusy), nil, nil)
+}
+
+// Waits for a slot until the request's deadline: a waiter holds only its key's
+// flight, never a render buffer. Single resource reads have no slots.
 func (clh *CachedListHandler) acquireRender(ctx context.Context) bool {
 	if clh.renders == nil {
 		return true
 	}
-	wait := time.NewTimer(constants.ListRenderWait)
-	defer wait.Stop()
 	select {
 	case clh.renders <- struct{}{}:
+		// select picks at random when the deadline passed with a slot free.
+		if ctx.Err() != nil {
+			clh.releaseRender()
+			return false
+		}
 		return true
-	case <-wait.C:
-		return false
 	case <-ctx.Done():
 		return false
 	}
@@ -269,11 +301,6 @@ func (rcw *responseCaptureWriter) WriteHeader(statusCode int) {
 }
 
 func (rcw *responseCaptureWriter) Write(data []byte) (int, error) {
-	if len(rcw.body)+len(data) > MaxResponseSize {
-		lg.Error(fmt.Sprintf(string(constants.ErrOptimizerResponseSizeLimitExceeded), MaxResponseSize))
-		return rcw.ResponseWriter.Write(data)
-	}
-
 	rcw.body = append(rcw.body, data...)
 	return rcw.ResponseWriter.Write(data)
 }

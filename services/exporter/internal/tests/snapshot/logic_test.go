@@ -248,10 +248,14 @@ func TestSnapshotNotFoundMessage(t *testing.T) {
 }
 
 func TestContentDispositionFilename(t *testing.T) {
-	got := snaputil.ContentDispositionFilename(testAppID, gen3)
-	want := `attachment; filename="app-1-G3-rollback.json"`
-	if got != want {
-		t.Errorf("ContentDispositionFilename = %q, want %q", got, want)
+	cases := map[string]string{
+		constants.SnapshotRollbackFilenameSuffix:     `attachment; filename="app-1-G3-rollback.json"`,
+		constants.SnapshotRollbackYAMLFilenameSuffix: `attachment; filename="app-1-G3-rollback.yaml"`,
+	}
+	for suffix, want := range cases {
+		if got := snaputil.ContentDispositionFilename(testAppID, gen3, suffix); got != want {
+			t.Errorf("ContentDispositionFilename = %q, want %q", got, want)
+		}
 	}
 }
 

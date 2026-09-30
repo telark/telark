@@ -7,7 +7,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: {{ include "telark.fullname" . }}-ollama
-  namespace: {{ .Values.app.namespace }}
+  namespace: {{ .Release.Namespace }}  # subchart pods follow -n, not app.namespace
   labels:
     {{- include "telark.labels" . | nindent 4 }}
     app.kubernetes.io/component: ollama

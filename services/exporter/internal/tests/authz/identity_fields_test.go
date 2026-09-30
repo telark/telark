@@ -14,7 +14,7 @@ import (
 
 func linkedTarget(id string) *userdata.User {
 	return &userdata.User{
-		ID: id, Email: "jane.doe@example.com", Username: "jane",
+		ID: id, Email: "test@example.com", Username: "testuser",
 		Identities: []*userdata.UserIdentity{{Provider: "google", Issuer: "https://accounts.google.com", Subject: "111"}},
 	}
 }
@@ -43,11 +43,11 @@ func TestGuardUserPatchIdentityFields(t *testing.T) {
 			map[string]any{constants.FieldRoleRefs: existingRoles, constants.FieldUsername: "attacker"}, false},
 		{"owner echoes unchanged identity fields", owner, victimID,
 			map[string]any{
-				constants.FieldRoleRefs: existingRoles, constants.FieldEmail: "jane.doe@example.com",
+				constants.FieldRoleRefs: existingRoles, constants.FieldEmail: "test@example.com",
 				constants.FieldIdentities: identitiesBody("111"),
 			}, true},
 		{"self changes email", self, callerID, map[string]any{constants.FieldEmail: "new@example.com"}, true},
-		{"self changes username", self, callerID, map[string]any{constants.FieldUsername: "janed"}, true},
+		{"self changes username", self, callerID, map[string]any{constants.FieldUsername: "testuser2"}, true},
 		{"self links another identity", self, callerID, map[string]any{constants.FieldIdentities: identitiesBody("222")}, false},
 		{"internal links an identity", internalIdentity, victimID, map[string]any{constants.FieldIdentities: identitiesBody("222")}, true},
 	}

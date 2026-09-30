@@ -37,15 +37,20 @@ type CachedListHandler struct {
 	cacheKey     CacheKeyFunc
 	resourceType string
 	operation    string
-	// One rebuild per cache key at a time; concurrent misses wait for it.
+	// One rebuild per cache key at a time; concurrent misses wait for its blob.
 	inflightMu sync.Mutex
-	inflight   map[string]*sync.Mutex
+	inflight   map[string]*listFlight
 	// Renders running at once across keys; nil leaves them unbounded.
 	renders chan struct{}
 	// Last rendered list blobs: a hit under the current generation is a memory
 	// read, not a multi-megabyte Redis round trip.
 	localMu sync.Mutex
 	local   []localBlob
+}
+
+type listFlight struct {
+	done chan struct{}
+	blob []byte
 }
 
 type localBlob struct {
@@ -73,7 +78,7 @@ func NewCachedListHandler(
 		cacheKey:     cacheKeyFunc,
 		resourceType: resourceType,
 		operation:    operation,
-		inflight:     map[string]*sync.Mutex{},
+		inflight:     map[string]*listFlight{},
 	}
 	if operation == constants.OpList {
 		clh.renders = make(chan struct{}, envmanager.GetListRenderConcurrency())

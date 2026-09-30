@@ -1,6 +1,7 @@
 package cleanup
 
 import (
+	"fmt"
 	"net/http"
 	"slices"
 
@@ -90,7 +91,7 @@ func extractFinalizerInputs(
 	body, err := requestutils.ParseRequestBody(r)
 	if err != nil {
 		responseutils.LogAndSendResponse(w, http.StatusUnprocessableEntity, response.OperationError,
-			string(globalerrors.ErrRestParseRequestBody), nil, err)
+			fmt.Sprintf(string(globalerrors.ErrRestParseRequestBody), err), nil, err)
 		return resourceTarget{}, constants.EmptyString, constants.EmptyString, false
 	}
 	rawName, isString := body[restconstants.FieldFinalizerName].(string)

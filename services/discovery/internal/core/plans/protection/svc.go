@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -84,6 +85,7 @@ func (s *Service) Environments() validation.EnvironmentLister { return s.environ
 func (s *Service) AppLogger() Logger                          { return s.logger }
 func (s *Service) Clock() time.Time                           { return s.clock() }
 func (s *Service) Notifier() *ApprovalNotifier                { return s.notifier }
+func (s *Service) Reports() *reports.Generator                { return s.reports }
 
 func (s *Service) LockName(ctx context.Context, name string) (func(), error) {
 	return s.names.Acquire(ctx, name)
@@ -116,7 +118,10 @@ func (s *Service) Duplicate(
 	if err != nil {
 		return nil, err
 	}
-	req := duplicate.BuildRequest(source, overrides)
+	req := duplicate.BuildRequest(source, overrides, validation.CallerOwnsPlans(ctx))
+	if err := s.dropVanishedApplications(ctx, req); err != nil {
+		return nil, err
+	}
 	if duplicate.UsesDefaultName(overrides) {
 		existing, listErr := s.exporter.List()
 		if listErr != nil {
@@ -129,6 +134,26 @@ func (s *Service) Duplicate(
 		req.Name = name
 	}
 	return s.Prepare(ctx, userID, req)
+}
+
+// A copy inherits the source's applications; one that vanished since is left out, and only a
+// copy left with none is refused.
+func (s *Service) dropVanishedApplications(ctx context.Context, req *planseps.PrepareProtectionPlanRequest) error {
+	if req.Scope.Type != plans.ScopeTypeApplications {
+		return nil
+	}
+	_, missing, err := s.resolveApps(ctx, req.Scope.ApplicationRefs)
+	if err != nil {
+		return err
+	}
+	kept := slices.DeleteFunc(slices.Clone(req.Scope.ApplicationRefs), func(id string) bool {
+		return slices.Contains(missing, id)
+	})
+	if len(kept) == constants.DefaultInitValue {
+		return validation.Invalidf(string(ErrMissingApplications), missing)
+	}
+	req.Scope.ApplicationRefs = kept
+	return nil
 }
 
 func (s *Service) ListViolations(

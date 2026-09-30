@@ -28,8 +28,8 @@ func Usable(oidc telarkconfigresource.OIDCConfig) bool {
 }
 
 // Rejects a config that would break login before it is stored: an enabled one must name a
-// client and a reachable trust source; offline, an omitted set falls back to the mounted one.
-func Validate(oidc telarkconfigresource.OIDCConfig) error {
+// client and a reachable trust source; offline, an omitted (not cleared) set falls back to the mounted one.
+func Validate(oidc telarkconfigresource.OIDCConfig, jwkGiven bool) error {
 	if !oidc.Enabled {
 		return nil
 	}
@@ -40,7 +40,10 @@ func Validate(oidc telarkconfigresource.OIDCConfig) error {
 
 	jwkJSON := oidc.GoogleJWKJSON
 	if !oidc.EgressAllowed && jwkJSON == constants.EmptyString {
-		if jwkJSON = TrustJWK(); jwkJSON == constants.EmptyString {
+		if !jwkGiven {
+			jwkJSON = TrustJWK()
+		}
+		if jwkJSON == constants.EmptyString {
 			return errors.New(string(constants.ErrOIDCTrustSourceRequired))
 		}
 	}

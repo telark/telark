@@ -188,18 +188,45 @@ func TestGuardReservedEmail(t *testing.T) {
 	t.Setenv(constants.BootstrapAdminEnv, " Root@Example.com ")
 	envmanager.InitBootstrapAdmin()
 
-	w := httptest.NewRecorder()
-	expectForbidden(t, w, authz.GuardReservedEmail(w, requestAs(allAdmin()), "root@example.com"), "session claiming a bootstrap mailbox")
-	if !authz.GuardReservedEmail(httptest.NewRecorder(), requestAs(allAdmin()), "test@example.com") {
-		t.Fatal("ordinary mailbox refused")
+	const reserved, ordinary = "root@example.com", "test@example.com"
+	moved, holder, bootstrap, onChart := userHolding(userPlain, nil, nil), userHolding(userPlain, nil, nil),
+		fakeUsers()[userBootstrap], fakeUsers()[userBootstrap]
+	moved.Email, holder.Email, bootstrap.Email, onChart.Email = ordinary, "ROOT@example.com", ordinary, reserved
+
+	tests := []struct {
+		name     string
+		identity xauthz.Identity
+		target   *userdata.User
+		email    string
+		want     bool
+	}{
+		{"session creating on a bootstrap mailbox", allAdmin(), nil, reserved, false},
+		{"account moving onto a bootstrap mailbox", as(userPlain, allAdmin()), moved, reserved, false},
+		{"account resending the bootstrap mailbox it holds", as(userPlain, allAdmin()), holder, reserved, true},
+		{"bootstrap account taking its mailbox back", as(userBootstrap, allAdmin()), bootstrap, " Root@Example.com", true},
+		{"bootstrap account leaving its mailbox", as(userBootstrap, allAdmin()), onChart, ordinary, false},
+		{"bootstrap account resending a drifted email", as(userBootstrap, allAdmin()), bootstrap, ordinary, true},
+		{"ordinary mailbox", allAdmin(), nil, ordinary, true},
+		{"service provisioning a bootstrap mailbox", internalIdentity, nil, reserved, true},
+		{"service moving the bootstrap account", internalIdentity, onChart, ordinary, true},
 	}
-	if !authz.GuardReservedEmail(httptest.NewRecorder(), requestAs(internalIdentity), "root@example.com") {
-		t.Fatal("service provisioning a bootstrap mailbox refused")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			if got := authz.GuardReservedEmail(w, requestAs(tt.identity), tt.target, tt.email); !tt.want {
+				expectForbidden(t, w, got, tt.name)
+			} else if !got {
+				t.Fatalf("refused: %d %s", w.Code, w.Body.String())
+			}
+		})
 	}
 
 	t.Setenv(constants.BootstrapAdminEnv, constants.EmptyString)
 	envmanager.InitBootstrapAdmin()
-	if !authz.GuardReservedEmail(httptest.NewRecorder(), requestAs(allAdmin()), constants.EmptyString) {
+	if !authz.GuardReservedEmail(httptest.NewRecorder(), requestAs(allAdmin()), nil, constants.EmptyString) {
 		t.Fatal("unset bootstrap admin reserved the empty email")
 	}
+	w := httptest.NewRecorder()
+	expectForbidden(t, w, authz.GuardReservedEmail(w, requestAs(as(userBootstrap, allAdmin())), onChart, ordinary),
+		"bootstrap account changing its email with no chart value")
 }

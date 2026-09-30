@@ -39,6 +39,7 @@ const (
 	ErrAuthzLastAdmin                 = "this change would leave no active administrator: grant Admin on ALL to another active user first"
 	ErrAuthzSelfDelete                = "you cannot delete your own account"
 	ErrAuthzBootstrapEmailReserved    = "this email belongs to a bootstrap administrator managed by the chart"
+	ErrAuthzBootstrapEmailLocked      = "the bootstrap administrator's email is set by the chart (app.auth.bootstrap.admin)"
 	ErrAuthzRoleLevelExceedsCaller    = "a role cannot grant a level above your own on that scope"
 	ErrAuthzAssignedRoleExceedsCaller = "role %s cannot be assigned: it grants %s on %s, above your own level on that scope"
 	ErrAuthzRemovedRoleExceedsCaller  = "role %s cannot be changed, removed or deleted: it grants %s on %s, above your own level on that scope"

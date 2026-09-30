@@ -10,6 +10,7 @@ import (
 	roledata "github.com/telark/telark/internal/data/resources/role"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/exporter/internal/constants"
+	envmanager "github.com/telark/telark/services/exporter/internal/managers/envs"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 )
@@ -120,6 +121,46 @@ func TestUserPatchWithoutGroupsKeepsMemberships(t *testing.T) {
 			}
 			if members := storedList(t, client, v1alpha1.GroupMetadata, mixedGroupID, keyUserRefs); !slices.Contains(members, plainUser) {
 				t.Errorf("group lost the member: %v", members)
+			}
+		})
+	}
+}
+
+// Seen live: the bootstrap account's profile save resent its own email and got 403,
+// while a typo moved it off the chart's address, where break-glass no longer finds it.
+func TestBootstrapEmailStaysTheChartValue(t *testing.T) {
+	const reservedEmail, otherEmail = "root@example.com", "test@example.com"
+	t.Cleanup(envmanager.InitBootstrapAdmin)
+	t.Setenv(constants.BootstrapAdminEnv, reservedEmail)
+	envmanager.InitBootstrapAdmin()
+
+	tests := []struct {
+		name      string
+		bootstrap bool
+		stored    string
+		body      map[string]any
+		want      int
+	}{
+		{"bootstrap account resends its email", true, reservedEmail,
+			map[string]any{keyFullname: newName, constants.FieldEmail: reservedEmail}, http.StatusOK},
+		{"bootstrap account takes its email back", true, otherEmail, map[string]any{constants.FieldEmail: reservedEmail}, http.StatusOK},
+		{"bootstrap account leaves the chart's email", true, reservedEmail, map[string]any{constants.FieldEmail: otherEmail}, http.StatusForbidden},
+		{"another account claims it", false, otherEmail, map[string]any{constants.FieldEmail: reservedEmail}, http.StatusForbidden},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			record := userRecord(callerID, nil, nil, tt.bootstrap)
+			record.Email = tt.stored
+			client := installFake(t, crSeedOf(t, v1alpha1.UserMetadata, callerID, record))
+			if w := patchAs(t, xauthz.Identity{UserID: callerID}, usersPrefix+callerID, jsonBody(t, tt.body)); w.Code != tt.want {
+				t.Fatalf("patch = %d %s, want %d", w.Code, w.Body.String(), tt.want)
+			}
+			wantEmail := tt.stored
+			if tt.want == http.StatusOK {
+				wantEmail = reservedEmail
+			}
+			if email := storedSpec(t, client, v1alpha1.UserMetadata, callerID)[constants.FieldEmail]; email != wantEmail {
+				t.Errorf("stored email = %v, want %s", email, wantEmail)
 			}
 		})
 	}

@@ -8,4 +8,5 @@ const (
 	MarkRead    base.Endpoint = "notifications/{id}/read"
 	MarkAllRead base.Endpoint = "notifications/read"
 	Clear       base.Endpoint = "notifications"
+	Delete      base.Endpoint = "notifications/{id}"
 )

@@ -1,0 +1,15 @@
+{
+    "cSpell.words": [
+        "Cacid",
+        "Fasid",
+        "telark"
+    ],
+    "[go]": {
+        "editor.defaultFormatter": "golang.go",
+        "editor.formatOnSave": true
+    },
+    "gopls": {
+        "formatting.gofumpt": true
+    }
+}
+  

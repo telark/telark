@@ -610,6 +610,24 @@ func requirementsIn(fields map[string]xauthz.Requirement, body map[string]any) [
 	return required
 }
 
+var readUsers = xauthz.Read(roledata.ScopeUsers)
+
+// Everyone reads their own record; anyone else's needs users ReadOnly. Judged
+// before the lookup, so a missing id is refused like an existing one.
+func GuardUserRead(w http.ResponseWriter, r *http.Request, targetUserID string) bool {
+	identity, ok := callerIdentity(w, r)
+	if !ok {
+		return false
+	}
+
+	if identity.Internal || identity.UserID == targetUserID || xauthz.Allows(identity, readUsers) {
+		return true
+	}
+
+	denyForbidden(w, string(dataerrors.ErrAuthzForbidden))
+	return false
+}
+
 // Holding the users scope means administering users, not reading their tokens.
 func GuardSelfUser(w http.ResponseWriter, r *http.Request, targetUserID string) bool {
 	identity, ok := callerIdentity(w, r)

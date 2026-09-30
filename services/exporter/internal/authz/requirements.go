@@ -53,7 +53,10 @@ func addUsers(r map[string]authz.Requirement) {
 		authz.Write(roledata.ScopeUsers), roledata.ActionCreateUser,
 	)
 	r[router.Key(base.Get, userendpoints.GetAllUsers)] = authz.Read(roledata.ScopeUsers)
-	r[router.Key(base.Get, userendpoints.GetUserByID)] = authz.Read(roledata.ScopeUsers)
+	// Everyone reads their own profile; GuardUserRead needs users ReadOnly for anyone else's.
+	r[router.Key(base.Get, userendpoints.GetUserByID)] = authz.Authenticated
+	// Audit actors are named for every viewer; only id → username leaves.
+	r[router.Key(base.Get, userendpoints.GetUserNames)] = authz.Authenticated
 	// Any signed-in user may edit their own profile, so the route only needs a
 	// session; GuardUserPatch enforces ownership and each privileged field's rule.
 	r[router.Key(base.Patch, userendpoints.PatchUserByID)] = authz.Authenticated

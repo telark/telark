@@ -90,6 +90,10 @@ func TestScopelessRoutesAreGuarded(t *testing.T) {
 		"PATCH /api/v1/config": true,
 		// Narrowed to the profile owner, and per privileged field, by GuardUserPatch.
 		"PATCH /api/v1/users/{id}": true,
+		// Answers id → username only; audit actors are named for every viewer.
+		"GET /api/v1/users/names": true,
+		// Narrowed to the caller's own record, or users ReadOnly, by GuardUserRead.
+		"GET /api/v1/users/{id}": true,
 	}
 
 	for key, requirement := range authz.Requirements() {

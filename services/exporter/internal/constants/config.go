@@ -39,6 +39,9 @@ const (
 	EmailParam              = "email"
 	UserIDParam             = "userId"
 	CredentialIDParam       = "credentialId"
+	IDsParam                = "ids"
+	UserIDsSeparator        = ","
+	UserNamesMaxIDs         = 100
 	SpecField               = "spec"
 	MetadataField           = "metadata"
 	ResourceVersionField    = "resourceVersion"

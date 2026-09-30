@@ -221,6 +221,9 @@ func userRoutes(optimizer *performance.Optimizer) []router.Route {
 			userhandler.GetUserByUsernameWithCacheInvalidation()),
 		userResourceCachedGetRoute(optimizer, userendpoints.GetUserByEmail,
 			userhandler.GetUserByEmailWithCacheInvalidation()),
+		// Before users/{id}: mux takes the first match, and {id} would match "names".
+		router.CreateRoute(base.Get, userendpoints.GetUserNames,
+			userhandler.GetUserNamesWithCacheInvalidation()),
 		userResourceCachedGetRoute(optimizer, userendpoints.GetUserByID,
 			userhandler.GetUserByIDWithCacheInvalidation()),
 		router.CreateRoute(base.Get, userendpoints.GetUserByIdentity,

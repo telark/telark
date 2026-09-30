@@ -3,6 +3,7 @@ package user
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/telark/telark/internal/data/errors"
@@ -117,7 +118,7 @@ func createUserResource(w http.ResponseWriter, user *userdata.User, optimizer *p
 func GetUserByIDWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID, err := sharedutils.GetPathParam(w, r, constants.IDParam)
-		if err != nil {
+		if err != nil || !authz.GuardUserRead(w, r, userID) {
 			return
 		}
 
@@ -202,6 +203,38 @@ func GetUserByIdentityWithCacheInvalidation() func(http.ResponseWriter, *http.Re
 
 		resourcesshared.SendFilteredResourceResponse(w, resource)
 	}
+}
+
+func GetUserNamesWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ids := requestedUserIDs(r)
+		if len(ids) == constants.DefaultInitValue {
+			responseutils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationError,
+				string(constants.ErrUserIDsRequired), nil, nil)
+			return
+		}
+		if len(ids) > constants.UserNamesMaxIDs {
+			responseutils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationError,
+				fmt.Sprintf(string(constants.ErrUserIDsTooMany), constants.UserNamesMaxIDs), nil, nil)
+			return
+		}
+
+		names, err := userutils.UsernamesByID(ids)
+		if err != nil {
+			responseutils.LogAndSendResponse(w, http.StatusInternalServerError, response.OperationError, err.Error(), nil, err)
+			return
+		}
+		responseutils.LogAndSendResponse(w, http.StatusOK, response.OperationSuccess, string(messages.SuccessListRes), names, nil)
+	}
+}
+
+func requestedUserIDs(r *http.Request) []string {
+	ids := strings.Split(r.URL.Query().Get(constants.IDsParam), constants.UserIDsSeparator)
+	for i := range ids {
+		ids[i] = strings.TrimSpace(ids[i])
+	}
+	slices.Sort(ids)
+	return slices.DeleteFunc(slices.Compact(ids), func(id string) bool { return id == constants.EmptyString })
 }
 
 func ListUserResourcesWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {

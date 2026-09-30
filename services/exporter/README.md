@@ -214,7 +214,10 @@ accounts (`spec.bootstrap: true`, written only with the service token; a session
 ids. A group patch keeps the hidden members, and naming one answers 400 like an unknown id; a user
 patch of one answers 404 before its body is read. Such callers share one cached, coalesced users list and one
 groups list (`RestrictedListKey`, keyed also by the users, groups and roles list generations); their single-record
-GETs stay uncached. Bootstrap accounts cannot be
+GETs stay uncached. `GET users/names?ids=a,b` is the one exception to the hiding: any signed-in caller
+gets id → username for up to 100 ids (unknown ids left out), administrators included, so audit fields
+name their actors. Any signed-in caller also reads their own record (`GET users/{id}`) without the users
+scope; anyone else's needs ReadOnly on `users`, and a missing id answers the same 403. Bootstrap accounts cannot be
 deleted through the API, only they may edit their own record (any other caller gets 403, a group
 create or patch adding or removing one included), and a session
 may not create or rename a user to the `BOOTSTRAP_ADMIN` email (403). Any Admin on `ALL` may delete or

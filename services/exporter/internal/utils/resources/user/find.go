@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	dataerrors "github.com/telark/telark/internal/data/errors"
@@ -30,6 +31,27 @@ func listUsers() (*unstructured.UnstructuredList, error) {
 	}
 
 	return list, nil
+}
+
+// Administrators and hidden users are named too: audit actors are shown to every viewer.
+func UsernamesByID(ids []string) (map[string]string, error) {
+	list, err := listUsers()
+	if err != nil {
+		return nil, err
+	}
+
+	names := make(map[string]string, len(ids))
+	for i := range list.Items {
+		id := list.Items[i].GetName()
+		spec, exists := list.Items[i].Object[constants.SpecField].(map[string]any)
+		if !exists || !slices.Contains(ids, id) {
+			continue
+		}
+		if username, ok := spec[constants.FieldUsername].(string); ok {
+			names[id] = username
+		}
+	}
+	return names, nil
 }
 
 func findUserBySpecField(field string, matches func(string) bool) (*unstructured.Unstructured, error) {

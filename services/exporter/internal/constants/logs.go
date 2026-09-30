@@ -175,6 +175,8 @@ const (
 	// User
 	ErrUsernameNotFound  errors.Error = "username not found in user spec"
 	ErrFailedToListUsers errors.Error = "failed to list users: %v"
+	ErrUserIDsRequired   errors.Error = "the ids query param must name at least one user id"
+	ErrUserIDsTooMany    errors.Error = "at most %d user ids per request"
 
 	// Common
 	ErrUnknownError errors.Error = "unknown error"

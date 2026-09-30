@@ -5,6 +5,7 @@ import "github.com/telark/telark/internal/rest/base"
 const (
 	CreateUser     base.Endpoint = "users"
 	GetAllUsers    base.Endpoint = "users"
+	GetUserNames   base.Endpoint = "users/names"
 	GetUserByID    base.Endpoint = "users/{id}"
 	PatchUserByID  base.Endpoint = "users/{id}"
 	DeleteUserByID base.Endpoint = "users/{id}"

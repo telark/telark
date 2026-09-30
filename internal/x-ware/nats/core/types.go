@@ -1,0 +1,47 @@
+package core
+
+import (
+	"context"
+	"sync"
+	"time"
+
+	"github.com/nats-io/nats.go"
+	resourceshared "github.com/telark/data/resources/shared"
+)
+
+type (
+	MessageHandler func(*nats.Msg) error
+	port           int
+	Group          string
+	Action         string
+	NATSClient     struct {
+		Conn      *nats.Conn
+		JetStream nats.JetStreamContext
+	}
+	natsConfig struct {
+		Host     string
+		User     string
+		Password string
+		Port     port
+	}
+	Message struct {
+		Topic        string              `json:"topic"`
+		ResourceName string              `json:"resourceName"`
+		ResourceType resourceshared.Type `json:"resourceType"`
+		Scope        string              `json:"scope"`
+		Data         any                 `json:"data"`
+	}
+	BaseSubscriber struct {
+		Group          Group
+		MaxRetries     int
+		RetryDelay     time.Duration
+		ProcessTimeout time.Duration
+	}
+	NatsManager struct {
+		client      *NATSClient
+		mu          sync.RWMutex
+		ctx         context.Context //nolint:containedctx
+		cancel      context.CancelFunc
+		isConnected bool
+	}
+)

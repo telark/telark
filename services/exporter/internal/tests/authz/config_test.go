@@ -12,6 +12,8 @@ import (
 	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
+const keyEnabled = "enabled"
+
 func settingsIdentity(level roledata.PermissionLevel, denied ...string) xauthz.Identity {
 	grants := xauthz.Grants{
 		Levels: map[string]roledata.PermissionLevel{roledata.ScopeSettings: level},
@@ -67,7 +69,7 @@ func TestGuardConfigPatchLevelPerField(t *testing.T) {
 }
 
 // The three settings rules an admin can untick on a role must actually bite.
-func TestGuardConfigPatchHonoursDenyRules(t *testing.T) {
+func TestGuardConfigPatchHonorsDenyRules(t *testing.T) {
 	tests := []struct {
 		name   string
 		field  string
@@ -158,34 +160,34 @@ func TestGuardConfigPatchAllowsInternalCaller(t *testing.T) {
 	}
 }
 
-// Whoever controls the identity provider can sign in as anyone, so OIDC takes
-// Admin on ALL, and the settings deny rule still bites that Admin.
-func TestGuardConfigPatchOIDCNeedsAllAdmin(t *testing.T) {
-	oidcRule := xauthz.RuleKey(roledata.ScopeSettings, roledata.ActionEditOIDCConfig)
-	allAdmin := levels(roledata.ScopeAll, roledata.PermissionLevelAdmin)
+// Whoever controls the identity settings decides who can sign in, so auth is their
+// only writer: every session is refused, Admin on ALL included.
+func TestGuardConfigPatchIdentitySettingsAreInternalOnly(t *testing.T) {
 	tests := []struct {
 		name     string
 		identity xauthz.Identity
 		want     bool
 	}{
-		{"admin on ALL", allAdmin, true},
-		{"admin on ALL denied the oidc rule", denied(allAdmin, roledata.ScopeSettings, oidcRule), false},
+		{"admin on ALL", levels(roledata.ScopeAll, roledata.PermissionLevelAdmin), false},
 		{"admin on settings only", settingsIdentity(roledata.PermissionLevelAdmin), false},
-		{"owner on ALL", levels(roledata.ScopeAll, roledata.PermissionLevelOwner), false},
 		{"internal", internalIdentity, true},
 	}
 	// The JWK is stored in a Secret, not the CR, but it is the same trust decision.
 	bodies := map[string]map[string]any{
-		"flags":    {"enabled": true},
-		"jwk only": {telarkconfig.OIDCSecretKey: `{"keys":[]}`},
+		"oidc flags":        {telarkconfig.FieldOIDC: map[string]any{keyEnabled: true}},
+		"oidc jwk only":     {telarkconfig.FieldOIDC: map[string]any{telarkconfig.OIDCSecretKey: `{"keys":[]}`}},
+		"self-registration": {telarkconfig.FieldSelfRegistration: map[string]any{keyEnabled: true}},
 	}
 	for _, tt := range tests {
-		for bodyName, oidc := range bodies {
+		for bodyName, spec := range bodies {
 			t.Run(tt.name+"/"+bodyName, func(t *testing.T) {
 				w := httptest.NewRecorder()
-				spec := map[string]any{telarkconfig.FieldOIDC: oidc}
-				if got := authz.GuardConfigPatch(w, patchRequest(tt.identity), spec); got != tt.want {
+				got := authz.GuardConfigPatch(w, patchRequest(tt.identity), spec)
+				if got != tt.want {
 					t.Fatalf("GuardConfigPatch = %v, want %v (%d)", got, tt.want, w.Code)
+				}
+				if !tt.want && w.Code != http.StatusForbidden {
+					t.Fatalf("status = %d, want %d", w.Code, http.StatusForbidden)
 				}
 			})
 		}

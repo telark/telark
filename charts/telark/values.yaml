@@ -86,8 +86,7 @@ app:
     pullSecrets: []
 
   # Auth service — WebAuthn relying-party identity + the bootstrap admin.
-  # Set bootstrap.admin to your admin email: with it empty and selfRegistration
-  # "false" nobody could ever log in, so the render fails.
+  # Set bootstrap.admin to your admin email: the render fails without one.
   auth:
     bootstrap:
       admin: ""
@@ -95,7 +94,6 @@ app:
       id: ""  # required with ingress/gateway; empty follows the request host
       name: "Dashboard App"
       origin: ""  # required with ingress/gateway; empty follows the request Origin
-      selfRegistration: "false"  # gates passkey registration only; OIDC users unaffected
     oidc:
       existingSecret: ""  # GitOps: your Secret with key googleJwkJson; empty = chart-managed
 
@@ -403,7 +401,7 @@ services:
       REDIS_MAX_WAIT_SEC: "30"
       REDIS_PING_TIMEOUT_SEC: "3"
       BOOTSTRAP_ADMIN: '{{ .Values.app.auth.bootstrap.admin }}'
-      SELF_REGISTRATION_ENABLED: '{{ .Values.app.auth.passkey.selfRegistration }}'
+      ENROLL_INVITE_TTL_SEC: "3600"
       RP_ID: '{{ .Values.app.auth.passkey.id }}'
       RP_NAME: '{{ .Values.app.auth.passkey.name }}'
       RP_ORIGIN: '{{ .Values.app.auth.passkey.origin }}'

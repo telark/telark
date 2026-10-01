@@ -143,6 +143,7 @@ const (
 	FieldSettings                               = "settings"
 	FieldStatus                                 = "status"
 	FieldPhase                                  = "phase"
+	FieldInvite                                 = "invite"
 	FieldID                                     = "id"
 	FieldGeneration                             = "generation"
 	FieldName                                   = "name"

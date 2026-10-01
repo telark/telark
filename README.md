@@ -78,7 +78,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
   --set app.auth.bootstrap.admin=test@example.com
 ```
 
-Enrol yourself as the first admin and open the dashboard:
+Enroll yourself as the first admin and open the dashboard:
 
 ```sh
 kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email test@example.com --enroll

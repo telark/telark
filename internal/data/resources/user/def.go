@@ -39,6 +39,13 @@ type Avatar struct {
 type UserStatus struct {
 	Phase       string  `json:"phase"`
 	LastLoginAt *string `json:"lastLoginAt,omitempty"`
+	Invite      *Invite `json:"invite,omitempty"`
+}
+
+type Invite struct {
+	IssuedAt  string `json:"issuedAt"`
+	ExpiresAt string `json:"expiresAt"`
+	IssuedBy  string `json:"issuedBy,omitempty"`
 }
 
 type AccountPhase string

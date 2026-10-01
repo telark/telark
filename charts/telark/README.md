@@ -80,7 +80,7 @@ The exporter mounts two PVCs rendered from one template (snapshots and reports);
 
 | Key | Default | Description |
 |---|---|---|
-| `app.auth.bootstrap.admin` | `""` | The one bootstrap admin's email. The account is created and recovered only with `./main break-glass --email <email> --enroll` (passkey) and holds the built-in Admin role; Google sign-in and passkey self-registration never grant Admin, even to this email. → `BOOTSTRAP_ADMIN` env. Required when `app.auth.passkey.selfRegistration` is `"false"` (the default): the render fails otherwise. See [First admin](../../docs/INSTALL.md#2-first-admin) |
+| `app.auth.bootstrap.admin` | `""` | The one bootstrap admin's email. The account is created and recovered only with `./main break-glass --email <email> --enroll` (passkey) and holds the built-in Admin role; Google sign-in and passkey self-registration never grant Admin, even to this email. → `BOOTSTRAP_ADMIN` env. Required: the render fails without it, since only this account can turn on SSO or self-registration. See [First admin](../../docs/INSTALL.md#2-first-admin) |
 
 #### `app.auth.oidc`
 
@@ -92,14 +92,13 @@ The Google client id, the OIDC flag and the egress switch are runtime settings o
 
 #### `app.auth.passkey`
 
-WebAuthn relying-party identity + passkey-flow policy. **`selfRegistration` gates only the passkey path**; OIDC users are always auto-provisioned.
+WebAuthn relying-party identity. Passkey self-registration is not a chart value: it is a Settings toggle (TelarkConfig `selfRegistration.enabled`), off by default and changed only by the bootstrap admin ([First admin](../../docs/INSTALL.md#2-first-admin)).
 
 | Key | Default | Description |
 |---|---|---|
 | `app.auth.passkey.id` | `""` | Relying Party identifier. Empty follows the request host (`X-Forwarded-Host`, else `Host`, port stripped), so passkeys work on whichever hostname you open the dashboard on. Required (the render fails) with `ingress.enabled` or `gateway.enabled`; pin it in production. Injected as `RP_ID`. |
 | `app.auth.passkey.name` | `"Dashboard App"` | Display name shown by the authenticator (Touch ID prompt, etc.). Injected as `RP_NAME`. |
 | `app.auth.passkey.origin` | `""` | Origin(s) accepted for WebAuthn ceremonies, comma-separated. Empty follows the request `Origin` header, whose host must be the relying party or one of its subdomains. Required (the render fails) with `ingress.enabled` or `gateway.enabled`; pin to `https://<domain>` in production. Injected as `RP_ORIGIN`. |
-| `app.auth.passkey.selfRegistration` | `"false"` | `"true"` lets anyone who reaches the dashboard register a passkey account (ReadOnly role). Requires `app.auth.bootstrap.admin` when `"false"`. Injected as `SELF_REGISTRATION_ENABLED`. |
 
 ### `app.serviceDefaults`
 
@@ -377,9 +376,9 @@ Profiles (one slot):
 | CPU 4 vCPU | `qwen3:1.7b` | cpu 1, memory 4Gi | cpu 4 | `ollama.resources.requests.cpu=1`, `ollama.resources.requests.memory=4Gi`, `ollama.resources.limits.cpu=4`, `services.analyzer.env.ANALYZER_NUM_THREAD=4` | 20–45 s |
 | GPU / deep | `qwen3:4b` | cpu 1, memory 3Gi, `nvidia.com/gpu` 1 | cpu 2, `nvidia.com/gpu` 1 | `ollama.resources.requests.cpu=1`, `ollama.resources.requests.memory=3Gi`, `ollama.ollama.gpu.enabled=true`, `ANALYZER_MODE=deep`, `ANALYZER_CONTEXT_TOKENS=8192` and `OLLAMA_CONTEXT_LENGTH=8192`, `ANALYZER_WALL_SEC=480` | minutes on CPU; seconds on GPU |
 
-Models (all Apache-2.0; Settings shows the licence of any tag you type and warns on non-commercial ones such as `qwen2.5:3b`). Fast mode accepts any installed model; deep mode requires the `tools` capability:
+Models (all Apache-2.0; Settings shows the license of any tag you type and warns on non-commercial ones such as `qwen2.5:3b`). Fast mode accepts any installed model; deep mode requires the `tools` capability:
 
-| Model | Licence | Note |
+| Model | License | Note |
 |---|---|---|
 | `granite4:350m` | Apache-2.0 | Default; CPU tiny |
 | `qwen3:1.7b` | Apache-2.0 | CPU 4 vCPU; better prose |
@@ -447,7 +446,7 @@ WebAuthn / passkey (templated from `app.auth.passkey`):
 | `RP_ID` | `{{ .Values.app.auth.passkey.id }}` | Relying Party identifier; empty follows the request host |
 | `RP_NAME` | `{{ .Values.app.auth.passkey.name }}` | Display name shown to the user |
 | `RP_ORIGIN` | `{{ .Values.app.auth.passkey.origin }}` | Allowed origin(s), comma-separated; empty follows the request `Origin` |
-| `SELF_REGISTRATION_ENABLED` | `{{ .Values.app.auth.passkey.selfRegistration }}` | `"false"` (default) blocks new passkey registration. OIDC self-provisioning is always on. |
+| `ENROLL_INVITE_TTL_SEC` | inline (`"3600"`) | Lifetime (seconds) of an enrollment link created from Members; a new link revokes the previous one. See [Enrollment links](../../docs/INSTALL.md#enrollment-links) |
 | `CHALLENGE_TIMEOUT` | inline (`"60"`) | Challenge TTL (seconds) |
 | `SESSION_EXPIRY` | inline (`"24"`) | Session TTL (hours) |
 

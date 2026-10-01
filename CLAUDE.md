@@ -49,7 +49,7 @@ Full model, RBAC table and invariants: [docs/security/](docs/security/README.md)
 
 ## Protection plans
 
-Phases `draft`, `pending_approval`, `scheduled`, `active`, `terminated`, `canceled`, `failed` (`data/plans/protectionplan.go`). discovery drives the lifecycle; approval is `automatic` or `required` (Production defaults to required). While active, discovery renders the plan's templates into namespaced Kyverno `Policy` objects labelled `telark.io/protection-plan=<id>`, in `audit` or `enforce` mode, minus scope exclusions, and checks their health against the cluster. Violations come from Kubernetes Events; terminate and cancel delete the policies, and a finished plan then reports zero violations. Detail: [docs/architecture/protection-plans.md](docs/architecture/protection-plans.md).
+Phases `draft`, `pending_approval`, `scheduled`, `active`, `terminated`, `canceled`, `failed` (`data/plans/protectionplan.go`). discovery drives the lifecycle; approval is `automatic` or `required` (Production defaults to required). While active, discovery renders the plan's templates into namespaced Kyverno `Policy` objects labeled `telark.io/protection-plan=<id>`, in `audit` or `enforce` mode, minus scope exclusions, and checks their health against the cluster. Violations come from Kubernetes Events; terminate and cancel delete the policies, and a finished plan then reports zero violations. Detail: [docs/architecture/protection-plans.md](docs/architecture/protection-plans.md).
 
 ## Build, test, validate
 
@@ -66,7 +66,7 @@ Tool versions (Go 1.27.1, golangci-lint v2.14.0, kubeconform v0.8.0, Python 3.13
 ## Before you call something done
 
 - Run the skill for what you touched: `go-service-change-gate`, `helm-chart-change`, `analyzer-ci-gate` (`.claude/skills/`).
-- Docs change in the same diff as the behaviour, including `docs/security/` when you touch authentication, authorization, RBAC or the service token.
+- Docs change in the same diff as the behavior, including `docs/security/` when you touch authentication, authorization, RBAC or the service token.
 - No commits, pushes, tags, version bumps, image builds or cluster changes unless asked (AGENTS.md, Releases and versions).
 
 ## Docs map

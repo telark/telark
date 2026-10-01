@@ -65,7 +65,7 @@ Common annotations, applied to every resource when set.
 {{- end -}}
 
 {{/*
-ServiceAccount name for a service. Honours a per-service serviceAccount.name
+ServiceAccount name for a service. Honors a per-service serviceAccount.name
 override, otherwise <fullname>-<serviceName>-sa. Call with dict:
   {{- include "telark.serviceAccountName" (dict "root" $root "serviceConfig" $svc) }}
 */}}

@@ -4,9 +4,12 @@ import (
 	"testing"
 
 	roledata "github.com/telark/telark/internal/data/resources/role"
+	"github.com/telark/telark/internal/data/resources/telarkconfig"
 	userdata "github.com/telark/telark/internal/data/resources/user"
 	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
+
+const keyStatus = "status"
 
 type embeddedBase struct {
 	ID string `json:"id"`
@@ -42,6 +45,14 @@ func TestCheckCanonicalKeys(t *testing.T) {
 			map[string]any{"id": "1", "name": "n", "labels": map[string]any{"AnyKey": "v"}}, true},
 		{"skipped field", sharedutils.CheckCanonicalKeys[withEmbedded],
 			map[string]any{"Skip": "x"}, false},
+		{"exact invite keys", sharedutils.CheckCanonicalKeys[userdata.User],
+			map[string]any{keyStatus: map[string]any{"invite": map[string]any{"issuedAt": "t", "expiresAt": "t", "issuedBy": "u"}}}, true},
+		{"case variant inside invite", sharedutils.CheckCanonicalKeys[userdata.User],
+			map[string]any{keyStatus: map[string]any{"invite": map[string]any{"IssuedBy": "u"}}}, false},
+		{"exact self-registration keys", sharedutils.CheckCanonicalKeys[telarkconfig.TelarkConfig],
+			map[string]any{"selfRegistration": map[string]any{"enabled": true}}, true},
+		{"case variant self-registration", sharedutils.CheckCanonicalKeys[telarkconfig.TelarkConfig],
+			map[string]any{"selfRegistration": map[string]any{"Enabled": true}}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

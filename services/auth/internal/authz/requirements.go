@@ -17,17 +17,26 @@ func Requirements() map[string]authz.Requirement {
 	addSelfService(requirements)
 	addCleanup(requirements)
 	addIdentityProvider(requirements)
+	addEnrollLinks(requirements)
 
 	return requirements
 }
 
-// The exporter's guard stands aside for the service token, so this line is the whole
-// authorization for changing who can authenticate; keep in step with its configFields.
+// The exporter takes these settings from auth only (Internal in its configFields), and
+// each handler then requires the bootstrap account, whatever these levels grant.
 func addIdentityProvider(r map[string]authz.Requirement) {
 	r[router.Key(base.Patch, autheps.OIDCConfig)] = authz.Denyable(
 		authz.Administer(roledata.ScopeSettings),
 		roledata.ActionEditOIDCConfig,
 	)
+	r[router.Key(base.Patch, autheps.SelfRegistration)] = authz.Administer(roledata.ScopeSettings)
+}
+
+// The handler then caps the target's levels by the caller's and refuses hidden,
+// bootstrap and, without Admin on ALL, already enrolled accounts.
+func addEnrollLinks(r map[string]authz.Requirement) {
+	r[router.Key(base.Post, autheps.UserEnrollLink)] = authz.Own(roledata.ScopeUsers)
+	r[router.Key(base.Delete, autheps.UserEnrollLink)] = authz.Own(roledata.ScopeUsers)
 }
 
 func addStatus(r map[string]authz.Requirement) {

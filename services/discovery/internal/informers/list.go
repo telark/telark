@@ -66,7 +66,7 @@ func AppNamespaces(ctx context.Context, appName string) []string {
 	return Global().namespacesOfApp(ctx, appName)
 }
 
-// Synced informers indexing no object of the app: its resources were relabelled or
+// Synced informers indexing no object of the app: its resources were relabeled or
 // deleted while their namespace lives, and nothing republishes the CR with zero resources.
 func AppVanished(ctx context.Context, appName string) bool {
 	m := Global()

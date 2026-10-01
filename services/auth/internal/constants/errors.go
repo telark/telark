@@ -17,7 +17,7 @@ const (
 	ErrReservedEmail           errors.Error = "this email is reserved for an administrator. ask the operator to enroll it"
 	ErrBreakGlassCreateFailed  errors.Error = "create failed: status %d: %s"
 	ErrBreakGlassUserNotFound  errors.Error = "user not found: %s"
-	ErrOIDCConfigNeedsAdminAll errors.Error = "changing the identity provider requires Admin on every scope"
+	ErrSignInSettingsBootstrap errors.Error = "only the bootstrap administrator can change how people sign in"
 	ErrNoPasskeysFound         errors.Error = "no passkeys found for user"
 	ErrChallengeNotFound       errors.Error = "challenge not found"
 	ErrSessionNotFound         errors.Error = "session not found"
@@ -44,6 +44,8 @@ const (
 	ErrFailedDeleteChallenge  errors.Error = "failed to delete challenge: %s"
 	ErrFailedStoreEnrollToken errors.Error = "failed to store enrollment token: %s"
 	ErrFailedGetEnrollToken   errors.Error = "failed to get enrollment token: %s"
+	ErrFailedRevokeInvite     errors.Error = "failed to revoke enrollment link: %s"
+	ErrFailedSetInvite        errors.Error = "failed to record the enrollment invite of identityHash=%s: status %d"
 	ErrFailedStorePendingUser errors.Error = "failed to store pending registration: %s"
 	ErrFailedGetPendingUser   errors.Error = "failed to get pending registration: %s"
 	ErrFailedCreateSession    errors.Error = "failed to create session: %s"
@@ -77,10 +79,20 @@ const (
 	ErrInvalidEnvVarValue        errors.Error = "invalid value for environment variable %s: %s"
 	ErrFailedLoadConfig          errors.Error = "failed to load configuration: %v"
 	ErrFailedLoadBootstrapConfig errors.Error = "failed to load bootstrap configuration: %v"
+	WarnTelarkConfigReadFailed   errors.Error = "failed to read the TelarkConfig, keeping the last value: %v"
 
 	// Bootstrap Configuration Errors
-	ErrBootstrapNoAdminAndNoSelfReg errors.Error = "bootstrap config must set the admin email when self-registration is disabled"
-	ErrSelfRegistrationDisabled     errors.Error = "self-registration is disabled. contact your administrator"
+	ErrBootstrapAdminRequired     errors.Error = "bootstrap config must set the admin email (BOOTSTRAP_ADMIN)"
+	ErrSelfRegistrationDisabled   errors.Error = "self-registration is disabled. contact your administrator"
+	ErrSelfRegistrationSaveFailed errors.Error = "failed to save self-registration: status %d"
+
+	// Enrollment Link Errors
+	ErrEnrollLinkSelf       errors.Error = "enrollment links are not for your own account. use Add on another device"
+	ErrEnrollLinkBootstrap  errors.Error = "the bootstrap administrator is enrolled only with the break-glass command"
+	ErrEnrollLinkDeleting   errors.Error = "this user is being deleted"
+	ErrEnrollLinkSuspended  errors.Error = "this user is suspended. reactivate the account first"
+	ErrEnrollLinkAboveLevel errors.Error = "this user holds %s on %s, above your own level on that scope"
+	ErrEnrollLinkRecovery   errors.Error = "this user already has a passkey. only the bootstrap administrator or an Admin on ALL can create a link"
 
 	// User Deletion Errors
 	ErrCleanupSelfDelete       errors.Error = "you cannot delete your own account"
@@ -163,6 +175,10 @@ const (
 	WarnAsyncWorkerFull         errors.Error = "async worker pool full, dropping housekeeping op"
 	WarnAsyncWorkerFailed       errors.Error = "async housekeeping op timed out"
 	WarnAsyncWorkerDrainTimeout errors.Error = "async worker drain timed out — some housekeeping ops may not have completed"
+
+	// Enrollment Link Warnings
+	WarnEnrollNoticeFailed errors.Error = "enrollment link notice not delivered to identityHash=%s"
+	WarnInviteCloseFailed  errors.Error = "failed to close the enrollment invite of identityHash=%s: %v"
 
 	// Credential Verification Errors
 	ErrBackupEligibleFlagInconsistency errors.Error = "backup eligible flag inconsistency: stored (BE:%v, BS:%v) != login (BE:%v, BS:%v)"

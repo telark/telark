@@ -418,7 +418,7 @@ def create_app(
         resp = await app.state.runtime.validate(body.model)
         if resp.ok:
             return envelope(status.HTTP_200_OK, resp)
-        # The licence and capabilities still go back with the error code.
+        # The license and capabilities still go back with the error code.
         return envelope(_VALIDATE_STATUS[resp.reason], {**resp.model_dump(), ENVELOPE_CODE: resp.reason})
 
     @app.post(RUNTIME_PULL_PATH, dependencies=guard(METHOD_POST, RUNTIME_PULL_PATH))

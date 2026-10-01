@@ -2,6 +2,7 @@ package writes
 
 import (
 	"context"
+	"maps"
 	"net/http"
 	"slices"
 	"testing"
@@ -43,6 +44,9 @@ const (
 	grantedRoleID          = "r-00006-0000-0006"
 	notificationsListLimit = 10
 	roleChangeMessage      = "Granted 1 role. Revoked 2 roles."
+
+	keyIssuedAt = "issuedAt"
+	keyIssuedBy = "issuedBy"
 )
 
 func adminCaller() xauthz.Identity {
@@ -206,6 +210,35 @@ func TestLastLoginStampAndPhaseStayApart(t *testing.T) {
 				t.Fatalf("stored status = %v (%v), want phase %s and lastLoginAt %s", status, err, tt.phase, stampTime)
 			}
 		})
+	}
+}
+
+// Auth stamps and clears the invite with a phase-less status, like the last-login stamp:
+// the merge patch must store it and clear it (null) while phase and lastLoginAt stay.
+func TestInviteStatusIsStoredAndCleared(t *testing.T) {
+	stamp := stampTime
+	client := adminDirectory(t, statusUser(t, phaseSuspended, &stamp))
+	invite := map[string]any{keyIssuedAt: stampTime, keyExpiresAt: stampTime, keyIssuedBy: callerID}
+	steps := []struct {
+		name   string
+		invite map[string]any
+	}{
+		{"stored", invite},
+		{"cleared", nil},
+	}
+	for _, step := range steps {
+		body := map[string]any{constants.FieldStatus: map[string]any{constants.FieldInvite: step.invite}}
+		if w := patchAs(t, xauthz.Identity{Internal: true}, usersPrefix+statusUserID, jsonBody(t, body)); w.Code != http.StatusOK {
+			t.Fatalf("%s: patch = %d %s", step.name, w.Code, w.Body.String())
+		}
+		status, _, err := unstructured.NestedMap(storedSpec(t, client, v1alpha1.UserMetadata, statusUserID), keyStatus)
+		if err != nil || status[keyPhase] != phaseSuspended || status[keyLastLoginAt] != stampTime {
+			t.Fatalf("%s: stored status = %v (%v), want phase %s and lastLoginAt %s kept", step.name, status, err, phaseSuspended, stampTime)
+		}
+		storedInvite, present := status[constants.FieldInvite].(map[string]any)
+		if present != (step.invite != nil) || !maps.Equal(storedInvite, step.invite) {
+			t.Fatalf("%s: stored invite = %v, want %v", step.name, status[constants.FieldInvite], step.invite)
+		}
 	}
 }
 

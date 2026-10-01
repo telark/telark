@@ -183,7 +183,7 @@ class FakeRedis:
 
 
 class FakePipeline:
-    """Queues FakeRedis calls; execute() runs them in order (MULTI/EXEC semantics are not modelled)."""
+    """Queues FakeRedis calls; execute() runs them in order (MULTI/EXEC semantics are not modeled)."""
 
     def __init__(self, redis):
         self._redis = redis

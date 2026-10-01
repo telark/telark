@@ -354,7 +354,7 @@ func checkListWave(t *testing.T, routes []http.HandlerFunc, n int, promoted []st
 
 // A caller queued behind another caller's render of the same key gives up at
 // its own deadline instead of waiting the render out.
-func TestCoalescedWaiterHonoursDeadline(t *testing.T) {
+func TestCoalescedWaiterHonorsDeadline(t *testing.T) {
 	o := newOptimizer(t)
 	started, release := make(chan struct{}), make(chan struct{})
 	unblock := sync.OnceFunc(func() { close(release) })

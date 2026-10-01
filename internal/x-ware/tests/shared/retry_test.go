@@ -168,7 +168,7 @@ func TestConnectWithRetry_GivesUpOnMaxWait(t *testing.T) {
 	}
 }
 
-func TestConnectWithRetry_StopsOnCancelledContext(t *testing.T) {
+func TestConnectWithRetry_StopsOnCanceledContext(t *testing.T) {
 	s := &dialScript{conns: []*conn{{}}}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()

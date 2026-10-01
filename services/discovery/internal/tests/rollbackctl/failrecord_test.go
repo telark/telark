@@ -16,7 +16,7 @@ import (
 // caller's context is usually already done by the time the failure is recorded.
 // Recording on that context patched nothing and the error was discarded, leaving
 // the entry in_progress for the stale sweep to relabel.
-func TestRecordWithRetryOutlivesCancelledCallerAndReturnsLastError(t *testing.T) {
+func TestRecordWithRetryOutlivesCanceledCallerAndReturnsLastError(t *testing.T) {
 	t.Parallel()
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()

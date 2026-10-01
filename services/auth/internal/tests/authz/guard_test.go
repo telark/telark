@@ -199,3 +199,110 @@ func TestGuardRoleAndGroupDelete(t *testing.T) {
 		})
 	}
 }
+
+const (
+	appsAdminRole    = "r-apps-admin"
+	appsAdminGroup   = "g-apps-admin"
+	goneID           = "u-gone"
+	suspendedID      = "u-suspended"
+	appsAdminID      = "u-apps-admin"
+	groupAppsAdminID = "u-group-apps-admin"
+	enrolledID       = "u-enrolled"
+)
+
+func enrollDirectory() *testutil.FakeExporter {
+	appsRole, groupRef := appsAdminRole, appsAdminGroup
+	suspended := userresource.UserStatus{Phase: string(userresource.AccountPhaseSuspended)}
+	role := func(id, scope string) *roledata.AccessRole {
+		return &roledata.AccessRole{ID: id, Status: roledata.RoleStatusActive, ScopesAndPermissions: []roledata.ScopeAndPermissions{
+			{Scope: scope, Level: roledata.PermissionLevelAdmin}}}
+	}
+	return &testutil.FakeExporter{
+		Users: map[string]*userresource.User{
+			bootstrapID:      {ID: bootstrapID, Bootstrap: true, RoleRefs: []*string{&adminRoleID}},
+			adminID:          {ID: adminID, RoleRefs: []*string{&adminRoleID}},
+			ownerID:          {ID: ownerID},
+			plainID:          {ID: plainID},
+			suspendedID:      {ID: suspendedID, Status: suspended},
+			appsAdminID:      {ID: appsAdminID, RoleRefs: []*string{&appsRole}},
+			groupAppsAdminID: {ID: groupAppsAdminID, GroupRefs: []*string{&groupRef}},
+			enrolledID:       {ID: enrolledID},
+		},
+		Gone: map[string]bool{goneID: true},
+		Roles: map[string]*roledata.AccessRole{
+			adminRoleID:   role(adminRoleID, roledata.ScopeAll),
+			appsAdminRole: role(appsAdminRole, roledata.ScopeApplications),
+		},
+		Groups:   map[string]*groupdata.Group{appsAdminGroup: {ID: appsAdminGroup, RoleRefs: []string{appsAdminRole}}},
+		Passkeys: map[string]int{enrolledID: constants.DefaultIncrementValue},
+	}
+}
+
+// An enroll link signs its holder in as the target, so issuing is capped like a role
+// assignment; revoking skips only the refusals of a suspended or terminating account.
+func TestGuardEnrollLink(t *testing.T) {
+	testutil.StubBackend(t, enrollDirectory())
+	usersOwner := caller{userID: ownerID, level: roledata.PermissionLevelOwner, scope: roledata.ScopeUsers}
+	admin := caller{userID: adminID, level: roledata.PermissionLevelAdmin}
+	bootstrapOwner := caller{userID: bootstrapID, level: roledata.PermissionLevelOwner, scope: roledata.ScopeUsers}
+	cases := []struct {
+		name          string
+		caller        caller
+		target        string
+		issue, revoke int
+	}{
+		{"anonymous caller", caller{anonymous: true}, plainID, http.StatusUnauthorized, http.StatusUnauthorized},
+		{"self", usersOwner, ownerID, http.StatusForbidden, http.StatusForbidden},
+		{"missing target", usersOwner, missingID, http.StatusNotFound, http.StatusNotFound},
+		{"admin target, restricted caller", usersOwner, adminID, http.StatusNotFound, http.StatusNotFound},
+		{"bootstrap target, restricted caller", usersOwner, bootstrapID, http.StatusNotFound, http.StatusNotFound},
+		{"bootstrap target, admin caller", admin, bootstrapID, http.StatusForbidden, http.StatusForbidden},
+		{"terminating target", usersOwner, goneID, http.StatusGone, http.StatusOK},
+		{"suspended target", usersOwner, suspendedID, http.StatusConflict, http.StatusOK},
+		{"plain target", usersOwner, plainID, http.StatusOK, http.StatusOK},
+		{"target above the caller", usersOwner, appsAdminID, http.StatusForbidden, http.StatusForbidden},
+		{"target above the caller through a group", usersOwner, groupAppsAdminID, http.StatusForbidden, http.StatusForbidden},
+		{"admin caller over a group-granted target", admin, groupAppsAdminID, http.StatusOK, http.StatusOK},
+		{"enrolled target, users owner", usersOwner, enrolledID, http.StatusForbidden, http.StatusForbidden},
+		{"enrolled target, admin on ALL", admin, enrolledID, http.StatusOK, http.StatusOK},
+		{"enrolled target, bootstrap account", bootstrapOwner, enrolledID, http.StatusOK, http.StatusOK},
+		{"service token", caller{internal: true}, bootstrapID, http.StatusOK, http.StatusOK},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			status, err := authz.GuardEnrollLinkIssue(c.caller.ctx(), c.target)
+			testutil.Equal(t, "issue", status, c.issue)
+			testutil.Equal(t, "issue refused", err != nil, c.issue != http.StatusOK)
+			status, err = authz.GuardEnrollLinkRevoke(c.caller.ctx(), c.target)
+			testutil.Equal(t, "revoke", status, c.revoke)
+			testutil.Equal(t, "revoke refused", err != nil, c.revoke != http.StatusOK)
+		})
+	}
+}
+
+// Sign-in settings take the bootstrap account, read from the caller's own record rather
+// than its grants; a record that cannot be read is an outage, not a refusal.
+func TestGuardBootstrapCaller(t *testing.T) {
+	cases := []struct {
+		name   string
+		caller caller
+		down   bool
+		status int
+	}{
+		{"bootstrap account", caller{userID: bootstrapID, level: roledata.PermissionLevelAdmin}, false, http.StatusOK},
+		{"admin on ALL", caller{userID: adminID, level: roledata.PermissionLevelAdmin}, false, http.StatusForbidden},
+		{"service token", caller{internal: true}, false, http.StatusOK},
+		{"anonymous caller", caller{anonymous: true}, false, http.StatusUnauthorized},
+		{"caller record unreadable", caller{userID: bootstrapID, level: roledata.PermissionLevelAdmin}, true, http.StatusServiceUnavailable},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fake := enrollDirectory()
+			testutil.StubBackend(t, fake)
+			fake.SetDown(c.down)
+			status, err := authz.GuardBootstrapCaller(c.caller.ctx())
+			testutil.Equal(t, "status", status, c.status)
+			testutil.Equal(t, "refused", err != nil, c.status != http.StatusOK)
+		})
+	}
+}

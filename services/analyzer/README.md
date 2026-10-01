@@ -167,7 +167,7 @@ and `params`. A rules-only card is complete; the narration may only rephrase tit
 rejected when it adds a number, drops the sub-reason's phrase or names another kind's symptom
 (`out of memory`, `pull`, `crash`, `evict`, `schedul`, `probe`, `rollout`, `quota`, …).
 
-Behaviour change: a liveness or startup probe failure that already restarted a container is reported
+Behavior change: a liveness or startup probe failure that already restarted a container is reported
 as `crashloop` (`crashloop.probe_kill`); `probe_failure.liveness`/`startup` apply only while no
 container has restarted. The card id is unchanged (per workload); the kind updates on the next run.
 
@@ -270,8 +270,8 @@ but not the settings). The state is re-checked every `ANALYZER_CONFIG_POLL_SEC` 
 - **Connected** (`OLLAMA_AUTO_PULL=true`, chart `app.ollama.autoPull=true`): while the analyzer is enabled, a
   missing model is pulled at the first config poll after start and by any run that needs it (the runtime needs
   443 egress for pulls only). A failing pull is retried every poll; only the first failure in a row is logged.
-  Only models of the licence catalogue (`LICENSES` in `constants.py`) are pulled, and a pull still running
-  after an hour is cancelled.
+  Only models of the license catalog (`LICENSES` in `constants.py`) are pulled, and a pull still running
+  after an hour is canceled.
 - **Air-gapped** (`OLLAMA_AUTO_PULL=false`): no pulls, the pull route answers 409 `auto_pull_disabled`; the
   model is pre-loaded on the runtime volume. Fast runs still deliver rule insights without it.
 - **Your own runtime** (chart `app.ollama.runtimeUrl`, which sets `OLLAMA_HOST`): any endpoint that speaks
@@ -279,7 +279,7 @@ but not the settings). The state is re-checked every `ANALYZER_CONFIG_POLL_SEC` 
 
 ## Failures
 
-| Failure | Behaviour (`lastRun.error`) |
+| Failure | Behavior (`lastRun.error`) |
 |---|---|
 | fast: model missing, pulling, runtime down, narration failed | run `done` with the rule cards (template prose, `steps` 0); a missing model is pulled when auto-pull is on |
 | deep: Ollama down or absent | `runtime_unreachable`, job ACKed, worker backs off 15 s |
@@ -402,7 +402,7 @@ outage keeps it open); a user holds at most 8 streams, the next is 429 `too_many
 | `GET` | `/api/v1/insights/events?apps=ns/name,…` (SSE) | `insights` ReadOnly or `settings` Owner |
 | `GET` | `/api/v1/insights/runtime` | `insights` ReadOnly or `settings` Owner |
 | `POST` | `/api/v1/insights/runtime/validate` | `settings` Owner, denied by the `settings.controlainsights.deny` rule |
-| `POST` | `/api/v1/insights/runtime/pull` | `settings` Owner, denied by the `settings.controlainsights.deny` rule; 400 `model_not_allowed` for a model outside the licence catalogue (`LICENSES` in `constants.py`) |
+| `POST` | `/api/v1/insights/runtime/pull` | `settings` Owner, denied by the `settings.controlainsights.deny` rule; 400 `model_not_allowed` for a model outside the license catalog (`LICENSES` in `constants.py`) |
 
 ## Build & run
 

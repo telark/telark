@@ -19,9 +19,10 @@ func DefaultTelarkConfig() TelarkConfig {
 		UserSettings: UserSettings{
 			FetchIntervalSeconds: constants.DefaultFetchIntervalSeconds,
 		},
-		Snapshots: SnapshotsConfig{MaxPerApp: constants.DefaultSnapshotsMaxPerApp},
-		AI:        AIConfig{Enabled: true, Model: constants.DefaultAnalyzerModel, AutoAnalyze: false},
-		Cluster:   Cluster{},
-		OIDC:      OIDCConfig{},
+		Snapshots:        SnapshotsConfig{MaxPerApp: constants.DefaultSnapshotsMaxPerApp},
+		AI:               AIConfig{Enabled: true, Model: constants.DefaultAnalyzerModel, AutoAnalyze: false},
+		Cluster:          Cluster{},
+		OIDC:             OIDCConfig{},
+		SelfRegistration: SelfRegistrationConfig{},
 	}
 }

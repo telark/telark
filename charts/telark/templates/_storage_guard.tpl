@@ -3,7 +3,7 @@ The exporter keeps snapshots on a filesystem. More than one replica therefore
 needs a volume more than one node can mount at once (telark.modeValues already
 set ReadWriteMany), and a StorageClass that can actually provide it.
 
-Helm can only check what was declared, not what the cluster can honour. The
+Helm can only check what was declared, not what the cluster can honor. The
 cluster default class is block storage on every managed provider, so a
 ReadWriteMany claim against it stays Pending forever. Fail loud at install time
 instead of leaving a release quietly stuck.

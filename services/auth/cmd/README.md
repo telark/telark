@@ -6,7 +6,7 @@ Run as `./main <subcommand> [flags]` inside the auth container (the image entry 
 
 ## `break-glass`
 
-Promote a user to the built-in Admin role, or with `--enroll` bootstrap an account that does not exist yet. Used to recover access when no admin exists, to enrol the first administrator on a passkey-only install, and to create or recover the bootstrap admin. This is the only path that grants Admin from an email nobody has verified, which is why it is a subcommand run by the operator and not an API. It also removes any non-passkey (Google) identity from every account it promotes, so no OIDC binding survives the promotion; the bootstrap admin signs in with a passkey only.
+Promote a user to the built-in Admin role, or with `--enroll` bootstrap an account that does not exist yet. Used to recover access when no admin exists, to enroll the first administrator on a passkey-only install, and to create or recover the bootstrap admin. This is the only path that grants Admin from an email nobody has verified, which is why it is a subcommand run by the operator and not an API. It also removes any non-passkey (Google) identity from every account it promotes, so no OIDC binding survives the promotion; the bootstrap admin signs in with a passkey only.
 
 **Usage:**
 ```bash
@@ -18,7 +18,7 @@ Promote a user to the built-in Admin role, or with `--enroll` bootstrap an accou
 | Flag | Required | What it does |
 |------|----------|--------------|
 | `--email` | yes | Email of the user to promote |
-| `--enroll` | no | Create the user when missing (Admin role, `bootstrap: true` when the email is `BOOTSTRAP_ADMIN`) and print a one-time passkey enrolment token (10 minutes, needs Redis). Open `/register?enroll=<token>` in the dashboard to register the passkey. |
+| `--enroll` | no | Create the user when missing (Admin role, `bootstrap: true` when the email is `BOOTSTRAP_ADMIN`) and print a one-time passkey enrollment token (10 minutes, needs Redis). Open `/register?enroll=<token>` in the dashboard to register the passkey. |
 
 **Exit codes:**
 - `0` — user promoted (or created), or already had Admin

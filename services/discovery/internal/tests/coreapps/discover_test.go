@@ -117,5 +117,5 @@ func TestGetApplicationsSkipsNamesThatCannotNameACR(t *testing.T) {
 	data, ok := res.Data.(application.ResponseData)
 	testutil.Equal(t, "response shape", ok, true)
 	testutil.Equal(t, "one application", len(data.Applications), constants.DefaultAddValue)
-	testutil.Equal(t, "normalised name", data.Applications[constants.DefaultInitValue].Name, "good-name")
+	testutil.Equal(t, "normalized name", data.Applications[constants.DefaultInitValue].Name, "good-name")
 }

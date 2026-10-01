@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 
 	roledata "github.com/telark/telark/internal/data/resources/role"
@@ -181,6 +182,37 @@ func TestGuardUserCreateRefusesBootstrapFlag(t *testing.T) {
 	expectForbidden(t, w, authz.GuardUserCreate(w, requestAs(allAdmin()), bootstrapFlag), "session creating a bootstrap account")
 	if !authz.GuardUserCreate(httptest.NewRecorder(), requestAs(internalIdentity), bootstrapFlag) {
 		t.Fatal("service seeding a bootstrap account refused")
+	}
+}
+
+// Auth writes the invite with the service token; a session, Admin on ALL included,
+// may neither forge one on a create or a patch nor clear a live one.
+func TestUserInviteIsReservedToServices(t *testing.T) {
+	victim := userHolding(victimID, nil, nil)
+	bodies := map[string]map[string]any{
+		"forged":  {constants.FieldStatus: map[string]any{constants.FieldInvite: map[string]any{"issuedBy": callerID}}},
+		"cleared": {constants.FieldStatus: map[string]any{constants.FieldInvite: nil}},
+	}
+	for name, body := range bodies {
+		t.Run(name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			expectForbidden(t, w, authz.GuardUserPatch(w, requestAs(allAdmin()), victim, body), "session patching the invite")
+			expectInviteRefusal(t, w)
+			w = httptest.NewRecorder()
+			expectForbidden(t, w, authz.GuardUserCreate(w, requestAs(allAdmin()), body), "session creating with an invite")
+			expectInviteRefusal(t, w)
+			if !authz.GuardUserPatch(httptest.NewRecorder(), requestAs(internalIdentity), victim, body) ||
+				!authz.GuardUserCreate(httptest.NewRecorder(), requestAs(internalIdentity), body) {
+				t.Fatal("service writing the invite refused")
+			}
+		})
+	}
+}
+
+func expectInviteRefusal(t *testing.T, w *httptest.ResponseRecorder) {
+	t.Helper()
+	if !strings.Contains(w.Body.String(), constants.ErrAuthzInviteFieldReserved) {
+		t.Fatalf("refusal = %s, want %q", w.Body.String(), constants.ErrAuthzInviteFieldReserved)
 	}
 }
 

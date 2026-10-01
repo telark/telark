@@ -2,7 +2,6 @@ package oidc
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -17,10 +16,10 @@ import (
 // Validated here, not at the exporter: a config that cannot authenticate anyone must not
 // reach storage, and this hop carries the service token so the route requirement enforces Admin.
 // Whoever controls the identity-provider trust can mint a login for any user, so
-// Admin on the settings scope alone is not enough: the caller must be Admin everywhere.
+// only the bootstrap account may change it, whatever grants the caller holds.
 func SetConfig(w http.ResponseWriter, r *http.Request) {
-	if !authz.CallerIsAdminOnAll(r.Context()) {
-		shared.SendErrorResponse(w, http.StatusForbidden, errors.New(string(constants.ErrOIDCConfigNeedsAdminAll)))
+	if status, err := authz.GuardBootstrapCaller(r.Context()); err != nil {
+		shared.SendErrorResponse(w, status, err)
 		return
 	}
 

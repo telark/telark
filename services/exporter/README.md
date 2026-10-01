@@ -151,8 +151,10 @@ keep full access.
 
 Config (`PATCH config`, the `TelarkConfig` named `default`) is checked per field: `excludedNamespaces` and
 `userSettings` need settings Contributor (deny `editdiscoveryconfig`), `snapshots` Contributor
-(deny `editsnapshotstorage`), `ai` Owner (deny `controlaiinsights`), `oidc` Admin on `ALL` (deny `settings.editoidcconfig`),
-and `cluster` is Internal (written by discovery, stored in `.status`). `oidc.googleJwkJson` is written to the
+(deny `editsnapshotstorage`), `ai` Owner (deny `controlaiinsights`); `oidc` and `selfRegistration` are Internal
+(auth is their single writer and lets only the bootstrap account change them, so every session gets 403),
+and so is `cluster` (written by discovery, stored in `.status`). `GET config` shows all of them to settings
+readers. `oidc.googleJwkJson` is written to the
 Secret `telark-oidc-trust-secret` (or `app.auth.oidc.existingSecret`), not the CR, and `GET config` merges it
 back. A patch naming none of these fields needs settings ReadOnly, like `GET config`, since it answers
 with the whole config. A value the CRD schema rejects answers 400 naming the field, for example `spec.ai.model`.
@@ -175,13 +177,14 @@ only by its creator or an Admin on ALL (403 otherwise). A role created without `
 `createdBy` and `lastUpdatedBy` of roles and groups are stamped from the caller; body values are
 ignored. Deleting a role with `protection.softDelete` keeps it with `status: Deleted` and `deletedAt`,
 so it grants nothing; `preventDeletion` refuses the delete (403). Deny rules are stored lower-cased. `identities` on a user is Internal only, and `email` / `username` are changed
-only by the account owner (403 otherwise; resending the stored value is allowed). Internal callers
-are exempt.
+only by the account owner (403 otherwise; resending the stored value is allowed). `status.invite`
+(auth's record of a pending enrollment link) is reserved like `bootstrap`: a session create or patch
+carrying it, even as `null`, answers 403. Internal callers are exempt.
 
 Request bodies on the user, group, role, category and protection-plan create and patch routes must use
 the exact JSON field names: an unknown or differently cased key (`RoleRefs`, `status.Phase`)
 answers 400 before any guard or write runs. A user patch whose `status` omits `phase` (auth's
-last-login stamp) keeps the stored phase; only a `phase` that is sent changes it.
+last-login stamp and invite) keeps the stored phase; only a `phase` that is sent changes it.
 
 Roles and groups on a user are diffed against the stored lists: an addition needs `attachroletouser` /
 `addusertogroup`, a removal `removerolefromuser` / `removeuserfromgroup`, each with users or groups Owner.

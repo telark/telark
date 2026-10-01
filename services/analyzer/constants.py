@@ -409,7 +409,7 @@ PERMISSION_RANKS = {
     PERMISSION_LEVEL_ADMIN: 4,
 }
 
-# auth-service permissions response (auth/internal/handlers/authorisation/types.go)
+# auth-service permissions response (auth/internal/handlers/authorization/types.go)
 PERMISSIONS_FIELD_USER_ID = "userID"
 PERMISSIONS_FIELD_ROLES = "roles"
 
@@ -1266,14 +1266,14 @@ SSE_QUEUE_MAX = 32
 # -----------------------------------------------------------------------------
 PULL_PROGRESS_INTERVAL_S = 1
 LOG_PULL_FAILED = "model pull failed: {}"
-# A pull that outlives this is cancelled; the largest catalogue model is a few GB.
+# A pull that outlives this is canceled; the largest catalog model is a few GB.
 PULL_DEADLINE_S = 3600
 
 LICENSE_APACHE_2 = "Apache-2.0"
 LICENSE_QWEN_RESEARCH = "Qwen Research (non-commercial)"
 LICENSE_RESEARCH_WARNING = "This model is licensed for research use only; commercial use is not allowed."
-# model -> (licence, warning); an unlisted model has no known licence.
-# The licence table validate() reads for any typed tag, not the UI catalog: the research row stays.
+# model -> (license, warning); an unlisted model has no known license.
+# The license table validate() reads for any typed tag, not the UI catalog: the research row stays.
 LICENSES = {
     DEFAULT_ANALYZER_MODEL: (LICENSE_APACHE_2, ""),
     "qwen3:1.7b": (LICENSE_APACHE_2, ""),

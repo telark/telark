@@ -25,13 +25,13 @@ The examples below leave out the class and admin flags. Keep yours on every comm
 
 ## 2. First admin
 
-Telark has exactly one bootstrap admin: the email in `app.auth.bootstrap.admin`. It is empty by default and passkey self-registration (`app.auth.passkey.selfRegistration`) is `"false"`. With neither, nobody could sign in, so the chart fails the render and the auth service refuses to start until you set it:
+Telark has exactly one bootstrap admin: the email in `app.auth.bootstrap.admin`. It is empty by default and required: only the bootstrap admin can turn on SSO or passkey self-registration, so the chart fails the render and the auth service refuses to start until you set it:
 
 ```sh
 --set app.auth.bootstrap.admin=test@example.com
 ```
 
-The bootstrap admin holds the built-in Admin role (Admin on `ALL`) and nothing more. It is created and recovered only with the auth service's break-glass command, which enrols a passkey: run it and open the registration page with the token it prints within 10 minutes:
+The bootstrap admin holds the built-in Admin role (Admin on `ALL`) and nothing more. It is created and recovered only with the auth service's break-glass command, which enrolls a passkey: run it and open the registration page with the token it prints within 10 minutes:
 
 ```sh
 kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email test@example.com --enroll
@@ -42,11 +42,21 @@ With the default port-forward, the host is `http://localhost:3000`. Run the same
 
 Google SSO and passkey self-registration never grant Admin: a new account always starts as ReadOnly, even when its email is the bootstrap email, and the bootstrap email cannot be registered from the login page at all.
 
-Next, give at least two regular users the Admin role (directly or through a group), so the platform never depends on one person. Enable SSO in Settings, or turn on self-registration, so those users can create their accounts, then grant them Admin on the Users page. For Google SSO, register `https://<dashboard-host>/auth/google/callback` as an authorized redirect URI of your Google OAuth client ([Login and SSO](../services/auth/OIDC.md)). Regular admins are ordinary users: any Admin on `ALL` can suspend, demote or delete them. The API refuses a change that would leave no active Admin (409), and nobody can delete their own account.
+Next, give at least two regular users the Admin role (directly or through a group), so the platform never depends on one person. Create their accounts on the Members page and send each one an [enrollment link](#enrollment-links), or have the bootstrap admin enable SSO or self-registration in Settings so they can create their own, then grant them Admin on the same page. For Google SSO, register `https://<dashboard-host>/auth/google/callback` as an authorized redirect URI of your Google OAuth client ([Login and SSO](../services/auth/OIDC.md)). Regular admins are ordinary users: any Admin on `ALL` can suspend, demote or delete them. The API refuses a change that would leave no active Admin (409), and nobody can delete their own account.
 
-`app.auth.passkey.selfRegistration="true"` lets anyone who reaches the dashboard create a ReadOnly account. Leave it off unless only people you trust can reach the dashboard.
+Self-registration is a Settings toggle next to Single Sign-On, off by default. When it is on, anyone who reaches the dashboard can create a ReadOnly account with a passkey; leave it off unless only people you trust can reach the dashboard. Only the bootstrap admin can change either setting: everyone else, Admins on `ALL` included, sees them read-only. It is not a chart value: the setting lives in the `TelarkConfig` and takes effect within a few seconds, without a restart.
 
 The bootstrap account belongs to the chart. The API refuses to delete or suspend it, only it may edit its own record, and its email stays `app.auth.bootstrap.admin`: no dashboard user can create a user with that email, move another account onto it, or change the bootstrap account's email (the exporter receives the same email as `BOOTSTRAP_ADMIN`). Non-administrators never see administrator accounts.
+
+### Enrollment links
+
+An enrollment link lets someone register a passkey on an account an admin created for them (Members, row action "Create enroll link"). The dashboard shows the link once; it works once, for that account only, and expires after an hour by default. Creating a new link revokes the previous one, and the link can be revoked from the same row. Until the user enrolls, Members marks the account "Invite pending", or "Invite expired" once the link has lapsed. Change the lifetime, in seconds, with:
+
+```sh
+--set services.auth.env.ENROLL_INVITE_TTL_SEC=86400
+```
+
+Who may create one: a user with Owner on users, for an account whose permissions, direct and through its groups, are all within their own on every scope. Nobody creates one for themselves (use "Add on another device"), for the bootstrap admin (break-glass only) or for a suspended or deleted account, and an administrator account is not visible to a caller below Admin on `ALL`. A link for an account that already has a passkey is an account recovery: only the bootstrap admin or an Admin on `ALL` can create it, and the account owner gets a notification when it is created and when it is used.
 
 ## 3. Verify
 
@@ -251,13 +261,13 @@ Set values with `--set key=value`. Helm does not remember them across upgrades, 
 | `app.singleNode` | `false` | One-node cluster: the exporter runs 1 replica on ReadWriteOnce, so no ReadWriteMany class is needed. Access mode and update strategy follow the replica count automatically |
 | `app.crdGuard.enabled` | `true` | Admission guard: only the owning service accounts may write Telark CRs ([CRD write guard](#crd-write-guard)) |
 | `app.crdGuard.enforce` | `true` | With the guard on, `false` audits and `true` rejects |
-| `app.auth.bootstrap.admin` | `""` | The one bootstrap admin's email, enrolled with break-glass; required while self-registration is off ([First admin](#2-first-admin)) |
-| `app.auth.passkey.selfRegistration` | `"false"` | `"true"` lets anyone who reaches the dashboard register a passkey account |
+| `app.auth.bootstrap.admin` | `""` | The one bootstrap admin's email, enrolled with break-glass; required ([First admin](#2-first-admin)) |
 | `app.auth.passkey.id` / `origin` | `""` | WebAuthn relying party; required with `ingress.enabled` or `gateway.enabled` ([Passkeys and HTTPS](#passkeys-and-https)) |
 | `app.selfMonitoring.enabled` | `false` | `true` shows Telark's own namespace under Applications ([Self-monitoring](#self-monitoring)) |
 | `app.networkPolicy.enabled` | `true` | Ingress NetworkPolicies for the Telark pods and NATS ([Network policies](#network-policies)) |
 | `app.serviceToken.existingSecret` | `""` | Secret (key `token`) you manage instead of the generated service token ([GitOps](#gitops-cluster-less-renders)) |
 | `services.<svc>.env.CORS_ALLOWED_ORIGINS` | `""` | Comma-separated browser origins the exporter, discovery, auth and analyzer answer with CORS headers ([CORS](#cors)) |
+| `services.auth.env.ENROLL_INVITE_TTL_SEC` | `"3600"` | Lifetime in seconds of an enrollment link created from Members ([Enrollment links](#enrollment-links)) |
 
 ### Subcharts
 
@@ -303,13 +313,13 @@ Insights runs on an in-cluster model runtime (Ollama, installed by default), so 
 
 The runtime has one size for every mode, because Helm resolves subchart values before `app.mode` applies: requests `250m` CPU and `1536Mi` memory, a 2-CPU limit and no memory limit. That is enough for `granite4:350m` while `minimal` still fits one 2 vCPU / 8 GiB node. Models live on a 10Gi volume that is kept on uninstall, so they survive restarts and reinstalls.
 
-| Setup | Flags | Behaviour |
+| Setup | Flags | Behavior |
 |---|---|---|
 | Connected (default) | `app.ollama.autoPull=true` | The analyzer pulls the chosen model right after start when the runtime lacks it (708 MB for `granite4:350m`), and the Ollama pod gets HTTPS egress for it. Until the pull finishes, an analysis shows the rule text without the model's rewording; **Install model** in Settings starts the pull right away |
 | Air-gapped | `app.ollama.autoPull=false` | Nothing is pulled and the Ollama pod gets no HTTPS egress. Pre-load the model on a seeded volume or a baked image, as described in the chart README |
 | Your own runtime | `app.ollama.enabled=false`, `app.ollama.runtimeUrl=http://<host>:11434` | The analyzer uses an Ollama-API endpoint you run (URL only, no key) |
 
-Larger profiles (4 vCPU CPU, GPU and deep mode), model licences and the air-gapped procedure are in the chart README, [Analyzer runtime (ollama)](../charts/telark/README.md#analyzer-runtime-ollama).
+Larger profiles (4 vCPU CPU, GPU and deep mode), model licenses and the air-gapped procedure are in the chart README, [Analyzer runtime (ollama)](../charts/telark/README.md#analyzer-runtime-ollama).
 
 **Recommendations.** The analyzer also reviews each app's setup (replicas, disruption budgets, resources, autoscaling, images, network policies, protection plans) and shows recommendation cards on the Insights page ([Insights page](../charts/telark/README.md#insights-page)).
 
@@ -504,6 +514,7 @@ Pass the same `--set` and `-f` flags you used at install: Helm does not remember
 
 - **When switching modes.** A single-node install runs one exporter replica on a ReadWriteOnce claim, and Kubernetes cannot change a bound claim's access mode or class. Add `--set app.singleNode=true` to keep that claim (one replica, Recreate). To move to two replicas on ReadWriteMany, uninstall, delete the `telark-exporter-snapshots-pvc` claim (snapshots are lost; copy `/snapshots` off the pod first if you need them), then reinstall with `--set app.persistence.storageClass=<rwx-class>`. The same applies when switching between `minimal` and `standard`/`performance`, or toggling `app.singleNode`.
 - **CRDs managed out of band** (`crds.enabled=false`): upgrade `telark-crds` before `telark` ([chart README](../charts/telark/README.md#upgrade-order)).
+- **Self-registration moved to Settings.** `app.auth.passkey.selfRegistration` is removed (the schema rejects it, so drop it from your flags) and self-registration starts off whatever it was before; the bootstrap admin turns it on in Settings. `app.auth.bootstrap.admin` is now required whenever the auth service runs: an install that had none sets it, then runs the break-glass command of [First admin](#2-first-admin), which also marks an existing account with that email as the bootstrap admin.
 
 ## Uninstall
 

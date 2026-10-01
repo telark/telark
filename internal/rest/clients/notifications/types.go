@@ -31,6 +31,8 @@ const (
 	TypeGroupMembershipChanged = "group.membership.changed"
 	TypePlanApprovalRequested  = "plan.approval.requested"
 	TypePlanApprovalDecided    = "plan.approval.decided"
+	TypeEnrollLinkCreated      = "enroll.link.created"
+	TypeEnrollLinkUsed         = "enroll.link.used"
 )
 
 const (

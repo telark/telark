@@ -78,7 +78,7 @@ func TestDeleteSnapshotHandler(t *testing.T) {
 
 // Seen live: a deny on viewing snapshots still let the manifest download; the
 // manifest rule itself is the route's.
-func TestGetSnapshotManifestHonoursSnapshotDeny(t *testing.T) {
+func TestGetSnapshotManifestHonorsSnapshotDeny(t *testing.T) {
 	setRoot(t)
 	createOK(t)
 	reader := xauthz.Identity{UserID: "u1", Grants: xauthz.Grants{

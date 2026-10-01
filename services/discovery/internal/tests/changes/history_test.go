@@ -136,7 +136,7 @@ func TestComputeFingerprint(t *testing.T) {
 // With no explicit description, the description is synthesized from the field and
 // change type; every field/type pair yields a non-empty string except a few
 // no-op combinations, and the validator collapses whitespace and truncates.
-func TestApplicationChangeDescriptionSynthesised(t *testing.T) {
+func TestApplicationChangeDescriptionSynthesized(t *testing.T) {
 	cases := []struct {
 		name  string
 		field string
@@ -169,9 +169,9 @@ func TestApplicationChangeDescriptionSynthesised(t *testing.T) {
 }
 
 // An explicit description is preferred over synthesis, and the validator
-// normalises internal whitespace.
+// normalizes internal whitespace.
 func TestApplicationChangeDescriptionExplicit(t *testing.T) {
 	ch := appresource.ApplicationChange{Field: changes.ChangeFieldImage, Description: "  a   b  "}
-	testutil.Equal(t, "normalised", changes.ApplicationChangeDescription(ch), "a b")
+	testutil.Equal(t, "normalized", changes.ApplicationChangeDescription(ch), "a b")
 	testutil.Equal(t, "blank", changes.ValidApplicationChangeDescription("   "), constants.EmptyString)
 }

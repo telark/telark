@@ -121,7 +121,7 @@ Depth: [how the analyzer works](../services/analyzer/ARCHITECTURE.md), [analyzer
 
 ### Signing in
 
-People sign in with a passkey or with Google SSO. There are no passwords. Passkey self-registration is off by default: the bootstrap admin enrols with a one-time token from the break-glass command. Google users are created as ReadOnly on their first sign-in once an admin turns SSO on in **Settings**, and an admin then grants roles, including Admin to at least two regular users. See [First admin](INSTALL.md#2-first-admin) and [Login and SSO](../services/auth/OIDC.md).
+People sign in with a passkey or with Google SSO. There are no passwords. Passkey self-registration is off by default: the bootstrap admin enrolls with a one-time token from the break-glass command. Google users are created as ReadOnly on their first sign-in once the bootstrap admin turns SSO on in **Settings**, an admin can also create an account on **Members** and send its owner a one-time enrollment link, and an admin then grants roles, including Admin to at least two regular users. See [First admin](INSTALL.md#2-first-admin) and [Login and SSO](../services/auth/OIDC.md).
 
 ### Roles, levels and deny rules
 

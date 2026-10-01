@@ -12,7 +12,6 @@ import (
 
 	dataerrors "github.com/telark/telark/internal/data/errors"
 	userresource "github.com/telark/telark/internal/data/resources/user"
-	"github.com/telark/telark/services/auth/internal/config"
 	"github.com/telark/telark/services/auth/internal/constants"
 	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
 	"github.com/telark/telark/services/auth/internal/helpers/shared"
@@ -197,11 +196,6 @@ func TestClientHelpersFailClosed(t *testing.T) {
 	if _, err := authhelper.CheckUserHasExistingPasskeys(testUserID); err == nil {
 		t.Fatal("CheckUserHasExistingPasskeys should fail with no backend")
 	}
-	t.Setenv(constants.EnvSelfRegistrationEnabled, "true")
-	t.Setenv(constants.EnvBootstrapAdmin, constants.EmptyString)
-	if _, err := config.LoadBootstrapConfig(); err != nil {
-		t.Fatalf("LoadBootstrapConfig: %v", err)
-	}
 	if _, err := authhelper.CreatePendingUser(&userresource.User{Email: testEmail}); err == nil {
 		t.Fatal("CreatePendingUser should fail with no backend")
 	}
@@ -246,7 +240,7 @@ func TestGetUserForRegistrationFailClosed(t *testing.T) {
 
 	noCeremony := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{}"))
 	noCeremony.Header.Set("X-Email", testEmail)
-	if _, _, err := authhelper.GetUserForRegistration(noCeremony, webauthnhelper.RegistrationChallengeOwner); err == nil {
+	if _, _, _, err := authhelper.GetUserForRegistration(noCeremony, webauthnhelper.RegistrationChallengeOwner); err == nil {
 		t.Fatal("GetUserForRegistration should fail without a registration ceremony")
 	}
 }

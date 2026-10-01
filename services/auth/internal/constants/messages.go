@@ -26,8 +26,17 @@ const (
 	LogJITEmailIdentityAttached messages.Message = "google identity attached to existing " +
 		"user identityHash=%s via email match"
 
-	// Bootstrap Config Messages
-	LogBootstrapConfig messages.Message = "bootstrap config: selfRegistrationEnabled=%v bootstrapAdminSet=%v"
+	// Enrollment Link and Self-Registration Messages
+	SuccessEnrollLinkRevoked       messages.Message = "enrollment link revoked"
+	SuccessSelfRegistrationUpdated messages.Message = "self-registration updated"
+	LogEnrollLinkIssued            messages.Message = "enrollment link issued: identityHash=%s issuerHash=%s"
+	LogEnrollLinkRevoked           messages.Message = "enrollment link revoked: identityHash=%s"
+	NoticeEnrollLinkCreatedTitle   messages.Message = "Enrollment link created for your account"
+	NoticeEnrollLinkCreatedMessage messages.Message = "An enrollment link was created for your account by %s."
+	NoticeEnrollLinkUsedTitle      messages.Message = "Passkey added through an enrollment link"
+	NoticeEnrollLinkUsedMessage    messages.Message = "A passkey was added to your account through an enrollment link. " +
+		"If it was not you, tell an administrator."
+	NoticeIssuerUnknown messages.Message = "an administrator"
 
 	// Logout Log Messages
 	LogLogoutAttempted messages.Message = "logout attempted: identityHash=%s tokenStatus=%s"

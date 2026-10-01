@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -21,11 +20,8 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/golang-jwt/jwt/v5"
-	roledata "github.com/telark/telark/internal/data/resources/role"
 	telarkconfigresource "github.com/telark/telark/internal/data/resources/telarkconfig"
 	userresource "github.com/telark/telark/internal/data/resources/user"
-	xauthz "github.com/telark/telark/internal/x-ware/authz"
-	"github.com/telark/telark/services/auth/internal/authz"
 	"github.com/telark/telark/services/auth/internal/config"
 	"github.com/telark/telark/services/auth/internal/constants"
 	oidchandler "github.com/telark/telark/services/auth/internal/handlers/oidc"
@@ -57,6 +53,8 @@ func (s *proofStub) RoundTrip(r *http.Request) (*http.Response, error) {
 	switch {
 	case strings.HasSuffix(r.URL.Path, "/api/v1/auth/sessions/self"):
 		return envelope(http.StatusNotFound, nil)
+	case strings.HasSuffix(r.URL.Path, "/api/v1/config"):
+		return envelope(http.StatusOK, selfRegistrationOn())
 	case strings.Contains(r.URL.Path, "passkeys"):
 		if s.passkeyFailure {
 			return envelope(http.StatusInternalServerError, nil)
@@ -90,7 +88,6 @@ func (s *proofStub) RoundTrip(r *http.Request) (*http.Response, error) {
 // operator, and a passkey lookup that failed never reads as "no passkeys".
 func TestRegisterStartProofRules(t *testing.T) {
 	t.Setenv(constants.EnvBootstrapAdmin, bootstrapEmail)
-	t.Setenv(constants.EnvSelfRegistrationEnabled, "true")
 	if _, err := config.LoadBootstrapConfig(); err != nil {
 		t.Fatalf("LoadBootstrapConfig: %v", err)
 	}
@@ -112,6 +109,7 @@ func TestRegisterStartProofRules(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			stub := &proofStub{passkeyFailure: c.passkeyFailure}
 			stubExporter(t, stub)
+			awaitSelfRegistration(t, true)
 			rec := httptest.NewRecorder()
 			passkeyhandler.RegisterStart(rec, jsonReq(c.body))
 			if rec.Code != c.status {
@@ -159,7 +157,6 @@ func registrationBody(t *testing.T, challenge, rpID string) string {
 // not be saved is deleted again), a good one creates it ReadOnly.
 func TestSelfRegistrationCreatesTheAccountAtFinish(t *testing.T) {
 	t.Setenv(constants.EnvBootstrapAdmin, bootstrapEmail)
-	t.Setenv(constants.EnvSelfRegistrationEnabled, "true")
 	if _, err := config.LoadBootstrapConfig(); err != nil {
 		t.Fatalf("LoadBootstrapConfig: %v", err)
 	}
@@ -185,6 +182,7 @@ func TestSelfRegistrationCreatesTheAccountAtFinish(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			stub := &proofStub{passkeyFailure: c.passkeyFailure}
 			stubExporter(t, stub)
+			awaitSelfRegistration(t, true)
 			rec := httptest.NewRecorder()
 			passkeyhandler.RegisterStart(rec, jsonReq(`{"email":"`+newEmail+`"}`))
 			testutil.Equal(t, "start", rec.Code, http.StatusOK)
@@ -210,34 +208,6 @@ func TestSelfRegistrationCreatesTheAccountAtFinish(t *testing.T) {
 				t.Fatalf("self-registered user must be ReadOnly without the bootstrap marker, got %+v", created)
 			}
 		})
-	}
-}
-
-// The identity-provider trust is changed only by a caller who is Admin on every
-// scope; Admin on settings alone is refused before the body is read.
-func TestSetConfigNeedsAdminOnAll(t *testing.T) {
-	cases := []struct {
-		name   string
-		grants xauthz.Grants
-		status int
-	}{
-		{"settings admin only", xauthz.Grants{Levels: map[string]roledata.PermissionLevel{
-			roledata.ScopeSettings: roledata.PermissionLevelAdmin}}, http.StatusForbidden},
-		{"admin on all", xauthz.Grants{Levels: map[string]roledata.PermissionLevel{
-			roledata.ScopeAll: roledata.PermissionLevelAdmin}}, http.StatusBadRequest},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			ctx := xauthz.WithIdentity(context.Background(), xauthz.Identity{UserID: "uid", Grants: c.grants})
-			rec := httptest.NewRecorder()
-			oidchandler.SetConfig(rec, jsonReq("{").WithContext(ctx))
-			if rec.Code != c.status {
-				t.Fatalf("status = %d, want %d (body %s)", rec.Code, c.status, rec.Body.String())
-			}
-		})
-	}
-	if authz.CallerIsAdminOnAll(context.Background()) {
-		t.Fatal("no identity must not count as Admin")
 	}
 }
 

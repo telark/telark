@@ -58,7 +58,7 @@ def test_insight_id_stable():
     assert first != insights.insight_id("other", "api", "deployment/api", "shop")
     assert first != insights.insight_id("shop", "api", "deployment/api", "shop-prod"), "per workload namespace"
 
-    # kind is an attribute, never keyed: a relabelled failure updates the same card.
+    # kind is an attribute, never keyed: a relabeled failure updates the same card.
     doc = AppInsights()
     insights.merge(doc, [_emitted(kind="crashloop")], EARLIER, False, "shop", "api")
     insights.merge(doc, [_emitted(kind="oom")], NOW, False, "shop", "api")

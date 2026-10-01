@@ -39,7 +39,6 @@ Kubernetes: `>=1.30.0-0`
 | app.auth.passkey.id | string | `""` |  |
 | app.auth.passkey.name | string | `"Dashboard App"` |  |
 | app.auth.passkey.origin | string | `""` |  |
-| app.auth.passkey.selfRegistration | string | `"false"` |  |
 | app.crdGuard.enabled | bool | `true` |  |
 | app.crdGuard.enforce | bool | `true` |  |
 | app.crdGuard.extraAllowedUsers | list | `[]` |  |
@@ -293,6 +292,7 @@ Kubernetes: `>=1.30.0-0`
 | services.auth.env.CLEANUP_WORKERS_PER_TYPE | string | `"2"` |  |
 | services.auth.env.CLEANUP_XCLAIM_MIN_IDLE_SECONDS | string | `"60"` |  |
 | services.auth.env.CORS_ALLOWED_ORIGINS | string | `""` |  |
+| services.auth.env.ENROLL_INVITE_TTL_SEC | string | `"3600"` |  |
 | services.auth.env.OIDC_TRUST_FILE | string | `"/etc/telark/oidc/googleJwkJson"` |  |
 | services.auth.env.RECONCILE_BACKOFF_INITIAL_SECONDS | string | `"5"` |  |
 | services.auth.env.RECONCILE_BACKOFF_MAX_SECONDS | string | `"300"` |  |
@@ -305,7 +305,6 @@ Kubernetes: `>=1.30.0-0`
 | services.auth.env.RP_ID | string | `"{{ .Values.app.auth.passkey.id }}"` |  |
 | services.auth.env.RP_NAME | string | `"{{ .Values.app.auth.passkey.name }}"` |  |
 | services.auth.env.RP_ORIGIN | string | `"{{ .Values.app.auth.passkey.origin }}"` |  |
-| services.auth.env.SELF_REGISTRATION_ENABLED | string | `"{{ .Values.app.auth.passkey.selfRegistration }}"` |  |
 | services.auth.env.SESSION_EXPIRY | string | `"24"` |  |
 | services.auth.name | string | `"auth-service"` |  |
 | services.auth.pdb.enabled | bool | `false` |  |

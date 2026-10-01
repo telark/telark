@@ -28,9 +28,9 @@ The object name (`metadata.name`) is the identity; there is no `spec.id`. The ex
 |---|---|---|
 | `Application` | `name`, `displayName`, `description`, `managed` | `health`, `resourceCount`, `namespaces`, `resourceSummary`, `resources`, `images`, `ports`, `envVarKeys`, `configMapRefs`, `secretRefs`, `serviceMappings`, `ingressRules`, `metrics`, `snapshots`, `rollbacks`, `history`, `lastForceSync`, `createdAt`, `lastUpdated`, `conditions` (type `Published`: status `True`/`False`, reason `Pending`, `Created` or `Failed`) |
 | `ProtectionPlan` | `name`, `description`, `severity`, `priority`, `scope` (`type`, `namespaces` or `applicationRefs`, `exclusions`), `policies`, `mode` (`audit` \| `enforce`), `timeMode`, `timeRange`, `approvalMode` (`automatic` \| `required`; absent = automatic; Production defaults to `required`), `participantRefs`, `environmentRef`, `tagRefs` (at most 20), `createdAt/By`, `lastUpdatedAt/By` | `phase`, `reason`, `conditions` (`Ready`, `Approved`, `PoliciesHealthy`), `observedGeneration`, `renderedPolicies`, `health`, `healthCheckedAt`, `healthDetail`, `startedAt/By`, `terminatedAt/By`, `approval` (state, requester, decider, comment, bounded history; written only by discovery) |
-| `TelarkConfig` | `excludedNamespaces`, `userSettings`, `ai` (`enabled`, `model`: a local analyzer model tag, default `granite4:350m`; `autoAnalyze`), `snapshots`, `oidc` (`enabled`, `googleClientID`, `egressAllowed`) | `cluster.version` |
+| `TelarkConfig` | `excludedNamespaces`, `userSettings`, `ai` (`enabled`, `model`: a local analyzer model tag, default `granite4:350m`; `autoAnalyze`), `snapshots`, `oidc` (`enabled`, `googleClientID`, `egressAllowed`), `selfRegistration` (`enabled`, default off). `oidc` and `selfRegistration` are written only by auth, for the bootstrap admin | `cluster.version` |
 | `Category` | `categories[]`: `id`, `name`, `scope` (`groups`, `roles`, `plan-environments`, `plan-tags`), `type`, `creationDate`, … | none |
-| `User` | `username`, `fullname`, `email`, `roleRefs`, `groupRefs`, `bootstrap`, `identities`, `avatar`, `settings`, `status` (`phase`: `active`, `inactive` or `suspended`; `lastLoginAt`) | none (lifecycle stays in `spec.status`) |
+| `User` | `username`, `fullname`, `email`, `roleRefs`, `groupRefs`, `bootstrap`, `identities`, `avatar`, `settings`, `status` (`phase`: `active`, `inactive` or `suspended`; `lastLoginAt`; `invite`: `issuedAt`, `expiresAt`, `issuedBy` of a pending enrollment link, written only by auth and display only, since the link itself expires in Redis) | none (lifecycle stays in `spec.status`) |
 | `Group` | `name`, `description`, `userRefs`, `roleRefs`, `categoryRef`, `createdBy`, `lastUpdatedBy` | none |
 | `AccessRole` | `name`, `version`, `priority`, `categoryRef`, `scopesAndPermissions`, `protection`, `status` (lifecycle), `validity`, `createdBy`, `lastUpdatedBy`, `deprecatedAt`, `deletedAt` | none (lifecycle stays in `spec.status`) |
 | `Passkey` | `userId`, `credentialId` (at most 2 048 characters), `publicKey` (at most 4 096), `deviceName`, `deviceType`, `backupEligible`, `backupState`, timestamps | none |
@@ -53,7 +53,7 @@ Renamed from the 0.4 schema (values unchanged):
 
 ## OIDC trust anchor
 
-The optional Google JWK set is not stored in `TelarkConfig`. It lives in the Secret `telark-oidc-trust-secret` (key `googleJwkJson`), which the exporter writes when an Admin saves it and the auth service reads as a mounted file. `GET /api/v1/config` merges it back into `oidc.googleJwkJson`. For cluster-less renders, point `app.auth.oidc.existingSecret` at a Secret you manage ([INSTALL.md](INSTALL.md#gitops-cluster-less-renders)).
+The optional Google JWK set is not stored in `TelarkConfig`. It lives in the Secret `telark-oidc-trust-secret` (key `googleJwkJson`), which the exporter writes when the bootstrap admin saves it through auth and the auth service reads as a mounted file. `GET /api/v1/config` merges it back into `oidc.googleJwkJson`. For cluster-less renders, point `app.auth.oidc.existingSecret` at a Secret you manage ([INSTALL.md](INSTALL.md#gitops-cluster-less-renders)).
 
 ## Labels and finalizers
 

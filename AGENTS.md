@@ -102,6 +102,7 @@ Verify each step against its success criterion before moving on. Strong success 
 - Remove an unused parameter from the signature and update every caller rather than renaming it `_`. `_ Type` is only for signatures fixed by an interface you don't own.
 - Prefer the `slices` and `maps` packages over hand-written loops for membership, index, sort, clone and delete.
 - Match the naming, structure and style of the file you're editing. Complexity and function-length limits come from `.golangci.yml`; extract a helper instead of relaxing them. Naming, error and logging rules are in [CONVENTIONS.md](CONVENTIONS.md).
+- Spelling is American English everywhere: code, comments, docs, UI copy and CRD descriptions ("enrollment", "behavior", "canceled"). `misspell` enforces it in Go (`locale: US`).
 - An expected 4xx (a refusal, a bad body) is an answer, not a failure: send it with `SendResponse`, because `LogAndSendResponse` logs `[ERROR]` for any non-nil error whatever the status. Exporter handlers decode bodies through `GetSpec`/`GetSpecFor` (`utils/shared/extract.go`), the one place that maps body errors to 413, 422 and 400; calling `ParseRequestBody` directly bypasses it.
 
 **Configuration**

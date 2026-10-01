@@ -125,7 +125,7 @@ func TestIsSafeSegment(t *testing.T) {
 	}
 }
 
-func TestTickAllowedNilRedisAllowsAndCancelledCtxDenies(t *testing.T) {
+func TestTickAllowedNilRedisAllowsAndCanceledCtxDenies(t *testing.T) {
 	if !artifact.TickAllowed(context.Background(), nil, lockKey, lockTTL) {
 		t.Fatal("nil redis with a live ctx must allow the tick")
 	}

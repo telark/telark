@@ -10,7 +10,7 @@ How to build, test and validate Telark from a fresh clone, locally or in a Claud
 | `golangci-lint` (per service and shared package) | golangci-lint | yes | `go`, lint leg |
 | Helm lint, `VALUES.md` drift, kubeconform | Helm, Go (for helm-docs), kubeconform, network access to chart repos and schemas | yes | `helm` |
 | Analyzer syntax check, pytest, coverage | Python 3.13 | yes | `analyzer` |
-| Pod readiness, API calls, UI flows, admission behaviour | a cluster with the chart installed | no | none |
+| Pod readiness, API calls, UI flows, admission behavior | a cluster with the chart installed | no | none |
 
 Cloud sessions have no cluster, no registry login and no dashboard UI checkout. Every row except the last runs there; the last row is manual work on a cluster (see [Cluster validation](#cluster-validation)).
 

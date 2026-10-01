@@ -96,6 +96,11 @@ func GuardUserPatch(w http.ResponseWriter, r *http.Request, existing *userdata.U
 		return true
 	}
 
+	if carriesInvite(body) {
+		denyForbidden(w, constants.ErrAuthzInviteFieldReserved)
+		return false
+	}
+
 	if !guardIdentityFields(w, identity, existing, body) {
 		return false
 	}
@@ -162,6 +167,10 @@ func GuardUserCreate(w http.ResponseWriter, r *http.Request, body map[string]any
 		denyForbidden(w, constants.ErrAuthzBootstrapFieldReserved)
 		return false
 	}
+	if carriesInvite(body) {
+		denyForbidden(w, constants.ErrAuthzInviteFieldReserved)
+		return false
+	}
 	if !guardIdentitiesField(w, nil, body) {
 		return false
 	}
@@ -182,6 +191,14 @@ func GuardUserCreate(w http.ResponseWriter, r *http.Request, body map[string]any
 
 	return rolesWithinCaller(w, identity, stringsOf(body[constants.FieldRoleRefs]), constants.ErrAuthzAssignedRoleExceedsCaller) &&
 		groupsWithinCaller(w, identity, stringsOf(body[constants.FieldGroupRefs]), constants.ErrAuthzAssignedRoleExceedsCaller)
+}
+
+// The invite is auth's record of a link it issued and of who issued it; a session
+// could otherwise show a pending invite no link backs, or hide one that is live.
+func carriesInvite(body map[string]any) bool {
+	status, isMap := body[constants.FieldStatus].(map[string]any)
+	_, present := status[constants.FieldInvite]
+	return isMap && present
 }
 
 func isEmptyValue(value any) bool {
@@ -733,8 +750,7 @@ func GuardCategoryScope(w http.ResponseWriter, r *http.Request, categoryScope, o
 	return true
 }
 
-// One endpoint, but the role model grants its parts separately. Identity
-// settings decide who can authenticate at all, so they take Admin.
+// One endpoint, but the role model grants its parts separately.
 var configFields = map[string]xauthz.Requirement{
 	telarkconfig.FieldExcludedNamespaces: {
 		Scope:    roledata.ScopeSettings,
@@ -751,11 +767,6 @@ var configFields = map[string]xauthz.Requirement{
 		MinLevel: roledata.PermissionLevelOwner,
 		Rule:     xauthz.RuleKey(roledata.ScopeSettings, roledata.ActionControlAIInsights),
 	},
-	telarkconfig.FieldOIDC: {
-		Scope:    roledata.ScopeSettings,
-		MinLevel: roledata.PermissionLevelAdmin,
-		Rule:     xauthz.RuleKey(roledata.ScopeSettings, roledata.ActionEditOIDCConfig),
-	},
 	telarkconfig.FieldUserSettings: {
 		Scope:    roledata.ScopeSettings,
 		MinLevel: roledata.PermissionLevelContributor,
@@ -764,19 +775,15 @@ var configFields = map[string]xauthz.Requirement{
 	// Written by discovery at startup; no session ever Allows an Internal
 	// requirement, since no level covers its empty MinLevel.
 	telarkconfig.FieldCluster: xauthz.Internal,
+	// Who can authenticate: auth is the single writer and lets only the bootstrap account change these.
+	telarkconfig.FieldOIDC:             xauthz.Internal,
+	telarkconfig.FieldSelfRegistration: xauthz.Internal,
 }
-
-// Trusting an identity provider lets whoever controls it sign in as any user,
-// so the OIDC settings also take Admin on every scope, not only on settings.
-var oidcTrust = xauthz.Administer(roledata.ScopeAll)
 
 // A patch touching no governed field still answers with the whole config, so
 // it takes the read permission GET does.
 func GuardConfigPatch(w http.ResponseWriter, r *http.Request, spec map[string]any) bool {
 	required := requirementsIn(configFields, spec)
-	if _, present := spec[telarkconfig.FieldOIDC]; present {
-		required = append(required, oidcTrust)
-	}
 	if len(required) == constants.DefaultInitValue {
 		required = append(required, xauthz.Read(roledata.ScopeSettings))
 	}

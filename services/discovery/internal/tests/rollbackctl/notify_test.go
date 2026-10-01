@@ -119,7 +119,7 @@ func storedRollback(t *testing.T, client *dynamicfake.FakeDynamicClient) applica
 	return status.Rollbacks[constants.DefaultInitValue]
 }
 
-// An entry stuck in_progress past the stale window was relabelled failed without a
+// An entry stuck in_progress past the stale window was relabeled failed without a
 // word to the user who triggered it; every other failure path notifies them.
 func TestFailStaleInProgressNotifiesTheTrigger(t *testing.T) {
 	sent := captureNotifications(t)

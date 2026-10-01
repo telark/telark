@@ -667,7 +667,7 @@ func TestReconcileBaselinesUnrecordedAppsWithoutPublishing(t *testing.T) {
 
 // Replays stress-12: apps rediscovered at gen 1 with snapshot s0, one annotate
 // round, and the tick landing between the change and its flush. Baselined from
-// the live object, the recorded fingerprint equalled s1 and the flush dropped
+// the live object, the recorded fingerprint equaled s1 and the flush dropped
 // its s0 pre-image as already recorded: 30 of 100 apps lost the change.
 func TestReconcileBaselinesFromSnapshotNotLiveObject(t *testing.T) {
 	s0, s1 := testDeployment(testSeq0, constants.DefaultAddValue), testDeployment(testSeq1, constants.DefaultAddValue)

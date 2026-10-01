@@ -81,7 +81,7 @@
 - U10 / U11 roles fetched without permission (403s, "No roles available")
 - U12 compare said "identical" when only a Secret changed
 - U13 / U14 / U15 contrast failures (impact note, notification text, sidebar labels)
-- U16 register form flash; U17 dark auth CTA; U18 enrol link lost on reload (and dead token kept after a failed enrolment)
+- U16 register form flash; U17 dark auth CTA; U18 enroll link lost on reload (and dead token kept after a failed enrollment)
 - U19 SSO form enabled without Admin on ALL
 - U20 nginx `/healthz` headers
 - U21 "No access" coverage chip; U22 non-Telark actors looked up as users
@@ -104,7 +104,7 @@
 
 ## Remaining (this round)
 - ~~Actor names~~ code done 2026-09-30 (Task 2): exporter `GET users/names?ids=` + UI `useUsernamesByIds`/`ActorDisplay` at every actor field; gates green; not deployed or live-tested
-- Modals: content modals (session expired, enrol link, orphaned passkeys, avatar picker) on the shared chrome; premium restyle within the theme
+- Modals: content modals (session expired, enroll link, orphaned passkeys, avatar picker) on the shared chrome; premium restyle within the theme
 - Notification rows restyle
 - UI items: group tooltip avatar initials, Manage Roles at 900×900, rollback meta ellipsis; F12 long app title overflows the page
 - Visual check: D8 CTAs, dialogs, bell, SSO JWK, change log
@@ -122,7 +122,7 @@
 - Role PATCH/DELETE last-admin guard
 - E16 finalizer-body half; E9 sibling error paths; CORS `Retry-After` (x-ware)
 - Passkey onboarding (decided, next after this round; plan as a feature):
-  1. Invites: admin creates the user, then Members → "Create enrol link": one-time URL shown once with copy button and expiry (~24 h), single-use, bound to the user, re-issuable; "Invite pending / expired" in Members. Owner on users; Admin targets need Admin on ALL. No SMTP in MVP.
+  1. Invites: admin creates the user, then Members → "Create enroll link": one-time URL shown once with copy button and expiry (~24 h), single-use, bound to the user, re-issuable; "Invite pending / expired" in Members. Owner on users; Admin targets need Admin on ALL. No SMTP in MVP.
   2. Self-registration moves from the chart (`app.auth.passkey.selfRegistration`, `SELF_REGISTRATION_ENABLED`) to a TelarkConfig field (CRD first), default off, toggle in Settings next to Single Sign-On, read live by auth; chart guard becomes "bootstrap admin required"; docs updated.
   3. Bootstrap-only control: SSO config and the self-registration toggle editable only by the bootstrap user (backend + UI, today Admin on ALL); others see them read-only with a tooltip.
 - ~~Monorepo: shared modules into `telark/internal/`~~ DONE 2026-09-30 (history merges + uncommitted move on `chore/import-module-history`; merge its PR with a merge commit)
@@ -136,7 +136,7 @@
 - Plan details Violations/Reports no-access: box-style lock state kept (user approved)
 - Login "I lost my passkey": no more jump to /register (which refuses existing accounts); shows "Contact your administrator to restore access to this account." inline; dead browser orphan-cleanup removed (auth answers 401 to it by design)
 - Login unknown email with self-registration off: "No account for this email. Check the address, or contact your administrator." (was "Register first…")
-- Role pickers (Add/Edit member roles, group Manage Roles): new lock state ("No access / Requires ReadOnly on roles") in light-panel colours
+- Role pickers (Add/Edit member roles, group Manage Roles): new lock state ("No access / Requires ReadOnly on roles") in light-panel colors
 - All of the above: UI gate green, live-checked in the user's Chrome (22:30)
 - Group ↔ member consistency retest (22:40, API as admin, CRD+API+list count after every step): create user with group, create group with users, add/remove from either side, multi-group, multi-user, PATCH without refs, role inheritance via group: all PASS; cluster scan 0 one-sided memberships. Open: deleting a user/group leaves the other side's ref for ~45–60 s until auth's cleanup sweep → fix queued (exporter strips refs on DELETE); restart scenario pending
 - Suspended account login (user item, 23:05): auth answers 403 "user account is suspended" only after the passkey/Google credential is verified (login start unchanged, no enumeration); login card shows "Your Telark account is suspended. Contact your administrator." inline (passkey and Google, no toast, no lost-passkey popup). Live: real UI passkey login suspended → message, activate → immediate login (2 cycles); Google path confirmed live by the user (refused with the message, then immediate login after reactivation)
@@ -153,11 +153,11 @@
 - Role delete timing note: plurals via `pluralize`, no semicolons in UI text (user rule)
 - Task 4 notification rows (sub-agent, reviewed): tinted type badge, unread dot, one-line title and 2-line message with full text on hover, hover background, timestamp bottom-right under the row icons (user call). Per-row mark-read/delete unchanged. Live: mocked list (0/1/7 rows) and real exporter data
 - Task 5 UI items (sub-agent, reviewed): (1) group View panel "+N" tooltip now shows member initials and readable usernames (shared ViewPanelHeader, the only overflow tooltip); (2) Manage Roles double scrollbar at 900x900 fixed at the root: the inner list scroller is gone from all four lists (user and group Manage Roles, Manage Groups, Manage Members and their Assigned views), the panel body is the one scroller, the scroll chevron and its dead code removed (user approved); (3) Manage Rollbacks rows: metadata on one line with ellipsis and the full text on hover, long namespaces no longer widen the panel; (4) change log at 375 px checked, no change needed. Live: before/after screenshots at 1440, 900 and 375
-- Pills (user item): pills use the declared colours (SUCCESS, DANGER, WARNING, INFO_STRONG for info, NEUTRAL, TEXT_MUTED) with white text (user decision; white on SUCCESS 2.1:1 and WARNING 1.9:1 is below AA, accepted); `getPillSurface` returns background and text colour, callers no longer set the colour
+- Pills (user item): pills use the declared colors (SUCCESS, DANGER, WARNING, INFO_STRONG for info, NEUTRAL, TEXT_MUTED) with white text (user decision; white on SUCCESS 2.1:1 and WARNING 1.9:1 is below AA, accepted); `getPillSurface` returns background and text color, callers no longer set the color
 - Softer DANGER `#E05252` (was `#FF4D4F`) and WARNING `#E2A336` (was `#faad14`), tints updated; antd danger and warning (danger buttons, form errors) now use them too via the root theme (user item). Live: modal Delete renders the new red
 
 ## Done 2026-10-01 (Task 6 visual checks, headless on the Vite server, no code change)
-- D8 primary CTAs: PASS. Login "Authenticate" and enrol "Register Passkey" in light and dark, roles toolbar "Add Role", Create Role panel submit, session-expired "Go to Login": green `#20C997`, dark text, weight 600, no shadow, 8.3:1 contrast. Danger confirms (Delete, Revoke, Reset) use `#E05252` with white text (3.8:1, user's softer red)
+- D8 primary CTAs: PASS. Login "Authenticate" and enroll "Register Passkey" in light and dark, roles toolbar "Add Role", Create Role panel submit, session-expired "Go to Login": green `#20C997`, dark text, weight 600, no shadow, 8.3:1 contrast. Danger confirms (Delete, Revoke, Reset) use `#E05252` with white text (3.8:1, user's softer red)
 - Migrated dialogs: PASS. Role delete, app reset (note callout), revoke session, session expired: 360 px, left-aligned, bold names without quotes, X top-right, muted Cancel with a solid button on the right; avatar picker 460 px (avatar grid), disabled Update visible. EnrollLink and OrphanedPasskeys: user check in Chrome
 - SSO JWK field: PASS. Empty with placeholder, Google JWKS link and "Leave it empty to keep the pinned keys" (switch flipped client-side only, nothing saved; cluster `egressAllowed` still true)
 - Notifications with 2 tabs (F13): PASS. Both tabs load 4 rows, no spinner; mark-read in one tab updates both bells within 15 s; 2 GETs per tab at load, 1 POST after the mark, no cross-tab ping-pong
@@ -191,13 +191,52 @@
 - NEEDS-USER 1: U19's bootstrap-only side belongs to the approved passkey onboarding plan (next session)
 - Every lane deleted the test data it created
 
+## Done 2026-10-02 (passkey onboarding; deployed: exporter + auth 0.0.1, UI 0.0.2, chart rev 9, the two edited CRDs applied with kubectl)
+- Members → "Create enroll link" gives a one-time link, shown once with copy and expiry (1 h, `ENROLL_INVITE_TTL_SEC`). A new link kills the old one, "Revoke enroll link" kills it, and the row shows "Invite pending" / "Invite expired". Live: issue 201; replaced, used, revoked and expired links (TTL 60 test) all get one identical 401
+- Who may create a link: Owner on users, capped like role assignment (403 when the member holds more, directly or through a group); own account 403, bootstrap 403 (404 below Admin on ALL, like any hidden admin), suspended 409, being deleted 410. Live: every refusal as expected; the UI disables the row button with the reason
+- Recovery links (member already has a passkey): bootstrap or Admin on ALL only, and the member gets a bell notice on creation and on use. Live: Owner on users 403, Admin on ALL 201, both notices within 1 s
+- Tokens are stored only as SHA-256 digests (Redis dump: 0 raw tokens) and never logged (0 hits in auth and exporter logs); the register page strips the token from the address bar and posts it in the body; `/register` answers `Referrer-Policy: no-referrer` and the UI access log never records the query
+- Self-registration moved from the chart to Settings (TelarkConfig `selfRegistration.enabled`, off by default), read live by auth: a flip shows within 4.4 s, no restart. `app.auth.passkey.selfRegistration` and `SELF_REGISTRATION_ENABLED` are gone; the chart and auth require `app.auth.bootstrap.admin`
+- SSO and self-registration are bootstrap-only: auth answers 403 to every other account (Admin on ALL included), the exporter refuses `oidc` / `selfRegistration` writes from any session, and Settings shows both read-only with a tooltip. Live and headless: as expected
+- Settings → Single Sign-On shows the Google client ID as `***` to anyone who can't edit it (everyone but the bootstrap account); an empty ID stays empty (user request 2026-10-02; checked by the user in Chrome)
+- Google sign-in refused with 409 (the email belongs to an account that signs in another way, e.g. a passkey from an enroll link, or several accounts share it) now explains why in the login card instead of "Google login failed" (user report 2026-10-02; headless check with the 409 faked: both messages shown, no generic toast; checked by the user in Chrome)
+- Fixed during the round: revoking a link while its member is being deleted answered 500 (now 200); a link whose member was deleted answered 404 instead of the shared 401 (now identical); suspending a member with a pending link would have failed (the panel now sends only the phase); a disabled menu item's tooltip covered "Create enroll link"
+- Gates: Go build, vet, test -race (124 packages), golangci-lint 2.14.0 0 issues (auth, exporter, data, rest), helm lint, render without the bootstrap admin fails as intended, VALUES.md no drift; UI check-all-and-build 0 errors; landing-page check-all + build. Logs after the fixes: 0 `[ERROR]` / `[WARNING]` in auth and exporter
+- Needs the user: the bootstrap-side Chrome check (edit SSO, flip self-registration); the telark-crds release and re-pin (until then every `helm upgrade` on telark-dev reverts the two CRDs: run it with `--force-conflicts`, then re-apply the two CRDs)
+
+### Cleanup 2026-10-02b (no behavior change)
+- Test comments cut to the two-line why rule (`TestGuardEnrollLink`, the self-registration test, the bootstrap config test); the header comments on the `enrollDirectory` and `inviteDirectory` fixtures removed; the `FakeExporter` comment now states only its usage rule
+- auth constants: the TelarkConfig read warning moved to "Configuration Errors", and the messages group is titled "Enrollment Link and Self-Registration Messages", since it holds both
+- American spelling everywhere (user rule): about 260 text fixes in docs, UI copy, comments, messages and CRD descriptions across telark, dashboard-ui and landing-page ("enrolment" → "enrollment", Members "Enrol link" → "Enroll link", "cancelled" → "canceled"…); identifiers renamed too: the auth package `handlers/authorisation` → `handlers/authorization`, discovery `filterCanceledScalarChanges` and `InfoHistoryReplicaChangeCanceled`, 13 Go and Python test names, the UI `canceled`/`canceling` variables and 5 constants. The three `AGENTS.md` files now state the rule
+- UI: prettier rewrapped the client-ID line in `OIDCSection.tsx` (the build's only warning)
+- Checked, no change needed: `FakeExporter` has no unused member; `telarkConfigLg` stays (the package's `lg` logs under the cleanup prefix); `EnrollLinkAction` and `useUserEnrollLink` stay under cognitive complexity 12; no dead anchors and no unused exports; the Lua script comments document the KEYS/ARGV contract
+- Consistency: the chart rendered with the live values sets the same env names as the 15 running containers, and the 9 CRDs are structurally identical to the live ones (only the protectionplans `terminatedAt` description now says "canceled"; it goes live with the telark-crds release)
+- Gates: Go build, vet, test -race (124 packages), golangci-lint 2.14.0 0 issues (4 services, 4 shared packages); analyzer 770 tests, coverage 99 %; helm lint, kubeconform 0 invalid, VALUES.md no drift; UI check-all-and-build 0 errors, 0 warnings; landing-page check-all + build
+- Deployed at 19:00: auth, discovery, UI. Live without a session: `auth/config` 200, a bogus enroll token 401, `enroll-link` and `auth/permissions` 401; 0 `[ERROR]` / `[WARNING]` in auth, discovery, notifier, exporter (both replicas) and UI since the rollout
+- Live with a session (a throwaway Admin and target, both deleted after): `auth/permissions` 200; issue 201, a second link 201 and the first one then 401; revoke 200 with `status.invite` cleared. Headless: Members shows "Invite pending" and the "Create enroll link" / "Revoke enroll link" menu; Settings → Single Sign-On is read-only with the bootstrap-only tooltip; `/register?enroll=bogus` shows the invalid-link message; no console errors besides that expected 401; 0 `[ERROR]` / `[WARNING]` in every pod
+
+### New follow-ups (post-MVP, found 2026-10-02)
+- FT11: deleting a user leaves its pending link keys in Redis until they expire (at most 1 h); the link already answers like any dead link
+- FT12: a link that was opened but not finished keeps "Invite pending" until it expires (the invite clears only when a passkey is stored)
+- FT13: auth's 403s carry no error code, so the UI matches the recovery refusal on its text
+- FT14: an existing TelarkConfig without `selfRegistration` shows no such key in `GET config` until it is first saved (auth and the UI read it as off)
+- FU9: the UI treats an unreadable public auth config as "self-registration on" (`selectSelfRegistrationEnabled`); the server still refuses
+- FU10: an enroll link opened in a browser that already has a session redirects home and loses the token
+- FU11: after a self-registration flip, a tab's cached auth config (5 min) still drives its login and register pages
+- FU12: `BOOTSTRAP_PILL.TOOLTIP` contains a semicolon; the Members row action buttons hide keyboard focus (`outline: none`); `UsersTable` is exported but unused
+- FD1: `services/exporter/README.md` spells the deny rule `controlaiinsights` (code: `controlainsights`)
+- FT15 (FT1 family): auth's Google callback logs `[ERROR]` for its expected 409 refusals (`handlers/oidc/callback.go`, `shared.HandleError`)
+- FT16: an invalid `ENROLL_INVITE_TTL_SEC` warns under the cleanup logger with a "[cleanup]" tag, because `envSeconds` is shared with the cleanup tunables
+- FU13: six settings sections repeat the toolbar key `'save'`, and three hints repeat `fontSize: 12`, inline; move both to `SETTINGS_CONSTANTS`
+- FD2: `.github/workflows/build-service.yaml` keeps one "cancelled" comment (any edit under `.github/` takes the action-pin audit); `CHANGELOG.md` keeps British words from old commit subjects (git-cliff generates it)
+
 ## Follow-ups (post-MVP)
 - FT1: exporter body-validation 400s still log `[ERROR]`: `handlers/categories/handler.go:33`, `handlers/plans/protection/handler.go:174`, `handlers/resources/{group/handler.go:50, role/handler.go:42, user/handler.go:51}`, `utils/classification/category/validate.go:84`, `utils/resources/group/{patch.go:45, validate.go:17}`, `utils/resources/user/patch.go:46`
 - FT2: a role PATCH with `scopesAndPermissions: []` still writes the priority and version computed from the old scopes
 - FT3: exporter `authz.ResetGenerationFloor` (`cache.go:109`) is a test-only export
 - FT4: while NATS is unreachable, `BuildPrewarmApplicationOptions` blocks up to 30 s per call under the x-ware NATS client lock, including from the informer flush path, and it retries even when `NATS_HOST` is unset (fix without changing the healthy path)
 - FT5: the Redis key table still lacks `rollback:applying:`, `cleanup:empty_streak:`, `cleanup:auto:inflight:`, `incident:state:`, `analyzer:inflight:`, `lock:gen:`, `ops:`, `grace:scale:`, `reset:cooldown:`
-- FT6: `TestRecordWithRetryOutlivesCancelledCallerAndReturnsLastError` takes 10 s (waits the real retry interval); speed it up only through production paths
+- FT6: `TestRecordWithRetryOutlivesCanceledCallerAndReturnsLastError` takes 10 s (waits the real retry interval); speed it up only through production paths
 - FT7 (FT1 family): discovery's rollback trigger logs its body errors (413, 422, 400) as `[ERROR]` (`decodeTriggerRollbackBody`, `applications/rollback.go:281`)
 - FT7b: discovery's protection-plan handlers also log expected 4xx refusals as `[ERROR]`, and so do some not-found lookups (`applications.telark.io … not found`, `accessroles.telark.io … not found`)
 - FT8: the exporter's `LogByStatusAndSend` logs body-validation 4xx (app PATCH 400s) at `[WARNING]`
@@ -214,4 +253,4 @@
 - Kyverno API types: `internal/data/policies` and 6 discovery plan files import Kyverno's v1 API, which pulls the cosign and cloud-provider SDKs (data tests build 1,846 packages instead of 339, discovery binary 2,169 instead of 1,009). Proposal: local JSON-identical types for the 18 types used, the real types only in discovery's `kyverno_accepts_test.go`, plus a rendered-policies-unchanged test
 
 ## Next (MVP)
-- Passkey onboarding (enrol invitations, self-registration in TelarkConfig, bootstrap-only identity settings): the plan is written and waits for the user's approval; nothing is implemented
+- Passkey onboarding (enroll invitations, self-registration in TelarkConfig, bootstrap-only identity settings): implemented and deployed 2026-10-02 (see "Done 2026-10-02"); left: the user's bootstrap-side Chrome check and the telark-crds release

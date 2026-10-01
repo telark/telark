@@ -19,7 +19,7 @@ import (
 	restresponse "github.com/telark/telark/internal/rest/response"
 	"github.com/telark/telark/services/auth/internal/clients"
 	"github.com/telark/telark/services/auth/internal/constants"
-	authzhandler "github.com/telark/telark/services/auth/internal/handlers/authorisation"
+	authzhandler "github.com/telark/telark/services/auth/internal/handlers/authorization"
 	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
@@ -57,6 +57,7 @@ func stubExporter(t *testing.T, stub http.RoundTripper) {
 		clients.GetSessionClient().GetHTTPClient(),
 		clients.GetUserClient().GetHTTPClient(),
 		clients.GetPasskeyClient().GetHTTPClient(),
+		clients.GetConfigClient().GetHTTPClient(),
 	} {
 		previous := c.Transport
 		c.Transport = stub

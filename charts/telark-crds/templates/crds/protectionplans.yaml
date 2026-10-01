@@ -272,7 +272,7 @@ spec:
                   nullable: true
                 terminatedAt:
                   type: string
-                  description: RFC3339 timestamp when the plan was terminated or cancelled
+                  description: RFC3339 timestamp when the plan was terminated or canceled
                   format: date-time
                   nullable: true
                 terminatedBy:

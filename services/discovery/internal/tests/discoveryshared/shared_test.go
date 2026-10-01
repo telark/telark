@@ -48,7 +48,7 @@ func TestResourceSummaryFromKindCounts(t *testing.T) {
 	testutil.Equal(t, "services", sum.Service, constants.DefaultAddValue)
 }
 
-// Managed source normalises to helm, manual, or unknown; chart and version
+// Managed source normalizes to helm, manual, or unknown; chart and version
 // become pointers only when present.
 func TestBuildManaged(t *testing.T) {
 	helm := shared.BuildManaged(shared.ManagedHelm, "shop-1.0", "1.0")

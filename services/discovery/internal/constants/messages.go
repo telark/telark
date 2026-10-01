@@ -153,7 +153,7 @@ const (
 	LogInformersReconcileNoPreImage    messages.Message = "[informers] reconcile %s: %s absent from snapshot %s, baselined without publishing"
 	InfoInformersReconcileBaselineLive messages.Message = "[informers] reconcile %s: %d resource(s) baselined from live, " +
 		"not published: generation %d has no post-image record"
-	InfoHistoryReplicaChangeCancelled  messages.Message = "[history] %s: replicas change dropped, pre-image replicas %d equal fresh %d"
+	InfoHistoryReplicaChangeCanceled   messages.Message = "[history] %s: replicas change dropped, pre-image replicas %d equal fresh %d"
 	WarnApplicationPublishFailed       messages.Message = "[publish] %s: NATS publish failed after %d attempts: %v"
 	WarnHistoryStoredLookupFailed      messages.Message = "[history] %s: stored application lookup failed, skipping publish: %v"
 	WarnSnapshotClassOrSeverityMissing messages.Message = "[snapshot] changeClass or severity missing for %s " +

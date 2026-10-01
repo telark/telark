@@ -311,7 +311,7 @@ def test_validate_fast_ok_without_tools():
     assert (resp.ok, resp.reason, resp.license, resp.capabilities) == (True, "", "Apache-2.0", ["completion"])
 
 
-def test_validate_research_licence_warning_kept():
+def test_validate_research_license_warning_kept():
     fake = FakeOllama(models=("qwen2.5:3b",))
 
     async def scenario(rt):
@@ -334,7 +334,7 @@ def test_undecodable_runtime_is_unreachable():
     assert _run(fake, scenario, mode="fast")[0] == ("unreachable", "JSONDecodeError")
 
 
-def test_ensure_model_pulls_catalogue_models_only(monkeypatch):
+def test_ensure_model_pulls_catalog_models_only(monkeypatch):
     monkeypatch.setattr(R, "OLLAMA_AUTO_PULL", True)
     fake = FakeOllama(models=())
 
@@ -350,7 +350,7 @@ def test_ensure_model_pulls_catalogue_models_only(monkeypatch):
     assert R.pull_allowed(MODEL) and not R.pull_allowed("llama3.1:405b")
 
 
-def test_pull_past_its_deadline_is_cancelled(monkeypatch):
+def test_pull_past_its_deadline_is_canceled(monkeypatch):
     monkeypatch.setattr(R, "PULL_DEADLINE_S", 0.01)
 
     async def hang(client, model, on_progress):

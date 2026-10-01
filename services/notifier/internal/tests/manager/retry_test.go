@@ -126,7 +126,7 @@ func TestRetryStartDefaultsNonPositiveInterval(t *testing.T) {
 }
 
 // An already-canceled context must not trigger a connection attempt at all.
-func TestRetryStartHonoursCancelledContext(t *testing.T) {
+func TestRetryStartHonorsCanceledContext(t *testing.T) {
 	var calls atomic.Int32
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

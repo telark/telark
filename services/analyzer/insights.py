@@ -148,7 +148,7 @@ class InsightStore:
         return await self._r.xlen(STREAM_JOBS)
 
     async def ack_job(self, msg_id: str) -> None:
-        """The worker's only acknowledgement: XACK then XDEL, so XLEN = undelivered + pending backlog."""
+        """The worker's only acknowledgment: XACK then XDEL, so XLEN = undelivered + pending backlog."""
         await self._r.xack(STREAM_JOBS, CONSUMER_GROUP, msg_id)
         await self._r.xdel(STREAM_JOBS, msg_id)
 

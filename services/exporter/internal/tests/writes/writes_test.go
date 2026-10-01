@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -12,6 +15,7 @@ import (
 	"github.com/telark/telark/internal/data/metadata/v1alpha1"
 	roledata "github.com/telark/telark/internal/data/resources/role"
 	"github.com/telark/telark/internal/data/resources/telarkconfig"
+	userdata "github.com/telark/telark/internal/data/resources/user"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/exporter/internal/constants"
 	"github.com/telark/telark/services/exporter/internal/exporters/generics"
@@ -19,6 +23,7 @@ import (
 	"github.com/telark/telark/services/exporter/internal/startup"
 	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -29,6 +34,17 @@ const (
 	appPath    = "/api/v1/applications/" + appName
 	keyLabels  = "labels"
 	rollbackID = "rb-1"
+
+	crdDir        = "../../../../../charts/telark-crds/templates/crds"
+	crdUsers      = "users.yaml"
+	crdConfigs    = "telarkconfigs.yaml"
+	keyVersions   = "versions"
+	keySchema     = "schema"
+	keyOpenAPI    = "openAPIV3Schema"
+	keyProperties = "properties"
+	templateOpen  = "{{"
+	lineBreak     = "\n"
+	pathDot       = "."
 )
 
 func mustView(t *testing.T, obj *unstructured.Unstructured) map[string]any {
@@ -393,6 +409,92 @@ func TestConfigGetMergesTheJWK(t *testing.T) {
 	if view[keyID] != v1alpha1.TelarkConfigSingleton {
 		t.Errorf("config id = %v, want %q", view[keyID], v1alpha1.TelarkConfigSingleton)
 	}
+}
+
+// The service writes the toggle through the same merge patch as every other setting,
+// and GET shows it to settings readers beside the rest of the config.
+func TestSelfRegistrationIsStoredAndShown(t *testing.T) {
+	client := installFake(t, defaultConfig())
+
+	serveConfig(t, confighandler.PatchConfig(), http.MethodPatch,
+		`{"`+telarkconfig.FieldSelfRegistration+`":{"`+keyEnabled+`":true}}`)
+
+	spec := storedSpec(t, client, v1alpha1.TelarkConfigMetadata, v1alpha1.TelarkConfigSingleton)
+	enabled, found, err := unstructured.NestedBool(spec, telarkconfig.FieldSelfRegistration, keyEnabled)
+	if err != nil || !found || !enabled {
+		t.Fatalf("stored selfRegistration.enabled = %v (found %v, %v), want true", enabled, found, err)
+	}
+	if _, kept := spec[keyOIDC]; !kept {
+		t.Errorf("the patch dropped the oidc block: %v", spec)
+	}
+	view := serveConfig(t, confighandler.GetConfig(), http.MethodGet, constants.EmptyString)
+	if shown, isBool := section(write{body: view}, telarkconfig.FieldSelfRegistration)[keyEnabled].(bool); !isBool || !shown {
+		t.Errorf("GET config selfRegistration = %v, want enabled", view[telarkconfig.FieldSelfRegistration])
+	}
+}
+
+// The API server prunes what a schema does not declare and still answers 200, so every
+// field written for these features must be in the CRD or it is silently dropped.
+func TestCRDsDeclareTheNewFields(t *testing.T) {
+	tests := []struct {
+		file   string
+		path   []string
+		record any
+	}{
+		{crdUsers, []string{keySpec, keyStatus, constants.FieldInvite},
+			userdata.Invite{IssuedAt: stampTime, ExpiresAt: stampTime, IssuedBy: callerID}},
+		{crdConfigs, []string{keySpec, telarkconfig.FieldSelfRegistration},
+			telarkconfig.SelfRegistrationConfig{Enabled: true}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.file, func(t *testing.T) {
+			declared := crdProperties(t, tt.file, tt.path)
+			var fields map[string]any
+			if err := json.Unmarshal(mustJSON(t, tt.record), &fields); err != nil {
+				t.Fatal(err)
+			}
+			for field := range fields {
+				if _, found := declared[field]; !found {
+					t.Errorf("%s: %s.%s is not in the schema", tt.file, strings.Join(tt.path, pathDot), field)
+				}
+			}
+		})
+	}
+}
+
+// Template directives sit on lines of their own, and the schema is plain YAML without them.
+func crdProperties(t *testing.T, file string, path []string) map[string]any {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Clean(filepath.Join(crdDir, file)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := slices.DeleteFunc(strings.Split(string(raw), lineBreak), func(line string) bool {
+		return strings.Contains(line, templateOpen)
+	})
+	var crd map[string]any
+	if err := yaml.Unmarshal([]byte(strings.Join(lines, lineBreak)), &crd); err != nil {
+		t.Fatal(err)
+	}
+	versions, _, err := unstructured.NestedSlice(crd, keySpec, keyVersions)
+	if err != nil || len(versions) == firstItem {
+		t.Fatalf("%s has no versions: %v", file, err)
+	}
+	version, isMap := versions[firstItem].(map[string]any)
+	if !isMap {
+		t.Fatalf("%s: version is %T", file, versions[firstItem])
+	}
+	properties, found, err := unstructured.NestedMap(version, keySchema, keyOpenAPI, keyProperties)
+	for _, name := range path {
+		if err != nil || !found {
+			break
+		}
+		properties, found, err = unstructured.NestedMap(properties, name, keyProperties)
+	}
+	if err != nil || !found {
+		t.Fatalf("%s: %s is not in the schema (%v)", file, strings.Join(path, pathDot), err)
+	}
+	return properties
 }
 
 func jsonString(t *testing.T, s string) string {

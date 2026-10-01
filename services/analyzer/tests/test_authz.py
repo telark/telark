@@ -1,6 +1,6 @@
 """Checks for the scope rules analyzer-service enforces on its endpoints.
 
-These mirror the Go middleware's behaviour. If the two ever disagree, the same
+These mirror the Go middleware's behavior. If the two ever disagree, the same
 role grants different access depending on which service is asked, so the cases
 below are deliberately the same ones covered on the Go side.
 

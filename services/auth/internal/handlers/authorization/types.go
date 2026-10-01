@@ -1,4 +1,4 @@
-package authorisation
+package authorization
 
 import roleresource "github.com/telark/telark/internal/data/resources/role"
 

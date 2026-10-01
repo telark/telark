@@ -7,30 +7,34 @@ import (
 
 	"github.com/telark/telark/services/auth/internal/config"
 	"github.com/telark/telark/services/auth/internal/constants"
+	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
-// The bootstrap admin is one email, normalised (trimmed + lowercased), and
+const (
+	retiredSelfRegEnv = "SELF_REGISTRATION_ENABLED"
+	customTTLSec      = "900"
+	customTTL         = 15 * time.Minute
+)
+
+// The bootstrap admin is one email, normalized (trimmed + lowercased), and
 // IsBootstrapAdmin matches it case-insensitively; a comma list is not split.
 func TestLoadBootstrapConfig(t *testing.T) {
 	cases := []struct {
-		name     string
-		admin    string
-		selfReg  string
-		wantErr  bool
-		wantSelf bool
-		isAdmin  bool
+		name    string
+		admin   string
+		selfReg string
+		wantErr bool
+		isAdmin bool
 	}{
-		{"admin with self-reg off", " A@x.com ", "false", false, false, true},
-		{"list is one unmatched value", "a@x.com,b@x.com", "true", false, true, false},
-		{"no admin, self-reg on", "", "true", false, true, false},
-		{"no admin, self-reg off is invalid", "", "false", true, false, false},
-		{"self-reg unset defaults off", "a@x.com", constants.EmptyString, false, false, true},
-		{"no admin, self-reg unset is invalid", constants.EmptyString, constants.EmptyString, true, false, false},
+		{"admin", " A@x.com ", constants.EmptyString, false, true},
+		{"list is one unmatched value", "a@x.com,b@x.com", constants.EmptyString, false, false},
+		{"no admin is invalid", constants.EmptyString, constants.EmptyString, true, false},
+		{"no admin with the retired switch on is invalid", constants.EmptyString, "true", true, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Setenv(constants.EnvBootstrapAdmin, c.admin)
-			t.Setenv(constants.EnvSelfRegistrationEnabled, c.selfReg)
+			t.Setenv(retiredSelfRegEnv, c.selfReg)
 
 			_, err := config.LoadBootstrapConfig()
 			if (err != nil) != c.wantErr {
@@ -39,9 +43,6 @@ func TestLoadBootstrapConfig(t *testing.T) {
 			if c.wantErr {
 				return
 			}
-			if config.IsSelfRegistrationEnabled() != c.wantSelf {
-				t.Fatalf("IsSelfRegistrationEnabled = %v, want %v", config.IsSelfRegistrationEnabled(), c.wantSelf)
-			}
 			if config.IsBootstrapAdmin("A@X.COM") != c.isAdmin {
 				t.Fatalf("IsBootstrapAdmin = %v, want %v", config.IsBootstrapAdmin("A@X.COM"), c.isAdmin)
 			}
@@ -49,14 +50,34 @@ func TestLoadBootstrapConfig(t *testing.T) {
 	}
 }
 
-// A never-loaded bootstrap config must fail safe: no admin, self-registration off.
+// A never-loaded bootstrap config must fail safe: no admin.
 func TestBootstrapDefaultsWhenUnloaded(t *testing.T) {
-	// A prior subtest may have loaded config; this only asserts the accessors do
-	// not panic and return booleans, exercising the nil-safe branches.
+	// A prior subtest may have loaded config; this only asserts the accessor does
+	// not panic and returns a boolean, exercising the nil-safe branch.
 	if config.IsBootstrapAdmin("nobody@x.com") || config.IsBootstrapAdmin(constants.EmptyString) {
 		t.Fatal("unlisted email reported as bootstrap admin")
 	}
-	_ = config.IsSelfRegistrationEnabled()
+}
+
+// An invite link lives an hour unless the chart sets ENROLL_INVITE_TTL_SEC; anything but
+// a positive number keeps the hour, since a zero TTL would never expire.
+func TestEnrollInviteTTL(t *testing.T) {
+	cases := []struct {
+		name  string
+		value string
+		want  time.Duration
+	}{
+		{"default", constants.EmptyString, time.Hour},
+		{"chart value", customTTLSec, customTTL},
+		{"zero keeps the default", "0", time.Hour},
+		{"garbage keeps the default", "soon", time.Hour},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Setenv(constants.EnvEnrollInviteTTLSec, c.value)
+			testutil.Equal(t, "invite TTL", config.EnrollInviteTTL(), c.want)
+		})
+	}
 }
 
 // Cleanup + backfill config read every knob from the environment with sane

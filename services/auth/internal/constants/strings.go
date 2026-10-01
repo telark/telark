@@ -46,6 +46,7 @@ const (
 	UserFieldBootstrap            = "bootstrap"
 	UserFieldStatus               = "status"
 	UserStatusFieldLastLoginAt    = "lastLoginAt"
+	UserStatusFieldInvite         = "invite"
 	IdentityHashLength            = 8
 	IdentityHashUnknown           = "unknown"
 	TokenStatusValid              = "valid"

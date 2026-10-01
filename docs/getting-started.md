@@ -35,7 +35,7 @@ You should see every pod `Running` and `READY`. The first start pulls several im
 
 ## 2. Sign in as the first admin
 
-Passkey self-registration is off by default, so the first admin enrols with a one-time token. Create it with the auth service's break-glass command, using the email you passed at install:
+Passkey self-registration is off by default, so the first admin enrolls with a one-time token. Create it with the auth service's break-glass command, using the email you passed at install:
 
 ```sh
 kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email test@example.com --enroll

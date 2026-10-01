@@ -8,7 +8,7 @@ How the services depend on each other and how data and control move between them
 |---|---|---|---|
 | exporter | Go | every Telark CR (through the Kubernetes API), snapshot and report volumes, in-app notifications and the authz cache in Redis | Kubernetes API only; no other service |
 | discovery | Go | Redis coordination keys, insights row index (in memory) | exporter; Kubernetes API (informers, rollback writes, Kyverno policies); NATS publish; Redis |
-| auth | Go | WebAuthn challenges, OIDC nonces and JWKS, enrolment tokens, cleanup streams (Redis DB 1) | exporter; Google (optional); Redis |
+| auth | Go | WebAuthn challenges, OIDC nonces and JWKS, enrollment tokens, cleanup streams (Redis DB 1) | exporter; Google (optional); Redis |
 | notifier | Go | none | exporter, discovery (reset); NATS consume; Redis heartbeat |
 | analyzer | Python | insights in Redis (`analyzer:*`) | auth (permissions), exporter (read), Kubernetes API (read), Ollama, Redis |
 | ui | nginx + SPA (separate repo) | none | the service APIs |
@@ -59,7 +59,7 @@ discovery reaches the exporter through the wrappers in `services/discovery/inter
 | exporter | `notif:user:*`, `notif:item:*` | per-user in-app notifications |
 | exporter | authz generation and signed grant entries | grants cache ([security](../security/README.md#where-each-service-resolves-sessions-and-grants)) |
 | exporter | `exporter:snapshot:gc`, `exporter:reports:gc`, list-cache generations | GC tick locks, list cache |
-| auth | `auth:webauthn:challenge:*`, `auth:oidc:nonce:*`, `auth:oidc:jwks:google`, `auth:passkey:enroll-token:*`, `auth:cleanup:<users\|groups\|accessroles>` | login ceremonies and the deletion cleanup streams |
+| auth | `auth:webauthn:challenge:*`, `auth:oidc:nonce:*`, `auth:oidc:jwks:google`, `auth:passkey:enroll-token:*`, `auth:passkey:invite:*`, `auth:passkey:invite-of:*`, `auth:cleanup:<users\|groups\|accessroles>` | login ceremonies, enrollment links (keyed by the token's SHA-256 digest, never the token) and the deletion cleanup streams |
 
 Constants: `services/<svc>/internal/constants/` (discovery `coordination.go`, `forcesync.go`, `informers.go`; auth `config.go`; exporter `config.go`, `authz.go`), `services/analyzer/constants.py`.
 

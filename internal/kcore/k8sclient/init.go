@@ -145,14 +145,6 @@ func InitKubernetesClient() (*kubernetes.Clientset, error) {
 	return kubernetesClient, nil
 }
 
-func ResetAllClients() {
-	mu.Lock()
-	defer mu.Unlock()
-	kubernetesClient = nil
-	dynamicClient = nil
-	configLoader = makeConfigLoader()
-}
-
 func GetLogger() *globallogger.CustomLogger {
 	return logger
 }
@@ -161,7 +153,7 @@ func init() {
 	configLoader = makeConfigLoader()
 }
 
-// Lets callers (and tests) run kcore's CRD helpers against an injected client.
+// Exported for tests: rest.InClusterConfig reads a fixed token path, so off-cluster an injected client is the only way in.
 func SetDynamicClient(client dynamic.Interface) {
 	mu.Lock()
 	defer mu.Unlock()

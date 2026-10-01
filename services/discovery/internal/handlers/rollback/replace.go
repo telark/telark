@@ -14,8 +14,8 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
-// A server-side apply keeps every field another manager owns, so a field added after the
-// snapshot survived a "successful" rollback; a replace puts the object back as snapshotted.
+// Exported for tests (Run's in-cluster client is beyond SetDynamicClient). A server-side apply keeps every field another
+// manager owns, so a field added after the snapshot survived a "successful" rollback; a replace puts it back as snapshotted.
 func ReplaceUnstructured(
 	ctx context.Context,
 	dyn dynamic.Interface,

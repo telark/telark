@@ -1,6 +1,9 @@
 package role
 
 import (
+	"encoding/json"
+	"slices"
+
 	roledata "github.com/telark/telark/internal/data/resources/role"
 	"github.com/telark/telark/services/exporter/internal/constants"
 )
@@ -62,4 +65,25 @@ func computePriorityAndVersion(existingRole, mergedRole *roledata.AccessRole, bo
 	changeType := DetectRoleChangeType(existingRole, mergedRole)
 	ComputeAndBumpVersion(mergedRole, existingRole.Version, changeType)
 	body[constants.FieldVersion] = mergedRole.Version
+}
+
+// The write is a JSON merge patch of the spec, so the level fields land on a copy of the stored role the same way.
+func patchedRoleLevels(existing *roledata.AccessRole, body map[string]any) (*roledata.AccessRole, error) {
+	after := *existing
+	after.ScopesAndPermissions = slices.Clone(existing.ScopesAndPermissions)
+	if existing.Validity != nil {
+		validity := *existing.Validity
+		after.Validity = &validity
+	}
+	levels := make(map[string]any, len(constants.RoleLevelFields))
+	for _, field := range constants.RoleLevelFields {
+		if value, patched := body[field]; patched {
+			levels[field] = value
+		}
+	}
+	raw, err := json.Marshal(levels)
+	if err != nil {
+		return nil, err
+	}
+	return &after, json.Unmarshal(raw, &after)
 }

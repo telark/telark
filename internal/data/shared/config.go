@@ -7,24 +7,7 @@ import (
 )
 
 var (
-	NameRegex     = regexp.MustCompile(`[^a-z0-9-.]`)
-	ManagedFields = []string{
-		"apiVersion",
-		"kind",
-		"metadata.generation",
-		"metadata.managedFields",
-		"metadata.resourceVersion",
-		"metadata.uid",
-	}
-	ExcludedNamespaces = map[string]bool{
-		"kube-system":     true,
-		"kube-public":     true,
-		"kube-node-lease": true,
-		"telark":          true,
-		"prometheus":      true,
-		"monitoring":      true,
-		"default":         true,
-	}
+	NameRegex = regexp.MustCompile(`[^a-z0-9-.]`)
 )
 
 const (

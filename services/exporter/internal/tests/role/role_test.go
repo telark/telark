@@ -37,6 +37,7 @@ const (
 	fieldX          = "x"
 	fieldValidity   = "validity"
 	fieldAutoRevoke = "autoRevoke"
+	futureExpiry    = "2030-01-01T00:00:00Z"
 )
 
 func adminScope() []roledata.ScopeAndPermissions {
@@ -339,6 +340,39 @@ func TestPatchWithoutTypeKeepsTheStoredType(t *testing.T) {
 	}
 	if merged.Type != roledata.RoleTypeBuiltIn || merged.Version != versionMinorBump {
 		t.Errorf("type %q version %q, want built-in %s", merged.Type, merged.Version, versionMinorBump)
+	}
+}
+
+// The level-cap and last-admin checks judge the merged role, which kept the stored scopes when
+// the body emptied them and read an omitted validity as permanent, unlike the merge patch written.
+func TestExtractAndMergeRoleForPatchKeepsLevelsAsWritten(t *testing.T) {
+	tests := []struct {
+		name       string
+		body       map[string]any
+		wantScopes int
+	}{
+		{"scopes emptied", map[string]any{constants.FieldScopesAndPermissions: []any{}}, constants.DefaultInitValue},
+		{"validity omitted", map[string]any{constants.FieldStatus: string(roledata.RoleStatusActive)}, len(adminScope())},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expiresAt := futureExpiry
+			existing := &roledata.AccessRole{
+				Name: testRoleName, Type: roledata.RoleTypeCustom, Description: testDesc, CategoryRef: testCategory,
+				ScopesAndPermissions: adminScope(), Status: roledata.RoleStatusActive, Version: versionInitial,
+				Validity: &roledata.Validity{Type: roledata.ValidityTypeTemporary, ExpiresAt: &expiresAt},
+			}
+			merged, ok := roleutil.ExtractAndMergeRoleForPatch(existing, tt.body, httptest.NewRecorder())
+			if !ok {
+				t.Fatal("patch refused")
+			}
+			if len(merged.ScopesAndPermissions) != tt.wantScopes {
+				t.Errorf("scopes = %v, want %d as written", merged.ScopesAndPermissions, tt.wantScopes)
+			}
+			if merged.Validity == nil || merged.Validity.Type != roledata.ValidityTypeTemporary {
+				t.Errorf("validity = %+v, want the stored temporary one", merged.Validity)
+			}
+		})
 	}
 }
 

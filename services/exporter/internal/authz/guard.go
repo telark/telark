@@ -79,15 +79,9 @@ func callerIdentity(w http.ResponseWriter, r *http.Request) (xauthz.Identity, bo
 	return identity, ok
 }
 
+// A refusal is an expected answer, not a failure: like the route middleware's, it logs nothing.
 func denyForbidden(w http.ResponseWriter, message string) {
-	responseutils.LogAndSendResponse(
-		w,
-		http.StatusForbidden,
-		response.OperationForbidden,
-		message,
-		nil,
-		errors.New(message),
-	)
+	responseutils.SendResponse(w, http.StatusForbidden, response.OperationForbidden, message, nil)
 }
 
 // GuardUserPatch separates a profile edit from a privilege edit, and refuses
@@ -362,7 +356,7 @@ func guardReferences(w http.ResponseWriter, kind string, ids []string, hidden ma
 		return true
 	}
 	message := fmt.Sprintf(constants.ErrAuthzUnknownReferences, kind, strings.Join(missing, constants.ListSeparator))
-	responseutils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationError, message, nil, errors.New(message))
+	responseutils.SendResponse(w, http.StatusBadRequest, response.OperationError, message, nil)
 	return false
 }
 

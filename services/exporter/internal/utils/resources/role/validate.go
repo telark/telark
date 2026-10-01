@@ -36,13 +36,12 @@ func validateRoleFields(role *roledata.AccessRole, w http.ResponseWriter) error 
 
 func validateRoleName(role *roledata.AccessRole, w http.ResponseWriter) error {
 	if err := sharedutils.ValidateRequiredField(role.Name, string(constants.ErrRoleNameCannotBeEmpty)); err != nil {
-		responseutils.LogAndSendResponse(
+		responseutils.SendResponse(
 			w,
 			http.StatusBadRequest,
 			response.OperationError,
 			err.Error(),
 			nil,
-			err,
 		)
 		return err
 	}

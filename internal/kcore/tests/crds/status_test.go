@@ -42,7 +42,7 @@ func installFakeClient(t *testing.T, objects ...runtime.Object) *dynamicfake.Fak
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(
 		runtime.NewScheme(), map[schema.GroupVersionResource]string{widgetGVR: TestListKind}, objects...)
 	k8sclient.SetDynamicClient(client)
-	t.Cleanup(k8sclient.ResetAllClients)
+	t.Cleanup(func() { k8sclient.SetDynamicClient(nil) })
 	return client
 }
 

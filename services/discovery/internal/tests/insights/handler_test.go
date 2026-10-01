@@ -17,7 +17,6 @@ import (
 	"github.com/telark/telark/services/discovery/internal/discovery/cache"
 	"github.com/telark/telark/services/discovery/internal/handlers/insights"
 	redishelper "github.com/telark/telark/services/discovery/internal/helpers/redis"
-	tcfghelper "github.com/telark/telark/services/discovery/internal/helpers/telarkconfig"
 	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
@@ -61,10 +60,10 @@ func TestMain(m *testing.M) {
 	mr.Close()
 }
 
-func reset(t *testing.T, excluded []string) {
+func reset(t *testing.T) {
 	t.Helper()
 	mr.FlushAll()
-	tcfghelper.SetExcludedForTest(excluded)
+	testutil.ExcludedNamespaces(t, hiddenNS)
 }
 
 func read(t *testing.T, apps string) insights.Response {
@@ -91,7 +90,7 @@ func store(t *testing.T, namespace, name string) {
 // An excluded namespace is invisible to the whole product: its key must not
 // surface as a result, nor as pending (which would promise a later answer).
 func TestReadDropsExcludedNamespaces(t *testing.T) {
-	reset(t, []string{hiddenNS})
+	reset(t)
 	store(t, hiddenNS, hiddenApp)
 	got := read(t, hiddenKey+","+visibleKey)
 	_, inResults := got.Results[hiddenKey]
@@ -103,7 +102,7 @@ func TestReadDropsExcludedNamespaces(t *testing.T) {
 // The read is windowed to the apps a page shows; a hand-built request naming
 // hundreds of apps turned into that many sequential Redis reads.
 func TestReadRejectsMoreAppsThanTheCap(t *testing.T) {
-	reset(t, nil)
+	reset(t)
 	keys := make([]string, constants.DefaultInitValue, constants.InsightsReadMaxApps+constants.DefaultAddValue)
 	for i := range cap(keys) {
 		keys = append(keys, visibleNS+"/"+visibleApp+strconv.Itoa(i))
@@ -114,7 +113,7 @@ func TestReadRejectsMoreAppsThanTheCap(t *testing.T) {
 }
 
 func TestReadPendingWhenMissing(t *testing.T) {
-	reset(t, nil)
+	reset(t)
 	got := read(t, visibleKey)
 	testutil.Equal(t, "results", len(got.Results), constants.DefaultInitValue)
 	testutil.Equal(t, "pending", slices.Equal(got.Pending, []string{visibleKey}), true)
@@ -122,7 +121,7 @@ func TestReadPendingWhenMissing(t *testing.T) {
 
 // A multi-namespace app's card about a workload in an excluded namespace must not leak through its visible document.
 func TestReadDropsCardsInExcludedWorkloadNamespaces(t *testing.T) {
-	reset(t, []string{hiddenNS})
+	reset(t)
 	raw, err := json.Marshal(application.AppInsights{
 		Version: storedVersion,
 		LastRun: application.LastRun{Status: application.RunStatusDone},
@@ -144,7 +143,7 @@ func TestReadDropsCardsInExcludedWorkloadNamespaces(t *testing.T) {
 }
 
 func TestReadReturnsDocument(t *testing.T) {
-	reset(t, nil)
+	reset(t)
 	store(t, visibleNS, visibleApp)
 	got := read(t, visibleKey)
 	doc, ok := got.Results[visibleKey]

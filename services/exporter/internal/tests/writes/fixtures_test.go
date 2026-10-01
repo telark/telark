@@ -98,7 +98,7 @@ func installFake(t *testing.T, seeds ...seed) *dynamicfake.FakeDynamicClient {
 	}
 	client.ClearActions()
 	k8sclient.SetDynamicClient(client)
-	t.Cleanup(k8sclient.ResetAllClients)
+	t.Cleanup(func() { k8sclient.SetDynamicClient(nil) })
 	return client
 }
 

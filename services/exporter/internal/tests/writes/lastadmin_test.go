@@ -3,6 +3,7 @@ package writes
 import (
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 
 	"github.com/telark/telark/internal/data/metadata/base"
@@ -12,6 +13,7 @@ import (
 	userdata "github.com/telark/telark/internal/data/resources/user"
 	"github.com/telark/telark/services/exporter/internal/authz"
 	"github.com/telark/telark/services/exporter/internal/constants"
+	roleutils "github.com/telark/telark/services/exporter/internal/utils/resources/role"
 	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 )
@@ -30,6 +32,11 @@ const (
 	keyRoleRefs    = "roleRefs"
 	keyGroupRefs   = "groupRefs"
 	keyFullname    = "fullname"
+	keyScope       = "scope"
+	keyLevel       = "level"
+	keyType        = "type"
+	keyExpiresAt   = "expiresAt"
+	pastTime       = "2020-01-01T00:00:00Z"
 )
 
 func crSeedOf(t *testing.T, md base.Metadata, id string, record any) seed {
@@ -157,7 +164,7 @@ func lastAdminCases() []lastAdminCase {
 // Any change that would leave no active user holding Admin on ALL, directly or
 // through a group, is refused with 409; the bootstrap account counts as one.
 func TestLastAdminGuard(t *testing.T) {
-	for _, c := range lastAdminCases() {
+	for _, c := range slices.Concat(lastAdminCases(), roleLastAdminCases()) {
 		t.Run(c.name, func(t *testing.T) {
 			adminDirectory(t, c.users(t)...)
 			w := httptest.NewRecorder()
@@ -166,6 +173,65 @@ func TestLastAdminGuard(t *testing.T) {
 			}
 			if !c.want && w.Code != http.StatusConflict {
 				t.Fatalf("status = %d, want %d", w.Code, http.StatusConflict)
+			}
+		})
+	}
+}
+
+func adminRoleRecord() *roledata.AccessRole {
+	return &roledata.AccessRole{
+		ID: adminRoleID, Status: roledata.RoleStatusActive,
+		ScopesAndPermissions: []roledata.ScopeAndPermissions{{Scope: roledata.ScopeAll, Level: roledata.PermissionLevelAdmin}},
+	}
+}
+
+func rolePatch(field string, value any) func(w http.ResponseWriter) bool {
+	return func(w http.ResponseWriter) bool {
+		existing := adminRoleRecord()
+		merged, ok := roleutils.ExtractAndMergeRoleForPatch(existing, map[string]any{field: value}, w)
+		return ok && authz.GuardRolePatchLastAdmin(w, existing, merged)
+	}
+}
+
+// Seen in review: the role itself was the unguarded way to leave no administrator.
+func roleLastAdminCases() []lastAdminCase {
+	direct := func(t *testing.T) []seed { return []seed{adminUser(t, adminA, []string{adminRoleID}, nil, false)} }
+	readOnlyAll := []any{map[string]any{keyScope: roledata.ScopeAll, keyLevel: string(roledata.PermissionLevelReadOnly)}}
+	expired := map[string]any{keyType: string(roledata.ValidityTypeTemporary), keyExpiresAt: pastTime}
+	inactive := string(roledata.RoleStatusInactive)
+	deleteAdminRole := func(w http.ResponseWriter) bool { return authz.GuardRoleDeleteLastAdmin(w, adminRoleRecord()) }
+	return []lastAdminCase{
+		{"strip Admin from the only admin role", direct, rolePatch(constants.FieldScopesAndPermissions, readOnlyAll), false},
+		{"empty the only admin role", direct, rolePatch(constants.FieldScopesAndPermissions, []any{}), false},
+		{"deactivate the only admin role", direct, rolePatch(constants.FieldStatus, inactive), false},
+		{"expire the only admin role", direct, rolePatch(constants.FieldValidity, expired), false},
+		{"rename the only admin role", direct, rolePatch(keyName, newName), true},
+		{"deactivate the admin role while the bootstrap admin remains", func(t *testing.T) []seed {
+			return append(direct(t), adminUser(t, bootstrapUser, nil, nil, true))
+		}, rolePatch(constants.FieldStatus, inactive), true},
+		{"delete the only admin role", direct, deleteAdminRole, false},
+		{"delete the admin role held through the admin group", func(t *testing.T) []seed {
+			return []seed{adminUser(t, groupAdminUser, nil, []string{adminGroupID}, false)}
+		}, deleteAdminRole, false},
+		{"delete a role granting no Admin", direct, func(w http.ResponseWriter) bool {
+			return authz.GuardRoleDeleteLastAdmin(w, &roledata.AccessRole{ID: storedRoleID, Status: roledata.RoleStatusActive})
+		}, true},
+	}
+}
+
+// The role handlers ran no last-admin check: deactivating or deleting the only admin role answered 200.
+func TestRoleEditsKeepAnAdministrator(t *testing.T) {
+	tests := []struct {
+		name, method, body string
+	}{
+		{"deactivate", http.MethodPatch, `{"status":"` + string(roledata.RoleStatusInactive) + `"}`},
+		{"delete", http.MethodDelete, constants.EmptyString},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adminDirectory(t, adminUser(t, adminA, []string{adminRoleID}, nil, false))
+			if w := serveAs(t, adminCaller(), tt.method, rolesPath+pathSep+adminRoleID, tt.body); w.Code != http.StatusConflict {
+				t.Fatalf("%s = %d %s, want %d", tt.name, w.Code, w.Body.String(), http.StatusConflict)
 			}
 		})
 	}

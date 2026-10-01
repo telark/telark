@@ -8,10 +8,12 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/fxamacker/cbor/v2"
@@ -41,6 +43,8 @@ const (
 	testCredB64          = "AQID"
 	testRawCredID        = "\x01\x02\x03\x04"
 	testChalUser         = "chalUser"
+	retryUser            = "retryUser"
+	retryChallenge       = "retry"
 	testPayload          = "payload"
 	badBase64Case        = "bad base64"
 	jsonMarshalFailed    = "json marshal: %v"
@@ -274,7 +278,6 @@ func TestChallengeLifecycle(t *testing.T) {
 	if _, err := webauthnhelper.ValidateAndGetChallenge("missingUser"); err == nil {
 		t.Fatal("missing challenge should error")
 	}
-	webauthnhelper.CleanupChallenge(testChalUser)
 }
 
 // StartRegistration issues creation options and persists the challenge for the
@@ -423,6 +426,49 @@ func TestFinishRegistration(t *testing.T) {
 	if _, _, _, err := webauthnhelper.FinishRegistration("finUser2", testShortName, testShortFull, missing); err == nil {
 		t.Fatal("registration body without response should fail")
 	}
+}
+
+// Stores a retry's challenge when the finish first reads its body, after it consumed its own.
+type retryOnRead struct {
+	io.Reader
+	once  sync.Once
+	retry func()
+}
+
+func (b *retryOnRead) Read(p []byte) (int, error) {
+	b.once.Do(b.retry)
+	return b.Reader.Read(p)
+}
+
+// The finish consumes its own challenge; its later cleanup, keyed by the user alone,
+// wiped the challenge a quick retry had just started with.
+func TestFinishKeepsTheChallengeOfARetry(t *testing.T) {
+	att, cd, credID, chal := buildAttestation(t)
+	if err := webauthnhelper.StoreChallenge(retryUser, chal); err != nil {
+		t.Fatalf(storeChallengeFailed, err)
+	}
+	body, err := json.Marshal(map[string]any{
+		"id":       credID,
+		"response": map[string]any{"attestationObject": att, "clientDataJSON": cd},
+	})
+	if err != nil {
+		t.Fatalf(jsonMarshalFailed, err)
+	}
+	reader := &retryOnRead{Reader: bytes.NewReader(body), retry: func() {
+		if err := webauthnhelper.StoreChallenge(retryUser, retryChallenge); err != nil {
+			t.Errorf(storeChallengeFailed, err)
+		}
+	}}
+
+	r := httptest.NewRequest(http.MethodPost, testPath, reader)
+	if _, _, _, err := webauthnhelper.FinishRegistration(retryUser, testName, testShortFull, r); err != nil {
+		t.Fatalf("FinishRegistration = %v", err)
+	}
+	got, err := webauthnhelper.ValidateAndGetChallenge(retryUser)
+	if err != nil {
+		t.Fatalf("retry's challenge gone: %v", err)
+	}
+	testutil.Equal(t, "retry's challenge", got.Challenge, retryChallenge)
 }
 
 // Backup-flag validation over the login body is a no-op for malformed or

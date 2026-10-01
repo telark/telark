@@ -244,6 +244,7 @@ func deleteRedisByPatterns(ctx context.Context, rdb *redis.Client, appName strin
 		constants.KeyPrefixIncidentState + appName,
 		constants.KeyPrefixOpState + appName + constants.ColonSeparator + constants.Wildcard,
 		constants.KeyPrefixCoalesceBuffer + appName,
+		constants.KeyPrefixCoalesceHeld + appName,
 		constants.KeyPrefixHistoryRecorded + appName,
 		constants.KeyPrefixHistoryPost + appName,
 		constants.KeyPrefixHistoryFloor + appName,

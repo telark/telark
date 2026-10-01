@@ -103,6 +103,14 @@ func TestTriggerRollbackWithoutBundleSerializesPerProcess(t *testing.T) {
 	testutil.Equal(t, "trigger after release", triggerRollback("cart").Code, http.StatusUnprocessableEntity)
 }
 
+// Every other body limit answers 413; the trigger answered 422 as if the body were malformed.
+func TestTriggerRollbackOversizedBodyIsTooLarge(t *testing.T) {
+	applications.SetCoordinationBundle(nil, constants.EmptyString)
+	body := `{"snapshotGeneration":1,"triggeredBy":"` + strings.Repeat("x", constants.MaxRequestBodyBytes) + `"}`
+	testutil.Equal(t, "oversized trigger", triggerRollbackWithBody(shopApp, strings.NewReader(body)).Code,
+		http.StatusRequestEntityTooLarge)
+}
+
 // A Redis outage is not a rollback in flight: it must surface as 503 so the
 // caller retries instead of hunting for a rollback that does not exist.
 func TestTriggerRollbackRedisDownIs503(t *testing.T) {

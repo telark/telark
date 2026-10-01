@@ -1,16 +1,22 @@
 package writes
 
 import (
+	"context"
 	"net/http"
 	"slices"
 	"testing"
 
+	"github.com/alicebob/miniredis/v2"
+	"github.com/redis/go-redis/v9"
 	"github.com/telark/telark/internal/data/metadata/base"
 	"github.com/telark/telark/internal/data/metadata/v1alpha1"
 	roledata "github.com/telark/telark/internal/data/resources/role"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/exporter/internal/constants"
 	envmanager "github.com/telark/telark/services/exporter/internal/managers/envs"
+	exprdb "github.com/telark/telark/services/exporter/internal/redis"
+	notifstorage "github.com/telark/telark/services/exporter/internal/redis/notifications"
+	"github.com/telark/telark/services/exporter/internal/utils/async"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 )
@@ -31,6 +37,12 @@ const (
 	testCategory  = "c-00001-0000-0001"
 	newDesc       = "changed"
 	pathSep       = "/"
+
+	heldRoleA              = "r-00004-0000-0004"
+	heldRoleB              = "r-00005-0000-0005"
+	grantedRoleID          = "r-00006-0000-0006"
+	notificationsListLimit = 10
+	roleChangeMessage      = "Granted 1 role. Revoked 2 roles."
 )
 
 func adminCaller() xauthz.Identity {
@@ -308,5 +320,38 @@ func TestRoleLocksAndWhoMayLiftThem(t *testing.T) {
 				t.Errorf("name = %v, want %s", got, tt.wantName)
 			}
 		})
+	}
+}
+
+func readOnlyRole(t *testing.T, id string) seed {
+	t.Helper()
+	return crSeedOf(t, v1alpha1.AccessRoleMetadata, id, roledata.AccessRole{
+		Status: roledata.RoleStatusActive, Type: roledata.RoleTypeCustom,
+		ScopesAndPermissions: []roledata.ScopeAndPermissions{{Scope: roledata.ScopeRoles, Level: roledata.PermissionLevelReadOnly}},
+	})
+}
+
+// Seen live: the bell showed "granted 1 role(s); revoked 2 role(s)", against the UI copy rules.
+func TestRoleChangeNotificationReadsAsSentences(t *testing.T) {
+	exprdb.Set(redis.NewClient(&redis.Options{Addr: miniredis.RunT(t).Addr()}))
+	t.Cleanup(func() { exprdb.Set(nil) })
+	async.Init()
+	installFake(t, readOnlyRole(t, heldRoleA), readOnlyRole(t, heldRoleB), readOnlyRole(t, grantedRoleID),
+		adminUser(t, plainUser, []string{heldRoleA, heldRoleB}, nil, false))
+
+	if w := patchAs(t, adminCaller(), usersPrefix+plainUser, `{"roleRefs":["`+grantedRoleID+`"]}`); w.Code != http.StatusOK {
+		t.Fatalf("patch = %d %s", w.Code, w.Body.String())
+	}
+	async.Drain()
+	storage, err := notifstorage.NewStorage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	list, err := storage.List(context.Background(), plainUser, notificationsListLimit, constants.EmptyString)
+	if err != nil || len(list.Items) != constants.DefaultIncrementValue {
+		t.Fatalf("notifications = %v, err %v", list, err)
+	}
+	if got := list.Items[constants.DefaultInitValue].Message; got != roleChangeMessage {
+		t.Errorf("message = %q, want %q", got, roleChangeMessage)
 	}
 }

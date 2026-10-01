@@ -57,8 +57,3 @@ func HiddenOwnNamespace() string {
 func OwnNamespace() string {
 	return os.Getenv(constants.EnvPodNamespace)
 }
-
-// Test seam: installs the list the sync loop would otherwise load from TelarkConfig.
-func SetExcludedForTest(namespaces []string) {
-	excludedCache.Store(namespaces)
-}

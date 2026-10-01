@@ -47,6 +47,13 @@ discovery reaches the exporter through the wrappers in `services/discovery/inter
 | discovery | `election:prewarm` | leader lease, `SET NX` with 15 s TTL renewed every 5 s (`x-ware/redis/stream/election.go`) |
 | discovery | `streams:discovery:operations` (group `telark-discovery-consumer-group`), `lock:app:*`, `dedup:*`, `replica:*` | leader enqueues every application each cycle; workers take a per-app lock ([discovery README](../../services/discovery/README.md#distributed-coordination)) |
 | discovery | `forcesync:*`, `lock:plan-name:*`, `lock:plan-decision:*`, `lock:reports:ledger:*`, `lock:rollback:*` | force sync queue and per-object locks |
+| discovery | `coalesce:buf:<app>` (5 min TTL) | the app's coalesced informer pre-images and flush deadline, so a new leader finishes the flush; the prewarm tick defers while it exists |
+| discovery | `coalesce:held:<app>` (5 min TTL) | pre-images of a flush that found no inputs (every workload deleted), taken once by the app's next event, on this leader or the next |
+| discovery | `history:floor:<app>` (10 min TTL) | last generation the leader published; a stored copy behind it is stale |
+| discovery | `history:recorded:<app>` (hash, 24 h TTL, refreshed by the reconcile tick) | per resource, the fingerprint of the object the last flush diffed against |
+| discovery | `history:post:<app>` (hash, same TTL as `history:recorded:`) | compared roots of each resource the last flush changed, and the `generation` whose flush wrote them |
+| discovery | `snap:pending:<app>` (10 min TTL) | pre-image set written for a generation the store has not recorded yet; a retried flush reuses or reclaims it |
+| discovery | `history:deferred:<app>` (10 min TTL) | `<fingerprint>:<ticks>` of a change the tick saw without an informer pre-image; on the second consecutive tick it is recorded against the live state |
 | discovery → analyzer | `insights:jobs` | analysis jobs (consumer group `analyzer`) |
 | analyzer → discovery | `analyzer:<ns>:<name>` (7-day TTL), `analyzer:index` (ZSET) | insight documents and the index discovery reads for its insight lists |
 | exporter | `notif:user:*`, `notif:item:*` | per-user in-app notifications |
@@ -54,7 +61,7 @@ discovery reaches the exporter through the wrappers in `services/discovery/inter
 | exporter | `exporter:snapshot:gc`, `exporter:reports:gc`, list-cache generations | GC tick locks, list cache |
 | auth | `auth:webauthn:challenge:*`, `auth:oidc:nonce:*`, `auth:oidc:jwks:google`, `auth:passkey:enroll-token:*`, `auth:cleanup:<users\|groups\|accessroles>` | login ceremonies and the deletion cleanup streams |
 
-Constants: `services/<svc>/internal/constants/` (discovery `coordination.go`, `forcesync.go`; auth `config.go`; exporter `config.go`, `authz.go`), `services/analyzer/constants.py`.
+Constants: `services/<svc>/internal/constants/` (discovery `coordination.go`, `forcesync.go`, `informers.go`; auth `config.go`; exporter `config.go`, `authz.go`), `services/analyzer/constants.py`.
 
 ## Kubernetes access
 

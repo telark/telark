@@ -61,7 +61,7 @@ go test -race ./...
 golangci-lint run ./services/<svc>/...   # or ./internal/<pkg>/...; uses the root .golangci.yml, never --no-config
 ```
 
-CI's test leg for a service, with the floor from the `go` job matrix (auth 60, discovery 50, exporter 55, notifier 75; the shared packages have none):
+CI's test leg for a service (`./internal/<pkg>/...` for a shared package), with the floor from the `go` job matrix (auth 60, discovery 50, exporter 55, notifier 75, data 73, rest 54, kcore 22, x-ware 47); every test leg uploads its profile to Codecov:
 
 ```sh
 go test -race -coverpkg=./services/<svc>/... -coverprofile=coverage.out ./services/<svc>/...

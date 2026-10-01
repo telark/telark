@@ -1,12 +1,8 @@
 package passkey
 
 import (
-	"fmt"
 	"net/http"
 
-	"github.com/telark/telark/internal/data/errors"
-	"github.com/telark/telark/internal/rest/response"
-	requestutils "github.com/telark/telark/internal/rest/utils/request"
 	"github.com/telark/telark/services/exporter/internal/constants"
 	passkeyexp "github.com/telark/telark/services/exporter/internal/exporters/auth/passkey"
 	passkeyutils "github.com/telark/telark/services/exporter/internal/utils/auth/passkey"
@@ -22,16 +18,8 @@ func CreatePasskeyByUserWithCacheInvalidation(optimizer *performance.Optimizer) 
 			return
 		}
 
-		body, err := requestutils.ParseRequestBody(r)
+		body, err := sharedutils.GetSpec(w, r)
 		if err != nil {
-			sharedutils.LogByStatusAndSend(
-				w,
-				http.StatusUnprocessableEntity,
-				response.OperationUnprocessed,
-				fmt.Sprintf(string(errors.ErrRestParseRequestBody), err),
-				nil,
-				err,
-			)
 			return
 		}
 

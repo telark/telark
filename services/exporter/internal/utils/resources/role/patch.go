@@ -38,13 +38,12 @@ func ExtractAndMergeRoleForPatch(existingRole *roledata.AccessRole, body map[str
 	delete(body, constants.FieldVersion)
 	newRole, err := ExtractRoleSpecFromRequestBody(body)
 	if err != nil {
-		responseutils.LogAndSendResponse(
+		responseutils.SendResponse(
 			w,
 			http.StatusBadRequest,
 			response.OperationError,
 			err.Error(),
 			nil,
-			err,
 		)
 		return nil, false
 	}
@@ -56,5 +55,13 @@ func ExtractAndMergeRoleForPatch(existingRole *roledata.AccessRole, body map[str
 			return nil, false
 		}
 	}
+	// The guards judge the levels as the merge patch stores them: the merge above keeps the
+	// scopes on [] and reads an omitted validity as permanent.
+	written, err := patchedRoleLevels(existingRole, body)
+	if err != nil {
+		responseutils.SendResponse(w, http.StatusBadRequest, response.OperationError, err.Error(), nil)
+		return nil, false
+	}
+	mergedRole.ScopesAndPermissions, mergedRole.Status, mergedRole.Validity = written.ScopesAndPermissions, written.Status, written.Validity
 	return mergedRole, true
 }

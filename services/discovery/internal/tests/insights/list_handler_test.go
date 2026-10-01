@@ -27,9 +27,9 @@ const (
 	oneListed   = 1
 )
 
-func loadedIndex(t *testing.T, excluded []string) {
+func loadedIndex(t *testing.T) {
 	t.Helper()
-	reset(t, excluded)
+	reset(t)
 	if err := mr.Set(insightsdata.DocumentKey(visibleNS, visibleApp), listDoc); err != nil {
 		t.Fatal(err)
 	}
@@ -61,13 +61,13 @@ func list(target, ifNoneMatch string) *httptest.ResponseRecorder {
 }
 
 func TestListInvalidParams400(t *testing.T) {
-	loadedIndex(t, nil)
+	loadedIndex(t)
 	testutil.Equal(t, labelStatus, list("/?pageSize=0", constants.EmptyString).Code, http.StatusBadRequest)
 	testutil.Equal(t, labelStatus, list("/?severity=high", constants.EmptyString).Code, http.StatusBadRequest)
 }
 
 func TestListNotLoaded503RetryAfter(t *testing.T) {
-	reset(t, nil)
+	reset(t)
 	insights.InitIndex(insightsindex.New(insightsindex.Settings{}))
 	rec := list(listTarget, constants.EmptyString)
 	testutil.Equal(t, labelStatus, rec.Code, http.StatusServiceUnavailable)
@@ -76,7 +76,7 @@ func TestListNotLoaded503RetryAfter(t *testing.T) {
 }
 
 func TestListIfNoneMatch304(t *testing.T) {
-	loadedIndex(t, nil)
+	loadedIndex(t)
 	first := list(listTarget, constants.EmptyString)
 	tag := first.Header().Get(constants.HeaderETag)
 	testutil.Equal(t, "tag set", tag != constants.EmptyString, true)
@@ -88,7 +88,7 @@ func TestListIfNoneMatch304(t *testing.T) {
 }
 
 func TestListOK(t *testing.T) {
-	loadedIndex(t, []string{hiddenNS})
+	loadedIndex(t)
 	rec := list(listTarget, constants.EmptyString)
 	testutil.Equal(t, labelStatus, rec.Code, http.StatusOK)
 	var body struct {

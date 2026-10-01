@@ -97,10 +97,7 @@ func LoginFinish(w http.ResponseWriter, r *http.Request) {
 	}
 
 	capturedUserID, capturedCredID := user.ID, credential.ID
-	auth.Dispatch(func() {
-		_ = auth.UpdatePasskeyLastUsed(capturedUserID, capturedCredID)
-		webauthnhelper.CleanupChallenge(capturedUserID)
-	})
+	auth.Dispatch(func() { _ = auth.UpdatePasskeyLastUsed(capturedUserID, capturedCredID) })
 
 	sessionToken, err := auth.CreateUserSession(user.ID, &req.DeviceMetadata)
 	if err != nil {

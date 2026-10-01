@@ -39,7 +39,7 @@ lists every target. Conventions are in [CONVENTIONS.md](../CONVENTIONS.md).
 - **One Go module, no per-service Makefiles.** Go commands run from the repository root;
   to work on one service directly: `go test ./services/<svc>/...`.
 - **Coverage** is measured cross-package (`go test -coverpkg=./services/<svc>/...`) because
-  tests live in `internal/tests/*`; CI enforces a per-service floor (see `.github/workflows/ci.yaml`).
+  tests live in `internal/tests/*`; CI enforces a floor per service and shared package (see `.github/workflows/ci.yaml`).
 - **Chart deps are git-ignored** (`charts/*/charts/*.tgz`). Run `make deps` after a
   fresh clone before `helm-lint`/`helm-template`/`helm-validate`. `make deps` doesn't add
   the `vpa` repository; run `helm repo add vpa https://charts.fairwinds.com/stable` first.

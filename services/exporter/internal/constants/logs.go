@@ -160,7 +160,12 @@ const (
 	ErrPasskeyCannotDeleteLast          errors.Error = "cannot delete last passkey for user"
 
 	// Notifications
-	ErrNotificationNotFound errors.Error = "notification not found"
+	ErrNotificationNotFound errors.Error     = "notification not found"
+	NotifRolesGranted       messages.Message = "Granted %s."
+	NotifRolesRevoked       messages.Message = "Revoked %s."
+	NotifOneRole            messages.Message = "1 role"
+	NotifRoleCount          messages.Message = "%d roles"
+	NotifSentenceSeparator                   = " "
 
 	// Cert
 	ErrCertCertificateNotYetValid  errors.Error = "certificate not yet valid: %s"

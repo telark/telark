@@ -10,11 +10,14 @@ import (
 
 	"github.com/gorilla/mux"
 	dataconstants "github.com/telark/telark/internal/data/constants"
+	"github.com/telark/telark/internal/rest/base"
 	"github.com/telark/telark/services/exporter/internal/constants"
 	passkeyhandler "github.com/telark/telark/services/exporter/internal/handlers/auth/passkey"
 	sessionhandler "github.com/telark/telark/services/exporter/internal/handlers/auth/session"
 	confighandler "github.com/telark/telark/services/exporter/internal/handlers/config"
+	notifhandler "github.com/telark/telark/services/exporter/internal/handlers/notifications"
 	apphandler "github.com/telark/telark/services/exporter/internal/handlers/resources/application"
+	snapshothandler "github.com/telark/telark/services/exporter/internal/handlers/snapshot"
 )
 
 // varsReq carries every path var, header and query the auth/resource handlers
@@ -86,6 +89,29 @@ func TestSessionHandlers(t *testing.T) {
 	assertErrorResponse(t, sessionhandler.PatchSelfSessionWithCacheInvalidation(o), varsReq(http.MethodPatch, emptyJSONBody), "PatchSession")
 	assertErrorResponse(t, sessionhandler.DeleteSelfSessionWithCacheInvalidation(o),
 		varsReq(http.MethodDelete, constants.EmptyString), "DeleteSession")
+}
+
+// The application PATCH answered 413 for a body over the limit while these answered 422.
+func TestOversizedBodiesAreTooLarge(t *testing.T) {
+	o := newOptimizer(t)
+	oversized := `{"name":"` + strings.Repeat("x", int(base.MaxRequestBodySize)) + `"}`
+	handlers := map[string]http.HandlerFunc{
+		"CreateSnapshot":   snapshothandler.CreateSnapshot(),
+		"CreatePasskey":    passkeyhandler.CreatePasskeyByUserWithCacheInvalidation(o),
+		"PatchPasskey":     passkeyhandler.PatchPasskeyByUserAndCredentialIDWithCacheInvalidation(o),
+		"CreateSession":    sessionhandler.CreateSessionByUserWithCacheInvalidation(o),
+		"PatchSession":     sessionhandler.PatchSelfSessionWithCacheInvalidation(o),
+		"EmitNotification": notifhandler.Emit(),
+	}
+	for name, handler := range handlers {
+		t.Run(name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			handler(rec, varsReq(http.MethodPost, oversized))
+			if rec.Code != http.StatusRequestEntityTooLarge {
+				t.Fatalf("code = %d, want %d", rec.Code, http.StatusRequestEntityTooLarge)
+			}
+		})
+	}
 }
 
 func TestPasskeyHandlers(t *testing.T) {

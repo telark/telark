@@ -360,12 +360,19 @@ func emitRoleChanged(userID string, oldRoles []*string, body map[string]any) {
 func buildRoleChangeMessage(added, removed []string) string {
 	parts := make([]string, constants.DefaultInitValue, len(added)+len(removed))
 	if len(added) > constants.DefaultInitValue {
-		parts = append(parts, fmt.Sprintf("granted %d role(s)", len(added)))
+		parts = append(parts, fmt.Sprintf(string(constants.NotifRolesGranted), roleCount(len(added))))
 	}
 	if len(removed) > constants.DefaultInitValue {
-		parts = append(parts, fmt.Sprintf("revoked %d role(s)", len(removed)))
+		parts = append(parts, fmt.Sprintf(string(constants.NotifRolesRevoked), roleCount(len(removed))))
 	}
-	return strings.Join(parts, "; ")
+	return strings.Join(parts, constants.NotifSentenceSeparator)
+}
+
+func roleCount(count int) string {
+	if count == constants.DefaultIncrementValue {
+		return string(constants.NotifOneRole)
+	}
+	return fmt.Sprintf(string(constants.NotifRoleCount), count)
 }
 
 func DeleteUserByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {

@@ -20,6 +20,7 @@ func NewCORS() func(http.Handler) http.Handler {
 		AllowedOrigins:   origins,
 		AllowedMethods:   Methods,
 		AllowedHeaders:   Headers,
+		ExposedHeaders:   exposedHeaders,
 		AllowCredentials: true,
 		Debug:            false,
 	})

@@ -109,6 +109,7 @@ func TestOversizedBodyIsRefused(t *testing.T) {
 		"login finish":   authhandler.LoginFinish,
 		"register start": passkeyhandler.RegisterStart,
 		"create passkey": passkeyhandler.CreatePasskey,
+		"delete passkey": passkeyhandler.DeletePasskey,
 	}
 	for name, handler := range cases {
 		t.Run(name, func(t *testing.T) {

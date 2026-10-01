@@ -60,13 +60,12 @@
 ### Analyzer
 - N1 a change made after an incident began was reported as its cause (+ D1-N1)
 
-### Chart, infra
+### Chart
 - C1 CRD write guard covers every namespace
 - C2 uninstall leaves no Kyverno webhooks / finalizers (pre-delete hooks)
 - C3 ui pod no longer gets the service token
 - C4 dead nats securityContext; C5 duplicated metrics-server args
 - C7 NATS/Ollama NetworkPolicy namespace
-- I1 vpc-cni `enableNetworkPolicy` (Terraform, not applied)
 - `.dockerignore` for every service and the UI; `helm test` removed
 
 ### Dashboard UI
@@ -115,7 +114,6 @@
 
 ## User actions
 - ~~rest: tag a release with `e9d3380` + the staged `Delete`, then bump the rest pin~~ obsolete: rest is `telark/internal/rest` since the monorepo merge
-- infra: `terraform apply` (I1), then NetworkPolicy retests NP-2…NP-11
 - Live checks needing you: D2a/D2c, A1 + D1 OIDC callback, U2/U18 screenshots, D10 fixture, IAM-14b/E5-boot, U12/U19 fixtures
 
 ## Remaining, part 2 (former follow-ups, this round too)
@@ -149,3 +147,71 @@
 - Bootstrap Google login, live (23:18): confirmed by the user, Google sign-in with the bootstrap mailbox is refused with "Google sign-in isn't available for the bootstrap administrator. Sign in with its passkey." Test setup on the cluster only: bootstrap mailbox switched to the user's Google address (chart rev 5 `app.auth.bootstrap.admin`, bootstrap account email patched to match, the old Google JIT test account deleted); repo values unchanged (contact@telark.io)
 - Group ↔ member delete window (user item, fixed): deleting a user now removes it from its groups' member lists at once, and deleting a group removes it from its members at once (the exporter's delete strips the other side right after the delete, outside its own lock; auth's cleanup sweep stays the backstop). Regression test `TestDeleteStripsTheOtherSide` (fails on the old handlers). Live: memb.py 16/16 PASS incl. both deletes checked 1.5 s later; exporter restart → boot reconcile aligned 0/0, 0 one-sided memberships, API = CRD for 125 users / 15 groups; Groups page "2 Members" → member deleted through the UI's auth route → "1 Member" 1.6 s later; group deleted through auth → member's groupRefs empty 0.06 s later; sweep still drops the finalizers (~65 s); exporter logs clean. Gates: go test -race (2351), golangci-lint 0 issues. Timing note: the 45–60 s window came from deletes sent straight to the exporter API, which only auth's 60 s sweeper caught; the UI's auth route already queued the cleanup within seconds, and both paths are now immediate for membership
 - Role delete timing in the UI (user item): the single and bulk role-delete modals now say "They lose the access it grants immediately. The role disappears from them within a few seconds." (bulk: same for "these roles"). Measured through the UI's auth route: refs gone from the user and group at +0.2 s, role gone from the list at +1.3 s; grants skip a deleted role at once. The role texts' plurals use a new `pluralize` helper (`src/utils/helpers/format.ts`). Live: both modals checked headless as admin; UI gate green
+
+## Done 2026-10-01 night (dashboard-ui, UI gate: check-all-and-build 0 errors)
+- Task 3 modals: every dialog now uses one chrome, `BaseModal` (ActionConfirmModal builds on it): SessionExpired, EnrollLink, OrphanedPasskeys and AvatarPicker migrated from their own antd Modals. Chrome per the user's live calls: compact (360 px, 16/20 padding), title and text left-aligned, no icon, X in the top-right corner, footer right-aligned with the muted Cancel and a solid primary (green) or danger button, warning consequences in a note callout, blurred backdrop, light-surface theme set by the modal itself (a disabled button no longer vanishes, modals look the same from pages, panels and auth). Names in modal text are bold without quotes (role and plan deletes; plan delete's report warning moved to the note); the app reset modal names the application. Removed: the old close icon, actionConfirmModal.css and the global modal CSS overrides (one of them zeroed the bottom padding). Live (headless): role delete single and bulk, app reset, avatar picker (disabled Update visible), session expired. Not live-checked: EnrollLink, OrphanedPasskeys (user check)
+- Role delete timing note: plurals via `pluralize`, no semicolons in UI text (user rule)
+- Task 4 notification rows (sub-agent, reviewed): tinted type badge, unread dot, one-line title and 2-line message with full text on hover, hover background, timestamp bottom-right under the row icons (user call). Per-row mark-read/delete unchanged. Live: mocked list (0/1/7 rows) and real exporter data
+- Task 5 UI items (sub-agent, reviewed): (1) group View panel "+N" tooltip now shows member initials and readable usernames (shared ViewPanelHeader, the only overflow tooltip); (2) Manage Roles double scrollbar at 900x900 fixed at the root: the inner list scroller is gone from all four lists (user and group Manage Roles, Manage Groups, Manage Members and their Assigned views), the panel body is the one scroller, the scroll chevron and its dead code removed (user approved); (3) Manage Rollbacks rows: metadata on one line with ellipsis and the full text on hover, long namespaces no longer widen the panel; (4) change log at 375 px checked, no change needed. Live: before/after screenshots at 1440, 900 and 375
+- Pills (user item): pills use the declared colours (SUCCESS, DANGER, WARNING, INFO_STRONG for info, NEUTRAL, TEXT_MUTED) with white text (user decision; white on SUCCESS 2.1:1 and WARNING 1.9:1 is below AA, accepted); `getPillSurface` returns background and text colour, callers no longer set the colour
+- Softer DANGER `#E05252` (was `#FF4D4F`) and WARNING `#E2A336` (was `#faad14`), tints updated; antd danger and warning (danger buttons, form errors) now use them too via the root theme (user item). Live: modal Delete renders the new red
+
+## Done 2026-10-01 (Task 6 visual checks, headless on the Vite server, no code change)
+- D8 primary CTAs: PASS. Login "Authenticate" and enrol "Register Passkey" in light and dark, roles toolbar "Add Role", Create Role panel submit, session-expired "Go to Login": green `#20C997`, dark text, weight 600, no shadow, 8.3:1 contrast. Danger confirms (Delete, Revoke, Reset) use `#E05252` with white text (3.8:1, user's softer red)
+- Migrated dialogs: PASS. Role delete, app reset (note callout), revoke session, session expired: 360 px, left-aligned, bold names without quotes, X top-right, muted Cancel with a solid button on the right; avatar picker 460 px (avatar grid), disabled Update visible. EnrollLink and OrphanedPasskeys: user check in Chrome
+- SSO JWK field: PASS. Empty with placeholder, Google JWKS link and "Leave it empty to keep the pinned keys" (switch flipped client-side only, nothing saved; cluster `egressAllowed` still true)
+- Notifications with 2 tabs (F13): PASS. Both tabs load 4 rows, no spinner; mark-read in one tab updates both bells within 15 s; 2 GETs per tab at load, 1 POST after the mark, no cross-tab ping-pong
+- Bell: FAIL (not fixed, reported). With always-visible scrollbars it moves 15 px right while any slide-out panel is open (notifications, Create Role) and snaps back on close: the scroll lock measures the gutter as `innerWidth - clientWidth`, which is 0 while `scrollbar-gutter: stable` reserves 15 px, so the header widens. Overlay scrollbars (macOS default) don't show it
+- Found, not fixed: settings Save buttons (SSO, Insights, Governance, Timezone) use the default variant, not the D8 primary; the SSO hint lacks a period between the link and "Leave it empty…"; bell aria-label says "1 unread notifications"; an add then remove to a group 3 s apart delivered only "Removed from group" (same family as the 3-of-4 drop)
+- Service logs: 0 error lines in 50 min across the 18 telark pods
+
+## Done 2026-10-01 afternoon (telark + dashboard-ui, deployed 13:01: exporter, auth, discovery; UI on the Vite dev server)
+- Test seams (Task 7, T1): `UseCacheForTest`, `SetExcludedForTest`, kcore `ResetAllClients` and exporter `authz.UseGrantSource` removed; `PublishedPayload`, `HiddenPlatformApp` and rollback `StaleSweepErrorMsg` unexported. Tests now go through production paths (CRs in a fake apiserver read by the real CRD source, real informers, embedded JetStream, `FailStaleInProgress` for the stale sweep). Still exported, each with a one-line why in the code because only an in-cluster client reaches them: `SetDynamicClient`, rollback `RunWorkers`, `RecordWithRetry`, `ReplaceUnstructured`, `FailStaleInProgress`, `FinalizeRollbackSuccess`
+- D11 lost pre-image (Task 7): when a flush finds no workloads (all deleted), its pre-images are kept in Redis `coalesce:held:<app>` for 5 min (user decision, was 24 h) and taken once by the app's next event, on this leader or the next; force sync and app reset clear them. Live E-17 (delete, then recreate with a new image after 0 s, 10 s, 60 s): 3/3 apps at generation 2 with one "Image updated pause:3.9 → pause:3.10" each; hold TTL 300 s right after a delete, gone once the app was recreated
+- T10 E-17 "drift flush recorded N -> N": not seen live after the deploy (above), closed. Root cause on record: images, ports, env keys, ConfigMap/Secret refs, service mappings and ingress rules are compared only with the stored CR, and a snapshot-scheduled flush seeds only replicas from its pre-image; the known triggers are fixed (an undone image change followed by a no-change publish; the lost pre-image, now held). If it ever shows again: seed those fields from the flush's pre-image objects
+- Role last-admin guard (Task 7): a role edit (scopes, status, validity) or delete, soft delete included, that would leave no active Admin on ALL answers 409. T6: the level cap and this guard judge one merged role whose scopes, status and validity are exactly what the PATCH stores (an emptied scope list, an omitted validity). Live: a custom Admin-on-ALL role was created, deactivated and deleted (200, 200, 202), with no false 409 while admins remain
+- Oversized and malformed bodies (Task 7, T5, T8): finalizer bodies, snapshot create, passkey create/patch/delete, session create/patch, notification emit and the discovery rollback trigger answer 413 above the cap. Live: rollback trigger 413 (was 422, no rollback recorded), passkey DELETE 413 (was 404)
+- Expected refusals no longer logged as errors (B4, T5): guard 403s, unknown references, role protection, case-variant keys and malformed or oversized bodies answer 4xx without an `[ERROR]` line, while 5xx are still logged. Live: 400, 403, 400, 422, 413 with 0 exporter `[ERROR]` lines (old build: 5)
+- CORS (Task 7, T4): the browser can now read `Retry-After` and `ETag` cross-origin, and `If-None-Match` passes the preflight, so the UI can wait out a shed request and revalidate insights. Live on 8002, 8004 and 8006 (old build: refused, nothing exposed)
+- Notifications (B1, B2): "Added to group" then "Removed from group" 3 s apart now both arrive (only identical re-published events merge); role changes read "Granted 1 role. Revoked 2 roles.". Live PASS
+- Auth challenge cleanup (B3): the extra `CleanupChallenge` call is gone; a retried passkey finish keeps its challenge
+- Small fixes: Kubernetes client errors now carry their cause (T3); dead `ManagedFields` and `ExcludedNamespaces` lists removed (T2); a 30 s discovery test now runs in 0 s (T7); Redis key table in `docs/architecture` lists the 7 informer keys with their TTLs (T9)
+- CI coverage (user request): every Go test leg uploads its profile to Codecov, with flags for the 4 shared packages and new floors data 73, rest 54, kcore 22, x-ware 47 (measured 74.5, 55.4, 23.7, 48.4)
+- UI monospace (U1): fingerprints, plan template and policy names, the passkey popover and both error boundaries render in Geist Mono (they fell back to Geist). Live PASS
+- UI texts (U2, U3, U4): remaining inline strings moved to constants with the copy unchanged; email placeholders "e.g. test@example.com"; an unused constant deleted. Live PASS
+- Users page without groups access (U5): no more 2 failed group requests per load; the Groups page shows its no-access card. Live: 0 group requests for users-c/users-o, admin unchanged
+- Manage Roles without roles access (U6): only the no-access card shows (no search, toggles or filter) and "Update roles" stays disabled, because submitting would have removed every role the user has. Live PASS for users-o and groups-o, admin unchanged
+- Task 6 findings, fixed in the reviewed UI changes: the bell no longer moves under open panels, settings Save buttons use the green primary, the SSO hint has its period, the bell says "6 unread notifications", interval options read "1 minute / 2 minutes", and settings-only personas get no 403 on Governance. Live PASS (`t6-fixcheck`, `t6-bell`, `t6-gov403`, `t6-snapinfo`)
+- Gates: Go build and vet clean, `go test -race` green on all 8 legs (coverage auth 70.3, discovery 60.4, exporter 69.3, notifier 78.1, all above their floors), golangci-lint v2.14.0 0 issues on the 7 touched packages; UI `check-all-and-build` 0 errors
+- Service logs 13:01–13:16: 0 error lines in 18 pods, except one discovery `[ERROR]` for the deliberately oversized rollback body (follow-up FT7)
+
+## Task 8 retest 2026-10-01 (4 Opus lanes on the 13:01 build)
+- 29 PASS, 0 FAIL. Apps 5: D10 auto-clean of a pre-existing CR, D11 (the E-17 run above), REG-apps-view, REG-apps-patch, REG-apps-internal. Plans 6: D5 no-503 retry (API side), D1-N1, N1 L-6, F8-c, R3-1. IAM 11: D4-c, IAM-15 bulk delete, REG-roles, REG-memb, REG-vis, REG-prot-boot, REG-prot-self, REG-prot-adm, REG-lastadmin (no false 409), and the full permission matrix (115 personas × 144 routes, 16,704 checks, 0 mismatches, 0 server errors). UI 7: U12, U19 (UI half), U22, D5 (UI retry), REG-hide, REG-name, REG-color
+- BLOCKED 1: REG-lastadmin's 409 side can't be reached live without risking a lockout (real admins hold the built-in Admin role); covered by `TestRoleEditsKeepAnAdministrator` and `TestLastAdminGuard`
+- NEEDS-USER 1: U19's bootstrap-only side belongs to the approved passkey onboarding plan (next session)
+- Every lane deleted the test data it created
+
+## Follow-ups (post-MVP)
+- FT1: exporter body-validation 400s still log `[ERROR]`: `handlers/categories/handler.go:33`, `handlers/plans/protection/handler.go:174`, `handlers/resources/{group/handler.go:50, role/handler.go:42, user/handler.go:51}`, `utils/classification/category/validate.go:84`, `utils/resources/group/{patch.go:45, validate.go:17}`, `utils/resources/user/patch.go:46`
+- FT2: a role PATCH with `scopesAndPermissions: []` still writes the priority and version computed from the old scopes
+- FT3: exporter `authz.ResetGenerationFloor` (`cache.go:109`) is a test-only export
+- FT4: while NATS is unreachable, `BuildPrewarmApplicationOptions` blocks up to 30 s per call under the x-ware NATS client lock, including from the informer flush path, and it retries even when `NATS_HOST` is unset (fix without changing the healthy path)
+- FT5: the Redis key table still lacks `rollback:applying:`, `cleanup:empty_streak:`, `cleanup:auto:inflight:`, `incident:state:`, `analyzer:inflight:`, `lock:gen:`, `ops:`, `grace:scale:`, `reset:cooldown:`
+- FT6: `TestRecordWithRetryOutlivesCancelledCallerAndReturnsLastError` takes 10 s (waits the real retry interval); speed it up only through production paths
+- FT7 (FT1 family): discovery's rollback trigger logs its body errors (413, 422, 400) as `[ERROR]` (`decodeTriggerRollbackBody`, `applications/rollback.go:281`)
+- FT7b: discovery's protection-plan handlers also log expected 4xx refusals as `[ERROR]`, and so do some not-found lookups (`applications.telark.io … not found`, `accessroles.telark.io … not found`)
+- FT8: the exporter's `LogByStatusAndSend` logs body-validation 4xx (app PATCH 400s) at `[WARNING]`
+- FT9: the analyzer's guard card cites an entry's first non-health change, so a changed ConfigMap reference reads `configMapRef none→<new>` instead of `<old>→<new>`
+- FT10: app reset and auto-cleanup delete only discovery's Redis keys; the analyzer's `analyzer:<ns>:<app>` cache (7 days) and its auto cooldown outlive the app, so a recreated app inherits them
+- FU1: inline UI strings: `PasskeyCard.tsx` 'Failed to copy'; plans `HealthSection.tsx` 'No policy details available.' and 'yes'/'no'; `ApplicationChangeLogSection.tsx` `severity: ${…}`; `CategoryColumns.tsx` 'Built-in'/'Custom'; `useViewGroupPanelData.tsx` 'Creation Date'; `DiscoveryBehaviorSection.tsx` card title and description; the `'custom'` option value repeated in two files
+- FU2: users list `Columns.tsx` builds the role-count plural inline instead of `pluralize`
+- FU3: profile `EMAIL_PLACEHOLDER` still says 'e.g. john@example.com'
+- FU4: plans `HealthSection.tsx` imports the applications feature's `APPLICATION_SECTION_LAYOUT` (hoist it to `src/constants`)
+- FU5: drop the `APPLICATION_MANIFEST_VIEW.CODE_CLASS` alias once its 2 callers import `MONOSPACE_CLASS`
+- FU6: with roles read but no groups read, Manage Roles "From Groups" is empty instead of the groups no-access card, and the users-list role count leaves out group-inherited roles (pre-existing)
+- FU7: the '—' empty value is defined in 7 feature constants files plus `ACTORS.NONE`, and inline in `SessionsTable.tsx:159` and `ViolationsSection.tsx:138, :232`: one root constant
+- FU8: when the users list fails to load, the Members toolbar still says "0 members" next to the error card
+- Kyverno API types: `internal/data/policies` and 6 discovery plan files import Kyverno's v1 API, which pulls the cosign and cloud-provider SDKs (data tests build 1,846 packages instead of 339, discovery binary 2,169 instead of 1,009). Proposal: local JSON-identical types for the 18 types used, the real types only in discovery's `kyverno_accepts_test.go`, plus a rendered-policies-unchanged test
+
+## Next (MVP)
+- Passkey onboarding (enrol invitations, self-registration in TelarkConfig, bootstrap-only identity settings): the plan is written and waits for the user's approval; nothing is implemented

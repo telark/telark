@@ -23,7 +23,6 @@ import (
 	"github.com/telark/telark/services/discovery/internal/core/plans/protection/reports"
 	"github.com/telark/telark/services/discovery/internal/core/plans/protection/update"
 	"github.com/telark/telark/services/discovery/internal/core/plans/protection/validation"
-	"github.com/telark/telark/services/discovery/internal/helpers/telarkconfig"
 	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -210,7 +209,7 @@ func activeNamespacesPlan(t *testing.T, mode string, templates ...string) (*plan
 		plan.RenderedPolicies = append(plan.RenderedPolicies, rendered[i].Name)
 		live = append(live, &unstructured.Unstructured{Object: obj})
 	}
-	telarkconfig.SetExcludedForTest([]string{})
+	testutil.ExcludedNamespaces(t)
 	return plan, live
 }
 
@@ -439,7 +438,7 @@ func TestRunWithdrawsARemovedVanishedApplication(t *testing.T) {
 			kept = rendered[i].Name
 		}
 	}
-	telarkconfig.SetExcludedForTest([]string{})
+	testutil.ExcludedNamespaces(t)
 	req := requestFor(plan)
 	req.Scope.ApplicationRefs = []string{liveApp}
 	stub := &exporterStub{plan: *plan, patchStatus: http.StatusOK}

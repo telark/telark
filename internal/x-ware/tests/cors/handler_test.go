@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/telark/telark/internal/x-ware/cors"
@@ -15,6 +16,11 @@ const (
 	allowOrigin   = "Access-Control-Allow-Origin"
 	allowCreds    = "Access-Control-Allow-Credentials"
 	allowHeaders  = "Access-Control-Allow-Headers"
+	exposeHeaders = "Access-Control-Expose-Headers"
+	retryAfter    = "Retry-After"
+	eTag          = "ETag"
+	ifNoneMatch   = "if-none-match"
+	headerListSep = ", "
 	requestMethod = "Access-Control-Request-Method"
 	requestHeader = "Access-Control-Request-Headers"
 	credsTrue     = "true"
@@ -78,6 +84,27 @@ func TestConfiguredOriginGetsCredentialsOthersDoNot(t *testing.T) {
 	}
 	if got := serve(otherOrigin, http.MethodGet).Header().Get(allowOrigin); got != noHeader {
 		t.Fatalf("unlisted origin allowed: %q", got)
+	}
+}
+
+// A shed request answers 503 with Retry-After and an insight carries its ETag; cross-origin, the UI
+// read neither, so it retried blind and could not revalidate.
+func TestResponseHeadersReadableCrossOrigin(t *testing.T) {
+	t.Setenv(cors.EnvAllowedOrigins, uiOrigin)
+	got := serve(uiOrigin, http.MethodGet).Header().Get(exposeHeaders)
+	for _, header := range []string{retryAfter, eTag} {
+		if !slices.ContainsFunc(strings.Split(got, headerListSep), func(h string) bool { return strings.EqualFold(h, header) }) {
+			t.Fatalf("%s = %q, want %s listed", exposeHeaders, got, header)
+		}
+	}
+}
+
+// Insights revalidate with If-None-Match; a refused preflight failed every revalidation cross-origin.
+func TestPreflightAllowsIfNoneMatch(t *testing.T) {
+	t.Setenv(cors.EnvAllowedOrigins, uiOrigin)
+	rec := serve(uiOrigin, http.MethodOptions, ifNoneMatch)
+	if rec.Header().Get(allowOrigin) != uiOrigin || !strings.EqualFold(rec.Header().Get(allowHeaders), ifNoneMatch) {
+		t.Fatalf("preflight for %s refused: %v", ifNoneMatch, rec.Header())
 	}
 }
 

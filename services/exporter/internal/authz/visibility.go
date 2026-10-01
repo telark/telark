@@ -84,11 +84,15 @@ func adminRole(memo map[string]bool, id string) bool {
 		return known
 	}
 	role, err := source.Role(id)
-	memo[id] = unreadable(err) || err == nil && xauthz.RoleGrantsAccess(role) && slices.ContainsFunc(role.ScopesAndPermissions,
+	memo[id] = unreadable(err) || err == nil && grantsAdmin(role)
+	return memo[id]
+}
+
+func grantsAdmin(role *roledata.AccessRole) bool {
+	return xauthz.RoleGrantsAccess(role) && slices.ContainsFunc(role.ScopesAndPermissions,
 		func(entry roledata.ScopeAndPermissions) bool {
 			return entry.Scope == roledata.ScopeAll && entry.Level == roledata.PermissionLevelAdmin
 		})
-	return memo[id]
 }
 
 func adminGroup(memo, roles map[string]bool, id string) bool {
@@ -219,7 +223,7 @@ func GuardUserPatchLastAdmin(w http.ResponseWriter, existing *userdata.User, bod
 	}
 	patched, err := sharedutils.ExtractStructFromBody[userdata.User](body)
 	if err != nil {
-		responseutils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationError, err.Error(), nil, err)
+		responseutils.SendResponse(w, http.StatusBadRequest, response.OperationError, err.Error(), nil)
 		return false
 	}
 	after := *existing
@@ -237,14 +241,28 @@ func GuardUserPatchLastAdmin(w http.ResponseWriter, existing *userdata.User, bod
 	if !activeAdmin(admin, existing) || activeAdmin(admin, &after) {
 		return true
 	}
-	return guardLastAdmin(w, replacing(existing.ID, &after), nil)
+	return guardLastAdmin(w, replacing(existing.ID, &after), nil, nil)
 }
 
 func GuardUserDeleteLastAdmin(w http.ResponseWriter, target *userdata.User) bool {
 	if !activeAdmin(HiddenUsers(), target) {
 		return true
 	}
-	return guardLastAdmin(w, replacing(target.ID, nil), nil)
+	return guardLastAdmin(w, replacing(target.ID, nil), nil, nil)
+}
+
+// Scopes, status and validity can each take Admin on ALL from everyone holding the role, directly or through a group.
+func GuardRolePatchLastAdmin(w http.ResponseWriter, existing, merged *roledata.AccessRole) bool {
+	return !grantsAdmin(existing) || grantsAdmin(merged) || guardLastAdmin(w, sameUser, nil, merged)
+}
+
+// A deleted or soft-deleted role grants nothing, as if it had no scopes.
+func GuardRoleDeleteLastAdmin(w http.ResponseWriter, existing *roledata.AccessRole) bool {
+	return !grantsAdmin(existing) || guardLastAdmin(w, sameUser, nil, &roledata.AccessRole{ID: existing.ID})
+}
+
+func sameUser(user *userdata.User) *userdata.User {
+	return user
 }
 
 func GuardGroupPatchLastAdmin(w http.ResponseWriter, existing *groupdata.Group, body map[string]any, removedMembers []string) bool {
@@ -272,7 +290,7 @@ func guardGroupLastAdmin(w http.ResponseWriter, after *groupdata.Group, removedM
 		left := *user
 		left.GroupRefs = slices.DeleteFunc(slices.Clone(user.GroupRefs), func(id *string) bool { return id != nil && *id == after.ID })
 		return &left
-	}, after)
+	}, after, nil)
 }
 
 func replacing(userID string, after *userdata.User) func(*userdata.User) *userdata.User {
@@ -284,9 +302,9 @@ func replacing(userID string, after *userdata.User) func(*userdata.User) *userda
 	}
 }
 
-// Refuses (409) a change leaving no active administrator; edit returns each user as the change leaves it (nil once deleted).
+// Refuses (409) a change leaving no active administrator; edit, group and role are as the change leaves them (nil: untouched).
 // ponytail: check-then-act, two concurrent removals of the last two admins can both pass; a global lock would close it.
-func guardLastAdmin(w http.ResponseWriter, edit func(*userdata.User) *userdata.User, group *groupdata.Group) bool {
+func guardLastAdmin(w http.ResponseWriter, edit func(*userdata.User) *userdata.User, group *groupdata.Group, role *roledata.AccessRole) bool {
 	users, err := listUsers()
 	if err != nil {
 		responseutils.LogAndSendResponse(
@@ -295,7 +313,10 @@ func guardLastAdmin(w http.ResponseWriter, edit func(*userdata.User) *userdata.U
 		return false
 	}
 	roles, groups := map[string]bool{}, map[string]bool{}
-	before := hiddenBy(roles, map[string]bool{})
+	before := HiddenUsers()
+	if role != nil {
+		roles[role.ID] = grantsAdmin(role)
+	}
 	if group != nil {
 		groups[group.ID] = slices.ContainsFunc(group.RoleRefs, func(roleID string) bool { return adminRole(roles, roleID) })
 	}

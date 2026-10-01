@@ -11,7 +11,7 @@ coverage:
       default:
         informational: true
 
-# Per-service flags. Each CI job uploads under its own flag; carryforward keeps a
+# One flag per CI test job (services and shared packages); carryforward keeps a
 # flag's last coverage when a run didn't re-upload it (the matrix uploads separately).
 flag_management:
   default_rules:
@@ -28,6 +28,14 @@ flags:
     paths: [services/notifier]
   analyzer:
     paths: [services/analyzer]
+  data:
+    paths: [internal/data]
+  rest:
+    paths: [internal/rest]
+  kcore:
+    paths: [internal/kcore]
+  x-ware:
+    paths: [internal/x-ware]
 
 comment:
   layout: "reach, diff, flags"

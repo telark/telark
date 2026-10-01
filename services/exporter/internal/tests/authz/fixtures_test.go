@@ -1,9 +1,19 @@
 package authz
 
 import (
+	"slices"
+
+	"github.com/telark/telark/internal/data/metadata/base"
+	"github.com/telark/telark/internal/data/metadata/v1alpha1"
 	groupdata "github.com/telark/telark/internal/data/resources/group"
 	roledata "github.com/telark/telark/internal/data/resources/role"
 	userdata "github.com/telark/telark/internal/data/resources/user"
+	"github.com/telark/telark/services/exporter/internal/constants"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
+	k8stesting "k8s.io/client-go/testing"
 )
 
 const (
@@ -24,7 +34,42 @@ const (
 	deletedTimestamp  = "2026-09-26T10:00:00Z"
 	unknownID         = "u-ffff0-0000-0000"
 	statusPhaseActive = "active"
+	verbGet           = "get"
 )
+
+// The guards read users, groups and roles through the exporter's CRD source, so each record is a CR
+// in a fake apiserver: an id without one is not found, like a dangling reference.
+func directory(roles map[string]*roledata.AccessRole) *dynamicfake.FakeDynamicClient {
+	client := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme(), slices.Concat(
+		crs(v1alpha1.UserMetadata, fakeUsers()),
+		crs(v1alpha1.GroupMetadata, fakeGroups()),
+		crs(v1alpha1.AccessRoleMetadata, roles),
+	)...)
+	client.PrependReactor(verbGet, v1alpha1.AccessRoleMetadata.Plural, func(action k8stesting.Action) (bool, runtime.Object, error) {
+		get, isGet := action.(k8stesting.GetAction)
+		return isGet && get.GetName() == roleUnreadable, nil, errBackend
+	})
+	return client
+}
+
+func crs[T any](md base.Metadata, records map[string]*T) []runtime.Object {
+	objects := make([]runtime.Object, constants.DefaultInitValue, len(records))
+	for name, record := range records {
+		spec, err := sharedutils.StructToSpecMap(record)
+		if err != nil {
+			panic(err)
+		}
+		obj := sharedutils.ConvertToCRDTemplate(md, name, spec)
+		obj.SetNamespace(md.Namespace)
+		// The template drops the stamp from the spec: a terminating CR carries it in metadata.
+		if _, terminating := spec[constants.FieldDeletionTimestamp]; terminating {
+			deleted := metav1.Now()
+			obj.SetDeletionTimestamp(&deleted)
+		}
+		objects = append(objects, obj)
+	}
+	return objects
+}
 
 func inactive(role *roledata.AccessRole) *roledata.AccessRole {
 	role.Status = roledata.RoleStatusInactive

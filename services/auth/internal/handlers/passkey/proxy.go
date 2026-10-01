@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	requestutils "github.com/telark/telark/internal/rest/utils/request"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/auth/internal/clients"
 	"github.com/telark/telark/services/auth/internal/constants"
@@ -167,6 +168,11 @@ func DeletePasskey(w http.ResponseWriter, r *http.Request) {
 	forceLastDelete := constants.DefaultForceLastDelete
 	cleanupOrphaned := constants.DefaultCleanupOrphaned
 	if err := shared.DecodeRequestBody(r, &req); err != nil {
+		// The body is optional, but one over the cap is refused as on every other route.
+		if errors.Is(err, requestutils.ErrRequestBodyTooLarge) {
+			shared.SendErrorResponse(w, http.StatusRequestEntityTooLarge, err)
+			return
+		}
 		lg.Debug(fmt.Sprintf(string(constants.ErrFailedDecodeRequest), err))
 	} else {
 		forceLastDelete = req.ForceLastDelete

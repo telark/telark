@@ -1,6 +1,8 @@
 package shared
 
 import (
+	"fmt"
+
 	"github.com/telark/telark/internal/data/errors"
 	"github.com/telark/telark/internal/kcore/constants"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -13,7 +15,7 @@ const (
 )
 
 func HandleClientError(err error) KubernetesAPIData {
-	return CreateKubernetesAPIData(StatusInternalServerError, string(errors.ErrK8sSetClient), nil, err)
+	return CreateKubernetesAPIData(StatusInternalServerError, fmt.Sprintf(string(errors.ErrK8sSetClient), err), nil, err)
 }
 
 func CreateKubernetesAPIData(status int, message string, data any, err error) KubernetesAPIData {

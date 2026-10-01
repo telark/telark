@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       fail-fast: false
-      # coverage = per-service ratchet floor (just below current); raise as coverage
+      # coverage = ratchet floor (just below current); raise as coverage
       # improves. Never lower it — that is the point.
       # test and lint run as parallel legs: -race builds are not reusable by lint,
       # so one job paid both compiles back to back (discovery: 483 s + 353 s).
@@ -39,10 +39,10 @@ jobs:
           - { service: discovery, path: services/discovery, coverage: 50 }
           - { service: exporter, path: services/exporter, coverage: 55 }
           - { service: notifier, path: services/notifier, coverage: 75 }
-          - { service: data, path: internal/data }
-          - { service: rest, path: internal/rest }
-          - { service: kcore, path: internal/kcore }
-          - { service: x-ware, path: internal/x-ware }
+          - { service: data, path: internal/data, coverage: 73 }
+          - { service: rest, path: internal/rest, coverage: 54 }
+          - { service: kcore, path: internal/kcore, coverage: 22 }
+          - { service: x-ware, path: internal/x-ware, coverage: 47 }
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -57,7 +57,7 @@ jobs:
           lint: ${{ matrix.task == 'lint' }}
 
       - name: Upload coverage to Codecov
-        if: ${{ matrix.task == 'test' && matrix.coverage }}
+        if: ${{ matrix.task == 'test' }}
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

@@ -1,15 +1,14 @@
 package cleanup
 
 import (
-	"fmt"
 	"net/http"
 	"slices"
 
 	globalerrors "github.com/telark/telark/internal/data/errors"
 	"github.com/telark/telark/internal/kcore/crds/api"
 	restconstants "github.com/telark/telark/internal/rest/constants"
+	cleanupeps "github.com/telark/telark/internal/rest/endpoints/cleanup"
 	"github.com/telark/telark/internal/rest/response"
-	requestutils "github.com/telark/telark/internal/rest/utils/request"
 	responseutils "github.com/telark/telark/internal/rest/utils/response"
 	"github.com/telark/telark/services/exporter/internal/constants"
 	"github.com/telark/telark/services/exporter/internal/utils/concurrency"
@@ -88,10 +87,8 @@ func extractFinalizerInputs(
 	if err != nil {
 		return resourceTarget{}, constants.EmptyString, constants.EmptyString, false
 	}
-	body, err := requestutils.ParseRequestBody(r)
+	body, err := sharedutils.GetSpecFor[cleanupeps.FinalizerRequest](w, r)
 	if err != nil {
-		responseutils.LogAndSendResponse(w, http.StatusUnprocessableEntity, response.OperationError,
-			fmt.Sprintf(string(globalerrors.ErrRestParseRequestBody), err), nil, err)
 		return resourceTarget{}, constants.EmptyString, constants.EmptyString, false
 	}
 	rawName, isString := body[restconstants.FieldFinalizerName].(string)

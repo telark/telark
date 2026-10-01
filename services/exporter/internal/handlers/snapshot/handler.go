@@ -1,13 +1,9 @@
 package snapshot
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
-	"github.com/telark/telark/internal/data/errors"
-	"github.com/telark/telark/internal/rest/response"
-	requestutils "github.com/telark/telark/internal/rest/utils/request"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/exporter/internal/authz"
 	"github.com/telark/telark/services/exporter/internal/constants"
@@ -17,16 +13,8 @@ import (
 
 func CreateSnapshot() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := requestutils.ParseRequestBody(r)
+		body, err := sharedutils.GetSpec(w, r)
 		if err != nil {
-			sharedutils.LogByStatusAndSend(
-				w,
-				http.StatusUnprocessableEntity,
-				response.OperationUnprocessed,
-				fmt.Sprintf(string(errors.ErrRestParseRequestBody), err),
-				nil,
-				err,
-			)
 			return
 		}
 

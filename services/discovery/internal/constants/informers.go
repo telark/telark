@@ -61,6 +61,10 @@ const (
 	InformerFlushRetryJitterFraction = 0.2
 	// Outlives a pod restart so a captured oldObject is flushed by the next leader.
 	CoalesceBufferPersistTTL = 5 * time.Minute
+	// Pre-images of a flush that found no inputs (every workload deleted), kept for the recreate
+	// past one window and across leaders; short-lived, so a mass teardown doesn't pin them in Redis.
+	KeyPrefixCoalesceHeld = "coalesce:held:"
+	CoalesceHeldTTL       = 5 * time.Minute
 	// A change the tick sees without an informer pre-image (a resource that joined while
 	// discovery was down) waits this many consecutive ticks for the flush before it is
 	// recorded against the live state; the value is "<fingerprint>:<ticks>".

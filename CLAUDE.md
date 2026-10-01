@@ -80,4 +80,3 @@ Tool versions (Go 1.27.1, golangci-lint v2.14.0, kubeconform v0.8.0, Python 3.13
 | Build, test, CI parity, cluster checks | [docs/testing/](docs/testing/README.md), [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) |
 | Install and chart values | [docs/INSTALL.md](docs/INSTALL.md), [charts/telark/README.md](charts/telark/README.md) |
 | CRDs | [docs/CRDS.md](docs/CRDS.md) |
-| In-flight feature plans | `.claude/plans/` |

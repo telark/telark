@@ -1,7 +1,6 @@
 package role
 
 import (
-	"errors"
 	"maps"
 	"net/http"
 	"slices"
@@ -22,7 +21,7 @@ func ValidateProtectionFlags(existingRole *roledata.AccessRole, body map[string]
 	if denial == constants.EmptyString {
 		return true
 	}
-	responseutils.LogAndSendResponse(w, http.StatusForbidden, response.OperationError, string(denial), nil, errors.New(string(denial)))
+	responseutils.SendResponse(w, http.StatusForbidden, response.OperationError, string(denial), nil)
 	return false
 }
 

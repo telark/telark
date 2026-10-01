@@ -67,7 +67,7 @@ func (s *Storage) Emit(ctx context.Context, n notiftypes.Notification) (*notifty
 
 	targetID := metaString(n.Metadata, notiftypes.MetaKeyTargetID)
 	if targetID != constants.EmptyString {
-		existingID, err := s.rdb.Get(ctx, dedupKey(n.UserID, n.Type, targetID)).Result()
+		existingID, err := s.rdb.Get(ctx, dedupKey(n, targetID)).Result()
 		if err == nil && existingID != constants.EmptyString {
 			updated, ok, uerr := s.tryUpdateUnread(ctx, n, existingID)
 			if uerr != nil {
@@ -113,7 +113,7 @@ func (s *Storage) tryUpdateUnread(
 		pipe.Expire(ctx, itemK, UnreadTTL)
 		pipe.ZAdd(ctx, itemsKey(n.UserID), redis.Z{Score: float64(createdMs), Member: id})
 		if targetID := metaString(n.Metadata, notiftypes.MetaKeyTargetID); targetID != constants.EmptyString {
-			pipe.Set(ctx, dedupKey(n.UserID, n.Type, targetID), id, DedupTTL)
+			pipe.Set(ctx, dedupKey(n, targetID), id, DedupTTL)
 		}
 	})
 	if errors.Is(err, ErrNotificationNotFound) || (err == nil && !unread) {
@@ -156,7 +156,7 @@ func (s *Storage) createNew(
 	pipe.Expire(ctx, itemKey(id), UnreadTTL)
 	pipe.ZAdd(ctx, itemsKey(n.UserID), redis.Z{Score: float64(createdMs), Member: id})
 	if targetID != constants.EmptyString {
-		pipe.Set(ctx, dedupKey(n.UserID, n.Type, targetID), id, DedupTTL)
+		pipe.Set(ctx, dedupKey(n, targetID), id, DedupTTL)
 	}
 	pipe.Incr(ctx, unreadCountKey(n.UserID))
 	if _, err := pipe.Exec(ctx); err != nil {

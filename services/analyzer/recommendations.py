@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -123,6 +123,10 @@ from constants import (
     REASON_SEPARATOR,
     REASON_TOO_MANY_REPLICAS,
     REASON_UNHEALTHY,
+    RECOMMENDATION_CPU_NEAR_LIMIT,
+    RECOMMENDATION_MEMORY_NEAR_LIMIT,
+    RECOMMENDATION_OVERPROVISIONED,
+    RECOMMENDATION_UNDERPROVISIONED,
     RECOMMENDATION_WORKLOAD_KINDS,
     REF_EVENT,
     REF_GENERATION,
@@ -673,7 +677,7 @@ def _overprovisioned(ctx: _Ctx, wl: WorkloadInput) -> Result:
         return INSIGHT_SEVERITY_INFO, CONFIDENCE_MEDIUM, {"request": fmt(request),
                                                           "suggested": fmt(_suggest(p95, REQUEST_HEADROOM, res))}
 
-    return _usage_rule(ctx, wl, "resources.overprovisioned", judge)
+    return _usage_rule(ctx, wl, RECOMMENDATION_OVERPROVISIONED, judge)
 
 
 def _underprovisioned(ctx: _Ctx, wl: WorkloadInput) -> Result:
@@ -686,7 +690,7 @@ def _underprovisioned(ctx: _Ctx, wl: WorkloadInput) -> Result:
         return severity, CONFIDENCE_HIGH, {"request": fmt(request),
                                            "suggested": fmt(_suggest(p95, REQUEST_HEADROOM, res))}
 
-    return _usage_rule(ctx, wl, "resources.underprovisioned", judge)
+    return _usage_rule(ctx, wl, RECOMMENDATION_UNDERPROVISIONED, judge)
 
 
 def _oom_history(ctx: _Ctx, wl: WorkloadInput) -> Result:
@@ -1375,12 +1379,12 @@ RULES: dict[str, Rule] = {
     "resources.no_requests": _rule(W, SCOPE_WORKLOAD, _no_requests),
     "resources.no_memory_limit": _rule(W, SCOPE_WORKLOAD, _no_memory_limit),
     "resources.limits_without_requests": _rule(W, SCOPE_WORKLOAD, _limits_without_requests),
-    "resources.memory_near_limit": _rule(W + U, SCOPE_WORKLOAD,
-                                         _near_limit("resources.memory_near_limit", RESOURCE_MEMORY, CONFIDENCE_HIGH)),
-    "resources.cpu_near_limit": _rule(W + U, SCOPE_WORKLOAD,
-                                      _near_limit("resources.cpu_near_limit", RESOURCE_CPU, CONFIDENCE_MEDIUM)),
-    "resources.overprovisioned": _rule(W + U, SCOPE_WORKLOAD, _overprovisioned),
-    "resources.underprovisioned": _rule(W + U, SCOPE_WORKLOAD, _underprovisioned),
+    RECOMMENDATION_MEMORY_NEAR_LIMIT: _rule(W + U, SCOPE_WORKLOAD, _near_limit(RECOMMENDATION_MEMORY_NEAR_LIMIT,
+                                                                               RESOURCE_MEMORY, CONFIDENCE_HIGH)),
+    RECOMMENDATION_CPU_NEAR_LIMIT: _rule(W + U, SCOPE_WORKLOAD, _near_limit(RECOMMENDATION_CPU_NEAR_LIMIT,
+                                                                            RESOURCE_CPU, CONFIDENCE_MEDIUM)),
+    RECOMMENDATION_OVERPROVISIONED: _rule(W + U, SCOPE_WORKLOAD, _overprovisioned),
+    RECOMMENDATION_UNDERPROVISIONED: _rule(W + U, SCOPE_WORKLOAD, _underprovisioned),
     "resources.oom_history": _rule(W + D, SCOPE_WORKLOAD, _oom_history),
     "scaling.hpa_min_equals_max": _rule(H, SCOPE_WORKLOAD, _hpa_min_equals_max),
     "scaling.hpa_missing_requests": _rule(W + H, SCOPE_WORKLOAD, _hpa_missing_requests),
@@ -1426,8 +1430,8 @@ RULES: dict[str, Rule] = {
     "scaling.hpa_scale_down_disabled": _rule(H, SCOPE_WORKLOAD, _hpa_scale_down_disabled),
     "networking.network_policy_allows_all": _rule(W + N, SCOPE_WORKLOAD, _network_policy_allows_all),
 }
-USAGE_RULES = ("resources.memory_near_limit", "resources.cpu_near_limit", "resources.overprovisioned",
-               "resources.underprovisioned")
+USAGE_RULES = (RECOMMENDATION_MEMORY_NEAR_LIMIT, RECOMMENDATION_CPU_NEAR_LIMIT, RECOMMENDATION_OVERPROVISIONED,
+               RECOMMENDATION_UNDERPROVISIONED)
 _RULE_ORDER = {reason: i for i, reason in enumerate(RULES)}
 
 
@@ -1487,6 +1491,19 @@ def _gone(ctx: _Ctx) -> set[tuple[str, str, str]]:
     return out
 
 
+def _rule_results(ctx: _Ctx, rule: Rule, targets: list) -> Iterator[tuple[str, str, Finding | None]]:
+    """(namespace, key, finding or None) for every key the rule evaluates on the targets."""
+    lists = rule.families & NAMESPACE_FAMILIES
+    for target in targets:
+        # A workload in a namespace beyond the listed ones: 'no PDB there' would only mean 'not read'.
+        if rule.scope == SCOPE_WORKLOAD and any(ctx.inputs.items(f, target.namespace) is None for f in lists):
+            continue
+        namespace = (target.namespace if rule.scope == SCOPE_WORKLOAD
+                     else target[0] if rule.scope == SCOPE_SERVICE else ctx.primary)
+        for key, finding in rule.fn(ctx, target):
+            yield namespace, key, finding
+
+
 def evaluate(inputs: ReviewInputs, now: datetime, settings: Settings | None = None
              ) -> tuple[list[Finding], set[tuple[str, str, str]]]:
     """Findings, most severe first, and every evaluated key (reason, namespace, key)."""
@@ -1501,16 +1518,9 @@ def evaluate(inputs: ReviewInputs, now: datetime, settings: Settings | None = No
     for reason, rule in RULES.items():
         if not rule.families <= inputs.complete:
             continue
-        lists = rule.families & NAMESPACE_FAMILIES
-        for target in targets[rule.scope]:
-            # A workload in a namespace beyond the listed ones: 'no PDB there' would only mean 'not read'.
-            if rule.scope == SCOPE_WORKLOAD and any(inputs.items(f, target.namespace) is None for f in lists):
-                continue
-            namespace = (target.namespace if rule.scope == SCOPE_WORKLOAD
-                         else target[0] if rule.scope == SCOPE_SERVICE else ctx.primary)
-            for key, finding in rule.fn(ctx, target):
-                evaluated.add((reason, namespace, key))
-                if finding is not None:
-                    findings.append(finding)
+        for namespace, key, finding in _rule_results(ctx, rule, targets[rule.scope]):
+            evaluated.add((reason, namespace, key))
+            if finding is not None:
+                findings.append(finding)
     findings.sort(key=lambda f: (-SEVERITY_RANK[f.severity], _RULE_ORDER[f.reason]))
     return findings, evaluated

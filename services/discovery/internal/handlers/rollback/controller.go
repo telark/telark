@@ -280,7 +280,9 @@ func (c *Controller) claimPending(
 func lockRollback(ctx context.Context, name string) (func(), error) {
 	rdb := redishelper.NewRedisClient()
 	if rdb == nil {
-		return func() {}, nil
+		return func() {
+			// No Redis client means no rollback lock was acquired, so there is nothing to release.
+		}, nil
 	}
 	lock := xwareredis.NewLockClient(rdb)
 	key := constants.KeyPrefixLockRollback + name

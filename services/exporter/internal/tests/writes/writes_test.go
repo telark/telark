@@ -123,23 +123,10 @@ func TestPatchSendsStatusKeysOnlyToStatus(t *testing.T) {
 		switch w.subresource {
 		case subStatus:
 			status++
-			if section(w, keyStatus)[keyHealth] != healthOK {
-				t.Errorf(missingKeyFmt, t.Name(), keyHealth, subStatus, w.body)
-			}
-			if _, found := w.body[keySpec]; found {
-				t.Errorf(unexpectedKeyFmt, t.Name(), keySpec, subStatus, w.body)
-			}
+			assertStatusPatch(t, w)
 		default:
 			main++
-			spec := section(w, keySpec)
-			for _, key := range []string{keyHealth, keyID} {
-				if _, found := spec[key]; found {
-					t.Errorf(unexpectedKeyFmt, t.Name(), key, keySpec, w.body)
-				}
-			}
-			if spec[keyDisplayName] != newName {
-				t.Errorf(missingKeyFmt, t.Name(), keyDisplayName, keySpec, w.body)
-			}
+			assertMainPatch(t, w)
 		}
 	}
 	if main != constants.DefaultIncrementValue || status != constants.DefaultIncrementValue {
@@ -149,6 +136,29 @@ func TestPatchSendsStatusKeysOnlyToStatus(t *testing.T) {
 	stored := stored(t, client, v1alpha1.ApplicationMetadata, appName)
 	if health, _, _ := unstructured.NestedString(stored.Object, keyStatus, keyHealth); health != healthOK {
 		t.Errorf("stored status.health = %q, want %q", health, healthOK)
+	}
+}
+
+func assertStatusPatch(t *testing.T, w write) {
+	t.Helper()
+	if section(w, keyStatus)[keyHealth] != healthOK {
+		t.Errorf(missingKeyFmt, t.Name(), keyHealth, subStatus, w.body)
+	}
+	if _, found := w.body[keySpec]; found {
+		t.Errorf(unexpectedKeyFmt, t.Name(), keySpec, subStatus, w.body)
+	}
+}
+
+func assertMainPatch(t *testing.T, w write) {
+	t.Helper()
+	spec := section(w, keySpec)
+	for _, key := range []string{keyHealth, keyID} {
+		if _, found := spec[key]; found {
+			t.Errorf(unexpectedKeyFmt, t.Name(), key, keySpec, w.body)
+		}
+	}
+	if spec[keyDisplayName] != newName {
+		t.Errorf(missingKeyFmt, t.Name(), keyDisplayName, keySpec, w.body)
 	}
 }
 

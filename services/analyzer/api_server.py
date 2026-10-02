@@ -245,6 +245,19 @@ async def event_stream(broadcaster: Broadcaster, sub: Subscription, ping_s: floa
         broadcaster.unsubscribe(sub)
 
 
+async def _stamp_queued(state, namespace: str, name: str, run_id: str) -> None:
+    now = now_rfc3339()
+    try:
+        doc, wrote = await state.store.update(namespace, name, lambda d: mark_queued(d, run_id, now))
+    except RedisError as e:
+        # The job is queued either way; the worker stamps running when it takes it.
+        logger.warning(LOG_QUEUED_NOT_STAMPED, type(e).__name__)
+    else:
+        if wrote:
+            state.broadcaster.publish(EVENT_ANALYSIS_QUEUED, app_ref(namespace, name),
+                                      dict(runId=run_id, trigger=TRIGGER_MANUAL, version=doc.version))
+
+
 async def _analyze(state, namespace: str, name: str) -> JSONResponse:
     cfg = exporter.current()
     if not cfg.enabled:
@@ -277,16 +290,7 @@ async def _analyze(state, namespace: str, name: str) -> JSONResponse:
         maxlen=STREAM_MAX_LEN,
         approximate=True,
     )
-    now = now_rfc3339()
-    try:
-        doc, wrote = await state.store.update(namespace, name, lambda d: mark_queued(d, run_id, now))
-    except RedisError as e:
-        # The job is queued either way; the worker stamps running when it takes it.
-        logger.warning(LOG_QUEUED_NOT_STAMPED, type(e).__name__)
-    else:
-        if wrote:
-            state.broadcaster.publish(EVENT_ANALYSIS_QUEUED, app_ref(namespace, name),
-                                      dict(runId=run_id, trigger=TRIGGER_MANUAL, version=doc.version))
+    await _stamp_queued(state, namespace, name, run_id)
     return envelope(status.HTTP_202_ACCEPTED, AnalyzeResponse(runId=run_id, status=RUN_STATUS_QUEUED))
 
 
@@ -327,6 +331,8 @@ def create_app(
     # No interactive docs or schema: /api/analyzer/ is reachable through the UI without a session.
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.redis = redis_client
+    app.add_middleware(BodyLimit)
+    # Added last, so it is the outermost layer and its headers also reach BodyLimit's refusals.
     if cors_origins:
         app.add_middleware(
             CORSMiddleware,
@@ -336,8 +342,6 @@ def create_app(
             allow_headers=CORS_ALLOWED_HEADERS,
             max_age=CORS_MAX_AGE_S,
         )
-    # Added last, so it is the outermost layer.
-    app.add_middleware(BodyLimit)
 
     @app.exception_handler(HTTPException)
     async def http_error(request: Request, exc: HTTPException) -> JSONResponse:

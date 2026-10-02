@@ -3,6 +3,7 @@ Users, groups and roles carry cleanup finalizers that only auth clears, so once 
 is gone deleting the CRDs or namespace would hang. Auth is stopped first, or its leader
 sweeper restores them; on a reinstall that kept the data, the sweeper puts them back.
 */}}
+{{- $values := include "telark.modeValues" . | fromYaml }}
 {{- $ns := .Values.app.namespace }}
 {{- $name := printf "%s-uninstall-finalizers" (include "telark.fullname" .) }}
 {{- $auth := .Values.services.auth }}
@@ -106,6 +107,11 @@ spec:
                 secretKeyRef:
                   name: {{ include "telark.serviceTokenSecretName" . }}
                   key: token
+          resources:
+            requests:
+              memory: {{ $values.app.shared.resources.requests.memory }}
+            limits:
+              memory: {{ $values.app.shared.resources.limits.memory }}
           securityContext: {{- toYaml $securityContext | nindent 12 }}
       volumes:
         - name: tmp

@@ -652,8 +652,8 @@ def _k8s_http() -> httpx.AsyncClient | None:
     """The in-cluster API client; None outside a pod (the k8s tools then answer k8s_unavailable)."""
     if not Path(SA_CA_PATH).exists():
         return None
-    return httpx.AsyncClient(
-        base_url=K8S_API_BASE, verify=ssl.create_default_context(cafile=SA_CA_PATH), timeout=K8S_HTTP_TIMEOUT_S)
+    ca = ssl.create_default_context(cafile=SA_CA_PATH)
+    return httpx.AsyncClient(base_url=K8S_API_BASE, verify=ca, timeout=K8S_HTTP_TIMEOUT_S)
 
 
 @asynccontextmanager

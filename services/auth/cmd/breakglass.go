@@ -20,8 +20,8 @@ import (
 	redishelper "github.com/telark/telark/services/auth/internal/helpers/redis"
 )
 
-// Operator-run, so the email is trusted; the BOOTSTRAP_ADMIN address also gets the
-// chart marker, which is how a bootstrap user created before it existed is marked.
+// The email selects the account and grants nothing: any address but BOOTSTRAP_ADMIN is refused before any read or
+// write, and that account gets the chart marker even when it existed before the chart named it.
 func RunBreakGlass(args []string) int {
 	fs := flag.NewFlagSet(constants.BreakGlassFlagSet, flag.ExitOnError)
 	email := fs.String(constants.BreakGlassFlagEmail, constants.EmptyString, constants.BreakGlassFlagEmailUsage)
@@ -32,7 +32,10 @@ func RunBreakGlass(args []string) int {
 	}
 
 	normalized := strings.ToLower(strings.TrimSpace(*email))
-	_, _ = config.LoadBootstrapConfig()
+	if _, err := config.LoadBootstrapConfig(); err != nil || !config.IsBootstrapAdmin(normalized) {
+		_, _ = fmt.Fprintf(os.Stderr, constants.BreakGlassNotBootstrap, normalized)
+		return constants.ExitCodeError
+	}
 	userClient := clients.GetUserClient()
 
 	user, err := userClient.GetUserByEmail(normalized)

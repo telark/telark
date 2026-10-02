@@ -6,7 +6,7 @@ Run as `./main <subcommand> [flags]` inside the auth container (the image entry 
 
 ## `break-glass`
 
-Promote a user to the built-in Admin role, or with `--enroll` bootstrap an account that does not exist yet. Used to recover access when no admin exists, to enroll the first administrator on a passkey-only install, and to create or recover the bootstrap admin. This is the only path that grants Admin from an email nobody has verified, which is why it is a subcommand run by the operator and not an API. It also removes any non-passkey (Google) identity from every account it promotes, so no OIDC binding survives the promotion; the bootstrap admin signs in with a passkey only.
+Create, promote or recover the bootstrap admin, the account whose email is `BOOTSTRAP_ADMIN`. Any other email, or no `BOOTSTRAP_ADMIN` at all, is refused before anything is read or written, so the command never creates or promotes another account; other users get enrollment links from Members. With `--enroll` it creates the bootstrap account when it does not exist yet: that is how the first administrator enrolls on a passkey-only install, and how the bootstrap admin recovers access. This is the only path that grants Admin from an email nobody has verified, which is why it is a subcommand run by the operator and not an API. It also removes any non-passkey (Google) identity from the account it promotes, so no OIDC binding survives the promotion; the bootstrap admin signs in with a passkey only.
 
 **Usage:**
 ```bash
@@ -17,12 +17,12 @@ Promote a user to the built-in Admin role, or with `--enroll` bootstrap an accou
 **Flags:**
 | Flag | Required | What it does |
 |------|----------|--------------|
-| `--email` | yes | Email of the user to promote |
-| `--enroll` | no | Create the user when missing (Admin role, `bootstrap: true` when the email is `BOOTSTRAP_ADMIN`) and print a one-time passkey enrollment token (10 minutes, needs Redis). Open `/register?enroll=<token>` in the dashboard to register the passkey. |
+| `--email` | yes | The bootstrap admin's email (`BOOTSTRAP_ADMIN`); any other email is refused |
+| `--enroll` | no | Create the bootstrap admin when missing (Admin role, `bootstrap: true`) and print a one-time passkey enrollment token (10 minutes, needs Redis). Open `/register?enroll=<token>` in the dashboard to register the passkey. |
 
 **Exit codes:**
 - `0` — user promoted (or created), or already had Admin
-- `1` — user not found (without `--enroll`), create or patch failed, Redis unavailable, or missing/invalid flag
+- `1` — email is not `BOOTSTRAP_ADMIN` (or none is set), user not found (without `--enroll`), create or patch failed, Redis unavailable, or missing/invalid flag
 
 ---
 

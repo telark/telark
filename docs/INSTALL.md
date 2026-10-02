@@ -36,7 +36,7 @@ kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email 
 # open https://<dashboard-host>/register?enroll=<token>
 ```
 
-With the default port-forward, the host is `http://localhost:3000`. Run the same command again to recover the account, for example after losing its passkey.
+With the default port-forward, the host is `http://localhost:3000`. Run the same command again to recover the account, for example after losing its passkey. The command accepts only the `app.auth.bootstrap.admin` email and refuses any other without creating or changing an account; other users get an [enrollment link](#enrollment-links).
 
 Google SSO and passkey self-registration never grant Admin: a new account always starts as ReadOnly, even when its email is the bootstrap email, and the bootstrap email cannot be registered from the login page at all.
 

@@ -3,9 +3,11 @@ package tests
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/telark/telark/internal/data/resources/finalizers"
 	userresource "github.com/telark/telark/internal/data/resources/user"
 	"github.com/telark/telark/services/auth/cmd"
@@ -16,6 +18,36 @@ import (
 	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
+// Shared by the package: auth binds its Redis client once per process, and the tests read the tokens stored there.
+var redisServer *miniredis.Miniredis
+
+func TestMain(m *testing.M) {
+	mr, err := miniredis.Run()
+	if err != nil {
+		panic(err)
+	}
+	redisServer = mr
+	if err := os.Setenv("REDIS_HOST", mr.Host()); err != nil {
+		panic(err)
+	}
+	if err := os.Setenv("REDIS_PORT", mr.Port()); err != nil {
+		panic(err)
+	}
+	m.Run()
+	mr.Close()
+}
+
+func enrollTokenOwners() []string {
+	var owners []string
+	for _, key := range redisServer.Keys() {
+		if strings.HasPrefix(key, constants.RedisKeyPrefixEnrollToken) {
+			owner, _ := redisServer.Get(key)
+			owners = append(owners, owner)
+		}
+	}
+	return owners
+}
+
 func TestBackfillRunFailsClosed(t *testing.T) {
 	lg := constants.GetLogger(constants.LoggerPrefixCleanup)
 	if err := cmd.RunBackFill(config.LoadBackfillConfig(), lg); err == nil {
@@ -24,6 +56,7 @@ func TestBackfillRunFailsClosed(t *testing.T) {
 }
 
 func TestBreakGlassRun(t *testing.T) {
+	t.Setenv(constants.EnvBootstrapAdmin, "nobody@example.com")
 	if code := cmd.RunBreakGlass(nil); code != constants.ExitCodeError {
 		t.Fatalf("break-glass with no email = %d, want %d", code, constants.ExitCodeError)
 	}
@@ -73,7 +106,6 @@ func TestBreakGlassStripsGoogleFromPromotedAccounts(t *testing.T) {
 		want  []*userresource.UserIdentity
 	}{
 		{"bootstrap admin", email, []*userresource.UserIdentity{passkey}},
-		{"other account", "other@example.com", []*userresource.UserIdentity{passkey}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -102,11 +134,13 @@ func TestBreakGlassStripsGoogleFromPromotedAccounts(t *testing.T) {
 func TestBreakGlassEnrollCreatesAdmin(t *testing.T) {
 	const email = "root@x.com"
 	t.Setenv(constants.EnvBootstrapAdmin, email)
-	testutil.RedisEnv(t)
+	redisServer.FlushAll()
 	var created *userresource.User
+	creates := constants.DefaultInitValue
 	testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodPost:
+			creates++
 			var user userresource.User
 			_ = json.NewDecoder(r.Body).Decode(&user)
 			user.ID = "u-root"
@@ -125,6 +159,48 @@ func TestBreakGlassEnrollCreatesAdmin(t *testing.T) {
 	testutil.Equal(t, "exit with --enroll", cmd.RunBreakGlass([]string{"--email", email, "--enroll"}), constants.DefaultInitValue)
 	if created == nil || !created.Bootstrap || !authhelper.HasAdminRole(created.RoleRefs) {
 		t.Fatalf("created = %+v, want Admin with the bootstrap marker", created)
+	}
+	testutil.Equal(t, "exit once it exists", cmd.RunBreakGlass([]string{"--email", email, "--enroll"}), constants.DefaultInitValue)
+	testutil.Equal(t, "creates", creates, constants.DefaultIncrementValue)
+	testutil.Equal(t, "enrollment token owners", strings.Join(enrollTokenOwners(), ","), "u-root,u-root")
+}
+
+// Nothing but BOOTSTRAP_ADMIN may be created or promoted, so any other email, or none configured,
+// is refused before the exporter or Redis is reached.
+func TestBreakGlassRefusesAnyOtherEmail(t *testing.T) {
+	const other = "other@example.com"
+	readOnly := constants.BuiltInRoleReadOnly
+	member := &userresource.User{ID: "u-member", Email: other, RoleRefs: []*string{&readOnly}}
+	cases := []struct {
+		name      string
+		bootstrap string
+		existing  *userresource.User
+	}{
+		{"no bootstrap admin configured", "", nil},
+		{"unknown email on a fresh install", "test@example.com", nil},
+		{"existing non-bootstrap account", "test@example.com", member},
+	}
+	for _, c := range cases {
+		for _, args := range [][]string{{"--email", other, "--enroll"}, {"--email", other}} {
+			t.Run(c.name+" "+strings.Join(args, " "), func(t *testing.T) {
+				t.Setenv(constants.EnvBootstrapAdmin, c.bootstrap)
+				redisServer.FlushAll()
+				calls := constants.DefaultInitValue
+				testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					calls++
+					if c.existing == nil {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"status":404}`))
+						return
+					}
+					_ = json.NewEncoder(w).Encode(map[string]any{"data": c.existing})
+				}))
+
+				testutil.Equal(t, "exit", cmd.RunBreakGlass(args), constants.ExitCodeError)
+				testutil.Equal(t, "exporter calls", calls, constants.DefaultInitValue)
+				testutil.Equal(t, "enrollment tokens", len(enrollTokenOwners()), constants.DefaultInitValue)
+			})
+		}
 	}
 }
 

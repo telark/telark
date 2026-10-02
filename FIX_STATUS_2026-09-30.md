@@ -315,6 +315,15 @@
 - FD3: the landing site's marketing copy (nav, feature tile, pricing) still says "Access & permissions".
 - Not live-checked: self-monitoring on (turning it on would register Telark's own components as applications); the unit test covers it.
 
+## Done 2026-10-02i (break-glass serves the bootstrap admin only; deployed auth 0.0.1; two fresh installs on telark-dev)
+- Security: `break-glass --enroll` created an Admin, with a live enrollment token, for any email, and without `--enroll` it promoted any existing account to Admin. Reproduced on a fresh install with no users: `attacker@example.com` and the typo `houssem.kraou@gmail.com` each became Admin, and an existing ReadOnly member was promoted.
+- Fix: any email but `BOOTSTRAP_ADMIN`, or no `BOOTSTRAP_ADMIN`, now exits 1 before any exporter or Redis call (`services/auth/cmd/breakglass.go`). The bootstrap path is unchanged: created when missing (Admin, `bootstrap: true`), reused when present, token valid 10 minutes and single use. The UI enrollment links are untouched.
+- Live, new image: 10 refused cases (unknown, typo, Unicode lookalike, blank, invalid, existing ReadOnly, Owner and Admin accounts, with and without `--enroll`) exit 1 with user CRs unchanged (same resourceVersions), 0 tokens and no exporter call. Fresh install: 0 users, arbitrary and typo emails refused (still 0 users), then the bootstrap email created the account and its token opened a registration (200, second use 401). Admin and Owner still create (201) and revoke (200) a member's enrollment link. Logs: 0 errors, no token in any pod log.
+- Tests: refusal table (no bootstrap configured, unknown email, existing non-bootstrap account, each with and without `--enroll`: exit 1, 0 exporter calls, 0 tokens) and bootstrap created then reused (1 create, 2 tokens for that account); the old "other account is promoted" row asserted the vulnerable behavior and was removed. Gates: build, vet, `go test -race ./...`, golangci-lint auth 0 issues, auth coverage 72.3% (floor 60).
+- Docs: auth README and cmd README, docs/security (bootstrap admin, invariant 13, exec/Secret note), INSTALL first admin; landing access control.
+- Not closed by this fix: anyone allowed to `kubectl exec` into the auth pod can read `TELARK_SERVICE_TOKEN` from its environment (full API access), so RBAC on `pods/exec` and Secrets in `telark` stays the boundary.
+- State left: fresh release (rev 1, bootstrap `houssem.kraoua@gmail.com`) with one user, the bootstrap account (Admin, no passkey), and 0 live tokens.
+
 ## Follow-ups (post-MVP)
 - FT1: exporter body-validation 400s still log `[ERROR]`: `handlers/categories/handler.go:33`, `handlers/plans/protection/handler.go:174`, `handlers/resources/{group/handler.go:50, role/handler.go:42, user/handler.go:51}`, `utils/classification/category/validate.go:84`, `utils/resources/group/{patch.go:45, validate.go:17}`, `utils/resources/user/patch.go:46`
 - FT2: a role PATCH with `scopesAndPermissions: []` still writes the priority and version computed from the old scopes

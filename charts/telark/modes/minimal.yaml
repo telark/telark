@@ -15,16 +15,13 @@ app:
     replicas: 1
     autoscaling:
       enabled: false
-  persistence:
-    snapshotsSize: 1Gi
-    reportsSize: 512Mi
   shared:
     resources:
       requests:
         cpu: "50m"
         memory: "64Mi"
       limits:
-        cpu: "250m"
+        cpu: "500m"
         memory: "256Mi"
 
 services:

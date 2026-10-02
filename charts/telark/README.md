@@ -39,7 +39,7 @@ The tables below explain the values that matter. The generated index of every ke
 | `gateway.enabled` | `false` | Gateway API `HTTPRoute` for the dashboard, the alternative to the Ingress (routes to `gateway.service`, default `ui`). See [docs/INSTALL.md](../../docs/INSTALL.md#access-the-dashboard) |
 | `gateway.parentRefs` / `hostnames` / `annotations` | `[]` / `[]` / `{}` | Gateways to attach to (entries take `name`, `namespace`, `sectionName`), hostnames the route matches, HTTPRoute annotations |
 | `redis.image.digest` | `sha256:33a5a129…` | Pins the Redis image (`bitnami/redis`, which publishes only `latest`) to one build. See [docs/INSTALL.md](../../docs/INSTALL.md#subcharts) |
-| `redis.master.resources` | requests `100m` / `128Mi`, limits `150m` / `512Mi` | Redis sizing, identical in every mode; replaces the subchart's `nano` preset. Redis never evicts, so raise the memory limit beyond 2 000 applications. See [docs/INSTALL.md](../../docs/INSTALL.md#subcharts) |
+| `redis.master.resources` | requests `100m` / `128Mi`, limits `500m` / `512Mi` | Redis sizing, identical in every mode; replaces the subchart's `nano` preset. Redis never evicts, so raise the memory limit beyond 2 000 applications. See [docs/INSTALL.md](../../docs/INSTALL.md#subcharts) |
 
 ### `app`
 
@@ -68,8 +68,8 @@ The tables below explain the values that matter. The generated index of every ke
 | `app.ollama.runtimeUrl` | `""` | Ollama-API endpoint you run yourself (URL only, no key); empty = the subchart. See [Analyzer runtime (ollama)](#analyzer-runtime-ollama) |
 | `app.persistence.enabled` | `true` | Provision the exporter snapshot and report PVCs (kept on uninstall) |
 | `app.persistence.storageClass` | `""` | `"<name>"` = explicit class; `"-"` = disable dynamic provisioning; `""` = cluster default on install, the claims' current class on upgrade. A different class moves the data to new claims; more than one exporter replica needs a ReadWriteMany class. See [Exporter storage](../../docs/INSTALL.md#exporter-storage) |
-| `app.persistence.snapshotsSize` | `10Gi` | Exporter snapshots PVC size (`minimal` 1Gi, `performance` 50Gi); only grows, where the class allows expansion |
-| `app.persistence.reportsSize` | `2Gi` | Exporter reports PVC size (`minimal` 512Mi, `performance` 10Gi); only grows |
+| `app.persistence.snapshotsSize` | `512Mi` | Exporter snapshots PVC size (`performance` 2Gi); only grows, where the class allows expansion |
+| `app.persistence.reportsSize` | `512Mi` | Exporter reports PVC size (`performance` 2Gi); only grows |
 
 #### Protection plan reports
 
@@ -109,7 +109,7 @@ Fallbacks for any `services.<svc>.*` key omitted.
 | `app.serviceDefaults.serviceType` | `ClusterIP` | K8s Service type |
 | `app.serviceDefaults.replicas` | `1` | Starting replicas; the HPA scales from here in `standard`/`performance` (`minimal` stays fixed at 1) |
 | `app.serviceDefaults.terminationGracePeriodSec` | `60` | Pod termination grace period |
-| `app.serviceDefaults.autoscaling.enabled` | `true` | Fleet-wide HPA (1 → 3 replicas on CPU; `performance` 1 → 5; `minimal` off; never the exporter). Vertical scaling: `vpa.enabled=true` installs the operator and `app.serviceDefaults.vpa.updateMode` (`Auto`) drives a VPA per service. See [docs/INSTALL.md](../../docs/INSTALL.md#autoscaling-hpa) |
+| `app.serviceDefaults.autoscaling.enabled` | `true` | Fleet-wide HPA (1 → 3 replicas on CPU; `performance` 1 → 5; `minimal` off; never the exporter). Vertical scaling: `vpa.enabled=true` installs the operator and `app.serviceDefaults.vpa.updateMode` (`Auto`) drives a VPA per service, memory only where the HPA scales on CPU. See [docs/INSTALL.md](../../docs/INSTALL.md#autoscaling-hpa) |
 | `app.serviceDefaults.autoscaling.minReplicas` / `maxReplicas` | `1` / `3` | HPA replica floor / ceiling |
 | `app.serviceDefaults.autoscaling.targetCPUUtilizationPercentage` | `80` | HPA scale-up CPU target |
 
@@ -130,17 +130,18 @@ Pod-level config selectively applied via per-service gates.
 | Key | Default | Description |
 |---|---|---|
 | `requests.cpu` / `requests.memory` | `100m` / `128Mi` | Resource requests |
-| `limits.cpu` / `limits.memory` | `500m` / `512Mi` | Resource limits |
+| `limits.cpu` / `limits.memory` | `1000m` / `512Mi` | Resource limits |
 
 **`app.shared.healthCheck`**: HTTP probes applied when `includeHealthCheck: true` (default). `port` is the named container port.
 
 | Key | Default | Description |
 |---|---|---|
 | `port` | `http` | Named port for probe targets |
+| `startupProbe.path` | `/api/v1/status/live` | Startup HTTP path; liveness and readiness wait until it answers |
 | `livenessProbe.path` | `/api/v1/status/live` | Liveness HTTP path |
 | `readinessProbe.path` | `/api/v1/status/ready` | Readiness HTTP path |
-| `*.initialDelaySeconds` / `periodSeconds` / `timeoutSeconds` | liveness `15`; readiness `5` / `5` / `15` | Probe timings; readiness only checks the pod's own Redis link, so it turns Ready seconds after start and rollouts do not wait on other services |
-| `*.failureThreshold` | `3` | Consecutive failures before unhealthy |
+| `*.initialDelaySeconds` / `periodSeconds` / `timeoutSeconds` | startup `0` / `5` / `5`; liveness `15` / `15` / `15`; readiness `5` / `5` / `15` | Probe timings; readiness only checks the pod's own Redis link, so it turns Ready seconds after start and rollouts do not wait on other services |
+| `*.failureThreshold` | startup `60`; others `3` | Consecutive failures before unhealthy. The exporter, notifier and auth open their port only once Redis answers, so startup allows 5 minutes (Redis moving with its volume after a node loss) before liveness can restart them |
 
 **`app.shared.podSecurityContext`** / **`app.shared.containerSecurityContext`**: pod- and container-level securityContext, applied when a service has `includeSecurity: true` (default). Set `enabled: false` on either to omit it.
 
@@ -148,7 +149,7 @@ Pod-level config selectively applied via per-service gates.
 |---|---|---|
 | `app.shared.podSecurityContext.enabled` | `true` | Render the pod securityContext |
 | `app.shared.podSecurityContext.runAsUser` / `runAsGroup` / `fsGroup` | `1001` | Non-root identity |
-| `app.shared.podSecurityContext.seccompProfile` / `app.shared.containerSecurityContext.seccompProfile` | `{type: RuntimeDefault}` | Seccomp profile, so the namespace can carry Pod Security `restricted` |
+| `app.shared.podSecurityContext.seccompProfile` / `app.shared.containerSecurityContext.seccompProfile` | `{type: RuntimeDefault}` | Seccomp profile, so the Telark pods meet Pod Security `restricted` |
 | `app.shared.containerSecurityContext.enabled` | `true` | Render the container securityContext |
 | `app.shared.containerSecurityContext.allowPrivilegeEscalation` | `false` | Block setuid-style escalation |
 | `app.shared.containerSecurityContext.readOnlyRootFilesystem` | `true` | Mount root FS read-only |
@@ -182,6 +183,7 @@ Per-service block. Gates default to `true` unless noted.
 | `terminationGracePeriodSec` | `app.serviceDefaults.terminationGracePeriodSec` | Override |
 | `includeResources` | `true` | Apply `app.shared.resources` |
 | `includeHealthCheck` | `true` | Apply `app.shared.healthCheck` |
+| `healthCheck` | unset | Merged over `app.shared.healthCheck` for this service; `ui` points all three probes at nginx's `/healthz` |
 | `includeSecurity` | `true` | Apply `app.shared.podSecurityContext` + `app.shared.containerSecurityContext` (`ui` sets `false`: nginx runs as uid 101 and gets its own contexts below) |
 | `podSecurityContext` / `containerSecurityContext` | unset | Rendered verbatim instead of the shared contexts; `ui` uses them (uid 101, no privilege escalation, all capabilities dropped, read-only root with `emptyDir` on `/var/cache/nginx` and `/tmp`) |
 | `automountServiceAccountToken` | unset (Kubernetes default: mounted) | `false` on auth, notifier and ui, which never call the Kubernetes API; set on both the pod and its ServiceAccount |
@@ -290,6 +292,7 @@ Force-sync queue:
 | Variable | Default | Description |
 |---|---|---|
 | `FORCE_SYNC_WORKERS` | `6` | Concurrent force-sync worker count on the leader (`minimal` 2, `performance` 12) |
+| `REDIS_POOL_SIZE` | `10` | Redis connection pool. Each force-sync worker holds a connection in a blocking read, so the pool stays above the worker count (`performance` 24) |
 | `FORCE_SYNC_STREAM_MAX_LEN` | `5000` | Redis stream length cap |
 | `FORCE_SYNC_DEDUP_TTL_SEC` | `600` | Dedup key TTL |
 | `FORCE_SYNC_JOB_TIMEOUT_SEC` | `300` | Per-job deadline |
@@ -362,7 +365,7 @@ RBAC: the analyzer ClusterRole is read-only (`get`, `list`). Besides pods, event
 
 #### Analyzer runtime (ollama)
 
-`app.ollama.enabled=true` (default) installs the ollama subchart as the analyzer's model runtime. Nothing else talks to it: a NetworkPolicy admits only the analyzer pods on port 11434 and allows HTTPS egress only while `app.ollama.autoPull=true`. The chart pulls no model at start (`ollama.ollama.models.pull` stays empty: the subchart pulls in a `postStart` hook that ignores `app.ollama.autoPull`, and a failed pull there restarts the container in a loop). With `app.ollama.autoPull=true` and the analyzer enabled (the fresh-install default), the analyzer itself pulls the model chosen in Settings (default `granite4:350m`, 708 MB) at its first config poll after start when the runtime lacks it, and retries every `ANALYZER_CONFIG_POLL_SEC` while the pull fails; until the pull finishes, a fast-mode analysis keeps the rule text and skips the narration. Models live on a volume (10Gi on the cluster's default class; 20Gi to trial 8B models) that carries `helm.sh/resource-policy: keep`, so they survive pod restarts, disabling and uninstalling.
+`app.ollama.enabled=true` (default) installs the ollama subchart as the analyzer's model runtime. Nothing else talks to it: a NetworkPolicy admits only the analyzer pods on port 11434 and allows HTTPS egress only while `app.ollama.autoPull=true`. The chart pulls no model at start (`ollama.ollama.models.pull` stays empty: the subchart pulls in a `postStart` hook that ignores `app.ollama.autoPull`, and a failed pull there restarts the container in a loop). With `app.ollama.autoPull=true` and the analyzer enabled (the fresh-install default), the analyzer itself pulls the model chosen in Settings (default `granite4:350m`, 708 MB) at its first config poll after start when the runtime lacks it, and retries every `ANALYZER_CONFIG_POLL_SEC` while the pull fails; until the pull finishes, a fast-mode analysis keeps the rule text and skips the narration. Models live on a volume (6Gi on the cluster's default class: the default model plus any one catalog model, since a switch never deletes the old one; 20Gi to trial 8B models) that carries `helm.sh/resource-policy: keep`, so they survive pod restarts, disabling and uninstalling.
 
 Sizing does not follow `app.mode`: Helm resolves a subchart's values before the mode preset is applied, so `ollama.resources` is one value for every mode. The default (requests `250m` / `1536Mi`, limit cpu `2`) is the CPU tiny profile below; measured with `granite4:350m` loaded at a 4k context, ollama holds about 1.1Gi and idles near 0 CPU, and a narration bursts to the 2-core limit for a few seconds. The request is kept low so `minimal` still fits one 2 vCPU / 8 GiB node; raise it with the profile values on bigger nodes.
 
@@ -394,6 +397,8 @@ Modes:
 - **Self-hosted endpoint** (`app.ollama.runtimeUrl=http://<host>:11434`, `app.ollama.enabled=false`): the analyzer talks to an Ollama you run (for example on a GPU host). It must speak the Ollama API; no key, no Secret. No ollama NetworkPolicy is rendered; the analyzer pod's egress follows your cluster's policies. Set `ANALYZER_NUM_THREAD` to that host's cores.
 
 Memory: `ollama.resources` has no memory limit on purpose. Ollama checks free memory as the cgroup limit minus current usage, and usage counts the page cache of pulled model files, so any limit eventually refuses model loads. Without a limit it reads the node's available memory, which is cache-aware; `OLLAMA_KEEP_ALIVE=-1` keeps the loaded model resident. The pod is Burstable and the 1536Mi request still reserves memory. For Guaranteed QoS set requests = limits with memory ≥ 3 × model size + 1Gi and re-check after every pull. Deleting unused models (`DELETE /api/delete`) frees the cache.
+
+Security: ollama runs with no privilege escalation, no capabilities, the `RuntimeDefault` seccomp profile and a read-only root filesystem. It stays root: the image keeps its models and key under `/root/.ollama`, where the volume mounts, and an existing volume's root-owned files would need an `fsGroup` change that NFS-backed classes ignore. With the bundled runtime the namespace therefore meets Pod Security `baseline`, not `restricted`.
 
 #### Recommendations
 
@@ -463,6 +468,7 @@ Cleanup controllers + queue:
 | `RECONCILE_TICK_SECONDS` | `5` | Reconciler tick interval |
 | `RECONCILE_PASS_DEADLINE_SECONDS` | `30` | Per-pass deadline |
 | `CLEANUP_WORKERS_PER_TYPE` | `2` | Workers per cleanup type |
+| `REDIS_POOL_SIZE` | `10` | Redis connection pool. Each cleanup worker (three types) holds a connection in a blocking read, so the pool stays above the worker total (`performance` 24) |
 | `CLEANUP_STREAM_MAXLEN` | `10000` | Cleanup stream length cap |
 | `CLEANUP_LAG_ALERT_THRESHOLD` | `500` | Lag threshold for alerts |
 | `CLEANUP_SWEEPER_INTERVAL_SECONDS` | `60` | Sweeper interval |

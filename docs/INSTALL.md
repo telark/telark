@@ -235,7 +235,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 |---|---|---|
 | `minimal` | Development, demos, evaluation. Single replica, no autoscaling, no PDBs | A few hundred applications |
 | `standard` (default) | Small and mid-size production. Every service starts at 1 replica and scales on CPU up to 3 (HPA), except the exporter ([Exporter storage](#exporter-storage)). Add `--set vpa.enabled=true` for vertical scaling | Verified at 2 000 applications, with 2 exporter replicas |
-| `performance` | Large clusters. As `standard`, with an HPA ceiling of 5, disruption budgets that keep one pod through drains, larger requests and limits, and a 50 GiB volume | Beyond 1 000 applications |
+| `performance` | Large clusters. As `standard`, with an HPA ceiling of 5, disruption budgets that keep one pod through drains, larger requests and limits, and 2 GiB exporter volumes | Beyond 1 000 applications |
 
 `app.mode` sizes Telark's own services only. Helm resolves a subchart's values before the mode is known, so Redis, NATS, Kyverno, metrics-server and Ollama ship fixed production-grade defaults, identical in every mode. There is nothing to tune up to 2 000 applications; beyond that, size Redis ([Subcharts](#subcharts)).
 
@@ -282,8 +282,8 @@ Set values with `--set key=value`. Helm does not remember them across upgrades, 
 | `app.image.registry` | `ghcr.io/telark` | Registry and organization hosting the service images |
 | `app.image.pullPolicy` | `Always` | Image pull policy |
 | `app.image.pullSecrets` | `[]` | Image pull secrets for a private registry |
-| `app.persistence.snapshotsSize` | `10Gi` | Exporter snapshots PVC size (`minimal` 1Gi, `performance` 50Gi); only grows ([Exporter storage](#exporter-storage)) |
-| `app.persistence.reportsSize` | `2Gi` | Exporter reports PVC size (`minimal` 512Mi, `performance` 10Gi); only grows |
+| `app.persistence.snapshotsSize` | `512Mi` | Exporter snapshots PVC size (`performance` 2Gi); only grows ([Exporter storage](#exporter-storage)) |
+| `app.persistence.reportsSize` | `512Mi` | Exporter reports PVC size (`performance` 2Gi); only grows |
 | `app.persistence.storageClass` | `""` | Class for both exporter PVCs: `""` is the cluster default on install and keeps the current class on upgrade; a different class copies the data to new claims ([Exporter storage](#exporter-storage)) |
 | `services.exporter.replicas` | `1` | More than one needs a ReadWriteMany `app.persistence.storageClass` ([Exporter storage](#exporter-storage)) |
 | `app.crdGuard.enabled` | `true` | Admission guard: only the owning service accounts may write Telark CRs ([CRD write guard](#crd-write-guard)) |
@@ -311,16 +311,16 @@ The bundled dependencies ship production-grade defaults for every mode, so you r
 | `metrics-server.enabled` | `true` | Install metrics-server; `false` if the cluster already has one |
 | `redis.architecture` | `standalone` | `replication` for a replicated Redis |
 | `redis.image.digest` | pinned | Bitnami publishes only `bitnami/redis:latest`, so the chart pins one build by digest. To take a newer build, resolve the current digest (`docker buildx imagetools inspect bitnami/redis:latest`) and pass `--set redis.image.digest=sha256:<digest>` |
-| `redis.master.persistence.size` | `4Gi` | Redis PVC size |
+| `redis.master.persistence.size` | `2Gi` | Redis PVC size; fixed once installed ([Version notes](#version-notes)) |
 | `redis.master.resources.limits.memory` | `512Mi` | Redis memory limit (requests `100m` / `128Mi`); see the note below |
 | `redis.auth.existingSecret` | `<release>-redis-secret` | Secret with the Redis password (key `redis-password`), generated on install and read back on upgrade; name your own for cluster-less renders ([GitOps](#gitops-cluster-less-renders)). Redis always requires the password: `redis.auth.enabled=false` fails the render |
-| `nats.persistence.size` | `4Gi` | NATS JetStream PVC size |
+| `nats.persistence.size` | `1Gi` | NATS JetStream PVC size; fixed once installed ([Version notes](#version-notes)) |
 | `nats.existingSecrets.publisher` / `consumer` | `""` | Secrets (keys `username`, `password`) you manage instead of the generated NATS users ([GitOps](#gitops-cluster-less-renders)) |
 | `kyverno.admissionController.replicas` | `2` | Kyverno admission replicas |
 | `kyverno.admissionController.container.extraArgs.clientRateLimitQPS` | `50` | Kyverno API QPS |
 | `metrics-server.resources.limits.memory` | `400Mi` | metrics-server memory limit |
 | `metrics-server.args` | kubelet TLS verified | Add `--kubelet-insecure-tls` only where kubelet certificates are self-signed ([metrics-server kubelet TLS](#metrics-server-kubelet-tls)) |
-| `ollama.persistentVolume.size` | `10Gi` | Model storage (when enabled); kept on uninstall |
+| `ollama.persistentVolume.size` | `6Gi` | Model storage (when enabled), kept on uninstall: the default model plus any one catalog model, since a switch never deletes the old one. Never shrinks ([Version notes](#version-notes)) |
 
 **Sizing Redis for large installs.** Redis keeps everything in memory and never evicts, so at its memory limit the pod is OOM-killed. The analyzer's documents are the largest part: in the worst case about 210 MiB for 2 000 applications, which the `512Mi` limit covers. For more applications, raise the limit in proportion, for example `--set redis.master.resources.limits.memory=1Gi`. The chart sets `redis.master.resources`, so `redis.master.resourcesPreset` has no effect.
 
@@ -338,7 +338,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 
 Insights runs on an in-cluster model runtime (Ollama, installed by default), so analysis data stays in the cluster. A fresh install turns the analyzer on with `granite4:350m`, which answers in seconds on 2 vCPU, and leaves automatic analysis off. Change the model, turn on automatic analysis or turn the analyzer off in Settings; upgrades keep the existing settings.
 
-The runtime has one size for every mode, because Helm resolves subchart values before `app.mode` applies: requests `250m` CPU and `1536Mi` memory, a 2-CPU limit and no memory limit. That is enough for `granite4:350m` while `minimal` still fits one 2 vCPU / 8 GiB node. Models live on a 10Gi volume that is kept on uninstall, so they survive restarts and reinstalls.
+The runtime has one size for every mode, because Helm resolves subchart values before `app.mode` applies: requests `250m` CPU and `1536Mi` memory, a 2-CPU limit and no memory limit. That is enough for `granite4:350m` while `minimal` still fits one 2 vCPU / 8 GiB node. Models live on a 6Gi volume that is kept on uninstall, so they survive restarts and reinstalls.
 
 | Setup | Flags | Behavior |
 |---|---|---|
@@ -364,6 +364,7 @@ The stateless services (auth, discovery, notifier, ui) can run behind a Horizont
 - The exporter never autoscales: it runs `services.exporter.replicas` (1 by default, always 1 in `minimal`; see [Exporter storage](#exporter-storage)).
 - The analyzer never autoscales: one worker is bound to one runtime slot.
 - `standard` and `performance` turn autoscaling on (start at 1, maximum 3 and 5); `minimal` keeps it off.
+- With `vpa.enabled=true`, the VPA sizes only memory on the services the HPA scales, because the HPA measures CPU against the request; on the exporter and the analyzer it sizes both.
 
 In any mode you can enable, disable or tune it per service:
 
@@ -545,6 +546,7 @@ Pass the same `--set` and `-f` flags you used at install: Helm does not remember
 - **Exporter storage.** The exporter runs one replica by default and `app.singleNode` is gone (drop it from your flags; one replica needs no flag). `app.persistence.size` is now `app.persistence.snapshotsSize` (the schema rejects the old key). To keep two replicas, pass `--set services.exporter.replicas=2` with your ReadWriteMany `app.persistence.storageClass`. Upgrades now keep the existing claims, a class change copies the data to new claims, and uninstall keeps them ([Exporter storage](#exporter-storage)).
 - **CRDs managed out of band** (`crds.enabled=false`): upgrade `telark-crds` before `telark` ([chart README](../charts/telark/README.md#upgrade-order)).
 - **Self-registration moved to Settings.** `app.auth.passkey.selfRegistration` is removed (the schema rejects it, so drop it from your flags) and self-registration starts off whatever it was before; the bootstrap admin turns it on in Settings. `app.auth.bootstrap.admin` is now required whenever the auth service runs: an install that had none sets it, then runs the break-glass command of [First admin](#2-first-admin), which also marks an existing account with that email as the bootstrap admin.
+- **Smaller Redis, NATS and model volumes.** New installs get a 2Gi Redis volume and a 1Gi NATS volume instead of 4Gi each, and a 6Gi Ollama volume instead of 10Gi. Kubernetes cannot change a StatefulSet's volume size, so the upgrade of an existing release stops and prints a command to run once: `kubectl delete statefulset -n telark telark-redis-master telark-nats --cascade=orphan`. The pods, claims and data stay, the claims keep 4Gi, and the next upgrade re-creates both StatefulSets. To skip the step, keep the old size on every upgrade: `--set redis.master.persistence.size=4Gi --set nats.persistence.size=4Gi`. Cluster-less renders cannot check the live size, so run the command before the sync ([GitOps](#gitops-cluster-less-renders)). Kubernetes never shrinks a claim either, so keep the Ollama volume's size on every upgrade: `--set ollama.persistentVolume.size=10Gi` (the upgrade stops and names it otherwise).
 - **Redis requires a password.** The upgrade generates `telark-redis-secret` and restarts Redis and every service that uses it once; Redis keeps its data. Cluster-less renders create the Secret first ([GitOps](#gitops-cluster-less-renders)). Drop `redis.auth.enabled=false` and `redis.auth.password` from your flags: the render refuses both.
 
 ## Uninstall

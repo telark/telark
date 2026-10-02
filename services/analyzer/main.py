@@ -42,6 +42,7 @@ from config import (
     API_PORT,
     LOG_LEVEL,
     OLLAMA_HOST,
+    REDIS_PASSWORD,
     REDIS_POOL_SIZE,
     REDIS_URL,
 )
@@ -680,7 +681,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 async def serve() -> None:
-    r = aioredis.Redis.from_url(REDIS_URL, max_connections=REDIS_POOL_SIZE, decode_responses=True)
+    r = aioredis.Redis.from_url(
+        REDIS_URL, password=REDIS_PASSWORD, max_connections=REDIS_POOL_SIZE, decode_responses=True
+    )
     app = create_app(r, lifespan)
     config = uvicorn.Config(
         app,

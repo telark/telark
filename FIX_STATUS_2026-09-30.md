@@ -104,29 +104,29 @@
 
 ## Remaining (this round)
 - ~~Actor names~~ code done 2026-09-30 (Task 2): exporter `GET users/names?ids=` + UI `useUsernamesByIds`/`ActorDisplay` at every actor field; gates green; not deployed or live-tested
-- Modals: content modals (session expired, enroll link, orphaned passkeys, avatar picker) on the shared chrome; premium restyle within the theme
-- Notification rows restyle
-- UI items: group tooltip avatar initials, Manage Roles at 900×900, rollback meta ellipsis; F12 long app title overflows the page
-- Visual check: D8 CTAs, dialogs, bell, SSO JWK, change log
-- Rebuild + redeploy; retest FAIL/BLOCKED rows, regressions, `rbac_matrix.py`
-- Clean up test data (e2e-* namespaces, personas, sessions); discovery replicas back to 1
-- Commit messages per repo; remove `go.work` replaces first
+- ~~Modals: content modals (session expired, enroll link, orphaned passkeys, avatar picker) on the shared chrome; premium restyle within the theme~~ done 2026-10-01 (every dialog on BaseModal; Task 6: migrated dialogs PASS)
+- ~~Notification rows restyle~~ done 2026-10-01 (shipped with the dialog polish)
+- ~~UI items: group tooltip avatar initials, Manage Roles at 900×900, rollback meta ellipsis; F12 long app title overflows the page~~ done 2026-10-01 (Task 5 items 1–4; long page titles wrap since the actor-names change)
+- ~~Visual check: D8 CTAs, dialogs, bell, SSO JWK, change log~~ done 2026-10-01 (Task 6; the bell fix in "Done 2026-10-01 afternoon")
+- ~~Rebuild + redeploy; retest FAIL/BLOCKED rows, regressions, `rbac_matrix.py`~~ done 2026-10-01 (Task 8 retest: 29 PASS, 0 FAIL)
+- ~~Clean up test data (e2e-* namespaces, personas, sessions); discovery replicas back to 1~~ done (every lane deleted its data; no e2e namespaces and discovery at 1 replica, checked 2026-10-02)
+- ~~Commit messages per repo; remove `go.work` replaces first~~ done (no `go.work` since the monorepo merge; messages written each round)
 
 ## User actions
 - ~~rest: tag a release with `e9d3380` + the staged `Delete`, then bump the rest pin~~ obsolete: rest is `telark/internal/rest` since the monorepo merge
 - Live checks needing you: D2a/D2c, A1 + D1 OIDC callback, U2/U18 screenshots, D10 fixture, IAM-14b/E5-boot, U12/U19 fixtures
 
 ## Remaining, part 2 (former follow-ups, this round too)
-- Remove the pre-existing seams `UseCacheForTest`, `SetExcludedForTest`; review test-only exports (`PublishedPayload`, `HiddenPlatformApp`, `FailStaleInProgress`, `FinalizeRollbackSuccess`)
-- D11: recreate later than one window or across leader failover
-- Role PATCH/DELETE last-admin guard
-- E16 finalizer-body half; E9 sibling error paths; CORS `Retry-After` (x-ware)
-- Passkey onboarding (decided, next after this round; plan as a feature):
-  1. Invites: admin creates the user, then Members → "Create enroll link": one-time URL shown once with copy button and expiry (~24 h), single-use, bound to the user, re-issuable; "Invite pending / expired" in Members. Owner on users; Admin targets need Admin on ALL. No SMTP in MVP.
-  2. Self-registration moves from the chart (`app.auth.passkey.selfRegistration`, `SELF_REGISTRATION_ENABLED`) to a TelarkConfig field (CRD first), default off, toggle in Settings next to Single Sign-On, read live by auth; chart guard becomes "bootstrap admin required"; docs updated.
-  3. Bootstrap-only control: SSO config and the self-registration toggle editable only by the bootstrap user (backend + UI, today Admin on ALL); others see them read-only with a tooltip.
+- ~~Remove the pre-existing seams `UseCacheForTest`, `SetExcludedForTest`; review test-only exports (`PublishedPayload`, `HiddenPlatformApp`, `FailStaleInProgress`, `FinalizeRollbackSuccess`)~~ done (seams gone; the two rollback-controller exports stay with their one-line why, as AGENTS.md allows)
+- ~~D11: recreate later than one window or across leader failover~~ done 2026-10-01 (`coalesce:held` for 5 min; Task 8 PASS)
+- ~~Role PATCH/DELETE last-admin guard~~ done 2026-10-01 (409 when no active Admin on ALL would remain)
+- ~~E16 finalizer-body half; E9 sibling error paths; CORS `Retry-After` (x-ware)~~ done 2026-10-01 (413 on every write route; CORS exposes `Retry-After`)
+- ~~Passkey onboarding (decided, next after this round; plan as a feature):~~ done 2026-10-02 (see "Done 2026-10-02")
+  1. ~~Invites: admin creates the user, then Members → "Create enroll link": one-time URL shown once with copy button and expiry (~24 h), single-use, bound to the user, re-issuable; "Invite pending / expired" in Members. Owner on users; Admin targets need Admin on ALL. No SMTP in MVP.~~
+  2. ~~Self-registration moves from the chart (`app.auth.passkey.selfRegistration`, `SELF_REGISTRATION_ENABLED`) to a TelarkConfig field (CRD first), default off, toggle in Settings next to Single Sign-On, read live by auth; chart guard becomes "bootstrap admin required"; docs updated.~~
+  3. ~~Bootstrap-only control: SSO config and the self-registration toggle editable only by the bootstrap user (backend + UI, today Admin on ALL); others see them read-only with a tooltip.~~
 - ~~Monorepo: shared modules into `telark/internal/`~~ DONE 2026-09-30 (history merges + uncommitted move on `chore/import-module-history`; merge its PR with a merge commit)
-- data `internal/data/shared/config.go` dead map; ~~gofmt `app_namespaces_test.go`~~ done in the monorepo gofmt pass
+- ~~data `internal/data/shared/config.go` dead map~~ done 2026-10-02 (no map was left; its 18 unused constants and the `Status` and `Action` types they used are removed); ~~gofmt `app_namespaces_test.go`~~ done in the monorepo gofmt pass
 
 ## Done 2026-09-30 evening (details: session-data e2e-2026-09-25/NEXT_SESSION_2026-09-30g.md)
 - Task 2b bootstrap profile edit 403 (guard + UI changed-fields-only); bootstrap email locked to the chart value; chart rev 4 `app.auth.bootstrap.admin=contact@telark.io`
@@ -215,8 +215,26 @@
 - Deployed at 19:00: auth, discovery, UI. Live without a session: `auth/config` 200, a bogus enroll token 401, `enroll-link` and `auth/permissions` 401; 0 `[ERROR]` / `[WARNING]` in auth, discovery, notifier, exporter (both replicas) and UI since the rollout
 - Live with a session (a throwaway Admin and target, both deleted after): `auth/permissions` 200; issue 201, a second link 201 and the first one then 401; revoke 200 with `status.invite` cleared. Headless: Members shows "Invite pending" and the "Create enroll link" / "Revoke enroll link" menu; Settings → Single Sign-On is read-only with the bootstrap-only tooltip; `/register?enroll=bogus` shows the invalid-link message; no console errors besides that expected 401; 0 `[ERROR]` / `[WARNING]` in every pod
 
+### Done 2026-10-02c (Redis password, FT16, FU13, FD2, the "Enrolled" pill, the link email prefill; deployed: chart rev 10, analyzer, auth and exporter 0.0.1, UI 0.0.2)
+- Redis requires a password: the chart generates `telark-redis-secret` (key `redis-password`, kept on uninstall, read back on upgrade; `redis.auth.existingSecret` names your own for GitOps), and every Telark pod that uses Redis gets it as `REDIS_PASSWORD` through a required Secret reference. The render refuses `redis.auth.enabled=false`, an empty `existingSecret` and any `redis.auth.password`. Live: no password gets NOAUTH, a wrong one WRONGPASS, the pod's own PONG; the 6 client pods carry the reference, ui none
+- CONFIG and ACL are disabled next to FLUSHDB and FLUSHALL, so no client can turn the password off at runtime. Live: all four answer "unknown command"
+- The analyzer sends `REDIS_PASSWORD` (the Go services already read it). Live: authenticated connections from analyzer, auth, discovery, both exporters and notifier, with the stream consumers active
+- No data lost through the Redis restart (AOF copied to scratch first, copy deleted after the checks): db0 443 keys (444 before, volatile churn), db1 3, every persistent key-prefix count identical, `analyzer:index` 15, `insights:jobs` lag 0; the Redis NetworkPolicy is unchanged
+- Switch window 23:15–23:16 UTC: auth restarted once (Redis not ready within its 30 s, as planned), then every pod Ready, `status/ready` 200 on 8002, 8004, 8006 and 8007, and 0 NOAUTH, WRONGPASS or `[ERROR]` lines in any pod since; a no-session bogus `register/start` still answers 401
+- Docs: SECURITY.md, CLAUDE.md, the architecture and security READMEs, INSTALL (subcharts row, GitOps commands, version note, uninstall), chart README, VALUES.md, analyzer README and `.env.example`; landing-page installing, upgrading, troubleshooting (authenticated `redis-cli`, render-error row), multi-replica discovery, uninstalling, helm-values and environment-variables. The three exporter test comments now say "untrusted"
+- FT16: an invalid `ENROLL_INVITE_TTL_SEC` now warns "ENROLL_INVITE_TTL_SEC must be a positive integer, using the default 3600" under the `auth-service` logger, without the "[cleanup]" tag; behavior unchanged (positive values only, default 3600, `TestEnrollInviteTTL` green)
+- FU13: the toolbar key `'save'` (six sections) and the hint font size (OIDC twice, self-registration, the discovery namespaces preview) now come from `SETTINGS_CONSTANTS` (`TOOLBAR.SAVE_KEY`, `CONTENT.HINT_FONT_SIZE`); the other 12px texts in Settings are table headers and row labels, not hints, and stay
+- FD2: the `build-service.yaml` comment says "canceled" (`cancelled()` is GitHub's function and stays); action audit: all 18 external actions already pin their latest release by SHA. `CHANGELOG.md` keeps its British words on purpose: git-cliff generates it from old commit subjects
+- Gates: Go build, vet, test -race (124 packages), golangci-lint 2.14.0 0 issues (auth, exporter), auth coverage 72.2 %; analyzer 770 tests, coverage 99 %; helm lint, kubeconform 0 invalid (3 modes × 5 Kubernetes versions), one more document per mode, the three refused renders fail, VALUES.md regenerated; UI check-all-and-build 0 errors, 0 warnings; landing-page check-all + build
+- Live with a session (a throwaway Admin and target, both deleted after): link issued 201 and revoked 200 (Redis key and `status.invite` set, then cleared), notifications and `sessions/self` 200. Headless on the deployed UI: the 7 settings Save buttons look and behave as before (30 px, 13 px text; disabled until a draft change; Timezone saved and kept after reload; SSO and self-registration read-only with the bootstrap-only tooltip), the reachable hints render at 12 px, 0 failed calls, 0 console errors. Pod scan: 0 NOAUTH/WRONGPASS; one `[ERROR]` from a Google sign-in refused for the bootstrap account (FT15), not from the test
+- Members shows a green "Enrolled" pill once a passkey closes a member's enrollment link (user request 2026-10-02): auth now records `status.inviteAcceptedAt` in the same write that clears the invite; a later link shows "Invite pending" again, and revoking it brings "Enrolled" back; the users CRD declares the field and the exporter refuses it from sessions like `status.invite`. Deployed: the users CRD applied with kubectl (goes out with the telark-crds release), exporter and auth 0.0.1, UI 0.0.2. Live (throwaway accounts, deleted after): link 201, passkey through the link 201, the stamp within 1 s, the pill and its "Enrolled <time>" tooltip shown with Revoke disabled, a recovery link "Invite pending" then revoked back to "Enrolled", a session PATCH of the field 403, 0 `[ERROR]` lines. The member enrolled before this change keeps an empty cell (no stamp was recorded then)
+- Enrollment links carry the account's email (`&email=`), and the register page shows it prefilled and read-only, also after a reload (user request 2026-10-02); links without it (break-glass) keep an editable field, and auth still checks the email against the link's account. UI only, deployed (UI 0.0.2)
+- Gates for both: Go build, vet, test -race (124 packages), golangci-lint 0 issues (auth, exporter, data), coverage auth 72.2 % and exporter 69.4 %; helm lint and validate, the users CRD passes a server-side dry run; UI check-all-and-build 0 errors, 0 warnings; landing-page check-all + build
+- Artifact Hub: `charts/artifacthub-repo.yml` and PUBLISHING.md lose the stale "private registry" notes (both chart packages pull anonymously), and the metadata push now follows Artifact Hub's OCI rule: one repository per chart, file pushed to `ghcr.io/telark/charts/telark:artifacthub.io`. Registered on Artifact Hub as `telark` (the ID in the file comes from its control panel) and the metadata pushed (anonymous read OK; the chart versions untouched)
+
 ### New follow-ups (post-MVP, found 2026-10-02)
 - FT11: deleting a user leaves its pending link keys in Redis until they expire (at most 1 h); the link already answers like any dead link
+- FT17 (FT11 family): deleting a user leaves its notifications in Redis for good (`notif:user:<id>:items`, `:unread_count` and the notices, no expiry)
 - FT12: a link that was opened but not finished keeps "Invite pending" until it expires (the invite clears only when a passkey is stored)
 - FT13: auth's 403s carry no error code, so the UI matches the recovery refusal on its text
 - FT14: an existing TelarkConfig without `selfRegistration` shows no such key in `GET config` until it is first saved (auth and the UI read it as off)
@@ -225,10 +243,11 @@
 - FU11: after a self-registration flip, a tab's cached auth config (5 min) still drives its login and register pages
 - FU12: `BOOTSTRAP_PILL.TOOLTIP` contains a semicolon; the Members row action buttons hide keyboard focus (`outline: none`); `UsersTable` is exported but unused
 - FD1: `services/exporter/README.md` spells the deny rule `controlaiinsights` (code: `controlainsights`)
-- FT15 (FT1 family): auth's Google callback logs `[ERROR]` for its expected 409 refusals (`handlers/oidc/callback.go`, `shared.HandleError`)
-- FT16: an invalid `ENROLL_INVITE_TTL_SEC` warns under the cleanup logger with a "[cleanup]" tag, because `envSeconds` is shared with the cleanup tunables
-- FU13: six settings sections repeat the toolbar key `'save'`, and three hints repeat `fontSize: 12`, inline; move both to `SETTINGS_CONSTANTS`
-- FD2: `.github/workflows/build-service.yaml` keeps one "cancelled" comment (any edit under `.github/` takes the action-pin audit); `CHANGELOG.md` keeps British words from old commit subjects (git-cliff generates it)
+- FT15 (FT1 family): auth's Google callback logs `[ERROR]` for its expected 409 refusals and for the 403 that refuses Google sign-in for the bootstrap account (`handlers/oidc/callback.go:136`, `shared.HandleError`)
+- FU14: a disabled toolbar button (the settings Save buttons, for example) jumps to full opacity when the mouse leaves it: `onMouseLeave` lacks the disabled check `onMouseEnter` has (`components/display/toolbar/Toolbar.tsx`)
+- ~~FT16: an invalid `ENROLL_INVITE_TTL_SEC` warns under the cleanup logger with a "[cleanup]" tag, because `envSeconds` is shared with the cleanup tunables~~ done 2026-10-02c
+- ~~FU13: six settings sections repeat the toolbar key `'save'`, and three hints repeat `fontSize: 12`, inline; move both to `SETTINGS_CONSTANTS`~~ done 2026-10-02c
+- ~~FD2: `.github/workflows/build-service.yaml` keeps one "cancelled" comment (any edit under `.github/` takes the action-pin audit); `CHANGELOG.md` keeps British words from old commit subjects (git-cliff generates it)~~ done 2026-10-02c (`CHANGELOG.md` left as generated)
 
 ## Follow-ups (post-MVP)
 - FT1: exporter body-validation 400s still log `[ERROR]`: `handlers/categories/handler.go:33`, `handlers/plans/protection/handler.go:174`, `handlers/resources/{group/handler.go:50, role/handler.go:42, user/handler.go:51}`, `utils/classification/category/validate.go:84`, `utils/resources/group/{patch.go:45, validate.go:17}`, `utils/resources/user/patch.go:46`
@@ -250,6 +269,8 @@
 - FU6: with roles read but no groups read, Manage Roles "From Groups" is empty instead of the groups no-access card, and the users-list role count leaves out group-inherited roles (pre-existing)
 - FU7: the '—' empty value is defined in 7 feature constants files plus `ACTORS.NONE`, and inline in `SessionsTable.tsx:159` and `ViolationsSection.tsx:138, :232`: one root constant
 - FU8: when the users list fails to load, the Members toolbar still says "0 members" next to the error card
+- Redis TLS in transit: the subchart's generated certificate never rotates and its SANs miss the short service name; needs cert-manager or an operator-supplied `tls.existingSecret`, plus TLS in `x-ware/redis/core` and the analyzer
+- Redis per-service ACL users: the subchart renders them from `lookup` (no password on a fresh or cluster-less install) and services share keyspaces without a per-service prefix map (FT5)
 - Kyverno API types: `internal/data/policies` and 6 discovery plan files import Kyverno's v1 API, which pulls the cosign and cloud-provider SDKs (data tests build 1,846 packages instead of 339, discovery binary 2,169 instead of 1,009). Proposal: local JSON-identical types for the 18 types used, the real types only in discovery's `kyverno_accepts_test.go`, plus a rendered-policies-unchanged test
 
 ## Next (MVP)

@@ -123,6 +123,13 @@ spec:
                   name: {{ include "telark.serviceTokenSecretName" $root }}
                   key: token
 {{- end }}
+{{- if $useRedis }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "telark.redisSecretName" $root }}
+                  key: {{ $root.Values.redis.auth.existingSecretPasswordKey | default "redis-password" }}
+{{- end }}
             - name: POD_IP
               valueFrom:
                 fieldRef:

@@ -114,7 +114,7 @@ jobs:
 
   build:
     needs: [gate-go, gate-analyzer]
-    # A skipped gate is expected (only one kind runs); a failed or cancelled
+    # A skipped gate is expected (only one kind runs); a failed or canceled
     # gate must block the build.
     if: ${{ always() && !failure() && !cancelled() }}
     runs-on: ubuntu-latest

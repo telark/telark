@@ -193,12 +193,13 @@ func GuardUserCreate(w http.ResponseWriter, r *http.Request, body map[string]any
 		groupsWithinCaller(w, identity, stringsOf(body[constants.FieldGroupRefs]), constants.ErrAuthzAssignedRoleExceedsCaller)
 }
 
-// The invite is auth's record of a link it issued and of who issued it; a session
+// The invite is auth's record of a link it issued, who issued it and when one was used; a session
 // could otherwise show a pending invite no link backs, or hide one that is live.
 func carriesInvite(body map[string]any) bool {
 	status, isMap := body[constants.FieldStatus].(map[string]any)
 	_, present := status[constants.FieldInvite]
-	return isMap && present
+	_, accepted := status[constants.FieldInviteAcceptedAt]
+	return isMap && (present || accepted)
 }
 
 func isEmptyValue(value any) bool {

@@ -185,13 +185,14 @@ func TestGuardUserCreateRefusesBootstrapFlag(t *testing.T) {
 	}
 }
 
-// Auth writes the invite with the service token; a session, Admin on ALL included,
-// may neither forge one on a create or a patch nor clear a live one.
+// Auth writes the invite and its use time with the service token; a session, Admin on ALL
+// included, may neither forge either on a create or a patch nor clear a live invite.
 func TestUserInviteIsReservedToServices(t *testing.T) {
 	victim := userHolding(victimID, nil, nil)
 	bodies := map[string]map[string]any{
-		"forged":  {constants.FieldStatus: map[string]any{constants.FieldInvite: map[string]any{"issuedBy": callerID}}},
-		"cleared": {constants.FieldStatus: map[string]any{constants.FieldInvite: nil}},
+		"forged":      {constants.FieldStatus: map[string]any{constants.FieldInvite: map[string]any{"issuedBy": callerID}}},
+		"cleared":     {constants.FieldStatus: map[string]any{constants.FieldInvite: nil}},
+		"marked used": {constants.FieldStatus: map[string]any{constants.FieldInviteAcceptedAt: deletedTimestamp}},
 	}
 	for name, body := range bodies {
 		t.Run(name, func(t *testing.T) {

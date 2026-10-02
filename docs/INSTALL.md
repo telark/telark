@@ -50,7 +50,7 @@ The bootstrap account belongs to the chart. The API refuses to delete or suspend
 
 ### Enrollment links
 
-An enrollment link lets someone register a passkey on an account an admin created for them (Members, row action "Create enroll link"). The dashboard shows the link once; it works once, for that account only, and expires after an hour by default. Creating a new link revokes the previous one, and the link can be revoked from the same row. Until the user enrolls, Members marks the account "Invite pending", or "Invite expired" once the link has lapsed. Change the lifetime, in seconds, with:
+An enrollment link lets someone register a passkey on an account an admin created for them (Members, row action "Create enroll link"). The dashboard shows the link once; it works once, for that account only, and expires after an hour by default. The link carries the account's email, which the register page fills in. Creating a new link revokes the previous one, and the link can be revoked from the same row. Until the user enrolls, Members marks the account "Invite pending", or "Invite expired" once the link has lapsed, and "Enrolled" once a passkey closed the link. Change the lifetime, in seconds, with:
 
 ```sh
 --set services.auth.env.ENROLL_INVITE_TTL_SEC=86400
@@ -286,6 +286,7 @@ The bundled dependencies ship production-grade defaults for every mode, so you r
 | `redis.image.digest` | pinned | Bitnami publishes only `bitnami/redis:latest`, so the chart pins one build by digest. To take a newer build, resolve the current digest (`docker buildx imagetools inspect bitnami/redis:latest`) and pass `--set redis.image.digest=sha256:<digest>` |
 | `redis.master.persistence.size` | `4Gi` | Redis PVC size |
 | `redis.master.resources.limits.memory` | `512Mi` | Redis memory limit (requests `100m` / `128Mi`); see the note below |
+| `redis.auth.existingSecret` | `<release>-redis-secret` | Secret with the Redis password (key `redis-password`), generated on install and read back on upgrade; name your own for cluster-less renders ([GitOps](#gitops-cluster-less-renders)). Redis always requires the password: `redis.auth.enabled=false` fails the render |
 | `nats.persistence.size` | `4Gi` | NATS JetStream PVC size |
 | `nats.existingSecrets.publisher` / `consumer` | `""` | Secrets (keys `username`, `password`) you manage instead of the generated NATS users ([GitOps](#gitops-cluster-less-renders)) |
 | `kyverno.admissionController.replicas` | `2` | Kyverno admission replicas |
@@ -460,7 +461,7 @@ A Kyverno ClusterPolicy stamps `telark.io/last-modified-{by,at,operation}` on th
 
 ### GitOps (cluster-less renders)
 
-The chart generates the service token and the two NATS users' passwords on install and reads them back on upgrade with `lookup`. Argo CD, Flux and other `helm template` pipelines render without a cluster, so `lookup` returns nothing and every sync would produce new values: pods that restart on the new token can no longer reach their peers. Create the Secrets yourself and point the chart at them:
+The chart generates the service token, the two NATS users' passwords and the Redis password on install and reads them back on upgrade with `lookup`. Argo CD, Flux and other `helm template` pipelines render without a cluster, so `lookup` returns nothing and every sync would produce new values: pods that restart on the new token can no longer reach their peers. Create the Secrets yourself and point the chart at them:
 
 ```sh
 kubectl create secret generic telark-service-token -n telark \
@@ -469,12 +470,15 @@ kubectl create secret generic telark-nats-publisher -n telark \
   --from-literal=username=publisher --from-literal=password="$(openssl rand -hex 24)"
 kubectl create secret generic telark-nats-consumer -n telark \
   --from-literal=username=consumer --from-literal=password="$(openssl rand -hex 24)"
+kubectl create secret generic telark-redis-password -n telark \
+  --from-literal=redis-password="$(openssl rand -hex 24)"
 ```
 
 ```sh
 --set app.serviceToken.existingSecret=telark-service-token \
 --set nats.existingSecrets.publisher=telark-nats-publisher \
---set nats.existingSecrets.consumer=telark-nats-consumer
+--set nats.existingSecrets.consumer=telark-nats-consumer \
+--set redis.auth.existingSecret=telark-redis-password
 ```
 
 The OIDC trust Secret (the optional Google JWK set, key `googleJwkJson`) is rendered the same way, so every sync would empty it. Create it yourself and point the chart at it. The exporter updates it when an Admin saves the JWK set in the dashboard (saving `googleJwkJson: ""` clears it), and the CRD write guard and the exporter's RBAC cover the name you pass:
@@ -515,6 +519,7 @@ Pass the same `--set` and `-f` flags you used at install: Helm does not remember
 - **When switching modes.** A single-node install runs one exporter replica on a ReadWriteOnce claim, and Kubernetes cannot change a bound claim's access mode or class. Add `--set app.singleNode=true` to keep that claim (one replica, Recreate). To move to two replicas on ReadWriteMany, uninstall, delete the `telark-exporter-snapshots-pvc` claim (snapshots are lost; copy `/snapshots` off the pod first if you need them), then reinstall with `--set app.persistence.storageClass=<rwx-class>`. The same applies when switching between `minimal` and `standard`/`performance`, or toggling `app.singleNode`.
 - **CRDs managed out of band** (`crds.enabled=false`): upgrade `telark-crds` before `telark` ([chart README](../charts/telark/README.md#upgrade-order)).
 - **Self-registration moved to Settings.** `app.auth.passkey.selfRegistration` is removed (the schema rejects it, so drop it from your flags) and self-registration starts off whatever it was before; the bootstrap admin turns it on in Settings. `app.auth.bootstrap.admin` is now required whenever the auth service runs: an install that had none sets it, then runs the break-glass command of [First admin](#2-first-admin), which also marks an existing account with that email as the bootstrap admin.
+- **Redis requires a password.** The upgrade generates `telark-redis-secret` and restarts Redis and every service that uses it once; Redis keeps its data. Cluster-less renders create the Secret first ([GitOps](#gitops-cluster-less-renders)). Drop `redis.auth.enabled=false` and `redis.auth.password` from your flags: the render refuses both.
 
 ## Uninstall
 
@@ -526,7 +531,7 @@ helm uninstall telark -n telark
 
 This removes every Telark service, the bundled policy engine with its webhooks and plan policies, and the exporter's snapshot and report PVCs. The pre-delete hooks run `app.kubectlImage`, so air-gapped clusters must mirror it.
 
-Your data stays: the CRDs and custom resources (users, roles, plans and the rest), the service-token, NATS and OIDC Secrets, the Redis and NATS volumes, and the Ollama model volume. A reinstall picks up where you left off.
+Your data stays: the CRDs and custom resources (users, roles, plans and the rest), the service-token, NATS, Redis and OIDC Secrets, the Redis and NATS volumes, and the Ollama model volume. A reinstall picks up where you left off.
 
 With an external policy engine (`app.kyverno.enabled=false`), also remove the plan policies, which would otherwise keep enforcing:
 

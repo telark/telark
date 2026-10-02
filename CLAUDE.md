@@ -28,7 +28,7 @@ Detail: [docs/architecture/](docs/architecture/README.md).
 - Everything that persists goes through the **exporter's HTTP API** (`rest` clients, `/api/v1/...`, port 8080). Only the exporter writes telark CRDs; discovery also patches `applications/status`.
 - **discovery** watches the cluster, publishes application events to NATS, stores snapshots and history through the exporter, pushes analysis jobs to the Redis stream `insights:jobs`, and creates and deletes the Kyverno `Policy` objects of active plans.
 - **auth** produces sessions; every other API service validates them through the same `x-ware` middleware (the analyzer asks auth).
-- Redis is shared coordination and cache (leader locks, queues, dedup, insights, authz cache) and is **untrusted**: no auth, so authorization cache entries are HMAC-signed.
+- Redis is shared coordination and cache (leader locks, queues, dedup, insights, authz cache). It requires a password (chart-generated Secret, `REDIS_PASSWORD`) but stays **untrusted**, since every service holds it: authorization cache entries are HMAC-signed.
 
 ## Security model (essentials)
 

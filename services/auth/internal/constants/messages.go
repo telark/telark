@@ -70,6 +70,7 @@ const (
 	LogCleanupManagerStarted      messages.Message = "[cleanup] manager started: workersPerType=%d"
 	LogCleanupManagerStopped      messages.Message = "[cleanup] manager stopped"
 	LogCleanupEnvInvalid          messages.Message = "[cleanup] %s must be a positive integer, using the default %d"
+	LogEnvInvalid                 messages.Message = "%s must be a positive integer, using the default %d"
 	LogBackfillFinalizersStarted  messages.Message = "[backfill] finalizers started: batchSize=%d pauseMs=%d"
 	LogBackfillFinalizersDone     messages.Message = "[backfill] finalizers done: scanned=%d patched=%d skipped=%d"
 	ErrCleanupEnqueueFailed       messages.Message = "[cleanup] enqueue failed: type=%s id=%s err=%v"

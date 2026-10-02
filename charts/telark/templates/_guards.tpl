@@ -13,4 +13,7 @@ render instead, with the value to set.
 {{- if and .Values.app.kyverno.enabled (ne (toString .Values.app.kyverno.failOpen) (toString .Values.kyverno.features.forceFailurePolicyIgnore.enabled)) -}}
 {{- fail (printf "app.kyverno.failOpen=%v but kyverno.features.forceFailurePolicyIgnore.enabled=%v. Helm cannot pass one to the other, so set both to the same value." .Values.app.kyverno.failOpen .Values.kyverno.features.forceFailurePolicyIgnore.enabled) -}}
 {{- end -}}
+{{- if or (not .Values.redis.auth.enabled) (not .Values.redis.auth.existingSecret) .Values.redis.auth.password -}}
+{{- fail "Redis must require a password kept in a Secret: keep redis.auth.enabled=true, leave redis.auth.password empty, and leave redis.auth.existingSecret at its default (the chart-generated <release>-redis-secret) or name a Secret you manage (key redis-password)." -}}
+{{- end -}}
 {{- end -}}

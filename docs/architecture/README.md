@@ -12,7 +12,7 @@ How the services depend on each other and how data and control move between them
 | notifier | Go | none | exporter, discovery (reset); NATS consume; Redis heartbeat |
 | analyzer | Python | insights in Redis (`analyzer:*`) | auth (permissions), exporter (read), Kubernetes API (read), Ollama, Redis |
 | ui | nginx + SPA (separate repo) | none | the service APIs |
-| Redis | subchart, no auth | coordination, queues, caches | |
+| Redis | subchart, password from a chart-generated Secret | coordination, queues, caches | |
 | NATS JetStream | subchart, password auth | stream `telark_applications` | |
 | Kyverno | subchart | admission webhooks | |
 | Ollama | subchart | model files | |

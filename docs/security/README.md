@@ -13,7 +13,7 @@ Paths starting `x-ware/`, `data/` or `rest/` are in the shared Go packages under
 | Service → Kubernetes API | the service's own ServiceAccount | chart RBAC, see [Kubernetes privileges](#kubernetes-privileges) |
 | Anyone → Telark CRDs directly | Kubernetes identity | CRD write guard (`app.crdGuard`), on and enforcing by default |
 | Workload changes → cluster | Kubernetes identity | Kyverno policies rendered from active protection plans |
-| Services → Redis | none (Redis runs without auth) | treated as untrusted: authorization cache entries are HMAC-signed |
+| Services → Redis | password from a chart-generated Secret (`REDIS_PASSWORD`) | Redis itself (the chart refuses `redis.auth.enabled=false`) and its NetworkPolicy; still treated as untrusted: authorization cache entries are HMAC-signed |
 | discovery, notifier → NATS | user and password from a chart-generated Secret | NATS server authorization in `charts/telark/values.yaml` (`nats:`) |
 | analyzer → Ollama | none | `templates/shared/ollama-networkpolicy.yaml`: only analyzer pods reach port 11434 |
 | auth → Google (optional) | none; Google's JWKS verifies ID tokens | only when `TelarkConfig.oidc.egressAllowed` is set |
@@ -122,7 +122,7 @@ Route requirements decide who may call a route; guards decide what the caller ma
   - Nobody changes their own roles, groups or status, or adds or removes themselves as a group member.
   - A role you assign or author may not exceed your own level on any scope (`ALL` counts for every scope). Adding a member to a group, from either side, is capped the same way by every role the group carries. A role patch that changes `status`, `validity` or `scopesAndPermissions` is capped against the role as it will be stored, so an inactive or expired role above you can't be switched back on.
   - Taking a role away is capped like granting it: removing it from a user, detaching it from a group, removing a member from a group that carries it (from either side), editing `status`, `validity` or `scopesAndPermissions` of a stored role above you, and deleting a role or a group through the exporter's `DELETE accessroles/{id}` and `groups/{id}` (auth's cleanup DELETE routes call these as Internal, so they get the cap once auth checks it itself).
-  - Creating a user with roles, groups or a status needs the same rights, and the `bootstrap` field can't be set through the API. `status.invite` is written only by services, on a create as on a patch (403 from a session).
+  - Creating a user with roles, groups or a status needs the same rights, and the `bootstrap` field can't be set through the API. `status.invite` and `status.inviteAcceptedAt` are written only by services, on a create as on a patch (403 from a session).
   - Identity fields: `identities` is set only by services (Internal), never from a session; `email` and `username` are changed only by the account owner. Resending the stored value unchanged is allowed.
   - Sessions can't create or patch a role with `type: built-in`; `protection` follows the role protection rules above. Deny rules are stored in lower case on write.
   - Request bodies on the user, group, role, category, protection-plan and cleanup-finalizer write routes are refused (400) when a key is not exactly a JSON field name of the record (`CheckCanonicalKeys` in `services/exporter/internal/utils/shared/keys.go`): `encoding/json` matches keys case-insensitively, the guards read exact keys, so a case variant must never reach the decoder.
@@ -153,7 +153,7 @@ No service can create RBAC objects, escalate, bind or impersonate. Discovery's w
 - **CRD write guard** (`templates/policies/crd-admission-policy.yaml`, `app.crdGuard`, on and enforcing by default): a ValidatingAdmissionPolicy that matches every resource and subresource of `telark.io` (`*/*`, which covers status writes too) in every namespace (the binding has no namespace selector) and allows writes only from the exporter ServiceAccount (and `extraAllowedUsers`), plus discovery for `applications` with subresource `status`. A second policy guards the Secret `telark-oidc-trust-secret` by name, so namespace `edit` rights (which include Secrets) cannot plant a JWK set and mint OIDC logins. `enforce: false` only audits. The CRD schemas also pin `Session` names to `session-<64 hex>` and `User` `spec.status.phase` to `active`, `inactive` or `suspended`.
 - **Network** (`templates/shared/networkpolicy.yaml`, `app.networkPolicy.enabled`, on by default): ingress default deny for every Telark pod; the service APIs accept only telark pods of the same release; ui accepts any source on its port; NATS accepts discovery and notifier on 4222 only (6222 between NATS pods) and runs no monitoring listener (the NATS Services still list 8222). Ollama's policy admits analyzer pods only (egress DNS, plus 443 when `app.ollama.autoPull` is on), the Redis subchart's admits clients labeled `<release>-redis-client`. Egress is open. None of it applies without a CNI that enforces NetworkPolicy.
 - **NATS users**: discovery connects as the publisher (publish `telark.applications.*`, subscribe `_INBOX.>` for JetStream acks), notifier as the consumer (publish `$JS.API.>` and `$JS.ACK.>`, subscribe `telark.applications.*` and `_INBOX.>`), each from its own Secret.
-- **Chart-generated secrets** (service token, NATS users) carry `helm.sh/resource-policy: keep`; cluster-less renders use `app.serviceToken.existingSecret` and `nats.existingSecrets` instead of `lookup` ([INSTALL.md](../INSTALL.md#gitops-cluster-less-renders)).
+- **Chart-generated secrets** (service token, NATS users, Redis password) carry `helm.sh/resource-policy: keep`; cluster-less renders use `app.serviceToken.existingSecret`, `nats.existingSecrets` and `redis.auth.existingSecret` instead of `lookup` ([INSTALL.md](../INSTALL.md#gitops-cluster-less-renders)).
 
 ## Invariants
 
@@ -177,7 +177,7 @@ Never bypass, weaken or work around these. A change that needs to is a design ch
 Facts an operator or reviewer should not assume otherwise:
 
 - No request rate limiting or login lockout in any service.
-- Redis runs without authentication; don't enable `redis.auth.enabled` (the services get no password, see SECURITY.md).
+- Redis traffic is not encrypted (no TLS); it stays inside the release namespace, behind Redis's password and NetworkPolicy.
 - A cluster admin, or anyone who may delete ValidatingAdmissionPolicies, can remove the CRD write guard; no Telark ServiceAccount can.
 - Kyverno fails open unless the operator sets `app.kyverno.failOpen=false`.
 - NetworkPolicies restrict ingress only; egress from every Telark pod is open.

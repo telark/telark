@@ -207,8 +207,8 @@ func TestInviteLinkOpensOneRegistration(t *testing.T) {
 			token := issueLink(t, plainTargetID, usersOwner()).Token
 			revokeLink(t, plainTargetID, usersOwner())
 			testutil.Equal(t, "per-user key after revoke", redisServer.Exists(inviteOfKeyPrefix+plainTargetID), false)
-			if invite := fake.User(plainTargetID).Status.Invite; invite != nil {
-				t.Fatalf("invite still stored after revoke: %+v", invite)
+			if status := fake.User(plainTargetID).Status; status.Invite != nil || status.InviteAcceptedAt != constants.EmptyString {
+				t.Fatalf("invite still stored, or marked used, after revoke: %+v", status)
 			}
 			return token
 		}},
@@ -298,8 +298,8 @@ func TestRecoveryLinksNoticeTheAccount(t *testing.T) {
 	}
 }
 
-// Enrolling through the link ends the invite: the pending marker is cleared and no link
-// stays live, and an account that already had a passkey is told one was added.
+// Enrolling through the link ends the invite: the pending marker gives way to the time it was used,
+// no link stays live, and an account that already had a passkey is told one was added.
 func TestEnrollmentThroughTheLinkClosesTheInvite(t *testing.T) {
 	initWebAuthn(t)
 	cases := []struct {
@@ -328,8 +328,12 @@ func TestEnrollmentThroughTheLinkClosesTheInvite(t *testing.T) {
 			passkeyhandler.CreatePasskey(rec, finish)
 			testutil.Equal(t, "finish", rec.Code, http.StatusCreated)
 
-			if invite := fake.User(c.target).Status.Invite; invite != nil {
-				t.Fatalf("invite still pending after enrollment: %+v", invite)
+			status := fake.User(c.target).Status
+			if status.Invite != nil {
+				t.Fatalf("invite still pending after enrollment: %+v", status.Invite)
+			}
+			if _, err := time.Parse(time.RFC3339, status.InviteAcceptedAt); err != nil {
+				t.Fatalf("inviteAcceptedAt = %q, want the enrollment time", status.InviteAcceptedAt)
 			}
 			testutil.Equal(t, "per-user key", redisServer.Exists(inviteOfKeyPrefix+c.target), false)
 			notices := fake.Notices()

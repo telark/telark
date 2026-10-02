@@ -47,6 +47,7 @@ const (
 	UserFieldStatus               = "status"
 	UserStatusFieldLastLoginAt    = "lastLoginAt"
 	UserStatusFieldInvite         = "invite"
+	UserStatusFieldInviteAccepted = "inviteAcceptedAt"
 	IdentityHashLength            = 8
 	IdentityHashUnknown           = "unknown"
 	TokenStatusValid              = "valid"

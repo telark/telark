@@ -443,6 +443,8 @@ func TestCRDsDeclareTheNewFields(t *testing.T) {
 	}{
 		{crdUsers, []string{keySpec, keyStatus, constants.FieldInvite},
 			userdata.Invite{IssuedAt: stampTime, ExpiresAt: stampTime, IssuedBy: callerID}},
+		{crdUsers, []string{keySpec, keyStatus},
+			userdata.UserStatus{Phase: phaseSuspended, InviteAcceptedAt: stampTime}},
 		{crdConfigs, []string{keySpec, telarkconfig.FieldSelfRegistration},
 			telarkconfig.SelfRegistrationConfig{Enabled: true}},
 	}

@@ -32,6 +32,7 @@ const (
 	fakeKeyVersion    = "resourceVersion"
 	fakeKeySpec       = "spec"
 	fakeKeyInvite     = "invite"
+	fakeKeyAccepted   = "inviteAcceptedAt"
 	fakeConfigVersion = "1"
 )
 
@@ -92,7 +93,7 @@ func (f *FakeExporter) serveUser(w http.ResponseWriter, r *http.Request, id stri
 	}
 }
 
-// The exporter merges a phase-less status, so only the invite it carries changes.
+// The exporter merges a phase-less status, so only the invite fields it carries change.
 func patchUser(w http.ResponseWriter, r *http.Request, user *userresource.User) {
 	var body map[string]any
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -110,6 +111,9 @@ func patchUser(w http.ResponseWriter, r *http.Request, user *userresource.User) 
 			fakeReply(w, http.StatusBadRequest, nil)
 			return
 		}
+	}
+	if accepted, isString := status[fakeKeyAccepted].(string); isString {
+		user.Status.InviteAcceptedAt = accepted
 	}
 	fakeReply(w, http.StatusOK, user)
 }

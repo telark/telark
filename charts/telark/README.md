@@ -63,6 +63,7 @@ The tables below explain the values that matter. The generated index of every ke
 | `app.serviceToken.value` | `""` | Service token; empty = generated on install, read back on upgrade |
 | `app.serviceToken.existingSecret` | `""` | Secret (key `token`) you manage instead of the generated one, for cluster-less renders. See [GitOps](../../docs/INSTALL.md#gitops-cluster-less-renders) |
 | `nats.existingSecrets.publisher` / `consumer` | `""` | Secrets (keys `username`, `password`) for the NATS publisher (discovery) and consumer (notifier) users instead of the generated `<app.name>-nats-{publisher,consumer}-secret`. See [GitOps](../../docs/INSTALL.md#gitops-cluster-less-renders) |
+| `redis.auth.existingSecret` | `<release>-redis-secret` | Secret with the Redis password (key `redis-password`), generated on install and read back on upgrade; name a Secret you manage for cluster-less renders. Redis always requires the password: `redis.auth.enabled=false` fails the render. See [GitOps](../../docs/INSTALL.md#gitops-cluster-less-renders) |
 | `metrics-server.args` | `[]` | Flags added after the subchart's `defaultArgs` (which already set `--kubelet-preferred-address-types`). Kubelet certificates are verified; add `--kubelet-insecure-tls` only where they are self-signed. See [metrics-server kubelet TLS](../../docs/INSTALL.md#metrics-server-kubelet-tls) |
 | `app.ollama.enabled` | `true` | Install the ollama subchart, the local model runtime the analyzer needs; `false` skips it (for example with `app.ollama.runtimeUrl`). Sized once for every mode. See [Analyzer runtime (ollama)](#analyzer-runtime-ollama) |
 | `app.ollama.autoPull` | `true` | Let the analyzer pull a missing model (and allow ollama HTTPS egress); `false` for air-gapped installs |
@@ -118,12 +119,13 @@ Fallbacks for any `services.<svc>.*` key omitted.
 
 Pod-level config selectively applied via per-service gates.
 
-**`app.shared.redis`**: mounted as `envFrom: configMapRef: <app.name>-redis-cm` when `useRedis: true` (default).
+**`app.shared.redis`**: mounted as `envFrom: configMapRef: <app.name>-redis-cm` when `useRedis: true` (default), together with `REDIS_PASSWORD` from the Secret named by `redis.auth.existingSecret`.
 
 | Variable | Default | Description |
 |---|---|---|
 | `REDIS_HOST` | `<release>-redis-master` | Redis service DNS name (templated on the release name) |
 | `REDIS_PORT` | `6379` | Redis port |
+| `REDIS_PASSWORD` | from `<release>-redis-secret` | `secretKeyRef`, never in the ConfigMap |
 
 **`app.shared.resources`**: applied when `includeResources: true` (default).
 
@@ -188,7 +190,7 @@ Per-service block. Gates default to `true` unless noted.
 | `serviceToken` | `true` | Inject the shared service token as `TELARK_SERVICE_TOKEN`; `false` on ui, whose nginx only proxies browser calls and never calls a service itself |
 | `serviceAccount.create` / `serviceAccount.name` / `serviceAccount.annotations` | `create: true` | Per-service ServiceAccount control |
 | `nodeSelector` / `tolerations` / `affinity` | `app.serviceDefaults.*` | Scheduling overrides |
-| `useRedis` | `true` | Mount `app.shared.redis` configmap |
+| `useRedis` | `true` | Mount `app.shared.redis` and `REDIS_PASSWORD` |
 | `useNatsCreds` | `false` | Mount `app.shared.nats` and the NATS credentials of `natsUser` |
 | `natsUser` | unset | `publisher` (discovery) or `consumer` (notifier); required with `useNatsCreds` |
 | `env` | `{}` | Inline env map; values pass through `tpl` against `.Values` |

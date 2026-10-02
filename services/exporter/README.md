@@ -178,8 +178,9 @@ only by its creator or an Admin on ALL (403 otherwise). A role created without `
 ignored. Deleting a role with `protection.softDelete` keeps it with `status: Deleted` and `deletedAt`,
 so it grants nothing; `preventDeletion` refuses the delete (403). Deny rules are stored lower-cased. `identities` on a user is Internal only, and `email` / `username` are changed
 only by the account owner (403 otherwise; resending the stored value is allowed). `status.invite`
-(auth's record of a pending enrollment link) is reserved like `bootstrap`: a session create or patch
-carrying it, even as `null`, answers 403. Internal callers are exempt.
+(auth's record of a pending enrollment link) and `status.inviteAcceptedAt` (when a passkey closed one)
+are reserved like `bootstrap`: a session create or patch carrying either, even as `null`, answers 403.
+Internal callers are exempt.
 
 Request bodies on the user, group, role, category and protection-plan create and patch routes must use
 the exact JSON field names: an unknown or differently cased key (`RoleRefs`, `status.Phase`)

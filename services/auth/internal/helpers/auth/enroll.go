@@ -81,7 +81,7 @@ func IssueInvite(targetID, issuerID string) (token string, expiresAt time.Time, 
 		ExpiresAt: expiresAt.Format(constants.TimeFormatRFC3339),
 		IssuedBy:  issuerID,
 	}
-	if err := setInvite(targetID, invite); err != nil {
+	if err := setInvite(targetID, invite, constants.EmptyString); err != nil {
 		return constants.EmptyString, time.Time{}, err
 	}
 	if hasPasskeys, _ := CheckUserHasExistingPasskeys(targetID); hasPasskeys {
@@ -92,6 +92,11 @@ func IssueInvite(targetID, issuerID string) (token string, expiresAt time.Time, 
 }
 
 func RevokeInvite(targetID string) error {
+	return closeInvite(targetID, constants.EmptyString)
+}
+
+// acceptedAt, when set, is stored in the same write that clears the invite.
+func closeInvite(targetID, acceptedAt string) error {
 	rdb := redishelper.GetClient()
 	if rdb == nil {
 		return errors.New(string(constants.ErrRedisClientUnavailable))
@@ -103,16 +108,16 @@ func RevokeInvite(targetID string) error {
 	if err := revokeInviteScript.Run(ctx, rdb, keys, constants.RedisKeyPrefixInvite).Err(); err != nil {
 		return fmt.Errorf(string(constants.ErrFailedRevokeInvite), err.Error())
 	}
-	return setInvite(targetID, nil)
+	return setInvite(targetID, nil, acceptedAt)
 }
 
-// A stored passkey ends a pending invite however it was enrolled: a link issued while the account
-// had none must not add another later. Its owner hears about a passkey added through a link.
+// A stored passkey ends a pending invite however it was enrolled (a link issued while the account had
+// none must not add another later) and records when. Its owner hears about a passkey added through a link.
 func CompleteInvite(user *userresource.User, enrolled bool) {
 	if user.Status.Invite == nil {
 		return
 	}
-	if err := RevokeInvite(user.ID); err != nil {
+	if err := closeInvite(user.ID, time.Now().UTC().Format(constants.TimeFormatRFC3339)); err != nil {
 		lg.Warn(fmt.Sprintf(string(constants.WarnInviteCloseFailed), shared.IdentityHash(user.ID), err))
 	}
 	if !enrolled {
@@ -148,10 +153,12 @@ func ResolveEnrollToken(token string) (string, error) {
 }
 
 // No phase in the status: the exporter merges it, so phase and lastLoginAt stay as stored.
-func setInvite(userID string, invite *userresource.Invite) error {
-	resp := clients.GetUserClient().PatchUserByID(userID, map[string]any{
-		constants.UserFieldStatus: map[string]any{constants.UserStatusFieldInvite: invite},
-	})
+func setInvite(userID string, invite *userresource.Invite, acceptedAt string) error {
+	status := map[string]any{constants.UserStatusFieldInvite: invite}
+	if acceptedAt != constants.EmptyString {
+		status[constants.UserStatusFieldInviteAccepted] = acceptedAt
+	}
+	resp := clients.GetUserClient().PatchUserByID(userID, map[string]any{constants.UserFieldStatus: status})
 	if resp.Status == http.StatusOK {
 		return nil
 	}

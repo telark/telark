@@ -133,5 +133,9 @@ spec:
                         issuedBy:
                           type: string
                           description: User ID of the account that created the link
+                    inviteAcceptedAt:
+                      type: string
+                      description: When a passkey closed the last pending enrollment link (the account enrolled), written by auth
+                      format: date-time
                 {{- include "dateFieldsSchema" . | nindent 16 }}
 

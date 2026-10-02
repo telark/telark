@@ -683,6 +683,7 @@ def test_serve_builds_app_and_graceful_config(monkeypatch):
 
     monkeypatch.setattr(main.aioredis.Redis, "from_url", from_url)
     monkeypatch.setattr(main.uvicorn, "Server", Server)
+    monkeypatch.setattr(main, "REDIS_PASSWORD", "test-password")
     asyncio.run(main.serve())
 
     config = seen["config"]
@@ -690,7 +691,11 @@ def test_serve_builds_app_and_graceful_config(monkeypatch):
     assert config.timeout_graceful_shutdown == 5
     assert config.app.state.redis is fake
     assert config.app.router.lifespan_context is not None
-    assert seen["redis"][1] == {"max_connections": main.REDIS_POOL_SIZE, "decode_responses": True}
+    assert seen["redis"][1] == {
+        "password": "test-password",
+        "max_connections": main.REDIS_POOL_SIZE,
+        "decode_responses": True,
+    }
 
 
 def test_run_configures_logging_then_serves(monkeypatch):

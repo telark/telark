@@ -144,6 +144,7 @@ const (
 	FieldStatus                                 = "status"
 	FieldPhase                                  = "phase"
 	FieldInvite                                 = "invite"
+	FieldInviteAcceptedAt                       = "inviteAcceptedAt"
 	FieldID                                     = "id"
 	FieldGeneration                             = "generation"
 	FieldName                                   = "name"

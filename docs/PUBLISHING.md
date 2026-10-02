@@ -1,9 +1,7 @@
 # Publishing the Helm charts
 
-Telark ships two charts, `telark` (the app) and `telark-crds`, as OCI artifacts in
-GitHub Container Registry: `oci://ghcr.io/telark/charts`. GHCR packages are private by
-default, so the steps below test the full private publish, pull and deploy path before
-anything is made public.
+Telark ships two charts, `telark` (the app) and `telark-crds`, as public OCI artifacts in
+GitHub Container Registry: `oci://ghcr.io/telark/charts`.
 
 - **Automated:** run *Release · Publish Charts* with `chart` (`both`, `telark`, `telark-crds`) and `bump` (`patch`, `minor`, `major`). Don't edit the versions in `Chart.yaml` first: the workflow bumps each selected chart from its own current version, writes it to `Chart.yaml`, packages, pushes and **cosign-signs** it (telark-crds first), then commits the change. A version already in the registry fails the run before anything is pushed. See [`.github/workflows/release-charts.yaml`](../.github/workflows/release-charts.yaml).
   - `appVersion` is the Telark release: telark's follows its new `version`, and telark-crds takes the same value when released with telark (`chart=both`). A CRD-only release keeps telark-crds' `appVersion`.
@@ -100,21 +98,21 @@ cosign verify ghcr.io/telark/charts/telark@$DIGEST \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
-## 6. Go public (when ready)
+## 6. Register on ArtifactHub
 
-In each package's settings on GHCR (`ghcr.io/telark/charts/telark`, `.../telark-crds`),
-change visibility to **Public**. Only then can ArtifactHub index them.
+Each OCI chart is its own Artifact Hub repository, with its own repository ID.
 
-## 7. Register on ArtifactHub
-
-1. Add an OCI repository pointing at `oci://ghcr.io/telark/charts/telark` (and `.../telark-crds`).
-2. Copy the issued `repositoryID` into [`charts/artifacthub-repo.yml`](../charts/artifacthub-repo.yml).
-3. Push that metadata so ArtifactHub verifies ownership:
+1. Sign in to Artifact Hub, open **Control Panel → Repositories → Add**, pick **Helm charts** and use the URL `oci://ghcr.io/telark/charts/telark`.
+2. Copy the new repository's ID (on its card in the control panel) into `repositoryID` in [`charts/artifacthub-repo.yml`](../charts/artifacthub-repo.yml).
+3. Push the file to the chart's `artifacthub.io` tag, where Artifact Hub looks for it (ownership claim and the verified-publisher badge):
 
 ```sh
-oras push ghcr.io/telark/charts/artifacthub-repo.yml:latest \
+oras push ghcr.io/telark/charts/telark:artifacthub.io \
+  --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
   charts/artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
 ```
+
+`telark` already bundles the CRDs, so listing `telark-crds` is optional: register `oci://ghcr.io/telark/charts/telark-crds` the same way and push a copy of the file with that repository's ID to `ghcr.io/telark/charts/telark-crds:artifacthub.io`.
 
 ArtifactHub auto-detects the cosign signatures and shows the charts as **Signed**.
 

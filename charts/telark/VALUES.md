@@ -230,8 +230,13 @@ Kubernetes: `>=1.30.0-0`
 | ollama.securityContext.capabilities.drop[0] | string | `"ALL"` |  |
 | ollama.securityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | redis.architecture | string | `"standalone"` |  |
-| redis.auth.enabled | bool | `false` |  |
+| redis.auth.enabled | bool | `true` |  |
+| redis.auth.existingSecret | string | `"{{ .Release.Name }}-redis-secret"` |  |
 | redis.image.digest | string | `"sha256:33a5a129cadcc5dfa294e5a1fe622efcbe3774a8b85c731ac14d0532877b7d16"` |  |
+| redis.master.disableCommands[0] | string | `"FLUSHDB"` |  |
+| redis.master.disableCommands[1] | string | `"FLUSHALL"` |  |
+| redis.master.disableCommands[2] | string | `"CONFIG"` |  |
+| redis.master.disableCommands[3] | string | `"ACL"` |  |
 | redis.master.persistence.enabled | bool | `true` |  |
 | redis.master.persistence.size | string | `"4Gi"` |  |
 | redis.master.resources.limits.cpu | string | `"150m"` |  |

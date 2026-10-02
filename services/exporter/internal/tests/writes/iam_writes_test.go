@@ -213,21 +213,29 @@ func TestLastLoginStampAndPhaseStayApart(t *testing.T) {
 	}
 }
 
-// Auth stamps and clears the invite with a phase-less status, like the last-login stamp:
-// the merge patch must store it and clear it (null) while phase and lastLoginAt stay.
+// Auth stamps and clears the invite with a phase-less status, like the last-login stamp: the merge patch
+// stores it, clears it (null) and keeps its use time across later links, while phase and lastLoginAt stay.
 func TestInviteStatusIsStoredAndCleared(t *testing.T) {
 	stamp := stampTime
 	client := adminDirectory(t, statusUser(t, phaseSuspended, &stamp))
 	invite := map[string]any{keyIssuedAt: stampTime, keyExpiresAt: stampTime, keyIssuedBy: callerID}
 	steps := []struct {
-		name   string
-		invite map[string]any
+		name         string
+		invite       map[string]any
+		accepted     string
+		wantAccepted any
 	}{
-		{"stored", invite},
-		{"cleared", nil},
+		{"stored", invite, constants.EmptyString, nil},
+		{"used", nil, stampTime, stampTime},
+		{"stored again", invite, constants.EmptyString, stampTime},
+		{"cleared", nil, constants.EmptyString, stampTime},
 	}
 	for _, step := range steps {
-		body := map[string]any{constants.FieldStatus: map[string]any{constants.FieldInvite: step.invite}}
+		sent := map[string]any{constants.FieldInvite: step.invite}
+		if step.accepted != constants.EmptyString {
+			sent[constants.FieldInviteAcceptedAt] = step.accepted
+		}
+		body := map[string]any{constants.FieldStatus: sent}
 		if w := patchAs(t, xauthz.Identity{Internal: true}, usersPrefix+statusUserID, jsonBody(t, body)); w.Code != http.StatusOK {
 			t.Fatalf("%s: patch = %d %s", step.name, w.Code, w.Body.String())
 		}
@@ -238,6 +246,9 @@ func TestInviteStatusIsStoredAndCleared(t *testing.T) {
 		storedInvite, present := status[constants.FieldInvite].(map[string]any)
 		if present != (step.invite != nil) || !maps.Equal(storedInvite, step.invite) {
 			t.Fatalf("%s: stored invite = %v, want %v", step.name, status[constants.FieldInvite], step.invite)
+		}
+		if status[constants.FieldInviteAcceptedAt] != step.wantAccepted {
+			t.Fatalf("%s: stored inviteAcceptedAt = %v, want %v", step.name, status[constants.FieldInviteAcceptedAt], step.wantAccepted)
 		}
 	}
 }

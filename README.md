@@ -21,6 +21,7 @@
   <a href="https://github.com/telark/telark/actions/workflows/ci.yaml"><img src="https://github.com/telark/telark/actions/workflows/ci.yaml/badge.svg" alt="CI"></a>
   <a href="https://codecov.io/gh/telark/telark"><img src="https://codecov.io/gh/telark/telark/graph/badge.svg" alt="Coverage"></a>
   <a href="https://github.com/telark/telark/releases"><img src="https://img.shields.io/github/v/release/telark/telark?sort=semver&color=2f6feb" alt="Release"></a>
+  <a href="https://artifacthub.io/packages/search?repo=telark"><img src="https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/telark" alt="Artifact Hub"></a>
   <img src="https://img.shields.io/badge/Kubernetes-%E2%89%A51.30-326ce5?logo=kubernetes&logoColor=white" alt="Kubernetes 1.30+">
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-Elastic--2.0-2f6feb.svg" alt="License: Elastic-2.0"></a>
 </p>

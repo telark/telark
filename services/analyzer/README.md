@@ -348,6 +348,7 @@ and caps. Full reference:
 |---|---|---|
 | `REDIS_HOST` / `REDIS_PORT` | `localhost` / `6379` | Redis address |
 | `REDIS_URL` | — | Overrides host and port when set |
+| `REDIS_PASSWORD` | — | Redis password (chart: from the Redis Secret); unset sends none |
 | `REDIS_POOL_SIZE` | `10` | Redis connection pool size |
 | `OLLAMA_HOST` | `http://localhost:11434` | Model runtime endpoint (chart: the subchart, or `app.ollama.runtimeUrl`) |
 | `OLLAMA_AUTO_PULL` | `true` | Pull a missing model after start and when a job needs it (`false` for air-gapped installs) |

@@ -145,3 +145,8 @@ nats.existingSecrets.<user> when set, otherwise the chart-generated one.
 {{- $existing := index (.root.Values.nats.existingSecrets | default dict) $user -}}
 {{- default (printf "%s-nats-%s-secret" .root.Values.app.name $user) $existing -}}
 {{- end -}}
+
+{{/* Secret with the Redis password; the redis subchart (auth.existingSecret) and every client read the same one. */}}
+{{- define "telark.redisSecretName" -}}
+{{- tpl .Values.redis.auth.existingSecret . -}}
+{{- end -}}

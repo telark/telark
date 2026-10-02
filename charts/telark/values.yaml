@@ -482,13 +482,17 @@ redis:
   image:
     digest: sha256:33a5a129cadcc5dfa294e5a1fe622efcbe3774a8b85c731ac14d0532877b7d16
   auth:
-    enabled: false
-  # Redis runs without auth, so the network is the only boundary: ingress is
-  # restricted to pods carrying the <release>-redis-client label.
+    enabled: true  # required: the render fails without it
+    # Chart-generated (templates/shared/redis-secret.yaml) and read back on upgrade. GitOps: name
+    # a Secret you manage (key redis-password); the chart then generates none.
+    existingSecret: '{{ .Release.Name }}-redis-secret'
+  # Defense in depth behind the password: ingress only from pods labeled <release>-redis-client.
   networkPolicy:
     enabled: true
     allowExternal: false
   master:
+    # Also CONFIG and ACL, so no client can turn the password off at runtime.
+    disableCommands: [FLUSHDB, FLUSHALL, CONFIG, ACL]
     persistence:
       enabled: true
       size: 4Gi

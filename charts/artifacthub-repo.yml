@@ -1,14 +1,6 @@
-# ArtifactHub ownership metadata for the OCI chart repository.
-#
-# ArtifactHub cannot index a PRIVATE registry, so this only takes effect once the
-# ghcr.io/telark/charts packages are public and the repo is registered on
-# ArtifactHub. Registering issues a repositoryID — paste it below, then push this
-# file to the registry root so ArtifactHub can verify ownership:
-#
-#   oras push ghcr.io/telark/charts/artifacthub-repo.yml:latest \
-#     charts/artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
-#
-repositoryID: ""   # ArtifactHub → Control Panel → your repo → repositoryID
+# Artifact Hub metadata for the telark chart, pushed to ghcr.io/telark/charts/telark:artifacthub.io
+# (ownership and the verified-publisher badge; see docs/PUBLISHING.md, "Register on ArtifactHub").
+repositoryID: "321b63be-abaa-416d-b988-f5034fd6d2d5"
 owners:
   - name: telark
     email: contact@telark.io

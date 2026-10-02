@@ -150,8 +150,8 @@ delete an application through discovery's `reset`, which also purges its Redis s
 `description` (at most 1000); any other spec key answers 403 and an over-long value 400. Internal callers
 keep full access.
 
-Config (`PATCH config`, the `TelarkConfig` named `default`) is checked per field: `excludedNamespaces` and
-`userSettings` need settings Contributor (deny `editdiscoveryconfig`), `snapshots` Contributor
+Config (`PATCH config`, the `TelarkConfig` named `default`) is checked per field: `excludedNamespaces`
+needs settings Contributor (deny `editdiscoveryconfig`), `snapshots` Contributor
 (deny `editsnapshotstorage`), `ai` Owner (deny `controlaiinsights`); `oidc` and `selfRegistration` are Internal
 (auth is their single writer and lets only the bootstrap account change them, so every session gets 403),
 and so is `cluster` (written by discovery, stored in `.status`). `GET config` shows all of them to settings

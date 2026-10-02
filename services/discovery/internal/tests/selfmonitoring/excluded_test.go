@@ -109,6 +109,11 @@ func TestReleaseNamespaceHiddenUnlessSelfMonitoring(t *testing.T) {
 			testutil.Equal(t, "informers see the same list",
 				slices.Contains(tcfghelper.FetchExcludedNamespaces(ctx), ownNS), !selfMonitoring)
 
+			selectable := tcfghelper.SelectableNamespaces([]string{appNS, kubeSystem, ownNS})
+			testutil.Equal(t, "release namespace selectable", slices.Contains(selectable, ownNS), selfMonitoring)
+			testutil.Equal(t, "other namespaces selectable",
+				slices.Contains(selectable, appNS) && slices.Contains(selectable, kubeSystem), true)
+
 			started := purgeStarted(t, appIn(platformApp, constants.DefaultAddValue, ownNS),
 				appIn(mixedApp, constants.DefaultAddValue, ownNS, appNS), appIn(emptyApp, constants.DefaultInitValue, appNS))
 			testutil.Equal(t, "platform app purged", started[platformApp], !selfMonitoring)

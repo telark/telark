@@ -768,11 +768,6 @@ var configFields = map[string]xauthz.Requirement{
 		MinLevel: roledata.PermissionLevelOwner,
 		Rule:     xauthz.RuleKey(roledata.ScopeSettings, roledata.ActionControlAIInsights),
 	},
-	telarkconfig.FieldUserSettings: {
-		Scope:    roledata.ScopeSettings,
-		MinLevel: roledata.PermissionLevelContributor,
-		Rule:     xauthz.RuleKey(roledata.ScopeSettings, roledata.ActionEditDiscoveryConfig),
-	},
 	// Written by discovery at startup; no session ever Allows an Internal
 	// requirement, since no level covers its empty MinLevel.
 	telarkconfig.FieldCluster: xauthz.Internal,

@@ -46,9 +46,9 @@ const (
 	CoordinationElectionResignTimeoutSec         = 5
 	CoordinationBackgroundProcessingSlots        = 4
 	DiscoveryLeaderGatePoll                      = 500 * time.Millisecond
-	// Fallback for the leader's rediscovery cycle when TelarkConfig carries no
-	// fetch interval. Operators set the real value through the UI setting.
-	PrewarmDefaultInterval       = 60 * time.Second
+	// The leader's rediscovery cycle: without it, namespaces and workloads created after
+	// startup are only picked up by a restart, a leadership change or a force-sync.
+	PrewarmInterval              = 60 * time.Second
 	PrewarmCycleTTL              = 24 * time.Hour
 	GraceScaleTTL                = 90 * time.Second
 	ResetCooldownTTL             = 60 * time.Second

@@ -125,7 +125,7 @@ People sign in with a passkey or with Google SSO. There are no passwords. Passke
 
 ### Roles, levels and deny rules
 
-Permissions are managed under **Access & permissions**, with users, groups and roles.
+Permissions are managed under **Administration**, with users, groups and roles.
 
 A role grants a level on one or more areas, such as `applications`, `protectionplans`, `insights`, `users` or `settings`, or on `ALL` areas. The levels, from lowest to highest:
 

@@ -9,6 +9,7 @@ import (
 	"github.com/telark/telark/internal/rest/response"
 	discoveryauthz "github.com/telark/telark/services/discovery/internal/authz"
 	"github.com/telark/telark/services/discovery/internal/constants"
+	tcfghelper "github.com/telark/telark/services/discovery/internal/helpers/telarkconfig"
 )
 
 func GetNamespaces(w http.ResponseWriter, r *http.Request) {
@@ -45,6 +46,7 @@ func GetNamespaces(w http.ResponseWriter, r *http.Request) {
 		namespaces = append(namespaces, name)
 	}
 
+	namespaces = tcfghelper.SelectableNamespaces(namespaces)
 	slices.Sort(namespaces)
 
 	response.SendSingleResponse(

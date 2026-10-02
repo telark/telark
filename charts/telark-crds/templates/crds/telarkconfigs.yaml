@@ -38,11 +38,6 @@ spec:
                   type: array
                   items:
                     type: string
-                userSettings:
-                  type: object
-                  properties:
-                    fetchIntervalSeconds:
-                      type: integer
                 ai:
                   type: object
                   properties:

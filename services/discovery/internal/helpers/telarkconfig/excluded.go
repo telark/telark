@@ -53,6 +53,13 @@ func HiddenOwnNamespace() string {
 	return OwnNamespace()
 }
 
+// While self-monitoring is off no picker may offer Telark's own namespace, since nothing in it
+// is discovered, analyzed or protected.
+func SelectableNamespaces(names []string) []string {
+	hidden := HiddenOwnNamespace()
+	return slices.DeleteFunc(names, func(name string) bool { return name == hidden })
+}
+
 // Empty outside a cluster, which disables every own-namespace check rather than failing them.
 func OwnNamespace() string {
 	return os.Getenv(constants.EnvPodNamespace)

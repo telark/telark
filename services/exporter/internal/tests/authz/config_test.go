@@ -46,8 +46,6 @@ func TestGuardConfigPatchLevelPerField(t *testing.T) {
 		{"owner cannot touch oidc", roledata.PermissionLevelOwner, telarkconfig.FieldOIDC, false},
 		{"settings admin cannot touch oidc", roledata.PermissionLevelAdmin, telarkconfig.FieldOIDC, false},
 		{"readonly edits nothing", roledata.PermissionLevelReadOnly, telarkconfig.FieldExcludedNamespaces, false},
-		{"contributor edits fetch interval", roledata.PermissionLevelContributor, telarkconfig.FieldUserSettings, true},
-		{"readonly cannot touch fetch interval", roledata.PermissionLevelReadOnly, telarkconfig.FieldUserSettings, false},
 		{"admin cannot touch cluster", roledata.PermissionLevelAdmin, telarkconfig.FieldCluster, false},
 	}
 
@@ -79,7 +77,6 @@ func TestGuardConfigPatchHonorsDenyRules(t *testing.T) {
 		{"discovery config denied", telarkconfig.FieldExcludedNamespaces, roledata.ActionEditDiscoveryConfig, roledata.PermissionLevelOwner},
 		{"snapshot storage denied", telarkconfig.FieldSnapshots, roledata.ActionEditSnapshotStorage, roledata.PermissionLevelOwner},
 		{"ai insights denied", telarkconfig.FieldAI, roledata.ActionControlAIInsights, roledata.PermissionLevelOwner},
-		{"fetch interval denied", telarkconfig.FieldUserSettings, roledata.ActionEditDiscoveryConfig, roledata.PermissionLevelOwner},
 	}
 
 	for _, tt := range tests {

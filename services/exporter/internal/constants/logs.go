@@ -264,4 +264,9 @@ const (
 	WarnReportsGCPanic         messages.Message = "reports gc panic recovered: %v"
 	InfReportsSwept            messages.Message = "reports sweep removed=%d temps=%d scanned=%d"
 	InfReportsGCDisabled       messages.Message = "reports gc disabled"
+
+	// Storage migration
+	InfMigrateStorageCopied messages.Message = "[migrate-storage] copied %d file(s) from %s to %s"
+	ErrMigrateStorageFailed errors.Error     = "[migrate-storage] copy from %s to %s failed: %v"
+	ErrMigrateStorageUsage  errors.Error     = "[migrate-storage] usage: migrate-storage <from> <to> [<from> <to>...]"
 )

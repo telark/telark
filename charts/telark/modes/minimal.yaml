@@ -16,7 +16,7 @@ app:
     autoscaling:
       enabled: false
   persistence:
-    size: 1Gi
+    snapshotsSize: 1Gi
     reportsSize: 512Mi
   shared:
     resources:

@@ -245,6 +245,9 @@ const (
 	ReportMaxBodyBytes             = 32 << 20
 	ReportsSweepMinAge             = time.Hour
 	ReportsGCLockKey               = "exporter:reports:gc"
+	SubcommandMigrateStorage       = "migrate-storage"
+	MigrateStoragePairSize         = 2
+	LostFoundDir                   = "lost+found"
 	HeaderContentTypeOptions       = "X-Content-Type-Options"
 	ContentTypeOptionsNoSniff      = "nosniff"
 	HeaderCSP                      = "Content-Security-Policy"

@@ -68,12 +68,10 @@ subchart DNS (`{{ .Release.Name }}-redis-master`, `-nats`, `-ollama`) resolves.
 NS=telark
 
 # App: services, subcharts and CRDs all ship in the chart (telark-crds is a
-# subchart). NATS config inlined; size with --set app.mode=<mode>. standard runs
-# two exporter replicas that share both exporter volumes, so name a ReadWriteMany
-# class (or --set app.singleNode=true on a one-node test cluster).
+# subchart). NATS config inlined; size with --set app.mode=<mode>. The exporter's
+# volumes come from the default StorageClass (see INSTALL.md, Exporter storage).
 helm upgrade --install telark-release oci://ghcr.io/telark/charts/telark --version <version> \
   -n "$NS" --create-namespace \
-  --set app.persistence.storageClass=<rwx-class> \
   --set app.auth.bootstrap.admin=test@example.com \
   --wait --timeout 15m
 ```

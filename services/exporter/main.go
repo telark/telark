@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 
 	goredis "github.com/redis/go-redis/v9"
 	dataerrors "github.com/telark/telark/internal/data/errors"
@@ -27,6 +28,7 @@ import (
 	exprdb "github.com/telark/telark/services/exporter/internal/redis"
 	"github.com/telark/telark/services/exporter/internal/routes"
 	"github.com/telark/telark/services/exporter/internal/startup"
+	"github.com/telark/telark/services/exporter/internal/utils/artifact"
 	"github.com/telark/telark/services/exporter/internal/utils/async"
 	"github.com/telark/telark/services/exporter/internal/utils/performance"
 	snaputil "github.com/telark/telark/services/exporter/internal/utils/snapshot"
@@ -40,6 +42,10 @@ var (
 )
 
 func main() {
+	// The chart's init container when the exporter's claims move (templates/_storage.tpl).
+	if len(os.Args) > constants.DefaultIncrementValue && os.Args[constants.DefaultIncrementValue] == constants.SubcommandMigrateStorage {
+		os.Exit(migrateStorage(os.Args[constants.DefaultIncrementValue+constants.DefaultIncrementValue:]))
+	}
 	config.ApplyKubernetesRESTRateLimit()
 	initSnapshotsConfig()
 	initReportsConfig()
@@ -86,6 +92,23 @@ func initSnapshotsConfig() {
 		envmanager.GetSnapshotsPVCNamespace(),
 		envmanager.GetSnapshotsPVCName(),
 	))
+}
+
+func migrateStorage(pairs []string) int {
+	if len(pairs) == constants.DefaultInitValue || len(pairs)%constants.MigrateStoragePairSize != constants.DefaultInitValue {
+		lg.Error(string(constants.ErrMigrateStorageUsage))
+		return constants.ExitCodeFailure
+	}
+	for pair := range slices.Chunk(pairs, constants.MigrateStoragePairSize) {
+		from, to := pair[constants.DefaultInitValue], pair[constants.DefaultIncrementValue]
+		copied, err := artifact.CopyTree(from, to)
+		if err != nil {
+			lg.Error(fmt.Sprintf(string(constants.ErrMigrateStorageFailed), from, to, err))
+			return constants.ExitCodeFailure
+		}
+		lg.Info(fmt.Sprintf(string(constants.InfMigrateStorageCopied), copied, from, to))
+	}
+	return constants.DefaultInitValue
 }
 
 func initReportsConfig() {

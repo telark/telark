@@ -50,6 +50,7 @@ flowchart LR
 - Store and serve **protection plan reports** (rendered by discovery) and each plan's report ledger on a second PersistentVolume; a reports GC goroutine (own Redis lock key, one replica per tick, shares `SNAPSHOT_GC_INTERVAL_SEC`) sweeps report directories whose plan CR no longer exists.
 - Expose the REST surface every other service consumes for CRD operations.
 - Store per-user in-app notifications in Redis.
+- **Ops subcommand:** `migrate-storage <from> <to> [<from> <to>...]` copies each directory tree into the other (the newer copy of a file wins; temp files and `lost+found` are skipped). The chart runs it as an init container when the snapshot and report volumes move to another storage class ([Exporter storage](../../docs/INSTALL.md#exporter-storage)).
 
 ## Layout
 
@@ -80,7 +81,7 @@ Full reference: [chart README](../../charts/telark/README.md#servicesexporterenv
 | Variable | Default | Description |
 |---|---|---|
 | `SNAPSHOTS_PATH` | `/snapshots` | Mount path for snapshot files |
-| `SNAPSHOTS_PVC_NAME` | `<app.name>-exporter-snapshots-pvc` | PVC backing snapshot storage |
+| `SNAPSHOTS_PVC_NAME` | `<app.name>-exporter-snapshots-pvc` | PVC backing snapshot storage; the chart adds a storage suffix after a class change |
 | `SNAPSHOTS_PVC_NAMESPACE` | `<app.namespace>` | Namespace of the PVC |
 | `REPORTS_PATH` | `/reports` | Mount path for protection plan report files (the reports PVC) |
 | `SNAPSHOT_GC_INTERVAL_SEC` | `3600` | Snapshot sweep interval; also drives the reports orphan sweep (`0` disables both) |

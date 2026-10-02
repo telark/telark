@@ -71,11 +71,10 @@ How it stays trustworthy:
 
 ## Quick start
 
-You need Kubernetes 1.30+, Helm 3, and a ReadWriteMany StorageClass (`efs-sc` on EKS). On a single-node cluster, add `--set app.singleNode=true` and any class works.
+You need Kubernetes 1.30+, Helm 3, and a default StorageClass (managed clusters and kind, minikube or k3d have one).
 
 ```sh
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
-  --set app.persistence.storageClass=<rwx-class> \
   --set app.auth.bootstrap.admin=test@example.com
 ```
 

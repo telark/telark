@@ -45,6 +45,12 @@ spec:
   # start the new pod before the old one released the volume).
   strategy:
     type: {{ $strategy }}
+{{- if eq $strategy "RollingUpdate" }}
+    # Rendered so a later switch to Recreate removes it: the API refuses both together.
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+{{- end }}
 {{- end }}
   selector:
     matchLabels:
@@ -102,6 +108,10 @@ spec:
           labelSelector:
             matchLabels:
               {{- include "telark.selectorLabels" (dict "root" $root "component" $serviceConfig.name) | nindent 14 }}
+{{- end }}
+{{- with $serviceConfig.initContainers }}
+      initContainers:
+        {{- toYaml . | nindent 8 }}
 {{- end }}
       containers:
         - name: {{ include "telark.fullname" $root }}-{{ $serviceConfig.name }}-container

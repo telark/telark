@@ -19,7 +19,7 @@ app:
       minReplicas: 1
       maxReplicas: 5
   persistence:
-    size: 50Gi
+    snapshotsSize: 50Gi
     reportsSize: 10Gi
   shared:
     resources:

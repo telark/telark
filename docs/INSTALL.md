@@ -6,22 +6,20 @@ This guide installs Telark with the defaults first, then covers exposure, sizing
 
 - Kubernetes 1.30 or newer; 1.33+ is the tested target. The chart's `kubeVersion` enforces the floor ([compatibility](../README.md#compatibility)).
 - Helm 3.
-- A StorageClass for the exporter's two PVCs (snapshots and protection plan reports). The `standard` and `performance` modes run two exporter replicas that share both volumes, so the class must be **ReadWriteMany** (`efs-sc` on EKS with the EFS CSI driver). A one-node cluster (`--set app.singleNode=true`) and `minimal` mode run one replica on any default class.
+- A default StorageClass, which managed clusters and kind, minikube or k3d already have. The exporter keeps snapshots and protection plan reports on two claims from it ([Exporter storage](#exporter-storage)).
 
 ## 1. Install
 
 ```sh
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
-  --set app.persistence.storageClass=<rwx-class> \
   --set app.auth.bootstrap.admin=test@example.com
 ```
 
 - Replace `test@example.com` with your own email ([First admin](#2-first-admin)). The chart ships no admin and refuses to render without one.
-- In `standard` and `performance`, the install fails early without a storage class, because a ReadWriteMany claim against block storage never binds. On a one-node cluster pass `--set app.singleNode=true` instead of the class.
 - The command installs everything: the CRDs, NATS configuration and `standard` sizing all ship in the chart. The CRDs are cluster-scoped and kept on uninstall (`resource-policy: keep`). If you manage CRDs out of band (a GitOps tool applies them first), add `--set crds.enabled=false`.
 - From a checkout, `./charts/telark` works in place of the OCI reference.
 
-The examples below leave out the class and admin flags. Keep yours on every command.
+The examples below leave out the admin flag. Keep it on every command.
 
 ## 2. First admin
 
@@ -236,10 +234,39 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 | Mode | For | Capacity (measured 2026-09-17) |
 |---|---|---|
 | `minimal` | Development, demos, evaluation. Single replica, no autoscaling, no PDBs | A few hundred applications |
-| `standard` (default) | Small and mid-size production. Every service starts at 1 replica and scales on CPU up to 3 (HPA); the exporter runs 2 replicas sharing a ReadWriteMany snapshot volume. Add `--set vpa.enabled=true` for vertical scaling | Verified at 2 000 applications |
+| `standard` (default) | Small and mid-size production. Every service starts at 1 replica and scales on CPU up to 3 (HPA), except the exporter ([Exporter storage](#exporter-storage)). Add `--set vpa.enabled=true` for vertical scaling | Verified at 2 000 applications, with 2 exporter replicas |
 | `performance` | Large clusters. As `standard`, with an HPA ceiling of 5, disruption budgets that keep one pod through drains, larger requests and limits, and a 50 GiB volume | Beyond 1 000 applications |
 
 `app.mode` sizes Telark's own services only. Helm resolves a subchart's values before the mode is known, so Redis, NATS, Kyverno, metrics-server and Ollama ship fixed production-grade defaults, identical in every mode. There is nothing to tune up to 2 000 applications; beyond that, size Redis ([Subcharts](#subcharts)).
+
+## Exporter storage
+
+The exporter keeps snapshots and protection plan reports on two claims, `telark-exporter-snapshots-pvc` and `telark-exporter-reports-pvc`. With the defaults it runs one replica on ReadWriteOnce claims from the cluster's default StorageClass, so an install needs no storage flag.
+
+A second exporter replica keeps it available through node failures and rolling upgrades. Both replicas share the claims, so they need a ReadWriteMany class (`efs-sc` on EKS with the EFS CSI driver):
+
+```sh
+--set services.exporter.replicas=2 \
+--set app.persistence.storageClass=efs-sc
+```
+
+More than one replica without a class fails the render, and so does a class the cluster doesn't have. `minimal` always runs one replica.
+
+Kubernetes never changes a claim's class or access mode, so upgrades keep the claims as they are:
+
+- Leaving `app.persistence.storageClass` empty keeps whatever class the claims already use, so forgetting the flag on an upgrade changes nothing.
+- Sizes (`app.persistence.snapshotsSize`, `app.persistence.reportsSize`, also set by the mode) only grow, and only when the class allows volume expansion; a smaller value keeps the current size.
+
+**Changing the class.** Name the new class (and the replica count) on `helm upgrade`. The chart creates new claims named after it (`telark-exporter-snapshots-pvc-efs-sc-rwx`), and the exporter copies the snapshots and reports into them before it starts again, so it restarts once. The old claims are kept, and the upgrade's notes list them; delete them after the next upgrade:
+
+```sh
+kubectl delete pvc -n telark telark-exporter-snapshots-pvc telark-exporter-reports-pvc
+```
+
+- If the new claims stay `Pending` (a class that cannot serve the access mode, for example ReadWriteMany on block storage), `helm rollback telark -n telark` returns to the old claims.
+- `helm rollback` across a class change returns the exporter to the old claims as they were at the change. A later upgrade back to the new class copies over what the exporter wrote in between; for each file, the newer copy wins.
+- Uninstall keeps the claims and a reinstall picks them up: the ones named after its storage settings, else the original ones (copied like an upgrade when the class differs). After a class change, reinstall with the same settings, or the original claims come back as they were at the change.
+- Cluster-less renders ([GitOps](#gitops-cluster-less-renders)) cannot read the live claims, so they always render the original names and the requested class: keep the class you installed with.
 
 ## Install-time flags
 
@@ -255,10 +282,10 @@ Set values with `--set key=value`. Helm does not remember them across upgrades, 
 | `app.image.registry` | `ghcr.io/telark` | Registry and organization hosting the service images |
 | `app.image.pullPolicy` | `Always` | Image pull policy |
 | `app.image.pullSecrets` | `[]` | Image pull secrets for a private registry |
-| `app.persistence.size` | `10Gi` | Exporter snapshot PVC size (`minimal` 1Gi, `performance` 50Gi) |
-| `app.persistence.reportsSize` | `2Gi` | Exporter reports PVC size (`minimal` 512Mi, `performance` 10Gi) |
-| `app.persistence.storageClass` | `""` | Class for both exporter PVCs. Must be ReadWriteMany in `standard` and `performance` (two exporter replicas); `""` means the cluster default, valid only with `app.singleNode=true` or `minimal` |
-| `app.singleNode` | `false` | One-node cluster: the exporter runs 1 replica on ReadWriteOnce, so no ReadWriteMany class is needed. Access mode and update strategy follow the replica count automatically |
+| `app.persistence.snapshotsSize` | `10Gi` | Exporter snapshots PVC size (`minimal` 1Gi, `performance` 50Gi); only grows ([Exporter storage](#exporter-storage)) |
+| `app.persistence.reportsSize` | `2Gi` | Exporter reports PVC size (`minimal` 512Mi, `performance` 10Gi); only grows |
+| `app.persistence.storageClass` | `""` | Class for both exporter PVCs: `""` is the cluster default on install and keeps the current class on upgrade; a different class copies the data to new claims ([Exporter storage](#exporter-storage)) |
+| `services.exporter.replicas` | `1` | More than one needs a ReadWriteMany `app.persistence.storageClass` ([Exporter storage](#exporter-storage)) |
 | `app.crdGuard.enabled` | `true` | Admission guard: only the owning service accounts may write Telark CRs ([CRD write guard](#crd-write-guard)) |
 | `app.crdGuard.enforce` | `true` | With the guard on, `false` audits and `true` rejects |
 | `app.auth.bootstrap.admin` | `""` | The one bootstrap admin's email, enrolled with break-glass; required ([First admin](#2-first-admin)) |
@@ -304,7 +331,6 @@ Example:
 ```sh
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
   --set app.mode=performance \
-  --set app.persistence.storageClass=efs \
   --set app.auth.bootstrap.admin=test@example.com
 ```
 
@@ -335,7 +361,7 @@ Details: [Recommendations](../charts/telark/README.md#recommendations) in the ch
 
 The stateless services (auth, discovery, notifier, ui) can run behind a HorizontalPodAutoscaler (`autoscaling/v2`, CPU-based). HPAs need metrics-server, which ships with the chart.
 
-- The exporter never autoscales: its replica count is fixed by the mode (2 in `standard` and `performance`, 1 in `minimal` or with `app.singleNode=true`).
+- The exporter never autoscales: it runs `services.exporter.replicas` (1 by default, always 1 in `minimal`; see [Exporter storage](#exporter-storage)).
 - The analyzer never autoscales: one worker is bound to one runtime slot.
 - `standard` and `performance` turn autoscaling on (start at 1, maximum 3 and 5); `minimal` keeps it off.
 
@@ -516,22 +542,22 @@ Pass the same `--set` and `-f` flags you used at install: Helm does not remember
 
 ### Version notes
 
-- **When switching modes.** A single-node install runs one exporter replica on a ReadWriteOnce claim, and Kubernetes cannot change a bound claim's access mode or class. Add `--set app.singleNode=true` to keep that claim (one replica, Recreate). To move to two replicas on ReadWriteMany, uninstall, delete the `telark-exporter-snapshots-pvc` claim (snapshots are lost; copy `/snapshots` off the pod first if you need them), then reinstall with `--set app.persistence.storageClass=<rwx-class>`. The same applies when switching between `minimal` and `standard`/`performance`, or toggling `app.singleNode`.
+- **Exporter storage.** The exporter runs one replica by default and `app.singleNode` is gone (drop it from your flags; one replica needs no flag). `app.persistence.size` is now `app.persistence.snapshotsSize` (the schema rejects the old key). To keep two replicas, pass `--set services.exporter.replicas=2` with your ReadWriteMany `app.persistence.storageClass`. Upgrades now keep the existing claims, a class change copies the data to new claims, and uninstall keeps them ([Exporter storage](#exporter-storage)).
 - **CRDs managed out of band** (`crds.enabled=false`): upgrade `telark-crds` before `telark` ([chart README](../charts/telark/README.md#upgrade-order)).
 - **Self-registration moved to Settings.** `app.auth.passkey.selfRegistration` is removed (the schema rejects it, so drop it from your flags) and self-registration starts off whatever it was before; the bootstrap admin turns it on in Settings. `app.auth.bootstrap.admin` is now required whenever the auth service runs: an install that had none sets it, then runs the break-glass command of [First admin](#2-first-admin), which also marks an existing account with that email as the bootstrap admin.
 - **Redis requires a password.** The upgrade generates `telark-redis-secret` and restarts Redis and every service that uses it once; Redis keeps its data. Cluster-less renders create the Secret first ([GitOps](#gitops-cluster-less-renders)). Drop `redis.auth.enabled=false` and `redis.auth.password` from your flags: the render refuses both.
 
 ## Uninstall
 
-Let in-progress rollbacks finish, and back up the exporter's volumes if you need the snapshots or reports.
+Let in-progress rollbacks finish.
 
 ```sh
 helm uninstall telark -n telark
 ```
 
-This removes every Telark service, the bundled policy engine with its webhooks and plan policies, and the exporter's snapshot and report PVCs. The pre-delete hooks run `app.kubectlImage`, so air-gapped clusters must mirror it.
+This removes every Telark service and the bundled policy engine with its webhooks and plan policies. The pre-delete hooks run `app.kubectlImage`, so air-gapped clusters must mirror it.
 
-Your data stays: the CRDs and custom resources (users, roles, plans and the rest), the service-token, NATS, Redis and OIDC Secrets, the Redis and NATS volumes, and the Ollama model volume. A reinstall picks up where you left off.
+Your data stays: the CRDs and custom resources (users, roles, plans and the rest), the service-token, NATS, Redis and OIDC Secrets, the exporter's snapshot and report volumes, the Redis and NATS volumes, and the Ollama model volume. A reinstall picks up where you left off.
 
 With an external policy engine (`app.kyverno.enabled=false`), also remove the plan policies, which would otherwise keep enforcing:
 

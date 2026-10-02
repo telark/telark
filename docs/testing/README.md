@@ -87,7 +87,7 @@ make values-docs       # regenerates both VALUES.md; CI fails on drift, so check
 
 - In a fresh Helm config, `make deps` fails with `no repository definition for https://charts.fairwinds.com/stable` until the `vpa` repository is added. CI's list is `.github/actions/helm-add-dependency-repos/action.yaml`.
 - `make helm-validate` downloads Kubernetes and CRD schemas (cached in `/tmp/kubeconform-cache`). A pass prints `Invalid: 0, Errors: 0` for every mode and version; the skipped resources are kinds without a published schema.
-- Rendering `standard` or `performance` without `app.persistence.storageClass` fails by design (`templates/_storage_guard.tpl`); the make target passes the placeholder `validate`.
+- The make target passes the placeholder class `validate`, so the renders also cover a named class. More than one exporter replica without a class fails by design (`templates/_storage_guard.tpl`).
 - The full procedure and the docs that change with a value: the `helm-chart-change` skill.
 
 ### Analyzer (`services/analyzer`)

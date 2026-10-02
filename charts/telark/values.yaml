@@ -72,10 +72,6 @@ app:
   # ship production-grade defaults for every mode. See the Subcharts section.
   mode: standard
 
-  # One-node cluster: the exporter runs a single replica on a ReadWriteOnce
-  # volume instead of two on ReadWriteMany (no RWX storage class needed).
-  singleNode: false
-
   # Container images. Full ref per service: <registry>/<service.repository>:<service.version>.
   image:
     # Registry and namespace (GHCR org) that host the per-service repos.
@@ -112,12 +108,13 @@ app:
     # Ollama-API endpoint you run yourself (connected mode, no key); empty = the subchart.
     runtimeUrl: ""
 
-  # Storage for the exporter PVCs (snapshots, reports).
-  # storageClass: "" = cluster default · "-" = disable provisioning · "<name>" = that class.
+  # Storage for the exporter PVCs (snapshots, reports), kept on uninstall.
+  # storageClass: "" = cluster default, and an upgrade keeps the live claims' class ·
+  # "-" = disable provisioning · "<name>" = that class (a change copies the data to new claims).
   persistence:
     enabled: true
     storageClass: ""
-    size: 10Gi
+    snapshotsSize: 10Gi
     reportsSize: 2Gi
 
   # Shared secret services present to each other. Empty = generated on install and
@@ -221,11 +218,10 @@ services:
     # @ignore
     version: 0.0.1
     category: "persistence-manager"
-    # Two replicas share the snapshot volume, so the chart derives the rest:
-    # replicas > 1 → RollingUpdate + ReadWriteMany (needs app.persistence.storageClass
-    # set to an RWX class); 1 replica (minimal, or app.singleNode=true) → Recreate +
-    # ReadWriteOnce. Never autoscaled — the volume, not CPU, bounds it.
-    replicas: 2
+    # 1 replica works on any class (Recreate, ReadWriteOnce). More share both volumes, so
+    # they need app.persistence.storageClass set to a ReadWriteMany class (RollingUpdate).
+    # Never autoscaled — the volume, not CPU, bounds it.
+    replicas: 1
     autoscaling:
       enabled: false
     env:

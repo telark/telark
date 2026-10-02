@@ -57,7 +57,7 @@ Kubernetes: `>=1.30.0-0`
 | app.ollama.runtimeUrl | string | `""` |  |
 | app.persistence.enabled | bool | `true` |  |
 | app.persistence.reportsSize | string | `"2Gi"` |  |
-| app.persistence.size | string | `"10Gi"` |  |
+| app.persistence.snapshotsSize | string | `"10Gi"` |  |
 | app.persistence.storageClass | string | `""` |  |
 | app.selfMonitoring.enabled | bool | `false` |  |
 | app.serviceDefaults.affinity | object | `{}` |  |
@@ -105,7 +105,6 @@ Kubernetes: `>=1.30.0-0`
 | app.shared.resources.limits.memory | string | `"512Mi"` |  |
 | app.shared.resources.requests.cpu | string | `"100m"` |  |
 | app.shared.resources.requests.memory | string | `"128Mi"` |  |
-| app.singleNode | bool | `false` |  |
 | commonAnnotations | object | `{}` |  |
 | commonLabels | object | `{}` |  |
 | crds.enabled | bool | `true` |  |
@@ -396,7 +395,7 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.env.SNAPSHOT_GC_INTERVAL_SEC | string | `"3600"` |  |
 | services.exporter.name | string | `"exporter-service"` |  |
 | services.exporter.pdb.enabled | bool | `false` |  |
-| services.exporter.replicas | int | `2` |  |
+| services.exporter.replicas | int | `1` |  |
 | services.exporter.repository | string | `"exporter"` |  |
 | services.exporter.volumeMounts[0].name | string | `"snapshots-storage"` |  |
 | services.exporter.volumeMounts[0].path | string | `"/snapshots"` |  |

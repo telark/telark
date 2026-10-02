@@ -18,6 +18,20 @@ Services deployed:
 
 Check rollout:
   kubectl get pods -n {{ .Values.app.namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+{{- if and .Values.services.exporter.enabled .Values.app.persistence.enabled }}
+{{- $moved := list }}
+{{- range (include "telark.exporterStorage" . | fromYaml).claims }}{{ if .from }}{{ $moved = append $moved . }}{{ end }}{{ end }}
+{{- if $moved }}
+
+Storage change: the exporter copies its snapshots and reports to new claims before it starts:
+{{- range $moved }}
+  {{ .from.name }} -> {{ .name }}
+{{- end }}
+The old claims are kept. Once the next helm upgrade has released them, delete them with:
+  kubectl delete pvc -n {{ .Values.app.namespace }}{{ range $moved }} {{ .from.name }}{{ end }}
+If the new claims stay Pending, go back to the old ones: helm rollback {{ .Release.Name }} -n {{ .Release.Namespace }}
+{{- end }}
+{{- end }}
 
 {{- if .Values.services.ui.enabled }}
 Open the dashboard (local 3000 → service {{ .Values.app.serviceDefaults.port }}):

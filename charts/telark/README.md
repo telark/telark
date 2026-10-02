@@ -6,11 +6,10 @@ Helm chart for [Telark](https://telark.io), a protection gate for Kubernetes app
 
 ```sh
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
-  --set app.persistence.storageClass=<rwx-class> \
   --set app.auth.bootstrap.admin=test@example.com
 ```
 
-Set your own admin email; the chart ships none and refuses to render without one. Name a ReadWriteMany StorageClass, or pass `--set app.singleNode=true` on a one-node cluster. Prerequisites, first sign-in, exposure, sizing modes, upgrades and uninstall are in the [install guide](../../docs/INSTALL.md); a guided first run is in [Getting started](../../docs/getting-started.md).
+Set your own admin email; the chart ships none and refuses to render without one. The exporter's volumes come from the cluster's default StorageClass ([Exporter storage](../../docs/INSTALL.md#exporter-storage)). Prerequisites, first sign-in, exposure, sizing modes, upgrades and uninstall are in the [install guide](../../docs/INSTALL.md); a guided first run is in [Getting started](../../docs/getting-started.md).
 
 Measured capacity (2026-09-18): `minimal` handles a few hundred applications; `standard` was verified at 2 000 applications (three discovery replicas; rediscovery of a deleted 100-app namespace took about 3.5 minutes); `performance` is for larger clusters.
 
@@ -49,7 +48,6 @@ The tables below explain the values that matter. The generated index of every ke
 | `app.name` | `telark` | Source of truth for the app identity / resource-name prefix |
 | `app.namespace` | `telark` | Install namespace; bootstrap CRs land here. Must match the release namespace (`-n`): the subcharts follow `-n`, so a mismatch splits redis/nats away from the services |
 | `app.mode` | `standard` | Sizes every Telark service (replicas, resources, rate limits, PDBs). `minimal` \| `standard` \| `performance`. Subcharts keep production-grade defaults across all modes. |
-| `app.singleNode` | `false` | One-node cluster: the exporter runs 1 replica on ReadWriteOnce instead of 2 on ReadWriteMany, so no RWX class is needed. Update strategy and PVC access mode are derived from the exporter replica count, never set by hand |
 | `app.image.registry` | `ghcr.io/telark` | Registry and namespace hosting the per-service repos |
 | `app.image.pullPolicy` | `Always` | Image pull policy for every service container |
 | `app.image.pullSecrets` | `[]` | Pull secrets (public images need none; set for a private registry) |
@@ -68,14 +66,14 @@ The tables below explain the values that matter. The generated index of every ke
 | `app.ollama.enabled` | `true` | Install the ollama subchart, the local model runtime the analyzer needs; `false` skips it (for example with `app.ollama.runtimeUrl`). Sized once for every mode. See [Analyzer runtime (ollama)](#analyzer-runtime-ollama) |
 | `app.ollama.autoPull` | `true` | Let the analyzer pull a missing model (and allow ollama HTTPS egress); `false` for air-gapped installs |
 | `app.ollama.runtimeUrl` | `""` | Ollama-API endpoint you run yourself (URL only, no key); empty = the subchart. See [Analyzer runtime (ollama)](#analyzer-runtime-ollama) |
-| `app.persistence.enabled` | `true` | Provision the exporter snapshot and report PVCs |
-| `app.persistence.storageClass` | `""` | `"<name>"` = explicit class; `"-"` = disable dynamic provisioning; `""` = cluster default. In `standard`/`performance` (two exporter replicas) the render fails when this is `""` unless `app.singleNode=true`; name a ReadWriteMany class, or with `"-"` pre-provision a ReadWriteMany PV yourself |
-| `app.persistence.size` | `10Gi` | PVC size (`minimal` mode lowers it to `1Gi`) |
-| `app.persistence.reportsSize` | `2Gi` | Exporter reports PVC size (`minimal` 512Mi, `performance` 10Gi) |
+| `app.persistence.enabled` | `true` | Provision the exporter snapshot and report PVCs (kept on uninstall) |
+| `app.persistence.storageClass` | `""` | `"<name>"` = explicit class; `"-"` = disable dynamic provisioning; `""` = cluster default on install, the claims' current class on upgrade. A different class moves the data to new claims; more than one exporter replica needs a ReadWriteMany class. See [Exporter storage](../../docs/INSTALL.md#exporter-storage) |
+| `app.persistence.snapshotsSize` | `10Gi` | Exporter snapshots PVC size (`minimal` 1Gi, `performance` 50Gi); only grows, where the class allows expansion |
+| `app.persistence.reportsSize` | `2Gi` | Exporter reports PVC size (`minimal` 512Mi, `performance` 10Gi); only grows |
 
 #### Protection plan reports
 
-The exporter mounts two PVCs rendered from one template (snapshots and reports); both follow `app.persistence.storageClass` and the derived access mode. A final report is captured asynchronously right after a plan ends (after its policies are removed and its phase is recorded). Periodic checkpoints keep records past the 1 h Event retention; an on-demand report merges what the cluster still holds. Reports are deleted with the plan and swept if the plan CR disappears; at most 10 on-demand reports are kept per plan. Formats: HTML, Markdown, JSON, CSV (PDF via the browser's print). The document shows user ids, not names. When two on-demand renders are already running the generate call returns HTTP 429 with `Retry-After`.
+The exporter mounts two PVCs rendered from one template (snapshots and reports); both follow `app.persistence.storageClass` and the access mode its replica count needs ([Exporter storage](../../docs/INSTALL.md#exporter-storage)). A final report is captured asynchronously right after a plan ends (after its policies are removed and its phase is recorded). Periodic checkpoints keep records past the 1 h Event retention; an on-demand report merges what the cluster still holds. Reports are deleted with the plan and swept if the plan CR disappears; at most 10 on-demand reports are kept per plan. Formats: HTML, Markdown, JSON, CSV (PDF via the browser's print). The document shows user ids, not names. When two on-demand renders are already running the generate call returns HTTP 429 with `Retry-After`.
 
 #### `app.auth.bootstrap`
 
@@ -222,7 +220,7 @@ Image tags are `services.<svc>.version` in `values.yaml`, bumped by the release 
 |---|---|---|
 | `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated browser origins answered with CORS headers; empty sends none (the dashboard proxies every API on its own origin). See [CORS](../../docs/INSTALL.md#cors) |
 | `SNAPSHOTS_PATH` | `/snapshots` | Filesystem mount path for snapshot files |
-| `SNAPSHOTS_PVC_NAME` | `{{ .Values.app.name }}-exporter-snapshots-pvc` (tpl) | PVC backing snapshot storage |
+| `SNAPSHOTS_PVC_NAME` | `{{ .Values.app.name }}-exporter-snapshots-pvc` (tpl), plus a storage suffix after a class change | PVC backing snapshot storage |
 | `SNAPSHOTS_PVC_NAMESPACE` | `{{ .Values.app.namespace }}` (tpl) | Namespace of the snapshots PVC |
 | `EXPORTER_K8S_CLIENT_QPS` | `50` | K8s client QPS; sized for CRD-write fanout (10× client-go default) |
 | `EXPORTER_K8S_CLIENT_BURST` | `100` | K8s client burst |

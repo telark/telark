@@ -36,7 +36,7 @@ helm template t charts/telark --set app.auth.bootstrap.admin=test@example.com --
 grep -c '^# Source:' rendered.yaml
 ```
 
-Modes that run two exporter replicas refuse to render without a storage class (`templates/_storage_guard.tpl`), hence the placeholder. Check the document count against what you expect before trusting a grep over the output, and delete `rendered.yaml` afterwards.
+The placeholder class makes the render cover a named class; more than one exporter replica refuses to render without one (`templates/_storage_guard.tpl`). `helm template` cannot look up live objects, so the storage logic that reads the cluster (`templates/_storage.tpl`) needs a `helm upgrade --dry-run=server` against a release to check. Check the document count against what you expect before trusting a grep over the output, and delete `rendered.yaml` afterwards.
 
 ## Docs in the same change
 

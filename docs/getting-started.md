@@ -10,20 +10,17 @@ You need:
 
 - A Kubernetes cluster, version 1.30 or newer, and `kubectl` pointed at it.
 - Helm 3.
-- A ReadWriteMany StorageClass, such as `efs-sc` on EKS. On a single-node cluster (kind, minikube, k3d, Docker Desktop) you don't need one: use `--set app.singleNode=true` instead.
+- A default StorageClass. Managed clusters, kind, minikube, k3d and Docker Desktop have one.
 - A browser that supports passkeys, and a way to create one: Touch ID, Windows Hello, a phone or a security key.
 
 ## 1. Install Telark
 
-Replace `<rwx-class>` with your StorageClass and `test@example.com` with your email:
+Replace `test@example.com` with your email:
 
 ```sh
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
-  --set app.persistence.storageClass=<rwx-class> \
   --set app.auth.bootstrap.admin=test@example.com
 ```
-
-On a single-node cluster, replace the first `--set` line with `--set app.singleNode=true`.
 
 The chart installs Telark's services together with Kyverno, Redis, NATS, metrics-server and Ollama. Wait until every pod is running:
 

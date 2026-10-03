@@ -175,18 +175,3 @@ func registrationOwnerKey(challenge string) (string, error) {
 func enrolledCeremonyKey(challenge string) (string, error) {
 	return ceremonyKey(constants.RedisKeyPrefixEnrolledCeremony, challenge)
 }
-
-func CleanupChallenge(userID string) {
-	rdb := redishelper.GetClient()
-	if rdb == nil {
-		lg.Error(string(constants.ErrRedisClientUnavailable))
-		return
-	}
-	key := constants.RedisKeyPrefixChallenge + userID
-	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisChallengeOpTimeout)
-	defer cancel()
-
-	if err := rdb.Del(ctx, key).Err(); err != nil {
-		lg.Warn(fmt.Sprintf(string(constants.ErrFailedDeleteChallenge), err.Error()))
-	}
-}

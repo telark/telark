@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	requestutils "github.com/telark/telark/internal/rest/utils/request"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/auth/internal/clients"
 	"github.com/telark/telark/services/auth/internal/constants"
@@ -33,7 +34,7 @@ func GetPasskeys(w http.ResponseWriter, r *http.Request) {
 }
 
 func CreatePasskey(w http.ResponseWriter, r *http.Request) {
-	user, userID, err := authhelper.GetUserForRegistration(r, webauthnhelper.RegistrationChallengeOwner)
+	user, userID, enrolled, err := authhelper.GetUserForRegistration(r, webauthnhelper.RegistrationChallengeOwner)
 	if err != nil {
 		statusCode := http.StatusBadRequest
 		if shared.IsError(err, constants.ErrUserAlreadyHasPasskeys) {
@@ -83,6 +84,7 @@ func CreatePasskey(w http.ResponseWriter, r *http.Request) {
 		sendProxyError(w, err)
 		return
 	}
+	authhelper.CompleteInvite(user, enrolled)
 
 	shared.SendJSONResponse(w, http.StatusCreated, data)
 }
@@ -167,6 +169,11 @@ func DeletePasskey(w http.ResponseWriter, r *http.Request) {
 	forceLastDelete := constants.DefaultForceLastDelete
 	cleanupOrphaned := constants.DefaultCleanupOrphaned
 	if err := shared.DecodeRequestBody(r, &req); err != nil {
+		// The body is optional, but one over the cap is refused as on every other route.
+		if errors.Is(err, requestutils.ErrRequestBodyTooLarge) {
+			shared.SendErrorResponse(w, http.StatusRequestEntityTooLarge, err)
+			return
+		}
 		lg.Debug(fmt.Sprintf(string(constants.ErrFailedDecodeRequest), err))
 	} else {
 		forceLastDelete = req.ForceLastDelete

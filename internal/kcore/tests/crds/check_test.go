@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/telark/telark/internal/data/metadata/base"
@@ -90,5 +91,13 @@ func TestEmptyNameIsBadRequest(t *testing.T) {
 	exists, err := api.CheckCustomResourceExistsByName(constants.EmptyString, md)
 	if exists || !k8serrors.IsBadRequest(err) {
 		t.Errorf(ExpectedBadRequest, "check", http.StatusBadRequest, err, http.StatusBadRequest)
+	}
+}
+
+// The envelope's message reaches HTTP responses; it read "failed to set Kubernetes client: %v" verbatim.
+func TestClientErrorMessageCarriesTheCause(t *testing.T) {
+	got := shared.HandleClientError(errors.New(TestClientCause))
+	if strings.Contains(got.Message, TestUnformattedVerb) || !strings.Contains(got.Message, TestClientCause) {
+		t.Fatalf(ExpectedClientMessage, got.Message, TestClientCause)
 	}
 }

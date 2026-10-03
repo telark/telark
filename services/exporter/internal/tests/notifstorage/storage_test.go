@@ -26,6 +26,7 @@ const (
 	concurrentCallers   = 32
 	unreadBeforeDelete  = 2
 	unreadAfterDelete   = 1
+	distinctEvents      = 2
 )
 
 func newStorage(t *testing.T) *notifstorage.Storage {
@@ -81,7 +82,9 @@ func TestEmitAndList(t *testing.T) {
 	}
 }
 
-func TestEmitDedupUpdatesInPlace(t *testing.T) {
+// Seen live: "Added to group" then "Removed from group" 3 s later left only the removal, since the
+// second overwrote the unread first by target. Only a re-published event (same content) is merged.
+func TestEmitDedupsOnlyRepublishedEvents(t *testing.T) {
 	ctx := context.Background()
 	s := newStorage(t)
 
@@ -91,23 +94,22 @@ func TestEmitDedupUpdatesInPlace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	n.Title = "updated title"
-	second, err := s.Emit(ctx, n)
+	republished, err := s.Emit(ctx, n)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Same target within the dedup window updates the existing notification.
-	if second.ID != first.ID {
-		t.Errorf("dedup created a new notification: %s vs %s", second.ID, first.ID)
+	if republished.ID != first.ID {
+		t.Errorf("re-published event created a second notification: %s vs %s", republished.ID, first.ID)
 	}
 
-	list, _ := s.List(ctx, testUserID, listLimit, constants.EmptyString)
-	if len(list.Items) != constants.DefaultIncrementValue {
-		t.Fatalf("dedup left %d items, want 1", len(list.Items))
+	n.Title = "removed"
+	if _, err := s.Emit(ctx, n); err != nil {
+		t.Fatal(err)
 	}
-	if list.Items[constants.DefaultInitValue].Title != "updated title" {
-		t.Errorf("dedup did not update title: %q", list.Items[constants.DefaultInitValue].Title)
+	list, _ := s.List(ctx, testUserID, listLimit, constants.EmptyString)
+	if len(list.Items) != distinctEvents || list.UnreadCount != distinctEvents {
+		t.Fatalf("items=%d unread=%d, want 2/2: another change to the same target is its own notification",
+			len(list.Items), list.UnreadCount)
 	}
 }
 

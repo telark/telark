@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -19,6 +21,11 @@ import (
 	applicationscore "github.com/telark/telark/services/discovery/internal/core/applications/core"
 	"github.com/telark/telark/services/discovery/internal/core/applications/history/diff"
 	"github.com/telark/telark/services/discovery/internal/core/applications/history/manifestdiff"
+	"github.com/telark/telark/services/discovery/internal/discovery/derivation"
+	"github.com/telark/telark/services/discovery/internal/discovery/listing"
+	discoveryshared "github.com/telark/telark/services/discovery/internal/discovery/shared"
+	tcfghelper "github.com/telark/telark/services/discovery/internal/helpers/telarkconfig"
+	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 	"golang.org/x/time/rate"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/tools/cache"
@@ -660,7 +667,7 @@ func TestReconcileBaselinesUnrecordedAppsWithoutPublishing(t *testing.T) {
 
 // Replays stress-12: apps rediscovered at gen 1 with snapshot s0, one annotate
 // round, and the tick landing between the change and its flush. Baselined from
-// the live object, the recorded fingerprint equalled s1 and the flush dropped
+// the live object, the recorded fingerprint equaled s1 and the flush dropped
 // its s0 pre-image as already recorded: 30 of 100 apps lost the change.
 func TestReconcileBaselinesFromSnapshotNotLiveObject(t *testing.T) {
 	s0, s1 := testDeployment(testSeq0, constants.DefaultAddValue), testDeployment(testSeq1, constants.DefaultAddValue)
@@ -991,7 +998,7 @@ func TestRecreateAfterNoInputsDropInheritsTheDeletedPreImage(t *testing.T) {
 	}
 }
 
-// Held pre-images are kept for one window only: a recreate arriving later flushes on its own.
+// Without Redis, held pre-images are kept in memory for one window only: a recreate arriving later flushes on its own.
 func TestNoInputsDropHoldsPreImagesForOneWindow(t *testing.T) {
 	flushed := make(chan map[string]*unstructured.Unstructured, constants.TwoValue)
 	c := newDropTestCoalescer(testWindow, func(buf map[string]*unstructured.Unstructured) bool {
@@ -1009,5 +1016,315 @@ func TestNoInputsDropHoldsPreImagesForOneWindow(t *testing.T) {
 		}
 	case <-time.After(testSettle):
 		t.Fatal("recreate never flushed")
+	}
+}
+
+func awaitDropped(t *testing.T, flushed <-chan map[string]*unstructured.Unstructured) map[string]*unstructured.Unstructured {
+	t.Helper()
+	select {
+	case buf := <-flushed:
+		return buf
+	case <-time.After(testSettle):
+		t.Fatal("no flush")
+		return nil
+	}
+}
+
+// Seen live (E-17): a recreate landing past the window, or after another leader took over, lost the
+// deleted pre-image and its change entry; the hold lived one window in the memory of the dropping leader.
+func TestNoInputsDropSurvivesTheWindowAndALeaderChange(t *testing.T) {
+	for _, nextLeader := range []bool{false, true} {
+		t.Run("nextLeader="+strconv.FormatBool(nextLeader), func(t *testing.T) {
+			mr := miniredis.RunT(t)
+			rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+			flushed := make(chan map[string]*unstructured.Unstructured, constants.TwoValue)
+			drop := func(buf map[string]*unstructured.Unstructured) bool {
+				flushed <- buf
+				return true
+			}
+			dropper := newDropTestCoalescer(testWindow, drop)
+			dropper.rdb = rdb
+			dropper.schedule(testAppName, testDeployKey, testWorkload(testDeletedVersion))
+			awaitDropped(t, flushed)
+			waitFor(t, func() bool { return mr.Exists(heldRedisKey(testAppName)) })
+			testutil.Equal(t, "held drop expires", mr.TTL(heldRedisKey(testAppName)), constants.CoalesceHeldTTL)
+
+			recreated := dropper
+			if nextLeader {
+				recreated = newDropTestCoalescer(testWindow, drop)
+				recreated.rdb = rdb
+				recreated.resumeFromRedis(context.Background())
+			} else {
+				time.Sleep(testMaxWait)
+			}
+			recreated.schedule(testAppName, testDeployKey, nil)
+			if pre := awaitDropped(t, flushed)[testDeployKey]; pre == nil || pre.GetResourceVersion() != testDeletedVersion {
+				t.Fatalf("recreate flushed without the deleted pre-image: %v", pre)
+			}
+		})
+	}
+}
+
+// A force sync restarts from live state: the drop it clears must not reach a later flush.
+func TestForceSyncForgetsTheHeldDrop(t *testing.T) {
+	mr := miniredis.RunT(t)
+	flushed := make(chan map[string]*unstructured.Unstructured, constants.TwoValue)
+	c := newDropTestCoalescer(testWindow, func(buf map[string]*unstructured.Unstructured) bool {
+		flushed <- buf
+		return true
+	})
+	c.rdb = redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	c.schedule(testAppName, testDeployKey, testWorkload(testDeletedVersion))
+	awaitDropped(t, flushed)
+	waitFor(t, func() bool { return mr.Exists(heldRedisKey(testAppName)) })
+
+	c.clearBufferRedis(testAppName)
+	testutil.Equal(t, "drop gone from Redis", mr.Exists(heldRedisKey(testAppName)), false)
+	c.schedule(testAppName, testDeployKey, nil)
+	if pre := awaitDropped(t, flushed)[testDeployKey]; pre != nil {
+		t.Fatalf("cleared drop still flushed: %v", pre)
+	}
+}
+
+// Only this package can fill a manager's informers, so the app-index tests live here.
+const (
+	idxApp           = "rl-skew"
+	idxJobNS         = "recs-lab"
+	idxOtherNS       = "recs-lab-prod"
+	idxNeighborApp   = "cart"
+	idxNeighborNS    = "shop"
+	idxThirdApp      = "billing"
+	idxHiddenApp     = "coredns"
+	idxExcludedNS    = "kube-system"
+	idxMissingApp    = "ghost"
+	idxLabelAppName  = "app.kubernetes.io/name"
+	idxKeyLabels     = "labels"
+	idxAPIVersionV1  = "v1"
+	idxKindService   = "Service"
+	idxKindSA        = "ServiceAccount"
+	idxKindNetPolicy = "NetworkPolicy"
+	idxSuffixService = "-svc"
+	idxSuffixSA      = "-sa"
+	idxSuffixNetPol  = "-np"
+	idxObjectsPerNS  = 4
+	idxWrites        = 2000
+	idxBenchSmall    = 100
+	idxBenchLarge    = 10000
+	idxBenchFullPass = "fullpass-"
+	idxBenchIndexed  = "indexed-"
+)
+
+func idxObject(kind, namespace, name, app string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{Object: map[string]any{
+		testKeyAPIVersion: idxAPIVersionV1,
+		testKeyKind:       kind,
+		testKeyMetadata: map[string]any{
+			testKeyName:      name,
+			testKeyNamespace: namespace,
+			idxKeyLabels:     map[string]any{idxLabelAppName: app},
+		},
+	}}
+}
+
+func skewObjects(namespace string) []*unstructured.Unstructured {
+	return []*unstructured.Unstructured{
+		idxObject(testKindDeployment, namespace, idxApp, idxApp),
+		idxObject(idxKindService, namespace, idxApp+idxSuffixService, idxApp),
+		idxObject(idxKindSA, namespace, idxApp+idxSuffixSA, idxApp),
+		idxObject(idxKindNetPolicy, namespace, idxApp+idxSuffixNetPol, idxApp),
+	}
+}
+
+// Installs, as Run would, a manager whose informer holds the objects, and wires listing to it as main does.
+// Discovery keeps the first excluded list it loads, so every test here shares idxExcludedNS.
+func useCluster(tb testing.TB, extra ...*unstructured.Unstructured) cache.Indexer {
+	tb.Helper()
+	testutil.ExcludedNamespaces(tb, idxExcludedNS)
+	inf := cache.NewSharedIndexInformerWithOptions(
+		&cache.ListWatch{}, &unstructured.Unstructured{}, cache.SharedIndexInformerOptions{Indexers: appIndexers()},
+	)
+	objs := slices.Concat(skewObjects(idxJobNS), skewObjects(idxOtherNS), []*unstructured.Unstructured{
+		idxObject(testKindDeployment, idxNeighborNS, idxNeighborApp, idxNeighborApp),
+		idxObject(testKindDeployment, idxExcludedNS, idxHiddenApp, idxHiddenApp),
+	}, extra)
+	for _, obj := range objs {
+		if err := inf.GetIndexer().Add(obj); err != nil {
+			tb.Fatal(err)
+		}
+	}
+	informerMu.Lock()
+	globalM = &Manager{informers: map[string]cache.SharedIndexInformer{constants.EmptyString: inf}}
+	informerMu.Unlock()
+	listing.InformersCache, listing.AppNamespacesCache = TryListResourcesInNamespaces, AppNamespaces
+	tb.Cleanup(func() {
+		listing.InformersCache, listing.AppNamespacesCache = nil, nil
+		informerMu.Lock()
+		globalM = nil
+		informerMu.Unlock()
+	})
+	return inf.GetIndexer()
+}
+
+// The full cache pass the app index replaced; the reference every lookup must match.
+func fullPass(ctx context.Context, idx cache.Indexer, app string) []string {
+	if app == constants.EmptyString {
+		return nil
+	}
+	excluded := tcfghelper.FetchExcludedNamespaces(ctx)
+	found := make(map[string]struct{})
+	for _, it := range idx.List() {
+		u, ok := it.(*unstructured.Unstructured)
+		if ok && derivation.AppKey(u.GetLabels()) == app && !slices.Contains(excluded, u.GetNamespace()) {
+			found[u.GetNamespace()] = struct{}{}
+		}
+	}
+	return slices.Sorted(maps.Keys(found))
+}
+
+func assertMatchesFullPass(ctx context.Context, t *testing.T, idx cache.Indexer) {
+	t.Helper()
+	for _, app := range []string{idxApp, idxNeighborApp, idxThirdApp, idxHiddenApp, idxMissingApp, constants.EmptyString} {
+		got, want := AppNamespaces(ctx, app), fullPass(ctx, idx, app)
+		if !slices.Equal(got, want) {
+			t.Fatalf("app %q: indexed %v, full pass %v", app, got, want)
+		}
+	}
+}
+
+// Every mutation the informer store sees (a label moving an object between apps,
+// a delete emptying a namespace, a label losing its identity) must keep the
+// index equal to a full pass, with an excluded namespace filtered on both sides.
+func TestAppNamespacesMatchesFullPassAcrossCacheChanges(t *testing.T) {
+	ctx := context.Background()
+	idx := useCluster(t,
+		idxObject(testKindDeployment, idxJobNS, idxNeighborApp, idxNeighborApp),
+		idxObject(testKindDeployment, idxExcludedNS, idxThirdApp, idxThirdApp),
+	)
+	steps := []struct {
+		name   string
+		mutate func() error
+		app    string
+		want   []string
+	}{
+		{name: "initial", mutate: func() error { return nil },
+			app: idxApp, want: []string{idxJobNS, idxOtherNS}},
+		{name: "label moves an object to another app",
+			mutate: func() error { return idx.Update(idxObject(testKindDeployment, idxJobNS, idxNeighborApp, idxThirdApp)) },
+			app:    idxThirdApp, want: []string{idxJobNS}},
+		{name: "deletes empty a namespace", mutate: func() error {
+			for _, obj := range skewObjects(idxOtherNS) {
+				if err := idx.Delete(obj); err != nil {
+					return err
+				}
+			}
+			return nil
+		}, app: idxApp, want: []string{idxJobNS}},
+		{name: "label loses its identity",
+			mutate: func() error {
+				return idx.Update(idxObject(testKindDeployment, idxJobNS, idxNeighborApp, constants.EmptyString))
+			},
+			app: idxThirdApp, want: nil},
+	}
+	for _, step := range steps {
+		if err := step.mutate(); err != nil {
+			t.Fatalf("%s: %v", step.name, err)
+		}
+		got := AppNamespaces(ctx, step.app)
+		if !slices.Equal(got, step.want) {
+			t.Fatalf("%s: app %q = %v, want %v", step.name, step.app, got, step.want)
+		}
+		assertMatchesFullPass(ctx, t, idx)
+	}
+}
+
+func TestAppNamespacesUnderConcurrentCacheWrites(t *testing.T) {
+	ctx := context.Background()
+	idx := useCluster(t)
+	apps := []string{idxNeighborApp, idxThirdApp}
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		for i := range idxWrites {
+			_ = idx.Update(idxObject(testKindDeployment, idxJobNS, idxNeighborApp, apps[i%constants.TwoValue]))
+		}
+	})
+	wg.Go(func() {
+		for range idxWrites {
+			AppNamespaces(ctx, idxApp)
+		}
+	})
+	wg.Wait()
+	assertMatchesFullPass(ctx, t, idx)
+}
+
+func benchObjects(others int) []*unstructured.Unstructured {
+	objs := make([]*unstructured.Unstructured, constants.DefaultInitValue, others)
+	for i := range others {
+		name := idxNeighborApp + strconv.Itoa(i)
+		objs = append(objs, idxObject(testKindDeployment, idxNeighborNS, name, name))
+	}
+	return objs
+}
+
+// Per-call cost must not grow with the number of other apps in the cache.
+func BenchmarkAppNamespaces(b *testing.B) {
+	ctx := context.Background()
+	for _, others := range []int{idxBenchSmall, idxBenchLarge} {
+		idx := useCluster(b, benchObjects(others)...)
+		b.Run(idxBenchIndexed+strconv.Itoa(others), func(b *testing.B) {
+			for b.Loop() {
+				AppNamespaces(ctx, idxApp)
+			}
+		})
+		b.Run(idxBenchFullPass+strconv.Itoa(others), func(b *testing.B) {
+			for b.Loop() {
+				fullPass(ctx, idx, idxApp)
+			}
+		})
+	}
+}
+
+// A per-app job carries one namespace of its app (F2: rl-skew in recs-lab and
+// recs-lab-prod). Listing only that one published the app without the other.
+func TestAppJobListsEveryNamespaceOfItsApp(t *testing.T) {
+	useCluster(t)
+	ctx := context.Background()
+
+	refs, err := listing.Resources(ctx, listing.AppNamespaces(ctx, idxApp, []string{idxJobNS}))
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	perNamespace := make(map[string]int)
+	for _, g := range derivation.GroupByWorkloadAnchor(discoveryshared.ToDerivationInputs(refs)) {
+		if g.Group == idxApp {
+			perNamespace[g.Namespace]++
+		}
+	}
+	testutil.Equal(t, "namespaces", len(perNamespace), constants.TwoValue)
+	testutil.Equal(t, idxJobNS, perNamespace[idxJobNS], idxObjectsPerNS)
+	testutil.Equal(t, idxOtherNS, perNamespace[idxOtherNS], idxObjectsPerNS)
+}
+
+func TestAppNamespaces(t *testing.T) {
+	cases := []struct {
+		name  string
+		app   string
+		known []string
+		want  []string
+	}{
+		{name: "adds the app's other namespace", app: idxApp,
+			known: []string{idxJobNS}, want: []string{idxJobNS, idxOtherNS}},
+		{name: "keeps known namespaces the cache lacks", app: idxNeighborApp,
+			known: []string{idxJobNS}, want: []string{idxJobNS, idxNeighborNS}},
+		{name: "never adds an excluded namespace", app: idxHiddenApp,
+			known: []string{idxJobNS}, want: []string{idxJobNS}},
+		{name: "unknown app adds nothing", app: constants.EmptyString,
+			known: []string{idxJobNS}, want: []string{idxJobNS}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			useCluster(t)
+			got := listing.AppNamespaces(context.Background(), tc.app, tc.known)
+			testutil.Equal(t, "namespaces", slices.Equal(got, tc.want), true)
+		})
 	}
 }

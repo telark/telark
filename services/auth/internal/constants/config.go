@@ -73,13 +73,15 @@ const (
 	EnvChallengeTimeout           = "CHALLENGE_TIMEOUT"
 	EnvSessionExpiry              = "SESSION_EXPIRY"
 	EnvBootstrapAdmin             = "BOOTSTRAP_ADMIN"
-	EnvSelfRegistrationEnabled    = "SELF_REGISTRATION_ENABLED"
 	EnvReplicaID                  = "HOSTNAME"
 	EnvOIDCTrustFile              = "OIDC_TRUST_FILE"
 	DefaultOIDCTrustFile          = "/etc/telark/oidc/googleJwkJson"
 	StandaloneReplicaID           = "standalone"
 
-	DefaultSelfRegistrationEnabled = false
+	EnvEnrollInviteTTLSec     = "ENROLL_INVITE_TTL_SEC"
+	DefaultEnrollInviteTTLSec = 3600
+	TelarkConfigCacheTTL      = 5 * time.Second
+	TelarkConfigFlightKey     = "telarkconfig"
 
 	BuiltInRoleAdmin    = "r-00000-0000-0001"
 	BuiltInRoleReadOnly = "r-00000-0000-0004"
@@ -97,6 +99,8 @@ const (
 	RedisKeyPrefixRegistrationOwner = "auth:webauthn:registration-owner:"
 	RedisKeyPrefixEnrolledCeremony  = "auth:webauthn:enrolled-ceremony:"
 	RedisKeyPrefixEnrollToken       = "auth:passkey:enroll-token:"
+	RedisKeyPrefixInvite            = "auth:passkey:invite:"
+	RedisKeyPrefixInviteOf          = "auth:passkey:invite-of:"
 	RedisKeyPrefixPendingUser       = "auth:webauthn:pending-user:"
 	RedisKeyPrefixNonce             = "auth:oidc:nonce:"
 
@@ -109,6 +113,24 @@ const (
 	RedisAsyncWorkerTimeout  = 5 * time.Second
 	RedisAsyncDrainTimeout   = 5 * time.Second
 	RedisChallengeOpTimeout  = 3 * time.Second
+
+	// KEYS: invite-of:<user>, invite:<digest>. ARGV: invite prefix, user, digest, TTL seconds.
+	ScriptIssueInvite = `local previous = redis.call('GET', KEYS[1])
+if previous then redis.call('DEL', ARGV[1] .. previous) end
+redis.call('SET', KEYS[2], ARGV[2], 'EX', ARGV[4])
+redis.call('SET', KEYS[1], ARGV[3], 'EX', ARGV[4])
+return 1`
+	// KEYS: invite-of:<user>. ARGV: invite prefix.
+	ScriptRevokeInvite = `local previous = redis.call('GET', KEYS[1])
+if previous then redis.call('DEL', ARGV[1] .. previous) end
+return redis.call('DEL', KEYS[1])`
+	// KEYS: enroll-token:<digest>, invite:<digest>. ARGV: invite-of prefix, digest.
+	ScriptConsumeEnrollToken = `local owner = redis.call('GETDEL', KEYS[1])
+if owner then return owner end
+owner = redis.call('GETDEL', KEYS[2])
+if not owner then return false end
+if redis.call('GET', ARGV[1] .. owner) == ARGV[2] then redis.call('DEL', ARGV[1] .. owner) end
+return owner`
 
 	// Username generation (CRD regex: ^[a-zA-Z0-9_-]+$)
 	UsernameMaxLocalLen  = 43

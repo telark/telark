@@ -274,9 +274,13 @@ func rollbackCaller(w http.ResponseWriter, r *http.Request) (string, bool) {
 func decodeTriggerRollbackBody(w http.ResponseWriter, r *http.Request) (*triggerRollbackBody, bool) {
 	var body triggerRollbackBody
 	if err := sharedhelper.DecodeJSONStrict(w, r, &body); err != nil {
+		status := http.StatusUnprocessableEntity
+		if _, tooLarge := errors.AsType[*http.MaxBytesError](err); tooLarge {
+			status = http.StatusRequestEntityTooLarge
+		}
 		responseutils.LogAndSendResponse(
 			w,
-			http.StatusUnprocessableEntity,
+			status,
 			response.OperationError,
 			"invalid request body",
 			nil,

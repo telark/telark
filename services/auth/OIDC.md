@@ -20,7 +20,7 @@ flowchart TB
     google{{"Google<br/>Sign-In"}}:::ext
 
     admin --> settings
-    settings -->|"A · save SSO settings (admin only)"| auth
+    settings -->|"A · save SSO settings (bootstrap admin only)"| auth
     auth -->|"B · check the settings"| auth
     auth -->|"C · store the settings"| exp
 
@@ -39,8 +39,8 @@ flowchart TB
 
 ## Turning SSO on (admin)
 
-- **A.** An admin fills in the SSO settings (Google client ID and the options below) on
-  Settings → Single Sign-On. It needs Admin on `ALL`. In the Google OAuth client, register
+- **A.** The bootstrap admin fills in the SSO settings (Google client ID and the options below) on
+  Settings → Single Sign-On; everyone else sees them read-only. In the Google OAuth client, register
   `https://<host>/auth/google/callback` as an authorized redirect URI: the dashboard sends it
   as `redirect_uri`.
 - **B.** auth-service checks that the settings are usable before saving them, so a
@@ -60,16 +60,17 @@ flowchart TB
    with that email, or an account that already signs in another way, are refused
    (409). The bootstrap admin only ever signs in with its passkey: a login that
    resolves to it, by its email or by a Google identity bound to it before it was
-   promoted, is refused (403).
+   promoted, is refused (403, `the bootstrap administrator signs in with a passkey`).
    A created user always gets the ReadOnly role, even with the bootstrap email:
    SSO never grants Admin or the `bootstrap` marker (only `break-glass` does).
-   A user being deleted or whose account is not active gets no session (403).
+   A user being deleted or whose account is not active gets no session (403;
+   a suspended account is told `user account is suspended`).
    Otherwise auth-service creates a Telark session and the user is logged in.
 
 ## How auth-service trusts Google
 
-To check a Google token in step 4, auth-service needs Google's public keys. There
-are two modes, controlled by one setting:
+To check a Google token in step 4, auth-service needs Google's public keys. One
+setting picks the mode:
 
 - **Cluster can reach the internet** (`egressAllowed = true`): auth-service fetches
   Google's keys directly and refreshes them automatically.
@@ -94,10 +95,12 @@ are two modes, controlled by one setting:
   sync). Omitting the key keeps the stored set. Once cleared, an enabled
   configuration with `egressAllowed = false` is refused (400) until a new set is sent.
 - Endpoints: `GET /auth/config` is **public** and returns `selfRegistrationEnabled`,
-  `oidcEnabled` and, only when SSO is usable, `googleClientID` (not a secret);
-  `PATCH /auth/oidc/config` saves settings and needs Admin on `ALL` (not only on
-  `settings`), subject to the `settings.editoidcconfig.deny` rule; `POST /auth/oidc/google/callback` handles the
+  `oidcEnabled` and, only when SSO is usable, `googleClientID` (not a secret), from a
+  cached config that asks the exporter at most once every 5 seconds;
+  `PATCH /auth/oidc/config` saves settings and needs the bootstrap account (its own
+  user record's `bootstrap` marker, whatever its grants) on top of Admin on `settings`
+  and the `settings.editoidcconfig.deny` rule; `POST /auth/oidc/google/callback` handles the
   token from step 3.
 - auth-service validates the settings and writes them with `PATCH /api/v1/config`
-  on exporter-service using a service token (the exporter puts the key set in
-  the Secret and the rest in the CR); the route's Admin check is what enforces authorization.
+  on exporter-service using a service token. The exporter takes the `oidc` block from a
+  service only, so auth's bootstrap check is what enforces authorization.

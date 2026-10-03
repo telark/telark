@@ -1,10 +1,11 @@
-package authorisation
+package authorization
 
 import roleresource "github.com/telark/telark/internal/data/resources/role"
 
 type RoleSource struct {
-	Kind    string `json:"kind"`              // "direct" or "inherited"
-	GroupID string `json:"groupID,omitempty"` // set when Kind == "inherited"
+	Kind      string `json:"kind"`              // "direct" or "inherited"
+	GroupID   string `json:"groupID,omitempty"` // set when Kind == "inherited"
+	GroupName string `json:"groupName,omitempty"`
 }
 
 type ResolvedScope struct {

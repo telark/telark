@@ -1,6 +1,6 @@
 # Testing and validation
 
-How to build, test and validate Telark from a fresh clone, locally or in a Claude Code cloud session. `.github/workflows/ci.yaml` is the merge gate and the source of truth for versions, test lists and coverage floors; when this page and CI disagree, CI wins.
+How to build, test and validate Telark from a fresh clone, locally or in CI. `.github/workflows/ci.yaml` is the merge gate and the source of truth for versions, test lists and coverage floors; when this page and CI disagree, CI wins.
 
 ## What runs where
 
@@ -10,9 +10,9 @@ How to build, test and validate Telark from a fresh clone, locally or in a Claud
 | `golangci-lint` (per service and shared package) | golangci-lint | yes | `go`, lint leg |
 | Helm lint, `VALUES.md` drift, kubeconform | Helm, Go (for helm-docs), kubeconform, network access to chart repos and schemas | yes | `helm` |
 | Analyzer syntax check, pytest, coverage | Python 3.13 | yes | `analyzer` |
-| Pod readiness, API calls, UI flows, admission behaviour | a cluster with the chart installed | no | none |
+| Pod readiness, API calls, UI flows, admission behavior | a cluster with the chart installed | no | none |
 
-Cloud sessions have no cluster, no registry login and no dashboard UI checkout. Every row except the last runs there; the last row is manual work on a cluster (see [Cluster validation](#cluster-validation)).
+Every row except the last runs without a cluster; the last row is manual work on a cluster (see [Cluster validation](#cluster-validation)).
 
 ## Fresh environment
 
@@ -44,15 +44,11 @@ curl -fsSL https://get.helm.sh/helm-v4.3.0-linux-amd64.tar.gz | sudo tar -xz -C 
 
 Python 3.13: use the image's `python3.13` if there is one, otherwise `uv venv --python 3.13 --seed <dir>` downloads it.
 
-## Go module
-
-All Go code is one module, `github.com/telark/telark` (the root `go.mod`): the services in `services/<svc>` and the shared packages in `internal/{data,rest,kcore,x-ware}`. There is no `go.work` and no `replace` directive, so Go commands run from the repository root the same way on every machine and in CI.
-
 ## Commands
 
 ### Go services (`auth`, `discovery`, `exporter`, `notifier`) and shared packages
 
-From the repository root:
+All Go code is one module (the root `go.mod`, no `go.work`, no `replace`), so Go commands run from the repository root, as in CI:
 
 ```sh
 go build ./...
@@ -61,7 +57,7 @@ go test -race ./...
 golangci-lint run ./services/<svc>/...   # or ./internal/<pkg>/...; uses the root .golangci.yml, never --no-config
 ```
 
-CI's test leg for a service, with the floor from the `go` job matrix (auth 60, discovery 50, exporter 55, notifier 75; the shared packages have none):
+CI's test leg for a service (`./internal/<pkg>/...` for a shared package), with the floor from the `go` job matrix (auth 60, discovery 50, exporter 55, notifier 75, data 73, rest 54, kcore 22, x-ware 47); every test leg uploads its profile to Codecov:
 
 ```sh
 go test -race -coverpkg=./services/<svc>/... -coverprofile=coverage.out ./services/<svc>/...
@@ -87,7 +83,7 @@ make values-docs       # regenerates both VALUES.md; CI fails on drift, so check
 
 - In a fresh Helm config, `make deps` fails with `no repository definition for https://charts.fairwinds.com/stable` until the `vpa` repository is added. CI's list is `.github/actions/helm-add-dependency-repos/action.yaml`.
 - `make helm-validate` downloads Kubernetes and CRD schemas (cached in `/tmp/kubeconform-cache`). A pass prints `Invalid: 0, Errors: 0` for every mode and version; the skipped resources are kinds without a published schema.
-- Rendering `standard` or `performance` without `app.persistence.storageClass` fails by design (`templates/_storage_guard.tpl`); the make target passes the placeholder `validate`.
+- The make target passes the placeholder class `validate`, so the renders also cover a named class. More than one exporter replica without a class fails by design (`templates/_storage_guard.tpl`).
 - The full procedure and the docs that change with a value: the `helm-chart-change` skill.
 
 ### Analyzer (`services/analyzer`)
@@ -117,7 +113,7 @@ make helm-validate
 
 ## Cluster validation
 
-This needs a Kubernetes cluster (≥ 1.30) with the chart installed, which a cloud session doesn't have. Installing and reaching the dashboard: [INSTALL.md](../INSTALL.md). The maintainer's build-and-deploy loop is the `deploy-dev-cluster` skill; the `scripts/local-*.sh` helpers it calls are git-ignored and exist only on the maintainer's machine.
+This needs a Kubernetes cluster (≥ 1.30) with the chart installed. Installing and reaching the dashboard: [INSTALL.md](../INSTALL.md).
 
 ### Smoke test
 
@@ -138,7 +134,7 @@ curl -fsS -H "X-Session-Token: $TOKEN" localhost:8004/api/v1/<route>
 ```
 
 - A user request carries its session token in the `X-Session-Token` header, never in a cookie or the query string. Sign in through the UI (passkeys need `https://` or `http://localhost`) and copy the header from any API request in the browser's network panel.
-- Route paths: `services/{auth,discovery,exporter}/internal/routes/routes.go` with the path constants in the `rest` module's `endpoints/` packages, and `services/analyzer/api_server.py`. Each Go service's access rule per route is in `internal/authz/requirements.go`. Send the opaque ids the UI sends, not display names.
+- Route paths: `services/{auth,discovery,exporter}/internal/routes/routes.go` with the path constants in `internal/rest/endpoints/`, and `services/analyzer/api_server.py`. Each Go service's access rule per route is in `internal/authz/requirements.go`. Send the opaque ids the UI sends, not display names.
 - A 403 for a user who looks authorized usually means a deny rule or a missing grant, not a bug; see [Authorization](../security/README.md#authorization).
 
 ### End-to-end: UI → API → backend → Kubernetes

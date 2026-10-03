@@ -28,7 +28,7 @@ Detail: [docs/architecture/](docs/architecture/README.md).
 - Everything that persists goes through the **exporter's HTTP API** (`rest` clients, `/api/v1/...`, port 8080). Only the exporter writes telark CRDs; discovery also patches `applications/status`.
 - **discovery** watches the cluster, publishes application events to NATS, stores snapshots and history through the exporter, pushes analysis jobs to the Redis stream `insights:jobs`, and creates and deletes the Kyverno `Policy` objects of active plans.
 - **auth** produces sessions; every other API service validates them through the same `x-ware` middleware (the analyzer asks auth).
-- Redis is shared coordination and cache (leader locks, queues, dedup, insights, authz cache) and is **untrusted**: no auth, so authorization cache entries are HMAC-signed.
+- Redis is shared coordination and cache (leader locks, queues, dedup, insights, authz cache). It requires a password (chart-generated Secret, `REDIS_PASSWORD`) but stays **untrusted**, since every service holds it: authorization cache entries are HMAC-signed.
 
 ## Security model (essentials)
 
@@ -49,7 +49,7 @@ Full model, RBAC table and invariants: [docs/security/](docs/security/README.md)
 
 ## Protection plans
 
-Phases `draft`, `pending_approval`, `scheduled`, `active`, `terminated`, `canceled`, `failed` (`data/plans/protectionplan.go`). discovery drives the lifecycle; approval is `automatic` or `required` (Production defaults to required). While active, discovery renders the plan's templates into namespaced Kyverno `Policy` objects labelled `telark.io/protection-plan=<id>`, in `audit` or `enforce` mode, minus scope exclusions, and checks their health against the cluster. Violations come from Kubernetes Events; terminate and cancel delete the policies, and a finished plan then reports zero violations. Detail: [docs/architecture/protection-plans.md](docs/architecture/protection-plans.md).
+Phases `draft`, `pending_approval`, `scheduled`, `active`, `terminated`, `canceled`, `failed` (`data/plans/protectionplan.go`). discovery drives the lifecycle; approval is `automatic` or `required` (Production defaults to required). While active, discovery renders the plan's templates into namespaced Kyverno `Policy` objects labeled `telark.io/protection-plan=<id>`, in `audit` or `enforce` mode, minus scope exclusions, and checks their health against the cluster. Violations come from Kubernetes Events; terminate and cancel delete the policies, and a finished plan then reports zero violations. Detail: [docs/architecture/protection-plans.md](docs/architecture/protection-plans.md).
 
 ## Build, test, validate
 
@@ -66,7 +66,7 @@ Tool versions (Go 1.27.1, golangci-lint v2.14.0, kubeconform v0.8.0, Python 3.13
 ## Before you call something done
 
 - Run the skill for what you touched: `go-service-change-gate`, `helm-chart-change`, `analyzer-ci-gate` (`.claude/skills/`).
-- Docs change in the same diff as the behaviour, including `docs/security/` when you touch authentication, authorization, RBAC or the service token.
+- Docs change in the same diff as the behavior, including `docs/security/` when you touch authentication, authorization, RBAC or the service token.
 - No commits, pushes, tags, version bumps, image builds or cluster changes unless asked (AGENTS.md, Releases and versions).
 
 ## Docs map
@@ -80,4 +80,3 @@ Tool versions (Go 1.27.1, golangci-lint v2.14.0, kubeconform v0.8.0, Python 3.13
 | Build, test, CI parity, cluster checks | [docs/testing/](docs/testing/README.md), [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) |
 | Install and chart values | [docs/INSTALL.md](docs/INSTALL.md), [charts/telark/README.md](charts/telark/README.md) |
 | CRDs | [docs/CRDS.md](docs/CRDS.md) |
-| In-flight feature plans | `.claude/plans/` |

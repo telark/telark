@@ -1,6 +1,6 @@
 # Telark documentation
 
-Telark is a protection gate for your Kubernetes applications: you decide what can change an app, and when. Pick the section that matches what you need.
+Telark is a protection gate for your Kubernetes applications: you decide what can change an app, and when.
 
 ## Get started
 
@@ -25,13 +25,13 @@ Telark is a protection gate for your Kubernetes applications: you decide what ca
 
 ## Internals
 
-For contributors and reviewers.
+For contributors and reviewers. Start with [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 - [Architecture](architecture.md): services, data flow and subcharts on one page.
   - [Components and flows](architecture/README.md): call graph, Redis and NATS usage, startup and cross-service flows.
   - [Protection plans](architecture/protection-plans.md): lifecycle, Kyverno policies, health, violations and reports.
 - [Security model](security/README.md): authentication, authorization, RBAC, trust boundaries and invariants.
-- [Architecture decisions](adr/): ADRs.
+- [Architecture decisions](adr/).
 - [Testing and validation](testing/README.md): tool versions, build and test commands, CI parity and cluster checks.
 - [Development](DEVELOPMENT.md): make targets.
 - [Publishing](PUBLISHING.md): packaging, signing and pushing the Helm charts.

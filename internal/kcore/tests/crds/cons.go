@@ -12,8 +12,12 @@ const (
 	TestVerbGet   = "get"
 	TestTimeoutS  = 1
 
+	TestClientCause     = "in-cluster config unavailable"
+	TestUnformattedVerb = "%v"
+
 	ExpectedExistsFromGetError = "%s: exists=%v err=%v, want exists=%v err=%v"
 	ExpectedBadRequest         = "%s: status=%d err=%v, want %d and a BadRequest error"
+	ExpectedClientMessage      = "message = %q, want the cause %q formatted in"
 )
 
 const (

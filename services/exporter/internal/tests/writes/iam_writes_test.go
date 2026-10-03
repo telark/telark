@@ -1,16 +1,23 @@
 package writes
 
 import (
+	"context"
+	"maps"
 	"net/http"
 	"slices"
 	"testing"
 
+	"github.com/alicebob/miniredis/v2"
+	"github.com/redis/go-redis/v9"
 	"github.com/telark/telark/internal/data/metadata/base"
 	"github.com/telark/telark/internal/data/metadata/v1alpha1"
 	roledata "github.com/telark/telark/internal/data/resources/role"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/exporter/internal/constants"
 	envmanager "github.com/telark/telark/services/exporter/internal/managers/envs"
+	exprdb "github.com/telark/telark/services/exporter/internal/redis"
+	notifstorage "github.com/telark/telark/services/exporter/internal/redis/notifications"
+	"github.com/telark/telark/services/exporter/internal/utils/async"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 )
@@ -21,6 +28,7 @@ const (
 	storedRoleID  = "r-00002-0000-0002"
 	storedGroupID = "ug-00003-0000-0003"
 	originalActor = "u-00012-0000-0012"
+	statusUserID  = "u-0000f-0000-0006"
 	rolesPath     = "/api/v1/accessroles"
 	groupsPath    = "/api/v1/groups"
 	keyCreatedBy  = "createdBy"
@@ -30,6 +38,15 @@ const (
 	testCategory  = "c-00001-0000-0001"
 	newDesc       = "changed"
 	pathSep       = "/"
+
+	heldRoleA              = "r-00004-0000-0004"
+	heldRoleB              = "r-00005-0000-0005"
+	grantedRoleID          = "r-00006-0000-0006"
+	notificationsListLimit = 10
+	roleChangeMessage      = "Granted 1 role. Revoked 2 roles."
+
+	keyIssuedAt = "issuedAt"
+	keyIssuedBy = "issuedBy"
 )
 
 func adminCaller() xauthz.Identity {
@@ -123,6 +140,116 @@ func TestUserPatchWithoutGroupsKeepsMemberships(t *testing.T) {
 				t.Errorf("group lost the member: %v", members)
 			}
 		})
+	}
+}
+
+// Seen live: a deleted user stayed in its groups' member lists, and a deleted group in
+// its members' groupRefs, until auth's cleanup sweep ran 45-60 s later.
+func TestDeleteStripsTheOtherSide(t *testing.T) {
+	tests := []struct {
+		name, path    string
+		identity      xauthz.Identity
+		md            base.Metadata
+		holder, field string
+		want          []string
+	}{
+		{"user", usersPrefix + plainUser, adminCaller(), v1alpha1.GroupMetadata, mixedGroupID, keyUserRefs, []string{adminA}},
+		{"group", groupsPrefix + mixedGroupID, adminCaller(), v1alpha1.UserMetadata, plainUser, keyGroupRefs, nil},
+		{"group, by a caller the member is hidden from", groupsPrefix + mixedGroupID, restrictedCaller(),
+			v1alpha1.UserMetadata, adminA, keyGroupRefs, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := mixedDirectory(t)
+			if w := serveAs(t, tt.identity, http.MethodDelete, tt.path, constants.EmptyString); w.Code != http.StatusOK {
+				t.Fatalf("delete = %d %s", w.Code, w.Body.String())
+			}
+			if refs := storedList(t, client, tt.md, tt.holder, tt.field); !slices.Equal(refs, tt.want) {
+				t.Errorf("%s %s = %v, want %v", tt.holder, tt.field, refs, tt.want)
+			}
+		})
+	}
+}
+
+func statusUser(t *testing.T, phase string, stamp *string) seed {
+	t.Helper()
+	user := userRecord(statusUserID, nil, nil, false)
+	user.Status.Phase, user.Status.LastLoginAt = phase, stamp
+	return crSeedOf(t, v1alpha1.UserMetadata, statusUserID, user)
+}
+
+// The stamp and the phase have different writers: a login's last-login stamp never
+// moves the phase an admin set meanwhile, and a phase change keeps the stamp.
+func TestLastLoginStampAndPhaseStayApart(t *testing.T) {
+	stamp := stampTime
+	tests := []struct {
+		name, id string
+		seeds    func(t *testing.T) []seed
+		caller   xauthz.Identity
+		body     map[string]any
+		phase    string
+	}{
+		{"stamp on a suspended account", statusUserID, func(t *testing.T) []seed {
+			return []seed{statusUser(t, phaseSuspended, nil)}
+		}, xauthz.Identity{Internal: true}, lastLoginStamp(), phaseSuspended},
+		{"stamp on the only admin", adminA, func(t *testing.T) []seed {
+			return []seed{adminUser(t, adminA, []string{adminRoleID}, nil, false)}
+		}, xauthz.Identity{Internal: true}, lastLoginStamp(), phaseActive},
+		{"suspension of a stamped account", statusUserID, func(t *testing.T) []seed {
+			return []seed{statusUser(t, phaseActive, &stamp)}
+		}, adminCaller(), suspend(), phaseSuspended},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := adminDirectory(t, tt.seeds(t)...)
+			if w := patchAs(t, tt.caller, usersPrefix+tt.id, jsonBody(t, tt.body)); w.Code != http.StatusOK {
+				t.Fatalf("patch = %d %s", w.Code, w.Body.String())
+			}
+			status, _, err := unstructured.NestedStringMap(storedSpec(t, client, v1alpha1.UserMetadata, tt.id), keyStatus)
+			if err != nil || status[keyPhase] != tt.phase || status[keyLastLoginAt] != stampTime {
+				t.Fatalf("stored status = %v (%v), want phase %s and lastLoginAt %s", status, err, tt.phase, stampTime)
+			}
+		})
+	}
+}
+
+// Auth stamps and clears the invite with a phase-less status, like the last-login stamp: the merge patch
+// stores it, clears it (null) and keeps its use time across later links, while phase and lastLoginAt stay.
+func TestInviteStatusIsStoredAndCleared(t *testing.T) {
+	stamp := stampTime
+	client := adminDirectory(t, statusUser(t, phaseSuspended, &stamp))
+	invite := map[string]any{keyIssuedAt: stampTime, keyExpiresAt: stampTime, keyIssuedBy: callerID}
+	steps := []struct {
+		name         string
+		invite       map[string]any
+		accepted     string
+		wantAccepted any
+	}{
+		{"stored", invite, constants.EmptyString, nil},
+		{"used", nil, stampTime, stampTime},
+		{"stored again", invite, constants.EmptyString, stampTime},
+		{"cleared", nil, constants.EmptyString, stampTime},
+	}
+	for _, step := range steps {
+		sent := map[string]any{constants.FieldInvite: step.invite}
+		if step.accepted != constants.EmptyString {
+			sent[constants.FieldInviteAcceptedAt] = step.accepted
+		}
+		body := map[string]any{constants.FieldStatus: sent}
+		if w := patchAs(t, xauthz.Identity{Internal: true}, usersPrefix+statusUserID, jsonBody(t, body)); w.Code != http.StatusOK {
+			t.Fatalf("%s: patch = %d %s", step.name, w.Code, w.Body.String())
+		}
+		status, _, err := unstructured.NestedMap(storedSpec(t, client, v1alpha1.UserMetadata, statusUserID), keyStatus)
+		if err != nil || status[keyPhase] != phaseSuspended || status[keyLastLoginAt] != stampTime {
+			t.Fatalf("%s: stored status = %v (%v), want phase %s and lastLoginAt %s kept", step.name, status, err, phaseSuspended, stampTime)
+		}
+		storedInvite, present := status[constants.FieldInvite].(map[string]any)
+		if present != (step.invite != nil) || !maps.Equal(storedInvite, step.invite) {
+			t.Fatalf("%s: stored invite = %v, want %v", step.name, status[constants.FieldInvite], step.invite)
+		}
+		if status[constants.FieldInviteAcceptedAt] != step.wantAccepted {
+			t.Fatalf("%s: stored inviteAcceptedAt = %v, want %v", step.name, status[constants.FieldInviteAcceptedAt], step.wantAccepted)
+		}
 	}
 }
 
@@ -237,5 +364,38 @@ func TestRoleLocksAndWhoMayLiftThem(t *testing.T) {
 				t.Errorf("name = %v, want %s", got, tt.wantName)
 			}
 		})
+	}
+}
+
+func readOnlyRole(t *testing.T, id string) seed {
+	t.Helper()
+	return crSeedOf(t, v1alpha1.AccessRoleMetadata, id, roledata.AccessRole{
+		Status: roledata.RoleStatusActive, Type: roledata.RoleTypeCustom,
+		ScopesAndPermissions: []roledata.ScopeAndPermissions{{Scope: roledata.ScopeRoles, Level: roledata.PermissionLevelReadOnly}},
+	})
+}
+
+// Seen live: the bell showed "granted 1 role(s); revoked 2 role(s)", against the UI copy rules.
+func TestRoleChangeNotificationReadsAsSentences(t *testing.T) {
+	exprdb.Set(redis.NewClient(&redis.Options{Addr: miniredis.RunT(t).Addr()}))
+	t.Cleanup(func() { exprdb.Set(nil) })
+	async.Init()
+	installFake(t, readOnlyRole(t, heldRoleA), readOnlyRole(t, heldRoleB), readOnlyRole(t, grantedRoleID),
+		adminUser(t, plainUser, []string{heldRoleA, heldRoleB}, nil, false))
+
+	if w := patchAs(t, adminCaller(), usersPrefix+plainUser, `{"roleRefs":["`+grantedRoleID+`"]}`); w.Code != http.StatusOK {
+		t.Fatalf("patch = %d %s", w.Code, w.Body.String())
+	}
+	async.Drain()
+	storage, err := notifstorage.NewStorage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	list, err := storage.List(context.Background(), plainUser, notificationsListLimit, constants.EmptyString)
+	if err != nil || len(list.Items) != constants.DefaultIncrementValue {
+		t.Fatalf("notifications = %v, err %v", list, err)
+	}
+	if got := list.Items[constants.DefaultInitValue].Message; got != roleChangeMessage {
+		t.Errorf("message = %q, want %q", got, roleChangeMessage)
 	}
 }

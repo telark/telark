@@ -12,17 +12,14 @@ Rules and workflows for coding agents (Claude Code, Codex, Cursor, Copilot, Gemi
 | `charts/telark` | Application chart: services, subcharts, sizing presets in `modes/`, and `values.dev.yaml` (local port-forward settings that Helm never loads) |
 | `charts/telark-crds` | CRDs, a standalone chart published to OCI; `charts/telark` depends on it by exact version (re-pinned by `release-charts` on `chart=both`) |
 | `docs/` | `INSTALL.md`, `DEVELOPMENT.md` (every make target), `PUBLISHING.md`, `CRDS.md`, ADRs; `architecture/`, `security/` and `testing/` for agents and contributors |
-| `scripts/` | Dev-cluster loop: `local-build-push.sh`, `local-port-forward.sh`; git-ignored, so they exist only on the maintainer's machine |
 | `.github/` | CI (`workflows/ci.yaml`), build and release workflows, composite actions in `actions/` and their scripts in `scripts/` |
-| `.claude/` | Feature guidelines, model routing, feature plans (`plans/`), skills (`skills/`) |
+| `.claude/` | Agent skills (`skills/`) |
 
 `make help` lists the Makefile targets; `docs/DEVELOPMENT.md` says when to use each.
 
 Outside this repository:
 
 - **Dashboard UI**: the `telark/dashboard-ui` repository (stable branch `main`). This repo only references its image (`services.ui`).
-- **Cluster infrastructure**: the `telark/infra` repository (Terraform).
-- **Legacy**: the `release-manager` repository is no longer used. Values, modes, tunables and sizing live in `charts/telark`; ignore older notes that point elsewhere.
 
 ## Working agreements
 
@@ -82,11 +79,9 @@ Verify each step against its success criterion before moving on. Strong success 
 
 - **Comments** explain only a non-obvious why (a hidden constraint, an invariant, a workaround), in at most two lines, in Go, Python, templates and `values.yaml` alike. No header comments above functions, types or fields: well-named identifiers already say what the code does, and a comment that needs more than two lines usually means the code needs simplifying.
 - **Gates stay strict.** Run linters with the repository's checked-in config: no `--no-config`, override flags or `//nolint`, because they hide real issues and diverge from CI; when a finding is unclear, read the config. Don't weaken a test to make a change pass (if it asserts wrong behavior, flag it), and don't lower a coverage floor or relax a CI check.
-- **Infrastructure** changes (node groups, instance types, capacity, EKS version, IAM) are Terraform edits in the infra repository that the user reviews and applies. Read-only `aws` and `kubectl` queries are fine for facts; don't change the cluster directly with `aws`, `eksctl` or similar, because it has to stay reproducible from code.
 - **Sub-agents** start without your context. Brief them with the rules that apply to their task (test location, constants, no version bumps, the lint gate) and check their output against those rules before reporting done.
 - **Truncated output.** Some agent shells filter long or multi-document command output, sometimes even through a `>` redirect. When completeness matters (`helm template`, multi-document YAML, long greps, file dumps), compare counts with what you expect and re-run unfiltered before concluding that something is broken.
 - **Code navigation.** If the code-review-graph MCP server is available and `list_graph_stats` shows this repository indexed, prefer it for callers, impact-radius and test-coverage questions (see the `graph-*` skills); otherwise use normal search.
-- **Feature work** follows [.claude/FEATURE_IMPLEMENTATION_GUIDELINES.md](.claude/FEATURE_IMPLEMENTATION_GUIDELINES.md): design checklist, edge cases, definition of done.
 
 ## Go services
 
@@ -107,6 +102,8 @@ Verify each step against its success criterion before moving on. Strong success 
 - Remove an unused parameter from the signature and update every caller rather than renaming it `_`. `_ Type` is only for signatures fixed by an interface you don't own.
 - Prefer the `slices` and `maps` packages over hand-written loops for membership, index, sort, clone and delete.
 - Match the naming, structure and style of the file you're editing. Complexity and function-length limits come from `.golangci.yml`; extract a helper instead of relaxing them. Naming, error and logging rules are in [CONVENTIONS.md](CONVENTIONS.md).
+- Spelling is American English everywhere: code, comments, docs, UI copy and CRD descriptions ("enrollment", "behavior", "canceled"). `misspell` enforces it in Go (`locale: US`).
+- An expected 4xx (a refusal, a bad body) is an answer, not a failure: send it with `SendResponse`, because `LogAndSendResponse` logs `[ERROR]` for any non-nil error whatever the status. Exporter handlers decode bodies through `GetSpec`/`GetSpecFor` (`utils/shared/extract.go`), the one place that maps body errors to 413, 422 and 400; calling `ParseRequestBody` directly bypasses it.
 
 **Configuration**
 
@@ -120,6 +117,7 @@ Verify each step against its success criterion before moving on. Strong success 
 **Tests and verification**
 
 - Tests live under `services/<svc>/internal/tests/<area>/` (`internal/<pkg>/tests/<area>/` for a shared package) as separate packages, table-driven, reusing the `testutil` helpers. Don't add `*_test.go` or `*_internal_test.go` files beside production code. Production packages stay test-free, and each service's tests sit in one tree. Never add test seams to production code: no `*ForTest` functions and no exported setters or constructors that exist only for tests or mutate package state. Test through the exported API production already uses; export an unexported function only when production calls it the same way. The one in-package test file is discovery's `coalesce_internal_test.go`.
+- CRD reads in tests go to a fake apiserver: seed `dynamicfake.NewSimpleDynamicClient` and inject it with `k8sclient.SetDynamicClient` (reset with `SetDynamicClient(nil)`). `ConvertToCRDTemplate` drops `id` and `deletionTimestamp` from the spec, so set those in metadata. Clients built with `NewDynamicClientWithRateLimit` (rollback controller, informers) ignore the injected one and `rest.InClusterConfig` reads a fixed token path, so the few functions only those paths reach stay exported with a one-line why, and informer-filling tests live in `coalesce_internal_test.go`. Discovery keeps the first excluded-namespace list per process (one list per test package, through `testutil.ExcludedNamespaces`); stdout-capture tests see only per-call loggers (rest `base.GetLogger()`), not cached ones.
 - Before calling a Go change done, run the `go-service-change-gate` skill: build, vet and test across the module, and `golangci-lint run` per service and shared package last, with zero errors.
 
 **Known pitfall**
@@ -145,7 +143,7 @@ The analyzer is `services/analyzer` (chart key `services.analyzer`, image `analy
 - The only deployment switch is air-gapped versus connected. Air-gapped: no egress, models pre-loaded (`app.ollama.autoPull=false`). Connected: egress only to fetch open models or to reach the customer's own self-hosted Ollama-API endpoint (`app.ollama.runtimeUrl`, a URL, no key).
 - It has to answer in seconds on small CPU-only nodes. Designs that need minutes, or a GPU by default, don't fit.
 - Log through `app_logger`, not `print()`, and keep strings in the existing `constants.py` and `messages.py` split. There is no formatter or linter config, so match the surrounding code.
-- Before calling a change done, run the `analyzer-ci-gate` skill. Its image is not built by `scripts/local-build-push.sh`; see the `deploy-dev-cluster` skill.
+- Before calling a change done, run the `analyzer-ci-gate` skill.
 
 ## Docs
 
@@ -157,7 +155,7 @@ The analyzer is `services/analyzer` (chart key `services.analyzer`, image `analy
 
 ## CI and GitHub Actions
 
-- `.github/workflows/ci.yaml` is the merge gate: per Go service and shared package, a `test` leg (`go test -race`, with a coverage floor for the services) and a `lint` leg, both run from the module root; the `analyzer` job (syntax check, pytest, coverage floor); and the Helm job (dependency build, lint of both charts, `VALUES.md` drift check, kubeconform across modes). Build and release workflows run on demand (`workflow_dispatch`; chart publishing also runs on a `v*` tag).
+- `.github/workflows/ci.yaml` is the merge gate: per Go service and shared package, a `test` leg (`go test -race` with a coverage floor, its profile uploaded to Codecov) and a `lint` leg, both run from the module root; the `analyzer` job (syntax check, pytest, coverage floor); and the Helm job (dependency build, lint of both charts, `VALUES.md` drift check, kubeconform across modes). Build and release workflows run on demand (`workflow_dispatch`; chart publishing also runs on a `v*` tag).
 - Coverage floors are a ratchet: raise them as coverage improves, never lower them.
 - Any edit under `.github/`, or to a pinned tool version, follows the `github-actions-edit` skill: pin every action to its latest released tag and audit all `uses:` lines, not only the ones you touched. Stale action majors run on deprecated Node runtimes and fill every run with warnings.
 
@@ -179,7 +177,6 @@ Claude Code discovers these automatically; other agents can open the files direc
 | `go-service-change-gate` | Before calling any change to a Go service done | [`.claude/skills/go-service-change-gate/SKILL.md`](.claude/skills/go-service-change-gate/SKILL.md) |
 | `helm-chart-change` | Changing anything under `charts/`, or adding or changing a service env var | [`.claude/skills/helm-chart-change/SKILL.md`](.claude/skills/helm-chart-change/SKILL.md) |
 | `analyzer-ci-gate` | Before calling any change to `services/analyzer` done | [`.claude/skills/analyzer-ci-gate/SKILL.md`](.claude/skills/analyzer-ci-gate/SKILL.md) |
-| `deploy-dev-cluster` | The user asks for a deploy to the dev cluster, or has started a build-deploy-verify loop | [`.claude/skills/deploy-dev-cluster/SKILL.md`](.claude/skills/deploy-dev-cluster/SKILL.md) |
 | `github-actions-edit` | Editing anything under `.github/`, or bumping a pinned CI tool version | [`.claude/skills/github-actions-edit/SKILL.md`](.claude/skills/github-actions-edit/SKILL.md) |
 | `graph-explore-codebase` | Mapping structure with the code-review-graph MCP server, when it has this repo indexed | [`.claude/skills/graph-explore-codebase/SKILL.md`](.claude/skills/graph-explore-codebase/SKILL.md) |
 | `graph-debug-issue` | Tracing a bug through call chains, flows and recent changes with the graph | [`.claude/skills/graph-debug-issue/SKILL.md`](.claude/skills/graph-debug-issue/SKILL.md) |
@@ -192,8 +189,3 @@ Claude Code discovers these automatically; other agents can open the files direc
 - [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md): setup and every make target.
 - [docs/INSTALL.md](docs/INSTALL.md), [charts/telark/README.md](charts/telark/README.md), [docs/CRDS.md](docs/CRDS.md), [docs/PUBLISHING.md](docs/PUBLISHING.md).
 - [docs/architecture/](docs/architecture/README.md), [docs/security/](docs/security/README.md) and [docs/testing/](docs/testing/README.md): service relationships and flows, the security model and its invariants, and how to build, test and validate from a fresh clone.
-- [.claude/FEATURE_IMPLEMENTATION_GUIDELINES.md](.claude/FEATURE_IMPLEMENTATION_GUIDELINES.md): how to design and ship a feature so it survives production, with the edge-case checklist and definition of done.
-- [.claude/WORKFLOWS_MODEL_ROUTING.md](.claude/WORKFLOWS_MODEL_ROUTING.md): model and effort routing for sub-agents and workflow scripts, and the lean workflow shape. Two newer rules apply on top of it:
-  - A sub-agent may run on Fable for a genuinely hard fix: a cross-service root cause, a concurrency, locking or data-integrity bug, or a fix that already failed once on Opus. Routine checks, API tests and simple fixes stay on Opus. State the reason when you choose Fable.
-  - Resume a workflow run only when its agent call order is deterministic (sequential, or `parallel()` over a fixed array). Resuming a promise- or DAG-scheduled script reorders the cached calls and re-runs finished steps; run the remaining steps as plain agents or as a new sequential workflow instead.
-- `.claude/plans/`: design and plan documents for in-flight features.

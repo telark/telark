@@ -7,17 +7,20 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	authdata "github.com/telark/telark/internal/data/auth"
+	groupdata "github.com/telark/telark/internal/data/resources/group"
 	roledata "github.com/telark/telark/internal/data/resources/role"
 	userresource "github.com/telark/telark/internal/data/resources/user"
 	restresponse "github.com/telark/telark/internal/rest/response"
 	"github.com/telark/telark/services/auth/internal/clients"
 	"github.com/telark/telark/services/auth/internal/constants"
-	authzhandler "github.com/telark/telark/services/auth/internal/handlers/authorisation"
+	authzhandler "github.com/telark/telark/services/auth/internal/handlers/authorization"
+	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
 // exporterStub answers the session lookup as configured and every other
@@ -54,6 +57,7 @@ func stubExporter(t *testing.T, stub http.RoundTripper) {
 		clients.GetSessionClient().GetHTTPClient(),
 		clients.GetUserClient().GetHTTPClient(),
 		clients.GetPasskeyClient().GetHTTPClient(),
+		clients.GetConfigClient().GetHTTPClient(),
 	} {
 		previous := c.Transport
 		c.Transport = stub
@@ -146,5 +150,52 @@ func TestGetPermissionsMatchesAuthzRules(t *testing.T) {
 	}
 	if only := resp.Roles[constants.DefaultInitValue]; only.RoleID != "r-bad" || !only.IsExpired {
 		t.Fatalf("roles = %+v, want only r-bad marked expired", resp.Roles)
+	}
+}
+
+const (
+	sourceGroupID   = "ug-ops"
+	sourceGroupName = "Operations"
+	sourceRoleID    = "r-ops"
+)
+
+// groupStub serves a user who holds one role only through one group, and the
+// caller's live session for every other lookup.
+type groupStub struct{}
+
+func (groupStub) RoundTrip(r *http.Request) (*http.Response, error) {
+	switch {
+	case strings.Contains(r.URL.Path, "/groups/"+sourceGroupID):
+		return envelope(http.StatusOK, groupdata.Group{ID: sourceGroupID, Name: sourceGroupName, RoleRefs: []string{sourceRoleID}})
+	case strings.Contains(r.URL.Path, "/accessroles/"+sourceRoleID):
+		return envelope(http.StatusOK, roledata.AccessRole{ID: sourceRoleID, Status: roledata.RoleStatusActive})
+	case strings.Contains(r.URL.Path, "/users/"):
+		group := sourceGroupID
+		return envelope(http.StatusOK, userresource.User{ID: "uid", GroupRefs: []*string{&group}})
+	default:
+		return liveSession()
+	}
+}
+
+// An inherited role names its group as well as its id, from the group the
+// resolution already read, so the UI needs no lookup of its own.
+func TestGetPermissionsNamesTheSourceGroup(t *testing.T) {
+	stubExporter(t, groupStub{})
+	for _, c := range []*http.Client{clients.GetGroupClient().GetHTTPClient(), clients.GetAccessRoleClient().GetHTTPClient()} {
+		previous := c.Transport
+		c.Transport = groupStub{}
+		t.Cleanup(func() { c.Transport = previous })
+	}
+	rec := httptest.NewRecorder()
+	authzhandler.GetPermissions(rec, withSession(httptest.NewRequest(http.MethodGet, "/", nil)))
+	testutil.Equal(t, "status", rec.Code, http.StatusOK)
+	testutil.Equal(t, "wire name", strings.Contains(rec.Body.String(), `"groupName":"`+sourceGroupName+`"`), true)
+	var resp authzhandler.PermissionsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	want := []authzhandler.RoleSource{{Kind: constants.RoleSourceInherited, GroupID: sourceGroupID, GroupName: sourceGroupName}}
+	if len(resp.Roles) != constants.DefaultIncrementValue || !slices.Equal(resp.Roles[constants.DefaultInitValue].Sources, want) {
+		t.Fatalf("roles = %+v, want one role inherited from %s", resp.Roles, sourceGroupName)
 	}
 }

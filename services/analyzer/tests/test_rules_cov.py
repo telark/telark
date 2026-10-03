@@ -154,7 +154,7 @@ def test_startup_blip_on_a_ready_pod_is_history():
 
 
 def test_crash_loop_running_window_is_no_recovery():
-    # Live (ib-probekill, V2 2026-09-25): analysed in the 2 s its restarted container ran, Ready and 1/1 ready.
+    # Live (ib-probekill, V2 2026-09-25): analyzed in the 2 s its restarted container ran, Ready and 1/1 ready.
     liveness = _event("Unhealthy", "Liveness probe failed: HTTP probe failed with statuscode: 404", count=7)
     backoff = _event("BackOff", f"Back-off restarting failed container api in pod {POD}", count=28)
     ready = {"type": "Ready", "status": "True", "lastTransitionTime": "2026-09-24T11:59:58Z"}

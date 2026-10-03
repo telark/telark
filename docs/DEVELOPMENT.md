@@ -8,7 +8,7 @@ lists every target. Conventions are in [CONVENTIONS.md](../CONVENTIONS.md).
 | Tool | Needed for | Notes |
 |---|---|---|
 | Go **1.27.1** | all Go targets | the `go` line of the root `go.mod` |
-| `golangci-lint` **v2.14.0** | `make lint` | the version CI pins; uses the shared root `.golangci.yml` (never pass `--no-config`) |
+| `golangci-lint` **v2.14.0** | `make lint` | the version CI pins; uses the shared root `.golangci.yml` |
 | `helm` **≥ 3** (OCI) | all `helm-*` targets | |
 | `kubeconform` **v0.8.0** | `make helm-validate` | schema-validates rendered manifests |
 | Python **3.13** + `venv` | analyzer tests | `services/analyzer`; the version CI uses |
@@ -19,7 +19,7 @@ lists every target. Conventions are in [CONVENTIONS.md](../CONVENTIONS.md).
 
 | Target | What it does | When to use | Prereqs |
 |---|---|---|---|
-| `make help` | Lists targets with their `##` descriptions | discovering commands | — |
+| `make help` | Lists targets with their `##` descriptions | discovering commands | |
 | `make build` | `go build ./...` across the module | after any Go change | Go |
 | `make vet` | `go vet ./...` | quick static check | Go |
 | `make fmt` | `gofmt -w services internal` | before committing Go | Go |
@@ -39,10 +39,10 @@ lists every target. Conventions are in [CONVENTIONS.md](../CONVENTIONS.md).
 - **One Go module, no per-service Makefiles.** Go commands run from the repository root;
   to work on one service directly: `go test ./services/<svc>/...`.
 - **Coverage** is measured cross-package (`go test -coverpkg=./services/<svc>/...`) because
-  tests live in `internal/tests/*`; CI enforces a per-service floor (see `.github/workflows/ci.yaml`).
-- **Chart deps are git-ignored** (`charts/*/charts/*.tgz`). Run `make deps` after a
-  fresh clone before `helm-lint`/`helm-template`/`helm-validate`. `make deps` doesn't add
-  the `vpa` repository; run `helm repo add vpa https://charts.fairwinds.com/stable` first.
+  tests live in `internal/tests/*`; CI enforces a floor per service and shared package (see `.github/workflows/ci.yaml`).
+- **Chart deps are git-ignored** (`charts/*/charts/*.tgz`): after a fresh clone, run
+  `helm repo add vpa https://charts.fairwinds.com/stable` (`make deps` doesn't add it), then
+  `make deps`, before `helm-lint`/`helm-template`/`helm-validate`.
 - **Analyzer (Python)** isn't in the Makefile; its CI-equivalent commands are in
   [testing/README.md](testing/README.md#analyzer-servicesanalyzer).
 - Chart packaging, signing, and registry publishing: [PUBLISHING.md](PUBLISHING.md).

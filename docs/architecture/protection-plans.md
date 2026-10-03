@@ -1,13 +1,13 @@
 # Protection plans
 
-A protection plan binds policy templates to a scope and a time window. This page is for contributors and reviewers; the user-level explanation is in [Concepts](../concepts.md#protection-plans). discovery owns the lifecycle and the Kyverno policies; the exporter stores the `ProtectionPlan` CR and the reports. Paths starting `data/` are in the shared package `internal/data/`; `discovery/` is `services/discovery/internal/`.
+How protection plans are implemented, for contributors and reviewers; the user-level explanation is in [Concepts](../concepts.md#protection-plans). discovery owns the lifecycle and the Kyverno policies; the exporter stores the `ProtectionPlan` CR and the reports. Paths starting `data/` are in the shared package `internal/data/`; `discovery/` is `services/discovery/internal/`.
 
 ## The resource
 
 `ProtectionPlan` (`protectionplans.telark.io`, `v1alpha1`, namespaced, short name `tplan`; Go type in `data/plans/protectionplan.go`, schema in `charts/telark-crds/templates/crds/protectionplans.yaml`). The plan's name is its `metadata.name`; the REST view returns it as `id`, and flattens `.status` into the top level.
 
 - `scope`: `applications` (`applicationRefs`, application names) or `namespaces`, with optional `exclusions` (kinds for both scope types, named resources for the applications scope only).
-- `policies`: template ids and params. The nine templates are in `data/plans/templates.go` (block create, update, delete, image tags, image types, replica scaling, storage changes, workload config mount changes, config/secret resource changes).
+- `policies`: template ids and params; the nine [templates](../concepts.md#what-a-plan-contains) are in `data/plans/templates.go`.
 - `mode`: `audit` or `enforce`. `timeMode`: `permanent` or `time_range` with `timeRange`.
 - `approvalMode`: `automatic` or `required`; `approval` (state, requester, decider, comment, history), written only by discovery.
 - `environmentRef`, `tagRefs` (category ids) and `participantRefs`.
@@ -15,7 +15,7 @@ A protection plan binds policy templates to a scope and a time window. This page
 
 ## Lifecycle
 
-Phases: `draft`, `pending_approval`, `scheduled`, `active`, `terminated`, `canceled`, `failed` (`data/plans/protectionplan.go`). No code path sets `draft` today.
+Phases: `draft`, `pending_approval`, `scheduled`, `active`, `terminated`, `canceled`, `failed` (`data/plans/protectionplan.go`). No code path sets `draft`.
 
 | From | To | Trigger | Code |
 |---|---|---|---|
@@ -30,7 +30,7 @@ Phases: `draft`, `pending_approval`, `scheduled`, `active`, `terminated`, `cance
 | `canceled`, `terminated`, `failed` | re-enters the lifecycle | user reactivate | `Reactivate` (`reactivatable`) |
 | `scheduled` | `failed` | activation fails (scope resolution, render or deploy) | `Activate` → `markFailedRemote` |
 
-- **Approval mode** is derived server-side (`ResolveApprovalMode`): the Production environment category is always `required`; elsewhere the default is `automatic`, a client-sent `required` is honoured, and a client-sent `automatic` counts only from an Owner on `protection-plans`, and a duplicate of a `required` plan stays `required` unless an Owner relaxes it. `environmentRef` must name a `plan-environments` category (unknown: 400; catalogue unreadable: 503), and an edit may not move an `automatic` plan into Production. Nobody who put the current spec up for approval since the last approval may decide it: the creator, a reactivator and every material editor are recorded as `requested` events in the approval history (`ApprovalRequesters`, `RecordEditor`), and a decision must name the pending request it answers (`ValidateDecision` in `approval.go`).
+- **Approval mode** is derived server-side (`ResolveApprovalMode`): the Production environment category is always `required`. Elsewhere the default is `automatic`, a client-sent `required` is honored, a client-sent `automatic` counts only from an Owner on `protection-plans`, and a duplicate of a `required` plan stays `required` unless an Owner relaxes it. `environmentRef` must name a `plan-environments` category (unknown: 400; catalog unreadable: 503), and an edit may not move an `automatic` plan into Production. Nobody who put the current spec up for approval since the last approval may decide it: the creator, a reactivator and every material editor are recorded as `requested` events in the approval history (`ApprovalRequesters`, `RecordEditor`), and a decision must name the pending request it answers (`ValidateDecision` in `approval.go`).
 - **Per-plan lock** `lock:plan-decision:<id>` serializes decide, update, cancel, reactivate and clear. It and the name lock are held with a heartbeat (`PlanLockTTL`, twice the deploy budget, extended every third of it), so a slow exporter cannot let the lock expire under its holder.
 - **Controller**: runs on the discovery leader, every `PROTECTION_PLAN_TICK_INTERVAL_SEC` (default 31 s) plus a timer armed on the next window edge.
 - **Names** are unique, case- and whitespace-insensitively, under a Redis lock `lock:plan-name:<name>` (409 on conflict).
@@ -39,14 +39,14 @@ Phases: `draft`, `pending_approval`, `scheduled`, `active`, `terminated`, `cance
 ## Admission policies
 
 - `Render` (`data/policies/renderer.go`) produces namespaced Kyverno `Policy` objects (never `ClusterPolicy`: a namespaced policy can't reference cluster-scoped kinds) per scope namespace and template, with the plan's exclusions applied.
-- Name `telark-<plan id>-<template code>-<8 hex of sha256(namespace + application ids)>`; labels `telark.io/protection-plan`, `telark.io/template-id`, `app.kubernetes.io/managed-by=telark`; annotations `telark.io/plan-name`, `telark.io/created-by`, `telark.io/render-hash` (`data/policies/shared.go`).
+- Name `telark-<plan id>-<template code>-<8 hex of sha256(namespace + application ids)>`, with the [plan labels and annotations](../CRDS.md#labels-and-finalizers) (`data/policies/shared.go`).
 - `validationFailureAction` follows the plan `mode`; audit messages read "would be blocked". Kyverno substitutes `{{ }}` variables in `validate.message`, so the message names the generated plan id only; the user-chosen name appears only in the `plan-name` annotation, which is not substituted.
 - Applied with server-side apply, field manager `telark-protection-plans`, forced (`discovery/core/plans/protection/policies/applier.go`); mode changes are merge patches; deletion selects by the plan label (`CleanupByPlanID`).
 - Kyverno runs with `forceFailurePolicyIgnore`, so when its webhook is down, requests are admitted even for enforcing plans ([security](../security/README.md#kubernetes-privileges)).
 
 ## Health and violations
 
-- On every tick the health pass lists the managed policies once and compares each with a fresh render (`discovery/core/plans/protection/health/`). A not-ready policy makes the plan `degraded`, which wins over drift. `drifted` covers an active plan with no rendered policies, a missing policy, a `validationFailureAction` that doesn't match the plan mode, a stale policy (a different `render-hash`, or live `spec.rules` that differ from the fresh render), a live policy the plan doesn't list and no longer renders, and one it renders but hasn't listed yet. The rules compare with `equality.Semantic.DeepEqual` after dropping the two rule flags the policy engine defaults to `true` (`skipBackgroundRequests`, `allowExistingViolations`), so those defaults are not drift, and a hand edit that keeps the `render-hash` annotation still reads `drifted`. Drifted policies are redeployed. Repair runs only there (and once after a deploy); the status route (`GET protectionplans/{id}/status`, Read) is compute-only: it neither repairs nor persists health. Its `drift` object lists the policy names under `missing` and `unexpected`, plus `mismatched`, `stale` and `added` (each omitted when empty).
+- On every tick the health pass lists the managed policies once and compares each with a fresh render (`discovery/core/plans/protection/health/`). A not-ready policy makes the plan `degraded`, which wins over drift. `drifted` covers an active plan with no rendered policies, a missing policy, a `validationFailureAction` that doesn't match the plan mode, a stale policy (a different `render-hash`, or live `spec.rules` that differ from the fresh render), a live policy the plan doesn't list and no longer renders, and one it renders but hasn't listed yet. Rules compare with `equality.Semantic.DeepEqual` after dropping the two rule flags the policy engine defaults to `true` (`skipBackgroundRequests`, `allowExistingViolations`), so those defaults are not drift, and a hand edit that keeps the `render-hash` annotation still reads `drifted`. Drifted policies are redeployed, only by this pass (and once after a deploy). The status route (`GET protectionplans/{id}/status`, Read) only computes: it neither repairs nor persists health. Its `drift` object lists policy names under `missing`, `unexpected`, `mismatched`, `stale` and `added` (each omitted when empty).
 - The same pass sweeps orphans: a managed policy whose plan is gone or not `active`, and older than `OrphanGracePeriod` (four deploy budgets, so a create or approval still in flight is left alone), is deleted.
 - Violations are Kubernetes Events with `reason=PolicyViolation` on the plan's policies (`discovery/core/plans/protection/violations/violations.go`). Events are pruned after the API server's event TTL, so `RetentionWindow` is 1 h.
 - `CleanupByPlanID` runs on cancel, terminate, reject, clear, failed deployment and edits that withdraw policies, and the rendered-policy list is then blanked. An edit that withdraws policies checkpoints the ledger first. Cancel, terminate and reject patch the phase first and clean up after, so a failed patch never leaves an "active" plan enforcing nothing; a failed cleanup is left to the orphan sweep. A finished plan therefore reports zero live violations; its history lives only in reports ([AGENTS.md](../../AGENTS.md#go-services), Known pitfall).

@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func filterCancelledScalarChanges(
+func filterCanceledScalarChanges(
 	ctx context.Context,
 	getManifest func(
 		ctx context.Context,
@@ -41,7 +41,7 @@ func filterCancelledScalarChanges(
 		if c.Field == changes.ChangeFieldReplicas && sawWorkload &&
 			preReplicas == int64(fresh.Health.TotalReplicas) {
 			constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Info(fmt.Sprintf(
-				string(constants.InfoHistoryReplicaChangeCancelled), fresh.Name, preReplicas, fresh.Health.TotalReplicas))
+				string(constants.InfoHistoryReplicaChangeCanceled), fresh.Name, preReplicas, fresh.Health.TotalReplicas))
 			continue
 		}
 		out = append(out, c)

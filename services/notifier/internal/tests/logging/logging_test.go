@@ -49,13 +49,7 @@ func TestNoWholeMessageLogging(t *testing.T) {
 		if readErr != nil {
 			return readErr
 		}
-		for i, line := range strings.Split(string(content), "\n") {
-			for _, f := range forbidden {
-				if f.re.MatchString(line) {
-					findings = append(findings, path+":"+strconv.Itoa(i+1)+": "+f.name+": "+strings.TrimSpace(line))
-				}
-			}
-		}
+		findings = append(findings, findingsIn(path, content)...)
 		return nil
 	})
 	if err != nil {
@@ -65,4 +59,16 @@ func TestNoWholeMessageLogging(t *testing.T) {
 	if len(findings) > constants.DefaultInitValue {
 		t.Fatalf("log calls must never format a whole NATS message or struct:\n%s", strings.Join(findings, "\n"))
 	}
+}
+
+func findingsIn(path string, content []byte) []string {
+	var findings []string
+	for i, line := range strings.Split(string(content), "\n") {
+		for _, f := range forbidden {
+			if f.re.MatchString(line) {
+				findings = append(findings, path+":"+strconv.Itoa(i+1)+": "+f.name+": "+strings.TrimSpace(line))
+			}
+		}
+	}
+	return findings
 }

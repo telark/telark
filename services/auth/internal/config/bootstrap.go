@@ -9,8 +9,7 @@ import (
 )
 
 type BootstrapConfig struct {
-	BootstrapAdmin          string
-	SelfRegistrationEnabled bool
+	BootstrapAdmin string
 }
 
 var (
@@ -20,11 +19,9 @@ var (
 
 func LoadBootstrapConfig() (*BootstrapConfig, error) {
 	admin := normalizeEmail(getEnvOrDefault(constants.EnvBootstrapAdmin, constants.EmptyString))
-	selfRegEnabled := getEnvAsBool(constants.EnvSelfRegistrationEnabled, constants.DefaultSelfRegistrationEnabled)
 
 	cfg := &BootstrapConfig{
-		BootstrapAdmin:          admin,
-		SelfRegistrationEnabled: selfRegEnabled,
+		BootstrapAdmin: admin,
 	}
 
 	if err := validateBootstrapConfig(cfg); err != nil {
@@ -53,21 +50,15 @@ func IsBootstrapAdmin(email string) bool {
 	return cfg.BootstrapAdmin != constants.EmptyString && normalizeEmail(email) == cfg.BootstrapAdmin
 }
 
-func IsSelfRegistrationEnabled() bool {
-	cfg := GetBootstrapConfig()
-	if cfg == nil {
-		return constants.DefaultSelfRegistrationEnabled
-	}
-	return cfg.SelfRegistrationEnabled
-}
-
 func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
+// SSO and self-registration start off and only the bootstrap account may turn them
+// on, so an install without one could never open either.
 func validateBootstrapConfig(cfg *BootstrapConfig) error {
-	if cfg.BootstrapAdmin == constants.EmptyString && !cfg.SelfRegistrationEnabled {
-		return errors.New(string(constants.ErrBootstrapNoAdminAndNoSelfReg))
+	if cfg.BootstrapAdmin == constants.EmptyString {
+		return errors.New(string(constants.ErrBootstrapAdminRequired))
 	}
 	return nil
 }

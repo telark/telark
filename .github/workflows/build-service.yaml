@@ -99,7 +99,7 @@ jobs:
           cache-dependency-path: services/analyzer/requirements.txt
 
       - name: Install dependencies
-        run: pip install -r requirements.txt pytest pytest-cov
+        run: pip install --only-binary :all: -r requirements.txt pytest pytest-cov
 
       - name: Syntax check
         run: python -m compileall -q .
@@ -114,7 +114,7 @@ jobs:
 
   build:
     needs: [gate-go, gate-analyzer]
-    # A skipped gate is expected (only one kind runs); a failed or cancelled
+    # A skipped gate is expected (only one kind runs); a failed or canceled
     # gate must block the build.
     if: ${{ always() && !failure() && !cancelled() }}
     runs-on: ubuntu-latest

@@ -142,6 +142,9 @@ const (
 	FieldAvatar                                 = "avatar"
 	FieldSettings                               = "settings"
 	FieldStatus                                 = "status"
+	FieldPhase                                  = "phase"
+	FieldInvite                                 = "invite"
+	FieldInviteAcceptedAt                       = "inviteAcceptedAt"
 	FieldID                                     = "id"
 	FieldGeneration                             = "generation"
 	FieldName                                   = "name"
@@ -242,6 +245,9 @@ const (
 	ReportMaxBodyBytes             = 32 << 20
 	ReportsSweepMinAge             = time.Hour
 	ReportsGCLockKey               = "exporter:reports:gc"
+	SubcommandMigrateStorage       = "migrate-storage"
+	MigrateStoragePairSize         = 2
+	LostFoundDir                   = "lost+found"
 	HeaderContentTypeOptions       = "X-Content-Type-Options"
 	ContentTypeOptionsNoSniff      = "nosniff"
 	HeaderCSP                      = "Content-Security-Policy"

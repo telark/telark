@@ -86,7 +86,7 @@ func getAs(identity xauthz.Identity) *http.Request {
 	return r.WithContext(xauthz.WithIdentity(r.Context(), identity))
 }
 
-func TestGetSnapshotHandlerHonoursManifestDenyAndRedacts(t *testing.T) {
+func TestGetSnapshotHandlerHonorsManifestDenyAndRedacts(t *testing.T) {
 	createSecretSnapshot(t)
 	reader := xauthz.Identity{UserID: "u1", Grants: xauthz.Grants{
 		Levels: map[string]roledata.PermissionLevel{roledata.ScopeApplications: roledata.PermissionLevelReadOnly},

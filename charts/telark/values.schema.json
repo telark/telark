@@ -70,7 +70,6 @@
         "name": { "type": "string", "minLength": 1 },
         "namespace": { "type": "string", "minLength": 1 },
         "mode": { "type": "string", "enum": ["minimal", "standard", "performance"] },
-        "singleNode": { "type": "boolean" },
         "image": {
           "type": "object",
           "additionalProperties": false,
@@ -98,8 +97,7 @@
               "properties": {
                 "id": { "type": "string" },
                 "name": { "type": "string" },
-                "origin": { "type": "string" },
-                "selfRegistration": { "enum": ["true", "false", true, false] }
+                "origin": { "type": "string" }
               }
             },
             "oidc": {
@@ -166,7 +164,7 @@
           "properties": {
             "enabled": { "type": "boolean" },
             "storageClass": { "type": "string" },
-            "size": { "type": "string" },
+            "snapshotsSize": { "type": "string" },
             "reportsSize": { "type": "string" }
           }
         },

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/telark/telark/internal/data/resources/finalizers"
 	"github.com/telark/telark/internal/rest/base"
 	restconstants "github.com/telark/telark/internal/rest/constants"
 	cleanupendpoints "github.com/telark/telark/internal/rest/endpoints/cleanup"
@@ -29,5 +30,30 @@ func TestListCleanupViewsReadsTypeFromRoute(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "unknown resource type") {
 		t.Fatalf("want 400 unknown resource type, got %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+// The body carries only the finalizer name: an extra key was accepted silently, an oversized body answered 422.
+func TestFinalizerBodyIsStrictAndBounded(t *testing.T) {
+	endpoint := cleanupendpoints.AddFinalizer
+	mux := router.NewRouter([]router.Route{router.CreateRoute(base.Update, endpoint, cleanuphandler.AddFinalizer)})
+	path := strings.NewReplacer(restconstants.TypeParam, finalizers.ResourceTypeUsers, restconstants.IDParam, testUserID).
+		Replace(router.Pattern(endpoint))
+	tests := []struct {
+		name string
+		body string
+		want int
+	}{
+		{"unknown key", `{"name":"` + finalizers.UserCleanup + `","force":true}`, http.StatusBadRequest},
+		{"oversized", `{"name":"` + strings.Repeat("x", int(base.MaxRequestBodySize)) + `"}`, http.StatusRequestEntityTooLarge},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, path, strings.NewReader(tt.body)))
+			if rec.Code != tt.want {
+				t.Fatalf("code = %d %s, want %d", rec.Code, rec.Body.String(), tt.want)
+			}
+		})
 	}
 }

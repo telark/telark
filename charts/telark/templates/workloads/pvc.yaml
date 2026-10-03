@@ -2,9 +2,10 @@
 {{- $values := include "telark.modeValues" $ | fromYaml -}}
 {{- $serviceConfig := index $values.services $service -}}
 {{- if and $serviceConfig.enabled $values.app.persistence.enabled }}
-{{- $sc := $values.app.persistence.storageClass | default "" -}}
-{{- $claims := list (dict "name" (include "telark.exporterSnapshotsPvcName" $) "size" ($values.app.persistence.size | default "1Gi")) (dict "name" (include "telark.exporterReportsPvcName" $) "size" ($values.app.persistence.reportsSize | default "2Gi")) }}
-{{- range $claims }}
+{{- $storage := include "telark.exporterStorage" $ | fromYaml }}
+{{- range $storage.claims }}
+{{- /* A moving claim's old claim stays in this manifest once, so it carries keep before Helm drops it. */}}
+{{- range compact (list .from .) }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -14,18 +15,18 @@ metadata:
   labels:
     {{- include "telark.labels" $ | nindent 4 }}
     app.kubernetes.io/component: {{ $serviceConfig.name }}
+  annotations:
+    # Snapshots and reports outlive the release, like the Redis, NATS and Ollama volumes.
+    helm.sh/resource-policy: keep
 spec:
   accessModes:
-    - {{ $values.app.persistence.accessMode | default "ReadWriteOnce" }}
+    {{- toYaml .accessModes | nindent 4 }}
   resources:
     requests:
       storage: {{ .size }}
-  {{- if $sc }}
-  {{- if eq "-" $sc }}
-  storageClassName: ""
-  {{- else }}
-  storageClassName: {{ $sc | quote }}
+  {{- if hasKey . "storageClassName" }}
+  storageClassName: {{ .storageClassName | quote }}
   {{- end }}
-  {{- end }}
+{{- end }}
 {{- end }}
 {{- end }}

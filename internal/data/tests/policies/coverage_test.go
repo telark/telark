@@ -239,7 +239,7 @@ func TestBlockCreateMatchesApplicationIdentity(t *testing.T) {
 	}
 
 	// An In selector over the application names never matches a resource without the label, so
-	// an unlabelled workload set degrades to name-only rather than to the whole namespace.
+	// an unlabeled workload set degrades to name-only rather than to the whole namespace.
 	for _, f := range anyFilters {
 		sel := f.Selector
 		if sel == nil {

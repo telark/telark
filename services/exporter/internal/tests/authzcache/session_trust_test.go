@@ -21,7 +21,7 @@ func authzSessionKey(token string) string {
 	return "authz:session:" + hex.EncodeToString(digest[:])
 }
 
-// Redis is reachable and unauthenticated, so anything it holds is attacker
+// Redis is untrusted, so anything it holds is attacker
 // controllable. An identity must never be taken from it on trust.
 func TestForgedSessionCacheEntryDoesNotAuthenticate(t *testing.T) {
 	mr := miniredis.RunT(t)

@@ -21,7 +21,7 @@ import (
 var (
 	ErrEmailAmbiguous    = errors.New(string(constants.ErrOIDCEmailAmbiguous))
 	ErrEmailAlreadyBound = errors.New(string(constants.ErrOIDCEmailAlreadyBound))
-	ErrEmailReserved     = errors.New(string(constants.ErrReservedEmail))
+	ErrEmailReserved     = errors.New(string(constants.ErrOIDCBootstrapPasskeyOnly))
 )
 
 func isNotFoundError(err error) bool {

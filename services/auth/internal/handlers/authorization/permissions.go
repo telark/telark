@@ -1,4 +1,4 @@
-package authorisation
+package authorization
 
 import (
 	"fmt"
@@ -70,7 +70,7 @@ func collectInheritedRoles(assignedGroupIDs []*string, roleMap map[string][]Role
 			continue
 		}
 		for _, rid := range group.RoleRefs {
-			roleMap[rid] = append(roleMap[rid], RoleSource{Kind: constants.RoleSourceInherited, GroupID: groupID})
+			roleMap[rid] = append(roleMap[rid], RoleSource{Kind: constants.RoleSourceInherited, GroupID: groupID, GroupName: group.Name})
 		}
 	}
 }

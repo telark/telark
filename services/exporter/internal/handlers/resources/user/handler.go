@@ -1,6 +1,7 @@
 package user
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"slices"
@@ -12,6 +13,7 @@ import (
 	"github.com/telark/telark/internal/data/resources/finalizers"
 	userdata "github.com/telark/telark/internal/data/resources/user"
 	"github.com/telark/telark/internal/kcore/crds/api"
+	kubeshared "github.com/telark/telark/internal/kcore/shared"
 	"github.com/telark/telark/internal/rest/response"
 	responseutils "github.com/telark/telark/internal/rest/utils/response"
 	"github.com/telark/telark/services/exporter/internal/authz"
@@ -358,12 +360,19 @@ func emitRoleChanged(userID string, oldRoles []*string, body map[string]any) {
 func buildRoleChangeMessage(added, removed []string) string {
 	parts := make([]string, constants.DefaultInitValue, len(added)+len(removed))
 	if len(added) > constants.DefaultInitValue {
-		parts = append(parts, fmt.Sprintf("granted %d role(s)", len(added)))
+		parts = append(parts, fmt.Sprintf(string(constants.NotifRolesGranted), roleCount(len(added))))
 	}
 	if len(removed) > constants.DefaultInitValue {
-		parts = append(parts, fmt.Sprintf("revoked %d role(s)", len(removed)))
+		parts = append(parts, fmt.Sprintf(string(constants.NotifRolesRevoked), roleCount(len(removed))))
 	}
-	return strings.Join(parts, "; ")
+	return strings.Join(parts, constants.NotifSentenceSeparator)
+}
+
+func roleCount(count int) string {
+	if count == constants.DefaultIncrementValue {
+		return string(constants.NotifOneRole)
+	}
+	return fmt.Sprintf(string(constants.NotifRoleCount), count)
 }
 
 func DeleteUserByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
@@ -378,17 +387,7 @@ func DeleteUserByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 			return
 		}
 
-		userutils.InvalidateUserCaches(optimizer, userID)
-		authz.ForgetUserGrants(r.Context(), userID)
-		lock := concurrency.GetLock(userID)
-		lock.Lock()
-		defer lock.Unlock()
-
-		deleteResult := api.DeleteCustomResourceByName(userID, metadata.UserMetadata)
-		// A request racing the delete may have refilled both caches; forgetting
-		// again under the lock is what makes the revocation immediate.
-		userutils.InvalidateUserCaches(optimizer, userID)
-		authz.ForgetUserGrants(r.Context(), userID)
+		deleteResult := deleteUserResource(r.Context(), optimizer, userID)
 		if deleteResult.Status != http.StatusOK {
 			errorMsg := sharedutils.GenerateResourceError(errors.ErrDeleteRes, userID, deleteResult.Error)
 			responseutils.LogAndSendResponse(
@@ -410,6 +409,10 @@ func DeleteUserByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 		if err := passkeyutils.PurgePasskeysForUser(userID); err != nil {
 			lg.Warn(fmt.Sprintf(string(constants.WarnUserPasskeysPurgeFailed), userID, err))
 		}
+		// Same for the groups' member lists, outside the user's lock (see membership.setMember).
+		if err := membership.MirrorUserGroups(r.Context(), optimizer, userID, nil, notifdispatch.Deref(existingUser.GroupRefs)); err != nil {
+			lg.Warn(fmt.Sprintf(string(constants.WarnMembershipsNotStripped), metadata.UserMetadata.Kind, userID, err))
+		}
 
 		msg := fmt.Sprintf(string(messages.SuccessDeleteRes), userID, metadata.UserMetadata.Kind)
 		responseutils.LogAndSendResponse(
@@ -421,4 +424,19 @@ func DeleteUserByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 			nil,
 		)
 	}
+}
+
+func deleteUserResource(ctx context.Context, optimizer *performance.Optimizer, userID string) kubeshared.KubernetesAPIData {
+	userutils.InvalidateUserCaches(optimizer, userID)
+	authz.ForgetUserGrants(ctx, userID)
+	lock := concurrency.GetLock(userID)
+	lock.Lock()
+	defer lock.Unlock()
+
+	deleteResult := api.DeleteCustomResourceByName(userID, metadata.UserMetadata)
+	// A request racing the delete may have refilled both caches; forgetting
+	// again under the lock is what makes the revocation immediate.
+	userutils.InvalidateUserCaches(optimizer, userID)
+	authz.ForgetUserGrants(ctx, userID)
+	return deleteResult
 }

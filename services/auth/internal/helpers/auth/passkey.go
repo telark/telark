@@ -11,6 +11,7 @@ import (
 
 	webauthnlib "github.com/go-webauthn/webauthn/webauthn"
 	authdata "github.com/telark/telark/internal/data/auth"
+	dataerrors "github.com/telark/telark/internal/data/errors"
 	userresource "github.com/telark/telark/internal/data/resources/user"
 	"github.com/telark/telark/services/auth/internal/clients"
 	"github.com/telark/telark/services/auth/internal/config"
@@ -150,6 +151,10 @@ func GetUserForRegistrationStart(r *http.Request) (
 			return nil, constants.EmptyString, false, err
 		}
 		user, err = ownUser(userID, email)
+		// A link that outlived its user answers like any other dead link, so it reveals no deletion.
+		if shared.IsError(err, constants.ErrUserNotFound) || shared.IsError(err, dataerrors.ErrAuthzUserNotActive) {
+			return nil, constants.EmptyString, false, errors.New(string(constants.ErrEnrollTokenInvalid))
+		}
 		if err != nil {
 			return nil, constants.EmptyString, false, err
 		}
@@ -167,42 +172,42 @@ func GetUserForRegistrationStart(r *http.Request) (
 // finish only the signed ceremony (ceremonyOwner) can name the user.
 func GetUserForRegistration(
 	r *http.Request, ceremonyOwner func(*http.Request) (string, bool, error),
-) (*userresource.User, string, error) {
+) (user *userresource.User, userID string, enrolled bool, err error) {
 	sessionUserID, sessionErr := ValidateSessionFromRequest(r)
 	if sessionErr == nil {
-		user, err := GetUserByIDWithErrorHandling(sessionUserID)
+		user, err = GetUserByIDWithErrorHandling(sessionUserID)
 		if err != nil {
-			return nil, constants.EmptyString, err
+			return nil, constants.EmptyString, false, err
 		}
-		return user, sessionUserID, nil
+		return user, sessionUserID, false, nil
 	}
 
 	ownerID, enrolled, err := ceremonyOwner(r)
 	if err != nil {
-		return nil, constants.EmptyString, err
+		return nil, constants.EmptyString, false, err
 	}
 	pending, found, err := pendingUser(ownerID)
 	if err != nil {
-		return nil, constants.EmptyString, err
+		return nil, constants.EmptyString, false, err
 	}
 	if found {
-		return pending, ownerID, nil
+		return pending, ownerID, false, nil
 	}
 
-	user, err := GetUserByIDWithErrorHandling(ownerID)
+	user, err = GetUserByIDWithErrorHandling(ownerID)
 	if err != nil {
-		return nil, constants.EmptyString, err
+		return nil, constants.EmptyString, false, err
 	}
 	if enrolled {
-		return user, user.ID, nil
+		return user, user.ID, true, nil
 	}
 
 	hasPasskeys, _ := CheckUserHasExistingPasskeys(user.ID)
 	if hasPasskeys {
-		return nil, constants.EmptyString, errors.New(string(constants.ErrUserAlreadyHasPasskeys))
+		return nil, constants.EmptyString, false, errors.New(string(constants.ErrUserAlreadyHasPasskeys))
 	}
 
-	return user, user.ID, nil
+	return user, user.ID, false, nil
 }
 
 func AttachPasskeyIdentity(

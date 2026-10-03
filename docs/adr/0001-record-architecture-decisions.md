@@ -18,4 +18,4 @@ We use Architecture Decision Records, one Markdown file per decision under `docs
 
 - Every non-obvious architectural choice gets a short, reviewable record alongside the code.
 - The ADR log doubles as onboarding material.
-- Small decisions do not need an ADR; use judgement.
+- Small decisions do not need an ADR; use judgment.

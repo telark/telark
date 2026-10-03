@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
+	"github.com/telark/telark/internal/data/resources/application"
 	"github.com/telark/telark/services/discovery/internal/constants"
 	"github.com/telark/telark/services/discovery/internal/handlers/rollback"
 	"github.com/telark/telark/services/discovery/internal/tests/testutil"
@@ -14,7 +16,7 @@ import (
 // caller's context is usually already done by the time the failure is recorded.
 // Recording on that context patched nothing and the error was discarded, leaving
 // the entry in_progress for the stale sweep to relabel.
-func TestRecordWithRetryOutlivesCancelledCallerAndReturnsLastError(t *testing.T) {
+func TestRecordWithRetryOutlivesCanceledCallerAndReturnsLastError(t *testing.T) {
 	t.Parallel()
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -38,12 +40,26 @@ func TestRecordWithRetryOutlivesCancelledCallerAndReturnsLastError(t *testing.T)
 
 // The sweep is the last resort for entries nothing ever wrote back to. Replacing
 // a reason that is already stored would destroy the only copy of it.
-func TestStaleSweepErrorMsgKeepsRecordedReason(t *testing.T) {
-	t.Parallel()
-	testutil.Equal(t, "no reason stored",
-		rollback.StaleSweepErrorMsg(constants.EmptyString), string(constants.ErrRollbackInterruptedRestart))
-	testutil.Equal(t, "blank reason stored",
-		rollback.StaleSweepErrorMsg("   "), string(constants.ErrRollbackInterruptedRestart))
-	testutil.Equal(t, "reason already stored",
-		rollback.StaleSweepErrorMsg("denied by admission webhook"), constants.EmptyString)
+func TestFailStaleInProgressKeepsRecordedReason(t *testing.T) {
+	const recorded = "denied by admission webhook"
+	restart := string(constants.ErrRollbackInterruptedRestart)
+	cases := []struct{ name, stored, want string }{
+		{"no reason stored", constants.EmptyString, restart},
+		{"blank reason stored", "   ", restart},
+		{"reason already stored", recorded, recorded},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			client, spec := installApplication(t, application.RollbackEntry{
+				ID:          rollbackID,
+				TriggeredAt: time.Now().Add(-staleAge),
+				Status:      constants.RollbackStatusInProgress,
+				Error:       c.stored,
+			})
+			if _, err := rollback.NewController(nil).FailStaleInProgress(context.Background(), shopApp, spec); err != nil {
+				t.Fatal(err)
+			}
+			testutil.Equal(t, "stored reason", storedRollback(t, client).Error, c.want)
+		})
+	}
 }

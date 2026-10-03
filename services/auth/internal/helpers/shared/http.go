@@ -132,7 +132,7 @@ func GetStatusCodeForAuthError(err error) int {
 // A refused session is a verdict on the account, not a fault.
 func GetStatusCodeForSessionError(err error) int {
 	switch {
-	case IsError(err, dataerrors.ErrAuthzUserNotActive):
+	case IsError(err, dataerrors.ErrAuthzUserNotActive), IsError(err, constants.ErrUserSuspended):
 		return http.StatusForbidden
 	case IsError(err, constants.ErrUserNotFound):
 		return http.StatusNotFound

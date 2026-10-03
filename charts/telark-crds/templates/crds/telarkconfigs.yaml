@@ -38,11 +38,6 @@ spec:
                   type: array
                   items:
                     type: string
-                userSettings:
-                  type: object
-                  properties:
-                    fetchIntervalSeconds:
-                      type: integer
                 ai:
                   type: object
                   properties:
@@ -71,6 +66,12 @@ spec:
                     egressAllowed:
                       type: boolean
                       description: whether the cluster may reach the provider to fetch signing keys. When false, the pinned key set in the OIDC trust Secret must be set.
+                selfRegistration:
+                  type: object
+                  properties:
+                    enabled:
+                      type: boolean
+                      description: whether anyone who reaches the login page may create a ReadOnly account with a passkey. Written by auth for the bootstrap administrator only.
             status:
               type: object
               properties:

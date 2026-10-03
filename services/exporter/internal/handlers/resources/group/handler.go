@@ -1,6 +1,7 @@
 package group
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"slices"
@@ -11,6 +12,7 @@ import (
 	"github.com/telark/telark/internal/data/resources/finalizers"
 	groupdata "github.com/telark/telark/internal/data/resources/group"
 	"github.com/telark/telark/internal/kcore/crds/api"
+	kubeshared "github.com/telark/telark/internal/kcore/shared"
 	"github.com/telark/telark/internal/rest/response"
 	responseutils "github.com/telark/telark/internal/rest/utils/response"
 	"github.com/telark/telark/services/exporter/internal/authz"
@@ -27,6 +29,8 @@ import (
 	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
+
+var lg = constants.GetLogger(constants.PrefixMain)
 
 func CreateGroupResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -316,13 +320,7 @@ func DeleteGroupByIDWithCacheInvalidation(optimizer *performance.Optimizer) func
 			return
 		}
 
-		lock := concurrency.GetLock(groupID)
-		lock.Lock()
-		defer lock.Unlock()
-
-		deleteResult := api.DeleteCustomResourceByName(groupID, metadata.GroupMetadata)
-		resourcesutils.InvalidateResourceCaches(optimizer, constants.ResourceGroup, groupID)
-		authz.BumpGeneration(r.Context())
+		deleteResult := deleteGroupResource(r.Context(), optimizer, groupID)
 		if deleteResult.Status != http.StatusOK {
 			errorMsg := sharedutils.GenerateResourceError(errors.ErrDeleteRes, groupID, deleteResult.Error)
 			responseutils.LogAndSendResponse(
@@ -336,6 +334,12 @@ func DeleteGroupByIDWithCacheInvalidation(optimizer *performance.Optimizer) func
 			return
 		}
 
+		// The cleanup sweeper stays the backstop; the members drop the group now,
+		// outside the group's lock (see membership.setMember).
+		if err := membership.MirrorGroupMembers(r.Context(), optimizer, groupID, nil, existingGroup.UserRefs); err != nil {
+			lg.Warn(fmt.Sprintf(string(constants.WarnMembershipsNotStripped), metadata.GroupMetadata.Kind, groupID, err))
+		}
+
 		msg := fmt.Sprintf(string(messages.SuccessDeleteRes), groupID, metadata.GroupMetadata.Kind)
 		responseutils.LogAndSendResponse(
 			w,
@@ -346,4 +350,15 @@ func DeleteGroupByIDWithCacheInvalidation(optimizer *performance.Optimizer) func
 			nil,
 		)
 	}
+}
+
+func deleteGroupResource(ctx context.Context, optimizer *performance.Optimizer, groupID string) kubeshared.KubernetesAPIData {
+	lock := concurrency.GetLock(groupID)
+	lock.Lock()
+	defer lock.Unlock()
+
+	deleteResult := api.DeleteCustomResourceByName(groupID, metadata.GroupMetadata)
+	resourcesutils.InvalidateResourceCaches(optimizer, constants.ResourceGroup, groupID)
+	authz.BumpGeneration(ctx)
+	return deleteResult
 }

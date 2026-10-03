@@ -129,8 +129,8 @@ func enqueue(queue workqueue.TypedRateLimitingInterface[string], obj any) {
 	queue.Add(key)
 }
 
-// Workers only ever overlap on different apps: the workqueue hands a key to one
-// worker at a time and claimPending holds the per-app Redis lock.
+// Exported for tests: Run builds its own in-cluster client, which SetDynamicClient doesn't reach. Workers only
+// overlap on different apps: the workqueue hands a key to one worker at a time and claimPending holds the app's lock.
 func RunWorkers(
 	ctx context.Context,
 	queue workqueue.TypedRateLimitingInterface[string],
@@ -280,7 +280,9 @@ func (c *Controller) claimPending(
 func lockRollback(ctx context.Context, name string) (func(), error) {
 	rdb := redishelper.NewRedisClient()
 	if rdb == nil {
-		return func() {}, nil
+		return func() {
+			// No Redis client means no rollback lock was acquired, so there is nothing to release.
+		}, nil
 	}
 	lock := xwareredis.NewLockClient(rdb)
 	key := constants.KeyPrefixLockRollback + name
@@ -317,6 +319,7 @@ func (c *Controller) validateAndApplyRollback(
 	return nil
 }
 
+// Exported for tests: only reconcile reaches it, under Run's in-cluster client, which SetDynamicClient doesn't reach.
 func (c *Controller) FinalizeRollbackSuccess(
 	ctx context.Context,
 	name string,
@@ -408,8 +411,8 @@ func (c *Controller) failRollback(
 	}
 }
 
-// Detached from ctx's cancellation: a blown process deadline is itself a common reason a
-// rollback failed, and the failure still has to reach the CR. Bounded by attempts and one timeout.
+// Exported for tests (Run's in-cluster client is beyond SetDynamicClient). Detached from ctx's cancellation: a blown
+// deadline is a common reason a rollback failed, and the failure still has to reach the CR. Bounded by attempts and one timeout.
 func RecordWithRetry(ctx context.Context, record func(context.Context) error) error {
 	recordCtx, cancel := context.WithTimeout(
 		context.WithoutCancel(ctx),
@@ -470,6 +473,7 @@ func (c *Controller) loadRollbackManifest(
 	return out, nil
 }
 
+// Exported for tests: only reconcile reaches it, under Run's in-cluster client, which SetDynamicClient doesn't reach.
 func (c *Controller) FailStaleInProgress(
 	ctx context.Context,
 	name string,
@@ -484,7 +488,7 @@ func (c *Controller) FailStaleInProgress(
 			continue
 		}
 		now := time.Now().UTC()
-		msg := StaleSweepErrorMsg(rb.Error)
+		msg := staleSweepErrorMsg(rb.Error)
 		err := patchRollbackStatus(ctx, name, spec, i, rollbackPatchOpts{
 			Status:      constants.RollbackStatusFailed,
 			ErrorMsg:    msg,
@@ -501,7 +505,7 @@ func (c *Controller) FailStaleInProgress(
 
 // Empty (leave the stored error untouched) when a reason is already recorded: the sweep is a
 // last resort, and the generic restart text would destroy the only copy of a real failure.
-func StaleSweepErrorMsg(recorded string) string {
+func staleSweepErrorMsg(recorded string) string {
 	if strings.TrimSpace(recorded) != constants.EmptyString {
 		return constants.EmptyString
 	}

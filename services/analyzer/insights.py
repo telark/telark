@@ -148,7 +148,7 @@ class InsightStore:
         return await self._r.xlen(STREAM_JOBS)
 
     async def ack_job(self, msg_id: str) -> None:
-        """The worker's only acknowledgement: XACK then XDEL, so XLEN = undelivered + pending backlog."""
+        """The worker's only acknowledgment: XACK then XDEL, so XLEN = undelivered + pending backlog."""
         await self._r.xack(STREAM_JOBS, CONSUMER_GROUP, msg_id)
         await self._r.xdel(STREAM_JOBS, msg_id)
 
@@ -352,6 +352,21 @@ def _stays_dismissed(card: Insight | None, f) -> bool:
             and _card_fingerprint(card) == fingerprint(f.params, f.severity, f.confidence))
 
 
+def _assign(card: Insight, fields: dict) -> None:
+    for key, value in fields.items():
+        setattr(card, key, value)
+
+
+def _resolve_unfound(cards: dict[str, Insight], found: set[str], evaluated: set[tuple[str, str, str]], now: str,
+                     stats: RecStats) -> None:
+    """Resolve the active cards whose key was evaluated and not found."""
+    for card in cards.values():
+        key = (card.reason, card.params.get("namespace", ""), card_key(card.reason, card.subject, card.params))
+        if card.status in _ACTIVE and card.id not in found and key in evaluated:
+            _resolve(card, now)
+            stats.resolved.append(card.id)
+
+
 def merge_recommendations(doc: AppInsights, findings: list, evaluated: set[tuple[str, str, str]], now: str,
                           namespace: str, name: str) -> RecStats:
     """Apply one review: create, refresh, update, reopen, and resolve what a complete read no longer finds.
@@ -376,8 +391,7 @@ def merge_recommendations(doc: AppInsights, findings: list, evaluated: set[tuple
         card = cards.get(iid)
         if card is not None and card.status in _ACTIVE:
             changed = _card_fingerprint(card) != fingerprint(f.params, f.severity, f.confidence)
-            for key, value in fields.items():
-                setattr(card, key, value)
+            _assign(card, fields)
             if changed:
                 card.status, card.triage = INSIGHT_STATUS_UPDATED, None
                 card.runs += 1
@@ -389,16 +403,11 @@ def merge_recommendations(doc: AppInsights, findings: list, evaluated: set[tuple
             doc.insights.append(card)
             stats.created.append(iid)
         else:
-            for key, value in fields.items():
-                setattr(card, key, value)
+            _assign(card, fields)
             card.status, card.resolvedAt, card.triage = INSIGHT_STATUS_OPEN, "", None
             card.runs += 1
             stats.reopened.append(iid)
-    for card in cards.values():
-        key = (card.reason, card.params.get("namespace", ""), card_key(card.reason, card.subject, card.params))
-        if card.status in _ACTIVE and card.id not in found and key in evaluated:
-            _resolve(card, now)
-            stats.resolved.append(card.id)
+    _resolve_unfound(cards, found, evaluated, now, stats)
     return stats
 
 

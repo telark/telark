@@ -23,7 +23,7 @@ spec:
     {{- $at := "telark.io/last-modified-at" }}
     {{- $op := "telark.io/last-modified-operation" }}
     {{- $annotations := "{{ request.object.metadata.annotations || `{}` | length(@) }}" }}
-    # JSON6902 adds, not patchStrategicMerge: a strategic merge re-serialises the whole object and
+    # JSON6902 adds, not patchStrategicMerge: a strategic merge re-serializes the whole object and
     # collapses list entries that share a merge key (duplicate env names) in user workloads.
     # Only the kinds discovery snapshots, minus Secret (Kyverno would see every payload):
     # a wildcard would route every Lease, EndpointSlice and Event write through Kyverno.

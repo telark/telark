@@ -228,11 +228,13 @@ func StartRegistration(
 	options.Response.AuthenticatorSelection.ResidentKey = protocol.ResidentKeyRequirementRequired
 	options.Response.CredentialExcludeList = []protocol.CredentialDescriptor{}
 
-	if err := StoreChallenge(userID, sessionData.Challenge); err != nil {
+	// Owner first: a failed store then leaves nothing under the user's key, which a
+	// newer ceremony of the same user may already hold.
+	if err := StoreRegistrationChallengeOwner(sessionData.Challenge, userID); err != nil {
 		return nil, constants.EmptyString, err
 	}
-	if err := StoreRegistrationChallengeOwner(sessionData.Challenge, userID); err != nil {
-		CleanupChallenge(userID)
+	if err := StoreChallenge(userID, sessionData.Challenge); err != nil {
+		cleanupRegistrationChallengeOwner(sessionData.Challenge)
 		return nil, constants.EmptyString, err
 	}
 
@@ -319,7 +321,6 @@ func FinishRegistration(
 		backupEligible, backupState = ExtractBackupFlagsFromAttestation(attestationObjB64)
 	}
 
-	CleanupChallenge(userID)
 	cleanupRegistrationChallengeOwner(challenge.Challenge)
 	lg.Info(fmt.Sprintf(string(constants.LogRegistrationVerifiedSuccessfully),
 		sharedhelper.IdentityHash(userID)))

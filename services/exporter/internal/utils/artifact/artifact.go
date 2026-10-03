@@ -3,8 +3,10 @@ package artifact
 import (
 	"context"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -42,6 +44,60 @@ func WriteAtomic(path string, write func(io.Writer) error) (Stage, error) {
 	}
 
 	return StageNone, nil
+}
+
+// Every start of a migrating pod copies again, two pods may copy at once, and a
+// claim that returns after a rollback holds newer files: the newer side wins.
+func CopyTree(src string, dst string) (int, error) {
+	copied := constants.DefaultInitValue
+	err := filepath.WalkDir(src, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() && d.Name() == constants.LostFoundDir {
+			return fs.SkipDir
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, constants.SnapshotDirPerm)
+		}
+		if !d.Type().IsRegular() || strings.HasSuffix(d.Name(), constants.SnapshotTempFileSuffix) {
+			return nil
+		}
+		done, err := copyIfNewer(path, target, d)
+		if done {
+			copied++
+		}
+		return err
+	})
+	return copied, err
+}
+
+func copyIfNewer(path string, target string, d fs.DirEntry) (bool, error) {
+	info, err := d.Info()
+	if err != nil {
+		return false, err
+	}
+	if existing, statErr := os.Stat(target); statErr == nil && !info.ModTime().After(existing.ModTime()) {
+		return false, nil
+	}
+	src, err := os.Open(filepath.Clean(path))
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = src.Close() }()
+	_, err = WriteAtomic(target, func(w io.Writer) error {
+		_, copyErr := io.Copy(w, src)
+		return copyErr
+	})
+	if err != nil {
+		return false, err
+	}
+	return true, os.Chtimes(target, info.ModTime(), info.ModTime())
 }
 
 func IsWithinBase(targetPath string, basePath string) bool {

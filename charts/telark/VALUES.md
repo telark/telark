@@ -39,7 +39,6 @@ Kubernetes: `>=1.30.0-0`
 | app.auth.passkey.id | string | `""` |  |
 | app.auth.passkey.name | string | `"Dashboard App"` |  |
 | app.auth.passkey.origin | string | `""` |  |
-| app.auth.passkey.selfRegistration | string | `"false"` |  |
 | app.crdGuard.enabled | bool | `true` |  |
 | app.crdGuard.enforce | bool | `true` |  |
 | app.crdGuard.extraAllowedUsers | list | `[]` |  |
@@ -57,8 +56,8 @@ Kubernetes: `>=1.30.0-0`
 | app.ollama.enabled | bool | `true` |  |
 | app.ollama.runtimeUrl | string | `""` |  |
 | app.persistence.enabled | bool | `true` |  |
-| app.persistence.reportsSize | string | `"2Gi"` |  |
-| app.persistence.size | string | `"10Gi"` |  |
+| app.persistence.reportsSize | string | `"512Mi"` |  |
+| app.persistence.snapshotsSize | string | `"512Mi"` |  |
 | app.persistence.storageClass | string | `""` |  |
 | app.selfMonitoring.enabled | bool | `false` |  |
 | app.serviceDefaults.affinity | object | `{}` |  |
@@ -94,6 +93,10 @@ Kubernetes: `>=1.30.0-0`
 | app.shared.healthCheck.readinessProbe.path | string | `"/api/v1/status/ready"` |  |
 | app.shared.healthCheck.readinessProbe.periodSeconds | int | `5` |  |
 | app.shared.healthCheck.readinessProbe.timeoutSeconds | int | `15` |  |
+| app.shared.healthCheck.startupProbe.failureThreshold | int | `60` |  |
+| app.shared.healthCheck.startupProbe.path | string | `"/api/v1/status/live"` |  |
+| app.shared.healthCheck.startupProbe.periodSeconds | int | `5` |  |
+| app.shared.healthCheck.startupProbe.timeoutSeconds | int | `5` |  |
 | app.shared.nats.NATS_HOST | string | `"{{ .Release.Name }}-nats"` |  |
 | app.shared.podSecurityContext.enabled | bool | `true` |  |
 | app.shared.podSecurityContext.fsGroup | int | `1001` |  |
@@ -102,11 +105,10 @@ Kubernetes: `>=1.30.0-0`
 | app.shared.podSecurityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | app.shared.redis.REDIS_HOST | string | `"{{ .Release.Name }}-redis-master"` |  |
 | app.shared.redis.REDIS_PORT | string | `"6379"` |  |
-| app.shared.resources.limits.cpu | string | `"500m"` |  |
+| app.shared.resources.limits.cpu | string | `"1000m"` |  |
 | app.shared.resources.limits.memory | string | `"512Mi"` |  |
 | app.shared.resources.requests.cpu | string | `"100m"` |  |
 | app.shared.resources.requests.memory | string | `"128Mi"` |  |
-| app.singleNode | bool | `false` |  |
 | commonAnnotations | object | `{}` |  |
 | commonLabels | object | `{}` |  |
 | crds.enabled | bool | `true` |  |
@@ -128,8 +130,8 @@ Kubernetes: `>=1.30.0-0`
 | kyverno.admissionController.container.extraArgs.clientRateLimitBurst | int | `100` |  |
 | kyverno.admissionController.container.extraArgs.clientRateLimitQPS | int | `50` |  |
 | kyverno.admissionController.container.resources.limits.memory | string | `"512Mi"` |  |
-| kyverno.admissionController.container.resources.requests.cpu | string | `"200m"` |  |
-| kyverno.admissionController.container.resources.requests.memory | string | `"256Mi"` |  |
+| kyverno.admissionController.container.resources.requests.cpu | string | `"100m"` |  |
+| kyverno.admissionController.container.resources.requests.memory | string | `"128Mi"` |  |
 | kyverno.admissionController.initContainer.resources.limits.memory | string | `"128Mi"` |  |
 | kyverno.admissionController.initContainer.resources.requests.cpu | string | `"50m"` |  |
 | kyverno.admissionController.initContainer.resources.requests.memory | string | `"64Mi"` |  |
@@ -168,7 +170,7 @@ Kubernetes: `>=1.30.0-0`
 | monitoring.serviceMonitor.labels | object | `{}` |  |
 | monitoring.serviceMonitor.path | string | `"/metrics"` |  |
 | nameOverride | string | `""` |  |
-| nats.configuration | string | `"server_name: nats-server\nport: 4222\njetstream {\n  store_dir: \"/data\"\n  max_mem: 1G\n  max_file: 5G\n}\nauthorization {\n  users = [\n    {\n      user: $NATS_PUBLISHER_USER,\n      password: $NATS_PUBLISHER_PASSWORD,\n      permissions: {\n        publish   = [\"telark.applications.*\"]\n        subscribe = [\"_INBOX.>\"]\n      }\n    },\n    {\n      user: $NATS_CONSUMER_USER,\n      password: $NATS_CONSUMER_PASSWORD,\n      permissions: {\n        publish   = [\"$JS.API.>\", \"$JS.ACK.>\"]\n        subscribe = [\"telark.applications.*\", \"_INBOX.>\"]\n      }\n    }\n  ]\n}\n"` |  |
+| nats.configuration | string | `"server_name: nats-server\nport: 4222\njetstream {\n  store_dir: \"/data\"\n  max_mem: 1G\n  # Below the 1Gi volume, so JetStream refuses new messages before the disk fills.\n  max_file: 700M\n}\nauthorization {\n  users = [\n    {\n      user: $NATS_PUBLISHER_USER,\n      password: $NATS_PUBLISHER_PASSWORD,\n      permissions: {\n        publish   = [\"telark.applications.*\"]\n        subscribe = [\"_INBOX.>\"]\n      }\n    },\n    {\n      user: $NATS_CONSUMER_USER,\n      password: $NATS_CONSUMER_PASSWORD,\n      permissions: {\n        publish   = [\"$JS.API.>\", \"$JS.ACK.>\"]\n        subscribe = [\"telark.applications.*\", \"_INBOX.>\"]\n      }\n    }\n  ]\n}\n"` |  |
 | nats.customLivenessProbe.failureThreshold | int | `6` |  |
 | nats.customLivenessProbe.initialDelaySeconds | int | `30` |  |
 | nats.customLivenessProbe.periodSeconds | int | `10` |  |
@@ -201,7 +203,7 @@ Kubernetes: `>=1.30.0-0`
 | nats.networkPolicy.enabled | bool | `false` |  |
 | nats.persistence.enabled | bool | `true` |  |
 | nats.persistence.path | string | `"/data"` |  |
-| nats.persistence.size | string | `"4Gi"` |  |
+| nats.persistence.size | string | `"1Gi"` |  |
 | nats.service.type | string | `"ClusterIP"` |  |
 | ollama.extraEnv[0].name | string | `"OLLAMA_NO_CLOUD"` |  |
 | ollama.extraEnv[0].value | string | `"true"` |  |
@@ -222,20 +224,26 @@ Kubernetes: `>=1.30.0-0`
 | ollama.ollama.models.pull | list | `[]` |  |
 | ollama.persistentVolume.annotations."helm.sh/resource-policy" | string | `"keep"` |  |
 | ollama.persistentVolume.enabled | bool | `true` |  |
-| ollama.persistentVolume.size | string | `"10Gi"` |  |
+| ollama.persistentVolume.size | string | `"6Gi"` |  |
 | ollama.persistentVolume.storageClass | string | `""` |  |
 | ollama.resources.limits.cpu | string | `"2"` |  |
 | ollama.resources.requests.cpu | string | `"250m"` |  |
 | ollama.resources.requests.memory | string | `"1536Mi"` |  |
 | ollama.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | ollama.securityContext.capabilities.drop[0] | string | `"ALL"` |  |
+| ollama.securityContext.readOnlyRootFilesystem | bool | `true` |  |
 | ollama.securityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | redis.architecture | string | `"standalone"` |  |
-| redis.auth.enabled | bool | `false` |  |
+| redis.auth.enabled | bool | `true` |  |
+| redis.auth.existingSecret | string | `"{{ .Release.Name }}-redis-secret"` |  |
 | redis.image.digest | string | `"sha256:33a5a129cadcc5dfa294e5a1fe622efcbe3774a8b85c731ac14d0532877b7d16"` |  |
+| redis.master.disableCommands[0] | string | `"FLUSHDB"` |  |
+| redis.master.disableCommands[1] | string | `"FLUSHALL"` |  |
+| redis.master.disableCommands[2] | string | `"CONFIG"` |  |
+| redis.master.disableCommands[3] | string | `"ACL"` |  |
 | redis.master.persistence.enabled | bool | `true` |  |
-| redis.master.persistence.size | string | `"4Gi"` |  |
-| redis.master.resources.limits.cpu | string | `"150m"` |  |
+| redis.master.persistence.size | string | `"2Gi"` |  |
+| redis.master.resources.limits.cpu | string | `"500m"` |  |
 | redis.master.resources.limits.ephemeral-storage | string | `"2Gi"` |  |
 | redis.master.resources.limits.memory | string | `"512Mi"` |  |
 | redis.master.resources.requests.cpu | string | `"100m"` |  |
@@ -293,6 +301,7 @@ Kubernetes: `>=1.30.0-0`
 | services.auth.env.CLEANUP_WORKERS_PER_TYPE | string | `"2"` |  |
 | services.auth.env.CLEANUP_XCLAIM_MIN_IDLE_SECONDS | string | `"60"` |  |
 | services.auth.env.CORS_ALLOWED_ORIGINS | string | `""` |  |
+| services.auth.env.ENROLL_INVITE_TTL_SEC | string | `"3600"` |  |
 | services.auth.env.OIDC_TRUST_FILE | string | `"/etc/telark/oidc/googleJwkJson"` |  |
 | services.auth.env.RECONCILE_BACKOFF_INITIAL_SECONDS | string | `"5"` |  |
 | services.auth.env.RECONCILE_BACKOFF_MAX_SECONDS | string | `"300"` |  |
@@ -305,7 +314,6 @@ Kubernetes: `>=1.30.0-0`
 | services.auth.env.RP_ID | string | `"{{ .Values.app.auth.passkey.id }}"` |  |
 | services.auth.env.RP_NAME | string | `"{{ .Values.app.auth.passkey.name }}"` |  |
 | services.auth.env.RP_ORIGIN | string | `"{{ .Values.app.auth.passkey.origin }}"` |  |
-| services.auth.env.SELF_REGISTRATION_ENABLED | string | `"{{ .Values.app.auth.passkey.selfRegistration }}"` |  |
 | services.auth.env.SESSION_EXPIRY | string | `"24"` |  |
 | services.auth.name | string | `"auth-service"` |  |
 | services.auth.pdb.enabled | bool | `false` |  |
@@ -392,7 +400,7 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.env.SNAPSHOT_GC_INTERVAL_SEC | string | `"3600"` |  |
 | services.exporter.name | string | `"exporter-service"` |  |
 | services.exporter.pdb.enabled | bool | `false` |  |
-| services.exporter.replicas | int | `2` |  |
+| services.exporter.replicas | int | `1` |  |
 | services.exporter.repository | string | `"exporter"` |  |
 | services.exporter.volumeMounts[0].name | string | `"snapshots-storage"` |  |
 | services.exporter.volumeMounts[0].path | string | `"/snapshots"` |  |
@@ -418,7 +426,9 @@ Kubernetes: `>=1.30.0-0`
 | services.ui.containerSecurityContext.capabilities.drop[0] | string | `"ALL"` |  |
 | services.ui.containerSecurityContext.readOnlyRootFilesystem | bool | `true` |  |
 | services.ui.enabled | bool | `true` |  |
-| services.ui.includeHealthCheck | bool | `false` |  |
+| services.ui.healthCheck.livenessProbe.path | string | `"/healthz"` |  |
+| services.ui.healthCheck.readinessProbe.path | string | `"/healthz"` |  |
+| services.ui.healthCheck.startupProbe.path | string | `"/healthz"` |  |
 | services.ui.includeSecurity | bool | `false` |  |
 | services.ui.name | string | `"ui-service"` |  |
 | services.ui.podSecurityContext.runAsGroup | int | `101` |  |

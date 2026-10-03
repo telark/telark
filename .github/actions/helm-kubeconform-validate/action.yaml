@@ -30,7 +30,7 @@ runs:
       env:
         KUBECONFORM_VERSION: ${{ inputs.kubeconform-version }}
       run: |
-        curl -sSL --fail --retry 3 --retry-all-errors --retry-delay 2 \
+        curl -sSL --proto '=https' --fail --retry 3 --retry-all-errors --retry-delay 2 \
           -o /tmp/kubeconform.tar.gz \
           "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
         tar -xzf /tmp/kubeconform.tar.gz -C /usr/local/bin kubeconform

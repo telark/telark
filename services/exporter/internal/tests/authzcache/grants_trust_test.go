@@ -28,7 +28,7 @@ const (
 	signWithTokenFailed = "SignCacheEntry failed with a service token present"
 )
 
-// Redis is unauthenticated, so a cached grant is attacker-controllable. An
+// Redis is untrusted, so a cached grant is attacker-controllable. An
 // entry without a valid signature must be ignored, not obeyed — otherwise
 // anyone able to write one key grants themselves any permission.
 func TestPlantedGrantsAreNotTrusted(t *testing.T) {
@@ -153,7 +153,7 @@ func plantSigned(t *testing.T, mr *miniredis.Miniredis, gen string, issuedAt tim
 	}
 }
 
-// Signed entries are copyable out of an unauthenticated Redis; pinning the
+// Signed entries are copyable out of an untrusted Redis; pinning the
 // generation back to theirs, or keeping them past the TTL, must not replay them.
 func TestReplayedGrantsAreNotTrusted(t *testing.T) {
 	t.Setenv(dataconstants.EnvServiceToken, serviceToken)

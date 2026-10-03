@@ -72,10 +72,6 @@ app:
   # ship production-grade defaults for every mode. See the Subcharts section.
   mode: standard
 
-  # One-node cluster: the exporter runs a single replica on a ReadWriteOnce
-  # volume instead of two on ReadWriteMany (no RWX storage class needed).
-  singleNode: false
-
   # Container images. Full ref per service: <registry>/<service.repository>:<service.version>.
   image:
     # Registry and namespace (GHCR org) that host the per-service repos.
@@ -86,8 +82,7 @@ app:
     pullSecrets: []
 
   # Auth service — WebAuthn relying-party identity + the bootstrap admin.
-  # Set bootstrap.admin to your admin email: with it empty and selfRegistration
-  # "false" nobody could ever log in, so the render fails.
+  # Set bootstrap.admin to your admin email: the render fails without one.
   auth:
     bootstrap:
       admin: ""
@@ -95,7 +90,6 @@ app:
       id: ""  # required with ingress/gateway; empty follows the request host
       name: "Dashboard App"
       origin: ""  # required with ingress/gateway; empty follows the request Origin
-      selfRegistration: "false"  # gates passkey registration only; OIDC users unaffected
     oidc:
       existingSecret: ""  # GitOps: your Secret with key googleJwkJson; empty = chart-managed
 
@@ -114,13 +108,14 @@ app:
     # Ollama-API endpoint you run yourself (connected mode, no key); empty = the subchart.
     runtimeUrl: ""
 
-  # Storage for the exporter PVCs (snapshots, reports).
-  # storageClass: "" = cluster default · "-" = disable provisioning · "<name>" = that class.
+  # Storage for the exporter PVCs (snapshots, reports), kept on uninstall.
+  # storageClass: "" = cluster default, and an upgrade keeps the live claims' class ·
+  # "-" = disable provisioning · "<name>" = that class (a change copies the data to new claims).
   persistence:
     enabled: true
     storageClass: ""
-    size: 10Gi
-    reportsSize: 2Gi
+    snapshotsSize: 512Mi
+    reportsSize: 512Mi
 
   # Shared secret services present to each other. Empty = generated on install and
   # read back on upgrade. GitOps (cluster-less renders): set existingSecret (key: token).
@@ -178,10 +173,17 @@ app:
         cpu: "100m"
         memory: "128Mi"
       limits:
-        cpu: "500m"
+        cpu: "1000m"
         memory: "512Mi"
     healthCheck:
       port: http
+      # The exporter, notifier and auth listen only once Redis answers, and a node loss keeps Redis
+      # away while its volume moves: 5 minutes before liveness may restart them.
+      startupProbe:
+        path: /api/v1/status/live
+        periodSeconds: 5
+        timeoutSeconds: 5
+        failureThreshold: 60
       livenessProbe:
         path: /api/v1/status/live
         initialDelaySeconds: 15
@@ -223,11 +225,10 @@ services:
     # @ignore
     version: 0.0.1
     category: "persistence-manager"
-    # Two replicas share the snapshot volume, so the chart derives the rest:
-    # replicas > 1 → RollingUpdate + ReadWriteMany (needs app.persistence.storageClass
-    # set to an RWX class); 1 replica (minimal, or app.singleNode=true) → Recreate +
-    # ReadWriteOnce. Never autoscaled — the volume, not CPU, bounds it.
-    replicas: 2
+    # 1 replica works on any class (Recreate, ReadWriteOnce). More share both volumes, so
+    # they need app.persistence.storageClass set to a ReadWriteMany class (RollingUpdate).
+    # Never autoscaled — the volume, not CPU, bounds it.
+    replicas: 1
     autoscaling:
       enabled: false
     env:
@@ -403,7 +404,7 @@ services:
       REDIS_MAX_WAIT_SEC: "30"
       REDIS_PING_TIMEOUT_SEC: "3"
       BOOTSTRAP_ADMIN: '{{ .Values.app.auth.bootstrap.admin }}'
-      SELF_REGISTRATION_ENABLED: '{{ .Values.app.auth.passkey.selfRegistration }}'
+      ENROLL_INVITE_TTL_SEC: "3600"
       RP_ID: '{{ .Values.app.auth.passkey.id }}'
       RP_NAME: '{{ .Values.app.auth.passkey.name }}'
       RP_ORIGIN: '{{ .Values.app.auth.passkey.origin }}'
@@ -442,9 +443,14 @@ services:
     version: 0.0.2
     category: "ui"
     terminationGracePeriodSec: 30
-    # Static assets behind nginx: it serves no /api/v1/status route, so probes
-    # stay off. Resources still apply.
-    includeHealthCheck: false
+    # nginx answers /healthz itself, with no upstream call.
+    healthCheck:
+      startupProbe:
+        path: /healthz
+      livenessProbe:
+        path: /healthz
+      readinessProbe:
+        path: /healthz
     # nginx runs as its own uid 101, not the shared 1001, so it gets its own contexts.
     includeSecurity: false
     useRedis: false
@@ -484,16 +490,20 @@ redis:
   image:
     digest: sha256:33a5a129cadcc5dfa294e5a1fe622efcbe3774a8b85c731ac14d0532877b7d16
   auth:
-    enabled: false
-  # Redis runs without auth, so the network is the only boundary: ingress is
-  # restricted to pods carrying the <release>-redis-client label.
+    enabled: true  # required: the render fails without it
+    # Chart-generated (templates/shared/redis-secret.yaml) and read back on upgrade. GitOps: name
+    # a Secret you manage (key redis-password); the chart then generates none.
+    existingSecret: '{{ .Release.Name }}-redis-secret'
+  # Defense in depth behind the password: ingress only from pods labeled <release>-redis-client.
   networkPolicy:
     enabled: true
     allowExternal: false
   master:
+    # Also CONFIG and ACL, so no client can turn the password off at runtime.
+    disableCommands: [FLUSHDB, FLUSHALL, CONFIG, ACL]
     persistence:
       enabled: true
-      size: 4Gi
+      size: 2Gi
     # Replaces the nano preset (same requests). Redis never evicts, so the limit must hold every
     # app's analyzer documents: about 210 MiB at 2 000 apps in the worst case.
     resources:
@@ -502,7 +512,7 @@ redis:
         memory: 128Mi
         ephemeral-storage: 50Mi
       limits:
-        cpu: 150m
+        cpu: 500m
         memory: 512Mi
         ephemeral-storage: 2Gi
 
@@ -529,7 +539,8 @@ nats:
     jetstream {
       store_dir: "/data"
       max_mem: 1G
-      max_file: 5G
+      # Below the 1Gi volume, so JetStream refuses new messages before the disk fills.
+      max_file: 700M
     }
     authorization {
       users = [
@@ -592,7 +603,7 @@ nats:
   persistence:
     enabled: true
     path: /data
-    size: 4Gi
+    size: 1Gi
 
 kyverno:
   namespaceOverride: "telark"
@@ -611,8 +622,8 @@ kyverno:
     container:
       resources:
         requests:
-          cpu: 200m
-          memory: 256Mi
+          cpu: 100m
+          memory: 128Mi
         limits:
           memory: 512Mi
       extraArgs:
@@ -691,7 +702,7 @@ ollama:
       pull: []
   persistentVolume:
     enabled: true
-    size: 10Gi               # 20Gi when trialing 8B models
+    size: 6Gi                # the default model plus any one catalog model: a switch never deletes the old one
     # Empty -> cluster default class. Override per env via --set or values overlay.
     storageClass: ""
     annotations:
@@ -706,8 +717,11 @@ ollama:
     # cgroup, so pulled blobs eventually fill any limit and loads are refused.
     limits:
       cpu: "2"
+  # Runs as root: the image keeps its models and key under /root/.ollama (a 0700 home), where the
+  # volume mounts. It writes nothing else, so the root filesystem stays read-only.
   securityContext:
     allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
     capabilities:
       drop: ["ALL"]
     seccompProfile:

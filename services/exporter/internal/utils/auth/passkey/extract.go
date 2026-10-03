@@ -7,9 +7,6 @@ import (
 	"slices"
 
 	authdata "github.com/telark/telark/internal/data/auth"
-	dataerrors "github.com/telark/telark/internal/data/errors"
-	"github.com/telark/telark/internal/rest/response"
-	requestutils "github.com/telark/telark/internal/rest/utils/request"
 	"github.com/telark/telark/services/exporter/internal/constants"
 	authutils "github.com/telark/telark/services/exporter/internal/utils/auth/shared"
 	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
@@ -136,16 +133,8 @@ func ExtractPasskeyRequestParams(w http.ResponseWriter, r *http.Request) (
 		return constants.EmptyString, constants.EmptyString, nil, false
 	}
 
-	body, err = requestutils.ParseRequestBody(r)
+	body, err = sharedutils.GetSpec(w, r)
 	if err != nil {
-		sharedutils.LogByStatusAndSend(
-			w,
-			http.StatusUnprocessableEntity,
-			response.OperationUnprocessed,
-			fmt.Sprintf(string(dataerrors.ErrRestParseRequestBody), err),
-			nil,
-			err,
-		)
 		return constants.EmptyString, constants.EmptyString, nil, false
 	}
 

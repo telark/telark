@@ -23,11 +23,6 @@ type crdSource struct{}
 
 var source authz.GrantSource = crdSource{}
 
-// Tests have no apiserver; nothing else swaps the source.
-func UseGrantSource(s authz.GrantSource) {
-	source = s
-}
-
 func (crdSource) User(userID string) (*userdata.User, error) {
 	return decode[userdata.User](getByName(userID, metadata.UserMetadata))
 }

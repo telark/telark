@@ -10,6 +10,7 @@ import (
 	groupdata "github.com/telark/telark/internal/data/resources/group"
 	roledata "github.com/telark/telark/internal/data/resources/role"
 	userdata "github.com/telark/telark/internal/data/resources/user"
+	"github.com/telark/telark/internal/kcore/k8sclient"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/exporter/internal/authz"
 	"github.com/telark/telark/services/exporter/internal/constants"
@@ -26,37 +27,6 @@ const (
 
 var errBackend = errors.New("apiserver unreachable")
 
-// Ids absent from the maps answer not found, like a dangling reference in a CR,
-// so the older tests keep their meaning.
-type fakeSource struct {
-	users  map[string]*userdata.User
-	groups map[string]*groupdata.Group
-	roles  map[string]*roledata.AccessRole
-}
-
-func (f fakeSource) User(userID string) (*userdata.User, error) {
-	return lookup(f.users, userID)
-}
-
-func (f fakeSource) Group(groupID string) (*groupdata.Group, error) {
-	return lookup(f.groups, groupID)
-}
-
-func (f fakeSource) Role(roleID string) (*roledata.AccessRole, error) {
-	if roleID == roleUnreadable {
-		return nil, errBackend
-	}
-	return lookup(f.roles, roleID)
-}
-
-func lookup[T any](records map[string]*T, id string) (*T, error) {
-	record, ok := records[id]
-	if !ok {
-		return nil, xauthz.ErrNotFound
-	}
-	return record, nil
-}
-
 func roleGranting(name, scope string, level roledata.PermissionLevel) *roledata.AccessRole {
 	return &roledata.AccessRole{
 		Name:                 name,
@@ -66,19 +36,15 @@ func roleGranting(name, scope string, level roledata.PermissionLevel) *roledata.
 }
 
 func TestMain(m *testing.M) {
-	authz.UseGrantSource(fakeSource{
-		users:  fakeUsers(),
-		groups: fakeGroups(),
-		roles: map[string]*roledata.AccessRole{
-			roleAllReadOnly: roleGranting(roleAllReadName, roledata.ScopeAll, roledata.PermissionLevelReadOnly),
-			roleUsersOwner:  roleGranting("users-owner", roledata.ScopeUsers, roledata.PermissionLevelOwner),
-			roleUsersAdmin:  roleGranting("users-admin", roledata.ScopeUsers, roledata.PermissionLevelAdmin),
-			roleAppsOwner:   roleGranting("apps-owner", roledata.ScopeApplications, roledata.PermissionLevelOwner),
-			roleAllAdmin:    roleGranting("all-admin", roledata.ScopeAll, roledata.PermissionLevelAdmin),
-			roleAllAdminOff: inactive(roleGranting("all-admin-off", roledata.ScopeAll, roledata.PermissionLevelAdmin)),
-			roleTerminating: terminating(roleGranting("gone", roledata.ScopeUsers, roledata.PermissionLevelOwner)),
-		},
-	})
+	k8sclient.SetDynamicClient(directory(map[string]*roledata.AccessRole{
+		roleAllReadOnly: roleGranting(roleAllReadName, roledata.ScopeAll, roledata.PermissionLevelReadOnly),
+		roleUsersOwner:  roleGranting("users-owner", roledata.ScopeUsers, roledata.PermissionLevelOwner),
+		roleUsersAdmin:  roleGranting("users-admin", roledata.ScopeUsers, roledata.PermissionLevelAdmin),
+		roleAppsOwner:   roleGranting("apps-owner", roledata.ScopeApplications, roledata.PermissionLevelOwner),
+		roleAllAdmin:    roleGranting("all-admin", roledata.ScopeAll, roledata.PermissionLevelAdmin),
+		roleAllAdminOff: inactive(roleGranting("all-admin-off", roledata.ScopeAll, roledata.PermissionLevelAdmin)),
+		roleTerminating: terminating(roleGranting("gone", roledata.ScopeUsers, roledata.PermissionLevelOwner)),
+	}))
 	m.Run()
 }
 

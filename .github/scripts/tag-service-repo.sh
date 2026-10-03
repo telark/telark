@@ -9,9 +9,9 @@ git config user.email "action@github.com"
 # the exact source the image was built from.
 changed=()
 for f in package.json package-lock.json; do
-  [ -f "$f" ] && [ -n "$(git status --porcelain -- "$f")" ] && changed+=("$f")
+  [[ -f "$f" ]] && [[ -n "$(git status --porcelain -- "$f")" ]] && changed+=("$f")
 done
-if [ "${#changed[@]}" -gt 0 ]; then
+if [[ "${#changed[@]}" -gt 0 ]]; then
   git add -- "${changed[@]}"
   git commit -m "chore(release): v${SERVICE_VERSION}"
   git pull --rebase origin "$BRANCH"
@@ -31,12 +31,12 @@ tag_exists_remotely=$(git ls-remote --tags origin "$tag_name" | wc -l)
 
 # Tags are immutable provenance: a re-build of a released version must not move
 # its tag, so bump the version instead.
-if [ "$tag_exists_remotely" -gt 0 ]; then
+if [[ "$tag_exists_remotely" -gt 0 ]]; then
   echo "::error::Tag $tag_name already exists in the service repository; bump the version instead of re-tagging." >&2
   exit 1
 fi
 
-if [ "$tag_exists_locally" -gt 0 ]; then
+if [[ "$tag_exists_locally" -gt 0 ]]; then
   git tag -d "$tag_name"
 fi
 

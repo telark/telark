@@ -48,13 +48,10 @@ func main() {
 		os.Exit(constants.ExitCodeError)
 	}
 
-	bootstrapCfg, err := config.LoadBootstrapConfig()
-	if err != nil {
+	if _, err := config.LoadBootstrapConfig(); err != nil {
 		lg.Error(fmt.Sprintf(string(constants.ErrFailedLoadBootstrapConfig), err))
 		os.Exit(constants.ExitCodeError)
 	}
-	lg.Info(fmt.Sprintf(string(constants.LogBootstrapConfig),
-		bootstrapCfg.SelfRegistrationEnabled, bootstrapCfg.BootstrapAdmin != constants.EmptyString))
 
 	if err := webauthn.InitWebAuthn(&cfg.WebAuthn); err != nil {
 		lg.Error(fmt.Sprintf(string(constants.ErrWebAuthnSetupFailed), err))

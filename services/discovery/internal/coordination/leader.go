@@ -28,7 +28,7 @@ func RunPrewarmLeaderLoop(
 ) {
 	electionTicker := time.NewTicker(coord.Config.ElectionRenewInterval)
 	defer electionTicker.Stop()
-	prewarmTicker := time.NewTicker(prewarmInterval(ctx))
+	prewarmTicker := time.NewTicker(constants.PrewarmInterval)
 	defer prewarmTicker.Stop()
 
 	isLeader := false
@@ -50,8 +50,6 @@ func RunPrewarmLeaderLoop(
 			}
 
 		case <-prewarmTicker.C:
-			// Re-read every cycle so a changed interval applies without a restart.
-			prewarmTicker.Reset(prewarmInterval(ctx))
 			if isLeader {
 				go runBatchIfIdle(ctx, coord, rdb)
 			}
@@ -63,16 +61,6 @@ func RunPrewarmLeaderLoop(
 			return
 		}
 	}
-}
-
-// Without this, namespaces and workloads created after startup are only picked up
-// by a restart, a leadership change or a force-sync.
-func prewarmInterval(ctx context.Context) time.Duration {
-	secs := tcfghelper.FetchIntervalSeconds(ctx)
-	if secs <= constants.DefaultInitValue {
-		return constants.PrewarmDefaultInterval
-	}
-	return time.Duration(secs) * time.Second
 }
 
 func tryRenewLeadership(ctx context.Context, coord *CoordinationBundle, replicaID string) bool {
@@ -200,8 +188,7 @@ type PrewarmCycleStatus struct {
 // CycleStatus is what the UI shows while a rediscovery cycle runs: the derive
 // pass creates new applications, then the consumer backlog refreshes the rest.
 func CycleStatus(ctx context.Context, rdb *redis.Client) PrewarmCycleStatus {
-	interval := prewarmInterval(ctx)
-	status := PrewarmCycleStatus{IntervalSeconds: int(interval / time.Second)}
+	status := PrewarmCycleStatus{IntervalSeconds: int(constants.PrewarmInterval / time.Second)}
 	if rdb == nil {
 		return status
 	}

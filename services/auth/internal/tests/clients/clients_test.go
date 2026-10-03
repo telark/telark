@@ -19,6 +19,7 @@ func TestClientSingletons(t *testing.T) {
 		{"group", func() any { return clients.GetGroupClient() }},
 		{"role", func() any { return clients.GetAccessRoleClient() }},
 		{"global config", func() any { return clients.GetConfigClient() }},
+		{"notifications", func() any { return clients.GetNotificationsClient() }},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

@@ -36,6 +36,7 @@ const (
 	ErrAuthzResourceBeingDeleted      = "this resource is being deleted and can no longer be changed"
 	ErrAuthzBootstrapManagedByChart   = "this account is a bootstrap administrator managed by the chart"
 	ErrAuthzBootstrapFieldReserved    = "the bootstrap flag is managed by the chart"
+	ErrAuthzInviteFieldReserved       = "a user's enrollment invite is managed by the auth service"
 	ErrAuthzLastAdmin                 = "this change would leave no active administrator: grant Admin on ALL to another active user first"
 	ErrAuthzSelfDelete                = "you cannot delete your own account"
 	ErrAuthzBootstrapEmailReserved    = "this email belongs to a bootstrap administrator managed by the chart"

@@ -1,9 +1,7 @@
 # Publishing the Helm charts
 
-Telark ships two charts, `telark` (the app) and `telark-crds`, as OCI artifacts in
-GitHub Container Registry: `oci://ghcr.io/telark/charts`. GHCR packages are private by
-default, so the steps below test the full private publish, pull and deploy path before
-anything is made public.
+Telark ships two charts, `telark` (the app) and `telark-crds`, as public OCI artifacts in
+GitHub Container Registry: `oci://ghcr.io/telark/charts`.
 
 - **Automated:** run *Release · Publish Charts* with `chart` (`both`, `telark`, `telark-crds`) and `bump` (`patch`, `minor`, `major`). Don't edit the versions in `Chart.yaml` first: the workflow bumps each selected chart from its own current version, writes it to `Chart.yaml`, packages, pushes and **cosign-signs** it (telark-crds first), then commits the change. A version already in the registry fails the run before anything is pushed. See [`.github/workflows/release-charts.yaml`](../.github/workflows/release-charts.yaml).
   - `appVersion` is the Telark release: telark's follows its new `version`, and telark-crds takes the same value when released with telark (`chart=both`). A CRD-only release keeps telark-crds' `appVersion`.
@@ -63,19 +61,13 @@ helm template t oci://ghcr.io/telark/charts/telark --version <version> \
 
 ## 4. Deploy from the registry
 
-Mirrors the deploy workflow. The app release **must** be named `telark-release` so the
-subchart DNS (`{{ .Release.Name }}-redis-master`, `-nats`, `-ollama`) resolves.
+The chart ships the services, subcharts and CRDs (telark-crds is a subchart). Size it with
+`--set app.mode=<mode>`; the exporter's volumes come from the default StorageClass
+([Exporter storage](INSTALL.md#exporter-storage)).
 
 ```sh
-NS=telark
-
-# App: services, subcharts and CRDs all ship in the chart (telark-crds is a
-# subchart). NATS config inlined; size with --set app.mode=<mode>. standard runs
-# two exporter replicas that share both exporter volumes, so name a ReadWriteMany
-# class (or --set app.singleNode=true on a one-node test cluster).
-helm upgrade --install telark-release oci://ghcr.io/telark/charts/telark --version <version> \
-  -n "$NS" --create-namespace \
-  --set app.persistence.storageClass=<rwx-class> \
+helm upgrade --install telark oci://ghcr.io/telark/charts/telark --version <version> \
+  -n telark --create-namespace \
   --set app.auth.bootstrap.admin=test@example.com \
   --wait --timeout 15m
 ```
@@ -100,32 +92,23 @@ cosign verify ghcr.io/telark/charts/telark@$DIGEST \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
-## 6. Go public (when ready)
+## 6. Register on ArtifactHub
 
-In each package's settings on GHCR (`ghcr.io/telark/charts/telark`, `.../telark-crds`),
-change visibility to **Public**. Only then can ArtifactHub index them.
+Each OCI chart is its own Artifact Hub repository, with its own repository ID.
 
-## 7. Register on ArtifactHub
-
-1. Add an OCI repository pointing at `oci://ghcr.io/telark/charts/telark` (and `.../telark-crds`).
-2. Copy the issued `repositoryID` into [`charts/artifacthub-repo.yml`](../charts/artifacthub-repo.yml).
-3. Push that metadata so ArtifactHub verifies ownership:
+1. Sign in to Artifact Hub, open **Control Panel → Repositories → Add**, pick **Helm charts** and use the URL `oci://ghcr.io/telark/charts/telark`.
+2. Copy the new repository's ID (on its card in the control panel) into `repositoryID` in [`charts/artifacthub-repo.yml`](../charts/artifacthub-repo.yml).
+3. Push the file to the chart's `artifacthub.io` tag, where Artifact Hub looks for it (ownership claim and the verified-publisher badge):
 
 ```sh
-oras push ghcr.io/telark/charts/artifacthub-repo.yml:latest \
+oras push ghcr.io/telark/charts/telark:artifacthub.io \
+  --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
   charts/artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
 ```
 
+`telark` already bundles the CRDs, so listing `telark-crds` is optional: register `oci://ghcr.io/telark/charts/telark-crds` the same way and push a copy of the file with that repository's ID to `ghcr.io/telark/charts/telark-crds:artifacthub.io`.
+
 ArtifactHub auto-detects the cosign signatures and shows the charts as **Signed**.
-
-## Values docs
-
-Each chart carries an auto-generated `VALUES.md` (exhaustive key/type/default index).
-Regenerate it after any `values.yaml` change; CI fails if it drifts:
-
-```sh
-make values-docs
-```
 
 ## Repository settings the workflows rely on
 
@@ -134,4 +117,4 @@ The build and release workflows push version-bump commits to the branch they run
 - **Protect `main`**: require the CI checks and a CODEOWNERS review on pull requests, block force pushes and deletion. The bump commits are pushed with `GITHUB_TOKEN`, so either allow `github-actions[bot]` to bypass the pull-request rule or move the bumps to a bot branch merged by pull request.
 - **Restrict who can run workflows**: `workflow_dispatch` runs with the repository's secrets from any branch a writer names, so keep write access to maintainers. To require an approval per run, create an environment (Settings → Environments, for example `release`) with required reviewers and add `environment: release` to the build and release jobs.
 - **Tags are immutable**: protect `v*` tags (Settings → Rules → tag ruleset) here and in `telark/dashboard-ui`. A UI build refuses to re-tag an existing `vX.Y.Z` (`.github/scripts/tag-service-repo.sh`), so every build bumps the version (`patch`, `minor` or `major`).
-- **Scope the `ACCESS_TOKEN` PAT** to the repository it pushes to (`telark/dashboard-ui`) with contents write only; the CI pull-request jobs no longer receive it.
+- **Scope the `ACCESS_TOKEN` PAT** to the repository it pushes to (`telark/dashboard-ui`) with contents write only; the CI pull-request jobs don't receive it.

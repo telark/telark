@@ -23,7 +23,20 @@ const (
 	otherLockKey   = "exporter:test:other"
 	lockTTL        = time.Minute
 	testDirPerm    = 0o750
+	testFilePerm   = 0o600
 	writeOKPayload = "{}"
+	olderAge       = 2 * time.Hour
+	newerAge       = time.Hour
+	sourceBody     = "source"
+	targetBody     = "destination"
+	snapshotRel    = "apps/ns/app/V1.json"
+	ledgerRel      = "plans/p1/ledger.json"
+	tempRel        = "apps/ns/app/V2.json.123.tmp"
+	lostFoundRel   = "lost+found/x"
+	keptRel        = "kept.json"
+	updatedRel     = "updated.json"
+	wantCopiedTree = 2
+	wantCopiedNew  = 1
 )
 
 var errSentinel = errors.New("writer failed")
@@ -125,7 +138,7 @@ func TestIsSafeSegment(t *testing.T) {
 	}
 }
 
-func TestTickAllowedNilRedisAllowsAndCancelledCtxDenies(t *testing.T) {
+func TestTickAllowedNilRedisAllowsAndCanceledCtxDenies(t *testing.T) {
 	if !artifact.TickAllowed(context.Background(), nil, lockKey, lockTTL) {
 		t.Fatal("nil redis with a live ctx must allow the tick")
 	}
@@ -134,6 +147,79 @@ func TestTickAllowedNilRedisAllowsAndCancelledCtxDenies(t *testing.T) {
 	if artifact.TickAllowed(ctx, nil, lockKey, lockTTL) {
 		t.Fatal("canceled ctx must deny the tick")
 	}
+}
+
+func writeFileAt(t *testing.T, path string, body string, modTime time.Time) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), testDirPerm); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(body), testFilePerm); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := os.Chtimes(path, modTime, modTime); err != nil {
+		t.Fatalf("chtimes: %v", err)
+	}
+}
+
+func assertBody(t *testing.T, path string, want string) {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Clean(path))
+	if err != nil || string(body) != want {
+		t.Fatalf("%s = %q (%v), want %q", path, body, err, want)
+	}
+}
+
+func TestCopyTreeCopiesDataOnceAndKeepsModTimes(t *testing.T) {
+	src, dst := t.TempDir(), t.TempDir()
+	older := time.Now().Add(-olderAge).Truncate(time.Second)
+	for _, rel := range []string{snapshotRel, ledgerRel, tempRel, lostFoundRel} {
+		writeFileAt(t, filepath.Join(src, rel), sourceBody, older)
+	}
+
+	copied, err := artifact.CopyTree(src, dst)
+	if err != nil || copied != wantCopiedTree {
+		t.Fatalf("CopyTree = (%d, %v), want (%d, nil)", copied, err, wantCopiedTree)
+	}
+	for _, rel := range []string{snapshotRel, ledgerRel} {
+		path := filepath.Join(dst, rel)
+		assertBody(t, path, sourceBody)
+		info, statErr := os.Stat(path)
+		if statErr != nil {
+			t.Fatalf("stat %s: %v", rel, statErr)
+		}
+		if !info.ModTime().Equal(older) {
+			t.Fatalf("%s mtime = %v, want %v", rel, info.ModTime(), older)
+		}
+	}
+	for _, rel := range []string{tempRel, filepath.Dir(lostFoundRel)} {
+		if _, statErr := os.Stat(filepath.Join(dst, rel)); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("%s must not be copied, stat: %v", rel, statErr)
+		}
+	}
+	assertNoTempLeft(t, filepath.Join(dst, filepath.Dir(snapshotRel)))
+
+	again, err := artifact.CopyTree(src, dst)
+	if err != nil || again != constants.DefaultInitValue {
+		t.Fatalf("second CopyTree = (%d, %v), want (0, nil)", again, err)
+	}
+}
+
+func TestCopyTreeNewerSideWins(t *testing.T) {
+	src, dst := t.TempDir(), t.TempDir()
+	now := time.Now()
+	older, newer := now.Add(-olderAge), now.Add(-newerAge)
+	writeFileAt(t, filepath.Join(src, keptRel), sourceBody, older)
+	writeFileAt(t, filepath.Join(dst, keptRel), targetBody, newer)
+	writeFileAt(t, filepath.Join(src, updatedRel), sourceBody, newer)
+	writeFileAt(t, filepath.Join(dst, updatedRel), targetBody, older)
+
+	copied, err := artifact.CopyTree(src, dst)
+	if err != nil || copied != wantCopiedNew {
+		t.Fatalf("CopyTree = (%d, %v), want (%d, nil)", copied, err, wantCopiedNew)
+	}
+	assertBody(t, filepath.Join(dst, keptRel), targetBody)
+	assertBody(t, filepath.Join(dst, updatedRel), sourceBody)
 }
 
 func TestTickAllowedSecondCallerWithinTTLIsDenied(t *testing.T) {

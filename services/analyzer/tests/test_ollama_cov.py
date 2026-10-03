@@ -1,6 +1,6 @@
 """Checks for the Ollama client: protocol flags on the chat body and the error map.
 
-The flags pin the runtime behaviour the loop relies on (no streaming, no
+The flags pin the runtime behavior the loop relies on (no streaming, no
 thinking, no silent truncation or context shift), and the error map decides
 which runtime state and lastRun.error the UI shows.
 

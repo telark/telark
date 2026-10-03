@@ -18,6 +18,20 @@ Services deployed:
 
 Check rollout:
   kubectl get pods -n {{ .Values.app.namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+{{- if and .Values.services.exporter.enabled .Values.app.persistence.enabled }}
+{{- $moved := list }}
+{{- range (include "telark.exporterStorage" . | fromYaml).claims }}{{ if .from }}{{ $moved = append $moved . }}{{ end }}{{ end }}
+{{- if $moved }}
+
+Storage change: the exporter copies its snapshots and reports to new claims before it starts:
+{{- range $moved }}
+  {{ .from.name }} -> {{ .name }}
+{{- end }}
+The old claims are kept. Once the next helm upgrade has released them, delete them with:
+  kubectl delete pvc -n {{ .Values.app.namespace }}{{ range $moved }} {{ .from.name }}{{ end }}
+If the new claims stay Pending, go back to the old ones: helm rollback {{ .Release.Name }} -n {{ .Release.Namespace }}
+{{- end }}
+{{- end }}
 
 {{- if .Values.services.ui.enabled }}
 Open the dashboard (local 3000 → service {{ .Values.app.serviceDefaults.port }}):
@@ -30,13 +44,12 @@ Reach the auth service directly (dashboard disabled):
 
 Next steps:
 {{- if and .Values.app.auth.bootstrap.admin .Values.services.auth.enabled }}
-  1. Enrol the bootstrap admin ({{ .Values.app.auth.bootstrap.admin }}) with a passkey: run
+  1. Enroll the bootstrap admin ({{ .Values.app.auth.bootstrap.admin }}) with a passkey: run
        kubectl exec -n {{ .Values.app.namespace }} deploy/{{ include "telark.fullname" . }}-{{ .Values.services.auth.name }} -- ./main break-glass --email {{ .Values.app.auth.bootstrap.admin }} --enroll
      and open /register?enroll=<token> on the dashboard within 10 minutes.
-{{- else }}
-  1. Register with a passkey (self-registration is on); no bootstrap admin is configured.
 {{- end }}
-  2. Enable SSO from Settings once the platform is up.
+  2. Invite users from Members with an enrollment link, or let the bootstrap admin
+     enable SSO or self-registration from Settings.
 {{- if not .Values.app.crdGuard.enabled }}
   3. WARNING: the CRD write guard is OFF. Anyone with write access to this namespace can
      grant themselves telark Admin by editing its custom resources. Set app.crdGuard.enabled=true.

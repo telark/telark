@@ -1,8 +1,6 @@
 package shared
 
 type (
-	Status  string
-	Action  string
 	Unified struct {
 		Key   string `json:"key"`
 		Value string `json:"value"`

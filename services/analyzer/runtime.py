@@ -52,7 +52,7 @@ _VALIDATE_REASONS = {
 
 
 def pull_allowed(model: str) -> bool:
-    """Only catalogue models are pulled: an arbitrary library model could fill the Ollama volume."""
+    """Only catalog models are pulled: an arbitrary library model could fill the Ollama volume."""
     return model in LICENSES
 
 
@@ -126,7 +126,7 @@ class Runtime:
         return RUNTIME_STATE_PULLING
 
     def ensure_model(self, model: str) -> None:
-        """Pull the model only when it is missing, in the catalogue, autoPull is on and no pull runs."""
+        """Pull the model only when it is missing, in the catalog, autoPull is on and no pull runs."""
         if (self.status.state == RUNTIME_STATE_MODEL_MISSING and OLLAMA_AUTO_PULL and not self.pulling
                 and pull_allowed(model)):
             self.start_pull(model)

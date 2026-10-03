@@ -149,7 +149,8 @@ func PatchRoleByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(h
 
 		resourcesshared.StampPatchAudit(r, body)
 		mergedRole, ok := roleutils.ExtractAndMergeRoleForPatch(existingRole, body, w)
-		if !ok || !authz.GuardPatchedRoleLevels(w, r, existingRole, mergedRole, body) {
+		if !ok || !authz.GuardPatchedRoleLevels(w, r, existingRole, mergedRole, body) ||
+			!authz.GuardRolePatchLastAdmin(w, existingRole, mergedRole) {
 			return
 		}
 
@@ -192,7 +193,8 @@ func DeleteRoleByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 			return
 		}
 
-		if !authz.GuardRoleDeletion(w, existingRole) || !authz.GuardRoleWithinCaller(w, r, existingRole) {
+		if !authz.GuardRoleDeletion(w, existingRole) || !authz.GuardRoleWithinCaller(w, r, existingRole) ||
+			!authz.GuardRoleDeleteLastAdmin(w, existingRole) {
 			return
 		}
 		if existingRole.Protection != nil && existingRole.Protection.SoftDelete {

@@ -18,7 +18,7 @@ Closes #
 - [ ] `make lint` passes (golangci per service, zero errors; no `//nolint` workarounds).
 - [ ] `make test` passes.
 - [ ] Chart changes: `make helm-lint` is clean, `helm template` renders, and `make values-docs` shows no drift.
-- [ ] No chart/module version bumps; no committed `replace` directives.
+- [ ] No chart or service version bumps; no `replace` directives.
 - [ ] Docs updated if behavior or values changed.
 
 ## Notes for reviewers

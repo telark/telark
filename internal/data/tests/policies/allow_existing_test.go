@@ -10,7 +10,7 @@ import (
 	_ "github.com/telark/telark/internal/data/policies/templates" // registers every renderer
 )
 
-// Params the two parameterised templates require; the rest render without any.
+// Params the two parameterized templates require; the rest render without any.
 var templateParams = map[string]map[string]any{
 	"block-image-types": {"imagePatterns": []string{"*nginx*"}},
 	"block-image-tags":  {"tags": []string{"latest"}},

@@ -88,6 +88,7 @@ const (
 	ErrUserBeingDeleted             errors.Error = "user is being deleted"
 	WarnUserSessionsPurgeFailed     errors.Error = "sessions of deleted user %s not purged, the cleanup sweeper will retry: %v"
 	WarnUserPasskeysPurgeFailed     errors.Error = "passkeys of deleted user %s not purged: %v"
+	WarnMembershipsNotStripped      errors.Error = "memberships of deleted %s %s not stripped, the cleanup sweeper will retry: %v"
 	ErrUsernameAlreadyExists        errors.Error = "user with this username already exists"
 	ErrUsernameCannotBeEmpty        errors.Error = "username cannot be empty"
 	ErrEmailAlreadyExists           errors.Error = "user with this email already exists"
@@ -159,7 +160,12 @@ const (
 	ErrPasskeyCannotDeleteLast          errors.Error = "cannot delete last passkey for user"
 
 	// Notifications
-	ErrNotificationNotFound errors.Error = "notification not found"
+	ErrNotificationNotFound errors.Error     = "notification not found"
+	NotifRolesGranted       messages.Message = "Granted %s."
+	NotifRolesRevoked       messages.Message = "Revoked %s."
+	NotifOneRole            messages.Message = "1 role"
+	NotifRoleCount          messages.Message = "%d roles"
+	NotifSentenceSeparator                   = " "
 
 	// Cert
 	ErrCertCertificateNotYetValid  errors.Error = "certificate not yet valid: %s"
@@ -258,4 +264,9 @@ const (
 	WarnReportsGCPanic         messages.Message = "reports gc panic recovered: %v"
 	InfReportsSwept            messages.Message = "reports sweep removed=%d temps=%d scanned=%d"
 	InfReportsGCDisabled       messages.Message = "reports gc disabled"
+
+	// Storage migration
+	InfMigrateStorageCopied messages.Message = "[migrate-storage] copied %d file(s) from %s to %s"
+	ErrMigrateStorageFailed errors.Error     = "[migrate-storage] copy from %s to %s failed: %v"
+	ErrMigrateStorageUsage  errors.Error     = "[migrate-storage] usage: migrate-storage <from> <to> [<from> <to>...]"
 )

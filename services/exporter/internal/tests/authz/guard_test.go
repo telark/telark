@@ -1,21 +1,34 @@
 package authz
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 
 	roledata "github.com/telark/telark/internal/data/resources/role"
 	userdata "github.com/telark/telark/internal/data/resources/user"
+	"github.com/telark/telark/internal/rest/base"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/exporter/internal/authz"
 	"github.com/telark/telark/services/exporter/internal/constants"
+	roleutils "github.com/telark/telark/services/exporter/internal/utils/resources/role"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 const (
 	callerID = "u-00001-0000-0001"
 	victimID = "u-00002-0000-0002"
 	adminID  = "r-00000-0000-0001"
+
+	lockedRoleName = "locked"
+	newRoleName    = "renamed"
+	errorLogMarker = "[ERROR]"
+	unparsableBody = "{"
+	unknownKeyBody = `{"bogus":true}`
+	mistypedValue  = true
 )
 
 func requestAs(identity xauthz.Identity) *http.Request {
@@ -231,5 +244,113 @@ func TestGuardRoleDeletion(t *testing.T) {
 				t.Errorf("GuardRoleDeletion() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	original := os.Stdout
+	os.Stdout = writer
+	fn()
+	os.Stdout = original
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	out, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(out)
+}
+
+// Seen live: every expected refusal printed an [ERROR] line, which buried real failures in log scans.
+func TestGuardRefusalsAreNotLoggedAsErrors(t *testing.T) {
+	locked := &roledata.AccessRole{Name: lockedRoleName, Protection: &roledata.Protection{LockName: true}}
+	refusals := map[string]func(http.ResponseWriter) bool{
+		"self promotion": func(w http.ResponseWriter) bool {
+			return authz.GuardUserPatch(w, requestAs(userWithLevel(roledata.PermissionLevelAdmin)), target(callerID), rolePromotion())
+		},
+		"protected role": func(w http.ResponseWriter) bool {
+			return roleutils.ValidateProtectionFlags(locked, map[string]any{constants.FieldName: newRoleName}, w)
+		},
+		"unknown reference": func(w http.ResponseWriter) bool {
+			return authz.GuardReferencedIDs(w, constants.ResourceUser, []string{unknownID})
+		},
+	}
+	for name, refuse := range refusals {
+		t.Run(name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			out := captureStdout(t, func() {
+				if refuse(w) {
+					t.Error("allowed")
+				}
+			})
+			if strings.Contains(out, errorLogMarker) {
+				t.Fatalf("refusal %d logged as an error: %s", w.Code, out)
+			}
+		})
+	}
+}
+
+func bodyRequest(body string) *http.Request {
+	return httptest.NewRequest(http.MethodPatch, "/v1/roles/"+adminID, strings.NewReader(body))
+}
+
+func specAccepted(w http.ResponseWriter, body string) bool {
+	_, err := sharedutils.GetSpec(w, bodyRequest(body))
+	return err == nil
+}
+
+func mistypedStatus() map[string]any {
+	return map[string]any{constants.FieldStatus: mistypedValue}
+}
+
+// Seen live: a body the client got wrong printed an [ERROR] line like a real failure. A 5xx still logs.
+func TestBodyErrorsAreNotLoggedAsErrors(t *testing.T) {
+	cases := map[string]struct {
+		accepted func(http.ResponseWriter) bool
+		status   int
+	}{
+		"unparsable body": {func(w http.ResponseWriter) bool { return specAccepted(w, unparsableBody) }, http.StatusUnprocessableEntity},
+		"oversized body": {func(w http.ResponseWriter) bool {
+			return specAccepted(w, unparsableBody+strings.Repeat(" ", int(base.MaxRequestBodySize)))
+		}, http.StatusRequestEntityTooLarge},
+		"unknown key": {func(w http.ResponseWriter) bool {
+			_, err := sharedutils.GetSpecFor[roledata.AccessRole](w, bodyRequest(unknownKeyBody))
+			return err == nil
+		}, http.StatusBadRequest},
+		"mistyped user admin field": {func(w http.ResponseWriter) bool {
+			return authz.GuardUserPatchLastAdmin(w, target(victimID), mistypedStatus())
+		}, http.StatusBadRequest},
+		"mistyped role field": {func(w http.ResponseWriter) bool {
+			_, merged := roleutils.ExtractAndMergeRoleForPatch(&roledata.AccessRole{}, mistypedStatus(), w)
+			return merged
+		}, http.StatusBadRequest},
+		"role without a name": {func(w http.ResponseWriter) bool {
+			return roleutils.ValidateAndPrepareRole(&roledata.AccessRole{}, w) == nil
+		}, http.StatusBadRequest},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			out := captureStdout(t, func() {
+				if c.accepted(w) {
+					t.Error("accepted")
+				}
+			})
+			if w.Code != c.status || strings.Contains(out, errorLogMarker) {
+				t.Fatalf("answered %d (want %d), logged %q", w.Code, c.status, out)
+			}
+		})
+	}
+	out := captureStdout(t, func() {
+		sharedutils.LogAndReturnError(httptest.NewRecorder(), http.StatusInternalServerError, string(constants.ErrResourceLookupFailed), errBackend)
+	})
+	if !strings.Contains(out, errorLogMarker) {
+		t.Fatal("a 5xx no longer logs an error")
 	}
 }

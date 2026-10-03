@@ -6,7 +6,6 @@ import (
 	"strconv"
 
 	"github.com/telark/telark/internal/rest/response"
-	requestutils "github.com/telark/telark/internal/rest/utils/request"
 	responseutils "github.com/telark/telark/internal/rest/utils/response"
 	"github.com/telark/telark/services/exporter/internal/authz"
 	"github.com/telark/telark/services/exporter/internal/constants"
@@ -33,9 +32,8 @@ const (
 
 func Emit() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := requestutils.ParseRequestBody(r)
+		body, err := sharedutils.GetSpec(w, r)
 		if err != nil {
-			respondParseError(w, err)
 			return
 		}
 

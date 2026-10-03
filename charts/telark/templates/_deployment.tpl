@@ -22,6 +22,7 @@
 {{- $affinity := $serviceConfig.affinity | default $serviceDefaults.affinity -}}
 {{- $podSecurity := $values.app.shared.podSecurityContext | default dict -}}
 {{- $containerSecurity := $values.app.shared.containerSecurityContext | default dict -}}
+{{- $healthCheck := mergeOverwrite (deepCopy ($values.app.shared.healthCheck | default dict)) ($serviceConfig.healthCheck | default dict) -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -45,6 +46,12 @@ spec:
   # start the new pod before the old one released the volume).
   strategy:
     type: {{ $strategy }}
+{{- if eq $strategy "RollingUpdate" }}
+    # Rendered so a later switch to Recreate removes it: the API refuses both together.
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+{{- end }}
 {{- end }}
   selector:
     matchLabels:
@@ -103,6 +110,10 @@ spec:
             matchLabels:
               {{- include "telark.selectorLabels" (dict "root" $root "component" $serviceConfig.name) | nindent 14 }}
 {{- end }}
+{{- with $serviceConfig.initContainers }}
+      initContainers:
+        {{- toYaml . | nindent 8 }}
+{{- end }}
       containers:
         - name: {{ include "telark.fullname" $root }}-{{ $serviceConfig.name }}-container
           image: {{ $values.app.image.registry }}/{{ $serviceConfig.repository }}:{{ $serviceConfig.version }}
@@ -122,6 +133,13 @@ spec:
                 secretKeyRef:
                   name: {{ include "telark.serviceTokenSecretName" $root }}
                   key: token
+{{- end }}
+{{- if $useRedis }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "telark.redisSecretName" $root }}
+                  key: {{ $root.Values.redis.auth.existingSecretPasswordKey | default "redis-password" }}
 {{- end }}
             - name: POD_IP
               valueFrom:
@@ -175,23 +193,21 @@ spec:
               memory: {{ $values.app.shared.resources.limits.memory }}
               cpu: {{ $values.app.shared.resources.limits.cpu }}
 {{- end }}
-{{- if and $includeHealthCheck $values.app.shared.healthCheck }}
-          livenessProbe:
+{{- if and $includeHealthCheck $healthCheck }}
+{{- range $probe := list "startupProbe" "livenessProbe" "readinessProbe" }}
+{{- with get $healthCheck $probe }}
+          {{ $probe }}:
             httpGet:
-              path: {{  $values.app.shared.healthCheck.livenessProbe.path }}
-              port: {{ $values.app.shared.healthCheck.port }}
-            initialDelaySeconds: {{ $values.app.shared.healthCheck.livenessProbe.initialDelaySeconds }}
-            periodSeconds: {{ $values.app.shared.healthCheck.livenessProbe.periodSeconds }}
-            timeoutSeconds: {{ $values.app.shared.healthCheck.livenessProbe.timeoutSeconds }}
-            failureThreshold: {{ $values.app.shared.healthCheck.livenessProbe.failureThreshold }}
-          readinessProbe:
-            httpGet:
-              path: {{ $values.app.shared.healthCheck.readinessProbe.path }}
-              port: {{ $values.app.shared.healthCheck.port }}
-            initialDelaySeconds: {{ $values.app.shared.healthCheck.readinessProbe.initialDelaySeconds }}
-            periodSeconds: {{ $values.app.shared.healthCheck.readinessProbe.periodSeconds }}
-            timeoutSeconds: {{ $values.app.shared.healthCheck.readinessProbe.timeoutSeconds }}
-            failureThreshold: {{ $values.app.shared.healthCheck.readinessProbe.failureThreshold }}
+              path: {{ .path }}
+              port: {{ $healthCheck.port }}
+            {{- with .initialDelaySeconds }}
+            initialDelaySeconds: {{ . }}
+            {{- end }}
+            periodSeconds: {{ .periodSeconds }}
+            timeoutSeconds: {{ .timeoutSeconds }}
+            failureThreshold: {{ .failureThreshold }}
+{{- end }}
+{{- end }}
 {{- end }}
 {{- if $serviceConfig.containerSecurityContext }}
           securityContext:

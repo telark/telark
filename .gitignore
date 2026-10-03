@@ -14,10 +14,10 @@ charts/releases/
 # (helm dependency build). Chart.lock is committed; the .tgz are not.
 charts/*/charts
 
-# Local AI-agent working notes (plans, TDD evidence)
-.claude
-CLAUDE.md
-AGENTS.md
+# Agent skills ship; local agent notes (.claude/LOCAL-*) and the dev-cluster skill stay local
+.claude/*
+!.claude/skills/
+.claude/skills/deploy-dev-cluster/
 
 # Local-only github actions workflows
 .github/workflows/local-*

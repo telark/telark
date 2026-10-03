@@ -278,7 +278,7 @@ func DiffApplications(
 	if readBaseline != nil {
 		appChanges = append(appChanges, metrics.BaselineResourceChanges(stored, &fresh, readBaseline)...)
 	}
-	appChanges = filterCancelledScalarChanges(ctx, getSnapshotManifest, &fresh, appChanges, diffOpts)
+	appChanges = filterCanceledScalarChanges(ctx, getSnapshotManifest, &fresh, appChanges, diffOpts)
 	if diffOpts != nil {
 		appChanges = append(appChanges, manifestdiff.Changes(diffOpts.ManifestPairs)...)
 	}

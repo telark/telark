@@ -10,6 +10,10 @@ var Methods = []string{
 	"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS",
 }
 
+// Not CORS-safelisted: without them the browser hides the delay a shed request carries
+// and the ETag the UI revalidates insights with.
+var exposedHeaders = []string{"Retry-After", "ETag"}
+
 var Headers = []string{
 	"Content-Type",
 	"X-Silent-404",
@@ -22,4 +26,5 @@ var Headers = []string{
 	"X-Email",
 	"Accept",
 	"Origin",
+	"If-None-Match",
 }

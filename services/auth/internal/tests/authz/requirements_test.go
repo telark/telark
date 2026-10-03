@@ -95,9 +95,36 @@ func TestOIDCConfigRequiresAdmin(t *testing.T) {
 	}
 }
 
+// Both handlers then apply rules of their own (the enroll-link target rules, the bootstrap
+// account), so these route levels are only the floor; pinned rather than left to review.
+func TestInviteAndSelfRegistrationRequirements(t *testing.T) {
+	cases := []struct {
+		method   base.Method
+		endpoint base.Endpoint
+		scope    string
+		level    roledata.PermissionLevel
+	}{
+		{base.Post, autheps.UserEnrollLink, roledata.ScopeUsers, roledata.PermissionLevelOwner},
+		{base.Delete, autheps.UserEnrollLink, roledata.ScopeUsers, roledata.PermissionLevelOwner},
+		{base.Patch, autheps.SelfRegistration, roledata.ScopeSettings, roledata.PermissionLevelAdmin},
+	}
+	requirements := authz.Requirements()
+	for _, c := range cases {
+		key := router.Key(c.method, c.endpoint)
+		requirement, found := requirements[key]
+		if !found {
+			t.Errorf("%q has no requirement", key)
+			continue
+		}
+		if requirement.Access != xauthz.AccessScoped || requirement.Scope != c.scope || requirement.MinLevel != c.level {
+			t.Errorf("%s: requirement = %+v, want %s on %s", key, requirement, c.level, c.scope)
+		}
+	}
+}
+
 // The cleanup handler deletes through the exporter with the service token, which
 // the exporter's guard waves through, so the delete deny rules only bite here.
-func TestCleanupDeletesHonourDenyRules(t *testing.T) {
+func TestCleanupDeletesHonorDenyRules(t *testing.T) {
 	cases := []struct {
 		endpoint      base.Endpoint
 		scope, action string

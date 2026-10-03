@@ -18,6 +18,7 @@ import (
 
 	roledata "github.com/telark/telark/internal/data/resources/role"
 	telarkconfigresource "github.com/telark/telark/internal/data/resources/telarkconfig"
+	userresource "github.com/telark/telark/internal/data/resources/user"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/auth/internal/constants"
 	oidchandler "github.com/telark/telark/services/auth/internal/handlers/oidc"
@@ -43,6 +44,7 @@ const (
 	metadataKey   = "metadata"
 	versionKey    = "resourceVersion"
 	adminUserID   = "uid"
+	callerPath    = "/api/v1/users/" + adminUserID
 )
 
 func validJWKS(kid string) string {
@@ -131,7 +133,12 @@ type exporterRecorder struct {
 	oidc    telarkconfigresource.OIDCConfig
 }
 
+// The caller's own record is read too: only the bootstrap account may change the trust.
 func (e *exporterRecorder) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if strings.HasSuffix(r.URL.Path, callerPath) {
+		_ = json.NewEncoder(w).Encode(map[string]any{statusKey: http.StatusOK, dataKey: userresource.User{ID: adminUserID, Bootstrap: true}})
+		return
+	}
 	if !strings.HasSuffix(r.URL.Path, configPath) {
 		w.WriteHeader(http.StatusNotFound)
 		return

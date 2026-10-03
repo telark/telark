@@ -12,7 +12,7 @@ import (
 
 	"github.com/telark/telark/services/auth/internal/constants"
 	authhandler "github.com/telark/telark/services/auth/internal/handlers/auth"
-	authzhandler "github.com/telark/telark/services/auth/internal/handlers/authorisation"
+	authzhandler "github.com/telark/telark/services/auth/internal/handlers/authorization"
 	cleanuphandler "github.com/telark/telark/services/auth/internal/handlers/cleanup"
 	confighandler "github.com/telark/telark/services/auth/internal/handlers/config"
 	oidchandler "github.com/telark/telark/services/auth/internal/handlers/oidc"
@@ -27,6 +27,9 @@ const (
 	emailBody = `{"email":"a@b.com"}`
 )
 
+// Shared by the package: tests read keys and move the clock of the Redis behind auth.
+var redisServer *miniredis.Miniredis
+
 // Redis backs the nonce handler; the resource backend is deliberately absent so
 // handlers that reach it exercise their failure paths.
 func TestMain(m *testing.M) {
@@ -34,6 +37,7 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
+	redisServer = mr
 	if err := os.Setenv("REDIS_HOST", mr.Host()); err != nil {
 		panic(err)
 	}
@@ -109,6 +113,7 @@ func TestOversizedBodyIsRefused(t *testing.T) {
 		"login finish":   authhandler.LoginFinish,
 		"register start": passkeyhandler.RegisterStart,
 		"create passkey": passkeyhandler.CreatePasskey,
+		"delete passkey": passkeyhandler.DeletePasskey,
 	}
 	for name, handler := range cases {
 		t.Run(name, func(t *testing.T) {

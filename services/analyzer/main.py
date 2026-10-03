@@ -42,6 +42,7 @@ from config import (
     API_PORT,
     LOG_LEVEL,
     OLLAMA_HOST,
+    REDIS_PASSWORD,
     REDIS_POOL_SIZE,
     REDIS_URL,
 )
@@ -651,8 +652,8 @@ def _k8s_http() -> httpx.AsyncClient | None:
     """The in-cluster API client; None outside a pod (the k8s tools then answer k8s_unavailable)."""
     if not Path(SA_CA_PATH).exists():
         return None
-    return httpx.AsyncClient(
-        base_url=K8S_API_BASE, verify=ssl.create_default_context(cafile=SA_CA_PATH), timeout=K8S_HTTP_TIMEOUT_S)
+    ca = ssl.create_default_context(cafile=SA_CA_PATH)
+    return httpx.AsyncClient(base_url=K8S_API_BASE, verify=ca, timeout=K8S_HTTP_TIMEOUT_S)
 
 
 @asynccontextmanager
@@ -680,7 +681,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 async def serve() -> None:
-    r = aioredis.Redis.from_url(REDIS_URL, max_connections=REDIS_POOL_SIZE, decode_responses=True)
+    r = aioredis.Redis.from_url(
+        REDIS_URL, password=REDIS_PASSWORD, max_connections=REDIS_POOL_SIZE, decode_responses=True
+    )
     app = create_app(r, lifespan)
     config = uvicorn.Config(
         app,

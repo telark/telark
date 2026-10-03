@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -21,11 +20,8 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/golang-jwt/jwt/v5"
-	roledata "github.com/telark/telark/internal/data/resources/role"
 	telarkconfigresource "github.com/telark/telark/internal/data/resources/telarkconfig"
 	userresource "github.com/telark/telark/internal/data/resources/user"
-	xauthz "github.com/telark/telark/internal/x-ware/authz"
-	"github.com/telark/telark/services/auth/internal/authz"
 	"github.com/telark/telark/services/auth/internal/config"
 	"github.com/telark/telark/services/auth/internal/constants"
 	oidchandler "github.com/telark/telark/services/auth/internal/handlers/oidc"
@@ -57,6 +53,8 @@ func (s *proofStub) RoundTrip(r *http.Request) (*http.Response, error) {
 	switch {
 	case strings.HasSuffix(r.URL.Path, "/api/v1/auth/sessions/self"):
 		return envelope(http.StatusNotFound, nil)
+	case strings.HasSuffix(r.URL.Path, "/api/v1/config"):
+		return envelope(http.StatusOK, selfRegistrationOn())
 	case strings.Contains(r.URL.Path, "passkeys"):
 		if s.passkeyFailure {
 			return envelope(http.StatusInternalServerError, nil)
@@ -90,7 +88,6 @@ func (s *proofStub) RoundTrip(r *http.Request) (*http.Response, error) {
 // operator, and a passkey lookup that failed never reads as "no passkeys".
 func TestRegisterStartProofRules(t *testing.T) {
 	t.Setenv(constants.EnvBootstrapAdmin, bootstrapEmail)
-	t.Setenv(constants.EnvSelfRegistrationEnabled, "true")
 	if _, err := config.LoadBootstrapConfig(); err != nil {
 		t.Fatalf("LoadBootstrapConfig: %v", err)
 	}
@@ -112,6 +109,7 @@ func TestRegisterStartProofRules(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			stub := &proofStub{passkeyFailure: c.passkeyFailure}
 			stubExporter(t, stub)
+			awaitSelfRegistration(t, true)
 			rec := httptest.NewRecorder()
 			passkeyhandler.RegisterStart(rec, jsonReq(c.body))
 			if rec.Code != c.status {
@@ -159,7 +157,6 @@ func registrationBody(t *testing.T, challenge, rpID string) string {
 // not be saved is deleted again), a good one creates it ReadOnly.
 func TestSelfRegistrationCreatesTheAccountAtFinish(t *testing.T) {
 	t.Setenv(constants.EnvBootstrapAdmin, bootstrapEmail)
-	t.Setenv(constants.EnvSelfRegistrationEnabled, "true")
 	if _, err := config.LoadBootstrapConfig(); err != nil {
 		t.Fatalf("LoadBootstrapConfig: %v", err)
 	}
@@ -185,6 +182,7 @@ func TestSelfRegistrationCreatesTheAccountAtFinish(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			stub := &proofStub{passkeyFailure: c.passkeyFailure}
 			stubExporter(t, stub)
+			awaitSelfRegistration(t, true)
 			rec := httptest.NewRecorder()
 			passkeyhandler.RegisterStart(rec, jsonReq(`{"email":"`+newEmail+`"}`))
 			testutil.Equal(t, "start", rec.Code, http.StatusOK)
@@ -213,34 +211,6 @@ func TestSelfRegistrationCreatesTheAccountAtFinish(t *testing.T) {
 	}
 }
 
-// The identity-provider trust is changed only by a caller who is Admin on every
-// scope; Admin on settings alone is refused before the body is read.
-func TestSetConfigNeedsAdminOnAll(t *testing.T) {
-	cases := []struct {
-		name   string
-		grants xauthz.Grants
-		status int
-	}{
-		{"settings admin only", xauthz.Grants{Levels: map[string]roledata.PermissionLevel{
-			roledata.ScopeSettings: roledata.PermissionLevelAdmin}}, http.StatusForbidden},
-		{"admin on all", xauthz.Grants{Levels: map[string]roledata.PermissionLevel{
-			roledata.ScopeAll: roledata.PermissionLevelAdmin}}, http.StatusBadRequest},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			ctx := xauthz.WithIdentity(context.Background(), xauthz.Identity{UserID: "uid", Grants: c.grants})
-			rec := httptest.NewRecorder()
-			oidchandler.SetConfig(rec, jsonReq("{").WithContext(ctx))
-			if rec.Code != c.status {
-				t.Fatalf("status = %d, want %d (body %s)", rec.Code, c.status, rec.Body.String())
-			}
-		})
-	}
-	if authz.CallerIsAdminOnAll(context.Background()) {
-		t.Fatal("no identity must not count as Admin")
-	}
-}
-
 func decodeInto(r *http.Request, v any) error {
 	return json.NewDecoder(r.Body).Decode(v)
 }
@@ -250,11 +220,15 @@ const (
 	callbackKid      = "k-callback"
 	callbackSubject  = "sub-callback"
 	rsaKeyBits       = 2048
+	suspendedEmail   = "test@example.com"
+	// The UI matches these phrases, so they are pinned here rather than read from constants.
+	bootstrapRefusal = "bootstrap administrator signs in with a passkey"
+	suspendedRefusal = "account is suspended"
 )
 
 // callbackExporter serves what a Google login reads: the OIDC config, the
-// subject lookup (bound when byIdentity is set) and the user list an email
-// match scans; it counts every write, since a refused login makes none.
+// subject lookup (bound when byIdentity is set, and that user by id) and the user
+// list an email match scans; it counts every write, since a refused login makes none.
 type callbackExporter struct {
 	byIdentity *userresource.User
 	users      []*userresource.User
@@ -275,6 +249,8 @@ func (e *callbackExporter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		reply(http.StatusNotFound, nil)
 	case strings.Contains(r.URL.Path, "by-identity"):
 		reply(http.StatusOK, e.byIdentity)
+	case e.byIdentity != nil && strings.HasSuffix(r.URL.Path, "/users/"+e.byIdentity.ID):
+		reply(http.StatusOK, e.byIdentity)
 	case r.Method == http.MethodGet:
 		reply(http.StatusOK, map[string]any{"items": e.users})
 	default:
@@ -285,8 +261,8 @@ func (e *callbackExporter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Signs a Google-shaped ID token for bootstrapEmail with a key the mounted trust file pins.
-func signedCallbackBody(t *testing.T) string {
+// Signs a Google-shaped ID token for email with a key the mounted trust file pins.
+func signedCallbackBody(t *testing.T, email string) string {
 	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, rsaKeyBits)
 	if err != nil {
@@ -306,7 +282,7 @@ func signedCallbackBody(t *testing.T) string {
 		t.Fatalf("nonce: %v", err)
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, oidchelper.GoogleClaims{
-		Email: bootstrapEmail, EmailVerified: true, Nonce: nonce,
+		Email: email, EmailVerified: true, Nonce: nonce,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer: constants.GoogleIssuer, Subject: callbackSubject,
 			Audience: jwt.ClaimStrings{callbackClientID}, ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
@@ -339,12 +315,29 @@ func TestGoogleCallbackRefusesTheBootstrapAdmin(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			testutil.StubBackend(t, c.backend)
 			rec := httptest.NewRecorder()
-			oidchandler.GoogleCallback(rec, jsonReq(signedCallbackBody(t)))
+			oidchandler.GoogleCallback(rec, jsonReq(signedCallbackBody(t, bootstrapEmail)))
 			testutil.Equal(t, "status", rec.Code, http.StatusForbidden)
-			testutil.Equal(t, "message", strings.Contains(rec.Body.String(), string(constants.ErrReservedEmail)), true)
+			testutil.Equal(t, "message", strings.Contains(rec.Body.String(), bootstrapRefusal), true)
 			c.backend.mu.Lock()
 			defer c.backend.mu.Unlock()
 			testutil.Equal(t, "writes", c.backend.writes, constants.DefaultInitValue)
 		})
 	}
+}
+
+// Suspension is named only after Google vouched for the caller, and the refused
+// login gets no session.
+func TestGoogleCallbackRefusesASuspendedAccount(t *testing.T) {
+	backend := &callbackExporter{byIdentity: &userresource.User{ID: "u-susp", Email: suspendedEmail,
+		Status: userresource.UserStatus{Phase: string(userresource.AccountPhaseSuspended)},
+		Identities: []*userresource.UserIdentity{{Provider: constants.IdentityProviderGoogle,
+			Issuer: constants.GoogleIssuer, Subject: callbackSubject}}}}
+	testutil.StubBackend(t, backend)
+	rec := httptest.NewRecorder()
+	oidchandler.GoogleCallback(rec, jsonReq(signedCallbackBody(t, suspendedEmail)))
+	testutil.Equal(t, "status", rec.Code, http.StatusForbidden)
+	testutil.Equal(t, "message", strings.Contains(rec.Body.String(), suspendedRefusal), true)
+	backend.mu.Lock()
+	defer backend.mu.Unlock()
+	testutil.Equal(t, "writes", backend.writes, constants.DefaultInitValue)
 }

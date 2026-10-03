@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,7 +12,6 @@ import (
 
 	dataerrors "github.com/telark/telark/internal/data/errors"
 	userresource "github.com/telark/telark/internal/data/resources/user"
-	"github.com/telark/telark/services/auth/internal/config"
 	"github.com/telark/telark/services/auth/internal/constants"
 	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
 	"github.com/telark/telark/services/auth/internal/helpers/shared"
@@ -196,18 +196,13 @@ func TestClientHelpersFailClosed(t *testing.T) {
 	if _, err := authhelper.CheckUserHasExistingPasskeys(testUserID); err == nil {
 		t.Fatal("CheckUserHasExistingPasskeys should fail with no backend")
 	}
-	t.Setenv(constants.EnvSelfRegistrationEnabled, "true")
-	t.Setenv(constants.EnvBootstrapAdmin, constants.EmptyString)
-	if _, err := config.LoadBootstrapConfig(); err != nil {
-		t.Fatalf("LoadBootstrapConfig: %v", err)
-	}
 	if _, err := authhelper.CreatePendingUser(&userresource.User{Email: testEmail}); err == nil {
 		t.Fatal("CreatePendingUser should fail with no backend")
 	}
 	if err := authhelper.UpdatePasskeyLastUsed(testUserID, []byte{1, 2, 3}); err == nil {
 		t.Fatal("UpdatePasskeyLastUsed should fail with no backend")
 	}
-	authhelper.UpdateUserLastLogin(testUserID, "active") // must not panic with no backend
+	authhelper.UpdateUserLastLogin(testUserID) // must not panic with no backend
 	if err := authhelper.DeletePasskey(testUserID, testCredID, false); err == nil {
 		t.Fatal("DeletePasskey should fail with no backend")
 	}
@@ -245,7 +240,7 @@ func TestGetUserForRegistrationFailClosed(t *testing.T) {
 
 	noCeremony := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{}"))
 	noCeremony.Header.Set("X-Email", testEmail)
-	if _, _, err := authhelper.GetUserForRegistration(noCeremony, webauthnhelper.RegistrationChallengeOwner); err == nil {
+	if _, _, _, err := authhelper.GetUserForRegistration(noCeremony, webauthnhelper.RegistrationChallengeOwner); err == nil {
 		t.Fatal("GetUserForRegistration should fail without a registration ceremony")
 	}
 }
@@ -265,15 +260,17 @@ func TestCreateUserSession(t *testing.T) {
 
 // Every login ends in CreateUserSession, so a user the exporter reports as being
 // deleted (410) or whose account is not active is refused a session there, with a
-// verdict (403) rather than a fault.
+// verdict (403) rather than a fault; a suspended account is told it is suspended.
 func TestCreateUserSessionRefusesTerminatingOrInactiveUser(t *testing.T) {
 	cases := []struct {
 		name   string
 		status int
 		body   string
+		want   string
 	}{
-		{"terminating", http.StatusGone, `{"status":410,"message":"user is being deleted"}`},
-		{"suspended", http.StatusOK, `{"data":{"id":"uid","status":{"phase":"suspended"}}}`},
+		{"terminating", http.StatusGone, `{"status":410,"message":"user is being deleted"}`, string(dataerrors.ErrAuthzUserNotActive)},
+		{"inactive", http.StatusOK, `{"data":{"id":"uid","status":{"phase":"inactive"}}}`, string(dataerrors.ErrAuthzUserNotActive)},
+		{"suspended", http.StatusOK, `{"data":{"id":"uid","status":{"phase":"suspended"}}}`, "user account is suspended"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -285,8 +282,35 @@ func TestCreateUserSessionRefusesTerminatingOrInactiveUser(t *testing.T) {
 			if err == nil || token != "" {
 				t.Fatalf("CreateUserSession = (%q, %v), want refusal", token, err)
 			}
-			testutil.Equal(t, "message", err.Error(), string(dataerrors.ErrAuthzUserNotActive))
+			testutil.Equal(t, "message", err.Error(), c.want)
 			testutil.Equal(t, "status", shared.GetStatusCodeForSessionError(err), http.StatusForbidden)
 		})
+	}
+}
+
+// The last-login stamp names no phase, so the exporter keeps the stored one: a login
+// that read the account before an admin suspended it can never switch it back on.
+func TestUpdateUserLastLoginLeavesThePhase(t *testing.T) {
+	sent := make(chan map[string]map[string]any, constants.DefaultIncrementValue)
+	testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err == nil {
+			select {
+			case sent <- body:
+			default:
+			}
+		}
+		_, _ = w.Write([]byte(`{"status":200}`))
+	}))
+	authhelper.UpdateUserLastLogin(testUserID)
+	var status map[string]any
+	select {
+	case body := <-sent:
+		status = body[constants.UserFieldStatus]
+	default:
+		t.Fatal("UpdateUserLastLogin sent no patch")
+	}
+	if _, phaseSent := status["phase"]; phaseSent || status[constants.UserStatusFieldLastLoginAt] == nil {
+		t.Fatalf("status patch = %v, want lastLoginAt and no phase", status)
 	}
 }

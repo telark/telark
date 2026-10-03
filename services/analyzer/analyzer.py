@@ -179,6 +179,30 @@ async def _emit(
     return None
 
 
+def _step_calls(message: ChatMessage) -> list[ToolCallFunction] | None:
+    """The step's tool calls; None once the model is done."""
+    calls = [c.function for c in message.tool_calls]
+    if calls:
+        return calls
+    # Small models sometimes write the call as text: one strict parse, else the model is done.
+    try:
+        return [ToolCallFunction.model_validate_json(message.content)]
+    except ValidationError:
+        return None
+
+
+async def _invoke_calls(run: Run, calls: list[ToolCallFunction], k8s: K8s | None, messages: list[ChatMessage],
+                        strikes: int) -> int:
+    """Runs the calls in order and returns the consecutive strikes, stopping at MAX_CONSECUTIVE_STRIKES."""
+    for call in calls:
+        result = await tools.invoke(run, call.name, call.arguments, k8s)
+        messages.append(ChatMessage(role=ROLE_TOOL, content=result.content, tool_name=call.name))
+        strikes = strikes + 1 if result.error in STRIKE_TOOL_ERRORS else 0
+        if strikes >= MAX_CONSECUTIVE_STRIKES:
+            break
+    return strikes
+
+
 async def run_analysis(
     job: Job,
     run: Run,
@@ -220,19 +244,12 @@ async def run_analysis(
             message = resp.message
             message.tool_calls = message.tool_calls[:MAX_TOOL_CALLS_PER_STEP]
             messages.append(message)
-            calls = [c.function for c in message.tool_calls]
-            if not calls:
-                # Small models sometimes write the call as text: one strict parse, else the model is done.
-                try:
-                    calls = [ToolCallFunction.model_validate_json(message.content)]
-                except ValidationError:
-                    break
-            for call in calls:
-                result = await tools.invoke(run, call.name, call.arguments, k8s)
-                messages.append(ChatMessage(role=ROLE_TOOL, content=result.content, tool_name=call.name))
-                strikes = strikes + 1 if result.error in STRIKE_TOOL_ERRORS else 0
-                if strikes >= MAX_CONSECUTIVE_STRIKES:
-                    return Outcome(steps=steps, tool_calls=run.tool_calls, error=RUN_ERROR_INVALID_TOOL_CALLS)
+            calls = _step_calls(message)
+            if calls is None:
+                break
+            strikes = await _invoke_calls(run, calls, k8s, messages, strikes)
+            if strikes >= MAX_CONSECUTIVE_STRIKES:
+                return Outcome(steps=steps, tool_calls=run.tool_calls, error=RUN_ERROR_INVALID_TOOL_CALLS)
         emitted = await _emit(ollama_client, model, messages, counters, deadline, clock, sleep)
     except _FAILURE_TYPES as e:
         return Outcome(steps=steps, tool_calls=run.tool_calls, error=_FAILURES[type(e)])

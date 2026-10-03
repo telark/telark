@@ -83,6 +83,8 @@ func TestResetApplicationFailureClearsCooldown(t *testing.T) {
 		constants.KeyPrefixHistoryPost + shopApp,
 		constants.KeyPrefixHistoryRecorded + shopApp,
 		constants.KeyPrefixCoalesceBuffer + shopApp,
+		// A dropped delete's pre-images would otherwise hand the pre-reset state to the app's next CR.
+		constants.KeyPrefixCoalesceHeld + shopApp,
 		constants.KeyPrefixIncidentState + shopApp,
 		constants.KeyPrefixGraceScale + shopApp,
 		constants.KeyPrefixLockApp + shopApp,

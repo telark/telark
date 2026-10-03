@@ -81,13 +81,12 @@ func ValidateSessionAndExtractCredentialID(r *http.Request) (userID string, cred
 	return userID, credentialID, nil
 }
 
-// Phase is passed in rather than re-fetched: a status patch replaces the whole
-// field, so omitting it would silently reset the account back to active.
-func UpdateUserLastLogin(userID, phase string) {
+// No phase: the exporter keeps the stored one, so a stamp can never undo a
+// suspension or activation an admin made while the login was in flight.
+func UpdateUserLastLogin(userID string) {
 	userClient := clients.GetUserClient()
 	updateData := map[string]any{
 		constants.UserFieldStatus: map[string]any{
-			constants.UserStatusFieldPhase:       phase,
 			constants.UserStatusFieldLastLoginAt: time.Now().UTC().Format(constants.TimeFormatRFC3339),
 		},
 	}
@@ -104,7 +103,12 @@ func CreateUserSession(userID string, meta *authdata.DeviceMetadata) (string, er
 	if err != nil {
 		return constants.EmptyString, err
 	}
-	if userresource.AccountPhase(user.Status.Phase) != userresource.AccountPhaseActive {
+	phase := userresource.AccountPhase(user.Status.Phase)
+	// Callers get here only with a verified credential, so naming the suspension leaks nothing.
+	if phase == userresource.AccountPhaseSuspended {
+		return constants.EmptyString, errors.New(string(constants.ErrUserSuspended))
+	}
+	if phase != userresource.AccountPhaseActive {
 		return constants.EmptyString, errors.New(string(dataerrors.ErrAuthzUserNotActive))
 	}
 

@@ -8,26 +8,22 @@ const (
 
 const (
 	FieldExcludedNamespaces = "excludedNamespaces"
-	FieldUserSettings       = "userSettings"
 	FieldAI                 = "ai"
 	FieldSnapshots          = "snapshots"
 	FieldCluster            = "cluster"
 	FieldOIDC               = "oidc"
+	FieldSelfRegistration   = "selfRegistration"
 	FieldAIModel            = "model"
 	FieldAIAutoAnalyze      = "autoAnalyze"
 )
 
 type TelarkConfig struct {
-	UserSettings       UserSettings    `json:"userSettings"`
-	AI                 AIConfig        `json:"ai"`
-	Cluster            Cluster         `json:"cluster"`
-	ExcludedNamespaces []string        `json:"excludedNamespaces,omitempty"`
-	Snapshots          SnapshotsConfig `json:"snapshots"`
-	OIDC               OIDCConfig      `json:"oidc"`
-}
-
-type UserSettings struct {
-	FetchIntervalSeconds int `json:"fetchIntervalSeconds"`
+	AI                 AIConfig               `json:"ai"`
+	Cluster            Cluster                `json:"cluster"`
+	ExcludedNamespaces []string               `json:"excludedNamespaces,omitempty"`
+	Snapshots          SnapshotsConfig        `json:"snapshots"`
+	OIDC               OIDCConfig             `json:"oidc"`
+	SelfRegistration   SelfRegistrationConfig `json:"selfRegistration"`
 }
 
 type AIConfig struct {
@@ -51,4 +47,8 @@ type OIDCConfig struct {
 	GoogleClientID string `json:"googleClientID"`
 	EgressAllowed  bool   `json:"egressAllowed"`
 	GoogleJWKJSON  string `json:"googleJwkJson,omitempty"`
+}
+
+type SelfRegistrationConfig struct {
+	Enabled bool `json:"enabled"`
 }

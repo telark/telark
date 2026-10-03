@@ -2,9 +2,18 @@
 
 Thanks for contributing to Telark. Start with these three documents:
 
-- [CONVENTIONS.md](CONVENTIONS.md): naming, errors, logging, tests and commits.
+- [CONVENTIONS.md](CONVENTIONS.md): naming, errors, logging, tests, branches and commits.
 - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md): every make target and when to use it.
 - [GOVERNANCE.md](GOVERNANCE.md): roles and the contributor ladder.
+
+## Repositories
+
+| Repository | Contents |
+|---|---|
+| [`telark/telark`](https://github.com/telark/telark) (this one) | Services, Helm charts, CRDs and docs |
+| [`telark/dashboard-ui`](https://github.com/telark/dashboard-ui) | The operator dashboard SPA |
+
+Dashboard-specific issues and pull requests go to `telark/dashboard-ui`. The branch, commit and pull request rules below apply to every Telark repository.
 
 ## Repository layout
 
@@ -25,15 +34,9 @@ All Go code is one module, `github.com/telark/telark` (the root `go.mod`): the s
 
 ## Prerequisites
 
-- Go 1.27+ (the exact version is the `go` line of the root `go.mod`), `golangci-lint`, `helm` 3.
-- Python 3.13+ and `venv` for the analyzer.
-- Docker and a Kubernetes cluster for end-to-end work.
-
-Exact tool versions and install commands: [docs/testing](docs/testing/README.md#fresh-environment).
+Go (the version on the `go` line of the root `go.mod`), `golangci-lint`, `helm` 3, Python 3.13 with `venv` for the analyzer, and Docker plus a Kubernetes cluster for end-to-end work. Pinned versions and install commands: [docs/testing](docs/testing/README.md#fresh-environment).
 
 ## Build, lint, test
-
-The `Makefile` wraps the common flows; the full reference is [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ```sh
 make lint        # golangci-lint per Go service and package (shared root .golangci.yml) + helm lint
@@ -42,7 +45,7 @@ make helm-lint   # lint both charts
 make fmt         # gofmt
 ```
 
-- Run golangci-lint with the shared root `.golangci.yml`; never pass `--no-config` or override flags. Errors must be zero, and `//nolint` is not a fix.
+- Never pass `--no-config` or override flags to golangci-lint. Errors must be zero, and `//nolint` is not a fix.
 - The analyzer uses `pytest` in a virtualenv. Its commands are in [docs/testing](docs/testing/README.md#analyzer-servicesanalyzer).
 
 ## Charts
@@ -58,15 +61,16 @@ helm template t ./charts/telark --set app.auth.bootstrap.admin=test@example.com 
 ```
 
 - After changing `values.yaml`, run `make values-docs` to refresh each chart's `VALUES.md`; CI fails if it drifts.
-- Don't bump chart or module versions, and don't commit `replace` directives. Releases handle versioning, and the services must build against the published modules.
+- Don't bump chart or service versions (the build and release workflows do), and don't add `replace` directives.
 - `CHANGELOG.md` is generated from Conventional Commits by the release workflow; preview it with `make changelog`.
 - Packaging, pushing and signing the charts: [docs/PUBLISHING.md](docs/PUBLISHING.md).
 
-## Commits and pull requests
+## Branches, commits and pull requests
 
 Full rules: [CONVENTIONS.md](CONVENTIONS.md#commits-branches-prs). Who can approve and merge: [GOVERNANCE.md](GOVERNANCE.md).
 
-- Conventional Commit subjects (`feat:`, `fix:`, `chore:`, `docs:`), at most 50 characters, imperative.
+- Branch from `main` as `<type>/<kebab-case-description>`, for example `fix/apps-and-plans-sync`.
+- Conventional Commit subjects, `<type>(<optional-scope>): <description>`, with an imperative description of at most 50 characters.
 - Keep changes surgical: every changed line should trace to the stated goal.
 - Open the pull request against `main`, fill in the template, and make sure CI is green.
 

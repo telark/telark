@@ -1,6 +1,10 @@
 {{- $values := include "telark.modeValues" $ | fromYaml -}}
 {{- include "validateExporterStorage" (dict "values" $values "root" $) -}}
+{{- include "validateSubchartVolumes" $ -}}
 {{- include "validateSecuritySettings" $ -}}
+{{- if and $values.services.exporter.enabled $values.app.persistence.enabled -}}
+{{- include "telark.exporterMigration" (dict "values" $values "root" $) -}}
+{{- end -}}
 {{- range $name, $svc := $values.services }}
 {{- if $svc.enabled }}
 ---

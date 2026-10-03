@@ -36,6 +36,7 @@ type coalescer struct {
 	inflight      map[string]struct{}
 	held          map[string]map[string]*unstructured.Unstructured // pre-images of a no-inputs drop, for one window
 	heldTimers    map[string]*time.Timer
+	heldInRedis   map[string]struct{} // apps whose dropped pre-images wait in Redis past the window
 	flush         func(string, map[string]*unstructured.Unstructured) error
 }
 
@@ -62,6 +63,7 @@ func newCoalescer(
 		inflight:      make(map[string]struct{}),
 		held:          make(map[string]map[string]*unstructured.Unstructured),
 		heldTimers:    make(map[string]*time.Timer),
+		heldInRedis:   make(map[string]struct{}),
 		flush:         flush,
 	}
 }
@@ -75,6 +77,10 @@ func (c *coalescer) ctx() context.Context {
 
 func coalesceRedisKey(appName string) string {
 	return constants.KeyPrefixCoalesceBuffer + appName
+}
+
+func heldRedisKey(appName string) string {
+	return constants.KeyPrefixCoalesceHeld + appName
 }
 
 func encodeCoalescePayload(buf map[string]*unstructured.Unstructured, deadline int64) ([]byte, error) {
@@ -151,10 +157,7 @@ func (c *coalescer) schedule(appName, key string, oldObj *unstructured.Unstructu
 		// nil is an added resource: no pre-image, but the flush still runs.
 		buf[key] = oldObj.DeepCopy()
 	}
-	if dropped, ok := c.held[appName]; ok {
-		maps.Copy(buf, dropped)
-		c.releaseHeldLocked(appName)
-	}
+	maps.Copy(buf, c.takeHeldLocked(appName))
 	// Best effort: the timer is armed whatever Redis answers, so an event is never dropped.
 	_ = c.persistBufferLocked(appName)
 
@@ -276,6 +279,48 @@ func (c *coalescer) holdLocked(appName string, dropped map[string]*unstructured.
 		}
 	})
 	c.heldTimers[appName] = expiry
+	c.persistHeldLocked(appName, dropped)
+}
+
+// The window's copy lives in this leader only; the Redis copy waits for a later recreate or the next leader.
+func (c *coalescer) persistHeldLocked(appName string, dropped map[string]*unstructured.Unstructured) {
+	if c.rdb == nil || c.leaderFn != nil && !c.leaderFn(c.ctx()) {
+		return
+	}
+	raw, err := encodeCoalescePayload(dropped, time.Now().Add(constants.CoalesceHeldTTL).Unix())
+	if err != nil {
+		return
+	}
+	if c.rdb.Set(c.ctx(), heldRedisKey(appName), raw, constants.CoalesceHeldTTL).Err() == nil {
+		c.heldInRedis[appName] = struct{}{}
+	}
+}
+
+// A drop is inherited once: from the window's copy, else from Redis.
+func (c *coalescer) takeHeldLocked(appName string) map[string]*unstructured.Unstructured {
+	dropped, inMemory := c.held[appName]
+	_, inRedis := c.heldInRedis[appName]
+	if !inMemory && inRedis {
+		dropped = c.loadHeldLocked(appName)
+	}
+	c.releaseHeldLocked(appName)
+	if inRedis {
+		delete(c.heldInRedis, appName)
+		_ = c.rdb.Del(c.ctx(), heldRedisKey(appName)).Err()
+	}
+	return dropped
+}
+
+func (c *coalescer) loadHeldLocked(appName string) map[string]*unstructured.Unstructured {
+	raw, err := c.rdb.Get(c.ctx(), heldRedisKey(appName)).Result()
+	if err != nil {
+		return nil
+	}
+	dropped, _, err := decodeCoalescePayload(raw)
+	if err != nil {
+		return nil
+	}
+	return dropped
 }
 
 func (c *coalescer) releaseHeldLocked(appName string) {
@@ -361,10 +406,11 @@ func (c *coalescer) clearBufferRedis(appName string) {
 		delete(c.timers, appName)
 	}
 	c.releaseHeldLocked(appName)
+	delete(c.heldInRedis, appName)
 	rdb := c.rdb
 	c.mu.Unlock()
 	if rdb != nil {
-		_ = rdb.Del(c.ctx(), coalesceRedisKey(appName), pendingSnapshotsKey(appName)).Err()
+		_ = rdb.Del(c.ctx(), coalesceRedisKey(appName), pendingSnapshotsKey(appName), heldRedisKey(appName)).Err()
 	}
 }
 
@@ -389,21 +435,32 @@ func (c *coalescer) resumeFromRedis(ctx context.Context) {
 	if c.rdb == nil {
 		return
 	}
+	c.scanKeys(ctx, constants.KeyPrefixCoalesceBuffer, func(key string) { c.resumeOneKey(ctx, key) })
+	c.scanKeys(ctx, constants.KeyPrefixCoalesceHeld, c.resumeHeldKey)
+}
+
+func (c *coalescer) scanKeys(ctx context.Context, prefix string, each func(string)) {
 	var cursor uint64
-	pattern := constants.KeyPrefixCoalesceBuffer + constants.Wildcard
 	for {
-		keys, next, err := c.rdb.Scan(ctx, cursor, pattern, constants.DefaultQueueSize).Result()
+		keys, next, err := c.rdb.Scan(ctx, cursor, prefix+constants.Wildcard, constants.DefaultQueueSize).Result()
 		if err != nil {
 			return
 		}
 		for i := range keys {
-			c.resumeOneKey(ctx, keys[i])
+			each(keys[i])
 		}
 		cursor = next
 		if cursor == uint64(constants.DefaultInitValue) {
-			break
+			return
 		}
 	}
+}
+
+// Another leader's drop stays in Redis; its pre-images are read on the app's next event.
+func (c *coalescer) resumeHeldKey(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.heldInRedis[strings.TrimPrefix(key, constants.KeyPrefixCoalesceHeld)] = struct{}{}
 }
 
 func (c *coalescer) stopAllTimers() {

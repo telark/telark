@@ -19,12 +19,12 @@ app:
       minReplicas: 1
       maxReplicas: 5
   persistence:
-    size: 50Gi
-    reportsSize: 10Gi
+    snapshotsSize: 2Gi
+    reportsSize: 2Gi
   shared:
     resources:
       requests:
-        cpu: "500m"
+        cpu: "250m"
         memory: "512Mi"
       limits:
         cpu: "2000m"
@@ -44,6 +44,8 @@ services:
       DISCOVERY_K8S_CLIENT_QPS: "300"
       DISCOVERY_K8S_CLIENT_BURST: "600"
       FORCE_SYNC_WORKERS: "12"
+      # Each stream worker holds a pooled connection in a blocking read: keep the pool above them.
+      REDIS_POOL_SIZE: "24"
       DISCOVERY_AUTO_CLEANUP_CYCLE_INTERVAL_SEC: "120"
     # Budgets keep one pod through a drain once the HPA has scaled above one.
     pdb:
@@ -64,6 +66,7 @@ services:
   auth:
     env:
       CLEANUP_WORKERS_PER_TYPE: "4"
+      REDIS_POOL_SIZE: "24"
     pdb:
       enabled: true
       minAvailable: 1

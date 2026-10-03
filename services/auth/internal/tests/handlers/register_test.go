@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -71,9 +73,9 @@ func TestRegisterStartForExistingUser(t *testing.T) {
 	}
 }
 
-// A signed-in user mints a one-time enrollment link; presenting its token opens
-// a registration for that user without a session, and the token dies on first
-// use so the same link cannot open a second ceremony.
+// A signed-in user mints a one-time enrollment link, stored only as its digest;
+// presenting its token opens a registration for that user without a session, and
+// the token dies on first use so the same link cannot open a second ceremony.
 func TestEnrollLinkRegisterStart(t *testing.T) {
 	if err := webauthnhelper.InitWebAuthn(&config.WebAuthnConfig{RPName: "Test", ChallengeTimeout: 60}); err != nil {
 		t.Fatalf("InitWebAuthn: %v", err)
@@ -92,6 +94,10 @@ func TestEnrollLinkRegisterStart(t *testing.T) {
 	if link.Token == constants.EmptyString || link.ExpiresAt == constants.EmptyString {
 		t.Fatalf("enroll-link body = %+v, want a token and an expiry", link)
 	}
+	if owner, err := redisServer.Get(constants.RedisKeyPrefixEnrollToken + tokenDigest(link.Token)); err != nil || owner != "uid" {
+		t.Fatalf("enroll token under its digest = %q (%v), want the signed-in user", owner, err)
+	}
+	expectNoRawToken(t, link.Token)
 
 	body := `{"enrollToken":"` + link.Token + `"}`
 	for _, want := range []int{http.StatusOK, http.StatusUnauthorized} {
@@ -101,4 +107,10 @@ func TestEnrollLinkRegisterStart(t *testing.T) {
 			t.Fatalf("register/start with enroll token = %d, want %d (body %s)", rec.Code, want, rec.Body.String())
 		}
 	}
+}
+
+// Redis is untrusted, so a link is stored under the digest of its token, never the token.
+func tokenDigest(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
 }

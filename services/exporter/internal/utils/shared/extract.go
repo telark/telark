@@ -43,7 +43,8 @@ func GetSpec(w http.ResponseWriter, r *http.Request) (map[string]any, error) {
 			status = http.StatusRequestEntityTooLarge
 		}
 		msg := fmt.Sprintf(string(dataerrors.ErrRestParseRequestBody), err)
-		responseutils.LogAndSendResponse(w, status, response.OperationError, msg, nil, err)
+		// A body the client got wrong is an answer, not a failure: it logs nothing.
+		responseutils.SendResponse(w, status, response.OperationError, msg, nil)
 		return nil, err
 	}
 	return spec, nil
@@ -138,7 +139,7 @@ func GetSpecFor[T any](w http.ResponseWriter, r *http.Request) (map[string]any, 
 		err = CheckRefIDs(spec)
 	}
 	if err != nil {
-		responseutils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationError, err.Error(), nil, err)
+		responseutils.SendResponse(w, http.StatusBadRequest, response.OperationError, err.Error(), nil)
 		return nil, err
 	}
 	return spec, nil

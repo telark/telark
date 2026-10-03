@@ -2,10 +2,8 @@
 
 How Telark is run and how you move up the contributor ladder. Modeled on the
 [CNCF contributor ladder](https://github.com/cncf/project-template/blob/main/CONTRIBUTOR_LADDER.md).
-All participation is bound by the [Code of Conduct](CODE_OF_CONDUCT.md).
-
-The thresholds below are the project's current, deliberately concrete values.
-They can be changed by maintainer consensus (see *Changing this document*).
+All participation is bound by the [Code of Conduct](CODE_OF_CONDUCT.md). The thresholds
+below change only through an amendment (see *Changing this document*).
 
 ## Roles
 
@@ -29,7 +27,7 @@ Trusted to give meaningful review on a defined area (a `CODEOWNERS` subtree, e.g
   within **5 business days**.
 - **Rights:** listed in `CODEOWNERS` for the area; their review counts toward the
   approval a PR needs. Cannot merge.
-- **Kept by:** reviewing regularly; a review roughly every few weeks.
+- **Kept by:** reviewing roughly every few weeks.
 
 ### Maintainer
 Owns the project's direction and has merge + release authority.
@@ -65,10 +63,9 @@ A former Maintainer who has stepped back.
 
 ## Adding / removing Maintainers
 
-- **Add:** nomination + majority approval of current Maintainers, landed as a PR to
-  this file and `CODEOWNERS`.
+- **Add:** per the Maintainer criteria, landed as a PR to this file and `CODEOWNERS`.
 - **Remove / step down:** self-request at any time, or by majority vote for Code of
-  Conduct violations or sustained inactivity → moved to *Emeritus*.
+  Conduct violations or sustained inactivity; the Maintainer moves to *Emeritus*.
 
 ## Changing this document
 

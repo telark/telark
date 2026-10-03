@@ -6,6 +6,7 @@ instead of each validating webhook (kyverno cmd/readiness-checker/main.go, v1.19
 Stop the controllers first, or they re-create the webhooks as soon as they are gone.
 */}}
 {{- if .Values.app.kyverno.enabled }}
+{{- $values := include "telark.modeValues" . | fromYaml }}
 {{- $ns := .Values.app.namespace }}
 {{- $kyverno := printf "app.kubernetes.io/part-of=%s" (ternary .Release.Name (printf "%s-kyverno" .Release.Name) (contains "kyverno" .Release.Name) | trunc 63 | trimSuffix "-") }}
 {{- $securityContext := dict "allowPrivilegeEscalation" false "readOnlyRootFilesystem" true "capabilities" (dict "drop" (list "ALL")) }}
@@ -76,6 +77,12 @@ spec:
         - name: delete-webhooks
           image: {{ .Values.app.kubectlImage }}
           args: ["delete", "validatingwebhookconfigurations,mutatingwebhookconfigurations", "-l", "webhook.kyverno.io/managed-by=kyverno", "--ignore-not-found", "--cache-dir=/tmp"]
+          resources:
+            requests:
+              memory: {{ $values.app.shared.resources.requests.memory }}
+            limits:
+              memory: {{ $values.app.shared.resources.limits.memory }}
+              ephemeral-storage: 64Mi
           securityContext: {{- toYaml $securityContext | nindent 12 }}
           volumeMounts: [{ name: tmp, mountPath: /tmp }]
       volumes:

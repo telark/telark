@@ -21,6 +21,13 @@ spec:
     name: {{ include "telark.fullname" $ }}-{{ $svc.name }}
   updatePolicy:
     updateMode: {{ $updateMode }}
+{{- /* An HPA scales on usage over the CPU request, so where one runs the VPA must not move that request. */}}
+{{- if (mergeOverwrite (deepCopy ($values.app.serviceDefaults.autoscaling | default dict)) ($svc.autoscaling | default dict)).enabled }}
+  resourcePolicy:
+    containerPolicies:
+      - containerName: "*"
+        controlledResources: ["memory"]
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

@@ -6,6 +6,7 @@
 ENV_REDIS_HOST = "REDIS_HOST"
 ENV_REDIS_PORT = "REDIS_PORT"
 ENV_REDIS_URL = "REDIS_URL"
+ENV_REDIS_PASSWORD = "REDIS_PASSWORD"
 ENV_REDIS_POOL_SIZE = "REDIS_POOL_SIZE"
 ENV_OLLAMA_HOST = "OLLAMA_HOST"
 ENV_OLLAMA_AUTO_PULL = "OLLAMA_AUTO_PULL"
@@ -409,7 +410,7 @@ PERMISSION_RANKS = {
     PERMISSION_LEVEL_ADMIN: 4,
 }
 
-# auth-service permissions response (auth/internal/handlers/authorisation/types.go)
+# auth-service permissions response (auth/internal/handlers/authorization/types.go)
 PERMISSIONS_FIELD_USER_ID = "userID"
 PERMISSIONS_FIELD_ROLES = "roles"
 
@@ -488,9 +489,10 @@ RESOURCE_MEMORY = "memory"
 # Generated-name suffixes, k8s.io/apimachinery/pkg/util/rand/rand.go:83 (SafeEncodeString).
 SAFE_ENCODE_ALPHABET = "bcdfghjklmnpqrstvwxz2456789"
 _SAFE = "[" + SAFE_ENCODE_ALPHABET + "]"
-REPLICASET_NAME_PATTERN = "^{name}-" + _SAFE + "{{1,10}}$"
-DEPLOYMENT_POD_NAME_PATTERN = "^{name}-" + _SAFE + "{{1,10}}-" + _SAFE + "{{5}}$"
-DAEMONSET_POD_NAME_PATTERN = "^{name}-" + _SAFE + "{{5}}$"
+_NAME_PREFIX = "^{name}-"
+REPLICASET_NAME_PATTERN = _NAME_PREFIX + _SAFE + "{{1,10}}$"
+DEPLOYMENT_POD_NAME_PATTERN = _NAME_PREFIX + _SAFE + "{{1,10}}-" + _SAFE + "{{5}}$"
+DAEMONSET_POD_NAME_PATTERN = _NAME_PREFIX + _SAFE + "{{5}}$"
 STATEFULSET_POD_NAME_PATTERN = r"^{name}-\d+$"
 
 # -----------------------------------------------------------------------------
@@ -687,18 +689,27 @@ SCHEDULING_PREEMPTION_MARKER = "preemption:"
 SCHEDULING_DRA_NOISE = r"\s*no new claims to deallocate,?"
 SCHEDULING_PIECE_SPLIT = r",\s*|\.\s+"
 SCHEDULING_COUNT_PATTERN = r"^\s*(\d+)\s"
+SCHEDULING_INSUFFICIENT_CPU = "scheduling.insufficient_cpu"
+SCHEDULING_INSUFFICIENT_MEMORY = "scheduling.insufficient_memory"
+SCHEDULING_TAINTS = "scheduling.taints"
+SCHEDULING_NODE_AFFINITY = "scheduling.node_affinity"
+SCHEDULING_POD_ANTI_AFFINITY = "scheduling.pod_anti_affinity"
+SCHEDULING_TOPOLOGY_SPREAD = "scheduling.topology_spread"
+SCHEDULING_VOLUME = "scheduling.volume"
+SCHEDULING_TOO_MANY_PODS = "scheduling.too_many_pods"
+SCHEDULING_HOST_PORTS = "scheduling.host_ports"
 # (reason, regexes on one lower-cased scheduler piece), in table order: ties go to the earlier reason.
 SCHEDULING_SEGMENTS = (
-    ("scheduling.insufficient_cpu", (r"insufficient cpu",)),
-    ("scheduling.insufficient_memory", (r"insufficient memory",)),
-    ("scheduling.taints", (r"untolerated taint", r"had taint")),
-    ("scheduling.node_affinity", (r"didn't match pod's node affinity/selector",)),
-    ("scheduling.pod_anti_affinity", (r"anti-affinity rules", r"pod affinity rules")),
-    ("scheduling.topology_spread", (r"didn't match pod topology spread constraints",)),
-    ("scheduling.volume", (r"unbound immediate persistentvolumeclaims", r"volume node affinity conflict",
-                           r"persistentvolumeclaim .* not found")),
-    ("scheduling.too_many_pods", (r"too many pods",)),
-    ("scheduling.host_ports", (r"didn't have free ports",)),
+    (SCHEDULING_INSUFFICIENT_CPU, (r"insufficient cpu",)),
+    (SCHEDULING_INSUFFICIENT_MEMORY, (r"insufficient memory",)),
+    (SCHEDULING_TAINTS, (r"untolerated taint", r"had taint")),
+    (SCHEDULING_NODE_AFFINITY, (r"didn't match pod's node affinity/selector",)),
+    (SCHEDULING_POD_ANTI_AFFINITY, (r"anti-affinity rules", r"pod affinity rules")),
+    (SCHEDULING_TOPOLOGY_SPREAD, (r"didn't match pod topology spread constraints",)),
+    (SCHEDULING_VOLUME, (r"unbound immediate persistentvolumeclaims", r"volume node affinity conflict",
+                         r"persistentvolumeclaim .* not found")),
+    (SCHEDULING_TOO_MANY_PODS, (r"too many pods",)),
+    (SCHEDULING_HOST_PORTS, (r"didn't have free ports",)),
 )
 SCHEDULING_OTHER = "scheduling.other"
 # (reason, regexes on the lower-cased eviction message), in order: node disk pressure ('low on resource:
@@ -715,12 +726,14 @@ QUOTA_MARKERS = (r"exceeded quota",)
 COMBINED_EVENTS_PREFIX = "(combined from similar events): "
 FAILED_CREATE_HEAD = r'^Error creating: (?:\w+ "[^"]*" is forbidden: )?'
 ADMISSION_MARKERS = (r"denied the request", r"admission webhook")
+CHANGE_REASON_IMAGE = "config_change_regression.image"
+CHANGE_REASON_CONFIG = "config_change_regression.config"
 # changeLog field -> reason (discovery changes/descriptions.go); requests*/limits* by prefix.
 CHANGE_FIELD_REASONS = {
-    "image": "config_change_regression.image", "chart.version": "config_change_regression.image",
-    "envVarKey": "config_change_regression.config", "configMapRef": "config_change_regression.config",
-    "secretRef": "config_change_regression.config", "port": "config_change_regression.config",
-    "serviceMapping": "config_change_regression.config", "ingressRule": "config_change_regression.config",
+    "image": CHANGE_REASON_IMAGE, "chart.version": CHANGE_REASON_IMAGE,
+    "envVarKey": CHANGE_REASON_CONFIG, "configMapRef": CHANGE_REASON_CONFIG,
+    "secretRef": CHANGE_REASON_CONFIG, "port": CHANGE_REASON_CONFIG,
+    "serviceMapping": CHANGE_REASON_CONFIG, "ingressRule": CHANGE_REASON_CONFIG,
 }
 CHANGE_FIELD_RESOURCE_PREFIXES = ("requests", "limits")
 # Discovery's synthetic field on an incident entry: the symptom, never the cause.
@@ -752,11 +765,13 @@ _SCHEDULER_ONLY = ("The scheduler reports: {message}.",)
 # reason -> details tried after its own and before the fallbacks.
 INCIDENT_DETAIL_VARIANTS = {
     "resource_pressure.preempted": ("Pod {pod} was removed to make room for a higher-priority pod.",),
-    **{reason: _SCHEDULER_ONLY for reason in (
-        "scheduling.insufficient_cpu", "scheduling.insufficient_memory", "scheduling.taints",
-        "scheduling.node_affinity", "scheduling.pod_anti_affinity", "scheduling.topology_spread", "scheduling.volume",
-        "scheduling.too_many_pods", "scheduling.host_ports", "scheduling.other")},
+    **dict.fromkeys((
+        SCHEDULING_INSUFFICIENT_CPU, SCHEDULING_INSUFFICIENT_MEMORY, SCHEDULING_TAINTS, SCHEDULING_NODE_AFFINITY,
+        SCHEDULING_POD_ANTI_AFFINITY, SCHEDULING_TOPOLOGY_SPREAD, SCHEDULING_VOLUME, SCHEDULING_TOO_MANY_PODS,
+        SCHEDULING_HOST_PORTS, SCHEDULING_OTHER), _SCHEDULER_ONLY),
 }
+_SCHEDULING_DETAIL = "{pending} pod(s) are pending. The scheduler reports: {message}."
+_CHANGE_DETAIL = "{ready} of {desired} replicas are ready since change gen {generation}."
 # reason -> (what, detail): the 52 incident sub-reasons.
 INCIDENT_TEXT = {
     "image_pull.not_found": ("image not found",
@@ -813,24 +828,16 @@ INCIDENT_TEXT = {
         "continue."),
     "probe_failure.startup": ("failing startup checks",
         "{count} startup check failures on pod {pod}: {failureText}."),
-    "scheduling.insufficient_cpu": ("not enough CPU on any node",
-        "{pending} pod(s) are pending. The scheduler reports: {message}."),
-    "scheduling.insufficient_memory": ("not enough memory on any node",
-        "{pending} pod(s) are pending. The scheduler reports: {message}."),
-    "scheduling.taints": ("nodes are tainted", "{pending} pod(s) are pending. The scheduler reports: {message}."),
-    "scheduling.node_affinity": ("no node matches its node rules",
-        "{pending} pod(s) are pending. The scheduler reports: {message}."),
-    "scheduling.pod_anti_affinity": ("affinity rules leave no node",
-        "{pending} pod(s) are pending. The scheduler reports: {message}."),
-    "scheduling.topology_spread": ("spread rules leave no node",
-        "{pending} pod(s) are pending. The scheduler reports: {message}."),
-    "scheduling.volume": ("its volume cannot be bound",
-        "{pending} pod(s) are pending. The scheduler reports: {message}."),
-    "scheduling.too_many_pods": ("nodes are full", "{pending} pod(s) are pending. The scheduler reports: {message}."),
-    "scheduling.host_ports": ("host port already in use",
-        "{pending} pod(s) are pending. The scheduler reports: {message}."),
-    "scheduling.other": ("pods cannot be scheduled",
-        "{pending} pod(s) are pending. The scheduler reports: {message}."),
+    SCHEDULING_INSUFFICIENT_CPU: ("not enough CPU on any node", _SCHEDULING_DETAIL),
+    SCHEDULING_INSUFFICIENT_MEMORY: ("not enough memory on any node", _SCHEDULING_DETAIL),
+    SCHEDULING_TAINTS: ("nodes are tainted", _SCHEDULING_DETAIL),
+    SCHEDULING_NODE_AFFINITY: ("no node matches its node rules", _SCHEDULING_DETAIL),
+    SCHEDULING_POD_ANTI_AFFINITY: ("affinity rules leave no node", _SCHEDULING_DETAIL),
+    SCHEDULING_TOPOLOGY_SPREAD: ("spread rules leave no node", _SCHEDULING_DETAIL),
+    SCHEDULING_VOLUME: ("its volume cannot be bound", _SCHEDULING_DETAIL),
+    SCHEDULING_TOO_MANY_PODS: ("nodes are full", _SCHEDULING_DETAIL),
+    SCHEDULING_HOST_PORTS: ("host port already in use", _SCHEDULING_DETAIL),
+    SCHEDULING_OTHER: ("pods cannot be scheduled", _SCHEDULING_DETAIL),
     "resource_pressure.evicted_memory": ("evicted for node memory",
         "Pod {pod} was evicted because its node ran low on memory: {message}."),
     "resource_pressure.evicted_ephemeral": ("evicted for local disk use",
@@ -849,14 +856,10 @@ INCIDENT_TEXT = {
         "New pods are rejected at admission: {message}."),
     "rollout_stuck.incomplete": ("rollout incomplete",
         "The rollout is incomplete: {updated}/{desired} updated, {ready}/{desired} ready."),
-    "config_change_regression.image": ("degraded after an image change",
-        "{ready} of {desired} replicas are ready since change gen {generation}."),
-    "config_change_regression.config": ("degraded after a configuration change",
-        "{ready} of {desired} replicas are ready since change gen {generation}."),
-    "config_change_regression.resources": ("degraded after a resources change",
-        "{ready} of {desired} replicas are ready since change gen {generation}."),
-    "config_change_regression.other": ("degraded after a change",
-        "{ready} of {desired} replicas are ready since change gen {generation}."),
+    CHANGE_REASON_IMAGE: ("degraded after an image change", _CHANGE_DETAIL),
+    CHANGE_REASON_CONFIG: ("degraded after a configuration change", _CHANGE_DETAIL),
+    CHANGE_REASON_RESOURCES: ("degraded after a resources change", _CHANGE_DETAIL),
+    CHANGE_REASON_OTHER: ("degraded after a change", _CHANGE_DETAIL),
     "other.container_config_error": ("missing configuration",
         "Pod {pod} cannot create container {container}: a referenced ConfigMap, Secret or key does not exist."),
     "other.create_container_error": ("container cannot be created",
@@ -1040,6 +1043,10 @@ PROBE_PORT_HANDLERS = ("httpGet", "tcpSocket")
 PROBE_SUFFIX = "Probe"
 # Params that move with every usage sample: they refresh the text but never make a card 'updated'.
 VOLATILE_PARAMS = ("usage", "samples", "suggested", "velocity", "restarts")
+RECOMMENDATION_MEMORY_NEAR_LIMIT = "resources.memory_near_limit"
+RECOMMENDATION_CPU_NEAR_LIMIT = "resources.cpu_near_limit"
+RECOMMENDATION_OVERPROVISIONED = "resources.overprovisioned"
+RECOMMENDATION_UNDERPROVISIONED = "resources.underprovisioned"
 # reason -> (title, summary): the 60 v1 rules.
 RECOMMENDATION_TEXT = {
     "reliability.single_replica": ("{workload} runs a single replica",
@@ -1076,16 +1083,16 @@ RECOMMENDATION_TEXT = {
     "resources.limits_without_requests": ("{workload} sets limits without requests",
         "Container {containers} of {workload} sets a {resource} limit without a request, so Kubernetes reserves "
         "the full limit."),
-    "resources.memory_near_limit": ("{workload} runs close to its memory limit",
+    RECOMMENDATION_MEMORY_NEAR_LIMIT: ("{workload} runs close to its memory limit",
         "Container {container} of {workload} uses {usage} of its {limit} memory limit (p95 over {samples} "
         "samples), so a small spike means an out-of-memory kill."),
-    "resources.cpu_near_limit": ("{workload} is likely CPU-throttled",
+    RECOMMENDATION_CPU_NEAR_LIMIT: ("{workload} is likely CPU-throttled",
         "Container {container} of {workload} uses {usage} of its {limit} CPU limit (p95 over {samples} samples), "
         "so it is likely throttled and slower than it should be."),
-    "resources.overprovisioned": ("{workload} requests more than it uses",
+    RECOMMENDATION_OVERPROVISIONED: ("{workload} requests more than it uses",
         "Container {container} of {workload} requests {request} {resource} but uses {usage} (p95 over {samples} "
         "samples); about {suggested} would do."),
-    "resources.underprovisioned": ("{workload} uses more than it requests",
+    RECOMMENDATION_UNDERPROVISIONED: ("{workload} uses more than it requests",
         "Container {container} of {workload} requests {request} {resource} but uses {usage} (p95 over {samples} "
         "samples), so it relies on capacity that is not reserved for it."),
     "resources.oom_history": ("{workload} was killed for memory with its current limit",
@@ -1266,14 +1273,14 @@ SSE_QUEUE_MAX = 32
 # -----------------------------------------------------------------------------
 PULL_PROGRESS_INTERVAL_S = 1
 LOG_PULL_FAILED = "model pull failed: {}"
-# A pull that outlives this is cancelled; the largest catalogue model is a few GB.
+# A pull that outlives this is canceled; the largest catalog model is a few GB.
 PULL_DEADLINE_S = 3600
 
 LICENSE_APACHE_2 = "Apache-2.0"
 LICENSE_QWEN_RESEARCH = "Qwen Research (non-commercial)"
 LICENSE_RESEARCH_WARNING = "This model is licensed for research use only; commercial use is not allowed."
-# model -> (licence, warning); an unlisted model has no known licence.
-# The licence table validate() reads for any typed tag, not the UI catalog: the research row stays.
+# model -> (license, warning); an unlisted model has no known license.
+# The license table validate() reads for any typed tag, not the UI catalog: the research row stays.
 LICENSES = {
     DEFAULT_ANALYZER_MODEL: (LICENSE_APACHE_2, ""),
     "qwen3:1.7b": (LICENSE_APACHE_2, ""),

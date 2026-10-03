@@ -40,6 +40,8 @@ const (
 	OIDCGoogleCallback base.Endpoint = "auth/oidc/google/callback"
 	OIDCGoogleNonce    base.Endpoint = "auth/oidc/google/nonce"
 	OIDCConfig         base.Endpoint = "auth/oidc/config"
+	SelfRegistration   base.Endpoint = "auth/self-registration"
+	UserEnrollLink     base.Endpoint = "auth/users/{id}/enroll-link"
 
 	// Async business delete; the finalizer-backed cleanup runs afterwards
 	DeleteUserCleanup       base.Endpoint = "auth/users/{id}"

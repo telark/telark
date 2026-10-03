@@ -65,7 +65,7 @@ Common annotations, applied to every resource when set.
 {{- end -}}
 
 {{/*
-ServiceAccount name for a service. Honours a per-service serviceAccount.name
+ServiceAccount name for a service. Honors a per-service serviceAccount.name
 override, otherwise <fullname>-<serviceName>-sa. Call with dict:
   {{- include "telark.serviceAccountName" (dict "root" $root "serviceConfig" $svc) }}
 */}}
@@ -79,19 +79,19 @@ override, otherwise <fullname>-<serviceName>-sa. Call with dict:
 {{- end -}}
 
 {{/*
-Name of the exporter snapshots PVC. Single source for the PVC itself, the volume
-claimName, and the SNAPSHOTS_PVC_NAME env. Call with the root context.
+Name of the exporter snapshots PVC (telark.exporterStorage decides it). Single source
+for the volume claimName and the SNAPSHOTS_PVC_NAME env. Call with the root context.
 */}}
 {{- define "telark.exporterSnapshotsPvcName" -}}
-{{- printf "%s-exporter-snapshots-pvc" (include "telark.fullname" .) -}}
+{{- (include "telark.exporterStorage" . | fromYaml).claims.snapshots.name -}}
 {{- end -}}
 
 {{/*
-Name of the exporter reports PVC. Single source for the PVC itself and the
-volume claimName. Call with the root context.
+Name of the exporter reports PVC (telark.exporterStorage decides it). Single source
+for the volume claimName. Call with the root context.
 */}}
 {{- define "telark.exporterReportsPvcName" -}}
-{{- printf "%s-exporter-reports-pvc" (include "telark.fullname" .) -}}
+{{- (include "telark.exporterStorage" . | fromYaml).claims.reports.name -}}
 {{- end -}}
 
 {{/*
@@ -144,4 +144,9 @@ nats.existingSecrets.<user> when set, otherwise the chart-generated one.
 {{- $user := required "services.<svc>.natsUser must be publisher or consumer when useNatsCreds is true" .user -}}
 {{- $existing := index (.root.Values.nats.existingSecrets | default dict) $user -}}
 {{- default (printf "%s-nats-%s-secret" .root.Values.app.name $user) $existing -}}
+{{- end -}}
+
+{{/* Secret with the Redis password; the redis subchart (auth.existingSecret) and every client read the same one. */}}
+{{- define "telark.redisSecretName" -}}
+{{- tpl .Values.redis.auth.existingSecret . -}}
 {{- end -}}

@@ -99,7 +99,7 @@ jobs:
           cache-dependency-path: services/analyzer/requirements.txt
 
       - name: Install dependencies
-        run: pip install --only-binary :all: -r requirements.txt pytest pytest-cov
+        run: "pip install --only-binary :all: -r requirements.txt pytest pytest-cov"
 
       - name: Syntax check
         run: python -m compileall -q .

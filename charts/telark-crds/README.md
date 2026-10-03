@@ -1,6 +1,6 @@
 # telark-crds
 
-Custom resource definitions for [Telark](https://telark.io), a protection gate for Kubernetes applications. The `telark` chart already bundles this chart as a subchart, so a normal `helm install telark` includes the CRDs. Install it on its own only when you manage CRDs out of band, for example with GitOps, and set `crds.enabled=false` on the `telark` chart.
+Custom resource definitions for [Telark](https://telark.io), a protection gate for Kubernetes applications. The `telark` chart bundles this chart as a subchart, so `helm install telark` includes the CRDs. Install it on its own only when you manage CRDs out of band, for example with GitOps, and set `crds.enabled=false` on the `telark` chart.
 
 The CRDs carry `helm.sh/resource-policy: keep`, so they survive an uninstall. Removing them is part of the [full teardown](https://github.com/telark/telark/blob/main/docs/INSTALL.md#full-teardown). Field-level reference: [CRD reference](https://github.com/telark/telark/blob/main/docs/CRDS.md).
 

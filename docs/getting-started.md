@@ -1,8 +1,6 @@
 # Getting started
 
-In this tutorial you install Telark, sign in as the first admin, watch a demo application appear, and protect it with a protection plan in audit mode. By the end you will have seen Telark record a change that the plan would have blocked.
-
-It takes about 10 minutes, most of it waiting for pods to start.
+In this tutorial you install Telark, sign in as the first admin, watch a demo application appear, and protect it with a protection plan in audit mode, so you see Telark record a change the plan would have blocked. It takes about 10 minutes, most of it waiting for pods to start.
 
 ## Before you start
 
@@ -32,7 +30,7 @@ You should see every pod `Running` and `READY`. The first start pulls several im
 
 ## 2. Sign in as the first admin
 
-Passkey self-registration is off by default, so the first admin enrolls with a one-time token. Create it with the auth service's break-glass command, using the email you passed at install:
+Create a one-time enrollment token with the auth service's break-glass command, using the email you passed at install:
 
 ```sh
 kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email test@example.com --enroll
@@ -52,31 +50,31 @@ Passkeys are bound to the host name you register them on. If you later expose th
 
 ## 3. See your applications
 
-Telark groups workloads into applications by their labels (`app.kubernetes.io/name`, then `app.kubernetes.io/part-of`, then the older `app` label). Create a small demo application:
+Create a small demo application:
 
 ```sh
 kubectl create namespace demo
 kubectl create deployment web --image=nginx:1.27 --replicas=2 -n demo
 ```
 
-`kubectl create deployment` labels the Deployment `app=web`, so Telark sees it as an application named `web`.
+`kubectl create deployment` labels the Deployment `app=web`, so Telark sees it as an application named `web` ([how applications are grouped](concepts.md#applications)).
 
 Open **Applications** in the dashboard. You should see `web` in the `demo` namespace within a few seconds, next to the applications already running in your cluster. Open it to see its workloads, health and change history.
 
 ## 4. Create a protection plan in audit mode
 
-A protection plan blocks chosen changes to an application or namespace for a time window. Audit mode records what the plan would block without blocking it, so it is the safe way to start.
+Audit mode records what a [protection plan](concepts.md#protection-plans) would block without blocking it, so it is the safe way to start.
 
 1. Open **Protection plans** and select **Create Plan**.
 2. Under **Details**, name the plan `web freeze` and pick a severity.
 3. Leave **Environment** empty. A plan in the Production environment requires approval.
 4. Under **Execution & approval**, keep **Automatic**.
 5. Under **Scope**, choose **Applications** and select `web`.
-6. Under **Schedule**, choose **Time range**, start now and end in one hour. The plan arms itself at the start and disarms at the end.
+6. Under **Schedule**, choose **Time range**, start now and end in one hour.
 7. Under **Policies**, set the mode to **Audit** and add the template **Block Replica Scaling**.
 8. Select **Create Plan**.
 
-You should see the plan as **Active**. Telark has created a Kyverno policy in the `demo` namespace, and after the next health check (about 30 seconds) the plan's health shows **Healthy**, meaning the policy is present and ready in the live cluster:
+You should see the plan as **Active** and, after the next health check (about 30 seconds), its health as **Healthy**. Telark has created a Kyverno policy in the `demo` namespace:
 
 ```sh
 kubectl get policies.kyverno.io -n demo -l telark.io/protection-plan
@@ -98,9 +96,9 @@ When you are done, cancel the plan from its page. Telark removes its Kyverno pol
 
 ## 6. Optional: turn on automatic analysis
 
-Insights is on by default. It reviews each application's setup on its own and explains incidents when you select **Analyze**. It runs a small model inside your cluster and needs no API key; the default model (708 MB) downloads in the background after install, and until it finishes, cards show the rule text without the model's rewording. To have incidents analyzed as they happen:
+[Insights](concepts.md#insights) is on by default. Its model (708 MB) downloads in the background after install; until it finishes, cards show the rule text without the model's rewording. To have incidents analyzed as they happen:
 
-1. Open **Settings**, then **Local analyzer**, and turn on **Analyze automatically on incidents and recoveries**.
+1. Open **Settings**, then **Insights**, and turn on **Analyze automatically on incidents and recoveries**.
 2. Break the demo application:
 
    ```sh

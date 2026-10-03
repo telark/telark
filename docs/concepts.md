@@ -1,6 +1,6 @@
 # Concepts
 
-This page explains the ideas behind Telark: what an application is, how a protection plan works, where change history comes from, how Insights produces its findings, and how access control decides who may do what. For step-by-step use, start with [Getting started](getting-started.md). For the implementation, follow the links at the end of each section.
+The ideas behind Telark: applications, protection plans, change history, Insights and access control. For step-by-step use, start with [Getting started](getting-started.md). For how the services implement them, see [Architecture](architecture.md) and the links at the end of each section.
 
 ## Applications
 
@@ -13,7 +13,7 @@ Telark works on applications, not on individual Kubernetes objects. The discover
 
 Objects with the same value form one application, across namespaces. When a Deployment, its Service, its ConfigMaps and its autoscaler all carry `app.kubernetes.io/name: checkout`, they make up one `checkout` application, so you protect and inspect `checkout` instead of each object.
 
-Each application is stored as an `Application` resource (`applications.telark.io`) with its health, namespaces, workloads, images and change history. Namespaces excluded in **Settings** (system namespaces are excluded by default) are not discovered. An application whose objects are all gone is removed automatically.
+Each application is stored as an `Application` resource (`applications.telark.io`) with its health, namespaces, workloads, images and change history. Namespaces excluded in **Settings** (system namespaces by default) are not discovered. An application whose objects are all gone is removed automatically.
 
 Depth: [discovery service](../services/discovery/README.md).
 
@@ -51,9 +51,9 @@ The nine policy templates:
 
 While a plan is active, Telark renders each template into a namespaced Kyverno `Policy` in every namespace of the scope, minus the exclusions. Kyverno ships with the chart and checks each request at admission. In audit mode the request goes through and Kyverno records a violation; in enforce mode the request is refused with a message naming the plan.
 
-Telark then checks the live cluster on a short interval (31 seconds by default). A policy that is missing or not ready marks the plan **Degraded**; a policy whose content differs from what the plan expects marks it **Drifted** and is redeployed. The plan's page shows this as its health.
+Telark checks the live cluster every 31 seconds by default and shows the result as the plan's health. A missing or not-ready policy marks the plan **Degraded**; a policy whose content differs from what the plan expects marks it **Drifted** and is redeployed.
 
-By default Kyverno fails open: if its admission webhook is down, requests are admitted even for enforcing plans. You can make enforcement fail closed; see [Policy engine fail-open](INSTALL.md#policy-engine-fail-open).
+By default Kyverno fails open: if its admission webhook is down, requests are admitted even for enforcing plans. To make enforcement fail closed, see [Policy engine fail-open](INSTALL.md#policy-engine-fail-open).
 
 ### Lifecycle
 
@@ -71,7 +71,7 @@ A canceled, terminated or failed plan can be reactivated, and any plan can be du
 
 ### Violations and reports
 
-Violations come from the Kubernetes Events Kyverno writes, which the API server keeps for about an hour. Telark copies them into a per-plan ledger every 15 minutes, so a report covers the whole window. When a plan ends or is canceled, Telark captures a final report automatically; you can also generate one on demand. Reports are available as HTML, Markdown, JSON and CSV. Once a plan has ended, its page shows no live violations: its history is in the report.
+Violations come from the Kubernetes Events Kyverno writes, which the API server keeps for about an hour. Telark copies them into a per-plan ledger every 15 minutes, so a report covers the whole window. When a plan ends or is canceled, Telark captures a final report automatically; you can also generate one on demand, as HTML, Markdown, JSON or CSV. An ended plan's page shows no live violations: its history is in the report.
 
 Depth: [protection plans](architecture/protection-plans.md).
 
@@ -81,13 +81,13 @@ When an application changes, discovery records the change field by field (an ima
 
 A rollback applies a chosen snapshot back to the cluster: missing objects are created and changed ones replaced. A rollback is recorded as a change of its own, so it can be rolled back too, and an in-progress rollback can be aborted.
 
-History shows who made a change for most kinds, taken from annotations a chart-installed Kyverno policy adds. Secrets are not annotated, so a Secret change shows no author. See [Last-modified annotations](INSTALL.md#last-modified-annotations).
+History names who made a change for most kinds, from annotations a chart-installed Kyverno policy adds. Secrets are not annotated, so a Secret change shows no author ([Last-modified annotations](INSTALL.md#last-modified-annotations)).
 
 Depth: [discovery rollback](../services/discovery/README.md#rollback).
 
 ## Insights
 
-Insights helps you understand why an application is unhealthy and what to improve in its setup. It is decision support: it suggests causes and fixes, and it never changes the cluster.
+Insights helps you understand why an application is unhealthy and what to improve in its setup. It is decision support: it suggests causes and fixes, and never changes the cluster.
 
 ### Incident cards
 
@@ -97,7 +97,7 @@ Analysis runs when you select **Analyze**, or automatically on incidents and rec
 
 ### Setup review
 
-The analyzer also reviews each application against 60 rules in 10 families: reliability, resources, scaling, security, images, config, networking, change risk, protection and consistency. It lists what to fix as recommendation cards, such as a single replica with no disruption budget in production. Reviews run on their own, after every analysis and every 2 hours by default, and never use the model.
+The analyzer also reviews each application against 60 rules in 10 families: reliability, resources, scaling, security, images, config, networking, change risk, protection and consistency. It lists what to fix as recommendation cards, such as a single replica with no disruption budget in production. Reviews run after every analysis and every 2 hours by default, and never use the model.
 
 An application counts as production when a namespace, or the environment of a protection plan covering it, matches a naming pattern (by default names containing `prod`, `production` or `prd`). Production raises the severity of some rules.
 
@@ -113,7 +113,7 @@ The model runs in your cluster through Ollama, which ships with the chart. No da
 - A run writes at most three incident cards.
 - On the default CPU sizing, the model's rewrite takes several seconds per card. If the model is missing or slow, the cards keep the rule text.
 - Usage rules need metrics-server data collected over at least 12 hours.
-- Insights is on by default and optional. Turn it off in **Settings** and the rest of Telark works as before.
+- Insights is on by default and optional: turn it off in **Settings** and the rest of Telark works as before.
 
 Depth: [how the analyzer works](../services/analyzer/ARCHITECTURE.md), [analyzer service](../services/analyzer/README.md).
 
@@ -121,7 +121,7 @@ Depth: [how the analyzer works](../services/analyzer/ARCHITECTURE.md), [analyzer
 
 ### Signing in
 
-People sign in with a passkey or with Google SSO. There are no passwords. Passkey self-registration is off by default: the bootstrap admin enrolls with a one-time token from the break-glass command. Google users are created as ReadOnly on their first sign-in once the bootstrap admin turns SSO on in **Settings**, an admin can also create an account on **Members** and send its owner a one-time enrollment link, and an admin then grants roles, including Admin to at least two regular users. See [First admin](INSTALL.md#2-first-admin) and [Login and SSO](../services/auth/OIDC.md).
+People sign in with a passkey or with Google SSO; there are no passwords. The bootstrap admin enrolls with a one-time token from the break-glass command. Admins create other accounts on **Members** and send each owner a one-time enrollment link. Once the bootstrap admin turns them on in **Settings**, Google SSO and passkey self-registration let people create their own ReadOnly account. Admins then grant roles. See [First admin](INSTALL.md#2-first-admin) and [Login and SSO](../services/auth/OIDC.md).
 
 ### Roles, levels and deny rules
 

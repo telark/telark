@@ -16,10 +16,10 @@ var defaultExcludedNamespaces = []string{
 func DefaultTelarkConfig() TelarkConfig {
 	return TelarkConfig{
 		ExcludedNamespaces: slices.Clone(defaultExcludedNamespaces),
-		Snapshots:        SnapshotsConfig{MaxPerApp: constants.DefaultSnapshotsMaxPerApp},
-		AI:               AIConfig{Enabled: true, Model: constants.DefaultAnalyzerModel, AutoAnalyze: false},
-		Cluster:          Cluster{},
-		OIDC:             OIDCConfig{},
-		SelfRegistration: SelfRegistrationConfig{},
+		Snapshots:          SnapshotsConfig{MaxPerApp: constants.DefaultSnapshotsMaxPerApp},
+		AI:                 AIConfig{Enabled: true, Model: constants.DefaultAnalyzerModel, AutoAnalyze: false},
+		Cluster:            Cluster{},
+		OIDC:               OIDCConfig{},
+		SelfRegistration:   SelfRegistrationConfig{},
 	}
 }

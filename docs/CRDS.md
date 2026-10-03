@@ -38,22 +38,9 @@ The object name (`metadata.name`) is the identity; there is no `spec.id`. The ex
 
 The status subresource means a write to `spec` never changes `.status` and the reverse: writers send status fields to `/status`. The REST view flattens `.status` into the top level of the object, so API clients see one shape.
 
-## Field names
-
-Renamed from the 0.4 schema (values unchanged):
-
-| 0.4 | Now |
-|---|---|
-| `assignedRolesIDs`, `assignedGroupsIDs`, `assignedUsersIDs` | `roleRefs`, `groupRefs`, `userRefs` |
-| `categoryID`, `environmentID`, `tagIDs` | `categoryRef`, `environmentRef`, `tagRefs` |
-| `participantsIDs`, `scope.applicationIds` | `participantRefs`, `scope.applicationRefs` |
-| `crStatus` | `status.conditions` (type `Published`) |
-| `spec.id` | removed (`metadata.name`) |
-| `oidc.googleJwkJson` | removed from the CRD (see below) |
-
 ## OIDC trust anchor
 
-The optional Google JWK set is not stored in `TelarkConfig`. It lives in the Secret `telark-oidc-trust-secret` (key `googleJwkJson`), which the exporter writes when the bootstrap admin saves it through auth and the auth service reads as a mounted file. `GET /api/v1/config` merges it back into `oidc.googleJwkJson`. For cluster-less renders, point `app.auth.oidc.existingSecret` at a Secret you manage ([INSTALL.md](INSTALL.md#gitops-cluster-less-renders)).
+The optional Google JWK set is not part of `TelarkConfig`: it lives in the Secret `telark-oidc-trust-secret` (key `googleJwkJson`), which the exporter writes when the bootstrap admin saves it through auth and the auth service reads as a mounted file. `GET /api/v1/config` merges it back into `oidc.googleJwkJson`. For cluster-less renders, point `app.auth.oidc.existingSecret` at a Secret you manage ([INSTALL.md](INSTALL.md#gitops-cluster-less-renders)).
 
 ## Labels and finalizers
 

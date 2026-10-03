@@ -1,75 +1,64 @@
 # Conventions
 
 The authoritative rulebook for working in this repo. Where a rule is machine-enforced,
-the enforcing file is named — that file wins if this doc ever drifts.
+the enforcing file is named, and that file wins if this doc drifts.
 
 ## Repository layout
 
-```
-services/
-  auth  discovery  exporter  notifier    Go services (packages of the root Go module)
-  analyzer                               Python / FastAPI service
-charts/
-  telark                                 application chart (services + subcharts + telark-crds)
-  telark-crds                            CRDs, bundled as a subchart of telark
-internal/
-  data  rest  kcore  x-ware              shared Go packages used by the services
-docs/                                    architecture, install, CRDs, ADRs, this + dev docs
-.github/                                 CI, release, deploy workflows + composite actions
-Makefile  go.mod  .golangci.yml  cliff.toml  codecov.yml
-```
+The directory map is in [CONTRIBUTING.md](CONTRIBUTING.md#repository-layout).
 
 Each Go service: `services/<svc>/main.go` + `internal/` split into single-purpose
-packages — observed set: `constants config routes handlers clients helpers
-controllers coordination authz cmd tests`. Import path is `github.com/telark/telark/services/<svc>`.
+packages, such as `constants config routes handlers clients helpers controllers
+coordination authz tests`. Import path is `github.com/telark/telark/services/<svc>`.
 
 **Shared Go packages** (`data`, `rest`, `x-ware`, `kcore`) live in `internal/` of the
 same module (`github.com/telark/telark`, one root `go.mod`, **no `go.work`, no `replace`
-directives**), so a change to one lands together with its callers. The **UI** is a
-**separate repo**; only its built image is referenced here (`services.ui`).
+directives**), so a change to one lands together with its callers. No service-specific
+logic in a shared package.
+
+The dashboard SPA lives in the separate
+[`telark/dashboard-ui`](https://github.com/telark/dashboard-ui) repository, which holds
+the UI conventions; this repo only references its built image (`services.ui`).
 
 ## Go
 
 Enforced by the shared root [`.golangci.yml`](.golangci.yml) (golangci-lint v2, run from
-the repo root per service and package; **never** pass `--no-config` or `//nolint` as a
+the repo root per service and package; **never** pass `--no-config` or use `//nolint` as a
 workaround). Hard limits: **cyclomatic complexity ≤ 12** (`gocyclo`), **function length
 ≤ 60 lines** (`funlen`), `revive` all-rules, plus `errcheck gosec dupl unparam prealloc
-bodyclose staticcheck` and more. `run.tests: true` — lint covers test code too.
+bodyclose staticcheck` and more. `run.tests: true`, so lint covers test code too.
 
-Beyond the linter (from `services/*/CLAUDE.md`):
+Beyond the linter:
 
 - **Constants, not literals.** Every static string, config value, log message, and error
-  string goes in the package's `constants/` folder — never inline in logic. No bare `""`,
+  string goes in the package's `constants/` folder, never inline in logic. No bare `""`,
   `0`, `1` in service code; use named constants.
-- **Outbound calls go through `rest`-pkg clients.** No direct HTTP that bypasses the client
-  layer. Discovery-service wraps those clients under `clients/<domain>.go`.
-- **Kubernetes logic lives in `kcore`-pkg** (informers, dynamic watchers, listers). Read it
-  before writing any new k8s client logic — it likely already has what you need.
-- **Shared packages change upstream first.** Edit `data/rest/x-ware/kcore` in their own repo,
-  release, then bump the consumer — never the other way. No service-specific logic in a
-  shared package.
-- **Domain logic stays out of handlers.** Core logic in a top-level `<service>/<domain>/`
-  package; handlers stay thin and delegate.
+- **Outbound calls go through `rest` clients.** No direct HTTP that bypasses the client
+  layer. Discovery wraps those clients in `services/discovery/internal/clients/<domain>.go`.
+- **Kubernetes logic lives in `kcore`** (informers, dynamic watchers, listers). Read it
+  before writing new k8s client logic; it likely already has what you need.
+- **Domain logic stays out of handlers.** Core logic goes in its own
+  `services/<svc>/internal/<domain>/` package; handlers stay thin and delegate.
 - Prefer `slices`/`maps` stdlib over hand-rolled loops. Match the surrounding file's style.
 - **Comments:** only for the non-obvious *why*, never restating the code (no header comments
-  above funcs/types). Keep a comment block to **≤ 2 lines** — go beyond two lines only when
-  the logic is genuinely hard to follow; if you need more, the code is probably too complex.
-  This applies everywhere: Go, Python, Helm templates, and `values.yaml`.
+  above funcs/types). Keep a comment block to **≤ 2 lines** unless the logic is genuinely
+  hard to follow; needing more usually means the code is too complex. This applies
+  everywhere: Go, Python, Helm templates, and `values.yaml`.
 
 ## Naming
 
 | Thing | Rule | Source |
 |---|---|---|
 | Packages / files | lowercase, single purpose; follow the package you're editing | layout |
-| CRD kinds | PascalCase (`ApplicationAsResource`, `GlobalConfig`) | `docs/CRDS.md` |
-| CRD groups | `erpi.<app.name>`, `auth.<app.name>`, `classification.<app.name>` | `docs/CRDS.md` |
+| CRD kinds | PascalCase (`ProtectionPlan`, `TelarkConfig`) | `docs/CRDS.md` |
+| CRD group | `telark.io` (constant), version `v1alpha1` | `docs/CRDS.md` |
 | API routes | `/api/v1/<domain>/…`; health at `/api/v1/status/{live,ready}` | services |
 | Env vars (containers) | `SCREAMING_SNAKE_CASE` | `charts/telark/values.yaml` |
 | Helm value keys | `camelCase` | `charts/telark/values.yaml` |
 
 ## Errors & logging
 
-- `errcheck` is on — never drop an error. Wrap with context on the way up; return, don't
+- `errcheck` is on: never drop an error. Wrap with context on the way up; return, don't
   panic, in request/reconcile paths.
 - Use the service's structured logger (e.g. analyzer's `app_logger.py`); don't `fmt.Print`
   / `print()` for diagnostics in service code.
@@ -80,63 +69,74 @@ Beyond the linter (from `services/*/CLAUDE.md`):
   packages. Measure coverage **cross-package**: `go test -coverpkg=./... ./...` (plain
   `go test ./...` reports ~0% for this layout).
 - **Style:** table-driven; reuse the `testutil` helpers (miniredis, embedded NATS, fakes).
-  Don't weaken an existing test to make a change pass — if it asserts wrong behavior, flag it.
-- **Gate:** CI enforces a per-service coverage **ratchet floor** (`.github/workflows/ci.yaml`);
-  raise it as coverage improves, never lower it.
+  Don't weaken an existing test to make a change pass; if it asserts wrong behavior, flag it.
+- **Gate:** CI enforces a coverage **ratchet floor** per service and shared package
+  (`.github/workflows/ci.yaml`); raise it as coverage improves, never lower it.
 - **Python (analyzer):** `pytest`; stub-based suites (`test_*_cov.py`) run in a separate
-  process from real-dependency suites; `python -m compileall` is the syntax gate. *(No
-  ruff/black/flake8 config exists today — formatting is by convention.)*
+  process from real-dependency suites; `python -m compileall` is the syntax gate. No
+  ruff/black/flake8 config exists, so formatting is by convention.
 
 ## Commits, branches, PRs
 
-- **Conventional Commits** subjects (`feat: fix: chore: docs: …`), ≤ 50 chars, imperative
-  (`cliff.toml` builds the changelog from these).
+These rules apply to every Telark repository. The short version is in
+[CONTRIBUTING.md](CONTRIBUTING.md#branches-commits-and-pull-requests).
+
+Branch and commit types:
+
+| Type | For |
+|---|---|
+| `feat` | new functionality |
+| `fix` | bug fixes |
+| `refactor` | code restructuring without changing behavior |
+| `perf` | performance improvements |
+| `docs` | documentation-only changes |
+| `test` | adding or updating tests |
+| `build` | build system or dependency changes |
+| `ci` | CI/CD workflow changes |
+| `chore` | maintenance and tooling |
+| `hotfix` | urgent production fixes (branches only) |
+| `revert` | reverting a previous commit (commits only) |
+
+**Branches:** `<type>/<kebab-case-description>`: lowercase, descriptive and concise, for
+example `feat/add-auth-layer-using-webauthn` or `fix/apps-and-plans-sync`.
+
+**Commits:** [Conventional Commits](https://www.conventionalcommits.org/),
+`<type>(<optional-scope>): <description>` (`cliff.toml` builds the changelog from these).
+
+- The description is imperative, lowercase after the prefix, ≤ 50 chars, free of
+  unnecessary punctuation, and covers one logical change: `feat(auth): add WebAuthn
+  authentication`, `build(deps): update TypeScript`.
+- Mark a breaking change with `!` after the type or scope
+  (`feat(api)!: change dashboard API response handling`) or a `BREAKING CHANGE:` footer.
+- No non-standard tags such as `[Major]` or `[Minor]`.
+- Never commit secrets.
+
+**Pull requests:**
+
 - **Trunk-based:** open PRs against `main`; there are no long-lived release branches
   (releases are `v*` tags).
 - Fill in the PR template, keep changes surgical (every changed line traces to the goal),
   and land with green CI + the required `CODEOWNERS`/maintainer review
   (see [GOVERNANCE.md](GOVERNANCE.md)).
 - Do **not** bump chart or service versions in a feature PR, and do not add `replace`
-  directives or a `go.work` — releases own versioning.
+  directives or a `go.work`: releases own versioning.
 
 ## Helm charts
 
 - **One flag sizes everything:** `app.mode` (`minimal|standard|performance`) deep-merges a
-  preset over `values.yaml` via `_mode.tpl` — for telark's own services only (subcharts
+  preset over `values.yaml` via `_mode.tpl`, for telark's own services only (subcharts
   can't be reached from a parent template, so they ship fixed production-grade defaults).
 - **Generic over per-service boilerplate:** workload templates are thin wrappers over shared
   helpers (`_deployment.tpl` etc.).
 - **Subcharts:** declared in `Chart.yaml`, locked in `Chart.lock` (committed); the vendored
-  `charts/*/charts/*.tgz` are **git-ignored** build artifacts — `make deps` rebuilds them.
-- **Docs are generated:** never hand-edit `VALUES.md` — run `make values-docs` (CI fails on
+  `charts/*/charts/*.tgz` are **git-ignored** build artifacts that `make deps` rebuilds.
+- **Docs are generated:** never hand-edit `VALUES.md`; run `make values-docs` (CI fails on
   drift). CRDs carry `helm.sh/resource-policy: keep`.
-- Keep `values.yaml` lean (SaaS-MVP ready); per-key prose belongs in the chart README, not
-  inline. No per-service Helm `resources:` overrides (common `includeResources` handles it).
+- Keep `values.yaml` lean; per-key prose belongs in the chart README, not inline. No
+  per-service Helm `resources:` overrides (common `includeResources` handles it).
 
-## UI
+## AI coding assistants
 
-The dashboard SPA lives in a **separate repository**; this repo only references the built
-image (`services.ui`). UI-specific conventions belong in that repo.
-
-## AI-agent workflow
-
-Development here is often driven by LLM coding agents. An agent must:
-
-**Read first (in order):** the root [README](README.md) → this file → the
-`services/<svc>/CLAUDE.md` for the service it's touching → [CONTRIBUTING.md](CONTRIBUTING.md).
-`CLAUDE.md` files are binding and override defaults.
-
-**Always:**
-- Scope work to one service/chart; keep the diff surgical.
-- Put strings/config in `constants/`; obey the linter limits (≤12 complexity, ≤60-line funcs).
-- Verify before "done": `make lint` (0 errors) + `make test`, and for charts
-  `make helm-lint && make helm-validate`; regenerate `VALUES.md` if `values.yaml` changed.
-- Heavy command output is truncated by the `rtk` wrapper — write it to a file (or use the
-  raw proxy) so results aren't silently cut.
-
-**Never:**
-- Add service-specific logic to a shared package in `internal/`.
-- Bump chart/service versions, add `replace` directives or a `go.work`, or hand-edit `VALUES.md`.
-- Commit, push, or tag — humans own git.
-- Touch another service's directory when scoped to one, or weaken existing tests to pass.
-- Commit secrets, or relax a linter/gate to make something pass.
+You may use coding assistants. [AGENTS.md](AGENTS.md) holds the rules they must follow
+here (Claude Code reads it through `CLAUDE.md`). You stay responsible for what you submit:
+review and test it yourself. Assisted pull requests meet the same expectations as any other.

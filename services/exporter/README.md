@@ -44,11 +44,11 @@ flowchart LR
 
 ## Responsibilities
 
-- Own the Telark CRDs (group `telark.io`, see [CRDS.md](../../docs/CRDS.md)) and the OIDC trust Secret, the single service that reads and writes them on the cluster. Reads return a view with `id` = `metadata.name` and `.status` flattened into the top level; writes strip `id` and send status fields to the `/status` subresource of `Application`, `ProtectionPlan` and `TelarkConfig`.
+- Own the Telark CRDs (group `telark.io`, see [CRDS.md](../../docs/CRDS.md)) and the OIDC trust Secret: the exporter is the single service that reads and writes them on the cluster. Reads return a view with `id` = `metadata.name` and `.status` flattened into the top level; writes strip `id` and send status fields to the `/status` subresource of `Application`, `ProtectionPlan` and `TelarkConfig`.
 - Seed built-in resources (access roles, categories, the `TelarkConfig` named `default`) on startup.
-- Store and serve **snapshots** of workload manifests for audit, comparison, and rollback targets, on a PersistentVolume.
-- Store and serve **protection plan reports** (rendered by discovery) and each plan's report ledger on a second PersistentVolume; a reports GC goroutine (own Redis lock key, one replica per tick, shares `SNAPSHOT_GC_INTERVAL_SEC`) sweeps report directories whose plan CR no longer exists.
-- Expose the REST surface every other service consumes for CRD operations.
+- Store and serve **snapshots** of workload manifests (audit, comparison, rollback targets) on a PersistentVolume.
+- Store and serve **protection plan reports** (rendered by discovery) and each plan's report ledger on a second PersistentVolume. A reports GC goroutine (own Redis lock key, one replica per tick, shares `SNAPSHOT_GC_INTERVAL_SEC`) sweeps report directories whose plan CR is gone.
+- Expose the REST surface every other service uses for CRD operations.
 - Store per-user in-app notifications in Redis.
 - **Ops subcommand:** `migrate-storage <from> <to> [<from> <to>...]` copies each directory tree into the other (the newer copy of a file wins; temp files and `lost+found` are skipped). The chart runs it as an init container when the snapshot and report volumes move to another storage class ([Exporter storage](../../docs/INSTALL.md#exporter-storage)).
 
@@ -63,15 +63,15 @@ flowchart LR
 | `internal/utils/artifact` | Generic on-volume primitives shared by snapshots and reports: atomic write, path containment, `TickAllowed` (Redis-gated GC tick) |
 | `internal/utils/reports` | Reports store on the reports volume (per-plan directory, ledger, retention of 10 on-demand reports) |
 | `internal/startup` | `SeedBuiltins` and boot wiring |
-| `internal/managers/{envs,certs}` | Env resolution, CA-bundle / TLS material |
+| `internal/managers/envs` | Env resolution |
 | `internal/redis/notifications` | Per-user in-app notifications |
 | `internal/cache` · `internal/utils/*` | Compute, concurrency, snapshot helpers |
 | `internal/authz` | Per-route authorization requirements |
 
 ## Dependencies
 
-- **Internal modules:** `data` (CRD types), `kcore` (dynamic informers / client), `rest` (router + server), `x-ware` (Redis, authz, CORS).
-- **Infrastructure:** Kubernetes API (CRD storage), a snapshots **PVC**, Redis.
+- **Shared packages:** `data` (CRD types), `kcore` (dynamic informers / client), `rest` (router + server), `x-ware` (Redis, authz, CORS).
+- **Infrastructure:** Kubernetes API (CRD storage), the snapshot and report **PVCs**, Redis.
 - **Peers:** none upstream; exporter is the backend the other services depend on.
 
 ## Configuration
@@ -87,7 +87,6 @@ Full reference: [chart README](../../charts/telark/README.md#servicesexporterenv
 | `SNAPSHOT_GC_INTERVAL_SEC` | `3600` | Snapshot sweep interval; also drives the reports orphan sweep (`0` disables both) |
 | `EXPORTER_K8S_CLIENT_QPS` / `_BURST` | `50` / `100` | K8s client rate limits, sized for CRD-write fan-out |
 | `EXPORTER_LIST_RENDER_CONCURRENCY` | `2` | List renders at once per list route; requests for the same list share one render |
-| `CA_BUNDLE` | configmap `<app.name>-ca-bundle` | Trusted CA bundle (`ca.crt`) |
 | `OIDC_TRUST_SECRET_NAME` | `telark-oidc-trust-secret` | Secret whose `googleJwkJson` key holds the Google JWK set (chart: `app.auth.oidc.existingSecret` or the chart-managed one) |
 
 ## API
@@ -105,13 +104,12 @@ token from the UI or a session name from a peer); `DELETE auth/sessions/{name}` 
 caller's own sessions and answers 404 for anyone else's.
 Liveness/readiness at `/api/v1/status/{live,ready}`.
 
-Protection plan create/patch refuse (403) lifecycle, approval and material keys from
-session identities; only Internal callers (discovery) may write them: `approvalMode`,
-`approval`, `phase`, `renderedPolicies`, `startedAt`, `startedBy`, `terminatedAt`,
-`terminatedBy`, `reason`, `health`, `healthCheckedAt`, `healthDetail`, `policies`, `scope` (including its nested
-`exclusions`), `mode`, `timeMode`, `timeRange`, `name` (renames go through discovery's `revise`, which keeps
-names unique). This keeps approval (`pending_approval`) and phase changes
-on discovery's gated routes.
+Protection plan create and patch refuse (403) lifecycle, approval and material keys from
+sessions, so approval (`pending_approval`) and phase changes stay on discovery's gated routes.
+Only Internal callers (discovery) write `approvalMode`, `approval`, `phase`, `renderedPolicies`,
+`startedAt`, `startedBy`, `terminatedAt`, `terminatedBy`, `reason`, `health`, `healthCheckedAt`,
+`healthDetail`, `policies`, `scope` (including its nested `exclusions`), `mode`, `timeMode`,
+`timeRange` and `name` (renames go through discovery's `revise`, which keeps names unique).
 
 Protection plan routes (`{id}` = plan name). Deny rules are `protection-plans.<action>.deny`
 entries a custom role lists; built-in roles list none.
@@ -145,9 +143,9 @@ already used in the scope, compared trimmed and case-insensitively, is refused (
 
 Applications and snapshots: `POST applications`, `DELETE applications/{name}`,
 `POST internal/snapshots` and `DELETE snapshots/{id}` are Internal (the notifier and discovery; users
-delete an application through discovery's `reset`, which also purges its Redis state). Session callers of
-`PATCH applications/{name}` may set only `displayName` (at most 200 characters) and
-`description` (at most 1000); any other spec key answers 403 and an over-long value 400. Internal callers
+delete an application through discovery's `reset`, which also purges its Redis state). On
+`PATCH applications/{name}`, sessions may set only `displayName` (at most 200 characters) and
+`description` (at most 1000): any other spec key answers 403 and an over-long value 400. Internal callers
 keep full access.
 
 Config (`PATCH config`, the `TelarkConfig` named `default`) is checked per field: `excludedNamespaces`
@@ -164,21 +162,22 @@ Users, groups and access roles: creating a user with roles, groups or a status a
 patching them (users Owner + `attachroletouser`, groups Owner + `addusertogroup`, users Admin +
 `suspenduser`); attaching or removing a group's roles needs groups Owner plus `attachroletogroup` /
 `removerolefromgroup` (a group create carrying roles is gated like an attach); a role create or patch may not grant a scope level above the caller's own on that
-scope (an `ALL` grant counts for every scope). Role protection flags answer 403: `preventModification`
-refuses any patch beyond `protection`, and `preventScopeChanges`, `lockName` and `lockCategory` refuse a
-change to `scopesAndPermissions`, `name` and `categoryRef`, unless the same patch lifts that flag. The same cap applies to assigning a role: a user create or patch and a group create or
-patch answer 403 naming the role and scope when a role being added grants a level above the caller's own
+scope (an `ALL` grant counts for every scope). The same cap applies to assigning a role: a user or group create or
+patch answers 403 naming the role and scope when a role being added grants a level above the caller's own
 (deny rules on that role do not count; roles already held are not checked). Taking a role away is
 capped the same way: removing it from a user, detaching it from a group, and deleting it or a group
-carrying it. Adding or removing a group member, from the user or the group side, is capped by every
+carrying it. Adding or removing a group member, from either side, is capped by every
 role the group carries. A role patch touching `status`, `validity` or `scopesAndPermissions` is capped
-against the stored and the merged role. Sessions may not set `type: built-in` or change a built-in role's
+against the stored and the merged role. Role protection flags answer 403: `preventModification`
+refuses any patch beyond `protection`, and `preventScopeChanges`, `lockName` and `lockCategory` refuse a
+change to `scopesAndPermissions`, `name` and `categoryRef`, unless the same patch lifts that flag. Sessions may not set `type: built-in` or change a built-in role's
 `protection` (403); a custom role's `protection` is set by its creator at create and changed afterwards
 only by its creator or an Admin on ALL (403 otherwise). A role created without `type` is `custom`.
 `createdBy` and `lastUpdatedBy` of roles and groups are stamped from the caller; body values are
 ignored. Deleting a role with `protection.softDelete` keeps it with `status: Deleted` and `deletedAt`,
 so it grants nothing; `preventDeletion` refuses the delete (403). Deny rules are stored lower-cased. `identities` on a user is Internal only, and `email` / `username` are changed
-only by the account owner (403 otherwise; resending the stored value is allowed). `status.invite`
+only by the account owner (403 otherwise; resending the stored value is allowed). A user's `email` is
+unique like the username (case-insensitive, trimmed): a duplicate answers 409. `status.invite`
 (auth's record of a pending enrollment link) and `status.inviteAcceptedAt` (when a passkey closed one)
 are reserved like `bootstrap`: a session create or patch carrying either, even as `null`, answers 403.
 Internal callers are exempt.
@@ -186,7 +185,7 @@ Internal callers are exempt.
 Request bodies on the user, group, role, category and protection-plan create and patch routes must use
 the exact JSON field names: an unknown or differently cased key (`RoleRefs`, `status.Phase`)
 answers 400 before any guard or write runs. A user patch whose `status` omits `phase` (auth's
-last-login stamp and invite) keeps the stored phase; only a `phase` that is sent changes it.
+last-login stamp and invite) keeps the stored phase.
 
 Roles and groups on a user are diffed against the stored lists: an addition needs `attachroletouser` /
 `addusertogroup`, a removal `removerolefromuser` / `removeuserfromgroup`, each with users or groups Owner.
@@ -194,7 +193,7 @@ A group's `userRefs` is gated the same way (groups Owner plus the add or remove 
 oneself). Ids that do not resolve to a live user, group or role answer 400 naming them, and lists are
 deduplicated on write.
 
-Group membership is stored on both sides and grants read only the user side, so the exporter keeps them
+Group membership is stored on both sides, and grants read only the user side, so the exporter keeps them
 consistent: a group create or patch that changes `userRefs` updates each affected user's
 `groupRefs`, and a user create or patch that changes `groupRefs` updates each group's
 member list. The counterparts are written first, one at a time under their own lock, and the caller's
@@ -212,8 +211,6 @@ cleanup finalizer still holds the record, the user grants nothing and `GET users
 is set grants nothing anywhere (`deletionTimestamp` is projected into the typed reads and the GET
 responses) and refuses every PATCH from a session with 410; the cleanup cascade (service token) still
 patches it. Finalizer removal and cleanup views of a record that is already gone answer 404.
-
-A user's `email` is unique like the username (case-insensitive, trimmed): a duplicate answers 409.
 
 Administrators (Admin on `ALL` through an active role, directly or via a live group) and bootstrap
 accounts (`spec.bootstrap: true`, written only with the service token; a session sending the field gets

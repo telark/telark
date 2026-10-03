@@ -61,17 +61,13 @@ helm template t oci://ghcr.io/telark/charts/telark --version <version> \
 
 ## 4. Deploy from the registry
 
-Mirrors the deploy workflow. The app release **must** be named `telark-release` so the
-subchart DNS (`{{ .Release.Name }}-redis-master`, `-nats`, `-ollama`) resolves.
+The chart ships the services, subcharts and CRDs (telark-crds is a subchart). Size it with
+`--set app.mode=<mode>`; the exporter's volumes come from the default StorageClass
+([Exporter storage](INSTALL.md#exporter-storage)).
 
 ```sh
-NS=telark
-
-# App: services, subcharts and CRDs all ship in the chart (telark-crds is a
-# subchart). NATS config inlined; size with --set app.mode=<mode>. The exporter's
-# volumes come from the default StorageClass (see INSTALL.md, Exporter storage).
-helm upgrade --install telark-release oci://ghcr.io/telark/charts/telark --version <version> \
-  -n "$NS" --create-namespace \
+helm upgrade --install telark oci://ghcr.io/telark/charts/telark --version <version> \
+  -n telark --create-namespace \
   --set app.auth.bootstrap.admin=test@example.com \
   --wait --timeout 15m
 ```
@@ -114,15 +110,6 @@ oras push ghcr.io/telark/charts/telark:artifacthub.io \
 
 ArtifactHub auto-detects the cosign signatures and shows the charts as **Signed**.
 
-## Values docs
-
-Each chart carries an auto-generated `VALUES.md` (exhaustive key/type/default index).
-Regenerate it after any `values.yaml` change; CI fails if it drifts:
-
-```sh
-make values-docs
-```
-
 ## Repository settings the workflows rely on
 
 The build and release workflows push version-bump commits to the branch they run from and hold registry credentials (`GITHUB_TOKEN` with `packages: write` pushes the images to `ghcr.io/telark`), the `ACCESS_TOKEN` PAT and `id-token: write` (cosign). The repository defines no GitHub environments, so nothing in the workflows asks for an approval; these settings are what keep them safe:
@@ -130,4 +117,4 @@ The build and release workflows push version-bump commits to the branch they run
 - **Protect `main`**: require the CI checks and a CODEOWNERS review on pull requests, block force pushes and deletion. The bump commits are pushed with `GITHUB_TOKEN`, so either allow `github-actions[bot]` to bypass the pull-request rule or move the bumps to a bot branch merged by pull request.
 - **Restrict who can run workflows**: `workflow_dispatch` runs with the repository's secrets from any branch a writer names, so keep write access to maintainers. To require an approval per run, create an environment (Settings → Environments, for example `release`) with required reviewers and add `environment: release` to the build and release jobs.
 - **Tags are immutable**: protect `v*` tags (Settings → Rules → tag ruleset) here and in `telark/dashboard-ui`. A UI build refuses to re-tag an existing `vX.Y.Z` (`.github/scripts/tag-service-repo.sh`), so every build bumps the version (`patch`, `minor` or `major`).
-- **Scope the `ACCESS_TOKEN` PAT** to the repository it pushes to (`telark/dashboard-ui`) with contents write only; the CI pull-request jobs no longer receive it.
+- **Scope the `ACCESS_TOKEN` PAT** to the repository it pushes to (`telark/dashboard-ui`) with contents write only; the CI pull-request jobs don't receive it.

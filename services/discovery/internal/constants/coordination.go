@@ -48,11 +48,11 @@ const (
 	DiscoveryLeaderGatePoll                      = 500 * time.Millisecond
 	// The leader's rediscovery cycle: without it, namespaces and workloads created after
 	// startup are only picked up by a restart, a leadership change or a force-sync.
-	PrewarmInterval              = 60 * time.Second
-	PrewarmCycleTTL              = 24 * time.Hour
-	GraceScaleTTL                = 90 * time.Second
-	ResetCooldownTTL             = 60 * time.Second
-	ResetLoopGuardLogAt    int64 = 3
+	PrewarmInterval           = 60 * time.Second
+	PrewarmCycleTTL           = 24 * time.Hour
+	GraceScaleTTL             = 90 * time.Second
+	ResetCooldownTTL          = 60 * time.Second
+	ResetLoopGuardLogAt int64 = 3
 	// Bounds the operations stream in Redis; entries older than the cap are
 	// long acked and only cost memory (it reached 17k entries unbounded).
 	OperationsStreamMaxLen int64 = 20000

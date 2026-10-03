@@ -69,8 +69,8 @@ flowchart TB
 
 ## How auth-service trusts Google
 
-To check a Google token in step 4, auth-service needs Google's public keys. There
-are two modes, controlled by one setting:
+To check a Google token in step 4, auth-service needs Google's public keys. One
+setting picks the mode:
 
 - **Cluster can reach the internet** (`egressAllowed = true`): auth-service fetches
   Google's keys directly and refreshes them automatically.
@@ -102,6 +102,5 @@ are two modes, controlled by one setting:
   and the `settings.editoidcconfig.deny` rule; `POST /auth/oidc/google/callback` handles the
   token from step 3.
 - auth-service validates the settings and writes them with `PATCH /api/v1/config`
-  on exporter-service using a service token (the exporter puts the key set in
-  the Secret and the rest in the CR). The exporter takes the `oidc` block from a
+  on exporter-service using a service token. The exporter takes the `oidc` block from a
   service only, so auth's bootstrap check is what enforces authorization.

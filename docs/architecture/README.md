@@ -1,6 +1,6 @@
 # Architecture: components and flows
 
-How the services depend on each other and how data and control move between them. The one-page overview with the system diagram is [../architecture.md](../architecture.md); each service README has its internals; this page is the cross-service map. Paths starting `data/`, `rest/`, `kcore/` or `x-ware/` are in the shared Go packages under `internal/`.
+How the services depend on each other and how data and control move between them. The [overview](../architecture.md) has the system diagram and each service README its internals; this page is the cross-service map. Paths starting `data/`, `rest/`, `kcore/` or `x-ware/` are in the shared Go packages under `internal/`.
 
 ## Components
 
@@ -17,7 +17,7 @@ How the services depend on each other and how data and control move between them
 | Kyverno | subchart | admission webhooks | |
 | Ollama | subchart | model files | |
 
-Shared modules: `data` (CRD types, constants, errors, plan templates and Kyverno policy rendering in `data/policies`), `rest` (HTTP clients, endpoint paths, router, server), `kcore` (informers, dynamic client, workload kinds), `x-ware` (authz middleware, CORS, Redis streams, election and locks, NATS).
+Shared packages: `data` (CRD types, constants, errors, plan templates and Kyverno policy rendering in `data/policies`), `rest` (HTTP clients, endpoint paths, router, server), `kcore` (informers, dynamic client, workload kinds), `x-ware` (authz middleware, CORS, Redis streams, election and locks, NATS).
 
 ## Service-to-service calls
 
@@ -38,7 +38,7 @@ discovery reaches the exporter through the wrappers in `services/discovery/inter
 
 ## Messaging and shared state
 
-**NATS JetStream.** discovery publishes `telark.applications.update` (`services/discovery/internal/publisher/base.go`). notifier consumes `telark.applications.{create,update,delete}` from stream `telark_applications` (work-queue retention, file storage, 24 h max age) with durable pull consumers (`x-ware/nats/streams`). No code publishes `create` or `delete` today; application deletes go through discovery's reset (auto-cleanup calls it in process).
+**NATS JetStream.** discovery publishes `telark.applications.update` (`services/discovery/internal/publisher/base.go`). notifier consumes `telark.applications.{create,update,delete}` from stream `telark_applications` (work-queue retention, file storage, 24 h max age) with durable pull consumers (`x-ware/nats/streams`). No code publishes `create` or `delete`: application deletes go through discovery's reset (auto-cleanup calls it in process).
 
 **Redis** (auth uses DB 1 via `REDIS_DB`; the others the default DB):
 
@@ -79,7 +79,7 @@ Constants: `services/<svc>/internal/constants/` (discovery `coordination.go`, `f
 
 **Application delete.** discovery's reset (`POST .../applications/{name}/reset`, from auto-cleanup or the API) clears the app's Redis state and deletes the CR through the exporter, which deletes its snapshot files.
 
-**Insights.** The analyzer consumes `insights:jobs`, investigates with the local model and read-only tools, writes `analyzer:<ns>:<name>` and indexes it, and streams updates over SSE (`GET /api/v1/insights/events`, in-process broadcaster). The UI reads insight lists through discovery (`insights/applications`, `insights`) and asks the analyzer for analyze, triage, runtime and events. Details: [analyzer ARCHITECTURE.md](../../services/analyzer/ARCHITECTURE.md).
+**Insights.** The analyzer consumes `insights:jobs`, reads the app with read-only tools, applies its detection rules and has the local model reword the cards, writes `analyzer:<ns>:<name>` and indexes it, and streams updates over SSE (`GET /api/v1/insights/events`, in-process broadcaster). The UI reads insight lists through discovery (`insights/applications`, `insights`) and asks the analyzer for analyze, triage, runtime and events. Details: [analyzer ARCHITECTURE.md](../../services/analyzer/ARCHITECTURE.md).
 
 **Protection plans.** [protection-plans.md](protection-plans.md).
 
@@ -98,9 +98,3 @@ Constants: `services/<svc>/internal/constants/` (discovery `coordination.go`, `f
 | analyzer | uvicorn; lifespan starts the config poll, the job worker and the review loop | `live`, `ready` (Redis ping) |
 
 All listen on 8080 in the cluster.
-
-## Where older docs differ from the code
-
-Checked against the code; the service READMEs are fixed separately:
-
-- The discovery and notifier READMEs describe a `telark.applications.delete` NATS flow; nothing publishes it.

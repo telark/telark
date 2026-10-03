@@ -13,7 +13,7 @@ Goal: `services/analyzer` passes the `analyzer` job in `.github/workflows/ci.yam
 cd services/analyzer
 VENV="${TMPDIR:-/tmp}/analyzer-venv"   # outside the service: compileall walks every subdirectory
 python3 -m venv "$VENV"
-"$VENV/bin/pip" install -r requirements.txt pytest pytest-cov
+"$VENV/bin/pip" install --require-hashes -r requirements-test.txt
 
 "$VENV/bin/python" -m compileall -q .
 "$VENV/bin/python" -m pytest --cov=. --cov-report= tests/test_*_cov.py -q

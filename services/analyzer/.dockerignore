@@ -10,6 +10,7 @@ Dockerfile
 
 # Tests, caches and virtualenvs
 tests/
+requirements-test.*
 **/__pycache__/
 **/*.py[cod]
 .venv/

@@ -144,6 +144,10 @@ for an hour with nothing pending.
 - **Runtime:** Python 3.13+ (image ships 3.14): FastAPI, uvicorn, pydantic, redis (`redis.asyncio`),
   httpx, loguru, python-dotenv. Ollama and the Kubernetes API are reached with httpx; no model SDK,
   Kubernetes client or agent framework.
+- **Pins:** edit `requirements.in` (runtime) or `requirements-test.in` (test tools), never the `.txt`
+  hash locks the image and CI install with `--require-hashes`. Regenerate both locks with the command in
+  their headers, runtime first (`uvx --python 3.13 --with 'click<8.3' --from pip-tools pip-compile ...`:
+  click 8.3+ writes a bogus `--no-index` into the header).
 - **Infrastructure:** Redis (job stream, insight documents, the `analyzer:index` ZSET, the `analyzer:usage`
   and `analyzer:review` hashes, in-flight and cooldown keys), Ollama.
 - **Peers:** reads TelarkConfig, applications, protection plans and plan environments from **exporter**
@@ -228,7 +232,7 @@ triage works whether the analyzer is enabled or not.
 
 ```sh
 python -m venv ~/.venvs/analyzer && . ~/.venvs/analyzer/bin/activate   # outside the tree: compileall and --cov=. scan it
-pip install -r requirements.txt pytest pytest-cov
+pip install --require-hashes -r requirements-test.txt
 python main.py                       # API + worker on one event loop; needs Redis (fast mode runs without a model)
 python -m pytest --cov=. --cov-report= tests/test_*_cov.py -q
 python -m pytest --cov=. --cov-append --cov-report= tests/test_authz.py tests/test_insights.py tests/test_exporter.py -q

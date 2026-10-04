@@ -1,6 +1,6 @@
 # telark
 
-Helm chart for [Telark](https://telark.io), a protection gate for Kubernetes applications. It installs Telark's services (exporter, discovery, auth, notifier, analyzer and the dashboard) with Kyverno, Redis, NATS, metrics-server and Ollama.
+Helm chart for [Telark](https://telark.io), a protection gate for Kubernetes applications. It installs Telark's services (exporter, discovery, auth, notifier, analyzer and the dashboard) and, by default, Kyverno, Redis, NATS, metrics-server and Ollama. To use a Kyverno you already run, see [Install](#install).
 
 ## Install
 
@@ -11,11 +11,27 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 
 Set your own admin email: the chart ships none and refuses to render without one. The exporter's volumes come from the cluster's default StorageClass ([Exporter storage](../../docs/INSTALL.md#exporter-storage)). Prerequisites, first sign-in, exposure, sizing modes, upgrades and uninstall are in the [install guide](../../docs/INSTALL.md); a guided first run is in [Getting started](../../docs/getting-started.md).
 
+**Already running Kyverno?** Install with the bundled Kyverno disabled and Telark uses yours:
+
+```sh
+helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
+  --set app.auth.bootstrap.admin=test@example.com \
+  --set app.kyverno.enabled=false
+```
+
+Telark is tested with Kyverno v1.19.1, the version the chart bundles. With your own Kyverno, change history names no author, because the chart installs the policy that records authors only with the bundled Kyverno.
+
 Measured capacity (2026-09-18): `minimal` handles a few hundred applications; `standard` was verified at 2 000 (three discovery replicas; rediscovering a deleted 100-app namespace took about 3.5 minutes); `performance` is for larger clusters.
 
 ### Upgrade order
 
 When CRDs are managed out of band (`crds.enabled=false`), upgrade `telark-crds` before `telark`: an older CRD rejects or silently prunes fields the services write.
+
+## Known limitations
+
+- The API is `telark.io/v1alpha1` and may change before 1.0. Pin the chart version.
+- Single cluster per install.
+- By default the chart bundles Kyverno, Redis, NATS, metrics-server and Ollama. The bundled Kyverno can be turned off to use one you already run ([Install](#install)).
 
 ## Values reference
 
@@ -52,8 +68,8 @@ The tables below explain the values that matter. [VALUES.md](VALUES.md) is the g
 | `app.image.pullPolicy` | `Always` | Image pull policy for every service container |
 | `app.image.pullSecrets` | `[]` | Pull secrets (public images need none; set for a private registry) |
 | `app.kubectlImage` | `registry.k8s.io/kubectl:v1.37.1@sha256:…` | kubectl image of the uninstall hooks that stop auth and Kyverno and clear their finalizers and webhooks ([Uninstall](../../docs/INSTALL.md#uninstall)); mirror it for air-gapped installs |
-| `app.kyverno.enabled` | `true` | Install kyverno subchart |
-| `app.kyverno.failOpen` | `true` | Kyverno webhooks fail open (`failurePolicy: Ignore`), so enforce plans are best-effort while Kyverno is down. Must equal `kyverno.features.forceFailurePolicyIgnore.enabled`; the render fails otherwise. See [Policy engine fail-open](../../docs/INSTALL.md#policy-engine-fail-open) |
+| `app.kyverno.enabled` | `true` | Install the kyverno subchart; `false` uses a Kyverno you already run ([Install](#install)) |
+| `app.kyverno.failOpen` | `true` | The bundled Kyverno's webhooks fail open (`failurePolicy: Ignore`), so enforce plans are best-effort while Kyverno is down. Must equal `kyverno.features.forceFailurePolicyIgnore.enabled`; the render fails otherwise. See [Policy engine fail-open](../../docs/INSTALL.md#policy-engine-fail-open) |
 | `app.crdGuard.enabled` / `enforce` | `true` / `true` | ValidatingAdmissionPolicy: only the owning service accounts may write Telark CRs (`telark.io`, including `/status`), and only the exporter may change the key in the OIDC trust Secret (`enforce: false` audits). See [CRD write guard](../../docs/INSTALL.md#crd-write-guard) |
 | `app.crdGuard.extraAllowedUsers` | `[]` | Break-glass usernames also allowed to write Telark CRs and the OIDC trust Secret |
 | `app.networkPolicy.enabled` | `true` | Ingress NetworkPolicies: default deny for Telark pods, APIs only from Telark pods, dashboard from anywhere, NATS 4222 only from discovery and notifier. Needs an enforcing CNI. See [Network policies](../../docs/INSTALL.md#network-policies) |

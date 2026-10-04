@@ -49,11 +49,11 @@ The nine policy templates:
 
 ### How a plan is enforced
 
-While a plan is active, Telark renders each template into a namespaced Kyverno `Policy` in every namespace of the scope, minus the exclusions. Kyverno ships with the chart and checks each request at admission. In audit mode the request goes through and Kyverno records a violation; in enforce mode the request is refused with a message naming the plan.
+While a plan is active, Telark renders each template into a namespaced Kyverno `Policy` in every namespace of the scope, minus the exclusions. Kyverno (bundled with the chart by default, or one you already run) checks each request at admission. In audit mode the request goes through and Kyverno records a violation; in enforce mode the request is refused with a message naming the plan.
 
 Telark checks the live cluster every 31 seconds by default and shows the result as the plan's health. A missing or not-ready policy marks the plan **Degraded**; a policy whose content differs from what the plan expects marks it **Drifted** and is redeployed.
 
-By default Kyverno fails open: if its admission webhook is down, requests are admitted even for enforcing plans. To make enforcement fail closed, see [Policy engine fail-open](INSTALL.md#policy-engine-fail-open).
+By default the bundled Kyverno fails open: if its admission webhook is down, requests are admitted even for enforcing plans. To make enforcement fail closed, see [Policy engine fail-open](INSTALL.md#policy-engine-fail-open).
 
 ### Lifecycle
 

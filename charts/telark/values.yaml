@@ -223,7 +223,7 @@ services:
     name: "exporter-service"
     repository: "exporter"
     # @ignore
-    version: 0.1.0
+    version: 0.0.0
     category: "persistence-manager"
     # 1 replica works on any class (Recreate, ReadWriteOnce). More share both volumes, so
     # they need app.persistence.storageClass set to a ReadWriteMany class (RollingUpdate).
@@ -263,7 +263,7 @@ services:
     name: "discovery-service"
     repository: "discovery"
     # @ignore
-    version: 0.1.0
+    version: 0.0.0
     category: "discovery"
     useNatsCreds: true
     natsUser: publisher
@@ -331,7 +331,7 @@ services:
     name: "analyzer-service"
     repository: "analyzer"
     # @ignore
-    version: 0.1.0
+    version: 0.0.0
     category: "ai-insights"
     # One analysis worker bound to one Ollama slot (OLLAMA_NUM_PARALLEL=1): a
     # second replica would only queue behind it. Never autoscaled.
@@ -377,7 +377,7 @@ services:
     name: "notifier-service"
     repository: "notifier"
     # @ignore
-    version: 0.1.0
+    version: 0.0.0
     category: "event-streaming"
     terminationGracePeriodSec: 30
     useNatsCreds: true
@@ -393,7 +393,7 @@ services:
     name: "auth-service"
     repository: "auth"
     # @ignore
-    version: 0.1.0
+    version: 0.0.0
     category: "auth"
     terminationGracePeriodSec: 30
     automountServiceAccountToken: false
@@ -440,7 +440,7 @@ services:
     name: "ui-service"
     repository: "ui"
     # @ignore
-    version: 0.1.0
+    version: 0.0.0
     category: "ui"
     terminationGracePeriodSec: 30
     # nginx answers /healthz itself, with no upstream call.

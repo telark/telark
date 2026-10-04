@@ -42,7 +42,7 @@ Phases: `draft`, `pending_approval`, `scheduled`, `active`, `terminated`, `cance
 - Name `telark-<plan id>-<template code>-<8 hex of sha256(namespace + application ids)>`, with the [plan labels and annotations](../CRDS.md#labels-and-finalizers) (`data/policies/shared.go`).
 - `validationFailureAction` follows the plan `mode`; audit messages read "would be blocked". Kyverno substitutes `{{ }}` variables in `validate.message`, so the message names the generated plan id only; the user-chosen name appears only in the `plan-name` annotation, which is not substituted.
 - Applied with server-side apply, field manager `telark-protection-plans`, forced (`discovery/core/plans/protection/policies/applier.go`); mode changes are merge patches; deletion selects by the plan label (`CleanupByPlanID`).
-- Kyverno runs with `forceFailurePolicyIgnore`, so when its webhook is down, requests are admitted even for enforcing plans ([security](../security/README.md#kubernetes-privileges)).
+- The bundled Kyverno runs with `forceFailurePolicyIgnore`, so when its webhook is down, requests are admitted even for enforcing plans ([security](../security/README.md#kubernetes-privileges)).
 
 ## Health and violations
 

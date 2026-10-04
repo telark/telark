@@ -139,7 +139,7 @@ Verify each step against its success criterion before moving on. Strong success 
 
 The analyzer is `services/analyzer` (chart key `services.analyzer`, image `analyzer`). Its `README.md` and `ARCHITECTURE.md` describe the pipeline.
 
-- It runs only free, open-weight models on open-source runtimes (Ollama). No commercial AI providers and no API keys, not even as an optional or bring-your-own-key tier: the product promise is a free, open-source, privacy-first analyzer, and provider keys were removed on purpose.
+- It runs only free, open-weight models on open-source runtimes (Ollama). No commercial AI providers and no API keys, not even as an optional or bring-your-own-key tier: the product promise is a free, source-available, privacy-first analyzer, and provider keys were removed on purpose.
 - The only deployment switch is air-gapped versus connected. Air-gapped: no egress, models pre-loaded (`app.ollama.autoPull=false`). Connected: egress only to fetch open models or to reach the customer's own self-hosted Ollama-API endpoint (`app.ollama.runtimeUrl`, a URL, no key).
 - It has to answer in seconds on small CPU-only nodes. Designs that need minutes, or a GPU by default, don't fit.
 - Log through `app_logger`, not `print()`, and keep strings in the existing `constants.py` and `messages.py` split. There is no formatter or linter config, so match the surrounding code.

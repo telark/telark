@@ -16,8 +16,18 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 ```
 
 - Replace `test@example.com` with your own email. The chart ships no admin and requires one ([First admin](#2-first-admin)).
-- The chart installs everything, CRDs included. The CRDs are cluster-scoped and kept on uninstall (`resource-policy: keep`). If you manage CRDs out of band (a GitOps tool applies them first), add `--set crds.enabled=false`.
+- By default the chart installs everything, CRDs included. The CRDs are cluster-scoped and kept on uninstall (`resource-policy: keep`). If you manage CRDs out of band (a GitOps tool applies them first), add `--set crds.enabled=false`.
 - From a checkout, `./charts/telark` works in place of the OCI reference.
+
+**Already running Kyverno?** Install with the bundled Kyverno disabled and Telark uses yours:
+
+```sh
+helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
+  --set app.auth.bootstrap.admin=test@example.com \
+  --set app.kyverno.enabled=false
+```
+
+Telark is tested with Kyverno v1.19.1, the version the chart bundles. With your own Kyverno, change history names no author, because the chart installs the policy that records authors only with the bundled Kyverno.
 
 The examples below leave out the admin flag. Keep it on every command.
 
@@ -298,7 +308,7 @@ You rarely touch these. The table lists the on/off switches and the values the c
 | Flag | Default | Description |
 |---|---|---|
 | `crds.enabled` | `true` | Install the CRDs (the telark-crds subchart); `false` to manage them out of band |
-| `app.kyverno.enabled` | `true` | Install Kyverno, the policy engine |
+| `app.kyverno.enabled` | `true` | Install Kyverno, the policy engine; `false` uses a Kyverno you already run ([Install](#1-install)) |
 | `app.kyverno.failOpen` | `true` | Admission fails open while Kyverno is down ([Policy engine fail-open](#policy-engine-fail-open)) |
 | `app.ollama.enabled` | `true` | Install Ollama, the local model runtime the analyzer needs ([Analyzer runtime](#analyzer-runtime)) |
 | `app.ollama.autoPull` | `true` | Let the analyzer pull a missing model; `false` for air-gapped installs |
@@ -461,12 +471,15 @@ For strict enforcement set both keys. Helm cannot pass a parent value to a subch
 
 Fail-closed means an unavailable Kyverno blocks writes to everything its webhooks match, so keep its two admission replicas and its disruption budget.
 
+With your own Kyverno (`app.kyverno.enabled=false`), neither key applies: plan policies set no `failurePolicy`, so they fail closed unless your Kyverno runs with `forceFailurePolicyIgnore`.
+
 ### Last-modified annotations
 
 A Kyverno ClusterPolicy stamps `telark.io/last-modified-{by,at,operation}` on the kinds discovery tracks (Deployments, StatefulSets, DaemonSets, Jobs, CronJobs, ConfigMaps, Services, PVCs, ServiceAccounts, Ingresses, NetworkPolicies, HPAs, VPAs), outside `telark`, `kyverno` and the system namespaces. Change history uses them to name who made a change.
 
 - Secrets are not stamped, so history does not name who changed a Secret.
 - The policy renders only when the Kyverno `ClusterPolicy` API already exists, which on a first install it does not. Run `helm upgrade` once after the first install, with the same flags, to add it. Changes made before that carry no author.
+- With your own Kyverno (`app.kyverno.enabled=false`) the chart does not install the policy, so history names no author.
 
 ### GitOps (cluster-less renders)
 
@@ -566,3 +579,9 @@ A `--no-hooks` uninstall also leaves the finalizers, so deletions hang in `Termi
 kubectl get users.telark.io,groups.telark.io,accessroles.telark.io -n telark -o name |
   xargs -r -P 16 -I{} kubectl patch -n telark {} --type merge -p '{"metadata":{"finalizers":null}}'
 ```
+
+## Known limitations
+
+- The API is `telark.io/v1alpha1` and may change before 1.0. Pin the chart version.
+- Single cluster per install.
+- By default the chart bundles Kyverno, Redis, NATS, metrics-server and Ollama. The bundled Kyverno can be turned off to use one you already run ([Install](#1-install)).

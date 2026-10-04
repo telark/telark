@@ -20,7 +20,17 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
   --set app.auth.bootstrap.admin=test@example.com
 ```
 
-The chart installs Telark's services together with Kyverno, Redis, NATS, metrics-server and Ollama. Wait until every pod is running:
+**Already running Kyverno?** Install with the bundled Kyverno disabled and Telark uses yours:
+
+```sh
+helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
+  --set app.auth.bootstrap.admin=test@example.com \
+  --set app.kyverno.enabled=false
+```
+
+Telark is tested with Kyverno v1.19.1, the version the chart bundles. With your own Kyverno, change history names no author, because the chart installs the policy that records authors only with the bundled Kyverno.
+
+By default the chart installs Telark's services together with Kyverno, Redis, NATS, metrics-server and Ollama. Wait until every pod is running:
 
 ```sh
 kubectl get pods -n telark -l app.kubernetes.io/instance=telark

@@ -331,7 +331,7 @@ services:
     name: "analyzer-service"
     repository: "analyzer"
     # @ignore
-    version: 0.0.0
+    version: 0.1.0
     category: "ai-insights"
     # One analysis worker bound to one Ollama slot (OLLAMA_NUM_PARALLEL=1): a
     # second replica would only queue behind it. Never autoscaled.

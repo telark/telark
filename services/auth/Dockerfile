@@ -12,6 +12,7 @@ RUN apk add --no-cache ca-certificates
 COPY go.mod go.sum ./
 COPY internal internal
 COPY services/auth services/auth
+COPY scripts/third-party-notices.sh scripts/
 
 ENV GOEXPERIMENT=jsonv2 \
     GOMAXPROCS=0
@@ -21,14 +22,18 @@ RUN --mount=type=cache,target=/go/pkg/mod \
         -ldflags="-w -s -extldflags '-static'" \
         -trimpath \
         -buildvcs=false \
-        -o main ./services/auth
+        -o main ./services/auth && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH sh scripts/third-party-notices.sh ./services/auth > go-modules.txt
 
 RUN adduser -D -u 10001 auth-service
 
-FROM alpine:3.24.2
+FROM scratch
+LABEL org.opencontainers.image.licenses="Elastic-2.0"
 WORKDIR /app
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=build /etc/passwd /etc/passwd
+COPY LICENSE.md THIRD-PARTY-NOTICES.md /licenses/
+COPY --from=build /app/go-modules.txt /licenses/
 COPY --from=build /app/main .
 USER 10001
 ENTRYPOINT ["./main"]

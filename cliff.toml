@@ -59,6 +59,10 @@ tag_pattern = "v[0-9].*"
 topo_order = false
 sort_commits = "oldest"
 commit_preprocessors = [
+  # Repair two slips git-conventional rejects (filter_unconventional would drop the commit):
+  # leading whitespace, and a body that starts on line 2 with no blank line after the subject.
+  { pattern = '^\s+', replace = "" },
+  { pattern = '^([^\n]*)\n([^\n])', replace = "${1}\n\n${2}" },
   # The PR link comes from the GitHub integration, so drop the squash-merge "(#123)" suffix.
   { pattern = '(?m) *\(#[0-9]+\)$', replace = "" },
 ]

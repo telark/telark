@@ -7,8 +7,10 @@
 **/.env
 **/.env.*
 
-# Docs
+# Docs (the Go images ship these two under /licenses)
 **/*.md
+!LICENSE.md
+!THIRD-PARTY-NOTICES.md
 
 # Tests, coverage and build artifacts
 **/tests/

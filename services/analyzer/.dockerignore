@@ -5,8 +5,10 @@ Dockerfile
 .env
 .env.*
 
-# Docs
+# Docs (the license and notices ship in the image)
 **/*.md
+!LICENSE.md
+!THIRD-PARTY-NOTICES.md
 
 # Tests, caches and virtualenvs
 tests/

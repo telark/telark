@@ -51,7 +51,7 @@ Telark turns that night into a non-event:
 
 1. **Discover.** Telark groups your workloads into applications on its own. You protect `checkout`, not seventeen Deployments.
 2. **Plan.** Pick the changes to block from ready-made templates, choose the app or namespace and the window, and run it in audit mode first. Add an approval step when it matters; Production plans always require one.
-3. **Enforce.** While the window is open, Kyverno (bundled with the chart) refuses those changes at admission.
+3. **Enforce.** While the window is open, Kyverno (bundled with the chart by default, or one you already run) refuses those changes at admission.
 4. **Verify.** Telark checks the live cluster for the policies it expects and reports what was blocked, audited or tampered with.
 
 You work in a dashboard, not in policy YAML.
@@ -74,6 +74,16 @@ You need Kubernetes 1.30+, Helm 3, and a default StorageClass (managed clusters 
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
   --set app.auth.bootstrap.admin=test@example.com
 ```
+
+**Already running Kyverno?** Install with the bundled Kyverno disabled and Telark uses yours:
+
+```sh
+helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
+  --set app.auth.bootstrap.admin=test@example.com \
+  --set app.kyverno.enabled=false
+```
+
+Telark is tested with Kyverno v1.19.1, the version the chart bundles. With your own Kyverno, change history names no author, because the chart installs the policy that records authors only with the bundled Kyverno.
 
 When the pods are Running, enroll yourself as the first admin and open the dashboard:
 
@@ -99,7 +109,13 @@ Your applications appear on their own. Create a protection plan in audit mode to
 
 ## Compatibility
 
-Kubernetes 1.30 or newer; 1.33+ is the tested target. Only GA Kubernetes APIs are used. Runs on EKS, GKE, AKS and OpenShift. The chart bundles Kyverno, Redis, NATS, metrics-server and Ollama.
+Kubernetes 1.30 or newer; 1.33+ is the tested target. Only GA Kubernetes APIs are used. Runs on EKS, GKE, AKS and OpenShift. Tested with Kyverno v1.19.1, the version the chart bundles.
+
+## Known limitations
+
+- The API is `telark.io/v1alpha1` and may change before 1.0. Pin the chart version.
+- Single cluster per install.
+- By default the chart bundles Kyverno, Redis, NATS, metrics-server and Ollama. The bundled Kyverno can be turned off to use one you already run ([Quick start](#quick-start)).
 
 ## Community
 
@@ -107,4 +123,4 @@ Questions and ideas go to [Discussions](https://github.com/telark/telark/discuss
 
 ## License
 
-Source-available under the [Elastic License 2.0](LICENSE.md). You may use, modify and self-host Telark; you may not offer it to others as a managed service.
+Source-available under the [Elastic License 2.0](LICENSE.md). You may use, modify and self-host Telark; you may not offer it to others as a managed service. Third-party software in Telark's images and chart stays under its own license: see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

@@ -178,6 +178,6 @@ Facts an operator or reviewer should not assume otherwise:
 - Redis traffic is not encrypted (no TLS); it stays inside the release namespace, behind Redis's password and NetworkPolicy.
 - A cluster admin, or anyone who may delete ValidatingAdmissionPolicies, can remove the CRD write guard; no Telark ServiceAccount can.
 - Anyone who may `kubectl exec` into the auth pod, or read Secrets in the release namespace, can obtain the service token (full API access); break-glass refusing other emails does not change that, so keep `pods/exec` and Secret reads there to cluster operators.
-- Kyverno fails open unless the operator sets `app.kyverno.failOpen=false` (which must equal `kyverno.features.forceFailurePolicyIgnore.enabled`): while its webhook is unavailable, admission lets requests through, plan policies in `Enforce` included ([INSTALL.md](../INSTALL.md#policy-engine-fail-open)).
+- The bundled Kyverno fails open unless the operator sets `app.kyverno.failOpen=false` (which must equal `kyverno.features.forceFailurePolicyIgnore.enabled`): while its webhook is unavailable, admission lets requests through, plan policies in `Enforce` included ([INSTALL.md](../INSTALL.md#policy-engine-fail-open)).
 - NetworkPolicies restrict ingress only; egress from every Telark pod is open.
 - CORS in `x-ware/cors` sends no headers unless `CORS_ALLOWED_ORIGINS` lists origins (never `*`); the dashboard proxies every API on its own origin.

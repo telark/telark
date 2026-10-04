@@ -84,7 +84,7 @@ Each service's own README carries a focused diagram of its internals: [auth](../
 
 ## Shared infrastructure (subcharts)
 
-`redis` (coordination, queues, dedup), `nats` (messaging), `kyverno` (admission policy engine), `metrics-server` (HPAs / `kubectl top`), `vpa` (optional, `vpa.enabled`), `ollama` (the analyzer's model runtime, on by default; `app.ollama.enabled=false` skips it).
+`redis` (coordination, queues, dedup), `nats` (messaging), `kyverno` (admission policy engine, on by default; `app.kyverno.enabled=false` uses one you already run), `metrics-server` (HPAs / `kubectl top`), `vpa` (optional, `vpa.enabled`), `ollama` (the analyzer's model runtime, on by default; `app.ollama.enabled=false` skips it).
 
 ## Data flow (high level)
 

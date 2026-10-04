@@ -440,7 +440,7 @@ services:
     name: "ui-service"
     repository: "ui"
     # @ignore
-    version: 0.0.0
+    version: 0.1.0
     category: "ui"
     terminationGracePeriodSec: 30
     # nginx answers /healthz itself, with no upstream call.

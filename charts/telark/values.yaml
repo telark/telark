@@ -377,7 +377,7 @@ services:
     name: "notifier-service"
     repository: "notifier"
     # @ignore
-    version: 0.0.0
+    version: 0.1.0
     category: "event-streaming"
     terminationGracePeriodSec: 30
     useNatsCreds: true

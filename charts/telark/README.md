@@ -31,7 +31,7 @@ When CRDs are managed out of band (`crds.enabled=false`), upgrade `telark-crds` 
 
 - The API is `telark.io/v1alpha1` and may change before 1.0. Pin the chart version.
 - Single cluster per install.
-- By default the chart bundles Kyverno, Redis, NATS, metrics-server and Ollama. The bundled Kyverno can be turned off to use one you already run ([Install](#install)).
+- By default the chart bundles Kyverno, Redis, NATS, metrics-server and Ollama. The bundled Kyverno can be turned off to use one you already run ([Install](#install)), and the bundled metrics-server with `metrics-server.enabled=false`.
 
 ## Values reference
 

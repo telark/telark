@@ -115,7 +115,7 @@ Kubernetes 1.30 or newer; 1.33+ is the tested target. Only GA Kubernetes APIs ar
 
 - The API is `telark.io/v1alpha1` and may change before 1.0. Pin the chart version.
 - Single cluster per install.
-- By default the chart bundles Kyverno, Redis, NATS, metrics-server and Ollama. The bundled Kyverno can be turned off to use one you already run ([Quick start](#quick-start)).
+- By default the chart bundles Kyverno, Redis, NATS, metrics-server and Ollama. The bundled Kyverno can be turned off to use one you already run ([Quick start](#quick-start)), and the bundled metrics-server with `metrics-server.enabled=false`.
 
 ## Community
 

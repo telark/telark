@@ -223,7 +223,7 @@ services:
     name: "exporter-service"
     repository: "exporter"
     # @ignore
-    version: 0.0.0
+    version: 0.1.0
     category: "persistence-manager"
     # 1 replica works on any class (Recreate, ReadWriteOnce). More share both volumes, so
     # they need app.persistence.storageClass set to a ReadWriteMany class (RollingUpdate).

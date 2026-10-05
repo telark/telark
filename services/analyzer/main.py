@@ -259,7 +259,8 @@ async def _run_fast(state, job: Job, running: LastRun, cfg: AnalyzerConfig, run:
         state.runtime.ensure_model(cfg.model)
         reason = runtime_state
     elif candidates:
-        narrated, reason = await analyzer.narrate(state.ollama_client, cfg.model, candidates)
+        with state.runtime.using_model():
+            narrated, reason = await analyzer.narrate(state.ollama_client, cfg.model, candidates)
         texts = [(n.title, n.summary) for n in narrated or []]
     narrate_s = time.monotonic() - narrate_start
     # Only this run's cards: an id validate() dropped may name an older, resolved card.
@@ -390,7 +391,8 @@ async def _run(state, job: Job, running: LastRun, cfg: AnalyzerConfig, sleep: Sl
         await _fail(state, job, running, code)
         return code
 
-    outcome = await analyzer.run_analysis(job, run, state.ollama_client, state.k8s, cfg.model)
+    with state.runtime.using_model():
+        outcome = await analyzer.run_analysis(job, run, state.ollama_client, state.k8s, cfg.model)
     if outcome.error:
         # Insights stay untouched: only lastRun records the failure.
         await _fail(state, job, running, outcome.error, outcome.steps, outcome.tool_calls)
@@ -598,9 +600,7 @@ async def review_tick(state, missing: dict[str, int], clock: Callable[[], float]
     except ExporterUnavailable as e:
         logger.warning(LOG_SWEEP_LIST_FAILED, type(e).__name__)
         return
-    # An empty answer is never trusted: it would read as 'every app was deleted'.
-    if not apps:
-        return
+    # An empty list (the last app deleted) counts like any other: _cleanup waits for two successful listings.
     listed = {app_ref(ns, a.get("name")): a for a in apps
               if (ns := primary_namespace(a)) and a.get("name") and ns not in cfg.excludedNamespaces}
     records = await state.redis.hgetall(REVIEW_KEY)
@@ -637,12 +637,7 @@ async def config_poll(state, sleep: Sleep = asyncio.sleep) -> None:
     is enabled, pull that model if it is missing and autoPull is on (a fresh install then needs no Settings step)."""
     while True:
         try:
-            await exporter.refresh(state.exporter_client)
-            cfg = exporter.current()
-            state.runtime.set_enabled(cfg.enabled)
-            await state.runtime.check(cfg.model)
-            if cfg.enabled:
-                state.runtime.ensure_model(cfg.model)
+            await state.runtime.sync(state.exporter_client)
         except Exception as e:  # the poll outlives any single failure
             logger.warning(LOG_CONFIG_POLL_FAILED, type(e).__name__)
         await sleep(ANALYZER_CONFIG_POLL_SEC)

@@ -348,6 +348,7 @@ def test_ensure_model_pulls_catalog_models_only(monkeypatch):
     _run(fake, scenario)
     assert fake.count("/api/pull") == 1
     assert R.pull_allowed(MODEL) and not R.pull_allowed("llama3.1:405b")
+    assert not R.pull_allowed("qwen2.5:3b"), "non-commercial: validate() warns, Telark never downloads it"
 
 
 def test_pull_past_its_deadline_is_canceled(monkeypatch):
@@ -366,3 +367,114 @@ def test_pull_past_its_deadline_is_canceled(monkeypatch):
 
     (state, reason), rt, _ = _run(fake, scenario)
     assert (state, reason) == ("model_missing", "TimeoutError") and not rt.pulling
+
+
+def test_pull_first_deletes_other_catalog_models_on_the_bundled_runtime(monkeypatch):
+    monkeypatch.setattr(R, "OLLAMA_PRUNE_MODELS", True)
+    fake = FakeOllama(models=("granite4:350m", "qwen2.5:7b", "qwen2.5:3b", "llama3.1:8b"))
+
+    async def scenario(rt):
+        rt.start_pull(MODEL)
+
+    _, rt, _ = _run(fake, scenario)
+    assert fake.models == {"granite4:350m", MODEL, "llama3.1:8b"}, "the default and non-catalog models stay"
+    last_delete = max(i for i, path in enumerate(fake.paths) if path == "/api/delete")
+    assert fake.paths.index("/api/pull") > last_delete, "the old models go before the download"
+    assert rt.status.state == "ready"
+
+
+def test_pull_deletes_nothing_on_a_users_own_runtime(monkeypatch):
+    monkeypatch.setattr(R, "OLLAMA_PRUNE_MODELS", False)
+    fake = FakeOllama(models=("qwen2.5:7b",))
+
+    async def scenario(rt):
+        rt.start_pull(MODEL)
+
+    _run(fake, scenario)
+    assert fake.count("/api/delete") == 0 and fake.models == {"qwen2.5:7b", MODEL}
+
+
+def test_prune_waits_until_no_run_uses_a_model(monkeypatch):
+    monkeypatch.setattr(R, "OLLAMA_PRUNE_MODELS", True)
+    monkeypatch.setattr(R, "MODEL_IN_USE_POLL_S", 0)
+    fake = FakeOllama(models=("qwen2.5:7b",))
+
+    async def scenario(rt):
+        with rt.using_model():
+            rt.start_pull(MODEL)
+            for _ in range(5):
+                await asyncio.sleep(0)
+            return fake.count("/api/delete")
+
+    deleted_while_in_use, rt, _ = _run(fake, scenario)
+    assert deleted_while_in_use == 0
+    assert fake.models == {MODEL} and rt.status.state == "ready"
+
+
+def test_prune_404_counts_as_deleted_and_a_failure_ends_the_pull(monkeypatch):
+    monkeypatch.setattr(R, "OLLAMA_PRUNE_MODELS", True)
+    fake = FakeOllama(models=("qwen2.5:7b",))
+    fake.overrides["/api/delete"] = httpx.Response(404, json={"error": "model not found"})
+
+    async def scenario(rt):
+        rt.start_pull(MODEL)
+        await rt.pull_task
+        ready = rt.status.state
+        fake.models.discard(MODEL)
+        fake.overrides["/api/delete"] = httpx.Response(500, text="disk error")
+        rt.start_pull(MODEL)
+        return ready
+
+    ready, rt, _ = _run(fake, scenario)
+    assert ready == "ready" and fake.count("/api/pull") == 1, "the failed delete skips the pull; the poll retries it"
+    assert (rt.status.state, rt.status.reason) == ("model_missing", "500")
+
+
+def test_prune_idle_deletes_leftovers_once_the_configured_model_is_ready(monkeypatch):
+    monkeypatch.setattr(R, "OLLAMA_PRUNE_MODELS", True)
+    fake = FakeOllama(models=("granite4:350m", "qwen3:1.7b", "llama3.1:8b"))
+
+    async def scenario(rt):
+        await rt.prune_idle("granite4:350m")  # state unknown yet: nothing
+        untouched = set(fake.models)
+        await rt.check("granite4:350m")
+        await rt.prune_idle("granite4:350m")
+        return untouched
+
+    untouched, _, _ = _run(fake, scenario, mode="fast")
+    assert untouched == {"granite4:350m", "qwen3:1.7b", "llama3.1:8b"}
+    assert fake.models == {"granite4:350m", "llama3.1:8b"}, "the leftover catalog model goes, the non-catalog one stays"
+
+
+def test_prune_idle_skips_own_runtime_a_model_in_use_and_another_model(monkeypatch):
+    fake = FakeOllama(models=("granite4:350m", "qwen3:1.7b"))
+
+    async def scenario(rt):
+        await rt.check("granite4:350m")
+        monkeypatch.setattr(R, "OLLAMA_PRUNE_MODELS", False)
+        await rt.prune_idle("granite4:350m")
+        monkeypatch.setattr(R, "OLLAMA_PRUNE_MODELS", True)
+        with rt.using_model():
+            await rt.prune_idle("granite4:350m")
+        await rt.prune_idle("qwen3:1.7b")  # not the model the runtime reports ready
+
+    _run(fake, scenario, mode="fast")
+    assert fake.count("/api/delete") == 0
+
+
+def test_prune_idle_failure_logs_once_per_streak(monkeypatch):
+    monkeypatch.setattr(R, "OLLAMA_PRUNE_MODELS", True)
+    warnings = []
+    monkeypatch.setattr(R.logger, "warning", lambda *args: warnings.append(args))
+    fake = FakeOllama(models=("granite4:350m", "qwen3:1.7b"))
+    fake.overrides["/api/delete"] = httpx.Response(500, text="disk error")
+
+    async def scenario(rt):
+        await rt.check("granite4:350m")
+        for _ in range(3):
+            await rt.prune_idle("granite4:350m")
+        del fake.overrides["/api/delete"]
+        await rt.prune_idle("granite4:350m")
+
+    _run(fake, scenario, mode="fast")
+    assert len(warnings) == 1 and fake.models == {"granite4:350m"}

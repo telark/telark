@@ -109,7 +109,9 @@ same code checks and merges them. On a small CPU node this takes minutes.
      app's newest incident entry when no recovery followed it (an edit made during an outage, even
      one whose new pods date the symptom, did not cause it). It names the entry's first field other
      than discovery's synthetic `health`; an entry with only `health`, such as the one for an app
-     first seen down, is no change and is never cited. "N min after change" is measured to the
+     first seen down, is no change and is never cited. A field logged as added (a ConfigMap or Secret
+     ref swapped for another) takes its old value from the entry's field-level change to the same
+     value, so it reads `configMapRef <old>→<new>`. "N min after change" is measured to the
      incident's start (its earliest matched event), or to the run when no event dates it.
    - Events of a pod that no longer exists (a replaced pod's leftover) and a `FailedScheduling`
      event whose pod has a node since are history, whatever the workload's readiness. On a fully
@@ -197,7 +199,8 @@ text is exact.
   wait). An in-process sweep runs every `ANALYZER_REVIEW_TICK_SEC`: apps whose `history.generation`
   changed first, then those not reviewed for `ANALYZER_REVIEW_INTERVAL_SEC`, at most
   `ANALYZER_REVIEW_APPS_PER_MIN`. It yields while jobs are queued, skips an app another run holds,
-  and forgets an app absent from two consecutive app listings. `ANALYZER_REVIEW_INTERVAL_SEC=0` turns
+  and forgets an app absent from two consecutive successful app listings (an empty one counts: the
+  last app deleted; a failed one does not). `ANALYZER_REVIEW_INTERVAL_SEC=0` turns
   the sweep off (Analyze still reviews); nothing runs while `ai.enabled` is off.
 - **Reads** (GET only): the workloads and their pods (reused from the run), four lists per app
   namespace (Services, PodDisruptionBudgets, HorizontalPodAutoscalers, NetworkPolicies, `limit=500`,
@@ -253,7 +256,9 @@ sweep due=12 reviewed=12 removed=0
   write in unix ms; written after the document, removed after it; discovery's Insights page reads
   its rows from it), `analyzer:usage` (hash, per app: ≤ 48 usage samples per workload) and
   `analyzer:review` (hash, per app: `<generation>:<epoch>` of its last review). The sweep removes
-  all three for a deleted app.
+  all three for a deleted app. Discovery's application reset (the API and auto-cleanup) removes them
+  at once, with the app's document, cooldowns and run lease in every namespace, so a recreated app
+  starts clean.
 - **The contract is frozen in Go** (`internal/data/insights`,
   `internal/data/resources/application/insights.go`, `internal/rest/endpoints/insights`);
   `constants.py` and `models.py` mirror it with identical names.

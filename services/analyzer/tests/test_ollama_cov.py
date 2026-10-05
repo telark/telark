@@ -240,3 +240,11 @@ def test_pull_maps_http_and_transport_errors():
         _call(_respond(503, "busy"), lambda c: ollama.pull(c, "m", lambda p: None))
     with pytest.raises(ollama.OllamaUnreachable):
         _call(_raise(_connect_error(ConnectionRefusedError(111, "refused"))), lambda c: ollama.pull(c, "m", lambda p: None))
+
+
+def test_delete_tolerates_404_and_maps_errors():
+    _call(_respond(404, '{"error": "model not found"}'), lambda c: ollama.delete(c, "m"))
+    with pytest.raises(ollama.OllamaError):
+        _call(_respond(500, "disk error"), lambda c: ollama.delete(c, "m"))
+    with pytest.raises(ollama.OllamaUnreachable):
+        _call(_raise(_connect_error(ConnectionRefusedError(111, "refused"))), lambda c: ollama.delete(c, "m"))

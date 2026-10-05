@@ -10,6 +10,7 @@ ENV_REDIS_PASSWORD = "REDIS_PASSWORD"
 ENV_REDIS_POOL_SIZE = "REDIS_POOL_SIZE"
 ENV_OLLAMA_HOST = "OLLAMA_HOST"
 ENV_OLLAMA_AUTO_PULL = "OLLAMA_AUTO_PULL"
+ENV_OLLAMA_PRUNE_MODELS = "OLLAMA_PRUNE_MODELS"
 ENV_LOG_LEVEL = "LOG_LEVEL"
 ENV_API_PORT = "API_PORT"
 ENV_AUTH_SERVICE_URL = "AUTH_SERVICE_URL"
@@ -47,6 +48,8 @@ REDIS_URL_TEMPLATE = "redis://{}:{}"
 DEFAULT_REDIS_POOL_SIZE = 10
 DEFAULT_OLLAMA_HOST = "http://localhost:11434"
 DEFAULT_OLLAMA_AUTO_PULL = True
+# Only the chart's bundled runtime is Telark's to clean; a runtimeUrl the user runs never is.
+DEFAULT_OLLAMA_PRUNE_MODELS = False
 ENV_TRUE_VALUES = ("1", "true", "yes")
 DEFAULT_LOG_LEVEL = "INFO"
 DEFAULT_API_PORT = 8080
@@ -355,6 +358,7 @@ OLLAMA_TAGS_PATH = "/api/tags"
 OLLAMA_SHOW_PATH = "/api/show"
 OLLAMA_CHAT_PATH = "/api/chat"
 OLLAMA_PULL_PATH = "/api/pull"
+OLLAMA_DELETE_PATH = "/api/delete"
 OLLAMA_META_TIMEOUT_S = 5
 # Never unload: a reload re-runs Ollama's free-memory check, which counts page cache.
 OLLAMA_KEEP_ALIVE = -1
@@ -1273,8 +1277,10 @@ SSE_QUEUE_MAX = 32
 # -----------------------------------------------------------------------------
 PULL_PROGRESS_INTERVAL_S = 1
 LOG_PULL_FAILED = "model pull failed: {}"
+LOG_PRUNE_FAILED = "model delete failed: {}"
 # A pull that outlives this is canceled; the largest catalog model is a few GB.
 PULL_DEADLINE_S = 3600
+MODEL_IN_USE_POLL_S = 1
 
 LICENSE_APACHE_2 = "Apache-2.0"
 LICENSE_QWEN_RESEARCH = "Qwen Research (non-commercial)"

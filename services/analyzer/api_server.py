@@ -415,6 +415,7 @@ def create_app(
 
     @app.get(RUNTIME_PATH, dependencies=guard(METHOD_GET, RUNTIME_PATH))
     async def runtime_status() -> JSONResponse:
+        await app.state.runtime.sync(app.state.exporter_client)
         return envelope(status.HTTP_200_OK, app.state.runtime.status)
 
     @app.post(RUNTIME_VALIDATE_PATH, dependencies=guard(METHOD_POST, RUNTIME_VALIDATE_PATH))

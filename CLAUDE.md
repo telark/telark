@@ -15,7 +15,7 @@ A control plane for **protection plans** over Kubernetes workloads. It groups wo
 | `exporter` | Go | Owns every telark CRD and the snapshot and report volumes; seeds built-in access roles, categories and the `TelarkConfig`; the only stateful service | `services/exporter/README.md` |
 | `discovery` | Go | Groups workloads into applications, leader-elected reconcile loop, change history and rollback, protection-plan lifecycle, approvals, violations, reports, Kyverno policies | `services/discovery/README.md` |
 | `auth` | Go | Passkey (WebAuthn) and Google OIDC login, sessions, user/group/role deletion cleanup | `services/auth/README.md`, `OIDC.md` |
-| `notifier` | Go | Consumes the `telark.applications.*` JetStream events discovery publishes: upserts `Application` through the exporter, and on a delete calls discovery's application reset | `services/notifier/README.md` |
+| `notifier` | Go | Consumes the `telark.applications.update` JetStream events discovery publishes and upserts `Application` through the exporter. Nothing publishes deletes: application deletes go through discovery's reset | `services/notifier/README.md` |
 | `analyzer` | Python/FastAPI | Local incident analysis with an open-weight model (Ollama) over read-only cluster tools; insights in Redis; SSE to the UI | `services/analyzer/README.md`, `ARCHITECTURE.md` |
 | `ui` | (separate repo) | Dashboard SPA, `telark/dashboard-ui`; this repo ships only its image reference | none |
 

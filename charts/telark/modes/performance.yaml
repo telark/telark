@@ -47,26 +47,26 @@ services:
       # Each stream worker holds a pooled connection in a blocking read: keep the pool above them.
       REDIS_POOL_SIZE: "24"
       DISCOVERY_AUTO_CLEANUP_CYCLE_INTERVAL_SEC: "120"
-    # Budgets keep one pod through a drain once the HPA has scaled above one.
+    # maxUnavailable, not minAvailable: a drain takes one pod at a time, even at one replica.
     pdb:
       enabled: true
-      minAvailable: 1
+      maxUnavailable: 1
   analyzer:
     env:
       ANALYZER_REVIEW_APPS_PER_MIN: "60"
     pdb:
       enabled: true
-      minAvailable: 1
+      maxUnavailable: 1
   notifier:
     env:
       NOTIFIER_APPLY_WORKERS: "32"
     pdb:
       enabled: true
-      minAvailable: 1
+      maxUnavailable: 1
   auth:
     env:
       CLEANUP_WORKERS_PER_TYPE: "4"
       REDIS_POOL_SIZE: "24"
     pdb:
       enabled: true
-      minAvailable: 1
+      maxUnavailable: 1

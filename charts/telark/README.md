@@ -82,7 +82,7 @@ The tables below explain the values that matter. [VALUES.md](VALUES.md) is the g
 | `app.ollama.enabled` | `true` | Install the ollama subchart, the local model runtime the analyzer needs; `false` skips it (for example with `app.ollama.runtimeUrl`). Sized once for every mode. See [Analyzer runtime (ollama)](#analyzer-runtime-ollama) |
 | `app.ollama.autoPull` | `true` | Let the analyzer pull a missing model (and allow ollama HTTPS egress); `false` for air-gapped installs |
 | `app.ollama.runtimeUrl` | `""` | Ollama-API endpoint you run yourself (URL only, no key); empty = the subchart. See [Analyzer runtime (ollama)](#analyzer-runtime-ollama) |
-| `app.persistence.enabled` | `true` | Provision the exporter snapshot and report PVCs (kept on uninstall) |
+| `app.persistence.enabled` | `true` | Provision the exporter snapshot and report PVCs (kept on uninstall); `false` keeps the data in emptyDirs, lost with the pod, unless the claims already exist. See [Exporter storage](../../docs/INSTALL.md#exporter-storage) |
 | `app.persistence.storageClass` | `""` | `"<name>"` = explicit class; `"-"` = disable dynamic provisioning; `""` = cluster default on install, the claims' current class on upgrade. A different class moves the data to new claims; more than one exporter replica needs a ReadWriteMany class. See [Exporter storage](../../docs/INSTALL.md#exporter-storage) |
 | `app.persistence.snapshotsSize` | `512Mi` | Exporter snapshots PVC size (`performance` 2Gi); only grows, where the class allows expansion |
 | `app.persistence.reportsSize` | `512Mi` | Exporter reports PVC size (`performance` 2Gi); only grows |
@@ -125,7 +125,7 @@ Fallbacks for any `services.<svc>.*` key omitted.
 | `app.serviceDefaults.serviceType` | `ClusterIP` | K8s Service type |
 | `app.serviceDefaults.replicas` | `1` | Starting replicas; the HPA scales from here in `standard`/`performance` (`minimal` stays fixed at 1) |
 | `app.serviceDefaults.terminationGracePeriodSec` | `60` | Pod termination grace period |
-| `app.serviceDefaults.autoscaling.enabled` | `true` | Fleet-wide HPA (1 → 3 replicas on CPU; `performance` 1 → 5; `minimal` off; never the exporter). Vertical scaling: `vpa.enabled=true` installs the operator and `app.serviceDefaults.vpa.updateMode` (`Auto`) drives a VPA per service, memory only where the HPA scales on CPU. See [docs/INSTALL.md](../../docs/INSTALL.md#autoscaling-hpa) |
+| `app.serviceDefaults.autoscaling.enabled` | `true` | Fleet-wide HPA (1 → 3 replicas on CPU; `performance` 1 → 5; `minimal` off; never the exporter). Vertical scaling: `vpa.enabled=true` installs the operator (turned on by an upgrade, it needs its CRDs applied first: [Upgrade](../../docs/INSTALL.md#upgrade)) and `app.serviceDefaults.vpa.updateMode` (`Auto`) drives a VPA per service, memory only where the HPA scales on CPU. See [docs/INSTALL.md](../../docs/INSTALL.md#autoscaling-hpa) |
 | `app.serviceDefaults.autoscaling.minReplicas` / `maxReplicas` | `1` / `3` | HPA replica floor / ceiling |
 | `app.serviceDefaults.autoscaling.targetCPUUtilizationPercentage` | `80` | HPA scale-up CPU target |
 
@@ -306,7 +306,7 @@ Force-sync queue:
 | Variable | Default | Description |
 |---|---|---|
 | `FORCE_SYNC_WORKERS` | `6` | Concurrent force-sync worker count on the leader (`minimal` 2, `performance` 12) |
-| `REDIS_POOL_SIZE` | `10` | Redis connection pool. Each force-sync worker holds a connection in a blocking read, so the pool stays above the worker count (`performance` 24) |
+| `REDIS_POOL_SIZE` | `20` | Redis connection pool. On the leader the operations-stream consumer and each force-sync worker hold a connection in a blocking read, so the pool stays well above the worker count (`performance` 24) |
 | `FORCE_SYNC_STREAM_MAX_LEN` | `5000` | Redis stream length cap |
 | `FORCE_SYNC_DEDUP_TTL_SEC` | `600` | Dedup key TTL |
 | `FORCE_SYNC_JOB_TIMEOUT_SEC` | `300` | Per-job deadline |
@@ -379,7 +379,7 @@ RBAC: the analyzer ClusterRole is read-only (`get`, `list`). Besides pods, event
 
 #### Analyzer runtime (ollama)
 
-`app.ollama.enabled=true` (default) installs the ollama subchart as the analyzer's model runtime. A NetworkPolicy admits only the analyzer pods on port 11434 and allows HTTPS egress only while `app.ollama.autoPull=true`. The chart pulls no model at start: `ollama.ollama.models.pull` stays empty, because the subchart pulls in a `postStart` hook that ignores `app.ollama.autoPull`, and a failed pull there restarts the container in a loop. With `app.ollama.autoPull=true` and the analyzer enabled (the fresh-install default), the analyzer pulls the model chosen in Settings (default `granite4:350m`, 708 MB) at its first config poll when the runtime lacks it, retrying every `ANALYZER_CONFIG_POLL_SEC`; until the pull finishes, a fast-mode analysis keeps the rule text and skips the narration. Models live on a volume with `helm.sh/resource-policy: keep`, so they survive pod restarts, disabling and uninstalling. Its 6Gi (on the cluster's default class) hold the default model plus any one catalog model, since a switch never deletes the old one; use 20Gi to trial 8B models.
+`app.ollama.enabled=true` (default) installs the ollama subchart as the analyzer's model runtime. A NetworkPolicy admits only the analyzer pods on port 11434 and allows HTTPS egress only while `app.ollama.autoPull=true`. The chart pulls no model at start: `ollama.ollama.models.pull` stays empty, because the subchart pulls in a `postStart` hook that ignores `app.ollama.autoPull`, and a failed pull there restarts the container in a loop. With `app.ollama.autoPull=true` and the analyzer enabled (the fresh-install default), the analyzer pulls the model chosen in Settings (default `granite4:350m`, 708 MB) at its first config poll when the runtime lacks it, retrying every `ANALYZER_CONFIG_POLL_SEC`; until the pull finishes, a fast-mode analysis keeps the rule text and skips the narration. Models live on a volume with `helm.sh/resource-policy: keep`, so they survive pod restarts, disabling and uninstalling. Its 6Gi (on the cluster's default class) hold the default model plus any one catalog model, since a model switch deletes the other catalog models (never on a `runtimeUrl` you run); use 20Gi to trial 8B models.
 
 Sizing does not follow `app.mode`: Helm resolves a subchart's values before the mode preset applies, so `ollama.resources` is one value for every mode. The default (requests `250m` / `1536Mi`, limit cpu `2`) is the CPU tiny profile below. Measured with `granite4:350m` loaded at a 4k context, ollama holds about 1.1Gi and idles near 0 CPU, and a narration bursts to the 2-core limit for a few seconds. The low request lets `minimal` fit one 2 vCPU / 8 GiB node; raise it with the profile values on bigger nodes.
 
@@ -393,7 +393,7 @@ Profiles (one slot):
 | CPU 4 vCPU | `qwen3:1.7b` | cpu 1, memory 4Gi | cpu 4 | `ollama.resources.requests.cpu=1`, `ollama.resources.requests.memory=4Gi`, `ollama.resources.limits.cpu=4`, `services.analyzer.env.ANALYZER_NUM_THREAD=4` | 20–45 s |
 | GPU / deep | `qwen3:4b` | cpu 1, memory 3Gi, `nvidia.com/gpu` 1 | cpu 2, `nvidia.com/gpu` 1 | `ollama.resources.requests.cpu=1`, `ollama.resources.requests.memory=3Gi`, `ollama.ollama.gpu.enabled=true`, `ANALYZER_MODE=deep`, `ANALYZER_CONTEXT_TOKENS=8192` and `OLLAMA_CONTEXT_LENGTH=8192`, `ANALYZER_WALL_SEC=480` | minutes on CPU; seconds on GPU |
 
-Models (all Apache-2.0; Settings shows the license of any tag you type and warns on non-commercial ones such as `qwen2.5:3b`). Fast mode accepts any installed model; deep mode requires the `tools` capability:
+Models (all Apache-2.0; the Settings model picker offers only these, and Telark never pulls a non-commercial model such as `qwen2.5:3b`). Fast mode accepts any installed model; deep mode requires the `tools` capability:
 
 | Model | License | Note |
 |---|---|---|
@@ -461,7 +461,7 @@ WebAuthn / passkey (templated from `app.auth.passkey`):
 | `RP_ID` | `{{ .Values.app.auth.passkey.id }}` | Relying Party identifier; empty follows the request host |
 | `RP_NAME` | `{{ .Values.app.auth.passkey.name }}` | Display name shown to the user |
 | `RP_ORIGIN` | `{{ .Values.app.auth.passkey.origin }}` | Allowed origin(s), comma-separated; empty follows the request `Origin` |
-| `ENROLL_INVITE_TTL_SEC` | inline (`"3600"`) | Lifetime (seconds) of an enrollment link created from Members; a new link revokes the previous one. See [Enrollment links](../../docs/INSTALL.md#enrollment-links) |
+| `ENROLL_INVITE_TTL_SEC` | inline (`"3600"`) | Lifetime (seconds) of an enrollment link created from Members or by `break-glass --enroll`; a new link revokes the previous one. See [Enrollment links](../../docs/INSTALL.md#enrollment-links) |
 | `CHALLENGE_TIMEOUT` | inline (`"60"`) | Challenge TTL (seconds) |
 | `SESSION_EXPIRY` | inline (`"24"`) | Session TTL (hours) |
 
@@ -478,7 +478,7 @@ Cleanup controllers + queue:
 | `RECONCILE_TICK_SECONDS` | `5` | Reconciler tick interval |
 | `RECONCILE_PASS_DEADLINE_SECONDS` | `30` | Per-pass deadline |
 | `CLEANUP_WORKERS_PER_TYPE` | `2` | Workers per cleanup type |
-| `REDIS_POOL_SIZE` | `10` | Redis connection pool. Each cleanup worker (three types) holds a connection in a blocking read, so the pool stays above the worker total (`performance` 24) |
+| `REDIS_POOL_SIZE` | `16` | Redis connection pool. Each cleanup worker (three types) holds a connection in a blocking read, so the pool stays well above the worker total (`performance` 24) |
 | `CLEANUP_STREAM_MAXLEN` | `10000` | Cleanup stream length cap |
 | `CLEANUP_LAG_ALERT_THRESHOLD` | `500` | Lag threshold for alerts |
 | `CLEANUP_SWEEPER_INTERVAL_SECONDS` | `60` | Sweeper interval |
@@ -488,7 +488,7 @@ Cleanup controllers + queue:
 | `CLEANUP_LIST_TIMEOUT_SECONDS` | `10` | List op timeout |
 | `CLEANUP_PATCH_TIMEOUT_SECONDS` | `5` | Patch op timeout |
 | `CLEANUP_MAX_CONCURRENT_PATCHES` | `4` | Concurrent patch cap |
-| `RECONCILE_BACKOFF_INITIAL_SECONDS` | `5` | Initial backoff for failed reconciles |
+| `RECONCILE_BACKOFF_INITIAL_SECONDS` | `5` | Initial backoff for failed reconciles. Also paces a cleanup worker after a failed stream read or reclaim: it doubles from this value up to the lower of `RECONCILE_BACKOFF_MAX_SECONDS` and `CLEANUP_XCLAIM_MIN_IDLE_SECONDS` (60 s by default), and resets on the first good pass |
 | `RECONCILE_BACKOFF_MAX_SECONDS` | `300` | Max backoff cap |
 
 #### `services.ui.env`

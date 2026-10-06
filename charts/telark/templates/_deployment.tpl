@@ -109,6 +109,9 @@ spec:
           labelSelector:
             matchLabels:
               {{- include "telark.selectorLabels" (dict "root" $root "component" $serviceConfig.name) | nindent 14 }}
+          # Counts only this ReplicaSet's pods, so a rollout spreads the new pods too.
+          matchLabelKeys:
+            - pod-template-hash
 {{- end }}
 {{- with $serviceConfig.initContainers }}
       initContainers:

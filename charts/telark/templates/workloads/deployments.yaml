@@ -4,6 +4,17 @@
 {{- include "validateSecuritySettings" $ -}}
 {{- if and $values.services.exporter.enabled $values.app.persistence.enabled -}}
 {{- include "telark.exporterMigration" (dict "values" $values "root" $) -}}
+{{- else -}}
+{{- /* No claims render: an emptyDir stands in for each one, unless the claim exists (kept from an earlier install, or made by hand). */}}
+{{- $volumes := list -}}
+{{- range $values.services.exporter.volumes -}}
+{{- if and .persistentVolumeClaim (not (lookup "v1" "PersistentVolumeClaim" $values.app.namespace (tpl .persistentVolumeClaim.claimName $))) -}}
+{{- $volumes = append $volumes (dict "name" .name "emptyDir" dict) -}}
+{{- else -}}
+{{- $volumes = append $volumes . -}}
+{{- end -}}
+{{- end -}}
+{{- $_ := set $values.services.exporter "volumes" $volumes -}}
 {{- end -}}
 {{- range $name, $svc := $values.services }}
 {{- if $svc.enabled }}

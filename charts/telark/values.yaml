@@ -300,6 +300,8 @@ services:
       PROTECTION_PLAN_REPORT_MAX_VIOLATIONS: "5000"
       PROTECTION_PLAN_REPORT_CHECKPOINT_SEC: "900"
       FORCE_SYNC_WORKERS: "6"
+      # The leader's stream reads (FORCE_SYNC_WORKERS + 1) each block a pooled connection: keep the pool well above them.
+      REDIS_POOL_SIZE: "20"
       FORCE_SYNC_STREAM_MAX_LEN: "5000"
       FORCE_SYNC_DEDUP_TTL_SEC: "600"
       FORCE_SYNC_JOB_TIMEOUT_SEC: "300"
@@ -341,6 +343,8 @@ services:
       REDIS_POOL_SIZE: "10"
       OLLAMA_HOST: '{{ default (printf "http://%s-ollama:11434" .Release.Name) .Values.app.ollama.runtimeUrl }}'
       OLLAMA_AUTO_PULL: '{{ .Values.app.ollama.autoPull }}'
+      # Only the bundled runtime: models on a runtimeUrl you run are never deleted.
+      OLLAMA_PRUNE_MODELS: '{{ and .Values.app.ollama.enabled (empty .Values.app.ollama.runtimeUrl) }}'
       ANALYZER_MODE: "fast"
       # = ollama.resources.limits.cpu; never above the node's vCPU.
       ANALYZER_NUM_THREAD: "2"
@@ -413,6 +417,8 @@ services:
       RECONCILE_TICK_SECONDS: "5"
       RECONCILE_PASS_DEADLINE_SECONDS: "30"
       CLEANUP_WORKERS_PER_TYPE: "2"
+      # 3 × CLEANUP_WORKERS_PER_TYPE stream reads each block a pooled connection: keep the pool well above them.
+      REDIS_POOL_SIZE: "16"
       CLEANUP_STREAM_MAXLEN: "10000"
       CLEANUP_LAG_ALERT_THRESHOLD: "500"
       CLEANUP_SWEEPER_INTERVAL_SECONDS: "60"
@@ -702,7 +708,7 @@ ollama:
       pull: []
   persistentVolume:
     enabled: true
-    size: 6Gi                # the default model plus any one catalog model: a switch never deletes the old one
+    size: 6Gi                # the default model plus any one catalog model: a switch deletes the others
     # Empty -> cluster default class. Override per env via --set or values overlay.
     storageClass: ""
     annotations:

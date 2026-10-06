@@ -18,6 +18,9 @@ import (
 const (
 	randomBytesLen = 16
 	testPath       = "/"
+	// The UI tells refusals apart by this key, so it is pinned.
+	refusalCodeKey = "code"
+	refusalCode    = "enroll_link_recovery"
 )
 
 // Email validation must reject empties and malformed addresses — the login flow
@@ -92,6 +95,13 @@ func TestResponseHelpers(t *testing.T) {
 		w := httptest.NewRecorder()
 		shared.SendErrorResponse(w, http.StatusBadRequest, errString("bad"))
 		assertJSON(t, w, http.StatusBadRequest, constants.JSONKeyError, true)
+		assertJSON(t, w, http.StatusBadRequest, refusalCodeKey, nil)
+	})
+	t.Run("refusal keeps its message and adds its code", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		shared.SendErrorResponse(w, http.StatusForbidden, shared.Refuse(refusalCode, errString("refused")))
+		assertJSON(t, w, http.StatusForbidden, constants.JSONKeyMessage, "refused")
+		assertJSON(t, w, http.StatusForbidden, refusalCodeKey, refusalCode)
 	})
 	t.Run("handle error logs and responds", func(t *testing.T) {
 		w := httptest.NewRecorder()

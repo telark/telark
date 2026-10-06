@@ -41,11 +41,37 @@ func SendErrorResponse(w http.ResponseWriter, statusCode int, err error) {
 		statusCode = http.StatusRequestEntityTooLarge
 	}
 
-	const responseSize = 2
+	const responseSize = 3
 	response := make(map[string]any, responseSize)
 	response[constants.JSONKeyError] = true
 	response[constants.JSONKeyMessage] = err.Error()
+	if code := refusalCode(err); code != constants.EmptyString {
+		response[constants.JSONKeyCode] = code
+	}
 	SendJSONResponse(w, statusCode, response)
+}
+
+// The routes that answer in the rest envelope carry a refusal's code beside its message too.
+func SendRefusal(w http.ResponseWriter, statusCode int, err error) {
+	SendJSONResponse(w, statusCode, RefusalResponse{
+		GenericResponse: *restresponse.NewGenericResponse(statusCode, restresponse.OperationError, nil, err.Error()),
+		Code:            refusalCode(err),
+	})
+}
+
+func Refuse(code string, err error) error {
+	return &RefusalError{Code: code, Err: err}
+}
+
+func (e *RefusalError) Error() string {
+	return e.Err.Error()
+}
+
+func refusalCode(err error) string {
+	if refusal, ok := errors.AsType[*RefusalError](err); ok {
+		return refusal.Code
+	}
+	return constants.EmptyString
 }
 
 func SendSuccessResponse(w http.ResponseWriter, message string, data any) {

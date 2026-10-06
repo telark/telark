@@ -61,7 +61,7 @@ func handleDelete(
 	}
 
 	if status, guardErr := guard(r.Context(), id); guardErr != nil {
-		resputils.LogAndSendResponse(w, status, response.OperationError, guardErr.Error(), nil, nil)
+		sharedhelper.SendRefusal(w, status, guardErr)
 		return
 	}
 

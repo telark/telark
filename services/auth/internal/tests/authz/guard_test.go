@@ -3,6 +3,7 @@ package authz
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"path"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/auth/internal/authz"
 	"github.com/telark/telark/services/auth/internal/constants"
+	"github.com/telark/telark/services/auth/internal/helpers/shared"
 	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
@@ -303,6 +305,55 @@ func TestGuardBootstrapCaller(t *testing.T) {
 			status, err := authz.GuardBootstrapCaller(c.caller.ctx())
 			testutil.Equal(t, "status", status, c.status)
 			testutil.Equal(t, "refused", err != nil, c.status != http.StatusOK)
+		})
+	}
+}
+
+// Every refusal carries a code the UI can branch on instead of the wording, which may change.
+func TestGuardRefusalCodes(t *testing.T) {
+	testutil.StubBackend(t, enrollDirectory())
+	usersOwner := caller{userID: ownerID, level: roledata.PermissionLevelOwner, scope: roledata.ScopeUsers}
+	ownerOnAll := caller{userID: ownerID, level: roledata.PermissionLevelOwner}
+	admin := caller{userID: adminID, level: roledata.PermissionLevelAdmin}
+	cases := []struct {
+		name  string
+		guard func() (int, error)
+		code  string
+	}{
+		{"own account deleted", func() (int, error) {
+			return authz.GuardUserDelete(usersOwner.ctx(), ownerID)
+		}, "self_delete"},
+		{"bootstrap account deleted", func() (int, error) {
+			return authz.GuardUserDelete(admin.ctx(), bootstrapID)
+		}, "bootstrap_managed"},
+		{"role above the caller deleted", func() (int, error) {
+			return authz.GuardRoleDelete(ownerOnAll.ctx(), adminRoleID)
+		}, "role_above_caller_level"},
+		{"link for oneself", func() (int, error) {
+			return authz.GuardEnrollLinkIssue(usersOwner.ctx(), ownerID)
+		}, "enroll_link_self"},
+		{"link for the bootstrap account", func() (int, error) {
+			return authz.GuardEnrollLinkIssue(admin.ctx(), bootstrapID)
+		}, "enroll_link_bootstrap"},
+		{"link above the caller", func() (int, error) {
+			return authz.GuardEnrollLinkIssue(usersOwner.ctx(), appsAdminID)
+		}, "enroll_link_above_level"},
+		{"recovery link", func() (int, error) {
+			return authz.GuardEnrollLinkIssue(usersOwner.ctx(), enrolledID)
+		}, "enroll_link_recovery"},
+		{"sign-in settings", func() (int, error) {
+			return authz.GuardBootstrapCaller(admin.ctx())
+		}, "sign_in_settings_bootstrap_only"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			status, err := c.guard()
+			testutil.Equal(t, "status", status, http.StatusForbidden)
+			refusal, ok := errors.AsType[*shared.RefusalError](err)
+			if !ok {
+				t.Fatalf("refusal %v carries no code", err)
+			}
+			testutil.Equal(t, "code", refusal.Code, c.code)
 		})
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/telark/telark/internal/rest/response"
 	authclients "github.com/telark/telark/services/auth/internal/clients"
 	"github.com/telark/telark/services/auth/internal/constants"
+	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
 )
 
 type ResourceOps struct {
@@ -152,5 +153,20 @@ func purgeUser(userID string) error {
 	if err := purgeUserSessions(userID); err != nil {
 		return err
 	}
+	if err := authhelper.DropInviteKeys(userID); err != nil {
+		return fmt.Errorf(string(constants.ErrCleanupDropInviteFailed), userID, err)
+	}
 	return purgeUserPasskeys(userID)
+}
+
+func purgeUserNotifications(userID string) error {
+	resp := authclients.GetNotificationsClient().Clear(context.Background(), userID)
+	if resp == nil || resp.Status != http.StatusOK {
+		status := constants.DefaultInitValue
+		if resp != nil {
+			status = resp.Status
+		}
+		return fmt.Errorf(string(constants.ErrCleanupClearNoticesFailed), userID, status)
+	}
+	return nil
 }

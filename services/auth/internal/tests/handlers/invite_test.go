@@ -347,3 +347,45 @@ func TestEnrollmentThroughTheLinkClosesTheInvite(t *testing.T) {
 		})
 	}
 }
+
+// Opening a link spends it, so its invite shows pending only while the ceremony it started can
+// still finish, then expired. A link the account made for itself leaves a pending invite alone.
+func TestOpenedLinkEndsTheInviteWithItsCeremony(t *testing.T) {
+	initWebAuthn(t)
+	cases := []struct {
+		name     string
+		open     func(t *testing.T) string
+		shortens bool
+	}{
+		{"invite link", func(t *testing.T) string {
+			return issueLink(t, enrolledTargetID, adminOnAll()).Token
+		}, true},
+		{"own link", func(t *testing.T) string {
+			issueLink(t, enrolledTargetID, adminOnAll())
+			token, _, err := authhelper.CreateEnrollToken(enrolledTargetID)
+			if err != nil {
+				t.Fatalf("own link: %v", err)
+			}
+			return token
+		}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fake := inviteDirectory()
+			testutil.StubBackend(t, fake)
+			token := c.open(t)
+			issued := *fake.User(enrolledTargetID).Status.Invite
+			testutil.Equal(t, "open", startWith(token).Code, http.StatusOK)
+
+			invite := fake.User(enrolledTargetID).Status.Invite
+			if invite == nil || invite.IssuedBy != issued.IssuedBy || invite.IssuedAt != issued.IssuedAt {
+				t.Fatalf("invite after opening = %+v, want the issued one %+v", invite, issued)
+			}
+			expires, err := time.Parse(time.RFC3339, invite.ExpiresAt)
+			if err != nil {
+				t.Fatalf("expiresAt %q: %v", invite.ExpiresAt, err)
+			}
+			testutil.Equal(t, "pending past the ceremony", time.Until(expires) > time.Minute, !c.shortens)
+		})
+	}
+}

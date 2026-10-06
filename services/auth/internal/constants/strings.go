@@ -5,6 +5,7 @@ const (
 	JSONKeySuccess                = "success"
 	JSONKeyMessage                = "message"
 	JSONKeyData                   = "data"
+	JSONKeyCode                   = "code"
 	JSONKeySelfRegEnabled         = "selfRegistrationEnabled"
 	JSONKeyOIDCEnabled            = "oidcEnabled"
 	JSONKeyGoogleClientID         = "googleClientID"
@@ -76,4 +77,23 @@ const (
 	BreakGlassAlreadyAdmin        = "user %s already has Admin role\n"
 	BreakGlassPatchFailed         = "patch failed: status %d: %s\n"
 	BreakGlassPromoted            = "promoted %s to Admin\n"
+)
+
+// A refusal's code is what clients branch on, so its message can be reworded freely.
+const (
+	RefusalSelfDelete                  = "self_delete"
+	RefusalBootstrapManaged            = "bootstrap_managed"
+	RefusalRoleAboveCallerLevel        = "role_above_caller_level"
+	RefusalEnrollLinkSelf              = "enroll_link_self"
+	RefusalEnrollLinkBootstrap         = "enroll_link_bootstrap"
+	RefusalEnrollLinkAboveLevel        = "enroll_link_above_level"
+	RefusalEnrollLinkRecovery          = "enroll_link_recovery"
+	RefusalSignInSettingsBootstrapOnly = "sign_in_settings_bootstrap_only"
+	RefusalEmailMismatch               = "email_mismatch"
+	RefusalEmailReserved               = "email_reserved"
+	RefusalSelfRegistrationDisabled    = "self_registration_disabled"
+	RefusalAccountSuspended            = "account_suspended"
+	RefusalAccountNotActive            = "account_not_active"
+	RefusalBootstrapPasskeyOnly        = "bootstrap_passkey_only"
+	RefusalUserNotFound                = "user_not_found"
 )

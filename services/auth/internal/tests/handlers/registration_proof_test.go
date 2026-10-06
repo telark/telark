@@ -99,11 +99,12 @@ func TestRegisterStartProofRules(t *testing.T) {
 		body           string
 		passkeyFailure bool
 		status         int
+		code           string
 	}{
-		{"bootstrap email is reserved", `{"email":"` + bootstrapEmail + `"}`, false, http.StatusForbidden},
-		{"existing account without passkeys", emailBody, false, http.StatusUnauthorized},
-		{"existing account, passkey lookup down", emailBody, true, http.StatusUnauthorized},
-		{"unknown email self-registers", `{"email":"` + newEmail + `"}`, false, http.StatusOK},
+		{"bootstrap email is reserved", `{"email":"` + bootstrapEmail + `"}`, false, http.StatusForbidden, "email_reserved"},
+		{"existing account without passkeys", emailBody, false, http.StatusUnauthorized, constants.EmptyString},
+		{"existing account, passkey lookup down", emailBody, true, http.StatusUnauthorized, constants.EmptyString},
+		{"unknown email self-registers", `{"email":"` + newEmail + `"}`, false, http.StatusOK, constants.EmptyString},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -115,6 +116,7 @@ func TestRegisterStartProofRules(t *testing.T) {
 			if rec.Code != c.status {
 				t.Fatalf("status = %d, want %d (body %s)", rec.Code, c.status, rec.Body.String())
 			}
+			testutil.Equal(t, "code", refusalCode(t, rec), c.code)
 			testutil.Equal(t, "accounts created at start", len(stub.created), constants.DefaultInitValue)
 		})
 	}
@@ -318,6 +320,7 @@ func TestGoogleCallbackRefusesTheBootstrapAdmin(t *testing.T) {
 			oidchandler.GoogleCallback(rec, jsonReq(signedCallbackBody(t, bootstrapEmail)))
 			testutil.Equal(t, "status", rec.Code, http.StatusForbidden)
 			testutil.Equal(t, "message", strings.Contains(rec.Body.String(), bootstrapRefusal), true)
+			testutil.Equal(t, "code", refusalCode(t, rec), "bootstrap_passkey_only")
 			c.backend.mu.Lock()
 			defer c.backend.mu.Unlock()
 			testutil.Equal(t, "writes", c.backend.writes, constants.DefaultInitValue)
@@ -337,6 +340,7 @@ func TestGoogleCallbackRefusesASuspendedAccount(t *testing.T) {
 	oidchandler.GoogleCallback(rec, jsonReq(signedCallbackBody(t, suspendedEmail)))
 	testutil.Equal(t, "status", rec.Code, http.StatusForbidden)
 	testutil.Equal(t, "message", strings.Contains(rec.Body.String(), suspendedRefusal), true)
+	testutil.Equal(t, "code", refusalCode(t, rec), "account_suspended")
 	backend.mu.Lock()
 	defer backend.mu.Unlock()
 	testutil.Equal(t, "writes", backend.writes, constants.DefaultInitValue)

@@ -12,6 +12,7 @@ import (
 	"github.com/telark/telark/internal/rest/base"
 	restconstants "github.com/telark/telark/internal/rest/constants"
 	autheps "github.com/telark/telark/internal/rest/endpoints/auth"
+	restresponse "github.com/telark/telark/internal/rest/response"
 	"github.com/telark/telark/internal/rest/router"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/auth/internal/constants"
@@ -171,6 +172,11 @@ func TestDeleteRoleAndGroupCleanupAreCapped(t *testing.T) {
 			mux.ServeHTTP(rec, r.WithContext(xauthz.WithIdentity(r.Context(), owner)))
 			testutil.Equal(t, "status", rec.Code, http.StatusForbidden)
 			testutil.Equal(t, "exporter deletes", deletes, 0)
+			var body restresponse.GenericResponse
+			if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || body.Status != http.StatusForbidden || body.Message == "" {
+				t.Fatalf("refusal envelope = %+v (%v), want status and message kept", body, err)
+			}
+			testutil.Equal(t, "code", refusalCode(t, rec), "role_above_caller_level")
 		})
 	}
 }

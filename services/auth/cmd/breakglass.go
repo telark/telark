@@ -65,7 +65,8 @@ func printEnrollToken(userID, email string) int {
 		_, _ = fmt.Fprintf(os.Stderr, constants.BreakGlassEnrollFailed, errors.New(string(constants.ErrRedisClientUnavailable)))
 		return constants.ExitCodeError
 	}
-	token, expiresAt, err := authhelper.CreateEnrollToken(userID)
+	// Issued as an invite so break-glass leaves a trace: one live token, the record and the owner's notices.
+	token, expiresAt, err := authhelper.IssueInvite(userID, constants.EmptyString)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, constants.BreakGlassEnrollFailed, err)
 		return constants.ExitCodeError

@@ -12,6 +12,7 @@ import (
 	"github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/auth/internal/constants"
 	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
+	"github.com/telark/telark/services/auth/internal/helpers/shared"
 )
 
 // Bootstrap users are never deleted through the API, and a caller below Admin is
@@ -25,7 +26,7 @@ func GuardUserDelete(ctx context.Context, targetID string) (int, error) {
 		return http.StatusOK, nil
 	}
 	if caller.UserID == targetID {
-		return http.StatusForbidden, errors.New(string(constants.ErrCleanupSelfDelete))
+		return http.StatusForbidden, shared.Refuse(constants.RefusalSelfDelete, errors.New(string(constants.ErrCleanupSelfDelete)))
 	}
 
 	target, err := clientSource{}.User(targetID)
@@ -85,7 +86,8 @@ func rolesWithinCaller(caller authz.Identity, roleIDs []string) (int, error) {
 		}
 		for _, entry := range role.ScopesAndPermissions {
 			if !authz.Allows(caller, authz.Requirement{Scope: entry.Scope, MinLevel: entry.Level}) {
-				return http.StatusForbidden, fmt.Errorf(string(constants.ErrAuthzRemovedRoleExceedsCaller), role.Name, entry.Level, entry.Scope)
+				return http.StatusForbidden, shared.Refuse(constants.RefusalRoleAboveCallerLevel,
+					fmt.Errorf(string(constants.ErrAuthzRemovedRoleExceedsCaller), role.Name, entry.Level, entry.Scope))
 			}
 		}
 	}
@@ -105,7 +107,7 @@ func guardProtectedTarget(caller authz.Identity, targetBootstrap bool) (int, err
 		return http.StatusNotFound, errors.New(string(constants.ErrUserNotFound))
 	}
 	if targetBootstrap {
-		return http.StatusForbidden, errors.New(string(constants.ErrCleanupBootstrapManaged))
+		return http.StatusForbidden, shared.Refuse(constants.RefusalBootstrapManaged, errors.New(string(constants.ErrCleanupBootstrapManaged)))
 	}
 	return http.StatusOK, nil
 }
@@ -163,7 +165,7 @@ func guardEnrollLink(ctx context.Context, targetID string, issuing bool) (int, e
 		return http.StatusOK, nil
 	}
 	if caller.UserID == targetID {
-		return http.StatusForbidden, errors.New(string(constants.ErrEnrollLinkSelf))
+		return http.StatusForbidden, shared.Refuse(constants.RefusalEnrollLinkSelf, errors.New(string(constants.ErrEnrollLinkSelf)))
 	}
 
 	// The exporter answers 410 for a record only the cleanup finalizer still holds.
@@ -194,14 +196,15 @@ func guardEnrollTarget(caller authz.Identity, target *userdata.User, grants auth
 		return http.StatusNotFound, errors.New(string(constants.ErrUserNotFound))
 	}
 	if target.Bootstrap {
-		return http.StatusForbidden, errors.New(string(constants.ErrEnrollLinkBootstrap))
+		return http.StatusForbidden, shared.Refuse(constants.RefusalEnrollLinkBootstrap, errors.New(string(constants.ErrEnrollLinkBootstrap)))
 	}
 	if issuing && userdata.AccountPhase(target.Status.Phase) == userdata.AccountPhaseSuspended {
 		return http.StatusConflict, errors.New(string(constants.ErrEnrollLinkSuspended))
 	}
 	for scope, level := range grants.Levels {
 		if !authz.Allows(caller, authz.Requirement{Scope: scope, MinLevel: level}) {
-			return http.StatusForbidden, fmt.Errorf(string(constants.ErrEnrollLinkAboveLevel), level, scope)
+			return http.StatusForbidden, shared.Refuse(constants.RefusalEnrollLinkAboveLevel,
+				fmt.Errorf(string(constants.ErrEnrollLinkAboveLevel), level, scope))
 		}
 	}
 	return http.StatusOK, nil
@@ -220,7 +223,7 @@ func guardRecovery(caller authz.Identity, targetID string) (int, error) {
 	if !hasPasskeys {
 		return http.StatusOK, nil
 	}
-	return requireBootstrap(caller, constants.ErrEnrollLinkRecovery)
+	return requireBootstrap(caller, constants.RefusalEnrollLinkRecovery, constants.ErrEnrollLinkRecovery)
 }
 
 // Who may sign in, and how, is changed only by the chart's bootstrap account.
@@ -232,18 +235,18 @@ func GuardBootstrapCaller(ctx context.Context) (int, error) {
 	if caller.Internal {
 		return http.StatusOK, nil
 	}
-	return requireBootstrap(caller, constants.ErrSignInSettingsBootstrap)
+	return requireBootstrap(caller, constants.RefusalSignInSettingsBootstrapOnly, constants.ErrSignInSettingsBootstrap)
 }
 
 // Grants can be handed out and the bootstrap marker cannot, so it is read from the
 // caller's own record rather than inferred from the session's grants.
-func requireBootstrap(caller authz.Identity, refusal dataerrors.Error) (int, error) {
+func requireBootstrap(caller authz.Identity, code string, refusal dataerrors.Error) (int, error) {
 	user, err := clientSource{}.User(caller.UserID)
 	if err != nil {
 		return http.StatusServiceUnavailable, errors.New(string(dataerrors.ErrAuthzResolverUnavailable))
 	}
 	if !user.Bootstrap {
-		return http.StatusForbidden, errors.New(string(refusal))
+		return http.StatusForbidden, shared.Refuse(code, errors.New(string(refusal)))
 	}
 	return http.StatusOK, nil
 }

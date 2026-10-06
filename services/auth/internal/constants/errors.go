@@ -167,6 +167,8 @@ const (
 	ErrOIDCEmailAmbiguous        errors.Error = "more than one user holds this email; contact your administrator"
 	ErrOIDCEmailAlreadyBound     errors.Error = "this email belongs to an account that already signs in another way; contact your administrator"
 	ErrOIDCBootstrapPasskeyOnly  errors.Error = "the bootstrap administrator signs in with a passkey"
+	// Wraps the cause, so the code of a refused session still reaches the response.
+	ErrOIDCCreateSessionFailed errors.Error = "failed to create session: %w"
 
 	// Redis Errors
 	ErrRedisClientUnavailable errors.Error = "redis client is not available — check REDIS_HOST and REDIS_PORT"
@@ -179,6 +181,7 @@ const (
 	// Enrollment Link Warnings
 	WarnEnrollNoticeFailed errors.Error = "enrollment link notice not delivered to identityHash=%s"
 	WarnInviteCloseFailed  errors.Error = "failed to close the enrollment invite of identityHash=%s: %v"
+	WarnInviteOpenFailed   errors.Error = "failed to record the opened enrollment invite of identityHash=%s: %v"
 
 	// Credential Verification Errors
 	ErrBackupEligibleFlagInconsistency errors.Error = "backup eligible flag inconsistency: stored (BE:%v, BS:%v) != login (BE:%v, BS:%v)"

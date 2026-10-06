@@ -99,7 +99,7 @@ func ownUser(userID, email string) (*userresource.User, error) {
 		return nil, err
 	}
 	if email != constants.EmptyString && !strings.EqualFold(email, user.Email) {
-		return nil, errors.New(string(constants.ErrRegisterEmailMismatch))
+		return nil, shared.Refuse(constants.RefusalEmailMismatch, errors.New(string(constants.ErrRegisterEmailMismatch)))
 	}
 	return user, nil
 }
@@ -112,7 +112,7 @@ func userForEmail(email string) (*userresource.User, string, error) {
 		return nil, constants.EmptyString, err
 	}
 	if config.IsBootstrapAdmin(email) {
-		return nil, constants.EmptyString, errors.New(string(constants.ErrReservedEmail))
+		return nil, constants.EmptyString, shared.Refuse(constants.RefusalEmailReserved, errors.New(string(constants.ErrReservedEmail)))
 	}
 
 	userClient := clients.GetUserClient()
@@ -146,7 +146,8 @@ func GetUserForRegistrationStart(r *http.Request) (
 	}
 
 	if enrollToken != constants.EmptyString {
-		userID, err = ResolveEnrollToken(enrollToken)
+		var invite bool
+		userID, invite, err = ResolveEnrollToken(enrollToken)
 		if err != nil {
 			return nil, constants.EmptyString, false, err
 		}
@@ -157,6 +158,9 @@ func GetUserForRegistrationStart(r *http.Request) (
 		}
 		if err != nil {
 			return nil, constants.EmptyString, false, err
+		}
+		if invite {
+			markInviteOpened(user)
 		}
 		return user, userID, true, nil
 	}

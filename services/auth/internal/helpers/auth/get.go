@@ -25,16 +25,16 @@ func GetUserWithErrorHandling(
 	user, err := retrievalFunc(identifier)
 	if err != nil {
 		if errors.Is(err, restshared.ErrNotFound) {
-			return nil, errors.New(string(constants.ErrUserNotFound))
+			return nil, shared.Refuse(constants.RefusalUserNotFound, errors.New(string(constants.ErrUserNotFound)))
 		}
 		if errors.Is(err, restshared.ErrGone) {
-			return nil, errors.New(string(dataerrors.ErrAuthzUserNotActive))
+			return nil, shared.Refuse(constants.RefusalAccountNotActive, errors.New(string(dataerrors.ErrAuthzUserNotActive)))
 		}
 		lg.Error(fmt.Sprintf(string(constants.ErrFailedGetUser), shared.IdentityHash(identifier), err))
 		return nil, shared.ErrBackendUnavailable
 	}
 	if user == nil {
-		return nil, errors.New(string(constants.ErrUserNotFound))
+		return nil, shared.Refuse(constants.RefusalUserNotFound, errors.New(string(constants.ErrUserNotFound)))
 	}
 	return user, nil
 }

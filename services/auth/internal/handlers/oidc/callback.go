@@ -35,12 +35,11 @@ func GoogleCallback(w http.ResponseWriter, r *http.Request) {
 
 	claims, err := oidchelper.ValidateGoogleIDToken(req.IDToken, oidcCfg)
 	if err != nil {
-		shared.HandleError(w, err, http.StatusUnauthorized, err.Error())
+		shared.SendErrorResponse(w, http.StatusUnauthorized, err)
 		return
 	}
 
-	if err := oidchelper.VerifyAndConsumeNonce(claims.Nonce); err != nil {
-		shared.HandleError(w, err, http.StatusUnauthorized, err.Error())
+	if !isNonceAccepted(w, claims.Nonce) {
 		return
 	}
 
@@ -55,9 +54,7 @@ func GoogleCallback(w http.ResponseWriter, r *http.Request) {
 
 	sessionToken, err := authhelper.CreateUserSession(user.ID, &req.DeviceMetadata)
 	if err != nil {
-		shared.HandleError(w, fmt.Errorf(string(constants.ErrFailedCreateSession), err),
-			shared.GetStatusCodeForSessionError(err),
-			fmt.Sprintf(string(constants.ErrFailedCreateSession), err))
+		sendCallbackError(w, fmt.Errorf(string(constants.ErrOIDCCreateSessionFailed), err), shared.GetStatusCodeForSessionError(err))
 		return
 	}
 
@@ -83,10 +80,23 @@ func isOIDCConfigured(w http.ResponseWriter, oidc telarkconfigresource.OIDCConfi
 	return false
 }
 
+// A missing or spent nonce is the caller's; Redis failing to answer is logged.
+func isNonceAccepted(w http.ResponseWriter, nonce string) bool {
+	err := oidchelper.VerifyAndConsumeNonce(nonce)
+	switch {
+	case err == nil:
+		return true
+	case shared.IsError(err, constants.ErrOIDCNonceMissing), shared.IsError(err, constants.ErrOIDCNonceInvalid):
+		shared.SendErrorResponse(w, http.StatusUnauthorized, err)
+	default:
+		shared.HandleError(w, err, http.StatusUnauthorized, err.Error())
+	}
+	return false
+}
+
 func isEmailVerified(w http.ResponseWriter, claims *oidchelper.GoogleClaims) bool {
 	if !claims.EmailVerified {
-		shared.HandleError(w, errors.New(string(constants.ErrOIDCEmailNotVerified)),
-			http.StatusUnauthorized, string(constants.ErrOIDCEmailNotVerified))
+		shared.SendErrorResponse(w, http.StatusUnauthorized, errors.New(string(constants.ErrOIDCEmailNotVerified)))
 		return false
 	}
 	return true
@@ -114,10 +124,7 @@ func resolveOIDCUser(w http.ResponseWriter, claims *oidchelper.GoogleClaims) (*u
 		if errors.Is(err, ErrEmailAmbiguous) || errors.Is(err, ErrEmailAlreadyBound) {
 			status = http.StatusConflict
 		}
-		shared.HandleError(w,
-			fmt.Errorf(string(constants.ErrOIDCJITProvisioningFailed), err),
-			status,
-			fmt.Sprintf(string(constants.ErrOIDCJITProvisioningFailed), err))
+		sendCallbackError(w, fmt.Errorf(string(constants.ErrOIDCJITProvisioningFailed), err), status)
 		return nil, false
 	}
 	return refuseBootstrap(w, user)
@@ -134,6 +141,15 @@ func refuseBootstrap(w http.ResponseWriter, user *userresource.User) (*userresou
 }
 
 func refuseReserved(w http.ResponseWriter, email string) {
-	shared.HandleError(w, ErrEmailReserved, http.StatusForbidden,
-		fmt.Sprintf(string(constants.LogOIDCBootstrapRefused), shared.IdentityHash(email)))
+	lg.Info(fmt.Sprintf(string(constants.LogOIDCBootstrapRefused), shared.IdentityHash(email)))
+	shared.SendErrorResponse(w, http.StatusForbidden, ErrEmailReserved)
+}
+
+// A refusal answers the caller and is not logged; a failure on this side is.
+func sendCallbackError(w http.ResponseWriter, err error, status int) {
+	if status < http.StatusInternalServerError {
+		shared.SendErrorResponse(w, status, err)
+		return
+	}
+	shared.HandleError(w, err, status, err.Error())
 }

@@ -2,14 +2,17 @@ package tests
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
+	authdata "github.com/telark/telark/internal/data/auth"
 	"github.com/telark/telark/internal/data/resources/finalizers"
 	userresource "github.com/telark/telark/internal/data/resources/user"
+	notificationsclient "github.com/telark/telark/internal/rest/clients/notifications"
 	"github.com/telark/telark/services/auth/cmd"
 	"github.com/telark/telark/services/auth/internal/config"
 	"github.com/telark/telark/services/auth/internal/constants"
@@ -37,10 +40,11 @@ func TestMain(m *testing.M) {
 	mr.Close()
 }
 
+// Both key kinds open a registration: a user's own link and an invite.
 func enrollTokenOwners() []string {
 	var owners []string
 	for _, key := range redisServer.Keys() {
-		if strings.HasPrefix(key, constants.RedisKeyPrefixEnrollToken) {
+		if strings.HasPrefix(key, constants.RedisKeyPrefixEnrollToken) || strings.HasPrefix(key, constants.RedisKeyPrefixInvite) {
 			owner, _ := redisServer.Get(key)
 			owners = append(owners, owner)
 		}
@@ -147,6 +151,8 @@ func TestBreakGlassEnrollCreatesAdmin(t *testing.T) {
 			created = &user
 			w.WriteHeader(http.StatusCreated)
 			_ = json.NewEncoder(w).Encode(map[string]any{"data": user})
+		case r.Method == http.MethodPatch:
+			_, _ = w.Write([]byte(`{"status":200}`))
 		case created == nil:
 			w.WriteHeader(http.StatusNotFound)
 			_, _ = w.Write([]byte(`{"status":404}`))
@@ -162,7 +168,95 @@ func TestBreakGlassEnrollCreatesAdmin(t *testing.T) {
 	}
 	testutil.Equal(t, "exit once it exists", cmd.RunBreakGlass([]string{"--email", email, "--enroll"}), constants.DefaultInitValue)
 	testutil.Equal(t, "creates", creates, constants.DefaultIncrementValue)
-	testutil.Equal(t, "enrollment token owners", strings.Join(enrollTokenOwners(), ","), "u-root,u-root")
+	testutil.Equal(t, "enrollment token owners", strings.Join(enrollTokenOwners(), ","), "u-root")
+}
+
+// The operator reads the token on stdout, as the last field the command prints.
+func enroll(t *testing.T, email string) (token, out string) {
+	t.Helper()
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stdout := os.Stdout
+	os.Stdout = writer
+	code := cmd.RunBreakGlass([]string{"--email", email, "--enroll"})
+	os.Stdout = stdout
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	printed, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testutil.Equal(t, "exit", code, constants.DefaultInitValue)
+	fields := strings.Fields(string(printed))
+	return fields[len(fields)-constants.DefaultIncrementValue], string(printed)
+}
+
+// --enroll issues an invite like a link from Members: a new run replaces the previous token, the record shows the
+// link with no issuing user, and an account that has a passkey hears of it when the token is created and used.
+func TestBreakGlassEnrollIssuesAnInvite(t *testing.T) {
+	const email = "test@example.com"
+	t.Setenv(constants.EnvBootstrapAdmin, email)
+	adminRole := constants.BuiltInRoleAdmin
+	created, used := notificationsclient.TypeEnrollLinkCreated, notificationsclient.TypeEnrollLinkUsed
+	cases := []struct {
+		name     string
+		passkeys int
+		notices  []string
+	}{
+		{"account without a passkey", constants.DefaultInitValue, nil},
+		{"account with a passkey", constants.DefaultIncrementValue, []string{created, created, used}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			redisServer.FlushAll()
+			fake := &testutil.FakeExporter{
+				Users:    map[string]*userresource.User{"u-1": {ID: "u-1", Email: email, Bootstrap: true, RoleRefs: []*string{&adminRole}}},
+				Passkeys: map[string]int{"u-1": c.passkeys},
+			}
+			testutil.StubBackend(t, fake)
+
+			replaced, _ := enroll(t, email)
+			token, out := enroll(t, email)
+			if _, _, err := authhelper.ResolveEnrollToken(replaced); err == nil {
+				t.Fatal("the replaced token still opens a registration")
+			}
+			testutil.Equal(t, "live tokens", strings.Join(enrollTokenOwners(), ","), "u-1")
+			testutil.Equal(t, "lifetime", redisServer.TTL(constants.RedisKeyPrefixInviteOf+"u-1"), config.EnrollInviteTTL())
+			invite := fake.User("u-1").Status.Invite
+			if invite == nil || invite.IssuedBy != constants.EmptyString || !strings.Contains(out, invite.ExpiresAt) {
+				t.Fatalf("stored invite = %+v, want the printed expiry and no issuer", invite)
+			}
+
+			// The steps of the registration the token opens, without the WebAuthn ceremony.
+			owner, isInvite, err := authhelper.ResolveEnrollToken(token)
+			if err != nil || owner != "u-1" || !isInvite {
+				t.Fatalf("token resolves to %q, invite %v (%v), want the invite of u-1", owner, isInvite, err)
+			}
+			if _, err := authhelper.CreatePasskey(owner, &authdata.Passkey{UserID: owner}); err != nil {
+				t.Fatalf("store passkey: %v", err)
+			}
+			user := fake.User(owner)
+			authhelper.CompleteInvite(&user, true)
+			testutil.Equal(t, "notices", noticeTypes(t, fake.Notices(), owner), strings.Join(c.notices, ","))
+		})
+	}
+}
+
+// Every notice goes to the account, and one about a new token names break-glass.
+func noticeTypes(t *testing.T, notices []notificationsclient.Notification, owner string) string {
+	t.Helper()
+	types := make([]string, constants.DefaultInitValue, len(notices))
+	for _, notice := range notices {
+		testutil.Equal(t, "recipient", notice.UserID, owner)
+		if notice.Type == notificationsclient.TypeEnrollLinkCreated && !strings.Contains(notice.Message, "break-glass") {
+			t.Fatalf("creation notice %q does not name break-glass", notice.Message)
+		}
+		types = append(types, notice.Type)
+	}
+	return strings.Join(types, ",")
 }
 
 // Nothing but BOOTSTRAP_ADMIN may be created or promoted, so any other email, or none configured,

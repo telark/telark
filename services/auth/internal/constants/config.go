@@ -125,12 +125,13 @@ return 1`
 if previous then redis.call('DEL', ARGV[1] .. previous) end
 return redis.call('DEL', KEYS[1])`
 	// KEYS: enroll-token:<digest>, invite:<digest>. ARGV: invite-of prefix, digest.
+	// Returns {owner}, or {owner, digest} when the token was an invite.
 	ScriptConsumeEnrollToken = `local owner = redis.call('GETDEL', KEYS[1])
-if owner then return owner end
+if owner then return {owner} end
 owner = redis.call('GETDEL', KEYS[2])
 if not owner then return false end
 if redis.call('GET', ARGV[1] .. owner) == ARGV[2] then redis.call('DEL', ARGV[1] .. owner) end
-return owner`
+return {owner, ARGV[2]}`
 
 	// Username generation (CRD regex: ^[a-zA-Z0-9_-]+$)
 	UsernameMaxLocalLen  = 43
@@ -155,7 +156,6 @@ return owner`
 	EnvCleanupMaxConcurrentPatches   = "CLEANUP_MAX_CONCURRENT_PATCHES"
 	EnvCleanupBackoffInitialSeconds  = "RECONCILE_BACKOFF_INITIAL_SECONDS"
 	EnvCleanupBackoffMaxSeconds      = "RECONCILE_BACKOFF_MAX_SECONDS"
-	EnvBackfillFinalizersEnabled     = "BACKFILL_FINALIZERS_ENABLED"
 	EnvBackfillBatchSize             = "BACKFILL_BATCH_SIZE"
 	EnvBackfillBatchPauseMS          = "BACKFILL_BATCH_PAUSE_MS"
 

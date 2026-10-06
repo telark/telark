@@ -22,6 +22,8 @@ const (
 	usersField           = "assignedUsersIds"
 	stepPurge            = "purge"
 	stepList             = "list"
+	stepPurgeLast        = "purge-last"
+	stepFinalizer        = "finalizer"
 )
 
 // ReconcileOne clears a deleted resource's back-references then removes its
@@ -118,5 +120,43 @@ func TestReconcileOnePurgesOwnedRecordsFirst(t *testing.T) {
 	}
 	if !slices.Equal(order, []string{stepPurge, stepPurge, stepList, stepList}) {
 		t.Fatalf("order = %v, want purge before the back-reference clean and confirm passes", order)
+	}
+}
+
+// Records that clearing a back-reference can write are purged only once no reference is
+// left, before the finalizer goes; a failure there requeues with the finalizer kept.
+func TestReconcileOnePurgesLastAfterRefsClear(t *testing.T) {
+	var order []string
+	lastErr := errors.New("exporter down")
+	target := cleanupctrl.Target{
+		ResourceType: userType,
+		BackRefs: []cleanupctrl.BackRef{{
+			ArrayField: usersField,
+			List: func(_ context.Context) ([]*resourcesshared.CleanupView, error) {
+				order = append(order, stepList)
+				return nil, nil
+			},
+		}},
+		PurgeLast: func(_ string) error {
+			order = append(order, stepPurgeLast)
+			return lastErr
+		},
+		RemoveFinalizer: func(_ context.Context, _, _ string) *response.GenericResponse {
+			order = append(order, stepFinalizer)
+			return &response.GenericResponse{Status: http.StatusOK}
+		},
+	}
+	cfg := config.CleanupConfig{ReconcilePassDeadline: time.Second, MaxConcurrentPatches: maxConcurrentPatches}
+	r := cleanupctrl.NewReconciler(cfg, map[string]cleanupctrl.Target{userType: target}, constants.GetLogger(constants.LoggerPrefixCleanup))
+
+	out, err := r.ReconcileOne(context.Background(), userType, userID, constants.DefaultIncrementValue)
+	if !errors.Is(err, lastErr) || !out.Requeue || !slices.Equal(order, []string{stepList, stepList, stepPurgeLast}) {
+		t.Fatalf("ReconcileOne = (%+v, %v), order %v; want a requeue after the confirm pass, finalizer kept", out, err, order)
+	}
+
+	lastErr, order = nil, nil
+	out, err = r.ReconcileOne(context.Background(), userType, userID, constants.DefaultIncrementValue)
+	if err != nil || out.Requeue || !slices.Equal(order, []string{stepList, stepList, stepPurgeLast, stepFinalizer}) {
+		t.Fatalf("ReconcileOne = (%+v, %v), order %v; want the last purge just before the finalizer", out, err, order)
 	}
 }

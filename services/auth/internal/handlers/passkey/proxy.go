@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	restshared "github.com/telark/telark/internal/rest/clients/shared"
 	requestutils "github.com/telark/telark/internal/rest/utils/request"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/auth/internal/clients"
@@ -98,6 +99,11 @@ func GetSinglePasskey(w http.ResponseWriter, r *http.Request) {
 
 	passkeyClient := clients.GetPasskeyClient()
 	passkey, err := passkeyClient.GetPasskeyByUserAndCredentialID(userID, credentialID)
+	// An unknown credential is the caller's answer; only an exporter that failed to answer is logged.
+	if errors.Is(err, restshared.ErrNotFound) {
+		shared.SendErrorResponse(w, http.StatusNotFound, errors.New(string(constants.ErrPasskeyNotFound)))
+		return
+	}
 	if err != nil {
 		shared.HandleError(w, errors.New(string(constants.ErrPasskeyNotFound)),
 			http.StatusNotFound,

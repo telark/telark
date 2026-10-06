@@ -78,7 +78,7 @@ func TestSelfRegistrationFollowsTheTelarkConfig(t *testing.T) {
 	testutil.StubBackend(t, fake)
 	awaitSelfRegistration(t, true)
 	testutil.Equal(t, "public config while on", publicSelfRegistration(t), true)
-	testutil.Equal(t, "self-registration start while on", startSelfRegistration(), http.StatusOK)
+	testutil.Equal(t, "self-registration start while on", startSelfRegistration().Code, http.StatusOK)
 
 	fake.SetDown(true)
 	failedRead := fake.ConfigReads() + constants.DefaultIncrementValue
@@ -96,13 +96,15 @@ func TestSelfRegistrationFollowsTheTelarkConfig(t *testing.T) {
 	fake.SetDown(false)
 	awaitSelfRegistration(t, false)
 	testutil.Equal(t, "public config once off", publicSelfRegistration(t), false)
-	testutil.Equal(t, "self-registration start once off", startSelfRegistration(), http.StatusForbidden)
+	refused := startSelfRegistration()
+	testutil.Equal(t, "self-registration start once off", refused.Code, http.StatusForbidden)
+	testutil.Equal(t, "code once off", refusalCode(t, refused), "self_registration_disabled")
 }
 
-func startSelfRegistration() int {
+func startSelfRegistration() *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
 	passkeyhandler.RegisterStart(rec, jsonReq(`{"email":"`+newEmail+`"}`))
-	return rec.Code
+	return rec
 }
 
 func signInSettingsReq(caller xauthz.Identity, body string) *http.Request {

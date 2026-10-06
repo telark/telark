@@ -3,6 +3,7 @@ package auth
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -267,10 +268,13 @@ func TestCreateUserSessionRefusesTerminatingOrInactiveUser(t *testing.T) {
 		status int
 		body   string
 		want   string
+		code   string
 	}{
-		{"terminating", http.StatusGone, `{"status":410,"message":"user is being deleted"}`, string(dataerrors.ErrAuthzUserNotActive)},
-		{"inactive", http.StatusOK, `{"data":{"id":"uid","status":{"phase":"inactive"}}}`, string(dataerrors.ErrAuthzUserNotActive)},
-		{"suspended", http.StatusOK, `{"data":{"id":"uid","status":{"phase":"suspended"}}}`, "user account is suspended"},
+		{"terminating", http.StatusGone, `{"status":410,"message":"user is being deleted"}`,
+			string(dataerrors.ErrAuthzUserNotActive), "account_not_active"},
+		{"inactive", http.StatusOK, `{"data":{"id":"uid","status":{"phase":"inactive"}}}`,
+			string(dataerrors.ErrAuthzUserNotActive), "account_not_active"},
+		{"suspended", http.StatusOK, `{"data":{"id":"uid","status":{"phase":"suspended"}}}`, "user account is suspended", "account_suspended"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -284,6 +288,11 @@ func TestCreateUserSessionRefusesTerminatingOrInactiveUser(t *testing.T) {
 			}
 			testutil.Equal(t, "message", err.Error(), c.want)
 			testutil.Equal(t, "status", shared.GetStatusCodeForSessionError(err), http.StatusForbidden)
+			refusal, ok := errors.AsType[*shared.RefusalError](err)
+			if !ok {
+				t.Fatalf("refusal %v carries no code", err)
+			}
+			testutil.Equal(t, "code", refusal.Code, c.code)
 		})
 	}
 }

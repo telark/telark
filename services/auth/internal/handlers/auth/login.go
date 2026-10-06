@@ -84,7 +84,7 @@ func LoginFinish(w http.ResponseWriter, r *http.Request) {
 
 	challenge, err := webauthnhelper.ValidateAndGetChallenge(user.ID)
 	if err != nil {
-		shared.HandleError(w, err, http.StatusUnauthorized, err.Error())
+		sendChallengeError(w, err)
 		return
 	}
 
@@ -101,11 +101,7 @@ func LoginFinish(w http.ResponseWriter, r *http.Request) {
 
 	sessionToken, err := auth.CreateUserSession(user.ID, &req.DeviceMetadata)
 	if err != nil {
-		status := shared.GetStatusCodeForSessionError(err)
-		if status == http.StatusInternalServerError {
-			err = errors.New(string(constants.ErrInternalServerError))
-		}
-		shared.HandleError(w, err, status, err.Error())
+		sendSessionError(w, err)
 		return
 	}
 
@@ -116,6 +112,25 @@ func LoginFinish(w http.ResponseWriter, r *http.Request) {
 		SessionToken: sessionToken,
 		User:         user,
 	})
+}
+
+// An expired or already used challenge is the caller's; Redis failing to answer is logged.
+func sendChallengeError(w http.ResponseWriter, err error) {
+	if shared.IsError(err, constants.ErrChallengeNotFound) {
+		shared.SendErrorResponse(w, http.StatusUnauthorized, err)
+		return
+	}
+	shared.HandleError(w, err, http.StatusUnauthorized, err.Error())
+}
+
+// A refused account is an answer; only a session that could not be made is logged, and its cause stays out of the reply.
+func sendSessionError(w http.ResponseWriter, err error) {
+	status := shared.GetStatusCodeForSessionError(err)
+	if status != http.StatusInternalServerError {
+		shared.SendErrorResponse(w, status, err)
+		return
+	}
+	shared.HandleError(w, errors.New(string(constants.ErrInternalServerError)), status, err.Error())
 }
 
 func userLookupStatus(err error) int {

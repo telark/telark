@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/telark/telark/internal/data/resources/application"
@@ -18,24 +19,27 @@ import (
 // the entry in_progress for the stale sweep to relabel.
 func TestRecordWithRetryOutlivesCanceledCallerAndReturnsLastError(t *testing.T) {
 	t.Parallel()
-	canceled, cancel := context.WithCancel(context.Background())
-	cancel()
+	// The bubble's fake clock runs the real retry intervals without waiting them out.
+	synctest.Test(t, func(t *testing.T) {
+		canceled, cancel := context.WithCancel(context.Background())
+		cancel()
 
-	attempts := constants.DefaultInitValue
-	live := true
-	wantErr := errors.New("patch rejected")
+		attempts := constants.DefaultInitValue
+		live := true
+		wantErr := errors.New("patch rejected")
 
-	err := rollback.RecordWithRetry(canceled, func(recordCtx context.Context) error {
-		attempts++
-		if recordCtx.Err() != nil {
-			live = false
-		}
-		return wantErr
+		err := rollback.RecordWithRetry(canceled, func(recordCtx context.Context) error {
+			attempts++
+			if recordCtx.Err() != nil {
+				live = false
+			}
+			return wantErr
+		})
+
+		testutil.Equal(t, "record ran on a live context", live, true)
+		testutil.Equal(t, "attempts", attempts, constants.RollbackRetryMaxAttempts)
+		testutil.Equal(t, "last error returned for logging", errors.Is(err, wantErr), true)
 	})
-
-	testutil.Equal(t, "record ran on a live context", live, true)
-	testutil.Equal(t, "attempts", attempts, constants.RollbackRetryMaxAttempts)
-	testutil.Equal(t, "last error returned for logging", errors.Is(err, wantErr), true)
 }
 
 // The sweep is the last resort for entries nothing ever wrote back to. Replacing

@@ -202,15 +202,18 @@ func TestResyncDropsRemovedMembers(t *testing.T) {
 	f.put(t, nsPay, appLedger, scoreFirst, card(idC3, application.InsightSeverityWarning, time.Hour))
 	f.refresh(t)
 
+	f.mr.Del(insightsdata.DocumentKey(nsPay, appAPI))
+	f.refresh(t)
+	testutil.Equal(t, "delta cannot see a lost document", f.list(t, defaultView).Total, threeRows)
+
+	f.resync(t)
+	assertIDs(t, "after resync", sortedIDs(f.list(t, defaultView)), idC1, idC3)
+
 	if _, err := f.mr.ZRem(insightsdata.IndexKey, nsShop+"/"+appWeb); err != nil {
 		t.Fatal(err)
 	}
-	f.mr.Del(insightsdata.DocumentKey(nsPay, appAPI))
 	f.refresh(t)
-	testutil.Equal(t, "delta cannot see removals", f.list(t, defaultView).Total, threeRows)
-
-	f.resync(t)
-	assertIDs(t, "after resync", ids(f.list(t, defaultView)), idC3)
+	assertIDs(t, "a removed member is gone at the next refresh", ids(f.list(t, defaultView)), idC3)
 }
 
 func TestLegacyDocumentSkipped(t *testing.T) {

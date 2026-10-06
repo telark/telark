@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	applicationmodel "github.com/telark/telark/internal/data/resources/application"
 	notifclient "github.com/telark/telark/internal/rest/clients/notifications"
+	restshared "github.com/telark/telark/internal/rest/clients/shared"
 	"github.com/telark/telark/internal/rest/response"
 	responseutils "github.com/telark/telark/internal/rest/utils/response"
 	"github.com/telark/telark/services/discovery/internal/clients"
@@ -103,9 +104,8 @@ func TriggerRollback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	exporterClient := clients.NewExporterClient()
-	app, getErr := exporterClient.GetApplicationByNameFresh(name)
-	if getErr != nil || app == nil {
-		writeError(w, http.StatusNotFound, response.OperationNotFound, string(constants.MsgApplicationNotFound), getErr)
+	app, ok := getRollbackApp(w, exporterClient, name)
+	if !ok {
 		return
 	}
 
@@ -174,9 +174,8 @@ func AbortRollback(w http.ResponseWriter, r *http.Request) {
 	defer release()
 
 	exporterClient := clients.NewExporterClient()
-	app, getErr := exporterClient.GetApplicationByNameFresh(name)
-	if getErr != nil || app == nil {
-		writeError(w, http.StatusNotFound, response.OperationNotFound, string(constants.MsgApplicationNotFound), getErr)
+	app, ok := getRollbackApp(w, exporterClient, name)
+	if !ok {
 		return
 	}
 
@@ -278,13 +277,12 @@ func decodeTriggerRollbackBody(w http.ResponseWriter, r *http.Request) (*trigger
 		if _, tooLarge := errors.AsType[*http.MaxBytesError](err); tooLarge {
 			status = http.StatusRequestEntityTooLarge
 		}
-		responseutils.LogAndSendResponse(
+		responseutils.SendResponse(
 			w,
 			status,
 			response.OperationError,
 			"invalid request body",
 			nil,
-			err,
 		)
 		return nil, false
 	}
@@ -341,6 +339,19 @@ func writeError(
 	err error,
 ) {
 	responseutils.LogAndSendResponse(w, status, op, msg, nil, err)
+}
+
+// A missing app is the caller's answer; any other lookup failure is still logged.
+func getRollbackApp(w http.ResponseWriter, c *clients.ExporterClient, name string) (*applicationmodel.Application, bool) {
+	app, err := c.GetApplicationByNameFresh(name)
+	if err == nil && app != nil {
+		return app, true
+	}
+	if errors.Is(err, restshared.ErrNotFound) {
+		err = nil
+	}
+	writeError(w, http.StatusNotFound, response.OperationNotFound, string(constants.MsgApplicationNotFound), err)
+	return nil, false
 }
 
 // A snapshot stamped with generation N is the pre-image of the change that

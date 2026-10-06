@@ -13,6 +13,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	dataconstants "github.com/telark/telark/internal/data/constants"
+	insightsdata "github.com/telark/telark/internal/data/insights"
 	kcorek8s "github.com/telark/telark/internal/kcore/k8sclient"
 	"github.com/telark/telark/internal/rest/response"
 	responseutils "github.com/telark/telark/internal/rest/utils/response"
@@ -254,9 +255,58 @@ func deleteRedisByPatterns(ctx context.Context, rdb *redis.Client, appName strin
 		constants.ForceSyncDedupKeyPrefix + appName,
 		constants.KeyPrefixRollbackApplying + appName,
 		constants.KeyPrefixLockRollback + appName,
+		// The analyzer's document, cooldowns and run lease, in any namespace: the stored app may list none.
+		insightsdata.DocumentKeyPrefix + constants.Wildcard + constants.ColonSeparator + appName,
 	}
 	for i := range patterns {
 		deletePattern(ctx, rdb, patterns[i])
+	}
+	deleteAnalyzerEntries(ctx, rdb, appName)
+}
+
+// The analyzer's index member and usage and review fields are "<namespace>/<app>", for any namespace.
+// They go after the document, the order the analyzer itself keeps.
+func deleteAnalyzerEntries(ctx context.Context, rdb *redis.Client, appName string) {
+	match := constants.Wildcard + constants.PathSeparator + appName
+	for _, member := range scannedNames(ctx, rdb.ZScan, insightsdata.IndexKey, match) {
+		logDeleteError(rdb.ZRem(ctx, insightsdata.IndexKey, member).Err(), insightsdata.IndexKey)
+	}
+	for _, key := range []string{constants.KeyAnalyzerUsage, constants.KeyAnalyzerReview} {
+		for _, field := range scannedNames(ctx, rdb.HScan, key, match) {
+			logDeleteError(rdb.HDel(ctx, key, field).Err(), key)
+		}
+	}
+}
+
+// ZSCAN and HSCAN answer name, value pairs: only the names are kept.
+func scannedNames(
+	ctx context.Context,
+	scan func(context.Context, string, uint64, string, int64) *redis.ScanCmd,
+	key, match string,
+) []string {
+	var out []string
+	var cursor uint64
+	for {
+		pairs, next, err := scan(ctx, key, cursor, match, constants.DefaultQueueSize).Result()
+		if err != nil {
+			constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Error(
+				fmt.Sprintf(string(constants.ErrAppResetRedisScanFailed), key, err))
+			return out
+		}
+		for i := constants.DefaultInitValue; i < len(pairs); i += constants.TwoValue {
+			out = append(out, pairs[i])
+		}
+		cursor = next
+		if cursor == uint64(constants.DefaultInitValue) {
+			return out
+		}
+	}
+}
+
+func logDeleteError(err error, key string) {
+	if err != nil {
+		constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Error(
+			fmt.Sprintf(string(constants.ErrAppResetRedisDeleteFailed), key, err))
 	}
 }
 

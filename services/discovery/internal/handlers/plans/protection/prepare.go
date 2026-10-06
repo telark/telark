@@ -48,6 +48,11 @@ func Prepare(w http.ResponseWriter, r *http.Request) {
 }
 
 func respondError(w http.ResponseWriter, status int, errCode dataerrors.Error, err error) {
+	// A refusal is the caller's answer, not a failure: only a 5xx is logged.
+	if status < http.StatusInternalServerError {
+		responseutils.SendResponse(w, status, response.OperationError, string(errCode), nil)
+		return
+	}
 	if err == nil {
 		err = errors.New(string(errCode))
 	}

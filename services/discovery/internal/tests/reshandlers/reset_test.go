@@ -7,11 +7,14 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gorilla/mux"
 	"github.com/redis/go-redis/v9"
 	dataconstants "github.com/telark/telark/internal/data/constants"
+	insightsdata "github.com/telark/telark/internal/data/insights"
 	applicationmodel "github.com/telark/telark/internal/data/resources/application"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/discovery/internal/constants"
@@ -25,7 +28,12 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 )
 
-const siblingApp = shopApp + "-2"
+const (
+	siblingApp        = shopApp + "-2"
+	analyzerNamespace = "lab"
+	indexScore        = 1.0
+	refSeparator      = ","
+)
 
 func resetApplication(name string) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
@@ -88,18 +96,28 @@ func TestResetApplicationFailureClearsCooldown(t *testing.T) {
 		constants.KeyPrefixIncidentState + shopApp,
 		constants.KeyPrefixGraceScale + shopApp,
 		constants.KeyPrefixLockApp + shopApp,
+		// A recreated app would inherit the analyzer's cards and drop its first incident job as cooling down.
+		insightsdata.DocumentKey(analyzerNamespace, shopApp),
+		insightsdata.CooldownAutoKeyPrefix + analyzerNamespace + constants.ColonSeparator + shopApp,
+		insightsdata.CooldownManualKeyPrefix + analyzerNamespace + constants.ColonSeparator + shopApp,
 	}
 	sibling := []string{
 		constants.KeyPrefixIncidentState + siblingApp,
 		constants.KeyPrefixGraceScale + siblingApp,
 		constants.KeyPrefixLockApp + siblingApp,
 		constants.ForceSyncStateKeyPrefix + siblingApp,
+		insightsdata.DocumentKey(analyzerNamespace, siblingApp),
+		insightsdata.DocumentKey(shopApp, siblingApp),
 	}
 	for _, key := range append(stale, sibling...) {
 		if err := mr.Set(key, "1"); err != nil {
 			t.Fatal(err)
 		}
 	}
+	// Left behind, the Insights page lists the gone app until the analyzer's sweep misses it twice.
+	keptRefs := []string{analyzerNamespace + constants.PathSeparator + siblingApp, shopApp + "/web"}
+	seedAnalyzerRefs(t, mr, keptRefs)
+	seedAnalyzerRefs(t, mr, []string{analyzerNamespace + constants.PathSeparator + shopApp, "other/" + shopApp})
 
 	testutil.Equal(t, "first reset", resetApplication(shopApp).Code, http.StatusBadGateway)
 	testutil.Equal(t, "cooldown cleared", mr.Exists(constants.KeyPrefixResetCooldown+shopApp), false)
@@ -109,7 +127,37 @@ func TestResetApplicationFailureClearsCooldown(t *testing.T) {
 	for _, key := range sibling {
 		testutil.Equal(t, key+" kept", mr.Exists(key), true)
 	}
+	expectAnalyzerRefs(t, mr, keptRefs)
 	testutil.Equal(t, "retry after failure", resetApplication(shopApp).Code, http.StatusBadGateway)
+}
+
+// The analyzer's index member and usage and review fields of each app ref.
+func seedAnalyzerRefs(t *testing.T, mr *miniredis.Miniredis, refs []string) {
+	t.Helper()
+	for _, ref := range refs {
+		if _, err := mr.ZAdd(insightsdata.IndexKey, indexScore, ref); err != nil {
+			t.Fatal(err)
+		}
+		mr.HSet(constants.KeyAnalyzerUsage, ref, "{}")
+		mr.HSet(constants.KeyAnalyzerReview, ref, "3:1")
+	}
+}
+
+// Every ref sorts the same way (one score), so the index and both hashes list exactly `want`.
+func expectAnalyzerRefs(t *testing.T, mr *miniredis.Miniredis, want []string) {
+	t.Helper()
+	members, err := mr.ZMembers(insightsdata.IndexKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testutil.Equal(t, "index members", strings.Join(members, refSeparator), strings.Join(want, refSeparator))
+	for _, key := range []string{constants.KeyAnalyzerUsage, constants.KeyAnalyzerReview} {
+		fields, err := mr.HKeys(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		testutil.Equal(t, key+" fields", strings.Join(fields, refSeparator), strings.Join(want, refSeparator))
+	}
 }
 
 // Resetting or syncing an application the store does not know answered 200 and 500.

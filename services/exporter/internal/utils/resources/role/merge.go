@@ -14,7 +14,6 @@ func MergeRoleAndPreparePatchBody(existingRole, newRole *roledata.AccessRole, bo
 	mergeBasicFields(&mergedRole, newRole, body)
 	mergeComplexFields(&mergedRole, newRole)
 	handleValidityAutoRevoke(&mergedRole, body)
-	computePriorityAndVersion(existingRole, &mergedRole, body)
 
 	return &mergedRole
 }

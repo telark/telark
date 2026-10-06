@@ -43,13 +43,12 @@ func ExtractUserFromUnstructured(resource *unstructured.Unstructured) (*userdata
 func ExtractAndMergeUserForPatch(existingUser *userdata.User, body map[string]any, w http.ResponseWriter) bool {
 	newUser, err := ExtractUserSpecFromRequestBody(body)
 	if err != nil {
-		responseutils.LogAndSendResponse(
+		responseutils.SendResponse(
 			w,
 			http.StatusBadRequest,
 			response.OperationError,
 			err.Error(),
 			nil,
-			err,
 		)
 		return false
 	}

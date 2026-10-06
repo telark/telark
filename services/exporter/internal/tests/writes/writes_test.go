@@ -443,6 +443,17 @@ func TestSelfRegistrationIsStoredAndShown(t *testing.T) {
 	}
 }
 
+// A config created before the toggle existed has no such key; GET answers it off rather
+// than leaving the key out until the first save.
+func TestSelfRegistrationShownOffBeforeFirstSave(t *testing.T) {
+	installFake(t, defaultConfig())
+
+	view := serveConfig(t, confighandler.GetConfig(), http.MethodGet, constants.EmptyString)
+	if shown, isBool := section(write{body: view}, telarkconfig.FieldSelfRegistration)[keyEnabled].(bool); !isBool || shown {
+		t.Errorf("GET config selfRegistration = %v, want enabled false", view[telarkconfig.FieldSelfRegistration])
+	}
+}
+
 // The API server prunes what a schema does not declare and still answers 200, so every
 // field written for these features must be in the CRD or it is silently dropped.
 func TestCRDsDeclareTheNewFields(t *testing.T) {

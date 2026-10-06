@@ -39,13 +39,12 @@ func CreateRoleResourceWithCacheInvalidation(optimizer *performance.Optimizer) f
 		resourcesshared.StampCreateAudit(r, body)
 		role, err := roleutils.ExtractRoleSpecFromRequestBody(body)
 		if err != nil {
-			responseutils.LogAndSendResponse(
+			responseutils.SendResponse(
 				w,
 				http.StatusBadRequest,
 				response.OperationError,
 				err.Error(),
 				nil,
-				err,
 			)
 			return
 		}

@@ -171,5 +171,5 @@ func DeletePlanByID() func(http.ResponseWriter, *http.Request) {
 }
 
 func respondBadRequest(w http.ResponseWriter, err error) {
-	responseutils.LogAndSendResponse(w, http.StatusBadRequest, response.OperationError, err.Error(), nil, err)
+	responseutils.SendResponse(w, http.StatusBadRequest, response.OperationError, err.Error(), nil)
 }

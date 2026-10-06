@@ -150,7 +150,7 @@ keep full access.
 
 Config (`PATCH config`, the `TelarkConfig` named `default`) is checked per field: `excludedNamespaces`
 needs settings Contributor (deny `editdiscoveryconfig`), `snapshots` Contributor
-(deny `editsnapshotstorage`), `ai` Owner (deny `controlaiinsights`); `oidc` and `selfRegistration` are Internal
+(deny `editsnapshotstorage`), `ai` Owner (deny `controlainsights`); `oidc` and `selfRegistration` are Internal
 (auth is their single writer and lets only the bootstrap account change them, so every session gets 403),
 and so is `cluster` (written by discovery, stored in `.status`). `GET config` shows all of them to settings
 readers. `oidc.googleJwkJson` is written to the

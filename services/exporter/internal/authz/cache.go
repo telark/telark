@@ -105,11 +105,6 @@ func generation(ctx context.Context) (string, bool) {
 	return value, observeGeneration(value)
 }
 
-// Tests share one process across fresh Redis instances.
-func ResetGenerationFloor() {
-	generationFloor.Store(constants.DefaultInitValue)
-}
-
 func observeGeneration(value string) bool {
 	seen, err := strconv.ParseInt(value, constants.GenerationBase, constants.GenerationBits)
 	if err != nil {

@@ -42,13 +42,12 @@ func ExtractGroupFromUnstructured(resource *unstructured.Unstructured) (*groupda
 func ExtractAndMergeGroupForPatch(existingGroup *groupdata.Group, body map[string]any, w http.ResponseWriter) bool {
 	newGroup, err := ExtractGroupSpecFromRequestBody(body)
 	if err != nil {
-		responseutils.LogAndSendResponse(
+		responseutils.SendResponse(
 			w,
 			http.StatusBadRequest,
 			response.OperationError,
 			err.Error(),
 			nil,
-			err,
 		)
 		return false
 	}

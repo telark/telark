@@ -50,18 +50,19 @@ func ExtractAndMergeRoleForPatch(existingRole *roledata.AccessRole, body map[str
 
 	mergedRole := MergeRoleAndPreparePatchBody(existingRole, newRole, body)
 	delete(body, constants.FieldCreationDate)
-	if mergedRole.Type != roledata.RoleTypeBuiltIn {
-		if err := ValidatePriorityCapOrRespond(w, mergedRole.Priority); err != nil {
-			return nil, false
-		}
-	}
-	// The guards judge the levels as the merge patch stores them: the merge above keeps the
-	// scopes on [] and reads an omitted validity as permanent.
+	// The guards, the priority and the version follow the levels as the merge patch stores them:
+	// the merge above keeps the scopes on [] and reads an omitted validity as permanent.
 	written, err := patchedRoleLevels(existingRole, body)
 	if err != nil {
 		responseutils.SendResponse(w, http.StatusBadRequest, response.OperationError, err.Error(), nil)
 		return nil, false
 	}
 	mergedRole.ScopesAndPermissions, mergedRole.Status, mergedRole.Validity = written.ScopesAndPermissions, written.Status, written.Validity
+	computePriorityAndVersion(existingRole, mergedRole, body)
+	if mergedRole.Type != roledata.RoleTypeBuiltIn {
+		if err := ValidatePriorityCapOrRespond(w, mergedRole.Priority); err != nil {
+			return nil, false
+		}
+	}
 	return mergedRole, true
 }

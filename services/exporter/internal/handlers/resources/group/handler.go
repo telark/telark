@@ -47,13 +47,12 @@ func CreateGroupResourceWithCacheInvalidation(optimizer *performance.Optimizer) 
 		resourcesutils.StampCreateAudit(r, body)
 		group, err := grouputils.ExtractGroupSpecFromRequestBody(body)
 		if err != nil {
-			responseutils.LogAndSendResponse(
+			responseutils.SendResponse(
 				w,
 				http.StatusBadRequest,
 				response.OperationError,
 				err.Error(),
 				nil,
-				err,
 			)
 			return
 		}

@@ -156,3 +156,13 @@ runs:
       with:
         cwd: ${{ inputs.chart_dir }}
         message: "bump ${{ inputs.service }} to ${{ steps.service_data.outputs.new_version }}"
+
+    # GPL "same place": the copyleft Alpine sources ship beside the image, as its <version>-source tag.
+    # Last, so a failed fetch never blocks the bump; rerun the script by hand (docs/PUBLISHING.md).
+    - name: Publish corresponding source image
+      shell: bash
+      env:
+        IMAGE: ${{ steps.image.outputs.registry }}/${{ steps.image.outputs.repository }}:${{ steps.service_data.outputs.new_version }}
+        SOURCE_IMAGE: ${{ steps.image.outputs.registry }}/${{ steps.image.outputs.repository }}:${{ steps.service_data.outputs.new_version }}-source
+        SCRIPT_DIR: ${{ github.action_path }}/../../scripts
+      run: bash "$SCRIPT_DIR/build-source-image.sh" "$IMAGE" "$SOURCE_IMAGE" --push

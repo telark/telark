@@ -29,7 +29,7 @@ body = """
 {%- set contributors = github.contributors | filter(attribute="username") | map(attribute="username") | unique | sort -%}
 {% if contributors | length > 0 %}
 ### Contributors
-{% for username in contributors %}{% if username is not ending_with("[bot]") %}
+{% for username in contributors %}{% if username is not ending_with("[bot]") and username != "actions-user" %}
 - [@{{ username }}](https://github.com/{{ username }})
 {%- endif %}{% endfor %}
 {% endif %}\n

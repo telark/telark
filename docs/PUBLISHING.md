@@ -110,6 +110,24 @@ oras push ghcr.io/telark/charts/telark:artifacthub.io \
 
 ArtifactHub auto-detects the cosign signatures and shows the charts as **Signed**.
 
+## Corresponding source images
+
+The analyzer and ui images contain GPL, LGPL and MPL Alpine packages. Every build of either image ends by pushing its source image to the image's own package, tagged `<tag>-source` (`ghcr.io/telark/<image>:<tag>-source`), with [`.github/scripts/build-source-image.sh`](../.github/scripts/build-source-image.sh): one `abuild srcpkg` bundle per such package (APKBUILD, patches and upstream archives, from the aports commit the package was built from) and an `index.txt`. The Go images are `FROM scratch` and get none. Images released before this step (0.1.0) have no `-source` tag: for a source request about one, run the script without `--push`.
+
+- Keep a `-source` tag as long as its image tag is published: delete the two together, never the `-source` tag alone.
+- If the step fails, the image and its version bump are already pushed. Rerun it by hand with the same tag, after `docker login ghcr.io`:
+
+```sh
+.github/scripts/build-source-image.sh ghcr.io/telark/analyzer:<tag> ghcr.io/telark/analyzer:<tag>-source --push
+```
+
+## Notices of the Alpine packages and Rust crates
+
+The analyzer's and the dashboard's `THIRD-PARTY-NOTICES.md` reproduce the copyright notices of the permissive Alpine packages in their base image ("Alpine package notices") and, for the analyzer, of the Rust crates compiled into pydantic-core ("pydantic-core's Rust crates"). Alpine's `-doc` packages don't carry these files, so they come from upstream. Regenerate a section when its input changes:
+
+- **Base image bump:** list the packages with `docker run --rm --entrypoint sh <image> -c 'apk list --installed'`. For each permissive package, take its license and copyright files from the source archive at the installed version: the `source=` of `main/<origin>/APKBUILD` in aports, mirrored at `https://distfiles.alpinelinux.org/distfiles/v<release>/`. Update the table, the versions and the texts.
+- **pydantic-core bump:** the `required` components of `pydantic_core-<version>.dist-info/sboms/pydantic-core.cyclonedx.json` are the crates. Take each crate's license files from `https://static.crates.io/crates/<name>/<name>-<version>.crate`, using MIT where a crate offers it, and keep one copy of each distinct text.
+
 ## Repository settings the workflows rely on
 
 The build and release workflows push version-bump commits to the branch they run from and hold registry credentials (`GITHUB_TOKEN` with `packages: write` pushes the images to `ghcr.io/telark`), the `ACCESS_TOKEN` PAT and `id-token: write` (cosign). The repository defines no GitHub environments, so nothing in the workflows asks for an approval; these settings are what keep them safe:

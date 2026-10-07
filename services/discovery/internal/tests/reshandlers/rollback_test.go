@@ -17,11 +17,11 @@ import (
 	"github.com/redis/go-redis/v9"
 	applicationmodel "github.com/telark/telark/internal/data/resources/application"
 	notifclient "github.com/telark/telark/internal/rest/clients/notifications"
+	"github.com/telark/telark/internal/x-ware/async"
 	"github.com/telark/telark/services/discovery/internal/config"
 	"github.com/telark/telark/services/discovery/internal/constants"
 	"github.com/telark/telark/services/discovery/internal/coordination"
 	"github.com/telark/telark/services/discovery/internal/handlers/resources/applications"
-	"github.com/telark/telark/services/discovery/internal/helpers/async"
 	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 

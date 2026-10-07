@@ -185,3 +185,15 @@ func TestPanickingTaskIsRecoveredAndFreesItsSlot(t *testing.T) {
 		t.Fatalf("warnings = %d, want one for the panic", log.count())
 	}
 }
+
+func TestDefaultPoolRunsDispatchedWork(t *testing.T) {
+	async.Init()
+	var ran atomic.Bool
+
+	async.Dispatch(func(context.Context) { ran.Store(true) })
+	async.Drain()
+
+	if !ran.Load() {
+		t.Error("work dispatched to the default pool never ran")
+	}
+}

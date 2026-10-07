@@ -16,10 +16,10 @@ import (
 	restshared "github.com/telark/telark/internal/rest/clients/shared"
 	"github.com/telark/telark/internal/rest/response"
 	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	"github.com/telark/telark/internal/x-ware/async"
 	"github.com/telark/telark/services/discovery/internal/clients"
 	"github.com/telark/telark/services/discovery/internal/constants"
 	appsnapshot "github.com/telark/telark/services/discovery/internal/core/applications/snapshot"
-	"github.com/telark/telark/services/discovery/internal/helpers/async"
 	sharedhelper "github.com/telark/telark/services/discovery/internal/helpers/shared"
 )
 

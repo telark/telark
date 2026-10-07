@@ -8,9 +8,9 @@ import (
 	"github.com/telark/telark/internal/data/plans"
 	userresource "github.com/telark/telark/internal/data/resources/user"
 	notifclient "github.com/telark/telark/internal/rest/clients/notifications"
+	"github.com/telark/telark/internal/x-ware/async"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/discovery/internal/constants"
-	"github.com/telark/telark/services/discovery/internal/helpers/async"
 )
 
 type ApprovalNotifier struct {

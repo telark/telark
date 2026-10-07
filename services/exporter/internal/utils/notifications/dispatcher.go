@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/telark/telark/internal/x-ware/async"
 	"github.com/telark/telark/services/exporter/internal/constants"
 	notifstorage "github.com/telark/telark/services/exporter/internal/redis/notifications"
 	notiftypes "github.com/telark/telark/services/exporter/internal/types/notifications"
-	"github.com/telark/telark/services/exporter/internal/utils/async"
 )
 
 const (

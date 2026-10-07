@@ -13,6 +13,7 @@ import (
 	"github.com/telark/telark/internal/rest/connectivity"
 	"github.com/telark/telark/internal/rest/router"
 	restserver "github.com/telark/telark/internal/rest/server"
+	"github.com/telark/telark/internal/x-ware/async"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/internal/x-ware/cors"
 	rediscore "github.com/telark/telark/internal/x-ware/redis/core"
@@ -29,7 +30,6 @@ import (
 	"github.com/telark/telark/services/exporter/internal/routes"
 	"github.com/telark/telark/services/exporter/internal/startup"
 	"github.com/telark/telark/services/exporter/internal/utils/artifact"
-	"github.com/telark/telark/services/exporter/internal/utils/async"
 	"github.com/telark/telark/services/exporter/internal/utils/performance"
 	snaputil "github.com/telark/telark/services/exporter/internal/utils/snapshot"
 )

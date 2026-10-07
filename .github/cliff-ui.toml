@@ -1,16 +1,15 @@
-# git-cliff configuration — https://git-cliff.org
-# Renders CHANGELOG.md and the GitHub Release notes. The release workflow prepends each version's
-# section and never rebuilds older ones, so the compare link sits in the heading, not in a footer.
+# git-cliff configuration for telark/dashboard-ui, used by build-ui.yaml (via release-service-image).
+# Same parsers and template as ../cliff.toml: keep them in sync. Each UI build prepends its version.
 
 [remote.github]
 owner = "telark"
-repo = "telark"
+repo = "dashboard-ui"
 
 [changelog]
 header = """
 # Changelog
 
-All notable changes to Telark are documented here.\n
+All notable changes to the Telark dashboard UI are documented here.\n
 """
 body = """
 {%- set repo_url = "https://github.com/" ~ remote.github.owner ~ "/" ~ remote.github.repo -%}
@@ -21,6 +20,9 @@ body = """
 {% else -%}
 ## [unreleased]
 {% endif -%}
+{% if commits | length == 0 %}
+No user-facing changes.
+{% endif -%}
 {% for group, commits in commits | group_by(attribute="group") %}
 ### {{ group | striptags | trim }}
 {% for commit in commits %}
@@ -29,12 +31,6 @@ body = """
 {% if commit.remote.pr_number %} ([#{{ commit.remote.pr_number }}]({{ repo_url }}/pull/{{ commit.remote.pr_number }})){% endif %}
 {%- endfor %}
 {% endfor %}
-{%- set ui_notes = get_env(name="TELARK_UI_NOTES", default="") -%}
-{% if ui_notes %}
-### 🖥️ Dashboard UI
-
-{{ ui_notes }}
-{% endif %}
 {%- set contributors = github.contributors | filter(attribute="username") | map(attribute="username") | unique | sort -%}
 {% if contributors | length > 0 %}
 ### Contributors
@@ -49,21 +45,16 @@ trim = true
 conventional_commits = true
 filter_unconventional = true
 split_commits = false
-# The first commit parser already files breaking commits; true would only let them bypass .cliffignore.
 protect_breaking_commits = false
 filter_commits = false
 tag_pattern = "v[0-9].*"
 topo_order = false
 sort_commits = "oldest"
 commit_preprocessors = [
-  # Repair two slips git-conventional rejects (filter_unconventional would drop the commit):
-  # leading whitespace, and a body that starts on line 2 with no blank line after the subject.
   { pattern = '^\s+', replace = "" },
   { pattern = '^([^\n]*)\n([^\n])', replace = "${1}\n\n${2}" },
-  # The PR link comes from the GitHub integration, so drop the squash-merge "(#123)" suffix.
   { pattern = '(?m) *\(#[0-9]+\)$', replace = "" },
 ]
-# First match wins; the HTML comments only order the sections.
 commit_parsers = [
   { field = "breaking", pattern = "true", group = "<!-- 5 -->💥 Breaking Changes" },
   { message = '^[a-z]+\((release|ci|build|tests?)\)', skip = true },
@@ -72,6 +63,5 @@ commit_parsers = [
   { message = "^perf", group = "<!-- 2 -->⚡ Performance" },
   { message = "^security", group = "<!-- 3 -->🔐 Security" },
   { message = "^docs?", group = "<!-- 4 -->📚 Documentation" },
-  # Everything else (refactor, test, style, chore, ci, build, …) is maintenance, not release news.
   { message = ".*", skip = true },
 ]

@@ -30,7 +30,7 @@ lists every target. Conventions are in [CONVENTIONS.md](../CONVENTIONS.md).
 | `make deps` | `helm repo add` + `helm dependency build`; fetches the git-ignored subchart `.tgz` | once, or after editing chart deps | helm |
 | `make helm-validate` | Renders every mode and pipes to `kubeconform` (schema validation) | after any chart change | kubeconform, `make deps` |
 | `make values-docs` | Regenerates each chart's `VALUES.md` via `helm-docs` | after editing any `values.yaml` (CI fails on drift) | Go (runs helm-docs via `go run`) |
-| `make changelog` | Regenerates `CHANGELOG.md` from Conventional Commits (`git-cliff`, format in `cliff.toml`); PR links and contributors need `GITHUB_TOKEN`, otherwise it runs offline | preview release notes | git-cliff |
+| `make changelog` | Prints the next release's `CHANGELOG.md` section from Conventional Commits (`git-cliff`, format in `cliff.toml`) without writing the file, since the release workflow prepends it; PR links and contributors need `GITHUB_TOKEN`, otherwise it runs offline | preview release notes | git-cliff |
 | `make publish-charts` | `make deps` + package + push both charts to the OCI registry | manual chart publish (run `helm registry login ghcr.io` first) | helm, registry auth |
 | `make check` | `make lint` + `make test` | full local gate before a PR | all Go + helm |
 

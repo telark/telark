@@ -5,7 +5,8 @@
 # A pushed `v*` tag publishes both charts at their Chart.yaml versions as-is. A version
 # already in the registry fails the run before anything is pushed. telark-crds goes
 # first; only telark is tagged (v<version>) and gets a GitHub release, whose notes
-# and CHANGELOG.md both come from cliff.toml. telark-crds is never tagged/released.
+# and CHANGELOG.md both come from cliff.toml, with a Dashboard UI part taken from
+# telark/dashboard-ui's CHANGELOG.md. telark-crds is never tagged/released.
 name: Release · Publish Charts
 run-name: Publish charts (${{ github.event.inputs.chart || 'both' }} · bump ${{ github.event.inputs.bump || 'current' }})
 
@@ -179,17 +180,48 @@ jobs:
             fi
           done
 
-      # Regenerate CHANGELOG.md for the new version (git-cliff, Conventional
-      # Commits). --tag labels the just-bumped commits under the release version,
-      # since the git tag itself is created a step later.
+      # The UI ships from telark/dashboard-ui (build-ui.yaml), whose CHANGELOG.md has a section per
+      # UI version: carry the ones since the previous release's UI version into cliff.toml's body.
+      - name: Collect dashboard UI changes
+        if: ${{ github.event_name == 'workflow_dispatch' && steps.publish.outputs.telark_version != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UI_REPO: telark/dashboard-ui
+        run: |
+          set -euo pipefail
+          # By version, not ancestry: a released tag can sit outside main's history.
+          prev_tag=$(git for-each-ref --count=1 --sort=-v:refname --format='%(refname:short)' 'refs/tags/v[0-9]*')
+          if [ -z "$prev_tag" ]; then echo "no previous release"; exit 0; fi
+          ui_prev=$(git show "${prev_tag}:${CHART_DIR}/values.yaml" | yq e '.services.ui.version' -)
+          ui_now=$(yq e '.services.ui.version' "$CHART_DIR/values.yaml")
+          if [ "$ui_prev" = "$ui_now" ]; then echo "dashboard UI unchanged (${ui_now})"; exit 0; fi
+          gh api -H "Accept: application/vnd.github.raw" \
+            "repos/${UI_REPO}/contents/CHANGELOG.md?ref=v${ui_now}" > "$RUNNER_TEMP/ui-changelog.md" || true
+          delim="UI_NOTES_$(openssl rand -hex 16)"
+          {
+            echo "TELARK_UI_NOTES<<${delim}"
+            echo "v${ui_prev} → [v${ui_now}](https://github.com/${UI_REPO}/releases/tag/v${ui_now})"
+            echo
+            # The UI sections newer than ui_prev, headings two levels down.
+            awk -v now="## [${ui_now}]" -v prev="## [${ui_prev}]" '
+              index($0, now) == 1 { on = 1 }
+              index($0, prev) == 1 { on = 0 }
+              on { sub(/^##/, "####"); print }
+            ' "$RUNNER_TEMP/ui-changelog.md"
+            echo "${delim}"
+          } >> "$GITHUB_ENV"
+
+      # Prepend the new version's section to CHANGELOG.md (git-cliff, Conventional
+      # Commits); older sections are kept as written. --tag labels the just-bumped
+      # commits under the release version, since the git tag is created a step later.
       - name: Generate changelog
         if: ${{ github.event_name == 'workflow_dispatch' && steps.publish.outputs.telark_version != '' }}
         uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
         with:
           config: cliff.toml
-          args: --tag v${{ steps.publish.outputs.telark_version }}
+          args: --unreleased --tag v${{ steps.publish.outputs.telark_version }} --prepend CHANGELOG.md
         env:
-          OUTPUT: CHANGELOG.md
+          OUTPUT: ${{ runner.temp }}/changelog-section.md
 
       # The same release section, alone, as the GitHub Release body.
       - name: Generate release notes

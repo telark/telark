@@ -5,10 +5,10 @@ cd "$SERVICE_PATH"
 git config user.name "github-actions"
 git config user.email "action@github.com"
 
-# The release step rewrote the package version; commit it so the tag points at
-# the exact source the image was built from.
+# The release step rewrote the package version (and prepended CHANGELOG.md); commit
+# them so the tag points at the exact source the image was built from.
 changed=()
-for f in package.json package-lock.json; do
+for f in package.json package-lock.json CHANGELOG.md; do
   [[ -f "$f" ]] && [[ -n "$(git status --porcelain -- "$f")" ]] && changed+=("$f")
 done
 if [[ "${#changed[@]}" -gt 0 ]]; then

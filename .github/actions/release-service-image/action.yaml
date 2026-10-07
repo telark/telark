@@ -43,6 +43,16 @@ inputs:
     description: 'Branch the external source was built from, recorded in the tag'
     required: false
     default: ''
+  # With an external source repo: its CHANGELOG.md gains the version's section in the
+  # tagged release commit, and the tag gets a GitHub Release with the same notes.
+  changelog_config:
+    description: 'git-cliff config (workspace path) for the external source repo changelog'
+    required: false
+    default: ''
+  source_repo_token:
+    description: 'Token allowed to create releases in the external source repo'
+    required: false
+    default: ''
   chart_dir:
     description: 'Checkout path of the telark repo holding the chart'
     required: false
@@ -132,6 +142,31 @@ runs:
         IMAGE: ${{ steps.image.outputs.registry }}/${{ steps.image.outputs.repository }}@${{ steps.build.outputs.image_digest }}
       run: cosign sign "$IMAGE"
 
+    - name: Render source release notes
+      if: ${{ inputs.source_repo_path != '' && inputs.changelog_config != '' }}
+      uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
+      with:
+        config: ${{ inputs.changelog_config }}
+        args: --repository ${{ inputs.source_repo_path }} --unreleased --tag v${{ steps.service_data.outputs.service_new_version }} --strip header
+      env:
+        OUTPUT: ${{ runner.temp }}/source-release-notes.md
+
+    # git-cliff --prepend needs the file to exist; the first run starts it with the header.
+    - name: Create source CHANGELOG.md
+      if: ${{ inputs.source_repo_path != '' && inputs.changelog_config != '' }}
+      shell: bash
+      working-directory: ${{ inputs.source_repo_path }}
+      run: touch CHANGELOG.md
+
+    - name: Prepend source CHANGELOG.md
+      if: ${{ inputs.source_repo_path != '' && inputs.changelog_config != '' }}
+      uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
+      with:
+        config: ${{ inputs.changelog_config }}
+        args: --repository ${{ inputs.source_repo_path }} --unreleased --tag v${{ steps.service_data.outputs.service_new_version }} --prepend ${{ inputs.source_repo_path }}/CHANGELOG.md
+      env:
+        OUTPUT: ${{ runner.temp }}/source-changelog.md
+
     # In-repo services are tagged by the bump commit below; a service whose
     # source lives elsewhere needs its own tag in that repository.
     - name: Tag Source Repository
@@ -166,3 +201,15 @@ runs:
         SOURCE_IMAGE: ${{ steps.image.outputs.registry }}/${{ steps.image.outputs.repository }}:${{ steps.service_data.outputs.new_version }}-source
         SCRIPT_DIR: ${{ github.action_path }}/../../scripts
       run: bash "$SCRIPT_DIR/build-source-image.sh" "$IMAGE" "$SOURCE_IMAGE" --push
+
+    # Last for the same reason: CHANGELOG.md already carries the notes, and a missing
+    # release can be created by hand from them.
+    - name: Publish source repo release
+      if: ${{ inputs.source_repo_path != '' && inputs.changelog_config != '' }}
+      shell: bash
+      working-directory: ${{ inputs.source_repo_path }}
+      env:
+        GH_TOKEN: ${{ inputs.source_repo_token }}
+        TAG: v${{ steps.service_data.outputs.service_new_version }}
+        NOTES: ${{ runner.temp }}/source-release-notes.md
+      run: gh release create "$TAG" --verify-tag --title "$TAG" --notes-file "$NOTES"

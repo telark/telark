@@ -36,12 +36,14 @@ awk -F: '
 
 mkdir -p "$work/src"
 docker run --rm -e BRANCH="$branch" -v "$work:/w" "alpine:$branch" sh -euc '
-  apk add -q abuild
+  apk add -q abuild git
+  # The GitHub mirror of aports: gitlab.alpinelinux.org answers GitHub runners with 418.
+  git init -q /tmp/aports && git -C /tmp/aports remote add origin https://github.com/alpinelinux/aports.git
   while read -r origin version commit license; do
+    git -C /tmp/aports fetch -q --depth=1 --filter=blob:none origin "$commit"
     # srcpkg names the top folder of the bundle after this directory, as in aports.
-    mkdir "/tmp/$origin" && cd "/tmp/$origin"
-    wget -qO- "https://gitlab.alpinelinux.org/alpine/aports/-/archive/$commit/aports.tar.gz?path=main/$origin" |
-      tar -xz --strip-components=3
+    git -C /tmp/aports archive --prefix="$origin/" "$commit:main/$origin" | tar -x -C /tmp
+    cd "/tmp/$origin"
     SRCDEST=/tmp/distfiles REPODEST=/w DISTFILES_MIRROR="https://distfiles.alpinelinux.org/distfiles/v$BRANCH" \
       abuild -F -q fetch verify srcpkg
   done < /w/packages

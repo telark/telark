@@ -263,7 +263,7 @@ services:
     name: "discovery-service"
     repository: "discovery"
     # @ignore
-    version: 0.1.0
+    version: 0.1.1
     category: "discovery"
     useNatsCreds: true
     natsUser: publisher

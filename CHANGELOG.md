@@ -2,6 +2,72 @@
 
 All notable changes to Telark are documented here.
 
+## [0.1.1](https://github.com/telark/telark/compare/v0.1.0...v0.1.1) - 2026-10-08
+
+### 🐛 Bug Fixes
+
+- Delete the old model on a model switch
+- Issue break-glass tokens as invites
+- Never block on NATS, fully reset apps
+- Add missing shared types
+- Compute role priority from saved scopes
+- Unblock drains and run without persistence
+
+### 📚 Documentation
+
+- Note metrics-server can be disabled when the cluster runs one
+- Document trust boundaries and the VPA upgrade
+- Add the copyright line to every license and publish Alpine sources with complete notices
+
+### 🖥️ Dashboard UI
+
+v0.1.0 → [v0.1.1](https://github.com/telark/dashboard-ui/releases/tag/v0.1.1)
+
+#### [0.1.1](https://github.com/telark/dashboard-ui/compare/v0.1.0...v0.1.1) - 2026-10-08
+
+##### 🐛 Bug Fixes
+
+- Read refusal codes, keep enroll links
+- Merge the Insights cards, refresh on save
+- Show group-role access, focus row actions
+- Keep disabled buttons dimmed
+
+##### 📚 Documentation
+
+- Add copyright, carve-out and notices
+- List the port-forward commands
+
+##### Contributors
+
+- [@hourki](https://github.com/hourki)
+
+#### [0.1.2](https://github.com/telark/dashboard-ui/compare/v0.1.1...v0.1.2) - 2026-10-08
+
+No user-facing changes.
+
+#### [0.1.1](https://github.com/telark/dashboard-ui/compare/v0.1.0...v0.1.1) - 2026-10-08
+
+##### 🐛 Bug Fixes
+
+- Read refusal codes, keep enroll links
+- Merge the Insights cards, refresh on save
+- Show group-role access, focus row actions
+- Keep disabled buttons dimmed
+
+##### 📚 Documentation
+
+- Add copyright, carve-out and notices
+- List the port-forward commands
+
+##### Contributors
+
+- [@hourki](https://github.com/hourki)
+
+
+### Contributors
+
+- [@hourki](https://github.com/hourki)
+
 ## [0.1.0] - 2026-10-04
 
 ### ✨ Features

@@ -92,8 +92,8 @@ values-docs: ## Regenerate each chart's VALUES.md index from values.yaml (helm-d
 
 # cliff.toml reads PR links + contributors from the GitHub API, which needs GITHUB_TOKEN;
 # without one the preview runs offline and leaves them out.
-changelog: ## Regenerate CHANGELOG.md from conventional commits (git-cliff)
-	git cliff $(if $(GITHUB_TOKEN),,--offline) -o CHANGELOG.md
+changelog: ## Preview the next release's CHANGELOG.md section (git-cliff); the release workflow prepends it
+	git cliff $(if $(GITHUB_TOKEN),,--offline) --unreleased
 
 # Signed like release-charts.yaml, so a manual publish never leaves an unsigned chart in the repo.
 publish-charts: deps ## Package, push and cosign-sign both charts (run `helm registry login ghcr.io` and `cosign login ghcr.io` first)

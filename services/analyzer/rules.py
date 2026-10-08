@@ -199,7 +199,8 @@ def _recent_change(entry: dict, now: datetime, min_generation: int, max_generati
     if not (entry.get("isIncident") or entry.get("changeClass") in CORRELATED_CHANGE_CLASSES):
         return None
     # Health alone is no change: discovery's entry for an app first seen down, or one that went down untouched.
-    first = next((c for c in entry.get(KEY_CHANGES) or [] if c.get("field") != CHANGE_FIELD_HEALTH), None)
+    changes = entry.get(KEY_CHANGES) or []
+    first = next((c for c in changes if c.get("field") != CHANGE_FIELD_HEALTH), None)
     if first is None:
         return None
     try:
@@ -208,8 +209,11 @@ def _recent_change(entry: dict, now: datetime, min_generation: int, max_generati
         return None
     if (now - at).total_seconds() > CHANGE_CORRELATION_WINDOW_S:
         return None
-    values = dict(field=first.get("field"), old=first.get("oldValue") or NONE_VALUE,
-                  new=first.get("newValue") or NONE_VALUE)
+    new = first.get("newValue")
+    # A swapped ref is logged as 'ref added' (no old value); the entry's field-level change to it holds the old one.
+    old = first.get("oldValue") or next((c.get("oldValue") for c in changes
+                                         if new and c.get("newValue") == new and c.get("oldValue")), None)
+    values = dict(field=first.get("field"), old=old or NONE_VALUE, new=new or NONE_VALUE)
     return {"generation": entry.get("generation"), "at": at, "field": first.get("field") or "",
             "change": CHANGE_PARAM_TEMPLATE.format(**values), "detail": CORRELATION_DETAIL_TEMPLATE.format(**values)}
 

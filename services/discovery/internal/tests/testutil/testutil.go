@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
@@ -24,6 +25,27 @@ func Equal[T comparable](t *testing.T, name string, got, want T) {
 	if got != want {
 		t.Fatalf("%s = %v, want %v", name, got, want)
 	}
+}
+
+// CaptureStdout returns what fn printed: the rest response helpers log through a per-call logger on stdout.
+func CaptureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	original := os.Stdout
+	os.Stdout = writer
+	fn()
+	os.Stdout = original
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	out, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(out)
 }
 
 // RedisEnv starts an embedded Redis and points REDIS_HOST/REDIS_PORT at it, so

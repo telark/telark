@@ -17,6 +17,7 @@ from constants import (
     CHAT_TEMPERATURE,
     OLLAMA_CHAT_PATH,
     OLLAMA_CONTEXT_MARKER,
+    OLLAMA_DELETE_PATH,
     OLLAMA_FIELD_CAPABILITIES,
     OLLAMA_FIELD_ERROR,
     OLLAMA_FIELD_MODELS,
@@ -156,6 +157,16 @@ def chat_payload(
 async def chat(client: httpx.AsyncClient, payload: dict, timeout_s: float) -> ChatResponse:
     body = await _request(client, "POST", OLLAMA_CHAT_PATH, json=payload, timeout=timeout_s)
     return ChatResponse.model_validate(body)
+
+
+async def delete(client: httpx.AsyncClient, model: str) -> None:
+    """A model already gone (404) counts as deleted. Ollama answers a delete with an empty body."""
+    try:
+        resp = await client.request("DELETE", OLLAMA_DELETE_PATH, json={"model": model}, timeout=OLLAMA_META_TIMEOUT_S)
+    except httpx.TransportError as e:
+        raise _transport_error(e) from e
+    if resp.status_code != httpx.codes.NOT_FOUND:
+        _check(resp)
 
 
 async def pull(client: httpx.AsyncClient, model: str, on_progress: Callable[[PullProgress], None]) -> None:

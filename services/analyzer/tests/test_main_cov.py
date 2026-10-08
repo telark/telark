@@ -1100,8 +1100,34 @@ def test_sweep_skips_tick_when_exporter_unavailable(monkeypatch):
     env.redis.hashes["analyzer:review"] = {"shop/old": "3:1"}
     _, missing = _sweep(env, monkeypatch, [], fail=exporter.ExporterUnavailable(503))
     assert missing == {} and env.gathered == []
+    # Any other failure ends the tick before the cleanup too (review_loop logs it).
+    with pytest.raises(RuntimeError):
+        _sweep(env, monkeypatch, [], fail=RuntimeError("boom"))
+    assert env.redis.hashes["analyzer:review"] == {"shop/old": "3:1"}
+
+
+def test_sweep_forgets_the_last_app_after_two_empty_listings(monkeypatch):
+    # FT21: the last app's delete leaves an empty list, which counts like any listing without the app.
+    env = _reviewing(Env(monkeypatch), monkeypatch)
+    gone = "analyzer:shop:gone"
+    env.put(AppInsights(version=1, lastRun=LastRun(status="done")), key=gone)
+    env.redis.zsets["analyzer:index"] = {"shop/gone": 1_800_000_000_000}
+    env.redis.hashes["analyzer:usage"] = {"shop/gone": "{}"}
+    env.redis.hashes["analyzer:review"] = {"shop/gone": "3:1800000000"}
+    # One empty listing deletes nothing, and the app listed again resets the count.
     _, missing = _sweep(env, monkeypatch, [])
-    assert missing == {} and env.gathered == [], "an empty list never reads as 'every app was deleted'"
+    assert gone in env.redis.store and missing == {"shop/gone": 1} and env.gathered == []
+    _, missing = _sweep(env, monkeypatch, [_summary("gone")], missing=missing)
+    _, missing = _sweep(env, monkeypatch, [], missing=missing)
+    assert gone in env.redis.store and missing == {"shop/gone": 1}
+    assert "shop/gone" in env.redis.hashes["analyzer:usage"]
+    # A failed listing does not count: only the second successful empty one cleans up.
+    _sweep(env, monkeypatch, [], missing=missing, fail=exporter.ExporterUnavailable(503))
+    assert gone in env.redis.store and missing == {"shop/gone": 1}
+    _, missing = _sweep(env, monkeypatch, [], missing=missing)
+    assert gone not in env.redis.store and missing == {}
+    assert "shop/gone" not in env.redis.zsets["analyzer:index"]
+    assert "shop/gone" not in env.redis.hashes["analyzer:usage"] | env.redis.hashes["analyzer:review"]
 
 
 def test_sweep_gc_index(monkeypatch):

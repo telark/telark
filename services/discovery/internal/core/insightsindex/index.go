@@ -161,6 +161,13 @@ func (x *Index) sync(ctx context.Context, rdb *redis.Client, full bool) error {
 // `started` precedes the index read, so indexedAt bounds what the rows can have missed (CatchUp).
 func (x *Index) syncLocked(ctx context.Context, rdb *redis.Client, full bool) error {
 	started := time.Now()
+	if !full {
+		shrank, err := x.indexShrank(ctx, rdb)
+		if err != nil {
+			return err
+		}
+		full = shrank
+	}
 	members, err := rdb.ZRangeByScoreWithScores(ctx, insightsdata.IndexKey, &redis.ZRangeBy{
 		Min: x.minScore(full),
 		Max: maxScoreUnbounded,
@@ -185,6 +192,18 @@ func (x *Index) syncLocked(ctx context.Context, rdb *redis.Client, full bool) er
 		string(constants.LogInsightsIndexSynced), full, len(fetched), apps, rows, time.Since(started),
 	))
 	return nil
+}
+
+// A delta read sees only writes: a smaller index means a member was removed (a reset, the
+// analyzer's sweep), so the read goes full now instead of at the resync tick.
+func (x *Index) indexShrank(ctx context.Context, rdb *redis.Client) (bool, error) {
+	count, err := rdb.ZCard(ctx, insightsdata.IndexKey).Result()
+	if err != nil {
+		return false, err
+	}
+	x.mu.RLock()
+	defer x.mu.RUnlock()
+	return x.loaded && count < int64(len(x.scores)), nil
 }
 
 func (x *Index) minScore(full bool) string {

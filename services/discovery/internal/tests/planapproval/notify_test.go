@@ -10,10 +10,10 @@ import (
 	roledata "github.com/telark/telark/internal/data/resources/role"
 	userresource "github.com/telark/telark/internal/data/resources/user"
 	notifclient "github.com/telark/telark/internal/rest/clients/notifications"
+	"github.com/telark/telark/internal/x-ware/async"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	discoveryauthz "github.com/telark/telark/services/discovery/internal/authz"
 	"github.com/telark/telark/services/discovery/internal/core/plans/protection"
-	"github.com/telark/telark/services/discovery/internal/helpers/async"
 	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 

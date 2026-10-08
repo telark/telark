@@ -12,12 +12,12 @@ import (
 	"github.com/telark/telark/internal/data/metadata/base"
 	"github.com/telark/telark/internal/data/metadata/v1alpha1"
 	roledata "github.com/telark/telark/internal/data/resources/role"
+	"github.com/telark/telark/internal/x-ware/async"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/exporter/internal/constants"
 	envmanager "github.com/telark/telark/services/exporter/internal/managers/envs"
 	exprdb "github.com/telark/telark/services/exporter/internal/redis"
 	notifstorage "github.com/telark/telark/services/exporter/internal/redis/notifications"
-	"github.com/telark/telark/services/exporter/internal/utils/async"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 )

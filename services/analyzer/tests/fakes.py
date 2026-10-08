@@ -200,7 +200,7 @@ class FakePipeline:
 
 
 class FakeOllama:
-    """httpx.MockTransport handler for /api/tags, /api/show, /api/chat and /api/pull; records every request path.
+    """httpx.MockTransport handler for /api/tags, /api/show, /api/chat, /api/pull and /api/delete; records every path.
 
     `overrides[path]` (an httpx.Response or an exception to raise) replaces the default
     answer; `hook(path)` runs before each answer. A pull installs the model only when
@@ -237,6 +237,11 @@ class FakeOllama:
         if path == "/api/chat":
             content = json.dumps({"insights": [{"title": t, "summary": s} for t, s in self.narration]})
             return httpx.Response(200, json={"message": {"role": "assistant", "content": content}, "done": True})
+        if path == "/api/delete":
+            if body["model"] not in self.models:
+                return httpx.Response(404, json={"error": f"model '{body['model']}' not found"})
+            self.models.discard(body["model"])
+            return httpx.Response(200)
         assert path == "/api/pull", path
         if self.pull_lines[-1].get("status") == "success":
             self.models.add(body["model"])

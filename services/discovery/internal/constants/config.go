@@ -120,7 +120,6 @@ const (
 	// publish path, until the exporter serves the entry's generation.
 	InsightsEnqueueStoreWaitAttempts = 10
 	InsightsEnqueueStorePollInterval = 500 * time.Millisecond
-	NATSConnectTimeout               = 30 * time.Second
 )
 
 // Insights row index: a per-replica read cache behind the cluster-wide insights list.

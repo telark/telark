@@ -30,13 +30,12 @@ func CreateCategoryResourceWithCacheInvalidation(optimizer *performance.Optimize
 
 		category, err := categoryutils.ExtractCategorySpecFromRequestBody(body)
 		if err != nil {
-			responseutils.LogAndSendResponse(
+			responseutils.SendResponse(
 				w,
 				http.StatusBadRequest,
 				response.OperationError,
 				err.Error(),
 				nil,
-				err,
 			)
 			return
 		}

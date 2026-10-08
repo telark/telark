@@ -81,13 +81,12 @@ func ValidateCategoryDeletion(w http.ResponseWriter) bool {
 
 func validateRequiredFieldAndRespond(w http.ResponseWriter, value string, errorMsg string) error {
 	if err := sharedutils.ValidateRequiredField(value, errorMsg); err != nil {
-		responseutils.LogAndSendResponse(
+		responseutils.SendResponse(
 			w,
 			http.StatusBadRequest,
 			response.OperationError,
 			err.Error(),
 			nil,
-			err,
 		)
 		return err
 	}

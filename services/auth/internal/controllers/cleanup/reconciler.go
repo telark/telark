@@ -36,11 +36,8 @@ func (r *Reconciler) ReconcileOne(ctx context.Context, resourceType, id string, 
 	passCtx, cancel := context.WithTimeout(ctx, r.cfg.ReconcilePassDeadline)
 	defer cancel()
 
-	if target.Purge != nil {
-		if err := target.Purge(id); err != nil {
-			r.lg.Error(fmt.Sprintf(string(constants.LogCleanupReconcileFail), resourceType, id, attempts, err))
-			return Outcome{Requeue: true, DurationMS: elapsedMS(start)}, err
-		}
+	if err := r.purge(target.Purge, resourceType, id, attempts); err != nil {
+		return Outcome{Requeue: true, DurationMS: elapsedMS(start)}, err
 	}
 
 	patchCount := constants.DefaultInitValue
@@ -64,12 +61,27 @@ func (r *Reconciler) ReconcileOne(ctx context.Context, resourceType, id string, 
 		return Outcome{Requeue: true, PatchCount: patchCount, DurationMS: elapsedMS(start)}, err
 	}
 
+	if err := r.purge(target.PurgeLast, resourceType, id, attempts); err != nil {
+		return Outcome{Requeue: true, PatchCount: patchCount, DurationMS: elapsedMS(start)}, err
+	}
+
 	if err := r.removeFinalizer(passCtx, target, id); err != nil {
 		return Outcome{Requeue: true, PatchCount: patchCount, DurationMS: elapsedMS(start)}, err
 	}
 
 	r.lg.Debug(fmt.Sprintf(string(constants.LogCleanupReconcileDone), resourceType, id, elapsedMS(start), patchCount))
 	return Outcome{Requeue: false, PatchCount: patchCount, DurationMS: elapsedMS(start)}, nil
+}
+
+func (r *Reconciler) purge(purgeFn PurgeFn, resourceType, id string, attempts int) error {
+	if purgeFn == nil {
+		return nil
+	}
+	err := purgeFn(id)
+	if err != nil {
+		r.lg.Error(fmt.Sprintf(string(constants.LogCleanupReconcileFail), resourceType, id, attempts, err))
+	}
+	return err
 }
 
 func (r *Reconciler) cleanBackRef(ctx context.Context, ref BackRef, targetID string) (int, error) {

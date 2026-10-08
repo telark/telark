@@ -15,6 +15,7 @@ import (
 	"github.com/telark/telark/services/auth/internal/constants"
 	passkeyhandler "github.com/telark/telark/services/auth/internal/handlers/passkey"
 	webauthnhelper "github.com/telark/telark/services/auth/internal/helpers/webauthn"
+	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
 // registerStub backs an account that already holds a passkey: the session
@@ -51,11 +52,12 @@ func TestRegisterStartForExistingUser(t *testing.T) {
 		session bool
 		body    string
 		status  int
+		code    string
 	}{
-		{"session without email", true, "", http.StatusOK},
-		{"session with own email", true, `{"email":"a@b.com"}`, http.StatusOK},
-		{"session naming another email", true, `{"email":"x@y.com"}`, http.StatusForbidden},
-		{"no session", false, `{"email":"a@b.com"}`, http.StatusUnauthorized},
+		{"session without email", true, "", http.StatusOK, constants.EmptyString},
+		{"session with own email", true, `{"email":"a@b.com"}`, http.StatusOK, constants.EmptyString},
+		{"session naming another email", true, `{"email":"x@y.com"}`, http.StatusForbidden, "email_mismatch"},
+		{"no session", false, `{"email":"a@b.com"}`, http.StatusUnauthorized, constants.EmptyString},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -69,6 +71,7 @@ func TestRegisterStartForExistingUser(t *testing.T) {
 			if rec.Code != c.status {
 				t.Fatalf("status = %d, want %d (body %s)", rec.Code, c.status, rec.Body.String())
 			}
+			testutil.Equal(t, "code", refusalCode(t, rec), c.code)
 		})
 	}
 }

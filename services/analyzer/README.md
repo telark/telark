@@ -85,12 +85,16 @@ insights but not the settings). The state is re-checked every `ANALYZER_CONFIG_P
   enabled, a missing model is pulled at the first config poll after start and by any run that needs
   it (the runtime needs 443 egress for pulls only). A failing pull is retried every poll; only the
   first failure in a row is logged. Only models of the license catalog (`LICENSES` in
-  `constants.py`) are pulled, and a pull still running after an hour is canceled.
+  `constants.py`) free for commercial use are pulled, and a pull still running after an hour is
+  canceled. On the bundled runtime (`OLLAMA_PRUNE_MODELS`, set by the chart) the other catalog models
+  except the default are deleted, once no run is using a model: before a pull, and from the config poll
+  once the configured model is ready (a switch to an installed model starts no pull).
 - **Air-gapped** (`OLLAMA_AUTO_PULL=false`, chart `app.ollama.autoPull=false`): no pulls, the pull
   route answers 409 `auto_pull_disabled`; the model is pre-loaded on the runtime volume. Fast runs
   still deliver rule insights without it.
 - **Your own runtime** (chart `app.ollama.runtimeUrl`, which sets `OLLAMA_HOST`): any endpoint that
-  speaks the Ollama API, no key. Set `ANALYZER_NUM_THREAD` to that host's cores.
+  speaks the Ollama API, no key. Set `ANALYZER_NUM_THREAD` to that host's cores. Telark never
+  deletes models there.
 
 ## Failures
 
@@ -171,6 +175,7 @@ and caps. Full reference:
 | `REDIS_POOL_SIZE` | `10` | Redis connection pool size |
 | `OLLAMA_HOST` | `http://localhost:11434` | Model runtime endpoint (chart: the subchart, or `app.ollama.runtimeUrl`) |
 | `OLLAMA_AUTO_PULL` | `true` | Pull a missing model after start and when a job needs it (`false` for air-gapped installs) |
+| `OLLAMA_PRUNE_MODELS` | `false` | Delete the other catalog models except the default, before a pull and once the configured model is ready. The chart sets it for the bundled runtime only |
 | `LOG_LEVEL` | `INFO` | Log level |
 | `API_PORT` | `8080` | HTTP port |
 | `AUTH_SERVICE_URL` | `http://telark-auth-service:8080` | auth-service base URL |
@@ -219,9 +224,9 @@ outage keeps it open); a user holds at most 8 streams, the next is 429 `too_many
 | `POST` | `/api/v1/insights/applications/{namespace}/{name}/analyze` | `insights` Contributor, denied by the `insights.analyzeinsights.deny` rule (deep mode: 503 `runtime_<state>` unless the runtime is `ready`) |
 | `POST` | `/api/v1/insights/applications/{namespace}/{name}/insights/{id}/triage` `{action}` | `insights` Contributor, denied by the `insights.triageinsights.deny` rule; 200 `{data: Insight}`, 400 `invalid_request`, 404 `app_not_found` / `insight_not_found`, 409 `invalid_triage` |
 | `GET` | `/api/v1/insights/events?apps=ns/name,…` (SSE) | `insights` ReadOnly or `settings` Owner |
-| `GET` | `/api/v1/insights/runtime` | `insights` ReadOnly or `settings` Owner |
+| `GET` | `/api/v1/insights/runtime` | `insights` ReadOnly or `settings` Owner; runs one config-poll step first, so a model saved in Settings shows at once |
 | `POST` | `/api/v1/insights/runtime/validate` | `settings` Owner, denied by the `settings.controlainsights.deny` rule |
-| `POST` | `/api/v1/insights/runtime/pull` | `settings` Owner, denied by the `settings.controlainsights.deny` rule; 400 `model_not_allowed` for a model outside the license catalog (`LICENSES` in `constants.py`) |
+| `POST` | `/api/v1/insights/runtime/pull` | `settings` Owner, denied by the `settings.controlainsights.deny` rule; 400 `model_not_allowed` for a model outside the license catalog (`LICENSES` in `constants.py`) or not free for commercial use |
 
 Triage `action` is `acknowledge`, `dismiss` or `reopen`. `dismiss` is for recommendations only and
 holds while the card's facts are unchanged; a change, a resolve or `reopen` clears it. Acknowledging a

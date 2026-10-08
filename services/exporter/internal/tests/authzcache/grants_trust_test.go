@@ -1,6 +1,7 @@
 package authzcache
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -19,11 +20,9 @@ const (
 	plantedGrants = `{"scopes":{"settings":"owner"},"rules":{}}`
 	serviceToken  = "test-service-token"
 
-	// What the cache reads and what it signs, with no generation set yet.
-	grantsCacheKey = "authz:grants:" + grantsUserID
-	laterGen       = "7"
-	earlierGen     = "3"
-	generationKey  = "authz:generation"
+	generationKey = "authz:generation"
+	// Below any generation a bump leaves behind.
+	rolledBackGen = "0"
 
 	signWithTokenFailed = "SignCacheEntry failed with a service token present"
 )
@@ -39,7 +38,7 @@ func TestPlantedGrantsAreNotTrusted(t *testing.T) {
 	t.Cleanup(func() { _ = client.Close() })
 	exprdb.Set(client)
 
-	if err := mr.Set(grantsCacheKey, plantedGrants); err != nil {
+	if err := mr.Set(cacheKey(currentGeneration(t, mr)), plantedGrants); err != nil {
 		t.Fatalf("planting the cache entry: %v", err)
 	}
 
@@ -58,14 +57,7 @@ func TestSignedGrantsAtTheCacheKeyAreUsed(t *testing.T) {
 	t.Cleanup(func() { _ = client.Close() })
 	exprdb.Set(client)
 
-	authz.ResetGenerationFloor()
-	signed, ok := authz.SignGrantsEntry(constants.EmptyString, grantsUserID, readOnlySettings(), time.Now())
-	if !ok {
-		t.Fatal(signWithTokenFailed)
-	}
-	if err := mr.Set(grantsCacheKey, signed); err != nil {
-		t.Fatalf("writing the signed cache entry: %v", err)
-	}
+	plantSigned(t, mr, currentGeneration(t, mr), time.Now())
 
 	grants, err := authz.NewResolver().GrantsForUser(grantsUserID)
 	if err != nil {
@@ -138,18 +130,30 @@ func readOnlySettings() xauthz.Grants {
 	return xauthz.Grants{Levels: map[string]roledata.PermissionLevel{roledata.ScopeSettings: roledata.PermissionLevelReadOnly}}
 }
 
+func cacheKey(gen string) string {
+	return "authz:grants:" + gen + ":" + grantsUserID
+}
+
+// The rollback floor lives as long as the process, across fresh Redis instances, so a test
+// moves the generation past it the way a role edit does and plants at that generation.
+func currentGeneration(t *testing.T, mr *miniredis.Miniredis) string {
+	t.Helper()
+	authz.BumpGeneration(context.Background())
+	gen, err := mr.Get(generationKey)
+	if err != nil {
+		t.Fatalf("reading the generation: %v", err)
+	}
+	return gen
+}
+
 func plantSigned(t *testing.T, mr *miniredis.Miniredis, gen string, issuedAt time.Time) {
 	t.Helper()
 	signed, ok := authz.SignGrantsEntry(gen, grantsUserID, readOnlySettings(), issuedAt)
 	if !ok {
 		t.Fatal(signWithTokenFailed)
 	}
-	key := "authz:grants:" + gen + ":" + grantsUserID
-	if gen == constants.EmptyString {
-		key = grantsCacheKey
-	}
-	if err := mr.Set(key, signed); err != nil {
-		t.Fatalf("planting %s: %v", key, err)
+	if err := mr.Set(cacheKey(gen), signed); err != nil {
+		t.Fatalf("planting %s: %v", cacheKey(gen), err)
 	}
 }
 
@@ -158,34 +162,34 @@ func plantSigned(t *testing.T, mr *miniredis.Miniredis, gen string, issuedAt tim
 func TestReplayedGrantsAreNotTrusted(t *testing.T) {
 	t.Setenv(dataconstants.EnvServiceToken, serviceToken)
 	tests := []struct {
-		name     string
-		seen     string
-		replayed string
-		issuedAt time.Time
-		wantUsed bool
+		name       string
+		rolledBack bool
+		issuedAt   time.Time
+		wantUsed   bool
 	}{
-		{"current generation, fresh", laterGen, laterGen, time.Now(), true},
-		{"generation rolled back", laterGen, earlierGen, time.Now(), false},
-		{"entry older than the TTL", laterGen, laterGen, time.Now().Add(-2 * constants.AuthzGrantsTTL), false},
+		{"current generation, fresh", false, time.Now(), true},
+		{"generation rolled back", true, time.Now(), false},
+		{"entry older than the TTL", false, time.Now().Add(-2 * constants.AuthzGrantsTTL), false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			authz.ResetGenerationFloor()
 			mr := miniredis.RunT(t)
 			client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 			t.Cleanup(func() { _ = client.Close() })
 			exprdb.Set(client)
 
-			plantSigned(t, mr, tt.seen, time.Now())
-			if err := mr.Set(generationKey, tt.seen); err != nil {
-				t.Fatal(err)
-			}
+			seen := currentGeneration(t, mr)
+			plantSigned(t, mr, seen, time.Now())
 			if _, err := authz.NewResolver().GrantsForUser(grantsUserID); err != nil {
-				t.Fatalf("priming at generation %s: %v", tt.seen, err)
+				t.Fatalf("priming at generation %s: %v", seen, err)
 			}
 
-			plantSigned(t, mr, tt.replayed, tt.issuedAt)
-			if err := mr.Set(generationKey, tt.replayed); err != nil {
+			replayed := seen
+			if tt.rolledBack {
+				replayed = rolledBackGen
+			}
+			plantSigned(t, mr, replayed, tt.issuedAt)
+			if err := mr.Set(generationKey, replayed); err != nil {
 				t.Fatal(err)
 			}
 			_, err := authz.NewResolver().GrantsForUser(grantsUserID)

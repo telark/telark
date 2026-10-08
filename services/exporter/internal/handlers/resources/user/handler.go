@@ -48,13 +48,12 @@ func CreateUserResourceWithCacheInvalidation(optimizer *performance.Optimizer) f
 
 		user, err := userutils.ExtractUserSpecFromRequestBody(body)
 		if err != nil {
-			responseutils.LogAndSendResponse(
+			responseutils.SendResponse(
 				w,
 				http.StatusBadRequest,
 				response.OperationError,
 				err.Error(),
 				nil,
-				err,
 			)
 			return
 		}

@@ -35,14 +35,14 @@ The examples below leave out the admin flag. Keep it on every command.
 
 Telark has exactly one bootstrap admin: the email in `app.auth.bootstrap.admin`. Only the bootstrap admin can turn on SSO or passkey self-registration, so the value is required: without it the chart fails the render and the auth service refuses to start.
 
-The bootstrap admin holds the built-in Admin role (Admin on `ALL`) and nothing more. Only the auth service's break-glass command creates or recovers it: open the registration page with the token it prints within 10 minutes to enroll a passkey.
+The bootstrap admin holds the built-in Admin role (Admin on `ALL`) and nothing more. Only the auth service's break-glass command creates or recovers it: open the registration page with the token it prints to enroll a passkey, within the [enrollment link](#enrollment-links) lifetime (an hour by default).
 
 ```sh
 kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email test@example.com --enroll
 # open https://<dashboard-host>/register?enroll=<token>
 ```
 
-With the default port-forward, the host is `http://localhost:3000`. Run the same command again to recover the account, for example after losing its passkey. If an account with that email already exists, the command makes it the bootstrap admin. Any other email is refused without creating or changing an account; other users get an [enrollment link](#enrollment-links).
+With the default port-forward, the host is `http://localhost:3000`. Run the same command again to recover the account, for example after losing its passkey: the new token replaces the previous one, and an account that still has a passkey is notified when the token is created and when it is used. If an account with that email already exists, the command makes it the bootstrap admin. Any other email is refused without creating or changing an account; other users get an [enrollment link](#enrollment-links).
 
 Google SSO and passkey self-registration never grant Admin: a new account always starts as ReadOnly, even with the bootstrap email, and the login page refuses to register the bootstrap email.
 
@@ -54,7 +54,7 @@ The bootstrap account belongs to the chart. The API refuses to delete or suspend
 
 ### Enrollment links
 
-An enrollment link lets someone register a passkey on an account an admin created for them (Members, row action "Create enrollment link"). The dashboard shows the link once. It works once, for that account only, fills in the account's email on the register page, and expires after an hour by default. A new link revokes the previous one, and the same row can revoke it. Members shows the account as "Invite pending", "Invite expired" or, once a passkey closed the link, "Enrolled". Change the lifetime, in seconds, with:
+An enrollment link lets someone register a passkey on an account an admin created for them (Members, row action "Create enrollment link"). The dashboard shows the link once. It works once, for that account only, fills in the account's email on the register page, and expires after an hour by default. A new link revokes the previous one, and the same row can revoke it. Members shows the account as "Invite pending", "Invite expired" or, once a passkey closed the link, "Enrolled". Starting a registration from the link uses it up, so one left unfinished shows "Invite expired" about a minute later, not at the end of the lifetime. Change the lifetime, in seconds, with:
 
 ```sh
 --set services.auth.env.ENROLL_INVITE_TTL_SEC=86400
@@ -241,7 +241,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 |---|---|---|
 | `minimal` | Development, demos, evaluation. Single replica, no autoscaling, no PDBs | A few hundred applications |
 | `standard` (default) | Small and mid-size production. Every service starts at 1 replica and scales on CPU up to 3 (HPA), except the exporter ([Exporter storage](#exporter-storage)). Add `--set vpa.enabled=true` for vertical scaling | Verified at 2 000 applications, with 2 exporter replicas |
-| `performance` | Large clusters. As `standard`, with an HPA ceiling of 5, disruption budgets that keep one pod through drains, larger requests and limits, and 2 GiB exporter volumes | Beyond 1 000 applications |
+| `performance` | Large clusters. As `standard`, with an HPA ceiling of 5, disruption budgets that let a drain take one pod at a time, larger requests and limits, and 2 GiB exporter volumes | Beyond 1 000 applications |
 
 The mode sizes Telark's own services only. Helm resolves subchart values before the mode is known, so Redis, NATS, Kyverno, metrics-server and Ollama have the same defaults in every mode. Up to 2 000 applications there is nothing to tune; beyond that, size Redis ([Subcharts](#subcharts)).
 
@@ -273,6 +273,8 @@ kubectl delete pvc -n telark telark-exporter-snapshots-pvc telark-exporter-repor
 - Uninstall keeps the claims, and a reinstall picks up the ones named after its storage settings, else the original ones (copied like an upgrade when the class differs). After a class change, reinstall with the same settings, or the original claims come back as they were at the change.
 - Cluster-less renders ([GitOps](#gitops-cluster-less-renders)) cannot read the live claims, so they always render the original names and the requested class: keep the class you installed with.
 
+**Without persistence.** `--set app.persistence.enabled=false` renders no claims, and the exporter keeps snapshots and reports in emptyDir volumes that are lost whenever its pod goes. A claim that already exists (kept by an earlier install, or created by hand) stays mounted instead. Cluster-less renders cannot see it, so they always render the emptyDir.
+
 ## Install-time flags
 
 Set values with `--set key=value`, and pass the same flags on every [upgrade](#upgrade).
@@ -299,7 +301,7 @@ Set values with `--set key=value`, and pass the same flags on every [upgrade](#u
 | `app.networkPolicy.enabled` | `true` | Ingress NetworkPolicies for the Telark pods and NATS ([Network policies](#network-policies)) |
 | `app.serviceToken.existingSecret` | `""` | Secret (key `token`) you manage instead of the generated service token ([GitOps](#gitops-cluster-less-renders)) |
 | `services.<svc>.env.CORS_ALLOWED_ORIGINS` | `""` | Comma-separated browser origins the exporter, discovery, auth and analyzer answer with CORS headers ([CORS](#cors)) |
-| `services.auth.env.ENROLL_INVITE_TTL_SEC` | `"3600"` | Lifetime in seconds of an enrollment link created from Members ([Enrollment links](#enrollment-links)) |
+| `services.auth.env.ENROLL_INVITE_TTL_SEC` | `"3600"` | Lifetime in seconds of an enrollment link created from Members or by break-glass ([Enrollment links](#enrollment-links)) |
 
 ### Subcharts
 
@@ -325,7 +327,7 @@ You rarely touch these. The table lists the on/off switches and the values the c
 | `kyverno.admissionController.container.extraArgs.clientRateLimitQPS` | `50` | Kyverno API QPS |
 | `metrics-server.resources.limits.memory` | `400Mi` | metrics-server memory limit |
 | `metrics-server.args` | kubelet TLS verified | Add `--kubelet-insecure-tls` only where kubelet certificates are self-signed ([metrics-server kubelet TLS](#metrics-server-kubelet-tls)) |
-| `ollama.persistentVolume.size` | `6Gi` | Model storage (when enabled), kept on uninstall: the default model plus any one catalog model, since a switch never deletes the old one. Never shrinks ([Upgrade](#upgrade)) |
+| `ollama.persistentVolume.size` | `6Gi` | Model storage (when enabled), kept on uninstall: the default model plus any one catalog model, since a model switch deletes the other catalog models. Never shrinks ([Upgrade](#upgrade)) |
 
 **Sizing Redis for large installs.** Redis keeps everything in memory and never evicts, so at its memory limit the pod is OOM-killed. The analyzer's documents are the largest part: in the worst case about 210 MiB for 2 000 applications, which the `512Mi` limit covers. For more applications, raise the limit in proportion, for example `--set redis.master.resources.limits.memory=1Gi`. The chart sets `redis.master.resources`, so `redis.master.resourcesPreset` has no effect.
 
@@ -356,7 +358,7 @@ The stateless services (auth, discovery, notifier, ui) can run behind a Horizont
 
 - The exporter ([Exporter storage](#exporter-storage)) and the analyzer (one worker bound to one runtime slot) never autoscale.
 - `standard` and `performance` turn autoscaling on (start at 1, maximum 3 and 5); `minimal` keeps it off.
-- With `vpa.enabled=true`, the VPA sizes only memory on the services the HPA scales, because the HPA measures CPU against the request; on the exporter and the analyzer it sizes both.
+- With `vpa.enabled=true`, the VPA sizes only memory on the services the HPA scales, because the HPA measures CPU against the request; on the exporter and the analyzer it sizes both. Turning it on with an upgrade needs its CRDs first ([Upgrade](#upgrade)).
 
 In any mode you can enable, disable or tune it per service:
 
@@ -417,7 +419,7 @@ These settings have safe defaults. Read them before a production install.
 
 ### CRD write guard
 
-Telark's custom resources (users, roles, sessions, passkeys) are its authorization data. The guard (`app.crdGuard`, a ValidatingAdmissionPolicy, on and enforcing by default) rejects writes to every `telark.io` resource and subresource, in every namespace, from anything but the owning service accounts (discovery may write only `applications/status`). A second policy does the same for the OIDC trust Secret `telark-oidc-trust-secret`. Edit rights on any namespace, `telark` included, therefore don't turn into Telark Admin.
+Telark's custom resources (users, roles, sessions, passkeys) are its authorization data. The guard (`app.crdGuard`, a ValidatingAdmissionPolicy, on and enforcing by default) rejects writes to every `telark.io` resource and subresource, in every namespace, from anything but the owning service accounts (discovery may write only `applications/status`). A second policy does the same for the OIDC trust Secret `telark-oidc-trust-secret`. Edit rights on another namespace therefore don't turn into Telark Admin. Rights on `telark` itself can: `helm upgrade`, `pods/exec`, Secret read and an allowlist entry each let their holder act as any Telark user ([Trust boundaries](security/README.md#trust-boundaries)).
 
 - Break-glass identities go in `app.crdGuard.extraAllowedUsers`, for example `--set 'app.crdGuard.extraAllowedUsers={system:serviceaccount:ops:breakglass}'`.
 - `--set app.crdGuard.enforce=false` only audits (logs and allows).
@@ -539,6 +541,12 @@ Pass the same `--set` and `-f` flags you used at install: Helm does not remember
 - **CRDs managed out of band** (`crds.enabled=false`): upgrade `telark-crds` before `telark` ([chart README](../charts/telark/README.md#upgrade-order)).
 - **Redis and NATS volume sizes.** Kubernetes cannot change a StatefulSet's volume size, so an upgrade that changes `redis.master.persistence.size` or `nats.persistence.size` stops and prints a command to run once, for example `kubectl delete statefulset -n telark telark-redis-master telark-nats --cascade=orphan`. The pods, claims and data stay, the claims keep their size, and the next upgrade re-creates the StatefulSets. To skip the step, keep the installed size on every upgrade. Cluster-less renders cannot check the live size, so run the command before the sync ([GitOps](#gitops-cluster-less-renders)).
 - **Ollama volume size.** Kubernetes never shrinks a claim, so an upgrade that asks for a smaller `ollama.persistentVolume.size` stops and names the size to keep on every upgrade.
+- **Turning on `vpa.enabled` later.** Helm installs a subchart's CRDs only on `helm install`, so an upgrade that sets `vpa.enabled=true` starts the VPA operator without its CRDs, and no service gets a VerticalPodAutoscaler. Apply the CRDs of the bundled VPA chart (the `vpa` version in `charts/telark/Chart.yaml`) first; the upgrade then creates the VPAs too:
+
+  ```sh
+  helm pull vpa --repo https://charts.fairwinds.com/stable --version 5.1.0 --untar --untardir /tmp/telark-vpa
+  kubectl apply --server-side -f /tmp/telark-vpa/vpa/crds/
+  ```
 
 ## Uninstall
 

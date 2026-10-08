@@ -27,7 +27,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/dashboard-home.jpg" alt="The Telark home page: application health, protection plans and recent changes" width="840">
+  <a href="https://telark.io"><img src="https://www.telark.io/readme/hero.gif" alt="Telark gate: an approved change lands with its snapshot and insights, a blocked one is pushed back" width="840"></a>
 </p>
 
 > [!NOTE]

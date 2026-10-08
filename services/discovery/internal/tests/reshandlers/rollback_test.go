@@ -17,11 +17,11 @@ import (
 	"github.com/redis/go-redis/v9"
 	applicationmodel "github.com/telark/telark/internal/data/resources/application"
 	notifclient "github.com/telark/telark/internal/rest/clients/notifications"
+	"github.com/telark/telark/internal/x-ware/async"
 	"github.com/telark/telark/services/discovery/internal/config"
 	"github.com/telark/telark/services/discovery/internal/constants"
 	"github.com/telark/telark/services/discovery/internal/coordination"
 	"github.com/telark/telark/services/discovery/internal/handlers/resources/applications"
-	"github.com/telark/telark/services/discovery/internal/helpers/async"
 	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
 
@@ -275,6 +275,39 @@ func TestAbortRollbackNotifiesWithApplicationName(t *testing.T) {
 	}
 	testutil.Equal(t, "applicationId", sent.Metadata[notifclient.MetaKeyApplicationID], any(shopApp))
 	testutil.Equal(t, "targetId", sent.Metadata[notifclient.MetaKeyTargetID], any(pendingRollbackID))
+}
+
+// Seen live: a malformed trigger body and a rollback on an app that no longer exists each
+// printed an [ERROR] line like a real failure.
+func TestRollbackRefusalsAreNotLoggedAsErrors(t *testing.T) {
+	applications.SetCoordinationBundle(nil, constants.EmptyString)
+	stubExporter(t, func(*http.Request) *http.Response { return jsonResponse(t, http.StatusNotFound, nil) })
+	abortUnknown := func() *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, constants.PathSeparator, http.NoBody)
+		req.Header.Set(constants.HeaderUserID, callerID)
+		applications.AbortRollback(rec, mux.SetURLVars(req, map[string]string{
+			constants.NameParam: shopApp, constants.RollbackIDPathParam: pendingRollbackID,
+		}))
+		return rec
+	}
+	cases := map[string]struct {
+		run  func() *httptest.ResponseRecorder
+		want int
+	}{
+		"malformed body":      {func() *httptest.ResponseRecorder { return triggerRollback(shopApp) }, http.StatusUnprocessableEntity},
+		"trigger unknown app": {func() *httptest.ResponseRecorder { return triggerRollbackTo(constants.ThreeValue) }, http.StatusNotFound},
+		"abort unknown app":   {abortUnknown, http.StatusNotFound},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			var rec *httptest.ResponseRecorder
+			out := testutil.CaptureStdout(t, func() { rec = c.run() })
+			if rec.Code != c.want || strings.Contains(out, "[ERROR]") {
+				t.Fatalf("answered %d (want %d), logged %q", rec.Code, c.want, out)
+			}
+		})
+	}
 }
 
 const crdApplicationPath = "../../../../../charts/telark-crds/templates/crds/applications.yaml"

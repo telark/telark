@@ -1,5 +1,6 @@
 # Build: bump the dashboard UI version, build + push its image, scan and sign
-# it, tag the source repo, then record the bump.
+# it, prepend the UI CHANGELOG.md, tag the source repo and release the tag, then
+# record the bump.
 name: Build · UI Image
 run-name: Build UI image (bump "${{ inputs.build_type }}")
 on:
@@ -99,6 +100,7 @@ jobs:
           token: ${{ secrets.ACCESS_TOKEN }}
           path: service
           ref: ${{ inputs.ui_branch || 'main' }}
+          fetch-depth: 0   # full history + tags so git-cliff can write the UI changelog
 
       # The UI image is amd64-only; the cluster runs it on amd64 nodes, and
       # nothing foreign-arch runs at build time, so QEMU stays off.
@@ -117,3 +119,5 @@ jobs:
           image_scan: ${{ inputs.image_scan }}
           source_repo_path: service
           source_repo_branch: ${{ inputs.ui_branch || 'main' }}
+          changelog_config: release/.github/cliff-ui.toml
+          source_repo_token: ${{ secrets.ACCESS_TOKEN }}

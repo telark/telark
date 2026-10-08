@@ -58,14 +58,12 @@ func LoadCleanupConfig() CleanupConfig {
 }
 
 type BackfillConfig struct {
-	Enabled    bool
 	BatchSize  int
 	BatchPause time.Duration
 }
 
 func LoadBackfillConfig() BackfillConfig {
 	return BackfillConfig{
-		Enabled:   getEnvAsBool(constants.EnvBackfillFinalizersEnabled, false),
 		BatchSize: envInt(constants.EnvBackfillBatchSize, constants.DefaultBackfillBatchSize),
 		BatchPause: time.Duration(envInt(constants.EnvBackfillBatchPauseMS,
 			constants.DefaultBackfillBatchPauseMS)) * time.Millisecond,

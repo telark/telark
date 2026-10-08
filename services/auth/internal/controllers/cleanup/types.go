@@ -29,6 +29,9 @@ type (
 		Purge           PurgeFn
 		BackRefs        []BackRef
 		RemoveFinalizer RemoveFinalizerFn
+		// Records that clearing a back-reference can still write (a membership notice),
+		// purged once none is left.
+		PurgeLast PurgeFn
 	}
 	Reconciler struct {
 		cfg     config.CleanupConfig

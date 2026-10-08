@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/telark/telark/internal/data/plans"
@@ -19,8 +21,9 @@ import (
 )
 
 const (
-	wrapDecide  = "decide: %w"
-	wrapPrepare = "prepare: %w"
+	wrapDecide     = "decide: %w"
+	wrapPrepare    = "prepare: %w"
+	errorLogMarker = "[ERROR]"
 )
 
 // Every domain failure carries its own type, so the status comes from the error itself and
@@ -54,4 +57,44 @@ func TestStatusForErr(t *testing.T) {
 			testutil.Equal(t, "status", handlers.StatusForErr(c.err), c.want)
 		})
 	}
+}
+
+// Seen live: every bad body, missing caller and unknown plan printed an [ERROR] line. A 5xx still logs.
+func TestPlanRefusalsAreNotLoggedAsErrors(t *testing.T) {
+	prev := http.DefaultTransport
+	http.DefaultTransport = roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusNotFound, Header: http.Header{}, Body: http.NoBody}, nil
+	})
+	handlers.InitService(protection.NewService(nil, nil, clients.NewProtectionPlanClient(), nil, nil, nil, nil, nil))
+	t.Cleanup(func() {
+		http.DefaultTransport = prev
+		handlers.InitService(nil)
+	})
+	noCaller := planRequest(http.MethodPost, `{"name":"p"}`)
+	noCaller.Header.Del(constants.HeaderUserID)
+	cases := []struct {
+		name    string
+		handler http.HandlerFunc
+		req     *http.Request
+		want    int
+	}{
+		{"malformed body", handlers.Prepare, planRequest(http.MethodPost, `{"name":"p","approvalGate":"off"}`), http.StatusBadRequest},
+		{"no caller", handlers.Prepare, noCaller, http.StatusUnauthorized},
+		{"unknown plan", handlers.Status, planRequest(http.MethodGet, constants.EmptyString), http.StatusNotFound},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			out := testutil.CaptureStdout(t, func() { c.handler(rec, c.req) })
+			if rec.Code != c.want || strings.Contains(out, errorLogMarker) {
+				t.Fatalf("answered %d (want %d), logged %q", rec.Code, c.want, out)
+			}
+		})
+	}
+
+	handlers.InitService(nil)
+	rec := httptest.NewRecorder()
+	out := testutil.CaptureStdout(t, func() { handlers.Prepare(rec, planRequest(http.MethodPost, `{"name":"p"}`)) })
+	testutil.Equal(t, "service not ready", rec.Code, http.StatusServiceUnavailable)
+	testutil.Equal(t, "a 5xx still logs", strings.Contains(out, errorLogMarker), true)
 }

@@ -2,7 +2,8 @@
 
 check() never pulls. start_pull has exactly two callers: ensure_model (the
 worker's run path and the config poll) and the runtime/pull route. Every change of state, model,
-reason or enabled publishes runtime.changed.
+reason or enabled publishes runtime.changed. On the bundled runtime the other catalog models but the
+default are deleted before a pull and, from the config poll, once the configured model is ready.
 """
 
 from __future__ import annotations
@@ -10,19 +11,24 @@ from __future__ import annotations
 import asyncio
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 
 import httpx
 
+import exporter
 from app_logger import logger
-from config import ANALYZER_MODE, OLLAMA_AUTO_PULL
+from config import ANALYZER_MODE, OLLAMA_AUTO_PULL, OLLAMA_PRUNE_MODELS
 from constants import (
     CAPABILITY_TOOLS,
+    DEFAULT_ANALYZER_MODEL,
     EVENT_RUNTIME_CHANGED,
     EVENT_RUNTIME_PULL,
     LICENSES,
+    LOG_PRUNE_FAILED,
     LOG_PULL_FAILED,
     MODE_DEEP,
+    MODEL_IN_USE_POLL_S,
     MODEL_NAME_PATTERN,
     PULL_DEADLINE_S,
     PULL_PROGRESS_INTERVAL_S,
@@ -52,8 +58,9 @@ _VALIDATE_REASONS = {
 
 
 def pull_allowed(model: str) -> bool:
-    """Only catalog models are pulled: an arbitrary library model could fill the Ollama volume."""
-    return model in LICENSES
+    """Only catalog models are pulled: an arbitrary library model could fill the Ollama volume.
+    A row with a warning (a non-commercial license) is there for validate() only."""
+    return model in LICENSES and not LICENSES[model][1]
 
 
 class Runtime:
@@ -73,10 +80,21 @@ class Runtime:
         self.pull_task: asyncio.Task | None = None
         self._pull_errors: dict[str, str] = {}
         self._pull_published_at = 0.0
+        self._in_use = 0
+        self._prune_failed = False
 
     @property
     def pulling(self) -> bool:
         return self.pull_task is not None and not self.pull_task.done()
+
+    @contextmanager
+    def using_model(self) -> Iterator[None]:
+        """Held around every call that runs a model: a pull waits for it before deleting models."""
+        self._in_use += 1
+        try:
+            yield
+        finally:
+            self._in_use -= 1
 
     def _publish_changed(self) -> None:
         s = self.status
@@ -141,6 +159,8 @@ class Runtime:
 
     async def _pull(self, model: str, quiet: bool = False) -> None:
         try:
+            if OLLAMA_PRUNE_MODELS:
+                await self._prune(keep=model)
             async with asyncio.timeout(PULL_DEADLINE_S):
                 await ollama.pull(self._client, model, self._on_progress)
         except Exception as e:  # any failure ends the pull; the re-check below reports the state
@@ -150,6 +170,39 @@ class Runtime:
         self.status.pull = None
         state, reason, _caps = await self._probe(model)
         self._set(state, model, reason)
+
+    async def sync(self, exporter_client: httpx.AsyncClient | None) -> None:
+        """One config-poll step. GET runtime runs it too, so a model saved in Settings shows at once."""
+        await exporter.refresh(exporter_client)
+        cfg = exporter.current()
+        self.set_enabled(cfg.enabled)
+        await self.check(cfg.model)
+        if cfg.enabled:
+            self.ensure_model(cfg.model)
+        await self.prune_idle(cfg.model)
+
+    async def prune_idle(self, model: str) -> None:
+        """A switch to an installed model starts no pull: the config poll deletes the leftovers once it is ready."""
+        if (not OLLAMA_PRUNE_MODELS or self.pulling or self._in_use
+                or (self.status.state, self.status.model) != (RUNTIME_STATE_READY, model)):
+            return
+        try:
+            await self._prune(keep=model)
+        except OllamaError as e:
+            # Retried every poll: only the first failure of a streak is logged.
+            if not self._prune_failed:
+                logger.warning(LOG_PRUNE_FAILED, type(e).__name__)
+            self._prune_failed = True
+            return
+        self._prune_failed = False
+
+    async def _prune(self, keep: str) -> None:
+        """The volume holds the default plus one catalog model, never the old one beside the new."""
+        while self._in_use:
+            await asyncio.sleep(MODEL_IN_USE_POLL_S)
+        for name in await ollama.tags(self._client):
+            if name in LICENSES and name not in (keep, DEFAULT_ANALYZER_MODEL):
+                await ollama.delete(self._client, name)
 
     def _on_progress(self, progress: PullProgress) -> None:
         last = self.status.pull

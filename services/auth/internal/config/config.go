@@ -110,18 +110,6 @@ const (
 	int64Bits = 64
 )
 
-func getEnvAsBool(key string, defaultValue bool) bool {
-	value := os.Getenv(key)
-	if value == constants.EmptyString {
-		return defaultValue
-	}
-	b, err := strconv.ParseBool(value)
-	if err != nil {
-		return defaultValue
-	}
-	return b
-}
-
 func getEnvAsInt64OrDefault(key string, defaultValue int64) (int64, error) {
 	valueStr := os.Getenv(key)
 	if valueStr == constants.EmptyString {

@@ -36,7 +36,8 @@ const (
 	NoticeEnrollLinkUsedTitle      messages.Message = "Passkey added through an enrollment link"
 	NoticeEnrollLinkUsedMessage    messages.Message = "A passkey was added to your account through an enrollment link. " +
 		"If it was not you, tell an administrator."
-	NoticeIssuerUnknown messages.Message = "an administrator"
+	NoticeIssuerUnknown    messages.Message = "an administrator"
+	NoticeIssuerBreakGlass messages.Message = "the break-glass command"
 
 	// Logout Log Messages
 	LogLogoutAttempted messages.Message = "logout attempted: identityHash=%s tokenStatus=%s"
@@ -82,6 +83,8 @@ const (
 	ErrCleanupDeleteSessionFailed messages.Message = "[cleanup] delete session failed: id=%s ref=%s status=%d"
 	ErrCleanupListPasskeysFailed  messages.Message = "[cleanup] list passkeys failed: id=%s err=%v"
 	ErrCleanupDeletePasskeyFailed messages.Message = "[cleanup] delete passkey failed: id=%s status=%d"
+	ErrCleanupDropInviteFailed    messages.Message = "[cleanup] drop enrollment link failed: id=%s err=%v"
+	ErrCleanupClearNoticesFailed  messages.Message = "[cleanup] clear notifications failed: id=%s status=%d"
 	ErrCleanupStreamReadFailed    messages.Message = "[cleanup] stream read failed: type=%s err=%v"
 	ErrCleanupReclaimFailed       messages.Message = "[cleanup] reclaim of stale pending jobs failed: type=%s err=%v"
 	ErrCleanupSweeperListFailed   messages.Message = "[cleanup] sweeper list failed: type=%s err=%v"

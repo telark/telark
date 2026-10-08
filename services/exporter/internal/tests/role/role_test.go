@@ -32,6 +32,7 @@ const (
 	testDesc     = "d"
 
 	versionMinorBump = "v1.1.0"
+	versionMajorBump = "v2.0.0"
 	fieldDescription = "description"
 
 	fieldX          = "x"
@@ -180,9 +181,6 @@ func TestMergeRoleAndPreparePatchBody(t *testing.T) {
 	// Category was not supplied, so the existing value must survive.
 	if merged.CategoryRef != testCategory {
 		t.Errorf("category clobbered: %q", merged.CategoryRef)
-	}
-	if body["priority"] == nil || body["version"] == nil {
-		t.Errorf("patch body missing computed fields: %v", body)
 	}
 }
 
@@ -345,14 +343,23 @@ func TestPatchWithoutTypeKeepsTheStoredType(t *testing.T) {
 
 // The level-cap and last-admin checks judge the merged role, which kept the stored scopes when
 // the body emptied them and read an omitted validity as permanent, unlike the merge patch written.
+// The priority and version written with it follow the written scopes too.
 func TestExtractAndMergeRoleForPatchKeepsLevelsAsWritten(t *testing.T) {
 	tests := []struct {
-		name       string
-		body       map[string]any
-		wantScopes int
+		name         string
+		body         map[string]any
+		wantScopes   int
+		wantPriority int
+		wantVersion  string
 	}{
-		{"scopes emptied", map[string]any{constants.FieldScopesAndPermissions: []any{}}, constants.DefaultInitValue},
-		{"validity omitted", map[string]any{constants.FieldStatus: string(roledata.RoleStatusActive)}, len(adminScope())},
+		{
+			"scopes emptied", map[string]any{constants.FieldScopesAndPermissions: []any{}},
+			constants.DefaultInitValue, constants.DefaultInitValue, versionMajorBump,
+		},
+		{
+			"validity omitted", map[string]any{constants.FieldStatus: string(roledata.RoleStatusActive)},
+			len(adminScope()), priorityCustomAdmin, versionDefault,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -371,6 +378,10 @@ func TestExtractAndMergeRoleForPatchKeepsLevelsAsWritten(t *testing.T) {
 			}
 			if merged.Validity == nil || merged.Validity.Type != roledata.ValidityTypeTemporary {
 				t.Errorf("validity = %+v, want the stored temporary one", merged.Validity)
+			}
+			if tt.body[constants.FieldPriority] != tt.wantPriority || tt.body[constants.FieldVersion] != tt.wantVersion {
+				t.Errorf("written priority %v version %v, want %d %s",
+					tt.body[constants.FieldPriority], tt.body[constants.FieldVersion], tt.wantPriority, tt.wantVersion)
 			}
 		})
 	}

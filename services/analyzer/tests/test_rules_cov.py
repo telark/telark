@@ -398,6 +398,23 @@ def test_correlation_cites_the_cause_not_the_health_field():
     assert "gen:42" not in [e.ref for e in c.evidence] and "began" not in c.summary and "generation" not in c.params
 
 
+def test_correlation_cites_the_old_value_of_a_swapped_ref():
+    # Live (FT9): an env ref moved to another ConfigMap. Discovery logs 'ref added' (no old value) first and the
+    # field-level change that holds the old name later in the same entry.
+    health = {"field": "health", "changeType": "updated", "oldValue": "healthy", "newValue": "down"}
+    added = {"field": "configMapRef", "changeType": "added", "oldValue": None, "newValue": "api-missing"}
+    ref = {"field": "shop/Deployment/api spec.template.spec.containers[api].env[X].valueFrom.configMapKeyRef.name",
+           "changeType": "updated", "oldValue": "api-cfg", "newValue": "api-missing"}
+    c = _one([_status(desired=2, ready=1)], overview=DEGRADED,
+             changes=[_change(change_class="incident", changes=[health, added, ref])])
+    assert c.reason == "config_change_regression.config"
+    assert c.params["change"] == "configMapRef api-cfg→api-missing"
+    # A ref added next to an unrelated change keeps no old value.
+    c = _one([_status(desired=2, ready=1)], overview=DEGRADED,
+             changes=[_change(change_class="incident", changes=[health, added, {**ref, "newValue": "other"}])])
+    assert c.params["change"] == "configMapRef none→api-missing"
+
+
 def test_correlation_measures_to_the_incident_start():
     # Live (R3-insights-1): crasher broke 30 s after gen 5, a manual run 5 min later said "5 min after change".
     pod = _pod(restarts=5, waiting="CrashLoopBackOff", last="Error", code=1)

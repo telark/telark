@@ -14,13 +14,12 @@ import (
 
 func ValidateAndPrepareGroup(group *groupdata.Group, w http.ResponseWriter) error {
 	if err := sharedutils.ValidateRequiredField(group.Name, string(constants.ErrGroupNameCannotBeEmpty)); err != nil {
-		responseutils.LogAndSendResponse(
+		responseutils.SendResponse(
 			w,
 			http.StatusBadRequest,
 			response.OperationError,
 			err.Error(),
 			nil,
-			err,
 		)
 		return err
 	}

@@ -151,7 +151,7 @@ The analyzer is `services/analyzer` (chart key `services.analyzer`, image `analy
 - User docs use the literal `telark` names and labels; don't add "if you changed app.name, replace…" caveats. Operational procedures (uninstall teardown, for example) are copy-paste command blocks in the docs, not scripts.
 - Shipped files (docs, code comments, docstrings, test fixtures) never contain a personal email address or a real person's name. Contact, maintainer, disclosure and bootstrap-admin fields use `contact@telark.io`; examples and tests use `test@example.com`, never a person-like placeholder. The repositories and charts are public, and a comment ships as publicly as a README.
 - Reusable guideline and checklist docs stay feature-agnostic: describe the general mechanism, not one feature's keys, names or scenarios, so the doc applies to the next feature.
-- Generated files are regenerated, never edited: `VALUES.md` (`make values-docs`) and `CHANGELOG.md` (git-cliff, from Conventional Commits).
+- Generated files are regenerated, never edited: `VALUES.md` (`make values-docs`) and `CHANGELOG.md` (the release workflow prepends each version's section with git-cliff; `make changelog` previews it).
 
 ## CI and GitHub Actions
 

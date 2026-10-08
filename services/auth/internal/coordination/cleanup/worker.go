@@ -65,35 +65,38 @@ func (m *Manager) Stop() {
 	lg.Info(string(constants.LogCleanupManagerStopped))
 }
 
+// Each failed pass in a row waits longer, so a Redis outage logs a few lines a minute, not several a second.
 func (m *Manager) runWorker(ctx context.Context, consumer string) {
-	for {
-		if ctx.Err() != nil {
-			return
+	failures := constants.DefaultInitValue
+	for ctx.Err() == nil {
+		if m.consumeOnce(ctx, consumer) {
+			failures = constants.DefaultInitValue
+			continue
 		}
-		m.consumeOnce(ctx, consumer)
+		failures++
+		sleepWithCtx(ctx, m.backoff(failures))
 	}
 }
 
-func (m *Manager) consumeOnce(ctx context.Context, consumer string) {
-	stale, err := m.stream.Reclaim(ctx, consumer)
-	if err != nil && ctx.Err() == nil {
-		lg.Error(fmt.Sprintf(string(constants.ErrCleanupReclaimFailed), m.resourceType, err))
+func (m *Manager) consumeOnce(ctx context.Context, consumer string) bool {
+	stale, reclaimErr := m.stream.Reclaim(ctx, consumer)
+	if reclaimErr != nil && ctx.Err() == nil {
+		lg.Error(fmt.Sprintf(string(constants.ErrCleanupReclaimFailed), m.resourceType, reclaimErr))
 	}
 	for _, msg := range stale {
 		m.guardedProcess(ctx, msg)
 	}
 	msgs, err := m.stream.Read(ctx, consumer)
 	if err != nil {
-		if ctx.Err() != nil {
-			return
+		if ctx.Err() == nil {
+			lg.Error(fmt.Sprintf(string(constants.ErrCleanupStreamReadFailed), m.resourceType, err))
 		}
-		lg.Error(fmt.Sprintf(string(constants.ErrCleanupStreamReadFailed), m.resourceType, err))
-		sleepWithCtx(ctx, readBlockDuration)
-		return
+		return false
 	}
 	for _, msg := range msgs {
 		m.guardedProcess(ctx, msg)
 	}
+	return reclaimErr == nil
 }
 
 func (m *Manager) guardedProcess(ctx context.Context, msg redis.XMessage) {

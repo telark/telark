@@ -54,8 +54,17 @@ discovery reaches the exporter through the wrappers in `services/discovery/inter
 | discovery | `history:post:<app>` (hash, same TTL as `history:recorded:`) | compared roots of each resource the last flush changed, and the `generation` whose flush wrote them |
 | discovery | `snap:pending:<app>` (10 min TTL) | pre-image set written for a generation the store has not recorded yet; a retried flush reuses or reclaims it |
 | discovery | `history:deferred:<app>` (10 min TTL) | `<fingerprint>:<ticks>` of a change the tick saw without an informer pre-image; on the second consecutive tick it is recorded against the live state |
+| discovery | `lock:gen:<app>:<generation>:processing` (30 s TTL) | one writer builds a generation's history entry |
+| discovery | `operation:ops:<app>:<minute>` (5 min TTL, refreshed on each step) | state of each operations-stream job (enqueued, acquiring the lock, completed, failed), read by stale-claim recovery (`x-ware/redis/stream/state.go`) |
+| discovery | `incident:state:<app>` (24 h TTL) | `incident` or `healthy`, so a repeated "went bad" or recovery health change is dropped |
+| discovery | `grace:scale:<app>` (90 s TTL) | a replica-count change in progress; health "went bad" changes inside that window are dropped (`x-ware/redis/stream/grace.go`) |
+| discovery | `rollback:applying:<app>` (60 s TTL) | the rollback whose manifests are being applied; the informer flush adds the changes they cause to that rollback's history entry |
+| discovery | `reset:cooldown:<app>` (counter, 60 s TTL) | armed by an application reset; another reset of the app inside the TTL is a no-op, the third logs a reset loop, and a failed reset clears it |
+| discovery | `cleanup:empty_streak:<app>` (TTL: cycle interval × (required empty cycles + 5) + grace period) | auto-cleanup's count of consecutive cycles that found the app empty, and when the first one did |
+| discovery | `cleanup:auto:inflight:<app>` (60 s TTL) | auto-cleanup is resetting the app, so another cycle doesn't start a second reset |
 | discovery → analyzer | `insights:jobs` | analysis jobs (consumer group `analyzer`) |
 | analyzer → discovery | `analyzer:<ns>:<name>` (7-day TTL), `analyzer:index` (ZSET) | insight documents and the index discovery reads for its insight lists |
+| analyzer | `analyzer:inflight:<ns>:<name>` (540 s TTL) | one analysis or review run per app at a time; discovery's auto-cleanup does not reset the app while it exists |
 | exporter | `notif:user:*`, `notif:item:*` | per-user in-app notifications |
 | exporter | authz generation and signed grant entries | grants cache ([security](../security/README.md#where-each-service-resolves-sessions-and-grants)) |
 | exporter | `exporter:snapshot:gc`, `exporter:reports:gc`, list-cache generations | GC tick locks, list cache |

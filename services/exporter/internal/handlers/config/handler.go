@@ -86,7 +86,7 @@ func PatchConfig() func(http.ResponseWriter, *http.Request) {
 func writeJWK(w http.ResponseWriter, specPatch map[string]any) (string, bool) {
 	jwk, present, err := oidctrust.TakeJWK(specPatch)
 	if err != nil {
-		sharedutils.LogByStatusAndSend(w, http.StatusBadRequest, response.OperationError, err.Error(), nil, err)
+		responseutils.SendResponse(w, http.StatusBadRequest, response.OperationError, err.Error(), nil)
 		return constants.EmptyString, false
 	}
 	if !present {
@@ -109,6 +109,10 @@ func sendConfigView(w http.ResponseWriter, cr *unstructured.Unstructured, jwk st
 		sharedutils.LogAndReturnError(w, http.StatusInternalServerError, string(constants.ErrConfigInvalidType), nil)
 		return
 	}
+	// A config created before the toggle existed has no key until its first save.
+	if _, stored := out[telarkconfig.FieldSelfRegistration]; !stored {
+		out[telarkconfig.FieldSelfRegistration] = telarkconfig.DefaultTelarkConfig().SelfRegistration
+	}
 	oidctrust.MergeJWK(out, jwk)
 	msg := fmt.Sprintf(string(success), cr.GetName(), cr.GetKind())
 	responseutils.SendResponse(w, http.StatusOK, response.OperationSuccess, msg, out)
@@ -119,7 +123,7 @@ func sendConfigView(w http.ResponseWriter, cr *unstructured.Unstructured, jwk st
 func respondPatchFailure(w http.ResponseWriter, result kshared.KubernetesAPIData) {
 	if k8serrors.IsInvalid(result.Error) {
 		message := fmt.Sprintf(string(constants.ErrConfigInvalidField), InvalidFields(result.Error))
-		sharedutils.LogByStatusAndSend(w, http.StatusBadRequest, response.OperationError, message, nil, result.Error)
+		responseutils.SendResponse(w, http.StatusBadRequest, response.OperationError, message, nil)
 		return
 	}
 	status := http.StatusInternalServerError
@@ -159,7 +163,7 @@ func canonicalSpecKeys(w http.ResponseWriter, specPatch map[string]any) bool {
 	keys := maps.Clone(specPatch)
 	delete(keys, constants.MetadataField)
 	if err := sharedutils.CheckCanonicalKeys[telarkconfig.TelarkConfig](keys); err != nil {
-		sharedutils.LogByStatusAndSend(w, http.StatusBadRequest, response.OperationError, err.Error(), nil, err)
+		responseutils.SendResponse(w, http.StatusBadRequest, response.OperationError, err.Error(), nil)
 		return false
 	}
 	return true

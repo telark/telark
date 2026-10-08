@@ -1,6 +1,6 @@
 # telark
 
-![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.1.0](https://img.shields.io/badge/AppVersion-0.1.0-informational?style=flat-square)
+![Version: 0.1.1](https://img.shields.io/badge/Version-0.1.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.1.1](https://img.shields.io/badge/AppVersion-0.1.1-informational?style=flat-square)
 
 A protection gate for your Kubernetes applications. Decide what can change an app, and when; see every change that got through and why an app broke.
 
@@ -28,7 +28,7 @@ Kubernetes: `>=1.30.0-0`
 | https://helm.otwld.com/ | ollama | 1.50.0 |
 | https://kubernetes-sigs.github.io/metrics-server/ | metrics-server | 3.12.2 |
 | https://kyverno.github.io/kyverno/ | kyverno | 3.9.1 |
-| oci://ghcr.io/telark/charts | telark-crds | 0.0.2 |
+| oci://ghcr.io/telark/charts | telark-crds | 0.0.3 |
 
 ## Values
 
@@ -281,6 +281,7 @@ Kubernetes: `>=1.30.0-0`
 | services.analyzer.env.CORS_ALLOWED_ORIGINS | string | `""` |  |
 | services.analyzer.env.OLLAMA_AUTO_PULL | string | `"{{ .Values.app.ollama.autoPull }}"` |  |
 | services.analyzer.env.OLLAMA_HOST | string | `"{{ default (printf \"http://%s-ollama:11434\" .Release.Name) .Values.app.ollama.runtimeUrl }}"` |  |
+| services.analyzer.env.OLLAMA_PRUNE_MODELS | string | `"{{ and .Values.app.ollama.enabled (empty .Values.app.ollama.runtimeUrl) }}"` |  |
 | services.analyzer.env.REDIS_POOL_SIZE | string | `"10"` |  |
 | services.analyzer.name | string | `"analyzer-service"` |  |
 | services.analyzer.pdb.enabled | bool | `false` |  |
@@ -310,6 +311,7 @@ Kubernetes: `>=1.30.0-0`
 | services.auth.env.REDIS_DB | string | `"1"` |  |
 | services.auth.env.REDIS_MAX_WAIT_SEC | string | `"30"` |  |
 | services.auth.env.REDIS_PING_TIMEOUT_SEC | string | `"3"` |  |
+| services.auth.env.REDIS_POOL_SIZE | string | `"16"` |  |
 | services.auth.env.REDIS_RETRY_INTERVAL_SEC | string | `"2"` |  |
 | services.auth.env.RP_ID | string | `"{{ .Values.app.auth.passkey.id }}"` |  |
 | services.auth.env.RP_NAME | string | `"{{ .Values.app.auth.passkey.name }}"` |  |
@@ -369,6 +371,7 @@ Kubernetes: `>=1.30.0-0`
 | services.discovery.env.PROTECTION_PLAN_TICK_INTERVAL_SEC | string | `"31"` |  |
 | services.discovery.env.REDIS_MAX_WAIT_SEC | string | `"180"` |  |
 | services.discovery.env.REDIS_PING_TIMEOUT_SEC | string | `"2"` |  |
+| services.discovery.env.REDIS_POOL_SIZE | string | `"20"` |  |
 | services.discovery.env.REDIS_RETRY_INTERVAL_SEC | string | `"5"` |  |
 | services.discovery.env.REST_EXPORTER_DURATION_LOG_DEDUP_SEC | string | `"10"` |  |
 | services.discovery.env.REST_EXPORTER_DURATION_LOG_ENABLED | string | `"true"` |  |

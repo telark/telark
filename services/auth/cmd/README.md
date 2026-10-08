@@ -16,7 +16,7 @@ Create, promote or recover the bootstrap admin, the account whose email is `BOOT
 | Flag | Required | What it does |
 |------|----------|--------------|
 | `--email` | yes | The bootstrap admin's email (`BOOTSTRAP_ADMIN`); any other email is refused |
-| `--enroll` | no | Create the bootstrap admin when missing (Admin role, `bootstrap: true`) and print a one-time passkey enrollment token (10 minutes, needs Redis). Open `/register?enroll=<token>` in the dashboard to register the passkey. |
+| `--enroll` | no | Create the bootstrap admin when missing (Admin role, `bootstrap: true`) and print a one-time passkey enrollment token (valid for `ENROLL_INVITE_TTL_SEC`, an hour by default, needs Redis). The token is issued like an enrollment link from Members: it replaces the previous one, and an account that already has a passkey is notified when it is created and when it is used. Open `/register?enroll=<token>` in the dashboard to register the passkey. |
 
 **Exit codes:**
 - `0`: user promoted (or created), or already had Admin

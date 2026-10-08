@@ -155,6 +155,7 @@ const (
 		"not published: generation %d has no post-image record"
 	InfoHistoryReplicaChangeCanceled   messages.Message = "[history] %s: replicas change dropped, pre-image replicas %d equal fresh %d"
 	WarnApplicationPublishFailed       messages.Message = "[publish] %s: NATS publish failed after %d attempts: %v"
+	WarnNatsDialFailed                 messages.Message = "[nats] connect failed, application events are not published until it succeeds: %v"
 	WarnHistoryStoredLookupFailed      messages.Message = "[history] %s: stored application lookup failed, skipping publish: %v"
 	WarnSnapshotClassOrSeverityMissing messages.Message = "[snapshot] changeClass or severity missing for %s " +
 		"— entry incomplete."

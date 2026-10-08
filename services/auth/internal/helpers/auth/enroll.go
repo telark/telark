@@ -53,8 +53,8 @@ func CreateEnrollToken(userID string) (token string, expiresAt time.Time, err er
 	return token, time.Now().UTC().Add(ttl), nil
 }
 
-// An invite is an enrollment token another user issues for targetID. Each user has
-// at most one live link, so issuing replaces the previous one in the same step.
+// An invite is an enrollment token another user, or break-glass, issues for targetID. Each
+// user has at most one live link, so issuing replaces the previous one in the same step.
 func IssueInvite(targetID, issuerID string) (token string, expiresAt time.Time, err error) {
 	rdb := redishelper.GetClient()
 	if rdb == nil {
@@ -97,6 +97,14 @@ func RevokeInvite(targetID string) error {
 
 // acceptedAt, when set, is stored in the same write that clears the invite.
 func closeInvite(targetID, acceptedAt string) error {
+	if err := DropInviteKeys(targetID); err != nil {
+		return err
+	}
+	return setInvite(targetID, nil, acceptedAt)
+}
+
+// The link alone, without the record: a user being deleted keeps no invite to clear.
+func DropInviteKeys(targetID string) error {
 	rdb := redishelper.GetClient()
 	if rdb == nil {
 		return errors.New(string(constants.ErrRedisClientUnavailable))
@@ -108,7 +116,7 @@ func closeInvite(targetID, acceptedAt string) error {
 	if err := revokeInviteScript.Run(ctx, rdb, keys, constants.RedisKeyPrefixInvite).Err(); err != nil {
 		return fmt.Errorf(string(constants.ErrFailedRevokeInvite), err.Error())
 	}
-	return setInvite(targetID, nil, acceptedAt)
+	return nil
 }
 
 // A stored passkey ends a pending invite however it was enrolled (a link issued while the account had
@@ -132,24 +140,37 @@ func CompleteInvite(user *userresource.User, enrolled bool) {
 
 // The token is consumed atomically on first presentation, whatever the ceremony
 // then does: two concurrent starts can never both be authorized by it.
-func ResolveEnrollToken(token string) (string, error) {
+func ResolveEnrollToken(token string) (userID string, invite bool, err error) {
 	rdb := redishelper.GetClient()
 	if rdb == nil {
-		return constants.EmptyString, errors.New(string(constants.ErrRedisClientUnavailable))
+		return constants.EmptyString, false, errors.New(string(constants.ErrRedisClientUnavailable))
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisChallengeOpTimeout)
 	defer cancel()
 
 	digest := tokenDigest(token)
 	keys := []string{constants.RedisKeyPrefixEnrollToken + digest, constants.RedisKeyPrefixInvite + digest}
-	userID, err := consumeEnrollScript.Run(ctx, rdb, keys, constants.RedisKeyPrefixInviteOf, digest).Text()
+	consumed, err := consumeEnrollScript.Run(ctx, rdb, keys, constants.RedisKeyPrefixInviteOf, digest).StringSlice()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
-			return constants.EmptyString, errors.New(string(constants.ErrEnrollTokenInvalid))
+			return constants.EmptyString, false, errors.New(string(constants.ErrEnrollTokenInvalid))
 		}
-		return constants.EmptyString, fmt.Errorf(string(constants.ErrFailedGetEnrollToken), err.Error())
+		return constants.EmptyString, false, fmt.Errorf(string(constants.ErrFailedGetEnrollToken), err.Error())
 	}
-	return userID, nil
+	return consumed[constants.DefaultInitValue], len(consumed) > constants.DefaultIncrementValue, nil
+}
+
+// An opened link is spent, so its invite stays pending only while the ceremony it started can finish.
+func markInviteOpened(user *userresource.User) {
+	if user.Status.Invite == nil {
+		return
+	}
+	opened := *user.Status.Invite
+	ceremonyEnd := time.Now().UTC().Add(time.Duration(constants.RedisTTLChallenge) * time.Second)
+	opened.ExpiresAt = ceremonyEnd.Format(constants.TimeFormatRFC3339)
+	if err := setInvite(user.ID, &opened, constants.EmptyString); err != nil {
+		lg.Warn(fmt.Sprintf(string(constants.WarnInviteOpenFailed), shared.IdentityHash(user.ID), err))
+	}
 }
 
 // No phase in the status: the exporter merges it, so phase and lastLoginAt stay as stored.
@@ -184,6 +205,10 @@ func notifyTarget(userID, notificationType string, title messages.Message, messa
 }
 
 func issuerName(issuerID string) string {
+	// Break-glass passes no issuer: an operator ran it, not a user.
+	if issuerID == constants.EmptyString {
+		return string(constants.NoticeIssuerBreakGlass)
+	}
 	issuer, err := clients.GetUserClient().GetUserByID(issuerID)
 	if err != nil || issuer.Fullname == constants.EmptyString {
 		return string(constants.NoticeIssuerUnknown)

@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"encoding/json"
+	"maps"
 	"net/http"
 	"slices"
 	"strconv"
@@ -20,6 +21,7 @@ import (
 const (
 	fakeAPIPrefix     = "/api/v1/"
 	fakeUsersPrefix   = "users/"
+	fakeByEmailPrefix = "internal/users/by-email/"
 	fakeRolesPrefix   = "accessroles/"
 	fakeGroupsPrefix  = "groups/"
 	fakePasskeysPath  = "internal/auth/passkeys"
@@ -68,6 +70,8 @@ func (f *FakeExporter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.servePasskeys(w, r)
 	case path == fakeNoticesPath:
 		f.recordNotice(w, r)
+	case strings.HasPrefix(path, fakeByEmailPrefix):
+		fakeRecord(w, f.userByEmail(strings.TrimPrefix(path, fakeByEmailPrefix)))
 	case strings.HasPrefix(path, fakeUsersPrefix):
 		f.serveUser(w, r, strings.TrimPrefix(path, fakeUsersPrefix))
 	case strings.HasPrefix(path, fakeRolesPrefix):
@@ -91,6 +95,15 @@ func (f *FakeExporter) serveUser(w http.ResponseWriter, r *http.Request, id stri
 	default:
 		fakeReply(w, http.StatusOK, user)
 	}
+}
+
+func (f *FakeExporter) userByEmail(email string) *userresource.User {
+	for user := range maps.Values(f.Users) {
+		if user.Email == email {
+			return user
+		}
+	}
+	return nil
 }
 
 // The exporter merges a phase-less status, so only the invite fields it carries change.

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -60,6 +61,18 @@ func jsonReq(body string) *http.Request {
 	r := httptest.NewRequest(http.MethodPost, testPath, strings.NewReader(body))
 	r.Header.Set(constants.HeaderContentType, constants.ContentTypeJSON)
 	return r
+}
+
+// The code the UI branches on instead of the wording; empty when the answer carries none.
+func refusalCode(t *testing.T, rec *httptest.ResponseRecorder) string {
+	t.Helper()
+	var body struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("response is not JSON: %v: %s", err, rec.Body.String())
+	}
+	return body.Code
 }
 
 func orphanCleanupReq() *http.Request {
@@ -143,6 +156,50 @@ func TestHandlersAlwaysOK(t *testing.T) {
 			c.handler(rec, c.req)
 			if rec.Code != http.StatusOK {
 				t.Fatalf("%s = %d, want 200", c.name, rec.Code)
+			}
+		})
+	}
+}
+
+// A signed-in caller whose single-passkey lookup answers with the given status.
+type credentialStub struct{ status int }
+
+func (s credentialStub) RoundTrip(r *http.Request) (*http.Response, error) {
+	if strings.HasSuffix(r.URL.Path, "/api/v1/auth/sessions/self") {
+		return liveSession()
+	}
+	return envelope(s.status, nil)
+}
+
+// A refusal goes unlogged and a failure is logged, but both keep the answer they always gave.
+func TestRefusalsKeepTheirAnswer(t *testing.T) {
+	cases := []struct {
+		name    string
+		stub    http.RoundTripper
+		handler handlerFunc
+		req     *http.Request
+		status  int
+		message string
+	}{
+		{"login with no live challenge", registerStub{}, authhandler.LoginFinish, jsonReq(emailBody),
+			http.StatusUnauthorized, string(constants.ErrChallengeNotFound)},
+		{"unknown credential", credentialStub{http.StatusNotFound}, passkeyhandler.GetSinglePasskey,
+			withSession(httptest.NewRequest(http.MethodGet, testPath, nil)), http.StatusNotFound, string(constants.ErrPasskeyNotFound)},
+		{"credential lookup down", credentialStub{http.StatusInternalServerError}, passkeyhandler.GetSinglePasskey,
+			withSession(httptest.NewRequest(http.MethodGet, testPath, nil)), http.StatusNotFound, string(constants.ErrPasskeyNotFound)},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			stubExporter(t, c.stub)
+			rec := httptest.NewRecorder()
+			c.handler(rec, c.req)
+			testutil.Equal(t, "status", rec.Code, c.status)
+			var body struct {
+				Error   bool   `json:"error"`
+				Message string `json:"message"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || !body.Error || body.Message != c.message {
+				t.Fatalf("body = %s (%v), want error %q", rec.Body.String(), err, c.message)
 			}
 		})
 	}

@@ -400,14 +400,19 @@ def test_analyze_storage_unavailable_503(monkeypatch):
 # ---- runtime, validate, pull ---------------------------------------------------------
 def test_runtime_get(monkeypatch):
     env = _env(monkeypatch)
+    monkeypatch.setattr(exporter, "refresh", lambda client: asyncio.sleep(0))
+    monkeypatch.setattr("runtime.OLLAMA_AUTO_PULL", False)  # no download of the newly saved model here
+    monkeypatch.setattr(exporter, "_current", AnalyzerConfig(enabled=False, model="qwen3:4b"))
     r = env.client.get(RUNTIME)
     assert r.status_code == 200
     assert r.json() == {"status": 200, "operation": "Success",
                         "data": {"state": "ready", "model": "qwen3:4b", "reason": "", "mode": "deep",
                                  "autoPull": True, "enabled": False}}
-    # ai.enabled reaches insights readers who cannot read the settings.
-    env.api.state.runtime.set_enabled(True)
-    assert env.client.get(RUNTIME).json()["data"]["enabled"] is True
+    # A save in Settings shows on the next GET, not at the next config poll: ai.enabled (for insights
+    # readers who cannot read the settings) and the saved model alike.
+    monkeypatch.setattr(exporter, "_current", AnalyzerConfig(enabled=True, model="qwen3:1.7b"))
+    data = env.client.get(RUNTIME).json()["data"]
+    assert (data["enabled"], data["model"], data["state"]) == (True, "qwen3:1.7b", "model_missing")
 
 
 def test_validate_codes(monkeypatch):

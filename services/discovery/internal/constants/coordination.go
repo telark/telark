@@ -13,6 +13,8 @@ const (
 	StreamMsgFieldAttempts                       = "attempts"
 	KeyPrefixLockApp                             = "lock:app:"
 	KeyPrefixAnalyzerInflight                    = "analyzer:inflight:"
+	KeyAnalyzerUsage                             = "analyzer:usage"
+	KeyAnalyzerReview                            = "analyzer:review"
 	KeyPrefixLockGen                             = "lock:gen:"
 	KeyPrefixOpState                             = "ops:"
 	KeyPrefixDedup                               = "dedup:"

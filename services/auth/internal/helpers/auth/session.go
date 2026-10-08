@@ -23,13 +23,13 @@ func ValidateSession(sessionToken string) (string, error) {
 	client := clients.GetSessionClient()
 	session, err := client.GetSessionByToken(sessionToken)
 	if err != nil {
-		lg.Warn(fmt.Sprintf(string(constants.ErrFailedGetSession), err))
 		if errors.Is(err, restshared.ErrNotFound) {
 			return constants.EmptyString, errors.New(string(constants.ErrSessionNotFound))
 		}
 		if errors.Is(err, restshared.ErrGone) {
 			return constants.EmptyString, errors.New(string(constants.ErrSessionExpired))
 		}
+		lg.Warn(fmt.Sprintf(string(constants.ErrFailedGetSession), err))
 		return constants.EmptyString, shared.ErrBackendUnavailable
 	}
 
@@ -106,10 +106,10 @@ func CreateUserSession(userID string, meta *authdata.DeviceMetadata) (string, er
 	phase := userresource.AccountPhase(user.Status.Phase)
 	// Callers get here only with a verified credential, so naming the suspension leaks nothing.
 	if phase == userresource.AccountPhaseSuspended {
-		return constants.EmptyString, errors.New(string(constants.ErrUserSuspended))
+		return constants.EmptyString, shared.Refuse(constants.RefusalAccountSuspended, errors.New(string(constants.ErrUserSuspended)))
 	}
 	if phase != userresource.AccountPhaseActive {
-		return constants.EmptyString, errors.New(string(dataerrors.ErrAuthzUserNotActive))
+		return constants.EmptyString, shared.Refuse(constants.RefusalAccountNotActive, errors.New(string(dataerrors.ErrAuthzUserNotActive)))
 	}
 
 	sessionClient := clients.GetSessionClient()

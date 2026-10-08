@@ -46,7 +46,7 @@ Create a one-time enrollment token with the auth service's break-glass command, 
 kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email test@example.com --enroll
 ```
 
-You should see a line like `enrollment token for test@example.com (expires …): <token>`. The token is valid for 10 minutes.
+You should see a line like `enrollment token for test@example.com (expires …): <token>`. The token is valid for an hour.
 
 Forward the dashboard to your machine and leave the command running:
 

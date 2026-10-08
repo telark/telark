@@ -2,6 +2,7 @@ package coordination
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -14,7 +15,34 @@ import (
 	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
-const testBackoffInitial = 100 * time.Millisecond
+const (
+	testBackoffInitial = 100 * time.Millisecond
+	failedReadsToWatch = 4
+)
+
+var errRedisDown = errors.New("redis down")
+
+// Every command fails as against an unreachable Redis; each stream read is timed.
+type redisDown struct{ reads chan<- time.Time }
+
+func (redisDown) DialHook(next redis.DialHook) redis.DialHook { return next }
+
+func (redisDown) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
+	return next
+}
+
+func (h redisDown) ProcessHook(_ redis.ProcessHook) redis.ProcessHook {
+	return func(_ context.Context, cmd redis.Cmder) error {
+		if cmd.Name() == "xreadgroup" {
+			select {
+			case h.reads <- time.Now():
+			default:
+			}
+		}
+		cmd.SetErr(errRedisDown)
+		return errRedisDown
+	}
+}
 
 func workerNameFor(replicaID string) string {
 	return constants.CleanupConsumerName + constants.UnderscoreSeparator + replicaID
@@ -114,6 +142,40 @@ func TestManagerBacksOffBetweenAttempts(t *testing.T) {
 	minWait := testBackoffInitial + testBackoffInitial + testBackoffInitial // 1x then 2x before the last attempt
 	if elapsed := time.Since(start); elapsed < minWait {
 		t.Fatalf("job reached the DLQ after %v, want at least %v of backoff", elapsed, minWait)
+	}
+}
+
+// While Redis keeps failing, a worker waits initial, 2x, 4x... between passes instead of
+// retrying every read block, so an outage logs a few lines a minute, not several a second.
+func TestManagerBacksOffWhileRedisFails(t *testing.T) {
+	rdb, _ := testutil.RedisClient(t)
+	reads := make(chan time.Time, failedReadsToWatch)
+	rdb.AddHook(redisDown{reads: reads})
+	cfg := fastConfig()
+	cfg.BackoffInitial = testBackoffInitial
+	cfg.BackoffMax = time.Minute
+	resourceType := finalizers.ResourceTypeUsers
+	stream := cleanup.NewStreamOps(xwareredis.NewStreamClient(rdb), resourceType, cfg.StreamMaxLen, cfg.XClaimMinIdle)
+
+	m := cleanup.NewManager(cfg, resourceType, stream, cleanup.NewDedup(rdb, cfg.DedupTTL), newReconciler(cfg), testReplicaID)
+	m.Start(context.Background())
+	defer m.Stop()
+
+	var at []time.Time
+	deadline := time.After(3 * time.Second)
+	for len(at) < failedReadsToWatch {
+		select {
+		case read := <-reads:
+			at = append(at, read)
+		case <-deadline:
+			t.Fatalf("%d failed reads in 3s, want %d spaced by a growing backoff", len(at), failedReadsToWatch)
+		}
+	}
+	for i := constants.DefaultIncrementValue; i < len(at); i++ {
+		want := testBackoffInitial << (i - constants.DefaultIncrementValue)
+		if gap := at[i].Sub(at[i-constants.DefaultIncrementValue]); gap < want {
+			t.Fatalf("failed read %d came %v after the previous one, want at least %v", i, gap, want)
+		}
 	}
 }
 

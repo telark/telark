@@ -73,7 +73,7 @@ func guardEditableFields(w http.ResponseWriter, r *http.Request) bool {
 		replaceRequestBody(r, patch)
 	}
 	if err := applicationutils.ValidateEditableFields(target); err != nil {
-		sharedutils.LogByStatusAndSend(w, http.StatusBadRequest, response.OperationError, err.Error(), nil, err)
+		responseutils.SendResponse(w, http.StatusBadRequest, response.OperationError, err.Error(), nil)
 		return false
 	}
 	return true

@@ -6,7 +6,7 @@ GitHub Container Registry: `oci://ghcr.io/telark/charts`.
 - **Automated:** run *Release · Publish Charts* with `chart` (`both`, `telark`, `telark-crds`) and `bump` (`patch`, `minor`, `major`). Don't edit the versions in `Chart.yaml` first: the workflow bumps each selected chart from its own current version, writes it to `Chart.yaml`, packages, pushes and **cosign-signs** it (telark-crds first), then commits the change. A version already in the registry fails the run before anything is pushed. See [`.github/workflows/release-charts.yaml`](../.github/workflows/release-charts.yaml).
   - `appVersion` is the Telark release: telark's follows its new `version`, and telark-crds takes the same value when released with telark (`chart=both`). A CRD-only release keeps telark-crds' `appVersion`.
   - On `chart=both`, telark's `telark-crds` dependency and `Chart.lock` move to the new CRD version in the same commit, so the app chart bundles those CRDs. A telark-only release keeps the pin.
-  - Only telark is tagged (`v<version>`) and gets a GitHub Release. `release_type` only picks the release kind (`auto`: a pre-release when the version has a suffix such as `-rc.1`) and never changes the version. The release notes and `CHANGELOG.md` both come from [`cliff.toml`](../cliff.toml).
+  - Only telark is tagged (`v<version>`) and gets a GitHub Release. `release_type` only picks the release kind (`auto`: a pre-release when the version has a suffix such as `-rc.1`) and never changes the version. The release notes and `CHANGELOG.md` both come from [`cliff.toml`](../cliff.toml): the run prepends the new version's section to `CHANGELOG.md` and never rewrites older ones. When the UI version changed since the previous release, the section ends with a Dashboard UI part copied from the `telark/dashboard-ui` `CHANGELOG.md`, which `build-ui.yaml` prepends with each UI tag (format in [`.github/cliff-ui.toml`](../.github/cliff-ui.toml)) and publishes as that tag's GitHub Release.
   - Pushing a `vX.Y.Z` tag yourself publishes both charts at their current `Chart.yaml` versions, without a bump.
 - **Manual:** the commands here, for testing a publish from your machine.
 
@@ -109,6 +109,24 @@ oras push ghcr.io/telark/charts/telark:artifacthub.io \
 `telark` already bundles the CRDs, so listing `telark-crds` is optional: register `oci://ghcr.io/telark/charts/telark-crds` the same way and push a copy of the file with that repository's ID to `ghcr.io/telark/charts/telark-crds:artifacthub.io`.
 
 ArtifactHub auto-detects the cosign signatures and shows the charts as **Signed**.
+
+## Corresponding source images
+
+The analyzer and ui images contain GPL, LGPL and MPL Alpine packages. Every build of either image ends by pushing its source image to the image's own package, tagged `<tag>-source` (`ghcr.io/telark/<image>:<tag>-source`), with [`.github/scripts/build-source-image.sh`](../.github/scripts/build-source-image.sh): one `abuild srcpkg` bundle per such package (APKBUILD, patches and upstream archives, from the aports commit the package was built from) and an `index.txt`. The Go images are `FROM scratch` and get none. Images released before this step (0.1.0) have no `-source` tag: for a source request about one, run the script without `--push`.
+
+- Keep a `-source` tag as long as its image tag is published: delete the two together, never the `-source` tag alone.
+- If the step fails, the image and its version bump are already pushed. Rerun it by hand with the same tag, after `docker login ghcr.io`:
+
+```sh
+.github/scripts/build-source-image.sh ghcr.io/telark/analyzer:<tag> ghcr.io/telark/analyzer:<tag>-source --push
+```
+
+## Notices of the Alpine packages and Rust crates
+
+The analyzer's and the dashboard's `THIRD-PARTY-NOTICES.md` reproduce the copyright notices of the permissive Alpine packages in their base image ("Alpine package notices") and, for the analyzer, of the Rust crates compiled into pydantic-core ("pydantic-core's Rust crates"). Alpine's `-doc` packages don't carry these files, so they come from upstream. Regenerate a section when its input changes:
+
+- **Base image bump:** list the packages with `docker run --rm --entrypoint sh <image> -c 'apk list --installed'`. For each permissive package, take its license and copyright files from the source archive at the installed version: the `source=` of `main/<origin>/APKBUILD` in aports, mirrored at `https://distfiles.alpinelinux.org/distfiles/v<release>/`. Update the table, the versions and the texts.
+- **pydantic-core bump:** the `required` components of `pydantic_core-<version>.dist-info/sboms/pydantic-core.cyclonedx.json` are the crates. Take each crate's license files from `https://static.crates.io/crates/<name>/<name>-<version>.crate`, using MIT where a crate offers it, and keep one copy of each distinct text.
 
 ## Repository settings the workflows rely on
 

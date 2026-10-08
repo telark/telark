@@ -23,7 +23,7 @@ var jitLg = constants.GetLogger(constants.LoggerPrefixAuthService)
 func checkSelfRegistration(email string) error {
 	if !config.IsSelfRegistrationEnabled() {
 		jitLg.Info(fmt.Sprintf(string(constants.LogJITSelfRegistrationBlock), shared.IdentityHash(email)))
-		return errors.New(string(constants.ErrSelfRegistrationDisabled))
+		return shared.Refuse(constants.RefusalSelfRegistrationDisabled, errors.New(string(constants.ErrSelfRegistrationDisabled)))
 	}
 	return nil
 }

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 
 	"github.com/fxamacker/cbor/v2"
@@ -176,7 +177,7 @@ func assertionRequest(t *testing.T, priv *ecdsa.PrivateKey, flags byte, chal str
 		t.Fatalf(jsonMarshalFailed, err)
 	}
 	cdHash := sha256.Sum256(cd)
-	digest := sha256.Sum256(append(append([]byte{}, authData...), cdHash[:]...))
+	digest := sha256.Sum256(slices.Concat(authData, cdHash[:]))
 	sig, err := ecdsa.SignASN1(rand.Reader, priv, digest[:])
 	if err != nil {
 		t.Fatalf("sign: %v", err)

@@ -138,39 +138,53 @@ func CompleteInvite(user *userresource.User, enrolled bool) {
 	}
 }
 
-// The token is consumed atomically on first presentation, whatever the ceremony
-// then does: two concurrent starts can never both be authorized by it.
-func ResolveEnrollToken(token string) (userID string, invite bool, err error) {
+// Opening a registration only reads the token: a canceled or failed ceremony leaves the link usable.
+func ResolveEnrollToken(token string) (userID, digest string, err error) {
 	rdb := redishelper.GetClient()
 	if rdb == nil {
-		return constants.EmptyString, false, errors.New(string(constants.ErrRedisClientUnavailable))
+		return constants.EmptyString, constants.EmptyString, errors.New(string(constants.ErrRedisClientUnavailable))
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisChallengeOpTimeout)
 	defer cancel()
 
-	digest := tokenDigest(token)
-	keys := []string{constants.RedisKeyPrefixEnrollToken + digest, constants.RedisKeyPrefixInvite + digest}
-	consumed, err := consumeEnrollScript.Run(ctx, rdb, keys, constants.RedisKeyPrefixInviteOf, digest).StringSlice()
-	if err != nil {
-		if errors.Is(err, redis.Nil) {
-			return constants.EmptyString, false, errors.New(string(constants.ErrEnrollTokenInvalid))
-		}
-		return constants.EmptyString, false, fmt.Errorf(string(constants.ErrFailedGetEnrollToken), err.Error())
+	digest = tokenDigest(token)
+	userID, err = rdb.Get(ctx, constants.RedisKeyPrefixEnrollToken+digest).Result()
+	if errors.Is(err, redis.Nil) {
+		userID, err = rdb.Get(ctx, constants.RedisKeyPrefixInvite+digest).Result()
 	}
-	return consumed[constants.DefaultInitValue], len(consumed) > constants.DefaultIncrementValue, nil
+	if errors.Is(err, redis.Nil) {
+		return constants.EmptyString, constants.EmptyString, errors.New(string(constants.ErrEnrollTokenInvalid))
+	}
+	if err != nil {
+		return constants.EmptyString, constants.EmptyString, fmt.Errorf(string(constants.ErrFailedGetEnrollToken), err.Error())
+	}
+	return userID, digest, nil
 }
 
-// An opened link is spent, so its invite stays pending only while the ceremony it started can finish.
-func markInviteOpened(user *userresource.User) {
-	if user.Status.Invite == nil {
-		return
+// The finish that saves a passkey spends the token atomically, so of the ceremonies one link
+// opened only one saves a passkey with it.
+func SpendEnrollToken(userID, digest string) error {
+	// Empty: no link opened the ceremony. The owner's ID: only a pre-0.1.2 pod stored that, after spending the token
+	// at start; such entries live 60 s, so drop this case in the next release.
+	if digest == constants.EmptyString || digest == userID {
+		return nil
 	}
-	opened := *user.Status.Invite
-	ceremonyEnd := time.Now().UTC().Add(time.Duration(constants.RedisTTLChallenge) * time.Second)
-	opened.ExpiresAt = ceremonyEnd.Format(constants.TimeFormatRFC3339)
-	if err := setInvite(user.ID, &opened, constants.EmptyString); err != nil {
-		lg.Warn(fmt.Sprintf(string(constants.WarnInviteOpenFailed), shared.IdentityHash(user.ID), err))
+	rdb := redishelper.GetClient()
+	if rdb == nil {
+		return errors.New(string(constants.ErrRedisClientUnavailable))
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisChallengeOpTimeout)
+	defer cancel()
+
+	keys := []string{constants.RedisKeyPrefixEnrollToken + digest, constants.RedisKeyPrefixInvite + digest}
+	err := consumeEnrollScript.Run(ctx, rdb, keys, constants.RedisKeyPrefixInviteOf, digest).Err()
+	if errors.Is(err, redis.Nil) {
+		return errors.New(string(constants.ErrEnrollTokenInvalid))
+	}
+	if err != nil {
+		return fmt.Errorf(string(constants.ErrFailedGetEnrollToken), err.Error())
+	}
+	return nil
 }
 
 // No phase in the status: the exporter merges it, so phase and lastLoginAt stay as stored.

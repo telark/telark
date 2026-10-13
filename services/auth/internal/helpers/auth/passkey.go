@@ -126,92 +126,88 @@ func userForEmail(email string) (*userresource.User, string, error) {
 	return storePendingUser(email)
 }
 
-// Strongest proof wins: session, then one-time enrollment token (reported as
-// enrolled so the session-less finish may add to an account with passkeys), then email.
+// Strongest proof wins: session, then one-time enrollment token (its digest is returned, so
+// the session-less finish may add to an account with passkeys and spends the token), then email.
 func GetUserForRegistrationStart(r *http.Request) (
-	user *userresource.User, userID string, enrolled bool, err error,
+	user *userresource.User, userID, enrollDigest string, err error,
 ) {
 	sessionUserID, sessionErr := ValidateSessionFromRequest(r)
 	email, enrollToken, err := registerStartBody(r)
 	if err != nil {
-		return nil, constants.EmptyString, false, err
+		return nil, constants.EmptyString, constants.EmptyString, err
 	}
 
 	if sessionErr == nil {
 		user, err = ownUser(sessionUserID, email)
 		if err != nil {
-			return nil, constants.EmptyString, false, err
+			return nil, constants.EmptyString, constants.EmptyString, err
 		}
-		return user, sessionUserID, false, nil
+		return user, sessionUserID, constants.EmptyString, nil
 	}
 
 	if enrollToken != constants.EmptyString {
-		var invite bool
-		userID, invite, err = ResolveEnrollToken(enrollToken)
+		userID, enrollDigest, err = ResolveEnrollToken(enrollToken)
 		if err != nil {
-			return nil, constants.EmptyString, false, err
+			return nil, constants.EmptyString, constants.EmptyString, err
 		}
 		user, err = ownUser(userID, email)
 		// A link that outlived its user answers like any other dead link, so it reveals no deletion.
 		if shared.IsError(err, constants.ErrUserNotFound) || shared.IsError(err, dataerrors.ErrAuthzUserNotActive) {
-			return nil, constants.EmptyString, false, errors.New(string(constants.ErrEnrollTokenInvalid))
+			return nil, constants.EmptyString, constants.EmptyString, errors.New(string(constants.ErrEnrollTokenInvalid))
 		}
 		if err != nil {
-			return nil, constants.EmptyString, false, err
+			return nil, constants.EmptyString, constants.EmptyString, err
 		}
-		if invite {
-			markInviteOpened(user)
-		}
-		return user, userID, true, nil
+		return user, userID, enrollDigest, nil
 	}
 
 	user, userID, err = userForEmail(email)
 	if err != nil {
-		return nil, constants.EmptyString, false, err
+		return nil, constants.EmptyString, constants.EmptyString, err
 	}
-	return user, userID, false, nil
+	return user, userID, constants.EmptyString, nil
 }
 
 // The identity headers are stripped by the authz layer, so for a session-less
 // finish only the signed ceremony (ceremonyOwner) can name the user.
 func GetUserForRegistration(
-	r *http.Request, ceremonyOwner func(*http.Request) (string, bool, error),
-) (user *userresource.User, userID string, enrolled bool, err error) {
+	r *http.Request, ceremonyOwner func(*http.Request) (string, string, error),
+) (user *userresource.User, userID, enrollDigest string, err error) {
 	sessionUserID, sessionErr := ValidateSessionFromRequest(r)
 	if sessionErr == nil {
 		user, err = GetUserByIDWithErrorHandling(sessionUserID)
 		if err != nil {
-			return nil, constants.EmptyString, false, err
+			return nil, constants.EmptyString, constants.EmptyString, err
 		}
-		return user, sessionUserID, false, nil
+		return user, sessionUserID, constants.EmptyString, nil
 	}
 
-	ownerID, enrolled, err := ceremonyOwner(r)
+	ownerID, enrollDigest, err := ceremonyOwner(r)
 	if err != nil {
-		return nil, constants.EmptyString, false, err
+		return nil, constants.EmptyString, constants.EmptyString, err
 	}
 	pending, found, err := pendingUser(ownerID)
 	if err != nil {
-		return nil, constants.EmptyString, false, err
+		return nil, constants.EmptyString, constants.EmptyString, err
 	}
 	if found {
-		return pending, ownerID, false, nil
+		return pending, ownerID, constants.EmptyString, nil
 	}
 
 	user, err = GetUserByIDWithErrorHandling(ownerID)
 	if err != nil {
-		return nil, constants.EmptyString, false, err
+		return nil, constants.EmptyString, constants.EmptyString, err
 	}
-	if enrolled {
-		return user, user.ID, true, nil
+	if enrollDigest != constants.EmptyString {
+		return user, user.ID, enrollDigest, nil
 	}
 
 	hasPasskeys, _ := CheckUserHasExistingPasskeys(user.ID)
 	if hasPasskeys {
-		return nil, constants.EmptyString, false, errors.New(string(constants.ErrUserAlreadyHasPasskeys))
+		return nil, constants.EmptyString, constants.EmptyString, errors.New(string(constants.ErrUserAlreadyHasPasskeys))
 	}
 
-	return user, user.ID, false, nil
+	return user, user.ID, constants.EmptyString, nil
 }
 
 func AttachPasskeyIdentity(

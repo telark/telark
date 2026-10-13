@@ -40,13 +40,13 @@ You should see every pod `Running` and `READY`. The first start pulls several im
 
 ## 2. Sign in as the first admin
 
-Create a one-time enrollment token with the auth service's break-glass command, using the email you passed at install:
+Create a one-time enrollment link with the auth service's break-glass command, using the email you passed at install:
 
 ```sh
 kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email test@example.com --enroll
 ```
 
-You should see a line like `enrollment token for test@example.com (expires …): <token>`. The token is valid for an hour.
+It prints the next steps and a link like `<dashboard-url>/register?enroll=<token>&email=test%40example.com`. The link is valid for an hour.
 
 Forward the dashboard to your machine and leave the command running:
 
@@ -54,7 +54,7 @@ Forward the dashboard to your machine and leave the command running:
 kubectl port-forward -n telark svc/telark-ui-service 3000:8080
 ```
 
-Open `http://localhost:3000/register?enroll=<token>` and create your passkey. You are now signed in as Admin.
+Open the link with `http://localhost:3000` in place of `<dashboard-url>`, and create your passkey. You are now signed in as Admin.
 
 Passkeys are bound to the host name you register them on. If you later expose the dashboard on another host, see [Access the dashboard](INSTALL.md#access-the-dashboard).
 

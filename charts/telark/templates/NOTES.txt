@@ -46,7 +46,7 @@ Next steps:
 {{- if and .Values.app.auth.bootstrap.admin .Values.services.auth.enabled }}
   1. Enroll the bootstrap admin ({{ .Values.app.auth.bootstrap.admin }}) with a passkey: run
        kubectl exec -n {{ .Values.app.namespace }} deploy/{{ include "telark.fullname" . }}-{{ .Values.services.auth.name }} -- ./main break-glass --email {{ .Values.app.auth.bootstrap.admin }} --enroll
-     and open /register?enroll=<token> on the dashboard within 10 minutes.
+     and open the enrollment link it prints, following the steps under it.
 {{- end }}
   2. Invite users from Members with an enrollment link, or let the bootstrap admin
      enable SSO or self-registration from Settings.

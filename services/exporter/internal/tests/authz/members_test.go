@@ -64,6 +64,10 @@ func TestGuardGroupMembersPatchRules(t *testing.T) {
 		{"denied add removes", noAdd, []string{victimID}, members(), true},
 		{"denied remove removes", noRemove, []string{victimID}, members(), false},
 		{"denied remove adds", noRemove, nil, members(victimID), true},
+		{"denied remove swaps", noRemove, []string{victimID}, members(userPlain), false},
+		{"owner swaps", owner, []string{victimID}, members(userPlain), true},
+		{"denied remove nulls members", noRemove, []string{victimID}, map[string]any{constants.FieldUserRefs: nil}, false},
+		{"owner nulls members", owner, []string{victimID}, map[string]any{constants.FieldUserRefs: nil}, true},
 		{"members untouched", contributor, nil, map[string]any{constants.FieldName: "renamed"}, true},
 		{"internal", internalIdentity, nil, members(victimID), true},
 	}
@@ -124,6 +128,9 @@ func TestGuardUserPatchAppliesRemoveRules(t *testing.T) {
 	noAdd.Grants.Levels[roledata.ScopeUsers] = roledata.PermissionLevelOwner
 	roleID, groupID := roleUsersOwner, groupPlain
 	holder := &userdata.User{ID: victimID, RoleRefs: []*string{&roleID}, GroupRefs: []*string{&groupID}}
+	// The old UI swapped an item in one PATCH and a null list drops them all; ALL Admin keeps the level cap out of it.
+	adminNoDetach := denied(allAdmin(), roledata.ScopeUsers, xauthz.RuleKey(roledata.ScopeUsers, roledata.ActionRemoveRoleFromUser))
+	adminNoRemove := denied(allAdmin(), roledata.ScopeGroups, xauthz.RuleKey(roledata.ScopeGroups, roledata.ActionRemoveUserFromGroup))
 
 	tests := []struct {
 		name     string
@@ -137,6 +144,14 @@ func TestGuardUserPatchAppliesRemoveRules(t *testing.T) {
 		{"no add rule removes group", noAdd, groupsOf(), true},
 		{"no remove rule removes group", noRemove, groupsOf(), false},
 		{"no add rule adds group", noAdd, groupsOf(groupPlain, groupAdmin), false},
+		{"no remove rule swaps role", adminNoDetach, assigning(roleAppsOwner), false},
+		{"remove rule swaps role", allAdmin(), assigning(roleAppsOwner), true},
+		{"no remove rule swaps group", adminNoRemove, groupsOf(groupAdmin), false},
+		{"remove rule swaps group", allAdmin(), groupsOf(groupAdmin), true},
+		{"no remove rule nulls roles", adminNoDetach, map[string]any{constants.FieldRoleRefs: nil}, false},
+		{"remove rule nulls roles", allAdmin(), map[string]any{constants.FieldRoleRefs: nil}, true},
+		{"no remove rule nulls groups", adminNoRemove, map[string]any{constants.FieldGroupRefs: nil}, false},
+		{"remove rule nulls groups", allAdmin(), map[string]any{constants.FieldGroupRefs: nil}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -3,11 +3,10 @@ package webauthn
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -61,8 +60,6 @@ const (
 	testSignCount        = 5
 	minimalCOSEKey       = 0xA0
 )
-
-var testOrigins = []string{testOrigin}
 
 var pinnedRelyingParty = config.WebAuthnConfig{
 	RPID:             "localhost",
@@ -165,16 +162,6 @@ func TestExtractBackupFlagsFromAuthenticatorData(t *testing.T) {
 			testutil.Equal(t, "eligible", elig, c.wantElig)
 			testutil.Equal(t, "state", state, c.wantState)
 		})
-	}
-}
-
-// Undecodable or non-CBOR attestation objects degrade to "no flags" rather than
-// failing the registration.
-func TestExtractBackupFlagsFromAttestation(t *testing.T) {
-	for _, in := range []string{badBase64Input, base64.RawURLEncoding.EncodeToString([]byte("not-cbor"))} {
-		elig, state := webauthnhelper.ExtractBackupFlagsFromAttestation(in)
-		testutil.Equal(t, "eligible", elig, false)
-		testutil.Equal(t, "state", state, false)
 	}
 }
 
@@ -293,136 +280,35 @@ func TestStartRegistration(t *testing.T) {
 	}
 }
 
-// buildAttestation assembles a well-formed "none"-format attestation object,
-// matching client data, and credential id — the exact shape the manual parser
-// accepts when the library's stricter verification declines.
-func buildAttestation(t *testing.T) (attB64, clientDataB64, credIDB64, expectedChallenge string) {
-	t.Helper()
-	credID := []byte(testRawCredID)
-
-	rpIDHash := sha256.Sum256([]byte(testRPID))
-	authData := make([]byte, constants.InitialCapacity, authDataCap)
-	authData = append(authData, rpIDHash[:]...)                // rpIdHash
-	authData = append(authData, backupFlagBits|userPresentBit) // flags: UP + backup eligible + state
-	authData = binary.BigEndian.AppendUint32(authData, testSignCount)
-	authData = append(authData, make([]byte, aaguidLen)...) // AAGUID
-	authData = binary.BigEndian.AppendUint16(authData, uint16(len(testRawCredID)))
-	authData = append(authData, credID...)
-	authData = append(authData, minimalCOSEKey)
-
-	attBytes, err := cbor.Marshal(map[string]any{"fmt": "none", "authData": authData})
-	if err != nil {
-		t.Fatalf("cbor marshal: %v", err)
-	}
-	attB64 = base64.RawURLEncoding.EncodeToString(attBytes)
-
-	expectedChallenge = base64.RawURLEncoding.EncodeToString([]byte("testchallenge"))
-	cd, err := json.Marshal(map[string]any{
-		"type":      "webauthn.create",
-		"challenge": expectedChallenge,
-		"origin":    testOrigin,
-	})
-	if err != nil {
-		t.Fatalf(jsonMarshalFailed, err)
-	}
-	clientDataB64 = base64.RawURLEncoding.EncodeToString(cd)
-	credIDB64 = base64.RawURLEncoding.EncodeToString(credID)
-	return attB64, clientDataB64, credIDB64, expectedChallenge
-}
-
-// The manual parser reconstructs the credential and its backup flags from a
-// valid "none" attestation when the library path is unavailable.
-func TestParseAttestationObjectManually(t *testing.T) {
-	att, cd, credID, chal := buildAttestation(t)
-	cred, elig, state, err := webauthnhelper.ParseAttestationObjectManually(att, cd, credID, chal, testRPID, testOrigins)
-	if err != nil || cred == nil {
-		t.Fatalf("ParseAttestationObjectManually = (%v, %v)", cred, err)
-	}
-	testutil.Equal(t, "eligible", elig, true)
-	testutil.Equal(t, "state", state, true)
-}
-
-// The manual path checks what the library would: the relying party hash, the
-// user-present flag, the ceremony type and an allowed origin.
-func TestParseAttestationObjectManuallyBinding(t *testing.T) {
-	att, cd, credID, chal := buildAttestation(t)
-	cases := []struct {
-		name    string
-		rpID    string
-		origins []string
-	}{
-		{"other relying party", "evil.example", testOrigins},
-		{"origin not allowed", testRPID, []string{"https://evil.example"}},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			if _, _, _, err := webauthnhelper.ParseAttestationObjectManually(att, cd, credID, chal, c.rpID, c.origins); err == nil {
-				t.Fatal("expected a binding error")
-			}
-		})
-	}
-
-	wrongType, err := json.Marshal(map[string]any{"type": "webauthn.get", "challenge": chal, "origin": testOrigin})
-	if err != nil {
-		t.Fatalf(jsonMarshalFailed, err)
-	}
-	_, _, _, err = webauthnhelper.ParseAttestationObjectManually(
-		att, base64.RawURLEncoding.EncodeToString(wrongType), credID, chal, testRPID, testOrigins)
-	if err == nil {
-		t.Fatal("a non-registration ceremony type must be rejected")
-	}
-}
-
-// Undecodable, non-CBOR, and wrong-format attestations are all rejected.
-func TestParseAttestationObjectManuallyErrors(t *testing.T) {
-	wrongFmt, err := cbor.Marshal(map[string]any{"fmt": "packed"})
-	if err != nil {
-		t.Fatalf("cbor marshal: %v", err)
-	}
-	cases := []struct {
-		name   string
-		attB64 string
-	}{
-		{badBase64Case, badBase64Input},
-		{"not cbor", base64.RawURLEncoding.EncodeToString([]byte("xx"))},
-		{"wrong format", base64.RawURLEncoding.EncodeToString(wrongFmt)},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			_, _, _, err := webauthnhelper.ParseAttestationObjectManually(
-				c.attB64, constants.EmptyString, constants.EmptyString, "chal", testRPID, testOrigins)
-			if err == nil {
-				t.Fatal("expected an error")
-			}
-		})
-	}
-}
-
-// FinishRegistration parses the registration body, falls back to the manual
-// parser when the library declines, and cleans up the stored challenge.
+// FinishRegistration hands the body to the library and returns the credential with
+// the backup flags and the bare key it verified; a body without a response fails.
 func TestFinishRegistration(t *testing.T) {
-	att, cd, credID, chal := buildAttestation(t)
-	if err := webauthnhelper.StoreChallenge("finUser", chal); err != nil {
-		t.Fatalf(storeChallengeFailed, err)
-	}
-	body, err := json.Marshal(map[string]any{
-		"id":       credID,
-		"response": map[string]any{"attestationObject": att, "clientDataJSON": cd},
-	})
+	reg := validRegistration(t, testutil.NewP256Key(t), flagUP|flagUV|flagAT|flagBE|flagBS|flagED)
+	passkey, err := finish(t, "finUser", reg)
 	if err != nil {
-		t.Fatalf(jsonMarshalFailed, err)
+		t.Fatalf(finishFailed, err)
 	}
-
-	r := httptest.NewRequest(http.MethodPost, testPath, bytes.NewReader(body))
-	cred, _, _, err := webauthnhelper.FinishRegistration("finUser", testName, "full", r)
-	if err != nil || cred == nil {
-		t.Fatalf("FinishRegistration = (%v, %v)", cred, err)
+	testutil.Equal(t, "eligible", passkey.BackupEligible, true)
+	testutil.Equal(t, "state", passkey.BackupState, true)
+	// The library re-encodes the key, so it is compared decoded: the same key, nothing after it.
+	stored, err := base64.StdEncoding.DecodeString(passkey.PublicKey)
+	if err != nil {
+		t.Fatalf("stored key: %v", err)
 	}
+	var got, want map[int]any
+	rest, err := cbor.UnmarshalFirst(stored, &got)
+	if err != nil || len(rest) != constants.DefaultInitValue {
+		t.Fatalf("stored key = %d trailing bytes, err %v", len(rest), err)
+	}
+	if err := cbor.Unmarshal(reg.key, &want); err != nil {
+		t.Fatalf("sent key: %v", err)
+	}
+	testutil.Equal(t, "stored key", fmt.Sprint(got), fmt.Sprint(want))
 
-	missing := httptest.NewRequest(http.MethodPost, testPath, strings.NewReader(`{"id":"x"}`))
-	if err := webauthnhelper.StoreChallenge("finUser2", chal); err != nil {
+	if err := webauthnhelper.StoreChallenge("finUser2", registrationChallengeB64); err != nil {
 		t.Fatalf(storeChallengeFailed, err)
 	}
+	missing := httptest.NewRequest(http.MethodPost, testPath, strings.NewReader(`{"id":"x"}`))
 	if _, _, _, err := webauthnhelper.FinishRegistration("finUser2", testShortName, testShortFull, missing); err == nil {
 		t.Fatal("registration body without response should fail")
 	}
@@ -443,17 +329,10 @@ func (b *retryOnRead) Read(p []byte) (int, error) {
 // The finish consumes its own challenge; its later cleanup, keyed by the user alone,
 // wiped the challenge a quick retry had just started with.
 func TestFinishKeepsTheChallengeOfARetry(t *testing.T) {
-	att, cd, credID, chal := buildAttestation(t)
-	if err := webauthnhelper.StoreChallenge(retryUser, chal); err != nil {
+	if err := webauthnhelper.StoreChallenge(retryUser, registrationChallengeB64); err != nil {
 		t.Fatalf(storeChallengeFailed, err)
 	}
-	body, err := json.Marshal(map[string]any{
-		"id":       credID,
-		"response": map[string]any{"attestationObject": att, "clientDataJSON": cd},
-	})
-	if err != nil {
-		t.Fatalf(jsonMarshalFailed, err)
-	}
+	body := validRegistration(t, testutil.NewP256Key(t), flagUP|flagUV|flagAT).body(t)
 	reader := &retryOnRead{Reader: bytes.NewReader(body), retry: func() {
 		if err := webauthnhelper.StoreChallenge(retryUser, retryChallenge); err != nil {
 			t.Errorf(storeChallengeFailed, err)

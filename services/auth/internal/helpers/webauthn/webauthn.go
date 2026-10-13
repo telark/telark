@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/fxamacker/cbor/v2"
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/google/uuid"
@@ -165,6 +166,9 @@ func ConvertPasskeysToCredentials(passkeys []*authdata.Passkey) []webauthn.Crede
 		}
 
 		pubKey, err := base64.StdEncoding.DecodeString(pk.PublicKey)
+		if err == nil {
+			pubKey, err = coseKeyOnly(pubKey)
+		}
 		if err != nil {
 			lg.Error(fmt.Sprintf(string(constants.ErrFailedDecodePublicKey), err))
 			continue
@@ -177,6 +181,16 @@ func ConvertPasskeysToCredentials(passkeys []*authdata.Passkey) []webauthn.Crede
 		})
 	}
 	return credentials
+}
+
+// Passkeys stored before 0.1.2 can carry the extension outputs that followed the key in
+// authData; the library rejects trailing bytes, so only the key is kept.
+func coseKeyOnly(data []byte) ([]byte, error) {
+	var key cbor.RawMessage
+	if _, err := cbor.UnmarshalFirst(data, &key); err != nil {
+		return nil, fmt.Errorf(string(constants.ErrFailedUnmarshalCBOR), err)
+	}
+	return key, nil
 }
 
 func CreateUser(userID, username, fullname string, credentials []webauthn.Credential) *User {
@@ -296,33 +310,23 @@ func FinishRegistration(
 		return nil, false, false, err
 	}
 
-	attestationObjB64, clientDataJSONB64, credentialIDB64, err := extractRegistrationData(bodyBytes)
-	if err != nil {
-		return nil, false, false, err
-	}
-
+	// The credential parameters StartRegistration offered (the library's defaults); without
+	// them the library refused every credential, and no other check may stand in for it.
 	webAuthnUser := CreateUser(userID, username, fullname, nil)
-	sessionData := &webauthn.SessionData{
-		Challenge: challenge.Challenge,
-		UserID:    webAuthnUser.ID,
+	sessionData := webauthn.SessionData{
+		Challenge:  challenge.Challenge,
+		UserID:     webAuthnUser.ID,
+		CredParams: webauthn.CredentialParametersDefault(),
 	}
 
 	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-	credential, err = wa.FinishRegistration(webAuthnUser, *sessionData, r)
-
+	credential, err = wa.FinishRegistration(webAuthnUser, sessionData, r)
 	if err != nil {
-		credential, backupEligible, backupState, err = ParseAttestationObjectManually(
-			attestationObjB64, clientDataJSONB64, credentialIDB64, challenge.Challenge,
-			wa.Config.RPID, wa.Config.RPOrigins)
-		if err != nil {
-			return nil, false, false, fmt.Errorf(string(constants.ErrManualCredentialParsingFailed), err)
-		}
-	} else {
-		backupEligible, backupState = ExtractBackupFlagsFromAttestation(attestationObjB64)
+		return nil, false, false, fmt.Errorf(string(constants.ErrCredentialVerificationFailed), err)
 	}
 
 	cleanupRegistrationChallengeOwner(challenge.Challenge)
 	lg.Info(fmt.Sprintf(string(constants.LogRegistrationVerifiedSuccessfully),
 		sharedhelper.IdentityHash(userID)))
-	return credential, backupEligible, backupState, nil
+	return credential, credential.Flags.BackupEligible, credential.Flags.BackupState, nil
 }

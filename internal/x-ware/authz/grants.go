@@ -36,7 +36,13 @@ func CollectGrants(source GrantSource, log Warner, userID string) (Grants, error
 
 	// A record held only by the cleanup finalizer still reads; for authz the
 	// account is gone the moment the deletion timestamp is set.
-	if user.DeletionTimestamp != nil || userdata.AccountPhase(user.Status.Phase) != userdata.AccountPhaseActive {
+	phase := userdata.AccountPhase(user.Status.Phase)
+	switch {
+	case user.DeletionTimestamp != nil:
+		return Grants{}, ErrUserNotActive
+	case phase == userdata.AccountPhaseSuspended:
+		return Grants{}, ErrUserSuspended
+	case phase != userdata.AccountPhaseActive:
 		return Grants{}, ErrUserNotActive
 	}
 

@@ -99,6 +99,33 @@ func TestCollectGrantsIgnoresTerminatingRecords(t *testing.T) {
 	}
 }
 
+// A suspension is told apart from other inactive phases so the middleware can name it;
+// a terminating account stays plainly inactive whatever its phase.
+func TestCollectGrantsNamesSuspension(t *testing.T) {
+	deleted := deletedAt
+	group := &groupdata.Group{ID: grantsGroupID, RoleRefs: []string{grantsRoleID}}
+	tests := map[string]struct {
+		phase    userdata.AccountPhase
+		deletion *string
+		want     error
+	}{
+		"suspended":              {userdata.AccountPhaseSuspended, nil, authz.ErrUserSuspended},
+		"inactive":               {userdata.AccountPhaseInactive, nil, authz.ErrUserNotActive},
+		"suspended and deleting": {userdata.AccountPhaseSuspended, &deleted, authz.ErrUserNotActive},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			user := activeUser(tc.deletion)
+			user.Status.Phase = string(tc.phase)
+			_, err := authz.CollectGrants(sourceWith(user, group, ownerRole(nil)), nil, grantsUserID)
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("err = %v, want %v", err, tc.want)
+			}
+		})
+	}
+}
+
 func TestDenyRulesMatchRegardlessOfCase(t *testing.T) {
 	const action = "deleteuser"
 	rules := []string{"Users.DeleteUser.Deny"}

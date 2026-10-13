@@ -34,6 +34,12 @@ type GenericResponse struct {
 	Data      any    `json:"data,omitempty"`
 }
 
+// A refusal's stable code sits beside its message, so clients branch on the code, not the wording.
+type RefusalResponse struct {
+	GenericResponse
+	Code string `json:"code,omitempty"`
+}
+
 func NewGenericResponse(
 	status int,
 	operation OperationStatus,
@@ -85,6 +91,10 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 
 func SendSingleResponse(w http.ResponseWriter, response *GenericResponse) {
 	EncodeJSONResponse(w, response.Status, response)
+}
+
+func SendRefusalResponse(w http.ResponseWriter, response *RefusalResponse) {
+	writeJSON(w, response.Status, response)
 }
 
 func SendMultiResponses(w http.ResponseWriter, status int, responses []*GenericResponse) {

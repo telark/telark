@@ -53,7 +53,7 @@ func SendErrorResponse(w http.ResponseWriter, statusCode int, err error) {
 
 // The routes that answer in the rest envelope carry a refusal's code beside its message too.
 func SendRefusal(w http.ResponseWriter, statusCode int, err error) {
-	SendJSONResponse(w, statusCode, RefusalResponse{
+	SendJSONResponse(w, statusCode, restresponse.RefusalResponse{
 		GenericResponse: *restresponse.NewGenericResponse(statusCode, restresponse.OperationError, nil, err.Error()),
 		Code:            refusalCode(err),
 	})

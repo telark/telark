@@ -23,7 +23,8 @@ var (
 	ErrGone           = shared.ErrGone
 	ErrSessionExpired = errors.New(string(dataerrors.ErrAuthzSessionExpired))
 	ErrUserNotActive  = errors.New(string(dataerrors.ErrAuthzUserNotActive))
-	verdicts          = []error{ErrNotFound, ErrGone, ErrSessionExpired, ErrUserNotActive}
+	ErrUserSuspended  = errors.New(string(dataerrors.ErrAuthzUserSuspended))
+	verdicts          = []error{ErrNotFound, ErrGone, ErrSessionExpired, ErrUserNotActive, ErrUserSuspended}
 )
 
 const (
@@ -34,4 +35,6 @@ const (
 	ruleKeySeparator    = "."
 	ruleKeySuffix       = "deny"
 	constantTimeEq      = 1
+	// The code auth refuses a suspended account's sign-in with, so a client handles both alike.
+	refusalAccountSuspended = "account_suspended"
 )

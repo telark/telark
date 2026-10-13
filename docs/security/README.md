@@ -74,7 +74,7 @@ auth, discovery and exporter wrap their router with the same middleware in `main
 3. `Public` routes pass.
 4. A present `X-Service-Token` must match (else 401) and makes the caller Internal. An `Internal` route without it is 401.
 5. Otherwise `X-Session-Token` → user id → grants. `Authenticated` routes stop here; scoped routes then need `Allows`.
-6. Only a resolver verdict (not found, gone, session expired, user not active) produces 401/403; any other resolver error is 503, so an outage never looks like a logout (`denialFor`).
+6. Only a resolver verdict (not found, gone, session expired, user not active or suspended) produces 401/403; any other resolver error is 503, so an outage never looks like a logout (`denialFor`). A suspended account's 403 carries the code `account_suspended` beside its message, the code auth refuses its sign-in with, so the dashboard ends that session at once; every other 403 carries no code.
 
 Requirement helpers (`x-ware/authz/requirement.go`): `Read` = ReadOnly, `Write` = Contributor, `Own` = Owner, `Administer` = Admin on a scope; `Denyable(req, action)` adds a deny-rule key. Each API service's `internal/tests/authz/requirements_test.go` fails when a route has no requirement (`TestRequirementsCoverEveryRoute`) or becomes Public unexpectedly (`TestOnlyProbesArePublic` in discovery and exporter, `TestPublicRoutesArePinned` in auth).
 

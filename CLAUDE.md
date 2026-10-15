@@ -61,7 +61,7 @@ helm repo add vpa https://charts.fairwinds.com/stable && make deps && make helm-
 # analyzer: see docs/testing (Python 3.13 venv, two pytest runs, coverage >= 95)
 ```
 
-Tool versions (Go 1.27.1, golangci-lint v2.14.0, kubeconform v0.8.0, Python 3.13), install commands, CI coverage floors and cluster validation (UI → API → backend → Kubernetes): [docs/testing/](docs/testing/README.md). No cluster is available in a cloud session; unit tests, lint, Helm lint and render, kubeconform and the analyzer suite all run without one.
+Tool versions (Go 1.27.2, golangci-lint v2.14.0, kubeconform v0.8.0, Python 3.13), install commands, CI coverage floors and cluster validation (UI → API → backend → Kubernetes): [docs/testing/](docs/testing/README.md). No cluster is available in a cloud session; unit tests, lint, Helm lint and render, kubeconform and the analyzer suite all run without one.
 
 ## Before you call something done
 

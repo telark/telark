@@ -18,7 +18,7 @@ Every row except the last runs without a cluster; the last row is manual work on
 
 | Tool | Version | Pinned in |
 |---|---|---|
-| Go | 1.27.1 | the `go` line of the root `go.mod` (CI: `setup-go` with `go-version-file`) |
+| Go | 1.27.2 | the `go` line of the root `go.mod` (CI: `setup-go` with `go-version-file`) |
 | golangci-lint | v2.14.0 | `.github/actions/go-ci/action.yaml` |
 | kubeconform | v0.8.0 | `.github/actions/helm-kubeconform-validate/action.yaml` |
 | helm-docs | v1.14.2 | `Makefile` (`HELM_DOCS`, run with `go run`; nothing to install) |
@@ -29,7 +29,7 @@ Linux x86-64:
 
 ```sh
 # Go. A Go >= 1.21 already on PATH also works: it downloads the go.mod toolchain unless GOTOOLCHAIN=local.
-curl -fsSL https://go.dev/dl/go1.27.1.linux-amd64.tar.gz | sudo tar -C /usr/local -xz
+curl -fsSL https://go.dev/dl/go1.27.2.linux-amd64.tar.gz | sudo tar -C /usr/local -xz
 export PATH=/usr/local/go/bin:$HOME/go/bin:$PATH
 
 # golangci-lint, the version CI pins

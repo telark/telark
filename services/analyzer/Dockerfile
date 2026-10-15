@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM python:3.14.7-alpine3.23
+FROM python:3.14.8-alpine3.23
 LABEL org.opencontainers.image.licenses="Elastic-2.0"
 
 ENV PYTHONUNBUFFERED=1

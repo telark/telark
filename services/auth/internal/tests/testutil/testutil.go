@@ -27,15 +27,6 @@ const (
 	uncompressedX = 1
 )
 
-// Code that dials Redis through x-ware resolves REDIS_HOST/REDIS_PORT from env.
-func RedisEnv(t *testing.T) *miniredis.Miniredis {
-	t.Helper()
-	mr := miniredis.RunT(t)
-	t.Setenv("REDIS_HOST", mr.Host())
-	t.Setenv("REDIS_PORT", mr.Port())
-	return mr
-}
-
 func RedisClient(t *testing.T) (*redis.Client, *miniredis.Miniredis) {
 	t.Helper()
 	mr := miniredis.RunT(t)

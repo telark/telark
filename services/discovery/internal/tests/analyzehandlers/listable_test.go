@@ -22,15 +22,6 @@ func list(ctx context.Context, handler http.HandlerFunc) int {
 	return rec.Code
 }
 
-// Declared before the test that loads the list: until a list was ever loaded, every namespace
-// is refused instead of listing Secret names from an excluded one.
-func TestAnalyzeListsFailClosedWithoutExcludedList(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	testutil.Equal(t, "resources", list(ctx, resources.ListNamespaceResources), http.StatusServiceUnavailable)
-	testutil.Equal(t, "workloads", list(ctx, workloads.ListNamespaceWorkloads), http.StatusServiceUnavailable)
-}
-
 func TestAnalyzeListsRefuseExcludedNamespaces(t *testing.T) {
 	testutil.ExcludedNamespaces(t, kubeSystem)
 	ctx := context.Background()

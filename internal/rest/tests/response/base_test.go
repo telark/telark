@@ -14,6 +14,8 @@ const (
 	noBody      = ""
 	encodedOK   = `{"status":200,"operation":"Success","message":"ok"}` + "\n"
 	encodedList = `[{"status":201,"operation":"Success","message":"ok"}]` + "\n"
+	refusalCode = "account_suspended"
+	encodedRef  = `{"status":403,"operation":"Forbidden","message":"refused","code":"account_suspended"}` + "\n"
 )
 
 type countingRecorder struct {
@@ -91,4 +93,14 @@ func TestEncodeMultiJSONResponseWritesHeaderOnce(t *testing.T) {
 			assertWritten(t, rec, http.StatusNoContent, noBody, noBody)
 		})
 	}
+}
+
+// A refusal carries its stable code beside the message, so clients branch on the code, not the wording.
+func TestSendRefusalResponseCarriesTheCode(t *testing.T) {
+	rec := newRecorder()
+	response.SendRefusalResponse(rec, &response.RefusalResponse{
+		GenericResponse: *response.NewGenericResponse(http.StatusForbidden, response.OperationForbidden, nil, "refused"),
+		Code:            refusalCode,
+	})
+	assertWritten(t, rec, http.StatusForbidden, jsonType, encodedRef)
 }

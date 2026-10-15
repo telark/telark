@@ -240,18 +240,23 @@ func TestBreakGlassOutput(t *testing.T) {
 	}
 }
 
-// Only a 404 means the account is missing. Any other failed lookup is reported as one and creates nothing.
+// Only a 404 means the account is missing. Any other failed lookup is reported as one and creates nothing,
+// and a create the exporter refuses is reported with nothing on stdout.
 func TestBreakGlassLookupFailure(t *testing.T) {
 	const email = "test@example.com"
 	t.Setenv(constants.EnvBootstrapAdmin, email)
 	cases := []struct {
-		name   string
-		status int
-		args   []string
-		want   string
+		name    string
+		status  int
+		args    []string
+		want    string
+		creates int
 	}{
-		{"exporter fails the lookup", http.StatusInternalServerError, []string{flagEnroll}, "Could not read test@example.com from the exporter"},
-		{"no account without --enroll", http.StatusNotFound, nil, "No account uses test@example.com yet"},
+		{"exporter fails the lookup", http.StatusInternalServerError, []string{flagEnroll},
+			"Could not read test@example.com from the exporter", constants.DefaultInitValue},
+		{"no account without --enroll", http.StatusNotFound, nil, "No account uses test@example.com yet", constants.DefaultInitValue},
+		{"exporter refuses the create", http.StatusNotFound, []string{flagEnroll}, "create failed: status 404",
+			constants.DefaultIncrementValue},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -266,7 +271,7 @@ func TestBreakGlassLookupFailure(t *testing.T) {
 
 			code, out, logged := runBreakGlass(t, append([]string{flagEmail, email}, c.args...)...)
 			testutil.Equal(t, "exit", code, constants.ExitCodeError)
-			testutil.Equal(t, "creates", creates, constants.DefaultInitValue)
+			testutil.Equal(t, "creates", creates, c.creates)
 			testutil.Equal(t, "stdout", out, constants.EmptyString)
 			if !strings.Contains(logged, c.want) {
 				t.Fatalf("stderr %q lacks %q", logged, c.want)

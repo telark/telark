@@ -11,6 +11,11 @@ coverage:
       default:
         informational: true
 
+# Test helpers (testutil, fakes) build into the covered packages but aren't product code.
+ignore:
+  - "services/*/internal/tests/**"
+  - "internal/*/tests/**"
+
 # One flag per CI test job (services and shared packages); carryforward keeps a
 # flag's last coverage when a run didn't re-upload it (the matrix uploads separately).
 flag_management:

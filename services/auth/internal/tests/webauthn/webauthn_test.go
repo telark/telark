@@ -59,6 +59,8 @@ const (
 	testOrigin           = "http://localhost:3000"
 	testSignCount        = 5
 	minimalCOSEKey       = 0xA0
+	// A CBOR map header that promises one entry and holds none.
+	truncatedCOSEKeyB64 = "oQ=="
 )
 
 var pinnedRelyingParty = config.WebAuthnConfig{
@@ -134,6 +136,11 @@ func TestConvertPasskeysToCredentials(t *testing.T) {
 	valid := &authdata.Passkey{CredentialID: testCredB64, PublicKey: "AAAA"}
 	got := webauthnhelper.ConvertPasskeysToCredentials([]*authdata.Passkey{nil, valid})
 	testutil.Equal(t, "one valid", len(got), constants.DefaultIncrementValue)
+
+	// A stored key the library cannot read is skipped, never handed over half-parsed.
+	truncated := &authdata.Passkey{CredentialID: testCredB64, PublicKey: truncatedCOSEKeyB64}
+	testutil.Equal(t, "non-CBOR key skipped", len(webauthnhelper.ConvertPasskeysToCredentials(
+		[]*authdata.Passkey{truncated})), constants.DefaultInitValue)
 }
 
 // The Backup Eligible / Backup State bits are read from a fixed offset in the

@@ -39,7 +39,7 @@ jobs:
           - { service: discovery, path: services/discovery, coverage: 50 }
           - { service: exporter, path: services/exporter, coverage: 55 }
           - { service: notifier, path: services/notifier, coverage: 75 }
-          - { service: data, path: internal/data, coverage: 73 }
+          - { service: data, path: internal/data, coverage: 95 }
           - { service: rest, path: internal/rest, coverage: 54 }
           - { service: kcore, path: internal/kcore, coverage: 22 }
           - { service: x-ware, path: internal/x-ware, coverage: 47 }

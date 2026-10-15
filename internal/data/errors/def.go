@@ -118,6 +118,7 @@ const (
 	ErrAuthzIdentityMissing    Error = "the request carries no verified identity"
 	ErrAuthzSessionExpired     Error = "session has expired"
 	ErrAuthzUserNotActive      Error = "user account is not active"
+	ErrAuthzUserSuspended      Error = "user account is suspended"
 	ErrAuthzGroupSkipped       Error = "authz: skipping unreadable group %s: %v"
 	ErrAuthzRoleSkipped        Error = "authz: skipping unreadable role %s: %v"
 

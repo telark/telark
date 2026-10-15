@@ -42,6 +42,7 @@ const (
 	unknownToken      = "unknown-token"
 	deviceName        = "laptop"
 	deviceType        = "desktop"
+	otherRPID         = "evil.example"
 )
 
 func usersOwner() xauthz.Identity {
@@ -124,6 +125,26 @@ func startWith(token string) *httptest.ResponseRecorder {
 	return rec
 }
 
+func challengeOf(t *testing.T, start *httptest.ResponseRecorder) string {
+	t.Helper()
+	testutil.Equal(t, "start", start.Code, http.StatusOK)
+	var options passkeyhandler.RegisterStartResponse
+	if err := json.Unmarshal(start.Body.Bytes(), &options); err != nil {
+		t.Fatalf("start body: %v", err)
+	}
+	return options.Options.Response.Challenge.String()
+}
+
+func finishWith(t *testing.T, challenge, rpID string) *httptest.ResponseRecorder {
+	t.Helper()
+	finish := jsonReq(registrationBody(t, challenge, rpID))
+	finish.Header.Set(constants.HeaderDeviceName, deviceName)
+	finish.Header.Set(constants.HeaderDeviceType, deviceType)
+	rec := httptest.NewRecorder()
+	passkeyhandler.CreatePasskey(rec, finish)
+	return rec
+}
+
 // Redis holds only the digest of a link, both keys live as long as the link (an hour
 // unless the chart says otherwise), and the user record shows who issued it until when.
 func TestInviteLinkStoresOnlyTheDigest(t *testing.T) {
@@ -179,8 +200,8 @@ func expectNoRawToken(t *testing.T, token string) {
 	}
 }
 
-// A link opens one registration for its user. One that is unknown, replaced by a newer
-// link, used, revoked, expired or outlived by its user gets the same answer, so none can be told apart.
+// A link opens registrations for its user until a passkey is saved with it. One that is unknown, replaced by a
+// newer link, used, revoked, expired or outlived by its user gets the same answer, so none can be told apart.
 func TestInviteLinkOpensOneRegistration(t *testing.T) {
 	initWebAuthn(t)
 	fake := inviteDirectory()
@@ -199,8 +220,8 @@ func TestInviteLinkOpensOneRegistration(t *testing.T) {
 			return replaced
 		}},
 		{"used", func(t *testing.T) string {
-			token := issueLink(t, plainTargetID, usersOwner()).Token
-			testutil.Equal(t, "first use", startWith(token).Code, http.StatusOK)
+			token := issueLink(t, enrolledTargetID, adminOnAll()).Token
+			testutil.Equal(t, "passkey saved", finishWith(t, challengeOf(t, startWith(token)), webauthnHost).Code, http.StatusCreated)
 			return token
 		}},
 		{"revoked", func(t *testing.T) string {
@@ -314,19 +335,8 @@ func TestEnrollmentThroughTheLinkClosesTheInvite(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			fake := inviteDirectory()
 			testutil.StubBackend(t, fake)
-			start := startWith(issueLink(t, c.target, adminOnAll()).Token)
-			testutil.Equal(t, "start", start.Code, http.StatusOK)
-			var options passkeyhandler.RegisterStartResponse
-			if err := json.Unmarshal(start.Body.Bytes(), &options); err != nil {
-				t.Fatalf("start body: %v", err)
-			}
-
-			finish := jsonReq(registrationBody(t, options.Options.Response.Challenge.String(), webauthnHost))
-			finish.Header.Set(constants.HeaderDeviceName, deviceName)
-			finish.Header.Set(constants.HeaderDeviceType, deviceType)
-			rec := httptest.NewRecorder()
-			passkeyhandler.CreatePasskey(rec, finish)
-			testutil.Equal(t, "finish", rec.Code, http.StatusCreated)
+			challenge := challengeOf(t, startWith(issueLink(t, c.target, adminOnAll()).Token))
+			testutil.Equal(t, "finish", finishWith(t, challenge, webauthnHost).Code, http.StatusCreated)
 
 			status := fake.User(c.target).Status
 			if status.Invite != nil {
@@ -348,44 +358,34 @@ func TestEnrollmentThroughTheLinkClosesTheInvite(t *testing.T) {
 	}
 }
 
-// Opening a link spends it, so its invite shows pending only while the ceremony it started can
-// still finish, then expired. A link the account made for itself leaves a pending invite alone.
-func TestOpenedLinkEndsTheInviteWithItsCeremony(t *testing.T) {
+// A ceremony that saves nothing (left unfinished, or failed) leaves the invite pending as issued, so the
+// link opens a new one, and the invite closes only when a passkey is saved with the link.
+func TestInviteStaysPendingUntilAPasskeyIsSaved(t *testing.T) {
 	initWebAuthn(t)
 	cases := []struct {
-		name     string
-		open     func(t *testing.T) string
-		shortens bool
+		name   string
+		finish func(t *testing.T, challenge string)
 	}{
-		{"invite link", func(t *testing.T) string {
-			return issueLink(t, enrolledTargetID, adminOnAll()).Token
-		}, true},
-		{"own link", func(t *testing.T) string {
-			issueLink(t, enrolledTargetID, adminOnAll())
-			token, _, err := authhelper.CreateEnrollToken(enrolledTargetID)
-			if err != nil {
-				t.Fatalf("own link: %v", err)
-			}
-			return token
-		}, false},
+		{"left unfinished", func(*testing.T, string) {}},
+		{"failed finish", func(t *testing.T, challenge string) {
+			testutil.Equal(t, "failed finish", finishWith(t, challenge, otherRPID).Code, http.StatusUnauthorized)
+		}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			fake := inviteDirectory()
 			testutil.StubBackend(t, fake)
-			token := c.open(t)
-			issued := *fake.User(enrolledTargetID).Status.Invite
-			testutil.Equal(t, "open", startWith(token).Code, http.StatusOK)
+			token := issueLink(t, plainTargetID, usersOwner()).Token
+			issued := *fake.User(plainTargetID).Status.Invite
+			c.finish(t, challengeOf(t, startWith(token)))
+			if invite := fake.User(plainTargetID).Status.Invite; invite == nil || *invite != issued {
+				t.Fatalf("invite after a ceremony that saved nothing = %+v, want the issued one %+v", invite, issued)
+			}
 
-			invite := fake.User(enrolledTargetID).Status.Invite
-			if invite == nil || invite.IssuedBy != issued.IssuedBy || invite.IssuedAt != issued.IssuedAt {
-				t.Fatalf("invite after opening = %+v, want the issued one %+v", invite, issued)
+			testutil.Equal(t, "retry", finishWith(t, challengeOf(t, startWith(token)), webauthnHost).Code, http.StatusCreated)
+			if status := fake.User(plainTargetID).Status; status.Invite != nil || status.InviteAcceptedAt == constants.EmptyString {
+				t.Fatalf("invite after the saved passkey = %+v, want closed", status)
 			}
-			expires, err := time.Parse(time.RFC3339, invite.ExpiresAt)
-			if err != nil {
-				t.Fatalf("expiresAt %q: %v", invite.ExpiresAt, err)
-			}
-			testutil.Equal(t, "pending past the ceremony", time.Until(expires) > time.Minute, !c.shortens)
 		})
 	}
 }

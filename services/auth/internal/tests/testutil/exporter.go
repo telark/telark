@@ -35,6 +35,7 @@ const (
 	fakeKeySpec       = "spec"
 	fakeKeyInvite     = "invite"
 	fakeKeyAccepted   = "inviteAcceptedAt"
+	fakeKeyIdentities = "identities"
 	fakeConfigVersion = "1"
 )
 
@@ -127,6 +128,16 @@ func patchUser(w http.ResponseWriter, r *http.Request, user *userresource.User) 
 	}
 	if accepted, isString := status[fakeKeyAccepted].(string); isString {
 		user.Status.InviteAcceptedAt = accepted
+	}
+	if identities, present := body[fakeKeyIdentities]; present {
+		raw, err := json.Marshal(identities)
+		if err == nil {
+			err = json.Unmarshal(raw, &user.Identities)
+		}
+		if err != nil {
+			fakeReply(w, http.StatusBadRequest, nil)
+			return
+		}
 	}
 	fakeReply(w, http.StatusOK, user)
 }
@@ -243,6 +254,12 @@ func (f *FakeExporter) Notices() []notificationsclient.Notification {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return slices.Clone(f.notices)
+}
+
+func (f *FakeExporter) PasskeyCount(userID string) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.Passkeys[userID]
 }
 
 func (f *FakeExporter) User(id string) userresource.User {

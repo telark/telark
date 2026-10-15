@@ -3,7 +3,10 @@ package oidc
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
+
+	"github.com/alicebob/miniredis/v2"
 
 	telarkconfigresource "github.com/telark/telark/internal/data/resources/telarkconfig"
 	userresource "github.com/telark/telark/internal/data/resources/user"
@@ -17,6 +20,22 @@ import (
 )
 
 const clientID = "id"
+
+// The Redis client is cached for the process, so the server it binds to outlives every run (-count).
+func TestMain(m *testing.M) {
+	mr, err := miniredis.Run()
+	if err != nil {
+		panic(err)
+	}
+	if err := os.Setenv("REDIS_HOST", mr.Host()); err != nil {
+		panic(err)
+	}
+	if err := os.Setenv("REDIS_PORT", mr.Port()); err != nil {
+		panic(err)
+	}
+	m.Run()
+	mr.Close()
+}
 
 // Usable answers "can we run SSO with this config" — enabled, a client id, and a
 // trust source (live egress or a pasted key set).
@@ -112,7 +131,6 @@ func TestBuildOIDCUserIsReadOnlyForTheBootstrapEmail(t *testing.T) {
 
 // A nonce is single-use: generated + stored in Redis, verified once, then gone.
 func TestNonceLifecycle(t *testing.T) {
-	testutil.RedisEnv(t)
 	redishelper.NewRedisClientWithRetry(context.Background()) // bind cached client to embedded redis
 
 	nonce, err := oidc.GenerateAndStoreNonce()

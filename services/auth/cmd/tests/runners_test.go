@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -19,6 +20,11 @@ import (
 	cleanupctrl "github.com/telark/telark/services/auth/internal/controllers/cleanup"
 	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
 	"github.com/telark/telark/services/auth/internal/tests/testutil"
+)
+
+const (
+	flagEmail  = "--email"
+	flagEnroll = "--enroll"
 )
 
 // Shared by the package: auth binds its Redis client once per process, and the tests read the tokens stored there.
@@ -135,63 +141,203 @@ func TestBreakGlassStripsGoogleFromPromotedAccounts(t *testing.T) {
 	}
 }
 
+// A fresh install: the exporter knows no account until break-glass creates one.
+type freshInstall struct {
+	created *userresource.User
+	creates int
+}
+
+func (f *freshInstall) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	switch {
+	case r.Method == http.MethodPost:
+		f.creates++
+		var user userresource.User
+		_ = json.NewDecoder(r.Body).Decode(&user)
+		user.ID = "u-root"
+		f.created = &user
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": user})
+	case r.Method == http.MethodPatch:
+		_, _ = w.Write([]byte(`{"status":200}`))
+	case f.created == nil:
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"status":404}`))
+	default:
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": f.created})
+	}
+}
+
 func TestBreakGlassEnrollCreatesAdmin(t *testing.T) {
 	const email = "root@x.com"
 	t.Setenv(constants.EnvBootstrapAdmin, email)
 	redisServer.FlushAll()
-	var created *userresource.User
-	creates := constants.DefaultInitValue
-	testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.Method == http.MethodPost:
-			creates++
-			var user userresource.User
-			_ = json.NewDecoder(r.Body).Decode(&user)
-			user.ID = "u-root"
-			created = &user
-			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(map[string]any{"data": user})
-		case r.Method == http.MethodPatch:
-			_, _ = w.Write([]byte(`{"status":200}`))
-		case created == nil:
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte(`{"status":404}`))
-		default:
-			_ = json.NewEncoder(w).Encode(map[string]any{"data": created})
-		}
-	}))
+	fresh := &freshInstall{}
+	testutil.StubBackend(t, fresh)
 
 	testutil.Equal(t, "exit without --enroll", cmd.RunBreakGlass([]string{"--email", email}), constants.ExitCodeError)
 	testutil.Equal(t, "exit with --enroll", cmd.RunBreakGlass([]string{"--email", email, "--enroll"}), constants.DefaultInitValue)
-	if created == nil || !created.Bootstrap || !authhelper.HasAdminRole(created.RoleRefs) {
-		t.Fatalf("created = %+v, want Admin with the bootstrap marker", created)
+	if fresh.created == nil || !fresh.created.Bootstrap || !authhelper.HasAdminRole(fresh.created.RoleRefs) {
+		t.Fatalf("created = %+v, want Admin with the bootstrap marker", fresh.created)
 	}
 	testutil.Equal(t, "exit once it exists", cmd.RunBreakGlass([]string{"--email", email, "--enroll"}), constants.DefaultInitValue)
-	testutil.Equal(t, "creates", creates, constants.DefaultIncrementValue)
+	testutil.Equal(t, "creates", fresh.creates, constants.DefaultIncrementValue)
 	testutil.Equal(t, "enrollment token owners", strings.Join(enrollTokenOwners(), ","), "u-root")
 }
 
-// The operator reads the token on stdout, as the last field the command prints.
+// stdout holds only the steps and the link the dashboard's Members dialog would build. The 404 a fresh install answers
+// the first lookup with is the expected "no account yet", so it shows nowhere as an exporter error.
+func TestBreakGlassOutput(t *testing.T) {
+	const email = "test@example.com"
+	t.Setenv(constants.EnvBootstrapAdmin, email)
+	adminRole := constants.BuiltInRoleAdmin
+	cases := []struct {
+		name   string
+		origin string
+		fresh  bool
+		args   []string
+		want   []string
+		link   string
+	}{
+		{"fresh install, dashboard exposed", "https://telark.example.com", true, []string{flagEnroll},
+			[]string{"Created the bootstrap admin test@example.com", "Next, register a passkey"}, "https://telark.example.com/register"},
+		{"existing admin, port-forward install", constants.EmptyString, false, []string{flagEnroll},
+			[]string{"Nothing to change", "Replace <dashboard-url>"}, "<dashboard-url>/register"},
+		{"existing admin without --enroll", constants.EmptyString, false, nil,
+			[]string{"Nothing to change", constants.BreakGlassSignIn}, constants.EmptyString},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Setenv(constants.EnvRPOrigin, c.origin)
+			redisServer.FlushAll()
+			var backend http.Handler = &freshInstall{}
+			if !c.fresh {
+				backend = &testutil.FakeExporter{Users: map[string]*userresource.User{
+					"u-root": {ID: "u-root", Email: email, Bootstrap: true, RoleRefs: []*string{&adminRole}},
+				}}
+			}
+			testutil.StubBackend(t, backend)
+
+			code, out, logged := runBreakGlass(t, append([]string{flagEmail, email}, c.args...)...)
+			testutil.Equal(t, "exit", code, constants.DefaultInitValue)
+			testutil.Equal(t, "stderr", logged, constants.EmptyString)
+			for _, want := range c.want {
+				if !strings.Contains(out, want) {
+					t.Fatalf("stdout %q lacks %q", out, want)
+				}
+			}
+			if c.link == constants.EmptyString {
+				testutil.Equal(t, "link printed", strings.Contains(out, "/register?"), false)
+				return
+			}
+			base, query := enrollLink(t, out)
+			token := linkToken(t, query)
+			testutil.Equal(t, "link", base, c.link)
+			testutil.Equal(t, "query", query, "enroll="+token+"&email=test%40example.com")
+			if owner, _, err := authhelper.ResolveEnrollToken(token); err != nil || owner != "u-root" {
+				t.Fatalf("token resolves to %q (%v), want u-root", owner, err)
+			}
+		})
+	}
+}
+
+// Only a 404 means the account is missing. Any other failed lookup is reported as one and creates nothing,
+// and a create the exporter refuses is reported with nothing on stdout.
+func TestBreakGlassLookupFailure(t *testing.T) {
+	const email = "test@example.com"
+	t.Setenv(constants.EnvBootstrapAdmin, email)
+	cases := []struct {
+		name    string
+		status  int
+		args    []string
+		want    string
+		creates int
+	}{
+		{"exporter fails the lookup", http.StatusInternalServerError, []string{flagEnroll},
+			"Could not read test@example.com from the exporter", constants.DefaultInitValue},
+		{"no account without --enroll", http.StatusNotFound, nil, "No account uses test@example.com yet", constants.DefaultInitValue},
+		{"exporter refuses the create", http.StatusNotFound, []string{flagEnroll}, "create failed: status 404",
+			constants.DefaultIncrementValue},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			creates := constants.DefaultInitValue
+			testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPost {
+					creates++
+				}
+				w.WriteHeader(c.status)
+				_ = json.NewEncoder(w).Encode(map[string]any{"status": c.status})
+			}))
+
+			code, out, logged := runBreakGlass(t, append([]string{flagEmail, email}, c.args...)...)
+			testutil.Equal(t, "exit", code, constants.ExitCodeError)
+			testutil.Equal(t, "creates", creates, c.creates)
+			testutil.Equal(t, "stdout", out, constants.EmptyString)
+			if !strings.Contains(logged, c.want) {
+				t.Fatalf("stderr %q lacks %q", logged, c.want)
+			}
+		})
+	}
+}
+
+// The operator reads the answer on stdout and diagnostics on stderr, so each is captured on its own.
+func runBreakGlass(t *testing.T, args ...string) (code int, stdout, stderr string) {
+	t.Helper()
+	outReader, outWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	errReader, errWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prevOut, prevErr := os.Stdout, os.Stderr
+	os.Stdout, os.Stderr = outWriter, errWriter
+	code = cmd.RunBreakGlass(args)
+	os.Stdout, os.Stderr = prevOut, prevErr
+	for _, writer := range []*os.File{outWriter, errWriter} {
+		if err := writer.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	printed, err := io.ReadAll(outReader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logged, err := io.ReadAll(errReader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return code, string(printed), string(logged)
+}
+
+// The token rides in the enrollment link, as the dashboard's Members dialog builds it.
+func enrollLink(t *testing.T, out string) (base, query string) {
+	t.Helper()
+	for _, field := range strings.Fields(out) {
+		if before, after, found := strings.Cut(field, "/register?"); found {
+			return before + "/register", after
+		}
+	}
+	t.Fatalf("no enrollment link in %q", out)
+	return constants.EmptyString, constants.EmptyString
+}
+
+func linkToken(t *testing.T, query string) string {
+	t.Helper()
+	values, err := url.ParseQuery(query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return values.Get("enroll")
+}
+
 func enroll(t *testing.T, email string) (token, out string) {
 	t.Helper()
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	stdout := os.Stdout
-	os.Stdout = writer
-	code := cmd.RunBreakGlass([]string{"--email", email, "--enroll"})
-	os.Stdout = stdout
-	if err := writer.Close(); err != nil {
-		t.Fatal(err)
-	}
-	printed, err := io.ReadAll(reader)
-	if err != nil {
-		t.Fatal(err)
-	}
+	code, out, _ := runBreakGlass(t, flagEmail, email, flagEnroll)
 	testutil.Equal(t, "exit", code, constants.DefaultInitValue)
-	fields := strings.Fields(string(printed))
-	return fields[len(fields)-constants.DefaultIncrementValue], string(printed)
+	_, query := enrollLink(t, out)
+	return linkToken(t, query), out
 }
 
 // --enroll issues an invite like a link from Members: a new run replaces the previous token, the record shows the
@@ -231,9 +377,12 @@ func TestBreakGlassEnrollIssuesAnInvite(t *testing.T) {
 			}
 
 			// The steps of the registration the token opens, without the WebAuthn ceremony.
-			owner, isInvite, err := authhelper.ResolveEnrollToken(token)
-			if err != nil || owner != "u-1" || !isInvite {
-				t.Fatalf("token resolves to %q, invite %v (%v), want the invite of u-1", owner, isInvite, err)
+			owner, digest, err := authhelper.ResolveEnrollToken(token)
+			if err != nil || owner != "u-1" {
+				t.Fatalf("token resolves to %q (%v), want u-1", owner, err)
+			}
+			if err := authhelper.SpendEnrollToken(owner, digest); err != nil {
+				t.Fatalf("spend token: %v", err)
 			}
 			if _, err := authhelper.CreatePasskey(owner, &authdata.Passkey{UserID: owner}); err != nil {
 				t.Fatalf("store passkey: %v", err)

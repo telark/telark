@@ -32,13 +32,14 @@ import (
 )
 
 const (
-	bootstrapEmail      = "admin@example.com"
-	newEmail            = "new@example.com"
-	webauthnHost        = "example.com"
-	webauthnUserPresent = 0x01
-	emptyCOSEKey        = 0xA0
-	pendingCredID       = "pending-cred"
-	trustFileMode       = 0o600
+	bootstrapEmail       = "admin@example.com"
+	newEmail             = "new@example.com"
+	webauthnHost         = "example.com"
+	webauthnUserPresent  = 0x01
+	webauthnAttestedData = 0x40
+	coseAlgES256         = -7
+	pendingCredID        = "pending-cred"
+	trustFileMode        = 0o600
 )
 
 // proofStub answers user lookups by email: the bootstrap and existing accounts
@@ -127,12 +128,12 @@ func TestRegisterStartProofRules(t *testing.T) {
 func registrationBody(t *testing.T, challenge, rpID string) string {
 	t.Helper()
 	rpIDHash := sha256.Sum256([]byte(rpID))
-	authData := append(rpIDHash[:], webauthnUserPresent)
+	authData := append(rpIDHash[:], webauthnUserPresent|webauthnAttestedData)
 	authData = binary.BigEndian.AppendUint32(authData, constants.DefaultIncrementValue)
 	authData = append(authData, make([]byte, constants.AAGUIDLength)...)
 	authData = binary.BigEndian.AppendUint16(authData, uint16(len(pendingCredID)))
 	authData = append(authData, pendingCredID...)
-	authData = append(authData, emptyCOSEKey)
+	authData = append(authData, testutil.COSEKeyEC2(t, &testutil.NewP256Key(t).PublicKey, coseAlgES256)...)
 	att, err := cbor.Marshal(map[string]any{"fmt": constants.AttestationFormatNone, "authData": authData})
 	if err != nil {
 		t.Fatalf("cbor: %v", err)

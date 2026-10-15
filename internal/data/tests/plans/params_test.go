@@ -3,6 +3,7 @@ package plans
 import (
 	"testing"
 
+	"github.com/telark/telark/internal/data/constants"
 	"github.com/telark/telark/internal/data/plans"
 )
 
@@ -44,6 +45,59 @@ func TestValidateParamsRejectsInvalidEntries(t *testing.T) {
 			}
 			err := plans.ValidateParams(tpl, c.params)
 			if (err == nil) != c.ok {
+				t.Fatalf("ValidateParams(%s) = %v, want ok=%v", c.name, err, c.ok)
+			}
+		})
+	}
+}
+
+const (
+	keyOptional = "optional"
+	keyFlag     = "flag"
+	keyFree     = "freeform"
+	typeBoolean = "boolean"
+	anyEntry    = "any entry"
+	entryNumber = 7
+)
+
+// Every pattern the catalog names is enforced: an entry of whitespace passes none of them.
+func TestCatalogPatternsAreEnforced(t *testing.T) {
+	for i := range plans.Templates {
+		tpl := &plans.Templates[i]
+		for _, spec := range tpl.Params {
+			if spec.Pattern == constants.EmptyString {
+				continue
+			}
+			if err := plans.ValidateParams(tpl, map[string]any{spec.Key: []string{" "}}); err == nil {
+				t.Errorf("%s.%s accepted an entry its pattern %q refuses", tpl.ID, spec.Key, spec.Pattern)
+			}
+		}
+	}
+}
+
+// Optional params and params of another type are not checked as arrays, a required array must
+// be a list of strings, and a pattern the validator doesn't compile checks nothing (so every
+// catalog pattern must be one it compiles, as the test above makes sure).
+func TestValidateParamsSpecRules(t *testing.T) {
+	tpl := &plans.Template{ID: keyUnknown, Params: []plans.ParamSpec{
+		{Key: keyOptional, Type: plans.ParamTypeStringArray},
+		{Key: keyFlag, Type: typeBoolean, Required: true},
+		{Key: keyFree, Type: plans.ParamTypeStringArray, Required: true, Pattern: `^unknown$`},
+	}}
+	cases := []struct {
+		name   string
+		params map[string]any
+		ok     bool
+	}{
+		{"optional left out, unknown pattern", map[string]any{keyFlag: true, keyFree: []string{anyEntry}}, true},
+		{"required left out", map[string]any{keyFlag: true}, false},
+		{"required null", map[string]any{keyFlag: true, keyFree: nil}, false},
+		{"entry of another type", map[string]any{keyFlag: true, keyFree: []any{anyEntry, entryNumber}}, false},
+		{"not a list", map[string]any{keyFlag: true, keyFree: anyEntry}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if err := plans.ValidateParams(tpl, c.params); (err == nil) != c.ok {
 				t.Fatalf("ValidateParams(%s) = %v, want ok=%v", c.name, err, c.ok)
 			}
 		})

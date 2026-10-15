@@ -46,14 +46,7 @@ const (
 	SuccessRedisConnected messages.Message = "Redis connected successfully"
 
 	// Passkey Log Messages
-	LogRegistrationVerifiedSuccessfully      messages.Message = "registration verified: identityHash=%s"
-	LogFailedDecodeAttestationForBackupFlags messages.Message = "failed to decode attestationObject for " +
-		"backup flags: %v"
-	LogFailedUnmarshalCBORForBackupFlags messages.Message = "failed to unmarshal CBOR for backup flags: %v"
-	LogAuthDataNotByteForBackupFlags     messages.Message = "authData is not []byte for backup flags extraction"
-	LogAuthDataTooShortForBackupFlags    messages.Message = "authData too short for backup flags extraction"
-	LogExtractedBackupFlags              messages.Message = "extracted flags - BackupEligible: %v, " +
-		"BackupState: %v"
+	LogRegistrationVerifiedSuccessfully messages.Message = "registration verified: identityHash=%s"
 
 	// Cleanup messages
 	SuccessCleanupAccepted        messages.Message = "deletion scheduled"

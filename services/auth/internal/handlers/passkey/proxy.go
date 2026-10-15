@@ -35,7 +35,7 @@ func GetPasskeys(w http.ResponseWriter, r *http.Request) {
 }
 
 func CreatePasskey(w http.ResponseWriter, r *http.Request) {
-	user, userID, enrolled, err := authhelper.GetUserForRegistration(r, webauthnhelper.RegistrationChallengeOwner)
+	user, userID, enrollDigest, err := authhelper.GetUserForRegistration(r, webauthnhelper.RegistrationChallengeOwner)
 	if err != nil {
 		statusCode := http.StatusBadRequest
 		if shared.IsError(err, constants.ErrUserAlreadyHasPasskeys) {
@@ -55,6 +55,12 @@ func CreatePasskey(w http.ResponseWriter, r *http.Request) {
 		userID, user.Username, user.Fullname, r)
 	if err != nil {
 		shared.SendErrorResponse(w, shared.GetStatusCodeForWebAuthnError(err, http.StatusUnauthorized), err)
+		return
+	}
+
+	// Spent before any write, so a refused link (spent by another ceremony, revoked, expired) saves nothing.
+	if err := authhelper.SpendEnrollToken(userID, enrollDigest); err != nil {
+		shared.SendErrorResponse(w, registrationStatus(err), err)
 		return
 	}
 
@@ -85,7 +91,7 @@ func CreatePasskey(w http.ResponseWriter, r *http.Request) {
 		sendProxyError(w, err)
 		return
 	}
-	authhelper.CompleteInvite(user, enrolled)
+	authhelper.CompleteInvite(user, enrollDigest != constants.EmptyString)
 
 	shared.SendJSONResponse(w, http.StatusCreated, data)
 }

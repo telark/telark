@@ -18,7 +18,7 @@ Every row except the last runs without a cluster; the last row is manual work on
 
 | Tool | Version | Pinned in |
 |---|---|---|
-| Go | 1.27.1 | the `go` line of the root `go.mod` (CI: `setup-go` with `go-version-file`) |
+| Go | 1.27.2 | the `go` line of the root `go.mod` (CI: `setup-go` with `go-version-file`) |
 | golangci-lint | v2.14.0 | `.github/actions/go-ci/action.yaml` |
 | kubeconform | v0.8.0 | `.github/actions/helm-kubeconform-validate/action.yaml` |
 | helm-docs | v1.14.2 | `Makefile` (`HELM_DOCS`, run with `go run`; nothing to install) |
@@ -29,7 +29,7 @@ Linux x86-64:
 
 ```sh
 # Go. A Go >= 1.21 already on PATH also works: it downloads the go.mod toolchain unless GOTOOLCHAIN=local.
-curl -fsSL https://go.dev/dl/go1.27.1.linux-amd64.tar.gz | sudo tar -C /usr/local -xz
+curl -fsSL https://go.dev/dl/go1.27.2.linux-amd64.tar.gz | sudo tar -C /usr/local -xz
 export PATH=/usr/local/go/bin:$HOME/go/bin:$PATH
 
 # golangci-lint, the version CI pins
@@ -57,7 +57,7 @@ go test -race ./...
 golangci-lint run ./services/<svc>/...   # or ./internal/<pkg>/...; uses the root .golangci.yml, never --no-config
 ```
 
-CI's test leg for a service (`./internal/<pkg>/...` for a shared package), with the floor from the `go` job matrix (auth 60, discovery 50, exporter 55, notifier 75, data 73, rest 54, kcore 22, x-ware 47); every test leg uploads its profile to Codecov:
+CI's test leg for a service (`./internal/<pkg>/...` for a shared package), with the floor from the `go` job matrix (auth 60, discovery 50, exporter 55, notifier 75, data 95, rest 54, kcore 22, x-ware 47); every test leg uploads its profile to Codecov:
 
 ```sh
 go test -race -coverpkg=./services/<svc>/... -coverprofile=coverage.out ./services/<svc>/...

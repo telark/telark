@@ -90,6 +90,10 @@ func TestGuardGroupRolesPatch(t *testing.T) {
 	attach := map[string]any{constants.FieldRoleRefs: []any{roleA, roleB}}
 	remove := map[string]any{constants.FieldRoleRefs: []any{}}
 	unchanged := map[string]any{constants.FieldRoleRefs: []any{roleA}, constants.FieldName: "team"}
+	swap := map[string]any{constants.FieldRoleRefs: []any{roleB}}
+	null := map[string]any{constants.FieldRoleRefs: nil}
+	noRemove := denied(levels(roledata.ScopeGroups, roledata.PermissionLevelOwner), roledata.ScopeGroups,
+		xauthz.RuleKey(roledata.ScopeGroups, roledata.ActionRemoveRoleFromGroup))
 
 	tests := []struct {
 		name     string
@@ -105,6 +109,10 @@ func TestGuardGroupRolesPatch(t *testing.T) {
 			xauthz.RuleKey(roledata.ScopeGroups, roledata.ActionRemoveRoleFromGroup)), remove, false},
 		{"denied attach may still remove", denied(levels(roledata.ScopeGroups, roledata.PermissionLevelOwner), roledata.ScopeGroups,
 			xauthz.RuleKey(roledata.ScopeGroups, roledata.ActionAttachRoleToGroup)), remove, true},
+		{"denied remove swaps", noRemove, swap, false},
+		{"owner swaps", levels(roledata.ScopeGroups, roledata.PermissionLevelOwner), swap, true},
+		{"denied remove nulls roles", noRemove, null, false},
+		{"owner nulls roles", levels(roledata.ScopeGroups, roledata.PermissionLevelOwner), null, true},
 		{"contributor unchanged roles", levels(roledata.ScopeGroups, roledata.PermissionLevelContributor), unchanged, true},
 		{"contributor no roles key", levels(roledata.ScopeGroups, roledata.PermissionLevelContributor),
 			map[string]any{constants.FieldName: "x"}, true},

@@ -1,6 +1,7 @@
 package authz
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -201,6 +202,39 @@ func TestResolverErrorsAreVerdictsOrOutages(t *testing.T) {
 			}
 			if got.called {
 				t.Error("handler ran despite a resolver failure")
+			}
+		})
+	}
+}
+
+// Only a suspended account's 403 carries a refusal code, so a client can end that
+// session at once; a missing permission stays a plain 403.
+func TestOnlySuspensionCarriesRefusalCode(t *testing.T) {
+	readOnly := authz.Grants{Levels: levels(roledata.ScopeUsers, roledata.PermissionLevelReadOnly)}
+	tests := map[string]struct {
+		resolver stubResolver
+		wantCode string
+	}{
+		"user suspended":     {stubResolver{userID: testUserID, grantsErr: authz.ErrUserSuspended}, "account_suspended"},
+		"user not active":    {stubResolver{userID: testUserID, grantsErr: authz.ErrUserNotActive}, dataconstants.EmptyString},
+		"missing permission": {stubResolver{userID: testUserID, grants: readOnly}, dataconstants.EmptyString},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			r := request(testRouteKey)
+			r.Header.Set(dataconstants.HeaderSessionToken, testSessionToken)
+
+			rec, _ := serve(t, newTestConfig(tc.resolver), r)
+
+			var body struct {
+				Code string `json:"code"`
+			}
+			if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+				t.Fatalf("decode body: %v", err)
+			}
+			if rec.Code != http.StatusForbidden || body.Code != tc.wantCode {
+				t.Errorf("status = %d, code = %q, want %d and %q", rec.Code, body.Code, http.StatusForbidden, tc.wantCode)
 			}
 		})
 	}

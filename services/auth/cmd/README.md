@@ -16,11 +16,13 @@ Create, promote or recover the bootstrap admin, the account whose email is `BOOT
 | Flag | Required | What it does |
 |------|----------|--------------|
 | `--email` | yes | The bootstrap admin's email (`BOOTSTRAP_ADMIN`); any other email is refused |
-| `--enroll` | no | Create the bootstrap admin when missing (Admin role, `bootstrap: true`) and print a one-time passkey enrollment token (valid for `ENROLL_INVITE_TTL_SEC`, an hour by default, needs Redis). The token is issued like an enrollment link from Members: it replaces the previous one, and an account that already has a passkey is notified when it is created and when it is used. Open `/register?enroll=<token>` in the dashboard to register the passkey. |
+| `--enroll` | no | Create the bootstrap admin when missing (Admin role, `bootstrap: true`) and print the steps to register a passkey with a one-time enrollment link (valid for `ENROLL_INVITE_TTL_SEC`, an hour by default, needs Redis). The link is `<origin>/register?enroll=<token>&email=<email>`, the form the Members dialog builds. The origin is `RP_ORIGIN` (`app.auth.passkey.origin`), or the placeholder `<dashboard-url>` when that is empty. The token is issued like an enrollment link from Members: it replaces the previous one, and an account that already has a passkey is notified when it is created and when it is used. |
+
+stdout carries only the command's answer. Log lines go to stderr, without debug lines, so an expected 404 (no account yet on a fresh install) prints nothing.
 
 **Exit codes:**
 - `0`: user promoted (or created), or already had Admin
-- `1`: email is not `BOOTSTRAP_ADMIN` (or none is set), user not found (without `--enroll`), create or patch failed, Redis unavailable, or `--email` missing
+- `1`: email is not `BOOTSTRAP_ADMIN` (or none is set), the exporter lookup failed, user not found (without `--enroll`), create or patch failed, Redis unavailable, or `--email` missing
 - `2`: unknown or malformed flag
 
 ## `backfill-finalizers`

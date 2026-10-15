@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -34,6 +35,25 @@ const (
 	indexScore        = 1.0
 	refSeparator      = ","
 )
+
+// The Redis client is cached for the process, so the server it binds to outlives every run (-count).
+var redisServer *miniredis.Miniredis
+
+func TestMain(m *testing.M) {
+	mr, err := miniredis.Run()
+	if err != nil {
+		panic(err)
+	}
+	redisServer = mr
+	if err := os.Setenv("REDIS_HOST", mr.Host()); err != nil {
+		panic(err)
+	}
+	if err := os.Setenv("REDIS_PORT", mr.Port()); err != nil {
+		panic(err)
+	}
+	m.Run()
+	mr.Close()
+}
 
 func resetApplication(name string) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
@@ -71,7 +91,8 @@ func storedAnswer(t *testing.T, app applicationmodel.Application) map[string]any
 // deleting anything. Keys of an app whose name merely starts with the reset
 // app's name stay: the old `<app>*` patterns wiped them too.
 func TestResetApplicationFailureClearsCooldown(t *testing.T) {
-	mr := testutil.RedisEnv(t)
+	mr := redisServer
+	t.Cleanup(mr.FlushAll)
 	ctx, cancel := context.WithTimeout(context.Background(), constants.AppResetHandlerTimeout)
 	defer cancel()
 	if redishelper.NewRedisClientWithRetry(ctx) == nil {

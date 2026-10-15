@@ -90,7 +90,7 @@ When the pods are Running, enroll yourself as the first admin and open the dashb
 ```sh
 kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email test@example.com --enroll
 kubectl port-forward -n telark svc/telark-ui-service 3000:8080
-# open http://localhost:3000/register?enroll=<token printed above>
+# open the link printed above, with http://localhost:3000 in place of <dashboard-url>
 ```
 
 Your applications appear on their own. Create a protection plan in audit mode to see what it would block; the [getting started guide](docs/getting-started.md) walks through it in about ten minutes.

@@ -35,6 +35,8 @@ const (
 	testEmail        = "a@b.com"
 	testDeviceName   = "Pixel"
 	testDeviceType   = "phone"
+	testEnrollToken  = "enroll-token"
+	testDigest       = "digest"
 )
 
 // A username is the sanitized email local-part plus a random suffix, padded to a
@@ -243,6 +245,23 @@ func TestGetUserForRegistrationFailClosed(t *testing.T) {
 	noCeremony.Header.Set("X-Email", testEmail)
 	if _, _, _, err := authhelper.GetUserForRegistration(noCeremony, webauthnhelper.RegistrationChallengeOwner); err == nil {
 		t.Fatal("GetUserForRegistration should fail without a registration ceremony")
+	}
+}
+
+// Without Redis no step of a link or a ceremony can answer: reading or spending a link and naming
+// a ceremony's owner fail closed, never as an unused link or an unknown ceremony.
+func TestEnrollmentFailsClosedWithoutRedis(t *testing.T) {
+	if _, _, err := authhelper.ResolveEnrollToken(testEnrollToken); err == nil {
+		t.Fatal("ResolveEnrollToken should fail without Redis")
+	}
+	if err := authhelper.SpendEnrollToken(testUserID, testDigest); err == nil {
+		t.Fatal("SpendEnrollToken should fail without Redis")
+	}
+	clientData := base64.RawURLEncoding.EncodeToString([]byte(`{"challenge":"Y2hhbGxlbmdl"}`))
+	finish := httptest.NewRequest(http.MethodPost, rootPath, strings.NewReader(
+		`{"id":"a","response":{"attestationObject":"a","clientDataJSON":"`+clientData+`"}}`))
+	if _, _, err := webauthnhelper.RegistrationChallengeOwner(finish); err == nil {
+		t.Fatal("RegistrationChallengeOwner should fail without Redis")
 	}
 }
 

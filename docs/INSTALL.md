@@ -35,14 +35,16 @@ The examples below leave out the admin flag. Keep it on every command.
 
 Telark has exactly one bootstrap admin: the email in `app.auth.bootstrap.admin`. Only the bootstrap admin can turn on SSO or passkey self-registration, so the value is required: without it the chart fails the render and the auth service refuses to start.
 
-The bootstrap admin holds the built-in Admin role (Admin on `ALL`) and nothing more. Only the auth service's break-glass command creates or recovers it: open the registration page with the token it prints to enroll a passkey, within the [enrollment link](#enrollment-links) lifetime (an hour by default).
+The bootstrap admin holds the built-in Admin role (Admin on `ALL`) and nothing more. Only the auth service's break-glass command creates or recovers it. It prints the steps and an [enrollment link](#enrollment-links) for that account, in the form the Members dialog builds. Open the link to register a passkey within its lifetime (an hour by default).
 
 ```sh
 kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email test@example.com --enroll
-# open https://<dashboard-host>/register?enroll=<token>
+# prints https://<dashboard-host>/register?enroll=<token>&email=test%40example.com, with the steps
 ```
 
-With the default port-forward, the host is `http://localhost:3000`. Run the same command again to recover the account, for example after losing its passkey: the new token replaces the previous one, and an account that still has a passkey is notified when the token is created and when it is used. If an account with that email already exists, the command makes it the bootstrap admin. Any other email is refused without creating or changing an account; other users get an [enrollment link](#enrollment-links).
+The link starts with `app.auth.passkey.origin`. When that is empty, as with the default port-forward, it starts with `<dashboard-url>`: replace that with the address you open the dashboard at, `http://localhost:3000` with the port-forward. The token is the link's `enroll=` value, and the registration page has no field for it. Run the same command again to recover the account, for example after losing its passkey: the new token replaces the previous one, and an account that still has a passkey is notified when the token is created and when it is used. If an account with that email already exists, the command makes it the bootstrap admin. Any other email is refused without creating or changing an account; other users get an [enrollment link](#enrollment-links).
+
+A second passkey for the bootstrap admin is recommended, not required: kept on another device or in a password manager, it signs you in when one device is lost, without break-glass. Once signed in, open Settings → Security → Passkeys and choose "Add on another device". Passkeys are bound to the relying-party ID (`app.auth.passkey.id`, the auth service's `RP_ID`), so changing it means registering every passkey again, the bootstrap admin's through break-glass ([Passkeys and HTTPS](#passkeys-and-https)).
 
 Google SSO and passkey self-registration never grant Admin: a new account always starts as ReadOnly, even with the bootstrap email, and the login page refuses to register the bootstrap email.
 
@@ -54,7 +56,7 @@ The bootstrap account belongs to the chart. The API refuses to delete or suspend
 
 ### Enrollment links
 
-An enrollment link lets someone register a passkey on an account an admin created for them (Members, row action "Create enrollment link"). The dashboard shows the link once. It works once, for that account only, fills in the account's email on the register page, and expires after an hour by default. A new link revokes the previous one, and the same row can revoke it. Members shows the account as "Invite pending", "Invite expired" or, once a passkey closed the link, "Enrolled". Starting a registration from the link uses it up, so one left unfinished shows "Invite expired" about a minute later, not at the end of the lifetime. Change the lifetime, in seconds, with:
+An enrollment link lets someone register a passkey on an account an admin created for them (Members, row action "Create enrollment link"). The dashboard shows the link once. It registers one passkey, for that account only, fills in the account's email on the register page, and expires after an hour by default. A canceled or failed passkey prompt doesn't use it up: the link stays valid until a passkey is saved with it or it expires. A new link revokes the previous one, and the same row can revoke it. Members shows the account as "Invite pending", "Invite expired" or, once a passkey closed the link, "Enrolled". Change the lifetime, in seconds, with:
 
 ```sh
 --set services.auth.env.ENROLL_INVITE_TTL_SEC=86400

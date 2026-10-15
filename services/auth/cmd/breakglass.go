@@ -6,12 +6,15 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/telark/telark/internal/data/logger"
 	userresource "github.com/telark/telark/internal/data/resources/user"
+	restshared "github.com/telark/telark/internal/rest/clients/shared"
 	userclient "github.com/telark/telark/internal/rest/clients/users"
 	"github.com/telark/telark/services/auth/internal/clients"
 	"github.com/telark/telark/services/auth/internal/config"
@@ -23,6 +26,7 @@ import (
 // The email selects the account and grants nothing: any address but BOOTSTRAP_ADMIN is refused before any read or
 // write, and that account gets the chart marker even when it existed before the chart named it.
 func RunBreakGlass(args []string) int {
+	logger.UseCommandOutput()
 	fs := flag.NewFlagSet(constants.BreakGlassFlagSet, flag.ExitOnError)
 	email := fs.String(constants.BreakGlassFlagEmail, constants.EmptyString, constants.BreakGlassFlagEmailUsage)
 	enroll := fs.Bool(constants.BreakGlassFlagEnroll, false, constants.BreakGlassFlagEnrollUsage)
@@ -38,29 +42,42 @@ func RunBreakGlass(args []string) int {
 	}
 	userClient := clients.GetUserClient()
 
-	user, err := userClient.GetUserByEmail(normalized)
-	if err != nil || user == nil {
-		if !*enroll {
-			_, _ = fmt.Fprintf(os.Stderr, constants.BreakGlassUserNotFound, normalized)
-			return constants.ExitCodeError
-		}
-		if user, err = createAdmin(userClient, normalized); err != nil {
-			_, _ = fmt.Fprint(os.Stderr, err.Error())
-			return constants.ExitCodeError
-		}
-		_, _ = fmt.Printf(constants.BreakGlassCreated, normalized)
+	user, created := findOrCreateAdmin(userClient, normalized, *enroll)
+	if user == nil {
+		return constants.ExitCodeError
 	}
-
-	if code := promote(userClient, user, normalized); code != constants.DefaultInitValue {
+	if code := promote(userClient, user, normalized, created); code != constants.DefaultInitValue {
 		return code
 	}
 	if !*enroll {
+		_, _ = fmt.Print(constants.BreakGlassSignIn)
 		return constants.DefaultInitValue
 	}
-	return printEnrollToken(user.ID, normalized)
+	return printEnrollLink(user.ID, normalized)
 }
 
-func printEnrollToken(userID, email string) int {
+// Only a 404 means the account is missing: a lookup that failed is reported, never answered with a create.
+func findOrCreateAdmin(userClient *userclient.Client, email string, enroll bool) (user *userresource.User, created bool) {
+	user, err := userClient.GetUserByEmail(email)
+	switch {
+	case err == nil:
+		return user, false
+	case !errors.Is(err, restshared.ErrNotFound):
+		_, _ = fmt.Fprintf(os.Stderr, constants.BreakGlassLookupFailed, email, err)
+		return nil, false
+	case !enroll:
+		_, _ = fmt.Fprintf(os.Stderr, constants.BreakGlassUserNotFound, email)
+		return nil, false
+	}
+	if user, err = createAdmin(userClient, email); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		return nil, false
+	}
+	_, _ = fmt.Printf(constants.BreakGlassCreated, email)
+	return user, true
+}
+
+func printEnrollLink(userID, email string) int {
 	if redishelper.NewRedisClientWithRetry(context.Background()) == nil {
 		_, _ = fmt.Fprintf(os.Stderr, constants.BreakGlassEnrollFailed, errors.New(string(constants.ErrRedisClientUnavailable)))
 		return constants.ExitCodeError
@@ -71,7 +88,13 @@ func printEnrollToken(userID, email string) int {
 		_, _ = fmt.Fprintf(os.Stderr, constants.BreakGlassEnrollFailed, err)
 		return constants.ExitCodeError
 	}
-	_, _ = fmt.Printf(constants.BreakGlassEnrollToken, email, expiresAt.Format(constants.TimeFormatRFC3339), token)
+	origin, hint := config.DashboardOrigin(), constants.EmptyString
+	if origin == constants.EmptyString {
+		origin, hint = constants.BreakGlassDashboardURL, constants.BreakGlassDashboardURLHint
+	}
+	// The dashboard's Members dialog builds the same link: the email only fills in the register form.
+	link := fmt.Sprintf(constants.BreakGlassEnrollURL, origin, url.QueryEscape(token), url.QueryEscape(email))
+	_, _ = fmt.Printf(constants.BreakGlassEnrollSteps, email, link, hint, expiresAt.Format(constants.TimeFormatRFC3339))
 	return constants.DefaultInitValue
 }
 
@@ -100,7 +123,7 @@ func createAdmin(userClient *userclient.Client, email string) (*userresource.Use
 	return user, nil
 }
 
-func promote(userClient *userclient.Client, user *userresource.User, normalized string) int {
+func promote(userClient *userclient.Client, user *userresource.User, normalized string, created bool) int {
 	patch := map[string]any{}
 	if !authhelper.HasAdminRole(user.RoleRefs) {
 		adminID := constants.BuiltInRoleAdmin
@@ -117,7 +140,9 @@ func promote(userClient *userclient.Client, user *userresource.User, normalized 
 		patch[constants.UserFieldIdentities] = kept
 	}
 	if len(patch) == constants.DefaultInitValue {
-		_, _ = fmt.Printf(constants.BreakGlassAlreadyAdmin, normalized)
+		if !created {
+			_, _ = fmt.Printf(constants.BreakGlassAlreadyAdmin, normalized)
+		}
 		return constants.DefaultInitValue
 	}
 

@@ -489,7 +489,14 @@ func waitForFirstStatsWalk() {
 	}
 }
 
+// Nothing resets the cache, so a rerun (-count) can't see a first read or a first walk again.
+var statsCacheChecked bool
+
 func TestStorageStatsCache(t *testing.T) {
+	if statsCacheChecked {
+		t.Skip("the stats cache was already filled by an earlier run in this process")
+	}
+	statsCacheChecked = true
 	dir := t.TempDir()
 	t.Setenv(constants.SnapshotsPathEnv, dir)
 	envs.InitSnapshotsPath()

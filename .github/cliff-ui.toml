@@ -26,9 +26,11 @@ No user-facing changes.
 {% for group, commits in commits | group_by(attribute="group") %}
 ### {{ group | striptags | trim }}
 {% for commit in commits %}
-- {{ commit.message | split(pat="\n") | first | trim | upper_first }}\
+{%- set subject = commit.message | split(pat="\n") | first | trim %}
+{%- set pr = subject | split(pat=" (#") | last | trim_end_matches(pat=")") | int(default=0) %}
+- {{ subject | trim_end_matches(pat=" (#" ~ pr ~ ")") | upper_first }}\
 {% if commit.breaking and commit.breaking_description != commit.message %} — {{ commit.breaking_description }}{% endif %}\
-{% if commit.remote.pr_number %} ([#{{ commit.remote.pr_number }}]({{ repo_url }}/pull/{{ commit.remote.pr_number }})){% endif %}
+{% if pr %} ([#{{ pr }}]({{ repo_url }}/pull/{{ pr }})){% endif %} ([{{ commit.id | truncate(length=7, end="") }}]({{ repo_url }}/commit/{{ commit.id }}))
 {%- endfor %}
 {% endfor %}
 {%- set contributors = github.contributors | filter(attribute="username") | map(attribute="username") | unique | sort -%}
@@ -53,7 +55,7 @@ sort_commits = "oldest"
 commit_preprocessors = [
   { pattern = '^\s+', replace = "" },
   { pattern = '^([^\n]*)\n([^\n])', replace = "${1}\n\n${2}" },
-  { pattern = '(?m) *\(#[0-9]+\)$', replace = "" },
+  { pattern = '^', replace_command = '''pr=$(gh api "repos/telark/dashboard-ui/commits/$COMMIT_SHA/pulls" --jq 'map(select(.base.ref == .base.repo.default_branch))[0].number // empty' 2>/dev/null </dev/null) || pr=; sed "1{/ (#[0-9][0-9]*)\$/!s/\$/${pr:+ (#$pr)}/;}"''' },
 ]
 commit_parsers = [
   { field = "breaking", pattern = "true", group = "<!-- 5 -->💥 Breaking Changes" },

@@ -188,6 +188,8 @@ func TestRefusalsKeepTheirAnswer(t *testing.T) {
 		{"credential lookup down", credentialStub{http.StatusInternalServerError}, passkeyhandler.GetSinglePasskey,
 			withSession(httptest.NewRequest(http.MethodGet, testPath, nil)), http.StatusNotFound, string(constants.ErrPasskeyNotFound)},
 	}
+	// A registration test that ran first leaves the stub user's challenge live.
+	redisServer.Del(constants.RedisKeyPrefixChallenge + stubUserID)
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			stubExporter(t, c.stub)

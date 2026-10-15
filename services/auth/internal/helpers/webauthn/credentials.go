@@ -35,6 +35,12 @@ func ExtractBackupFlagsFromAuthenticatorData(authenticatorDataB64 string) (
 	return backupEligible, backupState, nil
 }
 
+func backupFlags(authData []byte) (backupEligible, backupState bool) {
+	flags := authData[constants.AuthDataOffsetFlags]
+	return flags&constants.BackupEligibleFlag != constants.DefaultInitValue,
+		flags&constants.BackupStateFlag != constants.DefaultInitValue
+}
+
 func ValidateBackupFlags(
 	credIDStr string,
 	loginBackupEligible, loginBackupState bool,

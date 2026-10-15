@@ -28,7 +28,7 @@ func registrationStatus(err error) int {
 }
 
 func RegisterStart(w http.ResponseWriter, r *http.Request) {
-	user, userID, enrolled, err := authhelper.GetUserForRegistrationStart(r)
+	user, userID, enrollDigest, err := authhelper.GetUserForRegistrationStart(r)
 	if err != nil {
 		shared.SendErrorResponse(w, registrationStatus(err), err)
 		return
@@ -40,8 +40,8 @@ func RegisterStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if enrolled {
-		if err := webauthnhelper.StoreEnrolledCeremony(challenge, userID); err != nil {
+	if enrollDigest != constants.EmptyString {
+		if err := webauthnhelper.StoreEnrolledCeremony(challenge, enrollDigest); err != nil {
 			shared.HandleError(w, err, http.StatusInternalServerError, err.Error())
 			return
 		}

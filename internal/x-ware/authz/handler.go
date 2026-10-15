@@ -9,7 +9,6 @@ import (
 	dataconstants "github.com/telark/telark/internal/data/constants"
 	dataerrors "github.com/telark/telark/internal/data/errors"
 	"github.com/telark/telark/internal/rest/response"
-	responseutils "github.com/telark/telark/internal/rest/utils/response"
 )
 
 type middleware struct {
@@ -19,6 +18,7 @@ type middleware struct {
 type denial struct {
 	status  int
 	message string
+	code    string
 }
 
 func New(config Config) (func(http.Handler) http.Handler, error) {
@@ -52,7 +52,7 @@ func (m *middleware) wrap(next http.Handler) http.Handler {
 
 		requirement, found := m.config.Requirements[m.config.RouteKey(r)]
 		if !found {
-			reject(w, denial{http.StatusForbidden, string(dataerrors.ErrAuthzForbidden)})
+			reject(w, denial{status: http.StatusForbidden, message: string(dataerrors.ErrAuthzForbidden)})
 			return
 		}
 
@@ -74,13 +74,13 @@ func (m *middleware) wrap(next http.Handler) http.Handler {
 func (m *middleware) identify(r *http.Request, req Requirement, claimedUserID string) (Identity, *denial) {
 	if serviceToken := r.Header.Get(dataconstants.HeaderServiceToken); serviceToken != dataconstants.EmptyString {
 		if !m.serviceTokenMatches(serviceToken) {
-			return Identity{}, &denial{http.StatusUnauthorized, string(dataerrors.ErrAuthzInvalidServiceToken)}
+			return Identity{}, &denial{status: http.StatusUnauthorized, message: string(dataerrors.ErrAuthzInvalidServiceToken)}
 		}
 		return Identity{UserID: claimedUserID, Internal: true}, nil
 	}
 
 	if req.Access == AccessInternal {
-		return Identity{}, &denial{http.StatusUnauthorized, string(dataerrors.ErrAuthzInvalidServiceToken)}
+		return Identity{}, &denial{status: http.StatusUnauthorized, message: string(dataerrors.ErrAuthzInvalidServiceToken)}
 	}
 
 	return m.identifyUser(r, req)
@@ -89,7 +89,7 @@ func (m *middleware) identify(r *http.Request, req Requirement, claimedUserID st
 func (m *middleware) identifyUser(r *http.Request, req Requirement) (Identity, *denial) {
 	sessionToken := r.Header.Get(dataconstants.HeaderSessionToken)
 	if sessionToken == dataconstants.EmptyString {
-		return Identity{}, &denial{http.StatusUnauthorized, string(dataerrors.ErrAuthzMissingSessionToken)}
+		return Identity{}, &denial{status: http.StatusUnauthorized, message: string(dataerrors.ErrAuthzMissingSessionToken)}
 	}
 
 	userID, err := m.config.Resolver.UserIDForToken(sessionToken)
@@ -108,7 +108,7 @@ func (m *middleware) identifyUser(r *http.Request, req Requirement) (Identity, *
 	}
 
 	if !Allows(identity, req) {
-		return Identity{}, &denial{http.StatusForbidden, string(dataerrors.ErrAuthzForbidden)}
+		return Identity{}, &denial{status: http.StatusForbidden, message: string(dataerrors.ErrAuthzForbidden)}
 	}
 
 	return identity, nil
@@ -119,9 +119,13 @@ func (m *middleware) identifyUser(r *http.Request, req Requirement) (Identity, *
 func denialFor(err error, status int, message dataerrors.Error) *denial {
 	answered := slices.ContainsFunc(verdicts, func(verdict error) bool { return errors.Is(err, verdict) })
 	if !answered {
-		return &denial{http.StatusServiceUnavailable, string(dataerrors.ErrAuthzResolverUnavailable)}
+		return &denial{status: http.StatusServiceUnavailable, message: string(dataerrors.ErrAuthzResolverUnavailable)}
 	}
-	return &denial{status, string(message)}
+	// The caller holds this account's own session, so naming the suspension leaks nothing.
+	if errors.Is(err, ErrUserSuspended) {
+		return &denial{status: status, message: string(dataerrors.ErrAuthzUserSuspended), code: refusalAccountSuspended}
+	}
+	return &denial{status: status, message: string(message)}
 }
 
 func (m *middleware) serviceTokenMatches(candidate string) bool {
@@ -142,7 +146,10 @@ func applyIdentity(r *http.Request, identity Identity) *http.Request {
 }
 
 func reject(w http.ResponseWriter, d denial) {
-	responseutils.SendResponse(w, d.status, operationFor(d.status), d.message, nil)
+	response.SendRefusalResponse(w, &response.RefusalResponse{
+		GenericResponse: *response.NewGenericResponse(d.status, operationFor(d.status), nil, d.message),
+		Code:            d.code,
+	})
 }
 
 func operationFor(status int) response.OperationStatus {

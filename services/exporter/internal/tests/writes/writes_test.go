@@ -13,6 +13,7 @@ import (
 
 	"github.com/telark/telark/internal/data/metadata/base"
 	"github.com/telark/telark/internal/data/metadata/v1alpha1"
+	"github.com/telark/telark/internal/data/plans"
 	roledata "github.com/telark/telark/internal/data/resources/role"
 	"github.com/telark/telark/internal/data/resources/telarkconfig"
 	userdata "github.com/telark/telark/internal/data/resources/user"
@@ -38,6 +39,7 @@ const (
 	crdDir        = "../../../../../charts/telark-crds/templates/crds"
 	crdUsers      = "users.yaml"
 	crdConfigs    = "telarkconfigs.yaml"
+	crdPlans      = "protectionplans.yaml"
 	keyVersions   = "versions"
 	keySchema     = "schema"
 	keyOpenAPI    = "openAPIV3Schema"
@@ -240,7 +242,7 @@ func TestCreateWritesStatusThroughTheSubresource(t *testing.T) {
 	client := installFake(t)
 
 	w := httptest.NewRecorder()
-	generics.GenericCreateCustomResource(w, v1alpha1.ProtectionPlanMetadata, planID,
+	generics.GenericCreateCustomResource(t.Context(), w, v1alpha1.ProtectionPlanMetadata, planID,
 		map[string]any{keyID: planID, keyName: planID, keyPhase: phaseActive})
 	if w.Code != http.StatusOK {
 		t.Fatalf("create status = %d, body %s", w.Code, w.Body.String())
@@ -279,7 +281,7 @@ func TestNoIDInAnySpecWrite(t *testing.T) {
 		t.Run(md.Kind, func(t *testing.T) {
 			client := installFake(t)
 			create := httptest.NewRecorder()
-			generics.GenericCreateCustomResource(create, md, userID, map[string]any{keyID: forgedID, keyName: newName})
+			generics.GenericCreateCustomResource(t.Context(), create, md, userID, map[string]any{keyID: forgedID, keyName: newName})
 			patch := httptest.NewRecorder()
 			generics.GenericPatchCustomResource(patch, md, userID,
 				map[string]any{constants.SpecField: map[string]any{keyID: forgedID, keyName: newName}})
@@ -301,6 +303,7 @@ func TestNoIDInAnySpecWrite(t *testing.T) {
 func TestSeedCreatesTheDefaultConfigAndBuiltinRoles(t *testing.T) {
 	client := installFake(t)
 
+	startup.SeedTelarkConfig()
 	startup.SeedBuiltins()
 
 	var roles, configCreates, configStatus int
@@ -468,6 +471,10 @@ func TestCRDsDeclareTheNewFields(t *testing.T) {
 			userdata.UserStatus{Phase: phaseSuspended, InviteAcceptedAt: stampTime}},
 		{crdConfigs, []string{keySpec, telarkconfig.FieldSelfRegistration},
 			telarkconfig.SelfRegistrationConfig{Enabled: true}},
+		{crdPlans, []string{keySpec}, map[string]any{"kindRef": callerID}},
+		{crdPlans, []string{keySpec, constants.FieldRepeat},
+			plans.ProtectionPlanRepeat{Days: []string{"sun"}, StartTime: "02:00", EndTime: "04:00", TimeZone: "UTC"}},
+		{crdPlans, []string{keyStatus, v1alpha1.StatusWindow}, plans.ProtectionPlanTimeRange{StartAt: stampTime, EndAt: stampTime}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.file, func(t *testing.T) {

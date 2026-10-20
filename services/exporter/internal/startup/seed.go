@@ -25,7 +25,6 @@ func SeedBuiltins() {
 	lg.Info(string(constants.InfSeedStarting))
 	seedRoles()
 	seedCategories()
-	seedTelarkConfig()
 }
 
 func seedRoles() {
@@ -102,7 +101,7 @@ func currentCategories(md basemeta.Metadata) ([]categorydata.Category, error) {
 // Created once and never reconciled: cluster version, AI settings, display
 // preferences and the identity provider are all written after creation, and
 // rewriting the defaults would discard them.
-func seedTelarkConfig() {
+func SeedTelarkConfig() {
 	md := v1alpha1.TelarkConfigMetadata
 
 	exists, err := api.CheckCustomResourceExistsByName(constants.TelarkConfigResourceName, md)

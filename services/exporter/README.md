@@ -46,10 +46,12 @@ flowchart LR
 
 - Own the Telark CRDs (group `telark.io`, see [CRDS.md](../../docs/CRDS.md)) and the OIDC trust Secret: the exporter is the single service that reads and writes them on the cluster. Reads return a view with `id` = `metadata.name` and `.status` flattened into the top level; writes strip `id` and send status fields to the `/status` subresource of `Application`, `ProtectionPlan` and `TelarkConfig`.
 - Seed built-in resources (access roles, categories, the `TelarkConfig` named `default`) on startup.
+- Migrate stored data at startup, before it serves: run the numbered steps not yet recorded in `TelarkConfig`'s status, lower the record after a rollback of one release, and refuse to start on data two or more releases newer ([Migrations](../../docs/CRDS.md#migrations)).
+- Pin the **bootstrap account** in `TelarkConfig` `status.bootstrap` at its first passkey, and at each start pin the enrolled one if none is; then only one account keeps `spec.bootstrap`. Once pinned, a service create or patch that marks another account or unmarks the pinned one answers 409. Break-glass **requests** (`bootstrap/requests`, open, approve, cancel, complete; Internal only) live in that status, written with a compare-and-swap on its `resourceVersion`; `GET bootstrap` serves it to Admins on `ALL`. A completed recovery deletes the account's passkeys, sessions and passkey identities and empties the cached passkey and session lists (auth reads passkeys with `Cache-Control: no-cache` anyway); break-glass's last pass sends `revoke`, which completes again and purges whatever was enrolled since, where a plain re-run answers 409. A completed replacement moves the marker and the pin, and the pinned account and every active Admin on `ALL` are notified of each opened, canceled and completed request. Each status write is one compare-and-swap patch, and five lost in a row answer 409 ([Recovery requests](../../docs/INSTALL.md#recovery-requests)).
 - Store and serve **snapshots** of workload manifests (audit, comparison, rollback targets) on a PersistentVolume.
-- Store and serve **protection plan reports** (rendered by discovery) and each plan's report ledger on a second PersistentVolume. A reports GC goroutine (own Redis lock key, one replica per tick, shares `SNAPSHOT_GC_INTERVAL_SEC`) sweeps report directories whose plan CR is gone.
-- Expose the REST surface every other service uses for CRD operations.
-- Store per-user in-app notifications in Redis.
+- Store and serve **protection plan reports** (rendered by discovery) and each plan's report ledger on a second PersistentVolume. A reports GC goroutine (own Redis lock key, one replica per tick, shares `SNAPSHOT_GC_INTERVAL_SEC`) sweeps report directories whose plan CR is gone; reports a plan delete kept are outside its reach until a user deletes them.
+- Expose the REST surface every other service uses for CRD operations. At most 10 CRD creates run at once: a create that waits 20 seconds for its turn, or whose caller gives up first, answers 503 and creates nothing.
+- Store per-user in-app notifications in Redis. Every write that changes a user's list also adds that user's id to the capped stream `notif:changed`; each replica's hub reads it (one `XREAD` loop) and wakes that user's open streams (`GET notifications/events`, 8 per user, then 429). The first copy of a webhook event type, written or merged into an unread one, is queued once per 10 minutes on `notif:events` for the notifier, signed with the service token ([Webhooks](../../docs/INSTALL.md#webhooks)).
 - **Ops subcommand:** `migrate-storage <from> <to> [<from> <to>...]` copies each directory tree into the other (the newer copy of a file wins; temp files and `lost+found` are skipped). The chart runs it as an init container when the snapshot and report volumes move to another storage class ([Exporter storage](../../docs/INSTALL.md#exporter-storage)).
 
 ## Layout
@@ -59,12 +61,14 @@ flowchart LR
 | `internal/routes` | HTTP route registration (rest router) |
 | `internal/handlers/{resources,config,categories,plans,auth,notifications}` | Request handlers per CRD domain |
 | `internal/exporters/{snapshot,generics,auth,shared}` | CRD read/write + snapshot serialization against the cluster |
-| `internal/exporters/reports` · `internal/handlers/reports` | Report create/list/download, ledger get/put, reports orphan sweep |
+| `internal/exporters/reports` · `internal/handlers/reports` | Report create/list/download/delete, kept reports, ledger get/put, reports orphan sweep |
 | `internal/utils/artifact` | Generic on-volume primitives shared by snapshots and reports: atomic write, path containment, `TickAllowed` (Redis-gated GC tick) |
-| `internal/utils/reports` | Reports store on the reports volume (per-plan directory, ledger, retention of 10 on-demand reports) |
-| `internal/startup` | `SeedBuiltins` and boot wiring |
+| `internal/utils/reports` | Reports store on the reports volume (per-plan directory, ledger, retention of 10 on-demand and 100 window reports, kept reports of deleted plans) |
+| `internal/startup` | `SeedTelarkConfig`, `SeedBuiltins` and boot wiring |
+| `internal/migrations` | Startup data migrations (`Steps`, `Run`) and the downgrade guard |
+| `internal/bootstrap` · `internal/handlers/bootstrap` | The bootstrap pin, the one-marker rule and break-glass requests |
 | `internal/managers/envs` | Env resolution |
-| `internal/redis/notifications` | Per-user in-app notifications |
+| `internal/redis/notifications` | Per-user in-app notifications, the change stream hub and the webhook event queue |
 | `internal/cache` · `internal/utils/*` | Compute, concurrency, snapshot helpers |
 | `internal/authz` | Per-route authorization requirements |
 
@@ -100,16 +104,20 @@ live under `internal/` (`internal/users/by-{username,email,identity}`, `internal
 finalizers under `cleanup/{type}` (`{type}` is `users`, `groups` or `accessroles`; finalizer writes are
 service-only).
 `auth/sessions/self` (GET, PATCH internal, DELETE) is the session named by `X-Session-Token` (a raw
-token from the UI or a session name from a peer); `DELETE auth/sessions/{name}` revokes another of the
+token, which x-ware takes from the dashboard's cookie, or a session name from a peer); `GET` answers its
+`metadata.name`, which tells the dashboard which listed device it is; `DELETE auth/sessions/{name}` revokes another of the
 caller's own sessions and answers 404 for anyone else's.
+`GET notifications/events` is a server-sent event stream of the caller's own list: `: connected` at once, `event: changed`
+(`data: {}`) after a change, on which the client refetches, and `: ping` every 15 s. It re-checks the session every 60 s
+and ends on a revocation, expiry or suspension, never on an outage; a peer with the service token gets 403.
 Liveness/readiness at `/api/v1/status/{live,ready}`.
 
 Protection plan create and patch refuse (403) lifecycle, approval and material keys from
 sessions, so approval (`pending_approval`) and phase changes stay on discovery's gated routes.
 Only Internal callers (discovery) write `approvalMode`, `approval`, `phase`, `renderedPolicies`,
 `startedAt`, `startedBy`, `terminatedAt`, `terminatedBy`, `reason`, `health`, `healthCheckedAt`,
-`healthDetail`, `policies`, `scope` (including its nested `exclusions`), `mode`, `timeMode`,
-`timeRange` and `name` (renames go through discovery's `revise`, which keeps names unique).
+`healthDetail`, `window`, `policies`, `scope` (including its nested `exclusions`), `mode`, `timeMode`,
+`timeRange`, `repeat` and `name` (renames go through discovery's `revise`, which keeps names unique).
 
 Protection plan routes (`{id}` = plan name). Deny rules are `protection-plans.<action>.deny`
 entries a custom role lists; built-in roles list none.
@@ -120,7 +128,7 @@ entries a custom role lists; built-in roles list none.
 | `GET protectionplans/{id}` | Read, deny `viewprotectionplans` | Read one plan |
 | `POST protectionplans` | Write, deny `createprotectionplan` | Create (discovery; sessions cannot send lifecycle or material keys) |
 | `PATCH protectionplans/{id}` | Internal | Patch the CR; users edit through discovery, which owns the lifecycle |
-| `DELETE protectionplans/{id}` | Internal | Delete the CR; users delete through discovery's `clear`, which removes deployed policies first |
+| `DELETE protectionplans/{id}?keepReports=` | Internal | Delete the CR; users delete through discovery's `clear`, which removes deployed policies first. Its reports go with it unless `keepReports=true` |
 
 Protection plan reports (`{id}` = plan name):
 
@@ -129,13 +137,15 @@ Protection plan reports (`{id}` = plan name):
 | `POST internal/reports` | Internal | Store a rendered report (called by discovery) |
 | `PUT internal/protectionplans/{id}/ledger` | Internal | Replace the plan's report ledger |
 | `GET internal/protectionplans/{id}/ledger` | Internal | Read the plan's report ledger |
-| `GET reports?planId=&trigger=&from=&to=&limit=` | Read (protection plans), deny `viewprotectionplanreports` | List report metadata across all plans, newest first. Optional filters: `planId` (repeatable or comma list), `trigger` (`manual`, `cancel`, `end`), `from`/`to` (RFC3339, on `generatedAt`). `limit` defaults to 200, max 1000; `X-Total-Count` holds the match count before the limit |
+| `GET reports?planId=&trigger=&from=&to=&limit=` | Read (protection plans), deny `viewprotectionplanreports` | List report metadata across all plans, newest first. Optional filters: `planId` (repeatable or comma list), `trigger` (`manual`, `cancel`, `end`, `window`), `from`/`to` (RFC3339, on `generatedAt`). `limit` defaults to 200, max 1000; `X-Total-Count` holds the match count before the limit |
 | `GET protectionplans/{id}/reports` | Read (protection plans), deny `viewprotectionplanreports` | List the plan's reports |
 | `GET protectionplans/{id}/reports/download?report=&format=` | Read (protection plans), deny `downloadprotectionplanreport` | Download one report as `html`, `md`, `json` or `csv` |
+| `DELETE protectionplans/{id}/reports?report=` | Owner (protection plans), deny `deleteprotectionplan` | Delete one report, of a live plan or a kept one. Deleting a plan deletes its reports, so the plan delete's rule gates it |
+| `GET reports/kept` | Read (protection plans), deny `viewprotectionplanreports` | List the reports plan deletes kept, one entry per deleted plan with its name |
 
-Downloads carry `X-Content-Type-Options: nosniff` and `Content-Security-Policy: sandbox`, and are served inline (no `Content-Disposition`). Reports are removed when their plan is deleted.
+Downloads carry `X-Content-Type-Options: nosniff` and `Content-Security-Policy: sandbox`, and are served inline (no `Content-Disposition`). Reports are removed when their plan is deleted, unless the delete keeps them: `keepReports=true` moves the plan's directory from `plans/` to `kept/` on the reports volume (with a `plan.json` holding the plan's name, and without the ledger), where no sweep looks. The download and delete routes serve kept reports too, and a kept plan's last deleted report removes its directory. A report is a single file, so a delete leaves nothing behind in any listing.
 
-Environment and tag categories (`plan-environments`, `plan-tags`) follow the `protection-plans`
+Environment, tag and kind categories (`plan-environments`, `plan-tags`, `plan-kinds`) follow the `protection-plans`
 scope: create needs Contributor (deny `addprotectionplancategory`), edit and delete need Owner
 (deny `editprotectionplancategory` / `deleteprotectionplancategory`). For every category scope,
 built-in categories cannot be patched or deleted and `type: built-in` cannot be set (400); a name
@@ -213,8 +223,8 @@ responses) and refuses every PATCH from a session with 410; the cleanup cascade 
 patches it. Finalizer removal and cleanup views of a record that is already gone answer 404.
 
 Administrators (Admin on `ALL` through an active role, directly or via a live group) and bootstrap
-accounts (`spec.bootstrap: true`, written only with the service token; a session sending the field gets
-403) are hidden from every caller who is not an administrator or a service: the users list omits them,
+accounts (`spec.bootstrap: true`, written only with the service token and, once one is pinned, only by a
+completed replacement; a session sending the field gets 403) are hidden from every caller who is not an administrator or a service: the users list omits them,
 `GET` by id, username, email or identity answers 404, group member lists and cleanup views omit their
 ids. A group patch keeps the hidden members, and naming one answers 400 like an unknown id; a user
 patch of one answers 404 before its body is read. Such callers share one cached, coalesced users list and one

@@ -6,10 +6,10 @@ How the services depend on each other and how data and control move between them
 
 | Component | Runtime | State it owns | Calls |
 |---|---|---|---|
-| exporter | Go | every Telark CR (through the Kubernetes API), snapshot and report volumes, in-app notifications and the authz cache in Redis | Kubernetes API only; no other service |
+| exporter | Go | every Telark CR (through the Kubernetes API), snapshot and report volumes, in-app notifications (with their change and webhook event streams) and the authz cache in Redis | Kubernetes API only; no other service |
 | discovery | Go | Redis coordination keys, insights row index (in memory) | exporter; Kubernetes API (informers, rollback writes, Kyverno policies); NATS publish; Redis |
 | auth | Go | WebAuthn challenges, OIDC nonces and JWKS, enrollment tokens, cleanup streams (Redis DB 1) | exporter; Google (optional); Redis |
-| notifier | Go | none | exporter, discovery (reset); NATS consume; Redis heartbeat |
+| notifier | Go | webhook consumer groups and retry hints in Redis | exporter, discovery (reset); NATS consume; Redis (heartbeat, `notif:events`); webhook targets (egress) |
 | analyzer | Python | insights in Redis (`analyzer:*`) | auth (permissions), exporter (read), Kubernetes API (read), Ollama, Redis |
 | ui | nginx + SPA (separate repo) | none | the service APIs |
 | Redis | subchart, password from a chart-generated Secret | coordination, queues, caches | |
@@ -21,7 +21,7 @@ Shared packages: `data` (CRD types, constants, errors, plan templates and Kyvern
 
 ## Service-to-service calls
 
-- Every `rest` client targets `http://telark-<service>-service:8080/api/v1/<endpoint>` (`rest/base/def.go`); the analyzer's defaults are the same host names (`services/analyzer/constants.py`). The chart passes no service URLs, so the service names are fixed by `app.name`.
+- Every `rest` client targets `http://telark-<service>-service:8080/api/v1/<endpoint>` (`rest/base/def.go`); the analyzer's defaults are the same host names (`services/analyzer/core/constants.py`). The chart passes no service URLs, so the service names are fixed by `app.name`.
 - All `rest` clients call the exporter, except `ResetApplicationByName`, which calls discovery (`rest/clients/applications/client.go`).
 - Every client sends the service token (`X-Service-Token`), so service calls are Internal ([security](../security/README.md#service-token)).
 
@@ -30,6 +30,7 @@ auth      -> exporter   sessions, passkeys, users, groups, access roles, config
 discovery -> exporter   applications, snapshots, plans, reports and ledgers, notifications, config, sessions/users/groups/access roles (authz)
 notifier  -> exporter   application patch / create
 notifier  -> discovery  application reset
+notifier  -> webhook targets   signed event POSTs (outside the cluster unless allowPrivate)
 analyzer  -> auth       GET /api/v1/auth/permissions (every user request)
 analyzer  -> exporter   config, applications, plans, categories (read)
 ```
@@ -64,13 +65,17 @@ discovery reaches the exporter through the wrappers in `services/discovery/inter
 | discovery | `cleanup:auto:inflight:<app>` (60 s TTL) | auto-cleanup is resetting the app, so another cycle doesn't start a second reset |
 | discovery → analyzer | `insights:jobs` | analysis jobs (consumer group `analyzer`) |
 | analyzer → discovery | `analyzer:<ns>:<name>` (7-day TTL), `analyzer:index` (ZSET) | insight documents and the index discovery reads for its insight lists |
+| discovery | `insights:notified:<id>` (8-day TTL, renewed on each read), `insights:notified-seeded` | one Critical incident notification per episode ([discovery](../../services/discovery/README.md)); the flag records that the first index load ever latched what was already open |
 | analyzer | `analyzer:inflight:<ns>:<name>` (540 s TTL) | one analysis or review run per app at a time; discovery's auto-cleanup does not reset the app while it exists |
 | exporter | `notif:user:*`, `notif:item:*` | per-user in-app notifications |
+| exporter | `notif:changed` (stream, ~1,000 entries) | one entry per write that changes a user's list; every replica's hub reads it to wake that user's notification streams |
+| exporter → notifier | `notif:events` (stream, ~1,000 entries, groups `webhook:<name>`), `notif:event:<sha256>` (10 min TTL) | webhook events, each signed with the service token and queued once per 10 minutes by the first copy written (new or merged into an unread one); the notifier drops what doesn't verify and keeps a consumer group per target |
+| notifier | `webhook:retry-after:<name>:<id>` (TTL = the receiver's `Retry-After`, at most 4 h) | holds a delivery's next attempt back |
 | exporter | authz generation and signed grant entries | grants cache ([security](../security/README.md#where-each-service-resolves-sessions-and-grants)) |
 | exporter | `exporter:snapshot:gc`, `exporter:reports:gc`, list-cache generations | GC tick locks, list cache |
-| auth | `auth:webauthn:challenge:*`, `auth:oidc:nonce:*`, `auth:oidc:jwks:google`, `auth:passkey:enroll-token:*`, `auth:passkey:invite:*`, `auth:passkey:invite-of:*`, `auth:cleanup:<users\|groups\|accessroles>` | login ceremonies, enrollment links (keyed by the token's SHA-256 digest, never the token) and the deletion cleanup streams |
+| auth | `auth:webauthn:challenge:*`, `auth:bootstrap:assert:*`, `auth:webauthn:frozen:*`, `auth:oidc:nonce:*`, `auth:oidc:jwks:google`, `auth:passkey:enroll-token:*`, `auth:passkey:enroll-tokens-of:*`, `auth:passkey:invite:*`, `auth:passkey:invite-of:*`, `auth:ratelimit:*` (60 s TTL), `auth:cleanup:<users\|groups\|accessroles>` | sign-in, registration and break-glass approval ceremonies (one key each, named by the challenge's SHA-256 digest), an account frozen while break-glass recovers it, enrollment links (keyed by the token's SHA-256 digest, never the token), the sign-in starts' per-route and per-client counts and the deletion cleanup streams |
 
-Constants: `services/<svc>/internal/constants/` (discovery `coordination.go`, `forcesync.go`, `informers.go`; auth `config.go`; exporter `config.go`, `authz.go`), `services/analyzer/constants.py`.
+Constants: `services/<svc>/internal/constants/` (discovery `coordination.go`, `forcesync.go`, `informers.go`; auth `config.go`; exporter `config.go`, `authz.go`), `services/analyzer/core/constants.py`.
 
 ## Kubernetes access
 
@@ -88,11 +93,13 @@ Constants: `services/<svc>/internal/constants/` (discovery `coordination.go`, `f
 
 **Application delete.** discovery's reset (`POST .../applications/{name}/reset`, from auto-cleanup or the API) clears the app's Redis state and deletes the CR through the exporter, which deletes its snapshot files.
 
-**Insights.** The analyzer consumes `insights:jobs`, reads the app with read-only tools, applies its detection rules and has the local model reword the cards, writes `analyzer:<ns>:<name>` and indexes it, and streams updates over SSE (`GET /api/v1/insights/events`, in-process broadcaster). The UI reads insight lists through discovery (`insights/applications`, `insights`) and asks the analyzer for analyze, triage, runtime and events. Details: [analyzer ARCHITECTURE.md](../../services/analyzer/ARCHITECTURE.md).
+**Insights.** The analyzer consumes `insights:jobs`, reads the app with read-only tools, applies its detection rules and has the local model reword the cards, writes `analyzer:<ns>:<name>` and indexes it, and streams updates over SSE (`GET /api/v1/insights/events`, in-process broadcaster). The UI reads insight lists through discovery (`insights/applications`, `insights`) and asks the analyzer for analyze, triage, runtime and events. discovery's index also sends each new Critical incident to the bell of every Insights reader, through the exporter. Details: [analyzer ARCHITECTURE.md](../../services/analyzer/ARCHITECTURE.md).
+
+**Notifications.** Producers emit through the exporter's `POST internal/notifications`, one per recipient. The write adds the user to `notif:changed`, and each exporter replica's hub wakes that user's open `GET notifications/events` streams; the bell then refetches its list, and polls every 30 s only while its stream is down. The first copy of a webhook event type, written or merged, is also queued on `notif:events`, signed with the service token, and the notifier delivers it to each target that lists the type ([INSTALL](../INSTALL.md#webhooks)).
 
 **Protection plans.** [protection-plans.md](protection-plans.md).
 
-**Sign-in.** The UI calls auth; auth verifies the passkey assertion or Google ID token, then creates the `Session` through the exporter and returns the token. Every later API call carries `X-Session-Token`; each service resolves it as described in [security](../security/README.md#authentication).
+**Sign-in.** The UI calls auth; auth verifies the passkey assertion or Google ID token, then creates the `Session` through the exporter and sets it as the HttpOnly `telark_session` cookie (`__Host-telark_session` when every passkey origin is https), which no script reads. Every later API call carries the cookie and `X-Requested-With`; each service turns the cookie into `X-Session-Token` and resolves it as described in [security](../security/README.md#authentication). API clients send `X-Session-Token` themselves.
 
 **User, group and access-role deletion.** auth's `DELETE auth/{users,groups,accessroles}/{id}` route runs the deletion guard, deletes through the exporter (a finalizer keeps the record), and queues a job on `auth:cleanup:<kind>`. The cleanup reconciler deletes a deleted user's sessions, strips back-references from other records, then removes the finalizer (`services/auth/internal/controllers/cleanup/`, [auth README](../../services/auth/README.md)). The exporter's delete already strips group membership on the other side, so for membership the reconciler is the backstop.
 
@@ -100,7 +107,7 @@ Constants: `services/<svc>/internal/constants/` (discovery `coordination.go`, `f
 
 | Service | Order in `main` | Probes (`/api/v1/status/...`) |
 |---|---|---|
-| exporter | snapshot and report directories → Redis → seed built-ins (access roles upserted, categories merged, `TelarkConfig` `default` only if absent) → GC loops → application and session informers → authz → HTTP | `live`, `ready` (Redis and the application mirror synced) |
+| exporter | snapshot and report directories → Redis → `TelarkConfig` `default` only if absent → migration steps (exits on a failed step or on data two or more releases newer, [CRDS.md](../CRDS.md#migrations)) → bootstrap pin (pins the enrolled bootstrap account, clears other markers) → seed built-ins (access roles upserted, categories merged) → GC loops → application and session informers → authz → HTTP | `live`, `ready` (Redis and the application mirror synced) |
 | discovery | authz → HTTP server with a self-supervisor → async bootstrap: Redis, consumer group, informers, insights index, leader loop, consumer, force sync, rollback, plans, auto-cleanup | `live`, `ready` (fails only on Redis; bootstrap, exporter breaker and Kubernetes report degraded) |
 | auth | subcommand dispatch → config and bootstrap-admin check → WebAuthn → Redis → cleanup system → authz → HTTP | `health`, `ready`, `live` |
 | notifier | Redis → NATS (creates the streams) → status server | `live`, `ready` (NATS connected) |

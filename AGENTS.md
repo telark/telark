@@ -104,6 +104,7 @@ Verify each step against its success criterion before moving on. Strong success 
 - Match the naming, structure and style of the file you're editing. Complexity and function-length limits come from `.golangci.yml`; extract a helper instead of relaxing them. Naming, error and logging rules are in [CONVENTIONS.md](CONVENTIONS.md).
 - Spelling is American English everywhere: code, comments, docs, UI copy and CRD descriptions ("enrollment", "behavior", "canceled"). `misspell` enforces it in Go (`locale: US`).
 - An expected 4xx (a refusal, a bad body) is an answer, not a failure: send it with `SendResponse`, because `LogAndSendResponse` logs `[ERROR]` for any non-nil error whatever the status. Exporter handlers decode bodies through `GetSpec`/`GetSpecFor` (`utils/shared/extract.go`), the one place that maps body errors to 413, 422 and 400; calling `ParseRequestBody` directly bypasses it.
+- Kyverno policies are `policies.kyverno.io/v1` CEL policies built with Kyverno's own types from `github.com/kyverno/api`, the light API module; the protection health check decodes live specs into the same types, so a hand-added field still counts as drift. Every string a user or the cluster controls reaches CEL through `CELString`/`CELList` (`internal/data/policies/cel.go`). Production code never imports `github.com/kyverno/kyverno`: it links cosign and three cloud SDKs into every binary that imports it. Tests may: discovery's `kyverno_accepts` and behavior tests compile and judge every template with Kyverno's own CEL compiler and matcher (its vpol engine needs Kyverno's Pod Security fork, which this module can't carry).
 
 **Configuration**
 
@@ -113,6 +114,12 @@ Verify each step against its success criterion before moving on. Strong success 
 **CRDs**
 
 - The CRDs are strict structural schemas. A field added to a Go type before the CRD schema declares it is pruned by the API server: the write returns 200, the data is gone, and nothing is logged. Edit the CRD YAML in `charts/telark-crds/templates/crds/` first, then the Go type, and verify with a read-back instead of trusting the status code.
+- Stored objects outlive releases, and rolling back one release must still work ([CRDS.md](docs/CRDS.md#schema-changes-across-releases)):
+  - New fields are optional. Give one a CRD `default:` when its value is fixed, and have code read a missing field as that default.
+  - Never remove or rename a field in one release ("expand, then contract"): release N stops writing the old field and migrates the data, then release N+1 drops it from the schema.
+  - Clients send only the fields they change, never a whole stored object.
+  - Data a `default:` cannot fill (a value computed from other data, a renamed field, objects to rewrite so a dropped field leaves storage) gets an idempotent step appended to `Steps` in `services/exporter/internal/migrations`, numbered one past the last, with the version that ships it in `Release` (a newest step without one allows no rollback). List every schema change and step in the version's upgrade notes in `docs/INSTALL.md`.
+- A new CRD or subresource also goes into the exporter's Role (`charts/telark/templates/exporter/rbac/role.yaml`), which names each `telark.io` resource and verb instead of a wildcard, so anything missing from it fails with a 403 at runtime.
 
 **Tests and verification**
 
@@ -123,7 +130,7 @@ Verify each step against its success criterion before moving on. Strong success 
 
 **Known pitfall**
 
-- Protection-plan violations come from Kubernetes Events filtered against the plan's rendered policies. `Terminate` and `Cancel` call `CleanupByPlanID` and then blank the rendered-policy list, so a finished plan reports zero violations; Events also expire (see `RetentionWindow` in the violations package). Anything that needs a finished plan's history has to capture it durably before `CleanupByPlanID` runs, and state the window it covers.
+- Protection-plan violations come from Kubernetes Events filtered against the plan's rendered policies. `Terminate` and `Cancel` call `CleanupByPlanID` and then blank the rendered-policy list, so a finished plan reports zero violations; Events also expire (see `RetentionWindow` in the violations package). Anything that needs a finished plan's history has to capture it durably before `CleanupByPlanID` runs, and state the window it covers; the run ledger behind reports is that record, and the violations route serves it with `window=run`.
 
 ## Helm chart
 
@@ -143,7 +150,8 @@ The analyzer is `services/analyzer` (chart key `services.analyzer`, image `analy
 - It runs only free, open-weight models on open-source runtimes (Ollama). No commercial AI providers and no API keys, not even as an optional or bring-your-own-key tier: the product promise is a free, source-available, privacy-first analyzer, and provider keys were removed on purpose.
 - The only deployment switch is air-gapped versus connected. Air-gapped: no egress, models pre-loaded (`app.ollama.autoPull=false`). Connected: egress only to fetch open models or to reach the customer's own self-hosted Ollama-API endpoint (`app.ollama.runtimeUrl`, a URL, no key).
 - It has to answer in seconds on small CPU-only nodes. Designs that need minutes, or a GPU by default, don't fit.
-- Log through `app_logger`, not `print()`, and keep strings in the existing `constants.py` and `messages.py` split. There is no formatter or linter config, so match the surrounding code.
+- `main.py` is the only root module. The rest sits in domain packages: `api/` (HTTP app, session checks), `analysis/` (incident runs, rules, messages, the setup review, recommendations, the insight document), `core/` (config, constants, models, helpers, logging, events, the exporter client), `providers/` (Ollama client, model runtime), `prompts/` and `tools/`. A new module goes into its domain's package, and a new package needs its own `COPY` line in the Dockerfile (`tests/test_dockerfile_cov.py` fails without it).
+- Log through `core/app_logger.py`, not `print()`, and keep strings in the existing `core/constants.py` and `analysis/messages.py` split. There is no formatter or linter config, so match the surrounding code.
 - Before calling a change done, run the `analyzer-ci-gate` skill.
 
 ## Docs

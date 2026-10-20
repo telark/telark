@@ -57,10 +57,10 @@ go test -race ./...
 golangci-lint run ./services/<svc>/...   # or ./internal/<pkg>/...; uses the root .golangci.yml, never --no-config
 ```
 
-CI's test leg for a service (`./internal/<pkg>/...` for a shared package), with the floor from the `go` job matrix (auth 60, discovery 50, exporter 55, notifier 75, data 95, rest 54, kcore 22, x-ware 47); every test leg uploads its profile to Codecov:
+CI's test leg for a service (`./internal/<pkg>/...` for a shared package), with the floor from the `go` job matrix (auth 75, discovery 50, exporter 70, notifier 80, data 95, rest 54, kcore 22, x-ware 47); every test leg uploads its profile to Codecov:
 
 ```sh
-go test -race -coverpkg=./services/<svc>/... -coverprofile=coverage.out ./services/<svc>/...
+go test -race -gcflags=all=-dwarf=false -ldflags=-w -coverpkg=./services/<svc>/... -coverprofile=coverage.out ./services/<svc>/...
 go tool cover -func=coverage.out | tail -1
 ```
 
@@ -99,7 +99,7 @@ python3.13 -m venv "$VENV"
 "$VENV/bin/python" -m coverage report --fail-under=95
 ```
 
-The stub-based `test_*_cov.py` suites replace `sys.modules` entries, so they run in their own process, apart from the real-dependency suites listed explicitly in `ci.yaml`. No Ollama, Redis or cluster is needed. The procedure: the `analyzer-ci-gate` skill.
+The stub-based `test_*_cov.py` suites run in their own process, apart from the real-dependency suites listed explicitly in `ci.yaml`. The split is historical: no suite replaces `sys.modules` entries, and one pytest process gives the same result. No Ollama, Redis or cluster is needed. The procedure: the `analyzer-ci-gate` skill.
 
 ### Everything at once
 
@@ -133,8 +133,8 @@ curl -fsS localhost:8004/api/v1/status/ready
 curl -fsS -H "X-Session-Token: $TOKEN" localhost:8004/api/v1/<route>
 ```
 
-- A user request carries its session token in the `X-Session-Token` header, never in a cookie or the query string. Sign in through the UI (passkeys need `https://` or `http://localhost`) and copy the header from any API request in the browser's network panel.
-- Route paths: `services/{auth,discovery,exporter}/internal/routes/routes.go` with the path constants in `internal/rest/endpoints/`, and `services/analyzer/api_server.py`. Each Go service's access rule per route is in `internal/authz/requirements.go`. Send the opaque ids the UI sends, not display names.
+- The dashboard sends its session as the HttpOnly `telark_session` cookie (`__Host-telark_session` when every passkey origin is https); a script or curl sends the same token in the `X-Session-Token` header, never in the query string. Sign in through the UI (passkeys need `https://` or `http://localhost`) and copy the cookie's value from DevTools → Application → Cookies. A request with the header needs no `X-Requested-With`; one that relies on the cookie for a change does.
+- Route paths: `services/{auth,discovery,exporter}/internal/routes/routes.go` with the path constants in `internal/rest/endpoints/`, and `services/analyzer/api/api_server.py`. Each Go service's access rule per route is in `internal/authz/requirements.go`. Send the opaque ids the UI sends, not display names.
 - A 403 for a user who looks authorized usually means a deny rule or a missing grant, not a bug; see [Authorization](../security/README.md#authorization).
 
 ### End-to-end: UI → API → backend → Kubernetes
@@ -143,7 +143,7 @@ A protection plan crosses every layer. After each step, check the layer below in
 
 1. **UI → discovery.** Create and start a plan from the UI, or through the discovery plan routes with a session token. Expect a 2xx and the plan in the list.
 2. **discovery → exporter → CRD.** `kubectl -n telark get protectionplans.telark.io -o yaml` shows the plan, its fields under `spec` and its phase under `.status`. A field accepted by the API but missing here was pruned by the CRD schema ([AGENTS.md](../../AGENTS.md#go-services), CRDs).
-3. **discovery → Kyverno.** While the plan is active, `kubectl get policies.kyverno.io -A -l telark.io/protection-plan=<plan-id>` lists its namespaced Kyverno `Policy` objects.
+3. **discovery → Kyverno.** While the plan is active, `kubectl get namespacedvalidatingpolicies -A -l telark.io/protection-plan=<plan-id>` lists its Kyverno `NamespacedValidatingPolicy` objects.
 4. **Admission.** Make a change one of the plan's templates blocks and expect the API server to reject it when the plan enforces (audit mode only records it). Violations are read from Kubernetes Events, which expire; see [Protection plans](../architecture/protection-plans.md).
 5. **Terminate or cancel.** The label query from step 3 returns nothing, and the finished plan reports zero violations, by design.
 

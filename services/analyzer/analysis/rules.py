@@ -11,7 +11,8 @@ import math
 import re
 from datetime import datetime
 
-from constants import (
+from analysis import messages
+from core.constants import (
     CHANGE_CORRELATION_SKEW_S,
     CHANGE_CORRELATION_WINDOW_S,
     CHANGE_FIELD_HEALTH,
@@ -74,8 +75,7 @@ from constants import (
     REASON_CREATE_CONTAINER_CONFIG_ERROR,
     VOLUME_EVENT_REASONS,
 )
-import messages
-from models import Candidate, EvidenceRef, Run
+from core.models import Candidate, EvidenceRef, Run
 from tools.app_tools import KEY_CHANGES
 from tools.k8s_tools import (
     KEY_DISRUPTION,

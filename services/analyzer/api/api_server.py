@@ -16,13 +16,15 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 from redis import RedisError
 from starlette.exceptions import HTTPException
+from starlette.requests import cookie_parser
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-import exporter
-from app_logger import logger
-from authz import require_any
-from config import ANALYZER_QUEUE_MAX, CORS_ALLOWED_ORIGINS, OLLAMA_AUTO_PULL
-from constants import (
+from analysis.insights import TriageError, apply_triage, mark_queued
+from api.authz import require_any
+from core import exporter
+from core.app_logger import logger
+from core.config import ANALYZER_QUEUE_MAX, CORS_ALLOWED_ORIGINS, OLLAMA_AUTO_PULL, SESSION_COOKIE
+from core.constants import (
     ACTION_ANALYZE_INSIGHTS,
     ACTION_CONTROL_AI_INSIGHTS,
     ACTION_TRIAGE_INSIGHTS,
@@ -30,14 +32,20 @@ from constants import (
     API_ERROR_ANALYZER_DISABLED,
     API_ERROR_AUTO_PULL_DISABLED,
     API_ERROR_COOLDOWN_ACTIVE,
+    API_ERROR_CSRF_HEADER_MISSING,
     API_ERROR_INVALID_APP,
     API_ERROR_INVALID_REQUEST,
     API_ERROR_MODEL_NOT_ALLOWED,
     API_ERROR_QUEUE_FULL,
+    API_ERROR_SESSION_COOKIE_DUPLICATE,
     API_ERROR_TOO_MANY_STREAMS,
     APP_KEY_SEPARATOR,
     APPS_SEPARATOR,
     ASGI_FIELD_BODY,
+    ASGI_HEADER_COOKIE,
+    ASGI_HEADER_REQUESTED_WITH,
+    ASGI_HEADER_SERVICE_TOKEN,
+    ASGI_HEADER_SESSION_TOKEN,
     ASGI_MESSAGE_HTTP_REQUEST,
     ASGI_SCOPE_HTTP,
     CORS_ALLOWED_HEADERS,
@@ -73,6 +81,7 @@ from constants import (
     PERMISSION_LEVEL_READONLY,
     PROBE_KEY_SERVICE,
     PROBE_KEY_STATUS,
+    PROBE_PATHS,
     READY_PING_TIMEOUT_S,
     REQUEST_BODY_MAX_BYTES,
     REVIEW_ID_PREFIX,
@@ -88,6 +97,7 @@ from constants import (
     RUNTIME_STATE_READY,
     RUNTIME_STATE_UNREACHABLE,
     RUNTIME_VALIDATE_PATH,
+    SAFE_METHODS,
     SCOPE_INSIGHTS,
     SCOPE_SETTINGS,
     SERVICE_NAME,
@@ -112,12 +122,11 @@ from constants import (
     VALIDATE_REASON_INVALID_MODEL_NAME,
     VALIDATE_REASON_MODEL_LACKS_TOOLS,
 )
-from events import Broadcaster
-from exporter import AppNotFound, ExporterUnavailable
-from helpers import app_ref, inflight_key, now_rfc3339, primary_namespace
-from insights import TriageError, apply_triage, mark_queued
-from models import AnalyzeResponse, AppInsights, Subscription, TriageRequest, ValidateModelRequest
-from runtime import pull_allowed
+from core.events import Broadcaster
+from core.exporter import AppNotFound, ExporterUnavailable
+from core.helpers import app_ref, inflight_key, now_rfc3339, primary_namespace
+from core.models import AnalyzeResponse, AppInsights, Subscription, TriageRequest, ValidateModelRequest
+from providers.runtime import pull_allowed
 
 # (method, path) -> alternatives, any one of which admits the caller. Each is (scope, min level, denyable
 # action): an x-ware Read/Write/Own/Denyable requirement. The status probes are public and absent on purpose.
@@ -210,6 +219,41 @@ class BodyLimit:
             return message
 
         await self.app(scope, limited, send)
+
+
+class SessionCookie:
+    """x-ware's session rule: a browser's session rides in the cookie, which becomes X-Session-Token, and an API
+    client's header wins. A change that carries no header credential also needs X-Requested-With, which a page on
+    another origin can't add without a preflight that fails. Only the install's cookie name counts (SESSION_COOKIE),
+    and two such cookies count as none (a sibling subdomain can plant one), so every route but the probes answers 401."""
+
+    def __init__(self, app: ASGIApp, cookie_name: str) -> None:
+        self.app = app
+        self.cookie_name = cookie_name
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != ASGI_SCOPE_HTTP:
+            await self.app(scope, receive, send)
+            return
+        headers = dict(scope["headers"])
+        if headers.get(ASGI_HEADER_SESSION_TOKEN) or headers.get(ASGI_HEADER_SERVICE_TOKEN):
+            await self.app(scope, receive, send)
+            return
+        if scope["method"] not in SAFE_METHODS and not headers.get(ASGI_HEADER_REQUESTED_WITH):
+            await _error(status.HTTP_403_FORBIDDEN, API_ERROR_CSRF_HEADER_MISSING)(scope, receive, send)
+            return
+        raw = headers.get(ASGI_HEADER_COOKIE, b"").decode("latin-1")
+        sent = [part.split("=", 1)[0].strip() for part in raw.split(";")].count(self.cookie_name)
+        if sent > 1:
+            if scope["path"] not in PROBE_PATHS:
+                await _error(status.HTTP_401_UNAUTHORIZED, API_ERROR_SESSION_COOKIE_DUPLICATE)(scope, receive, send)
+                return
+            await self.app(scope, receive, send)
+            return
+        token = cookie_parser(raw).get(self.cookie_name)
+        if token:
+            scope = {**scope, "headers": [*scope["headers"], (ASGI_HEADER_SESSION_TOKEN, token.encode("latin-1"))]}
+        await self.app(scope, receive, send)
 
 
 async def _still_allowed(recheck: Callable[[], Awaitable[object]]) -> bool:
@@ -327,17 +371,20 @@ def create_app(
     redis_client,
     lifespan: Callable[[FastAPI], AbstractAsyncContextManager[None]] | None = None,
     cors_origins: list[str] = CORS_ALLOWED_ORIGINS,
+    session_cookie: str = SESSION_COOKIE,
 ) -> FastAPI:
     # No interactive docs or schema: /api/analyzer/ is reachable through the UI without a session.
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.redis = redis_client
+    app.add_middleware(SessionCookie, cookie_name=session_cookie)
     app.add_middleware(BodyLimit)
-    # Added last, so it is the outermost layer and its headers also reach BodyLimit's refusals.
+    # Added last, so it is the outermost layer and its headers also reach BodyLimit's refusals. Credentials let the
+    # dev UI on another port send the session cookie.
     if cors_origins:
         app.add_middleware(
             CORSMiddleware,
             allow_origins=cors_origins,
-            allow_credentials=False,
+            allow_credentials=True,
             allow_methods=CORS_ALLOWED_METHODS,
             allow_headers=CORS_ALLOWED_HEADERS,
             max_age=CORS_MAX_AGE_S,

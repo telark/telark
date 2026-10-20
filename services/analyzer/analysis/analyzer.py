@@ -20,10 +20,9 @@ from datetime import datetime
 import httpx
 from pydantic import ValidationError
 
-import messages
-import rules
 import tools
-from config import (
+from analysis import messages, rules
+from core.config import (
     ANALYZER_CHARS_PER_TOKEN,
     ANALYZER_CONTEXT_TOKENS,
     ANALYZER_EMIT_TIMEOUT_SEC,
@@ -33,7 +32,7 @@ from config import (
     ANALYZER_NARRATE_TIMEOUT_SEC,
     ANALYZER_WALL_SEC,
 )
-from constants import (
+from core.constants import (
     BUSY_SLEEP_S,
     EMIT_ATTEMPTS,
     EMIT_RESERVE_S,
@@ -77,7 +76,7 @@ from constants import (
     TOOL_GET_RECENT_EVENTS,
     TOOL_GET_WORKLOAD_STATUS,
 )
-from models import (
+from core.models import (
     Candidate,
     ChatMessage,
     ChatResponse,

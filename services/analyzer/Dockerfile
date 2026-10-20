@@ -11,7 +11,13 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir --require-hashes --only-binary :all: -r requirements.txt
 
-COPY . .
+COPY main.py LICENSE.md THIRD-PARTY-NOTICES.md ./
+COPY analysis/ analysis/
+COPY api/ api/
+COPY core/ core/
+COPY prompts/ prompts/
+COPY providers/ providers/
+COPY tools/ tools/
 
 RUN adduser -D -g "" appuser && chown -R appuser /app
 USER appuser

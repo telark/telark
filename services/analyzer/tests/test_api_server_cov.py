@@ -4,6 +4,7 @@ Run: pytest tests/test_api_server_cov.py
 """
 
 import asyncio
+import importlib
 import os
 from contextlib import asynccontextmanager
 import sys
@@ -20,10 +21,11 @@ from redis import RedisError
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import api_server as A  # noqa: E402
-import authz  # noqa: E402
-import exporter  # noqa: E402
-from constants import (  # noqa: E402
+from analysis.insights import InsightStore  # noqa: E402
+from api import api_server as A  # noqa: E402
+from api import authz  # noqa: E402
+from core import exporter  # noqa: E402
+from core.constants import (  # noqa: E402
     ANALYZE_PATH,
     EVENTS_PATH,
     RUNTIME_PATH,
@@ -33,12 +35,11 @@ from constants import (  # noqa: E402
     STATUS_READY_PATH,
     TRIAGE_PATH,
 )
-from events import Broadcaster  # noqa: E402
-from exporter import AppNotFound, ExporterUnavailable  # noqa: E402
+from core.events import Broadcaster  # noqa: E402
+from core.exporter import AppNotFound, ExporterUnavailable  # noqa: E402
+from core.models import AnalyzerConfig, AppInsights, Insight  # noqa: E402
 from fakes import FakeOllama, FakeRedis, dns_error  # noqa: E402
-from insights import InsightStore  # noqa: E402
-from models import AnalyzerConfig, AppInsights, Insight  # noqa: E402
-from runtime import Runtime  # noqa: E402
+from providers.runtime import Runtime  # noqa: E402
 
 NS, NAME = "shop", "api"
 ANALYZE = "/api/v1/insights/applications/shop/api/analyze"
@@ -54,9 +55,10 @@ def _allow():
     return None
 
 
-def _env(monkeypatch, *, enabled=True, excluded=(), app=None, state="ready", mode="deep"):
+def _env(monkeypatch, *, enabled=True, excluded=(), app=None, state="ready", mode="deep",
+         session_cookie="telark_session"):
     fake = FakeRedis()
-    api = A.create_app(fake)
+    api = A.create_app(fake, session_cookie=session_cookie)
     s = api.state
     s.store = InsightStore(fake)
     s.broadcaster = Broadcaster()
@@ -78,7 +80,9 @@ def _env(monkeypatch, *, enabled=True, excluded=(), app=None, state="ready", mod
     for route in api.routes:
         for dep in getattr(route, "dependencies", []):
             api.dependency_overrides[dep.dependency] = _allow
-    return SimpleNamespace(api=api, fake=fake, state=s, ollama=ollama, client=TestClient(api), exporter_calls=calls)
+    # The dashboard's header, which a change needs once its session rides in the cookie.
+    client = TestClient(api, headers={"X-Requested-With": "XMLHttpRequest"})
+    return SimpleNamespace(api=api, fake=fake, state=s, ollama=ollama, client=client, exporter_calls=calls)
 
 
 def _code(r):
@@ -401,7 +405,7 @@ def test_analyze_storage_unavailable_503(monkeypatch):
 def test_runtime_get(monkeypatch):
     env = _env(monkeypatch)
     monkeypatch.setattr(exporter, "refresh", lambda client: asyncio.sleep(0))
-    monkeypatch.setattr("runtime.OLLAMA_AUTO_PULL", False)  # no download of the newly saved model here
+    monkeypatch.setattr("providers.runtime.OLLAMA_AUTO_PULL", False)  # no download of the newly saved model here
     monkeypatch.setattr(exporter, "_current", AnalyzerConfig(enabled=False, model="qwen3:4b"))
     r = env.client.get(RUNTIME)
     assert r.status_code == 200
@@ -557,6 +561,85 @@ def test_cors_only_for_configured_origins():
     r = TestClient(A.create_app(FakeRedis(), cors_origins=["http://localhost:3000"])).get(
         STATUS_LIVE_PATH, headers=origin)
     assert r.headers["access-control-allow-origin"] == "http://localhost:3000"
+
+
+def test_cors_answers_credentials():
+    r = TestClient(A.create_app(FakeRedis(), cors_origins=["http://localhost:3000"])).options(
+        ANALYZE, headers={"Origin": "http://localhost:3000", "Access-Control-Request-Method": "POST",
+                          "Access-Control-Request-Headers": "x-requested-with"})
+    assert r.headers["access-control-allow-credentials"] == "true"
+    assert "x-requested-with" in r.headers["access-control-allow-headers"].lower()
+
+
+def test_session_cookie_and_csrf(monkeypatch):
+    """x-ware's rule: the cookie stands in for X-Session-Token, a header wins, and a change that carries no header
+    credential needs X-Requested-With."""
+    seen = []
+
+    async def resolve(token):
+        seen.append(token)
+        return "u1", [{"status": "Active", "scopes": [{"scope": "ALL", "level": "Admin"}]}]
+
+    monkeypatch.setattr(authz, "_resolve", resolve)
+    env = _env(monkeypatch)
+    env.api.dependency_overrides.clear()
+    bare = TestClient(env.api)
+    bare.cookies.set("telark_session", "from-cookie")
+    assert bare.get(RUNTIME).status_code == 200 and seen[-1] == "from-cookie"
+    assert bare.get(RUNTIME, headers={"X-Session-Token": "from-header"}).status_code == 200
+    assert seen[-1] == "from-header"
+    refused = bare.post(VALIDATE, json={"model": "qwen3:4b"})
+    assert refused.status_code == 403 and refused.json()["data"]["code"] == "csrf_header_missing"
+    assert bare.post(VALIDATE, json={"model": "qwen3:4b"}, headers={"X-Requested-With": "XMLHttpRequest"}).status_code != 403
+    assert bare.post(VALIDATE, json={"model": "qwen3:4b"}, headers={"X-Session-Token": "t"}).status_code != 403
+    assert TestClient(env.api).post(VALIDATE, json={"model": "x"}).status_code == 403
+
+
+def test_two_session_cookies_count_as_none(monkeypatch):
+    """A sibling subdomain can plant a second session cookie, and servers differ on which they read: two are none."""
+    env = _env(monkeypatch)
+    env.api.dependency_overrides.clear()
+    two = {"Cookie": "telark_session=real; telark_session=planted"}
+    refused = TestClient(env.api).get(RUNTIME, headers=two)
+    assert refused.status_code == 401 and refused.json()["data"]["code"] == "session_cookie_duplicate"
+    assert TestClient(env.api).get(STATUS_LIVE_PATH, headers=two).status_code == 200
+
+
+def test_host_prefixed_session_cookie(monkeypatch):
+    """An https install reads only __Host-telark_session: a plain cookie alone is no session, and a plain one beside it
+    (a sibling host's) is no duplicate."""
+    seen = []
+
+    async def resolve(token):
+        seen.append(token)
+        return "u1", [{"status": "Active", "scopes": [{"scope": "ALL", "level": "Admin"}]}]
+
+    monkeypatch.setattr(authz, "_resolve", resolve)
+    env = _env(monkeypatch, session_cookie="__Host-telark_session")
+    env.api.dependency_overrides.clear()
+    client = TestClient(env.api)
+    assert client.get(RUNTIME, headers={"Cookie": "__Host-telark_session=host"}).status_code == 200 and seen == ["host"]
+    assert client.get(RUNTIME, headers={"Cookie": "telark_session=plain"}).status_code == 401 and seen == ["host"]
+    both = {"Cookie": "__Host-telark_session=host; telark_session=planted"}
+    assert client.get(RUNTIME, headers=both).status_code == 200 and seen == ["host", "host"]
+
+
+def test_session_cookie_name_follows_the_chart(monkeypatch):
+    from core import config
+
+    monkeypatch.setenv("SESSION_COOKIE_HOST_PREFIX", "true")
+    assert importlib.reload(config).SESSION_COOKIE == "__Host-telark_session"
+    monkeypatch.delenv("SESSION_COOKIE_HOST_PREFIX")
+    assert importlib.reload(config).SESSION_COOKIE == "telark_session"
+
+
+def test_cors_keeps_exact_origins_only(monkeypatch):
+    from core import config
+
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "*,https://*,https://*.example.com, http://localhost:3000 ")
+    assert importlib.reload(config).CORS_ALLOWED_ORIGINS == ["http://localhost:3000"]
+    monkeypatch.delenv("CORS_ALLOWED_ORIGINS")
+    importlib.reload(config)
 
 
 def test_parse_apps_like_discovery():

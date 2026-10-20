@@ -5,11 +5,16 @@ import re
 
 from dotenv import load_dotenv
 
-from constants import (
+from core.constants import (
     ANALYZER_MODES,
+    COOKIE_SESSION,
+    COOKIE_SESSION_HOST_PREFIX,
+    CORS_ANY_ORIGIN,
     CORS_ORIGINS_SEPARATOR,
     DEFAULT_CORS_ALLOWED_ORIGINS,
+    DEFAULT_SESSION_COOKIE_HOST_PREFIX,
     ENV_CORS_ALLOWED_ORIGINS,
+    ENV_SESSION_COOKIE_HOST_PREFIX,
     APPLICATION_GET_PATH,
     APPLICATIONS_LIST_PATH,
     PLAN_ENVIRONMENTS_PATH,
@@ -131,11 +136,15 @@ APPLICATIONS_URL: str = EXPORTER_SERVICE_URL.rstrip("/") + APPLICATIONS_LIST_PAT
 PLANS_URL: str = EXPORTER_SERVICE_URL.rstrip("/") + PLANS_LIST_PATH
 PLAN_ENVIRONMENTS_URL: str = EXPORTER_SERVICE_URL.rstrip("/") + PLAN_ENVIRONMENTS_PATH
 SERVICE_TOKEN: str = os.environ.get(ENV_SERVICE_TOKEN, DEFAULT_SERVICE_TOKEN)
+# Exact origins only, as the Go services: with credentials, a "*" anywhere in an entry would let other origins in.
 CORS_ALLOWED_ORIGINS: list[str] = [
     origin.strip()
     for origin in os.environ.get(ENV_CORS_ALLOWED_ORIGINS, DEFAULT_CORS_ALLOWED_ORIGINS).split(CORS_ORIGINS_SEPARATOR)
-    if origin.strip()
+    if origin.strip() and CORS_ANY_ORIGIN not in origin
 ]
+# One name per install, as x-ware's SessionCookieName: reading the other too would take a cookie a sibling host planted.
+SESSION_COOKIE: str = (COOKIE_SESSION_HOST_PREFIX + COOKIE_SESSION
+                       if _bool(ENV_SESSION_COOKIE_HOST_PREFIX, DEFAULT_SESSION_COOKIE_HOST_PREFIX) else COOKIE_SESSION)
 
 ANALYZER_MAX_STEPS: int = _int(ENV_ANALYZER_MAX_STEPS, DEFAULT_ANALYZER_MAX_STEPS)
 ANALYZER_MAX_TOOL_CALLS: int = _int(ENV_ANALYZER_MAX_TOOL_CALLS, DEFAULT_ANALYZER_MAX_TOOL_CALLS)

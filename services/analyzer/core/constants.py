@@ -41,6 +41,7 @@ ENV_ANALYZER_CHANGE_VELOCITY_PER_DAY = "ANALYZER_CHANGE_VELOCITY_PER_DAY"
 ENV_ANALYZER_CHANGE_RISK_MIN_SPAN_SEC = "ANALYZER_CHANGE_RISK_MIN_SPAN_SEC"
 ENV_ANALYZER_PRODUCTION_PATTERN = "ANALYZER_PRODUCTION_PATTERN"
 ENV_CORS_ALLOWED_ORIGINS = "CORS_ALLOWED_ORIGINS"
+ENV_SESSION_COOKIE_HOST_PREFIX = "SESSION_COOKIE_HOST_PREFIX"
 
 DEFAULT_REDIS_HOST = "localhost"
 DEFAULT_REDIS_PORT = "6379"
@@ -50,6 +51,8 @@ DEFAULT_OLLAMA_HOST = "http://localhost:11434"
 DEFAULT_OLLAMA_AUTO_PULL = True
 # Only the chart's bundled runtime is Telark's to clean; a runtimeUrl the user runs never is.
 DEFAULT_OLLAMA_PRUNE_MODELS = False
+# The chart sets it when every passkey origin is https; an install without it keeps the plain cookie name.
+DEFAULT_SESSION_COOKIE_HOST_PREFIX = False
 ENV_TRUE_VALUES = ("1", "true", "yes")
 DEFAULT_LOG_LEVEL = "INFO"
 DEFAULT_API_PORT = 8080
@@ -272,6 +275,7 @@ API_HOST = "0.0.0.0"
 # Dev only: behind nginx the UI is same-origin, so the default (none) adds no CORS headers.
 DEFAULT_CORS_ALLOWED_ORIGINS = ""
 CORS_ORIGINS_SEPARATOR = ","
+CORS_ANY_ORIGIN = "*"
 CORS_ALLOWED_METHODS = ["GET", "POST", "OPTIONS"]
 CORS_ALLOWED_HEADERS = ["*"]
 CORS_MAX_AGE_S = 600
@@ -299,10 +303,22 @@ API_ERROR_AUTO_PULL_DISABLED = "auto_pull_disabled"
 API_ERROR_INVALID_REQUEST = "invalid_request"
 API_ERROR_MODEL_NOT_ALLOWED = "model_not_allowed"
 API_ERROR_TOO_MANY_STREAMS = "too_many_streams"
+# The Go services' refusal codes for the same rules; the dashboard explains each in a sentence of its own.
+API_ERROR_CSRF_HEADER_MISSING = "csrf_header_missing"
+API_ERROR_SESSION_COOKIE_DUPLICATE = "session_cookie_duplicate"
 
 # Every request body is a few bytes of JSON; larger ones are refused before FastAPI buffers them.
 REQUEST_BODY_MAX_BYTES = 64 * 1024
 HEADER_CONTENT_LENGTH = b"content-length"
+# x-ware's session rule, on raw ASGI headers (lowercase bytes).
+ASGI_HEADER_SESSION_TOKEN = b"x-session-token"
+ASGI_HEADER_SERVICE_TOKEN = b"x-service-token"
+ASGI_HEADER_REQUESTED_WITH = b"x-requested-with"
+ASGI_HEADER_COOKIE = b"cookie"
+COOKIE_SESSION = "telark_session"
+COOKIE_SESSION_HOST_PREFIX = "__Host-"
+SAFE_METHODS = ("GET", "HEAD", "OPTIONS")
+PROBE_PATHS = (STATUS_LIVE_PATH, STATUS_READY_PATH)
 ASGI_SCOPE_HTTP = "http"
 ASGI_MESSAGE_HTTP_REQUEST = "http.request"
 ASGI_FIELD_BODY = "body"

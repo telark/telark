@@ -17,9 +17,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import messages  # noqa: E402
-import rules  # noqa: E402
-from constants import (  # noqa: E402
+from analysis import messages, rules  # noqa: E402
+from core.constants import (  # noqa: E402
     INCIDENT_DETAIL_FALLBACKS,
     INCIDENT_DETAIL_VARIANTS,
     INCIDENT_PARAM_KEYS,
@@ -29,7 +28,7 @@ from constants import (  # noqa: E402
     MAX_INSIGHT_TITLE_LENGTH,
     REF_EVENT,
 )
-from models import Run  # noqa: E402
+from core.models import Run  # noqa: E402
 
 NOW = datetime(2026, 9, 24, 12, 0, tzinfo=UTC)
 LAST = "2026-09-24T11:58:00Z"

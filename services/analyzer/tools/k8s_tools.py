@@ -12,7 +12,7 @@ from pathlib import Path
 
 import httpx
 
-from constants import (
+from core.constants import (
     BEARER_TEMPLATE,
     CONDITION_DISRUPTION_TARGET,
     CONDITION_READY,
@@ -52,7 +52,7 @@ from constants import (
     WORKLOAD_DEPLOYMENT,
     WORKLOAD_KINDS,
 )
-from models import EventsArgs, Run, WorkloadArgs
+from core.models import EventsArgs, Run, WorkloadArgs
 from tools.app_tools import app_namespaces
 
 KEY_PODS = "pods"

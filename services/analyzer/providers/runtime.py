@@ -16,10 +16,10 @@ from contextlib import contextmanager
 
 import httpx
 
-import exporter
-from app_logger import logger
-from config import ANALYZER_MODE, OLLAMA_AUTO_PULL, OLLAMA_PRUNE_MODELS
-from constants import (
+from core import exporter
+from core.app_logger import logger
+from core.config import ANALYZER_MODE, OLLAMA_AUTO_PULL, OLLAMA_PRUNE_MODELS
+from core.constants import (
     CAPABILITY_TOOLS,
     DEFAULT_ANALYZER_MODEL,
     EVENT_RUNTIME_CHANGED,
@@ -43,8 +43,8 @@ from constants import (
     VALIDATE_REASON_INVALID_MODEL_NAME,
     VALIDATE_REASON_MODEL_LACKS_TOOLS,
 )
-from events import Broadcaster
-from models import PullProgress, RuntimeStatus, ValidateModelResponse
+from core.events import Broadcaster
+from core.models import PullProgress, RuntimeStatus, ValidateModelResponse
 from providers import ollama
 from providers.ollama import ModelMissing, OllamaAbsent, OllamaError
 

@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import asyncio
 
-from constants import EVENT_RESYNC, SSE_MAX_STREAMS_PER_USER
-from models import Subscription
+from core.constants import EVENT_RESYNC, SSE_MAX_STREAMS_PER_USER
+from core.models import Subscription
 
 
 class Broadcaster:

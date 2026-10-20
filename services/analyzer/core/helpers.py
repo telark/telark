@@ -7,7 +7,7 @@ import re
 import time
 from datetime import UTC, datetime
 
-from constants import (
+from core.constants import (
     APP_REF_TEMPLATE,
     MS_PER_S,
     CPU_MILLI_PER_CORE,

@@ -13,7 +13,7 @@ import re
 import string
 from collections import Counter
 
-from constants import (
+from core.constants import (
     ADMISSION_MARKERS,
     CHANGE_FIELD_REASONS,
     CHANGE_FIELD_RESOURCE_PREFIXES,
@@ -104,7 +104,7 @@ from constants import (
     WARNING_REASONS_MAX,
     WARNING_REASONS_SEPARATOR,
 )
-from helpers import image_parts, is_registry_host
+from core.helpers import image_parts, is_registry_host
 from tools.k8s_tools import KEY_DISRUPTION, KEY_FULL_IMAGES, KEY_FULL_MESSAGE, KEY_PENDING, KEY_WAITING_MESSAGE
 
 Params = dict[str, object]

@@ -11,8 +11,8 @@ from urllib.parse import quote
 
 import httpx
 
-from app_logger import logger
-from config import (
+from core.app_logger import logger
+from core.config import (
     ANALYZER_REVIEW_TICK_SEC,
     APPLICATION_URL_TEMPLATE,
     APPLICATIONS_URL,
@@ -21,7 +21,7 @@ from config import (
     PLANS_URL,
     SERVICE_TOKEN,
 )
-from constants import (
+from core.constants import (
     AI_FIELD_AUTO_ANALYZE,
     AI_FIELD_ENABLED,
     AI_FIELD_MODEL,
@@ -37,7 +37,7 @@ from constants import (
     PARAM_VIEW,
     VIEW_SUMMARY,
 )
-from models import AnalyzerConfig
+from core.models import AnalyzerConfig
 
 
 class AppNotFound(Exception):

@@ -17,8 +17,10 @@ from datetime import datetime, timedelta
 
 from pydantic import ValidationError
 
-from config import ANALYZER_AUTO_COOLDOWN_SEC, ANALYZER_MANUAL_COOLDOWN_SEC
-from constants import (
+from analysis.messages import bounded, render_recommendation
+from analysis.recommendations import card_key
+from core.config import ANALYZER_AUTO_COOLDOWN_SEC, ANALYZER_MANUAL_COOLDOWN_SEC
+from core.constants import (
     CONFIDENCE_LOW,
     CONSUMER_GROUP,
     COOLDOWN_VALUE,
@@ -61,10 +63,8 @@ from constants import (
     TRIGGER_MANUAL,
     VOLATILE_PARAMS,
 )
-from helpers import app_ref, cooldown_auto_key, cooldown_manual_key, document_key, epoch_ms, inflight_key
-from messages import bounded, render_recommendation
-from models import AppInsights, Emitted, Insight, InsightTriage, LastRun, MergeStats, RecStats, Run, to_json
-from recommendations import card_key
+from core.helpers import app_ref, cooldown_auto_key, cooldown_manual_key, document_key, epoch_ms, inflight_key
+from core.models import AppInsights, Emitted, Insight, InsightTriage, LastRun, MergeStats, RecStats, Run, to_json
 from tools.k8s_tools import KEY_PAUSED, KEY_PODS, owned_event, stale_pod_event, workload_matchers
 
 _ACTIVE = (INSIGHT_STATUS_OPEN, INSIGHT_STATUS_UPDATED)

@@ -12,8 +12,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from authz import _allows, _covers, _grants_scope  # noqa: E402
-from constants import (  # noqa: E402
+from api.authz import _allows, _covers, _grants_scope  # noqa: E402
+from core.constants import (  # noqa: E402
     PERMISSION_LEVEL_ADMIN,
     PERMISSION_LEVEL_CONTRIBUTOR,
     PERMISSION_LEVEL_OWNER,
@@ -110,7 +110,7 @@ if __name__ == "__main__":
 def test_require_any_returns_user_id(monkeypatch):
     import asyncio
 
-    import authz
+    from api import authz
 
     async def resolve(_token):
         return "user-42", [{"status": "Active", "scopes": [{"scope": "insights", "level": "Contributor"}]}]

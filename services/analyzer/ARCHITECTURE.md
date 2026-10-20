@@ -93,7 +93,7 @@ same code checks and merges them. On a small CPU node this takes minutes.
 
 1. **Gather** (≈ 1 s): the worker calls the tools itself: overview, change history (5), warning
    events of the last 60 min, then the status of at most 3 workloads (those named by events first).
-2. **Rules** (`rules.py`, ms): one candidate per workload, by precedence `oom` > `image_pull` >
+2. **Rules** (`analysis/rules.py`, ms): one candidate per workload, by precedence `oom` > `image_pull` >
    `crashloop` > `scheduling` > `probe_failure` > `resource_pressure` > `rollout_stuck` >
    `config_change_regression` > `other`, at most 3 per run, with evidence refs and template prose.
    - A workload with no replica ready (of at least one wanted) is critical whatever the kind.
@@ -178,7 +178,7 @@ spec limits, plus a small `params` map (workload, pod, container, image, registr
 ready/desired, probe, failure, port, …; at most 16 keys of at most 120 characters, never secret values
 or the output of an exec probe). The server renders the **title** (`{workload} is down: image
 not found`) and the **summary** (impact sentence, one factual detail, the change correlation) from
-per-reason templates in `constants.py`; the UI renders the cause and the steps from the same `reason`
+per-reason templates in `core/constants.py`; the UI renders the cause and the steps from the same `reason`
 and `params`. A rules-only card is complete; the narration may only rephrase title and summary.
 
 A liveness or startup probe failure that already restarted a container is reported as `crashloop`
@@ -261,7 +261,7 @@ sweep due=12 reviewed=12 removed=0
   starts clean.
 - **The contract is frozen in Go** (`internal/data/insights`,
   `internal/data/resources/application/insights.go`, `internal/rest/endpoints/insights`);
-  `constants.py` and `models.py` mirror it with identical names.
+  `core/constants.py` and `core/models.py` mirror it with identical names.
 - **exporter-service is the only service that reads/writes cluster config** (the
   `TelarkConfig` CR). The analyzer reads it through exporter with the service
   token, never from environment variables.

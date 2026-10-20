@@ -17,13 +17,14 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
-import messages
-from config import (
+from analysis import messages
+from analysis.review import ReviewInputs, WorkloadInput, sufficient
+from core.config import (
     ANALYZER_CHANGE_RISK_MIN_SPAN_SEC,
     ANALYZER_CHANGE_VELOCITY_PER_DAY,
     ANALYZER_PRODUCTION_PATTERN,
 )
-from constants import (
+from core.constants import (
     AND_SEPARATOR,
     CAPABILITY_ALL,
     CONDITION_FALSE_STATUS,
@@ -167,7 +168,7 @@ from constants import (
     WORKLOAD_DEPLOYMENT,
     WORKLOAD_KINDS,
 )
-from helpers import (
+from core.helpers import (
     format_cpu,
     format_mem,
     image_parts,
@@ -179,8 +180,7 @@ from helpers import (
     round_up,
     selector_matches,
 )
-from models import EvidenceRef
-from review import ReviewInputs, WorkloadInput, sufficient
+from core.models import EvidenceRef
 from tools.k8s_tools import owned_event, workload_matchers
 
 

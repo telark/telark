@@ -20,8 +20,9 @@ from dataclasses import dataclass, field
 import httpx
 from redis import RedisError
 
-import exporter
-from constants import (
+from core import exporter
+from core.config import ANALYZER_REVIEW_WORKLOADS_MAX, ANALYZER_USAGE_MIN_SAMPLES, ANALYZER_USAGE_MIN_SPAN_SEC
+from core.constants import (
     EVENT_NAMESPACES_MAX,
     FAMILY_APP,
     FAMILY_DOCUMENT,
@@ -56,10 +57,9 @@ from constants import (
     USAGE_SAMPLES_MAX,
     WORKLOAD_KINDS,
 )
-from config import ANALYZER_REVIEW_WORKLOADS_MAX, ANALYZER_USAGE_MIN_SAMPLES, ANALYZER_USAGE_MIN_SPAN_SEC
-from exporter import ExporterUnavailable
-from helpers import app_ref, iso_epoch, parse_cpu_milli, parse_mem_bytes
-from models import AppInsights, Run
+from core.exporter import ExporterUnavailable
+from core.helpers import app_ref, iso_epoch, parse_cpu_milli, parse_mem_bytes
+from core.models import AppInsights, Run
 from tools.app_tools import app_namespaces
 from tools.k8s_tools import K8s, K8sError
 

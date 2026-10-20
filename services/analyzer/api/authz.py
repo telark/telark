@@ -11,9 +11,9 @@ from __future__ import annotations
 import httpx
 from fastapi import Header, HTTPException, status
 
-from app_logger import logger
-from config import AUTHZ_PERMISSIONS_URL
-from constants import (
+from core.app_logger import logger
+from core.config import AUTHZ_PERMISSIONS_URL
+from core.constants import (
     AUTHZ_TIMEOUT_SECONDS,
     HEADER_SESSION_TOKEN,
     LOG_AUTHZ_RESOLVE_FAILED,

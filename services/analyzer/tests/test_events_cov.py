@@ -8,8 +8,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from constants import EVENT_RESYNC, SSE_MAX_STREAMS_PER_USER, SSE_QUEUE_MAX  # noqa: E402
-from events import Broadcaster  # noqa: E402
+from core.constants import EVENT_RESYNC, SSE_MAX_STREAMS_PER_USER, SSE_QUEUE_MAX  # noqa: E402
+from core.events import Broadcaster  # noqa: E402
 
 
 def _drain(sub):

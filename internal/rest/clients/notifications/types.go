@@ -14,6 +14,17 @@ type Notification struct {
 	ReadAt    *time.Time     `json:"readAt,omitempty"`
 }
 
+// One queued webhook event, kept in EventsStream's EventField signed as a whole (x-ware
+// SignRedisEntry, bound to EventsStream), so the notifier sends nothing a Redis writer planted.
+type QueuedEvent struct {
+	Type      string         `json:"type"`
+	Timestamp int64          `json:"timestamp"`
+	Severity  string         `json:"severity"`
+	Title     string         `json:"title"`
+	Message   string         `json:"message"`
+	Metadata  map[string]any `json:"metadata,omitempty"`
+}
+
 type ListOptions struct {
 	Limit  int
 	Cursor string
@@ -33,6 +44,19 @@ const (
 	TypePlanApprovalDecided    = "plan.approval.decided"
 	TypeEnrollLinkCreated      = "enroll.link.created"
 	TypeEnrollLinkUsed         = "enroll.link.used"
+	TypeIncidentCritical       = "incident.critical"
+	TypeBootstrapRequest       = "bootstrap.request"
+)
+
+// The only types a webhook target may subscribe to: role, group and enroll-link
+// notifications speak to one person and expose account activity, so they stay in the bell.
+var WebhookEventTypes = []string{TypeRollbackCompleted, TypePlanApprovalRequested, TypePlanApprovalDecided, TypeIncidentCritical}
+
+// The exporter queues each webhook event here once, not once per recipient; the notifier delivers it.
+const (
+	EventsStream             = "notif:events"
+	EventsStreamMaxLen int64 = 1000
+	EventField               = "event"
 )
 
 const (
@@ -55,6 +79,9 @@ const (
 	MetaKeyPlanID          = "planId"
 	MetaKeyPlanName        = "planName"
 	MetaKeyDecision        = "decision"
+	MetaKeyInsightID       = "insightId"
+	MetaKeyRequestID       = "requestId"
+	MetaKeyState           = "state"
 )
 
 const (

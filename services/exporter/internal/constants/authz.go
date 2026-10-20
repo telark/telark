@@ -14,12 +14,6 @@ const (
 )
 
 const (
-	CacheSignatureSeparator = "."
-	CacheSignatureLabel     = "telark:authz-cache:v1:"
-	ConstantTimeEqual       = 1
-)
-
-const (
 	ErrAuthzConfigDenied              = "you do not have permission to change this setting"
 	ErrAuthzPlanLifecycleDenied       = "lifecycle, approval and policy fields of a protection plan are managed by the platform"
 	ErrAuthzPrivilegedFieldDenied     = "you do not have permission to change this user's roles, groups or status"

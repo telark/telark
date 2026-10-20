@@ -58,6 +58,8 @@ const (
 	NotFoundStatusMarker          = "status: 404"
 	JSONObjectStart               = "{"
 	SyntheticRequestPath          = "/"
+	BootstrapActionApprove        = "approve"
+	BootstrapActionDeny           = "deny"
 	BreakGlassFlagSet             = "break-glass"
 	BreakGlassFlagEmail           = "email"
 	BreakGlassFlagEmailUsage      = "The bootstrap admin's email (BOOTSTRAP_ADMIN)"
@@ -74,8 +76,16 @@ const (
 	BreakGlassPatchFailed         = "patch failed: status %d: %s\n"
 	BreakGlassPromoted            = "%s is now the bootstrap admin, with the Admin role and passkey sign-in only.\n"
 	BreakGlassSignIn              = "Sign in with its passkey. If it has none, run this command again with --enroll.\n"
-	BreakGlassEnrollURL           = "%s/register?enroll=%s&email=%s"
+	BreakGlassEnrollURL           = "%s/register#enroll=%s&email=%s"
 	BreakGlassDashboardURL        = "<dashboard-url>"
+	BreakGlassRequestFailed       = "The break-glass request failed: %v\n"
+	BreakGlassNewestRequest       = "Newest request: %s, %s, %s, opened %s.\n"
+	BreakGlassKindRecover         = "recover %s"
+	BreakGlassKindReplace         = "make %s the bootstrap account"
+	BreakGlassApproveURL          = "%s/break-glass#request=%s"
+	BreakGlassRecovered           = "Request %s completed: the earlier passkeys, sessions and enrollment links of %s are removed.\n"
+	BreakGlassReplaced            = "Request %s completed: %s is now the bootstrap account.\n"
+	BreakGlassAlreadyEnrolled     = "%s already has a passkey. Sign in with it.\n"
 )
 
 const (
@@ -86,9 +96,23 @@ const (
 		"       %s\n" +
 		"%s" +
 		"  2. Name the device, select Register Passkey, and confirm with your fingerprint, face or screen lock.\n\n" +
-		"The link adds one passkey and expires at %s. Running this command again replaces it.\n" +
+		"The link adds one passkey and expires in 10 minutes, at %s. Running this command again replaces it.\n" +
 		"The enrollment token is the value after enroll= in the link. If you type the address by hand,\n" +
 		"put the token there: the page has no field for it.\n"
+	BreakGlassStatusFailed = "Could not read the bootstrap account from the exporter: %v\n" +
+		"Check that the exporter is running, then run this command again.\n"
+	BreakGlassPinMissing = "%s has a passkey, but the exporter has not pinned it, so this command changes nothing.\n" +
+		"Upgrade the telark-crds chart if it is older than the app chart, restart the exporter, then run this command again.\n"
+	BreakGlassPinnedTo = "The bootstrap account is %s, pinned since %s.\n" +
+		"Run this command again with --enroll to open a break-glass request.\n"
+	BreakGlassOtherRequest = "Another break-glass request is open: %s, %s.\n" +
+		"A new one opens once it completes, or once the bootstrap account denies it or signs in.\n"
+	BreakGlassRequestOpen = "\nBreak-glass request %s is open: %s.\n" +
+		"It completes when the bootstrap account approves it with a passkey, signed in or not, at:\n" +
+		"       %s\n" +
+		"%s" +
+		"or at %s, 72 hours after it opened, unless the bootstrap account signs in first: a sign-in cancels it.\n" +
+		"Run this command again after the approval, or after that time, to get the enrollment link.\n"
 )
 
 // A refusal's code is what clients branch on, so its message can be reworded freely.

@@ -8,9 +8,11 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	authdata "github.com/telark/telark/internal/data/auth"
+	dataconstants "github.com/telark/telark/internal/data/constants"
 	"github.com/telark/telark/internal/data/resources/finalizers"
 	userresource "github.com/telark/telark/internal/data/resources/user"
 	notificationsclient "github.com/telark/telark/internal/rest/clients/notifications"
@@ -19,12 +21,16 @@ import (
 	"github.com/telark/telark/services/auth/internal/constants"
 	cleanupctrl "github.com/telark/telark/services/auth/internal/controllers/cleanup"
 	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
+	redishelper "github.com/telark/telark/services/auth/internal/helpers/redis"
 	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
 const (
 	flagEmail  = "--email"
 	flagEnroll = "--enroll"
+	// Pinned: a break-glass token opens the bootstrap account, so its lifetime is the security design.
+	breakGlassTTL = 10 * time.Minute
+	bootstrapPath = "/api/v1/bootstrap"
 )
 
 // Shared by the package: auth binds its Redis client once per process, and the tests read the tokens stored there.
@@ -42,16 +48,21 @@ func TestMain(m *testing.M) {
 	if err := os.Setenv("REDIS_PORT", mr.Port()); err != nil {
 		panic(err)
 	}
+	// Enrollment tokens are stored signed with it.
+	if err := os.Setenv(dataconstants.EnvServiceToken, "test-service-token"); err != nil {
+		panic(err)
+	}
 	m.Run()
 	mr.Close()
 }
 
-// Both key kinds open a registration: a user's own link and an invite.
+// Both key kinds open a registration: a user's own link and an invite. An entry that doesn't verify names nobody.
 func enrollTokenOwners() []string {
 	var owners []string
 	for _, key := range redisServer.Keys() {
 		if strings.HasPrefix(key, constants.RedisKeyPrefixEnrollToken) || strings.HasPrefix(key, constants.RedisKeyPrefixInvite) {
-			owner, _ := redisServer.Get(key)
+			entry, _ := redisServer.Get(key)
+			owner, _ := redishelper.VerifyEntry(key, entry)
 			owners = append(owners, owner)
 		}
 	}
@@ -149,6 +160,8 @@ type freshInstall struct {
 
 func (f *freshInstall) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
+	case r.URL.Path == bootstrapPath:
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{}})
 	case r.Method == http.MethodPost:
 		f.creates++
 		var user userresource.User
@@ -226,13 +239,13 @@ func TestBreakGlassOutput(t *testing.T) {
 				}
 			}
 			if c.link == constants.EmptyString {
-				testutil.Equal(t, "link printed", strings.Contains(out, "/register?"), false)
+				testutil.Equal(t, "link printed", strings.Contains(out, "/register#"), false)
 				return
 			}
-			base, query := enrollLink(t, out)
-			token := linkToken(t, query)
+			base, fragment := enrollLink(t, out)
+			token := linkToken(t, fragment)
 			testutil.Equal(t, "link", base, c.link)
-			testutil.Equal(t, "query", query, "enroll="+token+"&email=test%40example.com")
+			testutil.Equal(t, "fragment", fragment, "enroll="+token+"&email=test%40example.com")
 			if owner, _, err := authhelper.ResolveEnrollToken(token); err != nil || owner != "u-root" {
 				t.Fatalf("token resolves to %q (%v), want u-root", owner, err)
 			}
@@ -246,17 +259,20 @@ func TestBreakGlassLookupFailure(t *testing.T) {
 	const email = "test@example.com"
 	t.Setenv(constants.EnvBootstrapAdmin, email)
 	cases := []struct {
-		name    string
-		status  int
-		args    []string
-		want    string
-		creates int
+		name       string
+		status     int
+		args       []string
+		want       string
+		creates    int
+		statusRead bool
 	}{
 		{"exporter fails the lookup", http.StatusInternalServerError, []string{flagEnroll},
-			"Could not read test@example.com from the exporter", constants.DefaultInitValue},
-		{"no account without --enroll", http.StatusNotFound, nil, "No account uses test@example.com yet", constants.DefaultInitValue},
+			"Could not read test@example.com from the exporter", constants.DefaultInitValue, true},
+		{"no account without --enroll", http.StatusNotFound, nil, "No account uses test@example.com yet", constants.DefaultInitValue, true},
 		{"exporter refuses the create", http.StatusNotFound, []string{flagEnroll}, "create failed: status 404",
-			constants.DefaultIncrementValue},
+			constants.DefaultIncrementValue, true},
+		{"exporter fails the bootstrap read", http.StatusInternalServerError, []string{flagEnroll},
+			"Could not read the bootstrap account from the exporter", constants.DefaultInitValue, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -264,6 +280,11 @@ func TestBreakGlassLookupFailure(t *testing.T) {
 			testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodPost {
 					creates++
+				}
+				// No account is pinned, so break-glass goes on to the lookup this test fails.
+				if r.URL.Path == bootstrapPath && c.statusRead {
+					_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{}})
+					return
 				}
 				w.WriteHeader(c.status)
 				_ = json.NewEncoder(w).Encode(map[string]any{"status": c.status})
@@ -311,11 +332,11 @@ func runBreakGlass(t *testing.T, args ...string) (code int, stdout, stderr strin
 	return code, string(printed), string(logged)
 }
 
-// The token rides in the enrollment link, as the dashboard's Members dialog builds it.
-func enrollLink(t *testing.T, out string) (base, query string) {
+// The token rides in the enrollment link's fragment, which no server sees, as the dashboard's Members dialog builds it.
+func enrollLink(t *testing.T, out string) (base, fragment string) {
 	t.Helper()
 	for _, field := range strings.Fields(out) {
-		if before, after, found := strings.Cut(field, "/register?"); found {
+		if before, after, found := strings.Cut(field, "/register#"); found {
 			return before + "/register", after
 		}
 	}
@@ -323,9 +344,9 @@ func enrollLink(t *testing.T, out string) (base, query string) {
 	return constants.EmptyString, constants.EmptyString
 }
 
-func linkToken(t *testing.T, query string) string {
+func linkToken(t *testing.T, fragment string) string {
 	t.Helper()
-	values, err := url.ParseQuery(query)
+	values, err := url.ParseQuery(fragment)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -336,45 +357,59 @@ func enroll(t *testing.T, email string) (token, out string) {
 	t.Helper()
 	code, out, _ := runBreakGlass(t, flagEmail, email, flagEnroll)
 	testutil.Equal(t, "exit", code, constants.DefaultInitValue)
-	_, query := enrollLink(t, out)
-	return linkToken(t, query), out
+	_, fragment := enrollLink(t, out)
+	return linkToken(t, fragment), out
 }
 
-// --enroll issues an invite like a link from Members: a new run replaces the previous token, the record shows the
-// link with no issuing user, and an account that has a passkey hears of it when the token is created and used.
+// Before the pin, --enroll issues an invite like a link from Members: a new run replaces the previous token, the
+// record shows the link with no issuing user, and an account promoted with a passkey hears of it when the token is
+// created and used (the exporter pins that account as it marks it, so its next run opens a request). The token
+// lives 10 minutes, whatever lifetime the chart gives member links.
 func TestBreakGlassEnrollIssuesAnInvite(t *testing.T) {
-	const email = "test@example.com"
+	const email, replacingRuns = "test@example.com", 2
 	t.Setenv(constants.EnvBootstrapAdmin, email)
+	t.Setenv(constants.EnvEnrollInviteTTLSec, "86400")
 	adminRole := constants.BuiltInRoleAdmin
 	created, used := notificationsclient.TypeEnrollLinkCreated, notificationsclient.TypeEnrollLinkUsed
 	cases := []struct {
 		name     string
+		marked   bool
 		passkeys int
+		runs     int
 		notices  []string
 	}{
-		{"account without a passkey", constants.DefaultInitValue, nil},
-		{"account with a passkey", constants.DefaultIncrementValue, []string{created, created, used}},
+		{"account without a passkey", true, constants.DefaultInitValue, replacingRuns, nil},
+		{"account with a passkey, promoted", false, constants.DefaultIncrementValue, constants.DefaultIncrementValue, []string{created, used}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			redisServer.FlushAll()
 			fake := &testutil.FakeExporter{
-				Users:    map[string]*userresource.User{"u-1": {ID: "u-1", Email: email, Bootstrap: true, RoleRefs: []*string{&adminRole}}},
+				Users:    map[string]*userresource.User{"u-1": {ID: "u-1", Email: email, Bootstrap: c.marked, RoleRefs: []*string{&adminRole}}},
 				Passkeys: map[string]int{"u-1": c.passkeys},
 			}
 			testutil.StubBackend(t, fake)
 
-			replaced, _ := enroll(t, email)
-			token, out := enroll(t, email)
-			if _, _, err := authhelper.ResolveEnrollToken(replaced); err == nil {
-				t.Fatal("the replaced token still opens a registration")
+			var tokens []string
+			out := constants.EmptyString
+			for range c.runs {
+				var token string
+				token, out = enroll(t, email)
+				tokens = append(tokens, token)
+			}
+			token := tokens[len(tokens)-constants.DefaultIncrementValue]
+			for _, replaced := range tokens[:len(tokens)-constants.DefaultIncrementValue] {
+				if _, _, err := authhelper.ResolveEnrollToken(replaced); err == nil {
+					t.Fatal("the replaced token still opens a registration")
+				}
 			}
 			testutil.Equal(t, "live tokens", strings.Join(enrollTokenOwners(), ","), "u-1")
-			testutil.Equal(t, "lifetime", redisServer.TTL(constants.RedisKeyPrefixInviteOf+"u-1"), config.EnrollInviteTTL())
+			testutil.Equal(t, "lifetime", redisServer.TTL(constants.RedisKeyPrefixInviteOf+"u-1"), breakGlassTTL)
 			invite := fake.User("u-1").Status.Invite
 			if invite == nil || invite.IssuedBy != constants.EmptyString || !strings.Contains(out, invite.ExpiresAt) {
 				t.Fatalf("stored invite = %+v, want the printed expiry and no issuer", invite)
 			}
+			expectInviteWindow(t, invite, breakGlassTTL)
 
 			// The steps of the registration the token opens, without the WebAuthn ceremony.
 			owner, digest, err := authhelper.ResolveEnrollToken(token)
@@ -391,6 +426,34 @@ func TestBreakGlassEnrollIssuesAnInvite(t *testing.T) {
 			authhelper.CompleteInvite(&user, true)
 			testutil.Equal(t, "notices", noticeTypes(t, fake.Notices(), owner), strings.Join(c.notices, ","))
 		})
+	}
+}
+
+// A marked account with a passkey and no pin means the exporter couldn't store the pin: break-glass refuses rather
+// than act at once, and changes nothing.
+func TestBreakGlassRefusesAnEnrolledAccountWithoutAPin(t *testing.T) {
+	const email = "test@example.com"
+	t.Setenv(constants.EnvBootstrapAdmin, email)
+	redisServer.FlushAll()
+	adminRole := constants.BuiltInRoleAdmin
+	testutil.StubBackend(t, &testutil.FakeExporter{
+		Users:    map[string]*userresource.User{"u-1": {ID: "u-1", Email: email, Bootstrap: true, RoleRefs: []*string{&adminRole}}},
+		Passkeys: map[string]int{"u-1": constants.DefaultIncrementValue},
+	})
+	code, out, logged := runBreakGlass(t, flagEmail, email, flagEnroll)
+	testutil.Equal(t, "refused", code, constants.ExitCodeError)
+	testutil.Equal(t, "says why", strings.Contains(logged, "has a passkey, but the exporter has not pinned it"), true)
+	testutil.Equal(t, "no link", strings.Contains(out, "#enroll="), false)
+	testutil.Equal(t, "tokens", len(enrollTokenOwners()), constants.DefaultInitValue)
+}
+
+// The record's window, from issue to expiry, is the token's lifetime.
+func expectInviteWindow(t *testing.T, invite *userresource.Invite, ttl time.Duration) {
+	t.Helper()
+	issued, issuedErr := time.Parse(time.RFC3339, invite.IssuedAt)
+	expires, expiresErr := time.Parse(time.RFC3339, invite.ExpiresAt)
+	if issuedErr != nil || expiresErr != nil || expires.Sub(issued) != ttl {
+		t.Fatalf("invite window %s..%s, want %s", invite.IssuedAt, invite.ExpiresAt, ttl)
 	}
 }
 

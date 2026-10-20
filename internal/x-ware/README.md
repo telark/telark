@@ -6,7 +6,7 @@ An internal package of the Telark Go module (`github.com/telark/telark/internal/
 
 | Package | Contents |
 |---|---|
-| `authz` | Request authentication (session or service token) and route requirements: levels per scope, deny rules, unmapped routes denied. See the [security model](https://github.com/telark/telark/blob/main/docs/security/README.md) |
+| `authz` | Request authentication (session or service token) and route requirements: levels per scope, deny rules, unmapped routes denied. Also the HMAC signing, with the service token, of the Redis entries that drive authorization. See the [security model](https://github.com/telark/telark/blob/main/docs/security/README.md) |
 | `cors` | CORS from `CORS_ALLOWED_ORIGINS`; no CORS headers when it is empty |
 | `redis` | Client with retry on start, cache, streams, locks and leader election |
 | `nats` | JetStream client with retry on start |

@@ -24,6 +24,7 @@ const (
 	ErrSessionExpired          errors.Error = "session has expired"
 	ErrMissingSessionToken     errors.Error = "missing session token"
 	ErrPasskeyNotFound         errors.Error = "passkey not found"
+	ErrTooManyAttempts         errors.Error = "too many attempts right now: wait a minute, then try again"
 
 	// WebAuthn Errors
 	ErrWebAuthnSetupFailed          errors.Error = "failed to setup WebAuthn %v"
@@ -109,7 +110,6 @@ const (
 
 	// Passkey Registration Errors
 	ErrInvalidResponseStructure     errors.Error = "invalid response structure"
-	ErrMissingAttestationObject     errors.Error = "missing attestationObject"
 	ErrMissingClientDataJSON        errors.Error = "missing clientDataJSON"
 	ErrMissingCredentialID          errors.Error = "missing credential id"
 	ErrMissingUserID                errors.Error = "missing user id"
@@ -157,6 +157,7 @@ const (
 
 	// Redis Errors
 	ErrRedisClientUnavailable errors.Error = "redis client is not available — check REDIS_HOST and REDIS_PORT"
+	ErrRedisEntryUnsigned     errors.Error = "cannot sign the redis entry: TELARK_SERVICE_TOKEN is not set"
 
 	// Async Worker Warnings
 	WarnAsyncWorkerFull         errors.Error = "async worker pool full, dropping housekeeping op"
@@ -166,6 +167,17 @@ const (
 	// Enrollment Link Warnings
 	WarnEnrollNoticeFailed errors.Error = "enrollment link notice not delivered to identityHash=%s"
 	WarnInviteCloseFailed  errors.Error = "failed to close the enrollment invite of identityHash=%s: %v"
+
+	// Break-glass Request Errors
+	ErrAccountRecovering        errors.Error = "this account is being recovered with break-glass: try again shortly"
+	ErrRecoveryFreezeLost       errors.Error = "the account's recovery freeze lapsed before the recovery finished: run break-glass again"
+	ErrBootstrapActionInvalid   errors.Error = "action must be approve or deny"
+	ErrBootstrapRequestNotOpen  errors.Error = "this break-glass request can't be approved or denied: it isn't the bootstrap account's open request"
+	ErrBootstrapNoPasskey       errors.Error = "the bootstrap account has no passkey to approve with"
+	ErrBootstrapStatusFailed    errors.Error = "failed to read the bootstrap status: %v"
+	ErrFailedDropEnrollTokens   errors.Error = "failed to drop the enrollment links of identityHash=%s: %v"
+	WarnBootstrapSignInCancel   errors.Error = "a sign-in by the bootstrap account did not cancel request %s: status %d: %s"
+	WarnBootstrapSignInNoStatus errors.Error = "a sign-in by the bootstrap account could not read its requests: %v"
 
 	// Credential Verification Errors
 	ErrBackupEligibleFlagInconsistency errors.Error = "backup eligible flag inconsistency: stored (BE:%v, BS:%v) != login (BE:%v, BS:%v)"

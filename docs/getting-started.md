@@ -28,7 +28,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
   --set app.kyverno.enabled=false
 ```
 
-Telark is tested with Kyverno v1.19.1, the version the chart bundles. With your own Kyverno, change history names no author, because the chart installs the policy that records authors only with the bundled Kyverno.
+Telark is tested with Kyverno v1.19.1, the version the chart bundles, and needs Kyverno 1.18 or later with the `policies.kyverno.io` CRDs ([Install](INSTALL.md#1-install)). With your own Kyverno, change history names no author, because the chart installs the policy that records authors only with the bundled Kyverno.
 
 By default the chart installs Telark's services together with Kyverno, Redis, NATS, metrics-server and Ollama. Wait until every pod is running:
 
@@ -46,7 +46,7 @@ Create a one-time enrollment link with the auth service's break-glass command, u
 kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email test@example.com --enroll
 ```
 
-It prints the next steps and a link like `<dashboard-url>/register?enroll=<token>&email=test%40example.com`. The link is valid for an hour.
+It prints the next steps and a link like `<dashboard-url>/register#enroll=<token>&email=test%40example.com`. The link is valid for 10 minutes.
 
 Forward the dashboard to your machine and leave the command running:
 
@@ -81,13 +81,13 @@ Audit mode records what a [protection plan](concepts.md#protection-plans) would 
 4. Under **Execution & approval**, keep **Automatic**.
 5. Under **Scope**, choose **Applications** and select `web`.
 6. Under **Schedule**, choose **Time range**, start now and end in one hour.
-7. Under **Policies**, set the mode to **Audit** and add the template **Block Replica Scaling**.
-8. Select **Create Plan**.
+7. Under **Policies**, set the mode to **Audit** and add the template **Changing replica counts**.
+8. Check the summary under **This plan will**, then select **Create and start auditing**.
 
 You should see the plan as **Active** and, after the next health check (about 30 seconds), its health as **Healthy**. Telark has created a Kyverno policy in the `demo` namespace:
 
 ```sh
-kubectl get policies.kyverno.io -n demo -l telark.io/protection-plan
+kubectl get namespacedvalidatingpolicies -n demo -l telark.io/protection-plan
 ```
 
 ## 5. See a violation
@@ -98,9 +98,9 @@ Scale the protected Deployment:
 kubectl scale deployment web -n demo --replicas=3
 ```
 
-The command succeeds, because the plan only audits. Open the plan and look at **Violations**. Within a minute (select **Refresh** if needed) you should see the scale request on `web`, with a message saying replica scaling would be blocked by the plan.
+The command succeeds, because the plan only audits. Open the plan and look at **Admission decisions**. Within a minute (select **Refresh** if needed) you should see the scale request on `web`, with a message saying replica scaling would be blocked by the plan.
 
-To block the change for real, edit or duplicate the plan and set the mode to **Enforce**. The same `kubectl scale` command is then refused by the admission webhook with the message "Replica scaling is blocked by protection plan …".
+To block the change for real, edit or duplicate the plan and set the mode to **Enforce**. The same `kubectl scale` command is then refused by the admission webhook with a message naming the plan and you: `Replica scaling is blocked by protection plan "…". (requested by "…")`.
 
 When you are done, cancel the plan from its page. Telark removes its Kyverno policies. A report of what happened while the plan ran is available under **Reports** in HTML, Markdown, JSON or CSV.
 
@@ -108,7 +108,7 @@ When you are done, cancel the plan from its page. Telark removes its Kyverno pol
 
 [Insights](concepts.md#insights) is on by default. Its model (708 MB) downloads in the background after install; until it finishes, cards show the rule text without the model's rewording. To have incidents analyzed as they happen:
 
-1. Open **Settings**, then **Insights**, and turn on **Analyze automatically on incidents and recoveries**.
+1. Open **Settings**, then **Insights**, and turn on **Automatic analysis**.
 2. Break the demo application:
 
    ```sh

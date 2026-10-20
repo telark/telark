@@ -20,6 +20,8 @@ const (
 	HeaderOrigin                = "Origin"
 	HeaderForwardedHost         = "X-Forwarded-Host"
 	HeaderForwardedProto        = "X-Forwarded-Proto"
+	HeaderForwardedFor          = "X-Forwarded-For"
+	HeaderRetryAfter            = "Retry-After"
 	IDPathParam                 = "id"
 	CredentialIDPathParam       = "credentialId"
 	ContentTypeJSON             = "application/json"
@@ -72,6 +74,18 @@ const (
 	TelarkConfigCacheTTL      = 5 * time.Second
 	TelarkConfigFlightKey     = "telarkconfig"
 
+	// The global limit is per route over all clients: many addresses can hold one start at its cap, not fill Redis.
+	EnvRateLimitPerClient       = "RATE_LIMIT_PER_CLIENT"
+	EnvRateLimitGlobal          = "RATE_LIMIT_GLOBAL"
+	EnvRateLimitTrustedHops     = "RATE_LIMIT_TRUSTED_HOPS"
+	DefaultRateLimitPerClient   = 30
+	DefaultRateLimitGlobal      = 3000
+	DefaultRateLimitTrustedHops = 0
+	// As long as a challenge lives, so a client holds at most its limit of live challenges per route.
+	RateLimitWindowSec = RedisTTLChallenge
+	// An IPv6 client usually holds a whole /64, so the /64 counts as one client.
+	RateLimitIPv6PrefixBits = 64
+
 	BuiltInRoleAdmin    = "r-00000-0000-0001"
 	BuiltInRoleReadOnly = "r-00000-0000-0004"
 
@@ -90,20 +104,34 @@ const (
 	RedisKeyPrefixEnrollToken       = "auth:passkey:enroll-token:"
 	RedisKeyPrefixInvite            = "auth:passkey:invite:"
 	RedisKeyPrefixInviteOf          = "auth:passkey:invite-of:"
+	RedisKeyPrefixEnrollTokensOf    = "auth:passkey:enroll-tokens-of:"
 	RedisKeyPrefixPendingUser       = "auth:webauthn:pending-user:"
 	RedisKeyPrefixNonce             = "auth:oidc:nonce:"
+	RedisKeyPrefixBootstrapAssert   = "auth:bootstrap:assert:"
+	RedisKeyPrefixFrozen            = "auth:webauthn:frozen:"
+	RedisKeyPrefixRateLimit         = "auth:ratelimit:"
+	CookiePath                      = "/"
+	CookieMaxAgeDelete              = -1 // net/http's way of sending Max-Age=0
+	RedisChallengeEntry             = "1"
+	RedisMatchAll                   = "*"
+	RedisScanCount                  = 1000
 
 	// Redis TTLs
-	RedisTTLChallenge        = 60  // seconds — matches WebAuthn ceremony timeout
-	RedisTTLNonce            = 300 // seconds — 5 minutes for OIDC flow
-	RedisTTLEnrollToken      = 600 // seconds — 10 minutes to open the enrollment link on the other host
+	RedisTTLChallenge      = 60  // seconds — matches WebAuthn ceremony timeout
+	RedisTTLNonce          = 300 // seconds — 5 minutes for OIDC flow
+	RedisTTLEnrollToken    = 600 // seconds — 10 minutes to open a user's own link on the other host, or break-glass's
+	RedisTTLRecoveryFreeze = 120 // seconds, extended before each step of a recovery, so it outlives RecoveryHold
+	// A create auth sent before the freeze lands by 42.2 s: no exporter attempt starts after its 30 s call (+0.2 s retry delay), one lasts 12 s.
+	// An identity PATCH lands by 45 s: none starts after its route's 20 s deadline, then the exporter reads (10 s) and writes (15 s).
+	RecoveryHold             = 45 * time.Second
 	OIDCNonceByteLen         = 32
 	RedisAsyncWorkerPoolSize = 32
 	RedisAsyncWorkerTimeout  = 5 * time.Second
 	RedisAsyncDrainTimeout   = 5 * time.Second
 	RedisChallengeOpTimeout  = 3 * time.Second
+	RedisScanTimeout         = 30 * time.Second
 
-	// KEYS: invite-of:<user>, invite:<digest>. ARGV: invite prefix, user, digest, TTL seconds.
+	// KEYS: invite-of:<user>, invite:<digest>. ARGV: invite prefix, signed entry naming the user, digest, TTL seconds.
 	ScriptIssueInvite = `local previous = redis.call('GET', KEYS[1])
 if previous then redis.call('DEL', ARGV[1] .. previous) end
 redis.call('SET', KEYS[2], ARGV[2], 'EX', ARGV[4])
@@ -113,14 +141,22 @@ return 1`
 	ScriptRevokeInvite = `local previous = redis.call('GET', KEYS[1])
 if previous then redis.call('DEL', ARGV[1] .. previous) end
 return redis.call('DEL', KEYS[1])`
-	// KEYS: enroll-token:<digest>, invite:<digest>. ARGV: invite-of prefix, digest.
-	// Returns {owner}, or {owner, digest} when the token was an invite.
-	ScriptConsumeEnrollToken = `local owner = redis.call('GETDEL', KEYS[1])
-if owner then return {owner} end
-owner = redis.call('GETDEL', KEYS[2])
-if not owner then return false end
-if redis.call('GET', ARGV[1] .. owner) == ARGV[2] then redis.call('DEL', ARGV[1] .. owner) end
-return {owner, ARGV[2]}`
+	// KEYS: enroll-tokens-of:<user>. ARGV: enroll-token prefix.
+	ScriptDropEnrollTokens = `for _, digest in ipairs(redis.call('SMEMBERS', KEYS[1])) do redis.call('DEL', ARGV[1] .. digest) end
+return redis.call('DEL', KEYS[1])`
+	// KEYS: enroll-token:<digest>, invite:<digest>. ARGV: invite-of prefix, digest, the ceremony's owner.
+	// Returns {entry, key}: the stored entry, verified by the caller, and the key it was spent from.
+	ScriptConsumeEnrollToken = `local entry = redis.call('GETDEL', KEYS[1])
+if entry then return {entry, KEYS[1]} end
+entry = redis.call('GETDEL', KEYS[2])
+if not entry then return false end
+if redis.call('GET', ARGV[1] .. ARGV[3]) == ARGV[2] then redis.call('DEL', ARGV[1] .. ARGV[3]) end
+return {entry, KEYS[2]}`
+
+	// The approval challenge: random bytes, then the SHA-256 of the label, the request id and the action, NUL-joined.
+	BootstrapChallengeRandomBytes = 32
+	BootstrapChallengeLabel       = "telark-bootstrap-request-v1"
+	BootstrapChallengeSeparator   = "\x00"
 
 	// Username generation (CRD regex: ^[a-zA-Z0-9_-]+$)
 	UsernameMaxLocalLen  = 43

@@ -19,7 +19,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
   --set app.kyverno.enabled=false
 ```
 
-Telark is tested with Kyverno v1.19.1, the version the chart bundles. With your own Kyverno, change history names no author, because the chart installs the policy that records authors only with the bundled Kyverno.
+Telark is tested with Kyverno v1.19.1, the version the chart bundles, and needs Kyverno 1.18 or later with the `policies.kyverno.io` CRDs ([Install](../../docs/INSTALL.md#1-install)). With your own Kyverno, change history names no author, because the chart installs the policy that records authors only with the bundled Kyverno.
 
 Measured capacity (2026-09-18): `minimal` handles a few hundred applications; `standard` was verified at 2 000 (three discovery replicas; rediscovering a deleted 100-app namespace took about 3.5 minutes); `performance` is for larger clusters.
 
@@ -76,6 +76,8 @@ The tables below explain the values that matter. [VALUES.md](VALUES.md) is the g
 | `app.selfMonitoring.enabled` | `false` | `false`: discovery skips Telark's own namespace (its services, Redis, NATS, Ollama, Kyverno, metrics-server), so none of it shows under Applications, and Application CRs already there are cleaned up. `true`: they show like any application. Plans never target that namespace. → `SELF_MONITORING_ENABLED` on discovery. See [Self-monitoring](../../docs/INSTALL.md#self-monitoring) |
 | `app.serviceToken.value` | `""` | Service token; empty = generated on install, read back on upgrade |
 | `app.serviceToken.existingSecret` | `""` | Secret (key `token`) you manage instead of the generated one, for cluster-less renders. See [GitOps](../../docs/INSTALL.md#gitops-cluster-less-renders) |
+| `app.webhooks.targets` | `[]` | Endpoints the notifier sends signed events to (`name`, `url`, `secret`, optional `previousSecret`, `events`, `allowPrivate`), rendered into the Secret `<app.name>-webhooks`. See [Webhooks](../../docs/INSTALL.md#webhooks) |
+| `app.webhooks.existingSecret` | `""` | Secret you manage instead (key `targets.json`, the same list as JSON), for cluster-less renders. See [Webhooks](../../docs/INSTALL.md#webhooks) |
 | `nats.existingSecrets.publisher` / `consumer` | `""` | Secrets (keys `username`, `password`) for the NATS publisher (discovery) and consumer (notifier) users instead of the generated `<app.name>-nats-{publisher,consumer}-secret`. See [GitOps](../../docs/INSTALL.md#gitops-cluster-less-renders) |
 | `redis.auth.existingSecret` | `<release>-redis-secret` | Secret with the Redis password (key `redis-password`), generated on install and read back on upgrade; name a Secret you manage for cluster-less renders. Redis always requires the password: `redis.auth.enabled=false` fails the render. See [GitOps](../../docs/INSTALL.md#gitops-cluster-less-renders) |
 | `metrics-server.args` | `[]` | Flags added after the subchart's `defaultArgs` (which already set `--kubelet-preferred-address-types`). Kubelet certificates are verified; add `--kubelet-insecure-tls` only where they are self-signed. See [metrics-server kubelet TLS](../../docs/INSTALL.md#metrics-server-kubelet-tls) |
@@ -89,7 +91,7 @@ The tables below explain the values that matter. [VALUES.md](VALUES.md) is the g
 
 #### Protection plan reports
 
-Reports live on the exporter's second PVC, next to snapshots, with the same storage class and access mode ([Exporter storage](../../docs/INSTALL.md#exporter-storage)). A final report is captured asynchronously right after a plan ends (once its policies are removed and its phase recorded). Periodic checkpoints keep records past the 1 h Event retention; an on-demand report merges what the cluster still holds. Reports are deleted with the plan and swept if the plan CR disappears; at most 10 on-demand reports are kept per plan. Formats: HTML, Markdown, JSON, CSV (PDF via the browser's print). The document shows user ids, not names. While two on-demand renders are running, the generate call returns HTTP 429 with `Retry-After`.
+Reports live on the exporter's second PVC, next to snapshots, with the same storage class and access mode ([Exporter storage](../../docs/INSTALL.md#exporter-storage)). A final report is captured asynchronously right after a plan ends (once its policies are removed and its phase recorded). Periodic checkpoints keep records past the 1 h Event retention; an on-demand report merges what the cluster still holds. Reports are deleted with the plan and swept if the plan CR disappears; at most 10 on-demand reports, and a repeating plan's newest 100 window reports, are kept per plan. A user can keep a plan's reports when deleting it: kept reports are never swept and stay on this PVC until someone deletes them, so size it for them. The window-report cap counts reports, not bytes, and one report can reach 16 MiB, so a busy Enforce series can hold up to about 1.6 GiB: size the PVC for the repeating plans you run. Any report can be deleted from the dashboard. Formats: HTML, Markdown, JSON, CSV (PDF via the browser's print). The document shows user ids, not names. While two on-demand renders are running, the generate call returns HTTP 429 with `Retry-After`.
 
 #### `app.auth.bootstrap`
 
@@ -113,7 +115,7 @@ WebAuthn relying-party identity. Passkey self-registration is a Settings toggle,
 |---|---|---|
 | `app.auth.passkey.id` | `""` | Relying Party identifier. Empty follows the request host (`X-Forwarded-Host`, else `Host`, port stripped), so passkeys work on whichever hostname you open the dashboard on. Required (the render fails) with `ingress.enabled` or `gateway.enabled`; pin it in production. Injected as `RP_ID`. |
 | `app.auth.passkey.name` | `"Dashboard App"` | Display name shown by the authenticator (Touch ID prompt, etc.). Injected as `RP_NAME`. |
-| `app.auth.passkey.origin` | `""` | Origin(s) accepted for WebAuthn ceremonies, comma-separated. Empty follows the request `Origin` header, whose host must be the relying party or one of its subdomains. Required (the render fails) with `ingress.enabled` or `gateway.enabled`; pin to `https://<domain>` in production. Injected as `RP_ORIGIN`. |
+| `app.auth.passkey.origin` | `""` | Origin(s) accepted for WebAuthn ceremonies, comma-separated. Empty follows the request `Origin` header, whose host must be the relying party or one of its subdomains. Required (the render fails) with `ingress.enabled` or `gateway.enabled`; pin to `https://<domain>` in production. Injected as `RP_ORIGIN`. It also names the session cookie: `__Host-telark_session` when every entry starts with `https://`, else `telark_session`, passed to every API service as `SESSION_COOKIE_HOST_PREFIX` ([Passkeys and HTTPS](../../docs/INSTALL.md#passkeys-and-https)). |
 
 ### `app.serviceDefaults`
 
@@ -147,6 +149,7 @@ Pod-level config selectively applied via per-service gates.
 |---|---|---|
 | `requests.cpu` / `requests.memory` | `100m` / `128Mi` | Resource requests |
 | `limits.cpu` / `limits.memory` | `1000m` / `512Mi` | Resource limits |
+| `requests.ephemeral-storage` / `limits.ephemeral-storage` | `50Mi` / `2Gi` | Local disk for the container logs (the kubelet keeps five 10Mi files) and disk-backed `emptyDir` volumes; the same in every mode. See [Sizing modes](../../docs/INSTALL.md#sizing-modes) |
 
 **`app.shared.healthCheck`**: HTTP probes applied when `includeHealthCheck: true` (default). `port` is the named container port.
 
@@ -203,7 +206,7 @@ Per-service block. Gates default to `true` unless noted.
 | `includeSecurity` | `true` | Apply `app.shared.podSecurityContext` + `app.shared.containerSecurityContext` (`ui` sets `false`: nginx runs as uid 101 and gets its own contexts below) |
 | `podSecurityContext` / `containerSecurityContext` | unset | Rendered verbatim instead of the shared contexts; `ui` uses them (uid 101, no privilege escalation, all capabilities dropped, read-only root with `emptyDir` on `/var/cache/nginx` and `/tmp`) |
 | `automountServiceAccountToken` | unset (Kubernetes default: mounted) | `false` on auth, notifier and ui, which never call the Kubernetes API; set on both the pod and its ServiceAccount |
-| `serviceToken` | `true` | Inject the shared service token as `TELARK_SERVICE_TOKEN`; `false` on ui, whose nginx only proxies browser calls and never calls a service itself |
+| `serviceToken` | `true` | Inject the shared service token as `TELARK_SERVICE_TOKEN`, and `SESSION_COOKIE_HOST_PREFIX` (see `app.auth.passkey.origin`); `false` on ui, whose nginx only proxies browser calls and never calls a service itself |
 | `serviceAccount.create` / `serviceAccount.name` / `serviceAccount.annotations` | `create: true` | Per-service ServiceAccount control |
 | `nodeSelector` / `tolerations` / `affinity` | `app.serviceDefaults.*` | Scheduling overrides |
 | `useRedis` | `true` | Mount `app.shared.redis` and `REDIS_PASSWORD` |
@@ -236,7 +239,7 @@ Image tags are `services.<svc>.version` in `values.yaml`, bumped by the release 
 
 | Variable | Default | Description |
 |---|---|---|
-| `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated browser origins answered with CORS headers; empty sends none (the dashboard proxies every API on its own origin). See [CORS](../../docs/INSTALL.md#cors) |
+| `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated exact browser origins answered with CORS headers; empty sends none (the dashboard proxies every API on its own origin). See [CORS](../../docs/INSTALL.md#cors) |
 | `SNAPSHOTS_PATH` | `/snapshots` | Filesystem mount path for snapshot files |
 | `SNAPSHOTS_PVC_NAME` | `{{ .Values.app.name }}-exporter-snapshots-pvc` (tpl), plus a storage suffix after a class change | PVC backing snapshot storage |
 | `SNAPSHOTS_PVC_NAMESPACE` | `{{ .Values.app.namespace }}` (tpl) | Namespace of the snapshots PVC |
@@ -254,7 +257,7 @@ K8s client + informers:
 
 | Variable | Default | Description |
 |---|---|---|
-| `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated browser origins answered with CORS headers; empty sends none (the dashboard proxies every API on its own origin). See [CORS](../../docs/INSTALL.md#cors) |
+| `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated exact browser origins answered with CORS headers; empty sends none (the dashboard proxies every API on its own origin). See [CORS](../../docs/INSTALL.md#cors) |
 | `DISCOVERY_K8S_CLIENT_QPS` | `100` | K8s client QPS; above 50/100 default to absorb snapshot LIST fanout on busy clusters |
 | `DISCOVERY_K8S_CLIENT_BURST` | `200` | K8s client burst |
 | `DISCOVERY_ROLLBACK_K8S_CLIENT_QPS` | `100` | Rollback controller's own K8s client QPS (its own bucket, sized like the shared one), so informer/prewarm traffic never queues a rollback's apply calls |
@@ -348,7 +351,7 @@ The analyzer's on/off switch, model and auto-analyze setting live on the TelarkC
 |---|---|---|
 | `REDIS_POOL_SIZE` | `10` | Redis client connection pool size |
 | `OLLAMA_HOST` | `app.ollama.runtimeUrl`, else `http://<release>-ollama:11434` (tpl) | Model runtime URL |
-| `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated browser origins answered with CORS headers; empty sends none (the dashboard proxies the analyzer on its own origin). See [CORS](../../docs/INSTALL.md#cors) |
+| `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated exact browser origins answered with CORS headers; empty sends none (the dashboard proxies the analyzer on its own origin). See [CORS](../../docs/INSTALL.md#cors) |
 | `OLLAMA_AUTO_PULL` | `{{ .Values.app.ollama.autoPull }}` (tpl) | Pull a missing model on demand |
 | `ANALYZER_MODE` | `fast` | `fast` = rules + one short narration; `deep` = the multi-step tool loop (4+ vCPU or GPU) |
 | `ANALYZER_NUM_THREAD` | `2` | Threads per model request; = `ollama.resources.limits.cpu`, never above the node's vCPU (oversubscription makes a run minutes long) |
@@ -433,6 +436,7 @@ The dashboard's Insights page lists every app's incidents and recommendations: d
 | Variable | Default | Description |
 |---|---|---|
 | `NOTIFIER_APPLY_WORKERS` | `8` | Concurrent apply workers; an application always maps to the same worker, so its updates stay ordered (`minimal` 2, `performance` 32) |
+| `WEBHOOK_TARGETS_FILE` | `/etc/telark/webhooks/targets.json` | Where the notifier reads the webhook targets, the mounted `app.webhooks` Secret. See [Webhooks](../../docs/INSTALL.md#webhooks) |
 
 Also inherits `app.shared.redis`, `app.shared.nats` and the NATS consumer credentials (`natsUser: consumer`).
 
@@ -442,17 +446,17 @@ Redis:
 
 | Variable | Default | Description |
 |---|---|---|
-| `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated browser origins answered with CORS headers; empty sends none (the dashboard proxies every API on its own origin). See [CORS](../../docs/INSTALL.md#cors) |
+| `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated exact browser origins answered with CORS headers; empty sends none (the dashboard proxies every API on its own origin). See [CORS](../../docs/INSTALL.md#cors) |
 | `REDIS_DB` | `1` | Redis DB index |
 | `REDIS_RETRY_INTERVAL_SEC` | `2` | Retry backoff base |
-| `REDIS_MAX_WAIT_SEC` | `30` | Total wait cap before failing the Redis op |
+| `REDIS_MAX_WAIT_SEC` | `180` | Total wait cap before failing the Redis op |
 | `REDIS_PING_TIMEOUT_SEC` | `3` | Per-ping timeout |
 
 Bootstrap (templated from `app.auth.bootstrap`):
 
 | Variable | Source | Description |
 |---|---|---|
-| `BOOTSTRAP_ADMIN` | `{{ .Values.app.auth.bootstrap.admin }}` | The bootstrap admin's email; `break-glass --enroll` marks it `bootstrap: true`, bare-email passkey registration refuses it, and OIDC and self-registration never grant it Admin |
+| `BOOTSTRAP_ADMIN` | `{{ .Values.app.auth.bootstrap.admin }}` | The bootstrap admin's email; `break-glass --enroll` marks it `bootstrap: true` until an account is pinned, then opens a request ([Recovery requests](../../docs/INSTALL.md#recovery-requests)); bare-email passkey registration refuses it, and OIDC and self-registration never grant it Admin |
 
 WebAuthn / passkey (templated from `app.auth.passkey`):
 
@@ -461,9 +465,17 @@ WebAuthn / passkey (templated from `app.auth.passkey`):
 | `RP_ID` | `{{ .Values.app.auth.passkey.id }}` | Relying Party identifier; empty follows the request host |
 | `RP_NAME` | `{{ .Values.app.auth.passkey.name }}` | Display name shown to the user |
 | `RP_ORIGIN` | `{{ .Values.app.auth.passkey.origin }}` | Allowed origin(s), comma-separated; empty follows the request `Origin` |
-| `ENROLL_INVITE_TTL_SEC` | inline (`"3600"`) | Lifetime (seconds) of an enrollment link created from Members or by `break-glass --enroll`; a new link revokes the previous one. See [Enrollment links](../../docs/INSTALL.md#enrollment-links) |
+| `ENROLL_INVITE_TTL_SEC` | inline (`"3600"`) | Lifetime (seconds) of an enrollment link created from Members (a `break-glass --enroll` link always lives 10 minutes); a new link revokes the previous one. See [Enrollment links](../../docs/INSTALL.md#enrollment-links) |
 | `CHALLENGE_TIMEOUT` | inline (`"60"`) | Challenge TTL (seconds) |
 | `SESSION_EXPIRY` | inline (`"24"`) | Session TTL (hours) |
+
+Sign-in rate limits, per minute on each public start (passkey sign-in and registration, break-glass approval, Google nonce), then 429 with `Retry-After: 60` ([Sign-in rate limits](../../docs/INSTALL.md#sign-in-rate-limits)):
+
+| Variable | Default | Description |
+|---|---|---|
+| `RATE_LIMIT_PER_CLIENT` | `30` | Starts per client |
+| `RATE_LIMIT_GLOBAL` | `3000` | Starts over all clients |
+| `RATE_LIMIT_TRUSTED_HOPS` | `1` with `ingress.enabled` or `gateway.enabled`, else `0` | Proxies in front of the ui that append to `X-Forwarded-For`: the client is the entry this many from the right. Add one per L7 proxy in front of the ingress or gateway |
 
 OIDC trust keys (mounted from the Secret named by `app.auth.oidc.existingSecret`, else `<fullname>-oidc-trust-secret`):
 

@@ -148,7 +148,8 @@ func RunForceSyncJob(
 
 	handlerErr := executeSyncHandler(ctx, rdb, appName)
 
-	_ = coord.Lock.Release(context.Background(), lockKey, lockValue)
+	// Release even when ctx is canceled, so a timed-out sync doesn't hold the lock until its TTL.
+	_ = coord.Lock.Release(context.WithoutCancel(ctx), lockKey, lockValue)
 	return handlerErr
 }
 

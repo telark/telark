@@ -110,6 +110,8 @@ spec:
           resources:
             requests:
               memory: {{ $values.app.shared.resources.requests.memory }}
+              cpu: {{ $values.app.shared.resources.requests.cpu }}
+              ephemeral-storage: {{ index $values.app.shared.resources.requests "ephemeral-storage" }}
             limits:
               memory: {{ $values.app.shared.resources.limits.memory }}
           securityContext: {{- toYaml $securityContext | nindent 12 }}

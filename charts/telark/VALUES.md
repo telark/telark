@@ -106,9 +106,13 @@ Kubernetes: `>=1.30.0-0`
 | app.shared.redis.REDIS_HOST | string | `"{{ .Release.Name }}-redis-master"` |  |
 | app.shared.redis.REDIS_PORT | string | `"6379"` |  |
 | app.shared.resources.limits.cpu | string | `"1000m"` |  |
+| app.shared.resources.limits.ephemeral-storage | string | `"2Gi"` |  |
 | app.shared.resources.limits.memory | string | `"512Mi"` |  |
 | app.shared.resources.requests.cpu | string | `"100m"` |  |
+| app.shared.resources.requests.ephemeral-storage | string | `"50Mi"` |  |
 | app.shared.resources.requests.memory | string | `"128Mi"` |  |
+| app.webhooks.existingSecret | string | `""` |  |
+| app.webhooks.targets | list | `[]` |  |
 | commonAnnotations | object | `{}` |  |
 | commonLabels | object | `{}` |  |
 | crds.enabled | bool | `true` |  |
@@ -304,12 +308,15 @@ Kubernetes: `>=1.30.0-0`
 | services.auth.env.CORS_ALLOWED_ORIGINS | string | `""` |  |
 | services.auth.env.ENROLL_INVITE_TTL_SEC | string | `"3600"` |  |
 | services.auth.env.OIDC_TRUST_FILE | string | `"/etc/telark/oidc/googleJwkJson"` |  |
+| services.auth.env.RATE_LIMIT_GLOBAL | string | `"3000"` |  |
+| services.auth.env.RATE_LIMIT_PER_CLIENT | string | `"30"` |  |
+| services.auth.env.RATE_LIMIT_TRUSTED_HOPS | string | `"{{ if or .Values.ingress.enabled .Values.gateway.enabled }}1{{ else }}0{{ end }}"` |  |
 | services.auth.env.RECONCILE_BACKOFF_INITIAL_SECONDS | string | `"5"` |  |
 | services.auth.env.RECONCILE_BACKOFF_MAX_SECONDS | string | `"300"` |  |
 | services.auth.env.RECONCILE_PASS_DEADLINE_SECONDS | string | `"30"` |  |
 | services.auth.env.RECONCILE_TICK_SECONDS | string | `"5"` |  |
 | services.auth.env.REDIS_DB | string | `"1"` |  |
-| services.auth.env.REDIS_MAX_WAIT_SEC | string | `"30"` |  |
+| services.auth.env.REDIS_MAX_WAIT_SEC | string | `"180"` |  |
 | services.auth.env.REDIS_PING_TIMEOUT_SEC | string | `"3"` |  |
 | services.auth.env.REDIS_POOL_SIZE | string | `"16"` |  |
 | services.auth.env.REDIS_RETRY_INTERVAL_SEC | string | `"2"` |  |
@@ -417,12 +424,18 @@ Kubernetes: `>=1.30.0-0`
 | services.notifier.category | string | `"event-streaming"` |  |
 | services.notifier.enabled | bool | `true` |  |
 | services.notifier.env.NOTIFIER_APPLY_WORKERS | string | `"8"` |  |
+| services.notifier.env.WEBHOOK_TARGETS_FILE | string | `"/etc/telark/webhooks/targets.json"` |  |
 | services.notifier.name | string | `"notifier-service"` |  |
 | services.notifier.natsUser | string | `"consumer"` |  |
 | services.notifier.pdb.enabled | bool | `false` |  |
 | services.notifier.repository | string | `"notifier"` |  |
 | services.notifier.terminationGracePeriodSec | int | `30` |  |
 | services.notifier.useNatsCreds | bool | `true` |  |
+| services.notifier.volumeMounts[0].name | string | `"webhooks"` |  |
+| services.notifier.volumeMounts[0].path | string | `"/etc/telark/webhooks"` |  |
+| services.notifier.volumeMounts[0].readOnly | bool | `true` |  |
+| services.notifier.volumes[0].name | string | `"webhooks"` |  |
+| services.notifier.volumes[0].secret.name | string | `"{{ include \"telark.webhooksSecretName\" . }}"` |  |
 | services.ui.automountServiceAccountToken | bool | `false` |  |
 | services.ui.category | string | `"ui"` |  |
 | services.ui.containerSecurityContext.allowPrivilegeEscalation | bool | `false` |  |

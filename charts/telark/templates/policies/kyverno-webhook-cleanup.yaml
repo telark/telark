@@ -80,9 +80,11 @@ spec:
           resources:
             requests:
               memory: {{ $values.app.shared.resources.requests.memory }}
+              cpu: {{ $values.app.shared.resources.requests.cpu }}
+              ephemeral-storage: {{ index $values.app.shared.resources.requests "ephemeral-storage" }}
             limits:
               memory: {{ $values.app.shared.resources.limits.memory }}
-              ephemeral-storage: 64Mi
+              ephemeral-storage: {{ index $values.app.shared.resources.limits "ephemeral-storage" }}
           securityContext: {{- toYaml $securityContext | nindent 12 }}
           volumeMounts: [{ name: tmp, mountPath: /tmp }]
       volumes:

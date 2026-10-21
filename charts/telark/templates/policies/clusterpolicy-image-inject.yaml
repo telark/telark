@@ -1,6 +1,9 @@
-{{- if and .Values.app.kyverno.enabled (.Capabilities.APIVersions.Has "kyverno.io/v1/ClusterPolicy") }}
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
+{{- if and .Values.app.kyverno.enabled (.Capabilities.APIVersions.Has "policies.kyverno.io/v1/MutatingPolicy") }}
+{{- $by := "telark.io/last-modified-by" }}
+{{- $at := "telark.io/last-modified-at" }}
+{{- $op := "telark.io/last-modified-operation" }}
+apiVersion: policies.kyverno.io/v1
+kind: MutatingPolicy
 metadata:
   name: {{ include "telark.fullname" . }}-inject-modifier
   labels:
@@ -11,87 +14,78 @@ metadata:
     # The policy must outlive the hook: it is the only source of last-modified annotations.
     helm.sh/hook-delete-policy: before-hook-creation
 spec:
-  # This policy uses admission request variables (request.userInfo.*),
-  # which are not available in Kyverno background mode.
-  background: false
+  # Never block writes: the webhook fails open if Kyverno is unhealthy or the patch errors.
   failurePolicy: Ignore
-  # Never block writes — admission webhook must fail open if Kyverno is unhealthy
-  # or a rule errors. Audit only, never Enforce.
-  validationFailureAction: Audit
-  rules:
-    {{- $by := "telark.io/last-modified-by" }}
-    {{- $at := "telark.io/last-modified-at" }}
-    {{- $op := "telark.io/last-modified-operation" }}
-    {{- $annotations := "{{ request.object.metadata.annotations || `{}` | length(@) }}" }}
-    # JSON6902 adds, not patchStrategicMerge: a strategic merge re-serializes the whole object and
-    # collapses list entries that share a merge key (duplicate env names) in user workloads.
-    # Only the kinds discovery snapshots, minus Secret (Kyverno would see every payload):
-    # a wildcard would route every Lease, EndpointSlice and Event write through Kyverno.
-    - name: inject-last-modified-new-annotations
-      match: &match
-        any:
-          - resources:
-              kinds:
-                - apps/v1/Deployment
-                - apps/v1/StatefulSet
-                - apps/v1/DaemonSet
-                - batch/v1/Job
-                - batch/v1/CronJob
-                - v1/ConfigMap
-                - v1/Service
-                - v1/PersistentVolumeClaim
-                - v1/ServiceAccount
-                - networking.k8s.io/v1/Ingress
-                - networking.k8s.io/v1/NetworkPolicy
-                - autoscaling/v2/HorizontalPodAutoscaler
-                {{- /* Kyverno rejects a policy naming a kind the cluster does not serve. */}}
-                {{- if .Capabilities.APIVersions.Has "autoscaling.k8s.io/v1/VerticalPodAutoscaler" }}
-                - autoscaling.k8s.io/v1/VerticalPodAutoscaler
-                {{- end }}
-              # Matching on namespaces ensures cluster-scoped resources are not targeted.
-              namespaces:
-                - "*"
-      exclude: &exclude
-        any:
-          - resources:
-              namespaces:
-                # Avoid self-mutation loops / policy churn in our own/system namespaces.
-                - {{ .Values.app.namespace }}
-                - kyverno
-                - kube-system
-                - kube-public
-                - kube-node-lease
-      # A JSON pointer cannot add a key to a missing map: this rule creates it.
-      preconditions:
-        all:
-          - key: {{ $annotations | quote }}
-            operator: Equals
-            value: 0
-      mutate:
-        patchesJson6902: |-
-          - op: add
-            path: /metadata/annotations
-            value:
-              {{ $by }}: {{ "{{ request.userInfo.username }}" | quote }}
-              {{ $at }}: {{ "{{ time_now_utc() }}" | quote }}
-              {{ $op }}: {{ "{{ request.operation }}" | quote }}
-    - name: inject-last-modified-by
-      match: *match
-      exclude: *exclude
-      preconditions:
-        all:
-          - key: {{ $annotations | quote }}
-            operator: GreaterThan
-            value: 0
-      mutate:
-        patchesJson6902: |-
-          - op: add
-            path: /metadata/annotations/{{ $by | replace "/" "~1" }}
-            value: {{ "{{ request.userInfo.username }}" | quote }}
-          - op: add
-            path: /metadata/annotations/{{ $at | replace "/" "~1" }}
-            value: {{ "{{ time_now_utc() }}" | quote }}
-          - op: add
-            path: /metadata/annotations/{{ $op | replace "/" "~1" }}
-            value: {{ "{{ request.operation }}" | quote }}
+  # request.userInfo exists only at admission.
+  evaluation:
+    admission:
+      enabled: true
+    background:
+      enabled: false
+  matchConstraints:
+    # Avoid self-mutation loops and policy churn in our own and the system namespaces.
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - {{ .Values.app.namespace }}
+            - kyverno
+            - kube-system
+            - kube-public
+            - kube-node-lease
+    # Only the kinds discovery snapshots, minus Secret (Kyverno would see every payload): a
+    # wildcard would route every Lease, EndpointSlice and Event write through Kyverno.
+    resourceRules:
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["deployments", "statefulsets", "daemonsets"]
+        scope: Namespaced
+      - apiGroups: ["batch"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["jobs", "cronjobs"]
+        scope: Namespaced
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["configmaps", "services", "persistentvolumeclaims", "serviceaccounts"]
+        scope: Namespaced
+      - apiGroups: ["networking.k8s.io"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["ingresses", "networkpolicies"]
+        scope: Namespaced
+      - apiGroups: ["autoscaling"]
+        apiVersions: ["v2"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["horizontalpodautoscalers"]
+        scope: Namespaced
+      {{- /* Kyverno rejects a policy naming a kind the cluster does not serve. */}}
+      {{- if .Capabilities.APIVersions.Has "autoscaling.k8s.io/v1/VerticalPodAutoscaler" }}
+      - apiGroups: ["autoscaling.k8s.io"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["verticalpodautoscalers"]
+        scope: Namespaced
+      {{- end }}
+  # JSON patch adds, not an apply configuration: a merge re-serializes the whole object and
+  # collapses list entries that share a merge key (duplicate env names) in user workloads.
+  # A JSON pointer cannot add a key to a missing map, so a missing map is added whole.
+  mutations:
+    - patchType: JSONPatch
+      jsonPatch:
+        expression: >-
+          has(object.metadata.annotations)
+          ? [
+          JSONPatch{op: "add", path: "/metadata/annotations/{{ $by | replace "/" "~1" }}", value: request.userInfo.username},
+          JSONPatch{op: "add", path: "/metadata/annotations/{{ $at | replace "/" "~1" }}", value: string(time.now())},
+          JSONPatch{op: "add", path: "/metadata/annotations/{{ $op | replace "/" "~1" }}", value: request.operation}
+          ]
+          : [JSONPatch{op: "add", path: "/metadata/annotations", value: {
+          {{ $by | quote }}: request.userInfo.username,
+          {{ $at | quote }}: string(time.now()),
+          {{ $op | quote }}: request.operation
+          }}]
 {{- end }}

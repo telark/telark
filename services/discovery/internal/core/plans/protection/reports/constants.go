@@ -52,7 +52,7 @@ const (
 	SentenceRetention       = "The cluster keeps admission records for %s; the run ledger preserves records beyond that window."
 	SentencePostEnd         = "Policies were removed when the plan ended;" +
 		" records come from the run ledger plus the records the cluster still holds."
-	SentenceNoRequester         = "Admission records carry no requester identity."
+	SentenceNoRequester         = "Admission records made before Telark 0.2.0 name no requester."
 	SentenceRowsOmitted         = "%d oldest rows were omitted to fit the report size limit."
 	SentenceRowCap              = "The run ledger keeps at most %d records; older records beyond that cap are dropped."
 	SentenceAppActivityExcluded = "Application change history, snapshots and rollbacks are recorded on the application records" +

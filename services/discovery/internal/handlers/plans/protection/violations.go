@@ -26,6 +26,7 @@ func Violations(w http.ResponseWriter, r *http.Request) {
 	query := violations.Query{
 		Limit:  parseLimit(r),
 		Result: r.URL.Query().Get(protection.QueryParamResult),
+		Window: r.URL.Query().Get(protection.QueryParamWindow),
 	}
 
 	resp, err := svc.ListViolations(r.Context(), planID, query)

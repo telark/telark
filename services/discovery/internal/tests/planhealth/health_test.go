@@ -12,10 +12,12 @@ import (
 	"github.com/telark/telark/services/discovery/internal/core/plans/protection/health"
 	protpolicies "github.com/telark/telark/services/discovery/internal/core/plans/protection/policies"
 	"github.com/telark/telark/services/discovery/internal/tests/testutil"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
+	k8stesting "k8s.io/client-go/testing"
 )
 
 const (
@@ -23,42 +25,50 @@ const (
 	labelErr      = "err"
 	labelHealth   = "health"
 	modeEnforce   = "Enforce"
-	fieldValidate = "validate"
+	modeAudit     = "Audit"
+	actionDeny    = "Deny"
 	fieldMessage  = "message"
 	handEdit      = "edited by hand"
+	fieldStatus   = "status"
+	fieldSpec     = "spec"
+	fixturePlanID = "pp-abc-1234-5678"
 )
 
-func kyvernoPolicy(name, planID, action string, ready bool) *unstructured.Unstructured {
-	status := map[string]any{}
-	if ready {
-		status["conditions"] = []any{map[string]any{"type": "Ready", "status": "True"}}
+func policyMeta(name, planID string) map[string]any {
+	return map[string]any{
+		"name":      name,
+		"namespace": "prod",
+		"labels": map[string]any{
+			dpolicies.LabelPlanID:    planID,
+			dpolicies.LabelManagedBy: dpolicies.ManagedByValue,
+		},
+	}
+}
+
+func kyvernoPolicy(name, planID, mode string, ready bool) *unstructured.Unstructured {
+	action := modeAudit
+	if mode == modeEnforce {
+		action = actionDeny
 	}
 	return &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kyverno.io/v1",
-		"kind":       "Policy",
-		"metadata": map[string]any{
-			"name":      name,
-			"namespace": "prod",
-			"labels": map[string]any{
-				dpolicies.LabelPlanID:    planID,
-				dpolicies.LabelManagedBy: dpolicies.ManagedByValue,
-			},
-		},
-		"spec":   map[string]any{"validationFailureAction": action},
-		"status": status,
+		"apiVersion": protpolicies.KyvernoPolicyGVR.GroupVersion().String(),
+		"kind":       dpolicies.PolicyKind,
+		"metadata":   policyMeta(name, planID),
+		fieldSpec:    map[string]any{"validationActions": []any{action}},
+		fieldStatus:  map[string]any{"conditionStatus": map[string]any{"ready": ready}},
 	}}
 }
 
 func fakeDyn(objs ...runtime.Object) *dynamicfake.FakeDynamicClient {
 	gvrToListKind := map[schema.GroupVersionResource]string{
-		protpolicies.KyvernoPolicyGVR: "PolicyList",
+		protpolicies.KyvernoPolicyGVR: "NamespacedValidatingPolicyList",
 	}
 	return dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gvrToListKind, objs...)
 }
 
 func activePlan(policies ...string) *plans.ProtectionPlan {
 	return &plans.ProtectionPlan{
-		ID:               "pp-abc-1234-5678",
+		ID:               fixturePlanID,
 		Phase:            plans.PhaseActive,
 		Mode:             plans.ModeEnforce,
 		RenderedPolicies: policies,
@@ -172,18 +182,26 @@ func roundTripped(t *testing.T, live *unstructured.Unstructured) *unstructured.U
 	return out
 }
 
-func firstRule(t *testing.T, live *unstructured.Unstructured) map[string]any {
+func liveSpec(t *testing.T, live *unstructured.Unstructured) map[string]any {
 	t.Helper()
-	rules, _, _ := unstructured.NestedFieldNoCopy(live.Object, "spec", "rules")
-	list, ok := rules.([]any)
-	if !ok || len(list) == constants.DefaultInitValue {
-		t.Fatal("policy has no rules")
-	}
-	rule, ok := list[constants.DefaultInitValue].(map[string]any)
+	spec, ok := live.Object[fieldSpec].(map[string]any)
 	if !ok {
-		t.Fatal("rule is not an object")
+		t.Fatal("policy has no spec")
 	}
-	return rule
+	return spec
+}
+
+func firstValidation(t *testing.T, live *unstructured.Unstructured) map[string]any {
+	t.Helper()
+	list, ok := liveSpec(t, live)["validations"].([]any)
+	if !ok || len(list) == constants.DefaultInitValue {
+		t.Fatal("policy has no validations")
+	}
+	validation, ok := list[constants.DefaultInitValue].(map[string]any)
+	if !ok {
+		t.Fatal("validation is not an object")
+	}
+	return validation
 }
 
 // Every template reads healthy once deployed, or each tick would redeploy it for nothing.
@@ -199,7 +217,7 @@ func TestComputeTrustsEveryDeployedTemplate(t *testing.T) {
 	}
 	resolved := map[string]dpolicies.ResolvedApp{aliveApp: app}
 	plan := &plans.ProtectionPlan{
-		ID:    "pp-abc-1234-5678",
+		ID:    fixturePlanID,
 		Name:  guardPlan,
 		Phase: plans.PhaseActive,
 		Mode:  plans.ModeEnforce,
@@ -233,29 +251,28 @@ func TestComputeTrustsEveryDeployedTemplate(t *testing.T) {
 	testutil.Equal(t, "stale", len(res.Stale), constants.DefaultInitValue)
 }
 
-// W4-plans-4: health compared only the render-hash annotation, so a hand-edited rule that kept it
-// read healthy and was never repaired. A field the policy engine defaults is not drift.
-func TestComputeComparesLiveRules(t *testing.T) {
+// W4-plans-4: health compared only the render-hash annotation, so a hand edit that kept it read
+// healthy and was never repaired. What Kyverno writes into status is not drift.
+func TestComputeComparesLiveSpec(t *testing.T) {
 	cases := []struct {
 		name       string
-		edit       func(rule map[string]any)
+		edit       func(spec map[string]any)
 		wantHealth string
 		wantStale  int
 	}{
-		{"defaulted field", func(rule map[string]any) { rule["skipBackgroundRequests"] = true }, plans.HealthHealthy, constants.DefaultInitValue},
-		{"edited message", func(rule map[string]any) {
-			setRuleField(t, rule, handEdit, fieldValidate, fieldMessage)
+		{"status written by Kyverno", func(map[string]any) {}, plans.HealthHealthy, constants.DefaultInitValue},
+		{"edited message", func(spec map[string]any) {
+			setField(t, spec["validations"].([]any)[constants.DefaultInitValue].(map[string]any), handEdit, fieldMessage)
 		}, plans.HealthDrifted, constants.DefaultAddValue},
-		{"added rule-level audit", func(rule map[string]any) {
-			setRuleField(t, rule, "Audit", fieldValidate, "failureAction")
+		{"added failure policy", func(spec map[string]any) {
+			setField(t, spec, "Ignore", "failurePolicy")
 		}, plans.HealthDrifted, constants.DefaultAddValue},
-		{"existing violations allowed", func(rule map[string]any) {
-			setRuleField(t, rule, true, fieldValidate, "allowExistingViolations")
+		{"background scans turned on", func(spec map[string]any) {
+			setField(t, spec, true, "evaluation", "background", "enabled")
 		}, plans.HealthDrifted, constants.DefaultAddValue},
-		{"appended exclude", func(rule map[string]any) {
-			excludes, _, _ := unstructured.NestedSlice(rule, "exclude", "any")
-			wildcard := map[string]any{"resources": map[string]any{"namespaces": []any{"*"}}}
-			setRuleField(t, rule, append(excludes, wildcard), "exclude", "any")
+		{"appended match condition", func(spec map[string]any) {
+			conditions, _, _ := unstructured.NestedSlice(spec, "matchConditions")
+			setField(t, spec, append(conditions, map[string]any{"name": "never", "expression": "false"}), "matchConditions")
 		}, plans.HealthDrifted, constants.DefaultAddValue},
 	}
 	for _, c := range cases {
@@ -264,7 +281,8 @@ func TestComputeComparesLiveRules(t *testing.T) {
 			fresh, err := dpolicies.Render(plan, nil, nil)
 			testutil.Equal(t, "render", err, nil)
 			live := roundTripped(t, liveObject(t, &fresh[constants.DefaultInitValue]))
-			c.edit(firstRule(t, live))
+			live.Object[fieldStatus] = map[string]any{"conditionStatus": map[string]any{"ready": true, "message": ""}, "generated": false}
+			c.edit(liveSpec(t, live))
 
 			res, err := health.Compute(context.Background(), health.Deps{Dyn: fakeDyn(live)}, plan)
 			testutil.Equal(t, labelErr, err, nil)
@@ -274,9 +292,9 @@ func TestComputeComparesLiveRules(t *testing.T) {
 	}
 }
 
-func setRuleField(t *testing.T, rule map[string]any, value any, fields ...string) {
+func setField(t *testing.T, obj map[string]any, value any, fields ...string) {
 	t.Helper()
-	if err := unstructured.SetNestedField(rule, value, fields...); err != nil {
+	if err := unstructured.SetNestedField(obj, value, fields...); err != nil {
 		t.Fatalf("edit: %v", err)
 	}
 }
@@ -286,16 +304,38 @@ func TestComputeAndRepairRestoresEditedRule(t *testing.T) {
 	plan, policyName := renderedPlan(t, plans.PhaseActive)
 	fresh, err := dpolicies.Render(plan, nil, nil)
 	testutil.Equal(t, "render", err, nil)
-	want := fresh[constants.DefaultInitValue].Spec.Rules[constants.DefaultInitValue].Validation.Message
+	want := fresh[constants.DefaultInitValue].Spec.Validations[constants.DefaultInitValue].Message
 	live := roundTripped(t, liveObject(t, &fresh[constants.DefaultInitValue]))
-	if err := unstructured.SetNestedField(firstRule(t, live), handEdit, fieldValidate, fieldMessage); err != nil {
-		t.Fatalf("edit: %v", err)
-	}
+	setField(t, firstValidation(t, live), handEdit, fieldMessage)
 	dyn := withApplyCreate(fakeDyn(live))
 
 	res, err := health.ComputeAndRepair(context.Background(), repairDeps(dyn, &recordingLogger{}), plan)
 	testutil.Equal(t, labelErr, err, nil)
 	testutil.Equal(t, labelHealth, res.Health, plans.HealthHealthy)
-	got, _, _ := unstructured.NestedString(firstRule(t, getPolicy(t, dyn, policyName)), fieldValidate, fieldMessage)
+	got, _, _ := unstructured.NestedString(firstValidation(t, getPolicy(t, dyn, policyName)), fieldMessage)
 	testutil.Equal(t, "message restored", got, want)
+}
+
+// A cluster without the policies.kyverno.io CRDs can deploy nothing: the plan reads Degraded, the
+// check still answers, and the repair never tries.
+func TestComputeWithoutPolicyKind(t *testing.T) {
+	plan := activePlan(healthPolicy)
+	dyn := fakeDyn()
+	dyn.PrependReactor("list", protpolicies.KyvernoPolicyGVR.Resource, func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, k8serrors.NewNotFound(protpolicies.KyvernoPolicyGVR.GroupResource(), "")
+	})
+	logger := &recordingLogger{}
+	deps := repairDeps(dyn, logger)
+	deps.Clock = func() time.Time { return sweepNow }
+
+	res, err := health.ComputeAndRepair(context.Background(), deps, plan)
+	testutil.Equal(t, labelErr, err, nil)
+	testutil.Equal(t, labelHealth, res.Health, plans.HealthDegraded)
+	testutil.Equal(t, "repair attempted", len(logger.infos)+len(logger.errors), constants.DefaultInitValue)
+
+	store := &fakePlanStore{phase: plans.PhaseActive}
+	deps.Exporter = store
+	health.ReconcileForActive(context.Background(), deps, []plans.ProtectionPlan{*plan})
+	testutil.Equal(t, "patched health", store.health(plan.ID), plans.HealthDegraded)
+	testutil.Equal(t, "reason logged", len(logger.errors), constants.DefaultAddValue)
 }

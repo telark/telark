@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/telark/telark/internal/data/plans"
+	"github.com/telark/telark/internal/data/policies"
 	globalshared "github.com/telark/telark/internal/data/shared"
 	"github.com/telark/telark/services/discovery/internal/constants"
 	"github.com/telark/telark/services/discovery/internal/core/plans/protection/applications"
@@ -111,13 +112,16 @@ func StampFirst(ctx context.Context, deps Deps, planID string) {
 // Errors per plan are logged and the loop continues — one bad plan must not block the rest.
 func ReconcileForActive(ctx context.Context, deps Deps, planList []plans.ProtectionPlan) {
 	snapCtx, cancelSnap := context.WithTimeout(ctx, time.Duration(CheckTimeoutSeconds)*time.Second)
-	snapshot, err := listManagedPolicies(snapCtx, deps.Dyn)
+	snaps, err := listPolicies(snapCtx, deps.Dyn, fmt.Sprintf(labelSelectorFmt, policies.LabelManagedBy, policies.ManagedByValue))
 	cancelSnap()
 	if err != nil {
 		deps.Logger.Error(fmt.Sprintf(logSnapshotFailedFmt, err))
 		return
 	}
-	sweepOrphans(ctx, deps, planList, snapshot)
+	if snaps.kindMissing {
+		deps.Logger.Error(logPolicyKindMissing)
+	}
+	sweepOrphans(ctx, deps, planList, snaps.current)
 
 	// One application resolve for the pass, like the one LIST above: the fresh render every
 	// active plan is compared against must not cost one application read per plan per tick.
@@ -136,7 +140,7 @@ func ReconcileForActive(ctx context.Context, deps Deps, planList []plans.Protect
 			continue
 		}
 		g.Go(func() error {
-			reconcileOne(gctx, deps, plan, computeFrom(plan, snapshot[plan.ID], resolved, resolveErr))
+			reconcileOne(gctx, deps, plan, computeFrom(plan, snaps, resolved, resolveErr))
 			return nil
 		})
 	}
@@ -162,12 +166,7 @@ func orphanPolicies(
 	snapshot map[string]map[string]policySnapshot,
 	now time.Time,
 ) []protpolicies.NamespacedName {
-	active := map[string]struct{}{}
-	for i := range planList {
-		if planList[i].Phase == plans.PhaseActive {
-			active[planList[i].ID] = struct{}{}
-		}
-	}
+	active := activePlanIDs(planList)
 	var refs []protpolicies.NamespacedName
 	for planID, byName := range snapshot {
 		if _, ok := active[planID]; ok {
@@ -180,6 +179,16 @@ func orphanPolicies(
 		}
 	}
 	return refs
+}
+
+func activePlanIDs(planList []plans.ProtectionPlan) map[string]struct{} {
+	active := map[string]struct{}{}
+	for i := range planList {
+		if planList[i].Phase == plans.PhaseActive {
+			active[planList[i].ID] = struct{}{}
+		}
+	}
+	return active
 }
 
 func activeApplicationRefs(planList []plans.ProtectionPlan) []string {

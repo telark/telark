@@ -62,8 +62,8 @@ func stubExporter(t *testing.T, patchStatus int) {
 
 func clusterWithPolicy() *dynamicfake.FakeDynamicClient {
 	pol := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kyverno.io/v1",
-		"kind":       "Policy",
+		"apiVersion": protpolicies.KyvernoPolicyGVR.GroupVersion().String(),
+		"kind":       dpolicies.PolicyKind,
 		"metadata": map[string]any{
 			"name":      policyName,
 			"namespace": planNS,
@@ -71,7 +71,9 @@ func clusterWithPolicy() *dynamicfake.FakeDynamicClient {
 		},
 	}}
 	return dynamicfake.NewSimpleDynamicClientWithCustomListKinds(
-		runtime.NewScheme(), map[schema.GroupVersionResource]string{protpolicies.KyvernoPolicyGVR: "PolicyList"}, pol,
+		runtime.NewScheme(), map[schema.GroupVersionResource]string{
+			protpolicies.KyvernoPolicyGVR: "NamespacedValidatingPolicyList",
+		}, pol,
 	)
 }
 

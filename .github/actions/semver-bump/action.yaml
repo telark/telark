@@ -20,7 +20,7 @@ runs:
     # lenient=false fails the step on a version that isn't SemVer.
     - name: Increment version
       id: semver
-      uses: madhead/semver-utils@4cf918affe9106ea59f86c6250e5ec4570ac4389 # v5.0.0
+      uses: madhead/semver-utils@658623c84f43fd23cc34d02618c90f263a4a26ac # v5.1.0
       with:
         version: ${{ inputs.version }}
         lenient: false

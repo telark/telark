@@ -35,10 +35,10 @@ jobs:
         service: [auth, discovery, exporter, notifier, data, rest, kcore, x-ware]
         task: [test, lint]
         include:
-          - { service: auth, path: services/auth, coverage: 60 }
+          - { service: auth, path: services/auth, coverage: 75 }
           - { service: discovery, path: services/discovery, coverage: 50 }
-          - { service: exporter, path: services/exporter, coverage: 55 }
-          - { service: notifier, path: services/notifier, coverage: 75 }
+          - { service: exporter, path: services/exporter, coverage: 70 }
+          - { service: notifier, path: services/notifier, coverage: 80 }
           - { service: data, path: internal/data, coverage: 95 }
           - { service: rest, path: internal/rest, coverage: 54 }
           - { service: kcore, path: internal/kcore, coverage: 22 }
@@ -90,10 +90,10 @@ jobs:
       - name: Syntax check
         run: python -m compileall -q .
 
-      # The stub-based suites replace sys.modules at import, so they run in a
-      # separate process from the real-dependency suites to avoid cross-pollution.
-      # --cov-append across the two processes, then one combined gate. 95 is the
-      # ratchet floor (current ~99%); raise as coverage improves, never lower.
+      # The split is historical: no suite replaces sys.modules entries, and one
+      # pytest process gives the same result. --cov-append across the two
+      # processes, then one combined gate. 95 is the ratchet floor (current ~99%);
+      # raise as coverage improves, never lower.
       - name: Test
         run: |
           python -m pytest --cov=. --cov-report= tests/test_*_cov.py -q

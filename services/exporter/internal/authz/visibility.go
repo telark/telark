@@ -14,6 +14,7 @@ import (
 	"github.com/telark/telark/internal/rest/response"
 	responseutils "github.com/telark/telark/internal/rest/utils/response"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
+	pin "github.com/telark/telark/services/exporter/internal/bootstrap"
 	"github.com/telark/telark/services/exporter/internal/cache"
 	"github.com/telark/telark/services/exporter/internal/constants"
 	envmanager "github.com/telark/telark/services/exporter/internal/managers/envs"
@@ -154,6 +155,38 @@ func GuardHiddenUser(w http.ResponseWriter, r *http.Request, user *userdata.User
 	return false
 }
 
+// Who sees the bootstrap account stays Restricted's; who learns its identity is only itself and the services.
+func MasksIdentity(r *http.Request, targetID string, bootstrap bool) bool {
+	identity, ok := xauthz.FromContext(r.Context())
+	return bootstrap && (!ok || !identity.Internal && identity.UserID != targetID)
+}
+
+// Edits the record in place, so it must be a copy read for this response, never one stored or sent on.
+func MaskIdentity(r *http.Request, user *unstructured.Unstructured) {
+	spec, ok := user.Object[constants.SpecField].(map[string]any)
+	if !ok {
+		return
+	}
+	bootstrap, isBool := spec[constants.FieldBootstrap].(bool)
+	if !isBool || !MasksIdentity(r, user.GetName(), bootstrap) {
+		return
+	}
+	spec[constants.FieldUsername] = constants.BootstrapDisplayName
+	spec[constants.FieldFullname] = constants.BootstrapDisplayName
+	spec[constants.FieldEmail] = constants.EmptyString
+}
+
+// Only the services' and restricted callers' renders hold no masked record, so only theirs are cached.
+// shortcut: an Admin on ALL reads users uncached; key a masked entry apart if those reads get hot.
+func MaskedKey(key func(*http.Request) string) func(*http.Request) string {
+	return func(r *http.Request) string {
+		if identity, ok := xauthz.FromContext(r.Context()); ok && identity.Internal || Restricted(r) {
+			return key(r)
+		}
+		return constants.EmptyString
+	}
+}
+
 // GuardUserTarget enforces who may act on an administrator: bootstrap accounts
 // are the chart's (only they may edit themselves, nothing deletes them), and
 // nobody deletes themselves.
@@ -170,7 +203,7 @@ func GuardUserTarget(w http.ResponseWriter, r *http.Request, target *userdata.Us
 		return false
 	}
 	if identity.Internal {
-		return true
+		return GuardBootstrapMarker(w, target, body)
 	}
 	if _, present := body[constants.FieldBootstrap]; present {
 		denyForbidden(w, constants.ErrAuthzBootstrapFieldReserved)
@@ -187,6 +220,42 @@ func GuardUserTarget(w http.ResponseWriter, r *http.Request, target *userdata.Us
 		return false
 	}
 	return true
+}
+
+// One bootstrap account. Once it is pinned, no caller, Internal included, marks another account or unmarks it: only a
+// completed break-glass replacement moves the marker, and it writes the CRs itself. target is nil on create.
+func GuardBootstrapMarker(w http.ResponseWriter, target *userdata.User, body map[string]any) bool {
+	if _, present := body[constants.FieldBootstrap]; !present {
+		return true
+	}
+	status, err := pin.Status()
+	if err != nil {
+		responseutils.LogAndSendResponse(
+			w, http.StatusServiceUnavailable, response.OperationUnavailable, string(constants.ErrResourceLookupFailed), nil, err,
+		)
+		return false
+	}
+	if status.Pinned() && pin.Marks(body) != (target != nil && target.ID == status.UserID) {
+		responseutils.SendResponse(w, http.StatusConflict, response.OperationError, string(constants.ErrBootstrapPinned), nil)
+		return false
+	}
+	return true
+}
+
+// Who hears of a break-glass request besides the pinned account.
+func ActiveAdminIDs() ([]string, error) {
+	users, err := listUsers()
+	if err != nil {
+		return nil, err
+	}
+	admin := HiddenUsers()
+	ids := make([]string, constants.DefaultInitValue, len(users))
+	for _, user := range users {
+		if activeAdmin(admin, user) {
+			ids = append(ids, user.ID)
+		}
+	}
+	return ids, nil
 }
 
 // The bootstrap account and the BOOTSTRAP_ADMIN mailbox stay together (break-glass finds the account by it):

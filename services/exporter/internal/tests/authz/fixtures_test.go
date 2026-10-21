@@ -7,6 +7,7 @@ import (
 	"github.com/telark/telark/internal/data/metadata/v1alpha1"
 	groupdata "github.com/telark/telark/internal/data/resources/group"
 	roledata "github.com/telark/telark/internal/data/resources/role"
+	"github.com/telark/telark/internal/data/resources/telarkconfig"
 	userdata "github.com/telark/telark/internal/data/resources/user"
 	"github.com/telark/telark/services/exporter/internal/constants"
 	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
@@ -44,6 +45,8 @@ func directory(roles map[string]*roledata.AccessRole) *dynamicfake.FakeDynamicCl
 		crs(v1alpha1.UserMetadata, fakeUsers()),
 		crs(v1alpha1.GroupMetadata, fakeGroups()),
 		crs(v1alpha1.AccessRoleMetadata, roles),
+		// The bootstrap marker guard reads the pin there: this one pins no account.
+		crs(v1alpha1.TelarkConfigMetadata, map[string]*telarkconfig.TelarkConfig{constants.TelarkConfigResourceName: {}}),
 	)...)
 	client.PrependReactor(verbGet, v1alpha1.AccessRoleMetadata.Plural, func(action k8stesting.Action) (bool, runtime.Object, error) {
 		get, isGet := action.(k8stesting.GetAction)

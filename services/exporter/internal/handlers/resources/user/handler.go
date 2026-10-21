@@ -17,6 +17,7 @@ import (
 	"github.com/telark/telark/internal/rest/response"
 	responseutils "github.com/telark/telark/internal/rest/utils/response"
 	"github.com/telark/telark/services/exporter/internal/authz"
+	"github.com/telark/telark/services/exporter/internal/bootstrap"
 	"github.com/telark/telark/services/exporter/internal/cache"
 	"github.com/telark/telark/services/exporter/internal/constants"
 	"github.com/telark/telark/services/exporter/internal/exporters/generics"
@@ -74,7 +75,9 @@ func CreateUserResourceWithCacheInvalidation(optimizer *performance.Optimizer) f
 			return
 		}
 
-		createUserResource(w, user, optimizer)
+		if createUserResource(r.Context(), w, user, optimizer) && user.Bootstrap {
+			bootstrap.MarkerSet(optimizer, user.ID)
+		}
 	}
 }
 
@@ -87,7 +90,7 @@ func mirrorGroups(w http.ResponseWriter, r *http.Request, optimizer *performance
 	return true
 }
 
-func createUserResource(w http.ResponseWriter, user *userdata.User, optimizer *performance.Optimizer) {
+func createUserResource(ctx context.Context, w http.ResponseWriter, user *userdata.User, optimizer *performance.Optimizer) bool {
 	spec, err := sharedutils.StructToSpecMap(user)
 	if err != nil {
 		responseutils.LogAndSendResponse(
@@ -98,15 +101,17 @@ func createUserResource(w http.ResponseWriter, user *userdata.User, optimizer *p
 			nil,
 			err,
 		)
-		return
+		return false
 	}
 
 	lock := concurrency.GetLock(user.ID)
 	lock.Lock()
 	defer lock.Unlock()
 
+	rc := sharedutils.NewResponseCapture(w)
 	generics.GenericCreateCustomResourceWithFinalizers(
-		w,
+		ctx,
+		rc,
 		metadata.UserMetadata,
 		user.ID,
 		spec,
@@ -114,6 +119,7 @@ func createUserResource(w http.ResponseWriter, user *userdata.User, optimizer *p
 	)
 
 	cache.InvalidateAllResourceCaches(optimizer, constants.ResourceUser)
+	return rc.Status() == http.StatusOK
 }
 
 func GetUserByIDWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {
@@ -140,7 +146,7 @@ func GetUserByIDWithCacheInvalidation() func(http.ResponseWriter, *http.Request)
 }
 
 // A restricted caller must not learn that an administrator exists: the record
-// answers 404 exactly like a missing one.
+// answers 404 exactly like a missing one. A visible bootstrap account comes back masked.
 func visibleUser(w http.ResponseWriter, r *http.Request, resource *unstructured.Unstructured) bool {
 	user, err := userutils.ExtractUserFromUnstructured(resource)
 	if err != nil || user == nil {
@@ -149,7 +155,11 @@ func visibleUser(w http.ResponseWriter, r *http.Request, resource *unstructured.
 		)
 		return false
 	}
-	return authz.GuardHiddenUser(w, r, user)
+	if !authz.GuardHiddenUser(w, r, user) {
+		return false
+	}
+	authz.MaskIdentity(r, resource)
+	return true
 }
 
 func GetUserByUsernameWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {
@@ -220,7 +230,7 @@ func GetUserNamesWithCacheInvalidation() func(http.ResponseWriter, *http.Request
 			return
 		}
 
-		names, err := userutils.UsernamesByID(ids)
+		names, err := userutils.UsernamesByID(ids, func(item *unstructured.Unstructured) { authz.MaskIdentity(r, item) })
 		if err != nil {
 			responseutils.LogAndSendResponse(w, http.StatusInternalServerError, response.OperationError, err.Error(), nil, err)
 			return
@@ -241,7 +251,10 @@ func requestedUserIDs(r *http.Request) []string {
 func ListUserResourcesWithCacheInvalidation() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !authz.Restricted(r) {
-			generics.GenericListCustomResources(w, metadata.UserMetadata)
+			generics.GenericListCustomResourcesKeeping(w, metadata.UserMetadata, func(item *unstructured.Unstructured) bool {
+				authz.MaskIdentity(r, item)
+				return true
+			})
 			return
 		}
 		hidden := authz.HiddenUsers()
@@ -286,8 +299,14 @@ func PatchUserByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(h
 		if !mirrorGroups(w, r, optimizer, userID, addedGroups, removedGroups) {
 			return
 		}
-		if patchUserResource(w, r, userID, body, optimizer) && rolesPatched {
+		if !patchUserResource(w, r, userID, body, optimizer) {
+			return
+		}
+		if rolesPatched {
 			emitRoleChanged(userID, oldRoles, body)
+		}
+		if bootstrap.Marks(body) {
+			bootstrap.MarkerSet(optimizer, userID)
 		}
 	}
 }
@@ -328,6 +347,12 @@ func patchUserResource(w http.ResponseWriter, r *http.Request, userID string, bo
 	lock := concurrency.GetLock(userID)
 	lock.Lock()
 	defer lock.Unlock()
+	// After the wait: written for a caller that gave up (or past the route's deadline), it could land after the last
+	// purge of a break-glass recovery, which waits out only a bounded write.
+	if r.Context().Err() != nil {
+		responseutils.SendResponse(w, http.StatusServiceUnavailable, response.OperationUnavailable, string(constants.ErrUserPatchBusy), nil)
+		return false
+	}
 
 	rc := sharedutils.NewResponseCapture(w)
 	generics.GenericPatchCustomResource(rc, metadata.UserMetadata, userID, specPatchData)

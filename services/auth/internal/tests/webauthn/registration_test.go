@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/fxamacker/cbor/v2"
+	"github.com/go-webauthn/webauthn/protocol"
 
 	authdata "github.com/telark/telark/internal/data/auth"
 	"github.com/telark/telark/services/auth/internal/constants"
@@ -226,7 +227,8 @@ func TestRegisteredPasskeySignsIn(t *testing.T) {
 			chal := base64.RawURLEncoding.EncodeToString([]byte(loginChallenge))
 			r := assertionRequest(t, priv, c.loginFlags, chal, user.ID)
 
-			cred, err := webauthnhelper.VerifyCredential(&authdata.AuthChallenge{Challenge: chal}, user, credentials, passkeys, r)
+			cred, err := webauthnhelper.VerifyCredential(&authdata.AuthChallenge{Challenge: chal}, user, credentials, passkeys, r,
+				protocol.VerificationPreferred)
 			if err != nil {
 				t.Fatalf("VerifyCredential = %v", err)
 			}

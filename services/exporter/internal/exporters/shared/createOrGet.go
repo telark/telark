@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -14,11 +15,11 @@ import (
 	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
-func CreateResource(w http.ResponseWriter, resourceMetadata metadata.Metadata, name string, spec map[string]any) {
+func CreateResource(ctx context.Context, w http.ResponseWriter, resourceMetadata metadata.Metadata, name string, spec map[string]any) {
 	lock := concurrency.GetLock(name)
 	lock.Lock()
 	defer lock.Unlock()
-	generics.GenericCreateCustomResource(w, resourceMetadata, name, spec)
+	generics.GenericCreateCustomResource(ctx, w, resourceMetadata, name, spec)
 }
 
 func GetOrListResource(w http.ResponseWriter, r *http.Request, resourceMetadata metadata.Metadata, action string) {

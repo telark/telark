@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"encoding/json"
+	"io"
 	"maps"
 	"net/http"
 	"slices"
@@ -15,6 +16,7 @@ import (
 	telarkconfigresource "github.com/telark/telark/internal/data/resources/telarkconfig"
 	userresource "github.com/telark/telark/internal/data/resources/user"
 	notificationsclient "github.com/telark/telark/internal/rest/clients/notifications"
+	bootstrapeps "github.com/telark/telark/internal/rest/endpoints/bootstrap"
 	"github.com/telark/telark/services/auth/internal/constants"
 )
 
@@ -27,6 +29,10 @@ const (
 	fakePasskeysPath  = "internal/auth/passkeys"
 	fakeNoticesPath   = "internal/notifications"
 	fakeConfigPath    = "config"
+	fakeBootstrapPath = "bootstrap"
+	fakeRequestsPath  = "bootstrap/requests"
+	fakeSessionsPath  = "internal/auth/users/"
+	fakePathSep       = "/"
 	fakeKeyStatus     = "status"
 	fakeKeyData       = "data"
 	fakeKeyItems      = "items"
@@ -39,20 +45,29 @@ const (
 	fakeConfigVersion = "1"
 )
 
-// Seed the exported fields before StubBackend: once it serves, only the locking methods touch them.
+// Seed the exported fields before StubBackend: once it serves, only the locking methods touch them. Credentials are
+// the passkeys an account signs with; Passkeys only counts placeholders. RequestAnswers answers a break-glass request
+// route by its last path segment (requests, approve, cancel, complete), and a route without one answers 409.
 type FakeExporter struct {
-	Users    map[string]*userresource.User
-	Roles    map[string]*roledata.AccessRole
-	Groups   map[string]*groupdata.Group
-	Passkeys map[string]int
-	Gone     map[string]bool
-	Config   telarkconfigresource.TelarkConfig
+	Users          map[string]*userresource.User
+	Roles          map[string]*roledata.AccessRole
+	Groups         map[string]*groupdata.Group
+	Passkeys       map[string]int
+	Credentials    map[string][]authdata.Passkey
+	Gone           map[string]bool
+	Config         telarkconfigresource.TelarkConfig
+	Bootstrap      telarkconfigresource.BootstrapStatus
+	RequestAnswers map[string]bootstrapeps.RequestResult
+	// Runs on each request route call, under the fake's lock: it must not call the fake's methods.
+	OnRequest func(path string)
 
-	mu          sync.Mutex
-	down        bool
-	noticesDown bool
-	configReads int
-	notices     []notificationsclient.Notification
+	mu             sync.Mutex
+	down           bool
+	noticesDown    bool
+	configReads    int
+	notices        []notificationsclient.Notification
+	requestCalls   []string
+	sessionsIssued int
 }
 
 func (f *FakeExporter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +95,7 @@ func (f *FakeExporter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(path, fakeGroupsPrefix):
 		fakeRecord(w, f.Groups[strings.TrimPrefix(path, fakeGroupsPrefix)])
 	default:
-		fakeReply(w, http.StatusNotFound, nil)
+		f.serveBootstrap(w, r, path)
 	}
 }
 
@@ -107,7 +122,7 @@ func (f *FakeExporter) userByEmail(email string) *userresource.User {
 	return nil
 }
 
-// The exporter merges a phase-less status, so only the invite fields it carries change.
+// The exporter merges a phase-less status, so only the invite fields and the sign-in stamp it carries change.
 func patchUser(w http.ResponseWriter, r *http.Request, user *userresource.User) {
 	var body map[string]any
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -128,6 +143,9 @@ func patchUser(w http.ResponseWriter, r *http.Request, user *userresource.User) 
 	}
 	if accepted, isString := status[fakeKeyAccepted].(string); isString {
 		user.Status.InviteAcceptedAt = accepted
+	}
+	if stamp, isString := status[constants.UserStatusFieldLastLoginAt].(string); isString {
+		user.Status.LastLoginAt = &stamp
 	}
 	if identities, present := body[fakeKeyIdentities]; present {
 		raw, err := json.Marshal(identities)
@@ -152,11 +170,49 @@ func (f *FakeExporter) servePasskeys(w http.ResponseWriter, r *http.Request) {
 		fakeReply(w, http.StatusOK, nil)
 		return
 	}
+	if credentials, signs := f.Credentials[userID]; signs {
+		fakeReply(w, http.StatusOK, map[string]any{fakeKeyItems: credentials})
+		return
+	}
 	items := make([]authdata.Passkey, f.Passkeys[userID])
 	for i := range items {
 		items[i] = authdata.Passkey{UserID: userID, CredentialID: strconv.Itoa(i)}
 	}
 	fakeReply(w, http.StatusOK, map[string]any{fakeKeyItems: items})
+}
+
+// The break-glass state, its request routes and the sessions a sign-in creates; any other path is unknown.
+func (f *FakeExporter) serveBootstrap(w http.ResponseWriter, r *http.Request, path string) {
+	switch {
+	case path == fakeBootstrapPath:
+		fakeReply(w, http.StatusOK, f.Bootstrap)
+	case strings.HasPrefix(path, fakeRequestsPath):
+		f.answerRequest(w, r, path)
+	case strings.HasPrefix(path, fakeSessionsPath):
+		f.sessionsIssued++
+		fakeReply(w, http.StatusOK, nil)
+	default:
+		fakeReply(w, http.StatusNotFound, nil)
+	}
+}
+
+// Records each call as its path and body, the way the request routes answer.
+func (f *FakeExporter) answerRequest(w http.ResponseWriter, r *http.Request, path string) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		fakeReply(w, http.StatusBadRequest, nil)
+		return
+	}
+	f.requestCalls = append(f.requestCalls, strings.TrimSpace(path+constants.SpaceSeparator+string(body)))
+	if f.OnRequest != nil {
+		f.OnRequest(path)
+	}
+	answer, found := f.RequestAnswers[path[strings.LastIndex(path, fakePathSep)+len(fakePathSep):]]
+	if !found {
+		fakeReply(w, http.StatusConflict, nil)
+		return
+	}
+	fakeReply(w, http.StatusOK, answer)
 }
 
 // Answers like GET config: the spec fields plus the resourceVersion a patch replays.
@@ -254,6 +310,18 @@ func (f *FakeExporter) Notices() []notificationsclient.Notification {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return slices.Clone(f.notices)
+}
+
+func (f *FakeExporter) RequestCalls() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.requestCalls)
+}
+
+func (f *FakeExporter) SessionsIssued() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.sessionsIssued
 }
 
 func (f *FakeExporter) PasskeyCount(userID string) int {

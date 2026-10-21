@@ -29,6 +29,19 @@ func PatchCustomResourceStatus(metadata base.Metadata, name string, payload map[
 	return performRetryingWrite(name, metadata, statusPatchFn(name, patchBytes))
 }
 
+// One attempt, no retry on a conflict: a compare-and-swap caller re-reads and decides again itself.
+func PatchCustomResourceStatusOnce(metadata base.Metadata, name string, payload map[string]any) shared.KubernetesAPIData {
+	patchBytes, err := json.Marshal(payload)
+	if err != nil {
+		return shared.CreateKubernetesAPIData(
+			shared.StatusInternalServerError,
+			string(errors.ErrRestMarshalPayload),
+			nil, err)
+	}
+	return performWrite(name, metadata, wait.Backoff{Steps: constants.SingleItem}, k8serrors.IsConflict,
+		statusPatchFn(name, patchBytes))
+}
+
 func UpdateCustomResourceStatus(
 	name string,
 	metadata base.Metadata,

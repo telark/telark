@@ -67,15 +67,18 @@ func ReadAndRestoreRequestBody(r *http.Request) ([]byte, error) {
 	return bodyBytes, nil
 }
 
+// The library checks the user-verified flag only when verification is required here.
 func CreateSessionData(
 	challenge *authdata.AuthChallenge,
 	webAuthnUser *User,
 	credentials []webauthn.Credential,
+	verification protocol.UserVerificationRequirement,
 ) *webauthn.SessionData {
 	sessionData := &webauthn.SessionData{
 		Challenge:            challenge.Challenge,
 		UserID:               webAuthnUser.ID,
 		AllowedCredentialIDs: make([][]byte, len(credentials)),
+		UserVerification:     verification,
 	}
 
 	for i, cred := range credentials {
@@ -192,6 +195,7 @@ func VerifyCredential(
 	credentials []webauthn.Credential,
 	passkeys []*authdata.Passkey,
 	r *http.Request,
+	verification protocol.UserVerificationRequirement,
 ) (*webauthn.Credential, error) {
 	wa, err := GetWebAuthnFor(r)
 	if err != nil {
@@ -212,7 +216,7 @@ func VerifyCredential(
 		webAuthnUser.ID = credentialResponse.Response.UserHandle
 	}
 
-	sessionData := CreateSessionData(challenge, webAuthnUser, credentials)
+	sessionData := CreateSessionData(challenge, webAuthnUser, credentials, verification)
 
 	if err := ValidateBackupFlagsFromRequest(bodyBytes, passkeys); err != nil {
 		return nil, err

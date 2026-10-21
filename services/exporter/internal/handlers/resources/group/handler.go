@@ -70,7 +70,7 @@ func CreateGroupResourceWithCacheInvalidation(optimizer *performance.Optimizer) 
 			return
 		}
 
-		createGroupResource(w, group, optimizer)
+		createGroupResource(r.Context(), w, group, optimizer)
 		// The members' grants were retired before the group existed; the next
 		// lookup must see it.
 		authz.BumpGeneration(r.Context())
@@ -86,7 +86,7 @@ func mirrorMembers(w http.ResponseWriter, r *http.Request, optimizer *performanc
 	return true
 }
 
-func createGroupResource(w http.ResponseWriter, group *groupdata.Group, optimizer *performance.Optimizer) {
+func createGroupResource(ctx context.Context, w http.ResponseWriter, group *groupdata.Group, optimizer *performance.Optimizer) {
 	spec, err := sharedutils.StructToSpecMap(group)
 	if err != nil {
 		responseutils.LogAndSendResponse(
@@ -105,6 +105,7 @@ func createGroupResource(w http.ResponseWriter, group *groupdata.Group, optimize
 	defer lock.Unlock()
 
 	generics.GenericCreateCustomResourceWithFinalizers(
+		ctx,
 		w,
 		metadata.GroupMetadata,
 		group.ID,

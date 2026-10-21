@@ -10,6 +10,7 @@ import (
 	dataerrors "github.com/telark/telark/internal/data/errors"
 	userresource "github.com/telark/telark/internal/data/resources/user"
 	restshared "github.com/telark/telark/internal/rest/clients/shared"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/auth/internal/clients"
 	"github.com/telark/telark/services/auth/internal/constants"
 	"github.com/telark/telark/services/auth/internal/helpers/shared"
@@ -98,32 +99,34 @@ func UpdateUserLastLogin(userID string) {
 
 // Every login path ends here, so this is where a terminating (410) or
 // non-active account is refused a session.
-func CreateUserSession(userID string, meta *authdata.DeviceMetadata) (string, error) {
+func CreateUserSession(userID string, meta *authdata.DeviceMetadata) (token string, expiresAt time.Time, err error) {
 	user, err := GetUserByIDWithErrorHandling(userID)
 	if err != nil {
-		return constants.EmptyString, err
+		return constants.EmptyString, time.Time{}, err
 	}
 	phase := userresource.AccountPhase(user.Status.Phase)
 	// Callers get here only with a verified credential, so naming the suspension leaks nothing.
 	if phase == userresource.AccountPhaseSuspended {
-		return constants.EmptyString, shared.Refuse(constants.RefusalAccountSuspended, errors.New(string(constants.ErrUserSuspended)))
+		return constants.EmptyString, time.Time{},
+			shared.Refuse(constants.RefusalAccountSuspended, errors.New(string(constants.ErrUserSuspended)))
 	}
 	if phase != userresource.AccountPhaseActive {
-		return constants.EmptyString, shared.Refuse(constants.RefusalAccountNotActive, errors.New(string(dataerrors.ErrAuthzUserNotActive)))
+		return constants.EmptyString, time.Time{},
+			shared.Refuse(constants.RefusalAccountNotActive, errors.New(string(dataerrors.ErrAuthzUserNotActive)))
 	}
 
 	sessionClient := clients.GetSessionClient()
 	cfg, err := shared.GetCachedConfig()
 	if err != nil {
-		return constants.EmptyString, err
+		return constants.EmptyString, time.Time{}, err
 	}
 
 	sessionToken, err := shared.GenerateSessionToken()
 	if err != nil {
-		return constants.EmptyString, fmt.Errorf(string(constants.ErrFailedGenerateSessionToken), err)
+		return constants.EmptyString, time.Time{}, fmt.Errorf(string(constants.ErrFailedGenerateSessionToken), err)
 	}
 
-	expiresAt := time.Now().UTC().Add(time.Duration(cfg.WebAuthn.SessionExpiry) * time.Hour)
+	expiresAt = time.Now().UTC().Add(time.Duration(cfg.WebAuthn.SessionExpiry) * time.Hour)
 
 	session := &authdata.Session{
 		SessionToken:     sessionToken,
@@ -136,10 +139,38 @@ func CreateUserSession(userID string, meta *authdata.DeviceMetadata) (string, er
 		session.DeviceMetadata = *meta
 	}
 
+	// Checked again right before the write: a sign-in that began before break-glass froze the account sends no session
+	// after it, so none can land later than the bound break-glass waits out.
+	if err := RefuseFrozen(userID); err != nil {
+		return constants.EmptyString, time.Time{}, err
+	}
 	resp := sessionClient.CreateSessionByUser(userID, session)
 	if resp.Status >= constants.HTTPBadRequest {
-		return constants.EmptyString, fmt.Errorf(string(constants.ErrFailedCreateSession), resp.Message)
+		return constants.EmptyString, time.Time{}, fmt.Errorf(string(constants.ErrFailedCreateSession), resp.Message)
 	}
 
-	return sessionToken, nil
+	return sessionToken, expiresAt, nil
+}
+
+// The session leaves auth only in this cookie: HttpOnly, so no script reads it, Strict and host-only, and Secure,
+// since auth can't tell the browser's scheme behind nginx (browsers but Safari keep it on http://localhost). It
+// ends with the session, and is __Host- prefixed when every passkey origin is https (xauthz.SessionCookieName).
+func SetSessionCookie(w http.ResponseWriter, token string, expiresAt time.Time) {
+	http.SetCookie(w, sessionCookie(token, max(int(time.Until(expiresAt).Seconds()), constants.DefaultIncrementValue)))
+}
+
+func ClearSessionCookie(w http.ResponseWriter) {
+	http.SetCookie(w, sessionCookie(constants.EmptyString, constants.CookieMaxAgeDelete))
+}
+
+func sessionCookie(value string, maxAge int) *http.Cookie {
+	return &http.Cookie{
+		Name:     xauthz.SessionCookieName(),
+		Value:    value,
+		Path:     constants.CookiePath,
+		MaxAge:   maxAge,
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	}
 }

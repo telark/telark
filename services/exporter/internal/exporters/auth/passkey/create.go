@@ -1,6 +1,7 @@
 package passkey
 
 import (
+	"context"
 	"net/http"
 
 	authmetadata "github.com/telark/telark/internal/data/metadata/v1alpha1"
@@ -13,7 +14,7 @@ import (
 	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
-func CreatePasskeyByUser(w http.ResponseWriter, body map[string]any, userID string) {
+func CreatePasskeyByUser(ctx context.Context, w http.ResponseWriter, body map[string]any, userID string) {
 	if !userutils.ValidateUserOrRespond(w, userID) {
 		return
 	}
@@ -48,5 +49,5 @@ func CreatePasskeyByUser(w http.ResponseWriter, body map[string]any, userID stri
 	lock.Lock()
 	defer lock.Unlock()
 
-	generics.GenericCreateCustomResource(w, authmetadata.PasskeyMetadata, passkeyName, spec)
+	generics.GenericCreateCustomResource(ctx, w, authmetadata.PasskeyMetadata, passkeyName, spec)
 }

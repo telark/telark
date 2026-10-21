@@ -3,10 +3,12 @@ package routes
 import (
 	"github.com/telark/telark/internal/rest/base"
 	autheps "github.com/telark/telark/internal/rest/endpoints/auth"
+	bootstrapeps "github.com/telark/telark/internal/rest/endpoints/bootstrap"
 	statuseps "github.com/telark/telark/internal/rest/endpoints/status"
 	"github.com/telark/telark/internal/rest/router"
 	authhandler "github.com/telark/telark/services/auth/internal/handlers/auth"
 	authorizationhandler "github.com/telark/telark/services/auth/internal/handlers/authorization"
+	bootstraphandler "github.com/telark/telark/services/auth/internal/handlers/bootstrap"
 	cleanuphandler "github.com/telark/telark/services/auth/internal/handlers/cleanup"
 	confighandler "github.com/telark/telark/services/auth/internal/handlers/config"
 	oidchandler "github.com/telark/telark/services/auth/internal/handlers/oidc"
@@ -26,6 +28,10 @@ var Routes = []router.Route{
 	// Registration routes
 	router.CreateRoute(base.Post, autheps.StartRegister, passkeyhandler.RegisterStart),
 
+	// Break-glass request approval (no sign-in)
+	router.CreateRoute(base.Post, bootstrapeps.StartAssertion, bootstraphandler.StartAssertion),
+	router.CreateRoute(base.Post, bootstrapeps.FinishAssertion, bootstraphandler.FinishAssertion),
+
 	// Public bootstrap config (unauthenticated)
 	router.CreateRoute(base.Get, autheps.Config, confighandler.GetConfig),
 
@@ -44,6 +50,7 @@ var Routes = []router.Route{
 	router.CreateRoute(base.Post, autheps.OIDCGoogleNonce, oidchandler.GetNonce),
 	router.CreateRoute(base.Patch, autheps.OIDCConfig, oidchandler.SetConfig),
 	router.CreateRoute(base.Patch, autheps.SelfRegistration, confighandler.SetSelfRegistration),
+	router.CreateRoute(base.Patch, autheps.BreakGlassAlerts, confighandler.SetBreakGlassAlerts),
 
 	// Status routes
 	router.CreateRoute(base.Get, statuseps.HealthCheck, statushandler.ProbeHandler),

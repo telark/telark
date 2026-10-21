@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"net/http"
 
+	webauthnlib "github.com/go-webauthn/webauthn/webauthn"
+	authdata "github.com/telark/telark/internal/data/auth"
+	userresource "github.com/telark/telark/internal/data/resources/user"
 	restshared "github.com/telark/telark/internal/rest/clients/shared"
 	requestutils "github.com/telark/telark/internal/rest/utils/request"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
@@ -75,25 +78,52 @@ func CreatePasskey(w http.ResponseWriter, r *http.Request) {
 		rollback = func() { authhelper.DiscardPendingUser(userID) }
 	}
 
-	if err := authhelper.AttachPasskeyIdentity(userID, user, credential); err != nil {
-		rollback()
-		shared.HandleError(w, errors.New(string(constants.ErrInternalServerError)),
-			http.StatusInternalServerError, err.Error())
-		return
-	}
-
 	passkey := authhelper.CreatePasskeyFromCredential(
 		userID, credential, deviceName, deviceType, backupEligible, backupState)
-
-	data, err := authhelper.CreatePasskey(userID, passkey)
-	if err != nil {
-		rollback()
-		sendProxyError(w, err)
+	data, saved := saveCredential(w, user, credential, passkey, rollback)
+	if !saved {
 		return
 	}
 	authhelper.CompleteInvite(user, enrollDigest != constants.EmptyString)
 
 	shared.SendJSONResponse(w, http.StatusCreated, data)
+}
+
+// The identity, then the passkey, each right after a fresh look at the freeze: a registration that began before
+// break-glass froze the account sends nothing after it, so nothing it writes can land later than the bound
+// break-glass waits out.
+func saveCredential(
+	w http.ResponseWriter, user *userresource.User, credential *webauthnlib.Credential, passkey *authdata.Passkey, rollback func(),
+) (any, bool) {
+	if refuseFrozen(w, passkey.UserID, rollback) {
+		return nil, false
+	}
+	if err := authhelper.AttachPasskeyIdentity(passkey.UserID, user, credential); err != nil {
+		rollback()
+		shared.HandleError(w, errors.New(string(constants.ErrInternalServerError)),
+			http.StatusInternalServerError, err.Error())
+		return nil, false
+	}
+	if refuseFrozen(w, passkey.UserID, rollback) {
+		return nil, false
+	}
+	data, err := authhelper.CreatePasskey(passkey.UserID, passkey)
+	if err != nil {
+		rollback()
+		sendProxyError(w, err)
+		return nil, false
+	}
+	return data, true
+}
+
+func refuseFrozen(w http.ResponseWriter, userID string, rollback func()) bool {
+	err := authhelper.RefuseFrozen(userID)
+	if err == nil {
+		return false
+	}
+	rollback()
+	shared.SendErrorResponse(w, shared.GetStatusCodeForWebAuthnError(err, http.StatusServiceUnavailable), err)
+	return true
 }
 
 func GetSinglePasskey(w http.ResponseWriter, r *http.Request) {

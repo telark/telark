@@ -193,46 +193,18 @@ func TestRunAppliesPendingStepsAndRecordsEach(t *testing.T) {
 		wantErr      bool
 	}{
 		{"fresh install runs every step", none, lastStep, noFailure, all, all, migrated, false},
-		{
-			"resumes after the recorded step",
-			migrationRecord{firstStep, noPreviousSteps},
-			lastStep, noFailure,
-			all[firstStep:], all[firstStep:], migrated, false,
-		},
-		{
-			"a failed step keeps the record before it", none, lastStep, secondStep,
-			all[:secondStep], all[:firstStep],
-			migrationRecord{firstStep, noPreviousSteps},
-			true,
-		},
+		{"resumes after the recorded step", migrationRecord{firstStep, noPreviousSteps}, lastStep, noFailure,
+			all[firstStep:], all[firstStep:], migrated, false},
+		{"a failed step keeps the record before it", none, lastStep, secondStep,
+			all[:secondStep], all[:firstStep], migrationRecord{firstStep, noPreviousSteps}, true},
 		{"nothing pending", migrated, lastStep, noFailure, nil, nil, migrated, false},
 		{"no steps and no record", none, noSteps, noFailure, nil, nil, none, false},
-		{
-			"one release back lowers the record and keeps its rollback step",
-			migrationRecord{newerStep, lastStep},
-			lastStep, noFailure,
-			nil,
-			[]int64{lastStep},
-			migrationRecord{lastStep, lastStep},
-			false,
-		},
-		{
-			"one release back without steps lowers the record to 0",
-			migrationRecord{secondStep, noPreviousSteps},
-			noSteps, noFailure,
-			nil,
-			[]int64{noSteps},
-			migrationRecord{noSteps, noPreviousSteps},
-			false,
-		},
-		{
-			"refuses data more than one release newer",
-			migrationRecord{newerStep, fourthStep},
-			lastStep, noFailure,
-			nil, nil,
-			migrationRecord{newerStep, fourthStep},
-			true,
-		},
+		{"one release back lowers the record and keeps its rollback step", migrationRecord{newerStep, lastStep},
+			lastStep, noFailure, nil, []int64{lastStep}, migrationRecord{lastStep, lastStep}, false},
+		{"one release back without steps lowers the record to 0", migrationRecord{secondStep, noPreviousSteps},
+			noSteps, noFailure, nil, []int64{noSteps}, migrationRecord{noSteps, noPreviousSteps}, false},
+		{"refuses data more than one release newer", migrationRecord{newerStep, fourthStep},
+			lastStep, noFailure, nil, nil, migrationRecord{newerStep, fourthStep}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

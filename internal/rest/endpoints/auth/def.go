@@ -41,6 +41,7 @@ const (
 	OIDCGoogleNonce    base.Endpoint = "auth/oidc/google/nonce"
 	OIDCConfig         base.Endpoint = "auth/oidc/config"
 	SelfRegistration   base.Endpoint = "auth/self-registration"
+	BreakGlassAlerts   base.Endpoint = "auth/break-glass-alerts"
 	UserEnrollLink     base.Endpoint = "auth/users/{id}/enroll-link"
 
 	// Async business delete; the finalizer-backed cleanup runs afterwards

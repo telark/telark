@@ -171,9 +171,10 @@ func TestGuardConfigPatchIdentitySettingsAreInternalOnly(t *testing.T) {
 	}
 	// The JWK is stored in a Secret, not the CR, but it is the same trust decision.
 	bodies := map[string]map[string]any{
-		"oidc flags":        {telarkconfig.FieldOIDC: map[string]any{keyEnabled: true}},
-		"oidc jwk only":     {telarkconfig.FieldOIDC: map[string]any{telarkconfig.OIDCSecretKey: `{"keys":[]}`}},
-		"self-registration": {telarkconfig.FieldSelfRegistration: map[string]any{keyEnabled: true}},
+		"oidc flags":         {telarkconfig.FieldOIDC: map[string]any{keyEnabled: true}},
+		"oidc jwk only":      {telarkconfig.FieldOIDC: map[string]any{telarkconfig.OIDCSecretKey: `{"keys":[]}`}},
+		"self-registration":  {telarkconfig.FieldSelfRegistration: map[string]any{keyEnabled: true}},
+		"break-glass alerts": {telarkconfig.FieldBreakGlassAlerts: map[string]any{telarkconfig.FieldNotifyAdmins: false}},
 	}
 	for _, tt := range tests {
 		for bodyName, spec := range bodies {

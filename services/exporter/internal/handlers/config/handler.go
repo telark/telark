@@ -113,6 +113,9 @@ func sendConfigView(w http.ResponseWriter, cr *unstructured.Unstructured, jwk st
 	if _, stored := out[telarkconfig.FieldSelfRegistration]; !stored {
 		out[telarkconfig.FieldSelfRegistration] = telarkconfig.DefaultTelarkConfig().SelfRegistration
 	}
+	if _, stored := out[telarkconfig.FieldBreakGlassAlerts]; !stored {
+		out[telarkconfig.FieldBreakGlassAlerts] = telarkconfig.DefaultTelarkConfig().BreakGlassAlerts
+	}
 	oidctrust.MergeJWK(out, jwk)
 	msg := fmt.Sprintf(string(success), cr.GetName(), cr.GetKind())
 	responseutils.SendResponse(w, http.StatusOK, response.OperationSuccess, msg, out)

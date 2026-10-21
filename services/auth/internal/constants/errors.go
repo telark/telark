@@ -86,6 +86,7 @@ const (
 	ErrBootstrapAdminRequired     errors.Error = "bootstrap config must set the admin email (BOOTSTRAP_ADMIN)"
 	ErrSelfRegistrationDisabled   errors.Error = "self-registration is disabled. contact your administrator"
 	ErrSelfRegistrationSaveFailed errors.Error = "failed to save self-registration: status %d"
+	ErrBreakGlassAlertsSaveFailed errors.Error = "failed to save break-glass alerts: status %d"
 
 	// Enrollment Link Errors
 	ErrEnrollLinkSelf       errors.Error = "enrollment links are not for your own account. use Add on another device"

@@ -72,6 +72,14 @@ spec:
                     enabled:
                       type: boolean
                       description: whether anyone who reaches the login page may create a ReadOnly account with a passkey. Written by auth for the bootstrap administrator only.
+                breakGlassAlerts:
+                  type: object
+                  default: {}
+                  properties:
+                    notifyAdmins:
+                      type: boolean
+                      default: true
+                      description: whether every active Admin on ALL hears of break-glass recovery requests and reads them in the bootstrap status. When false, only the bootstrap account does. Written by auth for the bootstrap administrator only.
             status:
               type: object
               properties:

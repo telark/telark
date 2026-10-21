@@ -44,6 +44,7 @@ const (
 	keySchema     = "schema"
 	keyOpenAPI    = "openAPIV3Schema"
 	keyProperties = "properties"
+	keyDefault    = "default"
 	templateOpen  = "{{"
 	lineBreak     = "\n"
 	pathDot       = "."
@@ -457,6 +458,24 @@ func TestSelfRegistrationShownOffBeforeFirstSave(t *testing.T) {
 	}
 }
 
+// Break-glass alerts start on: the CRD defaults a stored config without the switch, and GET config shows it on
+// rather than leaving the key out until the first save.
+func TestBreakGlassAlertsDefaultOn(t *testing.T) {
+	alerts := []string{keySpec, telarkconfig.FieldBreakGlassAlerts}
+	block, isBlock := crdProperties(t, crdConfigs, alerts[:1])[telarkconfig.FieldBreakGlassAlerts].(map[string]any)
+	field, isField := crdProperties(t, crdConfigs, alerts)[telarkconfig.FieldNotifyAdmins].(map[string]any)
+	on, isBool := field[keyDefault].(bool)
+	if !isBlock || !isField || block[keyDefault] == nil || !isBool || !on {
+		t.Fatalf("CRD defaults = block %v, notifyAdmins %v, want the block defaulted and notifyAdmins true", block, field)
+	}
+	installFake(t, defaultConfig())
+
+	view := serveConfig(t, confighandler.GetConfig(), http.MethodGet, constants.EmptyString)
+	if on, isBool := section(write{body: view}, telarkconfig.FieldBreakGlassAlerts)[telarkconfig.FieldNotifyAdmins].(bool); !isBool || !on {
+		t.Errorf("GET config breakGlassAlerts = %v, want notifyAdmins true", view[telarkconfig.FieldBreakGlassAlerts])
+	}
+}
+
 // The API server prunes what a schema does not declare and still answers 200, so every
 // field written for these features must be in the CRD or it is silently dropped.
 func TestCRDsDeclareTheNewFields(t *testing.T) {
@@ -471,6 +490,8 @@ func TestCRDsDeclareTheNewFields(t *testing.T) {
 			userdata.UserStatus{Phase: phaseSuspended, InviteAcceptedAt: stampTime}},
 		{crdConfigs, []string{keySpec, telarkconfig.FieldSelfRegistration},
 			telarkconfig.SelfRegistrationConfig{Enabled: true}},
+		{crdConfigs, []string{keySpec, telarkconfig.FieldBreakGlassAlerts},
+			telarkconfig.BreakGlassAlertsConfig{NotifyAdmins: true}},
 		{crdPlans, []string{keySpec}, map[string]any{"kindRef": callerID}},
 		{crdPlans, []string{keySpec, constants.FieldRepeat},
 			plans.ProtectionPlanRepeat{Days: []string{"sun"}, StartTime: "02:00", EndTime: "04:00", TimeZone: "UTC"}},

@@ -47,7 +47,7 @@ flowchart LR
 - Own the Telark CRDs (group `telark.io`, see [CRDS.md](../../docs/CRDS.md)) and the OIDC trust Secret: the exporter is the single service that reads and writes them on the cluster. Reads return a view with `id` = `metadata.name` and `.status` flattened into the top level; writes strip `id` and send status fields to the `/status` subresource of `Application`, `ProtectionPlan` and `TelarkConfig`.
 - Seed built-in resources (access roles, categories, the `TelarkConfig` named `default`) on startup.
 - Migrate stored data at startup, before it serves: run the numbered steps not yet recorded in `TelarkConfig`'s status, lower the record after a rollback of one release, and refuse to start on data two or more releases newer ([Migrations](../../docs/CRDS.md#migrations)).
-- Pin the **bootstrap account** in `TelarkConfig` `status.bootstrap` at its first passkey, and at each start pin the enrolled one if none is; then only one account keeps `spec.bootstrap`. Once pinned, a service create or patch that marks another account or unmarks the pinned one answers 409. Break-glass **requests** (`bootstrap/requests`, open, approve, cancel, complete; Internal only) live in that status, written with a compare-and-swap on its `resourceVersion`; `GET bootstrap` serves it to Admins on `ALL`. A completed recovery deletes the account's passkeys, sessions and passkey identities and empties the cached passkey and session lists (auth reads passkeys with `Cache-Control: no-cache` anyway); break-glass's last pass sends `revoke`, which completes again and purges whatever was enrolled since, where a plain re-run answers 409. A completed replacement moves the marker and the pin, and the pinned account and every active Admin on `ALL` are notified of each opened, canceled and completed request. Each status write is one compare-and-swap patch, and five lost in a row answer 409 ([Recovery requests](../../docs/INSTALL.md#recovery-requests)).
+- Pin the **bootstrap account** in `TelarkConfig` `status.bootstrap` at its first passkey, and at each start pin the enrolled one if none is; then only one account keeps `spec.bootstrap`. Once pinned, a service create or patch that marks another account or unmarks the pinned one answers 409. Break-glass **requests** (`bootstrap/requests`, open, approve, cancel, complete; Internal only) live in that status, written with a compare-and-swap on its `resourceVersion`; `GET bootstrap` serves it to Admins on `ALL`, with `notifyAdmins` (`spec.breakGlassAlerts`, missing reads as on); while that is off, only the pinned account and services get the requests. A completed recovery deletes the account's passkeys, sessions and passkey identities and empties the cached passkey and session lists (auth reads passkeys with `Cache-Control: no-cache` anyway); break-glass's last pass sends `revoke`, which completes again and purges whatever was enrolled since, where a plain re-run answers 409. A completed replacement moves the marker and the pin, and the pinned account, and every active Admin on `ALL` while `notifyAdmins` is on, are notified of each opened, canceled and completed request. Each status write is one compare-and-swap patch, and five lost in a row answer 409 ([Recovery requests](../../docs/INSTALL.md#recovery-requests)).
 - Store and serve **snapshots** of workload manifests (audit, comparison, rollback targets) on a PersistentVolume.
 - Store and serve **protection plan reports** (rendered by discovery) and each plan's report ledger on a second PersistentVolume. A reports GC goroutine (own Redis lock key, one replica per tick, shares `SNAPSHOT_GC_INTERVAL_SEC`) sweeps report directories whose plan CR is gone; reports a plan delete kept are outside its reach until a user deletes them.
 - Expose the REST surface every other service uses for CRD operations. At most 10 CRD creates run at once: a create that waits 20 seconds for its turn, or whose caller gives up first, answers 503 and creates nothing.
@@ -112,6 +112,11 @@ caller's own sessions and answers 404 for anyone else's.
 and ends on a revocation, expiry or suspension, never on an outage; a peer with the service token gets 403.
 Liveness/readiness at `/api/v1/status/{live,ready}`.
 
+Role create and patch (`POST accessroles`, `PATCH accessroles/{id}`) answer 400, naming the rule, when a
+`scopesAndPermissions` entry lists a deny rule that isn't `<scope>.<action>.deny` for the entry's scope (an `ALL`
+entry takes any scope's rule), with the actions of `DenyableActions` in `internal/data/resources/role/rules.go`.
+A patch without `scopesAndPermissions` leaves the stored rules unchecked.
+
 Protection plan create and patch refuse (403) lifecycle, approval and material keys from
 sessions, so approval (`pending_approval`) and phase changes stay on discovery's gated routes.
 Only Internal callers (discovery) write `approvalMode`, `approval`, `phase`, `renderedPolicies`,
@@ -160,7 +165,7 @@ keep full access.
 
 Config (`PATCH config`, the `TelarkConfig` named `default`) is checked per field: `excludedNamespaces`
 needs settings Contributor (deny `editdiscoveryconfig`), `snapshots` Contributor
-(deny `editsnapshotstorage`), `ai` Owner (deny `controlainsights`); `oidc` and `selfRegistration` are Internal
+(deny `editsnapshotstorage`), `ai` Owner (deny `controlainsights`); `oidc`, `selfRegistration` and `breakGlassAlerts` are Internal
 (auth is their single writer and lets only the bootstrap account change them, so every session gets 403),
 and so is `cluster` (written by discovery, stored in `.status`). `GET config` shows all of them to settings
 readers. `oidc.googleJwkJson` is written to the

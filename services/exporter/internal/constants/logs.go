@@ -127,6 +127,8 @@ const (
 	ErrRoleCategoryLocked               errors.Error = "the role category is locked by protection flags"
 	ErrRoleExtractData                  errors.Error = "failed to extract role data"
 	ErrRolePriorityExceedsLimit         errors.Error = "role priority must be less than the built-in role priority boost"
+	ErrRoleDenyRuleUnknown              errors.Error = "deny rule %q is not a known rule of scope %q: " +
+		"expected <scope>.<rule>.deny, such as applications.rollbackapplication.deny"
 
 	// Category
 	ErrCategoryNotFound            errors.Error = "category not found"

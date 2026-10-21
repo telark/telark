@@ -74,3 +74,34 @@ const (
 	ActionEditProtectionPlanCategory   = "editprotectionplancategory"
 	ActionDeleteProtectionPlanCategory = "deleteprotectionplancategory"
 )
+
+// The actions a role can deny in each scope: a stored rule is the authz RuleKey of the scope and one of them.
+var DenyableActions = map[string][]string{
+	ScopeApplications: {
+		ActionViewApplicationsRollbacks, ActionViewApplicationsSnapshots, ActionViewApplicationSnapshotManifest,
+		ActionEditApplication, ActionForceApplicationSync, ActionRollbackApplication, ActionDeleteApplication,
+	},
+	ScopeGroups: {
+		ActionViewGroupsCategories, ActionViewGroupAttachedRoles, ActionCreateGroup, ActionEditGroup,
+		ActionAddGroupCategory, ActionAddUserToGroup, ActionRemoveUserFromGroup, ActionDeleteGroup,
+		ActionAttachRoleToGroup, ActionRemoveRoleFromGroup, ActionEditGroupCategory, ActionDeleteGroupCategory,
+	},
+	ScopeUsers: {
+		ActionViewUserAttachedRoles, ActionCreateUser, ActionDeleteUser,
+		ActionAttachRoleToUser, ActionRemoveRoleFromUser, ActionSuspendUser,
+	},
+	ScopeRoles: {
+		ActionViewRolesCategories, ActionCreateRole, ActionEditRole, ActionAddRoleCategory,
+		ActionDeleteRole, ActionEditRoleCategory, ActionDeleteRoleCategory,
+	},
+	ScopeSettings: {ActionEditDiscoveryConfig, ActionEditSnapshotStorage, ActionControlAIInsights, ActionEditOIDCConfig},
+	ScopeInsights: {ActionAnalyzeInsights, ActionTriageInsights},
+	ScopeProtectionPlans: {
+		ActionViewProtectionPlanViolations, ActionCreateProtectionPlan, ActionEditProtectionPlan,
+		ActionCancelProtectionPlan, ActionDuplicateProtectionPlan, ActionReactivateProtectionPlan,
+		ActionDeleteProtectionPlan, ActionApproveProtectionPlan, ActionViewProtectionPlans,
+		ActionRejectProtectionPlan, ActionGenerateProtectionPlanReport, ActionViewProtectionPlanReports,
+		ActionDownloadProtectionPlanReport, ActionAddProtectionPlanCategory, ActionEditProtectionPlanCategory,
+		ActionDeleteProtectionPlanCategory,
+	},
+}

@@ -47,6 +47,9 @@ func ExtractAndMergeRoleForPatch(existingRole *roledata.AccessRole, body map[str
 		)
 		return nil, false
 	}
+	if validateDenyRulesOrRespond(w, newRole.ScopesAndPermissions) != nil {
+		return nil, false
+	}
 
 	mergedRole := MergeRoleAndPreparePatchBody(existingRole, newRole, body)
 	delete(body, constants.FieldCreationDate)

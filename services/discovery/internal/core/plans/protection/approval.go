@@ -100,17 +100,15 @@ func ApprovalPatchValue(a *plans.ProtectionPlanApproval) map[string]any {
 
 func InitialPhase(plan *plans.ProtectionPlan, now time.Time) {
 	nowStr := now.Format(globalshared.DefaultTimeFormat)
+	plan.Window, _ = plans.PlanWindow(plan, now)
 	if RequiresApproval(plan) {
 		plan.Phase = plans.PhasePendingApproval
 		plan.Approval = NewApprovalRequest(plan.CreatedBy, nowStr, nil)
 		return
 	}
-	if plan.TimeMode == plans.TimeModeTimeRange && plan.TimeRange != nil {
-		startAt, err := time.Parse(time.RFC3339, plan.TimeRange.StartAt)
-		if err == nil && startAt.After(now) {
-			plan.Phase = plans.PhaseScheduled
-			return
-		}
+	if phase, _ := WindowPhase(plan, now); phase == plans.PhaseScheduled {
+		plan.Phase = plans.PhaseScheduled
+		return
 	}
 	plan.Phase = plans.PhaseActive
 	plan.StartedAt = &nowStr
@@ -231,6 +229,13 @@ func reactivateShape(phase string, rendered []string, userID, now string) map[st
 		patch[FieldStartedBy] = userID
 	}
 	return patch
+}
+
+// Only a repeating plan has a window: the one it is in or waits for.
+func stampWindow(patch map[string]any, plan *plans.ProtectionPlan, now time.Time) {
+	if window, _ := plans.PlanWindow(plan, now); window != nil {
+		patch[FieldWindow] = window
+	}
 }
 
 func decidedApproval(

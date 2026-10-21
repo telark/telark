@@ -72,10 +72,32 @@ func Run(
 	}
 
 	newPolicies := toPolicies(req.Policies)
-	if protection.RequiresApproval(plan) && approvedPhase(plan.Phase) && MaterialChange(plan, req, newPolicies) {
-		return nil, validation.Invalid(string(protection.ErrApprovedPlanMaterialEdit))
+	if err := guardApprovedEdit(plan, req, newPolicies, clock); err != nil {
+		return nil, err
 	}
 	return apply(ctx, deps, userID, plan, req, newPolicies, clock)
+}
+
+// An approved one-off or permanent plan keeps its approved spec, and so does a series while one of
+// its windows is open. Between windows a series takes the edit and asks for approval again.
+func guardApprovedEdit(
+	plan *plans.ProtectionPlan,
+	req *planseps.PrepareProtectionPlanRequest,
+	newPolicies []plans.ProtectionPlanPolicy,
+	now time.Time,
+) error {
+	if !protection.RequiresApproval(plan) || !approvedPhase(plan.Phase) || approvesAgain(plan) ||
+		!MaterialChange(plan, req, newPolicies) {
+		return nil
+	}
+	if plan.TimeMode != plans.TimeModeRepeating {
+		return validation.Invalid(string(protection.ErrApprovedPlanMaterialEdit))
+	}
+	end := constants.EmptyString
+	if window, _ := plans.PlanWindow(plan, now); window != nil {
+		end = window.EndAt
+	}
+	return validation.Invalidf(string(protection.ErrApprovedWindowOpen), end)
 }
 
 func apply(
@@ -105,23 +127,56 @@ func apply(
 
 	rendered := protpolicies.UnionRenderedNames(kept, deployed)
 	now := clock.Format(globalshared.DefaultTimeFormat)
-	patch, changed := BuildPatch(plan, req, newPolicies, rendered, userID, now)
+	patch, changed := buildEditPatch(plan, req, newPolicies, rendered, userID, clock)
 	if !changed && !park {
 		return plan, nil
 	}
 
 	material := MaterialChange(plan, req, newPolicies)
-	reRequest := plan.Phase == plans.PhasePendingApproval && material
+	reRequest := material && (plan.Phase == plans.PhasePendingApproval || approvesAgain(plan))
 	if err := applyPatch(deps, plan, userID, now, patch, reRequest || recordsEditor(plan, material), park); err != nil {
 		rollbackCluster(ctx, deps, plan, req.Mode, deployed, resolved, fullRender)
 		return nil, fmt.Errorf(string(ErrPartial), plan.ID)
 	}
 	withdraw(ctx, deps, plan, stale)
+	markPatched(deps, plan, userID, now, park, reRequest)
+	return settlePhase(ctx, deps, plan, req, clock, reRequest)
+}
+
+// The edit's patch, plus the window a changed schedule puts a repeating plan in, so the plan it
+// returns already shows that window.
+func buildEditPatch(
+	plan *plans.ProtectionPlan,
+	req *planseps.PrepareProtectionPlanRequest,
+	newPolicies []plans.ProtectionPlanPolicy,
+	rendered []string,
+	userID string,
+	clock time.Time,
+) (planseps.PatchProtectionPlanRequest, bool) {
+	patch, changed := BuildPatch(plan, req, newPolicies, rendered, userID, clock.Format(globalshared.DefaultTimeFormat))
+	if patch.Repeat == nil && patch.TimeMode == nil {
+		return patch, changed
+	}
+	if window, _ := plans.PlanWindow(editedSchedule(plan, req), clock); window != nil {
+		patch.Window = &planseps.TimeRangeRequest{StartAt: window.StartAt, EndAt: window.EndAt}
+	}
+	return patch, changed
+}
+
+// The in-memory phase follows the patch: a park ends the run with its report, and a plan sent
+// back for approval opens no window until someone approves.
+func markPatched(deps Deps, plan *plans.ProtectionPlan, userID, now string, park, reRequest bool) {
 	if park {
-		deps.CaptureRun(plan, now, userID, protection.ReasonParked, reportseps.TriggerEnd)
+		reason, trigger := protection.ReasonParked, reportseps.TriggerEnd
+		if plan.TimeMode == plans.TimeModeRepeating {
+			reason, trigger = protection.ReasonWindowClosedByEdit, reportseps.TriggerWindow
+		}
+		deps.CaptureRun(plan, now, userID, reason, trigger)
 		plan.Phase = plans.PhaseScheduled
 	}
-	return settlePhase(ctx, deps, plan, req, clock, reRequest)
+	if reRequest {
+		plan.Phase = plans.PhasePendingApproval
+	}
 }
 
 // plan still lists the withdrawn names, so the checkpoint keeps their denials for the run report.
@@ -129,14 +184,17 @@ func withdraw(ctx context.Context, deps Deps, plan *plans.ProtectionPlan, stale 
 	if len(stale) == constants.DefaultInitValue {
 		return
 	}
-	cctx, cancel := context.WithTimeout(ctx, constants.DefaultReportCaptureTimeout)
-	_, err := deps.Checkpoint(cctx, plan)
-	cancel()
-	if err != nil {
-		deps.Logger.Error(fmt.Sprintf(reports.LogCheckpointFailed, plan.ID, err))
-	}
+	checkpoint(ctx, deps, plan)
 	if err := deps.Applier.DeletePoliciesByLabelAndNames(ctx, plan.ID, stale); err != nil {
 		deps.Logger.Error(fmt.Sprintf(protection.LogStaleDeleteFailed, plan.ID, err))
+	}
+}
+
+func checkpoint(ctx context.Context, deps Deps, plan *plans.ProtectionPlan) {
+	cctx, cancel := context.WithTimeout(ctx, constants.DefaultReportCaptureTimeout)
+	defer cancel()
+	if _, err := deps.Checkpoint(cctx, plan); err != nil {
+		deps.Logger.Error(fmt.Sprintf(reports.LogCheckpointFailed, plan.ID, err))
 	}
 }
 
@@ -163,17 +221,22 @@ func TargetPhase(plan *plans.ProtectionPlan, req *planseps.PrepareProtectionPlan
 	if plan.Phase != plans.PhaseActive && plan.Phase != plans.PhaseScheduled {
 		return plan.Phase
 	}
+	phase, expired := protection.WindowPhase(editedSchedule(plan, req), now)
+	if expired {
+		return plan.Phase
+	}
+	return phase
+}
+
+func editedSchedule(plan *plans.ProtectionPlan, req *planseps.PrepareProtectionPlanRequest) *plans.ProtectionPlan {
 	target := *plan
 	target.TimeMode = req.TimeMode
 	target.TimeRange = nil
 	if req.TimeRange != nil {
 		target.TimeRange = &plans.ProtectionPlanTimeRange{StartAt: req.TimeRange.StartAt, EndAt: req.TimeRange.EndAt}
 	}
-	phase, expired := protection.WindowPhase(&target, now)
-	if expired {
-		return plan.Phase
-	}
-	return phase
+	target.Repeat = req.Repeat
+	return &target
 }
 
 func lockRename(
@@ -189,8 +252,8 @@ func lockRename(
 }
 
 // An exclusions change is content under the same names, which the combos diff never re-renders,
-// so it deploys the whole new plan instead. Parking withdraws everything: the plan enforces
-// nothing until its new window starts.
+// so it deploys the whole new plan instead. Parking checkpoints the run, then withdraws everything:
+// the plan enforces nothing until its new window starts.
 func applyCluster(
 	ctx context.Context,
 	deps Deps,
@@ -202,6 +265,7 @@ func applyCluster(
 	fullRender, park bool,
 ) (deployed, kept, stale []string, err error) {
 	if park {
+		checkpoint(ctx, deps, plan)
 		if err := deps.Applier.CleanupByPlanID(ctx, plan.ID); err != nil {
 			deps.Logger.Error(fmt.Sprintf(protection.LogCleanupFailed, stagePark, plan.ID, err))
 		}
@@ -309,6 +373,8 @@ func applyPatch(
 	case !approvalTouched:
 	case plan.Phase == plans.PhasePendingApproval:
 		body[protection.FieldApproval] = protection.ApprovalPatchValue(protection.NewApprovalRequest(userID, now, plan.Approval))
+	case approvesAgain(plan):
+		maps.Copy(body, protection.BuildPendingPatch(plan, userID, now))
 	default:
 		body[protection.FieldApproval] = protection.ApprovalPatchValue(protection.RecordEditor(plan.Approval, userID, now))
 	}
@@ -337,6 +403,11 @@ func recordsEditor(plan *plans.ProtectionPlan, material bool) bool {
 
 func approvedPhase(phase string) bool {
 	return phase == plans.PhaseActive || phase == plans.PhaseScheduled
+}
+
+// An approved series between windows: one approval covers it, and a material edit asks again.
+func approvesAgain(plan *plans.ProtectionPlan) bool {
+	return plan.Phase == plans.PhaseScheduled && plan.TimeMode == plans.TimeModeRepeating && protection.RequiresApproval(plan)
 }
 
 // Every phase is editable: a canceled or terminated plan has no cluster state, so the edit only
@@ -370,14 +441,22 @@ func validateRequest(
 	if err := validatePolicies(req.Policies, req.Scope.Type); err != nil {
 		return validation.Invalidf(string(ErrInvalidPolicies), err)
 	}
-	if req.TimeMode != plans.TimeModeTimeRange {
+	return validateSchedule(plan, req, now)
+}
+
+func validateSchedule(plan *plans.ProtectionPlan, req *planseps.PrepareProtectionPlanRequest, now time.Time) error {
+	switch req.TimeMode {
+	case plans.TimeModeRepeating:
+		return validation.Repeat(req.Repeat)
+	case plans.TimeModeTimeRange:
+		// Only a newly set window has to be open: a finished plan can still be renamed as it is.
+		if plan.TimeMode != req.TimeMode || !timeRangeEqual(plan.TimeRange, req.TimeRange) {
+			return validation.TimeRangeOpen(req.TimeRange, now)
+		}
+		return validation.TimeRange(req.TimeRange)
+	default:
 		return nil
 	}
-	// Only a newly set window has to be open: a finished plan can still be renamed as it is.
-	if plan.TimeMode != req.TimeMode || !timeRangeEqual(plan.TimeRange, req.TimeRange) {
-		return validation.TimeRangeOpen(req.TimeRange, now)
-	}
-	return validation.TimeRange(req.TimeRange)
 }
 
 func callerFields(ctx context.Context, req *planseps.PrepareProtectionPlanRequest, deps Deps) error {

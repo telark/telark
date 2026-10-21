@@ -33,6 +33,7 @@ func lifecycleBodies() map[string]map[string]any {
 		"approvalMode": {"approvalMode": "automatic"},
 		"reason":       {"reason": "forged"},
 		"healthDetail": {"healthDetail": []any{}},
+		"window":       {"window": map[string]any{"startAt": "2026-01-01T00:00:00Z"}},
 		// Renames go through discovery's update, which keeps names unique.
 		"name": {"name": "taken"},
 	}
@@ -43,6 +44,7 @@ func materialBodies() map[string]map[string]any {
 		"mode":      {"mode": "enforce"},
 		"timeRange": {"timeRange": map[string]any{"startAt": "2026-01-01T00:00:00Z"}},
 		"policies":  {"policies": []any{}},
+		"repeat":    {"repeat": map[string]any{"days": []any{"sun"}}},
 	}
 }
 
@@ -77,6 +79,7 @@ func TestGuardPlanLifecyclePassesPlainFields(t *testing.T) {
 		"priority":        "p1",
 		"participantRefs": []any{callerID},
 		"environmentRef":  "cat-00002-0001-0001",
+		"kindRef":         "cat-00004-0001-0001",
 		"tagRefs":         []any{},
 	}
 	w := httptest.NewRecorder()

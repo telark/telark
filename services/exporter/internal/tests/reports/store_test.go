@@ -239,6 +239,36 @@ func TestPruneKeepsNewestManualAndNeverPrunesBoundary(t *testing.T) {
 	}
 }
 
+// A daily series adds a window report a day, so only the newest window reports stay; the manual cap
+// counts manual reports alone, and end and cancel reports are never pruned.
+func TestPruneKeepsNewestWindowReports(t *testing.T) {
+	root := setupRoot(t)
+	mustCreate(t, root, request(planA, reportOne, reportseps.TriggerEnd, generatedAt))
+	manualID := fmt.Sprintf(manualIDLayout, firstIdx)
+	mustCreate(t, root, request(planA, manualID, reportseps.TriggerManual, generatedAt))
+	want := []string{reportOne, manualID}
+	start, err := time.Parse(time.RFC3339, generatedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	windows := constants.ReportsMaxWindowPerPlan + removeTwice
+	for i := range windows {
+		id := fmt.Sprintf("run%03d-%s", i, reportseps.TriggerWindow)
+		at := start.Add(time.Duration(i+constants.DefaultIncrementValue) * time.Minute).Format(time.RFC3339)
+		mustCreate(t, root, request(planA, id, reportseps.TriggerWindow, at))
+		if i >= windows-constants.ReportsMaxWindowPerPlan {
+			want = append(want, id)
+		}
+	}
+
+	got := ids(mustList(t, root, planA))
+	slices.Sort(got)
+	slices.Sort(want)
+	if !slices.Equal(got, want) {
+		t.Fatalf("after prune %d ids, want %d: the oldest window reports and nothing else go", len(got), len(want))
+	}
+}
+
 func TestLoadServesFormatBytesAndRefusesOutsideRoot(t *testing.T) {
 	root := setupRoot(t)
 	req := request(planA, reportOne, reportseps.TriggerEnd, generatedAt)

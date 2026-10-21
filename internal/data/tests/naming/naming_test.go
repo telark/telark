@@ -36,7 +36,7 @@ func metadataCases() []metadataCase {
 				"rollbacks", "history", "lastForceSync", "createdAt", "lastUpdated", "conditions"}},
 		{name: "protection plan", metadata: v1alpha1.ProtectionPlanMetadata, kind: "ProtectionPlan", plural: "protectionplans",
 			status: []string{"phase", "reason", "conditions", "observedGeneration", "renderedPolicies", "health",
-				"healthCheckedAt", "healthDetail", "startedAt", "startedBy", "terminatedAt", "terminatedBy", "approval"}},
+				"healthCheckedAt", "healthDetail", "startedAt", "startedBy", "terminatedAt", "terminatedBy", "approval", "window"}},
 		{name: "telark config", metadata: v1alpha1.TelarkConfigMetadata, kind: "TelarkConfig", plural: "telarkconfigs",
 			singleton: "default", status: []string{"cluster"}},
 		{name: "category", metadata: v1alpha1.CategoryMetadata, kind: "Category", plural: "categories", singleton: "categories"},

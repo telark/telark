@@ -26,9 +26,14 @@ const (
 	// Long enough for the edge plus scheduling slop, far short of one tick.
 	settleWindow = 8 * time.Second
 	idleWindow   = 2 * time.Second
+	// Outlasts the one second between the slow plan's startAt and the next plan's edge, so that
+	// edge passes while the slow plan is still activating.
+	slowCall = 1200 * time.Millisecond
 
 	kindActivate  = "activate"
 	kindTerminate = "terminate"
+	kindClose     = "close"
+	kindRefresh   = "refresh"
 )
 
 type event struct {
@@ -38,12 +43,13 @@ type event struct {
 }
 
 type fakeService struct {
-	mu          sync.Mutex
-	plans       []plans.ProtectionPlan
-	lists       int
-	reconciles  int
-	activateErr error
-	events      chan event
+	mu            sync.Mutex
+	plans         []plans.ProtectionPlan
+	lists         int
+	reconciles    int
+	activateErr   error
+	activateDelay time.Duration
+	events        chan event
 }
 
 func (f *fakeService) ListAllPlans() ([]plans.ProtectionPlan, error) {
@@ -54,6 +60,7 @@ func (f *fakeService) ListAllPlans() ([]plans.ProtectionPlan, error) {
 }
 
 func (f *fakeService) Activate(_ context.Context, plan *plans.ProtectionPlan) error {
+	time.Sleep(f.activateDelay)
 	if f.activateErr != nil {
 		return f.activateErr
 	}
@@ -65,6 +72,17 @@ func (f *fakeService) Activate(_ context.Context, plan *plans.ProtectionPlan) er
 func (f *fakeService) Terminate(_ context.Context, plan *plans.ProtectionPlan) error {
 	f.setPhase(plan.ID, plans.PhaseTerminated)
 	f.record(kindTerminate, plan.ID)
+	return nil
+}
+
+func (f *fakeService) CloseWindow(_ context.Context, plan *plans.ProtectionPlan) error {
+	f.setPhase(plan.ID, plans.PhaseScheduled)
+	f.record(kindClose, plan.ID)
+	return nil
+}
+
+func (f *fakeService) RefreshWindow(plan *plans.ProtectionPlan) error {
+	f.record(kindRefresh, plan.ID)
 	return nil
 }
 
@@ -189,6 +207,19 @@ func TestOverdueBoundaryFiresOnLeadershipStart(t *testing.T) {
 	assertLag(t, await(t, fake, kindTerminate), startedAt)
 }
 
+// A window that passed whole while no pass ran (an outage, a leadership gap) is over: the plan ends
+// without enforcing for an instant, as a pending plan does.
+func TestMissedWindowEndsWithoutActivating(t *testing.T) {
+	startAt, _ := edge(-2 * time.Hour)
+	endAt, _ := edge(-time.Hour)
+	fake := &fakeService{plans: []plans.ProtectionPlan{plan("plan-missed", plans.PhaseScheduled, startAt, endAt)}}
+
+	startedAt := start(t, fake)
+	assertLag(t, await(t, fake, kindTerminate), startedAt)
+	time.Sleep(idleWindow)
+	testutil.Equal(t, "further events", len(fake.events), constants.DefaultInitValue)
+}
+
 // Approval is what a pending plan waits on, not its startAt: a window that opens before the
 // decision lands must not start enforcing on its own.
 func TestPendingIsNotActivatedAtStartAt(t *testing.T) {
@@ -220,6 +251,26 @@ func TestShortWindowTerminatesOnTime(t *testing.T) {
 	startAt, _ := edge(boundaryLead)
 	endAt, boundary := edge(boundaryLead * 2)
 	fake := &fakeService{plans: []plans.ProtectionPlan{plan("plan-short", plans.PhaseScheduled, startAt, endAt)}}
+
+	start(t, fake)
+	await(t, fake, kindActivate)
+	assertLag(t, await(t, fake, kindTerminate), boundary)
+}
+
+// A real transition waits on the exporter and the cluster, so another plan's edge can pass while it
+// runs. The pass still has to arm that edge, or it waits for the tick.
+func TestEdgeDuringSlowTransitionLandsOnTime(t *testing.T) {
+	startAt, startEdge := edge(boundaryLead)
+	farEndAt, _ := edge(time.Hour)
+	pastStartAt, _ := edge(-time.Hour)
+	boundary := startEdge.Add(time.Second)
+	fake := &fakeService{
+		plans: []plans.ProtectionPlan{
+			plan("plan-slow", plans.PhaseScheduled, startAt, farEndAt),
+			plan("plan-next", plans.PhaseActive, pastStartAt, boundary.Format(time.RFC3339)),
+		},
+		activateDelay: slowCall,
+	}
 
 	start(t, fake)
 	await(t, fake, kindActivate)

@@ -84,7 +84,7 @@ func denied(id xauthz.Identity, scope, rule string) xauthz.Identity {
 func TestGuardCategoryScopePlanTaxonomies(t *testing.T) {
 	contributor, owner := roledata.PermissionLevelContributor, roledata.PermissionLevelOwner
 	plans, groups, roles := roledata.ScopeProtectionPlans, roledata.ScopeGroups, roledata.ScopeRoles
-	environments, tags := categorydata.ScopePlanEnvironments, categorydata.ScopePlanTags
+	environments, tags, kinds := categorydata.ScopePlanEnvironments, categorydata.ScopePlanTags, categorydata.ScopePlanKinds
 	create, edit, remove := constants.CategoryOpCreate, constants.CategoryOpEdit, constants.CategoryOpDelete
 	ownerDenied := func(action string) xauthz.Identity {
 		return denied(levels(plans, owner), plans, xauthz.RuleKey(plans, action))
@@ -103,6 +103,9 @@ func TestGuardCategoryScopePlanTaxonomies(t *testing.T) {
 		{"plans contributor edits tag", levels(plans, contributor), tags, edit, false},
 		{"plans owner edits environment", levels(plans, owner), environments, edit, true},
 		{"plans owner deletes tag", levels(plans, owner), tags, remove, true},
+		{"plans contributor adds kind", levels(plans, contributor), kinds, create, true},
+		{"plans contributor edits kind", levels(plans, contributor), kinds, edit, false},
+		{"delete deny bites kind delete", ownerDenied(roledata.ActionDeleteProtectionPlanCategory), kinds, remove, false},
 		{"add deny bites tag add", ownerDenied(roledata.ActionAddProtectionPlanCategory), tags, create, false},
 		{"edit deny bites tag edit", ownerDenied(roledata.ActionEditProtectionPlanCategory), tags, edit, false},
 		{"edit deny spares tag delete", ownerDenied(roledata.ActionEditProtectionPlanCategory), tags, remove, true},

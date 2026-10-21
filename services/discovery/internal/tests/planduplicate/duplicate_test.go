@@ -33,6 +33,7 @@ const (
 	sourceTagID            = "cat-00003-0001-0001"
 	overrideTagA           = "cat-00003-0001-0002"
 	overrideTagB           = "cat-00003-0001-0003"
+	sourceKindRef          = "cat-00004-0001-0004"
 	defaultCopyName        = "Copy of prod-guard"
 	secondCopyName         = "Copy of prod-guard (2)"
 	takenSuffixCeiling     = 200
@@ -128,6 +129,28 @@ func TestBuildRequestTaxonomyOverrides(t *testing.T) {
 		t.Fatal("cleared tagRefs should be a non-nil empty slice")
 	}
 	testutil.Equal(t, "cleared tagRefs len", len(cleared.TagRefs), constants.DefaultInitValue)
+}
+
+// A copy keeps the source's kind and repeat rule unless the request overrides them, and a copy
+// switched to another time mode leaves the rule behind.
+func TestBuildRequestCarriesKindAndRepeat(t *testing.T) {
+	source := sourcePlan()
+	source.KindRef = sourceKindRef
+	source.TimeMode, source.TimeRange = plans.TimeModeRepeating, nil
+	source.Repeat = &plans.ProtectionPlanRepeat{Days: []string{"sun"}, StartTime: "02:00", EndTime: "04:00", TimeZone: "Europe/Paris"}
+
+	got := duplicate.BuildRequest(source, planseps.DuplicateProtectionPlanRequest{}, asOwner)
+	testutil.Equal(t, "kindRef", *got.KindRef, sourceKindRef)
+	testutil.Equal(t, "repeat copied", reflect.DeepEqual(got.Repeat, source.Repeat), true)
+
+	override := &plans.ProtectionPlanRepeat{Days: []string{"sat"}, StartTime: "22:00", EndTime: "02:00", TimeZone: "UTC"}
+	got = duplicate.BuildRequest(source, planseps.DuplicateProtectionPlanRequest{KindRef: strptr(""), Repeat: override}, asOwner)
+	testutil.Equal(t, "kindRef cleared", *got.KindRef, "")
+	testutil.Equal(t, "repeat overridden", got.Repeat == override, true)
+
+	permanent := plans.TimeModePermanent
+	got = duplicate.BuildRequest(source, planseps.DuplicateProtectionPlanRequest{TimeMode: &permanent}, asOwner)
+	testutil.Equal(t, "repeat dropped", got.Repeat == nil, true)
 }
 
 // AvailableName keeps the default copy name when free and otherwise suffixes it until it is.

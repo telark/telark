@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -113,6 +114,7 @@ const (
 	fmtMissingNamespaces     = "namespaces not found in cluster: %v"
 	fmtDuplicateName         = "a protection plan named %q already exists"
 	fmtInvalidEnvironmentRef = "environmentRef must be at most %d characters"
+	fmtInvalidKindRef        = "kindRef must be at most %d characters"
 	fmtInvalidTagID          = "tagRefs[%d] must be at most %d characters"
 	fmtTooManyTagRefs        = "tagRefs must have at most %d entries"
 	msgDuplicateTagRefs      = "tagRefs must not contain duplicates"
@@ -134,7 +136,7 @@ var (
 		plans.SeverityLow, plans.SeverityMedium, plans.SeverityHigh, plans.SeverityCritical,
 	}
 	allowedModes         = []string{plans.ModeAudit, plans.ModeEnforce}
-	allowedTimeModes     = []string{plans.TimeModePermanent, plans.TimeModeTimeRange}
+	allowedTimeModes     = []string{plans.TimeModePermanent, plans.TimeModeTimeRange, plans.TimeModeRepeating}
 	allowedApprovalModes = []string{plans.ApprovalModeAutomatic, plans.ApprovalModeRequired}
 )
 
@@ -152,6 +154,9 @@ func PrepareRequest(req *planseps.PrepareProtectionPlanRequest, now time.Time) e
 	if req.TimeMode == plans.TimeModeTimeRange {
 		return TimeRangeOpen(req.TimeRange, now)
 	}
+	if req.TimeMode == plans.TimeModeRepeating {
+		return Repeat(req.Repeat)
+	}
 	return nil
 }
 
@@ -168,6 +173,11 @@ func Normalize(req *planseps.PrepareProtectionPlanRequest) {
 		seen[key] = struct{}{}
 		return false
 	})
+	if req.Repeat != nil {
+		slices.SortStableFunc(req.Repeat.Days, func(a, b string) int {
+			return cmp.Compare(slices.Index(plans.RepeatDays, a), slices.Index(plans.RepeatDays, b))
+		})
+	}
 }
 
 func dedupe(items []string) []string {
@@ -230,6 +240,9 @@ func HasTemplateSyntax(value string) bool {
 func taxonomyFields(req *planseps.PrepareProtectionPlanRequest) error {
 	if req.EnvironmentRef != nil && len(*req.EnvironmentRef) > TaxonomyIDMaxLength {
 		return Invalidf(fmtInvalidEnvironmentRef, TaxonomyIDMaxLength)
+	}
+	if req.KindRef != nil && len(*req.KindRef) > TaxonomyIDMaxLength {
+		return Invalidf(fmtInvalidKindRef, TaxonomyIDMaxLength)
 	}
 	if len(req.TagRefs) > TagRefsMax {
 		return Invalidf(fmtTooManyTagRefs, TagRefsMax)
@@ -471,6 +484,13 @@ func TimeRange(tr *planseps.TimeRangeRequest) error {
 	}
 	if !end.After(start) {
 		return ErrInvalidTimeRange
+	}
+	return nil
+}
+
+func Repeat(r *plans.ProtectionPlanRepeat) error {
+	if err := plans.ValidateRepeat(r); err != nil {
+		return Invalid(err.Error())
 	}
 	return nil
 }

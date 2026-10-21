@@ -154,6 +154,45 @@ func TestInitialPhaseParksRequiredPlans(t *testing.T) {
 	testutil.Equal(t, "scheduled phase", scheduled.Phase, plans.PhaseScheduled)
 }
 
+// A series starts active only inside a window and carries the window it is in or waits for, even
+// while it waits for approval. Its series never ends, so it is never expired.
+func TestInitialPhaseStampsTheSeriesWindow(t *testing.T) {
+	// testNow is Thursday 2026-01-01 09:00 in Tokyo.
+	const tokyoTen, tokyoEightUTC, tokyoTenUTC = "10:00", "2025-12-31T23:00:00Z", "2026-01-01T01:00:00Z"
+	series := func(startTime, endTime, mode string) *plans.ProtectionPlan {
+		return &plans.ProtectionPlan{
+			CreatedBy:    requester,
+			ApprovalMode: mode,
+			TimeMode:     plans.TimeModeRepeating,
+			Repeat:       &plans.ProtectionPlanRepeat{Days: []string{"thu"}, StartTime: startTime, EndTime: endTime, TimeZone: "Asia/Tokyo"},
+		}
+	}
+	cases := []struct {
+		name              string
+		plan              *plans.ProtectionPlan
+		phase, start, end string
+	}{
+		{"inside a window", series("08:00", tokyoTen, plans.ApprovalModeAutomatic), plans.PhaseActive,
+			tokyoEightUTC, tokyoTenUTC},
+		{"between windows", series(tokyoTen, "11:00", plans.ApprovalModeAutomatic), plans.PhaseScheduled,
+			tokyoTenUTC, "2026-01-01T02:00:00Z"},
+		{"awaiting approval", series("08:00", tokyoTen, plans.ApprovalModeRequired), plans.PhasePendingApproval,
+			tokyoEightUTC, tokyoTenUTC},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			protection.InitialPhase(c.plan, testNow)
+			testutil.Equal(t, labelPhase, c.plan.Phase, c.phase)
+			if c.plan.Window == nil || c.plan.Window.StartAt != c.start || c.plan.Window.EndAt != c.end {
+				t.Fatalf("window = %+v, want %s → %s", c.plan.Window, c.start, c.end)
+			}
+			testutil.Equal(t, "started", c.plan.StartedAt != nil, c.phase == plans.PhaseActive)
+			_, expired := protection.WindowPhase(c.plan, testNow.AddDate(constants.DefaultAddValue, 0, 0))
+			testutil.Equal(t, "expired", expired, false)
+		})
+	}
+}
+
 func TestBuildApprovePatchActiveAndScheduled(t *testing.T) {
 	plan := pendingPlan()
 	plan.RenderedPolicies = []string{"pol-1"}

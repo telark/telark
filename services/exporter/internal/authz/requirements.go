@@ -6,6 +6,7 @@ import (
 	roleendpoints "github.com/telark/telark/internal/rest/endpoints/accessroles"
 	applicationendpoints "github.com/telark/telark/internal/rest/endpoints/applications"
 	authendpoints "github.com/telark/telark/internal/rest/endpoints/auth"
+	bootstrapendpoints "github.com/telark/telark/internal/rest/endpoints/bootstrap"
 	categoryendpoints "github.com/telark/telark/internal/rest/endpoints/categories"
 	cleanupendpoints "github.com/telark/telark/internal/rest/endpoints/cleanup"
 	configendpoints "github.com/telark/telark/internal/rest/endpoints/config"
@@ -35,6 +36,7 @@ func Requirements() map[string]authz.Requirement {
 	addPlans(requirements)
 	addNotifications(requirements)
 	addConfig(requirements)
+	addBootstrap(requirements)
 	addCleanup(requirements)
 	addSessions(requirements)
 	addPasskeys(requirements)
@@ -163,6 +165,13 @@ func addReports(r map[string]authz.Requirement) {
 	r[router.Key(base.Get, reportsendpoints.DownloadPlanReport)] = authz.Denyable(
 		authz.Read(roledata.ScopeProtectionPlans), roledata.ActionDownloadProtectionPlanReport,
 	)
+	r[router.Key(base.Get, reportsendpoints.ListKeptReports)] = authz.Denyable(
+		authz.Read(roledata.ScopeProtectionPlans), roledata.ActionViewProtectionPlanReports,
+	)
+	// Deleting a plan deletes its reports, so whoever may delete a plan may delete one of them.
+	r[router.Key(base.Delete, reportsendpoints.DeletePlanReport)] = authz.Denyable(
+		authz.Own(roledata.ScopeProtectionPlans), roledata.ActionDeleteProtectionPlan,
+	)
 }
 
 // Their own feature: managing an application does not imply managing its plans.
@@ -185,6 +194,7 @@ func addPlans(r map[string]authz.Requirement) {
 // Every user reaches their own, whatever scopes their roles carry.
 func addNotifications(r map[string]authz.Requirement) {
 	r[router.Key(base.Get, notificationsendpoints.List)] = authz.Authenticated
+	r[router.Key(base.Get, notificationsendpoints.Events)] = authz.Authenticated
 	r[router.Key(base.Post, notificationsendpoints.MarkRead)] = authz.Authenticated
 	r[router.Key(base.Post, notificationsendpoints.MarkAllRead)] = authz.Authenticated
 	r[router.Key(base.Delete, notificationsendpoints.Clear)] = authz.Authenticated
@@ -198,6 +208,16 @@ func addNotifications(r map[string]authz.Requirement) {
 func addConfig(r map[string]authz.Requirement) {
 	r[router.Key(base.Get, configendpoints.GetConfig)] = authz.Read(roledata.ScopeSettings)
 	r[router.Key(base.Patch, configendpoints.PatchConfig)] = authz.Authenticated
+}
+
+// Admins on ALL read the pin and the record. Only break-glass and auth's approval ceremony move a request,
+// with the service token: a session, the bootstrap account's included, approves only through a fresh passkey.
+func addBootstrap(r map[string]authz.Requirement) {
+	r[router.Key(base.Get, bootstrapendpoints.GetBootstrap)] = authz.Administer(roledata.ScopeAll)
+	r[router.Key(base.Post, bootstrapendpoints.OpenRequest)] = authz.Internal
+	r[router.Key(base.Post, bootstrapendpoints.ApproveRequest)] = authz.Internal
+	r[router.Key(base.Post, bootstrapendpoints.CancelRequest)] = authz.Internal
+	r[router.Key(base.Post, bootstrapendpoints.CompleteRequest)] = authz.Internal
 }
 
 // Finalizer edits decide whether a resource can be deleted at all, so only

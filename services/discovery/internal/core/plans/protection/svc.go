@@ -156,16 +156,34 @@ func (s *Service) dropVanishedApplications(ctx context.Context, req *planseps.Pr
 	return nil
 }
 
+// window=run serves what the plan's report would hold, so a finished plan's refusals stay listed
+// after cleanup; a plan that never started has an empty run.
 func (s *Service) ListViolations(
 	ctx context.Context,
 	planID string,
 	query violations.Query,
 ) (*planseps.ProtectionPlanViolationsResponse, error) {
-	return violations.List(ctx, violations.Deps{
-		Exporter:    s.exporter,
-		Dyn:         s.dyn,
-		ResolveApps: s.resolveApps,
-	}, planID, query)
+	if query.Window != violations.WindowRun {
+		return violations.List(ctx, violations.Deps{
+			Exporter:    s.exporter,
+			Dyn:         s.dyn,
+			ResolveApps: s.resolveApps,
+		}, planID, query)
+	}
+	plan, err := s.exporter.Get(planID)
+	if err != nil {
+		return nil, err
+	}
+	if plan.StartedAt == nil {
+		return violations.RunResponse(plan, nil, false, query), nil
+	}
+	runCtx, cancel := context.WithTimeout(ctx, time.Duration(violations.CheckTimeoutSeconds)*time.Second)
+	defer cancel()
+	ledger, err := s.reports.RunLedger(runCtx, plan)
+	if err != nil {
+		return nil, err
+	}
+	return violations.RunResponse(plan, ledger.Violations, ledger.Truncated, query), nil
 }
 
 func (s *Service) healthDeps() health.Deps {
@@ -317,8 +335,9 @@ func (s *Service) Reactivate(ctx context.Context, userID, planID string) (*plans
 
 // Nothing is deployed for a required plan until an approver decides.
 func (s *Service) park(userID, planID string, plan *plans.ProtectionPlan, now time.Time) (*plans.ProtectionPlan, error) {
-	nowStr := now.Format(globalshared.DefaultTimeFormat)
-	if err := s.exporter.PatchRawOrError(userID, planID, BuildPendingPatch(plan, userID, nowStr)); err != nil {
+	patch := BuildPendingPatch(plan, userID, now.Format(globalshared.DefaultTimeFormat))
+	stampWindow(patch, plan, now)
+	if err := s.exporter.PatchRawOrError(userID, planID, patch); err != nil {
 		return nil, err
 	}
 	parked, err := s.exporter.Get(planID)
@@ -398,8 +417,9 @@ func (s *Service) approve(
 		}
 	}
 
-	nowStr := now.Format(globalshared.DefaultTimeFormat)
-	if err := s.exporter.PatchRawOrError(userID, plan.ID, BuildApprovePatch(plan, phase, userID, req.Comment, nowStr)); err != nil {
+	patch := BuildApprovePatch(plan, phase, userID, req.Comment, now.Format(globalshared.DefaultTimeFormat))
+	stampWindow(patch, plan, now)
+	if err := s.exporter.PatchRawOrError(userID, plan.ID, patch); err != nil {
 		if active {
 			_ = s.applier.CleanupByPlanID(ctx, plan.ID)
 		}
@@ -449,8 +469,15 @@ func (s *Service) persistReactivate(
 	return nil
 }
 
-// The phase a plan's window puts it in at now, and whether the window has already ended.
+// The phase a plan's window puts it in at now, and whether the window has already ended. A
+// repeating plan's series never ends: between windows it is scheduled.
 func WindowPhase(plan *plans.ProtectionPlan, now time.Time) (string, bool) {
+	if plan.TimeMode == plans.TimeModeRepeating {
+		if _, open := plans.PlanWindow(plan, now); open {
+			return plans.PhaseActive, false
+		}
+		return plans.PhaseScheduled, false
+	}
 	if plan.TimeMode != plans.TimeModeTimeRange || plan.TimeRange == nil {
 		return plans.PhaseActive, false
 	}
@@ -466,7 +493,9 @@ func WindowPhase(plan *plans.ProtectionPlan, now time.Time) (string, bool) {
 }
 
 func buildReactivatePatch(plan *plans.ProtectionPlan, userID string, now time.Time) map[string]any {
-	return reactivateShape(plan.Phase, plan.RenderedPolicies, userID, now.Format(globalshared.DefaultTimeFormat))
+	patch := reactivateShape(plan.Phase, plan.RenderedPolicies, userID, now.Format(globalshared.DefaultTimeFormat))
+	stampWindow(patch, plan, now)
+	return patch
 }
 
 func validateTemplatesForPlan(plan *plans.ProtectionPlan) error {
@@ -482,13 +511,15 @@ func validateTemplatesForPlan(plan *plans.ProtectionPlan) error {
 	return nil
 }
 
-// Re-reads before deploying: the controller's snapshot may predate a re-park or cancel.
+// Re-reads before deploying: the controller's snapshot may predate a re-park, a cancel or an edit
+// that moved the window.
 func (s *Service) Activate(ctx context.Context, snapshot *plans.ProtectionPlan) error {
 	plan, err := s.exporter.Get(snapshot.ID)
 	if err != nil {
 		return err
 	}
-	if !Activatable(plan) {
+	opened := s.clock()
+	if phase, _ := WindowPhase(plan, opened); !Activatable(plan) || phase != plans.PhaseActive {
 		s.logger.Info(fmt.Sprintf(LogActivateSkippedStale, plan.ID, plan.Phase))
 		return nil
 	}
@@ -514,11 +545,13 @@ func (s *Service) Activate(ctx context.Context, snapshot *plans.ProtectionPlan) 
 
 	now := s.clock().Format(globalshared.DefaultTimeFormat)
 	system := SystemActor
+	window, _ := plans.PlanWindow(plan, opened)
 	patch := planseps.PatchProtectionPlanRequest{
 		Phase:            ptrString(plans.PhaseActive),
 		StartedAt:        &now,
 		StartedBy:        &system,
 		RenderedPolicies: names,
+		Window:           fromTimeRange(window),
 		LastUpdatedAt:    &now,
 		LastUpdatedBy:    &system,
 	}
@@ -541,6 +574,47 @@ func (s *Service) Terminate(ctx context.Context, plan *plans.ProtectionPlan) err
 	return nil
 }
 
+// A repeating plan goes back to scheduled with its next window. The next window starts a new
+// ledger, so this run is checkpointed before the cleanup and gets its own report.
+func (s *Service) CloseWindow(ctx context.Context, snapshot *plans.ProtectionPlan) error {
+	plan, err := s.exporter.Get(snapshot.ID)
+	if err != nil {
+		return err
+	}
+	closed := s.clock()
+	if phase, _ := WindowPhase(plan, closed); plan.TimeMode != plans.TimeModeRepeating ||
+		plan.Phase != plans.PhaseActive || phase == plans.PhaseActive {
+		s.logger.Info(fmt.Sprintf(LogCloseSkippedStale, plan.ID, plan.Phase))
+		return nil
+	}
+	now := closed.Format(globalshared.DefaultTimeFormat)
+	patch := reactivateShape(plans.PhaseScheduled, nil, SystemActor, now)
+	stampWindow(patch, plan, closed)
+	if err := s.exporter.PatchRawOrError(SystemActor, plan.ID, patch); err != nil {
+		return err
+	}
+	// shortcut: series that end together close one after another, each checkpoint up to the capture
+	// timeout; move the checkpoints to a bounded pool when many series share an end time.
+	_ = s.checkpoint(ctx, plan)
+	s.cleanup(ctx, "window", plan.ID)
+	s.reports.CaptureAsync(plan, now, SystemActor, ReasonWindowEnded, reportseps.TriggerWindow)
+	s.logger.Info(fmt.Sprintf(LogPlanWindowClosed, plan.ID))
+	return nil
+}
+
+// Re-reads, so a window an edit has just stamped is never overwritten from an older snapshot.
+func (s *Service) RefreshWindow(snapshot *plans.ProtectionPlan) error {
+	plan, err := s.exporter.Get(snapshot.ID)
+	if err != nil {
+		return err
+	}
+	window, _ := plans.PlanWindow(plan, s.clock())
+	if window == nil || (plan.Window != nil && *plan.Window == *window) {
+		return nil
+	}
+	return s.exporter.PatchOrError(SystemActor, plan.ID, planseps.PatchProtectionPlanRequest{Window: fromTimeRange(window)})
+}
+
 func (s *Service) GenerateReport(ctx context.Context, userID, planID string) (*reportseps.ReportMeta, error) {
 	plan, err := s.exporter.Get(planID)
 	if err != nil {
@@ -559,24 +633,28 @@ func (s *Service) CheckpointReports(ctx context.Context, planList []plans.Protec
 		if plan.Phase != plans.PhaseActive || plan.StartedAt == nil || plan.TerminatedAt != nil {
 			continue
 		}
-		pctx, cancel := context.WithTimeout(ctx, constants.DefaultReportCaptureTimeout)
-		_, err := s.reports.Checkpoint(pctx, plan)
-		cancel()
-		if err != nil {
-			s.logger.Error(fmt.Sprintf(reports.LogCheckpointFailed, plan.ID, err))
-		}
-		if clients.IsExporterFailure(err) {
+		if clients.IsExporterFailure(s.checkpoint(ctx, plan)) {
 			break
 		}
 	}
 }
 
-func (s *Service) Clear(ctx context.Context, planID string) error {
+func (s *Service) checkpoint(ctx context.Context, plan *plans.ProtectionPlan) error {
+	cctx, cancel := context.WithTimeout(ctx, constants.DefaultReportCaptureTimeout)
+	defer cancel()
+	_, err := s.reports.Checkpoint(cctx, plan)
+	if err != nil {
+		s.logger.Error(fmt.Sprintf(reports.LogCheckpointFailed, plan.ID, err))
+	}
+	return err
+}
+
+func (s *Service) Clear(ctx context.Context, planID string, keepReports bool) error {
 	if _, err := s.exporter.Get(planID); err != nil {
 		return err
 	}
 	s.cleanup(ctx, "clear", planID)
-	return s.exporter.DeleteOrError(planID)
+	return s.exporter.DeleteOrError(planID, keepReports)
 }
 
 // Cleanup failures are logged, not returned: the lifecycle patch still has to land.
@@ -623,6 +701,12 @@ func (s *Service) buildPlan(
 	}
 	if req.EnvironmentRef != nil {
 		plan.EnvironmentRef = *req.EnvironmentRef
+	}
+	if req.KindRef != nil {
+		plan.KindRef = *req.KindRef
+	}
+	if req.TimeMode == plans.TimeModeRepeating {
+		plan.Repeat = req.Repeat
 	}
 	plan.ApprovalMode = ResolveApprovalMode(req.ApprovalMode, plan.EnvironmentRef, callerOwner)
 	return plan
@@ -786,6 +870,7 @@ func toCreateRequest(plan *plans.ProtectionPlan) planseps.CreateProtectionPlanRe
 		Mode:             plan.Mode,
 		TimeMode:         plan.TimeMode,
 		TimeRange:        fromTimeRange(plan.TimeRange),
+		Repeat:           plan.Repeat,
 		Phase:            plan.Phase,
 		Reason:           plan.Reason,
 		RenderedPolicies: plan.RenderedPolicies,
@@ -797,8 +882,10 @@ func toCreateRequest(plan *plans.ProtectionPlan) planseps.CreateProtectionPlanRe
 		StartedBy:        plan.StartedBy,
 		TerminatedAt:     plan.TerminatedAt,
 		TerminatedBy:     plan.TerminatedBy,
+		Window:           fromTimeRange(plan.Window),
 		ParticipantRefs:  plan.ParticipantRefs,
 		EnvironmentRef:   plan.EnvironmentRef,
+		KindRef:          plan.KindRef,
 		TagRefs:          plan.TagRefs,
 		ApprovalMode:     plan.ApprovalMode,
 		Approval:         toApprovalRequest(plan.Approval),

@@ -23,3 +23,6 @@ const (
 	GenerateProtectionPlanReport base.Endpoint = "protectionplans/{id}/reports"
 	DecideProtectionPlan         base.Endpoint = "protectionplans/{id}/decision"
 )
+
+// On both deletes: true keeps the plan's reports, absent removes them with the plan.
+const QueryKeepReports = "keepReports"

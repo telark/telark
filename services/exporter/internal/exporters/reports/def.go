@@ -66,6 +66,23 @@ func ListReports(w http.ResponseWriter, query url.Values) {
 	responseutils.LogAndSendResponse(w, http.StatusOK, response.OperationSuccess, string(messages.SuccessListRes), metas, nil)
 }
 
+func ListKeptReports(w http.ResponseWriter) {
+	kept, err := reportsutil.ListKept(envmanager.GetReportsPath())
+	if err != nil {
+		sendStoreError(w, err, dataerrors.ErrListRes, constants.ReportsKeptSubdir)
+		return
+	}
+	responseutils.LogAndSendResponse(w, http.StatusOK, response.OperationSuccess, string(messages.SuccessListRes), kept, nil)
+}
+
+func DeletePlanReport(w http.ResponseWriter, planID, reportID string) {
+	if err := reportsutil.RemoveReport(envmanager.GetReportsPath(), planID, reportID); err != nil {
+		sendStoreError(w, err, dataerrors.ErrDeleteRes, reportID)
+		return
+	}
+	responseutils.LogAndSendResponse(w, http.StatusOK, response.OperationSuccess, string(messages.SuccessOperation), nil, nil)
+}
+
 // The whole body is in memory before any header goes out, so a read failure
 // still yields a clean error envelope instead of a truncated document.
 func DownloadPlanReport(w http.ResponseWriter, planID, reportID, format string) {

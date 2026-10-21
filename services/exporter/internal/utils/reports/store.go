@@ -27,8 +27,16 @@ func PlanDir(root, planID string) string {
 	return filepath.Join(root, constants.ReportsPlansSubdir, planID)
 }
 
+func KeptDir(root, planID string) string {
+	return filepath.Join(root, constants.ReportsKeptSubdir, planID)
+}
+
 func ReportPath(root, planID, reportID string) string {
-	return filepath.Join(PlanDir(root, planID), constants.ReportsReportsSubdir, reportID+constants.ReportFileExtension)
+	return reportIn(PlanDir(root, planID), reportID)
+}
+
+func reportIn(dir, reportID string) string {
+	return filepath.Join(dir, constants.ReportsReportsSubdir, reportID+constants.ReportFileExtension)
 }
 
 func LedgerPath(root, planID string) string {
@@ -111,24 +119,39 @@ func readMetaFile(path string) (reportseps.ReportMeta, error) {
 	return ReadMeta(f)
 }
 
-// Boundary reports (end/cancel) are never pruned; only the newest manual ones
-// survive.
+// End and cancel reports are never pruned; only the newest manual and window ones survive.
 func prune(root, planID string) {
 	metas, err := List(root, planID)
 	if err != nil {
 		return
 	}
-	manual := slices.DeleteFunc(metas, func(m reportseps.ReportMeta) bool { return m.Trigger != reportseps.TriggerManual })
-	for i := constants.ReportsMaxPerPlan; i < len(manual); i++ {
-		path := ReportPath(root, planID, manual[i].ID)
+	pruneTrigger(root, planID, metas, reportseps.TriggerManual, constants.ReportsMaxPerPlan)
+	pruneTrigger(root, planID, metas, reportseps.TriggerWindow, constants.ReportsMaxWindowPerPlan)
+}
+
+// metas is newest first, as List returns it.
+func pruneTrigger(root, planID string, metas []reportseps.ReportMeta, trigger string, keep int) {
+	for _, meta := range metas {
+		if meta.Trigger != trigger {
+			continue
+		}
+		if keep > constants.DefaultInitValue {
+			keep--
+			continue
+		}
+		path := ReportPath(root, planID, meta.ID)
 		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			lg.Error(fmt.Sprintf(string(constants.ErrReportWriteFailed), artifact.StageNone, manual[i].ID, path, err))
+			lg.Error(fmt.Sprintf(string(constants.ErrReportWriteFailed), artifact.StageNone, meta.ID, path, err))
 		}
 	}
 }
 
 func List(root, planID string) ([]reportseps.ReportMeta, error) {
-	entries, err := os.ReadDir(filepath.Join(PlanDir(root, planID), constants.ReportsReportsSubdir))
+	return listIn(PlanDir(root, planID))
+}
+
+func listIn(dir string) ([]reportseps.ReportMeta, error) {
+	entries, err := os.ReadDir(filepath.Join(dir, constants.ReportsReportsSubdir))
 	if errors.Is(err, os.ErrNotExist) {
 		return []reportseps.ReportMeta{}, nil
 	}
@@ -140,7 +163,7 @@ func List(root, planID string) ([]reportseps.ReportMeta, error) {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), constants.ReportFileExtension) {
 			continue
 		}
-		meta, err := readMetaFile(filepath.Join(PlanDir(root, planID), constants.ReportsReportsSubdir, entry.Name()))
+		meta, err := readMetaFile(filepath.Join(dir, constants.ReportsReportsSubdir, entry.Name()))
 		if err != nil {
 			continue
 		}
@@ -246,6 +269,10 @@ func Load(root, planID, reportID, format string) ([]byte, string, error) {
 		return nil, constants.EmptyString, ErrBadID
 	}
 	raw, err := os.ReadFile(filepath.Clean(path))
+	if errors.Is(err, os.ErrNotExist) {
+		// A deleted plan's kept reports download through the same route.
+		raw, err = os.ReadFile(filepath.Clean(reportIn(KeptDir(root, planID), reportID)))
+	}
 	if err != nil {
 		return nil, constants.EmptyString, err
 	}
@@ -307,6 +334,96 @@ func RemovePlanReports(root, planID string) error {
 		return err
 	}
 	return nil
+}
+
+// Moves the plan's directory out of root/plans, where neither this release's sweep nor an
+// older one's looks. The marker goes in first so the move carries it.
+func Keep(root, planID, planName string) error {
+	if !artifact.IsSafeSegment(planID) {
+		return ErrBadID
+	}
+	dir, kept := PlanDir(root, planID), KeptDir(root, planID)
+	if !artifact.IsWithinBase(dir, root) || !artifact.IsWithinBase(kept, root) {
+		return ErrBadID
+	}
+	if _, err := os.Stat(dir); errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	_, err := artifact.WriteAtomic(filepath.Join(dir, constants.ReportsKeptMarkerFile), func(w io.Writer) error {
+		return json.NewEncoder(w).Encode(KeptMarker{PlanName: planName})
+	})
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(kept), constants.SnapshotDirPerm); err != nil {
+		return err
+	}
+	if err := os.Rename(dir, kept); err != nil {
+		return err
+	}
+	// The ledger is discovery's working state for reports the deleted plan can no longer get.
+	if err := os.Remove(filepath.Join(kept, constants.ReportsLedgerFile)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
+// A plan whose marker is unreadable still lists, with an empty name.
+func ListKept(root string) ([]reportseps.KeptPlanReports, error) {
+	entries, err := os.ReadDir(filepath.Join(root, constants.ReportsKeptSubdir))
+	if errors.Is(err, os.ErrNotExist) {
+		return []reportseps.KeptPlanReports{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	kept := make([]reportseps.KeptPlanReports, constants.DefaultInitValue, len(entries))
+	for _, entry := range entries {
+		planID := entry.Name()
+		if !entry.IsDir() || !artifact.IsSafeSegment(planID) {
+			continue
+		}
+		dir := KeptDir(root, planID)
+		metas, listErr := listIn(dir)
+		if listErr != nil {
+			continue
+		}
+		kept = append(kept, reportseps.KeptPlanReports{PlanID: planID, PlanName: readKeptName(dir), Reports: metas})
+	}
+	return kept, nil
+}
+
+func readKeptName(dir string) string {
+	var marker KeptMarker
+	raw, err := os.ReadFile(filepath.Clean(filepath.Join(dir, constants.ReportsKeptMarkerFile)))
+	if err != nil || json.Unmarshal(raw, &marker) != nil {
+		return constants.EmptyString
+	}
+	return marker.PlanName
+}
+
+// Listings read the directories, so the file is the only record. A kept plan's last report
+// takes its directory, marker included, with it.
+func RemoveReport(root, planID, reportID string) error {
+	if !artifact.IsSafeSegment(planID) || !artifact.IsSafeSegment(reportID) {
+		return ErrBadID
+	}
+	path := ReportPath(root, planID, reportID)
+	if !artifact.IsWithinBase(path, root) {
+		return ErrBadID
+	}
+	if err := os.Remove(path); !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	dir := KeptDir(root, planID)
+	if err := os.Remove(reportIn(dir, reportID)); err != nil {
+		return err
+	}
+	left, err := listIn(dir)
+	if err != nil || len(left) > constants.DefaultInitValue {
+		return err
+	}
+	return os.RemoveAll(dir)
 }
 
 // Never touches root or root/plans themselves: an unreferenced plan directory

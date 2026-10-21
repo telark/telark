@@ -7,6 +7,7 @@ import (
 	roleendpoints "github.com/telark/telark/internal/rest/endpoints/accessroles"
 	applicationendpoints "github.com/telark/telark/internal/rest/endpoints/applications"
 	authendpoints "github.com/telark/telark/internal/rest/endpoints/auth"
+	bootstrapendpoints "github.com/telark/telark/internal/rest/endpoints/bootstrap"
 	categoryendpoints "github.com/telark/telark/internal/rest/endpoints/categories"
 	cleanupendpoints "github.com/telark/telark/internal/rest/endpoints/cleanup"
 	configendpoints "github.com/telark/telark/internal/rest/endpoints/config"
@@ -23,6 +24,7 @@ import (
 	"github.com/telark/telark/services/exporter/internal/constants"
 	passkeyhandler "github.com/telark/telark/services/exporter/internal/handlers/auth/passkey"
 	sessionhandler "github.com/telark/telark/services/exporter/internal/handlers/auth/session"
+	bootstraphandler "github.com/telark/telark/services/exporter/internal/handlers/bootstrap"
 	categoryhandler "github.com/telark/telark/services/exporter/internal/handlers/categories"
 	confighandler "github.com/telark/telark/services/exporter/internal/handlers/config"
 	notificationhandler "github.com/telark/telark/services/exporter/internal/handlers/notifications"
@@ -35,6 +37,7 @@ import (
 	userhandler "github.com/telark/telark/services/exporter/internal/handlers/resources/user"
 	snapshothandler "github.com/telark/telark/services/exporter/internal/handlers/snapshot"
 	statushandler "github.com/telark/telark/services/exporter/internal/handlers/status"
+	notifstorage "github.com/telark/telark/services/exporter/internal/redis/notifications"
 	"github.com/telark/telark/services/exporter/internal/utils/performance"
 )
 
@@ -47,7 +50,7 @@ func userResourceCachedGetRoute(
 		performance.NewCachedListHandlerFunc(
 			optimizer,
 			handler,
-			exporterauthz.RestrictedKey(cache.NewGetCacheKeyFunc(constants.ResourceUser)),
+			exporterauthz.MaskedKey(exporterauthz.RestrictedKey(cache.NewGetCacheKeyFunc(constants.ResourceUser))),
 			constants.ResourceUser,
 			constants.OpGet,
 		))
@@ -70,10 +73,11 @@ func subjectListCachedRoute(
 		))
 }
 
-func InitRoutes(optimizer *performance.Optimizer) []router.Route {
+func InitRoutes(optimizer *performance.Optimizer, hub *notifstorage.Hub) []router.Route {
 	routes := make([]router.Route, constants.DefaultInitValue, constants.DefaultRoutesCount)
 	routes = append(routes, applicationRoutes(optimizer)...)
 	routes = append(routes, configRoutes()...)
+	routes = append(routes, bootstrapRoutes(optimizer)...)
 	routes = append(routes, userRoutes(optimizer)...)
 	routes = append(routes, groupRoutes(optimizer)...)
 	routes = append(routes, roleRoutes(optimizer)...)
@@ -82,7 +86,7 @@ func InitRoutes(optimizer *performance.Optimizer) []router.Route {
 	routes = append(routes, passkeyRoutes(optimizer)...)
 	routes = append(routes, snapshotRoutes()...)
 	routes = append(routes, reportRoutes()...)
-	routes = append(routes, notificationRoutes()...)
+	routes = append(routes, notificationRoutes(hub)...)
 	routes = append(routes, protectionPlanRoutes()...)
 	routes = append(routes, statusRoutes()...)
 	routes = append(routes, cleanupRoutes()...)
@@ -123,13 +127,18 @@ func reportRoutes() []router.Route {
 		router.CreateRoute(base.Get, reportsendpoints.DownloadPlanReport, reportshandler.DownloadPlanReport()),
 		router.CreateRoute(base.Update, reportsendpoints.PutPlanReportLedger, reportshandler.PutPlanReportLedger()),
 		router.CreateRoute(base.Get, reportsendpoints.GetPlanReportLedger, reportshandler.GetPlanReportLedger()),
+		router.CreateRoute(base.Delete, reportsendpoints.DeletePlanReport, reportshandler.DeletePlanReport()),
+		router.CreateRoute(base.Get, reportsendpoints.ListKeptReports, reportshandler.ListKeptReports()),
 	}
 }
 
-func notificationRoutes() []router.Route {
+func notificationRoutes(hub *notifstorage.Hub) []router.Route {
 	return []router.Route{
 		router.CreateRoute(base.Post, notificationsendpoints.Emit, notificationhandler.Emit()),
 		router.CreateRoute(base.Get, notificationsendpoints.List, notificationhandler.List()),
+		router.CreateRoute(base.Get, notificationsendpoints.Events, notificationhandler.Events(
+			hub, exporterauthz.NewResolver(), constants.NotificationStreamPingInterval, constants.NotificationStreamRecheckInterval,
+		)),
 		router.CreateRoute(base.Post, notificationsendpoints.MarkRead, notificationhandler.MarkRead()),
 		router.CreateRoute(base.Post, notificationsendpoints.MarkAllRead, notificationhandler.MarkAllRead()),
 		router.CreateRoute(base.Delete, notificationsendpoints.Clear, notificationhandler.Clear()),
@@ -141,6 +150,16 @@ func configRoutes() []router.Route {
 	return []router.Route{
 		router.CreateRoute(base.Get, configendpoints.GetConfig, confighandler.GetConfig()),
 		router.CreateRoute(base.Patch, configendpoints.PatchConfig, confighandler.PatchConfig()),
+	}
+}
+
+func bootstrapRoutes(optimizer *performance.Optimizer) []router.Route {
+	return []router.Route{
+		router.CreateRoute(base.Get, bootstrapendpoints.GetBootstrap, bootstraphandler.GetStatus()),
+		router.CreateRoute(base.Post, bootstrapendpoints.OpenRequest, bootstraphandler.OpenRequest()),
+		router.CreateRoute(base.Post, bootstrapendpoints.ApproveRequest, bootstraphandler.ApproveRequest()),
+		router.CreateRoute(base.Post, bootstrapendpoints.CancelRequest, bootstraphandler.CancelRequest()),
+		router.CreateRoute(base.Post, bootstrapendpoints.CompleteRequest, bootstraphandler.CompleteRequest(optimizer)),
 	}
 }
 
@@ -213,7 +232,7 @@ func userRoutes(optimizer *performance.Optimizer) []router.Route {
 			performance.NewCachedListHandlerFunc(
 				optimizer,
 				userhandler.ListUserResourcesWithCacheInvalidation(),
-				exporterauthz.RestrictedListKey(optimizer, cache.NewListCacheKeyFunc(optimizer, constants.ResourceUser)),
+				exporterauthz.MaskedKey(exporterauthz.RestrictedListKey(optimizer, cache.NewListCacheKeyFunc(optimizer, constants.ResourceUser))),
 				constants.ResourceUser,
 				constants.OpList,
 			)),

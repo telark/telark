@@ -126,8 +126,23 @@ otherwise the chart-generated one. Call with the root context.
 {{- default (printf "%s-service-token-secret" .Values.app.name) .Values.app.serviceToken.existingSecret -}}
 {{- end -}}
 
+{{/* "true" only when every passkey origin is https: the session cookie then takes the __Host- prefix. */}}
+{{- define "telark.sessionCookieHostPrefix" -}}
+{{- $https := true -}}
+{{- range splitList "," .Values.app.auth.passkey.origin -}}
+{{- if not (hasPrefix "https://" (trim .)) -}}
+{{- $https = false -}}
+{{- end -}}
+{{- end -}}
+{{- $https -}}
+{{- end -}}
+
 {{- define "telark.oidcTrustSecretName" -}}
 {{- default (printf "%s-oidc-trust-secret" (include "telark.fullname" .)) .Values.app.auth.oidc.existingSecret -}}
+{{- end -}}
+
+{{- define "telark.webhooksSecretName" -}}
+{{- default (printf "%s-webhooks" .Values.app.name) .Values.app.webhooks.existingSecret -}}
 {{- end -}}
 
 {{/* Constant, not derived from app.name: the Go services hardcode it. */}}

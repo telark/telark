@@ -1,9 +1,11 @@
 package writes
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
@@ -15,6 +17,7 @@ import (
 	"github.com/telark/telark/services/exporter/internal/authz"
 	"github.com/telark/telark/services/exporter/internal/routes"
 	"github.com/telark/telark/services/exporter/internal/utils/performance"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 const (
@@ -64,13 +67,37 @@ func TestGuardOwnSessionName(t *testing.T) {
 	}
 }
 
+// GET self names the session: the browser holds it only in an HttpOnly cookie, and the name tells it which listed
+// device it is.
+func TestGetSelfNamesTheSession(t *testing.T) {
+	md := v1alpha1.SessionMetadata
+	future := time.Now().UTC().Add(time.Hour).Format(time.RFC3339)
+	installFake(t, crSeed(md, object(md, authdata.SessionName(ownerToken),
+		map[string]any{"userId": userID, "expiresTimestamp": future}, nil)))
+	optimizer := performance.NewOptimizer(redis.NewClient(&redis.Options{Addr: miniredis.RunT(t).Addr()}))
+	t.Cleanup(optimizer.Close)
+	r := httptest.NewRequest(http.MethodGet, sessionsPrefix+authdata.SessionRefSelf, nil)
+	r.Header.Set(dataconstants.HeaderSessionToken, ownerToken)
+	r = r.WithContext(xauthz.WithIdentity(r.Context(), xauthz.Identity{UserID: userID}))
+	w := httptest.NewRecorder()
+	router.NewRouter(routes.InitRoutes(optimizer, nil)).ServeHTTP(w, r)
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil || w.Code != http.StatusOK {
+		t.Fatalf("GET self = %d %s (%v)", w.Code, w.Body.String(), err)
+	}
+	name, _, _ := unstructured.NestedString(body, "data", "metadata", "name")
+	if name != authdata.SessionName(ownerToken) {
+		t.Fatalf("metadata.name = %q, want %q", name, authdata.SessionName(ownerToken))
+	}
+}
+
 // "self" also fits {name}; the self route is registered first so it keeps it,
 // and anything that is not a session name is refused before any lookup.
 func TestDeleteSessionByNameRouting(t *testing.T) {
 	client := installFake(t, sessionSeed(ownerToken, userID), sessionSeed(secondToken, userID), sessionSeed(otherToken, otherUserID))
 	optimizer := performance.NewOptimizer(redis.NewClient(&redis.Options{Addr: miniredis.RunT(t).Addr()}))
 	t.Cleanup(optimizer.Close)
-	rt := router.NewRouter(routes.InitRoutes(optimizer))
+	rt := router.NewRouter(routes.InitRoutes(optimizer, nil))
 	owner := xauthz.Identity{UserID: userID}
 
 	notAName := httptest.NewRecorder()

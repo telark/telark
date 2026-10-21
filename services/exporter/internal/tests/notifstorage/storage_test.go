@@ -2,12 +2,18 @@ package notifstorage
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
+	dataconstants "github.com/telark/telark/internal/data/constants"
+	notifclient "github.com/telark/telark/internal/rest/clients/notifications"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/exporter/internal/constants"
 	exprdb "github.com/telark/telark/services/exporter/internal/redis"
 	notifstorage "github.com/telark/telark/services/exporter/internal/redis/notifications"
@@ -17,6 +23,7 @@ import (
 const (
 	testUserID  = "u1"
 	otherUserID = "u2"
+	thirdUserID = "u3"
 	testTarget  = "tgt"
 
 	listLimit      = 10
@@ -27,6 +34,9 @@ const (
 	unreadBeforeDelete  = 2
 	unreadAfterDelete   = 1
 	distinctEvents      = 2
+	testServiceToken    = "svc-token"
+	// Past the 10-minute webhook marker, well inside the 7-day dedup of an unread copy.
+	markerExpiry = 11 * time.Minute
 )
 
 func newStorage(t *testing.T) *notifstorage.Storage {
@@ -271,5 +281,112 @@ func TestConcurrentDedupEmitAndDeleteStayConsistent(t *testing.T) {
 	}
 	if list.UnreadCount != unread {
 		t.Errorf("unread = %d, list shows %d unread", list.UnreadCount, unread)
+	}
+}
+
+// Every recipient gets their own notification, while webhooks get each event once, and
+// account activity (roles, groups, enroll links) never leaves the bell.
+func TestWebhookEventQueuedOncePerEvent(t *testing.T) {
+	t.Setenv(dataconstants.EnvServiceToken, testServiceToken)
+	ctx := context.Background()
+	s := newStorage(t)
+	approval := approvalEvent()
+	for _, userID := range []string{testUserID, otherUserID, thirdUserID} {
+		approval.UserID = userID
+		if _, err := s.Emit(ctx, approval); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.Emit(ctx, notif()); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, err := exprdb.Get().XRange(ctx, notifclient.EventsStream, "-", "+").Result()
+	if err != nil || len(entries) != constants.DefaultIncrementValue {
+		t.Fatalf("queued %d events (err %v), want 1", len(entries), err)
+	}
+	checkQueuedEvent(t, entries[constants.DefaultInitValue].Values, approval)
+
+	approval.Message = "plan p2"
+	if _, err := s.Emit(ctx, approval); err != nil {
+		t.Fatal(err)
+	}
+	if n := exprdb.Get().XLen(ctx, notifclient.EventsStream).Val(); n != distinctEvents {
+		t.Errorf("after a second event: %d queued, want %d", n, distinctEvents)
+	}
+}
+
+// The same event again, once the 10-minute marker is gone, merges into the recipient's unread copy
+// (the dedup path) and still reaches webhooks: a re-submitted approval is news.
+func TestWebhookEventQueuedWhenMergedIntoUnreadCopy(t *testing.T) {
+	t.Setenv(dataconstants.EnvServiceToken, testServiceToken)
+	ctx := context.Background()
+	mr := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = client.Close() })
+	exprdb.Set(client)
+	s, err := notifstorage.NewStorage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	approval := approvalEvent()
+	approval.UserID = testUserID
+	first, err := s.Emit(ctx, approval)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mr.FastForward(markerExpiry)
+	again, err := s.Emit(ctx, approval)
+	if err != nil || again.ID != first.ID {
+		t.Fatalf("the repeat did not merge into the unread copy (err %v)", err)
+	}
+	if n := client.XLen(ctx, notifclient.EventsStream).Val(); n != distinctEvents {
+		t.Errorf("%d queued, want %d", n, distinctEvents)
+	}
+}
+
+// Without the service token nothing can be signed, so nothing is queued, and the notification is still stored.
+func TestWebhookEventNeedsTheServiceToken(t *testing.T) {
+	t.Setenv(dataconstants.EnvServiceToken, constants.EmptyString)
+	ctx := context.Background()
+	s := newStorage(t)
+	approval := approvalEvent()
+	approval.UserID = testUserID
+	if _, err := s.Emit(ctx, approval); err != nil {
+		t.Fatalf("the notification was refused: %v", err)
+	}
+	if n := exprdb.Get().XLen(ctx, notifclient.EventsStream).Val(); n != constants.DefaultInitValue {
+		t.Errorf("%d unsigned events queued, want none", n)
+	}
+}
+
+func approvalEvent() notiftypes.Notification {
+	return notiftypes.Notification{
+		Type:     notifclient.TypePlanApprovalRequested,
+		Title:    "Approval requested",
+		Message:  "plan p1",
+		Severity: notiftypes.SeverityInfo,
+		Metadata: map[string]any{notiftypes.MetaKeyTargetID: testTarget},
+	}
+}
+
+func checkQueuedEvent(t *testing.T, fields map[string]any, want notiftypes.Notification) {
+	t.Helper()
+	raw, ok := fields[notifclient.EventField].(string)
+	payload, verified := xauthz.VerifyRedisEntry(notifclient.EventsStream, raw)
+	if !ok || !verified {
+		t.Fatalf("the queued entry does not verify: %v", fields)
+	}
+	var event notifclient.QueuedEvent
+	if err := json.Unmarshal([]byte(payload), &event); err != nil {
+		t.Fatal(err)
+	}
+	if event.Type != want.Type || event.Title != want.Title || event.Message != want.Message ||
+		event.Severity != want.Severity || event.Metadata[notiftypes.MetaKeyTargetID] != testTarget || event.Timestamp <= constants.DefaultInitValue {
+		t.Errorf("queued event %+v", event)
+	}
+	altered := strings.Replace(raw, "plan p1", "plan px", constants.DefaultIncrementValue)
+	if _, tampered := xauthz.VerifyRedisEntry(notifclient.EventsStream, altered); tampered {
+		t.Error("an altered entry still verifies")
 	}
 }

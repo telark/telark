@@ -79,7 +79,7 @@ Each service's own README carries a focused diagram of its internals: [auth](../
 | `discovery` | Go | Groups workloads into applications; runs the leader-elected reconcile loop; drives protection-plan lifecycle, approvals and reports. |
 | `analyzer` | Python / FastAPI | Insights: explains incidents and reviews each app's setup with deterministic rules over read-only cluster reads; a local model rewrites incident wording; writes findings to Redis and streams updates to the UI (SSE). |
 | `auth` | Go | Passkey (WebAuthn) + Google OIDC login; session and role reconciliation. |
-| `notifier` | Go | Consumes discovery's application events from NATS and upserts the `Application` CRs through `exporter`. |
+| `notifier` | Go | Consumes discovery's application events from NATS and upserts the `Application` CRs through `exporter`. Also delivers signed webhooks to the targets in `app.webhooks`. |
 | `ui` | React / TypeScript | Dashboard SPA from the separate `telark/dashboard-ui` repository; the chart references only its image. |
 
 ## Shared infrastructure (subcharts)

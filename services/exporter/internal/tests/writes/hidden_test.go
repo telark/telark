@@ -67,7 +67,7 @@ func serveAs(t *testing.T, identity xauthz.Identity, method, path, body string) 
 	r := httptest.NewRequest(method, path, strings.NewReader(body))
 	r = r.WithContext(xauthz.WithIdentity(r.Context(), identity))
 	w := httptest.NewRecorder()
-	router.NewRouter(routes.InitRoutes(optimizer)).ServeHTTP(w, r)
+	router.NewRouter(routes.InitRoutes(optimizer, nil)).ServeHTTP(w, r)
 	return w
 }
 

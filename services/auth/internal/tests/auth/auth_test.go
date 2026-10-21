@@ -272,7 +272,7 @@ func TestCreateUserSession(t *testing.T) {
 	t.Setenv("RP_NAME", "Test")
 	t.Setenv("RP_ORIGIN", "http://localhost:3000")
 
-	token, err := authhelper.CreateUserSession(testUserID, nil)
+	token, _, err := authhelper.CreateUserSession(testUserID, nil)
 	if err == nil && token == "" {
 		t.Fatal("CreateUserSession returned an empty token without an error")
 	}
@@ -301,7 +301,7 @@ func TestCreateUserSessionRefusesTerminatingOrInactiveUser(t *testing.T) {
 				w.WriteHeader(c.status)
 				_, _ = w.Write([]byte(c.body))
 			}))
-			token, err := authhelper.CreateUserSession(testUserID, nil)
+			token, _, err := authhelper.CreateUserSession(testUserID, nil)
 			if err == nil || token != "" {
 				t.Fatalf("CreateUserSession = (%q, %v), want refusal", token, err)
 			}

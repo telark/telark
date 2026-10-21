@@ -19,6 +19,7 @@ var Headers = []string{
 	"X-Silent-404",
 	"X-Silent-Network",
 	"X-Session-Token",
+	"X-Requested-With",
 	"X-Credential-ID",
 	"X-Device-Name",
 	"X-Device-Type",

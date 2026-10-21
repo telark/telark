@@ -15,7 +15,7 @@ A control plane for **protection plans** over Kubernetes workloads. It groups wo
 | `exporter` | Go | Owns every telark CRD and the snapshot and report volumes; seeds built-in access roles, categories and the `TelarkConfig`; the only stateful service | `services/exporter/README.md` |
 | `discovery` | Go | Groups workloads into applications, leader-elected reconcile loop, change history and rollback, protection-plan lifecycle, approvals, violations, reports, Kyverno policies | `services/discovery/README.md` |
 | `auth` | Go | Passkey (WebAuthn) and Google OIDC login, sessions, user/group/role deletion cleanup | `services/auth/README.md`, `OIDC.md` |
-| `notifier` | Go | Consumes the `telark.applications.update` JetStream events discovery publishes and upserts `Application` through the exporter. Nothing publishes deletes: application deletes go through discovery's reset | `services/notifier/README.md` |
+| `notifier` | Go | Consumes the `telark.applications.update` JetStream events discovery publishes and upserts `Application` through the exporter. Nothing publishes deletes: application deletes go through discovery's reset. Also delivers webhooks: the events the exporter queues on the Redis stream `notif:events` go, signed, to the `app.webhooks` targets | `services/notifier/README.md` |
 | `analyzer` | Python/FastAPI | Local incident analysis with an open-weight model (Ollama) over read-only cluster tools; insights in Redis; SSE to the UI | `services/analyzer/README.md`, `ARCHITECTURE.md` |
 | `ui` | (separate repo) | Dashboard SPA, `telark/dashboard-ui`; this repo ships only its image reference | none |
 
@@ -26,7 +26,7 @@ Detail: [docs/architecture/](docs/architecture/README.md).
 ## How it fits together
 
 - Everything that persists goes through the **exporter's HTTP API** (`rest` clients, `/api/v1/...`, port 8080). Only the exporter writes telark CRDs; discovery also patches `applications/status`.
-- **discovery** watches the cluster, publishes application events to NATS, stores snapshots and history through the exporter, pushes analysis jobs to the Redis stream `insights:jobs`, and creates and deletes the Kyverno `Policy` objects of active plans.
+- **discovery** watches the cluster, publishes application events to NATS, stores snapshots and history through the exporter, pushes analysis jobs to the Redis stream `insights:jobs`, and creates and deletes the Kyverno `NamespacedValidatingPolicy` objects of active plans.
 - **auth** produces sessions; every other API service validates them through the same `x-ware` middleware (the analyzer asks auth).
 - Redis is shared coordination and cache (leader locks, queues, dedup, insights, authz cache). It requires a password (chart-generated Secret, `REDIS_PASSWORD`) but stays **untrusted**, since every service holds it: authorization cache entries are HMAC-signed.
 
@@ -34,12 +34,12 @@ Detail: [docs/architecture/](docs/architecture/README.md).
 
 Full model, RBAC table and invariants: [docs/security/](docs/security/README.md).
 
-- **Users** send `X-Session-Token`. The token is 32 random bytes; only `session-<sha256>` is stored (a `Session` CR), and it never appears in a URL.
+- **Browsers** send the session as the HttpOnly `telark_session` cookie (`__Host-telark_session` when every passkey origin is https, one name per install), which x-ware turns into `X-Session-Token`; API clients send that header. A change that relies on the cookie alone also needs `X-Requested-With`. The token is 32 random bytes; only `session-<sha256>` is stored (a `Session` CR), it never appears in a URL, and that name is no credential.
 - **Services** send `X-Service-Token` (`TELARK_SERVICE_TOKEN`, one chart-generated Secret). A valid service token is Internal and skips grant checks, so it is equivalent to full API access.
 - **Every route** has an explicit requirement in `services/<svc>/internal/authz/requirements.go` (Public, Authenticated, Internal, or a level on a scope, optionally with a deny rule). Unmapped routes are denied.
 - **Grants** (`x-ware/authz`): levels ReadOnly < Contributor < Owner < Admin per scope, `ALL` covers every scope; roles come from the user and the user's groups; only active users and active, unexpired roles count; **deny rules beat any level**.
 - **Guards** in handlers limit what a caller may change (for example, you can't grant a role above your own level or edit your own roles), in `services/exporter/internal/authz/` and `services/auth/internal/authz/guard.go`.
-- **Kubernetes**: each service has its own ServiceAccount and ClusterRole; discovery has wide write access for rollback and plan policies, the analyzer is read-only, auth, notifier and ui have none. The optional CRD write guard (`app.crdGuard`) restricts direct CRD writes.
+- **Kubernetes**: each service has its own ServiceAccount. discovery and the analyzer have a ClusterRole (discovery has wide write access for rollback and plan policies, the analyzer is read-only), the exporter has a namespaced Role that names each `telark.io` resource, and auth, notifier and ui have none. The optional CRD write guard (`app.crdGuard`) restricts direct CRD writes.
 
 ## Kubernetes objects
 
@@ -49,7 +49,7 @@ Full model, RBAC table and invariants: [docs/security/](docs/security/README.md)
 
 ## Protection plans
 
-Phases `draft`, `pending_approval`, `scheduled`, `active`, `terminated`, `canceled`, `failed` (`data/plans/protectionplan.go`). discovery drives the lifecycle; approval is `automatic` or `required` (Production defaults to required). While active, discovery renders the plan's templates into namespaced Kyverno `Policy` objects labeled `telark.io/protection-plan=<id>`, in `audit` or `enforce` mode, minus scope exclusions, and checks their health against the cluster. Violations come from Kubernetes Events; terminate and cancel delete the policies, and a finished plan then reports zero violations. Detail: [docs/architecture/protection-plans.md](docs/architecture/protection-plans.md).
+Phases `draft`, `pending_approval`, `scheduled`, `active`, `terminated`, `canceled`, `failed` (`data/plans/protectionplan.go`). discovery drives the lifecycle; approval is `automatic` or `required` (Production is always required). While active, discovery renders the plan's templates into Kyverno `NamespacedValidatingPolicy` objects labeled `telark.io/protection-plan=<id>`, in `audit` or `enforce` mode, minus scope exclusions, and checks their health against the cluster. Violations come from Kubernetes Events, which expire after an hour; the run ledger behind reports keeps the whole run, and the violations route serves it with `window=run`. Terminate and cancel delete the policies. Detail: [docs/architecture/protection-plans.md](docs/architecture/protection-plans.md).
 
 ## Build, test, validate
 

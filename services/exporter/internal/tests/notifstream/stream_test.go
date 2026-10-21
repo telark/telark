@@ -24,6 +24,7 @@ import (
 const (
 	testUserID   = "u1"
 	otherUserID  = "u2"
+	probeUserID  = "probe"
 	testToken    = "st-1"
 	testTarget   = "tgt"
 	changedKey   = "notif:changed"
@@ -95,7 +96,32 @@ func runHub(t *testing.T, addr string) *notifstorage.Hub {
 		_ = client.Close()
 		<-done
 	})
+	waitUntilReading(t, hub, client)
 	return hub
+}
+
+// Run starts at the stream's newest entry, so an entry written before its first read is never seen.
+func waitUntilReading(t *testing.T, hub *notifstorage.Hub, client *redis.Client) {
+	t.Helper()
+	probe, stop, err := hub.Subscribe(probeUserID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stop()
+	deadline := time.After(waitFor)
+	for {
+		probeEntry := &redis.XAddArgs{Stream: changedKey, Values: map[string]any{changedField: probeUserID}}
+		if err := client.XAdd(context.Background(), probeEntry).Err(); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-probe:
+			return
+		case <-deadline:
+			t.Fatal("hub never started reading")
+		case <-time.After(shortInterval):
+		}
+	}
 }
 
 func notification() notiftypes.Notification {

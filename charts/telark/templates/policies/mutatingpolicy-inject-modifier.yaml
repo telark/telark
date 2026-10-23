@@ -1,4 +1,4 @@
-{{- if and .Values.app.kyverno.enabled (.Capabilities.APIVersions.Has "policies.kyverno.io/v1/MutatingPolicy") }}
+{{- if and (include "telark.modeValues" . | fromYaml).kyverno.enabled (.Capabilities.APIVersions.Has "policies.kyverno.io/v1/MutatingPolicy") }}
 {{- $by := "telark.io/last-modified-by" }}
 {{- $at := "telark.io/last-modified-at" }}
 {{- $op := "telark.io/last-modified-operation" }}

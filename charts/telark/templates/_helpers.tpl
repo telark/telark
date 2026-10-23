@@ -119,11 +119,11 @@ imagePullSecrets:
 {{- end -}}
 
 {{/*
-Secret holding the service token: app.serviceToken.existingSecret when set,
+Secret holding the service token: app.security.serviceToken.existingSecret when set,
 otherwise the chart-generated one. Call with the root context.
 */}}
 {{- define "telark.serviceTokenSecretName" -}}
-{{- default (printf "%s-service-token-secret" .Values.app.name) .Values.app.serviceToken.existingSecret -}}
+{{- default (printf "%s-service-token-secret" .Values.app.name) (include "telark.modeValues" . | fromYaml).app.security.serviceToken.existingSecret -}}
 {{- end -}}
 
 {{/* "true" only when every passkey origin is https: the session cookie then takes the __Host- prefix. */}}

@@ -51,7 +51,7 @@ The optional Google JWK set is not part of `TelarkConfig`: it lives in the Secre
 
 ## Ownership
 
-The `exporter` service owns every `telark.io` resource and the OIDC trust Secret; `discovery` additionally patches `applications/status` (rollback records). The CRD write guard (`app.crdGuard`, on and enforcing by default) restricts direct writes to every `telark.io` resource and subresource, and to the OIDC trust Secret, to the owning service accounts; see [INSTALL.md](INSTALL.md#crd-write-guard).
+The `exporter` service owns every `telark.io` resource and the OIDC trust Secret; `discovery` additionally patches `applications/status` (rollback records). The CRD write guard (`app.security.crdGuard`, on and enforcing by default) restricts direct writes to every `telark.io` resource and subresource, and to the OIDC trust Secret, to the owning service accounts; see [INSTALL.md](INSTALL.md#crd-write-guard).
 
 ## Schema changes across releases
 

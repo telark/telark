@@ -39,26 +39,26 @@ Kubernetes: `>=1.30.0-0`
 | app.auth.passkey.id | string | `""` |  |
 | app.auth.passkey.name | string | `"Dashboard App"` |  |
 | app.auth.passkey.origin | string | `""` |  |
-| app.crdGuard.enabled | bool | `true` |  |
-| app.crdGuard.enforce | bool | `true` |  |
-| app.crdGuard.extraAllowedUsers | list | `[]` |  |
+| app.image.kubectl | string | `"registry.k8s.io/kubectl:v1.37.1@sha256:b7cab618e281b1ee7484e7b706a96e2135fbb6e072c2a573a7dab4e87d7f2385"` |  |
 | app.image.pullPolicy | string | `"Always"` |  |
 | app.image.pullSecrets | list | `[]` |  |
 | app.image.registry | string | `"ghcr.io/telark"` |  |
-| app.kubectlImage | string | `"registry.k8s.io/kubectl:v1.37.1@sha256:b7cab618e281b1ee7484e7b706a96e2135fbb6e072c2a573a7dab4e87d7f2385"` |  |
-| app.kyverno.enabled | bool | `true` |  |
-| app.kyverno.failOpen | bool | `true` |  |
 | app.mode | string | `"standard"` |  |
 | app.name | string | `"telark"` |  |
 | app.namespace | string | `"telark"` |  |
-| app.networkPolicy.enabled | bool | `true` |  |
 | app.ollama.autoPull | bool | `true` |  |
-| app.ollama.enabled | bool | `true` |  |
 | app.ollama.runtimeUrl | string | `""` |  |
 | app.persistence.enabled | bool | `true` |  |
 | app.persistence.reportsSize | string | `"512Mi"` |  |
 | app.persistence.snapshotsSize | string | `"512Mi"` |  |
 | app.persistence.storageClass | string | `""` |  |
+| app.security.crdGuard.enabled | bool | `true` |  |
+| app.security.crdGuard.enforce | bool | `true` |  |
+| app.security.crdGuard.extraAllowedUsers | list | `[]` |  |
+| app.security.networkPolicy.enabled | bool | `true` |  |
+| app.security.serviceToken.envVar | string | `"TELARK_SERVICE_TOKEN"` |  |
+| app.security.serviceToken.existingSecret | string | `""` |  |
+| app.security.serviceToken.value | string | `""` |  |
 | app.selfMonitoring.enabled | bool | `false` |  |
 | app.serviceDefaults.affinity | object | `{}` |  |
 | app.serviceDefaults.autoscaling.enabled | bool | `true` |  |
@@ -72,9 +72,6 @@ Kubernetes: `>=1.30.0-0`
 | app.serviceDefaults.terminationGracePeriodSec | int | `60` |  |
 | app.serviceDefaults.tolerations | list | `[]` |  |
 | app.serviceDefaults.vpa.updateMode | string | `"Auto"` |  |
-| app.serviceToken.envVar | string | `"TELARK_SERVICE_TOKEN"` |  |
-| app.serviceToken.existingSecret | string | `""` |  |
-| app.serviceToken.value | string | `""` |  |
 | app.shared.containerSecurityContext.allowPrivilegeEscalation | bool | `false` |  |
 | app.shared.containerSecurityContext.capabilities.drop[0] | string | `"ALL"` |  |
 | app.shared.containerSecurityContext.enabled | bool | `true` |  |
@@ -154,6 +151,7 @@ Kubernetes: `>=1.30.0-0`
 | kyverno.cleanupController.resources.limits.memory | string | `"256Mi"` |  |
 | kyverno.cleanupController.resources.requests.cpu | string | `"100m"` |  |
 | kyverno.cleanupController.resources.requests.memory | string | `"128Mi"` |  |
+| kyverno.enabled | bool | `true` |  |
 | kyverno.features.forceFailurePolicyIgnore.enabled | bool | `true` |  |
 | kyverno.namespaceOverride | string | `"telark"` |  |
 | kyverno.reportsController.extraArgs.clientRateLimitBurst | int | `100` |  |
@@ -209,6 +207,7 @@ Kubernetes: `>=1.30.0-0`
 | nats.persistence.path | string | `"/data"` |  |
 | nats.persistence.size | string | `"1Gi"` |  |
 | nats.service.type | string | `"ClusterIP"` |  |
+| ollama.enabled | bool | `true` |  |
 | ollama.extraEnv[0].name | string | `"OLLAMA_NO_CLOUD"` |  |
 | ollama.extraEnv[0].value | string | `"true"` |  |
 | ollama.extraEnv[1].name | string | `"OLLAMA_CONTEXT_LENGTH"` |  |
@@ -285,7 +284,7 @@ Kubernetes: `>=1.30.0-0`
 | services.analyzer.env.CORS_ALLOWED_ORIGINS | string | `""` |  |
 | services.analyzer.env.OLLAMA_AUTO_PULL | string | `"{{ .Values.app.ollama.autoPull }}"` |  |
 | services.analyzer.env.OLLAMA_HOST | string | `"{{ default (printf \"http://%s-ollama:11434\" .Release.Name) .Values.app.ollama.runtimeUrl }}"` |  |
-| services.analyzer.env.OLLAMA_PRUNE_MODELS | string | `"{{ and .Values.app.ollama.enabled (empty .Values.app.ollama.runtimeUrl) }}"` |  |
+| services.analyzer.env.OLLAMA_PRUNE_MODELS | string | `"{{ and (dig \"ollama\" \"enabled\" .Values.ollama.enabled .Values.app) (empty .Values.app.ollama.runtimeUrl) }}"` |  |
 | services.analyzer.env.REDIS_POOL_SIZE | string | `"10"` |  |
 | services.analyzer.name | string | `"analyzer-service"` |  |
 | services.analyzer.pdb.enabled | bool | `false` |  |

@@ -1,14 +1,9 @@
-# Install mode: minimal — selected with --set app.mode=minimal
-#
-# Smallest footprint that runs the product. Single replica per service, no
-# disruption budgets, small resource envelopes so pods fit a single dev node.
-# For development, demos and evaluation. Losing a node takes the service with it.
-#
-# Sizes telark's own services only — subchart sizing (redis, nats, kyverno) is
-# fixed by the chart and does not vary by mode. Capacity here says nothing about
-# security posture (app.crdGuard is independent).
-# Measured 2026-09-17: fine to a few hundred apps; at 1 000 apps discovery OOMs
-# at 256Mi and the 20 QPS exporter limit throttles bulk deletes — use standard.
+# Install mode minimal (--set app.mode=minimal), the smallest footprint: one replica per service,
+# no disruption budgets, small resources that fit one dev node. For development, demos and
+# evaluation: a lost node takes the service down. Sizes telark's own services only (redis, nats and
+# kyverno are the same in every mode) and says nothing about security (app.security.crdGuard is separate).
+# As applications grow, discovery outgrows 256Mi and the exporter's 20 QPS limit throttles bulk
+# deletes, so use standard.
 
 app:
   serviceDefaults:

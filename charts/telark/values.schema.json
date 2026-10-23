@@ -77,7 +77,8 @@
           "properties": {
             "registry": { "type": "string", "minLength": 1 },
             "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
-            "pullSecrets": { "type": "array" }
+            "pullSecrets": { "type": "array" },
+            "kubectl": { "type": "string" }
           }
         },
         "auth": {
@@ -126,15 +127,19 @@
             "runtimeUrl": { "type": "string" }
           }
         },
-        "serviceToken": {
+        "security": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "envVar": { "type": "string", "minLength": 1 },
-            "value": { "type": "string" },
-            "existingSecret": { "type": "string" }
+            "crdGuard": { "$ref": "#/definitions/crdGuard" },
+            "networkPolicy": { "$ref": "#/definitions/networkPolicy" },
+            "serviceToken": { "$ref": "#/definitions/serviceToken" }
           }
         },
+        "crdGuard": { "$ref": "#/definitions/crdGuard" },
+        "networkPolicy": { "$ref": "#/definitions/networkPolicy" },
+        "serviceToken": { "$ref": "#/definitions/serviceToken" },
+        "kubectlImage": { "type": "string" },
         "webhooks": {
           "type": "object",
           "additionalProperties": false,
@@ -164,22 +169,6 @@
                 "else": { "properties": { "url": { "pattern": "^https://(\\[[0-9A-Fa-f:.]+\\]|[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)*\\.?)(:[0-9]{1,5})?([/?#]([A-Za-z0-9._~!$&'()*+,;=:@/?#-]|%[0-9A-Fa-f]{2})*)?$" } } }
               }
             }
-          }
-        },
-        "crdGuard": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "enabled": { "type": "boolean" },
-            "enforce": { "type": "boolean" },
-            "extraAllowedUsers": { "type": "array", "items": { "type": "string" } }
-          }
-        },
-        "networkPolicy": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "enabled": { "type": "boolean" }
           }
         },
         "selfMonitoring": {
@@ -263,6 +252,31 @@
     }
   },
   "definitions": {
+    "crdGuard": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "enforce": { "type": "boolean" },
+        "extraAllowedUsers": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "serviceToken": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "envVar": { "type": "string", "minLength": 1 },
+        "value": { "type": "string" },
+        "existingSecret": { "type": "string" }
+      }
+    },
     "autoscaling": {
       "type": "object",
       "additionalProperties": false,

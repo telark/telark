@@ -131,7 +131,7 @@ spec:
               name: http
           env:
 {{- if $serviceToken }}
-            - name: {{ $values.app.serviceToken.envVar }}
+            - name: {{ $values.app.security.serviceToken.envVar }}
               valueFrom:
                 secretKeyRef:
                   name: {{ include "telark.serviceTokenSecretName" $root }}

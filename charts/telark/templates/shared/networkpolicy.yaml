@@ -6,7 +6,7 @@ Gateway or port-forward); the APIs take traffic from telark pods only. Egress
 stays open: the services reach the API server, the OIDC issuer and each other.
 Redis and Ollama carry their own policies (redis subchart, ollama-networkpolicy).
 */}}
-{{- if .Values.app.networkPolicy.enabled }}
+{{- if (include "telark.modeValues" . | fromYaml).app.security.networkPolicy.enabled }}
 {{- $selector := include "telark.selectorLabels" (dict "root" .) }}
 {{- $ui := .Values.services.ui.name }}
 apiVersion: networking.k8s.io/v1

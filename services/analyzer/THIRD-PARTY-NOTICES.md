@@ -42,23 +42,23 @@ SOFTWARE.
 
 ## Alpine package notices
 
-The copyright and license notices of the permissive Alpine packages in the image, from each package's upstream source at the version installed in `python:3.14.7-alpine3.23` (Alpine 3.23.6). The GPL, LGPL and MPL texts, and the Apache License 2.0, are under License texts. Regenerate this section when the base image changes ([docs/PUBLISHING.md](../../docs/PUBLISHING.md#notices-of-the-alpine-packages-and-rust-crates)).
+The copyright and license notices of the permissive Alpine packages in the image, from each package's upstream source at the version installed in `python:3.14.9-alpine3.24` (Alpine 3.24.3). The GPL, LGPL and MPL texts, and the Apache License 2.0, are under License texts. Regenerate this section when the base image changes ([docs/PUBLISHING.md](../../docs/PUBLISHING.md#notices-of-the-alpine-packages-and-rust-crates)).
 
 | Packages (origin) | Version | License | Notice |
 |---|---|---|---|
 | alpine-keys | 2.6-r0 | MIT | Alpine Linux's own files, no copyright line |
-| alpine-release (alpine-base) | 3.23.6-r0 | MIT | Alpine Linux's own files, no copyright line |
+| alpine-release (alpine-base) | 3.24.3-r0 | MIT | Alpine Linux's own files, no copyright line |
 | libbz2 (bzip2) | 1.0.8-r6 | bzip2-1.0.6 | below |
-| ca-certificates, ca-certificates-bundle | 20260909-r0 | MPL-2.0 AND MIT | MPL-2.0 under License texts, MIT part below |
-| libffi | 3.5.2-r0 | MIT | below |
-| libcrypto3, libssl3 (openssl) | 3.5.8-r0 | Apache-2.0 | Apache License 2.0 under License texts |
-| libncursesw, libpanelw, ncurses-terminfo-base (ncurses) | 6.5_p20251123-r0 | X11 | below |
-| libuuid (util-linux) | 2.41.6-r1 | BSD-3-Clause | below |
-| musl, musl-utils | 1.2.5-r23 | MIT AND BSD-2-Clause AND GPL-2.0-or-later | below |
+| ca-certificates, ca-certificates-bundle | 20261020-r0 | MPL-2.0 AND MIT | MPL-2.0 under License texts, MIT part below |
+| libffi | 3.5.2-r1 | MIT | below |
+| libcrypto3, libssl3 (openssl) | 3.5.9-r0 | Apache-2.0 | Apache License 2.0 under License texts |
+| libncursesw, libpanelw, ncurses-terminfo-base (ncurses) | 6.6_p20260516-r0 | X11 | below |
+| libuuid (util-linux) | 2.42.3-r1 | BSD-3-Clause | below |
+| musl, musl-utils | 1.2.6-r3 | MIT AND BSD-2-Clause AND GPL-2.0-or-later | below |
 | sqlite-libs | 3.53.4-r0 | blessing (public domain) | none needed |
-| tzdata | 2026d-r0 | public domain | none needed |
+| tzdata | 2026e-r0 | public domain | none needed |
 | xz-libs (xz) | 5.8.4-r0 | 0BSD (liblzma) | below |
-| zlib | 1.3.2-r0 | Zlib | below |
+| zlib | 1.3.2-r1 | Zlib | below |
 | zstd-libs (zstd) | 1.5.7-r2 | BSD-3-Clause, elected from BSD-3-Clause OR GPL-2.0-or-later | below |
 
 ### bzip2 1.0.8
@@ -107,7 +107,7 @@ bzip2/libbzip2 version 1.0.8 of 13 July 2019
 --------------------------------------------------------------------------
 ```
 
-### ca-certificates 20260909 (`c_rehash.c`, MIT)
+### ca-certificates 20261020 (`c_rehash.c`, MIT)
 
 ```text
 Copyright (c) 2013-2014 Timo Teräs <timo.teras@iki.fi>
@@ -161,7 +161,7 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### musl 1.2.5
+### musl 1.2.6
 
 ```text
 musl as a whole is licensed under the following standard MIT license:
@@ -240,6 +240,7 @@ Kylie McClain
 Leah Neukirchen
 Luca Barbato
 Luka Perkov
+Lynn Ochs
 M Farkas-Dyck (Strake)
 Mahesh Bodapati
 Markus Wichmann
@@ -269,7 +270,6 @@ Stefan O'Rear
 Szabolcs Nagy
 Timo Teräs
 Trutz Behn
-Valentin Ochs
 Will Dietz
 William Haddon
 William Pitcock
@@ -309,7 +309,7 @@ domain. The code also comes with a fallback permissive license for use
 in jurisdictions that may not recognize the public domain.
 
 The smoothsort implementation (src/stdlib/qsort.c) is Copyright © 2011
-Valentin Ochs and is licensed under an MIT-style license.
+Lynn Ochs and is licensed under an MIT-style license.
 
 The x86_64 port was written by Nicholas J. Kain and is licensed under
 the standard MIT terms.
@@ -359,10 +359,10 @@ permissive licensing, and of not having licensing issues being an
 obstacle to adoption, that text has been removed.
 ```
 
-### ncurses 6.5
+### ncurses 6.6
 
 ```text
-Copyright 2018-2024,2025 Thomas E. Dickey
+Copyright 2018-2025,2026 Thomas E. Dickey
 Copyright 1998-2017,2018 Free Software Foundation, Inc.
 
 Permission is hereby granted, free of charge, to any person obtaining a
@@ -390,10 +390,10 @@ sale, use or other dealings in this Software without prior written
 authorization.
 
 -- vile:txtmode fc=72
--- $Id: COPYING,v 1.14 2025/01/04 10:53:46 tom Exp $
+-- $Id: COPYING,v 1.15 2026/01/04 00:58:57 tom Exp $
 ```
 
-### util-linux 2.41.6 (libuuid, BSD-3-Clause)
+### util-linux 2.42.3 (libuuid, BSD-3-Clause)
 
 ```text
 Copyright (C) 1996, 1997 Theodore Ts'o.

@@ -9,7 +9,7 @@ How to build, test and validate Telark from a fresh clone, locally or in CI. `.g
 | Go build, vet, unit tests (per service and shared package) | Go | yes | `go`, test leg |
 | `golangci-lint` (per service and shared package) | golangci-lint | yes | `go`, lint leg |
 | Helm lint, `VALUES.md` drift, kubeconform | Helm, Go (for helm-docs), kubeconform, network access to chart repos and schemas | yes | `helm` |
-| Analyzer syntax check, pytest, coverage | Python 3.13 | yes | `analyzer` |
+| Analyzer syntax check, pytest, coverage | Python 3.14 | yes | `analyzer` |
 | Pod readiness, API calls, UI flows, admission behavior | a cluster with the chart installed | no | none |
 
 Every row except the last runs without a cluster; the last row is manual work on a cluster (see [Cluster validation](#cluster-validation)).
@@ -18,7 +18,7 @@ Every row except the last runs without a cluster; the last row is manual work on
 
 | Tool | Version | Pinned in |
 |---|---|---|
-| Go | 1.27.2 | the `go` line of the root `go.mod` (CI: `setup-go` with `go-version-file`) |
+| Go | 1.27.3 | the `go` line of the root `go.mod` (CI: `setup-go` with `go-version-file`) |
 | golangci-lint | v2.14.0 | `.github/actions/go-ci/action.yaml` |
 | kubeconform | v0.8.0 | `.github/actions/helm-kubeconform-validate/action.yaml` |
 | helm-docs | v1.14.2 | `Makefile` (`HELM_DOCS`, run with `go run`; nothing to install) |
@@ -29,7 +29,7 @@ Linux x86-64:
 
 ```sh
 # Go. A Go >= 1.21 already on PATH also works: it downloads the go.mod toolchain unless GOTOOLCHAIN=local.
-curl -fsSL https://go.dev/dl/go1.27.2.linux-amd64.tar.gz | sudo tar -C /usr/local -xz
+curl -fsSL https://go.dev/dl/go1.27.3.linux-amd64.tar.gz | sudo tar -C /usr/local -xz
 export PATH=/usr/local/go/bin:$HOME/go/bin:$PATH
 
 # golangci-lint, the version CI pins
@@ -42,7 +42,7 @@ curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubecon
 curl -fsSL https://get.helm.sh/helm-v4.3.0-linux-amd64.tar.gz | sudo tar -xz -C /usr/local/bin --strip-components=1 linux-amd64/helm
 ```
 
-Python 3.13: use the image's `python3.13` if there is one, otherwise `uv venv --python 3.13 --seed <dir>` downloads it.
+Python 3.14: use the image's `python3.14` if there is one, otherwise `uv venv --python 3.14 --seed <dir>` downloads it.
 
 ## Commands
 
@@ -91,7 +91,7 @@ make values-docs       # regenerates both VALUES.md; CI fails on drift, so check
 ```sh
 cd services/analyzer
 VENV="${TMPDIR:-/tmp}/analyzer-venv"      # outside the service: compileall walks every subdirectory
-python3.13 -m venv "$VENV"
+python3.14 -m venv "$VENV"
 "$VENV/bin/pip" install --require-hashes -r requirements-test.txt
 "$VENV/bin/python" -m compileall -q .
 "$VENV/bin/python" -m pytest --cov=. --cov-report= tests/test_*_cov.py -q

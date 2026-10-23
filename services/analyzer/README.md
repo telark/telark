@@ -150,12 +150,12 @@ folder, and `tests/test_dockerfile_cov.py` fails when one is missing from it.
 
 ## Dependencies
 
-- **Runtime:** Python 3.13+ (image ships 3.14): FastAPI, uvicorn, pydantic, redis (`redis.asyncio`),
+- **Runtime:** Python 3.14: FastAPI, uvicorn, pydantic, redis (`redis.asyncio`),
   httpx, loguru, python-dotenv. Ollama and the Kubernetes API are reached with httpx; no model SDK,
   Kubernetes client or agent framework.
 - **Pins:** edit `requirements.in` (runtime) or `requirements-test.in` (test tools), never the `.txt`
   hash locks the image and CI install with `--require-hashes`. Regenerate both locks with the command in
-  their headers, runtime first (`uvx --python 3.13 --with 'click<8.3' --from pip-tools pip-compile ...`:
+  their headers, runtime first (`uvx --python 3.14 --with 'click<8.3' --from pip-tools pip-compile ...`:
   click 8.3+ writes a bogus `--no-index` into the header).
 - **Infrastructure:** Redis (job stream, insight documents, the `analyzer:index` ZSET, the `analyzer:usage`
   and `analyzer:review` hashes, in-flight and cooldown keys), Ollama.

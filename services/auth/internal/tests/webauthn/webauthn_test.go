@@ -274,7 +274,7 @@ func echoing(t *testing.T, challenge string) []byte {
 func TestChallengeLifecycle(t *testing.T) {
 	store := func(challenge string) {
 		t.Helper()
-		if err := webauthnhelper.StoreChallenge(testChalUser, challenge); err != nil {
+		if err := webauthnhelper.StoreChallenge(testChalUser, challenge, constants.EmptyString); err != nil {
 			t.Fatalf(storeChallengeFailed, err)
 		}
 	}
@@ -314,7 +314,7 @@ func TestChallengeLifecycle(t *testing.T) {
 	if consume("missingUser", retryChallenge) == nil {
 		t.Fatal("missing challenge should error")
 	}
-	if webauthnhelper.StoreChallenge(testChalUser, badBase64Input) == nil {
+	if webauthnhelper.StoreChallenge(testChalUser, badBase64Input, constants.EmptyString) == nil {
 		t.Fatal("a challenge that doesn't decode was stored")
 	}
 }
@@ -323,7 +323,7 @@ func TestChallengeLifecycle(t *testing.T) {
 // finish step.
 func TestStartRegistration(t *testing.T) {
 	opts, challenge, err := webauthnhelper.StartRegistration(
-		"regUser", testName, "full", nil, httptest.NewRequest(http.MethodPost, testPath, nil))
+		"regUser", testName, "full", constants.EmptyString, nil, httptest.NewRequest(http.MethodPost, testPath, nil))
 	if err != nil {
 		t.Fatalf("StartRegistration = %v", err)
 	}
@@ -357,11 +357,11 @@ func TestFinishRegistration(t *testing.T) {
 	}
 	testutil.Equal(t, "stored key", fmt.Sprint(got), fmt.Sprint(want))
 
-	if err := webauthnhelper.StoreChallenge("finUser2", registrationChallengeB64); err != nil {
+	if err := webauthnhelper.StoreChallenge("finUser2", registrationChallengeB64, constants.EmptyString); err != nil {
 		t.Fatalf(storeChallengeFailed, err)
 	}
 	missing := httptest.NewRequest(http.MethodPost, testPath, strings.NewReader(`{"id":"x"}`))
-	if _, _, _, err := webauthnhelper.FinishRegistration("finUser2", testShortName, testShortFull, missing); err == nil {
+	if _, _, _, err := webauthnhelper.FinishRegistration("finUser2", testShortName, testShortFull, constants.EmptyString, missing); err == nil {
 		t.Fatal("registration body without response should fail")
 	}
 }
@@ -381,18 +381,18 @@ func (b *retryOnRead) Read(p []byte) (int, error) {
 // The finish consumes its own challenge; its later cleanup, keyed by the user alone,
 // wiped the challenge a quick retry had just started with.
 func TestFinishKeepsTheChallengeOfARetry(t *testing.T) {
-	if err := webauthnhelper.StoreChallenge(retryUser, registrationChallengeB64); err != nil {
+	if err := webauthnhelper.StoreChallenge(retryUser, registrationChallengeB64, constants.EmptyString); err != nil {
 		t.Fatalf(storeChallengeFailed, err)
 	}
 	body := validRegistration(t, testutil.NewP256Key(t), flagUP|flagUV|flagAT).body(t)
 	reader := &retryOnRead{Reader: bytes.NewReader(body), retry: func() {
-		if err := webauthnhelper.StoreChallenge(retryUser, retryChallenge); err != nil {
+		if err := webauthnhelper.StoreChallenge(retryUser, retryChallenge, constants.EmptyString); err != nil {
 			t.Errorf(storeChallengeFailed, err)
 		}
 	}}
 
 	r := httptest.NewRequest(http.MethodPost, testPath, reader)
-	if _, _, _, err := webauthnhelper.FinishRegistration(retryUser, testName, testShortFull, r); err != nil {
+	if _, _, _, err := webauthnhelper.FinishRegistration(retryUser, testName, testShortFull, constants.EmptyString, r); err != nil {
 		t.Fatalf("FinishRegistration = %v", err)
 	}
 	got, err := webauthnhelper.ValidateAndGetChallenge(retryUser, echoing(t, retryChallenge))

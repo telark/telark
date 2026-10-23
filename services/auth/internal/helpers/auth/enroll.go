@@ -24,6 +24,10 @@ var (
 	revokeInviteScript     = redis.NewScript(constants.ScriptRevokeInvite)
 	consumeEnrollScript    = redis.NewScript(constants.ScriptConsumeEnrollToken)
 	dropEnrollTokensScript = redis.NewScript(constants.ScriptDropEnrollTokens)
+	extendRunScript        = redis.NewScript(constants.ScriptExtendRun)
+	releaseRunScript       = redis.NewScript(constants.ScriptReleaseRun)
+
+	errRunBusy = errors.New(string(constants.ErrBreakGlassRunBusy))
 )
 
 // Redis is untrusted, so it holds only the digest: a key read from it opens no registration.
@@ -35,7 +39,7 @@ func tokenDigest(token string) string {
 // An enrollment token lets a browser on another host open a registration for
 // the signed-in user: random, bound to that user, short-lived and single use.
 func CreateEnrollToken(userID string) (token string, expiresAt time.Time, err error) {
-	if err := RefuseFrozen(userID); err != nil {
+	if err := RefuseFrozen(userID, constants.EmptyString); err != nil {
 		return constants.EmptyString, time.Time{}, err
 	}
 	rdb := redishelper.GetClient()
@@ -83,7 +87,7 @@ func DropLinks(userID string) error {
 
 	keys := []string{constants.RedisKeyPrefixEnrollTokensOf + userID}
 	if err := dropEnrollTokensScript.Run(ctx, rdb, keys, constants.RedisKeyPrefixEnrollToken).Err(); err != nil {
-		return fmt.Errorf(string(constants.ErrFailedDropEnrollTokens), shared.IdentityHash(userID), err)
+		return fmt.Errorf(string(constants.ErrFailedDropEnrollTokens), err)
 	}
 	return nil
 }
@@ -142,9 +146,9 @@ func closeInvite(targetID, acceptedAt string) error {
 	return setInvite(targetID, nil, acceptedAt)
 }
 
-// While break-glass recovers an account, nothing starts or finishes a sign-in or a registration for it, no session
-// mints a link, and no passkey, identity or session is written for it (auth checks right before each write). It lapses
-// on its own if break-glass stops halfway.
+// While break-glass recovers an account, nothing starts or finishes a sign-in or a registration for it (but the one its
+// link opens, FreezeForLink), no session mints a link, and no passkey, identity or session is written for it (auth
+// checks right before each write). It lapses on its own if break-glass stops halfway.
 func Freeze(userID string) error {
 	return frozenKey(userID, func(ctx context.Context, rdb *redis.Client, key string) error {
 		return rdb.Set(ctx, key, constants.RedisChallengeEntry, time.Duration(constants.RedisTTLRecoveryFreeze)*time.Second).Err()
@@ -168,15 +172,90 @@ func Unfreeze(userID string) error {
 	})
 }
 
-// A Redis that can't answer refuses too.
-func RefuseFrozen(userID string) error {
+// While a recovery waits for its link, the freeze holds that link's digest for the link's window, and only the
+// registration the link opened gets past it. Fails if the freeze lapsed, like Refreeze.
+func FreezeForLink(userID, token string, window time.Duration) error {
 	return frozenKey(userID, func(ctx context.Context, rdb *redis.Client, key string) error {
-		frozen, err := rdb.Exists(ctx, key).Result()
-		if err == nil && frozen > constants.DefaultInitValue {
-			return errors.New(string(constants.ErrAccountRecovering))
+		kept, err := rdb.SetXX(ctx, key, tokenDigest(token), window).Result()
+		if err == nil && !kept {
+			err = errors.New(string(constants.ErrRecoveryFreezeLost))
 		}
 		return err
 	})
+}
+
+// False once the link's window ended: the freeze lapsed, or holds something else.
+func FrozenForLink(userID, token string) (bool, error) {
+	held := false
+	err := frozenKey(userID, func(ctx context.Context, rdb *redis.Client, key string) error {
+		value, err := rdb.Get(ctx, key).Result()
+		if errors.Is(err, redis.Nil) {
+			return nil
+		}
+		held = value == tokenDigest(token)
+		return err
+	})
+	return held, err
+}
+
+// A Redis that can't answer refuses too. enrollDigest names the link a registration was opened with, if any.
+func RefuseFrozen(userID, enrollDigest string) error {
+	return frozenKey(userID, func(ctx context.Context, rdb *redis.Client, key string) error {
+		value, err := rdb.Get(ctx, key).Result()
+		switch {
+		case errors.Is(err, redis.Nil):
+			return nil
+		case err != nil:
+			return err
+		case enrollDigest != constants.EmptyString && value == enrollDigest:
+			return nil
+		}
+		return errors.New(string(constants.ErrAccountRecovering))
+	})
+}
+
+// One break-glass run at a time: another run's thaw would cut this one's freeze. The value is the run's own, so a run
+// whose lock lapsed neither extends nor releases the next one's.
+func LockRun() (string, error) {
+	rdb := redishelper.GetClient()
+	if rdb == nil {
+		return constants.EmptyString, errors.New(string(constants.ErrRedisClientUnavailable))
+	}
+	lock, err := shared.GenerateSessionToken()
+	if err != nil {
+		return constants.EmptyString, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisChallengeOpTimeout)
+	defer cancel()
+	taken, err := rdb.SetNX(ctx, constants.RedisKeyBreakGlassRun, lock, time.Duration(constants.RedisTTLBreakGlassRun)*time.Second).Result()
+	if err == nil && !taken {
+		err = errRunBusy
+	}
+	return lock, err
+}
+
+// Fails once the lock is no longer the run's.
+func ExtendRun(lock string) error {
+	kept, err := runScript(extendRunScript, lock)
+	if err == nil && kept == constants.DefaultInitValue {
+		err = errors.New(string(constants.ErrBreakGlassRunLost))
+	}
+	return err
+}
+
+func UnlockRun(lock string) error {
+	_, err := runScript(releaseRunScript, lock)
+	return err
+}
+
+func runScript(script *redis.Script, lock string) (int, error) {
+	rdb := redishelper.GetClient()
+	if rdb == nil {
+		return constants.DefaultInitValue, errors.New(string(constants.ErrRedisClientUnavailable))
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisChallengeOpTimeout)
+	defer cancel()
+	return script.Run(ctx, rdb, []string{constants.RedisKeyBreakGlassRun}, lock, constants.RedisTTLBreakGlassRun).Int()
 }
 
 func frozenKey(userID string, op func(context.Context, *redis.Client, string) error) error {

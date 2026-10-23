@@ -34,7 +34,7 @@ func RegisterStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	options, challenge, err := webauthnhelper.StartRegistration(userID, user.Username, user.Fullname, nil, r)
+	options, challenge, err := webauthnhelper.StartRegistration(userID, user.Username, user.Fullname, enrollDigest, nil, r)
 	if err != nil {
 		shared.HandleError(w, err, shared.GetStatusCodeForWebAuthnError(err, http.StatusInternalServerError), err.Error())
 		return

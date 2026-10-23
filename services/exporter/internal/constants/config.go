@@ -137,6 +137,7 @@ const (
 	MaxUserIDGenerationAttempts                 = 10
 	ResourceTypePasskey                         = "passkey"
 	FieldCredentialID                           = "credentialId"
+	FieldCreationTimestamp                      = "creationTimestamp"
 	FieldUsername                               = "username"
 	FieldFullname                               = "fullname"
 	FieldEmail                                  = "email"

@@ -51,7 +51,7 @@ func LoginStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := webauthnhelper.StoreChallenge(user.ID, sessionData.Challenge); err != nil {
+	if err := webauthnhelper.StoreChallenge(user.ID, sessionData.Challenge, constants.EmptyString); err != nil {
 		if shared.IsError(err, constants.ErrAccountRecovering) {
 			shared.SendErrorResponse(w, http.StatusConflict, err)
 			return
@@ -101,6 +101,10 @@ func LoginFinish(w http.ResponseWriter, r *http.Request) {
 		shared.SendErrorResponse(w, shared.GetStatusCodeForWebAuthnError(err, http.StatusUnauthorized), err)
 		return
 	}
+	if err := bootstrap.RefuseRecoveryPasskey(user, passkeys, credential.ID); err != nil {
+		sendRecoveryRefusal(w, err)
+		return
+	}
 
 	capturedUserID, capturedCredID := user.ID, credential.ID
 	auth.Dispatch(func() { _ = auth.UpdatePasskeyLastUsed(capturedUserID, capturedCredID) })
@@ -135,6 +139,17 @@ func sendChallengeError(w http.ResponseWriter, err error) {
 		return
 	}
 	shared.HandleError(w, err, http.StatusUnauthorized, err.Error())
+}
+
+func sendRecoveryRefusal(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, bootstrap.ErrRecoveryPasskey):
+		shared.SendErrorResponse(w, http.StatusConflict, err)
+	case errors.Is(err, shared.ErrBackendUnavailable):
+		shared.SendErrorResponse(w, http.StatusServiceUnavailable, err)
+	default:
+		shared.HandleError(w, errors.New(string(constants.ErrInternalServerError)), http.StatusInternalServerError, err.Error())
+	}
 }
 
 // A refused account is an answer; only a session that could not be made is logged, and its cause stays out of the reply.

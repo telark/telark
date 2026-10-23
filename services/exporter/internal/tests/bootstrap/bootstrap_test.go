@@ -1,6 +1,8 @@
 package bootstrap
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -36,14 +38,16 @@ const (
 	approve         = "approve"
 	cancel          = "cancel"
 	complete        = "complete"
-	completeOnce    = `{"revoke":false}`
+	completeOnce    = `{}`
 	completeRevoke  = `{"revoke":true}`
+	keepBody        = `{"keep":"%s"}`
 	signedInBody    = `{"reason":"signed-in"}`
 	deniedBody      = `{"reason":"denied"}`
 	expiredBody     = `{"reason":"expired"}`
 	markBody        = `{"bootstrap":true}`
 	unmarkBody      = `{"bootstrap":false}`
 	bootstrapEnv    = "BOOTSTRAP_ADMIN"
+	garbledStamp    = "not a time"
 	justUnder       = 71 * time.Hour
 	justOver        = 73 * time.Hour
 	longAgo         = 100 * time.Hour
@@ -51,6 +55,9 @@ const (
 	none            = 0
 	one             = 1
 	two             = 2
+	three           = 3
+	// Ample time for a cancel that doesn't wait for the keep pass to finish.
+	cancelWait = 500 * time.Millisecond
 )
 
 func adminSession(id string) xauthz.Identity {
@@ -277,34 +284,18 @@ func TestOpenOneRequestAtATime(t *testing.T) {
 	expectNotices(t, first.Request.ID, map[string]int{pinnedID: one, adminID: one, readerID: none, suspendedID: none})
 }
 
-// Of two runs at once, one write wins and the other reads it back: one request, both get its id, one set of notices.
+// Of two runs at once, the exporter opens for one at a time: the other reads the request back without writing, so both
+// get its id and one set of notices.
 func TestConcurrentRunsOpenOneRequest(t *testing.T) {
 	client := installFake(t, append(directory(t), configWith(t, pinned()), active(pinnedID, pinnedEmail, true).seed(t))...)
-	// The first write waits until both runs have read, so the second one's compare-and-swap always loses. A reactor
-	// never waits: the fake runs it under the lock every call takes, so the other run could not read.
-	reads := make(chan struct{}, runs)
-	client.PrependReactor("get", v1alpha1.TelarkConfigMetadata.Plural, func(k8stesting.Action) (bool, runtime.Object, error) {
-		select {
-		case reads <- struct{}{}:
-		default: // only the first reads count
-		}
-		return false, nil, nil
-	})
-	var hold sync.Once
 	var patches atomic.Int32
-	k8sclient.SetDynamicClient(configPatchHook{Interface: client, before: func() {
-		hold.Do(func() {
-			for range runs {
-				<-reads
-			}
-		})
-		patches.Add(1)
-	}})
+	k8sclient.SetDynamicClient(writeHook{Interface: client, resource: configGVR, before: func() { patches.Add(1) }})
 	outcomes := make([]*bootstrap.Outcome, runs)
+	optimizer := newOptimizer(t)
 	var wg sync.WaitGroup
 	for i := range outcomes {
 		wg.Go(func() {
-			outcome, err := bootstrap.Open(pinnedEmail)
+			outcome, err := bootstrap.Open(optimizer, pinnedEmail)
 			if err != nil {
 				t.Errorf("open = %v", err)
 			}
@@ -318,7 +309,7 @@ func TestConcurrentRunsOpenOneRequest(t *testing.T) {
 	}
 	equal(t, "changes to report", len(first.Changed)+len(second.Changed), one)
 	equal(t, "requests", len(storedStatus(t, client).Requests), one)
-	equal(t, "writes, the loser's refused", patches.Load(), int32(runs))
+	equal(t, "writes", patches.Load(), int32(one))
 }
 
 // Writers that keep winning the compare-and-swap is an answer, 409, after one patch per try.
@@ -333,11 +324,12 @@ func TestContendedStatusIsAConflict(t *testing.T) {
 	equal(t, "patches", patches.Load(), int32(constants.BootstrapWriteAttempts))
 }
 
-// The recovery empties the cached passkey list at once, so nothing that reads it keeps an old passkey signing in.
-func TestRecoveryEmptiesTheCachedPasskeyList(t *testing.T) {
-	approved := recovery(telarkconfig.BootstrapStateApproved, time.Now().Add(-time.Hour))
-	installFake(t, append(directory(t), configWith(t, pinned(approved)), active(pinnedID, pinnedEmail, true).seed(t),
-		passkey(t, pinnedID, time.Now().Add(-time.Hour)))...)
+// The last pass keeps the passkey the link registered, removes every other passkey, session and passkey sign-in, and
+// then completes the request; the cached passkey list forgets the removed passkeys at once. The pinned account and
+// every Admin on ALL hear the account was recovered.
+func TestKeepCompletesTheRecovery(t *testing.T) {
+	withNotices(t)
+	client, before, after := recoveryAccount(t)
 	h := router.NewRouter(routes.InitRoutes(newOptimizer(t), nil))
 	send := func(method, path, body string, headers map[string]string) string {
 		r := httptest.NewRequest(method, path, strings.NewReader(body))
@@ -348,28 +340,278 @@ func TestRecoveryEmptiesTheCachedPasskeyList(t *testing.T) {
 		h.ServeHTTP(w, r.WithContext(xauthz.WithIdentity(r.Context(), internal)))
 		return w.Body.String()
 	}
-	listed := func() bool {
+	listed := func(name string) bool {
 		return strings.Contains(send(http.MethodGet, passkeysPath, constants.EmptyString,
-			map[string]string{constants.HeaderUserID: pinnedID}), pinnedID+"-passkey-")
+			map[string]string{constants.HeaderUserID: pinnedID}), name)
 	}
-	equal(t, "listed before", listed(), true)
-	send(http.MethodPost, requestsPath+pathSep+requestID+pathSep+complete, completeOnce, nil)
-	equal(t, "listed after the recovery", listed(), false)
+	equal(t, "both listed before", listed(before) && listed(after), true)
+	send(http.MethodPost, requestsPath+pathSep+requestID+pathSep+complete, fmt.Sprintf(keepBody, after), nil)
+	equal(t, "earlier passkey listed", listed(before), false)
+	equal(t, "kept passkey listed", listed(after), true)
+	equal(t, "passkeys", countOf(t, client, v1alpha1.PasskeyMetadata), one)
+	equal(t, "sessions", countOf(t, client, v1alpha1.SessionMetadata), none)
+	if identities := storedUser(t, client, pinnedID).Identities; len(identities) != one || identities[none].Subject != after {
+		t.Fatalf("passkey sign-ins = %+v, want only %s", identities, after)
+	}
+	equal(t, "recovery", storedStatus(t, client).Newest().State, telarkconfig.BootstrapStateCompleted)
+	for _, id := range []string{pinnedID, adminID} {
+		equal(t, id+" notices", titles(t, id), constants.NotifBootstrapCompletedTitle)
+	}
 }
 
-// A request in flight when the recovery began can save a passkey after the first pass: break-glass's last pass, made
-// while the account is frozen, purges it, where an unfrozen re-run still refuses (409) and purges nothing.
-func TestFrozenLastPassPurgesAStraggler(t *testing.T) {
-	approved := recovery(telarkconfig.BootstrapStateApproved, time.Now().Add(-time.Hour))
-	client := installFake(t, append(directory(t), configWith(t, pinned(approved)), active(pinnedID, pinnedEmail, true).seed(t),
-		passkey(t, pinnedID, time.Now().Add(-time.Hour)))...)
-	act(t, requestID, complete, completeOnce, http.StatusOK)
-	create(t, client, passkey(t, pinnedID, time.Now().Add(time.Minute)))
-	act(t, requestID, complete, completeOnce, http.StatusConflict)
-	equal(t, "straggler kept by a plain re-run", countOf(t, client, v1alpha1.PasskeyMetadata), one)
-	done := act(t, requestID, complete, completeRevoke, http.StatusOK)
-	equal(t, "straggler after the frozen pass", countOf(t, client, v1alpha1.PasskeyMetadata), none)
-	equal(t, "enrolled", done.Enrolled, false)
+// Only a passkey of the pinned account saved after the mark, by the stamp auth wrote in its spec, can be kept: one from
+// before the request, another account's or one whose stamp doesn't parse is refused (409), and nothing is removed.
+func TestKeepRefusesAnyOtherPasskey(t *testing.T) {
+	cases := []struct {
+		name string
+		keep func(before, stranger, garbled string) string
+	}{
+		{"saved before the request", func(before, _, _ string) string { return before }},
+		{"another account's", func(_, stranger, _ string) string { return stranger }},
+		{"a stamp that doesn't parse", func(_, _, garbled string) string { return garbled }},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			stranger := passkey(t, adminID, time.Now().Add(-time.Minute))
+			garbled := specStamped(t, passkey(t, pinnedID, time.Now().Add(-2*time.Minute)), garbledStamp)
+			client, before, _ := recoveryAccount(t, stranger, garbled)
+			keep := c.keep(before, stranger.obj.GetName(), garbled.obj.GetName())
+			act(t, requestID, complete, fmt.Sprintf(keepBody, keep), http.StatusConflict)
+			equal(t, "passkeys", countOf(t, client, v1alpha1.PasskeyMetadata), three)
+			equal(t, "sessions", countOf(t, client, v1alpha1.SessionMetadata), one)
+			equal(t, "state", storedStatus(t, client).Newest().State, telarkconfig.BootstrapStatePending)
+		})
+	}
+}
+
+// Break-glass's passes before its link end the account's sessions and leave its passkeys and the request as they are;
+// the last one (revoke) also deletes the passkeys saved after the mark, which a stopped run's link saved, and the
+// pinned account and every Admin on ALL hear a link was issued.
+func TestRevokeDropsWhatALinkSavedAfterTheMark(t *testing.T) {
+	withNotices(t)
+	client, before, after := recoveryAccount(t)
+	first := act(t, requestID, complete, completeOnce, http.StatusOK)
+	equal(t, "state after the first pass", first.Request.State, telarkconfig.BootstrapStatePending)
+	equal(t, "sessions", countOf(t, client, v1alpha1.SessionMetadata), none)
+	equal(t, "passkeys after the first pass", countOf(t, client, v1alpha1.PasskeyMetadata), two)
+	act(t, requestID, complete, completeRevoke, http.StatusOK)
+	equal(t, "passkey from before the request", passkeyStored(t, client, before), true)
+	equal(t, "passkey saved after the mark", passkeyStored(t, client, after), false)
+	equal(t, "passkey sign-ins", len(storedUser(t, client, pinnedID).Identities), two)
+	equal(t, "request after the last pass", storedStatus(t, client).Newest().State, telarkconfig.BootstrapStatePending)
+	for _, id := range []string{pinnedID, adminID} {
+		equal(t, id+" notices", titles(t, id), constants.NotifBootstrapIssuedTitle)
+	}
+	expectIssuing(t, pinnedID)
+}
+
+// Sent before break-glass prints the link, which a failure can still stop, so no notice says the link was issued.
+func expectIssuing(t *testing.T, userID string) {
+	t.Helper()
+	for _, notice := range notices(t, userID) {
+		text := notice.Title + notice.Message
+		equal(t, "says the link was issued", strings.Contains(text, "issued") || strings.Contains(text, "printed"), false)
+	}
+}
+
+// The revoke pass judges a passkey by the stamp auth wrote in its spec and never deletes the account's last ones: a
+// passkey a restore stamped anew, or whose stamp doesn't parse, stays and counts as one the account keeps, and the
+// link's passkey of a stopped run stays when nothing else would.
+func TestRevokeKeepsWhatTheAccountSignsWith(t *testing.T) {
+	opened := time.Now().Add(-justOver)
+	cases := []struct {
+		name   string
+		others func(t *testing.T) []seed
+	}{
+		{"only the link's passkey", func(*testing.T) []seed { return nil }},
+		{"one restored from a backup", func(t *testing.T) []seed {
+			return []seed{specStamped(t, passkey(t, pinnedID, time.Now()), stamp(opened.Add(-time.Hour)))}
+		}},
+		{"one whose stamp doesn't parse", func(t *testing.T) []seed {
+			return []seed{specStamped(t, passkey(t, pinnedID, time.Now()), garbledStamp)}
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			link, others := passkey(t, pinnedID, time.Now().Add(-time.Minute)), c.others(t)
+			seeds := append(directory(t), configWith(t, pinned(pending(opened))), active(pinnedID, pinnedEmail, true).seed(t), link)
+			client := installFake(t, append(seeds, others...)...)
+			act(t, requestID, complete, completeRevoke, http.StatusOK)
+			for _, other := range others {
+				equal(t, "the other passkey", passkeyStored(t, client, other.obj.GetName()), true)
+			}
+			equal(t, "the link's passkey", passkeyStored(t, client, link.obj.GetName()), len(others) == none)
+		})
+	}
+}
+
+// A recovery's end is written only once the passkeys a link saved after its mark are gone: a delete that fails leaves
+// it open for the next cancel or expiry to retry, and one that succeeds runs while the stored request is still open.
+func TestARecoveryEndsOnlyAfterItsPurge(t *testing.T) {
+	ends := map[string]func(t *testing.T, want int){
+		"canceled": func(t *testing.T, want int) { act(t, requestID, cancel, deniedBody, want) },
+		"expired":  func(t *testing.T, want int) { open(t, pinnedEmail, want) },
+	}
+	for name, end := range ends {
+		t.Run(name+", the delete fails", func(t *testing.T) {
+			client, after := signedInRecovery(t)
+			client.PrependReactor(verbDelete, v1alpha1.PasskeyMetadata.Plural, func(k8stesting.Action) (bool, runtime.Object, error) {
+				return true, nil, errDown
+			})
+			end(t, http.StatusInternalServerError)
+			if requests := storedStatus(t, client).Requests; len(requests) != one || requests[none].State != telarkconfig.BootstrapStatePending {
+				t.Fatalf("requests = %+v, want the recovery still open", requests)
+			}
+			equal(t, "passkey saved after the mark", passkeyStored(t, client, after), true)
+		})
+		t.Run(name+", the delete comes first", func(t *testing.T) {
+			client, after := signedInRecovery(t)
+			var seen []string
+			client.PrependReactor(verbDelete, v1alpha1.PasskeyMetadata.Plural, func(k8stesting.Action) (bool, runtime.Object, error) {
+				requests := storedStatus(t, client).Requests
+				i := slices.IndexFunc(requests, func(r telarkconfig.BootstrapRequest) bool { return r.ID == requestID })
+				seen = append(seen, requests[i].State)
+				return false, nil, nil
+			})
+			end(t, http.StatusOK)
+			equal(t, "stored request at each delete", strings.Join(seen, ","), telarkconfig.BootstrapStatePending)
+			equal(t, "passkey saved after the mark", passkeyStored(t, client, after), false)
+		})
+	}
+}
+
+// A link can still register once a sign-in or a deny ended its recovery mid-run: the refused keep pass deletes that
+// passkey and no other, and deletes nothing once the recovery completed.
+func TestKeepOnAnEndedRecoveryDropsThatPasskey(t *testing.T) {
+	cases := []struct {
+		name  string
+		state string
+		keep  func(before, after string) string
+		gone  bool
+	}{
+		{"canceled", telarkconfig.BootstrapStateCanceled, func(_, after string) string { return after }, true},
+		{"canceled, naming a passkey from before the request", telarkconfig.BootstrapStateCanceled,
+			func(before, _ string) string { return before }, false},
+		{"completed", telarkconfig.BootstrapStateCompleted, func(_, after string) string { return after }, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			client, before, after := recoveryAccount(t, passkey(t, pinnedID, time.Now().Add(-2*time.Minute)))
+			setStatus(t, client, pinned(recovery(c.state, time.Now().Add(-justOver))))
+			keep := c.keep(before, after)
+			act(t, requestID, complete, fmt.Sprintf(keepBody, keep), http.StatusConflict)
+			equal(t, "named passkey stored", passkeyStored(t, client, keep), !c.gone)
+			equal(t, "passkeys", countOf(t, client, v1alpha1.PasskeyMetadata), map[bool]int{true: two, false: three}[c.gone])
+		})
+	}
+}
+
+// The last pass ends the sessions and passkey sign-ins before it deletes a passkey, so one that fails first leaves the
+// account every passkey and the recovery open.
+func TestKeepDeletesPasskeysLast(t *testing.T) {
+	client, before, after := recoveryAccount(t)
+	client.PrependReactor(verbDelete, v1alpha1.SessionMetadata.Plural, func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, errDown
+	})
+	act(t, requestID, complete, fmt.Sprintf(keepBody, after), http.StatusInternalServerError)
+	equal(t, "earlier passkey", passkeyStored(t, client, before), true)
+	equal(t, "passkey to keep", passkeyStored(t, client, after), true)
+	equal(t, "passkey sign-ins", len(storedUser(t, client, pinnedID).Identities), two)
+	equal(t, "state", storedStatus(t, client).Newest().State, telarkconfig.BootstrapStatePending)
+}
+
+// Open, cancel and complete run one at a time: a sign-in's cancel that arrives while the keep pass deletes waits for it,
+// then finds the recovery completed and deletes nothing. A sign-in stamped meanwhile doesn't stop the completion either.
+func TestAKeepPassRunsAlone(t *testing.T) {
+	passkeys := gvrOf(v1alpha1.PasskeyMetadata)
+	t.Run("a cancel waits for it", func(t *testing.T) {
+		client, _, after := recoveryAccount(t)
+		optimizer := newOptimizer(t)
+		var cancelErr error
+		canceled := make(chan struct{})
+		midway := false
+		// Not a sync.Once: the cancel's own deletes must pass while the first call waits.
+		var hooked atomic.Bool
+		k8sclient.SetDynamicClient(writeHook{Interface: client, resource: passkeys, before: func() {
+			if !hooked.CompareAndSwap(false, true) {
+				return
+			}
+			go func() {
+				_, cancelErr = bootstrap.Cancel(optimizer, requestID, telarkconfig.BootstrapReasonSignedIn)
+				close(canceled)
+			}()
+			select {
+			case <-canceled:
+				midway = true
+			case <-time.After(cancelWait):
+			}
+		}})
+		_, completeErr := bootstrap.Complete(optimizer, requestID, false, after)
+		<-canceled
+		equal(t, "passkeys", countOf(t, client, v1alpha1.PasskeyMetadata), one)
+		equal(t, "kept passkey", passkeyStored(t, client, after), true)
+		equal(t, "cancel done midway through the keep pass", midway, false)
+		equal(t, "complete", completeErr, nil)
+		equal(t, "cancel refused", errors.Is(cancelErr, bootstrap.ErrNotPending), true)
+		equal(t, "recovery", storedStatus(t, client).Newest().State, telarkconfig.BootstrapStateCompleted)
+	})
+	t.Run("a sign-in stamped meanwhile", func(t *testing.T) {
+		client, _, after := recoveryAccount(t)
+		var once sync.Once
+		k8sclient.SetDynamicClient(writeHook{Interface: client, resource: passkeys, before: func() {
+			once.Do(func() { signInNow(t, client) })
+		}})
+		act(t, requestID, complete, fmt.Sprintf(keepBody, after), http.StatusOK)
+		equal(t, "kept passkey", passkeyStored(t, client, after), true)
+		equal(t, "recovery", storedStatus(t, client).Newest().State, telarkconfig.BootstrapStateCompleted)
+	})
+}
+
+// A recovery that ends without completing never deletes the account's last passkeys: one its owner saved after the mark,
+// from a session older than the request, stays when nothing from before the mark would.
+func TestARecoveryEndKeepsTheLastPasskey(t *testing.T) {
+	ends := map[string]func(t *testing.T){
+		"a sign-in":  func(t *testing.T) { act(t, requestID, cancel, signedInBody, http.StatusOK) },
+		"a deny":     func(t *testing.T) { act(t, requestID, cancel, deniedBody, http.StatusOK) },
+		"the expiry": func(t *testing.T) { open(t, pinnedEmail, http.StatusOK) },
+	}
+	for name, end := range ends {
+		t.Run(name, func(t *testing.T) {
+			owner := active(pinnedID, pinnedEmail, true)
+			owner.lastLogin = signedInAt(time.Now().Add(-time.Minute))
+			own := passkey(t, pinnedID, time.Now().Add(-time.Minute))
+			client := installFake(t, append(directory(t), configWith(t, pinned(pending(time.Now().Add(-justOver)))),
+				owner.seed(t), own)...)
+			end(t)
+			equal(t, "the owner's only passkey", passkeyStored(t, client, own.obj.GetName()), true)
+		})
+	}
+}
+
+// A recovery can't be approved: the answer is a refusal, and the request stays pending.
+func TestARecoveryIsNeverApproved(t *testing.T) {
+	client := installFake(t, append(directory(t), configWith(t, pinned(pending(time.Now().Add(-time.Hour)))),
+		active(pinnedID, pinnedEmail, true).seed(t))...)
+	equal(t, "eligible", act(t, requestID, approve, constants.EmptyString, http.StatusConflict).Eligible, false)
+	equal(t, "request after the refusal", storedStatus(t, client).Newest().State, telarkconfig.BootstrapStatePending)
+}
+
+// With the alerts off, a recovery's link and its completion still reach every active Admin on ALL: either may mean the
+// account changed hands, and its owner may no longer read its notices.
+func TestLinkAndCompletionReachAdminsWithAlertsOff(t *testing.T) {
+	withNotices(t)
+	opened := time.Now().Add(-justOver)
+	client := installFake(t, append(directory(t), alertsOff(t, configWith(t, pinned(pending(opened)))),
+		active(pinnedID, pinnedEmail, true).seed(t), passkey(t, pinnedID, opened.Add(-time.Hour)))...)
+	act(t, requestID, complete, completeRevoke, http.StatusOK)
+	registered := passkey(t, pinnedID, time.Now())
+	create(t, client, registered)
+	act(t, requestID, complete, fmt.Sprintf(keepBody, registered.obj.GetName()), http.StatusOK)
+	want := strings.Join([]string{constants.NotifBootstrapIssuedTitle, constants.NotifBootstrapCompletedTitle}, ",")
+	for _, id := range []string{pinnedID, adminID} {
+		equal(t, id+" notices", titles(t, id), want)
+	}
+	equal(t, "ReadOnly user notices", len(notices(t, readerID)), none)
 }
 
 // At start, the account that loses its marker reads unmarked at once: the Redis response cache outlives a restart.
@@ -391,8 +633,9 @@ func TestPinAtStartRefreshesTheCachedUsers(t *testing.T) {
 	equal(t, "marked after the start", marked(), false)
 }
 
-// Eligible: approved before the 72-hour mark, or after it with no sign-in by the bootstrap account since the request
-// opened; a sign-in after the mark expires it. A completed recovery leaves no passkey, session or passkey sign-in.
+// Eligible: 72 hours after the request opened with no sign-in by the bootstrap account since, whatever approval a
+// recovery got before recoveries lost theirs; a sign-in after the mark expires it. A pass before then is refused and
+// ends nothing; an eligible one ends the account's sessions only, and the request stays as it was.
 func TestSeventyTwoHours(t *testing.T) {
 	now := time.Now()
 	cases := []struct {
@@ -405,7 +648,8 @@ func TestSeventyTwoHours(t *testing.T) {
 		{"pending at 73 hours, no sign-in", pending(now.Add(-justOver)), nil, http.StatusOK},
 		{"pending at 73 hours, signed in before", pending(now.Add(-justOver)), signedInAt(now.Add(-justOver - time.Hour)), http.StatusOK},
 		{"pending at 73 hours, signed in since", pending(now.Add(-justOver)), signedInAt(now.Add(-time.Hour)), http.StatusConflict},
-		{"approved at 71 hours", approved(now.Add(-justUnder)), signedInAt(now.Add(-time.Hour)), http.StatusOK},
+		{"approved at 71 hours", approved(now.Add(-justUnder)), signedInAt(now.Add(-time.Hour)), http.StatusConflict},
+		{"approved at 73 hours, no sign-in", approved(now.Add(-justOver)), nil, http.StatusOK},
 		{"approved at 73 hours, signed in since", approved(now.Add(-justOver)), signedInAt(now.Add(-time.Hour)), http.StatusConflict},
 	}
 	for _, c := range cases {
@@ -415,23 +659,24 @@ func TestSeventyTwoHours(t *testing.T) {
 			client := installFake(t, append(directory(t), configWith(t, pinned(c.request)), owner.seed(t),
 				passkey(t, pinnedID, now.Add(-longAgo)), session(t, pinnedID))...)
 			act(t, requestID, complete, completeOnce, c.want)
-			completed := c.want == http.StatusOK
-			equal(t, "completed", storedStatus(t, client).Requests[0].State == telarkconfig.BootstrapStateCompleted, completed)
-			if completed {
-				equal(t, "passkeys", countOf(t, client, v1alpha1.PasskeyMetadata), none)
-				equal(t, "sessions", countOf(t, client, v1alpha1.SessionMetadata), none)
-				equal(t, "passkey sign-ins", len(storedUser(t, client, pinnedID).Identities), none)
-			}
+			sessions := map[bool]int{true: none, false: one}[c.want == http.StatusOK]
+			equal(t, "state", storedStatus(t, client).Requests[none].State, c.request.State)
+			equal(t, "sessions", countOf(t, client, v1alpha1.SessionMetadata), sessions)
+			equal(t, "passkeys", countOf(t, client, v1alpha1.PasskeyMetadata), one)
+			equal(t, "passkey sign-ins", len(storedUser(t, client, pinnedID).Identities), one)
 		})
 	}
 }
 
 // After the mark, a request the bootstrap account signed in during ends as expired, and the next run opens another.
+// The expired recovery takes along the passkey a link saved after its mark; the one from before stays.
 func TestSignInAfterTheMarkExpiresTheRequest(t *testing.T) {
 	withNotices(t)
 	owner := active(pinnedID, pinnedEmail, true)
 	owner.lastLogin = signedInAt(time.Now().Add(-time.Hour))
-	client := installFake(t, append(directory(t), configWith(t, pinned(pending(time.Now().Add(-justOver)))), owner.seed(t))...)
+	before, after := passkey(t, pinnedID, time.Now().Add(-longAgo)), passkey(t, pinnedID, time.Now().Add(-time.Minute))
+	client := installFake(t, append(directory(t), configWith(t, pinned(pending(time.Now().Add(-justOver)))), owner.seed(t),
+		before, after)...)
 	opened := open(t, pinnedEmail, http.StatusOK)
 	requests := storedStatus(t, client).Requests
 	if opened.Request.ID == requestID || len(requests) != two || requests[one].State != telarkconfig.BootstrapStateCanceled ||
@@ -439,12 +684,17 @@ func TestSignInAfterTheMarkExpiresTheRequest(t *testing.T) {
 		t.Fatalf("requests = %+v, want a new one over the expired one", requests)
 	}
 	equal(t, "notices", len(notices(t, pinnedID)), two)
+	equal(t, "passkey from before the request", passkeyStored(t, client, before.obj.GetName()), true)
+	equal(t, "passkey saved after the mark", passkeyStored(t, client, after.obj.GetName()), false)
 }
 
-// A sign-in cancels a pending request only; the bootstrap account's denial is the one way to take back an approval.
+// A sign-in cancels a pending request only; the bootstrap account's denial is the one way to take back a replacement's
+// approval. A recovery that ends so takes along the passkey a link saved after its mark.
 func TestCancelRules(t *testing.T) {
 	t.Run("an approval survives a sign-in and can still be denied", func(t *testing.T) {
-		pinnedDirectory(t, pending(time.Now().Add(-time.Hour)))
+		replace := pending(time.Now().Add(-time.Hour))
+		replace.Kind, replace.TargetEmail = telarkconfig.BootstrapKindReplace, otherEmail
+		pinnedDirectory(t, replace)
 		act(t, requestID, approve, constants.EmptyString, http.StatusOK)
 		act(t, requestID, cancel, signedInBody, http.StatusConflict)
 		act(t, requestID, approve, constants.EmptyString, http.StatusConflict)
@@ -461,54 +711,55 @@ func TestCancelRules(t *testing.T) {
 			t.Fatalf("request = %+v, want canceled by the sign-in", r)
 		}
 	})
-}
-
-// A completed recovery run again re-issues while no passkey was enrolled since, purging again; once one was, the
-// next run opens a new request.
-func TestCompletedRecoveryReissues(t *testing.T) {
-	client := installFake(t, append(directory(t), configWith(t, pinned()),
-		active(pinnedID, pinnedEmail, true).seed(t), passkey(t, pinnedID, time.Now().Add(-time.Hour)))...)
-	first := open(t, pinnedEmail, http.StatusOK)
-	act(t, first.Request.ID, approve, constants.EmptyString, http.StatusOK)
-	done := act(t, first.Request.ID, complete, completeOnce, http.StatusOK)
-	if done.Request.State != telarkconfig.BootstrapStateCompleted || done.Enrolled {
-		t.Fatalf("complete = %+v, want completed with nothing enrolled", done)
-	}
-	reissue := open(t, pinnedEmail, http.StatusOK)
-	if reissue.Request.ID != first.Request.ID || !reissue.Eligible || reissue.Enrolled {
-		t.Fatalf("run after completion = %+v, want the completed request to re-issue", reissue)
-	}
-	act(t, first.Request.ID, complete, completeOnce, http.StatusOK)
-
-	create(t, client, passkey(t, pinnedID, time.Now().Add(time.Minute)))
-	act(t, first.Request.ID, complete, completeOnce, http.StatusConflict)
-	if next := open(t, pinnedEmail, http.StatusOK); next.Request.ID == first.Request.ID || next.Request.State != telarkconfig.BootstrapStatePending {
-		t.Fatalf("run after a new passkey = %+v, want a new pending request", next)
+	for reason, body := range map[string]string{telarkconfig.BootstrapReasonSignedIn: signedInBody, telarkconfig.BootstrapReasonDenied: deniedBody} {
+		t.Run("a recovery ended by "+reason+" drops what its link saved", func(t *testing.T) {
+			client, before, after := recoveryAccount(t)
+			act(t, requestID, cancel, body, http.StatusOK)
+			equal(t, "passkey from before the request", passkeyStored(t, client, before), true)
+			equal(t, "passkey saved after the mark", passkeyStored(t, client, after), false)
+		})
 	}
 }
 
-// A completed recovery re-issues for 24 hours after it completed, each time with a notice; after that a run opens a
-// new request, and the old one completes no more.
-func TestReissueEndsAfterADay(t *testing.T) {
-	withNotices(t)
-	completed := recovery(telarkconfig.BootstrapStateCompleted, time.Now().Add(-3*24*time.Hour))
-	completed.CompletedAt = stamp(time.Now().Add(-23 * time.Hour))
-	client := installFake(t, append(directory(t), configWith(t, pinned(completed)), active(pinnedID, pinnedEmail, true).seed(t))...)
-	if again := open(t, pinnedEmail, http.StatusOK); again.Request.ID != requestID || !again.Eligible {
-		t.Fatalf("run 23 hours after completion = %+v, want a re-issue", again)
-	}
-	reissued := notices(t, pinnedID)
-	if len(reissued) != one || !slices.ContainsFunc(reissued, func(n notiftypes.Notification) bool {
-		return n.Title == "Break-glass link issued again"
-	}) {
-		t.Fatalf("notices = %+v, want one re-issue notice", reissued)
-	}
-
-	late := recovery(telarkconfig.BootstrapStateCompleted, time.Now().Add(-3*24*time.Hour))
-	late.CompletedAt = stamp(time.Now().Add(-25 * time.Hour))
-	setStatus(t, client, pinned(late))
+// A completed recovery left its account the passkey its link registered, so it issues no link again: completing it
+// again is refused, and the next run opens a new request.
+func TestACompletedRecoveryNeverReissues(t *testing.T) {
+	completed := recovery(telarkconfig.BootstrapStateCompleted, time.Now().Add(-justOver))
+	completed.CompletedAt = stamp(time.Now().Add(-time.Hour))
+	pinnedDirectory(t, completed)
 	act(t, requestID, complete, completeOnce, http.StatusConflict)
 	if next := open(t, pinnedEmail, http.StatusOK); next.Request.ID == requestID || next.Request.State != telarkconfig.BootstrapStatePending {
+		t.Fatalf("run after completion = %+v, want a new pending request", next)
+	}
+}
+
+// A completed replacement re-issues for 24 hours after it completed, while its account has no passkey, each time with
+// a notice that reaches every Admin on ALL even with the alerts off; after that a run opens a new request, and the old
+// one completes no more.
+func TestReissueEndsAfterADay(t *testing.T) {
+	withNotices(t)
+	replaced := telarkconfig.BootstrapRequest{ID: requestID, Kind: telarkconfig.BootstrapKindReplace, TargetEmail: otherEmail,
+		State: telarkconfig.BootstrapStateCompleted, OpenedAt: stamp(time.Now().Add(-3 * 24 * time.Hour)),
+		CompletedAt: stamp(time.Now().Add(-23 * time.Hour))}
+	pinnedOther := func(request telarkconfig.BootstrapRequest) *telarkconfig.BootstrapStatus {
+		return &telarkconfig.BootstrapStatus{UserID: otherID, Email: otherEmail, PinnedAt: request.CompletedAt,
+			Requests: []telarkconfig.BootstrapRequest{request}}
+	}
+	client := installFake(t, append(directory(t), alertsOff(t, configWith(t, pinnedOther(replaced))),
+		active(otherID, otherEmail, true, adminRoleID).seed(t))...)
+	if again := open(t, otherEmail, http.StatusOK); again.Request.ID != requestID || !again.Eligible {
+		t.Fatalf("run 23 hours after completion = %+v, want a re-issue", again)
+	}
+	for _, id := range []string{otherID, adminID} {
+		equal(t, id+" notices", titles(t, id), constants.NotifBootstrapReissuedTitle)
+	}
+	expectIssuing(t, otherID)
+
+	late := replaced
+	late.CompletedAt = stamp(time.Now().Add(-25 * time.Hour))
+	setStatus(t, client, pinnedOther(late))
+	act(t, requestID, complete, completeOnce, http.StatusConflict)
+	if next := open(t, otherEmail, http.StatusOK); next.Request.ID == requestID || next.Request.State != telarkconfig.BootstrapStatePending {
 		t.Fatalf("run 25 hours after completion = %+v, want a new pending request", next)
 	}
 }
@@ -525,15 +776,13 @@ func TestCompletedRecoveryLeavesRoomForAReplacement(t *testing.T) {
 	}
 }
 
-// The pinned account is found by its current email, not the one it was pinned with: after it changed its email, a
-// run with the new one re-issues its completed recovery.
+// The pinned account is found by its current email, not the one it was pinned with: after it changed its email, a run
+// with the new one gets its open recovery back.
 func TestRecoveryFollowsTheAccountsEmail(t *testing.T) {
 	const renamed = "renamed@example.com"
-	completed := recovery(telarkconfig.BootstrapStateCompleted, time.Now().Add(-justOver))
-	completed.CompletedAt = stamp(time.Now().Add(-time.Hour))
-	installFake(t, append(directory(t), configWith(t, pinned(completed)), active(pinnedID, renamed, true).seed(t))...)
-	if reissue := open(t, renamed, http.StatusOK); reissue.Request.ID != requestID || !reissue.Eligible {
-		t.Fatalf("run with the account's new email = %+v, want its completed recovery to re-issue", reissue)
+	installFake(t, append(directory(t), configWith(t, pinned(pending(time.Now().Add(-time.Hour)))), active(pinnedID, renamed, true).seed(t))...)
+	if again := open(t, renamed, http.StatusOK); again.Request.ID != requestID || again.Request.Kind != telarkconfig.BootstrapKindRecover {
+		t.Fatalf("run with the account's new email = %+v, want its open recovery", again)
 	}
 }
 

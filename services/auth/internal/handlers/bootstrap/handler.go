@@ -71,7 +71,8 @@ func sendApprovalError(w http.ResponseWriter, err error, fallback int) {
 	switch {
 	case errors.Is(err, bootstrap.ErrAction):
 		shared.SendErrorResponse(w, http.StatusBadRequest, err)
-	case errors.Is(err, bootstrap.ErrNotOpen), errors.Is(err, bootstrap.ErrNoPasskey):
+	case errors.Is(err, bootstrap.ErrNotOpen), errors.Is(err, bootstrap.ErrNoPasskey),
+		errors.Is(err, bootstrap.ErrApproveRecover), errors.Is(err, bootstrap.ErrDenyRecovering):
 		shared.SendErrorResponse(w, http.StatusConflict, err)
 	case errors.Is(err, shared.ErrBackendUnavailable):
 		shared.SendErrorResponse(w, http.StatusServiceUnavailable, err)

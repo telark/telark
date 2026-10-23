@@ -222,7 +222,7 @@ func userHandle(userID string) string {
 }
 
 func StartRegistration(
-	userID, username, fullname string,
+	userID, username, fullname, enrollDigest string,
 	existingCredentials []webauthn.Credential,
 	r *http.Request,
 ) (*protocol.CredentialCreation, string, error) {
@@ -245,7 +245,7 @@ func StartRegistration(
 	if err := StoreRegistrationChallengeOwner(sessionData.Challenge, userID); err != nil {
 		return nil, constants.EmptyString, err
 	}
-	if err := StoreChallenge(userID, sessionData.Challenge); err != nil {
+	if err := StoreChallenge(userID, sessionData.Challenge, enrollDigest); err != nil {
 		cleanupRegistrationChallengeOwner(sessionData.Challenge)
 		return nil, constants.EmptyString, err
 	}
@@ -254,7 +254,7 @@ func StartRegistration(
 }
 
 func FinishRegistration(
-	userID, username, fullname string,
+	userID, username, fullname, enrollDigest string,
 	r *http.Request,
 ) (credential *webauthn.Credential, backupEligible, backupState bool, err error) {
 	wa, err := GetWebAuthnFor(r)
@@ -266,7 +266,7 @@ func FinishRegistration(
 	if err != nil {
 		return nil, false, false, err
 	}
-	if err := authhelper.RefuseFrozen(userID); err != nil {
+	if err := authhelper.RefuseFrozen(userID, enrollDigest); err != nil {
 		return nil, false, false, err
 	}
 	challenge, err := ConsumeChallengeAt(constants.RedisKeyPrefixChallenge+userID, bodyBytes)

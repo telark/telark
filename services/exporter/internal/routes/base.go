@@ -156,9 +156,9 @@ func configRoutes() []router.Route {
 func bootstrapRoutes(optimizer *performance.Optimizer) []router.Route {
 	return []router.Route{
 		router.CreateRoute(base.Get, bootstrapendpoints.GetBootstrap, bootstraphandler.GetStatus()),
-		router.CreateRoute(base.Post, bootstrapendpoints.OpenRequest, bootstraphandler.OpenRequest()),
+		router.CreateRoute(base.Post, bootstrapendpoints.OpenRequest, bootstraphandler.OpenRequest(optimizer)),
 		router.CreateRoute(base.Post, bootstrapendpoints.ApproveRequest, bootstraphandler.ApproveRequest()),
-		router.CreateRoute(base.Post, bootstrapendpoints.CancelRequest, bootstraphandler.CancelRequest()),
+		router.CreateRoute(base.Post, bootstrapendpoints.CancelRequest, bootstraphandler.CancelRequest(optimizer)),
 		router.CreateRoute(base.Post, bootstrapendpoints.CompleteRequest, bootstraphandler.CompleteRequest(optimizer)),
 	}
 }

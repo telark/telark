@@ -37,8 +37,8 @@ func (c *Client) Cancel(id, reason string) *response.GenericResponse {
 	return c.post(id, eps.CancelRequest, eps.CancelBody{Reason: reason})
 }
 
-func (c *Client) Complete(id string, revoke bool) *response.GenericResponse {
-	return c.post(id, eps.CompleteRequest, eps.CompleteBody{Revoke: revoke})
+func (c *Client) Complete(id string, body eps.CompleteBody) *response.GenericResponse {
+	return c.post(id, eps.CompleteRequest, body)
 }
 
 func (c *Client) post(id string, endpoint base.Endpoint, body any) *response.GenericResponse {

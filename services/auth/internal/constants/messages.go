@@ -61,16 +61,12 @@ const (
 	LogCleanupWorkerDLQ           messages.Message = "[cleanup] DLQ: type=%s id=%s attempts=%d err=%v"
 	LogCleanupSweeperEnqueued     messages.Message = "[cleanup] sweeper enqueued: type=%s id=%s"
 	LogCleanupFinalizerRestored   messages.Message = "[cleanup] finalizer restored: type=%s id=%s"
-	LogFinalizersRemoved          messages.Message = "[remove-finalizers] removed=%d failed=%d"
-	ErrRemoveFinalizersListFailed messages.Message = "[remove-finalizers] list failed: type=%s err=%v"
 	LogCleanupManagerStarted      messages.Message = "[cleanup] manager started: workersPerType=%d"
 	LogCleanupManagerStopped      messages.Message = "[cleanup] manager stopped"
 	LogCleanupEnvInvalid          messages.Message = "[cleanup] %s must be a positive integer, using the default %d"
 	LogEnvInvalid                 messages.Message = "%s must be a positive integer, using the default %d"
 	LogEnvInvalidHops             messages.Message = "%s must be zero or a positive integer, using the default %d"
 	WarnRateLimitGlobalReached    messages.Message = "rate limit: %s reached its cap of %d starts for this minute"
-	LogBackfillFinalizersStarted  messages.Message = "[backfill] finalizers started: batchSize=%d pauseMs=%d"
-	LogBackfillFinalizersDone     messages.Message = "[backfill] finalizers done: scanned=%d patched=%d skipped=%d"
 	ErrCleanupEnqueueFailed       messages.Message = "[cleanup] enqueue failed: type=%s id=%s err=%v"
 	ErrCleanupDedupCheckFailed    messages.Message = "[cleanup] dedup check failed: type=%s id=%s err=%v"
 	ErrCleanupListBackRefsFailed  messages.Message = "[cleanup] list back-refs failed: refType=%s err=%v"
@@ -101,9 +97,4 @@ const (
 	CleanupStepAckAfterDLQ     messages.Message = "ack-after-DLQ failed"
 	CleanupStepRelease         messages.Message = "dedup release failed"
 	CleanupStepReleaseAfterDLQ messages.Message = "dedup release after DLQ failed"
-
-	// Backfill messages
-	ErrBackfillUnknownResourceType messages.Message = "backfill: unknown resource type %q"
-	ErrBackfillListFailed          messages.Message = "backfill: list %s: %w"
-	ErrBackfillAddFinalizerFailed  messages.Message = "[backfill] add-finalizer failed: type=%s id=%s status=%d"
 )

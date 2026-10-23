@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/telark/telark/internal/data/resources/telarkconfig"
 	eps "github.com/telark/telark/internal/rest/endpoints/bootstrap"
 	"github.com/telark/telark/internal/rest/response"
 	responseutils "github.com/telark/telark/internal/rest/utils/response"
@@ -16,17 +17,19 @@ import (
 )
 
 var refusals = map[error]int{
-	bootstrap.ErrEmail:       http.StatusBadRequest,
-	bootstrap.ErrReason:      http.StatusBadRequest,
-	bootstrap.ErrNoRequest:   http.StatusNotFound,
-	bootstrap.ErrNotPinned:   http.StatusConflict,
-	bootstrap.ErrNotPending:  http.StatusConflict,
-	bootstrap.ErrExpired:     http.StatusConflict,
-	bootstrap.ErrNotEligible: http.StatusConflict,
-	bootstrap.ErrEnrolled:    http.StatusConflict,
-	bootstrap.ErrReissue:     http.StatusConflict,
-	bootstrap.ErrContended:   http.StatusConflict,
-	bootstrap.ErrNoTarget:    http.StatusConflict,
+	bootstrap.ErrEmail:            http.StatusBadRequest,
+	bootstrap.ErrReason:           http.StatusBadRequest,
+	bootstrap.ErrNoRequest:        http.StatusNotFound,
+	bootstrap.ErrNotPinned:        http.StatusConflict,
+	bootstrap.ErrNotPending:       http.StatusConflict,
+	bootstrap.ErrExpired:          http.StatusConflict,
+	bootstrap.ErrNotEligible:      http.StatusConflict,
+	bootstrap.ErrEnrolled:         http.StatusConflict,
+	bootstrap.ErrReissue:          http.StatusConflict,
+	bootstrap.ErrContended:        http.StatusConflict,
+	bootstrap.ErrNoTarget:         http.StatusConflict,
+	bootstrap.ErrRecoveryApproval: http.StatusConflict,
+	bootstrap.ErrKeep:             http.StatusConflict,
 }
 
 func GetStatus() http.HandlerFunc {
@@ -53,13 +56,13 @@ func GetStatus() http.HandlerFunc {
 	}
 }
 
-func OpenRequest() http.HandlerFunc {
+func OpenRequest(optimizer *performance.Optimizer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, ok := decode[eps.OpenBody](w, r)
 		if !ok {
 			return
 		}
-		outcome, err := bootstrap.Open(body.Email)
+		outcome, err := bootstrap.Open(optimizer, body.Email)
 		respond(w, outcome, err)
 	}
 }
@@ -75,7 +78,7 @@ func ApproveRequest() http.HandlerFunc {
 	}
 }
 
-func CancelRequest() http.HandlerFunc {
+func CancelRequest(optimizer *performance.Optimizer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := sharedutils.GetPathParam(w, r, constants.IDParam)
 		if err != nil {
@@ -85,7 +88,7 @@ func CancelRequest() http.HandlerFunc {
 		if !ok {
 			return
 		}
-		outcome, err := bootstrap.Cancel(id, body.Reason)
+		outcome, err := bootstrap.Cancel(optimizer, id, body.Reason)
 		respond(w, outcome, err)
 	}
 }
@@ -100,7 +103,7 @@ func CompleteRequest(optimizer *performance.Optimizer) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		outcome, err := bootstrap.Complete(optimizer, id, body.Revoke)
+		outcome, err := bootstrap.Complete(optimizer, id, body.Revoke, body.Keep)
 		respond(w, outcome, err)
 	}
 }
@@ -118,15 +121,16 @@ func decode[T any](w http.ResponseWriter, r *http.Request) (*T, bool) {
 	return typed, true
 }
 
-// A completion whose revocation failed after the status was written still reports the completion.
+// A change whose revocation failed after the status was written still reports the change. A completion or a link may
+// mean the account changed hands, so every active Admin on ALL hears of it whatever the switch says.
 func respond(w http.ResponseWriter, outcome *bootstrap.Outcome, err error) {
 	for _, request := range outcome.Changed {
 		title, message, masked, severity := notice(request)
-		notify(outcome.Pinned, request, title, message, masked, severity)
+		notify(outcome.Pinned, request, title, message, masked, severity, request.State == telarkconfig.BootstrapStateCompleted)
 	}
-	if outcome.Reissued {
-		notify(outcome.Pinned, outcome.Result.Request, constants.NotifBootstrapReissuedTitle,
-			constants.NotifBootstrapReissuedMessage, constants.NotifBootstrapReissuedMessage, notiftypes.SeverityWarning)
+	if outcome.Issued {
+		title, message := issued(outcome.Result.Request)
+		notify(outcome.Pinned, outcome.Result.Request, title, message, message, notiftypes.SeverityWarning, true)
 	}
 	if err == nil {
 		responseutils.SendResponse(w, http.StatusOK, response.OperationSuccess, string(constants.MsgBootstrapRequestUpdated), outcome.Result)

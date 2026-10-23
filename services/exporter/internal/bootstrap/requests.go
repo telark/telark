@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"cmp"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -25,25 +26,37 @@ import (
 )
 
 var (
-	ErrNotPinned   = errors.New(string(constants.ErrBootstrapNotPinned))
-	ErrNoRequest   = errors.New(string(constants.ErrBootstrapNoRequest))
-	ErrNotPending  = errors.New(string(constants.ErrBootstrapNotPending))
-	ErrExpired     = errors.New(string(constants.ErrBootstrapExpired))
-	ErrNotEligible = errors.New(string(constants.ErrBootstrapNotEligible))
-	ErrEnrolled    = errors.New(string(constants.ErrBootstrapEnrolled))
-	ErrReissue     = errors.New(string(constants.ErrBootstrapReissueOver))
-	ErrNoTarget    = errors.New(string(constants.ErrBootstrapNoTarget))
-	ErrReason      = errors.New(string(constants.ErrBootstrapReason))
-	ErrEmail       = errors.New(string(constants.ErrBootstrapEmailRequired))
+	ErrNotPinned        = errors.New(string(constants.ErrBootstrapNotPinned))
+	ErrNoRequest        = errors.New(string(constants.ErrBootstrapNoRequest))
+	ErrNotPending       = errors.New(string(constants.ErrBootstrapNotPending))
+	ErrExpired          = errors.New(string(constants.ErrBootstrapExpired))
+	ErrNotEligible      = errors.New(string(constants.ErrBootstrapNotEligible))
+	ErrEnrolled         = errors.New(string(constants.ErrBootstrapEnrolled))
+	ErrReissue          = errors.New(string(constants.ErrBootstrapReissueOver))
+	ErrNoTarget         = errors.New(string(constants.ErrBootstrapNoTarget))
+	ErrReason           = errors.New(string(constants.ErrBootstrapReason))
+	ErrEmail            = errors.New(string(constants.ErrBootstrapEmailRequired))
+	ErrRecoveryApproval = errors.New(string(constants.ErrBootstrapRecoveryApproval))
+	ErrKeep             = errors.New(string(constants.ErrBootstrapKeep))
+
+	// A request's cause, by its reason, else its state; break-glass for the rest.
+	causes = map[string]string{
+		telarkconfig.BootstrapStateApproved:  constants.BootstrapCausePasskey,
+		telarkconfig.BootstrapReasonDenied:   constants.BootstrapCausePasskey,
+		telarkconfig.BootstrapReasonSignedIn: constants.BootstrapCauseSignIn,
+		telarkconfig.BootstrapReasonExpired:  constants.BootstrapCauseSeventyTwoH,
+	}
 )
 
-// One open request at a time: a run while one is open, or within 24 hours after one completed with no passkey
-// enrolled since, gets that one back, so a lost token costs no new 72 hours.
-func Open(email string) (*Outcome, error) {
+// One open request at a time: a run while one is open, or within 24 hours after a replacement completed while its
+// account has no passkey, gets that one back, so a lost token costs no new 72 hours.
+func Open(optimizer *performance.Optimizer, email string) (*Outcome, error) {
 	email = userutils.NormalizeEmail(email)
 	if email == constants.EmptyString {
 		return &Outcome{}, ErrEmail
 	}
+	unlock := lockRequests()
+	defer unlock()
 	accountID, err := accountOf(email)
 	if err != nil {
 		return &Outcome{}, err
@@ -58,7 +71,7 @@ func Open(email string) (*Outcome, error) {
 		// The pinned account is found by its current email, which may differ from the one it was pinned with.
 		recovery := accountID != constants.EmptyString && accountID == status.UserID
 		if newest := status.Newest(); newest != nil {
-			if reuse, err := reusable(status, newest, concerns(newest, recovery, email), at, outcome); err != nil || reuse {
+			if reuse, err := reusable(optimizer, status, newest, concerns(newest, recovery, email), at, outcome); err != nil || reuse {
 				return false, err
 			}
 		}
@@ -72,38 +85,50 @@ func Open(email string) (*Outcome, error) {
 		outcome.Changed = append(outcome.Changed, request)
 		return true, nil
 	})
-	return pinnedTo(outcome, status, err), err
+	outcome = pinnedTo(outcome, status, err)
+	if err != nil {
+		return outcome, err
+	}
+	logChanges(outcome)
+	return outcome, dropEnded(optimizer, status.UserID, outcome.Changed)
 }
 
 // After its 72-hour mark, an open request the bootstrap account signed in during ends here, and a new one opens.
-// A completed one re-issues only for the account it concerns.
+// Only a completed replacement re-issues, for the account it concerns: a completed recovery's account has a passkey.
 func reusable(
-	status *telarkconfig.BootstrapStatus, newest *telarkconfig.BootstrapRequest, mine bool, at time.Time, outcome *Outcome,
+	optimizer *performance.Optimizer, status *telarkconfig.BootstrapStatus, newest *telarkconfig.BootstrapRequest, mine bool,
+	at time.Time, outcome *Outcome,
 ) (bool, error) {
 	switch {
 	case newest.Open():
-		eligible, expired, err := judge(status, newest, at)
-		if err != nil || expired {
-			if expired {
-				end(newest, telarkconfig.BootstrapReasonExpired, at)
-				outcome.Changed = append(outcome.Changed, *newest)
-			}
-			return false, err
-		}
-		outcome.Result = eps.RequestResult{Request: *newest, Eligible: eligible}
-		return true, nil
-	case newest.State == telarkconfig.BootstrapStateCompleted && mine:
+		return reuseOpen(optimizer, status, newest, at, outcome)
+	case newest.State == telarkconfig.BootstrapStateCompleted && newest.Kind == telarkconfig.BootstrapKindReplace && mine:
 		if again, err := reissuable(newest, at); err != nil || !again {
 			return false, err
 		}
-		enrolled, err := enrolledSince(status, newest)
+		enrolled, err := hasPasskey(status.UserID)
 		if err != nil || enrolled {
 			return false, err
 		}
-		outcome.Result, outcome.Reissued = eps.RequestResult{Request: *newest, Eligible: true}, true
+		outcome.Result, outcome.Issued = eps.RequestResult{Request: *newest, Eligible: true}, true
 		return true, nil
 	}
 	return false, nil
+}
+
+func reuseOpen(
+	optimizer *performance.Optimizer, status *telarkconfig.BootstrapStatus, newest *telarkconfig.BootstrapRequest, at time.Time,
+	outcome *Outcome,
+) (bool, error) {
+	eligible, expired, err := judge(status, newest, at)
+	if err != nil {
+		return false, err
+	}
+	if expired {
+		return false, endRequest(optimizer, status.UserID, newest, telarkconfig.BootstrapReasonExpired, at, outcome)
+	}
+	outcome.Result = eps.RequestResult{Request: *newest, Eligible: eligible}
+	return true, nil
 }
 
 func reissuable(request *telarkconfig.BootstrapRequest, at time.Time) (bool, error) {
@@ -149,11 +174,15 @@ func accountOf(email string) (string, error) {
 	return item.GetName(), nil
 }
 
+// An owner who could approve a recovery still has a passkey, so an approval would only ever help someone else.
 func Approve(id string) (*Outcome, error) {
 	outcome, _, err := transition(id, func(
 		_ *telarkconfig.BootstrapStatus, request *telarkconfig.BootstrapRequest, at time.Time, _ *Outcome,
 	) (bool, error) {
-		if request.State != telarkconfig.BootstrapStatePending {
+		switch {
+		case request.Kind == telarkconfig.BootstrapKindRecover:
+			return false, ErrRecoveryApproval
+		case request.State != telarkconfig.BootstrapStatePending:
 			return false, ErrNotPending
 		}
 		opened, err := time.Parse(time.RFC3339, request.OpenedAt)
@@ -167,107 +196,284 @@ func Approve(id string) (*Outcome, error) {
 		return true, nil
 	})
 	outcome.Result.Eligible = err == nil
+	if err == nil {
+		logRequest(outcome.Result.Request, outcome.Result.Request.State)
+	}
 	return outcome, err
 }
 
 // A sign-in cancels a pending request only, so the bootstrap account's denial is the one way to take back an approval.
-func Cancel(id, reason string) (*Outcome, error) {
+func Cancel(optimizer *performance.Optimizer, id, reason string) (*Outcome, error) {
 	if reason != telarkconfig.BootstrapReasonSignedIn && reason != telarkconfig.BootstrapReasonDenied {
 		return &Outcome{}, ErrReason
 	}
-	outcome, _, err := transition(id, func(
-		_ *telarkconfig.BootstrapStatus, request *telarkconfig.BootstrapRequest, at time.Time, outcome *Outcome,
+	unlock := lockRequests()
+	defer unlock()
+	outcome, status, err := transition(id, func(
+		status *telarkconfig.BootstrapStatus, request *telarkconfig.BootstrapRequest, at time.Time, outcome *Outcome,
 	) (bool, error) {
 		denied := request.State == telarkconfig.BootstrapStateApproved && reason == telarkconfig.BootstrapReasonDenied
 		if request.State != telarkconfig.BootstrapStatePending && !denied {
 			return false, ErrNotPending
 		}
-		end(request, reason, at)
-		outcome.Changed = append(outcome.Changed, *request)
-		return true, nil
-	})
-	return outcome, err
-}
-
-// The status is written first, so a run that fails halfway is finished by the next one: a completed request with no
-// passkey enrolled since (or with revoke, any) completes again, purging (recovery) or setting the markers
-// (replacement) once more.
-func Complete(optimizer *performance.Optimizer, id string, revoke bool) (*Outcome, error) {
-	outcome, status, err := transition(id, func(
-		status *telarkconfig.BootstrapStatus, request *telarkconfig.BootstrapRequest, at time.Time, outcome *Outcome,
-	) (bool, error) {
-		switch {
-		case request.State == telarkconfig.BootstrapStateCompleted:
-			return false, completeAgain(status, request, at, revoke)
-		case !request.Open():
-			return false, ErrNotPending
-		}
-		eligible, _, err := judge(status, request, at)
-		if err != nil {
-			return false, err
-		}
-		if !eligible {
-			return false, ErrNotEligible
-		}
-		if request.Kind == telarkconfig.BootstrapKindReplace {
-			targetID, err := replacementID(request.TargetEmail)
-			if err != nil {
-				return false, err
-			}
-			status.UserID, status.Email, status.PinnedAt = targetID, request.TargetEmail, stamp(at)
-		}
-		request.State, request.CompletedAt = telarkconfig.BootstrapStateCompleted, stamp(at)
-		outcome.Changed = append(outcome.Changed, *request)
-		return true, nil
+		err := endRequest(optimizer, status.UserID, request, reason, at, outcome)
+		return err == nil, err
 	})
 	if err != nil {
 		return outcome, err
 	}
-	request := status.Newest()
-	if err := settle(optimizer, status, request); err != nil {
-		return outcome, err
-	}
-	enrolled, err := enrolledSince(status, request)
-	outcome.Result = eps.RequestResult{Request: *request, Eligible: true, Enrolled: enrolled}
-	return outcome, err
+	logChanges(outcome)
+	return outcome, dropEnded(optimizer, status.UserID, outcome.Changed)
 }
 
-// A completed request completes again, purging once more, within 24 hours and while no passkey was enrolled since.
-// With revoke, break-glass's last pass while the account is frozen, a passkey enrolled since is purged too: one that a
-// request in flight when the recovery began saved after the first pass.
-func completeAgain(status *telarkconfig.BootstrapStatus, request *telarkconfig.BootstrapRequest, at time.Time, revoke bool) error {
+// A recovery goes link first, wipe after: only the pass that keeps the passkey its link registered completes it. A
+// replacement completes and moves the pin, and completes again, setting the markers once more, while it may re-issue.
+func Complete(optimizer *performance.Optimizer, id string, revoke bool, keep string) (*Outcome, error) {
+	unlock := lockRequests()
+	defer unlock()
+	outcome, status, err := transition(id, func(
+		status *telarkconfig.BootstrapStatus, request *telarkconfig.BootstrapRequest, at time.Time, outcome *Outcome,
+	) (bool, error) {
+		if request.Kind == telarkconfig.BootstrapKindRecover {
+			return false, eligibleNow(status, request, at)
+		}
+		return completeReplacement(status, request, at, outcome)
+	})
+	if err != nil {
+		return outcome, dropUnkept(optimizer, status, keep, err)
+	}
+	logChanges(outcome)
+	request := status.Newest()
+	switch {
+	case request.Kind == telarkconfig.BootstrapKindReplace:
+		return settle(optimizer, status, request, outcome)
+	case keep == constants.EmptyString:
+		return prepare(optimizer, status.UserID, request, revoke, outcome)
+	}
+	return keepOnly(optimizer, status.UserID, request, keep, outcome)
+}
+
+func completeReplacement(
+	status *telarkconfig.BootstrapStatus, request *telarkconfig.BootstrapRequest, at time.Time, outcome *Outcome,
+) (bool, error) {
+	if request.State == telarkconfig.BootstrapStateCompleted {
+		return false, completeAgain(status, request, at)
+	}
+	if err := eligibleNow(status, request, at); err != nil {
+		return false, err
+	}
+	targetID, err := replacementID(request.TargetEmail)
+	if err != nil {
+		return false, err
+	}
+	status.UserID, status.Email, status.PinnedAt = targetID, request.TargetEmail, stamp(at)
+	request.State, request.CompletedAt = telarkconfig.BootstrapStateCompleted, stamp(at)
+	outcome.Changed = append(outcome.Changed, *request)
+	return true, nil
+}
+
+// A completed replacement completes again within 24 hours, while its account has no passkey.
+func completeAgain(status *telarkconfig.BootstrapStatus, request *telarkconfig.BootstrapRequest, at time.Time) error {
 	again, err := reissuable(request, at)
 	if err == nil && !again {
 		err = ErrReissue
 	}
-	if err != nil || revoke {
+	if err != nil {
 		return err
 	}
-	enrolled, err := enrolledSince(status, request)
+	enrolled, err := hasPasskey(status.UserID)
 	if err == nil && enrolled {
 		err = ErrEnrolled
 	}
 	return err
 }
 
-// A recovery ends every way into the account, and the cached passkey and session lists forget them at once; a
-// replacement moves the marker with the pin, and the previous account keeps its roles, so the new bootstrap account
+// A replacement moves the marker with the pin, and the previous account keeps its roles, so the new bootstrap account
 // can demote it.
-func settle(optimizer *performance.Optimizer, status *telarkconfig.BootstrapStatus, request *telarkconfig.BootstrapRequest) error {
+func settle(
+	optimizer *performance.Optimizer, status *telarkconfig.BootstrapStatus, request *telarkconfig.BootstrapRequest, outcome *Outcome,
+) (*Outcome, error) {
+	err := setMarker(optimizer, status.UserID, true)
+	if err == nil {
+		err = settleMarkers(optimizer, status.UserID)
+	}
+	if err != nil {
+		return outcome, err
+	}
+	enrolled, err := hasPasskey(status.UserID)
+	outcome.Result = eps.RequestResult{Request: *request, Eligible: true, Enrolled: enrolled}
+	return outcome, err
+}
+
+// The passes before the link: the account's sessions end, and the last one, made while the account is frozen
+// (revoke), also deletes the passkeys saved after the mark, which a link of a run that stopped saved.
+func prepare(
+	optimizer *performance.Optimizer, userID string, request *telarkconfig.BootstrapRequest, revoke bool, outcome *Outcome,
+) (*Outcome, error) {
+	outcome.Result = eps.RequestResult{Request: *request, Eligible: true}
+	err := sessionutils.PurgeSessionsForUser(userID)
+	cache.InvalidateAllResourceCaches(optimizer, constants.ResourceUserSession)
+	if err == nil && revoke {
+		if err = revokeAfterMark(optimizer, userID, request); err == nil {
+			outcome.Issued = true
+			logChanges(outcome)
+		}
+	}
+	return outcome, err
+}
+
+// Never the account's last passkeys: the ones saved after the mark go only while one from before it (or unparsable) stays.
+func revokeAfterMark(optimizer *performance.Optimizer, userID string, request *telarkconfig.BootstrapRequest) error {
+	mark, err := markOf(request)
+	if err != nil {
+		return err
+	}
+	passkeys, err := passkeyutils.FindPasskeysByUserID(userID)
+	if err != nil || !slices.ContainsFunc(passkeys, func(passkey unstructured.Unstructured) bool { return !savedAfter(passkey, mark) }) {
+		return err
+	}
+	return dropAfterMark(optimizer, userID, request, constants.EmptyString)
+}
+
+// The last pass keeps the link's passkey and removes every session, passkey sign-in and then other passkey: one that
+// fails leaves the request open for the next run, and the account its passkeys if it failed before those.
+func keepOnly(
+	optimizer *performance.Optimizer, userID string, request *telarkconfig.BootstrapRequest, keep string, outcome *Outcome,
+) (*Outcome, error) {
+	if err := keepable(userID, request, keep); err != nil {
+		return outcome, err
+	}
+	err := sessionutils.PurgeSessionsForUser(userID)
+	if err == nil {
+		err = dropPasskeyIdentities(optimizer, userID, keep)
+	}
+	if err == nil {
+		err = passkeyutils.PurgePasskeysWhere(userID, func(passkey unstructured.Unstructured) bool { return credentialOf(passkey) != keep })
+	}
+	cache.InvalidateAllResourceCaches(optimizer, constants.ResourceUserPasskey)
+	cache.InvalidateAllResourceCaches(optimizer, constants.ResourceUserSession)
+	if err != nil {
+		return outcome, err
+	}
+	completed, _, err := transition(request.ID, completeRecovery)
+	completed.Result.Eligible = err == nil
+	if err == nil {
+		logChanges(completed)
+	}
+	return completed, err
+}
+
+// A sign-in stamped during the deletes doesn't stop it: the request's end would then take the passkey it kept, the last.
+func completeRecovery(
+	_ *telarkconfig.BootstrapStatus, request *telarkconfig.BootstrapRequest, at time.Time, outcome *Outcome,
+) (bool, error) {
+	if !request.Open() {
+		return false, ErrNotPending
+	}
+	request.State, request.CompletedAt = telarkconfig.BootstrapStateCompleted, stamp(at)
+	outcome.Changed = append(outcome.Changed, *request)
+	return true, nil
+}
+
+// Only a passkey of the pinned account saved after the mark can be the one the recovery's link registered.
+func keepable(userID string, request *telarkconfig.BootstrapRequest, keep string) error {
+	mark, err := markOf(request)
+	if err != nil {
+		return err
+	}
+	passkeys, err := passkeyutils.FindPasskeysByUserID(userID)
+	if err != nil {
+		return err
+	}
+	if !slices.ContainsFunc(passkeys, func(passkey unstructured.Unstructured) bool {
+		return credentialOf(passkey) == keep && savedAfter(passkey, mark)
+	}) {
+		return ErrKeep
+	}
+	return nil
+}
+
+// A recovery that ends without completing takes along what a link saved after its mark (a run that stopped while waiting
+// left it, and the bootstrap sign-in refuses it only while the recovery is open), before the end is written.
+func endRequest(
+	optimizer *performance.Optimizer, userID string, request *telarkconfig.BootstrapRequest, reason string, at time.Time, outcome *Outcome,
+) error {
 	if request.Kind == telarkconfig.BootstrapKindRecover {
-		err := errors.Join(
-			passkeyutils.PurgePasskeysForUser(status.UserID),
-			sessionutils.PurgeSessionsForUser(status.UserID),
-			dropPasskeyIdentities(optimizer, status.UserID),
-		)
-		cache.InvalidateAllResourceCaches(optimizer, constants.ResourceUserPasskey)
-		cache.InvalidateAllResourceCaches(optimizer, constants.ResourceUserSession)
+		if err := revokeAfterMark(optimizer, userID, request); err != nil {
+			return err
+		}
+	}
+	end(request, reason, at)
+	outcome.Changed = append(outcome.Changed, *request)
+	return nil
+}
+
+// Again once the end is written, for a passkey a link saved meanwhile.
+func dropEnded(optimizer *performance.Optimizer, userID string, requests []telarkconfig.BootstrapRequest) error {
+	errs := make([]error, constants.DefaultInitValue, len(requests))
+	for i := range requests {
+		if requests[i].Kind == telarkconfig.BootstrapKindRecover && requests[i].State == telarkconfig.BootstrapStateCanceled {
+			errs = append(errs, revokeAfterMark(optimizer, userID, &requests[i]))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// A link's registration that lands after its recovery ended would sign in with nothing left to refuse it: the refused
+// keep pass deletes that passkey, and no other.
+func dropUnkept(optimizer *performance.Optimizer, status *telarkconfig.BootstrapStatus, keep string, refusal error) error {
+	if keep == constants.EmptyString || !errors.Is(refusal, ErrNotPending) {
+		return refusal
+	}
+	request := status.Newest()
+	if request.Kind != telarkconfig.BootstrapKindRecover || request.State != telarkconfig.BootstrapStateCanceled {
+		return refusal
+	}
+	if err := dropAfterMark(optimizer, status.UserID, request, keep); err != nil {
 		return err
 	}
-	if err := setMarker(optimizer, status.UserID, true); err != nil {
+	return refusal
+}
+
+// The passkeys saved after the mark, or only the one with credential when it is set.
+func dropAfterMark(optimizer *performance.Optimizer, userID string, request *telarkconfig.BootstrapRequest, credential string) error {
+	mark, err := markOf(request)
+	if err != nil {
 		return err
 	}
-	return settleMarkers(optimizer, status.UserID)
+	err = passkeyutils.PurgePasskeysWhere(userID, func(passkey unstructured.Unstructured) bool {
+		return savedAfter(passkey, mark) && (credential == constants.EmptyString || credentialOf(passkey) == credential)
+	})
+	cache.InvalidateAllResourceCaches(optimizer, constants.ResourceUserPasskey)
+	return err
+}
+
+// By the stamp auth wrote in the spec, which a restore keeps while it resets the metadata's. One that doesn't parse is
+// never after the mark, so it is never deleted or kept as the link's.
+func savedAfter(passkey unstructured.Unstructured, mark time.Time) bool {
+	value, _, _ := unstructured.NestedString(passkey.Object, constants.SpecField, constants.FieldCreationTimestamp)
+	created, err := time.Parse(time.RFC3339, value)
+	return err == nil && !created.Before(mark)
+}
+
+func markOf(request *telarkconfig.BootstrapRequest) (time.Time, error) {
+	opened, err := time.Parse(time.RFC3339, request.OpenedAt)
+	if err != nil {
+		return time.Time{}, fmt.Errorf(string(constants.ErrBootstrapStatusInvalid), err)
+	}
+	return opened.Add(telarkconfig.BootstrapRequestWait), nil
+}
+
+func credentialOf(passkey unstructured.Unstructured) string {
+	id, _, _ := unstructured.NestedString(passkey.Object, constants.SpecField, constants.FieldCredentialID)
+	return id
+}
+
+// Open, Cancel and Complete run one at a time (the exporter runs one replica), so no end deletes what a keep pass keeps.
+func lockRequests() (unlock func()) {
+	lock := concurrency.GetLock(constants.BootstrapRequestsLock)
+	lock.Lock()
+	return lock.Unlock
 }
 
 // change runs on the newest request, which must be id, and says whether to write the status it changed.
@@ -289,15 +495,27 @@ func transition(
 	return pinnedTo(outcome, status, err), status, err
 }
 
-// Eligible: approved before the 72-hour mark, or pending or approved after it with no sign-in by the bootstrap
-// account since the request opened. A sign-in after the mark expires it instead.
+func eligibleNow(status *telarkconfig.BootstrapStatus, request *telarkconfig.BootstrapRequest, at time.Time) error {
+	if !request.Open() {
+		return ErrNotPending
+	}
+	eligible, _, err := judge(status, request, at)
+	if err == nil && !eligible {
+		err = ErrNotEligible
+	}
+	return err
+}
+
+// Eligible: after the 72-hour mark with no sign-in by the bootstrap account since the request opened, or a replacement
+// approved before it. A sign-in after the mark expires it instead.
 func judge(status *telarkconfig.BootstrapStatus, request *telarkconfig.BootstrapRequest, at time.Time) (eligible, expired bool, err error) {
 	opened, err := time.Parse(time.RFC3339, request.OpenedAt)
 	if err != nil {
 		return false, false, fmt.Errorf(string(constants.ErrBootstrapStatusInvalid), err)
 	}
 	if at.Before(opened.Add(telarkconfig.BootstrapRequestWait)) {
-		return request.State == telarkconfig.BootstrapStateApproved, false, nil
+		// An approval a recovery got before recoveries lost theirs counts for nothing.
+		return request.Kind == telarkconfig.BootstrapKindReplace && request.State == telarkconfig.BootstrapStateApproved, false, nil
 	}
 	signedIn, err := signedInSince(status.UserID, opened)
 	return err == nil && !signedIn, signedIn, err
@@ -314,23 +532,9 @@ func signedInSince(userID string, since time.Time) (bool, error) {
 	return err != nil || !at.Before(since), nil
 }
 
-// A recovery counts the passkeys created once it completed, not one a failed purge left; a replacement counts any.
-func enrolledSince(status *telarkconfig.BootstrapStatus, request *telarkconfig.BootstrapRequest) (bool, error) {
-	var since time.Time
-	if request.Kind == telarkconfig.BootstrapKindRecover {
-		completed, err := time.Parse(time.RFC3339, request.CompletedAt)
-		if err != nil {
-			return false, fmt.Errorf(string(constants.ErrBootstrapStatusInvalid), err)
-		}
-		since = completed
-	}
-	passkeys, err := passkeyutils.FindPasskeysByUserID(status.UserID)
-	if err != nil {
-		return false, err
-	}
-	return slices.ContainsFunc(passkeys, func(passkey unstructured.Unstructured) bool {
-		return !passkey.GetCreationTimestamp().Time.Before(since)
-	}), nil
+func hasPasskey(userID string) (bool, error) {
+	passkeys, err := passkeyutils.FindPasskeysByUserID(userID)
+	return len(passkeys) > constants.DefaultInitValue, err
 }
 
 // break-glass creates and promotes the account before it completes the request.
@@ -343,7 +547,7 @@ func replacementID(email string) (string, error) {
 }
 
 // Read and written under the user's lock, which the user patch takes too, so no identity added meanwhile is lost.
-func dropPasskeyIdentities(optimizer *performance.Optimizer, userID string) error {
+func dropPasskeyIdentities(optimizer *performance.Optimizer, userID, keep string) error {
 	lock := concurrency.GetLock(userID)
 	lock.Lock()
 	defer lock.Unlock()
@@ -352,7 +556,7 @@ func dropPasskeyIdentities(optimizer *performance.Optimizer, userID string) erro
 		return err
 	}
 	kept := slices.DeleteFunc(slices.Clone(user.Identities), func(identity *userdata.UserIdentity) bool {
-		return identity != nil && identity.Provider == constants.IdentityProviderPasskey
+		return identity != nil && identity.Provider == constants.IdentityProviderPasskey && identity.Subject != keep
 	})
 	if len(kept) == len(user.Identities) {
 		return nil
@@ -370,10 +574,36 @@ func end(request *telarkconfig.BootstrapRequest, reason string, at time.Time) {
 	request.State, request.Reason, request.CanceledAt = telarkconfig.BootstrapStateCanceled, reason, stamp(at)
 }
 
+// One line per change: the bell's notices can be cleared, and the record shows only each request's last state.
+func logChanges(outcome *Outcome) {
+	for _, request := range outcome.Changed {
+		event := request.State
+		if request.Reason != constants.EmptyString {
+			event = fmt.Sprintf(constants.BootstrapLogCanceled, request.State, request.Reason)
+		}
+		logRequest(request, event)
+	}
+	if outcome.Issued {
+		event := constants.BootstrapLogLinkIssued
+		if outcome.Result.Request.Kind == telarkconfig.BootstrapKindReplace {
+			event = constants.BootstrapLogLinkReissued
+		}
+		logRequest(outcome.Result.Request, event)
+	}
+}
+
+func logRequest(request telarkconfig.BootstrapRequest, event string) {
+	cause, found := causes[cmp.Or(request.Reason, request.State)]
+	if !found {
+		cause = constants.BootstrapCauseBreakGlass
+	}
+	lg.Info(fmt.Sprintf(string(constants.InfBootstrapRequest), request.ID, request.Kind, event, cause))
+}
+
 // A failed update wrote nothing, so it changed no request a notice could report.
 func pinnedTo(outcome *Outcome, status *telarkconfig.BootstrapStatus, err error) *Outcome {
 	if err != nil {
-		outcome.Changed, outcome.Reissued = nil, false
+		outcome.Changed, outcome.Issued = nil, false
 	}
 	if status != nil {
 		outcome.Pinned = status.UserID

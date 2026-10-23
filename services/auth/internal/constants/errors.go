@@ -15,8 +15,6 @@ const (
 	ErrEnrollTokenInvalid      errors.Error = "invalid or expired enrollment token"
 	ErrRegistrationNeedsProof  errors.Error = "account already exists. sign in or use an enrollment link to add a passkey"
 	ErrReservedEmail           errors.Error = "this email is reserved for an administrator. ask the operator to enroll it"
-	ErrBreakGlassCreateFailed  errors.Error = "create failed: status %d: %s"
-	ErrBreakGlassUserNotFound  errors.Error = "user not found: %s"
 	ErrSignInSettingsBootstrap errors.Error = "only the bootstrap administrator can change how people sign in"
 	ErrNoPasskeysFound         errors.Error = "no passkeys found for user"
 	ErrChallengeNotFound       errors.Error = "challenge not found"
@@ -171,14 +169,22 @@ const (
 
 	// Break-glass Request Errors
 	ErrAccountRecovering        errors.Error = "this account is being recovered with break-glass: try again shortly"
-	ErrRecoveryFreezeLost       errors.Error = "the account's recovery freeze lapsed before the recovery finished: run break-glass again"
+	ErrRecoveryFreezeLost       errors.Error = "the run stalled too long to stay safe: run this command again"
 	ErrBootstrapActionInvalid   errors.Error = "action must be approve or deny"
 	ErrBootstrapRequestNotOpen  errors.Error = "this break-glass request can't be approved or denied: it isn't the bootstrap account's open request"
 	ErrBootstrapNoPasskey       errors.Error = "the bootstrap account has no passkey to approve with"
 	ErrBootstrapStatusFailed    errors.Error = "failed to read the bootstrap status: %v"
-	ErrFailedDropEnrollTokens   errors.Error = "failed to drop the enrollment links of identityHash=%s: %v"
+	ErrFailedDropEnrollTokens   errors.Error = "dropping the account's enrollment links failed: %v"
 	WarnBootstrapSignInCancel   errors.Error = "a sign-in by the bootstrap account did not cancel request %s: status %d: %s"
 	WarnBootstrapSignInNoStatus errors.Error = "a sign-in by the bootstrap account could not read its requests: %v"
+	ErrRecoveryPasskey          errors.Error = "this passkey comes from a break-glass recovery that didn't finish: run break-glass again"
+	ErrBreakGlassRunLost        errors.Error = "another run took over: let it finish"
+	// 15 minutes: a run's hold, its link's window and its lock's TTL, rounded up.
+	ErrBreakGlassRunBusy       errors.Error = "another run is in progress: try again within 15 minutes"
+	ErrBootstrapDenyRecovering errors.Error = "break-glass is recovering this account right now: deny the request once " +
+		"that run has ended, within 15 minutes"
+	ErrBootstrapApproveRecover errors.Error = "a recovery can't be approved: it completes 72 hours after it opened " +
+		"unless the bootstrap account signs in or denies it"
 
 	// Credential Verification Errors
 	ErrBackupEligibleFlagInconsistency errors.Error = "backup eligible flag inconsistency: stored (BE:%v, BS:%v) != login (BE:%v, BS:%v)"

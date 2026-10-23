@@ -46,8 +46,9 @@ const (
 )
 
 // Seed the exported fields before StubBackend: once it serves, only the locking methods touch them. Credentials are
-// the passkeys an account signs with; Passkeys only counts placeholders. RequestAnswers answers a break-glass request
-// route by its last path segment (requests, approve, cancel, complete), and a route without one answers 409.
+// the passkeys an account signs with, and a passkey saved for such an account joins them; Passkeys only counts
+// placeholders. RequestAnswers answers a break-glass request route by its last path segment (requests, approve,
+// cancel, complete), and a route without one answers 409.
 type FakeExporter struct {
 	Users          map[string]*userresource.User
 	Roles          map[string]*roledata.AccessRole
@@ -167,6 +168,10 @@ func (f *FakeExporter) servePasskeys(w http.ResponseWriter, r *http.Request) {
 			f.Passkeys = map[string]int{}
 		}
 		f.Passkeys[userID]++
+		var saved authdata.Passkey
+		if _, signs := f.Credentials[userID]; signs && json.NewDecoder(r.Body).Decode(&saved) == nil {
+			f.Credentials[userID] = append(f.Credentials[userID], saved)
+		}
 		fakeReply(w, http.StatusOK, nil)
 		return
 	}
@@ -263,6 +268,13 @@ func (f *FakeExporter) SetConfig(cfg telarkconfigresource.TelarkConfig) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.Config = cfg
+}
+
+// The next status reads answer status, as when a request ends while break-glass runs.
+func (f *FakeExporter) SetBootstrap(status telarkconfigresource.BootstrapStatus) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.Bootstrap = status
 }
 
 // Every read then fails (500), as when the exporter is unreachable.

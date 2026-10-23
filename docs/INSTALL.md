@@ -24,7 +24,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 ```sh
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
   --set app.auth.bootstrap.admin=test@example.com \
-  --set app.kyverno.enabled=false
+  --set kyverno.enabled=false
 ```
 
 Telark is tested with Kyverno v1.19.1, the version the chart bundles. Your own Kyverno must be 1.18 or later, serve the `policies.kyverno.io` CRDs (plan policies are `NamespacedValidatingPolicy` objects; without them every active plan reads Degraded and discovery logs why) and keep its `PolicyViolation` Events, as its default `omitEvents` does: the plan's admission decisions come from them. Upgrade Telark to 0.2.0 before you move Kyverno to 1.20 ([Upgrade notes](#upgrade-notes)). With your own Kyverno, change history names no author, because the chart installs the policy that records authors only with the bundled Kyverno.
@@ -35,11 +35,11 @@ The examples below leave out the admin flag. Keep it on every command.
 
 Telark has exactly one bootstrap admin: the email in `app.auth.bootstrap.admin`. Only the bootstrap admin can turn on SSO or passkey self-registration, so the value is required: without it the chart fails the render and the auth service refuses to start.
 
-The bootstrap admin holds the built-in Admin role (Admin on `ALL`) and nothing more. Only the auth service's break-glass command creates or recovers it. It prints the steps and an [enrollment link](#enrollment-links) for that account, in the form the Members dialog builds. Open the link within 10 minutes to register a passkey: a break-glass link always lives 10 minutes, whatever the enrollment link lifetime is set to.
+The bootstrap admin holds the built-in Admin role (Admin on `ALL`) and nothing more. Only the auth service's break-glass command creates or recovers it. It prints an [enrollment link](#enrollment-links) for that account, in the form the Members dialog builds, and one step: open it in a browser that is not signed in to Telark, such as a private window. Register a passkey with it within 10 minutes: a break-glass link always lives 10 minutes, whatever the enrollment link lifetime is set to.
 
 ```sh
 kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email test@example.com --enroll
-# prints https://<dashboard-host>/register#enroll=<token>&email=test%40example.com, with the steps
+# prints https://<dashboard-host>/register#enroll=<token>&email=test%40example.com and one step
 ```
 
 The link starts with `app.auth.passkey.origin`. When that is empty, as with the default port-forward, it starts with `<dashboard-url>`: replace that with the address you open the dashboard at, `http://localhost:3000` with the port-forward. The token is the link's `enroll=` value, after the `#`, so the browser never sends it to a server or an access log, and the registration page has no field for it. Whoever opens the link first gets the passkey: run the command from your own terminal, not from CI or a recorded session, and open the link only in your own browser. Until the account's first passkey is stored, running the command again prints a new token, which replaces the previous one, and an existing account with that email becomes the bootstrap admin. That first passkey pins the account: after it, break-glass opens a request instead of acting ([Recovery requests](#recovery-requests)). Any other email is refused without creating or changing an account; other users get an [enrollment link](#enrollment-links).
@@ -58,15 +58,17 @@ The bootstrap account belongs to the chart. The API refuses to delete or suspend
 
 Once the bootstrap account is pinned (`TelarkConfig` `status.bootstrap`), only a completed request moves the bootstrap role, and changing `app.auth.bootstrap.admin` makes no second bootstrap account:
 
-- `break-glass --enroll` opens a request, or prints the open one: its id, an approval link (`https://<dashboard-host>/break-glass#request=<id>`) and when it completes on its own. The bootstrap account is notified, and so is every Admin on `ALL` while break-glass alerts are on. The request stays in `TelarkConfig`, which no account can clear, and Settings → Authentication lists it.
-- The request completes when the bootstrap account approves it on that page with a passkey, signed in or not, or 72 hours after it opened if the bootstrap account didn't sign in meanwhile. A sign-in by the bootstrap account cancels it, so whoever ran break-glass can't wait out an owner who is around, and the same page denies it.
-- Run the command again after the approval or the 72 hours: it completes the request and prints a 10-minute token. A recovery, for the pinned account's own email, first removes every passkey, session, enrollment link and open sign-in or registration of the account, including whatever a request in flight when it began saves meanwhile, so it takes about 45 seconds, during which the account can't sign in. For 24 hours after the request completed, until a new passkey is stored, each run prints a new token without a new request, and the same accounts are notified each time.
-- A replacement, after `app.auth.bootstrap.admin` changed, creates or promotes the account with the new email and, once completed, moves the bootstrap role to it. The previous account keeps its roles, so the new bootstrap admin can demote it, and neither account loses a passkey.
+- `break-glass --enroll` opens a request, or prints the open one: its id, the request's page (`https://<dashboard-host>/break-glass#request=<id>&kind=<recover|replace>`, where `kind` only picks what the page shows first) and when it completes on its own. The bootstrap account is notified, and so is every Admin on `ALL` while break-glass alerts are on. The request stays in `TelarkConfig`, which no account can clear, and Settings → Authentication lists it.
+- A recovery, for the pinned account's own email, can't be approved: it completes on its own 72 hours after it opened, unless the bootstrap account signs in first or denies it on that page, signed in or not. A replacement completes when the bootstrap account approves it on that page with a passkey, or after the same 72 hours. A sign-in by the bootstrap account cancels either, so whoever ran break-glass can't wait out an owner who is around.
+- Run the command again after the 72 hours, or a replacement's approval, to complete the request. One run works at a time: another `--enroll` run stops at once and says so.
+- A recovery goes link first, wipe after. The run freezes the account, removes its sessions, enrollment links and open sign-ins and registrations, waits about 45 seconds for a request in flight when it began, removes any passkey a stopped run's link saved unless the account has no other, and prints a 10-minute link. The account keeps its passkeys. The run then waits for a passkey registered with that link, up to about 12 minutes, with a line every 30 seconds, so keep it running. Meanwhile the account can't sign in or deny the request, and only the link's registration gets through. Once that passkey is saved, the run removes every session, passkey sign-in and other passkey of the account, the passkeys last, so a run that fails before them leaves them all. It then completes the request and thaws the account. If the link expires unused, the account keeps its passkeys, the request stays open, and the run exits 1: run it again for a new link. If the request ends while the run waits (a sign-in that began before the run cancels it), the run stops waiting, removes the passkey the link registered if one did, and exits 1. Either way it first waits about 45 seconds more, so a registration still in flight counts.
+- A run that stops while it waits leaves the account frozen until the link's window ends. A passkey the link saved can't sign in while the request is open, and the next run removes it before it prints a new link. A sign-in, a deny or the expiry removes it too, unless the account has no other passkey, before the request's end is recorded: if that fails, the request stays open, and the next cancel or expiry tries again.
+- A replacement, after `app.auth.bootstrap.admin` changed, creates or promotes the account with the new email and, once completed, moves the bootstrap role to it. The previous account keeps its roles, so the new bootstrap admin can demote it, and neither account loses a passkey. For 24 hours after it completed, until the new account has a passkey, each run prints a new token without a new request, and each one is notified.
 - Without `--enroll`, the command prints the pinned account and the newest request, and changes nothing.
 
-Break-glass alerts are a switch in Settings → Authentication, on by default, that only the bootstrap account can change (`PATCH auth/break-glass-alerts` with `{"notifyAdmins": false}`; 403 for everyone else, Admins on `ALL` included). Turned off, every break-glass notice (opened, canceled, completed and each re-issued token) goes to the bootstrap account alone, and Settings → Authentication lists the requests to it alone: Admins on `ALL` still see that the account is pinned, but no request. Turned back on, they see the requests again, with no notices for what happened meanwhile. It is a `TelarkConfig` setting (`spec.breakGlassAlerts.notifyAdmins`), not a chart value.
+Break-glass alerts are a switch in Settings → Authentication, on by default, that only the bootstrap account sees and can change (`PATCH auth/break-glass-alerts` with `{"notifyAdmins": false}`; 403 for everyone else, Admins on `ALL` included). Admins on `ALL` see only a Break-glass requests card there, without the pinned account, the switch or the Approve and Deny buttons, and only while the switch is on. Turned off, the opened and canceled notices go to the bootstrap account alone, and so do the requests. A link break-glass is issuing and a completed request still reach every active Admin on `ALL`, since either can mean the account changed hands. Turned back on, they see the requests again, with no notices for what happened meanwhile. It is a `TelarkConfig` setting (`spec.breakGlassAlerts.notifyAdmins`), not a chart value.
 
-Someone else holding a passkey of the bootstrap account cancels each request with every sign-in, so the owner can't recover through Telark. A cluster admin then resets the pin, an audited write to the CRs. Add your identity to `app.crdGuard.extraAllowedUsers` first ([CRD write guard](#crd-write-guard)), and take it off afterwards:
+Someone else holding a passkey of the bootstrap account cancels each request with every sign-in, so the owner can't recover through Telark. A cluster admin then resets the pin, an audited write to the CRs. Add your identity to `app.security.crdGuard.extraAllowedUsers` first ([CRD write guard](#crd-write-guard)), and take it off afterwards:
 
 ```sh
 ID=$(kubectl get tcfg default -n telark -o jsonpath='{.status.bootstrap.userID}')
@@ -265,13 +267,13 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
   --set app.mode=performance
 ```
 
-| Mode | For | Capacity (measured 2026-09-17) |
-|---|---|---|
-| `minimal` | Development, demos, evaluation. Single replica, no autoscaling, no PDBs | A few hundred applications |
-| `standard` (default) | Small and mid-size production. Every service starts at 1 replica and scales on CPU up to 3 (HPA), except the exporter ([Exporter storage](#exporter-storage)). Add `--set vpa.enabled=true` for vertical scaling | Verified at 2 000 applications, with 2 exporter replicas |
-| `performance` | Large clusters. As `standard`, with an HPA ceiling of 5, disruption budgets that let a drain take one pod at a time, larger requests and limits, and 2 GiB exporter volumes | Beyond 1 000 applications |
+| Mode | For |
+|---|---|
+| `minimal` | Development, demos, evaluation. Single replica, no autoscaling, no PDBs |
+| `standard` (default) | Small and mid-size production. Every service starts at 1 replica and scales on CPU up to 3 (HPA), except the exporter ([Exporter storage](#exporter-storage)). Add `--set vpa.enabled=true` for vertical scaling |
+| `performance` | Large clusters. As `standard`, with an HPA ceiling of 5, disruption budgets that let a drain take one pod at a time, larger requests and limits, and 2 GiB exporter volumes |
 
-The mode sizes Telark's own services only. Helm resolves subchart values before the mode is known, so Redis, NATS, Kyverno, metrics-server and Ollama have the same defaults in every mode. Up to 2 000 applications there is nothing to tune; beyond that, size Redis ([Subcharts](#subcharts)).
+The mode sizes Telark's own services only. Helm resolves subchart values before the mode is known, so Redis, NATS, Kyverno, metrics-server and Ollama have the same defaults in every mode. On large installs, size Redis ([Subcharts](#subcharts)).
 
 Ephemeral storage is the same in every mode. Each Telark service container requests `50Mi` for its logs (the kubelet keeps five 10Mi files by default) and may use up to `2Gi`, which leaves room for the disk-backed emptyDir volumes: the dashboard's nginx temp files and the exporter's data [without persistence](#exporter-storage). The kubelet evicts a pod that goes above its limit. To raise it in any mode, pass `--set app.shared.resources.limits.ephemeral-storage=4Gi`.
 
@@ -323,13 +325,13 @@ Set values with `--set key=value`, and pass the same flags on every [upgrade](#u
 | `app.persistence.reportsSize` | `512Mi` | Exporter reports PVC size (`performance` 2Gi); only grows |
 | `app.persistence.storageClass` | `""` | Class for both exporter PVCs ([Exporter storage](#exporter-storage)) |
 | `services.exporter.replicas` | `1` | More than one needs a ReadWriteMany `app.persistence.storageClass` |
-| `app.crdGuard.enabled` | `true` | Admission guard: only the owning service accounts may write Telark CRs ([CRD write guard](#crd-write-guard)) |
-| `app.crdGuard.enforce` | `true` | With the guard on, `false` audits and `true` rejects |
+| `app.security.crdGuard.enabled` | `true` | Admission guard: only the owning service accounts may write Telark CRs ([CRD write guard](#crd-write-guard)) |
+| `app.security.crdGuard.enforce` | `true` | With the guard on, `false` audits and `true` rejects |
 | `app.auth.bootstrap.admin` | `""` | The one bootstrap admin's email, enrolled with break-glass; required. Once that account is pinned, a change only lets break-glass open a replacement request ([First admin](#2-first-admin)) |
 | `app.auth.passkey.id` / `origin` | `""` | WebAuthn relying party; required with `ingress.enabled` or `gateway.enabled` ([Passkeys and HTTPS](#passkeys-and-https)) |
 | `app.selfMonitoring.enabled` | `false` | `true` shows Telark's own namespace under Applications ([Self-monitoring](#self-monitoring)) |
-| `app.networkPolicy.enabled` | `true` | Ingress NetworkPolicies for the Telark pods and NATS ([Network policies](#network-policies)) |
-| `app.serviceToken.existingSecret` | `""` | Secret (key `token`) you manage instead of the generated service token ([GitOps](#gitops-cluster-less-renders)) |
+| `app.security.networkPolicy.enabled` | `true` | Ingress NetworkPolicies for the Telark pods and NATS ([Network policies](#network-policies)) |
+| `app.security.serviceToken.existingSecret` | `""` | Secret (key `token`) you manage instead of the generated service token ([GitOps](#gitops-cluster-less-renders)) |
 | `app.webhooks.targets` / `existingSecret` | `[]` / `""` | Endpoints that receive signed events, or a Secret you manage holding them ([Webhooks](#webhooks)) |
 | `services.<svc>.env.CORS_ALLOWED_ORIGINS` | `""` | Comma-separated browser origins the exporter, discovery, auth and analyzer answer with CORS headers ([CORS](#cors)) |
 | `services.auth.env.ENROLL_INVITE_TTL_SEC` | `"3600"` | Lifetime in seconds of an enrollment link created from Members; break-glass links always live 10 minutes ([Enrollment links](#enrollment-links)) |
@@ -341,9 +343,9 @@ You rarely touch these. The table lists the on/off switches and the values the c
 | Flag | Default | Description |
 |---|---|---|
 | `crds.enabled` | `true` | Install the CRDs (the telark-crds subchart); `false` to manage them out of band |
-| `app.kyverno.enabled` | `true` | Install Kyverno, the policy engine; `false` uses a Kyverno you already run ([Install](#1-install)) |
-| `app.kyverno.failOpen` | `true` | Admission fails open while Kyverno is down ([Policy engine fail-open](#policy-engine-fail-open)) |
-| `app.ollama.enabled` | `true` | Install Ollama, the local model runtime the analyzer needs ([Analyzer runtime](#analyzer-runtime)) |
+| `kyverno.enabled` | `true` | Install Kyverno, the policy engine; `false` uses a Kyverno you already run ([Install](#1-install)) |
+| `kyverno.features.forceFailurePolicyIgnore.enabled` | `true` | Admission fails open while Kyverno is down ([Policy engine fail-open](#policy-engine-fail-open)) |
+| `ollama.enabled` | `true` | Install Ollama, the local model runtime the analyzer needs ([Analyzer runtime](#analyzer-runtime)) |
 | `app.ollama.autoPull` | `true` | Let the analyzer pull a missing model; `false` for air-gapped installs |
 | `app.ollama.runtimeUrl` | `""` | Ollama-API endpoint you run yourself (URL only, no key); empty uses the bundled runtime |
 | `metrics-server.enabled` | `true` | Install metrics-server; `false` if the cluster already has one |
@@ -360,7 +362,7 @@ You rarely touch these. The table lists the on/off switches and the values the c
 | `metrics-server.args` | kubelet TLS verified | Add `--kubelet-insecure-tls` only where kubelet certificates are self-signed ([metrics-server kubelet TLS](#metrics-server-kubelet-tls)) |
 | `ollama.persistentVolume.size` | `6Gi` | Model storage (when enabled), kept on uninstall: the default model plus any one catalog model, since a model switch deletes the other catalog models. Never shrinks ([Upgrade](#upgrade)) |
 
-**Sizing Redis for large installs.** Redis keeps everything in memory and never evicts, so at its memory limit the pod is OOM-killed. The analyzer's documents are the largest part: in the worst case about 210 MiB for 2 000 applications, which the `512Mi` limit covers. For more applications, raise the limit in proportion, for example `--set redis.master.resources.limits.memory=1Gi`. The chart sets `redis.master.resources`, so `redis.master.resourcesPreset` has no effect.
+**Sizing Redis for large installs.** Redis keeps everything in memory and never evicts, so at its memory limit the pod is OOM-killed. The analyzer's documents are the largest part and grow with the number of applications, so raise the limit in proportion, for example `--set redis.master.resources.limits.memory=1Gi`. The chart sets `redis.master.resources`, so `redis.master.resourcesPreset` has no effect.
 
 ## Analyzer runtime
 
@@ -372,7 +374,7 @@ The runtime has the same size in every mode ([Sizing modes](#sizing-modes)): req
 |---|---|---|
 | Connected (default) | `app.ollama.autoPull=true` | The analyzer pulls the chosen model right after start when the runtime lacks it (708 MB for `granite4:350m`), and the Ollama pod gets HTTPS egress for it. Until the pull finishes, an analysis shows the rule text without the model's rewording; **Install model** in Settings starts the pull right away |
 | Air-gapped | `app.ollama.autoPull=false` | Nothing is pulled and the Ollama pod gets no HTTPS egress. Pre-load the model on a seeded volume or a baked image |
-| Your own runtime | `app.ollama.enabled=false`, `app.ollama.runtimeUrl=http://<host>:11434` | The analyzer uses an Ollama-API endpoint you run (URL only, no key) |
+| Your own runtime | `ollama.enabled=false`, `app.ollama.runtimeUrl=http://<host>:11434` | The analyzer uses an Ollama-API endpoint you run (URL only, no key) |
 
 Larger profiles (4 vCPU CPU, GPU and deep mode), model licenses and the air-gapped procedure are in the chart README, [Analyzer runtime (ollama)](../charts/telark/README.md#analyzer-runtime-ollama).
 
@@ -524,15 +526,15 @@ These settings have safe defaults. Read them before a production install.
 
 ### CRD write guard
 
-Telark's custom resources (users, roles, sessions, passkeys) are its authorization data. The guard (`app.crdGuard`, a ValidatingAdmissionPolicy, on and enforcing by default) rejects writes to every `telark.io` resource and subresource, in every namespace, from anything but the owning service accounts (discovery may write only `applications/status`). A second policy does the same for the OIDC trust Secret `telark-oidc-trust-secret`. Edit rights on another namespace therefore don't turn into Telark Admin. Rights on `telark` itself can: `helm upgrade`, `pods/exec`, Secret read and an allowlist entry each let their holder act as any Telark user ([Trust boundaries](security/README.md#trust-boundaries)).
+Telark's custom resources (users, roles, sessions, passkeys) are its authorization data. The guard (`app.security.crdGuard`, a ValidatingAdmissionPolicy, on and enforcing by default) rejects writes to every `telark.io` resource and subresource, in every namespace, from anything but the owning service accounts (discovery may write only `applications/status`). A second policy does the same for the OIDC trust Secret `telark-oidc-trust-secret`. Edit rights on another namespace therefore don't turn into Telark Admin. Rights on `telark` itself can: `helm upgrade`, `pods/exec`, Secret read and an allowlist entry each let their holder act as any Telark user ([Trust boundaries](security/README.md#trust-boundaries)).
 
-- Break-glass identities go in `app.crdGuard.extraAllowedUsers`, for example `--set 'app.crdGuard.extraAllowedUsers={system:serviceaccount:ops:breakglass}'`.
-- `--set app.crdGuard.enforce=false` only audits (logs and allows).
-- `--set app.crdGuard.enabled=false` removes the guard; the install notes warn when it is off.
+- Break-glass identities go in `app.security.crdGuard.extraAllowedUsers`, for example `--set 'app.security.crdGuard.extraAllowedUsers={system:serviceaccount:ops:breakglass}'`.
+- `--set app.security.crdGuard.enforce=false` only audits (logs and allows).
+- `--set app.security.crdGuard.enabled=false` removes the guard; the install notes warn when it is off.
 
 ### Network policies
 
-With `app.networkPolicy.enabled=true` (default) the chart renders ingress NetworkPolicies in the release namespace:
+With `app.security.networkPolicy.enabled=true` (default) the chart renders ingress NetworkPolicies in the release namespace:
 
 - A default deny for every Telark pod.
 - The exporter, discovery, auth, analyzer and notifier APIs accept traffic only from Telark pods of the same release.
@@ -567,18 +569,17 @@ YAML
 
 ### Policy engine fail-open
 
-`app.kyverno.failOpen=true` (default) makes every Kyverno webhook `failurePolicy: Ignore`. While the admission controller is down, rolling out or timing out, the API server admits every request, including ones an `enforce` protection plan would reject. Workloads stay deployable when Kyverno is unhealthy, and enforcement is best-effort.
+`kyverno.features.forceFailurePolicyIgnore.enabled=true` (default) makes every Kyverno webhook `failurePolicy: Ignore`. While the admission controller is down, rolling out or timing out, the API server admits every request, including ones an `enforce` protection plan would reject. Workloads stay deployable when Kyverno is unhealthy, and enforcement is best-effort.
 
-For strict enforcement set both keys. Helm cannot pass a parent value to a subchart, so the render fails when they differ:
+For strict enforcement turn it off:
 
 ```sh
---set app.kyverno.failOpen=false \
 --set kyverno.features.forceFailurePolicyIgnore.enabled=false
 ```
 
 Fail-closed means an unavailable Kyverno blocks writes to everything its webhooks match, so keep its two admission replicas and its disruption budget.
 
-With your own Kyverno (`app.kyverno.enabled=false`), neither key applies: plan policies (`NamespacedValidatingPolicy`) set no `failurePolicy`, so they fail closed unless your Kyverno runs with `forceFailurePolicyIgnore`.
+With your own Kyverno (`kyverno.enabled=false`), this key doesn't apply: plan policies (`NamespacedValidatingPolicy`) set no `failurePolicy`, so they fail closed unless your Kyverno runs with `forceFailurePolicyIgnore`.
 
 ### Last-modified annotations
 
@@ -587,7 +588,7 @@ A Kyverno `MutatingPolicy` stamps `telark.io/last-modified-{by,at,operation}` on
 - Secrets are not stamped, so history does not name who changed a Secret.
 - The policy renders only when the Kyverno `MutatingPolicy` API (`policies.kyverno.io/v1`) already exists, which on a first install it does not. Run `helm upgrade` once after the first install, with the same flags, to add it. Changes made before that carry no author.
 - 0.1.x installed it as a `ClusterPolicy` of the same name, which the upgrade leaves in place: delete it yourself ([0.2.0 upgrade notes](#upgrade-notes)).
-- With your own Kyverno (`app.kyverno.enabled=false`) the chart does not install the policy, so history names no author.
+- With your own Kyverno (`kyverno.enabled=false`) the chart does not install the policy, so history names no author.
 
 ### GitOps (cluster-less renders)
 
@@ -605,7 +606,7 @@ kubectl create secret generic telark-redis-password -n telark \
 ```
 
 ```sh
---set app.serviceToken.existingSecret=telark-service-token \
+--set app.security.serviceToken.existingSecret=telark-service-token \
 --set nats.existingSecrets.publisher=telark-nats-publisher \
 --set nats.existingSecrets.consumer=telark-nats-consumer \
 --set redis.auth.existingSecret=telark-redis-password
@@ -685,6 +686,19 @@ Pass the same `--set` and `-f` flags you used at install: Helm does not remember
 Each minor version lists here the CRD schema changes and the exporter migration steps it brings ([schema rules](CRDS.md#schema-changes-across-releases)). A version not listed changes neither.
 
 - **0.2.0**: `TelarkConfig` gets `status.lastMigration` and `status.rollbackMigration`, the migration record. No migration step.
+  - Upgrade from 0.1.x with `--reset-then-reuse-values` (or your full `-f` and `--set` flags), not `--reuse-values`. That flag keeps 0.1.x's defaults, which lack the keys 0.2.0 adds, so the render fails (`nil pointer evaluating interface {}.existingSecret`).
+  - Some values moved. The old paths still work in 0.2.0, and win when set, but a later release removes them; the install notes list any your values still use. An old path an earlier release set keeps winning under `--reset-then-reuse-values`, so change it there or upgrade with `--reset-values` and your flags on the new paths.
+
+    | Old path | New path |
+    |---|---|
+    | `app.crdGuard.*` | `app.security.crdGuard.*` |
+    | `app.networkPolicy.enabled` | `app.security.networkPolicy.enabled` |
+    | `app.serviceToken.*` | `app.security.serviceToken.*` |
+    | `app.kubectlImage` | `app.image.kubectl` |
+    | `app.kyverno.enabled` | `kyverno.enabled` |
+    | `app.ollama.enabled` | `ollama.enabled` |
+    | `app.kyverno.failOpen` | removed: set `kyverno.features.forceFailurePolicyIgnore.enabled`, the one Kyverno reads (a different `failOpen` still fails the render) |
+
   - Everyone signs in once after the upgrade: the session moves from the dashboard's `localStorage` into an HttpOnly cookie (`__Host-telark_session` when every `app.auth.passkey.origin` entry is https, else `telark_session`), and the dashboard revokes the old token at its first load. Upgrade the dashboard and the services together (one chart release), since a new dashboard on an old backend gets no cookie. The passkey and Google sign-in answers no longer carry `sessionToken`; API clients keep sending `X-Session-Token`, and a change that relies on the cookie needs `X-Requested-With`.
   - Auth limits the public sign-in starts per client and per route, then answers 429 ([Sign-in rate limits](#sign-in-rate-limits)). With another proxy in front of your ingress or gateway, or with a NodePort or LoadBalancer, check `RATE_LIMIT_TRUSTED_HOPS` and the `ui` Service's `externalTrafficPolicy` there.
   - Enrollment links issued before the upgrade stop working, because auth now signs the Redis entries behind them. Create new links from Members, and run break-glass again for the bootstrap admin. A passkey registration open during the upgrade starts again.
@@ -719,11 +733,11 @@ Let in-progress rollbacks finish.
 helm uninstall telark -n telark
 ```
 
-This removes every Telark service and the bundled policy engine with its webhooks and plan policies. The pre-delete hooks run `app.kubectlImage`, so air-gapped clusters must mirror it.
+This removes every Telark service and the bundled policy engine with its webhooks and plan policies. The pre-delete hooks run `app.image.kubectl`, so air-gapped clusters must mirror it.
 
 Your data stays: the CRDs and custom resources (users, roles, plans and the rest), the service-token, NATS, Redis and OIDC Secrets, the exporter's snapshot and report volumes, the Redis and NATS volumes, and the Ollama model volume. A reinstall picks up where you left off.
 
-With an external policy engine (`app.kyverno.enabled=false`), also remove the plan policies, which would otherwise keep enforcing:
+With an external policy engine (`kyverno.enabled=false`), also remove the plan policies, which would otherwise keep enforcing:
 
 ```sh
 kubectl delete namespacedvalidatingpolicies.policies.kyverno.io -A -l telark.io/protection-plan

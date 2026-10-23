@@ -34,6 +34,7 @@ const (
 	rpName          = "Test"
 	otherRequest    = "fedcba9876543210"
 	approvalCred    = "approval-credential"
+	foreignCred     = "admin-credential"
 	approveAction   = "approve"
 	denyAction      = "deny"
 	flagPresent     = 0x01
@@ -44,9 +45,14 @@ const (
 	cancelRoute     = "cancel"
 	deniedReason    = ` {"reason":"denied"}`
 	signedInReason  = ` {"reason":"signed-in"}`
+	// A recovery opened this long ago is past its 72-hour mark; a passkey this old predates it, this young follows it.
+	pastTheMark   = 73 * time.Hour
+	beforeTheMark = 100 * time.Hour
+	afterTheMark  = 30 * time.Minute
 )
 
-// The pinned bootstrap account signs with priv, and its newest request is in state.
+// The pinned bootstrap account signs with priv, and its newest request, a replacement (a recovery can't be approved),
+// is in state.
 func pinnedDirectory(t *testing.T, priv *ecdsa.PrivateKey, state string) *testutil.FakeExporter {
 	t.Helper()
 	fake := bootstrapDirectory()
@@ -56,7 +62,8 @@ func pinnedDirectory(t *testing.T, priv *ecdsa.PrivateKey, state string) *testut
 		PublicKey:    base64.StdEncoding.EncodeToString(testutil.COSEKeyEC2(t, &priv.PublicKey, coseAlgES256)),
 	}}}
 	opened := time.Now().UTC().Add(-time.Hour).Format(time.RFC3339)
-	request := telarkconfig.BootstrapRequest{ID: pendingRequest, Kind: telarkconfig.BootstrapKindRecover, State: state, OpenedAt: opened}
+	request := telarkconfig.BootstrapRequest{ID: pendingRequest, Kind: telarkconfig.BootstrapKindReplace, TargetEmail: newEmail,
+		State: state, OpenedAt: opened}
 	fake.Bootstrap = telarkconfig.BootstrapStatus{UserID: bootstrapID, Email: bootstrapEmail, PinnedAt: opened,
 		Requests: []telarkconfig.BootstrapRequest{request}}
 	fake.RequestAnswers = map[string]bootstrapeps.RequestResult{
@@ -64,6 +71,28 @@ func pinnedDirectory(t *testing.T, priv *ecdsa.PrivateKey, state string) *testut
 		cancelRoute:  {Request: request},
 	}
 	return fake
+}
+
+// The newest request becomes the pinned account's recovery, opened at opened.
+func asRecovery(fake *testutil.FakeExporter, opened time.Time) {
+	request := &fake.Bootstrap.Requests[constants.DefaultInitValue]
+	request.Kind, request.TargetEmail = telarkconfig.BootstrapKindRecover, constants.EmptyString
+	request.OpenedAt = opened.UTC().Format(time.RFC3339)
+}
+
+// Frozen as break-glass leaves the account while it waits for the link it printed: the freeze holds that link.
+func frozenForLink(t *testing.T, link string) {
+	t.Helper()
+	t.Cleanup(func() { _ = authhelper.Unfreeze(bootstrapID) })
+	if err := authhelper.Freeze(bootstrapID); err != nil {
+		t.Fatal(err)
+	}
+	if link == constants.EmptyString {
+		return
+	}
+	if err := authhelper.FreezeForLink(bootstrapID, link, time.Minute); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // A call the fake exporter recorded: the pending request's route, and the body it was sent.
@@ -304,24 +333,29 @@ func TestFrozenAccountRefusesCeremonies(t *testing.T) {
 	testutil.Equal(t, "thawed sign-in", rec.Code, http.StatusOK)
 }
 
-// Only the newest request, pending (or approved, for a deny), with a pinned account that has a passkey, can be decided.
+// Only the newest request, pending (or approved, for a deny), with a pinned account that has a passkey, can be decided,
+// and a recovery only denied. A refused start stores no challenge.
 func TestApprovalStartRefuses(t *testing.T) {
 	initWebAuthn(t)
 	priv := testutil.NewP256Key(t)
+	pending := telarkconfig.BootstrapStatePending
 	cases := []struct {
-		name   string
-		state  string
-		id     string
-		action string
-		bare   bool
-		want   int
+		name     string
+		state    string
+		id       string
+		action   string
+		bare     bool
+		recovery bool
+		want     int
 	}{
-		{"completed request", telarkconfig.BootstrapStateCompleted, pendingRequest, approveAction, false, http.StatusConflict},
-		{"approved request, approve again", telarkconfig.BootstrapStateApproved, pendingRequest, approveAction, false, http.StatusConflict},
-		{"approved request, deny", telarkconfig.BootstrapStateApproved, pendingRequest, denyAction, false, http.StatusOK},
-		{"not the newest request", telarkconfig.BootstrapStatePending, otherRequest, approveAction, false, http.StatusConflict},
-		{"unknown action", telarkconfig.BootstrapStatePending, pendingRequest, "promote", false, http.StatusBadRequest},
-		{"pinned account without a passkey", telarkconfig.BootstrapStatePending, pendingRequest, approveAction, true, http.StatusConflict},
+		{"completed request", telarkconfig.BootstrapStateCompleted, pendingRequest, approveAction, false, false, http.StatusConflict},
+		{"approved request, approve again", telarkconfig.BootstrapStateApproved, pendingRequest, approveAction, false, false, http.StatusConflict},
+		{"approved request, deny", telarkconfig.BootstrapStateApproved, pendingRequest, denyAction, false, false, http.StatusOK},
+		{"not the newest request", pending, otherRequest, approveAction, false, false, http.StatusConflict},
+		{"unknown action", pending, pendingRequest, "promote", false, false, http.StatusBadRequest},
+		{"pinned account without a passkey", pending, pendingRequest, approveAction, true, false, http.StatusConflict},
+		{"recovery, approve", pending, pendingRequest, approveAction, false, true, http.StatusConflict},
+		{"recovery, deny", pending, pendingRequest, denyAction, false, true, http.StatusOK},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -329,9 +363,157 @@ func TestApprovalStartRefuses(t *testing.T) {
 			if c.bare {
 				fake.Credentials = nil
 			}
+			if c.recovery {
+				asRecovery(fake, time.Now().Add(-time.Hour))
+			}
 			testutil.StubBackend(t, fake)
+			challenges := approvalChallenges()
 			rec, _ := startApproval(t, c.id, c.action)
 			testutil.Equal(t, "status", rec.Code, c.want)
+			testutil.Equal(t, "challenge stored", approvalChallenges() > challenges, c.want == http.StatusOK)
+		})
+	}
+}
+
+// The package shares one Redis, so a test counts the approval ceremonies it adds.
+func approvalChallenges() int {
+	count := constants.DefaultInitValue
+	for _, key := range redisServer.Keys() {
+		if strings.HasPrefix(key, constants.RedisKeyPrefixBootstrapAssert) {
+			count++
+		}
+	}
+	return count
+}
+
+// While break-glass waits for the link it printed, the freeze holds that link: the registration it opens starts and
+// saves a passkey, where a sign-in, the account's own earlier link and a deny are refused (409).
+func TestRecoveryLinkRegistersWhileFrozen(t *testing.T) {
+	initWebAuthn(t)
+	t.Setenv(constants.EnvRPName, rpName)
+	fake := pinnedDirectory(t, testutil.NewP256Key(t), telarkconfig.BootstrapStatePending)
+	asRecovery(fake, time.Now().Add(-pastTheMark))
+	testutil.StubBackend(t, fake)
+	ownLink, _, err := authhelper.CreateEnrollToken(bootstrapID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	link := bootstrapLink(t)
+	frozenForLink(t, link)
+
+	signIn := httptest.NewRecorder()
+	authhandler.LoginStart(signIn, jsonReq(`{"email":"`+bootstrapEmail+`"}`))
+	testutil.Equal(t, "sign-in start", signIn.Code, http.StatusConflict)
+	testutil.Equal(t, "the account's own link", startWith(ownLink).Code, http.StatusConflict)
+	deny, _ := startApproval(t, pendingRequest, denyAction)
+	testutil.Equal(t, "deny start", deny.Code, http.StatusConflict)
+	testutil.Equal(t, "the recovery's link", finishWith(t, challengeOf(t, startWith(link)), webauthnHost).Code, http.StatusCreated)
+	testutil.Equal(t, "passkeys saved", fake.PasskeyCount(bootstrapID), constants.DefaultIncrementValue)
+	testutil.Equal(t, "exporter calls", len(fake.RequestCalls()), constants.DefaultInitValue)
+}
+
+// A deny started before break-glass froze the account and finished while it is frozen is refused too, and reaches no
+// exporter: the run in progress ends the way it began.
+func TestDenyWaitsForTheRun(t *testing.T) {
+	initWebAuthn(t)
+	priv := testutil.NewP256Key(t)
+	fake := pinnedDirectory(t, priv, telarkconfig.BootstrapStatePending)
+	asRecovery(fake, time.Now().Add(-time.Hour))
+	testutil.StubBackend(t, fake)
+	_, challenge := startApproval(t, pendingRequest, denyAction)
+	frozenForLink(t, constants.EmptyString)
+	deny := finishApproval(t, pendingRequest, approvalBody(t, priv, flagVerified, challenge, denyAction))
+	testutil.Equal(t, "deny finish", deny, http.StatusConflict)
+	testutil.Equal(t, "exporter calls", len(fake.RequestCalls()), constants.DefaultInitValue)
+}
+
+// A passkey a recovery's link saved after the 72-hour mark, while that recovery is still open, came from a run that
+// stopped before it finished: the bootstrap account's sign-in with it is refused (409) before any session, and cancels
+// nothing. One saved before the request signs in, and cancels the request.
+func TestUnfinishedRecoveryPasskeySignsNothingIn(t *testing.T) {
+	initWebAuthn(t)
+	t.Setenv(constants.EnvRPName, rpName)
+	priv := testutil.NewP256Key(t)
+	cases := []struct {
+		name     string
+		created  time.Time
+		want     int
+		sessions int
+		calls    []string
+	}{
+		{"passkey saved before the request", time.Now().Add(-beforeTheMark), http.StatusOK, constants.DefaultIncrementValue,
+			[]string{requestCall(cancelRoute, signedInReason)}},
+		{"passkey a link saved after the mark", time.Now().Add(-afterTheMark), http.StatusConflict, constants.DefaultInitValue, nil},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fake := pinnedDirectory(t, priv, telarkconfig.BootstrapStatePending)
+			asRecovery(fake, time.Now().Add(-pastTheMark))
+			created := c.created.UTC().Format(time.RFC3339)
+			fake.Credentials[bootstrapID][constants.DefaultInitValue].CreationTimestamp = &created
+			testutil.StubBackend(t, fake)
+			rec := httptest.NewRecorder()
+			authhandler.LoginFinish(rec, jsonReq(assertionBody(t, priv, flagVerified, signInChallenge(t),
+				map[string]any{"email": bootstrapEmail})))
+			testutil.Equal(t, "login", rec.Code, c.want)
+			testutil.Equal(t, "sessions", fake.SessionsIssued(), c.sessions)
+			testutil.Equal(t, "lastLoginAt stamped", fake.User(bootstrapID).Status.LastLoginAt != nil, c.want == http.StatusOK)
+			testutil.Equal(t, "exporter calls", strings.Join(fake.RequestCalls(), ","), strings.Join(c.calls, ","))
+		})
+	}
+}
+
+// A validly signed assertion by another account's passkey over the request's challenge, carrying handle as its user
+// handle when set.
+func foreignAssertion(t *testing.T, priv *ecdsa.PrivateKey, handle []byte, challenge string) string {
+	t.Helper()
+	var body map[string]any
+	if err := json.Unmarshal([]byte(approvalBody(t, priv, flagVerified, challenge, approveAction)), &body); err != nil {
+		t.Fatal(err)
+	}
+	response, isMap := body["response"].(map[string]any)
+	if !isMap {
+		t.Fatal("assertion without a response")
+	}
+	id := base64.RawURLEncoding.EncodeToString([]byte(foreignCred))
+	body["id"], body["rawId"] = id, id
+	if handle != nil {
+		response["userHandle"] = base64.RawURLEncoding.EncodeToString(handle)
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(raw)
+}
+
+// Only the pinned account's own passkeys decide its requests: another account's passkey, validly signed over the
+// request's challenge, is refused (401) whatever user handle it carries, and reaches no exporter.
+func TestAnotherAccountsPasskeyDecidesNothing(t *testing.T) {
+	initWebAuthn(t)
+	owner, other := testutil.NewP256Key(t), testutil.NewP256Key(t)
+	cases := []struct {
+		name   string
+		handle []byte
+	}{
+		{"no user handle", nil},
+		{"its own user handle", []byte(adminCallID)},
+		{"the pinned account's user handle", []byte(bootstrapID)},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fake := pinnedDirectory(t, owner, telarkconfig.BootstrapStatePending)
+			fake.Credentials[adminCallID] = []authdata.Passkey{{
+				UserID:       adminCallID,
+				CredentialID: base64.RawURLEncoding.EncodeToString([]byte(foreignCred)),
+				PublicKey:    base64.StdEncoding.EncodeToString(testutil.COSEKeyEC2(t, &other.PublicKey, coseAlgES256)),
+			}}
+			testutil.StubBackend(t, fake)
+			_, challenge := startApproval(t, pendingRequest, approveAction)
+			testutil.Equal(t, "answer", finishApproval(t, pendingRequest, foreignAssertion(t, other, c.handle, challenge)),
+				http.StatusUnauthorized)
+			testutil.Equal(t, "exporter calls", len(fake.RequestCalls()), constants.DefaultInitValue)
+			testutil.Equal(t, "sessions", fake.SessionsIssued(), constants.DefaultInitValue)
 		})
 	}
 }

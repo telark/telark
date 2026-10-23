@@ -55,7 +55,7 @@ func CreatePasskey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	credential, backupEligible, backupState, err := webauthnhelper.FinishRegistration(
-		userID, user.Username, user.Fullname, r)
+		userID, user.Username, user.Fullname, enrollDigest, r)
 	if err != nil {
 		shared.SendErrorResponse(w, shared.GetStatusCodeForWebAuthnError(err, http.StatusUnauthorized), err)
 		return
@@ -80,7 +80,7 @@ func CreatePasskey(w http.ResponseWriter, r *http.Request) {
 
 	passkey := authhelper.CreatePasskeyFromCredential(
 		userID, credential, deviceName, deviceType, backupEligible, backupState)
-	data, saved := saveCredential(w, user, credential, passkey, rollback)
+	data, saved := saveCredential(w, user, credential, passkey, enrollDigest, rollback)
 	if !saved {
 		return
 	}
@@ -91,11 +91,12 @@ func CreatePasskey(w http.ResponseWriter, r *http.Request) {
 
 // The identity, then the passkey, each right after a fresh look at the freeze: a registration that began before
 // break-glass froze the account sends nothing after it, so nothing it writes can land later than the bound
-// break-glass waits out.
+// break-glass waits out. The registration a recovery's link opened passes while the freeze holds that link.
 func saveCredential(
-	w http.ResponseWriter, user *userresource.User, credential *webauthnlib.Credential, passkey *authdata.Passkey, rollback func(),
+	w http.ResponseWriter, user *userresource.User, credential *webauthnlib.Credential, passkey *authdata.Passkey,
+	enrollDigest string, rollback func(),
 ) (any, bool) {
-	if refuseFrozen(w, passkey.UserID, rollback) {
+	if refuseFrozen(w, passkey.UserID, enrollDigest, rollback) {
 		return nil, false
 	}
 	if err := authhelper.AttachPasskeyIdentity(passkey.UserID, user, credential); err != nil {
@@ -104,7 +105,7 @@ func saveCredential(
 			http.StatusInternalServerError, err.Error())
 		return nil, false
 	}
-	if refuseFrozen(w, passkey.UserID, rollback) {
+	if refuseFrozen(w, passkey.UserID, enrollDigest, rollback) {
 		return nil, false
 	}
 	data, err := authhelper.CreatePasskey(passkey.UserID, passkey)
@@ -116,8 +117,8 @@ func saveCredential(
 	return data, true
 }
 
-func refuseFrozen(w http.ResponseWriter, userID string, rollback func()) bool {
-	err := authhelper.RefuseFrozen(userID)
+func refuseFrozen(w http.ResponseWriter, userID, enrollDigest string, rollback func()) bool {
+	err := authhelper.RefuseFrozen(userID, enrollDigest)
 	if err == nil {
 		return false
 	}

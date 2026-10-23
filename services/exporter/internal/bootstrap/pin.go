@@ -69,20 +69,23 @@ func MarkerSet(optimizer *performance.Optimizer, userID string) {
 
 func pin(userID, email string) error {
 	wrote := false
+	ended := &Outcome{}
 	_, err := update(func(status *telarkconfig.BootstrapStatus) (bool, error) {
-		wrote = !status.Pinned()
+		wrote, ended.Changed = !status.Pinned(), nil
 		if wrote {
 			at := time.Now().UTC()
 			status.UserID, status.Email, status.PinnedAt = userID, email, stamp(at)
 			// A request a reset left open belongs to the earlier pin: the new passkey answers it, as a sign-in would.
 			if newest := status.Newest(); newest != nil && newest.Open() {
 				end(newest, telarkconfig.BootstrapReasonSignedIn, at)
+				ended.Changed = append(ended.Changed, *newest)
 			}
 		}
 		return wrote, nil
 	})
 	if err == nil && wrote {
 		lg.Info(fmt.Sprintf(string(constants.InfBootstrapPinned), userID))
+		logChanges(ended)
 	}
 	return err
 }

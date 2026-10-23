@@ -25,7 +25,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 ```sh
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
   --set app.auth.bootstrap.admin=test@example.com \
-  --set app.kyverno.enabled=false
+  --set kyverno.enabled=false
 ```
 
 Telark is tested with Kyverno v1.19.1, the version the chart bundles, and needs Kyverno 1.18 or later with the `policies.kyverno.io` CRDs ([Install](INSTALL.md#1-install)). With your own Kyverno, change history names no author, because the chart installs the policy that records authors only with the bundled Kyverno.
@@ -46,7 +46,7 @@ Create a one-time enrollment link with the auth service's break-glass command, u
 kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email test@example.com --enroll
 ```
 
-It prints the next steps and a link like `<dashboard-url>/register#enroll=<token>&email=test%40example.com`. The link is valid for 10 minutes.
+It prints a link like `<dashboard-url>/register#enroll=<token>&email=test%40example.com`, valid for 10 minutes, and one step: open it in a browser that is not signed in to Telark, such as a private window.
 
 Forward the dashboard to your machine and leave the command running:
 

@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -10,15 +11,18 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 	authdata "github.com/telark/telark/internal/data/auth"
 	"github.com/telark/telark/internal/data/resources/telarkconfig"
+	userresource "github.com/telark/telark/internal/data/resources/user"
 	eps "github.com/telark/telark/internal/rest/endpoints/bootstrap"
 	"github.com/telark/telark/internal/rest/response"
 	"github.com/telark/telark/services/auth/internal/clients"
 	"github.com/telark/telark/services/auth/internal/constants"
+	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
 	"github.com/telark/telark/services/auth/internal/helpers/shared"
 	webauthnhelper "github.com/telark/telark/services/auth/internal/helpers/webauthn"
 )
@@ -26,9 +30,12 @@ import (
 var (
 	lg = constants.GetLogger(constants.LoggerPrefixHelper)
 
-	ErrAction    = errors.New(string(constants.ErrBootstrapActionInvalid))
-	ErrNotOpen   = errors.New(string(constants.ErrBootstrapRequestNotOpen))
-	ErrNoPasskey = errors.New(string(constants.ErrBootstrapNoPasskey))
+	ErrAction          = errors.New(string(constants.ErrBootstrapActionInvalid))
+	ErrNotOpen         = errors.New(string(constants.ErrBootstrapRequestNotOpen))
+	ErrNoPasskey       = errors.New(string(constants.ErrBootstrapNoPasskey))
+	ErrApproveRecover  = errors.New(string(constants.ErrBootstrapApproveRecover))
+	ErrDenyRecovering  = errors.New(string(constants.ErrBootstrapDenyRecovering))
+	ErrRecoveryPasskey = errors.New(string(constants.ErrRecoveryPasskey))
 )
 
 // The pinned account approves or denies the newest request with a user-verified passkey assertion and no sign-in.
@@ -40,8 +47,8 @@ func StartApproval(r *http.Request, id, action string) (*protocol.CredentialAsse
 	if err != nil {
 		return nil, err
 	}
-	if newest := status.Newest(); newest == nil || newest.ID != id || !decidable(newest, action) {
-		return nil, ErrNotOpen
+	if err := decidableNow(status, id, action); err != nil {
+		return nil, err
 	}
 	user, _, err := pinnedUser(status)
 	if err != nil {
@@ -95,13 +102,78 @@ func FinishApproval(r *http.Request, id string, bodyBytes []byte) (*response.Gen
 	if body.Action == constants.BootstrapActionApprove {
 		return clients.GetBootstrapClient().Approve(id), nil
 	}
+	if err := refuseDenyWhileFrozen(status.UserID); err != nil {
+		return nil, err
+	}
 	return clients.GetBootstrapClient().Cancel(id, telarkconfig.BootstrapReasonDenied), nil
+}
+
+// The newest request, open to this action: a recovery is never approved, and nothing is denied while break-glass holds
+// the account frozen, so a run ends the way it began (its link's passkey would outlive a deny that landed mid-run).
+func decidableNow(status *telarkconfig.BootstrapStatus, id, action string) error {
+	newest := status.Newest()
+	switch {
+	case newest == nil || newest.ID != id || !decidable(newest, action):
+		return ErrNotOpen
+	case action == constants.BootstrapActionApprove && newest.Kind == telarkconfig.BootstrapKindRecover:
+		return ErrApproveRecover
+	case action == constants.BootstrapActionDeny:
+		return refuseDenyWhileFrozen(status.UserID)
+	}
+	return nil
+}
+
+func refuseDenyWhileFrozen(userID string) error {
+	err := authhelper.RefuseFrozen(userID, constants.EmptyString)
+	if shared.IsError(err, constants.ErrAccountRecovering) {
+		return ErrDenyRecovering
+	}
+	return err
 }
 
 // A deny also takes back an approval; a sign-in leaves one alone.
 func decidable(request *telarkconfig.BootstrapRequest, action string) bool {
 	return request.State == telarkconfig.BootstrapStatePending ||
 		request.State == telarkconfig.BootstrapStateApproved && action == constants.BootstrapActionDeny
+}
+
+// A passkey a recovery's link saved after the 72-hour mark, while that recovery is still open, came from a run that
+// stopped before it finished: it signs in nothing (the next run removes it), and its refusal cancels nothing.
+func RefuseRecoveryPasskey(user *userresource.User, passkeys []*authdata.Passkey, credentialID []byte) error {
+	if !user.Bootstrap {
+		return nil
+	}
+	status, err := clients.GetBootstrapClient().Status()
+	if err != nil {
+		lg.Error(fmt.Sprintf(string(constants.ErrBootstrapStatusFailed), err))
+		return shared.ErrBackendUnavailable
+	}
+	request := status.Newest()
+	if status.UserID != user.ID || request == nil || request.Kind != telarkconfig.BootstrapKindRecover || !request.Open() {
+		return nil
+	}
+	opened, err := time.Parse(time.RFC3339, request.OpenedAt)
+	if err != nil {
+		return err
+	}
+	if savedSince(passkeys, credentialID, opened.Add(telarkconfig.BootstrapRequestWait)) {
+		return ErrRecoveryPasskey
+	}
+	return nil
+}
+
+func savedSince(passkeys []*authdata.Passkey, credentialID []byte, mark time.Time) bool {
+	for _, passkey := range passkeys {
+		if passkey == nil || passkey.CreationTimestamp == nil {
+			continue
+		}
+		id, err := authhelper.DecodeBase64URLWithFallback(passkey.CredentialID)
+		created, createdErr := time.Parse(time.RFC3339, *passkey.CreationTimestamp)
+		if err == nil && createdErr == nil && bytes.Equal(id, credentialID) && !created.Before(mark) {
+			return true
+		}
+	}
+	return false
 }
 
 // The authenticator signed this action for this request: another request's assertion, a replay, or a deny

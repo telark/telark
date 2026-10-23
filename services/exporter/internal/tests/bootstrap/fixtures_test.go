@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -54,7 +55,9 @@ const (
 	listSuffix   = "List"
 	firstVersion = "1"
 	verbPatch    = "patch"
+	verbDelete   = "delete"
 	keyRV        = "resourceVersion"
+	keyLastLogin = "lastLoginAt"
 	keyMetadata  = "metadata"
 	noticeLimit  = 50
 	basePath     = "/api/v1/bootstrap"
@@ -71,6 +74,7 @@ var (
 	configGVR = gvrOf(v1alpha1.TelarkConfigMetadata)
 	internal  = xauthz.Identity{Internal: true}
 	errStale  = errors.New("the object has been modified")
+	errDown   = errors.New("the API server is unavailable")
 )
 
 func gvrOf(md base.Metadata) schema.GroupVersionResource {
@@ -118,17 +122,75 @@ func active(id, email string, bootstrap bool, roles ...string) account {
 	return account{id: id, email: email, phase: string(userdata.AccountPhaseActive), bootstrap: bootstrap, roles: roles}
 }
 
+// Stamped as auth stamps one in its spec, and as the API server does in its metadata.
 func passkey(t *testing.T, userID string, created time.Time) seed {
 	t.Helper()
 	name := userID + "-passkey-" + strconv.FormatInt(created.UnixNano(), base36)
-	s := cr(t, v1alpha1.PasskeyMetadata, name, map[string]any{constants.UserIDParam: userID, "credentialId": name})
+	s := cr(t, v1alpha1.PasskeyMetadata, name, map[string]any{constants.UserIDParam: userID, "credentialId": name,
+		constants.FieldCreationTimestamp: stamp(created)})
 	s.obj.SetCreationTimestamp(metav1.NewTime(created))
+	return s
+}
+
+// The spec stamp alone changes: a restore resets only the metadata's.
+func specStamped(t *testing.T, s seed, value string) seed {
+	t.Helper()
+	if err := unstructured.SetNestedField(s.obj.Object, value, constants.SpecField, constants.FieldCreationTimestamp); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 
 func session(t *testing.T, userID string) seed {
 	t.Helper()
 	return cr(t, v1alpha1.SessionMetadata, "session-"+userID, map[string]any{constants.UserIDParam: userID})
+}
+
+// The account signs in with these passkeys only.
+func withIdentities(t *testing.T, s seed, subjects ...string) seed {
+	t.Helper()
+	identities := make([]any, constants.DefaultInitValue, len(subjects))
+	for _, subject := range subjects {
+		identities = append(identities, map[string]any{"provider": constants.IdentityProviderPasskey, "subject": subject})
+	}
+	if err := unstructured.SetNestedSlice(s.obj.Object, identities, constants.SpecField, constants.FieldIdentities); err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+// An eligible recovery: opened 73 hours ago, with no sign-in since. The pinned account has a session and signs in with
+// a passkey from before the request and one a link saved after its mark; they are named after their credential ids.
+func recoveryAccount(t *testing.T, extra ...seed) (client *dynamicfake.FakeDynamicClient, before, after string) {
+	t.Helper()
+	opened := time.Now().Add(-justOver)
+	old, fresh := passkey(t, pinnedID, opened.Add(-time.Hour)), passkey(t, pinnedID, time.Now().Add(-time.Minute))
+	before, after = old.obj.GetName(), fresh.obj.GetName()
+	owner := withIdentities(t, active(pinnedID, pinnedEmail, true).seed(t), before, after)
+	seeds := append(directory(t), configWith(t, pinned(pending(opened))), owner, old, fresh, session(t, pinnedID))
+	return installFake(t, append(seeds, extra...)...), before, after
+}
+
+// The same recovery, during which the bootstrap account signed in after the mark, so the next open records it expired.
+func signedInRecovery(t *testing.T) (client *dynamicfake.FakeDynamicClient, after string) {
+	t.Helper()
+	opened := time.Now().Add(-justOver)
+	owner := active(pinnedID, pinnedEmail, true)
+	owner.lastLogin = signedInAt(time.Now().Add(-time.Minute))
+	fresh := passkey(t, pinnedID, time.Now().Add(-time.Minute))
+	client = installFake(t, append(directory(t), configWith(t, pinned(pending(opened))), owner.seed(t),
+		passkey(t, pinnedID, opened.Add(-time.Hour)), fresh)...)
+	return client, fresh.obj.GetName()
+}
+
+func passkeyStored(t *testing.T, client *dynamicfake.FakeDynamicClient, name string) bool {
+	t.Helper()
+	_, err := client.Resource(gvrOf(v1alpha1.PasskeyMetadata)).Namespace(v1alpha1.PasskeyMetadata.Namespace).
+		Get(context.Background(), name, metav1.GetOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		t.Fatal(err)
+	}
+	return err == nil
 }
 
 // An Admin on ALL, a ReadOnly user and a suspended Admin: only the first hears of a request besides the pinned account.
@@ -227,15 +289,16 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
-// Runs before each TelarkConfig patch, outside the fake's lock.
-type configPatchHook struct {
+// Runs before each patch and delete of one resource, outside the fake's lock.
+type writeHook struct {
 	dynamic.Interface
-	before func()
+	resource schema.GroupVersionResource
+	before   func()
 }
 
-func (c configPatchHook) Resource(gvr schema.GroupVersionResource) dynamic.NamespaceableResourceInterface {
+func (c writeHook) Resource(gvr schema.GroupVersionResource) dynamic.NamespaceableResourceInterface {
 	resource := c.Interface.Resource(gvr)
-	if gvr != gvrOf(v1alpha1.TelarkConfigMetadata) {
+	if gvr != c.resource {
 		return resource
 	}
 	return hookedResource{NamespaceableResourceInterface: resource, before: c.before}
@@ -260,6 +323,11 @@ func (h hookedNamespace) Patch(
 ) (*unstructured.Unstructured, error) {
 	h.before()
 	return h.ResourceInterface.Patch(ctx, name, pt, data, options, subresources...)
+}
+
+func (h hookedNamespace) Delete(ctx context.Context, name string, options metav1.DeleteOptions, subresources ...string) error {
+	h.before()
+	return h.ResourceInterface.Delete(ctx, name, options, subresources...)
 }
 
 // The fake applies a patch whatever resourceVersion it names, so this does what the API server does: a patch that
@@ -339,15 +407,15 @@ func setStatus(t *testing.T, client *dynamicfake.FakeDynamicClient, status *tela
 	}
 }
 
+// Read from the tracker, past the fake's lock, so a reactor can read it too.
 func storedStatus(t *testing.T, client *dynamicfake.FakeDynamicClient) *telarkconfig.BootstrapStatus {
 	t.Helper()
-	obj, err := client.Resource(configGVR).Namespace(v1alpha1.TelarkConfigMetadata.Namespace).
-		Get(context.Background(), constants.TelarkConfigResourceName, metav1.GetOptions{})
+	obj, err := client.Tracker().Get(configGVR, v1alpha1.TelarkConfigMetadata.Namespace, constants.TelarkConfigResourceName)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var status telarkconfig.BootstrapStatus
-	stored, _, err := unstructured.NestedMap(obj.Object, constants.FieldStatus, telarkconfig.FieldBootstrap)
+	stored, _, err := unstructured.NestedMap(obj.(*unstructured.Unstructured).Object, constants.FieldStatus, telarkconfig.FieldBootstrap)
 	if err == nil {
 		raw, _ := json.Marshal(stored)
 		err = json.Unmarshal(raw, &status)
@@ -356,6 +424,23 @@ func storedStatus(t *testing.T, client *dynamicfake.FakeDynamicClient) *telarkco
 		t.Fatal(err)
 	}
 	return &status
+}
+
+// Stamps the pinned account's sign-in now, as auth does at each one, through the tracker so a hook can call it.
+func signInNow(t *testing.T, client *dynamicfake.FakeDynamicClient) {
+	t.Helper()
+	userGVR := gvrOf(v1alpha1.UserMetadata)
+	current, err := client.Tracker().Get(userGVR, v1alpha1.UserMetadata.Namespace, pinnedID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	user := current.(*unstructured.Unstructured).DeepCopy()
+	if err := unstructured.SetNestedField(user.Object, stamp(time.Now()), constants.SpecField, constants.FieldStatus, keyLastLogin); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Tracker().Update(userGVR, user, user.GetNamespace()); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func storedUser(t *testing.T, client *dynamicfake.FakeDynamicClient, id string) *userdata.User {
@@ -408,6 +493,18 @@ func notices(t *testing.T, userID string) []notiftypes.Notification {
 		t.Fatal(err)
 	}
 	return list.Items
+}
+
+// The titles of the notices userID got, sorted and comma-joined.
+func titles(t *testing.T, userID string) string {
+	t.Helper()
+	got := notices(t, userID)
+	sorted := make([]string, constants.DefaultInitValue, len(got))
+	for _, notice := range got {
+		sorted = append(sorted, notice.Title)
+	}
+	slices.Sort(sorted)
+	return strings.Join(sorted, ",")
 }
 
 func serveAs(t *testing.T, identity xauthz.Identity, method, path, body string) *httptest.ResponseRecorder {

@@ -110,6 +110,7 @@ const (
 	RedisKeyPrefixBootstrapAssert   = "auth:bootstrap:assert:"
 	RedisKeyPrefixFrozen            = "auth:webauthn:frozen:"
 	RedisKeyPrefixRateLimit         = "auth:ratelimit:"
+	RedisKeyBreakGlassRun           = "auth:breakglass:run"
 	CookiePath                      = "/"
 	CookieMaxAgeDelete              = -1 // net/http's way of sending Max-Age=0
 	RedisChallengeEntry             = "1"
@@ -121,6 +122,7 @@ const (
 	RedisTTLNonce          = 300 // seconds — 5 minutes for OIDC flow
 	RedisTTLEnrollToken    = 600 // seconds — 10 minutes to open a user's own link on the other host, or break-glass's
 	RedisTTLRecoveryFreeze = 120 // seconds, extended before each step of a recovery, so it outlives RecoveryHold
+	RedisTTLBreakGlassRun  = 120 // seconds, the run lock's, extended like the freeze
 	// A create auth sent before the freeze lands by 42.2 s: no exporter attempt starts after its 30 s call (+0.2 s retry delay), one lasts 12 s.
 	// An identity PATCH lands by 45 s: none starts after its route's 20 s deadline, then the exporter reads (10 s) and writes (15 s).
 	RecoveryHold             = 45 * time.Second
@@ -130,6 +132,10 @@ const (
 	RedisAsyncDrainTimeout   = 5 * time.Second
 	RedisChallengeOpTimeout  = 3 * time.Second
 	RedisScanTimeout         = 30 * time.Second
+	// The link's life, a ceremony it opened and the write bound: nothing the link started lands after its window.
+	RecoveryLinkWindow   = time.Duration(RedisTTLEnrollToken+RedisTTLChallenge)*time.Second + RecoveryHold
+	RecoveryPollInterval = 2 * time.Second
+	RecoveryKeepAlive    = 30 * time.Second
 
 	// KEYS: invite-of:<user>, invite:<digest>. ARGV: invite prefix, signed entry naming the user, digest, TTL seconds.
 	ScriptIssueInvite = `local previous = redis.call('GET', KEYS[1])
@@ -152,6 +158,11 @@ entry = redis.call('GETDEL', KEYS[2])
 if not entry then return false end
 if redis.call('GET', ARGV[1] .. ARGV[3]) == ARGV[2] then redis.call('DEL', ARGV[1] .. ARGV[3]) end
 return {entry, KEYS[2]}`
+	// KEYS: the break-glass run lock. ARGV: the run's own value, TTL seconds. Returns 1 when it was the run's.
+	ScriptExtendRun = `if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('EXPIRE', KEYS[1], ARGV[2]) end
+return 0`
+	ScriptReleaseRun = `if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) end
+return 0`
 
 	// The approval challenge: random bytes, then the SHA-256 of the label, the request id and the action, NUL-joined.
 	BootstrapChallengeRandomBytes = 32

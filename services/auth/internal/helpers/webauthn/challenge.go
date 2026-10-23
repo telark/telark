@@ -17,9 +17,9 @@ import (
 	redishelper "github.com/telark/telark/services/auth/internal/helpers/redis"
 )
 
-// A user's ceremonies refuse to start while break-glass recovers the account.
-func StoreChallenge(userID string, challenge string) error {
-	if err := authhelper.RefuseFrozen(userID); err != nil {
+// A user's ceremonies refuse to start while break-glass recovers the account, but the registration its link opens.
+func StoreChallenge(userID, challenge, enrollDigest string) error {
+	if err := authhelper.RefuseFrozen(userID, enrollDigest); err != nil {
 		return err
 	}
 	return StoreChallengeAt(constants.RedisKeyPrefixChallenge+userID, challenge)
@@ -47,7 +47,7 @@ func StoreChallengeAt(key, challenge string) error {
 }
 
 func ValidateAndGetChallenge(userID string, bodyBytes []byte) (*authdata.AuthChallenge, error) {
-	if err := authhelper.RefuseFrozen(userID); err != nil {
+	if err := authhelper.RefuseFrozen(userID, constants.EmptyString); err != nil {
 		return nil, err
 	}
 	challenge, err := ConsumeChallengeAt(constants.RedisKeyPrefixChallenge+userID, bodyBytes)

@@ -21,15 +21,15 @@ var (
 	}
 )
 
-// The pinned account and, unless it turned that off, every active Admin on ALL hear of a request. Its owner can clear
-// these notices, so the record stays in TelarkConfig, where only these routes write and none deletes. Only the pinned
-// account reads the message that names an account; everyone else reads masked.
-func notify(pinned string, request telarkconfig.BootstrapRequest, title, message, masked, severity string) {
+// The pinned account and, unless it turned that off (or always is set), every active Admin on ALL hear of a request.
+// Its owner can clear these notices, so the record stays in TelarkConfig, where only these routes write and none
+// deletes. Only the pinned account reads the message that names an account; everyone else reads masked.
+func notify(pinned string, request telarkconfig.BootstrapRequest, title, message, masked, severity string, always bool) {
 	var recipients []string
-	if bootstrap.NotifyAdmins() {
+	if always || bootstrap.NotifyAdmins() {
 		var err error
 		if recipients, err = authz.ActiveAdminIDs(); err != nil {
-			lg.Warn(fmt.Sprintf(string(constants.WarnBootstrapNoticeFailed), err))
+			lg.Error(fmt.Sprintf(string(constants.ErrBootstrapNoticeAdmins), err))
 		}
 	}
 	if pinned != constants.EmptyString && !slices.Contains(recipients, pinned) {
@@ -58,8 +58,8 @@ func notice(request telarkconfig.BootstrapRequest) (title, message, masked, seve
 			fmt.Sprintf(constants.NotifBootstrapOpenedReplace, request.TargetEmail) + constants.NotifBootstrapOpenedRule,
 			constants.NotifBootstrapOpenedMasked + constants.NotifBootstrapOpenedRule, notiftypes.SeverityWarning
 	case request.State == telarkconfig.BootstrapStatePending:
-		text := constants.NotifBootstrapOpenedRecover + constants.NotifBootstrapOpenedRule
-		return constants.NotifBootstrapOpenedTitle, text, text, notiftypes.SeverityWarning
+		return constants.NotifBootstrapOpenedTitle, constants.NotifBootstrapOpenedRecover, constants.NotifBootstrapOpenedRecover,
+			notiftypes.SeverityWarning
 	case request.State == telarkconfig.BootstrapStateCanceled:
 		text := canceledReasons[request.Reason]
 		return constants.NotifBootstrapCanceledTitle, text, text, notiftypes.SeverityInfo
@@ -69,4 +69,11 @@ func notice(request telarkconfig.BootstrapRequest) (title, message, masked, seve
 	}
 	text := constants.NotifBootstrapCompletedRecover
 	return constants.NotifBootstrapCompletedTitle, text, text, notiftypes.SeverityWarning
+}
+
+func issued(request telarkconfig.BootstrapRequest) (title, message string) {
+	if request.Kind == telarkconfig.BootstrapKindReplace {
+		return constants.NotifBootstrapReissuedTitle, constants.NotifBootstrapReissuedMessage
+	}
+	return constants.NotifBootstrapIssuedTitle, constants.NotifBootstrapIssuedMessage
 }

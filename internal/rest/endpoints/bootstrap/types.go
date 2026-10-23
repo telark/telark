@@ -10,9 +10,11 @@ type CancelBody struct {
 	Reason string `json:"reason"`
 }
 
-// Revoke: break-glass's last pass while the account is frozen purges a passkey enrolled since the completion too.
+// A recovery's passes: none set ends the account's sessions; Revoke, the last pass before the link, also deletes the
+// passkeys saved after the 72-hour mark; Keep, the credential id the link registered, completes it.
 type CompleteBody struct {
-	Revoke bool `json:"revoke"`
+	Revoke bool   `json:"revoke,omitempty"`
+	Keep   string `json:"keep,omitempty"`
 }
 
 // Enrolled: after a completed request, whether the account it concerns enrolled a passkey since.

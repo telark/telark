@@ -212,11 +212,12 @@ func TestBreakGlassOutput(t *testing.T) {
 		link   string
 	}{
 		{"fresh install, dashboard exposed", "https://telark.example.com", true, []string{flagEnroll},
-			[]string{"Created the bootstrap admin test@example.com", "Next, register a passkey"}, "https://telark.example.com/register"},
+			[]string{"Created test@example.com with the Admin role", "Register a passkey for test@example.com"},
+			"https://telark.example.com/register"},
 		{"existing admin, port-forward install", constants.EmptyString, false, []string{flagEnroll},
 			[]string{"Nothing to change", "Replace <dashboard-url>"}, "<dashboard-url>/register"},
 		{"existing admin without --enroll", constants.EmptyString, false, nil,
-			[]string{"Nothing to change", constants.BreakGlassSignIn}, constants.EmptyString},
+			[]string{"Nothing to change", cmd.BreakGlassSignIn}, constants.EmptyString},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -267,12 +268,12 @@ func TestBreakGlassLookupFailure(t *testing.T) {
 		statusRead bool
 	}{
 		{"exporter fails the lookup", http.StatusInternalServerError, []string{flagEnroll},
-			"Could not read test@example.com from the exporter", constants.DefaultInitValue, true},
-		{"no account without --enroll", http.StatusNotFound, nil, "No account uses test@example.com yet", constants.DefaultInitValue, true},
-		{"exporter refuses the create", http.StatusNotFound, []string{flagEnroll}, "create failed: status 404",
+			"Could not look up test@example.com", constants.DefaultInitValue, true},
+		{"no account without --enroll", http.StatusNotFound, nil, "No account uses test@example.com", constants.DefaultInitValue, true},
+		{"exporter refuses the create", http.StatusNotFound, []string{flagEnroll}, "Could not create test@example.com: status 404",
 			constants.DefaultIncrementValue, true},
 		{"exporter fails the bootstrap read", http.StatusInternalServerError, []string{flagEnroll},
-			"Could not read the bootstrap account from the exporter", constants.DefaultInitValue, false},
+			"Could not read the bootstrap account", constants.DefaultInitValue, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -442,7 +443,7 @@ func TestBreakGlassRefusesAnEnrolledAccountWithoutAPin(t *testing.T) {
 	})
 	code, out, logged := runBreakGlass(t, flagEmail, email, flagEnroll)
 	testutil.Equal(t, "refused", code, constants.ExitCodeError)
-	testutil.Equal(t, "says why", strings.Contains(logged, "has a passkey, but the exporter has not pinned it"), true)
+	testutil.Equal(t, "says why", strings.Contains(logged, "has a passkey but is not pinned"), true)
 	testutil.Equal(t, "no link", strings.Contains(out, "#enroll="), false)
 	testutil.Equal(t, "tokens", len(enrollTokenOwners()), constants.DefaultInitValue)
 }

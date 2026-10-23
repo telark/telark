@@ -62,13 +62,14 @@ type FakeExporter struct {
 	// Runs on each request route call, under the fake's lock: it must not call the fake's methods.
 	OnRequest func(path string)
 
-	mu             sync.Mutex
-	down           bool
-	noticesDown    bool
-	configReads    int
-	notices        []notificationsclient.Notification
-	requestCalls   []string
-	sessionsIssued int
+	mu              sync.Mutex
+	down            bool
+	passkeyReadDown bool
+	noticesDown     bool
+	configReads     int
+	notices         []notificationsclient.Notification
+	requestCalls    []string
+	sessionsIssued  int
 }
 
 func (f *FakeExporter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -173,6 +174,11 @@ func (f *FakeExporter) servePasskeys(w http.ResponseWriter, r *http.Request) {
 			f.Credentials[userID] = append(f.Credentials[userID], saved)
 		}
 		fakeReply(w, http.StatusOK, nil)
+		return
+	}
+	if f.passkeyReadDown {
+		f.passkeyReadDown = false
+		fakeReply(w, http.StatusInternalServerError, nil)
 		return
 	}
 	if credentials, signs := f.Credentials[userID]; signs {
@@ -282,6 +288,13 @@ func (f *FakeExporter) SetDown(down bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.down = down
+}
+
+// The next passkey list read fails (500), then reads work again.
+func (f *FakeExporter) FailNextPasskeyRead() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.passkeyReadDown = true
 }
 
 // The user then answers 410, as a record only the cleanup finalizer still holds.

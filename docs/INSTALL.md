@@ -288,7 +288,7 @@ A second exporter replica keeps it available through node failures and rolling u
 --set app.persistence.storageClass=efs-sc
 ```
 
-More than one replica without a class fails the render, and so does a class the cluster doesn't have. `minimal` always runs one replica.
+More than one replica without a class fails the render, and so does a class the cluster doesn't have. `minimal` always runs one replica. Break-glass serializes its [recovery requests](#recovery-requests) inside one exporter, so scale back to one replica before a recovery: with two, a rare race can leave the bootstrap account with no passkey until the next break-glass run.
 
 Kubernetes never changes a claim's class or access mode, so upgrades keep the claims as they are:
 
@@ -687,7 +687,7 @@ Each minor version lists here the CRD schema changes and the exporter migration 
 
 - **0.2.0**: `TelarkConfig` gets `status.lastMigration` and `status.rollbackMigration`, the migration record. No migration step.
   - Upgrade from 0.1.x with `--reset-then-reuse-values` (or your full `-f` and `--set` flags), not `--reuse-values`. That flag keeps 0.1.x's defaults, which lack the keys 0.2.0 adds, so the render fails (`nil pointer evaluating interface {}.existingSecret`).
-  - Some values moved. The old paths still work in 0.2.0, and win when set, but a later release removes them; the install notes list any your values still use. An old path an earlier release set keeps winning under `--reset-then-reuse-values`, so change it there or upgrade with `--reset-values` and your flags on the new paths.
+  - Some values moved. The old paths still work in 0.2.0, and win when set, but a later release removes them; the install notes list any that your values still use. An old path an earlier release set keeps winning under `--reset-then-reuse-values`: set the value on the old path, or upgrade with `--reset-values` and your flags on the new paths.
 
     | Old path | New path |
     |---|---|

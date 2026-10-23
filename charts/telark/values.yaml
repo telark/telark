@@ -181,7 +181,7 @@ services:
     # @ignore
     version: 0.1.2
     category: "persistence-manager"
-    # More than one replica shares both volumes, so it needs a ReadWriteMany app.persistence.storageClass.
+    # More than one replica needs a ReadWriteMany app.persistence.storageClass; break-glass recovery needs one (INSTALL).
     # Never autoscaled: the volume, not CPU, bounds it.
     replicas: 1
     autoscaling:

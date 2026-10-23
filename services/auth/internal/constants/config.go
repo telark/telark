@@ -136,6 +136,8 @@ const (
 	RecoveryLinkWindow   = time.Duration(RedisTTLEnrollToken+RedisTTLChallenge)*time.Second + RecoveryHold
 	RecoveryPollInterval = 2 * time.Second
 	RecoveryKeepAlive    = 30 * time.Second
+	// A passkey that landed during the hold must not slip past one failed read.
+	RecoveryLastLookAttempts = 3
 
 	// KEYS: invite-of:<user>, invite:<digest>. ARGV: invite prefix, signed entry naming the user, digest, TTL seconds.
 	ScriptIssueInvite = `local previous = redis.call('GET', KEYS[1])

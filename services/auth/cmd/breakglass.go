@@ -429,7 +429,7 @@ func expire(id, userID, email, lock string, issuedAt time.Time, ended bool) int 
 	if !dropLinks(userID) || !hold(userID, lock, frozenAt) {
 		return constants.ExitCodeError
 	}
-	keep, err := registered(userID, issuedAt)
+	keep, err := lastLook(userID, lock, issuedAt)
 	if keep != nil {
 		return finishRecovery(id, userID, email, lock, keep)
 	}
@@ -445,6 +445,20 @@ func expire(id, userID, email, lock string, issuedAt time.Time, ended bool) int 
 		_, _ = fmt.Fprintf(os.Stderr, BreakGlassLinkExpired, id)
 	}
 	return constants.ExitCodeError
+}
+
+// The exporter purged the request's passkeys before this registration landed, so a failed read is retried under a
+// renewed freeze rather than leaving the passkey on a closed request.
+func lastLook(userID, lock string, issuedAt time.Time) (*authdata.Passkey, error) {
+	keep, err := registered(userID, issuedAt)
+	for attempt := constants.DefaultIncrementValue; err != nil && attempt < constants.RecoveryLastLookAttempts; attempt++ {
+		time.Sleep(constants.RecoveryPollInterval)
+		if !freeze(userID, lock) {
+			return nil, err
+		}
+		keep, err = registered(userID, issuedAt)
+	}
+	return keep, err
 }
 
 // A refusal (4xx) is the exporter's finished answer, with no write of it still in flight for the freeze to wait out.

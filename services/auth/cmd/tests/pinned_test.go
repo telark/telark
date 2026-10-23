@@ -400,8 +400,8 @@ func endTheRequest(fake *testutil.FakeExporter) {
 }
 
 // A registration sent before a sign-in ended the request can land once the run froze the account for its last look: the
-// run holds that freeze as the revoking pass does, so the look still hands the passkey to the exporter's keep pass,
-// which refuses it on the canceled request (and deletes it), and the run thaws the account.
+// run holds that freeze as the revoking pass does, and retries a failed read, so the look still hands the passkey to
+// the exporter's keep pass, which refuses it on the canceled request (and deletes it), and the run thaws the account.
 func TestBreakGlassLastLookWaitsOutTheHold(t *testing.T) {
 	t.Setenv(constants.EnvBootstrapAdmin, pinnedMailbox)
 	redisServer.FlushAll()
@@ -419,7 +419,11 @@ func TestBreakGlassLastLookWaitsOutTheHold(t *testing.T) {
 			return err
 		}
 		time.Sleep(lateLanding)
-		return saveLinkPasskey()
+		if err := saveLinkPasskey(); err != nil {
+			return err
+		}
+		fake.FailNextPasskeyRead()
+		return nil
 	})
 
 	code, _, logged := runBreakGlass(t, flagEmail, pinnedMailbox, flagEnroll)

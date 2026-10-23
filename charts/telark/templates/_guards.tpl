@@ -13,7 +13,7 @@ render instead, with the value to set.
 {{- $failOpen := toString (dig "kyverno" "failOpen" "" .Values.app) -}}
 {{- $ignore := toString .Values.kyverno.features.forceFailurePolicyIgnore.enabled -}}
 {{- if and (include "telark.modeValues" . | fromYaml).kyverno.enabled $failOpen (ne $failOpen $ignore) -}}
-{{- fail (printf "app.kyverno.failOpen=%s but kyverno.features.forceFailurePolicyIgnore.enabled=%s, which is the one Kyverno reads. Set it to %s and drop the deprecated app.kyverno.failOpen." $failOpen $ignore $failOpen) -}}
+{{- fail (printf "app.kyverno.failOpen=%s but kyverno.features.forceFailurePolicyIgnore.enabled=%s, which is the one Kyverno reads. Drop the deprecated app.kyverno.failOpen, or set it to the same value." $failOpen $ignore) -}}
 {{- end -}}
 {{- if or (not .Values.redis.auth.enabled) (not .Values.redis.auth.existingSecret) .Values.redis.auth.password -}}
 {{- fail "Redis must require a password kept in a Secret: keep redis.auth.enabled=true, leave redis.auth.password empty, and leave redis.auth.existingSecret at its default (the chart-generated <release>-redis-secret) or name a Secret you manage (key redis-password)." -}}

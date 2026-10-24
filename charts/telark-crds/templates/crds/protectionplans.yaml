@@ -65,6 +65,9 @@ spec:
                 - lastUpdatedAt
                 - lastUpdatedBy
                 - participantRefs
+              x-kubernetes-validations:
+                - rule: "self.timeMode != 'repeating' || has(self.repeat)"
+                  message: "timeMode=repeating requires repeat"
               properties:
                 name:
                   type: string
@@ -162,8 +165,8 @@ spec:
                   enum: [audit, enforce]
                 timeMode:
                   type: string
-                  description: Whether the plan is permanent or time-bounded
-                  enum: [permanent, time_range]
+                  description: Whether the plan is permanent, one time range, or repeating weekly windows
+                  enum: [permanent, time_range, repeating]
                 timeRange:
                   type: object
                   description: Active window when timeMode=time_range
@@ -177,6 +180,36 @@ spec:
                       type: string
                       description: RFC3339 timestamp when the plan terminates
                       format: date-time
+                repeat:
+                  type: object
+                  description: Weekly windows when timeMode=repeating, on the wall clock of timeZone
+                  required: [days, startTime, endTime, timeZone]
+                  properties:
+                    days:
+                      type: array
+                      description: Weekdays a window starts on, in timeZone
+                      minItems: 1
+                      maxItems: 7
+                      x-kubernetes-list-type: set
+                      items:
+                        type: string
+                        enum: [mon, tue, wed, thu, fri, sat, sun]
+                    startTime:
+                      type: string
+                      description: Local start time, HH:MM (24-hour)
+                      pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+                    endTime:
+                      type: string
+                      description: Local end time, HH:MM; earlier than startTime ends the next day
+                      pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+                    timeZone:
+                      type: string
+                      description: IANA time zone name, for example Europe/Paris
+                      minLength: 1
+                      maxLength: 64
+                  x-kubernetes-validations:
+                    - rule: "self.startTime != self.endTime"
+                      message: "repeat.endTime must differ from repeat.startTime"
                 createdAt:
                   type: string
                   description: RFC3339 timestamp when the plan was created
@@ -199,6 +232,10 @@ spec:
                 environmentRef:
                   type: string
                   description: "Optional environment category id (scope plan-environments); metadata only, never affects enforcement. Empty string clears it."
+                  maxLength: 19
+                kindRef:
+                  type: string
+                  description: "Optional kind category id (scope plan-kinds); metadata only, never affects enforcement. Empty string clears it."
                   maxLength: 19
                 tagRefs:
                   type: array
@@ -279,6 +316,17 @@ spec:
                   type: string
                   description: ID of the user or system that terminated the plan
                   nullable: true
+                window:
+                  type: object
+                  description: The open window (phase active) or the next one, when timeMode=repeating
+                  nullable: true
+                  properties:
+                    startAt:
+                      type: string
+                      format: date-time
+                    endAt:
+                      type: string
+                      format: date-time
                 approval:
                   type: object
                   nullable: true

@@ -21,7 +21,13 @@ const (
 	fieldKeep        = "keep"
 	testKind         = "Deployment"
 	testResourceName = "web"
+	testZone         = "Europe/Paris"
+	unknownZone      = "Mars/Olympus"
 )
+
+func repeatRule(zone string) *plans.ProtectionPlanRepeat {
+	return &plans.ProtectionPlanRepeat{Days: []string{"sun"}, StartTime: "02:00", EndTime: "04:00", TimeZone: zone}
+}
 
 // Keeps the table rows readable: every case is one scope type plus whichever of
 // the two id lists it declares.
@@ -108,6 +114,10 @@ func TestValidate(t *testing.T) {
 		{"namespace scope with app ids", func(p *plans.ProtectionPlan) {
 			p.Scope = plans.ProtectionPlanScope{Type: constants.ScopeTypeNamespaces, Namespaces: []string{"n"}, ApplicationRefs: []string{"a"}}
 		}},
+		{"repeating without a rule", func(p *plans.ProtectionPlan) { p.TimeMode = plans.TimeModeRepeating }},
+		{"repeating in an unknown zone", func(p *plans.ProtectionPlan) {
+			p.TimeMode, p.Repeat = plans.TimeModeRepeating, repeatRule(unknownZone)
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -121,6 +131,39 @@ func TestValidate(t *testing.T) {
 
 	if err := protection.Validate(nil); err == nil {
 		t.Error("nil plan accepted")
+	}
+
+	repeating := valid()
+	repeating.TimeMode, repeating.Repeat = plans.TimeModeRepeating, repeatRule(testZone)
+	if err := protection.Validate(repeating); err != nil {
+		t.Errorf("valid repeating plan rejected: %v", err)
+	}
+}
+
+// The exporter checks a rule a patch carries itself, so a bad zone is a 400 and never a stored plan.
+func TestValidatePatchRepeat(t *testing.T) {
+	rule := func(zone string) map[string]any {
+		return map[string]any{"days": []any{"sun"}, "startTime": "02:00", "endTime": "04:00", "timeZone": zone}
+	}
+	unknownKey := rule(testZone)
+	unknownKey["weeks"] = constants.DefaultIncrementValue
+	tests := []struct {
+		name    string
+		body    map[string]any
+		wantErr bool
+	}{
+		{"no repeat key", map[string]any{"other": constants.DefaultIncrementValue}, false},
+		{"valid rule", map[string]any{constants.FieldRepeat: rule(testZone)}, false},
+		{"unknown zone", map[string]any{constants.FieldRepeat: rule(unknownZone)}, true},
+		{"unknown key", map[string]any{constants.FieldRepeat: unknownKey}, true},
+		{"null left to the schema", map[string]any{constants.FieldRepeat: nil}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := protection.ValidatePatchRepeat(tt.body); (err != nil) != tt.wantErr {
+				t.Errorf("ValidatePatchRepeat err=%v, wantErr=%v", err, tt.wantErr)
+			}
+		})
 	}
 }
 

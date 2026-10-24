@@ -60,7 +60,7 @@ Beyond the linter:
 
 - `errcheck` is on: never drop an error. Wrap with context on the way up; return, don't
   panic, in request/reconcile paths.
-- Use the service's structured logger (e.g. analyzer's `app_logger.py`); don't `fmt.Print`
+- Use the service's structured logger (e.g. analyzer's `core/app_logger.py`); don't `fmt.Print`
   / `print()` for diagnostics in service code.
 
 ## Testing
@@ -73,8 +73,9 @@ Beyond the linter:
 - **Gate:** CI enforces a coverage **ratchet floor** per service and shared package
   (`.github/workflows/ci.yaml`); raise it as coverage improves, never lower it.
 - **Python (analyzer):** `pytest`; stub-based suites (`test_*_cov.py`) run in a separate
-  process from real-dependency suites; `python -m compileall` is the syntax gate. No
-  ruff/black/flake8 config exists, so formatting is by convention.
+  process from real-dependency suites (the split is historical: no suite replaces
+  `sys.modules` entries, and one pytest process gives the same result); `python -m compileall`
+  is the syntax gate. No ruff/black/flake8 config exists, so formatting is by convention.
 
 ## Commits, branches, PRs
 

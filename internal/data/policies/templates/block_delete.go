@@ -1,7 +1,7 @@
 package templates
 
 import (
-	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
+	policiesv1 "github.com/kyverno/api/api/policies.kyverno.io/v1"
 	"github.com/telark/telark/internal/data/policies"
 )
 
@@ -15,18 +15,18 @@ type blockDelete struct{}
 func (blockDelete) TemplateID() string   { return templateBlockDelete }
 func (blockDelete) TemplateCode() string { return codeBlockDelete }
 
-func (blockDelete) Render(meta policies.RenderMeta, scope policies.ScopeSpec, _ map[string]any) (*kyvernov1.Policy, error) {
-	deny := policies.DenyWithConditions([]kyvernov1.Condition{
-		policies.MakeCondition(exprRequestOperation, opEquals, opDelete),
-	})
+func (blockDelete) Render(
+	meta policies.RenderMeta,
+	scope policies.ScopeSpec,
+	_ map[string]any,
+) (*policiesv1.NamespacedValidatingPolicy, error) {
 	return policies.RenderSingleRulePolicy(meta, scope, policies.SingleRuleSpec{
 		TemplateID:   templateBlockDelete,
 		TemplateCode: codeBlockDelete,
-		RuleName:     templateBlockDelete,
 		Kinds:        kindsWildcard,
 		Ops:          opsDelete,
 		Message:      blockMessage(meta, msgBlockDelete),
-		Deny:         deny,
+		Admit:        admitNever,
 		// Reaches the Pods, ReplicaSets and PVCs controllers create and delete themselves.
 		ExcludeControllers: true,
 	}), nil

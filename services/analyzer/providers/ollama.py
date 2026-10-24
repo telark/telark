@@ -12,8 +12,8 @@ from collections.abc import Callable
 
 import httpx
 
-from config import ANALYZER_CONTEXT_TOKENS, ANALYZER_NUM_THREAD
-from constants import (
+from core.config import ANALYZER_CONTEXT_TOKENS, ANALYZER_NUM_THREAD
+from core.constants import (
     CHAT_TEMPERATURE,
     OLLAMA_CHAT_PATH,
     OLLAMA_CONTEXT_MARKER,
@@ -32,7 +32,7 @@ from constants import (
     OLLAMA_UNSUPPORTED_TOOLS_MARKER,
     PULL_STATUS_SUCCESS,
 )
-from models import ChatMessage, ChatResponse, PullProgress
+from core.models import ChatMessage, ChatResponse, PullProgress
 
 
 class OllamaError(Exception):

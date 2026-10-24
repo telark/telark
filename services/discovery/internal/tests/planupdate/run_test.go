@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -44,7 +45,6 @@ const (
 	tplBlockDelete = "block-delete"
 	tplBlockUpdate = "block-update"
 	kindDeployment = "Deployment"
-	policyKind     = "Policy"
 	editedText     = "edited"
 	labelErr       = "err"
 	labelPatches   = "exporter patches"
@@ -103,10 +103,11 @@ type capturedRun struct {
 
 // Records the report hooks, and which policies were still live when the checkpoint ran.
 type reportsRecorder struct {
-	dyn         *dynamicfake.FakeDynamicClient
-	captures    []capturedRun
-	checkpoints [][]string
-	liveAtCheck []string
+	dyn           *dynamicfake.FakeDynamicClient
+	captures      []capturedRun
+	checkpoints   [][]string
+	liveAtCheck   []string
+	checkpointErr error
 }
 
 func (r *reportsRecorder) capture(plan *plans.ProtectionPlan, endedAt, actor, reason, trigger string) <-chan struct{} {
@@ -119,7 +120,7 @@ func (r *reportsRecorder) capture(plan *plans.ProtectionPlan, endedAt, actor, re
 func (r *reportsRecorder) checkpoint(ctx context.Context, plan *plans.ProtectionPlan) (*reports.PlanReportLedger, error) {
 	r.checkpoints = append(r.checkpoints, slices.Clone(plan.RenderedPolicies))
 	r.liveAtCheck = liveNames(ctx, r.dyn)
-	return &reports.PlanReportLedger{}, nil
+	return &reports.PlanReportLedger{}, r.checkpointErr
 }
 
 func liveNames(ctx context.Context, dyn *dynamicfake.FakeDynamicClient) []string {
@@ -139,7 +140,9 @@ func liveNames(ctx context.Context, dyn *dynamicfake.FakeDynamicClient) []string
 func clusterWith(t *testing.T, live ...runtime.Object) *dynamicfake.FakeDynamicClient {
 	t.Helper()
 	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(
-		runtime.NewScheme(), map[schema.GroupVersionResource]string{protpolicies.KyvernoPolicyGVR: "PolicyList"}, live...,
+		runtime.NewScheme(), map[schema.GroupVersionResource]string{
+			protpolicies.KyvernoPolicyGVR: "NamespacedValidatingPolicyList",
+		}, live...,
 	)
 	dyn.PrependReactor("patch", protpolicies.KyvernoPolicyGVR.Resource, func(action k8stesting.Action) (bool, runtime.Object, error) {
 		patch, ok := action.(k8stesting.PatchAction)
@@ -150,7 +153,7 @@ func clusterWith(t *testing.T, live ...runtime.Object) *dynamicfake.FakeDynamicC
 
 func runDeps(dyn *dynamicfake.FakeDynamicClient, rec *reportsRecorder) update.Deps {
 	mapper := meta.NewDefaultRESTMapper(nil)
-	mapper.Add(protpolicies.KyvernoPolicyGVR.GroupVersion().WithKind(policyKind), meta.RESTScopeNamespace)
+	mapper.Add(protpolicies.KyvernoPolicyGVR.GroupVersion().WithKind(dpolicies.PolicyKind), meta.RESTScopeNamespace)
 	rec.dyn = dyn
 	return update.Deps{
 		Applier:     protpolicies.NewApplier(dyn, mapper),
@@ -229,14 +232,14 @@ func requestFor(plan *plans.ProtectionPlan) *planseps.PrepareProtectionPlanReque
 	return req
 }
 
-func failureAction(t *testing.T, dyn *dynamicfake.FakeDynamicClient, name string) string {
+func validationActions(t *testing.T, dyn *dynamicfake.FakeDynamicClient, name string) string {
 	t.Helper()
 	got, err := dyn.Resource(protpolicies.KyvernoPolicyGVR).Namespace(runNS).Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("get %s: %v", name, err)
 	}
-	action, _, _ := unstructured.NestedString(got.Object, "spec", "validationFailureAction")
-	return action
+	actions, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "validationActions")
+	return strings.Join(actions, ",")
 }
 
 // W4-plans-5: an empty namespace list, or namespaces on an applications plan, passed the edit
@@ -304,8 +307,8 @@ func TestRunWithdrawsPoliciesOnlyAfterThePatch(t *testing.T) {
 				testutil.Equal(t, "withdrawn policy live at checkpoint", len(rec.liveAtCheck), constants.TwoValue)
 			}
 			if c.wantErr {
-				want := string(dpolicies.FailureAction(plans.ModeEnforce))
-				testutil.Equal(t, "mode restored", failureAction(t, dyn, plan.RenderedPolicies[0]), want)
+				want := string(dpolicies.ValidationActions(plans.ModeEnforce)[constants.DefaultInitValue])
+				testutil.Equal(t, "mode restored", validationActions(t, dyn, plan.RenderedPolicies[0]), want)
 			}
 		})
 	}

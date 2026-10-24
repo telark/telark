@@ -40,7 +40,7 @@ NATS or model volume size would fail the upgrade after other objects changed; st
 {{- fail (printf "Kubernetes never changes the volume size of an existing StatefulSet, and this upgrade changes it (%s). Re-create the StatefulSets once, then upgrade again: kubectl delete statefulset -n %s %s --cascade=orphan. Their pods, claims and data stay, and the claims keep their size. To keep the old size instead, pass it on every upgrade (redis.master.persistence.size, nats.persistence.size)." (join ", " $changed) .Release.Namespace (join " " $names)) -}}
 {{- end -}}
 {{- $models := .Values.ollama.persistentVolume -}}
-{{- if and .Values.app.ollama.enabled $models.enabled (not $models.existingClaim) -}}
+{{- if and (include "telark.modeValues" . | fromYaml).ollama.enabled $models.enabled (not $models.existingClaim) -}}
 {{- $claim := printf "%s-ollama" .Release.Name -}}
 {{- with (lookup "v1" "PersistentVolumeClaim" .Release.Namespace $claim) -}}
 {{- $live := .spec.resources.requests.storage -}}

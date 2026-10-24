@@ -3,12 +3,15 @@ package policies
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
+	"github.com/telark/telark/internal/data/plans"
 	datapolicies "github.com/telark/telark/internal/data/policies"
 	"github.com/telark/telark/services/discovery/internal/constants"
 	protpolicies "github.com/telark/telark/services/discovery/internal/core/plans/protection/policies"
 	"github.com/telark/telark/services/discovery/internal/tests/testutil"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -23,26 +26,27 @@ const (
 	policyNamespace = "prod"
 	policyA         = "pol-a"
 	policyB         = "pol-b"
-	modeEnforce     = "Enforce"
+	actionDeny      = "Deny"
 	labelRemaining  = "remaining"
+	keySpec         = "spec"
 )
 
 func policyObj(name, ns, planID string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kyverno.io/v1",
-		"kind":       "Policy",
+		"apiVersion": protpolicies.KyvernoPolicyGVR.GroupVersion().String(),
+		"kind":       datapolicies.PolicyKind,
 		"metadata": map[string]any{
 			"name":      name,
 			"namespace": ns,
 			"labels":    map[string]any{datapolicies.LabelPlanID: planID},
 		},
-		"spec": map[string]any{"validationFailureAction": modeEnforce},
+		keySpec: map[string]any{"validationActions": []any{actionDeny}},
 	}}
 }
 
 func applierDyn(objs ...runtime.Object) dynamic.Interface {
 	gvrToListKind := map[schema.GroupVersionResource]string{
-		protpolicies.KyvernoPolicyGVR: "PolicyList",
+		protpolicies.KyvernoPolicyGVR: "NamespacedValidatingPolicyList",
 	}
 	return dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gvrToListKind, objs...)
 }
@@ -56,8 +60,7 @@ func countPolicies(t *testing.T, dyn dynamic.Interface) int {
 	return len(list.Items)
 }
 
-// CleanupByPlanID deletes every policy carrying the plan's label across all
-// namespaces.
+// CleanupByPlanID deletes every policy carrying the plan's label across all namespaces.
 func TestApplierCleanupByPlanID(t *testing.T) {
 	dyn := applierDyn(
 		policyObj(policyA, policyNamespace, planIDOne),
@@ -69,6 +72,19 @@ func TestApplierCleanupByPlanID(t *testing.T) {
 		t.Fatalf("cleanup: %v", err)
 	}
 	testutil.Equal(t, labelRemaining, countPolicies(t, dyn), constants.DefaultAddValue)
+}
+
+// A cluster without the policies.kyverno.io CRDs answers NotFound, which leaves nothing to delete.
+func TestApplierCleanupWithoutPolicyKind(t *testing.T) {
+	dyn := applierDyn()
+	fake, ok := dyn.(*dynamicfake.FakeDynamicClient)
+	if !ok {
+		t.Fatal("fake dynamic client expected")
+	}
+	fake.PrependReactor("list", protpolicies.KyvernoPolicyGVR.Resource, func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, k8serrors.NewNotFound(protpolicies.KyvernoPolicyGVR.GroupResource(), "")
+	})
+	testutil.Equal(t, "cleanup", protpolicies.NewApplier(dyn, nil).CleanupByPlanID(context.Background(), planIDOne), nil)
 }
 
 // DeletePoliciesByLabelAndNames deletes only the named policies within the plan
@@ -89,7 +105,7 @@ func TestApplierDeleteByLabelAndNames(t *testing.T) {
 	testutil.Equal(t, "noop", applier.DeletePoliciesByLabelAndNames(context.Background(), planIDOne, nil), nil)
 }
 
-// PatchPoliciesMode rewrites the failure action on every labeled policy.
+// PatchPoliciesMode rewrites the validation actions on every labeled policy.
 func TestApplierPatchPoliciesMode(t *testing.T) {
 	dyn := applierDyn(policyObj(policyA, policyNamespace, planIDOne))
 	applier := protpolicies.NewApplier(dyn, nil)
@@ -100,10 +116,8 @@ func TestApplierPatchPoliciesMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
-	action, _, _ := unstructured.NestedString(got.Object, "spec", "validationFailureAction")
-	if action == modeEnforce {
-		t.Fatalf("failure action was not patched, still %q", action)
-	}
+	actions, _, _ := unstructured.NestedStringSlice(got.Object, keySpec, "validationActions")
+	testutil.Equal(t, "validation actions", strings.Join(actions, ","), "Audit")
 
 	// No matching policies is a no-op success.
 	testutil.Equal(t, "no match", applier.PatchPoliciesMode(context.Background(), "pp-absent", "audit"), nil)
@@ -151,7 +165,7 @@ func TestApplierDeleteErrorsPropagate(t *testing.T) {
 			if !ok {
 				t.Fatal("fake dynamic client expected")
 			}
-			fake.PrependReactor("delete", "policies", func(k8stesting.Action) (bool, runtime.Object, error) {
+			fake.PrependReactor("delete", protpolicies.KyvernoPolicyGVR.Resource, func(k8stesting.Action) (bool, runtime.Object, error) {
 				return true, nil, errors.New("boom")
 			})
 			err := c.run(protpolicies.NewApplier(dyn, nil))
@@ -168,4 +182,17 @@ func TestApplierDeleteIgnoresNotFound(t *testing.T) {
 		{Namespace: policyNamespace, Name: "absent"},
 	})
 	testutil.Equal(t, "not found ignored", err, nil)
+}
+
+// Without the policies.kyverno.io CRDs there is nothing to switch, so a mode change must not fail.
+func TestApplierPatchModeWithoutPolicyKind(t *testing.T) {
+	dyn := applierDyn()
+	fake, ok := dyn.(*dynamicfake.FakeDynamicClient)
+	if !ok {
+		t.Fatal("fake dynamic client expected")
+	}
+	fake.PrependReactor("list", protpolicies.KyvernoPolicyGVR.Resource, func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, k8serrors.NewNotFound(protpolicies.KyvernoPolicyGVR.GroupResource(), "")
+	})
+	testutil.Equal(t, "patch", protpolicies.NewApplier(dyn, nil).PatchPoliciesMode(context.Background(), planIDOne, plans.ModeAudit), nil)
 }

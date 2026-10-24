@@ -27,7 +27,7 @@ A shared package in `internal/` is compiled into every service that imports it, 
 - **Coverage.** Tests live in `internal/tests/<area>/`, so only cross-package coverage means anything. When a change could move the coverage of a service or shared package, run what CI runs (`./internal/<pkg>/...` for a shared package) and compare with its floor in `ci.yaml`:
 
   ```sh
-  go test -race -coverpkg=./services/<svc>/... -coverprofile=coverage.out ./services/<svc>/...
+  go test -race -gcflags=all=-dwarf=false -ldflags=-w -coverpkg=./services/<svc>/... -coverprofile=coverage.out ./services/<svc>/...
   go tool cover -func=coverage.out | tail -1
   ```
 

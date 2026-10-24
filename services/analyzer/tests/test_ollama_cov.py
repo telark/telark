@@ -19,8 +19,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import config  # noqa: E402
-from models import ChatMessage, ToolCall  # noqa: E402
+from core import config  # noqa: E402
+from core.models import ChatMessage, ToolCall  # noqa: E402
 from providers import ollama  # noqa: E402
 
 _MESSAGES = [ChatMessage(role="system", content="s"), ChatMessage(role="user", content="u")]

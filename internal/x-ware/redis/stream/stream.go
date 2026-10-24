@@ -18,7 +18,17 @@ func NewStreamClient(r *redis.Client) *StreamClient {
 }
 
 func (c *StreamClient) EnsureConsumerGroup(ctx context.Context, stream, group string) error {
-	err := c.redis.XGroupCreateMkStream(ctx, stream, group, streamStartID).Err()
+	return c.createGroup(ctx, stream, group, streamStartID)
+}
+
+// A group created here starts after the stream's last entry: it gets only what is added
+// from now on. An existing group keeps its position.
+func (c *StreamClient) EnsureConsumerGroupFromNow(ctx context.Context, stream, group string) error {
+	return c.createGroup(ctx, stream, group, streamNewEntriesID)
+}
+
+func (c *StreamClient) createGroup(ctx context.Context, stream, group, start string) error {
+	err := c.redis.XGroupCreateMkStream(ctx, stream, group, start).Err()
 	if err != nil && strings.Contains(strings.ToLower(err.Error()), busyGroupErr) {
 		return nil
 	}

@@ -32,6 +32,7 @@ runs:
   using: 'composite'
   steps:
     - name: Set up Go
+      id: setup-go
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version-file: ${{ inputs.working-directory }}/go.mod
@@ -50,9 +51,11 @@ runs:
         path: |
           ~/.cache/go-build
           ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ inputs.cache-key }}-${{ hashFiles(format('{0}/go.sum', inputs.working-directory), '.golangci.yml') }}
+        # Keyed on all that changes what Go builds (toolchain, deps, test flags): an exact hit on a stale
+        # cache rebuilds everything and skips the save, so every run stayed cold after a Go bump.
+        key: ${{ runner.os }}-go-${{ steps.setup-go.outputs.go-version }}-${{ inputs.cache-key }}-${{ hashFiles(format('{0}/go.sum', inputs.working-directory), '.golangci.yml', '.github/scripts/go-ci-test.sh') }}
         restore-keys: |
-          ${{ runner.os }}-go-${{ inputs.cache-key }}-
+          ${{ runner.os }}-go-${{ steps.setup-go.outputs.go-version }}-${{ inputs.cache-key }}-
 
     # A restore-keys hit carries every stale build forward, so the cache only ever
     # grew (discovery 0.9 -> 2.4 GB). Backdate every entry: go re-stamps the ones it

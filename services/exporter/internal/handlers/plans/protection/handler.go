@@ -10,7 +10,9 @@ import (
 	plansmd "github.com/telark/telark/internal/data/metadata/v1alpha1"
 	"github.com/telark/telark/internal/data/plans"
 	"github.com/telark/telark/internal/kcore/crds/api"
+	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
 	"github.com/telark/telark/internal/rest/response"
+	requestutils "github.com/telark/telark/internal/rest/utils/request"
 	responseutils "github.com/telark/telark/internal/rest/utils/response"
 	"github.com/telark/telark/services/exporter/internal/authz"
 	"github.com/telark/telark/services/exporter/internal/constants"
@@ -22,6 +24,7 @@ import (
 	reportsutil "github.com/telark/telark/services/exporter/internal/utils/reports"
 	resourcesutils "github.com/telark/telark/services/exporter/internal/utils/resources/shared"
 	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 var (
@@ -68,7 +71,7 @@ func CreatePlan() func(http.ResponseWriter, *http.Request) {
 		lock.Lock()
 		defer lock.Unlock()
 
-		generics.GenericCreateCustomResource(w, plansmd.ProtectionPlanMetadata, plan.ID, spec)
+		generics.GenericCreateCustomResource(r.Context(), w, plansmd.ProtectionPlanMetadata, plan.ID, spec)
 	}
 }
 
@@ -125,6 +128,11 @@ func PatchPlanByID() func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
+		if err := plansutils.ValidatePatchRepeat(body); err != nil {
+			respondBadRequest(w, err)
+			return
+		}
+
 		plansutils.ApplyPatchAudit(body, userID)
 
 		patchData := map[string]any{constants.SpecField: body}
@@ -144,7 +152,14 @@ func DeletePlanByID() func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		if _, ok := plansutils.FindByIDOrRespond(w, planID); !ok {
+		keepReports, err := requestutils.OptionalBoolQuery(r, planseps.QueryKeepReports)
+		if err != nil {
+			respondBadRequest(w, err)
+			return
+		}
+
+		plan, ok := plansutils.FindByIDOrRespond(w, planID)
+		if !ok {
 			return
 		}
 
@@ -159,9 +174,17 @@ func DeletePlanByID() func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		// The periodic reports sweep is the retry for a failed removal.
+		// The periodic reports sweep is the retry for a failed removal; reports a failed keep
+		// left in place go with that sweep too.
 		root := envmanager.GetReportsPath()
-		if rerr := reportsutil.RemovePlanReports(root, planID); rerr != nil {
+		var rerr error
+		if keepReports {
+			name, _, _ := unstructured.NestedString(plan.Object, constants.SpecField, constants.FieldName)
+			rerr = reportsutil.Keep(root, planID, name)
+		} else {
+			rerr = reportsutil.RemovePlanReports(root, planID)
+		}
+		if rerr != nil {
 			lg.Warn(fmt.Sprintf(string(constants.ErrReportWriteFailed), artifact.StageNone, planID, reportsutil.PlanDir(root, planID), rerr))
 		}
 

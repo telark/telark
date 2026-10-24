@@ -123,9 +123,11 @@ const (
 	ErrAuthzRoleSkipped        Error = "authz: skipping unreadable role %s: %v"
 
 	// Authorization denials returned to the caller
-	ErrAuthzMissingSessionToken Error = "a session token is required"
-	ErrAuthzInvalidSession      Error = "the session is invalid or has expired"
-	ErrAuthzForbidden           Error = "you do not have permission to perform this action"
-	ErrAuthzInvalidServiceToken Error = "the service token is invalid"
-	ErrAuthzResolverUnavailable Error = "authorization backend unavailable"
+	ErrAuthzMissingSessionToken    Error = "a session token is required"
+	ErrAuthzInvalidSession         Error = "the session is invalid or has expired"
+	ErrAuthzForbidden              Error = "you do not have permission to perform this action"
+	ErrAuthzInvalidServiceToken    Error = "the service token is invalid"
+	ErrAuthzResolverUnavailable    Error = "authorization backend unavailable"
+	ErrAuthzCSRFHeaderMissing      Error = "a request that changes something needs a session header or X-Requested-With"
+	ErrAuthzSessionCookieDuplicate Error = "the request carries more than one session cookie"
 )

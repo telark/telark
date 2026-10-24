@@ -132,7 +132,9 @@ func (g *Generator) mergeLive(
 		return nil, err
 	}
 	now := g.clock().Format(globalshared.DefaultTimeFormat)
-	ledger.Violations, ledger.Truncated = Merge(ledger.Violations, live, plan, g.maxViolations)
+	rows, cut := Merge(ledger.Violations, live, plan, g.maxViolations)
+	// Once the cap dropped rows they stay dropped, so a later merge that fits keeps the flag.
+	ledger.Violations, ledger.Truncated = rows, ledger.Truncated || cut
 	ledger.RenderedPolicies = names
 	ledger.Checkpoints = append(ledger.Checkpoints, LedgerCheckpoint{At: now, Health: plan.Health, ViolationsSeen: len(live)})
 	ledger.UpdatedAt = now
@@ -175,16 +177,22 @@ func (g *Generator) persist(ctx context.Context, ledger *PlanReportLedger) {
 	}
 }
 
+// RunLedger reads the plan's run the way its report does, the ledger plus what the cluster still
+// holds, without writing it.
+func (g *Generator) RunLedger(ctx context.Context, plan *plans.ProtectionPlan) (*PlanReportLedger, error) {
+	loaded, err := g.loadLedger(plan)
+	if err != nil {
+		return nil, err
+	}
+	return g.mergeLive(ctx, plan, loaded)
+}
+
 // Checkpoint is the leader loop's call: merge what the cluster still holds and persist it.
 func (g *Generator) Checkpoint(ctx context.Context, plan *plans.ProtectionPlan) (ledger *PlanReportLedger, err error) {
 	err = g.guarded(func() error {
-		loaded, loadErr := g.loadLedger(plan)
-		if loadErr != nil {
-			return loadErr
-		}
-		merged, mergeErr := g.mergeLive(ctx, plan, loaded)
-		if mergeErr != nil {
-			return mergeErr
+		merged, runErr := g.RunLedger(ctx, plan)
+		if runErr != nil {
+			return runErr
 		}
 		g.persist(ctx, merged)
 		ledger = merged

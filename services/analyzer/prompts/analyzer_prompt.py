@@ -2,8 +2,9 @@
 
 import json
 
-from config import ANALYZER_MAX_TOOL_CALLS
-from constants import (
+from analysis import messages
+from core.config import ANALYZER_MAX_TOOL_CALLS
+from core.constants import (
     CONFIDENCE_HIGH,
     CONFIDENCE_LOW,
     CONFIDENCE_MEDIUM,
@@ -33,8 +34,7 @@ from constants import (
     NARRATE_TITLE_MAX,
     SUBJECT_SEPARATOR,
 )
-import messages
-from models import Candidate, Job
+from core.models import Candidate, Job
 
 SYSTEM_PROMPT = f"""You are a read-only investigator for one Kubernetes application. You cannot change anything.
 Find what is wrong with the application and why, using only the tools.

@@ -13,7 +13,7 @@ from fastapi import HTTPException
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import authz as AZ  # noqa: E402
+from api import authz as AZ  # noqa: E402
 
 
 def _resp(status, payload=None):

@@ -7,6 +7,7 @@ import (
 
 	dataerrors "github.com/telark/telark/internal/data/errors"
 	"github.com/telark/telark/services/auth/internal/authz"
+	"github.com/telark/telark/services/auth/internal/config"
 	"github.com/telark/telark/services/auth/internal/constants"
 	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
 	"github.com/telark/telark/services/auth/internal/helpers/shared"
@@ -20,6 +21,10 @@ func CreateEnrollLink(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token, expiresAt, err := authhelper.CreateEnrollToken(userID)
+	if shared.IsError(err, constants.ErrAccountRecovering) {
+		shared.SendErrorResponse(w, http.StatusConflict, err)
+		return
+	}
 	if err != nil {
 		shared.HandleError(w, errors.New(string(constants.ErrInternalServerError)),
 			http.StatusInternalServerError, err.Error())
@@ -44,7 +49,7 @@ func CreateUserEnrollLink(w http.ResponseWriter, r *http.Request) {
 	}
 
 	issuerID := r.Header.Get(constants.HeaderUserID)
-	token, expiresAt, err := authhelper.IssueInvite(targetID, issuerID)
+	token, expiresAt, err := authhelper.IssueInvite(targetID, issuerID, config.EnrollInviteTTL())
 	if err != nil {
 		shared.HandleError(w, errors.New(string(constants.ErrInternalServerError)),
 			http.StatusInternalServerError, err.Error())

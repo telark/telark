@@ -1,7 +1,9 @@
 package templates
 
 import (
-	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
+	"fmt"
+
+	policiesv1 "github.com/kyverno/api/api/policies.kyverno.io/v1"
 	"github.com/telark/telark/internal/data/policies"
 )
 
@@ -16,24 +18,24 @@ type blockImageTags struct{}
 func (blockImageTags) TemplateID() string   { return templateBlockImageTags }
 func (blockImageTags) TemplateCode() string { return codeBlockImageTags }
 
-func (blockImageTags) Render(meta policies.RenderMeta, scope policies.ScopeSpec, params map[string]any) (*kyvernov1.Policy, error) {
+func (blockImageTags) Render(
+	meta policies.RenderMeta,
+	scope policies.ScopeSpec,
+	params map[string]any,
+) (*policiesv1.NamespacedValidatingPolicy, error) {
 	tags, err := paramStringSlice(params, paramTags)
 	if err != nil {
 		return nil, err
 	}
-	// Kyverno's parsed image info defaults an untagged `nginx` to `latest` (the raw string missed
-	// it) and knows a CronJob's deeper pod-template path, so one rule covers every workload kind.
-	deny := policies.DenyWithConditions([]kyvernov1.Condition{
-		policies.MakeCondition(exprImageTags, opAnyIn, tags),
-	})
-	return policies.RenderSingleRulePolicy(meta, scope, policies.SingleRuleSpec{
+	// Kyverno's image library reads an untagged `nginx` as `latest` (the raw string missed it); a
+	// digest-pinned reference has no tag and is deliberately out of scope for a tag block list.
+	images := fmt.Sprintf(exprImagesFmt, policies.VarContainers)
+	return policies.RenderPodSpecRulePolicy(meta, scope, policies.PodSpecRuleSpec{
 		TemplateID:   templateBlockImageTags,
 		TemplateCode: codeBlockImageTags,
-		RuleName:     templateBlockImageTags,
-		Kinds:        policies.WorkloadKinds,
 		Ops:          opsCreateUpdate,
 		Message:      blockMessage(meta, msgBlockImageTags),
-		Deny:         deny,
+		Admit:        fmt.Sprintf(admitNoImageTagFmt, images, policies.CELList(tags)),
 	}), nil
 }
 

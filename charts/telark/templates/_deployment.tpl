@@ -131,11 +131,13 @@ spec:
               name: http
           env:
 {{- if $serviceToken }}
-            - name: {{ $values.app.serviceToken.envVar }}
+            - name: {{ $values.app.security.serviceToken.envVar }}
               valueFrom:
                 secretKeyRef:
                   name: {{ include "telark.serviceTokenSecretName" $root }}
                   key: token
+            - name: SESSION_COOKIE_HOST_PREFIX
+              value: {{ include "telark.sessionCookieHostPrefix" $root | quote }}
 {{- end }}
 {{- if $useRedis }}
             - name: REDIS_PASSWORD
@@ -192,9 +194,11 @@ spec:
             requests:
               memory: {{ $values.app.shared.resources.requests.memory }}
               cpu: {{ $values.app.shared.resources.requests.cpu }}
+              ephemeral-storage: {{ index $values.app.shared.resources.requests "ephemeral-storage" }}
             limits:
               memory: {{ $values.app.shared.resources.limits.memory }}
               cpu: {{ $values.app.shared.resources.limits.cpu }}
+              ephemeral-storage: {{ index $values.app.shared.resources.limits "ephemeral-storage" }}
 {{- end }}
 {{- if and $includeHealthCheck $healthCheck }}
 {{- range $probe := list "startupProbe" "livenessProbe" "readinessProbe" }}

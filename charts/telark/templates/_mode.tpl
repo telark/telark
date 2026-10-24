@@ -14,6 +14,17 @@ Callers: {{- $values := include "telark.modeValues" $ | fromYaml -}}
 {{- define "telark.modeValues" -}}
 {{- $mode := .Values.app.mode | default "standard" -}}
 {{- $v := deepCopy .Values -}}
+{{- /* Keys moved in 0.2.0: only a user file, --set or --reuse-values can still hold the old path, so it wins. A later release drops it. */ -}}
+{{- $security := $v.app.security | default dict -}}
+{{- $_ := set $v.app "security" $security -}}
+{{- range $key := list "crdGuard" "networkPolicy" "serviceToken" -}}
+{{- with index $v.app $key }}{{ $_ := set $security $key (mergeOverwrite (index $security $key | default dict) .) }}{{ end -}}
+{{- end -}}
+{{- with $v.app.kubectlImage }}{{ $_ := set $v.app.image "kubectl" . }}{{ end -}}
+{{- range $dep := list "kyverno" "ollama" -}}
+{{- $old := index $v.app $dep | default dict -}}
+{{- if hasKey $old "enabled" }}{{ $_ := set (index $v $dep) "enabled" $old.enabled }}{{ end -}}
+{{- end -}}
 {{- if ne $mode "standard" -}}
 {{- $overlay := .Files.Get (printf "modes/%s.yaml" $mode) | fromYaml -}}
 {{- if not $overlay -}}

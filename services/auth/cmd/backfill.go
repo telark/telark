@@ -21,7 +21,7 @@ type stats struct {
 
 func RunBackFill(cfg config.BackfillConfig, lg *logger.CustomLogger) error {
 	lg.Info(fmt.Sprintf(
-		string(constants.LogBackfillFinalizersStarted),
+		string(LogBackfillFinalizersStarted),
 		cfg.BatchSize, cfg.BatchPause.Milliseconds(),
 	))
 	totals := stats{}
@@ -35,7 +35,7 @@ func RunBackFill(cfg config.BackfillConfig, lg *logger.CustomLogger) error {
 		totals.skipped += s.skipped
 	}
 	lg.Info(fmt.Sprintf(
-		string(constants.LogBackfillFinalizersDone),
+		string(LogBackfillFinalizersDone),
 		totals.scanned, totals.patched, totals.skipped,
 	))
 	return nil
@@ -44,11 +44,11 @@ func RunBackFill(cfg config.BackfillConfig, lg *logger.CustomLogger) error {
 func runForType(resourceType string, cfg config.BackfillConfig, lg *logger.CustomLogger) (stats, error) {
 	ops, ok := cleanupctrl.GetResourceOps(resourceType)
 	if !ok {
-		return stats{}, fmt.Errorf(string(constants.ErrBackfillUnknownResourceType), resourceType)
+		return stats{}, fmt.Errorf(string(ErrBackfillUnknownResourceType), resourceType)
 	}
 	views, err := ops.List(context.Background())
 	if err != nil {
-		return stats{}, fmt.Errorf(string(constants.ErrBackfillListFailed), resourceType, err)
+		return stats{}, fmt.Errorf(string(ErrBackfillListFailed), resourceType, err)
 	}
 	return patchBatches(resourceType, ops, views, cfg, lg), nil
 }
@@ -90,7 +90,7 @@ func applyOne(
 			status = resp.Status
 		}
 		lg.Error(fmt.Sprintf(
-			string(constants.ErrBackfillAddFinalizerFailed),
+			string(ErrBackfillAddFinalizerFailed),
 			resourceType, id, status,
 		))
 		return

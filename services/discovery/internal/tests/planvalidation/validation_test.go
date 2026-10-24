@@ -205,6 +205,26 @@ func TestPrepareRequest(t *testing.T) {
 	}
 }
 
+// A repeating plan needs a valid rule, and its days are stored in week order.
+func TestPrepareRequestRepeating(t *testing.T) {
+	req := &planseps.PrepareProtectionPlanRequest{
+		Name:     "p",
+		Severity: plans.SeverityHigh,
+		Mode:     plans.ModeEnforce,
+		Scope:    planseps.ScopeRequest{Type: plans.ScopeTypeApplications, ApplicationRefs: []string{applicationID}},
+		Policies: []planseps.PolicyRequest{{TemplateID: tplBlockCreate}},
+		TimeMode: plans.TimeModeRepeating,
+	}
+	testutil.Equal(t, "missing rule refused", validation.IsValidation(validation.PrepareRequest(req, beforeWindow)), true)
+
+	req.Repeat = &plans.ProtectionPlanRepeat{Days: []string{"sun", "mon", "fri"}, StartTime: "22:00", EndTime: "02:00", TimeZone: "Europe/Paris"}
+	testutil.Equal(t, validCase, validation.PrepareRequest(req, beforeWindow), nil)
+	testutil.Equal(t, "week order", slices.Equal(req.Repeat.Days, []string{"mon", "fri", "sun"}), true)
+
+	req.Repeat.TimeZone = "Local"
+	testutil.Equal(t, "process zone refused", validation.IsValidation(validation.PrepareRequest(req, beforeWindow)), true)
+}
+
 // Exclusions bounds kinds and resources like the CRD and allows resources only on applications scope.
 func TestExclusions(t *testing.T) {
 	apps := func(e *plans.ProtectionPlanScopeExclusions) planseps.ScopeRequest {
@@ -295,6 +315,8 @@ func TestFields(t *testing.T) {
 		}, false},
 		{"nil taxonomy ok", func(r *planseps.PrepareProtectionPlanRequest) { r.EnvironmentRef = nil; r.TagRefs = nil }, true},
 		{"environmentRef too long", func(r *planseps.PrepareProtectionPlanRequest) { r.EnvironmentRef = &longTaxonomyID }, false},
+		{"kindRef too long", func(r *planseps.PrepareProtectionPlanRequest) { r.KindRef = &longTaxonomyID }, false},
+		{"repeating time mode", func(r *planseps.PrepareProtectionPlanRequest) { r.TimeMode = plans.TimeModeRepeating }, true},
 		{"empty environmentRef ok", func(r *planseps.PrepareProtectionPlanRequest) { r.EnvironmentRef = strptr("") }, true},
 		{"tag id too long", func(r *planseps.PrepareProtectionPlanRequest) { r.TagRefs = []string{longTaxonomyID} }, false},
 		{"too many tag ids", func(r *planseps.PrepareProtectionPlanRequest) { r.TagRefs = tooManyTags }, false},

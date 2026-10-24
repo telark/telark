@@ -10,7 +10,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import helpers as H  # noqa: E402
+from core import helpers as H  # noqa: E402
 from fakes import FakeRedis  # noqa: E402
 
 

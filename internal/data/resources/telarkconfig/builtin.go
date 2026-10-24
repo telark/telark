@@ -21,5 +21,6 @@ func DefaultTelarkConfig() TelarkConfig {
 		Cluster:            Cluster{},
 		OIDC:               OIDCConfig{},
 		SelfRegistration:   SelfRegistrationConfig{},
+		BreakGlassAlerts:   BreakGlassAlertsConfig{NotifyAdmins: true},
 	}
 }

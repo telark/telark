@@ -12,6 +12,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	// The image is FROM scratch, and repeating plans name IANA zones: the zone data ships in the binary.
+	_ "time/tzdata"
 
 	goredis "github.com/redis/go-redis/v9"
 	dataerrors "github.com/telark/telark/internal/data/errors"
@@ -250,6 +252,12 @@ func startInsightsIndex(ctx context.Context, rdb *goredis.Client) {
 		Refresh:    config.InsightsIndexRefresh(),
 		Resync:     config.InsightsIndexResync(),
 		StaleAfter: config.InsightsStaleAfter(),
+		Notifier: &insightsindex.CriticalNotifier{
+			ListUsers: clients.NewAuthzClient().GetAllUsers,
+			Grants:    discoveryauthz.NewResolver().GrantsForUser,
+			Excluded:  tcfghelper.ExcludedNamespaces,
+			Emit:      clients.NewNotificationClient().Emit,
+		},
 	})
 	insightshandler.InitIndex(idx)
 	go idx.Run(ctx, rdb, clients.NewProtectionPlanClient().List)

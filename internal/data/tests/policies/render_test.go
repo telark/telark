@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
+	policiesv1 "github.com/kyverno/api/api/policies.kyverno.io/v1"
 	"github.com/telark/telark/internal/data/constants"
 	"github.com/telark/telark/internal/data/plans"
 	"github.com/telark/telark/internal/data/policies"
@@ -32,7 +32,7 @@ type longCodeRenderer struct{}
 
 func (longCodeRenderer) TemplateID() string   { return longCodeID }
 func (longCodeRenderer) TemplateCode() string { return longCode }
-func (longCodeRenderer) Render(policies.RenderMeta, policies.ScopeSpec, map[string]any) (*kyvernov1.Policy, error) {
+func (longCodeRenderer) Render(policies.RenderMeta, policies.ScopeSpec, map[string]any) (*policiesv1.NamespacedValidatingPolicy, error) {
 	return nil, nil
 }
 
@@ -156,12 +156,12 @@ func TestRenderSkipsTemplatesWithoutTargets(t *testing.T) {
 	if err != nil {
 		t.Fatalf(fmtRenderErr, err)
 	}
-	if len(rendered) != constants.SingleItem || len(rendered[constants.DefaultInitValue].Spec.Rules) != constants.SingleItem {
-		t.Fatalf("rendered %d policies, want block-create alone with one rule", len(rendered))
+	if len(rendered) != constants.SingleItem {
+		t.Fatalf("rendered %d policies, want block-create alone", len(rendered))
 	}
-	match := rendered[constants.DefaultInitValue].Spec.Rules[constants.DefaultInitValue].MatchResources.Any
-	if len(match) != constants.SingleItem || match[constants.DefaultInitValue].Selector == nil {
-		t.Fatalf("block-create matches %+v, want the application's identity alone", match)
+	scope := condition(&rendered[constants.DefaultInitValue], policies.ConditionScope)
+	if !strings.Contains(scope, identityLabelExpr) || strings.Contains(scope, nameExpr) {
+		t.Fatalf("block-create matches %q, want the application's identity alone", scope)
 	}
 	if len(log) != len(skipped) {
 		t.Fatalf("logged %q, want one skip per template in %v", log, skipped)

@@ -1,6 +1,9 @@
 package protection
 
 import (
+	"net/url"
+	"strconv"
+
 	"github.com/telark/telark/internal/data/plans"
 	"github.com/telark/telark/internal/rest/base"
 	"github.com/telark/telark/internal/rest/clients/shared"
@@ -63,9 +66,14 @@ func (c *Client) PatchRaw(userID, id string, body map[string]any) *response.Gene
 	)
 }
 
-func (c *Client) Delete(id string) *response.GenericResponse {
+func (c *Client) Delete(id string, keepReports bool) *response.GenericResponse {
 	byID := c.WithParams(map[string]string{constants.IDParam: id})
-	return byID.Delete(eps.DeleteProtectionPlanByID)
+	endpoint := eps.DeleteProtectionPlanByID
+	if keepReports {
+		query := url.Values{eps.QueryKeepReports: []string{strconv.FormatBool(keepReports)}}
+		endpoint = base.Endpoint(string(endpoint) + constants.QuerySeparator + query.Encode())
+	}
+	return byID.Delete(endpoint)
 }
 
 func headers(userID string) map[string]string {

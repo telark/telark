@@ -80,9 +80,18 @@ const (
 	// Plan approval notifications
 	NotifPlanApprovalRequestedTitle  messages.Message = "Protection plan awaiting approval"
 	NotifPlanApprovalRequestedFormat messages.Message = "**%s** was submitted for approval by %s."
+	NotifPlanApprovalByBootstrap     messages.Message = "the bootstrap account"
 	NotifPlanApprovalDecidedTitle    messages.Message = "Protection plan decision"
 	NotifPlanApprovalDecidedFormat   messages.Message = "**%s** was %s. %s"
 	WarnPlanApprovalNotifyFailed     messages.Message = "[plan-approval] notification failed plan=%s: %v"
+
+	// Critical incident notifications
+	NotifIncidentCriticalTitle     messages.Message = "Critical incident"
+	NotifIncidentCriticalFormat    messages.Message = "**%s** in **%s/%s**."
+	WarnIncidentLatchFailed        messages.Message = "[insights-notify] latch failed: %v"
+	WarnIncidentRecipientsFailed   messages.Message = "[insights-notify] recipients unknown, %d incidents left for a later read: %v"
+	WarnIncidentGrantsFailed       messages.Message = "[insights-notify] grants unavailable user=%s: %v"
+	WarnIncidentNotificationFailed messages.Message = "[insights-notify] notification failed insight=%s user=%s: %v"
 
 	// Rollback HTTP responses
 	MsgRollbackAborted     messages.Message = "rollback aborted"

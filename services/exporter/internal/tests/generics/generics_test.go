@@ -49,11 +49,12 @@ func TestGenericCRDOperations(t *testing.T) {
 	expectError(t, list, "GenericList")
 
 	create := httptest.NewRecorder()
-	generics.GenericCreateCustomResource(create, md, testResourceName, map[string]any{"name": testResourceName})
+	generics.GenericCreateCustomResource(t.Context(), create, md, testResourceName, map[string]any{"name": testResourceName})
 	expectError(t, create, "GenericCreate")
 
 	createFin := httptest.NewRecorder()
-	generics.GenericCreateCustomResourceWithFinalizers(createFin, md, testResourceName, map[string]any{"name": testResourceName}, []string{"f"})
+	generics.GenericCreateCustomResourceWithFinalizers(t.Context(), createFin, md, testResourceName,
+		map[string]any{"name": testResourceName}, []string{"f"})
 	expectError(t, createFin, "GenericCreateWithFinalizers")
 
 	patch := httptest.NewRecorder()
@@ -69,7 +70,7 @@ func TestSharedExporterOperations(t *testing.T) {
 	md := metadata.AccessRoleMetadata
 
 	create := httptest.NewRecorder()
-	exportshared.CreateResource(create, md, testResourceName, map[string]any{"name": testResourceName})
+	exportshared.CreateResource(t.Context(), create, md, testResourceName, map[string]any{"name": testResourceName})
 	expectError(t, create, "CreateResource")
 
 	del := httptest.NewRecorder()

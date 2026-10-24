@@ -12,22 +12,22 @@ _ROOT = Path(__file__).resolve().parent.parent
 
 _GUARDED_MODULES = [
     "main.py",
-    "helpers.py",
-    "insights.py",
-    "api_server.py",
-    "authz.py",
-    "exporter.py",
+    "core/helpers.py",
+    "analysis/insights.py",
+    "api/api_server.py",
+    "api/authz.py",
+    "core/exporter.py",
     "providers/ollama.py",
     "tools/__init__.py",
     "tools/app_tools.py",
     "tools/k8s_tools.py",
-    "analyzer.py",
+    "analysis/analyzer.py",
     "prompts/analyzer_prompt.py",
-    "runtime.py",
-    "events.py",
-    "messages.py",
-    "review.py",
-    "recommendations.py",
+    "providers/runtime.py",
+    "core/events.py",
+    "analysis/messages.py",
+    "analysis/review.py",
+    "analysis/recommendations.py",
 ]
 
 

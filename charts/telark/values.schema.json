@@ -77,7 +77,8 @@
           "properties": {
             "registry": { "type": "string", "minLength": 1 },
             "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
-            "pullSecrets": { "type": "array" }
+            "pullSecrets": { "type": "array" },
+            "kubectl": { "type": "string" }
           }
         },
         "auth": {
@@ -126,29 +127,55 @@
             "runtimeUrl": { "type": "string" }
           }
         },
-        "serviceToken": {
+        "security": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "envVar": { "type": "string", "minLength": 1 },
-            "value": { "type": "string" },
-            "existingSecret": { "type": "string" }
+            "crdGuard": { "$ref": "#/definitions/crdGuard" },
+            "networkPolicy": { "$ref": "#/definitions/networkPolicy" },
+            "serviceToken": { "$ref": "#/definitions/serviceToken" },
+            "breakGlass": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "waitHours": { "type": "integer", "minimum": 1 }
+              }
+            }
           }
         },
-        "crdGuard": {
+        "crdGuard": { "$ref": "#/definitions/crdGuard" },
+        "networkPolicy": { "$ref": "#/definitions/networkPolicy" },
+        "serviceToken": { "$ref": "#/definitions/serviceToken" },
+        "kubectlImage": { "type": "string" },
+        "webhooks": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "enabled": { "type": "boolean" },
-            "enforce": { "type": "boolean" },
-            "extraAllowedUsers": { "type": "array", "items": { "type": "string" } }
-          }
-        },
-        "networkPolicy": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "enabled": { "type": "boolean" }
+            "existingSecret": { "type": "string" },
+            "targets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "url", "secret", "events"],
+                "properties": {
+                  "name": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+                  "url": { "type": "string" },
+                  "secret": { "type": "string", "pattern": "^whsec_[A-Za-z0-9+/]{32,}={0,2}$" },
+                  "previousSecret": { "type": "string", "pattern": "^(whsec_[A-Za-z0-9+/]{32,}={0,2})?$" },
+                  "events": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": { "enum": ["rollback.completed", "plan.approval.requested", "plan.approval.decided", "incident.critical"] }
+                  },
+                  "allowPrivate": { "type": "boolean" }
+                },
+                "if": { "properties": { "allowPrivate": { "const": true } }, "required": ["allowPrivate"] },
+                "then": { "properties": { "url": { "pattern": "^https?://(\\[[0-9A-Fa-f:.]+\\]|[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)*\\.?)(:[0-9]{1,5})?([/?#]([A-Za-z0-9._~!$&'()*+,;=:@/?#-]|%[0-9A-Fa-f]{2})*)?$" } } },
+                "else": { "properties": { "url": { "pattern": "^https://(\\[[0-9A-Fa-f:.]+\\]|[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)*\\.?)(:[0-9]{1,5})?([/?#]([A-Za-z0-9._~!$&'()*+,;=:@/?#-]|%[0-9A-Fa-f]{2})*)?$" } } }
+              }
+            }
           }
         },
         "selfMonitoring": {
@@ -232,6 +259,31 @@
     }
   },
   "definitions": {
+    "crdGuard": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "enforce": { "type": "boolean" },
+        "extraAllowedUsers": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "serviceToken": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "envVar": { "type": "string", "minLength": 1 },
+        "value": { "type": "string" },
+        "existingSecret": { "type": "string" }
+      }
+    },
     "autoscaling": {
       "type": "object",
       "additionalProperties": false,

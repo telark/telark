@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	dataconstants "github.com/telark/telark/internal/data/constants"
@@ -23,4 +24,12 @@ func NewFromEnv(resolver Resolver, requirements map[string]Requirement) (func(ht
 		RouteKey:     router.KeyFromRequest,
 		ServiceToken: serviceToken,
 	})
+}
+
+// One name per install, never a fallback to the other: a fallback would read a plain cookie a sibling host planted.
+func SessionCookieName() string {
+	if hostOnly, err := strconv.ParseBool(os.Getenv(dataconstants.EnvSessionCookieHostPrefix)); err == nil && hostOnly {
+		return dataconstants.CookieSessionHostPrefix + dataconstants.CookieSession
+	}
+	return dataconstants.CookieSession
 }

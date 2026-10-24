@@ -8,7 +8,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from app_logger import LOG_FORMAT, configure, logger  # noqa: E402
+from core.app_logger import LOG_FORMAT, configure, logger  # noqa: E402
 
 
 def test_configure_installs_handler_and_icons():

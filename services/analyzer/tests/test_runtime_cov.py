@@ -14,9 +14,9 @@ import httpx
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import runtime as R  # noqa: E402
-from events import Broadcaster  # noqa: E402
+from core.events import Broadcaster  # noqa: E402
 from fakes import FakeOllama, dns_error  # noqa: E402
+from providers import runtime as R  # noqa: E402
 
 MODEL = "qwen3:4b"
 

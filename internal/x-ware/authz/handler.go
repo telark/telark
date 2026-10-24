@@ -12,7 +12,8 @@ import (
 )
 
 type middleware struct {
-	config Config
+	config        Config
+	sessionCookie string
 }
 
 type denial struct {
@@ -26,7 +27,7 @@ func New(config Config) (func(http.Handler) http.Handler, error) {
 		return nil, err
 	}
 
-	m := &middleware{config: config}
+	m := &middleware{config: config, sessionCookie: SessionCookieName()}
 	return m.wrap, nil
 }
 
@@ -49,6 +50,11 @@ func (m *middleware) wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claimedUserID := r.Header.Get(dataconstants.HeaderUserID)
 		stripSpoofableHeaders(r)
+		refusal, duplicate := sessionFromCookie(r, m.sessionCookie)
+		if refusal != nil {
+			reject(w, *refusal)
+			return
+		}
 
 		requirement, found := m.config.Requirements[m.config.RouteKey(r)]
 		if !found {
@@ -58,6 +64,11 @@ func (m *middleware) wrap(next http.Handler) http.Handler {
 
 		if requirement.Access == AccessPublic {
 			next.ServeHTTP(w, r)
+			return
+		}
+		if duplicate {
+			reject(w, denial{status: http.StatusUnauthorized, message: string(dataerrors.ErrAuthzSessionCookieDuplicate),
+				code: refusalSessionCookieDuplicate})
 			return
 		}
 
@@ -114,11 +125,24 @@ func (m *middleware) identifyUser(r *http.Request, req Requirement) (Identity, *
 	return identity, nil
 }
 
+// A long-lived request re-checks its session with this, under the same rule as denialFor:
+// a verdict (expired, deleted, suspended) ends it, an outage does not.
+func SessionEnded(resolver Resolver, token string) bool {
+	userID, err := resolver.UserIDForToken(token)
+	if err == nil {
+		_, err = resolver.GrantsForUser(userID)
+	}
+	return err != nil && isVerdict(err)
+}
+
+func isVerdict(err error) bool {
+	return slices.ContainsFunc(verdicts, func(verdict error) bool { return errors.Is(err, verdict) })
+}
+
 // Only a backend that answered gets to deny; one that could not answer is an
 // outage, and an outage must never log a user out.
 func denialFor(err error, status int, message dataerrors.Error) *denial {
-	answered := slices.ContainsFunc(verdicts, func(verdict error) bool { return errors.Is(err, verdict) })
-	if !answered {
+	if !isVerdict(err) {
 		return &denial{status: http.StatusServiceUnavailable, message: string(dataerrors.ErrAuthzResolverUnavailable)}
 	}
 	// The caller holds this account's own session, so naming the suspension leaks nothing.
@@ -136,6 +160,29 @@ func stripSpoofableHeaders(r *http.Request) {
 	for _, header := range spoofableHeaders {
 		r.Header.Del(header)
 	}
+}
+
+// A browser sends its session as the cookie, an API client as the header, which wins. A cookie travels with any
+// request the browser makes, so a change that carries no header credential also needs X-Requested-With, which a
+// page on another origin can't add: that stops cross-site forms, sibling subdomains and sign-in CSRF alike. Only the
+// install's name counts (SessionCookieName), and more than one such cookie counts as none (duplicate): a sibling
+// subdomain can plant a plain one, and servers differ on which they read.
+func sessionFromCookie(r *http.Request, name string) (refusal *denial, duplicate bool) {
+	if r.Header.Get(dataconstants.HeaderSessionToken) != dataconstants.EmptyString ||
+		r.Header.Get(dataconstants.HeaderServiceToken) != dataconstants.EmptyString {
+		return nil, false
+	}
+	if !slices.Contains(safeMethods, r.Method) && r.Header.Get(dataconstants.HeaderRequestedWith) == dataconstants.EmptyString {
+		return &denial{status: http.StatusForbidden, message: string(dataerrors.ErrAuthzCSRFHeaderMissing), code: refusalCSRFHeader}, false
+	}
+	cookies := r.CookiesNamed(name)
+	if len(cookies) > singleCookie {
+		return nil, true
+	}
+	if len(cookies) == singleCookie && cookies[firstCookie].Value != dataconstants.EmptyString {
+		r.Header.Set(dataconstants.HeaderSessionToken, cookies[firstCookie].Value)
+	}
+	return nil, false
 }
 
 func applyIdentity(r *http.Request, identity Identity) *http.Request {

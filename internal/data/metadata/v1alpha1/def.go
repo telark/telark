@@ -44,6 +44,7 @@ const (
 	StatusTerminatedAt       = "terminatedAt"
 	StatusTerminatedBy       = "terminatedBy"
 	StatusApproval           = "approval"
+	StatusWindow             = "window"
 	StatusResourceCount      = "resourceCount"
 	StatusNamespaces         = "namespaces"
 	StatusResourceSummary    = "resourceSummary"
@@ -75,7 +76,7 @@ var ApplicationMetadata = define(KindApplication, PluralApplications, flat(
 var ProtectionPlanMetadata = define(KindProtectionPlan, PluralProtectionPlans, flat(
 	StatusPhase, StatusReason, StatusConditions, StatusObservedGeneration, StatusRenderedPolicies,
 	StatusHealth, StatusHealthCheckedAt, StatusHealthDetail, StatusStartedAt, StatusStartedBy,
-	StatusTerminatedAt, StatusTerminatedBy, StatusApproval,
+	StatusTerminatedAt, StatusTerminatedBy, StatusApproval, StatusWindow,
 ))
 
 var TelarkConfigMetadata = singleton(

@@ -27,6 +27,7 @@ import (
 	oidchelper "github.com/telark/telark/services/auth/internal/helpers/oidc"
 	redishelper "github.com/telark/telark/services/auth/internal/helpers/redis"
 	"github.com/telark/telark/services/auth/internal/helpers/webauthn"
+	"github.com/telark/telark/services/auth/internal/ratelimit"
 	"github.com/telark/telark/services/auth/internal/routes"
 )
 
@@ -88,6 +89,8 @@ func startMainService(cfg *config.Config, authzMiddleware func(http.Handler) htt
 	// Registered on the router: mux middleware runs after route matching, which
 	// is what makes the matched path template available to find the rule.
 	newRouter.Use(authzMiddleware)
+	// After authz, so a start authz refuses (a cross-site form, for one) spends no client's attempts.
+	newRouter.Use(ratelimit.New())
 
 	corsHandler := cors.NewCORS()
 	handler := corsHandler(newRouter)

@@ -3,6 +3,7 @@
 Telark ships two charts, `telark` (the app) and `telark-crds`, as public OCI artifacts in
 GitHub Container Registry: `oci://ghcr.io/telark/charts`.
 
+- **Before each release:** run the [upgrade test](#upgrade-test).
 - **Automated:** run *Release · Publish Charts* with `chart` (`both`, `telark`, `telark-crds`) and `bump` (`patch`, `minor`, `major`). Don't edit the versions in `Chart.yaml` first: the workflow bumps each selected chart from its own current version, writes it to `Chart.yaml`, packages, pushes and **cosign-signs** it (telark-crds first), then commits the change. A version already in the registry fails the run before anything is pushed. See [`.github/workflows/release-charts.yaml`](../.github/workflows/release-charts.yaml).
   - `appVersion` is the Telark release: telark's follows its new `version`, and telark-crds takes the same value when released with telark (`chart=both`). A CRD-only release keeps telark-crds' `appVersion`.
   - On `chart=both`, telark's `telark-crds` dependency and `Chart.lock` move to the new CRD version in the same commit, so the app chart bundles those CRDs. A telark-only release keeps the pin.
@@ -109,6 +110,59 @@ oras push ghcr.io/telark/charts/telark:artifacthub.io \
 `telark` already bundles the CRDs, so listing `telark-crds` is optional: register `oci://ghcr.io/telark/charts/telark-crds` the same way and push a copy of the file with that repository's ID to `ghcr.io/telark/charts/telark-crds:artifacthub.io`.
 
 ArtifactHub auto-detects the cosign signatures and shows the charts as **Signed**.
+
+## Upgrade test
+
+It proves that what the previous release stored still reads and saves after the upgrade, again after rolling back one release, and again after upgrading once more. Run it from the release branch, after the release's images are built and before the charts are published, on a test cluster where you are cluster-admin (kind works). The release's [upgrade notes](INSTALL.md#upgrade-notes) say which schema changes and migration steps to expect.
+
+1. Install the previous release with sample data:
+
+   ```sh
+   helm install telark oci://ghcr.io/telark/charts/telark --version <previous version> -n telark --create-namespace \
+     --set app.auth.bootstrap.admin=test@example.com --wait --timeout 15m
+   kubectl create namespace upgrade-demo
+   kubectl create deployment web -n upgrade-demo --image=nginx   # discovery turns it into an application
+   ```
+
+   Sign in as the bootstrap admin ([First admin](INSTALL.md#2-first-admin)) and create one of each in the dashboard: a user, a group, a role, a category, a protection plan on `upgrade-demo` that you start, and a settings change. Then list what is stored:
+
+   ```sh
+   kubectl get telark,telark-auth -n telark -o custom-columns=KIND:.kind,NAME:.metadata.name --no-headers | sort > before.txt
+   ```
+
+2. Upgrade to the branch. The app chart pulls `telark-crds` from the registry at its pinned version, so the second command replaces that copy with the branch's CRDs:
+
+   ```sh
+   helm dependency build charts/telark
+   helm package charts/telark-crds --destination charts/telark/charts
+   helm upgrade telark charts/telark -n telark --set app.auth.bootstrap.admin=test@example.com --wait --timeout 15m
+   ```
+
+3. Check that every object reads and saves:
+
+   ```sh
+   kubectl logs -n telark deploy/telark-exporter-service | grep 'migration step'
+   kubectl get telark,telark-auth -n telark -o custom-columns=KIND:.kind,NAME:.metadata.name --no-headers | sort | diff before.txt -
+   kubectl get telark,telark-auth -n telark -o json |
+     kubectl replace --dry-run=server --as=system:serviceaccount:telark:telark-exporter-service-sa -f - > /dev/null &&
+     echo every object saves
+   ```
+
+   - The log names each step of the upgrade notes, then the step the stored data is at.
+   - The diff prints nothing, apart from sessions that your sign-ins added or that expired.
+   - The dry run writes every stored object back as the exporter would, against the new schema and the CRD write guard. A `Conflict` only means a service changed that object in between: run it again.
+   - In the dashboard, every page lists its objects, and editing and saving one of each kind works.
+
+4. Roll back one release, run any rollback step the [upgrade notes](INSTALL.md#upgrade-notes) give, then repeat step 3:
+
+   ```sh
+   helm rollback telark -n telark
+   kubectl rollout status deploy/telark-exporter-service -n telark --timeout=5m
+   ```
+
+   A previous release from before 0.2.0 logs no migration line. If the release ran a migration step and the previous one is 0.2.0 or later, the previous exporter logs `lowered the record to step <n>`, with `<n>` its own last step, and starts.
+
+5. If the release ran a migration step, upgrade again with step 2's `helm upgrade` command and repeat step 3. The rollback lowered the record, so the log names the release's steps again.
 
 ## Corresponding source images
 

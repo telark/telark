@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"slices"
 
-	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
+	policiesv1 "github.com/kyverno/api/api/policies.kyverno.io/v1"
 	"github.com/telark/telark/internal/data/plans"
 	datapolicies "github.com/telark/telark/internal/data/policies"
 	"github.com/telark/telark/services/discovery/internal/constants"
@@ -142,7 +142,7 @@ func RollbackFullRender(
 		shared.LogDeployFailure(logger, oldPlan, "update-rollback-render", err)
 		return
 	}
-	old = slices.DeleteFunc(old, func(p kyvernov1.Policy) bool {
+	old = slices.DeleteFunc(old, func(p policiesv1.NamespacedValidatingPolicy) bool {
 		return !slices.Contains(oldPlan.RenderedPolicies, p.Name)
 	})
 	if _, err := applier.Deploy(ctx, old); err != nil {
@@ -179,7 +179,7 @@ func subtract(all, drop []string) []string {
 	return out
 }
 
-func policyNames(rendered []kyvernov1.Policy) []string {
+func policyNames(rendered []policiesv1.NamespacedValidatingPolicy) []string {
 	names := make([]string, constants.DefaultInitValue, len(rendered))
 	for i := range rendered {
 		names = append(names, rendered[i].Name)

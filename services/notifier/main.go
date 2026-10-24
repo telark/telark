@@ -1,9 +1,11 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	goredis "github.com/redis/go-redis/v9"
@@ -16,6 +18,7 @@ import (
 	"github.com/telark/telark/services/notifier/internal/constants"
 	"github.com/telark/telark/services/notifier/internal/status"
 	"github.com/telark/telark/services/notifier/internal/subscribers/manager"
+	"github.com/telark/telark/services/notifier/internal/webhooks"
 )
 
 var getQuitChannel = restserver.SignalQuit()
@@ -41,6 +44,7 @@ func main() {
 		conn := connectivity.New(rdb)
 		connectivity.SetGlobal(conn)
 		conn.Register(constants.ServiceID)
+		go startWebhooks(ctx, rdb)
 	}
 
 	m := manager.NewManager()
@@ -73,6 +77,17 @@ func main() {
 	shutdownStatusServer(statusSrv, lg)
 	m.Shutdown()
 	lg.Info(string(messages.SuccessOperation))
+}
+
+func startWebhooks(ctx context.Context, rdb *goredis.Client) {
+	consumer, err := os.Hostname()
+	if err != nil {
+		consumer = constants.ServiceID
+	}
+	path := cmp.Or(os.Getenv(constants.EnvWebhookTargetsFile), constants.DefaultWebhookTargetsFile)
+	webhooks.NewService(
+		rdb, path, consumer, constants.WebhookReloadInterval, constants.WebhookPollInterval, constants.WebhookRetryScanInterval,
+	).Run(ctx)
 }
 
 func logConnectionStatus(ctx context.Context, m *manager.Manager, lg *logger.CustomLogger) {

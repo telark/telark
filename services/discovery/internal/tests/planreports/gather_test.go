@@ -203,8 +203,8 @@ func violationEvent(name, uid, policy, eventTime string) *unstructured.Unstructu
 		"message":     blockedDetail,
 		"eventTime":   eventTime,
 		"involvedObject": map[string]any{
-			keyAPIVersion: "kyverno.io/v1",
-			keyKind:       "Policy",
+			keyAPIVersion: "policies.kyverno.io/v1",
+			keyKind:       "NamespacedValidatingPolicy",
 			keyName:       policy,
 			keyNamespace:  planNS,
 		},

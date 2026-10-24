@@ -1,75 +1,89 @@
-{{ include "telark.name" . }} {{ .Chart.AppVersion }} installed as release "{{ .Release.Name }}" in namespace "{{ .Values.app.namespace }}".
-{{- if ne .Values.app.namespace .Release.Namespace }}
+{{- $ns := .Values.app.namespace }}
+{{- $fullname := include "telark.fullname" . }}
+{{- $ui := .Values.services.ui }}
+{{- $admin := .Values.app.auth.bootstrap.admin }}
+{{- $security := (include "telark.modeValues" . | fromYaml).app.security }}
+{{- /* break-glass builds its link from the first origin */}}
+{{- $origin := splitList "," .Values.app.auth.passkey.origin | first | trim -}}
+Telark {{ .Chart.AppVersion }} is {{ ternary "installed" "upgraded" .Release.IsInstall }}: release "{{ .Release.Name }}" in namespace "{{ $ns }}", {{ .Values.app.mode | default "standard" }} mode.
+{{- if ne $ns .Release.Namespace }}
 
-WARNING: app.namespace is "{{ .Values.app.namespace }}" but this release is in
-"{{ .Release.Namespace }}". The subcharts (redis, nats) follow the release namespace,
-so they land apart from the services, which address them by bare service name and
-cannot resolve them. Redis also ships a NetworkPolicy that only admits pods in its
-own namespace. Reinstall with -n {{ .Values.app.namespace }}, or set
---set app.namespace={{ .Release.Namespace }}.
+WARNING: the release is in namespace "{{ .Release.Namespace }}" but app.namespace is "{{ $ns }}".
+Redis and NATS follow the release, so the services cannot reach them.
+Reinstall with -n {{ $ns }}, or set app.namespace={{ .Release.Namespace }}.
 {{- end }}
 
-Services deployed:
-{{- range $name, $svc := .Values.services }}
-{{- if $svc.enabled }}
-  - {{ include "telark.fullname" $ }}-{{ $svc.name }}
-{{- end }}
-{{- end }}
+1. Wait until every pod is Running and Ready (image pulls take a few minutes):
+   kubectl get pods -n {{ $ns }} -l app.kubernetes.io/instance={{ .Release.Name }}
+{{- if not $ui.enabled }}
 
-Check rollout:
-  kubectl get pods -n {{ .Values.app.namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+2. The dashboard is not installed (services.ui.enabled=false): use your own.
+{{- else if $origin }}
+
+2. Open the dashboard at {{ $origin }}
+{{- else }}
+
+2. Open the dashboard at http://localhost:3000 while this port-forward runs:
+   kubectl port-forward -n {{ $ns }} svc/{{ $fullname }}-{{ $ui.name }} 3000:{{ $ui.port | default .Values.app.serviceDefaults.port }}
+{{- end }}
+{{- if and .Release.IsInstall .Values.services.auth.enabled $admin }}
+
+3. Sign in as the bootstrap admin, {{ $admin }}. Create your passkey link:
+   kubectl exec -n {{ $ns }} deploy/{{ $fullname }}-{{ .Values.services.auth.name }} -- ./main break-glass --email {{ $admin }} --enroll
+   It prints "Register a passkey for {{ $admin }}" and a link, valid 10 minutes.
+   Open it {{ if $origin }}in your browser{{ else }}with {{ ternary "http://localhost:3000" "your dashboard's address" $ui.enabled }} in place of <dashboard-url>{{ end }}.
+   Next, invite users from Members, or turn on SSO in Settings.
+{{- end }}
 {{- if and .Values.services.exporter.enabled .Values.app.persistence.enabled }}
 {{- $moved := list }}
 {{- range (include "telark.exporterStorage" . | fromYaml).claims }}{{ if .from }}{{ $moved = append $moved . }}{{ end }}{{ end }}
 {{- if $moved }}
 
-Storage change: the exporter copies its snapshots and reports to new claims before it starts:
+Storage: the exporter copies its snapshots and reports to new claims before it starts:
 {{- range $moved }}
   {{ .from.name }} -> {{ .name }}
 {{- end }}
-The old claims are kept. Once the next helm upgrade has released them, delete them with:
-  kubectl delete pvc -n {{ .Values.app.namespace }}{{ range $moved }} {{ .from.name }}{{ end }}
-If the new claims stay Pending, go back to the old ones: helm rollback {{ .Release.Name }} -n {{ .Release.Namespace }}
+The old claims are kept. Once the next helm upgrade has released them, delete them:
+  kubectl delete pvc -n {{ $ns }}{{ range $moved }} {{ .from.name }}{{ end }}
+If the new claims stay Pending, go back to the old ones:
+  helm rollback {{ .Release.Name }} -n {{ .Release.Namespace }}
 {{- end }}
-{{- end }}
-
-{{- if .Values.services.ui.enabled }}
-Open the dashboard (local 3000 → service {{ .Values.app.serviceDefaults.port }}):
-  kubectl port-forward -n {{ .Values.app.namespace }} svc/{{ include "telark.fullname" . }}-{{ .Values.services.ui.name }} 3000:{{ .Values.app.serviceDefaults.port }}
-  # then browse http://localhost:3000 and log in with the bootstrap admin
-{{- else }}
-Reach the auth service directly (dashboard disabled):
-  kubectl port-forward -n {{ .Values.app.namespace }} svc/{{ include "telark.fullname" . }}-{{ .Values.services.auth.name }} 8080:{{ .Values.app.serviceDefaults.port }}
-{{- end }}
-
-Next steps:
-{{- if and .Values.app.auth.bootstrap.admin .Values.services.auth.enabled }}
-  1. Enroll the bootstrap admin ({{ .Values.app.auth.bootstrap.admin }}) with a passkey: run
-       kubectl exec -n {{ .Values.app.namespace }} deploy/{{ include "telark.fullname" . }}-{{ .Values.services.auth.name }} -- ./main break-glass --email {{ .Values.app.auth.bootstrap.admin }} --enroll
-     and open the enrollment link it prints, following the steps under it.
-{{- end }}
-  2. Invite users from Members with an enrollment link, or let the bootstrap admin
-     enable SSO or self-registration from Settings.
-{{- if not .Values.app.crdGuard.enabled }}
-  3. WARNING: the CRD write guard is OFF. Anyone with write access to this namespace can
-     grant themselves telark Admin by editing its custom resources. Set app.crdGuard.enabled=true.
-{{- else if not .Values.app.crdGuard.enforce }}
-  3. The CRD write guard is in AUDIT mode. Confirm the audit log is clean, then set
-     app.crdGuard.enforce=true.
 {{- end }}
 {{- if and .Values.ingress.enabled (not .Values.ingress.tls) }}
 
-WARNING: ingress.tls is empty, so the dashboard and every API behind it are served over
-plain HTTP, session tokens included. Add a TLS block (see docs/INSTALL.md) or terminate TLS
-in front of the Ingress controller.
+WARNING: ingress.tls is empty, so the dashboard and its APIs are served over plain
+HTTP, session tokens included. Set ingress.tls, or terminate TLS in front of the
+ingress controller.
 {{- end }}
-{{- if not .Values.app.networkPolicy.enabled }}
+{{- if not $security.crdGuard.enabled }}
 
-WARNING: app.networkPolicy.enabled is false: any pod in the cluster can reach the telark
-APIs and NATS.
+WARNING: the CRD write guard is off. Anyone who can write to namespace "{{ $ns }}"
+can make themselves Admin by editing Telark's custom resources.
+Set app.security.crdGuard.enabled=true.
+{{- else if not $security.crdGuard.enforce }}
+
+The CRD write guard is in audit mode. Once its audit log is clean,
+set app.security.crdGuard.enforce=true.
+{{- end }}
+{{- if not $security.networkPolicy.enabled }}
+
+WARNING: app.security.networkPolicy.enabled is false, so any pod in the cluster can reach
+the Telark APIs and NATS.
 {{- end }}
 {{- if not (index .Values "metrics-server" "enabled") }}
 
-metrics-server is disabled: HPAs and `kubectl top` require it. Enable it, or ensure
-the cluster already provides v1beta1.metrics.k8s.io.
+metrics-server is disabled. HPAs and kubectl top need the metrics API, so check
+that the cluster serves it:
+  kubectl get apiservice v1beta1.metrics.k8s.io
 {{- end }}
+{{- $app := .Values.app }}
+{{- $old := list }}
+{{- range list "crdGuard" "networkPolicy" "serviceToken" "kubectlImage" }}{{ if hasKey $app . }}{{ $old = append $old (print "app." .) }}{{ end }}{{ end }}
+{{- range list "kyverno.enabled" "kyverno.failOpen" "ollama.enabled" }}{{ $p := splitList "." . }}{{ if hasKey (index $app (first $p) | default dict) (last $p) }}{{ $old = append $old (print "app." .) }}{{ end }}{{ end }}
+{{- if $old }}
+
+DEPRECATED: a later release drops these pre-0.2.0 paths, so move them as the 0.2.0
+upgrade notes in docs/INSTALL.md show: {{ join ", " $old }}.
+{{- end }}
+
+Docs: https://docs.telark.io

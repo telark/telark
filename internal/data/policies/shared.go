@@ -9,9 +9,11 @@ import (
 	"slices"
 	"strings"
 
-	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
+	policieskyvernoio "github.com/kyverno/api/api/policies.kyverno.io"
+	policiesv1 "github.com/kyverno/api/api/policies.kyverno.io/v1"
 	"github.com/telark/telark/internal/data/constants"
 	"github.com/telark/telark/internal/data/plans"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -30,23 +32,19 @@ const (
 
 	AppNameLabel = "app.kubernetes.io/name"
 
+	PolicyKind = policieskyvernoio.NamespacedValidatingPolicyKind
+
 	scopeHashLength = 8
+
+	ConditionScope       = "scope"
+	ConditionNotPlatform = "not-platform-write"
+	ConditionNotExcluded = "not-excluded"
 )
 
-const (
-	KindCronJob = "CronJob"
+const KindCronJob = "CronJob"
 
-	// A CronJob nests its pod template one level deeper than every other workload kind, so a
-	// rule written for spec.template.spec resolves to null on a CronJob and admits it.
-	PodSpecPath        = "spec.template.spec"
-	CronJobPodSpecPath = "spec.jobTemplate.spec.template.spec"
-
-	cronJobRuleSuffix = "-cronjob"
-)
-
-// A namespaced Policy may not reference a cluster-scoped kind, so ClusterPolicy is absent even
-// though it is the other half of Kyverno's policy API.
-var KyvernoPolicyKinds = []string{"Policy"}
+// The legacy kind stays for the 0.1.x policies an upgrade leaves behind: deleting them must not be refused.
+var KyvernoPolicyKinds = []string{"Policy", PolicyKind}
 
 // Kyverno's reports controller writes these into the target namespace itself; a wildcard rule
 // would deny them in enforce and flood the violations in audit.
@@ -64,7 +62,7 @@ var ControllerSubjects = []rbacv1.Subject{
 }
 
 // ControllerCreatedKinds are never created by a person, so a rule that can reach one must carry
-// ExcludePlatformWrites or it denies the controller that keeps the workload alive.
+// ExceptControllers or it denies the controller that keeps the workload alive.
 var ControllerCreatedKinds = []string{
 	"Pod",
 	"ReplicaSet",
@@ -78,7 +76,7 @@ var ControllerCreatedKinds = []string{
 // would deny the replicaset-controller's own CREATE after an eviction, node loss or OOM-kill.
 var AppIdentityKinds = []string{
 	"ConfigMap",
-	"CronJob",
+	KindCronJob,
 	"DaemonSet",
 	"Deployment",
 	"HorizontalPodAutoscaler",
@@ -90,20 +88,7 @@ var AppIdentityKinds = []string{
 	"StatefulSet",
 }
 
-var (
-	StandardWorkloadKinds = []string{"Deployment", "StatefulSet", "DaemonSet", "Job"}
-	CronJobKinds          = []string{KindCronJob}
-	WorkloadKinds         = append(slices.Clone(StandardWorkloadKinds), CronJobKinds...)
-
-	podSpecVariants = []struct {
-		kinds      []string
-		path       string
-		ruleSuffix string
-	}{
-		{StandardWorkloadKinds, PodSpecPath, constants.EmptyString},
-		{CronJobKinds, CronJobPodSpecPath, cronJobRuleSuffix},
-	}
-)
+var WorkloadKinds = []string{"Deployment", "StatefulSet", "DaemonSet", "Job", KindCronJob}
 
 func PolicyName(planID, templateCode string, scope ScopeSpec) string {
 	return fmt.Sprintf("telark-%s-%s-%s", planID, templateCode, scopeSuffix(scope))
@@ -132,7 +117,7 @@ func PolicyMeta(meta RenderMeta, templateID, templateCode string, scope ScopeSpe
 	}
 }
 
-func RenderHash(pol *kyvernov1.Policy) string {
+func RenderHash(pol *policiesv1.NamespacedValidatingPolicy) string {
 	raw, err := json.Marshal(pol.Spec)
 	if err != nil {
 		return constants.EmptyString
@@ -141,109 +126,36 @@ func RenderHash(pol *kyvernov1.Policy) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func FailureAction(mode string) kyvernov1.ValidationFailureAction {
+func ValidationActions(mode string) []admissionregistrationv1.ValidationAction {
 	if mode == plans.ModeEnforce {
-		return kyvernov1.Enforce
+		return []admissionregistrationv1.ValidationAction{admissionregistrationv1.Deny}
 	}
-	return kyvernov1.Audit
-}
-
-func AppScopeSelector(appIDs []string) *metav1.LabelSelector {
-	if len(appIDs) == constants.DefaultInitValue {
-		return nil
-	}
-	return &metav1.LabelSelector{
-		MatchExpressions: []metav1.LabelSelectorRequirement{
-			{
-				Key:      AppNameLabel,
-				Operator: metav1.LabelSelectorOpIn,
-				Values:   append([]string(nil), appIDs...),
-			},
-		},
-	}
-}
-
-// Every rule carries this so a plan can still deploy and repair its rules in a namespace another
-// plan is freezing. Kind, not label: a Deployment cannot claim to be a Policy, and writing
-// Kyverno policies or reports is already a platform-level privilege that outranks any plan.
-func ExcludePlatformWrites() *kyvernov1.MatchResources {
-	return &kyvernov1.MatchResources{
-		Any: kyvernov1.ResourceFilters{
-			{ResourceDescription: kyvernov1.ResourceDescription{Kinds: slices.Clone(PlatformKinds)}},
-		},
-	}
-}
-
-// Only for rules that reach objects a controller creates or deletes itself (replacement Pod,
-// ReplicaSet in a rollout, PVC being bound), never on user-authored spec or the scale
-// subresource: the HPA controller shares these identities and a blanket exclusion let
-// `kubectl autoscale` through a replica freeze. The cut is per rule because with
-// --use-service-account-credentials=false every controller is the same subject.
-func ExcludeControllerWrites() *kyvernov1.MatchResources {
-	exclude := ExcludePlatformWrites()
-	exclude.Any = append(exclude.Any, kyvernov1.ResourceFilter{
-		UserInfo: kyvernov1.UserInfo{Subjects: append([]rbacv1.Subject(nil), ControllerSubjects...)},
-	})
-	return exclude
+	return []admissionregistrationv1.ValidationAction{admissionregistrationv1.Audit}
 }
 
 // A name-only CREATE rule blocks re-creating a deleted member but never a new resource joining
-// the application, so the identity label is matched too. The selector is bounded to the app set
-// and the kinds are AppIdentityKinds, never the caller's, so it only reaches person-created kinds.
-func BuildIdentityMatch(scope ScopeSpec, kinds, ops []string) (kyvernov1.MatchResources, bool) {
+// the application, so the identity label is matched too. The label values are the app set and
+// the kinds are AppIdentityKinds, never the caller's, so it only reaches person-created kinds.
+func BuildIdentityMatch(scope ScopeSpec, kinds, ops []string) ([]ResourceFilter, bool) {
 	match, ok := BuildMatch(scope, kinds, ops)
-	selector := AppScopeSelector(scope.ApplicationRefs)
-	if selector == nil {
+	if len(scope.ApplicationRefs) == constants.DefaultInitValue {
 		return match, ok
 	}
-	rd := kyvernov1.ResourceDescription{
-		Kinds:      append([]string(nil), AppIdentityKinds...),
-		Selector:   selector,
-		Operations: admissionOps(ops),
+	identity := ResourceFilter{
+		Kinds:  slices.Clone(AppIdentityKinds),
+		AppIDs: slices.Clone(scope.ApplicationRefs),
+		Ops:    ops,
 	}
-	if !ok {
-		return kyvernov1.MatchResources{Any: kyvernov1.ResourceFilters{{ResourceDescription: rd}}}, true
-	}
-	match.Any = append(match.Any, kyvernov1.ResourceFilter{ResourceDescription: rd})
-	return match, true
+	return append(match, identity), true
 }
 
 // MatchNamed matches an explicit name list rather than the application's owned resources, for
 // resources an application references but does not own. Names may carry wildcards.
-func MatchNamed(kinds, ops, names []string) (kyvernov1.MatchResources, bool) {
+func MatchNamed(kinds, ops, names []string) ([]ResourceFilter, bool) {
 	if len(names) == constants.DefaultInitValue {
-		return kyvernov1.MatchResources{}, false
+		return nil, false
 	}
-	rd := kyvernov1.ResourceDescription{
-		Kinds:      append([]string(nil), kinds...),
-		Names:      append([]string(nil), names...),
-		Operations: admissionOps(ops),
-	}
-	return kyvernov1.MatchResources{Any: kyvernov1.ResourceFilters{{ResourceDescription: rd}}}, true
-}
-
-func admissionOps(ops []string) []kyvernov1.AdmissionOperation {
-	if len(ops) == constants.DefaultInitValue {
-		return nil
-	}
-	out := make([]kyvernov1.AdmissionOperation, constants.DefaultInitValue, len(ops))
-	for _, op := range ops {
-		out = append(out, kyvernov1.AdmissionOperation(op))
-	}
-	return out
-}
-
-func MatchAllAny(kinds []string, ops []string, appIDs []string) kyvernov1.MatchResources {
-	rd := kyvernov1.ResourceDescription{
-		Kinds:      append([]string(nil), kinds...),
-		Selector:   AppScopeSelector(appIDs),
-		Operations: admissionOps(ops),
-	}
-	return kyvernov1.MatchResources{
-		Any: kyvernov1.ResourceFilters{
-			{ResourceDescription: rd},
-		},
-	}
+	return []ResourceFilter{{Kinds: slices.Clone(kinds), Names: slices.Clone(names), Ops: ops}}, true
 }
 
 const (
@@ -252,13 +164,13 @@ const (
 )
 
 // A `*` kind never matches a subresource, so `kubectl scale` walks past it. Enumerated rather
-// than `*/scale` (Kyverno rejects `*` mixed with another kind) or `*/*` (would deny `status`,
-// which kubelet and the controllers write: an outage, not a freeze).
+// than `*/scale` or `*/*` (would deny `status`, which kubelet and the controllers write: an
+// outage, not a freeze).
 var ScaleSubresourceKinds = []string{
 	"Deployment" + scaleSuffix,
 	"StatefulSet" + scaleSuffix,
-	"ReplicaSet" + scaleSuffix,
-	"ReplicationController" + scaleSuffix,
+	kindReplicaSet + scaleSuffix,
+	kindReplicationController + scaleSuffix,
 }
 
 func baseKind(kind string) string {
@@ -266,37 +178,24 @@ func baseKind(kind string) string {
 	return base
 }
 
-func BuildMatch(scope ScopeSpec, kinds []string, ops []string) (kyvernov1.MatchResources, bool) {
+func BuildMatch(scope ScopeSpec, kinds []string, ops []string) ([]ResourceFilter, bool) {
 	if len(scope.ApplicationRefs) == constants.DefaultInitValue {
-		return MatchAllAny(kinds, ops, nil), true
+		return []ResourceFilter{{Kinds: slices.Clone(kinds), Ops: ops}}, true
 	}
 	grouped := groupAppResourcesByKind(scope.AppResources, scope.Namespace)
 	if len(grouped) == constants.DefaultInitValue {
-		return kyvernov1.MatchResources{}, false
+		return nil, false
 	}
 	targetKinds := intersectKinds(kinds, grouped)
-	if len(targetKinds) == constants.DefaultInitValue {
-		return kyvernov1.MatchResources{}, false
-	}
-	filters := make(kyvernov1.ResourceFilters, constants.DefaultInitValue, len(targetKinds))
+	filters := make([]ResourceFilter, constants.DefaultInitValue, len(targetKinds))
 	for _, k := range targetKinds {
 		names := grouped[baseKind(k)]
 		if len(names) == constants.DefaultInitValue {
 			continue
 		}
-		// No Namespaces here: Kyverno rejects `match.any[].resources.namespaces[]` on a namespaced
-		// Policy, whose ObjectMeta.Namespace already scopes it.
-		rd := kyvernov1.ResourceDescription{
-			Kinds:      []string{k},
-			Names:      append([]string(nil), names...),
-			Operations: admissionOps(ops),
-		}
-		filters = append(filters, kyvernov1.ResourceFilter{ResourceDescription: rd})
+		filters = append(filters, ResourceFilter{Kinds: []string{k}, Names: slices.Clone(names), Ops: ops})
 	}
-	if len(filters) == constants.DefaultInitValue {
-		return kyvernov1.MatchResources{}, false
-	}
-	return kyvernov1.MatchResources{Any: filters}, true
+	return filters, len(filters) > constants.DefaultInitValue
 }
 
 func groupAppResourcesByKind(refs []ApplicationResourceRef, namespace string) map[string][]string {
@@ -326,30 +225,32 @@ func intersectKinds(requested []string, grouped map[string][]string) []string {
 	return out
 }
 
+// Only on branches that reach objects a controller writes itself (replacement Pod, PVC being bound), never on
+// /scale or user-authored spec: the HPA controller shares these identities, and `kubectl autoscale` got through.
+func ExceptControllers(filters []ResourceFilter) []ResourceFilter {
+	for i := range filters {
+		filters[i].ExceptControllers = true
+	}
+	return filters
+}
+
 type SingleRuleSpec struct {
 	TemplateID   string
 	TemplateCode string
-	RuleName     string
 	Kinds        []string
 	Ops          []string
 	Message      string
-	Deny         *kyvernov1.Deny
+	// CEL that holds when a matched request is admitted.
+	Admit string
 	// MatchAppIdentity also matches resources carrying the application's identity label, for
 	// rules that must reach resources the application does not own yet.
 	MatchAppIdentity bool
 	// ExcludeControllers exempts the controller identities. Set it only when the rule reaches
-	// objects a controller creates or deletes on its own; see ExcludeControllerWrites.
+	// objects a controller creates or deletes on its own; see ExceptControllers.
 	ExcludeControllers bool
 }
 
-func excludeFor(controllers bool) *kyvernov1.MatchResources {
-	if controllers {
-		return ExcludeControllerWrites()
-	}
-	return ExcludePlatformWrites()
-}
-
-func RenderSingleRulePolicy(meta RenderMeta, scope ScopeSpec, spec SingleRuleSpec) *kyvernov1.Policy {
+func RenderSingleRulePolicy(meta RenderMeta, scope ScopeSpec, spec SingleRuleSpec) *policiesv1.NamespacedValidatingPolicy {
 	build := BuildMatch
 	if spec.MatchAppIdentity {
 		build = BuildIdentityMatch
@@ -358,96 +259,69 @@ func RenderSingleRulePolicy(meta RenderMeta, scope ScopeSpec, spec SingleRuleSpe
 	if !ok {
 		return nil
 	}
-	pol := PolicyShell(meta, spec.TemplateID, spec.TemplateCode, scope)
-	pol.Spec.Rules = []kyvernov1.Rule{
-		{
-			Name:             spec.RuleName,
-			MatchResources:   match,
-			ExcludeResources: excludeFor(spec.ExcludeControllers),
-			Validation:       Validation(spec.Message, spec.Deny),
-		},
+	if spec.ExcludeControllers {
+		match = ExceptControllers(match)
 	}
-	return pol
+	return NewPolicy(meta, scope, PolicySpec{
+		TemplateID:   spec.TemplateID,
+		TemplateCode: spec.TemplateCode,
+		Match:        match,
+		Validations:  []admissionregistrationv1.Validation{Validation(spec.Admit, spec.Message)},
+	})
 }
 
-// Kyverno defaults allowExistingViolations to true, which would let an already-violating workload
-// keep changing all through the freeze (one blocked image swapped for another).
-func Validation(message string, deny *kyvernov1.Deny) *kyvernov1.Validation {
-	allowExistingViolations := false
-	return &kyvernov1.Validation{
-		Message:                 message,
-		Deny:                    deny,
-		AllowExistingViolations: &allowExistingViolations,
+// The requester goes into the Event and the denial text through the message expression.
+func Validation(admit, message string) admissionregistrationv1.Validation {
+	return admissionregistrationv1.Validation{
+		Expression:        admit,
+		Message:           message,
+		MessageExpression: CELString(message) + exprRequestedBySuffix,
 	}
 }
 
-// Deny takes the pod-spec path because the rule is emitted once per pod-template shape.
+// Admit reads the pod spec through PodSpecVariables, which know a CronJob's deeper path.
 type PodSpecRuleSpec struct {
 	TemplateID   string
 	TemplateCode string
-	RuleName     string
 	Ops          []string
 	Message      string
-	Deny         func(podSpecPath string) *kyvernov1.Deny
+	Admit        string
 }
 
-// PodSpecRules emits one rule per pod-template shape so CronJob is evaluated at its own path
-// instead of being silently admitted by a rule that only knows spec.template.spec.
-func PodSpecRules(scope ScopeSpec, spec PodSpecRuleSpec) []kyvernov1.Rule {
-	rules := make([]kyvernov1.Rule, constants.DefaultInitValue, len(podSpecVariants))
-	for _, variant := range podSpecVariants {
-		match, ok := BuildMatch(scope, variant.kinds, spec.Ops)
-		if !ok {
-			continue
-		}
-		rules = append(rules, kyvernov1.Rule{
-			Name:             spec.RuleName + variant.ruleSuffix,
-			MatchResources:   match,
-			ExcludeResources: ExcludePlatformWrites(),
-			Validation:       Validation(spec.Message, spec.Deny(variant.path)),
-		})
-	}
-	return rules
-}
-
-func RenderPodSpecRulePolicy(meta RenderMeta, scope ScopeSpec, spec PodSpecRuleSpec) *kyvernov1.Policy {
-	rules := PodSpecRules(scope, spec)
-	if len(rules) == constants.DefaultInitValue {
+func RenderPodSpecRulePolicy(meta RenderMeta, scope ScopeSpec, spec PodSpecRuleSpec) *policiesv1.NamespacedValidatingPolicy {
+	match, ok := BuildMatch(scope, WorkloadKinds, spec.Ops)
+	if !ok {
 		return nil
 	}
-	pol := PolicyShell(meta, spec.TemplateID, spec.TemplateCode, scope)
-	pol.Spec.Rules = rules
-	return pol
+	return NewPolicy(meta, scope, PolicySpec{
+		TemplateID:   spec.TemplateID,
+		TemplateCode: spec.TemplateCode,
+		Match:        match,
+		Variables:    PodSpecVariables(),
+		Validations:  []admissionregistrationv1.Validation{Validation(spec.Admit, spec.Message)},
+	})
 }
 
-func DenyWithConditions(allConditions []kyvernov1.Condition) *kyvernov1.Deny {
-	return &kyvernov1.Deny{
-		RawAnyAllConditions: &kyvernov1.ConditionsWrapper{
-			Conditions: kyvernov1.AnyAllConditions{
-				AllConditions: allConditions,
+func NewPolicy(meta RenderMeta, scope ScopeSpec, spec PolicySpec) *policiesv1.NamespacedValidatingPolicy {
+	admission, background := true, false
+	return &policiesv1.NamespacedValidatingPolicy{
+		TypeMeta:   metav1.TypeMeta{APIVersion: policiesv1.GroupVersion.String(), Kind: PolicyKind},
+		ObjectMeta: PolicyMeta(meta, spec.TemplateID, spec.TemplateCode, scope),
+		Spec: policiesv1.ValidatingPolicySpec{
+			MatchConstraints: &admissionregistrationv1.MatchResources{ResourceRules: resourceRules(spec.Match)},
+			MatchConditions: []admissionregistrationv1.MatchCondition{
+				{Name: ConditionScope, Expression: AnyOf(spec.Match)},
+				// By kind, which a Deployment can't fake: a plan must still repair its policies where another plan freezes.
+				{Name: ConditionNotPlatform, Expression: celNegate(platformExpr)},
 			},
-		},
-	}
-}
-
-func MakeCondition(key string, op kyvernov1.ConditionOperator, value any) kyvernov1.Condition {
-	c := kyvernov1.Condition{Operator: op}
-	c.SetKey(key)
-	c.SetValue(value)
-	return c
-}
-
-func PolicyShell(meta RenderMeta, templateID, templateCode string, scope ScopeSpec) *kyvernov1.Policy {
-	bg := false
-	return &kyvernov1.Policy{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "kyverno.io/v1",
-			Kind:       "Policy",
-		},
-		ObjectMeta: PolicyMeta(meta, templateID, templateCode, scope),
-		Spec: kyvernov1.Spec{
-			ValidationFailureAction: FailureAction(meta.Mode),
-			Background:              &bg,
+			Variables:        spec.Variables,
+			Validations:      spec.Validations,
+			ValidationAction: ValidationActions(meta.Mode),
+			// The CRD's only two defaults, set here so the live spec reads back exactly as rendered.
+			EvaluationConfiguration: &policiesv1.EvaluationConfiguration{
+				Admission:  &policiesv1.AdmissionConfiguration{Enabled: &admission},
+				Background: &policiesv1.BackgroundConfiguration{Enabled: &background},
+			},
 		},
 	}
 }

@@ -62,9 +62,9 @@ func (c *ProtectionPlanClient) Patch(
 	})
 }
 
-func (c *ProtectionPlanClient) Delete(id string) *response.GenericResponse {
+func (c *ProtectionPlanClient) Delete(id string, keepReports bool) *response.GenericResponse {
 	return guardedResponse(func() *response.GenericResponse {
-		return c.client.Delete(id)
+		return c.client.Delete(id, keepReports)
 	})
 }
 
@@ -86,9 +86,9 @@ func (c *ProtectionPlanClient) CreateOrError(userID string, req planseps.CreateP
 	})
 }
 
-func (c *ProtectionPlanClient) DeleteOrError(id string) error {
+func (c *ProtectionPlanClient) DeleteOrError(id string, keepReports bool) error {
 	return exporterStatusError(constants.ErrDeleteProtectionPlanFailed, func() *response.GenericResponse {
-		return c.client.Delete(id)
+		return c.client.Delete(id, keepReports)
 	})
 }
 

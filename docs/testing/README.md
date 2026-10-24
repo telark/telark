@@ -9,7 +9,7 @@ How to build, test and validate Telark from a fresh clone, locally or in CI. `.g
 | Go build, vet, unit tests (per service and shared package) | Go | yes | `go`, test leg |
 | `golangci-lint` (per service and shared package) | golangci-lint | yes | `go`, lint leg |
 | Helm lint, `VALUES.md` drift, kubeconform | Helm, Go (for helm-docs), kubeconform, network access to chart repos and schemas | yes | `helm` |
-| Analyzer syntax check, pytest, coverage | Python 3.13 | yes | `analyzer` |
+| Analyzer syntax check, pytest, coverage | Python 3.14 | yes | `analyzer` |
 | Pod readiness, API calls, UI flows, admission behavior | a cluster with the chart installed | no | none |
 
 Every row except the last runs without a cluster; the last row is manual work on a cluster (see [Cluster validation](#cluster-validation)).
@@ -18,7 +18,7 @@ Every row except the last runs without a cluster; the last row is manual work on
 
 | Tool | Version | Pinned in |
 |---|---|---|
-| Go | 1.27.2 | the `go` line of the root `go.mod` (CI: `setup-go` with `go-version-file`) |
+| Go | 1.27.3 | the `go` line of the root `go.mod` (CI: `setup-go` with `go-version-file`) |
 | golangci-lint | v2.14.0 | `.github/actions/go-ci/action.yaml` |
 | kubeconform | v0.8.0 | `.github/actions/helm-kubeconform-validate/action.yaml` |
 | helm-docs | v1.14.2 | `Makefile` (`HELM_DOCS`, run with `go run`; nothing to install) |
@@ -29,7 +29,7 @@ Linux x86-64:
 
 ```sh
 # Go. A Go >= 1.21 already on PATH also works: it downloads the go.mod toolchain unless GOTOOLCHAIN=local.
-curl -fsSL https://go.dev/dl/go1.27.2.linux-amd64.tar.gz | sudo tar -C /usr/local -xz
+curl -fsSL https://go.dev/dl/go1.27.3.linux-amd64.tar.gz | sudo tar -C /usr/local -xz
 export PATH=/usr/local/go/bin:$HOME/go/bin:$PATH
 
 # golangci-lint, the version CI pins
@@ -42,7 +42,7 @@ curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubecon
 curl -fsSL https://get.helm.sh/helm-v4.3.0-linux-amd64.tar.gz | sudo tar -xz -C /usr/local/bin --strip-components=1 linux-amd64/helm
 ```
 
-Python 3.13: use the image's `python3.13` if there is one, otherwise `uv venv --python 3.13 --seed <dir>` downloads it.
+Python 3.14: use the image's `python3.14` if there is one, otherwise `uv venv --python 3.14 --seed <dir>` downloads it.
 
 ## Commands
 
@@ -57,10 +57,10 @@ go test -race ./...
 golangci-lint run ./services/<svc>/...   # or ./internal/<pkg>/...; uses the root .golangci.yml, never --no-config
 ```
 
-CI's test leg for a service (`./internal/<pkg>/...` for a shared package), with the floor from the `go` job matrix (auth 60, discovery 50, exporter 55, notifier 75, data 95, rest 54, kcore 22, x-ware 47); every test leg uploads its profile to Codecov:
+CI's test leg for a service (`./internal/<pkg>/...` for a shared package), with the floor from the `go` job matrix (auth 80, discovery 50, exporter 70, notifier 80, data 95, rest 54, kcore 22, x-ware 47); every test leg uploads its profile to Codecov:
 
 ```sh
-go test -race -coverpkg=./services/<svc>/... -coverprofile=coverage.out ./services/<svc>/...
+go test -race -gcflags=all=-dwarf=false -ldflags=-w -coverpkg=./services/<svc>/... -coverprofile=coverage.out ./services/<svc>/...
 go tool cover -func=coverage.out | tail -1
 ```
 
@@ -91,7 +91,7 @@ make values-docs       # regenerates both VALUES.md; CI fails on drift, so check
 ```sh
 cd services/analyzer
 VENV="${TMPDIR:-/tmp}/analyzer-venv"      # outside the service: compileall walks every subdirectory
-python3.13 -m venv "$VENV"
+python3.14 -m venv "$VENV"
 "$VENV/bin/pip" install --require-hashes -r requirements-test.txt
 "$VENV/bin/python" -m compileall -q .
 "$VENV/bin/python" -m pytest --cov=. --cov-report= tests/test_*_cov.py -q
@@ -99,7 +99,7 @@ python3.13 -m venv "$VENV"
 "$VENV/bin/python" -m coverage report --fail-under=95
 ```
 
-The stub-based `test_*_cov.py` suites replace `sys.modules` entries, so they run in their own process, apart from the real-dependency suites listed explicitly in `ci.yaml`. No Ollama, Redis or cluster is needed. The procedure: the `analyzer-ci-gate` skill.
+The stub-based `test_*_cov.py` suites run in their own process, apart from the real-dependency suites listed explicitly in `ci.yaml`. The split is historical: no suite replaces `sys.modules` entries, and one pytest process gives the same result. No Ollama, Redis or cluster is needed. The procedure: the `analyzer-ci-gate` skill.
 
 ### Everything at once
 
@@ -133,8 +133,8 @@ curl -fsS localhost:8004/api/v1/status/ready
 curl -fsS -H "X-Session-Token: $TOKEN" localhost:8004/api/v1/<route>
 ```
 
-- A user request carries its session token in the `X-Session-Token` header, never in a cookie or the query string. Sign in through the UI (passkeys need `https://` or `http://localhost`) and copy the header from any API request in the browser's network panel.
-- Route paths: `services/{auth,discovery,exporter}/internal/routes/routes.go` with the path constants in `internal/rest/endpoints/`, and `services/analyzer/api_server.py`. Each Go service's access rule per route is in `internal/authz/requirements.go`. Send the opaque ids the UI sends, not display names.
+- The dashboard sends its session as the HttpOnly `telark_session` cookie (`__Host-telark_session` when every passkey origin is https); a script or curl sends the same token in the `X-Session-Token` header, never in the query string. Sign in through the UI (passkeys need `https://` or `http://localhost`) and copy the cookie's value from DevTools → Application → Cookies. A request with the header needs no `X-Requested-With`; one that relies on the cookie for a change does.
+- Route paths: `services/{auth,discovery,exporter}/internal/routes/routes.go` with the path constants in `internal/rest/endpoints/`, and `services/analyzer/api/api_server.py`. Each Go service's access rule per route is in `internal/authz/requirements.go`. Send the opaque ids the UI sends, not display names.
 - A 403 for a user who looks authorized usually means a deny rule or a missing grant, not a bug; see [Authorization](../security/README.md#authorization).
 
 ### End-to-end: UI → API → backend → Kubernetes
@@ -143,7 +143,7 @@ A protection plan crosses every layer. After each step, check the layer below in
 
 1. **UI → discovery.** Create and start a plan from the UI, or through the discovery plan routes with a session token. Expect a 2xx and the plan in the list.
 2. **discovery → exporter → CRD.** `kubectl -n telark get protectionplans.telark.io -o yaml` shows the plan, its fields under `spec` and its phase under `.status`. A field accepted by the API but missing here was pruned by the CRD schema ([AGENTS.md](../../AGENTS.md#go-services), CRDs).
-3. **discovery → Kyverno.** While the plan is active, `kubectl get policies.kyverno.io -A -l telark.io/protection-plan=<plan-id>` lists its namespaced Kyverno `Policy` objects.
+3. **discovery → Kyverno.** While the plan is active, `kubectl get namespacedvalidatingpolicies -A -l telark.io/protection-plan=<plan-id>` lists its Kyverno `NamespacedValidatingPolicy` objects.
 4. **Admission.** Make a change one of the plan's templates blocks and expect the API server to reject it when the plan enforces (audit mode only records it). Violations are read from Kubernetes Events, which expire; see [Protection plans](../architecture/protection-plans.md).
 5. **Terminate or cancel.** The label query from step 3 returns nothing, and the finished plan reports zero violations, by design.
 

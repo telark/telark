@@ -3,7 +3,6 @@ package templates
 import (
 	"fmt"
 
-	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	"github.com/telark/telark/internal/data/policies"
 )
 
@@ -20,44 +19,32 @@ const (
 	kindConfigMap        = "ConfigMap"
 	kindSecret           = "Secret"
 
-	opEquals    = kyvernov1.ConditionOperator("Equals")
-	opNotEquals = kyvernov1.ConditionOperator("NotEquals")
-	opIn        = kyvernov1.ConditionOperator("In")
-	opAnyIn     = kyvernov1.ConditionOperator("AnyIn")
+	admitNever = "false"
+	// A scale request's object is the Scale, which carries spec.replicas the same way.
+	admitSameReplicas  = `object.?spec.?replicas.orValue(0) == oldObject.?spec.?replicas.orValue(0)`
+	admitNoImageFmt    = `!%s.exists(c, c.?image.orValue("").matches(%s))`
+	exprImagesFmt      = `%s.map(c, c.?image.orValue(""))`
+	admitNoImageTagFmt = `!%s.exists(i, isImage(i) && parseImageReference(i).tag() in %s)`
+	admitSameFmt       = "%s == %s"
+	celAnd             = " && "
+	celOr              = " || "
 
-	exprRequestOperation = "{{ request.operation || 'BACKGROUND' }}"
-	exprNewReplicas      = "{{ request.object.spec.replicas || `0` }}"
-	exprOldReplicas      = "{{ request.oldObject.spec.replicas || `0` }}"
-
-	// Kyverno's parsed image info, keyed group -> container -> info. A digest-pinned
-	// reference has no tag and is deliberately out of scope for a tag block list.
-	exprImageTags = "{{ images.*.*.tag[] || `[]` }}"
-
-	// %s is the request root (object / oldObject) and %s the pod-spec path, which differs
-	// between CronJob and every other workload kind.
-	exprImagesFmt  = "{{ request.%s.%s." + allContainers + ".image }}"
-	exprVolumesFmt = "{{ request.%s.%s.volumes || `[]` }}"
-	// Whole volume sources, not just the name: items, defaultMode and optional decide which
-	// keys land in the container, and comparing only the name made those changes invisible.
-	exprCMVolumesFmt     = "{{ request.%s.%s.volumes[?configMap].configMap || `[]` }}"
-	exprSecretVolumesFmt = "{{ request.%s.%s.volumes[?secret].secret || `[]` }}"
-	// Every container list, not just containers[]: an initContainer envFrom went unnoticed.
-	exprEnvFromFmt      = "{{ request.%s.%s." + allContainers + ".envFrom[] || `[]` }}"
-	exprEnvRefsFmt      = "{{ request.%s.%s." + allContainers + ".env[].valueFrom.[configMapKeyRef, secretKeyRef][] || `[]` }}"
-	exprVolumeMountsFmt = "{{ request.%s.%s." + allContainers + ".volumeMounts[] || `[]` }}"
-
-	allContainers = "[containers, initContainers, ephemeralContainers][]"
-
-	rootObject    = "object"
-	rootOldObject = "oldObject"
+	// %s is a pod spec. Whole volume sources, not just the name: items, defaultMode and optional
+	// decide which keys land in the container.
+	exprVolumesFmt       = `%s.?volumes.orValue([])`
+	exprCMVolumesFmt     = `%s.?volumes.orValue([]).filter(v, has(v.configMap)).map(v, v.configMap)`
+	exprSecretVolumesFmt = `%s.?volumes.orValue([]).filter(v, has(v.secret)).map(v, v.secret)`
+	// %s is every container of the pod spec, init and ephemeral included.
+	exprEnvFromFmt = `%s.map(c, c.?envFrom.orValue([])).flatten()`
+	exprEnvRefsFmt = `%s.map(c, c.?env.orValue([])).flatten()` +
+		`.filter(e, has(e.valueFrom) && (has(e.valueFrom.configMapKeyRef) || has(e.valueFrom.secretKeyRef)))` +
+		`.map(e, e.valueFrom)`
+	exprVolumeMountsFmt = `%s.map(c, c.?volumeMounts.orValue([])).flatten()`
 )
 
-func newExpr(format, podSpecPath string) string {
-	return fmt.Sprintf(format, rootObject, podSpecPath)
-}
-
-func oldExpr(format, podSpecPath string) string {
-	return fmt.Sprintf(format, rootOldObject, podSpecPath)
+// Holds when the projection reads the same on the new and the old pod spec (or container list).
+func same(format, newRoot, oldRoot string) string {
+	return fmt.Sprintf(admitSameFmt, fmt.Sprintf(format, newRoot), fmt.Sprintf(format, oldRoot))
 }
 
 var (

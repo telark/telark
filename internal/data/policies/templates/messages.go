@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/telark/telark/internal/data/constants"
 	"github.com/telark/telark/internal/data/plans"
 	"github.com/telark/telark/internal/data/policies"
 )
@@ -18,8 +19,8 @@ const (
 	msgBlockPVCMutation    = "PersistentVolumeClaim creation, modification and deletion are blocked by protection plan %q."
 	msgBlockVolumeChanges  = "Workload volume changes are blocked by protection plan %q."
 	msgBlockConfigSecret   = "ConfigMap and Secret changes are blocked by protection plan %q."
-	// Names the rule's real reach: a volumeMount carries no reference to what backs it and
-	// JMESPath cannot join it to the volume list, so every volumeMount is compared.
+	// Names the rule's real reach: a volumeMount carries no reference to what backs it, so every
+	// volumeMount is compared.
 	msgBlockConfigMountChng = "Workload volume mount or config source changes are blocked by protection plan %q."
 
 	enforceSingular = " is blocked by "
@@ -30,12 +31,15 @@ const (
 // An audit plan admits the request, so its message must not claim it was blocked.
 var auditReplacer = strings.NewReplacer(enforceSingular, auditWording, enforcePlural, auditWording)
 
-// Kyverno substitutes {{ }} variables in validate.message, so only the generated plan ID
-// goes here; the user-chosen name stays in the plan-name annotation, which is not substituted.
+// Kyverno prints a CEL policy's message as written, so the name needs no escaping; %q keeps it on
+// one line, as the CRD requires. The audit wording goes into the format, never into the name.
 func blockMessage(meta policies.RenderMeta, format string) string {
-	msg := fmt.Sprintf(format, meta.PlanID)
 	if meta.Mode == plans.ModeAudit {
-		return auditReplacer.Replace(msg)
+		format = auditReplacer.Replace(format)
 	}
-	return msg
+	name := meta.PlanName
+	if name == constants.EmptyString {
+		name = meta.PlanID
+	}
+	return fmt.Sprintf(format, name)
 }

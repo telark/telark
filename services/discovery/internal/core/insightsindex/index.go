@@ -187,7 +187,8 @@ func (x *Index) syncLocked(ctx context.Context, rdb *redis.Client, full bool) er
 			return err
 		}
 	}
-	apps, rows := x.apply(scores, fetched, removed, started)
+	apps, rows, changes := x.apply(scores, fetched, removed, started)
+	x.settings.Notifier.observe(ctx, rdb, changes)
 	constants.GetLogger(constants.LoggerPrefixDiscoveryManager).Debug(fmt.Sprintf(
 		string(constants.LogInsightsIndexSynced), full, len(fetched), apps, rows, time.Since(started),
 	))
@@ -333,15 +334,18 @@ func (x *Index) apply(
 	fetched map[string][]Row,
 	removed []string,
 	at time.Time,
-) (apps, rows int) {
+) (apps, rows int, changes incidentChanges) {
 	x.mu.Lock()
 	defer x.mu.Unlock()
+	changes.initial = !x.loaded
 	changed := false
 	for member, list := range fetched {
+		changes.add(x.rows[member], list)
 		x.scores[member] = scores[member]
 		changed = x.replace(member, list) || changed
 	}
 	for _, member := range removed {
+		changes.add(x.rows[member], nil)
 		delete(x.scores, member)
 		changed = x.replace(member, nil) || changed
 	}
@@ -357,7 +361,7 @@ func (x *Index) apply(
 	for _, list := range x.rows {
 		rows += len(list)
 	}
-	return len(x.rows), rows
+	return len(x.rows), rows, changes
 }
 
 // nil drops the app; a document without cards is an empty, non-nil list that keeps it indexed.

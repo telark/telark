@@ -19,12 +19,10 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import exporter  # noqa: E402
-import insights  # noqa: E402
-import recommendations  # noqa: E402
-import review  # noqa: E402
+from analysis import insights, recommendations, review  # noqa: E402
+from core import exporter  # noqa: E402
+from core.models import AppInsights, Insight, Run  # noqa: E402
 from fakes import FakeRedis  # noqa: E402
-from models import AppInsights, Insight, Run  # noqa: E402
 from tools import k8s_tools  # noqa: E402
 from tools.k8s_tools import K8s  # noqa: E402
 
@@ -304,7 +302,7 @@ def test_selector_string_and_service_probe_skips():
 
 def test_invalid_production_pattern_fails_import():
     env = {**os.environ, "ANALYZER_PRODUCTION_PATTERN": "(unclosed"}
-    code = "import config"
+    code = "import core.config"
     proc = subprocess.run([sys.executable, "-c", code], cwd=os.path.join(HERE, ".."), env=env, capture_output=True)
     assert proc.returncode != 0 and b"ANALYZER_PRODUCTION_PATTERN" not in proc.stdout
     ok = subprocess.run([sys.executable, "-c", code], cwd=os.path.join(HERE, ".."),

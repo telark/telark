@@ -12,9 +12,10 @@ A cluster admin can always delete this policy. The point is not to make the
 resources unwritable, it is to make writing them a deliberate, audited act
 rather than a side effect of holding namespace edit.
 */}}
-{{- if $.Values.app.crdGuard.enabled }}
+{{- $guard := (include "telark.modeValues" $ | fromYaml).app.security.crdGuard }}
+{{- if $guard.enabled }}
 {{- $ns := $.Values.app.namespace }}
-{{- $extra := $.Values.app.crdGuard.extraAllowedUsers }}
+{{- $extra := $guard.extraAllowedUsers }}
 {{- $exporter := printf "system:serviceaccount:%s:%s" $ns (include "telark.serviceAccountName" (dict "root" $ "serviceConfig" $.Values.services.exporter)) }}
 {{- $discovery := printf "system:serviceaccount:%s:%s" $ns (include "telark.serviceAccountName" (dict "root" $ "serviceConfig" $.Values.services.discovery)) }}
 {{/*
@@ -77,7 +78,7 @@ metadata:
 spec:
   policyName: {{ $.Values.app.name }}-crd-guard
   validationActions:
-    {{- if $.Values.app.crdGuard.enforce }}
+    {{- if $guard.enforce }}
     - Deny
     {{- else }}
     - Audit
@@ -136,7 +137,7 @@ metadata:
 spec:
   policyName: {{ $.Values.app.name }}-oidc-trust-guard
   validationActions:
-    {{- if $.Values.app.crdGuard.enforce }}
+    {{- if $guard.enforce }}
     - Deny
     {{- else }}
     - Audit

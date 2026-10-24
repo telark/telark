@@ -1,6 +1,7 @@
 package generics
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -33,26 +34,33 @@ var (
 )
 
 func GenericCreateCustomResourceWithFinalizers(
+	ctx context.Context,
 	w http.ResponseWriter,
 	md metadata.Metadata,
 	name string,
 	spec map[string]any,
 	finalizers []string,
 ) {
-	runCreateFromTemplate(w, md, name, sharedutils.ConvertToCRDTemplateWithFinalizers(md, name, spec, finalizers))
+	runCreateFromTemplate(ctx, w, md, name, sharedutils.ConvertToCRDTemplateWithFinalizers(md, name, spec, finalizers))
 }
 
-func GenericCreateCustomResource(w http.ResponseWriter, md metadata.Metadata, name string, spec map[string]any) {
-	runCreateFromTemplate(w, md, name, sharedutils.ConvertToCRDTemplate(md, name, spec))
+func GenericCreateCustomResource(ctx context.Context, w http.ResponseWriter, md metadata.Metadata, name string, spec map[string]any) {
+	runCreateFromTemplate(ctx, w, md, name, sharedutils.ConvertToCRDTemplate(md, name, spec))
 }
 
 func runCreateFromTemplate(
+	ctx context.Context,
 	w http.ResponseWriter,
 	md metadata.Metadata,
 	name string,
 	template *unstructured.Unstructured,
 ) {
-	result := createWithQuotaRetry(template, md)
+	result, started := createWithQuotaRetry(ctx, template, md)
+	if !started {
+		// An answer, not a failure: nothing was created, and the caller may try again.
+		responseutils.SendResponse(w, http.StatusServiceUnavailable, response.OperationUnavailable, string(constants.ErrCreateSlotBusy), nil)
+		return
+	}
 
 	if result.Status == http.StatusConflict {
 		responseutils.LogAndSendResponse(w, http.StatusConflict, response.OperationAlreadyExists, string(globalerrors.ErrResExists), nil, nil)
@@ -87,18 +95,29 @@ func runCreateFromTemplate(
 // The slot is released with defer: a panic between acquire and release would retire it for the
 // process lifetime, and k8sCreatePoolSize of those deadlock every CRD create.
 func createWithQuotaRetry(
+	ctx context.Context,
 	template *unstructured.Unstructured,
 	md metadata.Metadata,
-) kubeshared.KubernetesAPIData {
-	k8sCreateSem <- struct{}{}
+) (kubeshared.KubernetesAPIData, bool) {
+	select {
+	case k8sCreateSem <- struct{}{}:
+	case <-ctx.Done():
+		return kubeshared.KubernetesAPIData{}, false
+	case <-time.After(constants.CreateSlotWait):
+		return kubeshared.KubernetesAPIData{}, false
+	}
 	defer func() { <-k8sCreateSem }()
+	// select picks at random when the caller had already given up with a slot free.
+	if ctx.Err() != nil {
+		return kubeshared.KubernetesAPIData{}, false
+	}
 
 	result := api.CreateCustomResourceWithStatus(template, md)
-	for attempt := constants.DefaultIncrementValue; attempt < maxCreateAttempts &&
+	for attempt := constants.DefaultIncrementValue; attempt < maxCreateAttempts && ctx.Err() == nil &&
 		result.Status != http.StatusOK && result.Error != nil &&
 		strings.Contains(result.Error.Error(), quotaTimeoutMsg); attempt++ {
 		time.Sleep(createRetryDelay)
 		result = api.CreateCustomResourceWithStatus(template, md)
 	}
-	return result
+	return result, true
 }

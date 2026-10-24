@@ -162,14 +162,19 @@ func GetStatusCodeForSessionError(err error) int {
 		return http.StatusForbidden
 	case IsError(err, constants.ErrUserNotFound):
 		return http.StatusNotFound
+	case IsError(err, constants.ErrAccountRecovering):
+		return http.StatusConflict
 	default:
 		return http.StatusInternalServerError
 	}
 }
 
 func GetStatusCodeForWebAuthnError(err error, fallback int) int {
-	if IsError(err, constants.ErrOriginNotAllowed) {
+	switch {
+	case IsError(err, constants.ErrOriginNotAllowed):
 		return http.StatusBadRequest
+	case IsError(err, constants.ErrAccountRecovering):
+		return http.StatusConflict
 	}
 	return fallback
 }

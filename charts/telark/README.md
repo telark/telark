@@ -16,12 +16,12 @@ Set your own admin email: the chart ships none and refuses to render without one
 ```sh
 helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namespace \
   --set app.auth.bootstrap.admin=test@example.com \
-  --set app.kyverno.enabled=false
+  --set kyverno.enabled=false
 ```
 
-Telark is tested with Kyverno v1.19.1, the version the chart bundles. With your own Kyverno, change history names no author, because the chart installs the policy that records authors only with the bundled Kyverno.
+Telark is tested with Kyverno v1.19.1, the version the chart bundles, and needs Kyverno 1.18 or later with the `policies.kyverno.io` CRDs ([Install](../../docs/INSTALL.md#1-install)). With your own Kyverno, change history names no author, because the chart installs the policy that records authors only with the bundled Kyverno.
 
-Measured capacity (2026-09-18): `minimal` handles a few hundred applications; `standard` was verified at 2 000 (three discovery replicas; rediscovering a deleted 100-app namespace took about 3.5 minutes); `performance` is for larger clusters.
+`minimal` suits evaluation and demos, `standard` production, and `performance` large clusters with a high change rate.
 
 ### Upgrade order
 
@@ -55,7 +55,7 @@ The tables below explain the values that matter. [VALUES.md](VALUES.md) is the g
 | `gateway.enabled` | `false` | Gateway API `HTTPRoute` for the dashboard, the alternative to the Ingress (routes to `gateway.service`, default `ui`). See [docs/INSTALL.md](../../docs/INSTALL.md#access-the-dashboard) |
 | `gateway.parentRefs` / `hostnames` / `annotations` | `[]` / `[]` / `{}` | Gateways to attach to (entries take `name`, `namespace`, `sectionName`), hostnames the route matches, HTTPRoute annotations |
 | `redis.image.digest` | `sha256:33a5a129…` | Pins the Redis image (`bitnami/redis`, which publishes only `latest`) to one build. See [docs/INSTALL.md](../../docs/INSTALL.md#subcharts) |
-| `redis.master.resources` | requests `100m` / `128Mi`, limits `500m` / `512Mi` | Redis sizing, identical in every mode; replaces the subchart's `nano` preset. Redis never evicts, so raise the memory limit beyond 2 000 applications. See [docs/INSTALL.md](../../docs/INSTALL.md#subcharts) |
+| `redis.master.resources` | requests `100m` / `128Mi`, limits `500m` / `512Mi` | Redis sizing, identical in every mode; replaces the subchart's `nano` preset. Redis never evicts, so raise the memory limit as the number of applications grows. See [docs/INSTALL.md](../../docs/INSTALL.md#subcharts) |
 
 ### `app`
 
@@ -67,19 +67,22 @@ The tables below explain the values that matter. [VALUES.md](VALUES.md) is the g
 | `app.image.registry` | `ghcr.io/telark` | Registry and namespace hosting the per-service repos |
 | `app.image.pullPolicy` | `Always` | Image pull policy for every service container |
 | `app.image.pullSecrets` | `[]` | Pull secrets (public images need none; set for a private registry) |
-| `app.kubectlImage` | `registry.k8s.io/kubectl:v1.37.1@sha256:…` | kubectl image of the uninstall hooks that stop auth and Kyverno and clear their finalizers and webhooks ([Uninstall](../../docs/INSTALL.md#uninstall)); mirror it for air-gapped installs |
-| `app.kyverno.enabled` | `true` | Install the kyverno subchart; `false` uses a Kyverno you already run ([Install](#install)) |
-| `app.kyverno.failOpen` | `true` | The bundled Kyverno's webhooks fail open (`failurePolicy: Ignore`), so enforce plans are best-effort while Kyverno is down. Must equal `kyverno.features.forceFailurePolicyIgnore.enabled`; the render fails otherwise. See [Policy engine fail-open](../../docs/INSTALL.md#policy-engine-fail-open) |
-| `app.crdGuard.enabled` / `enforce` | `true` / `true` | ValidatingAdmissionPolicy: only the owning service accounts may write Telark CRs (`telark.io`, including `/status`), and only the exporter may change the key in the OIDC trust Secret (`enforce: false` audits). See [CRD write guard](../../docs/INSTALL.md#crd-write-guard) |
-| `app.crdGuard.extraAllowedUsers` | `[]` | Break-glass usernames also allowed to write Telark CRs and the OIDC trust Secret |
-| `app.networkPolicy.enabled` | `true` | Ingress NetworkPolicies: default deny for Telark pods, APIs only from Telark pods, dashboard from anywhere, NATS 4222 only from discovery and notifier. Needs an enforcing CNI. See [Network policies](../../docs/INSTALL.md#network-policies) |
+| `app.image.kubectl` | `registry.k8s.io/kubectl:v1.37.1@sha256:…` | kubectl image of the uninstall hooks that stop auth and Kyverno and clear their finalizers and webhooks ([Uninstall](../../docs/INSTALL.md#uninstall)); mirror it for air-gapped installs |
+| `kyverno.enabled` | `true` | Install the kyverno subchart; `false` uses a Kyverno you already run ([Install](#install)) |
+| `kyverno.features.forceFailurePolicyIgnore.enabled` | `true` | The bundled Kyverno's webhooks fail open (`failurePolicy: Ignore`), so enforce plans are best-effort while Kyverno is down. See [Policy engine fail-open](../../docs/INSTALL.md#policy-engine-fail-open) |
+| `app.security.crdGuard.enabled` / `enforce` | `true` / `true` | ValidatingAdmissionPolicy: only the owning service accounts may write Telark CRs (`telark.io`, including `/status`), and only the exporter may change the key in the OIDC trust Secret (`enforce: false` audits). See [CRD write guard](../../docs/INSTALL.md#crd-write-guard) |
+| `app.security.crdGuard.extraAllowedUsers` | `[]` | Break-glass usernames also allowed to write Telark CRs and the OIDC trust Secret |
+| `app.security.networkPolicy.enabled` | `true` | Ingress NetworkPolicies: default deny for Telark pods, APIs only from Telark pods, dashboard from anywhere, NATS 4222 only from discovery and notifier. Needs an enforcing CNI. See [Network policies](../../docs/INSTALL.md#network-policies) |
 | `app.selfMonitoring.enabled` | `false` | `false`: discovery skips Telark's own namespace (its services, Redis, NATS, Ollama, Kyverno, metrics-server), so none of it shows under Applications, and Application CRs already there are cleaned up. `true`: they show like any application. Plans never target that namespace. → `SELF_MONITORING_ENABLED` on discovery. See [Self-monitoring](../../docs/INSTALL.md#self-monitoring) |
-| `app.serviceToken.value` | `""` | Service token; empty = generated on install, read back on upgrade |
-| `app.serviceToken.existingSecret` | `""` | Secret (key `token`) you manage instead of the generated one, for cluster-less renders. See [GitOps](../../docs/INSTALL.md#gitops-cluster-less-renders) |
+| `app.security.serviceToken.value` | `""` | Service token; empty = generated on install, read back on upgrade |
+| `app.security.serviceToken.existingSecret` | `""` | Secret (key `token`) you manage instead of the generated one, for cluster-less renders. See [GitOps](../../docs/INSTALL.md#gitops-cluster-less-renders) |
+| `app.security.breakGlass.waitHours` | `24` | Hours a break-glass request waits with no bootstrap sign-in before it completes on its own (at least 1). → `BREAK_GLASS_WAIT_HOURS` on auth and the exporter. See [Recovery requests](../../docs/INSTALL.md#recovery-requests) |
+| `app.webhooks.targets` | `[]` | Endpoints the notifier sends signed events to (`name`, `url`, `secret`, optional `previousSecret`, `events`, `allowPrivate`), rendered into the Secret `<app.name>-webhooks`. See [Webhooks](../../docs/INSTALL.md#webhooks) |
+| `app.webhooks.existingSecret` | `""` | Secret you manage instead (key `targets.json`, the same list as JSON), for cluster-less renders. See [Webhooks](../../docs/INSTALL.md#webhooks) |
 | `nats.existingSecrets.publisher` / `consumer` | `""` | Secrets (keys `username`, `password`) for the NATS publisher (discovery) and consumer (notifier) users instead of the generated `<app.name>-nats-{publisher,consumer}-secret`. See [GitOps](../../docs/INSTALL.md#gitops-cluster-less-renders) |
 | `redis.auth.existingSecret` | `<release>-redis-secret` | Secret with the Redis password (key `redis-password`), generated on install and read back on upgrade; name a Secret you manage for cluster-less renders. Redis always requires the password: `redis.auth.enabled=false` fails the render. See [GitOps](../../docs/INSTALL.md#gitops-cluster-less-renders) |
 | `metrics-server.args` | `[]` | Flags added after the subchart's `defaultArgs` (which already set `--kubelet-preferred-address-types`). Kubelet certificates are verified; add `--kubelet-insecure-tls` only where they are self-signed. See [metrics-server kubelet TLS](../../docs/INSTALL.md#metrics-server-kubelet-tls) |
-| `app.ollama.enabled` | `true` | Install the ollama subchart, the local model runtime the analyzer needs; `false` skips it (for example with `app.ollama.runtimeUrl`). Sized once for every mode. See [Analyzer runtime (ollama)](#analyzer-runtime-ollama) |
+| `ollama.enabled` | `true` | Install the ollama subchart, the local model runtime the analyzer needs; `false` skips it (for example with `app.ollama.runtimeUrl`). Sized once for every mode. See [Analyzer runtime (ollama)](#analyzer-runtime-ollama) |
 | `app.ollama.autoPull` | `true` | Let the analyzer pull a missing model (and allow ollama HTTPS egress); `false` for air-gapped installs |
 | `app.ollama.runtimeUrl` | `""` | Ollama-API endpoint you run yourself (URL only, no key); empty = the subchart. See [Analyzer runtime (ollama)](#analyzer-runtime-ollama) |
 | `app.persistence.enabled` | `true` | Provision the exporter snapshot and report PVCs (kept on uninstall); `false` keeps the data in emptyDirs, lost with the pod, unless the claims already exist. See [Exporter storage](../../docs/INSTALL.md#exporter-storage) |
@@ -89,7 +92,7 @@ The tables below explain the values that matter. [VALUES.md](VALUES.md) is the g
 
 #### Protection plan reports
 
-Reports live on the exporter's second PVC, next to snapshots, with the same storage class and access mode ([Exporter storage](../../docs/INSTALL.md#exporter-storage)). A final report is captured asynchronously right after a plan ends (once its policies are removed and its phase recorded). Periodic checkpoints keep records past the 1 h Event retention; an on-demand report merges what the cluster still holds. Reports are deleted with the plan and swept if the plan CR disappears; at most 10 on-demand reports are kept per plan. Formats: HTML, Markdown, JSON, CSV (PDF via the browser's print). The document shows user ids, not names. While two on-demand renders are running, the generate call returns HTTP 429 with `Retry-After`.
+Reports live on the exporter's second PVC, next to snapshots, with the same storage class and access mode ([Exporter storage](../../docs/INSTALL.md#exporter-storage)). A final report is captured asynchronously right after a plan ends (once its policies are removed and its phase recorded). Periodic checkpoints keep records past the 1 h Event retention; an on-demand report merges what the cluster still holds. Reports are deleted with the plan and swept if the plan CR disappears; at most 10 on-demand reports, and a repeating plan's newest 100 window reports, are kept per plan. A user can keep a plan's reports when deleting it: kept reports are never swept and stay on this PVC until someone deletes them, so size it for them. The window-report cap counts reports, not bytes, and one report can reach 16 MiB, so a busy Enforce series can hold up to about 1.6 GiB: size the PVC for the repeating plans you run. Any report can be deleted from the dashboard. Formats: HTML, Markdown, JSON, CSV (PDF via the browser's print). The document shows user ids, not names. While two on-demand renders are running, the generate call returns HTTP 429 with `Retry-After`.
 
 #### `app.auth.bootstrap`
 
@@ -99,7 +102,7 @@ Reports live on the exporter's second PVC, next to snapshots, with the same stor
 
 #### `app.auth.oidc`
 
-The Google client id, the OIDC flag and the egress switch are runtime settings on the TelarkConfig CR (Settings in the dashboard). The pinned signing keys used without egress live in a Secret (`<fullname>-oidc-trust-secret`, key `googleJwkJson`): the exporter writes it when an admin saves the keys, and auth reads it from a read-only volume, picking up a change within about a minute. The chart renders it empty and reads it back on upgrade; while `app.crdGuard.enabled` is on, only the exporter (and `app.crdGuard.extraAllowedUsers`) may change the key.
+The Google client id, the OIDC flag and the egress switch are runtime settings on the TelarkConfig CR (Settings in the dashboard). The pinned signing keys used without egress live in a Secret (`<fullname>-oidc-trust-secret`, key `googleJwkJson`): the exporter writes it when an admin saves the keys, and auth reads it from a read-only volume, picking up a change within about a minute. The chart renders it empty and reads it back on upgrade; while `app.security.crdGuard.enabled` is on, only the exporter (and `app.security.crdGuard.extraAllowedUsers`) may change the key.
 
 | Key | Default | Description |
 |---|---|---|
@@ -113,7 +116,7 @@ WebAuthn relying-party identity. Passkey self-registration is a Settings toggle,
 |---|---|---|
 | `app.auth.passkey.id` | `""` | Relying Party identifier. Empty follows the request host (`X-Forwarded-Host`, else `Host`, port stripped), so passkeys work on whichever hostname you open the dashboard on. Required (the render fails) with `ingress.enabled` or `gateway.enabled`; pin it in production. Injected as `RP_ID`. |
 | `app.auth.passkey.name` | `"Dashboard App"` | Display name shown by the authenticator (Touch ID prompt, etc.). Injected as `RP_NAME`. |
-| `app.auth.passkey.origin` | `""` | Origin(s) accepted for WebAuthn ceremonies, comma-separated. Empty follows the request `Origin` header, whose host must be the relying party or one of its subdomains. Required (the render fails) with `ingress.enabled` or `gateway.enabled`; pin to `https://<domain>` in production. Injected as `RP_ORIGIN`. |
+| `app.auth.passkey.origin` | `""` | Origin(s) accepted for WebAuthn ceremonies, comma-separated. Empty follows the request `Origin` header, whose host must be the relying party or one of its subdomains. Required (the render fails) with `ingress.enabled` or `gateway.enabled`; pin to `https://<domain>` in production. Injected as `RP_ORIGIN`. It also names the session cookie: `__Host-telark_session` when every entry starts with `https://`, else `telark_session`, passed to every API service as `SESSION_COOKIE_HOST_PREFIX` ([Passkeys and HTTPS](../../docs/INSTALL.md#passkeys-and-https)). |
 
 ### `app.serviceDefaults`
 
@@ -125,7 +128,7 @@ Fallbacks for any `services.<svc>.*` key omitted.
 | `app.serviceDefaults.serviceType` | `ClusterIP` | K8s Service type |
 | `app.serviceDefaults.replicas` | `1` | Starting replicas; the HPA scales from here in `standard`/`performance` (`minimal` stays fixed at 1) |
 | `app.serviceDefaults.terminationGracePeriodSec` | `60` | Pod termination grace period |
-| `app.serviceDefaults.autoscaling.enabled` | `true` | Fleet-wide HPA (1 → 3 replicas on CPU; `performance` 1 → 5; `minimal` off; never the exporter). Vertical scaling: `vpa.enabled=true` installs the operator (turned on by an upgrade, it needs its CRDs applied first: [Upgrade](../../docs/INSTALL.md#upgrade)) and `app.serviceDefaults.vpa.updateMode` (`Auto`) drives a VPA per service, memory only where the HPA scales on CPU. See [docs/INSTALL.md](../../docs/INSTALL.md#autoscaling-hpa) |
+| `app.serviceDefaults.autoscaling.enabled` | `true` | Fleet-wide HPA (1 → 3 replicas on CPU; `performance` 1 → 5; `minimal` off; never the exporter). Vertical scaling: `vpa.enabled=true` installs the operator (it needs metrics-server, bundled; turned on by an upgrade, it needs its CRDs applied first: [Upgrade](../../docs/INSTALL.md#upgrade)) and `app.serviceDefaults.vpa.updateMode` (`Auto`) drives a VPA per service, memory only where the HPA scales on CPU. See [docs/INSTALL.md](../../docs/INSTALL.md#autoscaling-hpa) |
 | `app.serviceDefaults.autoscaling.minReplicas` / `maxReplicas` | `1` / `3` | HPA replica floor / ceiling |
 | `app.serviceDefaults.autoscaling.targetCPUUtilizationPercentage` | `80` | HPA scale-up CPU target |
 
@@ -147,6 +150,7 @@ Pod-level config selectively applied via per-service gates.
 |---|---|---|
 | `requests.cpu` / `requests.memory` | `100m` / `128Mi` | Resource requests |
 | `limits.cpu` / `limits.memory` | `1000m` / `512Mi` | Resource limits |
+| `requests.ephemeral-storage` / `limits.ephemeral-storage` | `50Mi` / `2Gi` | Local disk for the container logs (the kubelet keeps five 10Mi files) and disk-backed `emptyDir` volumes; the same in every mode. See [Sizing modes](../../docs/INSTALL.md#sizing-modes) |
 
 **`app.shared.healthCheck`**: HTTP probes applied when `includeHealthCheck: true` (default). `port` is the named container port.
 
@@ -203,7 +207,7 @@ Per-service block. Gates default to `true` unless noted.
 | `includeSecurity` | `true` | Apply `app.shared.podSecurityContext` + `app.shared.containerSecurityContext` (`ui` sets `false`: nginx runs as uid 101 and gets its own contexts below) |
 | `podSecurityContext` / `containerSecurityContext` | unset | Rendered verbatim instead of the shared contexts; `ui` uses them (uid 101, no privilege escalation, all capabilities dropped, read-only root with `emptyDir` on `/var/cache/nginx` and `/tmp`) |
 | `automountServiceAccountToken` | unset (Kubernetes default: mounted) | `false` on auth, notifier and ui, which never call the Kubernetes API; set on both the pod and its ServiceAccount |
-| `serviceToken` | `true` | Inject the shared service token as `TELARK_SERVICE_TOKEN`; `false` on ui, whose nginx only proxies browser calls and never calls a service itself |
+| `serviceToken` | `true` | Inject the shared service token as `TELARK_SERVICE_TOKEN`, and `SESSION_COOKIE_HOST_PREFIX` (see `app.auth.passkey.origin`); `false` on ui, whose nginx only proxies browser calls and never calls a service itself |
 | `serviceAccount.create` / `serviceAccount.name` / `serviceAccount.annotations` | `create: true` | Per-service ServiceAccount control |
 | `nodeSelector` / `tolerations` / `affinity` | `app.serviceDefaults.*` | Scheduling overrides |
 | `useRedis` | `true` | Mount `app.shared.redis` and `REDIS_PASSWORD` |
@@ -230,13 +234,13 @@ Image tags are `services.<svc>.version` in `values.yaml`, bumped by the release 
 | `auth` | `auth-service` | `auth` | `auth` | `true` |
 | `ui` | `ui-service` | `ui` | `ui` | `true` |
 
-`analyzer` (Python) runs one replica with `autoscaling.enabled: false`: one worker bound to one runtime slot.
+`analyzer` (Python) runs one replica with `autoscaling.enabled: false`: one worker bound to one runtime slot. `exporter` is never autoscaled either: one replica updates with `Recreate`, so any class works, and more replicas roll (`RollingUpdate`) on a shared ReadWriteMany class.
 
 #### `services.exporter.env`
 
 | Variable | Default | Description |
 |---|---|---|
-| `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated browser origins answered with CORS headers; empty sends none (the dashboard proxies every API on its own origin). See [CORS](../../docs/INSTALL.md#cors) |
+| `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated exact browser origins answered with CORS headers; empty sends none (the dashboard proxies every API on its own origin). See [CORS](../../docs/INSTALL.md#cors) |
 | `SNAPSHOTS_PATH` | `/snapshots` | Filesystem mount path for snapshot files |
 | `SNAPSHOTS_PVC_NAME` | `{{ .Values.app.name }}-exporter-snapshots-pvc` (tpl), plus a storage suffix after a class change | PVC backing snapshot storage |
 | `SNAPSHOTS_PVC_NAMESPACE` | `{{ .Values.app.namespace }}` (tpl) | Namespace of the snapshots PVC |
@@ -254,7 +258,7 @@ K8s client + informers:
 
 | Variable | Default | Description |
 |---|---|---|
-| `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated browser origins answered with CORS headers; empty sends none (the dashboard proxies every API on its own origin). See [CORS](../../docs/INSTALL.md#cors) |
+| `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated exact browser origins answered with CORS headers; empty sends none (the dashboard proxies every API on its own origin). See [CORS](../../docs/INSTALL.md#cors) |
 | `DISCOVERY_K8S_CLIENT_QPS` | `100` | K8s client QPS; above 50/100 default to absorb snapshot LIST fanout on busy clusters |
 | `DISCOVERY_K8S_CLIENT_BURST` | `200` | K8s client burst |
 | `DISCOVERY_ROLLBACK_K8S_CLIENT_QPS` | `100` | Rollback controller's own K8s client QPS (its own bucket, sized like the shared one), so informer/prewarm traffic never queues a rollback's apply calls |
@@ -348,7 +352,7 @@ The analyzer's on/off switch, model and auto-analyze setting live on the TelarkC
 |---|---|---|
 | `REDIS_POOL_SIZE` | `10` | Redis client connection pool size |
 | `OLLAMA_HOST` | `app.ollama.runtimeUrl`, else `http://<release>-ollama:11434` (tpl) | Model runtime URL |
-| `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated browser origins answered with CORS headers; empty sends none (the dashboard proxies the analyzer on its own origin). See [CORS](../../docs/INSTALL.md#cors) |
+| `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated exact browser origins answered with CORS headers; empty sends none (the dashboard proxies the analyzer on its own origin). See [CORS](../../docs/INSTALL.md#cors) |
 | `OLLAMA_AUTO_PULL` | `{{ .Values.app.ollama.autoPull }}` (tpl) | Pull a missing model on demand |
 | `ANALYZER_MODE` | `fast` | `fast` = rules + one short narration; `deep` = the multi-step tool loop (4+ vCPU or GPU) |
 | `ANALYZER_NUM_THREAD` | `2` | Threads per model request; = `ollama.resources.limits.cpu`, never above the node's vCPU (oversubscription makes a run minutes long) |
@@ -379,7 +383,7 @@ RBAC: the analyzer ClusterRole is read-only (`get`, `list`). Besides pods, event
 
 #### Analyzer runtime (ollama)
 
-`app.ollama.enabled=true` (default) installs the ollama subchart as the analyzer's model runtime. A NetworkPolicy admits only the analyzer pods on port 11434 and allows HTTPS egress only while `app.ollama.autoPull=true`. The chart pulls no model at start: `ollama.ollama.models.pull` stays empty, because the subchart pulls in a `postStart` hook that ignores `app.ollama.autoPull`, and a failed pull there restarts the container in a loop. With `app.ollama.autoPull=true` and the analyzer enabled (the fresh-install default), the analyzer pulls the model chosen in Settings (default `granite4:350m`, 708 MB) at its first config poll when the runtime lacks it, retrying every `ANALYZER_CONFIG_POLL_SEC`; until the pull finishes, a fast-mode analysis keeps the rule text and skips the narration. Models live on a volume with `helm.sh/resource-policy: keep`, so they survive pod restarts, disabling and uninstalling. Its 6Gi (on the cluster's default class) hold the default model plus any one catalog model, since a model switch deletes the other catalog models (never on a `runtimeUrl` you run); use 20Gi to trial 8B models.
+`ollama.enabled=true` (default) installs the ollama subchart as the analyzer's model runtime. A NetworkPolicy admits only the analyzer pods on port 11434 and allows HTTPS egress only while `app.ollama.autoPull=true`. The chart pulls no model at start: `ollama.ollama.models.pull` stays empty, because the subchart pulls in a `postStart` hook that ignores `app.ollama.autoPull`, and a failed pull there restarts the container in a loop. With `app.ollama.autoPull=true` and the analyzer enabled (the fresh-install default), the analyzer pulls the model chosen in Settings (default `granite4:350m`, 708 MB) at its first config poll when the runtime lacks it, retrying every `ANALYZER_CONFIG_POLL_SEC`; until the pull finishes, a fast-mode analysis keeps the rule text and skips the narration. Models live on a volume with `helm.sh/resource-policy: keep`, so they survive pod restarts, disabling and uninstalling. Its 6Gi (on the cluster's default class) hold the default model plus any one catalog model, since a model switch deletes the other catalog models (never on a `runtimeUrl` you run); use 20Gi to trial 8B models.
 
 Sizing does not follow `app.mode`: Helm resolves a subchart's values before the mode preset applies, so `ollama.resources` is one value for every mode. The default (requests `250m` / `1536Mi`, limit cpu `2`) is the CPU tiny profile below. Measured with `granite4:350m` loaded at a 4k context, ollama holds about 1.1Gi and idles near 0 CPU, and a narration bursts to the 2-core limit for a few seconds. The low request lets `minimal` fit one 2 vCPU / 8 GiB node; raise it with the profile values on bigger nodes.
 
@@ -408,7 +412,7 @@ Modes:
 - **Air-gapped** (`app.ollama.autoPull=false`): no pulls, no HTTPS egress; provide the model one of two ways:
   - **Pre-seeded volume:** `ollama.persistentVolume.existingClaim=<pvc>`, a claim whose root holds `models/` (blobs and manifests) copied from `~/.ollama/models` on a connected machine.
   - **Baked image:** build `FROM ollama/ollama:0.17.7` with `COPY models /models`, then set `ollama.image.repository` / `ollama.image.tag`, `ollama.persistentVolume.enabled=false` and add `{name: OLLAMA_MODELS, value: /models}` to `ollama.extraEnv` (a values file replaces the whole list, so copy the chart's entries too). Never bake under `/root/.ollama`: the subchart always mounts a volume there, which hides the model.
-- **Self-hosted endpoint** (`app.ollama.runtimeUrl=http://<host>:11434`, `app.ollama.enabled=false`): the analyzer talks to an Ollama you run (for example on a GPU host). It must speak the Ollama API; no key, no Secret. No ollama NetworkPolicy is rendered; the analyzer pod's egress follows your cluster's policies. Set `ANALYZER_NUM_THREAD` to that host's cores.
+- **Self-hosted endpoint** (`app.ollama.runtimeUrl=http://<host>:11434`, `ollama.enabled=false`): the analyzer talks to an Ollama you run (for example on a GPU host). It must speak the Ollama API; no key, no Secret. No ollama NetworkPolicy is rendered; the analyzer pod's egress follows your cluster's policies. Set `ANALYZER_NUM_THREAD` to that host's cores.
 
 Memory: `ollama.resources` has no memory limit on purpose. Ollama computes free memory as the cgroup limit minus usage, and usage counts the page cache of pulled model files, so any limit eventually refuses model loads. Without a limit it reads the node's cache-aware available memory; `OLLAMA_KEEP_ALIVE=-1` keeps the loaded model resident. The pod is Burstable, and the 1536Mi request still reserves memory. For Guaranteed QoS set requests = limits with memory ≥ 3 × model size + 1Gi and re-check after every pull. Deleting unused models (`DELETE /api/delete`) frees the cache.
 
@@ -418,7 +422,7 @@ Security: ollama runs with no privilege escalation, no capabilities, the `Runtim
 
 Besides incidents, the analyzer reviews each app's setup with deterministic rules (reliability, resources, scaling, security, images, config, networking, change risk, protection, multi-namespace consistency) and shows the findings as recommendation cards on the Insights page (per app: `/insights?app=<namespace>/<name>`). Reviews never call the model.
 
-- **When:** after every analysis run (skipped while jobs are queued), and from a sweep every `ANALYZER_REVIEW_TICK_SEC`: apps whose generation changed first, then any app not reviewed for `ANALYZER_REVIEW_INTERVAL_SEC`, at most `ANALYZER_REVIEW_APPS_PER_MIN` (`minimal` 10, `standard` 20, `performance` 60; about 2 000 apps in 100 min at 20). The sweep yields to queued analyses and runs only while the analyzer is enabled in Settings. `ANALYZER_REVIEW_INTERVAL_SEC=0` stops the sweep; Analyze still reviews its app.
+- **When:** after every analysis run (skipped while jobs are queued), and from a sweep every `ANALYZER_REVIEW_TICK_SEC`: apps whose generation changed first, then any app not reviewed for `ANALYZER_REVIEW_INTERVAL_SEC`, at most `ANALYZER_REVIEW_APPS_PER_MIN` (`minimal` 10, `standard` 20, `performance` 60). The sweep yields to queued analyses and runs only while the analyzer is enabled in Settings. `ANALYZER_REVIEW_INTERVAL_SEC=0` stops the sweep; Analyze still reviews its app.
 - **Production:** for apps matching `ANALYZER_PRODUCTION_PATTERN`, single-replica and missing-budget findings are raised to warning and the protection-plan rules apply.
 - **Usage:** usage rules (near limit, over/under-provisioned) need `ANALYZER_USAGE_MIN_SAMPLES` samples over `ANALYZER_USAGE_MIN_SPAN_SEC`, taken from the Application metrics; without metrics-server they stay silent.
 
@@ -433,6 +437,7 @@ The dashboard's Insights page lists every app's incidents and recommendations: d
 | Variable | Default | Description |
 |---|---|---|
 | `NOTIFIER_APPLY_WORKERS` | `8` | Concurrent apply workers; an application always maps to the same worker, so its updates stay ordered (`minimal` 2, `performance` 32) |
+| `WEBHOOK_TARGETS_FILE` | `/etc/telark/webhooks/targets.json` | Where the notifier reads the webhook targets, the mounted `app.webhooks` Secret. See [Webhooks](../../docs/INSTALL.md#webhooks) |
 
 Also inherits `app.shared.redis`, `app.shared.nats` and the NATS consumer credentials (`natsUser: consumer`).
 
@@ -442,17 +447,17 @@ Redis:
 
 | Variable | Default | Description |
 |---|---|---|
-| `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated browser origins answered with CORS headers; empty sends none (the dashboard proxies every API on its own origin). See [CORS](../../docs/INSTALL.md#cors) |
+| `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated exact browser origins answered with CORS headers; empty sends none (the dashboard proxies every API on its own origin). See [CORS](../../docs/INSTALL.md#cors) |
 | `REDIS_DB` | `1` | Redis DB index |
 | `REDIS_RETRY_INTERVAL_SEC` | `2` | Retry backoff base |
-| `REDIS_MAX_WAIT_SEC` | `30` | Total wait cap before failing the Redis op |
+| `REDIS_MAX_WAIT_SEC` | `180` | Total wait cap before failing the Redis op |
 | `REDIS_PING_TIMEOUT_SEC` | `3` | Per-ping timeout |
 
 Bootstrap (templated from `app.auth.bootstrap`):
 
 | Variable | Source | Description |
 |---|---|---|
-| `BOOTSTRAP_ADMIN` | `{{ .Values.app.auth.bootstrap.admin }}` | The bootstrap admin's email; `break-glass --enroll` marks it `bootstrap: true`, bare-email passkey registration refuses it, and OIDC and self-registration never grant it Admin |
+| `BOOTSTRAP_ADMIN` | `{{ .Values.app.auth.bootstrap.admin }}` | The bootstrap admin's email; `break-glass --enroll` marks it `bootstrap: true` until an account is pinned, then opens a request ([Recovery requests](../../docs/INSTALL.md#recovery-requests)); bare-email passkey registration refuses it, and OIDC and self-registration never grant it Admin |
 
 WebAuthn / passkey (templated from `app.auth.passkey`):
 
@@ -461,9 +466,17 @@ WebAuthn / passkey (templated from `app.auth.passkey`):
 | `RP_ID` | `{{ .Values.app.auth.passkey.id }}` | Relying Party identifier; empty follows the request host |
 | `RP_NAME` | `{{ .Values.app.auth.passkey.name }}` | Display name shown to the user |
 | `RP_ORIGIN` | `{{ .Values.app.auth.passkey.origin }}` | Allowed origin(s), comma-separated; empty follows the request `Origin` |
-| `ENROLL_INVITE_TTL_SEC` | inline (`"3600"`) | Lifetime (seconds) of an enrollment link created from Members or by `break-glass --enroll`; a new link revokes the previous one. See [Enrollment links](../../docs/INSTALL.md#enrollment-links) |
+| `ENROLL_INVITE_TTL_SEC` | inline (`"3600"`) | Lifetime (seconds) of an enrollment link created from Members (a `break-glass --enroll` link always lives 10 minutes); a new link revokes the previous one. See [Enrollment links](../../docs/INSTALL.md#enrollment-links) |
 | `CHALLENGE_TIMEOUT` | inline (`"60"`) | Challenge TTL (seconds) |
 | `SESSION_EXPIRY` | inline (`"24"`) | Session TTL (hours) |
+
+Sign-in rate limits, per minute on each public start (passkey sign-in and registration, break-glass approval, Google nonce), then 429 with `Retry-After: 60` ([Sign-in rate limits](../../docs/INSTALL.md#sign-in-rate-limits)):
+
+| Variable | Default | Description |
+|---|---|---|
+| `RATE_LIMIT_PER_CLIENT` | `30` | Starts per client |
+| `RATE_LIMIT_GLOBAL` | `3000` | Starts over all clients |
+| `RATE_LIMIT_TRUSTED_HOPS` | `1` with `ingress.enabled` or `gateway.enabled`, else `0` | Proxies in front of the ui that append to `X-Forwarded-For`: the client is the entry this many from the right. Add one per L7 proxy in front of the ingress or gateway |
 
 OIDC trust keys (mounted from the Secret named by `app.auth.oidc.existingSecret`, else `<fullname>-oidc-trust-secret`):
 

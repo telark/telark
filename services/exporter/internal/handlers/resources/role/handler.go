@@ -1,6 +1,7 @@
 package role
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -64,11 +65,11 @@ func CreateRoleResourceWithCacheInvalidation(optimizer *performance.Optimizer) f
 			}
 		}
 		roleutils.ComputeAndSetVersion(role)
-		createRoleResource(w, role, optimizer)
+		createRoleResource(r.Context(), w, role, optimizer)
 	}
 }
 
-func createRoleResource(w http.ResponseWriter, role *roledata.AccessRole, optimizer *performance.Optimizer) {
+func createRoleResource(ctx context.Context, w http.ResponseWriter, role *roledata.AccessRole, optimizer *performance.Optimizer) {
 	spec, err := sharedutils.StructToSpecMap(role)
 	if err != nil {
 		responseutils.LogAndSendResponse(
@@ -93,6 +94,7 @@ func createRoleResource(w http.ResponseWriter, role *roledata.AccessRole, optimi
 	defer lock.Unlock()
 
 	generics.GenericCreateCustomResourceWithFinalizers(
+		ctx,
 		w,
 		metadata.AccessRoleMetadata,
 		role.ID,

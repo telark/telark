@@ -43,8 +43,8 @@ func clientDataWith(challenge string) string {
 func TestRegistrationChallengeOwnerRefuses(t *testing.T) {
 	rdb := redishelper.GetClient()
 	ctx := context.Background()
-	ownerKey := constants.RedisKeyPrefixRegistrationOwner + ownerChallengeB64
-	enrolledKey := constants.RedisKeyPrefixEnrolledCeremony + ownerChallengeB64
+	ownerKey := constants.RedisKeyPrefixRegistrationOwner + testutil.ChallengeDigest(t, ownerChallengeB64)
+	enrolledKey := constants.RedisKeyPrefixEnrolledCeremony + testutil.ChallengeDigest(t, ownerChallengeB64)
 	unreadable := func(key string) func(t *testing.T) {
 		return func(t *testing.T) {
 			if err := rdb.HSet(ctx, key, testName, testPayload).Err(); err != nil {

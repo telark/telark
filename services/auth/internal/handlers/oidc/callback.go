@@ -52,11 +52,12 @@ func GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionToken, err := authhelper.CreateUserSession(user.ID, &req.DeviceMetadata)
+	sessionToken, expiresAt, err := authhelper.CreateUserSession(user.ID, &req.DeviceMetadata)
 	if err != nil {
 		sendCallbackError(w, fmt.Errorf(string(constants.ErrOIDCCreateSessionFailed), err), shared.GetStatusCodeForSessionError(err))
 		return
 	}
+	authhelper.SetSessionCookie(w, sessionToken, expiresAt)
 
 	capturedUserID := user.ID
 	authhelper.Dispatch(func() {
@@ -65,9 +66,8 @@ func GoogleCallback(w http.ResponseWriter, r *http.Request) {
 
 	lg.Info(fmt.Sprintf(string(constants.LogOIDCLoginAccepted), shared.IdentityHash(claims.Subject)))
 	shared.SendSuccessResponse(w, string(constants.SuccessOIDCLoginCompleted), CallbackResponse{
-		SessionToken: sessionToken,
-		Email:        claims.Email,
-		User:         user,
+		Email: claims.Email,
+		User:  user,
 	})
 }
 

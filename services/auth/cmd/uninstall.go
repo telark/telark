@@ -18,7 +18,7 @@ func RemoveFinalizers(lg *logger.CustomLogger) {
 		ops, _ := cleanupctrl.GetResourceOps(resourceType)
 		views, err := ops.List(context.Background())
 		if err != nil {
-			lg.Error(fmt.Sprintf(string(constants.ErrRemoveFinalizersListFailed), resourceType, err))
+			lg.Error(fmt.Sprintf(string(ErrRemoveFinalizersListFailed), resourceType, err))
 			failed++
 			continue
 		}
@@ -39,5 +39,5 @@ func RemoveFinalizers(lg *logger.CustomLogger) {
 			removed++
 		}
 	}
-	lg.Info(fmt.Sprintf(string(constants.LogFinalizersRemoved), removed, failed))
+	lg.Info(fmt.Sprintf(string(LogFinalizersRemoved), removed, failed))
 }

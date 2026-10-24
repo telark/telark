@@ -2,6 +2,7 @@ package coreapps
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/telark/telark/internal/data/resources/application"
@@ -13,14 +14,19 @@ import (
 )
 
 const (
-	containerPort = 8080
-	keyAPIVersion = "apiVersion"
-	keyKind       = "kind"
-	keyMetadata   = "metadata"
-	keyName       = "name"
-	keyNamespace  = "namespace"
-	keySpec       = "spec"
-	keyTemplate   = "template"
+	apiVersionApps = "apps/v1"
+	containerPort  = 8080
+	keyAPIVersion  = "apiVersion"
+	keyContainers  = "containers"
+	namespaceProd  = "prod"
+	republishes    = 5
+	keyKind        = "kind"
+	keyMetadata    = "metadata"
+	keyName        = "name"
+	keyNamespace   = "namespace"
+	keySpec        = "spec"
+	keyTemplate    = "template"
+	labelApp       = "app"
 )
 
 // With every input served by the informer manifest cache the enriched
@@ -118,4 +124,43 @@ func TestGetApplicationsSkipsNamesThatCannotNameACR(t *testing.T) {
 	testutil.Equal(t, "response shape", ok, true)
 	testutil.Equal(t, "one application", len(data.Applications), constants.DefaultAddValue)
 	testutil.Equal(t, "normalized name", data.Applications[constants.DefaultInitValue].Name, "good-name")
+}
+
+// The lists came from ranging over sets, so every publish reshuffled them on the app page.
+func TestGetApplicationsSortsImagesPortsAndEnvKeys(t *testing.T) {
+	images := []string{"zipkin:3", "busybox:1.36", "nginx:1.27", "redis:8"}
+	envKeys := []string{"ZED", "ALPHA", "MID", "BETA"}
+	core.GetManifestFromCache = func(kind, name, ns string) (map[string]any, bool) {
+		containers := make([]any, constants.DefaultInitValue, len(images))
+		for i, image := range images {
+			containers = append(containers, map[string]any{
+				keyName: envKeys[i],
+				"image": image,
+				"env":   []any{map[string]any{keyName: envKeys[i], "value": "x"}},
+				// Descending, so an unsorted result can't pass by insertion order.
+				"ports": []any{map[string]any{"containerPort": int64(containerPort - i)}},
+			})
+		}
+		return map[string]any{
+			keyAPIVersion: apiVersionApps,
+			keyKind:       kind,
+			keyMetadata:   map[string]any{keyName: name, keyNamespace: ns},
+			keySpec:       map[string]any{keyTemplate: map[string]any{keySpec: map[string]any{keyContainers: containers}}},
+		}, true
+	}
+	t.Cleanup(func() { core.GetManifestFromCache = nil })
+	inputs := []derivation.ResourceInput{
+		{Namespace: namespaceProd, Kind: appshared.KindDeployment, Name: "shop", Labels: map[string]string{labelApp: "shop"}},
+	}
+
+	for range republishes {
+		res := core.GetApplications(context.Background(), nil, inputs, core.GetApplicationsOptions{DeriveOnly: true})
+		data, ok := res.Data.(application.ResponseData)
+		testutil.Equal(t, "response shape", ok, true)
+		app := data.Applications[constants.DefaultInitValue]
+		testutil.Equal(t, "images", len(app.Images), len(images))
+		testutil.Equal(t, "images sorted", slices.IsSorted(app.Images), true)
+		testutil.Equal(t, "ports sorted", slices.IsSorted(app.Ports), true)
+		testutil.Equal(t, "env keys sorted", slices.IsSorted(app.EnvVarKeys), true)
+	}
 }

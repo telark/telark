@@ -55,14 +55,20 @@ func storePendingUser(email string) (*userresource.User, string, error) {
 	if err != nil {
 		return nil, constants.EmptyString, err
 	}
+	ttl := time.Duration(constants.RedisTTLChallenge) * time.Second
+	entry, err := redishelper.SignEntry(pendingUserKey(id), string(raw), ttl)
+	if err != nil {
+		return nil, constants.EmptyString, err
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisChallengeOpTimeout)
 	defer cancel()
-	if err := rdb.Set(ctx, pendingUserKey(id), raw, time.Duration(constants.RedisTTLChallenge)*time.Second).Err(); err != nil {
+	if err := rdb.Set(ctx, pendingUserKey(id), entry, ttl).Err(); err != nil {
 		return nil, constants.EmptyString, fmt.Errorf(string(constants.ErrFailedStorePendingUser), err.Error())
 	}
 	return user, id, nil
 }
 
+// An entry that doesn't verify makes the ceremony unknown: an edited user (roles, bootstrap marker) is never created.
 func pendingUser(id string) (*userresource.User, bool, error) {
 	rdb := redishelper.GetClient()
 	if rdb == nil {
@@ -70,15 +76,19 @@ func pendingUser(id string) (*userresource.User, bool, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisChallengeOpTimeout)
 	defer cancel()
-	raw, err := rdb.Get(ctx, pendingUserKey(id)).Bytes()
+	entry, err := rdb.Get(ctx, pendingUserKey(id)).Result()
 	if errors.Is(err, redis.Nil) {
 		return nil, false, nil
 	}
 	if err != nil {
 		return nil, false, fmt.Errorf(string(constants.ErrFailedGetPendingUser), err.Error())
 	}
+	raw, ok := redishelper.VerifyEntry(pendingUserKey(id), entry)
+	if !ok {
+		return nil, false, errors.New(string(constants.ErrChallengeNotFound))
+	}
 	var user userresource.User
-	if err := json.Unmarshal(raw, &user); err != nil {
+	if err := json.Unmarshal([]byte(raw), &user); err != nil {
 		return nil, false, fmt.Errorf(string(constants.ErrFailedGetPendingUser), err.Error())
 	}
 	return &user, true, nil

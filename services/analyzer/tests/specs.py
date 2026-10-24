@@ -9,8 +9,8 @@ template (effective resources), unless the test edits the pods themselves.
 import copy
 from datetime import UTC, datetime
 
-from models import AppInsights
-from review import ReviewInputs, WorkloadInput
+from analysis.review import ReviewInputs, WorkloadInput
+from core.models import AppInsights
 
 NOW = datetime(2026, 9, 24, 12, 0, tzinfo=UTC)
 NS = "shop"

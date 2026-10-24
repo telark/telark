@@ -34,7 +34,7 @@ All Go code is one module, `github.com/telark/telark` (the root `go.mod`): the s
 
 ## Prerequisites
 
-Go (the version on the `go` line of the root `go.mod`), `golangci-lint`, `helm` 3, Python 3.13 with `venv` for the analyzer, and Docker plus a Kubernetes cluster for end-to-end work. Pinned versions and install commands: [docs/testing](docs/testing/README.md#fresh-environment).
+Go (the version on the `go` line of the root `go.mod`), `golangci-lint`, `helm` 3, Python 3.14 with `venv` for the analyzer, and Docker plus a Kubernetes cluster for end-to-end work. Pinned versions and install commands: [docs/testing](docs/testing/README.md#fresh-environment).
 
 ## Build, lint, test
 

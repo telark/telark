@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -223,7 +222,7 @@ func userHandle(userID string) string {
 }
 
 func StartRegistration(
-	userID, username, fullname string,
+	userID, username, fullname, enrollDigest string,
 	existingCredentials []webauthn.Credential,
 	r *http.Request,
 ) (*protocol.CredentialCreation, string, error) {
@@ -242,12 +241,11 @@ func StartRegistration(
 	options.Response.AuthenticatorSelection.ResidentKey = protocol.ResidentKeyRequirementRequired
 	options.Response.CredentialExcludeList = []protocol.CredentialDescriptor{}
 
-	// Owner first: a failed store then leaves nothing under the user's key, which a
-	// newer ceremony of the same user may already hold.
+	// Owner first, so a refused or failed challenge store leaves no ceremony behind.
 	if err := StoreRegistrationChallengeOwner(sessionData.Challenge, userID); err != nil {
 		return nil, constants.EmptyString, err
 	}
-	if err := StoreChallenge(userID, sessionData.Challenge); err != nil {
+	if err := StoreChallenge(userID, sessionData.Challenge, enrollDigest); err != nil {
 		cleanupRegistrationChallengeOwner(sessionData.Challenge)
 		return nil, constants.EmptyString, err
 	}
@@ -255,44 +253,8 @@ func StartRegistration(
 	return options, sessionData.Challenge, nil
 }
 
-func extractRegistrationData(bodyBytes []byte) (
-	attestationObjB64, clientDataJSONB64, credentialIDB64 string, err error,
-) {
-	var credMap map[string]any
-	if err := json.Unmarshal(bodyBytes, &credMap); err != nil {
-		return constants.EmptyString, constants.EmptyString, constants.EmptyString,
-			fmt.Errorf(string(constants.ErrFailedParseRequestBody), err)
-	}
-
-	credentialIDB64, ok := credMap[constants.WebAuthnKeyID].(string)
-	if !ok {
-		return constants.EmptyString, constants.EmptyString, constants.EmptyString,
-			errors.New(string(constants.ErrMissingCredentialID))
-	}
-
-	response, ok := credMap[constants.WebAuthnKeyResponse].(map[string]any)
-	if !ok {
-		return constants.EmptyString, constants.EmptyString, constants.EmptyString,
-			errors.New(string(constants.ErrInvalidResponseStructure))
-	}
-
-	attestationObjB64, ok = response[constants.WebAuthnKeyAttestationObject].(string)
-	if !ok {
-		return constants.EmptyString, constants.EmptyString, constants.EmptyString,
-			errors.New(string(constants.ErrMissingAttestationObject))
-	}
-
-	clientDataJSONB64, ok = response[constants.WebAuthnKeyClientDataJSON].(string)
-	if !ok {
-		return constants.EmptyString, constants.EmptyString, constants.EmptyString,
-			errors.New(string(constants.ErrMissingClientDataJSON))
-	}
-
-	return attestationObjB64, clientDataJSONB64, credentialIDB64, nil
-}
-
 func FinishRegistration(
-	userID, username, fullname string,
+	userID, username, fullname, enrollDigest string,
 	r *http.Request,
 ) (credential *webauthn.Credential, backupEligible, backupState bool, err error) {
 	wa, err := GetWebAuthnFor(r)
@@ -300,14 +262,16 @@ func FinishRegistration(
 		return nil, false, false, err
 	}
 
-	challenge, err := ValidateAndGetChallenge(userID)
-	if err != nil {
-		return nil, false, false, errors.New(string(constants.ErrChallengeNotFound))
-	}
-
 	bodyBytes, err := sharedhelper.ReadRequestBody(r)
 	if err != nil {
 		return nil, false, false, err
+	}
+	if err := authhelper.RefuseFrozen(userID, enrollDigest); err != nil {
+		return nil, false, false, err
+	}
+	challenge, err := ConsumeChallengeAt(constants.RedisKeyPrefixChallenge+userID, bodyBytes)
+	if err != nil {
+		return nil, false, false, errors.New(string(constants.ErrChallengeNotFound))
 	}
 
 	// The credential parameters StartRegistration offered (the library's defaults); without

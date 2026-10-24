@@ -17,11 +17,10 @@ import pytest
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import insights  # noqa: E402
-import messages  # noqa: E402
-import recommendations as R  # noqa: E402
-from constants import RECOMMENDATION_TEXT, RFC3339_FORMAT  # noqa: E402
-from models import AppInsights, Insight  # noqa: E402
+from analysis import insights, messages  # noqa: E402
+from analysis import recommendations as R  # noqa: E402
+from core.constants import RECOMMENDATION_TEXT, RFC3339_FORMAT  # noqa: E402
+from core.models import AppInsights, Insight  # noqa: E402
 from specs import (  # noqa: E402
     ALL,
     IMAGE,

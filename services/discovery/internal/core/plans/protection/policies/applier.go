@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 
-	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
+	policiesv1 "github.com/kyverno/api/api/policies.kyverno.io/v1"
 	datapolicies "github.com/telark/telark/internal/data/policies"
 	kcoreapply "github.com/telark/telark/internal/kcore/ops/apply"
 	"github.com/telark/telark/services/discovery/internal/constants"
@@ -28,7 +29,7 @@ func NewApplier(dyn dynamic.Interface, mapper meta.RESTMapper) *Applier {
 	return &Applier{dyn: dyn, mapper: mapper}
 }
 
-func (a *Applier) Deploy(ctx context.Context, rendered []kyvernov1.Policy) ([]string, error) {
+func (a *Applier) Deploy(ctx context.Context, rendered []policiesv1.NamespacedValidatingPolicy) ([]string, error) {
 	if len(rendered) == constants.DefaultInitValue {
 		return nil, nil
 	}
@@ -74,11 +75,7 @@ func (a *Applier) listByPlan(ctx context.Context, planID string) ([]unstructured
 }
 
 func (a *Applier) CleanupByPlanID(ctx context.Context, planID string) error {
-	items, err := a.listByPlan(ctx, planID)
-	if err != nil {
-		return err
-	}
-	return a.deletePolicies(ctx, items, nil)
+	return a.deleteByPlan(ctx, planID, nil)
 }
 
 func (a *Applier) DeletePoliciesByLabelAndNames(ctx context.Context, planID string, names []string) error {
@@ -89,7 +86,15 @@ func (a *Applier) DeletePoliciesByLabelAndNames(ctx context.Context, planID stri
 	for _, n := range names {
 		wanted[n] = struct{}{}
 	}
+	return a.deleteByPlan(ctx, planID, wanted)
+}
+
+// A cluster that does not serve the kind answers NotFound: nothing to delete.
+func (a *Applier) deleteByPlan(ctx context.Context, planID string, wanted map[string]struct{}) error {
 	items, err := a.listByPlan(ctx, planID)
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -118,16 +123,18 @@ func (a *Applier) deletePolicies(ctx context.Context, items []unstructured.Unstr
 // Returns the first patch error so the caller can roll back.
 func (a *Applier) PatchPoliciesMode(ctx context.Context, planID, newMode string) error {
 	items, err := a.listByPlan(ctx, planID)
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("list policies for plan %q: %w", planID, err)
 	}
 	if len(items) == constants.DefaultInitValue {
 		return nil
 	}
-	action := datapolicies.FailureAction(newMode)
 	patch := map[string]any{
-		"spec": map[string]any{
-			"validationFailureAction": action,
+		fieldSpec: map[string]any{
+			fieldActions: datapolicies.ValidationActions(newMode),
 		},
 	}
 	body, err := json.Marshal(patch)
@@ -152,6 +159,32 @@ func (a *Applier) PatchPoliciesMode(ctx context.Context, planID, newMode string)
 		})
 	}
 	return g.Wait()
+}
+
+// The live object keeps its other metadata; the spec is the render's alone, and a write since
+// the live object was read turns the update into a conflict.
+func (a *Applier) Replace(ctx context.Context, live *unstructured.Unstructured, rendered *policiesv1.NamespacedValidatingPolicy) error {
+	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&rendered.Spec)
+	if err != nil {
+		return fmt.Errorf("convert policy %q: %w", rendered.Name, err)
+	}
+	obj := live.DeepCopy()
+	obj.Object[fieldSpec] = spec
+	obj.SetLabels(withKeys(obj.GetLabels(), rendered.Labels))
+	obj.SetAnnotations(withKeys(obj.GetAnnotations(), rendered.Annotations))
+	_, err = a.dyn.Resource(KyvernoPolicyGVR).Namespace(obj.GetNamespace()).Update(ctx, obj, metav1.UpdateOptions{FieldManager: FieldManager})
+	if err != nil {
+		return fmt.Errorf(errReplacePolicyFmt, obj.GetNamespace(), obj.GetName(), err)
+	}
+	return nil
+}
+
+func withKeys(dst, src map[string]string) map[string]string {
+	if dst == nil {
+		dst = make(map[string]string, len(src))
+	}
+	maps.Copy(dst, src)
+	return dst
 }
 
 func (a *Applier) DeletePoliciesByNamespacedName(ctx context.Context, refs []NamespacedName) error {

@@ -57,7 +57,7 @@ spec:
                         maxLength: 100
                       scope:
                         type: string
-                        description: Service or resource type that uses this category (groups, roles, plan-environments, plan-tags)
+                        description: Service or resource type that uses this category (groups, roles, plan-environments, plan-tags, plan-kinds)
                         minLength: 1
                         maxLength: 50
                       type:

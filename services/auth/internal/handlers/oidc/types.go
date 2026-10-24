@@ -13,10 +13,10 @@ type CallbackRequest struct {
 	authdata.DeviceMetadata
 }
 
+// The session goes in the cookie, never in the body.
 type CallbackResponse struct {
-	SessionToken string             `json:"sessionToken"`
-	Email        string             `json:"email"`
-	User         *userresource.User `json:"user,omitempty"`
+	Email string             `json:"email"`
+	User  *userresource.User `json:"user,omitempty"`
 }
 
 type NonceResponse struct {

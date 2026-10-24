@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from constants import (
+from core.constants import (
     CHANGE_VALUE_MAX,
     CHANGES_PER_ENTRY_MAX,
     REF_GENERATION,
@@ -10,7 +10,7 @@ from constants import (
     REF_WORKLOAD,
     SNAPSHOT_IDS_MAX,
 )
-from models import HistoryArgs, Run
+from core.models import HistoryArgs, Run
 
 KEY_WORKLOADS = "workloads"
 KEY_CHANGES = "changes"

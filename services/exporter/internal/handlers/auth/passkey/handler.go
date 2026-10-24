@@ -3,6 +3,7 @@ package passkey
 import (
 	"net/http"
 
+	"github.com/telark/telark/services/exporter/internal/bootstrap"
 	"github.com/telark/telark/services/exporter/internal/constants"
 	passkeyexp "github.com/telark/telark/services/exporter/internal/exporters/auth/passkey"
 	passkeyutils "github.com/telark/telark/services/exporter/internal/utils/auth/passkey"
@@ -23,8 +24,12 @@ func CreatePasskeyByUserWithCacheInvalidation(optimizer *performance.Optimizer) 
 			return
 		}
 
-		passkeyexp.CreatePasskeyByUser(w, body, userID)
+		rc := sharedutils.NewResponseCapture(w)
+		passkeyexp.CreatePasskeyByUser(r.Context(), rc, body, userID)
 		authutils.InvalidateResourceCaches(optimizer, constants.ResourceUserPasskey, string(constants.OpCreate), constants.EmptyString)
+		if rc.Status() == http.StatusOK {
+			bootstrap.PinAtFirstPasskey(optimizer, userID)
+		}
 	}
 }
 

@@ -19,8 +19,8 @@ type (
 		Email string `json:"email"`
 		authdata.DeviceMetadata
 	}
+	// The session goes in the cookie, never in the body.
 	LoginFinishResponse struct {
-		SessionToken string `json:"sessionToken"`
-		User         any    `json:"user"`
+		User any `json:"user"`
 	}
 )

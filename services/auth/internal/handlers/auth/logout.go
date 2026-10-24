@@ -21,6 +21,8 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	lg.Info(fmt.Sprintf(string(constants.LogLogoutAttempted), shared.IdentityHash(userID), tokenStatus))
+	// Whatever became of the session, the browser drops its cookie.
+	authhelper.ClearSessionCookie(w)
 	shared.SendSuccessResponse(w, string(constants.SuccessLogoutCompleted), nil)
 }
 

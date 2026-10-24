@@ -28,13 +28,25 @@ from fastapi import FastAPI
 from pydantic import ValidationError
 from redis import RedisError
 
-import analyzer
-import exporter
-import recommendations
-import review
-from api_server import create_app, valid_app
-from app_logger import configure, logger
-from config import (
+from analysis import analyzer, recommendations, review
+from analysis.insights import (
+    InsightStore,
+    clear_pending,
+    insight_id,
+    merge,
+    merge_recommendations,
+    narrate,
+    prune,
+    resolve_all,
+    resolve_observed,
+    stamp_review,
+    stamp_run,
+    validate,
+)
+from api.api_server import create_app, valid_app
+from core import exporter
+from core.app_logger import configure, logger
+from core.config import (
     ANALYZER_CONFIG_POLL_SEC,
     ANALYZER_REVIEW_APPS_PER_MIN,
     ANALYZER_REVIEW_INTERVAL_SEC,
@@ -46,7 +58,7 @@ from config import (
     REDIS_POOL_SIZE,
     REDIS_URL,
 )
-from constants import (
+from core.constants import (
     API_ERROR_INVALID_APP,
     API_HOST,
     APP_CATCHUP_ATTEMPTS,
@@ -135,25 +147,11 @@ from constants import (
     USAGE_KEY,
     WORKER_BACKOFF_S,
 )
-from events import Broadcaster
-from exporter import AppNotFound, ExporterUnavailable
-from helpers import app_ref, now_rfc3339, primary_namespace, stream_id_ms
-from insights import (
-    InsightStore,
-    clear_pending,
-    insight_id,
-    merge,
-    merge_recommendations,
-    narrate,
-    prune,
-    resolve_all,
-    resolve_observed,
-    stamp_review,
-    stamp_run,
-    validate,
-)
-from models import AnalyzerConfig, AppInsights, Job, LastRun, MergeStats, RecStats, Run
-from runtime import Runtime
+from core.events import Broadcaster
+from core.exporter import AppNotFound, ExporterUnavailable
+from core.helpers import app_ref, now_rfc3339, primary_namespace, stream_id_ms
+from core.models import AnalyzerConfig, AppInsights, Job, LastRun, MergeStats, RecStats, Run
+from providers.runtime import Runtime
 from tools.k8s_tools import K8s
 
 Sleep = Callable[[float], Awaitable[None]]

@@ -14,6 +14,9 @@ import (
 const (
 	envTickInterval     = "PROTECTION_PLAN_TICK_INTERVAL_SEC"
 	defaultTickInterval = 31
+
+	logCloseWindowFailed   = "protection-plan window close failed plan=%s err=%v"
+	logRefreshWindowFailed = "protection-plan window refresh failed plan=%s err=%v"
 )
 
 // Narrow view of the protection service so the boundary loop can be exercised with a fake.
@@ -21,6 +24,8 @@ type PlanService interface {
 	ListAllPlans() ([]plans.ProtectionPlan, error)
 	Activate(ctx context.Context, plan *plans.ProtectionPlan) error
 	Terminate(ctx context.Context, plan *plans.ProtectionPlan) error
+	CloseWindow(ctx context.Context, plan *plans.ProtectionPlan) error
+	RefreshWindow(plan *plans.ProtectionPlan) error
 	ReconcileHealthForActive(ctx context.Context, planList []plans.ProtectionPlan)
 }
 
@@ -85,11 +90,13 @@ func (c *Controller) processOnce(ctx context.Context, reconcileHealth bool) time
 	if reconcileHealth {
 		c.service.ReconcileHealthForActive(ctx, settled)
 	}
-	return c.untilNextBoundary(planList)
+	// The pass's own reading, not a fresh one: an edge that passed while the transitions or the
+	// health reconcile ran was not acted on, so it has to fire at once, not at the tick.
+	return c.untilNextBoundary(planList, now)
 }
 
-func (c *Controller) untilNextBoundary(planList []plans.ProtectionPlan) time.Duration {
-	next, ok := nextBoundary(planList, time.Now().UTC())
+func (c *Controller) untilNextBoundary(planList []plans.ProtectionPlan, now time.Time) time.Duration {
+	next, ok := nextBoundary(planList, now)
 	if !ok {
 		return c.tick
 	}
@@ -102,14 +109,24 @@ func (c *Controller) untilNextBoundary(planList []plans.ProtectionPlan) time.Dur
 func nextBoundary(planList []plans.ProtectionPlan, now time.Time) (time.Time, bool) {
 	var next time.Time
 	for i := range planList {
-		plan := &planList[i]
-		if !awaitsBoundary(plan.Phase) || plan.TimeMode != plans.TimeModeTimeRange || plan.TimeRange == nil {
+		if !awaitsBoundary(planList[i].Phase) {
 			continue
 		}
-		next = earlierEdge(next, plan.TimeRange.StartAt, now)
-		next = earlierEdge(next, plan.TimeRange.EndAt, now)
+		if edges := windowEdges(&planList[i], now); edges != nil {
+			next = earlierEdge(next, edges.StartAt, now)
+			next = earlierEdge(next, edges.EndAt, now)
+		}
 	}
 	return next, !next.IsZero()
+}
+
+// A time range's own edges, or those of the repeating window open at now or coming next.
+func windowEdges(plan *plans.ProtectionPlan, now time.Time) *plans.ProtectionPlanTimeRange {
+	if plan.TimeMode == plans.TimeModeTimeRange {
+		return plan.TimeRange
+	}
+	window, _ := plans.PlanWindow(plan, now)
+	return window
 }
 
 // Only strictly future edges qualify: a past edge left behind by a failed transition would
@@ -130,24 +147,67 @@ func awaitsBoundary(phase string) bool {
 }
 
 func (c *Controller) transition(ctx context.Context, plan *plans.ProtectionPlan, now time.Time) bool {
+	if plan.TimeMode == plans.TimeModeRepeating {
+		return c.transitionWindow(ctx, plan, now)
+	}
 	switch plan.Phase {
 	case plans.PhaseScheduled:
+		// A window that passed whole before any pass saw it (a leadership gap, an outage, an
+		// activation retried on the tick) ends without enforcing for an instant.
+		if shouldTerminate(plan, now) {
+			return c.terminate(ctx, plan)
+		}
 		if shouldActivate(plan, now) {
-			if err := c.service.Activate(ctx, plan); err != nil {
-				c.logger.Error(fmt.Sprintf("protection-plan activate failed plan=%s err=%v", plan.ID, err))
-			}
-			return true
+			return c.activate(ctx, plan)
 		}
 	case plans.PhaseActive, plans.PhasePendingApproval:
 		if shouldTerminate(plan, now) {
-			if err := c.service.Terminate(ctx, plan); err != nil {
-				c.logger.Error(fmt.Sprintf("protection-plan terminate failed plan=%s err=%v", plan.ID, err))
-			}
-			return true
+			return c.terminate(ctx, plan)
 		}
 	default:
 	}
 	return false
+}
+
+// Time never terminates a repeating plan: each window activates it and closes it again, and a
+// plan awaiting approval only has its stored window kept current.
+func (c *Controller) transitionWindow(ctx context.Context, plan *plans.ProtectionPlan, now time.Time) bool {
+	if !awaitsBoundary(plan.Phase) {
+		return false
+	}
+	window, open := plans.PlanWindow(plan, now)
+	if window == nil {
+		return false
+	}
+	switch {
+	case plan.Phase == plans.PhaseScheduled && open:
+		return c.activate(ctx, plan)
+	case plan.Phase == plans.PhaseActive && !open:
+		if err := c.service.CloseWindow(ctx, plan); err != nil {
+			c.logger.Error(fmt.Sprintf(logCloseWindowFailed, plan.ID, err))
+		}
+		return true
+	case plan.Window == nil || *plan.Window != *window:
+		if err := c.service.RefreshWindow(plan); err != nil {
+			c.logger.Error(fmt.Sprintf(logRefreshWindowFailed, plan.ID, err))
+		}
+	default:
+	}
+	return false
+}
+
+func (c *Controller) activate(ctx context.Context, plan *plans.ProtectionPlan) bool {
+	if err := c.service.Activate(ctx, plan); err != nil {
+		c.logger.Error(fmt.Sprintf("protection-plan activate failed plan=%s err=%v", plan.ID, err))
+	}
+	return true
+}
+
+func (c *Controller) terminate(ctx context.Context, plan *plans.ProtectionPlan) bool {
+	if err := c.service.Terminate(ctx, plan); err != nil {
+		c.logger.Error(fmt.Sprintf("protection-plan terminate failed plan=%s err=%v", plan.ID, err))
+	}
+	return true
 }
 
 func shouldActivate(plan *plans.ProtectionPlan, now time.Time) bool {

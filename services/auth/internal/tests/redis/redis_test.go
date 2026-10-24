@@ -4,10 +4,18 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
 
+	dataconstants "github.com/telark/telark/internal/data/constants"
 	authredis "github.com/telark/telark/services/auth/internal/helpers/redis"
+)
+
+const (
+	testServiceToken = "test-service-token"
+	entryKey         = "auth:test:entry"
+	entryValue       = "u-test"
 )
 
 // The client is cached for the process, so the server it binds to outlives every run (-count).
@@ -39,5 +47,30 @@ func TestNewRedisClientWithRetry(t *testing.T) {
 	}
 	if authredis.GetClient() != c {
 		t.Fatal("GetClient did not return the cached client")
+	}
+}
+
+// An entry auth signed reads back for its key until it expires, and not after: a replayed old entry reads like none.
+func TestSignedEntryExpires(t *testing.T) {
+	t.Setenv(dataconstants.EnvServiceToken, testServiceToken)
+	cases := []struct {
+		name string
+		ttl  time.Duration
+		want bool
+	}{
+		{"live", time.Minute, true},
+		{"expired", -time.Second, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			entry, err := authredis.SignEntry(entryKey, entryValue, c.ttl)
+			if err != nil {
+				t.Fatal(err)
+			}
+			value, ok := authredis.VerifyEntry(entryKey, entry)
+			if ok != c.want || ok && value != entryValue {
+				t.Fatalf("VerifyEntry = (%q, %v), want %v", value, ok, c.want)
+			}
+		})
 	}
 }

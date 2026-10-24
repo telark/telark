@@ -65,10 +65,14 @@ const (
 	ListBlobLocalEntries     = 4
 	ListRenderConcurrencyEnv = "EXPORTER_LIST_RENDER_CONCURRENCY"
 	BootstrapAdminEnv        = "BOOTSTRAP_ADMIN"
+	BreakGlassWaitHoursEnv   = "BREAK_GLASS_WAIT_HOURS"
+	// Under the 30 s a create's caller waits (auth's REST client, the create route's deadline), so it gets the 503.
+	CreateSlotWait = 20 * time.Second
 	// A full list is megabytes of marshal buffer; beyond this many renders at
 	// once a request queues for a slot until its own deadline.
 	DefaultListRenderConcurrency                = 2
 	MinListRenderConcurrency                    = 1
+	DefaultBreakGlassWaitHours                  = 24
 	ListRenderRetryAfter                        = "2"
 	HeaderRetryAfter                            = "Retry-After"
 	HeaderContentLength                         = "Content-Length"
@@ -101,6 +105,9 @@ const (
 	ServerWriteTimeout                          = 30 * time.Second
 	ServerShutdownTimeout                       = 30 * time.Second
 	ServerIdleTimeout                           = 120 * time.Second
+	NotificationStreamPingInterval              = 15 * time.Second
+	NotificationStreamRecheckInterval           = 60 * time.Second
+	PrefixNotifications                         = "Notifications: "
 	PrefixCache                                 = "Cache: "
 	PrefixGenerics                              = "Generics: "
 	PrefixOptimizer                             = "Optimizer: "
@@ -132,6 +139,7 @@ const (
 	MaxUserIDGenerationAttempts                 = 10
 	ResourceTypePasskey                         = "passkey"
 	FieldCredentialID                           = "credentialId"
+	FieldCreationTimestamp                      = "creationTimestamp"
 	FieldUsername                               = "username"
 	FieldFullname                               = "fullname"
 	FieldEmail                                  = "email"
@@ -142,6 +150,8 @@ const (
 	FieldAvatar                                 = "avatar"
 	FieldSettings                               = "settings"
 	FieldStatus                                 = "status"
+	FieldLastMigration                          = "lastMigration"
+	FieldRollbackMigration                      = "rollbackMigration"
 	FieldPhase                                  = "phase"
 	FieldInvite                                 = "invite"
 	FieldInviteAcceptedAt                       = "inviteAcceptedAt"
@@ -235,9 +245,12 @@ const (
 	ReportsPathEnv                 = "REPORTS_PATH"
 	DefaultReportsPath             = "/reports"
 	ReportsPlansSubdir             = "plans"
+	ReportsKeptSubdir              = "kept"
+	ReportsKeptMarkerFile          = "plan.json"
 	ReportsReportsSubdir           = "reports"
 	ReportsLedgerFile              = "ledger.json"
 	ReportsMaxPerPlan              = 10
+	ReportsMaxWindowPerPlan        = 100
 	ReportsListDefaultLimit        = 200
 	ReportsListMaxLimit            = 1000
 	ReportsListSeparator           = ","

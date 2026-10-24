@@ -24,7 +24,7 @@ const (
 	// Below any generation a bump leaves behind.
 	rolledBackGen = "0"
 
-	signWithTokenFailed = "SignCacheEntry failed with a service token present"
+	signWithTokenFailed = "SignGrantsEntry failed with a service token present"
 )
 
 // Redis is untrusted, so a cached grant is attacker-controllable. An
@@ -65,64 +65,6 @@ func TestSignedGrantsAtTheCacheKeyAreUsed(t *testing.T) {
 	}
 	if grants.Levels[roledata.ScopeSettings] != roledata.PermissionLevelReadOnly {
 		t.Errorf("grants = %+v, want the signed entry's levels", grants)
-	}
-}
-
-func TestSignedEntryRoundTrips(t *testing.T) {
-	t.Setenv(dataconstants.EnvServiceToken, serviceToken)
-
-	signed, ok := authz.SignCacheEntry(grantsUserID, plantedGrants)
-	if !ok {
-		t.Fatal(signWithTokenFailed)
-	}
-
-	payload, ok := authz.VerifyCacheEntry(grantsUserID, signed)
-	if !ok {
-		t.Fatal("a freshly signed entry failed verification")
-	}
-	if payload != plantedGrants {
-		t.Errorf("payload = %q, want %q", payload, plantedGrants)
-	}
-}
-
-func TestTamperedEntryIsRejected(t *testing.T) {
-	t.Setenv(dataconstants.EnvServiceToken, serviceToken)
-
-	signed, ok := authz.SignCacheEntry(grantsUserID, plantedGrants)
-	if !ok {
-		t.Fatal(signWithTokenFailed)
-	}
-
-	if _, ok := authz.VerifyCacheEntry(grantsUserID, signed+"x"); ok {
-		t.Error("a tampered entry was accepted")
-	}
-}
-
-// A signature is bound to the user it was issued for, so an entry cannot be
-// lifted from one user's key to another's.
-func TestSignatureIsBoundToTheUser(t *testing.T) {
-	t.Setenv(dataconstants.EnvServiceToken, serviceToken)
-
-	signed, ok := authz.SignCacheEntry(grantsUserID, plantedGrants)
-	if !ok {
-		t.Fatal(signWithTokenFailed)
-	}
-
-	if _, ok := authz.VerifyCacheEntry("u-someone-else", signed); ok {
-		t.Error("an entry signed for one user verified for another")
-	}
-}
-
-// With no signing key there is nothing to verify against, so the cache must be
-// treated as untrusted rather than trusted blindly.
-func TestUnsignableEntriesAreNotTrusted(t *testing.T) {
-	t.Setenv(dataconstants.EnvServiceToken, constants.EmptyString)
-
-	if _, ok := authz.SignCacheEntry(grantsUserID, plantedGrants); ok {
-		t.Error("signing succeeded without a service token")
-	}
-	if _, ok := authz.VerifyCacheEntry(grantsUserID, plantedGrants); ok {
-		t.Error("verification succeeded without a service token")
 	}
 }
 

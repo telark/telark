@@ -14,6 +14,7 @@ import (
 	"github.com/telark/telark/internal/rest/clients/categories"
 	"github.com/telark/telark/internal/rest/clients/groups"
 	"github.com/telark/telark/internal/rest/clients/notifications"
+	"github.com/telark/telark/internal/rest/clients/plans/protection"
 )
 
 const (
@@ -26,6 +27,7 @@ const (
 	groupID          = "g-1"
 	finalizerName    = "telark.io/group-cleanup"
 	notificationID   = "n-1"
+	planID           = "plan-1"
 	secretToken      = "raw-token"
 	okBody           = `{"status":200,"data":{"items":[]}}`
 )
@@ -107,6 +109,16 @@ func routeCases() []routeCase {
 			c.GetHTTPClient().Transport = rt
 			c.MarkRead(context.Background(), userID, notificationID)
 		}, http.MethodPost, "/api/v1/notifications/" + notificationID + "/read", "userId=" + userID, none},
+		{"plan delete sends no keepReports by default", func(rt http.RoundTripper) {
+			c := protection.NewClient()
+			c.GetHTTPClient().Transport = rt
+			c.Delete(planID, false)
+		}, http.MethodDelete, "/api/v1/protectionplans/" + planID, none, none},
+		{"plan delete keeping reports", func(rt http.RoundTripper) {
+			c := protection.NewClient()
+			c.GetHTTPClient().Transport = rt
+			c.Delete(planID, true)
+		}, http.MethodDelete, "/api/v1/protectionplans/" + planID, "keepReports=true", none},
 	}
 }
 

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
+	policiesv1 "github.com/kyverno/api/api/policies.kyverno.io/v1"
 	"github.com/telark/telark/internal/data/plans"
 	dpolicies "github.com/telark/telark/internal/data/policies"
 	_ "github.com/telark/telark/internal/data/policies/templates" // registers the renderers Render needs
@@ -31,16 +31,17 @@ import (
 )
 
 const (
-	policyKind         = "Policy"
-	policyResource     = "policy"
-	repairPlanNS       = "prod"
-	goneNS             = "gone"
-	aliveApp           = "alive"
-	doomedApp          = "doomed"
-	kindDeployment     = "Deployment"
-	guardPlan          = "guard"
-	rogueName          = "pol-rogue"
-	reconcilePlanCount = 3
+	policyResource       = "namespacedvalidatingpolicy"
+	repairPlanNS         = "prod"
+	goneNS               = "gone"
+	aliveApp             = "alive"
+	doomedApp            = "doomed"
+	kindDeployment       = "Deployment"
+	guardPlan            = "guard"
+	rogueName            = "pol-rogue"
+	foreignLabel         = "example.com/owner"
+	fieldMatchConditions = "matchConditions"
+	reconcilePlanCount   = 3
 )
 
 type recordingLogger struct {
@@ -55,7 +56,7 @@ func policyMapper() meta.RESTMapper {
 	gv := protpolicies.KyvernoPolicyGVR.GroupVersion()
 	mapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{gv})
 	mapper.AddSpecific(
-		gv.WithKind(policyKind),
+		gv.WithKind(dpolicies.PolicyKind),
 		protpolicies.KyvernoPolicyGVR,
 		gv.WithResource(policyResource),
 		meta.RESTScopeNamespace,
@@ -191,10 +192,10 @@ func TestComputeAndRepair(t *testing.T) {
 			name:  "mode mismatch is patched",
 			phase: plans.PhaseActive,
 			cluster: func(planID, policyName string) []runtime.Object {
-				return []runtime.Object{kyvernoPolicy(policyName, planID, "Audit", true)}
+				return []runtime.Object{kyvernoPolicy(policyName, planID, modeAudit, true)}
 			},
 			wantPol:  true,
-			wantMode: modeEnforce,
+			wantMode: actionDeny,
 			wantLog:  true,
 		},
 		{
@@ -240,8 +241,8 @@ func assertRepairCase(t *testing.T, c repairCase) {
 	got := getPolicy(t, dyn, policyName)
 	testutil.Equal(t, "policy present", got != nil, c.wantPol)
 	if c.wantMode != "" {
-		action, _, _ := unstructured.NestedString(got.Object, "spec", "validationFailureAction")
-		testutil.Equal(t, "failure action", action, c.wantMode)
+		actions, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "validationActions")
+		testutil.Equal(t, "validation actions", slices.Equal(actions, []string{c.wantMode}), true)
 	}
 	if c.rogue {
 		testutil.Equal(t, "rogue removed", getPolicy(t, dyn, rogueName) == nil, true)
@@ -293,14 +294,14 @@ func resolvedApp(name, namespace string) dpolicies.ResolvedApp {
 	}
 }
 
-func liveObject(t *testing.T, pol *kyvernov1.Policy) *unstructured.Unstructured {
+func liveObject(t *testing.T, pol *policiesv1.NamespacedValidatingPolicy) *unstructured.Unstructured {
 	t.Helper()
 	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(pol)
 	if err != nil {
 		t.Fatalf("to unstructured: %v", err)
 	}
 	live := &unstructured.Unstructured{Object: obj}
-	live.Object["status"] = map[string]any{"conditions": []any{map[string]any{"type": "Ready", "status": "True"}}}
+	live.Object["status"] = map[string]any{"conditionStatus": map[string]any{"ready": true}}
 	return live
 }
 
@@ -369,7 +370,7 @@ func TestComputeAndRepairSkipsVanishedApplication(t *testing.T) {
 	for i := range rendered {
 		plan.RenderedPolicies = append(plan.RenderedPolicies, rendered[i].Name)
 	}
-	alive := slices.IndexFunc(rendered, func(p kyvernov1.Policy) bool { return p.Namespace == repairPlanNS })
+	alive := slices.IndexFunc(rendered, func(p policiesv1.NamespacedValidatingPolicy) bool { return p.Namespace == repairPlanNS })
 
 	dyn := withApplyCreate(fakeDyn(liveObject(t, &rendered[alive])))
 	logger := &recordingLogger{}
@@ -411,7 +412,7 @@ func TestComputeAndRepairDeploysPoliciesTheRenderNowProduces(t *testing.T) {
 	rendered, err := dpolicies.Render(plan, resolved, nil)
 	testutil.Equal(t, "render", err, nil)
 	testutil.Equal(t, "one policy per namespace", len(rendered), len(app.Namespaces))
-	first := slices.IndexFunc(rendered, func(p kyvernov1.Policy) bool { return p.Namespace == repairPlanNS })
+	first := slices.IndexFunc(rendered, func(p policiesv1.NamespacedValidatingPolicy) bool { return p.Namespace == repairPlanNS })
 	second := rendered[len(rendered)-constants.DefaultAddValue-first]
 	plan.RenderedPolicies = []string{rendered[first].Name}
 
@@ -472,4 +473,59 @@ func TestReconcileForActiveListsTheClusterOnce(t *testing.T) {
 	for i := range planList {
 		testutil.Equal(t, "health "+planList[i].ID, store.health(planList[i].ID), plans.HealthHealthy)
 	}
+}
+
+// Server-side apply cannot remove a field another manager added, so a matchCondition added by hand
+// would switch the policy off for good: the repair replaces the whole spec with an update.
+func TestComputeAndRepairReplacesHandAddedFields(t *testing.T) {
+	plan, policyName := renderedPlan(t, plans.PhaseActive)
+	fresh, err := dpolicies.Render(plan, nil, nil)
+	testutil.Equal(t, labelErr, err, nil)
+	live := liveObject(t, &fresh[constants.DefaultInitValue])
+	live.SetLabels(map[string]string{dpolicies.LabelPlanID: plan.ID, dpolicies.LabelManagedBy: dpolicies.ManagedByValue, foreignLabel: foreignLabel})
+	conditions, _, _ := unstructured.NestedSlice(live.Object, fieldSpec, fieldMatchConditions)
+	setField(t, live.Object, append(conditions, map[string]any{"name": "off", "expression": "false"}), fieldSpec, fieldMatchConditions)
+	dyn := withApplyCreate(fakeDyn(live))
+
+	res, err := health.ComputeAndRepair(context.Background(), repairDeps(dyn, &recordingLogger{}), plan)
+	testutil.Equal(t, labelErr, err, nil)
+	testutil.Equal(t, labelHealth, res.Health, plans.HealthHealthy)
+	got := getPolicy(t, dyn, policyName)
+	replaced, _, _ := unstructured.NestedSlice(got.Object, fieldSpec, fieldMatchConditions)
+	testutil.Equal(t, "conditions", len(replaced), len(fresh[constants.DefaultInitValue].Spec.MatchConditions))
+	testutil.Equal(t, "foreign label kept", got.GetLabels()[foreignLabel], foreignLabel)
+	updates := slices.IndexFunc(dyn.Actions(), func(a k8stesting.Action) bool {
+		return a.GetVerb() == "update" && a.GetResource() == protpolicies.KyvernoPolicyGVR
+	})
+	testutil.Equal(t, "replaced by an update", updates >= constants.DefaultInitValue, true)
+}
+
+// A write since the pass listed the policy turns its replacement into an error: the repair logs
+// it and the plan stays drifted for the next pass.
+func TestComputeAndRepairLogsAFailedReplace(t *testing.T) {
+	plan, policyName := renderedPlan(t, plans.PhaseActive)
+	dyn := withApplyCreate(fakeDyn(kyvernoPolicy(policyName, plan.ID, modeEnforce, true)))
+	dyn.PrependReactor("update", protpolicies.KyvernoPolicyGVR.Resource, func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, errors.New("the policy changed since it was listed")
+	})
+	logger := &recordingLogger{}
+
+	after, err := health.ComputeAndRepair(context.Background(), repairDeps(dyn, logger), plan)
+
+	testutil.Equal(t, labelErr, err, nil)
+	testutil.Equal(t, "errors", len(logger.errors), constants.DefaultAddValue)
+	testutil.Equal(t, "health after", after.Health, plans.HealthDrifted)
+}
+
+// Only a cluster without the policy kind reads as "kind missing"; any other LIST failure fails the pass.
+func TestComputeReturnsAPolicyListFailure(t *testing.T) {
+	plan, policyName := renderedPlan(t, plans.PhaseActive)
+	dyn := fakeDyn(kyvernoPolicy(policyName, plan.ID, modeEnforce, true))
+	dyn.PrependReactor("list", protpolicies.KyvernoPolicyGVR.Resource, func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, errors.New("list refused")
+	})
+
+	_, err := health.Compute(context.Background(), repairDeps(dyn, &recordingLogger{}), plan)
+
+	testutil.Equal(t, "list error", err != nil, true)
 }

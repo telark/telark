@@ -28,7 +28,6 @@ const (
 	excludedKind       = "ConfigMap"
 	newPolicyName      = "new-name"
 	stalePolicyName    = "stale-name"
-	policyKind         = "Policy"
 	applyFailures      = 1
 	labelNoErr         = "no error"
 	labelApplied       = "applied"
@@ -136,8 +135,8 @@ func TestRollbackPatchFailureRestoresMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
-	action, _, _ := unstructured.NestedString(got.Object, "spec", "validationFailureAction")
-	testutil.Equal(t, "failure action", action, modeEnforce)
+	actions, _, _ := unstructured.NestedStringSlice(got.Object, keySpec, "validationActions")
+	testutil.Equal(t, "validation actions", slices.Equal(actions, []string{actionDeny}), true)
 }
 
 type applyRecorder struct {
@@ -172,7 +171,7 @@ func (r *applyRecorder) names() []string {
 	return out
 }
 
-// Deploy dereferences the mapper, so these tests map kyverno.io/v1 Policy to its GVR.
+// Deploy dereferences the mapper, so these tests map the policy kind to its GVR.
 func recordingApplier(
 	t *testing.T,
 	failures int,
@@ -184,9 +183,9 @@ func recordingApplier(
 		t.Fatal("fake dynamic client expected")
 	}
 	rec := &applyRecorder{failures: failures}
-	fake.PrependReactor("patch", "policies", rec.react)
+	fake.PrependReactor("patch", protpolicies.KyvernoPolicyGVR.Resource, rec.react)
 	mapper := meta.NewDefaultRESTMapper(nil)
-	mapper.Add(protpolicies.KyvernoPolicyGVR.GroupVersion().WithKind(policyKind), meta.RESTScopeNamespace)
+	mapper.Add(protpolicies.KyvernoPolicyGVR.GroupVersion().WithKind(datapolicies.PolicyKind), meta.RESTScopeNamespace)
 	return protpolicies.NewApplier(fake, mapper), fake, rec
 }
 
@@ -204,27 +203,13 @@ func livePolicyNames(t *testing.T, fake *dynamicfake.FakeDynamicClient) []string
 	return out
 }
 
-// Every rule of the applied policy carries an exclude.any entry for exactly the excluded kind.
+// The applied policy carries the plan's exclusion condition for exactly the excluded kind.
 func excludesKind(obj map[string]any) bool {
-	rules, _, _ := unstructured.NestedSlice(obj, "spec", "rules")
-	return len(rules) > constants.DefaultInitValue && !slices.ContainsFunc(rules, func(rule any) bool {
-		return !ruleExcludesKind(rule)
-	})
-}
-
-func ruleExcludesKind(rule any) bool {
-	fields, ok := rule.(map[string]any)
-	if !ok {
-		return false
-	}
-	filters, _, _ := unstructured.NestedSlice(fields, "exclude", "any")
-	return slices.ContainsFunc(filters, func(filter any) bool {
-		entry, ok := filter.(map[string]any)
-		if !ok {
-			return false
-		}
-		kinds, _, _ := unstructured.NestedStringSlice(entry, "resources", "kinds")
-		return slices.Equal(kinds, []string{excludedKind})
+	conditions, _, _ := unstructured.NestedSlice(obj, keySpec, "matchConditions")
+	return slices.ContainsFunc(conditions, func(condition any) bool {
+		entry, ok := condition.(map[string]any)
+		return ok && entry["name"] == datapolicies.ConditionNotExcluded &&
+			entry["expression"] == `!(request.kind.kind in ["`+excludedKind+`"])`
 	})
 }
 

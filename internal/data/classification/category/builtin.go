@@ -85,6 +85,34 @@ var BuiltinCategories = []Category{
 		Type:         CategoryTypeBuiltIn,
 		CreationDate: constants.BuiltinCreationDate,
 	},
+	{
+		ID:           constants.CategoryIDKindQA,
+		Name:         "QA",
+		Scope:        ScopePlanKinds,
+		Type:         CategoryTypeBuiltIn,
+		CreationDate: constants.BuiltinCreationDate,
+	},
+	{
+		ID:           constants.CategoryIDKindTesting,
+		Name:         "Testing",
+		Scope:        ScopePlanKinds,
+		Type:         CategoryTypeBuiltIn,
+		CreationDate: constants.BuiltinCreationDate,
+	},
+	{
+		ID:           constants.CategoryIDKindRelease,
+		Name:         "Release",
+		Scope:        ScopePlanKinds,
+		Type:         CategoryTypeBuiltIn,
+		CreationDate: constants.BuiltinCreationDate,
+	},
+	{
+		ID:           constants.CategoryIDKindMaintenance,
+		Name:         "Maintenance window",
+		Scope:        ScopePlanKinds,
+		Type:         CategoryTypeBuiltIn,
+		CreationDate: constants.BuiltinCreationDate,
+	},
 }
 
 // Built-ins and user-created categories share one resource. Built-ins are restored to

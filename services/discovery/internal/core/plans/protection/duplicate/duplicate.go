@@ -53,6 +53,10 @@ func BuildRequest(
 	if overrides.EnvironmentRef != nil {
 		env = *overrides.EnvironmentRef
 	}
+	kind := source.KindRef
+	if overrides.KindRef != nil {
+		kind = *overrides.KindRef
+	}
 	tags := source.TagRefs
 	if overrides.TagRefs != nil {
 		tags = overrides.TagRefs
@@ -68,10 +72,22 @@ func BuildRequest(
 		Mode:            source.Mode,
 		TimeMode:        timeMode,
 		TimeRange:       resolveTimeRange(timeMode, overrides.TimeRange, source.TimeRange),
+		Repeat:          resolveRepeat(timeMode, overrides.Repeat, source.Repeat),
 		ParticipantRefs: source.ParticipantRefs,
 		EnvironmentRef:  &env,
+		KindRef:         &kind,
 		TagRefs:         tags,
 	}
+}
+
+func resolveRepeat(timeMode string, override, source *plans.ProtectionPlanRepeat) *plans.ProtectionPlanRepeat {
+	if timeMode != plans.TimeModeRepeating {
+		return nil
+	}
+	if override != nil {
+		return override
+	}
+	return source
 }
 
 func resolveTimeRange(

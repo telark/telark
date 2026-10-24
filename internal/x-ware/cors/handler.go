@@ -30,8 +30,9 @@ func NewCORS() func(http.Handler) http.Handler {
 func AllowedOrigins() []string {
 	var origins []string
 	for origin := range strings.SplitSeq(os.Getenv(EnvAllowedOrigins), allowedOriginsDivider) {
-		// With credentials, rs/cors answers "*" by reflecting whatever origin asks.
-		if trimmed := strings.TrimSpace(origin); trimmed != constants.EmptyString && trimmed != anyOrigin {
+		// Exact origins only: with credentials, rs/cors reflects whatever origin asks for "*", and treats any entry
+		// holding one ("https://*") as a pattern.
+		if trimmed := strings.TrimSpace(origin); trimmed != constants.EmptyString && !strings.Contains(trimmed, anyOrigin) {
 			origins = append(origins, trimmed)
 		}
 	}

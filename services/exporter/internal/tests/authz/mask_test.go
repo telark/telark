@@ -86,3 +86,12 @@ func TestMaskedKey(t *testing.T) {
 		})
 	}
 }
+
+// A record without a spec has nothing to mask and stays as it was.
+func TestMaskIdentityLeavesARecordWithoutASpec(t *testing.T) {
+	record := &unstructured.Unstructured{Object: map[string]any{}}
+	authz.MaskIdentity(requestAs(allAdmin()), record)
+	if len(record.Object) != constants.DefaultInitValue {
+		t.Fatalf("record = %v, want it untouched", record.Object)
+	}
+}

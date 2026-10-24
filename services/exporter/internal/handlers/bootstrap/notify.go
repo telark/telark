@@ -17,7 +17,6 @@ var (
 	canceledReasons = map[string]string{
 		telarkconfig.BootstrapReasonSignedIn: constants.NotifBootstrapCanceledSignedIn,
 		telarkconfig.BootstrapReasonDenied:   constants.NotifBootstrapCanceledDenied,
-		telarkconfig.BootstrapReasonExpired:  constants.NotifBootstrapCanceledExpired,
 	}
 )
 
@@ -52,16 +51,20 @@ func notify(pinned string, request telarkconfig.BootstrapRequest, title, message
 }
 
 func notice(request telarkconfig.BootstrapRequest) (title, message, masked, severity string) {
+	hours := bootstrap.WaitHours()
 	switch {
 	case request.State == telarkconfig.BootstrapStatePending && request.Kind == telarkconfig.BootstrapKindReplace:
-		return constants.NotifBootstrapOpenedTitle,
-			fmt.Sprintf(constants.NotifBootstrapOpenedReplace, request.TargetEmail) + constants.NotifBootstrapOpenedRule,
-			constants.NotifBootstrapOpenedMasked + constants.NotifBootstrapOpenedRule, notiftypes.SeverityWarning
+		rule := fmt.Sprintf(constants.NotifBootstrapOpenedRule, hours)
+		return constants.NotifBootstrapOpenedTitle, fmt.Sprintf(constants.NotifBootstrapOpenedReplace, request.TargetEmail) + rule,
+			constants.NotifBootstrapOpenedMasked + rule, notiftypes.SeverityWarning
 	case request.State == telarkconfig.BootstrapStatePending:
-		return constants.NotifBootstrapOpenedTitle, constants.NotifBootstrapOpenedRecover, constants.NotifBootstrapOpenedRecover,
-			notiftypes.SeverityWarning
+		text := fmt.Sprintf(constants.NotifBootstrapOpenedRecover, hours)
+		return constants.NotifBootstrapOpenedTitle, text, text, notiftypes.SeverityWarning
 	case request.State == telarkconfig.BootstrapStateCanceled:
 		text := canceledReasons[request.Reason]
+		if request.Reason == telarkconfig.BootstrapReasonExpired {
+			text = fmt.Sprintf(constants.NotifBootstrapCanceledExpired, hours)
+		}
 		return constants.NotifBootstrapCanceledTitle, text, text, notiftypes.SeverityInfo
 	case request.Kind == telarkconfig.BootstrapKindReplace:
 		return constants.NotifBootstrapCompletedTitle, fmt.Sprintf(constants.NotifBootstrapCompletedReplaced, request.TargetEmail),

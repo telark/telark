@@ -3,6 +3,7 @@ package planapproval
 import (
 	"context"
 	stderrors "errors"
+	"strings"
 	"sync"
 	"testing"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/telark/telark/internal/x-ware/async"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	discoveryauthz "github.com/telark/telark/services/discovery/internal/authz"
+	"github.com/telark/telark/services/discovery/internal/constants"
 	"github.com/telark/telark/services/discovery/internal/core/plans/protection"
 	"github.com/telark/telark/services/discovery/internal/tests/testutil"
 )
@@ -31,6 +33,7 @@ const (
 	labelLogged     = "logged errors"
 	noEvents        = 0
 	twoEvents       = 2
+	bootstrapName   = "recovery-admin"
 )
 
 var errEmit = stderrors.New("notification store down")
@@ -185,4 +188,20 @@ func TestNotifierSwallowsEmitErrors(t *testing.T) {
 	log.mu.Lock()
 	defer log.mu.Unlock()
 	testutil.Equal(t, labelLogged, len(log.errs), twoEvents)
+}
+
+// The requester never reads this notice, so a bootstrap requester is named by its role, not its account.
+func TestRequestApprovalNeverNamesABootstrapRequester(t *testing.T) {
+	rec := &emitRecorder{}
+	n := newNotifier(rec, &errLogger{})
+	n.ListUsers = func() ([]*userresource.User, error) {
+		return []*userresource.User{{ID: requester, Username: bootstrapName, Bootstrap: true}, {ID: ownerUser}}, nil
+	}
+
+	n.RequestApproval(namedPendingPlan())
+
+	sent := rec.drained()
+	testutil.Equal(t, labelEmitCount, len(sent), singleEvent)
+	testutil.Equal(t, "names the role", strings.Contains(sent[0].Message, string(constants.NotifPlanApprovalByBootstrap)), true)
+	testutil.Equal(t, "hides the account", strings.Contains(sent[0].Message, bootstrapName), false)
 }

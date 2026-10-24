@@ -103,3 +103,16 @@ func TestCancelPatchesPhaseBeforeCleanup(t *testing.T) {
 		})
 	}
 }
+
+func TestClearRemovesThePlansPolicies(t *testing.T) {
+	stubExporter(t, http.StatusOK)
+	dyn := clusterWithPolicy()
+	applier := protpolicies.NewApplier(dyn, meta.NewDefaultRESTMapper(nil))
+	svc := protection.NewService(applier, nil, clients.NewProtectionPlanClient(), dyn, nil, nil, nopLogger{}, nil)
+
+	if err := svc.Clear(context.Background(), planID, true); err != nil {
+		t.Fatalf("clear: %v", err)
+	}
+	_, getErr := dyn.Resource(protpolicies.KyvernoPolicyGVR).Namespace(planNS).Get(context.Background(), policyName, metav1.GetOptions{})
+	testutil.Equal(t, "policy removed", getErr != nil, true)
+}

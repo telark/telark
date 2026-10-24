@@ -2,6 +2,7 @@ package planupdate
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"slices"
 	"strings"
@@ -94,6 +95,7 @@ func TestMaterialChangeRepeat(t *testing.T) {
 		{"fewer days", plans.TimeModeRepeating, laterRule(),
 			&plans.ProtectionPlanRepeat{Days: []string{"sun"}, StartTime: twoAM, EndTime: threeAM, TimeZone: zoneUTC}, true},
 		{"stale rule of a permanent plan", plans.TimeModePermanent, laterRule(), otherLaterRule(), false},
+		{"first rule of a converted plan", plans.TimeModeRepeating, nil, laterRule(), true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -303,4 +305,34 @@ func TestRunStampsTheEditedRulesWindow(t *testing.T) {
 	testutil.Equal(t, labelWindow, windowStart(t, stub.patches[constants.DefaultInitValue]), any(otherLaterStart))
 	_, ruleSet := stub.patches[constants.DefaultInitValue]["repeat"]
 	testutil.Equal(t, "rule patched", ruleSet, true)
+}
+
+// Outside a series an approved plan keeps the spec that was approved: a material edit is refused.
+func TestRunRefusesMaterialEditsOfAnApprovedPlan(t *testing.T) {
+	plan, live := activeNamespacesPlan(t, plans.ModeAudit, tplBlockCreate)
+	approved(plan)
+	req := requestFor(plan)
+	req.Policies = append(req.Policies, planseps.PolicyRequest{TemplateID: tplBlockDelete})
+	stub := &exporterStub{plan: *plan, patchStatus: http.StatusOK}
+	stub.install(t)
+
+	_, err := update.Run(context.Background(), runDeps(clusterWith(t, live...), &reportsRecorder{}), userID, plan.ID, req)
+	testutil.Equal(t, "validation error", validation.IsValidation(err), true)
+	testutil.Equal(t, labelPatches, len(stub.patches), constants.DefaultInitValue)
+}
+
+// A failed checkpoint is logged: the edit still closes the window and the window still gets its report.
+func TestRunParkSurvivesAFailedCheckpoint(t *testing.T) {
+	plan, live := activeNamespacesPlan(t, plans.ModeAudit, tplBlockCreate)
+	plan.TimeMode, plan.Repeat = plans.TimeModeRepeating, openRule()
+	req := seriesRequest(plan)
+	req.Repeat = laterRule()
+	stub := &exporterStub{plan: *plan, patchStatus: http.StatusOK}
+	stub.install(t)
+	rec := &reportsRecorder{checkpointErr: errors.New("ledger unavailable")}
+
+	_, err := update.Run(context.Background(), runDeps(clusterWith(t, live...), rec), userID, plan.ID, req)
+	testutil.Equal(t, labelErr, err, nil)
+	testutil.Equal(t, "parked", stub.patches[constants.DefaultInitValue][protection.FieldPhase], any(plans.PhaseScheduled))
+	testutil.Equal(t, "captures", len(rec.captures), constants.DefaultAddValue)
 }

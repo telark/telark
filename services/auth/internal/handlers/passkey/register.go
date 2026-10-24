@@ -22,6 +22,8 @@ func registrationStatus(err error) int {
 		shared.IsError(err, constants.ErrReservedEmail),
 		shared.IsError(err, constants.ErrSelfRegistrationDisabled):
 		return http.StatusForbidden
+	case shared.IsError(err, constants.ErrRedisEntryUnsigned):
+		return http.StatusInternalServerError
 	default:
 		return http.StatusBadRequest
 	}

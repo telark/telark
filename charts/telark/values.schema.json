@@ -133,7 +133,14 @@
           "properties": {
             "crdGuard": { "$ref": "#/definitions/crdGuard" },
             "networkPolicy": { "$ref": "#/definitions/networkPolicy" },
-            "serviceToken": { "$ref": "#/definitions/serviceToken" }
+            "serviceToken": { "$ref": "#/definitions/serviceToken" },
+            "breakGlass": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "waitHours": { "type": "integer", "minimum": 1 }
+              }
+            }
           }
         },
         "crdGuard": { "$ref": "#/definitions/crdGuard" },

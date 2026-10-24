@@ -56,6 +56,10 @@ func main() {
 	initReportsConfig()
 	lg.Info(fmt.Sprintf(string(constants.InfListRenderConcurrencyConfigured), envmanager.InitListRenderConcurrency()))
 	envmanager.InitBootstrapAdmin()
+	if err := envmanager.InitBreakGlassWait(); err != nil {
+		lg.Error(err.Error())
+		os.Exit(constants.ExitCodeFailure)
+	}
 	optimizer := performance.NewOptimizer(initConnectivity())
 	startup.SeedTelarkConfig()
 	// The record lives in TelarkConfig. The guard and the steps run before any other write, so an

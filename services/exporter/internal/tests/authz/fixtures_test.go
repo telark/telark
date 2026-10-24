@@ -36,6 +36,7 @@ const (
 	unknownID         = "u-ffff0-0000-0000"
 	statusPhaseActive = "active"
 	verbGet           = "get"
+	verbList          = "list"
 )
 
 // The guards read users, groups and roles through the exporter's CRD source, so each record is a CR

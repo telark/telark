@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	k8stesting "k8s.io/client-go/testing"
 )
@@ -71,11 +72,13 @@ func series(phase string, open bool) plans.ProtectionPlan {
 	}
 }
 
-// Serves the plan on every read and records every patch.
+// Serves the plan on every read and records every patch; a set status fails that call instead.
 type planStub struct {
-	mu      sync.Mutex
-	plan    plans.ProtectionPlan
-	patches []map[string]any
+	mu          sync.Mutex
+	plan        plans.ProtectionPlan
+	patches     []map[string]any
+	getStatus   int
+	patchStatus int
 }
 
 func (s *planStub) install(t *testing.T) {
@@ -83,7 +86,13 @@ func (s *planStub) install(t *testing.T) {
 	prev := http.DefaultTransport
 	http.DefaultTransport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		if r.Method != http.MethodPatch {
+			if s.getStatus != constants.DefaultInitValue {
+				return answer(t, s.getStatus, nil), nil
+			}
 			return answer(t, http.StatusOK, s.plan), nil
+		}
+		if s.patchStatus != constants.DefaultInitValue {
+			return answer(t, s.patchStatus, nil), nil
 		}
 		body := map[string]any{}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -168,7 +177,9 @@ func windowCluster() *dynamicfake.FakeDynamicClient {
 
 func windowService(dyn *dynamicfake.FakeDynamicClient, store *ledgerStore) *protection.Service {
 	gen := reports.NewGenerator(store, dyn, nil, nil, nopLogger{}, maxReportRows, time.Minute)
-	applier := protpolicies.NewApplier(dyn, meta.NewDefaultRESTMapper(nil))
+	mapper := meta.NewDefaultRESTMapper(nil)
+	mapper.Add(protpolicies.KyvernoPolicyGVR.GroupVersion().WithKind(dpolicies.PolicyKind), meta.RESTScopeNamespace)
+	applier := protpolicies.NewApplier(dyn, mapper)
 	listNamespaces := func(context.Context) ([]string, error) { return []string{planNS}, nil }
 	return protection.NewService(applier, nil, clients.NewProtectionPlanClient(), dyn, listNamespaces, gen, nopLogger{}, nil)
 }
@@ -250,13 +261,18 @@ func TestActivateSkipsAClosedWindow(t *testing.T) {
 }
 
 // One approval covers the series, so neither an approval nor a reactivation is ever refused as
-// expired: between windows each lands scheduled, with the next window stamped.
+// expired: between windows each lands scheduled, or parked when it needs approval, with the next window stamped.
 func TestApproveAndReactivateStampTheNextWindow(t *testing.T) {
 	testutil.ExcludedNamespaces(t)
+	reactivate := func(svc *protection.Service, plan *plans.ProtectionPlan) error {
+		_, err := svc.Reactivate(context.Background(), userID, plan.ID)
+		return err
+	}
 	cases := []struct {
-		name string
-		plan func() plans.ProtectionPlan
-		act  func(*protection.Service, *plans.ProtectionPlan) error
+		name      string
+		plan      func() plans.ProtectionPlan
+		act       func(*protection.Service, *plans.ProtectionPlan) error
+		wantPhase string
 	}{
 		{"approve", func() plans.ProtectionPlan {
 			plan := series(plans.PhasePendingApproval, false)
@@ -267,12 +283,13 @@ func TestApproveAndReactivateStampTheNextWindow(t *testing.T) {
 			req := planseps.DecideProtectionPlanRequest{Decision: protection.DecisionApproved, RequestedAt: requestTime}
 			_, err := svc.Decide(context.Background(), approverID, plan.ID, req)
 			return err
-		}},
-		{"reactivate", func() plans.ProtectionPlan { return series(plans.PhaseCanceled, false) },
-			func(svc *protection.Service, plan *plans.ProtectionPlan) error {
-				_, err := svc.Reactivate(context.Background(), userID, plan.ID)
-				return err
-			}},
+		}, plans.PhaseScheduled},
+		{"reactivate", func() plans.ProtectionPlan { return series(plans.PhaseCanceled, false) }, reactivate, plans.PhaseScheduled},
+		{"reactivate needing approval", func() plans.ProtectionPlan {
+			plan := series(plans.PhaseCanceled, false)
+			plan.ApprovalMode = plans.ApprovalModeRequired
+			return plan
+		}, reactivate, plans.PhasePendingApproval},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -286,7 +303,7 @@ func TestApproveAndReactivateStampTheNextWindow(t *testing.T) {
 			}
 
 			patch := stub.onlyPatch(t)
-			testutil.Equal(t, "phase", patch[protection.FieldPhase], any(plans.PhaseScheduled))
+			testutil.Equal(t, "phase", patch[protection.FieldPhase], any(c.wantPhase))
 			next, _ := plans.PlanWindow(&plan, time.Now())
 			window := windowOf(t, patch)
 			testutil.Equal(t, "window start", window["startAt"], any(next.StartAt))
@@ -296,4 +313,86 @@ func TestApproveAndReactivateStampTheNextWindow(t *testing.T) {
 			}), false)
 		})
 	}
+}
+
+func TestRefreshWindowStampsOnlyAStaleWindow(t *testing.T) {
+	current := series(plans.PhaseScheduled, false)
+	current.Window, _ = plans.PlanWindow(&current, time.Now())
+	noRepeat := series(plans.PhaseScheduled, false)
+	noRepeat.Repeat = nil
+	cases := []struct {
+		name        string
+		plan        plans.ProtectionPlan
+		getStatus   int
+		wantPatches int
+		wantErr     bool
+	}{
+		{"stale window replaced", series(plans.PhaseScheduled, false), constants.DefaultInitValue, constants.DefaultAddValue, false},
+		{"current window kept", current, constants.DefaultInitValue, constants.DefaultInitValue, false},
+		{"no window to compute", noRepeat, constants.DefaultInitValue, constants.DefaultInitValue, false},
+		{"plan unreadable", current, http.StatusNotFound, constants.DefaultInitValue, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			stub := &planStub{plan: c.plan, getStatus: c.getStatus}
+			stub.install(t)
+			dyn := windowCluster()
+
+			err := windowService(dyn, &ledgerStore{dyn: dyn}).RefreshWindow(&c.plan)
+
+			testutil.Equal(t, "error", err != nil, c.wantErr)
+			testutil.Equal(t, labelPatches, len(stub.patches), c.wantPatches)
+			if c.wantPatches != constants.DefaultInitValue {
+				next, _ := plans.PlanWindow(&c.plan, time.Now())
+				testutil.Equal(t, "window start", windowOf(t, stub.onlyPatch(t))["startAt"], any(next.StartAt))
+			}
+		})
+	}
+}
+
+func TestCloseWindowReturnsExporterFailures(t *testing.T) {
+	cases := []struct {
+		name                   string
+		getStatus, patchStatus int
+	}{
+		{"plan unreadable", http.StatusNotFound, constants.DefaultInitValue},
+		{"patch refused", constants.DefaultInitValue, http.StatusConflict},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			plan := series(plans.PhaseActive, false)
+			stub := &planStub{plan: plan, getStatus: c.getStatus, patchStatus: c.patchStatus}
+			stub.install(t)
+			dyn := windowCluster()
+
+			err := windowService(dyn, &ledgerStore{dyn: dyn}).CloseWindow(context.Background(), &plan)
+
+			testutil.Equal(t, "error", err != nil, true)
+			_, getErr := dyn.Resource(protpolicies.KyvernoPolicyGVR).Namespace(planNS).Get(context.Background(), policyName, metav1.GetOptions{})
+			testutil.Equal(t, "policy kept", getErr, nil)
+		})
+	}
+}
+
+// The window an activation opens is stamped with it, so the controller's next pass finds it current.
+func TestActivateStampsTheOpenWindow(t *testing.T) {
+	testutil.ExcludedNamespaces(t)
+	plan := series(plans.PhaseScheduled, true)
+	stub := &planStub{plan: plan}
+	stub.install(t)
+	dyn := windowCluster()
+	// The fake has no server-side apply: the deploy is taken as applied.
+	dyn.PrependReactor("patch", protpolicies.KyvernoPolicyGVR.Resource, func(action k8stesting.Action) (bool, runtime.Object, error) {
+		patch, ok := action.(k8stesting.PatchAction)
+		return ok && patch.GetPatchType() == types.ApplyPatchType, nil, nil
+	})
+
+	if err := windowService(dyn, &ledgerStore{dyn: dyn}).Activate(context.Background(), &plan); err != nil {
+		t.Fatalf("activate: %v", err)
+	}
+
+	patch := stub.onlyPatch(t)
+	testutil.Equal(t, "phase", patch[protection.FieldPhase], any(plans.PhaseActive))
+	open, _ := plans.PlanWindow(&plan, time.Now())
+	testutil.Equal(t, "window start", windowOf(t, patch)["startAt"], any(open.StartAt))
 }

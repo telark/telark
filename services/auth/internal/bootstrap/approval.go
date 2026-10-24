@@ -21,6 +21,7 @@ import (
 	eps "github.com/telark/telark/internal/rest/endpoints/bootstrap"
 	"github.com/telark/telark/internal/rest/response"
 	"github.com/telark/telark/services/auth/internal/clients"
+	"github.com/telark/telark/services/auth/internal/config"
 	"github.com/telark/telark/services/auth/internal/constants"
 	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
 	"github.com/telark/telark/services/auth/internal/helpers/shared"
@@ -33,7 +34,7 @@ var (
 	ErrAction          = errors.New(string(constants.ErrBootstrapActionInvalid))
 	ErrNotOpen         = errors.New(string(constants.ErrBootstrapRequestNotOpen))
 	ErrNoPasskey       = errors.New(string(constants.ErrBootstrapNoPasskey))
-	ErrApproveRecover  = errors.New(string(constants.ErrBootstrapApproveRecover))
+	ErrApproveRecover  = waitError(constants.ErrBootstrapApproveRecover)
 	ErrDenyRecovering  = errors.New(string(constants.ErrBootstrapDenyRecovering))
 	ErrRecoveryPasskey = errors.New(string(constants.ErrRecoveryPasskey))
 )
@@ -137,7 +138,7 @@ func decidable(request *telarkconfig.BootstrapRequest, action string) bool {
 		request.State == telarkconfig.BootstrapStateApproved && action == constants.BootstrapActionDeny
 }
 
-// A passkey a recovery's link saved after the 72-hour mark, while that recovery is still open, came from a run that
+// A passkey a recovery's link saved after the wait's mark, while that recovery is still open, came from a run that
 // stopped before it finished: it signs in nothing (the next run removes it), and its refusal cancels nothing.
 func RefuseRecoveryPasskey(user *userresource.User, passkeys []*authdata.Passkey, credentialID []byte) error {
 	if !user.Bootstrap {
@@ -156,7 +157,7 @@ func RefuseRecoveryPasskey(user *userresource.User, passkeys []*authdata.Passkey
 	if err != nil {
 		return err
 	}
-	if savedSince(passkeys, credentialID, opened.Add(telarkconfig.BootstrapRequestWait)) {
+	if savedSince(passkeys, credentialID, opened.Add(config.BreakGlassWait())) {
 		return ErrRecoveryPasskey
 	}
 	return nil
@@ -234,4 +235,9 @@ func CancelOnSignIn(userID string) {
 	if resp.Status != http.StatusOK && resp.Status != http.StatusConflict {
 		lg.Warn(fmt.Sprintf(string(constants.WarnBootstrapSignInCancel), request.ID, resp.Status, resp.Message))
 	}
+}
+
+// Read when printed, so the text names the configured wait while errors.Is still matches the value.
+func (e waitError) Error() string {
+	return fmt.Sprintf(string(e), int(config.BreakGlassWait()/time.Hour))
 }

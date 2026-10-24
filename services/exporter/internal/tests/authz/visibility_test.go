@@ -7,12 +7,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/telark/telark/internal/data/metadata/v1alpha1"
 	roledata "github.com/telark/telark/internal/data/resources/role"
 	userdata "github.com/telark/telark/internal/data/resources/user"
+	"github.com/telark/telark/internal/kcore/k8sclient"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/exporter/internal/authz"
 	"github.com/telark/telark/services/exporter/internal/constants"
 	envmanager "github.com/telark/telark/services/exporter/internal/managers/envs"
+	"k8s.io/apimachinery/pkg/runtime"
+	k8stesting "k8s.io/client-go/testing"
 )
 
 const cacheKey = "users:list:1"
@@ -262,4 +266,22 @@ func TestGuardReservedEmail(t *testing.T) {
 	w := httptest.NewRecorder()
 	expectForbidden(t, w, authz.GuardReservedEmail(w, requestAs(as(userBootstrap, allAdmin())), onChart, ordinary),
 		"bootstrap account changing its email with no chart value")
+}
+
+// A pin that can't be read refuses a marker write (503), and a directory that can't be listed names no Admin.
+func TestBootstrapReadsThatFail(t *testing.T) {
+	client := directory(nil)
+	fail := func(k8stesting.Action) (bool, runtime.Object, error) { return true, nil, errBackend }
+	client.PrependReactor(verbGet, v1alpha1.TelarkConfigMetadata.Plural, fail)
+	client.PrependReactor(verbList, v1alpha1.UserMetadata.Plural, fail)
+	k8sclient.SetDynamicClient(client)
+	t.Cleanup(func() { k8sclient.SetDynamicClient(nil) })
+
+	w := httptest.NewRecorder()
+	if authz.GuardBootstrapMarker(w, nil, map[string]any{constants.FieldBootstrap: true}) || w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("marker guard = %d, want a 503 refusal", w.Code)
+	}
+	if ids, err := authz.ActiveAdminIDs(); err == nil {
+		t.Fatalf("ActiveAdminIDs = %v, want the list error", ids)
+	}
 }

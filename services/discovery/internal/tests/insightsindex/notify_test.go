@@ -24,6 +24,7 @@ const (
 	readerOne   = "user-reader-1"
 	readerTwo   = "user-reader-2"
 	outsider    = "user-applications-only"
+	grantsDown  = "user-grants-unavailable"
 	nsExcluded  = "kube-system"
 	scoreFourth = 4000
 	scoreFifth  = 5000
@@ -31,16 +32,25 @@ const (
 	wantMessage = "**" + idC1 + "** in **" + nsShop + "/" + appWeb + "**."
 )
 
-var errUsersDown = stderrors.New("users list unavailable")
+var (
+	errUsersDown    = stderrors.New("users list unavailable")
+	errExcludedDown = stderrors.New("excluded namespaces unavailable")
+	errGrantsDown   = stderrors.New("grants unavailable")
+	errEmitFailed   = stderrors.New("notification refused")
+)
 
 type emitRecorder struct {
-	mu   sync.Mutex
-	sent []notifclient.Notification
+	mu      sync.Mutex
+	sent    []notifclient.Notification
+	failFor string
 }
 
 func (r *emitRecorder) emit(_ context.Context, n notifclient.Notification) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if n.UserID == r.failFor {
+		return errEmitFailed
+	}
 	r.sent = append(r.sent, n)
 	return nil
 }
@@ -56,6 +66,9 @@ func (r *emitRecorder) take() []notifclient.Notification {
 }
 
 func grantsFor(userID string) (xauthz.Grants, error) {
+	if userID == grantsDown {
+		return xauthz.Grants{}, errGrantsDown
+	}
 	scope := roledata.ScopeInsights
 	if userID == outsider {
 		scope = roledata.ScopeApplications
@@ -65,8 +78,9 @@ func grantsFor(userID string) (xauthz.Grants, error) {
 
 type notifyFixture struct {
 	*fixture
-	rec      *emitRecorder
-	usersErr error
+	rec         *emitRecorder
+	usersErr    error
+	excludedErr error
 }
 
 func (f *notifyFixture) notifier() *insightsindex.CriticalNotifier {
@@ -75,11 +89,16 @@ func (f *notifyFixture) notifier() *insightsindex.CriticalNotifier {
 			if f.usersErr != nil {
 				return nil, f.usersErr
 			}
-			return []*userresource.User{{ID: readerOne}, {ID: outsider}, {ID: readerTwo}}, nil
+			return []*userresource.User{{ID: readerOne}, {ID: outsider}, {ID: grantsDown}, {ID: readerTwo}}, nil
 		},
-		Grants:   grantsFor,
-		Excluded: func(context.Context) ([]string, error) { return []string{nsExcluded}, nil },
-		Emit:     f.rec.emit,
+		Grants: grantsFor,
+		Excluded: func(context.Context) ([]string, error) {
+			if f.excludedErr != nil {
+				return nil, f.excludedErr
+			}
+			return []string{nsExcluded}, nil
+		},
+		Emit: f.rec.emit,
 	}
 }
 
@@ -249,15 +268,52 @@ func TestReplicasNotifyOnce(t *testing.T) {
 
 // Unknown recipients release the latch, so the card's next read notifies instead of nobody.
 func TestUnknownRecipientsLeaveTheIncidentForALaterRead(t *testing.T) {
+	cases := []struct {
+		name               string
+		usersErr, excluded error
+	}{
+		{"users unavailable", errUsersDown, nil},
+		{"excluded namespaces unavailable", nil, errExcludedDown},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newNotifyFixture(t)
+			f.usersErr, f.excludedErr = tc.usersErr, tc.excluded
+			critical := incident(application.InsightSeverityCritical, application.InsightStatusOpen)
+			f.put(t, nsShop, appWeb, scoreFirst, critical)
+			f.refresh(t)
+			assertSilent(t, tc.name, f.rec.take())
+
+			f.usersErr, f.excludedErr = nil, nil
+			f.put(t, nsShop, appWeb, scoreFifth, critical)
+			f.refresh(t)
+			assertNotified(t, "next read", f.rec.take())
+		})
+	}
+}
+
+func TestAFailedNotificationStillReachesTheOtherReaders(t *testing.T) {
 	f := newNotifyFixture(t)
-	f.usersErr = errUsersDown
+	f.rec.failFor = readerOne
+	f.put(t, nsShop, appWeb, scoreFirst, incident(application.InsightSeverityCritical, application.InsightStatusOpen))
+	f.refresh(t)
+	assertIDs(t, "the other reader", recipients(f.rec.take()), readerTwo)
+}
+
+// A latch Redis refuses claims nothing, so nobody is notified until a read can latch the card.
+func TestALatchRedisRefusesNotifiesNobodyUntilItClears(t *testing.T) {
+	f := newNotifyFixture(t)
+	latch := constants.KeyPrefixInsightsNotified + idC1
+	if _, err := f.mr.Lpush(latch, idC1); err != nil {
+		t.Fatal(err)
+	}
 	critical := incident(application.InsightSeverityCritical, application.InsightStatusOpen)
 	f.put(t, nsShop, appWeb, scoreFirst, critical)
 	f.refresh(t)
-	assertSilent(t, "users unavailable", f.rec.take())
+	assertSilent(t, "latch of the wrong type", f.rec.take())
 
-	f.usersErr = nil
+	f.mr.Del(latch)
 	f.put(t, nsShop, appWeb, scoreFifth, critical)
 	f.refresh(t)
-	assertNotified(t, "next read", f.rec.take())
+	assertNotified(t, "latch cleared", f.rec.take())
 }

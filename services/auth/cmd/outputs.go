@@ -45,7 +45,7 @@ const (
 	BreakGlassRecoveryOpen = "\nRequest %s is open: %s.\n" +
 		"Run this command again after %s. The bootstrap account can deny it until then at:\n       %s\n%s"
 	BreakGlassRecoveryWait = "Waiting for the passkey until %s. Keep this command running.\n"
-	BreakGlassStillWaiting = "Still waiting for the passkey, until %s.\n"
+	BreakGlassStillWaiting = "Still waiting for the passkey: %d min left.\n"
 	BreakGlassRecovered    = "Request %s completed: %s now has only the new passkey.\n"
 	BreakGlassLinkExpired  = "The link expired unused: nothing changed and request %s stays open.\n" +
 		"Run this command again for a new link.\n"

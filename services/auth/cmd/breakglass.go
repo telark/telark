@@ -42,7 +42,11 @@ func RunBreakGlass(args []string) int {
 	}
 
 	normalized := strings.ToLower(strings.TrimSpace(*email))
-	if _, err := config.LoadBootstrapConfig(); err != nil || !config.IsBootstrapAdmin(normalized) {
+	if _, err := config.LoadBootstrapConfig(); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, BreakGlassRunFailed, err)
+		return constants.ExitCodeError
+	}
+	if !config.IsBootstrapAdmin(normalized) {
 		_, _ = fmt.Fprintf(os.Stderr, BreakGlassNotBootstrap, normalized)
 		return constants.ExitCodeError
 	}
@@ -210,7 +214,7 @@ func promote(userClient *userclient.Client, user *userresource.User, normalized 
 }
 
 // Once an account is pinned, break-glass opens a request instead of acting, one run at a time. A run before the request
-// completes (72 hours with no sign-in, or a replacement's approval) prints how it stands.
+// completes (the wait with no sign-in, or a replacement's approval) prints how it stands.
 func runPinned(status *telarkconfig.BootstrapStatus, email string, enroll bool) int {
 	if !enroll {
 		_, _ = fmt.Printf(BreakGlassPinnedTo, status.Email, status.PinnedAt)
@@ -258,7 +262,7 @@ func printOpen(status *telarkconfig.BootstrapStatus, request *telarkconfig.Boots
 		return constants.ExitCodeError
 	}
 	link := fmt.Sprintf(BreakGlassRequestURL, origin, request.ID, request.Kind)
-	mark := opened.Add(telarkconfig.BootstrapRequestWait).Format(constants.TimeFormatRFC3339)
+	mark := opened.Add(config.BreakGlassWait()).Format(constants.TimeFormatRFC3339)
 	if request.Kind == telarkconfig.BootstrapKindRecover {
 		_, _ = fmt.Printf(BreakGlassRecoveryOpen, request.ID, describe(status, request), mark, link, hint)
 		return constants.DefaultInitValue
@@ -300,9 +304,9 @@ func recoverAccount(id, userID, email, lock string) int {
 	if !ok || !extendRun(lock) || !withRedis(func() error { return authhelper.FreezeForLink(userID, token, constants.RecoveryLinkWindow) }) {
 		return constants.ExitCodeError
 	}
-	until := time.Now().Add(constants.RecoveryLinkWindow).Format(constants.TimeFormatRFC3339)
+	until := time.Now().Add(constants.RecoveryLinkWindow)
 	printLink(email, token, expiresAt)
-	_, _ = fmt.Printf(BreakGlassRecoveryWait, until)
+	_, _ = fmt.Printf(BreakGlassRecoveryWait, until.Format(constants.TimeFormatRFC3339))
 	keep, ended, ok := await(id, userID, token, lock, until, issuedAt)
 	switch {
 	case !ok:
@@ -348,7 +352,7 @@ func hold(userID, lock string, frozenAt time.Time) bool {
 
 // Until a passkey registered since the link shows, the link's freeze lapses with its window, or the request ends (a
 // sign-in begun before the freeze cancels it late). A lost run lock or a Redis that can't answer stops the run.
-func await(id, userID, token, lock, until string, issuedAt time.Time) (keep *authdata.Passkey, ended, ok bool) {
+func await(id, userID, token, lock string, until, issuedAt time.Time) (keep *authdata.Passkey, ended, ok bool) {
 	beat := time.Now()
 	for {
 		time.Sleep(constants.RecoveryPollInterval)
@@ -365,7 +369,7 @@ func await(id, userID, token, lock, until string, issuedAt time.Time) (keep *aut
 			return keep, ended, true
 		}
 		if time.Since(beat) >= constants.RecoveryKeepAlive {
-			_, _ = fmt.Printf(BreakGlassStillWaiting, until)
+			_, _ = fmt.Printf(BreakGlassStillWaiting, int(time.Until(until)/time.Minute))
 			beat = time.Now()
 		}
 	}

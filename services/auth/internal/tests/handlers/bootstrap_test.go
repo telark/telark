@@ -45,8 +45,8 @@ const (
 	cancelRoute     = "cancel"
 	deniedReason    = ` {"reason":"denied"}`
 	signedInReason  = ` {"reason":"signed-in"}`
-	// A recovery opened this long ago is past its 72-hour mark; a passkey this old predates it, this young follows it.
-	pastTheMark   = 73 * time.Hour
+	// A recovery opened this long ago is past the default wait's mark (24 hours); a passkey this old predates it, this young follows it.
+	pastTheMark   = 25 * time.Hour
 	beforeTheMark = 100 * time.Hour
 	afterTheMark  = 30 * time.Minute
 )
@@ -371,6 +371,9 @@ func TestApprovalStartRefuses(t *testing.T) {
 			rec, _ := startApproval(t, c.id, c.action)
 			testutil.Equal(t, "status", rec.Code, c.want)
 			testutil.Equal(t, "challenge stored", approvalChallenges() > challenges, c.want == http.StatusOK)
+			if c.recovery && c.action == approveAction {
+				testutil.Equal(t, "states the wait", strings.Contains(rec.Body.String(), "completes 24 hours after it opened"), true)
+			}
 		})
 	}
 }
@@ -427,7 +430,7 @@ func TestDenyWaitsForTheRun(t *testing.T) {
 	testutil.Equal(t, "exporter calls", len(fake.RequestCalls()), constants.DefaultInitValue)
 }
 
-// A passkey a recovery's link saved after the 72-hour mark, while that recovery is still open, came from a run that
+// A passkey a recovery's link saved after the wait's mark, while that recovery is still open, came from a run that
 // stopped before it finished: the bootstrap account's sign-in with it is refused (409) before any session, and cancels
 // nothing. One saved before the request signs in, and cancels the request.
 func TestUnfinishedRecoveryPasskeySignsNothingIn(t *testing.T) {
@@ -521,8 +524,13 @@ func TestAnotherAccountsPasskeyDecidesNothing(t *testing.T) {
 // What login/start issues for the bootstrap account to sign.
 func signInChallenge(t *testing.T) string {
 	t.Helper()
+	return challengeFor(t, bootstrapEmail)
+}
+
+func challengeFor(t *testing.T, email string) string {
+	t.Helper()
 	rec := httptest.NewRecorder()
-	authhandler.LoginStart(rec, jsonReq(`{"email":"`+bootstrapEmail+`"}`))
+	authhandler.LoginStart(rec, jsonReq(`{"email":"`+email+`"}`))
 	testutil.Equal(t, "login start", rec.Code, http.StatusOK)
 	var start authhandler.LoginStartResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &start); err != nil {
@@ -561,7 +569,7 @@ func TestSignInCancelsAPendingRequest(t *testing.T) {
 				map[string]any{"email": bootstrapEmail})))
 			testutil.Equal(t, "login", rec.Code, http.StatusOK)
 			testutil.Equal(t, "sessions", fake.SessionsIssued(), constants.DefaultIncrementValue)
-			// Stamped before the answer: the 72-hour backstop reads this stamp.
+			// Stamped before the answer: the wait's backstop reads this stamp.
 			testutil.Equal(t, "lastLoginAt stamped", fake.User(bootstrapID).Status.LastLoginAt != nil, true)
 			testutil.Equal(t, "exporter calls", strings.Join(fake.RequestCalls(), ","), strings.Join(c.calls, ","))
 		})
@@ -649,6 +657,19 @@ func (f freezeMidway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.inner.ServeHTTP(w, r)
 }
 
+// Freezes each account the stub created, as break-glass would the moment it exists.
+type freezeOnCreate struct{ *proofStub }
+
+func (f freezeOnCreate) RoundTrip(r *http.Request) (*http.Response, error) {
+	resp, err := f.proofStub.RoundTrip(r)
+	for _, user := range f.created {
+		if freezeErr := authhelper.Freeze(user.ID); freezeErr != nil {
+			return nil, freezeErr
+		}
+	}
+	return resp, err
+}
+
 // A request that began before break-glass froze the account checks the freeze again right before each write, so it
 // writes no passkey and no session once the account is frozen: nothing it sends can land after the bound break-glass
 // waits out.
@@ -662,6 +683,15 @@ func TestFrozenAccountGetsNoLateWrite(t *testing.T) {
 		challenge := challengeOf(t, startWith(issueLink(t, plainTargetID, usersOwner()).Token))
 		testutil.Equal(t, "finish", finishWith(t, challenge, webauthnHost).Code, http.StatusConflict)
 		testutil.Equal(t, "passkeys", fake.PasskeyCount(plainTargetID), constants.DefaultInitValue)
+	})
+	t.Run("self-registration", func(t *testing.T) {
+		stub := &proofStub{}
+		stubExporter(t, freezeOnCreate{stub})
+		awaitSelfRegistration(t, true)
+		rec := httptest.NewRecorder()
+		passkeyhandler.RegisterStart(rec, jsonReq(`{"email":"`+newEmail+`"}`))
+		testutil.Equal(t, "finish", finishWith(t, challengeOf(t, rec), webauthnHost).Code, http.StatusConflict)
+		testutil.Equal(t, "accounts deleted", stub.deleted, constants.DefaultIncrementValue)
 	})
 	t.Run("late session", func(t *testing.T) {
 		priv := testutil.NewP256Key(t)

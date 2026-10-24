@@ -90,6 +90,12 @@ const (
 	payloadV1     = 1
 	statusOptions = 8
 	pendingPage   = 100
+
+	notJSON      = "not an event"
+	outage       = "LOADING Redis is loading the dataset in memory"
+	noGroupError = "NOGROUP Redis lost its data"
+	retryCount   = "RETRYCOUNT"
+	noIdle       = 0
 )
 
 var retryDelays = []time.Duration{
@@ -526,27 +532,35 @@ func TestRetryScheduleAndGiveUp(t *testing.T) {
 }
 
 func TestRetryAfterPushesLater(t *testing.T) {
-	e := newEnv(t)
-	now := time.Unix(startUnix, none).UTC()
-	e.mr.SetTime(now)
-	recv := e.serve(t, func(n int, w http.ResponseWriter) int {
-		if n == one {
-			w.Header().Set("Retry-After", strconv.Itoa(int(retryAfterWait.Seconds())))
-			return http.StatusTooManyRequests
-		}
-		return http.StatusOK
-	})
-	e.publish(t, approval)
-	waitUntil(t, firstAttempt, func() bool { return recv.count() == one })
-
-	e.mr.SetTime(now.Add(pastFirstDelay))
-	time.Sleep(quietFor)
-	if recv.count() != one {
-		t.Fatal("the retry ignored Retry-After")
+	values := map[string]func() string{
+		"seconds":      func() string { return strconv.Itoa(int(retryAfterWait.Seconds())) },
+		"an HTTP date": func() string { return time.Now().Add(retryAfterWait).UTC().Format(http.TimeFormat) },
 	}
-	e.mr.FastForward(retryAfterWait)
-	waitUntil(t, "attempt 2 after Retry-After", func() bool { return recv.count() == two })
-	waitUntil(t, theAck, func() bool { return e.pending(t, opsName) == none })
+	for name, value := range values {
+		t.Run(name, func(t *testing.T) {
+			e := newEnv(t)
+			now := time.Unix(startUnix, none).UTC()
+			e.mr.SetTime(now)
+			recv := e.serve(t, func(n int, w http.ResponseWriter) int {
+				if n == one {
+					w.Header().Set("Retry-After", value())
+					return http.StatusTooManyRequests
+				}
+				return http.StatusOK
+			})
+			e.publish(t, approval)
+			waitUntil(t, firstAttempt, func() bool { return recv.count() == one })
+
+			e.mr.SetTime(now.Add(pastFirstDelay))
+			time.Sleep(quietFor)
+			if recv.count() != one {
+				t.Fatal("the retry ignored Retry-After")
+			}
+			e.mr.FastForward(retryAfterWait)
+			waitUntil(t, "attempt 2 after Retry-After", func() bool { return recv.count() == two })
+			waitUntil(t, theAck, func() bool { return e.pending(t, opsName) == none })
+		})
+	}
 }
 
 func TestTrimmedEntryIsDropped(t *testing.T) {
@@ -629,17 +643,20 @@ func TestLostGroupIsRecreated(t *testing.T) {
 	waitUntil(t, "the delivery after the group came back", func() bool { return recv.count() == one })
 }
 
-// A Redis writer can add entries but not sign them: unsigned or altered ones are dropped, never sent.
+// A Redis writer can add entries but not sign them: unsigned or altered ones are dropped, never sent, and so is a
+// signed one that isn't an event.
 func TestUnsignedEntriesAreDropped(t *testing.T) {
 	e := newEnv(t)
 	recv := e.serve(t, always(http.StatusOK))
 	e.publishRaw(t, `{"type":"`+approval+`","timestamp":1,"title":"forged"}`)
 	signed, ok := xauthz.SignRedisEntry(notifclient.EventsStream, `{"type":"`+approval+`","timestamp":1,"title":"real"}`)
-	if !ok {
+	garbled, garbledOK := xauthz.SignRedisEntry(notifclient.EventsStream, notJSON)
+	if !ok || !garbledOK {
 		t.Fatal("no service token to sign with")
 	}
 	e.publishRaw(t, strings.Replace(signed, "real", "fake", one))
-	waitUntil(t, "both dropped", func() bool { return e.pending(t, opsName) == none })
+	e.publishRaw(t, garbled)
+	waitUntil(t, "all dropped", func() bool { return e.pending(t, opsName) == none })
 	e.publish(t, approval)
 	waitUntil(t, "the signed delivery", func() bool { return recv.count() == one })
 	time.Sleep(quietFor)
@@ -665,4 +682,86 @@ func TestRetryScanPagesPastOnePage(t *testing.T) {
 	waitUntil(t, "the newer first attempt", func() bool { return recv.count() == pendingPage+pendingPage+one })
 	e.mr.SetTime(now.Add(pastFirstDelay + pastFirstDelay))
 	waitUntil(t, "the newer second attempt", func() bool { return recv.count() == pendingPage+pendingPage+two })
+}
+
+// Redis down when a target starts: its group is made once Redis answers again, and deliveries go out from then on.
+func TestATargetStartedDuringAnOutageRecovers(t *testing.T) {
+	e := newEnv(t)
+	recv := newReceiver(t, privateIP(t), always(http.StatusOK))
+	e.writeRaw(t, encode(t, []webhooks.TargetConfig{target(opsName, recv.url, approval)}))
+	e.mr.SetError(noGroupError)
+	e.run(t)
+	time.Sleep(quietFor)
+	e.mr.SetError(dataconstants.EmptyString)
+	e.waitGroups(t, opsName)
+	e.publish(t, approval)
+	waitUntil(t, "the delivery after the outage", func() bool { return recv.count() == one })
+}
+
+// A targets file that can't be read starts nothing, as no file does.
+func TestATargetsFileThatCantBeReadStartsNothing(t *testing.T) {
+	e := newEnv(t)
+	e.path = t.TempDir()
+	e.run(t)
+	time.Sleep(quietFor)
+	if groups := e.groups(); len(groups) != none {
+		t.Fatalf("an unreadable targets file made groups %v", groups)
+	}
+}
+
+// An ack Redis refuses leaves the entry pending: delivered again later rather than lost.
+func TestARefusedAckKeepsTheEntryPending(t *testing.T) {
+	e := newEnv(t)
+	recv := e.serve(t, func(int, http.ResponseWriter) int {
+		e.mr.SetError(outage)
+		return http.StatusOK
+	})
+	e.publish(t, approval)
+	waitUntil(t, firstAttempt, func() bool { return recv.count() == one })
+	time.Sleep(quietFor)
+	e.mr.SetError(dataconstants.EmptyString)
+	if pending := e.pending(t, opsName); pending != one {
+		t.Errorf("pending after a refused ack = %d, want %d", pending, one)
+	}
+}
+
+// A receiver that can't be reached is retried, not given up: the entry stays pending.
+func TestAnUnreachableReceiverIsRetried(t *testing.T) {
+	e := newEnv(t)
+	listener, err := net.Listen("tcp", net.JoinHostPort(privateIP(t), "0"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	address := listener.Addr().String()
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	e.writeRaw(t, encode(t, []webhooks.TargetConfig{target(opsName, httpScheme+address+hookPath, approval)}))
+	e.run(t)
+	e.waitGroups(t, opsName)
+	e.publish(t, approval)
+	waitUntil(t, "the refused attempt", func() bool { return e.pending(t, opsName) == one })
+	time.Sleep(quietFor)
+	if pending := e.pending(t, opsName); pending != one {
+		t.Errorf("pending after a refused connection = %d, want %d", pending, one)
+	}
+}
+
+// An entry Redis counts as delivered as often as allowed, its last answer never recorded (a restart), is given up.
+func TestAnEntryPastItsLastAttemptIsGivenUp(t *testing.T) {
+	e := newEnv(t)
+	now := time.Unix(startUnix, none).UTC()
+	e.mr.SetTime(now)
+	recv := e.serve(t, always(http.StatusInternalServerError))
+	id := e.publish(t, approval)
+	waitUntil(t, firstAttempt, func() bool { return recv.count() == one })
+	claim := []any{"XCLAIM", notifclient.EventsStream, groupPrefix + opsName, consumer, noIdle, id, retryCount, maxAttempts}
+	if err := e.rdb.Do(context.Background(), claim...).Err(); err != nil {
+		t.Fatal(err)
+	}
+	e.mr.SetTime(now.Add(afterLastRetry))
+	waitUntil(t, "the entry given up", func() bool { return e.pending(t, opsName) == none })
+	if recv.count() != one {
+		t.Errorf("%d attempts, want 1", recv.count())
+	}
 }

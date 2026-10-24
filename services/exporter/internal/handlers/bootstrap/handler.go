@@ -52,7 +52,7 @@ func GetStatus() http.HandlerFunc {
 			status.Requests = nil
 		}
 		responseutils.SendResponse(w, http.StatusOK, response.OperationSuccess, string(constants.MsgBootstrapStatusRead),
-			eps.StatusResult{BootstrapStatus: *status, NotifyAdmins: notifyAdmins})
+			eps.StatusResult{BootstrapStatus: *status, NotifyAdmins: notifyAdmins, WaitHours: bootstrap.WaitHours()})
 	}
 }
 

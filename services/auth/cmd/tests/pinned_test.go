@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 	"testing"
@@ -38,6 +39,7 @@ const (
 	frozenKey      = constants.RedisKeyPrefixFrozen + pinnedUser
 	linkCredential = "link-passkey"
 	takenOver      = "another-run"
+	byEmailPath    = "/users/by-email/"
 	// The completion that revokes, after the hold.
 	revokePass = 1
 	// How long the test waits for break-glass to print its link (the hold alone takes 45 s), and how often it looks.
@@ -45,6 +47,10 @@ const (
 	linkPoll = 100 * time.Millisecond
 	// A late registration lands this long after the run froze the account for its last look.
 	lateLanding = time.Second
+	// A configured wait, and the margin a test gives the run to print its keep-alive line.
+	thirtyHours    = "30"
+	thirtyHourWait = 30 * time.Hour
+	keepAliveGrace = 5 * time.Second
 	// Labels the recovery runs' checks share.
 	exitLabel  = "exit"
 	callsLabel = "exporter calls"
@@ -55,6 +61,7 @@ const (
 var (
 	errNoLink       = errors.New("break-glass printed no link")
 	errNoLastFreeze = errors.New("break-glass never froze the account for its last look")
+	errNoStatusRead = errors.New("break-glass never read the request's status while it waited")
 )
 
 func breakGlassRequest(kind, state, target string) telarkconfig.BootstrapRequest {
@@ -102,7 +109,7 @@ func TestBreakGlassOpensARequestOncePinned(t *testing.T) {
 	}{
 		{"without --enroll", nil, pinnedMailbox, nil, constants.DefaultInitValue,
 			[]string{"The bootstrap account is test@example.com", "Newest request: " + requestID}, "#request=", constants.EmptyString, nil},
-		{"recovery waiting for its 72 hours", []string{flagEnroll}, pinnedMailbox, waiting, constants.DefaultInitValue, recoveryLink,
+		{"recovery waiting out the wait", []string{flagEnroll}, pinnedMailbox, waiting, constants.DefaultInitValue, recoveryLink,
 			"approve", constants.EmptyString, []string{opened(pinnedMailbox)}},
 		// The account changed its email to the one the chart now names: its recovery is still the caller's.
 		{"pinned under an earlier email", []string{flagEnroll}, "earlier@example.com", waiting, constants.DefaultInitValue,
@@ -143,6 +150,27 @@ func TestBreakGlassOpensARequestOncePinned(t *testing.T) {
 			testutil.Equal(t, "tokens", len(enrollTokenOwners()), constants.DefaultInitValue)
 			testutil.Equal(t, "run lock", redisServer.Exists(constants.RedisKeyBreakGlassRun), false)
 		})
+	}
+}
+
+// A request waiting out the wait completes on its own the configured hours after it opened, which the run prints.
+func TestBreakGlassPrintsTheConfiguredMark(t *testing.T) {
+	t.Setenv(constants.EnvBootstrapAdmin, pinnedMailbox)
+	t.Setenv(constants.EnvBreakGlassWaitHours, thirtyHours)
+	redisServer.FlushAll()
+	request := breakGlassRequest(telarkconfig.BootstrapKindRecover, telarkconfig.BootstrapStatePending, constants.EmptyString)
+	fake := pinnedExporter()
+	fake.RequestAnswers = map[string]bootstrapeps.RequestResult{openAnswer: {Request: request}}
+	testutil.StubBackend(t, fake)
+	opened, err := time.Parse(time.RFC3339, request.OpenedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, out, _ := runBreakGlass(t, flagEmail, pinnedMailbox, flagEnroll)
+	testutil.Equal(t, exitLabel, code, constants.DefaultInitValue)
+	want := "Run this command again after " + opened.Add(thirtyHourWait).Format(time.RFC3339) + "."
+	if !strings.Contains(out, want) {
+		t.Fatalf("stdout %q lacks %q", out, want)
 	}
 }
 
@@ -199,14 +227,18 @@ func recoveryExporter(complete *bootstrapeps.RequestResult) *testutil.FakeExport
 	return fake
 }
 
-// An eligible recovery of an account that signs with one passkey, made long before the request opened.
+// An eligible recovery of an account that signs with one passkey made long before the request opened, and one stored
+// without its creation time, which is never the link's.
 func signingRecovery() *testutil.FakeExporter {
 	fake := recoveryExporter(&bootstrapeps.RequestResult{
 		Request:  breakGlassRequest(telarkconfig.BootstrapKindRecover, telarkconfig.BootstrapStatePending, constants.EmptyString),
 		Eligible: true,
 	})
 	created := "2026-01-01T00:00:00Z"
-	fake.Credentials = map[string][]authdata.Passkey{pinnedUser: {{UserID: pinnedUser, CredentialID: "b2xk", CreationTimestamp: &created}}}
+	fake.Credentials = map[string][]authdata.Passkey{pinnedUser: {
+		{UserID: pinnedUser, CredentialID: "b2xk", CreationTimestamp: &created},
+		{UserID: pinnedUser, CredentialID: "dW5kYXRlZA"},
+	}}
 	return fake
 }
 
@@ -221,6 +253,104 @@ func TestBreakGlassThawsWhenNothingWasRevoked(t *testing.T) {
 	testutil.Equal(t, "exporter calls", strings.Join(fake.RequestCalls(), ","), opened(pinnedMailbox)+","+completeOnce)
 	testutil.Equal(t, "thawed", redisServer.Exists(frozenKey), false)
 	testutil.Equal(t, "link printed", strings.Contains(out, "#enroll="), false)
+}
+
+// A run that stops before the hold: what the exporter does, what stderr says, the request calls, and the run lock left.
+type stop struct {
+	name  string
+	email string
+	setup func(fake *testutil.FakeExporter) http.Handler
+	says  string
+	calls []string
+	lock  string
+}
+
+// Each run stops with the reason on stderr and no link, leaves the account thawed, and releases the run lock unless
+// another run took that over.
+func expectStops(t *testing.T, cases []stop) {
+	t.Helper()
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Setenv(constants.EnvBootstrapAdmin, c.email)
+			redisServer.FlushAll()
+			fake := recoveryExporter(nil)
+			testutil.StubBackend(t, c.setup(fake))
+
+			code, out, logged := runBreakGlass(t, flagEmail, c.email, flagEnroll)
+			testutil.Equal(t, exitLabel, code, constants.ExitCodeError)
+			if !strings.Contains(logged, c.says) {
+				t.Fatalf("stderr %q lacks %q", logged, c.says)
+			}
+			testutil.Equal(t, callsLabel, strings.Join(fake.RequestCalls(), callSep), strings.Join(c.calls, callSep))
+			testutil.Equal(t, "thawed", redisServer.Exists(frozenKey), false)
+			held, _ := redisServer.Get(constants.RedisKeyBreakGlassRun)
+			testutil.Equal(t, "run lock", held, c.lock)
+			testutil.Equal(t, linkLabel, strings.Contains(out, "#enroll="), false)
+		})
+	}
+}
+
+// A recovery that can't go on stops before the hold, and thaws at once if it froze the account.
+func TestBreakGlassRecoveryStopsBeforeTheHold(t *testing.T) {
+	calls := []string{opened(pinnedMailbox)}
+	expectStops(t, []stop{
+		{"the open fails", pinnedMailbox, func(fake *testutil.FakeExporter) http.Handler {
+			delete(fake.RequestAnswers, openAnswer)
+			return fake
+		}, "Could not open a request", calls, constants.EmptyString},
+		{"the caller's lookup fails", pinnedMailbox, func(fake *testutil.FakeExporter) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if strings.Contains(r.URL.Path, byEmailPath) {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				fake.ServeHTTP(w, r)
+			})
+		}, "Could not look up " + pinnedMailbox, calls, constants.EmptyString},
+		{"no account uses the caller's email", pinnedMailbox, func(fake *testutil.FakeExporter) http.Handler {
+			delete(fake.Users, pinnedUser)
+			return fake
+		}, "Another request is open: " + requestID, calls, constants.EmptyString},
+		{"the request's opening time is unreadable", pinnedMailbox, func(fake *testutil.FakeExporter) http.Handler {
+			request := breakGlassRequest(telarkconfig.BootstrapKindRecover, telarkconfig.BootstrapStatePending, constants.EmptyString)
+			request.OpenedAt = "never"
+			fake.RequestAnswers[openAnswer] = bootstrapeps.RequestResult{Request: request}
+			return fake
+		}, "parsing time", calls, constants.EmptyString},
+		{"another run takes the lock over before the freeze", pinnedMailbox, func(fake *testutil.FakeExporter) http.Handler {
+			fake.OnRequest = func(string) { _ = redisServer.Set(constants.RedisKeyBreakGlassRun, takenOver) }
+			return fake
+		}, "Could not run break-glass", calls, takenOver},
+		// A key of the wrong type makes Redis refuse the drop.
+		{"the links can't be dropped", pinnedMailbox, func(fake *testutil.FakeExporter) http.Handler {
+			redisServer.HSet(constants.RedisKeyPrefixInviteOf+pinnedUser, linkCredential, linkCredential)
+			return fake
+		}, "WRONGTYPE", calls, constants.EmptyString},
+	})
+}
+
+// A replacement the exporter refuses at any step stops the run.
+func TestBreakGlassReplacementStopsOnARefusal(t *testing.T) {
+	const newMailbox = "new@example.com"
+	replacementTo := func(fake *testutil.FakeExporter, target string) {
+		fake.RequestAnswers[openAnswer] = bootstrapeps.RequestResult{Eligible: true,
+			Request: breakGlassRequest(telarkconfig.BootstrapKindReplace, telarkconfig.BootstrapStateApproved, target)}
+	}
+	expectStops(t, []stop{
+		{"the account can't be created", newMailbox, func(fake *testutil.FakeExporter) http.Handler {
+			replacementTo(fake, newMailbox)
+			return fake
+		}, "Could not create " + newMailbox, []string{opened(newMailbox)}, constants.EmptyString},
+		{"the promotion is refused", nextMailbox, func(fake *testutil.FakeExporter) http.Handler {
+			replacementTo(fake, nextMailbox)
+			fake.Gone = map[string]bool{nextUser: true}
+			return fake
+		}, "Could not promote " + nextMailbox, []string{opened(nextMailbox)}, constants.EmptyString},
+		{"the completion is refused", nextMailbox, func(fake *testutil.FakeExporter) http.Handler {
+			replacementTo(fake, nextMailbox)
+			return fake
+		}, "Could not finish request " + requestID, []string{opened(nextMailbox), completeOnce}, constants.EmptyString},
+	})
 }
 
 // A freeze that lapses mid-recovery stops it before the hold: a gap could have let a write through.
@@ -354,25 +484,52 @@ func TestBreakGlassRecoversLinkFirst(t *testing.T) {
 // The wait ends with no registration, when the link's window ends or when a sign-in begun before the freeze cancels the
 // request: the run freezes the account again, drops the link, holds the freeze, finds no new passkey, thaws while it
 // still holds its lock and says why, so the account keeps its passkeys (no keep pass). The window ends when the link's
-// freeze lapses, so the test lapses it at once instead of waiting out its 12 minutes.
+// freeze lapses, so the test lapses it at once instead of waiting out its 12 minutes, after a round whose status read
+// the exporter failed: that read counts as open, so the wait went on.
 func TestBreakGlassWaitEndsUnused(t *testing.T) {
 	t.Setenv(constants.EnvBootstrapAdmin, pinnedMailbox)
+	// A status read fails while the test waits on missed; a wait round reads it after the freeze and the passkeys.
+	missed := make(chan struct{})
 	cases := []struct {
-		name string
-		end  func(fake *testutil.FakeExporter)
-		says string
+		name    string
+		end     func(fake *testutil.FakeExporter) error
+		says    string
+		printed string
 	}{
-		{"the link expires", func(*testutil.FakeExporter) { redisServer.Del(frozenKey) }, "expired unused"},
-		{"the request ends", endTheRequest, "was canceled by a sign-in or a deny"},
+		{"the link expires", func(*testutil.FakeExporter) error {
+			select {
+			case <-missed:
+			case <-time.After(linkWait):
+				return errNoStatusRead
+			}
+			redisServer.Del(frozenKey)
+			return nil
+		}, "expired unused", constants.EmptyString},
+		// Late enough that the run printed its keep-alive line once, with the link's 11.75-minute window 2 minutes in.
+		{"the request ends", func(fake *testutil.FakeExporter) error {
+			time.Sleep(constants.RecoveryKeepAlive + keepAliveGrace)
+			endTheRequest(fake)
+			return nil
+		}, "was canceled by a sign-in or a deny", "Still waiting for the passkey: 9 min left.\n"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			redisServer.FlushAll()
 			fake := signingRecovery()
 			seen := watchFreeze(fake, nil)
-			testutil.StubBackend(t, fake)
+			testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == bootstrapPath {
+					select {
+					case missed <- struct{}{}:
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					default:
+					}
+				}
+				fake.ServeHTTP(w, r)
+			}))
 			links := openWaysIn(t)
-			ended := useTheLink(func(string) error { c.end(fake); return nil })
+			ended := useTheLink(func(string) error { return c.end(fake) })
 
 			began := time.Now()
 			code, out, logged := runBreakGlass(t, flagEmail, pinnedMailbox, flagEnroll)
@@ -386,8 +543,22 @@ func TestBreakGlassWaitEndsUnused(t *testing.T) {
 			expectRevoked(t, links, seen, began)
 			testutil.Equal(t, "live links", len(enrollTokenOwners()), constants.DefaultInitValue)
 			testutil.Equal(t, linkLabel, strings.Contains(out, "/register#enroll="), true)
+			testutil.Equal(t, "keep-alive line", strings.Contains(out, c.printed), true)
 		})
 	}
+}
+
+// A wait that isn't a whole number of hours, at least 1, stops break-glass before it reads anything, and says why.
+func TestBreakGlassRefusesABadWait(t *testing.T) {
+	t.Setenv(constants.EnvBootstrapAdmin, pinnedMailbox)
+	t.Setenv(constants.EnvBreakGlassWaitHours, "0")
+	fake := pinnedExporter()
+	testutil.StubBackend(t, fake)
+	code, out, logged := runBreakGlass(t, flagEmail, pinnedMailbox, flagEnroll)
+	testutil.Equal(t, exitLabel, code, constants.ExitCodeError)
+	testutil.Equal(t, "stdout", out, constants.EmptyString)
+	testutil.Equal(t, "says why", strings.Contains(logged, "Could not run break-glass: BREAK_GLASS_WAIT_HOURS must be"), true)
+	testutil.Equal(t, callsLabel, len(fake.RequestCalls()), constants.DefaultInitValue)
 }
 
 // As the cancel of a sign-in begun before the freeze does when it lands mid-run.

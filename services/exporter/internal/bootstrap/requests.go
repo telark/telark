@@ -17,6 +17,7 @@ import (
 	eps "github.com/telark/telark/internal/rest/endpoints/bootstrap"
 	"github.com/telark/telark/services/exporter/internal/cache"
 	"github.com/telark/telark/services/exporter/internal/constants"
+	envmanager "github.com/telark/telark/services/exporter/internal/managers/envs"
 	passkeyutils "github.com/telark/telark/services/exporter/internal/utils/auth/passkey"
 	sessionutils "github.com/telark/telark/services/exporter/internal/utils/auth/session"
 	"github.com/telark/telark/services/exporter/internal/utils/concurrency"
@@ -29,27 +30,26 @@ var (
 	ErrNotPinned        = errors.New(string(constants.ErrBootstrapNotPinned))
 	ErrNoRequest        = errors.New(string(constants.ErrBootstrapNoRequest))
 	ErrNotPending       = errors.New(string(constants.ErrBootstrapNotPending))
-	ErrExpired          = errors.New(string(constants.ErrBootstrapExpired))
-	ErrNotEligible      = errors.New(string(constants.ErrBootstrapNotEligible))
+	ErrExpired          = waitError(constants.ErrBootstrapExpired)
+	ErrNotEligible      = waitError(constants.ErrBootstrapNotEligible)
 	ErrEnrolled         = errors.New(string(constants.ErrBootstrapEnrolled))
 	ErrReissue          = errors.New(string(constants.ErrBootstrapReissueOver))
 	ErrNoTarget         = errors.New(string(constants.ErrBootstrapNoTarget))
 	ErrReason           = errors.New(string(constants.ErrBootstrapReason))
 	ErrEmail            = errors.New(string(constants.ErrBootstrapEmailRequired))
-	ErrRecoveryApproval = errors.New(string(constants.ErrBootstrapRecoveryApproval))
-	ErrKeep             = errors.New(string(constants.ErrBootstrapKeep))
+	ErrRecoveryApproval = waitError(constants.ErrBootstrapRecoveryApproval)
+	ErrKeep             = waitError(constants.ErrBootstrapKeep)
 
 	// A request's cause, by its reason, else its state; break-glass for the rest.
 	causes = map[string]string{
 		telarkconfig.BootstrapStateApproved:  constants.BootstrapCausePasskey,
 		telarkconfig.BootstrapReasonDenied:   constants.BootstrapCausePasskey,
 		telarkconfig.BootstrapReasonSignedIn: constants.BootstrapCauseSignIn,
-		telarkconfig.BootstrapReasonExpired:  constants.BootstrapCauseSeventyTwoH,
 	}
 )
 
 // One open request at a time: a run while one is open, or within 24 hours after a replacement completed while its
-// account has no passkey, gets that one back, so a lost token costs no new 72 hours.
+// account has no passkey, gets that one back, so a lost token costs no new wait.
 func Open(optimizer *performance.Optimizer, email string) (*Outcome, error) {
 	email = userutils.NormalizeEmail(email)
 	if email == constants.EmptyString {
@@ -93,7 +93,7 @@ func Open(optimizer *performance.Optimizer, email string) (*Outcome, error) {
 	return outcome, dropEnded(optimizer, status.UserID, outcome.Changed)
 }
 
-// After its 72-hour mark, an open request the bootstrap account signed in during ends here, and a new one opens.
+// After the wait's mark, an open request the bootstrap account signed in during ends here, and a new one opens.
 // Only a completed replacement re-issues, for the account it concerns: a completed recovery's account has a passkey.
 func reusable(
 	optimizer *performance.Optimizer, status *telarkconfig.BootstrapStatus, newest *telarkconfig.BootstrapRequest, mine bool,
@@ -189,7 +189,7 @@ func Approve(id string) (*Outcome, error) {
 		if err != nil {
 			return false, fmt.Errorf(string(constants.ErrBootstrapStatusInvalid), err)
 		}
-		if !at.Before(opened.Add(telarkconfig.BootstrapRequestWait)) {
+		if !at.Before(opened.Add(envmanager.GetBreakGlassWait())) {
 			return false, ErrExpired
 		}
 		request.State, request.ApprovedAt = telarkconfig.BootstrapStateApproved, stamp(at)
@@ -461,7 +461,7 @@ func markOf(request *telarkconfig.BootstrapRequest) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, fmt.Errorf(string(constants.ErrBootstrapStatusInvalid), err)
 	}
-	return opened.Add(telarkconfig.BootstrapRequestWait), nil
+	return opened.Add(envmanager.GetBreakGlassWait()), nil
 }
 
 func credentialOf(passkey unstructured.Unstructured) string {
@@ -506,14 +506,14 @@ func eligibleNow(status *telarkconfig.BootstrapStatus, request *telarkconfig.Boo
 	return err
 }
 
-// Eligible: after the 72-hour mark with no sign-in by the bootstrap account since the request opened, or a replacement
+// Eligible: after the wait's mark with no sign-in by the bootstrap account since the request opened, or a replacement
 // approved before it. A sign-in after the mark expires it instead.
 func judge(status *telarkconfig.BootstrapStatus, request *telarkconfig.BootstrapRequest, at time.Time) (eligible, expired bool, err error) {
 	opened, err := time.Parse(time.RFC3339, request.OpenedAt)
 	if err != nil {
 		return false, false, fmt.Errorf(string(constants.ErrBootstrapStatusInvalid), err)
 	}
-	if at.Before(opened.Add(telarkconfig.BootstrapRequestWait)) {
+	if at.Before(opened.Add(envmanager.GetBreakGlassWait())) {
 		// An approval a recovery got before recoveries lost theirs counts for nothing.
 		return request.Kind == telarkconfig.BootstrapKindReplace && request.State == telarkconfig.BootstrapStateApproved, false, nil
 	}
@@ -597,6 +597,9 @@ func logRequest(request telarkconfig.BootstrapRequest, event string) {
 	if !found {
 		cause = constants.BootstrapCauseBreakGlass
 	}
+	if request.Reason == telarkconfig.BootstrapReasonExpired {
+		cause = fmt.Sprintf(constants.BootstrapCauseWaitElapsed, WaitHours())
+	}
 	lg.Info(fmt.Sprintf(string(constants.InfBootstrapRequest), request.ID, request.Kind, event, cause))
 }
 
@@ -613,4 +616,13 @@ func pinnedTo(outcome *Outcome, status *telarkconfig.BootstrapStatus, err error)
 
 func stamp(at time.Time) string {
 	return at.Format(time.RFC3339)
+}
+
+func WaitHours() int {
+	return int(envmanager.GetBreakGlassWait() / time.Hour)
+}
+
+// Read when printed, so the text names the configured wait while errors.Is still matches the value.
+func (e waitError) Error() string {
+	return fmt.Sprintf(string(e), WaitHours())
 }

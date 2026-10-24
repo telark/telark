@@ -390,3 +390,42 @@ func checkQueuedEvent(t *testing.T, fields map[string]any, want notiftypes.Notif
 		t.Error("an altered entry still verifies")
 	}
 }
+
+// A queue Redis refuses releases the event's marker, so the next copy queues it; the notification itself is stored.
+func TestWebhookEventQueueFailureReleasesTheMarker(t *testing.T) {
+	t.Setenv(dataconstants.EnvServiceToken, testServiceToken)
+	ctx := context.Background()
+	s := newStorage(t)
+	if err := exprdb.Get().Set(ctx, notifclient.EventsStream, testTarget, redis.KeepTTL).Err(); err != nil {
+		t.Fatal(err)
+	}
+	approval := approvalEvent()
+	approval.UserID = testUserID
+	if _, err := s.Emit(ctx, approval); err != nil {
+		t.Fatalf("the notification was refused: %v", err)
+	}
+
+	exprdb.Get().Del(ctx, notifclient.EventsStream)
+	approval.UserID = otherUserID
+	if _, err := s.Emit(ctx, approval); err != nil {
+		t.Fatal(err)
+	}
+	if n := exprdb.Get().XLen(ctx, notifclient.EventsStream).Val(); n != constants.DefaultIncrementValue {
+		t.Errorf("%d queued after the failure, want the event once", n)
+	}
+}
+
+func TestEmitReturnsAStoreFailure(t *testing.T) {
+	mr := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = client.Close() })
+	exprdb.Set(client)
+	s, err := notifstorage.NewStorage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	mr.SetError("LOADING Redis is loading the dataset in memory")
+	if _, err := s.Emit(context.Background(), notif()); err == nil {
+		t.Fatal("Emit hid a store failure")
+	}
+}

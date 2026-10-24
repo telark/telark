@@ -11,7 +11,7 @@ type CancelBody struct {
 }
 
 // A recovery's passes: none set ends the account's sessions; Revoke, the last pass before the link, also deletes the
-// passkeys saved after the 72-hour mark; Keep, the credential id the link registered, completes it.
+// passkeys saved after the wait's mark; Keep, the credential id the link registered, completes it.
 type CompleteBody struct {
 	Revoke bool   `json:"revoke,omitempty"`
 	Keep   string `json:"keep,omitempty"`
@@ -24,10 +24,12 @@ type RequestResult struct {
 	Enrolled bool                          `json:"enrolled"`
 }
 
-// GET bootstrap. NotifyAdmins: whether every Admin on ALL hears of the requests and reads them here.
+// GET bootstrap. NotifyAdmins: whether every Admin on ALL hears of the requests and reads them here; WaitHours: how long
+// a request waits before it completes on its own.
 type StatusResult struct {
 	telarkconfig.BootstrapStatus
 	NotifyAdmins bool `json:"notifyAdmins"`
+	WaitHours    int  `json:"waitHours"`
 }
 
 // Action is approve or deny.

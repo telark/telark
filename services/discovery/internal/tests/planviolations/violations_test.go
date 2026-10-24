@@ -30,6 +30,7 @@ const (
 	eventTimestamp  = "2026-09-19T12:11:33Z"
 	// A requester that did not come from a policy's message expression.
 	unquotedRequester = " (requested by someone)"
+	brokenRequester   = ` (requested by "a\q")`
 	resultFail        = "fail"
 	requester         = "test@example.com"
 	stampEarly        = "2026-09-19T12:00:00Z"
@@ -186,6 +187,7 @@ func TestCollectReadsTheRequester(t *testing.T) {
 			`a"b) (requested by \c`},
 		{"older policy", blockRule, denyMessage, denyMessage, constants.EmptyString},
 		{"not quoted", constants.EmptyString, denyMessage + unquotedRequester, denyMessage + unquotedRequester, constants.EmptyString},
+		{"broken quoting", constants.EmptyString, denyMessage + brokenRequester, denyMessage + brokenRequester, constants.EmptyString},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

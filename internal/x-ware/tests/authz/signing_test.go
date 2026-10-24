@@ -63,6 +63,11 @@ func TestSignatureIsBoundToTheKey(t *testing.T) {
 // With no signing key there is nothing to verify against, so an entry must be
 // treated as untrusted rather than trusted blindly.
 func TestUnsignableEntriesAreNotTrusted(t *testing.T) {
+	t.Setenv(dataconstants.EnvServiceToken, signingToken)
+	signed, ok := authz.SignRedisEntry(signedBinding, signedPayload)
+	if !ok {
+		t.Fatal(signFailed)
+	}
 	t.Setenv(dataconstants.EnvServiceToken, dataconstants.EmptyString)
 
 	if _, ok := authz.SignRedisEntry(signedBinding, signedPayload); ok {
@@ -70,5 +75,8 @@ func TestUnsignableEntriesAreNotTrusted(t *testing.T) {
 	}
 	if _, ok := authz.VerifyRedisEntry(signedBinding, signedPayload); ok {
 		t.Error("verification succeeded without a service token")
+	}
+	if _, ok := authz.VerifyRedisEntry(signedBinding, signed); ok {
+		t.Error("a signed entry verified without a service token")
 	}
 }

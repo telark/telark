@@ -64,6 +64,8 @@ const (
 	EnvChallengeTimeout         = "CHALLENGE_TIMEOUT"
 	EnvSessionExpiry            = "SESSION_EXPIRY"
 	EnvBootstrapAdmin           = "BOOTSTRAP_ADMIN"
+	EnvBreakGlassWaitHours      = "BREAK_GLASS_WAIT_HOURS"
+	DefaultBreakGlassWaitHours  = 24
 	EnvReplicaID                = "HOSTNAME"
 	EnvOIDCTrustFile            = "OIDC_TRUST_FILE"
 	DefaultOIDCTrustFile        = "/etc/telark/oidc/googleJwkJson"
@@ -135,7 +137,8 @@ const (
 	// The link's life, a ceremony it opened and the write bound: nothing the link started lands after its window.
 	RecoveryLinkWindow   = time.Duration(RedisTTLEnrollToken+RedisTTLChallenge)*time.Second + RecoveryHold
 	RecoveryPollInterval = 2 * time.Second
-	RecoveryKeepAlive    = 30 * time.Second
+	// Output keeps kubectl exec alive: AWS's API load balancer cuts a connection idle for about 350 s.
+	RecoveryKeepAlive = 2 * time.Minute
 	// A passkey that landed during the hold must not slip past one failed read.
 	RecoveryLastLookAttempts = 3
 

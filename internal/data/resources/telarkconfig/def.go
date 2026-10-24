@@ -22,12 +22,8 @@ const (
 	FieldNotifyAdmins       = "notifyAdmins"
 )
 
-// 72 hours with no sign-in by the bootstrap account complete a break-glass request, and a completed one re-issues
-// its token for 24 hours while no passkey was enrolled: never settings.
-const (
-	BootstrapRequestWait   = 72 * time.Hour
-	BootstrapReissueWindow = 24 * time.Hour
-)
+// A completed break-glass request re-issues its token for 24 hours while no passkey was enrolled: never a setting.
+const BootstrapReissueWindow = 24 * time.Hour
 
 const (
 	BootstrapKindRecover    = "recover"

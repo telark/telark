@@ -265,6 +265,26 @@ func TestEnrollmentFailsClosedWithoutRedis(t *testing.T) {
 	}
 }
 
+// Without Redis break-glass holds no run and no freeze and drops no ceremony: each step fails closed.
+func TestBreakGlassFailsClosedWithoutRedis(t *testing.T) {
+	steps := map[string]func() error{
+		"freeze": func() error { return authhelper.Freeze(testUserID) },
+		"lock the run": func() error {
+			_, err := authhelper.LockRun()
+			return err
+		},
+		"extend the run":  func() error { return authhelper.ExtendRun(testDigest) },
+		"drop ceremonies": func() error { return webauthnhelper.DropCeremonies(testUserID) },
+	}
+	for name, step := range steps {
+		t.Run(name, func(t *testing.T) {
+			if err := step(); err == nil || err.Error() != string(constants.ErrRedisClientUnavailable) {
+				t.Fatalf("%s = %v, want %q", name, err, constants.ErrRedisClientUnavailable)
+			}
+		})
+	}
+}
+
 // A session is minted from the cached config; with no backend the create call
 // fails, and a returned token is never empty.
 func TestCreateUserSession(t *testing.T) {

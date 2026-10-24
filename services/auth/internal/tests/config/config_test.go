@@ -2,6 +2,7 @@ package config
 
 import (
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,6 +15,10 @@ const (
 	retiredSelfRegEnv = "SELF_REGISTRATION_ENABLED"
 	customTTLSec      = "900"
 	customTTL         = 15 * time.Minute
+	defaultWait       = 24 * time.Hour
+	sixHours          = "6"
+	sixHourWait       = 6 * time.Hour
+	noHours           = "0"
 )
 
 // The bootstrap admin is one email, normalized (trimmed + lowercased), and
@@ -160,5 +165,33 @@ func TestLoadConfig(t *testing.T) {
 	}
 	if cfg.WebAuthn.RPID != "localhost" || cfg.WebAuthn.RPName != "Dashboard App" {
 		t.Fatalf("WebAuthn config not wired: %+v", cfg.WebAuthn)
+	}
+}
+
+// Empty means 24 hours; anything but a whole number of hours, at least 1, refuses the bootstrap config and names the
+// variable, and keeps the wait loaded before.
+func TestBreakGlassWait(t *testing.T) {
+	t.Setenv(constants.EnvBootstrapAdmin, "test@example.com")
+	cases := []struct {
+		value string
+		want  time.Duration
+		fails bool
+	}{
+		{constants.EmptyString, defaultWait, false},
+		{sixHours, sixHourWait, false},
+		{noHours, sixHourWait, true},
+		{"-3", sixHourWait, true},
+		{"a day", sixHourWait, true},
+	}
+	for _, c := range cases {
+		t.Run(c.value, func(t *testing.T) {
+			t.Setenv(constants.EnvBreakGlassWaitHours, c.value)
+			_, err := config.LoadBootstrapConfig()
+			testutil.Equal(t, "refused", err != nil, c.fails)
+			if c.fails {
+				testutil.Equal(t, "names the variable", strings.Contains(err.Error(), constants.EnvBreakGlassWaitHours), true)
+			}
+			testutil.Equal(t, "wait", config.BreakGlassWait(), c.want)
+		})
 	}
 }

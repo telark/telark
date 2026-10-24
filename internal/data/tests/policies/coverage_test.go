@@ -297,3 +297,17 @@ func TestEveryReachedKindResolvesToAResource(t *testing.T) {
 		}
 	}
 }
+
+// A kind with no known resource routes no request to the policy, and a filter left with nothing
+// to match adds no condition of its own.
+func TestUnknownKindsRouteNoRequest(t *testing.T) {
+	match := []policies.ResourceFilter{{Kinds: []string{"Widget", "Widget/scale"}}}
+	meta := policies.RenderMeta{PlanID: "pp-abc-1234-5678", PlanName: "freeze", Mode: plans.ModeEnforce}
+	pol := policies.NewPolicy(meta, namespaceScope(), policies.PolicySpec{TemplateID: tplBlockCreate, Match: match})
+	if rules := pol.Spec.MatchConstraints.ResourceRules; len(rules) != constants.DefaultInitValue {
+		t.Errorf("unknown kinds produced resource rules: %+v", rules)
+	}
+	if expr := policies.AnyOf(nil); expr != "true" {
+		t.Errorf("AnyOf(nil) = %q, want true", expr)
+	}
+}

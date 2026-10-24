@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"testing"
 
 	plansmd "github.com/telark/telark/internal/data/metadata/v1alpha1"
@@ -32,6 +34,7 @@ const (
 	keyMetadata   = "metadata"
 	keyNamespace  = "namespace"
 	keptPath      = "/reports/kept"
+	blockerPerm   = 0o600
 )
 
 var (
@@ -169,5 +172,24 @@ func TestKeptReportsListDownloadAndDelete(t *testing.T) {
 	runDeleteSteps(t)
 	if exists(reportsutil.KeptDir(root, planID)) {
 		t.Fatal("the kept directory outlived its last report")
+	}
+}
+
+// A kept directory the store can't read is a failure (500), and a delete without a plan id is refused before any read.
+func TestKeptListFailureAndADeleteWithoutAPlan(t *testing.T) {
+	root := setRoot(t)
+	if err := os.WriteFile(filepath.Join(root, constants.ReportsKeptSubdir), []byte(keptName), blockerPerm); err != nil {
+		t.Fatal(err)
+	}
+	list := httptest.NewRecorder()
+	reportshandler.ListKeptReports()(list, httptest.NewRequest(http.MethodGet, keptPath, nil))
+	if list.Code != http.StatusInternalServerError {
+		t.Fatalf("kept list = %d %s, want 500", list.Code, list.Body.String())
+	}
+
+	rec := httptest.NewRecorder()
+	reportshandler.DeletePlanReport()(rec, httptest.NewRequest(http.MethodDelete, routePath, nil))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("delete without a plan = %d, want 400", rec.Code)
 	}
 }

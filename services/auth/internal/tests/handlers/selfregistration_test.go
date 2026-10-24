@@ -11,6 +11,7 @@ import (
 	telarkconfigresource "github.com/telark/telark/internal/data/resources/telarkconfig"
 	userresource "github.com/telark/telark/internal/data/resources/user"
 	autheps "github.com/telark/telark/internal/rest/endpoints/auth"
+	configeps "github.com/telark/telark/internal/rest/endpoints/config"
 	"github.com/telark/telark/internal/rest/router"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/auth/internal/config"
@@ -159,4 +160,15 @@ func TestSignInSettingsAreBootstrapOnly(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A sign-in setting the exporter fails to save is a failure (500), not a saved change.
+func TestSignInSettingNotSaved(t *testing.T) {
+	fake := &testutil.FakeExporter{Users: map[string]*userresource.User{bootstrapCallID: {ID: bootstrapCallID, Bootstrap: true}}}
+	testutil.StubBackend(t, &failingRoute{inner: fake, method: http.MethodPatch, suffix: "/" + string(configeps.PatchConfig)})
+	caller := adminOnAll()
+	caller.UserID = bootstrapCallID
+	rec := httptest.NewRecorder()
+	routed(rec, signInSettingsReq(caller, alertsOnBody))
+	testutil.Equal(t, "status", rec.Code, http.StatusInternalServerError)
 }

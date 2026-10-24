@@ -65,12 +65,14 @@ const (
 	ListBlobLocalEntries     = 4
 	ListRenderConcurrencyEnv = "EXPORTER_LIST_RENDER_CONCURRENCY"
 	BootstrapAdminEnv        = "BOOTSTRAP_ADMIN"
+	BreakGlassWaitHoursEnv   = "BREAK_GLASS_WAIT_HOURS"
 	// Under the 30 s a create's caller waits (auth's REST client, the create route's deadline), so it gets the 503.
 	CreateSlotWait = 20 * time.Second
 	// A full list is megabytes of marshal buffer; beyond this many renders at
 	// once a request queues for a slot until its own deadline.
 	DefaultListRenderConcurrency                = 2
 	MinListRenderConcurrency                    = 1
+	DefaultBreakGlassWaitHours                  = 24
 	ListRenderRetryAfter                        = "2"
 	HeaderRetryAfter                            = "Retry-After"
 	HeaderContentLength                         = "Content-Length"

@@ -68,7 +68,8 @@ type compiledPolicy struct {
 // replace this module can't carry. Of Kyverno's libraries the policies call only the image one.
 func vpolEnv(t *testing.T) (*cel.Env, *compiler.VariablesProvider) {
 	t.Helper()
-	opts := append(compiler.DefaultEnvOptionsWithCompat(),
+	opts := append(
+		compiler.DefaultEnvOptionsWithCompat(),
 		cel.Variable(compiler.NamespaceObjectKey, compiler.NamespaceType.CelType()),
 		cel.Variable(compiler.ObjectKey, cel.DynType),
 		cel.Variable(compiler.OldObjectKey, cel.DynType),

@@ -76,6 +76,7 @@ const (
 	// Configuration Errors
 	ErrMissingEnvVar             errors.Error = "missing required environment variable: %s"
 	ErrInvalidEnvVarValue        errors.Error = "invalid value for environment variable %s: %s"
+	ErrBreakGlassWaitInvalid     errors.Error = "%s must be a whole number of hours, at least 1, not %q"
 	ErrFailedLoadConfig          errors.Error = "failed to load configuration: %v"
 	ErrFailedLoadBootstrapConfig errors.Error = "failed to load bootstrap configuration: %v"
 	WarnTelarkConfigReadFailed   errors.Error = "failed to read the TelarkConfig, keeping the last value: %v"
@@ -183,7 +184,7 @@ const (
 	ErrBreakGlassRunBusy       errors.Error = "another run is in progress: try again within 15 minutes"
 	ErrBootstrapDenyRecovering errors.Error = "break-glass is recovering this account right now: deny the request once " +
 		"that run has ended, within 15 minutes"
-	ErrBootstrapApproveRecover errors.Error = "a recovery can't be approved: it completes 72 hours after it opened " +
+	ErrBootstrapApproveRecover errors.Error = "a recovery can't be approved: it completes %d hours after it opened " +
 		"unless the bootstrap account signs in or denies it"
 
 	// Credential Verification Errors

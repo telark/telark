@@ -48,8 +48,8 @@ const (
 	unmarkBody      = `{"bootstrap":false}`
 	bootstrapEnv    = "BOOTSTRAP_ADMIN"
 	garbledStamp    = "not a time"
-	justUnder       = 71 * time.Hour
-	justOver        = 73 * time.Hour
+	justUnder       = 23 * time.Hour
+	justOver        = 25 * time.Hour
 	longAgo         = 100 * time.Hour
 	runs            = 2
 	none            = 0
@@ -633,10 +633,10 @@ func TestPinAtStartRefreshesTheCachedUsers(t *testing.T) {
 	equal(t, "marked after the start", marked(), false)
 }
 
-// Eligible: 72 hours after the request opened with no sign-in by the bootstrap account since, whatever approval a
-// recovery got before recoveries lost theirs; a sign-in after the mark expires it. A pass before then is refused and
-// ends nothing; an eligible one ends the account's sessions only, and the request stays as it was.
-func TestSeventyTwoHours(t *testing.T) {
+// Eligible: the wait (24 hours by default) after the request opened with no sign-in by the bootstrap account since,
+// whatever approval a recovery got before recoveries lost theirs; a sign-in after the mark expires it. A pass before
+// then is refused and ends nothing; an eligible one ends the account's sessions only, and the request stays as it was.
+func TestTheWait(t *testing.T) {
 	now := time.Now()
 	cases := []struct {
 		name      string
@@ -644,13 +644,13 @@ func TestSeventyTwoHours(t *testing.T) {
 		lastLogin *string
 		want      int
 	}{
-		{"pending at 71 hours", pending(now.Add(-justUnder)), nil, http.StatusConflict},
-		{"pending at 73 hours, no sign-in", pending(now.Add(-justOver)), nil, http.StatusOK},
-		{"pending at 73 hours, signed in before", pending(now.Add(-justOver)), signedInAt(now.Add(-justOver - time.Hour)), http.StatusOK},
-		{"pending at 73 hours, signed in since", pending(now.Add(-justOver)), signedInAt(now.Add(-time.Hour)), http.StatusConflict},
-		{"approved at 71 hours", approved(now.Add(-justUnder)), signedInAt(now.Add(-time.Hour)), http.StatusConflict},
-		{"approved at 73 hours, no sign-in", approved(now.Add(-justOver)), nil, http.StatusOK},
-		{"approved at 73 hours, signed in since", approved(now.Add(-justOver)), signedInAt(now.Add(-time.Hour)), http.StatusConflict},
+		{"pending at 23 hours", pending(now.Add(-justUnder)), nil, http.StatusConflict},
+		{"pending at 25 hours, no sign-in", pending(now.Add(-justOver)), nil, http.StatusOK},
+		{"pending at 25 hours, signed in before", pending(now.Add(-justOver)), signedInAt(now.Add(-justOver - time.Hour)), http.StatusOK},
+		{"pending at 25 hours, signed in since", pending(now.Add(-justOver)), signedInAt(now.Add(-time.Hour)), http.StatusConflict},
+		{"approved at 23 hours", approved(now.Add(-justUnder)), signedInAt(now.Add(-time.Hour)), http.StatusConflict},
+		{"approved at 25 hours, no sign-in", approved(now.Add(-justOver)), nil, http.StatusOK},
+		{"approved at 25 hours, signed in since", approved(now.Add(-justOver)), signedInAt(now.Add(-time.Hour)), http.StatusConflict},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

@@ -52,6 +52,7 @@ Kubernetes: `>=1.30.0-0`
 | app.persistence.reportsSize | string | `"512Mi"` |  |
 | app.persistence.snapshotsSize | string | `"512Mi"` |  |
 | app.persistence.storageClass | string | `""` |  |
+| app.security.breakGlass.waitHours | int | `24` |  |
 | app.security.crdGuard.enabled | bool | `true` |  |
 | app.security.crdGuard.enforce | bool | `true` |  |
 | app.security.crdGuard.extraAllowedUsers | list | `[]` |  |
@@ -293,6 +294,7 @@ Kubernetes: `>=1.30.0-0`
 | services.auth.category | string | `"auth"` |  |
 | services.auth.enabled | bool | `true` |  |
 | services.auth.env.BOOTSTRAP_ADMIN | string | `"{{ .Values.app.auth.bootstrap.admin }}"` |  |
+| services.auth.env.BREAK_GLASS_WAIT_HOURS | string | `"{{ dig \"security\" \"breakGlass\" \"waitHours\" \"\" .Values.app }}"` |  |
 | services.auth.env.CHALLENGE_TIMEOUT | string | `"60"` |  |
 | services.auth.env.CLEANUP_DEDUP_TTL_SECONDS | string | `"600"` |  |
 | services.auth.env.CLEANUP_JOB_MAX_ATTEMPTS | string | `"5"` |  |
@@ -397,6 +399,7 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.category | string | `"persistence-manager"` |  |
 | services.exporter.enabled | bool | `true` |  |
 | services.exporter.env.BOOTSTRAP_ADMIN | string | `"{{ .Values.app.auth.bootstrap.admin }}"` |  |
+| services.exporter.env.BREAK_GLASS_WAIT_HOURS | string | `"{{ dig \"security\" \"breakGlass\" \"waitHours\" \"\" .Values.app }}"` |  |
 | services.exporter.env.CORS_ALLOWED_ORIGINS | string | `""` |  |
 | services.exporter.env.EXPORTER_K8S_CLIENT_BURST | string | `"100"` |  |
 | services.exporter.env.EXPORTER_K8S_CLIENT_QPS | string | `"50"` |  |

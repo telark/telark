@@ -31,6 +31,7 @@ const (
 	// Pinned: a break-glass token opens the bootstrap account, so its lifetime is the security design.
 	breakGlassTTL = 10 * time.Minute
 	bootstrapPath = "/api/v1/bootstrap"
+	usersPath     = "/api/v1/users"
 )
 
 // Shared by the package: auth binds its Redis client once per process, and the tests read the tokens stored there.
@@ -74,6 +75,24 @@ func TestBackfillRunFailsClosed(t *testing.T) {
 	if err := cmd.RunBackFill(config.LoadBackfillConfig(), lg); err == nil {
 		t.Fatal("backfill Run should fail with no backend")
 	}
+}
+
+// A record the exporter refuses to patch is logged, and the backfill goes on to the next type.
+func TestBackfillGoesOnPastARefusedPatch(t *testing.T) {
+	patches := constants.DefaultInitValue
+	testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"items": []map[string]any{{"name": "bare"}}}})
+			return
+		}
+		patches++
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"status":409}`))
+	}))
+	if err := cmd.RunBackFill(config.BackfillConfig{}, constants.GetLogger(constants.LoggerPrefixCleanup)); err != nil {
+		t.Fatal(err)
+	}
+	testutil.Equal(t, "patches", patches, len(cleanupctrl.RegisteredResourceTypes()))
 }
 
 func TestBreakGlassRun(t *testing.T) {
@@ -448,6 +467,53 @@ func TestBreakGlassRefusesAnEnrolledAccountWithoutAPin(t *testing.T) {
 	testutil.Equal(t, "tokens", len(enrollTokenOwners()), constants.DefaultInitValue)
 }
 
+// Before the pin, an exporter that fails a step after the lookup stops the run with the reason on stderr and no link.
+func TestBreakGlassReportsAFailedStep(t *testing.T) {
+	const email, userID = "test@example.com", "u-1"
+	t.Setenv(constants.EnvBootstrapAdmin, email)
+	adminRole := constants.BuiltInRoleAdmin
+	marked := &userresource.User{ID: userID, Email: email, Bootstrap: true, RoleRefs: []*string{&adminRole}}
+	member := &userresource.User{ID: userID, Email: email}
+	gone := func(fake *testutil.FakeExporter) { fake.SetGone(userID) }
+	cases := []struct {
+		name  string
+		user  *userresource.User
+		setup func(fake *testutil.FakeExporter)
+		says  string
+	}{
+		{"the passkey lookup fails", marked, (*testutil.FakeExporter).FailNextPasskeyRead, "Could not look up test@example.com"},
+		{"the promotion is refused", member, gone, "Could not promote test@example.com: status 410"},
+		{"the link's record is refused", marked, gone, "Could not create the enrollment link"},
+		{"the created account never shows", nil, func(*testutil.FakeExporter) {}, "it was not found once created"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			redisServer.FlushAll()
+			fake := &testutil.FakeExporter{Users: map[string]*userresource.User{}}
+			if c.user != nil {
+				fake.Users[userID] = c.user
+			}
+			c.setup(fake)
+			// The exporter accepts any create, and its lookups never show the account.
+			testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPost && r.URL.Path == usersPath {
+					w.WriteHeader(http.StatusCreated)
+					_, _ = w.Write([]byte(`{"status":201}`))
+					return
+				}
+				fake.ServeHTTP(w, r)
+			}))
+
+			code, out, logged := runBreakGlass(t, flagEmail, email, flagEnroll)
+			testutil.Equal(t, "exit", code, constants.ExitCodeError)
+			testutil.Equal(t, "link printed", strings.Contains(out, "#enroll="), false)
+			if !strings.Contains(logged, c.says) {
+				t.Fatalf("stderr %q lacks %q", logged, c.says)
+			}
+		})
+	}
+}
+
 // The record's window, from issue to expiry, is the token's lifetime.
 func expectInviteWindow(t *testing.T, invite *userresource.Invite, ttl time.Duration) {
 	t.Helper()
@@ -534,4 +600,18 @@ func TestRemoveFinalizers(t *testing.T) {
 			t.Fatalf("unexpected call %q", call)
 		}
 	}
+}
+
+// Best effort: a list that fails is logged, and the uninstall goes on to the next type.
+func TestRemoveFinalizersGoesOnPastAFailedList(t *testing.T) {
+	lists := constants.DefaultInitValue
+	testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		lists++
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"status":500}`))
+	}))
+
+	cmd.RemoveFinalizers(constants.GetLogger(constants.LoggerPrefixCleanup))
+
+	testutil.Equal(t, "lists", lists, len(cleanupctrl.RegisteredResourceTypes()))
 }

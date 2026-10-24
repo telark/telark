@@ -499,3 +499,33 @@ func TestComputeAndRepairReplacesHandAddedFields(t *testing.T) {
 	})
 	testutil.Equal(t, "replaced by an update", updates >= constants.DefaultInitValue, true)
 }
+
+// A write since the pass listed the policy turns its replacement into an error: the repair logs
+// it and the plan stays drifted for the next pass.
+func TestComputeAndRepairLogsAFailedReplace(t *testing.T) {
+	plan, policyName := renderedPlan(t, plans.PhaseActive)
+	dyn := withApplyCreate(fakeDyn(kyvernoPolicy(policyName, plan.ID, modeEnforce, true)))
+	dyn.PrependReactor("update", protpolicies.KyvernoPolicyGVR.Resource, func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, errors.New("the policy changed since it was listed")
+	})
+	logger := &recordingLogger{}
+
+	after, err := health.ComputeAndRepair(context.Background(), repairDeps(dyn, logger), plan)
+
+	testutil.Equal(t, labelErr, err, nil)
+	testutil.Equal(t, "errors", len(logger.errors), constants.DefaultAddValue)
+	testutil.Equal(t, "health after", after.Health, plans.HealthDrifted)
+}
+
+// Only a cluster without the policy kind reads as "kind missing"; any other LIST failure fails the pass.
+func TestComputeReturnsAPolicyListFailure(t *testing.T) {
+	plan, policyName := renderedPlan(t, plans.PhaseActive)
+	dyn := fakeDyn(kyvernoPolicy(policyName, plan.ID, modeEnforce, true))
+	dyn.PrependReactor("list", protpolicies.KyvernoPolicyGVR.Resource, func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, errors.New("list refused")
+	})
+
+	_, err := health.Compute(context.Background(), repairDeps(dyn, &recordingLogger{}), plan)
+
+	testutil.Equal(t, "list error", err != nil, true)
+}

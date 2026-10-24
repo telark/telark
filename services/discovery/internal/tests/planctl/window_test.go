@@ -1,6 +1,7 @@
 package planctl
 
 import (
+	"errors"
 	"slices"
 	"testing"
 	"time"
@@ -81,4 +82,42 @@ func TestStaleWindowIsRefreshed(t *testing.T) {
 
 	start(t, fake)
 	await(t, fake, kindRefresh)
+}
+
+// A series with no window to compute, or one no longer awaiting a boundary, is left alone.
+func TestSeriesWithoutAWindowOrPastItsLifeIsLeftAlone(t *testing.T) {
+	noRepeat := repeating("series-no-repeat", plans.PhaseScheduled, -windowMargin, windowMargin)
+	noRepeat.Repeat = nil
+	fake := &fakeService{plans: []plans.ProtectionPlan{
+		noRepeat,
+		repeating("series-terminated", plans.PhaseTerminated, -windowMargin, windowMargin),
+	}}
+
+	start(t, fake)
+	time.Sleep(idleWindow)
+
+	testutil.Equal(t, "events for series left alone", len(fake.events), constants.DefaultInitValue)
+}
+
+// A failed transition is only logged: the tick retries it.
+func TestFailedTransitionsAreOnlyLogged(t *testing.T) {
+	endedAt, _ := edge(-time.Hour)
+	startedAt, _ := edge(-2 * time.Hour)
+	cases := []struct {
+		name string
+		plan plans.ProtectionPlan
+		kind string
+	}{
+		{"window close", repeating("series-close-fails", plans.PhaseActive, 2*windowMargin, 3*windowMargin), kindClose},
+		{"window refresh", repeating("series-refresh-fails", plans.PhaseScheduled, 2*windowMargin, 3*windowMargin), kindRefresh},
+		{"terminate", plan("plan-terminate-fails", plans.PhaseActive, startedAt, endedAt), kindTerminate},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &fakeService{plans: []plans.ProtectionPlan{tc.plan}, callErr: errors.New("exporter unavailable")}
+
+			start(t, fake)
+			await(t, fake, tc.kind)
+		})
+	}
 }

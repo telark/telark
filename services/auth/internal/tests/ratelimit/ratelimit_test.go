@@ -39,6 +39,9 @@ const (
 	repeats      = 3
 	idParam      = "{id}"
 	redisLoading = "LOADING Redis is loading the dataset in memory"
+	counterField = "f"
+	// What a unix-socket listener reports as the peer.
+	unparsablePeer = "@"
 )
 
 var (
@@ -187,12 +190,32 @@ func TestOtherRoutesAreNotLimited(t *testing.T) {
 	testutil.Equal(t, "counters", len(redisServer.Keys()), constants.DefaultInitValue)
 }
 
-// A failing Redis lets the starts through: each then fails at its own write, which reports the outage as one.
+// A failing Redis, or a client counter it can't count, lets the starts through: each then fails at its own write,
+// which reports the outage as one.
 func TestFailsOpen(t *testing.T) {
-	handler := limitedRouter(t, map[string]string{constants.EnvRateLimitPerClient: oneAttempt})
-	redisServer.SetError(redisLoading)
-	t.Cleanup(func() { redisServer.SetError(constants.EmptyString) })
-	for range repeats {
-		testutil.Equal(t, "start", start(handler, login, clientA).Code, http.StatusOK)
+	cases := map[string]func(t *testing.T){
+		"Redis down": func(t *testing.T) {
+			redisServer.SetError(redisLoading)
+			t.Cleanup(func() { redisServer.SetError(constants.EmptyString) })
+		},
+		"client counter of another type": func(*testing.T) { redisServer.HSet(loginKey+clientA, counterField, oneAttempt) },
 	}
+	for name, breakIt := range cases {
+		t.Run(name, func(t *testing.T) {
+			handler := limitedRouter(t, map[string]string{constants.EnvRateLimitPerClient: oneAttempt})
+			breakIt(t)
+			for range repeats {
+				testutil.Equal(t, "start", start(handler, login, clientA).Code, http.StatusOK)
+			}
+		})
+	}
+}
+
+// A peer address that doesn't parse, with no forwarded entry, is the client as it is.
+func TestUnparsablePeerIsItsOwnClient(t *testing.T) {
+	handler := limitedRouter(t, nil)
+	r := httptest.NewRequest(http.MethodPost, login, nil)
+	r.RemoteAddr = unparsablePeer
+	handler.ServeHTTP(httptest.NewRecorder(), r)
+	testutil.Equal(t, "counter", redisServer.Exists(loginKey+unparsablePeer), true)
 }

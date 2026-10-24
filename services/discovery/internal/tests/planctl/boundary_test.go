@@ -48,6 +48,7 @@ type fakeService struct {
 	lists         int
 	reconciles    int
 	activateErr   error
+	callErr       error
 	activateDelay time.Duration
 	events        chan event
 }
@@ -70,20 +71,25 @@ func (f *fakeService) Activate(_ context.Context, plan *plans.ProtectionPlan) er
 }
 
 func (f *fakeService) Terminate(_ context.Context, plan *plans.ProtectionPlan) error {
-	f.setPhase(plan.ID, plans.PhaseTerminated)
-	f.record(kindTerminate, plan.ID)
-	return nil
+	return f.change(kindTerminate, plan.ID, plans.PhaseTerminated)
 }
 
 func (f *fakeService) CloseWindow(_ context.Context, plan *plans.ProtectionPlan) error {
-	f.setPhase(plan.ID, plans.PhaseScheduled)
-	f.record(kindClose, plan.ID)
-	return nil
+	return f.change(kindClose, plan.ID, plans.PhaseScheduled)
 }
 
 func (f *fakeService) RefreshWindow(plan *plans.ProtectionPlan) error {
 	f.record(kindRefresh, plan.ID)
-	return nil
+	return f.callErr
+}
+
+// A failed call is still recorded, so a test sees that the controller made it.
+func (f *fakeService) change(kind, planID, phase string) error {
+	if f.callErr == nil {
+		f.setPhase(planID, phase)
+	}
+	f.record(kind, planID)
+	return f.callErr
 }
 
 func (f *fakeService) ReconcileHealthForActive(_ context.Context, _ []plans.ProtectionPlan) {

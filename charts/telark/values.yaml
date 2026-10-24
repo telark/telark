@@ -79,6 +79,8 @@ app:
       envVar: "TELARK_SERVICE_TOKEN"
       value: ""
       existingSecret: ""
+    breakGlass:
+      waitHours: 24             # how long a break-glass request waits before it completes on its own
 
   # Exporter claims (snapshots, reports), kept on uninstall. With storageClass "" an upgrade keeps their class,
   # and a new class copies the data to new claims.
@@ -197,6 +199,8 @@ services:
       EXPORTER_K8S_CLIENT_BURST: "100"
       EXPORTER_LIST_RENDER_CONCURRENCY: "2"
       BOOTSTRAP_ADMIN: '{{ .Values.app.auth.bootstrap.admin }}'
+      # dig: a --reuse-values upgrade from 0.1.x lacks the key, and empty means the service default (24)
+      BREAK_GLASS_WAIT_HOURS: '{{ dig "security" "breakGlass" "waitHours" "" .Values.app }}'
       OIDC_TRUST_SECRET_NAME: '{{ include "telark.oidcTrustSecretName" . }}'
     volumes:
       - name: snapshots-storage
@@ -378,6 +382,8 @@ services:
       CLEANUP_PATCH_TIMEOUT_SECONDS: "5"
       CLEANUP_MAX_CONCURRENT_PATCHES: "4"
       BOOTSTRAP_ADMIN: '{{ .Values.app.auth.bootstrap.admin }}'
+      # dig: a --reuse-values upgrade from 0.1.x lacks the key, and empty means the service default (24)
+      BREAK_GLASS_WAIT_HOURS: '{{ dig "security" "breakGlass" "waitHours" "" .Values.app }}'
       ENROLL_INVITE_TTL_SEC: "3600"
       RP_ID: '{{ .Values.app.auth.passkey.id }}'
       RP_NAME: '{{ .Values.app.auth.passkey.name }}'

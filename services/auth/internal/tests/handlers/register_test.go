@@ -11,6 +11,7 @@ import (
 	"time"
 
 	authdata "github.com/telark/telark/internal/data/auth"
+	dataconstants "github.com/telark/telark/internal/data/constants"
 	userresource "github.com/telark/telark/internal/data/resources/user"
 	"github.com/telark/telark/services/auth/internal/config"
 	"github.com/telark/telark/services/auth/internal/constants"
@@ -295,4 +296,64 @@ func TestFakeExporterRefusesMalformedIdentities(t *testing.T) {
 		strings.NewReader(`{"identities":"`+unreadableEntry+`"}`)))
 	testutil.Equal(t, "status", rec.Code, http.StatusBadRequest)
 	testutil.Equal(t, "identities", len(fake.User(enrolledTargetID).Identities), constants.DefaultInitValue)
+}
+
+// No link is minted for a frozen account (409), and nothing is stored unsigned: without the service token no link or
+// invite is written and no self-registration starts (500, a server fault).
+func TestLinksNeedASignatureAndAThawedAccount(t *testing.T) {
+	initWebAuthn(t)
+	frozen := func(t *testing.T) {
+		t.Cleanup(func() { _ = authhelper.Unfreeze(stubUserID) })
+		if err := authhelper.Freeze(stubUserID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	unsigned := func(t *testing.T) { t.Setenv(dataconstants.EnvServiceToken, constants.EmptyString) }
+	sessionLink := func(t *testing.T) int {
+		stubExporter(t, registerStub{session: true})
+		rec := httptest.NewRecorder()
+		passkeyhandler.CreateEnrollLink(rec, withSession(httptest.NewRequest(http.MethodPost, testPath, nil)))
+		return rec.Code
+	}
+	invite := func(t *testing.T) int {
+		testutil.StubBackend(t, inviteDirectory())
+		rec := httptest.NewRecorder()
+		routed(rec, enrollLinkReq(http.MethodPost, plainTargetID, usersOwner()))
+		return rec.Code
+	}
+	selfRegistration := func(t *testing.T) int {
+		stubExporter(t, &proofStub{})
+		awaitSelfRegistration(t, true)
+		return startSelfRegistration().Code
+	}
+	cases := []struct {
+		name string
+		prep func(t *testing.T)
+		run  func(t *testing.T) int
+		want int
+	}{
+		{"session link, account frozen", frozen, sessionLink, http.StatusConflict},
+		{"session link, no service token", unsigned, sessionLink, http.StatusInternalServerError},
+		{"invite, no service token", unsigned, invite, http.StatusInternalServerError},
+		{"self-registration, no service token", unsigned, selfRegistration, http.StatusInternalServerError},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			c.prep(t)
+			testutil.Equal(t, "status", c.run(t), c.want)
+		})
+	}
+}
+
+// A passkey whose identity the exporter fails to attach is not saved (500).
+func TestNoPasskeyWithoutItsIdentity(t *testing.T) {
+	initWebAuthn(t)
+	fake := inviteDirectory()
+	testutil.StubBackend(t, &failingRoute{inner: fake, method: http.MethodPatch, suffix: "/" + plainTargetID})
+	token, _, err := authhelper.CreateEnrollToken(plainTargetID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testutil.Equal(t, "finish", finishWith(t, challengeOf(t, startWith(token)), webauthnHost).Code, http.StatusInternalServerError)
+	testutil.Equal(t, "saved passkeys", fake.PasskeyCount(plainTargetID), constants.DefaultInitValue)
 }

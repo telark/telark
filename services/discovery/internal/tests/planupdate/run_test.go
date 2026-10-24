@@ -103,10 +103,11 @@ type capturedRun struct {
 
 // Records the report hooks, and which policies were still live when the checkpoint ran.
 type reportsRecorder struct {
-	dyn         *dynamicfake.FakeDynamicClient
-	captures    []capturedRun
-	checkpoints [][]string
-	liveAtCheck []string
+	dyn           *dynamicfake.FakeDynamicClient
+	captures      []capturedRun
+	checkpoints   [][]string
+	liveAtCheck   []string
+	checkpointErr error
 }
 
 func (r *reportsRecorder) capture(plan *plans.ProtectionPlan, endedAt, actor, reason, trigger string) <-chan struct{} {
@@ -119,7 +120,7 @@ func (r *reportsRecorder) capture(plan *plans.ProtectionPlan, endedAt, actor, re
 func (r *reportsRecorder) checkpoint(ctx context.Context, plan *plans.ProtectionPlan) (*reports.PlanReportLedger, error) {
 	r.checkpoints = append(r.checkpoints, slices.Clone(plan.RenderedPolicies))
 	r.liveAtCheck = liveNames(ctx, r.dyn)
-	return &reports.PlanReportLedger{}, nil
+	return &reports.PlanReportLedger{}, r.checkpointErr
 }
 
 func liveNames(ctx context.Context, dyn *dynamicfake.FakeDynamicClient) []string {

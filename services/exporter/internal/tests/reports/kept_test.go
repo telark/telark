@@ -13,11 +13,12 @@ import (
 )
 
 const (
-	keptName   = "Payments freeze"
-	reportTwo  = "20260102T000000Z-manual-01"
-	keptCount  = 2
-	noMinAge   = 0
-	keptOneFmt = "ListKept = %+v, want one kept plan"
+	keptName    = "Payments freeze"
+	reportTwo   = "20260102T000000Z-manual-01"
+	keptCount   = 2
+	noMinAge    = 0
+	keptOneFmt  = "ListKept = %+v, want one kept plan"
+	blockerPerm = 0o600
 )
 
 func keepTwoReports(t *testing.T, root string) {
@@ -145,5 +146,61 @@ func TestRemoveReportTakesTheKeptDirectoryWithTheLastReport(t *testing.T) {
 	}
 	if err := reportsutil.RemoveReport(root, planA, reportTwo); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("second remove error = %v, want ErrNotExist", err)
+	}
+}
+
+// Something the filesystem holds in the way fails the keep; the error is returned, never swallowed.
+func TestKeepReturnsFilesystemFailures(t *testing.T) {
+	cases := []struct {
+		name    string
+		blocker func(root string) string
+	}{
+		{"the marker's place is taken", func(root string) string {
+			return filepath.Join(reportsutil.PlanDir(root, planA), constants.ReportsKeptMarkerFile, keptName)
+		}},
+		{"the kept directory is a file", func(root string) string { return filepath.Join(root, constants.ReportsKeptSubdir) }},
+		{"the plan's kept place is taken", func(root string) string {
+			return filepath.Join(reportsutil.KeptDir(root, planA), keptName)
+		}},
+		{"the ledger can't be dropped", func(root string) string {
+			return filepath.Join(reportsutil.PlanDir(root, planA), constants.ReportsLedgerFile, keptName)
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			root := setupRoot(t)
+			mustCreate(t, root, request(planA, reportOne, reportseps.TriggerEnd, generatedAt))
+			block(t, c.blocker(root))
+			if err := reportsutil.Keep(root, planA, keptName); err == nil {
+				t.Fatal("Keep hid a filesystem failure")
+			}
+		})
+	}
+}
+
+// A file where a directory belongs: the kept root fails the listing, a stray entry or plan is skipped.
+func TestListKeptSkipsWhatIsNotAKeptPlan(t *testing.T) {
+	root := setupRoot(t)
+	block(t, filepath.Join(root, constants.ReportsKeptSubdir))
+	if _, err := reportsutil.ListKept(root); err == nil {
+		t.Fatal("ListKept read a file as the kept directory")
+	}
+
+	root = setupRoot(t)
+	keepTwoReports(t, root)
+	block(t, filepath.Join(root, constants.ReportsKeptSubdir, keptName))
+	block(t, filepath.Join(reportsutil.KeptDir(root, planB), constants.ReportsReportsSubdir))
+	if kept := mustListKept(t, root); len(kept) != constants.DefaultIncrementValue || kept[firstIdx].PlanID != planA {
+		t.Fatalf(keptOneFmt, kept)
+	}
+}
+
+func block(t *testing.T, path string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), constants.SnapshotDirPerm); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(keptName), blockerPerm); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -397,3 +397,33 @@ func TestCRDDeclaresTheRecord(t *testing.T) {
 		}
 	}
 }
+
+// A record that can't be read or written stops the start before any step runs past it.
+func TestRunReturnsRecordFailures(t *testing.T) {
+	garbled := config(none)
+	garbled.Object[constants.FieldStatus] = map[string]any{constants.FieldLastMigration: stepName}
+	tests := []struct {
+		name     string
+		stored   *unstructured.Unstructured
+		releases []string
+		refused  bool
+	}{
+		{"an unreadable record", garbled, []string{newestRelease}, false},
+		{"a refused record", config(none), []string{newestRelease}, true},
+		{"a refused lowered record", config(migrationRecord{lastStep, secondStep}), []string{oldestRelease, previousRelease}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := installFake(t, tt.stored)
+			if tt.refused {
+				client.PrependReactor(verbPatch, md.Plural, func(k8stesting.Action) (bool, runtime.Object, error) {
+					return true, nil, errStep
+				})
+			}
+			var ran []int64
+			if err := migrations.Run(releaseSteps(&ran, tt.releases...)); err == nil {
+				t.Fatal("Run hid a failed record")
+			}
+		})
+	}
+}

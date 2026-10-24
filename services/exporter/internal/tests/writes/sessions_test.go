@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,8 +16,10 @@ import (
 	"github.com/telark/telark/internal/rest/router"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/exporter/internal/authz"
+	"github.com/telark/telark/services/exporter/internal/constants"
 	"github.com/telark/telark/services/exporter/internal/routes"
 	"github.com/telark/telark/services/exporter/internal/utils/performance"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -127,5 +130,22 @@ func TestDeleteSessionByNameRouting(t *testing.T) {
 	rt.ServeHTTP(self, selfRequest)
 	if self.Code != http.StatusOK {
 		t.Errorf("self with X-Session-Token = %d, want the self route's %d (the {name} route refuses self)", self.Code, http.StatusOK)
+	}
+}
+
+// A session auth creates is stored under the hash of its token, never the token itself.
+func TestCreateSessionStoresTheHashedName(t *testing.T) {
+	client := installFake(t)
+	path := "/api/v1/internal/auth/users/" + userID + "/sessions"
+	if w := serviceCall(t, http.MethodPost, path, `{"sessionToken":"`+forgedID+`"}`); w.Code != http.StatusOK {
+		t.Fatalf("create = %d %s", w.Code, w.Body.String())
+	}
+	md := v1alpha1.SessionMetadata
+	list, err := client.Resource(gvrOf(md)).Namespace(md.Namespace).List(t.Context(), metav1.ListOptions{})
+	if err != nil || len(list.Items) != constants.DefaultIncrementValue {
+		t.Fatalf("stored sessions = %v (err %v), want one", list, err)
+	}
+	if name := list.Items[firstItem].GetName(); strings.Contains(name, forgedID) {
+		t.Fatalf("session name %q carries the token", name)
 	}
 }

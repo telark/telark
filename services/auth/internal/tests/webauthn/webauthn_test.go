@@ -25,6 +25,7 @@ import (
 	dataconstants "github.com/telark/telark/internal/data/constants"
 	"github.com/telark/telark/services/auth/internal/config"
 	"github.com/telark/telark/services/auth/internal/constants"
+	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
 	redishelper "github.com/telark/telark/services/auth/internal/helpers/redis"
 	webauthnhelper "github.com/telark/telark/services/auth/internal/helpers/webauthn"
 	"github.com/telark/telark/services/auth/internal/tests/testutil"
@@ -436,5 +437,46 @@ func TestVerifyCredentialMalformed(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, testPath, strings.NewReader("{bad"))
 	if _, err := webauthnhelper.VerifyCredential(challenge, user, nil, nil, r, protocol.VerificationPreferred); err == nil {
 		t.Fatal("malformed assertion should fail verification")
+	}
+}
+
+// A finish body or a challenge that doesn't decode names no ceremony and stores none, and a registration finish for
+// an account break-glass froze is refused before its challenge is read.
+func TestUndecodableCeremoniesAreRefused(t *testing.T) {
+	key := constants.RedisKeyPrefixChallenge + testChalUser
+	consume := func(body []byte) func() error {
+		return func() error {
+			_, err := webauthnhelper.ConsumeChallengeAt(key, body)
+			return err
+		}
+	}
+	cases := []struct {
+		name string
+		run  func() error
+		want string
+	}{
+		{"finish body not JSON", consume([]byte(testPayload)), string(constants.ErrChallengeNotFound)},
+		{"finish body without client data", consume([]byte(`{"response":{}}`)), string(constants.ErrChallengeNotFound)},
+		{"challenge not base64", consume(echoing(t, badBase64Input)), string(constants.ErrChallengeNotFound)},
+		{"ceremony owner for a challenge not base64", func() error {
+			return webauthnhelper.StoreRegistrationChallengeOwner(badBase64Input, testChalUser)
+		}, constants.EmptyString},
+		{"registration of a frozen account", func() error {
+			if err := authhelper.Freeze(testChalUser); err != nil {
+				return err
+			}
+			defer func() { _ = authhelper.Unfreeze(testChalUser) }()
+			_, _, _, err := webauthnhelper.FinishRegistration(testChalUser, testShortName, testShortFull, constants.EmptyString,
+				httptest.NewRequest(http.MethodPost, testPath, strings.NewReader(testPayload)))
+			return err
+		}, string(constants.ErrAccountRecovering)},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := c.run()
+			if err == nil || c.want != constants.EmptyString && err.Error() != c.want {
+				t.Fatalf("err = %v, want %q", err, c.want)
+			}
+		})
 	}
 }

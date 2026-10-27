@@ -1,7 +1,7 @@
 dependencies:
 - name: telark-crds
   repository: oci://ghcr.io/telark/charts
-  version: 0.0.3
+  version: 0.1.0
 - name: redis
   repository: https://charts.bitnami.com/bitnami
   version: 23.0.10
@@ -20,5 +20,5 @@ dependencies:
 - name: ollama
   repository: https://helm.otwld.com/
   version: 1.50.0
-digest: sha256:7cedfd2dbb63fc8c2d12bc09e5222a8384f1e1872bb515b4732228113602bc30
-generated: "2026-10-23T13:13:53.026544+02:00"
+digest: sha256:d299e6cd967e223a884b666735900cdd933a95251c5129bbc0f70280b1d72131
+generated: "2026-10-27T10:25:35.292180115Z"

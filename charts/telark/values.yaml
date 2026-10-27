@@ -414,7 +414,7 @@ services:
     name: "ui-service"
     repository: "ui"
     # @ignore
-    version: 0.1.2
+    version: 0.2.0
     category: "ui"
     terminationGracePeriodSec: 30
     # nginx runs as its own uid 101, not the shared 1001, so it gets its own contexts.

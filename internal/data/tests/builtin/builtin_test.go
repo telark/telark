@@ -153,6 +153,10 @@ func TestBuiltinPlanTaxonomies(t *testing.T) {
 		constants.CategoryIDTagCompliance,
 		constants.CategoryIDTagSecurity,
 		constants.CategoryIDTagBaseline,
+		constants.CategoryIDKindQA,
+		constants.CategoryIDKindTesting,
+		constants.CategoryIDKindRelease,
+		constants.CategoryIDKindMaintenance,
 	}
 	wantScopes := []string{
 		category.ScopePlanEnvironments,
@@ -161,11 +165,15 @@ func TestBuiltinPlanTaxonomies(t *testing.T) {
 		category.ScopePlanTags,
 		category.ScopePlanTags,
 		category.ScopePlanTags,
+		category.ScopePlanKinds,
+		category.ScopePlanKinds,
+		category.ScopePlanKinds,
+		category.ScopePlanKinds,
 	}
 
 	var gotIDs, gotScopes []string
 	for _, c := range category.BuiltinCategories {
-		if c.Scope != category.ScopePlanEnvironments && c.Scope != category.ScopePlanTags {
+		if !slices.Contains([]string{category.ScopePlanEnvironments, category.ScopePlanTags, category.ScopePlanKinds}, c.Scope) {
 			continue
 		}
 		if c.Type != category.CategoryTypeBuiltIn {

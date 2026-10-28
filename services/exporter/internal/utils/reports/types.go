@@ -22,6 +22,11 @@ type StoredReport struct {
 	Files map[string]string     `json:"files"`
 }
 
+// Written into a kept plan's directory, whose name stays the plan id.
+type KeptMarker struct {
+	PlanName string `json:"planName"`
+}
+
 // Zero values mean unset: no plan, trigger or time bound narrows the list.
 type ListFilter struct {
 	PlanIDs []string

@@ -1,6 +1,6 @@
 # telark
 
-![Version: 0.1.2](https://img.shields.io/badge/Version-0.1.2-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.1.2](https://img.shields.io/badge/AppVersion-0.1.2-informational?style=flat-square)
+![Version: 0.2.0](https://img.shields.io/badge/Version-0.2.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.2.0](https://img.shields.io/badge/AppVersion-0.2.0-informational?style=flat-square)
 
 A protection gate for your Kubernetes applications. Decide what can change an app, and when; see every change that got through and why an app broke.
 
@@ -28,7 +28,7 @@ Kubernetes: `>=1.30.0-0`
 | https://helm.otwld.com/ | ollama | 1.50.0 |
 | https://kubernetes-sigs.github.io/metrics-server/ | metrics-server | 3.12.2 |
 | https://kyverno.github.io/kyverno/ | kyverno | 3.9.1 |
-| oci://ghcr.io/telark/charts | telark-crds | 0.0.3 |
+| oci://ghcr.io/telark/charts | telark-crds | 0.1.0 |
 
 ## Values
 
@@ -39,26 +39,27 @@ Kubernetes: `>=1.30.0-0`
 | app.auth.passkey.id | string | `""` |  |
 | app.auth.passkey.name | string | `"Dashboard App"` |  |
 | app.auth.passkey.origin | string | `""` |  |
-| app.crdGuard.enabled | bool | `true` |  |
-| app.crdGuard.enforce | bool | `true` |  |
-| app.crdGuard.extraAllowedUsers | list | `[]` |  |
+| app.image.kubectl | string | `"registry.k8s.io/kubectl:v1.37.1@sha256:b7cab618e281b1ee7484e7b706a96e2135fbb6e072c2a573a7dab4e87d7f2385"` |  |
 | app.image.pullPolicy | string | `"Always"` |  |
 | app.image.pullSecrets | list | `[]` |  |
 | app.image.registry | string | `"ghcr.io/telark"` |  |
-| app.kubectlImage | string | `"registry.k8s.io/kubectl:v1.37.1@sha256:b7cab618e281b1ee7484e7b706a96e2135fbb6e072c2a573a7dab4e87d7f2385"` |  |
-| app.kyverno.enabled | bool | `true` |  |
-| app.kyverno.failOpen | bool | `true` |  |
 | app.mode | string | `"standard"` |  |
 | app.name | string | `"telark"` |  |
 | app.namespace | string | `"telark"` |  |
-| app.networkPolicy.enabled | bool | `true` |  |
 | app.ollama.autoPull | bool | `true` |  |
-| app.ollama.enabled | bool | `true` |  |
 | app.ollama.runtimeUrl | string | `""` |  |
 | app.persistence.enabled | bool | `true` |  |
 | app.persistence.reportsSize | string | `"512Mi"` |  |
 | app.persistence.snapshotsSize | string | `"512Mi"` |  |
 | app.persistence.storageClass | string | `""` |  |
+| app.security.breakGlass.waitHours | int | `24` |  |
+| app.security.crdGuard.enabled | bool | `true` |  |
+| app.security.crdGuard.enforce | bool | `true` |  |
+| app.security.crdGuard.extraAllowedUsers | list | `[]` |  |
+| app.security.networkPolicy.enabled | bool | `true` |  |
+| app.security.serviceToken.envVar | string | `"TELARK_SERVICE_TOKEN"` |  |
+| app.security.serviceToken.existingSecret | string | `""` |  |
+| app.security.serviceToken.value | string | `""` |  |
 | app.selfMonitoring.enabled | bool | `false` |  |
 | app.serviceDefaults.affinity | object | `{}` |  |
 | app.serviceDefaults.autoscaling.enabled | bool | `true` |  |
@@ -72,9 +73,6 @@ Kubernetes: `>=1.30.0-0`
 | app.serviceDefaults.terminationGracePeriodSec | int | `60` |  |
 | app.serviceDefaults.tolerations | list | `[]` |  |
 | app.serviceDefaults.vpa.updateMode | string | `"Auto"` |  |
-| app.serviceToken.envVar | string | `"TELARK_SERVICE_TOKEN"` |  |
-| app.serviceToken.existingSecret | string | `""` |  |
-| app.serviceToken.value | string | `""` |  |
 | app.shared.containerSecurityContext.allowPrivilegeEscalation | bool | `false` |  |
 | app.shared.containerSecurityContext.capabilities.drop[0] | string | `"ALL"` |  |
 | app.shared.containerSecurityContext.enabled | bool | `true` |  |
@@ -106,9 +104,13 @@ Kubernetes: `>=1.30.0-0`
 | app.shared.redis.REDIS_HOST | string | `"{{ .Release.Name }}-redis-master"` |  |
 | app.shared.redis.REDIS_PORT | string | `"6379"` |  |
 | app.shared.resources.limits.cpu | string | `"1000m"` |  |
+| app.shared.resources.limits.ephemeral-storage | string | `"2Gi"` |  |
 | app.shared.resources.limits.memory | string | `"512Mi"` |  |
 | app.shared.resources.requests.cpu | string | `"100m"` |  |
+| app.shared.resources.requests.ephemeral-storage | string | `"50Mi"` |  |
 | app.shared.resources.requests.memory | string | `"128Mi"` |  |
+| app.webhooks.existingSecret | string | `""` |  |
+| app.webhooks.targets | list | `[]` |  |
 | commonAnnotations | object | `{}` |  |
 | commonLabels | object | `{}` |  |
 | crds.enabled | bool | `true` |  |
@@ -150,6 +152,7 @@ Kubernetes: `>=1.30.0-0`
 | kyverno.cleanupController.resources.limits.memory | string | `"256Mi"` |  |
 | kyverno.cleanupController.resources.requests.cpu | string | `"100m"` |  |
 | kyverno.cleanupController.resources.requests.memory | string | `"128Mi"` |  |
+| kyverno.enabled | bool | `true` |  |
 | kyverno.features.forceFailurePolicyIgnore.enabled | bool | `true` |  |
 | kyverno.namespaceOverride | string | `"telark"` |  |
 | kyverno.reportsController.extraArgs.clientRateLimitBurst | int | `100` |  |
@@ -205,6 +208,7 @@ Kubernetes: `>=1.30.0-0`
 | nats.persistence.path | string | `"/data"` |  |
 | nats.persistence.size | string | `"1Gi"` |  |
 | nats.service.type | string | `"ClusterIP"` |  |
+| ollama.enabled | bool | `true` |  |
 | ollama.extraEnv[0].name | string | `"OLLAMA_NO_CLOUD"` |  |
 | ollama.extraEnv[0].value | string | `"true"` |  |
 | ollama.extraEnv[1].name | string | `"OLLAMA_CONTEXT_LENGTH"` |  |
@@ -281,7 +285,7 @@ Kubernetes: `>=1.30.0-0`
 | services.analyzer.env.CORS_ALLOWED_ORIGINS | string | `""` |  |
 | services.analyzer.env.OLLAMA_AUTO_PULL | string | `"{{ .Values.app.ollama.autoPull }}"` |  |
 | services.analyzer.env.OLLAMA_HOST | string | `"{{ default (printf \"http://%s-ollama:11434\" .Release.Name) .Values.app.ollama.runtimeUrl }}"` |  |
-| services.analyzer.env.OLLAMA_PRUNE_MODELS | string | `"{{ and .Values.app.ollama.enabled (empty .Values.app.ollama.runtimeUrl) }}"` |  |
+| services.analyzer.env.OLLAMA_PRUNE_MODELS | string | `"{{ and (dig \"ollama\" \"enabled\" .Values.ollama.enabled .Values.app) (empty .Values.app.ollama.runtimeUrl) }}"` |  |
 | services.analyzer.env.REDIS_POOL_SIZE | string | `"10"` |  |
 | services.analyzer.name | string | `"analyzer-service"` |  |
 | services.analyzer.pdb.enabled | bool | `false` |  |
@@ -290,6 +294,7 @@ Kubernetes: `>=1.30.0-0`
 | services.auth.category | string | `"auth"` |  |
 | services.auth.enabled | bool | `true` |  |
 | services.auth.env.BOOTSTRAP_ADMIN | string | `"{{ .Values.app.auth.bootstrap.admin }}"` |  |
+| services.auth.env.BREAK_GLASS_WAIT_HOURS | string | `"{{ dig \"security\" \"breakGlass\" \"waitHours\" \"\" .Values.app }}"` |  |
 | services.auth.env.CHALLENGE_TIMEOUT | string | `"60"` |  |
 | services.auth.env.CLEANUP_DEDUP_TTL_SECONDS | string | `"600"` |  |
 | services.auth.env.CLEANUP_JOB_MAX_ATTEMPTS | string | `"5"` |  |
@@ -304,12 +309,15 @@ Kubernetes: `>=1.30.0-0`
 | services.auth.env.CORS_ALLOWED_ORIGINS | string | `""` |  |
 | services.auth.env.ENROLL_INVITE_TTL_SEC | string | `"3600"` |  |
 | services.auth.env.OIDC_TRUST_FILE | string | `"/etc/telark/oidc/googleJwkJson"` |  |
+| services.auth.env.RATE_LIMIT_GLOBAL | string | `"3000"` |  |
+| services.auth.env.RATE_LIMIT_PER_CLIENT | string | `"30"` |  |
+| services.auth.env.RATE_LIMIT_TRUSTED_HOPS | string | `"{{ if or .Values.ingress.enabled .Values.gateway.enabled }}1{{ else }}0{{ end }}"` |  |
 | services.auth.env.RECONCILE_BACKOFF_INITIAL_SECONDS | string | `"5"` |  |
 | services.auth.env.RECONCILE_BACKOFF_MAX_SECONDS | string | `"300"` |  |
 | services.auth.env.RECONCILE_PASS_DEADLINE_SECONDS | string | `"30"` |  |
 | services.auth.env.RECONCILE_TICK_SECONDS | string | `"5"` |  |
 | services.auth.env.REDIS_DB | string | `"1"` |  |
-| services.auth.env.REDIS_MAX_WAIT_SEC | string | `"30"` |  |
+| services.auth.env.REDIS_MAX_WAIT_SEC | string | `"180"` |  |
 | services.auth.env.REDIS_PING_TIMEOUT_SEC | string | `"3"` |  |
 | services.auth.env.REDIS_POOL_SIZE | string | `"16"` |  |
 | services.auth.env.REDIS_RETRY_INTERVAL_SEC | string | `"2"` |  |
@@ -391,6 +399,7 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.category | string | `"persistence-manager"` |  |
 | services.exporter.enabled | bool | `true` |  |
 | services.exporter.env.BOOTSTRAP_ADMIN | string | `"{{ .Values.app.auth.bootstrap.admin }}"` |  |
+| services.exporter.env.BREAK_GLASS_WAIT_HOURS | string | `"{{ dig \"security\" \"breakGlass\" \"waitHours\" \"\" .Values.app }}"` |  |
 | services.exporter.env.CORS_ALLOWED_ORIGINS | string | `""` |  |
 | services.exporter.env.EXPORTER_K8S_CLIENT_BURST | string | `"100"` |  |
 | services.exporter.env.EXPORTER_K8S_CLIENT_QPS | string | `"50"` |  |
@@ -417,12 +426,18 @@ Kubernetes: `>=1.30.0-0`
 | services.notifier.category | string | `"event-streaming"` |  |
 | services.notifier.enabled | bool | `true` |  |
 | services.notifier.env.NOTIFIER_APPLY_WORKERS | string | `"8"` |  |
+| services.notifier.env.WEBHOOK_TARGETS_FILE | string | `"/etc/telark/webhooks/targets.json"` |  |
 | services.notifier.name | string | `"notifier-service"` |  |
 | services.notifier.natsUser | string | `"consumer"` |  |
 | services.notifier.pdb.enabled | bool | `false` |  |
 | services.notifier.repository | string | `"notifier"` |  |
 | services.notifier.terminationGracePeriodSec | int | `30` |  |
 | services.notifier.useNatsCreds | bool | `true` |  |
+| services.notifier.volumeMounts[0].name | string | `"webhooks"` |  |
+| services.notifier.volumeMounts[0].path | string | `"/etc/telark/webhooks"` |  |
+| services.notifier.volumeMounts[0].readOnly | bool | `true` |  |
+| services.notifier.volumes[0].name | string | `"webhooks"` |  |
+| services.notifier.volumes[0].secret.name | string | `"{{ include \"telark.webhooksSecretName\" . }}"` |  |
 | services.ui.automountServiceAccountToken | bool | `false` |  |
 | services.ui.category | string | `"ui"` |  |
 | services.ui.containerSecurityContext.allowPrivilegeEscalation | bool | `false` |  |

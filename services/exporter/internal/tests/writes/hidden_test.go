@@ -67,7 +67,7 @@ func serveAs(t *testing.T, identity xauthz.Identity, method, path, body string) 
 	r := httptest.NewRequest(method, path, strings.NewReader(body))
 	r = r.WithContext(xauthz.WithIdentity(r.Context(), identity))
 	w := httptest.NewRecorder()
-	router.NewRouter(routes.InitRoutes(optimizer)).ServeHTTP(w, r)
+	router.NewRouter(routes.InitRoutes(optimizer, nil)).ServeHTTP(w, r)
 	return w
 }
 
@@ -138,5 +138,19 @@ func TestUserPatchAnswersHiddenAdminLikeMissing(t *testing.T) {
 	}}
 	if seen := patchAs(t, admin, usersPrefix+adminA, malformedBody); seen.Code != http.StatusBadRequest {
 		t.Fatalf("admin with a malformed body = %d, want 400", seen.Code)
+	}
+}
+
+// A restricted caller reads a hidden administrator's record as a missing one; an unrestricted caller lists everyone.
+func TestUserReadsHideAdministratorsFromRestrictedCallers(t *testing.T) {
+	mixedDirectory(t)
+	hidden := serveAs(t, restrictedCaller(), http.MethodGet, usersPrefix+adminA, constants.EmptyString)
+	missing := serveAs(t, restrictedCaller(), http.MethodGet, usersPrefix+missingUserID, constants.EmptyString)
+	if hidden.Code != http.StatusNotFound || missing.Code != hidden.Code {
+		t.Errorf("hidden = %d, missing = %d, want the same 404", hidden.Code, missing.Code)
+	}
+	all := serveAs(t, xauthz.Identity{Internal: true}, http.MethodGet, usersPath, constants.EmptyString)
+	if all.Code != http.StatusOK || !strings.Contains(all.Body.String(), adminA) {
+		t.Errorf("unrestricted list = %d %s, want every account", all.Code, all.Body.String())
 	}
 }

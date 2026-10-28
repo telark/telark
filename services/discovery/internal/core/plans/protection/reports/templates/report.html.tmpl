@@ -123,9 +123,9 @@ ul{margin:4px 0;padding-left:20px}
 {{range .Doc.Decisions.Aggregates.ByKind}}<tr><td>{{.Key}}</td><td>{{.Count}}</td></tr>
 {{end}}</tbody></table>
 <table>
-<thead><tr><th>Timestamp</th><th>Result</th><th>Policy</th><th>Rule</th><th>Kind</th><th>Namespace</th><th>Name</th><th>Message</th></tr></thead>
+<thead><tr><th>Timestamp</th><th>Result</th><th>Policy</th><th>Rule</th><th>Kind</th><th>Namespace</th><th>Name</th><th>Message</th><th>Requested by</th></tr></thead>
 <tbody>
-{{range .Doc.Decisions.Rows}}<tr><td>{{fmtTime .Timestamp}}</td><td class="{{resultClass .Result}}">{{.Result}}</td><td>{{.Policy}}</td><td>{{.Rule}}</td><td>{{.Resource.Kind}}</td><td>{{.Resource.Namespace}}</td><td>{{.Resource.Name}}</td><td>{{.Message}}</td></tr>
+{{range .Doc.Decisions.Rows}}<tr><td>{{fmtTime .Timestamp}}</td><td class="{{resultClass .Result}}">{{.Result}}</td><td>{{.Policy}}</td><td>{{.Rule}}</td><td>{{.Resource.Kind}}</td><td>{{.Resource.Namespace}}</td><td>{{.Resource.Name}}</td><td>{{.Message}}</td><td>{{.RequestedBy}}</td></tr>
 {{end}}</tbody>
 </table>
 

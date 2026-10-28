@@ -11,6 +11,7 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 
+	dataconstants "github.com/telark/telark/internal/data/constants"
 	"github.com/telark/telark/services/auth/internal/constants"
 	authhandler "github.com/telark/telark/services/auth/internal/handlers/auth"
 	authzhandler "github.com/telark/telark/services/auth/internal/handlers/authorization"
@@ -26,6 +27,8 @@ const (
 	testPath  = "/"
 	emptyJSON = "{}"
 	emailBody = `{"email":"a@b.com"}`
+	// Auth signs the Redis entries that decide who registers a passkey with it.
+	testServiceToken = "test-service-token"
 )
 
 // Shared by the package: tests read keys and move the clock of the Redis behind auth.
@@ -43,6 +46,9 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	if err := os.Setenv("REDIS_PORT", mr.Port()); err != nil {
+		panic(err)
+	}
+	if err := os.Setenv(dataconstants.EnvServiceToken, testServiceToken); err != nil {
 		panic(err)
 	}
 	redishelper.NewRedisClientWithRetry(context.Background())

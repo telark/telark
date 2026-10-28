@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/fxamacker/cbor/v2"
+	"github.com/go-webauthn/webauthn/protocol"
 
 	authdata "github.com/telark/telark/internal/data/auth"
 	"github.com/telark/telark/services/auth/internal/constants"
@@ -112,11 +113,11 @@ func (reg registration) body(t *testing.T) []byte {
 // Starts the ceremony the way StartRegistration leaves it, then finishes it with the body.
 func finish(t *testing.T, userID string, reg registration) (*authdata.Passkey, error) {
 	t.Helper()
-	if err := webauthnhelper.StoreChallenge(userID, registrationChallengeB64); err != nil {
+	if err := webauthnhelper.StoreChallenge(userID, registrationChallengeB64, constants.EmptyString); err != nil {
 		t.Fatalf(storeChallengeFailed, err)
 	}
 	r := httptest.NewRequest(http.MethodPost, testPath, bytes.NewReader(reg.body(t)))
-	cred, elig, state, err := webauthnhelper.FinishRegistration(userID, testName, testDisplay, r)
+	cred, elig, state, err := webauthnhelper.FinishRegistration(userID, testName, testDisplay, constants.EmptyString, r)
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +227,8 @@ func TestRegisteredPasskeySignsIn(t *testing.T) {
 			chal := base64.RawURLEncoding.EncodeToString([]byte(loginChallenge))
 			r := assertionRequest(t, priv, c.loginFlags, chal, user.ID)
 
-			cred, err := webauthnhelper.VerifyCredential(&authdata.AuthChallenge{Challenge: chal}, user, credentials, passkeys, r)
+			cred, err := webauthnhelper.VerifyCredential(&authdata.AuthChallenge{Challenge: chal}, user, credentials, passkeys, r,
+				protocol.VerificationPreferred)
 			if err != nil {
 				t.Fatalf("VerifyCredential = %v", err)
 			}

@@ -21,6 +21,7 @@ const (
 
 	TimeModePermanent = "permanent"
 	TimeModeTimeRange = "time_range"
+	TimeModeRepeating = "repeating"
 
 	ScopeTypeApplications = "applications"
 	ScopeTypeNamespaces   = "namespaces"
@@ -83,6 +84,13 @@ type ProtectionPlanTimeRange struct {
 	EndAt   string `json:"endAt"`
 }
 
+type ProtectionPlanRepeat struct {
+	Days      []string `json:"days"`
+	StartTime string   `json:"startTime"`
+	EndTime   string   `json:"endTime"`
+	TimeZone  string   `json:"timeZone"`
+}
+
 type ProtectionPlanHealthDetail struct {
 	PolicyName    string `json:"policyName"`
 	Namespace     string `json:"namespace"`
@@ -119,6 +127,7 @@ type ProtectionPlan struct {
 	Mode               string                       `json:"mode"`
 	TimeMode           string                       `json:"timeMode"`
 	TimeRange          *ProtectionPlanTimeRange     `json:"timeRange,omitempty"`
+	Repeat             *ProtectionPlanRepeat        `json:"repeat,omitempty"`
 	Phase              string                       `json:"phase"`
 	Reason             *string                      `json:"reason,omitempty"`
 	RenderedPolicies   []string                     `json:"renderedPolicies,omitempty"`
@@ -130,8 +139,10 @@ type ProtectionPlan struct {
 	StartedBy          *string                      `json:"startedBy,omitempty"`
 	TerminatedAt       *string                      `json:"terminatedAt,omitempty"`
 	TerminatedBy       *string                      `json:"terminatedBy,omitempty"`
+	Window             *ProtectionPlanTimeRange     `json:"window,omitempty"`
 	ParticipantRefs    []string                     `json:"participantRefs"`
 	EnvironmentRef     string                       `json:"environmentRef,omitempty"`
+	KindRef            string                       `json:"kindRef,omitempty"`
 	TagRefs            []string                     `json:"tagRefs,omitempty"`
 	ApprovalMode       string                       `json:"approvalMode,omitempty"`
 	Approval           *ProtectionPlanApproval      `json:"approval,omitempty"`

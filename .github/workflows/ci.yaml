@@ -35,10 +35,10 @@ jobs:
         service: [auth, discovery, exporter, notifier, data, rest, kcore, x-ware]
         task: [test, lint]
         include:
-          - { service: auth, path: services/auth, coverage: 60 }
+          - { service: auth, path: services/auth, coverage: 80 }
           - { service: discovery, path: services/discovery, coverage: 50 }
-          - { service: exporter, path: services/exporter, coverage: 55 }
-          - { service: notifier, path: services/notifier, coverage: 75 }
+          - { service: exporter, path: services/exporter, coverage: 70 }
+          - { service: notifier, path: services/notifier, coverage: 80 }
           - { service: data, path: internal/data, coverage: 95 }
           - { service: rest, path: internal/rest, coverage: 54 }
           - { service: kcore, path: internal/kcore, coverage: 22 }
@@ -78,9 +78,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.13"
+          python-version: "3.14"
           cache: pip
           cache-dependency-path: services/analyzer/requirements-test.txt
 
@@ -90,10 +90,10 @@ jobs:
       - name: Syntax check
         run: python -m compileall -q .
 
-      # The stub-based suites replace sys.modules at import, so they run in a
-      # separate process from the real-dependency suites to avoid cross-pollution.
-      # --cov-append across the two processes, then one combined gate. 95 is the
-      # ratchet floor (current ~99%); raise as coverage improves, never lower.
+      # The split is historical: no suite replaces sys.modules entries, and one
+      # pytest process gives the same result. --cov-append across the two
+      # processes, then one combined gate. 95 is the ratchet floor (current ~99%);
+      # raise as coverage improves, never lower.
       - name: Test
         run: |
           python -m pytest --cov=. --cov-report= tests/test_*_cov.py -q

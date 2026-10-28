@@ -4,6 +4,7 @@ import (
 	roledata "github.com/telark/telark/internal/data/resources/role"
 	"github.com/telark/telark/internal/rest/base"
 	autheps "github.com/telark/telark/internal/rest/endpoints/auth"
+	bootstrapeps "github.com/telark/telark/internal/rest/endpoints/bootstrap"
 	statuseps "github.com/telark/telark/internal/rest/endpoints/status"
 	"github.com/telark/telark/internal/rest/router"
 	"github.com/telark/telark/internal/x-ware/authz"
@@ -30,6 +31,7 @@ func addIdentityProvider(r map[string]authz.Requirement) {
 		roledata.ActionEditOIDCConfig,
 	)
 	r[router.Key(base.Patch, autheps.SelfRegistration)] = authz.Administer(roledata.ScopeSettings)
+	r[router.Key(base.Patch, autheps.BreakGlassAlerts)] = authz.Administer(roledata.ScopeSettings)
 }
 
 // The handler then caps the target's levels by the caller's and refuses hidden,
@@ -57,6 +59,10 @@ func addLogin(r map[string]authz.Requirement) {
 	r[router.Key(base.Get, autheps.Config)] = authz.Public
 	r[router.Key(base.Post, autheps.OIDCGoogleCallback)] = authz.Public
 	r[router.Key(base.Post, autheps.OIDCGoogleNonce)] = authz.Public
+	// A break-glass approval must not need a sign-in, which would cancel the request: a fresh user-verified
+	// assertion by the pinned account, over this request and this action, is the proof.
+	r[router.Key(base.Post, bootstrapeps.StartAssertion)] = authz.Public
+	r[router.Key(base.Post, bootstrapeps.FinishAssertion)] = authz.Public
 
 	// Logout destroys the session named by the token the caller already holds,
 	// so it is self-authorizing and must keep working for an expired session.

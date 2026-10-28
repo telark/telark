@@ -22,4 +22,5 @@ const (
 const (
 	ScopePlanEnvironments = "plan-environments"
 	ScopePlanTags         = "plan-tags"
+	ScopePlanKinds        = "plan-kinds"
 )

@@ -22,6 +22,19 @@ const (
 	ErrSeedExistsCheckFailed errors.Error     = "[startup] failed to check whether %s exists: %v"
 	ErrSeedSpecEncodeFailed  errors.Error     = "[startup] failed to encode %s spec: %v"
 
+	// Startup migrations
+	InfMigrationStepApplied   messages.Message = "[startup] applied migration step %d: %s"
+	InfMigrationsCurrent      messages.Message = "[startup] stored data is at migration step %d"
+	ErrMigrationRecordRead    errors.Error     = "[startup] failed to read the migration record in TelarkConfig: %w"
+	ErrMigrationRecordWrite   errors.Error     = "[startup] failed to record migration step %d in TelarkConfig: %w"
+	ErrMigrationStepFailed    errors.Error     = "[startup] migration step %d (%s) failed, the exporter retries it on its next start: %w"
+	ErrMigrationRecordDropped errors.Error     = "[startup] TelarkConfig did not keep its migration record (status.lastMigration, " +
+		"status.rollbackMigration), so its CRD is older than this exporter: upgrade telark-crds before the app"
+	ErrMigrationDataNewer errors.Error = "[startup] refusing to start: the stored data is at migration step %d, more than one release " +
+		"newer than this exporter's last step %d (starting needs step %d). Run a newer release, or restore the backup taken before the upgrade"
+	WarnMigrationRecordLowered messages.Message = "[startup] the stored data is at migration step %d, one release newer than this " +
+		"exporter: lowered the record to step %d, so the next upgrade runs the newer steps again"
+
 	// Membership mirroring
 	ErrMembershipMirrorFailed    errors.Error     = "membership of %s could not be updated, retry the request: %v"
 	ErrMembershipReconcileFailed errors.Error     = "[startup] membership reconcile failed: %v"
@@ -73,6 +86,8 @@ const (
 
 	// Shared
 	ErrInvalidResourceTypeReturned errors.Error = "invalid resource type returned"
+	ErrCreateSlotBusy              errors.Error = "create capacity exhausted, retry later"
+	ErrUserPatchBusy               errors.Error = "account busy, retry later"
 	ErrUnsupportedItemType         errors.Error = "unsupported item type: %T"
 	ErrInvalidListOrEmptyItems     errors.Error = "invalid list or empty items"
 	ErrItemIsNil                   errors.Error = "item is nil"
@@ -112,6 +127,8 @@ const (
 	ErrRoleCategoryLocked               errors.Error = "the role category is locked by protection flags"
 	ErrRoleExtractData                  errors.Error = "failed to extract role data"
 	ErrRolePriorityExceedsLimit         errors.Error = "role priority must be less than the built-in role priority boost"
+	ErrRoleDenyRuleUnknown              errors.Error = "deny rule %q is not a known rule of scope %q: " +
+		"expected <scope>.<rule>.deny, such as applications.rollbackapplication.deny"
 
 	// Category
 	ErrCategoryNotFound            errors.Error = "category not found"
@@ -269,4 +286,9 @@ const (
 	InfMigrateStorageCopied messages.Message = "[migrate-storage] copied %d file(s) from %s to %s"
 	ErrMigrateStorageFailed errors.Error     = "[migrate-storage] copy from %s to %s failed: %v"
 	ErrMigrateStorageUsage  errors.Error     = "[migrate-storage] usage: migrate-storage <from> <to> [<from> <to>...]"
+
+	// Notifications
+	WarnNotifStreamReadFailed   messages.Message = "notification change stream read failed, open streams refetch once it recovers: %v"
+	WarnWebhookEventQueueFailed messages.Message = "failed to queue %s for webhooks: %v"
+	ErrWebhookEventUnsigned     errors.Error     = "no service token to sign the webhook event with"
 )

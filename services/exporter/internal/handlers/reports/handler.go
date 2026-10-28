@@ -66,6 +66,22 @@ func DownloadPlanReport() func(http.ResponseWriter, *http.Request) {
 	}
 }
 
+func ListKeptReports() func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		reportsexp.ListKeptReports(w)
+	}
+}
+
+func DeletePlanReport() func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := sharedutils.GetPathParam(w, r, constants.IDParam)
+		if err != nil {
+			return
+		}
+		reportsexp.DeletePlanReport(w, id, r.URL.Query().Get(reportseps.QueryReport))
+	}
+}
+
 func PutPlanReportLedger() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := sharedutils.GetPathParam(w, r, constants.IDParam)

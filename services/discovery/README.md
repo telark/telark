@@ -109,6 +109,14 @@ flowchart LR
     withdraws its policies, gets an end report for the run it closes, and waits for the controller.
     A rename re-renders the live policies, and an edit of a canceled or terminated plan is stored and
     takes effect on reactivation.
+  - A repeating plan (`timeMode: repeating`, `repeat`: weekdays, `HH:MM` start and end, an IANA
+    zone) has a window on each listed weekday, on that zone's wall clock: a time a daylight-saving
+    gap skips takes the offset before the gap, a repeated time is its first occurrence, and a window
+    the gap leaves with no length does not run that day. Each
+    window activates the plan and closes it again (`active → scheduled`, checkpoint, cleanup, one
+    `window` report); time never terminates it, and `status.window` holds the open or next window.
+    A scheduled time-range plan whose whole window passed before any controller pass saw it is
+    terminated without activating.
   - The scope is validated before the cluster is touched (an empty target list, or namespaces on an
     applications plan, is a 400). Withdrawn policies are deleted only after the exporter patch lands,
     and a refused patch restores a switched mode.
@@ -238,7 +246,7 @@ sequenceDiagram
 | `internal/discovery/{derivation,listing,prewarm,cache,shared}` | Derive applications from live state |
 | `internal/core/{applications,plans}` | Core application + protection-plan domain logic |
 | `internal/core/applications/insights` | Best-effort XADD of incident/recovery analysis jobs to `insights:jobs` |
-| `internal/core/insightsindex` | Per-replica insights row index (ZSET delta + MGET), plan environments, list query + ETag |
+| `internal/core/insightsindex` | Per-replica insights row index (ZSET delta + MGET), plan environments, list query + ETag, Critical incident notifications |
 | `internal/controllers/{plans}` | Protection-plan reconcile |
 | `internal/coordination/{forcesync,leadergate}` | Leader election, claim queue, force-sync |
 | `internal/publisher` · `internal/helpers/nats` | NATS JetStream publishing |
@@ -311,19 +319,39 @@ turning stale; `If-None-Match` returns 304. 400 names the invalid parameter; 503
 `Retry-After: 5` until the replica's first index load (or while the excluded namespaces are
 unknown).
 
+**Critical incident notifications.** Each index read also tells every user with Read on `insights`
+(the readers of `GET insights`) about each incident that is open or updated at `critical`, once per
+episode. An episode runs from the card's creation or reopening until it resolves or its card is
+gone. So a card created Critical, or raised to Critical later, notifies once. Updates, Warning and
+Info cards, and a Critical card that drops to Warning and back in the same episode notify nobody.
+The analyzer keeps one card id per workload, so a card that reopens as Critical, or comes back after
+its document was gone, notifies again. Every replica latches each Critical card it reads with one
+atomic `SET insights:notified:<id> … GET` (8-day TTL, renewed on each read), so only the replica that
+finds no latch notifies, and a resolved or vanished card drops its latch. The first index load ever
+(no `insights:notified-seeded` yet, so right after the upgrade that adds this) latches what is
+already open without notifying, while a later restart notifies what opened in between. Cards in
+excluded namespaces notify nobody, as the list hides them. The notification goes through the
+exporter's `POST internal/notifications`, one per reader: type `incident.critical`, severity
+`error`, metadata `insightId` (the dashboard opens `/insights?insight=<id>`) and `targetId`. When the
+user list or the excluded namespaces can't be read, the latch is released, so the card's next read
+notifies instead.
+
 **Namespaces.** `GET cluster/namespaces` feeds the namespace filter of both the Applications and
 the Insights pages, so Read on `applications` or on `insights` reaches it. A route requirement
 names one scope, so the middleware checks only the session and the handler checks the two scopes
 (403 otherwise). The `cluster/namespaces/*` lists refuse excluded namespaces and the release
 namespace (403), and every namespace while the excluded list has never loaded (503).
 
-**Plans.** Plan bodies accept optional `environmentRef` and `tagRefs` (category ids, metadata
-only); omitting them on update keeps the stored values, sending `""` / `[]` clears them; a duplicate
-copies them unless the request overrides them. `environmentRef` must be a `plan-environments`
-category (400 otherwise, 503 when the catalog cannot be read). `POST protectionplans/{id}/reports`
+**Plans.** Plan bodies accept optional `environmentRef`, `kindRef` and `tagRefs` (category ids,
+metadata only); omitting them on update keeps the stored values, sending `""` / `[]` clears them; a
+duplicate copies them, and a repeating plan's `repeat`, unless the request overrides them.
+`environmentRef` must be a `plan-environments` category (400 otherwise, 503 when the catalog cannot
+be read); `kindRef` names a `plan-kinds` category and is not looked up, so a deleted kind reads as none. `POST protectionplans/{id}/reports`
 renders an on-demand report: 400 for a plan that never started, 429 with `Retry-After` when two
-on-demand renders are already in flight. The status route is compute-only; policy repair and the
-orphan-policy sweep run on the leader tick.
+on-demand renders are already in flight. `DELETE protectionplans/{id}/clear` removes the plan's
+policies, then has the exporter delete the plan and its reports; `?keepReports=true` keeps the
+reports, and a value that is not a boolean is refused (400) before anything is removed. The
+status route is compute-only; policy repair and the orphan-policy sweep run on the leader tick.
 
 **Approval.** `approvalMode` (`automatic` | `required`) is accepted on prepare and duplicate but
 derived server-side: the Production environment is always `required`, elsewhere the default is
@@ -336,8 +364,10 @@ reactivated or materially edited the plan since its last approval, cannot decide
 needs a comment; a stale `requestedAt` or a concurrent decision returns 409. Approve activates (or
 schedules, for a future start) and deploys; reject cancels. Material edits (policies, scope, mode,
 time window) of an approved `required` plan are refused (400: duplicate it, or cancel and
-reactivate); a material edit of a pending plan re-requests approval. A pending plan expires
-(terminated) at its `endAt`. In-app notifications go through exporter: `plan.approval.requested` to
+reactivate); a material edit of a pending plan re-requests approval. One approval covers every
+window of a repeating plan and never expires: a material edit of it (the rule included) is refused
+while a window is open, and between windows it is applied and sent back for approval. A pending
+time-range plan expires (terminated) at its `endAt`. In-app notifications go through exporter: `plan.approval.requested` to
 every eligible approver except the requester, and `plan.approval.decided` to the requester.
 `enforce` mode on a `namespaces` scope needs Owner (403 for a Contributor, who may use `audit`).
 

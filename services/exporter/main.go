@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	// The image is FROM scratch, and repeating plans name IANA zones: the zone data ships in the binary.
+	_ "time/tzdata"
 
 	goredis "github.com/redis/go-redis/v9"
 	dataerrors "github.com/telark/telark/internal/data/errors"
@@ -19,6 +21,7 @@ import (
 	rediscore "github.com/telark/telark/internal/x-ware/redis/core"
 	redisinit "github.com/telark/telark/internal/x-ware/redis/init"
 	exporterauthz "github.com/telark/telark/services/exporter/internal/authz"
+	"github.com/telark/telark/services/exporter/internal/bootstrap"
 	"github.com/telark/telark/services/exporter/internal/config"
 	"github.com/telark/telark/services/exporter/internal/constants"
 	reportsexp "github.com/telark/telark/services/exporter/internal/exporters/reports"
@@ -26,7 +29,9 @@ import (
 	"github.com/telark/telark/services/exporter/internal/informers"
 	envmanager "github.com/telark/telark/services/exporter/internal/managers/envs"
 	"github.com/telark/telark/services/exporter/internal/membership"
+	"github.com/telark/telark/services/exporter/internal/migrations"
 	exprdb "github.com/telark/telark/services/exporter/internal/redis"
+	notifstorage "github.com/telark/telark/services/exporter/internal/redis/notifications"
 	"github.com/telark/telark/services/exporter/internal/routes"
 	"github.com/telark/telark/services/exporter/internal/startup"
 	"github.com/telark/telark/services/exporter/internal/utils/artifact"
@@ -51,7 +56,22 @@ func main() {
 	initReportsConfig()
 	lg.Info(fmt.Sprintf(string(constants.InfListRenderConcurrencyConfigured), envmanager.InitListRenderConcurrency()))
 	envmanager.InitBootstrapAdmin()
+	if err := envmanager.InitBreakGlassWait(); err != nil {
+		lg.Error(err.Error())
+		os.Exit(constants.ExitCodeFailure)
+	}
 	optimizer := performance.NewOptimizer(initConnectivity())
+	startup.SeedTelarkConfig()
+	// The record lives in TelarkConfig. The guard and the steps run before any other write, so an
+	// older exporter rewrites nothing and each step sees the data as the previous release left it.
+	if err := migrations.Run(migrations.Steps); err != nil {
+		lg.Error(err.Error())
+		os.Exit(constants.ExitCodeFailure)
+	}
+	// At every start rather than as a one-time step: a rollback to 0.1.x can leave a second marked account.
+	if err := bootstrap.PinEnrolled(optimizer); err != nil {
+		lg.Warn(fmt.Sprintf(string(constants.WarnBootstrapReconcileFailed), err))
+	}
 	startup.SeedBuiltins()
 	async.Init()
 	gcCtx, stopGC := context.WithCancel(context.Background())
@@ -60,6 +80,8 @@ func main() {
 	go snaputil.StartStorageStatsRefresher(gcCtx)
 	go informers.StartApplications(gcCtx)
 	go informers.StartSessions(gcCtx)
+	notifHub := notifstorage.NewHub(exprdb.Get())
+	go notifHub.Run(gcCtx)
 	go membership.Reconcile(gcCtx, optimizer)
 
 	authzMiddleware, err := xauthz.NewFromEnv(exporterauthz.NewResolver(), exporterauthz.Requirements())
@@ -67,7 +89,7 @@ func main() {
 		lg.Error(fmt.Sprintf(string(dataerrors.ErrAuthzInitFailed), err))
 		os.Exit(constants.ExitCodeFailure)
 	}
-	server := startServer(optimizer, authzMiddleware)
+	server := startServer(optimizer, notifHub, authzMiddleware)
 	waitForShutdown(server)
 	stopGC()
 	async.Drain()
@@ -144,8 +166,12 @@ func initConnectivity() *goredis.Client {
 	return rdb
 }
 
-func startServer(optimizer *performance.Optimizer, authzMiddleware func(http.Handler) http.Handler) *http.Server {
-	rt := router.NewRouter(routes.InitRoutes(optimizer))
+func startServer(
+	optimizer *performance.Optimizer,
+	notifHub *notifstorage.Hub,
+	authzMiddleware func(http.Handler) http.Handler,
+) *http.Server {
+	rt := router.NewRouter(routes.InitRoutes(optimizer, notifHub))
 	// Registered on the router rather than wrapped around it: mux middleware
 	// runs after route matching, which is what makes the matched path template
 	// available to derive the route's requirement.
@@ -161,6 +187,8 @@ func startServer(optimizer *performance.Optimizer, authzMiddleware func(http.Han
 		IdleTimeout:    constants.ServerIdleTimeout,
 		MaxHeaderBytes: constants.MaxHeaderBytes,
 	}
+	// Shutdown waits for open requests, and a notification stream never ends on its own.
+	server.RegisterOnShutdown(notifHub.Close)
 
 	lg.Info(string(constants.InfServerStarting))
 	go restserver.ListenAndSignal(server, getQuitChannel, lg)

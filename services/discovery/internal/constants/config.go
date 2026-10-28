@@ -136,6 +136,10 @@ const (
 	InsightsIndexSyncTimeout    = 30 * time.Second
 	InsightsEnvironmentsRefresh = 60 * time.Second
 	InsightsIndexRetryAfterSec  = 5
+	KeyPrefixInsightsNotified   = "insights:notified:"
+	KeyInsightsNotifiedSeeded   = "insights:notified-seeded"
+	// Outlives the analyzer document's 7-day TTL, so a latch never lapses under a card still stored.
+	InsightsNotifiedTTL = 8 * 24 * time.Hour
 )
 
 // Self-monitoring off (the default) adds the release namespace to the excluded namespaces.

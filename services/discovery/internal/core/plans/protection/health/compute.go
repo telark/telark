@@ -6,13 +6,15 @@ import (
 	"slices"
 	"strings"
 
-	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
+	policiesv1 "github.com/kyverno/api/api/policies.kyverno.io/v1"
 	"github.com/telark/telark/internal/data/plans"
 	"github.com/telark/telark/internal/data/policies"
 	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
 	"github.com/telark/telark/services/discovery/internal/constants"
 	protpolicies "github.com/telark/telark/services/discovery/internal/core/plans/protection/policies"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -24,27 +26,33 @@ func Compute(ctx context.Context, deps Deps, plan *plans.ProtectionPlan) (Result
 	if result, done := shortCircuit(plan); done {
 		return result, nil
 	}
-	snapshot, err := listPlanPolicies(ctx, deps.Dyn, plan.ID)
+	snaps, err := listPolicies(ctx, deps.Dyn, fmt.Sprintf(labelSelectorFmt, policies.LabelPlanID, plan.ID))
 	if err != nil {
 		return Result{}, err
 	}
 	resolved, resolveErr := resolveApps(ctx, deps, planApplicationRefs(plan))
-	return computeFrom(plan, snapshot, resolved, resolveErr), nil
+	return computeFrom(plan, snaps, resolved, resolveErr), nil
 }
 
 func computeFrom(
 	plan *plans.ProtectionPlan,
-	snapshot map[string]policySnapshot,
+	snaps policySnapshots,
 	resolved map[string]policies.ResolvedApp,
 	resolveErr error,
 ) Result {
 	if result, done := shortCircuit(plan); done {
 		return result
 	}
+	snapshot := snaps.current[plan.ID]
 	current, renderErr := renderCurrent(plan, resolved, resolveErr)
 	result := classify(plan, snapshot, current)
 	result.current = current
 	result.renderErr = renderErr
+	result.live = snapshot
+	if snaps.kindMissing {
+		result.kindMissing = true
+		result.Health = plans.HealthDegraded
+	}
 	return result
 }
 
@@ -80,7 +88,7 @@ func renderCurrent(
 	plan *plans.ProtectionPlan,
 	resolved map[string]policies.ResolvedApp,
 	resolveErr error,
-) (map[string]kyvernov1.Policy, error) {
+) (map[string]policiesv1.NamespacedValidatingPolicy, error) {
 	if resolveErr != nil && plan.Scope.Type == plans.ScopeTypeApplications {
 		return nil, resolveErr
 	}
@@ -88,7 +96,7 @@ func renderCurrent(
 	if err != nil {
 		return nil, err
 	}
-	current := make(map[string]kyvernov1.Policy, len(rendered))
+	current := make(map[string]policiesv1.NamespacedValidatingPolicy, len(rendered))
 	for i := range rendered {
 		current[rendered[i].Name] = rendered[i]
 	}
@@ -108,65 +116,53 @@ func renderable(plan *plans.ProtectionPlan, resolved map[string]policies.Resolve
 	return &target
 }
 
-func listPlanPolicies(ctx context.Context, dyn dynamic.Interface, planID string) (map[string]policySnapshot, error) {
-	items, err := listPolicyItems(ctx, dyn, fmt.Sprintf("%s=%s", policies.LabelPlanID, planID))
-	if err != nil {
-		return nil, err
+// One LIST for the whole pass: a per-plan selector turned N active plans into N
+// cluster-wide LISTs every tick.
+func listPolicies(ctx context.Context, dyn dynamic.Interface, selector string) (policySnapshots, error) {
+	current, err := listByPlan(ctx, dyn, selector)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return policySnapshots{}, err
 	}
-	out := make(map[string]policySnapshot, len(items))
-	for i := range items {
-		out[items[i].GetName()] = snapshotOf(&items[i])
-	}
-	return out, nil
+	return policySnapshots{current: current, kindMissing: err != nil}, nil
 }
 
-// One LIST for the whole reconcile pass: the per-plan selector turned N active plans into N
-// cluster-wide Policy LISTs every tick, each one paying for every other plan's policies too.
-func listManagedPolicies(ctx context.Context, dyn dynamic.Interface) (map[string]map[string]policySnapshot, error) {
-	items, err := listPolicyItems(ctx, dyn, fmt.Sprintf("%s=%s", policies.LabelManagedBy, policies.ManagedByValue))
+func listByPlan(ctx context.Context, dyn dynamic.Interface, selector string) (map[string]map[string]policySnapshot, error) {
+	list, err := dyn.Resource(protpolicies.KyvernoPolicyGVR).Namespace(metav1.NamespaceAll).List(ctx, metav1.ListOptions{LabelSelector: selector})
 	if err != nil {
 		return nil, err
 	}
 	byPlan := map[string]map[string]policySnapshot{}
-	for i := range items {
-		planID := items[i].GetLabels()[policies.LabelPlanID]
+	for i := range list.Items {
+		planID := list.Items[i].GetLabels()[policies.LabelPlanID]
 		if planID == constants.EmptyString {
 			continue
 		}
 		if byPlan[planID] == nil {
 			byPlan[planID] = map[string]policySnapshot{}
 		}
-		byPlan[planID][items[i].GetName()] = snapshotOf(&items[i])
+		byPlan[planID][list.Items[i].GetName()] = snapshotOf(&list.Items[i])
 	}
 	return byPlan, nil
 }
 
-func listPolicyItems(
-	ctx context.Context,
-	dyn dynamic.Interface,
-	selector string,
-) ([]unstructured.Unstructured, error) {
-	list, err := dyn.Resource(protpolicies.KyvernoPolicyGVR).
-		Namespace(metav1.NamespaceAll).
-		List(ctx, metav1.ListOptions{LabelSelector: selector})
-	if err != nil {
-		return nil, err
-	}
-	return list.Items, nil
-}
-
 func snapshotOf(item *unstructured.Unstructured) policySnapshot {
+	spec := readSpec(item)
 	return policySnapshot{
 		created:       item.GetCreationTimestamp().Time,
 		namespace:     item.GetNamespace(),
 		ready:         readReady(item),
-		failureAction: readFailureAction(item),
+		failureAction: failureActionOf(spec),
 		renderHash:    item.GetAnnotations()[policies.AnnotationRenderHash],
-		rules:         readRules(item),
+		spec:          spec,
+		object:        item,
 	}
 }
 
-func classify(plan *plans.ProtectionPlan, snapshot map[string]policySnapshot, current map[string]kyvernov1.Policy) Result {
+func classify(
+	plan *plans.ProtectionPlan,
+	snapshot map[string]policySnapshot,
+	current map[string]policiesv1.NamespacedValidatingPolicy,
+) Result {
 	expected := expectedFailureAction(plan.Mode)
 	rendered := indexNames(plan.RenderedPolicies)
 
@@ -183,12 +179,7 @@ func classify(plan *plans.ProtectionPlan, snapshot map[string]policySnapshot, cu
 		if !ok && current != nil && !renderable {
 			continue
 		}
-		var row planseps.ProtectionPlanPolicyStatus
-		if ok {
-			row = presentPolicyStatus(name, snap)
-		} else {
-			row = absentPolicyStatus(name)
-		}
+		row := statusRow(name, snap, ok)
 		policiesOut = append(policiesOut, row)
 		detailOut = append(detailOut, toHealthDetail(row))
 		if !ok {
@@ -227,11 +218,18 @@ func classify(plan *plans.ProtectionPlan, snapshot map[string]policySnapshot, cu
 	}
 }
 
-// A hand edit can keep the render-hash annotation, so the rules are compared too: an added field
-// (a rule-level failureAction, an extra exclude) is drift as much as an edited one.
-func outdated(snap policySnapshot, fresh kyvernov1.Policy) bool {
+// A hand edit can keep the render-hash annotation, so the specs are compared too: an added field
+// (a failurePolicy, an extra validation) is drift as much as an edited one.
+func outdated(snap policySnapshot, fresh policiesv1.NamespacedValidatingPolicy) bool {
 	return snap.renderHash != fresh.Annotations[policies.AnnotationRenderHash] ||
-		!equality.Semantic.DeepEqual(renderedRules(fresh.Spec.Rules), snap.rules)
+		!equality.Semantic.DeepEqual(renderedSpec(&fresh.Spec), snap.spec)
+}
+
+func statusRow(name string, snap policySnapshot, present bool) planseps.ProtectionPlanPolicyStatus {
+	if present {
+		return presentPolicyStatus(name, snap)
+	}
+	return absentPolicyStatus(name)
 }
 
 func presentPolicyStatus(name string, snap policySnapshot) planseps.ProtectionPlanPolicyStatus {
@@ -260,7 +258,11 @@ func toHealthDetail(row planseps.ProtectionPlanPolicyStatus) plans.ProtectionPla
 
 // A live policy the plan never listed but renders now is Added, not unexpected: deleting it
 // would only have the next pass deploy it again.
-func findUnexpected(snapshot map[string]policySnapshot, rendered map[string]struct{}, current map[string]kyvernov1.Policy) []string {
+func findUnexpected(
+	snapshot map[string]policySnapshot,
+	rendered map[string]struct{},
+	current map[string]policiesv1.NamespacedValidatingPolicy,
+) []string {
 	var unexpected []string
 	for name := range snapshot {
 		_, listed := rendered[name]
@@ -272,7 +274,7 @@ func findUnexpected(snapshot map[string]policySnapshot, rendered map[string]stru
 	return unexpected
 }
 
-func findAdded(current map[string]kyvernov1.Policy, rendered map[string]struct{}) []string {
+func findAdded(current map[string]policiesv1.NamespacedValidatingPolicy, rendered map[string]struct{}) []string {
 	var added []string
 	for name := range current {
 		if _, ok := rendered[name]; !ok {
@@ -309,60 +311,43 @@ func expectedFailureAction(mode string) string {
 }
 
 func readReady(obj *unstructured.Unstructured) bool {
-	conditions, found, err := unstructured.NestedSlice(obj.Object, "status", "conditions")
-	if err != nil || !found {
-		return false
-	}
-	return slices.ContainsFunc(conditions, func(raw any) bool {
-		cond, ok := raw.(map[string]any)
-		return ok && cond["type"] == kyvernoConditionReady && cond["status"] == kyvernoStatusTrue
-	})
+	ready, _, _ := unstructured.NestedBool(obj.Object, fieldStatus, fieldConditionStatus, fieldReady)
+	return ready
 }
 
-func readFailureAction(obj *unstructured.Unstructured) string {
-	value, found, err := unstructured.NestedString(obj.Object, "spec", "validationFailureAction")
-	if err != nil || !found {
+// Kyverno's own reading: no actions at all means Deny.
+func failureActionOf(spec *policiesv1.ValidatingPolicySpec) string {
+	if spec == nil {
 		return constants.EmptyString
 	}
-	return value
+	if slices.Contains(spec.ValidationActions(), admissionregistrationv1.Deny) {
+		return kyvernoActionEnforce
+	}
+	return kyvernoActionAudit
 }
 
-func readRules(obj *unstructured.Unstructured) []kyvernov1.Rule {
-	rules, found, err := unstructured.NestedFieldNoCopy(obj.Object, fieldSpec, fieldRules)
-	if err != nil || !found {
+func readSpec(obj *unstructured.Unstructured) *policiesv1.ValidatingPolicySpec {
+	raw, found, err := unstructured.NestedFieldNoCopy(obj.Object, fieldSpec)
+	spec, ok := raw.(map[string]any)
+	if err != nil || !found || !ok {
 		return nil
 	}
-	return comparableRules(map[string]any{fieldRules: rules})
+	return decodeSpec(spec)
 }
 
 // The render goes through the converter the way the live copy does, so both compare alike.
-func renderedRules(rules []kyvernov1.Rule) []kyvernov1.Rule {
-	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&kyvernov1.Spec{Rules: rules})
+func renderedSpec(spec *policiesv1.ValidatingPolicySpec) *policiesv1.ValidatingPolicySpec {
+	raw, err := runtime.DefaultUnstructuredConverter.ToUnstructured(spec)
 	if err != nil {
 		return nil
 	}
-	return comparableRules(spec)
+	return decodeSpec(raw)
 }
 
-func comparableRules(spec map[string]any) []kyvernov1.Rule {
-	var out kyvernov1.Spec
-	if runtime.DefaultUnstructuredConverter.FromUnstructured(spec, &out) != nil {
+func decodeSpec(raw map[string]any) *policiesv1.ValidatingPolicySpec {
+	var out policiesv1.ValidatingPolicySpec
+	if runtime.DefaultUnstructuredConverter.FromUnstructured(raw, &out) != nil {
 		return nil
 	}
-	for i := range out.Rules {
-		out.Rules[i].SkipBackgroundRequests = withoutEngineDefault(out.Rules[i].SkipBackgroundRequests)
-		if v := out.Rules[i].Validation; v != nil {
-			v.AllowExistingViolations = withoutEngineDefault(v.AllowExistingViolations)
-		}
-	}
-	return out.Rules
-}
-
-// The policy engine's CRD defaults both flags to true; an explicit false (the render's
-// allowExistingViolations) is kept, so flipping it back to true is drift.
-func withoutEngineDefault(flag *bool) *bool {
-	if flag != nil && *flag {
-		return nil
-	}
-	return flag
+	return &out
 }

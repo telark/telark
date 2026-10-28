@@ -23,6 +23,7 @@ type ListResponse struct {
 const (
 	TypeRoleChanged            = "role.changed"
 	TypeGroupMembershipChanged = "group.membership.changed"
+	TypeBootstrapRequest       = "bootstrap.request"
 )
 
 const (
@@ -39,6 +40,8 @@ const (
 	MetaKeyGroupID        = "groupId"
 	MetaKeyGroupName      = "groupName"
 	MetaKeyAction         = "action"
+	MetaKeyRequestID      = "requestId"
+	MetaKeyState          = "state"
 )
 
 const (

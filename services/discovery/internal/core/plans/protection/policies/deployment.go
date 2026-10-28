@@ -3,7 +3,7 @@ package policies
 import (
 	"fmt"
 
-	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
+	policiesv1 "github.com/kyverno/api/api/policies.kyverno.io/v1"
 	"github.com/telark/telark/internal/data/plans"
 	datapolicies "github.com/telark/telark/internal/data/policies"
 	"github.com/telark/telark/services/discovery/internal/constants"
@@ -30,7 +30,7 @@ func renderForCombinations(
 	targets []string,
 	resolved map[string]datapolicies.ResolvedApp,
 	logger datapolicies.Logger,
-) ([]kyvernov1.Policy, error) {
+) ([]policiesv1.NamespacedValidatingPolicy, error) {
 	if len(policiesSubset) == constants.DefaultInitValue || len(targets) == constants.DefaultInitValue {
 		return nil, nil
 	}
@@ -55,7 +55,7 @@ func renderCombos(
 	combos []PolicyTargetCombo,
 	resolved map[string]datapolicies.ResolvedApp,
 	logger datapolicies.Logger,
-) ([]kyvernov1.Policy, error) {
+) ([]policiesv1.NamespacedValidatingPolicy, error) {
 	if len(combos) == constants.DefaultInitValue {
 		return nil, nil
 	}
@@ -63,7 +63,7 @@ func renderCombos(
 	for _, c := range combos {
 		grouped[c.Target] = append(grouped[c.Target], c.Policy)
 	}
-	out := make([]kyvernov1.Policy, constants.DefaultInitValue, len(combos))
+	out := make([]policiesv1.NamespacedValidatingPolicy, constants.DefaultInitValue, len(combos))
 	for target, plist := range grouped {
 		rendered, err := renderForCombinations(plan, plist, []string{target}, resolved, logger)
 		if err != nil {
@@ -74,7 +74,7 @@ func renderCombos(
 	return out, nil
 }
 
-func renderedPolicyRefs(rendered []kyvernov1.Policy) []NamespacedName {
+func renderedPolicyRefs(rendered []policiesv1.NamespacedValidatingPolicy) []NamespacedName {
 	refs := make([]NamespacedName, constants.DefaultInitValue, len(rendered))
 	for i := range rendered {
 		refs = append(refs, NamespacedName{

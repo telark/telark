@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"net/http"
 
 	authmetadata "github.com/telark/telark/internal/data/metadata/v1alpha1"
@@ -12,7 +13,7 @@ import (
 	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
-func CreateSessionByUser(w http.ResponseWriter, body map[string]any, userID string) {
+func CreateSessionByUser(ctx context.Context, w http.ResponseWriter, body map[string]any, userID string) {
 	go sessionutils.PurgeExpiredSessionsForUser(userID)
 
 	session, sessionName, err := sessionutils.ExtractSessionSpec(body, userID)
@@ -45,5 +46,5 @@ func CreateSessionByUser(w http.ResponseWriter, body map[string]any, userID stri
 	lock.Lock()
 	defer lock.Unlock()
 
-	generics.GenericCreateCustomResource(w, authmetadata.SessionMetadata, sessionName, spec)
+	generics.GenericCreateCustomResource(ctx, w, authmetadata.SessionMetadata, sessionName, spec)
 }

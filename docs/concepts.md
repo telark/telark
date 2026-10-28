@@ -29,27 +29,27 @@ A protection plan blocks chosen changes to a scope for a time window. It is Tela
 | Exclusions | Kinds to leave unprotected (any scope), or named resources of the selected applications (applications scope only) |
 | Policies | One or more templates, listed below |
 | Mode | **Audit**: record what would be blocked, block nothing. **Enforce**: refuse the change at admission |
-| Schedule | **Time range** (start and end) or **Permanent** |
+| Schedule | **Time range** (start and end), **Repeating** (weekly windows, for example every Sunday 02:00 to 04:00, on the wall clock of a time zone you choose, daylight saving included) or **Permanent** |
 | Execution | **Automatic**: deploys when the window starts. **Requires approval**: nothing deploys until an approver confirms |
-| Classification | Optional environment and tags, used to filter plans. The Production environment always requires approval |
+| Classification | Optional kind (QA, Testing, Release, Maintenance window, or one an admin adds), environment and tags, used to filter plans. The Production environment always requires approval |
 
 The nine policy templates:
 
 | Template | Blocks |
 |---|---|
-| Block Resource Creation | Creating any resource in the scope |
-| Block Resource Updates | Updating any resource in the scope |
-| Block Resource Deletion | Deleting any resource in the scope |
-| Block Image Patterns | Container images matching registry or name patterns you list |
-| Block Image Tags | Container images with tags you list |
-| Block Replica Scaling | Changing the replica count of Deployments and StatefulSets (applications scope only) |
-| Block Storage Changes | Creating, changing or deleting PVCs and workload volume definitions |
-| Block ConfigMap and Secret Changes | Updating or deleting ConfigMaps and Secrets |
-| Block Workload Config Mount Changes | Changing volume mounts and ConfigMap or Secret sources on workloads |
+| Creating any resource | Creating any resource in the scope |
+| Updating any resource | Updating any resource in the scope |
+| Deleting any resource | Deleting any resource in the scope |
+| Images matching blocked patterns | Container images matching registry or name patterns you list |
+| Images with blocked tags | Container images with tags you list |
+| Changing replica counts | Changing the replica count of Deployments and StatefulSets (applications scope only) |
+| Creating, deleting or editing storage | Creating, changing or deleting PVCs and workload volume definitions |
+| Updating or deleting ConfigMaps & Secrets | Updating or deleting ConfigMaps and Secrets |
+| Changing config mounts & env sources | Changing volume mounts and ConfigMap or Secret sources on workloads |
 
 ### How a plan is enforced
 
-While a plan is active, Telark renders each template into a namespaced Kyverno `Policy` in every namespace of the scope, minus the exclusions. Kyverno (bundled with the chart by default, or one you already run) checks each request at admission. In audit mode the request goes through and Kyverno records a violation; in enforce mode the request is refused with a message naming the plan.
+While a plan is active, Telark renders each template into a namespaced Kyverno policy (`NamespacedValidatingPolicy`) in every namespace of the scope, minus the exclusions. Kyverno (bundled with the chart by default, or one you already run) checks each request at admission. In audit mode the request goes through and Kyverno records a violation; in enforce mode the request is refused with a message naming the plan.
 
 Telark checks the live cluster every 31 seconds by default and shows the result as the plan's health. A missing or not-ready policy marks the plan **Degraded**; a policy whose content differs from what the plan expects marks it **Drifted** and is redeployed.
 
@@ -60,18 +60,20 @@ By default the bundled Kyverno fails open: if its admission webhook is down, req
 | Phase | Meaning |
 |---|---|
 | `pending_approval` | Waiting for an approver. The person who requested it cannot approve it |
-| `scheduled` | Approved or automatic, waiting for the window to start |
+| `scheduled` | Approved or automatic, waiting for the window to start (a repeating plan, between windows) |
 | `active` | Policies deployed and checked |
-| `terminated` | The window ended; policies removed |
+| `terminated` | The time range ended, or passed while Telark was down; policies removed. Time never ends a repeating plan |
 | `canceled` | Canceled by a user, or rejected by an approver; policies removed |
 | `failed` | Activation failed (scope, render or deploy error) |
 | `draft` | Defined in the API, not used today |
 
 A canceled, terminated or failed plan can be reactivated, and any plan can be duplicated.
 
+A repeating plan is active during each window and scheduled between them, and one approval covers every window. A window that lies in the hour a daylight-saving change skips (02:00 to 03:00 in Paris on the spring-forward day) does not run that day. When it requires approval, a change to its scope, policies, schedule or mode waits until an open window ends, and between windows it sends the plan back for approval.
+
 ### Violations and reports
 
-Violations come from the Kubernetes Events Kyverno writes, which the API server keeps for about an hour. Telark copies them into a per-plan ledger every 15 minutes, so a report covers the whole window. When a plan ends or is canceled, Telark captures a final report automatically; you can also generate one on demand, as HTML, Markdown, JSON or CSV. An ended plan's page shows no live violations: its history is in the report.
+Violations come from the Kubernetes Events Kyverno writes, which the API server keeps for about an hour. Telark copies them into a per-plan ledger every 15 minutes, so a report covers the whole window. When a plan ends or is canceled, Telark captures a final report automatically, and each window of a repeating plan gets a report of its own (the newest 100 are kept); you can also generate one on demand, as HTML, Markdown, JSON or CSV. A plan's page lists every admission decision since the plan (or its window) started, from that ledger, so an ended plan keeps its list. Deleting a plan deletes its reports unless you choose to keep them, and kept reports stay under **Reports** until someone deletes them. Whoever may delete plans may also delete any single report, from the plan's page or from **Reports**.
 
 Depth: [protection plans](architecture/protection-plans.md).
 

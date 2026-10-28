@@ -4,6 +4,9 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"net/http"
 	"testing"
 
@@ -45,6 +48,17 @@ func Equal[T comparable](t *testing.T, name string, got, want T) {
 // Handlers called directly skip the router, so the path variable it would set is set here.
 func WithCredentialID(r *http.Request, credentialID string) *http.Request {
 	return mux.SetURLVars(r, map[string]string{constants.CredentialIDPathParam: credentialID})
+}
+
+// What Redis holds for a WebAuthn challenge, in its keys and values: the SHA-256 of its bytes, never the challenge.
+func ChallengeDigest(t *testing.T, challengeB64 string) string {
+	t.Helper()
+	decoded, err := base64.RawURLEncoding.DecodeString(challengeB64)
+	if err != nil {
+		t.Fatalf("challenge %q: %v", challengeB64, err)
+	}
+	sum := sha256.Sum256(decoded)
+	return hex.EncodeToString(sum[:])
 }
 
 func NewP256Key(t *testing.T) *ecdsa.PrivateKey {

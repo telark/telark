@@ -1,7 +1,9 @@
 package templates
 
 import (
-	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
+	"fmt"
+
+	policiesv1 "github.com/kyverno/api/api/policies.kyverno.io/v1"
 	"github.com/telark/telark/internal/data/policies"
 )
 
@@ -16,7 +18,11 @@ type blockImageTypes struct{}
 func (blockImageTypes) TemplateID() string   { return templateBlockImageTypes }
 func (blockImageTypes) TemplateCode() string { return codeBlockImageTypes }
 
-func (blockImageTypes) Render(meta policies.RenderMeta, scope policies.ScopeSpec, params map[string]any) (*kyvernov1.Policy, error) {
+func (blockImageTypes) Render(
+	meta policies.RenderMeta,
+	scope policies.ScopeSpec,
+	params map[string]any,
+) (*policiesv1.NamespacedValidatingPolicy, error) {
 	patterns, err := paramStringSlice(params, paramImagePatterns)
 	if err != nil {
 		return nil, err
@@ -24,14 +30,9 @@ func (blockImageTypes) Render(meta policies.RenderMeta, scope policies.ScopeSpec
 	return policies.RenderPodSpecRulePolicy(meta, scope, policies.PodSpecRuleSpec{
 		TemplateID:   templateBlockImageTypes,
 		TemplateCode: codeBlockImageTypes,
-		RuleName:     templateBlockImageTypes,
 		Ops:          opsCreateUpdate,
 		Message:      blockMessage(meta, msgBlockImagePatterns),
-		Deny: func(podSpecPath string) *kyvernov1.Deny {
-			return policies.DenyWithConditions([]kyvernov1.Condition{
-				policies.MakeCondition(newExpr(exprImagesFmt, podSpecPath), opAnyIn, patterns),
-			})
-		},
+		Admit:        fmt.Sprintf(admitNoImageFmt, policies.VarContainers, policies.CELString(policies.GlobRegex(patterns))),
 	}), nil
 }
 

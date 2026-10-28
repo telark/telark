@@ -30,6 +30,7 @@ const (
 	dedupValue                                 = "1"
 	keySeparator                               = ":"
 	streamStartID                              = "0"
+	streamNewEntriesID                         = "$"
 	autoClaimStartID                           = "0-0"
 	busyGroupErr                               = "busygroup"
 )

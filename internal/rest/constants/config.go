@@ -20,6 +20,7 @@ const (
 	ErrEndpointCall                  errors.Error = "%s %s: %v"
 	HTTPStatus                       errors.Error = "HTTP %d: %s"
 	ErrRequestBodyTooLarge           errors.Error = "request body too large"
+	ErrInvalidBoolQuery              errors.Error = "query parameter %s must be true or false"
 	DefaultHTTPPort                               = 80
 	DefaultHTTPSPort                              = 443
 	DefaultTimeout                                = 30

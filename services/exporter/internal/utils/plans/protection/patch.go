@@ -3,7 +3,9 @@ package protection
 import (
 	"errors"
 
+	"github.com/telark/telark/internal/data/plans"
 	"github.com/telark/telark/services/exporter/internal/constants"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 func ValidatePatchScope(body map[string]any) error {
@@ -23,6 +25,19 @@ func ValidatePatchScope(body map[string]any) error {
 	apps := stringSlice(scope[constants.FieldScopeAppRefs])
 	namespaces := stringSlice(scope[constants.FieldScopeNamespaces])
 	return validateScope(scopeType, len(apps), len(namespaces), hasExclusionResources(scope))
+}
+
+// Anything but an object is left to the CRD schema, which also refuses a null on a repeating plan.
+func ValidatePatchRepeat(body map[string]any) error {
+	raw, ok := body[constants.FieldRepeat].(map[string]any)
+	if !ok {
+		return nil
+	}
+	repeat, err := sharedutils.ExtractStructFromBody[plans.ProtectionPlanRepeat](raw)
+	if err != nil {
+		return err
+	}
+	return plans.ValidateRepeat(repeat)
 }
 
 // stringSlice is not reusable here: resources are maps, so it would report none.

@@ -3,35 +3,38 @@ package plans
 import "github.com/telark/telark/internal/data/plans"
 
 type CreateProtectionPlanRequest struct {
-	ID               string                `json:"id"`
-	Name             string                `json:"name"`
-	Description      *string               `json:"description,omitempty"`
-	Severity         string                `json:"severity"`
-	Priority         int                   `json:"priority"`
-	Scope            ScopeRequest          `json:"scope"`
-	Policies         []PolicyRequest       `json:"policies"`
-	Mode             string                `json:"mode"`
-	TimeMode         string                `json:"timeMode"`
-	TimeRange        *TimeRangeRequest     `json:"timeRange,omitempty"`
-	Phase            string                `json:"phase"`
-	Reason           *string               `json:"reason,omitempty"`
-	RenderedPolicies []string              `json:"renderedPolicies,omitempty"`
-	CreatedAt        string                `json:"createdAt"`
-	CreatedBy        string                `json:"createdBy"`
-	LastUpdatedAt    string                `json:"lastUpdatedAt"`
-	LastUpdatedBy    string                `json:"lastUpdatedBy"`
-	StartedAt        *string               `json:"startedAt,omitempty"`
-	StartedBy        *string               `json:"startedBy,omitempty"`
-	TerminatedAt     *string               `json:"terminatedAt,omitempty"`
-	TerminatedBy     *string               `json:"terminatedBy,omitempty"`
-	ParticipantRefs  []string              `json:"participantRefs"`
-	EnvironmentRef   string                `json:"environmentRef,omitempty"`
-	TagRefs          []string              `json:"tagRefs,omitempty"`
-	ApprovalMode     string                `json:"approvalMode,omitempty"`
-	Approval         *ApprovalRequest      `json:"approval,omitempty"`
-	Health           string                `json:"health"`
-	HealthCheckedAt  *string               `json:"healthCheckedAt,omitempty"`
-	HealthDetail     []HealthDetailRequest `json:"healthDetail,omitempty"`
+	ID               string                      `json:"id"`
+	Name             string                      `json:"name"`
+	Description      *string                     `json:"description,omitempty"`
+	Severity         string                      `json:"severity"`
+	Priority         int                         `json:"priority"`
+	Scope            ScopeRequest                `json:"scope"`
+	Policies         []PolicyRequest             `json:"policies"`
+	Mode             string                      `json:"mode"`
+	TimeMode         string                      `json:"timeMode"`
+	TimeRange        *TimeRangeRequest           `json:"timeRange,omitempty"`
+	Repeat           *plans.ProtectionPlanRepeat `json:"repeat,omitempty"`
+	Phase            string                      `json:"phase"`
+	Reason           *string                     `json:"reason,omitempty"`
+	RenderedPolicies []string                    `json:"renderedPolicies,omitempty"`
+	CreatedAt        string                      `json:"createdAt"`
+	CreatedBy        string                      `json:"createdBy"`
+	LastUpdatedAt    string                      `json:"lastUpdatedAt"`
+	LastUpdatedBy    string                      `json:"lastUpdatedBy"`
+	StartedAt        *string                     `json:"startedAt,omitempty"`
+	StartedBy        *string                     `json:"startedBy,omitempty"`
+	TerminatedAt     *string                     `json:"terminatedAt,omitempty"`
+	TerminatedBy     *string                     `json:"terminatedBy,omitempty"`
+	Window           *TimeRangeRequest           `json:"window,omitempty"`
+	ParticipantRefs  []string                    `json:"participantRefs"`
+	EnvironmentRef   string                      `json:"environmentRef,omitempty"`
+	KindRef          string                      `json:"kindRef,omitempty"`
+	TagRefs          []string                    `json:"tagRefs,omitempty"`
+	ApprovalMode     string                      `json:"approvalMode,omitempty"`
+	Approval         *ApprovalRequest            `json:"approval,omitempty"`
+	Health           string                      `json:"health"`
+	HealthCheckedAt  *string                     `json:"healthCheckedAt,omitempty"`
+	HealthDetail     []HealthDetailRequest       `json:"healthDetail,omitempty"`
 }
 
 type ApprovalEventRequest struct {
@@ -60,46 +63,51 @@ type HealthDetailRequest struct {
 }
 
 type PatchProtectionPlanRequest struct {
-	Name             *string               `json:"name,omitempty"`
-	Description      *string               `json:"description,omitempty"`
-	Severity         *string               `json:"severity,omitempty"`
-	Priority         *int                  `json:"priority,omitempty"`
-	Mode             *string               `json:"mode,omitempty"`
-	TimeMode         *string               `json:"timeMode,omitempty"`
-	TimeRange        *TimeRangeRequest     `json:"timeRange,omitempty"`
-	Scope            *ScopeRequest         `json:"scope,omitempty"`
-	Policies         []PolicyRequest       `json:"policies,omitempty"`
-	ParticipantRefs  []string              `json:"participantRefs,omitempty"`
-	EnvironmentRef   *string               `json:"environmentRef,omitempty"`
-	TagRefs          *[]string             `json:"tagRefs,omitempty"`
-	Phase            *string               `json:"phase,omitempty"`
-	Reason           *string               `json:"reason,omitempty"`
-	RenderedPolicies []string              `json:"renderedPolicies,omitempty"`
-	StartedAt        *string               `json:"startedAt,omitempty"`
-	StartedBy        *string               `json:"startedBy,omitempty"`
-	TerminatedAt     *string               `json:"terminatedAt,omitempty"`
-	TerminatedBy     *string               `json:"terminatedBy,omitempty"`
-	LastUpdatedAt    *string               `json:"lastUpdatedAt,omitempty"`
-	LastUpdatedBy    *string               `json:"lastUpdatedBy,omitempty"`
-	Health           *string               `json:"health,omitempty"`
-	HealthCheckedAt  *string               `json:"healthCheckedAt,omitempty"`
-	HealthDetail     []HealthDetailRequest `json:"healthDetail,omitempty"`
+	Name             *string                     `json:"name,omitempty"`
+	Description      *string                     `json:"description,omitempty"`
+	Severity         *string                     `json:"severity,omitempty"`
+	Priority         *int                        `json:"priority,omitempty"`
+	Mode             *string                     `json:"mode,omitempty"`
+	TimeMode         *string                     `json:"timeMode,omitempty"`
+	TimeRange        *TimeRangeRequest           `json:"timeRange,omitempty"`
+	Repeat           *plans.ProtectionPlanRepeat `json:"repeat,omitempty"`
+	Scope            *ScopeRequest               `json:"scope,omitempty"`
+	Policies         []PolicyRequest             `json:"policies,omitempty"`
+	ParticipantRefs  []string                    `json:"participantRefs,omitempty"`
+	EnvironmentRef   *string                     `json:"environmentRef,omitempty"`
+	KindRef          *string                     `json:"kindRef,omitempty"`
+	TagRefs          *[]string                   `json:"tagRefs,omitempty"`
+	Phase            *string                     `json:"phase,omitempty"`
+	Reason           *string                     `json:"reason,omitempty"`
+	RenderedPolicies []string                    `json:"renderedPolicies,omitempty"`
+	StartedAt        *string                     `json:"startedAt,omitempty"`
+	StartedBy        *string                     `json:"startedBy,omitempty"`
+	TerminatedAt     *string                     `json:"terminatedAt,omitempty"`
+	TerminatedBy     *string                     `json:"terminatedBy,omitempty"`
+	Window           *TimeRangeRequest           `json:"window,omitempty"`
+	LastUpdatedAt    *string                     `json:"lastUpdatedAt,omitempty"`
+	LastUpdatedBy    *string                     `json:"lastUpdatedBy,omitempty"`
+	Health           *string                     `json:"health,omitempty"`
+	HealthCheckedAt  *string                     `json:"healthCheckedAt,omitempty"`
+	HealthDetail     []HealthDetailRequest       `json:"healthDetail,omitempty"`
 }
 
 type PrepareProtectionPlanRequest struct {
-	Name            string            `json:"name"`
-	Description     *string           `json:"description,omitempty"`
-	Severity        string            `json:"severity"`
-	Priority        int               `json:"priority"`
-	Scope           ScopeRequest      `json:"scope"`
-	Policies        []PolicyRequest   `json:"policies"`
-	Mode            string            `json:"mode"`
-	TimeMode        string            `json:"timeMode"`
-	TimeRange       *TimeRangeRequest `json:"timeRange,omitempty"`
-	ParticipantRefs []string          `json:"participantRefs"`
-	EnvironmentRef  *string           `json:"environmentRef,omitempty"`
-	TagRefs         []string          `json:"tagRefs,omitempty"`
-	ApprovalMode    *string           `json:"approvalMode,omitempty"`
+	Name            string                      `json:"name"`
+	Description     *string                     `json:"description,omitempty"`
+	Severity        string                      `json:"severity"`
+	Priority        int                         `json:"priority"`
+	Scope           ScopeRequest                `json:"scope"`
+	Policies        []PolicyRequest             `json:"policies"`
+	Mode            string                      `json:"mode"`
+	TimeMode        string                      `json:"timeMode"`
+	TimeRange       *TimeRangeRequest           `json:"timeRange,omitempty"`
+	Repeat          *plans.ProtectionPlanRepeat `json:"repeat,omitempty"`
+	ParticipantRefs []string                    `json:"participantRefs"`
+	EnvironmentRef  *string                     `json:"environmentRef,omitempty"`
+	KindRef         *string                     `json:"kindRef,omitempty"`
+	TagRefs         []string                    `json:"tagRefs,omitempty"`
+	ApprovalMode    *string                     `json:"approvalMode,omitempty"`
 }
 
 type CancelProtectionPlanRequest struct {
@@ -159,11 +167,15 @@ type ProtectionPlanDrift struct {
 
 // RetentionWindow tells the caller how far back the underlying record reaches, so an
 // empty Violations list is read as "nothing blocked in this window" and not "nothing ever".
+// Since is set when the list covers the plan's run (window=run) and names when the run started;
+// Truncated says the run's record dropped its oldest rows at its cap.
 type ProtectionPlanViolationsResponse struct {
 	PlanID          string                    `json:"planId"`
 	Total           int                       `json:"total"`
 	RetentionWindow string                    `json:"retentionWindow"`
 	Violations      []ProtectionPlanViolation `json:"violations"`
+	Since           string                    `json:"since,omitempty"`
+	Truncated       bool                      `json:"truncated,omitempty"`
 }
 
 type ProtectionPlanViolation struct {
@@ -175,6 +187,8 @@ type ProtectionPlanViolation struct {
 	Message   string                 `json:"message"`
 	Timestamp string                 `json:"timestamp"`
 	EventUID  string                 `json:"eventUID,omitempty"`
+	// The username Kyverno saw on the refused request; empty on Events from before 0.2.0.
+	RequestedBy string `json:"requestedBy,omitempty"`
 }
 
 type ProtectionPlanResource struct {
@@ -184,10 +198,12 @@ type ProtectionPlanResource struct {
 }
 
 type DuplicateProtectionPlanRequest struct {
-	Name           *string           `json:"name,omitempty"`
-	TimeMode       *string           `json:"timeMode,omitempty"`
-	TimeRange      *TimeRangeRequest `json:"timeRange,omitempty"`
-	EnvironmentRef *string           `json:"environmentRef,omitempty"`
-	TagRefs        []string          `json:"tagRefs,omitempty"`
-	ApprovalMode   *string           `json:"approvalMode,omitempty"`
+	Name           *string                     `json:"name,omitempty"`
+	TimeMode       *string                     `json:"timeMode,omitempty"`
+	TimeRange      *TimeRangeRequest           `json:"timeRange,omitempty"`
+	Repeat         *plans.ProtectionPlanRepeat `json:"repeat,omitempty"`
+	EnvironmentRef *string                     `json:"environmentRef,omitempty"`
+	KindRef        *string                     `json:"kindRef,omitempty"`
+	TagRefs        []string                    `json:"tagRefs,omitempty"`
+	ApprovalMode   *string                     `json:"approvalMode,omitempty"`
 }

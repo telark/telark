@@ -1,6 +1,8 @@
 package update
 
 import (
+	"slices"
+
 	"github.com/telark/telark/internal/data/plans"
 	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
 )
@@ -62,6 +64,10 @@ func applyScalarPatch(
 		patch.EnvironmentRef = req.EnvironmentRef
 		changed = true
 	}
+	if req.KindRef != nil && plan.KindRef != *req.KindRef {
+		patch.KindRef = req.KindRef
+		changed = true
+	}
 	return changed
 }
 
@@ -72,8 +78,12 @@ func applyComplexPatch(
 	newPolicies []plans.ProtectionPlanPolicy,
 ) bool {
 	changed := false
-	if !timeRangeEqual(plan.TimeRange, req.TimeRange) {
+	if timeRangeChanged(plan, req) {
 		patch.TimeRange = toPatchTimeRange(req.TimeRange)
+		changed = true
+	}
+	if repeatChanged(plan, req) {
+		patch.Repeat = req.Repeat
 		changed = true
 	}
 	if !scopeTargetsEqual(plan.Scope, req.Scope) || exclusionsChanged(plan.Scope, req.Scope) {
@@ -111,8 +121,27 @@ func MaterialChange(
 		!scopeTargetsEqual(plan.Scope, req.Scope) ||
 		plan.Mode != req.Mode ||
 		plan.TimeMode != req.TimeMode ||
-		!timeRangeEqual(plan.TimeRange, req.TimeRange) ||
+		timeRangeChanged(plan, req) ||
+		repeatChanged(plan, req) ||
 		exclusionsChanged(plan.Scope, req.Scope)
+}
+
+// A range counts only for a time-range plan, and a rule only for a repeating one: whatever another
+// time mode left behind is ignored.
+func timeRangeChanged(plan *plans.ProtectionPlan, req *planseps.PrepareProtectionPlanRequest) bool {
+	return req.TimeMode == plans.TimeModeTimeRange && !timeRangeEqual(plan.TimeRange, req.TimeRange)
+}
+
+// Days compare in order, since validation sorts them into week order first.
+func repeatChanged(plan *plans.ProtectionPlan, req *planseps.PrepareProtectionPlanRequest) bool {
+	if req.TimeMode != plans.TimeModeRepeating {
+		return false
+	}
+	a, b := plan.Repeat, req.Repeat
+	if a == nil || b == nil {
+		return a != b
+	}
+	return !slices.Equal(a.Days, b.Days) || a.StartTime != b.StartTime || a.EndTime != b.EndTime || a.TimeZone != b.TimeZone
 }
 
 // Nil request exclusions mean untouched, like TagRefs; a non-nil value replaces them whole.

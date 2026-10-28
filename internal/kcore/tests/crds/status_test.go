@@ -94,6 +94,46 @@ func TestPatchCustomResourceStatusEmptyName(t *testing.T) {
 	assertStatus(t, t.Name(), got, http.StatusBadRequest)
 }
 
+// A compare-and-swap caller decides again on a conflict, so the write is tried exactly once.
+func TestPatchCustomResourceStatusOnce(t *testing.T) {
+	gr := schema.GroupResource{Group: TestGroup, Resource: TestPlural}
+	status := map[string]any{TestStatusKey: map[string]any{TestPhaseKey: TestPhaseActive}}
+
+	cases := []struct {
+		name        string
+		payload     map[string]any
+		patchErr    error
+		wantStatus  int
+		wantPatches int
+		wantPhase   any
+	}{
+		{"patches once", status, nil, http.StatusOK, OnePatch, TestPhaseActive},
+		{"a conflict is not retried", status, k8serrors.NewConflict(gr, TestName, nil),
+			http.StatusInternalServerError, OnePatch, nil},
+		{"an unencodable payload never reaches the server", map[string]any{TestStatusKey: make(chan int)}, nil,
+			http.StatusInternalServerError, NoPatches, nil},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := installFakeClient(t, widget(map[string]any{TestSizeKey: TestSizeValue}, nil))
+			if tc.patchErr != nil {
+				client.PrependReactor(TestVerbPatch, TestPlural, failingReactor(tc.patchErr))
+			}
+
+			got := api.PatchCustomResourceStatusOnce(widgetMetadata(nil), TestName, tc.payload)
+
+			assertStatus(t, tc.name, got, tc.wantStatus)
+			if n := countStatusPatches(client); n != tc.wantPatches {
+				t.Fatalf(ExpectedActions, tc.name, n, tc.wantPatches)
+			}
+			if phase := storedPhase(t, client); phase != tc.wantPhase {
+				t.Fatalf(ExpectedField, tc.name, TestPhaseKey, phase, tc.wantPhase)
+			}
+		})
+	}
+}
+
 func TestUpdateCustomResourceStatus(t *testing.T) {
 	client := installFakeClient(t, widget(map[string]any{TestSizeKey: TestSizeValue}, nil))
 	var sawSubresource bool

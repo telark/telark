@@ -13,11 +13,11 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from config import ANALYZER_AUTO_COOLDOWN_SEC, ANALYZER_MANUAL_COOLDOWN_SEC  # noqa: E402
-from constants import CONSUMER_GROUP, DOCUMENT_TTL_S, INFLIGHT_TTL_S, RUN_STATUS_DONE, STREAM_JOBS  # noqa: E402
+from analysis.insights import InsightStore  # noqa: E402
+from core.config import ANALYZER_AUTO_COOLDOWN_SEC, ANALYZER_MANUAL_COOLDOWN_SEC  # noqa: E402
+from core.constants import CONSUMER_GROUP, DOCUMENT_TTL_S, INFLIGHT_TTL_S, RUN_STATUS_DONE, STREAM_JOBS  # noqa: E402
+from core.models import AppInsights, Insight, LastRun  # noqa: E402
 from fakes import FakeRedis  # noqa: E402
-from insights import InsightStore  # noqa: E402
-from models import AppInsights, Insight, LastRun  # noqa: E402
 
 KEY = "analyzer:shop:api"
 
@@ -101,7 +101,7 @@ def test_update_writes_only_on_change():
 
 def test_rebuilt_document_version_never_goes_back(monkeypatch):
     # Live (X-1): a lost document restarted at version 0, so an open panel holding v5 ignored the rebuilt one.
-    monkeypatch.setattr("insights.epoch_ms", lambda: 1_790_000_000_000)
+    monkeypatch.setattr("analysis.insights.epoch_ms", lambda: 1_790_000_000_000)
 
     def bump(d):
         d.version += 1
@@ -174,7 +174,7 @@ def test_ack_job_leaves_xlen_zero():
 
 
 def test_put_updates_index_and_delete_removes(monkeypatch):
-    import insights
+    from analysis import insights
 
     fake = FakeRedis()
     calls = []

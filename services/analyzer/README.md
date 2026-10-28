@@ -85,7 +85,7 @@ insights but not the settings). The state is re-checked every `ANALYZER_CONFIG_P
   enabled, a missing model is pulled at the first config poll after start and by any run that needs
   it (the runtime needs 443 egress for pulls only). A failing pull is retried every poll; only the
   first failure in a row is logged. Only models of the license catalog (`LICENSES` in
-  `constants.py`) free for commercial use are pulled, and a pull still running after an hour is
+  `core/constants.py`) free for commercial use are pulled, and a pull still running after an hour is
   canceled. On the bundled runtime (`OLLAMA_PRUNE_MODELS`, set by the chart) the other catalog models
   except the default are deleted, once no run is using a model: before a pull, and from the config poll
   once the configured model is ready (a switch to an installed model starts no pull).
@@ -119,38 +119,43 @@ for an hour with nothing pending.
 
 ## Layout
 
+`main.py` is the only module at the root. The others sit in domain packages: `api/` (the HTTP surface),
+`analysis/` (incident runs, the setup review and the insight document), `core/` (what every package
+shares), `providers/` (the model runtime), `prompts/` and `tools/`. The Dockerfile copies each package
+folder, and `tests/test_dockerfile_cov.py` fails when one is missing from it.
+
 | Module | Role |
 |---|---|
 | `main.py` | Entry point: one uvicorn server on one event loop; the lifespan starts the worker task, the config poll and the review sweep |
-| `api_server.py` | FastAPI app: status probes, analyze, triage, runtime, runtime validate/pull, SSE events |
-| `authz.py` | Session scope check through auth-service (plus the denyable-action rule) |
-| `config.py` | Environment parsing (the only module that reads env) |
-| `constants.py` | Every literal, including the frozen contract mirrored from `internal/data` and `internal/rest` |
-| `models.py` | Pydantic mirrors of the Go contract (same JSON names) and the analyzer's own models |
-| `helpers.py` | Redis key builders (Go `DocumentKey` format), time helpers, quantities, label selectors, image references, probe signatures |
-| `exporter.py` | The only exporter client: TelarkConfig `ai` + `excludedNamespaces`, application reads, the app list, protection plans, plan environments |
-| `insights.py` | Insight document store (document + `analyzer:index`), the incident and recommendation lifecycles, triage |
-| `analyzer.py` | fast: gather + rules, narration; deep: tool loop, EMIT, fit check, wall/EMIT reserve, failure mapping |
-| `rules.py` | Fast mode's detector: candidate insights from the tool results (pure) |
-| `messages.py` | Incident sub-reasons and params, server title/summary templates, recommendation texts (pure) |
-| `review.py` | The setup review's read-only gather with a completeness flag per input family, usage samples |
-| `recommendations.py` | The 60 recommendation rules (pure) |
-| `runtime.py` | Model runtime state (absent, unreachable, model_missing, pulling, unsupported, ready), mode, pull |
-| `events.py` | In-process broadcaster: one bounded queue per SSE connection, `resync` on overflow |
-| `tools/` | The four read-only tools, their argument schemas, caps and binding |
+| `api/api_server.py` | FastAPI app: status probes, analyze, triage, runtime, runtime validate/pull, SSE events |
+| `api/authz.py` | Session scope check through auth-service (plus the denyable-action rule) |
+| `analysis/analyzer.py` | fast: gather + rules, narration; deep: tool loop, EMIT, fit check, wall/EMIT reserve, failure mapping |
+| `analysis/rules.py` | Fast mode's detector: candidate insights from the tool results (pure) |
+| `analysis/messages.py` | Incident sub-reasons and params, server title/summary templates, recommendation texts (pure) |
+| `analysis/review.py` | The setup review's read-only gather with a completeness flag per input family, usage samples |
+| `analysis/recommendations.py` | The 60 recommendation rules (pure) |
+| `analysis/insights.py` | Insight document store (document + `analyzer:index`), the incident and recommendation lifecycles, triage |
+| `core/config.py` | Environment parsing (the only module that reads env) |
+| `core/constants.py` | Every literal, including the frozen contract mirrored from `internal/data` and `internal/rest` |
+| `core/models.py` | Pydantic mirrors of the Go contract (same JSON names) and the analyzer's own models |
+| `core/helpers.py` | Redis key builders (Go `DocumentKey` format), time helpers, quantities, label selectors, image references, probe signatures |
+| `core/exporter.py` | The only exporter client: TelarkConfig `ai` + `excludedNamespaces`, application reads, the app list, protection plans, plan environments |
+| `core/events.py` | In-process broadcaster: one bounded queue per SSE connection, `resync` on overflow |
+| `core/app_logger.py` | Log formatting |
 | `providers/ollama.py` | Ollama HTTP client (tags, show, chat, streaming pull) |
+| `providers/runtime.py` | Model runtime state (absent, unreachable, model_missing, pulling, unsupported, ready), mode, pull |
 | `prompts/analyzer_prompt.py` | Deep: system prompt, user message, EMIT schema; fast: narration prompt and schema |
-| `app_logger.py` | Log formatting |
+| `tools/` | The four read-only tools, their argument schemas, caps and binding |
 | `tests/` | pytest suites (`test_*_cov.py` plus the named suites) and the shared `fakes.py` |
 
 ## Dependencies
 
-- **Runtime:** Python 3.13+ (image ships 3.14): FastAPI, uvicorn, pydantic, redis (`redis.asyncio`),
+- **Runtime:** Python 3.14: FastAPI, uvicorn, pydantic, redis (`redis.asyncio`),
   httpx, loguru, python-dotenv. Ollama and the Kubernetes API are reached with httpx; no model SDK,
   Kubernetes client or agent framework.
 - **Pins:** edit `requirements.in` (runtime) or `requirements-test.in` (test tools), never the `.txt`
   hash locks the image and CI install with `--require-hashes`. Regenerate both locks with the command in
-  their headers, runtime first (`uvx --python 3.13 --with 'click<8.3' --from pip-tools pip-compile ...`:
+  their headers, runtime first (`uvx --python 3.14 --with 'click<8.3' --from pip-tools pip-compile ...`:
   click 8.3+ writes a bogus `--no-index` into the header).
 - **Infrastructure:** Redis (job stream, insight documents, the `analyzer:index` ZSET, the `analyzer:usage`
   and `analyzer:review` hashes, in-flight and cooldown keys), Ollama.
@@ -181,7 +186,8 @@ and caps. Full reference:
 | `AUTH_SERVICE_URL` | `http://telark-auth-service:8080` | auth-service base URL |
 | `EXPORTER_SERVICE_URL` | `http://telark-exporter-service:8080` | exporter base URL |
 | `TELARK_SERVICE_TOKEN` | unset | Service token sent to exporter |
-| `CORS_ALLOWED_ORIGINS` | unset | Comma-separated origins that get CORS headers (local dev only, e.g. `http://localhost:3000`; behind nginx the UI is same-origin); empty adds none |
+| `SESSION_COOKIE_HOST_PREFIX` | unset (`false`) | Set by the chart, `true` when every passkey origin is https: the session cookie is then `__Host-telark_session` |
+| `CORS_ALLOWED_ORIGINS` | unset | Comma-separated exact origins that get CORS headers (local dev only, e.g. `http://localhost:3000`; behind nginx the UI is same-origin); empty adds none |
 | `ANALYZER_MODE` | `fast` | `fast` (rules + one narration) or `deep` (tool loop); anything else fails startup |
 | `ANALYZER_NUM_THREAD` | `2` | `options.num_thread` of every model call: the runtime's CPU limit, never above the node's vCPU |
 | `ANALYZER_NARRATE_TIMEOUT_SEC` | `45` | HTTP timeout of the fast narration |
@@ -209,7 +215,11 @@ and caps. Full reference:
 
 ## API
 
-Every route but the probes needs `X-Session-Token`; responses use the Go envelope
+Every route but the probes needs the session: the dashboard's session cookie, which `SessionCookie`
+turns into `X-Session-Token`, or that header from an API client. The cookie is `__Host-telark_session` when the
+chart sets `SESSION_COOKIE_HOST_PREFIX` (every passkey origin is https), else `telark_session`, and only that
+name is read (`SESSION_COOKIE` in `core/config.py`). A change (POST) that carries no header
+credential also needs `X-Requested-With`, else 403, as in the Go services. Responses use the Go envelope
 `{status, operation, message, data}`. A missing token, or one auth-service rejects (invalid or expired), is
 401; a suspended or deleted user, or a missing grant, is 403; auth-service unreachable is 503.
 A request body over 64 KiB is 413 before it is read (FastAPI reads the body before the session check).
@@ -226,7 +236,7 @@ outage keeps it open); a user holds at most 8 streams, the next is 429 `too_many
 | `GET` | `/api/v1/insights/events?apps=ns/name,…` (SSE) | `insights` ReadOnly or `settings` Owner |
 | `GET` | `/api/v1/insights/runtime` | `insights` ReadOnly or `settings` Owner; runs one config-poll step first, so a model saved in Settings shows at once |
 | `POST` | `/api/v1/insights/runtime/validate` | `settings` Owner, denied by the `settings.controlainsights.deny` rule |
-| `POST` | `/api/v1/insights/runtime/pull` | `settings` Owner, denied by the `settings.controlainsights.deny` rule; 400 `model_not_allowed` for a model outside the license catalog (`LICENSES` in `constants.py`) or not free for commercial use |
+| `POST` | `/api/v1/insights/runtime/pull` | `settings` Owner, denied by the `settings.controlainsights.deny` rule; 400 `model_not_allowed` for a model outside the license catalog (`LICENSES` in `core/constants.py`) or not free for commercial use |
 
 Triage `action` is `acknowledge`, `dismiss` or `reopen`. `dismiss` is for recommendations only and
 holds while the card's facts are unchanged; a change, a resolve or `reopen` clears it. Acknowledging a

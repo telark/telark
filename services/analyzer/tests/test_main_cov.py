@@ -23,18 +23,15 @@ from redis import ConnectionError as RedisConnectionError
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import analyzer  # noqa: E402
-import constants  # noqa: E402
-import exporter  # noqa: E402
 import main  # noqa: E402
-import review  # noqa: E402
+from analysis import analyzer, review  # noqa: E402
+from core import constants, exporter  # noqa: E402
 
 REVIEW_AFTER_RUN = main._review_after_run
-from config import ANALYZER_CONFIG_POLL_SEC  # noqa: E402
-from constants import CONSUMER_GROUP, JOB_MAX_AGE_S, STREAM_JOBS  # noqa: E402
-from fakes import FakeOllama, FakeRedis  # noqa: E402
-from insights import insight_id  # noqa: E402
-from models import (  # noqa: E402
+from analysis.insights import insight_id  # noqa: E402
+from core.config import ANALYZER_CONFIG_POLL_SEC  # noqa: E402
+from core.constants import CONSUMER_GROUP, JOB_MAX_AGE_S, STREAM_JOBS  # noqa: E402
+from core.models import (  # noqa: E402
     AnalyzerConfig,
     AppInsights,
     Candidate,
@@ -44,6 +41,7 @@ from models import (  # noqa: E402
     LastRun,
     Outcome,
 )
+from fakes import FakeOllama, FakeRedis  # noqa: E402
 from tools.k8s_tools import K8s  # noqa: E402
 
 ON = AnalyzerConfig(enabled=True, model="qwen3:4b", autoAnalyze=True)
@@ -259,7 +257,7 @@ def test_auto_cooldown(monkeypatch):
 
 
 def test_no_pull_when_disabled(monkeypatch):
-    monkeypatch.setattr("runtime.OLLAMA_AUTO_PULL", True)
+    monkeypatch.setattr("providers.runtime.OLLAMA_AUTO_PULL", True)
     monkeypatch.setattr(exporter, "refresh", lambda client: asyncio.sleep(0))
     ollama = FakeOllama(models=())
     env = Env(monkeypatch, cfg=AnalyzerConfig(enabled=False), ollama=ollama)
@@ -617,7 +615,7 @@ def test_config_poll_survives_errors(monkeypatch):
     (True, ("qwen3:4b",), 0, "ready"),
 ])
 def test_config_poll_pulls_a_missing_model_once(monkeypatch, auto_pull, installed, pulls, state):
-    monkeypatch.setattr("runtime.OLLAMA_AUTO_PULL", auto_pull)
+    monkeypatch.setattr("providers.runtime.OLLAMA_AUTO_PULL", auto_pull)
     monkeypatch.setattr(exporter, "refresh", lambda client: asyncio.sleep(0))
     ollama = FakeOllama(models=installed)
     env = Env(monkeypatch, ollama=ollama)
@@ -787,7 +785,7 @@ def test_fast_run_writes_twice_and_finishes(monkeypatch):
 
 
 def test_fast_run_not_ready_still_writes_cards(monkeypatch):
-    monkeypatch.setattr("runtime.OLLAMA_AUTO_PULL", True)
+    monkeypatch.setattr("providers.runtime.OLLAMA_AUTO_PULL", True)
     env = _fast(monkeypatch, ollama=FakeOllama(models=()))
     env.add("manual")
     env.consume()
@@ -880,7 +878,7 @@ def test_fast_worker_runs_while_pulling(monkeypatch):
 def test_run_logs_timings(monkeypatch):
     lines = []
     monkeypatch.setattr(main, "logger", SimpleNamespace(info=lambda msg, *args: lines.append(msg.format(*args))))
-    monkeypatch.setattr("runtime.OLLAMA_AUTO_PULL", False)
+    monkeypatch.setattr("providers.runtime.OLLAMA_AUTO_PULL", False)
     env = _fast(monkeypatch)
     msg = env.add("manual")
     env.consume()

@@ -62,8 +62,8 @@ func stubExporter(t *testing.T, patchStatus int) {
 
 func clusterWithPolicy() *dynamicfake.FakeDynamicClient {
 	pol := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kyverno.io/v1",
-		"kind":       "Policy",
+		"apiVersion": protpolicies.KyvernoPolicyGVR.GroupVersion().String(),
+		"kind":       dpolicies.PolicyKind,
 		"metadata": map[string]any{
 			"name":      policyName,
 			"namespace": planNS,
@@ -71,7 +71,9 @@ func clusterWithPolicy() *dynamicfake.FakeDynamicClient {
 		},
 	}}
 	return dynamicfake.NewSimpleDynamicClientWithCustomListKinds(
-		runtime.NewScheme(), map[schema.GroupVersionResource]string{protpolicies.KyvernoPolicyGVR: "PolicyList"}, pol,
+		runtime.NewScheme(), map[schema.GroupVersionResource]string{
+			protpolicies.KyvernoPolicyGVR: "NamespacedValidatingPolicyList",
+		}, pol,
 	)
 }
 
@@ -100,4 +102,17 @@ func TestCancelPatchesPhaseBeforeCleanup(t *testing.T) {
 			testutil.Equal(t, "policy present", getErr == nil, c.wantPolicy)
 		})
 	}
+}
+
+func TestClearRemovesThePlansPolicies(t *testing.T) {
+	stubExporter(t, http.StatusOK)
+	dyn := clusterWithPolicy()
+	applier := protpolicies.NewApplier(dyn, meta.NewDefaultRESTMapper(nil))
+	svc := protection.NewService(applier, nil, clients.NewProtectionPlanClient(), dyn, nil, nil, nopLogger{}, nil)
+
+	if err := svc.Clear(context.Background(), planID, true); err != nil {
+		t.Fatalf("clear: %v", err)
+	}
+	_, getErr := dyn.Resource(protpolicies.KyvernoPolicyGVR).Namespace(planNS).Get(context.Background(), policyName, metav1.GetOptions{})
+	testutil.Equal(t, "policy removed", getErr != nil, true)
 }

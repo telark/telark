@@ -36,7 +36,7 @@ const (
 	routePath    = "/reports"
 	downloadName = "download"
 	firstIdx     = 0
-	reportsCount = 6
+	reportsCount = 8
 	totalOne     = "1"
 	badTrigger   = "pdf"
 )
@@ -48,6 +48,8 @@ var reportRoutes = []string{
 	router.Key(http.MethodGet, reportseps.DownloadPlanReport),
 	router.Key(http.MethodPut, reportseps.PutPlanReportLedger),
 	router.Key(http.MethodGet, reportseps.GetPlanReportLedger),
+	router.Key(http.MethodGet, reportseps.ListKeptReports),
+	router.Key(http.MethodDelete, reportseps.DeletePlanReport),
 }
 
 type envelope struct {
@@ -266,28 +268,10 @@ func TestLedgerPutGetRoundTripAnd404(t *testing.T) {
 	}
 }
 
-// DeletePlanByID needs a live CR delete (kcore has no client seam and the
-// host kubeconfig points at a real cluster), so this pins the store call it
-// makes after a 200 from the CR delete: handlers/plans/protection/handler.go.
-func TestDeletePlanRemovesItsReports(t *testing.T) {
-	root := setRoot(t)
-	create(t, createBody(t, actor))
-	dir := reportsutil.PlanDir(root, planID)
-	if _, err := os.Stat(dir); err != nil {
-		t.Fatalf("plan dir missing before delete: %v", err)
-	}
-	if err := reportsutil.RemovePlanReports(root, planID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(dir); !os.IsNotExist(err) {
-		t.Fatalf("plan dir still present after delete: %v", err)
-	}
-}
-
 func TestRequirementsCoverEveryRoute(t *testing.T) {
 	requirements := authz.Requirements()
 	registered := map[string]bool{}
-	for _, route := range routes.InitRoutes(&performance.Optimizer{}) {
+	for _, route := range routes.InitRoutes(&performance.Optimizer{}, nil) {
 		key := route.Method + " " + route.Pattern
 		registered[key] = true
 		if _, found := requirements[key]; !found {

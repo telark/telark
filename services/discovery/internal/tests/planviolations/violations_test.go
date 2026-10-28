@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/telark/telark/internal/data/plans"
 	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
 	"github.com/telark/telark/services/discovery/internal/constants"
 	"github.com/telark/telark/services/discovery/internal/core/plans/protection/violations"
@@ -27,6 +28,14 @@ const (
 	fieldCount      = "count"
 	blockRule       = "block-pvc-mutation"
 	eventTimestamp  = "2026-09-19T12:11:33Z"
+	// A requester that did not come from a policy's message expression.
+	unquotedRequester = " (requested by someone)"
+	brokenRequester   = ` (requested by "a\q")`
+	resultFail        = "fail"
+	requester         = "test@example.com"
+	stampEarly        = "2026-09-19T12:00:00Z"
+	stampMiddle       = "2026-09-19T12:00:01Z"
+	stampLate         = "2026-09-19T12:00:02Z"
 )
 
 var eventGVR = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "events"}
@@ -43,8 +52,8 @@ func violationEvent(name, policy, message, eventTime string) *unstructured.Unstr
 		fieldMessage:    message,
 		"eventTime":     eventTime,
 		"involvedObject": map[string]any{
-			fieldAPIVersion: "kyverno.io/v1",
-			fieldKind:       "Policy",
+			fieldAPIVersion: "policies.kyverno.io/v1",
+			fieldKind:       "NamespacedValidatingPolicy",
 			fieldName:       policy,
 			fieldNamespace:  planNS,
 		},
@@ -59,6 +68,14 @@ func violationEvent(name, policy, message, eventTime string) *unstructured.Unstr
 
 func blockedMessage(rule, detail string) string {
 	return "PersistentVolumeClaim " + planNS + "/bindcheck: [" + rule + "] fail (blocked); " + detail
+}
+
+// Kyverno 1.19 sends CEL policy results with no rule name, and later releases with "validation".
+func celBlockedMessage(rule, detail string) string {
+	if rule == constants.EmptyString {
+		return "PersistentVolumeClaim " + planNS + "/bindcheck: fail (blocked); " + detail
+	}
+	return blockedMessage(rule, detail)
 }
 
 func fakeDyn(objs ...runtime.Object) *dynamicfake.FakeDynamicClient {
@@ -97,7 +114,7 @@ func TestCollectReadsBlockedAdmissionEvents(t *testing.T) {
 	testutil.Equal(t, fieldCount, len(got), constants.DefaultAddValue)
 	testutil.Equal(t, "policy", got[0].Policy, planPolicy)
 	testutil.Equal(t, "rule", got[0].Rule, blockRule)
-	testutil.Equal(t, "result", got[0].Result, "fail")
+	testutil.Equal(t, "result", got[0].Result, resultFail)
 	testutil.Equal(t, fieldMessage, got[0].Message, denyMessage)
 	testutil.Equal(t, fieldNamespace, got[0].Namespace, planNS)
 	testutil.Equal(t, "resource kind", got[0].Resource.Kind, "PersistentVolumeClaim")
@@ -125,7 +142,7 @@ func TestCollectAppliesResultFilter(t *testing.T) {
 		eventTimestamp,
 	))
 
-	testutil.Equal(t, "fail kept", len(collect(t, dyn, "fail")), constants.DefaultAddValue)
+	testutil.Equal(t, "fail kept", len(collect(t, dyn, resultFail)), constants.DefaultAddValue)
 	testutil.Equal(t, "warn dropped", len(collect(t, dyn, "warn")), constants.DefaultInitValue)
 }
 
@@ -144,15 +161,70 @@ func TestCollectFallsBackToRawMessage(t *testing.T) {
 // Total must count everything that matched, not what survived the page cap.
 func TestPageReportsTotalBeforeCap(t *testing.T) {
 	entries := []planseps.ProtectionPlanViolation{
-		{Timestamp: "2026-09-19T12:00:00Z"},
-		{Timestamp: "2026-09-19T12:00:02Z"},
-		{Timestamp: "2026-09-19T12:00:01Z"},
+		{Timestamp: stampEarly},
+		{Timestamp: stampLate},
+		{Timestamp: stampMiddle},
 	}
 
 	total, page := violations.Page(entries, constants.TwoValue)
 
 	testutil.Equal(t, "total", total, constants.ThreeValue)
 	testutil.Equal(t, "page size", len(page), constants.TwoValue)
-	testutil.Equal(t, "newest first", page[0].Timestamp, "2026-09-19T12:00:02Z")
-	testutil.Equal(t, "second newest", page[1].Timestamp, "2026-09-19T12:00:01Z")
+	testutil.Equal(t, "newest first", page[0].Timestamp, stampLate)
+	testutil.Equal(t, "second newest", page[1].Timestamp, stampMiddle)
+}
+
+// The policy's message expression appends the requester, quoted so it reads back exactly; Events
+// from older policies have no requester and keep their whole message.
+func TestCollectReadsTheRequester(t *testing.T) {
+	cases := []struct {
+		name, rule, detail, wantMessage, wantRequester string
+	}{
+		{"no rule name", constants.EmptyString, denyMessage + ` (requested by "` + requester + `")`, denyMessage, requester},
+		{"validation rule name", "validation", denyMessage + ` (requested by "system:serviceaccount:ci:deployer")`, denyMessage,
+			"system:serviceaccount:ci:deployer"},
+		{"quoted characters", constants.EmptyString, denyMessage + ` (requested by "a\"b) (requested by \\c")`, denyMessage,
+			`a"b) (requested by \c`},
+		{"older policy", blockRule, denyMessage, denyMessage, constants.EmptyString},
+		{"not quoted", constants.EmptyString, denyMessage + unquotedRequester, denyMessage + unquotedRequester, constants.EmptyString},
+		{"broken quoting", constants.EmptyString, denyMessage + brokenRequester, denyMessage + brokenRequester, constants.EmptyString},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			event := violationEvent("evt-5", planPolicy, celBlockedMessage(c.rule, c.detail), eventTimestamp)
+			got := collect(t, fakeDyn(event), constants.EmptyString)
+			testutil.Equal(t, fieldCount, len(got), constants.DefaultAddValue)
+			testutil.Equal(t, "result", got[0].Result, resultFail)
+			testutil.Equal(t, "rule", got[0].Rule, c.rule)
+			testutil.Equal(t, fieldMessage, got[0].Message, c.wantMessage)
+			testutil.Equal(t, "requested by", got[0].RequestedBy, c.wantRequester)
+		})
+	}
+}
+
+// The run window pages the ledger's rows with the same filter and cap as the live list, says when
+// the run started, and passes on that the ledger dropped its oldest rows.
+func TestRunResponseCoversTheRun(t *testing.T) {
+	started := "2026-09-19T10:00:00Z"
+	plan := &plans.ProtectionPlan{ID: "pp-run", StartedAt: &started}
+	rows := []planseps.ProtectionPlanViolation{
+		{Timestamp: stampEarly, Result: resultFail},
+		{Timestamp: stampLate, Result: resultFail, RequestedBy: requester},
+		{Timestamp: stampMiddle, Result: "warn"},
+	}
+
+	resp := violations.RunResponse(plan, rows, true, violations.Query{Limit: constants.DefaultAddValue, Result: resultFail})
+
+	testutil.Equal(t, "plan", resp.PlanID, plan.ID)
+	testutil.Equal(t, "total", resp.Total, constants.TwoValue)
+	testutil.Equal(t, "page", len(resp.Violations), constants.DefaultAddValue)
+	testutil.Equal(t, "newest first", resp.Violations[0].RequestedBy, requester)
+	testutil.Equal(t, "since", resp.Since, started)
+	testutil.Equal(t, "truncated", resp.Truncated, true)
+	testutil.Equal(t, "retention", resp.RetentionWindow, violations.RetentionWindow)
+	testutil.Equal(t, "rows untouched", rows[0].Timestamp, stampEarly)
+
+	unstarted := violations.RunResponse(&plans.ProtectionPlan{ID: "pp-new"}, nil, false, violations.Query{})
+	testutil.Equal(t, "no run, no since", unstarted.Since, constants.EmptyString)
+	testutil.Equal(t, "no run, no rows", unstarted.Total, constants.DefaultInitValue)
 }

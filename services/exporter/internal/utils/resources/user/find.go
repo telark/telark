@@ -33,8 +33,8 @@ func listUsers() (*unstructured.UnstructuredList, error) {
 	return list, nil
 }
 
-// Administrators and hidden users are named too: audit actors are shown to every viewer.
-func UsernamesByID(ids []string) (map[string]string, error) {
+// Administrators and hidden users are named too: audit actors are shown to every viewer. mask sees each record first.
+func UsernamesByID(ids []string, mask func(*unstructured.Unstructured)) (map[string]string, error) {
 	list, err := listUsers()
 	if err != nil {
 		return nil, err
@@ -43,6 +43,7 @@ func UsernamesByID(ids []string) (map[string]string, error) {
 	names := make(map[string]string, len(ids))
 	for i := range list.Items {
 		id := list.Items[i].GetName()
+		mask(&list.Items[i])
 		spec, exists := list.Items[i].Object[constants.SpecField].(map[string]any)
 		if !exists || !slices.Contains(ids, id) {
 			continue

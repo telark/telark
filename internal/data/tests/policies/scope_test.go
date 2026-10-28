@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
+	policiesv1 "github.com/kyverno/api/api/policies.kyverno.io/v1"
 	"github.com/telark/telark/internal/data/constants"
 	"github.com/telark/telark/internal/data/plans"
 	"github.com/telark/telark/internal/data/policies"
@@ -42,7 +42,7 @@ func appPlan(mode string) *plans.ProtectionPlan {
 	}
 }
 
-func policyNamespaces(rendered []kyvernov1.Policy) []string {
+func policyNamespaces(rendered []policiesv1.NamespacedValidatingPolicy) []string {
 	out := make([]string, constants.DefaultInitValue, len(rendered))
 	for i := range rendered {
 		out = append(out, rendered[i].Namespace)
@@ -65,10 +65,8 @@ func TestRenderCoversEveryApplicationNamespace(t *testing.T) {
 		t.Fatalf("both policies share the name %q", first.Name)
 	}
 	for i := range rendered {
-		for _, f := range rendered[i].Spec.Rules[constants.DefaultInitValue].MatchResources.Any {
-			if slices.Contains(f.Kinds, kindDeployment) && rendered[i].Namespace != planNamespace {
-				t.Fatalf("Deployment of %s matched in %s", planNamespace, rendered[i].Namespace)
-			}
+		if ruleFor(&rendered[i], "deployments") != nil && rendered[i].Namespace != planNamespace {
+			t.Fatalf("Deployment of %s matched in %s", planNamespace, rendered[i].Namespace)
 		}
 	}
 }
@@ -93,10 +91,14 @@ func TestRenderHashFollowsContent(t *testing.T) {
 	}
 }
 
-func TestPlatformExcludeCoversKyvernoReports(t *testing.T) {
-	exclude := policies.ExcludePlatformWrites()
-	if !slices.Contains(exclude.Any[0].Kinds, kindPolicyReport) {
-		t.Fatalf("platform exclude kinds = %v, want %s", exclude.Any[0].Kinds, kindPolicyReport)
+// Kyverno's reports controller and the platform's own policy writes must never be refused.
+func TestPlatformExcludeCoversKyvernoReportsAndPolicies(t *testing.T) {
+	pol := renderOne(t, tplBlockUpdate, nil, namespaceScope())
+	got := condition(pol, policies.ConditionNotPlatform)
+	for _, kind := range []string{kindPolicyReport, policies.PolicyKind, "Policy"} {
+		if !strings.Contains(got, `"`+kind+`"`) {
+			t.Errorf("platform condition %q does not skip %s", got, kind)
+		}
 	}
 }
 
@@ -119,8 +121,8 @@ func TestAuditMessageWording(t *testing.T) {
 			t.Fatalf("%s: render: %v", tpl.ID, err)
 		}
 		for i := range rendered {
-			for _, rule := range rendered[i].Spec.Rules {
-				msg := rule.Validation.Message
+			for _, v := range rendered[i].Spec.Validations {
+				msg := v.Message
 				if !strings.Contains(msg, auditWording) || strings.Contains(msg, "is"+blockedWording) || strings.Contains(msg, "are"+blockedWording) {
 					t.Errorf("%s audit message %q is not worded for audit", tpl.ID, msg)
 				}

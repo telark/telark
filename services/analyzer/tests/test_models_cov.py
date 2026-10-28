@@ -12,8 +12,8 @@ from pydantic import ValidationError
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from constants import DEFAULT_ANALYZER_MODEL  # noqa: E402
-from models import (  # noqa: E402
+from core.constants import DEFAULT_ANALYZER_MODEL  # noqa: E402
+from core.models import (  # noqa: E402
     AnalyzeResponse,
     AnalyzerConfig,
     AppInsights,

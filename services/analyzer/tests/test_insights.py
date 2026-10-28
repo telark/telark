@@ -15,9 +15,9 @@ from pydantic import ValidationError
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import insights  # noqa: E402
-import models  # noqa: E402
-from models import AppInsights, EvidenceRef, Insight, LastRun, Run  # noqa: E402
+from analysis import insights  # noqa: E402
+from core import models  # noqa: E402
+from core.models import AppInsights, EvidenceRef, Insight, LastRun, Run  # noqa: E402
 
 NOW = "2026-09-23T12:00:00Z"
 EARLIER = "2026-09-23T10:00:00Z"
@@ -382,7 +382,7 @@ def test_merge_sets_incident_category_reason_params():
 # ---- recommendations lifecycle (D14), triage (D15), category scoping (S10) -------------------------------------
 from dataclasses import dataclass, field as dc_field  # noqa: E402
 
-from models import InsightTriage  # noqa: E402
+from core.models import InsightTriage  # noqa: E402
 
 REC_NOW, LATER = "2026-09-24T12:00:00Z", "2026-09-24T14:00:00Z"
 

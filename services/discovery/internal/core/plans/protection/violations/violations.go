@@ -3,6 +3,7 @@ package violations
 import (
 	"context"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,7 +21,7 @@ import (
 )
 
 const (
-	checkTimeoutSeconds = 20
+	CheckTimeoutSeconds = 20
 	defaultLimit        = 50
 	maxLimit            = 200
 
@@ -34,11 +35,18 @@ const (
 	RetentionWindow         = "1h"
 	RetentionWindowDuration = time.Hour
 
+	// WindowRun asks for the plan's whole run: the reports' ledger plus the live Events.
+	WindowRun = "run"
+
 	resourceSeparator = ": "
 	detailSeparator   = "; "
 	ruleOpen          = "["
 	ruleClose         = "] "
 	blockedSuffix     = " (blocked)"
+	// Kyverno's PolicyViolation Event carries no requester, so the policy's message appends it.
+	requesterOpen  = " (requested by "
+	requesterQuote = `"`
+	requesterClose = ")"
 
 	fieldMessage   = "message"
 	fieldRelated   = "related"
@@ -61,6 +69,7 @@ var (
 type Query struct {
 	Limit  int
 	Result string
+	Window string
 }
 type Deps struct {
 	Exporter    *clients.ProtectionPlanClient
@@ -80,7 +89,7 @@ func List(
 	}
 	limit := normalizeLimit(query.Limit)
 
-	listCtx, cancel := context.WithTimeout(ctx, time.Duration(checkTimeoutSeconds)*time.Second)
+	listCtx, cancel := context.WithTimeout(ctx, time.Duration(CheckTimeoutSeconds)*time.Second)
 	defer cancel()
 
 	namespaces, err := resolvePlanNamespaces(listCtx, deps, plan)
@@ -100,6 +109,30 @@ func List(
 		RetentionWindow: RetentionWindow,
 		Violations:      page,
 	}, nil
+}
+
+// RunResponse pages the rows of the plan's run, a list whose window opens when the run started.
+func RunResponse(
+	plan *plans.ProtectionPlan,
+	rows []planseps.ProtectionPlanViolation,
+	truncated bool,
+	query Query,
+) *planseps.ProtectionPlanViolationsResponse {
+	rows = slices.DeleteFunc(slices.Clone(rows), func(v planseps.ProtectionPlanViolation) bool {
+		return query.Result != constants.EmptyString && v.Result != query.Result
+	})
+	total, page := Page(rows, normalizeLimit(query.Limit))
+	resp := &planseps.ProtectionPlanViolationsResponse{
+		PlanID:          plan.ID,
+		Total:           total,
+		RetentionWindow: RetentionWindow,
+		Violations:      page,
+		Truncated:       truncated,
+	}
+	if plan.StartedAt != nil {
+		resp.Since = *plan.StartedAt
+	}
+	return resp
 }
 
 // Page sorts newest-first and caps the result. Total counts what matched, not what fit in
@@ -202,21 +235,37 @@ func buildViolation(
 	if _, match := rendered[policyName]; !match {
 		return planseps.ProtectionPlanViolation{}, false
 	}
-	rule, result, message := parseMessage(nestedString(event, fieldMessage))
+	rule, result, detail := parseMessage(nestedString(event, fieldMessage))
 	if resultFilter != constants.EmptyString && result != resultFilter {
 		return planseps.ProtectionPlanViolation{}, false
 	}
+	message, requestedBy := splitRequester(detail)
 	resource := readRelated(event)
 	return planseps.ProtectionPlanViolation{
-		Policy:    policyName,
-		Rule:      rule,
-		Namespace: resource.Namespace,
-		Resource:  resource,
-		Result:    result,
-		Message:   message,
-		Timestamp: readTimestamp(event),
-		EventUID:  string(event.GetUID()),
+		Policy:      policyName,
+		Rule:        rule,
+		Namespace:   resource.Namespace,
+		Resource:    resource,
+		Result:      result,
+		Message:     message,
+		Timestamp:   readTimestamp(event),
+		EventUID:    string(event.GetUID()),
+		RequestedBy: requestedBy,
 	}, true
+}
+
+// The policy quotes the username Go's way, so it reads back exactly and its own quotes are always
+// escaped. A message without it (an Event from an older policy) keeps its text and names no requester.
+func splitRequester(detail string) (message, requestedBy string) {
+	at := strings.LastIndex(detail, requesterOpen+requesterQuote)
+	if at < constants.DefaultInitValue || !strings.HasSuffix(detail, requesterClose) {
+		return detail, constants.EmptyString
+	}
+	user, err := strconv.Unquote(strings.TrimSuffix(detail[at+len(requesterOpen):], requesterClose))
+	if err != nil {
+		return detail, constants.EmptyString
+	}
+	return detail[:at], user
 }
 
 // Kyverno formats a blocked admission as "<Kind> <ns>/<name>: [<rule>] <result> (blocked); <detail>".

@@ -7,7 +7,7 @@ lists every target. Conventions are in [CONVENTIONS.md](../CONVENTIONS.md).
 
 | Tool | Needed for | Notes |
 |---|---|---|
-| Go **1.27.2** | all Go targets | the `go` line of the root `go.mod` |
+| Go **1.27.3** | all Go targets | the `go` line of the root `go.mod` |
 | `golangci-lint` **v2.14.0** | `make lint` | the version CI pins; uses the shared root `.golangci.yml` |
 | `helm` **≥ 3** (OCI) | all `helm-*` targets | |
 | `kubeconform` **v0.8.0** | `make helm-validate` | schema-validates rendered manifests |

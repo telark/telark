@@ -201,3 +201,40 @@ func TestRunKeyRequiresStartedAtAndErrorsOnGarbage(t *testing.T) {
 		t.Fatal("garbage StartedAt: expected an error")
 	}
 }
+
+// The violations endpoint's run window reads the ledger and the live Events the way a report does,
+// and a read must never write the ledger.
+func TestRunLedgerMergesWithoutWriting(t *testing.T) {
+	store := mergedFixture(t)
+	gen, _ := newGen(store, liveDyn(), nil)
+
+	ledger, err := gen.RunLedger(context.Background(), activePlan())
+	if err != nil {
+		t.Fatalf("run ledger: %v", err)
+	}
+
+	testutil.Equal(t, nameDocRows, len(ledger.Violations), mergedRows)
+	puts, creates, _ := store.snapshot()
+	testutil.Equal(t, namePuts, len(puts), zero)
+	testutil.Equal(t, nameCreates, len(creates), zero)
+}
+
+// The cap dropped rows on an earlier checkpoint, so a later merge that fits must keep saying so,
+// or the final report loses its cap note.
+func TestCheckpointKeepsTheTruncatedFlag(t *testing.T) {
+	stored := ledgerBytes(t, reports.PlanReportLedger{
+		PlanID: planID, Run: runKey, RenderedPolicies: []string{planPolicy}, Truncated: true,
+		Violations: []planseps.ProtectionPlanViolation{row(uidOne, stamp(startedAt, afterOne), "kept")},
+	})
+	store := &fakeStore{stored: stored}
+	gen, _ := newGen(store, liveDyn(), nil)
+
+	ledger, err := gen.Checkpoint(context.Background(), activePlan())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testutil.Equal(t, nameTruncated, ledger.Truncated, true)
+	puts, _, _ := store.snapshot()
+	testutil.Equal(t, "persisted flag", decodeLedger(t, puts[zero]).Truncated, true)
+}

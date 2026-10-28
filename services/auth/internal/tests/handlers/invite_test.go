@@ -145,8 +145,8 @@ func finishWith(t *testing.T, challenge, rpID string) *httptest.ResponseRecorder
 	return rec
 }
 
-// Redis holds only the digest of a link, both keys live as long as the link (an hour
-// unless the chart says otherwise), and the user record shows who issued it until when.
+// Redis holds only the digest of a link, with its account in an entry auth signed, both keys live as long as the
+// link (an hour unless the chart says otherwise), and the user record shows who issued it until when.
 func TestInviteLinkStoresOnlyTheDigest(t *testing.T) {
 	cases := []struct {
 		name string
@@ -164,10 +164,7 @@ func TestInviteLinkStoresOnlyTheDigest(t *testing.T) {
 			link := issueLink(t, plainTargetID, usersOwner())
 			digest := tokenDigest(link.Token)
 
-			owner, err := redisServer.Get(inviteKeyPrefix + digest)
-			if err != nil || owner != plainTargetID {
-				t.Fatalf("link key = %q (%v), want %q", owner, err, plainTargetID)
-			}
+			expectSignedEntry(t, inviteKeyPrefix+digest, plainTargetID)
 			pointer, err := redisServer.Get(inviteOfKeyPrefix + plainTargetID)
 			if err != nil || pointer != digest {
 				t.Fatalf("per-user key = %q (%v), want the digest", pointer, err)
@@ -190,12 +187,15 @@ func TestInviteLinkStoresOnlyTheDigest(t *testing.T) {
 	}
 }
 
+// Redis holds neither the raw token nor the service token that signs its entries.
 func expectNoRawToken(t *testing.T, token string) {
 	t.Helper()
 	for _, key := range redisServer.Keys() {
 		value, _ := redisServer.Get(key)
-		if strings.Contains(key, token) || strings.Contains(value, token) {
-			t.Fatalf("raw token stored in Redis under %q", key)
+		for _, secret := range []string{token, testServiceToken} {
+			if strings.Contains(key, secret) || strings.Contains(value, secret) {
+				t.Fatalf("secret stored in Redis under %q", key)
+			}
 		}
 	}
 }
@@ -317,6 +317,19 @@ func TestRecoveryLinksNoticeTheAccount(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The bootstrap account's name reaches nobody else: its link notice names the role, not the person.
+func TestRecoveryLinkNoticeMasksABootstrapIssuer(t *testing.T) {
+	fake := inviteDirectory()
+	fake.Users[adminCallID].Bootstrap = true
+	testutil.StubBackend(t, fake)
+	issueLink(t, enrolledTargetID, adminOnAll())
+
+	notices := fake.Notices()
+	testutil.Equal(t, "notices", len(notices), constants.DefaultIncrementValue)
+	testutil.Equal(t, "hides the name", strings.Contains(notices[0].Message, adminFullname), false)
+	testutil.Equal(t, "names the role", strings.Contains(notices[0].Message, string(constants.NoticeIssuerBootstrap)), true)
 }
 
 // Enrolling through the link ends the invite: the pending marker gives way to the time it was used,

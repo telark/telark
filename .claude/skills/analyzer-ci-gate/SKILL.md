@@ -23,7 +23,7 @@ python3 -m venv "$VENV"
 
 ## What to check
 
-- The stub-based suites (`tests/test_*_cov.py`) replace `sys.modules` entries at import, so they run in their own process, apart from the suites that use real dependencies; `--cov-append` then combines both into one coverage gate. Running them in one pytest process cross-pollutes the results.
+- The stub-based suites (`tests/test_*_cov.py`) run in their own process, apart from the suites that use real dependencies; `--cov-append` then combines both into one coverage gate. The split is historical: no suite replaces `sys.modules` entries, and one pytest process gives the same result.
 - New `test_*_cov.py` files are picked up by the glob. A new real-dependency suite only runs in CI once it's added to the explicit list in `ci.yaml`.
 - Raise the coverage floor as coverage improves; never lower it.
 - Review the change against the analyzer constraints in `AGENTS.md` (open-weight models only, no API keys, answers in seconds on small CPU nodes); tests don't check those.

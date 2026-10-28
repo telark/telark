@@ -160,7 +160,7 @@ func GuardUserCreate(w http.ResponseWriter, r *http.Request, body map[string]any
 	}
 
 	if identity.Internal {
-		return true
+		return GuardBootstrapMarker(w, nil, body)
 	}
 
 	if _, present := body[constants.FieldBootstrap]; present {
@@ -718,6 +718,7 @@ var categoryRequirements = map[string]map[string]xauthz.Requirement{
 	},
 	categorydata.ScopePlanEnvironments: planCategoryRequirements,
 	categorydata.ScopePlanTags:         planCategoryRequirements,
+	categorydata.ScopePlanKinds:        planCategoryRequirements,
 }
 
 var planCategoryRequirements = map[string]xauthz.Requirement{
@@ -774,6 +775,8 @@ var configFields = map[string]xauthz.Requirement{
 	// Who can authenticate: auth is the single writer and lets only the bootstrap account change these.
 	telarkconfig.FieldOIDC:             xauthz.Internal,
 	telarkconfig.FieldSelfRegistration: xauthz.Internal,
+	// Who hears of break-glass requests: auth writes it for the bootstrap account alone.
+	telarkconfig.FieldBreakGlassAlerts: xauthz.Internal,
 }
 
 // A patch touching no governed field still answers with the whole config, so

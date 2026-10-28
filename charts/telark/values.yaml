@@ -1,45 +1,22 @@
-# telark — Helm chart values. Full per-key reference: ./README.md
-#
-# Layout:  app.*            app-wide config (identity, images, auth, storage,
-#                           shared pod fragments).
-#          services.<svc>   per-workload blocks; inherit app.serviceDefaults and
-#                           opt into shared fragments via gates.
-#          Subcharts        bottom of this file. Service sizing: app.mode.
-#
-# Conventions: keys camelCase; container env keys SCREAMING_SNAKE_CASE.
-# Gates (per service, defaults): includeResources / includeHealthCheck /
-#   includeSecurity / useRedis = true, useNatsCreds = false.
-# storageClass: "" = cluster default · "-" = disable provisioning · "<name>" = that class.
+# telark chart values; every key is described in ./README.md. Keys are camelCase, env keys SCREAMING_SNAKE_CASE.
+# app.mode sizes the services (modes/*.yaml). Each services.<svc> inherits app.serviceDefaults, and its gates opt it
+#   into the app.shared fragments. The subcharts at the bottom ignore app.mode: Helm resolves their values before it.
+# storageClass: "" is the cluster default, "-" disables provisioning, "<name>" picks that class.
 
-# global: propagated to subcharts.
 global:
   imagePullSecrets: []
 
-# app.name is the source of truth for the app identity. These override the name
-# used for rendered resources without touching app.name.
+# Rename the rendered resources; app.name stays the identity.
 nameOverride: ""
 fullnameOverride: ""
 
-# Added to the metadata of every rendered resource.
 commonLabels: {}
 commonAnnotations: {}
 
-# CRDs ship with the chart (telark-crds subchart) — one install covers everything.
-# Disable for out-of-band/GitOps management; every CRD carries resource-policy:keep.
+# Installs the CRD definitions; false when GitOps applies them. app.security.crdGuard guards writes either way.
 crds:
   enabled: true
 
-# Prometheus-Operator ServiceMonitor for each service's /metrics. Off by default
-# (needs the Operator CRDs). labels must match your Prometheus serviceMonitorSelector.
-monitoring:
-  serviceMonitor:
-    enabled: false
-    path: /metrics
-    interval: 30s
-    labels: {}
-
-# Ingress for the dashboard (the ui service). Off by default — else reach it via
-# kubectl port-forward. Set className + host for your controller; add tls for HTTPS.
 ingress:
   enabled: false
   className: ""            # e.g. nginx
@@ -50,8 +27,7 @@ ingress:
   annotations: {}
   tls: []                  # [{ secretName: telark-tls, hosts: [telark.example.com] }]
 
-# Gateway API alternative to the Ingress: an HTTPRoute for the dashboard attached to a
-# Gateway you already run. Needs Gateway API v1 CRDs + a controller implementing HTTPRoute.
+# HTTPRoute alternative to the Ingress, attached to a Gateway you run (needs the Gateway API v1 CRDs).
 gateway:
   enabled: false
   parentRefs: []           # [{ name: <gateway>, namespace: <ns>, sectionName: <listener> }]
@@ -59,33 +35,29 @@ gateway:
   service: ui              # services.<key> to route to (the dashboard)
   annotations: {}
 
+# Needs the Prometheus Operator CRDs. labels must match your Prometheus serviceMonitorSelector.
+monitoring:
+  serviceMonitor:
+    enabled: false
+    path: /metrics
+    interval: 30s
+    labels: {}
+
 app:
-  # Identity — app.name is the source of truth for every resource name.
-  name: "telark"
+  name: "telark"           # source of truth for every resource name
   namespace: "telark"
+  mode: standard           # minimal, standard (these values) or performance
 
-  # Install mode: sizes every telark service (replicas, resources, rate limits,
-  # disruption budgets) from one flag. minimal = dev/demo, a few hundred apps ·
-  # standard = the values below, verified at 2 000 apps (2026-09-18 stress run)
-  # · performance = beyond that. Override: --set app.mode=performance.
-  # Subcharts don't follow this flag (Helm resolves their values before it) — they
-  # ship production-grade defaults for every mode. See the Subcharts section.
-  mode: standard
-
-  # Container images. Full ref per service: <registry>/<service.repository>:<service.version>.
   image:
-    # Registry and namespace (GHCR org) that host the per-service repos.
     registry: "ghcr.io/telark"
-    pullPolicy: "Always"        # dev builds re-push the same tag, so never IfNotPresent
-    # Public images pull anonymously. Add pull secrets here (or via
-    # global.imagePullSecrets) only for a private registry/mirror.
+    pullPolicy: "Always"   # dev builds re-push the same tag, so never IfNotPresent
     pullSecrets: []
+    # The uninstall hooks run it: mirror it for air-gapped installs.
+    kubectl: registry.k8s.io/kubectl:v1.37.1@sha256:b7cab618e281b1ee7484e7b706a96e2135fbb6e072c2a573a7dab4e87d7f2385
 
-  # Auth service — WebAuthn relying-party identity + the bootstrap admin.
-  # Set bootstrap.admin to your admin email: the render fails without one.
   auth:
     bootstrap:
-      admin: ""
+      admin: ""            # your admin email: the render fails without one
     passkey:
       id: ""  # required with ingress/gateway; empty follows the request host
       name: "Dashboard App"
@@ -93,53 +65,43 @@ app:
     oidc:
       existingSecret: ""  # GitOps: your Secret with key googleJwkJson; empty = chart-managed
 
-  # Optional subcharts. Their config lives in the Subcharts section below.
-  kyverno:
-    enabled: true
-    # true: admission never blocks while Kyverno is down, so enforce plans are best-effort.
-    # Must equal kyverno.features.forceFailurePolicyIgnore.enabled (the render checks).
-    failOpen: true
-  # Runs the uninstall hooks (stop auth + Kyverno, clear finalizers and webhooks); mirror it when air-gapped.
-  kubectlImage: registry.k8s.io/kubectl:v1.37.1@sha256:b7cab618e281b1ee7484e7b706a96e2135fbb6e072c2a573a7dab4e87d7f2385
-  # Local model runtime for the analyzer; autoPull=false for air-gapped, see README.
-  ollama:
-    enabled: true
-    autoPull: true
-    # Ollama-API endpoint you run yourself (connected mode, no key); empty = the subchart.
-    runtimeUrl: ""
+  security:
+    # Only the owning service accounts may write telark resources: they hold the role model, so this is the
+    # boundary, not an option. Independent of crds.enabled.
+    crdGuard:
+      enabled: true
+      enforce: true
+      extraAllowedUsers: []     # break-glass usernames; owning SAs always allowed
+    networkPolicy:
+      enabled: true             # ingress policies for the telark pods and NATS; needs an enforcing CNI
+    # Empty value: generated on install, read back on upgrade. Cluster-less (GitOps) renders set existingSecret (key token).
+    serviceToken:
+      envVar: "TELARK_SERVICE_TOKEN"
+      value: ""
+      existingSecret: ""
+    breakGlass:
+      waitHours: 24             # how long a break-glass request waits before it completes on its own
 
-  # Storage for the exporter PVCs (snapshots, reports), kept on uninstall.
-  # storageClass: "" = cluster default, and an upgrade keeps the live claims' class ·
-  # "-" = disable provisioning · "<name>" = that class (a change copies the data to new claims).
+  # Exporter claims (snapshots, reports), kept on uninstall. With storageClass "" an upgrade keeps their class,
+  # and a new class copies the data to new claims.
   persistence:
     enabled: true
     storageClass: ""
     snapshotsSize: 512Mi
     reportsSize: 512Mi
 
-  # Shared secret services present to each other. Empty = generated on install and
-  # read back on upgrade. GitOps (cluster-less renders): set existingSecret (key: token).
-  serviceToken:
-    envVar: "TELARK_SERVICE_TOKEN"
-    value: ""
+  # Signed notifier deliveries. URLs and secrets are credentials, so they render into a Secret (GitOps: existingSecret, key targets.json).
+  webhooks:
     existingSecret: ""
+    targets: []
 
-  # Admission-side guard: only owning service accounts may write Telark CRs.
-  # The CRs are the authorization data, so this is the boundary, not an option.
-  crdGuard:
-    enabled: true
-    enforce: true
-    extraAllowedUsers: []       # break-glass usernames; owning SAs always allowed
+  ollama:
+    autoPull: true         # false when air-gapped: models are pre-loaded
+    runtimeUrl: ""         # an Ollama-API endpoint you run (no key); empty = the ollama subchart
 
-  # Ingress NetworkPolicies for the telark pods and NATS (needs an enforcing CNI).
-  networkPolicy:
-    enabled: true
-
-  # true: discovery also shows Telark's own namespace (its services, redis, nats, ollama) as applications.
   selfMonitoring:
-    enabled: false
+    enabled: false         # true: discovery also lists telark's own namespace as applications
 
-  # Per-service defaults. Override any key on a services.<svc> block.
   serviceDefaults:
     port: 8080
     serviceType: ClusterIP
@@ -148,33 +110,32 @@ app:
     nodeSelector: {}
     tolerations: []
     affinity: {}
-    # Every service starts at one replica and scales horizontally on CPU (HPA,
-    # autoscaling/v2) — never the exporter (replicas fixed by the mode). minimal turns
-    # this off; performance raises the ceiling. Vertical scaling: see vpa below.
     autoscaling:
       enabled: true
       minReplicas: 1
       maxReplicas: 3
       targetCPUUtilizationPercentage: 80
-    # VerticalPodAutoscaler per service, rendered only when vpa.enabled installed
-    # the operator (its CRD must exist, so it appears on the upgrade after the
-    # install). Auto resizes requests/limits in place of the shared defaults.
+    # Applies only once vpa.enabled installed the operator: its CRD must exist, so VPAs appear from the next upgrade.
     vpa:
       updateMode: Auto
 
-  # Shared pod fragments, applied per service via gates:
-  # includeResources · includeHealthCheck · includeSecurity · useRedis · useNatsCreds.
   shared:
     redis:
-      REDIS_HOST: "{{ .Release.Name }}-redis-master"   # redis subchart master service
+      REDIS_HOST: "{{ .Release.Name }}-redis-master"
       REDIS_PORT: "6379"
+    nats:
+      NATS_HOST: "{{ .Release.Name }}-nats"
+    # ephemeral-storage: logs (the kubelet keeps five 10Mi files) and disk emptyDirs. No preset sets it,
+    # so a --set applies in every mode.
     resources:
       requests:
         cpu: "100m"
         memory: "128Mi"
+        ephemeral-storage: "50Mi"
       limits:
         cpu: "1000m"
         memory: "512Mi"
+        ephemeral-storage: "2Gi"
     healthCheck:
       port: http
       # The exporter, notifier and auth listen only once Redis answers, and a node loss keeps Redis
@@ -213,21 +174,17 @@ app:
         drop: ["ALL"]
       seccompProfile:
         type: RuntimeDefault
-    nats:
-      NATS_HOST: "{{ .Release.Name }}-nats"   # nats subchart client service
 
-# Per-service configuration. See README.md for the full env reference and gate semantics.
 services:
   exporter:
     enabled: true
     name: "exporter-service"
     repository: "exporter"
     # @ignore
-    version: 0.1.2
+    version: 0.2.0
     category: "persistence-manager"
-    # 1 replica works on any class (Recreate, ReadWriteOnce). More share both volumes, so
-    # they need app.persistence.storageClass set to a ReadWriteMany class (RollingUpdate).
-    # Never autoscaled — the volume, not CPU, bounds it.
+    # More than one replica needs a ReadWriteMany app.persistence.storageClass; break-glass recovery needs one (INSTALL).
+    # Never autoscaled: the volume, not CPU, bounds it.
     replicas: 1
     autoscaling:
       enabled: false
@@ -237,12 +194,13 @@ services:
       REPORTS_PATH: &reportsPath "/reports"
       SNAPSHOTS_PVC_NAME: '{{ include "telark.exporterSnapshotsPvcName" . }}'
       SNAPSHOTS_PVC_NAMESPACE: '{{ .Values.app.namespace }}'
+      SNAPSHOT_GC_INTERVAL_SEC: "3600"   # 0 = no orphan sweep
       EXPORTER_K8S_CLIENT_QPS: "50"
       EXPORTER_K8S_CLIENT_BURST: "100"
       EXPORTER_LIST_RENDER_CONCURRENCY: "2"
-      # Orphan snapshot sweep: unreferenced files older than 1h on the PVC. 0 = off.
-      SNAPSHOT_GC_INTERVAL_SEC: "3600"
       BOOTSTRAP_ADMIN: '{{ .Values.app.auth.bootstrap.admin }}'
+      # dig: a --reuse-values upgrade from 0.1.x lacks the key, and empty means the service default (24)
+      BREAK_GLASS_WAIT_HOURS: '{{ dig "security" "breakGlass" "waitHours" "" .Values.app }}'
       OIDC_TRUST_SECRET_NAME: '{{ include "telark.oidcTrustSecretName" . }}'
     volumes:
       - name: snapshots-storage
@@ -263,7 +221,7 @@ services:
     name: "discovery-service"
     repository: "discovery"
     # @ignore
-    version: 0.1.2
+    version: 0.2.0
     category: "discovery"
     useNatsCreds: true
     natsUser: publisher
@@ -280,6 +238,11 @@ services:
       DISCOVERY_INFORMER_COALESCING_MAX_WAIT_SEC: "10"
       DISCOVERY_COALESCE_BUFFER_MAX_ENTRIES: "500"
       DISCOVERY_SNAPSHOT_FETCH_TIMEOUT_MS: "5000"
+      DISCOVERY_AUTO_CLEANUP_ENABLED: "true"
+      DISCOVERY_AUTO_CLEANUP_DELETE_ENABLED: "true"
+      DISCOVERY_AUTO_CLEANUP_CYCLE_INTERVAL_SEC: "60"
+      DISCOVERY_AUTO_CLEANUP_EMPTY_CYCLES_REQUIRED: "2"
+      DISCOVERY_AUTO_CLEANUP_GRACE_PERIOD_SEC: "0"
       COORDINATION_BATCH_SIZE: "10"
       COORDINATION_BATCH_BLOCK_SEC: "2"
       COORDINATION_MAX_RETRY_ATTEMPTS: "5"
@@ -294,26 +257,21 @@ services:
       REDIS_RETRY_INTERVAL_SEC: "5"
       REDIS_MAX_WAIT_SEC: "180"
       REDIS_PING_TIMEOUT_SEC: "2"
-      SNAPSHOT_WRITE_MAX_ATTEMPTS: "5"
-      SNAPSHOT_WRITE_RETRY_INTERVAL_SEC: "2"
-      PROTECTION_PLAN_TICK_INTERVAL_SEC: "31"
-      PROTECTION_PLAN_REPORT_MAX_VIOLATIONS: "5000"
-      PROTECTION_PLAN_REPORT_CHECKPOINT_SEC: "900"
-      FORCE_SYNC_WORKERS: "6"
       # The leader's stream reads (FORCE_SYNC_WORKERS + 1) each block a pooled connection: keep the pool well above them.
       REDIS_POOL_SIZE: "20"
+      FORCE_SYNC_WORKERS: "6"
       FORCE_SYNC_STREAM_MAX_LEN: "5000"
       FORCE_SYNC_DEDUP_TTL_SEC: "600"
       FORCE_SYNC_JOB_TIMEOUT_SEC: "300"
       FORCE_SYNC_MAINTENANCE_INTERVAL_SEC: "60"
       FORCE_SYNC_PEL_IDLE_RECLAIM_SEC: "60"
       FORCE_SYNC_ACK_RETENTION_SEC: "3600"
+      SNAPSHOT_WRITE_MAX_ATTEMPTS: "5"
+      SNAPSHOT_WRITE_RETRY_INTERVAL_SEC: "2"
+      PROTECTION_PLAN_TICK_INTERVAL_SEC: "31"
+      PROTECTION_PLAN_REPORT_MAX_VIOLATIONS: "5000"
+      PROTECTION_PLAN_REPORT_CHECKPOINT_SEC: "900"
       REST_EXPORTER_DURATION_LOG_ENABLED: "true"
-      DISCOVERY_AUTO_CLEANUP_ENABLED: "true"
-      DISCOVERY_AUTO_CLEANUP_DELETE_ENABLED: "true"
-      DISCOVERY_AUTO_CLEANUP_CYCLE_INTERVAL_SEC: "60"
-      DISCOVERY_AUTO_CLEANUP_EMPTY_CYCLES_REQUIRED: "2"
-      DISCOVERY_AUTO_CLEANUP_GRACE_PERIOD_SEC: "0"
       REST_EXPORTER_DURATION_LOG_DEDUP_SEC: "10"
       INSIGHTS_INDEX_REFRESH_SEC: "15"
       INSIGHTS_INDEX_RESYNC_SEC: "300"
@@ -324,8 +282,7 @@ services:
       maxSkew: 1
       topologyKey: kubernetes.io/hostname
       whenUnsatisfiable: ScheduleAnyway
-    # Disruption budgets stay off in standard: with one replica they only block
-    # node drains. performance enables them once the floor is above one.
+    # Off in standard: on one replica a budget only blocks node drains. performance turns it on.
     pdb:
       enabled: false
   analyzer:
@@ -333,21 +290,22 @@ services:
     name: "analyzer-service"
     repository: "analyzer"
     # @ignore
-    version: 0.1.2
+    version: 0.1.3
     category: "ai-insights"
-    # One analysis worker bound to one Ollama slot (OLLAMA_NUM_PARALLEL=1): a
-    # second replica would only queue behind it. Never autoscaled.
+    # One worker bound to one Ollama slot (OLLAMA_NUM_PARALLEL=1): a second replica would only queue behind it.
     autoscaling:
       enabled: false
     env:
+      CORS_ALLOWED_ORIGINS: ""
       REDIS_POOL_SIZE: "10"
       OLLAMA_HOST: '{{ default (printf "http://%s-ollama:11434" .Release.Name) .Values.app.ollama.runtimeUrl }}'
       OLLAMA_AUTO_PULL: '{{ .Values.app.ollama.autoPull }}'
       # Only the bundled runtime: models on a runtimeUrl you run are never deleted.
-      OLLAMA_PRUNE_MODELS: '{{ and .Values.app.ollama.enabled (empty .Values.app.ollama.runtimeUrl) }}'
+      OLLAMA_PRUNE_MODELS: '{{ and (dig "ollama" "enabled" .Values.ollama.enabled .Values.app) (empty .Values.app.ollama.runtimeUrl) }}'
       ANALYZER_MODE: "fast"
-      # = ollama.resources.limits.cpu; never above the node's vCPU.
-      ANALYZER_NUM_THREAD: "2"
+      ANALYZER_NUM_THREAD: "2"           # = ollama.resources.limits.cpu; never above the node's vCPU
+      ANALYZER_CONTEXT_TOKENS: "4096"    # = OLLAMA_CONTEXT_LENGTH; deep: 8192
+      ANALYZER_CHARS_PER_TOKEN: "3.5"
       ANALYZER_NARRATE_TIMEOUT_SEC: "45"
       ANALYZER_MAX_STEPS: "8"
       ANALYZER_MAX_TOOL_CALLS: "8"
@@ -355,8 +313,6 @@ services:
       ANALYZER_WALL_SEC: "480"
       ANALYZER_LOOP_TIMEOUT_SEC: "120"
       ANALYZER_EMIT_TIMEOUT_SEC: "180"
-      ANALYZER_CHARS_PER_TOKEN: "3.5"
-      ANALYZER_CONTEXT_TOKENS: "4096"  # deep: 8192
       ANALYZER_QUEUE_MAX: "100"
       ANALYZER_AUTO_COOLDOWN_SEC: "600"
       ANALYZER_MANUAL_COOLDOWN_SEC: "60"
@@ -372,8 +328,6 @@ services:
       # -- Namespaces or plan environments matching it count as production.
       # @default -- `(^\|[-_.])(prod\|production\|prd)($\|[-_.])`
       ANALYZER_PRODUCTION_PATTERN: '(^|[-_.])(prod|production|prd)($|[-_.])'
-      # Comma-separated browser origins allowed by CORS; empty sends no CORS headers.
-      CORS_ALLOWED_ORIGINS: ""
     pdb:
       enabled: false
   notifier:
@@ -381,15 +335,23 @@ services:
     name: "notifier-service"
     repository: "notifier"
     # @ignore
-    version: 0.1.2
+    version: 0.2.0
     category: "event-streaming"
     terminationGracePeriodSec: 30
     useNatsCreds: true
     natsUser: consumer
     automountServiceAccountToken: false
     env:
-      # Concurrent apply workers; one app always maps to the same worker (ordered).
-      NOTIFIER_APPLY_WORKERS: "8"
+      NOTIFIER_APPLY_WORKERS: "8"   # one app always maps to the same worker, so its events stay ordered
+      WEBHOOK_TARGETS_FILE: "/etc/telark/webhooks/targets.json"
+    volumes:
+      - name: webhooks
+        secret:
+          name: '{{ include "telark.webhooksSecretName" . }}'
+    volumeMounts:
+      - name: webhooks
+        path: /etc/telark/webhooks
+        readOnly: true
     pdb:
       enabled: false
   auth:
@@ -397,7 +359,7 @@ services:
     name: "auth-service"
     repository: "auth"
     # @ignore
-    version: 0.1.2
+    version: 0.2.0
     category: "auth"
     terminationGracePeriodSec: 30
     automountServiceAccountToken: false
@@ -405,20 +367,11 @@ services:
       CORS_ALLOWED_ORIGINS: ""
       REDIS_DB: "1"
       REDIS_RETRY_INTERVAL_SEC: "2"
-      REDIS_MAX_WAIT_SEC: "30"
+      REDIS_MAX_WAIT_SEC: "180"
       REDIS_PING_TIMEOUT_SEC: "3"
-      BOOTSTRAP_ADMIN: '{{ .Values.app.auth.bootstrap.admin }}'
-      ENROLL_INVITE_TTL_SEC: "3600"
-      RP_ID: '{{ .Values.app.auth.passkey.id }}'
-      RP_NAME: '{{ .Values.app.auth.passkey.name }}'
-      RP_ORIGIN: '{{ .Values.app.auth.passkey.origin }}'
-      CHALLENGE_TIMEOUT: "60"
-      SESSION_EXPIRY: "24"
-      RECONCILE_TICK_SECONDS: "5"
-      RECONCILE_PASS_DEADLINE_SECONDS: "30"
-      CLEANUP_WORKERS_PER_TYPE: "2"
       # 3 × CLEANUP_WORKERS_PER_TYPE stream reads each block a pooled connection: keep the pool well above them.
       REDIS_POOL_SIZE: "16"
+      CLEANUP_WORKERS_PER_TYPE: "2"
       CLEANUP_STREAM_MAXLEN: "10000"
       CLEANUP_LAG_ALERT_THRESHOLD: "500"
       CLEANUP_SWEEPER_INTERVAL_SECONDS: "60"
@@ -428,6 +381,21 @@ services:
       CLEANUP_LIST_TIMEOUT_SECONDS: "10"
       CLEANUP_PATCH_TIMEOUT_SECONDS: "5"
       CLEANUP_MAX_CONCURRENT_PATCHES: "4"
+      BOOTSTRAP_ADMIN: '{{ .Values.app.auth.bootstrap.admin }}'
+      # dig: a --reuse-values upgrade from 0.1.x lacks the key, and empty means the service default (24)
+      BREAK_GLASS_WAIT_HOURS: '{{ dig "security" "breakGlass" "waitHours" "" .Values.app }}'
+      ENROLL_INVITE_TTL_SEC: "3600"
+      RP_ID: '{{ .Values.app.auth.passkey.id }}'
+      RP_NAME: '{{ .Values.app.auth.passkey.name }}'
+      RP_ORIGIN: '{{ .Values.app.auth.passkey.origin }}'
+      CHALLENGE_TIMEOUT: "60"
+      SESSION_EXPIRY: "24"
+      RATE_LIMIT_PER_CLIENT: "30"
+      RATE_LIMIT_GLOBAL: "3000"
+      # Proxies in front of the ui: the ingress or gateway is one; add one per L7 proxy in front of it.
+      RATE_LIMIT_TRUSTED_HOPS: '{{ if or .Values.ingress.enabled .Values.gateway.enabled }}1{{ else }}0{{ end }}'
+      RECONCILE_TICK_SECONDS: "5"
+      RECONCILE_PASS_DEADLINE_SECONDS: "30"
       RECONCILE_BACKOFF_INITIAL_SECONDS: "5"
       RECONCILE_BACKOFF_MAX_SECONDS: "300"
       OIDC_TRUST_FILE: "/etc/telark/oidc/googleJwkJson"
@@ -446,9 +414,14 @@ services:
     name: "ui-service"
     repository: "ui"
     # @ignore
-    version: 0.1.2
+    version: 0.2.0
     category: "ui"
     terminationGracePeriodSec: 30
+    # nginx runs as its own uid 101, not the shared 1001, so it gets its own contexts.
+    includeSecurity: false
+    useRedis: false
+    serviceToken: false      # nginx only proxies browser calls; it never calls a service itself
+    automountServiceAccountToken: false
     # nginx answers /healthz itself, with no upstream call.
     healthCheck:
       startupProbe:
@@ -457,11 +430,6 @@ services:
         path: /healthz
       readinessProbe:
         path: /healthz
-    # nginx runs as its own uid 101, not the shared 1001, so it gets its own contexts.
-    includeSecurity: false
-    useRedis: false
-    serviceToken: false      # nginx only proxies browser calls; it never calls a service itself
-    automountServiceAccountToken: false
     podSecurityContext:
       runAsNonRoot: true
       runAsUser: 101
@@ -483,12 +451,6 @@ services:
         path: /var/cache/nginx
       - name: tmp
         path: /tmp
-    # nodePort: 30080         # with serviceType: NodePort (unset = allocated by Kubernetes)
-
-# ─── Subcharts ───────────────────────────────────────────────────────────────
-# Helm resolves a subchart's values before templates run, so app.mode (a
-# template-time input) cannot reach them. These ship production-grade defaults,
-# owned by the chart and identical across every mode.
 
 redis:
   architecture: standalone
@@ -511,7 +473,7 @@ redis:
       enabled: true
       size: 2Gi
     # Replaces the nano preset (same requests). Redis never evicts, so the limit must hold every
-    # app's analyzer documents: about 210 MiB at 2 000 apps in the worst case.
+    # app's analyzer documents, which grow with the number of applications.
     resources:
       requests:
         cpu: 100m
@@ -523,7 +485,7 @@ redis:
         ephemeral-storage: 2Gi
 
 nats:
-  enabled: true
+  enabled: true            # not a subchart switch: it only gates telark's NATS NetworkPolicy
   # GitOps: Secrets you manage (keys username + password) instead of the generated ones.
   existingSecrets:
     publisher: ""
@@ -535,9 +497,7 @@ nats:
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
-  # NATS server config, inlined so the chart installs with no --set-file. The
-  # server env-expands each user from its Secret (see extraEnvVars): discovery
-  # publishes, notifier consumes. Change the secret names below if you change app.name.
+  # Inlined, so no --set-file. Users come from their Secrets (extraEnvVars: rename them with app.name).
   # No http_port: the monitoring endpoint is unauthenticated, so probes use the client port.
   configuration: |
     server_name: nats-server
@@ -612,8 +572,9 @@ nats:
     size: 1Gi
 
 kyverno:
+  enabled: true            # false: telark uses a Kyverno you already run
   namespaceOverride: "telark"
-  # Set together with app.kyverno.failOpen: Helm cannot pass a parent value to a subchart.
+  # true: admission never blocks while Kyverno is down, so enforce plans are best-effort.
   features:
     forceFailurePolicyIgnore:
       enabled: true
@@ -676,21 +637,10 @@ kyverno:
       clientRateLimitQPS: 50
       clientRateLimitBurst: 100
 
-# metrics-server: required by HPAs and `kubectl top`. Default on.
-# Disable for clusters that already ship it (GKE, AKS, k3s, OpenShift):
-#   kubectl get apiservice v1beta1.metrics.k8s.io
-# If present, override: --set metrics-server.enabled=false
-# Vertical Pod Autoscaler operator (recommender/updater/admission). Off by
-# default; --set vpa.enabled=true for standard/performance — subcharts cannot
-# follow app.mode. Needs metrics-server (bundled). Objects: app.serviceDefaults.vpa.
-vpa:
-  enabled: false
-
+# HPAs and kubectl top need it. false where the cluster already serves v1beta1.metrics.k8s.io (GKE, AKS, k3s, OpenShift).
 metrics-server:
   enabled: true
-  # Add --kubelet-insecure-tls only for kind/minikube-style clusters whose kubelet
-  # certificates are self-signed (see INSTALL).
-  args: []
+  args: []                 # --kubelet-insecure-tls only where kubelet certificates are self-signed (kind, minikube)
   resources:
     requests:
       cpu: 100m
@@ -699,9 +649,13 @@ metrics-server:
       cpu: 200m
       memory: 400Mi
 
-# Analyzer model runtime (app.ollama.enabled). Nothing is pulled at start: the
-# analyzer pulls the model chosen in Settings. Profiles, models, air-gapped: README.
+# VPA operator for app.serviceDefaults.vpa. An upgrade that turns it on needs its CRDs applied first (INSTALL).
+vpa:
+  enabled: false
+
+# Analyzer model runtime. Nothing is pulled at start: the analyzer pulls the model chosen in Settings.
 ollama:
+  enabled: true
   ollama:
     models:
       # Stays empty: the subchart's start-up pull ignores autoPull and a failed pull crash-loops the pod.
@@ -709,12 +663,11 @@ ollama:
   persistentVolume:
     enabled: true
     size: 6Gi                # the default model plus any one catalog model: a switch deletes the others
-    # Empty -> cluster default class. Override per env via --set or values overlay.
     storageClass: ""
     annotations:
       helm.sh/resource-policy: keep
-  # CPU tiny profile (granite4:350m, 4k context: ~1.1Gi resident, idle CPU). One size for
-  # every app.mode, which cannot reach a subchart: minimal fits one 2 vCPU / 8 GiB node. Others: README.
+  # CPU tiny profile (granite4:350m, 4k context: ~1.1Gi resident, idle CPU): minimal fits one
+  # 2 vCPU / 8 GiB node. Other profiles: README.
   resources:
     requests:
       cpu: 250m

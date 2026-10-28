@@ -9,6 +9,7 @@ const (
 	TriggerEnd    = "end"
 	TriggerCancel = "cancel"
 	TriggerManual = "manual"
+	TriggerWindow = "window"
 
 	QueryReport  = "report"
 	QueryFormat  = "format"
@@ -23,7 +24,7 @@ const (
 
 var (
 	Formats  = []string{FormatHTML, FormatMarkdown, FormatJSON, FormatCSV}
-	Triggers = []string{TriggerManual, TriggerCancel, TriggerEnd}
+	Triggers = []string{TriggerManual, TriggerCancel, TriggerEnd, TriggerWindow}
 )
 
 type ReportMeta struct {
@@ -41,4 +42,11 @@ type ReportMeta struct {
 type CreatePlanReportRequest struct {
 	Meta  ReportMeta        `json:"meta"`
 	Files map[string]string `json:"files"`
+}
+
+// PlanName is the plan's name when it was deleted, empty when its marker is unreadable.
+type KeptPlanReports struct {
+	PlanID   string       `json:"planId"`
+	PlanName string       `json:"planName"`
+	Reports  []ReportMeta `json:"reports"`
 }

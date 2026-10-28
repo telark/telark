@@ -2,6 +2,7 @@ package config
 
 import (
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,6 +15,10 @@ const (
 	retiredSelfRegEnv = "SELF_REGISTRATION_ENABLED"
 	customTTLSec      = "900"
 	customTTL         = 15 * time.Minute
+	defaultWait       = 24 * time.Hour
+	sixHours          = "6"
+	sixHourWait       = 6 * time.Hour
+	noHours           = "0"
 )
 
 // The bootstrap admin is one email, normalized (trimmed + lowercased), and
@@ -80,6 +85,38 @@ func TestEnrollInviteTTL(t *testing.T) {
 	}
 }
 
+// The sign-in limits take a positive count and the hops zero or more; anything else keeps the default.
+func TestRateLimitConfig(t *testing.T) {
+	const chartValue = 2
+	cases := []struct {
+		name      string
+		value     string
+		perClient int64
+		global    int64
+		hops      int
+	}{
+		{"defaults", constants.EmptyString, constants.DefaultRateLimitPerClient, constants.DefaultRateLimitGlobal,
+			constants.DefaultRateLimitTrustedHops},
+		{"chart values", strconv.Itoa(chartValue), chartValue, chartValue, chartValue},
+		{"zero", strconv.Itoa(constants.DefaultInitValue), constants.DefaultRateLimitPerClient, constants.DefaultRateLimitGlobal,
+			constants.DefaultInitValue},
+		{"negative", "-1", constants.DefaultRateLimitPerClient, constants.DefaultRateLimitGlobal,
+			constants.DefaultRateLimitTrustedHops},
+		{"garbage", "many", constants.DefaultRateLimitPerClient, constants.DefaultRateLimitGlobal,
+			constants.DefaultRateLimitTrustedHops},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Setenv(constants.EnvRateLimitPerClient, c.value)
+			t.Setenv(constants.EnvRateLimitGlobal, c.value)
+			t.Setenv(constants.EnvRateLimitTrustedHops, c.value)
+			testutil.Equal(t, "per client", config.RateLimitPerClient(), c.perClient)
+			testutil.Equal(t, "global", config.RateLimitGlobal(), c.global)
+			testutil.Equal(t, "trusted hops", config.RateLimitTrustedHops(), c.hops)
+		})
+	}
+}
+
 // Cleanup + backfill config read every knob from the environment with sane
 // positive defaults so the reconciler never runs with a zero interval.
 func TestLoadCleanupAndBackfillConfig(t *testing.T) {
@@ -128,5 +165,33 @@ func TestLoadConfig(t *testing.T) {
 	}
 	if cfg.WebAuthn.RPID != "localhost" || cfg.WebAuthn.RPName != "Dashboard App" {
 		t.Fatalf("WebAuthn config not wired: %+v", cfg.WebAuthn)
+	}
+}
+
+// Empty means 24 hours; anything but a whole number of hours, at least 1, refuses the bootstrap config and names the
+// variable, and keeps the wait loaded before.
+func TestBreakGlassWait(t *testing.T) {
+	t.Setenv(constants.EnvBootstrapAdmin, "test@example.com")
+	cases := []struct {
+		value string
+		want  time.Duration
+		fails bool
+	}{
+		{constants.EmptyString, defaultWait, false},
+		{sixHours, sixHourWait, false},
+		{noHours, sixHourWait, true},
+		{"-3", sixHourWait, true},
+		{"a day", sixHourWait, true},
+	}
+	for _, c := range cases {
+		t.Run(c.value, func(t *testing.T) {
+			t.Setenv(constants.EnvBreakGlassWaitHours, c.value)
+			_, err := config.LoadBootstrapConfig()
+			testutil.Equal(t, "refused", err != nil, c.fails)
+			if c.fails {
+				testutil.Equal(t, "names the variable", strings.Contains(err.Error(), constants.EnvBreakGlassWaitHours), true)
+			}
+			testutil.Equal(t, "wait", config.BreakGlassWait(), c.want)
+		})
 	}
 }

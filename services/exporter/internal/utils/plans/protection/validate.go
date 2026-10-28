@@ -17,6 +17,11 @@ func Validate(plan *plans.ProtectionPlan) error {
 	if len(plan.Policies) == constants.DefaultInitValue {
 		return errors.New(string(constants.ErrProtectionPlanPoliciesRequired))
 	}
+	if plan.TimeMode == plans.TimeModeRepeating {
+		if err := plans.ValidateRepeat(plan.Repeat); err != nil {
+			return err
+		}
+	}
 	scope := plan.Scope
 	hasExclusionResources := scope.Exclusions != nil && len(scope.Exclusions.Resources) > constants.DefaultInitValue
 	return validateScope(scope.Type, len(scope.ApplicationRefs), len(scope.Namespaces), hasExclusionResources)

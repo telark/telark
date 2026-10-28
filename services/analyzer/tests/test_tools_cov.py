@@ -19,7 +19,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import tools  # noqa: E402
-from models import EventsArgs, Run  # noqa: E402
+from core.models import EventsArgs, Run  # noqa: E402
 from tools import SPECS, fit, invoke  # noqa: E402
 from tools import k8s_tools  # noqa: E402
 from tools.k8s_tools import K8s  # noqa: E402

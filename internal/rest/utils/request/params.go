@@ -3,6 +3,7 @@ package request
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 	globalerrors "github.com/telark/telark/internal/data/errors"
@@ -25,6 +26,20 @@ func PathParam(w http.ResponseWriter, r *http.Request, param string) (string, er
 		return constants.EmptyString, err
 	}
 
+	return value, nil
+}
+
+// Absent reads as false; a value strconv.ParseBool refuses is an error, so a typo never
+// passes for the default.
+func OptionalBoolQuery(r *http.Request, param string) (bool, error) {
+	raw := r.URL.Query().Get(param)
+	if raw == constants.EmptyString {
+		return false, nil
+	}
+	value, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false, fmt.Errorf(string(constants.ErrInvalidBoolQuery), param)
+	}
 	return value, nil
 }
 

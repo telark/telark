@@ -2,6 +2,8 @@ package core
 
 import (
 	"encoding/json"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -9,19 +11,16 @@ import (
 	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
+// Sorted, so a republish keeps the order instead of Go's random map order.
 func setToSlice(m map[string]bool) []string {
-	out := make([]string, constants.DefaultInitValue, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
+	out := slices.AppendSeq(make([]string, constants.DefaultInitValue, len(m)), maps.Keys(m))
+	slices.Sort(out)
 	return out
 }
 
 func intSetToSlice(m map[int]bool) []int {
-	out := make([]int, constants.DefaultInitValue, len(m))
-	for p := range m {
-		out = append(out, p)
-	}
+	out := slices.AppendSeq(make([]int, constants.DefaultInitValue, len(m)), maps.Keys(m))
+	slices.Sort(out)
 	return out
 }
 

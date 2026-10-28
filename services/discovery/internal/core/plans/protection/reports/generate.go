@@ -120,6 +120,8 @@ func (g *Generator) CaptureAsync(plan *plans.ProtectionPlan, endedAt, actor, rea
 		p.Phase = plans.PhaseTerminated
 	case reportseps.TriggerCancel:
 		p.Phase = plans.PhaseCanceled
+	case reportseps.TriggerWindow:
+		p.Phase = plans.PhaseScheduled
 	default:
 	}
 	go func() {

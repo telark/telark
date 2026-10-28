@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM python:3.14.7-alpine3.23
+FROM python:3.14.9-alpine3.24
 LABEL org.opencontainers.image.licenses="Elastic-2.0"
 
 ENV PYTHONUNBUFFERED=1
@@ -11,7 +11,13 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir --require-hashes --only-binary :all: -r requirements.txt
 
-COPY . .
+COPY main.py LICENSE.md THIRD-PARTY-NOTICES.md ./
+COPY analysis/ analysis/
+COPY api/ api/
+COPY core/ core/
+COPY prompts/ prompts/
+COPY providers/ providers/
+COPY tools/ tools/
 
 RUN adduser -D -g "" appuser && chown -R appuser /app
 USER appuser

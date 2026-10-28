@@ -78,11 +78,15 @@ func (n *ApprovalNotifier) Decided(plan *plans.ProtectionPlan, decision string, 
 	async.Dispatch(func(ctx context.Context) { n.emit(ctx, plan.ID, notification) })
 }
 
-// The id stays as the fallback so a deleted requester is still identifiable.
+// The id stays as the fallback so a deleted requester is still identifiable. The requester never reads this notice,
+// so a bootstrap requester is never named.
 func displayName(users []*userresource.User, userID string) string {
 	i := slices.IndexFunc(users, func(u *userresource.User) bool { return u.ID == userID })
-	if i == constants.DefaultReturnValue || users[i].Username == constants.EmptyString {
+	switch {
+	case i == constants.DefaultReturnValue || users[i].Username == constants.EmptyString:
 		return userID
+	case users[i].Bootstrap:
+		return string(constants.NotifPlanApprovalByBootstrap)
 	}
 	return users[i].Username
 }

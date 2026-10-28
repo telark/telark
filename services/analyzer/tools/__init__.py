@@ -12,8 +12,8 @@ import json
 import httpx
 from pydantic import BaseModel, ValidationError
 
-from config import ANALYZER_TOOL_RESULT_MAX_BYTES
-from constants import (
+from core.config import ANALYZER_TOOL_RESULT_MAX_BYTES
+from core.constants import (
     JSON_COMPACT_SEPARATORS,
     SUBJECT_TEMPLATE,
     TOOL_CAPS,
@@ -35,7 +35,7 @@ from constants import (
     TOOL_TIMEOUT_S,
     TOOL_TYPE_FUNCTION,
 )
-from models import EventsArgs, HistoryArgs, OverviewArgs, Run, ToolResult, WorkloadArgs
+from core.models import EventsArgs, HistoryArgs, OverviewArgs, Run, ToolResult, WorkloadArgs
 from tools import app_tools, k8s_tools
 from tools.app_tools import app_namespaces
 from tools.k8s_tools import K8s, K8sError

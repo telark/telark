@@ -28,7 +28,7 @@ func CreateResourceWithCacheInvalidation(
 			sharedutils.LogAndReturnError(w, http.StatusBadRequest, string(errors.ErrResourceNameCannotBeEmpty), nil)
 			return
 		}
-		sharedexp.CreateResource(w, md, resourceName, spec)
+		sharedexp.CreateResource(r.Context(), w, md, resourceName, spec)
 
 		cache.InvalidateAllResourceCaches(optimizer, resourceType)
 	}

@@ -1,9 +1,12 @@
 package writes
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
@@ -13,8 +16,11 @@ import (
 	"github.com/telark/telark/internal/rest/router"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/exporter/internal/authz"
+	"github.com/telark/telark/services/exporter/internal/constants"
 	"github.com/telark/telark/services/exporter/internal/routes"
 	"github.com/telark/telark/services/exporter/internal/utils/performance"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 const (
@@ -64,13 +70,37 @@ func TestGuardOwnSessionName(t *testing.T) {
 	}
 }
 
+// GET self names the session: the browser holds it only in an HttpOnly cookie, and the name tells it which listed
+// device it is.
+func TestGetSelfNamesTheSession(t *testing.T) {
+	md := v1alpha1.SessionMetadata
+	future := time.Now().UTC().Add(time.Hour).Format(time.RFC3339)
+	installFake(t, crSeed(md, object(md, authdata.SessionName(ownerToken),
+		map[string]any{"userId": userID, "expiresTimestamp": future}, nil)))
+	optimizer := performance.NewOptimizer(redis.NewClient(&redis.Options{Addr: miniredis.RunT(t).Addr()}))
+	t.Cleanup(optimizer.Close)
+	r := httptest.NewRequest(http.MethodGet, sessionsPrefix+authdata.SessionRefSelf, nil)
+	r.Header.Set(dataconstants.HeaderSessionToken, ownerToken)
+	r = r.WithContext(xauthz.WithIdentity(r.Context(), xauthz.Identity{UserID: userID}))
+	w := httptest.NewRecorder()
+	router.NewRouter(routes.InitRoutes(optimizer, nil)).ServeHTTP(w, r)
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil || w.Code != http.StatusOK {
+		t.Fatalf("GET self = %d %s (%v)", w.Code, w.Body.String(), err)
+	}
+	name, _, _ := unstructured.NestedString(body, "data", "metadata", "name")
+	if name != authdata.SessionName(ownerToken) {
+		t.Fatalf("metadata.name = %q, want %q", name, authdata.SessionName(ownerToken))
+	}
+}
+
 // "self" also fits {name}; the self route is registered first so it keeps it,
 // and anything that is not a session name is refused before any lookup.
 func TestDeleteSessionByNameRouting(t *testing.T) {
 	client := installFake(t, sessionSeed(ownerToken, userID), sessionSeed(secondToken, userID), sessionSeed(otherToken, otherUserID))
 	optimizer := performance.NewOptimizer(redis.NewClient(&redis.Options{Addr: miniredis.RunT(t).Addr()}))
 	t.Cleanup(optimizer.Close)
-	rt := router.NewRouter(routes.InitRoutes(optimizer))
+	rt := router.NewRouter(routes.InitRoutes(optimizer, nil))
 	owner := xauthz.Identity{UserID: userID}
 
 	notAName := httptest.NewRecorder()
@@ -100,5 +130,22 @@ func TestDeleteSessionByNameRouting(t *testing.T) {
 	rt.ServeHTTP(self, selfRequest)
 	if self.Code != http.StatusOK {
 		t.Errorf("self with X-Session-Token = %d, want the self route's %d (the {name} route refuses self)", self.Code, http.StatusOK)
+	}
+}
+
+// A session auth creates is stored under the hash of its token, never the token itself.
+func TestCreateSessionStoresTheHashedName(t *testing.T) {
+	client := installFake(t)
+	path := "/api/v1/internal/auth/users/" + userID + "/sessions"
+	if w := serviceCall(t, http.MethodPost, path, `{"sessionToken":"`+forgedID+`"}`); w.Code != http.StatusOK {
+		t.Fatalf("create = %d %s", w.Code, w.Body.String())
+	}
+	md := v1alpha1.SessionMetadata
+	list, err := client.Resource(gvrOf(md)).Namespace(md.Namespace).List(t.Context(), metav1.ListOptions{})
+	if err != nil || len(list.Items) != constants.DefaultIncrementValue {
+		t.Fatalf("stored sessions = %v (err %v), want one", list, err)
+	}
+	if name := list.Items[firstItem].GetName(); strings.Contains(name, forgedID) {
+		t.Fatalf("session name %q carries the token", name)
 	}
 }

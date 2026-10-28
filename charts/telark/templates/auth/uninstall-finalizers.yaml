@@ -87,12 +87,12 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: stop-auth
-          image: {{ .Values.app.kubectlImage }}
+          image: {{ $values.app.image.kubectl }}
           args: ["scale", "deployment", {{ $authDeployment | quote }}, "-n", {{ $ns | quote }}, "--replicas=0", "--cache-dir=/tmp"]
           securityContext: {{- toYaml $securityContext | nindent 12 }}
           volumeMounts: [{ name: tmp, mountPath: /tmp }]
         - name: wait-for-auth
-          image: {{ .Values.app.kubectlImage }}
+          image: {{ $values.app.image.kubectl }}
           args: ["wait", "--for=delete", "pod", "-n", {{ $ns | quote }}, "-l", {{ join "," $authSelector | quote }}, "--timeout=120s", "--cache-dir=/tmp"]
           securityContext: {{- toYaml $securityContext | nindent 12 }}
           volumeMounts: [{ name: tmp, mountPath: /tmp }]
@@ -102,7 +102,7 @@ spec:
           imagePullPolicy: {{ .Values.app.image.pullPolicy | default "Always" }}
           args: ["remove-finalizers"]
           env:
-            - name: {{ .Values.app.serviceToken.envVar }}
+            - name: {{ $values.app.security.serviceToken.envVar }}
               valueFrom:
                 secretKeyRef:
                   name: {{ include "telark.serviceTokenSecretName" . }}
@@ -110,6 +110,8 @@ spec:
           resources:
             requests:
               memory: {{ $values.app.shared.resources.requests.memory }}
+              cpu: {{ $values.app.shared.resources.requests.cpu }}
+              ephemeral-storage: {{ index $values.app.shared.resources.requests "ephemeral-storage" }}
             limits:
               memory: {{ $values.app.shared.resources.limits.memory }}
           securityContext: {{- toYaml $securityContext | nindent 12 }}

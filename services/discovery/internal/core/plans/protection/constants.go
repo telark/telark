@@ -12,8 +12,11 @@ const (
 	ReasonCanceledByUser     = "Canceled by user."
 	ReasonExpired            = "Plan window ended."
 	ReasonParked             = "Plan parked by an edit."
+	ReasonWindowEnded        = "Window ended."
+	ReasonWindowClosedByEdit = "Window closed by an edit."
 	QueryParamLimit          = "limit"
 	QueryParamResult         = "result"
+	QueryParamWindow         = "window"
 	FieldPhase               = "phase"
 	FieldReason              = "reason"
 	FieldRenderedPolicies    = "renderedPolicies"
@@ -24,6 +27,7 @@ const (
 	FieldHealth              = "health"
 	FieldStartedAt           = "startedAt"
 	FieldStartedBy           = "startedBy"
+	FieldWindow              = "window"
 	FieldApprovalMode        = "approvalMode"
 	FieldApproval            = "approval"
 	FieldScope               = "scope"
@@ -49,6 +53,8 @@ const (
 	LogPlanRejected          = "protection-plan rejected plan=%s by=%s"
 	LogPlanParked            = "protection-plan awaiting approval plan=%s requestedBy=%s"
 	LogActivateSkippedStale  = "protection-plan activate skipped plan=%s phase=%s (no longer activatable)"
+	LogPlanWindowClosed      = "protection-plan window closed plan=%s"
+	LogCloseSkippedStale     = "protection-plan window close skipped plan=%s phase=%s (no longer an open window that ended)"
 	LogStaleDeleteFailed     = "protection-plan update stale delete failed plan=%s err=%v"
 	LogCleanupFailed         = "protection-plan %s cleanup failed plan=%s err=%v"
 )
@@ -77,6 +83,8 @@ const (
 	ErrApprovalModeImmutable       errors.Error = "approvalMode cannot be changed; duplicate the plan instead"
 	ErrApprovedPlanMaterialEdit    errors.Error = "an approved plan cannot be materially edited;" +
 		" duplicate the plan, or cancel and reactivate it to re-request approval"
+	ErrApprovedWindowOpen errors.Error = "an approved plan cannot be materially edited while its window is open:" +
+		" edit it after the window ends at %s, or duplicate it"
 	ErrPlanDecisionInFlight        errors.Error = "a decision on this plan is already in progress; retry shortly"
 	ErrPlanNameInFlight            errors.Error = "a plan with this name is being created or renamed; retry shortly"
 	ErrPlanCoordinationUnavailable errors.Error = "plan coordination unavailable"

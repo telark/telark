@@ -16,13 +16,16 @@ import (
 	"testing"
 
 	"github.com/fxamacker/cbor/v2"
+	"github.com/go-webauthn/webauthn/protocol"
 	webauthnlib "github.com/go-webauthn/webauthn/webauthn"
 
 	"github.com/alicebob/miniredis/v2"
 
 	authdata "github.com/telark/telark/internal/data/auth"
+	dataconstants "github.com/telark/telark/internal/data/constants"
 	"github.com/telark/telark/services/auth/internal/config"
 	"github.com/telark/telark/services/auth/internal/constants"
+	authhelper "github.com/telark/telark/services/auth/internal/helpers/auth"
 	redishelper "github.com/telark/telark/services/auth/internal/helpers/redis"
 	webauthnhelper "github.com/telark/telark/services/auth/internal/helpers/webauthn"
 	"github.com/telark/telark/services/auth/internal/tests/testutil"
@@ -43,7 +46,8 @@ const (
 	testRawCredID        = "\x01\x02\x03\x04"
 	testChalUser         = "chalUser"
 	retryUser            = "retryUser"
-	retryChallenge       = "retry"
+	retryChallenge       = "cmV0cnktY2VyZW1vbnktY2hhbGxlbmdl" // base64url of "retry-ceremony-challenge"
+	strayChallenge       = "c3RyYXktY2hhbGxlbmdl"             // base64url of "stray-challenge"
 	testPayload          = "payload"
 	badBase64Case        = "bad base64"
 	jsonMarshalFailed    = "json marshal: %v"
@@ -56,6 +60,7 @@ const (
 	backupFlagBits       = 0x08 | 0x10
 	userPresentBit       = 0x01
 	testRPID             = "localhost"
+	testServiceToken     = "test-service-token"
 	testOrigin           = "http://localhost:3000"
 	testSignCount        = 5
 	minimalCOSEKey       = 0xA0
@@ -82,6 +87,10 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	if err := os.Setenv("REDIS_PORT", mr.Port()); err != nil {
+		panic(err)
+	}
+	// Ceremony entries are signed with it.
+	if err := os.Setenv(dataconstants.EnvServiceToken, testServiceToken); err != nil {
 		panic(err)
 	}
 	redishelper.NewRedisClientWithRetry(context.Background())
@@ -243,34 +252,71 @@ func TestCreateSessionData(t *testing.T) {
 	user := webauthnhelper.CreateUser("u", testShortName, testShortFull, nil)
 	creds := []webauthnlib.Credential{{ID: []byte("\x01\x02")}, {ID: []byte("\x03\x04")}}
 
-	sd := webauthnhelper.CreateSessionData(challenge, user, creds)
+	sd := webauthnhelper.CreateSessionData(challenge, user, creds, protocol.VerificationRequired)
 	testutil.Equal(t, "challenge", sd.Challenge, "chal")
 	testutil.Equal(t, "allowed creds", len(sd.AllowedCredentialIDs), len(creds))
+	testutil.Equal(t, "user verification", sd.UserVerification, protocol.VerificationRequired)
 }
 
-// A new challenge supersedes the pending one for the same user, and an unknown
-// user is not found.
+// The body of a finish whose client data names challenge.
+func echoing(t *testing.T, challenge string) []byte {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{constants.WebAuthnKeyResponse: map[string]string{
+		constants.WebAuthnKeyClientDataJSON: clientDataWith(challenge)}})
+	if err != nil {
+		t.Fatalf(jsonMarshalFailed, err)
+	}
+	return body
+}
+
+// Redis holds only a challenge's digest, as the name of the ceremony's own key. Another start for the account leaves
+// the first ceremony open, a stray finish spends nothing, a finish spends the ceremony its challenge names once, and
+// an unknown user has none.
 func TestChallengeLifecycle(t *testing.T) {
-	if err := webauthnhelper.StoreChallenge(testChalUser, "value"); err != nil {
-		t.Fatalf(storeChallengeFailed, err)
+	store := func(challenge string) {
+		t.Helper()
+		if err := webauthnhelper.StoreChallenge(testChalUser, challenge, constants.EmptyString); err != nil {
+			t.Fatalf(storeChallengeFailed, err)
+		}
+	}
+	consume := func(userID, challenge string) error {
+		_, err := webauthnhelper.ValidateAndGetChallenge(userID, echoing(t, challenge))
+		return err
+	}
+	key := func(challenge string) string {
+		return constants.RedisKeyPrefixChallenge + testChalUser + constants.ColonSeparator + testutil.ChallengeDigest(t, challenge)
 	}
 
-	got, err := webauthnhelper.ValidateAndGetChallenge(testChalUser)
+	store(registrationChallengeB64)
+	if stored, err := redishelper.GetClient().Get(context.Background(), key(registrationChallengeB64)).Result(); err != nil ||
+		stored != constants.RedisChallengeEntry {
+		t.Fatalf("stored %q (%v), want an entry named by the challenge's digest", stored, err)
+	}
+	got, err := webauthnhelper.ValidateAndGetChallenge(testChalUser, echoing(t, registrationChallengeB64))
 	if err != nil {
 		t.Fatalf("ValidateAndGetChallenge = %v", err)
 	}
-	testutil.Equal(t, "stored challenge", got.Challenge, "value")
+	testutil.Equal(t, "challenge", got.Challenge, registrationChallengeB64)
 
-	if err := webauthnhelper.StoreChallenge(testChalUser, "other"); err != nil {
-		t.Fatalf("second store should supersede the pending ceremony: %v", err)
+	store(registrationChallengeB64)
+	store(retryChallenge)
+	if consume(testChalUser, strayChallenge) == nil {
+		t.Fatal("a finish naming no open ceremony counted")
 	}
-	got, err = webauthnhelper.ValidateAndGetChallenge(testChalUser)
-	if err != nil {
-		t.Fatalf("ValidateAndGetChallenge after supersede = %v", err)
+	if err := consume(testChalUser, registrationChallengeB64); err != nil {
+		t.Fatalf("a second start or a stray finish closed the first ceremony: %v", err)
 	}
-	testutil.Equal(t, "superseded challenge", got.Challenge, "other")
-	if _, err := webauthnhelper.ValidateAndGetChallenge("missingUser"); err == nil {
+	if consume(testChalUser, registrationChallengeB64) == nil {
+		t.Fatal("a spent ceremony finished again")
+	}
+	if err := consume(testChalUser, retryChallenge); err != nil {
+		t.Fatalf("the other ceremony = %v", err)
+	}
+	if consume("missingUser", retryChallenge) == nil {
 		t.Fatal("missing challenge should error")
+	}
+	if webauthnhelper.StoreChallenge(testChalUser, badBase64Input, constants.EmptyString) == nil {
+		t.Fatal("a challenge that doesn't decode was stored")
 	}
 }
 
@@ -278,7 +324,7 @@ func TestChallengeLifecycle(t *testing.T) {
 // finish step.
 func TestStartRegistration(t *testing.T) {
 	opts, challenge, err := webauthnhelper.StartRegistration(
-		"regUser", testName, "full", nil, httptest.NewRequest(http.MethodPost, testPath, nil))
+		"regUser", testName, "full", constants.EmptyString, nil, httptest.NewRequest(http.MethodPost, testPath, nil))
 	if err != nil {
 		t.Fatalf("StartRegistration = %v", err)
 	}
@@ -312,11 +358,11 @@ func TestFinishRegistration(t *testing.T) {
 	}
 	testutil.Equal(t, "stored key", fmt.Sprint(got), fmt.Sprint(want))
 
-	if err := webauthnhelper.StoreChallenge("finUser2", registrationChallengeB64); err != nil {
+	if err := webauthnhelper.StoreChallenge("finUser2", registrationChallengeB64, constants.EmptyString); err != nil {
 		t.Fatalf(storeChallengeFailed, err)
 	}
 	missing := httptest.NewRequest(http.MethodPost, testPath, strings.NewReader(`{"id":"x"}`))
-	if _, _, _, err := webauthnhelper.FinishRegistration("finUser2", testShortName, testShortFull, missing); err == nil {
+	if _, _, _, err := webauthnhelper.FinishRegistration("finUser2", testShortName, testShortFull, constants.EmptyString, missing); err == nil {
 		t.Fatal("registration body without response should fail")
 	}
 }
@@ -336,21 +382,21 @@ func (b *retryOnRead) Read(p []byte) (int, error) {
 // The finish consumes its own challenge; its later cleanup, keyed by the user alone,
 // wiped the challenge a quick retry had just started with.
 func TestFinishKeepsTheChallengeOfARetry(t *testing.T) {
-	if err := webauthnhelper.StoreChallenge(retryUser, registrationChallengeB64); err != nil {
+	if err := webauthnhelper.StoreChallenge(retryUser, registrationChallengeB64, constants.EmptyString); err != nil {
 		t.Fatalf(storeChallengeFailed, err)
 	}
 	body := validRegistration(t, testutil.NewP256Key(t), flagUP|flagUV|flagAT).body(t)
 	reader := &retryOnRead{Reader: bytes.NewReader(body), retry: func() {
-		if err := webauthnhelper.StoreChallenge(retryUser, retryChallenge); err != nil {
+		if err := webauthnhelper.StoreChallenge(retryUser, retryChallenge, constants.EmptyString); err != nil {
 			t.Errorf(storeChallengeFailed, err)
 		}
 	}}
 
 	r := httptest.NewRequest(http.MethodPost, testPath, reader)
-	if _, _, _, err := webauthnhelper.FinishRegistration(retryUser, testName, testShortFull, r); err != nil {
+	if _, _, _, err := webauthnhelper.FinishRegistration(retryUser, testName, testShortFull, constants.EmptyString, r); err != nil {
 		t.Fatalf("FinishRegistration = %v", err)
 	}
-	got, err := webauthnhelper.ValidateAndGetChallenge(retryUser)
+	got, err := webauthnhelper.ValidateAndGetChallenge(retryUser, echoing(t, retryChallenge))
 	if err != nil {
 		t.Fatalf("retry's challenge gone: %v", err)
 	}
@@ -389,7 +435,48 @@ func TestVerifyCredentialMalformed(t *testing.T) {
 	challenge := &authdata.AuthChallenge{Challenge: "c"}
 	user := webauthnhelper.CreateUser("u", testShortName, testShortFull, nil)
 	r := httptest.NewRequest(http.MethodPost, testPath, strings.NewReader("{bad"))
-	if _, err := webauthnhelper.VerifyCredential(challenge, user, nil, nil, r); err == nil {
+	if _, err := webauthnhelper.VerifyCredential(challenge, user, nil, nil, r, protocol.VerificationPreferred); err == nil {
 		t.Fatal("malformed assertion should fail verification")
+	}
+}
+
+// A finish body or a challenge that doesn't decode names no ceremony and stores none, and a registration finish for
+// an account break-glass froze is refused before its challenge is read.
+func TestUndecodableCeremoniesAreRefused(t *testing.T) {
+	key := constants.RedisKeyPrefixChallenge + testChalUser
+	consume := func(body []byte) func() error {
+		return func() error {
+			_, err := webauthnhelper.ConsumeChallengeAt(key, body)
+			return err
+		}
+	}
+	cases := []struct {
+		name string
+		run  func() error
+		want string
+	}{
+		{"finish body not JSON", consume([]byte(testPayload)), string(constants.ErrChallengeNotFound)},
+		{"finish body without client data", consume([]byte(`{"response":{}}`)), string(constants.ErrChallengeNotFound)},
+		{"challenge not base64", consume(echoing(t, badBase64Input)), string(constants.ErrChallengeNotFound)},
+		{"ceremony owner for a challenge not base64", func() error {
+			return webauthnhelper.StoreRegistrationChallengeOwner(badBase64Input, testChalUser)
+		}, constants.EmptyString},
+		{"registration of a frozen account", func() error {
+			if err := authhelper.Freeze(testChalUser); err != nil {
+				return err
+			}
+			defer func() { _ = authhelper.Unfreeze(testChalUser) }()
+			_, _, _, err := webauthnhelper.FinishRegistration(testChalUser, testShortName, testShortFull, constants.EmptyString,
+				httptest.NewRequest(http.MethodPost, testPath, strings.NewReader(testPayload)))
+			return err
+		}, string(constants.ErrAccountRecovering)},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := c.run()
+			if err == nil || c.want != constants.EmptyString && err.Error() != c.want {
+				t.Fatalf("err = %v, want %q", err, c.want)
+			}
+		})
 	}
 }

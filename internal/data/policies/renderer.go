@@ -6,12 +6,12 @@ import (
 	"maps"
 	"slices"
 
-	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
+	policiesv1 "github.com/kyverno/api/api/policies.kyverno.io/v1"
 	"github.com/telark/telark/internal/data/constants"
 	"github.com/telark/telark/internal/data/plans"
 )
 
-func Render(plan *plans.ProtectionPlan, resolved map[string]ResolvedApp, logger Logger) ([]kyvernov1.Policy, error) {
+func Render(plan *plans.ProtectionPlan, resolved map[string]ResolvedApp, logger Logger) ([]policiesv1.NamespacedValidatingPolicy, error) {
 	if plan == nil {
 		return nil, errors.New("policies: plan is required")
 	}
@@ -28,7 +28,7 @@ func Render(plan *plans.ProtectionPlan, resolved map[string]ResolvedApp, logger 
 		Mode:      plan.Mode,
 	}
 
-	out := make([]kyvernov1.Policy, constants.DefaultInitValue, len(scopes)*len(plan.Policies))
+	out := make([]policiesv1.NamespacedValidatingPolicy, constants.DefaultInitValue, len(scopes)*len(plan.Policies))
 	for _, scope := range scopes {
 		exclusions := ExclusionFilters(plan.Scope.Exclusions, scope.Namespace)
 		for _, entry := range plan.Policies {

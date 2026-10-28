@@ -23,4 +23,8 @@ const (
 	CategoryIDTagCompliance    = "cat-00003-0001-0001"
 	CategoryIDTagSecurity      = "cat-00003-0001-0002"
 	CategoryIDTagBaseline      = "cat-00003-0001-0003"
+	CategoryIDKindQA           = "cat-00004-0001-0001"
+	CategoryIDKindTesting      = "cat-00004-0001-0002"
+	CategoryIDKindRelease      = "cat-00004-0001-0003"
+	CategoryIDKindMaintenance  = "cat-00004-0001-0004"
 )

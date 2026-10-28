@@ -27,7 +27,7 @@ var (
 		TitlePolicies: TitlePolicies, TitleHealth: TitleHealth, TitleDecisions: TitleDecisions,
 		TitleAppendix: TitleAppendix, NotAvailable: NotAvailable,
 	}
-	csvHeader = []string{"timestamp", "result", "policy", "rule", "kind", "namespace", "name", "message"}
+	csvHeader = []string{"timestamp", "result", "policy", "rule", "kind", "namespace", "name", "message", "requestedBy"}
 	htmlTmpl  = htmltemplate.Must(htmltemplate.New(htmlTemplateName).Funcs(htmltemplate.FuncMap{
 		"fmtTime": fmtTime, "join": joinList, "resultClass": resultClass,
 	}).ParseFS(templateFS, templateDir+htmlTemplateName))
@@ -70,7 +70,7 @@ func renderCSV(rows []planseps.ProtectionPlanViolation) (string, error) {
 	}
 	for i := range rows {
 		r := &rows[i]
-		record := []string{r.Timestamp, r.Result, r.Policy, r.Rule, r.Resource.Kind, r.Resource.Namespace, r.Resource.Name, r.Message}
+		record := []string{r.Timestamp, r.Result, r.Policy, r.Rule, r.Resource.Kind, r.Resource.Namespace, r.Resource.Name, r.Message, r.RequestedBy}
 		for j := range record {
 			record[j] = csvCell(record[j])
 		}

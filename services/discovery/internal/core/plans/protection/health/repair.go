@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"slices"
 
-	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
+	policiesv1 "github.com/kyverno/api/api/policies.kyverno.io/v1"
 	"github.com/telark/telark/internal/data/plans"
 	"github.com/telark/telark/services/discovery/internal/constants"
 )
@@ -26,7 +26,7 @@ func repairIfDrifted(
 	plan *plans.ProtectionPlan,
 	result Result,
 ) (Result, error) {
-	if plan.Phase != plans.PhaseActive || !needsRepair(result) {
+	if plan.Phase != plans.PhaseActive || result.kindMissing || !needsRepair(result) {
 		return result, nil
 	}
 	// The controller's plan list can predate a Cancel or Terminate: without a fresh phase read
@@ -80,14 +80,17 @@ func repair(
 	result Result,
 ) (repairOutcome, error) {
 	outcome := repairOutcome{}
-	redeploy := slices.Concat(result.Missing, result.Stale)
-	if len(redeploy)+len(result.Added) > constants.DefaultInitValue {
-		if err := deployCurrent(ctx, deps, result, slices.Concat(redeploy, result.Added)); err != nil {
+	if len(result.Missing)+len(result.Added) > constants.DefaultInitValue {
+		if err := deployCurrent(ctx, deps, result, slices.Concat(result.Missing, result.Added)); err != nil {
 			return outcome, err
 		}
-		outcome.redeployed = redeploy
+		outcome.redeployed = result.Missing
 		outcome.added = result.Added
 	}
+	if err := replaceStale(ctx, deps, result); err != nil {
+		return outcome, err
+	}
+	outcome.redeployed = slices.Concat(outcome.redeployed, result.Stale)
 	if len(result.Mismatched) > constants.DefaultInitValue {
 		if err := deps.Applier.PatchPoliciesMode(ctx, plan.ID, plan.Mode); err != nil {
 			return outcome, err
@@ -103,11 +106,23 @@ func repair(
 	return outcome, nil
 }
 
+// Server-side apply cannot drop a field another manager added (a matchCondition, a failurePolicy),
+// so a stale policy is replaced whole, at the resourceVersion the pass listed.
+func replaceStale(ctx context.Context, deps Deps, result Result) error {
+	for _, name := range result.Stale {
+		fresh := result.current[name]
+		if err := deps.Applier.Replace(ctx, result.live[name].object, &fresh); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func deployCurrent(ctx context.Context, deps Deps, result Result, names []string) error {
 	if result.current == nil {
 		return fmt.Errorf(fmtRenderUnavailable, result.renderErr)
 	}
-	selected := make([]kyvernov1.Policy, constants.DefaultInitValue, len(names))
+	selected := make([]policiesv1.NamespacedValidatingPolicy, constants.DefaultInitValue, len(names))
 	for _, name := range names {
 		if pol, ok := result.current[name]; ok {
 			selected = append(selected, pol)

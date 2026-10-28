@@ -19,6 +19,3 @@ charts/*/charts
 !.claude/skills/
 .claude/skills/deploy-dev-cluster/
 
-# Local-only github actions workflows
-.github/workflows/local-*
-

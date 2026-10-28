@@ -42,7 +42,7 @@ func TestSessionListIsNotServedFromCacheToAnotherUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("building middleware: %v", err)
 	}
-	rt := router.NewRouter(routes.InitRoutes(optimizer))
+	rt := router.NewRouter(routes.InitRoutes(optimizer, nil))
 	rt.Use(middleware)
 
 	request := httptest.NewRequest(http.MethodGet, path, nil)

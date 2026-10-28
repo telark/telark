@@ -4,8 +4,11 @@ import (
 	"context"
 	"net/http"
 
+	dataerrors "github.com/telark/telark/internal/data/errors"
 	"github.com/telark/telark/internal/data/messages"
+	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
 	"github.com/telark/telark/internal/rest/response"
+	requestutils "github.com/telark/telark/internal/rest/utils/request"
 	responseutils "github.com/telark/telark/internal/rest/utils/response"
 	"github.com/telark/telark/services/discovery/internal/constants"
 	"github.com/telark/telark/services/discovery/internal/helpers/shared"
@@ -24,6 +27,11 @@ func Clear(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
+	keepReports, err := requestutils.OptionalBoolQuery(r, planseps.QueryKeepReports)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, dataerrors.Error(err.Error()), err)
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(detached(r), constants.ProtectionPlanLifecycleTimeout)
 	defer cancel()
@@ -34,7 +42,7 @@ func Clear(w http.ResponseWriter, r *http.Request) {
 	}
 	defer release()
 
-	if err := svc.Clear(ctx, planID); err != nil {
+	if err := svc.Clear(ctx, planID, keepReports); err != nil {
 		respondDomainError(w, err)
 		return
 	}

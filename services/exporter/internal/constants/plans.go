@@ -14,6 +14,7 @@ const (
 	FieldScopeNamespaces    = "namespaces"
 	FieldScopeExclusions    = "exclusions"
 	FieldExclusionResources = "resources"
+	FieldRepeat             = "repeat"
 	FieldCreatedAt          = "createdAt"
 	FieldCreatedBy          = "createdBy"
 	FieldLastUpdatedAt      = "lastUpdatedAt"
@@ -29,7 +30,7 @@ const (
 // status list is read from the projection so the two cannot drift apart.
 var PlanLifecycleFields = append(
 	slices.Sorted(maps.Keys(v1alpha1.ProtectionPlanMetadata.StatusFields)),
-	"approvalMode", "policies", FieldScope, "mode", "timeMode", "timeRange",
+	"approvalMode", "policies", FieldScope, "mode", "timeMode", "timeRange", FieldRepeat,
 	// The name is the plan's identity: discovery's update route keeps it unique.
 	FieldName,
 )

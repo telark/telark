@@ -8,8 +8,8 @@ import (
 	"github.com/telark/telark/services/exporter/internal/authz"
 )
 
-// Create and the ledger routes are reached by discovery only; both lists and download
-// follow the plan read scope, each with its own deny rule.
+// Create and the ledger routes are reached by discovery only; the lists and download
+// follow the plan read scope, each with its own deny rule, and a report's delete the plan delete's.
 func TestReportRoutesRequirements(t *testing.T) {
 	expected := map[string]xauthz.Requirement{
 		"POST /api/v1/internal/reports":                    xauthz.Internal,
@@ -23,6 +23,12 @@ func TestReportRoutesRequirements(t *testing.T) {
 		),
 		"GET /api/v1/protectionplans/{id}/reports/download": xauthz.Denyable(
 			xauthz.Read(roledata.ScopeProtectionPlans), roledata.ActionDownloadProtectionPlanReport,
+		),
+		"GET /api/v1/reports/kept": xauthz.Denyable(
+			xauthz.Read(roledata.ScopeProtectionPlans), roledata.ActionViewProtectionPlanReports,
+		),
+		"DELETE /api/v1/protectionplans/{id}/reports": xauthz.Denyable(
+			xauthz.Own(roledata.ScopeProtectionPlans), roledata.ActionDeleteProtectionPlan,
 		),
 	}
 

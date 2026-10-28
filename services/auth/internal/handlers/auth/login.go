@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/telark/telark/services/auth/internal/bootstrap"
 	"github.com/telark/telark/services/auth/internal/constants"
 	"github.com/telark/telark/services/auth/internal/helpers/auth"
 	"github.com/telark/telark/services/auth/internal/helpers/shared"
@@ -49,7 +51,11 @@ func LoginStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := webauthnhelper.StoreChallenge(user.ID, sessionData.Challenge); err != nil {
+	if err := webauthnhelper.StoreChallenge(user.ID, sessionData.Challenge, constants.EmptyString); err != nil {
+		if shared.IsError(err, constants.ErrAccountRecovering) {
+			shared.SendErrorResponse(w, http.StatusConflict, err)
+			return
+		}
 		shared.HandleError(w, errors.New(string(constants.ErrInternalServerError)),
 			http.StatusInternalServerError,
 			err.Error())
@@ -82,7 +88,7 @@ func LoginFinish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	challenge, err := webauthnhelper.ValidateAndGetChallenge(user.ID)
+	challenge, err := webauthnhelper.ValidateAndGetChallenge(user.ID, bodyBytes)
 	if err != nil {
 		sendChallengeError(w, err)
 		return
@@ -90,28 +96,36 @@ func LoginFinish(w http.ResponseWriter, r *http.Request) {
 
 	credentials := webauthnhelper.ConvertPasskeysToCredentials(passkeys)
 	webAuthnUser := webauthnhelper.CreateUser(user.ID, user.Username, user.Fullname, credentials)
-	credential, err := webauthnhelper.VerifyCredential(challenge, webAuthnUser, credentials, passkeys, r)
+	credential, err := webauthnhelper.VerifyCredential(challenge, webAuthnUser, credentials, passkeys, r, protocol.VerificationPreferred)
 	if err != nil {
 		shared.SendErrorResponse(w, shared.GetStatusCodeForWebAuthnError(err, http.StatusUnauthorized), err)
+		return
+	}
+	if err := bootstrap.RefuseRecoveryPasskey(user, passkeys, credential.ID); err != nil {
+		sendRecoveryRefusal(w, err)
 		return
 	}
 
 	capturedUserID, capturedCredID := user.ID, credential.ID
 	auth.Dispatch(func() { _ = auth.UpdatePasskeyLastUsed(capturedUserID, capturedCredID) })
 
-	sessionToken, err := auth.CreateUserSession(user.ID, &req.DeviceMetadata)
+	sessionToken, expiresAt, err := auth.CreateUserSession(user.ID, &req.DeviceMetadata)
 	if err != nil {
 		sendSessionError(w, err)
 		return
 	}
+	auth.SetSessionCookie(w, sessionToken, expiresAt)
 
-	// A refused login is no login: the stamp waits for the session, as on the Google path.
-	auth.Dispatch(func() { auth.UpdateUserLastLogin(capturedUserID) })
+	// A refused login is no login: the stamp waits for the session, as on the Google path. The bootstrap account's
+	// stamp is what stops a break-glass request completing without approval, so it never waits on the pool.
+	if user.Bootstrap {
+		auth.UpdateUserLastLogin(capturedUserID)
+		bootstrap.CancelOnSignIn(user.ID)
+	} else {
+		auth.Dispatch(func() { auth.UpdateUserLastLogin(capturedUserID) })
+	}
 
-	shared.SendJSONResponse(w, http.StatusOK, LoginFinishResponse{
-		SessionToken: sessionToken,
-		User:         user,
-	})
+	shared.SendJSONResponse(w, http.StatusOK, LoginFinishResponse{User: user})
 }
 
 // An expired or already used challenge is the caller's; Redis failing to answer is logged.
@@ -120,7 +134,22 @@ func sendChallengeError(w http.ResponseWriter, err error) {
 		shared.SendErrorResponse(w, http.StatusUnauthorized, err)
 		return
 	}
+	if shared.IsError(err, constants.ErrAccountRecovering) {
+		shared.SendErrorResponse(w, http.StatusConflict, err)
+		return
+	}
 	shared.HandleError(w, err, http.StatusUnauthorized, err.Error())
+}
+
+func sendRecoveryRefusal(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, bootstrap.ErrRecoveryPasskey):
+		shared.SendErrorResponse(w, http.StatusConflict, err)
+	case errors.Is(err, shared.ErrBackendUnavailable):
+		shared.SendErrorResponse(w, http.StatusServiceUnavailable, err)
+	default:
+		shared.HandleError(w, errors.New(string(constants.ErrInternalServerError)), http.StatusInternalServerError, err.Error())
+	}
 }
 
 // A refused account is an answer; only a session that could not be made is logged, and its cause stays out of the reply.

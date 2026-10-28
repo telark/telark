@@ -10,4 +10,8 @@ const (
 	DownloadPlanReport  base.Endpoint = "protectionplans/{id}/reports/download"
 	PutPlanReportLedger base.Endpoint = "internal/protectionplans/{id}/ledger"
 	GetPlanReportLedger base.Endpoint = "internal/protectionplans/{id}/ledger"
+	// A live or kept report, by ?report=
+	DeletePlanReport base.Endpoint = "protectionplans/{id}/reports"
+	// The reports plan deletes kept
+	ListKeptReports base.Endpoint = "reports/kept"
 )

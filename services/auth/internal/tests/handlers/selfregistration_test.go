@@ -11,6 +11,7 @@ import (
 	telarkconfigresource "github.com/telark/telark/internal/data/resources/telarkconfig"
 	userresource "github.com/telark/telark/internal/data/resources/user"
 	autheps "github.com/telark/telark/internal/rest/endpoints/auth"
+	configeps "github.com/telark/telark/internal/rest/endpoints/config"
 	"github.com/telark/telark/internal/rest/router"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/auth/internal/config"
@@ -31,6 +32,7 @@ const (
 	bootstrapCallID = "u-bootstrap"
 	adminCallID     = "u-admin-all"
 	selfRegOnBody   = `{"enabled":true}`
+	alertsOnBody    = `{"notifyAdmins":true}`
 	malformedJSON   = "{"
 )
 
@@ -108,7 +110,11 @@ func startSelfRegistration() *httptest.ResponseRecorder {
 }
 
 func signInSettingsReq(caller xauthz.Identity, body string) *http.Request {
-	r := httptest.NewRequest(http.MethodPatch, router.Pattern(autheps.SelfRegistration), strings.NewReader(body))
+	endpoint := autheps.SelfRegistration
+	if strings.Contains(body, telarkconfigresource.FieldNotifyAdmins) {
+		endpoint = autheps.BreakGlassAlerts
+	}
+	r := httptest.NewRequest(http.MethodPatch, router.Pattern(endpoint), strings.NewReader(body))
 	return r.WithContext(xauthz.WithIdentity(r.Context(), caller))
 }
 
@@ -129,6 +135,9 @@ func TestSignInSettingsAreBootstrapOnly(t *testing.T) {
 		{"self-registration by an Admin on ALL", routed, selfRegOnBody, adminCallID, false, http.StatusForbidden},
 		{"self-registration by the bootstrap account", routed, selfRegOnBody, bootstrapCallID, false, http.StatusOK},
 		{"self-registration with the caller unreadable", routed, selfRegOnBody, bootstrapCallID, true, http.StatusServiceUnavailable},
+		{"break-glass alerts by an Admin on ALL", routed, alertsOnBody, adminCallID, false, http.StatusForbidden},
+		{"break-glass alerts by the bootstrap account", routed, alertsOnBody, bootstrapCallID, false, http.StatusOK},
+		{"break-glass alerts with the caller unreadable", routed, alertsOnBody, bootstrapCallID, true, http.StatusServiceUnavailable},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -145,9 +154,21 @@ func TestSignInSettingsAreBootstrapOnly(t *testing.T) {
 			if rec.Code != c.status {
 				t.Fatalf("status = %d, want %d (body %s)", rec.Code, c.status, rec.Body.String())
 			}
-			if c.status == http.StatusOK && !fake.SavedConfig().SelfRegistration.Enabled {
+			saved := fake.SavedConfig()
+			if c.status == http.StatusOK && !saved.SelfRegistration.Enabled && !saved.BreakGlassAlerts.NotifyAdmins {
 				t.Fatal("the bootstrap account's change was not saved")
 			}
 		})
 	}
+}
+
+// A sign-in setting the exporter fails to save is a failure (500), not a saved change.
+func TestSignInSettingNotSaved(t *testing.T) {
+	fake := &testutil.FakeExporter{Users: map[string]*userresource.User{bootstrapCallID: {ID: bootstrapCallID, Bootstrap: true}}}
+	testutil.StubBackend(t, &failingRoute{inner: fake, method: http.MethodPatch, suffix: "/" + string(configeps.PatchConfig)})
+	caller := adminOnAll()
+	caller.UserID = bootstrapCallID
+	rec := httptest.NewRecorder()
+	routed(rec, signInSettingsReq(caller, alertsOnBody))
+	testutil.Equal(t, "status", rec.Code, http.StatusInternalServerError)
 }

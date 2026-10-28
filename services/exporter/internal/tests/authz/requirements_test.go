@@ -19,7 +19,7 @@ func TestRequirementsCoverEveryRoute(t *testing.T) {
 	requirements := authz.Requirements()
 
 	var missing []string
-	for _, route := range routes.InitRoutes(&performance.Optimizer{}) {
+	for _, route := range routes.InitRoutes(&performance.Optimizer{}, nil) {
 		key := route.Method + " " + route.Pattern
 		if _, found := requirements[key]; !found {
 			missing = append(missing, key)
@@ -37,7 +37,7 @@ func TestRequirementsCoverEveryRoute(t *testing.T) {
 // A stale key protects nothing and hides a typo in RouteKey.
 func TestNoRequirementWithoutRoute(t *testing.T) {
 	registered := map[string]bool{}
-	for _, route := range routes.InitRoutes(&performance.Optimizer{}) {
+	for _, route := range routes.InitRoutes(&performance.Optimizer{}, nil) {
 		registered[route.Method+" "+route.Pattern] = true
 	}
 
@@ -79,6 +79,8 @@ func TestScopelessRoutesAreGuarded(t *testing.T) {
 		"POST /api/v1/notifications/read":      true,
 		"DELETE /api/v1/notifications":         true,
 		"DELETE /api/v1/notifications/{id}":    true,
+		// Narrowed to the session's own user by the handler, which refuses Internal callers.
+		"GET /api/v1/notifications/events": true,
 		// Narrowed to the category's own scope by GuardCategoryScope.
 		"POST /api/v1/categories":        true,
 		"PATCH /api/v1/categories/{id}":  true,

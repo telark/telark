@@ -29,6 +29,7 @@ const (
 	// Enrollment Link and Self-Registration Messages
 	SuccessEnrollLinkRevoked       messages.Message = "enrollment link revoked"
 	SuccessSelfRegistrationUpdated messages.Message = "self-registration updated"
+	SuccessBreakGlassAlertsUpdated messages.Message = "break-glass alerts updated"
 	LogEnrollLinkIssued            messages.Message = "enrollment link issued: identityHash=%s issuerHash=%s"
 	LogEnrollLinkRevoked           messages.Message = "enrollment link revoked: identityHash=%s"
 	NoticeEnrollLinkCreatedTitle   messages.Message = "Enrollment link created for your account"
@@ -38,6 +39,7 @@ const (
 		"If it was not you, tell an administrator."
 	NoticeIssuerUnknown    messages.Message = "an administrator"
 	NoticeIssuerBreakGlass messages.Message = "the break-glass command"
+	NoticeIssuerBootstrap  messages.Message = "the bootstrap account"
 
 	// Logout Log Messages
 	LogLogoutAttempted messages.Message = "logout attempted: identityHash=%s tokenStatus=%s"
@@ -59,14 +61,12 @@ const (
 	LogCleanupWorkerDLQ           messages.Message = "[cleanup] DLQ: type=%s id=%s attempts=%d err=%v"
 	LogCleanupSweeperEnqueued     messages.Message = "[cleanup] sweeper enqueued: type=%s id=%s"
 	LogCleanupFinalizerRestored   messages.Message = "[cleanup] finalizer restored: type=%s id=%s"
-	LogFinalizersRemoved          messages.Message = "[remove-finalizers] removed=%d failed=%d"
-	ErrRemoveFinalizersListFailed messages.Message = "[remove-finalizers] list failed: type=%s err=%v"
 	LogCleanupManagerStarted      messages.Message = "[cleanup] manager started: workersPerType=%d"
 	LogCleanupManagerStopped      messages.Message = "[cleanup] manager stopped"
 	LogCleanupEnvInvalid          messages.Message = "[cleanup] %s must be a positive integer, using the default %d"
 	LogEnvInvalid                 messages.Message = "%s must be a positive integer, using the default %d"
-	LogBackfillFinalizersStarted  messages.Message = "[backfill] finalizers started: batchSize=%d pauseMs=%d"
-	LogBackfillFinalizersDone     messages.Message = "[backfill] finalizers done: scanned=%d patched=%d skipped=%d"
+	LogEnvInvalidHops             messages.Message = "%s must be zero or a positive integer, using the default %d"
+	WarnRateLimitGlobalReached    messages.Message = "rate limit: %s reached its cap of %d starts for this minute"
 	ErrCleanupEnqueueFailed       messages.Message = "[cleanup] enqueue failed: type=%s id=%s err=%v"
 	ErrCleanupDedupCheckFailed    messages.Message = "[cleanup] dedup check failed: type=%s id=%s err=%v"
 	ErrCleanupListBackRefsFailed  messages.Message = "[cleanup] list back-refs failed: refType=%s err=%v"
@@ -97,9 +97,4 @@ const (
 	CleanupStepAckAfterDLQ     messages.Message = "ack-after-DLQ failed"
 	CleanupStepRelease         messages.Message = "dedup release failed"
 	CleanupStepReleaseAfterDLQ messages.Message = "dedup release after DLQ failed"
-
-	// Backfill messages
-	ErrBackfillUnknownResourceType messages.Message = "backfill: unknown resource type %q"
-	ErrBackfillListFailed          messages.Message = "backfill: list %s: %w"
-	ErrBackfillAddFinalizerFailed  messages.Message = "[backfill] add-finalizer failed: type=%s id=%s status=%d"
 )

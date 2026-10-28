@@ -1,14 +1,9 @@
-# Install mode: performance — selected with --set app.mode=performance
-#
-# Large cluster, high change rate. Three replicas per service, disruption budgets
-# that keep a quorum up through a drain, and client rate limits raised so the
-# services are not the bottleneck when thousands of resources move at once.
-#
-# Costs roughly an order of magnitude more than minimal to run — pick it when the
-# cluster is genuinely large, not to be safe. Sizes telark's own services only;
-# subcharts (redis, nats, kyverno) ship fixed production-grade defaults, owned by
-# the chart and identical in every mode.
-# Capacity only — app.crdGuard (security posture) is an independent flag.
+# Install mode performance (--set app.mode=performance), for large clusters with a high change
+# rate: three replicas per service, disruption budgets that keep a quorum through a drain, and
+# client rate limits raised so the services keep up when thousands of resources move at once.
+# Costs about ten times minimal: pick it for a genuinely large cluster, not to be safe. Sizes
+# telark's own services only (redis, nats and kyverno keep the chart's production defaults in every
+# mode) and says nothing about security (app.security.crdGuard is separate).
 
 app:
   serviceDefaults:

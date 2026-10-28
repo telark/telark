@@ -11,6 +11,7 @@ import (
 	"time"
 
 	authdata "github.com/telark/telark/internal/data/auth"
+	dataconstants "github.com/telark/telark/internal/data/constants"
 	userresource "github.com/telark/telark/internal/data/resources/user"
 	"github.com/telark/telark/services/auth/internal/config"
 	"github.com/telark/telark/services/auth/internal/constants"
@@ -107,9 +108,7 @@ func TestEnrollLinkRegisterStart(t *testing.T) {
 	if link.Token == constants.EmptyString || link.ExpiresAt == constants.EmptyString {
 		t.Fatalf("enroll-link body = %+v, want a token and an expiry", link)
 	}
-	if owner, err := redisServer.Get(constants.RedisKeyPrefixEnrollToken + tokenDigest(link.Token)); err != nil || owner != "uid" {
-		t.Fatalf("enroll token under its digest = %q (%v), want the signed-in user", owner, err)
-	}
+	expectSignedEntry(t, constants.RedisKeyPrefixEnrollToken+tokenDigest(link.Token), stubUserID)
 	expectNoRawToken(t, link.Token)
 
 	body := `{"enrollToken":"` + link.Token + `"}`
@@ -124,7 +123,8 @@ func TestEnrollLinkRegisterStart(t *testing.T) {
 
 // The finish that saves a passkey spends the link before it writes anything, so a failed finish leaves
 // it usable. A finish whose link is gone by then (spent by another ceremony, or expired) gets the
-// refusal start gives and writes nothing. A ceremony an older pod opened spent its link at start, so it finishes.
+// refusal start gives and writes nothing. A ceremony opened before the upgrade holds an entry auth
+// never signed: it saves nothing and leaves the link usable.
 func TestEnrollLinkIsSpentByTheSavedPasskey(t *testing.T) {
 	initWebAuthn(t)
 	cases := []struct {
@@ -140,7 +140,7 @@ func TestEnrollLinkIsSpentByTheSavedPasskey(t *testing.T) {
 		{"spent by a second ceremony", func(t *testing.T, token, challenge string) {
 			testutil.Equal(t, "second finish", finishWith(t, challengeOf(t, startWith(token)), webauthnHost).Code, http.StatusCreated)
 			// As if the first finish read its challenge before the second start replaced it.
-			if err := redisServer.Set(constants.RedisKeyPrefixChallenge+enrolledTargetID, challenge); err != nil {
+			if err := redisServer.Set(constants.RedisKeyPrefixChallenge+enrolledTargetID, testutil.ChallengeDigest(t, challenge)); err != nil {
 				t.Fatalf("restore challenge: %v", err)
 			}
 		}, webauthnHost, constants.DefaultInitValue, constants.DefaultIncrementValue, constants.DefaultInitValue},
@@ -148,13 +148,13 @@ func TestEnrollLinkIsSpentByTheSavedPasskey(t *testing.T) {
 			redisServer.SetTTL(constants.RedisKeyPrefixEnrollToken+tokenDigest(token), time.Second)
 			redisServer.FastForward(2 * time.Second)
 		}, webauthnHost, constants.DefaultInitValue, constants.DefaultInitValue, constants.DefaultInitValue},
-		{"opened by an older pod", func(t *testing.T, token, challenge string) {
-			// It spent the link at start and stored the owner, not a digest.
-			redisServer.Del(constants.RedisKeyPrefixEnrollToken + tokenDigest(token))
-			if err := redisServer.Set(constants.RedisKeyPrefixEnrolledCeremony+challenge, enrolledTargetID); err != nil {
+		{"opened before the upgrade", func(t *testing.T, token, challenge string) {
+			// A 0.1.2 pod stored the link's digest unsigned.
+			key := constants.RedisKeyPrefixEnrolledCeremony + testutil.ChallengeDigest(t, challenge)
+			if err := redisServer.Set(key, tokenDigest(token)); err != nil {
 				t.Fatalf("older ceremony: %v", err)
 			}
-		}, webauthnHost, http.StatusCreated, constants.DefaultIncrementValue, constants.DefaultInitValue},
+		}, webauthnHost, http.StatusBadRequest, constants.DefaultInitValue, http.StatusOK},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -213,13 +213,15 @@ func TestGetUserForRegistrationNamesTheCaller(t *testing.T) {
 		name    string
 		stub    registerStub
 		pending string
+		signed  bool
 		digest  string
 		want    string
 		refusal string
 	}{
 		{name: "session", stub: registerStub{session: true}, want: stubUserID},
 		{name: "session, account unreadable", stub: registerStub{session: true, userDown: true}},
-		{name: "pending entry unreadable", pending: unreadableEntry},
+		{name: "pending entry unreadable", pending: unreadableEntry, signed: true},
+		{name: "pending entry auth never signed", pending: unreadableEntry, refusal: string(constants.ErrChallengeNotFound)},
 		{name: "account unreadable", stub: registerStub{userDown: true}},
 		{name: "account with a passkey", refusal: string(constants.ErrUserAlreadyHasPasskeys)},
 		{name: "account opened with a link", digest: hashField, want: stubUserID},
@@ -229,7 +231,11 @@ func TestGetUserForRegistrationNamesTheCaller(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			stubExporter(t, c.stub)
 			if c.pending != constants.EmptyString {
-				if err := redisServer.Set(constants.RedisKeyPrefixPendingUser+stubUserID, c.pending); err != nil {
+				key, pending := constants.RedisKeyPrefixPendingUser+stubUserID, c.pending
+				if c.signed {
+					pending = signedEntry(t, key, pending)
+				}
+				if err := redisServer.Set(key, pending); err != nil {
 					t.Fatalf("park pending user: %v", err)
 				}
 				t.Cleanup(func() { redisServer.Del(constants.RedisKeyPrefixPendingUser + stubUserID) })
@@ -290,4 +296,64 @@ func TestFakeExporterRefusesMalformedIdentities(t *testing.T) {
 		strings.NewReader(`{"identities":"`+unreadableEntry+`"}`)))
 	testutil.Equal(t, "status", rec.Code, http.StatusBadRequest)
 	testutil.Equal(t, "identities", len(fake.User(enrolledTargetID).Identities), constants.DefaultInitValue)
+}
+
+// No link is minted for a frozen account (409), and nothing is stored unsigned: without the service token no link or
+// invite is written and no self-registration starts (500, a server fault).
+func TestLinksNeedASignatureAndAThawedAccount(t *testing.T) {
+	initWebAuthn(t)
+	frozen := func(t *testing.T) {
+		t.Cleanup(func() { _ = authhelper.Unfreeze(stubUserID) })
+		if err := authhelper.Freeze(stubUserID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	unsigned := func(t *testing.T) { t.Setenv(dataconstants.EnvServiceToken, constants.EmptyString) }
+	sessionLink := func(t *testing.T) int {
+		stubExporter(t, registerStub{session: true})
+		rec := httptest.NewRecorder()
+		passkeyhandler.CreateEnrollLink(rec, withSession(httptest.NewRequest(http.MethodPost, testPath, nil)))
+		return rec.Code
+	}
+	invite := func(t *testing.T) int {
+		testutil.StubBackend(t, inviteDirectory())
+		rec := httptest.NewRecorder()
+		routed(rec, enrollLinkReq(http.MethodPost, plainTargetID, usersOwner()))
+		return rec.Code
+	}
+	selfRegistration := func(t *testing.T) int {
+		stubExporter(t, &proofStub{})
+		awaitSelfRegistration(t, true)
+		return startSelfRegistration().Code
+	}
+	cases := []struct {
+		name string
+		prep func(t *testing.T)
+		run  func(t *testing.T) int
+		want int
+	}{
+		{"session link, account frozen", frozen, sessionLink, http.StatusConflict},
+		{"session link, no service token", unsigned, sessionLink, http.StatusInternalServerError},
+		{"invite, no service token", unsigned, invite, http.StatusInternalServerError},
+		{"self-registration, no service token", unsigned, selfRegistration, http.StatusInternalServerError},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			c.prep(t)
+			testutil.Equal(t, "status", c.run(t), c.want)
+		})
+	}
+}
+
+// A passkey whose identity the exporter fails to attach is not saved (500).
+func TestNoPasskeyWithoutItsIdentity(t *testing.T) {
+	initWebAuthn(t)
+	fake := inviteDirectory()
+	testutil.StubBackend(t, &failingRoute{inner: fake, method: http.MethodPatch, suffix: "/" + plainTargetID})
+	token, _, err := authhelper.CreateEnrollToken(plainTargetID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testutil.Equal(t, "finish", finishWith(t, challengeOf(t, startWith(token)), webauthnHost).Code, http.StatusInternalServerError)
+	testutil.Equal(t, "saved passkeys", fake.PasskeyCount(plainTargetID), constants.DefaultInitValue)
 }

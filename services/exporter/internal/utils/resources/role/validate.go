@@ -2,12 +2,15 @@ package role
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"slices"
 
 	metadata "github.com/telark/telark/internal/data/metadata/v1alpha1"
 	roledata "github.com/telark/telark/internal/data/resources/role"
 	"github.com/telark/telark/internal/rest/response"
 	responseutils "github.com/telark/telark/internal/rest/utils/response"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/exporter/internal/constants"
 	roleconstants "github.com/telark/telark/services/exporter/internal/utils/compute/role/constants"
 	resourcesshared "github.com/telark/telark/services/exporter/internal/utils/resources/shared"
@@ -31,7 +34,41 @@ func validateRoleFields(role *roledata.AccessRole, w http.ResponseWriter) error 
 		return err
 	}
 
+	if err := validateDenyRulesOrRespond(w, role.ScopesAndPermissions); err != nil {
+		return err
+	}
+
 	return validateRoleComplexFields(role, w)
+}
+
+// Only written rules are checked: a stored role with a malformed rule keeps loading.
+func validateDenyRulesOrRespond(w http.ResponseWriter, scopes []roledata.ScopeAndPermissions) error {
+	for _, scope := range scopes {
+		if scope.Rules == nil {
+			continue
+		}
+		for _, rule := range *scope.Rules {
+			if !isKnownDenyRule(scope.Scope, rule) {
+				err := fmt.Errorf(string(constants.ErrRoleDenyRuleUnknown), rule, scope.Scope)
+				responseutils.SendResponse(w, http.StatusBadRequest, response.OperationError, err.Error(), nil)
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// Authz denies a request when its RuleKey is listed under the request's scope or under ALL.
+func isKnownDenyRule(scope, rule string) bool {
+	for ruleScope, actions := range roledata.DenyableActions {
+		if scope != ruleScope && scope != roledata.ScopeAll {
+			continue
+		}
+		if slices.ContainsFunc(actions, func(action string) bool { return xauthz.RuleKey(ruleScope, action) == rule }) {
+			return true
+		}
+	}
+	return false
 }
 
 func validateRoleName(role *roledata.AccessRole, w http.ResponseWriter) error {

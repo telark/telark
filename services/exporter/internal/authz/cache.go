@@ -42,7 +42,7 @@ func cachedGrants(ctx context.Context, gen, userID string) (authz.Grants, bool) 
 
 	// An entry that is not ours decides nothing: it is dropped, and the grants
 	// are recomputed from the resources that actually own them.
-	payload, ok := VerifyCacheEntry(grantsBinding(gen, userID), raw)
+	payload, ok := authz.VerifyRedisEntry(grantsBinding(gen, userID), raw)
 	if !ok {
 		lg.Warn(fmtLog(constants.LogAuthzGrantsCacheUnsigned, userID))
 		return authz.Grants{}, false
@@ -68,7 +68,7 @@ func SignGrantsEntry(gen, userID string, grants authz.Grants, issuedAt time.Time
 		lg.Warn(fmtLog(constants.LogAuthzGrantsCacheWriteFailed, err))
 		return constants.EmptyString, false
 	}
-	return SignCacheEntry(grantsBinding(gen, userID), string(raw))
+	return authz.SignRedisEntry(grantsBinding(gen, userID), string(raw))
 }
 
 func storeGrants(ctx context.Context, gen, userID string, grants authz.Grants) {

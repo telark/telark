@@ -53,6 +53,8 @@ func TestAllowedOriginsFromEnv(t *testing.T) {
 		{"unset", noHeader, nil},
 		{"list with blanks", " https://a.example.com , ,https://b.example.com", []string{"https://a.example.com", "https://b.example.com"}},
 		{"wildcard dropped", "*," + uiOrigin, []string{uiOrigin}},
+		// rs/cors reads any entry holding "*" as a pattern, which with credentials reflects every matching origin.
+		{"patterns dropped", "https://*,https://*.example.com," + uiOrigin, []string{uiOrigin}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

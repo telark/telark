@@ -44,12 +44,14 @@ func TestStatusReportsEveryDriftKind(t *testing.T) {
 	testutil.Equal(t, "render", err, nil)
 	edited, added := rendered[constants.DefaultInitValue], rendered[constants.DefaultAddValue].Name
 	plan.RenderedPolicies = []string{edited.Name}
-	edited.Spec.ValidationFailureAction = dpolicies.FailureAction(plans.ModeAudit)
-	edited.Spec.Rules[constants.DefaultInitValue].Validation.Message = "edited by hand"
+	edited.Spec.ValidationAction = dpolicies.ValidationActions(plans.ModeAudit)
+	edited.Spec.Validations[constants.DefaultInitValue].Message = "edited by hand"
 	live, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&edited)
 	testutil.Equal(t, "to unstructured", err, nil)
 	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(
-		runtime.NewScheme(), map[schema.GroupVersionResource]string{protpolicies.KyvernoPolicyGVR: "PolicyList"},
+		runtime.NewScheme(), map[schema.GroupVersionResource]string{
+			protpolicies.KyvernoPolicyGVR: "NamespacedValidatingPolicyList",
+		},
 		&unstructured.Unstructured{Object: live},
 	)
 	prev := http.DefaultTransport

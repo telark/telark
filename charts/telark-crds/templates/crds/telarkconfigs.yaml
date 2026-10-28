@@ -72,11 +72,74 @@ spec:
                     enabled:
                       type: boolean
                       description: whether anyone who reaches the login page may create a ReadOnly account with a passkey. Written by auth for the bootstrap administrator only.
+                breakGlassAlerts:
+                  type: object
+                  default: {}
+                  properties:
+                    notifyAdmins:
+                      type: boolean
+                      default: true
+                      description: whether every active Admin on ALL hears of break-glass recovery requests and reads them in the bootstrap status. When false, only the bootstrap account does. Written by auth for the bootstrap administrator only.
             status:
               type: object
               properties:
+                bootstrap:
+                  type: object
+                  description: The bootstrap account, pinned at its first passkey, and its break-glass requests. Written by the exporter alone.
+                  properties:
+                    userID:
+                      type: string
+                    email:
+                      type: string
+                    pinnedAt:
+                      type: string
+                      format: date-time
+                      description: When the account was pinned. Without it nothing is pinned, and break-glass acts at once.
+                    requests:
+                      type: array
+                      maxItems: 20
+                      description: Break-glass requests, newest first. At most one is open (pending or approved).
+                      items:
+                        type: object
+                        required: [id, kind, state, openedAt]
+                        properties:
+                          id:
+                            type: string
+                          kind:
+                            type: string
+                            enum: [recover, replace]
+                          targetEmail:
+                            type: string
+                            description: The account a replacement makes the bootstrap account.
+                          state:
+                            type: string
+                            enum: [pending, approved, canceled, completed]
+                          reason:
+                            type: string
+                            enum: [signed-in, denied, expired]
+                            description: Why a canceled request ended.
+                          openedAt:
+                            type: string
+                            format: date-time
+                          approvedAt:
+                            type: string
+                            format: date-time
+                          canceledAt:
+                            type: string
+                            format: date-time
+                          completedAt:
+                            type: string
+                            format: date-time
                 cluster:
                   type: object
                   properties:
                     version:
                       type: string
+                lastMigration:
+                  type: integer
+                  minimum: 0
+                  description: Number of the last exporter migration step applied to the stored data.
+                rollbackMigration:
+                  type: integer
+                  minimum: 0
+                  description: Last migration step of the release before the one that wrote lastMigration. An exporter whose last step is below lastMigration but not below this one lowers lastMigration to its own last step and starts. Any older exporter refuses to start.

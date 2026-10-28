@@ -15,9 +15,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import exporter  # noqa: E402
-from constants import DEFAULT_ANALYZER_MODEL, HEADER_SERVICE_TOKEN  # noqa: E402
-from models import AnalyzerConfig  # noqa: E402
+from core import exporter  # noqa: E402
+from core.constants import DEFAULT_ANALYZER_MODEL, HEADER_SERVICE_TOKEN  # noqa: E402
+from core.models import AnalyzerConfig  # noqa: E402
 
 
 def _envelope(data):

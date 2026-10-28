@@ -20,11 +20,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import analyzer  # noqa: E402
-import insights  # noqa: E402
-import messages  # noqa: E402
 import tools  # noqa: E402
-from models import AppInsights, Candidate, ChatMessage, Emitted, EvidenceRef, Job, Run, ToolResult  # noqa: E402
+from analysis import analyzer, insights, messages  # noqa: E402
+from core.models import AppInsights, Candidate, ChatMessage, Emitted, EvidenceRef, Job, Run, ToolResult  # noqa: E402
 from prompts.analyzer_prompt import (  # noqa: E402
     EMIT_MESSAGE,
     EMIT_SCHEMA,

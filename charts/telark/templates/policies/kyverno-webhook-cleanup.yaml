@@ -5,8 +5,8 @@ part-of=kyverno (here <release>-kyverno), and delete-webhooks deletes a Validati
 instead of each validating webhook (kyverno cmd/readiness-checker/main.go, v1.19.1).
 Stop the controllers first, or they re-create the webhooks as soon as they are gone.
 */}}
-{{- if .Values.app.kyverno.enabled }}
 {{- $values := include "telark.modeValues" . | fromYaml }}
+{{- if $values.kyverno.enabled }}
 {{- $ns := .Values.app.namespace }}
 {{- $kyverno := printf "app.kubernetes.io/part-of=%s" (ternary .Release.Name (printf "%s-kyverno" .Release.Name) (contains "kyverno" .Release.Name) | trunc 63 | trimSuffix "-") }}
 {{- $securityContext := dict "allowPrivilegeEscalation" false "readOnlyRootFilesystem" true "capabilities" (dict "drop" (list "ALL")) }}
@@ -64,25 +64,27 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: scale-to-zero
-          image: {{ .Values.app.kubectlImage }}
+          image: {{ $values.app.image.kubectl }}
           args: ["scale", "deployment", "-n", {{ $ns | quote }}, "-l", {{ $kyverno | quote }}, "--replicas=0", "--cache-dir=/tmp"]
           securityContext: {{- toYaml $securityContext | nindent 12 }}
           volumeMounts: [{ name: tmp, mountPath: /tmp }]
         - name: wait-for-pods
-          image: {{ .Values.app.kubectlImage }}
+          image: {{ $values.app.image.kubectl }}
           args: ["wait", "--for=delete", "pod", "-n", {{ $ns | quote }}, "-l", {{ $kyverno | quote }}, "--timeout=120s", "--cache-dir=/tmp"]
           securityContext: {{- toYaml $securityContext | nindent 12 }}
           volumeMounts: [{ name: tmp, mountPath: /tmp }]
       containers:
         - name: delete-webhooks
-          image: {{ .Values.app.kubectlImage }}
+          image: {{ $values.app.image.kubectl }}
           args: ["delete", "validatingwebhookconfigurations,mutatingwebhookconfigurations", "-l", "webhook.kyverno.io/managed-by=kyverno", "--ignore-not-found", "--cache-dir=/tmp"]
           resources:
             requests:
               memory: {{ $values.app.shared.resources.requests.memory }}
+              cpu: {{ $values.app.shared.resources.requests.cpu }}
+              ephemeral-storage: {{ index $values.app.shared.resources.requests "ephemeral-storage" }}
             limits:
               memory: {{ $values.app.shared.resources.limits.memory }}
-              ephemeral-storage: 64Mi
+              ephemeral-storage: {{ index $values.app.shared.resources.limits "ephemeral-storage" }}
           securityContext: {{- toYaml $securityContext | nindent 12 }}
           volumeMounts: [{ name: tmp, mountPath: /tmp }]
       volumes:

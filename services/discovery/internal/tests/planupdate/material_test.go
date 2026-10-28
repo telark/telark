@@ -42,9 +42,10 @@ func materialCases() []materialCase {
 		{name: "timeMode", mutate: func(r *planseps.PrepareProtectionPlanRequest) {
 			r.TimeMode = plans.TimeModeTimeRange
 		}, want: true},
-		{name: "timeRange", mutate: func(r *planseps.PrepareProtectionPlanRequest) {
+		// A range only counts for a time-range plan (the matrix plan is permanent): TestStaleScheduleIsNotMaterial.
+		{name: "timeRange of a permanent plan", mutate: func(r *planseps.PrepareProtectionPlanRequest) {
 			r.TimeRange = &planseps.TimeRangeRequest{StartAt: "2026-01-01T00:00:00Z", EndAt: "2026-01-02T00:00:00Z"}
-		}, want: true},
+		}, want: false},
 		{name: "name", mutate: func(r *planseps.PrepareProtectionPlanRequest) { r.Name = nameChanged }, want: false},
 		{name: "description", mutate: func(r *planseps.PrepareProtectionPlanRequest) {
 			r.Description = strptr(nameChanged)

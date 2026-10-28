@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	notifclient "github.com/telark/telark/internal/rest/clients/notifications"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/exporter/internal/constants"
 	exprdb "github.com/telark/telark/services/exporter/internal/redis"
 	notiftypes "github.com/telark/telark/services/exporter/internal/types/notifications"
@@ -24,6 +27,11 @@ const (
 	int64BitSize = 64
 	scanBatch    = 100
 	watchRetries = 5
+	// Readers only need the entries since their last read; the cap bounds the stream.
+	changedStreamMaxLen int64 = 1000
+	// One webhook delivery per event: the other recipients' copies, written within this window, queue nothing.
+	eventDedupTTL = 10 * time.Minute
+	eventMarker   = 1
 
 	fieldID        = "id"
 	fieldUserID    = "userId"
@@ -53,6 +61,8 @@ var ErrRedisUnavailable = errors.New("notifications: redis client not available"
 
 var ErrNotificationNotFound = errors.New(string(constants.ErrNotificationNotFound))
 
+var errEventUnsigned = errors.New(string(constants.ErrWebhookEventUnsigned))
+
 func NewStorage() (*Storage, error) {
 	rdb := exprdb.Get()
 	if rdb == nil {
@@ -65,6 +75,17 @@ func (s *Storage) Emit(ctx context.Context, n notiftypes.Notification) (*notifty
 	ctx, cancel := withTimeout(ctx)
 	defer cancel()
 
+	stored, err := s.store(ctx, n)
+	if err != nil {
+		return nil, err
+	}
+	// After either path: an event that merged into a copy still unread is news again for webhooks,
+	// and the 10-minute marker still collapses the other recipients' copies.
+	s.queueWebhookEvent(ctx, *stored)
+	return stored, nil
+}
+
+func (s *Storage) store(ctx context.Context, n notiftypes.Notification) (*notiftypes.Notification, error) {
 	targetID := metaString(n.Metadata, notiftypes.MetaKeyTargetID)
 	if targetID != constants.EmptyString {
 		existingID, err := s.rdb.Get(ctx, dedupKey(n, targetID)).Result()
@@ -115,6 +136,7 @@ func (s *Storage) tryUpdateUnread(
 		if targetID := metaString(n.Metadata, notiftypes.MetaKeyTargetID); targetID != constants.EmptyString {
 			pipe.Set(ctx, dedupKey(n, targetID), id, DedupTTL)
 		}
+		signalChanged(ctx, pipe, n.UserID)
 	})
 	if errors.Is(err, ErrNotificationNotFound) || (err == nil && !unread) {
 		return nil, false, nil
@@ -159,6 +181,7 @@ func (s *Storage) createNew(
 		pipe.Set(ctx, dedupKey(n, targetID), id, DedupTTL)
 	}
 	pipe.Incr(ctx, unreadCountKey(n.UserID))
+	signalChanged(ctx, pipe, n.UserID)
 	if _, err := pipe.Exec(ctx); err != nil {
 		return nil, fmt.Errorf("emit pipeline: %w", err)
 	}
@@ -171,6 +194,63 @@ func (s *Storage) createNew(
 	created.ID = id
 	created.CreatedAt = now
 	return &created, nil
+}
+
+func signalChanged(ctx context.Context, pipe redis.Pipeliner, userID string) {
+	pipe.XAdd(ctx, &redis.XAddArgs{
+		Stream: changedStream,
+		MaxLen: changedStreamMaxLen,
+		Approx: true,
+		Values: []any{changedFieldUser, userID},
+	})
+}
+
+// The first copy queues the event; a failure is logged and not returned, since the notification itself is stored.
+func (s *Storage) queueWebhookEvent(ctx context.Context, n notiftypes.Notification) {
+	if !slices.Contains(notifclient.WebhookEventTypes, n.Type) {
+		return
+	}
+	key := eventKey(n, metaString(n.Metadata, notiftypes.MetaKeyTargetID))
+	entry, err := signedEvent(n)
+	first := false
+	if err == nil {
+		first, err = s.rdb.SetNX(ctx, key, eventMarker, eventDedupTTL).Result()
+	}
+	if err == nil && first {
+		err = s.rdb.XAdd(ctx, &redis.XAddArgs{
+			Stream: notifclient.EventsStream,
+			MaxLen: notifclient.EventsStreamMaxLen,
+			Approx: true,
+			Values: []any{notifclient.EventField, entry},
+		}).Err()
+		if err != nil {
+			// Released, so the next copy queues the event instead.
+			s.rdb.Del(ctx, key)
+		}
+	}
+	if err != nil {
+		lg.Warn(fmt.Sprintf(string(constants.WarnWebhookEventQueueFailed), n.Type, err))
+	}
+}
+
+// Redis is untrusted: the notifier delivers only what verifies against the service token.
+func signedEvent(n notiftypes.Notification) (string, error) {
+	payload, err := json.Marshal(notifclient.QueuedEvent{
+		Type:      n.Type,
+		Timestamp: n.CreatedAt.UnixMilli(),
+		Severity:  n.Severity,
+		Title:     n.Title,
+		Message:   n.Message,
+		Metadata:  n.Metadata,
+	})
+	if err != nil {
+		return constants.EmptyString, err
+	}
+	entry, ok := xauthz.SignRedisEntry(notifclient.EventsStream, string(payload))
+	if !ok {
+		return constants.EmptyString, errEventUnsigned
+	}
+	return entry, nil
 }
 
 func (s *Storage) enforceCap(ctx context.Context, userID string) error {
@@ -277,6 +357,7 @@ func (s *Storage) MarkRead(ctx context.Context, userID, notificationID string) e
 		pipe.HSet(ctx, itemK, fieldReadAt, time.Now().UTC().Format(time.RFC3339))
 		pipe.Expire(ctx, itemK, ReadTTL)
 		pipe.Decr(ctx, unreadCountKey(userID))
+		signalChanged(ctx, pipe, userID)
 	})
 }
 
@@ -290,6 +371,7 @@ func (s *Storage) Delete(ctx context.Context, userID, notificationID string) err
 		if fields[fieldReadAt] == constants.EmptyString {
 			pipe.Decr(ctx, unreadCountKey(userID))
 		}
+		signalChanged(ctx, pipe, userID)
 	})
 }
 
@@ -342,6 +424,7 @@ func (s *Storage) MarkAllRead(ctx context.Context, userID string) error {
 		pipe.Expire(ctx, itemKey(id), ReadTTL)
 	}
 	pipe.Set(ctx, unreadCountKey(userID), constants.DefaultInitValue, constants.DefaultInitValue)
+	signalChanged(ctx, pipe, userID)
 	if _, err := pipe.Exec(ctx); err != nil {
 		return fmt.Errorf("markallread pipeline: %w", err)
 	}
@@ -362,6 +445,7 @@ func (s *Storage) Clear(ctx context.Context, userID string) error {
 	}
 	pipe.Del(ctx, itemsKey(userID))
 	pipe.Del(ctx, unreadCountKey(userID))
+	signalChanged(ctx, pipe, userID)
 	if _, err := pipe.Exec(ctx); err != nil {
 		return fmt.Errorf("clear pipeline: %w", err)
 	}

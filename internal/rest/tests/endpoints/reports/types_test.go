@@ -50,3 +50,18 @@ func TestReportWireKeysAreCamelCaseAndComplete(t *testing.T) {
 		t.Fatalf(wantKeys, wantMeta, got)
 	}
 }
+
+// The dashboard reads these three keys from GET reports/kept.
+func TestKeptPlanReportsWireKeys(t *testing.T) {
+	raw, err := json.Marshal(reports.KeptPlanReports{PlanID: samplePlanID})
+	if err != nil {
+		t.Fatalf(unexpectedErr, err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf(unexpectedErr, err)
+	}
+	if want := []string{"planId", "planName", "reports"}; !slices.Equal(sortedKeys(got), want) {
+		t.Fatalf(wantKeys, want, sortedKeys(got))
+	}
+}

@@ -6,6 +6,7 @@ import (
 	accessroleclient "github.com/telark/telark/internal/rest/clients/accessroles"
 	passkeyclient "github.com/telark/telark/internal/rest/clients/auth/passkey"
 	sessionclient "github.com/telark/telark/internal/rest/clients/auth/session"
+	bootstrapclient "github.com/telark/telark/internal/rest/clients/bootstrap"
 	configclient "github.com/telark/telark/internal/rest/clients/config"
 	groupclient "github.com/telark/telark/internal/rest/clients/groups"
 	notificationsclient "github.com/telark/telark/internal/rest/clients/notifications"
@@ -20,6 +21,7 @@ var (
 	accessRoleClientInstance *accessroleclient.Client
 	configClientInstance     *configclient.Client
 	notificationsInstance    *notificationsclient.Client
+	bootstrapInstance        *bootstrapclient.Client
 	passkeyOnce              sync.Once
 	sessionOnce              sync.Once
 	userOnce                 sync.Once
@@ -27,6 +29,7 @@ var (
 	accessRoleOnce           sync.Once
 	configOnce               sync.Once
 	notificationsOnce        sync.Once
+	bootstrapOnce            sync.Once
 )
 
 func GetPasskeyClient() *passkeyclient.Client {
@@ -76,4 +79,11 @@ func GetNotificationsClient() *notificationsclient.Client {
 		notificationsInstance = notificationsclient.NewClient()
 	})
 	return notificationsInstance
+}
+
+func GetBootstrapClient() *bootstrapclient.Client {
+	bootstrapOnce.Do(func() {
+		bootstrapInstance = bootstrapclient.NewClient()
+	})
+	return bootstrapInstance
 }

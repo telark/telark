@@ -1,11 +1,15 @@
 package insightsindex
 
 import (
+	"context"
 	"sync"
 	"time"
 
 	"github.com/telark/telark/internal/data/plans"
 	"github.com/telark/telark/internal/data/resources/application"
+	userresource "github.com/telark/telark/internal/data/resources/user"
+	notifclient "github.com/telark/telark/internal/rest/clients/notifications"
+	xauthz "github.com/telark/telark/internal/x-ware/authz"
 )
 
 // One insight card, flattened for the cluster-wide list; the full card stays in the app's document.
@@ -76,6 +80,23 @@ type Settings struct {
 	Refresh    time.Duration
 	Resync     time.Duration
 	StaleAfter time.Duration
+	// Nil keeps the index silent.
+	Notifier *CriticalNotifier
+}
+
+// Notifies once per episode: from the card's creation or reopening until it resolves or is gone.
+type CriticalNotifier struct {
+	ListUsers func() ([]*userresource.User, error)
+	Grants    func(userID string) (xauthz.Grants, error)
+	Excluded  func(ctx context.Context) ([]string, error)
+	Emit      func(ctx context.Context, n notifclient.Notification) error
+}
+
+type incidentChanges struct {
+	activeCritical []Row
+	// Resolved, or the card is gone: the incident's next Critical episode notifies again.
+	ended   []string
+	initial bool
 }
 
 type PlanLister func() ([]plans.ProtectionPlan, error)

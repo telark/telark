@@ -33,6 +33,8 @@ func TestRuleKeysMatchDashboardVocabulary(t *testing.T) {
 		"POST /api/v1/protectionplans":                      "protection-plans.createprotectionplan.deny",
 		"GET /api/v1/protectionplans/{id}/reports":          "protection-plans.viewprotectionplanreports.deny",
 		"GET /api/v1/protectionplans/{id}/reports/download": "protection-plans.downloadprotectionplanreport.deny",
+		"GET /api/v1/reports/kept":                          "protection-plans.viewprotectionplanreports.deny",
+		"DELETE /api/v1/protectionplans/{id}/reports":       "protection-plans.deleteprotectionplan.deny",
 	}
 
 	requirements := authz.Requirements()

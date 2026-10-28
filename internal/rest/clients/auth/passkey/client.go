@@ -39,8 +39,12 @@ func (c *Client) CreatePasskeyByUser(userID string, passkey *authdata.Passkey) *
 	)
 }
 
+// Read fresh, like every authorization input: sign-in, approvals and break-glass decide on it, and a cached list
+// would keep a revoked passkey, or one planted in Redis, for minutes.
 func (c *Client) GetAllPasskeysByUser(userID string) ([]*authdata.Passkey, error) {
-	return shared.GetListWithHeaders[*authdata.Passkey](c.Client, eps.GetAllInternalPasskeysByUser, userHeaders(userID))
+	headers := userHeaders(userID)
+	headers[constants.HeaderCacheControl] = constants.CacheControlNoCache
+	return shared.GetListWithHeaders[*authdata.Passkey](c.Client, eps.GetAllInternalPasskeysByUser, headers)
 }
 
 func (c *Client) GetPasskeyByUserAndCredentialID(userID string, credentialID string) (*authdata.Passkey, error) {

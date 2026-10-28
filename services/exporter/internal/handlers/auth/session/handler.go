@@ -27,7 +27,7 @@ func CreateSessionByUserWithCacheInvalidation(optimizer *performance.Optimizer) 
 			return
 		}
 
-		sessionexp.CreateSessionByUser(w, body, userID)
+		sessionexp.CreateSessionByUser(r.Context(), w, body, userID)
 		authutils.InvalidateResourceCaches(optimizer, constants.ResourceUserSession, string(constants.OpCreate), constants.EmptyString)
 	}
 }

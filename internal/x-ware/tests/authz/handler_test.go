@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	dataconstants "github.com/telark/telark/internal/data/constants"
@@ -22,6 +23,7 @@ const (
 	testAuthedKey    = "permissions:get"
 	spoofedUserID    = "u-99999-9999-9999"
 	msgStatusWant    = "status = %d, want %d"
+	testRouteHeader  = "X-Test-Route"
 )
 
 var testRule = authz.RuleKey(roledata.ScopeUsers, "edituser")
@@ -73,7 +75,7 @@ func newTestConfig(resolver authz.Resolver) authz.Config {
 			testInternalKey: {Access: authz.AccessInternal},
 			testAuthedKey:   {Access: authz.AccessAuthenticated},
 		},
-		RouteKey:     func(r *http.Request) string { return r.Header.Get("X-Test-Route") },
+		RouteKey:     func(r *http.Request) string { return r.Header.Get(testRouteHeader) },
 		ServiceToken: testServiceToken,
 	}
 }
@@ -106,10 +108,136 @@ func serve(t *testing.T, config authz.Config, r *http.Request) (*httptest.Respon
 	return rec, got
 }
 
+// A change, as the dashboard sends it: X-Requested-With lets a cookie session through the CSRF rule.
 func request(routeKey string) *http.Request {
 	r := httptest.NewRequest(http.MethodPatch, "/v1/users/u-1", nil)
-	r.Header.Set("X-Test-Route", routeKey)
+	r.Header.Set(testRouteHeader, routeKey)
+	r.Header.Set(dataconstants.HeaderRequestedWith, "XMLHttpRequest")
 	return r
+}
+
+// The browser's session rides in the cookie, which x-ware copies into the header the rest reads; a header wins. A
+// change that carries no header credential needs X-Requested-With, public routes included (sign-in CSRF), while a
+// read, a header token or the service token needs none.
+func TestSessionCookieAndCSRF(t *testing.T) {
+	resolver := stubResolver{userID: testUserID, grants: authz.Grants{Levels: levels(roledata.ScopeUsers, roledata.PermissionLevelOwner)}}
+	cookie := &http.Cookie{Name: dataconstants.CookieSession, Value: testSessionToken, Secure: true, HttpOnly: true,
+		SameSite: http.SameSiteStrictMode}
+	cases := []struct {
+		name   string
+		method string
+		route  string
+		setup  func(r *http.Request)
+		want   int
+		user   string
+	}{
+		{"cookie change with the header", http.MethodPatch, testRouteKey, func(r *http.Request) {
+			r.AddCookie(cookie)
+			r.Header.Set(dataconstants.HeaderRequestedWith, "XMLHttpRequest")
+		}, http.StatusOK, testUserID},
+		{"cookie change without it", http.MethodPatch, testRouteKey, func(r *http.Request) { r.AddCookie(cookie) },
+			http.StatusForbidden, dataconstants.EmptyString},
+		{"cookie read", http.MethodGet, testAuthedKey, func(r *http.Request) { r.AddCookie(cookie) }, http.StatusOK, testUserID},
+		{"header token change", http.MethodPatch, testRouteKey, func(r *http.Request) {
+			r.Header.Set(dataconstants.HeaderSessionToken, testSessionToken)
+		}, http.StatusOK, testUserID},
+		{"header beats cookie", http.MethodGet, testAuthedKey, func(r *http.Request) {
+			r.AddCookie(cookie)
+			r.Header.Set(dataconstants.HeaderSessionToken, "st-other")
+		}, http.StatusUnauthorized, dataconstants.EmptyString},
+		{"service token change", http.MethodPost, testInternalKey, func(r *http.Request) {
+			r.Header.Set(dataconstants.HeaderServiceToken, testServiceToken)
+		}, http.StatusOK, dataconstants.EmptyString},
+		{"public change without the header", http.MethodPost, testPublicKey, func(*http.Request) {}, http.StatusForbidden,
+			dataconstants.EmptyString},
+		{"public read", http.MethodGet, testPublicKey, func(*http.Request) {}, http.StatusOK, dataconstants.EmptyString},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := httptest.NewRequest(c.method, "/v1/users/u-1", nil)
+			r.Header.Set(testRouteHeader, c.route)
+			c.setup(r)
+			rec, got := serve(t, newTestConfig(resolver), r)
+			if rec.Code != c.want {
+				t.Fatalf(msgStatusWant, rec.Code, c.want)
+			}
+			if got.userID != c.user {
+				t.Errorf("forwarded user = %q, want %q", got.userID, c.user)
+			}
+			if c.want == http.StatusForbidden && !strings.Contains(rec.Body.String(), "csrf_header_missing") {
+				t.Errorf("refusal %s lacks the csrf_header_missing code", rec.Body.String())
+			}
+		})
+	}
+}
+
+// Two session cookies count as none (a sibling subdomain can plant one): a route that needs a session answers 401
+// with session_cookie_duplicate, a public one still serves, and a sent session header still wins.
+func TestDuplicateSessionCookies(t *testing.T) {
+	resolver := stubResolver{userID: testUserID, grants: authz.Grants{Levels: levels(roledata.ScopeUsers, roledata.PermissionLevelOwner)}}
+	cases := []struct {
+		route  string
+		header string
+		want   int
+	}{
+		{testAuthedKey, dataconstants.EmptyString, http.StatusUnauthorized},
+		{testPublicKey, dataconstants.EmptyString, http.StatusOK},
+		{testAuthedKey, testSessionToken, http.StatusOK},
+	}
+	for _, c := range cases {
+		r := httptest.NewRequest(http.MethodGet, "/v1/users/u-1", nil)
+		r.Header.Set(testRouteHeader, c.route)
+		if c.header != dataconstants.EmptyString {
+			r.Header.Set(dataconstants.HeaderSessionToken, c.header)
+		}
+		for _, value := range []string{testSessionToken, "planted"} {
+			r.AddCookie(&http.Cookie{Name: dataconstants.CookieSession, Value: value, Secure: true, HttpOnly: true,
+				SameSite: http.SameSiteStrictMode})
+		}
+		rec, got := serve(t, newTestConfig(resolver), r)
+		if rec.Code != c.want {
+			t.Fatalf("%s, header %q: "+msgStatusWant, c.route, c.header, rec.Code, c.want)
+		}
+		if c.want == http.StatusUnauthorized && (got.called || !strings.Contains(rec.Body.String(), "session_cookie_duplicate")) {
+			t.Fatalf("%s: refusal %s, handler ran %v", c.route, rec.Body.String(), got.called)
+		}
+	}
+}
+
+// An https install reads only __Host-telark_session: it signs in, a plain cookie alone is no session, and a plain one
+// beside it (planted by a sibling host) is no duplicate.
+func TestHostPrefixedSessionCookie(t *testing.T) {
+	t.Setenv(dataconstants.EnvSessionCookieHostPrefix, "true")
+	resolver := stubResolver{userID: testUserID, grants: authz.Grants{Levels: levels(roledata.ScopeUsers, roledata.PermissionLevelOwner)}}
+	hostCookie := dataconstants.CookieSessionHostPrefix + dataconstants.CookieSession
+	if name := authz.SessionCookieName(); name != hostCookie {
+		t.Fatalf("SessionCookieName() = %q, want %q", name, hostCookie)
+	}
+	cases := []struct {
+		name    string
+		cookies map[string]string
+		want    int
+	}{
+		{"host-prefixed", map[string]string{hostCookie: testSessionToken}, http.StatusOK},
+		{"plain alone", map[string]string{dataconstants.CookieSession: testSessionToken}, http.StatusUnauthorized},
+		{"plain beside it", map[string]string{hostCookie: testSessionToken, dataconstants.CookieSession: "planted"}, http.StatusOK},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodGet, "/v1/users/u-1", nil)
+			r.Header.Set(testRouteHeader, testAuthedKey)
+			for name, value := range c.cookies {
+				r.AddCookie(&http.Cookie{Name: name, Value: value, Secure: true, HttpOnly: true, SameSite: http.SameSiteStrictMode})
+			}
+			rec, got := serve(t, newTestConfig(resolver), r)
+			if rec.Code != c.want {
+				t.Fatalf(msgStatusWant, rec.Code, c.want)
+			}
+			if c.want == http.StatusOK && got.userID != testUserID {
+				t.Errorf("forwarded user = %q, want %q", got.userID, testUserID)
+			}
+		})
+	}
 }
 
 func TestNewRejectsIncompleteConfig(t *testing.T) {
@@ -704,5 +832,34 @@ func TestMergeLevelSkipsUnknownOnEmptyMap(t *testing.T) {
 
 	if _, exists := got[roledata.ScopeUsers]; exists {
 		t.Error("unknown level created a grant")
+	}
+}
+
+func TestSessionEnded(t *testing.T) {
+	tests := []struct {
+		name     string
+		resolver stubResolver
+		token    string
+		want     bool
+	}{
+		{name: "live session", resolver: stubResolver{userID: testUserID}, token: testSessionToken},
+		{name: "deleted session", resolver: stubResolver{userID: testUserID}, token: "st-deleted", want: true},
+		{name: "expired session", resolver: stubResolver{userErr: authz.ErrSessionExpired}, token: testSessionToken, want: true},
+		{
+			name:     "suspended account",
+			resolver: stubResolver{userID: testUserID, grantsErr: authz.ErrUserSuspended},
+			token:    testSessionToken,
+			want:     true,
+		},
+		{name: "session backend outage", resolver: stubResolver{userErr: errStub}, token: testSessionToken},
+		{name: "grants backend outage", resolver: stubResolver{userID: testUserID, grantsErr: errStub}, token: testSessionToken},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := authz.SessionEnded(tt.resolver, tt.token); got != tt.want {
+				t.Errorf("SessionEnded = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

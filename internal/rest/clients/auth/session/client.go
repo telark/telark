@@ -33,8 +33,10 @@ func listByUser(userID string) base.Endpoint {
 
 // Only the session name leaves this process: the raw token reaches neither a URL
 // nor the exporter, which resolves the self session from the name in the header.
+// What the caller presented is always hashed, so a session name, which its owner
+// can read, never works as the token.
 func selfHeaders(token string) map[string]string {
-	return map[string]string{dataconstants.HeaderSessionToken: authdata.SessionRef(token)}
+	return map[string]string{dataconstants.HeaderSessionToken: authdata.SessionName(token)}
 }
 
 func (c *Client) CreateSessionByUser(userID string, session *authdata.Session) *response.GenericResponse {
@@ -45,7 +47,7 @@ func (c *Client) GetAllSessionsByUser(userID string) ([]*authdata.Session, error
 	return shared.GetListTyped[*authdata.Session](c.Client, listByUser(userID))
 }
 
-// Session names, usable as the token argument of the self calls.
+// Session names, which DeleteSessionByToken takes.
 func (c *Client) ListSessionRefsByUser(userID string) ([]string, error) {
 	refs, err := shared.GetListTyped[sessionRef](c.Client, listByUser(userID))
 	if err != nil {
@@ -68,8 +70,10 @@ func (c *Client) PatchSessionByToken(token string, body map[string]any) *respons
 	return shared.ExecuteRequestWithHeaders(c.Client, base.Patch, eps.PatchSelfSession, body, selfHeaders(token))
 }
 
-func (c *Client) DeleteSessionByToken(token string) *response.GenericResponse {
-	return shared.ExecuteRequestWithHeaders(c.Client, base.Delete, eps.DeleteSelfSession, nil, selfHeaders(token))
+// Takes a token or a listed name: the deletion cascade removes a user's sessions by the names it listed.
+func (c *Client) DeleteSessionByToken(ref string) *response.GenericResponse {
+	return shared.ExecuteRequestWithHeaders(c.Client, base.Delete, eps.DeleteSelfSession, nil,
+		map[string]string{dataconstants.HeaderSessionToken: authdata.SessionRef(ref)})
 }
 
 func (c *Client) DeleteSessionByName(name string) *response.GenericResponse {

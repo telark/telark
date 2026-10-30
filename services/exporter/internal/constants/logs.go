@@ -281,6 +281,9 @@ const (
 	WarnReportsGCPanic         messages.Message = "reports gc panic recovered: %v"
 	InfReportsSwept            messages.Message = "reports sweep removed=%d temps=%d scanned=%d"
 	InfReportsGCDisabled       messages.Message = "reports gc disabled"
+	InfReportsStorageRetrieved messages.Message = "reports storage retrieved"
+	WarnReportsStorageWalk     messages.Message = "reports storage walk failed path=%s error=%v"
+	WarnReportsPVCGetFailed    messages.Message = "reports pvc get failed name=%s namespace=%s error=%v"
 
 	// Storage migration
 	InfMigrateStorageCopied messages.Message = "[migrate-storage] copied %d file(s) from %s to %s"

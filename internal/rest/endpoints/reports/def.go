@@ -14,4 +14,6 @@ const (
 	DeletePlanReport base.Endpoint = "protectionplans/{id}/reports"
 	// The reports plan deletes kept
 	ListKeptReports base.Endpoint = "reports/kept"
+	// Usage and capacity of the reports volume
+	GetReportsStorage base.Endpoint = "reports/storage"
 )

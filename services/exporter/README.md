@@ -88,6 +88,8 @@ Full reference: [chart README](../../charts/telark/README.md#servicesexporterenv
 | `SNAPSHOTS_PVC_NAME` | `<app.name>-exporter-snapshots-pvc` | PVC backing snapshot storage; the chart adds a storage suffix after a class change |
 | `SNAPSHOTS_PVC_NAMESPACE` | `<app.namespace>` | Namespace of the PVC |
 | `REPORTS_PATH` | `/reports` | Mount path for protection plan report files (the reports PVC) |
+| `REPORTS_PVC_NAME` | `<app.name>-exporter-reports-pvc` | PVC backing report storage; the chart adds a storage suffix after a class change |
+| `REPORTS_PVC_NAMESPACE` | `<app.namespace>` | Namespace of the reports PVC |
 | `SNAPSHOT_GC_INTERVAL_SEC` | `3600` | Snapshot sweep interval; also drives the reports orphan sweep (`0` disables both) |
 | `EXPORTER_K8S_CLIENT_QPS` / `_BURST` | `50` / `100` | K8s client rate limits, sized for CRD-write fan-out |
 | `EXPORTER_LIST_RENDER_CONCURRENCY` | `2` | List renders at once per list route; requests for the same list share one render |
@@ -148,6 +150,7 @@ Protection plan reports (`{id}` = plan name):
 | `GET protectionplans/{id}/reports/download?report=&format=` | Read (protection plans), deny `downloadprotectionplanreport` | Download one report as `html`, `md`, `json` or `csv` |
 | `DELETE protectionplans/{id}/reports?report=` | Owner (protection plans), deny `deleteprotectionplan` | Delete one report, of a live plan or a kept one. Deleting a plan deletes its reports, so the plan delete's rule gates it |
 | `GET reports/kept` | Read (protection plans), deny `viewprotectionplanreports` | List the reports plan deletes kept, one entry per deleted plan with its name |
+| `GET reports/storage` | Read (protection plans), deny `viewprotectionplanreports` | Usage and capacity of the reports volume, in the snapshot infos' shape: `totalPVCSpace`, `consumedSpace`, `availableSpace` (`bytes`, `kb`, `mb`, `percent`), `totalReports` (live and kept), `pvcName`, `pvcNamespace`. The volume is walked per request (reports are capped per plan); a capacity it can't read is zero, without percentages |
 
 Downloads carry `X-Content-Type-Options: nosniff` and `Content-Security-Policy: sandbox`, and are served inline (no `Content-Disposition`). Reports are removed when their plan is deleted, unless the delete keeps them: `keepReports=true` moves the plan's directory from `plans/` to `kept/` on the reports volume (with a `plan.json` holding the plan's name, and without the ledger), where no sweep looks. The download and delete routes serve kept reports too, and a kept plan's last deleted report removes its directory. A report is a single file, so a delete leaves nothing behind in any listing.
 

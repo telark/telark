@@ -406,6 +406,8 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.env.EXPORTER_LIST_RENDER_CONCURRENCY | string | `"2"` |  |
 | services.exporter.env.OIDC_TRUST_SECRET_NAME | string | `"{{ include \"telark.oidcTrustSecretName\" . }}"` |  |
 | services.exporter.env.REPORTS_PATH | string | `"/reports"` |  |
+| services.exporter.env.REPORTS_PVC_NAME | string | `"{{ include \"telark.exporterReportsPvcName\" . }}"` |  |
+| services.exporter.env.REPORTS_PVC_NAMESPACE | string | `"{{ .Values.app.namespace }}"` |  |
 | services.exporter.env.SNAPSHOTS_PATH | string | `"/snapshots"` |  |
 | services.exporter.env.SNAPSHOTS_PVC_NAME | string | `"{{ include \"telark.exporterSnapshotsPvcName\" . }}"` |  |
 | services.exporter.env.SNAPSHOTS_PVC_NAMESPACE | string | `"{{ .Values.app.namespace }}"` |  |

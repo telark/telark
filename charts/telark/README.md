@@ -244,6 +244,8 @@ Image tags are `services.<svc>.version` in `values.yaml`, bumped by the release 
 | `SNAPSHOTS_PATH` | `/snapshots` | Filesystem mount path for snapshot files |
 | `SNAPSHOTS_PVC_NAME` | `{{ .Values.app.name }}-exporter-snapshots-pvc` (tpl), plus a storage suffix after a class change | PVC backing snapshot storage |
 | `SNAPSHOTS_PVC_NAMESPACE` | `{{ .Values.app.namespace }}` (tpl) | Namespace of the snapshots PVC |
+| `REPORTS_PVC_NAME` | `{{ .Values.app.name }}-exporter-reports-pvc` (tpl), plus a storage suffix after a class change | PVC backing report storage, whose capacity `GET reports/storage` reports |
+| `REPORTS_PVC_NAMESPACE` | `{{ .Values.app.namespace }}` (tpl) | Namespace of the reports PVC |
 | `EXPORTER_K8S_CLIENT_QPS` | `50` | K8s client QPS; sized for CRD-write fanout (10× client-go default) |
 | `EXPORTER_K8S_CLIENT_BURST` | `100` | K8s client burst |
 | `EXPORTER_LIST_RENDER_CONCURRENCY` | `2` | List renders running at once per list route. Concurrent requests for the same list share one render; a request waits for a slot up to its 20 s list deadline, then gets 503 with `Retry-After` |

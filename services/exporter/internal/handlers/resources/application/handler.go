@@ -68,13 +68,17 @@ func guardEditableFields(w http.ResponseWriter, r *http.Request) bool {
 	if !authz.GuardApplicationPatch(w, r, patch, target) {
 		return false
 	}
-	if spec, lifted := applicationutils.LiftEditableFields(patch); lifted {
+	spec, lifted := applicationutils.LiftEditableFields(patch)
+	if lifted {
 		target = spec
-		replaceRequestBody(r, patch)
 	}
 	if err := applicationutils.ValidateEditableFields(target); err != nil {
 		responseutils.SendResponse(w, http.StatusBadRequest, response.OperationError, err.Error(), nil)
 		return false
+	}
+	// The check trims in place, so a body carrying a user field is re-sent.
+	if lifted || slices.ContainsFunc(constants.ApplicationUserFields, func(field string) bool { return target[field] != nil }) {
+		replaceRequestBody(r, patch)
 	}
 	return true
 }

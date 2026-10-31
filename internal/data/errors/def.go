@@ -130,4 +130,13 @@ const (
 	ErrAuthzResolverUnavailable    Error = "authorization backend unavailable"
 	ErrAuthzCSRFHeaderMissing      Error = "a request that changes something needs a session header or X-Requested-With"
 	ErrAuthzSessionCookieDuplicate Error = "the request carries more than one session cookie"
+
+	// Text field checks returned to the caller as 400
+	ErrTextRequired      Error = "%s is required"
+	ErrTextTooShort      Error = "%s must be at least %d characters"
+	ErrTextTooLong       Error = "%s must be at most %d characters"
+	ErrTextForbiddenChar Error = "%s contains a control or invisible character"
+	ErrTextInvalidUTF8   Error = "%s is not valid UTF-8"
+	ErrTextPattern       Error = "%s contains characters that are not allowed"
+	ErrTextTooManyItems  Error = "%s holds at most %d items"
 )

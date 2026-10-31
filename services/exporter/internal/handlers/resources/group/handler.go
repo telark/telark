@@ -34,7 +34,7 @@ var lg = constants.GetLogger(constants.PrefixMain)
 
 func CreateGroupResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := sharedutils.GetSpecFor[groupdata.Group](w, r)
+		body, err := sharedutils.GetSpecFor[groupdata.Group](w, r, sharedutils.GroupTextFields...)
 		if err != nil {
 			return
 		}
@@ -182,7 +182,7 @@ func PatchGroupByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 			return
 		}
 
-		body, err := sharedutils.GetSpecFor[groupdata.Group](w, r)
+		body, err := sharedutils.GetSpecFor[groupdata.Group](w, r, sharedutils.GroupTextFields...)
 		if err != nil {
 			return
 		}

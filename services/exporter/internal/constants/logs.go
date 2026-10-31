@@ -149,9 +149,7 @@ const (
 	ErrConfigInvalidField errors.Error = "invalid config value for %s"
 
 	// Application
-	ErrApplicationDisplayNameTooLong errors.Error = "displayName must be at most %d characters"
-	ErrApplicationDescriptionTooLong errors.Error = "description must be at most %d characters"
-	ErrApplicationFieldNotString     errors.Error = "%s must be a string"
+	ErrApplicationFieldNotString errors.Error = "%s must be a string"
 
 	// User Session
 	ErrSessionListFormatInvalid         errors.Error = "invalid session list format"

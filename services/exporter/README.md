@@ -115,6 +115,22 @@ caller's own sessions and answers 404 for anyone else's.
 and ends on a revocation, expiry or suspension, never on an outage; a peer with the service token gets 403.
 Liveness/readiness at `/api/v1/status/{live,ready}`.
 
+Every create and patch of a user, group, role, category, protection plan, application, passkey or the
+config checks the typed text fields first, with the shared `internal/data/text` check
+([Input validation](../../docs/security/README.md#input-validation)): the value is trimmed before it is
+stored, and one past its limit, outside its character set or holding a control or invisible character
+answers 400 naming the field. The limits are constants in `internal/constants/inputs.go`, the field lists
+in `internal/utils/shared/text.go`; the CRD schemas carry the same limits. Users: `username` 3–50
+`[a-zA-Z0-9_-]`, `fullname` 1–100 (letters, marks, space, `'`, `-`, `.`), `email` up to 254,
+`avatar.style` one of the dashboard's DiceBear styles, `avatar.seed` up to 64. Groups: `name` 1–100
+`[a-zA-Z0-9_-]`, `description` 1–300 on one line. Roles: `name` 1–100 `[a-zA-Z0-9_-]`, `description`
+1–500, `validity.durationHours` 1–8760. Categories: `name` 1–100. Plans: `name` 1–64, `description` up to 512, `participantRefs` up to 50,
+`scope.namespaces` and `scope.applicationRefs` up to 200 each. Passkeys: `deviceName` 1–64. Config:
+`excludedNamespaces` up to 200 DNS-1123 labels, `snapshots.maxPerApp` 1–100, `oidc.googleClientID` up to
+256, and the OIDC key set up to 64 KiB. Session `deviceMetadata` values and a plan's `reason` (failure
+text) are cut to 256 and 500 characters, never refused. A patch the CRD
+schema still refuses answers 422 like a create.
+
 Role create and patch (`POST accessroles`, `PATCH accessroles/{id}`) answer 400, naming the rule, when a
 `scopesAndPermissions` entry lists a deny rule that isn't `<scope>.<action>.deny` for the entry's scope (an `ALL`
 entry takes any scope's rule), with the actions of `DenyableActions` in `internal/data/resources/role/rules.go`.

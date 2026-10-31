@@ -28,8 +28,8 @@ import (
 
 func CreateRoleResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := sharedutils.GetSpecFor[roledata.AccessRole](w, r)
-		if err != nil {
+		body, err := sharedutils.GetSpecFor[roledata.AccessRole](w, r, sharedutils.RoleTextFields...)
+		if err != nil || !checkValidityHours(w, body) {
 			return
 		}
 
@@ -137,8 +137,8 @@ func PatchRoleByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(h
 			return
 		}
 
-		body, err := sharedutils.GetSpecFor[roledata.AccessRole](w, r)
-		if err != nil {
+		body, err := sharedutils.GetSpecFor[roledata.AccessRole](w, r, sharedutils.RoleTextFields...)
+		if err != nil || !checkValidityHours(w, body) {
 			return
 		}
 
@@ -244,4 +244,8 @@ func softDeleteRole(w http.ResponseWriter, r *http.Request, roleID string, optim
 	resourcesshared.StampPatchAudit(r, body)
 	patchRoleResource(w, roleID, body, optimizer)
 	authz.BumpGeneration(r.Context())
+}
+
+func checkValidityHours(w http.ResponseWriter, body map[string]any) bool {
+	return sharedutils.CheckRangeOrRespond(w, body, constants.FieldValidityHours, constants.MinRoleValidityHours, constants.MaxRoleValidityHours)
 }

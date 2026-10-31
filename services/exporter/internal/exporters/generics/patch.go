@@ -33,8 +33,9 @@ func GenericPatchCustomResource(w http.ResponseWriter, md metadata.Metadata, nam
 	if exists {
 		result := sharedutils.PatchCustomResource(md, name, patchData)
 		if result.Status != http.StatusOK {
+			// As on create: kcore stamps every failure 500, and only the Kubernetes status tells a schema rejection (422).
 			errorMsg := sharedutils.GenerateResourceError(globalerrors.ErrUpdateRes, name, result.Error)
-			sharedutils.LogByStatusAndSend(w, result.Status, response.OperationError, errorMsg, nil, result.Error)
+			sharedutils.LogByStatusAndSend(w, sharedutils.StatusForResult(result), response.OperationError, errorMsg, nil, result.Error)
 			return
 		}
 

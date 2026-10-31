@@ -14,6 +14,9 @@ import (
 )
 
 func ExtractPasskeySpec(body map[string]any, userID string) (*authdata.Passkey, string, error) {
+	if err := sharedutils.CheckTextFields(body, sharedutils.PasskeyTextFields...); err != nil {
+		return nil, constants.EmptyString, err
+	}
 	passkey, err := sharedutils.ExtractStructFromBody[authdata.Passkey](body)
 	if err != nil {
 		return nil, constants.EmptyString, err
@@ -102,6 +105,9 @@ func isDuplicateCredentialID(existingPasskey unstructured.Unstructured, credenti
 }
 
 func ExtractPatchFields(body map[string]any) (map[string]any, error) {
+	if err := sharedutils.CheckTextFields(body, sharedutils.PasskeyTextFields...); err != nil {
+		return nil, err
+	}
 	filteredPatchData := make(map[string]any)
 
 	if deviceName, ok := body["deviceName"].(string); ok {

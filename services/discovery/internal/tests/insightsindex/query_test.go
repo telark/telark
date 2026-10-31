@@ -195,3 +195,28 @@ func TestETagChangesWhenRowsGoStale(t *testing.T) {
 	page, _ := f.idx.Query(parse(t, "state=stale"), nil, later)
 	assertIDs(t, "and the rows are stale", sortedIDs(page), idAck, idCrit, idHidden, idStale)
 }
+
+// The search box is trimmed, at most 200 characters and free of control characters; a refusal names q.
+func TestParseQuerySearchLimit(t *testing.T) {
+	atLimit := strings.Repeat("S", constants.InsightsSearchMaxLen)
+	cases := []struct {
+		name, search, want string
+		ok                 bool
+	}{
+		{"under the limit", atLimit[constants.DefaultAddValue:], strings.ToLower(atLimit[constants.DefaultAddValue:]), true},
+		{"at the limit, trimmed", "  " + atLimit + " ", strings.ToLower(atLimit), true},
+		{"over the limit", atLimit + "S", constants.EmptyString, false},
+		{"control character", "crash\x1bloop", constants.EmptyString, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			q, err := insightsindex.ParseQuery(url.Values{insightsindex.ParamSearch: {c.search}})
+			testutil.Equal(t, "ok", err == nil, c.ok)
+			if err != nil {
+				testutil.Equal(t, "names q", strings.HasPrefix(err.Error(), insightsindex.ParamSearch+" "), true)
+				return
+			}
+			testutil.Equal(t, "search", q.Search, c.want)
+		})
+	}
+}

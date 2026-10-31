@@ -29,6 +29,7 @@ type (
 		ResolveApps    applications.Resolver
 		ListNamespaces validation.NamespaceLister
 		Environments   validation.EnvironmentLister
+		Users          validation.UserLister
 		Logger         protection.Logger
 		Clock          func() time.Time
 		// The patch blanks health; this restamps it without waiting for a controller tick.
@@ -430,6 +431,9 @@ func validateRequest(
 		return err
 	}
 	if err := callerFields(ctx, req, deps); err != nil {
+		return err
+	}
+	if err := validation.ParticipantRefs(req.ParticipantRefs, plan.ParticipantRefs, deps.Users); err != nil {
 		return err
 	}
 	if err := validation.Scope(req.Scope); err != nil {

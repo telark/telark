@@ -87,6 +87,14 @@ func (s *Service) Clock() time.Time                           { return s.clock()
 func (s *Service) Notifier() *ApprovalNotifier                { return s.notifier }
 func (s *Service) Reports() *reports.Generator                { return s.reports }
 
+// Participants are checked against the same user list approvers are read from.
+func (s *Service) Users() validation.UserLister {
+	if s.notifier == nil {
+		return nil
+	}
+	return s.notifier.ListUsers
+}
+
 func (s *Service) LockName(ctx context.Context, name string) (func(), error) {
 	return s.names.Acquire(ctx, name)
 }
@@ -120,6 +128,9 @@ func (s *Service) Duplicate(
 	}
 	req := duplicate.BuildRequest(source, overrides, validation.CallerOwnsPlans(ctx))
 	if err := s.dropVanishedApplications(ctx, req); err != nil {
+		return nil, err
+	}
+	if req.ParticipantRefs, err = validation.KnownParticipants(req.ParticipantRefs, s.Users()); err != nil {
 		return nil, err
 	}
 	if duplicate.UsesDefaultName(overrides) {
@@ -256,6 +267,9 @@ func (s *Service) validatePrepare(ctx context.Context, req *planseps.PrepareProt
 		return err
 	}
 	if err := validation.EnvironmentRef(req.EnvironmentRef, s.environments); err != nil {
+		return err
+	}
+	if err := validation.ParticipantRefs(req.ParticipantRefs, nil, s.Users()); err != nil {
 		return err
 	}
 	return validation.NamespaceScope(ctx, req.Scope.Type, req.Scope.Namespaces, s.listNamespaces)

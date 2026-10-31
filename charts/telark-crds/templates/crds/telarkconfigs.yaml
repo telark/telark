@@ -36,8 +36,11 @@ spec:
               properties:
                 excludedNamespaces:
                   type: array
+                  maxItems: 200
                   items:
                     type: string
+                    maxLength: 63
+                    pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
                 ai:
                   type: object
                   properties:
@@ -56,6 +59,8 @@ spec:
                   properties:
                     maxPerApp:
                       type: integer
+                      minimum: 1
+                      maximum: 100
                 oidc:
                   type: object
                   properties:
@@ -63,6 +68,7 @@ spec:
                       type: boolean
                     googleClientID:
                       type: string
+                      maxLength: 256
                     egressAllowed:
                       type: boolean
                       description: whether the cluster may reach the provider to fetch signing keys. When false, the pinned key set in the OIDC trust Secret must be set.

@@ -2,6 +2,7 @@ package passkey
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -191,6 +192,7 @@ type passkeyExporter struct {
 	user    userresource.User
 	mu      sync.Mutex
 	patched []any
+	sent    []string
 }
 
 func writeEnvelope(w http.ResponseWriter, status int, message string, data any) {
@@ -206,6 +208,10 @@ func (e *passkeyExporter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ExpiresTimestamp: time.Now().UTC().Add(time.Hour).Format(constants.TimeFormatRFC3339),
 		})
 	case strings.Contains(r.URL.Path, passkeysPath):
+		body, _ := io.ReadAll(r.Body)
+		e.mu.Lock()
+		e.sent = append(e.sent, string(body))
+		e.mu.Unlock()
 		writeEnvelope(w, e.status, e.message, nil)
 	case strings.Contains(r.URL.Path, usersPath) && r.Method == http.MethodPatch:
 		var body map[string]any
@@ -289,4 +295,42 @@ func TestDeletePasskeyDetachesItsIdentity(t *testing.T) {
 		{Provider: constants.IdentityProviderGoogle, Subject: credentialID},
 	})
 	testutil.Equal(t, "kept identities", string(kept), string(want))
+}
+
+func deviceNameBody(name string) string {
+	raw, _ := json.Marshal(map[string]string{constants.PasskeyFieldDeviceName: name})
+	return string(raw)
+}
+
+// A passkey name is trimmed and 1-64 characters, empty refused on PATCH too; lastUsedTimestamp is auth's own stamp,
+// so a client that sends it is refused. A refusal reaches no exporter.
+func TestUpdatePasskeyGuardsItsFields(t *testing.T) {
+	atLimit := strings.Repeat("d", constants.DeviceNameMaxLen)
+	cases := []struct {
+		name, body, sent string
+		status           int
+	}{
+		{"trimmed", `{"deviceName":"  laptop  "}`, `{"deviceName":"laptop"}`, http.StatusOK},
+		{"under the limit", deviceNameBody(atLimit[constants.DefaultIncrementValue:]),
+			deviceNameBody(atLimit[constants.DefaultIncrementValue:]), http.StatusOK},
+		{"at the limit", deviceNameBody(atLimit), deviceNameBody(atLimit), http.StatusOK},
+		{"over the limit", deviceNameBody(atLimit + "d"), constants.EmptyString, http.StatusBadRequest},
+		{"empty", `{"deviceName":""}`, constants.EmptyString, http.StatusBadRequest},
+		{"blank", `{"deviceName":"   "}`, constants.EmptyString, http.StatusBadRequest},
+		{"control character", `{"deviceName":"lap\u0007top"}`, constants.EmptyString, http.StatusBadRequest},
+		{"client lastUsedTimestamp", `{"lastUsedTimestamp":"2026-10-30T00:00:00Z"}`, constants.EmptyString,
+			http.StatusBadRequest},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			backend := &passkeyExporter{status: http.StatusOK}
+			testutil.StubBackend(t, backend)
+			rec := httptest.NewRecorder()
+			passkeyhandler.UpdatePasskey(rec, sessionRequest(http.MethodPatch, c.body))
+			testutil.Equal(t, "status", rec.Code, c.status)
+			backend.mu.Lock()
+			defer backend.mu.Unlock()
+			testutil.Equal(t, "sent", strings.TrimSpace(strings.Join(backend.sent, constants.EmptyString)), c.sent)
+		})
+	}
 }

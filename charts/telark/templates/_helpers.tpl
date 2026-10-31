@@ -88,7 +88,7 @@ for the volume claimName and the SNAPSHOTS_PVC_NAME env. Call with the root cont
 
 {{/*
 Name of the exporter reports PVC (telark.exporterStorage decides it). Single source
-for the volume claimName. Call with the root context.
+for the volume claimName and the REPORTS_PVC_NAME env. Call with the root context.
 */}}
 {{- define "telark.exporterReportsPvcName" -}}
 {{- (include "telark.exporterStorage" . | fromYaml).claims.reports.name -}}

@@ -182,6 +182,18 @@ return 0`
 	UsernameInvalidChars = `[^a-zA-Z0-9_-]`
 	SpaceSeparator       = " "
 
+	// Input limits in runes (SEC-15); derived full names are cut to FullnameMaxLen, never refused
+	EmailMaxLen          = 254
+	DeviceNameMinLen     = 1
+	DeviceNameMaxLen     = 64
+	DeviceMetadataMaxLen = 256
+	FullnameMaxLen       = 100
+	FullnameExtraChars   = "'.-"
+	DefaultFullname      = "User"
+	GoogleClientIDMaxLen = 256
+	OIDCJWKMaxBytes      = 64 << 10
+	GoogleClientIDRegex  = `^\S+\.apps\.googleusercontent\.com$`
+
 	// Cleanup controllers + queue
 	EnvReconcileTickSeconds          = "RECONCILE_TICK_SECONDS"
 	EnvReconcilePassDeadlineSeconds  = "RECONCILE_PASS_DEADLINE_SECONDS"

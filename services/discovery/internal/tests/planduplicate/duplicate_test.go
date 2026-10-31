@@ -8,11 +8,13 @@ import (
 	"io"
 	"net/http"
 	"reflect"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/telark/telark/internal/data/plans"
 	dpolicies "github.com/telark/telark/internal/data/policies"
@@ -36,7 +38,7 @@ const (
 	overrideTagB           = "cat-00003-0001-0003"
 	sourceKindRef          = "cat-00004-0001-0004"
 	defaultCopyName        = "Copy of prod-guard"
-	secondCopyName         = "Copy of prod-guard (2)"
+	secondCopyName         = "Copy of prod-guard 2"
 	takenSuffixCeiling     = 200
 	labelApprovalMode      = "approvalMode"
 	requesterID            = "u1"
@@ -164,7 +166,7 @@ func TestAvailableName(t *testing.T) {
 	}{
 		{"free", nil, defaultCopyName},
 		{"taken once", []string{defaultCopyName}, secondCopyName},
-		{"taken twice", []string{defaultCopyName, secondCopyName}, "Copy of prod-guard (3)"},
+		{"taken twice", []string{defaultCopyName, secondCopyName}, "Copy of prod-guard 3"},
 		{"case insensitive clash", []string{"copy of PROD-GUARD"}, secondCopyName},
 	}
 	for _, c := range cases {
@@ -176,8 +178,24 @@ func TestAvailableName(t *testing.T) {
 			got, err := duplicate.AvailableName(defaultCopyName, existing)
 			testutil.Equal(t, "err", err, nil)
 			testutil.Equal(t, "name", got, c.want)
+			testutil.Equal(t, "fits the plan name rule", regexp.MustCompile(constants.PlanNamePattern).MatchString(got), true)
 		})
 	}
+}
+
+// A long source name is cut so the default copy name, and each suffixed one, stays within the name limit.
+func TestDefaultCopyNameFitsTheLimit(t *testing.T) {
+	longName := strings.Repeat("n", validation.NameMaxLength)
+	req := duplicate.BuildRequest(&plans.ProtectionPlan{Name: longName}, planseps.DuplicateProtectionPlanRequest{}, asOwner)
+	testutil.Equal(t, "default name length", utf8.RuneCountInString(req.Name), validation.NameMaxLength)
+
+	got, err := duplicate.AvailableName(req.Name, []plans.ProtectionPlan{{ID: "0", Name: req.Name}})
+	testutil.Equal(t, "err", err, nil)
+	testutil.Equal(t, "suffixed name fits", utf8.RuneCountInString(got) <= validation.NameMaxLength, true)
+	testutil.Equal(t, "suffix kept", strings.HasSuffix(got, " 2"), true)
+
+	short := duplicate.BuildRequest(&plans.ProtectionPlan{Name: "guard"}, planseps.DuplicateProtectionPlanRequest{}, asOwner)
+	testutil.Equal(t, "short name untouched", short.Name, "Copy of guard")
 }
 
 // Every candidate being taken is an error rather than an endless search.
@@ -186,7 +204,7 @@ func TestAvailableNameExhausted(t *testing.T) {
 	for i := constants.TwoValue; i < takenSuffixCeiling; i++ {
 		existing = append(existing, plans.ProtectionPlan{
 			ID:   strconv.Itoa(i),
-			Name: fmt.Sprintf("Copy of prod-guard (%d)", i),
+			Name: fmt.Sprintf("Copy of prod-guard %d", i),
 		})
 	}
 	if _, err := duplicate.AvailableName(defaultCopyName, existing); err == nil {

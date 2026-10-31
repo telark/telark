@@ -244,6 +244,11 @@ const (
 	SnapshotGenerationMinValue     = 1
 	ReportsPathEnv                 = "REPORTS_PATH"
 	DefaultReportsPath             = "/reports"
+	ReportsPVCNameEnv              = "REPORTS_PVC_NAME"
+	ReportsPVCNamespaceEnv         = "REPORTS_PVC_NAMESPACE"
+	DefaultReportsPVCName          = "telark-exporter-reports-pvc"
+	DefaultReportsPVCNamespace     = "telark"
+	FieldTotalReports              = "totalReports"
 	ReportsPlansSubdir             = "plans"
 	ReportsKeptSubdir              = "kept"
 	ReportsKeptMarkerFile          = "plan.json"

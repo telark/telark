@@ -5,10 +5,12 @@ import (
 	"net/http"
 
 	"github.com/telark/telark/internal/data/messages"
+	"github.com/telark/telark/internal/data/text"
 	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
 	"github.com/telark/telark/internal/rest/response"
 	responseutils "github.com/telark/telark/internal/rest/utils/response"
 	"github.com/telark/telark/services/discovery/internal/constants"
+	"github.com/telark/telark/services/discovery/internal/core/plans/protection/validation"
 	"github.com/telark/telark/services/discovery/internal/helpers/shared"
 )
 
@@ -34,6 +36,11 @@ func Cancel(w http.ResponseWriter, r *http.Request) {
 	reason := constants.EmptyString
 	if req.Reason != nil {
 		reason = *req.Reason
+	}
+	reason, err = text.Check(reason, text.Rule{Field: constants.FieldReason, Max: constants.ReasonMaxLen})
+	if err != nil {
+		respondDomainError(w, validation.Invalid(err.Error()))
+		return
 	}
 
 	ctx, cancel := context.WithTimeout(detached(r), constants.ProtectionPlanLifecycleTimeout)

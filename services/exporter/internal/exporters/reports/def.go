@@ -11,6 +11,7 @@ import (
 
 	dataerrors "github.com/telark/telark/internal/data/errors"
 	"github.com/telark/telark/internal/data/messages"
+	"github.com/telark/telark/internal/kcore/resources/core"
 	reportseps "github.com/telark/telark/internal/rest/endpoints/reports"
 	"github.com/telark/telark/internal/rest/response"
 	responseutils "github.com/telark/telark/internal/rest/utils/response"
@@ -73,6 +74,56 @@ func ListKeptReports(w http.ResponseWriter) {
 		return
 	}
 	responseutils.LogAndSendResponse(w, http.StatusOK, response.OperationSuccess, string(messages.SuccessListRes), kept, nil)
+}
+
+// Same shape as the snapshot infos, so the UI reads both volumes alike. A capacity it can't read
+// is zero, and the percentages are then left out.
+func ReadReportsStorage(w http.ResponseWriter) {
+	root := envmanager.GetReportsPath()
+	used, count, err := reportsutil.Usage(root)
+	if err != nil {
+		lg.Warn(fmt.Sprintf(string(constants.WarnReportsStorageWalk), root, err))
+	}
+	total := reportsPVCBytes()
+	free := uint64(constants.DefaultInitValue)
+	if total > used {
+		free = total - used
+	}
+	resp := map[string]any{
+		constants.FieldTotalPVCSpace:  storageSpace(total, uint64(constants.DefaultInitValue)),
+		constants.FieldConsumedSpace:  storageSpace(used, total),
+		constants.FieldAvailableSpace: storageSpace(free, total),
+		constants.FieldTotalReports:   count,
+		constants.FieldPVCName:        envmanager.GetReportsPVCName(),
+		constants.FieldPVCNamespace:   envmanager.GetReportsPVCNamespace(),
+	}
+	responseutils.LogAndSendResponse(w, http.StatusOK, response.OperationSuccess, string(constants.InfReportsStorageRetrieved), resp, nil)
+}
+
+func reportsPVCBytes() uint64 {
+	name, namespace := envmanager.GetReportsPVCName(), envmanager.GetReportsPVCNamespace()
+	bytes, err := core.GetPersistentVolumeClaimCapacityBytes(namespace, name)
+	if err != nil {
+		lg.Warn(fmt.Sprintf(string(constants.WarnReportsPVCGetFailed), name, namespace, err))
+		return uint64(constants.DefaultInitValue)
+	}
+	if bytes < int64(constants.DefaultInitValue) {
+		return uint64(constants.DefaultInitValue)
+	}
+	return uint64(bytes)
+}
+
+func storageSpace(bytes, total uint64) map[string]any {
+	kb := float64(bytes) / constants.SnapshotBytesPerKilobyte
+	space := map[string]any{
+		constants.FieldBytes:     bytes,
+		constants.FieldKilobytes: kb,
+		constants.FieldMegabytes: kb / constants.SnapshotKilobytesPerMegabyte,
+	}
+	if total > uint64(constants.DefaultInitValue) {
+		space[constants.FieldPercent] = float64(bytes) * constants.SnapshotPercentScale / float64(total)
+	}
+	return space
 }
 
 func DeletePlanReport(w http.ResponseWriter, planID, reportID string) {

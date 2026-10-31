@@ -57,12 +57,17 @@ spec:
                   properties:
                     browser:
                       type: string
+                      maxLength: 256
                     device:
                       type: string
+                      maxLength: 256
                     os:
                       type: string
+                      maxLength: 256
                     location:
                       type: string
+                      maxLength: 256
                     userAgent:
                       type: string
+                      maxLength: 256
 

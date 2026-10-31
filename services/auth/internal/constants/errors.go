@@ -105,6 +105,7 @@ const (
 
 	// Validation Errors
 	ErrMissingRequiredFields      errors.Error = "credentialId, publicKey, deviceName and deviceType are required"
+	ErrLastUsedServerSet          errors.Error = "lastUsedTimestamp is set by the server"
 	ErrFailedGetConfig            errors.Error = "failed to get config: %v"
 	ErrFailedGenerateSessionToken errors.Error = "failed to generate session token: %v"
 
@@ -135,6 +136,7 @@ const (
 	ErrOIDCConfigLoadFailed      errors.Error = "failed to load OIDC config: %v"
 	ErrOIDCConfigSaveFailed      errors.Error = "failed to save OIDC config: status %d"
 	ErrOIDCClientIDRequired      errors.Error = "googleClientID is required when OIDC is enabled"
+	ErrOIDCJWKTooLarge           errors.Error = "googleJwkJson must be at most %d bytes"
 	ErrOIDCTrustSourceRequired   errors.Error = "OIDC requires either egressAllowed or a pinned googleJwkJson"
 	ErrOIDCJWKUnreachable        errors.Error = "provider signing keys are unreachable: %v"
 	ErrOIDCTrustFileRead         errors.Error = "failed to read the OIDC trust file: %v"

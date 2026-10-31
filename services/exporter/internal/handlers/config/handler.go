@@ -52,6 +52,14 @@ func PatchConfig() func(http.ResponseWriter, *http.Request) {
 		if !canonicalSpecKeys(w, specPatch) {
 			return
 		}
+		if err := sharedutils.CheckTextFields(specPatch, sharedutils.ConfigTextFields...); err != nil {
+			responseutils.SendResponse(w, http.StatusBadRequest, response.OperationError, err.Error(), nil)
+			return
+		}
+		maxPerApp := constants.FieldSnapshotsMaxPerApp
+		if !sharedutils.CheckRangeOrRespond(w, specPatch, maxPerApp, constants.MinSnapshotsPerApp, constants.MaxSnapshotsPerApp) {
+			return
+		}
 		jwk, ok := writeJWK(w, specPatch)
 		if !ok {
 			return

@@ -6,12 +6,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
 
+	dataerrors "github.com/telark/telark/internal/data/errors"
 	"github.com/telark/telark/internal/data/plans"
 	roledata "github.com/telark/telark/internal/data/resources/role"
+	userresource "github.com/telark/telark/internal/data/resources/user"
+	"github.com/telark/telark/internal/data/text"
 	planseps "github.com/telark/telark/internal/rest/endpoints/plans"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/discovery/internal/constants"
@@ -101,8 +105,6 @@ const (
 	fmtUnknownTemplate       = "unknown template id: %s"
 	fmtTemplateScope         = "template %q does not support scope %q"
 	fmtInvalidParams         = "template %q params invalid: %v"
-	fmtInvalidName           = "name must be between 1 and %d characters"
-	fmtInvalidDescription    = "description must be at most %d characters"
 	fmtInvalidSeverity       = "severity must be one of %v"
 	fmtInvalidMode           = "mode must be one of %v"
 	fmtInvalidTimeMode       = "timeMode must be one of %v"
@@ -129,7 +131,12 @@ const (
 	fmtTooManyExclusionResources = "scope.exclusions.resources: at most %d"
 
 	policyKeySep = "\x00"
+
+	fmtUnknownParticipants = "participantRefs are not existing users: %v"
+	fmtUsersUnavailable    = "users unavailable: %v"
 )
+
+var planNamePattern = regexp.MustCompile(constants.PlanNamePattern)
 
 var (
 	allowedSeverities = []string{
@@ -200,6 +207,9 @@ func Fields(req *planseps.PrepareProtectionPlanRequest) error {
 	if err := textFields(req); err != nil {
 		return err
 	}
+	if err := listFields(req); err != nil {
+		return err
+	}
 	if !slices.Contains(allowedSeverities, req.Severity) {
 		return Invalidf(fmtInvalidSeverity, allowedSeverities)
 	}
@@ -218,16 +228,24 @@ func Fields(req *planseps.PrepareProtectionPlanRequest) error {
 	return taxonomyFields(req)
 }
 
+// The trimmed name and description are what gets stored.
 func textFields(req *planseps.PrepareProtectionPlanRequest) error {
-	name := strings.TrimSpace(req.Name)
-	if len(name) == constants.DefaultInitValue || len(name) > NameMaxLength {
-		return Invalidf(fmtInvalidName, NameMaxLength)
-	}
-	if req.Description != nil && len(*req.Description) > DescriptionMaxLength {
-		return Invalidf(fmtInvalidDescription, DescriptionMaxLength)
-	}
 	if HasTemplateSyntax(req.Name) || (req.Description != nil && HasTemplateSyntax(*req.Description)) {
 		return ErrTemplateSyntax
+	}
+	name, err := text.Check(req.Name, text.Rule{Field: constants.FieldPlanName, Min: constants.DefaultAddValue,
+		Max: NameMaxLength, Pattern: planNamePattern})
+	if err != nil {
+		return Invalid(err.Error())
+	}
+	req.Name = name
+	if req.Description != nil {
+		description, err := text.Check(*req.Description, text.Rule{Field: constants.FieldPlanDescription,
+			Max: DescriptionMaxLength, Multiline: true})
+		if err != nil {
+			return Invalid(err.Error())
+		}
+		req.Description = &description
 	}
 	return nil
 }
@@ -235,6 +253,64 @@ func textFields(req *planseps.PrepareProtectionPlanRequest) error {
 // Kyverno substitutes {{ }} in the policy fields it renders; no user text may carry it.
 func HasTemplateSyntax(value string) bool {
 	return strings.Contains(value, templateOpen) || strings.Contains(value, templateClose)
+}
+
+func listFields(req *planseps.PrepareProtectionPlanRequest) error {
+	counts := []struct {
+		field        string
+		count, limit int
+	}{
+		{constants.FieldParticipantRefs, len(req.ParticipantRefs), constants.PlanParticipantsMax},
+		{constants.FieldScopeNamespaces, len(req.Scope.Namespaces), constants.PlanScopeTargetsMax},
+		{constants.FieldScopeApplicationRefs, len(req.Scope.ApplicationRefs), constants.PlanScopeTargetsMax},
+	}
+	for _, c := range counts {
+		if c.count > c.limit {
+			return Invalidf(string(dataerrors.ErrTextTooManyItems), c.field, c.limit)
+		}
+	}
+	return policyParams(req.Policies)
+}
+
+// List params (image patterns, tags) are stored trimmed; the template still checks each entry's pattern.
+func policyParams(items []planseps.PolicyRequest) error {
+	for _, p := range items {
+		for key, value := range p.Params {
+			values, ok := stringItems(value)
+			if !ok {
+				continue
+			}
+			checked, err := text.CheckList(values, constants.PlanParamItemsMax, text.Rule{
+				Field: fmt.Sprintf(constants.FmtFieldPolicyParam, p.TemplateID, key),
+				Min:   constants.DefaultAddValue, Max: constants.PlanParamItemMaxLen,
+			})
+			if err != nil {
+				return Invalid(err.Error())
+			}
+			p.Params[key] = checked
+		}
+	}
+	return nil
+}
+
+// A JSON body decodes a list as []any; a list holding a non-string is left to the template check.
+func stringItems(value any) ([]string, bool) {
+	switch list := value.(type) {
+	case []string:
+		return list, true
+	case []any:
+		values := make([]string, constants.DefaultInitValue, len(list))
+		for _, item := range list {
+			s, ok := item.(string)
+			if !ok {
+				return nil, false
+			}
+			values = append(values, s)
+		}
+		return values, true
+	default:
+		return nil, false
+	}
 }
 
 func taxonomyFields(req *planseps.PrepareProtectionPlanRequest) error {
@@ -415,6 +491,42 @@ func EnvironmentRef(environmentRef *string, list EnvironmentLister) error {
 		return Invalidf(fmtUnknownEnvironmentRef, *environmentRef)
 	}
 	return nil
+}
+
+type UserLister func() ([]*userresource.User, error)
+
+// Only refs not in kept are looked up, so a participant deleted since does not block every later edit. A nil
+// lister (unit tests) skips the check; production always wires one.
+func ParticipantRefs(refs, kept []string, list UserLister) error {
+	added := slices.DeleteFunc(slices.Clone(refs), func(ref string) bool { return slices.Contains(kept, ref) })
+	if len(added) == constants.DefaultInitValue || list == nil {
+		return nil
+	}
+	users, err := list()
+	if err != nil {
+		return &UnavailableError{Msg: fmt.Sprintf(fmtUsersUnavailable, err)}
+	}
+	unknown := slices.DeleteFunc(added, func(ref string) bool { return isUser(users, ref) })
+	if len(unknown) > constants.DefaultInitValue {
+		return Invalidf(fmtUnknownParticipants, unknown)
+	}
+	return nil
+}
+
+// A copy keeps only the source's participants that are still users, rather than failing on one deleted since.
+func KnownParticipants(refs []string, list UserLister) ([]string, error) {
+	if len(refs) == constants.DefaultInitValue || list == nil {
+		return refs, nil
+	}
+	users, err := list()
+	if err != nil {
+		return nil, &UnavailableError{Msg: fmt.Sprintf(fmtUsersUnavailable, err)}
+	}
+	return slices.DeleteFunc(slices.Clone(refs), func(ref string) bool { return !isUser(users, ref) }), nil
+}
+
+func isUser(users []*userresource.User, ref string) bool {
+	return slices.ContainsFunc(users, func(u *userresource.User) bool { return u != nil && u.ID == ref })
 }
 
 func NormalizeName(name string) string {

@@ -246,17 +246,30 @@ func TestSetConfigClearsTheTrustSet(t *testing.T) {
 	admin := xauthz.Grants{Levels: map[string]roledata.PermissionLevel{roledata.ScopeAll: roledata.PermissionLevelAdmin}}
 	ctx := xauthz.WithIdentity(context.Background(), xauthz.Identity{UserID: adminUserID, Grants: admin})
 
-	status := setConfigBody(ctx, `{"enabled":true,"googleClientID":"id","egressAllowed":false}`)
+	status := setConfigBody(ctx, `{"enabled":true,"googleClientID":"telark-test.apps.googleusercontent.com","egressAllowed":false}`)
 	testutil.Equal(t, "omitted key", status, http.StatusOK)
 	_, present := backend.sentOIDC(t, firstWrite)[jwkKey]
 	testutil.Equal(t, "omitted key not sent", present, false)
 	testutil.Equal(t, "file still trusted", oidc.TrustJWK(), validJWKS(kidOld))
 
-	status = setConfigBody(ctx, `{"enabled":false,"googleClientID":"id","googleJwkJson":""}`)
+	status = setConfigBody(ctx, `{"enabled":false,"googleClientID":"telark-test.apps.googleusercontent.com","googleJwkJson":""}`)
 	testutil.Equal(t, "clear", status, http.StatusOK)
 	testutil.Equal(t, "clear sent", backend.sentOIDC(t, secondWrite)[jwkKey], any(constants.EmptyString))
 	testutil.Equal(t, "stale file no longer trusted", oidc.TrustJWK(), constants.EmptyString)
 
-	status = setConfigBody(ctx, `{"enabled":true,"googleClientID":"id","googleJwkJson":null}`)
+	status = setConfigBody(ctx, `{"enabled":true,"googleClientID":"telark-test.apps.googleusercontent.com","googleJwkJson":null}`)
 	testutil.Equal(t, "offline with the set cleared", status, http.StatusBadRequest)
+}
+
+// A client ID the exporter would refuse answers 400 here, before anything is sent.
+func TestSetConfigRefusesABadClientIDBeforeSaving(t *testing.T) {
+	trustFile(t)
+	backend := &exporterRecorder{}
+	testutil.StubBackend(t, backend)
+	admin := xauthz.Grants{Levels: map[string]roledata.PermissionLevel{roledata.ScopeAll: roledata.PermissionLevelAdmin}}
+	ctx := xauthz.WithIdentity(context.Background(), xauthz.Identity{UserID: adminUserID, Grants: admin})
+
+	status := setConfigBody(ctx, `{"enabled":true,"googleClientID":"not a google id","egressAllowed":true}`)
+	testutil.Equal(t, "status", status, http.StatusBadRequest)
+	testutil.Equal(t, "nothing sent", len(backend.patches), constants.DefaultInitValue)
 }

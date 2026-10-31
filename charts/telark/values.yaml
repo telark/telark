@@ -194,6 +194,8 @@ services:
       REPORTS_PATH: &reportsPath "/reports"
       SNAPSHOTS_PVC_NAME: '{{ include "telark.exporterSnapshotsPvcName" . }}'
       SNAPSHOTS_PVC_NAMESPACE: '{{ .Values.app.namespace }}'
+      REPORTS_PVC_NAME: '{{ include "telark.exporterReportsPvcName" . }}'
+      REPORTS_PVC_NAMESPACE: '{{ .Values.app.namespace }}'
       SNAPSHOT_GC_INTERVAL_SEC: "3600"   # 0 = no orphan sweep
       EXPORTER_K8S_CLIENT_QPS: "50"
       EXPORTER_K8S_CLIENT_BURST: "100"

@@ -21,22 +21,37 @@ const (
 	// The UI tells refusals apart by this key, so it is pinned.
 	refusalCodeKey = "code"
 	refusalCode    = "enroll_link_recovery"
+	zeroWidthSpace = 0x200B
+	localPartChar  = "l"
 )
 
-// Email validation must reject empties and malformed addresses — the login flow
-// keys accounts on a real address.
+// The login flow keys accounts on a real address: a bare one of at most 254 characters, returned trimmed. The
+// display-name forms net/mail accepts and hidden characters are refused.
 func TestValidateEmail(t *testing.T) {
+	emailDomain := "@example.com"
+	atLimit := strings.Repeat(localPartChar, constants.EmailMaxLen-len(emailDomain)) + emailDomain
 	cases := []struct {
 		email   string
+		want    string
 		wantErr bool
 	}{
-		{"a@b.com", false},
-		{constants.EmptyString, true},
-		{"not-an-email", true},
+		{"a@b.com", "a@b.com", false},
+		{" test@example.com\t", "test@example.com", false},
+		{atLimit[constants.DefaultIncrementValue:], atLimit[constants.DefaultIncrementValue:], false},
+		{atLimit, atLimit, false},
+		{atLimit[:constants.DefaultIncrementValue] + atLimit, constants.EmptyString, true},
+		{constants.EmptyString, constants.EmptyString, true},
+		{"   ", constants.EmptyString, true},
+		{"not-an-email", constants.EmptyString, true},
+		{"Name <test@example.com>", constants.EmptyString, true},
+		{"<test@example.com>", constants.EmptyString, true},
+		{"test@example.com (comment)", constants.EmptyString, true},
+		{"te" + string(rune(zeroWidthSpace)) + "st@example.com", constants.EmptyString, true},
 	}
 	for _, c := range cases {
-		if (shared.ValidateEmail(c.email) != nil) != c.wantErr {
-			t.Fatalf("ValidateEmail(%q) err mismatch, want %v", c.email, c.wantErr)
+		got, err := shared.ValidateEmail(c.email)
+		if (err != nil) != c.wantErr || got != c.want {
+			t.Fatalf("ValidateEmail(%q) = (%q, %v), want (%q, error %v)", c.email, got, err, c.want, c.wantErr)
 		}
 	}
 }

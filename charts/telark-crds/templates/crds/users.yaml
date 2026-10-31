@@ -50,6 +50,7 @@ spec:
                   type: string
                   description: User's email address
                   format: email
+                  maxLength: 254
                 roleRefs:
                   type: array
                   items:
@@ -83,9 +84,11 @@ spec:
                     style:
                       type: string
                       description: DiceBear avatar style name
+                      enum: [avataaars, adventurer, big-smile, bottts, fun-emoji, identicon, lorelei, micah, miniavs, open-peeps, personas, pixel-art]
                     seed:
                       type: string
                       description: Avatar seed for generation
+                      maxLength: 64
                 settings:
                   type: object
                   description: Per-user display preferences. Timestamps stay stored in UTC; these only affect rendering.

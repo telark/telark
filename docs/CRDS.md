@@ -36,6 +36,8 @@ The object name (`metadata.name`) is the identity; there is no `spec.id`. The ex
 | `Passkey` | `userId`, `credentialId` (at most 2 048 characters), `publicKey` (at most 4 096), `deviceName`, `deviceType`, `backupEligible`, `backupState`, timestamps | none |
 | `Session` | `userId`, `createdTimestamp`, `expiresTimestamp`, `ipAddress`, `deviceMetadata`. Named `session-<sha256(token)>` (the schema rejects any other name); the token itself is never stored. | none |
 
+The schemas cap the fields people type (lengths, item counts, character sets) with the same limits the exporter checks before a write ([Input validation](security/README.md#input-validation)); the limits added in 0.2.1 are listed in the [upgrade notes](INSTALL.md#upgrade-notes).
+
 The exporter's Role (`charts/telark/templates/exporter/rbac/role.yaml`) names each resource, subresource and verb it may use. A new CRD or subresource goes into it too, or the exporter gets a 403.
 
 The status subresource means a write to `spec` never changes `.status` and the reverse: writers send status fields to `/status`. The REST view flattens `.status` into the top level of the object, so API clients see one shape.

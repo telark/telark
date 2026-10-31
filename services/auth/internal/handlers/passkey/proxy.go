@@ -164,12 +164,19 @@ func UpdatePasskey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Auth stamps lastUsedTimestamp itself at each sign-in; a client may not set it.
+	if req.LastUsedTimestamp != nil {
+		shared.SendErrorResponse(w, http.StatusBadRequest, errors.New(string(constants.ErrLastUsedServerSet)))
+		return
+	}
 	updateData := make(map[string]any, constants.MaxUpdateFields)
 	if req.DeviceName != nil {
-		updateData[constants.PasskeyFieldDeviceName] = *req.DeviceName
-	}
-	if req.LastUsedTimestamp != nil {
-		updateData[constants.PasskeyFieldLastUsedTimestamp] = *req.LastUsedTimestamp
+		name, err := authhelper.CheckDeviceName(*req.DeviceName, constants.PasskeyFieldDeviceName)
+		if err != nil {
+			shared.SendErrorResponse(w, http.StatusBadRequest, err)
+			return
+		}
+		updateData[constants.PasskeyFieldDeviceName] = name
 	}
 
 	data, err := authhelper.UpdatePasskey(userID, credentialID, updateData)

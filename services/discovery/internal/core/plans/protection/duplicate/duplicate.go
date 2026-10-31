@@ -2,6 +2,7 @@ package duplicate
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/telark/telark/internal/data/errors"
 	"github.com/telark/telark/internal/data/plans"
@@ -12,9 +13,11 @@ import (
 
 const (
 	namePrefix      = "Copy of "
-	nameSuffixFmt   = "%s (%d)"
+	nameSuffixFmt   = "%s %d"
 	firstNameSuffix = 2
 	maxNameAttempts = 50
+	// " " plus the two digits of the last suffix tried.
+	maxSuffixRunes = 3
 )
 
 const errNoFreeName errors.Error = "could not find an available name for a copy of %q"
@@ -29,8 +32,9 @@ func AvailableName(base string, existing []plans.ProtectionPlan) (string, error)
 	if validation.UniqueName(existing, base, constants.EmptyString) == nil {
 		return base, nil
 	}
+	short := fitName(base, validation.NameMaxLength-maxSuffixRunes)
 	for suffix := firstNameSuffix; suffix < firstNameSuffix+maxNameAttempts; suffix++ {
-		candidate := fmt.Sprintf(nameSuffixFmt, base, suffix)
+		candidate := fmt.Sprintf(nameSuffixFmt, short, suffix)
 		if validation.UniqueName(existing, candidate, constants.EmptyString) == nil {
 			return candidate, nil
 		}
@@ -133,7 +137,16 @@ func resolveName(sourceName string, override *string) string {
 	if override != nil && *override != constants.EmptyString {
 		return *override
 	}
-	return namePrefix + sourceName
+	return fitName(namePrefix+sourceName, validation.NameMaxLength)
+}
+
+// A long source name would push the default copy name past the limit, so it is cut instead of refused.
+func fitName(name string, limit int) string {
+	runes := []rune(name)
+	if len(runes) <= limit {
+		return name
+	}
+	return strings.TrimSpace(string(runes[:limit]))
 }
 
 func toScopeRequest(scope plans.ProtectionPlanScope) planseps.ScopeRequest {

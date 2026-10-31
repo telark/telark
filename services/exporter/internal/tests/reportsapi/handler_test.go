@@ -36,7 +36,7 @@ const (
 	routePath    = "/reports"
 	downloadName = "download"
 	firstIdx     = 0
-	reportsCount = 8
+	reportsCount = 9
 	totalOne     = "1"
 	badTrigger   = "pdf"
 )
@@ -49,6 +49,7 @@ var reportRoutes = []string{
 	router.Key(http.MethodPut, reportseps.PutPlanReportLedger),
 	router.Key(http.MethodGet, reportseps.GetPlanReportLedger),
 	router.Key(http.MethodGet, reportseps.ListKeptReports),
+	router.Key(http.MethodGet, reportseps.GetReportsStorage),
 	router.Key(http.MethodDelete, reportseps.DeletePlanReport),
 }
 

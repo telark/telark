@@ -37,6 +37,11 @@ const (
 	testDeviceType   = "phone"
 	testEnrollToken  = "enroll-token"
 	testDigest       = "digest"
+	zeroWidthSpace   = 0x200B
+	deviceChar       = "d"
+	releaseLead      = "release lead"
+	combiningAcute   = 0x0301
+	emojiSmile       = 0x1F600
 )
 
 // A username is the sanitized email local-part plus a random suffix, padded to a
@@ -127,22 +132,63 @@ func TestHeaderExtractors(t *testing.T) {
 	}
 }
 
-// Both device headers are required together.
+// Both device headers are required together; the name is trimmed, 1-64 characters, with no control or invisible
+// character.
 func TestValidateDeviceHeaders(t *testing.T) {
-	full := httptest.NewRequest(http.MethodGet, rootPath, nil)
-	full.Header.Set(constants.HeaderDeviceName, testDeviceName)
-	full.Header.Set(constants.HeaderDeviceType, testDeviceType)
-	name, typ, err := authhelper.ValidateDeviceHeaders(full)
-	if err != nil {
-		t.Fatalf("ValidateDeviceHeaders = %v", err)
+	atLimit := strings.Repeat(deviceChar, constants.DeviceNameMaxLen)
+	cases := []struct {
+		name, deviceName, deviceType, want string
+	}{
+		{"set", testDeviceName, testDeviceType, testDeviceName},
+		{"trimmed", " " + testDeviceName + " ", testDeviceType, testDeviceName},
+		{"one character", deviceChar, testDeviceType, deviceChar},
+		{"under the limit", atLimit[constants.DefaultIncrementValue:], testDeviceType, atLimit[constants.DefaultIncrementValue:]},
+		{"at the limit", atLimit, testDeviceType, atLimit},
+		{"over the limit", atLimit + deviceChar, testDeviceType, constants.EmptyString},
+		{"missing name", constants.EmptyString, testDeviceType, constants.EmptyString},
+		{"blank name", "   ", testDeviceType, constants.EmptyString},
+		{"invisible character", "Pi" + string(rune(zeroWidthSpace)) + "xel", testDeviceType, constants.EmptyString},
+		{"missing type", testDeviceName, constants.EmptyString, constants.EmptyString},
 	}
-	testutil.Equal(t, "name", name, testDeviceName)
-	testutil.Equal(t, "type", typ, testDeviceType)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodGet, rootPath, nil)
+			r.Header.Set(constants.HeaderDeviceName, c.deviceName)
+			r.Header.Set(constants.HeaderDeviceType, c.deviceType)
+			name, typ, err := authhelper.ValidateDeviceHeaders(r)
+			testutil.Equal(t, "refused", err != nil, c.want == constants.EmptyString)
+			testutil.Equal(t, "name", name, c.want)
+			if err == nil {
+				testutil.Equal(t, "type", typ, c.deviceType)
+			}
+		})
+	}
+}
 
-	partial := httptest.NewRequest(http.MethodGet, rootPath, nil)
-	partial.Header.Set(constants.HeaderDeviceName, testDeviceName)
-	if _, _, err := authhelper.ValidateDeviceHeaders(partial); err == nil {
-		t.Fatal("missing device type should error")
+// A derived full name fits the user schema instead of failing a verified sign-in: letters, marks, space and ' . -
+// only, at most 100 characters, and a fallback when nothing fits.
+func TestBuildFullname(t *testing.T) {
+	long := strings.Repeat("n", constants.FullnameMaxLen)
+	cases := []struct {
+		name, provided, email, want string
+	}{
+		{"non-Latin name kept", "Δοκιμή Ομάδα", testEmail, "Δοκιμή Ομάδα"},
+		{"accents and combining marks kept", "Re" + string(rune(combiningAcute)) + "lease O'Lead-Ops Jr.", testEmail,
+			"Re" + string(rune(combiningAcute)) + "lease O'Lead-Ops Jr."},
+		{"digits and symbols stripped", "release_lead 2 " + string(rune(emojiSmile)), testEmail, releaseLead},
+		{"under the limit", long[constants.DefaultIncrementValue:], testEmail, long[constants.DefaultIncrementValue:]},
+		{"at the limit", long, testEmail, long},
+		{"over the limit cut", long + "n", testEmail, long},
+		{"nothing fits falls back to the email", "1234", "release.lead@example.com", releaseLead},
+		{"no provider name", constants.EmptyString, "test@example.com", "test"},
+		{"email digits stripped", constants.EmptyString, "release_lead42@example.com", releaseLead},
+		{"long local part cut", constants.EmptyString, long + "n@example.com", long},
+		{"nothing fits at all", constants.EmptyString, "12345@example.com", constants.DefaultFullname},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			testutil.Equal(t, "full name", authhelper.BuildFullname(c.provided, c.email), c.want)
+		})
 	}
 }
 

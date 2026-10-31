@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -465,4 +466,28 @@ func removeOldTemps(dir string, cutoff time.Time) int {
 		}
 	}
 	return removed
+}
+
+// Bytes of every file on the volume (reports, ledgers, markers, temp files) and the count of
+// stored reports, live and kept.
+func Usage(root string) (uint64, int, error) {
+	var total uint64
+	count := constants.DefaultInitValue
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil || d.IsDir() {
+			return walkErr
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		if size := info.Size(); size > int64(constants.DefaultInitValue) {
+			total += uint64(size)
+		}
+		if filepath.Ext(path) == constants.ReportFileExtension && filepath.Base(filepath.Dir(path)) == constants.ReportsReportsSubdir {
+			count++
+		}
+		return nil
+	})
+	return total, count, err
 }

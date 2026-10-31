@@ -116,14 +116,10 @@ func createNewOIDCUser(
 }
 
 func BuildOIDCUser(claims *oidchelper.GoogleClaims, username string) *userresource.User {
-	fullname := claims.Name
-	if fullname == constants.EmptyString {
-		fullname = authhelper.BuildFullnameFromEmail(claims.Email)
-	}
 	roleID := constants.BuiltInRoleReadOnly
 	return &userresource.User{
 		Username:     username,
-		Fullname:     fullname,
+		Fullname:     authhelper.BuildFullname(claims.Name, claims.Email),
 		Email:        claims.Email,
 		CreationDate: time.Now().UTC().Format(time.RFC3339),
 		Status:       userresource.UserStatus{Phase: string(userresource.AccountPhaseActive)},

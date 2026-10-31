@@ -36,6 +36,10 @@ func SetConfig(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if err := oidchelper.CheckInputs(&req.OIDCConfig); err != nil {
+		shared.SendErrorResponse(w, http.StatusBadRequest, err)
+		return
+	}
 	if err := oidchelper.Validate(req.OIDCConfig, jwkGiven); err != nil {
 		shared.SendErrorResponse(w, http.StatusBadRequest, err)
 		return

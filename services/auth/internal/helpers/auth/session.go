@@ -9,6 +9,7 @@ import (
 	authdata "github.com/telark/telark/internal/data/auth"
 	dataerrors "github.com/telark/telark/internal/data/errors"
 	userresource "github.com/telark/telark/internal/data/resources/user"
+	"github.com/telark/telark/internal/data/text"
 	restshared "github.com/telark/telark/internal/rest/clients/shared"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/auth/internal/clients"
@@ -97,6 +98,17 @@ func UpdateUserLastLogin(userID string) {
 	}
 }
 
+// The browser fills these, so an oversized value is cut rather than failing the sign-in.
+func truncateMetadata(meta authdata.DeviceMetadata) authdata.DeviceMetadata {
+	for _, field := range []**string{&meta.Browser, &meta.Device, &meta.OS, &meta.Location, &meta.UserAgent} {
+		if *field != nil {
+			cut := text.Truncate(**field, constants.DeviceMetadataMaxLen)
+			*field = &cut
+		}
+	}
+	return meta
+}
+
 // Every login path ends here, so this is where a terminating (410) or
 // non-active account is refused a session.
 func CreateUserSession(userID string, meta *authdata.DeviceMetadata) (token string, expiresAt time.Time, err error) {
@@ -136,7 +148,7 @@ func CreateUserSession(userID string, meta *authdata.DeviceMetadata) (token stri
 	}
 
 	if meta != nil {
-		session.DeviceMetadata = *meta
+		session.DeviceMetadata = truncateMetadata(*meta)
 	}
 
 	// Checked again right before the write: a sign-in that began before break-glass froze the account sends no session

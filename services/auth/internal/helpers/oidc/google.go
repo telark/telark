@@ -188,11 +188,12 @@ func StopJWKSRefresh() {
 
 func fetchJWKS() ([]byte, error) {
 	client := &http.Client{Timeout: constants.OIDCJWKSFetchTimeout}
+	// The URL is a constant, so building the request can't fail: one check covers it and the fetch.
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, constants.OIDCJWKSFetchURL, http.NoBody)
-	if err != nil {
-		return nil, err
+	var resp *http.Response
+	if err == nil {
+		resp, err = client.Do(req)
 	}
-	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}

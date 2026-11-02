@@ -477,12 +477,11 @@ func Usage(root string) (uint64, int, error) {
 		if walkErr != nil || d.IsDir() {
 			return walkErr
 		}
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-		if size := info.Size(); size > int64(constants.DefaultInitValue) {
-			total += uint64(size)
+		// A temp file removed mid-walk is skipped instead of ending the walk.
+		if info, err := d.Info(); err == nil {
+			if size := info.Size(); size > int64(constants.DefaultInitValue) {
+				total += uint64(size)
+			}
 		}
 		if filepath.Ext(path) == constants.ReportFileExtension && filepath.Base(filepath.Dir(path)) == constants.ReportsReportsSubdir {
 			count++

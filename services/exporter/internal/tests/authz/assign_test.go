@@ -14,6 +14,7 @@ import (
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/services/exporter/internal/authz"
 	"github.com/telark/telark/services/exporter/internal/constants"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 )
 
 const (
@@ -35,8 +36,11 @@ func roleGranting(name, scope string, level roledata.PermissionLevel) *roledata.
 	}
 }
 
+// The directory every test reads; a test that swaps the client restores this one, so a rerun still finds it.
+var sharedDirectory *dynamicfake.FakeDynamicClient
+
 func TestMain(m *testing.M) {
-	k8sclient.SetDynamicClient(directory(map[string]*roledata.AccessRole{
+	sharedDirectory = directory(map[string]*roledata.AccessRole{
 		roleAllReadOnly: roleGranting(roleAllReadName, roledata.ScopeAll, roledata.PermissionLevelReadOnly),
 		roleUsersOwner:  roleGranting("users-owner", roledata.ScopeUsers, roledata.PermissionLevelOwner),
 		roleUsersAdmin:  roleGranting("users-admin", roledata.ScopeUsers, roledata.PermissionLevelAdmin),
@@ -44,7 +48,8 @@ func TestMain(m *testing.M) {
 		roleAllAdmin:    roleGranting("all-admin", roledata.ScopeAll, roledata.PermissionLevelAdmin),
 		roleAllAdminOff: inactive(roleGranting("all-admin-off", roledata.ScopeAll, roledata.PermissionLevelAdmin)),
 		roleTerminating: terminating(roleGranting("gone", roledata.ScopeUsers, roledata.PermissionLevelOwner)),
-	}))
+	})
+	k8sclient.SetDynamicClient(sharedDirectory)
 	m.Run()
 }
 

@@ -18,6 +18,7 @@ import (
 const (
 	keepReportsTypo = "yes"
 	notFoundBody    = `{"status":404}`
+	updateBody      = `{"name":"p"}`
 )
 
 // The refusal comes before the plan lock and the exporter, so a typo never deletes the reports.
@@ -32,8 +33,8 @@ func TestClearRefusesAnInvalidKeepReports(t *testing.T) {
 	testutil.Equal(t, "status", rec.Code, http.StatusBadRequest)
 }
 
-// A plan the exporter no longer has answers 404 before anything is cleaned up.
-func TestClearAnswersNotFoundForAMissingPlan(t *testing.T) {
+// A plan the exporter no longer has answers 404 before anything is cleaned up or changed.
+func TestClearAndUpdateAnswerNotFoundForAMissingPlan(t *testing.T) {
 	prev := http.DefaultTransport
 	http.DefaultTransport = roundTripFunc(func(*http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: http.StatusNotFound, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(notFoundBody))}, nil
@@ -44,7 +45,20 @@ func TestClearAnswersNotFoundForAMissingPlan(t *testing.T) {
 		handlers.InitService(nil)
 	})
 
-	rec := httptest.NewRecorder()
-	handlers.Clear(rec, planRequest(http.MethodDelete, ""))
-	testutil.Equal(t, "status", rec.Code, http.StatusNotFound)
+	cases := []struct {
+		name    string
+		handler http.HandlerFunc
+		method  string
+		body    string
+	}{
+		{"clear", handlers.Clear, http.MethodDelete, ""},
+		{"update", handlers.Update, http.MethodPost, updateBody},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			c.handler(rec, planRequest(c.method, c.body))
+			testutil.Equal(t, "status", rec.Code, http.StatusNotFound)
+		})
+	}
 }

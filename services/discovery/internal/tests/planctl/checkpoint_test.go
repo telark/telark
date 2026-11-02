@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/telark/telark/internal/data/plans"
@@ -40,21 +41,24 @@ func (f *fakeCheckpointService) snapshot() []time.Time {
 }
 
 func TestCheckpointRunsOnStartThenOnInterval(t *testing.T) {
-	svc := &fakeCheckpointService{}
-	ctrl := protectionctl.NewCheckpointController(svc, &silentLogger{}, checkpointInterval)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	start := time.Now()
-	go ctrl.Run(ctx)
-	time.Sleep(checkpointWindow)
-	calls := svc.snapshot()
-	if len(calls) < minCheckpointRuns {
-		t.Fatalf("expected at least %d checkpoint runs, got %d", minCheckpointRuns, len(calls))
-	}
-	if !calls[0].Before(start.Add(checkpointInterval)) {
-		t.Fatalf("first checkpoint ran at +%s, expected before the first tick (%s)",
-			calls[0].Sub(start), checkpointInterval)
-	}
+	// The fake clock gives the sleep exactly the start run and three ticks, however loaded the machine is.
+	synctest.Test(t, func(t *testing.T) {
+		svc := &fakeCheckpointService{}
+		ctrl := protectionctl.NewCheckpointController(svc, &silentLogger{}, checkpointInterval)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		start := time.Now()
+		go ctrl.Run(ctx)
+		time.Sleep(checkpointWindow)
+		calls := svc.snapshot()
+		if len(calls) < minCheckpointRuns {
+			t.Fatalf("expected at least %d checkpoint runs, got %d", minCheckpointRuns, len(calls))
+		}
+		if !calls[0].Before(start.Add(checkpointInterval)) {
+			t.Fatalf("first checkpoint ran at +%s, expected before the first tick (%s)",
+				calls[0].Sub(start), checkpointInterval)
+		}
+	})
 }
 
 func TestCheckpointStopsOnContextCancel(t *testing.T) {

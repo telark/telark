@@ -6,10 +6,14 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/telark/telark/internal/kcore/k8sclient"
 	"github.com/telark/telark/services/exporter/internal/constants"
 	reportshandler "github.com/telark/telark/services/exporter/internal/handlers/reports"
 	"github.com/telark/telark/services/exporter/internal/managers/envs"
 	reportsutil "github.com/telark/telark/services/exporter/internal/utils/reports"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 )
 
 const (
@@ -20,6 +24,11 @@ const (
 	noReports        = 0
 	oneReport        = 1
 	noBytes          = 0
+	claimCapacity    = "1Mi"
+	claimBytes       = 1 << 20
+	claimAPIVersion  = "v1"
+	claimKind        = "PersistentVolumeClaim"
+	createStep       = "create"
 )
 
 type storageSpace struct {
@@ -39,7 +48,7 @@ type storageInfo struct {
 func readStorage(t *testing.T) storageInfo {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	reportshandler.GetReportsStorage()(rec, httptest.NewRequest(http.MethodGet, storagePath, nil))
+	reportshandler.GetReportsStorage()(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, storagePath, nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf(statusFmt, "storage", rec.Code, http.StatusOK)
 	}
@@ -54,7 +63,7 @@ func TestReportsStorageCountsReportsAndNamesTheClaim(t *testing.T) {
 		t.Fatalf("empty volume = %+v, want no reports and no bytes", empty)
 	}
 	if rec := create(t, createBody(t, actor)); rec.Code != http.StatusOK {
-		t.Fatalf(statusFmt, "create", rec.Code, http.StatusOK)
+		t.Fatalf(statusFmt, createStep, rec.Code, http.StatusOK)
 	}
 	got := readStorage(t)
 	if got.Reports != oneReport || got.Consumed.Bytes == noBytes {
@@ -69,6 +78,30 @@ func TestReportsStorageCountsReportsAndNamesTheClaim(t *testing.T) {
 	}
 }
 
+func TestReportsStorageReadsTheClaimCapacity(t *testing.T) {
+	t.Setenv(constants.ReportsPVCNameEnv, storagePVC)
+	t.Setenv(constants.ReportsPVCNamespaceEnv, storageNamespace)
+	claim := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": claimAPIVersion,
+		"kind":       claimKind,
+		"metadata":   map[string]any{"name": storagePVC, "namespace": storageNamespace},
+		"status":     map[string]any{"capacity": map[string]any{"storage": claimCapacity}},
+	}}
+	k8sclient.SetDynamicClient(dynamicfake.NewSimpleDynamicClient(runtime.NewScheme(), claim))
+	t.Cleanup(func() { k8sclient.SetDynamicClient(nil) })
+	setRoot(t)
+	if rec := create(t, createBody(t, actor)); rec.Code != http.StatusOK {
+		t.Fatalf(statusFmt, createStep, rec.Code, http.StatusOK)
+	}
+	got := readStorage(t)
+	if got.Total.Bytes != claimBytes || got.Consumed.Bytes == noBytes || got.Available.Bytes != claimBytes-got.Consumed.Bytes {
+		t.Fatalf("known capacity = %+v, want %d total split into consumed and available", got, claimBytes)
+	}
+	if got.Consumed.Percent == nil || got.Available.Percent == nil || got.Total.Percent != nil {
+		t.Fatalf("known capacity = %+v, want percentages on consumed and available only", got)
+	}
+}
+
 func TestReportsStorageAnswersWhenTheVolumeIsMissing(t *testing.T) {
 	t.Setenv(constants.ReportsPathEnv, filepath.Join(t.TempDir(), missingDir))
 	envs.InitReportsPath()
@@ -80,7 +113,7 @@ func TestReportsStorageAnswersWhenTheVolumeIsMissing(t *testing.T) {
 func TestReportsUsageCountsKeptReports(t *testing.T) {
 	root := setRoot(t)
 	if rec := create(t, createBody(t, actor)); rec.Code != http.StatusOK {
-		t.Fatalf(statusFmt, "create", rec.Code, http.StatusOK)
+		t.Fatalf(statusFmt, createStep, rec.Code, http.StatusOK)
 	}
 	if err := reportsutil.Keep(root, planID, keptName); err != nil {
 		t.Fatalf("keep: %v", err)

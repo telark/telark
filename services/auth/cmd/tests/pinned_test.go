@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	webauthnlib "github.com/go-webauthn/webauthn/webauthn"
@@ -227,14 +228,14 @@ func recoveryExporter(complete *bootstrapeps.RequestResult) *testutil.FakeExport
 	return fake
 }
 
-// An eligible recovery of an account that signs with one passkey made long before the request opened, and one stored
-// without its creation time, which is never the link's.
+// An eligible recovery of an account that signs with one passkey made long before the request opened (before 2000,
+// where a synctest bubble's clock starts), and one stored without its creation time, which is never the link's.
 func signingRecovery() *testutil.FakeExporter {
 	fake := recoveryExporter(&bootstrapeps.RequestResult{
 		Request:  breakGlassRequest(telarkconfig.BootstrapKindRecover, telarkconfig.BootstrapStatePending, constants.EmptyString),
 		Eligible: true,
 	})
-	created := "2026-01-01T00:00:00Z"
+	created := "1999-01-01T00:00:00Z"
 	fake.Credentials = map[string][]authdata.Passkey{pinnedUser: {
 		{UserID: pinnedUser, CredentialID: "b2xk", CreationTimestamp: &created},
 		{UserID: pinnedUser, CredentialID: "dW5kYXRlZA"},
@@ -452,33 +453,35 @@ func saveLinkPasskey() error {
 // saved, and prints a 10-minute link. The freeze then holds that link for its window, letting through only the link's
 // registration; once that passkey shows, the exporter keeps it alone and completes the request, and the account thaws.
 func TestBreakGlassRecoversLinkFirst(t *testing.T) {
-	t.Setenv(constants.EnvBootstrapAdmin, pinnedMailbox)
-	redisServer.FlushAll()
-	fake := signingRecovery()
-	seen := watchFreeze(fake, nil)
-	testutil.StubBackend(t, fake)
-	links := openWaysIn(t)
-	registration := useTheLink(registerWith)
+	synctest.Test(t, func(t *testing.T) {
+		t.Setenv(constants.EnvBootstrapAdmin, pinnedMailbox)
+		redisServer.FlushAll()
+		fake := signingRecovery()
+		seen := watchFreeze(fake, nil)
+		testutil.StubBackend(t, fake)
+		links := openWaysIn(t)
+		registration := useTheLink(registerWith)
 
-	began := time.Now()
-	code, out, logged := runBreakGlass(t, flagEmail, pinnedMailbox, flagEnroll)
-	use := <-registration
-	if use.err != nil {
-		t.Fatalf("registration with the link: %v", use.err)
-	}
-	testutil.Equal(t, exitLabel, code, constants.DefaultInitValue)
-	testutil.Equal(t, "stderr", logged, constants.EmptyString)
-	testutil.Equal(t, "link window", use.window, constants.RecoveryLinkWindow)
-	testutil.Equal(t, "other ceremonies refused meanwhile", use.othersFrozen, true)
-	keep := fmt.Sprintf(completeKeep, base64.RawURLEncoding.EncodeToString([]byte(linkCredential)))
-	testutil.Equal(t, callsLabel, strings.Join(fake.RequestCalls(), callSep),
-		strings.Join([]string{opened(pinnedMailbox), completeOnce, completeRevoke, keep}, callSep))
-	expectRevoked(t, links, seen, began)
-	for _, want := range []string{"/register#enroll=", "Keep this command running", "now has only the new passkey"} {
-		if !strings.Contains(out, want) {
-			t.Fatalf("stdout %q lacks %q", out, want)
+		began := time.Now()
+		code, out, logged := runBreakGlass(t, flagEmail, pinnedMailbox, flagEnroll)
+		use := <-registration
+		if use.err != nil {
+			t.Fatalf("registration with the link: %v", use.err)
 		}
-	}
+		testutil.Equal(t, exitLabel, code, constants.DefaultInitValue)
+		testutil.Equal(t, "stderr", logged, constants.EmptyString)
+		testutil.Equal(t, "link window", use.window, constants.RecoveryLinkWindow)
+		testutil.Equal(t, "other ceremonies refused meanwhile", use.othersFrozen, true)
+		keep := fmt.Sprintf(completeKeep, base64.RawURLEncoding.EncodeToString([]byte(linkCredential)))
+		testutil.Equal(t, callsLabel, strings.Join(fake.RequestCalls(), callSep),
+			strings.Join([]string{opened(pinnedMailbox), completeOnce, completeRevoke, keep}, callSep))
+		expectRevoked(t, links, seen, began)
+		for _, want := range []string{"/register#enroll=", "Keep this command running", "now has only the new passkey"} {
+			if !strings.Contains(out, want) {
+				t.Fatalf("stdout %q lacks %q", out, want)
+			}
+		}
+	})
 }
 
 // The wait ends with no registration, when the link's window ends or when a sign-in begun before the freeze cancels the
@@ -489,7 +492,8 @@ func TestBreakGlassRecoversLinkFirst(t *testing.T) {
 func TestBreakGlassWaitEndsUnused(t *testing.T) {
 	t.Setenv(constants.EnvBootstrapAdmin, pinnedMailbox)
 	// A status read fails while the test waits on missed; a wait round reads it after the freeze and the passkeys.
-	missed := make(chan struct{})
+	// Each case's bubble makes its own, so the wait on it is one the fake clock can advance past.
+	var missed chan struct{}
 	cases := []struct {
 		name    string
 		end     func(fake *testutil.FakeExporter) error
@@ -514,36 +518,39 @@ func TestBreakGlassWaitEndsUnused(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			redisServer.FlushAll()
-			fake := signingRecovery()
-			seen := watchFreeze(fake, nil)
-			testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path == bootstrapPath {
-					select {
-					case missed <- struct{}{}:
-						w.WriteHeader(http.StatusInternalServerError)
-						return
-					default:
+			synctest.Test(t, func(t *testing.T) {
+				missed = make(chan struct{})
+				redisServer.FlushAll()
+				fake := signingRecovery()
+				seen := watchFreeze(fake, nil)
+				testutil.StubBackend(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.URL.Path == bootstrapPath {
+						select {
+						case missed <- struct{}{}:
+							w.WriteHeader(http.StatusInternalServerError)
+							return
+						default:
+						}
 					}
-				}
-				fake.ServeHTTP(w, r)
-			}))
-			links := openWaysIn(t)
-			ended := useTheLink(func(string) error { return c.end(fake) })
+					fake.ServeHTTP(w, r)
+				}))
+				links := openWaysIn(t)
+				ended := useTheLink(func(string) error { return c.end(fake) })
 
-			began := time.Now()
-			code, out, logged := runBreakGlass(t, flagEmail, pinnedMailbox, flagEnroll)
-			if use := <-ended; use.err != nil {
-				t.Fatal(use.err)
-			}
-			testutil.Equal(t, exitLabel, code, constants.ExitCodeError)
-			testutil.Equal(t, "says so", strings.Contains(logged, c.says), true)
-			testutil.Equal(t, callsLabel, strings.Join(fake.RequestCalls(), callSep),
-				strings.Join([]string{opened(pinnedMailbox), completeOnce, completeRevoke}, callSep))
-			expectRevoked(t, links, seen, began)
-			testutil.Equal(t, "live links", len(enrollTokenOwners()), constants.DefaultInitValue)
-			testutil.Equal(t, linkLabel, strings.Contains(out, "/register#enroll="), true)
-			testutil.Equal(t, "keep-alive line", strings.Contains(out, c.printed), true)
+				began := time.Now()
+				code, out, logged := runBreakGlass(t, flagEmail, pinnedMailbox, flagEnroll)
+				if use := <-ended; use.err != nil {
+					t.Fatal(use.err)
+				}
+				testutil.Equal(t, exitLabel, code, constants.ExitCodeError)
+				testutil.Equal(t, "says so", strings.Contains(logged, c.says), true)
+				testutil.Equal(t, callsLabel, strings.Join(fake.RequestCalls(), callSep),
+					strings.Join([]string{opened(pinnedMailbox), completeOnce, completeRevoke}, callSep))
+				expectRevoked(t, links, seen, began)
+				testutil.Equal(t, "live links", len(enrollTokenOwners()), constants.DefaultInitValue)
+				testutil.Equal(t, linkLabel, strings.Contains(out, "/register#enroll="), true)
+				testutil.Equal(t, "keep-alive line", strings.Contains(out, c.printed), true)
+			})
 		})
 	}
 }
@@ -574,40 +581,42 @@ func endTheRequest(fake *testutil.FakeExporter) {
 // run holds that freeze as the revoking pass does, and retries a failed read, so the look still hands the passkey to
 // the exporter's keep pass, which refuses it on the canceled request (and deletes it), and the run thaws the account.
 func TestBreakGlassLastLookWaitsOutTheHold(t *testing.T) {
-	t.Setenv(constants.EnvBootstrapAdmin, pinnedMailbox)
-	redisServer.FlushAll()
-	fake := signingRecovery()
-	// Runs under the fake's lock, so it may read the status SetBootstrap writes.
-	fake.OnRequest = func(path string) {
-		if strings.HasSuffix(path, completeKey) && !fake.Bootstrap.Newest().Open() {
-			delete(fake.RequestAnswers, completeKey)
+	synctest.Test(t, func(t *testing.T) {
+		t.Setenv(constants.EnvBootstrapAdmin, pinnedMailbox)
+		redisServer.FlushAll()
+		fake := signingRecovery()
+		// Runs under the fake's lock, so it may read the status SetBootstrap writes.
+		fake.OnRequest = func(path string) {
+			if strings.HasSuffix(path, completeKey) && !fake.Bootstrap.Newest().Open() {
+				delete(fake.RequestAnswers, completeKey)
+			}
 		}
-	}
-	testutil.StubBackend(t, fake)
-	late := useTheLink(func(digest string) error {
-		endTheRequest(fake)
-		if err := lastFreeze(digest); err != nil {
-			return err
-		}
-		time.Sleep(lateLanding)
-		if err := saveLinkPasskey(); err != nil {
-			return err
-		}
-		fake.FailNextPasskeyRead()
-		return nil
-	})
+		testutil.StubBackend(t, fake)
+		late := useTheLink(func(digest string) error {
+			endTheRequest(fake)
+			if err := lastFreeze(digest); err != nil {
+				return err
+			}
+			time.Sleep(lateLanding)
+			if err := saveLinkPasskey(); err != nil {
+				return err
+			}
+			fake.FailNextPasskeyRead()
+			return nil
+		})
 
-	code, _, logged := runBreakGlass(t, flagEmail, pinnedMailbox, flagEnroll)
-	if use := <-late; use.err != nil {
-		t.Fatal(use.err)
-	}
-	keep := fmt.Sprintf(completeKeep, base64.RawURLEncoding.EncodeToString([]byte(linkCredential)))
-	testutil.Equal(t, callsLabel, strings.Join(fake.RequestCalls(), callSep),
-		strings.Join([]string{opened(pinnedMailbox), completeOnce, completeRevoke, keep}, callSep))
-	testutil.Equal(t, exitLabel, code, constants.ExitCodeError)
-	testutil.Equal(t, "says the keep pass failed", strings.Contains(logged, "Could not finish request "+requestID), true)
-	testutil.Equal(t, "thawed after the refusal", redisServer.Exists(frozenKey), false)
-	testutil.Equal(t, "run lock", redisServer.Exists(constants.RedisKeyBreakGlassRun), false)
+		code, _, logged := runBreakGlass(t, flagEmail, pinnedMailbox, flagEnroll)
+		if use := <-late; use.err != nil {
+			t.Fatal(use.err)
+		}
+		keep := fmt.Sprintf(completeKeep, base64.RawURLEncoding.EncodeToString([]byte(linkCredential)))
+		testutil.Equal(t, callsLabel, strings.Join(fake.RequestCalls(), callSep),
+			strings.Join([]string{opened(pinnedMailbox), completeOnce, completeRevoke, keep}, callSep))
+		testutil.Equal(t, exitLabel, code, constants.ExitCodeError)
+		testutil.Equal(t, "says the keep pass failed", strings.Contains(logged, "Could not finish request "+requestID), true)
+		testutil.Equal(t, "thawed after the refusal", redisServer.Exists(frozenKey), false)
+		testutil.Equal(t, "run lock", redisServer.Exists(constants.RedisKeyBreakGlassRun), false)
+	})
 }
 
 // Waits until the run's own freeze replaced the link's.

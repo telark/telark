@@ -36,7 +36,7 @@ func TestRestricted(t *testing.T) {
 		r    *http.Request
 		want bool
 	}{
-		{"no identity", httptest.NewRequest(http.MethodGet, "/", nil), true},
+		{"no identity", httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil), true},
 		{"internal", requestAs(internalIdentity), false},
 		{"admin on all", requestAs(allAdmin()), false},
 		{"owner on users", requestAs(levels(roledata.ScopeUsers, roledata.PermissionLevelOwner)), true},
@@ -275,7 +275,7 @@ func TestBootstrapReadsThatFail(t *testing.T) {
 	client.PrependReactor(verbGet, v1alpha1.TelarkConfigMetadata.Plural, fail)
 	client.PrependReactor(verbList, v1alpha1.UserMetadata.Plural, fail)
 	k8sclient.SetDynamicClient(client)
-	t.Cleanup(func() { k8sclient.SetDynamicClient(nil) })
+	t.Cleanup(func() { k8sclient.SetDynamicClient(sharedDirectory) })
 
 	w := httptest.NewRecorder()
 	if authz.GuardBootstrapMarker(w, nil, map[string]any{constants.FieldBootstrap: true}) || w.Code != http.StatusServiceUnavailable {

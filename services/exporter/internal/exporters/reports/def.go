@@ -107,10 +107,7 @@ func reportsPVCBytes() uint64 {
 		lg.Warn(fmt.Sprintf(string(constants.WarnReportsPVCGetFailed), name, namespace, err))
 		return uint64(constants.DefaultInitValue)
 	}
-	if bytes < int64(constants.DefaultInitValue) {
-		return uint64(constants.DefaultInitValue)
-	}
-	return uint64(bytes)
+	return uint64(max(bytes, int64(constants.DefaultInitValue)))
 }
 
 func storageSpace(bytes, total uint64) map[string]any {

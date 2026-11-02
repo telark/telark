@@ -27,7 +27,7 @@ func TestFailsOpenWithoutRedis(t *testing.T) {
 	rt.Use(ratelimit.New())
 	for range starts {
 		rec := httptest.NewRecorder()
-		rt.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, router.Pattern(autheps.StartLogin), nil))
+		rt.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodPost, router.Pattern(autheps.StartLogin), nil))
 		testutil.Equal(t, "start", rec.Code, http.StatusOK)
 	}
 }

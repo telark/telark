@@ -1,6 +1,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/telark/telark/internal/kcore/constants"
@@ -34,7 +35,7 @@ func GetPodMetrics(
 		return apiErr
 	})
 	if err != nil {
-		if err == circuitbreaker.ErrCircuitBreakerOpen {
+		if errors.Is(err, circuitbreaker.ErrCircuitBreakerOpen) {
 			return nil, fmt.Errorf(constants.ErrorFormatString, constants.InfoMetricsAPICircuitBreakerOpen)
 		}
 		return nil, fmt.Errorf(string(constants.ErrFailedToGetPodMetrics), err)
@@ -82,7 +83,7 @@ func ListPodMetrics(mc *metricstypes.MetricsClient, namespace string) ([]*metric
 		return apiErr
 	})
 	if err != nil {
-		if err == circuitbreaker.ErrCircuitBreakerOpen {
+		if errors.Is(err, circuitbreaker.ErrCircuitBreakerOpen) {
 			return nil, fmt.Errorf(constants.ErrorFormatString, constants.InfoMetricsAPICircuitBreakerOpen)
 		}
 		return nil, fmt.Errorf(string(constants.InfoFailedToListPodMetrics), err)

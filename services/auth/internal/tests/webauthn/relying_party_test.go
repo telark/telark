@@ -86,7 +86,7 @@ func TestGetWebAuthnForResolvesRelyingPartyPerRequest(t *testing.T) {
 			if err := webauthnhelper.InitWebAuthn(&c.cfg); err != nil {
 				t.Fatalf("InitWebAuthn = %v", err)
 			}
-			r := httptest.NewRequest(http.MethodPost, "/", nil)
+			r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", nil)
 			r.Host = c.host
 			if c.forwardedHost != "" {
 				r.Header.Set(constants.HeaderForwardedHost, c.forwardedHost)

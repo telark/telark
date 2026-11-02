@@ -255,7 +255,7 @@ func TestLogAndReturnError(t *testing.T) {
 }
 
 func TestGetHeader(t *testing.T) {
-	r := httptest.NewRequest(http.MethodGet, rootPath, nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, rootPath, nil)
 	r.Header.Set("X-Token", "abc")
 	got, err := sharedutils.GetHeader(httptest.NewRecorder(), r, "X-Token")
 	if err != nil || got != "abc" {
@@ -267,31 +267,31 @@ func TestGetHeader(t *testing.T) {
 }
 
 func TestGetSpec(t *testing.T) {
-	r := httptest.NewRequest(http.MethodPost, rootPath, strings.NewReader(`{"a":1}`))
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, rootPath, strings.NewReader(`{"a":1}`))
 	spec, err := sharedutils.GetSpec(httptest.NewRecorder(), r)
 	if err != nil || spec[valueA] == nil {
 		t.Fatalf("GetSpec = %v, err %v", spec, err)
 	}
-	bad := httptest.NewRequest(http.MethodPost, rootPath, strings.NewReader(`{not json`))
+	bad := httptest.NewRequestWithContext(t.Context(), http.MethodPost, rootPath, strings.NewReader(`{not json`))
 	if _, err := sharedutils.GetSpec(httptest.NewRecorder(), bad); err == nil {
 		t.Error("invalid body accepted")
 	}
 }
 
 func TestExtractResourceNameFromRequest(t *testing.T) {
-	r := httptest.NewRequest(http.MethodGet, "/a/b/c", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/a/b/c", nil)
 	r = mux.SetURLVars(r, map[string]string{constants.NameParam: "foo"})
 	if got := sharedutils.ExtractResourceNameFromRequest(r); got != "foo" {
 		t.Errorf("mux var name = %q, want foo", got)
 	}
-	plain := httptest.NewRequest(http.MethodGet, "/a/b/c", nil)
+	plain := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/a/b/c", nil)
 	if got := sharedutils.ExtractResourceNameFromRequest(plain); got == constants.EmptyString {
 		t.Error("path fallback returned empty")
 	}
 }
 
-func newErr(msg string) error { return &simpleErr{msg} }
+func newErr(msg string) error { return &simpleError{msg} }
 
-type simpleErr struct{ s string }
+type simpleError struct{ s string }
 
-func (e *simpleErr) Error() string { return e.s }
+func (e *simpleError) Error() string { return e.s }

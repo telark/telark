@@ -58,7 +58,7 @@ func TestPools(*testing.T) {
 
 // Query-param helpers read present values and flag missing required ones.
 func TestQueryParams(t *testing.T) {
-	r := httptest.NewRequest("GET", "/x?ns=prod", nil)
+	r := httptest.NewRequestWithContext(t.Context(), "GET", "/x?ns=prod", nil)
 	if v, ok := shared.GetOptionalQueryParam(r, "ns"); !ok || v != queryNamespace {
 		t.Fatalf("optional present = %q,%v", v, ok)
 	}
@@ -75,7 +75,7 @@ func TestQueryParams(t *testing.T) {
 
 // A path param with no router context in the request resolves to an error.
 func TestPathParamNoRouter(t *testing.T) {
-	r := httptest.NewRequest("GET", "/x", nil)
+	r := httptest.NewRequestWithContext(t.Context(), "GET", "/x", nil)
 	if _, err := shared.GetPathParam(httptest.NewRecorder(), r, "name"); err == nil {
 		t.Fatal("expected error resolving a path param with no router")
 	}

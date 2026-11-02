@@ -2,6 +2,7 @@ package stream
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -74,7 +75,7 @@ func (c *StreamClient) Consume(
 		Block:    blockDuration,
 	}).Result()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return nil, nil
 		}
 		return nil, err
@@ -112,7 +113,7 @@ func (c *StreamClient) ClaimStale(
 		Count:    count,
 	}).Result()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return nil, nil
 		}
 		return nil, err

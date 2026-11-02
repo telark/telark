@@ -127,7 +127,7 @@ func TestPerSubjectListRoutesRefuseForeignCallers(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodGet, pathFor(tc.endpoint), nil)
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, pathFor(tc.endpoint), nil)
 			if tc.internal {
 				request.Header.Set(dataconstants.HeaderServiceToken, testServiceToken)
 				request.Header.Set(dataconstants.HeaderUserID, subjectUserID)
@@ -154,7 +154,7 @@ func TestCallerSuppliedUserIDHeaderIsReplaced(t *testing.T) {
 		t.Fatalf("building guarded router: %v", err)
 	}
 
-	request := httptest.NewRequest(http.MethodGet, router.Pattern(notificationsendpoints.List), nil)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, router.Pattern(notificationsendpoints.List), nil)
 	request.Header.Set(dataconstants.HeaderSessionToken, sessionOfOutsider)
 	request.Header.Set(dataconstants.HeaderUserID, subjectUserID)
 

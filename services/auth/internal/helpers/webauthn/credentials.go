@@ -155,7 +155,7 @@ func HandleBackupFlagError(
 	// Synthetic request, only parsed and never sent; a fixed path keeps the
 	// caller-controlled URL out of it (gosec G704 / SSRF).
 	credentialOnlyRequest,
-		err := http.NewRequest(r.Method, constants.SyntheticRequestPath, bytes.NewBuffer(credentialOnlyBytes))
+		err := http.NewRequestWithContext(r.Context(), r.Method, constants.SyntheticRequestPath, bytes.NewBuffer(credentialOnlyBytes))
 	if err != nil {
 		return nil, fmt.Errorf(string(constants.ErrFailedCreateCredentialRequest), err)
 	}

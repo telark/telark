@@ -1,6 +1,7 @@
 package streams
 
 import (
+	stderrors "errors"
 	"fmt"
 
 	"github.com/nats-io/nats.go"
@@ -32,7 +33,7 @@ func createStreamByGroup(c *core.NATSClient, group core.Group) error {
 		AllowRollup: StreamAllowRollup,
 		AllowDirect: StreamAllowDirect,
 	})
-	if err != nil && err != nats.ErrStreamNameAlreadyInUse {
+	if err != nil && !stderrors.Is(err, nats.ErrStreamNameAlreadyInUse) {
 		return fmt.Errorf(string(errors.ErrNatsFailedCreateStream), stream, err)
 	}
 

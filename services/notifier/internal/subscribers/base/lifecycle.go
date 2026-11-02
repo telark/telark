@@ -2,6 +2,7 @@ package base
 
 import (
 	"context"
+	stderrors "errors"
 	"fmt"
 	"time"
 
@@ -98,7 +99,7 @@ func (s *BaseSubscriber) fetchAndProcessMessages(ctx context.Context, sub *nats.
 		default:
 			msgs, err := sub.Fetch(constants.NatsFetchBatchSize, nats.MaxWait(constants.FetchMaxWaitSeconds*time.Second))
 			if err != nil {
-				if err != nats.ErrTimeout {
+				if !stderrors.Is(err, nats.ErrTimeout) {
 					logger.GetLogger(constants.PrefixManagerSubscriber).Error(
 						fmt.Sprintf(constants.ErrNatsFetchMessages, sub.Subject, err))
 					time.Sleep(constants.FetchErrorBackoffMillis * time.Millisecond)

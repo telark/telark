@@ -35,7 +35,7 @@ const (
 	KeyPrefixLockPlanDecision       = "lock:plan-decision:"
 	RemovalStabilizationWindow      = 45 * time.Second
 
-	// rest
+	// rest.
 	ApplicationJSON   = "application/json"
 	HeaderUserID      = "X-User-ID"
 	HeaderContentType = "Content-Type"
@@ -43,12 +43,12 @@ const (
 	HeaderETag        = "ETag"
 	HeaderIfNoneMatch = "If-None-Match"
 
-	// optimization constants
+	// optimization constants.
 	StringBuilderSize = 64
 	BufferSize        = 512
 	SimpleConcatLimit = 2
 
-	// Parsing / numeric constants for linters
+	// Parsing / numeric constants for linters.
 	IntBase10                      = 10
 	IntBitSize64                   = 64
 	ZeroInt64        int64         = 0
@@ -65,12 +65,12 @@ const (
 	TwoValue                       = 2
 	ThreeValue                     = 3
 
-	// Snapshot note (split for line-length limits)
+	// Snapshot note (split for line-length limits).
 	SnapshotNote = "Manifests reflect K8s state at snapshot time. " +
 		"Due to reconciliation timing, some fields may reflect the new state rather than the " +
 		"previous state. Review before applying."
 
-	// Manifest kind ordering for snapshots (aligns with apply order)
+	// Manifest kind ordering for snapshots (aligns with apply order).
 	ManifestOrderServiceAccount          = 1
 	ManifestOrderConfigMap               = 2
 	ManifestOrderSecret                  = 3
@@ -87,13 +87,13 @@ const (
 	ManifestOrderVerticalPodAutoscaler   = 14
 	ManifestOrderUnknown                 = 99
 
-	// Snapshot history / exporter retention (same env as exporter-service)
+	// Snapshot history / exporter retention (same env as exporter-service).
 	DefaultSnapshotsMaxVersions   = 5
 	MinSnapshotsMaxVersions       = 1
 	DefaultSnapshotScopeDirectory = "apps"
 	ApplicationResetMessage       = "application reset triggered"
 
-	// Common
+	// Common.
 	IDPathParam         = "id"
 	RollbackIDPathParam = "rollbackId"
 
@@ -150,7 +150,7 @@ const (
 	EnvPodNamespace = "POD_NAMESPACE"
 )
 
-// Logger prefixes
+// Logger prefixes.
 const (
 	LoggerPrefixDiscoveryManager   = "DiscoveryManager: "
 	LoggerPrefixEventPublisher     = "EventPublisher: "
@@ -159,7 +159,7 @@ const (
 	LoggerPrefixRedis              = "Redis: "
 )
 
-// Redis constants
+// Redis constants.
 const (
 	EnvRedisRetryIntervalSec       = "REDIS_RETRY_INTERVAL_SEC"
 	EnvRedisMaxWaitSec             = "REDIS_MAX_WAIT_SEC"
@@ -170,13 +170,13 @@ const (
 	RedisDialMaxWaitForeverSeconds = 0
 )
 
-// Status endpoints
+// Status endpoints.
 const (
 	StatusReadinessEp = "status/ready"
 	StatusLivenessEp  = "status/live"
 )
 
-// Circuit breaker constants
+// Circuit breaker constants.
 const (
 	CircuitBreakerDefaultFailureThreshold = 5
 	CircuitBreakerDefaultSuccessThreshold = 2
@@ -191,7 +191,7 @@ const (
 	CircuitBreakerHalfOpenMaxProbes       = 1
 )
 
-// Protection plan report constants
+// Protection plan report constants.
 const (
 	DefaultReportCaptureTimeout = 10 * time.Second
 	EnvReportMaxViolations      = "PROTECTION_PLAN_REPORT_MAX_VIOLATIONS"
@@ -205,7 +205,7 @@ const (
 	KeyPrefixReportLedgerLock = "lock:reports:ledger:"
 )
 
-// Acronym map for display name restoration
+// Acronym map for display name restoration.
 var AcronymMap = map[string]string{
 	"nats": "NATS", "redis": "Redis", "api": "API", "sql": "SQL",
 	"http": "HTTP", "https": "HTTPS", "grpc": "gRPC", "ui": "UI",

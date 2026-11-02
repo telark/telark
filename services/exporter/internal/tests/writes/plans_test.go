@@ -30,7 +30,7 @@ func serviceCall(t *testing.T, method, path, body string) *httptest.ResponseReco
 	t.Helper()
 	optimizer := performance.NewOptimizer(redis.NewClient(&redis.Options{Addr: miniredis.RunT(t).Addr()}))
 	t.Cleanup(optimizer.Close)
-	r := httptest.NewRequest(method, path, strings.NewReader(body))
+	r := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(body))
 	r.Header.Set(constants.HeaderUserID, userID)
 	r = r.WithContext(xauthz.WithIdentity(r.Context(), xauthz.Identity{Internal: true}))
 	w := httptest.NewRecorder()

@@ -36,7 +36,7 @@ func TestKeyFromRequestMatchesKey(t *testing.T) {
 		})
 	})
 
-	req := httptest.NewRequest(http.MethodPatch, "/api/v1/users/u-1", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, "/api/v1/users/u-1", nil)
 	mux.ServeHTTP(httptest.NewRecorder(), req)
 
 	want := router.Key(base.Patch, testEndpoint)
@@ -46,7 +46,7 @@ func TestKeyFromRequestMatchesKey(t *testing.T) {
 }
 
 func TestKeyFromRequestWithoutMatchIsEmpty(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/nothing", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/nothing", nil)
 
 	if got := router.KeyFromRequest(req); got != "" {
 		t.Errorf("KeyFromRequest() = %q, want empty for an unmatched request", got)

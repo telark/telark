@@ -206,7 +206,7 @@ func setConfig(ctx context.Context, cfg telarkconfigresource.OIDCConfig) int {
 }
 
 func setConfigBody(ctx context.Context, body string) int {
-	r := httptest.NewRequest(http.MethodPatch, configPath, strings.NewReader(body)).WithContext(ctx)
+	r := httptest.NewRequestWithContext(ctx, http.MethodPatch, configPath, strings.NewReader(body))
 	r.Header.Set(constants.HeaderContentType, constants.ContentTypeJSON)
 	rec := httptest.NewRecorder()
 	oidchandler.SetConfig(rec, r)

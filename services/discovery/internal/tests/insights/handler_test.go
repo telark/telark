@@ -69,7 +69,7 @@ func reset(t *testing.T) {
 func read(t *testing.T, apps string) insights.Response {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	insights.GetApplicationsInsights(rec, httptest.NewRequest(http.MethodGet, "/?apps="+apps, http.NoBody))
+	insights.GetApplicationsInsights(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/?apps="+apps, http.NoBody))
 	testutil.Equal(t, "status", rec.Code, http.StatusOK)
 	var body struct {
 		Data insights.Response `json:"data"`
@@ -108,7 +108,7 @@ func TestReadRejectsMoreAppsThanTheCap(t *testing.T) {
 		keys = append(keys, visibleNS+"/"+visibleApp+strconv.Itoa(i))
 	}
 	rec := httptest.NewRecorder()
-	insights.GetApplicationsInsights(rec, httptest.NewRequest(http.MethodGet, "/?apps="+strings.Join(keys, ","), http.NoBody))
+	insights.GetApplicationsInsights(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/?apps="+strings.Join(keys, ","), http.NoBody))
 	testutil.Equal(t, "status", rec.Code, http.StatusBadRequest)
 }
 

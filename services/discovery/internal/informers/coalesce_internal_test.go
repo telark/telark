@@ -469,6 +469,48 @@ func TestFlushDropsPreImageTheLastFlushAlreadyRecorded(t *testing.T) {
 	}
 }
 
+// A flush handed no buffer reads the Redis copy, and with none there is nothing to publish.
+func TestFlushWithoutBufferReadsTheRedisCopy(t *testing.T) {
+	cases := []struct {
+		name          string
+		persisted     bool
+		wantErr       error
+		wantExporters int32
+	}{
+		{name: "no copy in Redis", persisted: false, wantErr: nil, wantExporters: constants.DefaultInitValue},
+		{name: "copy in Redis", persisted: true, wantErr: errFlushStoredMissing, wantExporters: constants.DefaultAddValue},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mr := miniredis.RunT(t)
+			rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+			var exporterCalls atomic.Int32
+			m := newTestManager(func(string) (*applicationmodel.Application, error) {
+				exporterCalls.Add(constants.DefaultAddValue)
+				return nil, restshared.ErrNotFound
+			})
+			m.cfg.RDB = rdb
+			m.coalesce = newCoalescer(testWindow, testMaxWait, testMaxEntries, rdb, nil, nil, nil)
+			if tc.persisted {
+				raw, err := encodeCoalescePayload(map[string]*unstructured.Unstructured{
+					testDeployKey: testDeployment(testRev1, constants.DefaultAddValue),
+				}, time.Now().Unix())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := rdb.Set(t.Context(), coalesceRedisKey(testAppName), raw, constants.DefaultInitValue).Err(); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			err := m.flushApp(testAppName, nil)
+			if !errors.Is(err, tc.wantErr) || exporterCalls.Load() != tc.wantExporters {
+				t.Fatalf("err=%v, exporter calls=%d; want %v, %d", err, exporterCalls.Load(), tc.wantErr, tc.wantExporters)
+			}
+		})
+	}
+}
+
 func testApp() applicationmodel.Application {
 	return applicationmodel.Application{
 		Name:      testAppName,

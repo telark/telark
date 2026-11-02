@@ -1,6 +1,7 @@
 package authz
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -110,7 +111,7 @@ func serve(t *testing.T, config authz.Config, r *http.Request) (*httptest.Respon
 
 // A change, as the dashboard sends it: X-Requested-With lets a cookie session through the CSRF rule.
 func request(routeKey string) *http.Request {
-	r := httptest.NewRequest(http.MethodPatch, "/v1/users/u-1", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPatch, "/v1/users/u-1", nil)
 	r.Header.Set(testRouteHeader, routeKey)
 	r.Header.Set(dataconstants.HeaderRequestedWith, "XMLHttpRequest")
 	return r
@@ -154,7 +155,7 @@ func TestSessionCookieAndCSRF(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			r := httptest.NewRequest(c.method, "/v1/users/u-1", nil)
+			r := httptest.NewRequestWithContext(t.Context(), c.method, "/v1/users/u-1", nil)
 			r.Header.Set(testRouteHeader, c.route)
 			c.setup(r)
 			rec, got := serve(t, newTestConfig(resolver), r)
@@ -185,7 +186,7 @@ func TestDuplicateSessionCookies(t *testing.T) {
 		{testAuthedKey, testSessionToken, http.StatusOK},
 	}
 	for _, c := range cases {
-		r := httptest.NewRequest(http.MethodGet, "/v1/users/u-1", nil)
+		r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/users/u-1", nil)
 		r.Header.Set(testRouteHeader, c.route)
 		if c.header != dataconstants.EmptyString {
 			r.Header.Set(dataconstants.HeaderSessionToken, c.header)
@@ -224,7 +225,7 @@ func TestHostPrefixedSessionCookie(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodGet, "/v1/users/u-1", nil)
+			r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/users/u-1", nil)
 			r.Header.Set(testRouteHeader, testAuthedKey)
 			for name, value := range c.cookies {
 				r.AddCookie(&http.Cookie{Name: name, Value: value, Secure: true, HttpOnly: true, SameSite: http.SameSiteStrictMode})

@@ -359,7 +359,7 @@ func defaultConfig() seed {
 
 func serveConfig(t *testing.T, handler http.HandlerFunc, method, body string) map[string]any {
 	t.Helper()
-	r := httptest.NewRequest(method, "/api/v1/config", strings.NewReader(body))
+	r := httptest.NewRequestWithContext(t.Context(), method, "/api/v1/config", strings.NewReader(body))
 	r = r.WithContext(xauthz.WithIdentity(r.Context(), xauthz.Identity{Internal: true}))
 	w := httptest.NewRecorder()
 	handler(w, r)

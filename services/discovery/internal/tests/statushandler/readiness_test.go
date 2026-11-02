@@ -40,7 +40,7 @@ func TestMain(m *testing.M) {
 func probeReadiness(t *testing.T) (int, status.Diagnostics) {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	status.Readiness(rec, httptest.NewRequest(http.MethodGet, "/", http.NoBody))
+	status.Readiness(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody))
 	var body struct {
 		Data status.Diagnostics `json:"data"`
 	}

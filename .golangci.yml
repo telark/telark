@@ -26,7 +26,21 @@ linters:
     - ineffassign
     - staticcheck
     - unused
+    - asciicheck
+    - bidichk
+    - durationcheck
+    - errorlint
+    - gocognit
+    - predeclared
+    - wastedassign
+    - exhaustive
+    - noctx
+    - errname
+    - godot
+    - forcetypeassert
   settings:
+    exhaustive:
+      default-signifies-exhaustive: true
     gocyclo:
       min-complexity: 12
     misspell:
@@ -75,6 +89,15 @@ linters:
             - ["ID"] # AllowList
             - [] # DenyList
             - - skip-package-name-checks: true
+  exclusions:
+    rules:
+      # A failed assertion in a test panics, which already fails the test.
+      - path: (^|/)tests/
+        linters:
+          - forcetypeassert
+formatters:
+  enable:
+    - goimports
 run:
   go: "1.27"
   # 3m tripped on a cold lint cache (201s); warm runs are well under.

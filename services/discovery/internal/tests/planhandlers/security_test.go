@@ -1,6 +1,7 @@
 package planhandlers
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -25,7 +26,7 @@ const (
 func strptr(s string) *string { return &s }
 
 func planRequest(method, body string) *http.Request {
-	req := httptest.NewRequest(method, "/", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), method, "/", strings.NewReader(body))
 	req.Header.Set(constants.HeaderUserID, "u-1")
 	return mux.SetURLVars(req, map[string]string{constants.IDPathParam: lockedPlanID})
 }

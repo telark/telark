@@ -3,6 +3,7 @@ package stream
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -37,7 +38,7 @@ func (c *GraceClient) SetScaleGrace(
 func (c *GraceClient) GetScaleGrace(ctx context.Context, appName string) (*ScaleGrace, error) {
 	data, err := c.redis.Get(ctx, scaleGraceKeyPrefix+appName).Result()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return nil, nil
 		}
 		return nil, err

@@ -1,6 +1,7 @@
 package passkey
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -36,7 +37,7 @@ const (
 )
 
 func deleteRequest(body string, identity *xauthz.Identity, headers map[string]string, credential string) *http.Request {
-	r := httptest.NewRequest(http.MethodDelete, "/", strings.NewReader(body))
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodDelete, "/", strings.NewReader(body))
 	if credential != "" {
 		r = testutil.WithCredentialID(r, credential)
 	}
@@ -226,7 +227,7 @@ func (e *passkeyExporter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func sessionRequest(method, body string) *http.Request {
-	r := httptest.NewRequest(method, "/", strings.NewReader(body))
+	r := httptest.NewRequestWithContext(context.Background(), method, "/", strings.NewReader(body))
 	r.Header.Set(constants.HeaderContentType, constants.ContentTypeJSON)
 	r.Header.Set(constants.HeaderSessionToken, sessionToken)
 	return testutil.WithCredentialID(r, credentialID)

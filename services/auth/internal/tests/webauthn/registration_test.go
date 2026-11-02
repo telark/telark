@@ -116,7 +116,7 @@ func finish(t *testing.T, userID string, reg registration) (*authdata.Passkey, e
 	if err := webauthnhelper.StoreChallenge(userID, registrationChallengeB64, constants.EmptyString); err != nil {
 		t.Fatalf(storeChallengeFailed, err)
 	}
-	r := httptest.NewRequest(http.MethodPost, testPath, bytes.NewReader(reg.body(t)))
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, testPath, bytes.NewReader(reg.body(t)))
 	cred, elig, state, err := webauthnhelper.FinishRegistration(userID, testName, testDisplay, constants.EmptyString, r)
 	if err != nil {
 		return nil, err
@@ -193,7 +193,7 @@ func assertionRequest(t *testing.T, priv *ecdsa.PrivateKey, flags byte, chal str
 	if err != nil {
 		t.Fatalf(jsonMarshalFailed, err)
 	}
-	return httptest.NewRequest(http.MethodPost, testPath, bytes.NewReader(body))
+	return httptest.NewRequestWithContext(t.Context(), http.MethodPost, testPath, bytes.NewReader(body))
 }
 
 // A passkey the library registered must sign in: device-bound, synced (backup

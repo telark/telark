@@ -79,7 +79,7 @@ func TestRequestHandlersNeedTheRequestID(t *testing.T) {
 	for name, handler := range handlers {
 		t.Run(name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			handler(w, httptest.NewRequest(http.MethodPost, requestsPath, strings.NewReader(completeOnce)))
+			handler(w, httptest.NewRequestWithContext(t.Context(), http.MethodPost, requestsPath, strings.NewReader(completeOnce)))
 			equal(t, "status", w.Code, http.StatusBadRequest)
 		})
 	}

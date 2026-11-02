@@ -81,17 +81,17 @@ func TestIsError(t *testing.T) {
 	if shared.IsError(nil, target) {
 		t.Fatal("nil error matched a target")
 	}
-	if !shared.IsError(errString(string(target)), target) {
+	if !shared.IsError(stringError(string(target)), target) {
 		t.Fatal("matching error not detected")
 	}
-	if shared.IsError(errString("other"), target) {
+	if shared.IsError(stringError("other"), target) {
 		t.Fatal("non-matching error matched")
 	}
 }
 
-type errString string
+type stringError string
 
-func (e errString) Error() string { return string(e) }
+func (e stringError) Error() string { return string(e) }
 
 // The JSON response helpers set the content type + status and encode a
 // success/error envelope the dashboard expects.
@@ -108,19 +108,19 @@ func TestResponseHelpers(t *testing.T) {
 	})
 	t.Run("error", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		shared.SendErrorResponse(w, http.StatusBadRequest, errString("bad"))
+		shared.SendErrorResponse(w, http.StatusBadRequest, stringError("bad"))
 		assertJSON(t, w, http.StatusBadRequest, constants.JSONKeyError, true)
 		assertJSON(t, w, http.StatusBadRequest, refusalCodeKey, nil)
 	})
 	t.Run("refusal keeps its message and adds its code", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		shared.SendErrorResponse(w, http.StatusForbidden, shared.Refuse(refusalCode, errString("refused")))
+		shared.SendErrorResponse(w, http.StatusForbidden, shared.Refuse(refusalCode, stringError("refused")))
 		assertJSON(t, w, http.StatusForbidden, constants.JSONKeyMessage, "refused")
 		assertJSON(t, w, http.StatusForbidden, refusalCodeKey, refusalCode)
 	})
 	t.Run("handle error logs and responds", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		shared.HandleError(w, errString("boom"), http.StatusUnauthorized, "log this")
+		shared.HandleError(w, stringError("boom"), http.StatusUnauthorized, "log this")
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401", w.Code)
 		}
@@ -129,16 +129,17 @@ func TestResponseHelpers(t *testing.T) {
 
 func TestDecodeRequestBody(t *testing.T) {
 	var out map[string]string
-	ok := httptest.NewRequest(http.MethodPost, testPath, bytes.NewBufferString(`{"a":"b"}`))
+	ok := httptest.NewRequestWithContext(t.Context(), http.MethodPost, testPath, bytes.NewBufferString(`{"a":"b"}`))
 	if err := shared.DecodeRequestBody(ok, &out); err != nil || out["a"] != "b" {
 		t.Fatalf("decode valid body = %v, out=%v", err, out)
 	}
-	bad := httptest.NewRequest(http.MethodPost, testPath, bytes.NewBufferString(`{bad`))
+	bad := httptest.NewRequestWithContext(t.Context(), http.MethodPost, testPath, bytes.NewBufferString(`{bad`))
 	if shared.DecodeRequestBody(bad, &out) == nil {
 		t.Fatal("malformed body decoded without error")
 	}
 
-	huge := httptest.NewRequest(http.MethodPost, testPath, strings.NewReader(`{"a":"`+strings.Repeat("b", constants.MaxRequestBodyBytes)+`"}`))
+	huge := httptest.NewRequestWithContext(t.Context(), http.MethodPost, testPath,
+		strings.NewReader(`{"a":"`+strings.Repeat("b", constants.MaxRequestBodyBytes)+`"}`))
 	err := shared.DecodeRequestBody(huge, &out)
 	if !errors.Is(err, requestutils.ErrRequestBodyTooLarge) {
 		t.Fatalf("oversized body err = %v, want %v", err, requestutils.ErrRequestBodyTooLarge)
@@ -151,10 +152,10 @@ func TestDecodeRequestBody(t *testing.T) {
 // Auth errors map to 400 only for a missing credential id; everything else is a
 // 401 so probing does not leak which step failed.
 func TestGetStatusCodeForAuthError(t *testing.T) {
-	if got := shared.GetStatusCodeForAuthError(errString(string(constants.ErrMissingCredentialID))); got != http.StatusBadRequest {
+	if got := shared.GetStatusCodeForAuthError(stringError(string(constants.ErrMissingCredentialID))); got != http.StatusBadRequest {
 		t.Fatalf("missing credential id = %d, want 400", got)
 	}
-	if got := shared.GetStatusCodeForAuthError(errString("nope")); got != http.StatusUnauthorized {
+	if got := shared.GetStatusCodeForAuthError(stringError("nope")); got != http.StatusUnauthorized {
 		t.Fatalf("generic auth error = %d, want 401", got)
 	}
 }

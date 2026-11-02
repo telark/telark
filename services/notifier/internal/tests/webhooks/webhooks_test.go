@@ -176,7 +176,7 @@ func newReceiver(t *testing.T, host string, answer func(n int, w http.ResponseWr
 		recv.mu.Unlock()
 		w.WriteHeader(answer(n, w))
 	}))
-	listener, err := net.Listen("tcp", net.JoinHostPort(host, "0"))
+	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", net.JoinHostPort(host, "0"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -728,7 +728,7 @@ func TestARefusedAckKeepsTheEntryPending(t *testing.T) {
 // A receiver that can't be reached is retried, not given up: the entry stays pending.
 func TestAnUnreachableReceiverIsRetried(t *testing.T) {
 	e := newEnv(t)
-	listener, err := net.Listen("tcp", net.JoinHostPort(privateIP(t), "0"))
+	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", net.JoinHostPort(privateIP(t), "0"))
 	if err != nil {
 		t.Fatal(err)
 	}

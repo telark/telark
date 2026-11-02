@@ -28,7 +28,7 @@ func TestParseRequestBody(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, err := http.NewRequest("POST", "/", bytes.NewBufferString(tt.body))
+			req, err := http.NewRequestWithContext(t.Context(), "POST", "/", bytes.NewBufferString(tt.body))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -57,7 +57,7 @@ func TestParseRequestBodyRejectsOversizeBodies(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body := `{"k":"` + strings.Repeat("a", tt.size-wrapper) + `"}`
-			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", strings.NewReader(body))
 
 			_, err := request.ParseRequestBody(req)
 			if got := errors.Is(err, request.ErrRequestBodyTooLarge); got != tt.tooLarge {

@@ -1,6 +1,7 @@
 package reshandlers
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -28,7 +29,7 @@ const (
 func noopDelete(http.ResponseWriter, basemetadata.Metadata, string) {}
 
 func namedReq(method string) *http.Request {
-	r := httptest.NewRequest(method, "/resource/"+testAppName, strings.NewReader(emptyJSONBody))
+	r := httptest.NewRequestWithContext(context.Background(), method, "/resource/"+testAppName, strings.NewReader(emptyJSONBody))
 	return mux.SetURLVars(r, map[string]string{constants.NameParam: testAppName})
 }
 
@@ -42,7 +43,7 @@ func TestOneListGenerationBumpPerWrite(t *testing.T) {
 		write        func(o *performance.Optimizer)
 	}{
 		{"shared create", writeResourceTy, func(o *performance.Optimizer) {
-			r := httptest.NewRequest(http.MethodPost, "/resource", strings.NewReader(namedJSONBody))
+			r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/resource", strings.NewReader(namedJSONBody))
 			resshared.CreateResourceWithCacheInvalidation(o, md, writeResourceTy)(httptest.NewRecorder(), r)
 		}},
 		{"shared patch", writeResourceTy, func(o *performance.Optimizer) {

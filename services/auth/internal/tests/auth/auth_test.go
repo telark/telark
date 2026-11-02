@@ -110,7 +110,7 @@ func TestDecodeBase64URLWithFallback(t *testing.T) {
 // Extractors return the header or path value when present and a specific error
 // when it is missing; a leftover credential header is not a credential id.
 func TestHeaderExtractors(t *testing.T) {
-	r := httptest.NewRequest(http.MethodGet, rootPath, nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, rootPath, nil)
 	r.Header.Set(constants.HeaderSessionToken, "tok")
 	r = testutil.WithCredentialID(r, testCredID)
 
@@ -122,7 +122,7 @@ func TestHeaderExtractors(t *testing.T) {
 	testutil.Equal(t, testCredID, cred, testCredID)
 	testutil.Equal(t, "cred err", err != nil, false)
 
-	empty := httptest.NewRequest(http.MethodGet, rootPath, nil)
+	empty := httptest.NewRequestWithContext(t.Context(), http.MethodGet, rootPath, nil)
 	empty.Header.Set("X-Credential-ID", testCredID)
 	if _, err := authhelper.ExtractSessionToken(empty); err == nil {
 		t.Fatal("missing session token should error")
@@ -152,7 +152,7 @@ func TestValidateDeviceHeaders(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodGet, rootPath, nil)
+			r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, rootPath, nil)
 			r.Header.Set(constants.HeaderDeviceName, c.deviceName)
 			r.Header.Set(constants.HeaderDeviceType, c.deviceType)
 			name, typ, err := authhelper.ValidateDeviceHeaders(r)
@@ -205,7 +205,7 @@ func TestValidateSession(t *testing.T) {
 		t.Fatal("empty session token should error")
 	}
 
-	noHeader := httptest.NewRequest(http.MethodGet, rootPath, nil)
+	noHeader := httptest.NewRequestWithContext(t.Context(), http.MethodGet, rootPath, nil)
 	if _, err := authhelper.ValidateSessionFromRequest(noHeader); err == nil {
 		t.Fatal("request without session header should error")
 	}
@@ -282,12 +282,12 @@ func TestPasskeyMutationsFailClosed(t *testing.T) {
 // Registration entry points resolve the caller from the request; with no
 // session and an unreachable backend they fail rather than provisioning.
 func TestGetUserForRegistrationFailClosed(t *testing.T) {
-	byBody := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"email":"a@b.com"}`))
+	byBody := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", strings.NewReader(`{"email":"a@b.com"}`))
 	if _, _, _, err := authhelper.GetUserForRegistrationStart(byBody); err == nil {
 		t.Fatal("GetUserForRegistrationStart should fail with no backend")
 	}
 
-	noCeremony := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{}"))
+	noCeremony := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", strings.NewReader("{}"))
 	noCeremony.Header.Set("X-Email", testEmail)
 	if _, _, _, err := authhelper.GetUserForRegistration(noCeremony, webauthnhelper.RegistrationChallengeOwner); err == nil {
 		t.Fatal("GetUserForRegistration should fail without a registration ceremony")
@@ -304,7 +304,7 @@ func TestEnrollmentFailsClosedWithoutRedis(t *testing.T) {
 		t.Fatal("SpendEnrollToken should fail without Redis")
 	}
 	clientData := base64.RawURLEncoding.EncodeToString([]byte(`{"challenge":"Y2hhbGxlbmdl"}`))
-	finish := httptest.NewRequest(http.MethodPost, rootPath, strings.NewReader(
+	finish := httptest.NewRequestWithContext(t.Context(), http.MethodPost, rootPath, strings.NewReader(
 		`{"id":"a","response":{"attestationObject":"a","clientDataJSON":"`+clientData+`"}}`))
 	if _, _, err := webauthnhelper.RegistrationChallengeOwner(finish); err == nil {
 		t.Fatal("RegistrationChallengeOwner should fail without Redis")

@@ -33,16 +33,16 @@ const (
 )
 
 var (
-	dynOnce   sync.Once
-	dynClient dynamic.Interface
-	dynErr    error
+	dynOnce      sync.Once
+	dynClient    dynamic.Interface
+	errDynClient error
 )
 
 func getDynamicClient() (dynamic.Interface, error) {
 	dynOnce.Do(func() {
-		dynClient, dynErr = k8sclient.InitDynamicClient()
+		dynClient, errDynClient = k8sclient.InitDynamicClient()
 	})
-	return dynClient, dynErr
+	return dynClient, errDynClient
 }
 
 func GetRawManifest(

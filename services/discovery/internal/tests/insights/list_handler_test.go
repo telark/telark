@@ -51,7 +51,7 @@ func loadedIndex(t *testing.T) {
 }
 
 func list(target, ifNoneMatch string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(http.MethodGet, target, http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, target, http.NoBody)
 	if ifNoneMatch != constants.EmptyString {
 		req.Header.Set(constants.HeaderIfNoneMatch, ifNoneMatch)
 	}

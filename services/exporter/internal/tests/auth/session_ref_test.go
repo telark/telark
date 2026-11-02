@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -63,7 +64,7 @@ func TestResolvedNamesStayValidResourceNames(t *testing.T) {
 }
 
 func selfRequest(header string) *http.Request {
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/auth/sessions/self", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/auth/sessions/self", nil)
 	if header != "" {
 		r.Header.Set(dataconstants.HeaderSessionToken, header)
 	}

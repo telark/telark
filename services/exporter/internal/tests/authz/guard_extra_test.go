@@ -1,6 +1,7 @@
 package authz
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,7 +17,7 @@ import (
 const testSessionToken = "tok"
 
 func noIdentityRequest() *http.Request {
-	return httptest.NewRequest(http.MethodGet, "/", nil)
+	return httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 }
 
 func TestGuardCategoryScope(t *testing.T) {

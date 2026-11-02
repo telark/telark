@@ -3,6 +3,7 @@ package autoclean
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strconv"
 	"time"
 
@@ -25,7 +26,7 @@ func inflightKey(appName string) string {
 
 func loadStreak(ctx context.Context, rdb redis.Cmdable, appName string) (streakState, error) {
 	raw, err := rdb.Get(ctx, streakKey(appName)).Result()
-	if err == redis.Nil {
+	if errors.Is(err, redis.Nil) {
 		return streakState{}, nil
 	}
 	if err != nil {

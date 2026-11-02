@@ -3,7 +3,7 @@ package messages
 type Message string
 
 const (
-	// Resource-related Messages
+	// Resource-related Messages.
 	SuccessListRes          Message = "resources listed successfully"
 	SuccessGetRes           Message = "resource %s of kind %s fetched successfully"
 	SuccessCreateRes        Message = "resource %s of kind %s created successfully"
@@ -13,13 +13,13 @@ const (
 	SuccessRecordResCreated Message = "resource created successfully"
 	SuccessRecordResUpdated Message = "resource updated successfully"
 
-	// Status Messages
+	// Status Messages.
 	SuccessOperation Message = "operation completed successfully"
 	SuccessCreation  Message = "creation completed successfully"
 	SuccessDeletion  Message = "deletion completed successfully"
 	SuccessUpdate    Message = "update completed successfully"
 
-	// NATS-related Messages
+	// NATS-related Messages.
 	SuccessNatsConnectionStatusConnected    Message = "nats status: connected"
 	SuccessNatsConnectionStatusDisconnected Message = "nats status: disconnected"
 	SuccessNatsTopicSubscribe               Message = "successfully subscribed to topic %s"
@@ -34,13 +34,13 @@ const (
 	SuccessNatsPatchApplication             Message = "successfully patched application %s"
 	SuccessNatsDeleteApplication            Message = "successfully deleted application %s"
 
-	// Server-related Messages
+	// Server-related Messages.
 	SuccessReceivedShutdownSig      Message = "received shutdown signal, cleaning up..."
 	SuccessContextCanceled          Message = "context canceled, cleaning up..."
 	SuccessStartingServer           Message = "starting server on port"
 	SuccessServiceHealthCheckPassed Message = "service health check passed"
 	SuccessServiceRestarting        Message = "restarting service due to health check failure..."
 
-	// Authorization-related Messages
+	// Authorization-related Messages.
 	SuccessAuthzEnabled Message = "authz middleware enabled"
 )

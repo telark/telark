@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -41,7 +42,7 @@ func echoSubjectHandler(subject func(*http.Request) string) http.HandlerFunc {
 }
 
 func headerRequest(value string) *http.Request {
-	r := httptest.NewRequest(http.MethodGet, listPath, nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, listPath, nil)
 	r.Header.Set(constants.HeaderUserID, value)
 	return r
 }
@@ -168,8 +169,8 @@ func TestUnresolvableSubjectIsNeverCached(t *testing.T) {
 		constants.OpList,
 	)
 
-	handler(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, listPath, nil))
-	handler(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, listPath, nil))
+	handler(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodGet, listPath, nil))
+	handler(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodGet, listPath, nil))
 
 	if calls != wantTwoCalls {
 		t.Errorf("handler ran %d times, want %d — a subjectless request was served from cache", calls, wantTwoCalls)
@@ -188,9 +189,9 @@ func TestListInvalidationIsScopedToItsResourceType(t *testing.T) {
 		constants.OpList,
 	)
 
-	handler(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, listPath, nil))
+	handler(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodGet, listPath, nil))
 	cache.InvalidateListCache(o, constants.ResourceRole)
-	handler(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, listPath, nil))
+	handler(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodGet, listPath, nil))
 
 	if calls != wantOneCall {
 		t.Errorf("handler ran %d times, want %d — a roles write dropped the applications list", calls, wantOneCall)
@@ -213,7 +214,7 @@ func TestListCacheKeysCarryTheirSubject(t *testing.T) {
 		{
 			name:    "global list has no subject",
 			keyFunc: cache.NewListCacheKeyFunc(gen, constants.ResourceRole),
-			request: httptest.NewRequest(http.MethodGet, listPath, nil),
+			request: httptest.NewRequestWithContext(t.Context(), http.MethodGet, listPath, nil),
 			want:    "list:accessroles:7",
 		},
 		{
@@ -225,19 +226,19 @@ func TestListCacheKeysCarryTheirSubject(t *testing.T) {
 		{
 			name:    "unfiltered query list shares the plain list key",
 			keyFunc: cache.NewQueryListCacheKeyFunc(gen, constants.ResourceCategory, categoryendpoints.QueryScope),
-			request: httptest.NewRequest(http.MethodGet, listPath, nil),
+			request: httptest.NewRequestWithContext(t.Context(), http.MethodGet, listPath, nil),
 			want:    "list:categories:7",
 		},
 		{
 			name:    "query value is part of the key",
 			keyFunc: cache.NewQueryListCacheKeyFunc(gen, constants.ResourceCategory, categoryendpoints.QueryScope),
-			request: httptest.NewRequest(http.MethodGet, listPath+"?scope=groups", nil),
+			request: httptest.NewRequestWithContext(t.Context(), http.MethodGet, listPath+"?scope=groups", nil),
 			want:    "list:categories:7:scope:groups",
 		},
 		{
 			name:    "missing subject yields no key at all",
 			keyFunc: cache.NewSubjectListCacheKeyFunc(gen, constants.ResourceUserSession, cache.SubjectFromHeader(constants.HeaderUserID)),
-			request: httptest.NewRequest(http.MethodGet, listPath, nil),
+			request: httptest.NewRequestWithContext(t.Context(), http.MethodGet, listPath, nil),
 			want:    constants.EmptyString,
 		},
 	}

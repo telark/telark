@@ -110,7 +110,7 @@ func TestAStreamEndsWhenItsClientLeaves(t *testing.T) {
 	handler := notifhandler.Events(notifstorage.NewHub(client), stubResolver{}, shortInterval, never)
 	for name, writes := range map[string]int{"the connected frame": noWrites, "a ping": oneEntry} {
 		t.Run(name, func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodGet, "/", nil)
+			r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 			r = r.WithContext(xauthz.WithIdentity(r.Context(), xauthz.Identity{UserID: testUserID}))
 			done := make(chan struct{})
 			go func() {

@@ -367,7 +367,7 @@ func (c *coalescer) loadBufferFromRedisForFlush(appName string) (map[string]*uns
 		return nil, nil
 	}
 	raw, err := c.rdb.Get(c.ctx(), coalesceRedisKey(appName)).Result()
-	if err == redis.Nil {
+	if errors.Is(err, redis.Nil) {
 		return nil, nil
 	}
 	if err != nil {

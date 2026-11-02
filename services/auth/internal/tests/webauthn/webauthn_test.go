@@ -119,7 +119,7 @@ func TestUserMethods(t *testing.T) {
 
 // GetWebAuthnFor returns the pinned instance wired up in TestMain.
 func TestGetWebAuthnFor(t *testing.T) {
-	wa, err := webauthnhelper.GetWebAuthnFor(httptest.NewRequest(http.MethodPost, testPath, nil))
+	wa, err := webauthnhelper.GetWebAuthnFor(httptest.NewRequestWithContext(t.Context(), http.MethodPost, testPath, nil))
 	if err != nil || wa == nil {
 		t.Fatalf("GetWebAuthnFor = (%v, %v), want a live instance", wa, err)
 	}
@@ -231,7 +231,7 @@ func TestIsBackupFlagError(t *testing.T) {
 // The body is drained for inspection but restored so downstream handlers can
 // read it again.
 func TestReadAndRestoreRequestBody(t *testing.T) {
-	r := httptest.NewRequest(http.MethodPost, testPath, strings.NewReader(testPayload))
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, testPath, strings.NewReader(testPayload))
 	body, err := webauthnhelper.ReadAndRestoreRequestBody(r)
 	if err != nil {
 		t.Fatalf("ReadAndRestoreRequestBody = %v", err)
@@ -324,7 +324,7 @@ func TestChallengeLifecycle(t *testing.T) {
 // finish step.
 func TestStartRegistration(t *testing.T) {
 	opts, challenge, err := webauthnhelper.StartRegistration(
-		"regUser", testName, "full", constants.EmptyString, nil, httptest.NewRequest(http.MethodPost, testPath, nil))
+		"regUser", testName, "full", constants.EmptyString, nil, httptest.NewRequestWithContext(t.Context(), http.MethodPost, testPath, nil))
 	if err != nil {
 		t.Fatalf("StartRegistration = %v", err)
 	}
@@ -361,7 +361,7 @@ func TestFinishRegistration(t *testing.T) {
 	if err := webauthnhelper.StoreChallenge("finUser2", registrationChallengeB64, constants.EmptyString); err != nil {
 		t.Fatalf(storeChallengeFailed, err)
 	}
-	missing := httptest.NewRequest(http.MethodPost, testPath, strings.NewReader(`{"id":"x"}`))
+	missing := httptest.NewRequestWithContext(t.Context(), http.MethodPost, testPath, strings.NewReader(`{"id":"x"}`))
 	if _, _, _, err := webauthnhelper.FinishRegistration("finUser2", testShortName, testShortFull, constants.EmptyString, missing); err == nil {
 		t.Fatal("registration body without response should fail")
 	}
@@ -392,7 +392,7 @@ func TestFinishKeepsTheChallengeOfARetry(t *testing.T) {
 		}
 	}}
 
-	r := httptest.NewRequest(http.MethodPost, testPath, reader)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, testPath, reader)
 	if _, _, _, err := webauthnhelper.FinishRegistration(retryUser, testName, testShortFull, constants.EmptyString, r); err != nil {
 		t.Fatalf("FinishRegistration = %v", err)
 	}
@@ -434,7 +434,7 @@ func TestValidateBackupFlagsFromRequest(t *testing.T) {
 func TestVerifyCredentialMalformed(t *testing.T) {
 	challenge := &authdata.AuthChallenge{Challenge: "c"}
 	user := webauthnhelper.CreateUser("u", testShortName, testShortFull, nil)
-	r := httptest.NewRequest(http.MethodPost, testPath, strings.NewReader("{bad"))
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, testPath, strings.NewReader("{bad"))
 	if _, err := webauthnhelper.VerifyCredential(challenge, user, nil, nil, r, protocol.VerificationPreferred); err == nil {
 		t.Fatal("malformed assertion should fail verification")
 	}
@@ -467,7 +467,7 @@ func TestUndecodableCeremoniesAreRefused(t *testing.T) {
 			}
 			defer func() { _ = authhelper.Unfreeze(testChalUser) }()
 			_, _, _, err := webauthnhelper.FinishRegistration(testChalUser, testShortName, testShortFull, constants.EmptyString,
-				httptest.NewRequest(http.MethodPost, testPath, strings.NewReader(testPayload)))
+				httptest.NewRequestWithContext(t.Context(), http.MethodPost, testPath, strings.NewReader(testPayload)))
 			return err
 		}, string(constants.ErrAccountRecovering)},
 	}

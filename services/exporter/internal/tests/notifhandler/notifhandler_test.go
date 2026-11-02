@@ -32,7 +32,7 @@ func setupRedis(t *testing.T) {
 }
 
 func asSelf(userID, url string) *http.Request {
-	r := httptest.NewRequest(http.MethodGet, url, nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
 	return r.WithContext(xauthz.WithIdentity(r.Context(), xauthz.Identity{UserID: userID}))
 }
 
@@ -61,20 +61,20 @@ func TestEmitHandler(t *testing.T) {
 	setupRedis(t)
 	valid := `{"userId":"u1","type":"role.changed","title":"t","message":"m","severity":"info"}`
 	rec := httptest.NewRecorder()
-	notifhandler.Emit()(rec, httptest.NewRequest(http.MethodPost, notificationsPath, strings.NewReader(valid)))
+	notifhandler.Emit()(rec, httptest.NewRequestWithContext(t.Context(), http.MethodPost, notificationsPath, strings.NewReader(valid)))
 	if rec.Code != http.StatusOK {
 		t.Errorf("emit code = %d, want 200", rec.Code)
 	}
 
 	badBody := httptest.NewRecorder()
-	notifhandler.Emit()(badBody, httptest.NewRequest(http.MethodPost, notificationsPath, strings.NewReader("{not json")))
+	notifhandler.Emit()(badBody, httptest.NewRequestWithContext(t.Context(), http.MethodPost, notificationsPath, strings.NewReader("{not json")))
 	if badBody.Code != http.StatusUnprocessableEntity {
 		t.Errorf("bad body code = %d, want 422", badBody.Code)
 	}
 
 	invalid := `{"userId":"","type":"t","title":"t","message":"m","severity":"info"}`
 	invalidRec := httptest.NewRecorder()
-	notifhandler.Emit()(invalidRec, httptest.NewRequest(http.MethodPost, notificationsPath, strings.NewReader(invalid)))
+	notifhandler.Emit()(invalidRec, httptest.NewRequestWithContext(t.Context(), http.MethodPost, notificationsPath, strings.NewReader(invalid)))
 	if invalidRec.Code != http.StatusBadRequest {
 		t.Errorf("invalid notification code = %d, want 400", invalidRec.Code)
 	}

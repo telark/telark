@@ -1,6 +1,7 @@
 package reshandlers
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -37,12 +38,12 @@ func newOptimizer(t *testing.T) *performance.Optimizer {
 }
 
 func idReq(id string) *http.Request {
-	r := httptest.NewRequest(http.MethodGet, "/resource/"+id, nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/resource/"+id, nil)
 	return mux.SetURLVars(r, map[string]string{constants.IDParam: id})
 }
 
 func postJSON() *http.Request {
-	return httptest.NewRequest(http.MethodPost, "/resource", strings.NewReader(emptyJSONBody))
+	return httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/resource", strings.NewReader(emptyJSONBody))
 }
 
 // Each handler, driven without a reachable cluster, must answer with an error

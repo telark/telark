@@ -129,7 +129,7 @@ func TestDuplicateSessionCookies(t *testing.T) {
 	for endpoint, want := range map[base.Endpoint]int{
 		constants.StatusLivenessEp: http.StatusOK, clustereps.GetAllNamespaces: http.StatusUnauthorized,
 	} {
-		r := httptest.NewRequest(http.MethodGet, router.Pattern(endpoint), nil)
+		r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, router.Pattern(endpoint), nil)
 		for _, value := range []string{"real", "planted"} {
 			r.AddCookie(&http.Cookie{Name: dataconstants.CookieSession, Value: value, Secure: true, HttpOnly: true,
 				SameSite: http.SameSiteStrictMode})

@@ -31,7 +31,7 @@ func TestDeleteUserCleanupReadsIDFromRoute(t *testing.T) {
 
 	path := strings.Replace(router.Pattern(endpoint), restconstants.IDParam, "u-1", constants.DefaultIncrementValue)
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, path, nil))
+	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodDelete, path, nil))
 
 	if rec.Code == http.StatusBadRequest {
 		t.Fatalf("id path parameter not read: %d %s", rec.Code, rec.Body.String())
@@ -50,7 +50,7 @@ func deleteRoleCleanup(t *testing.T, exporterStatus int, exporterBody string) (i
 	})
 	path := strings.Replace(router.Pattern(endpoint), restconstants.IDParam, "r-1", constants.DefaultIncrementValue)
 	rec := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodDelete, path, nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, path, nil)
 	mux.ServeHTTP(rec, r.WithContext(xauthz.WithIdentity(r.Context(), xauthz.Identity{Internal: true})))
 
 	var body struct {
@@ -103,7 +103,7 @@ func TestCleanupRoutesDeleteThroughExporterPaths(t *testing.T) {
 			}))
 			mux := router.NewRouter([]router.Route{router.CreateRoute(base.Delete, c.endpoint, c.handler)})
 			rec := httptest.NewRecorder()
-			r := httptest.NewRequest(http.MethodDelete, c.path, nil)
+			r := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, c.path, nil)
 			mux.ServeHTTP(rec, r.WithContext(xauthz.WithIdentity(r.Context(), xauthz.Identity{Internal: true})))
 			if !slices.Contains(seen, http.MethodDelete+" "+c.exporter) {
 				t.Fatalf("exporter calls = %v, want DELETE %s", seen, c.exporter)
@@ -132,7 +132,7 @@ func TestCleanupDeletesForwardTheCaller(t *testing.T) {
 				_, _ = w.Write([]byte(`{"status":200}`))
 			}))
 			mux := router.NewRouter([]router.Route{router.CreateRoute(base.Delete, c.endpoint, c.handler)})
-			r := httptest.NewRequest(http.MethodDelete, c.path, nil)
+			r := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, c.path, nil)
 			r.Header.Set(constants.HeaderUserID, deleter)
 			mux.ServeHTTP(httptest.NewRecorder(), r.WithContext(xauthz.WithIdentity(r.Context(), xauthz.Identity{UserID: deleter, Internal: true})))
 			testutil.Equal(t, "forwarded callers", strings.Join(forwarded, ","), deleter)
@@ -166,7 +166,7 @@ func TestDeleteRoleAndGroupCleanupAreCapped(t *testing.T) {
 			}))
 			mux := router.NewRouter([]router.Route{router.CreateRoute(base.Delete, c.endpoint, c.handler)})
 			rec := httptest.NewRecorder()
-			r := httptest.NewRequest(http.MethodDelete, c.path, nil)
+			r := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, c.path, nil)
 			levels := map[string]roledata.PermissionLevel{roledata.ScopeAll: roledata.PermissionLevelOwner}
 			owner := xauthz.Identity{UserID: "u-owner", Grants: xauthz.Grants{Levels: levels}}
 			mux.ServeHTTP(rec, r.WithContext(xauthz.WithIdentity(r.Context(), owner)))

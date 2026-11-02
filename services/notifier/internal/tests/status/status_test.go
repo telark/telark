@@ -32,7 +32,7 @@ func TestNewServer(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			srv := status.NewServer(func() bool { return c.connected })
-			req := httptest.NewRequest(http.MethodGet, c.path, nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, c.path, nil)
 			w := httptest.NewRecorder()
 			srv.Handler.ServeHTTP(w, req)
 			testutil.Equal(t, "ok", w.Code == http.StatusOK, c.wantOK)

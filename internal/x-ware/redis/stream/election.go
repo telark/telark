@@ -2,6 +2,7 @@ package stream
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -34,7 +35,7 @@ func (c *ElectionClient) Renew(ctx context.Context) (bool, error) {
 
 func (c *ElectionClient) Resign(ctx context.Context) error {
 	_, err := delIfHeld(ctx, c.redis, c.key, c.leaderID)
-	if err == redis.TxFailedErr {
+	if errors.Is(err, redis.TxFailedErr) {
 		return nil
 	}
 	return err
@@ -43,7 +44,7 @@ func (c *ElectionClient) Resign(ctx context.Context) error {
 func (c *ElectionClient) IsLeader(ctx context.Context) (bool, error) {
 	held, err := c.redis.Get(ctx, c.key).Result()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return false, nil
 		}
 		return false, err
@@ -54,7 +55,7 @@ func (c *ElectionClient) IsLeader(ctx context.Context) (bool, error) {
 func (c *ElectionClient) CurrentLeader(ctx context.Context) (string, error) {
 	held, err := c.redis.Get(ctx, c.key).Result()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return constants.EmptyString, nil
 		}
 		return constants.EmptyString, err
@@ -64,7 +65,7 @@ func (c *ElectionClient) CurrentLeader(ctx context.Context) (string, error) {
 
 func (c *ElectionClient) ClearIfHeld(ctx context.Context, expected string) (bool, error) {
 	cleared, err := delIfHeld(ctx, c.redis, c.key, expected)
-	if err == redis.TxFailedErr {
+	if errors.Is(err, redis.TxFailedErr) {
 		return false, nil
 	}
 	return cleared, err

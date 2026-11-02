@@ -1,6 +1,7 @@
 package authz
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -25,7 +26,7 @@ func settingsIdentity(level roledata.PermissionLevel, denied ...string) xauthz.I
 }
 
 func patchRequest(identity xauthz.Identity) *http.Request {
-	r := httptest.NewRequest(http.MethodPatch, "/api/v1/config", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPatch, "/api/v1/config", nil)
 	return r.WithContext(xauthz.WithIdentity(r.Context(), identity))
 }
 
@@ -140,7 +141,7 @@ func TestGuardConfigPatchClusterIsInternalOnly(t *testing.T) {
 
 func TestGuardConfigPatchDeniesWithoutIdentity(t *testing.T) {
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPatch, "/api/v1/config", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, "/api/v1/config", nil)
 
 	if authz.GuardConfigPatch(w, r, map[string]any{telarkconfig.FieldAI: "x"}) {
 		t.Error("allowed with no identity in context")

@@ -30,13 +30,13 @@ func TestCreateSnapshotHandler(t *testing.T) {
 	setRoot(t)
 	body := `{"id":"app-1","scope":"apps","namespace":"ns","generation":1,"manifest":{"resources":[]}}`
 	rec := httptest.NewRecorder()
-	snaphandler.CreateSnapshot()(rec, httptest.NewRequest(http.MethodPost, "/snapshots", strings.NewReader(body)))
+	snaphandler.CreateSnapshot()(rec, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/snapshots", strings.NewReader(body)))
 	if rec.Code != http.StatusOK {
 		t.Errorf("create handler code = %d, want 200", rec.Code)
 	}
 
 	bad := httptest.NewRecorder()
-	snaphandler.CreateSnapshot()(bad, httptest.NewRequest(http.MethodPost, "/snapshots", strings.NewReader("{bad")))
+	snaphandler.CreateSnapshot()(bad, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/snapshots", strings.NewReader("{bad")))
 	if bad.Code != http.StatusUnprocessableEntity {
 		t.Errorf("bad body code = %d, want 422", bad.Code)
 	}
@@ -60,7 +60,7 @@ func TestSnapshotReadHandlers(t *testing.T) {
 	}
 
 	infos := httptest.NewRecorder()
-	snaphandler.GetSnapshotInfos()(infos, httptest.NewRequest(http.MethodGet, "/snapshots/infos", nil))
+	snaphandler.GetSnapshotInfos()(infos, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/snapshots/infos", nil))
 	if infos.Code != http.StatusOK {
 		t.Errorf("infos handler code = %d, want 200", infos.Code)
 	}
@@ -70,7 +70,8 @@ func TestDeleteSnapshotHandler(t *testing.T) {
 	setRoot(t)
 	createOK(t)
 	rec := httptest.NewRecorder()
-	snaphandler.DeleteSnapshot()(rec, withID(httptest.NewRequest(http.MethodDelete, "/snapshots/app-1"+snapQuery(), nil), testAppID))
+	snaphandler.DeleteSnapshot()(rec, withID(httptest.NewRequestWithContext(t.Context(), http.MethodDelete,
+		"/snapshots/app-1"+snapQuery(), nil), testAppID))
 	if rec.Code != http.StatusOK {
 		t.Errorf("delete handler code = %d, want 200", rec.Code)
 	}

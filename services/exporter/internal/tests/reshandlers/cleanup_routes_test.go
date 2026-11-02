@@ -26,7 +26,7 @@ func TestListCleanupViewsReadsTypeFromRoute(t *testing.T) {
 
 	path := strings.Replace(router.Pattern(endpoint), restconstants.TypeParam, "unknown-type", constants.DefaultIncrementValue)
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil))
 
 	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "unknown resource type") {
 		t.Fatalf("want 400 unknown resource type, got %d %s", rec.Code, rec.Body.String())
@@ -50,7 +50,7 @@ func TestFinalizerBodyIsStrictAndBounded(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, path, strings.NewReader(tt.body)))
+			mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodPut, path, strings.NewReader(tt.body)))
 			if rec.Code != tt.want {
 				t.Fatalf("code = %d %s, want %d", rec.Code, rec.Body.String(), tt.want)
 			}

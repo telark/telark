@@ -3,7 +3,7 @@ package errors
 type Error string
 
 const (
-	// REST-related Errors
+	// REST-related Errors.
 	ErrRestMarshalPayload             Error = "error while marshaling JSON payload: %v"
 	ErrRestEmptyRequestBody           Error = "empty request body"
 	ErrRestMarshalUnstructuredToJSON  Error = "error while marshaling unstructured to JSON: %v"
@@ -21,7 +21,7 @@ const (
 	ErrRestGenURL                     Error = "failed to generate request URL"
 	ErrRestSendReqWithWrongMeth       Error = "failed to send request with method %s"
 
-	// K8s-related Errors
+	// K8s-related Errors.
 	ErrK8sSetClient           Error = "failed to set Kubernetes client: %v"
 	ErrK8sCreateConfig        Error = "failed to create Kubernetes in-cluster config: %v"
 	ErrK8sGetService          Error = "error getting Service %s in Namespace %s: %v"
@@ -31,7 +31,7 @@ const (
 	ErrK8sFetchingDeployments Error = "error fetching deployments in namespace %s: %v"
 	ErrK8sFetchingPodEvents   Error = "error fetching events for pod %s in namespace %s: %v"
 
-	// Resource-related Errors
+	// Resource-related Errors.
 	ErrCreateRes               Error = "error while creating resource %s: %v"
 	ErrGetRes                  Error = "error while fetching resource %s: %v"
 	ErrListRes                 Error = "error while listing resources: %v"
@@ -53,11 +53,11 @@ const (
 	ErrRemoveFromAttachedRes   Error = "failed to remove %s from attached resource: %v"
 	ErrMaintenanceObjectIsNil  Error = "maintenance object is nil"
 
-	// Build-related Errors
+	// Build-related Errors.
 	ErrSourceNameCannotBeEmpty   Error = "source name cannot be empty"
 	ErrResourceNameCannotBeEmpty Error = "resource name cannot be empty"
 
-	// NATS-related Errors
+	// NATS-related Errors.
 	ErrNatsAuth                               Error = "user and password must be set for auth"
 	ErrNatsConnectionAttemptAlreadyInProgress Error = "connection attempt already in progress"
 	ErrNatsConnectionLost                     Error = "nats connection lost,triggering reconnection"
@@ -102,17 +102,17 @@ const (
 	ErrNatsFailedToPatchApplication           Error = "failed to patch application %s: %s"
 	ErrNatsFailedToDeleteApplication          Error = "failed to delete application %s: %s"
 
-	// Common Errors
+	// Common Errors.
 	ErrInvalidAction       Error = "invalid action."
 	ErrUnknown             Error = "unknown error."
 	ErrInvalidMessage      Error = "invalid message: nil or empty"
 	ErrResourceNameTooLong Error = "resource name too long (max 253 characters)"
 	ErrUnsupportedType     Error = "unsupported type: %T"
 
-	// Server-related Errors
+	// Server-related Errors.
 	ErrServerFailedToStart Error = "server failed to start"
 
-	// Authorization-related Errors
+	// Authorization-related Errors.
 	ErrAuthzInitFailed         Error = "authz middleware initialization failed: %v"
 	ErrAuthzServiceTokenNotSet Error = "TELARK_SERVICE_TOKEN is not set"
 	ErrAuthzIdentityMissing    Error = "the request carries no verified identity"
@@ -122,7 +122,7 @@ const (
 	ErrAuthzGroupSkipped       Error = "authz: skipping unreadable group %s: %v"
 	ErrAuthzRoleSkipped        Error = "authz: skipping unreadable role %s: %v"
 
-	// Authorization denials returned to the caller
+	// Authorization denials returned to the caller.
 	ErrAuthzMissingSessionToken    Error = "a session token is required"
 	ErrAuthzInvalidSession         Error = "the session is invalid or has expired"
 	ErrAuthzForbidden              Error = "you do not have permission to perform this action"
@@ -131,7 +131,7 @@ const (
 	ErrAuthzCSRFHeaderMissing      Error = "a request that changes something needs a session header or X-Requested-With"
 	ErrAuthzSessionCookieDuplicate Error = "the request carries more than one session cookie"
 
-	// Text field checks returned to the caller as 400
+	// Text field checks returned to the caller as 400.
 	ErrTextRequired      Error = "%s is required"
 	ErrTextTooShort      Error = "%s must be at least %d characters"
 	ErrTextTooLong       Error = "%s must be at most %d characters"

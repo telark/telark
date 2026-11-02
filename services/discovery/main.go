@@ -12,6 +12,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
 	// The image is FROM scratch, and repeating plans name IANA zones: the zone data ships in the binary.
 	_ "time/tzdata"
 
@@ -369,7 +370,7 @@ func startSupervisor(ctx context.Context) {
 
 func isServiceHealthy() bool {
 	adr := sharedhelper.ConcatWithColon(state.HealthCheckHost, state.HealthCheckPort)
-	conn, err := net.DialTimeout("tcp", adr, state.HealthCheckTimeout)
+	conn, err := (&net.Dialer{Timeout: state.HealthCheckTimeout}).DialContext(context.Background(), "tcp", adr)
 	if err != nil {
 		return false
 	}

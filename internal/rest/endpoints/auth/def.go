@@ -8,17 +8,17 @@ const (
 	StartRegister base.Endpoint = "auth/register/start"
 	Logout        base.Endpoint = "auth/logout"
 
-	// Public bootstrap config (no authentication)
+	// Public bootstrap config (no authentication).
 	Config base.Endpoint = "auth/config"
 
-	// Served by the exporter only
+	// Served by the exporter only.
 	CreateInternalPasskeyByUser                base.Endpoint = "internal/auth/passkeys"
 	GetAllInternalPasskeysByUser               base.Endpoint = "internal/auth/passkeys"
 	GetInternalPasskeyByUserAndCredentialID    base.Endpoint = "internal/auth/passkeys/{credentialId}"
 	PatchInternalPasskeyByUserAndCredentialID  base.Endpoint = "internal/auth/passkeys/{credentialId}"
 	DeleteInternalPasskeyByUserAndCredentialID base.Endpoint = "internal/auth/passkeys/{credentialId}"
 
-	// Served by the auth service, proxying the internal passkey endpoints above
+	// Served by the auth service, proxying the internal passkey endpoints above.
 	GetAllPasskeysByUserViaProxy               base.Endpoint = "auth/passkeys"
 	CreatePasskeyByUserViaProxy                base.Endpoint = "auth/passkeys"
 	GetPasskeyByUserAndCredentialIDViaProxy    base.Endpoint = "auth/passkeys/{credentialId}"
@@ -26,7 +26,7 @@ const (
 	DeletePasskeyByUserAndCredentialIDViaProxy base.Endpoint = "auth/passkeys/{credentialId}"
 	CreatePasskeyEnrollLink                    base.Endpoint = "auth/passkeys/enroll-link"
 
-	// The self session is the one the X-Session-Token header names; the token never enters a path
+	// The self session is the one the X-Session-Token header names; the token never enters a path.
 	CreateSessionByUser  base.Endpoint = "internal/auth/users/{userId}/sessions"
 	GetAllSessionsByUser base.Endpoint = "auth/sessions"
 	GetSelfSession       base.Endpoint = "auth/sessions/self"
@@ -44,7 +44,7 @@ const (
 	BreakGlassAlerts   base.Endpoint = "auth/break-glass-alerts"
 	UserEnrollLink     base.Endpoint = "auth/users/{id}/enroll-link"
 
-	// Async business delete; the finalizer-backed cleanup runs afterwards
+	// Async business delete; the finalizer-backed cleanup runs afterwards.
 	DeleteUserCleanup       base.Endpoint = "auth/users/{id}"
 	DeleteGroupCleanup      base.Endpoint = "auth/groups/{id}"
 	DeleteAccessRoleCleanup base.Endpoint = "auth/accessroles/{id}"

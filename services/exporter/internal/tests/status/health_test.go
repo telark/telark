@@ -26,7 +26,7 @@ type readiness struct {
 func probe(t *testing.T) readiness {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	statushandler.Readiness(rec, httptest.NewRequest(http.MethodGet, "/status/ready", nil))
+	statushandler.Readiness(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/status/ready", nil))
 	var envelope response.GenericResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("readiness body: %v: %s", err, rec.Body.String())

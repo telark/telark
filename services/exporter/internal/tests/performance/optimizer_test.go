@@ -48,7 +48,7 @@ func TestCachedListHandlerMissThenHit(t *testing.T) {
 		o, okHandler, keyFunc, constants.ResourceApplication, constants.OpList,
 	)
 
-	req := httptest.NewRequest(http.MethodGet, "/applications?x=1", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/applications?x=1", nil)
 	miss := httptest.NewRecorder()
 	handler(miss, req)
 	if miss.Code != http.StatusOK {
@@ -56,7 +56,7 @@ func TestCachedListHandlerMissThenHit(t *testing.T) {
 	}
 
 	hit := httptest.NewRecorder()
-	handler(hit, httptest.NewRequest(http.MethodGet, "/applications?x=1", nil))
+	handler(hit, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/applications?x=1", nil))
 	if hit.Code != http.StatusOK {
 		t.Errorf("hit code = %d, want 200", hit.Code)
 	}
@@ -72,7 +72,7 @@ func TestCachedListHandlerSkipsNon200(t *testing.T) {
 		o, failing, keyFunc, constants.ResourceApplication, constants.OpList,
 	)
 	rec := httptest.NewRecorder()
-	handler(rec, httptest.NewRequest(http.MethodGet, "/applications", nil))
+	handler(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/applications", nil))
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("code = %d, want 500", rec.Code)
 	}
@@ -83,7 +83,7 @@ func TestOptimizedHandler(t *testing.T) {
 		okHandler, constants.ResourceApplication, constants.OpGet,
 	)
 	rec := httptest.NewRecorder()
-	handler(rec, httptest.NewRequest(http.MethodGet, "/applications/a1", nil))
+	handler(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/applications/a1", nil))
 	if rec.Code != http.StatusOK {
 		t.Errorf("OptimizedHandler code = %d, want 200", rec.Code)
 	}

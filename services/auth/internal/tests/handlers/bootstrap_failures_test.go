@@ -156,7 +156,7 @@ func TestApprovalFinishAnswersWhatWentWrong(t *testing.T) {
 			return finishApproval(t, pendingRequest, `{"action":"promote"}`)
 		}, want: http.StatusBadRequest},
 		{name: "body unreadable", run: func(*testing.T, *testutil.FakeExporter) int {
-			r := mux.SetURLVars(httptest.NewRequest(http.MethodPost, testPath, iotest.ErrReader(errBodyLost)),
+			r := mux.SetURLVars(httptest.NewRequestWithContext(t.Context(), http.MethodPost, testPath, iotest.ErrReader(errBodyLost)),
 				map[string]string{constants.IDPathParam: pendingRequest})
 			rec := httptest.NewRecorder()
 			bootstraphandler.FinishAssertion(rec, r)

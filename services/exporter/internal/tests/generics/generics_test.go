@@ -1,6 +1,7 @@
 package generics
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,9 +21,9 @@ const testResourceName = "n1"
 func namedReq(body string) *http.Request {
 	var r *http.Request
 	if body == "" {
-		r = httptest.NewRequest(http.MethodGet, "/resource/n1", nil)
+		r = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/resource/n1", nil)
 	} else {
-		r = httptest.NewRequest(http.MethodPost, "/resource", strings.NewReader(body))
+		r = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/resource", strings.NewReader(body))
 	}
 	return mux.SetURLVars(r, map[string]string{constants.NameParam: testResourceName, constants.IDParam: testResourceName})
 }

@@ -1,6 +1,7 @@
 package authz
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -22,7 +23,7 @@ func planContributor() xauthz.Identity {
 }
 
 func planRequest(identity xauthz.Identity) *http.Request {
-	r := httptest.NewRequest(http.MethodPatch, "/v1/plans/protection/p-1", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPatch, "/v1/plans/protection/p-1", nil)
 	return r.WithContext(xauthz.WithIdentity(r.Context(), identity))
 }
 
@@ -114,7 +115,7 @@ func TestGuardPlanLifecycleSessionDeniedOnScopeExclusions(t *testing.T) {
 
 func TestGuardPlanLifecycleMissingIdentity(t *testing.T) {
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPatch, "/v1/plans/protection/p-1", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, "/v1/plans/protection/p-1", nil)
 
 	assertDenied(t, w, authz.GuardPlanLifecycle(w, r, map[string]any{planKeyPhase: "active"}), planKeyPhase)
 }

@@ -1,6 +1,7 @@
 package oidc
 
 import (
+	"context"
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
@@ -187,7 +188,11 @@ func StopJWKSRefresh() {
 
 func fetchJWKS() ([]byte, error) {
 	client := &http.Client{Timeout: constants.OIDCJWKSFetchTimeout}
-	resp, err := client.Get(constants.OIDCJWKSFetchURL)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, constants.OIDCJWKSFetchURL, http.NoBody)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}

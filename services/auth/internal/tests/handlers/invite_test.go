@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -89,7 +90,7 @@ func initWebAuthn(t *testing.T) {
 // The router has no authz middleware here, so the identity it would attach is set by hand.
 func enrollLinkReq(method, targetID string, caller xauthz.Identity) *http.Request {
 	path := strings.Replace(router.Pattern(autheps.UserEnrollLink), idPlaceholder, targetID, constants.DefaultIncrementValue)
-	r := httptest.NewRequest(method, path, nil)
+	r := httptest.NewRequestWithContext(context.Background(), method, path, nil)
 	r.Header.Set(constants.HeaderUserID, caller.UserID)
 	return r.WithContext(xauthz.WithIdentity(r.Context(), caller))
 }

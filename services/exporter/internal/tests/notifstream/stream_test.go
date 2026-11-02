@@ -3,6 +3,7 @@ package notifstream
 import (
 	"bufio"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -222,7 +223,7 @@ func TestSubscribeLimitsAndClose(t *testing.T) {
 			t.Fatalf("subscribe within the limit: %v", err)
 		}
 	}
-	if _, _, err := hub.Subscribe(testUserID); err != notifstorage.ErrTooManyStreams {
+	if _, _, err := hub.Subscribe(testUserID); !errors.Is(err, notifstorage.ErrTooManyStreams) {
 		t.Errorf("one stream past the limit: err %v, want ErrTooManyStreams", err)
 	}
 	other, _, err := hub.Subscribe(otherUserID)
@@ -233,10 +234,10 @@ func TestSubscribeLimitsAndClose(t *testing.T) {
 	if _, open := <-other; open {
 		t.Error("Close left a stream open")
 	}
-	if _, _, err := hub.Subscribe(otherUserID); err != notifstorage.ErrHubClosed {
+	if _, _, err := hub.Subscribe(otherUserID); !errors.Is(err, notifstorage.ErrHubClosed) {
 		t.Errorf("subscribe after Close: err %v, want ErrHubClosed", err)
 	}
-	if _, _, err := notifstorage.NewHub(nil).Subscribe(testUserID); err != notifstorage.ErrRedisUnavailable {
+	if _, _, err := notifstorage.NewHub(nil).Subscribe(testUserID); !errors.Is(err, notifstorage.ErrRedisUnavailable) {
 		t.Errorf("subscribe without Redis: err %v, want ErrRedisUnavailable", err)
 	}
 }
@@ -276,7 +277,7 @@ func TestEventsRefusals(t *testing.T) {
 			// Bounded, so a refusal that regressed into a stream fails here instead of hanging.
 			ctx, cancel := context.WithTimeout(context.Background(), quietFor)
 			defer cancel()
-			handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/notifications/events", nil).WithContext(ctx))
+			handler.ServeHTTP(rec, httptest.NewRequestWithContext(ctx, http.MethodGet, "/notifications/events", nil))
 			if rec.Code != tt.want {
 				t.Errorf("code = %d, want %d", rec.Code, tt.want)
 			}
@@ -305,7 +306,7 @@ func newStreamServer(t *testing.T, resolver stubResolver, ping, recheck time.Dur
 // Frames arrive on the channel, without their closing blank line; it closes when the stream ends.
 func openStream(t *testing.T, srv *httptest.Server) (<-chan string, http.Header) {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodGet, srv.URL, nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

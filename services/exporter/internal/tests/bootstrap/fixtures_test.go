@@ -509,7 +509,7 @@ func titles(t *testing.T, userID string) string {
 
 func serveAs(t *testing.T, identity xauthz.Identity, method, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
-	r := httptest.NewRequest(method, path, strings.NewReader(body))
+	r := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(body))
 	return serve(t, r.WithContext(xauthz.WithIdentity(r.Context(), identity)))
 }
 
@@ -534,7 +534,7 @@ func addPasskey(t *testing.T, userID string) {
 	t.Helper()
 	body := `{"credentialId":"cred-` + userID + `-` + strconv.FormatInt(time.Now().UnixNano(), base36) +
 		`","publicKey":"AQID","deviceName":"laptop","deviceType":"platform"}`
-	r := httptest.NewRequest(http.MethodPost, passkeysPath, strings.NewReader(body))
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, passkeysPath, strings.NewReader(body))
 	r.Header.Set(constants.HeaderUserID, userID)
 	if w := serve(t, r.WithContext(xauthz.WithIdentity(r.Context(), internal))); w.Code != http.StatusOK {
 		t.Fatalf("passkey for %s = %d %s", userID, w.Code, w.Body.String())

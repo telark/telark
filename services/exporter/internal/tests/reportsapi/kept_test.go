@@ -63,14 +63,16 @@ func installPlan(t *testing.T) *dynamicfake.FakeDynamicClient {
 
 func deletePlan(query url.Values) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
-	protectionhandler.DeletePlanByID()(rec, withID(httptest.NewRequest(http.MethodDelete, routePath+"?"+query.Encode(), nil)))
+	protectionhandler.DeletePlanByID()(rec, withID(httptest.NewRequestWithContext(context.Background(), http.MethodDelete,
+		routePath+"?"+query.Encode(), nil)))
 	return rec
 }
 
 func deleteReport(report string) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
 	query := url.Values{reportseps.QueryReport: {report}}
-	reportshandler.DeletePlanReport()(rec, withID(httptest.NewRequest(http.MethodDelete, routePath+"?"+query.Encode(), nil)))
+	reportshandler.DeletePlanReport()(rec, withID(httptest.NewRequestWithContext(context.Background(), http.MethodDelete,
+		routePath+"?"+query.Encode(), nil)))
 	return rec
 }
 
@@ -104,7 +106,7 @@ func TestDeleteRemovesALiveReport(t *testing.T) {
 	runDeleteSteps(t)
 
 	list := httptest.NewRecorder()
-	reportshandler.ListPlanReports()(list, withID(httptest.NewRequest(http.MethodGet, routePath, nil)))
+	reportshandler.ListPlanReports()(list, withID(httptest.NewRequestWithContext(t.Context(), http.MethodGet, routePath, nil)))
 	if metas := decodeData[[]reportseps.ReportMeta](t, list); len(metas) != constants.DefaultInitValue {
 		t.Fatalf("list after delete = %+v, want none", metas)
 	}
@@ -159,7 +161,7 @@ func TestKeptReportsListDownloadAndDelete(t *testing.T) {
 	}
 
 	list := httptest.NewRecorder()
-	reportshandler.ListKeptReports()(list, httptest.NewRequest(http.MethodGet, keptPath, nil))
+	reportshandler.ListKeptReports()(list, httptest.NewRequestWithContext(t.Context(), http.MethodGet, keptPath, nil))
 	kept := decodeData[[]reportseps.KeptPlanReports](t, list)
 	if list.Code != http.StatusOK || len(kept) != constants.DefaultIncrementValue || kept[firstIdx].PlanName != keptName ||
 		len(kept[firstIdx].Reports) != constants.DefaultIncrementValue || kept[firstIdx].Reports[firstIdx].ID != reportID {
@@ -182,13 +184,13 @@ func TestKeptListFailureAndADeleteWithoutAPlan(t *testing.T) {
 		t.Fatal(err)
 	}
 	list := httptest.NewRecorder()
-	reportshandler.ListKeptReports()(list, httptest.NewRequest(http.MethodGet, keptPath, nil))
+	reportshandler.ListKeptReports()(list, httptest.NewRequestWithContext(t.Context(), http.MethodGet, keptPath, nil))
 	if list.Code != http.StatusInternalServerError {
 		t.Fatalf("kept list = %d %s, want 500", list.Code, list.Body.String())
 	}
 
 	rec := httptest.NewRecorder()
-	reportshandler.DeletePlanReport()(rec, httptest.NewRequest(http.MethodDelete, routePath, nil))
+	reportshandler.DeletePlanReport()(rec, httptest.NewRequestWithContext(t.Context(), http.MethodDelete, routePath, nil))
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("delete without a plan = %d, want 400", rec.Code)
 	}

@@ -44,7 +44,7 @@ func TestSyncReasonIsBounded(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			target := "/?" + url.Values{constants.ForceSyncStreamFieldReason: {c.reason}}.Encode()
 			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodPost, target, http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, target, http.NoBody)
 			applications.SyncApplication(rec, mux.SetURLVars(req, map[string]string{constants.NameParam: "nope"}))
 			testutil.Equal(t, "status", rec.Code, c.want)
 		})
@@ -67,7 +67,7 @@ func TestSyncQueuesTheTrimmedReason(t *testing.T) {
 
 	target := "/?" + url.Values{constants.ForceSyncStreamFieldReason: {" " + reason + "\t"}}.Encode()
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, target, http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, target, http.NoBody)
 	applications.SyncApplication(rec, mux.SetURLVars(req, map[string]string{constants.NameParam: shopApp}))
 
 	testutil.Equal(t, "status", rec.Code < http.StatusMultipleChoices, true)

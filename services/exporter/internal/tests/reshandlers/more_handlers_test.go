@@ -1,6 +1,7 @@
 package reshandlers
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -26,9 +27,9 @@ func varsReq(method, body string) *http.Request {
 	url := "/x/val?user=u1&scope=roles&username=n&email=e@x.io"
 	var r *http.Request
 	if body == constants.EmptyString {
-		r = httptest.NewRequest(method, url, nil)
+		r = httptest.NewRequestWithContext(context.Background(), method, url, nil)
 	} else {
-		r = httptest.NewRequest(method, url, strings.NewReader(body))
+		r = httptest.NewRequestWithContext(context.Background(), method, url, strings.NewReader(body))
 	}
 	r.Header.Set(constants.HeaderUserID, testUserID)
 	r.Header.Set(dataconstants.HeaderSessionToken, "tok")

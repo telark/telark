@@ -14,13 +14,13 @@ const (
 	appKeyUnderscore = "_"
 	appKeyDash       = "-"
 
-	// noise resources
+	// noise resources.
 	noiseResourceKubeRootCaCrt           = "kube-root-ca.crt"
 	noiseResourceDefault                 = "default"
 	noiseResourceKubernetes              = "kubernetes"
 	noiseResourceSecretHelmReleasePrefix = "sh.helm.release."
 
-	// common constants
+	// common constants.
 	repeatedRatio           = 0.3
 	minRepeatedNum          = 2
 	fallbackGroup           = "Other"

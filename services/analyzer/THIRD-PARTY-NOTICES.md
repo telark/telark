@@ -4,7 +4,7 @@ The analyzer's own code is licensed under the [Elastic License 2.0](LICENSE.md).
 
 - **Python packages**, pinned in [`requirements.txt`](requirements.txt) and installed in `/usr/local/lib/python3.*/site-packages`. Each package keeps its license files in its `*.dist-info` directory. loguru's wheel ships none, so its license is below. `pydantic_core.libs/` holds `libgcc_s`, the GCC runtime library (GPL-3.0-or-later WITH GCC-exception-3.1, texts below). pydantic-core is compiled from Rust crates that its wheel lists in `pydantic_core-*.dist-info/sboms/`; their notices are under pydantic-core's Rust crates.
 - **CPython** (PSF-2.0): `/usr/local/lib/python3.*/LICENSE.txt` also covers the components CPython bundles.
-- **Alpine Linux packages** from the `python` Alpine base image. `apk list --installed` shows each package with its version and license. Some are GPL-2.0-only (busybox, apk-tools, alpine-baselayout, pax-utils), GPL-3.0-or-later (readline, gdbm), LGPL-2.1-or-later (parts of xz) or MPL-2.0 (ca-certificates). Their license texts are under License texts, and the permissive packages' copyright notices under Alpine package notices.
+- **Alpine Linux packages** from the `python` Alpine base image. `apk list --installed` shows each package with its version and license. Some are GPL-2.0-only (busybox, apk-tools, alpine-baselayout, pax-utils), GPL-3.0-or-later (readline, gdbm), GPL-3.0-or-later WITH GCC-exception-3.1 (gcc's libgcc and libstdc++), LGPL-2.1-or-later (parts of xz) or MPL-2.0 (ca-certificates). Their license texts are under License texts, and the permissive packages' copyright notices under Alpine package notices.
 
 ## Source code for GPL, LGPL and MPL components
 
@@ -42,7 +42,7 @@ SOFTWARE.
 
 ## Alpine package notices
 
-The copyright and license notices of the permissive Alpine packages in the image, from each package's upstream source at the version installed in `python:3.14.9-alpine3.24` (Alpine 3.24.3). The GPL, LGPL and MPL texts, and the Apache License 2.0, are under License texts. Regenerate this section when the base image changes ([docs/PUBLISHING.md](../../docs/PUBLISHING.md#notices-of-the-alpine-packages-and-rust-crates)).
+The copyright and license notices of the permissive Alpine packages in the image, from each package's upstream source at the version installed in `python:3.15.2-alpine3.24` (Alpine 3.24.3). The GPL, LGPL and MPL texts, and the Apache License 2.0, are under License texts. Regenerate this section when the base image changes ([docs/PUBLISHING.md](../../docs/PUBLISHING.md#notices-of-the-alpine-packages-and-rust-crates)).
 
 | Packages (origin) | Version | License | Notice |
 |---|---|---|---|
@@ -54,6 +54,7 @@ The copyright and license notices of the permissive Alpine packages in the image
 | libcrypto3, libssl3 (openssl) | 3.5.9-r0 | Apache-2.0 | Apache License 2.0 under License texts |
 | libncursesw, libpanelw, ncurses-terminfo-base (ncurses) | 6.6_p20260516-r0 | X11 | below |
 | libuuid (util-linux) | 2.42.3-r1 | BSD-3-Clause | below |
+| mpdecimal | 4.0.1-r0 | BSD-2-Clause | below |
 | musl, musl-utils | 1.2.6-r3 | MIT AND BSD-2-Clause AND GPL-2.0-or-later | below |
 | sqlite-libs | 3.53.4-r0 | blessing (public domain) | none needed |
 | tzdata | 2026e-r0 | public domain | none needed |
@@ -159,6 +160,34 @@ IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
 CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+### mpdecimal 4.0.1
+
+```text
+Copyright (c) 2008-2025 Stefan Krah. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+SUCH DAMAGE.
 ```
 
 ### musl 1.2.6

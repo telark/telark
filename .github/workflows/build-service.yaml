@@ -37,6 +37,24 @@ on:
           - patch
           - minor
           - major
+  # Build · Release Images runs this once per selected service.
+  workflow_call:
+    inputs:
+      service:
+        required: true
+        type: string
+      image_scan:
+        required: false
+        type: string
+        default: scan
+      branch:
+        required: false
+        type: string
+        default: ""
+      build_type:
+        required: false
+        type: string
+        default: patch
 
 concurrency:
   group: build-image-${{ inputs.service }}

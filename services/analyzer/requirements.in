@@ -3,5 +3,5 @@ redis==8.1.0
 loguru==0.7.3
 python-dotenv==1.2.4
 httpx==0.28.1
-fastapi==0.143.0
+fastapi==0.162.0
 uvicorn==0.54.0

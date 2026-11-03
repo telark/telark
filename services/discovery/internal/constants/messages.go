@@ -3,7 +3,7 @@ package constants
 import "github.com/telark/telark/internal/data/messages"
 
 const (
-	// Main Service
+	// Main Service.
 	SuccessServerRecovered     messages.Message = "Server  recovered: %v\n%s"
 	SuccessShutdownSignalSent  messages.Message = "sent shutdown signal to main goroutine"
 	SuccessServiceShuttingDown messages.Message = "service shutting down"
@@ -11,7 +11,7 @@ const (
 	SuccessResourcesListed     messages.Message = "resources listed"
 	SuccessNamespacesListed    messages.Message = "namespaces listed"
 
-	// Circuit Breaker
+	// Circuit Breaker.
 	InfoCircuitBreakerStateChange messages.Message = "circuit breaker '%s' transitioned from %s to %s"
 	WarnCircuitBreakerOpen        messages.Message = "circuit breaker '%s' is open, blocking requests"
 	InfoCircuitBreakerClosed      messages.Message = "circuit breaker '%s' closed, resuming normal operation"
@@ -25,7 +25,7 @@ const (
 	ErrorPrewarmRecoveredFromPanic    messages.Message = "[prewarm] Recovered from panic: %v"
 	ErrorPrewarmRecoveredFromRunPanic messages.Message = "[prewarm] Recovered from panic in run: %v"
 
-	// Startup: TelarkConfig
+	// Startup: TelarkConfig.
 	InfoClusterVersionPatchStarting     messages.Message = "[startup] patching TelarkConfig cluster.version"
 	InfoClusterVersionPatched           messages.Message = "[startup] patched TelarkConfig cluster.version=%s"
 	WarnClusterVersionPatchFailed       messages.Message = "[startup] failed to patch TelarkConfig cluster.version: %v"
@@ -33,7 +33,7 @@ const (
 		"response=%v"
 	WarnClusterVersionPatchExhausted messages.Message = "[startup] cluster.version patch exhausted all %d attempts: %v"
 
-	// Insights
+	// Insights.
 	InfoInsightsRead               messages.Message = "insights read"
 	InfoInsightsListed             messages.Message = "insights listed"
 	InfoInsightsListNotReady       messages.Message = "insights list not ready yet"
@@ -46,7 +46,7 @@ const (
 	InfoTelarkConfigAvailable      messages.Message = "[startup] TelarkConfig is reachable."
 	WarnExcludedNamespacesRefresh  messages.Message = "[telarkconfig] failed to refresh ExcludedNamespaces cache: %v"
 
-	// Startup: Renderer Registry
+	// Startup: Renderer Registry.
 	ErrRendererNotRegistered messages.Message = "[startup] no renderer registered for template %q"
 
 	InfoInformersFactoryStart       messages.Message = "[informers] starting dynamic shared informer factory"
@@ -54,7 +54,7 @@ const (
 	WarnInformersDiscoverAppsFailed messages.Message = "[informers] DiscoverApplications failed: %v"
 	WarnInformersGVRFailed          messages.Message = "[informers] GVR resolution failed: %v"
 
-	// Rollback Controller
+	// Rollback Controller.
 	InfoPickedUpPendingEntry         messages.Message = "picked up pending entry: %s"
 	InfoPatchingStatusToInProgress   messages.Message = "patching status to in_progress"
 	InfoRollbackApplied              messages.Message = "[rollback] Applied %s/%s in %s"
@@ -65,11 +65,11 @@ const (
 	InfoRollbackWorkersStarted       messages.Message = "[rollback] started %d workers"
 	InfoRollbackClientBudget         messages.Message = "[rollback] dedicated K8s client budget: %.0f qps, burst %d"
 
-	// Protection Plan Reports
+	// Protection Plan Reports.
 	WarnReportCheckpointClamped messages.Message = "[reports] checkpoint interval clamped to [%d, %d] seconds"
 	InfReportCheckpointInterval messages.Message = "[reports] checkpoint interval: %s"
 
-	// Rollback Notifications
+	// Rollback Notifications.
 	NotifRollbackCompletedTitle  messages.Message = "Rollback completed"
 	NotifRollbackFailedTitle     messages.Message = "Rollback failed"
 	NotifRollbackAbortedTitle    messages.Message = "Rollback aborted"
@@ -77,7 +77,7 @@ const (
 	NotifRollbackFailedFormat    messages.Message = "Rollback of %s to generation %d failed: %s"
 	NotifRollbackAbortedFormat   messages.Message = "Rollback of **%s** Application to generation **%d** was aborted."
 
-	// Plan approval notifications
+	// Plan approval notifications.
 	NotifPlanApprovalRequestedTitle  messages.Message = "Protection plan awaiting approval"
 	NotifPlanApprovalRequestedFormat messages.Message = "**%s** was submitted for approval by %s."
 	NotifPlanApprovalByBootstrap     messages.Message = "the bootstrap account"
@@ -85,7 +85,7 @@ const (
 	NotifPlanApprovalDecidedFormat   messages.Message = "**%s** was %s. %s"
 	WarnPlanApprovalNotifyFailed     messages.Message = "[plan-approval] notification failed plan=%s: %v"
 
-	// Critical incident notifications
+	// Critical incident notifications.
 	NotifIncidentCriticalTitle     messages.Message = "Critical incident"
 	NotifIncidentCriticalFormat    messages.Message = "**%s** in **%s/%s**."
 	WarnIncidentLatchFailed        messages.Message = "[insights-notify] latch failed: %v"
@@ -93,16 +93,16 @@ const (
 	WarnIncidentGrantsFailed       messages.Message = "[insights-notify] grants unavailable user=%s: %v"
 	WarnIncidentNotificationFailed messages.Message = "[insights-notify] notification failed insight=%s user=%s: %v"
 
-	// Rollback HTTP responses
+	// Rollback HTTP responses.
 	MsgRollbackAborted     messages.Message = "rollback aborted"
 	MsgApplicationNotFound messages.Message = "application not found"
-	// Discovery status HTTP response
+	// Discovery status HTTP response.
 	MsgDiscoveryStatusFetched messages.Message = "discovery status fetched"
 
-	// Rollback abort audit
+	// Rollback abort audit.
 	RollbackAbortedByPrefix messages.Message = "aborted by "
 
-	// Auto-cleanup detector
+	// Auto-cleanup detector.
 	LogAutoCleanupDetectorStarted messages.Message = "[auto-cleanup] detector started: " +
 		"cycleSec=%d emptyCyclesRequired=%d gracePeriodSec=%d deleteEnabled=%t"
 	LogAutoCleanupCycleStart  messages.Message = "[auto-cleanup] cycle starting"
@@ -115,14 +115,14 @@ const (
 	LogAutoCleanupDone        messages.Message = "[auto-cleanup] done: app=%s elapsedMs=%d"
 	LogAutoCleanupStreakReset messages.Message = "[auto-cleanup] streak reset: app=%s rail=%s"
 
-	// Cleanup
+	// Cleanup.
 	LogAppResetStarted   messages.Message = "[reset] Application reset started: %s"
 	LogAppResetDone      messages.Message = "[reset] Application reset finished: %s"
 	LogAppResetLoopGuard messages.Message = "[reset] loop guard tripped: reset invoked %d times for %s " +
 		"within cooldown — skipping; investigate upstream caller"
 	LogAppResetForwarding messages.Message = "[reset] forwarding to leader: app=%s leader=%s"
 
-	// Coordination
+	// Coordination.
 	LogPrewarmBatchEnqueued       messages.Message = "[prewarm] Enqueued %d applications for processing."
 	LogPrewarmBatchSkipped        messages.Message = "[prewarm] Skipped %d applications — already enqueued."
 	LogPrewarmBatchBacklog        messages.Message = "[prewarm] Skipped cycle — %d operations still pending from the previous one."
@@ -137,7 +137,7 @@ const (
 	LogConsumerPruned             messages.Message = "[consumer] Pruned dead consumer from group: %s"
 	LogConsumerStaleNoState       messages.Message = "[consumer] Stale message %s has no state — acking and releasing."
 
-	// Application history — snapshots & incidents
+	// Application history — snapshots & incidents.
 	InfoInformerOldObjectCaptured messages.Message = "[informers] MODIFIED oldObject captured " +
 		"app=%s kind=%s ns=%s name=%s replicas=%v lag=%s"
 	WarnInformerWatchError            messages.Message = "[informers] watch %s/%s failed: %v"

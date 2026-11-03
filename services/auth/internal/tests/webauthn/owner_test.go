@@ -30,7 +30,7 @@ func ownerRequest(t *testing.T, clientDataB64 string) *http.Request {
 	if err != nil {
 		t.Fatalf(jsonMarshalFailed, err)
 	}
-	return httptest.NewRequest(http.MethodPost, testPath, strings.NewReader(string(body)))
+	return httptest.NewRequestWithContext(t.Context(), http.MethodPost, testPath, strings.NewReader(string(body)))
 }
 
 func clientDataWith(challenge string) string {

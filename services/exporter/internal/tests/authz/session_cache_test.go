@@ -29,7 +29,7 @@ func TestSessionListIsNotServedFromCacheToAnotherUser(t *testing.T) {
 	t.Cleanup(optimizer.Close)
 
 	path := pathFor(authendpoints.GetAllSessionsByUser) + "?" + authendpoints.QuerySessionUser + "=" + subjectUserID
-	keyed := httptest.NewRequest(http.MethodGet, path, nil)
+	keyed := httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil)
 	key := cache.NewQueryListCacheKeyFunc(optimizer, constants.ResourceUserSession, authendpoints.QuerySessionUser)(keyed)
 	optimizer.Set(key, primedSessions)
 
@@ -45,7 +45,7 @@ func TestSessionListIsNotServedFromCacheToAnotherUser(t *testing.T) {
 	rt := router.NewRouter(routes.InitRoutes(optimizer, nil))
 	rt.Use(middleware)
 
-	request := httptest.NewRequest(http.MethodGet, path, nil)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil)
 	request.Header.Set(dataconstants.HeaderSessionToken, sessionOfOutsider)
 	recorder := httptest.NewRecorder()
 	rt.ServeHTTP(recorder, request)

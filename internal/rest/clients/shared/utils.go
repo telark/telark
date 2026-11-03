@@ -2,6 +2,7 @@ package shared
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
@@ -59,7 +60,7 @@ func buildHTTPRequest(
 		return nil, fmt.Errorf(string(constants.ErrFailedToGenerateRequestURL), err)
 	}
 
-	req, err := http.NewRequest(string(method), requestURL, bytes.NewBuffer(payload))
+	req, err := http.NewRequestWithContext(context.Background(), string(method), requestURL, bytes.NewBuffer(payload))
 	if err != nil {
 		return nil, fmt.Errorf(
 			string(constants.ErrFailedToCreateHTTPRequest), redactEndpointError(err, endpoint),

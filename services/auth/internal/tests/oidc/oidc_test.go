@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
@@ -19,7 +20,7 @@ import (
 	"github.com/telark/telark/services/auth/internal/tests/testutil"
 )
 
-const clientID = "id"
+const clientID = "telark-test.apps.googleusercontent.com"
 
 // The Redis client is cached for the process, so the server it binds to outlives every run (-count).
 func TestMain(m *testing.M) {
@@ -145,5 +146,37 @@ func TestNonceLifecycle(t *testing.T) {
 	}
 	if oidc.VerifyAndConsumeNonce("") == nil {
 		t.Fatal("empty nonce should be rejected")
+	}
+}
+
+// CheckInputs refuses a client ID or key set the exporter would refuse, and trims the client ID.
+func TestCheckInputs(t *testing.T) {
+	const suffix = ".apps.googleusercontent.com"
+	atLimit := strings.Repeat("a", constants.GoogleClientIDMaxLen-len(suffix)) + suffix
+	cases := []struct {
+		name    string
+		cfg     telarkconfigresource.OIDCConfig
+		wantID  string
+		wantErr bool
+	}{
+		{"empty client id left to Validate", telarkconfigresource.OIDCConfig{}, "", false},
+		{"client id at the limit", telarkconfigresource.OIDCConfig{GoogleClientID: atLimit}, atLimit, false},
+		{"client id over the limit", telarkconfigresource.OIDCConfig{GoogleClientID: "a" + atLimit}, "", true},
+		{"client id trimmed", telarkconfigresource.OIDCConfig{GoogleClientID: "  " + clientID + " "}, clientID, false},
+		{"client id with a space", telarkconfigresource.OIDCConfig{GoogleClientID: "a b" + suffix}, "", true},
+		{"client id with a zero-width space", telarkconfigresource.OIDCConfig{GoogleClientID: "a\u200bb" + suffix}, "", true},
+		{"client id of another provider", telarkconfigresource.OIDCConfig{GoogleClientID: "client.example.com"}, "", true},
+		{"key set at the limit", telarkconfigresource.OIDCConfig{GoogleJWKJSON: strings.Repeat("k", constants.OIDCJWKMaxBytes)}, "", false},
+		{"key set over the limit", telarkconfigresource.OIDCConfig{GoogleJWKJSON: strings.Repeat("k", constants.OIDCJWKMaxBytes+1)}, "", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			cfg := c.cfg
+			err := oidc.CheckInputs(&cfg)
+			testutil.Equal(t, "err", err != nil, c.wantErr)
+			if !c.wantErr {
+				testutil.Equal(t, "client id", cfg.GoogleClientID, c.wantID)
+			}
+		})
 	}
 }

@@ -269,7 +269,7 @@ func TestStampAudit(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
+			r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", http.NoBody)
 			r = r.WithContext(xauthz.WithIdentity(r.Context(), tt.identity))
 			body := map[string]any{constants.FieldCreatedBy: valueX, constants.FieldLastUpdatedBy: valueX}
 			tt.stamp(r, body)

@@ -1,6 +1,7 @@
 package snapshotapi
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -82,7 +83,7 @@ func TestReadSnapshotRedactsSecretsForSessions(t *testing.T) {
 }
 
 func getAs(identity xauthz.Identity) *http.Request {
-	r := withID(httptest.NewRequest(http.MethodGet, "/snapshots/"+testAppID+snapQuery(), nil), testAppID)
+	r := withID(httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/snapshots/"+testAppID+snapQuery(), nil), testAppID)
 	return r.WithContext(xauthz.WithIdentity(r.Context(), identity))
 }
 

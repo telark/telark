@@ -37,6 +37,24 @@ on:
           - patch
           - minor
           - major
+  # Build · Release Images runs this once per selected service.
+  workflow_call:
+    inputs:
+      service:
+        required: true
+        type: string
+      image_scan:
+        required: false
+        type: string
+        default: scan
+      branch:
+        required: false
+        type: string
+        default: ""
+      build_type:
+        required: false
+        type: string
+        default: patch
 
 concurrency:
   group: build-image-${{ inputs.service }}
@@ -94,7 +112,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.14"
+          python-version: "3.15"
           cache: pip
           cache-dependency-path: services/analyzer/requirements-test.txt
 

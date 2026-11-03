@@ -2,13 +2,13 @@ package application
 
 import (
 	"fmt"
-	"unicode/utf8"
 
 	"github.com/telark/telark/services/exporter/internal/constants"
+	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 )
 
 // Mirrors the CRD type and maxLength so a caller gets a 400 with the field named
-// instead of the API server's validation text. null stays allowed: it clears the field.
+// instead of the API server's validation text, and trims in place. null stays allowed: it clears the field.
 func ValidateEditableFields(target map[string]any) error {
 	for _, field := range constants.ApplicationUserFields {
 		if value, present := target[field]; present && value != nil {
@@ -17,13 +17,7 @@ func ValidateEditableFields(target map[string]any) error {
 			}
 		}
 	}
-	if tooLong(target[constants.FieldDisplayName], constants.MaxApplicationDisplayNameLength) {
-		return fmt.Errorf(string(constants.ErrApplicationDisplayNameTooLong), constants.MaxApplicationDisplayNameLength)
-	}
-	if tooLong(target[constants.FieldDescription], constants.MaxApplicationDescriptionLength) {
-		return fmt.Errorf(string(constants.ErrApplicationDescriptionTooLong), constants.MaxApplicationDescriptionLength)
-	}
-	return nil
+	return sharedutils.CheckTextFields(target, sharedutils.ApplicationTextFields...)
 }
 
 // A top-level user field is merged into the object root, where the CRD prunes it
@@ -48,9 +42,4 @@ func LiftEditableFields(patch map[string]any) (map[string]any, bool) {
 		patch[constants.SpecField] = spec
 	}
 	return spec, lifted
-}
-
-func tooLong(value any, limit int) bool {
-	s, isString := value.(string)
-	return isString && utf8.RuneCountInString(s) > limit
 }

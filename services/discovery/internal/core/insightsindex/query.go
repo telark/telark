@@ -11,10 +11,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/telark/telark/internal/data/text"
 	"github.com/telark/telark/services/discovery/internal/constants"
 )
 
 func ParseQuery(values url.Values) (Query, error) {
+	search, err := text.Check(values.Get(ParamSearch), text.Rule{Field: ParamSearch, Max: constants.InsightsSearchMaxLen})
+	if err != nil {
+		return Query{}, err
+	}
 	q := Query{
 		Category:    strings.TrimSpace(values.Get(ParamCategory)),
 		Kinds:       parseList(values.Get(ParamKind)),
@@ -23,7 +28,7 @@ func ParseQuery(values url.Values) (Query, error) {
 		Triage:      strings.TrimSpace(values.Get(ParamTriage)),
 		Namespaces:  parseList(values.Get(ParamNamespace)),
 		Environment: strings.TrimSpace(values.Get(ParamEnvironment)),
-		Search:      strings.ToLower(strings.TrimSpace(values.Get(ParamSearch))),
+		Search:      strings.ToLower(search),
 		IDs:         parseList(values.Get(ParamID)),
 		Apps:        parseList(values.Get(ParamApp)),
 	}

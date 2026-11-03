@@ -57,7 +57,7 @@ func TestMain(m *testing.M) {
 
 func resetApplication(name string) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", http.NoBody)
 	applications.ResetApplication(rec, mux.SetURLVars(req, map[string]string{constants.NameParam: name}))
 	return rec
 }
@@ -189,7 +189,7 @@ func TestResetAndSyncOfUnknownApplicationAre404(t *testing.T) {
 	testutil.Equal(t, "reset", resetApplication("nope").Code, http.StatusNotFound)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", http.NoBody)
 	applications.SyncApplication(rec, mux.SetURLVars(req, map[string]string{constants.NameParam: "nope"}))
 	testutil.Equal(t, "sync", rec.Code, http.StatusNotFound)
 }
@@ -264,7 +264,7 @@ func TestBuildLeaderResetRequestDropsInboundHeaders(t *testing.T) {
 		callerID     = "u-verified"
 	)
 	t.Setenv(dataconstants.EnvServiceToken, serviceToken)
-	inbound := httptest.NewRequest(http.MethodPost, forwardPath, http.NoBody)
+	inbound := httptest.NewRequestWithContext(t.Context(), http.MethodPost, forwardPath, http.NoBody)
 	inbound.Header.Set(dataconstants.HeaderSessionToken, "user-session")
 	inbound.Header.Set(dataconstants.HeaderServiceToken, "caller-service-token")
 	inbound.Header.Set(constants.HeaderUserID, "spoofed")

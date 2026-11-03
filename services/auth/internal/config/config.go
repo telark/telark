@@ -34,7 +34,7 @@ type WebAuthnConfig struct {
 
 var (
 	globalConfig    *Config
-	globalConfigErr error
+	errGlobalConfig error
 	configOnce      sync.Once
 )
 
@@ -42,9 +42,9 @@ var (
 // failed keeps reporting its error instead of handing back a nil config.
 func LoadConfig() (*Config, error) {
 	configOnce.Do(func() {
-		globalConfig, globalConfigErr = loadConfigInternal()
+		globalConfig, errGlobalConfig = loadConfigInternal()
 	})
-	return globalConfig, globalConfigErr
+	return globalConfig, errGlobalConfig
 }
 
 func loadConfigInternal() (*Config, error) {

@@ -64,7 +64,7 @@ func withSession(r *http.Request) *http.Request {
 }
 
 func jsonReq(body string) *http.Request {
-	r := httptest.NewRequest(http.MethodPost, testPath, strings.NewReader(body))
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, testPath, strings.NewReader(body))
 	r.Header.Set(constants.HeaderContentType, constants.ContentTypeJSON)
 	return r
 }
@@ -152,9 +152,9 @@ func TestHandlersAlwaysOK(t *testing.T) {
 		handler handlerFunc
 		req     *http.Request
 	}{
-		{"logout", authhandler.Logout, withSession(httptest.NewRequest(http.MethodPost, testPath, nil))},
-		{"public config", confighandler.GetConfig, httptest.NewRequest(http.MethodGet, testPath, nil)},
-		{"nonce", oidchandler.GetNonce, httptest.NewRequest(http.MethodGet, testPath, nil)},
+		{"logout", authhandler.Logout, withSession(httptest.NewRequestWithContext(t.Context(), http.MethodPost, testPath, nil))},
+		{"public config", confighandler.GetConfig, httptest.NewRequestWithContext(t.Context(), http.MethodGet, testPath, nil)},
+		{"nonce", oidchandler.GetNonce, httptest.NewRequestWithContext(t.Context(), http.MethodGet, testPath, nil)},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -190,9 +190,11 @@ func TestRefusalsKeepTheirAnswer(t *testing.T) {
 		{"login with no live challenge", registerStub{}, authhandler.LoginFinish, jsonReq(emailBody),
 			http.StatusUnauthorized, string(constants.ErrChallengeNotFound)},
 		{"unknown credential", credentialStub{http.StatusNotFound}, passkeyhandler.GetSinglePasskey,
-			withSession(httptest.NewRequest(http.MethodGet, testPath, nil)), http.StatusNotFound, string(constants.ErrPasskeyNotFound)},
+			withSession(httptest.NewRequestWithContext(t.Context(), http.MethodGet, testPath, nil)),
+			http.StatusNotFound, string(constants.ErrPasskeyNotFound)},
 		{"credential lookup down", credentialStub{http.StatusInternalServerError}, passkeyhandler.GetSinglePasskey,
-			withSession(httptest.NewRequest(http.MethodGet, testPath, nil)), http.StatusNotFound, string(constants.ErrPasskeyNotFound)},
+			withSession(httptest.NewRequestWithContext(t.Context(), http.MethodGet, testPath, nil)),
+			http.StatusNotFound, string(constants.ErrPasskeyNotFound)},
 	}
 	// A registration test that ran first leaves the stub user's challenge live.
 	redisServer.Del(constants.RedisKeyPrefixChallenge + stubUserID)

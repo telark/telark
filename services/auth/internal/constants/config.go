@@ -91,7 +91,7 @@ const (
 	BuiltInRoleAdmin    = "r-00000-0000-0001"
 	BuiltInRoleReadOnly = "r-00000-0000-0004"
 
-	// Redis config env vars
+	// Redis config env vars.
 	EnvRedisRetryIntervalSec     = "REDIS_RETRY_INTERVAL_SEC"
 	EnvRedisMaxWaitSec           = "REDIS_MAX_WAIT_SEC"
 	EnvRedisPingTimeoutSec       = "REDIS_PING_TIMEOUT_SEC"
@@ -99,7 +99,7 @@ const (
 	DefaultRedisMaxWaitSec       = 30
 	DefaultRedisPingTimeoutSec   = 3
 
-	// Redis key prefixes
+	// Redis key prefixes.
 	RedisKeyPrefixChallenge         = "auth:webauthn:challenge:"
 	RedisKeyPrefixRegistrationOwner = "auth:webauthn:registration-owner:"
 	RedisKeyPrefixEnrolledCeremony  = "auth:webauthn:enrolled-ceremony:"
@@ -119,7 +119,7 @@ const (
 	RedisMatchAll                   = "*"
 	RedisScanCount                  = 1000
 
-	// Redis TTLs
+	// Redis TTLs.
 	RedisTTLChallenge      = 60  // seconds — matches WebAuthn ceremony timeout
 	RedisTTLNonce          = 300 // seconds — 5 minutes for OIDC flow
 	RedisTTLEnrollToken    = 600 // seconds — 10 minutes to open a user's own link on the other host, or break-glass's
@@ -174,7 +174,7 @@ return 0`
 	BootstrapChallengeLabel       = "telark-bootstrap-request-v1"
 	BootstrapChallengeSeparator   = "\x00"
 
-	// Username generation (CRD regex: ^[a-zA-Z0-9_-]+$)
+	// Username generation (CRD regex: ^[a-zA-Z0-9_-]+$).
 	UsernameMaxLocalLen  = 43
 	UsernameRandomBytes  = 3
 	UsernameMinLen       = 3
@@ -182,7 +182,19 @@ return 0`
 	UsernameInvalidChars = `[^a-zA-Z0-9_-]`
 	SpaceSeparator       = " "
 
-	// Cleanup controllers + queue
+	// Input limits in runes (SEC-15); derived full names are cut to FullnameMaxLen, never refused.
+	EmailMaxLen          = 254
+	DeviceNameMinLen     = 1
+	DeviceNameMaxLen     = 64
+	DeviceMetadataMaxLen = 256
+	FullnameMaxLen       = 100
+	FullnameExtraChars   = "'.-"
+	DefaultFullname      = "User"
+	GoogleClientIDMaxLen = 256
+	OIDCJWKMaxBytes      = 64 << 10
+	GoogleClientIDRegex  = `^\S+\.apps\.googleusercontent\.com$`
+
+	// Cleanup controllers + queue.
 	EnvReconcileTickSeconds          = "RECONCILE_TICK_SECONDS"
 	EnvReconcilePassDeadlineSeconds  = "RECONCILE_PASS_DEADLINE_SECONDS"
 	EnvCleanupWorkersPerType         = "CLEANUP_WORKERS_PER_TYPE"

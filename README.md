@@ -5,7 +5,7 @@
 <h3 align="center">A protection gate for your Kubernetes applications</h3>
 
 <p align="center">
-  Decide what can change an application, and when.<br>
+  Decide what can change an application, and when. People, pipelines and AI agents all pass the same gate.<br>
   Telark holds the line during releases and maintenance windows, shows every change that got through,<br>
   and tells you why an app broke. Self-hosted, in your cluster.
 </p>
@@ -55,6 +55,16 @@ Telark turns that night into a non-event:
 4. **Verify.** Telark checks the live cluster for the policies it expects and reports what was blocked, audited or tampered with.
 
 You work in a dashboard, not in policy YAML.
+
+## AI agents
+
+**Give AI agents cluster access, not the final say.** Telark checks every change at the Kubernetes API, so a plan holds even when an agent ignores its instructions.
+
+- Block changes during releases and freezes.
+- Start in audit mode to see what an agent would have broken.
+- Record what gets through, with the agent's service account, and roll it back.
+
+Guide: [Let AI agents work on your cluster](https://docs.telark.io/guides/ai-agents).
 
 ## Insights: decision support, not autopilot
 

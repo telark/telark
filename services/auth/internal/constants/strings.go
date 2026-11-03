@@ -14,6 +14,8 @@ const (
 	HealthMessageNotReady         = "Service is not ready"
 	PasskeyFieldDeviceName        = "deviceName"
 	PasskeyFieldLastUsedTimestamp = "lastUsedTimestamp"
+	RequestFieldEmail             = "email"
+	RequestFieldGoogleClientID    = "googleClientID"
 	RequestFieldUsername          = "username"
 	DefaultForceLastDelete        = false
 	DefaultCleanupOrphaned        = false

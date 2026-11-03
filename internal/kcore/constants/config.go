@@ -13,3 +13,8 @@ const GroupSearchMaxConcurrent = 10
 const (
 	APIVersionV1 = "v1"
 )
+
+const (
+	PVCResource      = "persistentvolumeclaims"
+	PVCCapacityField = "capacity"
+)

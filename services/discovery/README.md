@@ -101,6 +101,13 @@ flowchart LR
   - Validation rejects a window that has already ended, targets in the release namespace or in
     TelarkConfig `excludedNamespaces` (the policy engine skips them), a template listed twice and
     unknown template params; repeated targets are deduplicated.
+  - Input limits, in characters (not bytes), checked before any write on create, edit and duplicate
+    and refused with a 400 that names the field: `name` 1–64 of letters, digits, space, `_` and `-`;
+    `description` at most 512 (newlines allowed); at most 50 `participantRefs`, each an existing
+    user (an edit looks up only the ones it adds, and a duplicate drops the ones deleted since); at most 200 `scope.namespaces` or
+    `scope.applicationRefs`; list params (`imagePatterns`, `tags`) at most 50 entries of 1–256. Name,
+    description and list params are stored trimmed, and control or invisible characters are refused
+    (`internal/data/text`; limits in `internal/constants/inputs.go`).
   - Plan names are unique (case- and whitespace-insensitive): a taken name is a 409 on create,
     duplicate and rename, and a per-name lock (`lock:plan-name:<name>`) makes parallel creates or
     renames of one name yield one winner and a 409 for the rest.
@@ -275,7 +282,9 @@ REST under `/api/v1/`: `cluster/namespaces` and `cluster/namespaces/{ns}/{worklo
 `applications/{name}/rollbacks/{rollbackId}/abort`, `discovery/status`, `policytemplates`,
 `protectionplans/prepare` and `protectionplans/{id}/{cancel,duplicate,reactivate,clear,decision,revise,status,violations,reports}`,
 `insights/applications`, `insights`, and `/api/v1/status/{live,ready}`. Plan and rollback bodies are
-capped at 1 MiB (413) and unknown fields are refused (400).
+capped at 1 MiB (413) and unknown fields are refused (400). A cancel `reason` and the sync
+`?reason` are trimmed and at most 500 characters; a longer one, or one with a control or invisible
+character, is a 400 naming `reason`.
 
 **Insights list.** `GET insights` (Read on `insights`, like the per-app read) serves every app's
 insight cards from a per-replica row index. Every `INSIGHTS_INDEX_REFRESH_SEC` the index reads the
@@ -298,7 +307,7 @@ tags those apps, a namespaces scope tags the rows whose document or workload nam
 | `namespace` | csv, matches `workloadNamespace` |
 | `triage` | `untriaged` \| `acknowledged` \| `dismissed` \| `all`; default hides dismissed |
 | `environment` | id, matched per row as above |
-| `q` | case-insensitive substring of app, namespace, workload namespace, subject, title |
+| `q` | case-insensitive substring of app, namespace, workload namespace, subject, title; trimmed, at most 200 characters (400 past it) |
 | `id` | csv of card ids |
 | `app` | csv of `<namespace>/<name>`, the document address |
 | `page`, `pageSize` | from 1; 1–100, default 25 |

@@ -60,7 +60,7 @@ func TestGetTimeoutForResource(t *testing.T) {
 
 func serveList(handler http.HandlerFunc, target string) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
-	handler(rec, httptest.NewRequest(http.MethodGet, target, nil))
+	handler(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, target, nil))
 	return rec
 }
 
@@ -171,7 +171,7 @@ func TestRestrictedListCallersShareOneRender(t *testing.T) {
 				UserID: "u-" + strconv.Itoa(i),
 				Grants: xauthz.Grants{Levels: map[string]roledata.PermissionLevel{roledata.ScopeUsers: roledata.PermissionLevelOwner}},
 			}
-			r := httptest.NewRequest(http.MethodGet, "/users", nil)
+			r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/users", nil)
 			rec := httptest.NewRecorder()
 			handler(rec, r.WithContext(xauthz.WithIdentity(r.Context(), identity)))
 			codes[i] = rec.Code
@@ -202,7 +202,7 @@ func TestCachedListHandlerServesLocalBlobWithoutRedis(t *testing.T) {
 	handler := performance.NewCachedListHandlerFunc(o, live, keyFunc, constants.ResourceApplication, constants.OpList)
 
 	first := serveList(handler, applicationsPath)
-	o.Delete(keyFunc(httptest.NewRequest(http.MethodGet, applicationsPath, nil)))
+	o.Delete(keyFunc(httptest.NewRequestWithContext(t.Context(), http.MethodGet, applicationsPath, nil)))
 	second := serveList(handler, applicationsPath)
 	if renders != constants.DefaultIncrementValue || second.Code != http.StatusOK {
 		t.Fatalf("renders = %d, second code = %d, want one render and a local hit", renders, second.Code)

@@ -26,7 +26,8 @@ Enforced by the shared root [`.golangci.yml`](.golangci.yml) (golangci-lint v2, 
 the repo root per service and package; **never** pass `--no-config` or use `//nolint` as a
 workaround). Hard limits: **cyclomatic complexity ≤ 12** (`gocyclo`), **function length
 ≤ 60 lines** (`funlen`), `revive` all-rules, plus `errcheck gosec dupl unparam prealloc
-bodyclose staticcheck` and more. `run.tests: true`, so lint covers test code too.
+bodyclose staticcheck errorlint noctx errname godot forcetypeassert` and more, with `goimports`
+as the import formatter. `run.tests: true`, so lint covers test code too.
 
 Beyond the linter:
 
@@ -55,11 +56,16 @@ Beyond the linter:
 | API routes | `/api/v1/<domain>/…`; health at `/api/v1/status/{live,ready}` | services |
 | Env vars (containers) | `SCREAMING_SNAKE_CASE` | `charts/telark/values.yaml` |
 | Helm value keys | `camelCase` | `charts/telark/values.yaml` |
+| Go errors | sentinel vars `errXxx` / `ErrXxx`, error types `xxxError` | `errname` |
 
 ## Errors & logging
 
 - `errcheck` is on: never drop an error. Wrap with context on the way up; return, don't
   panic, in request/reconcile paths.
+- Wrap with `%w` and compare with `errors.Is` / `errors.As`, never `==` (`errorlint`), so a
+  wrapped `redis.Nil` or sentinel still matches. Use `%v` only to hide a cause on purpose.
+- Every outbound request, listener and dial carries a context (`noctx`): the caller's,
+  `t.Context()` in tests, `context.Background()` only where none exists.
 - Use the service's structured logger (e.g. analyzer's `core/app_logger.py`); don't `fmt.Print`
   / `print()` for diagnostics in service code.
 

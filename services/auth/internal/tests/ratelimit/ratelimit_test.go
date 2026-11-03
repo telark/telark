@@ -89,7 +89,7 @@ func limitedRouter(t *testing.T, env map[string]string) http.Handler {
 }
 
 func start(handler http.Handler, path string, forwarded ...string) *httptest.ResponseRecorder {
-	r := httptest.NewRequest(http.MethodPost, path, nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, path, nil)
 	r.RemoteAddr = remoteAddr
 	for _, value := range forwarded {
 		r.Header.Add(constants.HeaderForwardedFor, value)
@@ -214,7 +214,7 @@ func TestFailsOpen(t *testing.T) {
 // A peer address that doesn't parse, with no forwarded entry, is the client as it is.
 func TestUnparsablePeerIsItsOwnClient(t *testing.T) {
 	handler := limitedRouter(t, nil)
-	r := httptest.NewRequest(http.MethodPost, login, nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, login, nil)
 	r.RemoteAddr = unparsablePeer
 	handler.ServeHTTP(httptest.NewRecorder(), r)
 	testutil.Equal(t, "counter", redisServer.Exists(loginKey+unparsablePeer), true)

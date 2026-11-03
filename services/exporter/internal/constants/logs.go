@@ -6,12 +6,12 @@ import (
 )
 
 const (
-	// Server
+	// Server.
 	ErrResourceLookupFailed   errors.Error     = "resource lookup failed"
 	InfServerStarting         messages.Message = "starting Server on port: 8080"
 	InfServerExitedGracefully messages.Message = "server exited gracefully"
 
-	// Startup seeding
+	// Startup seeding.
 	InfSeedStarting          messages.Message = "[startup] reconciling built-in resources"
 	InfSeedCategoriesMerged  messages.Message = "[startup] reconciled %d built-in categories"
 	InfSeedTelarkConfigOK    messages.Message = "[startup] created the default TelarkConfig"
@@ -22,7 +22,7 @@ const (
 	ErrSeedExistsCheckFailed errors.Error     = "[startup] failed to check whether %s exists: %v"
 	ErrSeedSpecEncodeFailed  errors.Error     = "[startup] failed to encode %s spec: %v"
 
-	// Startup migrations
+	// Startup migrations.
 	InfMigrationStepApplied   messages.Message = "[startup] applied migration step %d: %s"
 	InfMigrationsCurrent      messages.Message = "[startup] stored data is at migration step %d"
 	ErrMigrationRecordRead    errors.Error     = "[startup] failed to read the migration record in TelarkConfig: %w"
@@ -35,7 +35,7 @@ const (
 	WarnMigrationRecordLowered messages.Message = "[startup] the stored data is at migration step %d, one release newer than this " +
 		"exporter: lowered the record to step %d, so the next upgrade runs the newer steps again"
 
-	// Membership mirroring
+	// Membership mirroring.
 	ErrMembershipMirrorFailed    errors.Error     = "membership of %s could not be updated, retry the request: %v"
 	ErrMembershipReconcileFailed errors.Error     = "[startup] membership reconcile failed: %v"
 	ErrMembershipReconcilePatch  errors.Error     = "[startup] membership reconcile could not patch %s %s: %v"
@@ -48,11 +48,11 @@ const (
 	InfServerForcedShutdown      messages.Message = "server forced to shutdown: %v"
 	InfSuccessStatusMessage      messages.Message = "service is healthy"
 
-	// Cache
+	// Cache.
 	InfExternalDeletionResourceNotFound messages.Message = "🗑️ [EXTERNAL DELETION] Resource %s not found"
 	InfCacheInvalidatedSpecific         messages.Message = "🧹 [CACHE INVALIDATE] Invalidated cache for specific resource: %s/%s"
 	ErrCacheGenerationBumpFailed        errors.Error     = "❌ [CACHE INVALIDATE] failed to bump the %s list generation: %v"
-	// Optimizer
+	// Optimizer.
 	InfOptimizerCacheHit                  messages.Message = "✅ [CACHE HIT] RequestID: %s, Cache Key: %s"
 	InfOptimizerCacheMiss                 messages.Message = "⚠️ [CACHE MISS] RequestID: %s, Cache Key: %s"
 	InfOptimizerCacheStoreSkipped         messages.Message = "⚠️ [CACHE STORE SKIPPED] RequestID: %s, Status Code: %d"
@@ -61,30 +61,30 @@ const (
 	ErrOptimizerRenderBusy                errors.Error     = "list render capacity exhausted, retry later"
 	WarnOptimizerRenderRefused            messages.Message = "⚠️ [RENDER REFUSED] RequestID: %s, Cache Key: %s"
 	InfListRenderConcurrencyConfigured    messages.Message = "EXPORTER_LIST_RENDER_CONCURRENCY configured: %d"
-	// Informers
+	// Informers.
 	InfApplicationInformerSynced      messages.Message = "application informer synced: %d applications in %s"
 	WarnApplicationInformerNotSynced  messages.Message = "application informer not synced after %s: lists fall back to the apiserver"
 	ErrApplicationInformerStartFailed errors.Error     = "application informer start failed: %v"
 	InfSessionInformerSynced          messages.Message = "session informer synced: %d sessions in %s"
 	WarnSessionInformerNotSynced      messages.Message = "session informer not synced after %s: identities resolve against the apiserver"
 	ErrSessionInformerStartFailed     errors.Error     = "session informer start failed: %v"
-	// Readiness
+	// Readiness.
 	InfNotReadyStatusMessage messages.Message = "service is not ready"
 
-	// Certs
+	// Certs.
 	ErrCertDecodeBase64       errors.Error = "failed to decode base64 cert: %v"
 	ErrCertParseFailed        errors.Error = "failed to parse cert: %v"
 	ErrCertVerificationFailed errors.Error = "cert verification failed: %v"
 	ErrCertInvalidExpiration  errors.Error = "cert is expired (on %s)"
 	ErrCertInvalidPEM         errors.Error = "invalid PEM format in cert"
 
-	// Env
+	// Env.
 	ErrInvalidEnvVarName               errors.Error = "invalid env var name: %s"
 	ErrEnvVarNotSet                    errors.Error = "env var %s is not set or is empty"
 	ErrEnvVarExceedsMaxLength          errors.Error = "env var %s exceeds maximum length of %d characters"
 	ErrEnvVarContainsInvalidCharacters errors.Error = "env var %s contains only whitespace or invalid characters"
 
-	// Shared
+	// Shared.
 	ErrInvalidResourceTypeReturned errors.Error = "invalid resource type returned"
 	ErrCreateSlotBusy              errors.Error = "create capacity exhausted, retry later"
 	ErrUserPatchBusy               errors.Error = "account busy, retry later"
@@ -94,7 +94,7 @@ const (
 	ErrSpecFieldNotFound           errors.Error = "spec field not found"
 	ErrSpecIsNotValidMap           errors.Error = "spec is not a valid map"
 
-	// Auth Challenge
+	// Auth Challenge.
 	ErrChallengeExpired             errors.Error = "challenge has expired"
 	ErrFailedToListResources        errors.Error = "failed to list %s resources: %v"
 	ErrFailedToGenerateResourceName errors.Error = "failed to generate challenge name: %v"
@@ -109,11 +109,11 @@ const (
 	ErrEmailAlreadyExists           errors.Error = "user with this email already exists"
 	ErrIdentityAlreadyExists        errors.Error = "user with this identity already exists"
 
-	// Group
+	// Group.
 	ErrGroupNotFound          errors.Error = "group not found"
 	ErrGroupNameCannotBeEmpty errors.Error = "group name cannot be empty"
 
-	// Role
+	// Role.
 	ErrRoleNotFound                     errors.Error = "role not found"
 	ErrRoleNameCannotBeEmpty            errors.Error = "role name cannot be empty"
 	ErrRoleDescriptionRequired          errors.Error = "description is required"
@@ -130,7 +130,7 @@ const (
 	ErrRoleDenyRuleUnknown              errors.Error = "deny rule %q is not a known rule of scope %q: " +
 		"expected <scope>.<rule>.deny, such as applications.rollbackapplication.deny"
 
-	// Category
+	// Category.
 	ErrCategoryNotFound            errors.Error = "category not found"
 	ErrCategoryNameCannotBeEmpty   errors.Error = "category name cannot be empty"
 	ErrCategoryScopeCannotBeEmpty  errors.Error = "category scope cannot be empty"
@@ -142,18 +142,16 @@ const (
 	ErrCategoryBuiltInTypeReserved errors.Error = "the built-in category type is reserved"
 	ErrCategoryNameAlreadyExists   errors.Error = "a category with this name already exists in this scope"
 
-	// Global config
+	// Global config.
 	ErrConfigPatchFailed  errors.Error = "failed to patch config"
 	ErrConfigInvalidType  errors.Error = "invalid config type"
 	ErrConfigInvalidReply errors.Error = "invalid config response type"
 	ErrConfigInvalidField errors.Error = "invalid config value for %s"
 
-	// Application
-	ErrApplicationDisplayNameTooLong errors.Error = "displayName must be at most %d characters"
-	ErrApplicationDescriptionTooLong errors.Error = "description must be at most %d characters"
-	ErrApplicationFieldNotString     errors.Error = "%s must be a string"
+	// Application.
+	ErrApplicationFieldNotString errors.Error = "%s must be a string"
 
-	// User Session
+	// User Session.
 	ErrSessionListFormatInvalid         errors.Error = "invalid session list format"
 	ErrSessionFieldRequired             errors.Error = "session field is required"
 	ErrSessionSpecNotFound              errors.Error = "session spec not found"
@@ -167,7 +165,7 @@ const (
 	ErrSessionPatchOnlyExpiresTimestamp errors.Error = "patch operation only allows updating expiresTimestamp field"
 	ErrFailedToUnmarshalSession         errors.Error = "failed to unmarshal session: %v"
 
-	// User Passkey
+	// User Passkey.
 	ErrPasskeyListFormatInvalid         errors.Error = "invalid passkey list format"
 	ErrPasskeyFieldRequired             errors.Error = "passkey field is required"
 	ErrPasskeyNotFound                  errors.Error = "passkey not found"
@@ -176,7 +174,7 @@ const (
 	ErrPasskeyInvalidDeviceType         errors.Error = "invalid deviceType %s, must be either 'platform' or 'cross-platform'"
 	ErrPasskeyCannotDeleteLast          errors.Error = "cannot delete last passkey for user"
 
-	// Notifications
+	// Notifications.
 	ErrNotificationNotFound errors.Error     = "notification not found"
 	NotifRolesGranted       messages.Message = "Granted %s."
 	NotifRolesRevoked       messages.Message = "Revoked %s."
@@ -184,7 +182,7 @@ const (
 	NotifRoleCount          messages.Message = "%d roles"
 	NotifSentenceSeparator                   = " "
 
-	// Cert
+	// Cert.
 	ErrCertCertificateNotYetValid  errors.Error = "certificate not yet valid: %s"
 	ErrCertInvalidBasicConstraints errors.Error = "invalid basic constraints for CA certificate"
 	ErrCertCAKeyUsageMissing       errors.Error = "CA certificate missing key usage: cert sign"
@@ -192,23 +190,23 @@ const (
 	ErrCertECDSATooWeak            errors.Error = "ECDSA curve too weak: P-224"
 	ErrCertUnsupportedKeyType      errors.Error = "unsupported key type for certificate"
 
-	// Time Validation
+	// Time Validation.
 	ErrTimeValidationFailed errors.Error = "time validation failed: %v"
 
-	// User
+	// User.
 	ErrUsernameNotFound  errors.Error = "username not found in user spec"
 	ErrFailedToListUsers errors.Error = "failed to list users: %v"
 	ErrUserIDsRequired   errors.Error = "the ids query param must name at least one user id"
 	ErrUserIDsTooMany    errors.Error = "at most %d user ids per request"
 
-	// Common
+	// Common.
 	ErrUnknownError errors.Error = "unknown error"
 
-	// shared
+	// shared.
 	ErrFailedToGenerateID        errors.Error = "failed to generate ID after %d attempts"
 	ErrInsufficientHexCharacters errors.Error = "insufficient hex characters"
 
-	// Snapshot
+	// Snapshot.
 	InfSnapshotsPathConfigured               messages.Message = "SNAPSHOTS_PATH configured: %s"
 	InfSnapshotsMaxVersionsConfigured        messages.Message = "SNAPSHOTS_MAX_VERSIONS configured: %d"
 	ErrSnapshotIDRequired                    errors.Error     = "snapshot id is required"
@@ -267,7 +265,7 @@ const (
 	InfSnapshotStatsRefreshDisabled    messages.Message = "snapshot stats refresh disabled: walking per request"
 	InfSnapshotStatsRefreshed          messages.Message = "snapshot stats refreshed: snapshots=%d bytes=%d took=%s"
 
-	// Reports
+	// Reports.
 	InfReportsPathConfigured   messages.Message = "REPORTS_PATH configured: %s"
 	ErrReportsRootCreateFailed errors.Error     = "reports root create failed path=%s error=%v"
 	ErrReportWriteFailed       errors.Error     = "report write failed stage=%d id=%s path=%s error=%v"
@@ -281,13 +279,16 @@ const (
 	WarnReportsGCPanic         messages.Message = "reports gc panic recovered: %v"
 	InfReportsSwept            messages.Message = "reports sweep removed=%d temps=%d scanned=%d"
 	InfReportsGCDisabled       messages.Message = "reports gc disabled"
+	InfReportsStorageRetrieved messages.Message = "reports storage retrieved"
+	WarnReportsStorageWalk     messages.Message = "reports storage walk failed path=%s error=%v"
+	WarnReportsPVCGetFailed    messages.Message = "reports pvc get failed name=%s namespace=%s error=%v"
 
-	// Storage migration
+	// Storage migration.
 	InfMigrateStorageCopied messages.Message = "[migrate-storage] copied %d file(s) from %s to %s"
 	ErrMigrateStorageFailed errors.Error     = "[migrate-storage] copy from %s to %s failed: %v"
 	ErrMigrateStorageUsage  errors.Error     = "[migrate-storage] usage: migrate-storage <from> <to> [<from> <to>...]"
 
-	// Notifications
+	// Notifications.
 	WarnNotifStreamReadFailed   messages.Message = "notification change stream read failed, open streams refetch once it recovers: %v"
 	WarnWebhookEventQueueFailed messages.Message = "failed to queue %s for webhooks: %v"
 	ErrWebhookEventUnsigned     errors.Error     = "no service token to sign the webhook event with"

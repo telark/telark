@@ -2,6 +2,7 @@ package oidctrust
 
 import (
 	"errors"
+	"fmt"
 	"maps"
 
 	"github.com/telark/telark/internal/data/resources/telarkconfig"
@@ -22,6 +23,9 @@ func TakeJWK(spec map[string]any) (value string, present bool, err error) {
 	if raw != nil {
 		if value, present = raw.(string); !present {
 			return constants.EmptyString, false, errors.New(string(constants.ErrOIDCJWKNotString))
+		}
+		if len(value) > constants.MaxOIDCJWKBytes {
+			return constants.EmptyString, false, fmt.Errorf(string(constants.ErrOIDCJWKTooLarge), constants.MaxOIDCJWKBytes)
 		}
 	}
 	delete(oidc, telarkconfig.OIDCSecretKey)

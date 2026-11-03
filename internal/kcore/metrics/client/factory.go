@@ -54,7 +54,7 @@ func InitMetricsClient() (*metricstypes.MetricsClient, error) {
 func createMetricsClient() (*metricsclientset.Clientset, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		return nil, fmt.Errorf("%s %v", string(errors.ErrK8sCreateConfig), err)
+		return nil, fmt.Errorf("%s %w", string(errors.ErrK8sCreateConfig), err)
 	}
 
 	client, err := metricsclientset.NewForConfig(config)

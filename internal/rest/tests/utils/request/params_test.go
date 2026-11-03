@@ -26,7 +26,7 @@ func TestOptionalBoolQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := request.OptionalBoolQuery(httptest.NewRequest(http.MethodDelete, tt.target, nil), boolParam)
+			got, err := request.OptionalBoolQuery(httptest.NewRequestWithContext(t.Context(), http.MethodDelete, tt.target, nil), boolParam)
 			if got != tt.want || (err != nil) != tt.wantErr {
 				t.Fatalf("OptionalBoolQuery(%s) = (%v, %v), want (%v, error %v)", tt.target, got, err, tt.want, tt.wantErr)
 			}

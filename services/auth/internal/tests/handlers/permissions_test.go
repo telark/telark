@@ -87,7 +87,7 @@ func TestGetPermissionsSessionOutcomes(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			stubExporter(t, exporterStub{session: c.session})
 			rec := httptest.NewRecorder()
-			authzhandler.GetPermissions(rec, withSession(httptest.NewRequest(http.MethodGet, "/", nil)))
+			authzhandler.GetPermissions(rec, withSession(httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)))
 			if rec.Code != c.status {
 				t.Fatalf("status = %d, want %d (body %s)", rec.Code, c.status, rec.Body.String())
 			}
@@ -137,7 +137,7 @@ func TestGetPermissionsMatchesAuthzRules(t *testing.T) {
 		t.Cleanup(func() { c.Transport = previous })
 	}
 	rec := httptest.NewRecorder()
-	authzhandler.GetPermissions(rec, withSession(httptest.NewRequest(http.MethodGet, "/", nil)))
+	authzhandler.GetPermissions(rec, withSession(httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d (body %s)", rec.Code, rec.Body.String())
 	}
@@ -187,7 +187,7 @@ func TestGetPermissionsNamesTheSourceGroup(t *testing.T) {
 		t.Cleanup(func() { c.Transport = previous })
 	}
 	rec := httptest.NewRecorder()
-	authzhandler.GetPermissions(rec, withSession(httptest.NewRequest(http.MethodGet, "/", nil)))
+	authzhandler.GetPermissions(rec, withSession(httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)))
 	testutil.Equal(t, "status", rec.Code, http.StatusOK)
 	testutil.Equal(t, "wire name", strings.Contains(rec.Body.String(), `"groupName":"`+sourceGroupName+`"`), true)
 	var resp authzhandler.PermissionsResponse

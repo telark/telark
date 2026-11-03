@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -52,6 +53,10 @@ func TestMain(m *testing.M) {
 	// Enrollment tokens are stored signed with it.
 	if err := os.Setenv(dataconstants.EnvServiceToken, "test-service-token"); err != nil {
 		panic(err)
+	}
+	// Bound outside any synctest bubble: a client a bubble created would panic when the next bubble used it.
+	if redishelper.NewRedisClientWithRetry(context.Background()) == nil {
+		panic("redis client unavailable")
 	}
 	m.Run()
 	mr.Close()

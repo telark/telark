@@ -66,7 +66,7 @@ func TestStatusReportsEveryDriftKind(t *testing.T) {
 	})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/protectionplans/"+plan.ID+"/status", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/protectionplans/"+plan.ID+"/status", nil)
 	handlers.Status(rec, mux.SetURLVars(req, map[string]string{constants.IDPathParam: plan.ID}))
 
 	testutil.Equal(t, "status", rec.Code, http.StatusOK)

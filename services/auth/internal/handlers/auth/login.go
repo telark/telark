@@ -23,10 +23,12 @@ func LoginStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := shared.ValidateEmail(req.Email); err != nil {
+	email, err := shared.ValidateEmail(req.Email)
+	if err != nil {
 		shared.SendErrorResponse(w, http.StatusBadRequest, err)
 		return
 	}
+	req.Email = email
 
 	user, passkeys, err := auth.GetUserAndPasskeys(req.Email)
 	if err != nil {
@@ -174,8 +176,10 @@ func extractLoginRequest(bodyBytes []byte) (*LoginFinishRequest, error) {
 	if err := json.Unmarshal(bodyBytes, &req); err != nil {
 		return nil, fmt.Errorf(string(constants.ErrFailedDecodeRequest), err)
 	}
-	if err := shared.ValidateEmail(req.Email); err != nil {
+	email, err := shared.ValidateEmail(req.Email)
+	if err != nil {
 		return nil, err
 	}
+	req.Email = email
 	return &req, nil
 }

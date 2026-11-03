@@ -107,6 +107,19 @@ by `register/start` (with an enrollment token or a bare email) and requires `X-D
 for an unknown credential or another account's (indistinguishable), 400 for the last passkey. A request body over 1 MiB answers 413. Every 403 auth itself refuses carries a stable `code` beside its `message` (for example `enroll_link_recovery`, `account_suspended`, `self_delete`; the list is `Refusal*` in `internal/constants/strings.go`), so clients branch on the code, not the wording. auth
 stores passkeys and sessions (`Passkey`, `Session` CRs) through the exporter's `internal/auth/*` routes.
 
+**Input limits** (characters, not bytes; checked before any write, a refusal is a 400 naming the field):
+
+| Input | Rule |
+|---|---|
+| login and register `email` | trimmed, at most 254, a bare address: the `Name <a@b>` and `<a@b>` forms are refused (`invalid email`) |
+| `X-Device-Name`, passkey `deviceName` (`PATCH`) | trimmed, 1–64, no control or invisible character; empty is refused on `PATCH` too |
+| passkey `lastUsedTimestamp` | set by auth at each sign-in; a `PATCH` that sends it is refused |
+| session `deviceMetadata.*` | browser-filled, so never refused: each value is cleaned and cut to 256 |
+| derived full name (self-registration, Google) | never refused: letters, marks, space, `'`, `.` and `-` kept, cut to 100; the Google `name`, else the email local part, else `User` |
+| `PATCH auth/oidc/config` `googleClientID`, `googleJwkJson` | client ID trimmed, at most 256, no whitespace, ends in `.apps.googleusercontent.com`; key set at most 64 KiB |
+
+Limits live in `internal/constants/config.go`; the check is the shared `internal/data/text`.
+
 ## Build & run
 
 ```sh

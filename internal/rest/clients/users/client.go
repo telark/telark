@@ -56,8 +56,11 @@ func (c *Client) GetUserByIdentity(provider, issuer, subject string) (*userresou
 	return shared.GetTyped[userresource.User](c.Client, ep)
 }
 
+// Callers check existence and uniqueness against the list, so a cached copy would still hold a user deleted since.
 func (c *Client) GetAllUsers() ([]*userresource.User, error) {
-	return shared.GetListTyped[*userresource.User](c.Client, eps.GetAllUsers)
+	return shared.GetListWithHeaders[*userresource.User](c.Client, eps.GetAllUsers, map[string]string{
+		constants.HeaderCacheControl: constants.CacheControlNoCache,
+	})
 }
 
 func (c *Client) PatchUserByID(id string, body map[string]any) *response.GenericResponse {

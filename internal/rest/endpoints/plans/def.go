@@ -3,14 +3,14 @@ package plans
 import "github.com/telark/telark/internal/rest/base"
 
 const (
-	// Served by the exporter
+	// Served by the exporter.
 	CreateProtectionPlan     base.Endpoint = "protectionplans"
 	ListProtectionPlans      base.Endpoint = "protectionplans"
 	GetProtectionPlanByID    base.Endpoint = "protectionplans/{id}"
 	PatchProtectionPlanByID  base.Endpoint = "protectionplans/{id}"
 	DeleteProtectionPlanByID base.Endpoint = "protectionplans/{id}"
 
-	// Served by discovery
+	// Served by discovery.
 	PrepareProtectionPlan        base.Endpoint = "protectionplans/prepare"
 	GetProtectionPlanTemplates   base.Endpoint = "policytemplates"
 	CancelProtectionPlan         base.Endpoint = "protectionplans/{id}/cancel"

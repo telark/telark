@@ -46,6 +46,12 @@ func ListReports() func(http.ResponseWriter, *http.Request) {
 	}
 }
 
+func GetReportsStorage() func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		reportsexp.ReadReportsStorage(w)
+	}
+}
+
 func ListPlanReports() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := sharedutils.GetPathParam(w, r, constants.IDParam)

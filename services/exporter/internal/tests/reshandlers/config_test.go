@@ -124,7 +124,7 @@ func TestPatchConfigRejectsUnknownKeys(t *testing.T) {
 		{`{"spec":{"oidc":{"googleJwkJson":""}},"metadata":{"resourceVersion":"1"}}`, false},
 	}
 	for _, tc := range cases {
-		r := httptest.NewRequest(http.MethodPatch, "/config", strings.NewReader(tc.body))
+		r := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, "/config", strings.NewReader(tc.body))
 		r = r.WithContext(xauthz.WithIdentity(r.Context(), xauthz.Identity{Internal: true}))
 		rec := httptest.NewRecorder()
 		confighandler.PatchConfig()(rec, r)

@@ -8,6 +8,7 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/telark/telark/internal/data/text"
 	"github.com/telark/telark/internal/rest/response"
 	responseutils "github.com/telark/telark/internal/rest/utils/response"
 	"github.com/telark/telark/services/discovery/internal/clients"
@@ -25,6 +26,12 @@ func SyncApplication(w http.ResponseWriter, r *http.Request) {
 
 	name, ok := readAppName(w, r)
 	if !ok {
+		return
+	}
+	reason, err := text.Check(r.URL.Query().Get(constants.ForceSyncStreamFieldReason),
+		text.Rule{Field: constants.FieldReason, Max: constants.ReasonMaxLen})
+	if err != nil {
+		responseutils.SendResponse(w, http.StatusBadRequest, response.OperationError, err.Error(), nil)
 		return
 	}
 	if app, getErr := clients.NewExporterClient().GetApplicationByNameFresh(name); getErr != nil || app == nil {
@@ -45,7 +52,7 @@ func SyncApplication(w http.ResponseWriter, r *http.Request) {
 	req := forcesync.EnqueueRequest{
 		AppName:     name,
 		RequestedBy: strings.TrimSpace(r.Header.Get(constants.HeaderUserID)),
-		Reason:      strings.TrimSpace(r.URL.Query().Get(constants.ForceSyncStreamFieldReason)),
+		Reason:      reason,
 	}
 	result, err := ingress.Enqueue(ctx, req)
 	if err != nil {

@@ -45,12 +45,12 @@ func TestExtractPatchFields(t *testing.T) {
 }
 
 func TestExtractPasskeyRequestParams(t *testing.T) {
-	missing := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{}`))
+	missing := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", strings.NewReader(`{}`))
 	if _, _, _, ok := passkeyutil.ExtractPasskeyRequestParams(httptest.NewRecorder(), missing); ok {
 		t.Error("request without user header or credential id accepted")
 	}
 
-	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"deviceName":"n"}`))
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", strings.NewReader(`{"deviceName":"n"}`))
 	r.Header.Set(constants.HeaderUserID, testUserID)
 	r = mux.SetURLVars(r, map[string]string{constants.CredentialIDParam: testCredentialID})
 	userID, credID, body, ok := passkeyutil.ExtractPasskeyRequestParams(httptest.NewRecorder(), r)

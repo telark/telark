@@ -137,7 +137,7 @@ func appendSnapshotQuery(ep base.Endpoint, scope, namespace, generation string) 
 	}
 	if generation != constants.EmptyString {
 		if _, err := strconv.Atoi(generation); err != nil {
-			return constants.EmptyString, fmt.Errorf("invalid generation query param: %v", err)
+			return constants.EmptyString, fmt.Errorf("invalid generation query param: %w", err)
 		}
 		q.Set(generationQueryParam, generation)
 	}

@@ -129,7 +129,7 @@ func ExtractStructFromBodyIgnoringID[T any](body map[string]any) (*T, error) {
 	return ExtractStructFromBody[T](body)
 }
 
-func GetSpecFor[T any](w http.ResponseWriter, r *http.Request) (map[string]any, error) {
+func GetSpecFor[T any](w http.ResponseWriter, r *http.Request, fields ...TextField) (map[string]any, error) {
 	spec, err := GetSpec(w, r)
 	if err != nil {
 		return nil, err
@@ -137,6 +137,9 @@ func GetSpecFor[T any](w http.ResponseWriter, r *http.Request) (map[string]any, 
 	err = CheckCanonicalKeys[T](spec)
 	if err == nil {
 		err = CheckRefIDs(spec)
+	}
+	if err == nil {
+		err = CheckTextFields(spec, fields...)
 	}
 	if err != nil {
 		responseutils.SendResponse(w, http.StatusBadRequest, response.OperationError, err.Error(), nil)

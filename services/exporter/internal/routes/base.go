@@ -129,6 +129,7 @@ func reportRoutes() []router.Route {
 		router.CreateRoute(base.Get, reportsendpoints.GetPlanReportLedger, reportshandler.GetPlanReportLedger()),
 		router.CreateRoute(base.Delete, reportsendpoints.DeletePlanReport, reportshandler.DeletePlanReport()),
 		router.CreateRoute(base.Get, reportsendpoints.ListKeptReports, reportshandler.ListKeptReports()),
+		router.CreateRoute(base.Get, reportsendpoints.GetReportsStorage, reportshandler.GetReportsStorage()),
 	}
 }
 

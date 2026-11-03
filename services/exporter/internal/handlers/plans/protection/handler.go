@@ -39,7 +39,7 @@ func CreatePlan() func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		body, err := sharedutils.GetSpecFor[plans.ProtectionPlan](w, r)
+		body, err := sharedutils.GetSpecFor[plans.ProtectionPlan](w, r, sharedutils.PlanTextFields...)
 		if err != nil {
 			return
 		}
@@ -114,7 +114,7 @@ func PatchPlanByID() func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		body, err := sharedutils.GetSpecFor[plans.ProtectionPlan](w, r)
+		body, err := sharedutils.GetSpecFor[plans.ProtectionPlan](w, r, sharedutils.PlanTextFields...)
 		if err != nil {
 			return
 		}
@@ -133,6 +133,7 @@ func PatchPlanByID() func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
+		plansutils.TruncateReason(body)
 		plansutils.ApplyPatchAudit(body, userID)
 
 		patchData := map[string]any{constants.SpecField: body}

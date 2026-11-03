@@ -16,7 +16,7 @@ require (
 	github.com/kyverno/kyverno v1.19.1
 	github.com/kyverno/sdk v0.0.0-20260825082632-68d74afcb07a
 	github.com/nats-io/nats-server/v2 v2.15.1
-	github.com/nats-io/nats.go v1.54.0
+	github.com/nats-io/nats.go v1.55.0
 	github.com/redis/go-redis/v9 v9.23.0
 	github.com/rs/cors v1.11.1
 	golang.org/x/sync v0.24.0

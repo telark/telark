@@ -9,6 +9,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/telark/telark/internal/data/text"
 	"github.com/telark/telark/services/auth/internal/constants"
 )
 
@@ -18,10 +19,26 @@ var usernameClean = regexp.MustCompile(constants.UsernameInvalidChars)
 // "test@example.com" -> "test".
 func BuildFullnameFromEmail(email string) string {
 	local := strings.SplitN(email, "@", constants.EmailSplitParts)[constants.DefaultInitValue]
-	words := strings.FieldsFunc(local, func(r rune) bool {
-		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	if name := joinWords(local, constants.EmptyString); name != constants.EmptyString {
+		return name
+	}
+	return constants.DefaultFullname
+}
+
+// A provider's name fitted to the user schema (letters, marks, space and ' . -, at most 100): a sign-in that
+// already verified is never refused over its derived name.
+func BuildFullname(name, email string) string {
+	if fitted := joinWords(name, constants.FullnameExtraChars); fitted != constants.EmptyString {
+		return fitted
+	}
+	return BuildFullnameFromEmail(email)
+}
+
+func joinWords(raw, extra string) string {
+	words := strings.FieldsFunc(raw, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsMark(r) && !strings.ContainsRune(extra, r)
 	})
-	return strings.Join(words, constants.SpaceSeparator)
+	return text.Truncate(strings.Join(words, constants.SpaceSeparator), constants.FullnameMaxLen)
 }
 
 func BuildUsername(email string) (string, error) {

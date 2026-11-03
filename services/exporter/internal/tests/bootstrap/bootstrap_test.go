@@ -332,7 +332,7 @@ func TestKeepCompletesTheRecovery(t *testing.T) {
 	client, before, after := recoveryAccount(t)
 	h := router.NewRouter(routes.InitRoutes(newOptimizer(t), nil))
 	send := func(method, path, body string, headers map[string]string) string {
-		r := httptest.NewRequest(method, path, strings.NewReader(body))
+		r := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(body))
 		for k, v := range headers {
 			r.Header.Set(k, v)
 		}
@@ -621,7 +621,7 @@ func TestPinAtStartRefreshesTheCachedUsers(t *testing.T) {
 	optimizer := newOptimizer(t)
 	h := router.NewRouter(routes.InitRoutes(optimizer, nil))
 	marked := func() bool {
-		r := httptest.NewRequest(http.MethodGet, usersPath+pathSep+otherID, nil)
+		r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, usersPath+pathSep+otherID, nil)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r.WithContext(xauthz.WithIdentity(r.Context(), adminSession(adminID))))
 		return strings.Contains(w.Body.String(), `"bootstrap":true`)

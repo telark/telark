@@ -27,7 +27,7 @@ func TestGetNamespacesRefusesWithoutApplicationsOrInsights(t *testing.T) {
 	for name, ctx := range cases {
 		t.Run(name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			namespaces.GetNamespaces(rec, httptest.NewRequest(http.MethodGet, "/", http.NoBody).WithContext(ctx))
+			namespaces.GetNamespaces(rec, httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody))
 
 			testutil.Equal(t, "status", rec.Code, http.StatusForbidden)
 			var body struct {

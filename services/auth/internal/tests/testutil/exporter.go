@@ -70,6 +70,7 @@ type FakeExporter struct {
 	notices         []notificationsclient.Notification
 	requestCalls    []string
 	sessionsIssued  int
+	sessions        []authdata.Session
 }
 
 func (f *FakeExporter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -201,6 +202,10 @@ func (f *FakeExporter) serveBootstrap(w http.ResponseWriter, r *http.Request, pa
 		f.answerRequest(w, r, path)
 	case strings.HasPrefix(path, fakeSessionsPath):
 		f.sessionsIssued++
+		var session authdata.Session
+		if json.NewDecoder(r.Body).Decode(&session) == nil {
+			f.sessions = append(f.sessions, session)
+		}
 		fakeReply(w, http.StatusOK, nil)
 	default:
 		fakeReply(w, http.StatusNotFound, nil)
@@ -347,6 +352,13 @@ func (f *FakeExporter) SessionsIssued() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.sessionsIssued
+}
+
+// The sessions sign-ins created, as the exporter received them.
+func (f *FakeExporter) Sessions() []authdata.Session {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.sessions)
 }
 
 func (f *FakeExporter) PasskeyCount(userID string) int {

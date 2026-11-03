@@ -1,0 +1,140 @@
+# Build: one run for a release's images. Runs Build · Service Image for each ticked
+# service, then Build · UI Image, each with the same branch, bump and scan settings.
+name: Build · Release Images
+run-name: Build release images from "${{ inputs.branch || 'main' }}" (bump "${{ inputs.build_type }}")
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        required: false
+        type: string
+        description: Telark branch to build and record the bumps on (blank = main)
+        default: ""
+      build_type:
+        required: true
+        type: choice
+        description: Build type, for every ticked image
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+      image_scan:
+        required: false
+        type: choice
+        description: Image Scanning
+        default: scan
+        options:
+          - skip
+          - scan
+      auth:
+        type: boolean
+        description: auth
+        default: false
+      discovery:
+        type: boolean
+        description: discovery
+        default: false
+      exporter:
+        type: boolean
+        description: exporter
+        default: false
+      notifier:
+        type: boolean
+        description: notifier
+        default: false
+      analyzer:
+        type: boolean
+        description: analyzer
+        default: false
+      ui:
+        type: boolean
+        description: ui (dashboard-ui)
+        default: false
+      ui_branch:
+        required: false
+        type: string
+        description: dashboard-ui branch to build the UI from (blank = main)
+        default: ""
+
+concurrency:
+  group: build-images
+  cancel-in-progress: false
+
+jobs:
+  # One build at a time, in this order: each commits its version bump to the branch, and a job that
+  # calls a workflow ends only when that workflow has, push included. !cancelled() runs the next
+  # build when the one before it was skipped (not ticked) or failed.
+  auth:
+    if: ${{ inputs.auth }}
+    permissions: &bump
+      contents: write   # commit the version bump
+      packages: write   # push the image and its signature to ghcr.io
+      id-token: write   # cosign keyless image signing (OIDC)
+    uses: ./.github/workflows/build-service.yaml
+    with:
+      service: auth
+      branch: ${{ inputs.branch }}
+      build_type: ${{ inputs.build_type }}
+      image_scan: ${{ inputs.image_scan }}
+    secrets: inherit
+
+  discovery:
+    needs: auth
+    if: ${{ !cancelled() && inputs.discovery }}
+    permissions: *bump
+    uses: ./.github/workflows/build-service.yaml
+    with:
+      service: discovery
+      branch: ${{ inputs.branch }}
+      build_type: ${{ inputs.build_type }}
+      image_scan: ${{ inputs.image_scan }}
+    secrets: inherit
+
+  exporter:
+    needs: discovery
+    if: ${{ !cancelled() && inputs.exporter }}
+    permissions: *bump
+    uses: ./.github/workflows/build-service.yaml
+    with:
+      service: exporter
+      branch: ${{ inputs.branch }}
+      build_type: ${{ inputs.build_type }}
+      image_scan: ${{ inputs.image_scan }}
+    secrets: inherit
+
+  notifier:
+    needs: exporter
+    if: ${{ !cancelled() && inputs.notifier }}
+    permissions: *bump
+    uses: ./.github/workflows/build-service.yaml
+    with:
+      service: notifier
+      branch: ${{ inputs.branch }}
+      build_type: ${{ inputs.build_type }}
+      image_scan: ${{ inputs.image_scan }}
+    secrets: inherit
+
+  analyzer:
+    needs: notifier
+    if: ${{ !cancelled() && inputs.analyzer }}
+    permissions: *bump
+    uses: ./.github/workflows/build-service.yaml
+    with:
+      service: analyzer
+      branch: ${{ inputs.branch }}
+      build_type: ${{ inputs.build_type }}
+      image_scan: ${{ inputs.image_scan }}
+    secrets: inherit
+
+  ui:
+    needs: analyzer
+    if: ${{ !cancelled() && inputs.ui }}
+    permissions: *bump
+    uses: ./.github/workflows/build-ui.yaml
+    with:
+      branch: ${{ inputs.branch }}
+      ui_branch: ${{ inputs.ui_branch }}
+      build_type: ${{ inputs.build_type }}
+      image_scan: ${{ inputs.image_scan }}
+    secrets: inherit

@@ -106,11 +106,11 @@ func TestDiscardSnapshots(t *testing.T) {
 	snapshot.DiscardSnapshots(snaps, nil)
 }
 
-var errFake = fakeErr("boom")
+var errFake = fakeError("boom")
 
-type fakeErr string
+type fakeError string
 
-func (e fakeErr) Error() string { return string(e) }
+func (e fakeError) Error() string { return string(e) }
 
 // Without a populated manifest cache no entries can be resolved, so the builder
 // returns nothing — but it still walks namespace grouping and item collection.

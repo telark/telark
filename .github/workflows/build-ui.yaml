@@ -32,6 +32,25 @@ on:
           - patch
           - minor
           - major
+  # Build · Release Images runs this after the service images.
+  workflow_call:
+    inputs:
+      image_scan:
+        required: false
+        type: string
+        default: scan
+      ui_branch:
+        required: false
+        type: string
+        default: ""
+      branch:
+        required: false
+        type: string
+        default: ""
+      build_type:
+        required: false
+        type: string
+        default: patch
 
 concurrency:
   group: build-ui

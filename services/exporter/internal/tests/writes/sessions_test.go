@@ -1,6 +1,7 @@
 package writes
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -38,7 +39,7 @@ func sessionSeed(token, owner string) seed {
 }
 
 func deleteRequest(name string, identity xauthz.Identity) *http.Request {
-	r := httptest.NewRequest(http.MethodDelete, sessionsPrefix+name, nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodDelete, sessionsPrefix+name, nil)
 	return r.WithContext(xauthz.WithIdentity(r.Context(), identity))
 }
 
@@ -79,7 +80,7 @@ func TestGetSelfNamesTheSession(t *testing.T) {
 		map[string]any{"userId": userID, "expiresTimestamp": future}, nil)))
 	optimizer := performance.NewOptimizer(redis.NewClient(&redis.Options{Addr: miniredis.RunT(t).Addr()}))
 	t.Cleanup(optimizer.Close)
-	r := httptest.NewRequest(http.MethodGet, sessionsPrefix+authdata.SessionRefSelf, nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, sessionsPrefix+authdata.SessionRefSelf, nil)
 	r.Header.Set(dataconstants.HeaderSessionToken, ownerToken)
 	r = r.WithContext(xauthz.WithIdentity(r.Context(), xauthz.Identity{UserID: userID}))
 	w := httptest.NewRecorder()

@@ -1,6 +1,7 @@
 package reportsapi
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -36,7 +37,7 @@ const (
 	routePath    = "/reports"
 	downloadName = "download"
 	firstIdx     = 0
-	reportsCount = 8
+	reportsCount = 9
 	totalOne     = "1"
 	badTrigger   = "pdf"
 )
@@ -49,6 +50,7 @@ var reportRoutes = []string{
 	router.Key(http.MethodPut, reportseps.PutPlanReportLedger),
 	router.Key(http.MethodGet, reportseps.GetPlanReportLedger),
 	router.Key(http.MethodGet, reportseps.ListKeptReports),
+	router.Key(http.MethodGet, reportseps.GetReportsStorage),
 	router.Key(http.MethodDelete, reportseps.DeletePlanReport),
 }
 
@@ -89,7 +91,7 @@ func createBody(t *testing.T, by string) string {
 func create(t *testing.T, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	reportshandler.CreatePlanReport()(rec, httptest.NewRequest(http.MethodPost, routePath, strings.NewReader(body)))
+	reportshandler.CreatePlanReport()(rec, httptest.NewRequestWithContext(t.Context(), http.MethodPost, routePath, strings.NewReader(body)))
 	return rec
 }
 
@@ -111,7 +113,8 @@ func download(report, format string) *httptest.ResponseRecorder {
 	q.Set(reportseps.QueryReport, report)
 	q.Set(reportseps.QueryFormat, format)
 	rec := httptest.NewRecorder()
-	reportshandler.DownloadPlanReport()(rec, withID(httptest.NewRequest(http.MethodGet, routePath+"?"+q.Encode(), nil)))
+	reportshandler.DownloadPlanReport()(rec, withID(httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+		routePath+"?"+q.Encode(), nil)))
 	return rec
 }
 
@@ -122,7 +125,7 @@ func TestCreateThenListThenDownloadEachFormat(t *testing.T) {
 	}
 
 	list := httptest.NewRecorder()
-	reportshandler.ListPlanReports()(list, withID(httptest.NewRequest(http.MethodGet, routePath, nil)))
+	reportshandler.ListPlanReports()(list, withID(httptest.NewRequestWithContext(t.Context(), http.MethodGet, routePath, nil)))
 	if list.Code != http.StatusOK {
 		t.Fatalf(statusFmt, "list", list.Code, http.StatusOK)
 	}
@@ -147,7 +150,7 @@ func TestCreateThenListThenDownloadEachFormat(t *testing.T) {
 
 func listAll(query url.Values) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
-	reportshandler.ListReports()(rec, httptest.NewRequest(http.MethodGet, routePath+"?"+query.Encode(), nil))
+	reportshandler.ListReports()(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, routePath+"?"+query.Encode(), nil))
 	return rec
 }
 
@@ -237,19 +240,20 @@ func TestBodyOverLimit413(t *testing.T) {
 func TestLedgerPutGetRoundTripAnd404(t *testing.T) {
 	setRoot(t)
 	missing := httptest.NewRecorder()
-	reportshandler.GetPlanReportLedger()(missing, withID(httptest.NewRequest(http.MethodGet, routePath, nil)))
+	reportshandler.GetPlanReportLedger()(missing, withID(httptest.NewRequestWithContext(t.Context(), http.MethodGet, routePath, nil)))
 	if missing.Code != http.StatusNotFound {
 		t.Fatalf(statusFmt, "ledger get before put", missing.Code, http.StatusNotFound)
 	}
 
 	put := httptest.NewRecorder()
-	reportshandler.PutPlanReportLedger()(put, withID(httptest.NewRequest(http.MethodPut, routePath, strings.NewReader(ledgerBody))))
+	reportshandler.PutPlanReportLedger()(put, withID(httptest.NewRequestWithContext(t.Context(), http.MethodPut,
+		routePath, strings.NewReader(ledgerBody))))
 	if put.Code != http.StatusOK {
 		t.Fatalf(statusFmt, "ledger put", put.Code, http.StatusOK)
 	}
 
 	get := httptest.NewRecorder()
-	reportshandler.GetPlanReportLedger()(get, withID(httptest.NewRequest(http.MethodGet, routePath, nil)))
+	reportshandler.GetPlanReportLedger()(get, withID(httptest.NewRequestWithContext(t.Context(), http.MethodGet, routePath, nil)))
 	if get.Code != http.StatusOK {
 		t.Fatalf(statusFmt, "ledger get", get.Code, http.StatusOK)
 	}
@@ -262,7 +266,8 @@ func TestLedgerPutGetRoundTripAnd404(t *testing.T) {
 	}
 
 	bad := httptest.NewRecorder()
-	reportshandler.PutPlanReportLedger()(bad, withID(httptest.NewRequest(http.MethodPost, routePath, strings.NewReader("{bad"))))
+	reportshandler.PutPlanReportLedger()(bad, withID(httptest.NewRequestWithContext(t.Context(), http.MethodPost,
+		routePath, strings.NewReader("{bad"))))
 	if bad.Code != http.StatusBadRequest {
 		t.Fatalf(statusFmt, "ledger put invalid", bad.Code, http.StatusBadRequest)
 	}

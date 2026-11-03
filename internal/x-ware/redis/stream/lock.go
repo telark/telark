@@ -47,7 +47,7 @@ func delIfHeld(ctx context.Context, r *redis.Client, key, value string) (bool, e
 	txf := func(tx *redis.Tx) error {
 		held, err := tx.Get(ctx, key).Result()
 		if err != nil {
-			if err == redis.Nil {
+			if errors.Is(err, redis.Nil) {
 				return nil
 			}
 			return err
@@ -83,7 +83,7 @@ func expireIfHeld(ctx context.Context, r *redis.Client, key, value string, ttl t
 
 	err := r.Watch(ctx, txf, key)
 	if err != nil {
-		if err == redis.Nil || err == redis.TxFailedErr {
+		if errors.Is(err, redis.Nil) || errors.Is(err, redis.TxFailedErr) {
 			return false, nil
 		}
 		return false, err

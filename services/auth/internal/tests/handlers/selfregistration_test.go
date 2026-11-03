@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -56,7 +57,7 @@ func awaitSelfRegistration(t *testing.T, want bool) {
 func publicSelfRegistration(t *testing.T) bool {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	confighandler.GetConfig(rec, httptest.NewRequest(http.MethodGet, testPath, nil))
+	confighandler.GetConfig(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, testPath, nil))
 	var body struct {
 		Data map[string]any `json:"data"`
 	}
@@ -114,7 +115,7 @@ func signInSettingsReq(caller xauthz.Identity, body string) *http.Request {
 	if strings.Contains(body, telarkconfigresource.FieldNotifyAdmins) {
 		endpoint = autheps.BreakGlassAlerts
 	}
-	r := httptest.NewRequest(http.MethodPatch, router.Pattern(endpoint), strings.NewReader(body))
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPatch, router.Pattern(endpoint), strings.NewReader(body))
 	return r.WithContext(xauthz.WithIdentity(r.Context(), caller))
 }
 

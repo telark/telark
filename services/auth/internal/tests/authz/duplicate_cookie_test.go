@@ -36,7 +36,7 @@ func TestDuplicateSessionCookies(t *testing.T) {
 	})
 	rt.Use(middleware)
 	send := func(method string, endpoint base.Endpoint) *httptest.ResponseRecorder {
-		r := httptest.NewRequest(method, router.Pattern(endpoint), nil)
+		r := httptest.NewRequestWithContext(t.Context(), method, router.Pattern(endpoint), nil)
 		r.Header.Set(dataconstants.HeaderRequestedWith, "XMLHttpRequest")
 		for _, value := range []string{"real", "planted"} {
 			r.AddCookie(&http.Cookie{Name: dataconstants.CookieSession, Value: value, Secure: true, HttpOnly: true,

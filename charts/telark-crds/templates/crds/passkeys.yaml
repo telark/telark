@@ -49,6 +49,8 @@ spec:
                 deviceName:
                   type: string
                   description: Device name or label for this credential
+                  minLength: 1
+                  maxLength: 64
                 creationTimestamp:
                   type: string
                   format: date-time

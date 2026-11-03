@@ -54,6 +54,6 @@ func TestKeys(t *testing.T) {
 		t.Fatal("empty key validated as ok")
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/users", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/users", nil)
 	_ = cache.NewGetCacheKeyFunc(constants.ResourceUser)(req)
 }

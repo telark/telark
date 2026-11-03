@@ -168,6 +168,9 @@ func addReports(r map[string]authz.Requirement) {
 	r[router.Key(base.Get, reportsendpoints.ListKeptReports)] = authz.Denyable(
 		authz.Read(roledata.ScopeProtectionPlans), roledata.ActionViewProtectionPlanReports,
 	)
+	r[router.Key(base.Get, reportsendpoints.GetReportsStorage)] = authz.Denyable(
+		authz.Read(roledata.ScopeProtectionPlans), roledata.ActionViewProtectionPlanReports,
+	)
 	// Deleting a plan deletes its reports, so whoever may delete a plan may delete one of them.
 	r[router.Key(base.Delete, reportsendpoints.DeletePlanReport)] = authz.Denyable(
 		authz.Own(roledata.ScopeProtectionPlans), roledata.ActionDeleteProtectionPlan,

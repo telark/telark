@@ -1,6 +1,6 @@
 # telark
 
-![Version: 0.2.0](https://img.shields.io/badge/Version-0.2.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.2.0](https://img.shields.io/badge/AppVersion-0.2.0-informational?style=flat-square)
+![Version: 0.2.1](https://img.shields.io/badge/Version-0.2.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.2.1](https://img.shields.io/badge/AppVersion-0.2.1-informational?style=flat-square)
 
 A protection gate for your Kubernetes applications. Decide what can change an app, and when; see every change that got through and why an app broke.
 
@@ -28,7 +28,7 @@ Kubernetes: `>=1.30.0-0`
 | https://helm.otwld.com/ | ollama | 1.50.0 |
 | https://kubernetes-sigs.github.io/metrics-server/ | metrics-server | 3.12.2 |
 | https://kyverno.github.io/kyverno/ | kyverno | 3.9.1 |
-| oci://ghcr.io/telark/charts | telark-crds | 0.1.0 |
+| oci://ghcr.io/telark/charts | telark-crds | 0.1.1 |
 
 ## Values
 
@@ -406,6 +406,8 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.env.EXPORTER_LIST_RENDER_CONCURRENCY | string | `"2"` |  |
 | services.exporter.env.OIDC_TRUST_SECRET_NAME | string | `"{{ include \"telark.oidcTrustSecretName\" . }}"` |  |
 | services.exporter.env.REPORTS_PATH | string | `"/reports"` |  |
+| services.exporter.env.REPORTS_PVC_NAME | string | `"{{ include \"telark.exporterReportsPvcName\" . }}"` |  |
+| services.exporter.env.REPORTS_PVC_NAMESPACE | string | `"{{ .Values.app.namespace }}"` |  |
 | services.exporter.env.SNAPSHOTS_PATH | string | `"/snapshots"` |  |
 | services.exporter.env.SNAPSHOTS_PVC_NAME | string | `"{{ include \"telark.exporterSnapshotsPvcName\" . }}"` |  |
 | services.exporter.env.SNAPSHOTS_PVC_NAMESPACE | string | `"{{ .Values.app.namespace }}"` |  |

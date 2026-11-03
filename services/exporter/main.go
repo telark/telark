@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+
 	// The image is FROM scratch, and repeating plans name IANA zones: the zone data ships in the binary.
 	_ "time/tzdata"
 

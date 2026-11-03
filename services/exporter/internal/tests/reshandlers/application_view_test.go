@@ -1,6 +1,7 @@
 package reshandlers
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -118,7 +119,7 @@ func TestApplicationListServedFromInformerStore(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	fresh := httptest.NewRequest(http.MethodGet, applicationsPath, nil)
+	fresh := httptest.NewRequestWithContext(t.Context(), http.MethodGet, applicationsPath, nil)
 	fresh.Header.Set(restconstants.HeaderCacheControl, restconstants.CacheControlNoCache)
 	handler(rec, fresh)
 	if rec.Code == http.StatusOK {
@@ -136,7 +137,7 @@ func TestApplicationListFallsBackBeforeInformerSync(t *testing.T) {
 
 func serveView(handler http.HandlerFunc, target string, ifNoneMatch string) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, target, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, target, nil)
 	if ifNoneMatch != constants.EmptyString {
 		req.Header.Set(constants.HeaderIfNoneMatch, ifNoneMatch)
 	}
@@ -158,8 +159,8 @@ func TestApplicationSummaryViewIsCachedApartFromTheFullList(t *testing.T) {
 	full := serveView(handler, applicationsPath, constants.EmptyString).Body.String()
 	assertKeys(t, constants.ViewFull, full, append(summaryPruned, summaryKept...), true)
 
-	summaryKey := keyFunc(httptest.NewRequest(http.MethodGet, summaryViewPath, nil))
-	fullKey := keyFunc(httptest.NewRequest(http.MethodGet, applicationsPath, nil))
+	summaryKey := keyFunc(httptest.NewRequestWithContext(t.Context(), http.MethodGet, summaryViewPath, nil))
+	fullKey := keyFunc(httptest.NewRequestWithContext(t.Context(), http.MethodGet, applicationsPath, nil))
 	if summaryKey == fullKey {
 		t.Fatalf("summary and full views share cache key %q", summaryKey)
 	}
@@ -228,7 +229,7 @@ func TestValidatorOnlyOnListSuccess(t *testing.T) {
 // The editable-field guard reads the body first; an oversized one must still reach the downstream parser whole.
 func TestApplicationPatchOverLimitIsTooLarge(t *testing.T) {
 	body := `{"description":"` + strings.Repeat("x", int(base.MaxRequestBodySize)) + `"}`
-	r := httptest.NewRequest(http.MethodPatch, applicationsPath, strings.NewReader(body))
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, applicationsPath, strings.NewReader(body))
 	r = mux.SetURLVars(r, map[string]string{constants.NameParam: testAppName})
 	rec := httptest.NewRecorder()
 	apphandler.PatchApplicationResourceWithCacheInvalidation(newOptimizer(t))(rec, r)

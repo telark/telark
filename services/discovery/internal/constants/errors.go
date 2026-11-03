@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	// Common Errors
+	// Common Errors.
 	ErrInPublishUpdate          errors.Error = "in publish update with scope: %v\n%s"
 	ErrFailedMarshalPayload     errors.Error = "failed to marshal payload: %v"
 	ErrNatsPublishRetry         errors.Error = "(%d/%d): %v"
@@ -15,59 +15,59 @@ const (
 	ErrTooManyRestartAttempts   errors.Error = "too many restart attempts, stopping supervisor"
 	ErrServiceHealthCheckFailed errors.Error = "service health check failed - attempting restart"
 
-	// Error Messages
+	// Error Messages.
 	ErrBootstrapPanicRecovered       errors.Error = "bootstrap panic recovered: %v"
 	ErrNatsClientNotConnected        errors.Error = "nats client not connected: %s"
 	ErrNatsTopicPublishAfterAttempts errors.Error = "%s %s after %d attempts"
 	ErrInternalServerError           errors.Error = "internal server error"
 
-	// API Errors
+	// API Errors.
 	ErrPatchApplicationReturnedNilResponse errors.Error = "patch application returned nil response"
 	ErrPatchApplicationFailed              errors.Error = "patch application failed: status=%d message=%s"
 	ErrNotificationEmitFailed              errors.Error = "emit notification: status=%d message=%s"
 	ErrRestCallFailed                      errors.Error = "rest call failed: status=%d message=%s"
 
-	// Protection Plan Exporter Errors
+	// Protection Plan Exporter Errors.
 	ErrCreateProtectionPlanFailed errors.Error = "create protection plan failed: status=%d message=%s"
 	ErrPatchProtectionPlanFailed  errors.Error = "patch protection plan failed: status=%d message=%s"
 	ErrDeleteProtectionPlanFailed errors.Error = "delete protection plan failed: status=%d message=%s"
 
-	// Protection Plan Report Errors
+	// Protection Plan Report Errors.
 	ErrReportRejected     errors.Error = "exporter rejected the report: %s"
 	ErrReportNilResponse  errors.Error = "report call returned nil response"
 	ErrCreateReportFailed errors.Error = "create report failed: %v"
 	ErrReportPanic        errors.Error = "report generation panicked: %v"
 
-	// Discovery Pre-warming
+	// Discovery Pre-warming.
 	ErrPrewarmListNamespaces         errors.Error = "pre-warming: failed to list namespaces: %v"
 	ErrPrewarmListResources          errors.Error = "pre-warming: failed to list resources: %v"
 	ErrPrewarmUnexpectedResponseData errors.Error = "pre-warming: unexpected applications response data type"
 
-	// Redis Errors
+	// Redis Errors.
 	ErrFailedEnsureConsumerGroup errors.Error = "failed to ensure consumer group: %v"
 	ErrConsumerRedisTransient    errors.Error = "[consumer] Redis error (will retry): %v"
 	ErrElectionRedisError        errors.Error = "[election] Redis error during campaign: %v"
 	ErrElectionRenewError        errors.Error = "[election] Redis error during leadership renew: %v"
 	ErrElectionResignFailed      errors.Error = "[election] failed to resign on shutdown: %v"
 
-	// Local Shared Rest HTTP Errors
+	// Local Shared Rest HTTP Errors.
 	ErrMissingQueryParam errors.Error = "missing required query param: %s"
 
-	// Analyze Errors
+	// Analyze Errors.
 	ErrFailedListNamespaceWorkloads errors.Error = "failed to list workloads in namespace %s: %v"
 	ErrFailedListNamespaceResources errors.Error = "failed to list resources in namespace %s: %v"
 
-	// Connection and Shutdown Errors
+	// Connection and Shutdown Errors.
 	ErrFailedCloseHealthCheckConnection errors.Error = "failed to close health check connection: %v"
 	ErrFailedShutdownHTTPServer         errors.Error = "failed to shutdown HTTP server gracefully: %v"
 
-	// Circuit Breaker Errors
+	// Circuit Breaker Errors.
 	ErrCircuitBreakerOpen         errors.Error = "circuit breaker for %s is open"
 	ErrNoCircuitBreakerRegistered errors.Error = "no circuit breaker registered for %s"
 	ErrCircuitBreakerOpenSentinel errors.Error = "circuit breaker is open"
 	ErrCircuitBreakerNotCounted   errors.Error = "error excluded from circuit breaker accounting"
 
-	// Snapshot Errors
+	// Snapshot Errors.
 	ErrFailedCreateSnapshot           errors.Error = "failed to create snapshot: %v"
 	ErrFailedCreateSnapshotWithStatus errors.Error = "failed to create snapshot: status=%v message=%v"
 	ErrFailedDeleteSnapshot           errors.Error = "failed to delete snapshot: %v"
@@ -75,7 +75,7 @@ const (
 	ErrOrphanSnapshotNotRemoved       errors.Error = "unrecorded snapshot left: id=%s ns=%s gen=%d error=%v"
 	ErrFailedGetSnapshotPath          errors.Error = "failed to get snapshot path: %v"
 
-	// Snapshot strict build errors
+	// Snapshot strict build errors.
 	ErrSnapshotCreateFuncNil        errors.Error = "snapshot createSnapshot func is nil"
 	ErrSnapshotStoredApplicationNil errors.Error = "snapshot stored application is nil"
 	ErrSnapshotWriteFailedAbortCRD  errors.Error = "[snapshot] Failed to write snapshot for %s" +
@@ -84,14 +84,14 @@ const (
 	ErrFailedGetSnapshotDataMap     errors.Error = "failed to get snapshot data map: %v"
 	ErrFailedGetSnapshotManifest    errors.Error = "failed to get snapshot manifest: snapshotID=%q err=%v"
 
-	// Application Errors
+	// Application Errors.
 	ErrApplicationHistoryDiffPanic    errors.Error = "application history diff panic for %q: %v"
 	ErrFailedFetchManifestForSnapshot errors.Error = "failed to fetch manifest for snapshot: " +
 		"kind=%q name=%q namespace=%q err=%v"
 	ErrFailedCreateExporterSnapshot errors.Error = "failed to create exporter snapshot: id=%q scope=%q err=%v"
 	ErrFailedDecodeManifest         errors.Error = "failed to decode manifest: kind=%q name=%q namespace=%q err=%v"
 
-	// Rollback Errors
+	// Rollback Errors.
 	ErrFailedInitRollbackController      errors.Error = "failed to initialize rollback controller: %v"
 	ErrRollbackControllerCacheSyncFailed errors.Error = "rollback controller cache sync failed"
 	ErrRollbackReconcileFailed           errors.Error = "rollback reconcile failed: key=%s err=%v"
@@ -114,7 +114,7 @@ const (
 	// sweep replaces the real reason, so the reason is logged before it is lost.
 	ErrRollbackFailureRecordFailed errors.Error = "failed to record rollback failure for %s/%s (reason: %s): %v"
 
-	// Rollback Trigger / Abort handler errors
+	// Rollback Trigger / Abort handler errors.
 	ErrRollbackInFlight                errors.Error = "rollback already in progress for this application"
 	ErrRollbackNotFound                errors.Error = "rollback not found"
 	ErrRollbackNotPending              errors.Error = "rollback already in progress; cannot abort"
@@ -127,12 +127,12 @@ const (
 	ErrRollbackSnapshotMissing         errors.Error = "no snapshot stored for generation %d"
 	ErrRollbackSnapshotIncomplete      errors.Error = "snapshot for generation %d does not cover namespace %s; pick a newer generation"
 
-	// Auto-cleanup detector errors
+	// Auto-cleanup detector errors.
 	ErrAutoCleanupListAppsFailed   errors.Error = "[auto-cleanup] list applications failed: %v"
 	ErrAutoCleanupStateWriteFailed errors.Error = "[auto-cleanup] streak state write failed: app=%s err=%v"
 	ErrAutoCleanupResetFailed      errors.Error = "[auto-cleanup] reset failed: app=%s err=%v"
 
-	// Coordination Errors
+	// Coordination Errors.
 	ErrPrewarmLeaderPanic                 errors.Error = "[prewarm] Recovered from panic: %v"
 	ErrConsumerLockNotAcquired            errors.Error = "[consumer] Lock not acquired for %s — leaving in queue."
 	ErrInformersFlushGenLockBusy          errors.Error = "generation lock busy"

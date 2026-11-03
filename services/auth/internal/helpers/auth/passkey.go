@@ -13,6 +13,7 @@ import (
 	authdata "github.com/telark/telark/internal/data/auth"
 	dataerrors "github.com/telark/telark/internal/data/errors"
 	userresource "github.com/telark/telark/internal/data/resources/user"
+	"github.com/telark/telark/internal/data/text"
 	"github.com/telark/telark/services/auth/internal/clients"
 	"github.com/telark/telark/services/auth/internal/config"
 	"github.com/telark/telark/services/auth/internal/constants"
@@ -88,7 +89,11 @@ func registerStartBody(r *http.Request) (email, enrollToken string, err error) {
 	if err := shared.DecodeRequestBody(r, &req); err != nil {
 		return constants.EmptyString, constants.EmptyString, err
 	}
-	return req.Email, req.EnrollToken, nil
+	if req.Email == constants.EmptyString {
+		return constants.EmptyString, req.EnrollToken, nil
+	}
+	email, err = shared.ValidateEmail(req.Email)
+	return email, req.EnrollToken, err
 }
 
 // A caller who proved an identity (session or enrollment token) registers for
@@ -108,7 +113,8 @@ func ownUser(userID, email string) (*userresource.User, error) {
 // existing one needs a session or an enrollment token, and a bootstrap email is
 // enrolled by the operator (break-glass), never by whoever claims it first.
 func userForEmail(email string) (*userresource.User, string, error) {
-	if err := shared.ValidateEmail(email); err != nil {
+	email, err := shared.ValidateEmail(email)
+	if err != nil {
 		return nil, constants.EmptyString, err
 	}
 	if config.IsBootstrapAdmin(email) {
@@ -116,7 +122,7 @@ func userForEmail(email string) (*userresource.User, string, error) {
 	}
 
 	userClient := clients.GetUserClient()
-	_, err := GetUserWithErrorHandling(email, userClient.GetUserByEmail)
+	_, err = GetUserWithErrorHandling(email, userClient.GetUserByEmail)
 	if err == nil {
 		return nil, constants.EmptyString, errors.New(string(constants.ErrRegistrationNeedsProof))
 	}
@@ -231,12 +237,19 @@ func AttachPasskeyIdentity(
 }
 
 func ValidateDeviceHeaders(r *http.Request) (deviceName, deviceType string, err error) {
-	deviceName = r.Header.Get(constants.HeaderDeviceName)
+	deviceName, err = CheckDeviceName(r.Header.Get(constants.HeaderDeviceName), constants.HeaderDeviceName)
+	if err != nil {
+		return constants.EmptyString, constants.EmptyString, err
+	}
 	deviceType = r.Header.Get(constants.HeaderDeviceType)
-	if deviceName == constants.EmptyString || deviceType == constants.EmptyString {
+	if deviceType == constants.EmptyString {
 		return constants.EmptyString, constants.EmptyString, errors.New(string(constants.ErrMissingRequiredFields))
 	}
 	return deviceName, deviceType, nil
+}
+
+func CheckDeviceName(name, field string) (string, error) {
+	return text.Check(name, text.Rule{Field: field, Min: constants.DeviceNameMinLen, Max: constants.DeviceNameMaxLen})
 }
 
 func CreatePasskeyFromCredential(

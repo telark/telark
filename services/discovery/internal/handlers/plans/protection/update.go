@@ -65,6 +65,7 @@ func buildUpdateDeps(svc *protection.Service) update.Deps {
 		ResolveApps:     svc.ResolveApps(),
 		ListNamespaces:  svc.ListNamespaces(),
 		Environments:    svc.Environments(),
+		Users:           svc.Users(),
 		Logger:          svc.AppLogger(),
 		Clock:           svc.Clock,
 		StampHealth:     svc.StampFirstHealth,

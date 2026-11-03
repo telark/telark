@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/telark/telark/internal/data/plans"
+	"github.com/telark/telark/internal/data/text"
 	"github.com/telark/telark/services/exporter/internal/constants"
 )
 
@@ -44,5 +45,13 @@ func validateScope(scopeType string, appCount, namespaceCount int, hasExclusionR
 		return nil
 	default:
 		return errors.New(string(constants.ErrProtectionPlanInvalidScope))
+	}
+}
+
+// A failure reason carries upstream error text, so it is cut to the schema's limit
+// rather than failing the status write that records the failure.
+func TruncateReason(body map[string]any) {
+	if reason, isString := body[constants.FieldPlanReason].(string); isString {
+		body[constants.FieldPlanReason] = text.Truncate(reason, constants.MaxPlanReasonLength)
 	}
 }

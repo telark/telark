@@ -97,7 +97,7 @@ func TestEnrollLinkRegisterStart(t *testing.T) {
 	stubExporter(t, registerStub{session: true})
 
 	rec := httptest.NewRecorder()
-	passkeyhandler.CreateEnrollLink(rec, withSession(httptest.NewRequest(http.MethodPost, "/", nil)))
+	passkeyhandler.CreateEnrollLink(rec, withSession(httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", nil)))
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("enroll-link status = %d, want %d (body %s)", rec.Code, http.StatusCreated, rec.Body.String())
 	}
@@ -292,7 +292,7 @@ func TestEnrollLinkLookupFaultsFailTheRequest(t *testing.T) {
 func TestFakeExporterRefusesMalformedIdentities(t *testing.T) {
 	fake := inviteDirectory()
 	rec := httptest.NewRecorder()
-	fake.ServeHTTP(rec, httptest.NewRequest(http.MethodPatch, "/api/v1/users/"+enrolledTargetID,
+	fake.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodPatch, "/api/v1/users/"+enrolledTargetID,
 		strings.NewReader(`{"identities":"`+unreadableEntry+`"}`)))
 	testutil.Equal(t, "status", rec.Code, http.StatusBadRequest)
 	testutil.Equal(t, "identities", len(fake.User(enrolledTargetID).Identities), constants.DefaultInitValue)
@@ -312,7 +312,7 @@ func TestLinksNeedASignatureAndAThawedAccount(t *testing.T) {
 	sessionLink := func(t *testing.T) int {
 		stubExporter(t, registerStub{session: true})
 		rec := httptest.NewRecorder()
-		passkeyhandler.CreateEnrollLink(rec, withSession(httptest.NewRequest(http.MethodPost, testPath, nil)))
+		passkeyhandler.CreateEnrollLink(rec, withSession(httptest.NewRequestWithContext(t.Context(), http.MethodPost, testPath, nil)))
 		return rec.Code
 	}
 	invite := func(t *testing.T) int {

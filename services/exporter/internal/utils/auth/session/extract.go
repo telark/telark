@@ -2,6 +2,7 @@ package session
 
 import (
 	authdata "github.com/telark/telark/internal/data/auth"
+	"github.com/telark/telark/internal/data/text"
 	"github.com/telark/telark/services/exporter/internal/constants"
 	authutils "github.com/telark/telark/services/exporter/internal/utils/auth/shared"
 	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
@@ -30,6 +31,13 @@ func validateSessionFields(session *authdata.Session, userID string) error {
 	}
 
 	session.UserID = userID
+	// Browser-reported, so cut to size instead of refusing the login.
+	metadata := session.DeviceMetadata
+	for _, value := range []*string{metadata.Browser, metadata.Device, metadata.OS, metadata.Location, metadata.UserAgent} {
+		if value != nil {
+			*value = text.Truncate(*value, constants.MaxSessionMetadataLength)
+		}
+	}
 
 	if session.ExpiresTimestamp != constants.EmptyString {
 		if err := authutils.ValidateExpiresAt(session.ExpiresTimestamp, constants.ErrSessionExpiresInPast); err != nil {

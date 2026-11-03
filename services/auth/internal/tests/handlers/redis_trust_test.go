@@ -33,6 +33,7 @@ func signedEntry(t *testing.T, key, value string) string {
 
 func plant(t *testing.T, key, value string) {
 	t.Helper()
+	redisServer.Del(key) // Redis's SET replaces a key of any type, miniredis's refuses one of another type
 	if err := redisServer.Set(key, value); err != nil {
 		t.Fatalf("plant %s: %v", key, err)
 	}

@@ -19,7 +19,7 @@ func TestNewRouter(t *testing.T) {
 	}
 
 	handler := router.NewRouter(routes)
-	req, err := http.NewRequest("GET", "/api/v1/hello", nil)
+	req, err := http.NewRequestWithContext(t.Context(), "GET", "/api/v1/hello", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestTrailingSlashIsNotRedirected(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		}),
 	})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/items/create/", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/items/create/", http.NoBody)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 

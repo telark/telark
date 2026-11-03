@@ -71,7 +71,7 @@ func TestRedisManager_ReconnectRacesHealthReads(t *testing.T) {
 // Answers PING with PONG and every other command (HELLO, CLIENT ...) with an error go-redis tolerates.
 func startPingStub(t *testing.T) (host, port string) {
 	t.Helper()
-	ln, err := net.Listen("tcp", stubListenAddr)
+	ln, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", stubListenAddr)
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}

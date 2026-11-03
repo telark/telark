@@ -23,7 +23,7 @@ import (
 
 func CreateCategoryResourceWithCacheInvalidation(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := sharedutils.GetSpecFor[categorydata.Category](w, r)
+		body, err := sharedutils.GetSpecFor[categorydata.Category](w, r, sharedutils.CategoryTextFields...)
 		if err != nil {
 			return
 		}
@@ -235,7 +235,7 @@ func PatchCategoryByIDWithCacheInvalidation(optimizer *performance.Optimizer) fu
 			return
 		}
 
-		body, err := sharedutils.GetSpecFor[categorydata.Category](w, r)
+		body, err := sharedutils.GetSpecFor[categorydata.Category](w, r, sharedutils.CategoryTextFields...)
 		if err != nil {
 			return
 		}

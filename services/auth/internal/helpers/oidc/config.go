@@ -3,11 +3,31 @@ package oidc
 import (
 	"errors"
 	"fmt"
+	"regexp"
 
 	telarkconfigresource "github.com/telark/telark/internal/data/resources/telarkconfig"
+	"github.com/telark/telark/internal/data/text"
 	"github.com/telark/telark/services/auth/internal/clients"
 	"github.com/telark/telark/services/auth/internal/constants"
 )
+
+var googleClientID = regexp.MustCompile(constants.GoogleClientIDRegex)
+
+// The exporter refuses the same values, but its refusal would reach the caller as a failed save (500).
+// The trimmed client ID is what gets stored.
+func CheckInputs(oidc *telarkconfigresource.OIDCConfig) error {
+	if len(oidc.GoogleJWKJSON) > constants.OIDCJWKMaxBytes {
+		return fmt.Errorf(string(constants.ErrOIDCJWKTooLarge), constants.OIDCJWKMaxBytes)
+	}
+	clientID, err := text.Check(oidc.GoogleClientID, text.Rule{
+		Field: constants.RequestFieldGoogleClientID, Max: constants.GoogleClientIDMaxLen, Pattern: googleClientID,
+	})
+	if err != nil {
+		return err
+	}
+	oidc.GoogleClientID = clientID
+	return nil
+}
 
 func LoadConfig() (telarkconfigresource.OIDCConfig, error) {
 	cfg, err := clients.GetConfigClient().GetConfig()

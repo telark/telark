@@ -3,10 +3,10 @@ package constants
 import "github.com/telark/telark/internal/data/errors"
 
 const (
-	// General Errors
+	// General Errors.
 	ErrInternalServerError errors.Error = "internal server error"
 
-	// Authentication Errors
+	// Authentication Errors.
 	ErrInvalidEmail            errors.Error = "invalid email"
 	ErrUserNotFound            errors.Error = "user not found"
 	ErrUserSuspended           errors.Error = "user account is suspended"
@@ -24,13 +24,13 @@ const (
 	ErrPasskeyNotFound         errors.Error = "passkey not found"
 	ErrTooManyAttempts         errors.Error = "too many attempts right now: wait a minute, then try again"
 
-	// WebAuthn Errors
+	// WebAuthn Errors.
 	ErrWebAuthnSetupFailed          errors.Error = "failed to setup WebAuthn %v"
 	ErrChallengeGenerationFailed    errors.Error = "failed to generate challenge %v"
 	ErrCredentialVerificationFailed errors.Error = "credential verification failed %v"
 	ErrOriginNotAllowed             errors.Error = "origin not allowed for relying party"
 
-	// Client Errors
+	// Client Errors.
 	ErrFailedGetUser          errors.Error = "failed to get user identityHash=%s: %v"
 	ErrFailedCreateUser       errors.Error = "failed to create user identityHash=%s: status %d: %s"
 	ErrFailedDiscardUser      errors.Error = "failed to delete unfinished self-registration identityHash=%s"
@@ -56,7 +56,7 @@ const (
 	ErrFailedLoadGroup        errors.Error = "failed to load group %s: %v"
 	ErrFailedLoadRole         errors.Error = "failed to load role %s: %v"
 
-	// Encoding/Decoding Errors
+	// Encoding/Decoding Errors.
 	ErrFailedDecodeRequest       errors.Error = "failed to decode request body: %s"
 	ErrFailedParseRequestBody    errors.Error = "failed to parse request body: %s"
 	ErrFailedEncodeResponse      errors.Error = "failed to encode response: %s"
@@ -67,13 +67,13 @@ const (
 	ErrWebAuthnNotInitialized    errors.Error = "WebAuthn not initialized"
 	LogHTTPServerShutdownSuccess errors.Error = "HTTP server shutdown successfully"
 
-	// Server Errors
+	// Server Errors.
 	ErrFailedShutdownHTTPServer        errors.Error = "failed to shutdown HTTP server: %s"
 	ErrQuitChannelNotAvailable         errors.Error = "quit channel not available"
 	ErrServerPanicRecovered            errors.Error = "server panic recovered: %v\nStack: %s"
 	ErrMaxPanicRecoveryAttemptsReached errors.Error = "max panic recovery attempts (%d) reached, shutting down"
 
-	// Configuration Errors
+	// Configuration Errors.
 	ErrMissingEnvVar             errors.Error = "missing required environment variable: %s"
 	ErrInvalidEnvVarValue        errors.Error = "invalid value for environment variable %s: %s"
 	ErrBreakGlassWaitInvalid     errors.Error = "%s must be a whole number of hours, at least 1, not %q"
@@ -81,13 +81,13 @@ const (
 	ErrFailedLoadBootstrapConfig errors.Error = "failed to load bootstrap configuration: %v"
 	WarnTelarkConfigReadFailed   errors.Error = "failed to read the TelarkConfig, keeping the last value: %v"
 
-	// Bootstrap Configuration Errors
+	// Bootstrap Configuration Errors.
 	ErrBootstrapAdminRequired     errors.Error = "bootstrap config must set the admin email (BOOTSTRAP_ADMIN)"
 	ErrSelfRegistrationDisabled   errors.Error = "self-registration is disabled. contact your administrator"
 	ErrSelfRegistrationSaveFailed errors.Error = "failed to save self-registration: status %d"
 	ErrBreakGlassAlertsSaveFailed errors.Error = "failed to save break-glass alerts: status %d"
 
-	// Enrollment Link Errors
+	// Enrollment Link Errors.
 	ErrEnrollLinkSelf       errors.Error = "enrollment links are not for your own account. use Add on another device"
 	ErrEnrollLinkBootstrap  errors.Error = "the bootstrap administrator is enrolled only with the break-glass command"
 	ErrEnrollLinkDeleting   errors.Error = "this user is being deleted"
@@ -95,20 +95,21 @@ const (
 	ErrEnrollLinkAboveLevel errors.Error = "this user holds %s on %s, above your own level on that scope"
 	ErrEnrollLinkRecovery   errors.Error = "this user already has a passkey. only the bootstrap administrator or an Admin on ALL can create a link"
 
-	// User Deletion Errors
+	// User Deletion Errors.
 	ErrCleanupSelfDelete       errors.Error = "you cannot delete your own account"
 	ErrCleanupBootstrapManaged errors.Error = "this user is managed by the chart and cannot be deleted"
 
-	// Role and Group Deletion Errors
+	// Role and Group Deletion Errors.
 	ErrAuthzRemovedRoleExceedsCaller errors.Error = "role %s cannot be changed, removed or deleted: " +
 		"it grants %s on %s, above your own level on that scope"
 
-	// Validation Errors
+	// Validation Errors.
 	ErrMissingRequiredFields      errors.Error = "credentialId, publicKey, deviceName and deviceType are required"
+	ErrLastUsedServerSet          errors.Error = "lastUsedTimestamp is set by the server"
 	ErrFailedGetConfig            errors.Error = "failed to get config: %v"
 	ErrFailedGenerateSessionToken errors.Error = "failed to generate session token: %v"
 
-	// Passkey Registration Errors
+	// Passkey Registration Errors.
 	ErrInvalidResponseStructure     errors.Error = "invalid response structure"
 	ErrMissingClientDataJSON        errors.Error = "missing clientDataJSON"
 	ErrMissingCredentialID          errors.Error = "missing credential id"
@@ -121,7 +122,7 @@ const (
 	ErrMissingChallengeInClientData errors.Error = "missing challenge in clientDataJSON"
 	ErrFailedDecodeChallenge        errors.Error = "failed to decode challenge: %v"
 
-	// OIDC Errors
+	// OIDC Errors.
 	ErrOIDCNotConfigured         errors.Error = "OIDC is not configured"
 	ErrOIDCInvalidToken          errors.Error = "invalid OIDC token: %v"
 	ErrOIDCInvalidJWKSet         errors.Error = "invalid JWK set: %v"
@@ -135,6 +136,7 @@ const (
 	ErrOIDCConfigLoadFailed      errors.Error = "failed to load OIDC config: %v"
 	ErrOIDCConfigSaveFailed      errors.Error = "failed to save OIDC config: status %d"
 	ErrOIDCClientIDRequired      errors.Error = "googleClientID is required when OIDC is enabled"
+	ErrOIDCJWKTooLarge           errors.Error = "googleJwkJson must be at most %d bytes"
 	ErrOIDCTrustSourceRequired   errors.Error = "OIDC requires either egressAllowed or a pinned googleJwkJson"
 	ErrOIDCJWKUnreachable        errors.Error = "provider signing keys are unreachable: %v"
 	ErrOIDCTrustFileRead         errors.Error = "failed to read the OIDC trust file: %v"
@@ -155,20 +157,20 @@ const (
 	// Wraps the cause, so the code of a refused session still reaches the response.
 	ErrOIDCCreateSessionFailed errors.Error = "failed to create session: %w"
 
-	// Redis Errors
+	// Redis Errors.
 	ErrRedisClientUnavailable errors.Error = "redis client is not available — check REDIS_HOST and REDIS_PORT"
 	ErrRedisEntryUnsigned     errors.Error = "cannot sign the redis entry: TELARK_SERVICE_TOKEN is not set"
 
-	// Async Worker Warnings
+	// Async Worker Warnings.
 	WarnAsyncWorkerFull         errors.Error = "async worker pool full, dropping housekeeping op"
 	WarnAsyncWorkerFailed       errors.Error = "async housekeeping op timed out"
 	WarnAsyncWorkerDrainTimeout errors.Error = "async worker drain timed out — some housekeeping ops may not have completed"
 
-	// Enrollment Link Warnings
+	// Enrollment Link Warnings.
 	WarnEnrollNoticeFailed errors.Error = "enrollment link notice not delivered to identityHash=%s"
 	WarnInviteCloseFailed  errors.Error = "failed to close the enrollment invite of identityHash=%s: %v"
 
-	// Break-glass Request Errors
+	// Break-glass Request Errors.
 	ErrAccountRecovering        errors.Error = "this account is being recovered with break-glass: try again shortly"
 	ErrRecoveryFreezeLost       errors.Error = "the run stalled too long to stay safe: run this command again"
 	ErrBootstrapActionInvalid   errors.Error = "action must be approve or deny"
@@ -187,7 +189,7 @@ const (
 	ErrBootstrapApproveRecover errors.Error = "a recovery can't be approved: it completes %d hours after it opened " +
 		"unless the bootstrap account signs in or denies it"
 
-	// Credential Verification Errors
+	// Credential Verification Errors.
 	ErrBackupEligibleFlagInconsistency errors.Error = "backup eligible flag inconsistency: stored (BE:%v, BS:%v) != login (BE:%v, BS:%v)"
 	ErrCredentialNotFoundInAllowed     errors.Error = "credential not found in allowed credentials"
 	ErrFailedMarshalCredentialBody     errors.Error = "failed to marshal credential body: %v"

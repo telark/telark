@@ -75,7 +75,7 @@ type labelValues struct {
 	displayName string
 }
 
-// Labels & managed-by
+// Labels & managed-by.
 const (
 	labelManagedBy          = "app.kubernetes.io/managed-by"
 	labelChart              = "helm.sh/chart"
@@ -84,7 +84,7 @@ const (
 	helmReleaseSecretPrefix = "sh.helm.release."
 )
 
-// Enrich K8s
+// Enrich K8s.
 const (
 	envKeySkipSubstr = "PASSWORD,SECRET,TOKEN,KEY,CREDENTIAL"
 	keySeparator     = "\x00"
@@ -108,13 +108,13 @@ type metaObject interface {
 	GetCreationTimestamp() metav1.Time
 }
 
-// API response
+// API response.
 const (
 	operationSuccess             = "Success"
 	messageResourcesGroupedByApp = "resources grouped by application"
 )
 
-// Log / message formats
+// Log / message formats.
 const (
 	msgReplicasReady    = "%d/%d replicas ready"
 	payloadKeyName      = "name"

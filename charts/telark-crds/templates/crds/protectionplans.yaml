@@ -102,12 +102,14 @@ spec:
                     applicationRefs:
                       type: array
                       description: Application names targeted when type=applications
+                      maxItems: 200
                       items:
                         type: string
                       nullable: true
                     namespaces:
                       type: array
                       description: Namespace names targeted when type=namespaces
+                      maxItems: 200
                       items:
                         type: string
                       nullable: true
@@ -159,6 +161,19 @@ spec:
                         description: Template-specific parameters (validated server-side)
                         x-kubernetes-preserve-unknown-fields: true
                         nullable: true
+                        properties:
+                          tags:
+                            type: array
+                            maxItems: 50
+                            items:
+                              type: string
+                              maxLength: 256
+                          imagePatterns:
+                            type: array
+                            maxItems: 50
+                            items:
+                              type: string
+                              maxLength: 256
                 mode:
                   type: string
                   description: Enforcement mode for all rendered policies
@@ -227,6 +242,7 @@ spec:
                 participantRefs:
                   type: array
                   description: User IDs of participants associated with this plan
+                  maxItems: 50
                   items:
                     type: string
                 environmentRef:
@@ -258,6 +274,7 @@ spec:
                 reason:
                   type: string
                   description: Human-readable explanation for the current phase (failures or cancellations)
+                  maxLength: 500
                   nullable: true
                 conditions:
                   {{- include "conditionsSchema" . | nindent 18 }}

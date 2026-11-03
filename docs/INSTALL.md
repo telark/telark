@@ -685,6 +685,29 @@ Pass the same `--set` and `-f` flags you used at install: Helm does not remember
 
 Each minor version lists here the CRD schema changes and the exporter migration steps it brings ([schema rules](CRDS.md#schema-changes-across-releases)). A version not listed changes neither.
 
+- **0.2.1**: the CRDs get length and count limits on the fields people type ([Input validation](security/README.md#input-validation)). No migration step. A stored object already past one of these limits fails its next write until the field is fixed, so before upgrading, shorten what exceeds them:
+
+  | CRD | Field | Limit |
+  |---|---|---|
+  | `AccessRole` | `spec.description` | 1–500 characters (was up to 500) |
+  | `AccessRole` | `spec.validity.durationHours` | 1–8760 |
+  | `Passkey` | `spec.deviceName` | 1–64 characters |
+  | `Session` | `spec.deviceMetadata.browser`, `device`, `os`, `location`, `userAgent` | up to 256 characters each |
+  | `User` | `spec.email` | up to 254 characters |
+  | `User` | `spec.avatar.seed` | up to 64 characters |
+  | `User` | `spec.avatar.style` | one of `avataaars`, `adventurer`, `big-smile`, `bottts`, `fun-emoji`, `identicon`, `lorelei`, `micah`, `miniavs`, `open-peeps`, `personas`, `pixel-art` |
+  | `TelarkConfig` | `spec.excludedNamespaces` | up to 200 items, each a DNS-1123 label of up to 63 characters |
+  | `TelarkConfig` | `spec.snapshots.maxPerApp` | 1–100 |
+  | `TelarkConfig` | `spec.oidc.googleClientID` | up to 256 characters |
+  | `ProtectionPlan` | `spec.participantRefs` | up to 50 items |
+  | `ProtectionPlan` | `spec.scope.applicationRefs`, `spec.scope.namespaces` | up to 200 items each |
+  | `ProtectionPlan` | `spec.policies[].params.tags`, `spec.policies[].params.imagePatterns` | up to 50 items of up to 256 characters each |
+  | `ProtectionPlan` | `status.reason` | up to 500 characters (the exporter cuts a longer failure reason) |
+
+  - The API trims typed text before storing it and answers 400, naming the field, for a value past its limit or holding a control or invisible character. Full names take letters, marks, spaces, `'`, `-` and `.`; usernames, group and role names `[a-zA-Z0-9_-]`. An existing user, group or role whose stored value breaks those rules keeps loading, and an edit that resends that value answers 400 until it is changed. Role `validity.durationHours` outside 1–8760 and `snapshots.maxPerApp` outside 1–100 answer 400 too. The OIDC key set is capped at 64 KiB.
+  - A `PATCH` the CRD schema refuses answers 422, like a create, instead of 500.
+  - A rollback to 0.2.0 brings back its CRDs without these limits; nothing is lost.
+
 - **0.2.0**: `TelarkConfig` gets `status.lastMigration` and `status.rollbackMigration`, the migration record. No migration step.
   - Upgrade from 0.1.x with `--reset-then-reuse-values` (or your full `-f` and `--set` flags), not `--reuse-values`. That flag keeps 0.1.x's defaults, which lack the keys 0.2.0 adds, so the render fails (`nil pointer evaluating interface {}.existingSecret`).
   - Some values moved. The old paths still work in 0.2.0, and win when set, but a later release removes them; the install notes list any that your values still use. An old path an earlier release set keeps winning under `--reset-then-reuse-values`: set the value on the old path, or upgrade with `--reset-values` and your flags on the new paths.

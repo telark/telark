@@ -1,6 +1,7 @@
 package authz
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -32,7 +33,7 @@ const (
 )
 
 func requestAs(identity xauthz.Identity) *http.Request {
-	r := httptest.NewRequest(http.MethodPatch, "/v1/users/"+callerID, nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPatch, "/v1/users/"+callerID, nil)
 	return r.WithContext(xauthz.WithIdentity(r.Context(), identity))
 }
 
@@ -172,7 +173,7 @@ func TestGuardUserPatchBlocksMixedBody(t *testing.T) {
 
 func TestGuardUserPatchDeniesWithoutIdentity(t *testing.T) {
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPatch, "/v1/users/"+callerID, nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, "/v1/users/"+callerID, nil)
 
 	if authz.GuardUserPatch(w, r, target(victimID), rolePromotion()) {
 		t.Error("privilege change allowed with no identity in context")
@@ -214,7 +215,7 @@ func TestGuardSelfUser(t *testing.T) {
 
 func TestGuardSelfUserDeniesWithoutIdentity(t *testing.T) {
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/v1/sessions", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/sessions", nil)
 
 	if authz.GuardSelfUser(w, r, callerID) {
 		t.Error("allowed with no identity in context")
@@ -297,7 +298,7 @@ func TestGuardRefusalsAreNotLoggedAsErrors(t *testing.T) {
 }
 
 func bodyRequest(body string) *http.Request {
-	return httptest.NewRequest(http.MethodPatch, "/v1/roles/"+adminID, strings.NewReader(body))
+	return httptest.NewRequestWithContext(context.Background(), http.MethodPatch, "/v1/roles/"+adminID, strings.NewReader(body))
 }
 
 func specAccepted(w http.ResponseWriter, body string) bool {

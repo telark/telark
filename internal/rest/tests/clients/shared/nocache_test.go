@@ -26,6 +26,11 @@ func TestGrantSourcesBypassTheResponseCache(t *testing.T) {
 			c.GetHTTPClient().Transport = rt
 			_, _ = c.GetUserByID(grantSourceID)
 		}},
+		{"all users", func(rt http.RoundTripper) {
+			c := users.NewClient()
+			c.GetHTTPClient().Transport = rt
+			_, _ = c.GetAllUsers()
+		}},
 		{"group by id", func(rt http.RoundTripper) {
 			c := groups.NewClient()
 			c.GetHTTPClient().Transport = rt

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha256"
@@ -127,7 +128,7 @@ func finishApproval(t *testing.T, id, body string) int {
 }
 
 func jsonPost(path, body string) *http.Request {
-	r := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, path, strings.NewReader(body))
 	r.Header.Set(constants.HeaderContentType, constants.ContentTypeJSON)
 	return r
 }

@@ -1,6 +1,7 @@
 package cors
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -31,7 +32,7 @@ func serve(origin, method string, headers ...string) *httptest.ResponseRecorder 
 	handler := cors.NewCORS()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
-	req := httptest.NewRequest(method, "/api/v1/status/live", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), method, "/api/v1/status/live", http.NoBody)
 	req.Header.Set("Origin", origin)
 	if method == http.MethodOptions {
 		req.Header.Set(requestMethod, http.MethodGet)

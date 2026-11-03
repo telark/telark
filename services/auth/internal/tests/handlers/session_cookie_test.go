@@ -82,8 +82,8 @@ func TestSignInsSetOnlyTheCookie(t *testing.T) {
 func TestLogoutClearsTheCookie(t *testing.T) {
 	for hostPrefix, name := range cookieNames {
 		for state, req := range map[string]*http.Request{
-			"session":    withSession(httptest.NewRequest(http.MethodPost, testPath, nil)),
-			"no session": httptest.NewRequest(http.MethodPost, testPath, nil),
+			"session":    withSession(httptest.NewRequestWithContext(t.Context(), http.MethodPost, testPath, nil)),
+			"no session": httptest.NewRequestWithContext(t.Context(), http.MethodPost, testPath, nil),
 		} {
 			t.Run(name+" "+state, func(t *testing.T) {
 				t.Setenv(dataconstants.EnvSessionCookieHostPrefix, hostPrefix)

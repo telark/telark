@@ -23,7 +23,9 @@ func (h taskHeap) Less(i, j int) bool {
 }
 func (h taskHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
 func (h *taskHeap) Push(x any) {
-	*h = append(*h, x.(*processingTask))
+	if task, ok := x.(*processingTask); ok {
+		*h = append(*h, task)
+	}
 }
 
 func (h *taskHeap) Pop() any {

@@ -37,7 +37,7 @@ func triggerRollback(name string) *httptest.ResponseRecorder {
 
 func triggerRollbackWithBody(name string, body io.Reader) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/", body)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", body)
 	applications.TriggerRollback(rec, mux.SetURLVars(req, map[string]string{constants.NameParam: name}))
 	return rec
 }
@@ -144,7 +144,7 @@ func triggerRollbackTo(gen int) *httptest.ResponseRecorder {
 func triggerRollbackAs(name string, gen int, userID string) *httptest.ResponseRecorder {
 	body := fmt.Sprintf(`{"snapshotGeneration":%d,"triggeredBy":%q}`, gen, spoofedID)
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", strings.NewReader(body))
 	if userID != constants.EmptyString {
 		req.Header.Set(constants.HeaderUserID, userID)
 	}
@@ -259,7 +259,7 @@ func TestAbortRollbackNotifiesWithApplicationName(t *testing.T) {
 	})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, constants.PathSeparator, http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, constants.PathSeparator, http.NoBody)
 	req.Header.Set(constants.HeaderUserID, callerID)
 	applications.AbortRollback(rec, mux.SetURLVars(req, map[string]string{
 		constants.NameParam:           shopApp,
@@ -284,7 +284,7 @@ func TestRollbackRefusalsAreNotLoggedAsErrors(t *testing.T) {
 	stubExporter(t, func(*http.Request) *http.Response { return jsonResponse(t, http.StatusNotFound, nil) })
 	abortUnknown := func() *httptest.ResponseRecorder {
 		rec := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, constants.PathSeparator, http.NoBody)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, constants.PathSeparator, http.NoBody)
 		req.Header.Set(constants.HeaderUserID, callerID)
 		applications.AbortRollback(rec, mux.SetURLVars(req, map[string]string{
 			constants.NameParam: shopApp, constants.RollbackIDPathParam: pendingRollbackID,

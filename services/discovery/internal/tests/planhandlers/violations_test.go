@@ -61,7 +61,7 @@ func TestViolationsRunWindowServesTheLedger(t *testing.T) {
 	})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/protectionplans/"+plan.ID+"/violations?window=run", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/protectionplans/"+plan.ID+"/violations?window=run", nil)
 	handlers.Violations(rec, mux.SetURLVars(req, map[string]string{constants.IDPathParam: plan.ID}))
 
 	testutil.Equal(t, "status", rec.Code, http.StatusOK)

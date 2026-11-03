@@ -2,6 +2,7 @@ package stream
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -20,7 +21,7 @@ func (c *StateClient) GetValue(ctx context.Context, key string) (string, error) 
 		return constants.EmptyString, nil
 	}
 	v, err := c.redis.Get(ctx, key).Result()
-	if err == redis.Nil {
+	if errors.Is(err, redis.Nil) {
 		return constants.EmptyString, nil
 	}
 	if err != nil {

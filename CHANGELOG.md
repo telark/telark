@@ -2,6 +2,45 @@
 
 All notable changes to Telark are documented here.
 
+## [0.2.1](https://github.com/telark/telark/compare/v0.2.0...v0.2.1) - 2026-11-03
+
+### ✨ Features
+
+- Report the reports volume usage ([#94](https://github.com/telark/telark/pull/94)) ([0f301cf](https://github.com/telark/telark/commit/0f301cf04fdc69ba04e3875ea74d31c984d803b5))
+
+### 🐛 Bug Fixes
+
+- Check text inputs before every write ([#94](https://github.com/telark/telark/pull/94)) ([f7e496a](https://github.com/telark/telark/commit/f7e496a6b225cdc5e092c64f348e01622e197705))
+- Check sign-in and Google settings inputs ([#94](https://github.com/telark/telark/pull/94)) ([692f11d](https://github.com/telark/telark/commit/692f11da9de13eea1fa4fef66f394a3a58acc21c))
+- Check plan inputs ([#94](https://github.com/telark/telark/pull/94)) ([3c9150a](https://github.com/telark/telark/commit/3c9150a146c0a0aa4a0eee42a75fcd678f60ae73))
+- Read report storage capacity through the dynamic client ([#94](https://github.com/telark/telark/pull/94)) ([7f8f719](https://github.com/telark/telark/commit/7f8f71961d5c13112a9512e54470ffbac729168a))
+
+### 🖥️ Dashboard UI
+
+v0.2.0 → [v0.2.1](https://github.com/telark/dashboard-ui/releases/tag/v0.2.1)
+
+#### [0.2.1](https://github.com/telark/dashboard-ui/compare/v0.2.0...v0.2.1) - 2026-11-03
+
+##### ✨ Features
+
+- Show report storage, and split the Discovery and Storage settings ([#56](https://github.com/telark/dashboard-ui/pull/56)) ([1d6d741](https://github.com/telark/dashboard-ui/commit/1d6d741fb7c27f7e256ffd65c99cd064ce746fbf))
+
+##### 🐛 Bug Fixes
+
+- Rework the user menu and avatar rings ([#56](https://github.com/telark/dashboard-ui/pull/56)) ([0f24831](https://github.com/telark/dashboard-ui/commit/0f24831e649b87f93f474b337f6b47add287f302))
+- Keep sidebar items still while it opens and closes ([#56](https://github.com/telark/dashboard-ui/pull/56)) ([180a34a](https://github.com/telark/dashboard-ui/commit/180a34a4ddd48d8ac1bc2a6f6477e0ff6ff10de3))
+- One style for field errors and empty dropdowns ([#56](https://github.com/telark/dashboard-ui/pull/56)) ([193d777](https://github.com/telark/dashboard-ui/commit/193d7778cccd74e6774f565007614067c24cc80b))
+- Cap, clean and trim every text field ([#56](https://github.com/telark/dashboard-ui/pull/56)) ([46898ec](https://github.com/telark/dashboard-ui/commit/46898ec78b9dd4ed88af5fb217240742c9ef5d42))
+
+##### Contributors
+
+- [@hourki](https://github.com/hourki)
+
+
+### Contributors
+
+- [@hourki](https://github.com/hourki)
+
 ## [0.2.0](https://github.com/telark/telark/compare/v0.1.2...v0.2.0) - 2026-10-27
 
 ### ✨ Features

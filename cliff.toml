@@ -37,7 +37,14 @@ body = """
 
 {{ ui_notes }}
 {% endif %}
-{%- set contributors = github.contributors | filter(attribute="username") | map(attribute="username") | unique | sort -%}
+{%- set contributors = github.contributors | filter(attribute="username") | map(attribute="username") -%}
+{#- The Dashboard UI's contributors (release-charts) join telark's, so the notes list each login once. -#}
+{%- set ui_contributors = get_env(name="TELARK_UI_CONTRIBUTORS", default="") | trim -%}
+{%- if ui_contributors -%}
+{%- set ui_list = ui_contributors | split(pat=" ") -%}
+{%- set contributors = contributors | concat(with=ui_list) -%}
+{%- endif -%}
+{%- set contributors = contributors | unique | sort -%}
 {% if contributors | length > 0 %}
 ### Contributors
 {% for username in contributors %}{% if username is not ending_with("[bot]") and username != "actions-user" %}

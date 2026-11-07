@@ -223,7 +223,7 @@ services:
     name: "discovery-service"
     repository: "discovery"
     # @ignore
-    version: 0.2.1
+    version: 0.2.2
     category: "discovery"
     useNatsCreds: true
     natsUser: publisher
@@ -361,7 +361,7 @@ services:
     name: "auth-service"
     repository: "auth"
     # @ignore
-    version: 0.2.1
+    version: 0.2.2
     category: "auth"
     terminationGracePeriodSec: 30
     automountServiceAccountToken: false

@@ -181,7 +181,7 @@ services:
     name: "exporter-service"
     repository: "exporter"
     # @ignore
-    version: 0.2.1
+    version: 0.2.2
     category: "persistence-manager"
     # More than one replica needs a ReadWriteMany app.persistence.storageClass; break-glass recovery needs one (INSTALL).
     # Never autoscaled: the volume, not CPU, bounds it.
@@ -361,7 +361,7 @@ services:
     name: "auth-service"
     repository: "auth"
     # @ignore
-    version: 0.2.1
+    version: 0.2.2
     category: "auth"
     terminationGracePeriodSec: 30
     automountServiceAccountToken: false

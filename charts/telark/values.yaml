@@ -181,7 +181,7 @@ services:
     name: "exporter-service"
     repository: "exporter"
     # @ignore
-    version: 0.2.1
+    version: 0.2.2
     category: "persistence-manager"
     # More than one replica needs a ReadWriteMany app.persistence.storageClass; break-glass recovery needs one (INSTALL).
     # Never autoscaled: the volume, not CPU, bounds it.
@@ -223,7 +223,7 @@ services:
     name: "discovery-service"
     repository: "discovery"
     # @ignore
-    version: 0.2.1
+    version: 0.2.2
     category: "discovery"
     useNatsCreds: true
     natsUser: publisher
@@ -292,7 +292,7 @@ services:
     name: "analyzer-service"
     repository: "analyzer"
     # @ignore
-    version: 0.1.4
+    version: 0.1.5
     category: "ai-insights"
     # One worker bound to one Ollama slot (OLLAMA_NUM_PARALLEL=1): a second replica would only queue behind it.
     autoscaling:
@@ -337,7 +337,7 @@ services:
     name: "notifier-service"
     repository: "notifier"
     # @ignore
-    version: 0.2.1
+    version: 0.2.2
     category: "event-streaming"
     terminationGracePeriodSec: 30
     useNatsCreds: true
@@ -361,7 +361,7 @@ services:
     name: "auth-service"
     repository: "auth"
     # @ignore
-    version: 0.2.1
+    version: 0.2.2
     category: "auth"
     terminationGracePeriodSec: 30
     automountServiceAccountToken: false
@@ -416,7 +416,7 @@ services:
     name: "ui-service"
     repository: "ui"
     # @ignore
-    version: 0.2.1
+    version: 0.2.2
     category: "ui"
     terminationGracePeriodSec: 30
     # nginx runs as its own uid 101, not the shared 1001, so it gets its own contexts.

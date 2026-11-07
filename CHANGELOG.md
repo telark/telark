@@ -2,6 +2,60 @@
 
 All notable changes to Telark are documented here.
 
+## [0.2.2](https://github.com/telark/telark/compare/v0.2.1...v0.2.2) - 2026-11-07
+
+### 🐛 Bug Fixes
+
+- Build images on Alpine 3.23 and list contributors once ([#100](https://github.com/telark/telark/pull/100)) ([27088de](https://github.com/telark/telark/commit/27088decdbd5756f54f6627e973fe0ed7ca70beb))
+
+### 📚 Documentation
+
+- Call insight rule families categories ([#100](https://github.com/telark/telark/pull/100)) ([a559683](https://github.com/telark/telark/commit/a55968375c1edd190f80a7b79b1f26216f76e5c0))
+- Drop a date from the agent rules ([#100](https://github.com/telark/telark/pull/100)) ([6de501f](https://github.com/telark/telark/commit/6de501ffeb20c00ed809bdd4fd3392a0b3e0861f))
+
+### 🖥️ Dashboard UI
+
+v0.2.1 → [v0.2.2](https://github.com/telark/dashboard-ui/releases/tag/v0.2.2)
+
+#### [0.2.2](https://github.com/telark/dashboard-ui/compare/v0.2.1...v0.2.2) - 2026-11-07
+
+##### ✨ Features
+
+- Open Protect's plan panel in place ([#64](https://github.com/telark/dashboard-ui/pull/64)) ([4b5431a](https://github.com/telark/dashboard-ui/commit/4b5431a7a3711d6c796bbea0319e163f42509ff7))
+- Add member state column and role source switch ([#64](https://github.com/telark/dashboard-ui/pull/64)) ([eee02e2](https://github.com/telark/dashboard-ui/commit/eee02e2f1da3909a9eca3572be8c234e2693f5cf))
+- Add a theme switch with a light theme ([#64](https://github.com/telark/dashboard-ui/pull/64)) ([ea44bd9](https://github.com/telark/dashboard-ui/commit/ea44bd986ffde73ecc14668d2796c8c11f781955))
+- Show a bootstrap pill in the profile menu ([#64](https://github.com/telark/dashboard-ui/pull/64)) ([3c34906](https://github.com/telark/dashboard-ui/commit/3c349068ca9b19683bcce004eb960699bcfdb0a0))
+
+##### 🐛 Bug Fixes
+
+- Smooth insight panels and clarify their tags ([#64](https://github.com/telark/dashboard-ui/pull/64)) ([4e7bac3](https://github.com/telark/dashboard-ui/commit/4e7bac3729eeb9feac331f3409ff2380058dac98))
+- Add view all to Home's storage box ([#64](https://github.com/telark/dashboard-ui/pull/64)) ([f5ab48c](https://github.com/telark/dashboard-ui/commit/f5ab48c349ec7b33bbc201bc26252fc8b69ca26b))
+- Clear the branch's SonarCloud findings ([#64](https://github.com/telark/dashboard-ui/pull/64)) ([0df6b0b](https://github.com/telark/dashboard-ui/commit/0df6b0b45ef733d449d4b1e78cf1fee07ab5bfcf))
+- Open tooltips on keyboard focus ([#64](https://github.com/telark/dashboard-ui/pull/64)) ([c6c6b85](https://github.com/telark/dashboard-ui/commit/c6c6b85f7c69e2302d9af4162ead32bef6f57e5c))
+- Show each storage load error once ([#64](https://github.com/telark/dashboard-ui/pull/64)) ([a69fdfe](https://github.com/telark/dashboard-ui/commit/a69fdfe880c1d3c9285a220717cbcbb2f27cd9dc))
+- Drop an empty import from the button constants ([#64](https://github.com/telark/dashboard-ui/pull/64)) ([ec1dc8e](https://github.com/telark/dashboard-ui/commit/ec1dc8e732598074185746e033fefc9878ecc5b7))
+- Defer the policies error and bump the node image ([#64](https://github.com/telark/dashboard-ui/pull/64)) ([998eeff](https://github.com/telark/dashboard-ui/commit/998eeffab6b7b99230a9fa7ec73c956b4af15926))
+- Keep insight columns on laptops and sort environment ([#64](https://github.com/telark/dashboard-ui/pull/64)) ([d0f60db](https://github.com/telark/dashboard-ui/commit/d0f60db689e3edc72debe0d0b32130773f6d80ab))
+- Show one error state for failed loads ([#64](https://github.com/telark/dashboard-ui/pull/64)) ([e96564e](https://github.com/telark/dashboard-ui/commit/e96564e27cb79eba5d58638ade0397fd2e92d9d3))
+- Space settings cards on one scale ([#64](https://github.com/telark/dashboard-ui/pull/64)) ([08c4b96](https://github.com/telark/dashboard-ui/commit/08c4b96237af2ff5098139357b7ba3dc9f8171aa))
+- Clear Sonar findings on the polish branch ([#64](https://github.com/telark/dashboard-ui/pull/64)) ([9ddce1d](https://github.com/telark/dashboard-ui/commit/9ddce1dab534c42facb7ac97c312419be5ae0151))
+- Open modals faster and polish two status displays ([#64](https://github.com/telark/dashboard-ui/pull/64)) ([cfdbf10](https://github.com/telark/dashboard-ui/commit/cfdbf10f29ef7073e199920b255762c4d43391b6))
+
+##### ⚡ Performance
+
+- Load motion features through LazyMotion ([#64](https://github.com/telark/dashboard-ui/pull/64)) ([617b6dd](https://github.com/telark/dashboard-ui/commit/617b6dd54a0cf928e800014d31dca4775a76b952))
+
+##### 📚 Documentation
+
+- Update agent rules for pills and locked roles ([#64](https://github.com/telark/dashboard-ui/pull/64)) ([8fc0e2b](https://github.com/telark/dashboard-ui/commit/8fc0e2b3b22e4ed9ad29c701d630c8e0fb7da379))
+- Update agent rules for the theme ([#64](https://github.com/telark/dashboard-ui/pull/64)) ([9a17e3e](https://github.com/telark/dashboard-ui/commit/9a17e3e3c33c4eff2c4e3fdc7afc60969edb06df))
+- Add the new SonarCloud rules ([#64](https://github.com/telark/dashboard-ui/pull/64)) ([17005b5](https://github.com/telark/dashboard-ui/commit/17005b55346fc0f4d6f77229e7357b6f7c297451))
+
+
+### Contributors
+
+- [@hourki](https://github.com/hourki)
+
 ## [0.2.1](https://github.com/telark/telark/compare/v0.2.0...v0.2.1) - 2026-11-03
 
 ### ✨ Features

@@ -99,7 +99,7 @@ Analysis runs when you select **Analyze**, or automatically on incidents and rec
 
 ### Setup review
 
-The analyzer also reviews each application against 60 rules in 10 families: reliability, resources, scaling, security, images, config, networking, change risk, protection and consistency. It lists what to fix as recommendation cards, such as a single replica with no disruption budget in production. Reviews run after every analysis and every 2 hours by default, and never use the model.
+The analyzer also reviews each application against 60 rules in 10 categories: reliability, resources, scaling, security, images, config, networking, change risk, protection and consistency. It lists what to fix as recommendation cards, such as a single replica with no disruption budget in production. Reviews run after every analysis and every 2 hours by default, and never use the model.
 
 An application counts as production when a namespace, or the environment of a protection plan covering it, matches a naming pattern (by default names containing `prod`, `production` or `prd`). Production raises the severity of some rules.
 

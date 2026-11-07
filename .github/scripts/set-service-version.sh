@@ -2,7 +2,14 @@
 set -euo pipefail
 
 # SERVICE_NEW_VERSION comes from the semver-bump action; this only records it.
-sed -i "/${SERVICE_NAME}:/,/version: /s/version: $SERVICE_CURRENT_VERSION/version: $SERVICE_NEW_VERSION/" "$VALUES_FILE_PATH"
+# Only services.<name>.version: an unscoped "<name>:" range also caught app.auth and bumped the
+# exporter. sed, not a yq write, which would reformat every inline comment in the file.
+sed -i "/^services:/,/^[^ #]/{/^  ${SERVICE_NAME}:/,/^    version: /s/^    version: ${SERVICE_CURRENT_VERSION}\$/    version: ${SERVICE_NEW_VERSION}/}" "$VALUES_FILE_PATH"
+written=$(yq '.services[strenv(SERVICE_NAME)].version' "$VALUES_FILE_PATH")
+if [ "$written" != "$SERVICE_NEW_VERSION" ]; then
+  echo "::error::services.${SERVICE_NAME}.version is ${written}, expected ${SERVICE_NEW_VERSION}"
+  exit 1
+fi
 
 {
   echo "service_name=$SERVICE_NAME"

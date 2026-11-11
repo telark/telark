@@ -37,7 +37,7 @@ dependencies:
     version: 9.0.28
     repository: https://charts.bitnami.com/bitnami
   - name: kyverno
-    version: 3.9.1
+    version: 3.9.2
     repository: https://kyverno.github.io/kyverno/
     # The first path set wins: the pre-0.2.0 key (unset by default) still applies until a later release drops it.
     condition: app.kyverno.enabled,kyverno.enabled

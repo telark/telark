@@ -2,7 +2,7 @@
 Kyverno's webhooks outlive an uninstall and sit in front of every API write. Its own
 hooks (kyverno.webhooksCleanup) can't remove them as a subchart: scale-to-zero selects
 part-of=kyverno (here <release>-kyverno), and delete-webhooks deletes a ValidatingAdmissionPolicy
-instead of each validating webhook (kyverno cmd/readiness-checker/main.go, v1.19.1).
+instead of each validating webhook (kyverno cmd/readiness-checker/main.go, v1.19.2).
 Stop the controllers first, or they re-create the webhooks as soon as they are gone.
 */}}
 {{- $values := include "telark.modeValues" . | fromYaml }}

@@ -2,6 +2,47 @@
 
 All notable changes to Telark are documented here.
 
+## [0.2.3](https://github.com/telark/telark/compare/v0.2.2...v0.2.3) - 2026-11-12
+
+### 🐛 Bug Fixes
+
+- Refuse deleting a category still in use ([#102](https://github.com/telark/telark/pull/102)) ([1db9d30](https://github.com/telark/telark/commit/1db9d30edb0cf6b7ba8c6f21ea39e10dc4dce112))
+- Name API versions and skip audit dry runs ([#102](https://github.com/telark/telark/pull/102)) ([e8033ba](https://github.com/telark/telark/commit/e8033bac8ee181ad30eb4120a8c4f8775cd12cfe))
+
+### 🖥️ Dashboard UI
+
+v0.2.2 → [v0.2.3](https://github.com/telark/dashboard-ui/releases/tag/v0.2.3)
+
+#### [0.2.3](https://github.com/telark/dashboard-ui/compare/v0.2.2...v0.2.3) - 2026-11-12
+
+##### ✨ Features
+
+- Add one Categories page ([#65](https://github.com/telark/dashboard-ui/pull/65)) ([9ab8ab0](https://github.com/telark/dashboard-ui/commit/9ab8ab0b90e0fca943b26965b5ec815b896c15f2))
+- Show Signed in for members without an enrollment link ([#65](https://github.com/telark/dashboard-ui/pull/65)) ([b183e90](https://github.com/telark/dashboard-ui/commit/b183e90f931022219bf349870a3c43bb406988c5))
+
+##### 🐛 Bug Fixes
+
+- Fix passkey and role error handling ([#65](https://github.com/telark/dashboard-ui/pull/65)) ([929be47](https://github.com/telark/dashboard-ui/commit/929be478f01d987996070a3c19c63d9c871ac462))
+- Name dialogs for screen readers ([#65](https://github.com/telark/dashboard-ui/pull/65)) ([158aee5](https://github.com/telark/dashboard-ui/commit/158aee57d701ee5190ed2c31fd41667396dadc3d))
+- Show plan load errors and close the duplicate panel once ([#65](https://github.com/telark/dashboard-ui/pull/65)) ([91fe7f8](https://github.com/telark/dashboard-ui/commit/91fe7f8157909f671e1377dac295b04410174efa))
+- Clear the new Sonar issues and turn off antd's click wave in tests ([#65](https://github.com/telark/dashboard-ui/pull/65)) ([c5ad79f](https://github.com/telark/dashboard-ui/commit/c5ad79fe5f15420e0bea965e64a519380ad70d14))
+- Use role none on the modal click wrappers ([#65](https://github.com/telark/dashboard-ui/pull/65)) ([86bcb1e](https://github.com/telark/dashboard-ui/commit/86bcb1eee3deca63be2ab90792d494d27df63690))
+- Keep the page in place during a force sync ([#65](https://github.com/telark/dashboard-ui/pull/65)) ([201e756](https://github.com/telark/dashboard-ui/commit/201e75654e5354c1b428463350c29319f7b0425a))
+- Keep the bottom space on tall pages ([#65](https://github.com/telark/dashboard-ui/pull/65)) ([4257440](https://github.com/telark/dashboard-ui/commit/42574406c183ab130e016c9643f5a3aae4f3573e))
+- Sort tables by keyboard and handle floating promises ([#65](https://github.com/telark/dashboard-ui/pull/65)) ([b9787d6](https://github.com/telark/dashboard-ui/commit/b9787d60a0947c88e64604e1d0bca5b7f3a45eb9))
+- Shorten long role descriptions and keep their case ([#65](https://github.com/telark/dashboard-ui/pull/65)) ([eb86295](https://github.com/telark/dashboard-ui/commit/eb862956dc5ae0502c07ba3dbaee84526e19f19c))
+
+##### 📚 Documentation
+
+- Add the test rules ([#65](https://github.com/telark/dashboard-ui/pull/65)) ([88c67d9](https://github.com/telark/dashboard-ui/commit/88c67d9e356d42f7d10919f3d62fdc31c4179f67))
+- Add the pill and poll rules ([#65](https://github.com/telark/dashboard-ui/pull/65)) ([4318396](https://github.com/telark/dashboard-ui/commit/431839661cf1182c1d9162c2466292258ec2ca61))
+- Give every green pill white text in the rules ([#65](https://github.com/telark/dashboard-ui/pull/65)) ([ef54d9e](https://github.com/telark/dashboard-ui/commit/ef54d9ea828cc1bbe8cac3d4209e514882eef3ce))
+
+
+### Contributors
+
+- [@hourki](https://github.com/hourki)
+
 ## [0.2.2](https://github.com/telark/telark/compare/v0.2.1...v0.2.2) - 2026-11-07
 
 ### 🐛 Bug Fixes

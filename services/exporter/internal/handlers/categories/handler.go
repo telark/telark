@@ -303,6 +303,10 @@ func DeleteCategoryByIDWithCacheInvalidation(optimizer *performance.Optimizer) f
 			return
 		}
 
+		if !categoryutils.EnsureCategoryUnused(w, deletedScope, catID) {
+			return
+		}
+
 		if err := categoryutils.DeleteCategoryFromCRD(catID); err != nil {
 			responseutils.LogAndSendResponse(
 				w,

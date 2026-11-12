@@ -28,7 +28,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
   --set kyverno.enabled=false
 ```
 
-Telark is tested with Kyverno v1.19.1, the version the chart bundles, and needs Kyverno 1.18 or later with the `policies.kyverno.io` CRDs ([Install](INSTALL.md#1-install)). With your own Kyverno, change history names no author, because the chart installs the policy that records authors only with the bundled Kyverno.
+Telark is tested with Kyverno v1.19.2, the version the chart bundles, and needs Kyverno 1.18 or later with the `policies.kyverno.io` CRDs ([Install](INSTALL.md#1-install)). With your own Kyverno, change history names no author, because the chart installs the policy that records authors only with the bundled Kyverno.
 
 By default the chart installs Telark's services together with Kyverno, Redis, NATS, metrics-server and Ollama. Wait until every pod is running:
 

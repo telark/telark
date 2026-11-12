@@ -2,15 +2,19 @@ package category
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
 
 	categorydata "github.com/telark/telark/internal/data/classification/category"
+	metadata "github.com/telark/telark/internal/data/metadata/v1alpha1"
+	roledata "github.com/telark/telark/internal/data/resources/role"
 	"github.com/telark/telark/internal/rest/response"
 	responseutils "github.com/telark/telark/internal/rest/utils/response"
 	"github.com/telark/telark/services/exporter/internal/constants"
 	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 func IsBuiltinCategory(id string) bool {
@@ -77,6 +81,60 @@ func ValidateCategoryDeletion(w http.ResponseWriter) bool {
 	}
 
 	return true
+}
+
+var categoryReferences = map[string]categoryReference{
+	roledata.ScopeGroups:               {metadata.GroupMetadata, constants.FieldCategoryRef},
+	roledata.ScopeRoles:                {metadata.AccessRoleMetadata, constants.FieldCategoryRef},
+	categorydata.ScopePlanKinds:        {metadata.ProtectionPlanMetadata, constants.FieldKindRef},
+	categorydata.ScopePlanEnvironments: {metadata.ProtectionPlanMetadata, constants.FieldEnvironmentRef},
+	categorydata.ScopePlanTags:         {metadata.ProtectionPlanMetadata, constants.FieldTagRefs},
+}
+
+func referencesCategory(resource map[string]any, field, catID string) bool {
+	value, _, _ := unstructured.NestedFieldNoCopy(resource, constants.SpecField, field)
+	switch ref := value.(type) {
+	case string:
+		return ref == catID
+	case []any:
+		return slices.Contains(ref, any(catID))
+	default:
+		return false
+	}
+}
+
+// A failed list refuses the delete, because the references could not be checked.
+func EnsureCategoryUnused(w http.ResponseWriter, scope, catID string) bool {
+	reference, known := categoryReferences[scope]
+	if !known {
+		return true
+	}
+
+	list, err := sharedutils.ListResources(reference.resource, constants.ErrCategoryUsersListInvalid)
+	if err != nil {
+		handleCategoryError(w, err)
+		return false
+	}
+
+	users := constants.DefaultInitValue
+	for i := range list.Items {
+		// A resource on its way out no longer holds the category: its cleanup takes seconds.
+		if list.Items[i].GetDeletionTimestamp() == nil && referencesCategory(list.Items[i].Object, reference.field, catID) {
+			users += constants.DefaultIncrementValue
+		}
+	}
+	if users == constants.DefaultInitValue {
+		return true
+	}
+
+	responseutils.SendResponse(
+		w,
+		http.StatusConflict,
+		response.OperationError,
+		fmt.Sprintf(string(constants.ErrCategoryInUse), users),
+		nil,
+	)
+	return false
 }
 
 func validateRequiredFieldAndRespond(w http.ResponseWriter, value string, errorMsg string) error {

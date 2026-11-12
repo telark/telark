@@ -141,6 +141,8 @@ const (
 	ErrCategoryBuiltInImmutable    errors.Error = "built-in categories cannot be modified or deleted"
 	ErrCategoryBuiltInTypeReserved errors.Error = "the built-in category type is reserved"
 	ErrCategoryNameAlreadyExists   errors.Error = "a category with this name already exists in this scope"
+	ErrCategoryInUse               errors.Error = "Items still using this category: %d. Move them to another category first"
+	ErrCategoryUsersListInvalid    errors.Error = "invalid category users list format"
 
 	// Global config.
 	ErrConfigPatchFailed  errors.Error = "failed to patch config"

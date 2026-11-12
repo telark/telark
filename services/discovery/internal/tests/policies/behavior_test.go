@@ -12,8 +12,7 @@ import (
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
-	"github.com/kyverno/kyverno/pkg/cel/compiler"
-	"github.com/kyverno/kyverno/pkg/cel/matching"
+	"github.com/kyverno/sdk/extensions/cel/compiler"
 	celutils "github.com/kyverno/sdk/extensions/cel/utils"
 	"github.com/telark/telark/internal/data/plans"
 	datapolicies "github.com/telark/telark/internal/data/policies"
@@ -28,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8sadmission "k8s.io/apiserver/pkg/admission"
+	"k8s.io/apiserver/pkg/admission/plugin/webhook/predicates/rules"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/cel/lazy"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
@@ -102,6 +102,7 @@ type admission struct {
 	groups    []string
 	object    map[string]any
 	oldObject map[string]any
+	dryRun    bool
 }
 
 type behaviorCase struct {
@@ -177,6 +178,10 @@ func updateDeployment(oldSpec, spec map[string]any, replicas int64) admission {
 	return update(gvkDeployment, gvrDeployment, deployment(otherName, replicasOne, oldSpec), deployment(otherName, replicas, spec))
 }
 
+func updateMember(oldSpec, spec map[string]any, replicas int64) admission {
+	return update(gvkDeployment, gvrDeployment, deployment(acceptApp, replicasOne, oldSpec), deployment(acceptApp, replicas, spec))
+}
+
 func createCronJob(spec map[string]any) admission {
 	jobTemplate := map[string]any{keySpec: map[string]any{keyTemplate: map[string]any{keySpec: spec}}}
 	return create(gvkCronJob, gvrCronJob, withSpec(object(gvkCronJob, otherName, nil), map[string]any{"jobTemplate": jobTemplate}))
@@ -230,11 +235,15 @@ func handlePlan(t *testing.T, plan *plans.ProtectionPlan, resolved map[string]da
 	}
 	newObj, oldObj := &unstructured.Unstructured{Object: a.object}, &unstructured.Unstructured{Object: a.oldObject}
 	attr := k8sadmission.NewAttributesRecord(newObj, oldObj, a.gvk, acceptNamespace, a.name, a.gvr, a.sub,
-		k8sadmission.Operation(a.op), nil, false, &user.DefaultInfo{Name: a.user, Groups: a.groups})
+		k8sadmission.Operation(a.op), nil, a.dryRun, &user.DefaultInfo{Name: a.user, Groups: a.groups})
 	request := admissionv1.AdmissionRequest{
 		UID: "uid", Kind: metav1.GroupVersionKind(a.gvk), Resource: metav1.GroupVersionResource(a.gvr),
 		SubResource: a.sub, Name: a.name, Namespace: acceptNamespace, Operation: a.op,
 		UserInfo: authenticationv1.UserInfo{Username: a.user, Groups: a.groups},
+	}
+	// The JSON Kyverno reads drops dryRun unless it is set, so only a dry run carries the field.
+	if a.dryRun {
+		request.DryRun = &a.dryRun
 	}
 	request.Object.Raw, request.OldObject.Raw = toJSON(t, a.object), toJSON(t, a.oldObject)
 	data := map[string]any{
@@ -245,15 +254,28 @@ func handlePlan(t *testing.T, plan *plans.ProtectionPlan, resolved map[string]da
 	}
 	var out []policyVerdict
 	for i := range rendered {
-		matched, err := matching.NewMatcher().Match(&matching.MatchCriteria{Constraints: rendered[i].Spec.MatchConstraints}, attr, nil)
-		if err != nil {
-			t.Fatalf("match: %v", err)
-		}
-		if rendered[i].Namespace == acceptNamespace && matched {
+		if rendered[i].Namespace == acceptNamespace && matchesResourceRules(t, rendered[i].Spec.MatchConstraints, attr) {
 			out = append(out, compileVpol(t, &rendered[i]).evaluate(t, maps.Clone(data)))
 		}
 	}
 	return out
+}
+
+// Kyverno's matcher (pkg/cel/matching) reduced to what the renderer emits: resource rules without
+// names, selectors or excludes. It fails loudly once a policy uses more.
+func matchesResourceRules(t *testing.T, c *admissionregistrationv1.MatchResources, attr k8sadmission.Attributes) bool {
+	t.Helper()
+	named := func(r admissionregistrationv1.NamedRuleWithOperations) bool {
+		return len(r.ResourceNames) > constants.DefaultInitValue
+	}
+	if c.NamespaceSelector != nil || c.ObjectSelector != nil || len(c.ExcludeResourceRules) > constants.DefaultInitValue ||
+		slices.ContainsFunc(c.ResourceRules, named) {
+		t.Fatal("match constraints use more than resource rules: extend this matcher the way Kyverno's matches")
+	}
+	return slices.ContainsFunc(c.ResourceRules, func(r admissionregistrationv1.NamedRuleWithOperations) bool {
+		m := rules.Matcher{Rule: r.RuleWithOperations, Attr: attr}
+		return m.Matches()
+	})
 }
 
 func resolveVal(t *testing.T, obj any) any {
@@ -417,10 +439,11 @@ var behaviorCases = []behaviorCase{
 	inNamespace("cronjob tag", tplImageTags, createCronJob(withImage("busybox:dev")), verdictDeny),
 	inNamespace("init container tag", tplImageTags, createDeployment(withInit(withImage("app:1"), "alpine:latest")), verdictDeny),
 
-	inNamespace("replica change", tplReplicas, updateDeployment(podSpec(), podSpec(), replicasThree), verdictDeny),
-	inNamespace("same replicas", tplReplicas, updateDeployment(podSpec(), withImage("a"), replicasOne), verdictAdmit),
-	inNamespace("autoscaler /scale", tplReplicas, scaleTo(gvrDeployment, otherName, replicasThree).by(controllerManager), verdictDeny),
-	inNamespace("unchanged /scale", tplReplicas, scaleTo(gvrDeployment, otherName, replicasOne), verdictAdmit),
+	// Replica scaling supports only the applications scope.
+	inApplication("replica change", tplReplicas, updateMember(podSpec(), podSpec(), replicasThree), verdictDeny),
+	inApplication("same replicas", tplReplicas, updateMember(podSpec(), withImage("a"), replicasOne), verdictAdmit),
+	inApplication("autoscaler /scale", tplReplicas, scaleTo(gvrDeployment, acceptApp, replicasThree).by(controllerManager), verdictDeny),
+	inApplication("unchanged /scale", tplReplicas, scaleTo(gvrDeployment, acceptApp, replicasOne), verdictAdmit),
 
 	inNamespace("human claim update", tplStorage, relabel(gvkPVC, gvrPVC, otherName), verdictDeny),
 	inNamespace("controller binds a claim", tplStorage, relabel(gvkPVC, gvrPVC, otherName).by(controllerManager), verdictAdmit),
@@ -484,6 +507,16 @@ func TestAuditRecordsWithoutDeny(t *testing.T) {
 		for _, v := range verdicts {
 			testutil.Equal(t, mode+" action", slices.Equal(v.actions, []admissionregistrationv1.ValidationAction{want}), true)
 		}
+	}
+}
+
+// Kyverno records an audit Event for a server dry run too, though nothing changed, so Audit skips
+// dry runs. Enforce still refuses one, so a dry run tells the truth.
+func TestAuditSkipsDryRuns(t *testing.T) {
+	dry := remove(gvkDeployment, gvrDeployment, otherName)
+	dry.dryRun = true
+	for mode, want := range map[string]string{plans.ModeEnforce: verdictDeny, plans.ModeAudit: verdictAdmit} {
+		testutil.Equal(t, mode, verdictOf(handle(t, tplDelete, plans.ScopeTypeNamespaces, mode, false, dry)), want)
 	}
 }
 

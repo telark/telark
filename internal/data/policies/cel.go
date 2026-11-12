@@ -38,6 +38,7 @@ const (
 	exprSubResource   = `request.?subResource.orValue("")`
 	exprName          = `request.?name.orValue("")`
 	exprUsername      = `request.userInfo.?username.orValue("")`
+	exprNotDryRun     = `!request.?dryRun.orValue(false)`
 	exprNoSubResource = exprSubResource + ` == ""`
 	exprScaleFmt      = exprSubResource + ` == "scale" && ` + exprResource + celIn + "%s"
 	exprGroupsFmt     = "request.userInfo.?groups.orValue([]).exists(g, g in %s)"
@@ -230,24 +231,24 @@ func PodSpecVariables() []admissionregistrationv1.Variable {
 	}
 }
 
-// One rule per API group and operation set, `*` and `/scale` each in their own, so a request
+// One rule per API group, version and operation set, `*` and `/scale` each in their own, so a request
 // reaches the policy only for a resource and verb some filter names.
 func resourceRules(filters []ResourceFilter) []admissionregistrationv1.NamedRuleWithOperations {
 	groups := map[string]*ruleGroup{}
 	for _, f := range filters {
 		ops := strings.Join(f.Ops, ruleKeySep)
 		for _, kind := range f.Kinds {
-			group, resource, ok := ruleTarget(kind)
+			target, ok := ruleTarget(kind)
 			if !ok {
 				continue
 			}
-			key := strings.Join([]string{group, ops, strconv.FormatBool(baseKind(kind) != kind)}, ruleKeySep)
+			key := strings.Join([]string{target.Group, target.Version, ops, strconv.FormatBool(baseKind(kind) != kind)}, ruleKeySep)
 			g, seen := groups[key]
 			if !seen {
-				g = &ruleGroup{group: group, ops: f.Ops}
+				g = &ruleGroup{group: target.Group, version: target.Version, ops: f.Ops}
 				groups[key] = g
 			}
-			g.resources = append(g.resources, resource)
+			g.resources = append(g.resources, target.Resource)
 		}
 	}
 	keys := slices.Sorted(maps.Keys(groups))
@@ -258,8 +259,9 @@ func resourceRules(filters []ResourceFilter) []admissionregistrationv1.NamedRule
 			RuleWithOperations: admissionregistrationv1.RuleWithOperations{
 				Operations: operationTypes(g.ops),
 				Rule: admissionregistrationv1.Rule{
-					APIGroups:   []string{g.group},
-					APIVersions: []string{KindWildcard},
+					APIGroups: []string{g.group},
+					// Named, not `*`: Kyverno's report controller can't resolve a `*` version and logs it on every pass.
+					APIVersions: []string{g.version},
 					Resources:   slices.Compact(slices.Sorted(slices.Values(g.resources))),
 				},
 			},
@@ -269,19 +271,19 @@ func resourceRules(filters []ResourceFilter) []admissionregistrationv1.NamedRule
 }
 
 // The `*` resource group is its own API group, so it never shares a rule with a named resource.
-func ruleTarget(kind string) (group, resource string, ok bool) {
+func ruleTarget(kind string) (schema.GroupVersionResource, bool) {
 	if kind == KindWildcard {
-		return KindWildcard, KindWildcard, true
+		return schema.GroupVersionResource{Group: KindWildcard, Version: KindWildcard, Resource: KindWildcard}, true
 	}
 	base := baseKind(kind)
 	gvr, ok := kindResources[base]
 	if !ok {
-		return constants.EmptyString, constants.EmptyString, false
+		return schema.GroupVersionResource{}, false
 	}
 	if base != kind {
-		return gvr.Group, gvr.Resource + scaleSuffix, true
+		gvr.Resource += scaleSuffix
 	}
-	return gvr.Group, gvr.Resource, true
+	return gvr, true
 }
 
 func operationTypes(ops []string) []admissionregistrationv1.OperationType {

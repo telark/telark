@@ -27,7 +27,7 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
   --set kyverno.enabled=false
 ```
 
-Telark is tested with Kyverno v1.19.1, the version the chart bundles. Your own Kyverno must be 1.18 or later, serve the `policies.kyverno.io` CRDs (plan policies are `NamespacedValidatingPolicy` objects; without them every active plan reads Degraded and discovery logs why) and keep its `PolicyViolation` Events, as its default `omitEvents` does: the plan's admission decisions come from them. Upgrade Telark to 0.2.0 before you move Kyverno to 1.20 ([Upgrade notes](#upgrade-notes)). With your own Kyverno, change history names no author, because the chart installs the policy that records authors only with the bundled Kyverno.
+Telark is tested with Kyverno v1.19.2, the version the chart bundles. Your own Kyverno must be 1.18 or later, serve the `policies.kyverno.io` CRDs (plan policies are `NamespacedValidatingPolicy` objects; without them every active plan reads Degraded and discovery logs why) and keep its `PolicyViolation` Events, as its default `omitEvents` does: the plan's admission decisions come from them. Upgrade Telark to 0.2.0 before you move Kyverno to 1.20 ([Upgrade notes](#upgrade-notes)). With your own Kyverno, change history names no author, because the chart installs the policy that records authors only with the bundled Kyverno.
 
 The examples below leave out the admin flag. Keep it on every command.
 

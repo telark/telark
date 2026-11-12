@@ -1,6 +1,7 @@
 package policies
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -204,7 +205,7 @@ func assertNoFieldErrors(t *testing.T, errs field.ErrorList) {
 func TestKyvernoAcceptsEveryRenderedPolicy(t *testing.T) {
 	for _, mode := range []string{plans.ModeEnforce, plans.ModeAudit} {
 		for _, tpl := range plans.Templates {
-			for scopeType := range acceptScopes() {
+			for _, scopeType := range supportedScopes(tpl) {
 				for _, excluded := range []bool{false, true} {
 					t.Run(mode+"/"+tpl.ID+"/"+scopeType, func(t *testing.T) {
 						plan, resolved := acceptPlan(tpl.ID, scopeType, mode, excluded)
@@ -224,6 +225,17 @@ func TestKyvernoAcceptsEveryRenderedPolicy(t *testing.T) {
 			}
 		}
 	}
+}
+
+// Only the scopes the API lets a plan pick: prepare refuses the rest.
+func supportedScopes(tpl plans.Template) []string {
+	var out []string
+	for scopeType := range acceptScopes() {
+		if slices.Contains(tpl.SupportedScopes, plans.ScopeSupport(scopeType)) {
+			out = append(out, scopeType)
+		}
+	}
+	return out
 }
 
 // The CRD lists validation actions as a set and wants no line break in a message.

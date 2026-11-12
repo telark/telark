@@ -68,6 +68,7 @@ type PolicySpec struct {
 
 type ruleGroup struct {
 	group     string
+	version   string
 	ops       []string
 	resources []string
 }

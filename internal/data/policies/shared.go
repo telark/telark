@@ -39,6 +39,7 @@ const (
 	ConditionScope       = "scope"
 	ConditionNotPlatform = "not-platform-write"
 	ConditionNotExcluded = "not-excluded"
+	ConditionNotDryRun   = "not-dry-run"
 )
 
 const KindCronJob = "CronJob"
@@ -124,6 +125,20 @@ func RenderHash(pol *policiesv1.NamespacedValidatingPolicy) string {
 	}
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
+}
+
+func matchConditions(match []ResourceFilter, mode string) []admissionregistrationv1.MatchCondition {
+	conditions := []admissionregistrationv1.MatchCondition{
+		{Name: ConditionScope, Expression: AnyOf(match)},
+		// By kind, which a Deployment can't fake: a plan must still repair its policies where another plan freezes.
+		{Name: ConditionNotPlatform, Expression: celNegate(platformExpr)},
+	}
+	// Kyverno records an audit Event for a server dry run (kubectl diff) too, though nothing changed.
+	// Enforce still judges dry runs, so a dry run keeps telling the truth.
+	if mode != plans.ModeEnforce {
+		conditions = append(conditions, admissionregistrationv1.MatchCondition{Name: ConditionNotDryRun, Expression: exprNotDryRun})
+	}
+	return conditions
 }
 
 func ValidationActions(mode string) []admissionregistrationv1.ValidationAction {
@@ -309,11 +324,7 @@ func NewPolicy(meta RenderMeta, scope ScopeSpec, spec PolicySpec) *policiesv1.Na
 		ObjectMeta: PolicyMeta(meta, spec.TemplateID, spec.TemplateCode, scope),
 		Spec: policiesv1.ValidatingPolicySpec{
 			MatchConstraints: &admissionregistrationv1.MatchResources{ResourceRules: resourceRules(spec.Match)},
-			MatchConditions: []admissionregistrationv1.MatchCondition{
-				{Name: ConditionScope, Expression: AnyOf(spec.Match)},
-				// By kind, which a Deployment can't fake: a plan must still repair its policies where another plan freezes.
-				{Name: ConditionNotPlatform, Expression: celNegate(platformExpr)},
-			},
+			MatchConditions:  matchConditions(spec.Match, meta.Mode),
 			Variables:        spec.Variables,
 			Validations:      spec.Validations,
 			ValidationAction: ValidationActions(meta.Mode),

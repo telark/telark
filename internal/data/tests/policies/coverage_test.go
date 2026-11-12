@@ -187,6 +187,22 @@ func TestResourceRulesNeverMixWildcardOrScale(t *testing.T) {
 	}
 }
 
+// Kyverno's report controller can't resolve a `*` version, so only the any-resource rule keeps one.
+func TestResourceRulesNameTheirVersion(t *testing.T) {
+	for _, tpl := range plans.Templates {
+		for scopeName, scope := range allScopes() {
+			pol := renderOne(t, tpl.ID, templateParams[tpl.ID], scope)
+			for _, rule := range pol.Spec.MatchConstraints.ResourceRules {
+				wildcard := slices.Contains(rule.Resources, policies.KindWildcard)
+				if len(rule.APIVersions) != constants.SingleItem ||
+					(rule.APIVersions[constants.DefaultInitValue] == policies.KindWildcard) != wildcard {
+					t.Errorf("%s/%s versions %v for %v", tpl.ID, scopeName, rule.APIVersions, rule.Resources)
+				}
+			}
+		}
+	}
+}
+
 // An application never owns the PersistentVolumeClaims its workloads mount, so the name-filtered
 // application match produced no PVC rule at all and every PVC verb was admitted.
 func TestBlockStorageChangesReachesApplicationClaims(t *testing.T) {

@@ -37,6 +37,31 @@ func authRequest(name string) *unstructured.Unstructured {
 	return obj
 }
 
+// A fake apiserver holding one request in the exporter's namespace.
+func seededAuthRequests(ctx context.Context, t *testing.T) dynamic.Interface {
+	t.Helper()
+	md := authmetadata.AuthRequestMetadata
+	gvr := schema.GroupVersionResource{Group: md.BaseGroup, Version: md.Version, Resource: md.Plural}
+	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(
+		runtime.NewScheme(), map[schema.GroupVersionResource]string{gvr: md.Kind + listSuffix},
+	)
+	if _, err := dyn.Resource(gvr).Namespace(md.Namespace).Create(ctx, authRequest(mirroredRequest), metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	return dyn
+}
+
+func assertMirrorsRequest(t *testing.T) {
+	t.Helper()
+	items, synced := informers.ListAuthRequests()
+	if !synced || !informers.AuthRequestsSynced() {
+		t.Fatal("informer did not sync")
+	}
+	if len(items) != constants.DefaultIncrementValue || items[constants.DefaultInitValue].GetName() != mirroredRequest {
+		t.Fatalf("mirror lists %v, want %s", items, mirroredRequest)
+	}
+}
+
 // Nothing is served before the sync, so the caller asks the apiserver; after it the mirror lists the requests of the
 // exporter's namespace, whether it runs on a given client or starts on the process's own.
 func TestAuthRequestsMirrorServesAfterTheSync(t *testing.T) {
@@ -49,11 +74,6 @@ func TestAuthRequestsMirrorServesAfterTheSync(t *testing.T) {
 	}
 	for name, start := range cases {
 		t.Run(name, func(t *testing.T) {
-			md := authmetadata.AuthRequestMetadata
-			gvr := schema.GroupVersionResource{Group: md.BaseGroup, Version: md.Version, Resource: md.Plural}
-			dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(
-				runtime.NewScheme(), map[schema.GroupVersionResource]string{gvr: md.Kind + listSuffix},
-			)
 			ctx, cancel := context.WithCancel(t.Context())
 			t.Cleanup(cancel)
 			t.Cleanup(func() {
@@ -63,19 +83,11 @@ func TestAuthRequestsMirrorServesAfterTheSync(t *testing.T) {
 			if items, synced := informers.ListAuthRequests(); synced || items != nil || informers.AuthRequestsSynced() {
 				t.Fatal("nothing must be served before the informer synced")
 			}
-			if _, err := dyn.Resource(gvr).Namespace(md.Namespace).Create(ctx, authRequest(mirroredRequest), metav1.CreateOptions{}); err != nil {
-				t.Fatal(err)
-			}
+			dyn := seededAuthRequests(ctx, t)
 
 			start(ctx, dyn)
 
-			items, synced := informers.ListAuthRequests()
-			if !synced || !informers.AuthRequestsSynced() {
-				t.Fatal("informer did not sync")
-			}
-			if len(items) != constants.DefaultIncrementValue || items[constants.DefaultInitValue].GetName() != mirroredRequest {
-				t.Fatalf("mirror lists %v, want %s", items, mirroredRequest)
-			}
+			assertMirrorsRequest(t)
 		})
 	}
 }

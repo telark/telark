@@ -15,7 +15,7 @@ namespace would hang. The first Job stops auth, or its leader sweeper restores t
 {{- $securityContext := dict "allowPrivilegeEscalation" false "readOnlyRootFilesystem" true "capabilities" (dict "drop" (list "ALL")) }}
 {{- $podSecurityContext := dict "runAsNonRoot" true "runAsUser" 10001 "seccompProfile" (dict "type" "RuntimeDefault") }}
 {{- $shared := $values.app.shared.resources }}
-{{- $resources := dict "requests" (pick $shared.requests "memory" "cpu" "ephemeral-storage") "limits" (pick $shared.limits "memory") }}
+{{- $resources := dict "requests" (pick $shared.requests "memory" "cpu" "ephemeral-storage") "limits" (pick $shared.limits "memory" "ephemeral-storage") }}
 {{- if $auth.enabled }}
 apiVersion: v1
 kind: ServiceAccount

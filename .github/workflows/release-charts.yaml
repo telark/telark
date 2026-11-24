@@ -40,13 +40,6 @@ on:
           - release
           - prerelease
 
-permissions:
-  contents: write   # commit the version bump + push the release tag / create the release
-  packages: write
-  pull-requests: read   # git-cliff reads PR numbers + authors for the changelog
-  id-token: write   # keyless cosign signing via GitHub OIDC
-  actions: write    # start the run on the new tag that publishes telark
-
 concurrency:
   group: release-charts
   cancel-in-progress: false
@@ -60,6 +53,12 @@ env:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # commit the version bump + push the release tag / create the release
+      packages: write
+      pull-requests: read   # git-cliff reads PR numbers + authors for the changelog
+      id-token: write   # keyless cosign signing via GitHub OIDC
+      actions: write    # start the run on the new tag that publishes telark
     outputs:
       telark_version: ${{ steps.publish.outputs.telark_version }}
     steps:
@@ -308,7 +307,10 @@ jobs:
           git tag "$tag"
           git push origin "$tag"          # pushed with GITHUB_TOKEN, so it does not re-trigger this workflow
           brew='s/^@BREW@//'
-          case "$v" in *-*) brew='/^@BREW@/d' ;; esac   # the cask skips suffixed versions (skip_upload: auto)
+          case "$v" in
+            *-*) brew='/^@BREW@/d' ;;   # the cask skips suffixed versions (skip_upload: auto)
+            *)   ;;
+          esac
           sed -e "s/@VERSION@/${v}/g" -e "$brew" >> "${{ runner.temp }}/release-notes.md" <<'EOF'
 
           ## Install the CLI
@@ -380,7 +382,7 @@ jobs:
           case "$RELEASE_TYPE" in
             prerelease) pre=true ;;
             release)    ;;
-            *)          case "$GITHUB_REF_NAME" in *-*) pre=true ;; esac ;;
+            *)          case "$GITHUB_REF_NAME" in *-*) pre=true ;; *) ;; esac ;;
           esac
           draft=$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)
           if [ "$draft" = "true" ]; then

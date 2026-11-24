@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/telark/telark/internal/data/metadata/base"
 )
 
 const (
@@ -24,9 +26,9 @@ var served = []servedResource{
 	{version: coreVersion, resource: "configmaps", kind: "ConfigMap", namespaced: true},
 	{version: coreVersion, resource: "secrets", kind: "Secret", namespaced: true},
 	{group: crdGroup, version: coreVersion, resource: crdResource, kind: crdKind},
-	{group: "telark.io", version: "v1alpha1", resource: "categories", kind: "Category", namespaced: true},
-	{group: "telark.io", version: "v1alpha1", resource: "authrequests", kind: "AuthRequest", namespaced: true},
-	{group: "telark.io", version: "v1alpha1", resource: "telarkconfigs", kind: "TelarkConfig", namespaced: true},
+	{group: base.Group, version: base.V1Alpha1, resource: "categories", kind: "Category", namespaced: true},
+	{group: base.Group, version: base.V1Alpha1, resource: "authrequests", kind: "AuthRequest", namespaced: true},
+	{group: base.Group, version: base.V1Alpha1, resource: "telarkconfigs", kind: "TelarkConfig", namespaced: true},
 }
 
 func discovers(urlPath string, path apiPath) bool {

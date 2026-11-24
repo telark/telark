@@ -15,8 +15,9 @@ coverage:
 ignore:
   - "services/*/internal/tests/**"
   - "internal/*/tests/**"
+  - "cmd/*/internal/tests/**"
 
-# One flag per CI test job (services and shared packages); carryforward keeps a
+# One flag per CI test job (services, shared packages and the CLI); carryforward keeps a
 # flag's last coverage when a run didn't re-upload it (the matrix uploads separately).
 flag_management:
   default_rules:
@@ -41,6 +42,8 @@ flags:
     paths: [internal/kcore]
   x-ware:
     paths: [internal/x-ware]
+  cli:
+    paths: [cmd/telark]
 
 comment:
   layout: "reach, diff, flags"

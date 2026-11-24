@@ -32,7 +32,7 @@ jobs:
       # test and lint run as parallel legs: -race builds are not reusable by lint,
       # so one job paid both compiles back to back (discovery: 483 s + 353 s).
       matrix:
-        service: [auth, discovery, exporter, notifier, data, rest, kcore, x-ware]
+        service: [auth, discovery, exporter, notifier, data, rest, kcore, x-ware, cli]
         task: [test, lint]
         include:
           - { service: auth, path: services/auth, coverage: 80 }
@@ -43,6 +43,7 @@ jobs:
           - { service: rest, path: internal/rest, coverage: 54 }
           - { service: kcore, path: internal/kcore, coverage: 22 }
           - { service: x-ware, path: internal/x-ware, coverage: 47 }
+          - { service: cli, path: cmd/telark, coverage: 97 }
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -65,6 +66,27 @@ jobs:
           flags: ${{ matrix.service }}
           slug: telark/telark
           fail_ci_if_error: false
+
+  # Every release target of the CLI, built and archived as the release does (.goreleaser.yaml), so a
+  # Windows-only break or a broken release config shows up here rather than on the release tag.
+  cli-release-build:
+    name: CLI · release build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+
+      - name: Build every target
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          version: v2.20.3
+          args: release --snapshot --clean --skip=sign,sbom
 
   analyzer:
     name: Python · analyzer

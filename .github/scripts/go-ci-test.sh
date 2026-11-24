@@ -4,8 +4,9 @@ set -euo pipefail
 # -coverpkg so tests in internal/tests/* count against the code they exercise (per-package
 # coverage reports 0 for this layout). Every leg writes the profile Codecov reads.
 # No DWARF: it was most of each test binary's link and a quarter of the build cache, and stack
-# traces and race reports never read it.
-go test -race -gcflags=all=-dwarf=false -ldflags=-w -coverpkg="$PACKAGES" -coverprofile=coverage.out "$PACKAGES"
+# traces and race reports never read it. Go's own linker: Helm brings cgo into the CLI, and the
+# host linker took about 11 s of each 16 s test-binary link.
+go test -race -gcflags=all=-dwarf=false -ldflags='-w -linkmode=internal' -coverpkg="$PACKAGES" -coverprofile=coverage.out "$PACKAGES"
 total=$(go tool cover -func=coverage.out | awk '/^total:/{print $3}' | tr -d '%')
 echo "Total coverage: ${total}%"
 awk -v t="$total" -v m="${COVERAGE_THRESHOLD:-0}" \

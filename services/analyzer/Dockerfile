@@ -8,8 +8,13 @@ ENV PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /app
 
+# The base image predates Alpine's zlib and openssl fixes.
+RUN apk upgrade --no-cache zlib libcrypto3 libssl3
+
 COPY requirements.txt .
-RUN pip install --no-cache-dir --require-hashes --only-binary :all: -r requirements.txt
+# pip is install-only, and its vendored urllib3, msgpack and setuptools carry HIGH CVEs.
+RUN pip install --no-cache-dir --require-hashes --only-binary :all: -r requirements.txt \
+    && pip uninstall --yes pip
 
 COPY main.py LICENSE.md THIRD-PARTY-NOTICES.md ./
 COPY analysis/ analysis/

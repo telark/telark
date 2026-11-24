@@ -16,6 +16,7 @@ Telark is a protection gate for your Kubernetes applications: you decide what ca
 - [Chart README](../charts/telark/README.md): chart values explained, analyzer runtime profiles and air-gapped models.
 - [CRD chart](../charts/telark-crds/README.md): installing the CRDs on their own.
 - [Login and SSO](../services/auth/OIDC.md): turning on Google sign-in.
+- [The telark CLI](CLI.md): `telark version`, `telark check` before and after an install, and `telark install` and `telark upgrade` with their checks.
 
 ## Reference
 

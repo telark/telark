@@ -1,0 +1,13 @@
+app:
+  mode: standard
+  auth:
+    bootstrap:
+      admin: ""
+crds:
+  enabled: true
+  reference: ""
+  conversion: ""
+sample:
+  versions: ""
+extra:
+  enabled: false

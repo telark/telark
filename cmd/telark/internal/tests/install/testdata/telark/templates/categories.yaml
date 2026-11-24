@@ -1,0 +1,9 @@
+{{- with .Values.sample.versions }}
+apiVersion: telark.io/v1alpha1
+kind: Category
+metadata:
+  name: sample
+spec:
+  title: Sample
+  versions: {{ . | quote }}
+{{- end }}

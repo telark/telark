@@ -19,3 +19,5 @@ charts/*/charts
 !.claude/skills/
 .claude/skills/deploy-dev-cluster/
 
+# The CLI binary that `make cli` builds
+/bin/

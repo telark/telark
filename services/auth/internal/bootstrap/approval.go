@@ -109,7 +109,7 @@ func FinishApproval(r *http.Request, id string, bodyBytes []byte) (*response.Gen
 	return clients.GetBootstrapClient().Cancel(id, telarkconfig.BootstrapReasonDenied), nil
 }
 
-// The newest request, open to this action: a recovery is never approved, and nothing is denied while break-glass holds
+// The newest request, open to this action: a recovery is never approved, and nothing is denied while an auth request holds
 // the account frozen, so a run ends the way it began (its link's passkey would outlive a deny that landed mid-run).
 func decidableNow(status *telarkconfig.BootstrapStatus, id, action string) error {
 	newest := status.Newest()
@@ -157,7 +157,7 @@ func RefuseRecoveryPasskey(user *userresource.User, passkeys []*authdata.Passkey
 	if err != nil {
 		return err
 	}
-	if savedSince(passkeys, credentialID, opened.Add(config.BreakGlassWait())) {
+	if savedSince(passkeys, credentialID, opened.Add(config.AuthRequestWait())) {
 		return ErrRecoveryPasskey
 	}
 	return nil
@@ -218,7 +218,7 @@ func pinnedUser(status *telarkconfig.BootstrapStatus) (*webauthnhelper.User, []*
 	return webauthnhelper.CreateUser(status.UserID, status.Email, status.Email, credentials), passkeys, nil
 }
 
-// A sign-in cancels a pending request, so whoever ran break-glass can't wait out an owner who is around. A failed
+// A sign-in cancels a pending request, so whoever opened the auth request can't wait out an owner who is around. A failed
 // cancel never fails the sign-in: the exporter reads lastLoginAt before a request completes.
 func CancelOnSignIn(userID string) {
 	status, err := clients.GetBootstrapClient().Status()
@@ -239,5 +239,5 @@ func CancelOnSignIn(userID string) {
 
 // Read when printed, so the text names the configured wait while errors.Is still matches the value.
 func (e waitError) Error() string {
-	return fmt.Sprintf(string(e), int(config.BreakGlassWait()/time.Hour))
+	return fmt.Sprintf(string(e), int(config.AuthRequestWait()/time.Hour))
 }

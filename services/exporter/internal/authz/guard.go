@@ -775,8 +775,8 @@ var configFields = map[string]xauthz.Requirement{
 	// Who can authenticate: auth is the single writer and lets only the bootstrap account change these.
 	telarkconfig.FieldOIDC:             xauthz.Internal,
 	telarkconfig.FieldSelfRegistration: xauthz.Internal,
-	// Who hears of break-glass requests: auth writes it for the bootstrap account alone.
-	telarkconfig.FieldBreakGlassAlerts: xauthz.Internal,
+	// Who hears of auth requests: auth writes it for the bootstrap account alone.
+	telarkconfig.FieldAuthAlerts: xauthz.Internal,
 }
 
 // A patch touching no governed field still answers with the whole config, so

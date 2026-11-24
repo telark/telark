@@ -190,7 +190,7 @@ func guardEnrollLink(ctx context.Context, targetID string, issuing bool) (int, e
 }
 
 // A hidden account answers like a missing one, the bootstrap account is enrolled only
-// by break-glass, and every level the target holds must be within the caller's own.
+// by an auth request, and every level the target holds must be within the caller's own.
 func guardEnrollTarget(caller authz.Identity, target *userdata.User, grants authz.Grants, issuing bool) (int, error) {
 	if (target.Bootstrap || isAdmin(grants)) && !isAdmin(caller.Grants) {
 		return http.StatusNotFound, errors.New(string(constants.ErrUserNotFound))

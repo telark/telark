@@ -37,10 +37,11 @@ var (
 	ErrNoTarget         = errors.New(string(constants.ErrBootstrapNoTarget))
 	ErrReason           = errors.New(string(constants.ErrBootstrapReason))
 	ErrEmail            = errors.New(string(constants.ErrBootstrapEmailRequired))
+	ErrRequester        = errors.New(string(constants.ErrBootstrapRequesterNeeded))
 	ErrRecoveryApproval = waitError(constants.ErrBootstrapRecoveryApproval)
 	ErrKeep             = waitError(constants.ErrBootstrapKeep)
 
-	// A request's cause, by its reason, else its state; break-glass for the rest.
+	// A request's cause, by its reason, else its state; the auth request for the rest.
 	causes = map[string]string{
 		telarkconfig.BootstrapStateApproved:  constants.BootstrapCausePasskey,
 		telarkconfig.BootstrapReasonDenied:   constants.BootstrapCausePasskey,
@@ -50,10 +51,13 @@ var (
 
 // One open request at a time: a run while one is open, or within 24 hours after a replacement completed while its
 // account has no passkey, gets that one back, so a lost token costs no new wait.
-func Open(optimizer *performance.Optimizer, email string) (*Outcome, error) {
+func Open(optimizer *performance.Optimizer, email, requestedBy string) (*Outcome, error) {
 	email = userutils.NormalizeEmail(email)
 	if email == constants.EmptyString {
 		return &Outcome{}, ErrEmail
+	}
+	if requestedBy == constants.EmptyString {
+		return &Outcome{}, ErrRequester
 	}
 	unlock := lockRequests()
 	defer unlock()
@@ -75,7 +79,7 @@ func Open(optimizer *performance.Optimizer, email string) (*Outcome, error) {
 				return false, err
 			}
 		}
-		request, err := newRequest(recovery, email, at)
+		request, err := newRequest(recovery, email, requestedBy, at)
 		if err != nil {
 			return false, err
 		}
@@ -140,8 +144,8 @@ func reissuable(request *telarkconfig.BootstrapRequest, at time.Time) (bool, err
 }
 
 // A recovery when the email is the pinned account's, else a replacement that moves the pin to that email.
-func newRequest(recovery bool, email string, at time.Time) (telarkconfig.BootstrapRequest, error) {
-	request := telarkconfig.BootstrapRequest{State: telarkconfig.BootstrapStatePending, OpenedAt: stamp(at)}
+func newRequest(recovery bool, email, requestedBy string, at time.Time) (telarkconfig.BootstrapRequest, error) {
+	request := telarkconfig.BootstrapRequest{State: telarkconfig.BootstrapStatePending, OpenedAt: stamp(at), RequestedBy: requestedBy}
 	random := make([]byte, constants.BootstrapRequestIDBytes)
 	if _, err := rand.Read(random); err != nil {
 		return request, err
@@ -189,7 +193,7 @@ func Approve(id string) (*Outcome, error) {
 		if err != nil {
 			return false, fmt.Errorf(string(constants.ErrBootstrapStatusInvalid), err)
 		}
-		if !at.Before(opened.Add(envmanager.GetBreakGlassWait())) {
+		if !at.Before(opened.Add(envmanager.GetAuthRequestWait())) {
 			return false, ErrExpired
 		}
 		request.State, request.ApprovedAt = telarkconfig.BootstrapStateApproved, stamp(at)
@@ -461,7 +465,7 @@ func markOf(request *telarkconfig.BootstrapRequest) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, fmt.Errorf(string(constants.ErrBootstrapStatusInvalid), err)
 	}
-	return opened.Add(envmanager.GetBreakGlassWait()), nil
+	return opened.Add(envmanager.GetAuthRequestWait()), nil
 }
 
 func credentialOf(passkey unstructured.Unstructured) string {
@@ -513,7 +517,7 @@ func judge(status *telarkconfig.BootstrapStatus, request *telarkconfig.Bootstrap
 	if err != nil {
 		return false, false, fmt.Errorf(string(constants.ErrBootstrapStatusInvalid), err)
 	}
-	if at.Before(opened.Add(envmanager.GetBreakGlassWait())) {
+	if at.Before(opened.Add(envmanager.GetAuthRequestWait())) {
 		// An approval a recovery got before recoveries lost theirs counts for nothing.
 		return request.Kind == telarkconfig.BootstrapKindReplace && request.State == telarkconfig.BootstrapStateApproved, false, nil
 	}
@@ -537,7 +541,7 @@ func hasPasskey(userID string) (bool, error) {
 	return len(passkeys) > constants.DefaultInitValue, err
 }
 
-// break-glass creates and promotes the account before it completes the request.
+// An auth request creates and promotes the account before it completes the request.
 func replacementID(email string) (string, error) {
 	id, err := accountOf(email)
 	if err == nil && id == constants.EmptyString {
@@ -595,12 +599,13 @@ func logChanges(outcome *Outcome) {
 func logRequest(request telarkconfig.BootstrapRequest, event string) {
 	cause, found := causes[cmp.Or(request.Reason, request.State)]
 	if !found {
-		cause = constants.BootstrapCauseBreakGlass
+		cause = constants.BootstrapCauseAuthRequest
 	}
 	if request.Reason == telarkconfig.BootstrapReasonExpired {
 		cause = fmt.Sprintf(constants.BootstrapCauseWaitElapsed, WaitHours())
 	}
-	lg.Info(fmt.Sprintf(string(constants.InfBootstrapRequest), request.ID, request.Kind, event, cause))
+	requester := cmp.Or(request.RequestedBy, constants.BootstrapRequesterUnknown)
+	lg.Info(fmt.Sprintf(string(constants.InfBootstrapRequest), request.ID, request.Kind, requester, event, cause))
 }
 
 // A failed update wrote nothing, so it changed no request a notice could report.
@@ -619,7 +624,7 @@ func stamp(at time.Time) string {
 }
 
 func WaitHours() int {
-	return int(envmanager.GetBreakGlassWait() / time.Hour)
+	return int(envmanager.GetAuthRequestWait() / time.Hour)
 }
 
 // Read when printed, so the text names the configured wait while errors.Is still matches the value.

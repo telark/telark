@@ -311,8 +311,8 @@ func TestEnrollmentFailsClosedWithoutRedis(t *testing.T) {
 	}
 }
 
-// Without Redis break-glass holds no run and no freeze and drops no ceremony: each step fails closed.
-func TestBreakGlassFailsClosedWithoutRedis(t *testing.T) {
+// Without Redis an auth request holds no run and no freeze and drops no ceremony: each step fails closed.
+func TestAuthRequestFailsClosedWithoutRedis(t *testing.T) {
 	steps := map[string]func() error{
 		"freeze": func() error { return authhelper.Freeze(testUserID) },
 		"lock the run": func() error {

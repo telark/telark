@@ -92,6 +92,25 @@
                 "admin": { "type": "string", "anyOf": [{ "const": "" }, { "format": "email" }] }
               }
             },
+            "request": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "waitHours": { "type": "integer", "minimum": 1 },
+                "subjects": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["kind", "name"],
+                    "properties": {
+                      "kind": { "type": "string", "enum": ["User", "Group"] },
+                      "name": { "type": "string", "minLength": 1 }
+                    }
+                  }
+                }
+              }
+            },
             "passkey": {
               "type": "object",
               "additionalProperties": false,
@@ -133,14 +152,7 @@
           "properties": {
             "crdGuard": { "$ref": "#/definitions/crdGuard" },
             "networkPolicy": { "$ref": "#/definitions/networkPolicy" },
-            "serviceToken": { "$ref": "#/definitions/serviceToken" },
-            "breakGlass": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "waitHours": { "type": "integer", "minimum": 1 }
-              }
-            }
+            "serviceToken": { "$ref": "#/definitions/serviceToken" }
           }
         },
         "crdGuard": { "$ref": "#/definitions/crdGuard" },

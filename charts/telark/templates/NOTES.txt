@@ -3,7 +3,7 @@
 {{- $ui := .Values.services.ui }}
 {{- $admin := .Values.app.auth.bootstrap.admin }}
 {{- $security := (include "telark.modeValues" . | fromYaml).app.security }}
-{{- /* break-glass builds its link from the first origin */}}
+{{- /* an auth request builds its link from the first origin */}}
 {{- $origin := splitList "," .Values.app.auth.passkey.origin | first | trim -}}
 Telark {{ .Chart.AppVersion }} is {{ ternary "installed" "upgraded" .Release.IsInstall }}: release "{{ .Release.Name }}" in namespace "{{ $ns }}", {{ .Values.app.mode | default "standard" }} mode.
 {{- if ne $ns .Release.Namespace }}
@@ -28,9 +28,9 @@ Reinstall with -n {{ $ns }}, or set app.namespace={{ .Release.Namespace }}.
 {{- end }}
 {{- if and .Release.IsInstall .Values.services.auth.enabled $admin }}
 
-3. Sign in as the bootstrap admin, {{ $admin }}. Create your passkey link:
-   kubectl exec -n {{ $ns }} deploy/{{ $fullname }}-{{ .Values.services.auth.name }} -- ./main break-glass --email {{ $admin }} --enroll
-   It prints "Register a passkey for {{ $admin }}" and a link, valid 10 minutes.
+3. Sign in as the bootstrap admin, {{ $admin }}. Create your passkey link with the telark CLI:
+   telark auth enroll --email {{ $admin }} -n {{ $ns }}
+   It prints a link, valid 10 minutes. A cluster admin can run it as is; anyone else needs app.auth.request.subjects.
    Open it {{ if $origin }}in your browser{{ else }}with {{ ternary "http://localhost:3000" "your dashboard's address" $ui.enabled }} in place of <dashboard-url>{{ end }}.
    Next, invite users from Members, or turn on SSO in Settings.
 {{- end }}

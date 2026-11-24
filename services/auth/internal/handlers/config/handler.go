@@ -41,9 +41,9 @@ func SetSelfRegistration(w http.ResponseWriter, r *http.Request) {
 		constants.ErrSelfRegistrationSaveFailed, constants.SuccessSelfRegistrationUpdated)
 }
 
-func SetBreakGlassAlerts(w http.ResponseWriter, r *http.Request) {
-	setBootstrapSetting[telarkconfigresource.BreakGlassAlertsConfig](w, r, telarkconfigresource.FieldBreakGlassAlerts,
-		constants.ErrBreakGlassAlertsSaveFailed, constants.SuccessBreakGlassAlertsUpdated)
+func SetAuthAlerts(w http.ResponseWriter, r *http.Request) {
+	setBootstrapSetting[telarkconfigresource.AuthAlertsConfig](w, r, telarkconfigresource.FieldAuthAlerts,
+		constants.ErrAuthAlertsSaveFailed, constants.SuccessAuthAlertsUpdated)
 }
 
 // The exporter takes these settings from auth only, so the bootstrap check here is the whole gate.

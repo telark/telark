@@ -290,6 +290,11 @@ const (
 	ErrMigrateStorageFailed errors.Error     = "[migrate-storage] copy from %s to %s failed: %v"
 	ErrMigrateStorageUsage  errors.Error     = "[migrate-storage] usage: migrate-storage <from> <to> [<from> <to>...]"
 
+	// Uninstall.
+	InfFinalizersRemoved          messages.Message = "[remove-finalizers] removed=%d failed=%d"
+	ErrRemoveFinalizersListFailed errors.Error     = "[remove-finalizers] list failed: type=%s err=%s"
+	ErrRemoveFinalizerFailed      errors.Error     = "[remove-finalizers] removal failed: type=%s id=%s err=%s"
+
 	// Notifications.
 	WarnNotifStreamReadFailed   messages.Message = "notification change stream read failed, open streams refetch once it recovers: %v"
 	WarnWebhookEventQueueFailed messages.Message = "failed to queue %s for webhooks: %v"

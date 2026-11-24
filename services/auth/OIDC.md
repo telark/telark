@@ -62,7 +62,7 @@ flowchart TB
    resolves to it, by its email or by a Google identity bound to it before it was
    promoted, is refused (403, `the bootstrap administrator signs in with a passkey`).
    A created user always gets the ReadOnly role, even with the bootstrap email:
-   SSO never grants Admin or the `bootstrap` marker (only `break-glass` does).
+   SSO never grants Admin or the `bootstrap` marker (only an auth request does).
    A user being deleted or whose account is not active gets no session (403;
    a suspended account is told `user account is suspended`).
    Otherwise auth-service creates a Telark session and the user is logged in.

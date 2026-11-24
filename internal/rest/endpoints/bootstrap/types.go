@@ -3,7 +3,8 @@ package bootstrap
 import "github.com/telark/telark/internal/data/resources/telarkconfig"
 
 type OpenBody struct {
-	Email string `json:"email"`
+	Email       string `json:"email"`
+	RequestedBy string `json:"requestedBy"`
 }
 
 type CancelBody struct {

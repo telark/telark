@@ -17,7 +17,7 @@ import (
 	redishelper "github.com/telark/telark/services/auth/internal/helpers/redis"
 )
 
-// A user's ceremonies refuse to start while break-glass recovers the account, but the registration its link opens.
+// A user's ceremonies refuse to start while an auth request recovers the account, but the registration its link opens.
 func StoreChallenge(userID, challenge, enrollDigest string) error {
 	if err := authhelper.RefuseFrozen(userID, enrollDigest); err != nil {
 		return err
@@ -89,7 +89,7 @@ func ConsumeChallengeAt(key string, bodyBytes []byte) (*authdata.AuthChallenge, 
 // Every open ceremony of the account, sign-ins and registrations alike, so none started before a recovery
 // finishes after it.
 // The walk covers the whole keyspace, so it gets its own, longer timeout: on a large Redis the 3-second one of a
-// single command would make break-glass fail closed.
+// single command would make an auth request fail closed.
 func DropCeremonies(userID string) error {
 	rdb := redishelper.GetClient()
 	if rdb == nil {

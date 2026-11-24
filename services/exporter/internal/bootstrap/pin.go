@@ -21,9 +21,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-// The first passkey of a bootstrap account pins it: a chart change or a break-glass run then moves the marker only
+// The first passkey of a bootstrap account pins it: a chart change or an auth request then moves the marker only
 // through a completed replacement. Of two racing first enrollments, one pins and the other loses the marker. A pin
-// that didn't persist leaves break-glass refusing to act until the exporter's next start pins the account.
+// that didn't persist leaves an auth request refusing to act until the exporter's next start pins the account.
 func PinAtFirstPasskey(optimizer *performance.Optimizer, userID string) {
 	user, err := loadUser(userID)
 	if err != nil {
@@ -49,10 +49,10 @@ func Marks(body map[string]any) bool {
 }
 
 // After a write that marked userID: before any pin it keeps the marker and every other account loses it, so a
-// second break-glass run fixes a mistyped email. Once pinned, only the pinned account keeps it. An account marked
+// second auth request fixes a mistyped email. Once pinned, only the pinned account keeps it. An account marked
 // with a passkey already has its first one, so it is pinned now.
 // A failed passkey lookup can't fail the write, done by then: it is logged, the marker still moves, and the account
-// stays unpinned, so break-glass refuses it until the exporter's next start pins it.
+// stays unpinned, so an auth request refuses it until the exporter's next start pins it.
 func MarkerSet(optimizer *performance.Optimizer, userID string) {
 	passkeys, err := passkeyutils.FindPasskeysByUserID(userID)
 	if err != nil {

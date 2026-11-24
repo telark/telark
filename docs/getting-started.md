@@ -40,13 +40,13 @@ You should see every pod `Running` and `READY`. The first start pulls several im
 
 ## 2. Sign in as the first admin
 
-Create a one-time enrollment link with the auth service's break-glass command, using the email you passed at install:
+Create a one-time enrollment link with the [telark CLI](CLI.md), using the email you passed at install:
 
 ```sh
-kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email test@example.com --enroll
+telark auth enroll -n telark --email test@example.com
 ```
 
-It prints a link like `<dashboard-url>/register#enroll=<token>&email=test%40example.com`, valid for 10 minutes, and one step: open it in a browser that is not signed in to Telark, such as a private window.
+It prints a link like `<dashboard-url>/register#enroll=<token>&email=test%40example.com`, valid for 10 minutes: open it in a browser that is not signed in to Telark, such as a private window.
 
 Forward the dashboard to your machine and leave the command running:
 

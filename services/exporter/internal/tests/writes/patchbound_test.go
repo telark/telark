@@ -69,7 +69,7 @@ func patchBehindTheLock(ctx context.Context, t *testing.T, cancel context.Cancel
 }
 
 // A user patch that gets the account's lock only after its caller gave up answers 503 and writes nothing, so an
-// identity write queued behind others can't land after a break-glass recovery's hold; a waiting caller gets its write.
+// identity write queued behind others can't land after an auth request recovery's hold; a waiting caller gets its write.
 func TestAQueuedUserPatchWritesOnlyForAWaitingCaller(t *testing.T) {
 	cases := []struct {
 		name string

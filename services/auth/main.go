@@ -16,7 +16,7 @@ import (
 	restserver "github.com/telark/telark/internal/rest/server"
 	xauthz "github.com/telark/telark/internal/x-ware/authz"
 	"github.com/telark/telark/internal/x-ware/cors"
-	"github.com/telark/telark/services/auth/cmd"
+	"github.com/telark/telark/services/auth/internal/authrequest"
 	authauthz "github.com/telark/telark/services/auth/internal/authz"
 	"github.com/telark/telark/services/auth/internal/config"
 	"github.com/telark/telark/services/auth/internal/constants"
@@ -39,10 +39,6 @@ var (
 )
 
 func main() {
-	if handled, code := cmd.Dispatch(os.Args); handled {
-		os.Exit(code)
-	}
-
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		lg.Error(fmt.Sprintf(string(constants.ErrFailedLoadConfig), err))
@@ -68,6 +64,8 @@ func main() {
 	authhelper.InitAsyncWorker()
 
 	startCleanupSystem(rdb)
+	requestsCtx, stopRequests := context.WithCancel(context.Background())
+	go authrequest.Start(requestsCtx)
 
 	authzMiddleware, err := xauthz.NewFromEnv(authauthz.NewResolver(), authauthz.Requirements())
 	if err != nil {
@@ -79,6 +77,7 @@ func main() {
 
 	<-getQuitChannel()
 	lg.Info(string(constants.SuccessServiceShuttingDown))
+	stopRequests()
 
 	gracefulShutdown(cfg)
 }

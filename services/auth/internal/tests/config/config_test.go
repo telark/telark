@@ -117,18 +117,13 @@ func TestRateLimitConfig(t *testing.T) {
 	}
 }
 
-// Cleanup + backfill config read every knob from the environment with sane
+// Cleanup config reads every knob from the environment with sane
 // positive defaults so the reconciler never runs with a zero interval.
-func TestLoadCleanupAndBackfillConfig(t *testing.T) {
+func TestLoadCleanupConfig(t *testing.T) {
 	clean := config.LoadCleanupConfig()
 	if clean.ReconcileTick <= constants.DefaultInitValue || clean.WorkersPerType <= constants.DefaultInitValue ||
 		clean.SweeperInterval <= constants.DefaultInitValue {
 		t.Fatalf("cleanup defaults not positive: %+v", clean)
-	}
-
-	back := config.LoadBackfillConfig()
-	if back.BatchSize <= constants.DefaultInitValue {
-		t.Fatalf("backfill batch size not positive: %d", back.BatchSize)
 	}
 }
 
@@ -170,7 +165,7 @@ func TestLoadConfig(t *testing.T) {
 
 // Empty means 24 hours; anything but a whole number of hours, at least 1, refuses the bootstrap config and names the
 // variable, and keeps the wait loaded before.
-func TestBreakGlassWait(t *testing.T) {
+func TestAuthRequestWait(t *testing.T) {
 	t.Setenv(constants.EnvBootstrapAdmin, "test@example.com")
 	cases := []struct {
 		value string
@@ -185,13 +180,13 @@ func TestBreakGlassWait(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.value, func(t *testing.T) {
-			t.Setenv(constants.EnvBreakGlassWaitHours, c.value)
+			t.Setenv(constants.EnvAuthRequestWaitHours, c.value)
 			_, err := config.LoadBootstrapConfig()
 			testutil.Equal(t, "refused", err != nil, c.fails)
 			if c.fails {
-				testutil.Equal(t, "names the variable", strings.Contains(err.Error(), constants.EnvBreakGlassWaitHours), true)
+				testutil.Equal(t, "names the variable", strings.Contains(err.Error(), constants.EnvAuthRequestWaitHours), true)
 			}
-			testutil.Equal(t, "wait", config.BreakGlassWait(), c.want)
+			testutil.Equal(t, "wait", config.AuthRequestWait(), c.want)
 		})
 	}
 }

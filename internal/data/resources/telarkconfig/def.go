@@ -18,11 +18,11 @@ const (
 	FieldAIModel            = "model"
 	FieldAIAutoAnalyze      = "autoAnalyze"
 	FieldBootstrap          = "bootstrap"
-	FieldBreakGlassAlerts   = "breakGlassAlerts"
+	FieldAuthAlerts         = "authAlerts"
 	FieldNotifyAdmins       = "notifyAdmins"
 )
 
-// A completed break-glass request re-issues its token for 24 hours while no passkey was enrolled: never a setting.
+// A completed auth request re-issues its token for 24 hours while no passkey was enrolled: never a setting.
 const BootstrapReissueWindow = 24 * time.Hour
 
 const (
@@ -44,7 +44,7 @@ type TelarkConfig struct {
 	Snapshots          SnapshotsConfig        `json:"snapshots"`
 	OIDC               OIDCConfig             `json:"oidc"`
 	SelfRegistration   SelfRegistrationConfig `json:"selfRegistration"`
-	BreakGlassAlerts   BreakGlassAlertsConfig `json:"breakGlassAlerts"`
+	AuthAlerts         AuthAlertsConfig       `json:"authAlerts"`
 }
 
 type AIConfig struct {
@@ -74,7 +74,7 @@ type SelfRegistrationConfig struct {
 	Enabled bool `json:"enabled"`
 }
 
-type BreakGlassAlertsConfig struct {
+type AuthAlertsConfig struct {
 	NotifyAdmins bool `json:"notifyAdmins"`
 }
 
@@ -90,6 +90,7 @@ type BootstrapRequest struct {
 	ID          string `json:"id"`
 	Kind        string `json:"kind"`
 	TargetEmail string `json:"targetEmail,omitempty"`
+	RequestedBy string `json:"requestedBy,omitempty"`
 	State       string `json:"state"`
 	Reason      string `json:"reason,omitempty"`
 	OpenedAt    string `json:"openedAt"`

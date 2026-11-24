@@ -57,19 +57,6 @@ func LoadCleanupConfig() CleanupConfig {
 	}
 }
 
-type BackfillConfig struct {
-	BatchSize  int
-	BatchPause time.Duration
-}
-
-func LoadBackfillConfig() BackfillConfig {
-	return BackfillConfig{
-		BatchSize: envInt(constants.EnvBackfillBatchSize, constants.DefaultBackfillBatchSize),
-		BatchPause: time.Duration(envInt(constants.EnvBackfillBatchPauseMS,
-			constants.DefaultBackfillBatchPauseMS)) * time.Millisecond,
-	}
-}
-
 // Every knob here is a count, size or interval: zero would stop the workers, panic
 // the sweeper's ticker or dead-letter every job, so only a positive value is taken.
 func envInt(key string, def int) int {

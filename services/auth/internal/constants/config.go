@@ -64,8 +64,8 @@ const (
 	EnvChallengeTimeout         = "CHALLENGE_TIMEOUT"
 	EnvSessionExpiry            = "SESSION_EXPIRY"
 	EnvBootstrapAdmin           = "BOOTSTRAP_ADMIN"
-	EnvBreakGlassWaitHours      = "BREAK_GLASS_WAIT_HOURS"
-	DefaultBreakGlassWaitHours  = 24
+	EnvAuthRequestWaitHours     = "AUTH_REQUEST_WAIT_HOURS"
+	DefaultAuthRequestWaitHours = 24
 	EnvReplicaID                = "HOSTNAME"
 	EnvOIDCTrustFile            = "OIDC_TRUST_FILE"
 	DefaultOIDCTrustFile        = "/etc/telark/oidc/googleJwkJson"
@@ -112,7 +112,7 @@ const (
 	RedisKeyPrefixBootstrapAssert   = "auth:bootstrap:assert:"
 	RedisKeyPrefixFrozen            = "auth:webauthn:frozen:"
 	RedisKeyPrefixRateLimit         = "auth:ratelimit:"
-	RedisKeyBreakGlassRun           = "auth:breakglass:run"
+	RedisKeyAuthRequestRun          = "auth:request:run"
 	CookiePath                      = "/"
 	CookieMaxAgeDelete              = -1 // net/http's way of sending Max-Age=0
 	RedisChallengeEntry             = "1"
@@ -122,9 +122,9 @@ const (
 	// Redis TTLs.
 	RedisTTLChallenge      = 60  // seconds — matches WebAuthn ceremony timeout
 	RedisTTLNonce          = 300 // seconds — 5 minutes for OIDC flow
-	RedisTTLEnrollToken    = 600 // seconds — 10 minutes to open a user's own link on the other host, or break-glass's
+	RedisTTLEnrollToken    = 600 // seconds — 10 minutes to open a user's own link on the other host, or an auth request's
 	RedisTTLRecoveryFreeze = 120 // seconds, extended before each step of a recovery, so it outlives RecoveryHold
-	RedisTTLBreakGlassRun  = 120 // seconds, the run lock's, extended like the freeze
+	RedisTTLAuthRequestRun = 120 // seconds, the run lock's, extended like the freeze
 	// A create auth sent before the freeze lands by 42.2 s: no exporter attempt starts after its 30 s call (+0.2 s retry delay), one lasts 12 s.
 	// An identity PATCH lands by 45 s: none starts after its route's 20 s deadline, then the exporter reads (10 s) and writes (15 s).
 	RecoveryHold             = 45 * time.Second
@@ -137,8 +137,6 @@ const (
 	// The link's life, a ceremony it opened and the write bound: nothing the link started lands after its window.
 	RecoveryLinkWindow   = time.Duration(RedisTTLEnrollToken+RedisTTLChallenge)*time.Second + RecoveryHold
 	RecoveryPollInterval = 2 * time.Second
-	// Output keeps kubectl exec alive: AWS's API load balancer cuts a connection idle for about 350 s.
-	RecoveryKeepAlive = 2 * time.Minute
 	// A passkey that landed during the hold must not slip past one failed read.
 	RecoveryLastLookAttempts = 3
 
@@ -163,7 +161,7 @@ entry = redis.call('GETDEL', KEYS[2])
 if not entry then return false end
 if redis.call('GET', ARGV[1] .. ARGV[3]) == ARGV[2] then redis.call('DEL', ARGV[1] .. ARGV[3]) end
 return {entry, KEYS[2]}`
-	// KEYS: the break-glass run lock. ARGV: the run's own value, TTL seconds. Returns 1 when it was the run's.
+	// KEYS: the auth request run lock. ARGV: the run's own value, TTL seconds. Returns 1 when it was the run's.
 	ScriptExtendRun = `if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('EXPIRE', KEYS[1], ARGV[2]) end
 return 0`
 	ScriptReleaseRun = `if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) end
@@ -209,8 +207,6 @@ return 0`
 	EnvCleanupMaxConcurrentPatches   = "CLEANUP_MAX_CONCURRENT_PATCHES"
 	EnvCleanupBackoffInitialSeconds  = "RECONCILE_BACKOFF_INITIAL_SECONDS"
 	EnvCleanupBackoffMaxSeconds      = "RECONCILE_BACKOFF_MAX_SECONDS"
-	EnvBackfillBatchSize             = "BACKFILL_BATCH_SIZE"
-	EnvBackfillBatchPauseMS          = "BACKFILL_BATCH_PAUSE_MS"
 
 	DefaultReconcileTickSeconds                = 5
 	DefaultReconcilePassDeadlineSeconds        = 30
@@ -226,8 +222,6 @@ return 0`
 	DefaultCleanupMaxConcurrentPatches         = 4
 	DefaultCleanupBackoffInitialSeconds        = 5
 	DefaultCleanupBackoffMaxSeconds            = 300
-	DefaultBackfillBatchSize                   = 10
-	DefaultBackfillBatchPauseMS                = 100
 	CleanupDLQMaxLen                     int64 = 1000
 
 	CleanupStreamPrefix    = "auth:cleanup:"

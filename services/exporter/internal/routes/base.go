@@ -24,6 +24,7 @@ import (
 	"github.com/telark/telark/services/exporter/internal/constants"
 	passkeyhandler "github.com/telark/telark/services/exporter/internal/handlers/auth/passkey"
 	sessionhandler "github.com/telark/telark/services/exporter/internal/handlers/auth/session"
+	authrequesthandler "github.com/telark/telark/services/exporter/internal/handlers/authrequests"
 	bootstraphandler "github.com/telark/telark/services/exporter/internal/handlers/bootstrap"
 	categoryhandler "github.com/telark/telark/services/exporter/internal/handlers/categories"
 	confighandler "github.com/telark/telark/services/exporter/internal/handlers/config"
@@ -161,6 +162,8 @@ func bootstrapRoutes(optimizer *performance.Optimizer) []router.Route {
 		router.CreateRoute(base.Post, bootstrapendpoints.ApproveRequest, bootstraphandler.ApproveRequest()),
 		router.CreateRoute(base.Post, bootstrapendpoints.CancelRequest, bootstraphandler.CancelRequest(optimizer)),
 		router.CreateRoute(base.Post, bootstrapendpoints.CompleteRequest, bootstraphandler.CompleteRequest(optimizer)),
+		router.CreateRoute(base.Get, authendpoints.GetPendingAuthRequests, authrequesthandler.GetPending()),
+		router.CreateRoute(base.Patch, authendpoints.PatchAuthRequestStatus, authrequesthandler.PatchStatus()),
 	}
 }
 

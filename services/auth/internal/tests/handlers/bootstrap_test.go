@@ -81,7 +81,7 @@ func asRecovery(fake *testutil.FakeExporter, opened time.Time) {
 	request.OpenedAt = opened.UTC().Format(time.RFC3339)
 }
 
-// Frozen as break-glass leaves the account while it waits for the link it printed: the freeze holds that link.
+// Frozen as an auth request leaves the account while it waits for the link it printed: the freeze holds that link.
 func frozenForLink(t *testing.T, link string) {
 	t.Helper()
 	t.Cleanup(func() { _ = authhelper.Unfreeze(bootstrapID) })
@@ -306,7 +306,7 @@ func TestOthersCantSpoilACeremony(t *testing.T) {
 	}
 }
 
-// While break-glass recovers an account, it starts and finishes no sign-in or registration and mints no link,
+// While an auth request recovers an account, it starts and finishes no sign-in or registration and mints no link,
 // even with a ceremony opened before; the same account works again once thawed.
 func TestFrozenAccountRefusesCeremonies(t *testing.T) {
 	initWebAuthn(t)
@@ -390,7 +390,7 @@ func approvalChallenges() int {
 	return count
 }
 
-// While break-glass waits for the link it printed, the freeze holds that link: the registration it opens starts and
+// While an auth request waits for the link it printed, the freeze holds that link: the registration it opens starts and
 // saves a passkey, where a sign-in, the account's own earlier link and a deny are refused (409).
 func TestRecoveryLinkRegistersWhileFrozen(t *testing.T) {
 	initWebAuthn(t)
@@ -416,7 +416,7 @@ func TestRecoveryLinkRegistersWhileFrozen(t *testing.T) {
 	testutil.Equal(t, "exporter calls", len(fake.RequestCalls()), constants.DefaultInitValue)
 }
 
-// A deny started before break-glass froze the account and finished while it is frozen is refused too, and reaches no
+// A deny started before an auth request froze the account and finished while it is frozen is refused too, and reaches no
 // exporter: the run in progress ends the way it began.
 func TestDenyWaitsForTheRun(t *testing.T) {
 	initWebAuthn(t)
@@ -640,7 +640,7 @@ func TestRedisHoldsNoChallenge(t *testing.T) {
 	}
 }
 
-// Sets the freeze, as break-glass does, when a request on the account's record carries mark (in its body, if any): a
+// Sets the freeze, as an auth request does, when a request on the account's record carries mark (in its body, if any): a
 // request that passed its first freeze checks reaches its next write only once the account is frozen.
 type freezeMidway struct {
 	inner  http.Handler
@@ -658,7 +658,7 @@ func (f freezeMidway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.inner.ServeHTTP(w, r)
 }
 
-// Freezes each account the stub created, as break-glass would the moment it exists.
+// Freezes each account the stub created, as an auth request would the moment it exists.
 type freezeOnCreate struct{ *proofStub }
 
 func (f freezeOnCreate) RoundTrip(r *http.Request) (*http.Response, error) {
@@ -671,8 +671,8 @@ func (f freezeOnCreate) RoundTrip(r *http.Request) (*http.Response, error) {
 	return resp, err
 }
 
-// A request that began before break-glass froze the account checks the freeze again right before each write, so it
-// writes no passkey and no session once the account is frozen: nothing it sends can land after the bound break-glass
+// A request that began before an auth request froze the account checks the freeze again right before each write, so it
+// writes no passkey and no session once the account is frozen: nothing it sends can land after the bound an auth request
 // waits out.
 func TestFrozenAccountGetsNoLateWrite(t *testing.T) {
 	initWebAuthn(t)

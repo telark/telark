@@ -23,7 +23,7 @@ const (
 
 // Empty means 24 hours; anything but a whole number of hours, at least 1, stops the exporter and names the variable.
 func TestWaitFromTheEnvironment(t *testing.T) {
-	t.Cleanup(func() { _ = envmanager.InitBreakGlassWait() })
+	t.Cleanup(func() { _ = envmanager.InitAuthRequestWait() })
 	cases := []struct {
 		value string
 		want  time.Duration
@@ -39,14 +39,14 @@ func TestWaitFromTheEnvironment(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.value, func(t *testing.T) {
-			t.Setenv(constants.BreakGlassWaitHoursEnv, c.value)
-			err := envmanager.InitBreakGlassWait()
+			t.Setenv(constants.AuthRequestWaitHoursEnv, c.value)
+			err := envmanager.InitAuthRequestWait()
 			equal(t, "refused", err != nil, c.fails)
 			if c.fails {
-				equal(t, "names the variable", strings.Contains(err.Error(), constants.BreakGlassWaitHoursEnv), true)
+				equal(t, "names the variable", strings.Contains(err.Error(), constants.AuthRequestWaitHoursEnv), true)
 				return
 			}
-			equal(t, "wait", envmanager.GetBreakGlassWait(), c.want)
+			equal(t, "wait", envmanager.GetAuthRequestWait(), c.want)
 		})
 	}
 }
@@ -54,9 +54,9 @@ func TestWaitFromTheEnvironment(t *testing.T) {
 // A configured wait moves the mark, the status names it, and every refusal and notice that states the wait reads it:
 // a recovery opened 7 hours ago, which the bootstrap account signed in during, expired and a new one opened.
 func TestConfiguredWait(t *testing.T) {
-	t.Cleanup(func() { _ = envmanager.InitBreakGlassWait() })
-	t.Setenv(constants.BreakGlassWaitHoursEnv, sixHours)
-	if err := envmanager.InitBreakGlassWait(); err != nil {
+	t.Cleanup(func() { _ = envmanager.InitAuthRequestWait() })
+	t.Setenv(constants.AuthRequestWaitHoursEnv, sixHours)
+	if err := envmanager.InitAuthRequestWait(); err != nil {
 		t.Fatal(err)
 	}
 	withNotices(t)

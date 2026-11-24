@@ -45,6 +45,8 @@ func metadataCases() []metadataCase {
 		{name: "access role", metadata: v1alpha1.AccessRoleMetadata, kind: "AccessRole", plural: "accessroles"},
 		{name: "passkey", metadata: v1alpha1.PasskeyMetadata, kind: "Passkey", plural: "passkeys"},
 		{name: "session", metadata: v1alpha1.SessionMetadata, kind: "Session", plural: "sessions"},
+		{name: "auth request", metadata: v1alpha1.AuthRequestMetadata, kind: "AuthRequest", plural: "authrequests",
+			status: []string{"phase", "reason", "requestId", "approvalUrl", "completesAt", "sealedLink", "linkExpiresAt"}},
 	}
 }
 

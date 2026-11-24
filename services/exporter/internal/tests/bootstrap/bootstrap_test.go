@@ -89,7 +89,7 @@ func pinnedDirectory(t *testing.T, requests ...telarkconfig.BootstrapRequest) {
 
 // One bootstrap account. Once one is pinned, no caller, the service included, marks another account or unmarks the
 // pinned one, and a session still may not touch the field. Before the pin the marker moves to the account just
-// marked, so a second break-glass run fixes a mistyped email.
+// marked, so a second auth request fixes a mistyped email.
 func TestMarkerFollowsThePin(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -295,7 +295,7 @@ func TestConcurrentRunsOpenOneRequest(t *testing.T) {
 	var wg sync.WaitGroup
 	for i := range outcomes {
 		wg.Go(func() {
-			outcome, err := bootstrap.Open(optimizer, pinnedEmail)
+			outcome, err := bootstrap.Open(optimizer, pinnedEmail, requester)
 			if err != nil {
 				t.Errorf("open = %v", err)
 			}
@@ -384,7 +384,7 @@ func TestKeepRefusesAnyOtherPasskey(t *testing.T) {
 	}
 }
 
-// Break-glass's passes before its link end the account's sessions and leave its passkeys and the request as they are;
+// An auth request's passes before its link end the account's sessions and leave its passkeys and the request as they are;
 // the last one (revoke) also deletes the passkeys saved after the mark, which a stopped run's link saved, and the
 // pinned account and every Admin on ALL hear a link was issued.
 func TestRevokeDropsWhatALinkSavedAfterTheMark(t *testing.T) {
@@ -405,7 +405,7 @@ func TestRevokeDropsWhatALinkSavedAfterTheMark(t *testing.T) {
 	expectIssuing(t, pinnedID)
 }
 
-// Sent before break-glass prints the link, which a failure can still stop, so no notice says the link was issued.
+// Sent before an auth request prints the link, which a failure can still stop, so no notice says the link was issued.
 func expectIssuing(t *testing.T, userID string) {
 	t.Helper()
 	for _, notice := range notices(t, userID) {
@@ -839,7 +839,7 @@ func TestStatusMasksTheBootstrapIdentity(t *testing.T) {
 
 // The bootstrap account's switch: off, a request's notices and record are its own and the services', and a config
 // stored before the switch existed reads it on.
-func TestBreakGlassAlertsSwitch(t *testing.T) {
+func TestAuthAlertsSwitch(t *testing.T) {
 	for _, off := range []bool{false, true} {
 		t.Run(map[bool]string{false: "unset", true: "off"}[off], func(t *testing.T) {
 			withNotices(t)

@@ -254,7 +254,7 @@ func TestInviteStatusIsStoredAndCleared(t *testing.T) {
 }
 
 // Seen live: the bootstrap account's profile save resent its own email and got 403,
-// while a typo moved it off the chart's address, where break-glass no longer finds it.
+// while a typo moved it off the chart's address, where an auth request no longer finds it.
 func TestBootstrapEmailStaysTheChartValue(t *testing.T) {
 	const reservedEmail, otherEmail = "root@example.com", "test@example.com"
 	t.Cleanup(envmanager.InitBootstrapAdmin)

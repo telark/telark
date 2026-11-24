@@ -14,6 +14,7 @@ import (
 	"github.com/telark/telark/internal/data/metadata/base"
 	"github.com/telark/telark/internal/data/metadata/v1alpha1"
 	"github.com/telark/telark/internal/data/plans"
+	"github.com/telark/telark/internal/data/resources/authrequest"
 	roledata "github.com/telark/telark/internal/data/resources/role"
 	"github.com/telark/telark/internal/data/resources/telarkconfig"
 	userdata "github.com/telark/telark/internal/data/resources/user"
@@ -40,6 +41,7 @@ const (
 	crdUsers      = "users.yaml"
 	crdConfigs    = "telarkconfigs.yaml"
 	crdPlans      = "protectionplans.yaml"
+	crdRequests   = "authrequests.yaml"
 	keyVersions   = "versions"
 	keySchema     = "schema"
 	keyOpenAPI    = "openAPIV3Schema"
@@ -458,11 +460,11 @@ func TestSelfRegistrationShownOffBeforeFirstSave(t *testing.T) {
 	}
 }
 
-// Break-glass alerts start on: the CRD defaults a stored config without the switch, and GET config shows it on
+// The auth alerts start on: the CRD defaults a stored config without the switch, and GET config shows it on
 // rather than leaving the key out until the first save.
-func TestBreakGlassAlertsDefaultOn(t *testing.T) {
-	alerts := []string{keySpec, telarkconfig.FieldBreakGlassAlerts}
-	block, isBlock := crdProperties(t, crdConfigs, alerts[:1])[telarkconfig.FieldBreakGlassAlerts].(map[string]any)
+func TestAuthAlertsDefaultOn(t *testing.T) {
+	alerts := []string{keySpec, telarkconfig.FieldAuthAlerts}
+	block, isBlock := crdProperties(t, crdConfigs, alerts[:1])[telarkconfig.FieldAuthAlerts].(map[string]any)
 	field, isField := crdProperties(t, crdConfigs, alerts)[telarkconfig.FieldNotifyAdmins].(map[string]any)
 	on, isBool := field[keyDefault].(bool)
 	if !isBlock || !isField || block[keyDefault] == nil || !isBool || !on {
@@ -471,8 +473,8 @@ func TestBreakGlassAlertsDefaultOn(t *testing.T) {
 	installFake(t, defaultConfig())
 
 	view := serveConfig(t, confighandler.GetConfig(), http.MethodGet, constants.EmptyString)
-	if on, isBool := section(write{body: view}, telarkconfig.FieldBreakGlassAlerts)[telarkconfig.FieldNotifyAdmins].(bool); !isBool || !on {
-		t.Errorf("GET config breakGlassAlerts = %v, want notifyAdmins true", view[telarkconfig.FieldBreakGlassAlerts])
+	if on, isBool := section(write{body: view}, telarkconfig.FieldAuthAlerts)[telarkconfig.FieldNotifyAdmins].(bool); !isBool || !on {
+		t.Errorf("GET config authAlerts = %v, want notifyAdmins true", view[telarkconfig.FieldAuthAlerts])
 	}
 }
 
@@ -490,8 +492,11 @@ func TestCRDsDeclareTheNewFields(t *testing.T) {
 			userdata.UserStatus{Phase: phaseSuspended, InviteAcceptedAt: stampTime}},
 		{crdConfigs, []string{keySpec, telarkconfig.FieldSelfRegistration},
 			telarkconfig.SelfRegistrationConfig{Enabled: true}},
-		{crdConfigs, []string{keySpec, telarkconfig.FieldBreakGlassAlerts},
-			telarkconfig.BreakGlassAlertsConfig{NotifyAdmins: true}},
+		{crdConfigs, []string{keySpec, telarkconfig.FieldAuthAlerts},
+			telarkconfig.AuthAlertsConfig{NotifyAdmins: true}},
+		{crdRequests, []string{keySpec}, authrequest.Spec{}},
+		{crdRequests, []string{keyStatus}, authrequest.Status{Phase: authrequest.PhaseCompleted, Reason: callerID, RequestID: callerID,
+			ApprovalURL: callerID, CompletesAt: stampTime, SealedLink: callerID, LinkExpiresAt: stampTime}},
 		{crdPlans, []string{keySpec}, map[string]any{"kindRef": callerID}},
 		{crdPlans, []string{keySpec, constants.FieldRepeat},
 			plans.ProtectionPlanRepeat{Days: []string{"sun"}, StartTime: "02:00", EndTime: "04:00", TimeZone: "UTC"}},

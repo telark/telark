@@ -1,9 +1,17 @@
 package telarkconfig
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/telark/telark/internal/data/resources/telarkconfig"
+)
+
+const (
+	requester       = "system:serviceaccount:telark:ops-admin"
+	requesterJSON   = `{"id":"","kind":"","requestedBy":"system:serviceaccount:telark:ops-admin","state":"","openedAt":""}`
+	bareRequestJSON = `{"id":"","kind":"","state":"","openedAt":""}`
+	alertsJSON      = `{"authAlerts":{"notifyAdmins":true}}`
 )
 
 // Nothing is pinned without pinnedAt, the newest request is the first one kept, and only a pending or approved
@@ -32,5 +40,29 @@ func TestBootstrapStatus(t *testing.T) {
 		if got := (&telarkconfig.BootstrapRequest{State: state}).Open(); got != open {
 			t.Errorf("%s open = %v, want %v", state, got, open)
 		}
+	}
+}
+
+// The stored names the CRD declares: the alerts block, and who opened a request, left out when unknown.
+func TestBootstrapWireNames(t *testing.T) {
+	cases := []struct {
+		name   string
+		record any
+		want   string
+	}{
+		{"a request with its requester", telarkconfig.BootstrapRequest{RequestedBy: requester}, requesterJSON},
+		{"a request stored before requesters", telarkconfig.BootstrapRequest{}, bareRequestJSON},
+		{"the alerts block", map[string]any{telarkconfig.FieldAuthAlerts: telarkconfig.AuthAlertsConfig{NotifyAdmins: true}}, alertsJSON},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := json.Marshal(c.record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(got) != c.want {
+				t.Errorf("JSON = %s, want %s", got, c.want)
+			}
+		})
 	}
 }

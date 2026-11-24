@@ -38,5 +38,6 @@ Every CRD is in group `telark.io`, version `v1alpha1`, namespaced. `kubectl get 
 | AccessRole | `accessroles` | `trole` | `telark` | no |
 | Passkey | `passkeys` | `tpk` | `telark-auth` | no |
 | Session | `sessions` | `tsess` | `telark-auth` | no |
+| AuthRequest | `authrequests` | `tauth` | `telark-auth` | yes |
 
 ProtectionPlan phases (`status.phase`): `draft`, `pending_approval`, `scheduled`, `active`, `terminated`, `canceled`, `failed`. Optional metadata `environmentRef`, `kindRef` and `tagRefs` (category ids, at most 20 tags) classify a plan. `timeMode: repeating` with `repeat` {days[], startTime, endTime, timeZone} gives a plan weekly windows on a time zone's wall clock, and `status.window` holds the open window or the next one. Optional spec field `approvalMode` (`automatic` | `required`, absent = automatic) and `status.approval` (state, requester, decider, comment, history of at most 20 events) drive plan approval. Optional `scope.exclusions` {kinds[], resources[]{kind,name,namespace}} excludes kinds (any scope) or named resources (applications scope only) from enforcement.

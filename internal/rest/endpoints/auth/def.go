@@ -18,6 +18,10 @@ const (
 	PatchInternalPasskeyByUserAndCredentialID  base.Endpoint = "internal/auth/passkeys/{credentialId}"
 	DeleteInternalPasskeyByUserAndCredentialID base.Endpoint = "internal/auth/passkeys/{credentialId}"
 
+	// Served by the exporter only: the AuthRequest objects auth runs, and the status of each.
+	GetPendingAuthRequests base.Endpoint = "internal/auth/requests/pending"
+	PatchAuthRequestStatus base.Endpoint = "internal/auth/requests/{id}/status"
+
 	// Served by the auth service, proxying the internal passkey endpoints above.
 	GetAllPasskeysByUserViaProxy               base.Endpoint = "auth/passkeys"
 	CreatePasskeyByUserViaProxy                base.Endpoint = "auth/passkeys"
@@ -41,7 +45,7 @@ const (
 	OIDCGoogleNonce    base.Endpoint = "auth/oidc/google/nonce"
 	OIDCConfig         base.Endpoint = "auth/oidc/config"
 	SelfRegistration   base.Endpoint = "auth/self-registration"
-	BreakGlassAlerts   base.Endpoint = "auth/break-glass-alerts"
+	AuthAlerts         base.Endpoint = "auth/alerts"
 	UserEnrollLink     base.Endpoint = "auth/users/{id}/enroll-link"
 
 	// Async business delete; the finalizer-backed cleanup runs afterwards.

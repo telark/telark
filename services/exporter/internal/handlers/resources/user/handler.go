@@ -348,7 +348,7 @@ func patchUserResource(w http.ResponseWriter, r *http.Request, userID string, bo
 	lock.Lock()
 	defer lock.Unlock()
 	// After the wait: written for a caller that gave up (or past the route's deadline), it could land after the last
-	// purge of a break-glass recovery, which waits out only a bounded write.
+	// purge of an auth request recovery, which waits out only a bounded write.
 	if r.Context().Err() != nil {
 		responseutils.SendResponse(w, http.StatusServiceUnavailable, response.OperationUnavailable, string(constants.ErrUserPatchBusy), nil)
 		return false

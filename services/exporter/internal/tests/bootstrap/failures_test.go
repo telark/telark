@@ -329,7 +329,7 @@ func TestPinAtStartReturnsReadFailures(t *testing.T) {
 	}
 }
 
-// A first passkey's pin that fails can't fail the passkey, saved by then: it is logged, and break-glass waits for the
+// A first passkey's pin that fails can't fail the passkey, saved by then: it is logged, and an auth request waits for the
 // next start. The markers after a pin that landed are only logged too.
 func TestFirstPasskeyPinFailuresAreLogged(t *testing.T) {
 	cases := []struct {

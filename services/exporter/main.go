@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -21,6 +22,7 @@ import (
 	"github.com/telark/telark/internal/x-ware/cors"
 	rediscore "github.com/telark/telark/internal/x-ware/redis/core"
 	redisinit "github.com/telark/telark/internal/x-ware/redis/init"
+	"github.com/telark/telark/services/exporter/internal/authrequests"
 	exporterauthz "github.com/telark/telark/services/exporter/internal/authz"
 	"github.com/telark/telark/services/exporter/internal/bootstrap"
 	"github.com/telark/telark/services/exporter/internal/config"
@@ -35,6 +37,7 @@ import (
 	notifstorage "github.com/telark/telark/services/exporter/internal/redis/notifications"
 	"github.com/telark/telark/services/exporter/internal/routes"
 	"github.com/telark/telark/services/exporter/internal/startup"
+	"github.com/telark/telark/services/exporter/internal/uninstall"
 	"github.com/telark/telark/services/exporter/internal/utils/artifact"
 	"github.com/telark/telark/services/exporter/internal/utils/performance"
 	snaputil "github.com/telark/telark/services/exporter/internal/utils/snapshot"
@@ -48,16 +51,15 @@ var (
 )
 
 func main() {
-	// The chart's init container when the exporter's claims move (templates/_storage.tpl).
-	if len(os.Args) > constants.DefaultIncrementValue && os.Args[constants.DefaultIncrementValue] == constants.SubcommandMigrateStorage {
-		os.Exit(migrateStorage(os.Args[constants.DefaultIncrementValue+constants.DefaultIncrementValue:]))
+	if code, ran := runSubcommand(os.Args[constants.DefaultIncrementValue:]); ran {
+		os.Exit(code)
 	}
 	config.ApplyKubernetesRESTRateLimit()
 	initSnapshotsConfig()
 	initReportsConfig()
 	lg.Info(fmt.Sprintf(string(constants.InfListRenderConcurrencyConfigured), envmanager.InitListRenderConcurrency()))
 	envmanager.InitBootstrapAdmin()
-	if err := envmanager.InitBreakGlassWait(); err != nil {
+	if err := errors.Join(envmanager.InitAuthRequestWait(), envmanager.InitAuthRequestRetention()); err != nil {
 		lg.Error(err.Error())
 		os.Exit(constants.ExitCodeFailure)
 	}
@@ -81,6 +83,8 @@ func main() {
 	go snaputil.StartStorageStatsRefresher(gcCtx)
 	go informers.StartApplications(gcCtx)
 	go informers.StartSessions(gcCtx)
+	go informers.StartAuthRequests(gcCtx)
+	go authrequests.StartCleanup(gcCtx)
 	notifHub := notifstorage.NewHub(exprdb.Get())
 	go notifHub.Run(gcCtx)
 	go membership.Reconcile(gcCtx, optimizer)
@@ -117,6 +121,21 @@ func initSnapshotsConfig() {
 	))
 }
 
+// The chart runs both: an init container when the exporter's claims move (templates/_storage.tpl),
+// and the pre-delete hook once auth is stopped (templates/exporter/uninstall-finalizers.yaml).
+func runSubcommand(args []string) (code int, ran bool) {
+	if len(args) == constants.DefaultInitValue {
+		return constants.DefaultInitValue, false
+	}
+	switch args[constants.DefaultInitValue] {
+	case constants.SubcommandMigrateStorage:
+		return migrateStorage(args[constants.DefaultIncrementValue:]), true
+	case constants.SubcommandRemoveFinalizers:
+		return removeFinalizers(), true
+	}
+	return constants.DefaultInitValue, false
+}
+
 func migrateStorage(pairs []string) int {
 	if len(pairs) == constants.DefaultInitValue || len(pairs)%constants.MigrateStoragePairSize != constants.DefaultInitValue {
 		lg.Error(string(constants.ErrMigrateStorageUsage))
@@ -131,6 +150,13 @@ func migrateStorage(pairs []string) int {
 		}
 		lg.Info(fmt.Sprintf(string(constants.InfMigrateStorageCopied), copied, from, to))
 	}
+	return constants.DefaultInitValue
+}
+
+func removeFinalizers() int {
+	config.ApplyKubernetesRESTRateLimit()
+	result := uninstall.RemoveFinalizers(lg)
+	lg.Info(fmt.Sprintf(string(constants.InfFinalizersRemoved), result.Removed, result.Failed))
 	return constants.DefaultInitValue
 }
 

@@ -1,17 +1,22 @@
 {{- /*
-Users, groups and roles carry cleanup finalizers that only auth clears, so once the release
-is gone deleting the CRDs or namespace would hang. Auth is stopped first, or its leader
-sweeper restores them; on a reinstall that kept the data, the sweeper puts them back.
+Users, groups and roles carry cleanup finalizers that only auth clears, so once the release is gone deleting the CRDs or
+namespace would hang. The first Job stops auth, or its leader sweeper restores them; the second removes them as the exporter.
 */}}
 {{- $values := include "telark.modeValues" . | fromYaml }}
 {{- $ns := .Values.app.namespace }}
 {{- $name := printf "%s-uninstall-finalizers" (include "telark.fullname" .) }}
+{{- $stopName := printf "%s-uninstall-stop-auth" (include "telark.fullname" .) }}
 {{- $auth := .Values.services.auth }}
+{{- $exporter := .Values.services.exporter }}
 {{- $authDeployment := printf "%s-%s" (include "telark.fullname" .) $auth.name }}
 {{- $authPods := include "telark.selectorLabels" (dict "root" . "component" $auth.name) | fromYaml }}
 {{- $authSelector := list }}
 {{- range $k, $v := $authPods }}{{ $authSelector = append $authSelector (printf "%s=%s" $k $v) }}{{ end }}
 {{- $securityContext := dict "allowPrivilegeEscalation" false "readOnlyRootFilesystem" true "capabilities" (dict "drop" (list "ALL")) }}
+{{- $podSecurityContext := dict "runAsNonRoot" true "runAsUser" 10001 "seccompProfile" (dict "type" "RuntimeDefault") }}
+{{- $shared := $values.app.shared.resources }}
+{{- $resources := dict "requests" (pick $shared.requests "memory" "cpu" "ephemeral-storage") "limits" (pick $shared.limits "memory") }}
+{{- if $auth.enabled }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -60,61 +65,70 @@ subjects:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ $name }}
+  name: {{ $stopName }}
   namespace: {{ $ns }}
   labels:
     {{- include "telark.labels" . | nindent 4 }}
   annotations:
     helm.sh/hook: pre-delete
+    helm.sh/hook-weight: "0"
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 spec:
   backoffLimit: 2
   ttlSecondsAfterFinished: 600
   template:
-    metadata:
-      labels:
-        {{- /* The API NetworkPolicy admits only this release's pods, and the last step calls the exporter. */}}
-        {{- include "telark.selectorLabels" (dict "root" .) | nindent 8 }}
     spec:
       serviceAccountName: {{ $name }}
       automountServiceAccountToken: true
       restartPolicy: Never
       {{- include "telark.imagePullSecrets" . | nindent 6 }}
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 10001
-        seccompProfile:
-          type: RuntimeDefault
+      securityContext: {{- toYaml $podSecurityContext | nindent 8 }}
       initContainers:
         - name: stop-auth
           image: {{ $values.app.image.kubectl }}
           args: ["scale", "deployment", {{ $authDeployment | quote }}, "-n", {{ $ns | quote }}, "--replicas=0", "--cache-dir=/tmp"]
           securityContext: {{- toYaml $securityContext | nindent 12 }}
           volumeMounts: [{ name: tmp, mountPath: /tmp }]
+      containers:
         - name: wait-for-auth
           image: {{ $values.app.image.kubectl }}
           args: ["wait", "--for=delete", "pod", "-n", {{ $ns | quote }}, "-l", {{ join "," $authSelector | quote }}, "--timeout=120s", "--cache-dir=/tmp"]
+          resources: {{- toYaml $resources | nindent 12 }}
           securityContext: {{- toYaml $securityContext | nindent 12 }}
           volumeMounts: [{ name: tmp, mountPath: /tmp }]
-      containers:
-        - name: remove-finalizers
-          image: {{ .Values.app.image.registry }}/{{ $auth.repository }}:{{ $auth.version }}
-          imagePullPolicy: {{ .Values.app.image.pullPolicy | default "Always" }}
-          args: ["remove-finalizers"]
-          env:
-            - name: {{ $values.app.security.serviceToken.envVar }}
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "telark.serviceTokenSecretName" . }}
-                  key: token
-          resources:
-            requests:
-              memory: {{ $values.app.shared.resources.requests.memory }}
-              cpu: {{ $values.app.shared.resources.requests.cpu }}
-              ephemeral-storage: {{ index $values.app.shared.resources.requests "ephemeral-storage" }}
-            limits:
-              memory: {{ $values.app.shared.resources.limits.memory }}
-          securityContext: {{- toYaml $securityContext | nindent 12 }}
       volumes:
         - name: tmp
           emptyDir: {}
+{{- end }}
+{{- if $exporter.enabled }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "telark.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-weight: "1"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      {{- /* The CRD write guard admits these writes from the exporter's ServiceAccount only. */}}
+      serviceAccountName: {{ include "telark.serviceAccountName" (dict "root" . "serviceConfig" $exporter) }}
+      automountServiceAccountToken: true
+      restartPolicy: Never
+      {{- include "telark.imagePullSecrets" . | nindent 6 }}
+      securityContext: {{- toYaml $podSecurityContext | nindent 8 }}
+      containers:
+        - name: remove-finalizers
+          image: {{ .Values.app.image.registry }}/{{ $exporter.repository }}:{{ $exporter.version }}
+          imagePullPolicy: {{ .Values.app.image.pullPolicy | default "Always" }}
+          args: ["remove-finalizers"]
+          resources: {{- toYaml $resources | nindent 12 }}
+          securityContext: {{- toYaml $securityContext | nindent 12 }}
+{{- end }}

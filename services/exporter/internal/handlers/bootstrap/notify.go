@@ -55,10 +55,11 @@ func notice(request telarkconfig.BootstrapRequest) (title, message, masked, seve
 	switch {
 	case request.State == telarkconfig.BootstrapStatePending && request.Kind == telarkconfig.BootstrapKindReplace:
 		rule := fmt.Sprintf(constants.NotifBootstrapOpenedRule, hours)
-		return constants.NotifBootstrapOpenedTitle, fmt.Sprintf(constants.NotifBootstrapOpenedReplace, request.TargetEmail) + rule,
-			constants.NotifBootstrapOpenedMasked + rule, notiftypes.SeverityWarning
+		return constants.NotifBootstrapOpenedTitle,
+			fmt.Sprintf(constants.NotifBootstrapOpenedReplace, request.RequestedBy, request.TargetEmail) + rule,
+			fmt.Sprintf(constants.NotifBootstrapOpenedMasked, request.RequestedBy) + rule, notiftypes.SeverityWarning
 	case request.State == telarkconfig.BootstrapStatePending:
-		text := fmt.Sprintf(constants.NotifBootstrapOpenedRecover, hours)
+		text := fmt.Sprintf(constants.NotifBootstrapOpenedRecover, request.RequestedBy, hours)
 		return constants.NotifBootstrapOpenedTitle, text, text, notiftypes.SeverityWarning
 	case request.State == telarkconfig.BootstrapStateCanceled:
 		text := canceledReasons[request.Reason]

@@ -1,0 +1,52 @@
+{{- /*
+An AuthRequest names who asked for the bootstrap account's enrollment link, so the name must be the caller's own, and
+what happened to it afterward must be the exporter's word alone. Always on: it doesn't follow app.security.crdGuard.
+*/}}
+{{- $exporter := printf "system:serviceaccount:%s:%s" $.Values.app.namespace (include "telark.serviceAccountName" (dict "root" $ "serviceConfig" $.Values.services.exporter)) }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: {{ $.Values.app.name }}-auth-request
+  labels:
+    {{- include "telark.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: security
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    # Only the release namespace holds requests the exporter can act on, and deletes.
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: {{ $.Values.app.namespace }}
+    resourceRules:
+      - apiGroups:
+          - {{ include "telark.apiGroup" $ }}
+        apiVersions: ["*"]
+        resources: ["authrequests", "authrequests/status"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+  variables:
+    - name: exporter
+      expression: {{ toJson $exporter | squote }}
+  validations:
+    # userInfo comes from the authenticated request, so a caller can't forge it. DELETE carries no object.
+    - expression: request.operation != 'CREATE' || object.spec.requestedBy == request.userInfo.username
+      reason: Forbidden
+      message: spec.requestedBy must be your own Kubernetes username
+    - expression: request.operation == 'CREATE' || request.userInfo.username == variables.exporter
+      reason: Forbidden
+      messageExpression: '"only the {{ $.Values.app.name }} exporter updates or deletes an auth request"'
+    # Only the exporter may update the object, so a finalizer set on create would keep the cleanup from deleting it.
+    - expression: request.operation != 'CREATE' || !has(object.metadata.finalizers) || size(object.metadata.finalizers) == 0
+      reason: Forbidden
+      message: an auth request takes no finalizers
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: {{ $.Values.app.name }}-auth-request-binding
+  labels:
+    {{- include "telark.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: security
+spec:
+  policyName: {{ $.Values.app.name }}-auth-request
+  validationActions:
+    - Deny

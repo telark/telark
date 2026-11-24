@@ -17,7 +17,7 @@ type BootstrapConfig struct {
 
 var (
 	globalBootstrapConfig *BootstrapConfig
-	breakGlassWait        = time.Duration(constants.DefaultBreakGlassWaitHours) * time.Hour
+	authRequestWait       = time.Duration(constants.DefaultAuthRequestWaitHours) * time.Hour
 	bootstrapMutex        sync.RWMutex
 )
 
@@ -31,15 +31,15 @@ func LoadBootstrapConfig() (*BootstrapConfig, error) {
 	if err := validateBootstrapConfig(cfg); err != nil {
 		return nil, err
 	}
-	hours, err := getEnvAsInt64OrDefault(constants.EnvBreakGlassWaitHours, constants.DefaultBreakGlassWaitHours)
+	hours, err := getEnvAsInt64OrDefault(constants.EnvAuthRequestWaitHours, constants.DefaultAuthRequestWaitHours)
 	if err != nil || hours < constants.DefaultIncrementValue {
-		return nil, fmt.Errorf(string(constants.ErrBreakGlassWaitInvalid), constants.EnvBreakGlassWaitHours,
-			os.Getenv(constants.EnvBreakGlassWaitHours))
+		return nil, fmt.Errorf(string(constants.ErrAuthRequestWaitInvalid), constants.EnvAuthRequestWaitHours,
+			os.Getenv(constants.EnvAuthRequestWaitHours))
 	}
 
 	bootstrapMutex.Lock()
 	globalBootstrapConfig = cfg
-	breakGlassWait = time.Duration(hours) * time.Hour
+	authRequestWait = time.Duration(hours) * time.Hour
 	bootstrapMutex.Unlock()
 
 	return cfg, nil
@@ -52,10 +52,10 @@ func GetBootstrapConfig() *BootstrapConfig {
 	return cfg
 }
 
-func BreakGlassWait() time.Duration {
+func AuthRequestWait() time.Duration {
 	bootstrapMutex.RLock()
 	defer bootstrapMutex.RUnlock()
-	return breakGlassWait
+	return authRequestWait
 }
 
 func IsBootstrapAdmin(email string) bool {

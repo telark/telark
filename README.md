@@ -95,10 +95,10 @@ helm install telark oci://ghcr.io/telark/charts/telark -n telark --create-namesp
 
 Telark is tested with Kyverno v1.19.2, the version the chart bundles, and needs Kyverno 1.18 or later with the `policies.kyverno.io` CRDs ([Install](docs/INSTALL.md#1-install)). With your own Kyverno, change history names no author, because the chart installs the policy that records authors only with the bundled Kyverno.
 
-When the pods are Running, enroll yourself as the first admin and open the dashboard:
+When the pods are Running, enroll yourself as the first admin with the [telark CLI](docs/CLI.md) (`brew install telark/tap/telark`, or `curl -sSfL https://telark.io/install.sh | sh`; [other ways](docs/CLI.md#installing-the-cli)) and open the dashboard:
 
 ```sh
-kubectl exec -n telark deploy/telark-auth-service -- ./main break-glass --email test@example.com --enroll
+telark auth enroll -n telark --email test@example.com
 kubectl port-forward -n telark svc/telark-ui-service 3000:8080
 # open the link printed above, with http://localhost:3000 in place of <dashboard-url>
 ```

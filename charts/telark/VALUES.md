@@ -39,6 +39,8 @@ Kubernetes: `>=1.30.0-0`
 | app.auth.passkey.id | string | `""` |  |
 | app.auth.passkey.name | string | `"Dashboard App"` |  |
 | app.auth.passkey.origin | string | `""` |  |
+| app.auth.request.subjects | list | `[]` |  |
+| app.auth.request.waitHours | int | `24` |  |
 | app.image.kubectl | string | `"registry.k8s.io/kubectl:v1.37.1@sha256:b7cab618e281b1ee7484e7b706a96e2135fbb6e072c2a573a7dab4e87d7f2385"` |  |
 | app.image.pullPolicy | string | `"Always"` |  |
 | app.image.pullSecrets | list | `[]` |  |
@@ -52,7 +54,6 @@ Kubernetes: `>=1.30.0-0`
 | app.persistence.reportsSize | string | `"512Mi"` |  |
 | app.persistence.snapshotsSize | string | `"512Mi"` |  |
 | app.persistence.storageClass | string | `""` |  |
-| app.security.breakGlass.waitHours | int | `24` |  |
 | app.security.crdGuard.enabled | bool | `true` |  |
 | app.security.crdGuard.enforce | bool | `true` |  |
 | app.security.crdGuard.extraAllowedUsers | list | `[]` |  |
@@ -293,8 +294,8 @@ Kubernetes: `>=1.30.0-0`
 | services.auth.automountServiceAccountToken | bool | `false` |  |
 | services.auth.category | string | `"auth"` |  |
 | services.auth.enabled | bool | `true` |  |
+| services.auth.env.AUTH_REQUEST_WAIT_HOURS | string | `"{{ dig \"auth\" \"request\" \"waitHours\" \"\" .Values.app }}"` |  |
 | services.auth.env.BOOTSTRAP_ADMIN | string | `"{{ .Values.app.auth.bootstrap.admin }}"` |  |
-| services.auth.env.BREAK_GLASS_WAIT_HOURS | string | `"{{ dig \"security\" \"breakGlass\" \"waitHours\" \"\" .Values.app }}"` |  |
 | services.auth.env.CHALLENGE_TIMEOUT | string | `"60"` |  |
 | services.auth.env.CLEANUP_DEDUP_TTL_SECONDS | string | `"600"` |  |
 | services.auth.env.CLEANUP_JOB_MAX_ATTEMPTS | string | `"5"` |  |
@@ -398,8 +399,9 @@ Kubernetes: `>=1.30.0-0`
 | services.exporter.autoscaling.enabled | bool | `false` |  |
 | services.exporter.category | string | `"persistence-manager"` |  |
 | services.exporter.enabled | bool | `true` |  |
+| services.exporter.env.AUTH_REQUEST_RETENTION_DAYS | string | `"30"` |  |
+| services.exporter.env.AUTH_REQUEST_WAIT_HOURS | string | `"{{ dig \"auth\" \"request\" \"waitHours\" \"\" .Values.app }}"` |  |
 | services.exporter.env.BOOTSTRAP_ADMIN | string | `"{{ .Values.app.auth.bootstrap.admin }}"` |  |
-| services.exporter.env.BREAK_GLASS_WAIT_HOURS | string | `"{{ dig \"security\" \"breakGlass\" \"waitHours\" \"\" .Values.app }}"` |  |
 | services.exporter.env.CORS_ALLOWED_ORIGINS | string | `""` |  |
 | services.exporter.env.EXPORTER_K8S_CLIENT_BURST | string | `"100"` |  |
 | services.exporter.env.EXPORTER_K8S_CLIENT_QPS | string | `"50"` |  |

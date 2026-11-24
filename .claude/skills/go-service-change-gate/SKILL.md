@@ -1,6 +1,6 @@
 ---
 name: go-service-change-gate
-description: Use before reporting any change to Go code (a service under services/ or a shared package under internal/) as done, or when asked whether a Go change is green. Runs build, vet, tests and golangci-lint the way CI does, per service and shared package.
+description: Use before reporting any change to Go code (a service under services/, a shared package under internal/ or the CLI under cmd/telark) as done, or when asked whether a Go change is green. Runs build, vet, tests and golangci-lint the way CI does, per service and shared package.
 ---
 
 # Go service change gate
@@ -17,17 +17,17 @@ go vet ./...
 go test -race ./...
 
 # last, after every edit and after deleting scratch files; once per service or shared package you touched
-golangci-lint run ./services/<svc>/...   # or ./internal/<pkg>/...
+golangci-lint run ./services/<svc>/...   # or ./internal/<pkg>/... or ./cmd/telark/...
 ```
 
 A shared package in `internal/` is compiled into every service that imports it, so build, vet and test always cover the whole module. `make check` runs lint per service and shared package and `go test ./...`, plus `helm lint` (which needs `make deps` once).
 
 ## What to check
 
-- **Coverage.** Tests live in `internal/tests/<area>/`, so only cross-package coverage means anything. When a change could move the coverage of a service or shared package, run what CI runs (`./internal/<pkg>/...` for a shared package) and compare with its floor in `ci.yaml`:
+- **Coverage.** Tests live in `internal/tests/<area>/`, so only cross-package coverage means anything. When a change could move the coverage of a service or shared package, run what CI runs (`./internal/<pkg>/...` for a shared package, `./cmd/telark/...` for the CLI) and compare with its floor in `ci.yaml`:
 
   ```sh
-  go test -race -gcflags=all=-dwarf=false -ldflags=-w -coverpkg=./services/<svc>/... -coverprofile=coverage.out ./services/<svc>/...
+  go test -race -gcflags=all=-dwarf=false -ldflags='-w -linkmode=internal' -coverpkg=./services/<svc>/... -coverprofile=coverage.out ./services/<svc>/...
   go tool cover -func=coverage.out | tail -1
   ```
 

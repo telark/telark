@@ -85,10 +85,7 @@ func (r *run) findOrCreateAdmin(userClient *userclient.Client, marker bool) *use
 }
 
 func createAdmin(userClient *userclient.Client, email string, marker bool) (*userresource.User, error) {
-	username, err := authhelper.BuildUsername(email)
-	if err != nil {
-		return nil, err
-	}
+	username := authhelper.BuildUsername(email)
 	adminID := constants.BuiltInRoleAdmin
 	resp := userClient.CreateUser(&userresource.User{
 		Username:     username,
@@ -143,9 +140,10 @@ func (r *run) promote(userClient *userclient.Client, user *userresource.User, ma
 func (r *run) enroll(ctx context.Context, userID string) {
 	issuedAt := time.Now()
 	token, expiresAt, ok := r.issueLink(userID)
-	if !ok || !r.linkReady(token, expiresAt) {
+	if !ok {
 		return
 	}
+	r.linkReady(token, expiresAt)
 	for time.Now().Before(expiresAt) {
 		if !pause(ctx, constants.RecoveryPollInterval) || !r.extendRun() {
 			return

@@ -29,10 +29,10 @@ func (r *run) recoverAccount(ctx context.Context, userID string) {
 	issuedAt := time.Now()
 	token, expiresAt, ok := r.issueLink(userID)
 	if !ok || !r.extendRun() ||
-		!r.redis(func() error { return authhelper.FreezeForLink(userID, token, constants.RecoveryLinkWindow) }) ||
-		!r.linkReady(token, expiresAt) {
+		!r.redis(func() error { return authhelper.FreezeForLink(userID, token, constants.RecoveryLinkWindow) }) {
 		return
 	}
+	r.linkReady(token, expiresAt)
 	keep, ended, ok := r.await(ctx, userID, token, issuedAt)
 	switch {
 	case !ok:

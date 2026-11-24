@@ -95,10 +95,7 @@ func attachGoogleIdentity(
 func createNewOIDCUser(
 	userClient *userclient.Client, claims *oidchelper.GoogleClaims,
 ) (*userresource.User, error) {
-	username, err := authhelper.BuildUsername(claims.Email)
-	if err != nil {
-		return nil, fmt.Errorf(string(constants.ErrOIDCBuildUsernameFailed), err)
-	}
+	username := authhelper.BuildUsername(claims.Email)
 
 	resp := userClient.CreateUser(BuildOIDCUser(claims, username))
 

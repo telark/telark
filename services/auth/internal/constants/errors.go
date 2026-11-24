@@ -144,7 +144,6 @@ const (
 	ErrOIDCNonceStoreFailed      errors.Error = "failed to store OIDC nonce: %v"
 	ErrOIDCIdentityLookupFailed  errors.Error = "user identity lookup failed for identityHash=%s: %v"
 	ErrOIDCEmailLookupFailed     errors.Error = "email lookup failed for identityHash=%s: %v"
-	ErrOIDCBuildUsernameFailed   errors.Error = "failed to build username: %w"
 	ErrOIDCCreateUserStatus      errors.Error = "CreateUser returned unexpected status %d: %s"
 	ErrOIDCPostCreateLookup      errors.Error = "post-create identity lookup failed: %w"
 	ErrOIDCNonceConsumeFailed    errors.Error = "OIDC nonce is invalid or has already been used: %v"

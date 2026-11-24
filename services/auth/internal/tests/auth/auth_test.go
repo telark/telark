@@ -58,10 +58,7 @@ func TestBuildUsername(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got, err := authhelper.BuildUsername(c.email)
-			if err != nil {
-				t.Fatalf("BuildUsername(%q) = %v", c.email, err)
-			}
+			got := authhelper.BuildUsername(c.email)
 			if !strings.HasPrefix(got, c.prefix) {
 				t.Fatalf("BuildUsername(%q) = %q, want prefix %q", c.email, got, c.prefix)
 			}
@@ -72,10 +69,7 @@ func TestBuildUsername(t *testing.T) {
 	}
 
 	long := strings.Repeat("x", longLocalPartLen) + "@x.com"
-	got, err := authhelper.BuildUsername(long)
-	if err != nil {
-		t.Fatalf("BuildUsername(long) = %v", err)
-	}
+	got := authhelper.BuildUsername(long)
 	if len(got) > constants.UsernameMaxLocalLen+separatorLen+hexCharsPerByte*constants.UsernameRandomBytes {
 		t.Fatalf("local part not truncated: %q", got)
 	}

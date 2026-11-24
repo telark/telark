@@ -38,21 +38,17 @@ func (r *run) issueLink(userID string) (token string, expiresAt time.Time, ok bo
 
 // The link is a credential: whoever opens it first gets the passkey. Sealed to the requester's one-time key, the
 // object, a backup of it or an audit log shows only ciphertext.
-func (r *run) linkReady(token string, expiresAt time.Time) bool {
+func (r *run) linkReady(token string, expiresAt time.Time) {
 	// The dashboard's Members dialog builds the same link: the email only fills in the register form.
 	link := fmt.Sprintf(constants.AuthRequestEnrollURL, dashboardOrigin(), url.QueryEscape(token), url.QueryEscape(r.email))
-	sealed, err := box.SealAnonymous(nil, []byte(link), r.key, rand.Reader)
-	if err != nil {
-		r.failf(string(constants.ErrAuthRequestLinkFailed), err)
-		return false
-	}
+	// Sealing fails only if its random source does, and crypto/rand crashes the program rather than return an error.
+	sealed, _ := box.SealAnonymous(nil, []byte(link), r.key, rand.Reader)
 	r.report(authrequest.Status{
 		Phase:         authrequest.PhaseLinkReady,
 		Reason:        fmt.Sprintf(constants.AuthRequestLinkReady, r.email),
 		SealedLink:    base64.StdEncoding.EncodeToString(sealed),
 		LinkExpiresAt: expiresAt.UTC().Format(constants.TimeFormatRFC3339),
 	})
-	return true
 }
 
 // Without a public address the links carry a placeholder the reader replaces.

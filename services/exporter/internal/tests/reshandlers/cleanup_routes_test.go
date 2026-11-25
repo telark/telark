@@ -36,7 +36,7 @@ func TestListCleanupViewsReadsTypeFromRoute(t *testing.T) {
 // The body carries only the finalizer name: an extra key was accepted silently, an oversized body answered 422.
 func TestFinalizerBodyIsStrictAndBounded(t *testing.T) {
 	endpoint := cleanupendpoints.AddFinalizer
-	mux := router.NewRouter([]router.Route{router.CreateRoute(base.Update, endpoint, cleanuphandler.AddFinalizer)})
+	mux := router.NewRouter([]router.Route{router.CreateRoute(base.Update, endpoint, cleanuphandler.AddFinalizer(newOptimizer(t)))})
 	path := strings.NewReplacer(restconstants.TypeParam, finalizers.ResourceTypeUsers, restconstants.IDParam, testUserID).
 		Replace(router.Pattern(endpoint))
 	tests := []struct {

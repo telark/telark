@@ -8,22 +8,26 @@ import (
 )
 
 type resourceTarget struct {
-	Metadata metadatabase.Metadata
-	RefKeys  []string
+	Metadata  metadatabase.Metadata
+	RefKeys   []string
+	CacheType string
 }
 
 var registry = map[string]resourceTarget{
 	finalizers.ResourceTypeUsers: {
-		Metadata: metadata.UserMetadata,
-		RefKeys:  []string{constants.FieldRoleRefs, constants.FieldGroupRefs},
+		Metadata:  metadata.UserMetadata,
+		RefKeys:   []string{constants.FieldRoleRefs, constants.FieldGroupRefs},
+		CacheType: constants.ResourceUser,
 	},
 	finalizers.ResourceTypeGroups: {
-		Metadata: metadata.GroupMetadata,
-		RefKeys:  []string{constants.FieldUserRefs, constants.FieldRoleRefs},
+		Metadata:  metadata.GroupMetadata,
+		RefKeys:   []string{constants.FieldUserRefs, constants.FieldRoleRefs},
+		CacheType: constants.ResourceGroup,
 	},
 	finalizers.ResourceTypeRoles: {
-		Metadata: metadata.AccessRoleMetadata,
-		RefKeys:  nil,
+		Metadata:  metadata.AccessRoleMetadata,
+		RefKeys:   nil,
+		CacheType: constants.ResourceRole,
 	},
 }
 

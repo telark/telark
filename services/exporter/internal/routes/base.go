@@ -90,14 +90,14 @@ func InitRoutes(optimizer *performance.Optimizer, hub *notifstorage.Hub) []route
 	routes = append(routes, notificationRoutes(hub)...)
 	routes = append(routes, protectionPlanRoutes()...)
 	routes = append(routes, statusRoutes()...)
-	routes = append(routes, cleanupRoutes()...)
+	routes = append(routes, cleanupRoutes(optimizer)...)
 	return routes
 }
 
-func cleanupRoutes() []router.Route {
+func cleanupRoutes(optimizer *performance.Optimizer) []router.Route {
 	return []router.Route{
-		router.CreateRoute(base.Update, cleanupendpoints.AddFinalizer, cleanuphandler.AddFinalizer),
-		router.CreateRoute(base.Delete, cleanupendpoints.RemoveFinalizer, cleanuphandler.RemoveFinalizer),
+		router.CreateRoute(base.Update, cleanupendpoints.AddFinalizer, cleanuphandler.AddFinalizer(optimizer)),
+		router.CreateRoute(base.Delete, cleanupendpoints.RemoveFinalizer, cleanuphandler.RemoveFinalizer(optimizer)),
 		router.CreateRoute(base.Get, cleanupendpoints.GetCleanupViewByID, cleanuphandler.GetCleanupViewByID),
 		router.CreateRoute(base.Get, cleanupendpoints.ListCleanupViews, cleanuphandler.ListCleanupViews),
 	}

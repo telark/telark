@@ -32,6 +32,7 @@ Each archive also has a build provenance attestation, `gh attestation verify tel
 - `-o table|json|yaml` on `version`, `check` and `auth status`.
 - Exit code 0 on success, 1 on a failed check or any error, which prints one `Error:` line on stderr.
 - Color only on a terminal, never with `NO_COLOR` set.
+- Ctrl-C cancels the command: an install or upgrade ends `failed` in Helm instead of staying `pending`, a stopped exporter starts again on its old claims, and a wait stops at once. A second Ctrl-C ends the CLI without that cleanup.
 
 ## telark version
 

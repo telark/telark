@@ -76,7 +76,11 @@ func Run(ctx context.Context, client kubernetes.Interface, namespace string, std
 	deadline := time.Now().Add(opts.Wait)
 	results := r.run(ctx)
 	for remaining := time.Until(deadline); slices.ContainsFunc(results, failed) && remaining > constants.DefaultInitValue; {
-		time.Sleep(min(constants.CheckPollInterval, remaining))
+		select {
+		case <-ctx.Done():
+			return NewReport(results)
+		case <-time.After(min(constants.CheckPollInterval, remaining)):
+		}
 		results, remaining = r.run(ctx), time.Until(deadline)
 	}
 	if opts.UpdateCheck {

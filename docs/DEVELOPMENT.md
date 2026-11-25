@@ -11,7 +11,7 @@ lists every target. Conventions are in [CONVENTIONS.md](../CONVENTIONS.md).
 | `golangci-lint` **v2.14.0** | `make lint` | the version CI pins; uses the shared root `.golangci.yml` |
 | `helm` **≥ 3** (OCI) | all `helm-*` targets | |
 | `kubeconform` **v0.8.0** | `make helm-validate` | schema-validates rendered manifests |
-| Python **3.13** + `venv` | analyzer tests | `services/analyzer`; the version CI uses |
+| Python **3.15** + `venv` | analyzer tests | `services/analyzer`; the version CI uses |
 | Docker + a cluster | end-to-end work | |
 | `git-cliff` | `make changelog` | changelog generation |
 

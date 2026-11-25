@@ -23,7 +23,7 @@ Every row except the last runs without a cluster; the last row is manual work on
 | kubeconform | v0.8.0 | `.github/actions/helm-kubeconform-validate/action.yaml` |
 | helm-docs | v1.14.2 | `Makefile` (`HELM_DOCS`, run with `go run`; nothing to install) |
 | Helm | not pinned; CI installs the latest release (`azure/setup-helm`) | any Helm ≥ 3 with OCI support; checked with v4.3.0 |
-| Python | 3.13 | the `analyzer` job in `ci.yaml` |
+| Python | 3.15 | the `analyzer` job in `ci.yaml` |
 
 Linux x86-64:
 

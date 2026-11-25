@@ -4,7 +4,7 @@ The analyzer's own code is licensed under the [Elastic License 2.0](LICENSE.md).
 
 - **Python packages**, pinned in [`requirements.txt`](requirements.txt) and installed in `/usr/local/lib/python3.*/site-packages`. Each package keeps its license files in its `*.dist-info` directory. loguru's wheel ships none, so its license is below. `pydantic_core.libs/` holds `libgcc_s`, the GCC runtime library (GPL-3.0-or-later WITH GCC-exception-3.1, texts below). pydantic-core is compiled from Rust crates that its wheel lists in `pydantic_core-*.dist-info/sboms/`; their notices are under pydantic-core's Rust crates.
 - **CPython** (PSF-2.0): `/usr/local/lib/python3.*/LICENSE.txt` also covers the components CPython bundles.
-- **Alpine Linux packages** from the `python` Alpine base image. `apk list --installed` shows each package with its version and license. Some are GPL-2.0-only (busybox, apk-tools, alpine-baselayout, pax-utils), GPL-3.0-or-later (readline, gdbm), GPL-3.0-or-later WITH GCC-exception-3.1 (gcc's libgcc and libstdc++), LGPL-2.1-or-later (parts of xz) or MPL-2.0 (ca-certificates). Their license texts are under License texts, and the permissive packages' copyright notices under Alpine package notices.
+- **Alpine Linux packages** from the `python` Alpine base image, minus the ones only the build uses (busybox, apk-tools, alpine-baselayout, ca-certificates, musl-utils, scanelf; `alpine-baselayout-data` and `ca-certificates-bundle` stay). The image's apk database, `/lib/apk/db/installed`, lists each package with its version (`V:`) and license (`L:`). Some are GPL-2.0-only (alpine-baselayout-data), GPL-3.0-or-later (readline, gdbm), GPL-3.0-or-later WITH GCC-exception-3.1 (gcc's libgcc and libstdc++), LGPL-2.1-or-later (parts of xz) or MPL-2.0 (ca-certificates-bundle). Their license texts are under License texts, and the permissive packages' copyright notices under Alpine package notices.
 
 ## Source code for GPL, LGPL and MPL components
 
@@ -49,13 +49,13 @@ The copyright and license notices of the permissive Alpine packages in the image
 | alpine-keys | 2.6-r0 | MIT | Alpine Linux's own files, no copyright line |
 | alpine-release (alpine-base) | 3.23.8-r0 | MIT | Alpine Linux's own files, no copyright line |
 | libbz2 (bzip2) | 1.0.8-r6 | bzip2-1.0.6 | below |
-| ca-certificates, ca-certificates-bundle | 20261020-r0 | MPL-2.0 AND MIT | MPL-2.0 under License texts, MIT part below |
+| ca-certificates-bundle (ca-certificates) | 20261020-r0 | MPL-2.0 AND MIT | MPL-2.0 under License texts, MIT part below |
 | libffi | 3.5.2-r0 | MIT | below |
 | libcrypto3, libssl3 (openssl) | 3.5.9-r1 | Apache-2.0 | Apache License 2.0 under License texts |
 | libncursesw, libpanelw, ncurses-terminfo-base (ncurses) | 6.5_p20251123-r0 | X11 | below |
 | libuuid (util-linux) | 2.41.6-r1 | BSD-3-Clause | below |
 | mpdecimal | 4.0.1-r0 | BSD-2-Clause | below |
-| musl, musl-utils | 1.2.5-r24 | MIT AND BSD-2-Clause AND GPL-2.0-or-later | below |
+| musl | 1.2.5-r24 | MIT | below |
 | sqlite-libs | 3.53.4-r0 | blessing (public domain) | none needed |
 | tzdata | 2026f-r0 | public domain | none needed |
 | xz-libs (xz) | 5.8.4-r0 | 0BSD (liblzma) | below |

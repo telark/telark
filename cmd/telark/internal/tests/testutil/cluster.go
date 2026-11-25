@@ -72,7 +72,7 @@ func ClusterServer(t *testing.T, cluster Cluster) string {
 
 func StartCluster(t *testing.T, cluster Cluster) *FakeCluster {
 	t.Helper()
-	fake := &FakeCluster{cluster: cluster, refused: map[string]int32{}}
+	fake := &FakeCluster{cluster: cluster, refused: map[string]int32{}, unchanged: map[string]int32{}}
 	fake.Add(t, cluster.Objects...)
 	fake.URL = serve(t, fake)
 	return fake
@@ -90,7 +90,7 @@ func (f *FakeCluster) Add(t *testing.T, objects ...runtime.Object) {
 
 func (f *FakeCluster) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := route(r.URL.Path)
-	switch status, refused := f.refusal(r.Method, path); {
+	switch status, refused := f.refusal(r, path); {
 	case slices.Contains(f.cluster.Forbidden, path.qualified()):
 		writeJSON(w, http.StatusForbidden,
 			failure(http.StatusForbidden, metav1.StatusReasonForbidden, fmt.Sprintf(forbiddenFormat, path.qualified())))
@@ -119,10 +119,20 @@ func (f *FakeCluster) Refuse(request string, status int32) {
 	f.refused[request] = status
 }
 
-func (f *FakeCluster) refusal(method string, path apiPath) (int32, bool) {
+// RefuseChange refuses the request only when it would change something: its dry run still passes.
+func (f *FakeCluster) RefuseChange(request string, status int32) {
 	f.mutex.Lock()
 	defer f.mutex.Unlock()
-	status, refused := f.refused[path.request(method)]
+	f.unchanged[request] = status
+}
+
+func (f *FakeCluster) refusal(r *http.Request, path apiPath) (int32, bool) {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+	status, refused := f.refused[path.request(r.Method)]
+	if !refused && !r.URL.Query().Has(dryRunParam) {
+		status, refused = f.unchanged[path.request(r.Method)]
+	}
 	return status, refused
 }
 

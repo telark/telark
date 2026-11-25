@@ -334,14 +334,65 @@ Kubernetes never changes a claim's class or access mode, so upgrades keep the cl
 - An empty `app.persistence.storageClass` keeps the class the claims already use, so forgetting the flag on an upgrade changes nothing.
 - Sizes (`app.persistence.snapshotsSize`, `app.persistence.reportsSize`, also set by the mode) only grow, and only when the class allows volume expansion; a smaller value keeps the current size.
 
-**Changing the class.** Name the new class (and the replica count) on `helm upgrade`. The chart creates new claims named after it (`telark-exporter-snapshots-pvc-efs-sc-rwx`), and the exporter copies the snapshots and reports into them before it starts again, so it restarts once. The upgrade's notes list the old claims, which are kept; delete them after the next upgrade:
+**Changing the class.** Name the new class (and the replica count) on `telark upgrade`. The chart names new claims after it (`telark-exporter-snapshots-pvc-efs-sc-rwx`) and mounts them. Before it upgrades, `telark upgrade` creates those claims, stops the exporter, copies the snapshots and reports with a one-off Job and only then upgrades, so the exporter never writes during the copy ([CLI](CLI.md#moving-the-exporters-data)). The upgrade's notes list the old claims, which are kept; delete them after the next upgrade:
 
 ```sh
 kubectl delete pvc -n telark telark-exporter-snapshots-pvc telark-exporter-reports-pvc
 ```
 
-- `helm rollback telark -n telark` returns the exporter to the old claims as they were at the change, for example when the new claims stay `Pending` (a class that cannot serve the access mode, such as ReadWriteMany on block storage). A later upgrade back to the new class copies over what the exporter wrote in between; for each file, the newer copy wins.
-- Uninstall keeps the claims, and a reinstall picks up the ones named after its storage settings, else the original ones (copied like an upgrade when the class differs). After a class change, reinstall with the same settings, or the original claims come back as they were at the change.
+A plain `helm upgrade` copies nothing: the exporter starts on the new, empty claims and the data stays on the old ones. Copy it afterward, with the exporter stopped. Set the image to the exporter's (`kubectl get deploy -n telark telark-exporter-service -o jsonpath='{.spec.template.spec.containers[0].image}'`, 0.3.0 or later), the four claim names to the ones the upgrade's notes list, and the last line's replica count to yours:
+
+```sh
+kubectl scale deployment telark-exporter-service -n telark --replicas=0
+kubectl wait --for=delete pod -n telark -l app.kubernetes.io/component=exporter-service --timeout=120s
+kubectl apply -n telark -f - <<'YAML'
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: telark-storage-copy
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: copy
+          image: ghcr.io/telark/exporter:<version>
+          command: ["/app/copy-tree"]
+          args: ["/previous/snapshots", "/snapshots", "/previous/reports", "/reports"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: previous-snapshots, mountPath: /previous/snapshots, readOnly: true }
+            - { name: previous-reports, mountPath: /previous/reports, readOnly: true }
+            - { name: snapshots, mountPath: /snapshots }
+            - { name: reports, mountPath: /reports }
+      volumes:
+        - { name: previous-snapshots, persistentVolumeClaim: { claimName: telark-exporter-snapshots-pvc, readOnly: true } }
+        - { name: previous-reports, persistentVolumeClaim: { claimName: telark-exporter-reports-pvc, readOnly: true } }
+        - { name: snapshots, persistentVolumeClaim: { claimName: telark-exporter-snapshots-pvc-efs-sc-rwx } }
+        - { name: reports, persistentVolumeClaim: { claimName: telark-exporter-reports-pvc-efs-sc-rwx } }
+YAML
+kubectl wait --for=condition=complete job/telark-storage-copy -n telark --timeout=30m
+kubectl delete job telark-storage-copy -n telark
+kubectl scale deployment telark-exporter-service -n telark --replicas=<replicas>
+```
+
+For each file the newer copy wins, so what the exporter wrote to the new claims before the copy is kept, and running the Job twice is safe.
+
+- `helm rollback telark -n telark` returns the exporter to the old claims as they were at the change, for example when the new claims stay `Pending` (a class that cannot serve the access mode, such as ReadWriteMany on block storage). A later `telark upgrade` back to the new class copies over what the exporter wrote in between; for each file, the newer copy wins.
+- Uninstall keeps the claims, and a reinstall picks up the ones named after its storage settings, else the original ones. An install copies nothing, so a reinstall with another class starts on empty claims: copy the kept ones with the Job above. After a class change, reinstall with the same settings, or the original claims come back as they were at the change.
 - Cluster-less renders ([GitOps](#gitops-cluster-less-renders)) cannot read the live claims, so they always render the original names and the requested class: keep the class you installed with.
 
 **Without persistence.** `--set app.persistence.enabled=false` renders no claims, and the exporter keeps snapshots and reports in emptyDir volumes that are lost whenever its pod goes and that count against its `2Gi` ephemeral-storage limit ([Sizing modes](#sizing-modes)). A claim that already exists (kept by an earlier install, or created by hand) stays mounted instead. Cluster-less renders cannot see it, so they always render the emptyDir.
@@ -728,10 +779,11 @@ Each minor version lists here the CRD schema changes and the exporter migration 
   - CRDs managed out of band (`crds.enabled=false`): upgrade `telark-crds` before `telark`, as always. Until the new CRD is there, `telark auth enroll` has nothing to create.
   - The upgrade creates the ValidatingAdmissionPolicy `telark-auth-request` with its binding `telark-auth-request-binding`, the ClusterRole `telark-auth` and, once `app.auth.request.subjects` is set, the RoleBinding `telark-auth`. The exporter's Role gains `authrequests` and `authrequests/status`, the CRD guard lets the create of an `AuthRequest` through, and the exporter gets `AUTH_REQUEST_RETENTION_DAYS` (`"30"`), the age at which it deletes `AuthRequest` objects ([AuthRequest objects](#authrequest-objects)).
   - `kubectl exec … ./main break-glass` is gone: `telark auth enroll` enrolls and recovers the bootstrap admin ([First admin](#2-first-admin)). Install the [CLI](CLI.md) and grant the permission (`app.auth.request.subjects`) before you need it. A cluster admin can run it without the grant.
-  - `./main backfill-finalizers` is gone from the auth image too, with `BACKFILL_BATCH_SIZE` and `BACKFILL_BATCH_PAUSE_MS`: auth's cleanup sweep restores a missing cleanup finalizer on users, groups and roles within a minute. The uninstall hook now clears those finalizers with the exporter image, under the exporter's ServiceAccount, after a first Job stops auth.
+  - `./main backfill-finalizers` is gone from the auth image too, with `BACKFILL_BATCH_SIZE` and `BACKFILL_BATCH_PAUSE_MS`: auth's cleanup sweep restores a missing cleanup finalizer on users, groups and roles within a minute. The chart's uninstall hook that cleared those finalizers is gone too, with its two Jobs, ServiceAccount, Role and RoleBinding (`telark-uninstall-finalizers`, `telark-uninstall-stop-auth`): [`telark uninstall`](CLI.md#telark-uninstall) clears them once the release is removed, and a plain `helm uninstall` leaves them for the kubectl command under [Uninstall](#uninstall).
+  - The exporter image runs no subcommand anymore. `migrate-storage` and the init container that ran it are gone: when `app.persistence.storageClass` or the replica count moves the exporter to new claims, `telark upgrade` copies the data with a one-off Job before it upgrades, and a plain `helm upgrade` leaves the copy to you ([Exporter storage](#exporter-storage)). Let a storage move started on 0.2.x finish before this upgrade.
   - A recovery or replacement request that is open at upgrade time survives the upgrade: `telark auth enroll` continues it.
   - What the rename moved, and what to do:
-    - **Chart:** `app.security.breakGlass.waitHours` → `app.auth.request.waitHours`. A values file that still sets the old key fails `helm upgrade` with a schema error that names it, so move it first. An override of `services.auth.env.BREAK_GLASS_WAIT_HOURS` or `services.exporter.env.BREAK_GLASS_WAIT_HOURS` becomes `AUTH_REQUEST_WAIT_HOURS`.
+    - **Chart:** `app.security.breakGlass.waitHours` → `app.auth.request.waitHours`. `telark upgrade` moves the value a release still stores to the new key, drops the old block and says so, in `--dry-run` too ([CLI](CLI.md#telark-upgrade)). A values file that still sets the old key fails `helm upgrade`, and `telark upgrade -f`, with a schema error that names it, so move it first. An override of `services.auth.env.BREAK_GLASS_WAIT_HOURS` or `services.exporter.env.BREAK_GLASS_WAIT_HOURS` becomes `AUTH_REQUEST_WAIT_HOURS`.
     - **TelarkConfig:** `spec.breakGlassAlerts.notifyAdmins` → `spec.authAlerts.notifyAdmins`. The setting doesn't carry over: the API server drops the old field with the 0.3.0 CRD, so the alerts are on again, the default. If you had turned them off, turn them off again in Settings → Authentication after the upgrade. A rollback to 0.2.3 resets it the same way.
     - **API:** `/api/v1/auth/break-glass-alerts` → `/api/v1/auth/alerts`.
     - **Dashboard:** the approval page moves from `/break-glass` to `/auth/request`, "Break-glass alerts" becomes "Auth alerts" and the "Break-glass requests" card "Auth requests". An approval link sent before the upgrade no longer opens: `telark auth enroll` continues the request and prints the new link.
@@ -805,10 +857,19 @@ Each minor version lists here the CRD schema changes and the exporter migration 
 Let in-progress rollbacks finish.
 
 ```sh
-helm uninstall telark -n telark
+telark uninstall
 ```
 
-This removes every Telark service and the bundled policy engine with its webhooks and plan policies. The pre-delete hooks run `app.image.kubectl`, so air-gapped clusters must mirror it; the last one runs the exporter image, which clears the cleanup finalizers once auth is stopped.
+This removes every Telark service and the bundled policy engine with its webhooks and plan policies, then the cleanup finalizers on users, groups and roles, so nothing hangs when you delete the CRDs or the namespace later ([CLI](CLI.md#telark-uninstall)). The policy engine's pre-delete hooks run `app.image.kubectl`, so air-gapped clusters must mirror it.
+
+With Helm alone, clear the finalizers yourself once the release is gone. auth restores them while it runs, so wait for its pods first:
+
+```sh
+helm uninstall telark -n telark
+kubectl wait --for=delete pod -n telark -l app.kubernetes.io/component=auth-service --timeout=120s
+kubectl get users.telark.io,groups.telark.io,accessroles.telark.io -n telark -o name |
+  xargs -r -P 16 -I{} kubectl patch -n telark {} --type merge -p '{"metadata":{"finalizers":null}}'
+```
 
 Your data stays: the CRDs and custom resources (users, roles, plans and the rest), the service-token, NATS, Redis and OIDC Secrets, the exporter's snapshot and report volumes, the Redis and NATS volumes, and the Ollama model volume. A reinstall picks up where you left off.
 
@@ -820,24 +881,17 @@ kubectl delete namespacedvalidatingpolicies.policies.kyverno.io -A -l telark.io/
 
 ### Full teardown
 
-To also delete all Telark data, run after `helm uninstall` (about 15 seconds):
+To also delete all Telark data, run after the uninstall (about 15 seconds):
 
 ```sh
 kubectl delete crd -l app.kubernetes.io/part-of=telark
 kubectl delete namespace telark
 ```
 
-`helm uninstall` already cleared the cleanup finalizers on users, groups and roles; a reinstall that keeps the data restores them within a minute. If the uninstall ran with `--no-hooks`, the bundled policy engine's webhooks stay behind and keep intercepting API writes; delete them:
+`telark uninstall`, or the kubectl command above, already cleared the cleanup finalizers on users, groups and roles; a reinstall that keeps the data restores them within a minute. While they are still there, these deletions hang in `Terminating` until you clear them. If a `helm uninstall` ran with `--no-hooks`, the bundled policy engine's webhooks stay behind and keep intercepting API writes; delete them:
 
 ```sh
 kubectl delete validatingwebhookconfigurations,mutatingwebhookconfigurations -l webhook.kyverno.io/managed-by=kyverno
-```
-
-A `--no-hooks` uninstall, or one with `services.exporter.enabled=false`, also leaves the finalizers, so deletions hang in `Terminating`; clear them by hand and they finish on their own:
-
-```sh
-kubectl get users.telark.io,groups.telark.io,accessroles.telark.io -n telark -o name |
-  xargs -r -P 16 -I{} kubectl patch -n telark {} --type merge -p '{"metadata":{"finalizers":null}}'
 ```
 
 ## Known limitations

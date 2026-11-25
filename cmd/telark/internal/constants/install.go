@@ -40,6 +40,8 @@ const (
 	CheckStoredObjects = "stored-objects"
 	CheckServerDryRun  = "server-dry-run"
 	CheckEnforcePlans  = "enforce-plans"
+	CheckRenamedValues = "renamed-values"
+	CheckStorage       = "exporter-storage"
 )
 
 const (
@@ -63,6 +65,13 @@ const (
 	MsgNoEnforcePlans       = "No protection plan enforces now"
 	MsgEnforcePlans         = "Protection plans enforce now (%d): Kyverno restarts during the upgrade, and its failure policy " +
 		"decides what happens to changes meanwhile"
+	MsgValueMoved        = "The release's app.security.breakGlass.waitHours (%v) moves to app.auth.request.waitHours, its name since 0.3.0"
+	MsgValueDropped      = "The release's app.security.breakGlass is dropped: app.auth.request.waitHours replaces it since 0.3.0"
+	MsgStorageMoves      = "The exporter's data moves to new claims (%s): the exporter stops while a Job copies it, before the upgrade"
+	MsgStorageUnmanaged  = "The release doesn't hold the Deployment %s on the claims it mounts, so the exporter can't be stopped to copy its data"
+	MsgStorageMove       = "%s → %s"
+	MsgStorageCopying    = "Copying the exporter's data (%s).\n"
+	MsgStorageCopied     = "Copied the exporter's data: the old claims are kept.\n"
 	MsgInstalled         = "Installed Telark %s in namespace %q.\nNext:\n  telark check\n  telark auth enroll --email %s\n"
 	MsgUpgraded          = "Upgraded Telark to %s in namespace %q.\n"
 	MsgDryRunInstall     = "Dry run of Telark %s in namespace %q: nothing changed.\nValues:\n"
@@ -75,9 +84,14 @@ const (
 	ErrLoadChart         = "load the chart from %s: %w"
 	ErrChartDependencies = "the chart in %s lacks its subcharts, so build them first (make deps, or helm dependency build): %w"
 	ErrInstallMode       = "app.mode %q: must be minimal, standard or performance"
-	ErrHelmInit          = "reach Helm's release storage: %w"
 	ErrInstall           = "install: %w"
 	ErrUpgrade           = "upgrade: %w"
+	ErrStorageClaims     = "create the exporter's new claims: %w"
+	ErrStorageStop       = "stop the exporter: %w"
+	ErrStorageCopy       = "copy the exporter's data (the exporter runs again on its old claims, and telark upgrade retries the copy): %w"
+	ErrStorageJobFailed  = "the copy Job failed"
+	ErrStorageJobLogs    = "%w: read kubectl logs -n %s job/%s"
+	ReadExporter         = "the exporter's Deployment"
 	ReadStoredObjects    = "the stored objects"
 )
 
@@ -104,6 +118,26 @@ const (
 	CosignIdentity             = "https://github.com/telark/telark/.github/workflows/release-charts.yaml@refs/tags/v%s"
 	CosignIssuerFlag           = "--certificate-oidc-issuer"
 	CosignIssuer               = "https://token.actions.githubusercontent.com"
+	KindDeployment             = "Deployment"
+	DocumentSeparator          = "\n---\n"
+	KindClaim                  = "PersistentVolumeClaim"
+	KeyReplicas                = "replicas"
+	NoReplicas                 = 0
+	StorageCopyJobPrefix       = "telark-storage-copy-"
+	StorageCopyName            = "telark-storage-copy"
+	StorageCopyCommand         = "/app/copy-tree"
+	StoragePreviousPath        = "/previous"
+	StoragePreviousVolume      = "previous-"
+	StorageCopyBackoffLimit    = 2
+	StorageVolumesPerMove      = 2
+	StorageCopyJobTTLSeconds   = 24 * 60 * 60
+	StoragePollInterval        = time.Second
+	StorageStopTimeout         = 2 * time.Minute
+	StorageCopyTimeout         = 30 * time.Minute
+	KeySecurity                = "security"
+	KeyBreakGlass              = "breakGlass"
+	KeyRequest                 = "request"
+	KeyWaitHours               = "waitHours"
 	KeyApp                     = "app"
 	KeyAuth                    = "auth"
 	KeyBootstrap               = "bootstrap"

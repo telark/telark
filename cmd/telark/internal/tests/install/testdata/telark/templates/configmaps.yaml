@@ -6,6 +6,7 @@ data:
   mode: {{ .Values.app.mode | quote }}
   admin: {{ .Values.app.auth.bootstrap.admin | quote }}
   chart: {{ .Chart.Version | quote }}
+  wait: {{ .Values.app.auth.request.waitHours | quote }}
 {{- if .Values.extra.enabled }}
 ---
 apiVersion: v1

@@ -53,7 +53,7 @@ flowchart LR
 - Store and serve **protection plan reports** (rendered by discovery) and each plan's report ledger on a second PersistentVolume. A reports GC goroutine (own Redis lock key, one replica per tick, shares `SNAPSHOT_GC_INTERVAL_SEC`) sweeps report directories whose plan CR is gone; reports a plan delete kept are outside its reach until a user deletes them.
 - Expose the REST surface every other service uses for CRD operations. At most 10 CRD creates run at once: a create that waits 20 seconds for its turn, or whose caller gives up first, answers 503 and creates nothing.
 - Store per-user in-app notifications in Redis. Every write that changes a user's list also adds that user's id to the capped stream `notif:changed`; each replica's hub reads it (one `XREAD` loop) and wakes that user's open streams (`GET notifications/events`, 8 per user, then 429). The first copy of a webhook event type, written or merged into an unread one, is queued once per 10 minutes on `notif:events` for the notifier, signed with the service token ([Webhooks](../../docs/INSTALL.md#webhooks)).
-- **Ops subcommands:** `migrate-storage <from> <to> [<from> <to>...]` copies each directory tree into the other (the newer copy of a file wins; temp files and `lost+found` are skipped). The chart runs it as an init container when the snapshot and report volumes move to another storage class ([Exporter storage](../../docs/INSTALL.md#exporter-storage)). `remove-finalizers` removes the cleanup finalizer from every user, group and access role through the API server, best effort (a failed list or removal is logged and counted, the exit code stays 0). The chart's pre-delete hook runs it under the exporter's ServiceAccount once auth is stopped, so deleting the CRDs or the namespace after `helm uninstall` doesn't hang ([Uninstall](../../docs/INSTALL.md#uninstall)).
+- **No subcommands.** `./main` only serves: what an operator starts is a `telark` command ([CLI](../../docs/CLI.md)). The image also ships `/app/copy-tree <from> <to> [<from> <to>...]`, a separate binary (`cmd/copy-tree`) that copies each directory tree into the other (the newer copy of a file wins; temp files and `lost+found` are skipped). `telark upgrade` runs it in a one-off Job when the snapshot and report volumes move to another storage class ([Exporter storage](../../docs/INSTALL.md#exporter-storage)).
 
 ## Layout
 
@@ -67,7 +67,7 @@ flowchart LR
 | `internal/utils/reports` | Reports store on the reports volume (per-plan directory, ledger, retention of 10 on-demand and 100 window reports, kept reports of deleted plans) |
 | `internal/startup` | `SeedTelarkConfig`, `SeedBuiltins` and boot wiring |
 | `internal/migrations` | Startup data migrations (`Steps`, `Run`) and the downgrade guard |
-| `internal/uninstall` | `RemoveFinalizers`, the `remove-finalizers` subcommand's pass over users, groups and access roles |
+| `internal/storagecopy` | `Run`, what the `copy-tree` binary does with its arguments |
 | `internal/bootstrap` · `internal/handlers/bootstrap` | The bootstrap pin, the one-marker rule and auth requests |
 | `internal/authrequests` · `internal/handlers/authrequests` | The `AuthRequest` objects: the pending list, the status write and the retention sweep |
 | `internal/managers/envs` | Env resolution |

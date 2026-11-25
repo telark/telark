@@ -39,11 +39,13 @@ Reinstall with -n {{ $ns }}, or set app.namespace={{ .Release.Namespace }}.
 {{- range (include "telark.exporterStorage" . | fromYaml).claims }}{{ if .from }}{{ $moved = append $moved . }}{{ end }}{{ end }}
 {{- if $moved }}
 
-Storage: the exporter copies its snapshots and reports to new claims before it starts:
+Storage: the exporter now runs on new claims:
 {{- range $moved }}
   {{ .from.name }} -> {{ .name }}
 {{- end }}
-The old claims are kept. Once the next helm upgrade has released them, delete them:
+telark upgrade copied the snapshots and reports before this upgrade. After a plain helm upgrade the new
+claims are empty: copy the data with the Job in docs/INSTALL.md ("Exporter storage").
+The old claims are kept. Once the next upgrade has released them, delete them:
   kubectl delete pvc -n {{ $ns }}{{ range $moved }} {{ .from.name }}{{ end }}
 If the new claims stay Pending, go back to the old ones:
   helm rollback {{ .Release.Name }} -n {{ .Release.Namespace }}

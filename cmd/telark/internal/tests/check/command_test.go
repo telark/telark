@@ -1,14 +1,19 @@
 package check
 
 import (
+	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/telark/telark/cmd/telark/internal/check"
+	"github.com/telark/telark/cmd/telark/internal/constants"
 	"github.com/telark/telark/cmd/telark/internal/tests/testutil"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 const (
@@ -113,6 +118,21 @@ func TestCheckWait(t *testing.T) {
 			testutil.Equal(t, codeLabel, result.Code, c.code)
 		})
 	}
+}
+
+func TestCheckWaitEndsWhenCanceled(t *testing.T) {
+	client, err := kubernetes.NewForConfig(&rest.Config{Host: testutil.ClusterServer(t, objects(nil))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	started := time.Now()
+	report := check.Run(ctx, client, namespace, io.Discard, check.Options{Wait: time.Minute})
+	if elapsed := time.Since(started); elapsed >= constants.CheckPollInterval {
+		t.Errorf("elapsed: got %v, want less than one poll (%v)", elapsed, constants.CheckPollInterval)
+	}
+	testutil.Equal(t, "success", report.Success, false)
 }
 
 func TestCheckCompletesModes(t *testing.T) {

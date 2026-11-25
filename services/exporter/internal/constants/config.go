@@ -112,6 +112,7 @@ const (
 	PrefixGenerics                              = "Generics: "
 	PrefixOptimizer                             = "Optimizer: "
 	PrefixMain                                  = "Main: "
+	PrefixCopyTree                              = "CopyTree: "
 	PrefixStartup                               = "Startup: "
 	PrefixShared                                = "Shared: "
 	LogMessageWithError                         = "%s: %v"
@@ -263,9 +264,7 @@ const (
 	ReportMaxBodyBytes             = 32 << 20
 	ReportsSweepMinAge             = time.Hour
 	ReportsGCLockKey               = "exporter:reports:gc"
-	SubcommandMigrateStorage       = "migrate-storage"
-	MigrateStoragePairSize         = 2
-	SubcommandRemoveFinalizers     = "remove-finalizers"
+	CopyTreePairSize               = 2
 	LostFoundDir                   = "lost+found"
 	HeaderContentTypeOptions       = "X-Content-Type-Options"
 	ContentTypeOptionsNoSniff      = "nosniff"

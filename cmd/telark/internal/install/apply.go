@@ -20,7 +20,7 @@ import (
 func serverApply(targets helmkube.ResourceList, namespace string, force bool) check.Result {
 	var refused []string
 	for _, target := range targets {
-		if err := dryRunApply(target, namespace, force); err != nil {
+		if err := applyObject(target, namespace, force, true); err != nil {
 			reason := strings.Join(strings.Fields(err.Error()), constants.Space)
 			refused = append(refused, example(target.Mapping.Resource.Resource, target.Name, reason))
 		}
@@ -31,8 +31,8 @@ func serverApply(targets helmkube.ResourceList, namespace string, force bool) ch
 	return check.Pass(constants.CheckServerDryRun, fmt.Sprintf(constants.MsgServerAccepts, len(targets)))
 }
 
-// Helm labels and annotates every object it applies, so the probe sends them the same way.
-func dryRunApply(target *resource.Info, namespace string, force bool) error {
+// Helm labels and annotates every object it applies, so the probe and the storage copy send them the same way.
+func applyObject(target *resource.Info, namespace string, force, dryRun bool) error {
 	if object, ok := target.Object.(metav1.Object); ok {
 		object.SetLabels(merged(object.GetLabels(), map[string]string{constants.ManagedByLabel: constants.ManagedByHelm}))
 		object.SetAnnotations(merged(object.GetAnnotations(), map[string]string{
@@ -40,7 +40,7 @@ func dryRunApply(target *resource.Info, namespace string, force bool) error {
 	}
 	data, err := runtime.Encode(unstructured.UnstructuredJSONScheme, target.Object)
 	if err == nil {
-		helper := resource.NewHelper(target.Client, target.Mapping).DryRun(true).
+		helper := resource.NewHelper(target.Client, target.Mapping).DryRun(dryRun).
 			WithFieldManager(constants.HelmFieldManager).WithFieldValidation(metav1.FieldValidationStrict)
 		_, err = helper.Patch(target.Namespace, target.Name, types.ApplyPatchType, data, &metav1.PatchOptions{Force: &force})
 	}

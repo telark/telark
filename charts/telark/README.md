@@ -67,7 +67,7 @@ The tables below explain the values that matter. [VALUES.md](VALUES.md) is the g
 | `app.image.registry` | `ghcr.io/telark` | Registry and namespace hosting the per-service repos |
 | `app.image.pullPolicy` | `Always` | Image pull policy for every service container |
 | `app.image.pullSecrets` | `[]` | Pull secrets (public images need none; set for a private registry) |
-| `app.image.kubectl` | `registry.k8s.io/kubectl:v1.37.1@sha256:…` | kubectl image of the uninstall hooks that stop auth and Kyverno and clear Kyverno's webhooks; the exporter image then clears the cleanup finalizers ([Uninstall](../../docs/INSTALL.md#uninstall)); mirror it for air-gapped installs |
+| `app.image.kubectl` | `registry.k8s.io/kubectl:v1.37.1@sha256:…` | kubectl image of the uninstall hooks that stop Kyverno and clear its webhooks ([Uninstall](../../docs/INSTALL.md#uninstall)); mirror it for air-gapped installs |
 | `kyverno.enabled` | `true` | Install the kyverno subchart; `false` uses a Kyverno you already run ([Install](#install)) |
 | `kyverno.features.forceFailurePolicyIgnore.enabled` | `true` | The bundled Kyverno's webhooks fail open (`failurePolicy: Ignore`), so enforce plans are best-effort while Kyverno is down. See [Policy engine fail-open](../../docs/INSTALL.md#policy-engine-fail-open) |
 | `app.security.crdGuard.enabled` / `enforce` | `true` / `true` | ValidatingAdmissionPolicy: only the owning service accounts may write Telark CRs (`telark.io`, including `/status`), and only the exporter may change the key in the OIDC trust Secret (`enforce: false` audits). See [CRD write guard](../../docs/INSTALL.md#crd-write-guard) |
@@ -85,7 +85,7 @@ The tables below explain the values that matter. [VALUES.md](VALUES.md) is the g
 | `app.ollama.autoPull` | `true` | Let the analyzer pull a missing model (and allow ollama HTTPS egress); `false` for air-gapped installs |
 | `app.ollama.runtimeUrl` | `""` | Ollama-API endpoint you run yourself (URL only, no key); empty = the subchart. See [Analyzer runtime (ollama)](#analyzer-runtime-ollama) |
 | `app.persistence.enabled` | `true` | Provision the exporter snapshot and report PVCs (kept on uninstall); `false` keeps the data in emptyDirs, lost with the pod, unless the claims already exist. See [Exporter storage](../../docs/INSTALL.md#exporter-storage) |
-| `app.persistence.storageClass` | `""` | `"<name>"` = explicit class; `"-"` = disable dynamic provisioning; `""` = cluster default on install, the claims' current class on upgrade. A different class moves the data to new claims; more than one exporter replica needs a ReadWriteMany class. See [Exporter storage](../../docs/INSTALL.md#exporter-storage) |
+| `app.persistence.storageClass` | `""` | `"<name>"` = explicit class; `"-"` = disable dynamic provisioning; `""` = cluster default on install, the claims' current class on upgrade. A different class moves the exporter to new claims, and `telark upgrade` copies the data first; more than one exporter replica needs a ReadWriteMany class. See [Exporter storage](../../docs/INSTALL.md#exporter-storage) |
 | `app.persistence.snapshotsSize` | `512Mi` | Exporter snapshots PVC size (`performance` 2Gi); only grows, where the class allows expansion |
 | `app.persistence.reportsSize` | `512Mi` | Exporter reports PVC size (`performance` 2Gi); only grows |
 

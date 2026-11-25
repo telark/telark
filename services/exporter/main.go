@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"slices"
 
 	// The image is FROM scratch, and repeating plans name IANA zones: the zone data ships in the binary.
 	_ "time/tzdata"
@@ -37,8 +36,6 @@ import (
 	notifstorage "github.com/telark/telark/services/exporter/internal/redis/notifications"
 	"github.com/telark/telark/services/exporter/internal/routes"
 	"github.com/telark/telark/services/exporter/internal/startup"
-	"github.com/telark/telark/services/exporter/internal/uninstall"
-	"github.com/telark/telark/services/exporter/internal/utils/artifact"
 	"github.com/telark/telark/services/exporter/internal/utils/performance"
 	snaputil "github.com/telark/telark/services/exporter/internal/utils/snapshot"
 )
@@ -51,9 +48,6 @@ var (
 )
 
 func main() {
-	if code, ran := runSubcommand(os.Args[constants.DefaultIncrementValue:]); ran {
-		os.Exit(code)
-	}
 	config.ApplyKubernetesRESTRateLimit()
 	initSnapshotsConfig()
 	initReportsConfig()
@@ -119,45 +113,6 @@ func initSnapshotsConfig() {
 		envmanager.GetSnapshotsPVCNamespace(),
 		envmanager.GetSnapshotsPVCName(),
 	))
-}
-
-// The chart runs both: an init container when the exporter's claims move (templates/_storage.tpl),
-// and the pre-delete hook once auth is stopped (templates/exporter/uninstall-finalizers.yaml).
-func runSubcommand(args []string) (code int, ran bool) {
-	if len(args) == constants.DefaultInitValue {
-		return constants.DefaultInitValue, false
-	}
-	switch args[constants.DefaultInitValue] {
-	case constants.SubcommandMigrateStorage:
-		return migrateStorage(args[constants.DefaultIncrementValue:]), true
-	case constants.SubcommandRemoveFinalizers:
-		return removeFinalizers(), true
-	}
-	return constants.DefaultInitValue, false
-}
-
-func migrateStorage(pairs []string) int {
-	if len(pairs) == constants.DefaultInitValue || len(pairs)%constants.MigrateStoragePairSize != constants.DefaultInitValue {
-		lg.Error(string(constants.ErrMigrateStorageUsage))
-		return constants.ExitCodeFailure
-	}
-	for pair := range slices.Chunk(pairs, constants.MigrateStoragePairSize) {
-		from, to := pair[constants.DefaultInitValue], pair[constants.DefaultIncrementValue]
-		copied, err := artifact.CopyTree(from, to)
-		if err != nil {
-			lg.Error(fmt.Sprintf(string(constants.ErrMigrateStorageFailed), from, to, err))
-			return constants.ExitCodeFailure
-		}
-		lg.Info(fmt.Sprintf(string(constants.InfMigrateStorageCopied), copied, from, to))
-	}
-	return constants.DefaultInitValue
-}
-
-func removeFinalizers() int {
-	config.ApplyKubernetesRESTRateLimit()
-	result := uninstall.RemoveFinalizers(lg)
-	lg.Info(fmt.Sprintf(string(constants.InfFinalizersRemoved), result.Removed, result.Failed))
-	return constants.DefaultInitValue
 }
 
 func initReportsConfig() {

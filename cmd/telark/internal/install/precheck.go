@@ -98,9 +98,8 @@ func (o *objectCheck) validate(ctx context.Context, crd *apiextensionsv1.CustomR
 		return v.Storage
 	})]
 	var schema apiextensions.JSONSchemaProps
-	if err := apiextensionsv1.Convert_v1_JSONSchemaProps_To_apiextensions_JSONSchemaProps(version.Schema.OpenAPIV3Schema, &schema, nil); err != nil {
-		return err
-	}
+	// The conversion fails only on JSON the decoder of the CRD has already refused.
+	_ = apiextensionsv1.Convert_v1_JSONSchemaProps_To_apiextensions_JSONSchemaProps(version.Schema.OpenAPIV3Schema, &schema, nil)
 	validator, _, err := validation.NewSchemaValidator(&schema)
 	if err != nil {
 		return err

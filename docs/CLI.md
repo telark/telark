@@ -115,9 +115,11 @@ Before anything changes, it runs these checks and stops on any ×:
 |---|---|
 | Signature | The chart's [signature](#the-chart-signature) verifies. ‼ without cosign, and for `--chart-directory` |
 | Step | The target is the installed release or the next published one. × for a downgrade (go back with `helm rollback`) and when a published release would be skipped, since a rollback works one release back and the exporter refuses data two releases newer. ‼ when the registry can't list its releases |
+| Renamed values | Only shown for a release that still stores `app.security.breakGlass`, the key 0.3.0 renamed: its `waitHours` moves to `app.auth.request.waitHours` and the old block is dropped from the release's values. A value you pass for the new key with `-f` or `--set`, or one the release already stores, wins. `--reset-values` reuses no stored value, so it needs none of this |
 | Server dry run | The chart renders against the cluster, its lookups and guards included, its objects fit the cluster's API schemas, and the server accepts each object as a dry-run server-side apply under Helm's field manager. × names the refused objects: a field another field manager owns (after a `kubectl set`, `kubectl edit` or `kubectl label`), a field Kubernetes can't change, or an admission policy |
 | Stored objects | Every Telark custom resource in the namespace fits the target's CRDs once their defaults apply: the schema, its CEL rules and its list types. ‼ when the new schemas would drop fields from stored objects, and when the chart installs no CRDs (`crds.enabled=false`) |
 | Recovery request | No recovery request is open (‼) |
+| Exporter storage | Only shown when the exporter's claims change (‼): it names each old and new claim, and the [copy](#moving-the-exporters-data) that runs before the upgrade. × when the exporter's Deployment can't be read, or the release doesn't hold it on the claims it mounts |
 | Protection plans | No plan enforces now (‼). Kyverno restarts during the upgrade, and its failure policy decides what happens to changes meanwhile |
 
 `--dry-run` stops after the checks. Otherwise the command upgrades with a five-minute timeout, then runs `telark check` until every check passes or five minutes go by. `--wait` also waits for every object to be ready before that.
@@ -128,9 +130,40 @@ When the dry run refuses an object because another field manager owns a field, m
 
 The upgrade reads Helm's release Secrets in the namespace and needs the same rights as `helm upgrade`.
 
+### Moving the exporter's data
+
+Kubernetes never changes a claim's class or access mode, so a new `app.persistence.storageClass`, or a replica count that needs ReadWriteMany, makes the chart name new claims ([Exporter storage](INSTALL.md#exporter-storage)). The chart only mounts them. `telark upgrade` sees the change in its dry run, by comparing the claims the target's exporter mounts with the ones the running exporter mounts, and copies the data before it upgrades:
+
+1. It creates the new claims as the chart renders them, applied under Helm's field manager with Helm's ownership labels, so the upgrade adopts them.
+2. It stops the exporter: the release's own Deployment, applied again with `replicas: 0` (after a failed upgrade, the deployed revision's, which still mounts the old claims), then a wait of up to two minutes for its pods to go. Telark's API is unavailable from here until the upgrade is through.
+3. It runs the Job `telark-storage-copy-<id>`: the target's exporter image with `/app/copy-tree`, the old claims mounted read-only under `/previous`, the new ones at the exporter's paths, the exporter's security context and no ServiceAccount token. It waits up to 30 minutes. A file that is newer on the new claim is kept, so a second copy is safe.
+4. It upgrades. The chart starts the exporter on the new claims, and the old claims are kept until you delete them.
+
+When the copy fails or times out, nothing is upgraded: the exporter starts again on its old claims, which still hold everything, and the next `telark upgrade` copies again. A failed Job stays for a day (`kubectl logs -n telark job/<name>`), and one that was still running is deleted before the exporter starts. When Helm fails after the copy and before it reached the exporter, the exporter also starts again on the old claims.
+
+On top of `helm upgrade`'s rights you need create, get and delete on Jobs and list on pods in the namespace. A plain `helm upgrade` copies nothing: [Exporter storage](INSTALL.md#exporter-storage) has the Job to apply by hand.
+
 ### The chart signature
 
 The release workflow signs the telark chart keyless with cosign, from the workflow run on the chart's own tag. `telark install` and `telark upgrade` check the chart by the digest they pulled, so what they install is what was signed: they run `cosign verify ghcr.io/telark/charts/telark@<digest>` with that run's identity, `https://github.com/telark/telark/.github/workflows/release-charts.yaml@refs/tags/v<version>`, and GitHub's OIDC issuer. Install [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) 2.6 or later to have this check: without it the line is a ‼ and the command goes on. The signature is a Sigstore bundle stored beside the chart, which cosign 2.5 and older can't find, so they report "no signatures found". A signature that doesn't verify is a ×. Charts published before 0.3.0 were signed from a branch, so they fail this check: install those with `helm`, and check them as [Publishing](PUBLISHING.md#5-sign-with-cosign) shows.
+
+## telark uninstall
+
+```sh
+telark uninstall [-y] [--dry-run] [--wait] [--timeout <duration>]
+```
+
+Uninstalls the release `telark` in the `-n` namespace, then removes the cleanup finalizers that only auth clears from users, groups and access roles, so a later delete of the CRDs or the namespace doesn't hang. It keeps what `helm uninstall` keeps: the CRDs and custom resources, the Secrets and the volumes ([Uninstall](INSTALL.md#uninstall)).
+
+1. It prints what it will do: the release and its version, and how many objects hold a cleanup finalizer. `--dry-run` stops here.
+2. It asks `Proceed? [y/N]`, and anything but `y` or `yes` cancels with exit code 1. `-y, --yes` skips the question, as a script must.
+3. It uninstalls the release with the Helm 4 SDK, hooks included. auth and the CRD write guard leave with the release, so nothing restores a finalizer or refuses the next step. `--wait` also waits until every object of the release is deleted.
+4. It waits for auth's pods to go, up to `--timeout` (five minutes by default, also Helm's timeout), since auth restores a missing finalizer within a minute. When they stay, it warns and goes on.
+5. It removes `telark.io/user-cleanup`, `telark.io/group-cleanup` and `telark.io/role-cleanup` with one merge patch per object, as you, and keeps any other finalizer. It prints how many it removed and how many failed. A failure doesn't undo the uninstall: the command exits 1 and points at the kubectl command that clears them.
+
+Without a release, after a plain `helm uninstall` for example, it only removes the finalizers. With neither a release nor a finalizer it says that Telark isn't installed and exits 0. A kind whose CRD is already deleted counts as holding none.
+
+You need the rights of `helm uninstall`, plus list and patch on `users`, `groups` and `accessroles` of `telark.io` and list on pods in the namespace.
 
 ## telark auth enroll
 

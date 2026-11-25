@@ -37,6 +37,7 @@ type FakeCluster struct {
 	mutex     sync.Mutex
 	objects   []storedObject
 	refused   map[string]int32
+	unchanged map[string]int32
 	writes    []Write
 	watchers  []*watcher
 	generated int

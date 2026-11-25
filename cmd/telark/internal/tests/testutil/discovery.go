@@ -25,10 +25,15 @@ var served = []servedResource{
 	{version: coreVersion, resource: "namespaces", kind: "Namespace"},
 	{version: coreVersion, resource: "configmaps", kind: "ConfigMap", namespaced: true},
 	{version: coreVersion, resource: "secrets", kind: "Secret", namespaced: true},
+	{version: coreVersion, resource: "persistentvolumeclaims", kind: "PersistentVolumeClaim", namespaced: true},
+	{group: "apps", version: coreVersion, resource: "deployments", kind: "Deployment", namespaced: true},
 	{group: crdGroup, version: coreVersion, resource: crdResource, kind: crdKind},
 	{group: base.Group, version: base.V1Alpha1, resource: "categories", kind: "Category", namespaced: true},
 	{group: base.Group, version: base.V1Alpha1, resource: "authrequests", kind: "AuthRequest", namespaced: true},
 	{group: base.Group, version: base.V1Alpha1, resource: "telarkconfigs", kind: "TelarkConfig", namespaced: true},
+	{group: base.Group, version: base.V1Alpha1, resource: "users", kind: "User", namespaced: true},
+	{group: base.Group, version: base.V1Alpha1, resource: "groups", kind: "Group", namespaced: true},
+	{group: base.Group, version: base.V1Alpha1, resource: "accessroles", kind: "AccessRole", namespaced: true},
 }
 
 func discovers(urlPath string, path apiPath) bool {

@@ -46,8 +46,8 @@ func WriteAtomic(path string, write func(io.Writer) error) (Stage, error) {
 	return StageNone, nil
 }
 
-// Every start of a migrating pod copies again, two pods may copy at once, and a
-// claim that returns after a rollback holds newer files: the newer side wins.
+// A rerun copies again, and a claim that returns after a rollback holds newer
+// files: the newer side wins.
 func CopyTree(src string, dst string) (int, error) {
 	copied := constants.DefaultInitValue
 	err := filepath.WalkDir(src, func(path string, d fs.DirEntry, walkErr error) error {

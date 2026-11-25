@@ -1,8 +1,10 @@
 package testutil
 
 import (
+	"cmp"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"slices"
 
@@ -16,6 +18,7 @@ import (
 
 const (
 	protobufType    = "application/vnd.kubernetes.protobuf"
+	mergePatchType  = "application/merge-patch+json"
 	dryRunParam     = "dryRun"
 	missingObject   = -1
 	generatedFormat = "%s%05d"
@@ -45,6 +48,10 @@ func (f *FakeCluster) change(r *http.Request, path apiPath) (code int, body any)
 	}
 	f.generateName(&object)
 	existing := f.index(apiPath{group: path.group, resource: path.resource, namespace: path.namespace, name: object.name})
+	if r.Header.Get(contentType) == mergePatchType && existing != missingObject {
+		object.content = mergePatch(f.objects[existing].content, object.content)
+		object.labels = (&unstructured.Unstructured{Object: object.content}).GetLabels()
+	}
 	f.writes = append(f.writes, Write{Request: path.request(r.Method), Query: r.URL.Query(), Object: object.content})
 	stored := f.keep(object, existing, r.URL.Query().Has(dryRunParam))
 	if existing == missingObject {
@@ -73,6 +80,19 @@ func (f *FakeCluster) keep(object storedObject, existing int, dryRun bool) map[s
 	return object.content
 }
 
+// A merge patch sets what it names, and the CLI sends none that removes a key. The stored content is never changed in place.
+func mergePatch(current, patch map[string]any) map[string]any {
+	merged := maps.Clone(current)
+	for key, value := range patch {
+		nested, deeper := value.(map[string]any)
+		if existing, held := merged[key].(map[string]any); deeper && held {
+			value = mergePatch(existing, nested)
+		}
+		merged[key] = value
+	}
+	return merged
+}
+
 // The API server appends five random characters to generateName; a counter keeps the names predictable.
 func (f *FakeCluster) generateName(object *storedObject) {
 	item := unstructured.Unstructured{Object: object.content}
@@ -98,7 +118,7 @@ func decode(r *http.Request, path apiPath) (storedObject, error) {
 		err = yaml.Unmarshal(body, &item.Object)
 	}
 	return storedObject{
-		group: path.group, resource: path.resource, namespace: path.namespace, name: item.GetName(),
+		group: path.group, resource: path.resource, namespace: path.namespace, name: cmp.Or(item.GetName(), path.name),
 		labels: item.GetLabels(), content: item.Object,
 	}, err
 }

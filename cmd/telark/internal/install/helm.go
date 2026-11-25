@@ -23,14 +23,13 @@ import (
 )
 
 // Helm's own logs would interleave with the check lines, so they're dropped and its errors reported instead.
-func configuration(kubeFlags *kube.Flags) (*action.Configuration, error) {
+func configuration(kubeFlags *kube.Flags) *action.Configuration {
 	// helm and telark apply as one field manager, or each would conflict with the fields the other set.
 	helmkube.ManagedFieldsManager = constants.HelmFieldManager
 	cfg := action.NewConfiguration(action.ConfigurationSetLogger(slog.DiscardHandler))
-	if err := cfg.Init(kubeFlags.RESTClientGetter(), kubeFlags.Namespace, constants.HelmDriver); err != nil {
-		return nil, fmt.Errorf(constants.ErrHelmInit, err)
-	}
-	return cfg, nil
+	// Init fails only for the SQL driver or an unknown one, never for the Secret driver.
+	_ = cfg.Init(kubeFlags.RESTClientGetter(), kubeFlags.Namespace, constants.HelmDriver)
+	return cfg
 }
 
 func merge(options *values.Options) (map[string]any, error) {
@@ -79,16 +78,23 @@ func accessor(released release.Releaser, err error) (release.Accessor, error) {
 }
 
 // Helm 4 returns its v1 release behind an interface, and nothing when the release doesn't exist.
-func installedRelease(cfg *action.Configuration, namespace string) (*releasev1.Release, error) {
+func storedRelease(cfg *action.Configuration) (*releasev1.Release, error) {
 	current, err := action.NewGet(cfg).Run(constants.ReleaseName)
 	if err != nil && !errors.Is(err, driver.ErrReleaseNotFound) {
 		return nil, err
 	}
-	installed, ok := current.(*releasev1.Release)
-	if !ok {
-		return nil, fmt.Errorf(constants.ErrNoRelease, namespace)
+	if installed, ok := current.(*releasev1.Release); ok {
+		return installed, nil
 	}
-	return installed, nil
+	return nil, nil
+}
+
+func installedRelease(cfg *action.Configuration, namespace string) (*releasev1.Release, error) {
+	installed, err := storedRelease(cfg)
+	if err == nil && installed == nil {
+		err = fmt.Errorf(constants.ErrNoRelease, namespace)
+	}
+	return installed, err
 }
 
 func valueAt(vals map[string]any, path ...string) any {

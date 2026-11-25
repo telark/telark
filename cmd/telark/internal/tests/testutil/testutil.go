@@ -18,6 +18,7 @@ const (
 	awaitPoll    = 10 * time.Millisecond
 	awaitFormat  = "timed out waiting for %s"
 	timedOut     = "timed out waiting for the command to end"
+	noInput      = ""
 )
 
 var ErrWrite = errors.New("write failed")
@@ -31,8 +32,14 @@ func Run(t *testing.T, args ...string) Result {
 // A nil args slice would make cobra read os.Args, the test binary's own flags.
 func RunTo(t *testing.T, stdout io.Writer, args ...string) Result {
 	t.Helper()
+	return RunInput(t, noInput, stdout, args...)
+}
+
+// RunInput gives the command what a person types.
+func RunInput(t *testing.T, input string, stdout io.Writer, args ...string) Result {
+	t.Helper()
 	var stderr bytes.Buffer
-	code := root.Run(t.Context(), stdout, &stderr, append([]string{}, args...))
+	code := root.Run(t.Context(), strings.NewReader(input), stdout, &stderr, append([]string{}, args...))
 	result := Result{Stderr: stderr.String(), Code: code}
 	if buffer, ok := stdout.(*bytes.Buffer); ok {
 		result.Stdout = buffer.String()

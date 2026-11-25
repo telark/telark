@@ -2,7 +2,7 @@
 The exporter's snapshots and reports claims. Kubernetes never changes a claim's class or
 access mode, so a live claim stays while it fits (storageClass "" accepts any class, more
 than one replica needs ReadWriteMany); otherwise the data moves to a claim named after the
-requested storage (telark.exporterMigration copies it) and the old claim is kept. New claims
+requested storage (telark upgrade copies it first, see docs/INSTALL.md) and the old claim is kept. New claims
 take the base name, as cluster-less renders always do. A claim that exists keeps its spec;
 its size only grows, and only where the class allows it.
 Callers: {{- $storage := include "telark.exporterStorage" $ | fromYaml -}}
@@ -24,17 +24,13 @@ Callers: {{- $storage := include "telark.exporterStorage" $ | fromYaml -}}
 {{- range (dig "spec" "template" "spec" "volumes" list $deployment) -}}
 {{- if .persistentVolumeClaim }}{{ $_ := set $mounted .name .persistentVolumeClaim.claimName }}{{ end -}}
 {{- end -}}
-{{- $replicas := dig "spec" "replicas" 0 $deployment | int64 -}}
-{{- $settled := and (eq (dig "status" "observedGeneration" -1 $deployment | int64) (dig "metadata" "generation" 0 $deployment | int64)) (eq (dig "status" "updatedReplicas" 0 $deployment | int64) $replicas) (eq (dig "status" "readyReplicas" 0 $deployment | int64) $replicas) -}}
 {{- $claims := dict -}}
 {{- range $kind, $size := dict "snapshots" $persistence.snapshotsSize "reports" $persistence.reportsSize -}}
 {{- $base := printf "%s-exporter-%s-pvc" $fullname $kind -}}
 {{- $target := printf "%s%s" $base $suffix -}}
-{{- /* The mounted claim, else (a reinstall) kept ones: the requested storage's, then the first install's. A copy whose rollout never finished starts over from the claim that still holds the data. */}}
+{{- /* The mounted claim, else (a reinstall) kept ones: the requested storage's, then the first install's. */}}
 {{- $candidates := list $target $base -}}
 {{- with get $mounted (printf "%s-storage" $kind) }}{{ $candidates = prepend $candidates . }}{{ end -}}
-{{- $previous := get $mounted (printf "previous-%s" $kind) -}}
-{{- if and $previous (not $settled) }}{{ $candidates = prepend $candidates $previous }}{{ end -}}
 {{- $livePvc := dict -}}
 {{- range $candidates -}}
 {{- if not $livePvc }}{{ $livePvc = lookup "v1" "PersistentVolumeClaim" $ns . }}{{ end -}}
@@ -69,49 +65,4 @@ Callers: {{- $storage := include "telark.exporterStorage" $ | fromYaml -}}
 {{- $number := regexFind "^[0-9.]+" . -}}
 {{- $scale := get (dict "k" 1e3 "M" 1e6 "G" 1e9 "T" 1e12 "P" 1e15 "Ki" 1024.0 "Mi" 1048576.0 "Gi" 1073741824.0 "Ti" 1099511627776.0 "Pi" 1125899906842624.0) (trimPrefix $number .) | default 1.0 -}}
 {{- mulf (float64 $number) $scale -}}
-{{- end -}}
-
-{{/*
-While a claim moves, the exporter's init container copies the old claim into the new one.
-Recreate keeps old pods from writing during the copy; an old ReadWriteOnce claim attaches to
-one node only, so every replica runs there until the next upgrade drops the old claim.
-Mutates .values.services.exporter; call before rendering the exporter Deployment.
-*/}}
-{{- define "telark.exporterMigration" -}}
-{{- $values := .values -}}
-{{- $exporter := $values.services.exporter -}}
-{{- $storage := include "telark.exporterStorage" .root | fromYaml -}}
-{{- $volumes := $exporter.volumes -}}
-{{- $mounts := list -}}
-{{- $args := list -}}
-{{- $readWriteOnce := false -}}
-{{- range $mount := $exporter.volumeMounts -}}
-{{- $kind := trimSuffix "-storage" $mount.name -}}
-{{- $from := dig "claims" $kind "from" dict $storage -}}
-{{- if $from -}}
-{{- $previous := printf "previous-%s" $kind -}}
-{{- $volumes = append $volumes (dict "name" $previous "persistentVolumeClaim" (dict "claimName" $from.name)) -}}
-{{- $mounts = concat $mounts (list (dict "name" $previous "mountPath" (printf "/previous%s" $mount.path) "readOnly" true) (dict "name" $mount.name "mountPath" $mount.path)) -}}
-{{- $args = concat $args (list (printf "/previous%s" $mount.path) $mount.path) -}}
-{{- if not (has "ReadWriteMany" $from.accessModes) }}{{ $readWriteOnce = true }}{{ end -}}
-{{- end -}}
-{{- end -}}
-{{- if $args -}}
-{{- $_ := set $exporter "volumes" $volumes -}}
-{{- $_ := set $exporter "strategy" "Recreate" -}}
-{{- $_ := set $exporter "initContainers" (list (dict
-  "name" "migrate-storage"
-  "image" (printf "%s/%s:%s" $values.app.image.registry $exporter.repository (toString $exporter.version))
-  "imagePullPolicy" ($values.app.image.pullPolicy | default "Always")
-  "args" (prepend $args "migrate-storage")
-  "volumeMounts" $mounts
-  "resources" $values.app.shared.resources
-  "securityContext" (dict "allowPrivilegeEscalation" false "readOnlyRootFilesystem" true "capabilities" (dict "drop" (list "ALL"))))) -}}
-{{- if and $readWriteOnce (gt (int $exporter.replicas) 1) -}}
-{{- $affinity := deepCopy ($exporter.affinity | default $values.app.serviceDefaults.affinity | default dict) -}}
-{{- $selector := include "telark.selectorLabels" (dict "root" .root "component" $exporter.name) | fromYaml -}}
-{{- $_ := set $affinity "podAffinity" (dict "requiredDuringSchedulingIgnoredDuringExecution" (list (dict "labelSelector" (dict "matchLabels" $selector) "topologyKey" "kubernetes.io/hostname"))) -}}
-{{- $_ := set $exporter "affinity" $affinity -}}
-{{- end -}}
-{{- end -}}
 {{- end -}}

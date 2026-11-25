@@ -82,11 +82,7 @@ func (o *installOptions) run(ctx context.Context, stdout, stderr io.Writer) erro
 	if err != nil {
 		return err
 	}
-	cfg, err := configuration(o.kube)
-	if err != nil {
-		return err
-	}
-	released, err := accessor(newInstall(cfg, o.kube.Namespace, o.wait, o.dryRun).RunWithContext(ctx, chart, vals))
+	released, err := accessor(newInstall(configuration(o.kube), o.kube.Namespace, o.wait, o.dryRun).RunWithContext(ctx, chart, vals))
 	if err != nil {
 		return fmt.Errorf(constants.ErrInstall, err)
 	}
@@ -144,15 +140,12 @@ func (o *upgradeOptions) run(ctx context.Context, stdout, stderr io.Writer) erro
 	if err != nil {
 		return err
 	}
-	cfg, err := configuration(o.kube)
-	if err != nil {
-		return err
-	}
+	cfg := configuration(o.kube)
 	vals, err := merge(&o.values)
 	if err != nil {
 		return err
 	}
-	chart, err := o.preflight(ctx, stdout, cfg, client, vals)
+	chart, storage, err := o.preflight(ctx, stdout, cfg, client, vals)
 	if err != nil {
 		return err
 	}
@@ -160,9 +153,12 @@ func (o *upgradeOptions) run(ctx context.Context, stdout, stderr io.Writer) erro
 		_, err := fmt.Fprintf(stdout, constants.MsgDryRunUpgrade, chart.Metadata.Version)
 		return err
 	}
+	if err := storage.run(ctx, stdout); err != nil {
+		return err
+	}
 	upgrade := newUpgrade(cfg, o.kube.Namespace, o.resetValues, o.wait, false)
 	if _, err := upgrade.RunWithContext(ctx, constants.ReleaseName, chart, vals); err != nil {
-		return fmt.Errorf(constants.ErrUpgrade, err)
+		return errors.Join(fmt.Errorf(constants.ErrUpgrade, err), storage.recover(ctx))
 	}
 	if _, err := fmt.Fprintf(stdout, constants.MsgUpgraded, chart.Metadata.Version, o.kube.Namespace); err != nil {
 		return err
@@ -173,31 +169,37 @@ func (o *upgradeOptions) run(ctx context.Context, stdout, stderr io.Writer) erro
 }
 
 func (o *upgradeOptions) preflight(ctx context.Context, stdout io.Writer, cfg *action.Configuration, client kubernetes.Interface,
-	vals map[string]any) (*chartv2.Chart, error) {
+	vals map[string]any) (*chartv2.Chart, *storageCopy, error) {
 	installed, err := installedRelease(cfg, o.kube.Namespace)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	registry, err := newRegistry()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	chart, signature, err := source{version: o.version, directory: o.chartDirectory, registry: registry}.chart(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	published := func() ([]string, error) { return registry.Tags(constants.ChartRepository) }
+	renamed := renamedValues(installed.Config, vals, o.resetValues)
+	server, manifest := o.serverChecks(ctx, cfg, client, installed, chart, vals)
+	if len(renamed) > constants.DefaultInitValue {
+		// Helm's dry run consumed the null that drops the old key, so the upgrade gets it again.
+		setValue(vals, nil, constants.KeyApp, constants.KeySecurity, constants.KeyBreakGlass)
+	}
+	storage, moves := planStorage(ctx, cfg, client, installed, manifest)
 	report := check.NewReport(slices.Concat(
-		[]check.Result{signature, step(installed.Chart.Metadata.Version, chart.Metadata.Version, published)},
-		o.serverChecks(ctx, cfg, client, installed, chart, vals),
+		[]check.Result{signature, step(installed.Chart.Metadata.Version, chart.Metadata.Version, published)}, renamed, server, moves,
 		[]check.Result{warnOnly(check.RecoveryRequest(ctx, client, o.kube.Namespace)), warnOnly(enforcePlans(ctx, client, o.kube.Namespace))}))
 	report.Print(stdout)
-	return chart, report.Err()
+	return chart, storage, report.Err()
 }
 
 // A client-side release never conflicts with another field manager, so its probe forces: a dry run persists nothing.
 func (o *upgradeOptions) serverChecks(ctx context.Context, cfg *action.Configuration, client kubernetes.Interface,
-	installed *releasev1.Release, chart *chartv2.Chart, vals map[string]any) []check.Result {
+	installed *releasev1.Release, chart *chartv2.Chart, vals map[string]any) (results []check.Result, manifest string) {
 	upgrade := newUpgrade(cfg, o.kube.Namespace, o.resetValues, o.wait, true)
 	dryRun, err := accessor(upgrade.RunWithContext(ctx, constants.ReleaseName, chart, vals))
 	var targets helmkube.ResourceList
@@ -205,9 +207,42 @@ func (o *upgradeOptions) serverChecks(ctx context.Context, cfg *action.Configura
 		targets, err = cfg.KubeClient.Build(strings.NewReader(dryRun.Manifest()), false)
 	}
 	if err != nil {
-		return []check.Result{check.Fail(constants.CheckServerDryRun, fmt.Sprintf(constants.MsgServerRefuses, err))}
+		return []check.Result{check.Fail(constants.CheckServerDryRun, fmt.Sprintf(constants.MsgServerRefuses, err))}, constants.EmptyString
 	}
-	force := installed.ApplyMethod != string(releasev1.ApplyMethodServerSideApply)
-	return []check.Result{serverApply(targets, o.kube.Namespace, force),
-		storedObjects(ctx, client, o.kube.Namespace, chart.Metadata.Version, dryRun.Manifest())}
+	return []check.Result{serverApply(targets, o.kube.Namespace, forced(installed)),
+		storedObjects(ctx, client, o.kube.Namespace, chart.Metadata.Version, dryRun.Manifest())}, dryRun.Manifest()
+}
+
+func forced(installed *releasev1.Release) bool {
+	return installed.ApplyMethod != string(releasev1.ApplyMethodServerSideApply)
+}
+
+// 0.3.0 renamed the key with no alias, and the chart's schema refuses the old one a 0.2 release still stores.
+func renamedValues(stored, vals map[string]any, reset bool) []check.Result {
+	old, held := valueAt(stored, constants.KeyApp, constants.KeySecurity, constants.KeyBreakGlass).(map[string]any)
+	if reset || !held {
+		return nil
+	}
+	// A null drops the key from the values Helm reuses.
+	setValue(vals, nil, constants.KeyApp, constants.KeySecurity, constants.KeyBreakGlass)
+	renamed := []string{constants.KeyApp, constants.KeyAuth, constants.KeyRequest, constants.KeyWaitHours}
+	hours := old[constants.KeyWaitHours]
+	if hours == nil || valueAt(vals, renamed...) != nil || valueAt(stored, renamed...) != nil {
+		return []check.Result{check.Pass(constants.CheckRenamedValues, constants.MsgValueDropped)}
+	}
+	setValue(vals, hours, renamed...)
+	return []check.Result{check.Pass(constants.CheckRenamedValues, fmt.Sprintf(constants.MsgValueMoved, hours))}
+}
+
+func setValue(vals map[string]any, value any, path ...string) {
+	last := len(path) - constants.DefaultIncrementValue
+	for _, key := range path[:last] {
+		next, ok := vals[key].(map[string]any)
+		if !ok {
+			next = map[string]any{}
+			vals[key] = next
+		}
+		vals = next
+	}
+	vals[path[last]] = value
 }

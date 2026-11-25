@@ -14,8 +14,8 @@ import (
 	"github.com/telark/telark/cmd/telark/internal/version"
 )
 
-func Run(ctx context.Context, stdout, stderr io.Writer, args []string) int {
-	cmd := newCommand(stdout, stderr)
+func Run(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer, args []string) int {
+	cmd := newCommand(stdin, stdout, stderr)
 	cmd.SetArgs(args)
 	if err := cmd.ExecuteContext(ctx); err != nil {
 		_, _ = fmt.Fprintf(stderr, constants.ErrorFormat, err)
@@ -24,7 +24,7 @@ func Run(ctx context.Context, stdout, stderr io.Writer, args []string) int {
 	return constants.ExitCodeSuccess
 }
 
-func newCommand(stdout, stderr io.Writer) *cobra.Command {
+func newCommand(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           constants.CommandName,
 		Short:         constants.RootShort,
@@ -32,10 +32,12 @@ func newCommand(stdout, stderr io.Writer) *cobra.Command {
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
+	cmd.SetIn(stdin)
 	cmd.SetOut(stdout)
 	cmd.SetErr(stderr)
 	kubeFlags := kube.AddFlags(cmd)
 	cmd.AddCommand(version.NewCommand(kubeFlags), check.NewCommand(kubeFlags),
-		install.NewInstallCommand(kubeFlags), install.NewUpgradeCommand(kubeFlags), auth.NewCommand(kubeFlags))
+		install.NewInstallCommand(kubeFlags), install.NewUpgradeCommand(kubeFlags),
+		install.NewUninstallCommand(kubeFlags), auth.NewCommand(kubeFlags))
 	return cmd
 }

@@ -84,7 +84,7 @@ app:
       existingSecret: ""
 
   # Exporter claims (snapshots, reports), kept on uninstall. With storageClass "" an upgrade keeps their class,
-  # and a new class copies the data to new claims.
+  # and a new class moves the exporter to new claims (telark upgrade copies the data first).
   persistence:
     enabled: true
     storageClass: ""

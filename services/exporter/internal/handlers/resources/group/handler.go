@@ -66,6 +66,12 @@ func CreateGroupResourceWithCacheInvalidation(optimizer *performance.Optimizer) 
 			!authz.GuardReferencedIDs(w, constants.ResourceRole, group.RoleRefs) {
 			return
 		}
+		unlock, ok := resourcesutils.ReserveNameOrRespond(w, metadata.GroupMetadata, body, constants.EmptyString,
+			constants.ErrGroupNameAlreadyExists)
+		if !ok {
+			return
+		}
+		defer unlock()
 		if !mirrorMembers(w, r, optimizer, group.ID, group.UserRefs, nil) {
 			return
 		}
@@ -200,6 +206,12 @@ func PatchGroupByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(
 		if !grouputils.ExtractAndMergeGroupForPatch(existingGroup, body, w) {
 			return
 		}
+		unlock, ok := resourcesutils.ReserveNameOrRespond(w, metadata.GroupMetadata, body, groupName,
+			constants.ErrGroupNameAlreadyExists)
+		if !ok {
+			return
+		}
+		defer unlock()
 
 		if !mirrorMembers(w, r, optimizer, groupID, addedMembers, removedMembers) {
 			return

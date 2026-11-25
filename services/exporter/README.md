@@ -214,7 +214,10 @@ change to `scopesAndPermissions`, `name` and `categoryRef`, unless the same patc
 only by its creator or an Admin on ALL (403 otherwise). A role created without `type` is `custom`.
 `createdBy` and `lastUpdatedBy` of roles and groups are stamped from the caller; body values are
 ignored. Deleting a role with `protection.softDelete` keeps it with `status: Deleted` and `deletedAt`,
-so it grants nothing; `preventDeletion` refuses the delete (403). Deny rules are stored lower-cased. `identities` on a user is Internal only, and `email` / `username` are changed
+so it grants nothing; `preventDeletion` refuses the delete (403). A role's or group's `name` is unique within
+its kind, compared trimmed and case-insensitively, on create and on rename: a duplicate answers 409 (`a role with this
+name already exists`, `a group with this name already exists`). A record being deleted and a role kept as `Deleted` free
+their name, and a `Deleted` role set back to another status is checked like a new one. Deny rules are stored lower-cased. `identities` on a user is Internal only, and `email` / `username` are changed
 only by the account owner (403 otherwise; resending the stored value is allowed). A user's `email` is
 unique like the username (case-insensitive, trimmed): a duplicate answers 409. `status.invite`
 (auth's record of a pending enrollment link) and `status.inviteAcceptedAt` (when a passkey closed one)
@@ -249,7 +252,9 @@ cleanup finalizer still holds the record, the user grants nothing and `GET users
 410, so peers resolving grants over HTTP deny as well. A user, group or role whose `deletionTimestamp`
 is set grants nothing anywhere (`deletionTimestamp` is projected into the typed reads and the GET
 responses) and refuses every PATCH from a session with 410; the cleanup cascade (service token) still
-patches it. Finalizer removal and cleanup views of a record that is already gone answer 404.
+patches it. Finalizer removal and cleanup views of a record that is already gone answer 404. A finalizer write drops
+the record's cached `GET` and the cached lists of its kind, so the record leaves the list with its last finalizer
+(lists fold writes into 3 s windows, `ListCacheMinAge`), not when the cached list expires.
 
 Administrators (Admin on `ALL` through an active role, directly or via a live group) and bootstrap
 accounts (`spec.bootstrap: true`, written only with the service token and, once one is pinned, only by a

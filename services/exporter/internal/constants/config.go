@@ -22,6 +22,7 @@ const (
 	ResourceUserSession     = "user-sessions"
 	ResourceUserPasskey     = "user-passkeys"
 	ResourceSnapshot        = "snapshots"
+	NamesLockSuffix         = ":names" // object names cannot hold ":", so no record's own lock shares the key
 	CachedResponse          = "Cached response"
 	HeaderETag              = "ETag"
 	HeaderIfNoneMatch       = "If-None-Match"
@@ -59,7 +60,7 @@ const (
 	// Lists may lag writes by this much; in exchange a write storm costs one
 	// list rebuild per window instead of one per write.
 	ListCacheMinAge   = 3 * time.Second
-	ListCacheDirtyTTL = time.Minute
+	ListCacheDirtyTTL = CacheTTL // a deferred bump must outlive every list it retires
 	// Rendered list blobs kept in process, newest last; the key carries the
 	// generation, so an entry stops being read the moment the list changes.
 	ListBlobLocalEntries     = 4

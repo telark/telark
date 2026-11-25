@@ -65,6 +65,12 @@ func CreateRoleResourceWithCacheInvalidation(optimizer *performance.Optimizer) f
 			}
 		}
 		roleutils.ComputeAndSetVersion(role)
+		unlock, ok := resourcesshared.ReserveNameOrRespond(w, metadata.AccessRoleMetadata, body, constants.EmptyString,
+			constants.ErrRoleNameAlreadyExists)
+		if !ok {
+			return
+		}
+		defer unlock()
 		createRoleResource(r.Context(), w, role, optimizer)
 	}
 }
@@ -154,6 +160,11 @@ func PatchRoleByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(h
 			!authz.GuardRolePatchLastAdmin(w, existingRole, mergedRole) {
 			return
 		}
+		unlock, ok := reservePatchedName(w, existingRole, mergedRole, body)
+		if !ok {
+			return
+		}
+		defer unlock()
 
 		patchRoleResource(w, roleID, body, optimizer)
 		// A role edit changes the permissions of every user holding it,
@@ -161,6 +172,15 @@ func PatchRoleByIDWithCacheInvalidation(optimizer *performance.Optimizer) func(h
 		// targeted for invalidation.
 		authz.BumpGeneration(r.Context())
 	}
+}
+
+// A role kept as Deleted holds no name, so one leaving that status is checked like a new role.
+func reservePatchedName(w http.ResponseWriter, existing, merged *roledata.AccessRole, body map[string]any) (func(), bool) {
+	current := existing.Name
+	if existing.Status == roledata.RoleStatusDeleted && merged.Status != roledata.RoleStatusDeleted {
+		body, current = map[string]any{constants.FieldName: merged.Name}, constants.EmptyString
+	}
+	return resourcesshared.ReserveNameOrRespond(w, metadata.AccessRoleMetadata, body, current, constants.ErrRoleNameAlreadyExists)
 }
 
 func patchRoleResource(w http.ResponseWriter, roleID string, body map[string]any, optimizer *performance.Optimizer) {

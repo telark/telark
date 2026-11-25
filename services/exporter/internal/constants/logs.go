@@ -112,10 +112,12 @@ const (
 	// Group.
 	ErrGroupNotFound          errors.Error = "group not found"
 	ErrGroupNameCannotBeEmpty errors.Error = "group name cannot be empty"
+	ErrGroupNameAlreadyExists errors.Error = "a group with this name already exists"
 
 	// Role.
 	ErrRoleNotFound                     errors.Error = "role not found"
 	ErrRoleNameCannotBeEmpty            errors.Error = "role name cannot be empty"
+	ErrRoleNameAlreadyExists            errors.Error = "a role with this name already exists"
 	ErrRoleDescriptionRequired          errors.Error = "description is required"
 	ErrRoleCategoryRefRequired          errors.Error = "catID is required"
 	ErrRoleScopesAndPermissionsRequired errors.Error = "scopesAndPermissions is required"

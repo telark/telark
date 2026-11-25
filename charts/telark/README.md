@@ -85,7 +85,7 @@ The tables below explain the values that matter. [VALUES.md](VALUES.md) is the g
 | `app.ollama.autoPull` | `true` | Let the analyzer pull a missing model (and allow ollama HTTPS egress); `false` for air-gapped installs |
 | `app.ollama.runtimeUrl` | `""` | Ollama-API endpoint you run yourself (URL only, no key); empty = the subchart. See [Analyzer runtime (ollama)](#analyzer-runtime-ollama) |
 | `app.persistence.enabled` | `true` | Provision the exporter snapshot and report PVCs (kept on uninstall); `false` keeps the data in emptyDirs, lost with the pod, unless the claims already exist. See [Exporter storage](../../docs/INSTALL.md#exporter-storage) |
-| `app.persistence.storageClass` | `""` | `"<name>"` = explicit class; `"-"` = disable dynamic provisioning; `""` = cluster default on install, the claims' current class on upgrade. A different class moves the exporter to new claims, and `telark upgrade` copies the data first; more than one exporter replica needs a ReadWriteMany class. See [Exporter storage](../../docs/INSTALL.md#exporter-storage) |
+| `app.persistence.storageClass` | `""` | `"<name>"` = explicit class; `"-"` = disable dynamic provisioning; `""` = cluster default on install (named in the new claims, so a rollback keeps it), the claims' current class on upgrade. A different class moves the exporter to new claims, and `telark upgrade` copies the data first; more than one exporter replica needs a ReadWriteMany class. See [Exporter storage](../../docs/INSTALL.md#exporter-storage) |
 | `app.persistence.snapshotsSize` | `512Mi` | Exporter snapshots PVC size (`performance` 2Gi); only grows, where the class allows expansion |
 | `app.persistence.reportsSize` | `512Mi` | Exporter reports PVC size (`performance` 2Gi); only grows |
 

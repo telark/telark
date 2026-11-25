@@ -168,6 +168,13 @@ It proves that what the previous release stored still reads and saves after the 
    kubectl rollout status deploy/telark-exporter-service -n telark --timeout=5m
    ```
 
+   With a previous release of 0.2.3 or older, a rollback to its install revision fails on the two exporter claims ([why](INSTALL.md#upgrade)), so land on a revision an upgrade made: at the end of step 1, upgrade the previous release to itself. After a rollback that already failed this way, the same command ends `deployed` on the previous release.
+
+   ```sh
+   helm upgrade telark oci://ghcr.io/telark/charts/telark --version <previous version> -n telark \
+     --set app.auth.bootstrap.admin=test@example.com --wait --timeout 15m
+   ```
+
    A previous release from before 0.2.0 logs no migration line. If the release ran a migration step and the previous one is 0.2.0 or later, the previous exporter logs `lowered the record to step <n>`, with `<n>` its own last step, and starts.
 
 5. If the release ran a migration step, upgrade again with step 2's `helm upgrade` command and repeat step 3. The rollback lowered the record, so the log names the release's steps again.
@@ -199,7 +206,7 @@ The analyzer and ui images contain GPL, LGPL and MPL Alpine packages. Every buil
 
 The analyzer's and the dashboard's `THIRD-PARTY-NOTICES.md` reproduce the copyright notices of the permissive Alpine packages in their base image ("Alpine package notices") and, for the analyzer, of the Rust crates compiled into pydantic-core ("pydantic-core's Rust crates"). Alpine's `-doc` packages don't carry these files, so they come from upstream. Regenerate a section when its input changes:
 
-- **Base image bump:** list the packages with `docker run --rm --entrypoint sh <image> -c 'apk list --installed'`. For each permissive package, take its license and copyright files from the source archive at the installed version: the `source=` of `main/<origin>/APKBUILD` in aports, mirrored at `https://distfiles.alpinelinux.org/distfiles/v<release>/`. Update the table, the versions and the texts.
+- **Base image bump:** list the packages from the image's apk database (the analyzer image has no shell or `apk`): `ctr=$(docker create <image>) && docker cp "$ctr:/lib/apk/db/installed" . && docker rm "$ctr"` gives each package's name (`P:`), version (`V:`), license (`L:`) and origin (`o:`). For each permissive package, take its license and copyright files from the source archive at the installed version: the `source=` of `main/<origin>/APKBUILD` in aports, mirrored at `https://distfiles.alpinelinux.org/distfiles/v<release>/`. Update the table, the versions and the texts.
 - **pydantic-core bump:** the `required` components of `pydantic_core-<version>.dist-info/sboms/pydantic-core.cyclonedx.json` are the crates. Take each crate's license files from `https://static.crates.io/crates/<name>/<name>-<version>.crate`, using MIT where a crate offers it, and keep one copy of each distinct text.
 
 ## Repository settings the workflows rely on

@@ -4,7 +4,8 @@ access mode, so a live claim stays while it fits (storageClass "" accepts any cl
 than one replica needs ReadWriteMany); otherwise the data moves to a claim named after the
 requested storage (telark upgrade copies it first, see docs/INSTALL.md) and the old claim is kept. New claims
 take the base name, as cluster-less renders always do. A claim that exists keeps its spec;
-its size only grows, and only where the class allows it.
+its size only grows, and only where the class allows it. A new claim names its class (the
+cluster default when none is set): a rollback to a revision without it would remove the field.
 Callers: {{- $storage := include "telark.exporterStorage" $ | fromYaml -}}
 */}}
 {{- define "telark.exporterStorage" -}}
@@ -54,11 +55,23 @@ Callers: {{- $storage := include "telark.exporterStorage" $ | fromYaml -}}
 {{- if not (and $expandable (gt (include "telark.quantityBytes" $size | float64) (include "telark.quantityBytes" $liveSize | float64))) }}{{ $_ := set $claim "size" $liveSize }}{{ end -}}
 {{- else -}}
 {{- $_ := set $claim "accessModes" (list (ternary "ReadWriteMany" "ReadWriteOnce" $rwx)) -}}
-{{- if $class }}{{ $_ := set $claim "storageClassName" $className }}{{ end -}}
+{{- if $class }}{{ $_ := set $claim "storageClassName" $className }}{{ else }}{{ with include "telark.defaultStorageClass" $ }}{{ $_ := set $claim "storageClassName" . }}{{ end }}{{ end -}}
 {{- end -}}
 {{- $_ := set $claims $kind $claim -}}
 {{- end -}}
 {{- toYaml (dict "claims" $claims) -}}
+{{- end -}}
+
+{{- define "telark.defaultStorageClass" -}}
+{{- $default := dict -}}
+{{- range (dig "items" list (lookup "storage.k8s.io/v1" "StorageClass" "" "")) -}}
+{{- $annotations := .metadata.annotations | default dict -}}
+{{- /* The API server's pick among several defaults: the newest, then the first by name (lists come sorted by name). */}}
+{{- if and (has "true" (list (get $annotations "storageclass.kubernetes.io/is-default-class") (get $annotations "storageclass.beta.kubernetes.io/is-default-class"))) (or (not $default) (gt .metadata.creationTimestamp $default.metadata.creationTimestamp)) -}}
+{{- $default = . -}}
+{{- end -}}
+{{- end -}}
+{{- dig "metadata" "name" "" $default -}}
 {{- end -}}
 
 {{- define "telark.quantityBytes" -}}

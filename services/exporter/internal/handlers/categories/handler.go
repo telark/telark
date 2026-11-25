@@ -161,7 +161,7 @@ func ListCategoriesWithCacheInvalidation() func(http.ResponseWriter, *http.Reque
 			w,
 			http.StatusOK,
 			response.OperationSuccess,
-			string(messages.SuccessGetRes),
+			string(messages.SuccessListRes),
 			responseData,
 			nil,
 		)

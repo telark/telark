@@ -41,7 +41,8 @@ on:
           - prerelease
 
 concurrency:
-  group: release-charts
+  # A group keeps one pending run, so each tag run gets its own: a queued bump run can't cancel it.
+  group: release-charts-${{ github.ref_type == 'tag' && github.ref_name || 'bump' }}
   cancel-in-progress: false
 
 env:
@@ -62,6 +63,22 @@ jobs:
     outputs:
       telark_version: ${{ steps.publish.outputs.telark_version }}
     steps:
+      # The signature names the tag, so a v* tag must never move or vanish once a chart is signed from it.
+      - name: Check the release tag ruleset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          protected=$(gh api "repos/${GITHUB_REPOSITORY}/rulesets?targets=tag" --jq '.[] | select(.enforcement == "active") | .id' |
+            while read -r id; do
+              gh api "repos/${GITHUB_REPOSITORY}/rulesets/${id}" --jq 'select((.conditions.ref_name.include | index("refs/tags/v*") or index("~ALL")) and ([.rules[].type] | contains(["update", "deletion"]))) | .name'
+            done)
+          if [ -z "$protected" ]; then
+            echo "::error::no active tag ruleset blocks moving and deleting refs/tags/v* (docs/PUBLISHING.md, Repository settings)"
+            exit 1
+          fi
+          echo "Release tags protected by: ${protected}"
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -78,7 +95,7 @@ jobs:
           cache-dependency-path: .github/actions/helm-docs-regenerate/action.yaml
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+        uses: sigstore/cosign-installer@881c63bd87e38389154debd8331404ce7ca8a3ab # v4.1.4
 
       - name: Resolve registry + selected charts
         id: meta
@@ -350,7 +367,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+        uses: sigstore/cosign-installer@881c63bd87e38389154debd8331404ce7ca8a3ab # v4.1.4
 
       - name: Install syft
         uses: anchore/sbom-action/download-syft@dfcb83b97731532d72be422cbc51ee64adb6fd56 # v0.24.4

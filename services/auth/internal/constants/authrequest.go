@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	LoggerPrefixAuthRequest  = "auth-request"
+	LoggerPrefixAuthRequest  = "AuthRequest: "
 	AuthRequestPollInterval  = 5 * time.Second
 	AuthRequestKeyBytes      = 32
 	AuthRequestEnrollURL     = "%s/register#enroll=%s&email=%s"

@@ -30,23 +30,35 @@ type metadataCase struct {
 
 func metadataCases() []metadataCase {
 	return []metadataCase{
-		{name: "application", metadata: v1alpha1.ApplicationMetadata, kind: "Application", plural: "applications",
-			status: []string{"health", "resourceCount", "namespaces", "resourceSummary", "resources", "images", "ports",
+		{
+			name: "application", metadata: v1alpha1.ApplicationMetadata, kind: "Application", plural: "applications",
+			status: []string{
+				"health", "resourceCount", "namespaces", "resourceSummary", "resources", "images", "ports",
 				"envVarKeys", "configMapRefs", "secretRefs", "serviceMappings", "ingressRules", "metrics", "snapshots",
-				"rollbacks", "history", "lastForceSync", "createdAt", "lastUpdated", "conditions"}},
-		{name: "protection plan", metadata: v1alpha1.ProtectionPlanMetadata, kind: "ProtectionPlan", plural: "protectionplans",
-			status: []string{"phase", "reason", "conditions", "observedGeneration", "renderedPolicies", "health",
-				"healthCheckedAt", "healthDetail", "startedAt", "startedBy", "terminatedAt", "terminatedBy", "approval", "window"}},
-		{name: "telark config", metadata: v1alpha1.TelarkConfigMetadata, kind: "TelarkConfig", plural: "telarkconfigs",
-			singleton: "default", status: []string{"cluster"}},
+				"rollbacks", "history", "lastForceSync", "createdAt", "lastUpdated", "conditions",
+			},
+		},
+		{
+			name: "protection plan", metadata: v1alpha1.ProtectionPlanMetadata, kind: "ProtectionPlan", plural: "protectionplans",
+			status: []string{
+				"phase", "reason", "conditions", "observedGeneration", "renderedPolicies", "health",
+				"healthCheckedAt", "healthDetail", "startedAt", "startedBy", "terminatedAt", "terminatedBy", "approval", "window",
+			},
+		},
+		{
+			name: "telark config", metadata: v1alpha1.TelarkConfigMetadata, kind: "TelarkConfig", plural: "telarkconfigs",
+			singleton: "default", status: []string{"cluster"},
+		},
 		{name: "category", metadata: v1alpha1.CategoryMetadata, kind: "Category", plural: "categories", singleton: "categories"},
 		{name: "user", metadata: v1alpha1.UserMetadata, kind: "User", plural: "users"},
 		{name: "group", metadata: v1alpha1.GroupMetadata, kind: "Group", plural: "groups"},
 		{name: "access role", metadata: v1alpha1.AccessRoleMetadata, kind: "AccessRole", plural: "accessroles"},
 		{name: "passkey", metadata: v1alpha1.PasskeyMetadata, kind: "Passkey", plural: "passkeys"},
 		{name: "session", metadata: v1alpha1.SessionMetadata, kind: "Session", plural: "sessions"},
-		{name: "auth request", metadata: v1alpha1.AuthRequestMetadata, kind: "AuthRequest", plural: "authrequests",
-			status: []string{"phase", "reason", "requestId", "approvalUrl", "completesAt", "sealedLink", "linkExpiresAt"}},
+		{
+			name: "auth request", metadata: v1alpha1.AuthRequestMetadata, kind: "AuthRequest", plural: "authrequests",
+			status: []string{"phase", "reason", "requestId", "approvalUrl", "completesAt", "sealedLink", "linkExpiresAt"},
+		},
 	}
 }
 
@@ -60,8 +72,8 @@ func TestMetadataMatchesContract(t *testing.T) {
 			if md.Kind != tc.kind || md.Plural != tc.plural {
 				t.Errorf("kind/plural = %s/%s, want %s/%s", md.Kind, md.Plural, tc.kind, tc.plural)
 			}
-			if md.Namespace != globalshared.BaseNamespace {
-				t.Errorf("namespace = %s, want %s", md.Namespace, globalshared.BaseNamespace)
+			if md.Namespace != globalshared.DefaultNamespace {
+				t.Errorf("namespace = %s, want %s", md.Namespace, globalshared.DefaultNamespace)
 			}
 			if md.Singleton != tc.singleton {
 				t.Errorf("singleton = %q, want %q", md.Singleton, tc.singleton)

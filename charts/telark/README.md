@@ -62,7 +62,7 @@ The tables below explain the values that matter. [VALUES.md](VALUES.md) is the g
 | Key | Default | Description |
 |---|---|---|
 | `app.name` | `telark` | Source of truth for the app identity / resource-name prefix |
-| `app.namespace` | `telark` | Install namespace; bootstrap CRs land here. Must match the release namespace (`-n`): the subcharts follow `-n`, so a mismatch splits redis/nats away from the services |
+| `app.namespace` | `telark` | Install namespace; bootstrap CRs land here. Must match the release namespace (`-n`): the subcharts follow `-n`, so a mismatch splits redis/nats away from the services. Any namespace works when the two match, since the services read and write Telark's objects in their own pods' namespace |
 | `app.mode` | `standard` | Sizes every Telark service (replicas, resources, rate limits, PDBs). `minimal` \| `standard` \| `performance`. Subcharts keep production-grade defaults across all modes. |
 | `app.image.registry` | `ghcr.io/telark` | Registry and namespace hosting the per-service repos |
 | `app.image.pullPolicy` | `Always` | Image pull policy for every service container |

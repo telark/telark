@@ -577,7 +577,6 @@ nats:
 
 kyverno:
   enabled: true            # false: telark uses a Kyverno you already run
-  namespaceOverride: "telark"
   # true: admission never blocks while Kyverno is down, so enforce plans are best-effort.
   features:
     forceFailurePolicyIgnore:

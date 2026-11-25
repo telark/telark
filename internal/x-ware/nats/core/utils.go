@@ -74,5 +74,5 @@ func GenerateMessageID(subject string, data []byte) string {
 }
 
 func GenerateSubjectName(group Group) string {
-	return fmt.Sprintf("%s.%s.*", globalshared.BaseNamespace, group)
+	return fmt.Sprintf("%s.%s.*", globalshared.DefaultNamespace, group)
 }

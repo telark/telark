@@ -407,7 +407,7 @@ Set values with `--set key=value`, and pass the same flags on every [upgrade](#u
 |---|---|---|
 | `app.mode` | `standard` | Size every Telark service: `minimal` \| `standard` \| `performance` ([Sizing modes](#sizing-modes)) |
 | `app.name` | `telark` | Resource-name prefix. The CRD group is always `telark.io` ([ADR 0003](adr/0003-constant-api-group-telark-io.md)) |
-| `app.namespace` | `telark` | Install namespace. Must match the release namespace (`-n`): the subcharts follow `-n`, so a mismatch splits Redis and NATS away from the services that address them by bare name |
+| `app.namespace` | `telark` | Install namespace. Must match the release namespace (`-n`): the subcharts follow `-n`, so a mismatch splits Redis and NATS away from the services that address them by bare name. Any namespace works when the two match, since the services read and write Telark's objects in their own pods' namespace |
 | `app.image.registry` | `ghcr.io/telark` | Registry and organization hosting the service images |
 | `app.image.pullPolicy` | `Always` | Image pull policy |
 | `app.image.pullSecrets` | `[]` | Image pull secrets for a private registry |

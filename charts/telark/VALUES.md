@@ -155,7 +155,6 @@ Kubernetes: `>=1.30.0-0`
 | kyverno.cleanupController.resources.requests.memory | string | `"128Mi"` |  |
 | kyverno.enabled | bool | `true` |  |
 | kyverno.features.forceFailurePolicyIgnore.enabled | bool | `true` |  |
-| kyverno.namespaceOverride | string | `"telark"` |  |
 | kyverno.reportsController.extraArgs.clientRateLimitBurst | int | `100` |  |
 | kyverno.reportsController.extraArgs.clientRateLimitQPS | int | `50` |  |
 | kyverno.reportsController.replicas | int | `1` |  |

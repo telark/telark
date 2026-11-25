@@ -113,7 +113,7 @@ func define(kind, plural string, statusFields map[string]string) base.Metadata {
 		Kind:         kind,
 		Version:      base.V1Alpha1,
 		Plural:       plural,
-		Namespace:    globalshared.BaseNamespace,
+		Namespace:    globalshared.ReleaseNamespace(),
 		StatusFields: statusFields,
 	}
 }

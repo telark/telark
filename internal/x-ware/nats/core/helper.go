@@ -12,16 +12,16 @@ func GetNATSClientURL(host string) string {
 }
 
 func GetTopicName(group Group, action Action) string {
-	return fmt.Sprintf("%s.%s.%s", globalshared.BaseNamespace, group, action)
+	return fmt.Sprintf("%s.%s.%s", globalshared.DefaultNamespace, group, action)
 }
 
 func GetQueueName(group Group, action Action) string {
-	return fmt.Sprintf("%s-%s-%s-queue", globalshared.BaseNamespace, group,
+	return fmt.Sprintf("%s-%s-%s-queue", globalshared.DefaultNamespace, group,
 		action)
 }
 
 func GetStreamName(group Group) string {
-	return fmt.Sprintf("%s_%s", globalshared.BaseNamespace, group)
+	return fmt.Sprintf("%s_%s", globalshared.DefaultNamespace, group)
 }
 
 func GetConsumerName(group Group, queue, topic string) string {

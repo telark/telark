@@ -78,5 +78,5 @@ func secrets() (dynamic.ResourceInterface, error) {
 	if err != nil {
 		return nil, fmt.Errorf(string(constants.ErrOIDCTrustSecretClient), err)
 	}
-	return client.Resource(secretGVR).Namespace(globalshared.BaseNamespace), nil
+	return client.Resource(secretGVR).Namespace(globalshared.ReleaseNamespace()), nil
 }

@@ -319,7 +319,7 @@ jobs:
           case "${{ github.event.inputs.release_type || 'auto' }}" in
             prerelease) pre="--prerelease" ;;
             release)    pre="" ;;
-            *)          case "$v" in *-*) pre="--prerelease" ;; esac ;;
+            *)          case "$v" in *-*) pre="--prerelease" ;; *) ;; esac ;;
           esac
           git tag "$tag"
           git push origin "$tag"          # pushed with GITHUB_TOKEN, so it does not re-trigger this workflow

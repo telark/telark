@@ -194,7 +194,7 @@ func TestApprovalNeedsTheRequestID(t *testing.T) {
 	}
 }
 
-// The bootstrap account's sign-in reads the break-glass state before the session, where a state it can't read or a
+// The bootstrap account's sign-in reads the auth request state before the session, where a state it can't read or a
 // recovery it can't date refuses it (503, 500) with no session, and again after it, where nothing fails the sign-in.
 // Any account's sign-in fails (500) when its session can't be saved.
 func TestSignInWhenSomethingFails(t *testing.T) {
@@ -253,9 +253,9 @@ func TestSignInWhenSomethingFails(t *testing.T) {
 	}
 }
 
-// Each break-glass step on Redis fails closed when Redis can't do it as asked: a link index of another type, a freeze
+// Each auth request step on Redis fails closed when Redis can't do it as asked: a link index of another type, a freeze
 // that lapsed or holds another type, a keyspace walk Redis refuses, or a link spent for an account it doesn't name.
-func TestBreakGlassRedisStepsFailClosed(t *testing.T) {
+func TestAuthRequestRedisStepsFailClosed(t *testing.T) {
 	unreadable := func(key string) func(t *testing.T) {
 		return func(t *testing.T) {
 			redisServer.HSet(key, hashField, unreadableEntry)

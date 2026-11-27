@@ -151,8 +151,8 @@ func CreateUserSession(userID string, meta *authdata.DeviceMetadata) (token stri
 		session.DeviceMetadata = truncateMetadata(*meta)
 	}
 
-	// Checked again right before the write: a sign-in that began before break-glass froze the account sends no session
-	// after it, so none can land later than the bound break-glass waits out.
+	// Checked again right before the write: a sign-in that began before an auth request froze the account sends no session
+	// after it, so none can land later than the bound an auth request waits out.
 	if err := RefuseFrozen(userID, constants.EmptyString); err != nil {
 		return constants.EmptyString, time.Time{}, err
 	}

@@ -3,13 +3,13 @@ package constants
 import "github.com/telark/telark/internal/data/logger"
 
 const (
-	LoggerPrefixAuthService = "auth-service"
-	LoggerPrefixHandler     = "handler"
-	LoggerPrefixHelper      = "helper"
-	LoggerPrefixOIDC        = "oidc"
-	LoggerPrefixRedis       = "redis"
-	LoggerPrefixAsync       = "async"
-	LoggerPrefixCleanup     = "cleanup"
+	LoggerPrefixAuthService = "AuthService: "
+	LoggerPrefixHandler     = "Handler: "
+	LoggerPrefixHelper      = "Helper: "
+	LoggerPrefixOIDC        = "OIDC: "
+	LoggerPrefixRedis       = "Redis: "
+	LoggerPrefixAsync       = "Async: "
+	LoggerPrefixCleanup     = "Cleanup: "
 )
 
 func GetLogger(prefix string) *logger.CustomLogger {

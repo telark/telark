@@ -123,7 +123,7 @@ Depth: [how the analyzer works](../services/analyzer/ARCHITECTURE.md), [analyzer
 
 ### Signing in
 
-People sign in with a passkey or with Google SSO; there are no passwords. The bootstrap admin enrolls with a one-time token from the break-glass command. Admins create other accounts on **Members** and send each owner a one-time enrollment link. Once the bootstrap admin turns them on in **Settings**, Google SSO and passkey self-registration let people create their own ReadOnly account. Admins then grant roles. See [First admin](INSTALL.md#2-first-admin) and [Login and SSO](../services/auth/OIDC.md).
+People sign in with a passkey or with Google SSO; there are no passwords. The bootstrap admin enrolls with a one-time link from `telark auth enroll`. Admins create other accounts on **Members** and send each owner a one-time enrollment link. Once the bootstrap admin turns them on in **Settings**, Google SSO and passkey self-registration let people create their own ReadOnly account. Admins then grant roles. See [First admin](INSTALL.md#2-first-admin) and [Login and SSO](../services/auth/OIDC.md).
 
 ### Roles, levels and deny rules
 

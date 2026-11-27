@@ -23,6 +23,8 @@ services/
   analyzer                              Python / FastAPI service
 internal/
   data  rest  kcore  x-ware             shared Go packages
+cmd/
+  telark                                the telark CLI
 charts/
   telark        application chart
   telark-crds   custom resource definitions (bundled as a subchart of telark)

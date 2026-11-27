@@ -1,0 +1,44 @@
+{{- if .Values.exporter.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telark-exporter-service
+  labels:
+    app.kubernetes.io/component: exporter-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: exporter-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: exporter-service
+    spec:
+      securityContext:
+        runAsUser: 10001
+      containers:
+        - name: exporter-service
+          image: ghcr.io/telark/exporter:{{ .Chart.Version }}
+          volumeMounts:
+            - name: snapshots-storage
+              mountPath: /data/snapshots
+            - name: scratch
+              mountPath: /tmp
+      volumes:
+        - name: snapshots-storage
+          persistentVolumeClaim:
+            claimName: {{ .Values.exporter.claim }}
+        - name: scratch
+          emptyDir: {}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.exporter.claim }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+{{- end }}

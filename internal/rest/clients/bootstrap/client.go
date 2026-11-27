@@ -25,8 +25,9 @@ func (c *Client) Status() (*telarkconfig.BootstrapStatus, error) {
 	return shared.GetTypedNoCache[telarkconfig.BootstrapStatus](c.Client, eps.GetBootstrap)
 }
 
-func (c *Client) Open(email string) *response.GenericResponse {
-	return shared.ExecuteRequestWithHeaders(c.Client, base.Post, eps.OpenRequest, eps.OpenBody{Email: email}, nil)
+func (c *Client) Open(email, requestedBy string) *response.GenericResponse {
+	body := eps.OpenBody{Email: email, RequestedBy: requestedBy}
+	return shared.ExecuteRequestWithHeaders(c.Client, base.Post, eps.OpenRequest, body, nil)
 }
 
 func (c *Client) Approve(id string) *response.GenericResponse {

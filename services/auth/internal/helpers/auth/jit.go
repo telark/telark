@@ -38,11 +38,7 @@ func storePendingUser(email string) (*userresource.User, string, error) {
 	if err := checkSelfRegistration(email); err != nil {
 		return nil, constants.EmptyString, err
 	}
-	username, err := BuildUsername(email)
-	if err != nil {
-		return nil, constants.EmptyString, err
-	}
-	user := buildJitUser(email, username)
+	user := buildJitUser(email, BuildUsername(email))
 	raw, err := json.Marshal(user)
 	if err != nil {
 		return nil, constants.EmptyString, fmt.Errorf(string(constants.ErrFailedStorePendingUser), err.Error())

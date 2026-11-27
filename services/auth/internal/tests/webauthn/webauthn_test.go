@@ -441,7 +441,7 @@ func TestVerifyCredentialMalformed(t *testing.T) {
 }
 
 // A finish body or a challenge that doesn't decode names no ceremony and stores none, and a registration finish for
-// an account break-glass froze is refused before its challenge is read.
+// an account an auth request froze is refused before its challenge is read.
 func TestUndecodableCeremoniesAreRefused(t *testing.T) {
 	key := constants.RedisKeyPrefixChallenge + testChalUser
 	consume := func(body []byte) func() error {

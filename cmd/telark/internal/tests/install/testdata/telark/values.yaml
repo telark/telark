@@ -1,0 +1,19 @@
+app:
+  mode: standard
+  auth:
+    bootstrap:
+      admin: ""
+    request:
+      waitHours: 24
+  security: {}
+crds:
+  enabled: true
+  reference: ""
+  conversion: ""
+sample:
+  versions: ""
+extra:
+  enabled: false
+exporter:
+  enabled: false
+  claim: telark-exporter-snapshots-pvc

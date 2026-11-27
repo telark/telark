@@ -18,6 +18,7 @@ import (
 
 var refusals = map[error]int{
 	bootstrap.ErrEmail:            http.StatusBadRequest,
+	bootstrap.ErrRequester:        http.StatusBadRequest,
 	bootstrap.ErrReason:           http.StatusBadRequest,
 	bootstrap.ErrNoRequest:        http.StatusNotFound,
 	bootstrap.ErrNotPinned:        http.StatusConflict,
@@ -62,7 +63,7 @@ func OpenRequest(optimizer *performance.Optimizer) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		outcome, err := bootstrap.Open(optimizer, body.Email)
+		outcome, err := bootstrap.Open(optimizer, body.Email, body.RequestedBy)
 		respond(w, outcome, err)
 	}
 }

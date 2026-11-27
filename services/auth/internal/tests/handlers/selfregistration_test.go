@@ -113,7 +113,7 @@ func startSelfRegistration() *httptest.ResponseRecorder {
 func signInSettingsReq(caller xauthz.Identity, body string) *http.Request {
 	endpoint := autheps.SelfRegistration
 	if strings.Contains(body, telarkconfigresource.FieldNotifyAdmins) {
-		endpoint = autheps.BreakGlassAlerts
+		endpoint = autheps.AuthAlerts
 	}
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodPatch, router.Pattern(endpoint), strings.NewReader(body))
 	return r.WithContext(xauthz.WithIdentity(r.Context(), caller))
@@ -136,9 +136,9 @@ func TestSignInSettingsAreBootstrapOnly(t *testing.T) {
 		{"self-registration by an Admin on ALL", routed, selfRegOnBody, adminCallID, false, http.StatusForbidden},
 		{"self-registration by the bootstrap account", routed, selfRegOnBody, bootstrapCallID, false, http.StatusOK},
 		{"self-registration with the caller unreadable", routed, selfRegOnBody, bootstrapCallID, true, http.StatusServiceUnavailable},
-		{"break-glass alerts by an Admin on ALL", routed, alertsOnBody, adminCallID, false, http.StatusForbidden},
-		{"break-glass alerts by the bootstrap account", routed, alertsOnBody, bootstrapCallID, false, http.StatusOK},
-		{"break-glass alerts with the caller unreadable", routed, alertsOnBody, bootstrapCallID, true, http.StatusServiceUnavailable},
+		{"auth alerts by an Admin on ALL", routed, alertsOnBody, adminCallID, false, http.StatusForbidden},
+		{"auth alerts by the bootstrap account", routed, alertsOnBody, bootstrapCallID, false, http.StatusOK},
+		{"auth alerts with the caller unreadable", routed, alertsOnBody, bootstrapCallID, true, http.StatusServiceUnavailable},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -156,7 +156,7 @@ func TestSignInSettingsAreBootstrapOnly(t *testing.T) {
 				t.Fatalf("status = %d, want %d (body %s)", rec.Code, c.status, rec.Body.String())
 			}
 			saved := fake.SavedConfig()
-			if c.status == http.StatusOK && !saved.SelfRegistration.Enabled && !saved.BreakGlassAlerts.NotifyAdmins {
+			if c.status == http.StatusOK && !saved.SelfRegistration.Enabled && !saved.AuthAlerts.NotifyAdmins {
 				t.Fatal("the bootstrap account's change was not saved")
 			}
 		})

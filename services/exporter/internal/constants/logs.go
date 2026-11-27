@@ -112,10 +112,12 @@ const (
 	// Group.
 	ErrGroupNotFound          errors.Error = "group not found"
 	ErrGroupNameCannotBeEmpty errors.Error = "group name cannot be empty"
+	ErrGroupNameAlreadyExists errors.Error = "a group with this name already exists"
 
 	// Role.
 	ErrRoleNotFound                     errors.Error = "role not found"
 	ErrRoleNameCannotBeEmpty            errors.Error = "role name cannot be empty"
+	ErrRoleNameAlreadyExists            errors.Error = "a role with this name already exists"
 	ErrRoleDescriptionRequired          errors.Error = "description is required"
 	ErrRoleCategoryRefRequired          errors.Error = "catID is required"
 	ErrRoleScopesAndPermissionsRequired errors.Error = "scopesAndPermissions is required"
@@ -285,10 +287,10 @@ const (
 	WarnReportsStorageWalk     messages.Message = "reports storage walk failed path=%s error=%v"
 	WarnReportsPVCGetFailed    messages.Message = "reports pvc get failed name=%s namespace=%s error=%v"
 
-	// Storage migration.
-	InfMigrateStorageCopied messages.Message = "[migrate-storage] copied %d file(s) from %s to %s"
-	ErrMigrateStorageFailed errors.Error     = "[migrate-storage] copy from %s to %s failed: %v"
-	ErrMigrateStorageUsage  errors.Error     = "[migrate-storage] usage: migrate-storage <from> <to> [<from> <to>...]"
+	// Storage copy.
+	InfCopyTreeCopied messages.Message = "copied %d file(s) from %s to %s"
+	ErrCopyTreeFailed errors.Error     = "copy from %s to %s failed: %v"
+	ErrCopyTreeUsage  errors.Error     = "usage: copy-tree <from> <to> [<from> <to>...]"
 
 	// Notifications.
 	WarnNotifStreamReadFailed   messages.Message = "notification change stream read failed, open streams refetch once it recovers: %v"

@@ -1,0 +1,102 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: authrequests.{{ include "telark.apiGroup" $ }}
+  labels:
+    {{- include "telark.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: crd
+  annotations:
+    "helm.sh/resource-policy": keep
+spec:
+  group: {{ include "telark.apiGroup" $ }}
+  names:
+    kind: AuthRequest
+    plural: authrequests
+    singular: authrequest
+    shortNames:
+      - tauth
+    categories:
+      - telark-auth
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Email
+          type: string
+          jsonPath: .spec.email
+        - name: Requested By
+          type: string
+          jsonPath: .spec.requestedBy
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              description: A request for a passkey enrollment link for the bootstrap account. Created with `telark auth enroll`, never changed afterward.
+              required:
+                - email
+                - requestedBy
+                - recipientKey
+              x-kubernetes-validations:
+                - rule: self == oldSelf
+                  message: spec is immutable
+              properties:
+                email:
+                  type: string
+                  minLength: 3
+                  maxLength: 320
+                  description: The bootstrap admin's email. It selects the account and grants nothing.
+                requestedBy:
+                  type: string
+                  minLength: 1
+                  maxLength: 512
+                  description: The Kubernetes username of the creator. An admission policy refuses any other value.
+                recipientKey:
+                  type: string
+                  pattern: '^[A-Za-z0-9+/]{43}=$'
+                  description: The requester's one-time X25519 public key, base64. The enrollment link is sealed to it.
+            status:
+              type: object
+              description: Written by the exporter alone, from what auth reports.
+              properties:
+                phase:
+                  type: string
+                  enum: [Pending, WaitingForApproval, Recovering, LinkReady, Completed, Denied, Canceled, Expired, Failed]
+                  description: Where the request stands. Absent reads as Pending.
+                reason:
+                  type: string
+                  maxLength: 1024
+                  description: Why the request is in this phase, in one sentence.
+                requestId:
+                  type: string
+                  maxLength: 64
+                  description: The request in TelarkConfig status.bootstrap.requests this one opened or continued.
+                approvalUrl:
+                  type: string
+                  maxLength: 2048
+                  description: The dashboard page where the bootstrap account approves or denies the request.
+                completesAt:
+                  type: string
+                  format: date-time
+                  description: When the wait ends and a new auth request can continue.
+                sealedLink:
+                  type: string
+                  maxLength: 8192
+                  description: The enrollment link, sealed to spec.recipientKey with an anonymous NaCl box, base64.
+                linkExpiresAt:
+                  type: string
+                  format: date-time
+                  description: When the enrollment link stops working.

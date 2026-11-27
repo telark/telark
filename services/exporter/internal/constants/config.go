@@ -22,6 +22,7 @@ const (
 	ResourceUserSession     = "user-sessions"
 	ResourceUserPasskey     = "user-passkeys"
 	ResourceSnapshot        = "snapshots"
+	NamesLockSuffix         = ":names" // object names cannot hold ":", so no record's own lock shares the key
 	CachedResponse          = "Cached response"
 	HeaderETag              = "ETag"
 	HeaderIfNoneMatch       = "If-None-Match"
@@ -59,20 +60,20 @@ const (
 	// Lists may lag writes by this much; in exchange a write storm costs one
 	// list rebuild per window instead of one per write.
 	ListCacheMinAge   = 3 * time.Second
-	ListCacheDirtyTTL = time.Minute
+	ListCacheDirtyTTL = CacheTTL // a deferred bump must outlive every list it retires
 	// Rendered list blobs kept in process, newest last; the key carries the
 	// generation, so an entry stops being read the moment the list changes.
 	ListBlobLocalEntries     = 4
 	ListRenderConcurrencyEnv = "EXPORTER_LIST_RENDER_CONCURRENCY"
 	BootstrapAdminEnv        = "BOOTSTRAP_ADMIN"
-	BreakGlassWaitHoursEnv   = "BREAK_GLASS_WAIT_HOURS"
+	AuthRequestWaitHoursEnv  = "AUTH_REQUEST_WAIT_HOURS"
 	// Under the 30 s a create's caller waits (auth's REST client, the create route's deadline), so it gets the 503.
 	CreateSlotWait = 20 * time.Second
 	// A full list is megabytes of marshal buffer; beyond this many renders at
 	// once a request queues for a slot until its own deadline.
 	DefaultListRenderConcurrency                = 2
 	MinListRenderConcurrency                    = 1
-	DefaultBreakGlassWaitHours                  = 24
+	DefaultAuthRequestWaitHours                 = 24
 	ListRenderRetryAfter                        = "2"
 	HeaderRetryAfter                            = "Retry-After"
 	HeaderContentLength                         = "Content-Length"
@@ -112,6 +113,7 @@ const (
 	PrefixGenerics                              = "Generics: "
 	PrefixOptimizer                             = "Optimizer: "
 	PrefixMain                                  = "Main: "
+	PrefixCopyTree                              = "CopyTree: "
 	PrefixStartup                               = "Startup: "
 	PrefixShared                                = "Shared: "
 	LogMessageWithError                         = "%s: %v"
@@ -263,8 +265,7 @@ const (
 	ReportMaxBodyBytes             = 32 << 20
 	ReportsSweepMinAge             = time.Hour
 	ReportsGCLockKey               = "exporter:reports:gc"
-	SubcommandMigrateStorage       = "migrate-storage"
-	MigrateStoragePairSize         = 2
+	CopyTreePairSize               = 2
 	LostFoundDir                   = "lost+found"
 	HeaderContentTypeOptions       = "X-Content-Type-Options"
 	ContentTypeOptionsNoSniff      = "nosniff"

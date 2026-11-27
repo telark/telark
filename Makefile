@@ -1,6 +1,7 @@
 GO_SERVICES := auth discovery exporter notifier
 GO_PACKAGES := data rest kcore x-ware
-GO_DIRS      := $(addprefix services/,$(GO_SERVICES)) $(addprefix internal/,$(GO_PACKAGES))
+GO_CMDS     := telark
+GO_DIRS      := $(addprefix services/,$(GO_SERVICES)) $(addprefix internal/,$(GO_PACKAGES)) $(addprefix cmd/,$(GO_CMDS))
 CHART_DIR    := charts/telark
 CRDS_DIR     := charts/telark-crds
 REGISTRY     ?= oci://ghcr.io/telark/charts
@@ -11,7 +12,7 @@ GOLANGCI_CONFIG := $(CURDIR)/.golangci.yml
 # validation use a placeholder one.
 RENDER_SET   := --set app.auth.bootstrap.admin=test@example.com
 
-.PHONY: help build test lint fmt vet helm-lint helm-template helm-validate deps values-docs changelog publish-charts check
+.PHONY: help build cli test lint fmt vet helm-lint helm-template helm-validate deps values-docs changelog publish-charts check
 
 help: ## List targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-14s %s\n", $$1, $$2}'
@@ -19,14 +20,23 @@ help: ## List targets
 build: ## Build the Go module
 	go build ./...
 
+# Release build flags. A dev build takes its version from `git describe`, without the v.
+CLI_VERSION ?= $(patsubst v%,%,$(shell git describe --tags --always --dirty))
+CLI_VERSION_PKG := github.com/telark/telark/cmd/telark/internal/version
+
+cli: ## Build the telark CLI into bin/telark, stamped with CLI_VERSION (default: git describe)
+	CGO_ENABLED=0 go build -trimpath -o bin/telark \
+		-ldflags "-s -w -X $(CLI_VERSION_PKG).version=$(CLI_VERSION) -X $(CLI_VERSION_PKG).gitCommit=$$(git rev-parse HEAD) -X $(CLI_VERSION_PKG).buildDate=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+		./cmd/telark
+
 vet: ## go vet the Go module
 	go vet ./...
 
 fmt: ## Format the Go code
-	gofmt -w services internal
+	gofmt -w services internal cmd
 
 test: ## Run the Go tests
-	go test ./...
+	go test -ldflags=-linkmode=internal ./...
 
 lint: helm-lint ## Run golangci-lint per service and package, or for one with SERVICE=<name>
 	@if [ -n "$(SERVICE)" ]; then \
@@ -41,7 +51,7 @@ lint: helm-lint ## Run golangci-lint per service and package, or for one with SE
 		done; \
 		if [ "$$found" -eq 0 ]; then \
 			echo "ERROR: unknown SERVICE='$(SERVICE)'"; \
-			echo "Valid names: $(GO_SERVICES) $(GO_PACKAGES)"; \
+			echo "Valid names: $(GO_SERVICES) $(GO_PACKAGES) $(GO_CMDS)"; \
 			exit 2; \
 		fi; \
 	else \

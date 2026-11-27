@@ -213,7 +213,7 @@ func addConfig(r map[string]authz.Requirement) {
 	r[router.Key(base.Patch, configendpoints.PatchConfig)] = authz.Authenticated
 }
 
-// Admins on ALL read the pin and the record. Only break-glass and auth's approval ceremony move a request,
+// Admins on ALL read the pin and the record. Only an auth request and auth's approval ceremony move a request,
 // with the service token: a session, the bootstrap account's included, approves only through a fresh passkey.
 func addBootstrap(r map[string]authz.Requirement) {
 	r[router.Key(base.Get, bootstrapendpoints.GetBootstrap)] = authz.Administer(roledata.ScopeAll)
@@ -221,6 +221,8 @@ func addBootstrap(r map[string]authz.Requirement) {
 	r[router.Key(base.Post, bootstrapendpoints.ApproveRequest)] = authz.Internal
 	r[router.Key(base.Post, bootstrapendpoints.CancelRequest)] = authz.Internal
 	r[router.Key(base.Post, bootstrapendpoints.CompleteRequest)] = authz.Internal
+	r[router.Key(base.Get, authendpoints.GetPendingAuthRequests)] = authz.Internal
+	r[router.Key(base.Patch, authendpoints.PatchAuthRequestStatus)] = authz.Internal
 }
 
 // Finalizer edits decide whether a resource can be deleted at all, so only

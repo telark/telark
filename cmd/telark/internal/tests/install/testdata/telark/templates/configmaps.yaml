@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: telark-settings
+data:
+  mode: {{ .Values.app.mode | quote }}
+  admin: {{ .Values.app.auth.bootstrap.admin | quote }}
+  chart: {{ .Chart.Version | quote }}
+  wait: {{ .Values.app.auth.request.waitHours | quote }}
+{{- if .Values.extra.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: telark-extra
+{{- end }}

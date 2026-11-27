@@ -149,8 +149,10 @@ func start(t *testing.T, fake *fakeService) time.Time {
 	fake.events = make(chan event, len(fake.plans)*2+1)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
+	// Read the clock before Run starts: an overdue boundary fires at once.
+	startedAt := time.Now().UTC()
 	go protectionctl.NewController(fake, silentLogger{}).Run(ctx)
-	return time.Now().UTC()
+	return startedAt
 }
 
 func await(t *testing.T, fake *fakeService, kind string) event {

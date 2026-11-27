@@ -1,0 +1,87 @@
+# The telark CLI's release assets. The cli job of release-charts.yaml runs this on the release tag and attaches
+# them to the release the bump run drafted; ci.yaml builds every target with --snapshot on each pull request.
+version: 2
+
+project_name: telark
+
+builds:
+  - id: telark
+    main: ./cmd/telark
+    binary: telark
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/telark/telark/cmd/telark/internal/version.version={{ .Version }}
+      - -X github.com/telark/telark/cmd/telark/internal/version.gitCommit={{ .FullCommit }}
+      - -X github.com/telark/telark/cmd/telark/internal/version.buildDate={{ .CommitDate }}
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    # Each target links its own set of modules, so each archive gets its own notices.
+    hooks:
+      post:
+        - cmd: sh -c 'mkdir -p dist/licenses/{{ .Os }}_{{ .Arch }} && sh scripts/third-party-notices.sh ./cmd/telark > dist/licenses/{{ .Os }}_{{ .Arch }}/go-modules.txt'
+          env:
+            - GOOS={{ .Os }}
+            - GOARCH={{ .Arch }}
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "telark_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE.md
+      - THIRD-PARTY-NOTICES.md
+      - src: "dist/licenses/{{ .Os }}_{{ .Arch }}/go-modules.txt"
+        dst: licenses
+        strip_parent: true
+
+checksum:
+  name_template: checksums.txt
+
+sboms:
+  - artifacts: archive
+
+# Keyless, from the workflow run on the tag: the identity the chart's signature has too.
+signs:
+  - cmd: cosign
+    artifacts: checksum
+    signature: "${artifact}.sigstore.json"
+    args: ["sign-blob", "--bundle=${signature}", "${artifact}", "--yes"]
+
+changelog:
+  disable: true
+
+# The bump run wrote the notes; the release goes public once the cli job has attested the assets.
+release:
+  draft: true
+  use_existing_draft: true
+  mode: keep-existing
+  # A rerun of a failed cli job uploads again to the same draft.
+  replace_existing_artifacts: true
+
+homebrew_casks:
+  - name: telark
+    repository:
+      owner: telark
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Casks
+    homepage: https://telark.io
+    description: Check, install, upgrade and enroll a Telark installation
+    skip_upload: auto
+    commit_author:
+      name: github-actions[bot]
+      email: 41898282+github-actions[bot]@users.noreply.github.com
+    # The binary isn't notarized yet, so macOS would block the first run of a quarantined download.
+    hooks:
+      post:
+        install_steps: |
+          on_macos do
+            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/telark"]
+          end

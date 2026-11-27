@@ -3,8 +3,6 @@ package auth
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"fmt"
-	"io"
 	"regexp"
 	"strings"
 	"unicode"
@@ -41,19 +39,18 @@ func joinWords(raw, extra string) string {
 	return text.Truncate(strings.Join(words, constants.SpaceSeparator), constants.FullnameMaxLen)
 }
 
-func BuildUsername(email string) (string, error) {
+func BuildUsername(email string) string {
 	local := strings.SplitN(email, "@", constants.EmailSplitParts)[constants.DefaultInitValue]
 	clean := usernameClean.ReplaceAllString(local, constants.UnderscoreSeparator)
 	if len(clean) > constants.UsernameMaxLocalLen {
 		clean = clean[:constants.UsernameMaxLocalLen]
 	}
 	b := make([]byte, constants.UsernameRandomBytes)
-	if _, err := io.ReadFull(rand.Reader, b); err != nil {
-		return constants.EmptyString, fmt.Errorf(string(constants.ErrFailedGenerateRandomBytes), err)
-	}
+	// crypto/rand.Read never returns an error: it crashes the program instead.
+	_, _ = rand.Read(b)
 	username := clean + constants.UnderscoreSeparator + hex.EncodeToString(b)
 	for len(username) < constants.UsernameMinLen {
 		username += constants.UnderscoreSeparator
 	}
-	return username, nil
+	return username
 }

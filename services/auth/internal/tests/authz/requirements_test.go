@@ -60,7 +60,7 @@ func TestPublicRoutesArePinned(t *testing.T) {
 		"POST /api/v1/auth/logout":               true,
 		"POST /api/v1/auth/oidc/google/callback": true,
 		"POST /api/v1/auth/oidc/google/nonce":    true,
-		// The bootstrap account approves a break-glass request without a sign-in, which would cancel it.
+		// The bootstrap account approves an auth request without a sign-in, which would cancel it.
 		"POST /api/v1/auth/bootstrap/requests/{id}/assert/start":  true,
 		"POST /api/v1/auth/bootstrap/requests/{id}/assert/finish": true,
 	}
@@ -110,7 +110,7 @@ func TestInviteAndSelfRegistrationRequirements(t *testing.T) {
 		{base.Post, autheps.UserEnrollLink, roledata.ScopeUsers, roledata.PermissionLevelOwner},
 		{base.Delete, autheps.UserEnrollLink, roledata.ScopeUsers, roledata.PermissionLevelOwner},
 		{base.Patch, autheps.SelfRegistration, roledata.ScopeSettings, roledata.PermissionLevelAdmin},
-		{base.Patch, autheps.BreakGlassAlerts, roledata.ScopeSettings, roledata.PermissionLevelAdmin},
+		{base.Patch, autheps.AuthAlerts, roledata.ScopeSettings, roledata.PermissionLevelAdmin},
 	}
 	requirements := authz.Requirements()
 	for _, c := range cases {

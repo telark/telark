@@ -223,7 +223,7 @@ func GuardUserTarget(w http.ResponseWriter, r *http.Request, target *userdata.Us
 }
 
 // One bootstrap account. Once it is pinned, no caller, Internal included, marks another account or unmarks it: only a
-// completed break-glass replacement moves the marker, and it writes the CRs itself. target is nil on create.
+// completed replacement moves the marker, and it writes the CRs itself. target is nil on create.
 func GuardBootstrapMarker(w http.ResponseWriter, target *userdata.User, body map[string]any) bool {
 	if _, present := body[constants.FieldBootstrap]; !present {
 		return true
@@ -242,7 +242,7 @@ func GuardBootstrapMarker(w http.ResponseWriter, target *userdata.User, body map
 	return true
 }
 
-// Who hears of a break-glass request besides the pinned account.
+// Who hears of an auth request besides the pinned account.
 func ActiveAdminIDs() ([]string, error) {
 	users, err := listUsers()
 	if err != nil {
@@ -258,7 +258,7 @@ func ActiveAdminIDs() ([]string, error) {
 	return ids, nil
 }
 
-// The bootstrap account and the BOOTSTRAP_ADMIN mailbox stay together (break-glass finds the account by it):
+// The bootstrap account and the BOOTSTRAP_ADMIN mailbox stay together (an auth request finds the account by it):
 // a session moves neither another account onto it nor the bootstrap account off it. target is nil on create.
 func GuardReservedEmail(w http.ResponseWriter, r *http.Request, target *userdata.User, email string) bool {
 	identity, ok := callerIdentity(w, r)

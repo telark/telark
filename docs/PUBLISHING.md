@@ -1,15 +1,17 @@
-# Publishing the Helm charts
+# Publishing the Helm charts and the CLI
 
 Telark ships two charts, `telark` (the app) and `telark-crds`, as public OCI artifacts in
-GitHub Container Registry: `oci://ghcr.io/telark/charts`.
+GitHub Container Registry: `oci://ghcr.io/telark/charts`. The `telark` CLI ships with each release of the app chart ([The CLI](#the-cli)).
 
 - **Before each release:** run the [upgrade test](#upgrade-test).
 - **Images first:** build every image that changed before the charts. *Build · Release Images* (`build-images.yaml`) builds the ticked services, one at a time, then the UI, all from one `branch` with one `build_type`; *Build · Service Image* and *Build · UI Image* build a single one. Each build commits its version bump to that branch. GitHub offers a manual workflow only once it is on `main`; pick the release branch under "Use workflow from" to run that branch's version.
-- **Automated:** run *Release · Publish Charts* with `chart` (`both`, `telark`, `telark-crds`) and `bump` (`patch`, `minor`, `major`). Don't edit the versions in `Chart.yaml` first: the workflow bumps each selected chart from its own current version, writes it to `Chart.yaml`, packages, pushes and **cosign-signs** it (telark-crds first), then commits the change. A version already in the registry fails the run before anything is pushed. See [`.github/workflows/release-charts.yaml`](../.github/workflows/release-charts.yaml).
+- **Automated:** run *Release · Publish Charts* with `chart` (`both`, `telark`, `telark-crds`) and `bump` (`patch`, `minor`, `major`). Don't edit the versions in `Chart.yaml` first: the workflow bumps each selected chart from its own current version, writes it to `Chart.yaml`, packages, pushes and **cosign-signs** telark-crds, then commits the change. A version already in the registry fails the run before anything is pushed. See [`.github/workflows/release-charts.yaml`](../.github/workflows/release-charts.yaml).
+  - telark is published from its tag: the run tags `v<version>`, drafts the GitHub Release and starts a second run of the workflow on that tag, which packages, pushes and signs the chart, then publishes the release. Bump runs queue one at a time (a third one cancels the one waiting), while each tag run has its own queue, so no other run cancels it. The signature names the tag (`…/release-charts.yaml@refs/tags/v<version>`), and `telark install` and `telark upgrade` accept no other. If that second run fails, run the workflow again on the tag with `chart=telark` (`gh workflow run release-charts.yaml --ref v<version> -f chart=telark`, with the `release_type` of the first run when it wasn't `auto`).
   - `appVersion` is the Telark release: telark's follows its new `version`, and telark-crds takes the same value when released with telark (`chart=both`). A CRD-only release keeps telark-crds' `appVersion`.
   - On `chart=both`, telark's `telark-crds` dependency and `Chart.lock` move to the new CRD version in the same commit, so the app chart bundles those CRDs. A telark-only release keeps the pin.
   - Only telark is tagged (`v<version>`) and gets a GitHub Release. `release_type` only picks the release kind (`auto`: a pre-release when the version has a suffix such as `-rc.1`) and never changes the version. The release notes and `CHANGELOG.md` both come from [`cliff.toml`](../cliff.toml): the run prepends the new version's section to `CHANGELOG.md` and never rewrites older ones. Each entry links its commit and the pull request GitHub associates with it (the one that merged it into `main`, or the open one of the branch the run releases), so open the release pull request before running the workflow. When the UI version changed since the previous release, the section ends with a Dashboard UI part copied from the `telark/dashboard-ui` `CHANGELOG.md`, which `build-ui.yaml` prepends with each UI tag (format in [`.github/cliff-ui.toml`](../.github/cliff-ui.toml)) and publishes as that tag's GitHub Release.
-  - Pushing a `vX.Y.Z` tag yourself publishes both charts at their current `Chart.yaml` versions, without a bump.
+  - Release tags come only from this run: pushing a `v*` tag yourself starts nothing. The run on the tag fails before it pushes when the tag doesn't match telark's version.
+  - After the chart, the run on the tag builds the CLI and attaches it to the drafted release, which it publishes last ([The CLI](#the-cli)).
 - **Manual:** the commands here, for testing a publish from your machine.
 
 ## Prerequisites
@@ -86,13 +88,18 @@ cosign sign   --key cosign.key ghcr.io/telark/charts/telark@$DIGEST
 cosign verify --key cosign.pub ghcr.io/telark/charts/telark@$DIGEST
 ```
 
-Verify a CI (keyless) signature:
+Verify a CI (keyless) signature. telark is signed from the run on its tag, telark-crds from the run on the release branch:
 
 ```sh
 cosign verify ghcr.io/telark/charts/telark@$DIGEST \
-  --certificate-identity-regexp '^https://github.com/telark/telark/' \
+  --certificate-identity "https://github.com/telark/telark/.github/workflows/release-charts.yaml@refs/tags/v$VERSION" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+cosign verify ghcr.io/telark/charts/telark-crds@$DIGEST \
+  --certificate-identity-regexp '^https://github\.com/telark/telark/\.github/workflows/release-charts\.yaml@refs/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
+
+telark charts published before 0.3.0 were signed from the release branch, so check those with the telark-crds identity.
 
 ## 6. Register on ArtifactHub
 
@@ -161,9 +168,28 @@ It proves that what the previous release stored still reads and saves after the 
    kubectl rollout status deploy/telark-exporter-service -n telark --timeout=5m
    ```
 
+   With a previous release of 0.2.3 or older, a rollback to its install revision fails on the two exporter claims ([why](INSTALL.md#upgrade)), so land on a revision an upgrade made: at the end of step 1, upgrade the previous release to itself. After a rollback that already failed this way, the same command ends `deployed` on the previous release.
+
+   ```sh
+   helm upgrade telark oci://ghcr.io/telark/charts/telark --version <previous version> -n telark \
+     --set app.auth.bootstrap.admin=test@example.com --wait --timeout 15m
+   ```
+
    A previous release from before 0.2.0 logs no migration line. If the release ran a migration step and the previous one is 0.2.0 or later, the previous exporter logs `lowered the record to step <n>`, with `<n>` its own last step, and starts.
 
 5. If the release ran a migration step, upgrade again with step 2's `helm upgrade` command and repeat step 3. The rollback lowered the record, so the log names the release's steps again.
+
+## The CLI
+
+The `cli` job of the run on the tag builds `./cmd/telark` with [GoReleaser](https://goreleaser.com) ([`.goreleaser.yaml`](../.goreleaser.yaml)) and attaches to the drafted release:
+
+- `telark_<version>_<os>_<arch>.tar.gz` for linux and darwin, `.zip` for windows, each on amd64 and arm64, built with `CGO_ENABLED=0`, `-trimpath` and the version, commit and commit date stamped in (so a rebuild of the tag gives the same binary), and holding `LICENSE.md`, `THIRD-PARTY-NOTICES.md` and `licenses/go-modules.txt` (that target's Go module notices, from `scripts/third-party-notices.sh`);
+- `checksums.txt` and `checksums.txt.sigstore.json`, its keyless cosign bundle from the same run identity as the chart;
+- an SPDX SBOM per archive (syft) and a build provenance attestation per archive (GitHub artifact attestations).
+
+It also writes the cask `Casks/telark.rb` to [`telark/homebrew-tap`](https://github.com/telark/homebrew-tap) (skipped for a version with a suffix such as `-rc.1`, whatever the release type), whose post-install step clears macOS's quarantine flag until the binary is notarized. Then it publishes the release. The bump run adds an "Install the CLI" part to the release notes, without the brew line for a version with a suffix, whose cask isn't written. Users check the assets as [Verifying downloads](CLI.md#verifying-downloads) shows; the install script that `curl -sSfL https://telark.io/install.sh | sh` runs lives in the website's repository.
+
+If the job fails, the chart is already published and the release stays a draft: fix the cause and rerun the failed job, which uploads the assets again over the ones the draft holds. A new run on the tag stops at the chart, which is never republished. GoReleaser writes the cask before the attestation and publish steps, so after a failure in one of those the tap names a release nobody can download yet: rerun the job soon. CI builds and archives every target of the CLI on each pull request (`goreleaser release --snapshot --clean --skip=sign,sbom`, GoReleaser v2.20.3); run the same command locally to check `.goreleaser.yaml`, which writes to the ignored `dist/`.
 
 ## Corresponding source images
 
@@ -180,7 +206,7 @@ The analyzer and ui images contain GPL, LGPL and MPL Alpine packages. Every buil
 
 The analyzer's and the dashboard's `THIRD-PARTY-NOTICES.md` reproduce the copyright notices of the permissive Alpine packages in their base image ("Alpine package notices") and, for the analyzer, of the Rust crates compiled into pydantic-core ("pydantic-core's Rust crates"). Alpine's `-doc` packages don't carry these files, so they come from upstream. Regenerate a section when its input changes:
 
-- **Base image bump:** list the packages with `docker run --rm --entrypoint sh <image> -c 'apk list --installed'`. For each permissive package, take its license and copyright files from the source archive at the installed version: the `source=` of `main/<origin>/APKBUILD` in aports, mirrored at `https://distfiles.alpinelinux.org/distfiles/v<release>/`. Update the table, the versions and the texts.
+- **Base image bump:** list the packages from the image's apk database (the analyzer image has no shell or `apk`): `ctr=$(docker create <image>) && docker cp "$ctr:/lib/apk/db/installed" . && docker rm "$ctr"` gives each package's name (`P:`), version (`V:`), license (`L:`) and origin (`o:`). For each permissive package, take its license and copyright files from the source archive at the installed version: the `source=` of `main/<origin>/APKBUILD` in aports, mirrored at `https://distfiles.alpinelinux.org/distfiles/v<release>/`. Update the table, the versions and the texts.
 - **pydantic-core bump:** the `required` components of `pydantic_core-<version>.dist-info/sboms/pydantic-core.cyclonedx.json` are the crates. Take each crate's license files from `https://static.crates.io/crates/<name>/<name>-<version>.crate`, using MIT where a crate offers it, and keep one copy of each distinct text.
 
 ## Repository settings the workflows rely on
@@ -188,6 +214,16 @@ The analyzer's and the dashboard's `THIRD-PARTY-NOTICES.md` reproduce the copyri
 The build and release workflows push version-bump commits to the branch they run from and hold registry credentials (`GITHUB_TOKEN` with `packages: write` pushes the images to `ghcr.io/telark`), the `ACCESS_TOKEN` PAT and `id-token: write` (cosign). The repository defines no GitHub environments, so nothing in the workflows asks for an approval; these settings are what keep them safe:
 
 - **Protect `main`**: require the CI checks and a CODEOWNERS review on pull requests, block force pushes and deletion. The bump commits are pushed with `GITHUB_TOKEN`, so either allow `github-actions[bot]` to bypass the pull-request rule or move the bumps to a bot branch merged by pull request.
+- **Protect the release tags**: a tag ruleset on `refs/tags/v*`, here and in `telark/dashboard-ui`, that blocks moving and deleting them, with only maintainers as bypass. telark's signature names its tag, so a tag must never point at other code once a chart is signed from it, and *Release · Publish Charts* fails first when no such ruleset is active. The ruleset can't restrict creating tags: the bump run pushes the tag with `GITHUB_TOKEN`, and GitHub refuses the GitHub Actions app as a bypass actor. Since the workflow can be started on any existing tag, whoever can create a `v*` tag can have it sign a chart the CLI trusts, which is why write access stays with maintainers (below). A UI build refuses to re-tag an existing `vX.Y.Z` (`.github/scripts/tag-service-repo.sh`), so every build bumps the version (`patch`, `minor` or `major`). Create the ruleset once per repository, with your user id from `gh api user --jq .id`:
+
+  ```sh
+  gh api -X POST repos/telark/<repository>/rulesets --input - <<'EOF'
+  {"name": "RELEASE_TAGS", "target": "tag", "enforcement": "active",
+   "conditions": {"ref_name": {"include": ["refs/tags/v*"], "exclude": []}},
+   "rules": [{"type": "update"}, {"type": "deletion"}],
+   "bypass_actors": [{"actor_id": <your user id>, "actor_type": "User", "bypass_mode": "always"}]}
+  EOF
+  ```
 - **Restrict who can run workflows**: `workflow_dispatch` runs with the repository's secrets from any branch a writer names, so keep write access to maintainers. To require an approval per run, create an environment (Settings → Environments, for example `release`) with required reviewers and add `environment: release` to the build and release jobs.
-- **Tags are immutable**: protect `v*` tags (Settings → Rules → tag ruleset) here and in `telark/dashboard-ui`. A UI build refuses to re-tag an existing `vX.Y.Z` (`.github/scripts/tag-service-repo.sh`), so every build bumps the version (`patch`, `minor` or `major`).
 - **Scope the `ACCESS_TOKEN` PAT** to the repository it pushes to (`telark/dashboard-ui`) with contents write only; the CI pull-request jobs don't receive it.
+- **`HOMEBREW_TAP_TOKEN`**: a fine-grained token on `telark/homebrew-tap` only, with contents read and write, as an Actions secret of this repository. The `cli` job writes the cask with it. Set it before the first release with the CLI: without it the job fails and the release stays a draft.

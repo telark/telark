@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
@@ -31,6 +32,23 @@ func TestOptimizerRoundTrip(t *testing.T) {
 		t.Error("value still present after Delete")
 	}
 	o.Clear()
+}
+
+// A bump deferred by the write window outlives every list it retires: its flag once expired
+// after a minute, and the next reader kept the old generation and a list up to CacheTTL old.
+func TestDeferredBumpOutlivesTheCachedList(t *testing.T) {
+	mr := miniredis.RunT(t)
+	o := performance.NewOptimizer(redis.NewClient(&redis.Options{Addr: mr.Addr()}))
+	t.Cleanup(o.Close)
+	o.BumpListGeneration(constants.ResourceRole)
+	before := o.ListGeneration(constants.ResourceRole)
+	o.BumpListGeneration(constants.ResourceRole)
+
+	mr.FastForward(constants.CacheTTL - time.Second)
+
+	if got := o.ListGeneration(constants.ResourceRole); got == before {
+		t.Fatalf("generation = %q after the window, want the deferred bump applied", got)
+	}
 }
 
 func okHandler(w http.ResponseWriter, _ *http.Request) {

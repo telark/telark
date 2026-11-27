@@ -114,7 +114,7 @@ func TestUserForEmail(t *testing.T) {
 }
 
 // SSO never grants Admin or the bootstrap marker, not even to the bootstrap email:
-// that account is created and recovered only through break-glass.
+// that account is created and recovered only through an auth request.
 func TestBuildOIDCUserIsReadOnlyForTheBootstrapEmail(t *testing.T) {
 	const email = "test@example.com"
 	t.Setenv(constants.EnvBootstrapAdmin, email)

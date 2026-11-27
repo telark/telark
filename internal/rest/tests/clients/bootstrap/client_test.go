@@ -19,6 +19,7 @@ const (
 	testServiceToken = "test-service-token"
 	requestID        = "br-1"
 	email            = "test@example.com"
+	requestedBy      = "system:serviceaccount:telark:ops-admin"
 	reason           = "not me"
 	keepCredential   = "cred-1"
 	refusal          = "request is not open"
@@ -29,7 +30,7 @@ const (
 	completePath     = "/api/v1/bootstrap/requests/br-1/complete"
 	okBody           = `{"status":200,"operation":"Success"}`
 	statusBody       = `{"status":200,"data":{"email":"test@example.com","requests":[{"id":"br-1","kind":"recovery","state":"open"}]}}`
-	openBody         = `{"email":"test@example.com"}`
+	openBody         = `{"email":"test@example.com","requestedBy":"system:serviceaccount:telark:ops-admin"}`
 	cancelBody       = `{"reason":"not me"}`
 	completeBody     = `{"revoke":true,"keep":"cred-1"}`
 )
@@ -99,7 +100,9 @@ func TestRequestCallsPostTheirBodyToTheirRoute(t *testing.T) {
 		wantPath string
 		wantBody string
 	}{
-		{"open", func(c *bootstrapclient.Client) *response.GenericResponse { return c.Open(email) }, openPath, openBody},
+		{"open", func(c *bootstrapclient.Client) *response.GenericResponse {
+			return c.Open(email, requestedBy)
+		}, openPath, openBody},
 		{"approve", func(c *bootstrapclient.Client) *response.GenericResponse {
 			return c.Approve(requestID)
 		}, approvePath, dataconstants.EmptyString},

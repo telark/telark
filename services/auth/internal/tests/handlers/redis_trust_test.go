@@ -77,7 +77,7 @@ func bootstrapDirectory() *testutil.FakeExporter {
 	return fake
 }
 
-// Break-glass issues the bootstrap account's links, so the test issues one the same way.
+// An auth request issues the bootstrap account's links, so the test issues one the same way.
 func bootstrapLink(t *testing.T) string {
 	t.Helper()
 	token, _, err := authhelper.IssueInvite(bootstrapID, constants.EmptyString, time.Minute)

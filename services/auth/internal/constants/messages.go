@@ -29,7 +29,7 @@ const (
 	// Enrollment Link and Self-Registration Messages.
 	SuccessEnrollLinkRevoked       messages.Message = "enrollment link revoked"
 	SuccessSelfRegistrationUpdated messages.Message = "self-registration updated"
-	SuccessBreakGlassAlertsUpdated messages.Message = "break-glass alerts updated"
+	SuccessAuthAlertsUpdated       messages.Message = "auth alerts updated"
 	LogEnrollLinkIssued            messages.Message = "enrollment link issued: identityHash=%s issuerHash=%s"
 	LogEnrollLinkRevoked           messages.Message = "enrollment link revoked: identityHash=%s"
 	NoticeEnrollLinkCreatedTitle   messages.Message = "Enrollment link created for your account"
@@ -37,9 +37,9 @@ const (
 	NoticeEnrollLinkUsedTitle      messages.Message = "Passkey added through an enrollment link"
 	NoticeEnrollLinkUsedMessage    messages.Message = "A passkey was added to your account through an enrollment link. " +
 		"If it was not you, tell an administrator."
-	NoticeIssuerUnknown    messages.Message = "an administrator"
-	NoticeIssuerBreakGlass messages.Message = "the break-glass command"
-	NoticeIssuerBootstrap  messages.Message = "the bootstrap account"
+	NoticeIssuerUnknown     messages.Message = "an administrator"
+	NoticeIssuerAuthRequest messages.Message = "an auth request"
+	NoticeIssuerBootstrap   messages.Message = "the bootstrap account"
 
 	// Logout Log Messages.
 	LogLogoutAttempted messages.Message = "logout attempted: identityHash=%s tokenStatus=%s"

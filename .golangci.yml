@@ -95,6 +95,11 @@ linters:
       - path: (^|/)tests/
         linters:
           - forcetypeassert
+      # cosign gets constants and a registry digest, with no shell, and gosec flags any exec argument that isn't a literal.
+      - path: (^|/)cmd/telark/internal/install/chart\.go$
+        linters:
+          - gosec
+        text: G204
 formatters:
   enable:
     - goimports

@@ -15,6 +15,7 @@ const (
 	KindAccessRole     = "AccessRole"
 	KindPasskey        = "Passkey"
 	KindSession        = "Session"
+	KindAuthRequest    = "AuthRequest"
 
 	PluralApplications    = "applications"
 	PluralProtectionPlans = "protectionplans"
@@ -25,6 +26,7 @@ const (
 	PluralAccessRoles     = "accessroles"
 	PluralPasskeys        = "passkeys"
 	PluralSessions        = "sessions"
+	PluralAuthRequests    = "authrequests"
 
 	TelarkConfigSingleton = "default"
 	CategorySingleton     = "categories"
@@ -64,6 +66,11 @@ const (
 	StatusCreatedAt          = "createdAt"
 	StatusLastUpdated        = "lastUpdated"
 	StatusCluster            = "cluster"
+	StatusRequestID          = "requestId"
+	StatusApprovalURL        = "approvalUrl"
+	StatusCompletesAt        = "completesAt"
+	StatusSealedLink         = "sealedLink"
+	StatusLinkExpiresAt      = "linkExpiresAt"
 )
 
 var ApplicationMetadata = define(KindApplication, PluralApplications, flat(
@@ -96,13 +103,17 @@ var PasskeyMetadata = define(KindPasskey, PluralPasskeys, nil)
 
 var SessionMetadata = define(KindSession, PluralSessions, nil)
 
+var AuthRequestMetadata = define(KindAuthRequest, PluralAuthRequests, flat(
+	StatusPhase, StatusReason, StatusRequestID, StatusApprovalURL, StatusCompletesAt, StatusSealedLink, StatusLinkExpiresAt,
+))
+
 func define(kind, plural string, statusFields map[string]string) base.Metadata {
 	return base.Metadata{
 		BaseGroup:    base.Group,
 		Kind:         kind,
 		Version:      base.V1Alpha1,
 		Plural:       plural,
-		Namespace:    globalshared.BaseNamespace,
+		Namespace:    globalshared.ReleaseNamespace(),
 		StatusFields: statusFields,
 	}
 }

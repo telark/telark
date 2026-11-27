@@ -33,6 +33,12 @@ const (
 	secondSeq     = 2
 	thirdSeq      = 3
 	dispatched    = 4
+
+	rogueStream    = "rogue"
+	jsStreamCreate = "$JS.API.STREAM.CREATE."
+	refusedCreates = 4
+	restoreWait    = 10 * time.Second
+	restorePoll    = 100 * time.Millisecond
 )
 
 func natsWithStreams(t *testing.T) *natscore.NATSClient {
@@ -297,6 +303,81 @@ func TestSubscribeAndProcess(t *testing.T) {
 		testutil.Equal(t, "processed action", a, natscore.Update)
 	case <-time.After(5 * time.Second):
 		t.Fatal("published message was not processed")
+	}
+}
+
+// A server without the stream (a new NATS server on an empty volume) answers every fetch with no
+// responders: the subscriber recreates the stream and its consumer, and retries a create the server refuses.
+func TestSubscribeRestoresAMissingStream(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		refused bool
+	}{
+		{"missing stream", false},
+		{"refused restore retried", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := natsWithStreams(t)
+			s := base.NewBaseSubscriber(natscore.Applications, shared.Application)
+
+			processed := make(chan natscore.Action, constants.DefaultAdd)
+			s.SetHandlerCallback(func(_ *nats.Msg, a natscore.Action) error {
+				processed <- a
+				return nil
+			})
+			subscribe(t, s, c)
+
+			if tc.refused {
+				refuseRestores(t, c)
+			} else if err := natstreams.DeleteStream(c, natscore.Applications); err != nil {
+				t.Fatalf("delete stream: %v", err)
+			}
+			payload := testutil.Data(&natscore.Message{ResourceName: app1, ResourceType: shared.Application, Scope: appScope})
+			topic := natscore.GetTopicName(natscore.Applications, natscore.Update)
+			deadline := time.Now().Add(restoreWait)
+			for _, err := c.JetStream.Publish(topic, payload); err != nil; _, err = c.JetStream.Publish(topic, payload) {
+				if time.Now().After(deadline) {
+					t.Fatalf("the stream was not recreated: %v", err)
+				}
+				time.Sleep(restorePoll)
+			}
+
+			select {
+			case a := <-processed:
+				testutil.Equal(t, "processed action", a, natscore.Update)
+			case <-time.After(restoreWait):
+				t.Fatal("a message published after the restore was not processed")
+			}
+		})
+	}
+}
+
+// Deletes the stream and holds its subjects with another one until the server has refused a restore
+// and a subscriber has tried again. A restore that wins the race to the subjects starts it over.
+func refuseRestores(t *testing.T, c *natscore.NATSClient) {
+	t.Helper()
+	rogue := &nats.StreamConfig{Name: rogueStream, Subjects: []string{natscore.GenerateSubjectName(natscore.Applications)}}
+	stream := natscore.GetStreamName(natscore.Applications)
+	for {
+		if err := c.JetStream.DeleteStream(stream); err != nil && !errors.Is(err, nats.ErrStreamNotFound) {
+			t.Fatalf("delete stream: %v", err)
+		}
+		if _, err := c.JetStream.AddStream(rogue); err == nil {
+			break
+		}
+	}
+	creates, err := c.Conn.SubscribeSync(jsStreamCreate + stream)
+	if err != nil {
+		t.Fatalf("subscribe to stream creates: %v", err)
+	}
+	// Three fetch loops: a fourth create comes from a loop whose first create was refused.
+	for range refusedCreates {
+		if _, err := creates.NextMsg(restoreWait); err != nil {
+			t.Fatalf("no restore attempt: %v", err)
+		}
+	}
+	if err := c.JetStream.DeleteStream(rogueStream); err != nil {
+		t.Fatalf("delete rogue stream: %v", err)
 	}
 }
 

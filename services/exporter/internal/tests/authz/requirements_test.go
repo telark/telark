@@ -191,6 +191,8 @@ func TestServiceOnlyRoutesAreInternal(t *testing.T) {
 		"GET /api/v1/internal/auth/passkeys/{credentialId}",
 		"PATCH /api/v1/internal/auth/passkeys/{credentialId}",
 		"DELETE /api/v1/internal/auth/passkeys/{credentialId}",
+		"GET /api/v1/internal/auth/requests/pending",
+		"PATCH /api/v1/internal/auth/requests/{id}/status",
 		"POST /api/v1/internal/notifications",
 	} {
 		if got := authz.Requirements()[key]; got != xauthz.Internal {

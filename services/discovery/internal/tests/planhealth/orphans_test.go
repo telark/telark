@@ -85,7 +85,7 @@ func (f *fullPlanStore) PatchOrError(string, string, planseps.PatchProtectionPla
 }
 
 // The status route is Read on protection plans: a viewer poll must neither redeploy a policy an
-// operator removed as break-glass nor write the plan.
+// operator removed in an emergency nor write the plan.
 func TestReadIsComputeOnly(t *testing.T) {
 	plan, policyName := renderedPlan(t, plans.PhaseActive)
 	dyn := withApplyCreate(fakeDyn())

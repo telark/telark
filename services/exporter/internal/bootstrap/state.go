@@ -48,7 +48,7 @@ func NotifyAdmins() bool {
 
 // A config stored before the switch existed has no value, which reads as the default: on.
 func alertsOn(config *unstructured.Unstructured) bool {
-	on, found, err := unstructured.NestedBool(config.Object, constants.SpecField, telarkconfig.FieldBreakGlassAlerts,
+	on, found, err := unstructured.NestedBool(config.Object, constants.SpecField, telarkconfig.FieldAuthAlerts,
 		telarkconfig.FieldNotifyAdmins)
 	return on || !found || err != nil
 }

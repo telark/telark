@@ -119,7 +119,7 @@ func LoginFinish(w http.ResponseWriter, r *http.Request) {
 	auth.SetSessionCookie(w, sessionToken, expiresAt)
 
 	// A refused login is no login: the stamp waits for the session, as on the Google path. The bootstrap account's
-	// stamp is what stops a break-glass request completing without approval, so it never waits on the pool.
+	// stamp is what stops an auth request completing without approval, so it never waits on the pool.
 	if user.Bootstrap {
 		auth.UpdateUserLastLogin(capturedUserID)
 		bootstrap.CancelOnSignIn(user.ID)

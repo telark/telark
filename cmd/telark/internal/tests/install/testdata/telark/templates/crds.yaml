@@ -1,0 +1,94 @@
+{{- if .Values.crds.enabled }}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: categories.telark.io
+  labels:
+    app.kubernetes.io/version: {{ .Chart.Version | quote }}
+spec:
+  group: telark.io
+  scope: Namespaced
+  {{- with .Values.crds.conversion }}
+  conversion: {{ . | quote }}
+  {{- end }}
+  names:
+    plural: categories
+    singular: category
+    kind: Category
+    listKind: CategoryList
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - title
+                - color
+              x-kubernetes-validations:
+                - rule: "!has(self.parent) || self.parent != self.title"
+                  message: a category can't be its own parent
+              properties:
+                title:
+                  type: string
+                parent:
+                  type: string
+                {{- with .Values.crds.reference }}
+                owner:
+                  $ref: {{ . | quote }}
+                {{- end }}
+                color:
+                  type: string
+                  default: gray
+                tags:
+                  type: array
+                  x-kubernetes-list-type: set
+                  items:
+                    type: string
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: accessroles.telark.io
+  labels:
+    app.kubernetes.io/version: {{ .Chart.Version | quote }}
+spec:
+  group: telark.io
+  scope: Namespaced
+  names:
+    plural: accessroles
+    singular: accessrole
+    kind: AccessRole
+    listKind: AccessRoleList
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                rules:
+                  type: array
+                  x-kubernetes-list-type: map
+                  x-kubernetes-list-map-keys:
+                    - resource
+                  items:
+                    type: object
+                    required:
+                      - resource
+                    properties:
+                      resource:
+                        type: string
+                      verbs:
+                        type: array
+                        items:
+                          type: string
+{{- end }}

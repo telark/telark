@@ -2,11 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
-	"slices"
 
 	// The image is FROM scratch, and repeating plans name IANA zones: the zone data ships in the binary.
 	_ "time/tzdata"
@@ -21,6 +21,7 @@ import (
 	"github.com/telark/telark/internal/x-ware/cors"
 	rediscore "github.com/telark/telark/internal/x-ware/redis/core"
 	redisinit "github.com/telark/telark/internal/x-ware/redis/init"
+	"github.com/telark/telark/services/exporter/internal/authrequests"
 	exporterauthz "github.com/telark/telark/services/exporter/internal/authz"
 	"github.com/telark/telark/services/exporter/internal/bootstrap"
 	"github.com/telark/telark/services/exporter/internal/config"
@@ -35,7 +36,6 @@ import (
 	notifstorage "github.com/telark/telark/services/exporter/internal/redis/notifications"
 	"github.com/telark/telark/services/exporter/internal/routes"
 	"github.com/telark/telark/services/exporter/internal/startup"
-	"github.com/telark/telark/services/exporter/internal/utils/artifact"
 	"github.com/telark/telark/services/exporter/internal/utils/performance"
 	snaputil "github.com/telark/telark/services/exporter/internal/utils/snapshot"
 )
@@ -48,16 +48,12 @@ var (
 )
 
 func main() {
-	// The chart's init container when the exporter's claims move (templates/_storage.tpl).
-	if len(os.Args) > constants.DefaultIncrementValue && os.Args[constants.DefaultIncrementValue] == constants.SubcommandMigrateStorage {
-		os.Exit(migrateStorage(os.Args[constants.DefaultIncrementValue+constants.DefaultIncrementValue:]))
-	}
 	config.ApplyKubernetesRESTRateLimit()
 	initSnapshotsConfig()
 	initReportsConfig()
 	lg.Info(fmt.Sprintf(string(constants.InfListRenderConcurrencyConfigured), envmanager.InitListRenderConcurrency()))
 	envmanager.InitBootstrapAdmin()
-	if err := envmanager.InitBreakGlassWait(); err != nil {
+	if err := errors.Join(envmanager.InitAuthRequestWait(), envmanager.InitAuthRequestRetention()); err != nil {
 		lg.Error(err.Error())
 		os.Exit(constants.ExitCodeFailure)
 	}
@@ -81,6 +77,8 @@ func main() {
 	go snaputil.StartStorageStatsRefresher(gcCtx)
 	go informers.StartApplications(gcCtx)
 	go informers.StartSessions(gcCtx)
+	go informers.StartAuthRequests(gcCtx)
+	go authrequests.StartCleanup(gcCtx)
 	notifHub := notifstorage.NewHub(exprdb.Get())
 	go notifHub.Run(gcCtx)
 	go membership.Reconcile(gcCtx, optimizer)
@@ -115,23 +113,6 @@ func initSnapshotsConfig() {
 		envmanager.GetSnapshotsPVCNamespace(),
 		envmanager.GetSnapshotsPVCName(),
 	))
-}
-
-func migrateStorage(pairs []string) int {
-	if len(pairs) == constants.DefaultInitValue || len(pairs)%constants.MigrateStoragePairSize != constants.DefaultInitValue {
-		lg.Error(string(constants.ErrMigrateStorageUsage))
-		return constants.ExitCodeFailure
-	}
-	for pair := range slices.Chunk(pairs, constants.MigrateStoragePairSize) {
-		from, to := pair[constants.DefaultInitValue], pair[constants.DefaultIncrementValue]
-		copied, err := artifact.CopyTree(from, to)
-		if err != nil {
-			lg.Error(fmt.Sprintf(string(constants.ErrMigrateStorageFailed), from, to, err))
-			return constants.ExitCodeFailure
-		}
-		lg.Info(fmt.Sprintf(string(constants.InfMigrateStorageCopied), copied, from, to))
-	}
-	return constants.DefaultInitValue
 }
 
 func initReportsConfig() {

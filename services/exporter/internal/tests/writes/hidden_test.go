@@ -62,12 +62,23 @@ func patchAs(t *testing.T, identity xauthz.Identity, path, body string) *httptes
 
 func serveAs(t *testing.T, identity xauthz.Identity, method, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
+	return serveOn(t, newRouter(t), identity, method, path, body)
+}
+
+// One router keeps one cache, so a list cached by one request is the one the next reads.
+func newRouter(t *testing.T) http.Handler {
+	t.Helper()
 	optimizer := performance.NewOptimizer(redis.NewClient(&redis.Options{Addr: miniredis.RunT(t).Addr()}))
 	t.Cleanup(optimizer.Close)
+	return router.NewRouter(routes.InitRoutes(optimizer, nil))
+}
+
+func serveOn(t *testing.T, h http.Handler, identity xauthz.Identity, method, path, body string) *httptest.ResponseRecorder {
+	t.Helper()
 	r := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(body))
 	r = r.WithContext(xauthz.WithIdentity(r.Context(), identity))
 	w := httptest.NewRecorder()
-	router.NewRouter(routes.InitRoutes(optimizer, nil)).ServeHTTP(w, r)
+	h.ServeHTTP(w, r)
 	return w
 }
 

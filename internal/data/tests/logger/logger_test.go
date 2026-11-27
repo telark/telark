@@ -42,50 +42,29 @@ func capture(t *testing.T, write func()) (stdout, stderr string) {
 	return string(printed), string(logged)
 }
 
-// UseCommandOutput can't be undone in a process, so a rerun (-count) checks only the command case.
-var commandOutputOn bool
-
-// A service logs every level on stdout. Once a command takes stdout for its answer, its log lines move to
-// stderr and its debug lines go nowhere. The switch is one-way, so the service case runs first.
-func TestCommandOutput(t *testing.T) {
+// A service logs every level on stdout and nothing on stderr.
+func TestLevelsGoToStdout(t *testing.T) {
 	levels := []struct {
-		tag       string
-		write     func(*logger.CustomLogger, string)
-		inCommand bool
+		tag   string
+		write func(*logger.CustomLogger, string)
 	}{
-		{"[INFO] ", (*logger.CustomLogger).Info, true},
-		{"[WARNING] ", (*logger.CustomLogger).Warn, true},
-		{"[ERROR] ", (*logger.CustomLogger).Error, true},
-		{"[DEBUG] ", (*logger.CustomLogger).Debug, false},
+		{"[INFO] ", (*logger.CustomLogger).Info},
+		{"[WARNING] ", (*logger.CustomLogger).Warn},
+		{"[ERROR] ", (*logger.CustomLogger).Error},
+		{"[DEBUG] ", (*logger.CustomLogger).Debug},
 	}
-	writeAll := func() {
+	stdout, stderr := capture(t, func() {
 		lg := logger.NewCustomLogger("test: ")
 		for _, level := range levels {
 			level.write(lg, level.tag)
 		}
-	}
-
-	if !commandOutputOn {
-		stdout, stderr := capture(t, writeAll)
-		if stderr != "" {
-			t.Fatalf("service stderr = %q, want nothing", stderr)
-		}
-		for _, level := range levels {
-			if !strings.Contains(stdout, level.tag) {
-				t.Fatalf("service stdout %q lacks %q", stdout, level.tag)
-			}
-		}
-	}
-
-	logger.UseCommandOutput()
-	commandOutputOn = true
-	stdout, stderr := capture(t, writeAll)
-	if stdout != "" {
-		t.Fatalf("command stdout = %q, want nothing", stdout)
+	})
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want nothing", stderr)
 	}
 	for _, level := range levels {
-		if strings.Contains(stderr, level.tag) != level.inCommand {
-			t.Fatalf("command stderr %q: has %q = %v, want %v", stderr, level.tag, !level.inCommand, level.inCommand)
+		if !strings.Contains(stdout, level.tag) {
+			t.Fatalf("stdout %q lacks %q", stdout, level.tag)
 		}
 	}
 }

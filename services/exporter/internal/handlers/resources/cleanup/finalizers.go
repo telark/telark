@@ -12,16 +12,22 @@ import (
 	responseutils "github.com/telark/telark/internal/rest/utils/response"
 	"github.com/telark/telark/services/exporter/internal/constants"
 	"github.com/telark/telark/services/exporter/internal/utils/concurrency"
+	"github.com/telark/telark/services/exporter/internal/utils/performance"
+	resourcesshared "github.com/telark/telark/services/exporter/internal/utils/resources/shared"
 	sharedutils "github.com/telark/telark/services/exporter/internal/utils/shared"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func AddFinalizer(w http.ResponseWriter, r *http.Request) {
-	mutateFinalizer(w, r, finalizerAdd)
+func AddFinalizer(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		mutateFinalizer(w, r, optimizer, finalizerAdd)
+	}
 }
 
-func RemoveFinalizer(w http.ResponseWriter, r *http.Request) {
-	mutateFinalizer(w, r, finalizerRemove)
+func RemoveFinalizer(optimizer *performance.Optimizer) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		mutateFinalizer(w, r, optimizer, finalizerRemove)
+	}
 }
 
 type finalizerMutation int
@@ -31,7 +37,7 @@ const (
 	finalizerRemove
 )
 
-func mutateFinalizer(w http.ResponseWriter, r *http.Request, op finalizerMutation) {
+func mutateFinalizer(w http.ResponseWriter, r *http.Request, optimizer *performance.Optimizer, op finalizerMutation) {
 	target, id, name, ok := extractFinalizerInputs(w, r)
 	if !ok {
 		return
@@ -65,6 +71,9 @@ func mutateFinalizer(w http.ResponseWriter, r *http.Request, op finalizerMutatio
 
 	patch := map[string]any{constants.MetadataField: map[string]any{constants.FieldFinalizers: next}}
 	patchResult := sharedutils.PatchCustomResource(target.Metadata, id, patch)
+	// The last finalizer's removal is when the API server drops a deleted record;
+	// a list cached while it was terminating would keep showing it until its TTL.
+	resourcesshared.InvalidateResourceCaches(optimizer, target.CacheType, id)
 	if patchResult.Status != http.StatusOK {
 		responseutils.LogAndSendResponse(w, patchResult.Status, response.OperationError,
 			patchResult.Message, nil, patchResult.Error)

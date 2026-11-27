@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	authdata "github.com/telark/telark/internal/data/auth"
+	"github.com/telark/telark/internal/data/resources/authrequest"
 	groupdata "github.com/telark/telark/internal/data/resources/group"
 	roledata "github.com/telark/telark/internal/data/resources/role"
 	telarkconfigresource "github.com/telark/telark/internal/data/resources/telarkconfig"
@@ -23,6 +24,11 @@ import (
 const (
 	fakeAPIPrefix     = "/api/v1/"
 	fakeUsersPrefix   = "users/"
+	fakeUsersPath     = "users"
+	CreatedUserID     = "u-created"
+	fakePendingPath   = "internal/auth/requests/pending"
+	fakeStatusPrefix  = "internal/auth/requests/"
+	fakeStatusSuffix  = "/status"
 	fakeByEmailPrefix = "internal/users/by-email/"
 	fakeRolesPrefix   = "accessroles/"
 	fakeGroupsPrefix  = "groups/"
@@ -47,7 +53,7 @@ const (
 
 // Seed the exported fields before StubBackend: once it serves, only the locking methods touch them. Credentials are
 // the passkeys an account signs with, and a passkey saved for such an account joins them; Passkeys only counts
-// placeholders. RequestAnswers answers a break-glass request route by its last path segment (requests, approve,
+// placeholders. RequestAnswers answers an auth request route by its last path segment (requests, approve,
 // cancel, complete), and a route without one answers 409.
 type FakeExporter struct {
 	Users          map[string]*userresource.User
@@ -59,6 +65,8 @@ type FakeExporter struct {
 	Config         telarkconfigresource.TelarkConfig
 	Bootstrap      telarkconfigresource.BootstrapStatus
 	RequestAnswers map[string]bootstrapeps.RequestResult
+	// The objects the request loop lists and reports on: one is listed until a status write ends it.
+	AuthRequests []authrequest.AuthRequest
 	// Runs on each request route call, under the fake's lock: it must not call the fake's methods.
 	OnRequest func(path string)
 
@@ -71,6 +79,16 @@ type FakeExporter struct {
 	requestCalls    []string
 	sessionsIssued  int
 	sessions        []authdata.Session
+	listReads       int
+	failedListReads []int
+	statusWriteDown bool
+	statusWrites    []StatusWrite
+}
+
+// One status write the request loop sent, as the exporter stored it.
+type StatusWrite struct {
+	ID     string
+	Status authrequest.Status
 }
 
 func (f *FakeExporter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -150,17 +168,41 @@ func patchUser(w http.ResponseWriter, r *http.Request, user *userresource.User) 
 	if stamp, isString := status[constants.UserStatusFieldLastLoginAt].(string); isString {
 		user.Status.LastLoginAt = &stamp
 	}
-	if identities, present := body[fakeKeyIdentities]; present {
-		raw, err := json.Marshal(identities)
-		if err == nil {
-			err = json.Unmarshal(raw, &user.Identities)
-		}
-		if err != nil {
-			fakeReply(w, http.StatusBadRequest, nil)
-			return
-		}
+	if !fakeField(body, fakeKeyIdentities, &user.Identities) || !fakeField(body, constants.SpecFieldRoleRefs, &user.RoleRefs) ||
+		!fakeField(body, constants.UserFieldBootstrap, &user.Bootstrap) {
+		fakeReply(w, http.StatusBadRequest, nil)
+		return
 	}
 	fakeReply(w, http.StatusOK, user)
+}
+
+// A field the patch doesn't carry stays as it is; false when its value doesn't fit.
+func fakeField[T any](body map[string]any, key string, target *T) bool {
+	value, present := body[key]
+	if !present {
+		return true
+	}
+	var decoded T
+	raw, err := json.Marshal(value)
+	if err != nil || json.Unmarshal(raw, &decoded) != nil {
+		return false
+	}
+	*target = decoded
+	return true
+}
+
+func (f *FakeExporter) createUser(w http.ResponseWriter, r *http.Request) {
+	var user userresource.User
+	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+		fakeReply(w, http.StatusBadRequest, nil)
+		return
+	}
+	user.ID = CreatedUserID
+	if f.Users == nil {
+		f.Users = map[string]*userresource.User{}
+	}
+	f.Users[user.ID] = &user
+	fakeReply(w, http.StatusCreated, user)
 }
 
 func (f *FakeExporter) servePasskeys(w http.ResponseWriter, r *http.Request) {
@@ -193,9 +235,16 @@ func (f *FakeExporter) servePasskeys(w http.ResponseWriter, r *http.Request) {
 	fakeReply(w, http.StatusOK, map[string]any{fakeKeyItems: items})
 }
 
-// The break-glass state, its request routes and the sessions a sign-in creates; any other path is unknown.
+// The auth request state, its request routes, the AuthRequest objects, a created account and the sessions a sign-in
+// creates; any other path is unknown.
 func (f *FakeExporter) serveBootstrap(w http.ResponseWriter, r *http.Request, path string) {
 	switch {
+	case path == fakeUsersPath && r.Method == http.MethodPost:
+		f.createUser(w, r)
+	case path == fakePendingPath:
+		f.listAuthRequests(w)
+	case strings.HasPrefix(path, fakeStatusPrefix) && strings.HasSuffix(path, fakeStatusSuffix):
+		f.writeStatus(w, r, strings.TrimSuffix(strings.TrimPrefix(path, fakeStatusPrefix), fakeStatusSuffix))
 	case path == fakeBootstrapPath:
 		fakeReply(w, http.StatusOK, f.Bootstrap)
 	case strings.HasPrefix(path, fakeRequestsPath):
@@ -229,6 +278,38 @@ func (f *FakeExporter) answerRequest(w http.ResponseWriter, r *http.Request, pat
 		return
 	}
 	fakeReply(w, http.StatusOK, answer)
+}
+
+// Oldest first, and only the phase of each status, as the exporter lists them.
+func (f *FakeExporter) listAuthRequests(w http.ResponseWriter) {
+	f.listReads++
+	if slices.Contains(f.failedListReads, f.listReads) {
+		fakeReply(w, http.StatusInternalServerError, nil)
+		return
+	}
+	pending := slices.DeleteFunc(slices.Clone(f.AuthRequests), func(request authrequest.AuthRequest) bool {
+		return request.Phase != constants.EmptyString && request.Phase != authrequest.PhasePending && !request.InFlight()
+	})
+	slices.SortStableFunc(pending, func(a, b authrequest.AuthRequest) int { return strings.Compare(a.CreatedAt, b.CreatedAt) })
+	fakeReply(w, http.StatusOK, map[string]any{fakeKeyItems: pending})
+}
+
+func (f *FakeExporter) writeStatus(w http.ResponseWriter, r *http.Request, id string) {
+	var status authrequest.Status
+	index := slices.IndexFunc(f.AuthRequests, func(request authrequest.AuthRequest) bool { return request.ID == id })
+	switch {
+	case json.NewDecoder(r.Body).Decode(&status) != nil:
+		fakeReply(w, http.StatusBadRequest, nil)
+	case f.statusWriteDown:
+		f.statusWriteDown = false
+		fakeReply(w, http.StatusInternalServerError, nil)
+	case index < constants.DefaultInitValue:
+		fakeReply(w, http.StatusNotFound, nil)
+	default:
+		f.statusWrites = append(f.statusWrites, StatusWrite{ID: id, Status: status})
+		f.AuthRequests[index].Phase = status.Phase
+		fakeReply(w, http.StatusOK, nil)
+	}
 }
 
 // Answers like GET config: the spec fields plus the resourceVersion a patch replays.
@@ -281,7 +362,7 @@ func (f *FakeExporter) SetConfig(cfg telarkconfigresource.TelarkConfig) {
 	f.Config = cfg
 }
 
-// The next status reads answer status, as when a request ends while break-glass runs.
+// The next status reads answer status, as when a request ends while an auth request runs.
 func (f *FakeExporter) SetBootstrap(status telarkconfigresource.BootstrapStatus) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -300,6 +381,33 @@ func (f *FakeExporter) FailNextPasskeyRead() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.passkeyReadDown = true
+}
+
+// The pending list reads with these ordinals, counted from 1, fail (500).
+func (f *FakeExporter) FailAuthRequestLists(reads ...int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.failedListReads = reads
+}
+
+// The next status write fails (500) and stores nothing, then writes work again.
+func (f *FakeExporter) FailNextStatusWrite() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.statusWriteDown = true
+}
+
+func (f *FakeExporter) AuthRequestListReads() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.listReads
+}
+
+// The status writes that reached the objects, in order.
+func (f *FakeExporter) StatusWrites() []StatusWrite {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.statusWrites)
 }
 
 // The user then answers 410, as a record only the cleanup finalizer still holds.

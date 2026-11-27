@@ -7,11 +7,11 @@ lists every target. Conventions are in [CONVENTIONS.md](../CONVENTIONS.md).
 
 | Tool | Needed for | Notes |
 |---|---|---|
-| Go **1.27.3** | all Go targets | the `go` line of the root `go.mod` |
+| Go **1.27.4** | all Go targets | the `go` line of the root `go.mod` |
 | `golangci-lint` **v2.14.0** | `make lint` | the version CI pins; uses the shared root `.golangci.yml` |
 | `helm` **≥ 3** (OCI) | all `helm-*` targets | |
 | `kubeconform` **v0.8.0** | `make helm-validate` | schema-validates rendered manifests |
-| Python **3.13** + `venv` | analyzer tests | `services/analyzer`; the version CI uses |
+| Python **3.15** + `venv` | analyzer tests | `services/analyzer`; the version CI uses |
 | Docker + a cluster | end-to-end work | |
 | `git-cliff` | `make changelog` | changelog generation |
 
@@ -21,10 +21,11 @@ lists every target. Conventions are in [CONVENTIONS.md](../CONVENTIONS.md).
 |---|---|---|---|
 | `make help` | Lists targets with their `##` descriptions | discovering commands | |
 | `make build` | `go build ./...` across the module | after any Go change | Go |
+| `make cli` | Builds the `telark` CLI into `bin/telark` with the release flags, stamped with `CLI_VERSION` (default: `git describe` without the `v`), the commit and the build date | to run the CLI against a cluster | Go, git |
 | `make vet` | `go vet ./...` | quick static check | Go |
-| `make fmt` | `gofmt -w services internal` | before committing Go | Go |
-| `make test` | `go test ./...` across the module (services and shared packages) | after any Go change | Go |
-| `make lint` | `golangci-lint run` per service and shared package (`SERVICE=<name>` for one) **+** `make helm-lint` | before every PR | golangci-lint, helm |
+| `make fmt` | `gofmt -w services internal cmd` | before committing Go | Go |
+| `make test` | `go test -ldflags=-linkmode=internal ./...` across the module (services, shared packages and the CLI): Go's own linker, since the host one is slow on the CLI's cgo dependencies | after any Go change | Go |
+| `make lint` | `golangci-lint run` per service, shared package and the CLI (`SERVICE=<name>` for one, `SERVICE=telark` for the CLI) **+** `make helm-lint` | before every PR | golangci-lint, helm |
 | `make helm-lint` | `helm lint` on `telark-crds` (with app values) and `telark` | after any chart change | helm |
 | `make helm-template` | Render the app chart; `MODE=minimal\|standard\|performance` optional | inspect rendered manifests | helm, `make deps` |
 | `make deps` | `helm repo add` + `helm dependency build`; fetches the git-ignored subchart `.tgz` | once, or after editing chart deps | helm |

@@ -62,21 +62,20 @@ The tables below explain the values that matter. [VALUES.md](VALUES.md) is the g
 | Key | Default | Description |
 |---|---|---|
 | `app.name` | `telark` | Source of truth for the app identity / resource-name prefix |
-| `app.namespace` | `telark` | Install namespace; bootstrap CRs land here. Must match the release namespace (`-n`): the subcharts follow `-n`, so a mismatch splits redis/nats away from the services |
+| `app.namespace` | `telark` | Install namespace; bootstrap CRs land here. Must match the release namespace (`-n`): the subcharts follow `-n`, so a mismatch splits redis/nats away from the services. Any namespace works when the two match, since the services read and write Telark's objects in their own pods' namespace |
 | `app.mode` | `standard` | Sizes every Telark service (replicas, resources, rate limits, PDBs). `minimal` \| `standard` \| `performance`. Subcharts keep production-grade defaults across all modes. |
 | `app.image.registry` | `ghcr.io/telark` | Registry and namespace hosting the per-service repos |
 | `app.image.pullPolicy` | `Always` | Image pull policy for every service container |
 | `app.image.pullSecrets` | `[]` | Pull secrets (public images need none; set for a private registry) |
-| `app.image.kubectl` | `registry.k8s.io/kubectl:v1.37.1@sha256:…` | kubectl image of the uninstall hooks that stop auth and Kyverno and clear their finalizers and webhooks ([Uninstall](../../docs/INSTALL.md#uninstall)); mirror it for air-gapped installs |
+| `app.image.kubectl` | `registry.k8s.io/kubectl:v1.37.1@sha256:…` | kubectl image of the uninstall hooks that stop Kyverno and clear its webhooks ([Uninstall](../../docs/INSTALL.md#uninstall)); mirror it for air-gapped installs |
 | `kyverno.enabled` | `true` | Install the kyverno subchart; `false` uses a Kyverno you already run ([Install](#install)) |
 | `kyverno.features.forceFailurePolicyIgnore.enabled` | `true` | The bundled Kyverno's webhooks fail open (`failurePolicy: Ignore`), so enforce plans are best-effort while Kyverno is down. See [Policy engine fail-open](../../docs/INSTALL.md#policy-engine-fail-open) |
 | `app.security.crdGuard.enabled` / `enforce` | `true` / `true` | ValidatingAdmissionPolicy: only the owning service accounts may write Telark CRs (`telark.io`, including `/status`), and only the exporter may change the key in the OIDC trust Secret (`enforce: false` audits). See [CRD write guard](../../docs/INSTALL.md#crd-write-guard) |
-| `app.security.crdGuard.extraAllowedUsers` | `[]` | Break-glass usernames also allowed to write Telark CRs and the OIDC trust Secret |
+| `app.security.crdGuard.extraAllowedUsers` | `[]` | Emergency-access usernames also allowed to write Telark CRs and the OIDC trust Secret |
 | `app.security.networkPolicy.enabled` | `true` | Ingress NetworkPolicies: default deny for Telark pods, APIs only from Telark pods, dashboard from anywhere, NATS 4222 only from discovery and notifier. Needs an enforcing CNI. See [Network policies](../../docs/INSTALL.md#network-policies) |
 | `app.selfMonitoring.enabled` | `false` | `false`: discovery skips Telark's own namespace (its services, Redis, NATS, Ollama, Kyverno, metrics-server), so none of it shows under Applications, and Application CRs already there are cleaned up. `true`: they show like any application. Plans never target that namespace. → `SELF_MONITORING_ENABLED` on discovery. See [Self-monitoring](../../docs/INSTALL.md#self-monitoring) |
 | `app.security.serviceToken.value` | `""` | Service token; empty = generated on install, read back on upgrade |
 | `app.security.serviceToken.existingSecret` | `""` | Secret (key `token`) you manage instead of the generated one, for cluster-less renders. See [GitOps](../../docs/INSTALL.md#gitops-cluster-less-renders) |
-| `app.security.breakGlass.waitHours` | `24` | Hours a break-glass request waits with no bootstrap sign-in before it completes on its own (at least 1). → `BREAK_GLASS_WAIT_HOURS` on auth and the exporter. See [Recovery requests](../../docs/INSTALL.md#recovery-requests) |
 | `app.webhooks.targets` | `[]` | Endpoints the notifier sends signed events to (`name`, `url`, `secret`, optional `previousSecret`, `events`, `allowPrivate`), rendered into the Secret `<app.name>-webhooks`. See [Webhooks](../../docs/INSTALL.md#webhooks) |
 | `app.webhooks.existingSecret` | `""` | Secret you manage instead (key `targets.json`, the same list as JSON), for cluster-less renders. See [Webhooks](../../docs/INSTALL.md#webhooks) |
 | `nats.existingSecrets.publisher` / `consumer` | `""` | Secrets (keys `username`, `password`) for the NATS publisher (discovery) and consumer (notifier) users instead of the generated `<app.name>-nats-{publisher,consumer}-secret`. See [GitOps](../../docs/INSTALL.md#gitops-cluster-less-renders) |
@@ -86,7 +85,7 @@ The tables below explain the values that matter. [VALUES.md](VALUES.md) is the g
 | `app.ollama.autoPull` | `true` | Let the analyzer pull a missing model (and allow ollama HTTPS egress); `false` for air-gapped installs |
 | `app.ollama.runtimeUrl` | `""` | Ollama-API endpoint you run yourself (URL only, no key); empty = the subchart. See [Analyzer runtime (ollama)](#analyzer-runtime-ollama) |
 | `app.persistence.enabled` | `true` | Provision the exporter snapshot and report PVCs (kept on uninstall); `false` keeps the data in emptyDirs, lost with the pod, unless the claims already exist. See [Exporter storage](../../docs/INSTALL.md#exporter-storage) |
-| `app.persistence.storageClass` | `""` | `"<name>"` = explicit class; `"-"` = disable dynamic provisioning; `""` = cluster default on install, the claims' current class on upgrade. A different class moves the data to new claims; more than one exporter replica needs a ReadWriteMany class. See [Exporter storage](../../docs/INSTALL.md#exporter-storage) |
+| `app.persistence.storageClass` | `""` | `"<name>"` = explicit class; `"-"` = disable dynamic provisioning; `""` = cluster default on install (named in the new claims, so a rollback keeps it), the claims' current class on upgrade. A different class moves the exporter to new claims, and `telark upgrade` copies the data first; more than one exporter replica needs a ReadWriteMany class. See [Exporter storage](../../docs/INSTALL.md#exporter-storage) |
 | `app.persistence.snapshotsSize` | `512Mi` | Exporter snapshots PVC size (`performance` 2Gi); only grows, where the class allows expansion |
 | `app.persistence.reportsSize` | `512Mi` | Exporter reports PVC size (`performance` 2Gi); only grows |
 
@@ -98,7 +97,9 @@ Reports live on the exporter's second PVC, next to snapshots, with the same stor
 
 | Key | Default | Description |
 |---|---|---|
-| `app.auth.bootstrap.admin` | `""` | The one bootstrap admin's email. The account is created and recovered only with `./main break-glass --email <email> --enroll` (passkey) and holds the built-in Admin role; Google sign-in and passkey self-registration never grant Admin, even to this email. → `BOOTSTRAP_ADMIN` env. Required (the render fails without it): only this account can turn on SSO or self-registration. See [First admin](../../docs/INSTALL.md#2-first-admin) |
+| `app.auth.bootstrap.admin` | `""` | The one bootstrap admin's email. The account is created and recovered only with `telark auth enroll --email <email>` (passkey) and holds the built-in Admin role; Google sign-in and passkey self-registration never grant Admin, even to this email. → `BOOTSTRAP_ADMIN` env. Required (the render fails without it): only this account can turn on SSO or self-registration. See [First admin](../../docs/INSTALL.md#2-first-admin) |
+| `app.auth.request.waitHours` | `24` | Hours an auth request waits with no bootstrap sign-in before it completes on its own (at least 1). → `AUTH_REQUEST_WAIT_HOURS` on auth and the exporter. See [Recovery requests](../../docs/INSTALL.md#recovery-requests) |
+| `app.auth.request.subjects` | `[]` | Who may run `telark auth enroll`: a list of `{kind: User\|Group, name: …}` the RoleBinding `telark-auth` binds to the ClusterRole `telark-auth` in the release namespace. Empty binds nobody. See [AuthRequest objects](../../docs/INSTALL.md#authrequest-objects) |
 
 #### `app.auth.oidc`
 
@@ -252,6 +253,7 @@ Image tags are `services.<svc>.version` in `values.yaml`, bumped by the release 
 | `SNAPSHOT_GC_INTERVAL_SEC` | `3600` | Sweep the snapshot PVC for files no Application CR references and older than 1 h (`minimal` 7200, `performance` 900; `0` = off). One replica sweeps per interval. Also drives the reports orphan sweep; `0` disables both |
 | `REPORTS_PATH` | `/reports` | Filesystem mount path for protection plan report files |
 | `BOOTSTRAP_ADMIN` | `{{ .Values.app.auth.bootstrap.admin }}` (tpl) | Same email as auth; a session may not create or edit a user with it (403), see [First admin](../../docs/INSTALL.md#2-first-admin) |
+| `AUTH_REQUEST_RETENTION_DAYS` | `30` | Age in days at which the exporter deletes `AuthRequest` objects (a whole number, at least 1). See [AuthRequest objects](../../docs/INSTALL.md#authrequest-objects) |
 | `OIDC_TRUST_SECRET_NAME` | `{{ include "telark.oidcTrustSecretName" . }}` (tpl) | Secret the exporter writes the pinned OIDC keys to; follows `app.auth.oidc.existingSecret` |
 
 #### `services.discovery.env`
@@ -459,7 +461,7 @@ Bootstrap (templated from `app.auth.bootstrap`):
 
 | Variable | Source | Description |
 |---|---|---|
-| `BOOTSTRAP_ADMIN` | `{{ .Values.app.auth.bootstrap.admin }}` | The bootstrap admin's email; `break-glass --enroll` marks it `bootstrap: true` until an account is pinned, then opens a request ([Recovery requests](../../docs/INSTALL.md#recovery-requests)); bare-email passkey registration refuses it, and OIDC and self-registration never grant it Admin |
+| `BOOTSTRAP_ADMIN` | `{{ .Values.app.auth.bootstrap.admin }}` | The bootstrap admin's email; an auth request (`telark auth enroll`) marks it `bootstrap: true` until an account is pinned, then opens a request ([Recovery requests](../../docs/INSTALL.md#recovery-requests)); bare-email passkey registration refuses it, and OIDC and self-registration never grant it Admin |
 
 WebAuthn / passkey (templated from `app.auth.passkey`):
 
@@ -468,11 +470,11 @@ WebAuthn / passkey (templated from `app.auth.passkey`):
 | `RP_ID` | `{{ .Values.app.auth.passkey.id }}` | Relying Party identifier; empty follows the request host |
 | `RP_NAME` | `{{ .Values.app.auth.passkey.name }}` | Display name shown to the user |
 | `RP_ORIGIN` | `{{ .Values.app.auth.passkey.origin }}` | Allowed origin(s), comma-separated; empty follows the request `Origin` |
-| `ENROLL_INVITE_TTL_SEC` | inline (`"3600"`) | Lifetime (seconds) of an enrollment link created from Members (a `break-glass --enroll` link always lives 10 minutes); a new link revokes the previous one. See [Enrollment links](../../docs/INSTALL.md#enrollment-links) |
+| `ENROLL_INVITE_TTL_SEC` | inline (`"3600"`) | Lifetime (seconds) of an enrollment link created from Members (an auth request's link always lives 10 minutes); a new link revokes the previous one. See [Enrollment links](../../docs/INSTALL.md#enrollment-links) |
 | `CHALLENGE_TIMEOUT` | inline (`"60"`) | Challenge TTL (seconds) |
 | `SESSION_EXPIRY` | inline (`"24"`) | Session TTL (hours) |
 
-Sign-in rate limits, per minute on each public start (passkey sign-in and registration, break-glass approval, Google nonce), then 429 with `Retry-After: 60` ([Sign-in rate limits](../../docs/INSTALL.md#sign-in-rate-limits)):
+Sign-in rate limits, per minute on each public start (passkey sign-in and registration, auth request approval, Google nonce), then 429 with `Retry-After: 60` ([Sign-in rate limits](../../docs/INSTALL.md#sign-in-rate-limits)):
 
 | Variable | Default | Description |
 |---|---|---|

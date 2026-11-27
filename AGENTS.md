@@ -8,10 +8,11 @@ Rules and workflows for coding agents (Claude Code, Codex, Cursor, Copilot, Gemi
 |---|---|
 | `services/auth`, `services/discovery`, `services/exporter`, `services/notifier` | Go services (packages of the root module `github.com/telark/telark`): `main.go` plus single-purpose packages under `internal/`; tests under `internal/tests/<area>/` |
 | `internal/data`, `internal/rest`, `internal/kcore`, `internal/x-ware` | Shared Go packages the services import: `data` CRD types, constants and Kyverno policy rendering; `rest` the HTTP clients, endpoints and router; `kcore` Kubernetes client helpers; `x-ware` the authorization middleware, CORS, Redis and NATS helpers. Tests under `tests/<area>/` |
+| `cmd/telark` | The `telark` CLI that operators install: it works through the Kubernetes API server with the caller's kubeconfig. `main.go` plus packages under `internal/`, tests under `internal/tests/<area>/`, and the Go service rules below apply |
 | `services/analyzer` | The analyzer: a Python/FastAPI service that runs local open-weight models through Ollama |
 | `charts/telark` | Application chart: services, subcharts (Redis, NATS JetStream, Kyverno, metrics-server, optional VPA, Ollama), sizing presets in `modes/`, and `values.dev.yaml` (local port-forward settings that Helm never loads) |
 | `charts/telark-crds` | CRDs, a standalone chart published to OCI; `charts/telark` depends on it by exact version (re-pinned by `release-charts` on `chart=both`) |
-| `docs/` | `INSTALL.md`, `DEVELOPMENT.md` (every make target), `PUBLISHING.md`, `CRDS.md`, ADRs; `architecture/`, `security/` and `testing/` for agents and contributors |
+| `docs/` | `INSTALL.md`, `CLI.md` (the `telark` commands), `DEVELOPMENT.md` (every make target), `PUBLISHING.md`, `CRDS.md`, ADRs; `architecture/`, `security/` and `testing/` for agents and contributors |
 | `.github/` | CI (`workflows/ci.yaml`), build and release workflows, composite actions in `actions/` and their scripts in `scripts/` |
 | `.claude/` | Agent skills (`skills/`) |
 
@@ -40,7 +41,7 @@ Service relationships and flows: [docs/architecture/](docs/architecture/README.m
 
 ### How it fits together
 
-- Everything that persists goes through the **exporter's HTTP API** (`rest` clients, `/api/v1/...`, port 8080). Only the exporter writes telark CRDs; discovery also patches `applications/status`.
+- Everything that persists goes through the **exporter's HTTP API** (`rest` clients, `/api/v1/...`, port 8080). Only the exporter writes telark CRDs; discovery also patches `applications/status`, and people create `AuthRequest` objects with `telark auth enroll` (the exporter alone writes their status).
 - **discovery** watches the cluster, publishes application events to NATS, stores snapshots and history through the exporter, pushes analysis jobs to the Redis stream `insights:jobs`, and creates and deletes the Kyverno `NamespacedValidatingPolicy` objects of active plans.
 - **auth** produces sessions; every other API service validates them through the same `x-ware` middleware (the analyzer asks auth).
 - Redis is shared coordination and cache (leader locks, queues, dedup, insights, authz cache). It requires a password (chart-generated Secret, `REDIS_PASSWORD`) but stays **untrusted**, since every service holds it: authorization cache entries are HMAC-signed.
@@ -58,7 +59,7 @@ Full model, RBAC table and invariants: [docs/security/](docs/security/README.md)
 
 ### Kubernetes objects
 
-- One CRD group, `telark.io` `v1alpha1`: `Application`, `ProtectionPlan`, `TelarkConfig` (these three with a status subresource), `Category`, `User`, `Group`, `AccessRole`, `Passkey`, `Session`; all namespaced in the release namespace. The object name is the identity (no `spec.id`). Use FQ names (`applications.telark.io`) or short names (`tapp`). Reference: [docs/CRDS.md](docs/CRDS.md).
+- One CRD group, `telark.io` `v1alpha1`: `Application`, `ProtectionPlan`, `TelarkConfig` (these three with a status subresource), `Category`, `User`, `Group`, `AccessRole`, `Passkey`, `Session`, `AuthRequest` (with a status subresource); all namespaced in the release namespace. The object name is the identity (no `spec.id`). Use FQ names (`applications.telark.io`) or short names (`tapp`). Reference: [docs/CRDS.md](docs/CRDS.md).
 
 ### Protection plans
 
@@ -69,12 +70,12 @@ Phases `draft`, `pending_approval`, `scheduled`, `active`, `terminated`, `cancel
 All Go code is one module with one root `go.mod`, and every Go command runs from the repository root. Don't add a `go.work`, a nested `go.mod` or `replace` directives, so every machine and CI build the same way.
 
 ```sh
-go build ./... && go vet ./... && go test -race ./... && golangci-lint run ./services/<svc>/...   # lint one service or ./internal/<pkg>/... at a time
+go build ./... && go vet ./... && go test -race ./... && golangci-lint run ./services/<svc>/...   # lint one service or ./internal/<pkg>/... or ./cmd/telark/... at a time
 helm repo add vpa https://charts.fairwinds.com/stable && make deps && make helm-lint && make helm-validate && make values-docs
 # analyzer: see docs/testing (Python 3.15 venv, two pytest runs, coverage >= 95)
 ```
 
-Tool versions (Go 1.27.3, golangci-lint v2.14.0, kubeconform v0.8.0, Python 3.15), install commands, CI coverage floors and cluster validation (UI → API → backend → Kubernetes): [docs/testing/](docs/testing/README.md). No cluster is available in a cloud session; unit tests, lint, Helm lint and render, kubeconform and the analyzer suite all run without one.
+Tool versions (Go 1.27.4, golangci-lint v2.14.0, kubeconform v0.8.0, Python 3.15), install commands, CI coverage floors and cluster validation (UI → API → backend → Kubernetes): [docs/testing/](docs/testing/README.md). No cluster is available in a cloud session; unit tests, lint, Helm lint and render, kubeconform and the analyzer suite all run without one.
 
 ## Working agreements
 
@@ -125,6 +126,7 @@ Verify each step against its success criterion before moving on. Strong criteria
 **Layout and ownership**
 
 - Domain logic (orchestration, validation, Kubernetes operations, business rules) lives in its own package under `services/<svc>/internal/<domain>/`. Handlers only decode the request, call the domain package and write the response; controllers and background loops reuse the same package. The logic stays reusable, and handlers stay thin enough to test in isolation.
+- A service binary only serves and takes no subcommand. What an operator starts (enroll, uninstall cleanup, a storage copy) is a `telark` command that works through the API server as the caller; a helper that must run in a pod is its own small binary in the image (`services/exporter/cmd/copy-tree`), started by the CLI.
 - The exporter owns CRD operations and the storage behind them; other services reach them over HTTP through `rest` clients. The exporter implements those handlers itself and never calls a `rest` client (reusing the module's request and response types is fine), since calling itself over HTTP would be a circular dependency.
 - For a new cross-service domain, build in this order: endpoint constants and types in `rest` (`endpoints/<domain>/`), handlers in the owning service wired to its routes, the `rest` client (`clients/<domain>/`), then the callers. A client without a server is dead code, and the handler defines the wire contract.
 - Discovery uses `rest` clients only through wrappers in `services/discovery/internal/clients/<domain>.go` (see `applications.go`), which hold its timeouts, circuit breaker and error classification. A few older call sites construct clients directly; don't extend that pattern.
@@ -133,7 +135,6 @@ Verify each step against its success criterion before moving on. Strong criteria
 **Code**
 
 - Every static string, config value, log message and error string goes in the package's `constants/` folder, not inline in logic. Write no bare `""`, `0` or `1`: use the named constants (`constants.EmptyString`, `constants.DefaultInitValue`, `constants.DefaultIncrementValue`, …; check the service's `constants/` first). `revive`'s `add-constant` rule is on, so magic numbers and repeated strings fail lint.
-- The messages the auth commands print (results, errors, usage and flag texts, link formats) live in `services/auth/cmd/outputs.go`, not in `constants/`.
 - A literal repeated in two or more files of a package (operation or kind names, JMESPath expressions, operators, label keys, regexes, format strings) moves to a shared constants file in that package, so there is one place to audit and edit.
 - When another feature needs a constant defined in a feature's own `constants.go`, move it to the service's root `constants/` package, remove the original and update the callers; don't import one feature's constants from another, because that creates false coupling. If the constant really belongs to that feature, keep the boundary and define your own.
 - All `type` declarations of a package go in one `types.go`; methods and functions stay in their domain files. Don't create empty or doc-only files.
@@ -166,8 +167,8 @@ Verify each step against its success criterion before moving on. Strong criteria
 
 - Tests live under `services/<svc>/internal/tests/<area>/` (`internal/<pkg>/tests/<area>/` for a shared package) as separate packages, table-driven, reusing the `testutil` helpers. Don't add `*_test.go` or `*_internal_test.go` files beside production code. Production packages stay test-free, and each service's tests sit in one tree. Never add test seams to production code: no `*ForTest` functions and no exported setters or constructors that exist only for tests or mutate package state. Test through the exported API production already uses; export an unexported function only when production calls it the same way. The one in-package test file is discovery's `coalesce_internal_test.go`.
 - CRD reads in tests go to a fake apiserver: seed `dynamicfake.NewSimpleDynamicClient` and inject it with `k8sclient.SetDynamicClient` (reset with `SetDynamicClient(nil)`). `ConvertToCRDTemplate` drops `id` and `deletionTimestamp` from the spec, so set those in metadata. Clients built with `NewDynamicClientWithRateLimit` (rollback controller, informers) ignore the injected one and `rest.InClusterConfig` reads a fixed token path, so the few functions only those paths reach stay exported with a one-line why, and informer-filling tests live in `coalesce_internal_test.go`. Discovery keeps the first excluded-namespace list per process (one list per test package, through `testutil.ExcludedNamespaces`); stdout-capture tests see only per-call loggers (rest `base.GetLogger()`), not cached ones.
-- Process-wide state outlives a test run: the cached Redis clients, the excluded-namespace list, the snapshot stats cache and the logger's command-output switch. A test package that binds the cached Redis client starts one embedded server in `TestMain`, and a test that needs such state unset gets its own package, so `go test -count=2 -shuffle=on ./...` stays green. A test that swaps a fake `TestMain` installed puts that fake back, never nil.
-- Code that waits real time (the break-glass hold, poll and keep-alive) is tested inside `synctest.Test`, whose fake clock skips the waits: create what every bubble shares (auth's Redis client) in `TestMain`, outside any bubble, date a fixture that must be in the past before 2000 (where a bubble's clock starts), and reach the exporter through `testutil.StubBackend`, which answers in-process because a real server would keep the clock from advancing.
+- Process-wide state outlives a test run: the cached Redis clients, the excluded-namespace list and the snapshot stats cache. A test package that binds the cached Redis client starts one embedded server in `TestMain`, and a test that needs such state unset gets its own package, so `go test -count=2 -shuffle=on ./...` stays green. A test that swaps a fake `TestMain` installed puts that fake back, never nil.
+- Code that waits real time (the auth request hold and polls) is tested inside `synctest.Test`, whose fake clock skips the waits: create what every bubble shares (auth's Redis client) in `TestMain`, outside any bubble, date a fixture that must be in the past before 2000 (where a bubble's clock starts), and reach the exporter through `testutil.StubBackend`, which answers in-process because a real server would keep the clock from advancing.
 - Before calling a Go change done, run the `go-service-change-gate` skill: build, vet and test across the module, and `golangci-lint run` per service and shared package last, with zero errors.
 
 **Known pitfall**
@@ -212,7 +213,7 @@ The analyzer is `services/analyzer` (chart key `services.analyzer`, image `analy
 
 ## CI and GitHub Actions
 
-- `.github/workflows/ci.yaml` is the merge gate: per Go service and shared package, a `test` leg (`go test -race` with a coverage floor, its profile uploaded to Codecov) and a `lint` leg, both run from the module root; the `analyzer` job (syntax check, pytest, coverage floor); and the Helm job (dependency build, lint of both charts, `VALUES.md` drift check, kubeconform across modes). Build and release workflows run on demand (`workflow_dispatch`; chart publishing also runs on a `v*` tag).
+- `.github/workflows/ci.yaml` is the merge gate: per Go service, shared package and the CLI, a `test` leg (`go test -race` with a coverage floor, its profile uploaded to Codecov) and a `lint` leg, both run from the module root; the `analyzer` job (syntax check, pytest, coverage floor); the Helm job (dependency build, lint of both charts, `VALUES.md` drift check, kubeconform across modes); and the CLI's release build, every target archived as `.goreleaser.yaml` releases it. Build and release workflows run on demand (`workflow_dispatch`; chart publishing starts its own run on the release tag it creates, which also releases the CLI).
 - Coverage floors are a ratchet: raise them as coverage improves, never lower them.
 - Any edit under `.github/`, or to a pinned tool version, follows the `github-actions-edit` skill: pin every action to its latest released tag and audit all `uses:` lines, not only the ones you touched. Stale action majors run on deprecated Node runtimes and fill every run with warnings.
 

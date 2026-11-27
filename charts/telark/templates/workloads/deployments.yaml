@@ -2,9 +2,7 @@
 {{- include "validateExporterStorage" (dict "values" $values "root" $) -}}
 {{- include "validateSubchartVolumes" $ -}}
 {{- include "validateSecuritySettings" $ -}}
-{{- if and $values.services.exporter.enabled $values.app.persistence.enabled -}}
-{{- include "telark.exporterMigration" (dict "values" $values "root" $) -}}
-{{- else -}}
+{{- if not (and $values.services.exporter.enabled $values.app.persistence.enabled) -}}
 {{- /* No claims render: an emptyDir stands in for each one, unless the claim exists (kept from an earlier install, or made by hand). */}}
 {{- $volumes := list -}}
 {{- range $values.services.exporter.volumes -}}

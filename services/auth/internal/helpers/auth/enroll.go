@@ -27,7 +27,7 @@ var (
 	extendRunScript        = redis.NewScript(constants.ScriptExtendRun)
 	releaseRunScript       = redis.NewScript(constants.ScriptReleaseRun)
 
-	errRunBusy = errors.New(string(constants.ErrBreakGlassRunBusy))
+	ErrRunBusy = errors.New(string(constants.ErrAuthRequestRunBusy))
 )
 
 // Redis is untrusted, so it holds only the digest: a key read from it opens no registration.
@@ -59,7 +59,7 @@ func CreateEnrollToken(userID string) (token string, expiresAt time.Time, err er
 	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisChallengeOpTimeout)
 	defer cancel()
 
-	// Indexed by user, so a break-glass recovery can drop the links a session minted (DropLinks).
+	// Indexed by user, so an auth request recovery can drop the links a session minted (DropLinks).
 	ownedBy := constants.RedisKeyPrefixEnrollTokensOf + userID
 	_, err = rdb.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 		pipe.Set(ctx, key, entry, ttl)
@@ -73,7 +73,7 @@ func CreateEnrollToken(userID string) (token string, expiresAt time.Time, err er
 	return token, time.Now().UTC().Add(ttl), nil
 }
 
-// Every link of the account: the invite (break-glass's) and the links its own sessions minted.
+// Every link of the account: the invite (an auth request's) and the links its own sessions minted.
 func DropLinks(userID string) error {
 	if err := DropInviteKeys(userID); err != nil {
 		return err
@@ -92,7 +92,7 @@ func DropLinks(userID string) error {
 	return nil
 }
 
-// An invite is an enrollment token another user, or break-glass, issues for targetID. Each
+// An invite is an enrollment token another user, or an auth request, issues for targetID. Each
 // user has at most one live link, so issuing replaces the previous one in the same step.
 func IssueInvite(targetID, issuerID string, ttl time.Duration) (token string, expiresAt time.Time, err error) {
 	rdb := redishelper.GetClient()
@@ -146,9 +146,9 @@ func closeInvite(targetID, acceptedAt string) error {
 	return setInvite(targetID, nil, acceptedAt)
 }
 
-// While break-glass recovers an account, nothing starts or finishes a sign-in or a registration for it (but the one its
+// While an auth request recovers an account, nothing starts or finishes a sign-in or a registration for it (but the one its
 // link opens, FreezeForLink), no session mints a link, and no passkey, identity or session is written for it (auth
-// checks right before each write). It lapses on its own if break-glass stops halfway.
+// checks right before each write). It lapses on its own if an auth request stops halfway.
 func Freeze(userID string) error {
 	return frozenKey(userID, func(ctx context.Context, rdb *redis.Client, key string) error {
 		return rdb.Set(ctx, key, constants.RedisChallengeEntry, time.Duration(constants.RedisTTLRecoveryFreeze)*time.Second).Err()
@@ -214,7 +214,7 @@ func RefuseFrozen(userID, enrollDigest string) error {
 	})
 }
 
-// One break-glass run at a time: another run's thaw would cut this one's freeze. The value is the run's own, so a run
+// One auth request run at a time: another run's thaw would cut this one's freeze. The value is the run's own, so a run
 // whose lock lapsed neither extends nor releases the next one's.
 func LockRun() (string, error) {
 	rdb := redishelper.GetClient()
@@ -227,9 +227,9 @@ func LockRun() (string, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisChallengeOpTimeout)
 	defer cancel()
-	taken, err := rdb.SetNX(ctx, constants.RedisKeyBreakGlassRun, lock, time.Duration(constants.RedisTTLBreakGlassRun)*time.Second).Result()
+	taken, err := rdb.SetNX(ctx, constants.RedisKeyAuthRequestRun, lock, time.Duration(constants.RedisTTLAuthRequestRun)*time.Second).Result()
 	if err == nil && !taken {
-		err = errRunBusy
+		err = ErrRunBusy
 	}
 	return lock, err
 }
@@ -238,7 +238,7 @@ func LockRun() (string, error) {
 func ExtendRun(lock string) error {
 	kept, err := runScript(extendRunScript, lock)
 	if err == nil && kept == constants.DefaultInitValue {
-		err = errors.New(string(constants.ErrBreakGlassRunLost))
+		err = errors.New(string(constants.ErrAuthRequestRunLost))
 	}
 	return err
 }
@@ -255,7 +255,7 @@ func runScript(script *redis.Script, lock string) (int, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), constants.RedisChallengeOpTimeout)
 	defer cancel()
-	return script.Run(ctx, rdb, []string{constants.RedisKeyBreakGlassRun}, lock, constants.RedisTTLBreakGlassRun).Int()
+	return script.Run(ctx, rdb, []string{constants.RedisKeyAuthRequestRun}, lock, constants.RedisTTLAuthRequestRun).Int()
 }
 
 func frozenKey(userID string, op func(context.Context, *redis.Client, string) error) error {
@@ -394,9 +394,9 @@ func notifyTarget(userID, notificationType string, title messages.Message, messa
 
 // Only the bootstrap account itself reads its own name.
 func issuerName(issuerID, targetID string) string {
-	// Break-glass passes no issuer: an operator ran it, not a user.
+	// An auth request passes no issuer: an operator ran it, not a user.
 	if issuerID == constants.EmptyString {
-		return string(constants.NoticeIssuerBreakGlass)
+		return string(constants.NoticeIssuerAuthRequest)
 	}
 	issuer, err := clients.GetUserClient().GetUserByID(issuerID)
 	switch {

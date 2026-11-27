@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -50,6 +51,8 @@ const (
 	suspendedID  = "u-00005-0000-0005"
 	pinnedEmail  = "admin@example.com"
 	otherEmail   = "test@example.com"
+	requester    = "system:serviceaccount:telark:ops-admin"
+	openBody     = `{"email":"%s","requestedBy":"%s"}`
 	adminRoleID  = "r-00000-0000-0001"
 	readerRoleID = "r-00000-0000-0004"
 	listSuffix   = "List"
@@ -237,7 +240,7 @@ func configWith(t *testing.T, status *telarkconfig.BootstrapStatus) seed {
 
 func alertsOff(t *testing.T, config seed) seed {
 	t.Helper()
-	path := []string{constants.SpecField, telarkconfig.FieldBreakGlassAlerts, telarkconfig.FieldNotifyAdmins}
+	path := []string{constants.SpecField, telarkconfig.FieldAuthAlerts, telarkconfig.FieldNotifyAdmins}
 	if err := unstructured.SetNestedField(config.obj.Object, false, path...); err != nil {
 		t.Fatal(err)
 	}
@@ -572,7 +575,7 @@ func call(t *testing.T, path, body string, want int) result {
 
 func open(t *testing.T, email string, want int) result {
 	t.Helper()
-	return call(t, requestsPath, `{"email":"`+email+`"}`, want)
+	return call(t, requestsPath, fmt.Sprintf(openBody, email, requester), want)
 }
 
 func act(t *testing.T, id, action, body string, want int) result {

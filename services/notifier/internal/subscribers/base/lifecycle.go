@@ -91,7 +91,7 @@ func (s *BaseSubscriber) createSubscription(nc *natscore.NATSClient, topic, queu
 	return sub, nil
 }
 
-func (s *BaseSubscriber) fetchAndProcessMessages(ctx context.Context, sub *nats.Subscription) {
+func (s *BaseSubscriber) fetchAndProcessMessages(ctx context.Context, nc *natscore.NATSClient, sub *nats.Subscription, topic, queue string) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -100,8 +100,7 @@ func (s *BaseSubscriber) fetchAndProcessMessages(ctx context.Context, sub *nats.
 			msgs, err := sub.Fetch(constants.NatsFetchBatchSize, nats.MaxWait(constants.FetchMaxWaitSeconds*time.Second))
 			if err != nil {
 				if !stderrors.Is(err, nats.ErrTimeout) {
-					logger.GetLogger(constants.PrefixManagerSubscriber).Error(
-						fmt.Sprintf(constants.ErrNatsFetchMessages, sub.Subject, err))
+					s.handleFetchError(nc, sub, topic, queue, err)
 					time.Sleep(constants.FetchErrorBackoffMillis * time.Millisecond)
 				}
 				continue
@@ -111,6 +110,25 @@ func (s *BaseSubscriber) fetchAndProcessMessages(ctx context.Context, sub *nats.
 			}
 		}
 	}
+}
+
+// Start alone creates the stream and consumers, so a server that has neither (a new NATS server on an
+// empty volume) answers no responders until they are recreated here.
+func (s *BaseSubscriber) handleFetchError(nc *natscore.NATSClient, sub *nats.Subscription, topic, queue string, err error) {
+	lg := logger.GetLogger(constants.PrefixManagerSubscriber)
+	if !stderrors.Is(err, nats.ErrNoResponders) {
+		lg.Error(fmt.Sprintf(constants.ErrNatsFetchMessages, sub.Subject, err))
+		return
+	}
+	restoreErr := natstreams.CreateStreams(nc)
+	if restoreErr == nil {
+		restoreErr = s.createConsumer(nc, topic, queue)
+	}
+	if restoreErr != nil {
+		lg.Error(fmt.Sprintf(constants.ErrNatsRestoreConsumer, topic, restoreErr))
+		return
+	}
+	lg.Warn(fmt.Sprintf(string(constants.WarnNatsConsumerRestored), topic))
 }
 
 func (s *BaseSubscriber) subscribeToTopic(ctx context.Context, nc *natscore.NATSClient, topic, queue string) error {
@@ -123,7 +141,7 @@ func (s *BaseSubscriber) subscribeToTopic(ctx context.Context, nc *natscore.NATS
 		return err
 	}
 
-	s.fetchWG.Go(func() { s.fetchAndProcessMessages(ctx, sub) })
+	s.fetchWG.Go(func() { s.fetchAndProcessMessages(ctx, nc, sub, topic, queue) })
 
 	logger.GetLogger(constants.PrefixManagerSubscriber).Info(fmt.Sprintf(string(messages.SuccessNatsTopicSubscribe), topic))
 	return nil

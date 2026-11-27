@@ -111,7 +111,7 @@ func ownUser(userID, email string) (*userresource.User, error) {
 
 // A bare email proves nothing, so it may only open a brand-new account: an
 // existing one needs a session or an enrollment token, and a bootstrap email is
-// enrolled by the operator (break-glass), never by whoever claims it first.
+// enrolled by the operator (an auth request), never by whoever claims it first.
 func userForEmail(email string) (*userresource.User, string, error) {
 	email, err := shared.ValidateEmail(email)
 	if err != nil {

@@ -10,6 +10,8 @@ The directory map is in [CONTRIBUTING.md](CONTRIBUTING.md#repository-layout).
 Each Go service: `services/<svc>/main.go` + `internal/` split into single-purpose
 packages, such as `constants config routes handlers clients helpers controllers
 coordination authz tests`. Import path is `github.com/telark/telark/services/<svc>`.
+The CLI, `cmd/telark/main.go`, has the same layout: packages under `internal/`, tests
+under `internal/tests/`.
 
 **Shared Go packages** (`data`, `rest`, `x-ware`, `kcore`) live in `internal/` of the
 same module (`github.com/telark/telark`, one root `go.mod`, **no `go.work`, no `replace`

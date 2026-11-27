@@ -78,20 +78,20 @@ spec:
                     enabled:
                       type: boolean
                       description: whether anyone who reaches the login page may create a ReadOnly account with a passkey. Written by auth for the bootstrap administrator only.
-                breakGlassAlerts:
+                authAlerts:
                   type: object
                   default: {}
                   properties:
                     notifyAdmins:
                       type: boolean
                       default: true
-                      description: whether every active Admin on ALL hears of break-glass recovery requests and reads them in the bootstrap status. When false, only the bootstrap account does. Written by auth for the bootstrap administrator only.
+                      description: whether every active Admin on ALL hears of auth requests and reads them in the bootstrap status. When false, only the bootstrap account does. Written by auth for the bootstrap administrator only.
             status:
               type: object
               properties:
                 bootstrap:
                   type: object
-                  description: The bootstrap account, pinned at its first passkey, and its break-glass requests. Written by the exporter alone.
+                  description: The bootstrap account, pinned at its first passkey, and its auth requests. Written by the exporter alone.
                   properties:
                     userID:
                       type: string
@@ -100,11 +100,11 @@ spec:
                     pinnedAt:
                       type: string
                       format: date-time
-                      description: When the account was pinned. Without it nothing is pinned, and break-glass acts at once.
+                      description: When the account was pinned. Without it nothing is pinned, and an auth request acts at once.
                     requests:
                       type: array
                       maxItems: 20
-                      description: Break-glass requests, newest first. At most one is open (pending or approved).
+                      description: Auth requests, newest first. At most one is open (pending or approved).
                       items:
                         type: object
                         required: [id, kind, state, openedAt]
@@ -117,6 +117,10 @@ spec:
                           targetEmail:
                             type: string
                             description: The account a replacement makes the bootstrap account.
+                          requestedBy:
+                            type: string
+                            maxLength: 512
+                            description: The Kubernetes username that opened the request.
                           state:
                             type: string
                             enum: [pending, approved, canceled, completed]

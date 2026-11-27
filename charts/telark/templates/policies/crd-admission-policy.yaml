@@ -60,11 +60,16 @@ spec:
       expression: >-
         request.resource.resource == 'applications' && has(request.subResource) && request.subResource == 'status'
         ? variables.ownersApplications : variables.ownersAll
+    # People create auth requests themselves: the auth-request policy rules that write, and every other one stays here.
+    - name: authRequestCreate
+      expression: >-
+        request.resource.resource == 'authrequests' && !has(request.subResource) && request.operation == 'CREATE' &&
+        request.namespace == '{{ $ns }}'
   validations:
     # userInfo is set by the API server from the authenticated request, so it is
     # the one field a caller cannot forge. DELETE carries no object, only
     # oldObject, which is why nothing here reads request.object.
-    - expression: request.userInfo.username in variables.allowed
+    - expression: variables.authRequestCreate || request.userInfo.username in variables.allowed
       reason: Forbidden
       messageExpression: '"writes to " + request.resource.resource + "." + request.resource.group + " are reserved to {{ $.Values.app.name }}; use its API so the role model applies"'
 ---

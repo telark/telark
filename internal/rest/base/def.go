@@ -96,7 +96,7 @@ func (api *API) Validate() error {
 }
 
 func GetServiceName(service Service) string {
-	return fmt.Sprintf("%s-%s-service", globalshared.BaseNamespace, service)
+	return fmt.Sprintf("%s-%s-service", globalshared.DefaultNamespace, service)
 }
 
 func GetLogger() *logger.CustomLogger {

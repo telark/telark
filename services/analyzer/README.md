@@ -122,7 +122,8 @@ for an hour with nothing pending.
 `main.py` is the only module at the root. The others sit in domain packages: `api/` (the HTTP surface),
 `analysis/` (incident runs, the setup review and the insight document), `core/` (what every package
 shares), `providers/` (the model runtime), `prompts/` and `tools/`. The Dockerfile copies each package
-folder, and `tests/test_dockerfile_cov.py` fails when one is missing from it.
+folder, and `tests/test_dockerfile_cov.py` fails when one is missing from it. The image has no shell
+or `apk` (its final stage drops busybox and apk-tools), so debug a pod with `kubectl debug`.
 
 | Module | Role |
 |---|---|

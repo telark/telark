@@ -24,6 +24,7 @@ import (
 	"github.com/telark/telark/services/exporter/internal/constants"
 	passkeyhandler "github.com/telark/telark/services/exporter/internal/handlers/auth/passkey"
 	sessionhandler "github.com/telark/telark/services/exporter/internal/handlers/auth/session"
+	authrequesthandler "github.com/telark/telark/services/exporter/internal/handlers/authrequests"
 	bootstraphandler "github.com/telark/telark/services/exporter/internal/handlers/bootstrap"
 	categoryhandler "github.com/telark/telark/services/exporter/internal/handlers/categories"
 	confighandler "github.com/telark/telark/services/exporter/internal/handlers/config"
@@ -89,14 +90,14 @@ func InitRoutes(optimizer *performance.Optimizer, hub *notifstorage.Hub) []route
 	routes = append(routes, notificationRoutes(hub)...)
 	routes = append(routes, protectionPlanRoutes()...)
 	routes = append(routes, statusRoutes()...)
-	routes = append(routes, cleanupRoutes()...)
+	routes = append(routes, cleanupRoutes(optimizer)...)
 	return routes
 }
 
-func cleanupRoutes() []router.Route {
+func cleanupRoutes(optimizer *performance.Optimizer) []router.Route {
 	return []router.Route{
-		router.CreateRoute(base.Update, cleanupendpoints.AddFinalizer, cleanuphandler.AddFinalizer),
-		router.CreateRoute(base.Delete, cleanupendpoints.RemoveFinalizer, cleanuphandler.RemoveFinalizer),
+		router.CreateRoute(base.Update, cleanupendpoints.AddFinalizer, cleanuphandler.AddFinalizer(optimizer)),
+		router.CreateRoute(base.Delete, cleanupendpoints.RemoveFinalizer, cleanuphandler.RemoveFinalizer(optimizer)),
 		router.CreateRoute(base.Get, cleanupendpoints.GetCleanupViewByID, cleanuphandler.GetCleanupViewByID),
 		router.CreateRoute(base.Get, cleanupendpoints.ListCleanupViews, cleanuphandler.ListCleanupViews),
 	}
@@ -161,6 +162,8 @@ func bootstrapRoutes(optimizer *performance.Optimizer) []router.Route {
 		router.CreateRoute(base.Post, bootstrapendpoints.ApproveRequest, bootstraphandler.ApproveRequest()),
 		router.CreateRoute(base.Post, bootstrapendpoints.CancelRequest, bootstraphandler.CancelRequest(optimizer)),
 		router.CreateRoute(base.Post, bootstrapendpoints.CompleteRequest, bootstraphandler.CompleteRequest(optimizer)),
+		router.CreateRoute(base.Get, authendpoints.GetPendingAuthRequests, authrequesthandler.GetPending()),
+		router.CreateRoute(base.Patch, authendpoints.PatchAuthRequestStatus, authrequesthandler.PatchStatus()),
 	}
 }
 

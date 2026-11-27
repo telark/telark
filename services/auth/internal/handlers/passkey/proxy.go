@@ -90,8 +90,8 @@ func CreatePasskey(w http.ResponseWriter, r *http.Request) {
 }
 
 // The identity, then the passkey, each right after a fresh look at the freeze: a registration that began before
-// break-glass froze the account sends nothing after it, so nothing it writes can land later than the bound
-// break-glass waits out. The registration a recovery's link opened passes while the freeze holds that link.
+// an auth request froze the account sends nothing after it, so nothing it writes can land later than the bound
+// an auth request waits out. The registration a recovery's link opened passes while the freeze holds that link.
 func saveCredential(
 	w http.ResponseWriter, user *userresource.User, credential *webauthnlib.Credential, passkey *authdata.Passkey,
 	enrollDigest string, rollback func(),

@@ -31,7 +31,7 @@ func addIdentityProvider(r map[string]authz.Requirement) {
 		roledata.ActionEditOIDCConfig,
 	)
 	r[router.Key(base.Patch, autheps.SelfRegistration)] = authz.Administer(roledata.ScopeSettings)
-	r[router.Key(base.Patch, autheps.BreakGlassAlerts)] = authz.Administer(roledata.ScopeSettings)
+	r[router.Key(base.Patch, autheps.AuthAlerts)] = authz.Administer(roledata.ScopeSettings)
 }
 
 // The handler then caps the target's levels by the caller's and refuses hidden,
@@ -59,7 +59,7 @@ func addLogin(r map[string]authz.Requirement) {
 	r[router.Key(base.Get, autheps.Config)] = authz.Public
 	r[router.Key(base.Post, autheps.OIDCGoogleCallback)] = authz.Public
 	r[router.Key(base.Post, autheps.OIDCGoogleNonce)] = authz.Public
-	// A break-glass approval must not need a sign-in, which would cancel the request: a fresh user-verified
+	// An auth request approval must not need a sign-in, which would cancel the request: a fresh user-verified
 	// assertion by the pinned account, over this request and this action, is the proof.
 	r[router.Key(base.Post, bootstrapeps.StartAssertion)] = authz.Public
 	r[router.Key(base.Post, bootstrapeps.FinishAssertion)] = authz.Public

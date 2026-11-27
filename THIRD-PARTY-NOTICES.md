@@ -1,6 +1,6 @@
 # Third-party notices
 
-Telark's own code is licensed under the [Elastic License 2.0](LICENSE.md). Telark's container images and Helm chart also contain third-party software, and each component stays under its own license. Nothing in the Elastic License 2.0 limits the rights those licenses give you.
+Telark's own code is licensed under the [Elastic License 2.0](LICENSE.md). Telark's container images, Helm chart and `telark` CLI also contain third-party software, and each component stays under its own license. Nothing in the Elastic License 2.0 limits the rights those licenses give you.
 
 ## Where the notices are
 
@@ -10,6 +10,7 @@ Telark's own code is licensed under the [Elastic License 2.0](LICENSE.md). Telar
 | `ghcr.io/telark/analyzer` | [`services/analyzer/THIRD-PARTY-NOTICES.md`](services/analyzer/THIRD-PARTY-NOTICES.md), at `/app/THIRD-PARTY-NOTICES.md` in the image |
 | `ghcr.io/telark/ui` | the `THIRD-PARTY-NOTICES.md` of [telark/dashboard-ui](https://github.com/telark/dashboard-ui), at `/licenses/` in the image. The dashboard links the bundled packages' notices from Settings > About. |
 | Helm chart `telark` | [`charts/telark/THIRD-PARTY-NOTICES.md`](charts/telark/THIRD-PARTY-NOTICES.md), packaged with the chart |
+| `telark` CLI archives (GitHub Release, Homebrew) | `licenses/go-modules.txt` in each archive: every Go module linked into that target's binary, generated at release time by the same script. The archive also holds this file and `LICENSE.md`. |
 
 ## CA certificates in the auth and notifier images
 

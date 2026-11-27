@@ -6,12 +6,11 @@ import (
 	"time"
 )
 
-var (
-	NameRegex = regexp.MustCompile(`[^a-z0-9-.]`)
-)
+var NameRegex = regexp.MustCompile(`[^a-z0-9-.]`)
 
 const (
-	BaseNamespace             = "telark"
+	DefaultNamespace          = "telark"
+	EnvPodNamespace           = "POD_NAMESPACE"
 	DefaultTimeFormat         = time.RFC3339
 	DefaultCPU                = "N/A"
 	DefaultMemory             = "N/A"

@@ -39,7 +39,7 @@ func (c *Client) CreatePasskeyByUser(userID string, passkey *authdata.Passkey) *
 	)
 }
 
-// Read fresh, like every authorization input: sign-in, approvals and break-glass decide on it, and a cached list
+// Read fresh, like every authorization input: sign-in, approvals and an auth request decide on it, and a cached list
 // would keep a revoked passkey, or one planted in Redis, for minutes.
 func (c *Client) GetAllPasskeysByUser(userID string) ([]*authdata.Passkey, error) {
 	headers := userHeaders(userID)
@@ -56,7 +56,7 @@ func (c *Client) GetPasskeyByUserAndCredentialID(userID string, credentialID str
 }
 
 func (c *Client) PatchPasskeyByUserAndCredentialID(
-	userID string, credentialID string, body map[string]any,
+	userID, credentialID string, body map[string]any,
 ) *response.GenericResponse {
 	return shared.ExecuteRequestWithHeaders(
 		c.withCredential(credentialID), base.Patch, eps.PatchInternalPasskeyByUserAndCredentialID, body, userHeaders(userID),
@@ -64,8 +64,7 @@ func (c *Client) PatchPasskeyByUserAndCredentialID(
 }
 
 func (c *Client) DeletePasskeyByUserAndCredentialID(
-	userID string,
-	credentialID string,
+	userID, credentialID string,
 	forceLastDelete bool,
 ) *response.GenericResponse {
 	body := map[string]any{}

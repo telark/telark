@@ -65,7 +65,7 @@ func Check(ctx context.Context, deps Deps, planID string) (*plans.ProtectionPlan
 }
 
 // Compute-only for the viewer-facing status route: no repair, no persisted health. Repair runs
-// on the leader tick, so a read can neither amplify cluster writes nor undo a break-glass edit.
+// on the leader tick, so a read can neither amplify cluster writes nor undo an emergency edit.
 func Read(ctx context.Context, deps Deps, planID string) (*plans.ProtectionPlan, Result, error) {
 	plan, err := deps.Exporter.Get(planID)
 	if err != nil {

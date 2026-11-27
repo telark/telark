@@ -35,7 +35,7 @@ const (
 	orValueMacro    = "orValue"
 	orValueCompat   = "__orValueCompat__"
 
-	// The CEL library versions Kyverno 1.19.2's env pins.
+	// The CEL library versions Kyverno 1.20.0's env pins.
 	kyvernoListsVersion   = 3
 	kyvernoStringsVersion = 2
 	kyvernoRegexVersion   = 1
@@ -77,7 +77,7 @@ type compiledPolicy struct {
 	validations     []compiler.Validation
 }
 
-// The environment of Kyverno 1.19's vpol compiler (createBaseVpolEnv), on the light sdk module: Kyverno's
+// The environment of Kyverno 1.20's vpol compiler (createBaseVpolEnv), on the light sdk module: Kyverno's
 // own module links cosign and three cloud SDKs. Of Kyverno's libraries the policies call only the image one.
 func vpolEnv(t *testing.T) (*cel.Env, *compiler.VariablesProvider) {
 	t.Helper()
@@ -115,7 +115,7 @@ func vpolEnv(t *testing.T) (*cel.Env, *compiler.VariablesProvider) {
 	return env, variables
 }
 
-// Kyverno 1.19.2's DefaultEnvOptionsWithCompat (pkg/cel/compiler/env.go), which the sdk lacks.
+// Kyverno 1.20.0's DefaultEnvOptionsWithCompat (pkg/cel/compiler/env.go), which the sdk lacks.
 // Compare it with Kyverno's on every Kyverno bump.
 func kyvernoEnvOptions() []cel.EnvOption {
 	return []cel.EnvOption{

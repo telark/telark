@@ -28,7 +28,7 @@ var Routes = []router.Route{
 	// Registration routes
 	router.CreateRoute(base.Post, autheps.StartRegister, passkeyhandler.RegisterStart),
 
-	// Break-glass request approval (no sign-in)
+	// Auth request approval (no sign-in)
 	router.CreateRoute(base.Post, bootstrapeps.StartAssertion, bootstraphandler.StartAssertion),
 	router.CreateRoute(base.Post, bootstrapeps.FinishAssertion, bootstraphandler.FinishAssertion),
 
@@ -50,7 +50,7 @@ var Routes = []router.Route{
 	router.CreateRoute(base.Post, autheps.OIDCGoogleNonce, oidchandler.GetNonce),
 	router.CreateRoute(base.Patch, autheps.OIDCConfig, oidchandler.SetConfig),
 	router.CreateRoute(base.Patch, autheps.SelfRegistration, confighandler.SetSelfRegistration),
-	router.CreateRoute(base.Patch, autheps.BreakGlassAlerts, confighandler.SetBreakGlassAlerts),
+	router.CreateRoute(base.Patch, autheps.AuthAlerts, confighandler.SetAuthAlerts),
 
 	// Status routes
 	router.CreateRoute(base.Get, statuseps.HealthCheck, statushandler.ProbeHandler),

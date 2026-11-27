@@ -1,0 +1,4 @@
+apiVersion: v2
+name: telark
+description: A small stand-in for the Telark chart, for the install and upgrade tests
+version: 0.0.0

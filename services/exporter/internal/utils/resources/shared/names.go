@@ -23,7 +23,9 @@ func ReserveNameOrRespond(
 ) (unlock func(), ok bool) {
 	name, isString := body[constants.FieldName].(string)
 	if !isString || strings.EqualFold(strings.TrimSpace(name), strings.TrimSpace(current)) {
-		return func() {}, true
+		return func() {
+			// Nothing was locked, so there is nothing to release.
+		}, true
 	}
 	lock := concurrency.GetLock(md.Plural + constants.NamesLockSuffix)
 	lock.Lock()

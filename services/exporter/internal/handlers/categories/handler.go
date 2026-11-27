@@ -171,8 +171,7 @@ func ListCategoriesWithCacheInvalidation() func(http.ResponseWriter, *http.Reque
 func patchCategoryResource(
 	w http.ResponseWriter,
 	catID string,
-	existingCategory map[string]any,
-	body map[string]any,
+	existingCategory, body map[string]any,
 	optimizer *performance.Optimizer,
 ) {
 	resourcesshared.AddLastUpdateDateToPatchBody(body)

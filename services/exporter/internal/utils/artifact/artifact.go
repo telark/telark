@@ -77,7 +77,7 @@ func CopyTree(src string, dst string) (int, error) {
 	return copied, err
 }
 
-func copyIfNewer(path string, target string, d fs.DirEntry) (bool, error) {
+func copyIfNewer(path, target string, d fs.DirEntry) (bool, error) {
 	info, err := d.Info()
 	if err != nil {
 		return false, err

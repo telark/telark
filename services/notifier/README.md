@@ -52,7 +52,7 @@ flowchart LR
 
 ## Responsibilities
 
-- Subscribe to the `telark.applications.*` JetStream (creates the streams on start).
+- Subscribe to the `telark.applications.*` JetStream (creates the streams on start, and again with the consumer when the server answers that they are missing, as a new NATS server on an empty volume does).
 - On **update**: patch the named `Application` via exporter (`PATCH applications/{name}`); on `404`, create it (`POST applications`, upsert).
 - On **delete**: reset the named application via discovery (`POST /api/v1/applications/{name}/reset`, authenticated with the service token). `200` and `404` (already gone) ack; a status the reset may later succeed on (`5xx`, `409`, no answer) is NAK'd for redelivery; any other refusal is acked and logged.
 - Ack with structured logging; malformed messages are acked and logged, not redelivered forever.
